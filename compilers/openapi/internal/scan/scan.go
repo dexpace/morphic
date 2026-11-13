@@ -170,8 +170,8 @@ func scanRecovered(whole ir.Provenance, scan func() []ir.Diagnostic) []ir.Diagno
 // own ancestor overflows the parser's stack, and an alias bomb exhausts its
 // memory (docs/parser-library.md#alias-cycle,
 // docs/parser-library.md#alias-expansion). It serves an overlay too
-// (docs/parser-library.md#overlay-alias-clone). tree places a refusal at its
-// node; an incomplete scan yields a diag.CycleScanFailed warning at whole.
+// (load.overlayRefusals). tree places a refusal at its node; an incomplete
+// scan yields a diag.CycleScanFailed warning at whole.
 //
 // The index must cover the whole tree that will reach the parser: an alias to
 // an ancestor is visible only from the root. surplus is the alias budget;
@@ -194,8 +194,9 @@ func Aliases(ctx context.Context, tree provenance.Tree, whole ir.Provenance, idx
 // with the least pointer (Least): the parser cannot decode one
 // (docs/parser-library.md#alias-cycle). It is read before anything weighs the
 // document's aliases: a recursive anchor makes the expanded weight infinite,
-// and having refused those is what makes the alias graph a DAG and the weigh
-// walk provably terminating.
+// and having refused those makes the alias graph a DAG above the index's
+// tracked depth. One below it is the weigh walk's to end, by its cut, so the
+// walk terminates on its own account.
 func anchorCycle(ctx context.Context, tree provenance.Tree, idx sourceindex.Index) (ir.Diagnostic, bool) {
 	cycles := idx.AnchorCycles()
 	if len(cycles) == 0 {

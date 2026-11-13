@@ -105,26 +105,38 @@ const (
 	// recognize it, and the reason it declined is the parse error it holds.
 	UndecodableSource = "openapi/undecodable-source"
 	// OverlayInvalid reports an overlay document that could not be parsed, or that
-	// parsed but is not a valid Overlay — a missing version, no actions, an action
-	// naming no target. Nothing is applied, so the compile refuses rather than
-	// lowering a source the caller believes was patched.
+	// parsed but is not a valid Overlay — a missing version or one no Overlay
+	// Specification names, no actions, an action naming no target, a selector that
+	// is no RFC 9535 query, a copy in an Overlay 1.0 document — as overlay.read and
+	// overlay.readSelector find. Nothing is applied, so the compile refuses rather
+	// than lowering a source the caller believes was patched.
 	OverlayInvalid = "openapi/invalid-overlay"
-	// OverlayFailed reports an overlay the library could not apply as written: a
-	// selector matching nothing under strict application, or an action whose
-	// update disagrees with the shape it targets. Actions are applied in order and
-	// the ones that landed are not undone, so the compile refuses — the tree left
-	// behind is neither the source nor what the overlay asked for.
+	// OverlayFailed reports an overlay that does not fit the document it is
+	// applied to, or no rule applies as written: an action setting both update
+	// and copy (overlay.read), one whose selector selects nothing under strict
+	// application or whose write the specification's rules refuse
+	// (overlay.runSequence), and an application that panicked. Actions apply in
+	// order and the ones that landed are not undone, so the compile refuses.
 	OverlayFailed = "openapi/overlay-failed"
-	// OverlayAction reports one strict-mode finding about a single action, naming
-	// the action and its target: that it changed nothing, or that it relies on
-	// JSONPath behaviour the overlay did not opt into.
-	//
-	// It stands alone as often as it accompanies a refusal, and the difference is
-	// the point. An action whose selector matched nothing is a typo and refuses
-	// under OverlayFailed, with these naming which actions are why; an action that
-	// matched and then changed nothing is merely redundant — the fix it describes
-	// is already in the source — so it is reported and the compile proceeds.
+	// OverlayUnsupported reports a valid overlay the compiler does not apply: an
+	// Overlay 1.2 document, or a selector RFC 9535 reads that the compiler's
+	// JSONPath implementation refuses or misreads (overlay.readSelector). Nothing
+	// is applied, so the compile refuses.
+	OverlayUnsupported = "openapi/overlay-unsupported"
+	// OverlayAction reports a warning about the overlay or a single action,
+	// naming the action and its target: that it changed nothing, because what it
+	// writes is there already, because it selects nothing under lax application,
+	// or because it sets no modifier; that it sets a field with no effect beside
+	// another; that it writes a merge key, or inside a node YAML aliases name;
+	// or that the source holds aliases or merge keys a selector does not read
+	// through, as overlay.runSequence and overlay.read find.
 	OverlayAction = "openapi/overlay-action"
+	// OverlayReplacedValue reports an action that replaced a primitive the source
+	// declares, as against adding one the source lacks, naming both values: an
+	// overlay written to fill a gap keeps winning once the source fills it, and
+	// this is how that shows (overlay.runSequence). Info, as overriding is a
+	// legitimate use.
+	OverlayReplacedValue = "openapi/overlay-replaced-value"
 	// OverlayOriginIncomplete reports that the overlay applied but the walk that
 	// attributes positions to it exceeded its node budget. Provenance degrades to
 	// naming the source for every position, which is what a compile with no
@@ -143,8 +155,7 @@ const (
 	// Warning where FalseSchema is info: a boolean `false` schema is the idiom for
 	// "forbid this here", but an empty member list is that statement written the
 	// way nobody does on purpose, usually a generator emitting a list it never
-	// filled. Not an error: the document is well-formed, and harness.Check stops
-	// at the first error diagnostic, hiding later findings.
+	// filled. Not an error: the document is well-formed.
 	EmptyEnum = "openapi/empty-enum"
 	// DuplicateEnumValue reports an `enum` entry whose value an earlier entry
 	// already holds, at the repeat's own position, whether the set lowers to an
@@ -208,14 +219,14 @@ const (
 	// belongs in its own field, but accepts this one.
 	InvalidMethodKey = "openapi/invalid-method-key"
 	// DegradedConstruct reports a construct the compiler could not carry into the
-	// IR as written: preserved raw for want of a structural home, lowered to a
-	// weaker shape (a heterogeneous enum as a union, an unconvertible value as
-	// the top type), or dropped — an annotation like a default or example, or
-	// the fields beside a path item $ref the load phase's walk does not reach. A
-	// promotion or grouping by extension reports it for an extension kept but
-	// read into no field or group (lowering.Promoter, operation.extensionLevels).
-	// It marks the lossy lowerings the compiler reports, not a guarantee that
-	// every one is.
+	// IR as written: kept raw for want of a home or past a bound (callbacks too
+	// deep, operation.operationCallbacks), lowered weaker (a heterogeneous enum
+	// as a union, an unconvertible value as the top type), or dropped, as a
+	// default or the fields beside a path item $ref the load phase's walk does
+	// not reach are. A promotion or grouping by extension reports it for an
+	// extension kept but read into no field or group (lowering.Promoter,
+	// operation.extensionPaths). It marks the lossy lowerings the compiler
+	// reports, not every one.
 	DegradedConstruct = "openapi/degraded-construct"
 	// CompositionLowering reports that a schema conjoining a structural body with
 	// a oneOf/anyOf was lowered by distributing the body across the union
@@ -317,8 +328,7 @@ const (
 	// OpenAPI does not say which declaration wins, so the one nearer the use
 	// site does, as for a $ref-adjacent schema sibling, and the other is not
 	// lowered at that mount. A warning, as InvalidStatusKey is: the document
-	// still lowers, nothing is lost unnamed, and an error would stop
-	// harness.Check early (GitHub #577).
+	// still lowers, and nothing is lost unnamed (GitHub #577).
 	PathItemRefCollision = "openapi/path-item-ref-collision"
 	// IncompleteSecurityScheme reports a securitySchemes entry that omits the
 	// field naming its mechanism: `type`, or for type http the RFC 7235 `scheme`
@@ -361,8 +371,7 @@ const (
 	// The declaration is kept, since dropping it is a loss and an emitter's call
 	// (invariant 2; GitHub #39); the diagnostic lets an emitter suppress it. It is
 	// unconditional, not an Options switch, because nothing is inferred (invariant
-	// 6). Warning, not error: the document is well-formed, and harness.Check stops
-	// at the first error, hiding later findings.
+	// 6). Warning, not error: the document is well-formed.
 	ReservedHeaderName = "openapi/reserved-header-name"
 	// UnpreservableConstruct reports a construct that reached the IR in no form at
 	// all: the compiler had no field to model it and its source node could not be
@@ -389,8 +398,7 @@ const (
 	// gives its objects a closed key set and requires extensions to be prefixed
 	// x-, so such a key is a document error, usually a misspelling of the field
 	// beside it. Not an error, for the reason ReservedHeaderName is not: the
-	// document still lowers, and harness.Check stops at the first error
-	// diagnostic, which would hide every later finding.
+	// document still lowers.
 	UnknownObjectKey = "openapi/unknown-object-key"
 	// UnknownKeyBudget reports an object declaring more keys the model does not
 	// name than the compiler keeps, so the ones past the bound reached the IR in no
@@ -445,9 +453,8 @@ const (
 	// type array and no `items`, which 3.0 requires, at the schema's pointer. It
 	// lowers as it would in 3.1, where `items` is optional: a List's element is
 	// the top type. A warning rather than an error: nothing the document
-	// declared is dropped, and harness.Check stops at the first error
-	// diagnostic. A code of its own rather than DegradedConstruct, because
-	// nothing is kept in a weaker shape.
+	// declared is dropped. A code of its own rather than DegradedConstruct,
+	// because nothing is kept in a weaker shape.
 	MissingArrayItems = "openapi/missing-array-items"
 	// LaterVersionConstruct reports, from the rule table's check, a field or a
 	// value a later OpenAPI minor added to its object, lowered as that minor
@@ -471,13 +478,12 @@ const (
 	// InvalidPathKey reports a Paths Object key that breaks OpenAPI's path
 	// templating rules, those of 3.2.0 §4.8.2 read at every version: no leading
 	// "/", a character a path admits only percent-encoded, a brace outside a
-	// template expression, an expression used twice, an empty segment, or a
-	// query. One warning per key names each, at the key's path item.
+	// template expression, an expression used twice, an empty segment, a query
+	// or a fragment. One warning per key names each, at the key's path item.
 	//
-	// Warning, as InvalidStatusKey is: the key is used as written, and an error
-	// would stop harness.Check before later findings. A "#" fragment is GitHub
-	// #602's to report, so nothing from it on is read, and matching the
-	// expressions to path parameters is #640's.
+	// Warning, as InvalidStatusKey is: the key is used as written, but for a
+	// fragment, which the URI template leaves out and each operation's binding
+	// keeps. Matching the expressions to path parameters is #640's.
 	InvalidPathKey = "openapi/invalid-path-key"
 	// InferredNullable reports a null the nullable-widening policy reads in
 	// where the document's version does not: a `nullable: true` in a 3.1 or 3.2
@@ -502,9 +508,9 @@ const (
 	// Error, as the table's mismatch is.
 	InvalidItemsList = "openapi/invalid-items-list"
 	// InferredDiscriminator reports a mapping the discriminator-inference
-	// policy reads off the tag values a union's variants pin, where the
-	// discriminator declares none and the component names OpenAPI's implicit
-	// mapping routes by are not those values, at the discriminator; and a
+	// policy reads off the strings a union's variants pin their tag to, where
+	// the discriminator declares none and the component names OpenAPI's
+	// implicit mapping routes by are not all of them, at the discriminator; and a
 	// subtype's tag it reads off the values the subtype admits, where they rule
 	// out the name it is routed by, at the subtype. The node is marked Inferred
 	// (docs/compilers/openapi.md#discriminator-inference).

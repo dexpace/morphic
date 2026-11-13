@@ -679,7 +679,8 @@ func assertDiscriminatedUnionBesideModel(t *testing.T, doc *ir.Document, diags [
 	pet, ok := doc.Types[componentID("Pet")].(*ir.Union)
 	require.True(t, ok, "Pet's branches compose no body, so Pet is their union; got %T", doc.Types[componentID("Pet")])
 	require.NotNil(t, pet.Discriminator, "which the discriminator routes")
-	assert.Equal(t, map[string]ir.TypeID{"cat": componentID("Cat")}, pet.Discriminator.Mapping)
+	assert.Equal(t, map[string]ir.TypeID{"cat": componentID("Cat"), "Dog": componentID("Dog")}, pet.Discriminator.Mapping,
+		"the mapping holds the route it implies to the variant it leaves out")
 	assert.Empty(t, pet.Unmodeled, "the type beside it is said by every branch")
 	assert.False(t, openapitest.HasDiagCodeAt(diags, diag.DegradedConstruct, "/components/schemas/Pet"))
 
@@ -799,14 +800,46 @@ func assertDiscriminatorInferred(t *testing.T, doc *ir.Document, diags []ir.Diag
 		assert.False(t, u.WireTagged, name)
 		assert.Empty(t, u.Provenance.Inferred, name)
 	}
-	circle, ok := doc.Types[componentID("Circle")].(*ir.Model)
-	require.True(t, ok, "Circle is a subtype of Shape")
-	assert.Equal(t, "circle", circle.DiscriminatorValue, "it carries the tag it pins, not its name")
-	assert.Equal(t, openapi.DiscriminatorInferenceHeuristic, circle.Provenance.Inferred)
+	for name, tag := range map[string]string{"Circle": "circle", "Square": "square", "Polygon": ""} {
+		m, ok := doc.Types[componentID(name)].(*ir.Model)
+		require.True(t, ok, "%s is a subtype of Shape", name)
+		assert.Equal(t, tag, m.DiscriminatorValue, "%s carries the tag it pins, not its name", name)
+		assert.Equal(t, openapi.DiscriminatorInferenceHeuristic, m.Provenance.Inferred, name)
+	}
 	assert.Contains(t, openapitest.DiagMessageAt(t, diags, diag.InferredDiscriminator, ir.SeverityInfo,
 		"/components/schemas/Circle"), `it carries "circle" instead`)
-	assert.Equal(t, 3, openapitest.CountDiagsAt(diags, diag.InferredDiscriminator, ir.SeverityInfo),
+	assert.Contains(t, openapitest.DiagMessageAt(t, diags, diag.InferredDiscriminator, ir.SeverityInfo,
+		"/components/schemas/Polygon"), `admitting only "hexagon", "triangle"; no tag its instances carry routes to it`)
+
+	assertInferredSets(t, doc, diags)
+	assert.Equal(t, 6, openapitest.CountDiagsAt(diags, diag.InferredDiscriminator, ir.SeverityInfo),
 		"only the declared discriminators' readings are reported")
+}
+
+// assertInferredSets is assertDiscriminatorInferred for the variants pinning
+// a tag to several strings: each string mapped to the variant admitting it,
+// under a declared discriminator and an inferred one, and nothing read where
+// two variants admit one string.
+func assertInferredSets(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
+	t.Helper()
+	calc := unionNamed(t, doc, "Calculation")
+	require.Len(t, calc.Variants, 2)
+	first, second := calc.Variants[0].Type.Target, calc.Variants[1].Type.Target
+	assert.Equal(t, map[string]ir.TypeID{"count": first, "COUNT": first, "min": second, "max": second},
+		calc.Discriminator.Mapping)
+	assert.Equal(t, openapi.DiscriminatorInferenceHeuristic, calc.Provenance.Inferred)
+	assert.Contains(t, openapitest.DiagMessageAt(t, diags, diag.InferredDiscriminator, ir.SeverityInfo,
+		"/components/schemas/Calculation/discriminator"), `"COUNT", "count" where it names none`)
+
+	overlapping := unionNamed(t, doc, "Overlapping")
+	assert.Nil(t, overlapping.Discriminator.Mapping)
+	assert.Empty(t, overlapping.Provenance.Inferred)
+
+	op := unionNamed(t, doc, "Operation")
+	require.Len(t, op.Variants, 2)
+	assert.Equal(t, &ir.Discriminator{PropertyName: "status", Inferred: true, Mapping: map[string]ir.TypeID{
+		"pending": op.Variants[0].Type.Target, "running": op.Variants[0].Type.Target, "completed": op.Variants[1].Type.Target,
+	}}, op.Discriminator)
 }
 
 // unionNamed returns the union the component name lowers to.

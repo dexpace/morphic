@@ -24,7 +24,7 @@ goes to the type that owns the broken state
 | this guard or branch matters | force each side (`cond \|\| true`, `cond && false`); a test reddens for each. Coverage cannot see a side that holds no statement |
 | order-independent | swap the declaration order; diff the documents, and the diagnostics as a sorted multiset |
 | no regression against main | `scripts/sweep.py`, or `references/differentials.md#argv-differential` for a change under `cmd/`; each new probe fails on `main`, and a build with the fix broken differs |
-| the fixture reaches the check | confirm where it lands: `harness.Check` stops at the first error diagnostic |
+| the fixture reaches the check | confirm where it lands: `morphic-harness` names what each oracle declined |
 | a bound of N holds | lower it by one at each site; a test at N and N+1 notices |
 | this test reaches no network | `references/claims.md#no-network-through-a-logging-proxy` |
 | lowers to X, is dropped, is refused | compile that literal input; read the IR and every diagnostic |

@@ -39,8 +39,9 @@ func assertEnumString(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 // values for pass.ConstUnions to normalize (docs/compilers/openapi.md#string-const-union):
 // the union, its variants naming the types each branch lowers to, a const's
 // Literal holding what its branch says of its value, a constraint it has no
-// home for included. A oneOf branch lowers to a union of its own, and a branch
-// naming a component to that component, as any $ref does.
+// home for included. A oneOf branch lowers to a union of its own, a branch
+// naming a component to that component, and one naming another union's branch
+// to the type that branch lowers to, as any $ref does.
 func assertStringConstUnion(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 	color, ok := doc.Types[componentID("Color")].(*ir.Union)
 	require.True(t, ok, "the compiler keeps a oneOf of consts a union")
@@ -53,7 +54,7 @@ func assertStringConstUnion(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 	require.True(t, ok)
 	assert.NotNil(t, green.Deprecation, "a branch's deprecation stays on its literal")
 
-	for _, name := range []string{"Level", "Tier", "Direction", "Shade", "Pinned"} {
+	for _, name := range []string{"Level", "Tier", "Size", "Fit", "Plan", "Direction", "Compass", "Shade", "Pinned"} {
 		_, ok := doc.Types[componentID(name)].(*ir.Union)
 		assert.True(t, ok, "%s lowers to a union", name)
 	}
@@ -61,6 +62,12 @@ func assertStringConstUnion(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 	require.Len(t, direction.Variants, 2)
 	_, ok = doc.Types[direction.Variants[0].Type.Target].(*ir.Union)
 	assert.True(t, ok, "a oneOf branch lowers to a union of its own")
+	size, _ := doc.Types[componentID("Size")].(*ir.Union)
+	fit, _ := doc.Types[componentID("Fit")].(*ir.Union)
+	require.NotEmpty(t, size.Variants)
+	require.NotEmpty(t, fit.Variants)
+	assert.Equal(t, size.Variants[0].Type.Target, fit.Variants[0].Type.Target,
+		"a $ref naming another union's branch names the type it lowers to")
 	shade, _ := doc.Types[componentID("Shade")].(*ir.Union)
 	require.Len(t, shade.Variants, 2)
 	assert.Equal(t, componentID("Light"), shade.Variants[1].Type.Target)

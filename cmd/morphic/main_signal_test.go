@@ -368,7 +368,9 @@ const unmodeled = "openapi/unknown-schema-keyword"
 // reportingSpec writes a spec of n object schemas, each carrying one long
 // keyword no schema model has, and returns its path. Each keyword draws an info
 // diagnostic naming it twice, so the spec compiles quickly to a large report,
-// none of which reaches --fail-on: a run of it that finishes exits 0.
+// none of which reaches --fail-on: a run of it that finishes exits 0. A run
+// writes the whole report under --diag-limit 0, as the text format otherwise
+// counts all but the first few of one code.
 func reportingSpec(t *testing.T, n int) string {
 	t.Helper()
 	keyword := strings.Repeat("k", 1000)
@@ -554,7 +556,7 @@ func TestMain_LaterSignalsDoNotEndARunThatIsStopping(t *testing.T) {
 	t.Parallel()
 	const schemas = 1000
 	dir, dest := destination(t)
-	cmd := morphic(t, "compile", reportingSpec(t, schemas), "-o", dest)
+	cmd := morphic(t, "compile", reportingSpec(t, schemas), "-o", dest, "--diag-limit", "0")
 	report := holdIn(t, cmd, &cmd.Stderr)
 	waited := make(chan error, 1)
 	go func() { waited <- cmd.Wait() }()
@@ -637,7 +639,7 @@ func TestMain_AnIgnoredSIGINTOrSIGHUPStaysIgnored(t *testing.T) {
 	t.Parallel()
 	const schemas = 1000
 	cmd := command(t, nil, "/bin/sh", "-c", `trap '' INT HUP; exec "$0" "$@"`,
-		os.Args[0], "compile", reportingSpec(t, schemas))
+		os.Args[0], "compile", reportingSpec(t, schemas), "--diag-limit", "0")
 	var stdout bytes.Buffer
 	cmd.Stdout = &stdout
 	report := holdIn(t, cmd, &cmd.Stderr)

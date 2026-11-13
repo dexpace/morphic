@@ -354,12 +354,13 @@ engine refuses there.
 Built, and in the default list:
 
 - **const-unions** — a closed union of strings, every variant a string `Literal`, a one-member
-  `Enum` or a union of one value, is rewritten as the closed `Enum` of its values at the union's own
-  ID, each member holding what its variant and branch say of its value, and each branch type nothing
-  else references is removed ([`string-const-union`](./compilers/openapi.md#string-const-union)). A
-  transform, it runs first. It is no convenience simplification of reference-learnings.md §B0, which
-  are off by default: it loses nothing, keeping the union wherever an `Enum` could not say all it
-  does, so it is on, and `--disable-pass const-unions` hands an emitter the union instead.
+  `Enum` or a union of one value, or a branch of several values that only the variant names, is
+  rewritten as the closed `Enum` of its values at the union's own ID, each member holding what is
+  said of its value, and each branch type nothing else references is removed
+  ([`string-const-union`](./compilers/openapi.md#string-const-union)). A transform, it runs first.
+  It is no convenience simplification of reference-learnings.md §B0, which are off by default: it
+  loses nothing, keeping the union wherever an `Enum` could not say all it does, so it is on, and
+  `--disable-pass const-unions` hands an emitter the union instead.
 - **validate** — referential integrity and the well-formedness rules the IR states, each rule family
   in a `pass/validate_<family>.go` of its own. Integrity means every typed-ID reference resolves to
   something the document declares (a `TypeRef` target against the type registry, an `OpID` against
@@ -523,12 +524,15 @@ textual compiler settings. Each is there because the document depends on it. The
 into `Sources`. The working directory reaches type IDs: a compile reads it to relate a relative
 path to an absolute one, so one spec reaching one document can lower to two sets of IDs from two
 directories (#1297). The build is the identity of the code, compilers and passes included:
-`cache.BuildID` hashes the executable, since a module version names neither a dirty tree nor the
-toolchain. It reads the file at the executable's path, as no portable call reads the image running,
-so a build installed as a run starts, before that read, is the one named: the run keeps what the
-old build compiled under the new build's key, and that entry answers the new build (#1318). The
-threshold is not covered, as a hit judges the verdict afresh, and neither is the format, which
-follows from the bytes and which finding is what a hit skips.
+`cache.BuildID` hashes the image the process runs, since a module version names neither a dirty tree
+nor the toolchain. A path names that image only until a build is installed over it, and a run that
+named the installed build would keep what the old one compiled under the new one's key, where it
+would answer the new build. So on Linux the image is read through `/proc/self/exe`, which serves the
+file the process started from whatever has since replaced its path. Elsewhere, macOS among them, the
+executable's path is read, and a build installed as a run starts, before that read, is the one
+named (#1318). The threshold and the triage rules are not covered, as a hit rates its findings and
+judges the verdict afresh, and neither is the format, which follows from the bytes and which finding
+is what a hit skips.
 
 **What a key cannot cover.** Which other documents a compile reads is known only once it has run.
 So a compile reads through a recorder, the entry lists each request with the hash of what came
@@ -607,7 +611,8 @@ morphic/
 ├── engine/                 # Layer 3 — orchestration: detect format, run compiler, passes, emitters.
 │   ├── cache/              #           Keeps a run's entries on disk, and names the build.
 │   ├── reader/             #           Reads what a run's references name: disk, network or memory.
-│   ├── report/             #           Renders diagnostics and --explain for a person.
+│   ├── triage/             #           The rules a caller writes about a run's findings, and the findings as rated.
+│   ├── report/             #           Renders the findings, as text or a JSON report, and --explain.
 │   └── output/             #           Writes the IR document to a stream, or to a file atomically.
 ├── internal/archtest/      #           Layering, the recursion pin, reachability, call shape, caps (tooling).
 ├── internal/census/        #           Counts which IR facts a set of documents sets (tooling).
@@ -644,8 +649,9 @@ Dependency rules, enforced by an architecture test as in oagen:
 - `ir` imports only the standard library. It contains no parsing, no generation, no I/O.
 - `barrier` imports only the standard library, and sits below the packages that run code they do not
   own behind it: `compilers`, which runs a compiler, `engine`, which runs a pass, and the OpenAPI
-  compiler's `diag`, behind which that compiler runs its parser, its overlay library and its own
-  alias scan. No other package recovers a panic outside its tests, as `.golangci.yml` enforces.
+  compiler's `diag`, behind which that compiler runs its parser, the JSONPath evaluator it applies
+  an overlay with and its own alias scan. No other package recovers a panic outside its tests, as
+  `.golangci.yml` enforces.
 - `compilers/compile` imports only `ir`: it is below every compiler, not beside them.
 - `compilers/*` and `pass` import `ir` (and their own format libraries), and `pass` also
   `ir/irfacts` — never each other, never `emitters` or `engine`. A compiler also names the
@@ -673,9 +679,10 @@ does without importing it. It takes a spec file (`Run`), a spec held in memory b
 disk (`RunSpec`, for an edited buffer or a harness), sources already in memory (`RunSources`, which
 reads nothing else), or a document already compiled (`RunDocument`, which runs the passes alone).
 `engine/reader` reads what a source's references name, `engine/output` writes the document to a
-stream or replaces a file atomically, `engine/report` renders diagnostics and `--explain`, and
-`engine/cache` keeps what a run compiled (§2.6). The CLI parses flags, picks the streams, cancels
-the run on SIGINT, SIGTERM or SIGHUP, and turns the run into an exit code.
+stream or replaces a file atomically, `engine/report` renders the findings and `--explain`,
+`engine/triage` rates the findings by a caller's rules (§4), and `engine/cache` keeps what a run
+compiled (§2.6). The CLI parses flags, picks the streams, cancels the run on SIGINT, SIGTERM or
+SIGHUP, and turns the run into an exit code.
 
 Two caps guard the shape rather than the graph, both in `internal/archtest` and `.golangci.yml`:
 no type under `compilers/` may carry more than 20 methods, and no function may exceed 70 lines or
@@ -700,19 +707,58 @@ heuristics that produced it, when any did. A shared primitive, which every sourc
 names no source (`NoSource`); so does a pass reporting on the document itself, which locates its
 finding by an IR-space `Node` instead. Every stage returns
 `[]Diagnostic{Severity, Code, Message, Provenance}`. Codes are stable strings
-(`openapi/unresolved-ref`, `ir/dangling-type-ref`, `pass/discriminator-missing-variant`) so CI
-can allowlist. A mature allowlist entry is keyed by (diagnostic code × entity ID), requires a
-human rationale, supports expiry tied to a release, and rejects wildcards — narrowness is
-validated, so approvals cannot rot into blanket suppressions. Nothing in the pipeline writes to
-stderr. The engine renders diagnostics (`engine/report`), and a driver such as the CLI chooses the
-stream they go to.
+(`openapi/unresolved-ref`, `ir/dangling-type-ref`, `pass/discriminator-missing-variant`) so a
+caller can name them. Nothing in the pipeline writes to stderr. The engine renders diagnostics
+(`engine/report`), and a driver such as the CLI chooses the stream they go to.
+
+**Triage.** A caller rules on the findings of a run with `RunOptions.Triage`, rules of
+`engine/triage` the CLI reads from a `--triage` file. A rule names one code, matched exactly, and a
+reason, and either rates the code's findings at another severity, everywhere or at one place, or
+accepts the findings at one place, which then fail the run at no threshold. A place is the
+finding's pointer in the spec or its IR node, the two locators that stay put while a spec is
+edited, as a line does not. The decisions it rests on:
+
+- *No pattern.* A `*` in a code is refused, and a rule names one place or none, so a rule written
+  for the findings someone has seen applies to none elsewhere: a new finding a pattern happened to
+  match would be accepted unread. Rating a whole code is the one breadth admitted, as a rated
+  finding is still counted and shown at its rating. A place still holds every finding of a code
+  there, one reported later included, and it can hold a whole scope: a pass places a collision
+  between two of the document's types at the document's node, so a rule accepting one accepts the
+  next (#1825).
+- *An acceptance names a place.* Accepting a code everywhere would be a blanket suppression, so an
+  acceptance is keyed by code and place, the code-by-entity key the [prior art](./prior-art.md)
+  takes for an approval.
+- *A rule that matches nothing is reported.* `Result.UnusedRules` lists it on a run that
+  produced a document, and the CLI names it: unless its pass is off, the finding it was written
+  for has gone, because the spec changed or a later build lowers the construct, and the rule
+  can go too. That is the decay an approval's expiry stands guard against, found by the run
+  itself; an expiry by date would make one run's verdict depend on the day it ran, and morphic
+  has no release a rule could name.
+- *Rules are applied after the run, never stored.* `Result.Diagnostics` and the document keep the
+  findings as their stages reported them, `Result.Findings` holds them as rated, and the cache keys
+  no rule, so a cached run is rated by the rules of the run it answers.
+- *A rule cannot hide a broken stage.* A finding reported at a severity the IR does not declare
+  fails the run with a Go error whatever a rule makes of it.
+- *No profile ships.* A profile of the codes whose findings change no lowering cannot be written
+  while one `openapi/validation` code spans rules that do and rules that do not, as
+  `validation-allowed-values` does for a path parameter's `required: false`, lowered as required
+  anyway, and an unknown `style`, which reaches the IR (#1802).
+
+A finding in a document a `$ref` reads has no place a rule names yet, so a rule rates it by its
+code alone and none accepts it (#1804).
+
+The CLI's text writes each finding at its rating, but only the first few of each code and
+severity, and counts the rest, as a run of the golden spec draws about two thousand findings;
+its JSON report writes every finding with the rule it met, under a schema version a test holds to
+the encoded shape.
 
 **What fails a run.** A stage reports severities; whether the run fails is the engine's verdict,
-taken once the passes have reported, and recorded as `Result.Failed`, so the CLI's exit status
-(`--fail-on`) and any other driver read one rule rather than each reading the diagnostics its own
-way. `RunOptions.FailOn` sets the threshold. At `error`, the default, an error diagnostic fails the
-run; `warning` and `info` are stricter gates, each failing it on a diagnostic at or above that
-severity; `none` fails only a run that produced no document, which fails at every threshold. A
+taken once the passes have reported and the triage has rated their findings, and recorded as
+`Result.Failed`, so the CLI's exit status (`--fail-on`) and any other driver read one rule rather
+than each reading the diagnostics its own way. `RunOptions.FailOn` sets the threshold. At `error`,
+the default, a finding rated an error fails the run; `warning` and `info` are stricter gates, each
+failing it on a finding rated at or above that severity, and no threshold fails it on a finding a
+rule accepted; `none` fails only a run that produced no document, which fails at every threshold. A
 diagnostic of a severity the IR does not declare is a stage breaking its contract and fails the run
 with a Go error: no threshold can rank it, and ranking it below them all would let a misspelt error
 through every gate. Failing withholds nothing: a failed run still returns its document and every
@@ -742,10 +788,15 @@ something a caller asks for with `none`, never a default.
   order — no panic, `irverify`'s structural invariants, no error diagnostic, JSON round-trip,
   determinism across two compiles, each pass's idempotence and the pass list's (§2.2), and
   **order-independence**. The last one compiles the same source twice with every mapping's entry
-  order reversed and diffs the two documents. It is the general form of the two-order check, and it
-  is what catches an interning collision: two declarations minting one node at a single pointer
-  produce the same document read either way only if neither is the one that got there first. Both
-  pointer collisions the compiler has had were invisible to a single-order suite.
+  order reversed, each YAML anchor moved to the first place that names it, and diffs the two
+  documents whole, forgiving only the order of what a mapping orders. It is the general form of the
+  two-order check, and it is what catches an interning collision: two declarations minting one node
+  at a single pointer produce the same document read either way only if neither is the one that got
+  there first. Both pointer collisions the compiler has had were invisible to a single-order suite.
+  An error diagnostic stops none of the oracles, and an oracle with nothing to compare declines,
+  saying why, so a sweep's summary counts what each asked and what it could not. The order oracle
+  leaves sequences as written, an `allOf`'s branches among them (#1666), and compiles at the
+  default limits alone (#1519).
 - **Architecture test** (`internal/archtest`): import-graph assertions for the layering rules
   above, plus the rules the graph cannot express — which lowerings are mutually recursive (so a
   set that grows is noticed rather than measured), the method-per-type cap, that no function is

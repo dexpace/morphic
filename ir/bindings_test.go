@@ -4,6 +4,7 @@
 package ir_test
 
 import (
+	"encoding/json/v2"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -144,9 +145,16 @@ func TestRequestCompression_JSONContract(t *testing.T) {
 // contract — AllowReserved and AllowEmptyValue are plain bools that must always
 // serialize as declared facts, while every other field stays optional — and that a fully
 // populated HTTPParamBinding — including the multi-segment gRPC-transcoding
-// param path and body path — round-trips.
+// param path and body path — round-trips. The empty prefix, which takes every
+// name, stays apart from no prefix both ways (docs/ir/http-binding.md#prefix-bindings).
 func TestHTTPParamBinding_JSONContract(t *testing.T) {
 	t.Parallel()
+	assertZeroValueShape(t, ir.HTTPParamBinding{Prefix: new("")}, `{"allowReserved":false,"allowEmptyValue":false,"prefix":""}`)
+	var decoded ir.HTTPParamBinding
+	require.NoError(t, json.Unmarshal([]byte(`{"prefix":""}`), &decoded))
+	require.NotNil(t, decoded.Prefix, "the empty prefix decodes as a prefix, not as none")
+	assert.Empty(t, *decoded.Prefix)
+
 	assertJSONContract(t, ir.HTTPParamBinding{}, `{"allowReserved":false,"allowEmptyValue":false}`, ir.HTTPParamBinding{
 		Param:           "book",
 		ParamPath:       []ir.PropID{"p/book", "p/name"},
@@ -157,7 +165,7 @@ func TestHTTPParamBinding_JSONContract(t *testing.T) {
 		AllowReserved:   true,
 		AllowEmptyValue: true,
 		PathPattern:     "shelves/*/books/*",
-		Prefix:          "x-",
+		Prefix:          new("x-"),
 		ContentType:     "application/json",
 		BodyPath:        []ir.PropID{"p/body", "p/nested"},
 	})
