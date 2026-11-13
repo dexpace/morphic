@@ -111,8 +111,8 @@ is the resource the `resource-hierarchy` row plans, not this shape.
 A header can stand for every field whose name starts with a prefix rather than for one field, as
 Smithy's `@httpPrefixHeaders` binds a map of strings on a member of an operation's output or error,
 and an object store returns its user metadata under one prefix that way. On a request a binding
-holds the prefix ([HTTP binding](./http-binding.md)); on a response's, an error's or a part's
-header, `Header.Prefix` does.
+holds the prefix ([prefix bindings](./http-binding.md#prefix-bindings)); on a response's, an
+error's or a part's header, `Header.Prefix` does.
 
 **A set `Prefix` makes the header a map.** Each field whose name starts with the prefix, compared
 without case as HTTP compares a field name (RFC 9110 §5.1), is an entry keyed by the rest of its
@@ -127,8 +127,8 @@ names no field of its own, so it sets no `WireName`, and its `Name` only present
 and its protocol tests bind one on an output. Two designs not taken lose it, and a third costs every
 reader of headers:
 
-- **A `Prefix string`** whose empty value means one field has no spelling for it, which is the gap
-  the request side's `Prefix` has (#1748).
+- **A `Prefix string`** whose empty value means one field has no spelling for it, which is why a
+  binding's `Prefix` is a pointer too ([prefix bindings](./http-binding.md#prefix-bindings)).
 - **The prefix in `WireName`**, with a flag or a `Style` value saying it is one, reads the empty
   prefix as the member's own name, since an empty `WireName` already means `Name.Source`
   (`Property.EffectiveWireName`).

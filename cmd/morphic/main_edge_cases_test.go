@@ -12,6 +12,7 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
+	"syscall"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -192,7 +193,55 @@ func TestRun_CompileOutputCreateError(t *testing.T) {
 	code := run(t.Context(), []string{"compile", spec, "-o", badOut}, &stdout, &stderr)
 
 	assert.Equal(t, 2, code)
-	assert.Contains(t, stderr.String(), "create output")
+	assert.Contains(t, stderr.String(), "create the temporary file beside output")
+}
+
+// TestRun_CompileOutputThatIsNoFile pins -o at what no rename can replace: a
+// character device takes the document, a FIFO no process reads and a directory
+// are refused, and a refusal keeps the exit code a spec at the threshold earned.
+func TestRun_CompileOutputThatIsNoFile(t *testing.T) {
+	t.Parallel()
+	fifo := func(t *testing.T) string {
+		t.Helper()
+		path := filepath.Join(t.TempDir(), "ir.fifo")
+		require.NoError(t, syscall.Mkfifo(path, 0o600))
+		return path
+	}
+	dir := func(t *testing.T) string {
+		t.Helper()
+		return t.TempDir()
+	}
+	devNull := func(*testing.T) string { return os.DevNull }
+	tests := []struct {
+		name   string
+		spec   string
+		dest   func(t *testing.T) string
+		code   int
+		stderr string
+	}{
+		{"a character device", testspec.Tiny, devNull, 0, ""},
+		{"a FIFO no process reads", testspec.Tiny, fifo, 2, "no process has the FIFO open for reading"},
+		{"a FIFO no process reads, threshold reached", unresolvedRefSpec, fifo, 1,
+			"no process has the FIFO open for reading"},
+		{"a directory", testspec.Tiny, dir, 2, "is a directory, which holds no document"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			spec := writeFile(t, "spec.yaml", tt.spec)
+			var stdout, stderr bytes.Buffer
+
+			code := run(t.Context(), []string{"compile", spec, "-o", tt.dest(t)}, &stdout, &stderr)
+
+			assert.Equal(t, tt.code, code, "stderr: %s", stderr.String())
+			assert.Empty(t, stdout.String())
+			if tt.stderr == "" {
+				assert.Empty(t, stderr.String())
+				return
+			}
+			assert.Contains(t, stderr.String(), tt.stderr)
+		})
+	}
 }
 
 // unresolvedRefSpec is an OpenAPI 3.1 document whose only $ref names a schema
@@ -240,10 +289,8 @@ func readOnlyDirDest(t *testing.T) string {
 // refuses the write does not decide the exit code. A spec that reached the
 // --fail-on threshold exits 1 wherever -o pointed; only a run with nothing to
 // report at the threshold exits 2 for the write. Both destinations here are
-// refused for the same reason — output.ReplaceDocument publishes by rename and
-// their directories will not take a temp file — which is also why -o /dev/null fails,
-// untestable here because a root /dev would take the temp file and the rename
-// would then replace /dev/null itself.
+// refused for the same reason: output.ReplaceDocument publishes a file by
+// rename, and their directories will not take a temp file.
 func TestRun_CompileWriteFailureDoesNotMaskDiagnostics(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
@@ -270,7 +317,7 @@ func TestRun_CompileWriteFailureDoesNotMaskDiagnostics(t *testing.T) {
 			code := run(t.Context(), []string{"compile", spec, "-o", tt.dest(t)}, &stdout, &stderr)
 
 			assert.Equal(t, tt.wantCode, code, "stderr: %s", stderr.String())
-			assert.Contains(t, stderr.String(), "create output",
+			assert.Contains(t, stderr.String(), "create the temporary file beside output",
 				"the destination must really refuse the write, or this case proves nothing")
 			if tt.wantDiag == "" {
 				assert.NotContains(t, stderr.String(), "openapi/",

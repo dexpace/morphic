@@ -367,7 +367,8 @@ func TestRun_DiagFormatJSONWritesAFailureAfterItsReport(t *testing.T) {
 			lines := strings.Split(strings.TrimSuffix(stderr, "\n"), "\n")
 			require.Len(t, lines, 2, stderr)
 			decodeReport(t, lines[0])
-			assert.True(t, strings.HasPrefix(lines[1], "morphic: create output"), lines[1])
+			assert.True(t, strings.HasPrefix(lines[1], "morphic: "), lines[1])
+			assert.Contains(t, lines[1], out, "the reason is the output's")
 		})
 	}
 }

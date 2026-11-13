@@ -187,6 +187,7 @@ func walkChecks() []func(*ir.Document) walkCheck {
 		checkInteractions,
 		checkLinkValues,
 		checkPrefixHeaders,
+		checkPrefixBindings,
 		checkEntityRefs,
 	}
 }

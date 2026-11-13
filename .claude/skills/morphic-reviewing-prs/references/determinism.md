@@ -10,7 +10,7 @@ and machine, with IDs from source pointers and never from names or order (`CLAUD
    and each sequence the change builds holding two elements
    (`references/determinism.md#ordered-result-needs-two-elements`), and declare a fixture meant to
    guard an order fix in the order that was wrong.
-2. Diff by hand each fact the change places outside what the order oracle compares
+2. Diff by hand each order the order oracle forgives or never permutes that the change decides
    (`.claude/skills/morphic-verifying-changes/references/differentials.md#order-oracle-reads-what-it-compares`),
    and each verdict a limit decides (`references/determinism.md#two-orders-at-every-limit`).
 3. Give each node the change mints an ID namespace apart from every pointer the source can also
@@ -18,8 +18,9 @@ and machine, with IDs from source pointers and never from names or order (`CLAUD
 4. Search the change for package-level state, map order reaching output, and time, randomness or
    the environment reaching a result.
 5. Run `go run ./cmd/morphic-harness <spec>` over each spec the review writes: its oracles compare
-   reruns, the JSON round trip, pass idempotence and both orders, but stop at the first error
-   diagnostic, so a spec drawing one reaches none of them.
+   reruns, the JSON round trip, pass idempotence and both orders, and its summary names each oracle
+   that declined the spec, which asked it nothing
+   (`.claude/skills/morphic-verifying-changes/references/differentials.md#order-oracle-errors`).
 
 The matrix is each construct and fact by order and limit, with the diff each produced.
 

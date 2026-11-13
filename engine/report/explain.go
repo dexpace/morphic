@@ -8,15 +8,17 @@ import (
 	"encoding/json/jsontext"
 	"io"
 	"maps"
+	"reflect"
 	"slices"
+	"strings"
 
 	"github.com/dexpace/morphic/ir"
 )
 
 // Explanation is what a compile produced at one source coordinate: the type
-// node its document holds there, the coordinates beneath it that hold one, and
-// the diagnostics stamped at it. A pass may replace or remove a node the
-// compiler interned, so it describes the document, not the compile alone.
+// node its document holds there, the coordinates beneath it that hold one, the
+// constructs kept verbatim at or beneath it, and the diagnostics stamped at it.
+// A pass may replace or remove a node, so it describes the document.
 //
 // It answers "why did my example disappear" from the document alone: every
 // hoisted node records its coordinate in Provenance.Pointer, so the
@@ -34,6 +36,28 @@ type Explanation struct {
 	Below []Interned `json:"below,omitempty"`
 	// Diagnostics holds the diagnostics stamped at Pointer, in reported order.
 	Diagnostics []ir.Diagnostic `json:"diagnostics,omitempty"`
+	// Unmodeled holds the Unmodeled entries written at or beneath Pointer, in
+	// pointer and then key order, and an entry kept on several nodes in the
+	// order the document holds them.
+	Unmodeled []Kept `json:"unmodeled,omitempty"`
+	// Truncated reports that the document nests past ir.MaxWalkDepth, so
+	// Unmodeled can lack an entry held deeper.
+	Truncated bool `json:"truncated,omitzero"`
+}
+
+// Kept is one Unmodeled entry: a construct the document keeps verbatim rather
+// than models, and the node keeping it.
+type Kept struct {
+	// Pointer is the coordinate the construct is written at.
+	Pointer jsontext.Pointer `json:"pointer"`
+	// Key is the entry's key in its Unmodeled map.
+	Key    string             `json:"key"`
+	Reason ir.UnmodeledReason `json:"reason"`
+	// Holder is the path to the node whose Unmodeled map holds the entry, as
+	// ir.WalkValues spells it, such as doc.Types[<id>]. A construct a compiler
+	// keeps on several nodes, as a path item's on each operation, is one Kept
+	// per node.
+	Holder string `json:"holder"`
 }
 
 // Interned is one source coordinate and the type node it interned.
@@ -76,7 +100,41 @@ func Explain(doc *ir.Document, diags []ir.Diagnostic, pointer jsontext.Pointer) 
 			e.Diagnostics = append(e.Diagnostics, d)
 		}
 	}
+	e.Unmodeled, e.Truncated = keptAtOrBelow(doc, pointer)
 	return e
+}
+
+// unmodeledType is the type of the maps keptAtOrBelow reads.
+var unmodeledType = reflect.TypeFor[ir.Unmodeled]()
+
+// keptAtOrBelow returns doc's Unmodeled entries written in its source at or
+// beneath pointer, sorted, and whether the walk finding them was truncated. It
+// walks the whole document, since every kind of node can carry the map. The
+// walk is the IR's own, so a map a new field holds is read at once; it reads the
+// entries' fields, as one reached through an unexported field cannot be read
+// whole.
+func keptAtOrBelow(doc *ir.Document, pointer jsontext.Pointer) ([]Kept, bool) {
+	var kept []Kept
+	truncated := ir.WalkValues(doc, ir.DocumentPath, ir.VisitFunc(func(v reflect.Value, at ir.WalkPath) bool {
+		if v.Type() != unmodeledType {
+			return true // any other value may still hold a map below it
+		}
+		holder := strings.TrimSuffix(at.String(), ".Unmodeled")
+		for iter := v.MapRange(); iter.Next(); {
+			entry := iter.Value()
+			prov := entry.FieldByName("Provenance")
+			written := jsontext.Pointer(prov.FieldByName("Pointer").String())
+			if inSource(int(prov.FieldByName("Source").Int())) && pointer.Contains(written) {
+				kept = append(kept, Kept{Pointer: written, Key: iter.Key().String(),
+					Reason: ir.UnmodeledReason(entry.FieldByName("Reason").String()), Holder: holder})
+			}
+		}
+		return false // an entry holds no node, so no map is beneath one
+	}))
+	slices.SortStableFunc(kept, func(a, b Kept) int {
+		return cmp.Or(cmp.Compare(a.Pointer, b.Pointer), cmp.Compare(a.Key, b.Key))
+	})
+	return kept, truncated
 }
 
 // inSource reports whether a position the Document.Sources entry at source
@@ -89,9 +147,10 @@ func inSource(source int) bool {
 
 // WriteExplanation writes e to w as the lines --explain prints: the
 // coordinate, the node at it or a line saying the document holds none, what is
-// interned below it when anything is, and its diagnostics, every string a spec
-// can write escaped (printable). It stops at the first write that fails and
-// returns that write's error, and refuses a nil w.
+// interned below it and what is kept unmodeled at or below it when anything
+// is, and its diagnostics, every string a spec can write escaped (printable).
+// It stops at the first write that fails and returns that write's error, and
+// refuses a nil w.
 func WriteExplanation(w io.Writer, e Explanation) error {
 	if w == nil {
 		return errNoWriter
@@ -116,11 +175,28 @@ func WriteExplanation(w io.Writer, e Explanation) error {
 		}
 	}
 
+	writeKept(lw, e)
+
 	lw.printf("  diagnostics (%d):\n", len(e.Diagnostics))
 	for _, d := range e.Diagnostics {
 		lw.printf("    %s %s: %s\n", printable(string(d.Severity)), printable(d.Code), printable(d.Message))
 	}
 	return lw.err
+}
+
+// writeKept writes e's Unmodeled entries, a line each, when it has any, and a
+// line saying the list can lack some when the walk was truncated.
+func writeKept(lw *lineWriter, e Explanation) {
+	if len(e.Unmodeled) > 0 {
+		lw.printf("  kept unmodeled at or below it (%d):\n", len(e.Unmodeled))
+		for _, k := range e.Unmodeled {
+			lw.printf("    %s -> %s (%s) on %s\n",
+				printable(string(k.Pointer)), printable(k.Key), printable(string(k.Reason)), printable(k.Holder))
+		}
+	}
+	if e.Truncated {
+		lw.printf("  the document nests deeper than the walk reads, so more may be kept below\n")
+	}
 }
 
 // stampedAt reports whether prov locates a node or finding at pointer in a
