@@ -46,8 +46,8 @@ for. It marks nothing on the golden spec, none of whose 11,994 parameters is `Se
 slot of its four declared schemes (spec @bc6fad24, morphic @fa253fe19). What it does not reach is a
 credential only a name suggests, such as the `R2-Secret-Access-Key` header two of its operations
 declare, which the OpenAPI compiler's secret policy marks `Secret`
-([`secret-inference`](../../compilers/openapi.md#secret-inference)), so this rule reads it as a
-`Secret` use like any other.
+([`secret-inference`](../../compilers/openapi.md#secret-inference)), so it is redacted as any
+`Secret` use is.
 
 Redacting changes how a value is shown and nothing else. Every rendering an SDK makes of a value as
 text, other than its wire form, shows a redacted one as `[REDACTED]`: each form the target's
