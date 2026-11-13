@@ -86,7 +86,7 @@ const (
 	// The document is refused before parsing whatever the position, since telling
 	// the faulting ones apart would mean copying the parser's object model, at
 	// the tagged mapping with the least pointer. A tagged scalar is not refused
-	// (GitHub #245).
+	// (docs/compilers/openapi.md#values).
 	TaggedMapping = "openapi/tagged-mapping"
 	// StreamDocumentsDropped reports a YAML stream holding more than one
 	// document with content. An OpenAPI document is one YAML document, so the

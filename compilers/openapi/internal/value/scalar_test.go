@@ -41,6 +41,13 @@ var classifyRows = []struct {
 	{name: "float past float64", src: "1.8e308", kind: value.ScalarNumber, num: "1.8e308", text: "1.8e308"},
 	{name: "negative past float64", src: "-1.8e308", kind: value.ScalarNumber, num: "-1.8e308", text: "-1.8e308"},
 	{name: "exponent past float64", src: "1e400", kind: value.ScalarNumber, num: "1e400", text: "1e400"},
+	{name: "exponent at the bound", src: "1e999999999999999999", kind: value.ScalarNumber,
+		num: "1e999999999999999999", text: "1e999999999999999999"},
+	{name: "exponent past the bound", src: "1e1000000000000000000", refused: true},
+	{name: "negative exponent past the bound", src: "-1e-1000000000000000000", refused: true},
+	{name: "float tag past the bound", src: "!!float 1e1000000000000000000", refused: true},
+	{name: "quoted past the bound", src: `"1e1000000000000000000"`, kind: value.ScalarString,
+		text: "1e1000000000000000000"},
 	{name: "infinity", src: ".inf", refused: true},
 	{name: "not a number", src: ".nan", refused: true},
 	{name: "int tag over text", src: "!!int 1.5", refused: true},
@@ -76,6 +83,18 @@ func TestClassify_ReadsEachSpellingOnce(t *testing.T) {
 			assert.Equal(t, row.text, got.Text)
 		})
 	}
+}
+
+// TestClassify_RefusesAPlainNumberPastTheExponentRange pins a plain scalar
+// YAML resolves to a string for being past float64's range, where no BigVal
+// holds its power of ten either: it is refused as the number it is, as its
+// !!float spelling is, never read as text (docs/compilers/openapi.md#values).
+func TestClassify_RefusesAPlainNumberPastTheExponentRange(t *testing.T) {
+	t.Parallel()
+	node := openapitest.YAMLNode(t, "1e1000000000000000000")
+	require.Equal(t, "!!str", node.ShortTag(), "the premise: YAML reads the literal as a string")
+	_, err := value.Classify(node)
+	require.ErrorIs(t, err, ir.ErrExponentRange)
 }
 
 // TestClassify_ReadsTheValueOfItsKind pins the values a bool and a binary

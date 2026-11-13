@@ -770,14 +770,17 @@ followed, `<<` merge keys merged in the parser's order
 specification reads every key as a string, and one that is no scalar as the empty string
 ([`validation`](#validation) reports it), a number in its digits with its YAML base resolved, past
 float64's range included, a YAML timestamp in the spelling written, a `!!binary` as its source text,
-and a scalar under a tag of the document's own as its text. A field a reader finds is found the same
-way, so one supplied through a merge key or an alias is kept as a written one is. A node no JSON can
-hold — a key a mapping or a mapping merged into it writes twice, `.nan` or `.inf`, a scalar whose
-text its tag does not admit, invalid UTF-8, an alias that cycles or expands past the converter's
-node budget, a merge chain deeper than the reader expands — reaches the IR in no form. It is
-reported as an `openapi/unpreservable-construct` error at the construct, and the rule that would
-have kept it announces nothing as kept, so no diagnostic claims what the Document does not hold. A
-vendor extension that converts to no JSON is [`vendor-extensions`](#vendor-extensions)' instead.
+and a scalar under a tag of the document's own as its text, since that tag claims no kind its text
+could contradict. A field a reader finds is found the same way, so one supplied through a merge key
+or an alias is kept as a written one is. A node no JSON can hold — a key a mapping or a mapping
+merged into it writes twice, `.nan` or `.inf`, a scalar whose text its tag does not admit, which
+[`values`](#values) refuses for the reason given there, invalid UTF-8, an alias that cycles or
+expands past the converter's node budget, a merge chain deeper than the reader expands — reaches the
+IR in no form, and so does a number past `ir.MaxDecimalExp`, which the reader a lowered value goes
+through refuses, so the two never read one scalar as two kinds. It is reported as an
+`openapi/unpreservable-construct` error at the construct, and the rule that would have kept it
+announces nothing as kept, so no diagnostic claims what the Document does not hold. A vendor
+extension that converts to no JSON is [`vendor-extensions`](#vendor-extensions)' instead.
 
 - Cases: `yaml-merge-keys`
 - Codes: `openapi/unpreservable-construct`
@@ -787,8 +790,6 @@ vendor extension that converts to no JSON is [`vendor-extensions`](#vendor-exten
   `annotation.TestRawFromNode_PreservesMergeAndOrderingSemantics`,
   `annotation.TestRawFromNode_NamesTheRepeatedKey`, `annotation.TestScalarRenderers_AgreeOnKind`,
   `annotation.TestRawPropertyNode_ReadsAKeywordAsTheParserDoes`
-- Status: partly built: whether a scalar its own tag does not admit is refused or kept as its text
-  is open (#245).
 
 ### `unmodeled-dialect-fields`
 
@@ -934,14 +935,19 @@ number is the literal's exact decimal text in `Num`, never a `float64`: a magnit
 int64 keeps every digit, `.5`, `+5` and `09` take their JSON spellings (`0.5`, `5`, `9`), `_`
 separators drop, a YAML integer base resolves (`0644` is `420`, `0x1f` is `31`, `0b1010` is `10`),
 and digits, exponent and trailing zeros otherwise stand as written (`10.0`, `1.10e+3`). A plain
-scalar that YAML resolves to a string only because it is past float64's range is still a number when
-it is a decimal literal a `BigVal` holds (its exponent within `ir.MaxDecimalExp`), and a quoted one
-stays a string. A value no `Value` holds — `.inf` or `.nan`, a `!!binary` that is not base64, a
-scalar whose text its tag does not admit (`!!null abc`, `!!timestamp soon`), a tag the compiler does
-not lower (`!acme`), a key a mapping or a mapping merged into it writes twice, a merge chain deeper
-than the reader expands, nesting past the reader's depth bound — is not coerced: a default or
-example is dropped with an `openapi/degraded-construct` warning at its position, and a `const` or an
-enum member is [`enum-const`](#enum-const)'s. The number reader is the numeric bounds' as well
+scalar that YAML resolves to a string only because it is past float64's range is still the number
+it spells, never its text: a decimal literal a `BigVal` holds (its exponent within
+`ir.MaxDecimalExp`) is that number, and one past that exponent is a number no `Value` holds, as the
+same literal tagged `!!float` is. A quoted one stays a string. A value no `Value` holds — `.inf` or
+`.nan`, a number past `ir.MaxDecimalExp`, a `!!binary` that is not base64, a scalar whose text its
+tag does not admit (`!!null abc`, `!!timestamp soon`), a tag the compiler does not lower (`!acme`), a
+key a mapping or a mapping merged into it writes twice, a merge chain deeper than the reader
+expands, nesting past the reader's depth bound — is not coerced: a default or example is dropped
+with an `openapi/degraded-construct` warning at its position, and a `const` or an enum member is
+[`enum-const`](#enum-const)'s. A scalar whose text its tag does not admit is refused rather than
+read as its text, since its tag says what kind of value it is, YAML's own decoding refuses it, and
+its text read as a string would be a value of a kind the source never wrote, where the warning says
+what the document got wrong. The number reader is the numeric bounds' as well
 ([`constraints`](#constraints)). A value kept verbatim instead is
 [`verbatim-preservation`](#verbatim-preservation)'s.
 
@@ -950,10 +956,10 @@ enum member is [`enum-const`](#enum-const)'s. The number reader is the numeric b
 - Tests: `value.TestNumericLiteral_YAMLBases`, `value.TestValueFromNode_Timestamp`,
   `value.TestValueFromNode_Scalars`, `value.TestValueFromNode_ReadsAMappingAsTheParserDoes`,
   `value.TestValueFromNode_RefusesWhatNoObjectHolds`, `value.TestClassify_ReadsEachSpellingOnce`,
+  `value.TestClassify_RefusesAPlainNumberPastTheExponentRange`,
   `annotation.TestSchemaExamplesAt_UnconvertibleValueIsReportedNotDropped`
 - Status: partly built: an unconvertible default is reported at the schema of the property or
-  parameter that reads it rather than at its own position (#1101); and a plain number past
-  `ir.MaxDecimalExp` lowers as the string YAML reads, unreported (#1115).
+  parameter that reads it rather than at its own position (#1101).
 
 ## 4. Schemas: identity, references and annotations
 
