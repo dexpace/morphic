@@ -119,7 +119,9 @@ in the docs.
    (severity, stable string code, message, provenance). The engine decides what is fatal.
 6. **Heuristics are policy, not semantics.** Anything inferred rather than declared (pagination
    from param names, envelope detection, acronym casing) lives in injectable per-compiler/emitter
-   policy, is marked `Inferred` in provenance, and can be disabled.
+   policy, is marked `Inferred` in provenance, and can be disabled. The OpenAPI compiler's policies
+   follow one model, `docs/compilers/openapi.md#policies`, which a new one cites rather than
+   restates.
 7. **Serializable & deterministic.** The whole `Document` round-trips through JSON (maps emitted in
    sorted-key order, slices in source order). This underpins golden snapshots, IR diffing, caching.
 8. **Optionality ≠ nullability.** `Property.Required` (wire presence) is orthogonal to
