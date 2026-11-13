@@ -262,10 +262,12 @@ func assertSecurityOrAnd(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 // statesKey is the one scheme the security-state cases declare.
 const statesKey ir.AuthID = "auth/openapi/components/securitySchemes/apiKey"
 
-// keyed is the requirement naming statesKey alone, and optionalOrKey the list
-// offering it or nothing.
-func keyed() ir.AuthRequirement { return ir.AuthRequirement{Schemes: []ir.SchemeUse{{Scheme: statesKey}}} }
+// keyed is the requirement naming statesKey alone.
+func keyed() ir.AuthRequirement {
+	return ir.AuthRequirement{Schemes: []ir.SchemeUse{{Scheme: statesKey}}}
+}
 
+// optionalOrKey is the list offering statesKey or no authentication at all.
 func optionalOrKey() []ir.AuthRequirement { return []ir.AuthRequirement{{}, keyed()} }
 
 // assertSecurityStatesCase pins the four states of an operation's list, under a
