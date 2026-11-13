@@ -300,14 +300,18 @@ func TestReachable(t *testing.T) {
 // TestBind_AReferenceInANetworkDocumentReadsOnlyTheNetwork pins the binder's
 // own judgement of a reference written in a document read over the network:
 // one naming a file, as written or through an $id above it, is refused
-// unread, before any read of that document, a mapping value's too, and the
+// unread, before it is placed or read, a mapping value's too, and the
 // source named back by its own location is refused alike; one on the network
 // is read, and an identifier the document declares is no location, so it is
 // never refused.
 func TestBind_AReferenceInANetworkDocumentReadsOnlyTheNetwork(t *testing.T) {
 	t.Parallel()
 	cfg := withDocuments(map[string]string{"/dir/secret.yaml": "X: {}\n", "https://h/b.yaml": "B: {}\n"})
-	cfg.Self, cfg.Locate = "https://h/spec.yaml", resolving.Locate
+	var located []string
+	cfg.Self, cfg.Locate = "https://h/spec.yaml", func(uri, base string) (string, bool) {
+		located = append(located, uri)
+		return resolving.Locate(uri, base)
+	}
 	open := cfg.Open
 	var opened []string
 	cfg.Open = func(name string) (*yaml.Node, error) {
@@ -335,6 +339,7 @@ func TestBind_AReferenceInANetworkDocumentReadsOnlyTheNetwork(t *testing.T) {
 		assert.Equal(t, bind.Resolved, e.Hop.Status, "%s: %s", site, e.Hop.Why())
 	}
 	assert.Equal(t, []string{"https://h/b.yaml"}, opened, "nothing local is opened")
+	assert.NotContains(t, located, "file:///dir/secret.yaml", "nor placed, which may ask the reader")
 
 	back := withDocuments(map[string]string{"https://h/b.yaml": "B: {$ref: 'file:///dir/spec.yaml#/components/schemas/T'}\n"})
 	back.Self, back.Locate = "file:///dir/spec.yaml", resolving.Locate

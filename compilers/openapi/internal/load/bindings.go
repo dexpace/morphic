@@ -189,13 +189,18 @@ func (s sourceDocument) locate(uri, base string) (string, bool) {
 }
 
 // nameOf is the name bind reads the document name names under: the source's
-// path for the source, however it is spelled (refscope.SameDocument), and name
-// itself for any other.
+// path for the source, however it is spelled (refscope.Places.SameDocument),
+// a path where it lies (refscope.Places.File), so a file reached through a
+// link to its directory is one document, and any other name itself.
 func (s sourceDocument) nameOf(name string) string {
-	if refscope.SameDocument(s.path, name) {
+	switch {
+	case s.places.SameDocument(s.path, name):
 		return s.path
+	case refscope.IsURL(name):
+		return name
+	default:
+		return s.places.File(name)
 	}
-	return name
 }
 
 // bindingDiags reports what the table found: each $ref that fails, at the
@@ -270,9 +275,9 @@ func (e external) document(ctx context.Context, name string) (*yaml.Node, error)
 	var a answer
 	if req, err := http.NewRequestWithContext(ctx, http.MethodGet, name, nil); err == nil && refscope.IsURL(name) {
 		key := req.URL.String()
-		a = e.readAs(ctx, documentID(key), key, key)
+		a = e.readAs(ctx, e.documentID(key), key, key)
 	} else {
-		a = e.readAs(ctx, fileNamed(name), name, fileNamed(name))
+		a = e.readAs(ctx, e.documentID(name), name, fileNamed(name))
 	}
 	if a.err != nil {
 		return nil, a.err

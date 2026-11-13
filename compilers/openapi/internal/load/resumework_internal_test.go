@@ -35,7 +35,7 @@ func resumedOver(t *testing.T, dir, root string, limit int) (*resumeWork, []ir.D
 	readyForModel(t.Context(), tree)
 	doc, err := unmarshal(t.Context(), []byte(root), tree)
 	require.NoError(t, err)
-	self := newSourceDocument(compilers.Source{Path: filepath.Join(dir, "root.yaml"), Data: []byte(root)}, tree, judgment{},
+	self := newSourceDocument(compilers.Source{Path: filepath.Join(dir, "root.yaml"), Data: []byte(root)}, nil, tree, judgment{},
 		treeOf(t.Context(), provenance.Doc{}, tree), nil)
 	opts := Options{Reader: reader.Disk{}}
 	ext := newExternal(t.Context(), doc, opts, newExternalReads(self, budget.Unbounded()))

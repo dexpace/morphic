@@ -64,7 +64,9 @@ engine hands it in `compilers.Options.Reader`, in the compile, under the compile
 budgets: decoding options reads nothing. The compiler says how far a read may go, as a directory it
 must stay inside, and the reader enforces it, symbolic links included: the OpenAPI compiler keeps
 every read inside the spec's directory, following relative references alone, unless
-`allow-external-refs` lifts that.
+`allow-external-refs` lifts that. A reader of files may also say where a directory lies, its links
+resolved (`compilers.DirectoryLocator`), so a compile names one file reached through two spellings
+of its directory as one document.
 
 Contract, abridged from `compilers.Compiler`, whose doc comments state each method's duties:
 
@@ -206,7 +208,7 @@ caught: the one duty no walk of a single document can check.
 
 **What stays in the OpenAPI compiler.** Three of its pieces read as if any format could use them:
 the YAML view (`internal/nodeview`), version sniffing (`internal/detect`) and document identity
-(`resolve.Locate`, `resolve.SameDocument`, `resolve.IsURL`). None moves into `compilers/compile`,
+(`resolve.Locate`, `resolve.Places`, `resolve.IsURL`). None moves into `compilers/compile`,
 because what each owes is agreement with the OpenAPI parser library, not with YAML or RFC 3986
 alone. The view reads a mapping as the library's unmarshaller does, its `<<` merges and repeated
 keys included, which yaml.v3's own decoder reads differently. Sniffing reads the parse the compile
@@ -538,8 +540,9 @@ what a hit skips.
 
 **What a key cannot cover.** Which other documents a compile reads is known only once it has run.
 So a compile reads through a recorder, the entry lists each request with the hash of what came
-back, and a hit makes the same reads through the run's own reader first: one document with other
-bytes, or one no longer there, is a miss. A run where a read failed stores nothing, because the
+back, and each directory the reader placed with where (`compilers.DirectoryLocator`), and a hit makes
+the same reads and placements through the run's own reader first: one document with other bytes,
+one no longer there, or a directory a link now places elsewhere, is a miss. A run where a read failed stores nothing, because the
 missing document could appear later and the entry would have nothing to compare it with. So a hit
 costs those reads, a remote document's fetch among them, and a key holds one entry, so documents
 that alternate between two states compile each time.

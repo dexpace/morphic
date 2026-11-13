@@ -329,7 +329,7 @@ func (e external) Open(name string) (fs.File, error) {
 		e.holdOpened(name)
 		return servedFile{Reader: bytes.NewReader(nil)}, nil
 	}
-	a := e.readAs(e.ctx, fileNamed(name), name, fileNamed(name))
+	a := e.readAs(e.ctx, e.documentID(name), name, fileNamed(name))
 	if a.err != nil {
 		return nil, unread{a.err}
 	}
@@ -398,13 +398,14 @@ func (e external) Do(req *http.Request) (*http.Response, error) {
 		e.holdOpened(key)
 		return answer{}.response(req)
 	}
-	return e.readAs(req.Context(), documentID(key), key, key).response(req)
+	return e.readAs(req.Context(), e.documentID(key), key, key).response(req)
 }
 
-// documentID names the document a URL key, as a request spells it, reads: the
-// file a file URI names, as Open names one, or the URL itself.
-func documentID(key string) string {
-	if file, ok := refscope.FileOf(key); ok {
+// documentID names the document key, a path or a URL as a request spells it,
+// reads: the file it names where it lies (refscope.Places.FileOf), however a
+// reference spells it, or the URL itself.
+func (e external) documentID(key string) string {
+	if file, ok := e.read.self.places.FileOf(key); ok {
 		return fileNamed(file)
 	}
 	return key
@@ -461,14 +462,14 @@ const followedWhenAllowed = ", which a read follows only when external reference
 // either mode it refuses a URL whose scheme is none of http, https and file,
 // which a reader would take for a path against the working directory. With no
 // reader it is nil.
-func refusedByName(opts Options, self string) func(uri string) error {
+func refusedByName(opts Options, self string, places *refscope.Places) func(uri string) error {
 	if opts.Reader == nil {
 		return nil
 	}
 	confined := opts.Within != ""
 	return func(uri string) error {
 		if !refscope.IsURL(uri) {
-			if confined && filepath.IsAbs(uri) && !namesSource(self, uri) {
+			if confined && filepath.IsAbs(uri) && !namesSource(places, self, uri) {
 				return refused(uri, "the $ref names it by an absolute path"+followedWhenAllowed)
 			}
 			return nil
@@ -486,10 +487,11 @@ func refusedByName(opts Options, self string) func(uri string) error {
 }
 
 // namesSource reports whether uri, a $ref's document part, names the source
-// at self, read as every reference is (resolve.Locate).
-func namesSource(self, uri string) bool {
+// at self, read as every reference is (resolve.Locate), where the files lie in
+// places.
+func namesSource(places *refscope.Places, self, uri string) bool {
 	named, ok := refscope.Locate(uri, self)
-	return ok && refscope.SameDocument(self, named)
+	return ok && places.SameDocument(self, named)
 }
 
 // readFailure returns the error a reference into the document under key fails

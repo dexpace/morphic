@@ -22,6 +22,7 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/oas"
 	"github.com/dexpace/morphic/compilers/openapi/internal/overlay"
 	"github.com/dexpace/morphic/compilers/openapi/internal/provenance"
+	refscope "github.com/dexpace/morphic/compilers/openapi/internal/resolve"
 	"github.com/dexpace/morphic/compilers/openapi/internal/scan"
 	"github.com/dexpace/morphic/compilers/openapi/internal/sourceindex"
 	"github.com/dexpace/morphic/ir"
@@ -151,8 +152,9 @@ type Document struct {
 	Doc    *soa.OpenAPI  // parsed, reference-resolved document
 	Source ir.SourceInfo // the entry Document.Sources records for this source
 	// Location is where the source lies, as its references are read against
-	// (see Location).
+	// (see Location), and Places where every file the compile names lies.
 	Location string
+	Places   *refscope.Places
 	// Bindings answers where each schema $ref lands and where its chain ends,
 	// as the compiler resolved it (bindSchemas), and the schemas there.
 	Bindings *typed.Bindings
@@ -240,7 +242,15 @@ func Load(ctx context.Context, srcIndex int, src compilers.Source, opts Options)
 // found past the first document is reported on every return path — a refusal
 // included — without being read as a refusal itself.
 func build(ctx context.Context, srcIndex int, src compilers.Source, parsed *Parsed, opts Options) (*Document, []ir.Diagnostic, error) {
-	l := &loading{srcIndex: srcIndex, src: src, opts: opts, root: parsed.root}
+	places := refscope.NewPlaces(opts.Reader)
+	// Where the source lies, and the directory a read is confined to, are
+	// placed as every file the compile names is, so a link to the source's
+	// directory names the source as its target does.
+	if location := Location(src); filepath.IsAbs(location) {
+		src.Location = places.File(location)
+	}
+	opts.Within = places.Directory(opts.Within)
+	l := &loading{srcIndex: srcIndex, src: src, opts: opts, root: parsed.root, places: places}
 	// Every return leaves the tree as the source wrote it.
 	defer l.restoreTrees()
 	for _, s := range steps() {

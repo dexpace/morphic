@@ -283,7 +283,7 @@ func TestExternal_OpenServesWhatTheReaderReturned(t *testing.T) {
 func TestExternal_AReadRefusesByHowItIsNamed(t *testing.T) {
 	t.Parallel()
 	const allowed = ", which a read follows only when external references are allowed"
-	esc := newEscapes(refusedByName(Options{Within: "/r", Reader: &fakeReader{}}, "/r/root.yaml"))
+	esc := newEscapes(refusedByName(Options{Within: "/r", Reader: &fakeReader{}}, "/r/root.yaml", nil))
 	esc.escape(t.Context(), decodeRoot(t, "[{$ref: '/r/a b.yaml#/X'}, {$ref: 'foo:b.yaml#/X'}]"), "")
 	const scheme = `external document foo:b.yaml refused: it is named by a URL with the scheme "foo", ` +
 		"and only http, https and file URLs are read"
@@ -351,7 +351,7 @@ func TestRefusedByName_JudgesADocumentPartByItsSpelling(t *testing.T) {
 		for _, run := range []struct {
 			within, want string
 		}{{"/r", tc.confined}, {"", tc.anywhere}} {
-			err := refusedByName(Options{Within: run.within, Reader: &fakeReader{}}, "/r/root.yaml")(tc.uri)
+			err := refusedByName(Options{Within: run.within, Reader: &fakeReader{}}, "/r/root.yaml", nil)(tc.uri)
 			if run.want == "" {
 				assert.NoError(t, err, "%s within %q", tc.uri, run.within)
 				continue
@@ -361,6 +361,6 @@ func TestRefusedByName_JudgesADocumentPartByItsSpelling(t *testing.T) {
 		}
 	}
 	confined := Options{Within: "/r", Reader: &fakeReader{}}
-	assert.Error(t, refusedByName(confined, "")("/r/root.yaml"), "a source with no path is named by none")
-	assert.Nil(t, refusedByName(Options{Within: "/r"}, "/r/root.yaml"), "no reader reads nothing")
+	assert.Error(t, refusedByName(confined, "", nil)("/r/root.yaml"), "a source with no path is named by none")
+	assert.Nil(t, refusedByName(Options{Within: "/r"}, "/r/root.yaml", nil), "no reader reads nothing")
 }

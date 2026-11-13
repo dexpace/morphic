@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"strings"
+	"sync"
 	"unicode/utf8"
 
 	"github.com/speakeasy-api/openapi/references"
@@ -113,41 +114,95 @@ func escapesADelimiter(uri string) bool {
 	return strings.Contains(lower, "%2f") || strings.Contains(lower, "%5c") || strings.Contains(lower, "%23")
 }
 
+// Places is where a compile's files lie: an absolute path's directory as the
+// compile's reader locates it (compilers.DirectoryLocator), the rule the
+// engine places the spec's own location by, each directory asked once. A nil
+// *Places, as for a reader locating none, leaves every path where it is
+// spelled. Safe for concurrent use.
+type Places struct {
+	locator compilers.DirectoryLocator
+	mu      sync.Mutex
+	dirs    map[string]string
+}
+
+// NewPlaces returns where the files reader reads lie, or nil for a reader
+// locating no directory.
+func NewPlaces(reader compilers.DocumentReader) *Places {
+	locator, ok := reader.(compilers.DirectoryLocator)
+	if !ok {
+		return nil
+	}
+	return &Places{locator: locator, dirs: map[string]string{}}
+}
+
+// File returns where the file at path lies: an absolute path, its dot
+// segments removed, in its directory as located, its own name kept, so a
+// file that is a link is read beside the link. A relative path is kept as
+// spelled, as only the working directory, which a compile never reads,
+// relates it to a directory.
+func (p *Places) File(path string) string {
+	if p == nil || !filepath.IsAbs(path) {
+		return path
+	}
+	clean := filepath.Clean(path)
+	return filepath.Join(p.Directory(filepath.Dir(clean)), filepath.Base(clean))
+}
+
+// Directory returns where the absolute directory dir lies, asking the locator
+// the first time, so a compile reads one answer for each directory however
+// often it is asked. A relative one is kept as spelled, as by File.
+func (p *Places) Directory(dir string) string {
+	if p == nil || !filepath.IsAbs(dir) {
+		return dir
+	}
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	located, ok := p.dirs[dir]
+	if !ok {
+		located = p.locator.LocateDirectory(dir)
+		p.dirs[dir] = located
+	}
+	return located
+}
+
 // SameDocument reports whether two documents a reference reads, a and b, are
-// one: the same spelling, or for two files, a file URI naming its path
-// (FileOf), the same path with its dot segments removed (RFC 3986 §5.2.4). The
-// test is lexical, so a file reached through a link is another document, and a
-// directory that does not exist cleans away like one that does. A relative
-// path and an absolute one are two documents, as only the working directory,
-// which is not read, relates them. Any other URL is one only as spelled, and
-// an empty name names none.
-func SameDocument(a, b string) bool {
+// one: the same spelling, or for two files, a file URI naming its path, the
+// same file where it lies (FileOf), its dot segments removed (RFC 3986
+// §5.2.4). A file through a link is another document only where p places no
+// directory, and a directory that does not exist cleans away like one that
+// does. A relative path and an absolute one are two documents, as only the
+// working directory, which is not read, relates them. Any other URL is one
+// only as spelled, and an empty name names none.
+func (p *Places) SameDocument(a, b string) bool {
 	if a == "" || b == "" {
 		return false
 	}
 	if a == b {
 		return true
 	}
-	fileA, okA := FileOf(a)
-	fileB, okB := FileOf(b)
+	fileA, okA := p.FileOf(a)
+	fileB, okB := p.FileOf(b)
 	return okA && okB && filepath.Clean(fileA) == filepath.Clean(fileB)
 }
 
-// FileOf returns the path of the file the document name names: name itself
-// for a path, and for a file URI the path it names, as a reader reads one
+// FileOf returns where the file the document name names lies (File): for a
+// path, the path, and for a file URI the path it names, as a reader reads one
 // (compilers.FilePath), so that one file is one document however a reference
 // spells it. It is false for any other URL, and for a file URI naming no
 // local file.
-func FileOf(name string) (string, bool) {
+func (p *Places) FileOf(name string) (string, bool) {
 	if !IsURL(name) {
-		return name, true
+		return p.File(name), true
 	}
 	u, err := url.Parse(name)
 	if err != nil || !strings.EqualFold(u.Scheme, "file") {
 		return "", false
 	}
 	path, err := compilers.FilePath(u, runtime.GOOS == "windows")
-	return path, err == nil
+	if err != nil {
+		return "", false
+	}
+	return p.File(path), true
 }
 
 // IsURL reports whether location names a document by URL rather than as a

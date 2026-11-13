@@ -395,7 +395,7 @@ func TestEscapes_RespellsADocumentPartTheResolverReadsOtherwise(t *testing.T) {
 // own refusal and each message its own $ref as written.
 func TestEscapes_ASourcesOwnRefusedSchemeIsRespelledApart(t *testing.T) {
 	t.Parallel()
-	esc := newEscapes(refusedByName(Options{Within: "/r", Reader: &fakeReader{}}, "/r/root.yaml"))
+	esc := newEscapes(refusedByName(Options{Within: "/r", Reader: &fakeReader{}}, "/r/root.yaml", nil))
 	root := decodeRoot(t, "[{$ref: '/r/a.yaml#/X'}, {$ref: 'x-morphic-refused:%2Fr%2Fa.yaml#/X'}]")
 
 	esc.escape(t.Context(), root, "")

@@ -96,7 +96,8 @@ func (e *Engine) compileCached(ctx context.Context, spec compilers.Source, opts 
 }
 
 // fetch answers a run from the entry named key. ok is false for no entry, for
-// one a changed document outdates, and for one that fails, which err then says.
+// one a changed document or a moved directory outdates, and for one that
+// fails, which err then says.
 // Rereading costs what the compile's reads cost, the network's among them.
 func (b *cacheBinding) fetch(ctx context.Context, key cache.Key, docs compilers.DocumentReader) (*Result, bool, error) {
 	entry, ok, err := b.load(ctx, key)
@@ -107,7 +108,7 @@ func (b *cacheBinding) fetch(ctx context.Context, key cache.Key, docs compilers.
 	if err != nil {
 		return nil, false, fmt.Errorf("engine: cache: entry %s: %w", key, err)
 	}
-	if !readsUnchanged(ctx, docs, head.Reads) {
+	if !readsUnchanged(ctx, docs, head.Reads) || !directoriesUnchanged(docs, head.Directories) {
 		return nil, false, nil
 	}
 	var doc ir.Document
@@ -141,7 +142,7 @@ func (b *cacheBinding) keep(ctx context.Context, key cache.Key, res *Result, rea
 	if res.Document == nil || !sound {
 		return nil
 	}
-	entry, err := encodeEntry(key, res, listed)
+	entry, err := encodeEntry(key, res, listed, reads.directories())
 	if err != nil {
 		return fmt.Errorf("engine: cache: %w", err)
 	}

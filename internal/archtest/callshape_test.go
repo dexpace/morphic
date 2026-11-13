@@ -99,6 +99,10 @@ var callShapeBaseline = map[string]map[string]int{
 		// rule: a lazily built index (Holds), and queries of load's index of the
 		// fields written beside a path item $ref (Beside, Writes).
 		"compilers/openapi/internal/load": 3,
+		// DirectoryLocator, through which Places asks the reader where a
+		// directory lies: I/O at a designed seam, as DocumentReader is load's.
+		"engine":        1,
+		"engine/reader": 2,
 	},
 	"engine/internal/atomicfile": {
 		// Replace calls the fill it is handed before it returns: an immediate

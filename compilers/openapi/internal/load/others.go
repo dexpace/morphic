@@ -132,7 +132,7 @@ func newOthers(ctx context.Context, read *externalReads, first int, source *dial
 		if read.self.names(key) || read.trees[key] == read.self.root || unused[key] {
 			continue
 		}
-		label, _ := labelOf(read.self.path, key)
+		label, _ := read.self.labelOf(key)
 		byLabel[label] = append(byLabel[label], key)
 	}
 	o := Others{byName: map[string]int{}}
@@ -176,19 +176,19 @@ func pointersIn(ctx context.Context, trees map[string]*yaml.Node, keys []string)
 	}
 }
 
-// labelOf is the label of the document read under key, from the source at
-// self: a file's path relative to the source's directory, with '/' between its
-// segments whatever the system, or its cleaned path where no relative path
-// reaches it, as from a relative directory to an absolute path, which nothing
-// relates without the working directory; a URL as the resolver spells it. A
-// file URI names a file (resolve.FileOf), so the file is one label however a
-// reference spells it. relative reports the first.
-func labelOf(self, key string) (label string, relative bool) {
-	file, ok := refscope.FileOf(key)
+// labelOf is the label of the document read under key, from the source: a
+// file's path, where it lies, relative to the source's directory, with '/'
+// between its segments whatever the system, or its cleaned path where no
+// relative path reaches it, as from a relative directory to an absolute path,
+// which nothing relates without the working directory; a URL as the resolver
+// spells it. A file URI names a file (resolve.Places.FileOf), so the file is
+// one label however a reference spells it. relative reports the first.
+func (s sourceDocument) labelOf(key string) (label string, relative bool) {
+	file, ok := s.places.FileOf(key)
 	if !ok {
 		return key, false
 	}
-	dir, clean := filepath.Dir(self), filepath.Clean(file)
+	dir, clean := filepath.Dir(s.path), filepath.Clean(file)
 	if filepath.IsAbs(dir) == filepath.IsAbs(clean) {
 		if rel, err := filepath.Rel(dir, clean); err == nil {
 			return filepath.ToSlash(rel), true
@@ -206,7 +206,7 @@ func labelOf(self, key string) (label string, relative bool) {
 // than cleaning them away would. A file no relative path reaches from the
 // source is its path as read (fileNamed).
 func (s sourceDocument) shownPathOf(key string) string {
-	label, relative := labelOf(s.path, key)
+	label, relative := s.labelOf(key)
 	dir, local := filepath.Dir(s.handed), filepath.FromSlash(label)
 	switch {
 	case refscope.IsURL(key):

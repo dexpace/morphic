@@ -450,6 +450,44 @@ func TestWithCache_ADocumentARunReadsIsAnInput(t *testing.T) {
 	assert.True(t, gone.Failed, "and the run reports what is missing, not the document it once read")
 }
 
+// TestWithCache_ADirectoryARunLocatesIsAnInput retargets a link a reference
+// names a file through, from one directory to another holding a file of the
+// same name and bytes: the run reads another document, whose IDs carry where
+// it lies, though every file the compile read still holds what it did. An
+// entry answers only a run placing each directory where it did.
+func TestWithCache_ADirectoryARunLocatesIsAnInput(t *testing.T) {
+	t.Parallel()
+	store := newMemoryCache()
+	eng, counter := cachedEngine(t, store, "b1")
+	plain, err := engine.New()
+	require.NoError(t, err)
+	dir, err := filepath.EvalSymlinks(t.TempDir())
+	require.NoError(t, err)
+	for _, sub := range []string{"one", "two"} {
+		require.NoError(t, os.Mkdir(filepath.Join(dir, sub), 0o755))
+		require.NoError(t, os.WriteFile(filepath.Join(dir, sub, "other.yaml"), []byte(otherDoc("name")), 0o644))
+	}
+	link := filepath.Join(dir, "link")
+	require.NoError(t, os.Symlink(filepath.Join(dir, "one"), link))
+	spec := filepath.Join(dir, "api.yaml")
+	require.NoError(t, os.WriteFile(spec, []byte(strings.ReplaceAll(refSpec, "other.yaml",
+		filepath.Join(link, "other.yaml"))), 0o644))
+	opts := engine.RunOptions{CompilerOptions: map[string]string{"allow-external-refs": "true"}}
+
+	_, err = eng.Run(t.Context(), spec, opts)
+	require.NoError(t, err)
+	require.NoError(t, os.Remove(link))
+	require.NoError(t, os.Symlink(filepath.Join(dir, "two"), link))
+	got, err := eng.Run(t.Context(), spec, opts)
+	require.NoError(t, err)
+
+	assert.EqualValues(t, 2, counter.compiles.Load(), "a moved directory misses")
+	want, err := plain.Run(t.Context(), spec, opts)
+	require.NoError(t, err)
+	assertSameRun(t, want, got)
+	assert.Equal(t, filepath.Join(dir, "two", "other.yaml"), got.Sources[1].Path, "the file the link now leads to")
+}
+
 // TestWithCache_ADocumentADocumentReadsIsAnInput changes a document the spec
 // never names, reached through the one it does.
 func TestWithCache_ADocumentADocumentReadsIsAnInput(t *testing.T) {

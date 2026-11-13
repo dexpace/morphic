@@ -588,7 +588,8 @@ func TestLoad_ARefusalAfterTheRespellingLeavesTheTreeAsWritten(t *testing.T) {
 // resolver follows reference objects, and reports its own reason for it.
 func TestLoad_AChainThatStopsAtAPlusReferenceQuotesItAsWritten(t *testing.T) {
 	t.Parallel()
-	dir := t.TempDir()
+	dir, err := filepath.EvalSymlinks(t.TempDir())
+	require.NoError(t, err)
 	writeFile(t, dir, "other.yaml", `components:
   responses:
     X: {$ref: '#/components/responses/Y+Z'}

@@ -368,10 +368,12 @@ components:
 `
 
 // loadElsewhere loads elsewhereRoot beside the ext.yaml its entries name, and
-// returns it with that file's path.
+// returns it with that file's path, its directory's links resolved as the
+// compile names it.
 func loadElsewhere(t *testing.T) (*load.Document, string) {
 	t.Helper()
-	dir := t.TempDir()
+	dir, err := filepath.EvalSymlinks(t.TempDir())
+	require.NoError(t, err)
 	ext := filepath.Join(dir, "ext.yaml")
 	require.NoError(t, os.WriteFile(ext, []byte(`paths:
   /x: {get: {responses: {"200": {description: ok}}}}

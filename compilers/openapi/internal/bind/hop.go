@@ -87,23 +87,25 @@ func (b *binder) named(in resource, uri string) (resource, Reason, string) {
 	case in.id && !fragment.Absolute(uri):
 		return b.readAt(in, uri, key)
 	}
-	return b.opened(in, uri)
+	return b.opened(in, uri, key)
 }
 
 // opened is the resource of the document uri, written in the resource in,
 // names, placed by Config.Locate, or why not: Config.Refuse refuses that
-// spelling, it names no document, or the read fails (read). An identifier is
-// never refused, since no document is read for one.
-func (b *binder) opened(in resource, uri string) (resource, Reason, string) {
+// spelling, key, the URI it resolves to, is no location in's document may
+// reach, judged before Config.Locate asks anything of a reader, it names no
+// document, or the read fails (read). An identifier is never refused, since no
+// document is read for one.
+func (b *binder) opened(in resource, uri, key string) (resource, Reason, string) {
 	if why := b.docs.refusal(uri); why != "" {
 		return resource{}, Unreadable, why
+	}
+	if !reachable(b.docs, in, key) {
+		return resource{}, Unreadable, OffNetwork
 	}
 	name, ok := b.docs.locate(uri, in.uri)
 	if !ok {
 		return resource{}, Unreadable, "it names no document a reference can"
-	}
-	if !reachable(b.docs, in, name) {
-		return resource{}, Unreadable, OffNetwork
 	}
 	return b.read(name)
 }

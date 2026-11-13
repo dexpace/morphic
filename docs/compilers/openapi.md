@@ -446,9 +446,12 @@ source's budgets and refusals ([`source-budgets`](#source-budgets)), where a doc
 each reference naming it. Its document part is read against the document writing it, by RFC 3986
 §5.2, and the source's against where the source lies: the absolute path `compilers.Source.Location`
 names, which the engine sets with the symbolic links of the spec's directory resolved, or the
-source's `Path` where it is unset. The working directory is never read, so what a reference names
-depends on no spelling of it, nor on how the spec was named, and a relative path names the file an
-absolute one does only where the source lies at an absolute path. A file's part is percent-decoded,
+source's `Path` where it is unset. Every file a compile names at an absolute path, the source
+included, lies where the reader places its directory (`compilers.DirectoryLocator`), its links
+resolved, so a file reached through a link to its directory and through the directory itself is one
+document. The working directory is never read, so what a reference names depends on no spelling of
+it, nor on how the spec was named, and a relative path names the file an absolute one does only
+where the source lies at an absolute path. A file's part is percent-decoded,
 so `my%20file.yaml` names the file `my file.yaml`, unless decoding would read it otherwise, as an
 escaped separator or `#` would, where it is read as written; and a `file:` URI names the file at its
 path, as a reader reads it. Against a document fetched over http(s), a part naming no scheme, an
@@ -644,6 +647,7 @@ references that closes on itself is [`reference-cycles`](#reference-cycles)'.
   `e2e.TestCompile_AnAbsolutePathInANetworkDocumentNamesItsHost`,
   `e2e.TestCompile_ANetworkDocumentReadsNoLocalFile`, `resolve.TestLocate`,
   `resolve.TestForResolver`, `resolve.TestFilePart`, `resolve.TestFileOf`, `resolve.TestSameDocument`,
+  `resolve.TestPlaces_PlacesAFileWhereItsDirectoryLies`,
   `load.TestEscapes_RespellsADocumentPartTheResolverReadsOtherwise`,
   `load.TestExternal_DoHoldsTheSourceAFileURINames`, `load.TestLoad_RejectsARelativeLocation`,
   `load.TestLabelOf_IsTheLocationTheSourcesDirectoryReachesADocumentBy`,

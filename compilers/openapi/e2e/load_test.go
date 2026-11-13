@@ -261,7 +261,8 @@ func TestCompile_AReferenceObjectToANonObjectIsReportedOnce(t *testing.T) {
 
 	t.Run("a chain through a reference written in another document", func(t *testing.T) {
 		t.Parallel()
-		dir := t.TempDir()
+		dir, err := filepath.EvalSymlinks(t.TempDir())
+		require.NoError(t, err)
 		require.NoError(t, os.WriteFile(filepath.Join(dir, "mid.yaml"),
 			[]byte("P: {$ref: '#/S'}\nS: just a string\n"), 0o600))
 		root := openapitest.PathsSpec("  /x:\n    get:\n      parameters: [{$ref: 'mid.yaml#/P'}]\n" +

@@ -106,7 +106,7 @@ func heldResolution(t *testing.T, spec, path string) (*soa.OpenAPI, *resolution)
 	readyForModel(t.Context(), root)
 	doc, err := unmarshal(t.Context(), data, root)
 	require.NoError(t, err)
-	self := newSourceDocument(compilers.Source{Path: path, Data: data}, root, judgment{}, treeOf(t.Context(), provenance.Doc{}, root), nil)
+	self := newSourceDocument(compilers.Source{Path: path, Data: data}, nil, root, judgment{}, treeOf(t.Context(), provenance.Doc{}, root), nil)
 	opts := Options{Reader: reader.Disk{}}
 	ext := newExternal(t.Context(), doc, opts, newExternalReads(self, budget.Unbounded()))
 	return doc, newResolution(t.Context(), doc, Siblings{}, MediaTypes{}, self, opts, &ext)

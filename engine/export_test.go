@@ -84,6 +84,17 @@ func SettledLocations(r *Recorder) ([]string, bool) {
 	return locations, sound
 }
 
+// SettledDirectories returns each directory r placed and where, in the order
+// an entry lists them.
+func SettledDirectories(r *Recorder) [][2]string {
+	dirs := r.directories()
+	out := make([][2]string, 0, len(dirs))
+	for _, d := range dirs {
+		out = append(out, [2]string{d.Directory, d.Located})
+	}
+	return out
+}
+
 // SealedEntry returns an entry for key holding head and body, sealed as a store
 // would hand it back intact: what a test writes to reach what follows the seal.
 func SealedEntry(key cache.Key, head, body string) []byte {

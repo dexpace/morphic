@@ -24,6 +24,9 @@ type Scope struct {
 	// are read against (load.Location), against which a reference's document
 	// part is judged internal or external.
 	SelfPath string
+	// Places is where the compile's files lie, which a document part naming
+	// the source is compared by.
+	Places *Places
 	// Declares holds the names of the component schemas the document declares.
 	Declares Names
 	// Doc is the parsed document a pointer is read against, as the resolver reads
@@ -147,7 +150,7 @@ func (s Scope) reached(end End) Scope {
 // turned is reached with turns walks left to take.
 func (s Scope) turned(end End, turns int) Scope {
 	for range turns {
-		if end.Document != s.Doc && !SameDocument(s.SelfPath, end.Path) {
+		if end.Document != s.Doc && !s.Places.SameDocument(s.SelfPath, end.Path) {
 			s.Foreign, s.Holder = true, end.Path
 			return s
 		}

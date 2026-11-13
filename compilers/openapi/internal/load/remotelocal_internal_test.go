@@ -44,7 +44,7 @@ func remoteReader(t *testing.T, doc *soa.OpenAPI) external {
 func TestEscapes_RefusesALocalReferenceOfANetworkDocument(t *testing.T) {
 	t.Parallel()
 	const network, local = "http://host/v1/a.yaml", "/dir/a.yaml"
-	refuses := refusedByName(Options{Reader: &fakeReader{}}, local)
+	refuses := refusedByName(Options{Reader: &fakeReader{}}, local, nil)
 	for _, tc := range []struct {
 		ref     string
 		refused bool
