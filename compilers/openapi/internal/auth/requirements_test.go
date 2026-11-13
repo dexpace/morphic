@@ -1178,3 +1178,27 @@ components:
 		})
 	}
 }
+
+// TestSecurityRequirement_EveryErrorForANameNamesItsNearMiss pins that the hint
+// is the name's and not its first requirement's: each requirement naming it, at
+// the document and on an operation, beside a declared scheme or alone, is
+// reported with the hint, so which one a walk meets first decides nothing.
+func TestSecurityRequirement_EveryErrorForANameNamesItsNearMiss(t *testing.T) {
+	t.Parallel()
+	_, _, diags := serviceSpec(t, `openapi: 3.1.1
+info: {title: T, version: "1"}
+security: [{ApiKey: []}]
+paths:
+  /x:
+    get:
+      operationId: x
+      security: [{ApiKey: []}, {apiKey: [], ApiKey: []}]
+      responses: {"200": {description: ok}}
+components:
+  securitySchemes:
+    apiKey: {type: apiKey, in: header, name: X-Key}
+`)
+	const want = `security requirement references unresolved scheme "ApiKey": the requirement is kept, ` +
+		`and the scheme has no mechanism; a scheme named "apiKey" is declared`
+	assert.Equal(t, []string{want, want, want}, messagesAt(diags, diag.UnresolvedSecurityScheme))
+}

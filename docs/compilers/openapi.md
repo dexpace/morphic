@@ -4951,6 +4951,7 @@ requirement naming no scheme and a scheme naming no mechanism, and leaves them t
   `auth.TestSecurityRequirement_AKeyAnotherDocumentMintsStillNamesTheSourcesEntry`,
   `oas.TestSecurityRules_AnswerAsTheTableDoes`,
   `auth.TestSecurityRequirement_AnUnresolvedNameNamesADeclaredNearMiss`,
+  `auth.TestSecurityRequirement_EveryErrorForANameNamesItsNearMiss`,
   `auth.TestNearest_TakesTheFirstReadingThatMatches`,
   `auth.TestNearest_ReadsOneEditWithinItsBounds`, `auth.TestOneEditApart_CountsOneEdit`,
   `lowering.TestFirstOccurrences_KeepsEachEntryOnceAtItsFirst`,
