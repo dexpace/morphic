@@ -799,7 +799,8 @@ throughout these documents.
     list in a cookie as `p=a; p=b`, an unexploded `cookie`-style list as `p=a,b`, `a/b?c#d` and
     `a//b` in a path under `AllowReserved` as `a/b%3Fc%23d` and `a//b`, a map's entries and a
     `Prefix` map's fields in their keys' order, the map's entry, and a `form`-exploded map's, giving
-    way to a field another binding writes, a string under `ContentType` `application/json` with its
+    way to a field another binding writes, a query map under the empty `Prefix` as a parameter per
+    entry named by its key alone, a string under `ContentType` `application/json` with its
     quotes, a `text/plain` body as its UTF-8 octets with no byte-order mark, and a scalar's class
     and an `enum class` entry as their wire forms, never their `toString()`. An optional query input
     holding null or an empty list is sent as an absent one, a null member of a list is left out, and

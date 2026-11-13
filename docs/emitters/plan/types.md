@@ -365,12 +365,9 @@ entry, a Worker script's bulk secrets, hold the secrets in a map whose `Value` i
 the compiler read from a `nullable: true` beside an `allOf` and marked `Inferred` as
 `nullable-widening` (spec @bc6fad24, morphic @fa253fe19).
 
-No compiler sets the field today, and the plan reads nil as stating nothing, since an emitter sees a
-binding and never the format behind it (INV1), so one default has to serve every format. The IR's
-own comment still words nil otherwise, as "the protocol default (PATCH projections make properties
-optional)" ([http-binding](../../ir/http-binding.md),
-[properties](../../ir/properties.md#visibility)), which #1775 is to settle; until then an emitter
-follows this document.
+No compiler sets the field today, and nil states nothing ([patch
+optionality](../../ir/http-binding.md#patch-optionality)), as the plan needs: an emitter sees a
+binding and never the format behind it (INV1), so one default has to serve every format.
 
 On the golden spec (spec @bc6fad24, morphic @fa253fe19) every one of the 276 `PATCH` bindings leaves
 the field nil. Their bodies have 269 contents, 257 of them `application/json` and 6 a merge patch,
