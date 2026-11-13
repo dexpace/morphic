@@ -370,6 +370,58 @@ func TestFlattenedProperties_Secret(t *testing.T) {
 	}
 }
 
+// deprecatedBy is wired, deprecated with its own ID as the message.
+func deprecatedBy(id ir.PropID, wire string) ir.Property {
+	p := wired(id, wire)
+	p.Deprecation = &ir.Deprecation{Message: string(id)}
+	return p
+}
+
+func TestFlattenedProperties_Deprecation(t *testing.T) {
+	t.Parallel()
+	cases := []struct {
+		name string
+		doc  *ir.Document
+		want []string
+	}{
+		{
+			name: "a deprecation an overridden declaration states still holds",
+			doc: irtest.DocOf(
+				owning("m", mixing("m1", "m2")),
+				owning("m1", nil, deprecatedBy("m1.f", "f")), owning("m2", nil, wired("m2.f", "f")),
+			),
+			want: []string{"m2.f@m2 < m1.f@m1 deprecated m1.f"},
+		},
+		{
+			name: "the taken declaration's own deprecation is the one carried",
+			doc: irtest.DocOf(
+				owning("m", based("b"), deprecatedBy("m.f", "f")), owning("b", nil, deprecatedBy("b.f", "f")),
+			),
+			want: []string{"m.f@m < b.f@b deprecated m.f"},
+		},
+		{
+			name: "else the last declaration read to state one",
+			doc: irtest.DocOf(
+				owning("m", mixing("a", "b", "c")),
+				owning("a", nil, deprecatedBy("a.f", "f")), owning("b", nil, deprecatedBy("b.f", "f")),
+				owning("c", nil, wired("c.f", "f")),
+			),
+			want: []string{"c.f@c < a.f@a < b.f@b deprecated b.f"},
+		},
+		{
+			name: "no declaration stating one deprecates nothing",
+			doc:  irtest.DocOf(owning("m", based("b"), wired("m.f", "f")), owning("b", nil, wired("b.f", "f"))),
+			want: []string{"m.f@m < b.f@b"},
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			assert.Equal(t, tc.want, flatLines(ir.FlattenedProperties(tc.doc.Types, "m")))
+		})
+	}
+}
+
 func TestFlattenedProperties_ReadsThroughAliasScalars(t *testing.T) {
 	t.Parallel()
 	doc := irtest.DocOf(
@@ -484,13 +536,14 @@ func TestFlattenedProperties_AModelReadEarlierHoldsNothingBack(t *testing.T) {
 
 func TestFlattenedProperties_PointsIntoTheRegistry(t *testing.T) {
 	t.Parallel()
-	b := owning("b", nil, wired("b.x", "x"), wired("b.y", "y"))
+	b := owning("b", nil, deprecatedBy("b.x", "x"), wired("b.y", "y"))
 	m := owning("m", based("b"), wired("m.x", "x"))
 	f := ir.FlattenedProperties(irtest.DocOf(m, b).Types, "m")
 	require.Len(t, f.Properties, 2)
 	assert.Same(t, &m.Properties[0], f.Properties[0].Property, "the member takes the declaration itself, not a copy")
 	require.Len(t, f.Properties[0].Overridden, 1)
 	assert.Same(t, &b.Properties[0], f.Properties[0].Overridden[0].Property)
+	assert.Same(t, b.Properties[0].Deprecation, f.Properties[0].Deprecation, "and the deprecation it carries")
 	assert.Same(t, &b.Properties[1], f.Properties[1].Property)
 }
 

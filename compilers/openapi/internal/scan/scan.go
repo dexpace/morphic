@@ -194,8 +194,9 @@ func Aliases(ctx context.Context, tree provenance.Tree, whole ir.Provenance, idx
 // with the least pointer (Least): the parser cannot decode one
 // (docs/parser-library.md#alias-cycle). It is read before anything weighs the
 // document's aliases: a recursive anchor makes the expanded weight infinite,
-// and having refused those is what makes the alias graph a DAG and the weigh
-// walk provably terminating.
+// and having refused those makes the alias graph a DAG above the index's
+// tracked depth. One below it is the weigh walk's to end, by its cut, so the
+// walk terminates on its own account.
 func anchorCycle(ctx context.Context, tree provenance.Tree, idx sourceindex.Index) (ir.Diagnostic, bool) {
 	cycles := idx.AnchorCycles()
 	if len(cycles) == 0 {

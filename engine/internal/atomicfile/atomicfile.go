@@ -94,7 +94,7 @@ func pendingFor(path string, chmod func(*renameio.PendingFile, fs.FileMode) erro
 	}
 	f, err := renameio.NewPendingFile(path, opts...)
 	if err != nil {
-		return nil, fmt.Errorf("create output %q: %w", path, err)
+		return nil, fmt.Errorf("create the temporary file beside output %q: %w", path, err)
 	}
 	if exists {
 		if err := chmod(f, info.Mode().Perm()); err != nil {

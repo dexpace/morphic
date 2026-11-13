@@ -10,6 +10,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"strings"
@@ -268,7 +269,7 @@ func TestReplaceDocument_MissingParentDirectory(t *testing.T) {
 	err := output.ReplaceDocument(t.Context(), dest, orderedDoc(), output.Compact)
 
 	require.ErrorIs(t, err, os.ErrNotExist)
-	assert.ErrorContains(t, err, fmt.Sprintf("create output %q", dest))
+	assert.ErrorContains(t, err, fmt.Sprintf("create the temporary file beside output %q", dest))
 }
 
 // TestEncode_ErrorPaths pins that both layouts tell a document that will not
@@ -454,5 +455,37 @@ func TestEncode_StopsAtTheWriteAfterTheContextEnds(t *testing.T) {
 					"the destination holds the whole document only when the stop waits for all of it")
 			})
 		}
+	}
+}
+
+// TestReplaceDocument_ADirectoryIsRefused pins that a directory at the
+// destination, reached by its own name or through a symlink, is refused before
+// anything is opened or created: renaming a file over it fails, and writing it
+// is no stream. A symlink is judged by what it names, so it is kept, where a
+// rename would replace it.
+func TestReplaceDocument_ADirectoryIsRefused(t *testing.T) {
+	t.Parallel()
+	for _, viaLink := range []bool{false, true} {
+		t.Run(fmt.Sprintf("through a symlink %t", viaLink), func(t *testing.T) {
+			t.Parallel()
+			dir := t.TempDir()
+			target := filepath.Join(dir, "ir.json")
+			require.NoError(t, os.Mkdir(target, 0o755))
+			dest := target
+			if viaLink {
+				dest = filepath.Join(dir, "link")
+				require.NoError(t, os.Symlink(target, dest))
+			}
+			before := entriesIn(t, dir)
+
+			err := output.ReplaceDocument(t.Context(), dest, orderedDoc(), output.Compact)
+
+			assert.EqualError(t, err, fmt.Sprintf("output %q is a directory, which holds no document", dest))
+			assert.ElementsMatch(t, before, entriesIn(t, dir), "no temporary file is left beside it")
+			info, statErr := os.Lstat(dest)
+			require.NoError(t, statErr)
+			assert.Equal(t, viaLink, info.Mode()&fs.ModeSymlink != 0, "the name stays what it was")
+			assert.Empty(t, entriesIn(t, target), "nothing is written into it")
+		})
 	}
 }
