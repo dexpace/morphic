@@ -605,10 +605,11 @@ func TestDocument_ACodecForTheDocumentRunsInItsPlace(t *testing.T) {
 	assert.NoError(t, err, "neither the foreign irVersion nor the unknown member is refused")
 }
 
-// TestDocument_EncodesWhatOnlyTheVerifierRefuses pins that the codec refuses
-// no invariant irverify holds (docs/ir/README.md#design-rules): an IDSpaces
+// TestDocument_EncodesWhatOnlyTheVerifierRefuses pins that the encoder leaves
+// what irverify holds to irverify (docs/ir/README.md#design-rules): an IDSpaces
 // kind declared with no namespace, which ir/id-spaces-not-canonical reports,
-// encodes and decodes back as it is.
+// encodes and decodes back as it is, and a nil type, which ir/nil-type
+// reports, encodes as null, which decoding refuses as a type with no kind.
 func TestDocument_EncodesWhatOnlyTheVerifierRefuses(t *testing.T) {
 	t.Parallel()
 	doc := ir.Document{IRVersion: ir.IRVersion, IDSpaces: map[string][]string{ir.IDKindType: {}}}
@@ -619,6 +620,12 @@ func TestDocument_EncodesWhatOnlyTheVerifierRefuses(t *testing.T) {
 	var decoded ir.Document
 	require.NoError(t, json.Unmarshal(raw, &decoded))
 	assert.Empty(t, cmp.Diff(doc, decoded))
+
+	nilType := ir.Document{IRVersion: ir.IRVersion, Types: ir.TypeRegistry{"t/x/A": nil}}
+	raw, err = json.Marshal(&nilType)
+	require.NoError(t, err)
+	assert.Contains(t, string(raw), `"types":{"t/x/A":null}`)
+	assert.Error(t, json.Unmarshal(raw, &ir.Document{}), "null is a type with no kind")
 }
 
 // TestTypeDef_UnmarshalRefusesForeignKindTag pins that a concrete kind
