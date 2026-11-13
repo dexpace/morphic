@@ -1,0 +1,30 @@
+openapi: 3.1.0
+info: {title: Path key fragments, version: "1.0.0"}
+paths:
+  # Three keys for one route, two of them told apart by a fragment, which no
+  # request sends: each operation is sent to /bearer, and each knows it shares
+  # the route.
+  /bearer#oauth2:
+    get:
+      operationId: bearerOAuth
+      responses:
+        "200":
+          description: ok
+  /bearer#apiKey:
+    get:
+      operationId: bearerApiKey
+      responses:
+        "200":
+          description: ok
+  /bearer:
+    get:
+      operationId: bearer
+      responses:
+        "200":
+          description: ok
+  /other:
+    get:
+      operationId: other
+      responses:
+        "200":
+          description: ok

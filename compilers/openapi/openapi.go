@@ -82,6 +82,9 @@ func (c *Compiler) Compile(ctx context.Context, sources []compilers.Source, opts
 	if err := formatOpts.checkGrouping(); err != nil {
 		return nil, nil, err
 	}
+	if err := formatOpts.Promotions.Check(); err != nil {
+		return nil, nil, fmt.Errorf("openapi: %w", err)
+	}
 	loadedDoc, loadDiags, err := load.Load(ctx, rootSrcIndex, sources[0], loadOptions(formatOpts, opts.Reader, sources[0]))
 	// The load phase reads a document once under each name a reference spells
 	// it by, as a relative and an absolute path to one file where external
@@ -225,6 +228,12 @@ func run(ctx context.Context, c lowering.Ctx, ts *compile.Types) (*ir.Document, 
 	srv := servers.Reopen(lowered.Servers)
 	acc.AppendAll(lowered.Links.Resolve(c, &out.Services[0], reg, srv))
 	out.Servers = srv.Servers()
+	// A pagination an extension declares names members of response bodies, so
+	// it too is read once the registry is whole. The operations whose
+	// extensions speak of one are what a policy inferring a pagination leaves
+	// alone; none runs, so nothing reads them yet.
+	_, pageDiags := operation.PromotePagination(c, &out.Services[0], reg)
+	acc.AppendAll(pageDiags)
 	// What a deprecation names as its replacement may be declared anywhere, so
 	// it is read once every node it can name is built.
 	acc.AppendAll(replacement.Resolve(c, out))
@@ -240,6 +249,9 @@ func run(ctx context.Context, c lowering.Ctx, ts *compile.Types) (*ir.Document, 
 	out.Unmodeled = annotation.MergeUnmodeled(out.Unmodeled, m.Unmodeled)
 	out.Unmodeled = annotation.MergeUnmodeled(out.Unmodeled, lowered.Kept)
 	acc.AppendAll(metaDiags)
+	// An extension under a prefix the policy owns is judged once every node
+	// that could keep one is built, the document's own Unmodeled included.
+	acc.AppendAll(lowering.UnreadExtensions(c, out))
 	// Past the budget no $ref lowered, nor an additionalOperations entry, so
 	// what the lowering found depends on which copy came first: the refusal is
 	// reported alone, the same in any order. It is asked once every lowering has

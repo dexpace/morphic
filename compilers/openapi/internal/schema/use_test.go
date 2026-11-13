@@ -8,7 +8,9 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
+	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
+	"github.com/dexpace/morphic/ir"
 )
 
 // TestUse_ALoopOfNarrowingEnumsEnds pins the bound on what one use reads on
@@ -199,4 +201,36 @@ func TestUse_ANarrowingOfTwoRefsLendsNothing(t *testing.T) {
 	openapitest.RequireNoErrorDiags(t, diags)
 	p := propertyOf(t, doc, "Holder", "f")
 	assert.Empty(t, firstDocs(doc, p).Description)
+}
+
+// TestUse_ADecoratorOverADeprecatedBaseReadsItsMembers pins the 3.0 spelling of
+// a use against the 3.1 one: a decorator over a target a keyword or a key
+// deprecates is deprecated through it, so a member key beside its allOf
+// annotates that deprecation on the decorator, as beside a $ref it annotates
+// the carrier's. A decorator over a live target, or one writing no member,
+// takes no Deprecation.
+func TestUse_ADecoratorOverADeprecatedBaseReadsItsMembers(t *testing.T) {
+	t.Parallel()
+	doc, diags := parseFull(t, openapitest.ComponentSpecVer("3.1.0", `    Old: {type: object, deprecated: true, properties: {a: {type: string}}}
+    Stated: {type: object, x-stability: deprecated, properties: {a: {type: string}}}
+    Live: {type: object, properties: {a: {type: string}}}
+    Holder:
+      type: object
+      properties:
+        beside: {$ref: '#/components/schemas/Old', x-sunset: "2099-01-01"}
+        besideStated: {$ref: '#/components/schemas/Stated', x-sunset: "2099-01-01"}
+        wrapped: {allOf: [{$ref: '#/components/schemas/Old'}], x-sunset: "2099-01-01"}
+        wrappedStated: {allOf: [{$ref: '#/components/schemas/Stated'}], x-sunset: "2099-01-01"}
+        live: {allOf: [{$ref: '#/components/schemas/Live'}], x-sunset: "2099-01-01"}
+        bare: {allOf: [{$ref: '#/components/schemas/Old'}], description: d}
+`))
+	openapitest.RequireNoErrorDiags(t, diags)
+	want := &ir.Deprecation{RemovalDate: "2099-01-01"}
+	assert.Equal(t, want, propertyOf(t, doc, "Holder", "beside").Deprecation)
+	assert.Equal(t, want, propertyOf(t, doc, "Holder", "besideStated").Deprecation)
+	for wire, dep := range map[string]*ir.Deprecation{"wrapped": want, "wrappedStated": want, "live": nil, "bare": nil} {
+		decorator := doc.Types[propertyOf(t, doc, "Holder", wire).Type.Target].Common()
+		assert.Equal(t, dep, decorator.Deprecation, wire)
+		assert.Equal(t, dep != nil, decorator.Provenance.Inferred == lowering.ExtensionPromotionHeuristic, wire)
+	}
 }

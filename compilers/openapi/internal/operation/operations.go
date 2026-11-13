@@ -64,6 +64,7 @@ func LowerService(ctx context.Context, c lowering.Ctx, ts *compile.Types, declar
 	// After both walks: whether an operationId is unique is a question about
 	// every operation the service mounts, callbacks included.
 	diags = append(diags, w.claims.report(c)...)
+	groups.markSharedRoutes()
 	svc.Groups = groups.finalize()
 	return Lowered{
 		Service: svc,
@@ -129,11 +130,17 @@ type opContext struct {
 	method string
 	// key is the map key the route mounts its path item under: a path, a
 	// webhooks-map key or a callback expression. It names an operation that
-	// declares no operationId, whichever route mounted it; keyFields places it
-	// in the binding.
-	key           string
-	inbound       ir.HTTPInbound
-	withCallbacks bool
+	// declares no operationId, whichever route mounted it, and a webhook's
+	// binding (keyFields).
+	key string
+	// template is the URI template the route sends to: a path's key less its
+	// fragment (pathRoute), a callback's expression as written, and none for a
+	// webhook, whose key names an event.
+	template string
+	inbound  ir.HTTPInbound
+	// nesting is how many callbacks the operation is declared in: none for a
+	// path's or a webhook's, one more for each callback below one.
+	nesting int
 	// groups is what a path's route files each operation it mounts in, which
 	// decides the operation's grouping marker, inferred; nil on a route filing
 	// none, whose inferred is the route's own.
@@ -143,15 +150,14 @@ type opContext struct {
 	ptrs     opPointers
 }
 
-// keyFields places key in the binding field its route selects. A webhook's
-// key names an event, so it is the WebhookName and the binding has no
-// template; any other key, a path or a callback expression, is the
-// URITemplate.
+// keyFields returns the binding's route: a webhook's key names an event, so it
+// is the WebhookName and the binding has no template; any other route's
+// template is the URITemplate.
 func (o opContext) keyFields() (uriTemplate, webhookName string) {
 	if o.inbound == ir.HTTPInboundWebhook {
 		return "", o.key
 	}
-	return o.key, ""
+	return o.template, ""
 }
 
 // lowerOperation lowers one source operation into the neutral core plus its HTTP
@@ -204,19 +210,15 @@ func lowerOperation(c lowering.Ctx, w walk, src *soa.Operation, opCtx opContext)
 	// After both payload lowerings, which are what it reads.
 	streaming := applyStreaming(c, w.types, &op, decl)
 	op.Provenance.Inferred = ir.JoinInferred(op.Provenance.Inferred, opCtx.inferred, streaming)
-	var extra []ir.Operation
-	if opCtx.withCallbacks {
-		var cbExt ir.Unmodeled
-		var cbDiags []ir.Diagnostic
-		hb.Callbacks, extra, cbExt, cbDiags = lowerCallbacks(c, w, src, opCtx.ptrs, opCtx.inferred)
-		hb.Unmodeled = annotation.MergeUnmodeled(hb.Unmodeled, cbExt)
-		diags = append(diags, cbDiags...)
-	}
+	callbacks, extra, cbExt, cbDiags := operationCallbacks(c, w, src, opCtx)
+	hb.Callbacks = callbacks
+	hb.Unmodeled = annotation.MergeUnmodeled(hb.Unmodeled, cbExt)
+	diags = append(diags, cbDiags...)
 	op.Bindings = ir.OpBindings{HTTP: []ir.HTTPBinding{hb}}
 	diags = append(diags, applyOperationAnnotations(c, &op, src, decl)...)
 	// After the extensions are on the map, since that is what it reads.
 	diags = append(diags, c.Promoter().Deprecation(op.Unmodeled, lowering.Referent{}, &op.Deprecation, &op.Provenance)...)
-	diags = append(diags, c.Promoter().Stability(op.Unmodeled, &op.Stability, &op.Provenance)...)
+	diags = append(diags, lowering.Stability(c.Promoter(), op.Unmodeled, &op.Stability, &op.Provenance)...)
 	// mountPathItem names the path item's servers only where these name none,
 	// since an operation's own override them.
 	own, serverDiags := w.servers.Declared(c, src.GetServers(), decl)

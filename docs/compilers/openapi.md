@@ -1007,7 +1007,12 @@ declares — documentation, deprecation, redaction, visibility and `default` —
 parameter or header that references the target, field by field, a keyword the use site writes
 winning over the target's ([annotations](../ir/annotations.md#what-a-reference-carries-down)), and by
 the same rule at every carrier. Redaction has nothing to win with: `format: password` on either side
-asks for it, and no keyword beside the `$ref` withdraws the target's. An extension the promotion
+asks for it, and no keyword beside the `$ref` withdraws the target's. Nor do `deprecated`,
+`readOnly` and `writeOnly`: JSON Schema reads each in force at a location where any occurrence
+applying to it is true, and an occurrence `false` as one omitted, so `deprecated: false` beside a
+`$ref` to a deprecated target leaves the use deprecated, in the 3.1 spelling and in the `allOf`
+decorator spelling alike, whose [fold](../emitters/refine/decorators.md) reads the use deprecated
+where any of its annotations is. An extension the promotion
 policy maps is read the same way ([`extension-promotion`](#extension-promotion)). At a position that
 carries no property, parameter or header — an `allOf`, `oneOf` or `anyOf` branch, an `items`, a
 component — the keywords beside the `$ref` bind an alias hoisted at that position instead
@@ -1041,10 +1046,10 @@ the `$ref` would lend written alone, since the visibility and `default` of the u
   `schema.TestUse_ADefaultBesideItsValueSetStands`,
   `schema.TestUse_ADefaultNoNarrowingExcludesReadsAsBesideARef`,
   `schema.TestUse_ACarrierReadsThroughADecorator`,
-  `schema.TestUse_ALoopOfNarrowingEnumsEnds`
-- Status: partly built: a use reads the end of its chain and not the schema it names (#1029), and a
-  `deprecated: false` on an `allOf` decorator over an object reaches no carrier, where beside a `$ref`
-  it decides (#1258).
+  `schema.TestUse_ALoopOfNarrowingEnumsEnds`, `annotation.TestEffectiveDeprecated_AnySchemaDeprecates`,
+  `annotation.TestEffectiveVisibility_MapsTheFlagsToLifecycles`,
+  `operation.TestParams_RefSchemaUseSiteWinsOverItsReferent`
+- Status: partly built: a use reads the end of its chain and not the schema it names (#1029).
 
 ### `reference-object-siblings`
 
@@ -1090,7 +1095,8 @@ ignored; there the fold is the 3.1 reading, and each sibling it reads is reporte
 the property, parameter or header that uses it, never to the type: both bind a *use* of the type,
 not the type. One a declaration writes, on a component or any other position that owns a node of its
 own, is therefore pushed down to each property, parameter or header referencing it that has a field
-for it, with use-site precedence ([`ref-use-site`](#ref-use-site)), and the declaration keeps its
+for it, as [`ref-use-site`](#ref-use-site) merges them: a `default` with use-site precedence, and
+`readOnly` and `writeOnly` in force where either side sets them, and the declaration keeps its
 own copy verbatim under `no_ir_home`, reported with an info `openapi/degraded-construct` at the
 keyword. That copy is what a component nothing references would otherwise lose in silence. A
 position a property, parameter or header carries keeps them on its carrier whichever reaches it
@@ -1484,7 +1490,9 @@ with no residue is kept on no variant
 Folding needs no precedence, because a branch that disagrees with any conjunct on one of these, the
 keywords beside the `allOf` among them, folds nothing, in every order: the keywords beside the
 `allOf` stand, and each branch writing that keyword otherwise stays whole, with its report. Two
-keywords a position keeps in one entry, `if` and `then` say, are compared as that entry. Value
+keywords a position keeps in one entry, `if` and `then` say, are compared as that entry. A
+`deprecated`, `readOnly` or `writeOnly` written `false` disagrees with nothing and lends nothing, as
+it states nothing a `true` elsewhere does not ([`ref-use-site`](#ref-use-site)). Value
 bounds and the counts `minItems` and `maxItems` agree where they meet, as a redeclared field's do
 ([`allof-redeclared-property`](#allof-redeclared-property)): `maxLength: 3` beside `maxLength: 5`
 folds to `3`, `minItems: 1` beside `minItems: 2` to `2`, and `multipleOf: 4` beside `multipleOf: 6`
@@ -1525,7 +1533,8 @@ every entry reads that one twice.
 
 - Cases: `allof-inline-residue`
 - Codes: `openapi/degraded-construct`
-- Tests: `schema.TestAllOf_BranchWrittenByReferenceStillDerivesResidue`,
+- Tests: `schema.TestVoices_AFalseFlagAgreesWithATrue`,
+  `schema.TestAllOf_BranchWrittenByReferenceStillDerivesResidue`,
   `schema.TestAllOf_MergedBranchKeywordsAreNotResidue`,
   `schema.TestAllOf_UnpreservableBranchIsNotAnnounced`,
   `schema.TestAllOf_NestedInlineBranchKeyedByPointer`,
@@ -3292,22 +3301,35 @@ keyword, so a lowering that carried one spelling and dropped another would still
 
 ### `path-keys`
 
-A Paths Object key lowers to `HTTPBinding.URITemplate` as written. One that breaks OpenAPI's path
-templating rules, those of 3.2.0 §4.8.2 read at every version — no leading `/`, a character a path
-admits only percent-encoded, a brace outside a template expression, an expression used twice, an
-empty segment, or a query — lowers as declared and is reported as one `openapi/invalid-path-key`
-warning at its path item, naming each rule the key breaks. That every template expression has a path
-parameter, in the path item or in each of its operations, that every path parameter names an
-expression, and that no two templated paths differ only in their names is
-[`validation`](#validation)'s to report, as an error.
+A Paths Object key lowers to `HTTPBinding.URITemplate` as written, less a fragment: from the first
+`#` outside a template expression, or the first after a `?`, the key names a fragment, which no
+request sends (RFC 3986 §3.5). The template is the key before it, and each operation the path
+mounts keeps the fragment, the text after the `#`, on its HTTP binding as `openapi:fragment`, of
+reason `degraded_lowering`, at the key's pointer. The operation's ID and the name hint of one with
+no `operationId` read the whole key, so operations a document declares on one route under keys
+that differ only in a fragment keep names of their own, while grouping by path prefix
+([`path-prefix-groups`](#path-prefix-groups)) reads the template. A path operation whose method and
+template, each expression's name aside, another path operation sends too has
+`HTTPBinding.SharedRoute` set; a webhook's and a callback's operation are sent by the API to no
+route a client sends. A key that breaks OpenAPI's path templating rules,
+those of 3.2.0 §4.8.2 read at every version — no leading `/`, a character a path admits only
+percent-encoded, a brace outside a template expression, an expression used twice, an empty segment,
+a query, or a fragment — lowers as declared but for the fragment, and is reported as one
+`openapi/invalid-path-key` warning at its path item, naming each rule the key breaks and nothing in
+a fragment. That every template expression has a path parameter, in the path item or in each of its
+operations, that every path parameter names an expression of the key less its fragment, and that no
+two templated paths differ only in their names is [`validation`](#validation)'s to report, as an
+error.
 
-- Cases: `http-binding`
+- Cases: `http-binding`, `path-key-fragments`
 - Codes: `openapi/invalid-path-key`
 - Tests: `operation.TestPathKeys_MalformedKeyIsReportedOnce`,
   `operation.TestPathKeys_RulesAreNotVersionGated`,
-  `operation.TestPathKeys_FragmentIsLeftToGitHub602`
-- Status: partly built: a `#` and what follows it are not read, so a fragment lowers into the
-  template unreported (#602).
+  `operation.TestPathKeys_FragmentIsLeftOutOfTheTemplate`, `operation.TestPathKeyDefects`,
+  `operation.TestPathRoute_SplitsAsTheRuleTableDoes`,
+  `operation.TestSharedRoute_MarksEveryOperationSendingARouteAnotherSends`,
+  `operation.TestRouteShape_LeavesOutEachExpressionsName`,
+  `oas.TestCheck_PathTemplatesAnswerToPathParameters`, `oas.TestFragmentAt_SplitsAsTheLoweringDoes`
 
 ### `path-item-operations`
 
@@ -3354,8 +3376,13 @@ operation's own, lower as the document's do ([`servers`](#servers)): each server
 `Document.Servers`, registered once at the pointer of its Server Object in the document declaring
 it, however many mounts reach it. An operation names its own servers on `Operation.Servers` and its
 path item's where it declares none, since OpenAPI says the operation's override the path item's; one
-that neither declares names none, and its service's apply ([servers](../ir/servers.md)). A
-path item's list is registered even where every one of its operations overrides it. Two lists are
+that neither declares names none, and its service's apply ([servers](../ir/servers.md)), save to a
+webhook's or a callback's operation, which inherits none
+([servers](../ir/servers.md#inbound-operations)). An explicitly empty list, `servers: []`, declares
+none, as an absent one does, and so overrides nothing above it: OpenAPI equates an empty list with
+an absent one where it says what an empty list means, the document's, and an operation reading `[]`
+as no server would have none to be sent to, so nothing is kept or reported, as for the document's.
+A path item's list is registered even where every one of its operations overrides it. Two lists are
 not: one a nearer layer of a mount overrides, which [`path-item-ref-fields`](#path-item-ref-fields)
 reports rather than lowers, and one written by a component path item no reference reaches, kept
 whole with that component ([`unreferenced-components`](#unreferenced-components)). A path item that
@@ -3365,18 +3392,23 @@ the service instead, or on the declaring operation's HTTP binding for a callback
 description as [`path-item-docs`](#path-item-docs) says, and its parameters as
 [`parameters`](#parameters) says. The item's pointer is in every key, since one carrier holds every
 such item, and a component item two paths mount is kept once per mount. It is reported as one
-`openapi/degraded-construct` warning at the mount.
+`openapi/degraded-construct` warning at the mount's use site, in the document writing it, saying
+what any of its layers kept: the mount for a path or a webhook, and the expression's key in its
+Callback Object for a callback expression, whose mount a `$ref`'d callback or parent addresses
+nowhere.
 
 - Cases: `webhooks`, `callbacks`, `path-item-ref-siblings`
 - Codes: `openapi/degraded-construct`
 - Tests: `operation.TestOperations_PathItemServersNamedOnEveryRoute`,
   `operation.TestOperations_OwnServersOverrideThePathItems`,
   `operation.TestOperations_ServersEachLevelAlone`,
+  `operation.TestOperations_AnEmptyServersListOverridesNothing`,
+  `operation.TestOperations_InboundOperationsNameOnlyTheServersTheyState`,
+  `operation.TestPathItem_WithNoOperationIsReportedAtItsUseSite`,
+  `operation.TestPathItemRefSiblings_UnmountedSaysOnceWhatEveryLayerKept`,
   `servers.TestRegistry_DeclaredOneDeclarationLowersOnce`,
   `operation.TestPathItem_WithNoOperationKeepsWhatItWroteOnTheService`,
   `operation.TestPathItem_WithNoOperationKeepsEachMountApart`
-- Status: open: an explicitly empty list declares nothing to name, as an absent one does, and
-  whether it should override the list above it is undecided (#1081).
 
 ### `path-item-docs`
 
@@ -3458,13 +3490,43 @@ repeated name, at the repeat, naming the first. Group and sibling order stay fir
 operations, with a missing ancestor created immediately before its first descendant, so a document
 that declares no parents groups exactly as it would were parents never read.
 
+A webhook's operation is filed in the synthesized `webhooks` group ([`webhooks`](#webhooks)) and a
+callback's in the group of the operation declaring it ([`callbacks`](#callbacks)), whatever tags
+either states, under this strategy and every other: each is a request the API sends, filed by the
+route mounting it, and `Operation.Tags` keeps its tags. Filing a callback by its own tags was
+weighed and rejected: one stating none, as callback operations commonly do, would land in the
+untagged group, apart from the operation whose exchange supplies its URL.
+
 - Cases: `tags-grouping`, `tags-grouping-32`, `group-identity`
-- Tests: `operation.TestGrouping_ParentCycleNestsNoMemberUnderAnother`,
+- Tests: `operation.TestGrouping_ACallbackGoesWithItsParentWhateverItsTags`,
+  `operation.TestGrouping_ParentCycleNestsNoMemberUnderAnother`,
   `operation.TestGrouping_DanglingParentStaysTopLevel`,
   `operation.TestGrouping_SameNameDeclaredTwiceIsDeterministic`,
   `operation.TestGrouping_BadgeOnlyOperationFallsToDefault`, `oas.TestCheck_TagParentsExist`,
   `oas.TestCheck_DuplicatesAreFound`
 - Status: partly built: a tag an operation repeats passes into the IR undeduplicated (#738).
+
+### `path-prefix-groups`
+
+Under the `path-prefix` grouping strategy (`Options.Grouping`), each path operation is filed in one
+group, named by the first non-empty segment of its path's URI template, the key less any fragment
+([`path-keys`](#path-keys)), so `/users` and `/users/{id}` share `users`. A segment that is a
+template expression names its group as written, `/{tenant}/users` filing under `{tenant}`, and the
+root path, whose segments are all empty, under the empty one. The group's ID is `g/path-prefix/`
+and the segment as one RFC 6901 token, the empty segment's `g/path-prefix`
+([identity](../ir/identity.md#operation-groups)); it is named by the segment, by a hint where the
+segment is empty, and has no docs, and group order is first-seen from the operations. A path names
+no resource, so the reading is policy (invariant 6), never the default: an operation it files lists
+`group-path-prefix` in its `Provenance.Inferred`. A webhook's operation stays in the webhook group,
+unmarked, and a callback's goes with the operation declaring it, marked as that one is
+([`tag-groups`](#tag-groups)). Nothing is reported.
+
+- Tests: `operation.TestGrouping_PathPrefixGroupsAreIdentifiedByTheirSegment`,
+  `operation.TestGrouping_ByPathPrefixInferred`, `operation.TestGrouping_PathPrefixRootPath`,
+  `operation.TestSharedRoute_PathPrefixGroupsTheRoute`,
+  `operation.TestGrouping_ACallbackGoesWithItsParentWhateverItsTags`
+- Status: partly built: the segment is read up to the next `/` alone, so a key's query reaches its
+  group, `/users?role=admin` filing under `users?role=admin` (#1823).
 
 ### `extension-groups`
 
@@ -3481,42 +3543,70 @@ writes the segments of a single path, as `x-fern-sdk-group-name` does, another s
 group the operation belongs to, as `x-speakeasy-group` does. So a list's reading is named beside the
 key, `segments` or `groups`, and is never taken from another key's: a key named without one is
 refused, as is one without the key. Under `segments` each entry adds its own segments; under
-`groups` the operation is filed under the first entry's path, and placing it under the others is a
-remount an emitter's plan reads from the kept extension, so no group is minted for them.
+`groups` the operation is filed under the first entry's path.
+
+An operation can belong to further groups than the one it is filed in: each path after the first a
+`groups` list names, and each an *alias* names. `GroupingExtension.Aliases` names the extension
+listing an operation's aliases, by default `x-forge-aliases` beside the default key, and none beside
+a key the caller names unless the caller names one: a list of objects, each stating a path under the
+grouping key as that key's own value does, read under its list reading, so the default's entries
+restate `x-fern-sdk-group-name` beside a method name of their own. An object stating no path names
+none. Each such path gets its groups too, nested as the operation's own are and holding no
+operation where none is filed there, so that a remount, which names a group by its ID
+([shaping hints](../emitters/contract/shaping-hints.md)), names one the IR holds; placing the
+operation there is the remount's, read from the kept extension, since an `Operation` sits in one
+group. Nothing marks such a group `Inferred`: an `OperationGroup` has no provenance, and the
+marker is on each operation the extension files, which a group holding none lacks. Leaving those
+groups to the remount was weighed and rejected: an ID is opaque to a consumer
+([identity](../ir/identity.md)), which could then neither name nor nest a group the IR does not hold.
+
+So the aliases extension has two readers, which must name the same key: `GroupingExtension.Aliases`
+(`--opt grouping-aliases`), for the groups an alias names, and the key an embedded-policy mapping
+reads into an operation's `AlsoMount` ([embedded policy](../emitters/contract/embedded-policy.md)),
+for the mounts in them, which the mapping names as `Unmodeled` holds it, `openapi:x-forge-aliases`
+for the default. A mapping has no default key, so the two pair only where its configuration names
+the key this option reads. A mapping reading another key can name a group the IR does not hold, a
+warning `emitters/unmatched-key` that mounts nothing ([a key that matches
+nothing](../emitters/write-integrate.md#a-key-that-matches-nothing)), and a group made for a key no
+mapping reads is named by no mount.
 
 A group's ID is `g/extension/` and the path's segments, each an RFC 6901 token
 ([identity](../ir/identity.md#operation-groups)). It follows from the path alone and never from the
 key, so a configuration can name a group, and a group nests in the one its prefix names whichever
 operation is met first. A group is named by its segment, and has no docs, as no Tag Object describes
-it; group and sibling order are first-seen from the operations, as under tags.
+it; group and sibling order are first-seen from the operations, as under tags, an operation's own
+groups before those its other paths name.
 
 An operation whose key is absent, or holds empty text, an empty list or null, is grouped by
-`GroupingExtension.Fallback`, tags by default or path prefix, and marked as that strategy marks it.
-So is one whose value names no path: one that is neither text nor a list of text, or whose path has
-an empty segment (`a..b`, `.a`, a list holding `""`) or more than 16 segments. A list is judged
-whole, so under `groups` an entry after the first that names no path is enough. That bound is over
-twice the deepest path the golden spec writes, and caps what a path's groups weigh: each group's ID
-spells the path to it, so their IDs weigh half the path's depth times its length. Such a value is
-reported as an info `openapi/degraded-construct` at the key in the operation's declaration, in
-whichever document declares it, so a path item two paths `$ref` is reported once. A value that does
-not serialize is reported where any extension's is ([`vendor-extensions`](#vendor-extensions)), and
-not again. A webhook's operation stays in the webhook group and a callback's in its parent's, as
-under tags, whatever its key states.
+`GroupingExtension.Fallback`, tags by default or path prefix, and marked as that strategy marks it;
+its aliases still name groups. So is one whose value names no path: one that is neither text nor a
+list of text, or whose path has an empty segment (`a..b`, `.a`, a list holding `""`) or more than 16
+segments. A list is judged whole, so under `groups` an entry after the first that names no path is
+enough. That bound is over twice the deepest path the golden spec writes, and caps what a path's
+groups weigh: each group's ID spells the path to it, so their IDs weigh half the path's depth times
+its length. An aliases list names no path where it is anything but a list of objects, null or
+empty, or where a path one of its objects states names none, and is judged whole too, so it names
+no group. Each value naming no path is reported as an info `openapi/degraded-construct` at its key
+in the operation's declaration, in whichever document declares it, so a path item two paths `$ref`
+is reported once. A value that does not serialize is reported where any extension's is
+([`vendor-extensions`](#vendor-extensions)), and not again. A webhook's operation stays in the
+webhook group and a callback's in its parent's, whatever its keys state ([`tag-groups`](#tag-groups)),
+and neither's keys name a group.
 
 - Codes: `openapi/degraded-construct`
 - Tests: `operation.TestGrouping_ByExtensionNestsAGroupPerSegment`,
   `operation.TestGrouping_ByExtensionReportsAValueStatingNoPath`,
   `operation.TestGrouping_ByExtensionFallsBackToPathPrefix`,
-  `operation.TestGrouping_ByExtensionListOfGroupsFilesUnderTheFirst`,
+  `operation.TestGrouping_ByExtensionListOfGroupsMintsAGroupForEach`,
+  `operation.TestGrouping_ByExtensionMintsAGroupForEachAlias`,
+  `operation.TestGrouping_ByExtensionRemountsAreIndependentOfDeclarationOrder`,
   `operation.TestGrouping_ByExtensionReadsAReferencedPathItemWhereItIsDeclared`,
   `operation.TestGrouping_ByExtensionTreeIsIndependentOfDeclarationOrder`,
-  `lowering.TestGroupingExtension_PathReadsEachSpelling`, `e2e.TestGolden_ExtensionGroups`,
+  `lowering.TestGroupingExtension_PathsReadEachSpelling`,
+  `lowering.TestGroupingExtension_AliasPathsReadEachSpelling`, `e2e.TestGolden_ExtensionGroups`,
   `e2e.TestGroupingByExtension_ReportsInTheDocumentDeclaringTheOperation`,
-  `openapi.TestCompile_GroupingExtensionDefaultsAndRefusals`
-- Status: open: whether a callback operation is grouped by its own key or with its parent, as #1082
-  asks of its tags; and whether a path no operation is filed under gets a group a remount can name,
-  such as one a `groups` list names after the first or one another extension names as an alias
-  (#1726).
+  `openapi.TestCompile_GroupingExtensionDefaultsAndRefusals`,
+  `openapi.TestCompile_GroupingAliasesFollowTheKeysTheyRestate`
 
 ## 9. Parameters
 
@@ -4113,9 +4203,12 @@ pointer, in the synthesized `webhooks` group, its HTTP binding's `Inbound` a web
 entry's key as `WebhookName` and no `URITemplate`, since the key names an event rather than a path.
 Its `Auth` is what its own `security` states, and nothing when it writes none: the document's
 `security` describes requests clients send, and a webhook is one the API sends
-([auth](../ir/auth.md#inbound-operations)).
+([auth](../ir/auth.md#inbound-operations)). Its `Servers` are likewise what it and its path item
+state ([`path-item-servers`](#path-item-servers)), where the webhook is sent, and nothing of the
+document's ([servers](../ir/servers.md#inbound-operations)).
 
 - Cases: `webhooks`
+- Tests: `operation.TestOperations_InboundOperationsNameOnlyTheServersTheyState`
 
 ### `callbacks`
 
@@ -4123,21 +4216,32 @@ An operation's `callbacks` lower to its HTTP binding's `Callbacks`: for each run
 each named callback, a `Callback` holding the callback's name and the expression as written and the
 `OpID`s of the operations its path item declares. Each of those lowers to an `Operation` of its own,
 mounted at its own pointer below the declaring operation's
-(`…/callbacks/<name>/<expression>/<method>`, the name escaped as one token), grouped as any other
-operation is, its binding's `Inbound` a callback, with the expression as its `URITemplate`
-([http-binding](../ir/http-binding.md#inbound-operations)), and inheriting no `security`, as a
-webhook does. A key is a runtime expression, by the grammar each
-minor gives, text embedding runtime expressions in braces, as OpenAPI's own example does, or a
-constant URL, which embeds none; one that is none of them is reported as an `openapi/validation`
-error, of the class `validation-invalid-format`, at the key ([`validation`](#validation)), and
-lowers as written.
+(`…/callbacks/<name>/<expression>/<method>`, the name escaped as one token), filed in the declaring
+operation's group whatever its own tags or grouping extension state ([`tag-groups`](#tag-groups)),
+its binding's `Inbound` a callback, with the expression as its `URITemplate`
+([http-binding](../ir/http-binding.md#inbound-operations)), and inheriting no `security` and no
+`servers`, as a webhook does ([`webhooks`](#webhooks)). A callback's operation may declare
+callbacks in turn, which OpenAPI also gives as requests the API sends, and they lower the same way,
+listed on its binding and filed in the same group, the deeper operations after the one declaring
+them, down to an operation nested in four callbacks. Past that bound, which stops a callback naming
+itself through a `$ref` from lowering without end, the deepest operation's `callbacks` are kept
+verbatim on its HTTP binding as `openapi:callbacks`, of reason `degraded_lowering`, and reported as
+an `openapi/degraded-construct` warning at that `callbacks` map. Each level's `$ref`s are charged as
+any are ([`source-budgets`](#source-budgets)), so one naming its callback several times over, whose
+copies multiply at each level, is refused once they pass the budget. A key is a runtime expression, by
+the grammar each minor gives, text embedding runtime expressions in braces, as OpenAPI's own example
+does, or a constant URL, which embeds none; one that is none of them is reported as an
+`openapi/validation` error, of the class `validation-invalid-format`, at the key
+([`validation`](#validation)), and lowers as written.
 
 - Cases: `callbacks`
-- Codes: `openapi/validation`
+- Codes: `openapi/validation`, `openapi/degraded-construct`
 - Tests: `operation.TestCallbacks_NameWithSlashKeepsItsOwnKey`,
+  `operation.TestCallbacks_DeclaredOnACallbackLower`,
+  `operation.TestCallbacks_ACallbackNamingItselfStopsAtTheBound`,
+  `openapi.TestCompile_ACallbackNamingItselfIsChargedAtEachLevel`,
+  `operation.TestOperations_InboundOperationsNameOnlyTheServersTheyState`,
   `oas.TestCheck_CallbackKeysAreRuntimeExpressions`
-- Status: partly built: callbacks declared on an operation inside a callback are dropped in silence
-  (#858).
 
 ## 13. Security
 
@@ -4352,32 +4456,67 @@ and a key with no members to read is reported the same way, once however many so
 node keeping the extension lists the marker `extension-promotion` in its `Provenance.Inferred`, as
 does a use its `$ref`'s target lends a field to, and the extension stays in `Unmodeled` untouched.
 
+A source of a target stating that something is so, a deprecation, an open enum or union, a
+redaction or a part of a page walk, may list the values that state it. Each is compared with a
+string's text, or with a boolean's or a number's JSON, so `true` lists both `true` and `"true"`. A
+value it lists states the fact, and any other states nothing. That other value is reported as an
+info `openapi/degraded-construct` at the key, unless another target reads the same member of the
+key, whose reading then decides what it is: a key spelling openness `allow` or `disallow`, listed
+`allow`, opens an enum on `allow` alone and reports `disallow` as it reports a misspelt `alow`, while
+the default's `x-stability`, listed `deprecated` for a deprecation, leaves a `true` to the stability
+reading of the same key, which reports it. A source with no list reads its target's own vocabulary,
+as below.
+
+A policy that would read less than it says is refused when the compile starts, as a Go error and no
+diagnostic, since the mistake is the caller's and not the document's: a target outside the
+vocabulary, a source whose key does not start `x-`, a list of values for a target reading a text, a
+name or a tier, an owned prefix that is not `x-` followed by the start of a name, and targets or
+prefixes beside `Disabled`. A caller holding only text sets the policy with the options
+`extension-promotion`, a boolean turning it off, `promotion-targets`, the mapping as the JSON
+object `Targets` encodes as, and `promotion-prefixes`, the owned prefixes separated by commas. The
+`extension-promotion` marker each node lists is the record of what a run promoted.
+
+The policy may own extension name prefixes, `Prefixes`, none by default. An extension under one
+that the compiler reads no key of is reported as a warning `openapi/unread-extension` where it is
+written, naming the key it reads nearest it by edit distance, as the likeliest one it misspells:
+owning `x-deprecated` reports `x-deprecated-reasn` and names `x-deprecated-reason`. The keys read are
+each reader's own, the mapping's sources and, where grouping is by extension, the key and the
+aliases key [`extension-groups`](#extension-groups) reads, never a second list of them, so owning
+`x-forge` beside the default grouping by extension reports no `x-forge-aliases`. Each node's
+`Unmodeled` is read once the document is whole, under whatever scope its keys are kept; an
+extension inside an entry kept verbatim, such as an `allOf` branch, is a value of that entry and is
+not read.
+
 `Deprecation` is filled on an operation, a parameter, a header, a property, a type node or a
 security scheme. A key can state the deprecation itself: the default reads `x-fern-availability`,
-then `x-stability`, whose text `deprecated` or boolean `true` creates the `Deprecation`, whatever a
-`deprecated: false` beside it says, since the marker and the entry let a consumer that disagrees
-see what was read. `false` and any other word state nothing, and any other shape is reported. A
-member is filled on what is deprecated by then, and on anything else the key annotates nothing and
-stays where it is. `Message` reads `x-deprecated-reason`, `x-stainless-deprecation-message` and the
-`description` of `x-cfDeprecation`; `Since` reads `x-deprecated-since`; and `RemovalDate` reads
-`x-sunset`, the `date` of `x-forge-sunset` and the `eol` of `x-cfDeprecation`.
+then `x-stability`, and lists their word `deprecated` as the one value creating the `Deprecation`,
+whatever a `deprecated: false` beside it says, since a `false` states nothing
+([`ref-use-site`](#ref-use-site)). Any other word, a tier among them, states nothing, and so does a
+boolean, which names no tier either and is reported once by the stability reading below. A key
+listing no values reads the text `deprecated` and a boolean `true` as stating it, `false` and any
+other word as stating nothing, and reports any other shape. A member is filled on what is deprecated
+by then, by a keyword, a key, or a schema it composes as its `Base` whose keyword or key deprecates
+it, as a decorator over a deprecated target is ([annotations](../ir/annotations.md#decorators)), and on
+anything else the key annotates nothing and stays where it is. `Message` reads
+`x-deprecated-reason`, `x-stainless-deprecation-message` and the `description` of
+`x-cfDeprecation`; `Since` reads `x-deprecated-since`; and `RemovalDate` reads `x-sunset`, the `date`
+of `x-forge-sunset` and the `eol` of `x-cfDeprecation`.
 
 A property, header or parameter naming a `$ref` reads the target's mapped keys beneath its own, as
 [`ref-use-site`](#ref-use-site) merges the target's other annotations: a key beside the `$ref` wins
 field by field and without a report, and the target is the end of the chain, so a schema between the
 two lends nothing, as it lends no keyword. One holding a refinement
 ([`allof-refinement`](#allof-refinement)), or a `$ref` to one, reads along the chain its keywords
-are read along, nearest first: the nearest link stating a deprecation, by a keyword or a key,
-decides it and lends its members, and any link asking for redaction asks it of the use. A node a
-`$ref` still speaks on once a value set takes its type reads that `$ref`'s keys the same way, as it
-reads its keyword. A key on the target stating a deprecation counts as the target's `deprecated`, so
-a `deprecated` beside the `$ref` decides over it as it does over the keyword, and a key beside the
-`$ref`, being the use's own, is not stopped by one. A target lends a member only where it is
-deprecated itself, by a keyword or a key: on a live target the member annotates nothing, as it does
-anywhere, and a use deprecated on its own does not change that. So the target's `Deprecation` is all
-a use reads of it, which is what the [fold](../emitters/refine/decorators.md) of a 3.0 decorator
-over the same target reads, and what the target's key cannot hold is reported where that key is
-written and read, once, with a use reading past it in silence.
+are read along, nearest first: any link stating a deprecation, by a keyword or a key, deprecates the
+use, the nearest deprecated link lends its members, and any link asking for redaction asks it of the
+use. A node a `$ref` still speaks on once a value set takes its type reads that `$ref`'s keys the
+same way, as it reads its keyword. A key on the target stating a deprecation counts as the target's
+`deprecated`, which no `deprecated: false` beside the `$ref` withdraws. A target lends a member only
+where it is deprecated itself, by a keyword or a key: on a live target the member annotates
+nothing, as it does anywhere, and a use deprecated on its own does not change that. So the target's
+`Deprecation` is all a use reads of it, which is what the [fold](../emitters/refine/decorators.md) of
+a 3.0 decorator over the same target reads, and what the target's key cannot hold is reported where
+that key is written and read, once, with a use reading past it in silence.
 
 A value a member cannot hold, anything but text, is reported as an info `openapi/degraded-construct`
 at the extension and not coerced, since the document means something else by the key. Empty text
@@ -4428,7 +4567,24 @@ that names its key. The union a mixed `enum` lowers to ([`enum-const`](#enum-con
 `enum.open` instead, as the enum would, since a target names what the document writes, whatever
 node holds it: `x-extensible-enum` opens it under the default mapping, a `union.open` key does not,
 and on a `oneOf` the enum's key opens nothing. Each node reads one target, so no fact is read twice,
-where one reading could override what the other reports.
+where one reading could override what the other reports. No default source lists the values
+stating openness, as no key spelling it by a word has become common: a mapping naming one lists
+them, and reads any other value as closed and reports it.
+
+`Server.Name` reads `x-fern-server-name` on a server its document names in no other way, as no
+server below 3.2 can be named: a 3.2 `name` is the document's own and the key does not override it.
+Text names the server, which then carries the name as a declared one does, and empty text names
+nothing, leaving the hint its URL gives. `OAuthFlow.TokenEndpointAuthMethods` is read through the
+target `oauthFlow.tokenEndpointAuthMethods`, from the flow its key is written on, a string naming
+one method and a list of strings several. No default key names it, as no spelling has become
+common, and a list holding empty text or a method twice, which no set of names holds, is reported
+as any other shape is. The methods are taken as written, as the registry naming them is open. The
+flow, which has no `Provenance`, lists the marker in its own `Inferred`.
+`HTTPParamBinding.AllowReserved` is read through the target `parameter.allowReserved` on a
+parameter writing no `allowReserved`, which decides for itself, `true` asking for it and `false`
+asking nothing. No default key names it either: the keyword states it wherever 3.2 applies it, and
+a document below 3.2 reserving it at a path names its own key. The parameter lists the marker, as a
+consumer reaches its binding from it.
 
 `Deprecation.ReplacedBy` is read through the target `deprecation.replacedBy`, which no default key
 names either, since no spelling for a replacement has become common. A mapped key's string, or list
@@ -4446,14 +4602,39 @@ entity, or names the node itself, leaves the field unset and is reported as an i
 other members, a replacement on a node that is not deprecated annotates nothing, and it is read from
 the node's own keys alone, never lent by a `$ref`'s target, whose class is another.
 
-- Cases: `extension-promotion`, `extension-stability`, `extension-redaction`
-- Codes: `openapi/degraded-construct`
+- Cases: `extension-promotion`, `extension-stability`, `extension-redaction`, `extension-server-name`
+- Codes: `openapi/degraded-construct`, `openapi/unread-extension`
 - Tests: `lowering.TestPromoterDeprecation_ValueThatIsNotTextIsReported`,
+  `lowering.TestPromoter_ValuesNameWhatStatesTheFact`,
+  `lowering.TestPromoter_AValueAnotherTargetReadsIsItsToReport`,
+  `lowering.TestPromoter_ACallersValuesAreCopied`,
+  `lowering.TestPromoter_AReferentsKeyDeprecatesTheUse`,
+  `lowering.TestPromoter_ADeprecatedBaseHomesTheNodesMembers`,
+  `lowering.TestTargets_ListsEveryDeclaredTarget`,
+  `lowering.TestExtensionPromotionsCheck_Refusals`,
+  `lowering.TestExtensionPromotionsCheck_AcceptsWhatReadsAsWritten`,
+  `lowering.TestListsValues_NamesTheTargetsStatingAFact`,
+  `lowering.TestUnreadExtensions_ReportsAnOwnedKeyNoSourceReads`,
+  `lowering.TestUnreadExtensions_NamesNoKeyAMappingDoesNotRead`,
+  `lowering.TestUnreadExtensions_TheGroupingKeyIsRead`,
+  `lowering.TestUnreadExtensions_TheAliasesKeyIsRead`,
+  `lowering.TestGroupingExtension_KeysAreWhatGroupingReads`,
+  `e2e.TestPromotion_AnOwnedPrefixIsJudgedAtEveryNode`,
+  `e2e.TestPromotion_AnOwnedPrefixCountsEveryGroupingKeyRead`,
+  `lowering.TestServerName_ReadsTheDefaultKey`,
+  `lowering.TestTokenEndpointAuthMethods_ReadsASet`,
+  `lowering.TestAllowReserved_OnlyTrueAsksForIt`,
+  `operation.TestLowerParameter_AKeyAsksForReservedExpansion`,
+  `servers.TestLowerServer_AKeyNamesAServerTheDocumentNamesNot`,
+  `auth.TestLowerSecuritySchemes_AMappedKeyStatesTheTokenEndpointsAuthentication`,
+  `schema.TestUse_ADecoratorOverADeprecatedBaseReadsItsMembers`,
+  `openapi.TestCompile_RefusesAPromotionPolicyItCannotRead`,
+  `openapi.TestDecodeOptions_TextReachesEveryField`,
   `lowering.TestPromoterDeprecation_KeyStatesIt`,
-  `lowering.TestPromoterStability_ReadsEachWord`,
+  `lowering.TestStability_ReadsEachWord`,
   `lowering.TestPromoterRedaction_OnlyTrueWrites`,
-  `lowering.TestPromoterEnumOpenness_WritesNothing`,
-  `lowering.TestPromoterUnionOpenness_OpensOnAMappedKey`,
+  `lowering.TestEnumOpenness_WritesNothing`,
+  `lowering.TestUnionOpenness_OpensOnAMappedKey`,
   `e2e.TestPromotion_AMappedKeyOpensAUnion`,
   `e2e.TestPromotion_AMixedEnumsUnionReadsTheEnumTargetAlone`,
   `lowering.TestPromoter_ReadsSourcesInPolicyOrder`,
@@ -4473,19 +4654,16 @@ the node's own keys alone, never lent by a `$ref`'s target, whose class is anoth
   `e2e.TestPromotion_ADecoratorMatchesTheRefItStandsFor`,
   `e2e.TestPromotion_UsesHoldTheirOwnAnswerInEitherOrder`,
   `e2e.TestPromotion_AContentCarrierReadsTheEntryItElects`
-- Status: partly built: the default mapping leaves pagination, open enums stated by value, reserved
-  expansion and server names to come (#656); a mapping cannot say which extension values state the
-  fact, so a stability key's `true` reads as a deprecation (#654); an unknown key under a prefix the
-  policy owns is kept in silence (#657); a key beside an `allOf` over an object, or on its branch,
-  lands on the decorator the `allOf` lowers to, where beside a `$ref` it lands on the carrier (#1220); a key on a path item, a tag or a
+- Status: partly built: a redaction key beside an `allOf` over an
+  object lands on the decorator the `allOf` lowers to, whose `Sensitive` keeps it a type of its own,
+  where beside a `$ref` it lands on the carrier (#1220); a key on a path item, a tag or a
   content entry, kept under a scope, reaches no field (#1221); a key both a parameter or a header and
   its schema write shares one entry, so the object's is all that is read (#396); a schema a use names
   between it and the end of its chain lends no key, as it lends no keyword (#1029); a key inside a
   `oneOf` kept verbatim beside a body, as the base of a hierarchy keeps the union of its subtypes
-  ([`union-beside-structure`](#union-beside-structure)), reaches no field; a mapping naming a target
-  nothing reads is accepted in silence (#1281); and header parameters or response headers whose
-  names differ only in case lower as two, so a replacement naming either names both and fills
-  nothing (#635).
+  ([`union-beside-structure`](#union-beside-structure)), reaches no field; and header parameters or
+  response headers whose names differ only in case lower as two, so a replacement naming either
+  names both and fills nothing (#635).
 
 ### `mutually-exclusive-parameters`
 
@@ -4496,18 +4674,89 @@ field bound through `HTTPParamBinding.ParamPath`.
 
 - Status: not built: no pass promotes the groups yet (#988).
 
+### `extension-pagination`
+
+A page walk an extension declares fills `Operation.Pagination`
+([extension-promotion](#extension-promotion)), read once the document is whole, since its values are
+members of response bodies. Each field is a target of the policy: `pagination.cursor`,
+`pagination.offset` and `pagination.page` the input continuing a walk of strategy `cursor`, `offset`
+or `page`, `pagination.limit` the page size, and `pagination.items`, `pagination.nextCursor`,
+`pagination.nextLink`, `pagination.totalCount` and `pagination.totalPages` the page values of the
+same names. A source listing no values holds, on the operation, an expression naming the value: an
+OpenAPI runtime expression, `$request.query.<name>`, `$request.path.<name>`,
+`$request.header.<name>` or `$request.body` and a pointer for an input, and `$response.body` and a
+pointer or `$response.header.<name>` for a page value, or the shorthand `$request.` or `$response.`
+and a dotted chain of names, the first of an input a parameter's where one parameter carries it and
+the request body's member otherwise. A source listing values marks the node its key sits on as the
+value its word names: a parameter, a property, a response header, or the type one of them names,
+found from the request, its parameters and its body, or from each success response's headers and
+body, nearest the body's root. The default reads both conventions: the `cursor`, `next_cursor`,
+`results` and `next_uri` members of `x-fern-pagination`, and the `purpose` of
+`x-stainless-pagination-property`, whose `next_cursor_param`, `next_cursor_field` and `items` mark
+the cursor, the next cursor and the items. Neither reads an offset or a page number by default,
+since each convention leaves to its own configuration which of the two its walk counts.
+
+A page value is one member of every success response declaring a body, of each of its media types,
+and a header one of every success response, whether an expression or a mark names it, as a pager
+reads whichever arrives: one that a response or a media type holds at another member, or not at
+all, as a header two success responses each declare does, resolves to nothing, as does a value a
+mark finds at two members as near the root, or at a header and a member of one response. The
+fields fill a pagination whole or not at all: a value that resolves to nothing, two inputs
+continuing the walk, a cursor beside no next cursor or a next cursor beside no cursor, an offset or
+a page number beside no items, which a pager counts to advance an offset and to end either walk
+([pagination](../emitters/operations/pagination.md#what-a-pager-sends-next)), and a walk with
+neither an input nor a next link are each reported as an info `openapi/degraded-construct`,
+at the value or at the operation, and leave the field unset. The pagination sets its own `Inferred`
+and states no `Stop`, which no extension of either convention states, and each node whose key it
+read lists the marker `extension-promotion`. A later source of a target naming another value than
+the first is reported and loses, as for every target. An operation holding a pagination already is
+not read.
+
+A pagination is read in one order of precedence, stated here for every reading of one: a keyword the
+document writes, then a promoted extension, then an inference
+([`pagination-policy`](#pagination-policy)). The document has spoken of an operation's pagination
+wherever a keyword or a key the policy maps to a pagination target is written, whatever its value,
+and no later reading fills a pagination it spoke of. OpenAPI writes no pagination keyword, so here
+that is each key a source of a pagination target names, written where this rule reads that source:
+on the operation for an expression, and for a mark on a parameter, a member of a body, a success
+response's header or the type one of them names, however many operations reach it. A value filling a
+pagination, one resolving to nothing or refused, and one stating nothing, `false`, null or an empty
+object, speak alike. `PromotePagination` returns the operations it reads that so speak, by ID, as
+the set a step inferring a pagination reads in place of their extensions, and marks no node for a
+pagination it does not fill. A key written anywhere else, such as on an error response or a mark on
+the operation itself, is read by no source, so it speaks of nothing.
+
+- Cases: `extension-pagination`
+- Codes: `openapi/degraded-construct`
+- Tests: `operation.TestPromotePagination_FillsWhatTheExtensionsDeclare`,
+  `operation.TestPromotePagination_ReportsWhatFillsNone`,
+  `operation.TestPromotePagination_ReadsEverySuccessResponse`,
+  `operation.TestPromotePagination_ReadsNothingOffPolicy`,
+  `operation.TestPromotePagination_SaysWhichOperationsSpeakOfAPagination`,
+  `operation.TestPromotePagination_StatedReadsEitherSidesKey`,
+  `operation.TestPromotePagination_StatedIsIndependentOfDeclarationOrder`,
+  `operation.TestPromotePagination_StatesNothingOffPolicy`,
+  `operation.TestPromotePagination_ReadsNoOperationHoldingOne`,
+  `lowering.TestOperations_ReadsEveryGroupToTheCap`,
+  `operation.TestMarker_AUseOfATypeTheRegistryLacksMarksNothing`,
+  `lowering.TestPageStatementOf_ReadsAnExpressionOrAMark`
+
 ### `pagination-policy`
 
-OpenAPI has no keyword for pagination, so an operation states its walk only by the names it uses,
-which the pagination-inference policy reads: the Go option `Options.PaginationInference`, whose zero
-value is on and whose `Disabled` infers none, and the text option `pagination-inference`, which
-`false` turns off (invariant 6). It reads each operation the client sends, a webhook or a callback
-being one it receives, once the registry is whole, and fills only an operation holding no
-`Pagination`, so it runs after every step that fills one the document declares and a declared walk
-always wins. A walk sends its operation again for each page, so it settles one only for a `GET` or
-a `QUERY`, the methods asking for no change on the server: a `POST` taking its path item's page
-parameters, as one creating a resource does, would create it once per page. A name is compared by
-its canonical words (`Naming.Canonical`), so `pageSize` and `page_size` are one name:
+OpenAPI has no keyword for pagination, so where no extension speaks of an operation's walk, the
+operation states it only by the names it uses, which the pagination-inference policy reads: the Go
+option `Options.PaginationInference`, whose zero value is on and whose `Disabled` infers none, and
+the text option `pagination-inference`, which `false` turns off (invariant 6). It reads each
+operation the client sends, a webhook or a callback being one it receives, once the registry is
+whole, and comes last in the precedence [`extension-pagination`](#extension-pagination) states: an
+operation holding a `Pagination`, or one whose extensions speak of a pagination, filled, resolving to
+nothing or stating none, is neither read nor reported, as the document has answered for it. Under a
+promotion policy mapping no pagination target, `extension-promotion=false` among them, no key is
+read, so no extension speaks and the policy reads every operation. A walk sends its operation again
+for each page, so it settles one only for a `GET` or a `QUERY`, the methods asking for no change on
+the server: a `POST` taking its path item's page parameters, as one creating a resource does, would
+create it once per page. A name is compared by its canonical words (`Naming.Canonical`), so
+`pageSize` and `page_size` are one name:
 
 1. **Where a walk continues** is a query parameter named `page` or `page_number`, under the `page`
    strategy; `offset`, under `offset`; `cursor`, under `cursor`; or `page_token`, `next_token` or

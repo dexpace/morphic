@@ -80,7 +80,6 @@ member 0 0 HTTPBinding.compression
 member 0 0 HTTPBinding.hostPrefix
 member 0 0 HTTPBinding.patchImplicitOptionality
 member 0 0 HTTPBinding.responseBodyPath
-member 0 0 HTTPBinding.sharedRoute
 member 0 0 HTTPBinding.successStatus
 member 0 0 HTTPParamBinding.bodyPath
 member 0 0 HTTPParamBinding.paramPath
@@ -147,7 +146,6 @@ member 0 0 OperationGroup.stability
 member 0 0 OperationGroup.unmodeled
 member 0 0 Pagination.firstLink
 member 0 0 Pagination.lastLink
-member 0 0 Pagination.nextLink
 member 0 0 Pagination.prevLink
 member 0 0 Parameter.availability
 member 0 0 Parameter.valueFrom
@@ -256,7 +254,6 @@ value 0 0 PageStop "empty"
 value 0 0 PageStop "short"
 value 0 0 PageStop "total"
 value 0 0 PageStrategy "link_header"
-value 0 0 PageStrategy "next_link"
 value 0 0 PresenceKind "explicit"
 value 0 0 PresenceKind "implicit"
 value 0 0 PresenceKind "required"

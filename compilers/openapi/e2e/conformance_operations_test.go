@@ -140,6 +140,37 @@ func assertHTTPBinding(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 	assert.Equal(t, "/items/{id}", hb.URITemplate)
 }
 
+// assertPathKeyFragments pins a path key carrying a fragment: the URI template
+// is the route a request is sent to, the binding keeps the fragment, and every
+// operation sending one route another does shares it, the one written without
+// a fragment included. Each fragmented key draws its warning.
+func assertPathKeyFragments(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
+	for name, want := range map[string]struct {
+		fragment string
+		shared   bool
+	}{
+		"bearerOAuth": {"oauth2", true}, "bearerApiKey": {"apiKey", true}, "bearer": {"", true}, "other": {"", false},
+	} {
+		op, ok := opByName(doc, name)
+		require.True(t, ok, name)
+		hb := op.Bindings.HTTP[0]
+		assert.Equal(t, want.shared, hb.SharedRoute, "%s: whether its route is shared", name)
+		kept, fragmented := hb.Unmodeled["openapi:fragment"]
+		assert.Equal(t, want.fragment != "", fragmented, "%s: whether it keeps a fragment", name)
+		if fragmented {
+			assert.Equal(t, "/bearer", hb.URITemplate, name)
+			assert.JSONEq(t, `"`+want.fragment+`"`, string(kept.Value), name)
+		}
+	}
+	var warned []string
+	for _, d := range diags {
+		if d.Code == "openapi/invalid-path-key" {
+			warned = append(warned, string(d.Provenance.Pointer))
+		}
+	}
+	assert.ElementsMatch(t, []string{"/paths/~1bearer#oauth2", "/paths/~1bearer#apiKey"}, warned)
+}
+
 // assertTagsGrouping32 is the 3.2 counterpart of assertTagsGrouping, and the
 // first case in the corpus to witness OperationGroup.Groups: a tag declaring a
 // parent nests its group under that parent's, an operation's non-navigational

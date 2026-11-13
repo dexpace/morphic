@@ -4,6 +4,7 @@
 package openapi
 
 import (
+	"encoding/json/v2"
 	"fmt"
 	"maps"
 	"mime"
@@ -49,7 +50,7 @@ const (
 	// ListsAreSegments reads a list as one path, each entry adding its segments.
 	ListsAreSegments = lowering.ListsAreSegments
 	// ListsAreGroups reads a list as several paths, filing the operation under
-	// the first.
+	// the first and making a group for each of the rest.
 	ListsAreGroups = lowering.ListsAreGroups
 )
 
@@ -116,6 +117,32 @@ const (
 	TargetStability = lowering.TargetStability
 	// TargetRedaction asks for a value to be redacted.
 	TargetRedaction = lowering.TargetRedaction
+	// TargetAllowReserved sets ir.HTTPParamBinding.AllowReserved on a parameter
+	// writing no allowReserved.
+	TargetAllowReserved = lowering.TargetAllowReserved
+	// TargetServerName names an ir.Server the document names in no other way.
+	TargetServerName = lowering.TargetServerName
+	// TargetTokenEndpointAuthMethods fills
+	// ir.OAuthFlow.TokenEndpointAuthMethods.
+	TargetTokenEndpointAuthMethods = lowering.TargetTokenEndpointAuthMethods
+	// TargetPaginationCursor fills the InputCursor of a cursor ir.Pagination.
+	TargetPaginationCursor = lowering.TargetPaginationCursor
+	// TargetPaginationOffset fills the InputCursor of an offset ir.Pagination.
+	TargetPaginationOffset = lowering.TargetPaginationOffset
+	// TargetPaginationPage fills the InputCursor of a page ir.Pagination.
+	TargetPaginationPage = lowering.TargetPaginationPage
+	// TargetPaginationLimit fills ir.Pagination.InputLimit.
+	TargetPaginationLimit = lowering.TargetPaginationLimit
+	// TargetPaginationItems fills ir.Pagination.Items.
+	TargetPaginationItems = lowering.TargetPaginationItems
+	// TargetPaginationNextCursor fills ir.Pagination.NextCursor.
+	TargetPaginationNextCursor = lowering.TargetPaginationNextCursor
+	// TargetPaginationNextLink fills ir.Pagination.NextLink.
+	TargetPaginationNextLink = lowering.TargetPaginationNextLink
+	// TargetPaginationTotalCount fills ir.Pagination.TotalCount.
+	TargetPaginationTotalCount = lowering.TargetPaginationTotalCount
+	// TargetPaginationTotalPages fills ir.Pagination.TotalPages.
+	TargetPaginationTotalPages = lowering.TargetPaginationTotalPages
 )
 
 // NullableWidening is the nullable-widening policy: whether a null a schema
@@ -171,10 +198,11 @@ type Options struct {
 	// Grouping selects the operation-grouping strategy.
 	Grouping GroupingStrategy `json:"grouping,omitempty"`
 	// GroupingExtension is what GroupByExtension reads, set as text by the
-	// options grouping-key, grouping-lists and grouping-fallback, and refused
-	// with any other strategy. Naming neither Key nor Lists reads
-	// DefaultGroupingExtension's, and naming one without the other is refused,
-	// since conventions disagree on a list. Fallback defaults to GroupByTags.
+	// options grouping-key, grouping-lists, grouping-aliases and
+	// grouping-fallback, and refused with any other strategy. Naming neither Key
+	// nor Lists reads DefaultGroupingExtension's, its Aliases unless the caller
+	// names one, and naming one without the other is refused, since conventions
+	// disagree on a list. Fallback defaults to GroupByTags.
 	GroupingExtension GroupingExtension `json:"groupingExtension,omitzero"`
 	// StreamingMedia selects which media types imply a stream. The zero value is
 	// the default list, on; a caller who wants only what a document declares
@@ -391,6 +419,9 @@ func (o Options) withDefaults() Options {
 	if o.GroupingExtension.Key == "" && o.GroupingExtension.Lists == "" {
 		def := DefaultGroupingExtension()
 		def.Fallback = o.GroupingExtension.Fallback
+		if o.GroupingExtension.Aliases != "" {
+			def.Aliases = o.GroupingExtension.Aliases
+		}
 		o.GroupingExtension = def
 	}
 	if o.GroupingExtension.Fallback == "" {
@@ -399,17 +430,22 @@ func (o Options) withDefaults() Options {
 	return o
 }
 
-// checkGrouping refuses a grouping extension o cannot read as asked, o having
-// its defaults: one beside another strategy, a key naming no extension, a key
-// or list reading without the other, and a fallback that is not a strategy an
-// operation stating no path can be grouped by. Each error names the text
-// option setting the field, as GroupingExtension's doc pairs them.
+// checkGrouping refuses a grouping o cannot honour, o having its defaults: a
+// strategy it does not name, as the text option refuses one, and a grouping
+// extension it cannot read as asked: one beside another strategy, a key naming
+// no extension, a key or list reading without the other, an aliases key naming
+// no extension or the key itself, and a fallback that is not a strategy an
+// operation stating no path can be grouped by. Each error names the text option
+// setting the field, as GroupingExtension's doc pairs them.
 func (o Options) checkGrouping() error {
+	if err := checkStrategy(o.Grouping); err != nil {
+		return err
+	}
 	ext := o.GroupingExtension
 	if o.Grouping != GroupByExtension {
 		if ext != (GroupingExtension{}) {
-			return fmt.Errorf("openapi: options %q, %q and %q apply only with %q set to %q",
-				optGroupingKey, optGroupingLists, optGroupingFallback, optGrouping, GroupByExtension)
+			return fmt.Errorf("openapi: options %q, %q, %q and %q apply only with %q set to %q",
+				optGroupingKey, optGroupingLists, optGroupingAliases, optGroupingFallback, optGrouping, GroupByExtension)
 		}
 		return nil
 	}
@@ -419,6 +455,10 @@ func (o Options) checkGrouping() error {
 	if ext.Lists != ListsAreSegments && ext.Lists != ListsAreGroups {
 		return fmt.Errorf("openapi: option %q: want %q or %q beside %q, as conventions disagree on what a list means, got %q",
 			optGroupingLists, ListsAreSegments, ListsAreGroups, optGroupingKey, ext.Lists)
+	}
+	if ext.Aliases != "" && (!strings.HasPrefix(ext.Aliases, "x-") || ext.Aliases == ext.Key) {
+		return fmt.Errorf("openapi: option %q: want an extension name starting \"x-\" other than %q's, got %q",
+			optGroupingAliases, optGroupingKey, ext.Aliases)
 	}
 	if ext.Fallback != GroupByTags && ext.Fallback != GroupByPathPrefix {
 		return fmt.Errorf("openapi: option %q: want %q or %q, got %q",
@@ -434,6 +474,7 @@ const (
 	optGrouping               = "grouping"
 	optGroupingKey            = "grouping-key"
 	optGroupingLists          = "grouping-lists"
+	optGroupingAliases        = "grouping-aliases"
 	optGroupingFallback       = "grouping-fallback"
 	optAllowExternalRefs      = "allow-external-refs"
 	optOverlay                = "overlay"
@@ -445,6 +486,9 @@ const (
 	optStreamingInference     = "streaming-inference"
 	optBinaryMedia            = "binary-media"
 	optBinaryInference        = "binary-inference"
+	optExtensionPromotion     = "extension-promotion"
+	optPromotionTargets       = "promotion-targets"
+	optPromotionPrefixes      = "promotion-prefixes"
 )
 
 // limitOptions maps the name of each budget in l to the field it sets, so a
@@ -465,9 +509,10 @@ func limitOptions(l *Limits) map[string]*int {
 // as the vocabulary grows.
 func optionNames() []string {
 	names := []string{
-		optGrouping, optGroupingKey, optGroupingLists, optGroupingFallback, optAllowExternalRefs, optOverlay,
-		optOverlayLax, optNullableWidening, optDiscriminatorInference, optPaginationInference, optStreamingMedia,
-		optStreamingInference, optBinaryMedia, optBinaryInference,
+		optGrouping, optGroupingKey, optGroupingLists, optGroupingAliases, optGroupingFallback, optAllowExternalRefs,
+		optOverlay, optOverlayLax, optNullableWidening, optDiscriminatorInference, optPaginationInference,
+		optStreamingMedia, optStreamingInference, optBinaryMedia, optBinaryInference, optExtensionPromotion,
+		optPromotionTargets, optPromotionPrefixes,
 	}
 	names = slices.AppendSeq(names, maps.Keys(limitOptions(&Limits{})))
 	slices.Sort(names)
@@ -507,7 +552,7 @@ func (d *optionDecode) set(key, value string) error {
 	switch key {
 	case optGrouping:
 		return decodeGrouping(&d.opts.Grouping, value)
-	case optGroupingKey, optGroupingLists, optGroupingFallback:
+	case optGroupingKey, optGroupingLists, optGroupingAliases, optGroupingFallback:
 		return d.groupingExtension(key, value)
 	case optAllowExternalRefs:
 		return decodeBool(&d.opts.AllowExternalRefs, key, value)
@@ -555,6 +600,16 @@ func (d *optionDecode) set(key, value string) error {
 		err := decodeBool(&on, key, value)
 		d.opts.BinaryMedia.Disabled = !on
 		return err
+	case optExtensionPromotion:
+		on := true
+		err := decodeBool(&on, key, value)
+		d.opts.Promotions.Disabled = !on
+		return err
+	case optPromotionTargets:
+		return decodePromotionTargets(&d.opts.Promotions.Targets, value)
+	case optPromotionPrefixes:
+		d.opts.Promotions.Prefixes = strings.Split(value, ",")
+		return nil
 	}
 	if budget, ok := limitOptions(&d.opts.Limits)[key]; ok {
 		return decodeBudget(budget, key, value)
@@ -577,6 +632,8 @@ func (d *optionDecode) groupingExtension(key, value string) error {
 		ext.Key = value
 	case optGroupingLists:
 		ext.Lists = ExtensionLists(value)
+	case optGroupingAliases:
+		ext.Aliases = value
 	default:
 		ext.Fallback = GroupingStrategy(value)
 	}
@@ -588,6 +645,10 @@ func (d *optionDecode) groupingExtension(key, value string) error {
 func (d *optionDecode) finish() (Options, error) {
 	if err := d.opts.withDefaults().checkGrouping(); err != nil {
 		return Options{}, err
+	}
+	if err := d.opts.Promotions.Check(); err != nil {
+		return Options{}, fmt.Errorf("openapi: options %q, %q and %q: %w",
+			optExtensionPromotion, optPromotionTargets, optPromotionPrefixes, err)
 	}
 	if d.overlayPath == "" {
 		if d.laxSet {
@@ -603,21 +664,51 @@ func (d *optionDecode) finish() (Options, error) {
 // decodeGrouping reads a grouping strategy by its own name, which is the same
 // string the JSON form uses.
 func decodeGrouping(out *GroupingStrategy, value string) error {
-	switch strategy := GroupingStrategy(value); strategy {
+	strategy := GroupingStrategy(value)
+	if err := checkStrategy(strategy); err != nil {
+		return err
+	}
+	*out = strategy
+	return nil
+}
+
+// checkStrategy refuses a grouping strategy the compiler does not name, in the
+// words of the text option, so a Go caller's misspelling is refused as the
+// text one is rather than grouped by tags.
+func checkStrategy(strategy GroupingStrategy) error {
+	switch strategy {
 	case GroupByTags, GroupByPathPrefix, GroupByExtension:
-		*out = strategy
 		return nil
 	default:
 		return fmt.Errorf("openapi: option %q: want %q, %q or %q, got %q",
-			optGrouping, GroupByTags, GroupByPathPrefix, GroupByExtension, value)
+			optGrouping, GroupByTags, GroupByPathPrefix, GroupByExtension, strategy)
 	}
+}
+
+// decodePromotionTargets reads the promotion mapping's text: the JSON object
+// ExtensionPromotions.Targets encodes as, from each target to its sources in
+// order of precedence. A member no source declares is refused rather than
+// dropped, as a misspelt one would read less than the caller asked; what the
+// mapping names is checked once the set is whole (ExtensionPromotions.Check).
+func decodePromotionTargets(out *map[ExtensionTarget][]ExtensionSource, value string) error {
+	var targets map[ExtensionTarget][]ExtensionSource
+	if err := json.Unmarshal([]byte(value), &targets, json.RejectUnknownMembers(true)); err != nil {
+		return fmt.Errorf("openapi: option %q: want a JSON object from each target to its sources: %w",
+			optPromotionTargets, err)
+	}
+	if len(targets) == 0 {
+		return fmt.Errorf("openapi: option %q: want a target, got none; %q turns promotion off",
+			optPromotionTargets, optExtensionPromotion)
+	}
+	*out = targets
+	return nil
 }
 
 // decodeMediaList reads the media list of the setting key, streaming's or
 // binary's: entries separated by commas, which no media type holds outside a
 // parameter's quotes. An entry that is neither a media type nor a suffix is
 // refused rather than kept: it could match nothing, and the list it sits in
-// replaces the default. The promotion mapping has no setting yet (GitHub #658).
+// replaces the default.
 func decodeMediaList(out *[]string, key, value string) error {
 	entries := strings.Split(value, ",")
 	for i, entry := range entries {

@@ -157,7 +157,7 @@ func readVoices(c lowering.Ctx, s *oas3.Schema) voicing {
 	a := newAgreement(c)
 	lent := map[string]bool{}
 	for _, entry := range a.write(s) {
-		lent[entry] = true
+		lent[entry] = lent[entry] || !writesFalseFlag(entry, foldValue(s, entry))
 	}
 	comp := allOfBranches(s, "")
 	n := len(comp.branches)
@@ -176,7 +176,12 @@ func readVoices(c lowering.Ctx, s *oas3.Schema) voicing {
 		if !out.speaks[i] {
 			continue
 		}
+		bs := comp.branches[i].schema.GetSchema()
 		for _, entry := range entries {
+			// A false flag lends nothing: it states nothing a later true would not.
+			if writesFalseFlag(entry, foldValue(bs, entry)) {
+				continue
+			}
 			out.lends[i] = out.lends[i] || !lent[entry]
 			lent[entry] = true
 		}

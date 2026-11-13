@@ -42,6 +42,10 @@ type Use struct {
 	narrowedFrom int
 	// nullable says the position's reference admits null, whatever narrowed says.
 	nullable bool
+	// deprecatedBase says the node at the position composes, as its Base, a
+	// schema a keyword or a key deprecates, as a decorator over a deprecated
+	// target does.
+	deprecatedBase bool
 }
 
 // Site is u as annotation.Read takes it, for s, the schema written at the
@@ -91,28 +95,34 @@ func (u Use) takes(v values.Value) bool {
 	return u.narrowed.takes(v) || (u.nullable && isNullValue(v))
 }
 
-// lentKeys returns what the mapped keys of what u falls back to lend s, the
-// schema written at its position. They are read along the chain its keywords
-// are, nearest first (Referents): the nearest stating a deprecation, by a keyword
-// or a key, decides it and lends its members, and any asking for redaction asks
-// it of the use. A `deprecated` on s or a voice decides over them all; a nil s,
-// the position of a boolean schema, writes none.
-func (u Use) lentKeys(c lowering.Ctx, s *oas3.Schema) lowering.Referent {
-	promoter := c.Promoter()
-	var from lowering.Referent
-	decided := false
+// lentKeys returns what the mapped keys of what u falls back to lend its
+// position. They are read along the chain its keywords are, nearest first
+// (Referents): the nearest deprecated, by a keyword or a key, lends its
+// members, any stating a deprecation by a key states it of the use, and any
+// asking for redaction asks it of the use. No `deprecated` withdraws them, as
+// none withdraws another's keyword (annotation.EffectiveDeprecated).
+func (u Use) lentKeys(c lowering.Ctx) lowering.Referent {
+	from := lowering.Referent{Homes: u.deprecatedBase}
+	lent := false
 	for _, r := range u.Referents {
-		read := promoter.Referent(r, r.GetDeprecated(), func() ir.Unmodeled {
-			return annotation.ExtensionsNamed(r.GetExtensions(), promoter.Keys())
-		})
+		read := keysOf(c, r)
 		from.Redacted = from.Redacted || read.Redacted
-		if !decided && (read.Deprecated || r.Deprecated != nil) {
-			from.Deprecated, from.Members, decided = read.Deprecated, read.Members, true
+		from.Deprecated = from.Deprecated || read.Deprecated
+		from.Homes = from.Homes || r.GetDeprecated()
+		if !lent && (read.Deprecated || r.GetDeprecated()) {
+			from.Members, lent = read.Members, true
 		}
 	}
-	from.InheritsDeprecated = (s == nil || s.Deprecated == nil) &&
-		!slices.ContainsFunc(u.Voices, func(v annotation.Voice) bool { return v.Node.Deprecated != nil })
 	return from
+}
+
+// keysOf reads what the mapped keys of r, a schema a use falls back to, lend
+// it, as the policy answers once for each schema (lowering.Promoter.Referent).
+func keysOf(c lowering.Ctx, r *oas3.Schema) lowering.Referent {
+	promoter := c.Promoter()
+	return promoter.Referent(r, r.GetDeprecated(), func() ir.Unmodeled {
+		return annotation.ExtensionsNamed(r.GetExtensions(), promoter.Keys())
+	})
 }
 
 // Written returns the inline branches written for the position that a keeper of
@@ -229,11 +239,20 @@ func UseOf(c lowering.Ctx, ts *compile.Types, js *oas3.JSONSchema[oas3.Reference
 
 // nodeUse reads what speaks for the node a position owns at pointer, which
 // lowered to target. A Base reaches what a $ref says, so the node falls back
-// only to a $ref its lowering lost.
+// only to a $ref its lowering lost; of one its Base holds, it reads only
+// whether a keyword or a key along it deprecates the node, which the node's own
+// member keys then annotate (lowering.Referent.Homes).
 func nodeUse(c lowering.Ctx, ts *compile.Types, s *oas3.Schema, pointer jsontext.Pointer, target ir.TypeRef) Use {
 	u := Use{Voices: positionVoices(c, ts, s, pointer, target)}
-	if p, ok := passageOf(c, s, pointer); ok && p.lost {
+	p, ok := passageOf(c, s, pointer)
+	switch {
+	case !ok:
+	case p.lost:
 		u.Referents = p.speakers(c)
+	case p.ref != nil:
+		u.deprecatedBase = slices.ContainsFunc(p.speakers(c), func(r *oas3.Schema) bool {
+			return r.GetDeprecated() || keysOf(c, r).Deprecated
+		})
 	}
 	return u
 }

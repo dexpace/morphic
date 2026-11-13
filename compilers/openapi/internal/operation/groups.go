@@ -55,9 +55,11 @@ func tagDocsFrom(t *soa.Tag) ir.Docs {
 
 // filing is where an operation is filed: the groups it nests in, outermost
 // first, the heuristic that chose them, empty where the document declares them,
+// the further groups the document exposes it under, each nested as levels is,
 // and what reading the document for them found.
 type filing struct {
 	levels   []groupLevel
+	remounts [][]groupLevel
 	inferred ir.Inferred
 	diags    []ir.Diagnostic
 }
@@ -65,17 +67,24 @@ type filing struct {
 // filingFor resolves where the active strategy files src, declared at decl in
 // c's document and mounted at path. A group is resolved by identity: its ID is
 // its key here and in the IR, so two operations share a group exactly when they
-// share an ID. GroupByExtension files src by the path its extension states, or
-// by GroupingExtension.Fallback where it states none, keeping what reading the
-// extension found whichever strategy files it.
+// share an ID. GroupByExtension files src by the first path its extension
+// states, or by GroupingExtension.Fallback where it states none, and names a
+// remount for each other path it or its aliases state, whichever strategy files
+// it (docs/compilers/openapi.md#extension-groups).
 func (g *serviceGroups) filingFor(c lowering.Ctx, src *soa.Operation, decl jsontext.Pointer, path string) filing {
 	if c.Grouping != lowering.GroupByExtension {
 		return g.filingBy(c.Grouping, src, path)
 	}
-	levels, diags := extensionLevels(c, src, decl)
-	filed := filing{levels: levels, inferred: lowering.GroupExtensionHeuristic}
-	if levels == nil {
+	paths, aliases, diags := extensionPaths(c, src, decl)
+	var filed filing
+	if len(paths) == 0 {
 		filed = g.filingBy(c.GroupingExtension.Fallback, src, path)
+	} else {
+		filed = filing{levels: extensionLevels(paths[0]), inferred: lowering.GroupExtensionHeuristic}
+		paths = paths[1:]
+	}
+	for _, p := range slices.Concat(paths, aliases) {
+		filed.remounts = append(filed.remounts, extensionLevels(p))
 	}
 	filed.diags = diags
 	return filed
@@ -102,32 +111,42 @@ func (g *serviceGroups) filingBy(strategy lowering.GroupingStrategy, src *soa.Op
 	return filing{levels: []groupLevel{{id: ids.DefaultGroup(), name: compile.NamingHint("default")}}}
 }
 
-// extensionLevels returns the groups the path src's grouping extension states
-// nests it in, outermost first, or nil where it states none. A value stating no
-// path is reported at the key, as the document means something else by it, and
-// the operation is filed as if the key were absent. A value that does not
-// serialize is absent here, as applyOperationAnnotations reports it.
-func extensionLevels(c lowering.Ctx, src *soa.Operation, decl jsontext.Pointer) ([]groupLevel, []ir.Diagnostic) {
+// extensionPaths returns the group paths src's grouping extension states and
+// those its aliases state, each outermost segment first, nil where a key states
+// none. A value stating no path is reported at its key, as the document means
+// something else by it, and read as if the key were absent. A value that does
+// not serialize is absent here, as applyOperationAnnotations reports it.
+func extensionPaths(c lowering.Ctx, src *soa.Operation, decl jsontext.Pointer) (paths, aliases [][]string, diags []ir.Diagnostic) {
 	ext := c.GroupingExtension
-	entry, written := annotation.ExtensionsNamed(src.GetExtensions(), slices.Values([]string{ext.Key}))["openapi:"+ext.Key]
-	if !written {
-		return nil, nil
+	written := annotation.ExtensionsNamed(src.GetExtensions(), slices.Values(ext.Keys(c.Grouping)))
+	if entry, ok := written["openapi:"+ext.Key]; ok {
+		var fits bool
+		if paths, fits = ext.Paths(entry.Value); !fits {
+			diags = append(diags, c.DiagAt(ir.SeverityInfo, diag.DegradedConstruct, decl+ids.Ptr(ext.Key),
+				"extension %q names no group path of at most %d segments, none empty, written as text whose dots "+
+					"separate them or as a list of such text, so the operation is grouped as if it were absent",
+				ext.Key, lowering.MaxGroupPathDepth))
+		}
 	}
-	path, ok := ext.Path(entry.Value)
-	if !ok {
-		return nil, []ir.Diagnostic{c.DiagAt(ir.SeverityInfo, diag.DegradedConstruct, decl+ids.Ptr(ext.Key),
-			"extension %q names no group path of at most %d segments, none empty, written as text whose dots "+
-				"separate them or as a list of such text, so the operation is grouped as if it were absent",
-			ext.Key, lowering.MaxGroupPathDepth)}
+	if entry, ok := written["openapi:"+ext.Aliases]; ok {
+		var fits bool
+		if aliases, fits = ext.AliasPaths(entry.Value); !fits {
+			diags = append(diags, c.DiagAt(ir.SeverityInfo, diag.DegradedConstruct, decl+ids.Ptr(ext.Aliases),
+				"extension %q is no list of aliases, each an object stating group paths under %q as that key "+
+					"states them, so none of its paths gets a group", ext.Aliases, ext.Key))
+		}
 	}
-	if len(path) == 0 {
-		return nil, nil
-	}
+	return paths, aliases, diags
+}
+
+// extensionLevels returns the groups path nests an operation in, outermost
+// first, each named by its segment and identified by the path to it.
+func extensionLevels(path []string) []groupLevel {
 	levels := make([]groupLevel, 0, len(path))
 	for i, seg := range path {
 		levels = append(levels, groupLevel{id: ids.ExtensionGroup(path[:i+1]), name: ir.NamingFor(seg)})
 	}
-	return levels, nil
+	return levels
 }
 
 // groupLevel is one group an operation is filed under: its ID, and the naming

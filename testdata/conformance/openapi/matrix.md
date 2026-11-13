@@ -124,7 +124,7 @@ witnessing it.
 
 ### `http-binding`
 
-- Witnesses: `param-identity`, `http-binding`, `path-item-operations`
+- Witnesses: `param-identity`, `http-binding`, `path-item-operations`, `path-key-fragments`
 
 ### `param-styles`
 
@@ -165,7 +165,7 @@ witnessing it.
 
 ### `pagination`
 
-- Witnesses: `pagination-inferred`
+- Witnesses: `extension-pagination`, `pagination-inferred`
 
 ### `long-running-operations`
 

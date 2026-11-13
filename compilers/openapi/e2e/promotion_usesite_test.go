@@ -136,8 +136,8 @@ func TestPromotion_AUseReadsItsReferentsKeys(t *testing.T) {
 			&ir.Deprecation{Message: "mine", RemovalDate: "2030-01-01"}, false, true},
 		{"a key stating the deprecation", `{$ref: '#/components/schemas/Spent'}`,
 			&ir.Deprecation{RemovalDate: "2031-01-01"}, false, true},
-		{"a keyword beside the $ref decides over the referent's key", `{$ref: '#/components/schemas/Spent', deprecated: false}`,
-			nil, false, false},
+		{"a false beside the $ref withdraws no referent's key", `{$ref: '#/components/schemas/Spent', deprecated: false}`,
+			&ir.Deprecation{RemovalDate: "2031-01-01"}, false, true},
 		{"a keyword deprecating the use reads no live referent's member", `{$ref: '#/components/schemas/Dated', deprecated: true}`,
 			&ir.Deprecation{}, false, false},
 		{"nor does a key deprecating it", `{$ref: '#/components/schemas/Dated', x-fern-availability: deprecated}`,
@@ -174,10 +174,10 @@ const refinedComponents = `    RefinesSpent: {allOf: [{$ref: '#/components/schem
 
 // TestPromotion_ARefinementLendsWhatItRefines holds a refinement's carriers to
 // the chain their keywords are read along (docs/compilers/openapi.md#extension-promotion):
-// a refinement is a use of its target, a $ref to one reads through it, and the
-// nearest link stating a deprecation, by a keyword or a key, decides it. Reading
-// only the end of a $ref, each would read the refinement's own keys, which are
-// none.
+// a refinement is a use of its target, a $ref to one reads through it, any link
+// stating a deprecation, by a keyword or a key, deprecates it, and a false
+// withdraws none. Reading only the end of a $ref, each would read the
+// refinement's own keys, which are none.
 func TestPromotion_ARefinementLendsWhatItRefines(t *testing.T) {
 	t.Parallel()
 	for _, tc := range []struct {
@@ -191,8 +191,10 @@ func TestPromotion_ARefinementLendsWhatItRefines(t *testing.T) {
 		{"and its redaction", `{allOf: [{$ref: '#/components/schemas/Tok'}], description: d}`, nil, true},
 		{"a use reads through a refinement", `{$ref: '#/components/schemas/RefinesSpent'}`,
 			&ir.Deprecation{RemovalDate: "2031-01-01"}, false},
-		{"whose keyword decides over its target's key", `{$ref: '#/components/schemas/LiveSpent'}`, nil, false},
-		{"as a branch's does", `{allOf: [{$ref: '#/components/schemas/Spent'}, {deprecated: false}]}`, nil, false},
+		{"whose false withdraws no target's key", `{$ref: '#/components/schemas/LiveSpent'}`,
+			&ir.Deprecation{RemovalDate: "2031-01-01"}, false},
+		{"nor does a branch's", `{allOf: [{$ref: '#/components/schemas/Spent'}, {deprecated: false}]}`,
+			&ir.Deprecation{RemovalDate: "2031-01-01"}, false},
 		{"a decorator lends its carrier nothing, as its node holds it",
 			`{allOf: [{$ref: '#/components/schemas/SpentObject'}], description: d}`, nil, false},
 	} {

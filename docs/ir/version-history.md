@@ -470,11 +470,48 @@ it sees. Changes made together in one bump are listed together under it.
   headers](./responses.md#prefix-headers)). `irverify` holds such a header to a map type and no
   wire name, and `irfacts.CorrelationVersion` moved to 3, keying it by its prefix. No compiler
   fills it yet. A consumer pinned to 0.45.0 refuses a document with a prefix header.
-- **0.47.0** — the OpenAPI compiler fills `Operation.Pagination`, which it had never set, and with
-  it `PageStop` `no_next`: its pagination-inference policy reads a walk off the names an operation's
-  query parameters and success responses use
+- **0.47.0** — four changes of meaning, made together, with no change of shape:
+  - An inbound operation's empty `Servers` names no server where it had named its service's
+    ([servers](./servers.md#inbound-operations)), as its `Auth` inherits nothing: the service's
+    servers are where the API is sent requests. A consumer pinned to 0.46.0 sends a webhook or a
+    callback to the API itself.
+  - An `OperationGroup` may hold no operation and no group. The OpenAPI compiler's grouping by
+    extension makes one for each path a `groups` list names after the first and each path an
+    operation's aliases name ([`extension-groups`](../compilers/openapi.md#extension-groups)), for a
+    remount to name. A consumer pinned to 0.46.0 meets a sub-client with nothing in it.
+  - A callback's operation may list callbacks of its own on its binding, each lowered as its
+    parent's are ([`callbacks`](../compilers/openapi.md#callbacks)), where the OpenAPI compiler had
+    dropped them. A consumer pinned to 0.46.0 that walks one level of callbacks misses them.
+  - The OpenAPI compiler leaves a path key's fragment out of `URITemplate`, keeping it on the binding
+    as `openapi:fragment`, and sets `SharedRoute` on each path operation whose method and route
+    another sends ([`path-keys`](../compilers/openapi.md#path-keys)). A consumer pinned to 0.46.0
+    builds the fragment into a URL and reads no route as shared.
+- **0.48.0** — no shape changed; what the OpenAPI compiler writes did:
+  - A `deprecated`, `readOnly` or `writeOnly` written `false` withdraws no `true` another schema of
+    a use states, as JSON Schema reads the three, so `deprecated: false` beside a `$ref` to a
+    deprecated target leaves the use's `Deprecation` set
+    ([what a reference carries down](./annotations.md#what-a-reference-carries-down)). A consumer
+    pinned to 0.47.0 that read such a use as live finds it deprecated, and a `readOnly` or
+    `writeOnly` it read as withdrawn in force. An `allOf` branch writing one `false` beside
+    another's `true` no longer disagrees with it, so both fold where both were kept verbatim.
+  - `Operation.Pagination` is filled from the extensions the promotion policy maps, by default those
+    of two conventions ([`extension-pagination`](../compilers/openapi.md#extension-pagination)),
+    with `Pagination.Inferred` set and each node whose key it read marked `extension-promotion`;
+    `Server.Name` is filled from a key on a server the document names in no other way; and
+    `HTTPParamBinding.AllowReserved` and `OAuthFlow.TokenEndpointAuthMethods` are filled where a
+    mapping names a key for them. A consumer pinned to 0.47.0 finds a pagination, a name or a field
+    where none was written.
+  - A decorator over a target a keyword or a key deprecates holds the `Deprecation` its own keys'
+    members state, which they were kept beside in silence.
+  - The default mapping reads only the word `deprecated` of `x-stability` and
+    `x-fern-availability` as a deprecation, so a boolean on either deprecates nothing.
+- **0.49.0** — the OpenAPI compiler fills `Operation.Pagination` where the document speaks of none,
+  and with it `PageStop` `no_next`, which it had never set: its pagination-inference policy reads a
+  walk off the names an operation's query parameters and success responses use
   ([`pagination-policy`](../compilers/openapi.md#pagination-policy)), each such `Pagination` marked
-  `Inferred` and its operation's `Provenance.Inferred` naming `pagination-inference`. The shape is
-  0.46.0's. A consumer pinned to 0.46.0 met no OpenAPI operation holding a `Pagination`, and now
-  meets one on each operation the policy settles, which it reads as declared unless it reads
-  `Inferred`.
+  `Inferred` and its operation's `Provenance.Inferred` naming `pagination-inference`. An operation
+  whose extensions the promotion policy reads as stating a pagination, or as stating there is none,
+  gets none from it ([`extension-pagination`](../compilers/openapi.md#extension-pagination)). The
+  shape is 0.48.0's. A consumer pinned to 0.48.0 met a `Pagination` only where an extension stated
+  one, and now meets one on each operation the policy settles, which it reads as declared unless it
+  reads `Inferred`.

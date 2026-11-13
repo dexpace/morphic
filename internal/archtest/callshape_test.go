@@ -108,10 +108,11 @@ var callShapeBaseline = map[string]map[string]int{
 	},
 	"ir": {
 		// ir.Visitor and the ForEach walks: traversal callbacks.
-		"internal/census": 1,
-		"ir/irfacts":      3,
-		"ir/irverify":     2,
-		"pass":            16,
+		"compilers/openapi/internal/lowering": 1,
+		"internal/census":                     1,
+		"ir/irfacts":                          3,
+		"ir/irverify":                         2,
+		"pass":                                16,
 	},
 }
 
