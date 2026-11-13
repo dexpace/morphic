@@ -3549,8 +3549,7 @@ operation there is the remount's, read from the kept extension, since an `Operat
 group. Nothing marks such a group `Inferred`: an `OperationGroup` has no provenance, and the
 marker is on each operation the extension files, which a group holding none lacks. Leaving those
 groups to the remount was weighed and rejected: an ID is opaque to a consumer
-([identity](../ir/identity.md)), which could then neither name nor nest a group the IR does not
-hold.
+([identity](../ir/identity.md)), which could then neither name nor nest a group the IR does not hold.
 
 A group's ID is `g/extension/` and the path's segments, each an RFC 6901 token
 ([identity](../ir/identity.md#operation-groups)). It follows from the path alone and never from the
