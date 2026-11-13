@@ -4517,9 +4517,11 @@ its canonical words (`Naming.Canonical`), so `pageSize` and `page_size` are one 
    sent as. A name such as `after`, `marker` or `starting_after`, which names a cursor in one API
    and a filter or an ID in another, is not read.
 2. **A page** is the body of each content of each success response, the `Default` aside, and each
-   must hold what the walk reads at the same members, as a pager reads whichever arrives. A path
-   starts at the body whole. A list body holds the items whole, an `Items` with no segment, and no
-   next cursor. A model's members are read across its composition (`ir.FlattenedProperties`), each
+   must hold what the walk reads at the same members, as a pager reads whichever arrives. One with
+   no body, such as a `204` or a `304`, holds none and is not read, as a pager ends at it as at an
+   empty page ([other responses](../emitters/plan/responses.md#other-responses)). A path starts at
+   the body whole. A list body holds the items whole, an `Items` with no segment, and no next
+   cursor. A model's members are read across its composition (`ir.FlattenedProperties`), each
    as the declaration the flattening takes, which is the type a page decodes it as, and its items
    are the one list member named `result`, `results`, `data`, `items`, `records`, `entries` or
    `values`; where no list is so named, the one list the one model member so named holds; else the
@@ -4541,7 +4543,7 @@ a walk continues and that the policy cannot settle gets no `Pagination`, never a
 an info `openapi/undecided-pagination` at the operation's declaration naming what stops it: a
 method other than `GET` and `QUERY`, two parameters naming a continuation or a page size, one of a
 type a walk does not send, no success
-response or one with no body, a body that is neither an object nor a list, items or a next cursor
+response or none with a body, a body that is neither an object nor a list, items or a next cursor
 it names none or several of, or bodies holding the page at different members. A path item mounted
 twice is reported once, at the declaration both mounts share.
 

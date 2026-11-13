@@ -358,7 +358,7 @@
     {
       "severity": "info",
       "code": "openapi/undecided-pagination",
-      "message": "no pagination is inferred: a success response has no body to read a page from",
+      "message": "no pagination is inferred: no success response has a body to read a page from",
       "provenance": {
         "source": 0,
         "pointer": "/paths/~1items/get"

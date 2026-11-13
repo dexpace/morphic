@@ -79,7 +79,9 @@ func (p page) equal(q page) bool {
 
 // responsePage returns where op's success responses hold the page a walk
 // sending in reads. Every content of every one must hold it at the same
-// members, since a pager reads whichever arrives; why says otherwise what
+// members, since a pager reads whichever arrives; one with no body, a 204 or a
+// 304, holds none, as a pager ends at it as at an empty page
+// (docs/emitters/plan/responses.md#other-responses). why says otherwise what
 // stops it.
 func (r *reader) responsePage(op *ir.Operation, in inputs) (page, string) {
 	if len(op.Responses) == 0 {
@@ -92,8 +94,8 @@ func (r *reader) responsePage(op *ir.Operation, in inputs) (page, string) {
 	var first *page
 	for i := range op.Responses {
 		p := op.Responses[i].Payload
-		if p == nil || len(p.Contents) == 0 {
-			return page{}, "a success response has no body to read a page from"
+		if p == nil {
+			continue
 		}
 		for j := range p.Contents {
 			ct := &p.Contents[j]
@@ -108,6 +110,9 @@ func (r *reader) responsePage(op *ir.Operation, in inputs) (page, string) {
 				return page{}, "the success responses' bodies hold their pages at different members"
 			}
 		}
+	}
+	if first == nil {
+		return page{}, "no success response has a body to read a page from"
 	}
 	return *first, ""
 }

@@ -173,9 +173,10 @@ func TestInfer_LeavesWhatItCannotSettle(t *testing.T) {
 }
 
 // TestInfer_ReadsEveryResponse holds a page to every content of every success
-// response, a pager reading whichever arrives: one with no body, or two
-// holding the page at different members, settle none, and no success response
-// leaves nothing to read. The default response is no success, and is not read.
+// response, a pager reading whichever arrives: two holding the page at
+// different members settle none, and no success response, or none with a body,
+// leaves nothing to read. One with no body ends a walk, and the default
+// response is no success, so neither is read.
 func TestInfer_ReadsEveryResponse(t *testing.T) {
 	t.Parallel()
 	head := `openapi: 3.1.0
@@ -191,10 +192,9 @@ paths:
 	for name, tc := range map[string]struct{ responses, want string }{
 		"no success response": {`        default: {description: d}
 `, `the operation declares no success response to read a page from`},
-		"a success response with no body": {`        "200": {description: ok, content: {application/json: {schema: ` +
-			body(`result: `+stringList) + `}}}
+		"no success response with a body": {`        "200": {description: ok}
         "204": {description: none}
-`, `a success response has no body to read a page from`},
+`, `no success response has a body to read a page from`},
 		"two contents holding the page at different members": {`        "200":
           description: ok
           content:
@@ -251,6 +251,17 @@ components:
 		t.Parallel()
 		src := head + `        "200": {description: ok, content: {application/json: {schema: ` + body(`result: `+stringList) + `}}}
         default: {description: failure, content: {application/json: {schema: ` + body(`message: {type: string}`) + `}}}
+`
+		op, doc, diags := listOp(t, src, openapi.Options{})
+		assert.Equal(t, "page cursor=page limit=- items=/result next=- count=- pages=- stop=[]", describe(doc, op))
+		assert.Empty(t, undecided(diags))
+	})
+
+	t.Run("a response with no body beside the page, which ends a walk", func(t *testing.T) {
+		t.Parallel()
+		src := head + `        "204": {description: none}
+        "200": {description: ok, content: {application/json: {schema: ` + body(`result: `+stringList) + `}}}
+        "304": {description: not modified}
 `
 		op, doc, diags := listOp(t, src, openapi.Options{})
 		assert.Equal(t, "page cursor=page limit=- items=/result next=- count=- pages=- stop=[]", describe(doc, op))
