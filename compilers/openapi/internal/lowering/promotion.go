@@ -157,8 +157,9 @@ type ExtensionPromotions struct {
 	// field, and a later one stating another is reported.
 	Targets map[ExtensionTarget][]ExtensionSource `json:"targets,omitempty"`
 	// Prefixes are the extension name prefixes the policy owns: a key under one
-	// that no source reads is reported, naming the nearest key the mapping reads,
-	// as it is most likely that key misspelt. None is owned by default.
+	// that neither a source nor grouping reads is reported, naming the nearest
+	// key they read, as it is most likely that key misspelt (UnreadExtensions).
+	// None is owned by default.
 	Prefixes []string `json:"prefixes,omitempty"`
 }
 

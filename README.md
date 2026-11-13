@@ -234,7 +234,7 @@ OpenAPI compiler accepts:
 | `binary-inference` | `true` (default), `false` | Read a body or part as a file by its media type, as `binary-media` lists. `false` turns that reading off, leaving only the files a schema or `application/octet-stream` declares. |
 | `extension-promotion` | `true` (default), `false` | Read the vendor extensions the promotion mapping names into the typed fields they fill, marking each node read as inferred. `false` keeps every extension verbatim and reads none. |
 | `promotion-targets` | a JSON object | The promotion mapping, in place of the default: each target to its sources in order of precedence, each source a `key`, the `member` of its object value to read, and the `values` that state the target's fact, as `openapi.ExtensionPromotions.Targets` encodes as, such as `{"deprecation.message": [{"key": "x-why"}]}`. A target the compiler does not read is refused. |
-| `promotion-prefixes` | extension name prefixes, separated by commas | The prefixes the promotion policy owns: an extension under one that nothing reads, by the promotion mapping or by grouping, is reported, naming the key the mapping reads nearest it. |
+| `promotion-prefixes` | extension name prefixes, separated by commas | The prefixes the promotion policy owns: an extension under one that nothing reads, by the promotion mapping or by grouping, its aliases key included, is reported, naming the key read nearest it. |
 | `max-source-bytes` | an integer | The byte budget for one document: the spec, the overlay, and each document a `$ref` reads. None is read more than a byte past it. |
 | `max-source-nodes` | an integer | The budget on the YAML nodes one document parses to. |
 | `max-enum-members` | an integer | The budget on the members of one enum. |

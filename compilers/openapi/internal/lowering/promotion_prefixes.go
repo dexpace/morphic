@@ -15,21 +15,20 @@ import (
 )
 
 // UnreadExtensions reports each vendor extension doc keeps under a prefix c's
-// promotion policy owns that nothing c's policies name reads, naming the
-// nearest key the mapping reads, as the likeliest one it misspells. The key
-// grouping by extension reads is read too. doc is the whole document, every
-// node's Unmodeled read once; an extension inside an entry kept verbatim, such
-// as an allOf branch, is a value of that entry and is not read.
+// promotion policy owns that the compiler reads no key of, naming the nearest
+// key it reads, as the likeliest one it misspells. The keys read are each
+// reader's own: the promotion mapping's (Promoter.Keys) and grouping's
+// (GroupingExtension.Keys). doc is the whole document, every node's Unmodeled
+// read once; an extension inside an entry kept verbatim, such as an allOf
+// branch, is a value of that entry and is not read.
 func UnreadExtensions(c Ctx, doc *ir.Document) []ir.Diagnostic {
 	p := c.Promoter()
 	if len(p.prefixes) == 0 {
 		return nil
 	}
-	read := p.keys
-	if c.Grouping == GroupByExtension {
-		read = slices.Concat(read, []string{c.GroupingExtension.Key})
-		slices.Sort(read)
-	}
+	read := slices.AppendSeq(c.GroupingExtension.Keys(c.Grouping), p.Keys())
+	slices.Sort(read)
+	read = slices.Compact(read)
 	var diags []ir.Diagnostic
 	unmodeledType := reflect.TypeFor[ir.Unmodeled]()
 	ir.WalkValues(doc, ir.DocumentPath, ir.VisitFunc(func(v reflect.Value, _ ir.WalkPath) bool {
@@ -45,7 +44,7 @@ func UnreadExtensions(c Ctx, doc *ir.Document) []ir.Diagnostic {
 }
 
 // unreadIn reports the extensions of entries UnreadExtensions reports for p,
-// read being every key a policy reads, sorted, in key order.
+// read being every key the compiler reads, sorted, in key order.
 func unreadIn(p Promoter, read []string, entries ir.Unmodeled) []ir.Diagnostic {
 	var diags []ir.Diagnostic
 	for _, key := range slices.Sorted(maps.Keys(entries)) {
@@ -59,11 +58,11 @@ func unreadIn(p Promoter, read []string, entries ir.Unmodeled) []ir.Diagnostic {
 			continue
 		}
 		hint := ""
-		if near, ok := nearest(name, p.keys); ok {
-			hint = "; the mapping reads " + strconv.Quote(near)
+		if near, ok := nearest(name, read); ok {
+			hint = "; the nearest it reads is " + strconv.Quote(near)
 		}
 		diags = append(diags, diag.Newf(ir.SeverityWarning, diag.UnreadExtension, entry.Provenance,
-			"extension %q is under prefix %q, which the promotion policy owns, and no source of its mapping reads it%s",
+			"extension %q is under prefix %q, which the promotion policy owns, and the compiler reads no such key%s",
 			name, owner, hint))
 	}
 	return diags

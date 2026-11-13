@@ -729,3 +729,50 @@ components:
 		assert.Equal(t, []ir.Severity{ir.SeverityWarning}, diagsAt(diags, "openapi/unread-extension", pointer), pointer)
 	}
 }
+
+// TestPromotion_AnOwnedPrefixCountsEveryGroupingKeyRead pins the owned-prefix
+// report to the keys grouping reads, set as a caller holding only text sets
+// them: under grouping=extension and its defaults, the aliases key beside the
+// grouping key is read, so owning their prefix reports neither, while a key
+// under it nothing reads still is. Grouped by tags, nothing reads either key.
+func TestPromotion_AnOwnedPrefixCountsEveryGroupingKeyRead(t *testing.T) {
+	t.Parallel()
+	const spec = `openapi: 3.1.0
+info: {title: T, version: "1"}
+paths:
+  /x:
+    get:
+      operationId: getX
+      x-forge-group: a
+      x-forge-aliases: [{x-forge-group: b.c}]
+      x-forge-alises: [{x-forge-group: d}]
+      responses: {"200": {description: ok}}
+`
+	unread := func(grouping map[string]string) []string {
+		settings := map[string]string{"promotion-prefixes": "x-forge"}
+		for k, v := range grouping {
+			settings[k] = v
+		}
+		opts, err := openapi.New().DecodeOptions(compilers.OptionSet{Settings: settings})
+		require.NoError(t, err)
+		_, diags, err := openapi.New().Compile(t.Context(),
+			[]compilers.Source{{Path: "spec.yaml", Data: []byte(spec)}}, compilers.Options{FormatOptions: opts})
+		require.NoError(t, err)
+		var pointers []string
+		for _, d := range diags {
+			if d.Code == "openapi/unread-extension" {
+				pointers = append(pointers, string(d.Provenance.Pointer))
+			}
+		}
+		return pointers
+	}
+
+	byExtension := unread(map[string]string{"grouping": "extension"})
+	assert.Equal(t, []string{"/paths/~1x/get/x-forge-alises", "/paths/~1x/get/x-forge-group"}, byExtension,
+		"the default reads x-fern-sdk-group-name, so x-forge-group is unread, and x-forge-aliases beside it is read")
+	custom := unread(map[string]string{"grouping": "extension", "grouping-key": "x-forge-group",
+		"grouping-lists": "segments", "grouping-aliases": "x-forge-aliases"})
+	assert.Equal(t, []string{"/paths/~1x/get/x-forge-alises"}, custom)
+	assert.Equal(t, []string{"/paths/~1x/get/x-forge-aliases", "/paths/~1x/get/x-forge-alises",
+		"/paths/~1x/get/x-forge-group"}, unread(map[string]string{"grouping": "tags"}))
+}

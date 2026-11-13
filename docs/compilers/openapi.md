@@ -4477,10 +4477,13 @@ object `Targets` encodes as, and `promotion-prefixes`, the owned prefixes separa
 `extension-promotion` marker each node lists is the record of what a run promoted.
 
 The policy may own extension name prefixes, `Prefixes`, none by default. An extension under one
-that no source of the mapping reads, nor [`extension-groups`](#extension-groups) where
-that strategy is chosen, is reported as a warning `openapi/unread-extension` where it is written, naming the key of the mapping nearest it by edit distance, as the likeliest one it
-misspells: owning `x-deprecated` reports `x-deprecated-reasn` and names `x-deprecated-reason`. Each
-node's `Unmodeled` is read once the document is whole, under whatever scope its keys are kept; an
+that the compiler reads no key of is reported as a warning `openapi/unread-extension` where it is
+written, naming the key it reads nearest it by edit distance, as the likeliest one it misspells:
+owning `x-deprecated` reports `x-deprecated-reasn` and names `x-deprecated-reason`. The keys read are
+each reader's own, the mapping's sources and, where grouping is by extension, the key and the
+aliases key [`extension-groups`](#extension-groups) reads, never a second list of them, so owning
+`x-forge` beside the default grouping by extension reports no `x-forge-aliases`. Each node's
+`Unmodeled` is read once the document is whole, under whatever scope its keys are kept; an
 extension inside an entry kept verbatim, such as an `allOf` branch, is a value of that entry and is
 not read.
 
@@ -4614,7 +4617,10 @@ the node's own keys alone, never lent by a `$ref`'s target, whose class is anoth
   `lowering.TestUnreadExtensions_ReportsAnOwnedKeyNoSourceReads`,
   `lowering.TestUnreadExtensions_NamesNoKeyAMappingDoesNotRead`,
   `lowering.TestUnreadExtensions_TheGroupingKeyIsRead`,
+  `lowering.TestUnreadExtensions_TheAliasesKeyIsRead`,
+  `lowering.TestGroupingExtension_KeysAreWhatGroupingReads`,
   `e2e.TestPromotion_AnOwnedPrefixIsJudgedAtEveryNode`,
+  `e2e.TestPromotion_AnOwnedPrefixCountsEveryGroupingKeyRead`,
   `lowering.TestPromoterServerName_ReadsTheDefaultKey`,
   `lowering.TestPromoterTokenEndpointAuthMethods_ReadsASet`,
   `lowering.TestPromoterAllowReserved_OnlyTrueAsksForIt`,

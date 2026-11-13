@@ -118,7 +118,7 @@ func (g *serviceGroups) filingBy(strategy lowering.GroupingStrategy, src *soa.Op
 // not serialize is absent here, as applyOperationAnnotations reports it.
 func extensionPaths(c lowering.Ctx, src *soa.Operation, decl jsontext.Pointer) (paths, aliases [][]string, diags []ir.Diagnostic) {
 	ext := c.GroupingExtension
-	written := annotation.ExtensionsNamed(src.GetExtensions(), slices.Values([]string{ext.Key, ext.Aliases}))
+	written := annotation.ExtensionsNamed(src.GetExtensions(), slices.Values(ext.Keys(c.Grouping)))
 	if entry, ok := written["openapi:"+ext.Key]; ok {
 		var fits bool
 		if paths, fits = ext.Paths(entry.Value); !fits {
