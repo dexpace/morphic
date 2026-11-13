@@ -146,7 +146,10 @@ var generations = []generation{
 		names:   "c81be0f2b36405f2d981ea6c635ea75c4154521622c148c008ae2e7f345264b2",
 		meaning: "a schema admitting null alone is an Enum with no member behind a nullable reference in every spelling, a type naming null alone and a union of nothing else among them, where those were nullable any and an alias over it; and a union branch admitting null alone, written in place, is the union's null in every spelling, no variant, what else it writes kept under openapi:<combinator>/<index>"},
 	{version: "0.57.0", format: 1, shape: "0b2f5e45e4be29c67a153976848af676bc99d9f21d9e41a91b7abfd167ae026b",
-		names:   "c81be0f2b36405f2d981ea6c635ea75c4154521622c148c008ae2e7f345264b2",
+		names:   "825b85ca996798c9051c78f69d22b7c1ad6d30e36341b320540fab82f21b6890",
+		meaning: "a union beside an allOf of the OpenAPI compiler is one of its conjuncts; a union on an allOf branch lowers with the discriminator on the branch or beside the allOf, and at a position no route names; a routed subtype names its union as a Mixin minted for it, no longer kept under openapi:oneOf, openapi:anyOf or openapi:allOf/<n>; Base is elected through a discriminator hierarchy"},
+	{version: "0.58.0", format: 1, shape: "0b2f5e45e4be29c67a153976848af676bc99d9f21d9e41a91b7abfd167ae026b",
+		names:   "825b85ca996798c9051c78f69d22b7c1ad6d30e36341b320540fab82f21b6890",
 		meaning: "the OpenAPI compiler writes closed_after_composition only for an unevaluatedProperties: false no additionalProperties leaves inert, supplies no catch-all value beside it, and keeps every other unevaluated form under openapi:unevaluated, with the keyword that leaves an inert one inert, but one an allOf branch writes, which stays with the branch"},
 }
 

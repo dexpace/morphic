@@ -237,7 +237,7 @@ func lowerSchemaBody(c lowering.Ctx, ts *compile.Types, depth int, schema *oas3.
 			pointer+ids.Ptr("$dynamicRef"),
 			"$dynamicRef expanded to %q, the one matching $dynamicAnchor in this document", target)}, nullDiags...)
 	}
-	if len(schema.GetOneOf()) > 0 || len(schema.GetAnyOf()) > 0 {
+	if declaresUnion(schema) && !refinesToBranch(c, schema, pointer) {
 		if hasUnionSiblings(c, schema) {
 			id, unionDiags := lowerCoDeclaredUnion(c, ts, depth, schema, pointer)
 			ref, nullDiags := schemaNullRef(c, id, schema, siteAt(pointer))
@@ -245,14 +245,42 @@ func lowerSchemaBody(c lowering.Ctx, ts *compile.Types, depth int, schema *oas3.
 		}
 		return lowerOneOfAnyOf(c, ts, depth, schema, pointer)
 	}
-	if u, ok := branchUnion(c, schema, pointer); ok {
-		id, unionDiags := lowerDistributedUnion(c, ts, depth, schema, u, pointer)
+	u, how, ok := branchUnion(c, schema, pointer)
+	if ok {
+		lowerUnion := lowerDistributedUnion
+		if how == unionRoutedSubtype {
+			lowerUnion = lowerSubtypeUnion
+		}
+		id, unionDiags := lowerUnion(c, ts, depth, schema, u, pointer)
 		ref, nullDiags := schemaNullRef(c, id, schema, siteAt(pointer))
 		return ref, append(unionDiags, nullDiags...)
 	}
 	id, bodyDiags := lower(c, ts, depth, schema, pointer)
+	if how == unionHierarchyBase {
+		// The union stays with its branch, and the discriminator standing with it
+		// on the model, held to its routes as one beside the union is.
+		deferDiscriminatorBesideUnion(c, ts, id, schema, u.holder, pointer)
+	}
 	ref, nullDiags := schemaNullRef(c, id, schema, siteAt(pointer))
 	return ref, append(bodyDiags, nullDiags...)
+}
+
+// refinesToBranch reports whether s, written at pointer, refines to one of its
+// allOf branches, which then decides the position, a union beside the allOf
+// being one of the conjuncts it refines (docs/compilers/openapi.md#allof-refinement).
+func refinesToBranch(c lowering.Ctx, s *oas3.Schema, pointer jsontext.Pointer) bool {
+	r, refines := refinementOf(c, s, pointer)
+	return refines && r.principal != nil
+}
+
+// allOfComposes reports whether s writes an allOf that composes rather than
+// refines, the one a union beside it distributes across or is kept beside.
+func allOfComposes(c lowering.Ctx, s *oas3.Schema) bool {
+	if len(s.GetAllOf()) == 0 {
+		return false
+	}
+	_, refines := refinementOf(c, s, "")
+	return !refines
 }
 
 // lower interns the inline schema at pointer and returns its TypeID. An allOf
@@ -297,7 +325,7 @@ func lowerElected(c lowering.Ctx, ts *compile.Types, depth int, s *oas3.Schema, 
 	case "enum":
 		return unhomed(lowerEnum(c, ts, s, pointer))
 	case "allOf":
-		return unhomed(lowerAllOf(c, ts, depth, s, pointer))
+		return unhomed(lowerAllOf(c, ts, depth, s, pointer, !slices.Contains(d.said, "discriminator")))
 	}
 	// won is "": the schema declares no family, or only an allOf that refines
 	// with no branch deciding what the position is, so the type set decides.
