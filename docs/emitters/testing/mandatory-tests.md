@@ -396,14 +396,16 @@ throughout these documents.
     strict decoding, one with no members stays closed under either setting and refuses every value,
     a flags one refusing 0 too, an optional member of it decoding only where it is absent, and
     refuses to encode every value a target can hand it, so that Go fails to encode a struct
-    requiring one left at its zero value and leaves out an optional one unset, one declaring a
-    `FallbackMember` reads an unlisted value as that member, and an open `Flags` enum keeps a bit no
-    member names in its flags form; an enum declared open is `Open` wherever it is used, with no
-    `Inferred` mark. A `oneOf` of two string variants only their `pattern`s tell apart decodes each
-    value into the variant whose pattern it meets, in either declaration order; a value both admit
-    and meet decodes into the first, and under `StrictExclusive` is a coded error, as is one both
-    admit and neither meets ([plan
-    policy](../plan/policy.md#an-enum-keeps-a-value-it-does-not-list),
+    requiring one left at its zero value and leaves out an optional one unset, an anonymous one
+    every reference reaches as nullable declares no type and is `Null` on Go and `Nothing?` on
+    Kotlin at each use, a required member of it writing `null` and refusing `"x"` and an optional
+    one decoding where absent and left out unset, one declaring a `FallbackMember` reads an unlisted
+    value as that member, and an open `Flags` enum keeps a bit no member names in its flags form; an
+    enum declared open is `Open` wherever it is used, with no `Inferred` mark. A `oneOf` of two
+    string variants only their `pattern`s tell apart decodes each value into the variant whose
+    pattern it meets, in either declaration order; a value both admit and meet decodes into the
+    first, and under `StrictExclusive` is a coded error, as is one both admit and neither meets
+    ([plan policy](../plan/policy.md#an-enum-keeps-a-value-it-does-not-list),
     [unions](../refine/unions.md#variant-identity-and-recognition)).
 37. **T-37 · Retries and redirects** — on every target, against the behavior server (T-14) and with
     each wait timed as T-13 times one, under the default policy: a 429 and a 503 are sent again for
