@@ -351,11 +351,12 @@ func TestBesideUnionDiscriminator_LeavesASettledMapAlone(t *testing.T) {
 	assert.Same(t, mt, reg["t/pet"], "the map is left in place")
 }
 
-// TestMappingWhy_GivesAComponentNameNoReasonOfTheTable pins that a mapping
-// value naming a component, which the table never reads, takes none of the
-// table's reasons: the merge bound cut a read elsewhere in the document, not
-// the lookup of the name.
-func TestMappingWhy_GivesAComponentNameNoReasonOfTheTable(t *testing.T) {
+// TestMappingWhy_SaysBothReadingsOfAValueWithNoHash pins the reason a mapping
+// value holding no '#' gives where it resolves to nothing: it names no
+// component, and read as a URI reference it fails, for the reason its hop
+// gives, not the table's, whose merge bound cut a read elsewhere in the
+// document. One no table read says it names no schema.
+func TestMappingWhy_SaysBothReadingsOfAValueWithNoHash(t *testing.T) {
 	t.Parallel()
 	var deep strings.Builder
 	deep.WriteString("openapi: 3.1.0\ninfo: {title: t, version: '1'}\npaths: {}\nx-c0: &c0 {$ref: '#/components/schemas/T'}\n")
@@ -370,19 +371,23 @@ func TestMappingWhy_GivesAComponentNameNoReasonOfTheTable(t *testing.T) {
 	require.True(t, ok)
 	d := p.GetSchema().GetDiscriminator()
 	require.NotNil(t, d)
-	assert.Empty(t, mappingWhy(l.Ctx, d, "Undeclared"))
+	assert.Equal(t, ": the entry document declares no schema component of that name, and as a URI reference "+
+		"it names another document, and external references are not read", mappingWhy(l.Ctx, d, "Undeclared"))
+	assert.Equal(t, ": the entry document declares no schema component of that name, and as a URI reference "+
+		"it names no schema", mappingWhy(NewRawLowerer(&soa.OpenAPI{}).Ctx, &oas3.Discriminator{}, "Undeclared"))
 }
 
 // TestMappingWhy_GivesAnUnreadReferenceTheTablesReason pins that a mapping
 // value spelling a reference, which the table reads, takes the table's reason
 // where it went unread: P's discriminator sits past a merge chain deeper than
-// the compiler expands, so the binder never read its mapping.
+// the compiler expands, so the binder never read its mapping. A value holding
+// no '#' says the name it may spell names no component, too.
 func TestMappingWhy_GivesAnUnreadReferenceTheTablesReason(t *testing.T) {
 	t.Parallel()
 	var deep strings.Builder
 	deep.WriteString("openapi: 3.1.0\ninfo: {title: t, version: '1'}\npaths: {}\n" +
 		"x-c0: &c0 {oneOf: [{$ref: '#/components/schemas/T'}], " +
-		"discriminator: {propertyName: k, mapping: {t: '#/components/schemas/T'}}}\n")
+		"discriminator: {propertyName: k, mapping: {t: '#/components/schemas/T', n: Nowhere}}}\n")
 	for i := 1; i <= 70; i++ {
 		fmt.Fprintf(&deep, "x-c%d: &c%d {<<: *c%d}\n", i, i, i-1)
 	}
@@ -392,8 +397,10 @@ func TestMappingWhy_GivesAnUnreadReferenceTheTablesReason(t *testing.T) {
 	require.True(t, ok)
 	d := p.GetSchema().GetDiscriminator()
 	require.NotNil(t, d, "the parser expands the whole chain")
-	assert.Equal(t, ": it is past a `<<` merge chain deeper than the 64 levels the compiler expands",
-		mappingWhy(l.Ctx, d, "#/components/schemas/T"))
+	const unread = "it is past a `<<` merge chain deeper than the 64 levels the compiler expands"
+	assert.Equal(t, ": "+unread, mappingWhy(l.Ctx, d, "#/components/schemas/T"))
+	assert.Equal(t, ": the entry document declares no schema component of that name, and as a URI reference "+unread,
+		mappingWhy(l.Ctx, d, "Nowhere"))
 }
 
 // petDiscriminator returns the discriminator the component schema Pet holds

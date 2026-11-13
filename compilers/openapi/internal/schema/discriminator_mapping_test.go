@@ -5,6 +5,7 @@ package schema_test
 
 import (
 	"fmt"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -12,6 +13,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/dexpace/morphic/compilers/openapi"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
 	"github.com/dexpace/morphic/compilers/openapi/internal/schema"
@@ -704,4 +706,150 @@ type wantMapping struct {
 	tag    string
 	target ir.TypeID
 	kind   ir.TypeKind
+}
+
+// valueFiles are the documents beside the root that
+// TestDiscriminatorMapping_ReadsAValueNamingNoComponentAsAReference's mapping
+// values name: subtypes of the root's Pet, and variants of its Pets.
+var valueFiles = map[string]string{
+	"cat.yaml":  "allOf: [{$ref: 'root.yaml#/components/schemas/Pet'}]\nproperties: {meow: {type: boolean}}\n",
+	"dog.yaml":  "allOf: [{$ref: 'root.yaml#/components/schemas/Pet'}]\nproperties: {bark: {type: boolean}}\n",
+	"cat2.yaml": "type: object\nproperties: {kind: {type: string}, meow: {type: boolean}}\n",
+	"dog2.yaml": "type: object\nproperties: {kind: {type: string}, bark: {type: boolean}}\n",
+	"other.yaml": "X: {allOf: [{$ref: 'root.yaml#/components/schemas/Pet'}], properties: {x: {type: boolean}}}\n" +
+		"Y: {type: object, properties: {kind: {type: string}, y: {type: boolean}}}\n",
+}
+
+// TestDiscriminatorMapping_ReadsAValueNamingNoComponentAsAReference pins how
+// a mapping value or a 3.2 defaultMapping naming no schema component lowers: as
+// a URI reference written at the discriminator, a fragment or none, to a
+// sibling file, a schema in one, or a schema's $id, read against the resource
+// the discriminator is in, Animal's $id resolving `cat`. A base routes to the
+// subtype, which takes the least key as its tag, and a union to the variant,
+// in either declaration order, and pass.Validate holds every route.
+func TestDiscriminatorMapping_ReadsAValueNamingNoComponentAsAReference(t *testing.T) {
+	t.Parallel()
+	blocks := []string{`    Pet:
+      type: object
+      required: [kind]
+      properties: {kind: {type: string}}
+      discriminator:
+        propertyName: kind
+        mapping: {f: cat.yaml, g: ./cat.yaml, x: 'other.yaml#/X'}
+        defaultMapping: dog.yaml
+`, `    Animal:
+      $id: 'https://x.test/animal'
+      type: object
+      properties: {kind: {type: string}}
+      discriminator: {propertyName: kind, mapping: {c: 'https://x.test/cat', r: cat}}
+`, "    Tabby: {$id: 'https://x.test/cat', allOf: [{$ref: animal}], properties: {meow: {type: boolean}}}\n", `    Pets:
+      oneOf:
+        - $ref: '#/components/schemas/Tabby2'
+        - $ref: cat2.yaml
+        - $ref: 'other.yaml#/Y'
+        - $ref: dog2.yaml
+      discriminator:
+        propertyName: kind
+        mapping: {c: 'https://x.test/cat2', f: cat2.yaml, g: ./cat2.yaml, y: 'other.yaml#/Y'}
+        defaultMapping: dog2.yaml
+`, "    Tabby2: {$id: 'https://x.test/cat2', type: object, properties: {kind: {type: string}}}\n"}
+	want := map[ir.TypeID]*ir.Discriminator{
+		componentID("Pet"): {Mapping: map[string]ir.TypeID{"f": "t/anon@cat.yaml", "g": "t/anon@cat.yaml",
+			"x": "t/anon@other.yaml/X"}, Default: "t/anon@dog.yaml"},
+		componentID("Animal"): {Mapping: map[string]ir.TypeID{"c": componentID("Tabby"), "r": componentID("Tabby")}},
+		componentID("Pets"): {Mapping: map[string]ir.TypeID{"c": componentID("Tabby2"), "f": "t/anon@cat2.yaml",
+			"g": "t/anon@cat2.yaml", "y": "t/anon@other.yaml/Y"}, Default: "t/anon@dog2.yaml"},
+	}
+	tags := map[ir.TypeID]string{"t/anon@cat.yaml": "f", "t/anon@other.yaml/X": "x", componentID("Tabby"): "c"}
+
+	var docs []*ir.Document
+	for _, reversed := range []bool{false, true} {
+		doc, diags, _ := compileFiles(t, valueFiles, rawSpec("3.2.0", blocks, "", reversed), openapi.Options{})
+		openapitest.RequireNoErrorDiags(t, diags)
+		for id, d := range want {
+			got := discriminatorOf(t, doc, id)
+			assert.Equal(t, d.Mapping, got.Mapping, "%s, reversed %t", id, reversed)
+			assert.Equal(t, d.Default, got.Default, "%s, reversed %t", id, reversed)
+		}
+		for id, tag := range tags {
+			m, ok := doc.Types[id].(*ir.Model)
+			require.True(t, ok, "%s is a model", id)
+			assert.Equal(t, tag, m.DiscriminatorValue, "%s, reversed %t", id, reversed)
+		}
+		assert.Empty(t, validated(t, doc), "every route is a subtype or a variant")
+		docs = append(docs, doc)
+	}
+	assert.Empty(t, cmp.Diff(docs[0].Types, docs[1].Types), "the declaration order changes no type")
+}
+
+// TestDiscriminatorMapping_ReadsAComponentsNameFirst pins the reading OpenAPI
+// recommends for a mapping value that is both a schema component's name and a
+// relative URI reference: the name. Dog is a component and a document beside
+// the source, which is never read; `a/b`, `a#b` and the empty string are names
+// whatever their characters, the last interned anonymously. Each routes to its
+// variant in either declaration order.
+func TestDiscriminatorMapping_ReadsAComponentsNameFirst(t *testing.T) {
+	t.Parallel()
+	const kind = "{type: object, properties: {kind: {type: string}}}"
+	blocks := []string{`    Pets:
+      oneOf:
+        - $ref: '#/components/schemas/Dog'
+        - $ref: '#/components/schemas/a~1b'
+        - $ref: '#/components/schemas/a%23b'
+        - $ref: '#/components/schemas/'
+      discriminator: {propertyName: kind, mapping: {d: Dog, s: a/b, h: 'a#b', e: ''}}
+`, "    Dog: " + kind + "\n", "    a/b: " + kind + "\n", "    'a#b': " + kind + "\n", "    '': " + kind + "\n"}
+	want := map[string]ir.TypeID{"d": componentID("Dog"), "s": componentID("a~1b"), "h": componentID("a#b"),
+		"e": "t/anon/components/schemas/"}
+	for _, reversed := range []bool{false, true} {
+		doc, diags, _ := compileFiles(t, map[string]string{"Dog": "type: object\nproperties: {bark: {type: boolean}}\n"},
+			rawSpec("3.1.0", blocks, "", reversed), openapi.Options{})
+		openapitest.RequireNoErrorDiags(t, diags)
+		assert.Equal(t, want, discriminatorOf(t, doc, componentID("Pets")).Mapping, "reversed %t", reversed)
+		assert.Len(t, doc.Sources, 1, "the document named Dog is never read")
+		assert.Empty(t, validated(t, doc), "every route is a variant")
+	}
+}
+
+// TestDiscriminatorMapping_ReportsAValueNamingNothingOnce pins the report of a
+// mapping value, or a 3.2 defaultMapping, naming no schema: one
+// openapi/unresolved-ref error at its entry, which the Mapping leaves out, in
+// either declaration order. One holding no '#' was read first as a
+// component's name, so its reason says both readings failed: a misspelt name,
+// a file that is not there, and a network location, which a compile not
+// allowing external references does not read.
+func TestDiscriminatorMapping_ReportsAValueNamingNothingOnce(t *testing.T) {
+	t.Parallel()
+	blocks := []string{"    Cat: {type: object, properties: {kind: {type: string}}}\n", `    Pets:
+      oneOf: [{$ref: '#/components/schemas/Cat'}]
+      discriminator:
+        propertyName: kind
+        mapping: {c: Cat, g: Ghost, n: ./nope.yaml, w: 'https://y.test/z', h: '#/components/schemas/Ghost'}
+        defaultMapping: Ghost
+`}
+	const (
+		both    = ": the entry document declares no schema component of that name, and as a URI reference "
+		at      = "/components/schemas/Pets/discriminator/"
+		refused = "the document it names could not be read: external document https://y.test/z refused: " +
+			"it is on the network, which a read reaches only when external references are allowed"
+	)
+	for _, reversed := range []bool{false, true} {
+		doc, diags, dir := compileFiles(t, nil, rawSpec("3.2.0", blocks, "", reversed), openapi.Options{})
+		unread := func(name string) string {
+			return "the document it names could not be read: open " + filepath.Join(dir, name) + ": no such file or directory"
+		}
+		report := func(pointer, message string) string {
+			return "error " + diag.UnresolvedRef + " " + at + pointer + ": " + message
+		}
+		assert.Equal(t, []string{
+			report("defaultMapping", `discriminator defaultMapping references unresolved schema "Ghost"`+both+unread("Ghost")),
+			report("mapping/g", `discriminator mapping "g" references unresolved schema "Ghost"`+both+unread("Ghost")),
+			report("mapping/h", `discriminator mapping "h" references unresolved schema "#/components/schemas/Ghost": `+
+				"it names nothing in the document it points into"),
+			report("mapping/n", `discriminator mapping "n" references unresolved schema "./nope.yaml"`+both+unread("nope.yaml")),
+			report("mapping/w", `discriminator mapping "w" references unresolved schema "https://y.test/z"`+both+refused),
+		}, reported(diags), "reversed %t", reversed)
+		assert.Equal(t, map[string]ir.TypeID{"c": componentID("Cat")}, discriminatorOf(t, doc, componentID("Pets")).Mapping)
+		assert.Empty(t, discriminatorOf(t, doc, componentID("Pets")).Default)
+	}
 }

@@ -158,16 +158,25 @@ func reported(diags []ir.Diagnostic) []string {
 // and the directory. The one document the source reads is Sources[1].
 func compileBeside(t *testing.T, files map[string]string, root string) (*ir.Document, []ir.Diagnostic, string) {
 	t.Helper()
+	doc, diags, dir := compileFiles(t, files, root, openapi.Options{AllowExternalRefs: true})
+	require.Len(t, doc.Sources, 2, "the source and the one document it reads")
+	return doc, diags, dir
+}
+
+// compileFiles compiles root as the root.yaml of a directory holding files,
+// reading from disk each document a reference names that opts admits, and
+// returns the document, its diagnostics and the directory.
+func compileFiles(t *testing.T, files map[string]string, root string, opts openapi.Options) (*ir.Document, []ir.Diagnostic, string) {
+	t.Helper()
 	dir := t.TempDir()
 	for name, body := range files {
 		require.NoError(t, os.WriteFile(filepath.Join(dir, name), []byte(body), 0o600))
 	}
 	doc, diags, err := openapi.New().Compile(t.Context(),
 		[]compilers.Source{{Path: filepath.Join(dir, "root.yaml"), Data: []byte(root)}},
-		compilers.Options{Reader: reader.Disk{}, FormatOptions: openapi.Options{AllowExternalRefs: true}})
+		compilers.Options{Reader: reader.Disk{}, FormatOptions: opts})
 	require.NoError(t, err)
 	require.NotNil(t, doc)
-	require.Len(t, doc.Sources, 2, "the source and the one document it reads")
 	return doc, diags, dir
 }
 

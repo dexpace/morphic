@@ -4,6 +4,7 @@
 package schema
 
 import (
+	"cmp"
 	"encoding/json/jsontext"
 	"maps"
 	"slices"
@@ -174,20 +175,21 @@ func discriminatorDefault(c lowering.Ctx, ts *compile.Types, d *oas3.Discriminat
 	return id, nil
 }
 
-// mappingWhy is the reason target, a value of d's mapping, reports when it
+// mappingWhy is the reason value, a value of d's mapping, reports when it
 // resolves to no type: why it lands on no schema, or why the table never read
-// it, as unresolvedWhy says for a $ref.
-// A value with no '#' names a component, which the table never reads
-// (bind.Table.Mapping), so neither its budget nor the merge bound is why.
-func mappingWhy(c lowering.Ctx, d *oas3.Discriminator, target string) string {
-	m, ok := c.Bindings().Mapping(d, target)
-	switch {
-	case ok:
-		return hopWhy(m.Hop)
-	case !strings.Contains(target, "#"):
-		return ""
+// it, as unresolvedWhy says for a $ref. A value holding no '#' may have been
+// meant as a component's name, which is read first, so its reason says both
+// readings failed.
+func mappingWhy(c lowering.Ctx, d *oas3.Discriminator, value string) string {
+	why := unreadWhy(c.Bindings(), d)
+	if m, ok := c.Bindings().Mapping(d, value); ok {
+		why = hopWhy(m.Hop)
 	}
-	return unreadWhy(c.Bindings(), d)
+	if strings.Contains(value, "#") {
+		return why
+	}
+	return ": the entry document declares no schema component of that name, and as a URI reference " +
+		cmp.Or(strings.TrimPrefix(why, ": "), "it names no schema")
 }
 
 // resolveMappingTarget resolves a mapping target, a mapping entry's or a
