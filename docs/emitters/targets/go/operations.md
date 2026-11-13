@@ -97,8 +97,10 @@ check; and `Unauthenticated bool`, stating that an operation declaring no securi
 sender. The check reads the method, the target, the headers and `req.TLS.PeerCertificates` from
 `req`, the bytes from `body`, `req.Body` having been read, and from `check` what it stands in for:
 `Operation`, the parse method as the SDK names it, as an event names a call's ([what an event
-holds](../../contract/runtime-policy.md#what-an-event-holds)), and `Scheme`, the name the document
-gives the scheme, empty for an alternative naming none. The fields are a scope of the struct's own,
+holds](../../contract/runtime-policy.md#what-an-event-holds)), `Alternative`, the alternative's
+place in the operation's `Auth`, from 0, `Scheme`, the name the document gives the scheme, empty for
+an alternative naming none, and `Scopes`, the scopes that use requires of it, a slice of the check's
+own. The fields are a scope of the struct's own,
 where a scheme's field meets only `Verify` and `Unauthenticated` and yields to them, so the unit
 gains `Receiver`, `NewReceiver` and `ReceiverConfig` whatever the schemes are called. Options named
 as the client's are, `WithVerify` and one for each scheme, were rejected: the receiver sits in the
@@ -119,7 +121,11 @@ check not called, wrong ones with a certificate 200, the check told `mutual_tls`
 with none 401; a check for an operation stating no security was told no scheme and verified an HMAC
 over the body; and a receiver given no key for an `apiKey`, and one given no setting for an
 operation declaring no security, refused a request, both of which answered 200 when the receiver
-compared the absent key or checked nothing. The same package declared the client's `WithAPIKey` and,
+compared the absent key or checked nothing. For an operation stating `[{oauth2: [read], api_key},
+{oauth2: [admin]}]`, a check comparing the token's scopes with `Scopes` passed a `read` token with
+the key, told `oauth2` once, at 0 with `read`, and without the key refused it and passed an `admin`
+token, told that and then `oauth2` at 1 with `admin`; asked once for the scheme, it passed the
+`read` token without the key. The same package declared the client's `WithAPIKey` and,
 for a scheme named `verify`, its `WithVerify`. T-71 holds this section.
 
 ## The client
@@ -136,7 +142,9 @@ code takes an `Authenticator`, `interface{ Authenticate(req *http.Request) error
 sets ([runtime policy](../../contract/runtime-policy.md#what-a-layer-writes)) are options as well,
 `WithMaxAttempts`, `WithBackoff`, `WithThrottledBackoff`, `WithMaxRedirects`, `WithRequestTimeout`,
 `WithIdleTimeout`, `WithMaxBody`, `WithAutoPageDelay`, `WithMaxPages`, `WithPollBackoff` and
-`WithMaxPolls`, a duration a `time.Duration` and a backoff a `runtime.Backoff`. `c.WithOptions(opts
-...Option) (*Client, error)` returns a client holding `c`'s settings with those replaced and sending
-through `c`'s transport, for one call or several; its name is reserved among the client's members
+`WithMaxPolls`, a duration a `time.Duration` and a backoff the runtime's `Backoff{Initial, Max
+time.Duration; Multiplier, Jitter int}`, its ratios in thousandths, a `Multiplier` of 2000 doubling
+each wait. `c.WithOptions(opts ...Option) (*Client, error)` returns a client holding `c`'s settings
+with those replaced, sending through `c`'s transport and counting its calls in `c`'s `Event.Call`,
+as each sub-client does, for one call or several; its name is reserved among the client's members
 ([naming](naming.md#reserved-names)).

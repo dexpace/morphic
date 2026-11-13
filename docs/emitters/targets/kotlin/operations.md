@@ -65,9 +65,11 @@ A `Transport` wrapper reads `currentCoroutineContext()` for what the hook return
 `Transport` it wraps. The policy's members a caller sets ([runtime
 policy](../../contract/runtime-policy.md#what-a-layer-writes)) are setters too, `maxAttempts`,
 `backoff`, `throttledBackoff`, `maxRedirects`, `requestTimeout`, `idleTimeout`, `maxBody`,
-`autoPageDelay`, `maxPages`, `pollBackoff` and `maxPolls`, a duration a `kotlin.time.Duration`, and
-`client.withOptions { maxPages(100) }` builds a client holding the client's settings with those
-replaced and sending through its `Transport`; its name is reserved among the client's members
+`autoPageDelay`, `maxPages`, `pollBackoff` and `maxPolls`, a duration a `kotlin.time.Duration` and a
+backoff the runtime's `Backoff(initial: Duration, multiplier: Int, max: Duration, jitter: Int)`, its
+ratios in thousandths, and `client.withOptions { maxPages(100) }` builds a client holding the
+client's settings with those replaced, sending through its `Transport` and counting its calls in the
+client's `Event.Call`; its name is reserved among the client's members
 ([naming](naming.md#reserved-names)).
 
 ## Operations the API sends
@@ -78,13 +80,14 @@ built with a value for each scheme its operations name that the receiver can com
 Boolean`, stating that an operation declaring no security admits any sender, each unset by default;
 a scheme named as either takes the escape, as any parameter meeting a name generated code binds does
 ([naming](naming.md#the-escape)). The check is handed the runtime's `InboundCheck(operation,
-scheme)`, the parse method as the SDK names it and the name the document gives the scheme, null for
-an alternative naming none. A parse method takes the runtime's `InboundRequest(method, target,
-headers, body: ByteArray, peerCertificates: List<ByteArray>)`, the target its path and query as
-received and each certificate its DER bytes, the client's first and none where the server exposes
-none, since Kotlin has no request type every server hands over, and a JVM certificate type would not
-reach Swift; it returns the request type, throwing the runtime's `InboundException` on a refused
-check and a decode failure apart from it.
+alternative, scheme, scopes)`: the parse method as the SDK names it, the alternative's place in the
+operation's `Auth`, from 0, the name the document gives the scheme, null for an alternative naming
+none, and the scopes that use requires of it, a `List<String>`. A parse method takes the runtime's
+`InboundRequest(method, target, headers, body: ByteArray, peerCertificates: List<ByteArray>)`, the
+target its path and query as received and each certificate its DER bytes, the client's first and
+none where the server exposes none, since Kotlin has no request type every server hands over, and a
+JVM certificate type would not reach Swift; it returns the request type, throwing the runtime's
+`InboundException` on a refused check and a decode failure apart from it.
 
 The caller's server reads the body, so it holds the body to the bound, which the receiver states as
 `maxBodyBytes`, the largest of its operations' bounds: the server reads one byte past it and no
@@ -93,8 +96,9 @@ further, and each parse method refuses a body longer than its own operation's bo
 of a 64 MiB body sent to a bound of 1,024 and answered 413, where one reading the whole body held
 all 64 MiB before the receiver refused it. Handing the receiver a function to read the body through
 was rejected: a coroutine server reads a body by a suspending call, which a plain function cannot
-make (`suspension functions can only be called within coroutine body`), and Kotlin/Native 2.4.0
-exports a suspending one as `KotlinSuspendFunction1`, which no Swift closure is.
+make (`suspend function 'suspend fun receive(): ByteArray' can only be called from a coroutine or
+another suspend function`), and Kotlin/Native 2.4.0 exports a suspending one as
+`KotlinSuspendFunction1`, which no Swift closure is.
 
 Each parse method carries `@Throws(InboundException::class)`: without it Kotlin/Native 2.4.0 exports
 the method with no `error:` parameter, and a refusal terminates a Swift caller's process, while with
@@ -102,10 +106,13 @@ it Swift calls `try receiver.parseZoneCreated(request:)` and catches the refusal
 of the framework did, building the receiver with every parameter, since Swift sees no default, and
 the check as a closure of the request and the `InboundCheck` returning `KotlinBoolean`, which was
 told `mutual_tls` for an operation stating `[{http_basic}, {mutual_tls}]` once the basic credentials
-were wrong, and not called when they were right; on the JVM and from Swift, a receiver given no key
-for a query `apiKey`, or no setting for an operation declaring no security, refused the request. A
-response type's `encode()` returns the runtime's `OutboundResponse(status, headers, body)`, which
-the caller's server writes. T-71 holds this section.
+were wrong, and not called when they were right, and which for `[{oauth2: [read], api_key},
+{oauth2: [admin]}]` read `alternative` as an `Int32` and `scopes` as `[String]` and passed and
+refused the three requests Go's did ([Go](../go/operations.md#operations-the-api-sends)); on the JVM
+and from Swift, a receiver given no key for a query `apiKey`, or no setting for an operation
+declaring no security, refused the request. A response type's `encode()` returns the runtime's
+`OutboundResponse(status, headers, body)`, which the caller's server writes. T-71 holds this
+section.
 
 ## Stability
 

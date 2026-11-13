@@ -56,21 +56,26 @@ A parse method reads one request as it arrived, in an order a signature needs:
    read](auth.md#where-a-credential-can-be-read)). The caller's check stands in for exactly what the
    receiver has no means to compare: any other scheme, one of those whose value the receiver was not
    given, and an alternative naming no scheme, which an operation stating no alternative counts as
-   holding. The check is told what it stands in for, the operation and the scheme, or that the
-   alternative names none, and is handed the request: its method and target, the query in it, its
-   headers, the body's bytes as they arrived, and the certificates the connection presented where
-   the caller's server exposes them, which a `mutual_tls` or `x509` scheme is checked against. It is
-   the place to verify a signature, for which no format the IR is designed against defines a scheme;
-   a caller verifying one beside a scheme the receiver could compare gives the receiver no value for
-   that scheme, and the check answers for both. With no check configured, what it would stand in for
-   is unsatisfied: comparing a key the receiver was never given with an absent one would pass a
-   request carrying none. An alternative naming no scheme the IR reads as admitting a sender that
-   authenticates nothing, but a document has no scheme to state a signature with, so one stating
-   none may still sign: the receiver takes such an alternative as satisfied without the check only
-   where it was built stating that its operations admit an unauthenticated sender, and one built
-   with no setting parses no forged body. A request no alternative admits is a verification failure,
-   a value apart from a decode failure, so a handler answers it as such; it names the scheme or the
-   user's check that refused and holds nothing the request carried
+   holding. The check is asked once for each scheme use it stands in for and once for each
+   alternative naming none, the alternatives read in order to the first satisfied and each one's
+   schemes to the first that is not, and is told all the IR states of that use: the operation, the
+   alternative's place in its `Auth`, the scheme and the scopes the use requires of it, or that the
+   alternative names none. The place is the document's order, which an alternative added before it
+   moves, so it tells two uses of a request apart and is no name to keep. The check is handed the
+   request: its method and target, the query in it, its headers, the body's bytes as they arrived,
+   and the certificates the connection presented where the caller's server exposes them, which a
+   `mutual_tls` or `x509` scheme is checked against. It is the place to verify a signature, for
+   which no format the IR is designed against defines a scheme; a caller verifying one beside a
+   scheme the receiver could compare gives the receiver no value for that scheme, and the check
+   answers for both. With no check configured, what it would stand in for is unsatisfied: comparing
+   a key the receiver was never given with an absent one would pass a request carrying none. An
+   alternative naming no scheme the IR reads as admitting a sender that authenticates nothing, but a
+   document has no scheme to state a signature with, so one stating none may still sign: the
+   receiver takes such an alternative as satisfied without the check only where it was built stating
+   that its operations admit an unauthenticated sender, and one built with no setting parses no
+   forged body. A request no alternative admits is a verification failure, a value apart from a
+   decode failure, so a handler answers it as such; it names the scheme or the user's check that
+   refused and holds nothing the request carried
    ([redaction](../refine/redaction.md#nothing-a-library-wrote-is-shown)).
 4. **The parameters** the operation declares are read from their text as their locations' rules say,
    as the mock server reads a request's ([docs and mocks](../docs-and-mock.md)), a required one
@@ -89,8 +94,8 @@ headers and the query the receiver reads only the parameters the operation decla
 an input no style arranges holds as many pairs as the sender wrote. What bounds those is the request
 line and the headers the server the receiver runs in admits, Go's `net/http` 1 MB of the two
 together by default, which the receiver cannot set: its caller configures that server. The caller's
-check runs at most once for each scheme and each alternative naming none in the operation's `Auth`,
-a count the document sets. T-71 holds this section.
+check runs at most once for each scheme use and each alternative naming none in the operation's
+`Auth`, a count the document sets. T-71 holds this section.
 
 ## What the plan holds for one
 
@@ -146,6 +151,10 @@ T-71 holds this document on every target.
   of two alternatives: with `[{http_basic}, {mutual_tls}]` and a check verifying the certificate,
   correct basic credentials over a connection presenting none were refused. A check told neither the
   operation nor the scheme could not tell which of the two it was asked about.
+- **One answer for each scheme of an operation**, the check told the scheme alone, cannot hold a
+  scheme the operation requires with two sets of scopes, which `SchemeUse.Scopes` states for each
+  use: under `[{oauth2: [read], api_key}, {oauth2: [admin]}]` no such check passed a `read` token
+  with the key, refused it without and passed an `admin` token without.
 - **Checking nothing where nothing is declared or configured.** A receiver built with no setting
   answered a forged body 200 for an operation stating no security, and a request with no key for an
   `apiKey` scheme the receiver held no key for, since an absent key equals an unset one; a check

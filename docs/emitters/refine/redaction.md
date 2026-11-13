@@ -105,9 +105,11 @@ the document spells:
 - a transport's failure, a refused connection's, a TLS handshake's and a name lookup's among them,
   and an `Authenticator`'s: the method, the URL as shown ([what an event
   holds](../contract/runtime-policy.md#what-an-event-holds)) and the types in the chain;
-- a URL that does not parse, a base URL the caller gave, a redirect's `Location`, a link to the next
-  page or a place to poll: the setting or the member it came from, never its text. Such a redirect
-  is returned as the response, and such a link or place fails the walk or the wait;
+- a URL that does not parse or has no [shown
+  origin](../contract/runtime-policy.md#what-an-event-holds), a base URL the caller gave, a
+  redirect's `Location`, a link to the next page or a place to poll: the setting or the member it
+  came from, never its text. Such a redirect is returned as the response, and such a link or place
+  fails the walk or the wait;
 - a receiver's verification failure ([inbound](../operations/inbound.md)): the scheme, or the user's
   check, that refused, and nothing the request carried;
 - a client refused when built: the setting, never its value.
@@ -121,11 +123,17 @@ class and carrying, on the JVM, that exception's stack frames
 weighed for a decoder's failure and are left out: a pointer's tokens are the body's names, a map's
 keys among them (json/v2 wrote `within "/labels/<key>"`), and an offset or an index counts what the
 body held before the failure, a redacted value's length among it, which no rendering of that value
-shows ([above](#a-redacted-value)). A caller who wants the library's account decodes `RawBody`
-itself, its own value. Measured with Go 1.27.3, none of the 1,073 renderings of each of a refused
-connection, a refused TLS handshake, bodies failing at a member and at a map key holding the value,
-an `Authenticator`'s error quoting it and a base URL that does not parse held the value, where
-`url.Parse` wrote the URL whole into its error; with Kotlin 2.4.0, Ktor 3.2.3 and
+shows ([above](#a-redacted-value)). A pointer whose every key and index is written `*`, leaving
+names the document declares, was weighed too and needs a decoder of the runtime's own: kotlinx
+states a path only in its message, a map's key unescaped in it, so one key `a']['b` reads as two do,
+`$.labels['a']['b'].n`, and none under a union read as a `JsonElement`, and
+json/v2's pointer under a Go union starts at the union. A caller who wants the library's account
+decodes `RawBody` itself, its own value, which holds a body whole only up to `Policy.Errors`' bound
+([failures](../operations/errors.md)): past it the bytes kept are cut, and the caller raises the
+bound, a client option, before calling. Measured with Go 1.27.3, none of the 1,073 renderings of
+each of a refused connection, a refused TLS handshake, bodies failing at a member and at a map key
+holding the value, an `Authenticator`'s error quoting it and a base URL that does not parse held the
+value, where `url.Parse` wrote the URL whole into its error; with Kotlin 2.4.0, Ktor 3.2.3 and
 kotlinx.serialization 1.8.1, none of the 28 renderings of each such failure did, where Ktor's
 timeout wrote the URL and kotlinx the body (`JSON input: {"id":"u1","token":…`), and a decoder's
 chain kept 9 of kotlinx.serialization's frames. T-65 holds this section.

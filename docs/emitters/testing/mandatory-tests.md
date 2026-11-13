@@ -36,22 +36,28 @@ throughout these documents.
    ([layers](../contract/runtime-policy.md#layers-and-operations),
    [retries](../contract/runtime-policy.md#the-canonical-vocabulary)). Every leaf of the record has
    a value it takes and, each an error naming the leaf's path and leaving the layers below to set
-   it, a value of another JSON type, `null`, its zero where zero is no value, a value past each end
-   of its range or outside its grammar, a duration with no unit and one in a unit the record lacks,
-   a ratio with a fourth fraction digit, a sign or an exponent, `-0` among them, a `Template`
-   holding a `{` or a `}` outside its two placeholders, a `Guards.Keys` entry that is empty or holds
-   a space, a header's or a variable's name of 65 bytes, a header member naming `Authorization`,
-   `Content-Length` or `Set-Cookie` in any letter case or the field the other names, a list naming
+   it, a value of another JSON type, `null`, its zero where zero is no value, the value next past
+   each end of its range, the one at each end being taken, a value outside its grammar, a duration
+   with no unit and one in a unit the record lacks, a ratio with a fourth fraction digit, a sign or
+   an exponent, `-0` among them, a `Template` holding a `{` or a `}` outside its two placeholders, a
+   `Guards.Keys` entry that is empty or holds a space, a header's or a variable's name of 65 bytes,
+   one of 64 being taken, a header member naming, each in another letter case than written here,
+   `Authorization`, `Content-Length`, `Transfer-Encoding`, `Cookie`, `Set-Cookie`, `Keep-Alive` or
+   `Proxy-Connection`, or the field the other names, a list naming
    an entry twice or holding more than it may, a `Backoff` or a `Kinds` row written in part and a
    `Backoff` whose `Initial` passes its `Max`; so are a member the record does not declare, a
    `Kinds` row keyed `0404` among them, a member named twice, an operation's entry writing a member
    that is the client's or `Polling` for an operation that starts none, a kind named for a fault,
    and two spellings of one kind that one layer alone writes, while a kind a lower layer spells in
    another letter case takes that spelling and draws the info `emitters/policy/kind-respelled`
-   naming both, whatever order the rows are read in. A leaf written at its zero, an empty list among
-   them, replaces the layer below where one left out does not, and a schedule of waits under a
-   fractional `Multiplier` is the same number of milliseconds on every target ([what a layer
-   writes](../contract/runtime-policy.md#what-a-layer-writes)).
+   naming both, whatever order the rows are read in. A `Telemetry.Client`, and under `unsafe` an
+   `Idempotency.Header`, naming in another letter case a header an operation declares as a parameter
+   or an `apiKey` scheme of its `Auth` writes, resolves that operation with `Client` empty or
+   `Generate` `declared` and draws the warning `emitters/policy/header-taken` naming the member, the
+   operation and the parameter or scheme, every other operation resolving as written. A leaf written
+   at its zero, an empty list among them, replaces the layer below where one left out does not, and
+   a schedule of waits under a fractional `Multiplier` is the same number of milliseconds on every
+   target ([what a layer writes](../contract/runtime-policy.md#what-a-layer-writes)).
 10. **T-10 · Step-trace golden** — the ordered refine step list produces a pinned, deterministic
     trace (guards implicit inter-step coupling).
 11. **T-11 · Architecture import-graph** — the layering in [package layout](../packages.md).
@@ -392,8 +398,9 @@ throughout these documents.
     reads on, a writer whose bytes the server stops taking fails the same way, and neither is ended
     by `Timeout.Request`; a walk refuses the fetch past `Pagination.MaxPages` and a poller the poll
     past `Polling.MaxPolls`, each failing by naming its member, the poller pollable again. A 307
-    sends the method and body again, a 303 a `GET`, a 301 to a `DELETE` the `DELETE`, while a 302
-    the operation declares, a 301 to a `POST`, a 307 whose body was a stream, a redirect from
+    and a 308 each send the method and body again, a 303 a `GET` and to a `HEAD` a `HEAD`, a 301 and
+    a 302 to a `DELETE` the `DELETE`, while a 302 the operation declares, a 301 and a 302 to a
+    `POST`, a 307 whose body was a stream, a redirect from
     `https` to `http` and the redirect past `Redirects.Max` are returned as the response; a redirect
     to another origin carries none of the client's credentials ([runtime
     policy](../contract/runtime-policy.md#the-canonical-vocabulary)). A call failing every attempt
@@ -407,15 +414,20 @@ throughout these documents.
     a poller each wait of `Polling.Backoff` before each poll, or a poll's `Retry-After` where it is
     longer; a key the runtime generates goes on each attempt of one call and differs between calls,
     a caller's own goes as given, under `unsafe` a `POST` declaring no token gets one in `Header`,
-    and under `never` none goes; the `User-Agent` is the template's expansion with the caller's
-    application as one more product, an application name that is no token refusing the client, and
+    while one declaring a header parameter of that name sends what its caller gave it, once, and no
+    key where the caller gave none, and under `never` none goes; the `User-Agent` is the template's
+    expansion with the caller's application as one more product and then the product of each
+    `AgentEnv` variable set, in their names' byte order whichever the list names first, an
+    application name that is no token refusing the client, a client under `AppInfo` false having no
+    setting for an application and sending none, and
     `Telemetry.Client`, set, carries the same; a hook is handed only the kinds `Logging.Events`
     lists, and an empty list leaves the client no hook to take; an event carries the value of the
     `Telemetry.RequestID` header; a `Guards.Keys` naming a key is reported on each first target as a
     setting it cannot apply; and each member a caller sets when it runs ([runtime
     policy](../contract/runtime-policy.md#what-a-layer-writes)), set on a client, changes what every
     operation does, one an operation's own layer sets included, set on a client `WithOptions`
-    derives changes that client's calls alone, and outside its range refuses the client.
+    derives changes that client's calls alone, and outside its range, or as a duration of 1500µs,
+    refuses the client.
 38. **T-38 · Enums over every value type** — on every target, an enum of each primitive a
     `ValueType` can name, `bool`, `integer`, `number`, `decimal`, `date`, `uuid` and `bytes` among
     them, closed and open, encodes each member with no `WireName` as its value type's JSON kind and
@@ -1082,9 +1094,11 @@ throughout these documents.
     settings type or a state struct changes, and changes when a field or a method of a caller-facing
     type does. A Gradle build asking for two modules of one Kotlin SDK at different versions
     resolves every module to the newer and runs, as does a Maven build importing the SDK's platform
-    and naming no version, while one forcing a module older than the runtime with `!!` is refused
-    when its client is built, naming both stamps, and of two SDKs in one program each failure
-    matches its own SDK's failure value and not the other's ([the runtime's
+    and naming no version, while one forcing any one module to another generation with `!!`, the
+    shared module under an unchanged runtime and the runtime under an unchanged shared module among
+    them, is refused when its client is built, naming the module and both stamps, which a stamp
+    digesting the runtime alone or held as a `const val` fails, and of two SDKs in one program each
+    failure matches its own SDK's failure value and not the other's ([the runtime's
     unit](../refine/output-units.md#the-runtimes-unit),
     [Go](../targets/go/overview.md#what-a-caller-reaches-of-the-runtime),
     [Kotlin](../targets/kotlin/overview.md#what-a-caller-reaches-of-the-runtime)).
@@ -1108,20 +1122,26 @@ throughout these documents.
     either target, a call past `Timeout.Request` and a stream past `Timeout.Idle` among the
     failures, while Go's refused one still matches `syscall.ECONNREFUSED` under `errors.Is` and
     Kotlin's chain on the JVM holds a frame of the library's. Each event's `URL` is the URL as
-    shown, a redirect's the origin and the marker, a server variable `{name}`, a base URL's path the
-    marker, and what a redacted parameter expanded to in the path the marker; an `end` event's
-    `Cause` is a type's name; a hook is handed the context its caller gave the method for a call's
-    first event and what it returned for each later one, a span it adds at the first `attempt`
-    reaching a `Transport` wrapper on every attempt, of two overlapping calls each its own, which a
-    hook handed the caller's context alone fails, and the events of two overlapping calls are told
-    apart by `Call`; an `Authenticator` is handed the method, the query, the headers the builder
-    wrote and the body's bytes, and signs them; a `UserAgent.AgentEnv` variable holding the value
-    adds `agent/<name>` and sends the value in no request; a `RequestID` longer than 128 bytes or
-    holding a line break is empty; a parameter in the slot of a scheme its operation's options name
-    is no input of the request type, and the slot goes out once; one in the slot of a scheme they do
-    not name, and a header parameter named `Authorization` under no scheme, print as `[REDACTED]` in
-    their request type; a value of a type a scheme names as its `Credentials` prints as the marker;
-    and the test fails when the event is built after the auth step, which it is run once to show
+    shown, a redirect's the shown origin and the marker, a relative `Location` taking the request's
+    origin and an explicit `:443` kept, a host of 256 bytes or holding a byte outside visible ASCII
+    the marker, a `Location` whose scheme is `ftp` or a megabyte of letters, or whose port is 65536
+    or a megabyte of digits, the marker alone and not followed, a server variable `{name}`, a base
+    URL's path the marker, and what a redacted parameter expanded to in the path the marker; an
+    `end` event's `Cause` is a type's name; a hook is handed the context its caller gave the method
+    for a call's first event and what it returned for each later one, a span it adds at the first
+    `attempt` reaching a `Transport` wrapper on every attempt, of two overlapping calls each its
+    own, which a hook handed the caller's context alone fails, a Go hook returning nil leaves the
+    call in the context it was handed, and the events of two overlapping calls are told apart by
+    `Call`, one made through a sub-client and one through a client `WithOptions` derives among them,
+    which a count each derived client keeps fails; an `Authenticator` is handed the method, the
+    query, the headers the builder wrote and the body's bytes, and signs them; a
+    `UserAgent.AgentEnv` variable holding the value adds `agent/<name>` and sends the value in no
+    request; a `RequestID` longer than 128 bytes or holding a line break is empty; a parameter in
+    the slot of a scheme its operation's options name is no input of the request type, and the slot
+    goes out once; one in the slot of a scheme they do not name, and a header parameter named
+    `Authorization` under no scheme, print as `[REDACTED]` in their request type; a value of a type
+    a scheme names as its `Credentials` prints as the marker; and the test fails when the event is
+    built after the auth step, which it is run once to show
     ([auth](../operations/auth.md#where-a-credential-can-be-read), [what an event
     holds](../contract/runtime-policy.md#what-an-event-holds),
     [redaction](../refine/redaction.md#a-redacted-value),
@@ -1260,17 +1280,22 @@ throughout these documents.
     `mutual_tls`, a receiver given the credentials and a check verifying the certificate passes
     right credentials over a connection presenting no certificate with the check not called, passes
     wrong ones with a certificate, the check told that operation and `mutual_tls`, and refuses wrong
-    ones with none; of two schemes in one alternative both must hold; a check standing in for a
-    scheme the receiver was given no value for is told that scheme, and one for an operation
-    declaring no security is told none; the check reads the body's bytes as they arrived, so an HMAC
-    over them verifies, and the request's target and, over TLS, the client certificate, so a
-    `mutual_tls` check and a query key verify; a query input no style arranges is read as the pairs
-    its binding owns, in the order sent, and no pair another parameter owns; on Go, the receiver's
-    unit also declares a client whose schemes are named for each of the config's fields, `verify`
-    among them, and builds, a caller in another package building both; each declared response writes
-    its status, headers and body with no envelope, a range's refusing a status outside it and a
-    `Default`'s one another response declares, none of them a `CommonErrors` entry; a Swift caller
-    builds a receiver, reads its `maxBodyBytes`, passes a check that is told the scheme, and catches
+    ones with none; of two schemes in one alternative both must hold; for an operation requiring one
+    scheme with two sets of scopes, `[{oauth2: [read], api_key}, {oauth2: [admin]}]`, a check
+    comparing a token's scopes with those it is told passes a `read` token with the key, refuses it
+    without and passes an `admin` token without, asked once for each scheme use it stands in for
+    and told that use's alternative and scopes, which a check asked once for the scheme fails; a
+    check standing in for a scheme the receiver was given no value for is told that scheme, and one
+    for an operation declaring no security is told none; the check reads the body's bytes as they
+    arrived, so an HMAC over them verifies, and the request's target and, over TLS, the client
+    certificate, so a `mutual_tls` check and a query key verify; a query input no style arranges is
+    read as the pairs its binding owns, in the order sent, and no pair another parameter owns; on
+    Go, the receiver's unit also declares a client whose schemes are named for each of the config's
+    fields, `verify` among them, and builds, a caller in another package building both; each
+    declared response writes its status, headers and body with no envelope, a range's refusing a
+    status outside it and a `Default`'s one another response declares, none of them a `CommonErrors`
+    entry; a Swift caller builds a receiver, reads its `maxBodyBytes`, passes a check that is told
+    the scheme, its alternative and its scopes, and catches
     a refusal; the mock server sends a callback once, after its answer, to the URL its expression
     resolves to, follows no redirect and gives up past `SendTimeout`, never dials an address outside
     `SendTo`, a name resolving outside it included, nor sends through a proxy `HTTP_PROXY` names on

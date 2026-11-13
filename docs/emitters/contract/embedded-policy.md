@@ -69,7 +69,8 @@ equal set it together, to the value of the key whose spelling sorts first, and a
 warning `emitters/embed/conflict` that sets the leaf from neither, since which to take is no fact
 the document states. Values are equal as the leaf reads them: a scalar by its decoded value, a
 `Backoff` member by member, and a list as a set, so `[429, 503]` agrees with `[503, 429]`: nothing
-reads the order of a list of either tree, the status lists, `Events`, `Keys`, `AgentEnv`,
+reads the order of a list of either tree, the status lists, `Events`, `Keys`, `AgentEnv`, whose
+products go out in their names' order ([runtime policy](runtime-policy.md#what-a-layer-writes)),
 `ClientParams` and `AlsoMount`, or an entry's second writing. Two generators' keys for one fact
 often sit on one operation, and need not agree: of the golden spec's 291 operations carrying both
 `x-stability` and `x-fern-availability` (spec @bc6fad24, morphic @fa253fe19), 229 write one value

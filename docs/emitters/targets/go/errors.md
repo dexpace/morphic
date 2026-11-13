@@ -79,7 +79,9 @@ type DecodeError struct {     // the runtime's: a body that did not decode, or a
 type Chain state.Chain        // a function returning the library's error, as Raw holds a response
 ```
 
-`Error` writes the members and `Causes` joined by ` > `, and neither type has an `Unwrap`, since a
+`Causes` lists the chain as `errors.Is` walks it: a link before what it wraps, and the branches of
+one wrapping several (`Unwrap() []error`) in their order, each whole before the next. `Error` writes
+the members and `Causes` joined by ` > `, and neither type has an `Unwrap`, since a
 reporter walking a chain prints each link's text. `Chain`'s `Is` lets a caller ask the library's
 chain a question whose answer is a boolean, `errors.Is(err, syscall.ECONNREFUSED)` or
 `context.DeadlineExceeded`, and `errors.As` finds none of its values, which a caller wanting one
