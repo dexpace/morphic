@@ -293,13 +293,15 @@ func resolveBeaten(c lowering.Ctx, ts *compile.Types, r refinement) {
 const refinedShape = "a use of one of its allOf conjuncts"
 
 // outcomeKeeps is what a position that lowered to a reference keeps verbatim: the
-// census keywords it wrote, described by shape, and the allOf branches its
-// lowering left unread.
+// census keywords it wrote, described by shape, the allOf branches its
+// lowering left unread, and the null branches a collapsed union lifts that say
+// more than their null (nullBranchKeeps).
 type outcomeKeeps struct {
 	keywords []string
 	shape    string
 	comp     allOfComposition
 	branches []keptBranch
+	nulls    []keptNullBranch
 }
 
 // keptBranch is one allOf branch a refinement keeps whole, the keywords nothing
@@ -312,7 +314,9 @@ type keptBranch struct {
 }
 
 // holdsAny reports whether k keeps anything.
-func (k outcomeKeeps) holdsAny() bool { return len(k.keywords) > 0 || len(k.branches) > 0 }
+func (k outcomeKeeps) holdsAny() bool {
+	return len(k.keywords) > 0 || len(k.branches) > 0 || len(k.nulls) > 0
+}
 
 // keepsAtOutcome returns what the position s is written at keeps, having lowered
 // to target: a refinement's census and the branches it left, or the census of
@@ -321,7 +325,11 @@ func keepsAtOutcome(c lowering.Ctx, ts *compile.Types, s *oas3.Schema, target ir
 	r, refined := refinementOf(c, s, pointer)
 	if !refined {
 		keywords, shape := referenceOutcomeKeywords(c, s, pointer)
-		return outcomeKeeps{keywords: keywords, shape: shape}
+		k := outcomeKeeps{keywords: keywords, shape: shape}
+		if shape == collapsedShape {
+			k.nulls = nullBranchKeeps(c, s, pointer)
+		}
+		return k
 	}
 	k := outcomeKeeps{shape: refinedShape, comp: r.comp}
 	typed := valueSetNode(c, ts, r, pointer)
@@ -462,6 +470,7 @@ func (k outcomeKeeps) recordOn(c lowering.Ctx, ts *compile.Types, owner ir.TypeI
 // the keeper, and nothing here claims it was kept.
 func (k outcomeKeeps) record(c lowering.Ctx, p *ir.Unmodeled, s *oas3.Schema, pointer jsontext.Pointer) []ir.Diagnostic {
 	diags := recordUnhomedAt(c, p, s, k.keywords, k.shape, pointer)
+	diags = append(diags, recordNullBranches(c, p, k.nulls)...)
 	for _, b := range k.branches {
 		kept, keptDiags := annotation.PreserveNodeInto(p, k.comp.branchKey(b.entry.pointer),
 			b.entry.schema.GetSchema().GetRootNode(), ir.ReasonDegradedLowering, c.Place().At(b.entry.pointer))

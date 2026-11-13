@@ -144,6 +144,9 @@ var generations = []generation{
 		meaning: "a count past 64 bits reaches no Constraints field and is kept verbatim under its keyword, and an inline allOf branch whose bound states no value folds"},
 	{version: "0.56.0", format: 1, shape: "0b2f5e45e4be29c67a153976848af676bc99d9f21d9e41a91b7abfd167ae026b",
 		names:   "c81be0f2b36405f2d981ea6c635ea75c4154521622c148c008ae2e7f345264b2",
+		meaning: "a schema admitting null alone is an Enum with no member behind a nullable reference in every spelling, a type naming null alone and a union of nothing else among them, where those were nullable any and an alias over it; and a union branch admitting null alone, written in place, is the union's null in every spelling, no variant, what else it writes kept under openapi:<combinator>/<index>"},
+	{version: "0.57.0", format: 1, shape: "0b2f5e45e4be29c67a153976848af676bc99d9f21d9e41a91b7abfd167ae026b",
+		names:   "c81be0f2b36405f2d981ea6c635ea75c4154521622c148c008ae2e7f345264b2",
 		meaning: "a value bound reaches Constraints only beside a type it applies to, and a type array's bounds, format and content vocabulary land on the variant whose type takes them"},
 }
 

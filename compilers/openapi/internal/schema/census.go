@@ -179,10 +179,10 @@ func pairedBase(s *oas3.Schema, target ir.TypeID) bool {
 // shape, so `type: string` beside an allOf composing a Model states what the IR
 // no longer holds.
 //
-// A type set that reduces to nothing — `type: "null"` on its own — is carried by
-// TypeRef.Nullable rather than a node, so it is homed wherever it is written.
-// An Enum answers by its members: a type one of them is not of reached no
-// field, and an Enum of none has nothing to type.
+// A type naming only null says only what TypeRef.Nullable carries, so it is
+// homed wherever it is written (docs/compilers/openapi.md#null-alone). An Enum
+// answers by its members: a type one of them is not of reached no field, and an
+// Enum of none has nothing to type.
 func typeHome(td ir.TypeDef, s *oas3.Schema) bool {
 	if lit, ok := td.(*ir.Literal); ok {
 		return literalTyped(lit, s)
@@ -383,7 +383,7 @@ func referenceOutcomeKeywords(c lowering.Ctx, s *oas3.Schema, pointer jsontext.P
 	if hasUnionSiblings(c, s) {
 		return nil, ""
 	}
-	if _, _, collapses := nullUnionCollapse(s, ""); !collapses {
+	if _, _, collapses := nullUnionCollapse(c, s, ""); !collapses {
 		return nil, ""
 	}
 	return referenceUnhomed(s, branchesSay(c, s)), collapsedShape

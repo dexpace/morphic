@@ -80,7 +80,9 @@ position and not another. Combined with `Property.Required` this yields the four
 Compilers normalize every source spelling to this one bit: OAS 3.0 `nullable: true`, OAS 3.1
 `type: [T, "null"]`, TypeSpec `T | null`, GraphQL's absence-of-`!`.
 A oneOf/anyOf/union whose only distinction is a null variant becomes a plain nullable `TypeRef`,
-never a union node.
+never a union node. A position admitting `null` and nothing else names a closed `Enum` with no
+member through a nullable reference ([enums](./enums.md#the-empty-enum)), never the top type, which
+admits every value.
 
 The bit describes the whole schema, not the keyword that spells it. Where a source format conjoins
 keywords (JSON Schema), a compiler reads them together: a value set that omits `null` beside a type
