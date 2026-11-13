@@ -71,11 +71,12 @@ holds nothing a variant could keep apart, so the union holds it itself: every re
 with such a variant lowers as a nullable reference does
 ([optionality](models.md#optionality--nullability--presence-inv8)), a `null` never reaches a
 variant, and a variant admitting nothing else lowers to no member, as a nullable reference to an
-enum with no member does. The OpenAPI compiler lifts most branches of `null` alone onto the union's
-reference itself ([union-null-variant](../../compilers/openapi.md#union-null-variant)), but not a
-`$ref` to a declaration of `null` alone, nor a branch it reads more of than its null, such as an
-empty `enum` beside `type: "null"`, which reach an emitter as such variants. The rule reads through
-unions:
+enum with no member does. The OpenAPI compiler lifts a branch of `null` alone onto the union's
+reference itself where the branch is written in place and its own keywords say that `null`
+([union-null-variant](../../compilers/openapi.md#union-null-variant)), so a `$ref` to a
+declaration of `null` alone, a branch whose `null` a union of its own says, and one whose `enum`
+lists a member its `type` excludes, `{type: "null", enum: [null, a]}`, each reach an emitter as
+such a variant. The rule reads through unions:
 `Outer: {anyOf: [{$ref: Inner}, {type: integer}]}` admits `null` when `Inner`'s variants are
 nullable, and holds it, where a rule read only at `Outer`'s own variants would let a `null` reach
 them and match none. The golden spec's single-result envelope declares `result` as
