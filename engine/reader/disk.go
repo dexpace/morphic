@@ -16,7 +16,10 @@ import (
 	"github.com/dexpace/morphic/compilers"
 )
 
-var _ compilers.DocumentReader = Disk{}
+var (
+	_ compilers.DocumentReader   = Disk{}
+	_ compilers.DirectoryLocator = Disk{}
+)
 
 // Disk reads documents from the local file system and over http(s). The zero
 // value is ready to use and safe for concurrent reads.
@@ -36,6 +39,9 @@ type Disk struct {
 // device, a FIFO or a socket. Opening a FIFO waits for a writer, and a device
 // can stream without end, so neither is read as a document.
 var ErrNotRegular = errors.New("not a regular file")
+
+// LocateDirectory implements compilers.DirectoryLocator.
+func (Disk) LocateDirectory(dir string) string { return locateDirectory(dir) }
 
 // ReadDocument implements compilers.DocumentReader.
 func (d Disk) ReadDocument(ctx context.Context, req compilers.DocumentRequest) ([]byte, error) {

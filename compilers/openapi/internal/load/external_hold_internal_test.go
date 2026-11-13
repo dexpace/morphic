@@ -137,19 +137,18 @@ func TestHold_EverySpellingOfTheSourceReachesIt(t *testing.T) {
 }
 
 // TestHold_ARelativeSourceIsReachedHoweverItIsSpelled pins GitHub #759 for a
-// source named relative to the working directory, which a back reference can
-// spell otherwise: by climbing out of its directory and back, or by an absolute
-// path. Each reaches the source's own path item, whose references are resolved
-// as the source's are, where a copy of it would hold them unresolved and the
-// lowering would drop what they name.
-//
-// Not run in parallel: the source's path is relative to the working directory.
+// source named by a relative path and located where it lies, as the engine
+// hands one, which a back reference can spell otherwise: by climbing out of
+// its directory and back, or by an absolute path. Each reaches the source's
+// own path item, whose references are resolved as the source's are, where a
+// copy of it would hold them unresolved and the lowering would drop what they
+// name.
 func TestHold_ARelativeSourceIsReachedHoweverItIsSpelled(t *testing.T) {
+	t.Parallel()
 	dir := t.TempDir()
 	api := filepath.Join(dir, "api")
 	require.NoError(t, os.MkdirAll(filepath.Join(dir, "common"), 0o750))
 	require.NoError(t, os.MkdirAll(api, 0o750))
-	t.Chdir(api)
 	for _, c := range []struct {
 		name, file, spelling string
 	}{
@@ -175,8 +174,8 @@ components:
   responses:
     R: {description: ok}
 `
-			got, diags, err := Load(t.Context(), 0,
-				compilers.Source{Path: "root.yaml", Data: []byte(root)}, Options{Reader: reader.Disk{}})
+			got, diags, err := Load(t.Context(), 0, compilers.Source{Path: "root.yaml",
+				Location: filepath.Join(api, "root.yaml"), Data: []byte(root)}, Options{Reader: reader.Disk{}})
 			require.NoError(t, err)
 			require.NotNil(t, got, "%+v", diags)
 
@@ -310,16 +309,16 @@ func TestHold_ASourceWithNoKeyIsNotHeld(t *testing.T) {
 // reference spelling the source otherwise reaches it first. Resolved against
 // that spelling, its $ref named the file beside it otherwise, so the file was
 // read twice, and a finding in it was placed by whichever spelling came first.
-//
-// Not run in parallel: the source's path is relative to the working directory.
+// The source is named by a relative path and located where it lies, as the
+// engine hands one.
 func TestHold_ARelativeSourceResolvesItsComponentAsItDoesInEitherOrder(t *testing.T) {
+	t.Parallel()
 	dir := t.TempDir()
 	api := filepath.Join(dir, "api")
 	require.NoError(t, os.MkdirAll(api, 0o750))
 	writeFile(t, dir, "x.yaml", "components:\n  responses:\n    Back: {$ref: 'api/root.yaml#/components/responses/P'}\n")
 	writeFile(t, api, "other.yaml", "components:\n  responses:\n    Q:\n      description: q\n"+
 		"      links: {L: {operationId: getA, operationRef: '#/paths/~1a/get'}}\n")
-	t.Chdir(api)
 	back := backPath("/a", "../x.yaml#/components/responses/Back")
 	internal := backPath("/z", "#/components/responses/P")
 	root := func(paths string) string {
@@ -328,8 +327,8 @@ func TestHold_ARelativeSourceResolvesItsComponentAsItDoesInEitherOrder(t *testin
 	}
 
 	for _, spec := range []string{root(back + internal), root(internal + back)} {
-		got, diags, err := Load(t.Context(), 0,
-			compilers.Source{Path: "root.yaml", Data: []byte(spec)}, Options{Reader: reader.Disk{}})
+		got, diags, err := Load(t.Context(), 0, compilers.Source{Path: "root.yaml",
+			Location: filepath.Join(api, "root.yaml"), Data: []byte(spec)}, Options{Reader: reader.Disk{}})
 		require.NoError(t, err)
 		require.NotNil(t, got, "%+v", diags)
 		require.Len(t, diags, 1, "%+v", diags)

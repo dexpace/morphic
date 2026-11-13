@@ -33,15 +33,46 @@ func readsUnchanged(ctx context.Context, docs compilers.DocumentReader, reads []
 	return true
 }
 
-// recorder reads through docs and notes what each read returned, which is what
-// makes an entry sound: it lists what the compile actually got, whatever
-// changed around it, and a compiler reads nothing but through its Reader.
+// locatedDirectory is one directory a compile asked its reader to locate, and
+// where the reader placed it.
+type locatedDirectory struct {
+	Directory string `json:"directory"`
+	Located   string `json:"located"`
+}
+
+// directoriesUnchanged reports whether docs places each directory where the
+// compile's reader placed it: a link retargeted since moves the documents a
+// compile names through it, and the labels their IDs carry.
+func directoriesUnchanged(docs compilers.DocumentReader, dirs []locatedDirectory) bool {
+	for _, d := range dirs {
+		if locateDirectory(docs, d.Directory) != d.Located {
+			return false
+		}
+	}
+	return true
+}
+
+// locateDirectory is where docs places dir (compilers.DirectoryLocator), or
+// dir itself for a reader placing none.
+func locateDirectory(docs compilers.DocumentReader, dir string) string {
+	if l, ok := docs.(compilers.DirectoryLocator); ok {
+		return l.LocateDirectory(dir)
+	}
+	return dir
+}
+
+// recorder reads through docs and notes what each read returned, and where
+// docs placed each directory, which is what makes an entry sound: it lists
+// what the compile actually got, whatever changed around it, and a compiler
+// reads and places nothing but through its Reader.
 type recorder struct {
 	docs compilers.DocumentReader
 
 	mu sync.Mutex
 	// reads holds each request's bytes as ir.SourceHash spells them.
 	reads map[compilers.DocumentRequest]string
+	// dirs holds where docs placed each directory asked of it.
+	dirs map[string]string
 	// unsound is set by a read no replay could vouch for: one that failed, since
 	// the document may appear later and nothing stored would notice, or one that
 	// answered a repeat with other bytes.
@@ -50,7 +81,29 @@ type recorder struct {
 
 // newRecorder returns a recorder reading through docs, with nothing read yet.
 func newRecorder(docs compilers.DocumentReader) *recorder {
-	return &recorder{docs: docs, reads: map[compilers.DocumentRequest]string{}}
+	return &recorder{docs: docs, reads: map[compilers.DocumentRequest]string{}, dirs: map[string]string{}}
+}
+
+// LocateDirectory implements compilers.DirectoryLocator as docs does, noting
+// the answer.
+func (r *recorder) LocateDirectory(dir string) string {
+	located := locateDirectory(r.docs, dir)
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.dirs[dir] = located
+	return located
+}
+
+// directories returns every directory placed, in one order.
+func (r *recorder) directories() []locatedDirectory {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	out := make([]locatedDirectory, 0, len(r.dirs))
+	for dir, located := range r.dirs {
+		out = append(out, locatedDirectory{Directory: dir, Located: located})
+	}
+	slices.SortFunc(out, func(a, b locatedDirectory) int { return strings.Compare(a.Directory, b.Directory) })
+	return out
 }
 
 // ReadDocument implements compilers.DocumentReader.

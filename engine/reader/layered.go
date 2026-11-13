@@ -9,7 +9,10 @@ import (
 	"github.com/dexpace/morphic/compilers"
 )
 
-var _ compilers.DocumentReader = Layered{}
+var (
+	_ compilers.DocumentReader   = Layered{}
+	_ compilers.DirectoryLocator = Layered{}
+)
 
 // Layered reads each document Held holds from it, and every other through
 // Under: a spec held in memory, such as an edited buffer, read as the file at
@@ -23,6 +26,20 @@ var _ compilers.DocumentReader = Layered{}
 type Layered struct {
 	Held  *Memory
 	Under compilers.DocumentReader
+}
+
+// LocateDirectory implements compilers.DirectoryLocator as Under does, or
+// Disk for a nil Under, since every document Held does not hold is read
+// there. An Under locating none leaves dir as spelled.
+func (l Layered) LocateDirectory(dir string) string {
+	switch under := l.Under.(type) {
+	case nil:
+		return Disk{}.LocateDirectory(dir)
+	case compilers.DirectoryLocator:
+		return under.LocateDirectory(dir)
+	default:
+		return dir
+	}
 }
 
 // ReadDocument implements compilers.DocumentReader.

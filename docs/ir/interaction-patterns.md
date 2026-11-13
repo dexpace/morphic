@@ -109,15 +109,16 @@ zero mode, as `IdempotencyUnknown` and `AdditionalUnspecified` are their fields'
 such an operation encodes no member; a `"none"` spelling would add one to nearly every operation
 and say nothing `RequestStream` and `ResponseStream` do not. `Streaming` summarizes an operation,
 and a stream belongs to one content of its payload, so an OpenAPI operation can offer
-`application/json` beside `application/x-ndjson`, and the plan elects among them
+`application/json` beside `application/x-ndjson`: `Content.Stream` marks each content that streams
+([payloads](./payloads.md#a-content-that-streams)), and the plan elects among them
 ([streams](../emitters/plan/streams.md)). The wire mechanism (SSE vs JSON Lines vs WS frames vs
 length-prefixed events) has no field of its own: over HTTP the streaming content's `MediaType`
 states it, another binding frames its own messages, and the plan derives which
 ([streams](../emitters/plan/streams.md)). `Content.Item` declares what one item is; a compiler that
 reads a stream from a media type alone names what one frame holds as `Events`, a list `Type`'s
-`Elem`, else the `Type`, or `bytes` for a file, whose `Type` describes the whole, a reading
-`Provenance.Inferred` marks. An element need not
-be a union, and `Variant.Event` applies only where it is one.
+`Elem`, else the `Type`, or `bytes` for a file, whose `Type` describes the whole, a reading the
+operation's `Provenance.Inferred` and each such content's `Stream.Inferred` mark. An element need
+not be a union, and `Variant.Event` applies only where it is one.
 
 **A sentinel that ends a stream** is `Terminator`, the frame's data verbatim: many event-stream APIs
 end with a frame such as `data: [DONE]` that is no event and must not be decoded as one, and
