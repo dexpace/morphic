@@ -4677,8 +4677,8 @@ field bound through `HTTPParamBinding.ParamPath`.
 ### `extension-pagination`
 
 A page walk an extension declares fills `Operation.Pagination`
-([extension-promotion](#extension-promotion)), read once the document is whole, since its values
-are members of response bodies. Each field is a target of the policy: `pagination.cursor`,
+([extension-promotion](#extension-promotion)), read once the document is whole, since its values are
+members of response bodies. Each field is a target of the policy: `pagination.cursor`,
 `pagination.offset` and `pagination.page` the input continuing a walk of strategy `cursor`, `offset`
 or `page`, `pagination.limit` the page size, and `pagination.items`, `pagination.nextCursor`,
 `pagination.nextLink`, `pagination.totalCount` and `pagination.totalPages` the page values of the
@@ -4690,11 +4690,11 @@ and a dotted chain of names, the first of an input a parameter's where one param
 the request body's member otherwise. A source listing values marks the node its key sits on as the
 value its word names: a parameter, a property, a response header, or the type one of them names,
 found from the request, its parameters and its body, or from each success response's headers and
-body, nearest the body's root. The default reads both conventions: the `cursor`, `next_cursor`, `results` and `next_uri`
-members of `x-fern-pagination`, and the `purpose` of `x-stainless-pagination-property`, whose
-`next_cursor_param`, `next_cursor_field` and `items` mark the cursor, the next cursor and the items.
-Neither reads an offset or a page number by default, since each convention leaves to its own
-configuration which of the two its walk counts.
+body, nearest the body's root. The default reads both conventions: the `cursor`, `next_cursor`,
+`results` and `next_uri` members of `x-fern-pagination`, and the `purpose` of
+`x-stainless-pagination-property`, whose `next_cursor_param`, `next_cursor_field` and `items` mark
+the cursor, the next cursor and the items. Neither reads an offset or a page number by default,
+since each convention leaves to its own configuration which of the two its walk counts.
 
 A page value is one member of every success response declaring a body, of each of its media types,
 and a header one of every success response, whether an expression or a mark names it, as a pager
@@ -4712,12 +4712,30 @@ read lists the marker `extension-promotion`. A later source of a target naming a
 the first is reported and loses, as for every target. An operation holding a pagination already is
 not read.
 
+A pagination is read in one order of precedence, stated here for every reading of one: a keyword the
+document writes, then a promoted extension, then an inference
+([`pagination-policy`](#pagination-policy)). The document has spoken of an operation's pagination
+wherever a keyword or a key the policy maps to a pagination target is written, whatever its value,
+and no later reading fills a pagination it spoke of. OpenAPI writes no pagination keyword, so here that
+is each key a source of a pagination target names, written where this rule reads that source: on the
+operation for an expression, and for a mark on a parameter, a member of a body, a success response's
+header or the type one of them names, however many operations reach it. A value filling a
+pagination, one resolving to nothing or refused, and one stating nothing, `false`, null or an empty
+object, speak alike. `PromotePagination` returns the operations it reads that so speak, by ID, as
+the set a step inferring a pagination reads in place of their extensions, and marks no node for a
+pagination it does not fill. A key written anywhere else, such as on an error response or a mark on
+the operation itself, is read by no source, so it speaks of nothing.
+
 - Cases: `extension-pagination`
 - Codes: `openapi/degraded-construct`
 - Tests: `operation.TestPromotePagination_FillsWhatTheExtensionsDeclare`,
   `operation.TestPromotePagination_ReportsWhatFillsNone`,
   `operation.TestPromotePagination_ReadsEverySuccessResponse`,
   `operation.TestPromotePagination_ReadsNothingOffPolicy`,
+  `operation.TestPromotePagination_SaysWhichOperationsSpeakOfAPagination`,
+  `operation.TestPromotePagination_StatedReadsEitherSidesKey`,
+  `operation.TestPromotePagination_StatedIsIndependentOfDeclarationOrder`,
+  `operation.TestPromotePagination_StatesNothingOffPolicy`,
   `lowering.TestOperations_ReadsEveryGroupToTheCap`,
   `operation.TestMarker_AUseOfATypeTheRegistryLacksMarksNothing`,
   `lowering.TestPageStatementOf_ReadsAnExpressionOrAMark`
@@ -4726,8 +4744,9 @@ not read.
 
 Pagination is set only by an injectable policy, and what it sets is marked `Inferred` (invariant 6):
 the compiler reads no pagination out of a document's parameter or response names by itself. A
-pagination an extension declares ([`extension-pagination`](#extension-pagination)) is the
-document's own statement of the walk, so a policy inferring one reads no operation holding it.
+pagination an extension declares is the document's own statement of the walk, so a policy inferring
+one reads no operation holding one, nor one whose extensions speak of one without filling it, by the
+precedence [`extension-pagination`](#extension-pagination) states.
 
 - Status: not built: no policy infers pagination yet, so the compiler sets a `Pagination` only
   where an extension declares one ([`extension-pagination`](#extension-pagination)) (#989).

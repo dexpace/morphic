@@ -228,8 +228,11 @@ func run(ctx context.Context, c lowering.Ctx, ts *compile.Types) (*ir.Document, 
 	acc.AppendAll(lowered.Links.Resolve(c, &out.Services[0], reg, srv))
 	out.Servers = srv.Servers()
 	// A pagination an extension declares names members of response bodies, so
-	// it too is read once the registry is whole.
-	acc.AppendAll(operation.PromotePagination(c, &out.Services[0], reg))
+	// it too is read once the registry is whole. The operations whose
+	// extensions speak of one are what a policy inferring a pagination leaves
+	// alone; none runs, so nothing reads them yet.
+	_, pageDiags := operation.PromotePagination(c, &out.Services[0], reg)
+	acc.AppendAll(pageDiags)
 	// What a deprecation names as its replacement may be declared anywhere, so
 	// it is read once every node it can name is built.
 	acc.AppendAll(replacement.Resolve(c, out))

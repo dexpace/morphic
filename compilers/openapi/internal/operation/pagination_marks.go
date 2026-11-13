@@ -22,12 +22,14 @@ type position struct {
 }
 
 // marker is one marking source of a pagination target, asked of the nodes of
-// one operation.
+// one operation, and whether any node it asked keeps its key, whatever its
+// value says.
 type marker struct {
-	pg     *pager
-	target lowering.ExtensionTarget
-	src    lowering.ExtensionSource
-	diags  []ir.Diagnostic
+	pg      *pager
+	target  lowering.ExtensionTarget
+	src     lowering.ExtensionSource
+	diags   []ir.Diagnostic
+	written bool
 }
 
 // marks returns the provenance of the node keeping unmodeled when src marks
@@ -35,6 +37,7 @@ type marker struct {
 func (m *marker) marks(unmodeled ir.Unmodeled, keeper *ir.Provenance) (*ir.Provenance, bool) {
 	st, diags := lowering.PageStatementOf(m.pg.p, m.target, m.src, unmodeled)
 	m.diags = append(m.diags, diags...)
+	m.written = m.written || st.Written
 	return keeper, st.Stated
 }
 
@@ -68,7 +71,8 @@ func (pg *pager) markedInput(op *ir.Operation, target lowering.ExtensionTarget, 
 	if body != nil {
 		found, read = append(found, &ir.InputPath{Segments: body.segments}), append(read, body.keeper)
 	}
-	r := resolved[*ir.InputPath]{read: read, at: op.Provenance, stated: len(found) > 0 || failure != ""}
+	r := resolved[*ir.InputPath]{read: read, at: op.Provenance, stated: len(found) > 0 || failure != "",
+		written: m.written}
 	switch {
 	case failure != "":
 		return r, failure, m.diags
@@ -108,6 +112,7 @@ func (pg *pager) markedOutput(op *ir.Operation, target lowering.ExtensionTarget,
 	if r.value != nil && (bodiedLacking || lacking && r.value.In == "header") {
 		return r, "marks a value one of the success responses does not hold", m.diags
 	}
+	r.written = m.written
 	return r, "", m.diags
 }
 

@@ -56,6 +56,10 @@ type PageStatement struct {
 	// Stated reports whether the source says anything on the node: an
 	// expression, or that the node is the value its target names.
 	Stated bool
+	// Written reports whether the source's key is on the node at all,
+	// whatever its value: where it is, the document has spoken of the walk,
+	// whether its value states a value, fails to or states nothing.
+	Written bool
 }
 
 // Sources returns what the policy reads target from, in order of precedence.
@@ -71,6 +75,7 @@ func (p Promoter) Sources(target ExtensionTarget) []ExtensionSource {
 // misfit.
 func PageStatementOf(p Promoter, target ExtensionTarget, src ExtensionSource, unmodeled ir.Unmodeled) (PageStatement, []ir.Diagnostic) {
 	one := []ExtensionSource{src}
+	_, written := unmodeled[extensionKeyPrefix+src.Key]
 	if len(src.Values) > 0 {
 		_, at, marked, diags := firstStatedAt(unmodeled, one, reading[bool]{
 			target: target,
@@ -78,8 +83,8 @@ func PageStatementOf(p Promoter, target ExtensionTarget, src ExtensionSource, un
 				return listed(p.targets, target, src, raw)
 			},
 		})
-		return PageStatement{At: at, Stated: marked}, diags
+		return PageStatement{At: at, Stated: marked, Written: written}, diags
 	}
 	expression, at, found, diags := firstStatedAt(unmodeled, one, textReading(target))
-	return PageStatement{Expression: expression, At: at, Stated: found}, diags
+	return PageStatement{Expression: expression, At: at, Stated: found, Written: written}, diags
 }

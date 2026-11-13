@@ -21,30 +21,36 @@ const (
 )
 
 // resolved is what one source of a pagination target names on an operation:
-// the value, the nodes whose keys named it, and where that is written.
+// the value, the nodes whose keys named it, where that is written, and whether
+// the source's key is written where it is read, whatever it states
+// (lowering.PageStatement.Written).
 type resolved[T any] struct {
-	value  T
-	read   []*ir.Provenance
-	at     ir.Provenance
-	stated bool
+	value   T
+	read    []*ir.Provenance
+	at      ir.Provenance
+	stated  bool
+	written bool
 }
 
 // firstResolved returns what the first of target's sources to state anything on
-// op resolves to, and true where a source stated a value that does not
-// resolve, which is reported and fills no pagination. A later source naming
-// another value is reported and loses, as it does for every target.
+// op resolves to, written where any source's key is, and true where a source
+// stated a value that does not resolve, which is reported and fills no
+// pagination. A later source naming another value is reported and loses, as it
+// does for every target.
 func firstResolved[T any](pg *pager, op *ir.Operation, target lowering.ExtensionTarget,
 	resolve func(lowering.ExtensionSource) (resolved[T], string, []ir.Diagnostic), same func(T, T) bool,
-) (T, []*ir.Provenance, bool, []ir.Diagnostic) {
+) (resolved[T], bool, []ir.Diagnostic) {
 	var kept resolved[T]
 	var first lowering.ExtensionSource
 	var diags []ir.Diagnostic
+	written := false
 	for _, src := range pg.p.Sources(target) {
 		r, failure, readDiags := resolve(src)
 		diags = append(diags, readDiags...)
+		written = written || r.written
 		switch {
 		case failure != "":
-			return kept.value, nil, true, append(diags, diag.Newf(ir.SeverityInfo, diag.DegradedConstruct, r.at,
+			return resolved[T]{written: true}, true, append(diags, diag.Newf(ir.SeverityInfo, diag.DegradedConstruct, r.at,
 				"extension %q %s, so operation %q takes no pagination from its extensions", src, failure, op.ID))
 		case !r.stated:
 		case !kept.stated:
@@ -55,17 +61,19 @@ func firstResolved[T any](pg *pager, op *ir.Operation, target lowering.Extension
 				src, target, first))
 		}
 	}
-	return kept.value, kept.read, false, diags
+	kept.written = written
+	return kept, false, diags
 }
 
 // input resolves what op's extensions state of target, a value of its request.
-func (pg *pager) input(op *ir.Operation, target lowering.ExtensionTarget) (*ir.InputPath, []*ir.Provenance, bool, []ir.Diagnostic) {
+func (pg *pager) input(op *ir.Operation, target lowering.ExtensionTarget) (resolved[*ir.InputPath], bool, []ir.Diagnostic) {
 	return firstResolved(pg, op, target, func(src lowering.ExtensionSource) (resolved[*ir.InputPath], string, []ir.Diagnostic) {
 		if len(src.Values) > 0 {
 			return pg.markedInput(op, target, src)
 		}
 		st, diags := lowering.PageStatementOf(pg.p, target, src, op.Unmodeled)
-		r := resolved[*ir.InputPath]{at: st.At, stated: st.Stated, read: []*ir.Provenance{&op.Provenance}}
+		r := resolved[*ir.InputPath]{at: st.At, stated: st.Stated, written: st.Written,
+			read: []*ir.Provenance{&op.Provenance}}
 		if !st.Stated {
 			return r, "", diags
 		}
@@ -76,13 +84,14 @@ func (pg *pager) input(op *ir.Operation, target lowering.ExtensionTarget) (*ir.I
 }
 
 // output resolves what op's extensions state of target, a value of a page.
-func (pg *pager) output(op *ir.Operation, target lowering.ExtensionTarget) (*ir.PropPath, []*ir.Provenance, bool, []ir.Diagnostic) {
+func (pg *pager) output(op *ir.Operation, target lowering.ExtensionTarget) (resolved[*ir.PropPath], bool, []ir.Diagnostic) {
 	return firstResolved(pg, op, target, func(src lowering.ExtensionSource) (resolved[*ir.PropPath], string, []ir.Diagnostic) {
 		if len(src.Values) > 0 {
 			return pg.markedOutput(op, target, src)
 		}
 		st, diags := lowering.PageStatementOf(pg.p, target, src, op.Unmodeled)
-		r := resolved[*ir.PropPath]{at: st.At, stated: st.Stated, read: []*ir.Provenance{&op.Provenance}}
+		r := resolved[*ir.PropPath]{at: st.At, stated: st.Stated, written: st.Written,
+			read: []*ir.Provenance{&op.Provenance}}
 		if !st.Stated {
 			return r, "", diags
 		}

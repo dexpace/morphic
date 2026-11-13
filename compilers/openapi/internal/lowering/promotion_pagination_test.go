@@ -16,7 +16,9 @@ import (
 // TestPageStatementOf_ReadsAnExpressionOrAMark pins the two ways a source
 // of a pagination target speaks: one listing no values holds an expression as
 // text, and one listing values marks the node it sits on where its value is
-// one of them. Neither resolves anything here; the operation's walk does.
+// one of them. Neither resolves anything here; the operation's walk does. A
+// key the node keeps is written whatever its value says, and one it does not
+// keep is not.
 func TestPageStatementOf_ReadsAnExpressionOrAMark(t *testing.T) {
 	t.Parallel()
 	expression := lowering.ExtensionSource{Key: "x-page", Member: "cursor"}
@@ -32,11 +34,14 @@ func TestPageStatementOf_ReadsAnExpressionOrAMark(t *testing.T) {
 		reported bool
 	}{
 		{"an expression", expression, `{"cursor":"$request.c"}`,
-			lowering.PageStatement{Expression: "$request.c", Stated: true}, false},
-		{"an expression of no text", expression, `{"cursor":3}`, lowering.PageStatement{}, true},
-		{"a mark", mark, `{"purpose":"cursor"}`, lowering.PageStatement{Stated: true}, false},
-		{"a mark of another word", mark, `{"purpose":"items"}`, lowering.PageStatement{}, true},
-		{"neither, where the member is absent", mark, `{}`, lowering.PageStatement{}, false},
+			lowering.PageStatement{Expression: "$request.c", Stated: true, Written: true}, false},
+		{"an expression of no text", expression, `{"cursor":3}`, lowering.PageStatement{Written: true}, true},
+		{"an expression key written false", expression, `false`, lowering.PageStatement{Written: true}, true},
+		{"an expression key with no member", expression, `{}`, lowering.PageStatement{Written: true}, false},
+		{"a mark", mark, `{"purpose":"cursor"}`, lowering.PageStatement{Stated: true, Written: true}, false},
+		{"a mark of another word", mark, `{"purpose":"items"}`, lowering.PageStatement{Written: true}, true},
+		{"a mark written null", mark, `null`, lowering.PageStatement{Written: true}, true},
+		{"neither, where the member is absent", mark, `{}`, lowering.PageStatement{Written: true}, false},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
@@ -44,10 +49,17 @@ func TestPageStatementOf_ReadsAnExpressionOrAMark(t *testing.T) {
 			got, diags := lowering.PageStatementOf(p, lowering.TargetPaginationCursor, tc.src, entries)
 			assert.Equal(t, tc.want.Expression, got.Expression)
 			assert.Equal(t, tc.want.Stated, got.Stated)
+			assert.Equal(t, tc.want.Written, got.Written)
 			require.Equal(t, tc.reported, len(diags) == 1, "reports: %+v", diags)
 			if got.Stated {
 				assert.Equal(t, "/components/schemas/S/"+tc.src.Member, string(got.At.Pointer))
 			}
 		})
+	}
+	for _, src := range []lowering.ExtensionSource{expression, mark} {
+		got, diags := lowering.PageStatementOf(p, lowering.TargetPaginationCursor, src,
+			ir.Unmodeled{"openapi:x-other": vendorExtension(`{"cursor":"$request.c","purpose":"cursor"}`)})
+		assert.Equal(t, lowering.PageStatement{}, got, "a node keeping another key: %s", src)
+		assert.Empty(t, diags)
 	}
 }

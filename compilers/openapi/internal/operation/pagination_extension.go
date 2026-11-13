@@ -34,19 +34,30 @@ func responseTargets() []lowering.ExtensionTarget {
 // pagination is filled whole or not at all: one whose values do not all
 // resolve, or which states no way to reach the next page, is reported at the
 // operation and leaves the field unset. c is the source's context.
-func PromotePagination(c lowering.Ctx, svc *ir.Service, reg ir.TypeRegistry) []ir.Diagnostic {
-	p := c.Promoter()
-	pg := pager{c: c, p: p, lk: newLookups(reg), flat: map[ir.TypeID][]*ir.Property{}}
-	if !pg.maps() {
-		return nil
+//
+// stated holds each operation it reads whose extensions speak of a pagination,
+// filled or not: those a step inferring one leaves alone, by that rule's
+// precedence, without reading an extension again.
+func PromotePagination(c lowering.Ctx, svc *ir.Service, reg ir.TypeRegistry) (stated map[ir.OpID]bool, diags []ir.Diagnostic) {
+	if svc == nil {
+		return nil, nil
 	}
-	var diags []ir.Diagnostic
+	pg := pager{c: c, p: c.Promoter(), lk: newLookups(reg), flat: map[ir.TypeID][]*ir.Property{}}
+	if !pg.maps() {
+		return nil, nil
+	}
+	stated = map[ir.OpID]bool{}
 	for _, op := range lowering.Operations(svc) {
-		if op.Pagination == nil {
-			diags = append(diags, pg.operation(op)...)
+		if op.Pagination != nil {
+			continue
+		}
+		spoke, opDiags := pg.operation(op)
+		diags = append(diags, opDiags...)
+		if spoke {
+			stated[op.ID] = true
 		}
 	}
-	return diags
+	return stated, diags
 }
 
 // pager is what one PromotePagination reads its operations against. flat holds
@@ -67,51 +78,57 @@ func (pg *pager) maps() bool {
 }
 
 // pageFields is what an operation's extensions state of its pagination, each
-// field by the target naming it, and the nodes whose keys stated them.
+// field by the target naming it, the nodes whose keys stated them, and whether
+// a source's key is written where it is read, whatever it states.
 type pageFields struct {
 	inputs  map[lowering.ExtensionTarget]*ir.InputPath
 	outputs map[lowering.ExtensionTarget]*ir.PropPath
 	read    []*ir.Provenance
+	written bool
 }
 
 // operation fills op's pagination from what its extensions state, if they
-// state any.
-func (pg *pager) operation(op *ir.Operation) []ir.Diagnostic {
+// state any, and reports whether they speak of it at all: whether a source's
+// key is written where it is read, whatever its value, filling a pagination,
+// failing to or stating nothing.
+func (pg *pager) operation(op *ir.Operation) (bool, []ir.Diagnostic) {
 	fields := pageFields{inputs: map[lowering.ExtensionTarget]*ir.InputPath{},
 		outputs: map[lowering.ExtensionTarget]*ir.PropPath{}}
 	var diags []ir.Diagnostic
 	for _, target := range requestTargets() {
-		in, read, failed, readDiags := pg.input(op, target)
+		in, failed, readDiags := pg.input(op, target)
 		diags = append(diags, readDiags...)
+		fields.written = fields.written || in.written
 		if failed {
-			return diags
+			return fields.written, diags
 		}
-		if in != nil {
-			fields.inputs[target], fields.read = in, append(fields.read, read...)
+		if in.value != nil {
+			fields.inputs[target], fields.read = in.value, append(fields.read, in.read...)
 		}
 	}
 	for _, target := range responseTargets() {
-		out, read, failed, readDiags := pg.output(op, target)
+		out, failed, readDiags := pg.output(op, target)
 		diags = append(diags, readDiags...)
+		fields.written = fields.written || out.written
 		if failed {
-			return diags
+			return fields.written, diags
 		}
-		if out != nil {
-			fields.outputs[target], fields.read = out, append(fields.read, read...)
+		if out.value != nil {
+			fields.outputs[target], fields.read = out.value, append(fields.read, out.read...)
 		}
 	}
 	if len(fields.inputs) == 0 && len(fields.outputs) == 0 {
-		return diags
+		return fields.written, diags
 	}
 	page, reason := assemble(fields)
 	if page == nil {
-		return append(diags, pg.report(op, "the pagination the policy reads from its extensions %s, so it fills none", reason))
+		return fields.written, append(diags, pg.report(op, "the pagination the policy reads from its extensions %s, so it fills none", reason))
 	}
 	op.Pagination = page
 	for _, prov := range fields.read {
 		prov.Inferred = ir.JoinInferred(prov.Inferred, lowering.ExtensionPromotionHeuristic)
 	}
-	return diags
+	return fields.written, diags
 }
 
 // report is a finding at op about what its extensions state of its pagination.
