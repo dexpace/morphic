@@ -33,30 +33,48 @@ A Multiplatform SDK reaches iOS through the Objective-C export, which shapes the
   each one-parameter selector of the table, split at each word. A property or a method `dealloc`
   left a header no module builds from (`dealloc return type must be correctly specified as 'void'
   under ARC`), so no Swift file importing the framework compiled. A property `zone`, `copy`,
-  `isProxy`, `retainCount` or `finalize` read as `NSObject`'s method, and `description` and `self`
+  `isProxy`, `retainCount` or `finalize` read as `NSObject`'s method, as `accessibilityIsIgnored`
+  and `awakeFromNib` did in a file importing AppKit, and `description` and `self`
   as the object's own; `hash`, `hashValue` and `superclass` were ambiguous, and `class`, `retain`,
   `release` and `autorelease` unavailable. A method `mutableCopy` called `NSObject`'s and crashed
   (`unrecognized selector`), while one named `zone` compiled under `NSObject`'s own selector,
-  replacing it for whatever else calls it. An enum entry named for a parameterless member, an
-  instance's or the class's, read as that member or not at all, `zone`, `load`, `initialize` and
-  `version` among them (`instance member 'hash' cannot be used on type`). A method whose selector
+  replacing it for whatever else calls it. An enum entry named for a parameterless instance
+  selector read as that member or not at all, `zone` and `description` among them (`instance member
+  'hash' cannot be used on type`), and one named for a class selector as the class's member or not
+  at all, `load`, `initialize` and `version` among them. Three macOS declares read as the entry:
+  `accessInstanceVariablesDirectly`, whose getter replaced the class's selector for whatever else
+  calls it, and AppKit's `commitEditing` and `discardEditing`, with nothing replaced, which the rule
+  names with the rest, since nothing the commands read tells them from `accessibilityIsIgnored`,
+  deprecated as they are, whose entry read as AppKit's. No selector backs `hashValue`: an entry
+  `HASH_VALUE` read as the entry and a method `hashValue()` as the model's, beside an instance's
+  `hashValue`, so both keep their names. A method whose selector
   the export formed as one of theirs, `responds(toSelector:)` or `perform(selector:)`, was imported
   under `NSObject`'s Swift name (`incorrect argument label in call (have 'toSelector:', expected
   'to:')`), and one formed as `setValuesForKeysWithDictionary:` left a header no module builds from
   (`'swift_name' and 'swift_name' attributes are not compatible`). So the policy holds a table of
-  the options version, read from that SDK by the commands below, as the Swift type names are
+  the options version, read by the commands below from Foundation and the UI framework of each Apple
+  platform the target builds a framework for, AppKit at the macOS 26.2 SDK and UIKit at the iOS
+  26.2 one, one table for every platform, as the Swift type names are
   ([naming](naming.md#reserved-names)): each selector `NSObject`, a category of it or its protocol
   declares, the class's or an instance's, which the first command lists; the members taking no
-  parameter that Swift's own declarations add, which the last lists, `hashValue` alone at that SDK;
-  and `new`, which the export renames in a property too. A property, or a parameterless method that
+  parameter that Swift's own declarations add, which the last lists, `hashValue` alone at those
+  SDKs; and `new`, which the export renames in a property too. A framework a caller imports by
+  choice beyond those may declare a category of `NSObject` too, and the table leaves its members
+  out: a member cannot be qualified by its module as a type can (`value of type 'Model' has no
+  member 'Probe'`), and the set of them is open. A property, or a parameterless method that
   is not `suspend`, takes an explicit name where its name is a parameterless instance selector of
-  the table or one of those members; an enum entry where its Swift name is a parameterless selector,
-  the class's or an instance's, one of those members, or one the export gives every enum class
+  the table, and a property where it is one of those members too; an enum entry where its Swift name
+  is a parameterless selector of the table, the class's or an instance's, or one the export gives
+  every enum class
   beside its entries, `entries`, `values` or `companion`; and a method with parameters where the
   selector the export forms for it, its name, its first parameter's capitalized and each later
   parameter's, is in the table, which a `suspend` method's, ending in `completionHandler:`, never
   is. With such names a member of each kind above was reached, and `hash`, `copy()` and
-  `responds(to:)` still answered as `NSObject`'s. Entries `ENTRIES`, `VALUES` and `COMPANION`
+  `responds(to:)` still answered as `NSObject`'s. The selectors the macOS SDK lacks, UIKit's,
+  were compiled against the iOS SDK and not run: an entry named for each parameterless one failed to
+  compile where a Swift file bound it as the entry, as a property `accessibilityActivate` did bound
+  as its own type, and every member compiled under the name the rule gives it.
+  Entries `ENTRIES`, `VALUES` and `COMPANION`
   exported as `entries`, `values` and `companion`, moving the enum's own list to `entries_` and
   `values_()` and taking the accessor `companion` from its companion object, so an entry a revision
   added would change what `Status.entries` reads; with those entries given `entries_`, `values_` and
@@ -68,28 +86,34 @@ A Multiplatform SDK reaches iOS through the Objective-C export, which shapes the
   did, left the rest. On the golden spec the rule gives 782 properties of its models an explicit
   name, 742 `description`, 14 `className`, 9 `class`, 9 `hash`, 5 `zone`, 2 `self` and 1 `copy`, and
   80 enum entries, 20 `load`, 19 `copy` and 12 `zone` among them, none of its 32,915 named
-  `entries`, `values` or `companion`, and no operation's method, while its 847 properties `value`
+  `entries`, `values` or `companion`, and no operation's method, none of these for a selector the
+  UI frameworks add, while its 847 properties `value`
   and 98 `version` keep their names; 10 of its parameters are named `description` or `hash`, and
   take one wherever a request type holds them as a property (spec @bc6fad24, morphic @fa253fe19,
   each name its words in camel case). T-19 holds it.
 
   ```sh
-  echo '#import <Foundation/Foundation.h>' |
-    xcrun clang -x objective-c -fsyntax-only -Xclang -ast-dump=json - |
-    jq -r '.inner[]
+  selectors() { # an SDK and its UI framework, whose umbrella header imports Foundation's
+    echo "#import <$2/$2.h>" |
+      xcrun --sdk "$1" clang -x objective-c -fsyntax-only -Xclang -ast-dump=json - | jq -r '.inner[]
       | select((.kind == "ObjCInterfaceDecl" or .kind == "ObjCProtocolDecl") and .name == "NSObject"
           or .kind == "ObjCCategoryDecl" and .interface.name == "NSObject")
       | .inner[]? | select(.kind == "ObjCMethodDecl")
-      | (if .instance then "-" else "+" end) + .name' | sort -u
-  mkdir -p sg && for m in Foundation ObjectiveC; do
-    xcrun swift symbolgraph-extract -module-name "$m" -target arm64-apple-macosx26.2 \
-      -sdk "$(xcrun --show-sdk-path)" -output-dir sg
-  done
+      | (if .instance then "-" else "+" end) + .name'
+  }
+  { selectors macosx AppKit; selectors iphoneos UIKit; } | sort -u
+  graphs() { # an SDK, its target and its UI framework
+    mkdir -p "sg/$1" && for m in Foundation ObjectiveC "$3"; do
+      xcrun swift symbolgraph-extract -module-name "$m" -target "$2" \
+        -sdk "$(xcrun --sdk "$1" --show-sdk-path)" -output-dir "sg/$1"
+    done
+  }
+  graphs macosx arm64-apple-macosx26.2 AppKit; graphs iphoneos arm64-apple-ios26.2 UIKit
   jq -r '(.symbols | map({key: .identifier.precise, value: .}) | from_entries) as $s
     | .relationships[] | select(.kind == "memberOf" and .target == "c:objc(cs)NSObject")
     | $s[.source] | select(. != null and (.identifier.precise | startswith("c:") | not))
     | select(.kind.identifier | test("\\.(property|method)$")) | .names.title
-    | select(test(":") | not)' sg/*.json | sort -u
+    | select(test(":") | not)' sg/*/*.json | sort -u
   ```
 - The export renames an enum entry in camel case, splitting it at each `_`, so it loses a break
   letter case cannot mark

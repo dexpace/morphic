@@ -161,15 +161,20 @@ throughout these documents.
     and the other as `Duration__2`, beside the runtime's `Duration_`, each keeping its name under
     both orders of their units' packages. The fixture also names a property, a parameterless method,
     a `suspend` method and an enum entry after every member of the table of `NSObject`'s, `dealloc`,
-    `zone`, `hash`, `self`, `load` and `copy` among them, a method of one parameter after each of
+    `zone`, `hash`, `self`, `load`, `copy`, AppKit's `accessibilityIsIgnored` and UIKit's
+    `accessibilityLabel` among them, a method of one parameter after each of
     its one-parameter selectors (`responds(toSelector:)`), a method and an entry after a name of
     each method family, and entries `ENTRIES`, `VALUES` and `COMPANION` of an enum with a companion
-    object: the header builds a module, a Swift caller reads each property's own value, calls each
+    object: the header builds a module, a Swift caller importing the platform's UI framework reads
+    each property's own value, calls each
     method and reaches each entry by the name the policy chose, which is the name the header gives
-    it, a property `value` and one `version` keep their names, `hash`, `copy()` and `responds(to:)`
+    it, a property `value`, one `version`, a method `hashValue()` and an entry `HASH_VALUE` keep
+    their names, `hash`,
+    `copy()` and `responds(to:)`
     on a model still answer as `NSObject`'s, and that enum's `entries`, `values()` and `companion`
-    as its own, and the table equals what that document's commands read from the SDK the options
-    version names, its selectors and `hashValue` alike ([Swift](../targets/kotlin/swift.md)).
+    as its own, and the table equals what that document's commands read from each SDK the options
+    version names, Foundation's selectors, AppKit's and UIKit's and `hashValue` alike
+    ([Swift](../targets/kotlin/swift.md)).
 20. **T-20 · Recursive types** — a model that holds itself directly, through a base, through a tuple
     and through another model, and one whose cycle passes through a list or a union, generate code
     that compiles on every target, and exactly the references on a cycle Go holds by value are held
