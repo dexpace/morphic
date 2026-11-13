@@ -96,6 +96,13 @@ var statedPaths = []string{`  /filled:
         "400":
           description: bad
           content: {application/json: {schema: {type: object, properties: {a: {type: string, x-role: {purpose: next}}}}}}`,
+	`  /stream:
+    get:
+      operationId: markInAStream
+      responses:
+        "200":
+          description: ok
+          content: {text/event-stream: {schema: {type: object, properties: {a: {type: string, x-role: {purpose: next}}}}}}`,
 }
 
 // statedSpec is a document declaring paths, in that order, over pagedSpec's

@@ -5364,19 +5364,22 @@ since each convention leaves to its own configuration which of the two its walk 
 
 A page value is one member of every success response declaring a body, of each of its media types,
 and a header one of every success response, whether an expression or a mark names it, as a pager
-reads whichever arrives: one that a response or a media type holds at another member, or not at
-all, as a header two success responses each declare does, resolves to nothing, as does a value a
-mark finds at two members as near the root, or at a header and a member of one response. The
-fields fill a pagination whole or not at all: a value that resolves to nothing, two inputs
-continuing the walk, a cursor beside no next cursor or a next cursor beside no cursor, an offset or
-a page number beside no items, which a pager counts to advance an offset and to end either walk
+reads whichever arrives. A media type that streams
+([payloads](../ir/payloads.md#a-content-that-streams)) is a sequence of frames and no page, so it is
+not read, and a response every media type of which streams declares no page body, as one declaring
+no body does not. A value that a response or a media type holds at another member, or not at all, as
+a header two success responses each declare does, resolves to nothing, as does a value a mark finds
+at two members as near the root, or at a header and a member of one response. The fields fill a
+pagination whole or not at all: a value that resolves to nothing, two inputs continuing the walk, a
+cursor beside no next cursor or a next cursor beside no cursor, an offset or a page number beside no
+items, which a pager counts to advance an offset and to end either walk
 ([pagination](../emitters/operations/pagination.md#what-a-pager-sends-next)), and a walk with
-neither an input nor a next link are each reported as an info `openapi/degraded-construct`,
-at the value or at the operation, and leave the field unset. The pagination sets its own `Inferred`
-and states no `Stop`, which no extension of either convention states, and each node whose key it
-read lists the marker `extension-promotion`. A later source of a target naming another value than
-the first is reported and loses, as for every target. An operation holding a pagination already is
-not read.
+neither an input nor a next link are each reported as an info `openapi/degraded-construct`, at the
+value or at the operation, and leave the field unset. The pagination sets its own `Inferred` and
+states no `Stop`, which no extension of either convention states, and each node whose key it read
+lists the marker `extension-promotion`. A later source of a target naming another value than the
+first is reported and loses, as for every target. An operation holding a pagination already is not
+read.
 
 What a key holds is one statement to every source of a pagination target reading the key the same
 way, as an expression or as a mark, and is one of three things. It states part of a walk where it is
@@ -5396,13 +5399,13 @@ A pagination is read in the precedence [`policies`](#policies) gives, so no infe
 ([`pagination-policy`](#pagination-policy)) fills one the document spoke of. OpenAPI writes no
 pagination keyword, so the document has spoken of an operation's pagination wherever it writes a key
 a source of a pagination target names, where this rule reads that source: on the operation for an
-expression, and for a mark on a parameter, a member of a body, a success response's header or the
-type one of them names, however many operations reach it. A value filling a pagination, one
-resolving to nothing or refused, `false`, and one stating nothing a source can read speak alike.
-`PromotePagination` returns the operations it reads that so speak, by ID, as the set a step
-inferring a pagination reads in place of their extensions, and marks no node for a pagination it
-does not fill. A key written anywhere else, such as on an error response or a mark on the operation
-itself, is read by no source, so it speaks of nothing.
+expression, and for a mark on a parameter, a member of the request's body or of a page's, a success
+response's header or the type one of them names, however many operations reach it. A value filling a
+pagination, one resolving to nothing or refused, `false`, and one stating nothing a source can read
+speak alike. `PromotePagination` returns the operations it reads that so speak, by ID, as the set a
+step inferring a pagination reads in place of their extensions, and marks no node for a pagination
+it does not fill. A key written anywhere else, such as on an error response, in a media type that
+streams, or as a mark on the operation itself, is read by no source, so it speaks of nothing.
 
 - Cases: `extension-pagination`
 - Codes: `openapi/degraded-construct`
