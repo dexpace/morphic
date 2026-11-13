@@ -4554,6 +4554,8 @@ twice is reported once, at the declaration both mounts share.
   `lowering.TestOperations_ReadsEveryGroupToTheCap`,
   `lowering.TestPaginationInference_TheZeroValueHonoursThePolicy`,
   `openapi.TestDecodeOptions_TextReachesEveryField`
+- Status: partly built: an input a request body or a parameter's members carry is not read (#1815),
+  nor a next link, a `Link` header or a continuation a response header carries (#1816).
 
 ## 16. Swagger 2.0
 
