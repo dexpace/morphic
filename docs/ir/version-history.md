@@ -470,3 +470,20 @@ it sees. Changes made together in one bump are listed together under it.
   headers](./responses.md#prefix-headers)). `irverify` holds such a header to a map type and no
   wire name, and `irfacts.CorrelationVersion` moved to 3, keying it by its prefix. No compiler
   fills it yet. A consumer pinned to 0.45.0 refuses a document with a prefix header.
+- **0.47.0** — four changes of meaning, the shape kept:
+  - A `null` is no `Enum` member and no variant of the `Union` an enumeration lowers to, but its
+    reference's `Nullable` bit, so an enumeration of `null` alone is a closed `Enum` with no member
+    behind a nullable reference ([enums](./enums.md#the-empty-enum)). The OpenAPI compiler had
+    lowered a `null` beside members of several kinds to a `null` `Literal` variant as well as a
+    nullable reference, and `null` alone to a union of that one variant. A consumer pinned to 0.46.0
+    finds no `null` variant where it read one.
+  - An `Enum`'s `ValueType` is a primitive every member is a value of. The OpenAPI compiler had
+    taken a declared `type` the members are not values of, a `type: integer` over strings among
+    them; it now takes the members' primitive and keeps the type verbatim.
+  - A number's format on a string, `type: string, format: int64` among them, is a `Scalar` over the
+    number whose `Encoding` is named `string`, a number written as the text of its value, with a
+    `string` `WireType`, as `bytes` under `base64` is ([encodings](./constraints.md#encodings)). It
+    had been a `Scalar` over `string` whose encoding named the format. A consumer pinned to 0.46.0
+    reads such a value's base as the number where it read a string.
+  - Over a `string`, a `WireType` of `string` marks text the encoding is applied to, and none marks
+    text already encoded. No compiler writes the first yet.

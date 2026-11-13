@@ -117,6 +117,9 @@ var generations = []generation{
 		names: "5506159ecd463736fdbbad0c4cabfad3fd50b48509b46fbea55862e82eca9675"},
 	{version: "0.46.0", format: 1, shape: "579d8cf68b18eb8fb9e58bc0baf0f89dd640a8f916a95f473a407d0513b2f81f",
 		names: "5506159ecd463736fdbbad0c4cabfad3fd50b48509b46fbea55862e82eca9675"},
+	{version: "0.47.0", format: 1, shape: "579d8cf68b18eb8fb9e58bc0baf0f89dd640a8f916a95f473a407d0513b2f81f",
+		names:   "5506159ecd463736fdbbad0c4cabfad3fd50b48509b46fbea55862e82eca9675",
+		meaning: "an enum's null is no member or variant but its reference's, so an enum of null alone is an Enum with no member; an Enum's ValueType is one its members are values of; a number's format on a string is a Scalar over the number whose Encoding string travels as a string WireType; and over a string a WireType marks text to encode"},
 }
 
 // shapeGolden holds the description the newest row's shape hashes, so a change
