@@ -17,6 +17,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/dexpace/morphic/compilers"
 	"github.com/dexpace/morphic/compilers/openapi/internal/budget"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/provenance"
@@ -34,7 +35,8 @@ func resumedOver(t *testing.T, dir, root string, limit int) (*resumeWork, []ir.D
 	readyForModel(t.Context(), tree)
 	doc, err := unmarshal(t.Context(), []byte(root), tree)
 	require.NoError(t, err)
-	self := newSourceDocument(filepath.Join(dir, "root.yaml"), []byte(root), tree, judgment{}, treeOf(t.Context(), provenance.Doc{}, tree), nil)
+	self := newSourceDocument(compilers.Source{Path: filepath.Join(dir, "root.yaml"), Data: []byte(root)}, nil, tree, judgment{},
+		treeOf(t.Context(), provenance.Doc{}, tree), nil)
 	opts := Options{Reader: reader.Disk{}}
 	ext := newExternal(t.Context(), doc, opts, newExternalReads(self, budget.Unbounded()))
 	ext.work.steps = budget.New(budget.AtMost(limit))

@@ -129,6 +129,9 @@ var generations = []generation{
 		names:   "5506159ecd463736fdbbad0c4cabfad3fd50b48509b46fbea55862e82eca9675",
 		meaning: "a union's Discriminator.Mapping holding an entry its source writes holds, beside those entries, the route the source implies to each variant it declares none for; a policy reads a union's mapping, an undeclared discriminator and a subtype's tag off the sets of strings the variants and the subtype admit, read through unions of values and the unions they compose"},
 	{version: "0.51.0", format: 1, shape: "630671af6248c7ff1ebd79765cf645b7ee3fde7308e1d8d9b8002a59268eb847",
+		names:   "5506159ecd463736fdbbad0c4cabfad3fd50b48509b46fbea55862e82eca9675",
+		meaning: "an OpenAPI document's names and messages fill an operation's idempotency token, a use's Secret, a deprecation's ReplacedBy and a response header's http-date Encoding, each marked inferred"},
+	{version: "0.52.0", format: 1, shape: "630671af6248c7ff1ebd79765cf645b7ee3fde7308e1d8d9b8002a59268eb847",
 		names:   "d51e3870005daf41dd75e9824de8727071054271d9658aa46a64ae80bf542f0c",
 		meaning: "a union beside an allOf of the OpenAPI compiler is one of its conjuncts; a union on an allOf branch lowers with the discriminator on the branch or beside the allOf, and at a position no route names; a routed subtype names its union as a Mixin minted for it, no longer kept under openapi:oneOf, openapi:anyOf or openapi:allOf/<n>; Base is elected through a discriminator hierarchy"},
 }

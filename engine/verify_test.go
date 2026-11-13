@@ -174,7 +174,10 @@ func TestEngine_RunVerifiesWhatTheCorpusCompilesTo(t *testing.T) {
 	}
 }
 
-func TestEngine_RunVerifiesARefusalAsNothing(t *testing.T) {
+// TestEngine_RunAcceptsASoundRefusalWhenVerifying is the control for the
+// refusals below: a refusal has no document, and findings that keep every
+// invariant draw nothing.
+func TestEngine_RunAcceptsASoundRefusalWhenVerifying(t *testing.T) {
 	t.Parallel()
 	eng, err := engine.New()
 	require.NoError(t, err)
@@ -182,9 +185,117 @@ func TestEngine_RunVerifiesARefusalAsNothing(t *testing.T) {
 	res, err := eng.RunSources(t.Context(), []compilers.Source{{Path: "spec.yaml", Data: []byte("openapi: 3.1.0\ninfo: [unterminated\n")}},
 		engine.RunOptions{Verify: true})
 
-	require.NoError(t, err, "a refusal has no document to verify")
+	require.NoError(t, err)
 	assert.Nil(t, res.Document)
 	assert.True(t, res.Failed)
+}
+
+// malformed is a finding at sev whose pointer has no leading slash, which
+// irverify refuses wherever a document holds it.
+func malformed(sev ir.Severity) ir.Diagnostic {
+	return ir.Diagnostic{Severity: sev, Code: "test/malformed", Message: "a finding",
+		Provenance: ir.Provenance{Pointer: "components"}}
+}
+
+// besideCompiler is the OpenAPI compiler returning extra beside its document,
+// which then holds it on neither channel the compile is verified through.
+type besideCompiler struct {
+	*openapi.Compiler
+	extra ir.Diagnostic
+}
+
+func (c besideCompiler) Compile(ctx context.Context, sources []compilers.Source, opts compilers.Options) (*ir.Document, []ir.Diagnostic, error) {
+	doc, diags, err := c.Compiler.Compile(ctx, sources, opts)
+	return doc, append(slices.Clone(diags), c.extra), err
+}
+
+// decliningCompiler declines every source, saying what declined holds.
+type decliningCompiler struct {
+	stubFront
+	declined []ir.Diagnostic
+}
+
+func (c decliningCompiler) Detect(context.Context, compilers.Source, compilers.Options) (compilers.Recognition, []ir.Diagnostic, bool) {
+	return compilers.Recognition{}, slices.Clone(c.declined), false
+}
+
+func (decliningCompiler) Compile(context.Context, []compilers.Source, compilers.Options) (*ir.Document, []ir.Diagnostic, error) {
+	panic("a declining compiler compiles nothing")
+}
+
+// requireFindingsBroken requires err to be a *VerifyError for stage over its
+// findings, wrapping sentinel, with the one malformed pointer at findings[at].
+func requireFindingsBroken(t *testing.T, err, sentinel error, stage string, at int) {
+	t.Helper()
+	requireVerifyError(t, err, sentinel, stage, "ir/provenance-pointer-malformed")
+	verr, ok := errors.AsType[*engine.VerifyError](err)
+	require.True(t, ok)
+	assert.True(t, verr.Findings, "the violation is in the findings, not the document")
+	require.Len(t, verr.Violations, 1)
+	assert.Equal(t, fmt.Sprintf("findings[%d].Provenance", at), verr.Violations[0].Path)
+	assert.Contains(t, err.Error(), "its findings break 1 invariants")
+}
+
+// TestEngine_RunVerifiesTheFindingsAPassReports holds what a pass reports to
+// the invariants its document is held to, naming the pass, however the run
+// starts. The finding never sits on a document a stage returns, so only
+// holding the findings themselves sees it; without Verify the run returns it.
+func TestEngine_RunVerifiesTheFindingsAPassReports(t *testing.T) {
+	t.Parallel()
+	reports := funcPass{"reports", func(doc *ir.Document) (*ir.Document, []ir.Diagnostic) {
+		return doc, []ir.Diagnostic{malformed(ir.SeverityWarning)}
+	}}
+	for _, via := range verifiedEntries {
+		t.Run(via.name, func(t *testing.T) {
+			t.Parallel()
+			eng := engineOf(t, openapi.New(), reports, unreachedPass{t: t, name: "after"})
+
+			res, err := via.run(t, eng, engine.RunOptions{Verify: true})
+			requireFindingsBroken(t, err, pass.ErrContract, `pass "reports"`, 0)
+			assert.Nil(t, res)
+
+			plain := engineOf(t, openapi.New(), reports)
+			res, err = via.run(t, plain, engine.RunOptions{})
+			require.NoError(t, err, "no verification is asked for")
+			assert.Contains(t, res.Diagnostics, malformed(ir.SeverityWarning))
+		})
+	}
+}
+
+// TestEngine_RunVerifiesTheFindingsACompileReturns does the same for a finding
+// a compiler returns beside its document rather than on it, placed after the
+// findings the document holds, and for the findings of a compile that refuses
+// the source and of compilers that decline it, which return no document.
+func TestEngine_RunVerifiesTheFindingsACompileReturns(t *testing.T) {
+	t.Parallel()
+	why := ir.Diagnostic{Severity: ir.SeverityError, Code: "test/refused", Message: "refused"}
+	warning, failing := malformed(ir.SeverityWarning), malformed(ir.SeverityError)
+	for _, tc := range []struct {
+		name    string
+		comp    compilers.Compiler
+		finding ir.Diagnostic
+		stage   string
+		at      int
+	}{
+		{"beside a document", besideCompiler{Compiler: openapi.New(), extra: warning}, warning, "compile", 0},
+		{"of a refusal", nilDocCompiler{reported: []ir.Diagnostic{why, failing}}, failing, "compile", 1},
+		{"of a decline", decliningCompiler{declined: []ir.Diagnostic{failing}}, failing, "detect", 0},
+	} {
+		for _, via := range compileEntries {
+			t.Run(tc.name+"/"+via.name, func(t *testing.T) {
+				t.Parallel()
+				eng := engineOf(t, tc.comp, unreachedPass{t: t, name: "after"})
+
+				res, err := via.run(t, eng, engine.RunOptions{Verify: true})
+				requireFindingsBroken(t, err, compilers.ErrContract, tc.stage, tc.at)
+				assert.Nil(t, res)
+
+				res, err = via.run(t, engineOf(t, tc.comp), engine.RunOptions{})
+				require.NoError(t, err, "no verification is asked for")
+				assert.Contains(t, res.Diagnostics, tc.finding)
+			})
+		}
+	}
 }
 
 // invalidated returns a transform that copies its input, breaks the copy and
