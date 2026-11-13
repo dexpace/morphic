@@ -34,21 +34,27 @@ func (b *builder) mint(pointer jsontext.Pointer, node ir.TypeDef) ir.TypeID {
 
 // meetNode returns the node base and partners, members that meet it, stand on:
 // base's own where no partner adds anything, and otherwise one minted at
-// pointer. A literal among them is the node, since it is within each; a
-// literal meets only one node, so it is built beside one partner alone.
+// pointer, built from the node each stands for (registry.view). A literal among
+// them is the node, since it is within each; a literal meets only one node, so
+// it is built beside one partner alone.
 func (b *builder) meetNode(base member, partners []member, pointer jsontext.Pointer, depth int) ir.TypeID {
 	if len(partners) == 0 {
 		return base.ref.Target
 	}
 	all := append([]member{base}, partners...)
 	nodes := make([]ir.TypeDef, len(all))
+	reg := registry{b.f.g.resolve}
 	for k, m := range all {
-		td, ok := b.f.g.resolve(m.ref.Target)
+		td, ok := reg.resolve(m.ref.Target)
 		if !ok {
 			b.failed = true
 			return base.ref.Target
 		}
 		nodes[k] = td
+	}
+	stop := reg.sharedLink(nodes...)
+	for k, td := range nodes {
+		nodes[k] = reg.view(td, stop)
 	}
 	if k := slices.IndexFunc(nodes, isLiteral); k > 0 {
 		all[0], all[k], nodes[0], nodes[k] = all[k], all[0], nodes[k], nodes[0]
@@ -80,7 +86,9 @@ func (b *builder) build(all []member, nodes []ir.TypeDef, pointer jsontext.Point
 	case *ir.Enum:
 		out := *n
 		out.Members = sharedBy(n.Members, nodes[1:])
-		return &out, sameKind[*ir.Enum](nodes) && len(out.Members) > 0
+		valueType, narrowest := narrowestValueType(nodes)
+		out.ValueType = valueType
+		return &out, narrowest && len(out.Members) > 0
 	case *ir.List:
 		out := *n
 		out.Elem = b.settle(membersOf(all, nodes, func(l *ir.List) ir.TypeRef { return l.Elem }), pointer+"/items", depth)

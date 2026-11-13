@@ -61,6 +61,10 @@ are ([`whole-schema-fallbacks`](../compilers/openapi.md#whole-schema-fallbacks),
   [`allof-inline-residue`](../compilers/openapi.md#allof-inline-residue),
   [`allof-redeclared-property`](../compilers/openapi.md#allof-redeclared-property) and
   [`shape-applicator`](../compilers/openapi.md#shape-applicator).
+- **Counts past 64 bits** — a count `Constraints` holds is an `int64` from 0 to 2^63−1
+  ([constraints](./constraints.md#constraints)), and a source count past that has no field. It is
+  kept verbatim under `ReasonDegradedLowering` with an `info` diagnostic where it is written: the
+  OpenAPI compiler's rule is [`constraints`](../compilers/openapi.md#constraints).
 - **TypeSpec `never`-typed properties/variants** — no `never` node exists, so compilers delete
   the member and emit an `info` diagnostic. Nothing is preserved beside it: a `never` member
   admits no value, so there is no content the deletion could lose.
