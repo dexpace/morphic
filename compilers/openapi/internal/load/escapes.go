@@ -20,6 +20,7 @@ import (
 	"github.com/speakeasy-api/openapi/references"
 	yaml "go.yaml.in/yaml/v3"
 
+	"github.com/dexpace/morphic/compilers/openapi/internal/bind"
 	"github.com/dexpace/morphic/compilers/openapi/internal/bind/typed"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/fragment"
@@ -91,14 +92,24 @@ func (e *escapes) refusalOf(key string) error {
 }
 
 // refused returns the respelling of the document part of the $ref value v,
-// and why e.refuses refuses it, or a nil reason where it refuses none.
-func (e *escapes) refused(v string) (key string, why error) {
+// written in the document at base, and why a read refuses it, or a nil reason
+// where it refuses none: by its spelling alone (e.refuses), or as naming a
+// document the one at base may not read (bind.Reachable), placed as the
+// resolver is handed it (resolve.Locate). With no e.refuses nothing is read,
+// so nothing is refused.
+func (e *escapes) refused(v, base string) (key string, why error) {
 	if e == nil || e.refuses == nil {
 		return "", nil
 	}
 	uri, _, _ := strings.Cut(v, "#")
 	uri = strings.TrimSpace(uri)
-	if why = e.refuses(uri); why == nil {
+	why = e.refuses(uri)
+	if why == nil && bind.OverNetwork(base) {
+		if target, ok := refscope.Locate(uri, base); ok && !bind.Reachable(base, target) {
+			why = refused(target, bind.OffNetwork)
+		}
+	}
+	if why == nil {
 		return "", nil
 	}
 	return refusedScheme + ":" + url.PathEscape(uri), why
@@ -114,28 +125,35 @@ func (e *escapes) refusal() func(uri string) error {
 }
 
 // forResolver returns the spelling the resolver is handed for the $ref value
-// v: its fragment as fragment.ForResolver spells it, and a document part
-// e.refuses refuses respelled under refusedScheme, so that the resolver asks
-// for it where the read refuses it.
-func (e *escapes) forResolver(v string) string {
+// v, written in the document at base: its fragment as fragment.ForResolver
+// spells it, and its document part as resolve.ForResolver does, so the
+// resolver reads the document the binder reads (resolve.Locate), or, where a
+// read refuses that part (refused), respelled under refusedScheme, so that the
+// resolver asks for it where the read refuses it.
+func (e *escapes) forResolver(v, base string) string {
 	spelled := fragment.ForResolver(v)
-	key, why := e.refused(spelled)
-	if why == nil {
+	uri, rest, found := strings.Cut(spelled, "#")
+	key, why := e.refused(spelled, base)
+	switch {
+	case why == nil && refscope.ForResolver(uri, base) == strings.TrimSpace(uri):
 		return spelled
+	case why == nil:
+		key = refscope.ForResolver(uri, base)
 	}
-	if _, rest, found := strings.Cut(spelled, "#"); found {
+	if found {
 		return key + "#" + rest
 	}
 	return key
 }
 
-// escape respells, in the tree under root, each $ref value the resolver would
-// misread to ForResolver's spelling, and records what it changed. A $ref
-// written as an alias becomes a scalar of its own, so the scalar it names is
-// not changed. One written as a scalar is changed, and an alias naming it
-// elsewhere, which may be text, becomes a scalar holding it as written. Every
-// node keeps its identity, which models and indexes of the tree are keyed by.
-func (e *escapes) escape(ctx context.Context, root *yaml.Node) {
+// escape respells, in the tree under root, the document at base, each $ref
+// value the resolver would misread to forResolver's spelling, and records what
+// it changed. A $ref written as an alias becomes a scalar of its own, so the
+// scalar it names is not changed. One written as a scalar is changed, and an
+// alias naming it elsewhere, which may be text, becomes a scalar holding it as
+// written. Every node keeps its identity, which models and indexes of the tree
+// are keyed by.
+func (e *escapes) escape(ctx context.Context, root *yaml.Node, base string) {
 	if e == nil {
 		return
 	}
@@ -144,7 +162,7 @@ func (e *escapes) escape(ctx context.Context, root *yaml.Node) {
 	respelled := map[*yaml.Node]string{}
 	eachRefValue(ctx, root, func(n *yaml.Node) bool {
 		v := nodeview.Deref(n)
-		spelled := e.forResolver(v.Value)
+		spelled := e.forResolver(v.Value, base)
 		if spelled == v.Value {
 			if strings.Contains(v.Value, "%2B") {
 				e.verbatim[v.Value] = true
@@ -154,7 +172,7 @@ func (e *escapes) escape(ctx context.Context, root *yaml.Node) {
 		if was, ok := e.spellings[spelled]; !ok || v.Value < was {
 			e.spellings[spelled] = v.Value
 		}
-		if key, why := e.refused(v.Value); why != nil {
+		if key, why := e.refused(v.Value, base); why != nil {
 			e.minted[key] = why
 		}
 		e.written[n] = v.Value
@@ -183,13 +201,13 @@ func (e *escapes) becomeScalar(n, v *yaml.Node, value string) {
 	n.Value, n.Line, n.Column, n.Anchor = value, line, column, anchor
 }
 
-// rewritable reports whether the tree under root holds a $ref value
-// forResolver respells.
-func (e *escapes) rewritable(ctx context.Context, root *yaml.Node) bool {
+// rewritable reports whether the tree under root, the document at base, holds
+// a $ref value forResolver respells.
+func (e *escapes) rewritable(ctx context.Context, root *yaml.Node, base string) bool {
 	found := false
 	eachRefValue(ctx, root, func(n *yaml.Node) bool {
 		v := nodeview.Deref(n)
-		found = e.forResolver(v.Value) != v.Value
+		found = e.forResolver(v.Value, base) != v.Value
 		return !found
 	})
 	return found
@@ -290,8 +308,8 @@ func (e *escapes) trailOf(c chain) trail {
 	return t
 }
 
-// endOfText marks the end of a message, where a spelling may end as it may
-// before a closing quote.
+// endOfText marks either end of a message, which bounds a spelling as a
+// space before it and a quote on either side of it do.
 const endOfText = "\x00"
 
 // asWritten puts back, in the messages of diags, each spelling the resolver
@@ -299,25 +317,26 @@ const endOfText = "\x00"
 // the model it was resolving as that model then held it, in a reason or in a
 // whole value it could not use, which no model restore reaches.
 //
-// A spelling is put back only where it ends the message or a quoted string,
-// never inside a longer reference. One the source writes itself is left
-// alone, so where a source spells a reference both ways, the library's text
-// may quote the "%2B" one.
+// A spelling is put back only as the whole of a quoted string or the last word
+// of the message, never as part of a longer reference. One the source writes
+// itself is left alone, so the library's text may quote the "%2B" one.
 func (e *escapes) asWritten(diags []ir.Diagnostic) []ir.Diagnostic {
 	r := e.respellings()
 	if r == nil {
 		return diags
 	}
 	for i := range diags {
-		diags[i].Message = strings.TrimSuffix(r.Replace(diags[i].Message+endOfText), endOfText)
+		marked := r.Replace(endOfText + diags[i].Message + endOfText)
+		diags[i].Message = strings.TrimSuffix(strings.TrimPrefix(marked, endOfText), endOfText)
 	}
 	return diags
 }
 
 // respellings returns a replacer from each spelling the resolver was handed to
 // the source's, as the library writes each in text and as its JSON encoder
-// writes it in a value, at the end of a message or of a quoted string. It
-// returns nil when there is nothing to put back.
+// writes it in a value: the whole of a quoted string, or the last word of a
+// message, or the whole of one. It returns nil when there is nothing to put
+// back.
 func (e *escapes) respellings() *strings.Replacer {
 	if e == nil {
 		return nil
@@ -340,9 +359,10 @@ func (e *escapes) respellings() *strings.Replacer {
 	slices.SortFunc(pairs, func(a, b [2]string) int {
 		return cmp.Or(strings.Compare(a[0], b[0]), strings.Compare(a[1], b[1]))
 	})
-	args := make([]string, 0, 4*len(pairs))
+	args := make([]string, 0, 6*len(pairs))
 	for _, p := range pairs {
-		args = append(args, p[0]+endOfText, p[1]+endOfText, p[0]+`"`, p[1]+`"`)
+		args = append(args, `"`+p[0]+`"`, `"`+p[1]+`"`, " "+p[0]+endOfText, " "+p[1]+endOfText,
+			endOfText+p[0]+endOfText, endOfText+p[1]+endOfText)
 	}
 	return strings.NewReplacer(args...)
 }

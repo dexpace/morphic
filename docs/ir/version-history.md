@@ -546,14 +546,24 @@ it sees. Changes made together in one bump are listed together under it.
   ([`http-date-inference`](../compilers/openapi.md#http-date-inference)). A consumer pinned to
   0.50.0 refuses a document from this generation, whose idempotency, redaction, replacements and
   header texts it would read as no OpenAPI document wrote them.
-- **0.52.0** — four changes of meaning, the shape kept:
+- **0.52.0** — `Content` gained `Stream`, a `ContentStream` marking a body that is a sequence of
+  frames rather than one document, its `Inferred` naming the heuristics that read it as one
+  ([payloads](./payloads.md#a-content-that-streams)). Every content that streams sets it, in a
+  request, a response, an error or the default, one declaring an `Item` among them, so a response
+  offering `application/json` beside `text/event-stream` says which of the two streams. The OpenAPI
+  compiler sets it for a 3.2 `itemSchema` and for a media type its streaming policy names, the
+  latter marked `streaming-media-type`. `irverify` holds a content declaring an `Item` to a `Stream`
+  (`ir/content-item-without-stream`), and a streaming content of a request or a success response to
+  its side's `StreamDetail` (`ir/content-stream-without-detail`). A consumer pinned to 0.51.0
+  refuses a document with a streaming content.
+- **0.53.0** — four changes of meaning, the shape kept:
   - A `null` is no `Enum` member, no variant of the `Union` an enumeration lowers to and no
     `Literal`'s value, but its reference's `Nullable` bit, so an enumeration of `null` alone and a
     constant of `null` are each a closed `Enum` with no member behind a nullable reference
     ([enums](./enums.md#the-empty-enum), [containers](./containers.md#literals)). The OpenAPI
     compiler had lowered a `null` beside members of several kinds to a `null` `Literal` variant as
     well as a nullable reference, `null` alone to a union of that one variant, and `const: null` to
-    a `null` `Literal`. A consumer pinned to 0.51.0 finds no `null` variant or `Literal` where it
+    a `null` `Literal`. A consumer pinned to 0.52.0 finds no `null` variant or `Literal` where it
     read one.
   - An `Enum`'s `ValueType` is a primitive every member is a value of. The OpenAPI compiler had
     taken a declared `type` the members are not values of, a `type: integer` over strings among
@@ -564,15 +574,15 @@ it sees. Changes made together in one bump are listed together under it.
     its `Constraints`, which speak of the number ([constraints](./constraints.md#constraints)), hold
     none of the bounds written beside it, which bound its text or no string instance and are kept
     verbatim. It had been a `Scalar` over `string` whose encoding named the format, holding those
-    bounds. A consumer pinned to 0.51.0 reads such a value's base as the number where it read a
+    bounds. A consumer pinned to 0.52.0 reads such a value's base as the number where it read a
     string.
   - Over a `string`, a `WireType` of `string` marks text the encoding is applied to, and none marks
     text already encoded. No compiler writes the first yet.
-- **0.53.0** — names an emitter renders moved, and one lowering changed, at an unmoved shape:
+- **0.54.0** — names an emitter renders moved, and one lowering changed, at an unmoved shape:
   - The [word grammar](./naming.md#the-word-grammar) separates on a letter or mark that is a
     `Default_Ignorable_Code_Point`, a variation selector or the Hangul filler U+3164 among them, as
     on the format characters in that property, so a name of only such characters has no
-    `Canonical`, and `irverify` refuses one in a canonical or a hint. A consumer pinned to 0.52.0
+    `Canonical`, and `irverify` refuses one in a canonical or a hint. A consumer pinned to 0.53.0
     meets `Canonical` and `Hint` it would have carried such a character in without it.
   - The OpenAPI compiler names an anonymous schema that writes a `title`, a union branch's variant
     included, by the title's words, where its position, its owner or the `$ref` beside it named it,
@@ -583,7 +593,7 @@ it sees. Changes made together in one bump are listed together under it.
     ([`parameters`](../compilers/openapi.md#parameters)), so an operation's `x-trace` overrides
     its path item's `X-Trace`, and one list writing both reports the second as a repeat, each kept
     under the ID its spelling gives it.
-- **0.54.0** — no shape change. The OpenAPI compiler writes a count, `minLength`, `maxLength`,
+- **0.55.0** — no shape change. The OpenAPI compiler writes a count, `minLength`, `maxLength`,
   `minItems`, `maxItems`, `minProperties` or `maxProperties`, past what a 64-bit integer holds to
   no `Constraints` field, where it wrote `0` or a number the source does not state, and keeps it
   verbatim under `openapi:<keyword>` (`degraded_lowering`) on the node or carrier the position owns
@@ -597,7 +607,7 @@ it sees. Changes made together in one bump are listed together under it.
   holds two enums' shared values of the narrower value type, where it kept the first enum of
   different value types, and holds what an alias of an enum, a `const`, a `Scalar`, a list, a map
   or a tuple meets beside the node it stands for, where it kept the first; an alias adding only
-  null to a type beside it gives that type. A consumer pinned to 0.53.0 that read such a count's
+  null to a type beside it gives that type. A consumer pinned to 0.54.0 that read such a count's
   field finds none there, one reading such a branch under `openapi:allOf/<n>` finds its keywords at
   the position instead, and one reading such a field may find a node minted for it.
 - **0.55.0** — no shape change. The OpenAPI compiler writes a value bound to `Constraints` only

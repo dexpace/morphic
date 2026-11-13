@@ -1407,6 +1407,7 @@
                           "target": "t/prim/any",
                           "nullable": false
                         },
+                        "stream": {},
                         "item": {
                           "target": "t/anon/paths/~1events/get/responses/200/content/application~1jsonl/itemSchema",
                           "nullable": false
