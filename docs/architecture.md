@@ -206,7 +206,7 @@ caught: the one duty no walk of a single document can check.
 
 **What stays in the OpenAPI compiler.** Three of its pieces read as if any format could use them:
 the YAML view (`internal/nodeview`), version sniffing (`internal/detect`) and document identity
-(`resolve.SameDocument`, `resolve.IsURL`). None moves into `compilers/compile`, because what each
+(`resolve.Locate`, `resolve.SameDocument`, `resolve.IsURL`). None moves into `compilers/compile`, because what each
 owes is agreement with the OpenAPI parser library, not with YAML or RFC 3986. The view reads a
 mapping as the library's unmarshaller does, its `<<` merges and repeated keys included, which
 yaml.v3's own decoder reads differently. Sniffing reads the parse the compile lowers, through that
@@ -518,17 +518,18 @@ a run's output is the same whether it hit, which is what the corpus test in `eng
 and a stamp would make it differ from build to build.
 
 **What a key covers.** A key is derived before anything runs, from the build, `IRVersion`, the
-working directory, the spec's path and bytes, the passes the run leaves on, in order, and the
-textual compiler settings. Each is there because the document depends on it. The path is written
-into `Sources`. The working directory reaches type IDs: a compile reads it to relate a relative
-path to an absolute one, so one spec reaching one document can lower to two sets of IDs from two
-directories (#1297). The build is the identity of the code, compilers and passes included:
-`cache.BuildID` hashes the executable, since a module version names neither a dirty tree nor the
-toolchain. It reads the file at the executable's path, as no portable call reads the image running,
-so a build installed as a run starts, before that read, is the one named: the run keeps what the
-old build compiled under the new build's key, and that entry answers the new build (#1318). The
-threshold is not covered, as a hit judges the verdict afresh, and neither is the format, which
-follows from the bytes and which finding is what a hit skips.
+spec's path, where it lies and its bytes, the passes the run leaves on, in order, and the textual
+compiler settings. Each is there because the document depends on it. The path is written into
+`Sources`. Where the spec lies, its `compilers.Source.Location`, is what its references are read
+against, so it reaches the IDs of what the documents they name declare. The working directory is
+not covered: it reaches the document only through where the spec lies and through the documents a
+run reads, which an entry lists (below). The build is the identity of the code, compilers and
+passes included: `cache.BuildID` hashes the executable, since a module version names neither a
+dirty tree nor the toolchain. It reads the file at the executable's path, as no portable call reads
+the image running, so a build installed as a run starts, before that read, is the one named: the
+run keeps what the old build compiled under the new build's key, and that entry answers the new
+build (#1318). The threshold is not covered, as a hit judges the verdict afresh, and neither is the
+format, which follows from the bytes and which finding is what a hit skips.
 
 **What a key cannot cover.** Which other documents a compile reads is known only once it has run.
 So a compile reads through a recorder, the entry lists each request with the hash of what came
