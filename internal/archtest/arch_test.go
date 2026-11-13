@@ -334,12 +334,20 @@ var rules = map[string][]string{
 		module + "/compilers/openapi/internal/resolve",
 		"github.com/speakeasy-api/openapi/openapi"},
 	// What a deprecation names as its replacement, read once the document is
-	// whole. It reaches lowering for the promotion that reads the names and the
-	// parameter lookup links share, and ids for a schema's components ID, and
-	// nothing of the walks: it reads the document they built.
+	// whole. It reaches lowering for the promotion that reads the names, the
+	// parameter lookup links share and the walk over a service's operations,
+	// and ids for a schema's components ID, and nothing of the walks: it reads
+	// the document they built.
 	"compilers/openapi/internal/replacement": {module + "/ir",
 		module + "/compilers/openapi/internal/diag",
 		module + "/compilers/openapi/internal/ids",
+		module + "/compilers/openapi/internal/lowering"},
+	// The pagination the names an operation uses say, read once the document
+	// is whole. It reaches lowering for the policy and the walk over a
+	// service's operations, and nothing of the walks: it reads the operations
+	// and the registry they built.
+	"compilers/openapi/internal/pagination": {module + "/ir",
+		module + "/compilers/openapi/internal/diag",
 		module + "/compilers/openapi/internal/lowering"},
 	// The servers a document declares, whichever object declares them, and the
 	// registry they are lowered into. It is its own package for the reason auth

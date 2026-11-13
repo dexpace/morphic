@@ -470,3 +470,11 @@ it sees. Changes made together in one bump are listed together under it.
   headers](./responses.md#prefix-headers)). `irverify` holds such a header to a map type and no
   wire name, and `irfacts.CorrelationVersion` moved to 3, keying it by its prefix. No compiler
   fills it yet. A consumer pinned to 0.45.0 refuses a document with a prefix header.
+- **0.47.0** — the OpenAPI compiler fills `Operation.Pagination`, which it had never set, and with
+  it `PageStop` `no_next`: its pagination-inference policy reads a walk off the names an operation's
+  query parameters and success responses use
+  ([`pagination-policy`](../compilers/openapi.md#pagination-policy)), each such `Pagination` marked
+  `Inferred` and its operation's `Provenance.Inferred` naming `pagination-inference`. The shape is
+  0.46.0's. A consumer pinned to 0.46.0 met no OpenAPI operation holding a `Pagination`, and now
+  meets one on each operation the policy settles, which it reads as declared unless it reads
+  `Inferred`.

@@ -54,6 +54,7 @@ func TestDecodeOptions_TextReachesEveryField(t *testing.T) {
 			"overlay-lax":             "true",
 			"nullable-widening":       "false",
 			"discriminator-inference": "false",
+			"pagination-inference":    "false",
 			"streaming-media":         "application/vnd.acme.frames; charset=utf-8, +frames",
 			"streaming-inference":     "false",
 			"binary-media":            "image/*, application/vnd.acme.blob, +zip",
@@ -81,6 +82,7 @@ func TestDecodeOptions_TextReachesEveryField(t *testing.T) {
 	assert.True(t, opts.Overlay.Lax)
 	assert.True(t, opts.NullableWidening.Disabled, "nullable-widening=false turns the policy off")
 	assert.True(t, opts.DiscriminatorInference.Disabled, "discriminator-inference=false turns the policy off")
+	assert.True(t, opts.PaginationInference.Disabled, "pagination-inference=false turns the policy off")
 	assert.Equal(t, openapi.StreamingMedia{
 		Disabled:   true,
 		MediaTypes: []string{"application/vnd.acme.frames; charset=utf-8", "+frames"},
@@ -133,8 +135,8 @@ func TestDecodeOptions_Refusals(t *testing.T) {
 			`unknown option "gruoping" (known: allow-external-refs, binary-inference, binary-media, ` +
 				`discriminator-inference, grouping, grouping-fallback, grouping-key, grouping-lists, ` +
 				`max-alias-surplus, max-enum-members, max-external-documents, max-reference-expansion, ` +
-				`max-source-bytes, max-source-nodes, nullable-widening, overlay, overlay-lax, streaming-inference, ` +
-				`streaming-media)`},
+				`max-source-bytes, max-source-nodes, nullable-widening, overlay, overlay-lax, pagination-inference, ` +
+				`streaming-inference, streaming-media)`},
 		{"non-integer budget", map[string]string{"max-source-bytes": "64MiB"},
 			`"max-source-bytes": want an integer (0 for the default, negative for none), got "64MiB"`},
 		{"budget past an int", map[string]string{"max-source-nodes": "99999999999999999999"},
@@ -214,6 +216,8 @@ func TestDecodeOptions_Refusals(t *testing.T) {
 			`option "binary-inference": want a boolean, got "maybe"`},
 		{"non-boolean discriminator inference", map[string]string{"discriminator-inference": "maybe"},
 			`option "discriminator-inference": want a boolean, got "maybe"`},
+		{"non-boolean pagination inference", map[string]string{"pagination-inference": "maybe"},
+			`option "pagination-inference": want a boolean, got "maybe"`},
 		{"non-boolean", map[string]string{"allow-external-refs": "yes please"},
 			`want a boolean, got "yes please"`},
 		{"non-boolean laxness", map[string]string{"overlay": "p.yaml", "overlay-lax": "sort of"},

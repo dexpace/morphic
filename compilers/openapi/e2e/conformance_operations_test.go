@@ -174,3 +174,53 @@ func assertTagsGrouping32(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 	assert.Equal(t, []string{"beta", "books"}, listBooks.Tags,
 		"tag membership keeps every tag the operation named, badge included")
 }
+
+// assertPaginationInferred pins the walk the pagination-inference policy reads
+// off each operation's names (docs/compilers/openapi.md#pagination-policy): a
+// page number, an offset, a cursor and a token, each with the page size beside
+// it, the items where the body holds them, a cursor walk's next cursor and the
+// totals a page states, every one marked inferred; and the operation naming
+// two continuations left with none and reported.
+func assertPaginationInferred(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
+	paths := func(segments ...ir.PropID) *ir.PropPath { return &ir.PropPath{Segments: segments} }
+	input := func(op ir.Operation, name string) *ir.InputPath {
+		id := linkParam(t, op, name)
+		return &ir.InputPath{Param: &id}
+	}
+	zones, logs, keys, jobs := linkOp(t, doc, "listZones"), linkOp(t, doc, "listLogs"), linkOp(t, doc, "listKeys"),
+		linkOp(t, doc, "listJobs")
+	keysBody := ir.PropID("p/openapi/paths/~1keys/get/responses/200/content/application~1json/schema/properties/")
+	for op, want := range map[*ir.Operation]*ir.Pagination{
+		&zones: {Strategy: ir.PageStrategyPage, Inferred: true, InputCursor: input(zones, "page"),
+			InputLimit: input(zones, "per_page"),
+			Items:      paths("p/openapi/paths/~1zones/get/responses/200/content/application~1json/schema/allOf/1/properties/result"),
+			TotalCount: paths(componentProp("Collection/properties/result_info"), componentProp("ResultInfo/properties/total_count")),
+			TotalPages: paths(componentProp("Collection/properties/result_info"), componentProp("ResultInfo/properties/total_pages"))},
+		&logs: {Strategy: ir.PageStrategyOffset, Inferred: true, InputCursor: input(logs, "offset"),
+			InputLimit: input(logs, "limit"), Items: paths()},
+		&keys: {Strategy: ir.PageStrategyCursor, Inferred: true, InputCursor: input(keys, "cursor"),
+			InputLimit: input(keys, "limit"), Items: paths(keysBody + "result"),
+			NextCursor: paths(keysBody+"result_info", componentProp("CursorInfo/properties/cursor")),
+			Stop:       []ir.PageStop{ir.PageStopNoNext}},
+		&jobs: {Strategy: ir.PageStrategyToken, Inferred: true, InputCursor: input(jobs, "pageToken"),
+			InputLimit: input(jobs, "pageSize"),
+			Items:      paths(componentProp("JobPage/properties/result"), componentProp("JobPage/properties/result/properties/jobs")),
+			NextCursor: paths(componentProp("JobPage/properties/result"),
+				componentProp("JobPage/properties/result/properties/nextPageToken")),
+			Stop: []ir.PageStop{ir.PageStopNoNext}},
+	} {
+		assert.Equal(t, want, op.Pagination, op.Name.Source)
+		assert.Equal(t, ir.Inferred("pagination-inference"), op.Provenance.Inferred, op.Name.Source)
+	}
+
+	events := linkOp(t, doc, "listEvents")
+	assert.Nil(t, events.Pagination, "two continuations settle no walk")
+	assert.Equal(t, []ir.Severity{ir.SeverityInfo}, diagsAt(diags, "openapi/undecided-pagination", "/paths/~1events/get"))
+	reported := 0
+	for _, d := range diags {
+		if d.Code == "openapi/undecided-pagination" {
+			reported++
+		}
+	}
+	assert.Equal(t, 1, reported, "and no other operation is reported")
+}

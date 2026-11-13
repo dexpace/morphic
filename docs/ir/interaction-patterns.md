@@ -59,7 +59,10 @@ another. The conditions are a closed set, each listed once and any one ending th
 | `total` | after which the items read reach `TotalCount`, or the pages read reach `TotalPages` |
 
 An empty `Stop` states no rule, and a consumer reads none into the shape: where a pager then ends is
-the emitter's ([pagination](../emitters/operations/pagination.md#where-a-page-walk-ends)).
+the emitter's ([pagination](../emitters/operations/pagination.md#where-a-page-walk-ends)). A
+`Pagination` marked `Inferred` holds what a compiler's policy read off the names a source uses,
+`Stop` among them, where the source states no walk at all, as an OpenAPI document cannot
+([`pagination-policy`](../compilers/openapi.md#pagination-policy)).
 
 ## Long-running operations
 

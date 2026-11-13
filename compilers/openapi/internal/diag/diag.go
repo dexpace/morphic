@@ -512,6 +512,12 @@ const (
 	// Info, as InferredNullable is: the reading is the document's evident
 	// intent, and the mark keeps the declared one.
 	InferredDiscriminator = "openapi/inferred-discriminator"
+	// UndecidedPagination reports an operation whose query parameters name a
+	// pagination input the pagination-inference policy cannot settle into an
+	// ir.Pagination, saying why, at the operation: it is left with none
+	// (docs/compilers/openapi.md#pagination-policy). Info: the document
+	// declares no pagination, so nothing it says is lost.
+	UndecidedPagination = "openapi/undecided-pagination"
 )
 
 // Newf builds an ir.Diagnostic with a formatted message. It is the single

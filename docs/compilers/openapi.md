@@ -4498,11 +4498,62 @@ field bound through `HTTPParamBinding.ParamPath`.
 
 ### `pagination-policy`
 
-Pagination is set only by an injectable policy, and what it sets is marked `Inferred` (invariant 6):
-the compiler reads no pagination out of a document's parameter or response names by itself.
+OpenAPI has no keyword for pagination, so an operation states its walk only by the names it uses,
+which the pagination-inference policy reads: the Go option `Options.PaginationInference`, whose zero
+value is on and whose `Disabled` infers none, and the text option `pagination-inference`, which
+`false` turns off (invariant 6). It reads each operation the client sends, a webhook or a callback
+being one it receives, once the registry is whole, and fills only an operation holding no
+`Pagination`, so it runs after every step that fills one the document declares and a declared walk
+always wins. A name is compared by its canonical words (`Naming.Canonical`), so `pageSize` and
+`page_size` are one name:
 
-- Status: not built: no policy infers pagination yet, and no promotion reads it from an extension,
-  so the compiler sets no `Pagination` (#989, #656).
+1. **Where a walk continues** is a query parameter named `page` or `page_number`, under the `page`
+   strategy; `offset`, under `offset`; `cursor`, under `cursor`; or `page_token`, `next_token` or
+   `continuation_token`, under `token`. It is `InputCursor`, and a query parameter named `per_page`,
+   `page_size` or `limit` beside it is `InputLimit`. Each is a value a walk sends or counts with:
+   its type, read through alias scalars, is an integer of any width, `number` or `string`. A name
+   such as `after`, `marker` or `starting_after`, which names a cursor in one API and a filter or
+   an ID in another, is not read.
+2. **A page** is the body of each content of each success response, the `Default` aside, and each
+   must hold what the walk reads at the same members, as a pager reads whichever arrives. A path
+   starts at the body whole. A list body holds the items whole, an `Items` with no segment, and no
+   next cursor. A model's members are read across its composition (`ir.FlattenedProperties`), each
+   as the declaration the flattening takes, which is the type a page decodes it as, and its items
+   are the one list member named `result`, `results`, `data`, `items`, `records`, `entries` or
+   `values`; where no list is so named, the one list the one model member so named holds; else the
+   body's one list.
+3. **The next cursor** of a `cursor` or a `token` walk is `NextCursor`: the one member of the body,
+   or of a model a member of it holds, of the cursor's own primitive, named as the cursor with
+   `next` before it, or, where no member is so named, as the cursor itself, since a page naming
+   both echoes the cursor it was sent beside the next. Such a walk lists `no_next` in `Stop`, as an
+   empty next cursor names no page; a walk under `page` or `offset` lists none, a page holding no
+   items ending it whatever `Stop` lists
+   ([pagination](../emitters/operations/pagination.md#where-a-page-walk-ends)).
+4. **The totals** are `TotalCount`, the one member named `total_count`, and `TotalPages`, the one
+   named `total_pages`, each of a type a walk counts with, in the body or in a model a member of it
+   holds. A page naming none or several states no total, and the field is unset.
+
+What the policy fills is marked twice: `Pagination.Inferred` is set, and the operation's
+`Provenance.Inferred` names `pagination-inference`. An operation whose query parameters name where
+a walk continues and that the policy cannot settle gets no `Pagination`, never a guess, reported as
+an info `openapi/undecided-pagination` at the operation's declaration naming what stops it: two
+parameters naming a continuation or a page size, one of a type a walk does not send, no success
+response or one with no body, a body that is neither an object nor a list, items or a next cursor
+it names none or several of, or bodies holding the page at different members. A path item mounted
+twice is reported once, at the declaration both mounts share.
+
+- Cases: `pagination-inferred`
+- Codes: `openapi/undecided-pagination`
+- Tests: `pagination.TestInfer_ReadsEachStrategy`, `pagination.TestInfer_MarksWhatItFills`,
+  `pagination.TestInfer_LeavesWhatItCannotSettle`, `pagination.TestInfer_ReadsEveryResponse`,
+  `pagination.TestInfer_LeavesAnOperationNamingNoWalk`,
+  `pagination.TestInfer_KeepsAPaginationTheOperationHolds`,
+  `pagination.TestInfer_ReadsTheSameInEitherOrder`,
+  `pagination.TestInfer_ReadsAMountedDeclarationForEachMount`,
+  `pagination.TestResolve_ReadsAtMostTheBound`,
+  `lowering.TestOperations_ReadsEveryGroupToTheCap`,
+  `lowering.TestPaginationInference_TheZeroValueHonoursThePolicy`,
+  `openapi.TestDecodeOptions_TextReachesEveryField`
 
 ## 16. Swagger 2.0
 

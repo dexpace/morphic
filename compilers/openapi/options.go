@@ -141,6 +141,17 @@ type DiscriminatorInference = lowering.DiscriminatorInference
 // and a subtype's where it read its tag.
 const DiscriminatorInferenceHeuristic = lowering.DiscriminatorInferenceHeuristic
 
+// PaginationInference is the pagination-inference policy: whether an
+// operation's pagination is read off the names of its query parameters and of
+// its success responses' members. It is another injectable-policy seam
+// (architecture principle 6), and is named here rather than restated for the
+// reason GroupingStrategy is.
+type PaginationInference = lowering.PaginationInference
+
+// PaginationInferenceHeuristic is the name an operation's Provenance.Inferred
+// carries where the pagination-inference policy filled its Pagination.
+const PaginationInferenceHeuristic = lowering.PaginationInferenceHeuristic
+
 // DefaultExtensionPromotions returns the extension-to-field mapping applied
 // when the caller names none. It is exported so a caller changing the mapping
 // can start from it rather than transcribe it.
@@ -189,6 +200,11 @@ type Options struct {
 	// values it admits, what it reads marked as inferred. The zero value is on;
 	// a caller who wants only what the document declares disables it.
 	DiscriminatorInference DiscriminatorInference `json:"discriminatorInference"`
+	// PaginationInference selects whether an operation's pagination is read off
+	// the names of its query parameters and of its success responses' members,
+	// what it reads marked as inferred. The zero value is on; a caller who wants
+	// only what the document declares disables it.
+	PaginationInference PaginationInference `json:"paginationInference"`
 	// AllowExternalRefs lets a read of another document leave the directory of
 	// Source.Path, against which references resolve, for any file and http(s)
 	// URLs. Off by default, since a spec is untrusted: reads stay inside that
@@ -424,6 +440,7 @@ const (
 	optOverlayLax             = "overlay-lax"
 	optNullableWidening       = "nullable-widening"
 	optDiscriminatorInference = "discriminator-inference"
+	optPaginationInference    = "pagination-inference"
 	optStreamingMedia         = "streaming-media"
 	optStreamingInference     = "streaming-inference"
 	optBinaryMedia            = "binary-media"
@@ -449,8 +466,8 @@ func limitOptions(l *Limits) map[string]*int {
 func optionNames() []string {
 	names := []string{
 		optGrouping, optGroupingKey, optGroupingLists, optGroupingFallback, optAllowExternalRefs, optOverlay,
-		optOverlayLax, optNullableWidening, optDiscriminatorInference, optStreamingMedia, optStreamingInference,
-		optBinaryMedia, optBinaryInference,
+		optOverlayLax, optNullableWidening, optDiscriminatorInference, optPaginationInference, optStreamingMedia,
+		optStreamingInference, optBinaryMedia, optBinaryInference,
 	}
 	names = slices.AppendSeq(names, maps.Keys(limitOptions(&Limits{})))
 	slices.Sort(names)
@@ -518,6 +535,11 @@ func (d *optionDecode) set(key, value string) error {
 		on := true
 		err := decodeBool(&on, key, value)
 		d.opts.DiscriminatorInference.Disabled = !on
+		return err
+	case optPaginationInference:
+		on := true
+		err := decodeBool(&on, key, value)
+		d.opts.PaginationInference.Disabled = !on
 		return err
 	case optStreamingMedia:
 		return decodeMediaList(&d.opts.StreamingMedia.MediaTypes, key, value)

@@ -254,6 +254,7 @@ func conformanceCases() []conformanceCase {
 		{"per-status-errors", assertPerStatusErrors},
 		{"default-response", assertDefaultResponse},
 		{"response-links", assertResponseLinks},
+		{"pagination-inferred", assertPaginationInferred},
 		{"webhooks", assertWebhooks},
 		{"callbacks", assertCallbacks},
 		{"inline-hoist-positions", assertInlineHoistPositions},
