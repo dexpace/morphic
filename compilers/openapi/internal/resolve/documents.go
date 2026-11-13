@@ -32,8 +32,8 @@ func documentOf(ref references.Reference, base string) (string, bool) {
 // the resolver's, departing from the resolver's own thrice: against an
 // http(s) URL, an absolute path resolves by RFC 3986 §5.2; a file path is read
 // decoded (FilePart); and a relative path whose first segment holds a colon
-// keeps a leading "./" (RFC 3986 §4.2). The load phase respells for the
-// resolver to agree on the first two (ForResolver).
+// keeps a leading "./" (RFC 3986 §4.2). The load phase respells the first
+// two for the resolver (ForResolver).
 func Locate(uri, base string) (string, bool) {
 	uri = strings.TrimSpace(uri)
 	if b, ok := networkURL(base); ok && uri != "" {
