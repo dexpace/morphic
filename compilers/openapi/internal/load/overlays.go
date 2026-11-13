@@ -11,6 +11,7 @@ import (
 	yaml "go.yaml.in/yaml/v3"
 
 	"github.com/dexpace/morphic/compilers"
+	"github.com/dexpace/morphic/compilers/openapi/internal/bind"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/overlay"
 	"github.com/dexpace/morphic/compilers/openapi/internal/provenance"
@@ -33,7 +34,7 @@ func readOverlay(ctx context.Context, opts Options) (Options, []ir.Diagnostic, e
 	if opts.Overlay.Path == "" {
 		return opts, nil, errors.New("openapi: the overlay holds no bytes and names no file to read")
 	}
-	if overNetwork(opts.Overlay.Path) {
+	if bind.OverNetwork(opts.Overlay.Path) {
 		return opts, nil, fmt.Errorf("openapi: overlay %s names a URL; an overlay is read from a local file",
 			opts.Overlay.Path)
 	}

@@ -19,7 +19,8 @@ Closed: true, InputOnly: true}` with a variant per field** (never a model of opt
 that is the union-to-optional-fields collapse [design rule 2](./README.md#design-rules) forbids),
 custom scalars → `Scalar` with `Base = nil`, entry-point fields → operations (field args → `Params`,
 field type → response), nested field arguments → `Property.Args` at any depth, subscriptions →
-`GraphQLBinding{Kind: "subscription"}` + `StreamingMode: server` + `ResponseStream`.
+`GraphQLBinding{Kind: "subscription"}` + `StreamingMode: server` + `ResponseStream`, and `Stream` on
+the response's `Content` ([payloads](./payloads.md#a-content-that-streams)).
 
 Directive conventions (normative): applications are ordered and repeatable, so
 `Unmodeled["graphql:@<name>"]` holds an **ordered JSON array** of application argument objects

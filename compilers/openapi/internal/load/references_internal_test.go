@@ -170,7 +170,8 @@ components:
 
 	t.Run("within another document", func(t *testing.T) {
 		t.Parallel()
-		dir := t.TempDir()
+		dir, err := filepath.EvalSymlinks(t.TempDir())
+		require.NoError(t, err)
 		writeFile(t, dir, "ext.yaml", "components:\n  responses:\n    A: {$ref: '#/components/responses/Missing'}\n")
 		src := compilers.Source{Path: filepath.Join(dir, "root.yaml"), Data: []byte(`openapi: 3.1.0
 info: {title: T, version: "1"}
@@ -280,7 +281,8 @@ func assertFailures(t *testing.T, got []ir.Diagnostic, want map[jsontext.Pointer
 // reaches no object to check, and its failure is pinned.
 func TestResolve_AFindingNamesTheDocumentItIsIn(t *testing.T) {
 	t.Parallel()
-	dir := t.TempDir()
+	dir, err := filepath.EvalSymlinks(t.TempDir())
+	require.NoError(t, err)
 	writeFile(t, dir, "ext.yaml", `components:
   responses:
     R: {content: {}}

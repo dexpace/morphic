@@ -7,6 +7,7 @@ import (
 	"context"
 	"encoding/json/jsontext"
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -278,6 +279,28 @@ func TestLoad_ADocumentThatFailsToBuildIsAGoError(t *testing.T) {
 	assert.Contains(t, err.Error(), "source 5", "the failing source is named")
 	assert.Nil(t, doc)
 	assert.Nil(t, diags)
+}
+
+// TestLoad_RejectsARelativeLocation pins that a source's Location, where it
+// lies, must be absolute: a relative one would read its references against the
+// working directory, which it is there to keep out of the compile. It is a
+// caller's mistake, a Go error; an absolute one, and none, are read.
+func TestLoad_RejectsARelativeLocation(t *testing.T) {
+	t.Parallel()
+	src := openapitest.SourceOf(minimal31)
+	src.Location = "api/spec.yaml"
+
+	refused, diags, err := Load(t.Context(), 0, src, Options{})
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), `location "api/spec.yaml" is not an absolute path`)
+	assert.Nil(t, refused)
+	assert.Nil(t, diags)
+	src.Location = filepath.Join(t.TempDir(), "spec.yaml")
+	got, diags, err := Load(t.Context(), 0, src, Options{})
+	require.NoError(t, err, "%+v", diags)
+	assert.Equal(t, src.Location, got.Location, "an absolute one is where its references are read")
+	assert.Equal(t, src.Path, got.Source.Path, "and the path handed is what Document.Sources records")
 }
 
 // TestLoad_RejectsAnOverlaySharingTheSourceIndex pins the one way the
