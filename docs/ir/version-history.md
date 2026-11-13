@@ -470,7 +470,29 @@ it sees. Changes made together in one bump are listed together under it.
   headers](./responses.md#prefix-headers)). `irverify` holds such a header to a map type and no
   wire name, and `irfacts.CorrelationVersion` moved to 3, keying it by its prefix. No compiler
   fills it yet. A consumer pinned to 0.45.0 refuses a document with a prefix header.
-- **0.47.0** — no shape change. The OpenAPI compiler writes a count, `minLength`, `maxLength`,
+- **0.47.0** — the empty prefix of a parameter's binding got a spelling, and other fields a request
+  is written by changed meaning ([HTTP binding](./http-binding.md)):
+  - `HTTPParamBinding.Prefix` became a pointer, nil for a binding of one field, so the empty prefix,
+    which takes every header or query parameter, as Smithy's `@httpPrefixHeaders("")` and
+    `@httpQueryParams` bind one, is a prefix ([prefix bindings](./http-binding.md#prefix-bindings)).
+    `irverify` holds a binding under a prefix to a `header` or `query` location, to no wire name
+    and, binding a whole parameter, to a map type, and `irfacts.CorrelationVersion` moved to 4,
+    keying such a parameter by its prefix. No compiler fills it yet. A consumer pinned to 0.46.0
+    reads the empty prefix as no prefix.
+  - A nil `HTTPBinding.PatchImplicitOptionality` states nothing, so a `PATCH` body requires what
+    its schema requires; only `true` makes every member optional ([patch
+    optionality](./http-binding.md#patch-optionality)). A consumer pinned to 0.46.0 relaxed every
+    `PATCH` body on nil, and so let a caller leave out what the server requires.
+  - A value whose `HTTPParamBinding.PathPattern` names several segments is percent-encoded in all
+    but `/` and RFC 3986's unreserved characters, whatever `AllowReserved` says, and a consumer
+    that cannot check a value against the pattern skips that check, never the pattern. One pinned
+    to 0.46.0 sent such a value under RFC 6570's reserved expansion, or as one segment.
+  - `AllowReserved`, on a parameter's binding and on a part's encoding, passes percent-encoded
+    triples unescaped beside the reserved characters, as RFC 6570's reserved expansion does. A
+    consumer pinned to 0.46.0 encoded a triple's `%` again.
+  - `HTTPBinding.RequestContentTypes` lists the request body's media types in source order and
+    states no preference among them, where it was worded as priority-ordered.
+- **0.48.0** — no shape change. The OpenAPI compiler writes a count, `minLength`, `maxLength`,
   `minItems`, `maxItems`, `minProperties` or `maxProperties`, past what a 64-bit integer holds to
   no `Constraints` field, where it wrote `0` or a number the source does not state, and keeps it
   verbatim under `openapi:<keyword>` (`degraded_lowering`) on the node or carrier the position owns
@@ -484,6 +506,6 @@ it sees. Changes made together in one bump are listed together under it.
   holds two enums' shared values of the narrower value type, where it kept the first enum of
   different value types, and holds what an alias of an enum, a `const`, a `Scalar`, a list, a map
   or a tuple meets beside the node it stands for, where it kept the first; an alias adding only
-  null to a type beside it gives that type. A consumer pinned to 0.46.0 that read such a count's
+  null to a type beside it gives that type. A consumer pinned to 0.47.0 that read such a count's
   field finds none there, one reading such a branch under `openapi:allOf/<n>` finds its keywords at
   the position instead, and one reading such a field may find a node minted for it.
