@@ -913,6 +913,8 @@ extension that converts to no JSON is [`vendor-extensions`](#vendor-extensions)'
 - Codes: `openapi/unpreservable-construct`
 - Tests: `schema.TestAllOf_UnpreservableBranchIsNotAnnounced`,
   `schema.TestCoDeclaredFamily_UnpreservableIsNotAnnounced`,
+  `schema.TestConstraints_ACountPastTheDecimalRangeIsRefused`,
+  `schema.TestAllOf_TheBindingCountPastTheDecimalRangeIsRefusedInEveryOrder`,
   `annotation.TestValidationOnlyAt_AnUnconvertibleKeywordIsReportedNotKept`,
   `annotation.TestRawFromNode_PreservesMergeAndOrderingSemantics`,
   `annotation.TestRawFromNode_NamesTheRepeatedKey`, `annotation.TestScalarRenderers_AgreeOnKind`,
@@ -1710,11 +1712,15 @@ bounds and the counts `minItems` and `maxItems` agree where they meet, as a rede
 ([`allof-redeclared-property`](#allof-redeclared-property)): `maxLength: 3` beside `maxLength: 5`
 folds to `3`, `minItems: 1` beside `minItems: 2` to `2`, and `multipleOf: 4` beside `multipleOf: 6`
 to `12`, whatever their order, a number written two ways keeping the first spelling. Two `pattern`s
-have no one value, and neither has a 3.0 `exclusiveMinimum` with no bound beside it, which fills no
-field, so each disagrees with another written differently. A branch whose folding keywords write a
-relative `$ref` it reads against another base than the position does, an `$id` at or above it naming
-another URI, folds nothing either, since that `$ref` would name another schema read at the position;
-it stays whole, with its report, and is no conjunct the others are compared with. One writing none
+have no one value, so each disagrees with another written differently. A writer stating no value
+parts no other: a 3.0 `exclusiveMinimum` of `false`, or of `true` with no bound beside it, which
+fills no field, and a bound the load phase refuses ([`validation`](#validation)) say nothing a value
+must meet, so its branch folds where nothing else parts it, and what the writer wrote is read and
+reported at its own pointer, and kept where the same keyword beside the `allOf` is. A branch whose
+folding keywords write a relative `$ref` it reads against another base than the position does, an
+`$id` at or above it naming another URI, folds nothing either, since that `$ref` would name another
+schema read at the position; it stays whole, with its report, and is no conjunct the others are
+compared with. One writing none
 there, or only absolute ones, reads the same at the position, so an `$id` alone keeps nothing it
 writes from folding.
 
@@ -1757,6 +1763,8 @@ every entry reads that one twice.
   `schema.TestVoices_AKeywordFoldsWhereTheAllOfWouldKeepIt`,
   `schema.TestVoices_ABranchDisagreeingFoldsNothingInEveryOrder`,
   `schema.TestVoices_BoundsMeetInEveryOrder`,
+  `schema.TestVoices_ARefusedBoundPartsNoWriter`,
+  `schema.TestAgreement_ReadsABoundInTheDialectOfItsSchemas`,
   `schema.TestVoices_KeywordsOneEntryHoldsDisagreeAsOne`,
   `schema.TestVoices_UnevaluatedFalseStaysTheModels`,
   `schema.TestVoices_AUseBindingKeywordReachesItsCarrierOrItsNode`,
@@ -1789,28 +1797,33 @@ this order.
 unconvertible const), which is unrelated to every type, and so does an alias of `{}` that says
 nothing of its values: as a field's own type it may hold the docs, deprecation and redaction a
 reference carries down to the field ([annotations](../ir/annotations.md#what-a-reference-carries-down)),
-and anywhere else nothing but where it was declared. Where `{}` loses, the winner's own null
+and anywhere else nothing but where it was declared. Two such types lose to neither: what else each
+says decides, so an alias of one is narrower than the other it stands for, and two aliases neither
+standing for the other are not compared. Where `{}` loses, the winner's own null
 admission stands alone, since `{}` admits null yet lowers non-nullable. Two bare primitives compare
 by value domain and spelling (`integer` against `number`, `uuid` against `string`, `int32` against
 `int64`). A `Scalar` or `Enum` against a bare primitive wins over a kind it equals or narrows
 (`string` against `format: byte`, or an unknown format over bare `string`), is disjoint from a kind
 of another family, or from another string format where neither is `bytes` (`uuid` against
 `format: date`), and overlaps any other kind (`uuid` against `format: byte`); for an `Enum`, that
-overlap is disjoint where the kind's judge refuses every member. A `Scalar`'s kind is that of the
-values it travels as: its base's, but for a base its `Encoding`'s `WireType` does not spell, whose
-values travel as that type, so `format: unixtime` on an `integer` is narrower than `integer`,
-overlaps `int64` and is disjoint from `string`, while `byte` stays `bytes`, which a `string` spells.
-A string format whose text an `Encoding` names otherwise, as `http-date` and `contentEncoding` do,
-has no judge, as `bytes` has none, since the format's own grammar reads another text: an enum of
-HTTP-dates beside `format: http-date` overlaps it. A `Scalar` hoisted for `time`,
+overlap is disjoint where the kind's judge refuses every member, an enum behind an alias, as a
+member written beside a bound is, judged by the members of the enum it stands for, which the alias
+can only narrow. A `Scalar`'s kind is that of the values it travels as: its base's, but for a base
+its `Encoding`'s `WireType` does not spell, whose values travel as that type, so `format: unixtime`
+on an `integer` is narrower than `integer`, overlaps `int64` and is disjoint from `string`, while
+`byte` stays `bytes`, which a `string` spells. A string format whose text an `Encoding` names
+otherwise, as `http-date` and `contentEncoding` do, has no judge, as `bytes` has none, since the
+format's own grammar reads another text: an enum of HTTP-dates beside `format: http-date` overlaps
+it. A `Scalar` hoisted for `time`,
 whose grammar, RFC 3339's `full-time`, the compiler holds though the table pairs it with no kind
 ([`string-formats`](#string-formats)), is read wherever a kind is, through an alias too, as a
 string format of its own: within `string`, an overlap with `bytes`, and disjoint from every other
 kind, `time-local` and `date-time` among them, and from an `Enum` none of whose members it
 admits. An enum with no members is refused
 vacuously, so it is disjoint from any kind it would otherwise overlap, `bytes` included; an enum
-with members against `bytes` stays an overlap. A `const` wins when the kind admits its value; where
-it does not, it is disjoint from a kind with a judge and overlaps `bytes`, which has none. Against a
+with members against `bytes` stays an overlap. A `const`, or an alias of one, wins when the kind
+admits its value; where it does not, it is disjoint from a kind with a judge and overlaps `bytes`,
+which has none. Against a
 `Scalar` hoisted for `time`, a `const` is disjoint where the node refuses its value, and wins where
 the node admits it and says nothing but its base, the format and bounds, so a field typed by the
 `const` loses none of it. Where the node also says what a `const` can hold beside its value, a
@@ -1825,14 +1838,17 @@ are two types the source declared apart, which overlap. A copy is one type with 
 gives way to it, only where what the two keep under `Unmodeled` writes no relative `$ref`, or both
 read it against one base where each is written: under an `$id` naming another URI, or in another
 document, a `$ref` spelled alike names another schema, so the two were declared apart and overlap.
-Two `const`s of different values share none, so they are disjoint. Two enums of one value type,
-closedness, bit-flag reading and fallback, whose members holding one value say the same of it, are
-judged by the values they hold: sharing none, they are disjoint; one whose values the other holds
-every one of is narrower where it also says all the other does beside its members, and otherwise the
-two meet, as do two each holding a value the other lacks, in an enum of the values they share
-(below), where both list those values in one order. Two listing them in different orders overlap,
-since an enum of both would take its order from one declaration. Two holding one set of values in
-another order or saying the rest differently, and any other pair of enums, are judged by their kind.
+Two `const`s of different values share none, so they are disjoint. Two enums of one closedness,
+bit-flag reading and fallback, whose members holding one value say the same of it, are judged by
+the values they hold: sharing none, they are disjoint, whatever their value types. Of two value
+types one within the other, the narrower says more (`integer` against `number`), so one whose
+values the other holds every one of, of the same value type or the narrower, is narrower where it
+also says all the other does beside its members, and otherwise the two meet, as do two each holding
+a value the other lacks, in an enum of the values they share, of the narrower value type (below),
+where both list those values in one order. Two listing them in different orders overlap, since an
+enum of both would take its order from one declaration. Two holding one set of values of one value
+type, or in another order, or saying the rest differently, two of value types neither within the
+other (`int32` against `uint32`), and any other pair of enums, are judged by their kind.
 Two models alike in every member but where they and what they name were declared (the same
 properties in the same order, each with the same wire name, required flag, visibility, docs,
 constraints, values and kept text, and the same catch-all, composition and discriminator, its tag
@@ -1844,6 +1860,23 @@ apart, and models alike in all but a type that relates otherwise are no copies, 
 composes as two models do (below). One judgment compares at most 64 pairs of models member by
 member, since a `$ref` to a sibling position adds width at no cost in document size; past that the
 two are unrelated and compose, which loses nothing.
+An alias is narrower than the type it stands for, whatever its kind: a reference to it reads all
+that type says, and it may say more. One whose chain admits null, as `{anyOf: [E, {type: null}]}`
+does, is not, since `E` refuses null: where the chain adds nothing else, docs included, `E` is
+narrower and the field holds it, and otherwise the two are judged as below. Against any other type, an alias whose chain ends in an enum,
+a `const`, a `Scalar`, a list, a map or a tuple is judged, and a node it meets built, as that node
+holding the bounds the chain and the node say together and each detail the nearest of them sets,
+documentation field by field, as a reference to the alias reads it
+([annotations](../ir/annotations.md#what-a-reference-carries-down)). So `{$ref: E, description: d}`
+and an `allOf` of `E` alone each meet an enum beside them as `E` would, holding what they add, and
+a title over an alias holding a description keeps both. Two aliases of one node are read only down
+to it, so they are judged as two `Scalar`s of one base are, and meet in an alias of it. A chain
+giving an encoding, bounds no one value states, bounds that a value an enum or a `const` lists fails
+or that nothing here judges, such as a `pattern` on one, any bound on an open enum, which bounds the
+values it does not list too, or keeping a relative `$ref` under `Unmodeled` is judged as it is
+written. Whatever the arm, a type admitting null through its alias chain is narrower than no type
+whose reference refuses null, since a field holding it would admit null all the same: the two
+overlap. The top type, which loses before any arm, refuses no null whatever its reference says.
 Two lists, two maps with one key, or two tuples of one length are judged by their parts: each
 element, value or position, with what may follow a tuple's last, judged as a pair a level down, null
 included, nested up to a bound; their bounds, a keyword with no order (`pattern`) given two ways
@@ -1863,8 +1896,8 @@ still overlap where both admit null, or where both containers admit the empty on
 related otherwise leave their containers so. A tuple that a container or another tuple holds is not
 compared, since a tuple has a member per position where any other node has one, and comparing them
 nested would cost its width to the power of the depth. A structure is narrower than
-one it says it is: an alias than the type it stands for, and a model than what it composes through
-`Base` or `Mixins`, read through aliases, up to 64 types for one question. A model, a map or a
+one it says it is: a model than what it composes through `Base` or `Mixins`, read through aliases,
+up to 64 types for one question. A model, a map or a
 `const` object is narrower than a model saying nothing but `type: object`, and two such models are
 judged as two equal enums are. That model says nothing at all but where it was declared, and an
 alias of it is not one, since an alias may say more: a type composing another still reaches it,
@@ -2052,7 +2085,8 @@ value where one is never empty. Types that share values but that the merge does 
 a `const` against a kind with no judge, against a node that ends in a kind, but for the `time` node
 above, or against a `const` of its value saying more, two `Scalar`s of different encodings, such as
 `format: hex` against `format: byte`, which no one node holds, two nodes saying one set of values
-differently, two enums listing the values they share in different orders, two nodes giving one
+differently, two enums listing the values they share in different orders, two enums of value types
+neither within the other sharing a value, two nodes giving one
 detail differently or examples only one gives, or two lists or maps whose members share only null
 or share nothing while both admit the empty one) are named in an info `openapi/degraded-construct`,
 and so are two types the judgment does not compare (a list and a tuple, a map or a union with no
@@ -2138,6 +2172,19 @@ field's first 64 at most; each later one is kept verbatim, unjudged, under an
   `merge.TestBuilder_RefusesWhatNoNodeHolds`,
   `merge.TestFold_AValueIsJudgedByTheNodeTheFieldHolds`,
   `schema.TestAllOf_ADefaultIsJudgedByTheNodeTheFieldHolds`,
+  `merge.TestFold_EnumsOfDifferentValueTypesAreJudgedByTheirValues`,
+  `merge.TestFold_ThreeEnumsMeetInTheNarrowestValueType`,
+  `schema.TestAllOf_EnumsOfDifferentValueTypesAreJudgedByTheirValues`,
+  `merge.TestView_ReadsAnAliasAsTheNodeItStandsFor`,
+  `merge.TestView_StopsAtTheNodeTheChainsShare`,
+  `merge.TestSharedLink_NamesTheFirstNodeEveryChainNames`,
+  `merge.TestAliasedNode_ReadsAChainUpToItsBound`,
+  `merge.TestStandsFor_ReadsOnlyAnAliasChain`,
+  `merge.TestFold_AnAliasMeetsAsTheNodeItStandsFor`,
+  `merge.TestFold_AnAliasIsWithinTheNodeItStandsFor`,
+  `schema.TestAllOf_AnAliasMeetsAsTheNodeItStandsFor`,
+  `schema.TestAllOf_AMemberBehindAnAliasIsJudgedByWhatItStandsFor`,
+  `schema.TestAllOf_AnAliasIsJudgedByWhatItAdds`,
   `merge.TestUnaliased_ReadsAChainUpToItsBound`,
   `merge.TestComposes_ReadsAChainUpToItsBound`,
   `merge.TestComposes_ReadsEachPartOnce`,
@@ -2238,14 +2285,15 @@ field's first 64 at most; each later one is kept verbatim, unjudged, under an
   `schema.TestAllOf_RedeclarationsWritingNoRelativeReferenceFoldUnderAnyBase`,
   `schema.TestAllOf_ACopyOfAComponentUnderAnotherBaseStaysApart`,
   `e2e.TestExternalContent_ACopyOfAnotherDocumentsComponentStaysApart`
-- Status: partly built: two enums of different value types are judged by their kind, so one within
-  the other overlaps it rather than narrowing (#1654); a structure stating no instance type that
-  refuses some kinds only through a `oneOf`, `anyOf`, `not` or `if` reads as stating its type, so
-  it conflicts with a kind it admits (#1671); an alias of an enum, a `Scalar` or a list is judged
-  by its kind beside a node it could meet, so the two overlap or are not compared rather than
-  meeting (#1672); a model and the wrapper it flattens that fold different sets only because the
-  model stops at the flattening depth are refused as `compile/registry-refused`, not told apart,
-  since one declaration names both.
+- Status: partly built: a structure stating no instance type that refuses some kinds only through
+  a `oneOf`, `anyOf`, `not` or `if` reads as stating its type, so it conflicts with a kind it admits
+  (#1671); two enums of value types neither within the other (`int32` against `uint32`) overlap,
+  keeping the first, though they share values, since the IR has no value type for what both admit;
+  an alias adding docs to the null it adds is not read as adding null alone, though a reference
+  carries an alias's docs to its use, since a use site whose `$ref` chain runs on past the alias
+  takes the docs where the chain ends instead (#1029); a model and the wrapper it flattens that fold different sets only because the model stops at the
+  flattening depth are refused as `compile/registry-refused`, not told apart, since one declaration
+  names both.
 
 ### `allof-required`
 
@@ -2384,7 +2432,8 @@ A schema whose `type` lists more than one type lowers to a `Union` with one vari
 other than `null`, in order, each lowered from the same schema as that type alone and named by it: a
 shared primitive for a scalar type, and for `object` or `array` a node hoisted at
 `<pointer>/type/<index>`. A `null` among them makes the position nullable instead
-([`nullable`](#nullable)), so one type and `null` lower as that type alone, nullable. The union is
+([`nullable`](#nullable)), so one type and `null` lower as that type alone, nullable, and a list of
+`null` alone as a schema of `null` alone does ([`null-alone`](#null-alone)). The union is
 exclusive unless two listed types overlap: `integer` and `number`, the one pair of JSON types that
 do, since every integer is a number, or a type listed twice, which [`validation`](#validation)
 reports. Two variants the types resolve to one primitive, as a width does
@@ -2427,29 +2476,76 @@ and teaching the relation the step would change what it means for every document
 
 ### `union-null-variant`
 
-A `oneOf` or `anyOf` with exactly one branch that is not a bare `type: null`, beside one or more
-that are, lowers to a nullable reference to that branch's lowering rather than to a `Union`
-([type-graph](../ir/type-graph.md#type-references)). The collapse is held to a `$ref` site's
-rule ([models](../ir/models.md#composition-entries)), since it too lowers to a reference: a
-collection bound beside it reaches what the position owns ([`constraints`](#constraints)), and a
-keyword beside it that no reference holds — a `discriminator`, a `format` other than `password` —
-is kept verbatim under `openapi:<keyword>` (`degraded_lowering`) on the node or carrier owning the
-position, with an info `openapi/degraded-construct` at the position.
+A null branch of a `oneOf` or `anyOf` is one written inline whose own keywords admit `null` alone
+([`null-alone`](#null-alone)), whatever spells it: `type: "null"`, an `enum` of `null` alone,
+`const: null`, or 3.0's `{type: object, enum: [null], nullable: true}`. It is no variant, since it
+would lower on its own to the `Enum` with no member whose one value the reference's `Nullable` bit
+states, so the union's reference admits `null` instead ([`nullable`](#nullable)). A `oneOf` or
+`anyOf` with exactly one branch that is not a null branch, beside one or more that are, lowers to a
+nullable reference to that branch's lowering rather than to a `Union`
+([type-graph](../ir/type-graph.md#type-references)); one with several lowers to a `Union` of them
+behind a nullable reference. A `oneOf` of two null branches admits no `null` by JSON Schema, which
+`null` would match twice, yet one null branch or several are read alike, as the union's `null`: the
+document contradicts itself, and this rule does not read it otherwise. A `$ref` branch naming a
+schema of `null` alone stays a variant, a nullable reference to that schema's `Enum`, which an
+emitter reads as the union's `null` ([unions](../emitters/refine/unions.md#a-null-a-variant-admits)):
+it names a node the source declares, which lifting it would drop, and reading it would take a
+distant declaration. A branch whose `null` only the nullable-widening policy admits is a null branch
+while the policy is on, and the reference's `null` then names it in `Inferred`, with its
+`openapi/inferred-nullable` info at the branch ([`nullable`](#nullable)); with the policy off, the
+branch admits nothing and is a variant.
 
-- Cases: `nullable-union-discriminator`, `nullable-31-ref`
-- Codes: `openapi/degraded-construct`
+A null branch writing a key beside `type`, `enum`, `const`, and a `nullable` its dialect or the
+nullable-widening policy reads, such as a `description`, is kept whole under
+`openapi:<combinator>/<index>`, the branch's path from the schema, with the reason `no_ir_home`,
+since the `null` is typed exactly and only what the branch says of it has no field: on the `Union`
+the branches leave, or, where they collapse, where the position keeps what else the collapse cannot
+hold, below. It is reported as an info `openapi/degraded-construct` at the branch. A `nullable`
+nothing reads is a keyword the branch's dialect does not define, which keeps the branch as any other
+does, and a `null` written for one of those keys is the key left out
+([`null-keywords`](#null-keywords)), and keeps nothing. An `enum` that repeats its `null` is the
+document's whichever path takes the branch, so each repeat is reported as an
+`openapi/duplicate-enum-value` warning at it, as for that `enum` written alone
+([`enum-const`](#enum-const)).
+
+The collapse is held to a `$ref` site's rule ([models](../ir/models.md#composition-entries)), since
+it too lowers to a reference: a collection bound beside it reaches what the position owns
+([`constraints`](#constraints)), and a keyword beside it that no reference holds — a
+`discriminator`, a `format` other than `password` — is kept verbatim under `openapi:<keyword>`
+(`degraded_lowering`) on the node or carrier owning the position, with an info
+`openapi/degraded-construct` at the position. A null branch kept whole lands beside them: on the
+carrier of a property, parameter or header, and on an alias hoisted at any other position.
+
+- Cases: `nullable-union-discriminator`, `nullable-31-ref`, `null-alone`, `enum-null-member`
+- Codes: `openapi/degraded-construct`, `openapi/inferred-nullable`, `openapi/duplicate-enum-value`
 - Tests: `schema.TestCollapsedUnion_KeepsEveryCensusKeywordItCannotHold`,
-  `schema.TestCollapsedUnion_KeepsItsDiscriminatorAtEveryPosition`
+  `schema.TestCollapsedUnion_KeepsItsDiscriminatorAtEveryPosition`,
+  `schema.TestNullAlone_ReadsTheSchemasOwnKeywords`,
+  `schema.TestNullBranch_IsTheReferencesInEverySpelling`,
+  `schema.TestNullBranch_EverySpellingLowersAlike`,
+  `schema.TestNullBranch_ARefToANullAloneSchemaStaysAVariant`,
+  `schema.TestNullBranch_ADiscriminatorLinesItsVariantsUpPastTheNull`,
+  `schema.TestNullBranch_KeepsWhatTheBranchWrites`,
+  `schema.TestNullBranch_AKeptBranchTheKeeperCannotConvertIsReportedByIt`,
+  `schema.TestNullBranch_KeepsANullableNothingReads`,
+  `schema.TestNullBranch_ARepeatedNullIsReportedAtTheBranch`,
+  `schema.TestNullableWidening_EachShapeReadsByItsVersion`
 
 ### `union-null-only`
 
-A `oneOf` or `anyOf` whose every branch is a bare `type: null` lowers to the same nullable `any` a
-bare `{type: null}` schema at that position lowers to. No node built for it carries a branch set, so
-the combinator, and the other one too where both are written, is kept verbatim under `openapi:oneOf`
-or `openapi:anyOf` (`degraded_lowering`), with an info `openapi/degraded-construct` at the schema.
+A `oneOf` or `anyOf` whose every branch is a null branch
+([`union-null-variant`](#union-null-variant)) admits what a schema of `null` alone admits, so it
+lowers as one does at that position, to an `Enum` with no member behind a nullable reference
+([`null-alone`](#null-alone)). The `Enum` carries no branch set, so the combinator, and the other
+one too where both are written, is kept verbatim under `openapi:oneOf` or `openapi:anyOf`
+(`degraded_lowering`), with an info `openapi/degraded-construct` at the schema, and what else the
+schema writes that the `Enum` has no field for is kept by the census, as beside a schema of `null`
+alone.
 
 - Cases: `null-only-union`
 - Codes: `openapi/degraded-construct`
+- Tests: `schema.TestOneOfAnyOf_NullOnlyLowersAsNullAlone`,
+  `schema.TestLowerNullAlone_KeepsWhatTheEnumCannotHold`
 
 ### `union-beside-structure`
 
@@ -2503,9 +2599,9 @@ shares one reading of it, which has none. Distribution cannot reach these shapes
    `items`/`prefixItems`/`additionalProperties`/`patternProperties`, or `required` beside a branch
    that may be no object, with neither `properties` nor a `type`), so there are no composition
    fields for the variants to carry;
-2. a branch is a bare `type: null`, which a union lifts onto the position's `Nullable` rather than
-   conjoining it ([`union-null-variant`](#union-null-variant)), so no variant could say whether the
-   body admits the null;
+2. a branch is a null branch, whatever spells its `null`, which a union lifts onto the position's
+   `Nullable` rather than conjoining it ([`union-null-variant`](#union-null-variant)), so no
+   variant could say whether the body admits the null;
 3. a branch is a `$ref` that names no referent the compilation resolves — a cross-document target
    it does not intern, an undeclared component, a pointer addressing no schema — so it declines
    rather than composing a variant whose branch quietly went missing;
@@ -2654,13 +2750,15 @@ as one whose branches declare shape.
   `schema.TestOneOf_CoDeclaredShapelessBranchesAreValidationLogicAtEachPosition`,
   `schema.TestOneOf_CoDeclaredDiscriminatorRoutesTheComposedVariants`,
   `schema.TestOneOf_CoDeclaredDiscriminatorImpliesNoRouteIntoAnotherDocument`,
-  `schema.TestUnion_ASchemaNoRouteNamesDistributesBesideItsAllOf`
+  `schema.TestUnion_ASchemaNoRouteNamesDistributesBesideItsAllOf`,
+  `schema.TestNullBranch_BesideABodyIsNotLifted`
 - Status: partly built: a union beside a composition the bounds cut short degrades even where each
   branch restates only what the body itself writes (#1423), a subtype a discriminator routes to
   keeps its union verbatim (#1694), a union on a branch below a discriminated base stays whole where
   no route names the schema (#1695), a discriminated union on a branch stays whole with its
-  branch (#1698), and a discriminator routing to the model holding it moves though that route is
-  legal (#1806).
+  branch (#1698), a discriminator routing to the model holding it moves though that route is legal
+  (#1806), and a union holding a null branch stays whole where the reference could hold the null
+  its body admits (#1856).
 
 ### `union-beside-ref`
 
@@ -3428,6 +3526,43 @@ of its own, since reading it so loses nothing.
   `oas.TestCheck_NullIsReadAsAbsentWhereTheFieldIsOptional`,
   `e2e.TestCompile_ANullBeneathItsOwnNameLowersAsTheKeywordLeftOut`
 
+### `null-alone`
+
+A schema whose own keywords leave it no value but `null` lowers, at its own position, to a closed
+`Enum` with no member, the empty value space ([the empty enum](../ir/enums.md#the-empty-enum)), and
+the reference naming it admits `null` where the schema does ([`nullable`](#nullable)): a position
+admitting `null` and nothing else is a nullable reference to that `Enum`, and one admitting nothing
+is a reference to it that is not. Its own keywords leave it `null` alone where it writes no `$ref`,
+`allOf`, `oneOf`, `anyOf` or `$dynamicRef`, an `enum` it writes lists `null` and nothing else,
+within the `Limits.MaxEnumMembers` past which an `enum` lowers to the top type, and it writes a
+`const`, such an `enum`, or a `type` naming `null` and no other type, as `type: "null"` and
+`type: ["null"]` do. An `enum` and a `const` lower so by [`enum-const`](#enum-const). A `type`
+naming only `null`, with neither beside it, lowers so too, not to the top type behind a nullable
+reference, which admits every value: `{anyOf: [{}, {type: "null"}]}` lowers to that, and a consumer
+could not tell the two apart. The `Enum`'s `ValueType` is what the schema's `type` and `format`
+select, as an enumeration's is, the top type where they select none. A keyword the `Enum` has no
+field for, such as `properties`, `items`, a `format` or a bound, is kept by the census
+([`shape-applicator`](#shape-applicator)) under `openapi:<keyword>` (`degraded_lowering`), with an
+info `openapi/degraded-construct` at the schema, and the `type` draws nothing, an `Enum` with no
+member typing no value. A schema writing a `$ref`, a union or an `allOf` admits what they say as
+well as what its own keywords do, so it lowers as they decide: a `$ref` to a schema of `null` alone
+names that schema's `Enum`, nullable as the reference reads it ([`ref-use-site`](#ref-use-site)),
+and an `allOf` of one alone refines to it ([`allof-refinement`](#allof-refinement)). A union's
+branch of `null` alone, written in place, is that union's `null` rather than a variant
+([`union-null-variant`](#union-null-variant)), so each spelling of `null` alone lowers to the one IR
+wherever it stands.
+
+- Cases: `null-alone`, `enum-null-member`, `null-only-union`
+- Codes: `openapi/degraded-construct`
+- Tests: `schema.TestNullAlone_ReadsTheSchemasOwnKeywords`,
+  `schema.TestNullAloneReading_IsTheWholeSchemasReading`,
+  `schema.TestNullAloneReading_ReadsASchemaOnce`,
+  `schema.TestNullBranch_AnEnumPastTheMemberBudgetIsNoNullBranch`,
+  `schema.TestLowerNullAlone_EveryPositionNamesAnEnumWithNoMember`,
+  `schema.TestLowerNullAlone_IsToldFromTheTopType`,
+  `schema.TestLowerNullAlone_KeepsWhatTheEnumCannotHold`,
+  `schema.TestRefinement_ANullOnlyBranchIsTheNull`
+
 ## 7. Schemas: keywords beyond the shape
 
 ### `constraints`
@@ -3463,8 +3598,23 @@ kept verbatim under `openapi:<keyword>`
 (`degraded_lowering`) with an info `openapi/degraded-construct` naming the node it lowered to, as
 [`shape-applicator`](#shape-applicator) keeps a collection bound on an object. A collection bound
 beside a reference that `Constraints` cannot state is kept the same way: a `uniqueItems` of `false`,
-which a bool cannot tell from one never written, and a count that does not fit in 64 bits. A
-number carried as text holds no bound ([`string-formats`](#string-formats)).
+which a bool cannot tell from one never written, and a count that does not fit in 64 bits. A count,
+`minLength`, `maxLength`, `minItems`, `maxItems`, `minProperties` or `maxProperties`, is a
+non-negative integer with no upper limit, and its field holds one up to 2^63−1: one past that, at
+any node, carrier or `allOf` branch, reaches no field and is kept verbatim under `openapi:<keyword>`
+(`degraded_lowering`) with an info `openapi/degraded-construct` saying so where it is written, and on
+a branch it parts no other ([`allof-inline-residue`](#allof-inline-residue)), but for one past what
+a `BigVal` holds, which reaches the IR in no form
+([`verbatim-preservation`](#verbatim-preservation)). Where several writers
+of one position, its schema and the branches folding into it, give one such keyword, the one
+binding the rest is kept, the smallest maximum or the largest minimum, compared exactly however
+large, the first of one value written twice, with one report. Two declarations of one field are
+not such writers: each keeps its own on the property, and their fold compares the two entries as it
+does any kept under `Unmodeled` ([`allof-redeclared-property`](#allof-redeclared-property)), so
+of two such counts the first declaration's is kept and the other is reported and kept with its
+declaration. A count literal that is no non-negative integer is the load phase's to report
+([`validation`](#validation)) and reaches no field, nor is it kept. A number carried as text holds
+no bound ([`string-formats`](#string-formats)).
 
 - Cases: `constraints`, `numeric-precision`, `ref-collection-bounds`
 - Codes: `openapi/invalid-numeric-literal`, `openapi/invalid-exclusive-bound`,
@@ -3485,9 +3635,16 @@ number carried as text holds no bound ([`string-formats`](#string-formats)).
   `schema.TestCollectionBound_BesideAnExpandedDynamicRefReachesWhatThePositionOwns`,
   `operation.TestParams_CollectionBoundBesideARefReachesTheCarrier`,
   `schema.TestCollectionBound_ARefinementReachesWhatThePositionOwns`,
-  `schema.TestRefinement_ACollectionBoundLandsAtEveryPosition`
-- Status: partly built: an integer bound past what a 64-bit integer holds lowers as `0`, unreported,
-  everywhere but the collection bounds beside a reference or on an inline `allOf` branch (#1050).
+  `schema.TestRefinement_ACollectionBoundLandsAtEveryPosition`,
+  `schema.TestConstraints_ACountNoFieldStatesIsKeptVerbatim`,
+  `schema.TestConstraints_ACountTheLoadPhaseRefusesReachesNoField`,
+  `schema.TestConstraints_ACountAVariantKeepsIsKeptOnce`,
+  `schema.TestConstraints_AModifierBoundingNothingIsReportedOnce`,
+  `schema.TestAllOf_ACountNoFieldStatesIsKeptInEitherOrder`,
+  `schema.TestAllOf_TheBindingCountIsKeptInEveryOrder`,
+  `schema.TestCompareCounts_OrdersLiteralsExactly`,
+  `annotation.TestExactCount_StatesOnlyAnExactCount`,
+  `oas.TestShape_Admits`
 
 ### `validation-only`
 
@@ -4230,8 +4387,9 @@ A content entry is a file body, `Content.File` with `IsText` false and `ContentT
 written, where its schema declares raw bytes or leaves its media type to say, so that a body to
 stream is not read as a model. The schema is read through a `$ref`, and through the branches of an
 `anyOf` or `oneOf` it writes, as the least any of them admits: a branch admitting no value but
-`null`, or none as `false` does, is passed over, and one that is itself such a union says the body
-is something else. A schema declares
+`null`, in any spelling ([`null-alone`](#null-alone)) and writing no other keyword but one a file's
+schema may (below), or none as `false` does, is passed over, and one that is itself such a union
+says the body is something else. A schema declares
 raw bytes with `format: binary` on a `type` that includes `string` or on none, and no
 `contentEncoding`, which makes them encoded text as the type lowering reads it, read through a
 refinement ([`allof-refinement`](#allof-refinement)) to the schema deciding it, whatever the media

@@ -6,6 +6,7 @@ package merge
 import (
 	"encoding/json/jsontext"
 	"fmt"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -197,7 +198,60 @@ func judgeRegistry() map[ir.TypeID]ir.TypeDef {
 	reg["t/cycle2"] = &ir.List{ID: "t/cycle2", Elem: ir.TypeRef{Target: "t/cycle"}}
 	reg["t/cycle-b"] = &ir.List{ID: "t/cycle-b", Elem: ir.TypeRef{Target: "t/cycle2-b"}}
 	reg["t/cycle2-b"] = &ir.List{ID: "t/cycle2-b", Elem: ir.TypeRef{Target: "t/cycle-b"}}
+	valueTypedEnums(reg)
+	aliasesOverNodes(reg)
 	return reg
+}
+
+// valueTypedEnums adds enums whose value types differ: t/enum-<kind>-<values>,
+// their values joined.
+func valueTypedEnums(reg map[ir.TypeID]ir.TypeDef) {
+	for _, e := range []struct {
+		kind   ir.PrimKind
+		values []string
+	}{
+		{ir.PrimNumber, []string{"1", "2"}}, {ir.PrimNumber, []string{"2", "1"}}, {ir.PrimNumber, []string{"1"}},
+		{ir.PrimNumber, []string{"1", "2.5"}}, {ir.PrimNumber, []string{"2.5"}},
+		{ir.PrimInteger, []string{"1"}}, {ir.PrimInteger, []string{"1", "2"}}, {ir.PrimInteger, []string{"1", "3"}},
+		{ir.PrimInt32, []string{"1", "2"}}, {ir.PrimInt32, []string{"1"}},
+		{ir.PrimUint32, []string{"1", "2"}}, {ir.PrimUint32, []string{"2"}},
+	} {
+		id := ir.TypeID("t/enum-" + string(e.kind) + "-" + strings.Join(e.values, ""))
+		members := make([]ir.EnumMember, len(e.values))
+		for k, v := range e.values {
+			members[k] = ir.EnumMember{Value: num(v)}
+		}
+		reg[id] = &ir.Enum{ID: id, ValueType: e.kind, Members: members}
+	}
+}
+
+// aliasesOverNodes adds aliases over the registry's enums, consts, scalars and
+// lists, and the nodes they meet.
+func aliasesOverNodes(reg map[ir.TypeID]ir.TypeDef) {
+	alias := func(id, base ir.TypeID, bounds *ir.Constraints) {
+		reg[id] = &ir.Scalar{ID: id, Base: &ir.TypeRef{Target: base}, Constraints: bounds}
+	}
+	maxLength := &ir.Constraints{MaxLength: new(int64(5))}
+	alias("t/alias-enum-str-max", "t/enum-str", maxLength)
+	alias("t/alias-lit-a-max", "t/lit-a", maxLength)
+	alias("t/alias-enum-big-max", "t/enum-big", &ir.Constraints{Max: new(ir.BigVal("6000000000"))})
+	alias("t/alias-enum-ab", "t/enum-ab", nil)
+	alias("t/alias-list-i32-min", "t/list-i32-min", nil)
+	alias("t/alias-scalar-time", "t/scalar-time", &ir.Constraints{MinLength: new(int64(1))})
+	alias("t/alias-lit-time-doc", "t/lit-time", nil)
+	alias("t/alias-list-i32-min-doc", "t/list-i32-min", nil)
+	alias("t/alias-time-ref", "t/scalar-time", nil)
+	reg["t/alias-time-ref"].Common().Unmodeled = ir.Unmodeled{"openapi:not": {Value: ir.RawValue(`{"$ref":"n.json"}`)}}
+	reg["t/alias-enum-str-null"] = &ir.Scalar{ID: "t/alias-enum-str-null",
+		Base: &ir.TypeRef{Target: "t/enum-str", Nullable: true}}
+	reg["t/enum-str-closed"] = &ir.Enum{ID: "t/enum-str-closed", ValueType: ir.PrimString, Closed: true,
+		Members: []ir.EnumMember{{Value: str("a")}}}
+	reg["t/alias-list-i32-min-doc"].Common().Docs = ir.Docs{Description: "d"}
+	reg["t/alias-lit-time-doc"].Common().Docs = ir.Docs{Description: "x"}
+	reg["t/enum-bc"] = &ir.Enum{ID: "t/enum-bc", ValueType: ir.PrimString,
+		Members: []ir.EnumMember{{Value: str("b")}, {Value: str("c")}}}
+	reg["t/scalar-i32-doc"] = &ir.Scalar{ID: "t/scalar-i32-doc", Base: new(primRef(ir.PrimInt32)),
+		Docs: ir.Docs{Description: "d"}}
 }
 
 func ref(id ir.TypeID) ir.TypeRef { return ir.TypeRef{Target: id} }
@@ -266,7 +320,7 @@ func TestTypeJudge_RelateArms(t *testing.T) {
 		{"a time a time scalar's bound admits", "t/lit-time", "t/scalar-time-roomy", relANarrower},
 		{"a literal against an alias of a kind it is not", "t/lit-a", "t/scalar-int", relOverlap},
 		{"a time against a time scalar holding detail", "t/lit-time", "t/scalar-time-doc", relMeet},
-		{"a time against an alias of a time scalar", "t/lit-time", "t/alias-time", relOverlap},
+		{"a time against an alias of a time scalar", "t/lit-time", "t/alias-time", relANarrower},
 		{"a time against a format with no grammar here", "t/lit-time", "t/scalar-email", relOverlap},
 		{"an enum no member of which is a time", "t/enum-str", "t/scalar-time", relDisjoint},
 		{"an enum with a time member", "t/enum-time", "t/scalar-time", relOverlap},
@@ -364,6 +418,29 @@ func TestTypeJudge_RelateArms(t *testing.T) {
 		{"a map value", "t/map-int", "t/map-i32", relBNarrower},
 		{"maps with different keys", "t/map-i32", "t/map-i32-keyed", relUnrelated},
 		{"nesting past the cap", "t/cycle", "t/cycle-b", relUnrelated},
+		{"an enum within another of a broader value type", "t/enum-integer-1", "t/enum-number-12", relANarrower},
+		{"one set of values of a narrower value type", "t/enum-integer-12", "t/enum-number-12", relANarrower},
+		{"one set of values of another type in another order", "t/enum-integer-12", "t/enum-number-21", relOverlap},
+		{"an enum within another of a narrower value type", "t/enum-number-1", "t/enum-integer-12", relMeet},
+		{"enums of different value types sharing some values", "t/enum-number-12.5", "t/enum-integer-13", relMeet},
+		{"enums of different value types sharing none", "t/enum-number-2.5", "t/enum-integer-13", relDisjoint},
+		{"enums of overlapping value types sharing values", "t/enum-int32-12", "t/enum-uint32-12", relOverlap},
+		{"enums of overlapping value types sharing none", "t/enum-int32-1", "t/enum-uint32-2", relDisjoint},
+		{"an alias of an enum no member of which a kind admits", "t/alias-enum-str-max", prim(ir.PrimUUID), relDisjoint},
+		{"an alias of a const a kind refuses", "t/alias-lit-a-max", prim(ir.PrimInteger), relDisjoint},
+		{"an alias of a const a kind admits", "t/alias-lit-a-max", prim(ir.PrimString), relANarrower},
+		{"an alias of an enum against a node of a kind no member meets", "t/alias-enum-big-max", "t/scalar-i32-doc", relDisjoint},
+		{"an alias of an enum against the enum", "t/alias-enum-ab", "t/enum-ab", relANarrower},
+		{"an alias of an enum against one it meets", "t/alias-enum-ab", "t/enum-bc", relMeet},
+		{"an alias of a list against one it meets", "t/alias-list-i32-min", "t/list-i32-max", relMeet},
+		{"an alias of a time scalar holding a bound a time meets", "t/lit-time", "t/alias-scalar-time", relANarrower},
+		{"an alias of a time holding docs a time scalar gives otherwise", "t/alias-lit-time-doc", "t/scalar-time-doc", relOverlap},
+		{"two aliases of one list saying it otherwise, judged as two scalars", "t/alias-list-i32-min", "t/alias-list-i32-min-doc", relUnrelated},
+		{"a time against an alias of a time scalar the view cannot read", "t/lit-time", "t/alias-time-ref", relOverlap},
+		{"two enums differing in closedness", "t/enum-str", "t/enum-str-closed", relOverlap},
+		{"an alias of the top type against the top it stands for", "t/alias-doc-scalar-any", "t/scalar-any", relANarrower},
+		{"an alias adding null to an enum against the enum", "t/alias-enum-str-null", "t/enum-str", relBNarrower},
+		{"an alias adding null to an enum against a kind holding it", "t/alias-enum-str-null", prim(ir.PrimString), relOverlap},
 	} {
 		want := tc.want
 		assert.Equal(t, want, j.relate(ref(tc.a), ref(tc.b)), tc.name)
@@ -379,6 +456,11 @@ func TestTypeJudge_RelateArms(t *testing.T) {
 	nullInt.Nullable = true
 	assert.Equal(t, relANarrower, j.relate(ref("t/lit-null"), nullInt), "a null literal against a nullable integer")
 	assert.Equal(t, relBNarrower, j.relate(nullInt, ref("t/lit-null")), "a nullable integer against a null literal")
+
+	nullString := primRef(ir.PrimString)
+	nullString.Nullable = true
+	assert.Equal(t, relANarrower, j.relate(ref("t/alias-enum-str-null"), nullString),
+		"an alias admitting null within a kind whose reference admits null too")
 
 	nullTime := ref("t/scalar-time")
 	nullTime.Nullable = true
@@ -739,7 +821,7 @@ func TestClassify_ComparesResolvedKinds(t *testing.T) {
 		{"a model and the model an alias Base stands for", "t/via-alias", "t/model", relANarrower},
 		{"a Base the registry does not hold", "t/dangling", "t/model", relUnrelated},
 		{"a part the registry does not hold beside one that leads there", "t/partly-gone", "t/model", relANarrower},
-		{"an alias of a scalar is judged by kind, not by what it composes", "t/scalar-on", "t/scalar", relOverlap},
+		{"an alias of a scalar is within the scalar it stands for", "t/scalar-on", "t/scalar", relANarrower},
 		{"models composing each other", "t/cycle-a", "t/cycle-b", relOverlap},
 		{"a model and a bare object", "t/model", "t/bare", relANarrower},
 		{"a map and a bare object", "t/map", "t/bare", relANarrower},

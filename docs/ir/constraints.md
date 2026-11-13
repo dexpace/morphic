@@ -39,6 +39,12 @@ written beside `format: http-date`, or a numeric bound beside `format: unixtime`
 instant, and one written beside a reference to a number carried as text as a bound of the number
 (#1851).
 
+A count field, `MinLength`, `MaxLength`, `MinItems`, `MaxItems`, `MinProps` or `MaxProps`, holds a
+count from 0 to 2^63−1. A source may write a larger one, as JSON Schema's counts have no upper limit:
+it reaches no field and is kept verbatim under `Unmodeled` with `ReasonDegradedLowering`
+([degraded constructs](./boundaries.md#degraded-constructs)), so an absent count beside such an
+entry bounds nothing less than the entry does.
+
 ## Encodings
 
 ```go
