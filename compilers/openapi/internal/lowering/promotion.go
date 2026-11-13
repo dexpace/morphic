@@ -297,16 +297,16 @@ func newPromoter(p ExtensionPromotions) *Promoter {
 	return out
 }
 
-// readElsewhere reports whether a target of targets other than target reads
-// the member of the key src reads, whose reading then decides what a value src
-// does not list is.
-func readElsewhere(targets map[ExtensionTarget][]ExtensionSource, target ExtensionTarget, src ExtensionSource) bool {
-	for other, sources := range targets {
-		if other == target {
-			continue
-		}
+// readElsewhere reports whether another source of targets, src's target's or
+// another's, reads raw off the member of the key src reads, whose reading then
+// decides what raw is: one listing raw, or one listing no values, which reads
+// its own vocabulary and reports what that misses. src, not listing raw, is no
+// such source. A value every reader's list leaves out is src's to report, as
+// no reading takes it.
+func readElsewhere(targets map[ExtensionTarget][]ExtensionSource, src ExtensionSource, raw ir.RawValue) bool {
+	for _, sources := range targets {
 		for _, s := range sources {
-			if s.Key == src.Key && s.Member == src.Member {
+			if s.Key == src.Key && s.Member == src.Member && (len(s.Values) == 0 || listsWord(s, raw)) {
 				return true
 			}
 		}
@@ -315,18 +315,22 @@ func readElsewhere(targets map[ExtensionTarget][]ExtensionSource, target Extensi
 }
 
 // listed reads raw as src's Values state target's fact: one of them states it,
-// and any other value is a misfit where no other target of targets reads the
-// same member of the key, and states nothing where one does.
-func listed(targets map[ExtensionTarget][]ExtensionSource, target ExtensionTarget, src ExtensionSource,
-	raw ir.RawValue,
-) (bool, statement) {
-	if text, ok := scalarText(raw); ok && slices.Contains(src.Values, text) {
+// and any other value is a misfit where no other source of targets reads it
+// off the same member of the key, and states nothing where one does.
+func listed(targets map[ExtensionTarget][]ExtensionSource, src ExtensionSource, raw ir.RawValue) (bool, statement) {
+	if listsWord(src, raw) {
 		return true, states
 	}
-	if readElsewhere(targets, target, src) {
+	if readElsewhere(targets, src, raw) {
 		return false, statesNothing
 	}
 	return false, misfit
+}
+
+// listsWord reports whether raw is one of the values src lists.
+func listsWord(src ExtensionSource, raw ir.RawValue) bool {
+	text, ok := scalarText(raw)
+	return ok && slices.Contains(src.Values, text)
 }
 
 // scalarText spells a scalar value as ExtensionSource.Values compares it: a
@@ -515,7 +519,7 @@ func openness(p Promoter, unmodeled ir.Unmodeled, target ExtensionTarget, closed
 		target: target,
 		read: func(src ExtensionSource, raw ir.RawValue) (bool, statement) {
 			if len(src.Values) > 0 {
-				return listed(p.targets, target, src, raw)
+				return listed(p.targets, src, raw)
 			}
 			return extensionOpenness(raw), states
 		},
@@ -577,7 +581,7 @@ func (p Promoter) deprecationReading() reading[bool] {
 		want:   "is neither text nor a boolean",
 		read: func(src ExtensionSource, raw ir.RawValue) (bool, statement) {
 			if len(src.Values) > 0 {
-				return listed(p.targets, TargetDeprecation, src, raw)
+				return listed(p.targets, src, raw)
 			}
 			return statesDeprecated(raw)
 		},
@@ -591,7 +595,7 @@ func (p Promoter) redactionReading() reading[bool] {
 		want:   "is not a boolean",
 		read: func(src ExtensionSource, raw ir.RawValue) (bool, statement) {
 			if len(src.Values) > 0 {
-				return listed(p.targets, TargetRedaction, src, raw)
+				return listed(p.targets, src, raw)
 			}
 			return statesBoolean(raw)
 		},

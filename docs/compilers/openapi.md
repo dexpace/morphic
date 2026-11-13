@@ -4460,13 +4460,15 @@ A source of a target stating that something is so, a deprecation, an open enum o
 redaction or a part of a page walk, may list the values that state it. Each is compared with a
 string's text, or with a boolean's or a number's JSON, so `true` lists both `true` and `"true"`. A
 value it lists states the fact, and any other states nothing. That other value is reported as an
-info `openapi/degraded-construct` at the key, unless another target reads the same member of the
-key, whose reading then decides what it is: a key spelling openness `allow` or `disallow`, listed
-`allow`, opens an enum on `allow` alone and reports `disallow` as it reports a misspelt `alow`, while
-the default's `x-stability`, listed `deprecated` for a deprecation, leaves a `true` to the stability
-reading of the same key, which reports it. A source with no list reads its target's own vocabulary,
-as below. A key a pagination target reads is judged and reported as one statement of a page walk
-instead ([`extension-pagination`](#extension-pagination)).
+info `openapi/degraded-construct` at the key, unless another target reads it off the same member of
+the key, listing it or listing no values, whose reading then decides what it is; a value every
+other reader's list leaves out is reported by each target listing values there, as none reads it. A
+key spelling openness `allow` or `disallow`, listed `allow`, opens an enum on `allow` alone and
+reports `disallow` as it reports a misspelt `alow`, while the default's `x-stability`, listed
+`deprecated` for a deprecation, leaves a `true` to the stability reading of the same key, which
+reports it. A source with no list reads its target's own vocabulary, as below. A key a pagination
+target reads is judged and reported as one statement of a page walk instead
+([`extension-pagination`](#extension-pagination)).
 
 A policy that would read less than it says is refused when the compile starts, as a Go error and no
 diagnostic, since the mistake is the caller's and not the document's: a target outside the

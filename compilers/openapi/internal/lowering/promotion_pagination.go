@@ -111,12 +111,6 @@ func PageStatementOf(p Promoter, target ExtensionTarget, src ExtensionSource, un
 	}
 }
 
-// listsWord reports whether raw is one of the values src lists.
-func listsWord(src ExtensionSource, raw ir.RawValue) bool {
-	text, ok := scalarText(raw)
-	return ok && slices.Contains(src.Values, text)
-}
-
 // pageSources returns the sources of pagination targets p reads src's key from
 // as src reads it: marking where src lists values and holding an expression
 // where it lists none, and reading a member where src reads one. A value of

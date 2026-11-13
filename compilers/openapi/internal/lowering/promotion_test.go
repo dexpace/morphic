@@ -6,6 +6,7 @@ package lowering_test
 import (
 	"encoding/json/jsontext"
 	"go/types"
+	"maps"
 	"os"
 	"slices"
 	"strings"
@@ -1278,22 +1279,52 @@ func TestPromoter_ValuesNameWhatStatesTheFact(t *testing.T) {
 }
 
 // TestPromoter_AValueAnotherTargetReadsIsItsToReport pins the half of a listed
-// source a key shared with another target needs: a value the list leaves out
-// states nothing and is not reported, since the other target reading the same
-// member decides what it is, and reports it where it reads nothing either.
+// source a key shared with another source needs: a value the list leaves out
+// states nothing and is not reported where another source, of its own target
+// or another, reads it off the same member, listing it or reading its own
+// vocabulary, as that reading decides what it is. Where every other reader's
+// list leaves it out too, or none reads that member, no reading takes it, and
+// the source reports it.
 func TestPromoter_AValueAnotherTargetReadsIsItsToReport(t *testing.T) {
 	t.Parallel()
 	shared := lowering.ExtensionSource{Key: "x-k", Values: []string{"yes"}}
-	p := promoter(lowering.ExtensionPromotions{Targets: map[lowering.ExtensionTarget][]lowering.ExtensionSource{
-		lowering.TargetRedaction:   {shared},
-		lowering.TargetEnumOpen:    {shared},
-		lowering.TargetUnionOpen:   {{Key: "x-k", Member: "m", Values: []string{"yes"}}},
-		lowering.TargetDeprecation: {{Key: "x-other", Values: []string{"yes"}}},
-	}})
-	var redact bool
-	var prov ir.Provenance
-	assert.Empty(t, p.Redaction(ir.Unmodeled{"openapi:x-k": vendorExtension(`"no"`)}, lowering.Referent{}, &redact, &prov))
-	assert.False(t, redact)
+	for _, tc := range []struct {
+		name     string
+		other    map[lowering.ExtensionTarget][]lowering.ExtensionSource
+		reported bool
+		redacted bool
+	}{
+		{"a later source of its own target listing it", map[lowering.ExtensionTarget][]lowering.ExtensionSource{
+			lowering.TargetRedaction: {shared, {Key: "x-k", Values: []string{"no"}}}}, false, true},
+		{"another listing it", map[lowering.ExtensionTarget][]lowering.ExtensionSource{
+			lowering.TargetEnumOpen: {{Key: "x-k", Values: []string{"yes", "no"}}}}, false, false},
+		{"another reading its own vocabulary", map[lowering.ExtensionTarget][]lowering.ExtensionSource{
+			lowering.TargetStability: {{Key: "x-k"}}}, false, false},
+		{"another listing only others", map[lowering.ExtensionTarget][]lowering.ExtensionSource{
+			lowering.TargetEnumOpen: {shared}}, true, false},
+		{"another member listing it", map[lowering.ExtensionTarget][]lowering.ExtensionSource{
+			lowering.TargetUnionOpen: {{Key: "x-k", Member: "m", Values: []string{"no"}}}}, true, false},
+		{"another key listing it", map[lowering.ExtensionTarget][]lowering.ExtensionSource{
+			lowering.TargetDeprecation: {{Key: "x-other", Values: []string{"no"}}}}, true, false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			targets := map[lowering.ExtensionTarget][]lowering.ExtensionSource{lowering.TargetRedaction: {shared}}
+			maps.Copy(targets, tc.other)
+			p := promoter(lowering.ExtensionPromotions{Targets: targets})
+			var redact bool
+			var prov ir.Provenance
+			diags := p.Redaction(ir.Unmodeled{"openapi:x-k": vendorExtension(`"no"`)}, lowering.Referent{}, &redact, &prov)
+			assert.Equal(t, tc.redacted, redact)
+			if !tc.reported {
+				assert.Empty(t, diags)
+				return
+			}
+			require.Len(t, diags, 1)
+			assert.Equal(t, `extension "x-k" holds none of the values the policy lists, so it does not fill redaction`,
+				diags[0].Message)
+		})
+	}
 	assert.True(t, slices.Equal([]string{"yes"}, shared.Values), "the caller's list is read, not written")
 }
 

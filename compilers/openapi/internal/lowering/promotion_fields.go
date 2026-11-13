@@ -38,7 +38,7 @@ func AllowReserved(p Promoter, unmodeled ir.Unmodeled, prov *ir.Provenance) (boo
 		want:   "is not a boolean",
 		read: func(src ExtensionSource, raw ir.RawValue) (bool, statement) {
 			if len(src.Values) > 0 {
-				return listed(p.targets, TargetAllowReserved, src, raw)
+				return listed(p.targets, src, raw)
 			}
 			return statesBoolean(raw)
 		},
