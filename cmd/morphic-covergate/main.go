@@ -37,10 +37,10 @@ func run(args []string, stdout, stderr io.Writer) int {
 	}
 	// ParseProfiles refuses a missing "mode:" header, a malformed line and a
 	// block whose copies disagree on its statement count, and merges the copies
-	// of every other block, summing their counts. It sorts on a block's start
-	// alone, so copies of blocks sharing a start may stay unmerged. That can
-	// only fail the gate, never hide a gap, and no profile from go test has
-	// been seen to hold such blocks.
+	// of every other block, so a block counts as run when any copy ran. It sorts
+	// on a block's start alone, so copies of blocks sharing a start may stay
+	// unmerged. That can only fail the gate, never hide a gap, and no profile
+	// from go test has been seen to hold such blocks.
 	profiles, err := cover.ParseProfiles(args[0])
 	if err != nil {
 		emitf(stdout, "COVERAGE FAIL: read profile %s: %v\n", args[0], err)

@@ -1,12 +1,17 @@
 # The gate, defined once.
 #
 # .github/workflows/gate.yml runs these targets, split across two jobs that run
-# side by side, so `make gate` and CI are the same commands by construction
-# rather than by two lists that agree until somebody edits one. Add a check here,
-# then a step that calls it to one of the jobs.
+# side by side, so `make gate` and a pull request's run are the same commands by
+# construction rather than by two lists that agree until somebody edits one. A
+# push to main adds `make race-pipeline`, which `make gate` leaves out. Add a
+# check here, then a step that calls it to one of the jobs.
 #
 #   make            the whole gate, one check at a time
-#   make coverage   the suite once, under -race, at exactly 100% coverage
+#   make coverage   the suite once, at exactly 100% coverage
+#   make race       the packages in scripts/race-packages.txt, under -race
+#   make race-pipeline   those and every package under the roots in
+#                   scripts/race-pipeline-roots.txt, under -race; each push
+#                   to main runs it, and it is outside `make gate`
 #   make bench      benchmark timings (the gate only smoke-runs them)
 #   make fuzz FUZZTIME=5m    a longer search than the gate's
 
@@ -36,6 +41,32 @@ endif
 
 GOTOOLCHAIN ?= go$(GO_VERSION)
 export GOTOOLCHAIN
+
+# The packages `make race` runs under the race detector, read from
+# scripts/race-packages.txt the way GO_VERSION is read from go.mod, so the list
+# has one definition. sed drops the file's comment and blank lines; it also
+# works on GNU make 3.81, which has no $(file <...). An empty result is refused
+# by the race recipe rather than here: an $(error) at parse time would also stop
+# `make -s print-go-version`, which CI runs before anything else.
+RACE_PACKAGES := $(shell sed -e '/^[[:space:]]*\#/d' -e '/^[[:space:]]*$$/d' scripts/race-packages.txt)
+
+# The trees `make race-pipeline` adds to those packages, read from
+# scripts/race-pipeline-roots.txt with the same sed, so the roots have one
+# definition too. The race-pipeline recipe refuses an empty result for the
+# reason the race recipe refuses an empty list.
+RACE_PIPELINE_ROOTS := $(shell sed -e '/^[[:space:]]*\#/d' -e '/^[[:space:]]*$$/d' scripts/race-pipeline-roots.txt)
+
+# The two tests `make race` leaves out, anchored so that only they match. A
+# renamed test makes the pattern match nothing, which slows the race run and
+# does not weaken it.
+RACE_SKIP := ^(TestLoad_ACancelAtAnyCheckEndsTheLoadCleanly|TestLoad_DoesNextToNothingOnceItRefusesACancel)$$
+
+# The command both race targets run over their packages, and over the planted
+# race that scripts/race-reach.sh requires it to report. The two share it, so
+# they share the timeout and the plant. #1248 decides its timeout; on four busy
+# cores `race-pipeline` takes compilers/openapi/internal/load and
+# compilers/openapi/e2e to it or past it.
+RACE_TEST = $(GO) test -race -timeout 300s
 
 # A GOTOOLCHAIN already set in the environment wins, as an override should. It is
 # reported rather than refused, exactly as a local golangci-lint of the wrong
@@ -76,10 +107,10 @@ FUZZTIME ?= 10s
 # `go test ./...` over the same tree. CI runs them on two machines instead.
 .NOTPARALLEL:
 
-.PHONY: gate fmt vet lint lint-planted check-lint-version build coverage \
-	fuzz bench bench-smoke print-lint-version print-go-version
+.PHONY: gate fmt vet lint lint-planted check-lint-version build coverage race \
+	race-pipeline fuzz bench bench-smoke print-lint-version print-go-version
 
-gate: fmt vet lint lint-planted build coverage fuzz bench-smoke
+gate: fmt vet lint lint-planted build coverage race fuzz bench-smoke
 
 fmt:
 	@unformatted="$$(gofmt -l $$(git ls-files '*.go'))"; \
@@ -119,15 +150,15 @@ check-lint-version:
 build:
 	$(GO) build ./...
 
-# The suite runs once, under the race detector, and cmd/morphic-covergate judges
-# its profile statement by statement; its doc says why go test's percentage is
-# not enough. -race rides along rather than taking a run of its own: both want
-# the same execution of the same tests, and the profile is identical either way.
+# The suite runs once, and cmd/morphic-covergate judges its profile statement by
+# statement; its doc says why go test's percentage is not enough. Set mode is
+# enough because the gate reads only whether a block ran, never how often. The
+# race detector has targets of its own, `race` and `race-pipeline` below.
 #
 # -timeout is explicit so that a test that never returns, as one would if the
 # third-party resolver hung on a document the compiler no longer refuses, ends
-# in a stack dump naming the stuck goroutine. 300s clears the slowest package
-# under -race by more than an order of magnitude.
+# in a stack dump naming the stuck goroutine. #1248 decides the value and its
+# margin.
 #
 # The profile path is minted per run: go test truncates it at the start and
 # appends each package as it finishes, so two runs sharing one would each judge
@@ -140,8 +171,43 @@ coverage:
 		profile="$$(mktemp "$${TMPDIR:-/tmp}/morphic-cover.XXXXXX")" || exit 1; \
 		trap 'rm -f "$$profile"' EXIT; \
 	fi; \
-	$(GO) test ./... -race -timeout 300s -covermode=atomic -coverprofile="$$profile" && \
+	$(GO) test ./... -timeout 300s -covermode=set -coverprofile="$$profile" && \
 	$(GO) run ./cmd/morphic-covergate "$$profile"
+
+# The race detector runs alone, over the packages on scripts/race-packages.txt,
+# whose header states the rule for them and what a package left off must say.
+# go test refuses -race with -covermode=set, and #1271 measured -race with
+# atomic coverage missing a planted race that -race alone caught, so coverage
+# and the detector do not share a run.
+#
+# The two tests skipped (RACE_SKIP) cancel a load at every check, which is most
+# of what `load` costs under the detector. Four cancel returns only they reach,
+# so `make race` leaves them to `race-pipeline`, like any other race only a
+# pipeline test reaches. They also run at full size in `coverage`.
+#
+# scripts/race-reach.sh then runs the same command over the race planted in
+# internal/archtest/testdata/racereach and requires it to be reported, which
+# shows the command still runs the detector. The script sees only the command it
+# is passed, so it holds each recipe's test of its packages only while that
+# test starts with $(RACE_TEST); `make race-pipeline` passes it the same command.
+race:
+	@test -n "$(strip $(RACE_PACKAGES))" || { \
+		echo "make race: scripts/race-packages.txt lists no package" >&2; exit 1; }
+	$(RACE_TEST) -skip '$(RACE_SKIP)' $(RACE_PACKAGES)
+	./scripts/race-reach.sh $(RACE_TEST)
+
+# The same run over every package under the roots too: their tests run the
+# pipeline on parallel goroutines, and a race on a path only those tests take is
+# found here and nowhere else. It is outside `gate`, and each push to main runs
+# it, so such a race is found after merge and not on the pull request. It
+# reaches the plant through the same script and command.
+race-pipeline:
+	@test -n "$(strip $(RACE_PACKAGES))" || { \
+		echo "make race-pipeline: scripts/race-packages.txt lists no package" >&2; exit 1; }
+	@test -n "$(strip $(RACE_PIPELINE_ROOTS))" || { \
+		echo "make race-pipeline: scripts/race-pipeline-roots.txt lists no root" >&2; exit 1; }
+	$(RACE_TEST) $(RACE_PACKAGES) $(RACE_PIPELINE_ROOTS)
+	./scripts/race-reach.sh $(RACE_TEST)
 
 fuzz:
 	./scripts/fuzz.sh $(FUZZTIME)

@@ -56,10 +56,11 @@ const childStack = 64 << 20
 // ends takes, so only one that grows without end crosses it.
 const memoryCeiling = 256 << 20
 
-// childTimeout bounds one child. Every input here ends within a second or two
-// at the pinned version, even under the race detector, so only a child that
-// hangs waits it out. It is short so that a canary whose every child hangs
-// still fails with its own message inside the gate's -timeout.
+// childTimeout bounds one child. Every input here ends within a second or
+// two at the pinned version, so a child that waits it out has hung or was
+// slowed by load, as under the race run of make race-pipeline (#1010). It is
+// short so that a canary whose every child hangs still fails with its own
+// message inside the gate's -timeout.
 const childTimeout = 10 * time.Second
 
 // watchInterval is how often a child reads its memory.
