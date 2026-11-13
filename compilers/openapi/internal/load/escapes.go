@@ -104,8 +104,10 @@ func (e *escapes) refused(v, base string) (key string, why error) {
 	uri, _, _ := strings.Cut(v, "#")
 	uri = strings.TrimSpace(uri)
 	why = e.refuses(uri)
-	if target, ok := refscope.Locate(uri, base); why == nil && ok && !bind.Reachable(base, target) {
-		why = refused(target, bind.OffNetwork)
+	if why == nil && bind.OverNetwork(base) {
+		if target, ok := refscope.Locate(uri, base); ok && !bind.Reachable(base, target) {
+			why = refused(target, bind.OffNetwork)
+		}
 	}
 	if why == nil {
 		return "", nil
