@@ -74,6 +74,8 @@ func TestStreaming_ResponseMediaTypeImpliesServerStream(t *testing.T) {
 				assert.Nil(t, op.RequestStream, "nothing streams towards the server")
 
 				content := firstResponseContent(t, op)
+				assert.Equal(t, &ir.ContentStream{Inferred: "streaming-media-type"}, content.Stream,
+					"the content says it streams, and that a guess says so")
 				require.NotNil(t, op.ResponseStream.Events, "the frame schema is the stream element type")
 				assert.Empty(t, cmp.Diff(content.Type, *op.ResponseStream.Events))
 				assert.Equal(t, mediaType, content.MediaType, "the media type is still kept as declared")
@@ -134,6 +136,8 @@ func TestStreaming_RequestMediaTypeImpliesClientStream(t *testing.T) {
 			require.NotNil(t, op.RequestStream.Events)
 			require.NotNil(t, op.Request)
 			assert.Empty(t, cmp.Diff(op.Request.Contents[0].Type, *op.RequestStream.Events))
+			assert.Equal(t, ir.Inferred("streaming-media-type"), op.Provenance.Inferred,
+				"the request's guess marks the operation, whatever the response does")
 		})
 	}
 }
@@ -408,12 +412,14 @@ func TestStreaming_AFileBodyStreamsBytes(t *testing.T) {
 }
 
 // TestStreaming_OrdinaryContentDoesNotStream is the negative half: without a
-// streaming media type the operation core keeps its zero values, so every spec
-// that does not stream is untouched by this classification.
+// streaming media type the operation core and its content keep their zero
+// values, so every spec that does not stream is untouched by this
+// classification.
 func TestStreaming_OrdinaryContentDoesNotStream(t *testing.T) {
 	t.Parallel()
 	doc, _ := streamingSpec(t, eventStreamSpec("3.1.0", "application/json"), openapi.Options{})
 	op := openapitest.FindOp(t, doc, "getEvents")
+	assert.Nil(t, firstResponseContent(t, op).Stream)
 	assert.Empty(t, string(op.Streaming))
 	assert.Nil(t, op.RequestStream)
 	assert.Nil(t, op.ResponseStream)
@@ -491,4 +497,219 @@ func TestStreaming_MarkerListKeepsAPromotionBesideBoth(t *testing.T) {
 	require.NotNil(t, op.Deprecation)
 	assert.Equal(t, "why", op.Deprecation.Message)
 	assert.Equal(t, ir.StabilityBeta, op.Stability)
+}
+
+// streamsByMediaType maps each content of payload, by its media type, to what
+// its Stream holds: its Inferred marker, "declared" for a stream with none, or
+// "" for a content that does not stream.
+func streamsByMediaType(t *testing.T, payload *ir.Payload) map[string]string {
+	t.Helper()
+	require.NotNil(t, payload)
+	out := map[string]string{}
+	for _, content := range payload.Contents {
+		switch {
+		case content.Stream == nil:
+			out[content.MediaType] = ""
+		case content.Stream.Inferred == "":
+			out[content.MediaType] = "declared"
+		default:
+			out[content.MediaType] = string(content.Stream.Inferred)
+		}
+	}
+	return out
+}
+
+// mixedStreamSpec offers two media types, a plain body and a stream, in a
+// request, a success response, an error response and the default, each
+// payload writing them in the order given.
+func mixedStreamSpec(first, second string) string {
+	content := `
+            ` + first + `: {schema: {$ref: '#/components/schemas/Event'}}
+            ` + second + `: {schema: {$ref: '#/components/schemas/Event'}}`
+	return openapitest.PathsSpec(`  /events:
+    post:
+      operationId: tail
+      requestBody:
+        content:` + content + `
+      responses:
+        "200":
+          description: ok
+          content:` + content + `
+        "4XX":
+          description: failed
+          content:` + content + `
+        default:
+          description: other
+          content:` + content + `
+components:
+  schemas:
+    Event: {type: object, properties: {a: {type: string}}}
+`)
+}
+
+// TestStreaming_EachContentSaysWhetherItStreams is GitHub #601's reproduction: a
+// payload offering application/json beside a stream marks the stream alone, in
+// a request, a success response, an error response and the default, so a
+// consumer reads which content streams instead of the policy. The policy decides
+// it, so a caller's list moves it and turning the policy off clears it.
+func TestStreaming_EachContentSaysWhetherItStreams(t *testing.T) {
+	t.Parallel()
+	const guess = "streaming-media-type"
+	for _, tc := range []struct {
+		name   string
+		opts   openapi.Options
+		stream string
+		want   map[string]string
+		mode   ir.StreamingMode
+	}{
+		{"the default policy", openapi.Options{}, "text/event-stream",
+			map[string]string{"text/event-stream": guess, "application/json": ""}, ir.StreamingBidi},
+		{"a policy naming JSON", openapi.Options{StreamingMedia: openapi.StreamingMedia{MediaTypes: []string{"application/json"}}},
+			"text/event-stream", map[string]string{"text/event-stream": "", "application/json": guess}, ir.StreamingBidi},
+		{"a disabled policy", openapi.Options{StreamingMedia: openapi.StreamingMedia{Disabled: true}}, "text/event-stream",
+			map[string]string{"text/event-stream": "", "application/json": ""}, ir.StreamingNone},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			doc, _ := streamingSpec(t, mixedStreamSpec(tc.stream, "application/json"), tc.opts)
+			op := openapitest.FindOp(t, doc, "tail")
+			assert.Equal(t, tc.want, streamsByMediaType(t, op.Request), "the request")
+			assert.Equal(t, tc.want, streamsByMediaType(t, op.Responses[0].Payload), "the success response")
+			require.Len(t, op.Errors, 1)
+			assert.Equal(t, tc.want, streamsByMediaType(t, op.Errors[0].Payload), "the error response")
+			require.NotNil(t, op.Default)
+			assert.Equal(t, tc.want, streamsByMediaType(t, op.Default.Payload), "the default")
+			assert.Equal(t, tc.mode, op.Streaming)
+		})
+	}
+}
+
+// TestStreaming_EachContentStreamsInEitherOrder is the two-order diff of the
+// payloads above: which content streams, and what the operation makes of it,
+// must not follow which media type a payload writes first.
+func TestStreaming_EachContentStreamsInEitherOrder(t *testing.T) {
+	t.Parallel()
+	forward, _ := streamingSpec(t, mixedStreamSpec("text/event-stream", "application/json"), openapi.Options{})
+	reverse, _ := streamingSpec(t, mixedStreamSpec("application/json", "text/event-stream"), openapi.Options{})
+	first, second := openapitest.FindOp(t, forward, "tail"), openapitest.FindOp(t, reverse, "tail")
+	for name, payloads := range map[string][2]*ir.Payload{
+		"the request":          {first.Request, second.Request},
+		"the success response": {first.Responses[0].Payload, second.Responses[0].Payload},
+		"the error response":   {first.Errors[0].Payload, second.Errors[0].Payload},
+		"the default":          {first.Default.Payload, second.Default.Payload},
+	} {
+		assert.Equal(t, streamsByMediaType(t, payloads[0]), streamsByMediaType(t, payloads[1]), name)
+	}
+	assert.Empty(t, cmp.Diff(first.RequestStream, second.RequestStream))
+	assert.Empty(t, cmp.Diff(first.ResponseStream, second.ResponseStream))
+	assert.Equal(t, first.Provenance.Inferred, second.Provenance.Inferred)
+}
+
+// TestStreaming_AnItemSchemaDeclaresItsContentAStream holds a content declaring
+// an itemSchema to a stream with no marker, on a media type the policy names, on
+// one it does not, and with the policy off, while a content beside it keeps the
+// policy's reading. The operation's marker is its guessed contents' alone.
+func TestStreaming_AnItemSchemaDeclaresItsContentAStream(t *testing.T) {
+	t.Parallel()
+	spec := openapitest.PathsSpecVer("3.2.0", `  /s:
+    get:
+      operationId: s
+      responses:
+        "200":
+          description: ok
+          content:
+            text/event-stream: {itemSchema: {type: object, properties: {a: {type: string}}}}
+            application/vnd.acme.frames: {itemSchema: {type: string}}
+            application/x-ndjson: {schema: {type: string}}
+`)
+	for _, tc := range []struct {
+		name     string
+		opts     openapi.Options
+		ndjson   string
+		inferred ir.Inferred
+	}{
+		{"the default policy", openapi.Options{}, "streaming-media-type", "streaming-media-type"},
+		{"a disabled policy", openapi.Options{StreamingMedia: openapi.StreamingMedia{Disabled: true}}, "", ""},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			doc, _ := streamingSpec(t, spec, tc.opts)
+			op := openapitest.FindOp(t, doc, "s")
+			assert.Equal(t, map[string]string{
+				"text/event-stream":           "declared",
+				"application/vnd.acme.frames": "declared",
+				"application/x-ndjson":        tc.ndjson,
+			}, streamsByMediaType(t, op.Responses[0].Payload))
+			assert.Equal(t, ir.StreamingServer, op.Streaming)
+			assert.Equal(t, tc.inferred, op.Provenance.Inferred)
+		})
+	}
+}
+
+// TestStreaming_ACallbackAndAWebhookMarkTheirContents holds the reading to the
+// operations a document's paths do not mount: a webhook's request and a
+// callback's response mark their streams as a path's operation does.
+func TestStreaming_ACallbackAndAWebhookMarkTheirContents(t *testing.T) {
+	t.Parallel()
+	doc, _ := streamingSpec(t, `openapi: 3.1.0
+info: {title: T, version: "1"}
+paths:
+  /subscribe:
+    post:
+      operationId: subscribe
+      responses: {"204": {description: ok}}
+      callbacks:
+        onEvent:
+          '{$request.body#/url}':
+            post:
+              operationId: deliver
+              responses:
+                "200":
+                  description: ok
+                  content:
+                    application/json: {schema: {type: string}}
+                    application/x-ndjson: {schema: {type: string}}
+webhooks:
+  ping:
+    post:
+      operationId: onPing
+      requestBody:
+        content:
+          text/event-stream: {schema: {type: string}}
+      responses: {"204": {description: ok}}
+`, openapi.Options{})
+	deliver := openapitest.FindOp(t, doc, "deliver")
+	assert.Equal(t, map[string]string{"application/json": "", "application/x-ndjson": "streaming-media-type"},
+		streamsByMediaType(t, deliver.Responses[0].Payload))
+	assert.Equal(t, ir.StreamingServer, deliver.Streaming)
+	ping := openapitest.FindOp(t, doc, "onPing")
+	assert.Equal(t, map[string]string{"text/event-stream": "streaming-media-type"}, streamsByMediaType(t, ping.Request))
+	assert.Equal(t, ir.StreamingClient, ping.Streaming)
+}
+
+// TestStreaming_AMediaTypeRefStreamsByTheKeyItIsWrittenUnder holds the reading
+// to the key a use is written under, as every other reading of a media type is
+// (docs/compilers/openapi.md#media-types): one components/mediaTypes entry named
+// under an event stream and under JSON streams under the first alone.
+func TestStreaming_AMediaTypeRefStreamsByTheKeyItIsWrittenUnder(t *testing.T) {
+	t.Parallel()
+	doc, _ := streamingSpec(t, `openapi: 3.2.0
+info: {title: T, version: "1"}
+paths:
+  /s:
+    get:
+      operationId: s
+      responses:
+        "200":
+          description: ok
+          content:
+            text/event-stream: {$ref: '#/components/mediaTypes/Frames'}
+            application/json: {$ref: '#/components/mediaTypes/Frames'}
+components:
+  mediaTypes:
+    Frames: {schema: {type: object, properties: {a: {type: string}}}}
+`, openapi.Options{})
+	op := openapitest.FindOp(t, doc, "s")
+	assert.Equal(t, map[string]string{"text/event-stream": "streaming-media-type", "application/json": ""},
+		streamsByMediaType(t, op.Responses[0].Payload))
 }

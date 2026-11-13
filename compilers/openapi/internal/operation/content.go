@@ -108,8 +108,8 @@ func mediaTypeDocs(d mediaDecl, u *ir.Unmodeled) (ir.Docs, []string, []ir.Diagno
 }
 
 // lowerContent lowers one media-type view: its type graph, examples, binary/
-// form specialization, sequential-media shape, docs and extensions, as d
-// declares them, under mt, the key it is written under.
+// form specialization, sequential-media shape, whether it streams, docs and
+// extensions, as d declares them, under mt, the key it is written under.
 func lowerContent(d mediaDecl, w walk, mt string) (ir.Content, []ir.Diagnostic) {
 	c, media, mediaPtr := d.ctx, d.media, d.pointer
 	mediaType, diags := schema.Ref(c, w.types, schema.TopLevelDepth, media.GetSchema(), mediaPtr+ids.Ptr("schema"))
@@ -135,6 +135,7 @@ func lowerContent(d mediaDecl, w walk, mt string) (ir.Content, []ir.Diagnostic) 
 		content.Unmodeled = annotation.MergeUnmodeled(content.Unmodeled, encUnmodeled)
 	}
 	diags = append(diags, fillSequential(c, w, &content, media, mediaPtr)...)
+	content.Stream = contentStream(c, mt, content.Item)
 	ext, extDiags := annotation.ExtensionsFrom(media.GetExtensions(), c.Place(), mediaPtr)
 	diags = append(diags, extDiags...)
 	if len(ext) > 0 {
