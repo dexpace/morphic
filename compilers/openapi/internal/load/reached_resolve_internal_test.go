@@ -567,8 +567,8 @@ paths:
 // another document: in that document's own Document.Sources entry, at the
 // $ref, never at the same pointer of the source. In each row the source
 // reaches an object of b.yaml first, and a $ref a.yaml writes then reaches
-// one inside it, crossing b.yaml's budget: a schema's $ref, which the binding
-// reads, and a reference object, which the resolver does.
+// one inside it, crossing b.yaml's budget: a schema's $ref and a reference
+// object.
 func TestResolve_AFindingAtAnotherDocumentsRefIsPlacedThere(t *testing.T) {
 	t.Parallel()
 	object := func(fields int) string {
@@ -870,14 +870,13 @@ func respelledRoot(scheme, host string) string {
 		"  /x: {$ref: \"" + url + "\"}\n  /y: {$ref: \"" + url + "\"}\n"
 }
 
-// TestResolve_ValidatesOnceAfterARebuild: an upper-cased scheme forces GitHub
-// #538's rebuild, since the resolver's own parse of a mis-keyed document skips
-// the anchored get. /x's 8:25 finding, inside that get, exists only in the
-// recovered document, and validateReached, run once on the document resolve
-// returns, must find it exactly once. other.yaml is served over HTTP so the
+// TestResolve_ValidatesOnceUnderAnUpperCasedScheme pins GitHub #538: an
+// upper-cased scheme once made the parser library's resolver parse the
+// document itself, which skipped the anchored get. /x's 8:25 finding, inside
+// that get, must be found exactly once. other.yaml is served over HTTP so the
 // spelling is the one difference between the runs, which must report the same
 // diagnostics: each finding once, placed in other.yaml at its node.
-func TestResolve_ValidatesOnceAfterARebuild(t *testing.T) {
+func TestResolve_ValidatesOnceUnderAnUpperCasedScheme(t *testing.T) {
 	t.Parallel()
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		_, err := w.Write([]byte(respelledOther))
@@ -893,18 +892,18 @@ func TestResolve_ValidatesOnceAfterARebuild(t *testing.T) {
 		return diags
 	}
 
-	notRebuilt := run("http")
-	rebuilt := run("HTTP")
+	lower := run("http")
+	upper := run("HTTP")
 
 	respelled := cmp.Transformer("respelled", func(msg string) string {
 		return strings.ReplaceAll(msg, "HTTP://", "http://")
 	})
-	if d := cmp.Diff(notRebuilt, rebuilt, respelled); d != "" {
-		t.Errorf("the diagnostics must be identical whether or not a rebuild ran (-not-rebuilt +rebuilt):\n%s", d)
+	if d := cmp.Diff(lower, upper, respelled); d != "" {
+		t.Errorf("the diagnostics must be identical under either scheme (-lower +upper):\n%s", d)
 	}
 	made := map[string]bool{}
 	recovered := 0
-	for _, d := range rebuilt {
+	for _, d := range upper {
 		assert.Equal(t, 1, d.Provenance.Source, "placed in other.yaml, where its node is: %+v", d)
 		key := fmt.Sprint(d.Code, d.Provenance, d.Message)
 		assert.False(t, made[key], "made once: %+v", d)
@@ -916,7 +915,7 @@ func TestResolve_ValidatesOnceAfterARebuild(t *testing.T) {
 			assert.Equal(t, jsontext.Pointer("/paths/~1x/get/parameters/0/in"), d.Provenance.Pointer)
 		}
 	}
-	assert.Equal(t, 1, recovered, "the recovered get's own finding, exactly once: %+v", rebuilt)
+	assert.Equal(t, 1, recovered, "the anchored get's own finding, exactly once: %+v", upper)
 }
 
 // inSourceFinding is one finding on a node of the source: the pointer it is

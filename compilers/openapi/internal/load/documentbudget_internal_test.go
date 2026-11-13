@@ -32,8 +32,7 @@ const (
 
 // schemaChain and responseChain are what the last document of a chainServer
 // chain holds at x: a schema, and a response. A chain of $refs to either reads
-// the same documents; only a response chain is followed by the parser's
-// resolver, which reports what it cannot read.
+// the same documents, and reports what it cannot read.
 const (
 	schemaChain   = "x: {type: string}\n"
 	responseChain = "x: {description: ok}\n"
@@ -110,8 +109,8 @@ func TestLoad_AnEndlessChainIsReadToTheDocumentBudget(t *testing.T) {
 }
 
 // TestLoad_ASchemaChainIsReadToTheDocumentBudget pins the same bound for a
-// chain of schema $refs, which the compiler follows itself: the documents it
-// reads are the resolver's, read once and counted against one budget, so a
+// chain of schema $refs: the documents it reads are a response chain's, read
+// once and counted against one budget, so a
 // chain that never ends makes exactly the budgeted number of requests and ends
 // unresolved in the last document it read.
 func TestLoad_ASchemaChainIsReadToTheDocumentBudget(t *testing.T) {

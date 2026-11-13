@@ -802,7 +802,7 @@ references that closes on itself is [`reference-cycles`](#reference-cycles)'.
   `load.TestLoad_AMediaTypeRefToNoObjectIsReportedAsOne`,
   `load.TestIndexWalk_ReportsAMediaTypeUseTheParserFaultsOnOnce`,
   `load.TestResolve_EveryKindOfObjectIsValidated`,
-  `e2e.TestCompile_AMediaTypeReferenceLowersAlikeAfterARebuild`,
+  `e2e.TestCompile_AMediaTypeReferenceLowersAlikeUnderAnUpperCasedScheme`,
   `operation.TestMediaTypeRef_ACarrierReadsTheDeclarationInItsDocument`,
   `e2e.TestReferenceIdentity_ASchemaRefThroughAnAliasIsOneNode`,
   `e2e.TestReferenceObjects_APointerThroughAPathItemRefReadsWhereItsChainEnds`,

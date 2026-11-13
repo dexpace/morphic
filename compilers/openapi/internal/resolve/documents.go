@@ -19,7 +19,7 @@ import (
 
 // documentOf returns the path of the document ref names when it is written in
 // the document at base (Locate), or base for none. It reports false for no
-// base and for a reference the resolver could not place.
+// base and for a reference whose document part Locate reads as naming none.
 func documentOf(ref references.Reference, base string) (string, bool) {
 	if base == "" {
 		return "", false
@@ -181,11 +181,11 @@ func (p *Places) FileOf(name string) (string, bool) {
 }
 
 // IsURL reports whether location names a document by URL rather than as a
-// file, as the resolver classifies it (references.ResolveAbsoluteReference):
-// by the scheme url.Parse finds, but for a drive letter before a backslash. A
-// scheme needs no "//" after it, and a file path holding "://" past a
-// directory named like a scheme is still a file. A location the resolver
-// cannot parse is none; it resolves nothing.
+// file, as the parser library classifies it
+// (references.ResolveAbsoluteReference): by the scheme url.Parse finds, but
+// for a drive letter before a backslash. A scheme needs no "//" after it, and
+// a file path holding "://" past a directory named like a scheme is still a
+// file. A location the library cannot parse is none; it resolves nothing.
 func IsURL(location string) bool {
 	abs, err := references.ResolveAbsoluteReference("", location)
 	return err == nil && abs.Classification != nil && abs.Classification.IsURL

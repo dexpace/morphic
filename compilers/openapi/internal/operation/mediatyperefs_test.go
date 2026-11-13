@@ -101,8 +101,7 @@ components:
 // it, named for its key, in the document declaring it, whichever entry is
 // lowered first (GitHub #856): a components/mediaTypes entry of the source and
 // of another document, and an inline content entry of the source, with and
-// without a reader, since the resolver finds the source's own media types
-// where load holds them (docs/parser-library.md#media-type-references).
+// without a reader (docs/parser-library.md#media-type-references).
 func TestMediaTypeRef_OneDeclarationIsOneType(t *testing.T) {
 	t.Parallel()
 	const other = `openapi: 3.2.0

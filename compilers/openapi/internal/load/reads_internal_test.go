@@ -143,7 +143,7 @@ func TestExternalReads_ExhaustedReportsOnceAtTheSource(t *testing.T) {
 }
 
 // TestExternalReads_IsSafeForConcurrentUse holds the record to what the readers
-// sharing it promise: the resolver's interfaces do not rule out concurrent
+// sharing it promise: a reader's interface does not rule out concurrent
 // calls, and a write racing another is a fatal map fault that no recover can
 // catch. Under -race, unsynchronized access fails here.
 func TestExternalReads_IsSafeForConcurrentUse(t *testing.T) {

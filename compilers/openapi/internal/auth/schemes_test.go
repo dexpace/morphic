@@ -52,7 +52,7 @@ func TestLowerSecuritySchemes_ANilEntryLowersAndReportsNothing(t *testing.T) {
 //
 // A $ref resolving to nothing is reported once at the entry's own pointer: this
 // package and the load phase both report it there, and the compiler keeps the
-// load phase's, which carries the resolver's reason (GitHub #385). An entry not
+// load phase's, which carries the binder's reason (GitHub #385). An entry not
 // written as an object already draws the loader's type-mismatch alone.
 func TestLowerSecuritySchemes_ABrokenRefIsReportedByLoadOnce(t *testing.T) {
 	t.Parallel()

@@ -176,8 +176,8 @@ func pointersIn(ctx context.Context, trees map[string]*yaml.Node, keys []string)
 // file's path, where it lies, relative to the source's directory, with '/'
 // between its segments whatever the system, or its cleaned path where no
 // relative path reaches it, as from a relative directory to an absolute path,
-// which nothing relates without the working directory; a URL as the resolver
-// spells it. A file URI names a file (resolve.Places.FileOf), so the file is
+// which nothing relates without the working directory; a URL as key spells
+// it. A file URI names a file (resolve.Places.FileOf), so the file is
 // one label however a reference spells it. relative reports the first.
 func (s sourceDocument) labelOf(key string) (label string, relative bool) {
 	file, ok := s.places.FileOf(key)

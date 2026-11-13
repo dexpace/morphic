@@ -184,8 +184,7 @@ func TestShownPathOf_NamesADocumentAsTheHandedPathNamesTheSource(t *testing.T) {
 }
 
 // TestUnreachedKeys_NamesWhatOnlyAPassThatDidNotStandRead pins what leaves
-// Document.Sources: a document the table holds nothing of, unless the parser's
-// resolver read it too, whose reference objects the table need not see.
+// Document.Sources: a document the table holds nothing of.
 func TestUnreachedKeys_NamesWhatOnlyAPassThatDidNotStandRead(t *testing.T) {
 	t.Parallel()
 	docs := map[string]string{

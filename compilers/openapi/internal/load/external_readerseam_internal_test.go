@@ -101,7 +101,7 @@ func TestExternal_FetchWithNoReaderIsRefusedUnread(t *testing.T) {
 // what a reader refused: its own two sentinels, found through any wrapping,
 // become the refusal that names the budget, the directory a path lies outside
 // of, or the network a confined read does not reach, and any other error
-// reaches the resolver as the reader spoke it, neither wrapped nor reworded.
+// reaches the binder as the reader spoke it, neither wrapped nor reworded.
 func TestExternal_ReadFailureMapsTheReadersSentinels(t *testing.T) {
 	t.Parallel()
 	const (

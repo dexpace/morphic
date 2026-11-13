@@ -302,13 +302,12 @@ const (
 	// (UnpreservableConstruct), what was not reached is unresolved, or what is
 	// past the bound is kept verbatim, unlowered.
 	BudgetExceeded = "openapi/budget-exceeded"
-	// InternalInvariant reports that one of the compiler's own invariants broke:
-	// a pointer named a type ID the registry does not hold, a second resolution
-	// read a document load never prepared, or the library faulted while load put
-	// the $refs it respelled back as written. It is a compiler bug, not a problem
-	// with the source, but it is reported rather than dropped in silence, since
-	// the alternative is losing constructs with no trace at all. An entry the
-	// registry refused is compile.RegistryRefused instead.
+	// InternalInvariant reports that one of the compiler's own invariants broke,
+	// such as a pointer naming a type ID the registry does not hold. It is a
+	// compiler bug, not a problem with the source, but it is reported rather
+	// than dropped in silence, since the alternative is losing constructs with
+	// no trace at all. An entry the registry refused is compile.RegistryRefused
+	// instead.
 	InternalInvariant = "openapi/internal-invariant"
 	// DuplicateOperationID reports an operationId that one declaration claims
 	// more than once because it is mounted more than once: a path item or an

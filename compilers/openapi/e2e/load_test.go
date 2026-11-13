@@ -478,8 +478,8 @@ func TestCompile_ByDefaultOnlyARelativeReferenceIsFollowed(t *testing.T) {
 
 // TestCompile_AnUnusableDocumentIsReportedAlikeOnEitherRoute pins that a
 // document read and not usable, one that does not parse or one holding
-// nothing, fails a schema $ref, which the compiler binds, and a parameter's,
-// which the parser's resolver follows, with one wording, whether the $ref names
+// nothing, fails a schema $ref and a parameter's with one wording, whether the
+// $ref names
 // a node in it or the whole of it, in either mode, and draws no other finding.
 func TestCompile_AnUnusableDocumentIsReportedAlikeOnEitherRoute(t *testing.T) {
 	t.Parallel()
@@ -527,8 +527,8 @@ func TestCompile_AnUnusableDocumentIsReportedAlikeOnEitherRoute(t *testing.T) {
 // references allowed or not, and whatever the working directory: a reader
 // would read "foo:b.yaml" as a path against it. A file whose name holds a
 // colon, written "./foo:b.yaml", is read, the spec named relatively too,
-// where the resolver joins it to that same "foo:b.yaml". Both routes word the
-// refusal alike.
+// where the parser library's join would make it that same "foo:b.yaml"
+// (resolve.Locate keeps the "./"). Both routes word the refusal alike.
 func TestCompile_AURLNoReaderReadsIsRefusedUnread(t *testing.T) {
 	dir, err := filepath.EvalSymlinks(t.TempDir())
 	require.NoError(t, err)
@@ -558,7 +558,7 @@ func TestCompile_AURLNoReaderReadsIsRefusedUnread(t *testing.T) {
 			for _, d := range diags {
 				got = append(got, string(d.Provenance.Pointer)+": "+d.Message[strings.LastIndex(d.Message, ": ")+2:])
 				assert.Contains(t, d.Message, ": the document it names could not be read: external document foo:b.yaml refused: ",
-					"the binder and the parser's resolver word one refusal alike")
+					"a schema's $ref and a parameter's word one refusal alike")
 			}
 			slices.Sort(got)
 			assert.Equal(t, []string{"/components/schemas/URL: " + refused, "/paths/~1x/get/parameters/0: " + refused}, got,
@@ -705,9 +705,8 @@ func TestCompile_ByDefaultEachReferenceIsJudgedByItsOwnSpelling(t *testing.T) {
 // TestCompile_AnAbsolutePathInANetworkDocumentNamesItsHost pins that a $ref a
 // document fetched over the network writes as an absolute path, or as a
 // network-path reference, names what RFC 3986 §5.2 resolves it to on the
-// network, never a local file: it is read from the host, by a schema the
-// compiler binds and by a parameter the parser's resolver follows, and nothing
-// is refused.
+// network, never a local file: it is read from the host, by a schema's $ref
+// and by a parameter's, and nothing is refused.
 func TestCompile_AnAbsolutePathInANetworkDocumentNamesItsHost(t *testing.T) {
 	t.Parallel()
 	served := map[string]string{
@@ -811,9 +810,9 @@ func TestCompile_ANetworkDocumentReadsNoLocalFile(t *testing.T) {
 // TestCompile_ANetworkDocumentReadsNoLocalFileByAnyReference pins the same
 // boundary for each kind of reference the compiler follows, a file: URI in a
 // document fetched over the network, one and two network documents deep: a
-// schema's $ref, a reference object of every kind the parser's resolver reads,
-// and a discriminator's mapping value and defaultMapping, which the compiler
-// binds, are each refused where they are written, and nothing local is read;
+// schema's $ref, a reference object of every kind, and a discriminator's
+// mapping value and defaultMapping are each refused where they are written,
+// and nothing local is read;
 // a link's operationRef and an example's externalValue name nothing a compile
 // reads.
 func TestCompile_ANetworkDocumentReadsNoLocalFileByAnyReference(t *testing.T) {

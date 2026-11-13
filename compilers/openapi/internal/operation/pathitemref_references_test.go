@@ -474,8 +474,8 @@ paths:
 
 // besideRefPaths are /a and /b of every case below: /a writes get, put and its
 // item parameters beside a $ref to /b, which declares a get and parameters too,
-// so the resolver reads a pointer through /a's $ref to /b's, while /a's mount
-// declares its own at the pointer the reference spells. /a is anchored for an
+// and a pointer to one of those fields reads /a's own, which /a's mount declares
+// at the pointer the reference spells. /a is anchored for an
 // alias to bring the same fields to a second path.
 const besideRefPaths = `  /a: &a
     $ref: '#/paths/~1b'
@@ -763,10 +763,10 @@ func errorsAt(diags []ir.Diagnostic) map[jsontext.Pointer][]string {
 	return out
 }
 
-// TestPathItemRefSiblings_APointerIntoAnotherDocumentIsNotRefused pins that the
-// refusal reads a pointer in the source only. /c names ext.yaml's /a, whose
-// pointer spells a position /a here writes beside its $ref, so a check reading
-// the pointer alone would refuse a reference the resolver read correctly.
+// TestPathItemRefSiblings_APointerIntoAnotherDocumentIsNotRefused pins that a
+// pointer is read in the document it names. /c names ext.yaml's /a, whose
+// pointer spells a position /a here writes beside its $ref, so a reading of
+// the pointer alone would take the source's field for ext.yaml's.
 func TestPathItemRefSiblings_APointerIntoAnotherDocumentIsNotRefused(t *testing.T) {
 	t.Parallel()
 	dir := t.TempDir()

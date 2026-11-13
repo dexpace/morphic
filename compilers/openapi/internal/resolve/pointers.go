@@ -53,10 +53,10 @@ func (s Scope) InternalPointer(ref string) (jsontext.Pointer, bool) {
 
 // namesSelf reports whether ref names a position in the source. One with no
 // document part does in the source's own content, and in no other. Otherwise
-// its document part is read as the resolver reads it, against the document
-// holding the reference (documentOf), and names the source when that is the
-// source. The source's own content and a Foreign scope differ in that base
-// only: SelfPath, or Holder.
+// its document part is read against the document holding the reference
+// (documentOf), and names the source when that is the source. The source's
+// own content and a Foreign scope differ in that base only: SelfPath, or
+// Holder.
 func (s Scope) namesSelf(ref references.Reference) bool {
 	base := s.SelfPath
 	if s.Foreign {
