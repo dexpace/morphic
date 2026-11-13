@@ -39,10 +39,13 @@ stays auditable (INV6). A configuration that wants only what the source declares
 `Nullable && Inferred == ""` instead, which is the declared bit
 ([type-graph](../../ir/type-graph.md#type-references)).
 
-A merge-patch body (`application/merge-patch+json`) is where all three of an optional field's states
-change the request: absent leaves the member as it is and `null` removes it. Every target sends both
-through the presence box (`Optional<T?>` on Kotlin, `OptNil[T]` on Go), never through a nullable
-alone.
+A merge-patch body (`application/merge-patch+json`) is where all three states of an optional
+nullable member change the request: absent leaves the member as it is, `null` removes it (RFC 7396
+§2) and a value sets it. Every target sends them through the presence box (`Optional<T?>` on Kotlin,
+`OptNil[T]` on Go), never through a nullable alone. A member the schema does not declare nullable is
+optional only, `Opt[T]` on Go and `T?` left out when null on Kotlin, so a caller cannot send `null`
+for it: the schema admits none there ([what a patch
+relaxes](../plan/types.md#what-a-patch-relaxes)). T-59 holds it.
 
 ## Inheritance
 
@@ -128,20 +131,22 @@ recurs nor reaches an `any` nests 13 levels, a model, a list and a map each one,
 calls for a higher limit is a position that hands back a caller's own JSON as it was stored, whose
 depth is that caller's.
 
-The limit bounds what an SDK does with a value it decoded too, since encoding, printing, hashing and
-comparing a value recurse as deep as it nests. A value a caller builds can nest deeper, and on some
-targets hold itself, and no target answers one with a crash its caller cannot recover from: each
-says what its encoder, its printed forms, its hash and its comparison do with it
-([Go](../targets/go/models.md#nesting), [Kotlin](../targets/kotlin/models.md#nesting)).
+The limit bounds what an SDK does with a value it decoded too, since encoding, printing, hashing,
+comparing and validating a value recurse as deep as it nests. A value a caller builds can nest
+deeper, and on some targets hold itself, and no target answers one with a crash its caller cannot
+recover from: each says what its encoder, its printed forms, its hash, its comparison and its
+validation do with it ([Go](../targets/go/models.md#nesting),
+[Kotlin](../targets/kotlin/models.md#nesting)).
 
 Depth does not bound work. A value that holds one child twice at each of 60 levels is 60 objects in
-memory and 2^60 values as JSON, and it nests within the limit, so encoding, printing, hashing or
-comparing it would not end. So `Nesting.MaxValues`, 16,777,216 unless a configuration sets another,
-bounds the values of one JSON text, each object, array, string, number and literal counting one and
-a member's name none. A text holding more is refused as one nested too deep is, read or written, and
-no target visits more values than that to print, hash or compare one, each saying what its caller
-then sees. A cap on the printed form alone was the alternative, and leaves the encoder and a
-generated comparison unbounded. T-63 holds this section.
+memory and 2^60 values as JSON, and it nests within the limit, so encoding, printing, hashing,
+comparing or validating it would not end. So `Nesting.MaxValues`, 16,777,216 unless a configuration
+sets another, bounds the values of one JSON text, each object, array, string, number and literal
+counting one and a member's name none. A text holding more is refused as one nested too deep is,
+read or written, and no target visits more values than that, or more levels than `MaxDepth`, to
+print, hash, compare or validate one, each saying what its caller then sees. A cap on the printed
+form alone was the alternative, and leaves the encoder and a generated comparison unbounded. T-63
+holds this section.
 
 ## Recursive references
 

@@ -29,10 +29,11 @@ type PaymentBankTransfer struct{ Value BankTransfer }
   wrapper in the union's unit takes any variant, and keeps apart two variants that lower to one Go
   type. A wrapper declares the codec pair too, delegating to its `Value`, so it codes as its variant
   does when a caller's own call meets it alone.
-- **The struct and each wrapper redact.** Their `String`, `GoString` and `LogValue` show a variant
-  the union redacts as `[REDACTED]` ([redaction](../../refine/redaction.md#a-redacted-value)), as a
-  model's do ([`User`](models.md#user-in-go)): `fmt` prints a wrapper's fields, so
-  `Payment{Value: PaymentToken{Value: "tok"}}` would print `{{tok}}`.
+- **The struct and each wrapper redact.** A variant the union redacts is held in its wrapper's
+  `Value` as a `runtime.Secret[T]` ([a redacted member](models.md#a-redacted-member)), and the
+  struct's and each wrapper's `Format`, `String`, `GoString` and `LogValue` show it as `[REDACTED]`
+  ([redaction](../../refine/redaction.md#a-redacted-value)), as a model's do
+  ([`User`](models.md#user-in-go)).
 - **A polymorphic base lowers the same way** ([the shared
   rule](../../refine/unions.md#a-polymorphic-base)). `Pet` is a struct holding `PetVariant`, with a
   wrapper per subtype.
@@ -80,7 +81,7 @@ type Target struct {        // anyOf: [Zone, Account], which one value can fit
 - **`Validate` passes when a set field's `Validate` passes**, reports every set field's failures
   when none does, and reports a struct with no field set. With no sum to close, it has no marker, no
   wrapper and no switch-completeness test.
-- **`String`, `GoString` and `LogValue` redact** a member any set field redacts
+- **`Format`, `String`, `GoString` and `LogValue` redact** a member any set field redacts
   ([redaction](../../refine/redaction.md#a-redacted-value)), in every set field they render.
 
 ## Discriminators

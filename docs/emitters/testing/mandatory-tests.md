@@ -695,7 +695,8 @@ throughout these documents.
     in every logging event, one a structured logger writes as JSON included, and in every error
     message, a transport failure's that quotes a redacted path segment or query value included, a
     collection as the marker alone and a map whose values alone are redacted with its keys shown,
-    and goes out and comes back on the wire byte for byte; a raw body holding one is never logged or
+    and goes out and comes back on the wire byte for byte, an optional one left unset absent from
+    the request and one set to its zero value written; a raw body holding one is never logged or
     printed ([redaction](../refine/redaction.md)).
 44. **T-44 · Stability** — an operation's own tier, its nearest group's when it states none, and
     none when no group states one, each resolved once in `OpPlan.Stability`; an `alpha` and a `beta`
@@ -1006,7 +1007,8 @@ throughout these documents.
     value holding neither; a variant pinning its tag as a number is routed by that number's value, a
     payload spelling it `10016.0` or `1.0016e4` decoding at a closed union as `10016` does and one
     carrying it as the string `"10016"` failing in that variant; of two routes spelling one number,
-    `1` and `1.0`, a payload's `1.0` takes the second and its `1e0` the first; a variant that is a
+    `1` and `1.0`, a payload's `1.0` takes the second and its `1e0` the first, of `1.00` and `1e0` a
+    payload's `10e-1` takes `1.00`, and of `-0` and `0` its `0.0` takes `-0`; a variant that is a
     union carries the outer union's tag in the object its value is, added where that object has no
     such member; and a variant no tag routes to decodes by recognition, before `Default`, in a union
     declaring a `Default` too, where a value no such variant admits decodes as `Default`, and
@@ -1049,7 +1051,9 @@ throughout these documents.
     the mock, with `RequestContent` marked `Inferred`, and sends `application/json`, requiring them,
     where the ranking names that media type by itself, the policy is off, or the binding's
     `PatchImplicitOptionality` points at `true` or at `false`, either of which elects nothing;
-    turning `plan.Policy.MergePatch` off removes the patch shape and its mark; and a `POST` sent as
+    turning `plan.Policy.MergePatch` off removes the patch shape and its mark; in a merge patch a
+    member declared nullable sends `null`, nothing and a value as three requests, and one not so
+    declared has no form that sends `null`, on Go and on both Kotlin targets; and a `POST` sent as
     a merge patch relaxes nothing ([TypePlan](../plan/types.md#what-a-patch-relaxes), [one
     election](../plan/responses.md#one-election)).
 60. **T-60 · The declaration a shape takes** — a model with a `readOnly` and a `writeOnly` member,
@@ -1060,20 +1064,21 @@ throughout these documents.
     its own name, with an alias of that declaration for each shape that writes it, which each
     signature names, and giving one member a `readOnly` marker turns those aliases into declarations
     under the names and keys they had, a caller's program in another module that builds each request
-    by its shape's name compiling before and after on Go and on Kotlin, a union among what it
-    builds, whose variant it names in Go by the shape's wrapper, factory and interface and in Kotlin
-    by the factory an alias reaches, the Swift export showing no alias; an enum, a scalar and a
-    literal a shape reaches are declared once, under their own names, and a decorator not at all; a
-    Kotlin unit holding types `UserKt` and `UserCreateKt` beside `User` and its alias declares them
-    `UserKt_` and `UserCreateKt_` and builds on the JVM and as a framework whose header names no
-    class for the alias's file, and two units each holding a literal `Kind` give each constant, in
-    both orders of the units' packages, the Swift name the policy chose, `Kind.shared.VALUE` and the
-    other's under its object's suffix, no file holding the spec's declarations declaring a function
-    or a property at its top level; a model only a `PUT` writes, with a
-    `readOnly` member, is `UserCreateUpdate` with no `User` beside it, and adding a `POST`, then an
-    operation returning it, renames no declaration and regenerates the earlier ones byte for byte; a
-    custom lifecycle `<class>:<member>` gives its class's words and then its member's; a filter an
-    operation names for its view is named as a method's is; a component the source calls
+    by its shape's name compiling before and after on Go and on Kotlin, a union and a polymorphic
+    base among what it builds, whose variant or subtype it names in Go by the shape's wrapper,
+    factory and interface and in Kotlin by the factory an alias reaches, the Swift export showing no
+    alias; a tuple holding the model is declared under the shape's words, and an enum, a scalar, a
+    literal and an external type a shape reaches are declared once, under their own names, and a
+    decorator not at all; a Kotlin unit holding types `UserKt` and `UserCreateKt` beside `User` and
+    its alias declares them `UserKt_` and `UserCreateKt_` and builds on the JVM and as a framework
+    whose header names no class for the alias's file, and two units each holding a literal `Kind`
+    give each constant, in both orders of the units' packages, the Swift name the policy chose,
+    `Kind.shared.VALUE` and the other's under its object's suffix, no file holding the spec's
+    declarations declaring a function or a property at its top level; a model only a `PUT` writes,
+    with a `readOnly` member, is `UserCreateUpdate` with no `User` beside it, and adding a `POST`,
+    then an operation returning it, renames no declaration and regenerates the earlier ones byte for
+    byte; a custom lifecycle `<class>:<member>` gives its class's words and then its member's; a
+    filter an operation names for its view is named as a method's is; a component the source calls
     `UserCreate` keeps that name in either declaration order and the shape takes a suffix, while one
     added after a generation shipped the shape's `UserCreate` takes the suffix itself; two custom
     lifecycles whose words join alike, `Foo:BarBaz` and `FooBar:Baz`, give two declarations told
@@ -1084,13 +1089,15 @@ throughout these documents.
     nullable, in a list, as a map's value, in a declaration over the kind and in a union's variant,
     decoded by the client and by a caller's own decoder call, reads `1`, `1.0`, `1e0`, `10e-1` and
     `1E+2` as their values and `-0` and `-0.0` as zero, an unsigned kind among them; as a map's key
-    reads the names `"1"`, `"1.0"` and `"1e0"` as 1, writes `"1"` and refuses an object holding two
-    of them, a boolean, an enum over a number, one over a string and a date each written and read as
-    a key by their text; refuses `1.5`, `15e-1`, `1e-400`, the string `"1"` where a value stands,
-    the first value past each kind's range in plain digits and in exponent form, and a negative
-    number into an unsigned kind; reads each kind's least and greatest value and 9007199254740993,
-    in plain digits and in exponent form, to that exact value, which no reader passing through a
-    float does, and `0e99999999999999999999` as zero; refuses `1e1000000000` and reads a literal a
+    reads the names `"1"`, `"1.0"` and `"1e0"` as 1, writes `"1"`, refuses the name `"1.5"` and
+    refuses an object holding two of them, as a map's key and as a catch-all's beside a declared
+    member, through the client and a caller's own decoder call, a boolean, an enum over a number,
+    one over a string and a date each written and read as a key by their text; refuses `1.5`,
+    `15e-1`, `1e-400`, the string `"1"` where a value stands, the first value past each kind's range
+    in plain digits and in exponent form, and a negative number into an unsigned kind; reads each
+    kind's least and greatest value and 9007199254740993, in plain digits and in exponent form, to
+    that exact value, which no reader passing through a float does, and `0e99999999999999999999` as
+    zero; refuses `1e1000000000` and reads a literal a
     megabyte long that names 1, each within a time bound a literal's expansion would pass; writes
     plain digits; reads a parameter's and a header's text by the same table, in an SDK and in a
     mock; and leaves a caller's own decoder for an integer type its precedence at any depth ([type
@@ -1110,19 +1117,26 @@ throughout these documents.
     the caller as a body that does not decode, the status and the bytes kept, on a thread with the
     smallest stack its target names, 256 KB on the JVM and 512 KB on Kotlin/Native, and never as a
     crash or a stack overflow; a body at the limit decodes through each, and the value then encodes,
-    prints, hashes and compares on that thread, Kotlin/Native starting one thread for a call whose
-    depth times its type's cost passes 128 KB and none from a thread so started; a body holding one
-    value more than `Nesting.MaxValues` is refused the same way and one holding that many decodes, a
+    prints, hashes, compares and validates on that thread, Kotlin/Native working on the calling
+    thread where the depth times its type's cost and 32 KB fit in what that thread has left, and on
+    a thread it starts otherwise, from a 64 KB thread, from a caller that leaves 60 KB of its own
+    stack, and from the main thread, where a hash of a value two levels deep of a 200-member type
+    starts none, a decode failing on a started thread reaching the caller as that failure; a body
+    holding one value more than `Nesting.MaxValues` is refused the same way and one holding that
+    many decodes, a
     member's name counting none; an opening bracket inside a string counts for nothing, a string
     ending in an escaped backslash among them, the value after it nested past the limit still
     refused; a value a caller builds past the limit is refused by the client's encoder, nothing
-    sent, and prints, hashes and compares without recursing into it, on Kotlin/Native on a 64 KB
-    stack; a value a caller builds that holds one child twice at each of 60 levels is refused by the
-    encoder once it has written `Nesting.MaxValues` values, prints in Go as far as that many values
-    and then `...`, and in Kotlin prints its class, depth and count alone and equals only itself,
-    each within a time bound no walk of 2^60 values meets; in Go a value holding itself through a
-    pointer, a slice and a map is refused by the encoder and printed by `String`, `GoString`,
-    `LogValue` and every `fmt` verb to the limit and no further; a Kotlin model built from a list
+    sent, and prints, hashes, compares and validates without recursing into it, on Kotlin/Native on
+    a 64 KB stack; a value a caller builds that holds one child twice at each of 60 levels is
+    refused by the encoder once it has written `Nesting.MaxValues` values, prints in Go as far as
+    that many values and then `...` and fails Go's `Validate` after as many, and in Kotlin prints
+    its class, depth and count alone, hashes as its depth, equals only itself and fails
+    `validate()`, each within a time bound no walk of 2^60 values meets, which a hash or a check
+    reading the depth alone fails; in Go a value holding itself through a pointer, a slice and a map
+    is refused by the encoder, fails `Validate` at the limit, its type in another package than the
+    one holding it, and is printed by `String`, `GoString`, `LogValue` and every `fmt` verb to the
+    limit and no further; a Kotlin model built from a list
     its caller then changes keeps its members and its hash; and a `Nesting.MaxDepth` a target cannot
     hold to, one above 64 on Multiplatform, is reported and none is read to another depth
     ([models](../refine/models.md#how-deep-a-value-nests)).

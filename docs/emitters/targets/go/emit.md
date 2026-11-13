@@ -11,8 +11,8 @@ type Module struct { Packages []*Package }
 type StructType struct {
     Common
     Fields  []*Field
-    Embeds  []Expr           // the catch-all map (models.md); what Base, Implements and Mixins
-                             // declare is flattened into Fields (TypePlan.Flattened)
+    Embeds  []Expr           // a catch-all map with no Key (models.md); what Base, Implements
+                             // and Mixins declare is flattened into Fields (TypePlan.Flattened)
 }
 type Field struct {
     Common

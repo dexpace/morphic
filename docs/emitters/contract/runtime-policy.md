@@ -26,7 +26,7 @@ type Policy struct {
     Pagination  Pacing       // the wait between an auto-pager's pages, and how many a walk fetches
     Polling     Polling      // the wait between a poller's polls, and how many a wait makes
     Guards      RequestGuard // option names refused as parameters
-    Nesting     Nesting      // how deep a JSON value may nest
+    Nesting     Nesting      // how deep a JSON value may nest, and how many values it may hold
 }
 
 type Retry struct {
@@ -202,8 +202,8 @@ func Merge(base Policy, over DeepPartial) Policy // a leaf written replaces the 
   upper bound of its own, so no configuration removes a limit by writing a large one. A success body
   the method decodes has no bound in bytes: it becomes the value the call returns, so what it holds
   is the caller's answer, which a bound below it would refuse, while `Timeout.Request` bounds its
-  time and `Nesting` its depth. No document states any of these limits, so each default is a choice,
-  measured on no input.
+  time and `Nesting` its depth and its count of values. No document states any of these limits, so
+  each default is a choice, measured on no input.
 - **A redirect** is followed where following it keeps what the request asks, as RFC 9110 §15.4
   allows: 307 and 308 send the method and body again, 303 sends a `GET`, or a `HEAD` for a `HEAD`,
   and 301 and 302 send the request again as it was. A 301 or 302 to a `POST` is returned as the
@@ -574,7 +574,7 @@ error's and a stream's frame, and writes a request's
 ([models](../refine/models.md#how-deep-a-value-nests)). Its default is what each first target was
 shown to decode, encode, print, hash and compare on a small stack of its platform: a goroutine's,
 which grows, 256 KB on the JVM, and on Kotlin/Native the 512 KB an Apple platform gives a thread,
-the runtime moving to a stack it sizes where a value needs more
+the runtime moving to a stack it sizes where a value needs more than the thread has left
 ([Go](../targets/go/models.md#nesting), [Kotlin](../targets/kotlin/models.md#nesting)). The range
 ends at 10,000, which json/v2 fixes. `Nesting.MaxValues` is how many values one such text may hold,
 which bounds the work a value holding one child many times can ask for; its default refuses no text

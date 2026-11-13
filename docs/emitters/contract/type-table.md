@@ -156,14 +156,18 @@ Neither first target's library does this unaided (Go 1.27.3; kotlinx-serializati
 Kotlin/Native 2.4.0). json/v2 writes and reads an integer key in plain digits, refuses a `bool` key
 both ways (`object member name must be a string`), and hands a registered reader, or a defined
 type's own codec, the name as a string, which the integer reader above refuses as it refuses any
-string: `map[int64]string` read `{"1":"a"}` with json/v2 alone and failed under the reader (`unable
-to unmarshal into Go *int64 within "/1"`). kotlinx quotes a `Long` and a `Boolean` key, refuses the
+string: `map[int64]string` read `{"1":"a"}` with json/v2 alone and failed under the reader (`cannot
+unmarshal into Go *int64 within "/1"`). kotlinx quotes a `Long` and a `Boolean` key, refuses the
 name `"1.0"`, and a serializer reading through `decodeJsonElement()` sees a name as it sees a string
 value, so the by-value serializer and an integer enum's refused the key `"1"`. Each target says how
 it reads a name ([Go](../targets/go/types.md#integers),
-[Kotlin](../targets/kotlin/types.md#integers)). Protobuf's `map<int64, V>` and `map<bool, V>` write
-such keys in JSON; the golden spec types no key (spec @bc6fad24, morphic @fa253fe19). T-61 holds the
-rule.
+[Kotlin](../targets/kotlin/types.md#integers)), and how a model holds a catch-all whose `Key` is set
+([Go](../targets/go/models.md#user-in-go), [Kotlin](../targets/kotlin/models.md#unknown-members)),
+since json/v2 embeds no map whose keys are not strings. Protobuf's `map<int64, V>` and
+`map<bool, V>` write such keys in JSON, and an Erlang map type pairing typed keys with named
+ones is planned as such a catch-all ([planned
+lowerings](../../compilers/planned-lowerings.md#erlangotp));
+the golden spec types no key (spec @bc6fad24, morphic @fa253fe19). T-61 holds the rule.
 
 ## What a built-in row writes
 

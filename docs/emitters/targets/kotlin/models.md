@@ -42,7 +42,9 @@ nested in an open one stays strict and the reverse stays open. A model with a ca
 (`AdditionalProps`) is the exception: the annotation would drop the undeclared members before its
 serializer saw them, so its serializer reads the object whole through
 `JsonDecoder.decodeJsonElement` and folds them into the map, as Go's embedded fallback receives them
-whatever the options say.
+whatever the options say. Where the catch-all's `Key` is set, it reads each name through the key's
+text serializer ([types](types.md#integers)) and refuses two that read as one key: with a `Long`
+key, `{"1": …, "2.0": …}` read as 1 and 2 and `{"1": …, "1e0": …}` was refused (Kotlin 2.4.0).
 
 ## Recursive references
 
@@ -108,27 +110,45 @@ a union in a box 62; and a model with 50 members beside the one it recurs throug
 members 10, the plugin's `deserialize` keeping a slot for each, where an optimized build took it 28
 (Kotlin/Native 2.4.0, kotlinx-serialization-json 1.11.0, macOS arm64, through Gradle). The golden
 spec's widest model has 175 members and its widest that recurs 26 (spec @bc6fad24, morphic
-@fa253fe19). So no depth is safe on a stack the runtime did not size, and it sizes one.
+@fa253fe19). So no depth is safe on a stack the runtime does not measure, and it measures each.
 
 The emitter writes, for each type the client decodes or encodes, the most one level of it can cost:
 8 KB, 512 bytes for each member of the widest model the type reaches, and 6 KB for each union or
 model with a catch-all a value can pass between two levels. That is about twice what those runs
 measured, 4.3 KB, 235 bytes and 2.1 to 2.6 KB, and the three numbers are a table of the options
 version, measured on each Kotlin release. Before the runtime decodes a text it multiplies that cost
-by the depth its scan counted, and before it encodes, prints, hashes or compares a value by the
-depth the value records (below). Where the product passes 128 KB, a quarter of that stack, it does
-the work on a thread it starts with a stack of the product and 128 KB more, and joins it; that
-thread is marked, and work on it starts no other. Measured so, each shape above decoded, encoded,
-printed, hashed and compared 64 levels deep from a 512 KB thread, the 200-member model among them,
-whose encoding ended the process at 32 levels on that thread itself and whose `toString` and
-`equals` did at 128. A value 2,000 levels deep printed, hashed and compared from a 64 KB thread on
-one thread started for each call, and on 1,987 for one `toString` with the mark unread. Starting and
-joining a thread took 19 µs, where decoding six levels of the 50-member model took 2 µs.
-Multiplatform still reports a `MaxDepth` above 64 ([runtime
-policy](../../contract/runtime-policy.md#how-deep-a-value-nests)), no deeper value having been run,
-and a caller who starts a Native thread with less than 512 KB, or calls from deep in a recursion of
-their own, decodes on it at a risk the SDK cannot see. A default lowered to what the costliest
-measured shape takes was the alternative, and the next wider model would pass it.
+by the depth its scan counted, and before it encodes, prints, hashes, compares or validates a value
+by the depth the value records (below). Where the product and 32 KB more fit in what the current
+thread has left, from the current frame to the end of its stack, which `pthread_get_stackaddr_np`
+and `pthread_get_stacksize_np` give on Apple's platforms, the work runs there; otherwise the runtime
+runs it on a thread it starts with a stack of that sum, joins it, and hands its caller the work's
+result or the failure it raised. Each generated `toString`, `hashCode`, `equals` and `validate`
+checks on entry, and a check nested in one that passed passes too, a level spending less than its
+cost. Measured so (Kotlin/Native 2.4.0, through Gradle on macOS arm64, a debug and an optimized
+build), each shape above decoded, encoded, printed, hashed and compared at every depth from 1 to 64
+from threads of 48 KB to 1 MB; a caller that had left itself 59 KB of a 512 KB thread decoded 14
+levels of the member shape on a thread started for it; and on the main thread, 8 MB left, a hash of
+a value of the 200-member model two levels deep started none. With what is left read as unbounded,
+the 64 KB thread ended the process at 64 levels in the debug build. Reading what is left took 8 ns
+optimized and 17 in debug, and starting and joining a thread 12 µs and 30 µs.
+
+One cost serves every operation, a decode's, since each of the others took less stack a level at
+every depth measured: the 200-member model printed on 10,160 bytes a level in the debug build and
+decoded on 31,152. A `validate`, which walks as `equals` does, was not run and is taken to as well.
+So on a thread short of stack they move at depths it could take: on a 512 KB thread, 1,461 of the
+3,072 calls of that run started a thread. A cost for each operation would spare those, at four more
+figures to measure on each release. A budget fixed at 128 KB, a quarter of a 512 KB stack, was the
+alternative, and reads nothing of the thread, so it is wrong both ways: it decoded those 14 levels
+in place with 59 KB left, which ended the process in the debug build, and on the main thread it
+started a thread for that hash, 23 µs where the hash took 0.43 µs (optimized).
+
+A Native target whose platform gives no reading counts what a thread the runtime did not start has
+left as nothing, so each such call moves to a thread it starts, and work on a thread it started
+stays there. Linux's `pthread_getattr_np` and Windows' `GetCurrentThreadStackLimits` give one, but
+only Apple's platforms were run. Multiplatform still reports a `MaxDepth` above 64 ([runtime
+policy](../../contract/runtime-policy.md#how-deep-a-value-nests)), no deeper value having been run.
+A default lowered to what the costliest measured shape takes was the alternative, and the next wider
+model would pass it.
 
 Two other bounds lost. A count kept in the serializers has nowhere to live: the plugin generates a
 model's, and a `Decoder` carries no state of the SDK's. Reading a `JsonElement` first bounds nothing
@@ -143,8 +163,9 @@ member marked `@InternalSdkApi` ([the runtime](overview.md#what-a-caller-reaches
 the record holds because a built value never changes (above). Nothing recurses into a value past the
 limit: the client refuses to encode it, with an error and nothing sent, `toString` shows its class
 and its depth alone, `equals` compares the depths first and holds such a value equal only to itself,
-and `hashCode` is then its depth. Each records in `jsonValues`, beside it, how many values its JSON
-form holds, the sum of its members' and one for itself, held at the greatest `Int` once past it, and
+`hashCode` is then its depth, and `validate()` reports it as nested past the limit. Each records in
+`jsonValues`, beside it, how many values its JSON form holds, the sum of its members' and one for
+itself, held at the greatest `Int` once past it, and
 a value past `MaxValues` is treated the same way, its count shown beside its depth: one sharing each
 child at 22 levels, 16,777,214 values, printed, hashed, compared and was found in a set in 0.9 s,
 and one at 30 levels answered all four in 68 µs, equal only to itself (Kotlin 2.4.0, JVM 25).

@@ -356,8 +356,12 @@ content it arrives as, and accepts either.
 
 A patch shape sends a member or leaves it out, and leaves its nullability the schema's. A merge
 patch removes a member by sending `null` (RFC 7396 §2), which a caller can write only where the
-member is declared nullable. Removing any other is outside what the shape offers: the schema typing
-the body admits no `null` there, and a document that means removal declares the member nullable.
+member is declared nullable, through the presence box
+([optionality](../refine/models.md#optionality--nullability--presence-inv8)). Removing any other is
+outside what the shape offers: the schema typing the body admits no `null` there, and a document
+that means removal declares the member nullable: the two merge patches of the golden spec that say
+`null` removes a member, a Worker script's bulk secrets, declare each secret `nullable` (spec
+@bc6fad24).
 
 No compiler sets the field today, and the plan reads nil as stating nothing, since an emitter sees a
 binding and never the format behind it (INV1), so one default has to serve every format. The IR's
@@ -390,8 +394,10 @@ a Worker would still restate its six. Four readings lost to this one:
   type says nothing of the members a body leaves out, and which content is the merge patch's twin is
   a second guess: three of the six pairs are two inline schemas, alike only member by member.
 
-Under this rule a patch shape reaches 54 models there and relaxes 49 members of 21 of them, and the
-two merge patches are the only bodies relaxed whose top-level model requires a member. A merge patch
+Under this rule a patch shape reaches 54 models there and relaxes 49 members of 21 of them, counted
+by the steps [the shape counts below](#the-declaration-a-shape-takes) name, a decorator no model of
+its own; counting each decorator as one gives 68 models and 62 members of 25. The two merge patches
+are the only bodies relaxed whose top-level model requires a member. A merge patch
 whose schema was written for the patch and requires a member is relaxed too, and the server then
 refuses what the SDK let through; turning `MergePatch` off restores what the schema says. T-59 holds
 the rule.
@@ -453,8 +459,9 @@ is set and its declaration is an alias of the type's own, `type UserCreate = Use
 [Kotlin](../targets/kotlin/models.md#a-shape-that-is-an-alias)). A signature names the shape either
 way, so the name a caller writes for a request is the same before and after its projection leaves
 the read one. That holds for each name a caller writes to build the value, a union's variants among
-them: Go aliases the union's interface and each wrapper and declares each factory under the shape's
-name, and Kotlin reaches a model's factory and a union's, one for each variant, through the alias.
+them: Go aliases the interface and each wrapper of a union, or of a polymorphic base, which it
+declares the same way, and declares each factory under the shape's name, and Kotlin reaches a
+model's factory and a union's, one for each variant, through the alias.
 It does not hold for a class Kotlin nests, a builder or a variant's wrapper, which no `typealias`
 reaches: a caller naming one writes the type's own, `User.Builder`, and changes that line when the
 projections part.
@@ -513,10 +520,16 @@ morphic @fa253fe19), OpenAPI's `readOnly` and `writeOnly` give 1,629 properties 
 read projection. They take 432 such projections and 673 declarations: 230 `Create`, 231
 `CreateUpdate`, 176 `Update` and 36 `UpdatePatch`, 241 more than one declaration for each projection
 would be. Beside them 3,170 types take 4,407 aliases: 2,216 `Create`, 1,264 `CreateUpdate`, 790
-`Update`, 26 `UpdatePatch`, 81 `Query` and 30 `Delete`, counted over each model and union that a
-parameter, a request content, a response content or a response header reaches, a decorator read
-through to its base; the document holds no tuple. A union's are 512 of them, over 1,715 variants,
-each a wrapper's alias more in Go. No name of either sort collides with a named type's own. Between
+`Update`, 26 `UpdatePatch`, 81 `Query` and 30 `Delete`; a union's are 512 of them, over 1,715
+variants, each a wrapper's alias more in Go. They count each model and union that a parameter, a
+request content, a response or error content or a response header of an HTTP binding reaches by
+[the steps above](#a-shape-reaches-what-it-holds): a model's members as `ir.FlattenedProperties`
+gives them, one declaration each, the union a model narrows, a polymorphic base's subtypes, a
+union's variants and a catch-all's and a map's values in the same shape, a list's elements without
+the patch, and a decorator read through to its base and counted as no type of its own; two
+projections coincide where every model reached holds and requires the same members. Leaving out the
+union a model narrows gives 413 types and 638 declarations instead. The document holds no tuple. No
+name of either sort collides with a named type's own. Between
 two revisions of that spec (@149d53ea and @bc6fad24), 18 of the 12,688 pairs of a type and a shape
 that both hold crossed that line, in 13 types: 14 left the read projection, as the `subdomain` of
 `workers_Worker` did on gaining a `readOnly` `url`, and 4 returned to it. The first rejected rule
