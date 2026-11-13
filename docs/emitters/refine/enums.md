@@ -34,8 +34,9 @@ only as `null`, and a model requiring one decodes and encodes no value, which is
 states. It has no example, and a model requiring it none ([one set of
 examples](../docs-and-mock.md#one-set-of-examples)). The rule reads the member list, which adding a
 member changes: an enum gaining its first member takes the open form, and with it a meaning, some
-value, that it did not have. The golden spec declares none (spec @bc6fad24, morphic @fa253fe19).
-T-36 holds the rule.
+value, that it did not have. The golden spec declares none admitting nothing, and 188 behind a
+nullable reference, each an `enum` listing `null` alone, a deletion's `result` among them
+([enum-const](../../compilers/openapi.md#enum-const); spec @86556f6f). T-36 holds the rule.
 
 ## A member on the wire
 
