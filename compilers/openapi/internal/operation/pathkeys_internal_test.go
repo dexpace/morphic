@@ -96,11 +96,23 @@ func TestPathKeyDefects(t *testing.T) {
 
 		{name: "query", key: "/a?x=1", want: []string{`carries the query "?x=1"`}},
 		{name: "empty query", key: "/a?", want: []string{`carries the query "?"`}},
-		{name: "query ends at the fragment", key: "/a?x#y", want: []string{`carries the query "?x"`}},
+		{
+			name: "query ends at the fragment", key: "/a?x#y",
+			want: []string{`carries the query "?x"`, `carries the fragment "#y", which no request sends`},
+		},
 		{name: "nothing after ? is path", key: "/a?b c//{", want: []string{`carries the query "?b c//{"`}},
 
-		{name: "fragment", key: "/a#frag"},
-		{name: "nothing after # is read", key: "/a#b c?x//{id}{id}{"},
+		{name: "fragment", key: "/a#frag", want: []string{`carries the fragment "#frag", which no request sends`}},
+		{name: "empty fragment", key: "/a#", want: []string{`carries the fragment "#", which no request sends`}},
+		{
+			name: "nothing after # is read", key: "/a#b c?x//{id}{id}{",
+			want: []string{`carries the fragment "#b c?x//{id}{id}{", which no request sends`},
+		},
+		{name: "a # in an expression is its name's", key: "/a/{b#c}"},
+		{
+			name: "a fragment and nothing before it", key: "#a",
+			want: []string{wantNoSlash, `carries the fragment "#a", which no request sends`},
+		},
 
 		{
 			name: "every rule, in order",
@@ -168,8 +180,8 @@ func TestIsHexDigit(t *testing.T) {
 // ABNF transcribed as a regular expression, so a reader can check the grammar
 // against the specification line by line rather than through the scanner. The
 // path is the key up to its first "?" or "#" outside an expression; a key is
-// clean exactly when that path matches, uses no expression twice, and no query
-// follows it.
+// clean exactly when that path matches, uses no expression twice, and nothing
+// follows it. pathRoute ends the route at the first "#" after the path.
 func FuzzPathKeyDefects_AgreesWithTheABNF(f *testing.F) {
 	const (
 		pchar   = `(?:[A-Za-z0-9\-._~!$&'()*+,;=:@]|%[0-9A-Fa-f]{2})`
@@ -180,16 +192,19 @@ func FuzzPathKeyDefects_AgreesWithTheABNF(f *testing.F) {
 	exprs := regexp.MustCompile(expr)
 	pathPart := regexp.MustCompile(`^(?:` + expr + `|[^?#])*`)
 	for _, seed := range []string{"", "/", "a", "/a/{id}", "/{a}{b}", "/a/{x y}", "/{a/b}", "//a", "/a/%2",
-		"/a{b", "/a}", "/{}", "/{a{b}}", "/u/{id}/i/{id}", "/é", "/a?x", "/a#f", "/a/{x?y}", "/a/{x?"} {
+		"/a{b", "/a}", "/{}", "/{a{b}}", "/u/{id}/i/{id}", "/é", "/a?x", "/a#f", "/a/{x?y}", "/a/{x?", "/a?x#y",
+		"/a/{b#c}", "/a#", "/a{#}"} {
 		f.Add(seed)
 	}
 	f.Fuzz(func(t *testing.T, key string) {
 		p := pathPart.FindString(key)
-		query := strings.HasPrefix(key[len(p):], "?")
+		rest := key[len(p):]
+		query := strings.HasPrefix(rest, "?")
+		hash := strings.IndexByte(rest, '#')
 		names := exprs.FindAllString(p, -1)
 		used := len(names)
 		slices.Sort(names)
-		clean := template.MatchString(p) && len(slices.Compact(names)) == used && !query
+		clean := template.MatchString(p) && len(slices.Compact(names)) == used && rest == ""
 
 		got := pathKeyDefects(key)
 		if clean != (len(got) == 0) {
@@ -199,6 +214,16 @@ func FuzzPathKeyDefects_AgreesWithTheABNF(f *testing.F) {
 			return strings.HasPrefix(d, "carries the query ")
 		}); reported != query {
 			t.Fatalf("key %q: query after the path=%v, reported=%v", key, query, reported)
+		}
+		route, fragment, fragmented := pathRoute(key)
+		if fragmented != (hash >= 0) {
+			t.Fatalf("key %q: fragment after the path=%v, split=%v", key, hash >= 0, fragmented)
+		}
+		if fragmented && (route != key[:len(p)+hash] || fragment != rest[hash+1:]) {
+			t.Fatalf("key %q: split into %q and %q", key, route, fragment)
+		}
+		if !fragmented && route != key {
+			t.Fatalf("key %q: route %q without a fragment", key, route)
 		}
 	})
 }

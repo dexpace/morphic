@@ -208,14 +208,14 @@ const (
 	// belongs in its own field, but accepts this one.
 	InvalidMethodKey = "openapi/invalid-method-key"
 	// DegradedConstruct reports a construct the compiler could not carry into the
-	// IR as written: preserved raw for want of a structural home, lowered to a
-	// weaker shape (a heterogeneous enum as a union, an unconvertible value as
-	// the top type), or dropped — an annotation like a default or example, or
-	// the fields beside a path item $ref the load phase's walk does not reach. A
-	// promotion or grouping by extension reports it for an extension kept but
-	// read into no field or group (lowering.Promoter, operation.extensionLevels).
-	// It marks the lossy lowerings the compiler reports, not a guarantee that
-	// every one is.
+	// IR as written: kept raw for want of a home or past a bound (callbacks too
+	// deep, operation.operationCallbacks), lowered weaker (a heterogeneous enum
+	// as a union, an unconvertible value as the top type), or dropped, as a
+	// default or the fields beside a path item $ref the load phase's walk does
+	// not reach are. A promotion or grouping by extension reports it for an
+	// extension kept but read into no field or group (lowering.Promoter,
+	// operation.extensionPaths). It marks the lossy lowerings the compiler
+	// reports, not every one.
 	DegradedConstruct = "openapi/degraded-construct"
 	// CompositionLowering reports that a schema conjoining a structural body with
 	// a oneOf/anyOf was lowered by distributing the body across the union
@@ -471,13 +471,13 @@ const (
 	// InvalidPathKey reports a Paths Object key that breaks OpenAPI's path
 	// templating rules, those of 3.2.0 §4.8.2 read at every version: no leading
 	// "/", a character a path admits only percent-encoded, a brace outside a
-	// template expression, an expression used twice, an empty segment, or a
-	// query. One warning per key names each, at the key's path item.
+	// template expression, an expression used twice, an empty segment, a query
+	// or a fragment. One warning per key names each, at the key's path item.
 	//
-	// Warning, as InvalidStatusKey is: the key is used as written, and an error
-	// would stop harness.Check before later findings. A "#" fragment is GitHub
-	// #602's to report, so nothing from it on is read, and matching the
-	// expressions to path parameters is #640's.
+	// Warning, as InvalidStatusKey is: the key is used as written, but for a
+	// fragment, which the URI template leaves out and each operation's binding
+	// keeps, and an error would stop harness.Check before later findings.
+	// Matching the expressions to path parameters is #640's.
 	InvalidPathKey = "openapi/invalid-path-key"
 	// InferredNullable reports a null the nullable-widening policy reads in
 	// where the document's version does not: a `nullable: true` in a 3.1 or 3.2

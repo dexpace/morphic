@@ -12,6 +12,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
+	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
 	"github.com/dexpace/morphic/ir"
 )
@@ -123,21 +124,28 @@ func TestPathKeys_RulesAreNotVersionGated(t *testing.T) {
 	}
 }
 
-// TestPathKeys_FragmentIsLeftToGitHub602 pins that a "#" ends what is read.
-// GitHub #602 will strip the fragment and report it, so nothing in or after it
-// draws a warning here, while what precedes it is read as any path is.
-func TestPathKeys_FragmentIsLeftToGitHub602(t *testing.T) {
+// TestPathKeys_FragmentIsLeftOutOfTheTemplate pins a key carrying a fragment:
+// the URI template is the key up to the "#", which the warning names whole,
+// nothing in the fragment judged, while what precedes it is read as any path
+// is. The binding keeps the fragment.
+func TestPathKeys_FragmentIsLeftOutOfTheTemplate(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
-		key, ptr, msg string // ptr and msg empty: no warning
+		key, template, fragment, defects string
 	}{
-		{key: "/a#frag"},
-		{key: "/a#b c?x//{id}{id}{"},
+		{key: "/a#frag", template: "/a", fragment: "frag", defects: `carries the fragment "#frag", which no request sends`},
+		{key: "/a#", template: "/a", fragment: "", defects: `carries the fragment "#", which no request sends`},
 		{
-			key: "/a b#c<d",
-			ptr: "/paths/~1a b#c<d",
-			msg: `path key "/a b#c<d" is not a valid path template: contains " ", which a path ` +
-				`admits only percent-encoded; the key is used as written`,
+			key: "/a#b c?x//{id}{id}{", template: "/a", fragment: "b c?x//{id}{id}{",
+			defects: `carries the fragment "#b c?x//{id}{id}{", which no request sends`,
+		},
+		{
+			key: "/a b#c<d", template: "/a b", fragment: "c<d",
+			defects: `contains " ", which a path admits only percent-encoded; carries the fragment "#c<d", which no request sends`,
+		},
+		{
+			key: "/a?q#f", template: "/a?q", fragment: "f",
+			defects: `carries the query "?q"; carries the fragment "#f", which no request sends`,
 		},
 	}
 	for _, tc := range tests {
@@ -145,13 +153,17 @@ func TestPathKeys_FragmentIsLeftToGitHub602(t *testing.T) {
 			t.Parallel()
 			_, svc, diags := compileService(t, pathKeySpec("3.1.0", tc.key))
 			openapitest.RequireNoErrorDiags(t, diags)
-			assert.Equal(t, tc.key, openapitest.FirstOp(t, svc).Bindings.HTTP[0].URITemplate)
-			if tc.msg == "" {
-				assert.False(t, openapitest.HasDiag(diags, diag.InvalidPathKey), "got %+v", diags)
-				return
-			}
-			msg := openapitest.DiagMessageAt(t, diags, diag.InvalidPathKey, ir.SeverityWarning, tc.ptr)
-			assert.Equal(t, tc.msg, msg, "the fragment's own characters are not named")
+			op := openapitest.FirstOp(t, svc)
+			hb := op.Bindings.HTTP[0]
+			assert.Equal(t, tc.template, hb.URITemplate)
+			kept, ok := hb.Unmodeled["openapi:fragment"]
+			require.True(t, ok, "the binding keeps the fragment")
+			assert.Equal(t, ir.ReasonDegradedLowering, kept.Reason)
+			assert.JSONEq(t, strconv.Quote(tc.fragment), string(kept.Value))
+			assert.Equal(t, ids.Ptr("paths", tc.key), kept.Provenance.Pointer, "at the key that writes it")
+			msg := openapitest.DiagMessageAt(t, diags, diag.InvalidPathKey, ir.SeverityWarning, string(ids.Ptr("paths", tc.key)))
+			assert.Equal(t, "path key "+strconv.Quote(tc.key)+" is not a valid path template: "+tc.defects+
+				"; the URI template is the key less its fragment, which each operation's HTTP binding keeps", msg)
 		})
 	}
 }

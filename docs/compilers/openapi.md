@@ -3292,22 +3292,34 @@ keyword, so a lowering that carried one spelling and dropped another would still
 
 ### `path-keys`
 
-A Paths Object key lowers to `HTTPBinding.URITemplate` as written. One that breaks OpenAPI's path
-templating rules, those of 3.2.0 §4.8.2 read at every version — no leading `/`, a character a path
-admits only percent-encoded, a brace outside a template expression, an expression used twice, an
-empty segment, or a query — lowers as declared and is reported as one `openapi/invalid-path-key`
-warning at its path item, naming each rule the key breaks. That every template expression has a path
-parameter, in the path item or in each of its operations, that every path parameter names an
-expression, and that no two templated paths differ only in their names is
-[`validation`](#validation)'s to report, as an error.
+A Paths Object key lowers to `HTTPBinding.URITemplate` as written, less a fragment: from the first
+`#` outside a template expression, or the first after a `?`, the key names a fragment, which no
+request sends (RFC 3986 §3.5). The template is the key before it, and each operation the path
+mounts keeps the fragment, the text after the `#`, on its HTTP binding as `openapi:fragment`, of
+reason `degraded_lowering`, at the key's pointer. The operation's ID and the name hint of one with
+no `operationId` read the whole key, so operations a document declares on one route under keys
+that differ only in a fragment keep names of their own, while grouping by path prefix
+([`path-prefix-groups`](#path-prefix-groups)) reads the template. A path operation whose method and
+template, each expression's name aside, another path operation sends too has
+`HTTPBinding.SharedRoute` set; a webhook's and a callback's operation are sent by the API to no
+route a client sends. A key that breaks OpenAPI's path templating rules,
+those of 3.2.0 §4.8.2 read at every version — no leading `/`, a character a path admits only
+percent-encoded, a brace outside a template expression, an expression used twice, an empty segment,
+a query, or a fragment — lowers as declared but for the fragment, and is reported as one
+`openapi/invalid-path-key` warning at its path item, naming each rule the key breaks and nothing in
+a fragment. That every template expression has a path parameter, in the path item or in each of its
+operations, that every path parameter names an expression of the key less its fragment, and that no
+two templated paths differ only in their names is [`validation`](#validation)'s to report, as an
+error.
 
-- Cases: `http-binding`
+- Cases: `http-binding`, `path-key-fragments`
 - Codes: `openapi/invalid-path-key`
 - Tests: `operation.TestPathKeys_MalformedKeyIsReportedOnce`,
   `operation.TestPathKeys_RulesAreNotVersionGated`,
-  `operation.TestPathKeys_FragmentIsLeftToGitHub602`
-- Status: partly built: a `#` and what follows it are not read, so a fragment lowers into the
-  template unreported (#602).
+  `operation.TestPathKeys_FragmentIsLeftOutOfTheTemplate`, `operation.TestPathKeyDefects`,
+  `operation.TestSharedRoute_MarksEveryOperationSendingARouteAnotherSends`,
+  `operation.TestRouteShape_LeavesOutEachExpressionsName`,
+  `oas.TestCheck_PathTemplatesAnswerToPathParameters`
 
 ### `path-item-operations`
 
@@ -3354,8 +3366,13 @@ operation's own, lower as the document's do ([`servers`](#servers)): each server
 `Document.Servers`, registered once at the pointer of its Server Object in the document declaring
 it, however many mounts reach it. An operation names its own servers on `Operation.Servers` and its
 path item's where it declares none, since OpenAPI says the operation's override the path item's; one
-that neither declares names none, and its service's apply ([servers](../ir/servers.md)). A
-path item's list is registered even where every one of its operations overrides it. Two lists are
+that neither declares names none, and its service's apply ([servers](../ir/servers.md)), save to a
+webhook's or a callback's operation, which inherits none
+([servers](../ir/servers.md#inbound-operations)). An explicitly empty list, `servers: []`, declares
+none, as an absent one does, and so overrides nothing above it: OpenAPI equates an empty list with
+an absent one where it says what an empty list means, the document's, and an operation reading `[]`
+as no server would have none to be sent to, so nothing is kept or reported, as for the document's.
+A path item's list is registered even where every one of its operations overrides it. Two lists are
 not: one a nearer layer of a mount overrides, which [`path-item-ref-fields`](#path-item-ref-fields)
 reports rather than lowers, and one written by a component path item no reference reaches, kept
 whole with that component ([`unreferenced-components`](#unreferenced-components)). A path item that
@@ -3365,18 +3382,23 @@ the service instead, or on the declaring operation's HTTP binding for a callback
 description as [`path-item-docs`](#path-item-docs) says, and its parameters as
 [`parameters`](#parameters) says. The item's pointer is in every key, since one carrier holds every
 such item, and a component item two paths mount is kept once per mount. It is reported as one
-`openapi/degraded-construct` warning at the mount.
+`openapi/degraded-construct` warning at the mount's use site, in the document writing it, saying
+what any of its layers kept: the mount for a path or a webhook, and the expression's key in its
+Callback Object for a callback expression, whose mount a `$ref`'d callback or parent addresses
+nowhere.
 
 - Cases: `webhooks`, `callbacks`, `path-item-ref-siblings`
 - Codes: `openapi/degraded-construct`
 - Tests: `operation.TestOperations_PathItemServersNamedOnEveryRoute`,
   `operation.TestOperations_OwnServersOverrideThePathItems`,
   `operation.TestOperations_ServersEachLevelAlone`,
+  `operation.TestOperations_AnEmptyServersListOverridesNothing`,
+  `operation.TestOperations_InboundOperationsNameOnlyTheServersTheyState`,
+  `operation.TestPathItem_WithNoOperationIsReportedAtItsUseSite`,
+  `operation.TestPathItemRefSiblings_UnmountedSaysOnceWhatEveryLayerKept`,
   `servers.TestRegistry_DeclaredOneDeclarationLowersOnce`,
   `operation.TestPathItem_WithNoOperationKeepsWhatItWroteOnTheService`,
   `operation.TestPathItem_WithNoOperationKeepsEachMountApart`
-- Status: open: an explicitly empty list declares nothing to name, as an absent one does, and
-  whether it should override the list above it is undecided (#1081).
 
 ### `path-item-docs`
 
@@ -3458,13 +3480,41 @@ repeated name, at the repeat, naming the first. Group and sibling order stay fir
 operations, with a missing ancestor created immediately before its first descendant, so a document
 that declares no parents groups exactly as it would were parents never read.
 
+A webhook's operation is filed in the synthesized `webhooks` group ([`webhooks`](#webhooks)) and a
+callback's in the group of the operation declaring it ([`callbacks`](#callbacks)), whatever tags
+either states, under this strategy and every other: each is a request the API sends, filed by the
+route mounting it, and `Operation.Tags` keeps its tags. Filing a callback by its own tags was
+weighed and rejected: one stating none, as callback operations commonly do, would land in the
+untagged group, apart from the operation whose exchange supplies its URL.
+
 - Cases: `tags-grouping`, `tags-grouping-32`, `group-identity`
-- Tests: `operation.TestGrouping_ParentCycleNestsNoMemberUnderAnother`,
+- Tests: `operation.TestGrouping_ACallbackGoesWithItsParentWhateverItsTags`,
+  `operation.TestGrouping_ParentCycleNestsNoMemberUnderAnother`,
   `operation.TestGrouping_DanglingParentStaysTopLevel`,
   `operation.TestGrouping_SameNameDeclaredTwiceIsDeterministic`,
   `operation.TestGrouping_BadgeOnlyOperationFallsToDefault`, `oas.TestCheck_TagParentsExist`,
   `oas.TestCheck_DuplicatesAreFound`
 - Status: partly built: a tag an operation repeats passes into the IR undeduplicated (#738).
+
+### `path-prefix-groups`
+
+Under the `path-prefix` grouping strategy (`Options.Grouping`), each path operation is filed in one
+group, named by the first non-empty segment of its path's URI template, the key less any fragment
+([`path-keys`](#path-keys)), so `/users` and `/users/{id}` share `users`. A segment that is a
+template expression names its group as written, `/{tenant}/users` filing under `{tenant}`, and the
+root path, whose segments are all empty, under the empty one. The group's ID is `g/path-prefix/`
+and the segment as one RFC 6901 token, the empty segment's `g/path-prefix`
+([identity](../ir/identity.md#operation-groups)); it is named by the segment, by a hint where the
+segment is empty, and has no docs, and group order is first-seen from the operations. A path names
+no resource, so the reading is policy (invariant 6), never the default: an operation it files lists
+`group-path-prefix` in its `Provenance.Inferred`. A webhook's operation stays in the webhook group,
+unmarked, and a callback's goes with the operation declaring it, marked as that one is
+([`tag-groups`](#tag-groups)). Nothing is reported.
+
+- Tests: `operation.TestGrouping_PathPrefixGroupsAreIdentifiedByTheirSegment`,
+  `operation.TestGrouping_ByPathPrefixInferred`, `operation.TestGrouping_PathPrefixRootPath`,
+  `operation.TestSharedRoute_PathPrefixGroupsTheRoute`,
+  `operation.TestGrouping_ACallbackGoesWithItsParentWhateverItsTags`
 
 ### `extension-groups`
 
@@ -3481,42 +3531,59 @@ writes the segments of a single path, as `x-fern-sdk-group-name` does, another s
 group the operation belongs to, as `x-speakeasy-group` does. So a list's reading is named beside the
 key, `segments` or `groups`, and is never taken from another key's: a key named without one is
 refused, as is one without the key. Under `segments` each entry adds its own segments; under
-`groups` the operation is filed under the first entry's path, and placing it under the others is a
-remount an emitter's plan reads from the kept extension, so no group is minted for them.
+`groups` the operation is filed under the first entry's path.
+
+An operation can belong to further groups than the one it is filed in: each path after the first a
+`groups` list names, and each an *alias* names. `GroupingExtension.Aliases` names the extension
+listing an operation's aliases, by default `x-forge-aliases` beside the default key, and none beside
+a key the caller names unless the caller names one: a list of objects, each stating a path under the
+grouping key as that key's own value does, read under its list reading, so the default's entries
+restate `x-fern-sdk-group-name` beside a method name of their own. An object stating no path names
+none. Each such path gets its groups too, nested as the operation's own are and holding no
+operation where none is filed there, so that a remount, which names a group by its ID
+([shaping hints](../emitters/contract/shaping-hints.md)), names one the IR holds; placing the
+operation there is the remount's, read from the kept extension, since an `Operation` sits in one
+group. Leaving those groups to the remount was weighed and rejected: an ID is opaque to a consumer
+([identity](../ir/identity.md)), which could then neither name nor nest a group the IR does not
+hold.
 
 A group's ID is `g/extension/` and the path's segments, each an RFC 6901 token
 ([identity](../ir/identity.md#operation-groups)). It follows from the path alone and never from the
 key, so a configuration can name a group, and a group nests in the one its prefix names whichever
 operation is met first. A group is named by its segment, and has no docs, as no Tag Object describes
-it; group and sibling order are first-seen from the operations, as under tags.
+it; group and sibling order are first-seen from the operations, as under tags, an operation's own
+groups before those its other paths name.
 
 An operation whose key is absent, or holds empty text, an empty list or null, is grouped by
-`GroupingExtension.Fallback`, tags by default or path prefix, and marked as that strategy marks it.
-So is one whose value names no path: one that is neither text nor a list of text, or whose path has
-an empty segment (`a..b`, `.a`, a list holding `""`) or more than 16 segments. A list is judged
-whole, so under `groups` an entry after the first that names no path is enough. That bound is over
-twice the deepest path the golden spec writes, and caps what a path's groups weigh: each group's ID
-spells the path to it, so their IDs weigh half the path's depth times its length. Such a value is
-reported as an info `openapi/degraded-construct` at the key in the operation's declaration, in
-whichever document declares it, so a path item two paths `$ref` is reported once. A value that does
-not serialize is reported where any extension's is ([`vendor-extensions`](#vendor-extensions)), and
-not again. A webhook's operation stays in the webhook group and a callback's in its parent's, as
-under tags, whatever its key states.
+`GroupingExtension.Fallback`, tags by default or path prefix, and marked as that strategy marks it;
+its aliases still name groups. So is one whose value names no path: one that is neither text nor a
+list of text, or whose path has an empty segment (`a..b`, `.a`, a list holding `""`) or more than 16
+segments. A list is judged whole, so under `groups` an entry after the first that names no path is
+enough. That bound is over twice the deepest path the golden spec writes, and caps what a path's
+groups weigh: each group's ID spells the path to it, so their IDs weigh half the path's depth times
+its length. An aliases list names no path where it is anything but a list of objects, null or
+empty, or where a path one of its objects states names none, and is judged whole too, so it names
+no group. Each value naming no path is reported as an info `openapi/degraded-construct` at its key
+in the operation's declaration, in whichever document declares it, so a path item two paths `$ref`
+is reported once. A value that does not serialize is reported where any extension's is
+([`vendor-extensions`](#vendor-extensions)), and not again. A webhook's operation stays in the
+webhook group and a callback's in its parent's, whatever its keys state ([`tag-groups`](#tag-groups)),
+and neither's keys name a group.
 
 - Codes: `openapi/degraded-construct`
 - Tests: `operation.TestGrouping_ByExtensionNestsAGroupPerSegment`,
   `operation.TestGrouping_ByExtensionReportsAValueStatingNoPath`,
   `operation.TestGrouping_ByExtensionFallsBackToPathPrefix`,
-  `operation.TestGrouping_ByExtensionListOfGroupsFilesUnderTheFirst`,
+  `operation.TestGrouping_ByExtensionListOfGroupsMintsAGroupForEach`,
+  `operation.TestGrouping_ByExtensionMintsAGroupForEachAlias`,
+  `operation.TestGrouping_ByExtensionRemountsAreIndependentOfDeclarationOrder`,
   `operation.TestGrouping_ByExtensionReadsAReferencedPathItemWhereItIsDeclared`,
   `operation.TestGrouping_ByExtensionTreeIsIndependentOfDeclarationOrder`,
-  `lowering.TestGroupingExtension_PathReadsEachSpelling`, `e2e.TestGolden_ExtensionGroups`,
+  `lowering.TestGroupingExtension_PathsReadEachSpelling`,
+  `lowering.TestGroupingExtension_AliasPathsReadEachSpelling`, `e2e.TestGolden_ExtensionGroups`,
   `e2e.TestGroupingByExtension_ReportsInTheDocumentDeclaringTheOperation`,
-  `openapi.TestCompile_GroupingExtensionDefaultsAndRefusals`
-- Status: open: whether a callback operation is grouped by its own key or with its parent, as #1082
-  asks of its tags; and whether a path no operation is filed under gets a group a remount can name,
-  such as one a `groups` list names after the first or one another extension names as an alias
-  (#1726).
+  `openapi.TestCompile_GroupingExtensionDefaultsAndRefusals`,
+  `openapi.TestCompile_GroupingAliasesFollowTheKeysTheyRestate`
 
 ## 9. Parameters
 
@@ -4113,9 +4180,12 @@ pointer, in the synthesized `webhooks` group, its HTTP binding's `Inbound` a web
 entry's key as `WebhookName` and no `URITemplate`, since the key names an event rather than a path.
 Its `Auth` is what its own `security` states, and nothing when it writes none: the document's
 `security` describes requests clients send, and a webhook is one the API sends
-([auth](../ir/auth.md#inbound-operations)).
+([auth](../ir/auth.md#inbound-operations)). Its `Servers` are likewise what it and its path item
+state ([`path-item-servers`](#path-item-servers)), where the webhook is sent, and nothing of the
+document's ([servers](../ir/servers.md#inbound-operations)).
 
 - Cases: `webhooks`
+- Tests: `operation.TestOperations_InboundOperationsNameOnlyTheServersTheyState`
 
 ### `callbacks`
 
@@ -4123,21 +4193,29 @@ An operation's `callbacks` lower to its HTTP binding's `Callbacks`: for each run
 each named callback, a `Callback` holding the callback's name and the expression as written and the
 `OpID`s of the operations its path item declares. Each of those lowers to an `Operation` of its own,
 mounted at its own pointer below the declaring operation's
-(`…/callbacks/<name>/<expression>/<method>`, the name escaped as one token), grouped as any other
-operation is, its binding's `Inbound` a callback, with the expression as its `URITemplate`
-([http-binding](../ir/http-binding.md#inbound-operations)), and inheriting no `security`, as a
-webhook does. A key is a runtime expression, by the grammar each
-minor gives, text embedding runtime expressions in braces, as OpenAPI's own example does, or a
-constant URL, which embeds none; one that is none of them is reported as an `openapi/validation`
-error, of the class `validation-invalid-format`, at the key ([`validation`](#validation)), and
-lowers as written.
+(`…/callbacks/<name>/<expression>/<method>`, the name escaped as one token), filed in the declaring
+operation's group whatever its own tags or grouping extension state ([`tag-groups`](#tag-groups)),
+its binding's `Inbound` a callback, with the expression as its `URITemplate`
+([http-binding](../ir/http-binding.md#inbound-operations)), and inheriting no `security` and no
+`servers`, as a webhook does ([`webhooks`](#webhooks)). A callback's operation may declare
+callbacks in turn, which OpenAPI also gives as requests the API sends, and they lower the same way,
+listed on its binding and filed in the same group, the deeper operations after the one declaring
+them, down to an operation nested in four callbacks. Past that bound, which stops a callback naming
+itself through a `$ref` from lowering without end, the deepest operation's `callbacks` are kept
+verbatim on its HTTP binding as `openapi:callbacks`, of reason `degraded_lowering`, and reported as
+an `openapi/degraded-construct` warning at that `callbacks` map. A key is a runtime expression, by
+the grammar each minor gives, text embedding runtime expressions in braces, as OpenAPI's own example
+does, or a constant URL, which embeds none; one that is none of them is reported as an
+`openapi/validation` error, of the class `validation-invalid-format`, at the key
+([`validation`](#validation)), and lowers as written.
 
 - Cases: `callbacks`
-- Codes: `openapi/validation`
+- Codes: `openapi/validation`, `openapi/degraded-construct`
 - Tests: `operation.TestCallbacks_NameWithSlashKeepsItsOwnKey`,
+  `operation.TestCallbacks_DeclaredOnACallbackLower`,
+  `operation.TestCallbacks_ACallbackNamingItselfStopsAtTheBound`,
+  `operation.TestOperations_InboundOperationsNameOnlyTheServersTheyState`,
   `oas.TestCheck_CallbackKeysAreRuntimeExpressions`
-- Status: partly built: callbacks declared on an operation inside a callback are dropped in silence
-  (#858).
 
 ## 13. Security
 

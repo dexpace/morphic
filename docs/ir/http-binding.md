@@ -11,8 +11,10 @@ type HTTPBinding struct {
                                    // empty on a webhook binding, which has no path
     HostPrefix  string             // endpoint host prefix, may contain {param} labels (Smithy @endpoint)
     SharedRoute bool               // multiple operations legally share method+path, disambiguated by
-                                   // request content (TypeSpec @sharedRoute) — validate must not
-                                   // reject the duplicate, and single-route emitters must merge
+                                   // request content (TypeSpec @sharedRoute) or by nothing on the
+                                   // wire (OpenAPI path keys differing only in a fragment) —
+                                   // validate must not reject the duplicate, and single-route
+                                   // emitters must merge
     ParamBindings []HTTPParamBinding
     RequestContentTypes  []string  // priority-ordered
     ResponseBodyPath *PropPath     // HTTP response body = this sub-field of the response type
@@ -95,16 +97,18 @@ states which an operation is, on the binding, since what routes the request diff
   nothing binds. The key stays verbatim rather than becoming a `Naming`, because the operation's
   `Name` is what an emitter renders, synthesized from the method and this key when no
   `operationId` is declared, and an empty key is legal and would name nothing.
-- **A callback** (`callback`) is a request the API sends to a URL an operation the client sent
-  supplies. Its binding keeps the runtime expression resolving that URL in `URITemplate`, and the
-  operation that declares it lists it among its binding's `Callbacks`, under the name the source
-  maps it by (`Callback.Name`, an OpenAPI callbacks-map key) and the expression.
+- **A callback** (`callback`) is a request the API sends to a URL the exchange of the operation
+  declaring it supplies, its request or its response: an operation the client sent, or one the API
+  sent in turn, since a webhook's or a callback's operation may declare callbacks of its own. Its
+  binding keeps the runtime expression resolving that URL in `URITemplate`, and the operation that
+  declares it lists it among its binding's `Callbacks`, under the name the source maps it by
+  (`Callback.Name`, an OpenAPI callbacks-map key) and the expression.
 
 `irverify` reports a route in the field `Inbound` does not select (`ir/webhook-route`), a kind it
 does not declare (`ir/unknown-http-inbound`), and a callback whose two halves disagree: one marked
 that no binding lists (`ir/callback-unlisted`), or one listed that is not marked
 (`ir/callback-unmarked`). An inbound operation inherits no security requirement
-([auth](./auth.md#inbound-operations)).
+([auth](./auth.md#inbound-operations)) and no server ([servers](./servers.md#inbound-operations)).
 
 ## Path documentation
 

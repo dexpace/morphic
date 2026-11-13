@@ -470,3 +470,19 @@ it sees. Changes made together in one bump are listed together under it.
   headers](./responses.md#prefix-headers)). `irverify` holds such a header to a map type and no
   wire name, and `irfacts.CorrelationVersion` moved to 3, keying it by its prefix. No compiler
   fills it yet. A consumer pinned to 0.45.0 refuses a document with a prefix header.
+- **0.47.0** — four changes of meaning, made together, with no change of shape:
+  - An inbound operation's empty `Servers` names no server where it had named its service's
+    ([servers](./servers.md#inbound-operations)), as its `Auth` inherits nothing: the service's
+    servers are where the API is sent requests. A consumer pinned to 0.46.0 sends a webhook or a
+    callback to the API itself.
+  - An `OperationGroup` may hold no operation and no group. The OpenAPI compiler's grouping by
+    extension makes one for each path a `groups` list names after the first and each path an
+    operation's aliases name ([`extension-groups`](../compilers/openapi.md#extension-groups)), for a
+    remount to name. A consumer pinned to 0.46.0 meets a sub-client with nothing in it.
+  - A callback's operation may list callbacks of its own on its binding, each lowered as its
+    parent's are ([`callbacks`](../compilers/openapi.md#callbacks)), where the OpenAPI compiler had
+    dropped them. A consumer pinned to 0.46.0 that walks one level of callbacks misses them.
+  - The OpenAPI compiler leaves a path key's fragment out of `URITemplate`, keeping it on the binding
+    as `openapi:fragment`, and sets `SharedRoute` on each path operation whose method and route
+    another sends ([`path-keys`](../compilers/openapi.md#path-keys)). A consumer pinned to 0.46.0
+    builds the fragment into a URL and reads no route as shared.
