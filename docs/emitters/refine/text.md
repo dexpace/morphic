@@ -297,7 +297,7 @@ chain, and of where it is bound:
   `spaceDelimited`, `pipeDelimited` or `deepObject`, a list none under `deepObject`, and a list or
   an object none where either delimited style explodes it. `Explode` is not read under `deepObject`,
   where OpenAPI 3.2 gives it no effect (§4.12.2.2) and 3.1 leaves undefined the `false` it defaults
-  to, which the compiler lowers for a `deepObject` setting none, so such an object is arranged as an
+  to, which a nil `Explode` reads as under `deepObject`, so such an object is arranged as an
   exploded one is;
 - a form field, or a multipart part that is no file (`Filename`), whose `PartEncoding` is absent or
   sets no `Style`, no `Explode` and no content type has one where its type is a leaf, a list of
