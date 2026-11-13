@@ -761,33 +761,35 @@ throughout these documents.
     union one of whose variants is a union, a union a subtype composes as a `Mixin`, under its
     base's discriminator, and a union the model reaches through a model it composes. A variant's
     `readOnly` member is in no create or patch shape of the model's, and each variant composed there
-    requires what its entry's `Required` lists and redacts what its entry's `Redacted` lists, so
-    each of `rulesets_ResponseRule`'s variants requires the five members the model requires beside
-    those its union's variant does, and a member only one of the union's variants redacts is
-    redacted in the variant composed over it alone. Adding a variant to the union renames no variant
-    composed there and no union nesting entries, each keyed by the model and its `Over`, or the
-    start of `Over` its entries share. Read by a client under `OpenUnions`, such a model keeps a
-    variant its union does not list, and one whose variant holds the model compiles, the union
-    breaking the cycle. Each target declares one variant for each entry of the model's
-    `TypePlan.Composed` and no other, entries sharing the start of their `Over` nested as a union of
-    them, and a model composing its union through an alias scalar, as a 3.1 `$ref` beside a
-    `description` hoists, narrows it as one naming the union does. An entry requiring a member that
-    the model and a variant it is over pin to finite sets sharing no value is left out: `Item:
-    {allOf: [Leaf, Node]}` over a `Node` of `Group` and `Leaf`, each pinning `kind`, declares the
-    one variant over `Leaf`, still as a union, routes the tag `group` to no variant and has no
-    table, flag or example over `Group`; an entry is kept where the member the two pin apart is one
-    its `Required` does not list; a model every entry of which is such keeps them all, each member
-    as its flattening takes it; and a variant that pins a member both ways itself keeps its entry
-    under a model pinning it as the variant's later declaration does, `SelfBody: {allOf: [Env,
-    Failure]}` keeping its entry over `ErrBody: {allOf: [OkB, Failure]}`, since neither side reads a
-    declaration its own flattening overrides. A model its union lists is that variant, a model the
-    union's sum holds. A model adding nothing to its union aliases it, and one narrowing two unions,
-    one whose union has a variant composing it or reaches itself through its variants, one over a
-    key-tagged, enveloped or index-tagged union, and one whose entries, with what their walks read,
-    would pass `plan.MaxComposedSize`, among them one holding few members over a long composition
-    and one over unions nested deep, each beside one leaf, which `Build` reports as
-    `emitters/plan/composed-limit`, each draw a diagnostic and degrade
-    ([inheritance](../refine/models.md#inheritance)).
+    requires what its entry's `Required` lists, redacts what its entry's `Redacted` lists and marks
+    deprecated each member its entry's `Deprecated` holds, so each of `rulesets_ResponseRule`'s
+    variants requires the five members the model requires beside those its union's variant does, and
+    a member only one of the union's variants redacts is redacted in the variant composed over it
+    alone. Adding a variant to the union renames no variant composed there and no union nesting
+    entries, each keyed by the model and its `Over`, or the start of `Over` its entries share. Read
+    by a client under `OpenUnions`, such a model keeps a variant its union does not list, and one
+    whose variant holds the model compiles, the union breaking the cycle. Each target declares one
+    variant for each entry of the model's `TypePlan.Composed`, each a shape `ir.NarrowedShapes`
+    lists ([the shapes of a model narrowing a
+    union](../../ir/models.md#the-shapes-of-a-model-narrowing-a-union)), and no other, entries
+    sharing the start of their `Over` nested as a union of them, and a model composing its union
+    through an alias scalar, as a 3.1 `$ref` beside a `description` hoists, narrows it as one naming
+    the union does. An entry requiring a member that the model and a variant it is over pin to
+    finite sets sharing no value is left out: `Item: {allOf: [Leaf, Node]}` over a `Node` of `Group`
+    and `Leaf`, each pinning `kind`, declares the one variant over `Leaf`, still as a union, routes
+    the tag `group` to no variant and has no table, flag or example over `Group`; an entry is kept
+    where the member the two pin apart is one its `Required` does not list; a model every entry of
+    which is such keeps them all, each member as its flattening takes it; and a variant that pins a
+    member both ways itself keeps its entry under a model pinning it as the variant's later
+    declaration does, `SelfBody: {allOf: [Env, Failure]}` keeping its entry over `ErrBody: {allOf:
+    [OkB, Failure]}`, since neither side reads a declaration its own flattening overrides. A model
+    its union lists is that variant, a model the union's sum holds. A model adding nothing to its
+    union aliases it, and one narrowing two unions, one whose union has a variant composing it or
+    reaches itself through its variants, one over a key-tagged, enveloped or index-tagged union, and
+    one whose entries, with what their walks read, would pass `plan.MaxComposedSize`, among them one
+    holding few members over a long composition and one over unions nested deep, each beside one
+    leaf, which `Build` reports as `emitters/plan/composed-limit`, each draw a diagnostic and
+    degrade ([inheritance](../refine/models.md#inheritance)).
 47. **T-47 · Values as text** — on every target, under T-12's interception, a value of each
     primitive sent in a path, a query, a header, a cookie, a form field and a `text/plain` body is
     the text [values as text](../refine/text.md) gives it: a `float64` 1 as `1` and 10²¹ in plain
@@ -1378,7 +1380,8 @@ throughout these documents.
     [samples](../docs-and-mock.md#samples-come-from-the-sdk-emitters)).
 70. **T-70 · Deprecations** — on every target, a deprecated operation, type, property, parameter,
     enum member and union variant each carry the target's mark on every declaration they lower to,
-    each method of an operation, each shape of a model and a builder's setter among them, a
+    each method of an operation, each shape of a model and a builder's setter among them, a model's
+    member a later conjunct redeclares without `deprecated` marked as its earlier declaration is, a
     positional path parameter its text in its method's documentation, a member a caller sets
     unmarked while building its holder its text in the holder's, and one setting no field the shared
     sentence; its text holds the message escaped, each replacement as it renders after a collision

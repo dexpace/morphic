@@ -37,9 +37,9 @@ type Example struct {
 // and left out.
 const MaxExampleValues = 10_000
 
-// MaxComposedSize bounds one TypePlan.Composed: its entries and what the walk flattening each one
-// reads, counted together. A model whose entries would pass it is reported and composes none
-// (types.md#a-model-narrowing-a-union).
+// MaxComposedSize bounds one TypePlan.Composed: its entries and what the walks flattening them
+// read, counted together, the limit ir.NarrowedShapes takes. A model whose entries would pass it
+// is reported and composes none (types.md#a-model-narrowing-a-union).
 const MaxComposedSize = 100_000
 
 // The sets of the positions Examples has no key for: a content's and a variant's declared

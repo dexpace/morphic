@@ -595,7 +595,8 @@ func declaredIDs(doc *ir.Document) ([]declaredAt, bool) {
 
 // flatLines renders each member of f on one line: the declaration it takes as
 // ID@owner, each it overrides after a <, "required" when an instance must
-// carry it, and "secret" when its value is redacted.
+// carry it, "secret" when its value is redacted, and the message of its
+// deprecation where it has one.
 func flatLines(f ir.Flattening) []string {
 	out := make([]string, 0, len(f.Properties))
 	for _, fp := range f.Properties {
@@ -609,17 +610,21 @@ func flatLines(f ir.Flattening) []string {
 		if fp.Secret {
 			line += " secret"
 		}
+		if fp.Deprecation != nil {
+			line += " deprecated " + fp.Deprecation.Message
+		}
 		out = append(out, line)
 	}
 	return out
 }
 
 // flatRandom is withinRandom with a wire name on every property, its eight
-// property IDs sharing three names, Required on two of the IDs and Secret on
-// one, and a Requires on each model declaring one property: one name some
-// model may declare, one none does. A source of its own, which leaves the
-// composition withinRandom's, types each property ID at one of the type IDs
-// withinRandom returns and makes some declared types Sensitive.
+// property IDs sharing three names, Required on two of the IDs, Secret on one
+// and a Deprecation naming its declaration on two, and a Requires on each
+// model declaring one property: one name some model may declare, one none
+// does. A source of its own, which leaves the composition withinRandom's,
+// types each property ID at one of the type IDs withinRandom returns and makes
+// some declared types Sensitive.
 func flatRandom(seed uint64) (*ir.Document, []ir.TypeID) {
 	doc, types, _ := withinRandom(rand.New(rand.NewPCG(seed, seed+11)))
 
@@ -646,6 +651,9 @@ func flatRandom(seed uint64) (*ir.Document, []ir.TypeID) {
 			m.Properties[i].Required = digit == 1 || digit == 4
 			m.Properties[i].Secret = digit == 6
 			m.Properties[i].Type = ir.TypeRef{Target: typeOf[digit]}
+			if digit == 3 || digit == 5 {
+				m.Properties[i].Deprecation = &ir.Deprecation{Message: fmt.Sprintf("%s@%s", m.Properties[i].ID, m.ID)}
+			}
 		}
 		if len(m.Properties) == 1 {
 			m.Requires = []string{"w2", "zz"}
