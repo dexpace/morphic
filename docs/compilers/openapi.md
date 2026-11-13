@@ -2329,12 +2329,13 @@ Otherwise the whole object (`propertyName`, `mapping`, `defaultMapping`) is kept
 `openapi/degraded-construct` at the discriminator; a subtype keeps the `DiscriminatorValue` its
 mapping key gives it, since that is still the tag its instances carry, and a body the move leaves
 holding a map and nothing else lowers to that map's `MapT` ([containers](../ir/containers.md)). A
-union whose branches declare no shape (`validation_only`) is held to the same rule. A multi-typed body leaves no discriminator to settle:
-[`type-arrays`](#type-arrays) keeps it on the `Union` the body lowers to, beside the kept union.
-The compiler decides once every node is interned (`compile.Settlement`), because neither the walk
-nor the source schemas can answer it: a subtype declared after the `Model` has no `Base` while the
-`Model` lowers, and a schema whose `allOf` names the `Model` may still lower to no subtype — an
-`enum`, a `const`, or an alias over a `$ref` beside it.
+union whose branches declare no shape (`validation_only`) is held to the same rule. A multi-typed
+body leaves no discriminator to settle: [`type-arrays`](#type-arrays) keeps it on the `Union` the
+body lowers to, beside the kept union. The compiler decides once every node is interned
+(`compile.Settlement`), because neither the walk nor the source schemas can answer it: a subtype
+declared after the `Model` has no `Base` while the `Model` lowers, and a schema whose `allOf` names
+the `Model` may still lower to no subtype — an `enum`, a `const`, or an alias over a `$ref` beside
+it.
 
 A union whose branches declare no shape at all (`oneOf: [{required: [a]}, {required: [b]}]`) is not
 a degradation and is not one of these shapes: it narrows the body without reshaping it, which is
