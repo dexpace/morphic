@@ -86,7 +86,7 @@ func TestExternal_FetchWithNoReaderIsRefusedUnread(t *testing.T) {
 		ask  func(ext external) error
 		key  string
 	}{
-		{"fetch", func(ext external) error { return ext.fetch(t.Context(), "k", "loc.yaml").err }, "k"},
+		{"readAs", func(ext external) error { return ext.readAs(t.Context(), "k", "k", "loc.yaml").err }, "k"},
 		{"Open", func(ext external) error { _, err := ext.Open("loc.yaml"); return err }, "loc.yaml"},
 		{"Do", func(ext external) error { return get(ext, "http://host/doc.yaml") }, "http://host/doc.yaml"},
 	}
@@ -143,7 +143,7 @@ func TestExternal_ReadFailureMapsTheReadersSentinels(t *testing.T) {
 			opts := Options{Within: "/srv/specs", MaxSourceBytes: budget.AtMost(16)}
 			ext, doc := externalOver(t.Context(), opts, &fakeReader{err: tc.err})
 
-			got := ext.fetch(t.Context(), tc.key, tc.key).err
+			got := ext.fetch(t.Context(), tc.key, tc.key, tc.key).err
 
 			require.Error(t, got)
 			if tc.want == "" {
@@ -183,7 +183,7 @@ func TestExternal_FetchRefusesBytesPastTheBudgetAReaderReturned(t *testing.T) {
 			require.Len(t, body, tc.size)
 			ext, doc := externalOver(t.Context(), Options{MaxSourceBytes: tc.limit}, &fakeReader{data: body})
 
-			got := ext.fetch(t.Context(), "k", "k")
+			got := ext.fetch(t.Context(), "k", "k", "k")
 
 			_, cached := doc.GetCachedExternalDocument("k")
 			if tc.refuse {
@@ -213,7 +213,7 @@ func TestExternal_ReadsAskTheReaderForTheCompilesBounds(t *testing.T) {
 		want string
 	}
 	doors := []door{
-		{"fetch", func(_ *testing.T, ctx context.Context, ext external) { ext.fetch(ctx, "k", "dir/./a.yaml") }, "dir/./a.yaml"},
+		{"fetch", func(_ *testing.T, ctx context.Context, ext external) { ext.fetch(ctx, "k", "k", "dir/./a.yaml") }, "dir/./a.yaml"},
 		{"Open", func(_ *testing.T, _ context.Context, ext external) { _, _ = ext.Open("dir/../b/./a.yaml") }, "b/a.yaml"},
 		{"Do", func(t *testing.T, ctx context.Context, ext external) {
 			req, err := http.NewRequestWithContext(ctx, http.MethodGet, "http://host:80/a.yaml?v=1", nil)
@@ -283,8 +283,8 @@ func TestExternal_OpenServesWhatTheReaderReturned(t *testing.T) {
 func TestExternal_AReadRefusesByHowItIsNamed(t *testing.T) {
 	t.Parallel()
 	const allowed = ", which a read follows only when external references are allowed"
-	esc := newEscapes(refusedByName(Options{Within: "/r", Reader: &fakeReader{}}, "/r/root.yaml"))
-	esc.escape(t.Context(), decodeRoot(t, "[{$ref: '/r/a b.yaml#/X'}, {$ref: 'foo:b.yaml#/X'}]"))
+	esc := newEscapes(refusedByName(Options{Within: "/r", Reader: &fakeReader{}}, "/r/root.yaml", nil))
+	esc.escape(t.Context(), decodeRoot(t, "[{$ref: '/r/a b.yaml#/X'}, {$ref: 'foo:b.yaml#/X'}]"), "")
 	const scheme = `external document foo:b.yaml refused: it is named by a URL with the scheme "foo", ` +
 		"and only http, https and file URLs are read"
 	for _, tc := range []struct{ name, key, within, want string }{
@@ -306,7 +306,7 @@ func TestExternal_AReadRefusesByHowItIsNamed(t *testing.T) {
 			opts := Options{Within: tc.within, Reader: fake}
 			ext := newExternal(t.Context(), &soa.OpenAPI{}, opts, newExternalReads(sourceDocument{escapes: esc}, budget.Unbounded()))
 
-			a := ext.fetch(t.Context(), tc.key, tc.key)
+			a := ext.readAs(t.Context(), tc.key, tc.key, tc.key)
 
 			if tc.want == "" {
 				require.NoError(t, a.err)
@@ -351,7 +351,7 @@ func TestRefusedByName_JudgesADocumentPartByItsSpelling(t *testing.T) {
 		for _, run := range []struct {
 			within, want string
 		}{{"/r", tc.confined}, {"", tc.anywhere}} {
-			err := refusedByName(Options{Within: run.within, Reader: &fakeReader{}}, "/r/root.yaml")(tc.uri)
+			err := refusedByName(Options{Within: run.within, Reader: &fakeReader{}}, "/r/root.yaml", nil)(tc.uri)
 			if run.want == "" {
 				assert.NoError(t, err, "%s within %q", tc.uri, run.within)
 				continue
@@ -361,6 +361,6 @@ func TestRefusedByName_JudgesADocumentPartByItsSpelling(t *testing.T) {
 		}
 	}
 	confined := Options{Within: "/r", Reader: &fakeReader{}}
-	assert.Error(t, refusedByName(confined, "")("/r/root.yaml"), "a source with no path is named by none")
-	assert.Nil(t, refusedByName(Options{Within: "/r"}, "/r/root.yaml"), "no reader reads nothing")
+	assert.Error(t, refusedByName(confined, "", nil)("/r/root.yaml"), "a source with no path is named by none")
+	assert.Nil(t, refusedByName(Options{Within: "/r"}, "/r/root.yaml", nil), "no reader reads nothing")
 }
