@@ -2673,36 +2673,37 @@ of the members. A `format` that reaches no `ValueType`, whether the table lacks 
 member does not fit it, as none is a value of `binary`'s `bytes`, is kept verbatim under
 `openapi:format` (`degraded_lowering`), with an info `openapi/degraded-construct` at the schema, but
 for `password`, which is a redaction ([`password`](#password)). A member that no declared `type`
-admits, as `"a"` under `type: integer`, matches no instance either, and is reported as an
-`openapi/degraded-construct` warning at it; a `!!binary` member is the string of its text to the
-`type`, as the rest of the compiler reads a value's kind, and `bytes`, a format of string, to the
-`ValueType`. Such a member is kept, the members lowering as written and the `type` kept verbatim
-under `openapi:type` (`degraded_lowering`) with the info at the schema: the document contradicts
-itself, as unquoted numbers under `type: string` do, and keeping either side alone would guess which
-statement it means, where keeping both loses nothing. A `type` beside an `Enum` with no member types
-no value, and draws nothing. An enumeration an `Enum` cannot hold — a list or object member, or
-members of different kinds — lowers to a `Union` of `Literal`s over its entries but `null` instead,
-reported as an info `openapi/degraded-construct` at the schema, and a member whose value cannot
-convert makes the enumeration such a union, its own variant the top type, reported as an
-`openapi/degraded-construct` warning at the member. That union is exclusive unless an instance can
-match two variants: an entry it holds repeats, or one lowered to the top type. `enum: []` lowers to
-a closed `Enum` with no members, a position accepting no value, reported as an `openapi/empty-enum`
-warning. An entry repeating an earlier entry's value, compared as JSON Schema compares instances, is
-kept, each occurrence a member of its own ([enums](../ir/enums.md)), and reported as an
-`openapi/duplicate-enum-value` warning at the repeat. An `enum` past `Limits.MaxEnumMembers` lowers
-to the top type, with an `openapi/budget-exceeded` error at the schema. A `const` lowers to a
-`Literal` of its value, whose `ValueType` is read as an enum's is, from the type and format the
-value fits, else the type, else the value's own kind ([containers](../ir/containers.md#literals)),
-so a `type` or `format` the value fits is held and draws nothing, and one it does not fit is kept
-verbatim with the same info report. A `const` of a value no declared `type` admits matches no
-instance, keeps its `Literal` and is reported as an `openapi/degraded-construct` warning at the
-`const`. A `const: null` lowers as `enum: [null]` does, to an `Enum` with no member, its null the
-reference's, so no `Literal` holds a null ([containers](../ir/containers.md#literals)), and where a
-keyword beside it excludes null it is reported as that enum's entry is, at the `const`. A `const`
-that cannot convert lowers to the top type, with an `openapi/degraded-construct` warning at the
-schema. A value set an `allOf` refines is typed by every conjunct
-([`allof-refinement`](#allof-refinement)). A `$ref` into a member of such a union names the member's
-`Literal`, the node the enumeration lowers at that position, whichever is lowered first.
+admits, as `"a"` under `type: integer` or under `type: "null"`, matches no instance either, and is
+reported as an `openapi/degraded-construct` warning at it; a `!!binary` member is the string of its
+text to the `type`, as the rest of the compiler reads a value's kind, and `bytes`, a format of
+string, to the `ValueType`. Such a member is kept, the members lowering as written and the `type`
+kept verbatim under `openapi:type` (`degraded_lowering`) with the info at the schema: the document
+contradicts itself, as unquoted numbers under `type: string` do, and keeping either side alone would
+guess which statement it means, where keeping both loses nothing. A `type` beside an `Enum` with no
+member types no value, and draws nothing. An enumeration an `Enum` cannot hold — a list or object
+member, or members of different kinds — lowers to a `Union` of `Literal`s over its entries but
+`null` instead, reported as an info `openapi/degraded-construct` at the schema, and a member whose
+value cannot convert makes the enumeration such a union, its own variant the top type, reported as
+an `openapi/degraded-construct` warning at the member. That union is exclusive unless an instance
+can match two variants: an entry it holds repeats, or one lowered to the top type. `enum: []` lowers
+to a closed `Enum` with no members, a position accepting no value, reported as an
+`openapi/empty-enum` warning. An entry repeating an earlier entry's value, compared as JSON Schema
+compares instances, is kept, each occurrence a member of its own ([enums](../ir/enums.md)), and
+reported as an `openapi/duplicate-enum-value` warning at the repeat. An `enum` past
+`Limits.MaxEnumMembers` lowers to the top type, with an `openapi/budget-exceeded` error at the
+schema. A `const` lowers to a `Literal` of its value, whose `ValueType` is read as an enum's is,
+from the type and format the value fits, else the type, else the value's own kind
+([containers](../ir/containers.md#literals)), so a `type` or `format` the value fits is held and
+draws nothing, and one it does not fit is kept verbatim with the same info report. A `const` of a
+value no declared `type` admits matches no instance, keeps its `Literal` and is reported as an
+`openapi/degraded-construct` warning at the `const`. A `const: null` lowers as `enum: [null]` does,
+to an `Enum` with no member, its null the reference's, so no `Literal` holds a null
+([containers](../ir/containers.md#literals)), and where a keyword beside it excludes null it is
+reported as that enum's entry is, at the `const`. A `const` that cannot convert lowers to the top
+type, with an `openapi/degraded-construct` warning at the schema. A value set an `allOf` refines is
+typed by every conjunct ([`allof-refinement`](#allof-refinement)). A `$ref` into a member of such a
+union names the member's `Literal`, the node the enumeration lowers at that position, whichever is
+lowered first.
 
 - Cases: `enum-string`, `enum-numeric`, `empty-enum`, `enum-member-identity`, `nullable-enum-31`,
   `enum-null-member`, `literal-const`
