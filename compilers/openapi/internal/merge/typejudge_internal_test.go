@@ -517,10 +517,132 @@ func TestKindOf_TheFirstEncodingDecidesTheFormat(t *testing.T) {
 	}
 }
 
+// encodedRegistry is narrowingRegistry plus a Scalar for each way an Encoding
+// writes a value: under a WireType its base is or is not spelled in, under a
+// name with no WireType, and under a WireType or base that is no primitive.
+func encodedRegistry() map[ir.TypeID]ir.TypeDef {
+	reg := narrowingRegistry()
+	scalar := func(id ir.TypeID, base ir.TypeID, enc ir.Encoding) {
+		reg[id] = &ir.Scalar{ID: id, Base: &ir.TypeRef{Target: base}, Encoding: &enc}
+	}
+	wire := func(k ir.PrimKind) *ir.TypeRef { r := primRef(k); return &r }
+	offset, bytes := primRef(ir.PrimDatetimeOffset).Target, primRef(ir.PrimBytes).Target
+	scalar("t/unixtime-int", offset, ir.Encoding{Name: "unixTimestamp", WireType: wire(ir.PrimInteger)})
+	scalar("t/unixtime-num", offset, ir.Encoding{Name: "unixTimestamp", WireType: wire(ir.PrimNumber)})
+	scalar("t/unixtime-str", offset, ir.Encoding{Name: "unixTimestamp", WireType: wire(ir.PrimString)})
+	scalar("t/http-date", offset, ir.Encoding{Name: "http-date"})
+	scalar("t/offset-base64", offset, ir.Encoding{Name: "base64"})
+	scalar("t/offset-media", offset, ir.Encoding{MediaType: "text/plain"})
+	scalar("t/offset-time", offset, ir.Encoding{Name: "time"})
+	scalar("t/byte", bytes, ir.Encoding{Name: "base64", WireType: wire(ir.PrimString)})
+	scalar("t/base64url", bytes, ir.Encoding{Name: "base64url", WireType: wire(ir.PrimString)})
+	scalar("t/number-text", primRef(ir.PrimInt64).Target, ir.Encoding{Name: "string", WireType: wire(ir.PrimString)})
+	scalar("t/string-email", primRef(ir.PrimString).Target, ir.Encoding{Name: "email"})
+	scalar("t/int-weird", primRef(ir.PrimInteger).Target, ir.Encoding{Name: "weird"})
+	scalar("t/wire-gone", offset, ir.Encoding{Name: "x", WireType: &ir.TypeRef{Target: "t/absent"}})
+	scalar("t/wire-node", offset, ir.Encoding{Name: "x", WireType: &ir.TypeRef{Target: "t/unixtime-int"}})
+	scalar("t/alias-wired", "t/http-date", ir.Encoding{Name: "x", WireType: wire(ir.PrimInteger)})
+	reg["t/alias-unixtime-int"] = &ir.Scalar{ID: "t/alias-unixtime-int", Base: &ir.TypeRef{Target: "t/unixtime-int"}}
+	reg["t/enum-http-date"] = &ir.Enum{ID: "t/enum-http-date", ValueType: ir.PrimString,
+		Members: []ir.EnumMember{{Value: str("Sun, 06 Nov 1994 08:49:37 GMT")}}}
+	reg["t/enum-base64"] = &ir.Enum{ID: "t/enum-base64", ValueType: ir.PrimString,
+		Members: []ir.EnumMember{{Value: str("MjAyMA==")}}}
+	reg["t/enum-seconds"] = &ir.Enum{ID: "t/enum-seconds", ValueType: ir.PrimInteger,
+		Members: []ir.EnumMember{{Value: num("1700000000")}}}
+	return reg
+}
+
+// TestKindOf_AnEncodedScalarIsReadAsItsValuesTravel pins travelsAs and
+// rewritesText: a Scalar whose WireType does not spell its base is read as
+// that type, as seconds written as an integer are an integer, while a base
+// its WireType spells keeps its kind, as bytes do under base64; and a string
+// format whose text an encoding names otherwise is unjudged, as an http-date
+// is no RFC 3339 text (docs/compilers/openapi.md#allof-redeclared-property).
+// A WireType or base that is no primitive leaves the base read as it is.
+func TestKindOf_AnEncodedScalarIsReadAsItsValuesTravel(t *testing.T) {
+	t.Parallel()
+	j := typeJudge{resolve: stubResolve(encodedRegistry()), sites: declarationSites{walk: &stubWalk{}}}
+	for id, want := range map[ir.TypeID]valueKind{
+		"t/unixtime-int":       {prim: ir.PrimInteger},
+		"t/alias-unixtime-int": {prim: ir.PrimInteger},
+		"t/unixtime-num":       {prim: ir.PrimNumber},
+		"t/unixtime-str":       {prim: ir.PrimDatetimeOffset, unjudged: true},
+		"t/http-date":          {prim: ir.PrimDatetimeOffset, unjudged: true},
+		"t/offset-base64":      {prim: ir.PrimDatetimeOffset, unjudged: true},
+		"t/offset-media":       {prim: ir.PrimDatetimeOffset},
+		"t/offset-time":        {prim: ir.PrimDatetimeOffset, unjudged: true},
+		"t/byte":               {prim: ir.PrimBytes, unjudged: true},
+		"t/number-text":        {prim: ir.PrimString},
+		"t/string-email":       {prim: ir.PrimString},
+		"t/int-weird":          {prim: ir.PrimInteger},
+		"t/wire-gone":          {prim: ir.PrimDatetimeOffset, unjudged: true},
+		"t/wire-node":          {prim: ir.PrimDatetimeOffset, unjudged: true},
+		"t/alias-wired":        {prim: ir.PrimDatetimeOffset, unjudged: true},
+	} {
+		got, ok := j.kindOf(ref(id))
+		require.True(t, ok, "%s", id)
+		assert.Equal(t, want, got, "%s", id)
+	}
+}
+
+// TestTypeJudge_AnEncodedScalarRelatesAsItsValues pins what those kinds
+// decide: unixtime on an integer is narrower than integer and number, overlaps
+// int64 and shares nothing with a string, as an integer would; an http-date is
+// narrower than datetime_offset and string, as byte is than bytes; and an enum
+// of text an encoding writes overlaps the scalar where the base's grammar
+// would refuse the text, while a bare datetime_offset still refuses it.
+func TestTypeJudge_AnEncodedScalarRelatesAsItsValues(t *testing.T) {
+	t.Parallel()
+	j := typeJudge{resolve: stubResolve(encodedRegistry()), sites: declarationSites{walk: &stubWalk{}}}
+	prim := func(k ir.PrimKind) ir.TypeID { return primRef(k).Target }
+	for _, tc := range []struct {
+		a, b ir.TypeID
+		want relation
+	}{
+		{"t/unixtime-int", prim(ir.PrimInteger), relANarrower},
+		{"t/unixtime-int", prim(ir.PrimNumber), relANarrower},
+		{"t/unixtime-int", prim(ir.PrimInt64), relOverlap},
+		{"t/unixtime-int", prim(ir.PrimString), relDisjoint},
+		{"t/unixtime-int", prim(ir.PrimDatetimeOffset), relDisjoint},
+		{"t/unixtime-int", "t/http-date", relDisjoint},
+		{"t/unixtime-int", "t/enum-seconds", relOverlap},
+		{"t/unixtime-num", prim(ir.PrimInteger), relOverlap},
+		{"t/unixtime-str", prim(ir.PrimString), relANarrower},
+		{"t/unixtime-str", prim(ir.PrimInteger), relDisjoint},
+		{"t/http-date", prim(ir.PrimDatetimeOffset), relANarrower},
+		{"t/http-date", prim(ir.PrimString), relANarrower},
+		{"t/http-date", prim(ir.PrimInteger), relDisjoint},
+		{"t/http-date", "t/enum-http-date", relOverlap},
+		{"t/offset-base64", "t/enum-base64", relOverlap},
+		{"t/byte", prim(ir.PrimBytes), relANarrower},
+		{"t/byte", "t/base64url", relOverlap},
+		{"t/enum-http-date", prim(ir.PrimDatetimeOffset), relDisjoint},
+	} {
+		assert.Equal(t, tc.want, j.relate(ref(tc.a), ref(tc.b)), "%s against %s", tc.a, tc.b)
+		assert.Equal(t, tc.want.flipped(), j.relate(ref(tc.b), ref(tc.a)), "%s against %s", tc.b, tc.a)
+	}
+}
+
+// TestValueKind_AnUnjudgedKindAdmitsNothing pins admits and literalAgainst on
+// a kind an encoding leaves unjudged: no value is shown to be one of it, an
+// RFC 3339 text no more than any, so a literal overlaps it rather than being
+// narrower or disjoint, as against bytes.
+func TestValueKind_AnUnjudgedKindAdmitsNothing(t *testing.T) {
+	t.Parallel()
+	offset := valueKind{prim: ir.PrimDatetimeOffset}
+	unjudged := valueKind{prim: ir.PrimDatetimeOffset, unjudged: true}
+	for _, v := range []ir.Value{str("2020-01-01T00:00:00Z"), str("Sun, 06 Nov 1994 08:49:37 GMT"), num("1")} {
+		assert.False(t, unjudged.admits(v), "%v", v)
+		assert.Equal(t, relOverlap, literalAgainst(v, unjudged, false), "%v", v)
+	}
+	assert.True(t, offset.admits(str("2020-01-01T00:00:00Z")), "the judged kind reads its own text")
+	assert.Equal(t, relDisjoint, literalAgainst(str("Sun, 06 Nov 1994 08:49:37 GMT"), offset, false))
+}
+
 // TestKindOf_ANumberAsTextIsAString pins travelsAs: a Scalar whose Encoding
 // carries a number as a string has a string's instances, so it relates to a
 // string and not to its number, while bytes, which JSON spells as a string
-// already, keeps its own kind however it is encoded
+// already, keeps its own kind however it is encoded, a kind with no judge
 // (docs/compilers/openapi.md#string-formats).
 func TestKindOf_ANumberAsTextIsAString(t *testing.T) {
 	t.Parallel()
@@ -535,12 +657,13 @@ func TestKindOf_ANumberAsTextIsAString(t *testing.T) {
 	reg["t/num"] = &ir.Scalar{ID: "t/num", Base: &i64, Encoding: &ir.Encoding{Name: "string"}}
 	reg["t/bytes-b64"] = &ir.Scalar{ID: "t/bytes-b64", Base: &b, Encoding: wire()}
 	j := typeJudge{resolve: stubResolve(reg), sites: declarationSites{walk: &stubWalk{}}}
-	for id, want := range map[ir.TypeID]ir.PrimKind{
-		"t/num-text": ir.PrimString, "t/alias-num-text": ir.PrimString, "t/num": ir.PrimInt64, "t/bytes-b64": ir.PrimBytes,
+	for id, want := range map[ir.TypeID]valueKind{
+		"t/num-text": {prim: ir.PrimString}, "t/alias-num-text": {prim: ir.PrimString}, "t/num": {prim: ir.PrimInt64},
+		"t/bytes-b64": {prim: ir.PrimBytes, unjudged: true},
 	} {
 		got, ok := j.kindOf(ref(id))
 		require.True(t, ok, "%s", id)
-		assert.Equal(t, valueKind{prim: want}, got, "%s", id)
+		assert.Equal(t, want, got, "%s", id)
 	}
 	str, _ := j.kindOf(primRef(ir.PrimString))
 	num, _ := j.kindOf(primRef(ir.PrimInt64))

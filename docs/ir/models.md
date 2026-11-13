@@ -313,9 +313,10 @@ short of the limits [below](#an-allof-no-object-satisfies) it is a use of one of
 A `Model` says its value is an object, and `allOf: [{type: integer}, {type: integer, format: int32}]`
 admits none, so it is no composition. An `allOf` no conjunct can make an object lowers to one use of
 the conjunct that decides it, short of the cases the OpenAPI compiler's rule
-[`allof-refinement`](../compilers/openapi.md#allof-refinement) keeps composing, two `$ref`s or a union
-beside the `allOf` among them: a reference to its `$ref`, a node at an inline branch's own pointer,
-and an alias only where the position writes what no carrier holds.
+[`allof-refinement`](../compilers/openapi.md#allof-refinement) keeps composing, two `$ref`s among
+them: a reference to its `$ref`, a node at an inline branch's own pointer, and an alias only where
+the position writes what no carrier holds. A union written beside the `allOf` is one more conjunct,
+as one on a branch is.
 At `cloudflare/api-schemas` @`319dc756` that is 517 of the 3,654 positions lowering an `allOf`, 408 of
 them a single `$ref` entry.
 
@@ -397,12 +398,30 @@ the discriminator routes subtypes rather than variants, and a union of them woul
 base: `S` stays a `Model` holding the discriminator, and the OpenAPI compiler keeps the union
 verbatim ([`union-beside-structure`](../compilers/openapi.md#union-beside-structure)).
 
+Where a discriminator on an ancestor routes to `S`, the route names what `S` lowers to, which a
+`Union` of composed variants would be no subtype of. `S` then stays the `Model` its composition
+lowers to and composes the union by reference, as [below](#a-union-a-composition-names): its last
+`Mixin` names a `Union` of the branches, each the node the branch lowers to alone. No schema
+occupies that `Union`, so it is minted, at the keyword writing the union rather than the branch's
+pointer, which keeps naming the branch's own node. The designs this was weighed against:
+
+- **A mapping naming a `Union` of subtypes**, each variant a subtype of the ancestor: a schema
+  composing `S` would have a `Union` for its `Base` and leave the hierarchy, and every emitter would
+  route one tag to several subtypes.
+- **Distributing and retargeting the route to every variant**: one tag would name several types,
+  where a `Mapping` keys one.
+- **Lowering an `allOf` branch writing the union at its own pointer** and naming that node: the
+  branch would be a referent to every reader of the composition, its own keywords on the union rather
+  than on `S`, while the same union written beside the `allOf` keeps them on `S`, two shapes for one
+  conjunction.
+
 ## A union a composition names
 
 A union a composition names by reference, rather than writing it beside the `allOf` or on one of its
 inline branches, composes as any other referent does ([composition entries](#composition-entries)):
 the `Model` names it as its `Base` or a `Mixin`, declares what the schema writes itself, and
-distributes nothing.
+distributes nothing. So does a union written beside or on the `allOf` of a subtype a discriminator
+routes to, through the `Union` minted for it ([above](#composition-beside-a-union)).
 `Stored: {allOf: [{$ref: Rule}, {properties: {id: …}}]}`, `Rule` a union of `Block` and `Log`, is a
 `Model` whose `Base` is `Rule` and which declares `id`: `Stored ∧ Rule`, as the source writes it.
 Each instance of `Stored` is an instance of one variant of `Rule` carrying `id` beside that
@@ -429,9 +448,9 @@ takes, and the tag a route to it. It was rejected on input the compiler must low
 - **A distant fact would decide it.** A schema a discriminator on one of its ancestors routes to
   stays a subtype of that ancestor (`ir.IsSubtype`), which no `Union` is: in
   `Cat: {allOf: [{$ref: Pet}, {$ref: Breeds}, …]}`, `Pet` routing `Cat` by its name, `Breeds` must
-  stay a `Mixin`. Whether a schema distributed would turn on what another schema declares, as shape
-  6 of [`union-beside-structure`](../compilers/openapi.md#union-beside-structure) lets it for a
-  union written beside the `allOf`.
+  stay a `Mixin`. Whether a schema distributed would turn on what another schema declares, as
+  [`union-beside-structure`](../compilers/openapi.md#union-beside-structure) lets it for a union
+  written beside the `allOf` or on one of its branches.
 - **A shared union would be copied.** Each schema composing a union would carry its own copy of the
   union's variants and discriminator, the golden spec's most shared union ten times over, each
   composed variant a node minted per pair of schema and variant, and no node would say that the

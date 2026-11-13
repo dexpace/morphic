@@ -632,7 +632,31 @@ it sees. Changes made together in one bump are listed together under it.
   - Such a branch writing more than its `null`, a `description` among it, is kept whole under the
     new key `openapi:oneOf/<index>` or `openapi:anyOf/<index>`, reason `no_ir_home`, where the
     compiler had dropped what a lifted `type: "null"` branch wrote beside its type.
-- **0.57.0** — no shape change. The OpenAPI compiler expands a `$dynamicRef` to an anchor at any
+- **0.57.0** — no shape change. In the OpenAPI compiler, a `oneOf` or `anyOf` beside an `allOf` is
+  one of its conjuncts ([`allof-refinement`](../compilers/openapi.md#allof-refinement)), so an
+  `allOf` no conjunct makes an object refines with a union beside it, where it composed a `Model` or
+  a union of `Model`s. A union on an `allOf` branch lowers with the discriminator written on the
+  branch or beside the `allOf`, and below a discriminated base at a position no route names, where it
+  was kept whole under `openapi:allOf/<n>`. A subtype a discriminator routes to composes a union
+  written beside or on its `allOf` as a `Mixin` naming a `Union` minted for it, whose hint the
+  compiler composes ([models](./models.md#composition-beside-a-union)), where the union was kept
+  under `openapi:oneOf`, `openapi:anyOf` or `openapi:allOf/<n>`. A `$ref` entry to a schema composing
+  a discriminated one at any depth is the `Base`
+  ([`allof-classification`](../compilers/openapi.md#allof-classification)), and so is a type a field
+  is redeclared as that holds a declared discriminator on a `Model` or a `Union`, or composes one
+  ([`allof-redeclared-property`](../compilers/openapi.md#allof-redeclared-property)). A consumer
+  pinned to 0.56.0 finds those keys gone at those positions, a refined node, a `Union` or a `Mixin` where it
+  read a `Model` keeping them, and a `Base` where it read a `Mixin`.
+- **0.58.0** — the shape is unchanged, and the OpenAPI compiler lowers three registered formats as it
+  lowers `format: byte`: to a `Scalar` over the primitive the value is, whose `Encoding` names the
+  text it is written in as the [IR](./constraints.md#encodings) does. `http-date` is a
+  `datetime_offset` under `http-date`, `unixtime` a `datetime_offset` under `unixTimestamp`, a name
+  no compiler wrote before, with the JSON type it is written on as `WireType`, and `base64url` is
+  `bytes` under `base64url` with a `string` `WireType`. So the secret policy, which reads a
+  credential's name on text or bytes, no longer marks a use declared `http-date`, or `unixtime` on a
+  string, `Secret`. A consumer pinned to 0.57.0 refuses the document; read regardless, it would find
+  an instant or bytes where it read text or a number, and `unixTimestamp` where it read `unixtime`.
+- **0.59.0** — no shape change. The OpenAPI compiler expands a `$dynamicRef` to an anchor at any
   position of its schema resource, and JSON Schema 2019-09's `$recursiveRef` to the root of the
   resource it is written in ([`dynamic-ref`](../compilers/openapi.md#dynamic-ref)): such a
   reference's `TypeRef` names the type at that position where it named a node keeping
@@ -641,5 +665,5 @@ it sees. Changes made together in one bump are listed together under it.
   `openapi:$recursiveAnchor` is no longer kept in a 2019-09 schema. A body schema writing `$schema`
   or `$vocabulary` is a file where it was not ([`file-bodies`](../compilers/openapi.md#file-bodies)).
   A `prefixItems` beside a JSON Schema draft's `items` list is kept under `openapi:prefixItems`,
-  where it was dropped ([`tuples`](../compilers/openapi.md#tuples)). A consumer pinned to 0.56.0
+  where it was dropped ([`tuples`](../compilers/openapi.md#tuples)). A consumer pinned to 0.58.0
   reads such a reference as the top type and such a body as a model.

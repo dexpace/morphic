@@ -153,7 +153,7 @@ func passageOf(c lowering.Ctx, s *oas3.Schema, pointer jsontext.Pointer) (passag
 		}
 		return p, true
 	}
-	ref := throughRef(s)
+	ref := throughRef(c, s)
 	if ref == nil {
 		return passage{}, false
 	}
@@ -166,9 +166,10 @@ func passageOf(c lowering.Ctx, s *oas3.Schema, pointer jsontext.Pointer) (passag
 
 // throughRef returns the one $ref a use of s reads on through, or nil: that of an
 // allOf an enum or a const beside it passed over, or of one saying nothing an
-// object holds, a refinement's or a decorator's. It reads the source alone, since
-// a chain asks it of every link.
-func throughRef(s *oas3.Schema) *oas3.JSONSchema[oas3.Referenceable] {
+// object holds, a refinement's or a decorator's. A union beside a composing allOf
+// is distributed across it or kept beside it, so that allOf lends nothing. It
+// reads the source and its bindings alone, since a chain asks it of every link.
+func throughRef(c lowering.Ctx, s *oas3.Schema) *oas3.JSONSchema[oas3.Referenceable] {
 	refs := slices.Collect(allOfRefBranches(s))
 	if len(refs) != 1 {
 		return nil
@@ -177,6 +178,9 @@ func throughRef(s *oas3.Schema) *oas3.JSONSchema[oas3.Referenceable] {
 		return refs[0]
 	}
 	if !allOfMayRefine(s) || annotation.DeclaresAny(s, objectKeywords) || !refinableBranches(allOfBranches(s, "")) {
+		return nil
+	}
+	if declaresUnion(s) && allOfComposes(c, s) {
 		return nil
 	}
 	return refs[0]
@@ -266,7 +270,7 @@ func readLent(c lowering.Ctx, s *oas3.Schema) Use {
 			break
 		}
 		u.Referents = append(append(u.Referents, s), lendingBranches(c, s)...)
-		through := throughRef(s)
+		through := throughRef(c, s)
 		if through == nil {
 			break
 		}
