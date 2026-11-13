@@ -98,26 +98,31 @@ whether the answer means anything.
 - **Why.** Diagnostics append in walk order, which the permutation changes (#808). A types-only diff
   missed a reference that took a type already interned at its pointer (#591).
 
-## A clean order oracle says nothing of a fact it does not compare
+## A clean order oracle says nothing of an order it forgives
 `order-oracle-reads-what-it-compares`
 
 - **Rule.** Read `diffOrderInvariants` in `internal/harness/order.go` before trusting a clean order
-  oracle: it is what the oracle compares. A fact outside it, such as one held on an operation or a
-  response, needs its own two-order diff, however many specs reach the sweep, and a spec is not
-  permuted at all where reversing its mappings would lift an alias above its anchor (#403).
+  oracle. It compares the whole document, forgiving the order of each collection `orderFree`
+  lists, and permutes mappings alone at the default limits. An order dependence in a listed
+  collection's order, in a sequence such as an `allOf`'s branches (#1666), or at another limit
+  (#1519) needs its own two-order diff, however many specs reach the sweep.
 - **Why.** With the normalization of a slice held only on operations deleted, `morphic-harness`
-  still passed a spec whose two headers lower in opposite orders, since no comparison reads them
-  (#1166).
-- **Probe.** `grep -n 'cmp\.Diff' internal/harness/order.go` lists the comparisons; plant an order
-  dependence in the fact and see whether the oracle reddens.
+  still passed a spec whose two headers lower in opposite orders, since no comparison read them
+  (#1166, #684).
+- **Probe.** `grep -n 'sortedElements\[' internal/harness/order.go` lists what it forgives; plant
+  an order dependence in the fact and see whether the oracle reddens.
 
-## The order oracle never reaches specs with errors
+## An oracle that declines a spec asked it nothing
 `order-oracle-errors`
 
-- **Rule.** `harness.Check` stops at the first error diagnostic. To measure order dependence over
-  specs with errors, call `orderInvariant` from a scratch test in `internal/harness` on both
-  builds, and delete it after.
-- **Why.** Order-dependent specs hid behind their errors (#917).
+- **Rule.** Before claiming an oracle covered a spec, read its verdict: the `declined` column of
+  the summary `morphic-harness` prints after its report, or `Result.Verdicts`. An oracle with
+  nothing to compare declines, by reason, such as a refusal's round trip or a spec writing a key
+  twice for the order oracle, and a panic leaves every later oracle not reached.
+- **Why.** Order-dependent specs hid behind their errors while the sweep stopped at the first one
+  (#917, #685), and the order oracle reported `ok` on every spec using an anchor it could not
+  permute (#403).
+- **Probe.** `go run ./cmd/morphic-harness <spec>` and read the row of the oracle in question.
 
 ## Never compare cmp.Diff text across runs
 `cmp-diff-random`
