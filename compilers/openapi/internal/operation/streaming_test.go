@@ -74,6 +74,8 @@ func TestStreaming_ResponseMediaTypeImpliesServerStream(t *testing.T) {
 				assert.Nil(t, op.RequestStream, "nothing streams towards the server")
 
 				content := firstResponseContent(t, op)
+				assert.Equal(t, &ir.ContentStream{Inferred: "streaming-media-type"}, content.Stream,
+					"the content says it streams, and that a guess says so")
 				require.NotNil(t, op.ResponseStream.Events, "the frame schema is the stream element type")
 				assert.Empty(t, cmp.Diff(content.Type, *op.ResponseStream.Events))
 				assert.Equal(t, mediaType, content.MediaType, "the media type is still kept as declared")
