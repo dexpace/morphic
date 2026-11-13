@@ -503,5 +503,6 @@ it sees. Changes made together in one bump are listed together under it.
   `PartEncoding.Style` is set wherever a part's value is arranged as a query parameter's is, `form`
   where only `explode` or `allowReserved` is written, so `ContentTypes` is not read beside it; and
   no `Style`, `Explode`, `AllowReserved` or `Headers` is lowered from a field the source format
-  gives no effect under the part's media type, which is kept verbatim instead. A consumer pinned
-  to 0.47.0 refuses the document.
+  gives no effect under the part's media type, which is kept verbatim instead, as an
+  `itemEncoding` under a media type that is not multipart now is, whole, where it lowered to an
+  `ItemEncoding`. A consumer pinned to 0.47.0 refuses the document.

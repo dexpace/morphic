@@ -42,6 +42,9 @@ func fillSequential(c lowering.Ctx, w walk, content *ir.Content, media *soa.Medi
 	}
 	enc := media.GetItemEncoding()
 	mt := lowering.NormalizeMediaType(content.MediaType)
+	if enc != nil && !isMultipart(mt) {
+		return append(diags, keepItemEncoding(c, content, media, mediaPtr)...)
+	}
 	pe := ir.PartEncoding{}
 	if enc != nil {
 		var unmodeled ir.Unmodeled
@@ -63,6 +66,22 @@ func fillSequential(c lowering.Ctx, w walk, content *ir.Content, media *soa.Medi
 			encoded: readContentEncoding(c, []*oas3.JSONSchema[oas3.Referenceable]{media.GetItemSchema()})})
 	}
 	return diags
+}
+
+// keepItemEncoding keeps whole the itemEncoding of a media type that is not
+// multipart, where OpenAPI gives it no effect, under the content's Unmodeled
+// at openapi:itemEncoding, with one info: Content.ItemEncoding would type an
+// encoding of parts a body with none does not have. Load warns of the field.
+func keepItemEncoding(c lowering.Ctx, content *ir.Content, media *soa.MediaType, mediaPtr jsontext.Pointer) []ir.Diagnostic {
+	at := mediaPtr + ids.Ptr("itemEncoding")
+	kept, diags := annotation.PreserveNodeInto(&content.Unmodeled, "openapi:itemEncoding",
+		nodeview.Child(media.GetRootNode(), "itemEncoding"), ir.ReasonNoIRHome, c.Place().At(at))
+	if !kept {
+		return diags
+	}
+	return append(diags, c.DiagAt(ir.SeverityInfo, diag.DegradedConstruct, at,
+		"itemEncoding belongs to a media type that is not multipart, where it has no effect, so Content.ItemEncoding "+
+			"has none; kept verbatim under Unmodeled"))
 }
 
 // itemFile reads the items of a sequential body under mt, each declared by

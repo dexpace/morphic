@@ -3798,8 +3798,11 @@ the `Inferred` beside it, are read off `itemSchema` and the `itemEncoding`'s `co
 multipart part's declaration is read ([`multipart-encoding`](#multipart-encoding)), an item being
 one value where an array part is many, so an array item is no file; an item no `itemSchema`
 describes is none either. Each item of a multipart body an `itemSchema` describes is a part, so such
-a body gets an `ItemEncoding` where it writes no `itemEncoding`, and one naming no content type takes
-the default of its item, as a part's entry does. Beside a positional
+a body gets an `ItemEncoding` where it writes no `itemEncoding`, and one naming no content type
+takes the default of its item, as a part's entry does. An `itemEncoding` under a media type that is
+not multipart, where OpenAPI gives it no effect and load warns of it ([`validation`](#validation)),
+is kept whole under the content's `Unmodeled` at `openapi:itemEncoding` (`no_ir_home`), lowering
+nothing, and reported there as an info `openapi/degraded-construct`. Beside a positional
 `prefixEncoding`, a single every-item encoding cannot state ordinals, so `itemEncoding` and
 `prefixEncoding` are both kept verbatim in the content's `Unmodeled`, under `openapi:itemEncoding`
 and `openapi:prefixEncoding` (`no_ir_home`), reported as one info `openapi/degraded-construct` at
@@ -3814,7 +3817,9 @@ repeat a structure is no closed set, so nothing else draws one.
 - Tests: `operation.TestStreaming_AnItemSchemaOnOneDocumentIsReported`,
   `operation.TestStreaming_AnItemSchemaIsItsFrameWhateverItHolds`,
   `lowering.TestHoldsOneDocument_AnswersOnlyForJSONAndXML`,
-  `operation.TestItemFile_ReadsTheItemAsAPartDeclarationIs`
+  `operation.TestItemFile_ReadsTheItemAsAPartDeclarationIs`,
+  `operation.TestContent_AnItemEncodingOutsideMultipartIsKeptWhole`,
+  `operation.TestFillSequential_AnItemEncodingWithNoNodeOutsideMultipartKeepsNothing`
 
 ### `streaming-media`
 

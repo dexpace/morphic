@@ -150,3 +150,40 @@ func TestItemFile_ReadsTheItemAsAPartDeclarationIs(t *testing.T) {
 		})
 	}
 }
+
+// TestContent_AnItemEncodingOutsideMultipartIsKeptWhole holds an itemEncoding
+// under a media type that is not multipart, where OpenAPI gives it no effect,
+// to the content's Unmodeled, whole, with one info at it beside load's
+// warning: no ItemEncoding types it, and none of its headers lowers.
+func TestContent_AnItemEncodingOutsideMultipartIsKeptWhole(t *testing.T) {
+	t.Parallel()
+	doc, diags := parseFull(t, openapitest.PathsSpecVer("3.2.0", `  /lines:
+    post:
+      operationId: lines
+      requestBody:
+        content:
+          application/jsonl:
+            itemSchema: {type: object, properties: {a: {type: string}}}
+            itemEncoding: {contentType: text/plain, headers: {X-A: {schema: {type: string, enum: [a]}}}}
+      responses: {"204": {description: ok}}
+`))
+	openapitest.RequireNoErrorDiags(t, diags)
+	c := openapitest.FindOp(t, doc, "lines").Request.Contents[0]
+	assert.Nil(t, c.ItemEncoding)
+	item, ok := c.Unmodeled["openapi:itemEncoding"]
+	require.True(t, ok, "itemEncoding kept verbatim; got %v", c.Unmodeled)
+	assert.Equal(t, ir.ReasonNoIRHome, item.Reason)
+	assert.JSONEq(t, `{"contentType": "text/plain", "headers": {"X-A": {"schema": {"type": "string", "enum": ["a"]}}}}`,
+		string(item.Value))
+	assert.Len(t, c.Unmodeled, 1, "and nothing of it is kept apart")
+	at := "/paths/~1lines/post/requestBody/content/application~1jsonl/itemEncoding"
+	assert.Equal(t, 1, openapitest.CountDiagsAt(diags, diag.DegradedConstruct, ir.SeverityInfo))
+	for _, d := range diags {
+		if d.Code == diag.DegradedConstruct {
+			assert.Equal(t, at, string(d.Provenance.Pointer))
+		}
+	}
+	for id := range doc.Types {
+		assert.NotContains(t, string(id), "/itemEncoding/", "a kept header lowers no type")
+	}
+}

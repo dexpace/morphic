@@ -121,7 +121,7 @@ var generations = []generation{
 		names: "5506159ecd463736fdbbad0c4cabfad3fd50b48509b46fbea55862e82eca9675"},
 	{version: "0.48.0", format: 1, shape: "630671af6248c7ff1ebd79765cf645b7ee3fde7308e1d8d9b8002a59268eb847",
 		names:   "5506159ecd463736fdbbad0c4cabfad3fd50b48509b46fbea55862e82eca9675",
-		meaning: "a form part with no content type of its own carries the default its format gives, no part of a url-encoded body or of format byte carries a filename, a part only a union's branch declares is keyed, through nested unions, and an encoding entry keying no part, an encoding outside a form among them, is kept whole, and a part's Style is set wherever its value is arranged, form by default, and nothing is lowered from an encoding field with no effect under its media type"},
+		meaning: "a form part with no content type of its own carries the default its format gives, no part of a url-encoded body or of format byte carries a filename, a part only a union's branch declares is keyed, through nested unions, and an encoding entry keying no part, an encoding outside a form among them, is kept whole, and a part's Style is set wherever its value is arranged, form by default, and nothing is lowered from an encoding field, or an itemEncoding, with no effect under its media type"},
 }
 
 // shapeGolden holds the description the newest row's shape hashes, so a change
