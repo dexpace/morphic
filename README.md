@@ -195,11 +195,11 @@ finding, and, once anything was left unwritten, a tally:
   32 of 1890 findings shown: 4 error, 222 warning, 1664 info, 0 accepted
 ```
 
-Every finding stays in the [JSON report](#json-report), which writes them all. A spec writes the keys,
-references and messages a line quotes, so a control character, a format character such as a
-bidirectional override, or a byte that is not UTF-8 is written escaped as Go's `%q` spells it (`\x1b`,
-`\n`, `\u202e`, `\xff`), in the findings and in `--explain`'s report alike: a spec cannot start a line
-of its own or send a terminal a control sequence.
+Every finding stays in the [JSON report](#json-report), which writes them all. A spec writes the
+keys, references and messages a line quotes, so a control character, a format character such as a
+bidirectional override, or a byte that is not UTF-8 is written escaped as Go's `%q` spells it
+(`\x1b`, `\n`, `\u202e`, `\xff`), in the findings and in `--explain`'s report alike: a spec cannot
+start a line of its own or send a terminal a control sequence.
 
 #### Triage
 
@@ -372,10 +372,11 @@ keeps the value and the stack beside the one-line message. A stage that ignores 
 until it returns, and the run then fails with the context's error, whatever the stage returned. The
 structural duties only `irverify` checks are left to the harness, unless `RunOptions.Verify` is set:
 it holds each stage's document to them, and the findings each stage reports, and each pass to
-leaving its input alone, and fails the run with an `*engine.VerifyError` listing what broke. `engine.WithCache` answers a run from an earlier
-one with the same inputs, skipping detection, the compile and the passes; `cache.NewDir` is a store
-on disk and `cache.BuildID` names the running build. A cache that fails reports on
-`Result.CacheErr` and never fails the run ([Architecture](docs/architecture.md) §2.6).
+leaving its input alone, and fails the run with an `*engine.VerifyError` listing what broke.
+`engine.WithCache` answers a run from an earlier one with the same inputs, skipping detection, the
+compile and the passes; `cache.NewDir` is a store on disk and `cache.BuildID` names the running
+build. A cache that fails reports on `Result.CacheErr` and never fails the run
+([Architecture](docs/architecture.md) §2.6).
 
 ```go
 eng, err := engine.New()

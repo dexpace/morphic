@@ -677,8 +677,8 @@ reads nothing else), or a document already compiled (`RunDocument`, which runs t
 `engine/reader` reads what a source's references name, `engine/output` writes the document to a
 stream or replaces a file atomically, `engine/report` renders the findings and `--explain`,
 `engine/triage` rates the findings by a caller's rules (§4), and `engine/cache` keeps what a run
-compiled (§2.6). The CLI parses flags, picks the streams, cancels
-the run on SIGINT, SIGTERM or SIGHUP, and turns the run into an exit code.
+compiled (§2.6). The CLI parses flags, picks the streams, cancels the run on SIGINT, SIGTERM or
+SIGHUP, and turns the run into an exit code.
 
 Two caps guard the shape rather than the graph, both in `internal/archtest` and `.golangci.yml`:
 no type under `compilers/` may carry more than 20 methods, and no function may exceed 70 lines or
@@ -724,11 +724,12 @@ edited, as a line does not. The decisions it rests on:
 - *An acceptance names a place.* Accepting a code everywhere would be a blanket suppression, so an
   acceptance is keyed by code and place, the code-by-entity key the [prior art](./prior-art.md)
   takes for an approval.
-- *A rule that matches nothing is reported.* `Result.UnusedRules` lists it on a run that produced
-  a document, and the CLI names it: unless its pass is off, the finding it was written for has gone,
-  because the spec changed or a later build lowers the construct, and the rule can go too. That is the decay an approval's expiry stands guard against,
-  found by the run itself; an expiry by date would make one run's verdict depend on the day it ran,
-  and morphic has no release a rule could name.
+- *A rule that matches nothing is reported.* `Result.UnusedRules` lists it on a run that
+  produced a document, and the CLI names it: unless its pass is off, the finding it was written
+  for has gone, because the spec changed or a later build lowers the construct, and the rule
+  can go too. That is the decay an approval's expiry stands guard against, found by the run
+  itself; an expiry by date would make one run's verdict depend on the day it ran, and morphic
+  has no release a rule could name.
 - *Rules are applied after the run, never stored.* `Result.Diagnostics` and the document keep the
   findings as their stages reported them, `Result.Findings` holds them as rated, and the cache keys
   no rule, so a cached run is rated by the rules of the run it answers.
