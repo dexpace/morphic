@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
 )
@@ -199,4 +200,39 @@ func TestUse_ANarrowingOfTwoRefsLendsNothing(t *testing.T) {
 	openapitest.RequireNoErrorDiags(t, diags)
 	p := propertyOf(t, doc, "Holder", "f")
 	assert.Empty(t, firstDocs(doc, p).Description)
+}
+
+// TestUse_AUnionBesideAnAllOfReadsThroughOnlyARefinement pins what a carrier
+// reads past an allOf a union stands beside: through one refining to its $ref,
+// at the position and past a $ref to a schema writing it, as past any
+// refinement, and through none that composes, which the union distributes
+// across (docs/compilers/openapi.md#allof-refinement).
+func TestUse_AUnionBesideAnAllOfReadsThroughOnlyARefinement(t *testing.T) {
+	t.Parallel()
+	for _, doc := range discriminatedOrders(t, "3.1.0", `    Holder:
+      type: object
+      properties:
+        refines: {allOf: [{$ref: '#/components/schemas/Str'}], anyOf: [{type: string}, {type: number}], description: mine}
+        viaRefines: {$ref: '#/components/schemas/Refines'}
+        composes: {allOf: [{$ref: '#/components/schemas/Stamp'}], oneOf: [{$ref: '#/components/schemas/A'}, {$ref: '#/components/schemas/B'}]}
+        viaComposes: {$ref: '#/components/schemas/Composes'}
+    Refines: {allOf: [{$ref: '#/components/schemas/Str'}], anyOf: [{type: string}, {type: number}]}
+    Composes: {allOf: [{$ref: '#/components/schemas/Stamp'}], oneOf: [{$ref: '#/components/schemas/A'}, {$ref: '#/components/schemas/B'}]}
+`, `    Str: {type: string, default: lent, description: from Str}
+    Stamp: {type: object, default: {at: 1}, properties: {at: {type: integer}}}
+    A: {type: object, properties: {a: {type: string}}}
+    B: {type: object, properties: {b: {type: string}}}
+`) {
+		refines := propertyOf(t, doc, "Holder", "refines")
+		assert.Equal(t, "mine", refines.Docs.Description, "what the position writes speaks first")
+		for _, wire := range []string{"refines", "viaRefines"} {
+			p := propertyOf(t, doc, "Holder", wire)
+			require.NotNil(t, p.Default, wire)
+			assert.Equal(t, "lent", p.Default.Str, wire)
+		}
+		assert.Equal(t, "from Str", propertyOf(t, doc, "Holder", "viaRefines").Docs.Description)
+		for _, wire := range []string{"composes", "viaComposes"} {
+			assert.Nil(t, propertyOf(t, doc, "Holder", wire).Default, wire)
+		}
+	}
 }

@@ -55,7 +55,8 @@ func TestCompile_AliasBombDoesNotExhaustMemory(t *testing.T) {
 // walk that never returns fails there as a silent package-wide timeout; this
 // fails in seconds and names the cause. Branching, not a cycle, is what
 // multiplies the frontier here. It asserts a bound because the defect is work:
-// one visit per level with the dedup, 2^level without it.
+// one visit per level with the dedup, 2^level without it. Electing each level's
+// Base walks the same ancestors, so it is held to the bound too.
 func TestCompile_SharedCompositionAncestorsDoNotAmplify(t *testing.T) {
 	t.Parallel()
 	const levels = 30
@@ -93,6 +94,8 @@ func TestCompile_SharedCompositionAncestorsDoNotAmplify(t *testing.T) {
 		require.True(t, ok, "the deepest subtype lowers to a model")
 		assert.Equal(t, prev, leaf.DiscriminatorValue,
 			"and still answers to the tag its distant ancestor spells for it")
+		require.NotNil(t, leaf.Base, "its parent takes part in Root's hierarchy, so it is the Base")
+		assert.True(t, ir.IsSubtype(r.doc, leaf.ID, "t/openapi/components/schemas/Root"))
 	case <-time.After(bound):
 		t.Fatalf("compiling %d levels of shared ancestors did not finish within %v — "+
 			"the discriminator ancestor walk is revisiting schemas it has already seen", levels, bound)

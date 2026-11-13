@@ -148,3 +148,8 @@ components:
       allOf:
         - anyOf: [{type: string}, {type: number}, {type: boolean}]
         - {type: string, maxLength: 1000}
+    # A union written beside the allOf is one of its conjuncts as one on a
+    # branch is, so this is the string Needle is.
+    NeedleBeside:
+      allOf: [{type: string, maxLength: 1000}]
+      anyOf: [{type: string}, {type: number}, {type: boolean}]
