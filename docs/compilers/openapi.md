@@ -395,9 +395,10 @@ a draft's `definitions`, included: a keyword a draft constrains otherwise, such 
 defines to its row, a number where a string belongs being the warning it is anywhere. Those rows are
 known once the bindings are read, so a document that may name a dialect, a 3.1 or 3.2 one writing
 `jsonSchemaDialect` or the key `$schema` anywhere in its tree, has its Schema Objects judged then,
-their findings after its others; any other document is judged whole at once, in its minor's own. An object a `$ref` reaches that the source's own reading did not take as
-that kind, one under an `x-` key or in another document, is read as the kind the reference
-expects and held to the minor of the document that writes it
+their findings after its others; any other document is judged whole at once, with its minor's own
+rows. An object a `$ref` reaches that the source's own reading did not take as that kind, one under
+an `x-` key or in another document, is read as the kind the reference expects and held to the minor
+of the document that writes it
 ([`openapi-versions`](#openapi-versions)). A finding about it is placed at its node, in the entry of
 `Document.Sources` for the document that writes that node, a file the source spells two ways being
 one document. One about a node of a document no entry lists goes to the least `$ref` reaching it,
@@ -3556,9 +3557,9 @@ schema is read in, never from its version or its name alone:
    ([`later-version-construct`](#later-version-construct)), which names the three such keywords
    left unread.
 3. Only an earlier draft defines it, such as `definitions`, `dependencies`, `additionalItems`, `id`,
-   `$recursiveRef` or `$recursiveAnchor` outside the drafts defining them, or no dialect does: it is kept verbatim as
-   [`unknown-keys`](#unknown-keys) keeps any keyword the schema model does not name, with no native
-   reading to apply. Guessing which draft an author meant would be a heuristic, where the document
+   `$recursiveRef` or `$recursiveAnchor` outside the drafts defining them, or no dialect does: it is
+   kept verbatim as [`unknown-keys`](#unknown-keys) keeps any keyword the schema model does not name,
+   with no native reading to apply. Guessing which draft an author meant would be a heuristic, where the document
    has a declared way to ask for it, naming the draft by `$schema` or `jsonSchemaDialect`, and JSON
    Schema has an unknown keyword ignored (2019-09 §4.3.1) or read as an annotation (2020-12
    §4.3.1). A JSON pointer `$ref` into such a keyword's value still resolves, read as a schema.
@@ -3572,8 +3573,9 @@ can set a warned keyword aside but cannot rebuild a lowering from a verbatim cop
 `$comment` is dropped outright — 2020-12 §8.3 forbids presenting it to end users, so no emitter may
 see it. `$dynamicAnchor` is consumed as a reference target rather than carried as content — it is
 what lets a `$dynamicRef` expand ([`dynamic-ref`](#dynamic-ref)), and a `$ref` naming it reads it as
-an `$anchor` — and so is 2019-09's `$recursiveAnchor`, where the schema's dialect defines it. `$anchor` is consumed the same way: a `$ref` naming one that
-[`references`](#references) reads resolves to the schema declaring it.
+an `$anchor` — and so is 2019-09's `$recursiveAnchor`, where the schema's dialect defines it.
+`$anchor` is consumed the same way: a `$ref` naming one that [`references`](#references) reads
+resolves to the schema declaring it.
 
 - Cases: `dialect-keywords`, `schema-dialects`
 - Codes: `openapi/degraded-construct`, `openapi/unread-dialect`

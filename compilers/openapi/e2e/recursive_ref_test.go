@@ -37,8 +37,8 @@ var recursiveRefGroups = []string{
 		`es":{"$recursiveRef":"#"}}]}},"anyOf":[{"type":"integer"},{"$ref":"#/$defs/myobject"}]}`,
 	// 2: $recursiveRef with nesting.
 	`{"$id":"http://localhost:4242/draft2019-09/recursiveRef3/schema.json","$recursiveAnchor":true,"$defs` +
-		`":{"myobject":{"$id":"myobject.json","$recursiveAnchor":true,"anyOf":[{"type":"string"},{"type":"obj` +
-		`ect","additionalProperties":{"$recursiveRef":"#"}}]}},"anyOf":[{"type":"integer"},{"$ref":"#/$defs/m` +
+		`":{"myobject":{"$id":"myobject.json","$recursiveAnchor":true,"anyOf":[{"type":"string"},{"type":` +
+		`"object","additionalProperties":{"$recursiveRef":"#"}}]}},"anyOf":[{"type":"integer"},{"$ref":"#/$defs/m` +
 		`yobject"}]}`,
 	// 3: $recursiveRef with $recursiveAnchor: false works like $ref.
 	`{"$id":"http://localhost:4242/draft2019-09/recursiveRef4/schema.json","$recursiveAnchor":false,"$def` +

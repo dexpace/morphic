@@ -649,7 +649,7 @@ func TestRecursiveAnchors_CountsWhatADocumentDeclares(t *testing.T) {
 		"    Z: {$recursiveAnchor: true}\n", recursive)
 	sites, whole := table.RecursiveAnchors(bind.Source)
 	assert.True(t, whole)
-	var got []jsontext.Pointer
+	got := make([]jsontext.Pointer, 0, len(sites))
 	for _, p := range sites {
 		got = append(got, p.Pointer)
 	}
@@ -682,8 +682,9 @@ func TestLandDynamic_LandsWhereTheRefItSpellsWould(t *testing.T) {
 		return bind.DialectRule{Definitions: dialect == d7, Recursive: dialect == d2019}
 	}
 	landed := func(schemas string) []jsontext.Pointer {
-		var out []jsontext.Pointer
-		for _, l := range bound(t, head+"components:\n  schemas:\n"+schemas, cfg).Landings() {
+		landings := bound(t, head+"components:\n  schemas:\n"+schemas, cfg).Landings()
+		out := make([]jsontext.Pointer, 0, len(landings))
+		for _, l := range landings {
 			out = append(out, l.At.Pointer)
 		}
 		return out

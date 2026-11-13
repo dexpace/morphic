@@ -585,7 +585,7 @@ func TestDynamicRef_ExpandsToAnyPositionARefNames(t *testing.T) {
 			t.Parallel()
 			uses := "    Uses: {type: object, properties: {m: {$dynamicRef: '#" + tc.name + "'}, r: {$ref: '#" +
 				tc.pointer + "'}}}\n"
-			var docs []*ir.Document
+			docs := make([]*ir.Document, 0, 2)
 			for _, first := range []bool{false, true} {
 				doc, diags := parseFull(t, dynamicAtSpec(tc.holder, uses, first))
 				for _, d := range diags {

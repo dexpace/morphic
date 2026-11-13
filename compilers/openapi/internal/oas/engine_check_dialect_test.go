@@ -163,7 +163,7 @@ func TestCheck_ARootReadsItsOwnRows(t *testing.T) {
 			return rulesOf("3.1.0", draft04), at == root
 		},
 	})
-	var at []jsontext.Pointer
+	at := make([]jsontext.Pointer, 0, len(diags))
 	for _, d := range diags {
 		at = append(at, d.Provenance.Pointer)
 	}
@@ -197,7 +197,7 @@ func TestCheckPending_ReadsWhatACheckHandedBack(t *testing.T) {
 	assert.Zero(t, seen[oas.Schema], "a schema handed back is not read")
 	opts.Rows = rulesOf("3.1.0", draft04)
 	diags := checker.CheckPending(t.Context(), pending, "3.1.0", opts)
-	var at []jsontext.Pointer
+	at := make([]jsontext.Pointer, 0, len(diags))
 	for _, d := range diags {
 		at = append(at, d.Provenance.Pointer)
 	}
