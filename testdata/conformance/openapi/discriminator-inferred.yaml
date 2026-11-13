@@ -62,6 +62,47 @@ components:
         - type: object
           properties:
             kind: {const: b}
+    # Each inline variant pins its tag to several strings no other admits, a
+    # set the implicit mapping, which names no inline variant, cannot route:
+    # each string is mapped to the variant admitting it.
+    Calculation:
+      oneOf:
+        - type: object
+          required: [operator]
+          properties:
+            operator: {type: string, enum: [count, COUNT]}
+        - type: object
+          required: [operator]
+          properties:
+            operator: {type: string, enum: [min, max]}
+            key: {type: string}
+      discriminator:
+        propertyName: operator
+    # Two variants admitting one string leave the routes to the document.
+    Overlapping:
+      oneOf:
+        - type: object
+          required: [operator]
+          properties:
+            operator: {enum: [min, max]}
+        - type: object
+          required: [operator]
+          properties:
+            operator: {enum: [max, sum]}
+      discriminator:
+        propertyName: operator
+    # No discriminator, but each variant requires a property it pins to
+    # strings no other admits, one written as a union of const values.
+    Operation:
+      oneOf:
+        - type: object
+          required: [status]
+          properties:
+            status: {oneOf: [{const: pending}, {const: running}]}
+        - type: object
+          required: [status]
+          properties:
+            status: {const: completed}
     # A subtype the discriminator routes by its name pins its tag to another
     # value, so its name is no tag it carries: it carries the pinned one.
     Shape:
@@ -78,6 +119,28 @@ components:
           properties:
             kind: {const: circle}
             radius: {type: number}
+    # A subtype whose tag is a union of one const value carries it, as one
+    # written as an enum of one does.
+    Square:
+      allOf:
+        - $ref: '#/components/schemas/Shape'
+        - type: object
+          properties:
+            kind: {oneOf: [{const: square}]}
+    # A subtype composing a union whose every variant pins its tag admits only
+    # what they pin, which its name is not, so it carries no tag.
+    Polygon:
+      allOf:
+        - $ref: '#/components/schemas/Shape'
+        - $ref: '#/components/schemas/Sided'
+    Sided:
+      oneOf:
+        - type: object
+          properties:
+            kind: {const: triangle}
+        - type: object
+          properties:
+            kind: {const: hexagon}
     JsonFormat:
       type: object
       required: [type]

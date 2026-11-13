@@ -96,4 +96,8 @@ rewrites it as the closed `Enum` of its values at the union's own ID, each membe
 said of its value, so a consumer meets one shape. A branch of several values is taken only where the
 union's variant is its one reference, so its values move into the `Enum` rather than being copied
 into each union naming it. Where the union says what no `Enum` can, it stays
-([`string-const-union`](../compilers/openapi.md#string-const-union)).
+([`string-const-union`](../compilers/openapi.md#string-const-union)). A reading that runs before the
+pass and asks which strings a value admits, as discriminator inference does
+([`discriminator-inference`](../compilers/openapi.md#discriminator-inference)), reads such a union
+as the set it holds, whether or not the pass will rewrite it, so its answer does not turn on how the
+document spelled the set.

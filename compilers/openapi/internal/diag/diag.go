@@ -509,9 +509,9 @@ const (
 	// is.
 	InvalidItemsList = "openapi/invalid-items-list"
 	// InferredDiscriminator reports a mapping the discriminator-inference
-	// policy reads off the tag values a union's variants pin, where the
-	// discriminator declares none and the component names OpenAPI's implicit
-	// mapping routes by are not those values, at the discriminator; and a
+	// policy reads off the strings a union's variants pin their tag to, where
+	// the discriminator declares none and the component names OpenAPI's
+	// implicit mapping routes by are not all of them, at the discriminator; and a
 	// subtype's tag it reads off the values the subtype admits, where they rule
 	// out the name it is routed by, at the subtype. The node is marked Inferred
 	// (docs/compilers/openapi.md#discriminator-inference).

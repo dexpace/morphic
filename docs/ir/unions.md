@@ -84,11 +84,11 @@ property name tags, 59 declare the tag optional and 34 declare it a number, ever
 integer error code its `mapping` routes.
 
 A union whose source declares no discriminator may still name its variant in the payload: where
-every variant requires one property and pins it to a distinct value, that value tells them apart as
-validation does. A compiler policy may read such a tag in, as a `Discriminator` with `Inferred` set
-([models](./models.md#discriminator)), and the union is then `WireTagged`, since the payload does
-name its variant. The mark keeps the reading auditable: a consumer taking only what the source
-declares reads such a union as untagged, which validation still decodes.
+every variant requires one property and pins it to values no other variant admits, that value tells
+them apart as validation does. A compiler policy may read such a tag in, as a `Discriminator` with
+`Inferred` set ([models](./models.md#discriminator)), and the union is then `WireTagged`, since the
+payload does name its variant. The mark keeps the reading auditable: a consumer taking only what the
+source declares reads such a union as untagged, which validation still decodes.
 
 ## A type listed twice
 

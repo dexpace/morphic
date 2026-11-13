@@ -518,3 +518,18 @@ it sees. Changes made together in one bump are listed together under it.
   which `pass.Validate` had refused ([discriminator](./models.md#discriminator)). A consumer pinned
   to 0.48.0 that read such a union as a `Union` finds an `Enum` there, no longer finds the branch
   type, and meets a base among the types its own discriminator routes to.
+- **0.50.0** — no shape change. A union's `Discriminator.Mapping` that holds an entry its source
+  writes holds, beside those entries, the route the source implies to each variant it declares none
+  for ([models](./models.md#discriminator)): the OpenAPI compiler writes into it the name of the
+  component that variant's branch names, and writes the routes out too where a variant's type is an
+  alias for a keyword beside its `$ref`, as it did for a variant composed over its branch
+  ([`discriminator`](../compilers/openapi.md#discriminator)). Its discriminator-inference policy
+  reads what a variant or a subtype admits as a set of strings
+  ([`discriminator-inference`](../compilers/openapi.md#discriminator-inference)): a variant pinning
+  its tag to several strings no other variant admits maps each to it, in a declared discriminator's
+  `Mapping` and in an inferred one; a tag written as a union of string values bounds them as an
+  `enum` does; and what a schema composes as a union, its variants read as objects in turn, meets
+  what it declares. A consumer pinned to 0.49.0 that routed a variant a mapping left out by its
+  type's name finds the route in the `Mapping`, reads unions it read as untagged, or as routed by
+  component names, as routed by the strings their variants pin, and finds no `DiscriminatorValue` on
+  a subtype whose composed union rules its name out.

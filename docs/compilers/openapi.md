@@ -2343,9 +2343,9 @@ distributed union ([`discriminator`](#discriminator)): a `mapping` target, or th
 `defaultMapping`, naming the component a `$ref` branch names routes to the variant composed over
 that branch. OpenAPI routes a variant no entry names by the name of the component its branch
 names, which a composed variant, named for its position, does not carry, so that route is written
-into the `Mapping`: each such name keys its variant, unless two branches name that component or an
-entry spells that key already. No variant carries a `DiscriminatorValue`, which tags a subtype in a
-hierarchy, since the mapping's keys tag the union's variants, and
+into the `Mapping`, as [`discriminator`](#discriminator) writes it wherever a nil one would not say
+it. No variant carries a `DiscriminatorValue`, which tags a subtype in a hierarchy, since the
+mapping's keys tag the union's variants, and
 [`discriminator-inference`](#discriminator-inference) may read the mapping off the tags they pin.
 
 A `oneOf` or `anyOf` written as an inline branch of the schema's `allOf` conjoins with the rest of
@@ -2581,15 +2581,34 @@ On a `Model` whose own properties include the one `propertyName` names, the tag 
 `PropID`, in `Discriminator.Property`; otherwise, and on every `Union`, it is the name as written,
 in `Discriminator.PropertyName`. Each `mapping` entry lowers to its key and the `TypeID` its target
 lowers to, the target named by reference or by bare schema name, and 3.2's `defaultMapping` to
-`Discriminator.Default`. `Inferred` is not set: the document declares the discriminator. With no
-`mapping`, the `Mapping` is nil, and a union routes each variant by the name of its type, as
-OpenAPI's implicit mapping does by component name, unless
-[`discriminator-inference`](#discriminator-inference) reads it off the tags the variants pin, or the
-variants are composed over their branches ([`union-beside-structure`](#union-beside-structure)),
-which writes those names out. A mapping
-target that resolves to no schema is reported as an `openapi/unresolved-ref` error at the entry,
-which the `Mapping` leaves out. A subtype the mapping names under several keys — an alias tag —
-takes the smallest in byte order as its `DiscriminatorValue`
+`Discriminator.Default`. `Inferred` is not set: the document declares the discriminator. OpenAPI
+reads a tag per value, as the name of a component schema unless a `mapping` entry keys that value,
+its implicit mapping: 3.0.4, 3.1.1 and 3.2.0 say so ("_unless_ a `mapping` is present for that
+value"), and 3.0.3 and 3.1.0, which those patch releases clarify, fail a value only where it matches
+no "implicit or explicit mapping". Their example maps the value `dog` to `Dog` "rather than the
+default (implicit) value of `Dog`", which the patch releases correct to "of
+`#/components/schemas/dog`", the reading `dog` itself takes with no entry. So the name of the
+component a variant's `$ref` branch names routes to the variant whether or not an entry routes it
+too. The IR routes by a variant type's name only where a union's `Mapping` is nil
+([models](../ir/models.md#discriminator)), so a union's `Mapping` holds the name route to each
+variant no entry routes, the name keying its variant, wherever a nil one would not say it: where the
+`mapping` holds an entry, or where a variant's type is not the component its branch names, as an
+alias for a keyword beside the `$ref` is not, nor a variant composed over its branch
+([`union-beside-structure`](#union-beside-structure)). A name two branches name, or one an entry
+spells already, keys nothing more, and an inline variant has none. The compiler leaves out the name
+of a variant an entry routes, though OpenAPI routes by it: a `Mapping` is what a consumer writing an
+instance picks the variant's tag from, and a map cannot mark one of two routes to a variant as read
+and never written, so the name written in would give the variant a second tag to write and nothing
+to say which. A hierarchy leaves out the name of a subtype a key tags in the same way, its
+`DiscriminatorValue` being a key ([`discriminator-value`](#discriminator-value)). A payload
+carrying such a name routes nowhere in the IR, or to `Default` where a 3.2 document declares
+`defaultMapping`. A variant the `defaultMapping` names and no entry routes is still routed by its
+name. With no `mapping`, and each variant whose branch names a component that component itself, the
+`Mapping` is nil and a union routes each variant by the name of its type, unless
+[`discriminator-inference`](#discriminator-inference) reads it off the tags the variants pin. A
+mapping target that resolves to no schema is reported as an `openapi/unresolved-ref` error at the
+entry, which the `Mapping` leaves out. A subtype the mapping names under several keys — an alias tag
+— takes the smallest in byte order as its `DiscriminatorValue`
 ([`discriminator-value`](#discriminator-value)), since the field holds one and a mapping's key order
 is not a property of the document, with every key kept in the base's `Mapping` and the election
 reported as an info `openapi/degraded-construct` at the subtype. A discriminator beside a node that
@@ -2610,12 +2629,16 @@ a position that writes a `$ref`, other than a component or a variant, is read th
   `e2e.TestMappingTargets_ADiscriminatorAReferenceReachesIsBoundWhereItSits`,
   `schema.TestDiscriminatorMapping_RoutesToTheVariantAliasingItsTarget`,
   `schema.TestDiscriminatorDefault_RoutesToTheVariantAliasingItsTarget`,
-  `schema.TestDiscriminatorMapping_TwoVariantsAliasingATypeRouteToNeither`
+  `schema.TestDiscriminatorMapping_TwoVariantsAliasingATypeRouteToNeither`,
+  `schema.TestDiscriminatorMapping_WritesTheRoutesItImplies`
 - Status: partly built: an empty `propertyName` lowers to IR that `irverify` refuses (#882); a
   mapping to a component that is a `$ref` to a subtype fails validation (#844), and so does one to a
-  type two variants alias, which a valid document can write (#1298); a mapping naming some variants
-  of a union leaves the routes OpenAPI implies for the others unwritten, where a distributed union's
-  carries them, and the IR does not say how a partial mapping routes (#1702).
+  type two variants alias, which a valid document can write (#1298); a variant whose branch names a
+  component of another document is routed by its type's name where the `Mapping` is nil, and by
+  nothing where it holds an entry (#1829); and a payload tagged with the name of a union's variant
+  or a hierarchy's subtype that an entry routes reaches no variant, or `Default`, though OpenAPI
+  routes it by that name, as the IR has no place for a route a consumer reads and never writes
+  (#1863).
 
 ### `discriminator-value`
 
@@ -2662,43 +2685,64 @@ no subtype, so no variant of a distributed union carries a tag.
 The discriminator-inference policy reads a union's tags off what its variants pin, and a subtype's
 off what it admits: the Go option `Options.DiscriminatorInference`, whose zero value is on and whose
 `Disabled` reads only what the document declares, and the text option `discriminator-inference`,
-which `false` turns off (invariant 6). A variant pins a property where the declarations its
-flattening reads of it (`ir.FlattenedProperties`), the one the member takes and those it overrides,
-hold it to one string, as an instance meets them all: one is a reference to a string `Literal`, or
-to a closed `Enum` of one string member, read through alias scalars, none pins another value, and
-not every one admits null. So a body beside a union that redeclares the tag as a string, which its
-composed variants take, leaves each branch's pin in force
-([`union-beside-structure`](#union-beside-structure)). A number, a boolean, or a value set of more
-than one pins nothing a `Mapping` holds, since a discriminator's tag is the wire string. The reading
-waits for every node to be interned (`compile.Settlement`), since a variant lowered after its union
-has no node while the union lowers, and what it finds no other settlement changes, whichever settles
-first. Two unions and a subtype meet it:
+which `false` turns off (invariant 6). What an instance admits is read off the IR, each type read
+through alias scalars. A value of a type admits a string `Literal`'s one string, the members of a
+closed `Enum` every one of which is a string, or what a value of a closed union does: the strings
+any of its variants admits, a `oneOf`'s as an `anyOf`'s. A value two variants of a `oneOf` admit
+matches neither, but what is read of a variant can admit more than it holds, as a constraint kept
+beside an `Enum` rules some of its members out, so a string read off two variants may still match
+one alone. A union on a cycle of such unions, or reaching one, admits any value, and any other type,
+a number among them, any string, since a discriminator's tag is the wire string, which a number's
+text spells too. A value admits null where its reference or an alias it is read through does, or one
+of a union's variants does, and null is no tag. A member admits what every declaration its
+flattening reads of it admits (`ir.FlattenedProperties`), the one it takes and those it overrides,
+as an instance meets them all, and null only where each does. An object admits at a property what
+its member of that name admits, any value where it declares none, met with what each closed union it
+composes admits there: what any of the union's variants admits as an object in turn, a variant that
+is no model or union admitting any value. A cycle of objects and the unions they compose, as a union
+listing subtypes that compose it, is read alike from wherever the reading enters it, each member
+admitting what it does given what the others admit, from any value down until none changes: so a
+subtype pinning its tag admits its pin, and the union what its subtypes admit. A cycle is swept at
+most 64 times, each sweep reading every member off the one before; one still changing then is read
+as the last sweep left it, which admits no less than its instances hold, so nothing is reported.
+
+So a body beside a union that redeclares the tag as a string, which its composed variants take,
+leaves each branch's pin in force ([`union-beside-structure`](#union-beside-structure)), and a tag
+written as a `oneOf` of `const`s reads as one written as an `enum`, the set
+[`string-const-union`](#string-const-union) later normalizes it to. A variant pins a property where
+it admits one or more strings and nothing else. The reading is a settlement (`compile.Settlement`):
+it waits for every node to be interned, since a variant lowered after its union has no node while
+the union lowers, and for every redeclared field to fold
+([`allof-redeclared-property`](#allof-redeclared-property)). No settlement after it changes what it
+finds, whichever settles first, and each type is read once a run, however many unions and subtypes
+ask. Two unions and a subtype meet it:
 
 1. A `discriminator` declaring no `mapping` routes each variant by the name of the component its
-   `$ref` branch names, OpenAPI's implicit mapping, which reaches no inline variant and names a tag
-   a variant pinning another value rejects. Where every variant pins the `propertyName` to a
-   distinct string and some variant's is not that name, the `Mapping` is read off the pinned
-   values, the union's `Provenance.Inferred` names `discriminator-inference`, and an info
+   `$ref` branch names, OpenAPI's implicit mapping, which reaches no inline variant, names a tag a
+   variant pinning other strings rejects, and routes no other string a variant admits. Where every
+   variant pins the `propertyName` to strings no other variant admits, and some variant admits other
+   than its name alone, the `Mapping` maps each string to the variant admitting it, the union's
+   `Provenance.Inferred` names `discriminator-inference`, and an info
    `openapi/inferred-discriminator` at the discriminator names the first variants it reads
-   otherwise. `Discriminator.Inferred` stays false: the tag property is declared.
+   otherwise, with the first strings each admits. `Discriminator.Inferred` stays false: the tag
+   property is declared. Variants sharing a string leave the routes to the document, since a
+   `Mapping` routes a tag to one variant.
 2. A closed union of two or more variants declaring no discriminator, no variant admitting null,
-   gets one where every variant requires a property and pins it to a distinct string: the first
-   such property in the first variant's layout order is its `PropertyName`, each pinned value maps
-   to its variant, and the union is `WireTagged`, `Discriminator.Inferred` set and
-   `Provenance.Inferred` naming `discriminator-inference`. Each variant requiring a value no other
-   admits, a payload names its variant as validation finds it, departing from nothing the document
-   says, so nothing is reported. An open union may meet a variant carrying any tag
+   gets one where every variant requires a property and pins it to strings no other variant admits:
+   the first such property in the first variant's layout order is its `PropertyName`, each string
+   maps to the variant admitting it, and the union is `WireTagged`, `Discriminator.Inferred` set
+   and `Provenance.Inferred` naming `discriminator-inference`. Each variant requiring a value no
+   other admits, a payload names its variant as validation finds it, departing from nothing the
+   document says, so nothing is reported. An open union may meet a variant carrying any tag
    ([unions](../ir/unions.md#open-unions)), and is left alone.
 3. A subtype a discriminator routes by its name ([`discriminator-value`](#discriminator-value))
    carries that name, which validation rejects where the subtype admits only other strings for the
-   `propertyName`. A declaration admits a string `Literal`'s one string, or the members of a closed
-   `Enum` every one of which is a string, read through alias scalars, and any string otherwise,
-   null being no tag; the subtype admits what every declaration its flattening reads of the member
-   admits. Where that rules the name out, the subtype carries the one string it admits, or,
-   admitting several or none, no tag, since none routes to it; its `Provenance.Inferred` names
-   `discriminator-inference`, and an info `openapi/inferred-discriminator` at it names what it
-   admits. Each subtype is read alone, so two admitting one string both carry it, as their instances
-   do ([models](../ir/models.md#discriminator)).
+   `propertyName`, read as an object, null being no tag. Where that rules the name out, the subtype
+   carries the one string it admits, or, admitting several or none, no tag, since none routes to it;
+   its `Provenance.Inferred` names `discriminator-inference`, and an info
+   `openapi/inferred-discriminator` at it names what it admits. Each subtype is read alone, so two
+   admitting one string both carry it, as their instances do
+   ([models](../ir/models.md#discriminator)).
 
 - Cases: `discriminator-inferred`
 - Codes: `openapi/inferred-discriminator`
@@ -2709,15 +2753,24 @@ first. Two unions and a subtype meet it:
   `schema.TestDiscriminatorInference_LeavesALoneOrNullableVariant`,
   `schema.TestDiscriminatorInference_DisabledReadsNothing`,
   `schema.TestDiscriminatorInference_ReadsADistributedUnion`,
-  `schema.TestUnionTags_ReadsOnlyWhatItWasDeferredFor`, `schema.TestPinnedValue_ReadsOneStringOnly`,
-  `schema.TestPinnedMember_ReadsEveryDeclaration`,
+  `schema.TestUnionTags_ReadsOnlyWhatItWasDeferredFor`,
+  `schema.TestTagReadings_ValueReadsAClosedSetOfStrings`,
+  `schema.TestTagReadings_AUnionOnACycleAdmitsAnything`,
+  `schema.TestTagReadings_MemberMeetsEveryDeclaration`,
+  `schema.TestTagReadings_ObjectMeetsWhatAComposedUnionAdmits`,
+  `schema.TestTagReadings_ACycleOfCompositionReadsAlikeFromAnyEntry`,
+  `schema.TestTagReadings_SweepsACycleAtMostTheBound`,
+  `schema.TestTagReadings_SweepsACycleUntilItsNullsSettle`,
+  `schema.TestTagReadings_ReadsASharedTypeOnce`, `schema.TestThroughAliases_ReadsAtMostTheBound`,
+  `schema.TestTagReadings_ReadAModelAsTheMapItSwapsFor`,
+  `schema.TestModelFields_ReportsAFoldFollowingAStoredReading`,
   `schema.TestDiscriminatorInference_ReadsTheTagASubtypeAdmits`,
+  `schema.TestDiscriminatorInference_ReadsAUnionItsSubtypesCompose`,
   `schema.TestSubtypeTagReading_ReportsWhatItCannotSettle`,
-  `schema.TestTypeStrings_ReadsAClosedSetOfStrings`,
   `schema.TestDiscriminatorInference_JoinsTheMarksANodeCarries`
-- Status: partly built: what a union a subtype composes admits is not read, so a name only it rules
-  out stands (#1712), and a declaration writing its strings as a union of values, `oneOf` or
-  `anyOf` of `const` branches, is read as admitting any, for a variant as for a subtype (#1715).
+- Status: partly built: a `mapping` naming some variants is read as written, so a route it implies
+  by a name its variant rejects stands (#1798), and a union kept verbatim beside or on a
+  subtype's `allOf` is not read (#1694).
 
 ### `string-const-union`
 

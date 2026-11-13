@@ -1652,16 +1652,21 @@ func assertNullKeywords(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
 // assertDiscriminatorAliasedBranch pins that a mapping naming the type a
 // variant aliases routes to that variant, by a keyword of any kind beside the
 // branch's $ref and by a mapping spelled as a reference or a bare name, and that
-// a target naming a variant itself stays on it.
+// a target naming a variant itself stays on it. A mapping leaving a variant out
+// holds the route OpenAPI implies to it, and so does one the source does not
+// write where a variant's alias carries no name to route by.
 func assertDiscriminatorAliasedBranch(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
-	for name, key := range map[string]string{"Pet": "cat", "Unknown": "cat"} {
+	for name, key := range map[string]string{"Pet": "cat", "Unknown": "cat", "Implied": "Cat"} {
 		u, ok := typeByName(doc, name).(*ir.Union)
 		require.True(t, ok, name)
 		require.NotNil(t, u.Discriminator, name)
 		assert.Equal(t, u.Variants[0].Type.Target, u.Discriminator.Mapping[key], name)
 		assert.NotEqual(t, componentID("Cat"), u.Variants[0].Type.Target, "%s: the branch keeps its alias", name)
 	}
-	pet, ok := typeByName(doc, "Pet").(*ir.Union)
-	require.True(t, ok)
-	assert.Equal(t, componentID("Dog"), pet.Discriminator.Mapping["dog"])
+	for name, key := range map[string]string{"Pet": "dog", "Unknown": "Dog", "Implied": "Dog"} {
+		u, ok := typeByName(doc, name).(*ir.Union)
+		require.True(t, ok, name)
+		assert.Len(t, u.Discriminator.Mapping, 2, name)
+		assert.Equal(t, componentID("Dog"), u.Discriminator.Mapping[key], name)
+	}
 }
