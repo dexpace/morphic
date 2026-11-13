@@ -81,7 +81,7 @@ func TestPartMembers_AUnionBodyHasItsVariantsMembers(t *testing.T) {
 		"t/nil":   (*ir.Union)(nil),
 	}
 	ids := func(props []*ir.Property) []ir.PropID {
-		var out []ir.PropID
+		out := make([]ir.PropID, 0, len(props))
 		for _, p := range props {
 			out = append(out, p.ID)
 		}

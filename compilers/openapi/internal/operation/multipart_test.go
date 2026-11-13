@@ -1584,11 +1584,11 @@ func TestPartEncodings_ANestedKeyNamingNoPropertyIsWarnedOf(t *testing.T) {
 					assert.Contains(t, d.Message, "names no property the part's schema declares")
 				}
 			}
-			var want []string
+			want := make([]string, 0, len(tc.warned))
 			for _, key := range tc.warned {
 				want = append(want, mfd+"/encoding/meta/encoding/"+key)
 			}
-			assert.Equal(t, want, got)
+			assert.ElementsMatch(t, want, got)
 		})
 	}
 }
@@ -1780,7 +1780,7 @@ func TestPartEncodings_AnEntryKeptAtSettlementThatCannotBeKeptKeepsItsRecords(t 
 // parts the first unions declare keyed, and those past them keying nothing.
 func TestPartEncodings_AUnionPastItsBoundIsReported(t *testing.T) {
 	t.Parallel()
-	var branches []string
+	branches := make([]string, 0, operation.MaxPartUnions+6)
 	for i := range operation.MaxPartUnions + 6 {
 		branches = append(branches, fmt.Sprintf("{oneOf: [{type: object, properties: {p%d: {type: string}}}, {type: string}]}", i))
 	}

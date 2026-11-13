@@ -234,16 +234,20 @@ func byCase(rules oas.EncodingRules, k oas.DefaultCase) valueReading {
 // and other strings are keyed by whether they write contentEncoding
 // (encodedCase). The zero case, which has no row, is a kind of none.
 func primitiveCase(p ir.PrimKind, named bool, encodedBy contentEncoding) oas.DefaultCase {
-	switch {
-	case p == ir.PrimAny:
+	switch p {
+	case ir.PrimAny:
 		return oas.DefaultUntyped
-	case p == ir.PrimBytes && !named:
-		return oas.DefaultRawBinary
-	case p == ir.PrimBytes:
+	case ir.PrimBytes:
+		if !named {
+			return oas.DefaultRawBinary
+		}
 		return encodedCase(encodedBy, oas.DefaultByteFormat, oas.DefaultEncodedByteFormat)
-	case textPrimitive(p):
+	case ir.PrimString, ir.PrimDate, ir.PrimTime, ir.PrimDatetime, ir.PrimDatetimeOffset, ir.PrimDuration,
+		ir.PrimURL, ir.PrimUUID:
 		return encodedCase(encodedBy, oas.DefaultString, oas.DefaultContentEncoded)
-	case p.Valid():
+	case ir.PrimBool, ir.PrimInt8, ir.PrimInt16, ir.PrimInt32, ir.PrimInt64, ir.PrimUint8, ir.PrimUint16,
+		ir.PrimUint32, ir.PrimUint64, ir.PrimInteger, ir.PrimFloat32, ir.PrimFloat64, ir.PrimFloat, ir.PrimNumber,
+		ir.PrimDecimal, ir.PrimDecimal128:
 		return oas.DefaultScalar
 	default:
 		return 0
@@ -261,18 +265,6 @@ func encodedCase(encodedBy contentEncoding, plain, written oas.DefaultCase) oas.
 		return written
 	default:
 		return 0
-	}
-}
-
-// textPrimitive reports whether a value of kind p travels as a JSON string:
-// a string, or a date, a time, a duration, a URL or a UUID a format names.
-func textPrimitive(p ir.PrimKind) bool {
-	switch p {
-	case ir.PrimString, ir.PrimDate, ir.PrimTime, ir.PrimDatetime, ir.PrimDatetimeOffset, ir.PrimDuration,
-		ir.PrimURL, ir.PrimUUID:
-		return true
-	default:
-		return false
 	}
 }
 

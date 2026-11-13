@@ -260,8 +260,9 @@ const (
 	ownerAnnotation = "annotation"
 )
 
-// fieldDefault returns the value field takes where its object leaves it
-// unwritten, for a value of case k, at the minors s holds.
-func fieldDefault(field string, k DefaultCase, value string, s Span, cites ...Cite) Default {
-	return Default{Field: field, Value: value, Cites: cites, Span: s, Case: k}
+// contentTypeDefault returns the value an Encoding Object's contentType takes
+// where the object leaves it unwritten, for a value of case k, at the minors s
+// holds.
+func contentTypeDefault(k DefaultCase, value string, s Span, cites ...Cite) Default {
+	return Default{Field: "contentType", Value: value, Cites: cites, Span: s, Case: k}
 }
