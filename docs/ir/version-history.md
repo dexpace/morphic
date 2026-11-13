@@ -546,7 +546,39 @@ it sees. Changes made together in one bump are listed together under it.
   ([`http-date-inference`](../compilers/openapi.md#http-date-inference)). A consumer pinned to
   0.50.0 refuses a document from this generation, whose idempotency, redaction, replacements and
   header texts it would read as no OpenAPI document wrote them.
-- **0.52.0** — no shape change. In the OpenAPI compiler, a `oneOf` or `anyOf` beside an `allOf` is
+- **0.52.0** — `Content` gained `Stream`, a `ContentStream` marking a body that is a sequence of
+  frames rather than one document, its `Inferred` naming the heuristics that read it as one
+  ([payloads](./payloads.md#a-content-that-streams)). Every content that streams sets it, in a
+  request, a response, an error or the default, one declaring an `Item` among them, so a response
+  offering `application/json` beside `text/event-stream` says which of the two streams. The OpenAPI
+  compiler sets it for a 3.2 `itemSchema` and for a media type its streaming policy names, the
+  latter marked `streaming-media-type`. `irverify` holds a content declaring an `Item` to a `Stream`
+  (`ir/content-item-without-stream`), and a streaming content of a request or a success response to
+  its side's `StreamDetail` (`ir/content-stream-without-detail`). A consumer pinned to 0.51.0
+  refuses a document with a streaming content.
+- **0.53.0** — four changes of meaning, the shape kept:
+  - A `null` is no `Enum` member, no variant of the `Union` an enumeration lowers to and no
+    `Literal`'s value, but its reference's `Nullable` bit, so an enumeration of `null` alone and a
+    constant of `null` are each a closed `Enum` with no member behind a nullable reference
+    ([enums](./enums.md#the-empty-enum), [containers](./containers.md#literals)). The OpenAPI
+    compiler had lowered a `null` beside members of several kinds to a `null` `Literal` variant as
+    well as a nullable reference, `null` alone to a union of that one variant, and `const: null` to
+    a `null` `Literal`. A consumer pinned to 0.52.0 finds no `null` variant or `Literal` where it
+    read one.
+  - An `Enum`'s `ValueType` is a primitive every member is a value of. The OpenAPI compiler had
+    taken a declared `type` the members are not values of, a `type: integer` over strings among
+    them; it now takes the members' primitive and keeps the type verbatim.
+  - A number's format on a string, `type: string, format: int64` among them, is a `Scalar` over the
+    number whose `Encoding` is named `string`, a number written as the text of its value, with a
+    `string` `WireType`, as `bytes` under `base64` is ([encodings](./constraints.md#encodings)), and
+    its `Constraints`, which speak of the number ([constraints](./constraints.md#constraints)), hold
+    none of the bounds written beside it, which bound its text or no string instance and are kept
+    verbatim. It had been a `Scalar` over `string` whose encoding named the format, holding those
+    bounds. A consumer pinned to 0.52.0 reads such a value's base as the number where it read a
+    string.
+  - Over a `string`, a `WireType` of `string` marks text the encoding is applied to, and none marks
+    text already encoded. No compiler writes the first yet.
+- **0.54.0** — no shape change. In the OpenAPI compiler, a `oneOf` or `anyOf` beside an `allOf` is
   one of its conjuncts ([`allof-refinement`](../compilers/openapi.md#allof-refinement)), so an
   `allOf` no conjunct makes an object refines with a union beside it, where it composed a `Model` or
   a union of `Model`s. A union on an `allOf` branch lowers with the discriminator written on the
@@ -557,5 +589,5 @@ it sees. Changes made together in one bump are listed together under it.
   under `openapi:oneOf`, `openapi:anyOf` or `openapi:allOf/<n>`. A `$ref` entry to a schema composing
   a discriminated one at any depth is the `Base`
   ([`allof-classification`](../compilers/openapi.md#allof-classification)). A consumer pinned to
-  0.51.0 finds those keys gone at those positions, a refined node, a `Union` or a `Mixin` where it
+  0.53.0 finds those keys gone at those positions, a refined node, a `Union` or a `Mixin` where it
   read a `Model` keeping them, and a `Base` where it read a `Mixin`.

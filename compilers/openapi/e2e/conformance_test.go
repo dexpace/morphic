@@ -214,6 +214,7 @@ func conformanceCases() []conformanceCase {
 		{"nullable-30", assertNullable30},
 		{"nullable-31-ref", assertNullable31Ref},
 		{"nullable-enum-31", assertNullableEnum31},
+		{"enum-null-member", assertEnumNullMember},
 		{"nullable-keyword-30", assertNullableKeyword30},
 		{"nullable-keyword-31", assertNullableKeyword31},
 		{"schema-ref-siblings-30", assertSchemaRefSiblings30},

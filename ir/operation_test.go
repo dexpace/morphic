@@ -325,14 +325,15 @@ func TestPayload_DocsIsOmittedWhenEmpty(t *testing.T) {
 
 // TestContent_JSONContract pins Content's omitempty contract — Type carries
 // no omitempty, every other field is optional — and that a fully populated
-// Content — item schema for sequential streaming, per-part encodings, and
-// file info — round-trips.
+// Content — a stream and its item schema, per-part encodings, and file info —
+// round-trips.
 func TestContent_JSONContract(t *testing.T) {
 	t.Parallel()
 	assertJSONContract(t, ir.Content{}, `{"type":{"target":"","nullable":false}}`, ir.Content{
 		MediaType:    "multipart/form-data",
 		SchemaFormat: "application/vnd.apache.avro+json",
 		Type:         populatedTypeRef(),
+		Stream:       &ir.ContentStream{Inferred: "streaming-media-type"},
 		Item:         &ir.TypeRef{Target: "t/item"},
 		ItemEncoding: &ir.PartEncoding{ContentTypes: []string{"application/json"}, Multi: true},
 		Encoding: map[ir.PropID]ir.PartEncoding{
@@ -380,6 +381,17 @@ func TestContent_ItemEncodingSingular(t *testing.T) {
 	var members map[string]jsontext.Value
 	require.NoError(t, json.Unmarshal([]byte(got), &members))
 	assert.JSONEq(t, `{"multi":true,"filename":false,"style":"a","allowReserved":false}`, string(members["itemEncoding"]))
+}
+
+// TestContentStream_JSONContract pins ContentStream's omitempty contract: a
+// declared stream encodes as an empty object, which Content.Stream's omitzero
+// keeps apart from no stream at all, and a fully populated one round-trips.
+func TestContentStream_JSONContract(t *testing.T) {
+	t.Parallel()
+	assertJSONContract(t, ir.ContentStream{}, `{}`, ir.ContentStream{Inferred: "streaming-media-type"})
+	declared := ir.Content{Type: populatedTypeRef(), Stream: &ir.ContentStream{}}
+	assert.Contains(t, assertDeterministicMarshal(t, declared), `"stream":{}`)
+	assertRoundTrip(t, declared)
 }
 
 // TestPartEncoding_JSONContract pins PartEncoding's omitempty contract — Multi,

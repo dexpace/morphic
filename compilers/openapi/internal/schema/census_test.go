@@ -38,6 +38,25 @@ func TestUnhomedApplicator_KeptOnAListAndAnnounced(t *testing.T) {
 		"and the position says which keywords it could not carry")
 }
 
+// TestUnhomedApplicator_AFormatOnAnArrayIsKeptNotRead pins
+// docs/compilers/openapi.md#shape-applicator for `format: set`: no specification
+// gives a format on an array a meaning, so it is kept verbatim, as any format a
+// List has no pairing for, and never read as uniqueItems.
+func TestUnhomedApplicator_AFormatOnAnArrayIsKeptNotRead(t *testing.T) {
+	t.Parallel()
+	doc, diags := schema.LowerSpec(t, openapitest.ComponentSpec(`    Tags:
+      type: array
+      format: set
+      items: {type: string}
+`))
+	openapitest.RequireNoErrorDiags(t, diags)
+	l, ok := typeByName(doc, "Tags").(*ir.List)
+	require.True(t, ok, "it is a list")
+	assert.Contains(t, l.Unmodeled, "openapi:format", "the format has no home on a list, so it is kept")
+	assert.True(t, l.Constraints == nil || !l.Constraints.UniqueItems, "and nothing reads it as uniqueItems")
+	assert.True(t, openapitest.HasDiagCodeAt(diags, diag.DegradedConstruct, "/components/schemas/Tags"))
+}
+
 // TestUnhomedApplicator_ObjectCarriesNoItemKeyword pins the other arm of the
 // home question. A model has a home for the property applicators and for
 // nothing else, so `items` written on an object is kept verbatim rather than
