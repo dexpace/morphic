@@ -108,3 +108,43 @@ func TestScanSelector_TellsAStringFromTheRest(t *testing.T) {
 		assert.Equal(t, want, scanSelector(selector), "%q", selector)
 	}
 }
+
+// TestScanSelector_TellsAWellFormedEscapeFromAMalformedOne pins the
+// hexchar grammar the scan holds an escape of a character to: four
+// hexadecimal digits of either case naming no surrogate, or a high
+// surrogate's beside a low one's, which RFC 9535 reads and the parser cannot,
+// and anything else, which RFC 9535 refuses. The escapes are assembled, so the
+// source holds none.
+func TestScanSelector_TellsAWellFormedEscapeFromAMalformedOne(t *testing.T) {
+	t.Parallel()
+	u := `\` + "u"
+	unread := selectorFacts{unread: `writes a ` + u + ` escape, which the compiler's JSONPath parser cannot read`}
+	foreign := selectorFacts{foreign: `writes a ` + u + ` escape of other than four hexadecimal digits naming a character, ` +
+		`which RFC 9535 refuses`}
+	tests := map[string]selectorFacts{
+		u + "00e9":               unread,
+		u + "263A":               unread,
+		u + "D834" + u + "DD1E":  unread,
+		u + "D7FF" + u + "E000":  unread,
+		u:                        foreign,
+		u + "12":                 foreign,
+		u + "+123":               foreign,
+		u + "{1234}":             foreign,
+		u + "D800":               foreign,
+		u + "DC00":               foreign,
+		u + "D800" + u + "1234":  foreign,
+		u + "D800" + u + "D800":  foreign,
+		u + "D800x" + u + "DC00": foreign,
+		u + "D800" + u + "DC0":   foreign,
+	}
+	for escape, want := range tests {
+		selector := `$["` + escape + `"]`
+		got := scanSelector(selector)
+		if want.foreign != "" {
+			// A well-formed escape after a malformed one is noted too; the
+			// malformed one refuses the selector first.
+			got.unread = ""
+		}
+		assert.Equal(t, want, got, "%q", selector)
+	}
+}

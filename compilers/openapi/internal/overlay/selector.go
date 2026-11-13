@@ -5,6 +5,7 @@ package overlay
 
 import (
 	"fmt"
+	"strconv"
 	"strings"
 
 	soaoverlay "github.com/speakeasy-api/openapi/overlay"
@@ -14,13 +15,13 @@ import (
 )
 
 // readSelector reads selector, the action's field named field, as the RFC 9535
-// query the specification makes every target and copy. It is read by doc's
-// own constructor, which doc's dialect setting makes the parser library's RFC
-// 9535 parser, and refused where that parser and RFC 9535 part:
+// query the specification makes every target and copy, through doc's own
+// constructor, which doc's dialect makes the library's RFC 9535 parser. It is
+// refused where that parser and RFC 9535 part:
 //
-//  1. what RFC 9535 refuses and the parser accepts, the property-name
-//     operator `~` and a control character unescaped in a string, is an
-//     openapi/invalid-overlay error;
+//  1. what RFC 9535 refuses and the parser accepts or refuses for another
+//     reason, the property-name operator `~`, a control character unescaped
+//     in a string and a malformed escape, is an openapi/invalid-overlay error;
 //  2. what the parser refuses or misreads though RFC 9535 reads it, which
 //     docs/parser-library.md#jsonpath-rfc9535 records, is an
 //     openapi/overlay-failed error naming it;
@@ -37,12 +38,12 @@ func readSelector(doc *soaoverlay.Overlay, a action, field, selector string) (so
 		return nil, []ir.Diagnostic{diag.Newf(ir.SeverityError, code, a.overlay, "%s: %s %s", a.label(), subject, reason)}
 	}
 	switch {
+	case facts.foreign != "":
+		return refuse(diag.OverlayInvalid, facts.foreign)
 	case err != nil && facts.unread != "":
 		return refuse(diag.OverlayFailed, facts.unread)
 	case err != nil:
 		return refuse(diag.OverlayInvalid, "does not parse as a JSONPath query: "+diag.OneLine(err))
-	case facts.foreign != "":
-		return refuse(diag.OverlayInvalid, facts.foreign)
 	case facts.misread != "":
 		return refuse(diag.OverlayFailed, facts.misread)
 	}
@@ -115,7 +116,11 @@ func scanInString(f *selectorFacts, s string, i int, quote byte) (int, byte) {
 		case 'r':
 			f.note(&f.misread, `writes the escape \r, which the compiler's JSONPath parser reads as a line feed`)
 		case 'u':
-			f.note(&f.unread, `writes a \u escape, which the compiler's JSONPath parser cannot read`)
+			if n := unicodeEscape(s, i); n > 0 {
+				f.note(&f.unread, `writes a \u escape, which the compiler's JSONPath parser cannot read`)
+				return i + n - 1, quote
+			}
+			f.note(&f.foreign, `writes a \u escape of other than four hexadecimal digits naming a character, which RFC 9535 refuses`)
 		default:
 		}
 		return i + 1, quote
@@ -124,6 +129,34 @@ func scanInString(f *selectorFacts, s string, i int, quote byte) (int, byte) {
 	default:
 	}
 	return i, quote
+}
+
+// unicodeEscape returns the length of the escape at i of s, a backslash and a
+// u, when it is one RFC 9535's hexchar admits: four hexadecimal digits naming
+// no surrogate, or a high surrogate's followed by an escape of a low one. It
+// returns 0 for any other.
+func unicodeEscape(s string, i int) int {
+	v, ok := hex4(s, i+2)
+	switch {
+	case !ok || v >= 0xDC00 && v <= 0xDFFF:
+		return 0
+	case v < 0xD800 || v > 0xDBFF:
+		return 6
+	}
+	if low, ok := hex4(s, i+8); ok && s[i+6:i+8] == `\u` && low >= 0xDC00 && low <= 0xDFFF {
+		return 12
+	}
+	return 0
+}
+
+// hex4 reads the four hexadecimal digits at i of s, and whether there are
+// four.
+func hex4(s string, i int) (uint64, bool) {
+	if i < 0 || i+4 > len(s) {
+		return 0, false
+	}
+	v, err := strconv.ParseUint(s[i:i+4], 16, 16)
+	return v, err == nil
 }
 
 // shorthandAfter returns the member name written after the dot, or the two
