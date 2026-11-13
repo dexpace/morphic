@@ -7,7 +7,10 @@ import (
 	"slices"
 	"testing"
 
+	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 // TestSchemaRules_ASecondShapeCountsFromItsOwnMinor pins that a field's second
@@ -59,5 +62,25 @@ func TestDialects_EveryRowCitesItsText(t *testing.T) {
 				assert.NotEmpty(t, c.Sentence, "%s %s", d.id, f.Name)
 			}
 		}
+	}
+}
+
+// TestSchemaRules_TheOwnRowsReadAsTheSchemaObject pins the object a minor's own
+// rows give the check: the table's Schema Object with the fields that minor
+// defines, field for field and in table order, and its rules whole, so a
+// schema the check reads with them is held to what it was held to before the
+// rows gave its object.
+func TestSchemaRules_TheOwnRowsReadAsTheSchemaObject(t *testing.T) {
+	t.Parallel()
+	spec := Table()
+	obj, ok := spec.Object(Schema)
+	require.True(t, ok)
+	for _, version := range []string{"3.0.3", "3.1.0", "3.2.0"} {
+		minor, _ := ParseMinor(version)
+		rules, _ := spec.SchemaRules(version, "")
+		require.NotNil(t, rules.rows, version)
+		want := obj
+		want.Fields = slices.DeleteFunc(slices.Clone(obj.Fields), func(f Field) bool { return !f.Defined.Holds(minor) })
+		assert.Empty(t, cmp.Diff(want, rules.rows.object, cmpopts.EquateEmpty()), version)
 	}
 }

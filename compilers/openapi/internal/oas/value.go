@@ -211,7 +211,7 @@ func (w *walker) enumerated(f frame, fld Field, text string, ptr jsontext.Pointe
 			return
 		}
 	}
-	admitted := w.admitted(f, fld)
+	admitted := f.admitted(fld, w.minor)
 	if admitted == "" {
 		return // the sibling the values depend on names none, which it reports itself
 	}
@@ -219,12 +219,12 @@ func (w *walker) enumerated(f frame, fld Field, text string, ptr jsontext.Pointe
 		f.obj.Name, fld.Name, admitted, w.minor, citeFor(fld.Cites, w.minor).Section)
 }
 
-// admitted lists the values the field admits at the declared minor, as the
-// object's own fields stand.
-func (w *walker) admitted(f frame, fld Field) string {
+// admitted lists the values the field admits at minor m, as the object's own
+// fields stand.
+func (f frame) admitted(fld Field, m Minor) string {
 	var names []string
 	for _, v := range fld.Values {
-		if v.Span.Holds(w.minor) && f.test(v.When) != no {
+		if v.Span.Holds(m) && f.test(v.When) != no {
 			names = append(names, strconv.Quote(v.Name))
 		}
 	}
@@ -236,7 +236,7 @@ func (w *walker) admitted(f frame, fld Field) string {
 func (w *walker) entries(f frame, fld Field, shape Shape, node *yaml.Node, ptr jsontext.Pointer, depth int) {
 	switch shape {
 	case Nested:
-		w.object(site{kind: fld.Of, node: node, ptr: ptr, held: fld.Name, in: f.obj.Kind}, depth+1)
+		w.object(site{kind: fld.Of, node: node, ptr: ptr, held: fld.Name, rows: f.rows, in: f.obj.Kind}, depth+1)
 	case Map:
 		w.repeated(node, ptr, "field "+strconv.Quote(fld.Name)+" of the "+f.obj.Name)
 		for _, p := range w.view.MappingPairs(node) {
@@ -245,11 +245,12 @@ func (w *walker) entries(f frame, fld Field, shape Shape, node *yaml.Node, ptr j
 					"%s field %q has the key %q, which must be %s in OpenAPI %s (%s)",
 					f.obj.Name, fld.Name, p.Key, describeFormat(fld.Keys), w.minor, citeFor(fld.Cites, w.minor).Section)
 			}
-			w.object(site{kind: fld.Of, node: p.Val, ptr: ptr.AppendToken(p.Key), held: p.Key, in: f.obj.Kind}, depth+1)
+			w.object(site{kind: fld.Of, node: p.Val, ptr: ptr.AppendToken(p.Key), held: p.Key, rows: f.rows, in: f.obj.Kind},
+				depth+1)
 		}
 	case List:
 		for i, item := range node.Content {
-			w.object(site{kind: fld.Of, node: item, ptr: itemPointer(ptr, i), in: f.obj.Kind}, depth+1)
+			w.object(site{kind: fld.Of, node: item, ptr: itemPointer(ptr, i), rows: f.rows, in: f.obj.Kind}, depth+1)
 		}
 	case StringList:
 		for i, item := range node.Content {

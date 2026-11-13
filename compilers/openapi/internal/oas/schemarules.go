@@ -26,6 +26,10 @@ type SchemaRules struct{ rows *schemaRows }
 // name, and the RuleRequiredWhen rules holding there. It is built once and
 // never written.
 type schemaRows struct {
+	// object is the Schema Object as these rows read it, which the check
+	// holds a schema read with them to: OpenAPI's own fields at minor, then
+	// the dialect's keywords, each in table order, and the object's rules.
+	object Object
 	fields map[string]Field
 	// own is the minor's own keywords a dialect reading others replaces, by
 	// name, which judge the format of one the dialect defines none of
@@ -60,11 +64,13 @@ func (s Spec) SchemaRules(version, dialect string) (rules SchemaRules, unread bo
 		keywords = d.keywords()
 	}
 	rows := &schemaRows{fields: make(map[string]Field, len(obj.Fields)), minor: minor, ignoresRefFields: d.ignoresRefFields}
+	defined := make([]Field, 0, len(obj.Fields)+len(keywords))
 	for _, f := range obj.Fields {
 		switch {
 		case !f.Defined.Holds(minor):
 		case keywords == nil || !f.Keyword:
 			rows.fields[f.Name] = f
+			defined = append(defined, f)
 		default:
 			if rows.own == nil {
 				rows.own = map[string]Field{}
@@ -74,7 +80,10 @@ func (s Spec) SchemaRules(version, dialect string) (rules SchemaRules, unread bo
 	}
 	for _, f := range keywords {
 		rows.fields[f.Name] = f
+		defined = append(defined, f)
 	}
+	rows.object = obj
+	rows.object.Fields = defined
 	for _, r := range obj.Rules {
 		if r.Kind == RuleRequiredWhen && r.Span.Holds(minor) {
 			rows.required = append(rows.required, r)

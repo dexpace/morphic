@@ -49,6 +49,10 @@ type Options struct {
 	// pointer it was read at, through an alias or a merge key, name that
 	// pointer, under Root.
 	ReadAt bool
+	// Rows is the rows a Schema Object no schema holds is read with, its
+	// document's; one a schema holds reads the rows of the schema holding
+	// it. The zero Rows are the declared minor's own.
+	Rows SchemaRules
 	// Owned, when set, is handed each value of a Schema Object field whose
 	// shape the table leaves to another package (Field.ShapeOwner,
 	// Field.ListOwner), which the check does not judge: a shape a schema's
@@ -79,8 +83,11 @@ func (c Checker) Check(ctx context.Context, root *yaml.Node, declared string, op
 		return nil
 	}
 	w := &walker{ctx: ctx, spec: c.spec, minor: minor, view: nodeview.New(), work: budget.New(opts.Budget)}
-	w.locate, w.declared, w.seen = opts.Locate, declared, opts.Seen
+	w.locate, w.declared, w.seen, w.rows = opts.Locate, declared, opts.Seen, opts.Rows
 	w.readAt, w.rootAt, w.said, w.owned = opts.ReadAt, opts.Root, map[ir.Diagnostic]bool{}, opts.Owned
+	if w.rows.rows == nil {
+		w.rows, _ = c.spec.SchemaRules(declared, "")
+	}
 	if w.locate == nil {
 		w.locate = func(jsontext.Pointer) ir.Provenance { return ir.Provenance{} }
 	}
@@ -107,25 +114,32 @@ type walker struct {
 	stopped bool
 	seen    func(Kind, *yaml.Node)
 	owned   func(Owned)
+	// rows is the rows a Schema Object no schema holds is read with
+	// (Options.Rows).
+	rows SchemaRules
 	reporter
 }
 
 // site is an object to read: its kind, node, pointer, the key its parent
-// holds it under, and the kind of that parent, zero at the root.
+// holds it under, and the kind of that parent, zero at the root. rows is the
+// rows of the schema holding it, where one does.
 type site struct {
 	node *yaml.Node
 	ptr  jsontext.Pointer
 	held string
+	rows SchemaRules
 	kind Kind
 	in   Kind
 }
 
-// frame is a mapping read as an object.
+// frame is a mapping read as an object, and for a Schema Object the rows it is
+// read with, which its object is.
 type frame struct {
 	obj   Object
 	at    site
 	pairs []nodeview.Pair
 	byKey map[string]*yaml.Node
+	rows  SchemaRules
 }
 
 // spend charges one unit of work and reports whether the walk may go on. The
@@ -156,11 +170,17 @@ func (w *walker) object(s site, depth int) {
 	if !ok || node == nil || !w.spend(depth, s.ptr) {
 		return
 	}
+	var rows SchemaRules
+	if s.kind == Schema {
+		rows = s.rowsIn(w.rows)
+		obj = rows.rows.object
+	}
 	if node.Kind != yaml.MappingNode {
 		w.notMapping(obj, node, s.ptr)
 		return
 	}
 	f := w.frameOf(obj, s, node)
+	f.rows = rows
 	w.repeated(node, s.ptr, obj.Name)
 	if w.reference(f, depth) {
 		return
@@ -171,6 +191,15 @@ func (w *walker) object(s site, depth int) {
 	w.fields(f, depth)
 	w.patterned(f, depth)
 	w.rules(f)
+}
+
+// rowsIn returns the rows the Schema Object s names is read with: those of the
+// schema holding it, else doc, its document's (Options.Rows).
+func (s site) rowsIn(doc SchemaRules) SchemaRules {
+	if s.in == Schema && s.rows.rows != nil {
+		return s.rows
+	}
+	return doc
 }
 
 // frameOf reads node, a mapping, as an object.
@@ -237,26 +266,26 @@ func (w *walker) fields(f frame, depth int) {
 		w.value(f, fld, val, depth)
 	}
 	for _, p := range f.pairs {
-		if fld, ok := w.addedLater(f.obj, p.Key); ok {
+		if fld, ok := f.obj.addedLater(p.Key, w.minor); ok {
 			w.later(f.obj, p.Key, "", fld.Defined.Since, f.at.ptr.AppendToken(p.Key))
 			w.value(f, fld, p.Val, depth)
 		}
 	}
 }
 
-// addedLater finds the field of obj named key that only a later minor than the
-// declared one defines, unless a JSON Schema keyword, which the schema
-// lowering reads as it finds it.
-func (w *walker) addedLater(obj Object, key string) (Field, bool) {
+// addedLater finds the field of o named key that only a later minor than m
+// defines, unless a JSON Schema keyword, which the schema lowering reads as it
+// finds it.
+func (o Object) addedLater(key string, m Minor) (Field, bool) {
 	var found Field
-	for _, fld := range obj.Fields {
+	for _, fld := range o.Fields {
 		if fld.Name != key {
 			continue
 		}
-		if fld.Defined.Holds(w.minor) {
+		if fld.Defined.Holds(m) {
 			return Field{}, false
 		}
-		if fld.Defined.Later(w.minor) && found.Name == "" {
+		if fld.Defined.Later(m) && found.Name == "" {
 			found = fld
 		}
 	}
@@ -276,7 +305,7 @@ func (w *walker) missing(f frame, fld Field) {
 // patterned checks the keys the object admits beside its fixed fields: every
 // key that is neither a field nor, where the object takes them, an extension.
 func (w *walker) patterned(f frame, depth int) {
-	pat, ok := w.patternHeld(f.obj)
+	pat, ok := f.obj.patternAt(w.minor)
 	if !ok {
 		return
 	}
@@ -294,10 +323,10 @@ func (w *walker) patterned(f frame, depth int) {
 	}
 }
 
-// patternHeld returns the pattern of obj that holds at the declared minor.
-func (w *walker) patternHeld(obj Object) (Pattern, bool) {
-	for _, p := range obj.Patterned {
-		if p.Span.Holds(w.minor) {
+// patternAt returns the pattern of o that holds at minor m.
+func (o Object) patternAt(m Minor) (Pattern, bool) {
+	for _, p := range o.Patterned {
+		if p.Span.Holds(m) {
 			return p, true
 		}
 	}
