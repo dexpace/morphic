@@ -1,0 +1,44 @@
+openapi: 3.0.3
+info: {title: EnumNullMember, version: "1.0.0"}
+paths:
+  /zones/{id}:
+    delete:
+      operationId: deleteZone
+      parameters:
+        - {name: id, in: path, required: true, schema: {type: string}}
+      responses:
+        "200":
+          description: deleted
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [result]
+                properties:
+                  # A value set of null alone, as deletions commonly write their
+                  # result: no member, and a nullable reference admitting null
+                  # and nothing else.
+                  result: {type: object, enum: [null], nullable: true}
+                  gone: {type: object, enum: [null], nullable: true}
+components:
+  schemas:
+    # Members of two kinds beside a null: the null is the reference's, never a
+    # variant of the union the members lower to.
+    Mixed:
+      enum: [1, x, null]
+    # A type excluding null, which JSON Schema conjoins with the enum: the null
+    # member admits nothing and is no member.
+    Narrowed:
+      type: string
+      enum: [a, null]
+    # A branch admitting null alone beside a $ref.
+    OrNull:
+      oneOf:
+        - {$ref: '#/components/schemas/Mixed'}
+        - {type: object, enum: [null], nullable: true}
+    Holder:
+      type: object
+      properties:
+        mixed: {$ref: '#/components/schemas/Mixed'}
+        narrowed: {$ref: '#/components/schemas/Narrowed'}
+        orNull: {$ref: '#/components/schemas/OrNull'}
