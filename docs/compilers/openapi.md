@@ -1425,9 +1425,10 @@ first, in source order, to a schema taking part in a discriminator hierarchy: on
 `Mixin`, so a schema composing a subtype of a discriminated base beside another `$ref` is a subtype
 of that base too. The election reads the source, so no declaration order decides it, and a field
 redeclared as several models composes them as such an `allOf` does
-([`allof-redeclared-property`](#allof-redeclared-property)), reading the hierarchy off each
-model's supertypes. An inline entry merges into the composing model's own `Properties`, each
-property keeping its own provenance ([`allof-inline-residue`](#allof-inline-residue),
+([`allof-redeclared-property`](#allof-redeclared-property)), reading the hierarchy off the
+discriminator a model or a union holds and each model's supertypes. An inline entry merges into the
+composing model's own `Properties`, each property keeping its own provenance
+([`allof-inline-residue`](#allof-inline-residue),
 [`allof-redeclared-property`](#allof-redeclared-property)). So every `$ref` entry stays composed
 and a declaration a fold drops stays kept, while what a declaration folded into a field adds lands
 on the field without its source. A `$ref` entry naming a union is no exception: the union is the
@@ -1907,8 +1908,10 @@ whose types no other declaration holds are two or more models, maps or unions, e
 or through an alias, and one of them a model, the field's type is a `Model` the merge mints:
 anonymous, holding no property of its own, and composing each of those types once as a written
 `allOf` of them composes ([`allof-classification`](#allof-classification)). The one written as the
-only `$ref`, or else the first `$ref` whose model carries a discriminator, is its `Base`, and
-the rest are `Mixins` in declaration order. So a field declared as `Meeting` and as an inline object
+only `$ref`, or else the first `$ref` whose type takes part in a discriminator hierarchy, is its
+`Base`, and the rest are `Mixins` in declaration order. The fold reads the hierarchy off the types:
+a `Model` or a `Union` holding a discriminator its source declares, or a `Model` one of whose
+supertypes does, at any depth. So a field declared as `Meeting` and as an inline object
 names one type holding both, whichever branch comes first, rather than flattening them into one
 property list. Whatever another declaration's type holds adds no conjunct: a `{}` or an alias of it
 read as one, a model saying
@@ -2077,6 +2080,7 @@ field's first 64 at most; each later one is kept verbatim, unjudged, under an
   `merge.TestSelectBase_ChoosesAsTheRuleSays`,
   `schema.TestAllOf_AFieldRedeclaredAsTwoModelsComposesThem`,
   `schema.TestAllOf_AComposedFieldKeepsADiscriminatedBase`,
+  `schema.TestAllOf_AComposedFieldElectsTheBaseAWrittenAllOfDoes`,
   `schema.TestAllOf_EveryDistributedVariantSharesOneComposedField`,
   `schema.TestAllOf_AnAliasIsJudgedAsTheTypeItStandsFor`,
   `schema.TestAllOf_RelatedStructuresAreNotCalledAConflict`,

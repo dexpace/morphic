@@ -99,21 +99,23 @@ func SelectBase(refs []int, takesPart func(i int) bool) (int, bool) {
 }
 
 // inHierarchy reports whether node takes part in a discriminator hierarchy: a
-// Model declaring a discriminator, or one a supertype of which does at any
-// depth (ir.Supertypes), as a composition the source writes elects its Base. A
-// visited set ends the walk on a cyclic hierarchy.
+// Model or Union holding a discriminator its source declares, or a Model one of
+// whose supertypes does at any depth (ir.Supertypes), as a composition the
+// source writes elects its Base. A visited set ends the walk on a cyclic
+// hierarchy.
 func inHierarchy(reg ir.TypeRegistry, node ir.TypeDef) bool {
 	doc := &ir.Document{Types: reg}
 	seen := map[ir.TypeID]bool{}
 	queue := []ir.TypeDef{node}
 	for len(queue) > 0 {
-		m, ok := queue[len(queue)-1].(*ir.Model)
+		td := queue[len(queue)-1]
 		queue = queue[:len(queue)-1]
+		if !ir.IsNilTypeDef(td) && declaresDiscriminator(td) {
+			return true
+		}
+		m, ok := td.(*ir.Model)
 		if !ok || m == nil || seen[m.ID] {
 			continue
-		}
-		if m.Discriminator != nil {
-			return true
 		}
 		seen[m.ID] = true
 		for _, id := range ir.Supertypes(doc, m.ID) {
@@ -121,6 +123,23 @@ func inHierarchy(reg ir.TypeRegistry, node ir.TypeDef) bool {
 		}
 	}
 	return false
+}
+
+// declaresDiscriminator reports whether td, no nil, holds a discriminator its
+// source declares: a Model's, or a Union's, as a union written with structure
+// holds the one written with it. One a policy inferred is no source's, so it
+// makes no hierarchy, as the election over the source reads none.
+func declaresDiscriminator(td ir.TypeDef) bool {
+	var d *ir.Discriminator
+	switch n := td.(type) {
+	case *ir.Model:
+		d = n.Discriminator
+	case *ir.Union:
+		d = n.Discriminator
+	default:
+		return false
+	}
+	return d != nil && !d.Inferred
 }
 
 // composable returns the node ref names, directly or through aliases, where
