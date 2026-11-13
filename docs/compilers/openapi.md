@@ -1492,8 +1492,8 @@ to `12`, whatever their order, a number written two ways keeping the first spell
 have no one value, so each disagrees with another written differently. A writer stating no value
 parts no other: a 3.0 `exclusiveMinimum` of `false`, or of `true` with no bound beside it, which
 fills no field, and a bound the load phase refuses ([`validation`](#validation)) say nothing a value
-must meet, so its branch folds where nothing else parts it, and what the writer wrote is read,
-reported and kept at its own pointer as the same keyword is beside the `allOf`. A branch whose
+must meet, so its branch folds where nothing else parts it, and what the writer wrote is read and
+reported at its own pointer, and kept where the same keyword beside the `allOf` is. A branch whose
 folding keywords write a relative `$ref` it reads against another base than the position does, an
 `$id` at or above it naming another URI, folds nothing either, since that `$ref` would name another
 schema read at the position; it stays whole, with its report, and is no conjunct the others are
@@ -1636,8 +1636,9 @@ that node holding the bounds the chain and the node say together and each detail
 sets, as a reference to the alias reads it. So `{$ref: E, description: d}` and an `allOf` of `E`
 alone each meet an enum beside them as `E` would, holding what they add. Two aliases of one node are
 read only down to it, so they are judged as two `Scalar`s of one base are, and meet in an alias of
-it. A chain giving an encoding, bounds no one value states, bounds an enum's or a `const`'s value
-fails or no judge reads, or keeping a relative `$ref` under `Unmodeled` is judged as it is written.
+it. A chain giving an encoding, bounds no one value states, bounds that a value an enum or a
+`const` lists fails or that nothing here judges, such as a `pattern` on one, or keeping a relative
+`$ref` under `Unmodeled` is judged as it is written.
 Two lists, two maps with one key, or two tuples of one length are judged by their parts: each
 element, value or position, with what may follow a tuple's last, judged as a pair a level down, null
 included, nested up to a bound; their bounds, a keyword with no order (`pattern`) given two ways

@@ -44,3 +44,9 @@ components:
       type: integer
       minimum: 10
       exclusiveMinimum: 0
+    # A count past what a 64-bit integer holds reaches no field: it is kept
+    # verbatim under its keyword, beside the count the field states.
+    HugeCount:
+      type: string
+      minLength: 1
+      maxLength: 99999999999999999999
