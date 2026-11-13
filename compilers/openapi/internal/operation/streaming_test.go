@@ -410,12 +410,14 @@ func TestStreaming_AFileBodyStreamsBytes(t *testing.T) {
 }
 
 // TestStreaming_OrdinaryContentDoesNotStream is the negative half: without a
-// streaming media type the operation core keeps its zero values, so every spec
-// that does not stream is untouched by this classification.
+// streaming media type the operation core and its content keep their zero
+// values, so every spec that does not stream is untouched by this
+// classification.
 func TestStreaming_OrdinaryContentDoesNotStream(t *testing.T) {
 	t.Parallel()
 	doc, _ := streamingSpec(t, eventStreamSpec("3.1.0", "application/json"), openapi.Options{})
 	op := openapitest.FindOp(t, doc, "getEvents")
+	assert.Nil(t, firstResponseContent(t, op).Stream)
 	assert.Empty(t, string(op.Streaming))
 	assert.Nil(t, op.RequestStream)
 	assert.Nil(t, op.ResponseStream)

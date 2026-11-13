@@ -161,6 +161,7 @@ func streamCandidates(ts *compile.Types, payload *ir.Payload) []streamCandidate 
 	for _, content := range payload.Contents {
 		switch {
 		case content.Stream == nil:
+			continue
 		case content.Item != nil:
 			out = append(out, streamCandidate{events: *content.Item, inferred: content.Stream.Inferred, item: true})
 		default:
