@@ -104,8 +104,9 @@ highlights, and the list moves to a specification of its own when the compiler l
   position's Encoding ([values as text](../emitters/refine/text.md#other-formats)), under the names
   the IR documents ([encodings](../ir/constraints.md#encodings)), which key an emitter's rows:
   `http-date` as written, `date-time` → `rfc3339`, and `epoch-seconds` → `unixTimestamp` with a
-  `float64` WireType, the number with a fraction Smithy writes; the `@mediaType` string waits on the
-  IR telling a string to encode from one already encoded (#1778, [a row keyed by an
+  `float64` WireType, the number with a fraction Smithy writes, and the `@mediaType` string in a
+  header → `base64` with a `string` WireType over the string shape, text to encode
+  ([encodings](../ir/constraints.md#encodings), [a row keyed by an
   encoding](../emitters/contract/type-table.md#a-row-keyed-by-an-encoding))
 - xml traits → XMLHints at type and property level
 - `@examples` → Examples (Input/Output/Error)
