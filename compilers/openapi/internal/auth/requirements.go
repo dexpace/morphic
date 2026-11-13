@@ -67,12 +67,13 @@ func (r *Registry) requirement(c lowering.Ctx, req *soa.SecurityRequirement, poi
 		name := r.named(c, key)
 		id := ids.Auth(name)
 		if _, declared := r.byID[id]; !declared {
-			id = r.unresolved(name)
+			var near string
+			id, near = r.unresolved(name)
 			// "Unresolved", not "undeclared": the name may be declared as a $ref
 			// resolving to nothing, or as an entry naming no mechanism (#294).
 			diags = append(diags, c.DiagAt(ir.SeverityError, diag.UnresolvedSecurityScheme, pointer,
 				"security requirement references unresolved scheme %q: the requirement is kept, and the scheme has no mechanism%s",
-				key, unresolvedClauses(c)))
+				key, unresolvedClauses(c, near)))
 		}
 		written, _ := nodeview.Strings(member.ValueNode)
 		scopes, scopeDiags := requiredScopes(c, written, key, pointer)

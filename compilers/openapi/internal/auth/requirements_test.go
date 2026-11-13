@@ -1082,3 +1082,43 @@ components:
 	slices.Sort(wantDiags)
 	assert.Equal(t, wantDiags, got)
 }
+
+// TestSecurityRequirement_AnUnresolvedNameNamesADeclaredNearMiss is the
+// reproduction of issue #694: a name matched exactly and reaching no scheme is
+// often a declared one in another case or with a typo, and the error names it.
+// Resolution stays exact, so the requirement names the unresolved scheme all the
+// same. An entry that reaches no mechanism is no hint, a name with no near miss
+// draws the plain text, and in a 3.2 document the hint comes before the URI
+// clause.
+func TestSecurityRequirement_AnUnresolvedNameNamesADeclaredNearMiss(t *testing.T) {
+	t.Parallel()
+	const plain = "the requirement is kept, and the scheme has no mechanism"
+	cases := []struct {
+		version, key, want string
+	}{
+		{"3.1.1", "ApiKey", `"ApiKey": ` + plain + `; a scheme named "apiKey" is declared`},
+		{"3.1.1", "apiKye", `"apiKye": ` + plain + `; a scheme named "apiKey" is declared`},
+		{"3.1.1", "basicAuth", `"basicAuth": ` + plain},
+		{"3.1.1", "oauth", `"oauth": ` + plain},
+		{"3.2.0", "#/components/securitySchemes/api_key", `"#/components/securitySchemes/api_key": ` + plain +
+			`; a scheme named "apiKey" is declared; a URI naming a Security Scheme Object outside the source's ` +
+			`components/securitySchemes is not read`},
+	}
+	for _, tc := range cases {
+		t.Run(tc.version+" "+tc.key, func(t *testing.T) {
+			t.Parallel()
+			_, svc, diags := serviceSpec(t, `openapi: `+tc.version+`
+info: {title: T, version: "1"}
+security: [{"`+tc.key+`": []}]
+paths: {}
+components:
+  securitySchemes:
+    apiKey: {type: apiKey, in: header, name: X-Key}
+    basic_auth: {type: http}
+`)
+			require.Len(t, svc.Auth, 1)
+			assert.Equal(t, []string{"security requirement references unresolved scheme " + tc.want},
+				messagesAt(diags, diag.UnresolvedSecurityScheme))
+		})
+	}
+}

@@ -4167,15 +4167,20 @@ other key is read as a reference is, against the document holding the requiremen
 3.1 define no URI form, so there a key is a name alone. A name that reaches no mechanism lowers to a
 scheme of kind `unresolved` ([auth](../ir/auth.md#unresolved-schemes)), one per name, and is
 reported as an `openapi/unresolved-security-scheme` error at each requirement, quoting the key as
-written. In a 3.2 document the error adds that a URI naming a Security Scheme Object outside the
-source's `securitySchemes` is not read. Nothing else about the requirement changes: the option keeps its other schemes, its scopes and its
-place in the list, so an operation stating its own requirement does not read as inheriting, and an
-option whose name reaches no mechanism does not vanish from the options beside it. The error stands
-however the rest lowers, since the specification requires the name to correspond to a scheme and
-what it means is missing ([`validation`](#validation)). A name stands whatever is beside it, whether
-or not it reaches a mechanism, since an option demands every scheme it names: a value that reads as
-no list of strings lists no scopes, a warning from the rule table for a `null` and an error for any
-other ([`requirement-scopes`](../parser-library.md#requirement-scopes)). A scope is the text an item
+written. Where a declared scheme that reaches a mechanism is a near miss of the name, the error
+names it, resolution staying exact: the first that holds of the same neutral name, the same letters
+and digits in any case, and, for a name of 4 to 64 bytes in a document declaring at most 64 schemes,
+a name one edit apart, an insertion, a deletion, a substitution or two adjacent runes swapped, the
+least in byte order where several do. In a 3.2 document the error then adds that a URI naming a
+Security Scheme Object outside the source's `securitySchemes` is not read. Nothing else about the
+requirement changes: the option keeps its other schemes, its scopes and its place in the list, so an
+operation stating its own requirement does not read as inheriting, and an option whose name reaches
+no mechanism does not vanish from the options beside it. The error stands however the rest lowers,
+since the specification requires the name to correspond to a scheme and what it means is missing
+([`validation`](#validation)). A name stands whatever is beside it, whether or not it reaches a
+mechanism, since an option demands every scheme it names: a value that reads as no list of strings
+lists no scopes, a warning from the rule table for a `null` and an error for any other
+([`requirement-scopes`](../parser-library.md#requirement-scopes)). A scope is the text an item
 writes, so a plain date is one ([`undecoded-scalar`](../parser-library.md#undecoded-scalar)). The
 scopes an option lists for one scheme are a set: a scope written again is kept once, at its first
 occurrence, and reported as an `openapi/repeated-entry` warning at the repeat, naming the first.
@@ -4195,12 +4200,11 @@ verbatim in `Unmodeled` under `openapi:<field>` (`degraded_lowering`), each repo
 A `$ref` that reached nothing is kept the same way, under `openapi:$ref`, with only its error. An
 entry written as no object holds no field to keep. A `security` entry written as no object names
 nothing, and so does one with no member whose `<<`, or a `<<` of a mapping it merges at any depth,
-names no mapping, which merges nothing
-([`merge-keys`](../parser-library.md#merge-keys)): each lowers to no option, never the empty one,
-which would grant access the document never wrote. A list holding nothing else, though it writes
-entries, collapses to nil, beside the rule table's error, since `[]` would read as public. A
-`security` that is no list lowers as one left out, beside the rule table's finding, a warning for a
-`null` and otherwise an error.
+names no mapping, which merges nothing ([`merge-keys`](../parser-library.md#merge-keys)): each
+lowers to no option, never the empty one, which would grant access the document never wrote. A list
+holding nothing else, though it writes entries, collapses to nil, beside the rule table's error,
+since `[]` would read as public. A `security` that is no list lowers as one left out, beside the
+rule table's finding, a warning for a `null` and otherwise an error.
 
 3.2's device flow lowers to `Flows` beside the other flows, and `oauth2MetadataUrl` to
 `OAuth2MetadataURL`. An `oauth2` scheme whose `flows` declares no flow — `flows: {}`, only `x-*` and
@@ -4234,19 +4238,22 @@ requirement naming no scheme and a scheme naming no mechanism, and leaves them t
   `auth.TestSecurityRequirement_AMergeChainIsReadToItsEnd`,
   `auth.TestSecurityRequirement_AJSONDocumentWritesNoMerge`,
   `auth.TestSecurityRequirement_ARepeatedScopeIsKeptOnce`,
-  `auth.TestSecurityRequirement_A32KeyMayNameItsSchemeByURI`, `auth.TestSecurityRequirement_A31KeyIsAName`,
+  `auth.TestSecurityRequirement_A32KeyMayNameItsSchemeByURI`,
+  `auth.TestSecurityRequirement_A31KeyIsAName`,
   `auth.TestSecurityRequirement_A32UnresolvedNameSaysWhatIsNotRead`,
   `auth.TestSecurityRequirement_AURIIsReadInTheDocumentHoldingIt`,
   `auth.TestSecurityRequirement_ANameAndItsURIAreOneSchemeInEitherOrder`,
   `oas.TestSecurityRules_AnswerAsTheTableDoes`,
+  `auth.TestSecurityRequirement_AnUnresolvedNameNamesADeclaredNearMiss`,
+  `auth.TestNearest_TakesTheFirstReadingThatMatches`, `auth.TestNearest_ReadsOneEditWithinItsBounds`,
+  `auth.TestOneEditApart_CountsOneEdit`,
   `lowering.TestFirstOccurrences_KeepsEachEntryOnceAtItsFirst`,
   `auth.TestAuth_RequirementsOrOfAnds`
 - Status: partly built: a 3.2 requirement naming a scheme by a URI outside the source's
-  `components/securitySchemes` lowers as unresolved (#1869), an unresolved scheme name gets no
-  near-miss hint (#694), a field under a tag outside YAML's JSON schema ruleset reads as left out, so
-  `scheme: !local bearer` is reported as omitted and names no mechanism, and a `security` list under
-  a local tag inherits with no finding (#1368), and a `$ref` written as null refuses the whole
-  document (#1284).
+  `components/securitySchemes` lowers as unresolved (#1869), a field under a tag outside YAML's
+  JSON schema ruleset reads as left out, so `scheme: !local bearer` is reported as omitted and names
+  no mechanism, and a `security` list under a local tag inherits with no finding (#1368), and a
+  `$ref` written as null refuses the whole document (#1284).
 
 ### `security-scheme-fields`
 

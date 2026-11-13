@@ -4,6 +4,7 @@
 package auth
 
 import (
+	"fmt"
 	"maps"
 	"strings"
 
@@ -24,6 +25,11 @@ type Registry struct {
 	// (named). It is filled once, so no requirement a walk meets first reaches
 	// what another's key names.
 	entries map[string]bool
+	// near indexes the names of the entries that reach a mechanism, which an
+	// unresolved name's error may name (nearIndex.nearest), and missed holds
+	// the one each minted name is a near miss of, read once, as it is minted.
+	near   nearIndex
+	missed map[string]string
 	// root is where a scheme no entry declares is placed: the source's, whichever
 	// document holds the requirement naming it.
 	root ir.Provenance
@@ -36,11 +42,16 @@ type Registry struct {
 func RegistryOf(c lowering.Ctx, declared map[ir.AuthID]ir.AuthScheme) *Registry {
 	byID := make(map[ir.AuthID]ir.AuthScheme, len(declared))
 	entries := make(map[string]bool, len(declared))
+	var reaching []string
 	for id, scheme := range declared {
 		byID[id] = scheme
 		entries[scheme.Name.Source] = true
+		if scheme.Kind != ir.AuthKindUnresolved {
+			reaching = append(reaching, scheme.Name.Source)
+		}
 	}
-	return &Registry{byID: byID, entries: entries, root: c.Place().At("")}
+	return &Registry{byID: byID, entries: entries, near: nearIndexOf(reaching), missed: map[string]string{},
+		root: c.Place().At("")}
 }
 
 // Schemes returns a copy of the registry, or nil when it holds nothing, so a
@@ -75,10 +86,14 @@ func (r *Registry) named(c lowering.Ctx, key string) string {
 }
 
 // unresolvedClauses returns what an unresolved scheme's error adds about the key
-// a requirement c lowers writes: from the minor that lets a key be a URI, that
-// a URI naming a scheme anywhere but the source's securitySchemes is not read.
-func unresolvedClauses(c lowering.Ctx) string {
+// a requirement c lowers writes: the declared scheme near names, if any, and
+// from the minor that lets a key be a URI, that a URI naming a scheme anywhere
+// but the source's securitySchemes is not read.
+func unresolvedClauses(c lowering.Ctx, near string) string {
 	var why strings.Builder
+	if near != "" {
+		fmt.Fprintf(&why, "; a scheme named %q is declared", near)
+	}
 	if lowering.SecurityRules(c).NamesByURI() {
 		why.WriteString("; a URI naming a Security Scheme Object outside the source's components/securitySchemes is not read")
 	}
@@ -86,14 +101,18 @@ func unresolvedClauses(c lowering.Ctx) string {
 }
 
 // unresolved returns the ID of the scheme name lowers to, minting it when no
-// entry did. The scheme is a function of the name and the source, so which
+// entry did, and the declared name a minted one is a near miss of, or "". The
+// scheme and the near miss are functions of the name and the source, so which
 // requirement reaches it first decides nothing (docs/ir/identity.md).
-func (r *Registry) unresolved(name string) ir.AuthID {
+func (r *Registry) unresolved(name string) (ir.AuthID, string) {
 	id := ids.UnresolvedAuth(name)
 	if _, held := r.byID[id]; !held {
 		r.byID[id] = unresolvedScheme(name, r.root)
+		if near, ok := r.near.nearest(name); ok {
+			r.missed[name] = near
+		}
 	}
-	return id
+	return id, r.missed[name]
 }
 
 // unresolvedScheme returns the scheme of no mechanism for name, placed at prov.
