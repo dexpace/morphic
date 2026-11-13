@@ -340,6 +340,33 @@ func TestRun_DiagFormatJSONWriteFailureEndsTheRun(t *testing.T) {
 	}
 }
 
+// TestRun_DiagFormatJSONWritesAFailureAfterItsReport pins what follows a JSON
+// report when the document cannot then be written: the reason, on a line after
+// the report's, at the exit status the findings earned, or 2 for none.
+func TestRun_DiagFormatJSONWritesAFailureAfterItsReport(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name, spec string
+		want       int
+	}{
+		{"a finding at the threshold", errSpec, exitFindings},
+		{"no findings", testspec.Tiny, exitFailure},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			out := filepath.Join(t.TempDir(), "absent", "ir.json")
+			code, stdout, stderr := runCommand(t, "compile", writeFile(t, "spec.yaml", tc.spec),
+				"--diag-format", "json", "-o", out)
+			assert.Equal(t, tc.want, code)
+			assert.Empty(t, stdout)
+			lines := strings.Split(strings.TrimSuffix(stderr, "\n"), "\n")
+			require.Len(t, lines, 2, stderr)
+			decodeReport(t, lines[0])
+			assert.True(t, strings.HasPrefix(lines[1], "morphic: create output"), lines[1])
+		})
+	}
+}
+
 // TestRun_DiagFormatJSONWritesWhatItHeldOnAFailure pins the warnings a JSON
 // run held for its report as written on their own lines when the run fails
 // before its report, as text writes them, so the failure drops none.

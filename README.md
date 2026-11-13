@@ -257,8 +257,9 @@ scope too.
 run's exit status and stdout are what text gives. It is written for every run that reaches its
 verdict, a spec that lowered to no document included, and nothing else is written to stderr then,
 not even a warning about the cache. A run that exits `2` before its verdict writes text instead, its
-warnings and then `morphic: ...`, and one that exits `2` after it, stopped or its document refused,
-adds that line after the report.
+warnings and then `morphic: ...`. One stopped after its report, or whose document is then refused,
+adds that line after the report, the report staying the first line, whatever status it exits with:
+a refused document leaves a run its findings failed at `1`, as [Exit codes](#exit-codes) says.
 
 ```json
 {"version": 1, "failed": false,
