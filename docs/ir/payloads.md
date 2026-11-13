@@ -74,8 +74,9 @@ type PartEncoding struct {
                                    // only where Filename is (ir/part-encoding-inferred-not-filename)
     Style        string            // form-style serialization for non-file parts
     Explode      *bool
-    AllowReserved bool             // reserved characters pass unescaped in the part's value, as
-                                   // HTTPParamBinding.AllowReserved does in a parameter's
+    AllowReserved bool             // the part's value is written as HTTPParamBinding.AllowReserved
+                                   // writes a parameter's: reserved characters and percent-encoded
+                                   // triples pass unescaped
 }
 // TypeSpec tuple-form multipart lowers to a synthesized model whose properties are the parts.
 

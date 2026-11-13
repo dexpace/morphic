@@ -29,12 +29,45 @@ base64, and never runs a closed model's strict decoder or an open enum's keeper 
 for one.
 
 A defined type over a sensitive chain, and a sensitive enum's named type ([enums](#enums)), declare
-`String`, `GoString` and `LogValue`, each showing `[REDACTED]`
+`String`, `GoString`, `Format` and `LogValue`, each showing `[REDACTED]`
 ([redaction](../../refine/redaction.md#a-redacted-value)), so `fmt` redacts one in a slice or a
-caller's own struct too, and `log/slog` when handed one, though not inside a slice, whose elements
-its JSON handler writes as JSON. json/v2 reads none of them, and the SDK writes a path segment or
-query value from the value, `string(k)`, never through `fmt`, which would send the marker. An alias
-can declare no method, so only its holders redact it.
+caller's own struct too wherever it asks a method, while a type the SDK declares holds one as a
+`Secret` ([a redacted member](models.md#a-redacted-member)), and `log/slog` when handed one, though
+not inside a slice, whose elements its JSON handler writes as JSON. json/v2 reads none of them, and
+the SDK writes a path segment or query value from the value, `string(k)`, never through `fmt`, which
+would send the marker. An alias can declare no method, so only its holders redact it.
+
+## Integers
+
+json/v2 reads only plain digits into an integer and has no option for more, so the runtime carries a
+reader for each fixed-width integer type that decides [by
+value](../../contract/type-table.md#an-integer-row-reads-a-number-by-its-value), and every codec the
+SDK generates decodes under it. A model's `UnmarshalJSONFrom` decodes its members under the readers
+beside the `RejectUnknownMembers` it pins ([`User`](models.md#user-in-go)), joined after the
+caller's own unmarshalers as an inclusive union joins its own ([unions](unions.md)), so a caller's
+`json.Unmarshal` into a model reads `1.0` too, through a box, a slice, a map and a nested model, and
+a caller's unmarshaler for `int64` keeps its precedence. The runtime joins once for a caller's set
+and a nested model finds that join again, so a value 50 models deep joins once. A defined type over
+an integer, a scalar's or an enum's, declares the pair itself, since a function registered for
+`int64` is not called for a type defined over it, and the client decodes a body that is an integer,
+or a list or map of them, under the same readers.
+
+A name reaches a reader as a string token, where a value's reader refuses a string. So each reader,
+and each defined type's pair, asks the decoder where it stands (`jsontext.Decoder.StackIndex`: in an
+object, an even count of tokens read) and reads a name as [a map's
+key](../../contract/type-table.md#a-maps-key-is-text) is read; a `bool` key and a defined integer
+type's, which json/v2 refuses to write, go out through a writer that asks the encoder the same. With
+them `map[int64]V`, `map[bool]V` and a map keyed by an integer enum, a string enum and a date each
+wrote and read their names, `{"1.0": …}` read as the key 1 inside a nested map, `{"N": "1"}` was
+still refused for an `int64` field, and json/v2 refused `{"1": …, "1e0": …}` as a duplicate name.
+
+On a 242 KB body of 2,000 models holding thirteen integers each, decoding took 2.25 ms with json/v2
+alone and 2.97 ms under the readers, with no allocation more; registering an unmarshaler that
+matches nothing accounts for 0.29 ms of that (Go 1.27.3, darwin/arm64). Three other placements lost.
+Readers passed only where the client decodes leave a caller's own `json.Unmarshal` refusing what the
+client reads. A runtime type in the field's place, `runtime.Int64`, changes every caller's field.
+And a second struct with such types, converted after decoding, cannot convert a `[]int64` or a
+`map[string]int64` without copying it. T-61 holds this section.
 
 ## Enums
 
@@ -46,7 +79,13 @@ enums, so any other enum `TypePlan.Open` marks, every one `Closed=false` declare
 unknown values, and any other lowers to that type + its consts with strict decode. Either decodes a
 value no member holds as its `FallbackMember` where the enum declares one, which is why `OpenEnums`
 leaves such a closed enum closed ([plan
-policy](../../plan/policy.md#an-enum-a-client-reads-is-open)).
+policy](../../plan/policy.md#an-enum-keeps-a-value-it-does-not-list)). The two forms are one named
+type with the same constants, so opening an enum changes its decoder and takes no declaration from a
+caller. An enum with no members is that type with no constant and the strict decoder, which then
+refuses every value ([enums](../../refine/enums.md#an-enum-with-no-members)), and its
+`MarshalJSONTo` refuses every value too, the zero value among them: a struct requiring one then
+fails to encode, where decoding alone refused and `json.Marshal` wrote `{"must":""}`, and an
+optional member left unset is still left out (Go 1.27.3).
 
 Go declares constants of boolean, numeric and string types alone, so an enum lowers over its
 members' wire forms ([a member on the wire](../../refine/enums.md#a-member-on-the-wire)) where its

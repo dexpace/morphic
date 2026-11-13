@@ -20,7 +20,13 @@ highlights, and the list moves to a specification of its own when the compiler l
 - models → Model w/ Base + spread provenance → Mixins
 - `Record<T>` → MapT, and a `Record` spread or extended beside properties → AdditionalProps
 - scalars → Scalar chains, constructors in values → Value.Ctor
-- `@encode`/`@format` → Encoding triple
+- `@encode`/`@format` → Encoding triple, an encoding TypeSpec knows under the name the IR documents
+  for it ([encodings](../ir/constraints.md#encodings)), which keys an emitter's rows: `rfc3339`,
+  `unixTimestamp`, `seconds`, `base64` and `base64url` as written, `rfc7231` → `http-date` and
+  `ISO8601` → `iso8601`; any other name, `milliseconds` among them, as written with its wire type.
+  The encoding TypeSpec's HTTP library specifies for a position by default without applying it,
+  `rfc7231` for a `utcDateTime` or `offsetDateTime` header, is written as that position's Encoding
+  the same way, as `http-date` ([values as text](../emitters/refine/text.md#other-formats))
 - `@encodedName` → WireNameByFormat at property AND type level
 - unions w/ named variants → closed Union, `@discriminated` → WireTagged +
   Discriminator.PropertyName/Envelope/EnvelopeValueName
@@ -77,15 +83,27 @@ highlights, and the list moves to a specification of its own when the compiler l
 - service `rename`/`version` → Service.Renames/Version
 - resources → OperationGroup + ResourceInfo (identifiers, properties, lifecycle incl.
   put/@noReplace, instance vs collection ops)
-- http traits → HTTPBinding incl. `@endpoint`/`@hostLabel` → HostPrefix/host location (additive
-  binding), `@httpPrefixHeaders`/`@httpQueryParams` → Prefix bindings on an input, the empty
-  prefix and `@httpQueryParams` once #1748 gives them a spelling, and `@httpPrefixHeaders` → a
-  Header's Prefix on an output or an error ([prefix headers](../ir/responses.md#prefix-headers)),
-  `@httpResponseCode` → Response.StatusCodeProp, `@requestCompression` → Compression,
-  `@httpChecksumRequired` → ChecksumRequired
+- http traits → HTTPBinding incl. a greedy label `{name+}` → PathPattern `**` with no AllowReserved,
+  since Smithy percent-encodes every character of one but a `/` and the unreserved ones, a `%` among
+  them ([values as text](../emitters/refine/text.md#escaping)), `@endpoint`/`@hostLabel` →
+  HostPrefix/host location (additive binding), `@httpPrefixHeaders` → a header binding's Prefix on
+  an input and `@httpQueryParams` → a query binding's Prefix of `""` ([prefix
+  bindings](../ir/http-binding.md#prefix-bindings)), and `@httpPrefixHeaders` → a Header's Prefix on
+  an output or an error ([prefix headers](../ir/responses.md#prefix-headers)), `@httpResponseCode`
+  → Response.StatusCodeProp, `@requestCompression` → Compression, `@httpChecksumRequired` →
+  ChecksumRequired
 - `@auth` order → priority-ordered Auth, `@optionalAuth` → empty option
 - `@jsonName` → WireName
 - `@mediaType` → Encoding.MediaType
+- `@timestampFormat`, the text an HTTP binding gives a position by default, `http-date` for a
+  timestamp in a header, `date-time` for one in a label or a query and base64 for a `@mediaType`
+  string in a header, and the format a protocol gives a timestamp where neither says → that
+  position's Encoding ([values as text](../emitters/refine/text.md#other-formats)), under the names
+  the IR documents ([encodings](../ir/constraints.md#encodings)), which key an emitter's rows:
+  `http-date` as written, `date-time` → `rfc3339`, and `epoch-seconds` → `unixTimestamp` with a
+  `float64` WireType, the number with a fraction Smithy writes; the `@mediaType` string waits on the
+  IR telling a string to encode from one already encoded (#1778, [a row keyed by an
+  encoding](../emitters/contract/type-table.md#a-row-keyed-by-an-encoding))
 - xml traits → XMLHints at type and property level
 - `@examples` → Examples (Input/Output/Error)
 - waiters + rules-engine traits → verbatim Unmodeled (`out_of_scope`,
@@ -136,7 +154,9 @@ highlights, and the list moves to a specification of its own when the compiler l
 - enums → Enum open/closed per syntax/edition, allow_alias → duplicate member values
 - map/repeated → MapT/List (a `string` map key → nil Key; packed/expanded → List.Encoding)
 - groups / editions DELIMITED → nested Model + Encoding "delimited"
-- scalar wire variants (sint/fixed) → Encoding
+- scalar wire variants → Encoding under the IR's names
+  ([encodings](../ir/constraints.md#encodings)): `sint32`/`sint64` → `zigzag`,
+  `fixed32`/`fixed64`/`sfixed32`/`sfixed64` → `fixed`
 - non-finite float defaults (`inf`, `-inf`, `nan`) → Value kinds `inf`, `neginf`, `nan`
 - `extend` fields → Property.ExtensionOf, extension ranges → Model.ExtensionRanges
 - well-known types → External (wrapper types → External or nullable primitive per injectable policy)

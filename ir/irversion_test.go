@@ -117,7 +117,9 @@ var generations = []generation{
 		names: "5506159ecd463736fdbbad0c4cabfad3fd50b48509b46fbea55862e82eca9675"},
 	{version: "0.46.0", format: 1, shape: "579d8cf68b18eb8fb9e58bc0baf0f89dd640a8f916a95f473a407d0513b2f81f",
 		names: "5506159ecd463736fdbbad0c4cabfad3fd50b48509b46fbea55862e82eca9675"},
-	{version: "0.47.0", format: 1, shape: "579d8cf68b18eb8fb9e58bc0baf0f89dd640a8f916a95f473a407d0513b2f81f",
+	{version: "0.47.0", format: 1, shape: "630671af6248c7ff1ebd79765cf645b7ee3fde7308e1d8d9b8002a59268eb847",
+		names: "5506159ecd463736fdbbad0c4cabfad3fd50b48509b46fbea55862e82eca9675"},
+	{version: "0.48.0", format: 1, shape: "630671af6248c7ff1ebd79765cf645b7ee3fde7308e1d8d9b8002a59268eb847",
 		names:   "5506159ecd463736fdbbad0c4cabfad3fd50b48509b46fbea55862e82eca9675",
 		meaning: "a form part with no content type of its own carries the default its format gives, no part of a url-encoded body or of format byte carries a filename, a part only a union's branch declares is keyed, through nested unions, and an encoding entry keying no part, an encoding outside a form among them, is kept whole"},
 }

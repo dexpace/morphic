@@ -59,11 +59,15 @@ type TargetAST interface{ targetAST() }
 only implementable because a specific un-lowered IR fact reached it; a missing IR capability shows
 up as an unimplementable step, not a silent degrade. Ordering is asserted by a golden *step-trace*
 test: collapsing aliases runs first, since every other step lowers references through it; redaction
-and the stability marks follow every step declaring a type that holds a value or a method an
+and the stability and deprecation marks follow every step declaring a value's type or a method an
 operation lowers to, since each adds to those; placement follows every structural lowering, and
 import computation follows placement, since a file imports what its declarations reference from
 wherever those landed; the naming steps run last — casing, then reserved-word escaping, whose scopes
-reserve what a file imports ([reserved names](reserved-names.md)), then collision resolution — so
-every name, a unit's and an import's among them, is settled once, after everything that names it
-exists. Because each step is idempotent
-and reads only its `Ctx`, a step-trace snapshot pins the whole lowering deterministically.
+reserve on Go what a file imports ([reserved names](reserved-names.md)), then collision resolution —
+so every name, a unit's and an import's among them, is settled once, after everything that names it
+exists. On Go a function's scope reserves the names its file's imports are given, so Go's list holds
+the escaping and collision steps twice after casing, and its step trace shows both pairs: the first
+settles the units' names and, after them, the name each file gives its imports, and the second every
+other scope. One run of each could not, since the escaping of a function's scope reads a name the
+collision step gave an import. Because each step is idempotent and reads only its `Ctx`, a
+step-trace snapshot pins the whole lowering deterministically.

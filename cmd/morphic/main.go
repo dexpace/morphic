@@ -35,19 +35,24 @@ func run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 
 // execute runs root against args under ctx, reports what ended the run, and
 // returns its exit code. args is copied and never nil: handed a nil slice,
-// cobra runs os.Args[1:] instead. A long flag spelled with one dash is refused
-// before cobra parses anything.
+// cobra runs os.Args[1:] instead. They are ordered and checked before cobra
+// parses anything (commandFirst, misreadDashes).
 //
 // A run that failed once ctx had ended was stopped, whatever the command made
 // of seeing it, and fails with what ended ctx as its reason. Every check of
 // ctx fails a run that finds it ended, so one that finished checked it last
 // before it ended: its output is whole, and ctx changes nothing.
 func execute(ctx context.Context, root *cobra.Command, args []string, stdout, stderr io.Writer) int {
-	root.SetArgs(append([]string{}, args...))
+	// cobra adds the help and completion commands as it executes, too late for
+	// commandFirst and misreadDashes to find them.
+	root.InitDefaultHelpCmd()
+	root.InitDefaultCompletionCmd()
+	args = append([]string{}, commandFirst(root, args)...)
+	root.SetArgs(args)
 	root.SetOut(stdout)
 	root.SetErr(stderr)
 
-	err := singleDashLongFlags(root, args)
+	err := misreadDashes(root, args)
 	if err == nil {
 		err = root.ExecuteContext(ctx)
 	}

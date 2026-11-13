@@ -715,9 +715,9 @@ Both oracles landed before Tier 1, proven against the current code first.
 ### 8.4 Blind spots, stated so they are not mistaken for coverage
 
 - ~~**`harness.Check` returns at the first error diagnostic, before `irverify` runs.**~~ —
-  **closed** for `irverify`: every document a run returns is held to it before the spec's own
-  errors are read. The oracles after it still stop there (#685), so establish where each new
-  fixture lands rather than assuming it arrives.
+  **closed**: every document a run returns is held to `irverify` before the spec's own errors are
+  read, and since #685 no oracle stops at an error. One with nothing to compare, such as the round
+  trip of a refusal, declines and says why, which the sweep's summary counts.
 - ~~**The annotation grid cannot express a carrier position** (#142)~~ — **closed.** The grid gained
   a kind for each carrier, and they are separate kinds because the two hold different sets:
   `ir.Property` has XML and Visibility fields and `ir.Parameter` has neither, so one shared row would
