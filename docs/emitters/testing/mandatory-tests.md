@@ -933,16 +933,18 @@ throughout these documents.
     group, an operation and a property at the cap, a byte past it and far past it, in ASCII and in
     characters of two, three and four bytes, the operation in the client of the group at the cap
     once as each shape a method lowers to, a plain, a paged and a streamed one, with and without its
-    `WithResponse` method, and a type and a union's variant at the cap that meet a reserved name or
-    each other (`…Kt` and two variants folding alike), generates code that compiles on every target:
-    each identifier of a role written into a path within the cap but for its escape and its suffix,
-    which a type's class and its variant's serializer still hold under 255 bytes, a shortened one
+    `WithResponse` method, and a type, a union's variant and an operation at the cap that meet a
+    reserved name or each other (`…Kt`, two variants folding alike, two operations folding alike
+    that end in a digit), generates code that compiles on every target: each identifier of a role
+    written into a path within the cap but for its escape and its suffix, a shortened one
     keeping its leading words and its hash word and drawing one `emitters/<target>/name-shortened`,
     two that share their first 110 bytes apart, among them two names with no words (twelve and
     thirteen `_`), two types named from hints and one long type's create and patch declarations, the
     property's name whole, and no segment of a path the build writes past 255 bytes, every class
-    file kotlinc writes among them, none of which a method's body has it name for an inline function
-    ([naming](../refine/naming.md#a-name-too-long-for-a-path-is-shortened)).
+    file kotlinc writes among them, each counted as if every name at the cap it holds had taken the
+    8 bytes the naming steps may add, so a variant's serializer is at most 255 bytes and a class
+    written for a method's body adds at most 12 after the method's name, none of them named for an
+    inline function ([naming](../refine/naming.md#a-name-too-long-for-a-path-is-shortened)).
 54. **T-54 · Names past ASCII** — a fixture naming a type, a property, a parameter, an operation, an
     enum member and a group with a decomposed `café`, with `नाम`, with a letter Kotlin 2.4.0's lexer
     does not know, U+0870 and past the BMP U+10570, with a digit it does not know, `a𐵀`, with a mark

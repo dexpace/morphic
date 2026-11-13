@@ -429,24 +429,29 @@ twelve and thirteen `Underscore`s, would hash nothing and meet, and a long type'
 `UpdatePatch` declarations ([TypePlan](../plan/types.md#the-declaration-a-shape-takes)) their type's
 words alone. T-53 holds it.
 
-The cap leaves room for two names joined and the suffixes the Kotlin toolchain adds: two names of
-110 bytes make 239 bytes in the serialization plugin's `Payment$Card$$serializer.class`, whose 16
-left hold what the naming steps add to each name after the cap, an `_`, the escape's or the one
-before a suffix, and a collision's suffix of up to seven digits, which only ten million names
-rendering alike in one scope pass, and a method of 110 bytes in a client of 110 makes at most 229 in
-a class kotlinc 2.4.0 writes for its body, `<client>$<method>$1.class`, over a plain, a paged and a
-streamed method each handing its lambdas to the runtime, with the kotlinx.coroutines kotlinc ships.
-That leaves 28 bytes after a method's name, which a class kotlinc copies from an inline function's
-lambda does not fit: it names one for the function, as in `$$inlined$filterIsInstance$1$1`, 30
-bytes, and failed to write it at the cap (`error while writing`). So a method's body hands each
-lambda to a function that is not inline, as the runtime's pager and stream are and as `flow` is, and
-only the runtime's unit, whose names are its own, calls an inline function that writes a class. No
-name of the golden spec reaches the cap: its longest is 99 bytes as words joined, 106 with the
-`WithResponse` a method may add, and its longest union and variant joined by `$` 100, a wrapper
-being named for its variant and not for the type it wraps ([Kotlin](../targets/kotlin/unions.md)),
-each name its `Canonical` or `Hint` cased for its role (spec @bc6fad24, morphic @fa253fe19). A
-suffix the target's own code makes kotlinc add beyond that room is held by T-53, which lowers the
-cap in the options version adding it.
+The cap leaves room for two names joined, what the naming steps add to each after the cap and what
+the Kotlin toolchain adds to both. The naming steps add at most 8 bytes to a name, an `_`, the
+escape's or the one before a suffix, and a collision's suffix of up to seven digits, which only ten
+million names rendering alike in one scope pass. So two names at the cap, joined by `$` and ending
+`.class`, make at most 243 bytes and leave 12. The serialization plugin's
+`Payment$Card$$serializer.class` takes all 12, and a class kotlinc writes for a method's body has
+them after the method's name, as in `<client>$<method>$1.class`. Measured with kotlinc 2.4.0 and the
+kotlinx.coroutines it ships, each name 110 bytes and `_1234567`: the serializer wrote at 255 bytes;
+a plain and a paged method, each with and without `WithResponse`, and a streamed one, each handing
+its lambdas to the runtime, wrote `$1`, `$2` and, for a lambda inside another, `$1$1`, 247 bytes at
+most; and six lambdas nested wrote at 255 where a seventh failed (`error while writing`). Three
+other names kotlinc gives a class failed to write there: one for a local of ten bytes holding a
+lambda (`$requestAnd$1`), one for a `when` over another file's enum inside a lambda
+(`$1$WhenMappings`) and one it copies from an inline function's lambda (`$$inlined$map$1`). The last
+grows with the function's name, so no cap leaves it room: a method's body hands each lambda to a
+function that is not inline, as the runtime's pager and stream are and as `flow` is, and only the
+runtime's unit, whose names are its own, calls an inline function that writes a class. The cap stays
+at 110, the shapes above taking 4 of the 12 bytes, and no name of the golden spec reaches it: its
+longest is 99 bytes as words joined, 106 with the `WithResponse` a method may add, and its longest
+union and variant joined by `$` 100, a wrapper being named for its variant and not for the type it
+wraps ([Kotlin](../targets/kotlin/unions.md)), each name its `Canonical` or `Hint` cased for its
+role (spec @bc6fad24, morphic @fa253fe19). Any other class the target's own code makes kotlinc name
+past those 12 bytes is held by T-53, which lowers the cap in the options version adding it.
 
 Refusing the run was not taken: a valid spec would generate nothing, where shortening costs only the
 readability of a name no reader takes in whole. Nor was a cap on the segment rather than the name,
