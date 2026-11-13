@@ -531,8 +531,9 @@ it is read. A schema read in JSON Schema draft 4 ([`dialect-keywords`](#dialect-
 it `id`, its `$id` then naming nothing. In drafts 4, 6 and 7 one naming a fragment alone, `#name`,
 declares that plain name as an `$anchor` does, which is why the load phase holds an `$id`'s format
 to the schema's dialect rather than to the rule table's 2020-12 row; one beside a `$ref` gives it no
-base, roots no resource and declares no name, as those drafts ignore every keyword there; `definitions` holds schemas as `$defs` does, and so does `dependencies` where
-a value is one. A schema another holds roots a resource where it writes an identifier as the
+base, roots no resource and declares no name, as those drafts ignore every keyword there;
+`definitions` holds schemas as `$defs` does, and so does `dependencies` where a value is one. A
+schema another holds roots a resource where it writes an identifier as the
 dialect embedding it spells one, as 2020-12 has an embedded resource do (§9.3.1), or as the dialect
 its own `$schema` names does, unless it writes a `$ref` whose siblings the dialect embedding it
 ignores. An `$id` names the URI its part before the `#` resolves to against the base above it, by
@@ -713,13 +714,14 @@ references that closes on itself is [`reference-cycles`](#reference-cycles)'.
   object's pointer holding a character above U+FFFF is refused as malformed (#516), and an
   unresolved reference object's message ends in the resolver's own wording, unless its chain ends on
   a position holding no object of its kind (#809). A chain of documents each declaring the URI the
-  one before it asked for costs a binding pass per link (#1372). A reference object reaching raw YAML of the source leaves the references inside what
-  it reaches unresolved (#1320), and one whose pointer ends in `/` declares what it reaches at a
-  second pointer (#1330). A reference object whose `$ref` is a scalar under a tag outside YAML's
-  JSON schema ruleset, which the model decodes no string from, lowers nothing, and nothing reports
-  it (#1368). A schema `$ref` whose pointer passes through a reference object's alias lowers what
-  it reaches a second time, at the pointer it spells (#1359). The parser's resolver takes time cubic
-  in the length of a chain of reference objects, each naming the next (#1468).
+  one before it asked for costs a binding pass per link (#1372). A reference object reaching raw
+  YAML of the source leaves the references inside what it reaches unresolved (#1320), and one
+  whose pointer ends in `/` declares what it reaches at a second pointer (#1330). A reference
+  object whose `$ref` is a scalar under a tag outside YAML's JSON schema ruleset, which the model
+  decodes no string from, lowers nothing, and nothing reports it (#1368). A schema `$ref` whose
+  pointer passes through a reference object's alias lowers what it reaches a second time, at the
+  pointer it spells (#1359). The parser's resolver takes time cubic in the length of a chain of
+  reference objects, each naming the next (#1468).
 
 ### `reference-cycles`
 
@@ -778,7 +780,10 @@ and is reported, as for every construct a later minor added, with an
 - Cases: `self-uri`
 - Codes: `openapi/later-version-construct`
 - Tests: `openapi.TestCompile_RecordsSelfURI`
-- Status: partly built: `$self` is the base URI for some references and not others (#863).
+- Status: partly built: OpenAPI 3.2 makes `$self`, resolved against the retrieval URI, the base of
+  every relative reference in every document. A document a reference reaches has its `$self`
+  ignored, and the source's, read as written, is the base of its reference objects alone, not of
+  its schema `$ref`s or mapping values (#863).
 
 ### `verbatim-preservation`
 
