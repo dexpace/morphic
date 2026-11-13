@@ -358,8 +358,8 @@ type Overlay struct {
 	// Strict — the zero value — is the default because an action whose selector
 	// matches nothing is nearly always a typo in a JSONPath, and an overlay that
 	// silently does nothing ships an SDK missing the very fix it was written to
-	// make. Under strict such an action is reported and the compile refuses;
-	// under lax it is not reported at all.
+	// make. Under strict such an action refuses the compile; under lax it is
+	// reported as a warning, and the rest of the overlay applies.
 	Lax bool `json:"lax,omitzero"`
 }
 

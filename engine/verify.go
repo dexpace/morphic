@@ -35,9 +35,9 @@ var errInputChanged = errors.New("changed the document it was handed")
 
 // VerifyError reports a stage whose output breaks the IR's structural
 // invariants, found under RunOptions.Verify. These are not the spec's problems
-// but the stage's: a compiler or pass returned a document it should not have,
-// so it wraps the stage's contract error, compilers.ErrContract or
-// pass.ErrContract, and none for a document handed to RunDocument.
+// but the stage's: a compiler or pass returned a document, or findings, it
+// should not have, so it wraps the stage's contract error, compilers.ErrContract
+// or pass.ErrContract, and none for a document handed to RunDocument.
 type VerifyError struct {
 	// Stage names what returned the document: a compile of a source, a pass, or
 	// the document RunDocument was handed.
@@ -45,6 +45,10 @@ type VerifyError struct {
 	// Violations is every invariant the document breaks, as irverify reports
 	// them, with a violation of its own code for a document that will not encode.
 	Violations []irverify.Violation
+	// Findings reports that the violations are in the findings the stage
+	// reported, on its document or beside it, which each Path reads as
+	// findings[i] (irverify.VerifyFindings), rather than in the document.
+	Findings bool
 	// cause is the contract error the stage's breach wraps, or nil.
 	cause error
 }
@@ -60,8 +64,12 @@ func (e *VerifyError) Error() string {
 	if more := len(e.Violations) - listed; more > 0 {
 		parts = append(parts, fmt.Sprintf("and %d more", more))
 	}
-	msg := fmt.Sprintf("engine: verify %s: the document breaks %d invariants: %s",
-		e.Stage, len(e.Violations), strings.Join(parts, "; "))
+	broken := "the document breaks"
+	if e.Findings {
+		broken = "its findings break"
+	}
+	msg := fmt.Sprintf("engine: verify %s: %s %d invariants: %s",
+		e.Stage, broken, len(e.Violations), strings.Join(parts, "; "))
 	if e.cause != nil {
 		return msg + ": " + e.cause.Error()
 	}
@@ -112,11 +120,26 @@ func (p plan) hold(stage string, cause error, doc *ir.Document) (fingerprint, er
 	return sum, nil
 }
 
+// holdFindings holds diags, the findings stage reported, to the invariants
+// irverify holds a document's findings to, read against sources, on a plan
+// that verifies; on one that does not it does nothing. cause is the contract
+// error a breach wraps.
+func (p plan) holdFindings(stage string, cause error, diags []ir.Diagnostic, sources []ir.SourceInfo) error {
+	if p.verify == nil {
+		return nil
+	}
+	if violations := irverify.VerifyFindings(diags, sources); len(violations) > 0 {
+		return &VerifyError{Stage: stage, Violations: violations, Findings: true, cause: cause}
+	}
+	return nil
+}
+
 // afterPass holds what np returned to what a verified run asks of it beyond the
 // contract every run checks: that doc, the document np was handed, is as np
-// found it, and that next, the one it returned, keeps the IR's invariants. before
-// is doc's fingerprint when np began, and the fingerprint of next comes back.
-func (p plan) afterPass(np namedPass, before fingerprint, doc, next *ir.Document) (fingerprint, error) {
+// found it, that next, the one it returned, keeps the IR's invariants, and that
+// diags, its findings, keep them too. before is doc's fingerprint when np
+// began, and the fingerprint of next comes back.
+func (p plan) afterPass(np namedPass, before fingerprint, doc, next *ir.Document, diags []ir.Diagnostic) (fingerprint, error) {
 	if p.verify == nil {
 		return before, nil
 	}
@@ -127,8 +150,12 @@ func (p plan) afterPass(np namedPass, before fingerprint, doc, next *ir.Document
 	if after != before {
 		return fingerprint{}, np.breach(errInputChanged)
 	}
-	if next == doc {
-		return before, nil
+	stage := fmt.Sprintf("pass %q", np.name)
+	sum := before
+	if next != doc {
+		if sum, err = p.hold(stage, pass.ErrContract, next); err != nil {
+			return sum, err
+		}
 	}
-	return p.hold(fmt.Sprintf("pass %q", np.name), pass.ErrContract, next)
+	return sum, p.holdFindings(stage, pass.ErrContract, diags, next.Sources)
 }

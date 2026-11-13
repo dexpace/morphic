@@ -6,6 +6,7 @@ package engine
 import (
 	"github.com/dexpace/morphic/compilers"
 	"github.com/dexpace/morphic/engine/cache"
+	"github.com/dexpace/morphic/engine/triage"
 	"github.com/dexpace/morphic/ir"
 	"github.com/dexpace/morphic/ir/irverify"
 )
@@ -25,9 +26,8 @@ var ErrSourceOutOfRange = errSourceOutOfRange
 // severity the IR does not define fails a run with.
 var ErrUnknownSeverity = errUnknownSeverity
 
-// Severities exposes the ranked severity list, which the external tests hold
-// to what package ir declares.
-func Severities() []ir.Severity { return severities() }
+// MaxTriageBytes exposes the bound on a triage file.
+const MaxTriageBytes = maxTriageBytes
 
 // ErrVersionChanged exposes the error a pass returning a document stamped with
 // another IR version fails a run with.
@@ -87,4 +87,14 @@ func SettledLocations(r *Recorder) ([]string, bool) {
 // would hand it back intact: what a test writes to reach what follows the seal.
 func SealedEntry(key cache.Key, head, body string) []byte {
 	return sealed(key, []byte(head), []byte(body))
+}
+
+// Verdict exposes the verdict at failOn over findings rated by hand, for a test
+// that rates one at a severity no rule could set.
+func Verdict(failOn FailOn, doc *ir.Document, findings []triage.Finding) (bool, error) {
+	t, err := failOn.resolve()
+	if err != nil {
+		return false, err
+	}
+	return t.verdict(doc, findings)
 }

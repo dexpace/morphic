@@ -16,11 +16,11 @@ import (
 
 // runKey derives the key of a run: everything the document depends on but the
 // documents it reads, which no key made before the compile can name, so an
-// entry lists them instead (entryHead.Reads). FailOn is absent: the verdict is
-// judged afresh. The format is too: it follows from the bytes, and finding it
-// is what a hit skips. The working directory is present because a compile reads
-// it, to relate a relative path to an absolute one, and so reaches type IDs
-// (#1297).
+// entry lists them instead (entryHead.Reads). FailOn and Triage are absent: a
+// hit's findings are rated and its verdict judged afresh. The format is too: it
+// follows from the bytes, and finding it is what a hit skips. The working
+// directory is present because a compile reads it, to relate a relative path
+// to an absolute one, and so reaches type IDs (#1297).
 func (b *cacheBinding) runKey(spec compilers.Source, opts RunOptions, p plan) (cache.Key, error) {
 	dir, err := b.workingDir()
 	if err != nil {
