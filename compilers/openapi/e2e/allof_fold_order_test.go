@@ -67,6 +67,7 @@ func TestAllOfFold_AnEncodedFormatIsJudgedAsByteIsBesideBinary(t *testing.T) {
 		bytesB64URL = "bytes base64url string"
 		httpDate    = "datetime_offset http-date"
 		seconds     = "datetime_offset unixTimestamp integer"
+		secondsText = "datetime_offset unixTimestamp string"
 	)
 	for _, tc := range []struct {
 		a, b   string
@@ -76,6 +77,7 @@ func TestAllOfFold_AnEncodedFormatIsJudgedAsByteIsBesideBinary(t *testing.T) {
 		{a: "{type: string, format: binary}", b: "{type: string, format: byte}", winner: bytesB64},
 		{a: "{type: string, format: date-time}", b: "{type: string, format: http-date}", winner: httpDate},
 		{a: "{type: string}", b: "{type: string, format: http-date}", winner: httpDate},
+		{a: "{type: string, format: date-time}", b: "{type: string, format: unixtime}", winner: secondsText},
 		{a: "{type: string, format: binary}", b: "{type: string, format: base64url}", winner: bytesB64URL},
 		{a: "{type: integer}", b: "{type: integer, format: unixtime}", winner: seconds},
 		{a: "{type: number}", b: "{type: integer, format: unixtime}", winner: seconds},
@@ -86,6 +88,8 @@ func TestAllOfFold_AnEncodedFormatIsJudgedAsByteIsBesideBinary(t *testing.T) {
 		{a: "{type: string}", b: "{type: integer, format: unixtime}", code: diag.ConflictingRedecl},
 		{a: "{type: string, format: date-time}", b: "{type: integer, format: unixtime}", code: diag.ConflictingRedecl},
 		{a: "{type: string, format: date}", b: "{type: string, format: http-date}", code: diag.ConflictingRedecl},
+		{a: "{type: string, format: time}", b: "{type: string, format: http-date}", code: diag.ConflictingRedecl},
+		{a: "{type: string, format: uuid}", b: "{type: string, format: unixtime}", code: diag.ConflictingRedecl},
 	} {
 		t.Run(tc.a+" beside "+tc.b, func(t *testing.T) {
 			t.Parallel()
