@@ -36,6 +36,7 @@ func TestFlattenedProperties_AgreesWithAnOrderFreeReading(t *testing.T) {
 			requireDeclarations(t, doc, root, f, models, what)
 			requireRequirements(t, f, models, what)
 			requireRedactions(t, doc.Types, f, what)
+			requireDeprecations(t, f, what)
 			assert.ElementsMatch(t, slices.Collect(maps.Keys(unflattened)), f.Unflattened, "%s: unflattened", what)
 			requireOverrides(t, doc.Types, f, what)
 		}
@@ -121,6 +122,29 @@ func requireRedactions(t *testing.T, types ir.TypeRegistry, f ir.Flattening, wha
 		}
 		assert.Equal(t, want, fp.Secret, "%s: %q is redacted where a declaration asks for it", what,
 			fp.Property.EffectiveWireName())
+	}
+}
+
+// requireDeprecations holds each member's Deprecation to its declarations:
+// one where any of them states one, and the taken one's where it does.
+func requireDeprecations(t *testing.T, f ir.Flattening, what string) {
+	t.Helper()
+	for _, fp := range f.Properties {
+		var stated []*ir.Deprecation
+		for _, d := range append([]ir.PropertyDecl{fp.PropertyDecl}, fp.Overridden...) {
+			if d.Property.Deprecation != nil {
+				stated = append(stated, d.Property.Deprecation)
+			}
+		}
+		wire := fp.Property.EffectiveWireName()
+		if len(stated) == 0 {
+			assert.Nil(t, fp.Deprecation, "%s: %q is deprecated by no declaration", what, wire)
+			continue
+		}
+		require.NotNil(t, fp.Deprecation, "%s: %q is deprecated where a declaration says so", what, wire)
+		if fp.Property.Deprecation != nil {
+			assert.Same(t, fp.Property.Deprecation, fp.Deprecation, "%s: %q carries the taken declaration's", what, wire)
+		}
 	}
 }
 

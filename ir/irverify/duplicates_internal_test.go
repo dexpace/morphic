@@ -325,6 +325,7 @@ var identityClasses = map[string]string{
 	"MsgDirection":    "send/receive perspective, not an identity",
 	"UnmodeledReason": "why an Unmodeled entry was kept, not an identity",
 	"Severity":        "diagnostic severity, not an identity",
+	"Undistributed":   "why ir.NarrowedShapes lists no shape of a model narrowing a union, not an identity",
 	"treeClass":       "which kind of node of the service tree an ir.Editor holds, its own state and not an identity",
 }
 
