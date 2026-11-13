@@ -64,11 +64,12 @@ func (p Promoter) Sources(target ExtensionTarget) []ExtensionSource {
 	return p.targets[target]
 }
 
-// PageStatement reads what src, a source of the pagination target target, says
-// on the node keeping unmodeled: the expression its value spells where it
-// lists no Values, and whether its value is one of them where it does. A value
-// of neither form is reported as every target reports a misfit.
-func (p Promoter) PageStatement(target ExtensionTarget, src ExtensionSource, unmodeled ir.Unmodeled) (PageStatement, []ir.Diagnostic) {
+// PageStatementOf reads what src, a source p reads the pagination target
+// target from, says on the node keeping unmodeled: the expression its value
+// spells where it lists no Values, and whether its value is one of them where
+// it does. A value of neither form is reported as every target reports a
+// misfit.
+func PageStatementOf(p Promoter, target ExtensionTarget, src ExtensionSource, unmodeled ir.Unmodeled) (PageStatement, []ir.Diagnostic) {
 	one := []ExtensionSource{src}
 	if len(src.Values) > 0 {
 		_, at, marked, diags := firstStatedAt(unmodeled, one, reading[bool]{

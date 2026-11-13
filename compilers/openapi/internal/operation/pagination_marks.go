@@ -33,7 +33,7 @@ type marker struct {
 // marks returns the provenance of the node keeping unmodeled when src marks
 // it.
 func (m *marker) marks(unmodeled ir.Unmodeled, keeper *ir.Provenance) (*ir.Provenance, bool) {
-	st, diags := m.pg.p.PageStatement(m.target, m.src, unmodeled)
+	st, diags := lowering.PageStatementOf(m.pg.p, m.target, m.src, unmodeled)
 	m.diags = append(m.diags, diags...)
 	return keeper, st.Stated
 }

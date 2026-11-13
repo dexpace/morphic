@@ -64,7 +64,7 @@ func (pg *pager) input(op *ir.Operation, target lowering.ExtensionTarget) (*ir.I
 		if len(src.Values) > 0 {
 			return pg.markedInput(op, target, src)
 		}
-		st, diags := pg.p.PageStatement(target, src, op.Unmodeled)
+		st, diags := lowering.PageStatementOf(pg.p, target, src, op.Unmodeled)
 		r := resolved[*ir.InputPath]{at: st.At, stated: st.Stated, read: []*ir.Provenance{&op.Provenance}}
 		if !st.Stated {
 			return r, "", diags
@@ -81,7 +81,7 @@ func (pg *pager) output(op *ir.Operation, target lowering.ExtensionTarget) (*ir.
 		if len(src.Values) > 0 {
 			return pg.markedOutput(op, target, src)
 		}
-		st, diags := pg.p.PageStatement(target, src, op.Unmodeled)
+		st, diags := lowering.PageStatementOf(pg.p, target, src, op.Unmodeled)
 		r := resolved[*ir.PropPath]{at: st.At, stated: st.Stated, read: []*ir.Provenance{&op.Provenance}}
 		if !st.Stated {
 			return r, "", diags

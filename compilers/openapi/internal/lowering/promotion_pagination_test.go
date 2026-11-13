@@ -13,11 +13,11 @@ import (
 	"github.com/dexpace/morphic/ir"
 )
 
-// TestPromoterPageStatement_ReadsAnExpressionOrAMark pins the two ways a source
+// TestPageStatementOf_ReadsAnExpressionOrAMark pins the two ways a source
 // of a pagination target speaks: one listing no values holds an expression as
 // text, and one listing values marks the node it sits on where its value is
 // one of them. Neither resolves anything here; the operation's walk does.
-func TestPromoterPageStatement_ReadsAnExpressionOrAMark(t *testing.T) {
+func TestPageStatementOf_ReadsAnExpressionOrAMark(t *testing.T) {
 	t.Parallel()
 	expression := lowering.ExtensionSource{Key: "x-page", Member: "cursor"}
 	mark := lowering.ExtensionSource{Key: "x-role", Member: "purpose", Values: []string{"cursor"}}
@@ -41,7 +41,7 @@ func TestPromoterPageStatement_ReadsAnExpressionOrAMark(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			entries := ir.Unmodeled{"openapi:" + tc.src.Key: vendorExtension(tc.value)}
-			got, diags := p.PageStatement(lowering.TargetPaginationCursor, tc.src, entries)
+			got, diags := lowering.PageStatementOf(p, lowering.TargetPaginationCursor, tc.src, entries)
 			assert.Equal(t, tc.want.Expression, got.Expression)
 			assert.Equal(t, tc.want.Stated, got.Stated)
 			require.Equal(t, tc.reported, len(diags) == 1, "reports: %+v", diags)

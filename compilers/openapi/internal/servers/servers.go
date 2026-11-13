@@ -142,7 +142,7 @@ func lowerServer(c lowering.Ctx, s *soa.Server, id ir.ServerID, sptr jsontext.Po
 		return out, diags
 	}
 	// Only a name the document declares nowhere else is a key's to give.
-	name, promoted := c.Promoter().ServerName(out.Unmodeled, &out.Provenance)
+	name, promoted := lowering.ServerName(c.Promoter(), out.Unmodeled, &out.Provenance)
 	if name != "" {
 		out.Name = ir.NamingFor(name)
 	}

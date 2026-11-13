@@ -4621,9 +4621,9 @@ the node's own keys alone, never lent by a `$ref`'s target, whose class is anoth
   `lowering.TestGroupingExtension_KeysAreWhatGroupingReads`,
   `e2e.TestPromotion_AnOwnedPrefixIsJudgedAtEveryNode`,
   `e2e.TestPromotion_AnOwnedPrefixCountsEveryGroupingKeyRead`,
-  `lowering.TestPromoterServerName_ReadsTheDefaultKey`,
-  `lowering.TestPromoterTokenEndpointAuthMethods_ReadsASet`,
-  `lowering.TestPromoterAllowReserved_OnlyTrueAsksForIt`,
+  `lowering.TestServerName_ReadsTheDefaultKey`,
+  `lowering.TestTokenEndpointAuthMethods_ReadsASet`,
+  `lowering.TestAllowReserved_OnlyTrueAsksForIt`,
   `operation.TestLowerParameter_AKeyAsksForReservedExpansion`,
   `servers.TestLowerServer_AKeyNamesAServerTheDocumentNamesNot`,
   `auth.TestLowerSecuritySchemes_AMappedKeyStatesTheTokenEndpointsAuthentication`,
@@ -4631,10 +4631,10 @@ the node's own keys alone, never lent by a `$ref`'s target, whose class is anoth
   `openapi.TestCompile_RefusesAPromotionPolicyItCannotRead`,
   `openapi.TestDecodeOptions_TextReachesEveryField`,
   `lowering.TestPromoterDeprecation_KeyStatesIt`,
-  `lowering.TestPromoterStability_ReadsEachWord`,
+  `lowering.TestStability_ReadsEachWord`,
   `lowering.TestPromoterRedaction_OnlyTrueWrites`,
-  `lowering.TestPromoterEnumOpenness_WritesNothing`,
-  `lowering.TestPromoterUnionOpenness_OpensOnAMappedKey`,
+  `lowering.TestEnumOpenness_WritesNothing`,
+  `lowering.TestUnionOpenness_OpensOnAMappedKey`,
   `e2e.TestPromotion_AMappedKeyOpensAUnion`,
   `e2e.TestPromotion_AMixedEnumsUnionReadsTheEnumTargetAlone`,
   `lowering.TestPromoter_ReadsSourcesInPolicyOrder`,
@@ -4720,7 +4720,7 @@ not read.
   `operation.TestPromotePagination_ReadsNothingOffPolicy`,
   `lowering.TestOperations_ReadsEveryGroupToTheCap`,
   `operation.TestMarker_AUseOfATypeTheRegistryLacksMarksNothing`,
-  `lowering.TestPromoterPageStatement_ReadsAnExpressionOrAMark`
+  `lowering.TestPageStatementOf_ReadsAnExpressionOrAMark`
 
 ### `pagination-policy`
 

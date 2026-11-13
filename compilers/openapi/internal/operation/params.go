@@ -91,7 +91,7 @@ func lowerParameter(c lowering.Ctx, w walk, id ir.ParamID, p *soa.Parameter, ppt
 		return param, binding, diags
 	}
 	// Read once the keys are kept, and only where the parameter decides nothing.
-	reserved, promoted := c.Promoter().AllowReserved(param.Unmodeled, &param.Provenance)
+	reserved, promoted := lowering.AllowReserved(c.Promoter(), param.Unmodeled, &param.Provenance)
 	binding.AllowReserved = reserved
 	return param, binding, append(diags, promoted...)
 }

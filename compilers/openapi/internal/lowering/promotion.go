@@ -223,7 +223,8 @@ const paginationProperty = "x-stainless-pagination-property"
 
 // Promoter reads preserved vendor extensions into typed fields, by a policy
 // fixed when it is built. Its zero value is the disabled policy, and reads
-// nothing.
+// nothing. A reader of one target, such as ServerName, is a function over its
+// Sources.
 //
 // Every read takes the node's Unmodeled entries rather than the source node,
 // which is what makes "the extension survives its own promotion" structural
@@ -443,16 +444,18 @@ func deprecationMembers(dep *ir.Deprecation) [4]deprecationMember {
 	}
 }
 
-// Stability fills tier from the vendor extensions kept in unmodeled, and marks
-// prov with the heuristic when it does.
-func (p Promoter) Stability(unmodeled ir.Unmodeled, tier *ir.Stability, prov *ir.Provenance) []ir.Diagnostic {
+// Stability fills tier from the vendor extensions kept in unmodeled, by p's
+// sources of TargetStability, and marks prov with the heuristic when it does.
+func Stability(p Promoter, unmodeled ir.Unmodeled, tier *ir.Stability, prov *ir.Provenance) []ir.Diagnostic {
 	if tier == nil || prov == nil {
 		return nil
 	}
-	stated, found, diags := firstStated(unmodeled, p.targets[TargetStability], reading[ir.Stability]{
+	stated, found, diags := firstStated(unmodeled, p.Sources(TargetStability), reading[ir.Stability]{
 		target: TargetStability,
 		want:   "names no stability tier",
-		read:   p.readStability,
+		read: func(src ExtensionSource, raw ir.RawValue) (ir.Stability, statement) {
+			return readStability(p, src, raw)
+		},
 	})
 	if found {
 		*tier = stated
@@ -477,8 +480,8 @@ func (p Promoter) Redaction(own ir.Unmodeled, from Referent, redact *bool, prov 
 }
 
 // EnumOpenness clears *closed, an enum's or that of the union a mixed enum
-// lowers to, when the vendor extensions kept in unmodeled state the set open,
-// and marks prov with the heuristic when they do.
+// lowers to, when the vendor extensions kept in unmodeled state the set open by
+// p's sources of TargetEnumOpen, and marks prov with the heuristic when they do.
 //
 // The key's presence is the statement, so every value shape but an explicit
 // `false` reads as open (extensionOpenness).
@@ -487,27 +490,28 @@ func (p Promoter) Redaction(own ir.Unmodeled, from Referent, redact *bool, prov 
 // so there is nothing to open. Minting an enum from a member-list extension is
 // out of scope; the entry survives verbatim for a consumer that wants it
 // (GitHub #427).
-func (p Promoter) EnumOpenness(unmodeled ir.Unmodeled, closed *bool, prov *ir.Provenance) []ir.Diagnostic {
+func EnumOpenness(p Promoter, unmodeled ir.Unmodeled, closed *bool, prov *ir.Provenance) []ir.Diagnostic {
 	if closed == nil || prov == nil {
 		return nil
 	}
-	return p.openness(unmodeled, TargetEnumOpen, closed, prov)
+	return openness(p, unmodeled, TargetEnumOpen, closed, prov)
 }
 
 // UnionOpenness clears *closed, that of a union a oneOf or anyOf lowers to,
-// when the vendor extensions kept in unmodeled state the union open, and marks
-// prov with the heuristic when they do, as EnumOpenness opens an enum.
-func (p Promoter) UnionOpenness(unmodeled ir.Unmodeled, closed *bool, prov *ir.Provenance) []ir.Diagnostic {
+// when the vendor extensions kept in unmodeled state the union open by p's
+// sources of TargetUnionOpen, and marks prov with the heuristic when they do,
+// as EnumOpenness opens an enum.
+func UnionOpenness(p Promoter, unmodeled ir.Unmodeled, closed *bool, prov *ir.Provenance) []ir.Diagnostic {
 	if closed == nil || prov == nil {
 		return nil
 	}
-	return p.openness(unmodeled, TargetUnionOpen, closed, prov)
+	return openness(p, unmodeled, TargetUnionOpen, closed, prov)
 }
 
-// openness clears *closed and marks prov when a source of target in unmodeled
-// states openness (extensionOpenness).
-func (p Promoter) openness(unmodeled ir.Unmodeled, target ExtensionTarget, closed *bool, prov *ir.Provenance) []ir.Diagnostic {
-	open, _, diags := firstStated(unmodeled, p.targets[target], reading[bool]{
+// openness clears *closed and marks prov when a source p reads target from
+// states openness in unmodeled (extensionOpenness).
+func openness(p Promoter, unmodeled ir.Unmodeled, target ExtensionTarget, closed *bool, prov *ir.Provenance) []ir.Diagnostic {
+	open, _, diags := firstStated(unmodeled, p.Sources(target), reading[bool]{
 		target: target,
 		read: func(src ExtensionSource, raw ir.RawValue) (bool, statement) {
 			if len(src.Values) > 0 {
@@ -657,7 +661,7 @@ func firstStatedAt[T comparable](unmodeled ir.Unmodeled, sources []ExtensionSour
 // statement, and what it reports is its report. Answering those here too would
 // report one defect twice, or call a word misread that was read. Any other
 // value, and any value on a key only this target reads, is a misfit.
-func (p Promoter) readStability(src ExtensionSource, raw ir.RawValue) (ir.Stability, statement) {
+func readStability(p Promoter, src ExtensionSource, raw ir.RawValue) (ir.Stability, statement) {
 	if text, ok := extensionText(raw); ok {
 		if tier := stabilityTier(text); tier != ir.StabilityUnstated {
 			return tier, states
