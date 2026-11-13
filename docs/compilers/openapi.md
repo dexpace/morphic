@@ -4514,8 +4514,10 @@ its canonical words (`Naming.Canonical`), so `pageSize` and `page_size` are one 
    `continuation_token`, under `token`. It is `InputCursor`, and a query parameter named `per_page`,
    `page_size` or `limit` beside it is `InputLimit`. Each is a value a walk sends or counts with:
    its type, read through alias scalars, is a plain number of any kind or a plain string, the text a
-   number is sent as, and not an enum, a constant or an encoded string, whatever values it holds. A name such as `after`, `marker` or `starting_after`, which names a cursor in one API
-   and a filter or an ID in another, is not read.
+   number is sent as, and not an enum, a constant or an encoded string, whatever values it holds. A
+   `page` sent as a string is read only where its default or an example is a whole number, as some
+   APIs name an opaque page token `page` too. A name such as `after`, `marker` or `starting_after`,
+   which names a cursor in one API and a filter or an ID in another, is not read.
 2. **A page** is the body of each content of each success response, the `Default` aside, and each
    must hold what the walk reads at the same members, as a pager reads whichever arrives. One with
    no body, such as a `204` or a `304`, holds none and is not read, as a pager ends at it as at an
@@ -4545,10 +4547,10 @@ What the policy fills is marked twice: `Pagination.Inferred` is set, and the ope
 walk continues and that the policy cannot settle gets no `Pagination`, never a guess, reported as an
 info `openapi/undecided-pagination` at the operation's declaration naming what stops it: a method
 other than `GET` and `QUERY`, two parameters naming a continuation or a page size, one of a type a
-walk does not send, no success response or none with a body, a body that is neither an object nor a
-list, items or a next cursor it names none or several of, a flag beside the next cursor, or bodies
-holding the page at different members. A path item mounted twice is reported once, at the
-declaration both mounts share.
+walk does not send, a `page` string with no whole number for its default or an example, no success
+response or none with a body, a body that is neither an object nor a list, items or a next cursor it
+names none or several of, a flag beside the next cursor, or bodies holding the page at different
+members. A path item mounted twice is reported once, at the declaration both mounts share.
 
 - Cases: `pagination-inferred`
 - Codes: `openapi/undecided-pagination`

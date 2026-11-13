@@ -45,9 +45,15 @@ func TestInfer_ReadsEachStrategy(t *testing.T) {
 		"a page number beside a page size, in an envelope": {listing(pageParams, envelope),
 			"page cursor=page limit=per_page items=/result next=- count=/result_info/total_count " +
 				"pages=/result_info/total_pages stop=[]"},
-		"a page number written as a string, its items the body whole": {
-			listing(`[{name: page, in: query, schema: {type: string}}]`, stringList),
+		"a page number written as a string defaulting to one, its items the body whole": {
+			listing(`[{name: page, in: query, schema: {type: string, default: "1"}}]`, stringList),
 			"page cursor=page limit=- items=/ next=- count=- pages=- stop=[]"},
+		"a page number written as a string, a number its example": {
+			listing(`[{name: page, in: query, schema: {type: string, example: 2}}]`, stringList),
+			"page cursor=page limit=- items=/ next=- count=- pages=- stop=[]"},
+		"an offset written as a string, which no token is named": {
+			listing(`[{name: offset, in: query, schema: {type: string}}]`, stringList),
+			"offset cursor=offset limit=- items=/ next=- count=- pages=- stop=[]"},
 		"an offset beside a limit, the total camel-cased": {listing(
 			`[{name: offset, in: query, schema: {type: integer, format: int32}},
 			  {name: limit, in: query, schema: {type: number, format: double}}]`,
@@ -132,6 +138,10 @@ func TestInfer_LeavesWhatItCannotSettle(t *testing.T) {
 		"a continuation of no type a walk sends": {
 			listing(`[{name: page, in: query, schema: {type: string, enum: [p, q]}}]`, envelope),
 			`query parameter "page" names where a walk continues, and its type is no plain number or string`},
+		"a page written as a string no number shows it counts": {
+			listing(`[{name: page, in: query, schema: {type: string, default: first, examples: [a1b2, "2.5", true]}}]`, envelope),
+			`query parameter "page" names the page as a string with no whole number for its default or an example, ` +
+				`so it may be a token`},
 		"a page size of no type a walk sends": {
 			listing(`[{name: page, in: query, schema: {type: integer}}, {name: per_page, in: query, schema: {type: boolean}}]`,
 				envelope),
@@ -529,7 +539,7 @@ paths:
 // the declaration both mounts share.
 func TestInfer_ReadsAMountedDeclarationForEachMount(t *testing.T) {
 	t.Parallel()
-	mounted := func(param string) string {
+	mounted := func(param string) string { // param is a flow mapping's name and schema entries
 		return `openapi: 3.1.0
 info: {title: t, version: "1"}
 paths:
@@ -539,12 +549,12 @@ components:
   pathItems:
     Listing:
       get:
-        parameters: [{name: ` + param + `, in: query, schema: {type: string}}]
+        parameters: [{` + param + `, in: query}]
         responses:
           "200": {description: ok, content: {application/json: {schema: ` + envelope + `}}}
 `
 	}
-	doc, _ := compile(t, mounted("page"), openapi.Options{})
+	doc, _ := compile(t, mounted(`name: page, schema: {type: integer}`), openapi.Options{})
 	ops := doc.Services[0].Groups[0].Operations
 	require.Len(t, ops, 2)
 	for _, op := range ops {
@@ -561,7 +571,7 @@ components:
 	assert.Equal(t, items, ops[1].Pagination.Items.Segments[0], "each operation holds its own items path")
 	assert.Equal(t, count, ops[1].Pagination.TotalCount.Segments[0], "and its own total's")
 
-	_, diags := compile(t, mounted("cursor"), openapi.Options{})
+	_, diags := compile(t, mounted(`name: cursor, schema: {type: string}`), openapi.Options{})
 	assert.Equal(t, []string{`no pagination is inferred: the application/json response body holds no member ` +
 		`"next_cursor" or "cursor" of the cursor's type`}, undecided(diags))
 	got, ok := openapitest.FirstDiag(diags, "openapi/undecided-pagination")

@@ -5,6 +5,7 @@ package pagination
 
 import (
 	"fmt"
+	"slices"
 	"strconv"
 
 	"github.com/dexpace/morphic/ir"
@@ -92,6 +93,10 @@ func requestInputs(types ir.TypeRegistry, op *ir.Operation) (in inputs, why stri
 		return inputs{}, notSendable(cursor, "where a walk continues"), true
 	}
 	in = inputs{strategy: roleOf(cursor.Name.Canonical).strategy, cursor: cursor, prim: prim}
+	if in.strategy == ir.PageStrategyPage && prim == ir.PrimString && !numbered(cursor) {
+		return inputs{}, fmt.Sprintf("query parameter %q names the page as a string with no whole number for "+
+			"its default or an example, so it may be a token", cursor.Name.Source), true
+	}
 	if len(limits) == 1 {
 		if _, ok := sendable(types, limits[0].Type.Target); !ok {
 			return inputs{}, notSendable(limits[0], "the page size"), true
@@ -135,6 +140,28 @@ func sendableAs(td ir.TypeDef) (ir.PrimKind, bool) {
 		return k, true
 	}
 	return "", false
+}
+
+// numbered reports whether p's default or an example is a whole number, as
+// its value or its text. A page sent as a string is counted only so, since
+// some APIs name an opaque page token `page` too.
+func numbered(p *ir.Parameter) bool {
+	if p.Default != nil && whole(*p.Default) {
+		return true
+	}
+	return slices.ContainsFunc(p.Examples, func(e ir.Example) bool { return e.Value != nil && whole(*e.Value) })
+}
+
+// whole reports whether v is a whole number, or a string holding one.
+func whole(v ir.Value) bool {
+	text := v.Str
+	if v.Kind == ir.ValueNumber {
+		text = string(v.Num)
+	} else if v.Kind != ir.ValueString {
+		return false
+	}
+	d, err := ir.ParseDecimal(text)
+	return err == nil && d.IsInt()
 }
 
 // notSendable says that p names what a walk sends as what, and is of a type it
