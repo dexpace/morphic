@@ -46,12 +46,10 @@ func updateBomb(levels int) string {
 	return b.String()
 }
 
-// TestLoad_AnOverlayAnchorThatContainsItselfIsRefused pins GitHub #489. The
-// overlay library clones an update by recursing through an alias into what it
-// names, so an anchor naming one of its own ancestors overflows the stack: a
-// fatal error, not a panic, which no barrier in this compiler can turn into a
-// diagnostic. The overlay gets the refusal the source has had since GitHub #12,
-// before the library is handed it.
+// TestLoad_AnOverlayAnchorThatContainsItselfIsRefused pins GitHub #489. An
+// update is copied through each alias into what it names, so an anchor naming
+// one of its own ancestors gives the copy no end. The overlay gets the refusal
+// the source has had since GitHub #12, before any action applies.
 //
 // An anchor on the action list or on an action is why the refusal reads the
 // whole document rather than each update: it sits outside the update that names
@@ -231,7 +229,7 @@ func TestLoad_TheNodeBudgetReadsTheTreeTheOverlayLeaves(t *testing.T) {
 	t.Parallel()
 	src := minimal31 + "x-junk: [" + strings.Repeat("j, ", 200) + "j]\n"
 	ov := "overlay: 1.0.0\ninfo: {title: o, version: \"1\"}\nactions:\n" +
-		"  - target: $.x-junk\n    remove: true\n"
+		"  - target: $['x-junk']\n    remove: true\n"
 
 	bare := Options{MaxSourceNodes: budget.AtMost(100)}
 	doc, diags, err := Load(t.Context(), 0, openapitest.SourceOf(src), bare)

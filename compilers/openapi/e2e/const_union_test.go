@@ -21,11 +21,13 @@ import (
 
 // TestStringConstUnion_NormalizesToItsEnumSpelling holds the union of string
 // values the compiler keeps to the Enum pass.ConstUnions makes of it
-// (docs/compilers/openapi.md#string-const-union): for consts, one-member enums
-// and a union of one value, the one the same values written as an enum lower
-// to, member for member, each holding what its branch says of its value. No
-// branch type is left behind, and a union whose branch holds several values,
-// names a component or keeps a constraint stays.
+// (docs/compilers/openapi.md#string-const-union): for consts, one-member enums,
+// a branch of several values only the union names and a union of one value or
+// of several, the one the same values written as an enum lower to, member for
+// member, each holding what its branch says of its value. No branch type is
+// left behind, and a union whose branch of several values another schema names
+// or says something of them all, names a component or keeps a constraint
+// stays.
 func TestStringConstUnion_NormalizesToItsEnumSpelling(t *testing.T) {
 	t.Parallel()
 	doc, _ := parseCorpus(t, "string-const-union")
@@ -34,13 +36,17 @@ func TestStringConstUnion_NormalizesToItsEnumSpelling(t *testing.T) {
 	spelled := compileComponentSpec(t, openapitest.ComponentSpec(`
     Color: {type: string, enum: [red, green]}
     Level: {type: string, enum: [low, high]}
+    Tier: {type: string, enum: [free, pro, enterprise]}
     Direction: {type: string, enum: [up, down]}
+    Compass: {type: string, enum: [north, south, east]}
 `))
 
 	said := map[string][]ir.EnumMember{
 		"Color":     {{Docs: ir.Docs{Summary: "Red", Description: "The colour red."}}, {Deprecation: &ir.Deprecation{}}},
 		"Level":     {{Docs: ir.Docs{Description: "Low."}}, {}},
+		"Tier":      {{}, {}, {}},
 		"Direction": {{}, {}},
+		"Compass":   {{}, {}, {}},
 	}
 	for name, facts := range said {
 		enum, ok := got.Types[componentID(name)].(*ir.Enum)
@@ -58,11 +64,11 @@ func TestStringConstUnion_NormalizesToItsEnumSpelling(t *testing.T) {
 			"%s keeps the union's provenance", name)
 	}
 
-	for _, kept := range []string{"Tier", "Shade", "Pinned"} {
+	for _, kept := range []string{"Size", "Fit", "Plan", "Shade", "Pinned"} {
 		assert.Same(t, doc.Types[componentID(kept)], got.Types[componentID(kept)], "%s stays", kept)
 	}
 	for id := range got.Types {
-		for _, name := range []string{"Color", "Level", "Direction"} {
+		for _, name := range []string{"Color", "Level", "Tier", "Direction", "Compass"} {
 			assert.False(t, strings.HasPrefix(string(id), string(componentID(name))+"/"),
 				"%s's branch type %s is left behind", name, id)
 		}

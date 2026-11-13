@@ -171,6 +171,12 @@ type loadResult struct {
 	// documents and their bindings, which no lowering changes, so what one copy
 	// remembers is what another would read.
 	readings map[any]any
+	// settled holds each store Settled built, by its type (store). Copies share
+	// it on purpose, so every settlement of a run reads one store. Unlike an
+	// answer in readings, what a store holds reads the registry, so it would
+	// change a later settlement's answer were a settlement between the two to
+	// rewrite what it read (Settled).
+	settled map[any]any
 }
 
 // ScopedPosition is a position as a context reads it: with the scope it is read
@@ -226,7 +232,7 @@ func New(srcIndex int, doc *load.Document, p Policy) Ctx {
 		loaded: &loadResult{siblings: doc.Siblings, media: doc.MediaTypes, others: doc.Others, rows: doc.Rows,
 			dialects: doc.Dialects, names: naming.New(doc.Bindings.Table()),
 			reads: resolve.Scope{Holds: doc.Holds, Beside: doc.Siblings.Beside, Writes: doc.Siblings.Writes,
-				Bindings: doc.Bindings}, readings: map[any]any{}},
+				Bindings: doc.Bindings}, readings: map[any]any{}, settled: map[any]any{}},
 		reached:   resolve.NewReached(),
 		expansion: newExpansion(p.Limits.MaxReferenceExpansion),
 	}
@@ -310,6 +316,28 @@ func Remembered[K comparable, V any](c Ctx, key K, read func() V) V {
 // memo is what the map of Remembered's answers of type V, to keys of type K, is
 // kept under. It holds nothing, so it is boxed without allocating.
 type memo[K comparable, V any] struct{}
+
+// Settled returns the run's store of type S, which build makes on the first
+// ask of any copy of c, for what settlements (compile.Settlement) read of the
+// registry. Remembered may not keep such a reading, as it reads what the
+// settlements before it left: it is sound only while no settlement after it
+// rewrites what it read. The run takes every completion
+// (compile.Types.Complete) before any deferred settlement, so a store only
+// deferred settlements fill is sound where only completions rewrite what it
+// reads. S's documentation names them, and each reports a store it finds
+// filled.
+func Settled[S any](c Ctx, build func() *S) *S {
+	if s, ok := c.loaded.settled[store[S]{}].(*S); ok {
+		return s
+	}
+	s := build()
+	c.loaded.settled[store[S]{}] = s
+	return s
+}
+
+// store is what Settled keeps the store of type S under. It holds nothing, so
+// it is boxed without allocating.
+type store[S any] struct{}
 
 // Siblings returns the fields the load phase modelled beside the document's
 // path item $refs (see New). A load.Siblings only answers questions, so
