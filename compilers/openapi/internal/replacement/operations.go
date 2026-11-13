@@ -15,7 +15,7 @@ import (
 // included to ir.MaxGroupDepth, of its parameters, and of the headers its
 // responses and its bodies' encodings declare.
 func (r *resolver) service(svc *ir.Service) []ir.Diagnostic {
-	ops := operations(svc)
+	ops := lowering.Operations(svc)
 	byName := map[string][]ir.OpID{}
 	for _, op := range ops {
 		if name := op.Name.Source; name != "" {
@@ -87,30 +87,4 @@ func (r *resolver) params(op *ir.Operation) []ir.Diagnostic {
 		diags = append(diags, r.fill(p.Unmodeled, p.Deprecation, &p.Provenance, ir.EntityRef{Param: p.ID}, "parameter", param)...)
 	}
 	return diags
-}
-
-// operations returns every operation svc holds, nested groups included, to
-// ir.MaxGroupDepth.
-func operations(svc *ir.Service) []*ir.Operation {
-	type level struct {
-		groups []ir.OperationGroup
-		depth  int
-	}
-	var ops []*ir.Operation
-	stack := []level{{groups: svc.Groups}}
-	for len(stack) > 0 {
-		top := stack[len(stack)-1]
-		stack = stack[:len(stack)-1]
-		if top.depth > ir.MaxGroupDepth {
-			continue
-		}
-		for gi := range top.groups {
-			g := &top.groups[gi]
-			for oi := range g.Operations {
-				ops = append(ops, &g.Operations[oi])
-			}
-			stack = append(stack, level{groups: g.Groups, depth: top.depth + 1})
-		}
-	}
-	return ops
 }

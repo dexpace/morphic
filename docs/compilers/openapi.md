@@ -4613,7 +4613,7 @@ not read.
   `operation.TestPromotePagination_ReportsWhatFillsNone`,
   `operation.TestPromotePagination_ReadsEverySuccessResponse`,
   `operation.TestPromotePagination_ReadsNothingOffPolicy`,
-  `operation.TestOperationsOf_ReadsInOrderToTheGroupDepthBound`,
+  `lowering.TestOperations_ReadsEveryGroupToTheCap`,
   `operation.TestMarker_AUseOfATypeTheRegistryLacksMarksNothing`,
   `lowering.TestPromoterPageStatement_ReadsAnExpressionOrAMark`
 

@@ -41,41 +41,12 @@ func PromotePagination(c lowering.Ctx, svc *ir.Service, reg ir.TypeRegistry) []i
 		return nil
 	}
 	var diags []ir.Diagnostic
-	for _, op := range operationsOf(svc) {
+	for _, op := range lowering.Operations(svc) {
 		if op.Pagination == nil {
 			diags = append(diags, pg.operation(op)...)
 		}
 	}
 	return diags
-}
-
-// operationsOf returns every operation svc holds, nested groups included to
-// ir.MaxGroupDepth, in declaration order, each group's own before those it
-// nests.
-func operationsOf(svc *ir.Service) []*ir.Operation {
-	type level struct {
-		group *ir.OperationGroup
-		depth int
-	}
-	var out []*ir.Operation
-	stack := make([]level, 0, len(svc.Groups))
-	for i := len(svc.Groups) - 1; i >= 0; i-- {
-		stack = append(stack, level{group: &svc.Groups[i]})
-	}
-	for len(stack) > 0 {
-		top := stack[len(stack)-1]
-		stack = stack[:len(stack)-1]
-		if top.depth > ir.MaxGroupDepth {
-			continue
-		}
-		for i := range top.group.Operations {
-			out = append(out, &top.group.Operations[i])
-		}
-		for i := len(top.group.Groups) - 1; i >= 0; i-- {
-			stack = append(stack, level{group: &top.group.Groups[i], depth: top.depth + 1})
-		}
-	}
-	return out
 }
 
 // pager is what one PromotePagination reads its operations against. flat holds
