@@ -743,7 +743,7 @@ func TestCompile_AnAbsolutePathInANetworkDocumentNamesItsHost(t *testing.T) {
 	assert.Contains(t, doc.Types, pet, "the schema the absolute path names, read from the host")
 	ops := doc.Services[0].Groups[0].Operations
 	require.Len(t, ops, 1)
-	var names []string
+	names := make([]string, 0, len(ops[0].Params))
 	for _, p := range ops[0].Params {
 		names = append(names, p.Name.Source)
 	}
@@ -769,10 +769,10 @@ func TestCompile_ANetworkDocumentReadsNoLocalFile(t *testing.T) {
 	}))
 	t.Cleanup(other.Close)
 	otherHost := strings.TrimPrefix(other.URL, "http://")
-	below := func(ids ...string) string {
+	below := func(keywords ...string) string {
 		s := "{$ref: 'secret.yaml#/X'}"
-		for i := len(ids) - 1; i >= 0; i-- {
-			s = "{" + ids[i] + ", properties: {p: " + s + "}}"
+		for _, k := range slices.Backward(keywords) {
+			s = "{" + k + ", properties: {p: " + s + "}}"
 		}
 		return s
 	}

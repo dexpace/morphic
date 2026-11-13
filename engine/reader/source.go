@@ -47,11 +47,10 @@ func specLocation(path string, absolute func(string) (string, error)) (string, e
 	if err != nil {
 		return "", err
 	}
-	dir, err := filepath.EvalSymlinks(filepath.Dir(abs))
-	if err != nil {
-		return abs, nil
+	if dir, err := filepath.EvalSymlinks(filepath.Dir(abs)); err == nil {
+		return filepath.Join(dir, filepath.Base(abs)), nil
 	}
-	return filepath.Join(dir, filepath.Base(abs)), nil
+	return abs, nil
 }
 
 // readSource is ReadSource over fsys.
