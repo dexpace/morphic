@@ -401,12 +401,12 @@ func unionMembers(node func(ir.TypeID) (ir.TypeDef, bool), union *ir.Union) (mem
 
 // memberFlags reads the structural flags of a part from its type: multi when
 // it is a list or tuple, file when it is bytes, following the alias scalars a
-// hoisted position or `format: byte` puts over the primitive but not bytes
-// another format writes as text (encodedAsText), or, in a multipart body, a
-// list or tuple whose every element is raw bytes (rawBytes, rawTuple). A part's
-// own `format: byte` and a form body's bytes still read as files (GitHub
-// #1214). decided reports that the walk judged the type, false for a kind it
-// cannot judge. The walk is bounded by maxBodyAliasHops.
+// hoisted position or `format: byte` puts over the primitive, or, in a
+// multipart body, a list or tuple whose every element is raw bytes (rawBytes,
+// rawTuple). A part's own `format: byte` and a form body's bytes still read as
+// files (GitHub #1214). decided reports that the walk judged the type; false
+// means the type is a kind it cannot answer for. The walk is bounded by
+// maxBodyAliasHops.
 func memberFlags(node func(ir.TypeID) (ir.TypeDef, bool), ref ir.TypeRef, multipart bool) (multi, file, decided bool) {
 	id := ref.Target
 	for range maxBodyAliasHops {
