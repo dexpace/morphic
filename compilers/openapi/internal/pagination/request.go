@@ -60,10 +60,18 @@ func (in inputs) readsNextCursor() bool {
 // one of a type a walk cannot send.
 func requestInputs(types ir.TypeRegistry, op *ir.Operation) (in inputs, why string, named bool) {
 	var continuations, limits []*ir.Parameter
+	var query map[ir.ParamID]bool // read at the first parameter giving a role
 	for i := range op.Params {
 		p := &op.Params[i]
-		switch r := roleOf(p.Name.Canonical); {
-		case r == (role{}) || !boundInQuery(op, p.ID):
+		r := roleOf(p.Name.Canonical)
+		if r == (role{}) {
+			continue
+		}
+		if query == nil {
+			query = queryBound(op)
+		}
+		switch {
+		case !query[p.ID]:
 		case r.limit:
 			limits = append(limits, p)
 		default:
@@ -93,17 +101,19 @@ func requestInputs(types ir.TypeRegistry, op *ir.Operation) (in inputs, why stri
 	return in, "", true
 }
 
-// boundInQuery reports whether an HTTP binding of op places the parameter id
-// in the query.
-func boundInQuery(op *ir.Operation, id ir.ParamID) bool {
+// queryBound returns the parameters op's HTTP bindings place in the query,
+// read in one pass, so an operation naming many walk inputs costs its
+// parameters and bindings once each rather than their product.
+func queryBound(op *ir.Operation) map[ir.ParamID]bool {
+	query := map[ir.ParamID]bool{}
 	for _, b := range op.Bindings.HTTP {
 		for _, pb := range b.ParamBindings {
-			if pb.Param == id && pb.Location == ir.HTTPLocationQuery {
-				return true
+			if pb.Location == ir.HTTPLocationQuery {
+				query[pb.Param] = true
 			}
 		}
 	}
-	return false
+	return query
 }
 
 // sendable returns the primitive the type id stands for, read through alias
