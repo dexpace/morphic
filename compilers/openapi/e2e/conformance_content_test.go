@@ -318,6 +318,7 @@ func assertSequentialMedia(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 	require.True(t, ok)
 	c := firstContent(t, events)
 	require.NotNil(t, c.Item, "itemSchema becomes the element type")
+	assert.Equal(t, &ir.ContentStream{}, c.Stream, "and declares the content a stream, no heuristic marking it")
 	require.NotNil(t, c.ItemEncoding, "an encoding governing every item lowers structurally")
 	assert.Equal(t, []string{"application/json"}, c.ItemEncoding.ContentTypes)
 	assert.True(t, c.ItemEncoding.Multi, "the construct describes a repeated tail")

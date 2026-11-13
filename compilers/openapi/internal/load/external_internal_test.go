@@ -147,7 +147,7 @@ func TestExternal_PrepareRefusesBytesThatDoNotParse(t *testing.T) {
 	doc := &soa.OpenAPI{}
 	read := newExternalReads(sourceDocument{}, budget.Unbounded())
 
-	data, err := newExternal(t.Context(), doc, Options{}, read).prepare(t.Context(), "k", []byte("a: [\n"))
+	data, err := newExternal(t.Context(), doc, Options{}, read).prepare(t.Context(), "k", "k", []byte("a: [\n"))
 
 	var unparsable *bind.UnparsableError
 	require.ErrorAs(t, err, &unparsable)
@@ -177,7 +177,7 @@ func TestExternal_PrepareRefusesADocumentHoldingNothing(t *testing.T) {
 			doc := &soa.OpenAPI{}
 			read := newExternalReads(sourceDocument{}, budget.Unbounded())
 
-			_, err := newExternal(t.Context(), doc, Options{}, read).prepare(t.Context(), "k", []byte(tc.body))
+			_, err := newExternal(t.Context(), doc, Options{}, read).prepare(t.Context(), "k", "k", []byte(tc.body))
 
 			_, recorded := read.preparedFor("k")
 			if !tc.empty {
@@ -474,7 +474,7 @@ func TestNewExternal_InitializesTheCacheOnAZeroDocument(t *testing.T) {
 	e := newExternal(t.Context(), doc, Options{}, newExternalReads(sourceDocument{}, budget.Unbounded()))
 
 	require.NotPanics(t, func() {
-		_, err := e.prepare(t.Context(), "k", []byte("a: 1\n"))
+		_, err := e.prepare(t.Context(), "k", "k", []byte("a: 1\n"))
 		require.NoError(t, err)
 	})
 	_, ok := doc.GetCachedExternalDocument("k")
@@ -572,4 +572,29 @@ func TestExternal_OpenHoldsTheSourceItIsAskedFor(t *testing.T) {
 	r, ok := doc.Components.Responses.Get("R")
 	require.True(t, ok)
 	assert.Same(t, r, held, "the source's own object, a response being no reference")
+}
+
+// TestExternal_DoHoldsTheSourceAFileURINames pins what Do does with a file URI
+// naming the source, a spelling no scan found: as Open does with a path, it
+// holds the source under it and serves an empty body, which the resolver reads
+// none of, its tree being held, so no file is read, here none being on disk.
+func TestExternal_DoHoldsTheSourceAFileURINames(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	doc, pass := heldResolution(t, backRoot(backPath("/a", "#/components/responses/R")), filepath.Join(dir, "root.yaml"))
+	spelled := "file://" + filepath.ToSlash(dir) + "/x/../root.yaml"
+	req, err := http.NewRequest(http.MethodGet, spelled, nil)
+	require.NoError(t, err)
+
+	resp, err := pass.reader.Do(req)
+
+	require.NoError(t, err, "no root.yaml is on disk, and none is read")
+	data, err := io.ReadAll(resp.Body)
+	require.NoError(t, err)
+	require.NoError(t, resp.Body.Close())
+	assert.Empty(t, data)
+	tree, ok := doc.GetCachedExternalDocument(req.URL.String())
+	require.True(t, ok)
+	assert.Same(t, pass.reader.read.self.root, tree)
+	assert.Empty(t, pass.reader.read.answers, "nothing was read")
 }
