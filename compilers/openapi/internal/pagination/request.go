@@ -138,9 +138,10 @@ func sendableAs(td ir.TypeDef) (ir.PrimKind, bool) {
 }
 
 // notSendable says that p names what a walk sends as what, and is of a type it
-// cannot send.
+// cannot send: not a plain number or string, as an enum, a constant or an
+// encoded string is not, whatever values it holds.
 func notSendable(p *ir.Parameter, what string) string {
-	return fmt.Sprintf("query parameter %q names %s, and its type is no number or string", p.Name.Source, what)
+	return fmt.Sprintf("query parameter %q names %s, and its type is no plain number or string", p.Name.Source, what)
 }
 
 // quoted lists the parameters' names, two or more, as listed does.

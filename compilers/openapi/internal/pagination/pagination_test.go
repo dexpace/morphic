@@ -131,11 +131,11 @@ func TestInfer_LeavesWhatItCannotSettle(t *testing.T) {
 			`query parameters "limit" and "per_page" each name the page size`},
 		"a continuation of no type a walk sends": {
 			listing(`[{name: page, in: query, schema: {type: string, enum: [p, q]}}]`, envelope),
-			`query parameter "page" names where a walk continues, and its type is no number or string`},
+			`query parameter "page" names where a walk continues, and its type is no plain number or string`},
 		"a page size of no type a walk sends": {
 			listing(`[{name: page, in: query, schema: {type: integer}}, {name: per_page, in: query, schema: {type: boolean}}]`,
 				envelope),
-			`query parameter "per_page" names the page size, and its type is no number or string`},
+			`query parameter "per_page" names the page size, and its type is no plain number or string`},
 		"a body neither an object nor a list": {listing(pageOnly, `{oneOf: [`+envelope+`, {type: string}]}`),
 			`the application/json response body is neither an object nor a list`},
 		"a list body for a cursor walk": {listing(cursorParams, stringList),

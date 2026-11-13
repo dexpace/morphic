@@ -4513,8 +4513,8 @@ its canonical words (`Naming.Canonical`), so `pageSize` and `page_size` are one 
    strategy; `offset`, under `offset`; `cursor`, under `cursor`; or `page_token`, `next_token` or
    `continuation_token`, under `token`. It is `InputCursor`, and a query parameter named `per_page`,
    `page_size` or `limit` beside it is `InputLimit`. Each is a value a walk sends or counts with:
-   its type, read through alias scalars, is a number of any kind or a string, the text a number is
-   sent as. A name such as `after`, `marker` or `starting_after`, which names a cursor in one API
+   its type, read through alias scalars, is a plain number of any kind or a plain string, the text a
+   number is sent as, and not an enum, a constant or an encoded string, whatever values it holds. A name such as `after`, `marker` or `starting_after`, which names a cursor in one API
    and a filter or an ID in another, is not read.
 2. **A page** is the body of each content of each success response, the `Default` aside, and each
    must hold what the walk reads at the same members, as a pager reads whichever arrives. One with
