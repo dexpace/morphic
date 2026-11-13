@@ -10,26 +10,17 @@ import (
 )
 
 // Target returns where the lowering places what the $ref at js names, as the
-// compiler resolved it (placed). ok is false for a $ref that lands on no
-// schema, and one on a loop of $refs, which lands nowhere a type can be read.
+// compiler resolved it: the position its hop lands on (bind.Hop.Target), read
+// through each reference its pointer passes, so a schema reached through an
+// alias is placed where it is declared. ok is false for a $ref that lands on
+// no schema, and one on a loop of $refs, which lands nowhere a type can be
+// read.
 func (s Scope) Target(js *oas3.JSONSchema[oas3.Referenceable]) (bind.Position, bool) {
 	e, ok := s.Bindings.Entry(js)
 	if !ok || e.Hop.Status != bind.Resolved || e.Chain.Member {
 		return bind.Position{}, false
 	}
-	return placed(e.Hop), true
-}
-
-// placed is where the lowering places what h, a hop that resolved, names. In
-// the source it is the pointer h spells there (bind.Hop.Spelled): a
-// "#/$defs/..." pointer's definition, read by the $defs rule, or the position
-// any other names from the source's root. Elsewhere it is the position h lands
-// on, which that document declares.
-func placed(h bind.Hop) bind.Position {
-	if h.Named && h.Target.Doc == bind.Source {
-		return bind.Position{Doc: bind.Source, Pointer: h.Spelled}
-	}
-	return h.Target
+	return e.Hop.Target, true
 }
 
 // MappingTarget returns where the lowering places what the mapping value of
@@ -42,5 +33,5 @@ func (s Scope) MappingTarget(d *oas3.Discriminator, value string,
 	if !ok || m.Hop.Status != bind.Resolved {
 		return bind.Position{}, nil, false
 	}
-	return placed(m.Hop), s.Bindings.At(m.Hop.Target), true
+	return m.Hop.Target, s.Bindings.At(m.Hop.Target), true
 }
