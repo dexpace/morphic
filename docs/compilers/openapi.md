@@ -3130,9 +3130,12 @@ any node, carrier or `allOf` branch, reaches no field and is kept verbatim under
 a branch it parts no other ([`allof-inline-residue`](#allof-inline-residue)). Where several writers
 of one position, its schema and the branches folding into it, give one such keyword, the one
 binding the rest is kept, the smallest maximum or the largest minimum, compared exactly however
-large, the first of one value written twice, with one report. A count literal that is no
-non-negative integer is the load phase's to report ([`validation`](#validation)) and reaches no
-field, nor is it kept.
+large, the first of one value written twice, with one report. Two declarations of one field are
+not such writers: each keeps its own on the property, and their fold compares the two entries as it
+does any kept under `Unmodeled` ([`allof-redeclared-property`](#allof-redeclared-property)), so
+of two such counts the first declaration's is kept and the other is reported and kept with its
+declaration. A count literal that is no non-negative integer is the load phase's to report
+([`validation`](#validation)) and reaches no field, nor is it kept.
 
 - Cases: `constraints`, `numeric-precision`, `ref-collection-bounds`
 - Codes: `openapi/invalid-numeric-literal`, `openapi/invalid-exclusive-bound`,
