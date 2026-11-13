@@ -106,11 +106,11 @@ it Swift calls `try receiver.parseZoneCreated(request:)` and catches the refusal
 of the framework did, building the receiver with every parameter, since Swift sees no default, and
 the check as a closure of the request and the `InboundCheck` returning `KotlinBoolean`, which was
 told `mutual_tls` for an operation stating `[{http_basic}, {mutual_tls}]` once the basic credentials
-were wrong, and not called when they were right, and which for `[{oauth2: [read], api_key},
-{oauth2: [admin]}]` read `alternative` as an `Int32` and `scopes` as `[String]` and passed and
-refused the three requests Go's did ([Go](../go/operations.md#operations-the-api-sends)); on the JVM
-and from Swift, a receiver given no key for a query `apiKey`, or no setting for an operation
-declaring no security, refused the request. A response type's `encode()` returns the runtime's
+were wrong, and not called when they were right, and which for `[{oauth2: [read], api_key}, {oauth2:
+[admin]}]` read `alternative` as an `Int32` and `scopes` as `[String]` and passed and refused the
+three requests Go's did ([Go](../go/operations.md#operations-the-api-sends)); on the JVM and from
+Swift, a receiver given no key for a query `apiKey`, or no setting for an operation declaring no
+security, refused the request. A response type's `encode()` returns the runtime's
 `OutboundResponse(status, headers, body)`, which the caller's server writes. T-71 holds this
 section.
 

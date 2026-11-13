@@ -126,9 +126,9 @@ body held before the failure, a redacted value's length among it, which no rende
 shows ([above](#a-redacted-value)). A pointer whose every key and index is written `*`, leaving
 names the document declares, was weighed too and needs a decoder of the runtime's own: kotlinx
 states a path only in its message, a map's key unescaped in it, so one key `a']['b` reads as two do,
-`$.labels['a']['b'].n`, and none under a union read as a `JsonElement`, and
-json/v2's pointer under a Go union starts at the union. A caller who wants the library's account
-decodes `RawBody` itself, its own value, which holds a body whole only up to `Policy.Errors`' bound
+`$.labels['a']['b'].n`, and none under a union read as a `JsonElement`, and json/v2's pointer under
+a Go union starts at the union. A caller who wants the library's account decodes `RawBody` itself,
+its own value, which holds a body whole only up to `Policy.Errors`' bound
 ([failures](../operations/errors.md)): past it the bytes kept are cut, and the caller raises the
 bound, a client option, before calling. Measured with Go 1.27.3, none of the 1,073 renderings of
 each of a refused connection, a refused TLS handshake, bodies failing at a member and at a map key

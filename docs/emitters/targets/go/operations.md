@@ -100,13 +100,13 @@ sender. The check reads the method, the target, the headers and `req.TLS.PeerCer
 holds](../../contract/runtime-policy.md#what-an-event-holds)), `Alternative`, the alternative's
 place in the operation's `Auth`, from 0, `Scheme`, the name the document gives the scheme, empty for
 an alternative naming none, and `Scopes`, the scopes that use requires of it, a slice of the check's
-own. The fields are a scope of the struct's own,
-where a scheme's field meets only `Verify` and `Unauthenticated` and yields to them, so the unit
-gains `Receiver`, `NewReceiver` and `ReceiverConfig` whatever the schemes are called. Options named
-as the client's are, `WithVerify` and one for each scheme, were rejected: the receiver sits in the
-client's unit, which already declares the client's option for a scheme of that name (`WithAPIKey
-redeclared in this block`), and a prefix only moves where they meet, a client's scheme `receiver
-key` and the receiver's `key` both rendering `WithReceiverKey`.
+own. The fields are a scope of the struct's own, where a scheme's field meets only `Verify` and
+`Unauthenticated` and yields to them, so the unit gains `Receiver`, `NewReceiver` and
+`ReceiverConfig` whatever the schemes are called. Options named as the client's are, `WithVerify`
+and one for each scheme, were rejected: the receiver sits in the client's unit, which already
+declares the client's option for a scheme of that name (`WithAPIKey redeclared in this block`), and
+a prefix only moves where they meet, a client's scheme `receiver key` and the receiver's `key` both
+rendering `WithReceiverKey`.
 
 A parse method takes the `*http.Request` every Go HTTP server hands a handler, `func (r *Receiver)
 ParseZoneCreated(req *http.Request) (*webhooks.ZoneCreatedRequest, error)`, reading its body no
@@ -125,8 +125,8 @@ compared the absent key or checked nothing. For an operation stating `[{oauth2: 
 {oauth2: [admin]}]`, a check comparing the token's scopes with `Scopes` passed a `read` token with
 the key, told `oauth2` once, at 0 with `read`, and without the key refused it and passed an `admin`
 token, told that and then `oauth2` at 1 with `admin`; asked once for the scheme, it passed the
-`read` token without the key. The same package declared the client's `WithAPIKey` and,
-for a scheme named `verify`, its `WithVerify`. T-71 holds this section.
+`read` token without the key. The same package declared the client's `WithAPIKey` and, for a scheme
+named `verify`, its `WithVerify`. T-71 holds this section.
 
 ## The client
 

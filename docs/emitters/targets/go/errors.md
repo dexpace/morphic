@@ -81,12 +81,12 @@ type Chain state.Chain        // a function returning the library's error, as Ra
 
 `Causes` lists the chain as `errors.Is` walks it: a link before what it wraps, and the branches of
 one wrapping several (`Unwrap() []error`) in their order, each whole before the next. `Error` writes
-the members and `Causes` joined by ` > `, and neither type has an `Unwrap`, since a
-reporter walking a chain prints each link's text. `Chain`'s `Is` lets a caller ask the library's
-chain a question whose answer is a boolean, `errors.Is(err, syscall.ECONNREFUSED)` or
-`context.DeadlineExceeded`, and `errors.As` finds none of its values, which a caller wanting one
-reads in a `Transport` wrapper. An `Authenticator`'s error is held as a transport's is, since a
-token source's text can quote the token response it was sent. T-65 holds this section.
+the members and `Causes` joined by ` > `, and neither type has an `Unwrap`, since a reporter walking
+a chain prints each link's text. `Chain`'s `Is` lets a caller ask the library's chain a question
+whose answer is a boolean, `errors.Is(err, syscall.ECONNREFUSED)` or `context.DeadlineExceeded`, and
+`errors.As` finds none of its values, which a caller wanting one reads in a `Transport` wrapper. An
+`Authenticator`'s error is held as a transport's is, since a token source's text can quote the token
+response it was sent. T-65 holds this section.
 
 ## A failure's place
 

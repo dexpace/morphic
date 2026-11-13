@@ -295,14 +295,14 @@ an `apiKey` scheme its `Auth` names
 ([slots](../operations/auth.md#a-parameter-in-a-credentials-slot)). Where `Telemetry.Client` names
 such a header, or `Idempotency.Header` does and `Generate` puts a key in it on that operation, the
 names compared without case, the operation resolves with `Client` empty or with `Generate`
-`declared`, the one place an operation resolves a member of the client's
-apart: the runtime writes no agent or key there, and the value sent is the caller's or the scheme's
-alone. `Resolve` reports each as a warning `emitters/policy/header-taken` naming the member, the
-operation and the parameter or scheme. The defaults meet it under `unsafe`: 6 of the golden spec's
-3,794 operations declare a header parameter `Idempotency-Key`, 5 of them a `POST`, and none states a
-token (spec @bc6fad24, morphic @fa253fe19). Writing the key where the caller gave the parameter none
-was weighed, and reads a parameter as a token by its name, an inference that is a compiler's policy
-to make and mark (#TBD-idempotency-token-by-name).
+`declared`, the one place an operation resolves a member of the client's apart: the runtime writes
+no agent or key there, and the value sent is the caller's or the scheme's alone. `Resolve` reports
+each as a warning `emitters/policy/header-taken` naming the member, the operation and the parameter
+or scheme. The defaults meet it under `unsafe`: 6 of the golden spec's 3,794 operations declare a
+header parameter `Idempotency-Key`, 5 of them a `POST`, and none states a token (spec @bc6fad24,
+morphic @fa253fe19). Writing the key where the caller gave the parameter none was weighed, and reads
+a parameter as a token by its name, an inference that is a compiler's policy to make and mark
+(#1785).
 
 **A duration states its unit.** `"30s"`, `"500ms"` and `"10m"` are durations; `30` is none, and
 neither is `"30"`, `"1.5s"` or `"1h"`. One unit throughout, a count of milliseconds, was weighed and
@@ -428,17 +428,17 @@ one before, and returns the context the call goes on in, a Go hook's nil being t
 handed; an attempt's request is sent in what its `attempt` event returned. So a tracer starts the
 call's span under the caller's at the first `attempt`, and a `Transport` wrapper finds it in the
 request's context and writes the header that propagates it
-([auth](../operations/auth.md#where-a-credential-can-be-read)). Measured with Go
-1.27.3, and with Kotlin 2.4.0 over Ktor 3.2.3 in a `suspend` call: each of two overlapping calls
-sent a header naming its own call's span under its caller's, and a call sent again sent it on both
-attempts. A hook handed the caller's context alone was measured first and fails: the span it keeps
-per `Call` is out of the wrapper's reach, which propagates the caller's span, so the server's span
-is a sibling of the call's; and a Kotlin hook that does not suspend cannot read `coroutineContext`,
-so it is handed one. Whatever a hook returns, the call ends when its caller's context does: Go
-cancels the request with the caller's, and Kotlin drops the `Job` of what the hook returns. The
-runtime calls the hook where the step happens and waits for it, and a hook changes nothing of the
-request but the context it goes in. `Call` pairs a call's events where calls overlap: the count is
-that of the client its caller built, which its sub-clients and every client derived from it share
+([auth](../operations/auth.md#where-a-credential-can-be-read)). Measured with Go 1.27.3, and with
+Kotlin 2.4.0 over Ktor 3.2.3 in a `suspend` call: each of two overlapping calls sent a header naming
+its own call's span under its caller's, and a call sent again sent it on both attempts. A hook
+handed the caller's context alone was measured first and fails: the span it keeps per `Call` is out
+of the wrapper's reach, which propagates the caller's span, so the server's span is a sibling of the
+call's; and a Kotlin hook that does not suspend cannot read `coroutineContext`, so it is handed one.
+Whatever a hook returns, the call ends when its caller's context does: Go cancels the request with
+the caller's, and Kotlin drops the `Job` of what the hook returns. The runtime calls the hook where
+the step happens and waits for it, and a hook changes nothing of the request but the context it goes
+in. `Call` pairs a call's events where calls overlap: the count is that of the client its caller
+built, which its sub-clients and every client derived from it share
 ([Go](../targets/go/operations.md#the-client),
 [Kotlin](../targets/kotlin/operations.md#the-client)), so no two of their calls draw one number, and
 clients built apart count apart. What a hook is handed is the same on each target:
