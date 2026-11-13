@@ -7,6 +7,7 @@ import (
 	"slices"
 
 	"github.com/spf13/cobra"
+	"github.com/spf13/pflag"
 )
 
 // commandFirst returns args with the words naming the command to run moved to
@@ -29,7 +30,7 @@ func commandFirst(root *cobra.Command, args []string) []string {
 func commandWordsFirst(root *cobra.Command, args []string) []string {
 	target, path, rest := root, []string(nil), args
 	for range args { // each turn takes one argument as a command's word
-		sub, at, ok := nextCommand(target, rest)
+		sub, at, ok := nextCommand(target, rest, readAlone)
 		if !ok {
 			break
 		}
@@ -49,38 +50,29 @@ func isCompletionRequest(word string) bool {
 // when none does: the first argument naming one whose flags take every
 // argument before it as a flag or a flag's value. Failing that, it is the first
 // naming one whose flags refuse an argument before it, which pflag then
-// reports, as how far a flag it does not know reaches is unknown.
-func nextCommand(c *cobra.Command, args []string) (*cobra.Command, int, bool) {
-	refusedAt := -1
-	for at, word := range args {
-		sub := subcommand(c, word)
-		if sub == nil {
-			continue
-		}
-		switch readBefore(sub, args[:at]) {
-		case onlyFlags:
-			return sub, at, true
-		case unknownFlag:
-			if refusedAt < 0 {
-				refusedAt = at
-			}
-		case notCommand:
+// reports, as how far a flag it does not know reaches is unknown. read is
+// readAlone, which a test counts: args are read once for each subcommand.
+func nextCommand(c *cobra.Command, args []string, read func(*pflag.FlagSet, string) reading) (*cobra.Command, int, bool) {
+	var found, refused *cobra.Command
+	foundAt, refusedAt := len(args), len(args)
+	for _, sub := range c.Commands() {
+		at, v := firstWord(sub, args, read)
+		switch {
+		case v == onlyFlags && at < foundAt:
+			found, foundAt = sub, at
+		case v == unknownFlag && at < refusedAt:
+			refused, refusedAt = sub, at
 		}
 	}
-	if refusedAt < 0 {
-		return nil, 0, false
+	if found != nil {
+		return found, foundAt, true
 	}
-	return subcommand(c, args[refusedAt]), refusedAt, true
+	return refused, refusedAt, refused != nil
 }
 
-// subcommand returns c's subcommand named or aliased word, or nil.
-func subcommand(c *cobra.Command, word string) *cobra.Command {
-	for _, sub := range c.Commands() {
-		if sub.Name() == word || sub.HasAlias(word) {
-			return sub
-		}
-	}
-	return nil
+// names reports whether word is c's name or one of its aliases.
+func names(c *cobra.Command, word string) bool {
+	return c.Name() == word || c.HasAlias(word)
 }
 
 // verdict is how a command reads the arguments ahead of a word naming it.
@@ -89,31 +81,45 @@ type verdict int
 const (
 	onlyFlags   verdict = iota // flags and their values, the word none of them
 	unknownFlag                // an argument the command's flags refuse
-	notCommand                 // an operand, a "--", or a flag taking the word as its value
+	notCommand                 // no word naming it stands free of an operand, a "--" or a flag
 )
 
-// readBefore returns how c, parsing before and then the word after it, reads
-// them, stopping at the first argument its flags refuse.
-func readBefore(c *cobra.Command, before []string) verdict {
+// firstWord returns where c's word first stands in args, read by c's flags as
+// pflag will read them, and how what comes before it reads. The reading is one
+// pass, ending at the first argument that decides it: an operand or a "--",
+// after which no word is c's, or a flag c refuses, after which the next word
+// naming c is taken. A flag's value is never c's word.
+func firstWord(c *cobra.Command, args []string, read func(*pflag.FlagSet, string) reading) (int, verdict) {
 	probe := probeFor(c)
-	for i := 0; i < len(before); i++ {
-		switch readAlone(probe, before[i]) {
+	for i := 0; i < len(args); i++ {
+		if names(c, args[i]) {
+			return i, onlyFlags
+		}
+		switch read(probe, args[i]) {
 		case wantsValue:
-			if i+1 == len(before) {
-				return notCommand // the word after before is this flag's value
-			}
 			i++
 		case endsFlags:
-			return notCommand
+			return 0, notCommand
 		case refused:
-			return unknownFlag
+			return nextNaming(c, args, i+1)
 		case standsAlone:
-			if isOperand(before[i]) {
-				return notCommand
+			if isOperand(args[i]) {
+				return 0, notCommand
 			}
 		}
 	}
-	return onlyFlags
+	return 0, notCommand
+}
+
+// nextNaming returns where the first word naming c stands in args at or after
+// from, read past a flag c refuses, or notCommand when none does.
+func nextNaming(c *cobra.Command, args []string, from int) (int, verdict) {
+	for i := from; i < len(args); i++ {
+		if names(c, args[i]) {
+			return i, unknownFlag
+		}
+	}
+	return 0, notCommand
 }
 
 // isOperand reports whether pflag reads tok, standing alone, as an operand

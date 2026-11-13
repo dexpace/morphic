@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/spf13/cobra"
+	"github.com/spf13/pflag"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -164,13 +165,67 @@ func TestCommandFirst_MovesOnlyTheCommandsWords(t *testing.T) {
 func TestNextCommand_AnAliasNamesItsCommand(t *testing.T) {
 	t.Parallel()
 	root := newRootCmd()
-	validate := subcommand(root, "validate")
-	require.NotNil(t, validate)
+	validate, _, err := root.Find([]string{"validate"})
+	require.NoError(t, err)
 	validate.Aliases = []string{"check"}
 
-	sub, at, ok := nextCommand(root, []string{"--verify", "check", "s"})
+	sub, at, ok := nextCommand(root, []string{"--verify", "check", "s"}, readAlone)
 	require.True(t, ok)
 	assert.Same(t, validate, sub)
 	assert.Equal(t, 1, at)
-	assert.Nil(t, subcommand(root, "bogus"))
+	assert.False(t, names(validate, "bogus"))
+}
+
+// TestNextCommand_ReadsTheArgumentsOncePerCommand pins that finding the command
+// reads each argument at most once for each subcommand, not once for every word
+// naming one: a run of flags each taking a command's name as its value, which a
+// reading per word would make quadratic, costs reads in proportion to it.
+func TestNextCommand_ReadsTheArgumentsOncePerCommand(t *testing.T) {
+	t.Parallel()
+	for _, pairs := range []int{1, 10, 100} {
+		args := make([]string, 0, 2*pairs+1)
+		for range pairs {
+			args = append(args, "-o", "compile")
+		}
+		args = append(args, "compile")
+		root := newRootCmd()
+		reads := 0
+		counted := func(probe *pflag.FlagSet, tok string) reading {
+			reads++
+			return readAlone(probe, tok)
+		}
+
+		sub, at, ok := nextCommand(root, args, counted)
+
+		require.True(t, ok, "%d pairs", pairs)
+		assert.Equal(t, "compile", sub.Name(), "%d pairs", pairs)
+		assert.Equal(t, len(args)-1, at, "%d pairs", pairs)
+		assert.LessOrEqual(t, reads, len(root.Commands())*len(args), "%d pairs", pairs)
+	}
+}
+
+// TestNextCommand_TheFirstWordReadCleanWins pins the choice between commands
+// whose flags read the same argument differently: x takes --f as a switch and
+// so its own name next, y takes that name as --f's value and its own after it.
+// The word standing first is the command's, whichever command lists first.
+func TestNextCommand_TheFirstWordReadCleanWins(t *testing.T) {
+	t.Parallel()
+	for _, order := range [][]string{{"x", "y"}, {"y", "x"}} {
+		root := &cobra.Command{Use: "root"}
+		for _, name := range order {
+			sub := &cobra.Command{Use: name, RunE: func(*cobra.Command, []string) error { return nil }}
+			if name == "x" {
+				sub.Flags().Bool("f", false, "")
+			} else {
+				sub.Flags().String("f", "", "")
+			}
+			root.AddCommand(sub)
+		}
+
+		sub, at, ok := nextCommand(root, []string{"--f", "x", "y"}, readAlone)
+
+		require.True(t, ok, "%v", order)
+		assert.Equal(t, "x", sub.Name(), "%v", order)
+		assert.Equal(t, 1, at, "%v", order)
+	}
 }
