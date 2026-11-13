@@ -123,8 +123,10 @@ func TestScalar_NumericFormatPairings(t *testing.T) {
 // a `type: string`: the number it selects under `number` is the Scalar's Base,
 // the logical type, its Encoding names a number written as its text, and the
 // string it travels as is the WireType, as byte's bytes and string are
-// (docs/compilers/openapi.md#string-formats). A contentEncoding beside it names
-// the encoding instead, and the format is kept.
+// (docs/compilers/openapi.md#string-formats). A contentEncoding naming another
+// encoding says the string is that encoding's text, so the format selects
+// nothing and is kept, and the Scalar is over the string with no WireType; a
+// media type or a schema of the content beside it leaves the format lowered.
 func TestScalar_ANumberAsTextIsItsNumberOnAString(t *testing.T) {
 	t.Parallel()
 	for _, tc := range []struct {
@@ -132,20 +134,26 @@ func TestScalar_ANumberAsTextIsItsNumberOnAString(t *testing.T) {
 		base          ir.PrimKind
 		name          string
 		kept          bool
+		wire          bool
 	}{
-		{format: "int8", base: ir.PrimInt8, name: "string"},
-		{format: "int16", base: ir.PrimInt16, name: "string"},
-		{format: "int32", base: ir.PrimInt32, name: "string"},
-		{format: "int64", base: ir.PrimInt64, name: "string"},
-		{format: "uint8", base: ir.PrimUint8, name: "string"},
-		{format: "uint16", base: ir.PrimUint16, name: "string"},
-		{format: "uint32", base: ir.PrimUint32, name: "string"},
-		{format: "uint64", base: ir.PrimUint64, name: "string"},
-		{format: "float", base: ir.PrimFloat32, name: "string"},
-		{format: "double", base: ir.PrimFloat64, name: "string"},
-		{format: "decimal", base: ir.PrimDecimal, name: "string"},
-		{format: "decimal128", base: ir.PrimDecimal128, name: "string"},
-		{format: "int64", extra: ", contentEncoding: base64", base: ir.PrimInt64, name: "base64", kept: true},
+		{format: "int8", base: ir.PrimInt8, name: "string", wire: true},
+		{format: "int16", base: ir.PrimInt16, name: "string", wire: true},
+		{format: "int32", base: ir.PrimInt32, name: "string", wire: true},
+		{format: "int64", base: ir.PrimInt64, name: "string", wire: true},
+		{format: "uint8", base: ir.PrimUint8, name: "string", wire: true},
+		{format: "uint16", base: ir.PrimUint16, name: "string", wire: true},
+		{format: "uint32", base: ir.PrimUint32, name: "string", wire: true},
+		{format: "uint64", base: ir.PrimUint64, name: "string", wire: true},
+		{format: "float", base: ir.PrimFloat32, name: "string", wire: true},
+		{format: "double", base: ir.PrimFloat64, name: "string", wire: true},
+		{format: "decimal", base: ir.PrimDecimal, name: "string", wire: true},
+		{format: "decimal128", base: ir.PrimDecimal128, name: "string", wire: true},
+		{format: "int64", extra: ", contentEncoding: base64", base: ir.PrimString, name: "base64", kept: true},
+		{format: "double", extra: ", contentEncoding: base32, contentMediaType: text/plain", base: ir.PrimString,
+			name: "base32", kept: true},
+		{format: "int64", extra: ", contentEncoding: string", base: ir.PrimInt64, name: "string", wire: true},
+		{format: "int64", extra: ", contentMediaType: text/plain", base: ir.PrimInt64, name: "string", wire: true},
+		{format: "int64", extra: ", contentSchema: {type: integer}", base: ir.PrimInt64, name: "string", wire: true},
 	} {
 		t.Run(tc.format+tc.extra, func(t *testing.T) {
 			t.Parallel()
@@ -156,11 +164,15 @@ func TestScalar_ANumberAsTextIsItsNumberOnAString(t *testing.T) {
 			sc, ok := doc.Types[h.Properties[0].Type.Target].(*ir.Scalar)
 			require.True(t, ok, "the position hoists a Scalar")
 			require.NotNil(t, sc.Base)
-			assert.Equal(t, ir.PrimTypeID(tc.base), sc.Base.Target, "the base is the number")
+			assert.Equal(t, ir.PrimTypeID(tc.base), sc.Base.Target, "the base is the number the format selects, or the string an encoding overrides it with")
 			require.NotNil(t, sc.Encoding)
 			assert.Equal(t, tc.name, sc.Encoding.Name)
-			require.NotNil(t, sc.Encoding.WireType, "the number travels as a string")
-			assert.Equal(t, ir.PrimTypeID(ir.PrimString), sc.Encoding.WireType.Target)
+			if tc.wire {
+				require.NotNil(t, sc.Encoding.WireType, "the number travels as a string")
+				assert.Equal(t, ir.PrimTypeID(ir.PrimString), sc.Encoding.WireType.Target)
+			} else {
+				assert.Nil(t, sc.Encoding.WireType, "the string is the encoded text already")
+			}
 			_, kept := sc.Unmodeled["openapi:format"]
 			assert.Equal(t, tc.kept, kept)
 		})

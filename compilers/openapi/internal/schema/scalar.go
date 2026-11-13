@@ -40,7 +40,7 @@ func scalarTypeID(c lowering.Ctx, ts *compile.Types, depth int, s *oas3.Schema, 
 	}
 	prim, known := spelling.Lookup(key)
 	if !known {
-		if num, carried := numberAsText(st, format); carried {
+		if num, carried := numberAsText(s, st, format); carried {
 			return hoistScalar(c, ts, depth, s, num, numberTextEncoding, new(ir.PrimString), pointer)
 		}
 		return hoistScalar(c, ts, depth, s, baseForType(st), format, nil, pointer)
@@ -58,9 +58,11 @@ const numberTextEncoding = "string"
 // numberAsText returns the numeric primitive format selects under
 // `type: number`, where a `type: string` writes it: the string is the text of
 // a number of that primitive, as an int64 or a decimal wider than a JSON
-// number's readers hold may travel.
-func numberAsText(st oas3.SchemaType, format string) (ir.PrimKind, bool) {
-	if st != oas3.SchemaTypeString || format == "" {
+// number's readers hold may travel. A contentEncoding naming another encoding
+// says the string is that encoding's text instead, so the format, which
+// encodingName then keeps verbatim, selects nothing.
+func numberAsText(s *oas3.Schema, st oas3.SchemaType, format string) (ir.PrimKind, bool) {
+	if st != oas3.SchemaTypeString || format == "" || contentOverridesFormat(s, numberTextEncoding) {
 		return "", false
 	}
 	return spelling.Lookup(string(oas3.SchemaTypeNumber) + "/" + format)
@@ -147,7 +149,7 @@ func encodingName(c lowering.Ctx, s *oas3.Schema, formatName string, common *ir.
 	if content == "" || content == formatName {
 		return formatName, nil
 	}
-	if formatName == "" {
+	if !contentOverridesFormat(s, formatName) {
 		return content, nil
 	}
 	at := pointer + ids.Ptr("format")
@@ -158,6 +160,14 @@ func encodingName(c lowering.Ctx, s *oas3.Schema, formatName string, common *ir.
 				"contentEncoding %q is lowered and format is kept verbatim under Unmodeled", content))
 	}
 	return content, diags
+}
+
+// contentOverridesFormat reports whether s's contentEncoding names an encoding
+// other than formatName, the one its format names, which encodingName lowers
+// in the format's place.
+func contentOverridesFormat(s *oas3.Schema, formatName string) bool {
+	content := s.GetContentEncoding()
+	return formatName != "" && content != "" && content != formatName
 }
 
 // contentSchemaRef lowers contentSchema — the shape the encoded value has once
