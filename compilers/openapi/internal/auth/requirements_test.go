@@ -520,6 +520,45 @@ func compileBeside(t *testing.T, root, other string) (*ir.Document, []ir.Diagnos
 	return doc, diags
 }
 
+// TestSecurityRequirement_AKeyAnotherDocumentMintsStillNamesTheSourcesEntry pins
+// that no scheme a requirement mints decides what a later key names. A 3.1
+// document a path mounts writes the source's fragment for key, which it reads
+// as a name and mints as unresolved under that spelling. The 3.2 source writing
+// the same key still names its entry, whichever path is declared first.
+func TestSecurityRequirement_AKeyAnotherDocumentMintsStillNamesTheSourcesEntry(t *testing.T) {
+	t.Parallel()
+	const (
+		key   = "#/components/securitySchemes/key"
+		there = "  /there: {$ref: 'other.yaml#/paths/~1there'}\n"
+		here  = `  /here:
+    get:
+      operationId: here
+      security: [{"` + key + `": []}]
+      responses: {"200": {description: ok}}
+`
+		other = `openapi: 3.1.1
+info: {title: O, version: "1"}
+paths:
+  /there:
+    get:
+      operationId: there
+      security: [{"` + key + `": []}]
+      responses: {"200": {description: ok}}
+`
+	)
+	for order, paths := range map[string]string{"mount first": there + here, "own first": here + there} {
+		doc, diags := compileBeside(t, "openapi: 3.2.0\ninfo: {title: T, version: \"1\"}\npaths:\n"+paths+`components:
+  securitySchemes:
+    key: {type: apiKey, in: header, name: X-Key}
+`, other)
+		for name, want := range map[string]ir.AuthID{"here": ids.Auth("key"), "there": ids.UnresolvedAuth(key)} {
+			op := openapitest.FindOp(t, doc, name)
+			require.Len(t, op.Auth, 1, "%s, %s: %+v", order, name, diags)
+			assert.Equal(t, []ir.AuthID{want}, schemeUses(op.Auth[0]), "%s, %s", order, name)
+		}
+	}
+}
+
 // TestSecurityRequirement_ANameAndItsURIAreOneSchemeInEitherOrder pins that the
 // name a URI yields depends on the key and the document alone: one operation
 // writing an undeclared name and another its URI reach one scheme, and the

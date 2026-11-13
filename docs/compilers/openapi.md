@@ -4948,6 +4948,7 @@ requirement naming no scheme and a scheme naming no mechanism, and leaves them t
   `auth.TestSecurityRequirement_A32UnresolvedNameSaysWhatIsNotRead`,
   `auth.TestSecurityRequirement_AURIIsReadInTheDocumentHoldingIt`,
   `auth.TestSecurityRequirement_ANameAndItsURIAreOneSchemeInEitherOrder`,
+  `auth.TestSecurityRequirement_AKeyAnotherDocumentMintsStillNamesTheSourcesEntry`,
   `oas.TestSecurityRules_AnswerAsTheTableDoes`,
   `auth.TestSecurityRequirement_AnUnresolvedNameNamesADeclaredNearMiss`,
   `auth.TestNearest_TakesTheFirstReadingThatMatches`,
