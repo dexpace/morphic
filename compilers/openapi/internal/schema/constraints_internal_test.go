@@ -97,8 +97,9 @@ func TestStampConstraintDiags_RelocatesEveryDiagnosticToTheReadingPointer(t *tes
 
 // TestCompareCounts_OrdersLiteralsExactly pins compareCounts on spellings of
 // one value and on powers of ten past what an ir.Decimal holds, where reading
-// either through a float64 or an int64 would tie or wrap, and on an exponent no
-// count the check admits writes, read as none.
+// either through a float64 or an int64 would tie or wrap, a carry crossing such
+// a power's digits among them, and on an exponent no count is written with,
+// read as 0.
 func TestCompareCounts_OrdersLiteralsExactly(t *testing.T) {
 	t.Parallel()
 	for _, tc := range []struct {
@@ -113,7 +114,15 @@ func TestCompareCounts_OrdersLiteralsExactly(t *testing.T) {
 		{"1e1000000000000000000", "2e1000000000000000000", -1},
 		{"1e99999999999999999999", "9e1000000000000000000", 1},
 		{"1e400", "99999999999999999999", 1},
+		{"1e1000000000000000000", "10e999999999999999999", 0},
+		{"1e1000000000000000000", "1000e999999999999999998", -1},
+		{"1e1000000000000000000", "0.001e1000000000000000003", 0},
+		{"0.0001e1000000000000000003", "1e999999999999999999", 0},
+		{"123e1000000000000000000", "0.00124e1000000000000000005", -1},
+		{"1e10000000000000000000", "9e9999999999999999999", 1},
 		{"1ex", "1", 0},
+		{"1e-10000000000000000000", "1", 0},
+		{"1e-1000000000000000000", "1", 0},
 	} {
 		assert.Equal(t, tc.want, compareCounts(tc.a, tc.b), "%s against %s", tc.a, tc.b)
 		assert.Equal(t, -tc.want, compareCounts(tc.b, tc.a), "%s against %s", tc.b, tc.a)

@@ -6,8 +6,8 @@ package schema
 import (
 	"cmp"
 	"encoding/json/jsontext"
-	"math/big"
 	"slices"
+	"strconv"
 	"strings"
 
 	"github.com/speakeasy-api/openapi/jsonschema/oas3"
@@ -139,35 +139,69 @@ func keptLiteral(s *oas3.Schema, keyword string) (string, bool) {
 	return strings.ReplaceAll(node.Value, "_", ""), true
 }
 
-// compareCounts returns -1, 0 or +1 as a, a positive integer literal, is less
-// than, equal to or greater than b, exactly however large: by the power of ten
-// each leading digit carries, then by their digits. An ir.Decimal holds no power
-// past ir.MaxDecimalExp, which a count may be written past.
+// compareCounts returns -1, 0 or +1 as a, a literal of a count past 2^63-1, is
+// less than, equal to or greater than b, exactly however large: by the power of
+// ten each leading digit carries, then by their digits. An ir.Decimal holds no
+// power past ir.MaxDecimalExp, which a count may be written past, and the work
+// is linear in the literals, which math/big's parsing is not.
 func compareCounts(a, b string) int {
 	aPower, aDigits := magnitude(a)
 	bPower, bDigits := magnitude(b)
-	if order := aPower.Cmp(bPower); order != 0 {
+	if order := cmp.Compare(len(aPower), len(bPower)); order != 0 {
+		return order
+	}
+	if order := strings.Compare(aPower, bPower); order != 0 {
 		return order
 	}
 	return strings.Compare(aDigits, bDigits)
 }
 
-// magnitude returns the power of ten the leading digit of lit, a positive
-// decimal literal, carries, and its significant digits, with no leading or
-// trailing zero, so two spellings of one value read alike.
-func magnitude(lit string) (*big.Int, string) {
+// magnitude returns the power of ten the leading digit of lit, a literal of a
+// count past 2^63-1, carries, as digits with no leading zero, and its
+// significant digits, with no leading or trailing zero, so two spellings of one
+// value read alike.
+func magnitude(lit string) (power, digits string) {
 	mantissa, exponent, _ := strings.Cut(strings.ToLower(lit), "e")
 	whole, frac, _ := strings.Cut(strings.TrimPrefix(mantissa, "+"), ".")
-	digits := strings.TrimLeft(whole+frac, "0")
-	power, ok := new(big.Int).SetString(cmp.Or(exponent, "0"), 10)
-	if !ok {
-		// No count the check admits writes one, but a power read as none
-		// orders it rather than failing.
-		power = new(big.Int)
-	}
+	digits = strings.TrimLeft(whole+frac, "0")
 	leading := len(whole+frac) - len(digits)
-	power.Add(power, big.NewInt(int64(len(whole)-1-leading)))
-	return power, strings.TrimRight(digits, "0")
+	return shifted(exponent, int64(len(whole)-1-leading)), strings.TrimRight(digits, "0")
+}
+
+// shifted returns exponent, a decimal integer, plus offset, as digits with no
+// leading zero. A count past 2^63-1 carries a power of ten of 18 or more, so an
+// exponent of 19 digits or more is positive and past any offset a literal's
+// length gives (plus), and a shorter one sums within an int64. An exponent no
+// count is written with, one that is no integer or a long negative one, reads
+// as 0.
+func shifted(exponent string, offset int64) string {
+	exponent = strings.TrimPrefix(exponent, "+")
+	long := strings.TrimLeft(strings.TrimPrefix(exponent, "-"), "0")
+	e, err := strconv.ParseInt(cmp.Or(exponent, "0"), 10, 64)
+	switch {
+	case len(long) >= 19 && exponent[0] != '-':
+		return plus(long, offset)
+	case len(long) >= 19, err != nil:
+		e = 0
+	}
+	return strconv.FormatInt(e+offset, 10)
+}
+
+// plus returns n, the digits of a number past |offset|, plus offset, carrying
+// one digit at a time from the last, so it reads no more of n than the carry
+// reaches.
+func plus(n string, offset int64) string {
+	out := []byte(n)
+	carry := offset
+	for i := len(out) - 1; i >= 0 && carry != 0; i-- {
+		d := int64(out[i]-'0') + carry
+		carry = d / 10
+		if d%10 < 0 {
+			carry--
+		}
+		out[i] = byte('0' + d - carry*10)
+	}
+	return strings.TrimLeft(string(out), "0")
 }
 
 // keptCount reports whether keyword, a count s writes, is one the lowering keeps
