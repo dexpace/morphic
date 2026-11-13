@@ -148,6 +148,9 @@ var generations = []generation{
 	{version: "0.57.0", format: 1, shape: "0b2f5e45e4be29c67a153976848af676bc99d9f21d9e41a91b7abfd167ae026b",
 		names:   "825b85ca996798c9051c78f69d22b7c1ad6d30e36341b320540fab82f21b6890",
 		meaning: "a union beside an allOf of the OpenAPI compiler is one of its conjuncts; a union on an allOf branch lowers with the discriminator on the branch or beside the allOf, and at a position no route names; a routed subtype names its union as a Mixin minted for it, no longer kept under openapi:oneOf, openapi:anyOf or openapi:allOf/<n>; Base is elected through a discriminator hierarchy"},
+	{version: "0.58.0", format: 1, shape: "0b2f5e45e4be29c67a153976848af676bc99d9f21d9e41a91b7abfd167ae026b",
+		names:   "825b85ca996798c9051c78f69d22b7c1ad6d30e36341b320540fab82f21b6890",
+		meaning: "the OpenAPI compiler lowers format http-date to a Scalar over datetime_offset under http-date, unixtime to one under unixTimestamp with its JSON type as WireType, and base64url to one over bytes, as byte"},
 }
 
 // shapeGolden holds the description the newest row's shape hashes, so a change

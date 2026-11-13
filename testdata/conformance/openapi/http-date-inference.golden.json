@@ -238,6 +238,60 @@
                         "source": 0,
                         "pointer": "/paths/~1files~1{name}/put/responses/204/headers/X-Modified"
                       }
+                    },
+                    {
+                      "id": "p/openapi/paths/~1files~1{name}/put/responses/204/headers/Sunset",
+                      "name": {
+                        "source": "Sunset",
+                        "canonical": "sunset"
+                      },
+                      "wireName": "Sunset",
+                      "type": {
+                        "target": "t/anon/paths/~1files~1{name}/put/responses/204/headers/Sunset/schema",
+                        "nullable": false
+                      },
+                      "required": false,
+                      "clientOptional": false,
+                      "defaultAdded": false,
+                      "visibility": {
+                        "none": false
+                      },
+                      "flatten": false,
+                      "eventHeader": false,
+                      "eventPayload": false,
+                      "secret": false,
+                      "docs": {},
+                      "provenance": {
+                        "source": 0,
+                        "pointer": "/paths/~1files~1{name}/put/responses/204/headers/Sunset"
+                      }
+                    },
+                    {
+                      "id": "p/openapi/paths/~1files~1{name}/put/responses/204/headers/Retry-After",
+                      "name": {
+                        "source": "Retry-After",
+                        "canonical": "retry_after"
+                      },
+                      "wireName": "Retry-After",
+                      "type": {
+                        "target": "t/anon/paths/~1files~1{name}/put/responses/204/headers/Retry-After/schema",
+                        "nullable": false
+                      },
+                      "required": false,
+                      "clientOptional": false,
+                      "defaultAdded": false,
+                      "visibility": {
+                        "none": false
+                      },
+                      "flatten": false,
+                      "eventHeader": false,
+                      "eventPayload": false,
+                      "secret": false,
+                      "docs": {},
+                      "provenance": {
+                        "source": 0,
+                        "pointer": "/paths/~1files~1{name}/put/responses/204/headers/Retry-After"
+                      }
                     }
                   ],
                   "docs": {
@@ -294,6 +348,52 @@
     }
   ],
   "types": {
+    "t/anon/paths/~1files~1{name}/put/responses/204/headers/Retry-After/schema": {
+      "kind": "scalar",
+      "id": "t/anon/paths/~1files~1{name}/put/responses/204/headers/Retry-After/schema",
+      "name": {
+        "hint": "retry_after"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/paths/~1files~1{name}/put/responses/204/headers/Retry-After/schema"
+      },
+      "base": {
+        "target": "t/prim/datetime_offset",
+        "nullable": false
+      },
+      "encoding": {
+        "name": "unixTimestamp",
+        "wireType": {
+          "target": "t/prim/integer",
+          "nullable": false
+        }
+      }
+    },
+    "t/anon/paths/~1files~1{name}/put/responses/204/headers/Sunset/schema": {
+      "kind": "scalar",
+      "id": "t/anon/paths/~1files~1{name}/put/responses/204/headers/Sunset/schema",
+      "name": {
+        "hint": "sunset"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/paths/~1files~1{name}/put/responses/204/headers/Sunset/schema"
+      },
+      "base": {
+        "target": "t/prim/datetime_offset",
+        "nullable": false
+      },
+      "encoding": {
+        "name": "http-date"
+      }
+    },
     "t/openapi/components/schemas/Instant": {
       "kind": "scalar",
       "id": "t/openapi/components/schemas/Instant",
@@ -324,6 +424,18 @@
         "source": -1
       },
       "prim": "datetime_offset"
+    },
+    "t/prim/integer": {
+      "kind": "primitive",
+      "id": "t/prim/integer",
+      "name": {},
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": -1
+      },
+      "prim": "integer"
     },
     "t/prim/string": {
       "kind": "primitive",
@@ -375,7 +487,7 @@
     {
       "format": "openapi@3.0",
       "path": "http-date-inference.yaml",
-      "hash": "be1a790729bd174b256e9d8272032a2f0e2f0730d088abf3b3ed4c31748aac1b"
+      "hash": "c97e100fd6baeb7c02e893a68ffa0d1c08d4757d1894cd07e27b9caecfaa84cc"
     }
   ]
 }

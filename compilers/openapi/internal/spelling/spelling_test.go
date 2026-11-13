@@ -4,6 +4,8 @@
 package spelling_test
 
 import (
+	"os"
+	"regexp"
 	"strings"
 	"testing"
 
@@ -310,6 +312,71 @@ func TestLookup_ReadsTheTable(t *testing.T) {
 
 	_, ok = spelling.Lookup("string/password")
 	assert.False(t, ok)
+}
+
+// TestLookupEncoded_ReadsTheTable pins the exported lookup of the encoded
+// pairings: a known key selects its row, and a key only the format table or
+// neither table has reports none.
+func TestLookupEncoded_ReadsTheTable(t *testing.T) {
+	t.Parallel()
+	row, ok := spelling.LookupEncoded("integer/unixtime")
+	assert.True(t, ok)
+	assert.Equal(t, spelling.Encoded{Prim: ir.PrimDatetimeOffset, Encoding: "unixTimestamp", Wire: ir.PrimInteger}, row)
+
+	for _, key := range []string{"string/date-time", "boolean/unixtime", "string"} {
+		_, ok = spelling.LookupEncoded(key)
+		assert.False(t, ok, key)
+	}
+}
+
+// TestEncodedTable_IsApartFromTheFormatTable holds the encoded pairings to the
+// format table and to the IR. No key is a row of both, which would make the
+// order of the two lookups decide the lowering. Each key pairs a type the
+// format table has with a format. Each primitive is one ir declares, and Wire
+// is that type's own primitive or none, none only where the primitive narrows
+// it, as a datetime_offset is a string. Each encoding is a name
+// docs/ir/constraints.md#encodings lists, which a consumer keys a row by.
+func TestEncodedTable_IsApartFromTheFormatTable(t *testing.T) {
+	t.Parallel()
+	names := documentedEncodings(t)
+	require.NotEmpty(t, spelling.EncodedTable)
+	for key, row := range spelling.EncodedTable {
+		_, inBoth := spelling.FormatTable[key]
+		assert.False(t, inBoth, "%s is a row of both tables", key)
+		typ, format, paired := strings.Cut(key, "/")
+		require.True(t, paired && format != "", "%s pairs a type with a format", key)
+		bare, typed := spelling.FormatTable[typ]
+		require.True(t, typed, "%s names a type the format table has", key)
+
+		assert.True(t, row.Prim.Valid(), "%s: %q is a primitive ir declares", key, row.Prim)
+		if row.Wire == "" {
+			assert.True(t, spelling.Narrows(row.Prim, bare), "%s travels in its primitive's own spelling, so it narrows %s", key, bare)
+		} else {
+			assert.Equal(t, bare, row.Wire, "%s travels as the type it is written on", key)
+		}
+		assert.Contains(t, names, row.Encoding, "%s: the IR documents the encoding a consumer keys a row by", key)
+	}
+}
+
+// documentedEncodings reads the encoding names the Name field's comment lists
+// in docs/ir/constraints.md#encodings.
+func documentedEncodings(t *testing.T) []string {
+	t.Helper()
+	data, err := os.ReadFile("../../../../docs/ir/constraints.md")
+	require.NoError(t, err)
+	_, section, found := strings.Cut(string(data), "\n## Encodings\n")
+	require.True(t, found, "the document has an Encodings section")
+	_, field, found := strings.Cut(section, "Name ")
+	require.True(t, found, "the section declares Name")
+	field, _, found = strings.Cut(field, "WireType ")
+	require.True(t, found, "WireType follows Name")
+	quoted := regexp.MustCompile(`"([^"]+)"`).FindAllStringSubmatch(field, -1)
+	names := make([]string, 0, len(quoted))
+	for _, m := range quoted {
+		names = append(names, m[1])
+	}
+	require.Contains(t, names, "base64", "the reading finds the names the comment lists")
+	return names
 }
 
 // coveringKinds returns the kinds immediately above k by value domain: those k

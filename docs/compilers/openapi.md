@@ -1840,7 +1840,13 @@ of another family, or from another string format where neither is `bytes` (`uuid
 `format: date`), and overlaps any other kind (`uuid` against `format: byte`); for an `Enum`, that
 overlap is disjoint where the kind's judge refuses every member, an enum behind an alias, as a
 member written beside a bound is, judged by the members of the enum it stands for, which the alias
-can only narrow. A `Scalar` hoisted for `time`,
+can only narrow. A `Scalar`'s kind is that of the values it travels as: its base's, but for a base
+its `Encoding`'s `WireType` does not spell, whose values travel as that type, so `format: unixtime`
+on an `integer` is narrower than `integer`, overlaps `int64` and is disjoint from `string`, while
+`byte` stays `bytes`, which a `string` spells. A string format whose text an `Encoding` names
+otherwise, as `http-date` and `contentEncoding` do, has no judge, as `bytes` has none, since the
+format's own grammar reads another text: an enum of HTTP-dates beside `format: http-date` overlaps
+it. A `Scalar` hoisted for `time`,
 whose grammar, RFC 3339's `full-time`, the compiler holds though the table pairs it with no kind
 ([`string-formats`](#string-formats)), is read wherever a kind is, through an alias too, as a
 string format of its own: within `string`, an overlap with `bytes`, and disjoint from every other
@@ -2297,6 +2303,9 @@ field's first 64 at most; each later one is kept verbatim, unjudged, under an
   `schema.TestAllOf_WhatAFieldKeepsOfItsDetailIsOrderFree`,
   `schema.TestAllOf_ContainerMembersAreJudgedAsFieldsAre`,
   `merge.TestClassify_ComparesResolvedKinds`,
+  `merge.TestKindOf_AnEncodedScalarIsReadAsItsValuesTravel`,
+  `merge.TestTypeJudge_AnEncodedScalarRelatesAsItsValues`,
+  `e2e.TestAllOfFold_AnEncodedFormatIsJudgedAsByteIsBesideBinary`,
   `schema.TestAllOf_ARefToAnInlineNodeIsDeclaredApart`,
   `schema.TestAllOf_ACopyANarrowingKeptIsStillACopy`,
   `schema.TestAllOf_AListOfAComponentWinsOverAListOfItsCopy`,
@@ -3114,7 +3123,8 @@ Schema conjoins the two, so it is dropped and reported as an `openapi/degraded-c
 it. Its `ValueType` is the primitive one declared `type` and its `format` select, as a scalar's are
 read ([`string-formats`](#string-formats), [`numeric-formats`](#numeric-formats)), else the
 primitive of the `type` alone, where every member is a value of that primitive, else the primitive
-of the members. A `format` that reaches no `ValueType`, whether the table lacks the pairing or a
+of the members. A `format` that reaches no `ValueType`, whether the table lacks the pairing, as it
+lacks each whose members are a text the value travels as, `byte` and `http-date` among them, or a
 member does not fit it, as none is a value of `binary`'s `bytes`, is kept verbatim under
 `openapi:format` (`degraded_lowering`), with an info `openapi/degraded-construct` at the schema, but
 for `password`, which is a redaction ([`password`](#password)). A member that no declared `type`
@@ -3162,6 +3172,7 @@ lowered first.
   `schema.TestLiteral_ValueTypeReadsTheTypeAndFormatItsValueFits`,
   `schema.TestConst_NullLowersAsAnEnumOfNullAlone`,
   `schema.TestEnum_ReportsWhyAFormatStayedVerbatim`,
+  `schema.TestScalar_AnEncodedFormatBesideAValueSetLowersAsByteDoes`,
   `schema.TestEnum_NarrowsARedeclaredPrimitiveInEitherOrder`,
   `schema.TestEnumAsUnion_UnconvertibleMemberBecomesAny`,
   `schema.TestEnumAsUnion_ExclusiveWhereNoInstanceMatchesTwoEntries`,
@@ -3370,22 +3381,28 @@ is kept on the union, under a report naming a union of models.
 A `type: string` with a `format` the table names lowers to the shared primitive the pairing selects,
 and no node of its own: `date` to `date`, `time-local` to `time`, `duration` to `duration`, `uuid`
 to `uuid`, `uri` to `url`, `date-time` to `datetime_offset`, `date-time-local` to `datetime`,
-`binary` to `bytes`. `byte` lowers to a hoisted `Scalar` over `bytes` whose `Encoding` is `base64`,
-with the `string` it travels as in `WireType`. A numeric format the table pairs with `number`
-([`numeric-formats`](#numeric-formats)), such as `int64`, `decimal` or `double`, names a number
-written as its text, as a value too wide for a JSON number's readers may travel, so it lowers the
-same way: to a hoisted `Scalar` over the primitive it selects under `number`, whose `Encoding`
-is `string`, a number written as the text of its value, with the `string` in `WireType`. The base is
-the logical type and `WireType` the wire's, for both, as [encodings](../ir/constraints.md#encodings)
-orients the triple. Any other format (`time`, `email`, `uri-reference`, `ipv4`, an invented one)
-lowers to a hoisted `Scalar` over `string` whose `Encoding.Name` is the format as written, case
-kept, with no `WireType`, since the compiler knows no registry of formats beyond the table, and the
-table leaves out `time`, RFC 3339's `full-time`, because it carries an offset and the `time`
-primitive holds none ([primitives](../ir/primitives.md#offsets)). A `contentEncoding` beside a
-`byte`, numeric or unknown format names the encoding instead; where the two name different encodings
-the format is kept verbatim under `openapi:format` (`no_ir_home`) with an info
-`openapi/degraded-construct` at it. A numeric format so kept selects no base, since the string is
-then that encoding's text and not a number's:
+`binary` to `bytes`. A format whose value is of another primitive, written in a text other than
+that primitive's own, lowers to a hoisted `Scalar` over that primitive whose `Encoding` names the
+text as the [IR](../ir/constraints.md#encodings) does: `byte` over `bytes` under `base64`, and
+`base64url` over `bytes` under `base64url`, each with the `string` it travels as in `WireType`, and
+`http-date` over `datetime_offset` under `http-date`, with no `WireType`, since an instant already
+travels as a string. `unixtime` on a string is [`numeric-formats`](#numeric-formats)'. A numeric
+format the table pairs with `number` ([`numeric-formats`](#numeric-formats)), such as `int64`,
+`decimal` or `double`, names a number written as its text, as a value too wide for a JSON number's
+readers may travel, so it lowers the same way: to a hoisted `Scalar` over the primitive it selects
+under `number`, whose `Encoding` is `string`, a number written as the text of its value, with the
+`string` in `WireType`. The base is the logical type and `WireType` the wire's, for each, as
+[encodings](../ir/constraints.md#encodings) orients the triple. Any other format (`time`, `email`,
+`uri-reference`, `ipv4`, an invented one) lowers to a hoisted `Scalar` over `string` whose
+`Encoding.Name` is the format as written, case kept, with no `WireType`, since the compiler knows no
+registry of formats beyond these, and the table leaves out `time`, RFC 3339's `full-time`, because
+it carries an offset and the `time` primitive holds none
+([primitives](../ir/primitives.md#offsets)). A `contentEncoding` beside such a format, a numeric or
+an unknown one names the encoding instead; where the two name different encodings the format is
+kept verbatim under `openapi:format` (`no_ir_home`) with an info `openapi/degraded-construct` at it.
+A format of the first kind so kept leaves the primitive and the `WireType` it selects in place,
+while a numeric format so kept selects no base, since the string is then that encoding's text and
+not a number's:
 `{type: string, format: int64, contentEncoding: base64}` lowers to a `Scalar` over `string` under
 `base64` with no `WireType`, as the encoding alone does
 ([`content-vocabulary`](#content-vocabulary)). A scalar hoisted for its format carries the bounds
@@ -3394,21 +3411,27 @@ written beside it, but for a number carried as text, whose `Constraints` speak o
 numeric bound no string instance, so each value bound written beside it is kept verbatim under
 `openapi:<keyword>` (`no_ir_home`) with an info `openapi/degraded-construct` at it, one an inline
 `allOf` branch writes keeps its branch whole ([`allof-inline-residue`](#allof-inline-residue)), and
-neither the `Scalar` nor a property or parameter carrying it holds one. The table is the same at every minor, and a pairing of `format` with another `type` is
+neither the `Scalar` nor a property or parameter carrying it holds one. The table is the same at
+every minor, and a pairing of `format` with another `type` is
 [`numeric-formats`](#numeric-formats)'.
 
 - Cases: `encoding-byte`, `scalar-format`
 - Codes: `openapi/degraded-construct`
 - Tests: `schema.TestScalar_UnknownFormatPerBaseType`,
+  `schema.TestScalar_EncodedFormatPairings`,
+  `schema.TestScalar_AnEncodedFormatKeepsTheBoundsWrittenBesideIt`,
+  `schema.TestScalar_AnEncodedFormatBesideContentEncodingKeepsItsPrimitive`,
   `schema.TestScalar_ANumberAsTextIsItsNumberOnAString`,
   `schema.TestScalar_ANumberAsTextKeepsItsBoundsVerbatim`,
   `schema.TestLower_NamedScalarComponentResolves`,
   `merge.TestKindOf_ANumberAsTextIsAString`,
   `spelling.TestFormatTable_EveryRowDistinguishesTheBareType`,
-  `spelling.TestFormatTable_EveryStringRowLowersToItsPrimitive`
+  `spelling.TestFormatTable_EveryStringRowLowersToItsPrimitive`,
+  `spelling.TestEncodedTable_IsApartFromTheFormatTable`
 - Status: partly built: a value bound beside a `$ref` to a number carried as text, or beside an
   `allOf` refining one, lands in the `Constraints` of the alias over it, and a length or `pattern`
-  beside `byte` in those of its `bytes` (#1851).
+  beside `byte`, `base64url` or `http-date` in those of its `bytes` or `datetime_offset`, which
+  speak of the bytes or the instant, though it bounds the text they travel as (#1851).
 
 ### `numeric-formats`
 
@@ -3417,15 +3440,22 @@ node of its own: an integer width — `int8`, `int16`, `int32`, `int64`, `uint8`
 `uint64` — under `integer` and `number` alike, since OpenAPI applies a format to both (3.1.1
 §4.4.1), and `float`, `double`, `decimal` and `decimal128`, to `float32`, `float64`, `decimal` and
 `decimal128`, under `number` alone, since under `integer` they admit only integral values, which no
-primitive narrower than `integer` holds. A pairing the table does not name lowers to a hoisted
-`Scalar` over the type's primitive that keeps the format as `Encoding.Name`, or, where a
+primitive narrower than `integer` holds. `unixtime`, seconds since the epoch, on a `number`, an
+`integer` or a `string`, lowers to a hoisted `Scalar` over `datetime_offset` whose `Encoding` is
+`unixTimestamp`, the name the [IR](../ir/constraints.md#encodings) gives that text, with the type it
+is written on in `WireType`, which tells whole seconds from a fraction and from a decimal text, as
+[`string-formats`](#string-formats) lowers `byte`. A pairing the table does not name lowers to a
+hoisted `Scalar` over the type's primitive that keeps the format as `Encoding.Name`, or, where a
 `contentEncoding` beside it takes that field, keeps the format verbatim under `openapi:format`
-(`no_ir_home`) with an info `openapi/degraded-construct` at it.
+(`no_ir_home`) with an info `openapi/degraded-construct` at it, as it does beside `unixtime`.
 
 - Cases: `scalar-format`
 - Codes: `openapi/degraded-construct`
 - Tests: `schema.TestScalar_NumericFormatPairings`,
+  `schema.TestScalar_EncodedFormatPairings`,
   `schema.TestContentVocabulary_KeptWhereNoEncodingHolds`
+- Status: partly built: a numeric bound beside `unixtime` lands in the `Scalar`'s `Constraints`,
+  which speak of the instant, though it bounds the seconds it travels as (#1851).
 
 ### `password`
 
@@ -4603,7 +4633,8 @@ the part, read once every type has lowered, and `Filename` also from the media t
 entry names. Where the body model has the property and its type is a list, a tuple, a primitive, or
 a scalar whose bases end in one of those or in no base, they are read off that type, the one the
 `allOf` merge settled on, of the declaration the key names: `Multi` where it ends in a list or
-tuple, `Filename` where it ends in `bytes` (`format` `binary` or `byte`) or, in a multipart body, in
+tuple, `Filename` where it ends in `bytes` (`format` `binary` or `byte`, not `base64url`, whose
+bytes travel as the text its `WireType` names) or, in a multipart body, in
 a list or tuple every element of which ends in `bytes` no encoding such as `format: byte`
 re-encodes, a tuple's rest included where elements may follow its prefix. A union is read off its
 variants, through the unions nested in them, each as such a type is and one of another kind as
@@ -4789,11 +4820,14 @@ lowers to ([`string-formats`](#string-formats)), with no `Encoding` on the heade
 of one declared by `content` is, and no encoding named along that chain, takes an `Encoding` named
 `http-date` ([encodings](../ir/constraints.md#encodings)) on the header itself. Such a name on such
 a type is the policy's trigger, an encoding the document writes being where it has spoken, and it
-declines nothing that meets it. It is an override of that one use, so a component a `$ref` names
-keeps its own text wherever else it is used. An info `openapi/inferred-http-date` at the header
-reports it, since the reading replaces the RFC 3339 text `date-time` names, which the field's
-definition rules out. A header an encoding gives a part is a MIME header no such definition covers,
-and is not read. On the golden spec one header is read, the `Last-Modified` of
+declines nothing that meets it. A header declared `format: http-date` or `unixtime` carries the
+encoding its format names on its type ([`string-formats`](#string-formats),
+[`numeric-formats`](#numeric-formats)), so the document has spoken for it. It is an override of that
+one use, so a component a `$ref` names keeps its own text wherever else it is used. An info
+`openapi/inferred-http-date` at the header reports it, since the reading replaces the RFC 3339 text
+`date-time` names, which the field's definition rules out. A header an encoding gives a part is a
+MIME header no such definition covers, and is not read. On the golden spec one header is read, the
+`Last-Modified` of
 `GET /accounts/{account_id}/dex/commands/{command_id}/downloads/{filename}`, whose example is an
 HTTP-date (spec @86556f6f).
 

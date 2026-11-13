@@ -34,8 +34,10 @@ bounds no `int64`, and a source's numeric bound written beside that text, which 
 to no string, bounds nothing it says. A compiler keeps such a bound verbatim
 ([boundaries](./boundaries.md)) rather than move it onto the value, as the OpenAPI compiler does for
 a number carried as text ([`string-formats`](../compilers/openapi.md#string-formats)); it still
-holds a length or pattern written beside `format: byte` as a bound of the bytes, and one written
-beside a reference to a number carried as text as a bound of the number (#1851).
+holds a length or pattern written beside `format: byte` or `base64url` as a bound of the bytes, one
+written beside `format: http-date`, or a numeric bound beside `format: unixtime`, as a bound of the
+instant, and one written beside a reference to a number carried as text as a bound of the number
+(#1851).
 
 A count field, `MinLength`, `MaxLength`, `MinItems`, `MaxItems`, `MinProps` or `MaxProps`, holds a
 count from 0 to 2^63−1. A source may write a larger one, as JSON Schema's counts have no upper limit:
