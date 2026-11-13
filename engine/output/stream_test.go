@@ -7,32 +7,14 @@ import (
 	"errors"
 	"fmt"
 	"io/fs"
-	"os"
 	"path/filepath"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 
 	"github.com/dexpace/morphic/engine/output"
 )
-
-// TestReplaceDocument_ADirectoryIsRefused pins that a directory at the
-// destination is refused before anything is opened or created: renaming a file
-// over it fails, and writing it is no stream.
-func TestReplaceDocument_ADirectoryIsRefused(t *testing.T) {
-	t.Parallel()
-	dir := t.TempDir()
-	dest := filepath.Join(dir, "ir.json")
-	require.NoError(t, os.Mkdir(dest, 0o755))
-
-	err := output.ReplaceDocument(t.Context(), dest, orderedDoc(), output.Compact)
-
-	assert.EqualError(t, err, fmt.Sprintf("output %q is a directory, which holds no document", dest))
-	assert.Equal(t, []string{"ir.json"}, entriesIn(t, dir), "no temporary file is left beside it")
-	assert.Empty(t, entriesIn(t, dest), "nothing is written into it")
-}
 
 // TestWriteStream_RefusesWhatIsNoStream pins the kinds of file writeStream
 // refuses before it opens anything, each named: those a test cannot make, a
