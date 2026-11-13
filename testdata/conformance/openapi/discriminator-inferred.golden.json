@@ -59,6 +59,211 @@
     }
   ],
   "types": {
+    "t/anon/components/schemas/Calculation/oneOf/0": {
+      "kind": "model",
+      "id": "t/anon/components/schemas/Calculation/oneOf/0",
+      "name": {
+        "hint": "variant_0"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Calculation/oneOf/0"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/Calculation/oneOf/0/properties/operator",
+          "name": {
+            "source": "operator",
+            "canonical": "operator"
+          },
+          "wireName": "operator",
+          "type": {
+            "target": "t/anon/components/schemas/Calculation/oneOf/0/properties/operator",
+            "nullable": false
+          },
+          "required": true,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Calculation/oneOf/0/properties/operator"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/anon/components/schemas/Calculation/oneOf/0/properties/operator": {
+      "kind": "enum",
+      "id": "t/anon/components/schemas/Calculation/oneOf/0/properties/operator",
+      "name": {
+        "hint": "operator"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Calculation/oneOf/0/properties/operator"
+      },
+      "valueType": "string",
+      "members": [
+        {
+          "id": "e/anon/components/schemas/Calculation/oneOf/0/properties/operator/s:count",
+          "name": {
+            "source": "count",
+            "canonical": "count"
+          },
+          "value": {
+            "kind": "string",
+            "str": "count"
+          },
+          "docs": {}
+        },
+        {
+          "id": "e/anon/components/schemas/Calculation/oneOf/0/properties/operator/s:COUNT",
+          "name": {
+            "source": "COUNT",
+            "canonical": "count"
+          },
+          "value": {
+            "kind": "string",
+            "str": "COUNT"
+          },
+          "docs": {}
+        }
+      ],
+      "closed": true,
+      "flags": false
+    },
+    "t/anon/components/schemas/Calculation/oneOf/1": {
+      "kind": "model",
+      "id": "t/anon/components/schemas/Calculation/oneOf/1",
+      "name": {
+        "hint": "variant_1"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Calculation/oneOf/1"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/Calculation/oneOf/1/properties/operator",
+          "name": {
+            "source": "operator",
+            "canonical": "operator"
+          },
+          "wireName": "operator",
+          "type": {
+            "target": "t/anon/components/schemas/Calculation/oneOf/1/properties/operator",
+            "nullable": false
+          },
+          "required": true,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Calculation/oneOf/1/properties/operator"
+          }
+        },
+        {
+          "id": "p/openapi/components/schemas/Calculation/oneOf/1/properties/key",
+          "name": {
+            "source": "key",
+            "canonical": "key"
+          },
+          "wireName": "key",
+          "type": {
+            "target": "t/prim/string",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Calculation/oneOf/1/properties/key"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/anon/components/schemas/Calculation/oneOf/1/properties/operator": {
+      "kind": "enum",
+      "id": "t/anon/components/schemas/Calculation/oneOf/1/properties/operator",
+      "name": {
+        "hint": "operator"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Calculation/oneOf/1/properties/operator"
+      },
+      "valueType": "string",
+      "members": [
+        {
+          "id": "e/anon/components/schemas/Calculation/oneOf/1/properties/operator/s:min",
+          "name": {
+            "source": "min",
+            "canonical": "min"
+          },
+          "value": {
+            "kind": "string",
+            "str": "min"
+          },
+          "docs": {}
+        },
+        {
+          "id": "e/anon/components/schemas/Calculation/oneOf/1/properties/operator/s:max",
+          "name": {
+            "source": "max",
+            "canonical": "max"
+          },
+          "value": {
+            "kind": "string",
+            "str": "max"
+          },
+          "docs": {}
+        }
+      ],
+      "closed": true,
+      "flags": false
+    },
     "t/anon/components/schemas/Circle/allOf/1/properties/kind": {
       "kind": "literal",
       "id": "t/anon/components/schemas/Circle/allOf/1/properties/kind",
@@ -263,6 +468,195 @@
       "closed": true,
       "flags": false
     },
+    "t/anon/components/schemas/Operation/oneOf/0": {
+      "kind": "model",
+      "id": "t/anon/components/schemas/Operation/oneOf/0",
+      "name": {
+        "hint": "variant_0"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Operation/oneOf/0"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/Operation/oneOf/0/properties/status",
+          "name": {
+            "source": "status",
+            "canonical": "status"
+          },
+          "wireName": "status",
+          "type": {
+            "target": "t/anon/components/schemas/Operation/oneOf/0/properties/status",
+            "nullable": false
+          },
+          "required": true,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Operation/oneOf/0/properties/status"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/anon/components/schemas/Operation/oneOf/0/properties/status": {
+      "kind": "union",
+      "id": "t/anon/components/schemas/Operation/oneOf/0/properties/status",
+      "name": {
+        "hint": "status"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Operation/oneOf/0/properties/status"
+      },
+      "variants": [
+        {
+          "name": {
+            "hint": "variant_0"
+          },
+          "type": {
+            "target": "t/anon/components/schemas/Operation/oneOf/0/properties/status/oneOf/0",
+            "nullable": false
+          },
+          "docs": {}
+        },
+        {
+          "name": {
+            "hint": "variant_1"
+          },
+          "type": {
+            "target": "t/anon/components/schemas/Operation/oneOf/0/properties/status/oneOf/1",
+            "nullable": false
+          },
+          "docs": {}
+        }
+      ],
+      "exclusive": true,
+      "wireTagged": false,
+      "closed": true,
+      "inputOnly": false
+    },
+    "t/anon/components/schemas/Operation/oneOf/0/properties/status/oneOf/0": {
+      "kind": "literal",
+      "id": "t/anon/components/schemas/Operation/oneOf/0/properties/status/oneOf/0",
+      "name": {
+        "hint": "variant_0"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Operation/oneOf/0/properties/status/oneOf/0"
+      },
+      "value": {
+        "kind": "string",
+        "str": "pending"
+      },
+      "valueType": "string"
+    },
+    "t/anon/components/schemas/Operation/oneOf/0/properties/status/oneOf/1": {
+      "kind": "literal",
+      "id": "t/anon/components/schemas/Operation/oneOf/0/properties/status/oneOf/1",
+      "name": {
+        "hint": "variant_1"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Operation/oneOf/0/properties/status/oneOf/1"
+      },
+      "value": {
+        "kind": "string",
+        "str": "running"
+      },
+      "valueType": "string"
+    },
+    "t/anon/components/schemas/Operation/oneOf/1": {
+      "kind": "model",
+      "id": "t/anon/components/schemas/Operation/oneOf/1",
+      "name": {
+        "hint": "variant_1"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Operation/oneOf/1"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/Operation/oneOf/1/properties/status",
+          "name": {
+            "source": "status",
+            "canonical": "status"
+          },
+          "wireName": "status",
+          "type": {
+            "target": "t/anon/components/schemas/Operation/oneOf/1/properties/status",
+            "nullable": false
+          },
+          "required": true,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Operation/oneOf/1/properties/status"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/anon/components/schemas/Operation/oneOf/1/properties/status": {
+      "kind": "literal",
+      "id": "t/anon/components/schemas/Operation/oneOf/1/properties/status",
+      "name": {
+        "hint": "status"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Operation/oneOf/1/properties/status"
+      },
+      "value": {
+        "kind": "string",
+        "str": "completed"
+      },
+      "valueType": "string"
+    },
     "t/anon/components/schemas/Optional/oneOf/0": {
       "kind": "model",
       "id": "t/anon/components/schemas/Optional/oneOf/0",
@@ -390,6 +784,363 @@
       "value": {
         "kind": "string",
         "str": "b"
+      },
+      "valueType": "string"
+    },
+    "t/anon/components/schemas/Overlapping/oneOf/0": {
+      "kind": "model",
+      "id": "t/anon/components/schemas/Overlapping/oneOf/0",
+      "name": {
+        "hint": "variant_0"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Overlapping/oneOf/0"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/Overlapping/oneOf/0/properties/operator",
+          "name": {
+            "source": "operator",
+            "canonical": "operator"
+          },
+          "wireName": "operator",
+          "type": {
+            "target": "t/anon/components/schemas/Overlapping/oneOf/0/properties/operator",
+            "nullable": false
+          },
+          "required": true,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Overlapping/oneOf/0/properties/operator"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/anon/components/schemas/Overlapping/oneOf/0/properties/operator": {
+      "kind": "enum",
+      "id": "t/anon/components/schemas/Overlapping/oneOf/0/properties/operator",
+      "name": {
+        "hint": "operator"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Overlapping/oneOf/0/properties/operator"
+      },
+      "valueType": "string",
+      "members": [
+        {
+          "id": "e/anon/components/schemas/Overlapping/oneOf/0/properties/operator/s:min",
+          "name": {
+            "source": "min",
+            "canonical": "min"
+          },
+          "value": {
+            "kind": "string",
+            "str": "min"
+          },
+          "docs": {}
+        },
+        {
+          "id": "e/anon/components/schemas/Overlapping/oneOf/0/properties/operator/s:max",
+          "name": {
+            "source": "max",
+            "canonical": "max"
+          },
+          "value": {
+            "kind": "string",
+            "str": "max"
+          },
+          "docs": {}
+        }
+      ],
+      "closed": true,
+      "flags": false
+    },
+    "t/anon/components/schemas/Overlapping/oneOf/1": {
+      "kind": "model",
+      "id": "t/anon/components/schemas/Overlapping/oneOf/1",
+      "name": {
+        "hint": "variant_1"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Overlapping/oneOf/1"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/Overlapping/oneOf/1/properties/operator",
+          "name": {
+            "source": "operator",
+            "canonical": "operator"
+          },
+          "wireName": "operator",
+          "type": {
+            "target": "t/anon/components/schemas/Overlapping/oneOf/1/properties/operator",
+            "nullable": false
+          },
+          "required": true,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Overlapping/oneOf/1/properties/operator"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/anon/components/schemas/Overlapping/oneOf/1/properties/operator": {
+      "kind": "enum",
+      "id": "t/anon/components/schemas/Overlapping/oneOf/1/properties/operator",
+      "name": {
+        "hint": "operator"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Overlapping/oneOf/1/properties/operator"
+      },
+      "valueType": "string",
+      "members": [
+        {
+          "id": "e/anon/components/schemas/Overlapping/oneOf/1/properties/operator/s:max",
+          "name": {
+            "source": "max",
+            "canonical": "max"
+          },
+          "value": {
+            "kind": "string",
+            "str": "max"
+          },
+          "docs": {}
+        },
+        {
+          "id": "e/anon/components/schemas/Overlapping/oneOf/1/properties/operator/s:sum",
+          "name": {
+            "source": "sum",
+            "canonical": "sum"
+          },
+          "value": {
+            "kind": "string",
+            "str": "sum"
+          },
+          "docs": {}
+        }
+      ],
+      "closed": true,
+      "flags": false
+    },
+    "t/anon/components/schemas/Sided/oneOf/0": {
+      "kind": "model",
+      "id": "t/anon/components/schemas/Sided/oneOf/0",
+      "name": {
+        "hint": "variant_0"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Sided/oneOf/0"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/Sided/oneOf/0/properties/kind",
+          "name": {
+            "source": "kind",
+            "canonical": "kind"
+          },
+          "wireName": "kind",
+          "type": {
+            "target": "t/anon/components/schemas/Sided/oneOf/0/properties/kind",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Sided/oneOf/0/properties/kind"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/anon/components/schemas/Sided/oneOf/0/properties/kind": {
+      "kind": "literal",
+      "id": "t/anon/components/schemas/Sided/oneOf/0/properties/kind",
+      "name": {
+        "hint": "kind"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Sided/oneOf/0/properties/kind"
+      },
+      "value": {
+        "kind": "string",
+        "str": "triangle"
+      },
+      "valueType": "string"
+    },
+    "t/anon/components/schemas/Sided/oneOf/1": {
+      "kind": "model",
+      "id": "t/anon/components/schemas/Sided/oneOf/1",
+      "name": {
+        "hint": "variant_1"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Sided/oneOf/1"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/Sided/oneOf/1/properties/kind",
+          "name": {
+            "source": "kind",
+            "canonical": "kind"
+          },
+          "wireName": "kind",
+          "type": {
+            "target": "t/anon/components/schemas/Sided/oneOf/1/properties/kind",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Sided/oneOf/1/properties/kind"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/anon/components/schemas/Sided/oneOf/1/properties/kind": {
+      "kind": "literal",
+      "id": "t/anon/components/schemas/Sided/oneOf/1/properties/kind",
+      "name": {
+        "hint": "kind"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Sided/oneOf/1/properties/kind"
+      },
+      "value": {
+        "kind": "string",
+        "str": "hexagon"
+      },
+      "valueType": "string"
+    },
+    "t/anon/components/schemas/Square/allOf/1/properties/kind": {
+      "kind": "union",
+      "id": "t/anon/components/schemas/Square/allOf/1/properties/kind",
+      "name": {
+        "hint": "kind"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Square/allOf/1/properties/kind"
+      },
+      "variants": [
+        {
+          "name": {
+            "hint": "variant_0"
+          },
+          "type": {
+            "target": "t/anon/components/schemas/Square/allOf/1/properties/kind/oneOf/0",
+            "nullable": false
+          },
+          "docs": {}
+        }
+      ],
+      "exclusive": true,
+      "wireTagged": false,
+      "closed": true,
+      "inputOnly": false
+    },
+    "t/anon/components/schemas/Square/allOf/1/properties/kind/oneOf/0": {
+      "kind": "literal",
+      "id": "t/anon/components/schemas/Square/allOf/1/properties/kind/oneOf/0",
+      "name": {
+        "hint": "variant_0"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Square/allOf/1/properties/kind/oneOf/0"
+      },
+      "value": {
+        "kind": "string",
+        "str": "square"
       },
       "valueType": "string"
     },
@@ -602,6 +1353,58 @@
       },
       "abstract": false,
       "positional": false,
+      "inputOnly": false
+    },
+    "t/openapi/components/schemas/Calculation": {
+      "kind": "union",
+      "id": "t/openapi/components/schemas/Calculation",
+      "name": {
+        "source": "Calculation",
+        "canonical": "calculation"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Calculation",
+        "inferred": "discriminator-inference"
+      },
+      "variants": [
+        {
+          "name": {
+            "hint": "variant_0"
+          },
+          "type": {
+            "target": "t/anon/components/schemas/Calculation/oneOf/0",
+            "nullable": false
+          },
+          "docs": {}
+        },
+        {
+          "name": {
+            "hint": "variant_1"
+          },
+          "type": {
+            "target": "t/anon/components/schemas/Calculation/oneOf/1",
+            "nullable": false
+          },
+          "docs": {}
+        }
+      ],
+      "exclusive": true,
+      "wireTagged": true,
+      "discriminator": {
+        "propertyName": "operator",
+        "mapping": {
+          "COUNT": "t/anon/components/schemas/Calculation/oneOf/0",
+          "count": "t/anon/components/schemas/Calculation/oneOf/0",
+          "max": "t/anon/components/schemas/Calculation/oneOf/1",
+          "min": "t/anon/components/schemas/Calculation/oneOf/1"
+        },
+        "inferred": false
+      },
+      "closed": true,
       "inputOnly": false
     },
     "t/openapi/components/schemas/Circle": {
@@ -867,6 +1670,57 @@
       "closed": true,
       "inputOnly": false
     },
+    "t/openapi/components/schemas/Operation": {
+      "kind": "union",
+      "id": "t/openapi/components/schemas/Operation",
+      "name": {
+        "source": "Operation",
+        "canonical": "operation"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Operation",
+        "inferred": "discriminator-inference"
+      },
+      "variants": [
+        {
+          "name": {
+            "hint": "variant_0"
+          },
+          "type": {
+            "target": "t/anon/components/schemas/Operation/oneOf/0",
+            "nullable": false
+          },
+          "docs": {}
+        },
+        {
+          "name": {
+            "hint": "variant_1"
+          },
+          "type": {
+            "target": "t/anon/components/schemas/Operation/oneOf/1",
+            "nullable": false
+          },
+          "docs": {}
+        }
+      ],
+      "exclusive": true,
+      "wireTagged": true,
+      "discriminator": {
+        "propertyName": "status",
+        "mapping": {
+          "completed": "t/anon/components/schemas/Operation/oneOf/1",
+          "pending": "t/anon/components/schemas/Operation/oneOf/0",
+          "running": "t/anon/components/schemas/Operation/oneOf/0"
+        },
+        "inferred": true
+      },
+      "closed": true,
+      "inputOnly": false
+    },
     "t/openapi/components/schemas/Optional": {
       "kind": "union",
       "id": "t/openapi/components/schemas/Optional",
@@ -906,6 +1760,80 @@
       "exclusive": true,
       "wireTagged": false,
       "closed": true,
+      "inputOnly": false
+    },
+    "t/openapi/components/schemas/Overlapping": {
+      "kind": "union",
+      "id": "t/openapi/components/schemas/Overlapping",
+      "name": {
+        "source": "Overlapping",
+        "canonical": "overlapping"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Overlapping"
+      },
+      "variants": [
+        {
+          "name": {
+            "hint": "variant_0"
+          },
+          "type": {
+            "target": "t/anon/components/schemas/Overlapping/oneOf/0",
+            "nullable": false
+          },
+          "docs": {}
+        },
+        {
+          "name": {
+            "hint": "variant_1"
+          },
+          "type": {
+            "target": "t/anon/components/schemas/Overlapping/oneOf/1",
+            "nullable": false
+          },
+          "docs": {}
+        }
+      ],
+      "exclusive": true,
+      "wireTagged": true,
+      "discriminator": {
+        "propertyName": "operator",
+        "inferred": false
+      },
+      "closed": true,
+      "inputOnly": false
+    },
+    "t/openapi/components/schemas/Polygon": {
+      "kind": "model",
+      "id": "t/openapi/components/schemas/Polygon",
+      "name": {
+        "source": "Polygon",
+        "canonical": "polygon"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Polygon",
+        "inferred": "discriminator-inference"
+      },
+      "base": {
+        "target": "t/openapi/components/schemas/Shape",
+        "nullable": false
+      },
+      "mixins": [
+        {
+          "target": "t/openapi/components/schemas/Sided",
+          "nullable": false
+        }
+      ],
+      "abstract": false,
+      "positional": false,
       "inputOnly": false
     },
     "t/openapi/components/schemas/Shape": {
@@ -957,6 +1885,100 @@
         "property": "p/openapi/components/schemas/Shape/properties/kind",
         "inferred": false
       },
+      "inputOnly": false
+    },
+    "t/openapi/components/schemas/Sided": {
+      "kind": "union",
+      "id": "t/openapi/components/schemas/Sided",
+      "name": {
+        "source": "Sided",
+        "canonical": "sided"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Sided"
+      },
+      "variants": [
+        {
+          "name": {
+            "hint": "variant_0"
+          },
+          "type": {
+            "target": "t/anon/components/schemas/Sided/oneOf/0",
+            "nullable": false
+          },
+          "docs": {}
+        },
+        {
+          "name": {
+            "hint": "variant_1"
+          },
+          "type": {
+            "target": "t/anon/components/schemas/Sided/oneOf/1",
+            "nullable": false
+          },
+          "docs": {}
+        }
+      ],
+      "exclusive": true,
+      "wireTagged": false,
+      "closed": true,
+      "inputOnly": false
+    },
+    "t/openapi/components/schemas/Square": {
+      "kind": "model",
+      "id": "t/openapi/components/schemas/Square",
+      "name": {
+        "source": "Square",
+        "canonical": "square"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Square",
+        "inferred": "discriminator-inference"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/Square/allOf/1/properties/kind",
+          "name": {
+            "source": "kind",
+            "canonical": "kind"
+          },
+          "wireName": "kind",
+          "type": {
+            "target": "t/anon/components/schemas/Square/allOf/1/properties/kind",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Square/allOf/1/properties/kind"
+          }
+        }
+      ],
+      "base": {
+        "target": "t/openapi/components/schemas/Shape",
+        "nullable": false
+      },
+      "abstract": false,
+      "positional": false,
+      "discriminatorValue": "square",
       "inputOnly": false
     },
     "t/openapi/components/schemas/Styled": {
@@ -1263,7 +2285,7 @@
     {
       "severity": "info",
       "code": "openapi/inferred-discriminator",
-      "message": "the discriminator declares no mapping, and OpenAPI's implicit mapping routes each variant by the name of the component it names, a tag a variant pinning \"type\" to another value rejects (\"json\" where it routes by \"JsonFormat\", \"text\" where it routes by \"TextFormat\"); mapped by the pinned values, marked inferred",
+      "message": "the discriminator declares no mapping, and OpenAPI's implicit mapping routes each variant only by the name of the component it names, not by what it admits for \"type\" (\"json\" where it routes by \"JsonFormat\", \"text\" where it routes by \"TextFormat\"); mapped by the values each admits, marked inferred",
       "provenance": {
         "source": 0,
         "pointer": "/components/schemas/Format/discriminator"
@@ -1272,10 +2294,19 @@
     {
       "severity": "info",
       "code": "openapi/inferred-discriminator",
-      "message": "the discriminator declares no mapping, and OpenAPI's implicit mapping routes each variant by the name of the component it names, a tag a variant pinning \"type\" to another value rejects (\"json\" where it routes by \"JsonFormat\", \"text\" where it routes by \"TextFormat\"); mapped by the pinned values, marked inferred",
+      "message": "the discriminator declares no mapping, and OpenAPI's implicit mapping routes each variant only by the name of the component it names, not by what it admits for \"type\" (\"json\" where it routes by \"JsonFormat\", \"text\" where it routes by \"TextFormat\"); mapped by the values each admits, marked inferred",
       "provenance": {
         "source": 0,
         "pointer": "/components/schemas/Styled/discriminator"
+      }
+    },
+    {
+      "severity": "info",
+      "code": "openapi/inferred-discriminator",
+      "message": "the discriminator declares no mapping, and OpenAPI's implicit mapping routes each variant only by the name of the component it names, not by what it admits for \"operator\" (\"COUNT\", \"count\" where it names none, \"max\", \"min\" where it names none); mapped by the values each admits, marked inferred",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Calculation/discriminator"
       }
     },
     {
@@ -1286,13 +2317,31 @@
         "source": 0,
         "pointer": "/components/schemas/Circle"
       }
+    },
+    {
+      "severity": "info",
+      "code": "openapi/inferred-discriminator",
+      "message": "the discriminator routes this schema by its name, \"Square\", a tag its \"kind\" rejects, admitting only \"square\"; it carries \"square\" instead, marked inferred",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Square"
+      }
+    },
+    {
+      "severity": "info",
+      "code": "openapi/inferred-discriminator",
+      "message": "the discriminator routes this schema by its name, \"Polygon\", a tag its \"kind\" rejects, admitting only \"hexagon\", \"triangle\"; no tag its instances carry routes to it, so it carries none, marked inferred",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Polygon"
+      }
     }
   ],
   "sources": [
     {
       "format": "openapi@3.1",
       "path": "discriminator-inferred.yaml",
-      "hash": "745eccdc30d46731e31beff7c22122e723236d00d21f90cbde12f1f8805f03c7"
+      "hash": "602d8b5cce9036f362c958bf0537e62d93b7047e10379cb47f00a9d5fd9391cf"
     }
   ]
 }

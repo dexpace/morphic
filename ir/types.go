@@ -314,9 +314,11 @@ type Discriminator struct {
 	// Index is the 0-based tuple element carrying the tag Literal (Erlang tagged
 	// tuples, JSON arrays with a const head via prefixItems).
 	Index *int `json:"index,omitzero"`
-	// Mapping maps wire value to subtype, and no value is empty. Nil on a union,
-	// it routes by type name. In a model hierarchy, each subtype's
-	// DiscriminatorValue routes to it too.
+	// Mapping maps a wire value to the type it routes to, a union's variant or
+	// a hierarchy's base or subtype, and no value is empty. Nil on a union, it
+	// routes by type name; otherwise it holds the routes declared or inferred
+	// and the one the source implies to each variant they leave out. In a model
+	// hierarchy, each subtype's DiscriminatorValue routes to it too.
 	Mapping map[string]TypeID `json:"mapping,omitempty"`
 	// Default is the variant to use when the tag is absent/unrecognized (OpenAPI
 	// 3.2 defaultMapping); zero = none.

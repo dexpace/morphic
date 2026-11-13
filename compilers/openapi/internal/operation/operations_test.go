@@ -697,6 +697,77 @@ func TestOperations_ServersEachLevelAlone(t *testing.T) {
 		"and the service is served at the root OpenAPI supplies for a document declaring none")
 }
 
+// TestOperations_AnEmptyServersListOverridesNothing pins that an explicit empty
+// servers list on a path item or an operation declares nothing, as an absent
+// one does, which is what OpenAPI says of the document's own: the operation is
+// sent to the nearest level above that names servers, and nothing is kept or
+// reported (docs/compilers/openapi.md#path-item-servers).
+func TestOperations_AnEmptyServersListOverridesNothing(t *testing.T) {
+	t.Parallel()
+	doc, diags := parseFull(t, `openapi: 3.1.0
+info: {title: T, version: "1"}
+servers: [{url: 'https://root.example'}]
+paths:
+  /emptyItem:
+    servers: []
+    get: {operationId: emptyItem, responses: {"200": {description: ok}}}
+  /emptyOperation:
+    servers: [{url: 'https://path.example'}]
+    get: {operationId: emptyOperation, servers: [], responses: {"200": {description: ok}}}
+  /emptyBoth:
+    servers: []
+    get: {operationId: emptyBoth, servers: [], responses: {"200": {description: ok}}}
+`)
+	openapitest.RequireNoErrorDiags(t, diags)
+	assert.Empty(t, diags)
+
+	for op, want := range map[string][]string{
+		"emptyItem": nil, "emptyOperation": {"https://path.example"}, "emptyBoth": nil,
+	} {
+		got := openapitest.FindOp(t, doc, op)
+		if want == nil {
+			assert.Nil(t, got.Servers, "%s names none, so its service's apply", op)
+		} else {
+			assert.Equal(t, want, serversNamed(t, doc, got.Servers), "%s is sent to its path item's", op)
+		}
+		assert.Empty(t, got.Unmodeled, "%s keeps nothing of an empty list", op)
+	}
+	assert.Equal(t, []string{"https://root.example"}, serversNamed(t, doc, doc.Services[0].Servers))
+}
+
+// TestOperations_InboundOperationsNameOnlyTheServersTheyState pins the half of
+// docs/ir/servers.md#inbound-operations the compiler holds: a webhook's and a
+// callback's operation name the servers their own declaration and their path
+// item state, and none where neither states any, the service's servers named on
+// none of them, since those are where the API is sent requests.
+func TestOperations_InboundOperationsNameOnlyTheServersTheyState(t *testing.T) {
+	t.Parallel()
+	doc, diags := parseFull(t, `openapi: 3.1.0
+info: {title: T, version: "1"}
+servers: [{url: 'https://api.example'}]
+paths:
+  /subscribe:
+    post:
+      operationId: subscribe
+      responses: {"201": {description: ok}}
+      callbacks:
+        onEvent:
+          '{$request.body#/url}':
+            post: {operationId: onEvent, responses: {"200": {description: ok}}}
+webhooks:
+  created:
+    post: {operationId: created, responses: {"200": {description: ok}}}
+  stated:
+    servers: [{url: 'https://receiver.example'}]
+    post: {operationId: stated, responses: {"200": {description: ok}}}
+`)
+	openapitest.RequireNoErrorDiags(t, diags)
+	assert.Nil(t, openapitest.FindOp(t, doc, "onEvent").Servers)
+	assert.Nil(t, openapitest.FindOp(t, doc, "created").Servers)
+	assert.Equal(t, []string{"https://receiver.example"}, serversNamed(t, doc, openapitest.FindOp(t, doc, "stated").Servers))
+	assert.Equal(t, []string{"https://api.example"}, serversNamed(t, doc, doc.Services[0].Servers))
+}
+
 // TestOperations_PathItemServersAreEachOperationsOwn pins that the operations of
 // one path item hold a list each, so a pass changing one's leaves the others'.
 func TestOperations_PathItemServersAreEachOperationsOwn(t *testing.T) {

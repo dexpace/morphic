@@ -8,3 +8,6 @@ const MaxPartRefHops = maxPartRefHops
 
 // MaxFileRefHops is maxFileRefHops, for the external tests.
 const MaxFileRefHops = maxFileRefHops
+
+// MaxCallbackNesting is maxCallbackNesting, for the external tests.
+const MaxCallbackNesting = maxCallbackNesting

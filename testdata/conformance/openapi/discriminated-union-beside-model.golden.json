@@ -666,6 +666,7 @@
       "discriminator": {
         "propertyName": "kind",
         "mapping": {
+          "Dog": "t/openapi/components/schemas/Dog",
           "cat": "t/openapi/components/schemas/Cat"
         },
         "inferred": false

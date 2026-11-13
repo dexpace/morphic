@@ -1,0 +1,43 @@
+# A deprecation whose message names what to use instead fills ReplacedBy under
+# the replacement policy, marked as inferred: an operation's by the method and
+# path of an operation the document declares, a property's and a parameter's
+# by a code span naming a member of its model or a parameter of its operation.
+# A message naming something the document does not declare fills nothing, and
+# keeps its prose; one naming such a name beside a member it declares is
+# reported as undecided.
+openapi: 3.1.0
+info: {title: ReplacementInference, version: "1.0.0"}
+paths:
+  /v1/zones:
+    get:
+      operationId: listZonesV1
+      deprecated: true
+      x-deprecated-reason: Use `GET /v2/zones` instead.
+      parameters:
+        - {name: from_date, in: query, deprecated: true, x-deprecated-reason: Use `start` instead., schema: {type: string}}
+        - {name: start, in: query, schema: {type: string}}
+      responses:
+        '200':
+          description: ok
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Zone'}
+    post:
+      operationId: createZoneV1
+      deprecated: true
+      x-deprecated-reason: Use POST /zones before 2027-01-01.
+      responses: {'204': {description: ok}}
+  /v2/zones:
+    get:
+      operationId: listZones
+      responses: {'204': {description: ok}}
+components:
+  schemas:
+    Zone:
+      type: object
+      properties:
+        modified: {type: string, deprecated: true, x-deprecated-reason: Use `modified_at` instead.}
+        modified_at: {type: string}
+        legacy: {type: string, deprecated: true, x-deprecated-reason: Use `gone` instead.}
+        created: {type: string, deprecated: true, x-deprecated-reason: Use `created_at` or `createdAt` instead.}
+        created_at: {type: string}

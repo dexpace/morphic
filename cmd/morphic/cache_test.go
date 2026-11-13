@@ -203,11 +203,10 @@ func TestCacheOptions_AStopWhileNamingTheBuildEndsTheRun(t *testing.T) {
 	t.Parallel()
 	ctx, cancel := context.WithCancel(t.Context())
 	cancel()
-	var stderr bytes.Buffer
-	cached, err := cacheOptions(ctx, t.TempDir(), &stderr)
+	cached, warning, err := cacheOptions(ctx, t.TempDir())
 	require.ErrorIs(t, err, context.Canceled)
 	assert.Nil(t, cached)
-	assert.Empty(t, stderr.String())
+	assert.NoError(t, warning)
 }
 
 // TestRunPipeline_AStopWhileNamingTheBuildEndsTheRun reports it as any stop
