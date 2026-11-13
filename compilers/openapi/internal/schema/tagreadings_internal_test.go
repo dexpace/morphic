@@ -50,10 +50,10 @@ func valueOf(r *tagReadings, reg ir.TypeRegistry, t ir.TypeRef) tagSet {
 // TestTagReadings_ValueReadsAClosedSetOfStrings pins what a type must be to
 // bound a tag to strings: a string Literal, a closed Enum marking no flags every
 // member of which is a string, its members read sorted and once, or a closed
-// union every variant of which bounds them, an exclusive one admitting what
-// exactly one variant does, read through alias scalars. Any other node, a nil
-// one included, admits any string, and null where a reference along the way
-// is nullable.
+// union every variant of which bounds them, a oneOf admitting what any variant
+// does, as an anyOf does, read through alias scalars. Any other node, a nil one
+// included, admits any string, and null where a reference along the way is
+// nullable.
 func TestTagReadings_ValueReadsAClosedSetOfStrings(t *testing.T) {
 	t.Parallel()
 	str := func(s string) ir.EnumMember { return ir.EnumMember{Value: ir.Value{Kind: ir.ValueString, Str: s}} }
@@ -81,11 +81,11 @@ func TestTagReadings_ValueReadsAClosedSetOfStrings(t *testing.T) {
 		"a nullable alias": {&ir.Scalar{Base: &ir.TypeRef{Target: "t/a", Nullable: true}},
 			[]string{"a"}, true},
 		"anyOf":             {unionOf("t/x", false, to("t/b"), to("t/a"), to("t/b")), []string{"a", "b"}, false},
-		"oneOf, one shared": {unionOf("t/x", true, to("t/a"), to("t/b"), to("t/a")), []string{"b"}, false},
+		"oneOf, one shared": {unionOf("t/x", true, to("t/a"), to("t/b"), to("t/a")), []string{"a", "b"}, false},
 		"a nullable variant": {unionOf("t/x", false, to("t/a"), nullable("t/b")),
 			[]string{"a", "b"}, true},
 		"oneOf, two nullable variants": {unionOf("t/x", true, nullable("t/a"), nullable("t/b")),
-			[]string{"a", "b"}, false},
+			[]string{"a", "b"}, true},
 		"a union in turn": {unionOf("t/x", false, to("t/a"), to("t/inner")), []string{"a", "b", "c"}, false},
 		"a union through an alias": {unionOf("t/x", false, to("t/a"), to("t/aliased")),
 			[]string{"a", "b", "c"}, false},

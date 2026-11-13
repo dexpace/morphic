@@ -149,7 +149,8 @@ func TestDiscriminatorInference_NamesAFewDisagreements(t *testing.T) {
 // first such property of the first variant is the inferred tag, and the union
 // is tagged by it. A property a variant may leave out, lacks, may hold null,
 // pins to no string or to a string another shares, and a variant that is no
-// model, read nothing in.
+// model, read nothing in. A oneOf of values admits what any of them does,
+// as a constraint may rule a string out of one.
 func TestDiscriminatorInference_InfersAnUndeclaredDiscriminator(t *testing.T) {
 	t.Parallel()
 	variant := func(name, props string, required ...string) string {
@@ -172,6 +173,9 @@ func TestDiscriminatorInference_InfersAnUndeclaredDiscriminator(t *testing.T) {
 		{"pinned by a union of values", variant("A", "kind: {anyOf: [{const: a}, {const: x}]}", "kind") +
 			variant("B", "kind: {const: b}", "kind"), "kind", map[string]string{"a": "A", "x": "A", "b": "B"}},
 		{"sets sharing a string", variant("A", "kind: {enum: [a, b]}", "kind") + variant("B", "kind: {const: b}", "kind"), "", nil},
+		{"a oneOf of values two admit", variant("A",
+			"kind: {oneOf: [{type: string, enum: [x, y]}, {type: string, enum: [x, zz], minLength: 2}]}", "kind") +
+			variant("B", "kind: {const: x}", "kind"), "", nil},
 		{"a union of values admitting null", variant("A", "kind: {anyOf: [{const: a}, {enum: [x, null]}]}", "kind") +
 			variant("B", "kind: {const: b}", "kind"), "", nil},
 		{"not required", variant("A", "kind: {const: a}", "kind") + variant("B", "kind: {const: b}, other: {type: string}", "other"), "", nil},

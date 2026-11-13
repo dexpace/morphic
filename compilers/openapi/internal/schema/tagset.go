@@ -65,33 +65,26 @@ func meet(a, b tagSet) tagSet {
 	return tagSet{strings: both, closed: true, null: a.null && b.null}
 }
 
-// join returns what a value of one of sets admits: the strings any admits, for
-// an exclusive union those exactly one does, as a value two admit matches
-// neither alone, and likewise null. One not closed bounds no string.
-func join(sets []tagSet, exclusive bool) tagSet {
-	once := func(n int) bool { return n == 1 || (!exclusive && n > 0) }
-	count := map[string]int{}
-	nulls, closed := 0, true
+// join returns what a value of one of sets admits: the strings any admits, and
+// null where any does. One not closed bounds no string. A oneOf joins so too,
+// though a value two of its variants admit matches neither, as a set may admit
+// more than its variant holds: what else an object holds tells its variants
+// apart, and a constraint kept beside an Enum narrows its members.
+func join(sets []tagSet) tagSet {
+	got := tagSet{closed: true}
 	for _, set := range sets {
-		closed = closed && set.closed
-		for _, s := range set.strings {
-			count[s]++
-		}
-		if set.null {
-			nulls++
-		}
+		got.closed = got.closed && set.closed
+		got.null = got.null || set.null
 	}
-	got := tagSet{closed: closed, null: once(nulls)}
-	if !closed {
-		return got
+	if !got.closed {
+		return tagSet{null: got.null}
 	}
 	got.strings = []string{}
-	for s, n := range count {
-		if once(n) {
-			got.strings = append(got.strings, s)
-		}
+	for _, set := range sets {
+		got.strings = append(got.strings, set.strings...)
 	}
 	slices.Sort(got.strings)
+	got.strings = slices.Compact(got.strings)
 	return got
 }
 

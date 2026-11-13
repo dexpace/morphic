@@ -175,7 +175,7 @@ func (r *tagReadings) combine(reg ir.TypeRegistry, f readFrame, cycle map[readKe
 			}
 			sets[i] = r.refOf(reg, v.Type)
 		}
-		return closedJoin(u, sets, u.Exclusive)
+		return closedJoin(u, sets)
 	}
 	if u := unionNode(reg, f.key.id); u != nil {
 		sets := make([]tagSet, len(u.Variants))
@@ -185,9 +185,7 @@ func (r *tagReadings) combine(reg ir.TypeRegistry, f readFrame, cycle map[readKe
 				sets[i] = r.read[k]
 			}
 		}
-		// An instance two variants admit by its tag may still match one alone,
-		// by what else it holds, so an object reading joins as an anyOf does.
-		return closedJoin(u, sets, false /* exclusive */)
+		return closedJoin(u, sets)
 	}
 	got := anything() // a model's, as no object reading keys another node
 	if p, ok := flatMember(f.flat, f.key.name); ok {
@@ -201,11 +199,11 @@ func (r *tagReadings) combine(reg ir.TypeRegistry, f readFrame, cycle map[readKe
 
 // closedJoin is join over the variants of u, or any value for a union not
 // closed.
-func closedJoin(u *ir.Union, sets []tagSet, exclusive bool) tagSet {
+func closedJoin(u *ir.Union, sets []tagSet) tagSet {
 	if !u.Closed {
 		return anything()
 	}
-	return join(sets, exclusive)
+	return join(sets)
 }
 
 // refOf returns what a value t names admits, read through alias scalars, with

@@ -2574,22 +2574,23 @@ off what it admits: the Go option `Options.DiscriminatorInference`, whose zero v
 which `false` turns off (invariant 6). What an instance admits is read off the IR, each type read
 through alias scalars. A value of a type admits a string `Literal`'s one string, the members of a
 closed `Enum` every one of which is a string, or what a value of a closed union does: the strings
-its variants admit, and for a `oneOf` those exactly one of them admits, as a value two admit matches
-neither alone. A union on a cycle of such unions, or reaching one, admits any value, and any other
-type, a number among them, any string, since a discriminator's tag is the wire string, which a
-number's text spells too. A value admits null where its reference or an alias it is read through
-does, or a union's variants do, counted as its strings are, and null is no tag. A member admits what
-every declaration its flattening reads of it admits (`ir.FlattenedProperties`), the one it takes and
-those it overrides, as an instance meets them all, and null only where each does. An object admits
-at a property what its member of that name admits, any value where it declares none, met with what
-each closed union it composes admits there: what any of the union's variants admits as an object in
-turn, a variant that is no model or union admitting any value. A cycle of objects and the unions
-they compose, as a union listing subtypes that compose it, is read alike from wherever the reading
-enters it, each member admitting what it does given what the others admit, from any value down until
-none changes: so a subtype pinning its tag admits its pin, and the union what its subtypes admit. A
-cycle is swept at most 64 times, each sweep reading every member off the one before; one still
-changing then is read as the last sweep left it, which admits no less than its instances hold, so
-nothing is reported.
+any of its variants admits, a `oneOf`'s as an `anyOf`'s. A value two variants of a `oneOf` admit
+matches neither, but what is read of a variant can admit more than it holds, as a constraint kept
+beside an `Enum` rules some of its members out, so a string read off two variants may still match
+one alone. A union on a cycle of such unions, or reaching one, admits any value, and any other type,
+a number among them, any string, since a discriminator's tag is the wire string, which a number's
+text spells too. A value admits null where its reference or an alias it is read through does, or one
+of a union's variants does, and null is no tag. A member admits what every declaration its
+flattening reads of it admits (`ir.FlattenedProperties`), the one it takes and those it overrides,
+as an instance meets them all, and null only where each does. An object admits at a property what
+its member of that name admits, any value where it declares none, met with what each closed union it
+composes admits there: what any of the union's variants admits as an object in turn, a variant that
+is no model or union admitting any value. A cycle of objects and the unions they compose, as a union
+listing subtypes that compose it, is read alike from wherever the reading enters it, each member
+admitting what it does given what the others admit, from any value down until none changes: so a
+subtype pinning its tag admits its pin, and the union what its subtypes admit. A cycle is swept at
+most 64 times, each sweep reading every member off the one before; one still changing then is read
+as the last sweep left it, which admits no less than its instances hold, so nothing is reported.
 
 So a body beside a union that redeclares the tag as a string, which its composed variants take,
 leaves each branch's pin in force ([`union-beside-structure`](#union-beside-structure)), and a tag
