@@ -79,6 +79,14 @@ var canonicalCases = []struct {
 	{"a caseless run still ends at a cased capital", "\u2124\u2124Ab", "\u2124\u2124_ab"},
 	{"a name with no word rune has no words", "***", ""},
 	{"the empty name is empty", "", ""},
+	// GitHub #1544. A default-ignorable letter or mark renders as nothing, so a
+	// word of it would render an identifier nobody can see: it separates, as a
+	// zero-width space does.
+	{"a name of variation selectors has no words", "\ufe0f\U000e0100", ""},
+	{"nor has a name of Hangul fillers", "\u3164\uffa0", ""},
+	{"a variation selector between letters separates them", "a\ufe0fb", "a_b"},
+	{"a grapheme joiner between letters separates them", "a\u034fb", "a_b"},
+	{"a free variation selector after a letter is not kept", "\u1820\u180b", "\u1820"},
 }
 
 func TestCanonicalWords_Conformance(t *testing.T) {

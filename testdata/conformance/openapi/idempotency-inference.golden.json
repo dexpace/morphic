@@ -570,6 +570,15 @@
   },
   "diagnostics": [
     {
+      "severity": "error",
+      "code": "openapi/duplicate-parameter",
+      "message": "parameter \"IDEMPOTENCY-KEY\" in \"header\" repeats the entry at /paths/~1payments~1{id}/delete/parameters/0, spelled \"Idempotency-Key\", as HTTP compares header names in any case",
+      "provenance": {
+        "source": 0,
+        "pointer": "/paths/~1payments~1{id}/delete/parameters/1"
+      }
+    },
+    {
       "severity": "info",
       "code": "openapi/undecided-idempotency",
       "message": "no idempotency token is inferred: 2 header parameters are named Idempotency-Key, compared without case",

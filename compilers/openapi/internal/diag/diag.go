@@ -4,6 +4,7 @@
 package diag
 
 import (
+	"encoding/json/jsontext"
 	"fmt"
 
 	"github.com/dexpace/morphic/ir"
@@ -200,13 +201,13 @@ const (
 	// on nothing but declaration order.
 	DuplicateStatusKey = "openapi/duplicate-status-key"
 	// DuplicateParameter reports a parameter list entry repeating the name and
-	// location of an earlier entry in the same list, its $refs resolved, which
-	// OpenAPI forbids. The rule table states the rule and leaves it here, where
-	// every entry is read through its $ref: every list the source writes is
-	// checked whether or not it lowers (load), and a list another document
-	// writes where it lowers (the parameter lowering) or where a path item
-	// mounting no operation keeps it. Either keeps every occurrence, each
-	// repeat's ID or key ending in its occurrence number.
+	// location of an earlier entry in the same list (ids.SlotOf), its $refs
+	// resolved, which OpenAPI forbids (RepeatedParameter). The rule table
+	// leaves it here, where every entry is read through its $ref: every list
+	// the source writes is checked whether or not it lowers (load), and a list
+	// another document writes where it lowers (the parameter lowering) or where
+	// a path item mounting no operation keeps it. Either keeps every
+	// occurrence, a repeat of one spelling numbered.
 	//
 	// An error, as the specification forbids the repeat.
 	DuplicateParameter = "openapi/duplicate-parameter"
@@ -554,6 +555,19 @@ const (
 // are always populated.
 func Newf(sev ir.Severity, code string, prov ir.Provenance, format string, args ...any) ir.Diagnostic {
 	return ir.NewDiagnostic(sev, code, fmt.Sprintf(format, args...), prov)
+}
+
+// RepeatedParameter is the message DuplicateParameter carries at an entry
+// naming name in in that repeats the entry at first, which names firstName,
+// saying how that one is spelled where a header's differs in case. Load's
+// walk and the parameter lowering each report a repeat, so one function words
+// both.
+func RepeatedParameter(name, in string, first jsontext.Pointer, firstName string) string {
+	message := fmt.Sprintf("parameter %q in %q repeats the entry at %s", name, in, first)
+	if firstName == name {
+		return message
+	}
+	return message + fmt.Sprintf(", spelled %q, as HTTP compares header names in any case", firstName)
 }
 
 // HasError reports whether any diagnostic carries error severity. The load phase
