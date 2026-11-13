@@ -332,7 +332,8 @@ func CarrierConstraintsOf(c lowering.Ctx, ts *compile.Types, p *ir.Unmodeled, s 
 // (docs/compilers/openapi.md#constraints), with those its voices write where
 // the position holds them (homesAt). The value bounds are those the types the
 // position declares take, every one where it declares none, and never by what
-// target is.
+// target is, so one target's type cannot take is held where the position
+// declares no type (GitHub #1907).
 func referenceConstraintsOf(c lowering.Ctx, ts *compile.Types, p *ir.Unmodeled, s *oas3.Schema, voices []annotation.Voice, target ir.TypeRef, pointer jsontext.Pointer) (*ir.Constraints, []ir.Diagnostic) {
 	if s == nil {
 		return nil, nil

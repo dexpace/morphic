@@ -3666,6 +3666,9 @@ no bound ([`string-formats`](#string-formats)).
   `schema.TestCompareCounts_OrdersLiteralsExactly`,
   `annotation.TestExactCount_StatesOnlyAnExactCount`,
   `oas.TestShape_Admits`
+- Status: partly built: a position lowering to a reference whose schema declares no type reads every
+  value bound whatever its target's type, so one the target's type cannot take reaches the alias or
+  carrier the position owns (#1907).
 
 ### `validation-only`
 
