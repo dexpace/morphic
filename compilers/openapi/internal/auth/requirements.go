@@ -84,16 +84,15 @@ func (r *Registry) requirement(c lowering.Ctx, req *soa.SecurityRequirement, poi
 }
 
 // requiredScopes returns the scopes written, the list an option at pointer
-// writes for the name it keys, each kept once, at its first occurrence, beside a
-// warning at each repeat: the scopes a scheme is required to hold are a set.
-// Scopes compare as the text written, and one scheme's list folds apart from
-// another's.
-func requiredScopes(c lowering.Ctx, written []string, name string, pointer jsontext.Pointer) ([]string, []ir.Diagnostic) {
+// writes under key, each kept once, at its first occurrence, beside a warning at
+// each repeat: the scopes a scheme is required to hold are a set. Scopes compare
+// as the text written, and one scheme's list folds apart from another's.
+func requiredScopes(c lowering.Ctx, written []string, key string, pointer jsontext.Pointer) ([]string, []ir.Diagnostic) {
 	scopes, repeats := lowering.FirstOccurrences(written)
 	var diags []ir.Diagnostic
 	for _, r := range repeats {
-		diags = append(diags, c.DiagAt(ir.SeverityWarning, diag.RepeatedEntry, pointer+ids.Ptr(name, strconv.Itoa(r.At)),
-			"scope %q of scheme %q repeats the entry at index %d; it is kept once", written[r.At], name, r.First))
+		diags = append(diags, c.DiagAt(ir.SeverityWarning, diag.RepeatedEntry, pointer+ids.Ptr(key, strconv.Itoa(r.At)),
+			"scope %q of scheme %q repeats the entry at index %d; it is kept once", written[r.At], key, r.First))
 	}
 	return scopes, diags
 }
