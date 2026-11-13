@@ -69,16 +69,16 @@ begins with a name no nearer declaration takes, as each target says
 names no parameter, so there a parameter the spec names yields to an import instead, and the
 function's scope reserves the name its file gives each import. The naming steps settle that name
 after the units' names and before any other scope's ([the refiner contract](pipeline.md)), since on
-Go it reads only its package's name, what the target binds,
-the predeclared identifiers its file writes and its file's other imports: with Go 1.27.3, a
-parameter `time2`, escaped against `time` alone, hid the unit `time` its file then imported as
-`time2` (`time2.Zone is not a type`). A Kotlin caller names one in a named argument, and a Swift
-caller as its label, so there an import yields to every declaration of its file, at any depth, and
-no scope reserves an import. An import has no ID, so which of two keeps a name is each target's to
-say from what they import. That is why `ComputeImports` runs before the naming steps ([the refiner
-contract](pipeline.md)): what a file imports is fixed by where declarations landed, and what the
-file calls each import is a name like any other. Names that collide once cased are `Ctx.Syms`'s on
-every target, and so, in a scope a target writes as paths, are names that fold alike
+Go it reads only its package's name, what the target binds, the predeclared identifiers its file
+writes and its file's other imports: with Go 1.27.3, a parameter `time2`, escaped against `time`
+alone, hid the unit `time` its file then imported as `time2` (`time2.Zone is not a type`). A Kotlin
+caller names one in a named argument, and a Swift caller as its label, so there an import yields to
+every declaration of its file, at any depth, and no scope reserves an import. An import has no ID,
+so which of two keeps a name is each target's to say from what they import. That is why
+`ComputeImports` runs before the naming steps ([the refiner contract](pipeline.md)): what a file
+imports is fixed by where declarations landed, and what the file calls each import is a name like
+any other. Names that collide once cased are `Ctx.Syms`'s on every target, and so, in a scope a
+target writes as paths, are names that fold alike
 ([naming](naming.md#collisions-and-the-names-a-generation-shipped)). T-19 holds every scope's set,
 the names with no words and the names that begin with a digit to code that compiles, and names that
 fold alike to paths that do not; T-54 holds names holding a character a target cannot write, or

@@ -157,18 +157,17 @@ throughout these documents.
     both, `KotlinInt`, `KotlinThrowable` and `KotlinComparable` among them, and qualifies a name by
     either module; of the two types `Duration` the one whose ID sorts first exports as `Duration__`
     and the other as `Duration__2`, beside the runtime's `Duration_`, each keeping its name under
-    both orders of their units' packages. The fixture also names a
-    property, a parameterless method, a `suspend` method and an enum entry after every member of the
-    table of `NSObject`'s, `dealloc`, `zone`, `hash`, `self`, `load` and `copy` among them, a method
-    of one parameter after each of its one-parameter selectors (`responds(toSelector:)`), a method
-    and an entry after a name of each method family, and entries `ENTRIES`, `VALUES` and `COMPANION`
-    of an enum with a companion object: the header builds a module, a Swift caller reads each
-    property's own value, calls each method and reaches each entry by the name the policy chose,
-    which is the name the header gives it, a property `value` and one `version` keep their names,
-    `hash`, `copy()` and `responds(to:)` on a model still answer as `NSObject`'s, and that enum's
-    `entries`, `values()` and `companion` as its own, and the table equals what that document's
-    commands read from the SDK the options version names, its selectors and `hashValue` alike
-    ([Swift](../targets/kotlin/swift.md)).
+    both orders of their units' packages. The fixture also names a property, a parameterless method,
+    a `suspend` method and an enum entry after every member of the table of `NSObject`'s, `dealloc`,
+    `zone`, `hash`, `self`, `load` and `copy` among them, a method of one parameter after each of
+    its one-parameter selectors (`responds(toSelector:)`), a method and an entry after a name of
+    each method family, and entries `ENTRIES`, `VALUES` and `COMPANION` of an enum with a companion
+    object: the header builds a module, a Swift caller reads each property's own value, calls each
+    method and reaches each entry by the name the policy chose, which is the name the header gives
+    it, a property `value` and one `version` keep their names, `hash`, `copy()` and `responds(to:)`
+    on a model still answer as `NSObject`'s, and that enum's `entries`, `values()` and `companion`
+    as its own, and the table equals what that document's commands read from the SDK the options
+    version names, its selectors and `hashValue` alike ([Swift](../targets/kotlin/swift.md)).
 20. **T-20 · Recursive types** — a model that holds itself directly, through a base, through a tuple
     and through another model, and one whose cycle passes through a list or a union, generate code
     that compiles on every target, and exactly the references on a cycle Go holds by value are held
@@ -939,15 +938,15 @@ throughout these documents.
     `WithResponse` method, and a type, a union's variant and an operation at the cap that meet a
     reserved name or each other (`…Kt`, two variants folding alike, two operations folding alike
     that end in a digit), generates code that compiles on every target: each identifier of a role
-    written into a path within the cap but for its escape and its suffix, a shortened one
-    keeping its leading words and its hash word and drawing one `emitters/<target>/name-shortened`,
-    two that share their first 110 bytes apart, among them two names with no words (twelve and
-    thirteen `_`), two types named from hints and one long type's create and patch declarations, the
-    property's name whole, and no segment of a path the build writes past 255 bytes, every class
-    file kotlinc writes among them, each counted as if every name at the cap it holds had taken the
-    8 bytes the naming steps may add, so a variant's serializer is at most 255 bytes and a class
-    written for a method's body adds at most 12 after the method's name, none of them named for an
-    inline function ([naming](../refine/naming.md#a-name-too-long-for-a-path-is-shortened)).
+    written into a path within the cap but for its escape and its suffix, a shortened one keeping
+    its leading words and its hash word and drawing one `emitters/<target>/name-shortened`, two that
+    share their first 110 bytes apart, among them two names with no words (twelve and thirteen `_`),
+    two types named from hints and one long type's create and patch declarations, the property's
+    name whole, and no segment of a path the build writes past 255 bytes, every class file kotlinc
+    writes among them, each counted as if every name at the cap it holds had taken the 8 bytes the
+    naming steps may add, so a variant's serializer is at most 255 bytes and a class written for a
+    method's body adds at most 12 after the method's name, none of them named for an inline function
+    ([naming](../refine/naming.md#a-name-too-long-for-a-path-is-shortened)).
 54. **T-54 · Names past ASCII** — a fixture naming a type, a property, a parameter, an operation, an
     enum member and a group with a decomposed `café`, with `नाम`, with a letter Kotlin 2.4.0's lexer
     does not know, U+0870 and past the BMP U+10570, with a digit it does not know, `a𐵀`, with a mark

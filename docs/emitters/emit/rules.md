@@ -60,10 +60,9 @@ T-25 gives each a test.
   of the 149,249 characters the tables of Go 1.26.3 hold, Unicode 15.0.0's, each assigned but
   private use, which folds to itself, the surrogates, which no UTF-8 name holds, and NUL and `/`,
   which no file name holds, folds alike built with it and with Go 1.27.3, which holds Unicode
-  17.0.0, though `unicode.ToUpper` differs between
-  them at 55 code points, and a character the older left unassigned was no letter to the word
-  grammar either, so a name holding one changes its words with the release whatever the fold reads.
-  T-52 holds it.
+  17.0.0, though `unicode.ToUpper` differs between them at 55 code points, and a character the older
+  left unassigned was no letter to the word grammar either, so a name holding one changes its words
+  with the release whatever the fold reads. T-52 holds it.
 - **A segment every file system writes.** Each segment of an artifact's path, a snapshot label's
   directory among them, is at most 255 bytes of UTF-8, the least any file system takes: ext4
   documents 255 bytes, and APFS, as NTFS documents, 255 UTF-16 units, which on macOS 26.5.2 took 255
