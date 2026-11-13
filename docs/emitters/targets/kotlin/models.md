@@ -129,8 +129,8 @@ cost. Measured so (Kotlin/Native 2.4.0, through Gradle on macOS arm64, a debug a
 build), each shape above decoded, encoded, printed, hashed and compared at every depth from 1 to 64
 from threads of 48 KB to 1 MB; a caller that had left itself 59 KB of a 512 KB thread decoded 14
 levels of the member shape on a thread started for it; and on the main thread, 8 MB left, a hash of
-a value of the 200-member model two levels deep started none. With what is left read as unbounded,
-a 64 KB thread ended the process in the debug build at 17 levels of the member shape, which the
+a value of the 200-member model two levels deep started none. With what is left read as unbounded, a
+64 KB thread ended the process in the debug build at 17 levels of the member shape, which the
 optimized build decoded to 64. Reading what is left took 8 ns optimized and 17 in debug, and
 starting and joining a thread 12 µs and 30 µs.
 
@@ -179,15 +179,14 @@ member and the check, whose `nesting` is true for a value past either limit and 
 constraint's, so a caller tells them apart by no message. Throwing them was the alternative, and
 reaches a Swift caller only through `@Throws`, any other exception ending its app
 ([Swift](swift.md)); a Swift caller read `nesting` from the list returned (Kotlin/Native 2.4.0).
-Each records in
-`jsonValues`, beside it, how many values its JSON form holds, the sum of its members' and one for
-itself, held at the greatest `Int` once past it, and a value past `MaxValues` is treated the same
-way, its count shown beside its depth: one sharing each child at 22 levels, 16,777,214 values,
-printed, hashed, compared and was found in a set in 0.9 s, and one at 30 levels answered all four in
-68 µs, equal only to itself (Kotlin 2.4.0, JVM 25). Measured on Kotlin/Native 2.4.0, a value 200,002
-levels deep printed, hashed, compared and was found in a set on a 64 KB stack, where the same
-nesting with no record ended the process on 512 KB. Both Kotlin targets do this. On the JVM a
-`MaxDepth` raised past what a thread's stack takes still leaves a value within it the
-`StackOverflowError` any deep structure meets there, which its caller can catch. A count kept in a
-thread-local as each method recurses would bound them too, at two reads of it for every nested value
-hashed. T-63 holds these.
+Each records in `jsonValues`, beside it, how many values its JSON form holds, the sum of its
+members' and one for itself, held at the greatest `Int` once past it, and a value past `MaxValues`
+is treated the same way, its count shown beside its depth: one sharing each child at 22 levels,
+16,777,214 values, printed, hashed, compared and was found in a set in 0.9 s, and one at 30 levels
+answered all four in 68 µs, equal only to itself (Kotlin 2.4.0, JVM 25). Measured on Kotlin/Native
+2.4.0, a value 200,002 levels deep printed, hashed, compared and was found in a set on a 64 KB
+stack, where the same nesting with no record ended the process on 512 KB. Both Kotlin targets do
+this. On the JVM a `MaxDepth` raised past what a thread's stack takes still leaves a value within it
+the `StackOverflowError` any deep structure meets there, which its caller can catch. A count kept in
+a thread-local as each method recurses would bound them too, at two reads of it for every nested
+value hashed. T-63 holds these.

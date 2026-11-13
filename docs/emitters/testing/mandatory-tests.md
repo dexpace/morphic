@@ -1054,8 +1054,8 @@ throughout these documents.
     member whose reference admits null sends `null`, nothing and a value as three requests, a map
     and a catch-all whose value admits null send `{"k": null}` for an entry and read it back, a null
     marked `Inferred` as one declared, and a member or a value admitting none has no form that sends
-    `null`, on Go and on both Kotlin targets; and a `POST` sent as a
-    merge patch relaxes nothing ([TypePlan](../plan/types.md#what-a-patch-relaxes), [one
+    `null`, on Go and on both Kotlin targets; and a `POST` sent as a merge patch relaxes nothing
+    ([TypePlan](../plan/types.md#what-a-patch-relaxes), [one
     election](../plan/responses.md#one-election)).
 60. **T-60 · The declaration a shape takes** — a model with a `readOnly` and a `writeOnly` member,
     read by one operation and written by a `POST`, a `PUT`, a `PATCH` and a merge patch, is declared
@@ -1091,17 +1091,17 @@ throughout these documents.
     decoded by the client and by a caller's own decoder call, reads `1`, `1.0`, `1e0`, `10e-1` and
     `1E+2` as their values and `-0` and `-0.0` as zero, an unsigned kind among them; as a map's key
     and as a catch-all's beside a declared member alike, reads the names `"1"`, `"1.0"` and `"1e0"`
-    as 1, writes `"1"`, refuses the name `"1.5"` and refuses an object holding two of them,
-    through the client and a caller's own decoder call, a boolean, an enum over a number,
-    one over a string and a date each written and read as a key by their text; refuses `1.5`,
-    `15e-1`, `1e-400`, the string `"1"` where a value stands, the first value past each kind's range
-    in plain digits and in exponent form, and a negative number into an unsigned kind; reads each
-    kind's least and greatest value and 9007199254740993, in plain digits and in exponent form, to
-    that exact value, which no reader passing through a float does, and `0e99999999999999999999` as
-    zero; refuses `1e1000000000` and reads a literal a megabyte long that names 1, each within a
-    time bound a literal's expansion would pass; writes plain digits; reads a parameter's and a
-    header's text by the same table, in an SDK and in a mock; and leaves a caller's own decoder for
-    an integer type its precedence at any depth ([type
+    as 1, writes `"1"`, refuses the name `"1.5"` and refuses an object holding two of them, through
+    the client and a caller's own decoder call, a boolean, an enum over a number, one over a string
+    and a date each written and read as a key by their text; refuses `1.5`, `15e-1`, `1e-400`, the
+    string `"1"` where a value stands, the first value past each kind's range in plain digits and in
+    exponent form, and a negative number into an unsigned kind; reads each kind's least and greatest
+    value and 9007199254740993, in plain digits and in exponent form, to that exact value, which no
+    reader passing through a float does, and `0e99999999999999999999` as zero; refuses
+    `1e1000000000` and reads a literal a megabyte long that names 1, each within a time bound a
+    literal's expansion would pass; writes plain digits; reads a parameter's and a header's text by
+    the same table, in an SDK and in a mock; and leaves a caller's own decoder for an integer type
+    its precedence at any depth ([type
     table](../contract/type-table.md#an-integer-row-reads-a-number-by-its-value)).
 62. **T-62 · Bytes compare by content** — on both Kotlin targets and from a Swift caller, two values
     decoded from the same `bytes` text are equal and hash alike as themselves, in a scalar's
@@ -1127,29 +1127,27 @@ throughout these documents.
     the caller as that failure; on JS and on Wasm under node, where nothing is read and no thread
     started, a body at the limit decodes through each and its value encodes, prints, hashes and
     compares, and a JS decode that overflows below a caller deep in its own stack reaches it as a
-    body that does not decode, the next call decoding; a body
-    holding one value more than `Nesting.MaxValues` is refused the same way and one holding that
-    many decodes, a member's name counting none; an opening bracket inside a string counts for
-    nothing, a string ending in an escaped backslash among them, the value after it nested past the
-    limit still refused; a value a caller builds past the limit is refused by the client's encoder,
-    nothing sent, and prints, hashes, compares and validates without recursing into it, on
-    Kotlin/Native on a 64 KB stack; a value a caller builds that holds one child twice at each of 60
-    levels is refused by the encoder once it has written `Nesting.MaxValues` values, prints in Go as
-    far as that many values and then `...` and fails Go's `Validate` after as many, and in Kotlin
-    prints its class, depth and count alone, hashes as its depth, equals only itself and fails
-    `validate()`, each within a time bound no walk of 2^60 values meets, which a hash or a check
-    reading the depth alone fails; a value past either limit fails Go's `Validate` with an error
-    answering `errors.Is` for `runtime.ErrNesting` and Kotlin's `validate()` with a failure whose
-    `nesting` is true, read from a Swift caller too, a constraint's failure answering neither,
-    alone or beside one that does; in Go a value holding itself through a pointer, a slice and a map
-    is refused by the encoder, fails `Validate` at the limit, its type in another package than the
-    one holding it, and is printed by `String`, `GoString`, `LogValue` and every `fmt` verb to the
-    limit and no further, and no generated field carries a `validate` tag, which a reflection
-    validator would follow past it; a Kotlin model built from a list its caller then changes keeps
-    its members
-    and its hash; and a `Nesting.MaxDepth` a target cannot hold to, one above 64 on Multiplatform,
-    is reported and none is read to another depth
-    ([models](../refine/models.md#how-deep-a-value-nests)).
+    body that does not decode, the next call decoding; a body holding one value more than
+    `Nesting.MaxValues` is refused the same way and one holding that many decodes, a member's name
+    counting none; an opening bracket inside a string counts for nothing, a string ending in an
+    escaped backslash among them, the value after it nested past the limit still refused; a value a
+    caller builds past the limit is refused by the client's encoder, nothing sent, and prints,
+    hashes, compares and validates without recursing into it, on Kotlin/Native on a 64 KB stack; a
+    value a caller builds that holds one child twice at each of 60 levels is refused by the encoder
+    once it has written `Nesting.MaxValues` values, prints in Go as far as that many values and then
+    `...` and fails Go's `Validate` after as many, and in Kotlin prints its class, depth and count
+    alone, hashes as its depth, equals only itself and fails `validate()`, each within a time bound
+    no walk of 2^60 values meets, which a hash or a check reading the depth alone fails; a value
+    past either limit fails Go's `Validate` with an error answering `errors.Is` for
+    `runtime.ErrNesting` and Kotlin's `validate()` with a failure whose `nesting` is true, read from
+    a Swift caller too, a constraint's failure answering neither, alone or beside one that does; in
+    Go a value holding itself through a pointer, a slice and a map is refused by the encoder, fails
+    `Validate` at the limit, its type in another package than the one holding it, and is printed by
+    `String`, `GoString`, `LogValue` and every `fmt` verb to the limit and no further, and no
+    generated field carries a `validate` tag, which a reflection validator would follow past it; a
+    Kotlin model built from a list its caller then changes keeps its members and its hash; and a
+    `Nesting.MaxDepth` a target cannot hold to, one above 64 on Multiplatform, is reported and none
+    is read to another depth ([models](../refine/models.md#how-deep-a-value-nests)).
 64. **T-64 · The runtime's surface** — on every target, a caller's program built outside the SDK, as
     another Go module, another Gradle build and a Swift file against the framework, compiles while
     it uses the client, a sub-client's method, the failure value, a stream and an event, and fails

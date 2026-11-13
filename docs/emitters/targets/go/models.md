@@ -97,12 +97,11 @@ a nil pointer among them, under `omitzero`, under `omitzero,omitempty` and under
 wrote the same bytes each time, where an `IsZero` answering only for a `T` that declares one
 differed in 12, `SecretOf(int64(0))` writing `"pin":0` under the implicit tag and a nil map
 `"tags":{}` (Go 1.27.3). A function is the one kind `fmt` prints as an address however it is asked.
-A pointer was
-built first: one to a list, a struct or a map is followed once under a verb `fmt` has no pointer
-form for, `%s` among them, and printed a `*[]string`'s secret in 216 of the same renderings, where
-`Secret` held it in none, nor did a failure holding the model. The costs are a function's: a caller
-wraps the value it would otherwise write, `runtime.SecretOf(v)` with `v` an `Opt[string]` for
-`password`, and reads `.Value()`; two models holding equal secrets are unequal to
+A pointer was built first: one to a list, a struct or a map is followed once under a verb `fmt` has
+no pointer form for, `%s` among them, and printed a `*[]string`'s secret in 216 of the same
+renderings, where `Secret` held it in none, nor did a failure holding the model. The costs are a
+function's: a caller wraps the value it would otherwise write, `runtime.SecretOf(v)` with `v` an
+`Opt[string]` for `password`, and reads `.Value()`; two models holding equal secrets are unequal to
 `reflect.DeepEqual`, and `==` does not compile on one, so a test compares through `Equal`, which
 go-cmp asks; and a member a document starts or stops marking changes type, a break for its callers,
 as a reference joining a cycle does ([recursive references](#recursive-references)). A value a
@@ -176,12 +175,11 @@ runtime.ErrNesting)`, a sentinel of the runtime's unit as a kind's is
 ([failures](errors.md#ratelimited-in-go)), which a constraint's failure does not answer: a value
 holding itself answered it, with a constraint failing beside it too, and a constraint's failure
 alone did not, its type in another package. A `Validate` calling each nested value's `Validate`
-ended the
-process on a model whose pointer led back to it (`fatal error: stack overflow`), and no other
-exported method carries the state into another unit, since an exported signature naming an internal
-type is refused (T-64). Measured so, with the checked type in another package, a value holding
-itself was reported at the limit, and one sharing each child at 60 levels after 16,777,216 values in
-1.5 s (Go 1.27.3). T-63 holds these.
+ended the process on a model whose pointer led back to it (`fatal error: stack overflow`), and no
+other exported method carries the state into another unit, since an exported signature naming an
+internal type is refused (T-64). Measured so, with the checked type in another package, a value
+holding itself was reported at the limit, and one sharing each child at 60 levels after 16,777,216
+values in 1.5 s (Go 1.27.3). T-63 holds these.
 
 ## Recursive references
 

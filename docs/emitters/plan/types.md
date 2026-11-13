@@ -524,19 +524,18 @@ would be. Beside them 3,170 types take 4,407 aliases: 2,216 `Create`, 1,264 `Cre
 variants, each a wrapper's alias more in Go. They count each model and union that a parameter, a
 request content, or the content or a header of a response, an error or the default response of an
 HTTP binding reaches by [the steps above](#a-shape-reaches-what-it-holds): a model's members as
-`ir.FlattenedProperties` gives
-them, one declaration each, the union a model narrows, a polymorphic base's subtypes, a union's
-variants and a catch-all's and a map's values in the same shape, a list's elements without the
-patch, and a decorator read through to its base and counted as no type of its own; two projections
-coincide where every model reached holds and requires the same members. Leaving out the union a
-model narrows gives 413 types and 638 declarations instead. The document holds no tuple. No name of
-either sort collides with a named type's own. Between two revisions of that spec (@149d53ea and
-@bc6fad24), 18 of the 12,688 pairs of a type and a shape that both hold crossed that line, in 13
-types: 14 left the read projection, as the `subdomain` of `workers_Worker` did on gaining a
-`readOnly` `url`, and 4 returned to it. The first rejected rule renames all 18. No operation reads
-153 of the 420, which the fourth would rename when one does, and every shape that writes 166 of them
-is `update`, or every one `create` and `update`, which the third would rename when a `POST` joins.
-T-60 holds the rule.
+`ir.FlattenedProperties` gives them, one declaration each, the union a model narrows, a polymorphic
+base's subtypes, a union's variants and a catch-all's and a map's values in the same shape, a list's
+elements without the patch, and a decorator read through to its base and counted as no type of its
+own; two projections coincide where every model reached holds and requires the same members. Leaving
+out the union a model narrows gives 413 types and 638 declarations instead. The document holds no
+tuple. No name of either sort collides with a named type's own. Between two revisions of that spec
+(@149d53ea and @bc6fad24), 18 of the 12,688 pairs of a type and a shape that both hold crossed that
+line, in 13 types: 14 left the read projection, as the `subdomain` of `workers_Worker` did on
+gaining a `readOnly` `url`, and 4 returned to it. The first rejected rule renames all 18. No
+operation reads 153 of the 420, which the fourth would rename when one does, and every shape that
+writes 166 of them is `update`, or every one `create` and `update`, which the third would rename
+when a `POST` joins. T-60 holds the rule.
 
 ## A model with lifecycle visibility
 

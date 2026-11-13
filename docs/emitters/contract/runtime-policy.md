@@ -576,13 +576,12 @@ shown to decode, encode, print, hash and compare on a small stack of its platfor
 which grows, 256 KB on the JVM, on Kotlin/Native the 512 KB an Apple platform gives a thread, the
 runtime moving to a stack it sizes where a value needs more than the thread has left, and on JS and
 Wasm node's own ([Go](../targets/go/models.md#nesting),
-[Kotlin](../targets/kotlin/models.md#nesting)). The range
-ends at 10,000, which json/v2 fixes. `Nesting.MaxValues` is how many values one such text may hold,
-which bounds the work a value holding one child many times can ask for; its default refuses no text
-under 32 MB, a value and its separator taking two bytes at least, and its range ends where a Kotlin
-`Int` does. An operation's two values bound its own request and responses, and what belongs to no
-operation, a value printed, hashed or compared, is bounded by the largest of each any operation
-resolves to.
+[Kotlin](../targets/kotlin/models.md#nesting)). The range ends at 10,000, which json/v2 fixes.
+`Nesting.MaxValues` is how many values one such text may hold, which bounds the work a value holding
+one child many times can ask for; its default refuses no text under 32 MB, a value and its separator
+taking two bytes at least, and its range ends where a Kotlin `Int` does. An operation's two values
+bound its own request and responses, and what belongs to no operation, a value printed, hashed or
+compared, is bounded by the largest of each any operation resolves to.
 
 A target reports a value it cannot hold to as [a setting that cannot
 apply](#a-setting-that-cannot-apply) and generates no reader for another depth in its place. Go and
