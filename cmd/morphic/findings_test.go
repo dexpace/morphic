@@ -5,6 +5,7 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"encoding/json/v2"
 	"errors"
 	"os"
@@ -15,9 +16,11 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/dexpace/morphic/compilers"
 	"github.com/dexpace/morphic/engine"
 	"github.com/dexpace/morphic/engine/report"
 	"github.com/dexpace/morphic/internal/testspec"
+	"github.com/dexpace/morphic/ir"
 )
 
 // twoErrorSpec draws two error findings, a contact address that is no address
@@ -397,5 +400,48 @@ func TestRun_DiagFormatJSONWritesWhatItHeldOnAFailure(t *testing.T) {
 			assert.Equal(t, "morphic: warning: "+os.ErrPermission.Error(), lines[0])
 			assert.True(t, strings.HasPrefix(lines[1], tc.reason), lines[1])
 		})
+	}
+}
+
+// unknownSeverityCompiler lowers every spec to a bare document with one finding
+// at /info, reported at a severity the IR does not declare.
+type unknownSeverityCompiler struct{ nilDocCompiler }
+
+func (unknownSeverityCompiler) Compile(_ context.Context, sources []compilers.Source, _ compilers.Options) (*ir.Document, []ir.Diagnostic, error) {
+	return &ir.Document{
+		IRVersion: ir.IRVersion,
+		Name:      "Found",
+		Sources:   []ir.SourceInfo{{Format: "openapi@3.1", Path: sources[0].Path, Hash: ir.SourceHash(sources[0].Data)}},
+	}, []ir.Diagnostic{{Severity: "fatal", Code: "x/fatal", Message: "m", Provenance: ir.Provenance{Pointer: "/info"}}}, nil
+}
+
+// TestRun_NoRuleHidesAnUnknownSeverity pins a finding reported at a severity
+// the IR does not declare as a stage breaking its contract, on both commands
+// in both formats at the most lenient threshold: exit 2 with the one line
+// naming it and no document, whether no rule meets it, one rates it or one
+// accepts it.
+func TestRun_NoRuleHidesAnUnknownSeverity(t *testing.T) {
+	useEngine(t, engine.WithCompilers(unknownSeverityCompiler{}))
+	spec := writeFile(t, "spec.yaml", testspec.Tiny)
+	const reason = `morphic: engine: diagnostic "x/fatal" has severity "fatal": unknown diagnostic severity` + "\n"
+	for name, rules := range map[string]string{
+		"no rule":  "",
+		"rated":    `{"rules": [{"code": "x/fatal", "severity": "info", "reason": "r"}]}`,
+		"accepted": `{"rules": [{"code": "x/fatal", "pointer": "/info", "accept": true, "reason": "r"}]}`,
+	} {
+		for _, command := range []string{"compile", "validate"} {
+			for _, format := range []string{"text", "json"} {
+				t.Run(name+"/"+command+"/"+format, func(t *testing.T) {
+					args := []string{command, spec, "--fail-on", "none", "--diag-format", format}
+					if rules != "" {
+						args = append(args, "--triage", triageFile(t, rules))
+					}
+					code, stdout, stderr := runCommand(t, args...)
+					assert.Equal(t, exitFailure, code, stderr)
+					assert.Empty(t, stdout)
+					assert.Equal(t, reason, stderr)
+				})
+			}
+		}
 	}
 }
