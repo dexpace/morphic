@@ -43,8 +43,9 @@ nested in an open one stays strict and the reverse stays open. A model with a ca
 serializer saw them, so its serializer reads the object whole through
 `JsonDecoder.decodeJsonElement` and folds them into the map, as Go's embedded fallback receives them
 whatever the options say. Where the catch-all's `Key` is set, it reads each name through the key's
-text serializer ([types](types.md#integers)) and refuses two that read as one key: with a `Long`
-key, `{"1": …, "2.0": …}` read as 1 and 2 and `{"1": …, "1e0": …}` was refused (Kotlin 2.4.0).
+text serializer ([types](types.md#integers)), refuses two that read as one key, and writes each
+key's text back: with a `Long` key, `{"1": …, "2.0": …}` read as 1 and 2, which were written `{"1":
+…, "2": …}`, and `{"1": …, "1e0": …}` was refused (Kotlin 2.4.0).
 
 ## Recursive references
 
@@ -129,8 +130,9 @@ build), each shape above decoded, encoded, printed, hashed and compared at every
 from threads of 48 KB to 1 MB; a caller that had left itself 59 KB of a 512 KB thread decoded 14
 levels of the member shape on a thread started for it; and on the main thread, 8 MB left, a hash of
 a value of the 200-member model two levels deep started none. With what is left read as unbounded,
-the 64 KB thread ended the process at 64 levels in the debug build. Reading what is left took 8 ns
-optimized and 17 in debug, and starting and joining a thread 12 µs and 30 µs.
+a 64 KB thread ended the process in the debug build at 17 levels of the member shape, which the
+optimized build decoded to 64. Reading what is left took 8 ns optimized and 17 in debug, and
+starting and joining a thread 12 µs and 30 µs.
 
 One cost serves every operation, a decode's, since each of the others took less stack a level at
 every depth measured: the 200-member model printed on 10,160 bytes a level in the debug build and
@@ -142,13 +144,21 @@ alternative, and reads nothing of the thread, so it is wrong both ways: it decod
 in place with 59 KB left, which ended the process in the debug build, and on the main thread it
 started a thread for that hash, 23 µs where the hash took 0.43 µs (optimized).
 
-A Native target whose platform gives no reading counts what a thread the runtime did not start has
-left as nothing, so each such call moves to a thread it starts, and work on a thread it started
-stays there. Linux's `pthread_getattr_np` and Windows' `GetCurrentThreadStackLimits` give one, but
-only Apple's platforms were run. Multiplatform still reports a `MaxDepth` above 64 ([runtime
-policy](../../contract/runtime-policy.md#how-deep-a-value-nests)), no deeper value having been run.
-A default lowered to what the costliest measured shape takes was the alternative, and the next wider
-model would pass it.
+Each platform Multiplatform is built for ([the first targets](../../README.md#the-first-targets))
+has what it gives. Its JVM is the JVM above. Native gives the reading on Apple's platforms, the ones
+named, and was run on macOS arm64 alone, iOS not. JS and Wasm give no reading and no thread to
+start, so every call runs where it is made. On JS an overflow is a `RangeError`, which the runtime
+catches as it does the JVM's. On Wasm `catch (e: Throwable)` did not catch it and it ended the
+program, so there the limit is the one bound, and a model wide enough overflows within it. Built for
+production and run under node 26.13.0 (Kotlin 2.4.0, kotlinx-serialization-json 1.11.0), a model
+nested through a member, a list, a map and an `any`, one whose member is a union read through a
+`JsonElement` and one of 200 members each decoded, encoded, printed, hashed and compared at every
+depth from 1 to 64 on both; the 200-member model overflowed first, at 229 levels on JS and 265 on
+Wasm, each depth in a process of its own, and a JS decode overflowing below a caller deep in its own
+stack was caught, the next call decoding. A browser's stack was not run. Multiplatform still reports
+a `MaxDepth` above 64 ([runtime policy](../../contract/runtime-policy.md#how-deep-a-value-nests)),
+no deeper value having been run on Native and Wasm having nothing to catch. A default lowered to
+what the costliest measured shape takes was the alternative, and the next wider model would pass it.
 
 Two other bounds lost. A count kept in the serializers has nowhere to live: the plugin generates a
 model's, and a `Decoder` carries no state of the SDK's. Reading a `JsonElement` first bounds nothing
@@ -163,7 +173,13 @@ member marked `@InternalSdkApi` ([the runtime](overview.md#what-a-caller-reaches
 the record holds because a built value never changes (above). Nothing recurses into a value past the
 limit: the client refuses to encode it, with an error and nothing sent, `toString` shows its class
 and its depth alone, `equals` compares the depths first and holds such a value equal only to itself,
-`hashCode` is then its depth, and `validate()` reports it as nested past the limit. Each records in
+`hashCode` is then its depth, and `validate()` reports it as nested past the limit: it returns its
+failures, none for a value that passes, each a `ValidationFailure` of the runtime's naming the
+member and the check, whose `nesting` is true for a value past either limit and false for a
+constraint's, so a caller tells them apart by no message. Throwing them was the alternative, and
+reaches a Swift caller only through `@Throws`, any other exception ending its app
+([Swift](swift.md)); a Swift caller read `nesting` from the list returned (Kotlin/Native 2.4.0).
+Each records in
 `jsonValues`, beside it, how many values its JSON form holds, the sum of its members' and one for
 itself, held at the greatest `Int` once past it, and a value past `MaxValues` is treated the same
 way, its count shown beside its depth: one sharing each child at 22 levels, 16,777,214 values,

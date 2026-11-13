@@ -356,12 +356,14 @@ content it arrives as, and accepts either.
 
 A patch shape sends a member or leaves it out, and leaves its nullability the schema's. A merge
 patch removes a member by sending `null` (RFC 7396 §2), which a caller can write only where the
-member is declared nullable, through the presence box
+reference admits null: a member's through the presence box, and a map's or a catch-all's value as
+that value's own null, an entry being in the map or not
 ([optionality](../refine/models.md#optionality--nullability--presence-inv8)). Removing any other is
 outside what the shape offers: the schema typing the body admits no `null` there, and a document
-that means removal declares the member nullable: the two merge patches of the golden spec that say
-`null` removes a member, a Worker script's bulk secrets, declare each secret `nullable` (spec
-@bc6fad24).
+that means removal admits it. The two merge patches of the golden spec that say `null` removes an
+entry, a Worker script's bulk secrets, hold the secrets in a map whose `Value` is `Nullable`, which
+the compiler read from a `nullable: true` beside an `allOf` and marked `Inferred` as
+`nullable-widening` (spec @bc6fad24, morphic @fa253fe19).
 
 No compiler sets the field today, and the plan reads nil as stating nothing, since an emitter sees a
 binding and never the format behind it (INV1), so one default has to serve every format. The IR's
@@ -520,8 +522,9 @@ read projection. They take 432 such projections and 673 declarations: 230 `Creat
 would be. Beside them 3,170 types take 4,407 aliases: 2,216 `Create`, 1,264 `CreateUpdate`, 790
 `Update`, 26 `UpdatePatch`, 81 `Query` and 30 `Delete`; a union's are 512 of them, over 1,715
 variants, each a wrapper's alias more in Go. They count each model and union that a parameter, a
-request content, a response or error content or a response header of an HTTP binding reaches by [the
-steps above](#a-shape-reaches-what-it-holds): a model's members as `ir.FlattenedProperties` gives
+request content, or the content or a header of a response, an error or the default response of an
+HTTP binding reaches by [the steps above](#a-shape-reaches-what-it-holds): a model's members as
+`ir.FlattenedProperties` gives
 them, one declaration each, the union a model narrows, a polymorphic base's subtypes, a union's
 variants and a catch-all's and a map's values in the same shape, a list's elements without the
 patch, and a decorator read through to its base and counted as no type of its own; two projections

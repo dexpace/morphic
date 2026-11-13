@@ -89,10 +89,15 @@ func (s Secret[T]) Value() T         // the value; T's zero for a zero Secret
 ```
 
 `Secret` declares the redacting forms, the codec pair, which writes and reads what `T` does,
-`Equal`, and `IsZero`, which answers as `T`'s own `IsZero` where `T` declares one and as "no value"
-for a zero `Secret`: so a `Secret[Opt[string]]` tagged `omitzero` is left out exactly where its box
-is unset, where one answering for the function alone wrote `"password":""` for a secret holding an
-unset box. A function is the one kind `fmt` prints as an address however it is asked. A pointer was
+`Equal`, and `IsZero`, which answers as `omitzero` would for the value held: `T`'s own `IsZero`
+where `T` or its pointer declares one, otherwise whether the value is `T`'s zero, which a zero
+`Secret` holds. So a redacted field is left out exactly where a plain field of its type and tag is:
+of 18 values, an unset and a set box, a zero and a set number, a nil and an empty map and slice and
+a nil pointer among them, under `omitzero`, under `omitzero,omitempty` and under neither, the two
+wrote the same bytes each time, where an `IsZero` answering only for a `T` that declares one
+differed in 12, `SecretOf(int64(0))` writing `"pin":0` under the implicit tag and a nil map
+`"tags":{}` (Go 1.27.3). A function is the one kind `fmt` prints as an address however it is asked.
+A pointer was
 built first: one to a list, a struct or a map is followed once under a verb `fmt` has no pointer
 form for, `%s` among them, and printed a `*[]string`'s secret in 216 of the same renderings, where
 `Secret` held it in none, nor did a failure holding the model. The costs are a function's: a caller
@@ -166,7 +171,12 @@ pointer by identity and is not defined over a slice or a map.
 `Validate` walks the same way: it hands its own `Format` that state marked as a check, and each
 `Format` so asked runs its value's checks in place of writing it and passes the state to each nested
 value's `Format`, so a value past `MaxDepth` levels or `MaxValues` values is reported as nested past
-the limit and followed no further. A `Validate` calling each nested value's `Validate` ended the
+the limit and followed no further. The `error` `Validate` returns then answers `errors.Is(err,
+runtime.ErrNesting)`, a sentinel of the runtime's unit as a kind's is
+([failures](errors.md#ratelimited-in-go)), which a constraint's failure does not answer: a value
+holding itself answered it, with a constraint failing beside it too, and a constraint's failure
+alone did not, its type in another package. A `Validate` calling each nested value's `Validate`
+ended the
 process on a model whose pointer led back to it (`fatal error: stack overflow`), and no other
 exported method carries the state into another unit, since an exported signature naming an internal
 type is refused (T-64). Measured so, with the checked type in another package, a value holding

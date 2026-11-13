@@ -1,10 +1,13 @@
 # Constraints and validation
 
 `LowerConstraints` reads `Constraints` on properties, scalars, and lists
-([constraints](../../ir/constraints.md)) and does two things: it stamps field-level validation
-metadata (a `validate:"…"` struct tag or an equivalent registration) and it *builds the structure*
-of a per-type `Validate()` method — which checks apply to which fields — as typed AST. Validation is
-therefore neither pure boilerplate (the checks depend on the spec) nor free-form template logic:
+([constraints](../../ir/constraints.md)) and *builds the structure* of a per-type `Validate()`
+method — which checks apply to which fields — as typed AST. That method is the one validator: no
+field carries validation metadata, a `validate:"…"` struct tag or a registration, since nothing
+generated reads one and a reflection validator following it is a second walker no nesting limit
+bounds ([how deep a value nests](models.md#how-deep-a-value-nests)), which over such tags ended
+the process on a Go value holding itself (go-playground/validator v10.30.2, Go 1.27.3). Validation
+is therefore neither pure boilerplate (the checks depend on the spec) nor free-form template logic:
 refine decides the set of checks, and the individual check primitives (`checkMinLength`,
 `checkMultipleOf` on `big.Rat`) are runtime helpers. This is ogen's `oas_validators_gen.go` split,
 relocated to honor the structure-vs-boilerplate line ([structure and

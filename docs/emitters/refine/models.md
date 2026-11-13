@@ -45,7 +45,11 @@ nullable member change the request: absent leaves the member as it is, `null` re
 `OptNil[T]` on Go), never through a nullable alone. A member the schema does not declare nullable is
 optional only, `Opt[T]` on Go and `T?` left out when null on Kotlin, so a caller cannot send `null`
 for it: the schema admits none there ([what a patch
-relaxes](../plan/types.md#what-a-patch-relaxes)). T-59 holds it.
+relaxes](../plan/types.md#what-a-patch-relaxes)). A map's or a catch-all's value that admits null
+takes no box, an entry being in the map or not, and sends `null` as the value's own nullable form: a
+`map[string]Nil[T]`, a catch-all of one beside a declared member and a `Map<String, T?>` each wrote
+an entry as `"A":null` and read it back (Go 1.27.3, kotlinx-serialization-json 1.11.0). T-59 holds
+it.
 
 ## Inheritance
 
@@ -144,9 +148,10 @@ comparing or validating it would not end. So `Nesting.MaxValues`, 16,777,216 unl
 sets another, bounds the values of one JSON text, each object, array, string, number and literal
 counting one and a member's name none. A text holding more is refused as one nested too deep is,
 read or written, and no target visits more values than that, or more levels than `MaxDepth`, to
-print, hash, compare or validate one, each saying what its caller then sees. A cap on the printed
-form alone was the alternative, and leaves the encoder and a generated comparison unbounded. T-63
-holds this section.
+print, hash, compare or validate one, each saying what its caller then sees. What validation reports
+for a value past either limit carries a declared kind no constraint's failure has, so a caller tells
+the two apart without reading a message. A cap on the printed form alone was the alternative, and
+leaves the encoder and a generated comparison unbounded. T-63 holds this section.
 
 ## Recursive references
 

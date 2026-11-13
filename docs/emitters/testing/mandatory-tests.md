@@ -696,8 +696,10 @@ throughout these documents.
     message, a transport failure's that quotes a redacted path segment or query value included, a
     collection as the marker alone and a map whose values alone are redacted with its keys shown,
     and goes out and comes back on the wire byte for byte, an optional one left unset absent from
-    the request and one set to its zero value written; a raw body holding one is never logged or
-    printed ([redaction](../refine/redaction.md)).
+    the request and one set to its zero value written, and in Go a redacted field of each form an
+    optional position takes, a box, a map, a slice and a pointer left nil and a number under
+    implicit presence, written and left out exactly as a plain field of its type and tag is; a raw
+    body holding one is never logged or printed ([redaction](../refine/redaction.md)).
 44. **T-44 · Stability** — an operation's own tier, its nearest group's when it states none, and
     none when no group states one, each resolved once in `OpPlan.Stability`; an `alpha` and a `beta`
     operation's documentation names its tier and what it means on every target, an unstated one
@@ -1049,8 +1051,10 @@ throughout these documents.
     where the ranking names that media type by itself, the policy is off, or the binding's
     `PatchImplicitOptionality` points at `true` or at `false`, either of which elects nothing;
     turning `plan.Policy.MergePatch` off removes the patch shape and its mark; in a merge patch a
-    member declared nullable sends `null`, nothing and a value as three requests, and one not so
-    declared has no form that sends `null`, on Go and on both Kotlin targets; and a `POST` sent as a
+    member whose reference admits null sends `null`, nothing and a value as three requests, a map
+    and a catch-all whose value admits null send `{"k": null}` for an entry and read it back, a null
+    marked `Inferred` as one declared, and a member or a value admitting none has no form that sends
+    `null`, on Go and on both Kotlin targets; and a `POST` sent as a
     merge patch relaxes nothing ([TypePlan](../plan/types.md#what-a-patch-relaxes), [one
     election](../plan/responses.md#one-election)).
 60. **T-60 · The declaration a shape takes** — a model with a `readOnly` and a `writeOnly` member,
@@ -1086,9 +1090,9 @@ throughout these documents.
     nullable, in a list, as a map's value, in a declaration over the kind and in a union's variant,
     decoded by the client and by a caller's own decoder call, reads `1`, `1.0`, `1e0`, `10e-1` and
     `1E+2` as their values and `-0` and `-0.0` as zero, an unsigned kind among them; as a map's key
-    reads the names `"1"`, `"1.0"` and `"1e0"` as 1, writes `"1"`, refuses the name `"1.5"` and
-    refuses an object holding two of them, as a map's key and as a catch-all's beside a declared
-    member, through the client and a caller's own decoder call, a boolean, an enum over a number,
+    and as a catch-all's beside a declared member alike, reads the names `"1"`, `"1.0"` and `"1e0"`
+    as 1, writes `"1"`, refuses the name `"1.5"` and refuses an object holding two of them,
+    through the client and a caller's own decoder call, a boolean, an enum over a number,
     one over a string and a date each written and read as a key by their text; refuses `1.5`,
     `15e-1`, `1e-400`, the string `"1"` where a value stands, the first value past each kind's range
     in plain digits and in exponent form, and a negative number into an unsigned kind; reads each
@@ -1117,8 +1121,13 @@ throughout these documents.
     prints, hashes, compares and validates on that thread, Kotlin/Native working on the calling
     thread where the depth times its type's cost and 32 KB fit in what that thread has left, and on
     a thread it starts otherwise, from a 64 KB thread, from a caller that leaves 60 KB of its own
-    stack, and from the main thread, where a hash of a value two levels deep of a 200-member type
-    starts none, a decode failing on a started thread reaching the caller as that failure; a body
+    stack at every depth from 1 to the limit, where a runtime reading the thread's size in place of
+    what is left ends the process at 14 levels, and from the main thread, where a hash of a value
+    two levels deep of a 200-member type starts none, a decode failing on a started thread reaching
+    the caller as that failure; on JS and on Wasm under node, where nothing is read and no thread
+    started, a body at the limit decodes through each and its value encodes, prints, hashes and
+    compares, and a JS decode that overflows below a caller deep in its own stack reaches it as a
+    body that does not decode, the next call decoding; a body
     holding one value more than `Nesting.MaxValues` is refused the same way and one holding that
     many decodes, a member's name counting none; an opening bracket inside a string counts for
     nothing, a string ending in an escaped backslash among them, the value after it nested past the
@@ -1129,10 +1138,15 @@ throughout these documents.
     far as that many values and then `...` and fails Go's `Validate` after as many, and in Kotlin
     prints its class, depth and count alone, hashes as its depth, equals only itself and fails
     `validate()`, each within a time bound no walk of 2^60 values meets, which a hash or a check
-    reading the depth alone fails; in Go a value holding itself through a pointer, a slice and a map
+    reading the depth alone fails; a value past either limit fails Go's `Validate` with an error
+    answering `errors.Is` for `runtime.ErrNesting` and Kotlin's `validate()` with a failure whose
+    `nesting` is true, read from a Swift caller too, a constraint's failure answering neither,
+    alone or beside one that does; in Go a value holding itself through a pointer, a slice and a map
     is refused by the encoder, fails `Validate` at the limit, its type in another package than the
     one holding it, and is printed by `String`, `GoString`, `LogValue` and every `fmt` verb to the
-    limit and no further; a Kotlin model built from a list its caller then changes keeps its members
+    limit and no further, and no generated field carries a `validate` tag, which a reflection
+    validator would follow past it; a Kotlin model built from a list its caller then changes keeps
+    its members
     and its hash; and a `Nesting.MaxDepth` a target cannot hold to, one above 64 on Multiplatform,
     is reported and none is read to another depth
     ([models](../refine/models.md#how-deep-a-value-nests)).
