@@ -11,6 +11,10 @@ type TypePlan struct {
     Redacted   []ir.PropID          // the flattened members a value is redacted at: each whose
                                     // ir.FlatProperty.Secret is set, as one of its declarations is
                                     // Secret or of a sensitive type (../refine/redaction.md)
+    Deprecated map[ir.PropID]*ir.Deprecation // the flattened members a declaration deprecates,
+                                    // each by the declaration it takes, to its
+                                    // ir.FlatProperty.Deprecation: an overridden declaration's
+                                    // where the taken one states none (../refine/deprecation.md)
     Sensitive  bool                 // the type, or one its Base chain reaches, is Sensitive
     Unflattened []ir.TypeID         // the composition entries naming no model, which Flattened
                                     // cannot hold: each lowered beside the properties, or degraded
@@ -43,10 +47,11 @@ type TypePlan struct {
 // with a variant in the union's place, and in that of each union it narrows in turn (below).
 type ComposedVariant struct {
     Over        []ir.TypeID         // the variant taken in each union's place, outermost first
-    Flattened   []ir.PropID         // these five as TypePlan's own, read over the composition
+    Flattened   []ir.PropID         // these six as TypePlan's own, read over the composition
     Required    []ir.PropID         // with Over's variants in their unions' places
     Undeclared  []string
     Redacted    []ir.PropID
+    Deprecated  map[ir.PropID]*ir.Deprecation
     Unflattened []ir.TypeID
     Shapes      []ModelShape        // one for each of the model's, holding what Flattened shows
                                     // there
@@ -109,13 +114,14 @@ scalars, so where `Unflattened` names an alias, as a 3.1 `$ref` beside a `descri
 ([composition entries](../../ir/models.md#composition-entries)), the model narrows the union the
 alias stands for, as the bare `$ref` does. `Composed` holds an entry for each shape
 `ir.NarrowedShapes` lists, in its order: its `Over`, and the `Flattened`, `Required`, `Undeclared`,
-`Redacted` and `Unflattened` read off its flattening as `TypePlan`'s own are read off the model's,
-never off a walk of the plan's own. So the variant's members are laid out, overridden and required
-as any conjunct's are, entries over a union the composition narrows in turn are one for each of its
-variants, and no entry narrows a union. An entry's `Shapes` are the model's, each with the model's
-filter and patch and the `Props` the entry's `Flattened` shows there. In each shape the model is
-inclusive and strict where its union is ([inheritance](../refine/models.md#inheritance)), which the
-union's own plan says, so no entry repeats it.
+`Redacted`, `Deprecated` and `Unflattened` read off its flattening as `TypePlan`'s own are read off
+the model's, never off a walk of the plan's own. So the variant's members are laid out, overridden,
+required, redacted and deprecated as any conjunct's are, entries over a union the composition
+narrows in turn are one for each of its variants, and no entry narrows a union. An entry's `Shapes`
+are the model's, each with the model's filter and patch and the `Props` the entry's `Flattened`
+shows there. In each shape the model is inclusive and strict where its union is
+([inheritance](../refine/models.md#inheritance)), which the union's own plan says, so no entry
+repeats it.
 
 `Composed` is empty for a model adding nothing to its union, which is that union, and for one no
 distribution serves: one `ir.NarrowedShapes` leaves undistributed (`Narrowing.Undistributed`), as it

@@ -761,15 +761,16 @@ throughout these documents.
     union one of whose variants is a union, a union a subtype composes as a `Mixin`, under its
     base's discriminator, and a union the model reaches through a model it composes. A variant's
     `readOnly` member is in no create or patch shape of the model's, and each variant composed there
-    requires what its entry's `Required` lists and redacts what its entry's `Redacted` lists, so
-    each of `rulesets_ResponseRule`'s variants requires the five members the model requires beside
-    those its union's variant does, and a member only one of the union's variants redacts is
-    redacted in the variant composed over it alone. Adding a variant to the union renames no variant
-    composed there and no union nesting entries, each keyed by the model and its `Over`, or the
-    start of `Over` its entries share. Read by a client under `OpenUnions`, such a model keeps a
-    variant its union does not list, and one whose variant holds the model compiles, the union
-    breaking the cycle. Each target declares one variant for each entry of the model's
-    `TypePlan.Composed`, each a shape `ir.NarrowedShapes` lists ([the shapes of a model narrowing a
+    requires what its entry's `Required` lists, redacts what its entry's `Redacted` lists and marks
+    deprecated each member its entry's `Deprecated` holds, so each of `rulesets_ResponseRule`'s
+    variants requires the five members the model requires beside those its union's variant does, and
+    a member only one of the union's variants redacts is redacted in the variant composed over it
+    alone. Adding a variant to the union renames no variant composed there and no union nesting
+    entries, each keyed by the model and its `Over`, or the start of `Over` its entries share. Read
+    by a client under `OpenUnions`, such a model keeps a variant its union does not list, and one
+    whose variant holds the model compiles, the union breaking the cycle. Each target declares one
+    variant for each entry of the model's `TypePlan.Composed`, each a shape `ir.NarrowedShapes`
+    lists ([the shapes of a model narrowing a
     union](../../ir/models.md#the-shapes-of-a-model-narrowing-a-union)), and no other, entries
     sharing the start of their `Over` nested as a union of them, and a model composing its union
     through an alias scalar, as a 3.1 `$ref` beside a `description` hoists, narrows it as one naming

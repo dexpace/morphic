@@ -13,7 +13,9 @@ A model's member is deprecated where its flattened member is, any of its declara
 deprecation, and carries that member's text (`ir.FlatProperty.Deprecation`, [the
 flattening](../../ir/models.md#the-flattening)), so a conjunct redeclaring a deprecated field
 without `deprecated` leaves the field marked, in a shape a model narrowing a union takes as in the
-model's own.
+model's own. The plan reads it off the flattenings it computes: `TypePlan.Deprecated` gives each
+such member of the model its deprecation, and a `TypePlan.Composed` entry's those of the variant
+composed over that entry ([TypePlan](../plan/types.md#a-model-narrowing-a-union)).
 
 A mark counts only where the target's tools show it at a use in another output unit, the caller's.
 Where a target's mechanism marks a declaration partly or not at all, its document says so and puts
