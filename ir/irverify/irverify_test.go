@@ -181,25 +181,35 @@ func findingsTable() []ir.SourceInfo {
 // TestVerifyFindings_ReportsWhatVerifyReportsOfADocumentsFindings holds the two
 // readings of a finding to one answer: each malformed finding, verified alone,
 // draws what Verify reports beneath doc.Diagnostics of a document holding it,
-// the path rebased onto findings. Each row must draw something, so a finding
-// neither reports cannot pass for agreement.
+// the path rebased onto findings, and all of them at once draw it in Verify's
+// order. Each row must draw something, so a finding neither reports cannot
+// pass for agreement.
 func TestVerifyFindings_ReportsWhatVerifyReportsOfADocumentsFindings(t *testing.T) {
 	t.Parallel()
-	for i, d := range malformedFindings() {
-		doc := validDoc()
-		doc.Sources = findingsTable()
-		doc.Diagnostics = []ir.Diagnostic{d}
-
-		var want []irverify.Violation
-		for _, v := range irverify.Verify(doc) {
-			if rest, under := strings.CutPrefix(v.Path, "doc.Diagnostics"); under {
-				v.Path = "findings" + rest
-				want = append(want, v)
-			}
-		}
+	all := malformedFindings()
+	for i, d := range all {
+		want := verifiedFindings([]ir.Diagnostic{d})
 		require.NotEmpty(t, want, "finding %d breaks no invariant Verify reports", i)
 		assert.Equal(t, want, irverify.VerifyFindings([]ir.Diagnostic{d}, findingsTable()), "finding %d", i)
 	}
+	assert.Equal(t, verifiedFindings(all), irverify.VerifyFindings(all, findingsTable()), "every finding at once")
+}
+
+// verifiedFindings returns what Verify reports beneath doc.Diagnostics of a
+// sound document holding diags, read against findingsTable, each path rebased
+// onto findings.
+func verifiedFindings(diags []ir.Diagnostic) []irverify.Violation {
+	doc := validDoc()
+	doc.Sources = findingsTable()
+	doc.Diagnostics = diags
+	var under []irverify.Violation
+	for _, v := range irverify.Verify(doc) {
+		if rest, ok := strings.CutPrefix(v.Path, "doc.Diagnostics"); ok {
+			v.Path = "findings" + rest
+			under = append(under, v)
+		}
+	}
+	return under
 }
 
 // TestVerifyFindings_PlacesEachViolationAtItsFinding pins the paths: findings[i]
