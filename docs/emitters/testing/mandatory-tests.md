@@ -117,15 +117,15 @@ throughout these documents.
     compiles to (`MoneyKt` beside `Money`) and a type `TimestampKt` with no `Timestamp`, which is
     `TimestampKt_` before and after a revision adds one, a variant after `WhenMappings` in a union
     whose code switches over an enum of another file, types named `Error` and `error_2` in one unit,
-    on Multiplatform a type `Duration` in each of two units, and its
-    groups after every units name, a keyword, `documentation` and each predeclared identifier of Go
-    among them (`error`, `string`, `len`, `nil`), after each name a Kotlin build keeps at its root
-    ([output units](../targets/kotlin/overview.md#output-units)), after the standard-library
-    packages its files import, after a predeclared identifier its files write (`error`) and after a
-    name the generated code binds (`ctx`), two of them `com` and `Com`, whose suffix would make
-    `com2`, and its types and groups after each Windows device name in two letter cases, after names
-    whose last word `go/build` reads as a platform's or as `test`, and in pairs past ASCII that fold
-    alike (`Straße` and `Strasse`, an `é` composed and decomposed, `ı` and `I`), generates code that
+    on Multiplatform a type `Duration` in each of two units, and its groups after every units name,
+    a keyword, `documentation` and each predeclared identifier of Go among them (`error`, `string`,
+    `len`, `nil`), after each name a Kotlin build keeps at its root ([output
+    units](../targets/kotlin/overview.md#output-units)), after the standard-library packages its
+    files import, after a predeclared identifier its files write (`error`) and after a name the
+    generated code binds (`ctx`), two of them `com` and `Com`, whose suffix would make `com2`, and
+    its types and groups after each Windows device name in two letter cases, after names whose last
+    word `go/build` reads as a platform's or as `test`, and in pairs past ASCII that fold alike
+    (`Straße` and `Strasse`, an `é` composed and decomposed, `ı` and `I`), generates code that
     compiles on every target, no two of its paths, an artifact's or a class file's, folding alike,
     the Go file holding two such types byte-identical in both declaration orders, with every
     template's declared names held to what it binds, on Go the table of predeclared identifiers to
@@ -133,17 +133,15 @@ throughout these documents.
     of default-imported classes to each name that resolves, on each platform the target builds for,
     in a file importing nothing. Every name that meets a reserved one, or folds as one where its
     scope compares folded, is its own name with the target's escape, whatever reserved it, and none
-    is a name with a
-    collision's suffix: the type `Error` is Kotlin's `Error_` beside an `Error2` that keeps its
-    name, in both declaration orders, and two types that meet one reserved name are the escaped name
-    and that name with a suffix. On Go a caller's package importing every unit under its own name
-    compiles its uses of `error`, `string`, `len` and `nil`, and a method taking a parameter
-    `time2`, in a file importing the standard library's `time` and a unit `time`, compiles its
-    body's use of each. On Go `go list` lists every file the
-    target writes among a package's `GoFiles`, none among the files it ignores or builds for tests
-    alone, on each port `go tool dist list` gives, and `golang.org/x/mod/zip` zips the module, so
-    every file and import path is one the module proxy takes
-    ([Go](../targets/go/naming.md#file-names), [package
+    is a name with a collision's suffix: the type `Error` is Kotlin's `Error_` beside an `Error2`
+    that keeps its name, in both declaration orders, and two types that meet one reserved name are
+    the escaped name and that name with a suffix. On Go a caller's package importing every unit
+    under its own name compiles its uses of `error`, `string`, `len` and `nil`, and a method taking
+    a parameter `time2`, in a file importing the standard library's `time` and a unit `time`,
+    compiles its body's use of each. On Go `go list` lists every file the target writes among a
+    package's `GoFiles`, none among the files it ignores or builds for tests alone, on each port `go
+    tool dist list` gives, and `golang.org/x/mod/zip` zips the module, so every file and import path
+    is one the module proxy takes ([Go](../targets/go/naming.md#file-names), [package
     directories](../targets/go/naming.md#package-directories)). On Kotlin a root project the options
     name `shared` or `runtime` is refused, a caller's file importing each unit with `*` compiles its
     use of the classes the default imports give it, `System.currentTimeMillis()` beside a type the
@@ -161,13 +159,13 @@ throughout these documents.
     property, a parameterless method, a `suspend` method and an enum entry after every member of the
     table of `NSObject`'s, `dealloc`, `zone`, `hash`, `self`, `load` and `copy` among them, a method
     of one parameter after each of its one-parameter selectors (`responds(toSelector:)`), a method
-    and an entry after a name of each method family, and entries `ENTRIES`, `VALUES` and
-    `COMPANION` of an enum with a companion object: the header builds a module, a Swift caller reads
-    each property's own value, calls each method and reaches each entry by the name the policy
-    chose, which is the name the header gives it, a property `value` and one `version` keep their
-    names, `hash`, `copy()` and `responds(to:)` on a model still answer as `NSObject`'s, and that
-    enum's `entries`, `values()` and `companion` as its own, and the table equals the selectors read
-    from the SDK the options version names ([Swift](../targets/kotlin/swift.md)).
+    and an entry after a name of each method family, and entries `ENTRIES`, `VALUES` and `COMPANION`
+    of an enum with a companion object: the header builds a module, a Swift caller reads each
+    property's own value, calls each method and reaches each entry by the name the policy chose,
+    which is the name the header gives it, a property `value` and one `version` keep their names,
+    `hash`, `copy()` and `responds(to:)` on a model still answer as `NSObject`'s, and that enum's
+    `entries`, `values()` and `companion` as its own, and the table equals the selectors read from
+    the SDK the options version names ([Swift](../targets/kotlin/swift.md)).
 20. **T-20 · Recursive types** — a model that holds itself directly, through a base, through a tuple
     and through another model, and one whose cycle passes through a list or a union, generate code
     that compiles on every target, and exactly the references on a cycle Go holds by value are held
@@ -231,10 +229,10 @@ throughout these documents.
     before a first dot in two letter cases and before the first of two (`aux.v1.go`), each character
     Windows refuses, U+001F among them, and a trailing dot or space each draw
     `engine/artifact-path-unportable`, where a space inside a segment draws nothing. A template that
-    fails the formatter draws a located error and
-    no artifact, and a build with and without `-trimpath` give identical artifacts. A `Scope`
-    matching nothing and a document with nothing to emit each draw `no-artifacts`. `..`, an absolute
-    path, a sibling sharing the root's prefix and a symlink leaving the root are each refused.
+    fails the formatter draws a located error and no artifact, and a build with and without
+    `-trimpath` give identical artifacts. A `Scope` matching nothing and a document with nothing to
+    emit each draw `no-artifacts`. `..`, an absolute path, a sibling sharing the root's prefix and a
+    symlink leaving the root are each refused.
 26. **T-26 · Response headers** — an operation whose response declares headers of each kind, under
     each shape, gets a `WithResponse` method beside a plain method whose signature the headers do
     not change, and adding a first header or a further one is additive in the surface differ
@@ -467,21 +465,21 @@ throughout these documents.
     is passed over; a type added in a name differing from a shipped one's in letter case alone, its
     ID sorting first, leaves the incumbent's name as it shipped and on Kotlin takes a suffix; two
     types that shipped as Kotlin's `Result_` and `Result_2` keep them beside a third `Result` added
-    with an ID sorting before both, which is `Result_3`; names
-    whose words differ only at a break letter case cannot mark, properties `v1.2` beside `v12`,
-    `a-日本` beside `a日本`, `count-ℤ` beside `countℤ` and `a-ß` beside `aß`, an enum's members `1.0`
-    and `10`, and on Go the constants of `V1`'s member `2` and `V`'s `12`, render apart with no
-    suffix, a letter beside a digit taking no `_`, as a schema `10_gbps_to_100_gbps` renders
-    `Type10GbpsTo100Gbps`, and on Multiplatform the entries of `1.0` and `10` export to Swift as
-    `value1_0` and `value10`, while of `V12` and `v12`, one name, the second takes its suffix after
-    `_` (Go's `V12_2`); names of different words that render alike, `iOSVersion` beside `IOSVersion`
-    under a policy reading spellings, `user_id` beside `user_i_d` under an acronym `ID`, `ıd` beside
-    `id`, a property `1000` beside one spelled `field_1000`, on Go a decomposed `café` beside a
-    property spelled `cafeu0301`, two names with no words, `=` beside `==`, and in a scope compared
-    folded two that render apart, types `Straße` and `Strasse` on Kotlin, each draw one
-    `emitters/naming/collision` on a target that gives one a suffix, naming both and what each was
-    given, two of one neutral name drawing none; and on Multiplatform a type added in another unit,
-    its ID sorting first, leaves an incumbent's Objective-C name as it shipped
+    with an ID sorting before both, which is `Result_3`; names whose words differ only at a break
+    letter case cannot mark, properties `v1.2` beside `v12`, `a-日本` beside `a日本`, `count-ℤ` beside
+    `countℤ` and `a-ß` beside `aß`, an enum's members `1.0` and `10`, and on Go the constants of
+    `V1`'s member `2` and `V`'s `12`, render apart with no suffix, a letter beside a digit taking no
+    `_`, as a schema `10_gbps_to_100_gbps` renders `Type10GbpsTo100Gbps`, and on Multiplatform the
+    entries of `1.0` and `10` export to Swift as `value1_0` and `value10`, while of `V12` and `v12`,
+    one name, the second takes its suffix after `_` (Go's `V12_2`); names of different words that
+    render alike, `iOSVersion` beside `IOSVersion` under a policy reading spellings, `user_id`
+    beside `user_i_d` under an acronym `ID`, `ıd` beside `id`, a property `1000` beside one spelled
+    `field_1000`, on Go a decomposed `café` beside a property spelled `cafeu0301`, two names with no
+    words, `=` beside `==`, and in a scope compared folded two that render apart, types `Straße` and
+    `Strasse` on Kotlin, each draw one `emitters/naming/collision` on a target that gives one a
+    suffix, naming both and what each was given, two of one neutral name drawing none; and on
+    Multiplatform a type added in another unit, its ID sorting first, leaves an incumbent's
+    Objective-C name as it shipped
     ([collisions](../refine/naming.md#collisions-and-the-names-a-generation-shipped),
     [breaks](../refine/naming.md#a-break-letter-case-cannot-mark-takes-an-underscore)).
 40. **T-40 · Manifest and integration** — a regeneration whose inputs all match writes nothing; a
@@ -716,19 +714,18 @@ throughout these documents.
     all 6 items of a server whose constant cursor names state it holds, 3 pages and an empty one,
     under an empty `Stop` and under `[empty]`, and failing at `Pagination.MaxPages` against one
     handing back the cursor it was sent beside the same items, under an empty `Stop` and under
-    `[no_next]`; an empty cursor under a `Stop` without `no_next`
-    is sent back; a string offset and limit are sent as decimal text, a `number` one as a JSON
-    number, a total of `2.5`, of `"ten"` or below 0 ends nothing, one a JSON number spells `1e2` or
-    `100.0` is 100, a total past every target's
-    integer is compared whole, and a next offset past an `int32` input's range fails the walk naming
-    it, unsent; each next request is the last with the cursor or token read at `CursorIn`, the
-    offset plus the items read, or the number plus one, the first counted from a declared default,
-    unmarked, else `plan.Policy.FirstPage`, marked under `Page.FirstPage` in `OpPlan.Inferred`, a
-    declared minimum of 0 beside a default of 1 starting at 1, and a string input sent the number's
-    decimal text, and with that null an operation whose input declares no default has no pager and
-    draws `emitters/plan/first-page-unknown`; and a link is a `GET` of it, on a `POST` operation
-    too, resolved against its page's URL, sending no body and each header input again, carrying
-    credentials to another origin only as a redirect would
+    `[no_next]`; an empty cursor under a `Stop` without `no_next` is sent back; a string offset and
+    limit are sent as decimal text, a `number` one as a JSON number, a total of `2.5`, of `"ten"` or
+    below 0 ends nothing, one a JSON number spells `1e2` or `100.0` is 100, a total past every
+    target's integer is compared whole, and a next offset past an `int32` input's range fails the
+    walk naming it, unsent; each next request is the last with the cursor or token read at
+    `CursorIn`, the offset plus the items read, or the number plus one, the first counted from a
+    declared default, unmarked, else `plan.Policy.FirstPage`, marked under `Page.FirstPage` in
+    `OpPlan.Inferred`, a declared minimum of 0 beside a default of 1 starting at 1, and a string
+    input sent the number's decimal text, and with that null an operation whose input declares no
+    default has no pager and draws `emitters/plan/first-page-unknown`; and a link is a `GET` of it,
+    on a `POST` operation too, resolved against its page's URL, sending no body and each header
+    input again, carrying credentials to another origin only as a redirect would
     ([pagination](../operations/pagination.md#what-a-pager-sends-next), [plan
     policy](../plan/policy.md#a-page-walks-first-page)). A pager that ends on a repeat under a
     listed condition or on a page holding items, follows one on a page holding none under an empty
@@ -789,21 +786,21 @@ throughout these documents.
     holding a CR LF, a `\u0001`, an `é` or a trailing space, a header list holding an empty string,
     a header `Prefix` map holding keys `A` and `a`, a header parameter named `X Foo`, a cookie
     parameter named `a[b]`, a `cookie`-style cookie holding `a; b=c`, a multipart part named `a"b`
-    or `a\b`, a `text/plain` request whose media type names
-    `charset=iso-8859-1`, a NaN, a year past 9999, an offset with seconds and a `decimal`
-    `1E+999999999` each fail before anything is sent, as a NaN, a year past 9999 and an offset with
-    seconds in a body do. The mock server reads each such request back to the values sent, a header
-    `Prefix` map's keys in lower case, as an SDK reads an inbound request's parameters, and either
-    reads a query's `a+b` as `a b`, a scalar's `page=1&page=2` as a text that does not parse, a
-    `page=` as no `page` where `AllowEmptyValue` is set, and an `any` path parameter's `abc` as the
-    JSON string `"abc"`. A response header of each primitive reads `+00:00`, a fraction of each
-    length, one finer than its type's precision cut to it, an upper-case `uuid`, a list sent on two
-    lines and one holding an empty element without it, a `Set-Cookie` list of two lines whose values
-    hold commas as two elements, a header whose `Prefix` is set holding a field another header reads
-    too, keyed in lower case, a `string` header sent as `no-cache, no-store` keeps its space, a
-    `text/plain` body reads `42` after a byte-order mark and does not decode under
-    `charset=iso-8859-1`, and a leap second leaves its field unset with `RawHeader` holding the text
-    (T-26) ([the type table](../contract/type-table.md#what-a-built-in-row-writes)).
+    or `a\b`, a `text/plain` request whose media type names `charset=iso-8859-1`, a NaN, a year past
+    9999, an offset with seconds and a `decimal` `1E+999999999` each fail before anything is sent,
+    as a NaN, a year past 9999 and an offset with seconds in a body do. The mock server reads each
+    such request back to the values sent, a header `Prefix` map's keys in lower case, as an SDK
+    reads an inbound request's parameters, and either reads a query's `a+b` as `a b`, a scalar's
+    `page=1&page=2` as a text that does not parse, a `page=` as no `page` where `AllowEmptyValue` is
+    set, and an `any` path parameter's `abc` as the JSON string `"abc"`. A response header of each
+    primitive reads `+00:00`, a fraction of each length, one finer than its type's precision cut to
+    it, an upper-case `uuid`, a list sent on two lines and one holding an empty element without it,
+    a `Set-Cookie` list of two lines whose values hold commas as two elements, a header whose
+    `Prefix` is set holding a field another header reads too, keyed in lower case, a `string` header
+    sent as `no-cache, no-store` keeps its space, a `text/plain` body reads `42` after a byte-order
+    mark and does not decode under `charset=iso-8859-1`, and a leap second leaves its field unset
+    with `RawHeader` holding the text (T-26) ([the type
+    table](../contract/type-table.md#what-a-built-in-row-writes)).
 48. **T-48 · A value no style arranges** — on every target, under T-12's interception, a query
     parameter whose list holds objects, one whose list holds lists, one whose list holds a union of
     objects, a `form` object holding an object, exploded and not, a `deepObject` parameter with a
@@ -820,20 +817,19 @@ throughout these documents.
     string's text is, whatever the binding's `Style` and `Explode`, and as fields of a form body and
     parts of a multipart one, a part's name as it is, `name="deep[a][b]"`, none with a
     `Content-Type` of its own; a cookie input sends a pair named `filters.0.key` as it is and fails
-    before anything is sent for one named `filters[0][key]`; the string is sent as its
-    header's value, in its segment, in its label and as the body's UTF-8 octets. A pair with an
-    empty name, `filter` for `filters`, one naming another parameter of the operation, `name.exact`
-    for `name` where the query declares both, `k` for `y` where exploded objects `x` and `y` each
-    declare `k`, `filter.x.y` for `filter` where the query declares inputs `filter` and `filter.x`,
-    `deep[a]` for an input exploding an object whose member is `deep` beside a `deepObject`
-    parameter `deep`, a value in the member `a` of an arranged exploded object beside an input
-    named `a`, and a required input holding no pair each fail before anything is sent, while an
-    input exploding a map of lists sends `k1[x]` and `zz`, and `filter` sends `filter.xy` beside
-    `filter.x`. A multipart part of a string that
-    declares no encoding is its text with no `Content-Type` of its own, one of a list of strings a
-    part for each element, and one of a list of strings declaring `text/plain`, or of objects
-    declaring `application/json`, a list too, a part of that type for each element; a `deepObject`
-    object of leaves whose `Explode` is false is arranged, sent as
+    before anything is sent for one named `filters[0][key]`; the string is sent as its header's
+    value, in its segment, in its label and as the body's UTF-8 octets. A pair with an empty name,
+    `filter` for `filters`, one naming another parameter of the operation, `name.exact` for `name`
+    where the query declares both, `k` for `y` where exploded objects `x` and `y` each declare `k`,
+    `filter.x.y` for `filter` where the query declares inputs `filter` and `filter.x`, `deep[a]` for
+    an input exploding an object whose member is `deep` beside a `deepObject` parameter `deep`, a
+    value in the member `a` of an arranged exploded object beside an input named `a`, and a required
+    input holding no pair each fail before anything is sent, while an input exploding a map of lists
+    sends `k1[x]` and `zz`, and `filter` sends `filter.xy` beside `filter.x`. A multipart part of a
+    string that declares no encoding is its text with no `Content-Type` of its own, one of a list of
+    strings a part for each element, and one of a list of strings declaring `text/plain`, or of
+    objects declaring `application/json`, a list too, a part of that type for each element; a
+    `deepObject` object of leaves whose `Explode` is false is arranged, sent as
     `color%5BR%5D=100&color%5BG%5D=200`. The mock server and an inbound request's reader give back
     each input's pairs, in order, `search` and `searchBranches` sharing one query each their own,
     and the string sent, for the values `a&b=c`, `a+b c`, `100%`, `é` and an empty string too, a
@@ -843,21 +839,20 @@ throughout these documents.
     `filter` alone and an undeclared `zz` to `m` alone. A model whose `metadata` is an object, sent
     by one operation as multipart with no encoding and by another as `application/json`, gives the
     first's request type the content's fields, `metadata` as pairs, and the second the model's
-    declaration as its body, `metadata` typed, and adding either operation changes no declaration
-    of the other; a form body's catch-all of objects is one list of pairs, marked in `Rest`; a
-    multipart response holding such a part is `raw`, its `Text.Content` set; and a `string | list
-    of string` part under `Multi` holding the string is one part. A
-    `text/plain` response declaring an object, and a response header of a list of objects, each
-    return their text as a string, the mock answers the first with no body and a warning
-    `emitters/mock/example-missing`, and an inbound operation declaring a `text/plain` request
-    content of an object beside an `application/json` one reports the content and reads a request
-    sent as `text/plain` as the string it held. The same parameter declaring `content` as
-    `application/json` is typed as its list and sends that JSON text, a `string | list of string`
-    parameter keeps both arrangements, an `any` parameter holding a list fails before anything is
-    sent, a `text/plain` content of an object beside an `application/json` one the ranking elects
-    draws no diagnostic, and a declared example of such a parameter is refused as
-    `emitters/plan/example-refused`, none being synthesized in its place ([values as
-    text](../refine/text.md#a-value-no-style-arranges), [request
+    declaration as its body, `metadata` typed, and adding either operation changes no declaration of
+    the other; a form body's catch-all of objects is one list of pairs, marked in `Rest`; a
+    multipart response holding such a part is `raw`, its `Text.Content` set; and a `string | list of
+    string` part under `Multi` holding the string is one part. A `text/plain` response declaring an
+    object, and a response header of a list of objects, each return their text as a string, the mock
+    answers the first with no body and a warning `emitters/mock/example-missing`, and an inbound
+    operation declaring a `text/plain` request content of an object beside an `application/json` one
+    reports the content and reads a request sent as `text/plain` as the string it held. The same
+    parameter declaring `content` as `application/json` is typed as its list and sends that JSON
+    text, a `string | list of string` parameter keeps both arrangements, an `any` parameter holding
+    a list fails before anything is sent, a `text/plain` content of an object beside an
+    `application/json` one the ranking elects draws no diagnostic, and a declared example of such a
+    parameter is refused as `emitters/plan/example-refused`, none being synthesized in its place
+    ([values as text](../refine/text.md#a-value-no-style-arranges), [request
     shaping](../refine/requests.md#the-body)). An owner chosen by the shortest extension or by a
     member's name before an input's own, a reader taking a name its binding does not own, and a
     member typed as pairs in a model's declaration each fail it.
@@ -942,12 +937,11 @@ throughout these documents.
     each other (`…Kt` and two variants folding alike), generates code that compiles on every target:
     each identifier of a role written into a path within the cap but for its escape and its suffix,
     which a type's class and its variant's serializer still hold under 255 bytes, a shortened one
-    keeping its leading words and its hash word
-    and drawing one `emitters/<target>/name-shortened`, two that share their first 110 bytes apart,
-    among them two names with no words (twelve and thirteen `_`), two types named from hints and one
-    long type's create and patch declarations, the property's name whole, and no segment of a path
-    the build writes past 255 bytes, every class file kotlinc writes among them, none of which a
-    method's body has it name for an inline function
+    keeping its leading words and its hash word and drawing one `emitters/<target>/name-shortened`,
+    two that share their first 110 bytes apart, among them two names with no words (twelve and
+    thirteen `_`), two types named from hints and one long type's create and patch declarations, the
+    property's name whole, and no segment of a path the build writes past 255 bytes, every class
+    file kotlinc writes among them, none of which a method's body has it name for an inline function
     ([naming](../refine/naming.md#a-name-too-long-for-a-path-is-shortened)).
 54. **T-54 · Names past ASCII** — a fixture naming a type, a property, a parameter, an operation, an
     enum member and a group with a decomposed `café`, with `नाम`, with a letter Kotlin 2.4.0's lexer
@@ -956,24 +950,24 @@ throughout these documents.
     whose first word and one whose second begins with U+0301, and with names whose first letter Go
     does not export once cased, `名前`, `ʰx`, `ßx`, `ᾳx` and past the BMP `𐀀x`, and a type `UserKt`
     spelled with a Kelvin sign beside `User` and its alias, which folds as a name ending in `Kt` and
-    on Kotlin is `UserKt_` with the sign kept, generates code that
-    compiles on every target: on Go each character a role cannot hold written by its name once the
-    identifier is cased, its `u` in lower case and its hex four digits at least (`Cafeu0301`,
-    `Field_u0301x`, `u11046`), and every import path in ASCII; on Kotlin each such identifier in
-    backticks with the spec's characters (a type `Ɤx`, a property of `field_`, U+0301 and `x`), a
-    collision's suffix inside them, built for the JVM, JS, Wasm and a framework, under the
-    serialization plugin, every KDoc link to one resolving, and every module published to a Maven
-    repository; and the policy's casing of every code point equal to a golden held to the options
-    version, so a Go release moving its Unicode tables fails the suite and renames nothing. A caller
-    in another unit, a Go package or a Kotlin module, and a Java caller, sets and reads each
-    property and calls each operation by its rendered name; a name holding U+2E2F links into a
-    Multiplatform framework whose header clang compiles, and a Swift file importing the framework
-    reaches each class, property and entry by the Swift name the policy chose, past ASCII its
-    Objective-C name, as `ProbeA日本` for a class `A日本` in a framework `Probe` and `ProbeA日本Builder`
-    for the builder it nests, or an explicit name in ASCII where it takes one, as enum entries
-    `A_日本` and `A日本` are `a_u65e5u672c` and `a日本` in both declaration orders, and each method whose
-    name or a parameter's is past ASCII, an ASCII `fetch(id:名前:)` and a `listBy(id:名前:)` among them,
-    by the name read from the built module, its selector the policy's
+    on Kotlin is `UserKt_` with the sign kept, generates code that compiles on every target: on Go
+    each character a role cannot hold written by its name once the identifier is cased, its `u` in
+    lower case and its hex four digits at least (`Cafeu0301`, `Field_u0301x`, `u11046`), and every
+    import path in ASCII; on Kotlin each such identifier in backticks with the spec's characters (a
+    type `Ɤx`, a property of `field_`, U+0301 and `x`), a collision's suffix inside them, built for
+    the JVM, JS, Wasm and a framework, under the serialization plugin, every KDoc link to one
+    resolving, and every module published to a Maven repository; and the policy's casing of every
+    code point equal to a golden held to the options version, so a Go release moving its Unicode
+    tables fails the suite and renames nothing. A caller in another unit, a Go package or a Kotlin
+    module, and a Java caller, sets and reads each property and calls each operation by its rendered
+    name; a name holding U+2E2F links into a Multiplatform framework whose header clang compiles,
+    and a Swift file importing the framework reaches each class, property and entry by the Swift
+    name the policy chose, past ASCII its Objective-C name, as `ProbeA日本` for a class `A日本` in a
+    framework `Probe` and `ProbeA日本Builder` for the builder it nests, or an explicit name in ASCII
+    where it takes one, as enum entries `A_日本` and `A日本` are `a_u65e5u672c` and `a日本` in both
+    declaration orders, and each method whose name or a parameter's is past ASCII, an ASCII
+    `fetch(id:名前:)` and a `listBy(id:名前:)` among them, by the name read from the built module, its
+    selector the policy's
     ([characters](../refine/naming.md#a-character-a-target-cannot-write-is-written-by-its-name),
     [leading
     words](../refine/naming.md#an-identifier-its-role-cannot-begin-with-takes-a-leading-word),
@@ -998,8 +992,7 @@ throughout these documents.
     manifest records. On Go, a model whose fields and methods are named after each package its file
     imports compiles, and a file that writes `error` and imports, through a type-table row, a
     package named `error`, which no unit can be, imports it as `error2`
-    ([Kotlin](../targets/kotlin/naming.md#imports),
-    [Go](../targets/go/naming.md#imports)).
+    ([Kotlin](../targets/kotlin/naming.md#imports), [Go](../targets/go/naming.md#imports)).
 56. **T-56 · The tag a variant's value carries** — on every target, a discriminated union whose
     variants leave the tag a plain string encodes a variant built with that member unset, or set to
     another variant's tag, with the one tag routing to it, and decodes the result as that variant; a
@@ -1053,8 +1046,8 @@ throughout these documents.
     `PatchImplicitOptionality` points at `true` or at `false`, either of which elects nothing;
     turning `plan.Policy.MergePatch` off removes the patch shape and its mark; in a merge patch a
     member declared nullable sends `null`, nothing and a value as three requests, and one not so
-    declared has no form that sends `null`, on Go and on both Kotlin targets; and a `POST` sent as
-    a merge patch relaxes nothing ([TypePlan](../plan/types.md#what-a-patch-relaxes), [one
+    declared has no form that sends `null`, on Go and on both Kotlin targets; and a `POST` sent as a
+    merge patch relaxes nothing ([TypePlan](../plan/types.md#what-a-patch-relaxes), [one
     election](../plan/responses.md#one-election)).
 60. **T-60 · The declaration a shape takes** — a model with a `readOnly` and a `writeOnly` member,
     read by one operation and written by a `POST`, a `PUT`, a `PATCH` and a merge patch, is declared
@@ -1097,10 +1090,10 @@ throughout these documents.
     in plain digits and in exponent form, and a negative number into an unsigned kind; reads each
     kind's least and greatest value and 9007199254740993, in plain digits and in exponent form, to
     that exact value, which no reader passing through a float does, and `0e99999999999999999999` as
-    zero; refuses `1e1000000000` and reads a literal a
-    megabyte long that names 1, each within a time bound a literal's expansion would pass; writes
-    plain digits; reads a parameter's and a header's text by the same table, in an SDK and in a
-    mock; and leaves a caller's own decoder for an integer type its precedence at any depth ([type
+    zero; refuses `1e1000000000` and reads a literal a megabyte long that names 1, each within a
+    time bound a literal's expansion would pass; writes plain digits; reads a parameter's and a
+    header's text by the same table, in an SDK and in a mock; and leaves a caller's own decoder for
+    an integer type its precedence at any depth ([type
     table](../contract/type-table.md#an-integer-row-reads-a-number-by-its-value)).
 62. **T-62 · Bytes compare by content** — on both Kotlin targets and from a Swift caller, two values
     decoded from the same `bytes` text are equal and hash alike as themselves, in a scalar's
@@ -1123,22 +1116,21 @@ throughout these documents.
     stack, and from the main thread, where a hash of a value two levels deep of a 200-member type
     starts none, a decode failing on a started thread reaching the caller as that failure; a body
     holding one value more than `Nesting.MaxValues` is refused the same way and one holding that
-    many decodes, a
-    member's name counting none; an opening bracket inside a string counts for nothing, a string
-    ending in an escaped backslash among them, the value after it nested past the limit still
-    refused; a value a caller builds past the limit is refused by the client's encoder, nothing
-    sent, and prints, hashes, compares and validates without recursing into it, on Kotlin/Native on
-    a 64 KB stack; a value a caller builds that holds one child twice at each of 60 levels is
-    refused by the encoder once it has written `Nesting.MaxValues` values, prints in Go as far as
-    that many values and then `...` and fails Go's `Validate` after as many, and in Kotlin prints
-    its class, depth and count alone, hashes as its depth, equals only itself and fails
+    many decodes, a member's name counting none; an opening bracket inside a string counts for
+    nothing, a string ending in an escaped backslash among them, the value after it nested past the
+    limit still refused; a value a caller builds past the limit is refused by the client's encoder,
+    nothing sent, and prints, hashes, compares and validates without recursing into it, on
+    Kotlin/Native on a 64 KB stack; a value a caller builds that holds one child twice at each of 60
+    levels is refused by the encoder once it has written `Nesting.MaxValues` values, prints in Go as
+    far as that many values and then `...` and fails Go's `Validate` after as many, and in Kotlin
+    prints its class, depth and count alone, hashes as its depth, equals only itself and fails
     `validate()`, each within a time bound no walk of 2^60 values meets, which a hash or a check
     reading the depth alone fails; in Go a value holding itself through a pointer, a slice and a map
     is refused by the encoder, fails `Validate` at the limit, its type in another package than the
     one holding it, and is printed by `String`, `GoString`, `LogValue` and every `fmt` verb to the
-    limit and no further; a Kotlin model built from a list
-    its caller then changes keeps its members and its hash; and a `Nesting.MaxDepth` a target cannot
-    hold to, one above 64 on Multiplatform, is reported and none is read to another depth
+    limit and no further; a Kotlin model built from a list its caller then changes keeps its members
+    and its hash; and a `Nesting.MaxDepth` a target cannot hold to, one above 64 on Multiplatform,
+    is reported and none is read to another depth
     ([models](../refine/models.md#how-deep-a-value-nests)).
 64. **T-64 · The runtime's surface** — on every target, a caller's program built outside the SDK, as
     another Go module, another Gradle build and a Swift file against the framework, compiles while
@@ -1260,21 +1252,21 @@ throughout these documents.
     `emitters/mock/page-walk-refused`, unless `Stop` is empty, where the end page's repeat ends it,
     or lists `empty`, where it ends on the page past the last item, `no_next` over a type admitting
     the empty value, or `total` with a total to read, where the last page's required continuation
-    still holds a value; a continuation the mock did not mint is
-    refused, a page number below `FirstPage` that the input admits, an offset below 0 or holding a
-    fraction, an offset past the end and page 4611686018427387905 at a size of 4 get an empty page,
-    a limit of a billion one page of the walk, and one request the same page whatever came before
-    it; with `Synthesize` off a walk's items and continuations are values the document declares, and
-    one declared cursor value gives a walk of two pages of `n` items where the walk's end is not
-    minted; a pager's `GET` of a link a `POST` operation wrote, its limit in the body, gets its page
-    at that limit and the same `TotalPages`; and a caller whose filter is spelt `q=a%20b&z=1&a=2`
-    reads each item once at a limit of a billion under an empty `Stop`. A mock whose last page keeps
-    a continuation, that repeats one on a page holding items, or repeats one or writes an empty link
-    where `Stop` lists a condition other than `no_next`, that leaves a required continuation out of
-    a page `total` ends the walk on, ignores an offset, counts pages from another first page,
-    refuses a number below it that the input admits, computes a position in a fixed-width integer,
-    ends a page short before the last, sizes a page by a limit of 0, names no size in a link's
-    value, or writes its last link rebuilt from the query it parsed fails it ([a page walk on the
+    still holds a value; a continuation the mock did not mint is refused, a page number below
+    `FirstPage` that the input admits, an offset below 0 or holding a fraction, an offset past the
+    end and page 4611686018427387905 at a size of 4 get an empty page, a limit of a billion one page
+    of the walk, and one request the same page whatever came before it; with `Synthesize` off a
+    walk's items and continuations are values the document declares, and one declared cursor value
+    gives a walk of two pages of `n` items where the walk's end is not minted; a pager's `GET` of a
+    link a `POST` operation wrote, its limit in the body, gets its page at that limit and the same
+    `TotalPages`; and a caller whose filter is spelt `q=a%20b&z=1&a=2` reads each item once at a
+    limit of a billion under an empty `Stop`. A mock whose last page keeps a continuation, that
+    repeats one on a page holding items, or repeats one or writes an empty link where `Stop` lists a
+    condition other than `no_next`, that leaves a required continuation out of a page `total` ends
+    the walk on, ignores an offset, counts pages from another first page, refuses a number below it
+    that the input admits, computes a position in a fixed-width integer, ends a page short before
+    the last, sizes a page by a limit of 0, names no size in a link's value, or writes its last link
+    rebuilt from the query it parsed fails it ([a page walk on the
     mock](../docs-and-mock.md#a-page-walk-on-the-mock)).
 68. **T-68 · Bindings a target covers** — a plan binding of each `OpBindings` field carries that
     field's `Protocol` and its binding by reference, a message binding's `Unmodeled` reached through

@@ -163,11 +163,10 @@ value, so the by-value serializer and an integer enum's refused the key `"1"`. E
 it reads a name ([Go](../targets/go/types.md#integers),
 [Kotlin](../targets/kotlin/types.md#integers)), and how a model holds a catch-all whose `Key` is set
 ([Go](../targets/go/models.md#user-in-go), [Kotlin](../targets/kotlin/models.md#unknown-members)),
-since json/v2 embeds no map whose keys are not strings. Protobuf's `map<int64, V>` and
-`map<bool, V>` write such keys in JSON, and an Erlang map type pairing typed keys with named
-ones is planned as such a catch-all ([planned
-lowerings](../../compilers/planned-lowerings.md#erlangotp));
-the golden spec types no key (spec @bc6fad24, morphic @fa253fe19). T-61 holds the rule.
+since json/v2 embeds no map whose keys are not strings. Protobuf's `map<int64, V>` and `map<bool,
+V>` write such keys in JSON, and an Erlang map type pairing typed keys with named ones is planned as
+such a catch-all ([planned lowerings](../../compilers/planned-lowerings.md#erlangotp)); the golden
+spec types no key (spec @bc6fad24, morphic @fa253fe19). T-61 holds the rule.
 
 ## What a built-in row writes
 

@@ -93,16 +93,15 @@ func (s Secret[T]) Value() T         // the value; T's zero for a zero Secret
 for a zero `Secret`: so a `Secret[Opt[string]]` tagged `omitzero` is left out exactly where its box
 is unset, where one answering for the function alone wrote `"password":""` for a secret holding an
 unset box. A function is the one kind `fmt` prints as an address however it is asked. A pointer was
-built first: one to a list, a struct or a map is followed once under a verb `fmt` has no
-pointer form for, `%s` among them, and printed a `*[]string`'s secret in 216 of the same renderings,
-where `Secret` held it in none, nor did a failure holding the model. The costs are a function's: a
-caller wraps the value it would otherwise write, `runtime.SecretOf(v)` with `v` an `Opt[string]`
-for `password`, and reads `.Value()`; two models holding equal secrets are unequal to
-`reflect.DeepEqual`, and `==` does not compile on one, so a test compares through
-`Equal`, which go-cmp asks; and a member a document starts or stops marking changes type, a break
-for its callers, as a reference joining a cycle does ([recursive
-references](#recursive-references)). A value a caller takes out with `Value` is its own and renders
-as Go renders it. T-43 holds this section.
+built first: one to a list, a struct or a map is followed once under a verb `fmt` has no pointer
+form for, `%s` among them, and printed a `*[]string`'s secret in 216 of the same renderings, where
+`Secret` held it in none, nor did a failure holding the model. The costs are a function's: a caller
+wraps the value it would otherwise write, `runtime.SecretOf(v)` with `v` an `Opt[string]` for
+`password`, and reads `.Value()`; two models holding equal secrets are unequal to
+`reflect.DeepEqual`, and `==` does not compile on one, so a test compares through `Equal`, which
+go-cmp asks; and a member a document starts or stops marking changes type, a break for its callers,
+as a reference joining a cycle does ([recursive references](#recursive-references)). A value a
+caller takes out with `Value` is its own and renders as Go renders it. T-43 holds this section.
 
 ## A shape that is an alias
 
@@ -115,13 +114,13 @@ call stopped with `cannot use … as shared.UserCreate value` (Go 1.27.3).
 
 A union's alias, and a polymorphic base's, which Go declares as it does a union
 ([unions](unions.md)), brings every name the type declares in its unit: `type PaymentCreate =
-Payment`, `type PaymentCreateVariant = PaymentVariant`, an alias for each wrapper,
-the fallback's among them, `type PaymentCreateCard = PaymentCard`, and a function for each factory,
-`func NewPaymentCreateCard(v CardCreate) PaymentCreate`, which calls the type's own. A caller that
-built `sdk.PaymentCreate{Value: sdk.PaymentCreateCard{Value: sdk.CardCreate{…}}}`, called a factory
-and switched over a `sdk.PaymentCreateVariant`, one variant's type in another unit, compiled before
-and after the three became declarations of their own. With the struct aliased alone, the same caller
-had only `sdk.PaymentCard` to write and stopped at the split (`PaymentCard does not implement
+Payment`, `type PaymentCreateVariant = PaymentVariant`, an alias for each wrapper, the fallback's
+among them, `type PaymentCreateCard = PaymentCard`, and a function for each factory, `func
+NewPaymentCreateCard(v CardCreate) PaymentCreate`, which calls the type's own. A caller that built
+`sdk.PaymentCreate{Value: sdk.PaymentCreateCard{Value: sdk.CardCreate{…}}}`, called a factory and
+switched over a `sdk.PaymentCreateVariant`, one variant's type in another unit, compiled before and
+after the three became declarations of their own. With the struct aliased alone, the same caller had
+only `sdk.PaymentCard` to write and stopped at the split (`PaymentCard does not implement
 PaymentCreateVariant`), and a caller building a `PetCreate` from `sdk.PetCreateDog` and
 `sdk.NewPetCreateDog` compiled across the split of a base `Pet` and its subtype `Dog`. An inclusive
 union's alias is its struct's alone, its variants being fields. T-60 holds this section.

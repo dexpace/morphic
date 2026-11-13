@@ -152,9 +152,9 @@ it, so every text sent reads back into its parts: at the revisions above, the go
 `{event_t}.{event_n}` binds two `number`s, and `1.5` and `3` would send `1.5.3`, which reads as `1`
 and `5.3`. So does a call whose path would read back as other texts where its template holds two
 runs of no fixed length, each read as a longest run ([below](#reading-a-text)), which neither
-google.api.http, allowing
-one `**` and that one last, nor Smithy, allowing one greedy label, declares: `{a}/x/{b}` under
-`AllowReserved` would send `p` and `q/x/r` as a path that reads as `p/x/q` and `r`.
+google.api.http, allowing one `**` and that one last, nor Smithy, allowing one greedy label,
+declares: `{a}/x/{b}` under `AllowReserved` would send `p` and `q/x/r` as a path that reads as
+`p/x/q` and `r`.
 
 A header's text, and a cookie's under the `cookie` style, is sent as it is, never percent-encoded
 (§4.12.2.2), and OpenAPI leaves escaping it to the caller (Appendix D). One holding a control
@@ -174,14 +174,14 @@ member's that an exploded object writes, a map's key or a caller's pair's
 ([below](#a-value-no-style-arranges)): a header's that is no field name (RFC 9110 §5.1), a cookie's
 that is no token (RFC 6265 §4.1.1), and a multipart part's, written as its UTF-8 octets in the
 quoted `name` of its `Content-Disposition` (RFC 7578 §4.2), that holds a `"`, a `\` or a control
-character, which writers escape each their own way. So a cookie carries a pair named
-`filters.0.key` and none named `filters[0][key]`. A value or a member whose text holds a `;` under
-the `cookie` style fails the same way, since it would begin a pair of its own. On Go 1.27.3 and Node
-26.13, Go's server reads no cookie named `filters[0][key]` from a header holding one and reads
-`filters%5B0%5D` as that name, undecoded; Go's transport refuses a header named `X-Foo[0]`; Go's
-multipart reader gives a part named `deep%5Ba%5D` back as written; and Go writes a `"` in a part's
-name as `\"` where `fetch` writes `%22` and leaves a `\` alone. At the revisions above the golden
-spec binds no cookie, and no header or multipart part it names is refused.
+character, which writers escape each their own way. So a cookie carries a pair named `filters.0.key`
+and none named `filters[0][key]`. A value or a member whose text holds a `;` under the `cookie`
+style fails the same way, since it would begin a pair of its own. On Go 1.27.3 and Node 26.13, Go's
+server reads no cookie named `filters[0][key]` from a header holding one and reads `filters%5B0%5D`
+as that name, undecoded; Go's transport refuses a header named `X-Foo[0]`; Go's multipart reader
+gives a part named `deep%5Ba%5D` back as written; and Go writes a `"` in a part's name as `\"` where
+`fetch` writes `%22` and leaves a `\` alone. At the revisions above the golden spec binds no cookie,
+and no header or multipart part it names is refused.
 
 A `text/plain` body or part is its text's UTF-8 octets, with no byte-order mark, and is read as
 UTF-8 with one leading mark dropped, as RFC 3629 §6 suggests and WHATWG's UTF-8 decode does. One
@@ -299,8 +299,8 @@ chain, and of where it is bound:
   assume of a document whose format it does not read (INV1);
 - a `Prefix` binding, and a header whose `Prefix` is set, has one where its type is a map of leaves;
 - a `host` label, a `text/plain` body, and a form field or part whose content type is `text/plain`
-  have one where their type is a leaf, and a field or part under `Multi` where its elements are,
-  and each variant that is no list, a `text/plain` one for each ([above](#the-text-of-a-value)).
+  have one where their type is a leaf, and a field or part under `Multi` where its elements are, and
+  each variant that is no list, a `text/plain` one for each ([above](#the-text-of-a-value)).
 
 An input with none is its caller's text, written as the API documents it. Nothing is guessed, since
 nothing in the IR says which of the spellings in use a server reads. What the caller writes depends
@@ -354,17 +354,16 @@ no refiner derives it again: `ParamBind.Text` for a parameter, a request's heade
 reads, whose reader's `Type` is then `string`, or whose shape is `raw` where a field or part of it
 is such a value ([body shapes](../plan/responses.md#body-shapes)), and `OpPlan.RequestText` for a
 request's contents, with their fields and parts ([OpPlan](../plan/operations.md)), which the request
-type holds in the body's place ([request shaping](requests.md#the-body)).
-It reports each as a warning `emitters/plan/unarranged-value` at
-its binding, its header or its content. A content no election picks is not reported, and no election
-passes over one. Whether a content holds such a value is its own fact, however it is chosen: an
-inbound request is read through the content its `Content-Type` names ([operations the API
-sends](../operations/inbound.md)), so each such content of its request is reported, and one that
-arrives is the string it held, as a response a receiver writes in one is the string it is given.
-Such an input or content has no example: a declared one holds its value, not its text, so it is
-refused as one its type refuses is ([docs and mocks](../docs-and-mock.md)), and none is synthesized,
-a text made up for it being a guess, so the mock answers in such a content with no body and a
-warning `emitters/mock/example-missing`.
+type holds in the body's place ([request shaping](requests.md#the-body)). It reports each as a
+warning `emitters/plan/unarranged-value` at its binding, its header or its content. A content no
+election picks is not reported, and no election passes over one. Whether a content holds such a
+value is its own fact, however it is chosen: an inbound request is read through the content its
+`Content-Type` names ([operations the API sends](../operations/inbound.md)), so each such content of
+its request is reported, and one that arrives is the string it held, as a response a receiver writes
+in one is the string it is given. Such an input or content has no example: a declared one holds its
+value, not its text, so it is refused as one its type refuses is ([docs and
+mocks](../docs-and-mock.md)), and none is synthesized, a text made up for it being a guess, so the
+mock answers in such a content with no body and a warning `emitters/mock/example-missing`.
 
 A document that means JSON says so: a parameter declaring `content` with `application/json` in place
 of `schema` (§4.12.2.3), as an overlay can make it, lowers to `ContentType`, which types the input

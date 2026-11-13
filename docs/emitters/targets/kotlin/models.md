@@ -72,14 +72,14 @@ JVM, `UserKt` for `User.kt`. No spec name meets one, since a unit reserves every
 ([naming](naming.md#reserved-names)), so an alias sits in the file of the class it names. The
 Objective-C header shows such a class only for a function or a property at a file's top level, and
 one class for every unit's file of that name: with Kotlin/Native 2.4.0, a `User.kt` holding a class
-and an alias gave the header no `UserKt`, while two units' `Kind.kt`, each declaring
-`const val KIND`, gave one class `KindKt` holding `KIND` and `KIND_`, the second the constant of the
-unit whose package sorts last, so a unit added could rename a shipped constant. So no file holding
-the spec's declarations declares a function or a property at its top level: a factory is a
-companion's member, as above, and a literal's constant a member of an `object` named for the
-literal, `object Kind { const val VALUE = "user" }`, which a Swift caller read as
-`Kind.shared.VALUE` in both orders of the units, the object told apart from another unit's `Kind` as
-any class is there ([Swift](swift.md)). T-60 holds this section.
+and an alias gave the header no `UserKt`, while two units' `Kind.kt`, each declaring `const val
+KIND`, gave one class `KindKt` holding `KIND` and `KIND_`, the second the constant of the unit whose
+package sorts last, so a unit added could rename a shipped constant. So no file holding the spec's
+declarations declares a function or a property at its top level: a factory is a companion's member,
+as above, and a literal's constant a member of an `object` named for the literal, `object Kind {
+const val VALUE = "user" }`, which a Swift caller read as `Kind.shared.VALUE` in both orders of the
+units, the object told apart from another unit's `Kind` as any class is there ([Swift](swift.md)).
+T-60 holds this section.
 
 ## Nesting
 
@@ -165,13 +165,13 @@ limit: the client refuses to encode it, with an error and nothing sent, `toStrin
 and its depth alone, `equals` compares the depths first and holds such a value equal only to itself,
 `hashCode` is then its depth, and `validate()` reports it as nested past the limit. Each records in
 `jsonValues`, beside it, how many values its JSON form holds, the sum of its members' and one for
-itself, held at the greatest `Int` once past it, and
-a value past `MaxValues` is treated the same way, its count shown beside its depth: one sharing each
-child at 22 levels, 16,777,214 values, printed, hashed, compared and was found in a set in 0.9 s,
-and one at 30 levels answered all four in 68 µs, equal only to itself (Kotlin 2.4.0, JVM 25).
-Measured on Kotlin/Native 2.4.0, a value 200,002 levels deep printed, hashed, compared and was found
-in a set on a 64 KB stack, where the same nesting with no record ended the process on 512 KB. Both
-Kotlin targets do this. On the JVM a `MaxDepth` raised past what a thread's stack takes still leaves
-a value within it the `StackOverflowError` any deep structure meets there, which its caller can
-catch. A count kept in a thread-local as each method recurses would bound them too, at two reads of
-it for every nested value hashed. T-63 holds these.
+itself, held at the greatest `Int` once past it, and a value past `MaxValues` is treated the same
+way, its count shown beside its depth: one sharing each child at 22 levels, 16,777,214 values,
+printed, hashed, compared and was found in a set in 0.9 s, and one at 30 levels answered all four in
+68 µs, equal only to itself (Kotlin 2.4.0, JVM 25). Measured on Kotlin/Native 2.4.0, a value 200,002
+levels deep printed, hashed, compared and was found in a set on a 64 KB stack, where the same
+nesting with no record ended the process on 512 KB. Both Kotlin targets do this. On the JVM a
+`MaxDepth` raised past what a thread's stack takes still leaves a value within it the
+`StackOverflowError` any deep structure meets there, which its caller can catch. A count kept in a
+thread-local as each method recurses would bound them too, at two reads of it for every nested value
+hashed. T-63 holds these.

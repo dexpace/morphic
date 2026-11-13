@@ -333,23 +333,23 @@ a way to show one entity across API versions. Each is decided by data, never by 
   `EmitterInput.Routes`, keyed by the label `Document.Versions` gives each version. An agent
   document's route, one for each target and language a run's samples name, is that run's own and in
   no table, though the collision check reads it. A label's directory is percent-encoded where a link
-  writes it, since a `#` or `%` in it would otherwise end or alter the URL, and a switcher
-  shows the label as written though its directory takes a suffix. A switcher lists the labels
-  `Routes` keys, in the order `Document.Versions` gives them, never one no snapshot was made for. A
-  run finds its own entry under `EmitterInput.Snapshot`, the label of the snapshot it was handed,
-  which is also the version its switcher marks current: nothing in a snapshot's document says which
-  version it is. The engine cannot plan the routes itself, since the catalog and the templates are
-  the target's. A run plans its own routes by the same pure function, so its pages agree with its
-  snapshot's entry. A table holds each entity's page and anchor from the output root, its snapshot's
-  directory included, which is what a switcher links. What spans versions, the site-scope `llms.txt`
-  linking each version's and an index of the versions, is written once, by the run of the last of
-  the labels `Routes` keys in `Document.Versions` order, which every snapshot keeps whole
-  (architecture.md §2.2), since every run holds the labels and tables it is built from; those pages
-  sit at the output root and belong to the one generation, so they keep their place when another
-  label becomes last, and the collision check reads them against every label's directory, so a
-  template putting one under a label's name is refused. The `""` snapshot's run writes the site
-  scope, which is then its version's too, as one index. A link to an entity a version lacks resolves
-  to that version's page saying so. Slugs may differ between versions; IDs do not.
+  writes it, since a `#` or `%` in it would otherwise end or alter the URL, and a switcher shows the
+  label as written though its directory takes a suffix. A switcher lists the labels `Routes` keys,
+  in the order `Document.Versions` gives them, never one no snapshot was made for. A run finds its
+  own entry under `EmitterInput.Snapshot`, the label of the snapshot it was handed, which is also
+  the version its switcher marks current: nothing in a snapshot's document says which version it is.
+  The engine cannot plan the routes itself, since the catalog and the templates are the target's. A
+  run plans its own routes by the same pure function, so its pages agree with its snapshot's entry.
+  A table holds each entity's page and anchor from the output root, its snapshot's directory
+  included, which is what a switcher links. What spans versions, the site-scope `llms.txt` linking
+  each version's and an index of the versions, is written once, by the run of the last of the labels
+  `Routes` keys in `Document.Versions` order, which every snapshot keeps whole (architecture.md
+  §2.2), since every run holds the labels and tables it is built from; those pages sit at the output
+  root and belong to the one generation, so they keep their place when another label becomes last,
+  and the collision check reads them against every label's directory, so a template putting one
+  under a label's name is refused. The `""` snapshot's run writes the site scope, which is then its
+  version's too, as one index. A link to an entity a version lacks resolves to that version's page
+  saying so. Slugs may differ between versions; IDs do not.
 
 ## Documents for agents
 
@@ -720,9 +720,9 @@ test running beside it would move the count, and a request's page would turn on 
   query parameter of the mock's, `mock_page` prefixed with `_` until no input an operation at that
   path declares is bound under its name, its value naming the operation, the position and the page's
   size, which a limit sent in the body would otherwise lose, a value naming none of the walk
-  refused; an input owning the rest, as an exploded map does, holds no entry the mock reads as
-  its own. The mock answers a `GET` carrying it as that page whatever the method of the operation
-  that wrote it, since a pager follows a link with one ([what a pager sends
+  refused; an input owning the rest, as an exploded map does, holds no entry the mock reads as its
+  own. The mock answers a `GET` carrying it as that page whatever the method of the operation that
+  wrote it, since a pager follows a link with one ([what a pager sends
   next](operations/pagination.md#what-a-pager-sends-next)).
 - **What a page says.** Each page but the last carries the continuation of the position after its
   last item, where the strategy reads one, at the place `CursorOut` reads it or in the `Link`
@@ -732,13 +732,13 @@ test running beside it would move the count, and a request's page would turn on 
   nullable; else the empty value where `no_next` is listed and its type admits one; else, where
   `total` with a total to read ends the walk on it, a value of its type naming no page, refused when
   sent back, or any value where its type or its set leaves none, since the member must hold one and
-  a pager ending on `total` sends none. Where the
-  continuation is required and not nullable and neither of those nor `total` with a total to read
-  ends the walk on the page holding its last item, the mock mints one more position, the walk's end:
-  that page carries its continuation, and the page asking for it, the end page, holds none, which
-  `empty` ends, and `short` where the request sent a limit. The end page carries, where `Stop` is
-  empty, the continuation its own request sent, a link the URL it was sent to, the target written as
-  it arrived, so the repeat ends the walk however the caller spelt its query ([where a page walk
+  a pager ending on `total` sends none. Where the continuation is required and not nullable and
+  neither of those nor `total` with a total to read ends the walk on the page holding its last item,
+  the mock mints one more position, the walk's end: that page carries its continuation, and the page
+  asking for it, the end page, holds none, which `empty` ends, and `short` where the request sent a
+  limit. The end page carries, where `Stop` is empty, the continuation its own request sent, a link
+  the URL it was sent to, the target written as it arrived, so the repeat ends the walk however the
+  caller spelt its query ([where a page walk
   ends](operations/pagination.md#where-a-page-walk-ends)), and otherwise a value the mock did not
   mint, refused when sent back. A repeat, an empty link among them, ends a walk only under an empty
   `Stop` and on a page holding no items, so the mock writes one only on the end page there or where
@@ -822,12 +822,12 @@ Three costs are left to the server the mock runs in. The number of connections i
 system's to bound, as the mock serves a test's own process, on loopback by default. The size of a
 request's head is the server's, Go's `net/http` at 1 MB by default, which is what bounds the pairs a
 query or a cookie brings an input no style arranges ([values as
-text](refine/text.md#a-value-no-style-arranges)). A reader taking
-a byte within each `IdleTimeout` keeps its exchange open as long as the response lasts, which costs
-the mock one connection and its buffers for a response the document's examples bound. A connection
-holding no request, or part of one, is closed after `IdleTimeout`, the bound on a request's head and
-on a connection idle between requests: 200 such connections were all closed within 5 times it, and
-with neither bound all stayed open.
+text](refine/text.md#a-value-no-style-arranges)). A reader taking a byte within each `IdleTimeout`
+keeps its exchange open as long as the response lasts, which costs the mock one connection and its
+buffers for a response the document's examples bound. A connection holding no request, or part of
+one, is closed after `IdleTimeout`, the bound on a request's head and on a connection idle between
+requests: 200 such connections were all closed within 5 times it, and with neither bound all stayed
+open.
 
 A webhook or a callback is sent only to an `http` or `https` URL whose host resolves to an address
 `SendTo` lists, checked on the connection the mock dials, through no proxy, so a name resolving

@@ -93,11 +93,11 @@ bound above and decodes only past the checks, a form field or a part arriving wi
 headers the receiver reads only those the operation declares, and of the query only the names an
 input of the operation owns, each into that one input ([values as
 text](../refine/text.md#a-value-no-style-arranges)), but a map spread over names of its own and an
-input no style arranges hold as many as the sender wrote. What bounds those is the request
-line and the headers the server the receiver runs in admits, Go's `net/http` 1 MB of the two
-together by default, which the receiver cannot set: its caller configures that server. The caller's
-check runs at most once for each scheme use and each alternative naming none in the operation's
-`Auth`, a count the document sets. T-71 holds this section.
+input no style arranges hold as many as the sender wrote. What bounds those is the request line and
+the headers the server the receiver runs in admits, Go's `net/http` 1 MB of the two together by
+default, which the receiver cannot set: its caller configures that server. The caller's check runs
+at most once for each scheme use and each alternative naming none in the operation's `Auth`, a count
+the document sets. T-71 holds this section.
 
 ## What the plan holds for one
 

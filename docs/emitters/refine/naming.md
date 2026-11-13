@@ -187,13 +187,12 @@ character upper-cased, with `_` before a word letter case cannot mark
 ([below](#a-break-letter-case-cannot-mark-takes-an-underscore)), and it reads back as other words
 where `ir.CanonicalWords` of that identifier is not its `Canonical`; with no `_` written, 6,650 do.
 Either rule would rewrite one spelled name in seventeen, or with no `_` written one in sixteen, to
-part pairs the spec does not hold.
-Writing `_` only in a name that met another, `UserI_D` beside `UserID`, was not taken either: a
-shipped name keeps its symbol ([collisions](#collisions-and-the-names-a-generation-shipped)), so
-only a newcomer could take it, and only where the newcomer is the one misread, which leaves the
-number for every other pair. Comparing names in the `names` pass as an acronym table and spellings
-render them was not taken either, since a configuration replaces the table and the pass serves every
-target.
+part pairs the spec does not hold. Writing `_` only in a name that met another, `UserI_D` beside
+`UserID`, was not taken either: a shipped name keeps its symbol
+([collisions](#collisions-and-the-names-a-generation-shipped)), so only a newcomer could take it,
+and only where the newcomer is the one misread, which leaves the number for every other pair.
+Comparing names in the `names` pass as an acronym table and spellings render them was not taken
+either, since a configuration replaces the table and the pass serves every target.
 
 ## A name with no words takes its characters' names
 
@@ -434,20 +433,20 @@ The cap leaves room for two names joined and the suffixes the Kotlin toolchain a
 110 bytes make 239 bytes in the serialization plugin's `Payment$Card$$serializer.class`, whose 16
 left hold what the naming steps add to each name after the cap, an `_`, the escape's or the one
 before a suffix, and a collision's suffix of up to seven digits, which only ten million names
-rendering alike in one scope pass, and a
-method of 110 bytes in a client of 110 makes at most 229 in a class kotlinc 2.4.0 writes for its
-body, `<client>$<method>$1.class`, over a plain, a paged and a streamed method each handing its
-lambdas to the runtime, with the kotlinx.coroutines kotlinc ships. That leaves 28 bytes after a
-method's name, which a class kotlinc copies from an inline function's lambda does not fit: it names
-one for the function, as in `$$inlined$filterIsInstance$1$1`, 30 bytes, and failed to write it at
-the cap (`error while writing`). So a method's body hands each lambda to a function that is not
-inline, as the runtime's pager and stream are and as `flow` is, and only the runtime's unit, whose
-names are its own, calls an inline function that writes a class. No name of the golden spec reaches
-the cap: its longest is 99 bytes as words joined, 106 with the `WithResponse` a method may add, and
-its longest union and variant joined by `$` 100, a wrapper being named for its variant and not for
-the type it wraps ([Kotlin](../targets/kotlin/unions.md)), each name its `Canonical` or `Hint` cased
-for its role (spec @bc6fad24, morphic @fa253fe19). A suffix the target's own code makes kotlinc add
-beyond that room is held by T-53, which lowers the cap in the options version adding it.
+rendering alike in one scope pass, and a method of 110 bytes in a client of 110 makes at most 229 in
+a class kotlinc 2.4.0 writes for its body, `<client>$<method>$1.class`, over a plain, a paged and a
+streamed method each handing its lambdas to the runtime, with the kotlinx.coroutines kotlinc ships.
+That leaves 28 bytes after a method's name, which a class kotlinc copies from an inline function's
+lambda does not fit: it names one for the function, as in `$$inlined$filterIsInstance$1$1`, 30
+bytes, and failed to write it at the cap (`error while writing`). So a method's body hands each
+lambda to a function that is not inline, as the runtime's pager and stream are and as `flow` is, and
+only the runtime's unit, whose names are its own, calls an inline function that writes a class. No
+name of the golden spec reaches the cap: its longest is 99 bytes as words joined, 106 with the
+`WithResponse` a method may add, and its longest union and variant joined by `$` 100, a wrapper
+being named for its variant and not for the type it wraps ([Kotlin](../targets/kotlin/unions.md)),
+each name its `Canonical` or `Hint` cased for its role (spec @bc6fad24, morphic @fa253fe19). A
+suffix the target's own code makes kotlinc add beyond that room is held by T-53, which lowers the
+cap in the options version adding it.
 
 Refusing the run was not taken: a valid spec would generate nothing, where shortening costs only the
 readability of a name no reader takes in whole. Nor was a cap on the segment rather than the name,

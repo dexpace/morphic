@@ -51,15 +51,15 @@ escaped in one scope can meet one escaped in another: it takes the escape again 
 `Duration`, `Duration_` in Kotlin, exporting as `Duration__` beside the runtime's `Duration_`, and
 which unit's package sorts first decides nothing
 ([Kotlin](../targets/kotlin/naming.md#reserved-names)). A suffix is one another can: a type `Error`
-given `Error2` for a reserved `Error` would
-hold what a type `error_2` renders to, and their IDs would decide which kept it. Names that meet one
-reserved name are escaped and then told apart as any two are, `Result_` and `Result_2`, and a suffix
-that would make a reserved name is passed over, as `com2` is. Two reservations are answered
-otherwise. An import that yields (below) takes the collision rule's suffix whatever it met, `error2`
-or `Dog2`: it yields to its file's own declarations too, which only that rule compares, and its name
-is its file's alone, so nothing a caller writes turns on it. A Kotlin method or enum entry in an
-Objective-C method family takes its role's leading word in its Swift name, since a trailing
-underscore leaves it in the family ([Swift](../targets/kotlin/swift.md)).
+given `Error2` for a reserved `Error` would hold what a type `error_2` renders to, and their IDs
+would decide which kept it. Names that meet one reserved name are escaped and then told apart as any
+two are, `Result_` and `Result_2`, and a suffix that would make a reserved name is passed over, as
+`com2` is. Two reservations are answered otherwise. An import that yields (below) takes the
+collision rule's suffix whatever it met, `error2` or `Dog2`: it yields to its file's own
+declarations too, which only that rule compares, and its name is its file's alone, so nothing a
+caller writes turns on it. A Kotlin method or enum entry in an Objective-C method family takes its
+role's leading word in its Swift name, since a trailing underscore leaves it in the family
+([Swift](../targets/kotlin/swift.md)).
 
 Only spec names yield, since the target's own names are what its runtime and templates are written
 against, so an import yields to a name the target binds on every target. A declaration a caller
@@ -71,13 +71,13 @@ function's scope reserves the name its file gives each import. The naming steps 
 first, after the units' names, since on Go it reads only its package's name, what the target binds,
 the predeclared identifiers its file writes and its file's other imports: with Go 1.27.3, a
 parameter `time2`, escaped against `time` alone, hid the unit `time` its file then imported as
-`time2` (`time2.Zone is not a type`). A Kotlin caller names one in a named argument, and
-a Swift caller as its label, so there an import yields to every declaration of its file, at any
-depth, and no scope reserves an import. An import has no ID, so which of two keeps a name is each
-target's to say from what they import. That is why `ComputeImports` runs before the naming steps
-([the refiner contract](pipeline.md)): what a file imports is fixed by where declarations landed,
-and what the file calls each import is a name like any other. Names that collide once cased are
-`Ctx.Syms`'s on every target, and so, in a scope a target writes as paths, are names that fold alike
+`time2` (`time2.Zone is not a type`). A Kotlin caller names one in a named argument, and a Swift
+caller as its label, so there an import yields to every declaration of its file, at any depth, and
+no scope reserves an import. An import has no ID, so which of two keeps a name is each target's to
+say from what they import. That is why `ComputeImports` runs before the naming steps ([the refiner
+contract](pipeline.md)): what a file imports is fixed by where declarations landed, and what the
+file calls each import is a name like any other. Names that collide once cased are `Ctx.Syms`'s on
+every target, and so, in a scope a target writes as paths, are names that fold alike
 ([naming](naming.md#collisions-and-the-names-a-generation-shipped)). T-19 holds every scope's set,
 the names with no words and the names that begin with a digit to code that compiles, and names that
 fold alike to paths that do not; T-54 holds names holding a character a target cannot write, or
