@@ -316,14 +316,6 @@ linters:
         linters:
           - containedctx
         source: ^\s*ctx\s+context\.Context$
-      # external is the file system the parser's resolver reads documents
-      # through, and fs.FS's Open takes no context, so the context the
-      # resolution runs under is held for the reads Open makes through the
-      # caller's reader, as the resolver holds its own.
-      - path: compilers/openapi/internal/load/external\.go
-        linters:
-          - containedctx
-        source: ^\s*ctx\s+context\.Context$
       # destWriter is the io.Writer json.MarshalWrite encodes into, and Write
       # takes no context, so the context the encoding runs under is held for
       # the writes that one call makes.
