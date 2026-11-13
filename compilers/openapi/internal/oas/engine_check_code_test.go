@@ -194,6 +194,35 @@ func TestCheck_EncodingsApplyWhereTheSpecificationSays(t *testing.T) {
 	}
 }
 
+// TestCheck_NullableAppliesBesideAType pins where a 3.0 `nullable: true` has
+// no effect: with no `type` beside it, a `type` written null being none,
+// whatever composition or enum is, as a warning at the keyword. Beside a
+// `$ref` it draws only the later-version warning every key there draws, and a
+// `nullable: false`, the default, or a 3.1 schema, which defines no such
+// keyword, draws nothing.
+func TestCheck_NullableAppliesBesideAType(t *testing.T) {
+	const nullable = "/nullable"
+	verify(t, []scenario{
+		{"alone", "3.0.3", oas.Schema, "{nullable: true}", []finding{at(inert, nullable)}},
+		{"spelled True", "3.0.3", oas.Schema, "{nullable: True}", []finding{at(inert, nullable)}},
+		{"beside allOf", "3.0.3", oas.Schema, "{nullable: true, allOf: [{type: string}]}", []finding{at(inert, nullable)}},
+		{"beside oneOf", "3.0.3", oas.Schema, "{nullable: true, oneOf: [{type: string}]}", []finding{at(inert, nullable)}},
+		{"beside enum", "3.0.3", oas.Schema, "{nullable: true, enum: [a]}", []finding{at(inert, nullable)}},
+		{"beside a null type", "3.0.3", oas.Schema, "{nullable: true, type: null}",
+			[]finding{at(inert, nullable), at(mismatch, "/type")}},
+		{"beside a type", "3.0.3", oas.Schema, "{nullable: true, type: string}", nil},
+		{"false", "3.0.3", oas.Schema, "{nullable: false}", nil},
+		{"beside a $ref", "3.0.3", oas.Schema, "{$ref: '#/components/schemas/A', nullable: true}",
+			[]finding{at(later, nullable)}},
+		{"beside a null $ref", "3.0.3", oas.Schema, "{$ref: null, nullable: true}",
+			[]finding{at(inert, nullable), at(mismatch, "/$ref")}},
+		{"in 3.1", "3.1.0", oas.Schema, "{nullable: true}", nil},
+	})
+	for _, d := range run(t, "3.0.3", oas.Schema, "{nullable: true}") {
+		assert.Equal(t, ir.SeverityWarning, d.Severity)
+	}
+}
+
 // TestCheck_AServerURLNamesOnlyItsVariables pins what a server URL may write
 // beside its literal text: variables its variables map defines, and, from 3.1,
 // no query or fragment, which a variable's braces may still hold.

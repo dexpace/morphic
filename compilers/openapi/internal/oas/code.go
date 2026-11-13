@@ -35,6 +35,8 @@ func (r ruler) code(rule Rule) {
 		additionalMethods(r, rule)
 	case "encoding-applies":
 		encodingApplies(r, rule)
+	case "nullable-applies":
+		nullableApplies(r, rule)
 	case "dependent-required":
 		dependentRequired(r, rule)
 	case "vocabulary":
@@ -429,6 +431,21 @@ func encodingApplies(r ruler, rule Rule) {
 				"field "+quote(field)+" has no effect under "+quote(r.f.at.held)+", which the specification applies "+scope)
 		}
 	}
+}
+
+// nullableApplies warns of a `nullable: true` a 3.0 Schema Object writes with no
+// `type` beside it, to which the specification applies it, so it has no
+// effect, whatever the nullable-widening policy reads (GitHub #1070). Beside a
+// `$ref` every key is a later minor's construct, warned of as one
+// (walker.reference), so it is left alone there.
+func nullableApplies(r ruler, rule Rule) {
+	n := nodeview.Deref(r.f.byKey["nullable"])
+	if n == nil || !matches(Boolean, n) || !strings.EqualFold(n.Value, "true") ||
+		r.f.writes("type", r.w.minor) || r.f.writes("$ref", r.w.minor) {
+		return
+	}
+	r.fail(rule, classNoEffect, r.f.at.ptr.AppendToken("nullable"),
+		`field "nullable" has no effect without a "type" written in the same Schema Object, to which the specification applies it`)
 }
 
 // dependentRequired reports an entry of dependentRequired that is no list of

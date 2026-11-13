@@ -146,6 +146,10 @@ var validationReasons = map[string]string{
 		"an empty component; the specification requires them to match ^[a-zA-Z0-9\\.\\-_]+$ (3.1.2 §Components " +
 		"Object: 'All the fixed fields declared above are objects that MUST use keys that match the regular " +
 		"expression'), which the table reports where the key is written",
+	"nullable-type": "the library has no check for a 3.0 nullable: true with no type beside it, which the " +
+		"specification gives no effect (3.0.4 §Schema Object: 'This keyword only takes effect if type is explicitly " +
+		"defined within the same Schema Object'); the table warns of it as validation-no-effect " +
+		"(docs/compilers/openapi.md#nullable)",
 	"path-templating": "the library does not match a path's template expressions to its path parameters, which the " +
 		"specification requires (3.1.2 §Path Templating: 'Each template expression in the path MUST correspond to a " +
 		"path parameter')",

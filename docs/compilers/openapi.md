@@ -1194,9 +1194,18 @@ its dialect does not define, kept verbatim under `openapi:nullable` (`out_of_sco
 `openapi/unknown-schema-keyword`, where [`unknown-keys`](#unknown-keys) keeps a keyword the schema
 model does not name.
 
+Whether a 3.0 `nullable: true` has an effect is a fact of the specification, not of the policy: with
+no `type` written in the same Schema Object, a `type` written `null` being none, it has none, beside
+an `allOf`, `oneOf`, `anyOf` or `enum` too, and is reported as an `openapi/validation` warning of the
+class `validation-no-effect`, at the keyword ([`validation`](#validation)), under either policy.
+With the policy on, its info sits at the same pointer. With the policy off nothing keeps it:
+`TypeRef.Nullable` holds its declared reading, `false`, and the warning is its record. Beside a
+`$ref` the keyword is a later minor's construct, warned of as one
+([`later-version-construct`](#later-version-construct)), so it draws no second warning there.
+
 - Cases: `nullable-30`, `nullable-31-ref`, `nullable-enum-31`, `nullability-four-states`,
   `nullability-conjunction`, `nullable-keyword-30`, `nullable-keyword-31`
-- Codes: `openapi/inferred-nullable`, `openapi/unknown-schema-keyword`
+- Codes: `openapi/inferred-nullable`, `openapi/unknown-schema-keyword`, `openapi/validation`
 - Tests: `schema.TestSchemaRef_NullableNormalization`,
   `schema.TestNullableWidening_EachShapeReadsByItsVersion`,
   `e2e.TestNullableWidening_AKeywordIsReportedOnceAtItself`,
@@ -1204,9 +1213,9 @@ model does not name.
   `e2e.TestSchemaRefSiblings_ReadInTheDeclaredDialect`,
   `e2e.TestNullableWidening_ACompositionKeepsTheMarker`,
   `merge.TestIntersectNull_TheMarkerFollowsTheBit`,
-  `schema.TestNullableWidening_ABranchWidensTheAllOfHoldingIt`
-- Status: partly built: a 3.0 `nullable` with no `type` beside it, which has no effect, draws no
-  report once the policy is off (#1070).
+  `schema.TestNullableWidening_ABranchWidensTheAllOfHoldingIt`,
+  `oas.TestCheck_NullableAppliesBesideAType`,
+  `e2e.TestNullableWidening_ANullableWithNoTypeIsWarnedOfUnderEitherPolicy`
 
 ### `schema-examples`
 
