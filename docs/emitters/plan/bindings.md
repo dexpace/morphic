@@ -34,7 +34,7 @@ type ParamBind struct {
                              // sends, as a transcoding's {book.name} does; empty = the whole param
     Where    ir.HTTPLocation // where it is sent, in HTTPParamBinding.Location's vocabulary
     WireName string          // never a rendered identifier (INV4)
-    Style    string; Explode *bool; Prefix string   // form/label/matrix/deepObject serialization
+    Style    string; Explode *bool; Prefix *string  // form/label/matrix/deepObject serialization
     AllowReserved, AllowEmptyValue bool             // the binding's escaping and empty-value facts
     PathPattern string       // HTTPParamBinding.PathPattern: a pattern of several segments is
                              // escaped by its own rule (../refine/text.md#escaping)
