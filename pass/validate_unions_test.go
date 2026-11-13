@@ -14,10 +14,11 @@ import (
 )
 
 // TestValidate_ReportsAVariantNamingAnEarlierVariantsType pins what a union
-// whose variants name one type draws: a warning where it is exclusive and an
-// info where it is not, at each variant naming a type an earlier one names,
-// nullable or not, untagged or tagged in the payload, and nothing where its
-// variants name distinct types or a key tells them apart.
+// whose variants name one type draws: a warning under one code where it is
+// exclusive and an info under another where it is not, at each variant naming
+// a type an earlier one names, nullable or not, untagged or tagged in the
+// payload, and nothing where its variants name distinct types or a key tells
+// them apart.
 func TestValidate_ReportsAVariantNamingAnEarlierVariantsType(t *testing.T) {
 	t.Parallel()
 	variants := func(targets ...ir.TypeID) []ir.Variant {
@@ -27,25 +28,31 @@ func TestValidate_ReportsAVariantNamingAnEarlierVariantsType(t *testing.T) {
 		}
 		return vs
 	}
+	const (
+		exclusive = "warning pass/exclusive-union-repeated-variant t/u/variants/"
+		inclusive = "info pass/inclusive-union-redundant-variant t/u/variants/"
+	)
 	tests := []struct {
 		name  string
 		union ir.Union
 		want  []string
 	}{
 		{"exclusive", ir.Union{Exclusive: true, Variants: variants("t/m", "t/m")},
-			[]string{"warning t/u/variants/1: variants 0 and 1"}},
+			[]string{exclusive + "1: variants 0 and 1"}},
 		{"inclusive", ir.Union{Variants: variants("t/m", "t/m")},
-			[]string{"info t/u/variants/1: variants 0 and 1"}},
+			[]string{inclusive + "1: variants 0 and 1"}},
 		{"a nullable repeat", ir.Union{Exclusive: true, Variants: []ir.Variant{
 			{Type: ir.TypeRef{Target: "t/prim/string"}}, {Type: ir.TypeRef{Target: "t/prim/string", Nullable: true}},
-		}}, []string{"warning t/u/variants/1: variants 0 and 1"}},
+		}}, []string{exclusive + "1: variants 0 and 1"}},
 		{"three times", ir.Union{Exclusive: true, Variants: variants("t/m", "t/prim/string", "t/m", "t/m")},
-			[]string{"warning t/u/variants/2: variants 0 and 2", "warning t/u/variants/3: variants 0 and 3"}},
+			[]string{exclusive + "2: variants 0 and 2", exclusive + "3: variants 0 and 3"}},
+		{"three times, inclusive", ir.Union{Variants: variants("t/m", "t/prim/string", "t/m", "t/m")},
+			[]string{inclusive + "2: variants 0 and 2", inclusive + "3: variants 0 and 3"}},
 		{"after another type", ir.Union{Exclusive: true, Variants: variants("t/prim/string", "t/m", "t/m")},
-			[]string{"warning t/u/variants/2: variants 1 and 2"}},
+			[]string{exclusive + "2: variants 1 and 2"}},
 		{"tagged in the payload", ir.Union{Exclusive: true, WireTagged: true,
 			Discriminator: &ir.Discriminator{PropertyName: "kind"}, Variants: variants("t/m", "t/m")},
-			[]string{"warning t/u/variants/1: variants 0 and 1"}},
+			[]string{exclusive + "1: variants 0 and 1"}},
 		{"tagged by key", ir.Union{Exclusive: true, WireTagged: true, Variants: variants("t/m", "t/m")}, []string{}},
 		{"distinct types", ir.Union{Exclusive: true, Variants: variants("t/m", "t/prim/string")}, []string{}},
 	}
@@ -60,8 +67,7 @@ func TestValidate_ReportsAVariantNamingAnEarlierVariantsType(t *testing.T) {
 			got := make([]string, 0, len(diags))
 			for _, d := range diags {
 				pair, _, _ := strings.Cut(d.Message, " of union")
-				got = append(got, fmt.Sprintf("%s %s: %s", d.Severity, d.Provenance.Node, pair))
-				assert.Equal(t, "pass/union-repeated-variant", d.Code)
+				got = append(got, fmt.Sprintf("%s %s %s: %s", d.Severity, d.Code, d.Provenance.Node, pair))
 			}
 
 			assert.Equal(t, tt.want, got)
@@ -69,20 +75,22 @@ func TestValidate_ReportsAVariantNamingAnEarlierVariantsType(t *testing.T) {
 	}
 }
 
-// TestValidate_SaysWhatARepeatedVariantCosts pins the message of each
-// severity: what an exclusive union refuses, and what an inclusive one's two
-// variants share.
+// TestValidate_SaysWhatARepeatedVariantCosts pins the message of each code:
+// what an exclusive union refuses, and what an inclusive one's two variants
+// share.
 func TestValidate_SaysWhatARepeatedVariantCosts(t *testing.T) {
 	t.Parallel()
-	for exclusive, want := range map[bool]string{
-		true: "variants 0 and 1 of union t/u both name t/m, so a value of it matches both, and the union, " +
-			"which admits a value only one variant matches, refuses it",
-		false: "variants 0 and 1 of union t/u both name t/m, so neither admits a value the other does not, null aside",
+	for exclusive, want := range map[bool]struct{ code, message string }{
+		true: {"pass/exclusive-union-repeated-variant",
+			"variants 0 and 1 of union t/u both name t/m, so a value of it matches both, and the union, " +
+				"which admits a value only one variant matches, refuses it"},
+		false: {"pass/inclusive-union-redundant-variant",
+			"variants 0 and 1 of union t/u both name t/m, so neither admits a value the other does not, null aside"},
 	} {
 		doc := validDoc()
 		doc.Types["t/u"] = &ir.Union{ID: "t/u", Exclusive: exclusive,
 			Variants: []ir.Variant{{Type: ir.TypeRef{Target: "t/m"}}, {Type: ir.TypeRef{Target: "t/m"}}}}
 
-		assert.Equal(t, want, messageForCode(t, validated(t, doc), "pass/union-repeated-variant"))
+		assert.Equal(t, want.message, messageForCode(t, validated(t, doc), want.code))
 	}
 }

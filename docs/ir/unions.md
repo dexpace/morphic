@@ -97,9 +97,11 @@ key-tagged union: a payload tag routes to a type, which both variants name. Such
 both, so an exclusive union refuses every value of the type, and in an inclusive one neither variant
 admits a value the other does not, a `null` aside where only one is nullable. A source can write
 either, as `oneOf: [{$ref: A}, {$ref: A}]` or an `anyOf` listing `{type: string}` twice, so the IR
-keeps both variants, as it keeps every branch, and `pass.Validate` reports the later with
-`pass/union-repeated-variant`: a warning where the union is exclusive, which then admits less than
-the source seems to say, and an info where it is not.
+keeps both variants, as it keeps every branch, and `pass.Validate` reports the later: as a warning
+`pass/exclusive-union-repeated-variant` where the union is exclusive, which then admits less than
+the source seems to say, and as an info `pass/inclusive-union-redundant-variant` where it is not.
+Each case has a code of its own, so a rule naming a code can take the redundant repeat without the
+one that narrows what the union admits.
 
 ## Open unions
 
