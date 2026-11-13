@@ -1,0 +1,31 @@
+# A response header whose field an RFC defines as an HTTP-date, declared
+# date-time with no encoding, is written and read as an HTTP-date under the
+# HTTP-date policy, marked as inferred and reported: Last-Modified inline,
+# Expires through a $ref to a named date-time. A field of another name, one
+# declared as plain text, and a header parameter, which has no encoding of its
+# own to hold the reading, keep what they declare.
+openapi: 3.0.3
+info: {title: HTTPDateInference, version: "1.0.0"}
+paths:
+  /files/{name}:
+    put:
+      operationId: putFile
+      parameters:
+        - {name: name, in: path, required: true, schema: {type: string}}
+        - {name: If-Unmodified-Since, in: header, schema: {type: string, format: date-time}}
+      responses:
+        '204':
+          description: ok
+          headers:
+            Last-Modified:
+              schema: {type: string, format: date-time}
+              example: Wed, 21 Oct 2023 07:28:00 GMT
+            Expires:
+              schema: {$ref: '#/components/schemas/Instant'}
+            Date:
+              schema: {type: string}
+            X-Modified:
+              schema: {type: string, format: date-time}
+components:
+  schemas:
+    Instant: {type: string, format: date-time}

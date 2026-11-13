@@ -42,6 +42,33 @@ func TestRun_ExplainReportsTheNodeAtACoordinate(t *testing.T) {
 	assert.NotContains(t, out, `"irVersion"`, "--explain replaces the document, it does not add to it")
 }
 
+// TestRun_ExplainListsWhatIsKeptWhereNoNodeIs pins the answer --explain gives
+// for a construct the compiler keeps verbatim rather than models: where no type
+// node stands, each entry kept there is listed with the node keeping it and
+// why, a path item's once on each operation it rides on.
+func TestRun_ExplainListsWhatIsKeptWhereNoNodeIs(t *testing.T) {
+	t.Parallel()
+	spec := writeFile(t, "spec.yaml", `openapi: 3.1.0
+info: {title: t, version: v}
+paths:
+  /p:
+    x-owner: team
+    get: {responses: {"204": {description: ok}}}
+    put: {responses: {"204": {description: ok}}}
+`)
+	var stdout, stderr bytes.Buffer
+
+	code := run(t.Context(), []string{"compile", spec, "--explain", "/paths/~1p"}, &stdout, &stderr)
+
+	require.Equal(t, 0, code, "stderr: %s", stderr.String())
+	assert.Equal(t, "coordinate /paths/~1p\n"+
+		"  the document holds no type node at this coordinate\n"+
+		"  kept unmodeled at or below it (2):\n"+
+		"    /paths/~1p/x-owner -> openapi:pathItem/x-owner (vendor_extension) on doc.Services[0].Groups[0].Operations[0]\n"+
+		"    /paths/~1p/x-owner -> openapi:pathItem/x-owner (vendor_extension) on doc.Services[0].Groups[0].Operations[1]\n"+
+		"  diagnostics (0):\n", stdout.String())
+}
+
 // TestRun_ExplainListsALoaderFindingAtItsDeclaration pins that a finding the
 // loader made on a raw node is stamped at that node's pointer, so explaining
 // the declaration lists it beside what the lowering reports there (GitHub
