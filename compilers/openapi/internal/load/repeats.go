@@ -5,7 +5,6 @@ package load
 
 import (
 	"encoding/json/jsontext"
-	"fmt"
 	"iter"
 	"strconv"
 
@@ -76,7 +75,7 @@ func writtenItem(rp *soa.ReferencedPathItem, sibs Siblings, site jsontext.Pointe
 // every entry is read through its $ref.
 //
 // An entry is read as the lowering reads it (refscope.Object), so a repeat
-// reported here is one the lowering numbers; one whose $ref resolved to nothing
+// reported here is one the lowering finds; one whose $ref resolved to nothing
 // has no slot.
 func paramRepeats(place provenance.Doc, params []*soa.ReferencedParameter, owner jsontext.Pointer) []ir.Diagnostic {
 	type holder struct {
@@ -98,19 +97,9 @@ func paramRepeats(place provenance.Doc, params []*soa.ReferencedParameter, owner
 			continue
 		}
 		diags = append(diags, diag.Newf(ir.SeverityError, diag.DuplicateParameter, place.At(entry),
-			"parameter %q in %q repeats the entry at %s%s", name, in, first.at, headerSpelling(first.name, name)))
+			"%s", diag.RepeatedParameter(name, in, first.at, first.name)))
 	}
 	return diags
-}
-
-// headerSpelling says how first, the name of the entry a header parameter named
-// name repeats, is spelled where the two differ in case alone, and nothing
-// where they are spelled alike.
-func headerSpelling(first, name string) string {
-	if first == name {
-		return ""
-	}
-	return fmt.Sprintf(", spelled %q, as HTTP compares header names in any case", first)
 }
 
 // serverRepeats reports each entry of the servers list held by the object at

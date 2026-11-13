@@ -598,9 +598,9 @@ func assertHeaderNameCase(t *testing.T, doc *ir.Document, diags []ir.Diagnostic)
 // assertHeaderNameSyntax covers a header name no HTTP field can have, each an
 // error that still lowers as declared: a headers map's key that is no token,
 // the empty one included, wherever the map is, and one header parameter
-// spelled in two cases, both kept, the repeat's ID numbered. What lies beneath
-// a header keyed "" composes from the minted name, beneath an Encoding Object
-// another nests too.
+// spelled in two cases, both kept, each under the ID its spelling gives it.
+// What lies beneath a header keyed "" composes from the minted name, beneath
+// an Encoding Object another nests too.
 func assertHeaderNameSyntax(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
 	op, ok := opByName(doc, "getTrace")
 	require.True(t, ok)
@@ -610,7 +610,7 @@ func assertHeaderNameSyntax(t *testing.T, doc *ir.Document, diags []ir.Diagnosti
 	}
 	assert.Equal(t, []ir.ParamID{
 		"param/openapi/paths/~1traces/get/parameters/X-Trace/header",
-		"param/openapi/paths/~1traces/get/parameters/x-trace/header/2",
+		"param/openapi/paths/~1traces/get/parameters/x-trace/header",
 	}, ids)
 	assert.Equal(t, []ir.Severity{ir.SeverityError},
 		diagsAt(diags, diag.DuplicateParameter, "/paths/~1traces/get/parameters/1"))

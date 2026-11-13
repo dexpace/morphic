@@ -432,9 +432,11 @@ func paramKey(rp *soa.ReferencedParameter) (ids.ParamSlot, bool) {
 	return ids.SlotOf(p.GetName(), string(p.GetIn())), true
 }
 
-// paramLedger counts how often each slot (ids.SlotOf) has been declared on one operation, or
-// on one path item that mounts none, so a repeat is numbered. The count follows
-// the list it is given, in order, and so never the iteration order of a map.
+// paramLedger numbers the parameters of one operation, or of a path item
+// mounting none, in list order, and finds each repeat by its slot
+// (ids.SlotOf). A repeat is numbered among those spelled alike, as an ID is
+// derived from the name as written (ids.Param), so X-Trace and x-trace keep
+// the IDs each has alone, and deleting one renames neither.
 //
 // A repeat in a list the source writes is load's to report, once, where it is
 // written (paramRepeats). One in another document's content, which that
@@ -442,13 +444,25 @@ func paramKey(rp *soa.ReferencedParameter) (ids.ParamSlot, bool) {
 // from.
 type paramLedger struct {
 	mount   jsontext.Pointer
-	seen    map[ids.ParamSlot]int
-	firstAt map[ids.ParamSlot]jsontext.Pointer
+	seen    map[paramSpelling]int
+	firstAt map[ids.ParamSlot]slotHolder
+}
+
+// paramSpelling is a parameter's name and location as written, which its ID
+// is derived from.
+type paramSpelling struct {
+	name, in string
+}
+
+// slotHolder is the entry that first holds a slot, and the name it spells.
+type slotHolder struct {
+	entry jsontext.Pointer
+	name  string
 }
 
 // newParamLedger returns a ledger for the operation mounted at mount.
 func newParamLedger(mount jsontext.Pointer) *paramLedger {
-	return &paramLedger{mount: mount, seen: map[ids.ParamSlot]int{}, firstAt: map[ids.ParamSlot]jsontext.Pointer{}}
+	return &paramLedger{mount: mount, seen: map[paramSpelling]int{}, firstAt: map[ids.ParamSlot]slotHolder{}}
 }
 
 // next returns the ID of the parameter holding name in in, written by the list
@@ -459,20 +473,22 @@ func (l *paramLedger) next(c lowering.Ctx, name, in string, entry jsontext.Point
 }
 
 // count records the list entry at entry as one more holder of name in in, and
-// returns which holder it is, counting from one, and the error a repeat raises
-// there when c reads another document's content. The first holder raises
-// none.
+// returns which holder of that spelling it is, counting from one, and the
+// error a repeat of its slot raises there when c reads another document's
+// content. The first holder of a slot raises none.
 func (l *paramLedger) count(c lowering.Ctx, name, in string, entry jsontext.Pointer) (int, []ir.Diagnostic) {
+	spelled := paramSpelling{name: name, in: in}
+	l.seen[spelled]++
+	occurrence := l.seen[spelled]
 	slot := ids.SlotOf(name, in)
-	l.seen[slot]++
-	occurrence := l.seen[slot]
-	if occurrence == 1 {
-		l.firstAt[slot] = entry
+	first, repeated := l.firstAt[slot]
+	if !repeated {
+		l.firstAt[slot] = slotHolder{entry: entry, name: name}
 		return occurrence, nil
 	}
 	if !c.RefScope().Foreign {
 		return occurrence, nil
 	}
 	return occurrence, []ir.Diagnostic{c.DiagAt(ir.SeverityError, diag.DuplicateParameter, entry,
-		"parameter %q in %q repeats the entry at %s", name, in, l.firstAt[slot])}
+		"%s", diag.RepeatedParameter(name, in, first.entry, first.name))}
 }

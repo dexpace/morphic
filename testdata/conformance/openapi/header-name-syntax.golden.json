@@ -84,7 +84,7 @@
                   }
                 },
                 {
-                  "id": "param/openapi/paths/~1traces/get/parameters/x-trace/header/2",
+                  "id": "param/openapi/paths/~1traces/get/parameters/x-trace/header",
                   "name": {
                     "source": "x-trace",
                     "canonical": "x_trace"
@@ -166,7 +166,7 @@
                         "allowEmptyValue": false
                       },
                       {
-                        "param": "param/openapi/paths/~1traces/get/parameters/x-trace/header/2",
+                        "param": "param/openapi/paths/~1traces/get/parameters/x-trace/header",
                         "location": "header",
                         "wireName": "x-trace",
                         "style": "simple",

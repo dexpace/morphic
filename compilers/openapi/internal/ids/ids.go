@@ -234,7 +234,8 @@ func Param(mount jsontext.Pointer, name, in string, occurrence int) ir.ParamID {
 // ParamSlot is what OpenAPI identifies a parameter by within one list: its
 // location and its name, a header's in lower case, since HTTP compares field
 // names in any case (RFC 9110 §5.1), so X-Trace and x-trace are one header.
-// Param numbers the parameters of one slot, each under its own spelling.
+// It merges and finds repeats; Param derives an ID from the name as written,
+// numbering a repeat among the parameters spelled alike.
 type ParamSlot struct {
 	Name, In string
 }

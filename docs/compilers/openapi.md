@@ -3567,9 +3567,10 @@ same `name` and `in`, a header's `name` compared in any case, as HTTP compares a
 `form` and 3.2's `cookie` style, false under any other. A parameter's ID is derived from the
 operation's mount pointer, its name and its location ([identity](../ir/identity.md)). A list
 repeating an earlier entry's `name` and `in`, its `$ref`s resolved and a header's `name` compared
-in any case, which OpenAPI forbids, keeps every occurrence, each repeat's ID ending in its
-occurrence number after its own spelling, and is reported as an `openapi/duplicate-parameter` error
-at the repeat, naming the first entry's spelling where it differs. Every list the source writes is
+in any case, which OpenAPI forbids, keeps every occurrence, the ID of each repeat of one spelling
+ending in its occurrence number, so `x-trace` beside `X-Trace` keeps the ID each has alone, and is
+reported as an `openapi/duplicate-parameter` error at the repeat, naming the first entry's spelling
+where it differs. Every list the source writes is
 checked, whether or not it lowers, and a list another document writes where it lowers or where a
 path item that mounts no operation keeps it; the rule table
 ([`validation`](#validation)) states this rule and leaves it to this one. A path item that mounts
@@ -3585,6 +3586,8 @@ repeat's ending in its occurrence number (`no_ir_home`).
   `operation.TestPathItem_WithNoOperationKeepsItsParameters`,
   `operation.TestPathItem_WithNoOperationNumbersARepeatedParameter`,
   `operation.TestPathItem_WithNoOperationReportsARepeatInAnotherDocument`,
+  `operation.TestParams_AHeaderIsOneParameterInAnyCase`,
+  `operation.TestPathItem_WithNoOperationKeysAHeaderRepeatedInAnyCase`,
   `ids.TestSlotOf_ComparesAHeadersNameInAnyCase`
 - Status: partly built: an undeclared `explode` is written out as the location's default, which
   erases whether the document declared it (#627); and a list only a `$ref` reaches is never checked

@@ -483,4 +483,5 @@ it sees. Changes made together in one bump are listed together under it.
     Encoding Object another nests by the header's key.
   - The OpenAPI compiler compares a header parameter's name in any case
     ([`parameters`](../compilers/openapi.md#parameters)), so an operation's `x-trace` overrides
-    its path item's `X-Trace`, and one list writing both keeps the second under an ID numbered `/2`.
+    its path item's `X-Trace`, and one list writing both reports the second as a repeat, each kept
+    under the ID its spelling gives it.

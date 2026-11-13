@@ -525,8 +525,8 @@ func TestParam_ScopesByOperationNameAndLocation(t *testing.T) {
 }
 
 // TestSlotOf_ComparesAHeadersNameInAnyCase pins the identity a parameter is
-// merged, numbered and checked for repeats by: a header's name in any case, as
-// HTTP compares it, and every other location's as written.
+// merged and checked for repeats by: a header's name in any case, as HTTP
+// compares it, and every other location's as written.
 func TestSlotOf_ComparesAHeadersNameInAnyCase(t *testing.T) {
 	t.Parallel()
 	assert.Equal(t, ids.SlotOf("X-Trace", "header"), ids.SlotOf("x-trace", "header"))
