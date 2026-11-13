@@ -14,14 +14,21 @@ import (
 	"github.com/dexpace/morphic/ir"
 )
 
-// UnreadExtensions reports each vendor extension doc keeps under a prefix the
-// policy owns that no source of its mapping reads, naming the nearest key the
-// mapping reads, as the likeliest one it misspells. doc is the whole document,
-// every node's Unmodeled read once. An extension inside an entry kept
-// verbatim, such as an allOf branch, is a value of that entry and is not read.
-func UnreadExtensions(p Promoter, doc *ir.Document) []ir.Diagnostic {
+// UnreadExtensions reports each vendor extension doc keeps under a prefix c's
+// promotion policy owns that nothing c's policies name reads, naming the
+// nearest key the mapping reads, as the likeliest one it misspells. The key
+// grouping by extension reads is read too. doc is the whole document, every
+// node's Unmodeled read once; an extension inside an entry kept verbatim, such
+// as an allOf branch, is a value of that entry and is not read.
+func UnreadExtensions(c Ctx, doc *ir.Document) []ir.Diagnostic {
+	p := c.Promoter()
 	if len(p.prefixes) == 0 {
 		return nil
+	}
+	read := p.keys
+	if c.Grouping == GroupByExtension {
+		read = slices.Concat(read, []string{c.GroupingExtension.Key})
+		slices.Sort(read)
 	}
 	var diags []ir.Diagnostic
 	unmodeledType := reflect.TypeFor[ir.Unmodeled]()
@@ -30,16 +37,16 @@ func UnreadExtensions(p Promoter, doc *ir.Document) []ir.Diagnostic {
 			return true
 		}
 		if entries, ok := reflect.TypeAssert[ir.Unmodeled](v); ok {
-			diags = append(diags, unreadIn(p, entries)...)
+			diags = append(diags, unreadIn(p, read, entries)...)
 		}
 		return false
 	}))
 	return diags
 }
 
-// unreadIn reports the extensions of entries UnreadExtensions reports for p, in
-// key order.
-func unreadIn(p Promoter, entries ir.Unmodeled) []ir.Diagnostic {
+// unreadIn reports the extensions of entries UnreadExtensions reports for p,
+// read being every key a policy reads, sorted, in key order.
+func unreadIn(p Promoter, read []string, entries ir.Unmodeled) []ir.Diagnostic {
 	var diags []ir.Diagnostic
 	for _, key := range slices.Sorted(maps.Keys(entries)) {
 		entry := entries[key]
@@ -48,7 +55,7 @@ func unreadIn(p Promoter, entries ir.Unmodeled) []ir.Diagnostic {
 		}
 		name := extensionName(key)
 		owner, owned := ownerOf(p.prefixes, name)
-		if _, read := slices.BinarySearch(p.keys, name); !owned || read {
+		if _, isRead := slices.BinarySearch(read, name); !owned || isRead {
 			continue
 		}
 		hint := ""

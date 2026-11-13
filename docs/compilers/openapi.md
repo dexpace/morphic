@@ -1095,7 +1095,8 @@ ignored; there the fold is the 3.1 reading, and each sibling it reads is reporte
 the property, parameter or header that uses it, never to the type: both bind a *use* of the type,
 not the type. One a declaration writes, on a component or any other position that owns a node of its
 own, is therefore pushed down to each property, parameter or header referencing it that has a field
-for it, with use-site precedence ([`ref-use-site`](#ref-use-site)), and the declaration keeps its
+for it, as [`ref-use-site`](#ref-use-site) merges them: a `default` with use-site precedence, and
+`readOnly` and `writeOnly` in force where either side sets them, and the declaration keeps its
 own copy verbatim under `no_ir_home`, reported with an info `openapi/degraded-construct` at the
 keyword. That copy is what a component nothing references would otherwise lose in silence. A
 position a property, parameter or header carries keeps them on its carrier whichever reaches it
@@ -4376,8 +4377,8 @@ object `Targets` encodes as, and `promotion-prefixes`, the owned prefixes separa
 `extension-promotion` marker each node lists is the record of what a run promoted.
 
 The policy may own extension name prefixes, `Prefixes`, none by default. An extension under one
-that no source of the mapping reads is reported as a warning `openapi/unread-extension` where it is
-written, naming the key of the mapping nearest it by edit distance, as the likeliest one it
+that no source of the mapping reads, nor [`extension-groups`](#extension-groups) where
+that strategy is chosen, is reported as a warning `openapi/unread-extension` where it is written, naming the key of the mapping nearest it by edit distance, as the likeliest one it
 misspells: owning `x-deprecated` reports `x-deprecated-reasn` and names `x-deprecated-reason`. Each
 node's `Unmodeled` is read once the document is whole, under whatever scope its keys are kept; an
 extension inside an entry kept verbatim, such as an `allOf` branch, is a value of that entry and is
@@ -4510,6 +4511,7 @@ the node's own keys alone, never lent by a `$ref`'s target, whose class is anoth
   `lowering.TestListsValues_NamesTheTargetsStatingAFact`,
   `lowering.TestUnreadExtensions_ReportsAnOwnedKeyNoSourceReads`,
   `lowering.TestUnreadExtensions_NamesNoKeyAMappingDoesNotRead`,
+  `lowering.TestUnreadExtensions_TheGroupingKeyIsRead`,
   `lowering.TestPromoterServerName_ReadsTheDefaultKey`,
   `lowering.TestPromoterTokenEndpointAuthMethods_ReadsASet`,
   `lowering.TestPromoterAllowReserved_OnlyTrueAsksForIt`,

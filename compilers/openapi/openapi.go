@@ -235,7 +235,7 @@ func run(ctx context.Context, c lowering.Ctx, ts *compile.Types) (*ir.Document, 
 	acc.AppendAll(replacement.Resolve(c, out))
 	// An extension under a prefix the policy owns is judged once every node
 	// that could keep one is built.
-	acc.AppendAll(lowering.UnreadExtensions(c.Promoter(), out))
+	acc.AppendAll(lowering.UnreadExtensions(c, out))
 
 	m, metaDiags := document.Lower(c)
 	out.Name, out.Version = m.Name, m.Version

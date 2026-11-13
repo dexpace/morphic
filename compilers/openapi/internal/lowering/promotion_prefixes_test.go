@@ -7,9 +7,11 @@ import (
 	"encoding/json/jsontext"
 	"testing"
 
+	soa "github.com/speakeasy-api/openapi/openapi"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/dexpace/morphic/compilers/openapi/internal/load"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
 	"github.com/dexpace/morphic/ir"
 )
@@ -46,14 +48,14 @@ func prefixedDoc() *ir.Document {
 // read unescaped.
 func TestUnreadExtensions_ReportsAnOwnedKeyNoSourceReads(t *testing.T) {
 	t.Parallel()
-	p := promoter(lowering.ExtensionPromotions{
+	c := policyCtx(lowering.Policy{Promotions: lowering.ExtensionPromotions{
 		Targets: map[lowering.ExtensionTarget][]lowering.ExtensionSource{
 			lowering.TargetStability:              {{Key: "x-acme-stability"}},
 			lowering.TargetDeprecationRemovalDate: {{Key: "x-acme-sunset-date"}},
 		},
 		Prefixes: []string{"x-ac", "x-acme-"},
-	})
-	diags := lowering.UnreadExtensions(p, prefixedDoc())
+	}})
+	diags := lowering.UnreadExtensions(c, prefixedDoc())
 	got := map[string]string{}
 	for _, d := range diags {
 		assert.Equal(t, ir.SeverityWarning, d.Severity)
@@ -79,10 +81,31 @@ func TestUnreadExtensions_NamesNoKeyAMappingDoesNotRead(t *testing.T) {
 		Targets:  map[lowering.ExtensionTarget][]lowering.ExtensionSource{lowering.TargetStability: nil},
 		Prefixes: []string{"x-other"},
 	}
-	diags := lowering.UnreadExtensions(promoter(empty), prefixedDoc())
+	diags := lowering.UnreadExtensions(policyCtx(lowering.Policy{Promotions: empty}), prefixedDoc())
 	require.Len(t, diags, 1)
 	assert.Equal(t, `extension "x-other" is under prefix "x-other", which the promotion policy owns, `+
 		`and no source of its mapping reads it`, diags[0].Message)
 
-	assert.Empty(t, lowering.UnreadExtensions(promoter(lowering.ExtensionPromotions{}), prefixedDoc()))
+	assert.Empty(t, lowering.UnreadExtensions(policyCtx(lowering.Policy{}), prefixedDoc()))
+}
+
+// TestUnreadExtensions_TheGroupingKeyIsRead pins the key grouping by extension
+// reads to what no prefix reports: under that strategy it is read, and under
+// another it is a key like any other.
+func TestUnreadExtensions_TheGroupingKeyIsRead(t *testing.T) {
+	t.Parallel()
+	owning := lowering.ExtensionPromotions{
+		Targets:  map[lowering.ExtensionTarget][]lowering.ExtensionSource{lowering.TargetStability: nil},
+		Prefixes: []string{"x-other"},
+	}
+	byExtension := lowering.Policy{Promotions: owning, Grouping: lowering.GroupByExtension,
+		GroupingExtension: lowering.GroupingExtension{Key: "x-other", Lists: lowering.ListsAreGroups}}
+	assert.Empty(t, lowering.UnreadExtensions(policyCtx(byExtension), prefixedDoc()))
+	assert.Len(t, lowering.UnreadExtensions(policyCtx(lowering.Policy{Promotions: owning, Grouping: lowering.GroupByTags}),
+		prefixedDoc()), 1)
+}
+
+// policyCtx is a context carrying nothing but policy.
+func policyCtx(policy lowering.Policy) lowering.Ctx {
+	return lowering.New(0, &load.Document{Doc: &soa.OpenAPI{}}, policy)
 }
