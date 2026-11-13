@@ -4757,6 +4757,8 @@ the operation itself, is read by no source, so it speaks of nothing.
   `operation.TestMarker_AUseOfATypeTheRegistryLacksMarksNothing`,
   `lowering.TestPageStatementOf_ReadsAnExpressionOrAMark`,
   `lowering.TestPageStatementOf_ReportsWhatStatesNoValueOfAWalk`
+- Status: partly built: an operation's `true` that a convention reads as the walk the document's
+  root states is reported, not read (#1876).
 
 ### `pagination-policy`
 
