@@ -34,10 +34,11 @@ var nullBranchSpellings = []struct{ version, branch string }{
 
 // nullBranchSpec writes the union shapes a null branch stands in, the branch
 // spelled as branch: beside one other branch, first or last, under either
-// combinator, twice, and beside two others under either combinator.
+// combinator, twice, and beside two others under either combinator. X and Y pin
+// a tag, which the discriminator-inference policy reads off a union of them.
 func nullBranchSpec(version, branch string) string {
-	return openapitest.ComponentSpecVer(version, `    X: {type: object, properties: {id: {type: string}}}
-    Y: {type: object, properties: {n: {type: integer}}}
+	return openapitest.ComponentSpecVer(version, `    X: {type: object, required: [kind], properties: {kind: {type: string, enum: [x]}, id: {type: string}}}
+    Y: {type: object, required: [kind], properties: {kind: {type: string, enum: [y]}, n: {type: integer}}}
     Holder:
       type: object
       properties:
@@ -54,7 +55,8 @@ func nullBranchSpec(version, branch string) string {
 // null alone, in every spelling, to the reading a `type: "null"` branch had
 // alone: no variant, its null the reference's, so a union of one other branch
 // collapses to a nullable reference to it, and one of more is a Union of the
-// others behind a nullable reference, exclusive as its combinator says
+// others behind a nullable reference, exclusive as its combinator says, whose
+// tags the inference policy reads as it reads any union's
 // (docs/compilers/openapi.md#union-null-variant).
 func TestNullBranch_IsTheReferencesInEverySpelling(t *testing.T) {
 	t.Parallel()
@@ -75,6 +77,8 @@ func TestNullBranch_IsTheReferencesInEverySpelling(t *testing.T) {
 				require.True(t, ok, "%s is a union, got %T", wire, doc.Types[ref.Target])
 				assert.Equal(t, []ir.TypeID{x, y}, variantTargets(u), "%s: the null branch is no variant", wire)
 				assert.Equal(t, exclusive, u.Exclusive, wire)
+				require.NotNil(t, u.Discriminator, "%s: the tags its variants pin are read", wire)
+				assert.Equal(t, map[string]ir.TypeID{"x": x, "y": y}, u.Discriminator.Mapping, wire)
 			}
 			for id, td := range doc.Types {
 				e, isEnum := td.(*ir.Enum)
