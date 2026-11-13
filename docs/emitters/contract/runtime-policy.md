@@ -237,7 +237,7 @@ func Merge(base Policy, over DeepPartial) Policy // a leaf written replaces the 
   request it received, for 119 references under three requests, one with a user and one with a
   variable in its host: no credential, user, password or query of the first request arrived at
   another origin, a reference with leading whitespace, `//host`, a megabyte of path and a port
-  written `:0443` among them, and the two libraries resolved 34 of the 119 apart.
+  written `:0443` among them, and the two libraries resolved 34 of the 119 apart. T-65 holds it.
 
 What a response may hold that the document does not list is not runtime policy, because it changes a
 type or a decoder rather than the boilerplate around them, and docs and mocks have to agree with it.
