@@ -53,6 +53,9 @@ func TestNearest_TakesTheFirstReadingThatMatches(t *testing.T) {
 	}
 	_, ok := ix.nearest("apiKey")
 	assert.False(t, ok, "a declared name is no near miss of itself")
+
+	got, _ := nearIndexOf([]string{"Abc", "aBc"}).nearest("a-bc")
+	assert.Equal(t, "aBc", got, "the same words come before the same letters, which Abc has too")
 }
 
 // TestNearest_ReadsOneEditWithinItsBounds pins the bounds of the edit reading:
