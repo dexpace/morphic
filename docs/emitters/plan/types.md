@@ -368,12 +368,9 @@ entry, a Worker script's bulk secrets, hold the secrets in a map whose `Value` i
 the compiler read from a `nullable: true` beside an `allOf` and marked `Inferred` as
 `nullable-widening` (spec @bc6fad24, morphic @fa253fe19).
 
-No compiler sets the field today, and the plan reads nil as stating nothing, since an emitter sees a
-binding and never the format behind it (INV1), so one default has to serve every format. The IR's
-own comment still words nil otherwise, as "the protocol default (PATCH projections make properties
-optional)" ([http-binding](../../ir/http-binding.md),
-[properties](../../ir/properties.md#visibility)), which #1775 is to settle; until then an emitter
-follows this document.
+No compiler sets the field today, and nil states nothing ([patch
+optionality](../../ir/http-binding.md#patch-optionality)), as the plan needs: an emitter sees a
+binding and never the format behind it (INV1), so one default has to serve every format.
 
 On the golden spec (spec @bc6fad24, morphic @fa253fe19) every one of the 276 `PATCH` bindings leaves
 the field nil. Their bodies have 269 contents, 257 of them `application/json` and 6 a merge patch,
@@ -387,8 +384,8 @@ would make every edit of a Worker restate six members. Each of the six merge pat
 smaller key would elect: without the election above no request would go out relaxed, and an edit of
 a Worker would still restate its six. Four readings lost to this one:
 
-- **Every `PATCH` body relaxes**, which the IR's wording gives. It drops the required members of the
-  78, and over all a patch shape reaches it relaxes 346 members of 213 models.
+- **Every `PATCH` body relaxes.** It drops the required members of the 78, and over all a patch
+  shape reaches it relaxes 346 members of 213 models.
 - **None does unless the binding says so.** It is wrong for the two merge patches and for any
   document reusing a resource's schema that way, and the caller it fails has no way to send a
   partial edit.
