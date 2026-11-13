@@ -61,9 +61,9 @@ var callShapeBaseline = map[string]map[string]int{
 		"engine/reader": 6,
 	},
 	"compilers/openapi/internal/lowering": {
-		// Promoter.Referent and Remembered each call the function they are handed
-		// before they return: immediate callbacks.
-		"compilers/openapi/internal/schema": 13,
+		// Promoter.Referent, Remembered and Settled each call the function they
+		// are handed before they return: immediate callbacks.
+		"compilers/openapi/internal/schema": 14,
 	},
 	"compilers/openapi/internal/merge": {
 		// What a fold asks the walk that declared the field, through merge.Walk:
@@ -77,7 +77,7 @@ var callShapeBaseline = map[string]map[string]int{
 		// callbacks.
 		"compilers/openapi/internal/load":        6,
 		"compilers/openapi/internal/oas":         2,
-		"compilers/openapi/internal/overlay":     3,
+		"compilers/openapi/internal/overlay":     4,
 		"compilers/openapi/internal/sourceindex": 2,
 	},
 	"compilers/openapi/internal/oas": {

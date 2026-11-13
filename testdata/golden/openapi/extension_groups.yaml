@@ -7,7 +7,9 @@ info:
     grouping=extension: a dotted string, a list of segments, a path nested in
     another that holds operations of its own, an operation stating no path and
     one whose value names none, both grouped by their tags, a callback filed
-    with its parent and a webhook in the webhook group.
+    with its parent and a webhook in the webhook group. The paths an
+    operation's aliases name in x-forge-aliases each get a group holding no
+    operation, for a remount to name.
 tags:
   - name: misc
 paths:
@@ -26,6 +28,10 @@ paths:
     get:
       operationId: listAccounts
       x-fern-sdk-group-name: accounts
+      x-forge-aliases:
+        - x-fern-sdk-group-name: iam.accounts
+          x-fern-sdk-method-name: list
+        - x-fern-sdk-group-name: accounts.members
       callbacks:
         changed:
           '{$request.query.callback}':

@@ -1,0 +1,59 @@
+jsonshape 1: report.versioned
+
+type Report struct
+	"failed" bool
+	"findings" []github.com/dexpace/morphic/engine/triage.Finding
+	"sources" []github.com/dexpace/morphic/ir.SourceInfo
+	"unusedRules" []github.com/dexpace/morphic/engine/triage.Rule
+	"warnings" []string
+
+type encoding/json/jsontext.Pointer string
+
+type github.com/dexpace/morphic/engine/triage.Finding struct
+	"accepted" bool omitzero
+	"diagnostic" github.com/dexpace/morphic/ir.Diagnostic
+	"rule" *github.com/dexpace/morphic/engine/triage.Rule omitzero
+	"severity" github.com/dexpace/morphic/ir.Severity
+
+type github.com/dexpace/morphic/engine/triage.Rule struct
+	"accept" bool omitzero
+	"code" string
+	"node" string omitempty
+	"pointer" encoding/json/jsontext.Pointer omitempty
+	"reason" string
+	"severity" github.com/dexpace/morphic/ir.Severity omitempty
+
+type github.com/dexpace/morphic/ir.Diagnostic struct
+	"code" string
+	"message" string
+	"provenance" github.com/dexpace/morphic/ir.Provenance
+	"severity" github.com/dexpace/morphic/ir.Severity
+
+type github.com/dexpace/morphic/ir.Inferred string
+
+type github.com/dexpace/morphic/ir.Position struct
+	"column" int omitzero
+	"line" int
+
+type github.com/dexpace/morphic/ir.Provenance struct
+	"inferred" github.com/dexpace/morphic/ir.Inferred omitempty
+	"node" string omitempty
+	"pointer" encoding/json/jsontext.Pointer omitempty
+	"position" github.com/dexpace/morphic/ir.Position omitzero
+	"source" int
+	"writtenBy" int omitzero
+
+type github.com/dexpace/morphic/ir.Severity string
+	const "error"
+	const "info"
+	const "warning"
+
+type github.com/dexpace/morphic/ir.SourceInfo struct
+	"format" string
+	"hash" string
+	"path" string
+	"selfURI" string omitempty
+
+type versioned struct
+	embed Report
+	"version" int

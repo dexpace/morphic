@@ -1,0 +1,300 @@
+{
+  "idSpaces": {
+    "auth": [
+      "openapi",
+      "unresolved"
+    ],
+    "e": [
+      "anon",
+      "composed",
+      "openapi"
+    ],
+    "g": [
+      "default",
+      "extension",
+      "path-prefix",
+      "tags",
+      "webhooks"
+    ],
+    "op": [
+      "openapi"
+    ],
+    "p": [
+      "composed",
+      "openapi"
+    ],
+    "param": [
+      "openapi"
+    ],
+    "s": [
+      "openapi"
+    ],
+    "server": [
+      "default",
+      "openapi"
+    ],
+    "t": [
+      "anon",
+      "composed",
+      "openapi"
+    ]
+  },
+  "name": "Path key fragments",
+  "version": "1.0.0",
+  "docs": {},
+  "services": [
+    {
+      "id": "s/openapi/0",
+      "name": {
+        "source": "Path key fragments",
+        "canonical": "path_key_fragments"
+      },
+      "docs": {},
+      "groups": [
+        {
+          "id": "g/default",
+          "name": {
+            "hint": "default"
+          },
+          "docs": {},
+          "operations": [
+            {
+              "id": "op/openapi/paths/~1bearer#oauth2/get",
+              "name": {
+                "source": "bearerOAuth",
+                "canonical": "bearer_o_auth"
+              },
+              "docs": {},
+              "responses": [
+                {
+                  "name": {
+                    "hint": "200"
+                  },
+                  "conditions": {
+                    "statusCodes": [
+                      {
+                        "from": 200,
+                        "to": 200
+                      }
+                    ]
+                  },
+                  "docs": {
+                    "description": "ok"
+                  }
+                }
+              ],
+              "oneWay": false,
+              "idempotency": {},
+              "bindings": {
+                "http": [
+                  {
+                    "unmodeled": {
+                      "openapi:fragment": {
+                        "reason": "degraded_lowering",
+                        "value": "oauth2",
+                        "provenance": {
+                          "source": 0,
+                          "pointer": "/paths/~1bearer#oauth2"
+                        }
+                      }
+                    },
+                    "method": "GET",
+                    "uriTemplate": "/bearer",
+                    "sharedRoute": true,
+                    "checksumRequired": false
+                  }
+                ]
+              },
+              "provenance": {
+                "source": 0,
+                "pointer": "/paths/~1bearer#oauth2/get"
+              }
+            },
+            {
+              "id": "op/openapi/paths/~1bearer#apiKey/get",
+              "name": {
+                "source": "bearerApiKey",
+                "canonical": "bearer_api_key"
+              },
+              "docs": {},
+              "responses": [
+                {
+                  "name": {
+                    "hint": "200"
+                  },
+                  "conditions": {
+                    "statusCodes": [
+                      {
+                        "from": 200,
+                        "to": 200
+                      }
+                    ]
+                  },
+                  "docs": {
+                    "description": "ok"
+                  }
+                }
+              ],
+              "oneWay": false,
+              "idempotency": {},
+              "bindings": {
+                "http": [
+                  {
+                    "unmodeled": {
+                      "openapi:fragment": {
+                        "reason": "degraded_lowering",
+                        "value": "apiKey",
+                        "provenance": {
+                          "source": 0,
+                          "pointer": "/paths/~1bearer#apiKey"
+                        }
+                      }
+                    },
+                    "method": "GET",
+                    "uriTemplate": "/bearer",
+                    "sharedRoute": true,
+                    "checksumRequired": false
+                  }
+                ]
+              },
+              "provenance": {
+                "source": 0,
+                "pointer": "/paths/~1bearer#apiKey/get"
+              }
+            },
+            {
+              "id": "op/openapi/paths/~1bearer/get",
+              "name": {
+                "source": "bearer",
+                "canonical": "bearer"
+              },
+              "docs": {},
+              "responses": [
+                {
+                  "name": {
+                    "hint": "200"
+                  },
+                  "conditions": {
+                    "statusCodes": [
+                      {
+                        "from": 200,
+                        "to": 200
+                      }
+                    ]
+                  },
+                  "docs": {
+                    "description": "ok"
+                  }
+                }
+              ],
+              "oneWay": false,
+              "idempotency": {},
+              "bindings": {
+                "http": [
+                  {
+                    "method": "GET",
+                    "uriTemplate": "/bearer",
+                    "sharedRoute": true,
+                    "checksumRequired": false
+                  }
+                ]
+              },
+              "provenance": {
+                "source": 0,
+                "pointer": "/paths/~1bearer/get"
+              }
+            },
+            {
+              "id": "op/openapi/paths/~1other/get",
+              "name": {
+                "source": "other",
+                "canonical": "other"
+              },
+              "docs": {},
+              "responses": [
+                {
+                  "name": {
+                    "hint": "200"
+                  },
+                  "conditions": {
+                    "statusCodes": [
+                      {
+                        "from": 200,
+                        "to": 200
+                      }
+                    ]
+                  },
+                  "docs": {
+                    "description": "ok"
+                  }
+                }
+              ],
+              "oneWay": false,
+              "idempotency": {},
+              "bindings": {
+                "http": [
+                  {
+                    "method": "GET",
+                    "uriTemplate": "/other",
+                    "sharedRoute": false,
+                    "checksumRequired": false
+                  }
+                ]
+              },
+              "provenance": {
+                "source": 0,
+                "pointer": "/paths/~1other/get"
+              }
+            }
+          ]
+        }
+      ],
+      "servers": [
+        "server/default"
+      ],
+      "provenance": {
+        "source": 0
+      }
+    }
+  ],
+  "servers": {
+    "server/default": {
+      "id": "server/default",
+      "name": {
+        "hint": "server"
+      },
+      "urlTemplate": "/",
+      "description": {},
+      "provenance": {
+        "source": 0
+      }
+    }
+  },
+  "diagnostics": [
+    {
+      "severity": "warning",
+      "code": "openapi/invalid-path-key",
+      "message": "path key \"/bearer#oauth2\" is not a valid path template: carries the fragment \"#oauth2\", which no request sends; the URI template is the key less its fragment, which each operation's HTTP binding keeps",
+      "provenance": {
+        "source": 0,
+        "pointer": "/paths/~1bearer#oauth2"
+      }
+    },
+    {
+      "severity": "warning",
+      "code": "openapi/invalid-path-key",
+      "message": "path key \"/bearer#apiKey\" is not a valid path template: carries the fragment \"#apiKey\", which no request sends; the URI template is the key less its fragment, which each operation's HTTP binding keeps",
+      "provenance": {
+        "source": 0,
+        "pointer": "/paths/~1bearer#apiKey"
+      }
+    }
+  ],
+  "sources": [
+    {
+      "format": "openapi@3.1",
+      "path": "path-key-fragments.yaml",
+      "hash": "1c57919118b70b445e324bac9d815d5564ba9bda50fa6ab1cff7b28f1e75e232"
+    }
+  ]
+}

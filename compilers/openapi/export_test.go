@@ -6,6 +6,9 @@ package openapi
 // LimitOptions is limitOptions, for the external tests.
 var LimitOptions = limitOptions
 
+// SwitchOptions is switchOptions, for the external tests.
+var SwitchOptions = switchOptions
+
 // RootSrcIndex is rootSrcIndex, for the external tests.
 const RootSrcIndex = rootSrcIndex
 

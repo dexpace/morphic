@@ -22,17 +22,21 @@ const pathLiteralBytes = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz01
 
 // pathKeyDiags reports a Paths Object key that is not a path template in one
 // warning naming every rule it breaks, or nothing when it is one. The key is
-// used as written either way: uriTemplate takes it verbatim, and the name hint
-// of an operation with no operationId and the path-prefix group derive from it
+// used as written but for a fragment, which pathRoute leaves out of the URI
+// template: the name hint of an operation with no operationId derives from the
+// whole key, and the URI template and the path-prefix group from the rest,
 // unrepaired.
 func pathKeyDiags(c lowering.Ctx, key string) []ir.Diagnostic {
 	defects := pathKeyDefects(key)
 	if len(defects) == 0 {
 		return nil
 	}
+	used := "the key is used as written"
+	if _, _, fragmented := pathRoute(key); fragmented {
+		used = "the URI template is the key less its fragment, which each operation's HTTP binding keeps"
+	}
 	return []ir.Diagnostic{c.DiagAt(ir.SeverityWarning, diag.InvalidPathKey, ids.Ptr("paths", key),
-		"path key %q is not a valid path template: %s; the key is used as written",
-		key, strings.Join(defects, "; "))}
+		"path key %q is not a valid path template: %s; %s", key, strings.Join(defects, "; "), used)}
 }
 
 // pathKeyDefects returns a phrase for each path templating rule key breaks, in
@@ -42,12 +46,25 @@ func pathKeyDiags(c lowering.Ctx, key string) []ir.Diagnostic {
 // maintainer of the specification states that a 3.x minor cannot restrict it
 // further (OAI/OpenAPI-Specification#5062).
 //
-// Only the path is read. A "?" ends it in a query, and a "#" in a fragment,
-// which GitHub #602 owns, so nothing after a "#" is judged.
+// Only the path is judged. A "?" ends it in a query, and a "#" outside a
+// template expression in a fragment, each named whole and nothing in it read.
 func pathKeyDefects(key string) []string {
-	s := pathKeyScan{key: key}
+	s := pathKeyScan{key: key, fragmentAt: -1}
 	s.read()
 	return s.defects()
+}
+
+// pathRoute splits a Paths Object key into the route a request is sent to and
+// the fragment it carries, from the first "#" outside a template expression,
+// which no request sends (RFC 3986 §3.5), without the "#". fragmented reports
+// whether the key carries one, empty or not.
+func pathRoute(key string) (route, fragment string, fragmented bool) {
+	s := pathKeyScan{key: key, fragmentAt: -1}
+	s.read()
+	if s.fragmentAt < 0 {
+		return key, "", false
+	}
+	return key[:s.fragmentAt], key[s.fragmentAt+1:], true
 }
 
 // pathKeyScan is one left-to-right reading of a Paths key, recording the path
@@ -56,6 +73,8 @@ type pathKeyScan struct {
 	key string
 	// query is the query the key carries, from its "?" to any "#", or "".
 	query string
+	// fragmentAt is where the "#" beginning the key's fragment is, or -1.
+	fragmentAt int
 	// unencoded lists each character the path admits only percent-encoded,
 	// once, in the order first met; seen is the set behind it.
 	unencoded []string
@@ -69,16 +88,21 @@ type pathKeyScan struct {
 	strayBrace, badPercent, emptySegment bool
 }
 
-// read walks the key's path, stopping at the "?" or "#" that ends it. Each
-// step advances by at least one byte, so it ends within len(key) steps.
+// read walks the key's path, stopping at the "?" or "#" that ends it, and
+// finds the "#" beginning a fragment after a query. Each step advances by at
+// least one byte, so it ends within len(key) steps.
 func (s *pathKeyScan) read() {
 	key := s.key
 	for i := 0; i < len(key); {
 		switch key[i] {
 		case '?':
-			s.query, _, _ = strings.Cut(key[i:], "#")
+			s.query = key[i:]
+			if at := strings.IndexByte(s.query, '#'); at >= 0 {
+				s.query, s.fragmentAt = s.query[:at], i+at
+			}
 			return
 		case '#':
+			s.fragmentAt = i
 			return
 		case '{':
 			i = s.expression(i)
@@ -174,6 +198,9 @@ func (s *pathKeyScan) defects() []string {
 	}
 	if s.query != "" {
 		out = append(out, "carries the query "+strconv.Quote(s.query))
+	}
+	if s.fragmentAt >= 0 {
+		out = append(out, "carries the fragment "+strconv.Quote(s.key[s.fragmentAt:])+", which no request sends")
 	}
 	return out
 }

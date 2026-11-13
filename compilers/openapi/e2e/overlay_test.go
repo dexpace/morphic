@@ -558,7 +558,8 @@ actions:
 // TestCompile_StrictRefusesAnActionThatMatchesNothing pins the second acceptance
 // criterion. Strict is the default, so a JSONPath that matches nothing is
 // reported and the compile refuses rather than quietly producing an SDK missing
-// the fix the overlay was written to make.
+// the fix the overlay was written to make. The refusal names the action, at
+// its place in the overlay.
 func TestCompile_StrictRefusesAnActionThatMatchesNothing(t *testing.T) {
 	t.Parallel()
 	doc, diags, err := openapi.New().Compile(t.Context(),
@@ -569,30 +570,29 @@ func TestCompile_StrictRefusesAnActionThatMatchesNothing(t *testing.T) {
 
 	require.NoError(t, err, "a bad overlay is a document problem, not a Go error")
 	assert.Nil(t, doc, "nothing is lowered")
-	require.True(t, ir.HasError(diags), "the typo is fatal: %+v", diags)
-
-	named := false
-	for _, d := range diags {
-		if d.Severity == ir.SeverityWarning {
-			named = true
-			assert.Contains(t, d.Message, "$.paths['/nope']", "the action is named")
-		}
-		assert.Equal(t, 1, d.Provenance.Source, "the report is about the overlay")
-	}
-	assert.True(t, named, "the refusal names which action caused it: %+v", diags)
+	require.Len(t, diags, 1, "the typo is fatal: %+v", diags)
+	assert.Equal(t, ir.SeverityError, diags[0].Severity)
+	assert.Equal(t, diag.OverlayFailed, diags[0].Code)
+	assert.Contains(t, diags[0].Message, "$.paths['/nope']", "the action is named")
+	assert.Equal(t, ir.Provenance{Source: 1, Pointer: "/actions/0"}, diags[0].Provenance, "at the action, in the overlay")
 }
 
-// TestCompile_LaxIgnoresAnActionThatMatchesNothing pins the other side of the
-// same switch, on the same overlay: what strict refuses, lax passes over in
-// silence and compiles. Using the identical input is what makes this a test of
-// the flag rather than of two unrelated documents.
-func TestCompile_LaxIgnoresAnActionThatMatchesNothing(t *testing.T) {
+// TestCompile_LaxWarnsOfAnActionThatMatchesNothing pins the other side of the
+// same switch, on the same overlay: what strict refuses, lax compiles, and
+// still names the action that changed nothing as a warning, since lax lets a
+// document through and does not hide what did not apply. Using the identical
+// input is what makes this a test of the flag rather than of two unrelated
+// documents.
+func TestCompile_LaxWarnsOfAnActionThatMatchesNothing(t *testing.T) {
 	t.Parallel()
 	doc, diags := compileWith(t, openapi.Options{
 		Overlay: &openapi.Overlay{Path: "patch.yaml", Data: []byte(noMatch), Lax: true},
 	})
 
-	assert.False(t, ir.HasError(diags), "lax reports nothing: %+v", diags)
+	require.Len(t, diags, 1, "%+v", diags)
+	assert.Equal(t, ir.SeverityWarning, diags[0].Severity)
+	assert.Equal(t, diag.OverlayAction, diags[0].Code)
+	assert.Contains(t, diags[0].Message, "$.paths['/nope']", "the action is named")
 	assert.Len(t, doc.Sources, 2, "the overlay still applied, it just changed nothing")
 }
 
