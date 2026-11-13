@@ -537,9 +537,9 @@ func TestDiagnosticSet_IgnoresLineAndColumnButKeepsWhetherPositioned(t *testing.
 }
 
 // TestDiagnosticSet_KeepsEachLocatorApart pins the rest of the key. Two findings
-// that differ only in severity, code, source, pointer or node are two findings,
-// since a permutation changes none of those; two that differ only in message
-// text are one, for the reason diagnosticSet gives.
+// that differ only in severity, code or any part of their provenance but its
+// position are two findings, since a permutation changes none of those; two
+// that differ only in message text are one, for the reason diagnosticSet gives.
 func TestDiagnosticSet_KeepsEachLocatorApart(t *testing.T) {
 	t.Parallel()
 	base := ir.Diagnostic{
@@ -558,6 +558,8 @@ func TestDiagnosticSet_KeepsEachLocatorApart(t *testing.T) {
 		{"source", func(d *ir.Diagnostic) { d.Provenance.Source = 1 }, true},
 		{"pointer", func(d *ir.Diagnostic) { d.Provenance.Pointer = "/b" }, true},
 		{"node", func(d *ir.Diagnostic) { d.Provenance.Node = "t/x/B" }, true},
+		{"writer", func(d *ir.Diagnostic) { d.Provenance.WrittenBy = 1 }, true},
+		{"inferred", func(d *ir.Diagnostic) { d.Provenance.Inferred = "group-path-prefix" }, true},
 		{"message", func(d *ir.Diagnostic) { d.Message = "other" }, false},
 	} {
 		t.Run(tc.name, func(t *testing.T) {

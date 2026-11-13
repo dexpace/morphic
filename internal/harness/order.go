@@ -121,15 +121,15 @@ func sameDocument(first, second *ir.Document) (string, bool) {
 //
 // Message text is not compared: some messages list source keywords in the
 // author's order ("type, maxLength" against "maxLength, type"), which is
-// invariant #7 reaching the message. Source position is left out because a
-// permutation moves constructs by design; whether a finding has one stays in.
+// invariant #7 reaching the message. Of its provenance, only line and column
+// are left out, which a permutation moves by design, keeping whether it has any.
 func diagnosticSet(diags []ir.Diagnostic) []string {
 	out := make([]string, 0, len(diags))
 	for _, d := range diags {
 		p := d.Provenance
 		positioned := p.Position != ir.Position{}
-		out = append(out, fmt.Sprintf("%s\x00%s\x00%s\x00%t\x00%s\x00%d",
-			d.Severity, d.Code, p.Pointer, positioned, p.Node, p.Source))
+		out = append(out, fmt.Sprintf("%s\x00%s\x00%s\x00%t\x00%s\x00%d\x00%d\x00%s",
+			d.Severity, d.Code, p.Pointer, positioned, p.Node, p.Source, p.WrittenBy, p.Inferred))
 	}
 	slices.Sort(out)
 	return out
