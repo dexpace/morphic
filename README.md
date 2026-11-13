@@ -199,8 +199,8 @@ give up that guarantee. Other hard links keep the old content. A FIFO or a chara
 as `/dev/null` or the pipe a shell's `>(…)` names, has no content to replace and is written as
 stdout is; a FIFO no process reads is refused rather than waited for. A directory, a socket or a
 block device is refused. A symlink is judged by what it names, and one naming a file, or nothing, is
-replaced, not followed: so `-o /dev/stdout` with stdout redirected to a file is refused, or, run as
-root, replaces the link (#1864).
+replaced, not followed. So `-o /dev/stdout`, with stdout redirected to a file, needs `/dev` to take
+a temporary file: it is refused, or, run as root, replaces the link (#1864).
 
 SIGINT, SIGTERM or SIGHUP stops a run, which exits `2` whatever it had found, naming the signal on
 stderr; a shell script interrupted with Ctrl-C goes on to its next command unless it checks that
