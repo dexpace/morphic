@@ -5,6 +5,7 @@ package e2e_test
 
 import (
 	"encoding/json/jsontext"
+	"encoding/json/v2"
 	"maps"
 	"slices"
 	"testing"
@@ -256,6 +257,86 @@ func assertSecurityOrAnd(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 	op, ok := opByName(doc, "publicOp")
 	require.True(t, ok)
 	assert.Empty(t, op.Auth, "security: [] makes the operation explicitly public")
+}
+
+// statesKey is the one scheme the security-state cases declare.
+const statesKey ir.AuthID = "auth/openapi/components/securitySchemes/apiKey"
+
+// keyed is the requirement naming statesKey alone, and optionalOrKey the list
+// offering it or nothing.
+func keyed() ir.AuthRequirement { return ir.AuthRequirement{Schemes: []ir.SchemeUse{{Scheme: statesKey}}} }
+
+func optionalOrKey() []ir.AuthRequirement { return []ir.AuthRequirement{{}, keyed()} }
+
+// assertSecurityStatesCase pins the four states of an operation's list, under a
+// root requiring the key: inline, on a path item a path mounts by $ref, and on
+// webhooks, which inherit nothing whatever the root writes.
+func assertSecurityStatesCase(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
+	assertSecurityStates(t, doc, []ir.AuthRequirement{keyed()}, map[string][]ir.AuthRequirement{
+		"absent":               nil,
+		"public":               {},
+		"optional":             {{}},
+		"optionalOrKey":        optionalOrKey(),
+		"required":             {keyed()},
+		"mountedAbsent":        nil,
+		"mountedPublic":        {},
+		"mountedOptional":      {{}},
+		"mountedOptionalOrKey": optionalOrKey(),
+		"mountedRequired":      {keyed()},
+		"hookAbsent":           nil,
+		"hookRequired":         {keyed()},
+	})
+}
+
+// assertSecurityRootAbsent pins a document writing no security: its list and
+// an operation's left out are nil, and neither reads as public.
+func assertSecurityRootAbsent(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
+	assertSecurityStates(t, doc, nil, map[string][]ir.AuthRequirement{"absent": nil, "public": {}})
+}
+
+// assertSecurityRootOptional pins a document whose one requirement is the
+// empty one, which is neither public nor left out.
+func assertSecurityRootOptional(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
+	assertSecurityStates(t, doc, []ir.AuthRequirement{{}}, map[string][]ir.AuthRequirement{
+		"absent": nil, "required": {keyed()},
+	})
+}
+
+// assertSecurityStates holds the document's list to root and each operation's,
+// by name, to ops, on the compiled document and on the one its JSON reads back
+// to, so neither the lowering nor the encoding folds two states into one.
+func assertSecurityStates(t *testing.T, doc *ir.Document, root []ir.AuthRequirement, ops map[string][]ir.AuthRequirement) {
+	t.Helper()
+	encoded, err := json.Marshal(doc)
+	require.NoError(t, err)
+	var back ir.Document
+	require.NoError(t, json.Unmarshal(encoded, &back))
+	for name, d := range map[string]*ir.Document{"compiled": doc, "read back": &back} {
+		require.Len(t, d.Services, 1, name)
+		assertAuthState(t, name+", the document", root, d.Services[0].Auth)
+		for op, want := range ops {
+			got, ok := opByName(d, op)
+			require.True(t, ok, "%s: %s", name, op)
+			assertAuthState(t, name+", "+op, want, got.Auth)
+		}
+	}
+}
+
+// assertAuthState holds got to want, nil apart from empty: a comparison reading
+// both as empty passes an inheriting list for a public one.
+func assertAuthState(t *testing.T, where string, want, got []ir.AuthRequirement) {
+	t.Helper()
+	if want == nil {
+		require.Nil(t, got, "%s: left out, it inherits", where)
+		return
+	}
+	require.NotNil(t, got, "%s: written, it does not inherit", where)
+	if len(want) == 0 {
+		require.Empty(t, got, "%s: written empty, it is public", where)
+		return
+	}
+	// Below the list, an empty scope list is no state of its own.
+	assert.Empty(t, cmp.Diff(want, got, cmpopts.EquateEmpty()), where)
 }
 
 // assertSecurityRootEmpty pins the document's half of absent against empty: a

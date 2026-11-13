@@ -4193,7 +4193,7 @@ null or no mapping is the rule table's to report instead
 requirement naming no scheme and a scheme naming no mechanism, and leaves them to it.
 
 - Cases: `security-schemes`, `security-or-and`, `security-root-empty`, `security-unresolved`,
-  `oauth2-no-flow`
+  `oauth2-no-flow`, `security-states`, `security-root-absent`, `security-root-optional`
 - Codes: `openapi/oauth2-no-flow`, `openapi/incomplete-security-scheme`,
   `openapi/unresolved-security-scheme`, `openapi/unresolved-ref`
 - Tests: `auth.TestLowerSecuritySchemes_AnAbsentFlowsIsReportedAtTheDeclaration`,

@@ -292,6 +292,9 @@ func conformanceCases() []conformanceCase {
 		{"reached-outside-model", assertReachedOutsideModel},
 		{"security-or-and", assertSecurityOrAnd},
 		{"security-root-empty", assertSecurityRootEmpty},
+		{"security-states", assertSecurityStatesCase},
+		{"security-root-absent", assertSecurityRootAbsent},
+		{"security-root-optional", assertSecurityRootOptional},
 		{"security-unresolved", assertSecurityUnresolved},
 	}
 }
