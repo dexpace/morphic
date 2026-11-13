@@ -9,8 +9,6 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/speakeasy-api/openapi/jsonschema/oas3"
-
 	"github.com/dexpace/morphic/compilers/compile"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
@@ -23,27 +21,26 @@ import (
 const maxReportedTags = 3
 
 // deferUnionTags queues the discriminator-inference policy's reading of the
-// union u, which s writes at pointer, where the policy is on: for a
-// discriminator declaring no mapping, or for none at all
+// union n, u lowered at pointer, where the policy is on: for the discriminator
+// standing with it declaring no mapping, or for none at all
 // (docs/compilers/openapi.md#discriminator-inference). It reads what each
 // variant's type says of its tag, which only a registry every node is interned
 // in answers in any declaration order, so it is a settlement. A mapping the
 // document declares is read as written, beside the routes it implies
 // (spellImplicitRoutes), so one of those its variant rejects stands (#1798).
-// A discriminator u cannot hold (tagLocated) leaves u untagged, as declared,
-// so nothing is read.
-func deferUnionTags(c lowering.Ctx, ts *compile.Types, s *oas3.Schema, u *ir.Union, pointer jsontext.Pointer) {
+// A discriminator n cannot hold (tagLocated) leaves n untagged, so nothing is
+// read.
+func deferUnionTags(c lowering.Ctx, ts *compile.Types, u unionAt, n *ir.Union, pointer jsontext.Pointer) {
 	if !c.DiscriminatorInference.Honours() {
 		return
 	}
-	d := s.GetDiscriminator()
-	if d.GetMapping().Len() > 0 || d != nil && u.Discriminator == nil {
+	if u.disc.GetMapping().Len() > 0 || u.disc != nil && n.Discriminator == nil {
 		return
 	}
-	tags := unionTags{c: c, id: u.ID, pointer: pointer}
-	if d != nil {
-		tags.at = pointer + ids.Ptr("discriminator")
-		tags.implicit = implicitRoutes(c, s)
+	tags := unionTags{c: c, id: n.ID, pointer: pointer}
+	if u.disc != nil {
+		tags.at = u.discAt + ids.Ptr("discriminator")
+		tags.implicit = implicitRoutes(c, u.holder)
 	}
 	ts.Defer(tags)
 }

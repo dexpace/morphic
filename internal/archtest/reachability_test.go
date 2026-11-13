@@ -71,7 +71,6 @@ var apiRoots = map[string]string{
 	"ir.Editor.UpdateAuthScheme":                   transformAPI,
 	"ir.Editor.RemoveAuthScheme":                   transformAPI,
 	"ir.Editor.UpdateDocument":                     transformAPI,
-	"ir.Supertypes":                                relationAPI,
 	"ir.ExposedProps":                              relationAPI,
 	"ir.NarrowedShapes":                            planAPI,
 	"ir/irfacts.Index.Subtypes":                    factAPI,

@@ -986,6 +986,46 @@ func TestAllOf_AComposedFieldKeepsADiscriminatedBase(t *testing.T) {
 	assert.Equal(t, componentID("Plain"), m.Mixins[0].Target)
 }
 
+// TestAllOf_AComposedFieldElectsTheBaseAWrittenAllOfDoes pins a field declared
+// as Plain and as a member of a hierarchy whose discriminator a union holds: one
+// standing with a union on its allOf branch, or an ancestor's beside its oneOf.
+// The minted model's Base is the one a written allOf of the two elects, in
+// either declaration order.
+func TestAllOf_AComposedFieldElectsTheBaseAWrittenAllOfDoes(t *testing.T) {
+	t.Parallel()
+	ref := func(name string) string { return "{$ref: '#/components/schemas/" + name + "'}" }
+	field := func(name string) string {
+		return "{type: object, properties: {f: " + ref(name) + "}}"
+	}
+	for _, doc := range discriminatedOrders(t, "3.1.0", `    Refund:
+      discriminator: {propertyName: method}
+      allOf:
+        - {type: object, properties: {reason: {type: string}}}
+        - oneOf: [`+ref("Card")+`, `+ref("Bank")+`]
+    Under: {allOf: [`+ref("Tagged")+`, {type: object, properties: {u: {type: string}}}]}
+`, `    Tagged:
+      oneOf: [`+ref("Card")+`, `+ref("Bank")+`]
+      discriminator: {propertyName: method}
+    Card: {type: object, required: [method], properties: {method: {type: string}, last4: {type: string}}}
+    Bank: {type: object, required: [method], properties: {method: {type: string}, iban: {type: string}}}
+    Plain: {type: object, properties: {note: {type: string}}}
+    WrittenRefund: {allOf: [`+ref("Plain")+`, `+ref("Refund")+`]}
+    WrittenUnder: {allOf: [`+ref("Plain")+`, `+ref("Under")+`]}
+    FieldRefund: {allOf: [`+field("Plain")+`, `+field("Refund")+`]}
+    FieldUnder: {allOf: [`+field("Plain")+`, `+field("Under")+`]}
+`) {
+		for written, declared := range map[string]string{"WrittenRefund": "FieldRefund", "WrittenUnder": "FieldUnder"} {
+			w, ok := typeByName(doc, written).(*ir.Model)
+			require.True(t, ok, written)
+			require.NotNil(t, w.Base, written)
+			m := composedField(t, doc, declared, "f")
+			require.NotNil(t, m.Base, declared)
+			assert.Equal(t, w.Base.Target, m.Base.Target, declared)
+			assert.Equal(t, w.Mixins, m.Mixins, declared)
+		}
+	}
+}
+
 // TestAllOf_EveryDistributedVariantSharesOneComposedField pins the mint across
 // variants. A distributed union's variants each fold the body's declarations,
 // and each keeps the field's one PropID, so each names the one node.

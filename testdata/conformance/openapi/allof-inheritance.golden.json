@@ -171,6 +171,156 @@
       "positional": false,
       "inputOnly": false
     },
+    "t/openapi/components/schemas/Leaf": {
+      "kind": "model",
+      "id": "t/openapi/components/schemas/Leaf",
+      "name": {
+        "source": "Leaf",
+        "canonical": "leaf"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Leaf"
+      },
+      "base": {
+        "target": "t/openapi/components/schemas/Mid",
+        "nullable": false
+      },
+      "mixins": [
+        {
+          "target": "t/openapi/components/schemas/Other",
+          "nullable": false
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "discriminatorValue": "Leaf",
+      "inputOnly": false
+    },
+    "t/openapi/components/schemas/Mid": {
+      "kind": "model",
+      "id": "t/openapi/components/schemas/Mid",
+      "name": {
+        "source": "Mid",
+        "canonical": "mid"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Mid"
+      },
+      "base": {
+        "target": "t/openapi/components/schemas/Root",
+        "nullable": false
+      },
+      "abstract": false,
+      "positional": false,
+      "discriminatorValue": "Mid",
+      "inputOnly": false
+    },
+    "t/openapi/components/schemas/Other": {
+      "kind": "model",
+      "id": "t/openapi/components/schemas/Other",
+      "name": {
+        "source": "Other",
+        "canonical": "other"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Other"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/Other/properties/x",
+          "name": {
+            "source": "x",
+            "canonical": "x"
+          },
+          "wireName": "x",
+          "type": {
+            "target": "t/prim/string",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Other/properties/x"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/openapi/components/schemas/Root": {
+      "kind": "model",
+      "id": "t/openapi/components/schemas/Root",
+      "name": {
+        "source": "Root",
+        "canonical": "root"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Root"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/Root/properties/kind",
+          "name": {
+            "source": "kind",
+            "canonical": "kind"
+          },
+          "wireName": "kind",
+          "type": {
+            "target": "t/prim/string",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Root/properties/kind"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "discriminator": {
+        "property": "p/openapi/components/schemas/Root/properties/kind",
+        "inferred": false
+      },
+      "inputOnly": false
+    },
     "t/prim/string": {
       "kind": "primitive",
       "id": "t/prim/string",
@@ -201,7 +351,7 @@
     {
       "format": "openapi@3.1",
       "path": "allof-inheritance.yaml",
-      "hash": "96c7255ebc7073d76ea3dcb6d5dc31717c27b00e4d5b3f616c700aad05fc213d"
+      "hash": "194f906bf8c6c2fc5e5698e57dea339eace0603bffaa63286f27e59d2d929d11"
     }
   ]
 }

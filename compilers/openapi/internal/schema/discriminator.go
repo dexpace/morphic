@@ -22,17 +22,16 @@ import (
 	"github.com/dexpace/morphic/ir"
 )
 
-// lowerDiscriminator lowers a schema's discriminator: its tag, located by
-// exactly one of Property, PropertyName and Index (docs/ir/models.md#discriminator),
-// and its routes, each mapping value and the defaultMapping read by
-// discriminatorMapping. m is the model declaring it, a plain object or an
-// allOf composition, whose declaring property's PropID locates the tag, else
-// PropertyName; a nil m, for a oneOf/anyOf union, names it by PropertyName
-// alone. x is a union's branches, nil for a model: a union routes to its
-// variants (branchIndex.route), a model to the type each value's chain ends
-// on (hierarchyRoute).
-func lowerDiscriminator(c lowering.Ctx, ts *compile.Types, s *oas3.Schema, m *ir.Model, x *branchIndex, pointer jsontext.Pointer) (*ir.Discriminator, []ir.Diagnostic) {
-	d := s.GetDiscriminator()
+// lowerDiscriminator lowers d, a discriminator the schema written at pointer
+// declares, nil for none: its tag, located by exactly one of Property,
+// PropertyName and Index (docs/ir/models.md#discriminator), and its routes,
+// each mapping value and the defaultMapping read by discriminatorMapping. m is
+// the model declaring it, whose property's PropID locates the tag, else
+// PropertyName; a nil m, for a union, names it by PropertyName alone. x is a
+// union's branches, nil for a model: a union routes to its variants
+// (branchIndex.route), a model to the type each value's chain ends on
+// (hierarchyRoute).
+func lowerDiscriminator(c lowering.Ctx, ts *compile.Types, d *oas3.Discriminator, pointer jsontext.Pointer, m *ir.Model, x *branchIndex) (*ir.Discriminator, []ir.Diagnostic) {
 	if d == nil || !tagLocated(d, m) {
 		return nil, nil
 	}
@@ -135,19 +134,20 @@ type listedBy struct {
 }
 
 // routesByName reports whether the discriminator the ancestor a declares routes
-// the component schema s by its name, OpenAPI's implicit mapping. One beside no
-// oneOf or anyOf routes every schema composing a through allOf. One beside
-// either routes the schemas its union lists, every possible one listed there
-// (docs/compilers/openapi.md#discriminator-value): those a $ref branch of the
-// union unionBranches elects ends on, as discriminatedAncestors reads a $ref,
+// the component schema s by its name, OpenAPI's implicit mapping. One standing
+// with no oneOf or anyOf routes every schema composing a through allOf. One
+// standing with either (standingUnion) routes the schemas that union lists,
+// every possible one listed there (docs/compilers/openapi.md#discriminator-value):
+// those a $ref branch of it ends on, as discriminatedAncestors reads a $ref,
 // read once a run, as every subtype of a asks. Any other schema composing a
 // narrows that union, each instance carrying its variant's tag, and composes
 // it as written (docs/ir/models.md#a-union-a-composition-names).
 func routesByName(c lowering.Ctx, a, s *oas3.Schema) bool {
-	branches, _, _ := unionBranches(a)
-	if len(branches) == 0 {
+	holder := standingUnion(c, a)
+	if holder == nil {
 		return true
 	}
+	branches, _, _ := unionBranches(holder)
 	listed := lowering.Remembered(c, listedBy{a}, func() map[*oas3.Schema]bool {
 		set := make(map[*oas3.Schema]bool, len(branches))
 		for _, b := range branches {
@@ -158,6 +158,21 @@ func routesByName(c lowering.Ctx, a, s *oas3.Schema) bool {
 		return set
 	})
 	return listed[s]
+}
+
+// standingUnion returns the schema writing the union the discriminator a
+// declares stands with: a where it writes one, else the branch of a's allOf
+// whose union a lowers (findBranchUnion), which writes no discriminator of its
+// own beside a's, and nil for none, a hierarchy's base.
+func standingUnion(c lowering.Ctx, a *oas3.Schema) *oas3.Schema {
+	if declaresUnion(a) {
+		return a
+	}
+	at := branchUnionIndexOf(c, a)
+	if !at.ok {
+		return nil
+	}
+	return allOfBranches(a, "").branches[at.index].schema.GetSchema()
 }
 
 // maxDiscriminatorAncestorDepth bounds how many composition levels
@@ -200,26 +215,27 @@ func discriminatedAncestors(refs *typed.Bindings, s *oas3.Schema) []*oas3.Schema
 	return out
 }
 
-// composedByOf keys what branchesComposeBody read of one schema.
+// composedByOf keys what composedByBranch read of one schema and the union
+// standing with it.
 type composedByOf struct {
-	schema *oas3.Schema
+	schema, holder *oas3.Schema
 }
 
-// branchesComposeBody reports whether a branch of the union s writes, the one
+// composedByBranch reports whether a branch of u, a union of s's, the combinator
 // unionBranches elects, composes s through allOf at any depth, so that s's
 // discriminator routes to a subtype of s: s is then the base of a hierarchy,
 // which a union of its subtypes would no longer be
 // (docs/compilers/openapi.md#union-beside-structure). Such a branch finds s's
-// discriminator among its ancestors' (discriminatedAncestors). A schema
-// declaring no discriminator routes to nothing. Every reader of the position
-// asks, so it is read once a run.
-func branchesComposeBody(c lowering.Ctx, s *oas3.Schema) bool {
+// discriminator among its ancestors' (discriminatedAncestors). Where s writes
+// one, it is the one standing with u (findBranchUnion). Every reader of the
+// position asks, so it is read once a run.
+func composedByBranch(c lowering.Ctx, s *oas3.Schema, u unionAt) bool {
 	d := s.GetDiscriminator()
 	if d == nil {
 		return false
 	}
-	return lowering.Remembered(c, composedByOf{s}, func() bool {
-		branches, _, _ := unionBranches(s)
+	return lowering.Remembered(c, composedByOf{s, u.holder}, func() bool {
+		branches, _, _ := unionBranches(u.holder)
 		return slices.ContainsFunc(branches, func(b *oas3.JSONSchema[oas3.Referenceable]) bool {
 			target := b.GetSchema()
 			if isRefBranch(b) {
@@ -248,14 +264,15 @@ func unvisitedRefTargets(refs *typed.Bindings, s *oas3.Schema, visited map[*oas3
 	return out
 }
 
-// deferDiscriminatorBesideUnion queues a settlement for the discriminator a
-// model at owner holds beside the union lowerBesideUnmodeledUnion kept verbatim
-// on it. A body that lowered to anything else holds none: the census kept its
+// deferDiscriminatorBesideUnion queues a settlement for the discriminator s
+// writes, which the model at owner holds beside the union holder writes, kept
+// verbatim: beside the model by lowerBesideUnmodeledUnion, or with its allOf
+// branch. A body that lowered to anything else holds none: the census kept its
 // discriminator where it kept the rest, a multi-typed body's on its union
 // (lowerTypeVariant).
-func deferDiscriminatorBesideUnion(c lowering.Ctx, ts *compile.Types, owner ir.TypeID, s *oas3.Schema, pointer jsontext.Pointer) {
+func deferDiscriminatorBesideUnion(c lowering.Ctx, ts *compile.Types, owner ir.TypeID, s, holder *oas3.Schema, pointer jsontext.Pointer) {
 	if td, _ := ts.Node(owner); isKind(td, ir.KindModel) {
-		ts.Defer(besideUnionDiscriminator{c: c, s: s, pointer: pointer, model: owner, named: namedBranches(c, s)})
+		ts.Defer(besideUnionDiscriminator{c: c, s: s, pointer: pointer, model: owner, named: namedBranches(c, holder)})
 	}
 }
 
