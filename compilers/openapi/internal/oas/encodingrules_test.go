@@ -52,8 +52,10 @@ func TestEncodingRules_AnswerAsTheTableDoes(t *testing.T) {
 
 // TestEncodingRules_TakesEffectWhereTheTextSays pins where each RFC6570-style
 // field takes effect, replacing the contentType: a form body at every minor,
-// multipart/form-data from 3.1, and no other multipart media type; a field the
-// table limits to no media type takes effect under every one.
+// multipart/form-data from 3.1, and no other multipart media type; headers
+// under every multipart media type and no form; and a field the table limits
+// to no media type under every one. Ignores answers the converse, and nothing
+// for the zero rules, which state nothing.
 func TestEncodingRules_TakesEffectWhereTheTextSays(t *testing.T) {
 	t.Parallel()
 	const (
@@ -69,8 +71,18 @@ func TestEncodingRules_TakesEffectWhereTheTextSays(t *testing.T) {
 			assert.Equal(t, want, got, "%s at %q under a form, multipart/form-data and multipart/mixed", field, version)
 		}
 	}
+	for _, version := range []string{"3.0.3", "3.1.0", "3.2.0"} {
+		rules := oas.Table().EncodingRules(version)
+		got := [3]bool{rules.TakesEffect("headers", form), rules.TakesEffect("headers", data), rules.TakesEffect("headers", "multipart/mixed")}
+		assert.Equal(t, [3]bool{false, true, true}, got, "headers at %q under a form, multipart/form-data and multipart/mixed", version)
+		assert.Equal(t, [3]bool{true, false, false},
+			[3]bool{rules.Ignores("headers", form), rules.Ignores("headers", data), rules.Ignores("contentType", form)},
+			"Ignores is the converse at %q", version)
+	}
 	assert.True(t, oas.Table().EncodingRules("3.0.3").TakesEffect("contentType", "multipart/mixed"),
 		"a field the table limits to no media type takes effect under any")
 	assert.False(t, oas.Spec{}.EncodingRules("3.1.0").TakesEffect("contentType", form),
 		"the zero rules answer false")
+	assert.False(t, oas.Spec{}.EncodingRules("3.1.0").Ignores("headers", form),
+		"and say no field is ignored")
 }

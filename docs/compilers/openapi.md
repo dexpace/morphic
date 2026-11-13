@@ -3917,18 +3917,29 @@ beside the `PropID`s, would type a misspelt key alike. What OpenAPI does say of 
 catch-all admits, their structural flags and default content type, has no home either.
 
 `contentType` lowers to `ContentTypes`, split on `,` and trimmed with empty items dropped, and one
-naming no media type is an `openapi/validation` error ([`validation`](#validation)); `headers` to
-`Headers`, lowered as a response's are; and `style` and `explode` to `Style` and `Explode` as
-declared, nothing defaulted. A part whose entry writes no `contentType`, or that has no entry, takes
-the default OpenAPI gives it in `ContentTypes`, unless the entry writes a `style`, an `explode` or
-an `allowReserved` where it takes effect, which replaces the content type, implicit or explicit,
-with the arrangement a query parameter's value takes: in a form body at every minor, and in a
-`multipart/form-data` body from 3.1. An entry writing an empty `contentType`, which load reports,
-takes none. The default is read at the document's minor off the types the part's declarations
-settled on, the ones `Multi` and `Filename` are read off: each value an Encoding Object applies to,
-which is each item of an array part, the element of a list or tuple and a union's members in its
-place, takes the row its kind names, and the part takes the one every value takes, a null value
-passing over:
+naming no media type is an `openapi/validation` error ([`validation`](#validation)); and `headers`
+to `Headers`, lowered as a response's are, under a multipart media type, the only kind OpenAPI
+applies them to (3.0.4: "This field SHALL be ignored if the request body media type is not a
+`multipart`"). A `style`, an `explode` or an `allowReserved` takes effect in a form body at every
+minor, and in a `multipart/form-data` body from 3.1 (3.1.1: "This field SHALL be ignored if the
+request body media type is not `application/x-www-form-urlencoded` or `multipart/form-data`"). Where
+one is written and takes effect, it arranges the value as a query parameter's is, which replaces the
+content type, implicit or explicit: `Style` lowers to the style written or else to `form`, a query
+parameter's default (3.0.4: "If any of `style`, `explode`, or `allowReserved` are _not_ present with
+explicit values, then they are to be treated as if they were present with their default values"),
+`Explode` as written, nil reading as the style's default, and `AllowReserved` as written. A field
+written where it takes no effect is typed nowhere: it is kept verbatim under the content's
+`Unmodeled` at `openapi:encoding/<key>/<field>` (`no_ir_home`) and reported there as an
+`openapi/validation` warning of the class `validation-no-effect`, and its part reads as one whose
+entry does not write it. A part whose entry writes no `contentType`, or that has no entry, takes the
+default OpenAPI gives it in `ContentTypes`, unless its entry arranges its value. An entry writing an
+empty `contentType`, which load reports, takes none. A response's part takes its default too, at
+every minor, though before 3.2 OpenAPI applies `encoding` to request bodies alone: the default is
+what OpenAPI gives a part by its schema, which needs no Encoding Object to apply. The default is
+read at the document's minor off the types the part's declarations settled on, the ones `Multi` and
+`Filename` are read off: each value an Encoding Object applies to, which is each item of an array
+part, the element of a list or tuple and a union's members in its place, takes the row its kind
+names, and the part takes the one every value takes, a null value passing over:
 
 1. an object, a model or a map, takes `application/json`;
 2. a number, an integer, a boolean, and a string, a format's primitive among them, take
@@ -4038,7 +4049,9 @@ in any case.
   `operation.TestDefaultContentType_ReadsUpToItsBound`,
   `operation.TestPartValues_ReadsEachItemOfEachDeclaration`,
   `operation.TestReadContentEncoding_ReadsEveryDeclaration`,
-  `operation.TestPartEncodings_AContentTypeWrittenTakesNoDefault`
+  `operation.TestPartEncodings_AContentTypeWrittenTakesNoDefault`,
+  `operation.TestEncoding_ArrangingFieldsLowerWhereTheyTakeEffect`,
+  `operation.TestEncoding_MultipartHeadersLower`
 - Status: partly built: a kept entry's unknown keys and reserved header names go unreported, as in
   the other objects kept whole (#1662); which reason keeps an entry OpenAPI gives no effect is open
   (#1791); and the parts a catch-all admits have no part encoding (#1805).
@@ -4047,7 +4060,8 @@ in any case.
 
 An Encoding Object's `allowReserved` lowers to its `PartEncoding.AllowReserved`, on the part's entry
 or on the content's `ItemEncoding`, `false` where it declares none, as a parameter's lowers onto its
-binding. A part declaring it and nothing else keeps its `PartEncoding`, which a part declaring no
+binding, where it takes effect ([`multipart-encoding`](#multipart-encoding)). A part declaring it
+and nothing else keeps its `PartEncoding`, its `Style` the default `form`, which a part declaring no
 field of one leaves out of `Content.Encoding`.
 
 - Cases: `multipart-encoding`

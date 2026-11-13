@@ -41,11 +41,12 @@ func fillSequential(c lowering.Ctx, w walk, content *ir.Content, media *soa.Medi
 		return append(diags, positionalEncoding(c, content, media, mediaPtr)...)
 	}
 	enc := media.GetItemEncoding()
+	mt := lowering.NormalizeMediaType(content.MediaType)
 	pe := ir.PartEncoding{}
 	if enc != nil {
 		var unmodeled ir.Unmodeled
 		var encDiags []ir.Diagnostic
-		pe, unmodeled, encDiags = encodingConfig(c, w, enc, mediaPtr+ids.Ptr("itemEncoding"), "itemEncoding")
+		pe, unmodeled, encDiags = encodingConfig(c, w, enc, mediaPtr+ids.Ptr("itemEncoding"), "itemEncoding", mt)
 		content.Unmodeled = annotation.MergeUnmodeled(content.Unmodeled, unmodeled)
 		diags = append(diags, encDiags...)
 	}
@@ -57,7 +58,6 @@ func fillSequential(c lowering.Ctx, w walk, content *ir.Content, media *soa.Medi
 	pe.Multi = true
 	pe = file.apply(pe)
 	content.ItemEncoding = &pe
-	mt := lowering.NormalizeMediaType(content.MediaType)
 	if parts && (enc == nil || takesDefault(lowering.EncodingRules(c), enc, mt)) {
 		w.types.Defer(itemDefault{c: c, encoding: content.ItemEncoding, item: *content.Item,
 			encoded: readContentEncoding(c, []*oas3.JSONSchema[oas3.Referenceable]{media.GetItemSchema()})})

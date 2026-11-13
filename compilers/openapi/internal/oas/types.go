@@ -280,7 +280,9 @@ type Field struct {
 }
 
 // Within is a media type, named without parameters and in lower case, under
-// which a field takes effect at the minors Span holds.
+// which a field takes effect at the minors Span holds; one whose subtype is
+// "*" names every media type of its type, as "multipart/*" names each
+// multipart one.
 type Within struct {
 	MediaType string
 	Cites     []Cite

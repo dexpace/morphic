@@ -3,6 +3,12 @@
 
 package oas
 
+import (
+	"strings"
+
+	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
+)
+
 // EncodingRules is the Encoding Object's rows at one minor, as SchemaRules is
 // the Schema Object's: what a part takes where its Encoding Object leaves a
 // field unwritten, asked of the table rather than of the version. The zero
@@ -71,10 +77,24 @@ func (r EncodingRules) ContentType(k DefaultCase) (string, bool) {
 // TakesEffect reports whether the Encoding Object's field takes effect under
 // mediaType, which names no parameters and is in lower case: under every media
 // type where the table limits it to none, else under those it names at the
-// minor. The zero EncodingRules answers false.
+// minor, by name or by its type's range. The zero EncodingRules answers false.
 func (r EncodingRules) TakesEffect(field, mediaType string) bool {
 	if r.rows == nil {
 		return false
 	}
-	return !r.rows.limited[field] || r.rows.within[withinOf{field: field, mediaType: mediaType}]
+	typ, _, _ := strings.Cut(mediaType, "/")
+	return !r.rows.limited[field] || r.rows.within[withinOf{field: field, mediaType: mediaType}] ||
+		r.rows.within[withinOf{field: field, mediaType: typ + "/*"}]
 }
+
+// Ignores reports whether the table says the Encoding Object's field has no
+// effect under mediaType at the minor, as TakesEffect reads it. The zero
+// EncodingRules, which states nothing, answers false.
+func (r EncodingRules) Ignores(field, mediaType string) bool {
+	return r.rows != nil && !r.TakesEffect(field, mediaType)
+}
+
+// NoEffect is the code of a finding that a field is written where the
+// specification gives it no effect, which a lowering reading that off the
+// table (EncodingRules.Ignores) reports as the check reports its own.
+const NoEffect = diag.Validation + "/" + classNoEffect

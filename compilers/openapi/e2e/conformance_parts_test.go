@@ -79,17 +79,22 @@ func assertMultipartDefaults31(t *testing.T, doc *ir.Document, _ []ir.Diagnostic
 // string of format byte is octet-stream, which is no file, a contentEncoding
 // string is text and an untyped value takes none; an array of arrays takes its
 // innermost items' row; and a style, which 3.0 gives no effect in a multipart
-// body, leaves the default there, as an explode in a form body does not.
-func assertMultipartDefaults30(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
-	upload, _ := partsOf(t, doc, "upload")
+// body, is typed nowhere there and leaves the default, kept verbatim and
+// warned of, as an explode in a form body arranges the value under the
+// default style.
+func assertMultipartDefaults30(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
+	upload, content := partsOf(t, doc, "upload")
 	assert.Equal(t, map[string]ir.PartEncoding{
 		"file": partOf(octetStream, "F"), "token": partOf(octetStream, ""), "blob": partOf(textPlain, ""),
-		"matrix": partOf(textPlain, "M"), "styled": {Style: "form", ContentTypes: []string{textPlain}},
+		"matrix": partOf(textPlain, "M"), "styled": partOf(textPlain, ""),
 	}, upload, "raw takes no default, so it has no entry")
+	assert.Contains(t, content.Unmodeled, "openapi:encoding/styled/style")
+	at := "/paths/~1upload/post/requestBody/content/multipart~1form-data/encoding/styled/style"
+	assert.Equal(t, []ir.Severity{ir.SeverityWarning}, diagsAt(diags, "openapi/validation/validation-no-effect", at))
 
 	form, _ := partsOf(t, doc, "form")
 	assert.Equal(t, map[string]ir.PartEncoding{
-		"token": partOf(octetStream, ""), "tags": {Explode: new(false), Multi: true},
+		"token": partOf(octetStream, ""), "tags": {Style: "form", Explode: new(false), Multi: true},
 	}, form)
 }
 

@@ -63,7 +63,7 @@ func partEncodings(c lowering.Ctx, w walk, media *soa.MediaType, mt string, medi
 // normalized media type, and reads what its declarations say of it being a file
 // and of its default content type (keyedPart).
 func lowerPart(c lowering.Ctx, w walk, part bodyPart, encMap *sequencedmap.Map[string, *soa.Encoding], mediaPtr jsontext.Pointer, mt string) (keyedPart, []ir.Diagnostic) {
-	pe, partUnmodeled, diags := buildPartEncoding(c, w, part.name, encMap, mediaPtr)
+	pe, partUnmodeled, diags := buildPartEncoding(c, w, part.name, encMap, mediaPtr, mt)
 	kp := keyedPart{
 		part:      part,
 		encoding:  pe,
@@ -117,14 +117,10 @@ func unknownNestedKeys(c lowering.Ctx, part bodyPart, entry *yaml.Node, at jsont
 // takesDefault reports whether a part whose Encoding Object is enc, under mt, a
 // normalized media type, takes the content type OpenAPI gives it by default
 // (docs/compilers/openapi.md#multipart-encoding): enc writes no contentType,
-// even an empty one, and no style, explode or allowReserved where it takes
-// effect, which replaces the content type, implicit or explicit, with the
-// arrangement a query parameter's would take.
+// even an empty one, and arranges nothing (arranges), since an arrangement
+// replaces the content type, implicit or explicit.
 func takesDefault(rules oas.EncodingRules, enc *soa.Encoding, mt string) bool {
-	return enc.ContentType == nil &&
-		(enc.Style == nil || !rules.TakesEffect("style", mt)) &&
-		(enc.Explode == nil || !rules.TakesEffect("explode", mt)) &&
-		(enc.AllowReserved == nil || !rules.TakesEffect("allowReserved", mt))
+	return enc.ContentType == nil && !arranges(rules, enc, mt)
 }
 
 // unkeyedFormEntry, unkeyedFileEntry and unkeyedOtherEntry say why an encoding
@@ -705,14 +701,15 @@ func memberFlags(node func(ir.TypeID) (ir.TypeDef, bool), ref ir.TypeRef, multip
 }
 
 // buildPartEncoding assembles the explicit encoding config of the part named
-// name: content types, headers, style and explode. Its structural flags, Multi
-// and Filename, are partKeys' to read once every type has lowered (partFlags).
-func buildPartEncoding(c lowering.Ctx, w walk, name string, encMap *sequencedmap.Map[string, *soa.Encoding], mediaPtr jsontext.Pointer) (ir.PartEncoding, ir.Unmodeled, []ir.Diagnostic) {
+// name under mt, a normalized media type: content types, headers and the
+// arrangement. Its structural flags, Multi and Filename, are partKeys' to read
+// once every type has lowered (partFlags).
+func buildPartEncoding(c lowering.Ctx, w walk, name string, encMap *sequencedmap.Map[string, *soa.Encoding], mediaPtr jsontext.Pointer, mt string) (ir.PartEncoding, ir.Unmodeled, []ir.Diagnostic) {
 	enc, ok := encMap.Get(name)
 	if !ok {
 		return ir.PartEncoding{}, nil, nil
 	}
-	return encodingConfig(c, w, enc, mediaPtr+ids.Ptr("encoding", name), ids.Scope("encoding", name))
+	return encodingConfig(c, w, enc, mediaPtr+ids.Ptr("encoding", name), ids.Scope("encoding", name), mt)
 }
 
 // declaredMulti reads whether a part repeats off every schema declaring it, as

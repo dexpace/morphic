@@ -7,6 +7,7 @@ import (
 	"encoding/json/jsontext"
 	"maps"
 	"slices"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -178,8 +179,81 @@ func TestEncoding_ItemEncodingKeepsItsOwnUnderItsOwnKey(t *testing.T) {
 	content := op.Responses[0].Payload.Contents[0]
 
 	require.NotNil(t, content.ItemEncoding)
-	assert.True(t, content.ItemEncoding.AllowReserved, "the item encoding's allowReserved lowers onto it")
+	assert.False(t, content.ItemEncoding.AllowReserved, "allowReserved has no effect under multipart/mixed")
+	assert.Contains(t, content.Unmodeled, "openapi:itemEncoding/allowReserved", "so it is kept under the item's key")
 	assert.Contains(t, content.Unmodeled, "openapi:itemEncoding/x-vendor")
+}
+
+// TestEncoding_ArrangingFieldsLowerWhereTheyTakeEffect holds the Encoding
+// Object's style, explode, allowReserved and headers to the media types the
+// rule table says each takes effect under. Where one does, the RFC6570-style
+// fields arrange the value, under the style written or a query parameter's
+// default, and explode stays as written. Where one does not, it is typed
+// nowhere, kept verbatim under the part's scope and warned of at the field,
+// and the part takes its default content type.
+func TestEncoding_ArrangingFieldsLowerWhereTheyTakeEffect(t *testing.T) {
+	t.Parallel()
+	const noEffect = "openapi/validation/validation-no-effect"
+	no := false
+	cases := []struct {
+		name, version, mt, entry string
+		want                     ir.PartEncoding
+		kept                     []string
+	}{
+		{"a form's style", "3.0.3", urlEncoded, "{style: spaceDelimited}",
+			ir.PartEncoding{Style: "spaceDelimited"}, nil},
+		{"a form's explode alone takes the default style", "3.0.3", urlEncoded, "{explode: false}",
+			ir.PartEncoding{Style: "form", Explode: &no}, nil},
+		{"a form's allowReserved false alone still arranges", "3.0.3", urlEncoded, "{allowReserved: false}",
+			ir.PartEncoding{Style: "form"}, nil},
+		{"a form's allowReserved true alone", "3.2.0", urlEncoded, "{allowReserved: true}",
+			ir.PartEncoding{Style: "form", AllowReserved: true}, nil},
+		{"multipart/form-data at 3.0, where none takes effect", "3.0.3", multipartForm,
+			"{style: deepObject, explode: true, allowReserved: true}",
+			ir.PartEncoding{ContentTypes: []string{"application/json"}}, []string{"v/allowReserved", "v/explode", "v/style"}},
+		{"multipart/form-data from 3.1", "3.1.0", multipartForm, "{explode: false}",
+			ir.PartEncoding{Style: "form", Explode: &no}, nil},
+		{"multipart/mixed at 3.2", "3.2.0", "multipart/mixed", "{style: form, contentType: text/csv}",
+			ir.PartEncoding{ContentTypes: []string{"text/csv"}}, []string{"v/style"}},
+		{"headers of a form part", "3.1.0", urlEncoded, "{headers: {X-A: {schema: {type: string, enum: [a]}}}}",
+			ir.PartEncoding{ContentTypes: []string{"application/json"}}, []string{"v/headers"}},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			doc, svc, diags := compileService(t, formDoc(tc.version, tc.mt,
+				"{type: object, properties: {v: {type: object, properties: {a: {type: string}}}}}", "{v: "+tc.entry+"}", ""))
+			openapitest.RequireNoErrorDiags(t, diags)
+			content := formContent(t, svc, false)
+			assert.Equal(t, map[ir.PropID]ir.PartEncoding{partProp(requestMedia(tc.mt), "v"): tc.want}, content.Encoding)
+			assert.Equal(t, tc.kept, keptEncodingNames(content.Unmodeled))
+			var warned []string
+			for _, d := range diags {
+				if d.Code == noEffect {
+					warned = append(warned, strings.TrimPrefix(string(d.Provenance.Pointer), requestMedia(tc.mt)+"/encoding/"))
+				}
+			}
+			slices.Sort(warned)
+			assert.Equal(t, tc.kept, warned, "each field kept is warned of where it is written")
+			for id := range doc.Types {
+				assert.NotContains(t, string(id), "/headers/", "a header kept verbatim lowers no type")
+			}
+		})
+	}
+}
+
+// TestEncoding_MultipartHeadersLower is the control for the headers row above:
+// under any multipart media type a part's headers lower onto it.
+func TestEncoding_MultipartHeadersLower(t *testing.T) {
+	t.Parallel()
+	_, svc, diags := compileService(t, formDoc("3.0.3", "multipart/mixed",
+		"{type: object, properties: {v: {type: string}}}", "{v: {headers: {X-A: {schema: {type: string}}}}}", ""))
+	openapitest.RequireNoErrorDiags(t, diags)
+	content := formContent(t, svc, false)
+	pe := content.Encoding[partProp(requestMedia("multipart/mixed"), "v")]
+	require.Len(t, pe.Headers, 1)
+	assert.Equal(t, "X-A", pe.Headers[0].WireName)
+	assert.Empty(t, content.Unmodeled)
 }
 
 // TestEncoding_NestedEncodingsAreKeptAtEveryVersion pins GitHub #615's nested

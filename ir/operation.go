@@ -208,9 +208,12 @@ type Content struct {
 // item (docs/ir/payloads.md). TypeSpec tuple-form multipart lowers to a
 // synthesized model whose properties are the parts.
 type PartEncoding struct {
-	// Explode overrides the default explode behavior; nil = default.
+	// Explode is the explode Style's arrangement takes, as declared; nil reads
+	// as Style's default.
 	Explode *bool `json:"explode,omitzero"`
-	// Style is the form-style serialization for non-file parts.
+	// Style, where set, arranges the part's value as a query parameter's is
+	// (HTTPParamBinding.Style), so ContentTypes is not read; "" means the value
+	// travels as ContentTypes says (docs/ir/payloads.md).
 	Style string `json:"style,omitempty"`
 	// Inferred lists the heuristics that read Filename in, as
 	// [Provenance].Inferred does on a node that has one; empty means the
@@ -228,7 +231,7 @@ type PartEncoding struct {
 	Filename bool `json:"filename"`
 	// AllowReserved writes the part's value as HTTPParamBinding.AllowReserved
 	// writes a parameter's: reserved characters and percent-encoded triples pass
-	// unescaped (OpenAPI Encoding allowReserved).
+	// unescaped (OpenAPI Encoding allowReserved). It is set only beside Style.
 	AllowReserved bool `json:"allowReserved"`
 }
 

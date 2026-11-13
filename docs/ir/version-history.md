@@ -499,5 +499,9 @@ it sees. Changes made together in one bump are listed together under it.
   url-encoded body or on base64 text. `Content.Encoding` keys a part only a union's branch declares,
   through the unions nested in a variant, and a multipart stream with an `itemSchema` always has an
   `ItemEncoding`. An encoding entry keying no part, every entry of an encoding under a media type
-  that is neither multipart nor form among them, is kept whole under `openapi:encoding/<key>`. A
-  consumer pinned to 0.47.0 refuses the document.
+  that is neither multipart nor form among them, is kept whole under `openapi:encoding/<key>`.
+  `PartEncoding.Style` is set wherever a part's value is arranged as a query parameter's is, `form`
+  where only `explode` or `allowReserved` is written, so `ContentTypes` is not read beside it; and
+  no `Style`, `Explode`, `AllowReserved` or `Headers` is lowered from a field the source format
+  gives no effect under the part's media type, which is kept verbatim instead. A consumer pinned
+  to 0.47.0 refuses the document.

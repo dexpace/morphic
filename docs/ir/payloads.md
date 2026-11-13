@@ -61,8 +61,8 @@ type PartEncoding struct {
     ContentTypes []string          // media type(s) of this part: as the source declares them, or,
                                    // where it declares none, the default its format gives the value
                                    // the encoding applies to, each item of a repeated part. Empty
-                                   // where the format gives none, or where the part's Style, Explode
-                                   // or AllowReserved arranges its value and so replaces it
+                                   // where the format gives none. Not read where Style is set,
+                                   // whose arrangement replaces it, and given no default there
     Headers      []Header          // per-part headers
     Multi        bool              // part repeats, or may: an array member, or a union with a
                                    // list among its variants → repeated parts
@@ -72,11 +72,14 @@ type PartEncoding struct {
                                    // that read Filename in (OpenAPI's binary media types), so a
                                    // consumer taking only what was declared can set it aside. Set
                                    // only where Filename is (ir/part-encoding-inferred-not-filename)
-    Style        string            // form-style serialization for non-file parts
-    Explode      *bool
+    Style        string            // set wherever the source arranges the part's value as a query
+                                   // parameter's is (HTTPParamBinding.Style), the style it names or
+                                   // the one its format defaults to, so ContentTypes is not read;
+                                   // "" = the value travels as ContentTypes says
+    Explode      *bool             // as declared beside Style; nil reads as Style's default
     AllowReserved bool             // the part's value is written as HTTPParamBinding.AllowReserved
                                    // writes a parameter's: reserved characters and percent-encoded
-                                   // triples pass unescaped
+                                   // triples pass unescaped. Set only beside Style
 }
 // TypeSpec tuple-form multipart lowers to a synthesized model whose properties are the parts.
 

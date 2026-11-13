@@ -99,7 +99,6 @@
                         "allowReserved": false
                       },
                       "p/openapi/paths/~1upload/post/requestBody/content/multipart~1form-data/schema/properties/styled": {
-                        "style": "form",
                         "contentTypes": [
                           "text/plain"
                         ],
@@ -114,6 +113,16 @@
                         "multi": false,
                         "filename": false,
                         "allowReserved": false
+                      }
+                    },
+                    "unmodeled": {
+                      "openapi:encoding/styled/style": {
+                        "reason": "no_ir_home",
+                        "value": "form",
+                        "provenance": {
+                          "source": 0,
+                          "pointer": "/paths/~1upload/post/requestBody/content/multipart~1form-data/encoding/styled/style"
+                        }
                       }
                     }
                   }
@@ -176,6 +185,7 @@
                     "encoding": {
                       "p/openapi/paths/~1form/post/requestBody/content/application~1x-www-form-urlencoded/schema/properties/tags": {
                         "explode": false,
+                        "style": "form",
                         "multi": true,
                         "filename": false,
                         "allowReserved": false
@@ -686,6 +696,17 @@
       }
     }
   },
+  "diagnostics": [
+    {
+      "severity": "warning",
+      "code": "openapi/validation/validation-no-effect",
+      "message": "Encoding Object field \"style\" has no effect under \"multipart/form-data\", where the specification ignores it; kept verbatim under Unmodeled",
+      "provenance": {
+        "source": 0,
+        "pointer": "/paths/~1upload/post/requestBody/content/multipart~1form-data/encoding/styled/style"
+      }
+    }
+  ],
   "sources": [
     {
       "format": "openapi@3.0",
