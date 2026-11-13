@@ -8,6 +8,7 @@
 package e2e_test // external test package — exercises only the public API
 
 import (
+	"maps"
 	"strings"
 	"testing"
 
@@ -750,9 +751,7 @@ paths:
 `
 	unread := func(grouping map[string]string) []string {
 		settings := map[string]string{"promotion-prefixes": "x-forge"}
-		for k, v := range grouping {
-			settings[k] = v
-		}
+		maps.Copy(settings, grouping)
 		opts, err := openapi.New().DecodeOptions(compilers.OptionSet{Settings: settings})
 		require.NoError(t, err)
 		_, diags, err := openapi.New().Compile(t.Context(),
