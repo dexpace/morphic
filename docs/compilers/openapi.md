@@ -3076,9 +3076,9 @@ the source declared. Beside `patternProperties` the catch-all's `Value` types a 
 matches ([catch-alls](../ir/models.md#catch-alls)): absent, such a key is unconstrained, so it is
 the top type, and the IR does not tell an absent `additionalProperties` from `true`; `false` admits
 no such key, so the catch-all holds the patterns and no `Value` beside `Additional` closed. Beside
-an `unevaluatedProperties: false` it closes, with no `additionalProperties`, such a key is admitted
-only where composition evaluates it, and the source writes no schema for it, so the catch-all holds
-the patterns and no `Value` beside `Additional` closed after composition. That object stays a
+a live `unevaluatedProperties: false`, with no `additionalProperties`, such a key is admitted only
+where composition evaluates it, and the source writes no schema for it, so the catch-all holds the
+patterns and no `Value` beside `Additional` closed after composition. That object stays a
 `Model`, since a `MapT` has no field for a pattern-scoped value.
 
 - Cases: `maps`, `constraints`, `allof-position-constraints`
