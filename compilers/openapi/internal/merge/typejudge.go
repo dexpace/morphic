@@ -158,12 +158,11 @@ func (j typeJudge) heldNull(a ir.TypeRef, at ir.TypeDef, b ir.TypeRef, bt ir.Typ
 // arms relates two resolved types, neither the top type nor degraded, that it
 // can narrow: two bare primitives (spelling.Relate); a Scalar, Enum or Literal
 // against a bare primitive; an alias against the type it stands for, by what it
-// adds (standsFor);
-// then each as the node it stands for (view): two identical such nodes; two
-// literals of different values, disjoint; two enums (enums); two models alike
-// (models); two nodes holding bounds (boundedNodes), two alike in every member
-// and detail taking the copy rule (sameNodes); and a structure against one it
-// says it is (structures). Any other pair is unrelated here.
+// adds (standsFor); then each as the node it stands for (view): two identical
+// such nodes; two literals of different values, disjoint; two enums (enums);
+// two models alike (models); two nodes holding bounds (boundedNodes), two alike
+// in every member and detail taking the copy rule (sameNodes); and a structure
+// against one it says it is (structures). Any other pair is unrelated here.
 func (j typeJudge) arms(a ir.TypeRef, at ir.TypeDef, b ir.TypeRef, bt ir.TypeDef, depth int) relation {
 	ap, aBare := at.(*ir.Primitive)
 	bp, bBare := bt.(*ir.Primitive)
