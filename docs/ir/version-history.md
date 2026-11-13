@@ -578,7 +578,22 @@ it sees. Changes made together in one bump are listed together under it.
     string.
   - Over a `string`, a `WireType` of `string` marks text the encoding is applied to, and none marks
     text already encoded. No compiler writes the first yet.
-- **0.54.0** — no shape change. In the OpenAPI compiler, a `oneOf` or `anyOf` beside an `allOf` is
+- **0.54.0** — names an emitter renders moved, and one lowering changed, at an unmoved shape:
+  - The [word grammar](./naming.md#the-word-grammar) separates on a letter or mark that is a
+    `Default_Ignorable_Code_Point`, a variation selector or the Hangul filler U+3164 among them, as
+    on the format characters in that property, so a name of only such characters has no
+    `Canonical`, and `irverify` refuses one in a canonical or a hint. A consumer pinned to 0.53.0
+    meets `Canonical` and `Hint` it would have carried such a character in without it.
+  - The OpenAPI compiler names an anonymous schema that writes a `title`, a union branch's variant
+    included, by the title's words, where its position, its owner or the `$ref` beside it named it,
+    under a policy `title-names=false` turns off ([`naming`](../compilers/openapi.md#naming)); names the items of a `components/mediaTypes` entry
+    keyed `""` from the minted name rather than the pointer; and names a schema under a header of an
+    Encoding Object another nests by the header's key.
+  - The OpenAPI compiler compares a header parameter's name in any case
+    ([`parameters`](../compilers/openapi.md#parameters)), so an operation's `x-trace` overrides
+    its path item's `X-Trace`, and one list writing both reports the second as a repeat, each kept
+    under the ID its spelling gives it.
+- **0.55.0** — no shape change. In the OpenAPI compiler, a `oneOf` or `anyOf` beside an `allOf` is
   one of its conjuncts ([`allof-refinement`](../compilers/openapi.md#allof-refinement)), so an
   `allOf` no conjunct makes an object refines with a union beside it, where it composed a `Model` or
   a union of `Model`s. A union on an `allOf` branch lowers with the discriminator written on the
@@ -591,5 +606,5 @@ it sees. Changes made together in one bump are listed together under it.
   ([`allof-classification`](../compilers/openapi.md#allof-classification)), and so is a type a field
   is redeclared as that holds a declared discriminator on a `Model` or a `Union`, or composes one
   ([`allof-redeclared-property`](../compilers/openapi.md#allof-redeclared-property)). A consumer
-  pinned to 0.53.0 finds those keys gone at those positions, a refined node, a `Union` or a `Mixin` where it
+  pinned to 0.54.0 finds those keys gone at those positions, a refined node, a `Union` or a `Mixin` where it
   read a `Model` keeping them, and a `Base` where it read a `Mixin`.

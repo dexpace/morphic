@@ -1,0 +1,1095 @@
+{
+  "idSpaces": {
+    "auth": [
+      "openapi",
+      "unresolved"
+    ],
+    "e": [
+      "anon",
+      "composed",
+      "openapi"
+    ],
+    "g": [
+      "default",
+      "extension",
+      "path-prefix",
+      "tags",
+      "webhooks"
+    ],
+    "op": [
+      "openapi"
+    ],
+    "p": [
+      "composed",
+      "openapi"
+    ],
+    "param": [
+      "openapi"
+    ],
+    "s": [
+      "openapi"
+    ],
+    "server": [
+      "default",
+      "openapi"
+    ],
+    "t": [
+      "anon",
+      "composed",
+      "openapi"
+    ]
+  },
+  "name": "Title Hints",
+  "version": "1.0.0",
+  "docs": {},
+  "services": [
+    {
+      "id": "s/openapi/0",
+      "name": {
+        "source": "Title Hints",
+        "canonical": "title_hints"
+      },
+      "docs": {},
+      "groups": [
+        {
+          "id": "g/default",
+          "name": {
+            "hint": "default"
+          },
+          "docs": {},
+          "operations": [
+            {
+              "id": "op/openapi/paths/~1lookups/post",
+              "name": {
+                "source": "createLookup",
+                "canonical": "create_lookup"
+              },
+              "docs": {},
+              "request": {
+                "contents": [
+                  {
+                    "mediaType": "application/json",
+                    "type": {
+                      "target": "t/anon/paths/~1lookups/post/requestBody/content/application~1json/schema",
+                      "nullable": false
+                    }
+                  }
+                ],
+                "required": false
+              },
+              "responses": [
+                {
+                  "name": {
+                    "hint": "204"
+                  },
+                  "conditions": {
+                    "statusCodes": [
+                      {
+                        "from": 204,
+                        "to": 204
+                      }
+                    ]
+                  },
+                  "docs": {
+                    "description": "created"
+                  }
+                }
+              ],
+              "oneWay": false,
+              "idempotency": {},
+              "bindings": {
+                "http": [
+                  {
+                    "method": "POST",
+                    "uriTemplate": "/lookups",
+                    "requestContentTypes": [
+                      "application/json"
+                    ],
+                    "sharedRoute": false,
+                    "checksumRequired": false
+                  }
+                ]
+              },
+              "provenance": {
+                "source": 0,
+                "pointer": "/paths/~1lookups/post"
+              }
+            }
+          ]
+        }
+      ],
+      "servers": [
+        "server/default"
+      ],
+      "provenance": {
+        "source": 0
+      }
+    }
+  ],
+  "types": {
+    "t/anon/components/schemas/Holder/$defs/Local": {
+      "kind": "model",
+      "id": "t/anon/components/schemas/Holder/$defs/Local",
+      "name": {
+        "hint": "local"
+      },
+      "anonymous": true,
+      "docs": {
+        "summary": "Not This Either"
+      },
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Holder/$defs/Local"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/Holder/$defs/Local/properties/c",
+          "name": {
+            "source": "c",
+            "canonical": "c"
+          },
+          "wireName": "c",
+          "type": {
+            "target": "t/prim/string",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Holder/$defs/Local/properties/c"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/anon/components/schemas/Holder/properties/address": {
+      "kind": "model",
+      "id": "t/anon/components/schemas/Holder/properties/address",
+      "name": {
+        "hint": "postal_address"
+      },
+      "anonymous": true,
+      "docs": {
+        "summary": "Postal Address"
+      },
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Holder/properties/address"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/Holder/properties/address/properties/lines",
+          "name": {
+            "source": "lines",
+            "canonical": "lines"
+          },
+          "wireName": "lines",
+          "type": {
+            "target": "t/anon/components/schemas/Holder/properties/address/properties/lines",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Holder/properties/address/properties/lines"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/anon/components/schemas/Holder/properties/address/properties/lines": {
+      "kind": "list",
+      "id": "t/anon/components/schemas/Holder/properties/address/properties/lines",
+      "name": {
+        "hint": "lines"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Holder/properties/address/properties/lines"
+      },
+      "elem": {
+        "target": "t/anon/components/schemas/Holder/properties/address/properties/lines/items",
+        "nullable": false
+      }
+    },
+    "t/anon/components/schemas/Holder/properties/address/properties/lines/items": {
+      "kind": "model",
+      "id": "t/anon/components/schemas/Holder/properties/address/properties/lines/items",
+      "name": {
+        "hint": "lines_item"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Holder/properties/address/properties/lines/items"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/Holder/properties/address/properties/lines/items/properties/line",
+          "name": {
+            "source": "line",
+            "canonical": "line"
+          },
+          "wireName": "line",
+          "type": {
+            "target": "t/prim/string",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Holder/properties/address/properties/lines/items/properties/line"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/anon/components/schemas/Holder/properties/points": {
+      "kind": "list",
+      "id": "t/anon/components/schemas/Holder/properties/points",
+      "name": {
+        "hint": "point_list"
+      },
+      "anonymous": true,
+      "docs": {
+        "summary": "Point List"
+      },
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Holder/properties/points"
+      },
+      "elem": {
+        "target": "t/anon/components/schemas/Holder/properties/points/items",
+        "nullable": false
+      }
+    },
+    "t/anon/components/schemas/Holder/properties/points/items": {
+      "kind": "model",
+      "id": "t/anon/components/schemas/Holder/properties/points/items",
+      "name": {
+        "hint": "point_list_item"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Holder/properties/points/items"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/Holder/properties/points/items/properties/x",
+          "name": {
+            "source": "x",
+            "canonical": "x"
+          },
+          "wireName": "x",
+          "type": {
+            "target": "t/prim/integer",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Holder/properties/points/items/properties/x"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/anon/components/schemas/Lookup/oneOf/0": {
+      "kind": "model",
+      "id": "t/anon/components/schemas/Lookup/oneOf/0",
+      "name": {
+        "hint": "by_name"
+      },
+      "anonymous": true,
+      "docs": {
+        "summary": "By Name"
+      },
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Lookup/oneOf/0"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/Lookup/oneOf/0/properties/name",
+          "name": {
+            "source": "name",
+            "canonical": "name"
+          },
+          "wireName": "name",
+          "type": {
+            "target": "t/prim/string",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Lookup/oneOf/0/properties/name"
+          }
+        },
+        {
+          "id": "p/openapi/components/schemas/Lookup/oneOf/0/properties/tags",
+          "name": {
+            "source": "tags",
+            "canonical": "tags"
+          },
+          "wireName": "tags",
+          "type": {
+            "target": "t/anon/components/schemas/Lookup/oneOf/0/properties/tags",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Lookup/oneOf/0/properties/tags"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/anon/components/schemas/Lookup/oneOf/0/properties/tags": {
+      "kind": "list",
+      "id": "t/anon/components/schemas/Lookup/oneOf/0/properties/tags",
+      "name": {
+        "hint": "tags"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Lookup/oneOf/0/properties/tags"
+      },
+      "elem": {
+        "target": "t/anon/components/schemas/Lookup/oneOf/0/properties/tags/items",
+        "nullable": false
+      }
+    },
+    "t/anon/components/schemas/Lookup/oneOf/0/properties/tags/items": {
+      "kind": "model",
+      "id": "t/anon/components/schemas/Lookup/oneOf/0/properties/tags/items",
+      "name": {
+        "hint": "tags_item"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Lookup/oneOf/0/properties/tags/items"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/Lookup/oneOf/0/properties/tags/items/properties/tag",
+          "name": {
+            "source": "tag",
+            "canonical": "tag"
+          },
+          "wireName": "tag",
+          "type": {
+            "target": "t/prim/string",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Lookup/oneOf/0/properties/tags/items/properties/tag"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/anon/components/schemas/Lookup/oneOf/1": {
+      "kind": "model",
+      "id": "t/anon/components/schemas/Lookup/oneOf/1",
+      "name": {
+        "hint": "by_id"
+      },
+      "anonymous": true,
+      "docs": {
+        "summary": "By Id"
+      },
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Lookup/oneOf/1"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/Lookup/oneOf/1/properties/id",
+          "name": {
+            "source": "id",
+            "canonical": "id"
+          },
+          "wireName": "id",
+          "type": {
+            "target": "t/prim/string",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Lookup/oneOf/1/properties/id"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/anon/components/schemas/Lookup/oneOf/2": {
+      "kind": "model",
+      "id": "t/anon/components/schemas/Lookup/oneOf/2",
+      "name": {
+        "hint": "variant_2"
+      },
+      "anonymous": true,
+      "docs": {
+        "summary": "Pet"
+      },
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Lookup/oneOf/2"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/Lookup/oneOf/2/properties/kind",
+          "name": {
+            "source": "kind",
+            "canonical": "kind"
+          },
+          "wireName": "kind",
+          "type": {
+            "target": "t/prim/string",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Lookup/oneOf/2/properties/kind"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/anon/components/schemas/Lookup/oneOf/3": {
+      "kind": "model",
+      "id": "t/anon/components/schemas/Lookup/oneOf/3",
+      "name": {
+        "hint": "variant_3"
+      },
+      "anonymous": true,
+      "docs": {
+        "summary": "Same Words"
+      },
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Lookup/oneOf/3"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/Lookup/oneOf/3/properties/a",
+          "name": {
+            "source": "a",
+            "canonical": "a"
+          },
+          "wireName": "a",
+          "type": {
+            "target": "t/prim/string",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Lookup/oneOf/3/properties/a"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/anon/components/schemas/Lookup/oneOf/4": {
+      "kind": "model",
+      "id": "t/anon/components/schemas/Lookup/oneOf/4",
+      "name": {
+        "hint": "variant_4"
+      },
+      "anonymous": true,
+      "docs": {
+        "summary": "Same Words"
+      },
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Lookup/oneOf/4"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/Lookup/oneOf/4/properties/b",
+          "name": {
+            "source": "b",
+            "canonical": "b"
+          },
+          "wireName": "b",
+          "type": {
+            "target": "t/prim/string",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Lookup/oneOf/4/properties/b"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/anon/components/schemas/Lookup/oneOf/5": {
+      "kind": "scalar",
+      "id": "t/anon/components/schemas/Lookup/oneOf/5",
+      "name": {
+        "hint": "indoor_pet"
+      },
+      "anonymous": true,
+      "docs": {
+        "summary": "Indoor Pet"
+      },
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Lookup/oneOf/5"
+      },
+      "base": {
+        "target": "t/openapi/components/schemas/Pet",
+        "nullable": false
+      }
+    },
+    "t/anon/components/schemas/Lookup/oneOf/6": {
+      "kind": "model",
+      "id": "t/anon/components/schemas/Lookup/oneOf/6",
+      "name": {
+        "hint": "premium_pet"
+      },
+      "anonymous": true,
+      "docs": {
+        "summary": "Premium Pet"
+      },
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Lookup/oneOf/6"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/Lookup/oneOf/6/allOf/1/properties/tier",
+          "name": {
+            "source": "tier",
+            "canonical": "tier"
+          },
+          "wireName": "tier",
+          "type": {
+            "target": "t/prim/string",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Lookup/oneOf/6/allOf/1/properties/tier"
+          }
+        }
+      ],
+      "base": {
+        "target": "t/openapi/components/schemas/Pet",
+        "nullable": false
+      },
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/anon/paths/~1lookups/post/requestBody/content/application~1json/schema": {
+      "kind": "model",
+      "id": "t/anon/paths/~1lookups/post/requestBody/content/application~1json/schema",
+      "name": {
+        "hint": "new_lookup"
+      },
+      "anonymous": true,
+      "docs": {
+        "summary": "New Lookup"
+      },
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/paths/~1lookups/post/requestBody/content/application~1json/schema"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/paths/~1lookups/post/requestBody/content/application~1json/schema/properties/query",
+          "name": {
+            "source": "query",
+            "canonical": "query"
+          },
+          "wireName": "query",
+          "type": {
+            "target": "t/prim/string",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/paths/~1lookups/post/requestBody/content/application~1json/schema/properties/query"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/openapi/components/schemas/Holder": {
+      "kind": "model",
+      "id": "t/openapi/components/schemas/Holder",
+      "name": {
+        "source": "Holder",
+        "canonical": "holder"
+      },
+      "anonymous": false,
+      "docs": {
+        "summary": "Not The Name"
+      },
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Holder"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/Holder/properties/address",
+          "name": {
+            "source": "address",
+            "canonical": "address"
+          },
+          "wireName": "address",
+          "type": {
+            "target": "t/anon/components/schemas/Holder/properties/address",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Holder/properties/address"
+          }
+        },
+        {
+          "id": "p/openapi/components/schemas/Holder/properties/points",
+          "name": {
+            "source": "points",
+            "canonical": "points"
+          },
+          "wireName": "points",
+          "type": {
+            "target": "t/anon/components/schemas/Holder/properties/points",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Holder/properties/points"
+          }
+        },
+        {
+          "id": "p/openapi/components/schemas/Holder/properties/local",
+          "name": {
+            "source": "local",
+            "canonical": "local"
+          },
+          "wireName": "local",
+          "type": {
+            "target": "t/anon/components/schemas/Holder/$defs/Local",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {
+            "summary": "Not This Either"
+          },
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Holder/properties/local"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/openapi/components/schemas/Lookup": {
+      "kind": "union",
+      "id": "t/openapi/components/schemas/Lookup",
+      "name": {
+        "source": "Lookup",
+        "canonical": "lookup"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Lookup"
+      },
+      "variants": [
+        {
+          "name": {
+            "hint": "by_name"
+          },
+          "type": {
+            "target": "t/anon/components/schemas/Lookup/oneOf/0",
+            "nullable": false
+          },
+          "docs": {}
+        },
+        {
+          "name": {
+            "hint": "by_id"
+          },
+          "type": {
+            "target": "t/anon/components/schemas/Lookup/oneOf/1",
+            "nullable": false
+          },
+          "docs": {}
+        },
+        {
+          "name": {
+            "hint": "variant_2"
+          },
+          "type": {
+            "target": "t/anon/components/schemas/Lookup/oneOf/2",
+            "nullable": false
+          },
+          "docs": {}
+        },
+        {
+          "name": {
+            "hint": "variant_3"
+          },
+          "type": {
+            "target": "t/anon/components/schemas/Lookup/oneOf/3",
+            "nullable": false
+          },
+          "docs": {}
+        },
+        {
+          "name": {
+            "hint": "variant_4"
+          },
+          "type": {
+            "target": "t/anon/components/schemas/Lookup/oneOf/4",
+            "nullable": false
+          },
+          "docs": {}
+        },
+        {
+          "name": {
+            "hint": "indoor_pet"
+          },
+          "type": {
+            "target": "t/anon/components/schemas/Lookup/oneOf/5",
+            "nullable": false
+          },
+          "docs": {}
+        },
+        {
+          "name": {
+            "hint": "premium_pet"
+          },
+          "type": {
+            "target": "t/anon/components/schemas/Lookup/oneOf/6",
+            "nullable": false
+          },
+          "docs": {}
+        }
+      ],
+      "exclusive": true,
+      "wireTagged": false,
+      "closed": true,
+      "inputOnly": false
+    },
+    "t/openapi/components/schemas/Pet": {
+      "kind": "model",
+      "id": "t/openapi/components/schemas/Pet",
+      "name": {
+        "source": "Pet",
+        "canonical": "pet"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Pet"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/Pet/properties/name",
+          "name": {
+            "source": "name",
+            "canonical": "name"
+          },
+          "wireName": "name",
+          "type": {
+            "target": "t/prim/string",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Pet/properties/name"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/prim/integer": {
+      "kind": "primitive",
+      "id": "t/prim/integer",
+      "name": {},
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": -1
+      },
+      "prim": "integer"
+    },
+    "t/prim/string": {
+      "kind": "primitive",
+      "id": "t/prim/string",
+      "name": {},
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": -1
+      },
+      "prim": "string"
+    }
+  },
+  "servers": {
+    "server/default": {
+      "id": "server/default",
+      "name": {
+        "hint": "server"
+      },
+      "urlTemplate": "/",
+      "description": {},
+      "provenance": {
+        "source": 0
+      }
+    }
+  },
+  "sources": [
+    {
+      "format": "openapi@3.1",
+      "path": "title-hints.yaml",
+      "hash": "29beee0c055e04f15d55bde689d4bcb8e1965443532db3600281992cc847b971"
+    }
+  ]
+}
