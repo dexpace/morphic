@@ -453,6 +453,42 @@ func TestAllOf_ADiscriminatedBranchUnionReportsItsMappingAtTheBranch(t *testing.
 	assert.Len(t, diagsAtPointer(diags, diag.UnresolvedRef, "/components/schemas/Payment/allOf/1/discriminator/mapping/gone"), 1, "%+v", diags)
 }
 
+// TestAllOf_ABranchDiscriminatorKeepsWhatNoFieldHolds pins where the extensions
+// and undefined keys of a discriminator an allOf branch writes beside its union
+// go: a branch has no node, so they ride on the Union holding the discriminator,
+// the position's own scoped by their path from it, a routed subtype's minted
+// Union's by the keyword, each reported as such a key is anywhere.
+func TestAllOf_ABranchDiscriminatorKeepsWhatNoFieldHolds(t *testing.T) {
+	t.Parallel()
+	const cardBank = "oneOf: [{$ref: '#/components/schemas/Card'}, {$ref: '#/components/schemas/Bank'}]"
+	const disc = "discriminator: {propertyName: method, x-note: kept, extra: 1}"
+	doc, diags := parseFull(t, openapitest.ComponentSpecVer("3.1.0", `    Payment:
+      allOf: [{type: object, properties: {amount: {type: integer}}}, {`+cardBank+`, `+disc+`}]
+    Pet:
+      type: object
+      properties: {kind: {type: string}}
+      discriminator: {propertyName: kind}
+    Dog:
+      allOf: [{$ref: '#/components/schemas/Pet'}, {`+cardBank+`, `+disc+`}]
+    Card: {type: object, required: [method], properties: {method: {type: string}}}
+    Bank: {type: object, required: [method], properties: {method: {type: string}}}
+`))
+	openapitest.RequireNoErrorDiags(t, diags)
+	for id, scope := range map[ir.TypeID]string{
+		componentID("Payment"):                            "openapi:allOf/1/discriminator/",
+		"t/composed/components/schemas/Dog/allOf/1/oneOf": "openapi:discriminator/",
+	} {
+		u, ok := doc.Types[id].(*ir.Union)
+		require.True(t, ok, "%s is a union; got %T", id, doc.Types[id])
+		require.NotNil(t, u.Discriminator, id)
+		assert.Equal(t, ir.ReasonVendorExtension, u.Unmodeled[scope+"x-note"].Reason, id)
+		assert.Equal(t, ir.ReasonOutOfScope, u.Unmodeled[scope+"extra"].Reason, id)
+	}
+	for _, name := range []string{"Payment", "Dog"} {
+		assert.Len(t, diagsAtPointer(diags, diag.UnknownObjectKey, "/components/schemas/"+name+"/allOf/1/discriminator/extra"), 1, name)
+	}
+}
+
 // routedBases spells the mapping of the union the component name lowers to by
 // the Base of the composed variant each tag routes to.
 func routedBases(t *testing.T, doc *ir.Document, name string) map[string]ir.TypeID {

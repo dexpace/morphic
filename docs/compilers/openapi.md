@@ -2292,8 +2292,10 @@ with its branch and the `Model` holds the schema's own. It routes the union as o
 a `mapping` entry naming no schema reported at the entry under the schema writing it, and it routes
 by name the schemas the union lists ([`discriminator-value`](#discriminator-value)). Its variants
 take their IDs from the branch's pointers, its `$ref` and inline branches conjoin as above, and the
-branch keeps nothing of the union or of a `discriminator` it writes, what else it writes merging as
-any branch does ([`allof-inline-residue`](#allof-inline-residue)). Whether a route names the schema
+branch keeps nothing of the union or of a `discriminator` it writes, whose extensions and keys
+OpenAPI defines for no Discriminator Object ride on the `Union` holding it
+([`vendor-extensions`](#vendor-extensions)), what else the branch writes merging as any branch does
+([`allof-inline-residue`](#allof-inline-residue)). Whether a route names the schema
 is read at the position, as for a union beside the `allOf`, so an inline schema below a
 discriminated base no route names distributes. A union on a branch that is one of the shapes below,
 one of two branch unions declaring shape, distributing either of which would drop the other, or one
@@ -2464,6 +2466,7 @@ judged as one whose branches declare shape.
   `schema.TestComposeMixin_NeedsAModel`, `schema.TestUnion_ABranchUnionNoRouteNamesDistributesAsBeside`,
   `schema.TestAllOf_ADiscriminatedBranchUnionDistributesAsBeside`,
   `schema.TestAllOf_ADiscriminatedBranchUnionReportsItsMappingAtTheBranch`,
+  `schema.TestAllOf_ABranchDiscriminatorKeepsWhatNoFieldHolds`,
   `schema.TestOneOf_CoDeclaredBesideAComposingAllOfDistributes`,
   `schema.TestOneOf_CoDeclaredRestatementOfTheBodyItselfOutlastsItsComposition`,
   `schema.TestOneOf_CoDeclaredOwnReadingSettlesInAnyBranchOrder`,
@@ -4387,7 +4390,11 @@ service, `openapi:paths/x-*`; on each operation, the path item's `openapi:pathIt
 `openapi:responses/x-*` and `openapi:externalDocs/x-*`; on the HTTP binding,
 `openapi:callbacks/<name>/x-*`; on a content, `openapi:encoding/<part>/x-*` and
 `openapi:itemEncoding/x-*`; on a schema's node, `openapi:xml/x-*`, `openapi:discriminator/x-*` and
-`openapi:externalDocs/x-*`; and on a security scheme, `openapi:flows/x-*`. `<part>` and `<name>` are
+`openapi:externalDocs/x-*`, a discriminator an `allOf` branch writes beside the union the position
+lowers keeping its own on the `Union` holding it, `openapi:allOf/<n>/discriminator/x-*` at the
+position and `openapi:discriminator/x-*` on one minted
+([`union-beside-structure`](#union-beside-structure)); and on a security scheme,
+`openapi:flows/x-*`. `<part>` and `<name>` are
 escaped as RFC 6901 tokens, so a name the document chooses stays one segment
 ([unmodeled](../ir/unmodeled.md#keys)). A Link Object lowers to a link that holds its own, and one
 kept verbatim keeps them inside its `openapi:links/<name>` entry ([`links`](#links)); a path item

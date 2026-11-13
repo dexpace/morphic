@@ -290,9 +290,31 @@ func buildUnion(c lowering.Ctx, ts *compile.Types, u unionAt, common ir.TypeComm
 	node.Discriminator = disc
 	node.WireTagged = disc != nil
 	diags = append(diags, discDiags...)
+	diags = append(diags, keepBranchDiscriminatorKeys(c, node, u)...)
 	diags = append(diags, spellImplicitRoutes(c, u.holder, node, common.Provenance.Pointer)...)
 	deferUnionTags(c, ts, u, common.ID, common.Provenance.Pointer)
 	return node, diags
+}
+
+// keepBranchDiscriminatorKeys keeps on n, the Union of u, what the discriminator
+// u's allOf branch writes says that reaches no field: its extensions and the
+// keys OpenAPI defines for no Discriminator Object. A schema's own are read onto
+// its position's node (annotation.Read), and a branch has no node, so they ride
+// on the node holding the discriminator, scoped by their path from it where they
+// lie beneath it (annotation.ExtensionsUnder).
+func keepBranchDiscriminatorKeys(c lowering.Ctx, n *ir.Union, u unionAt) []ir.Diagnostic {
+	if !u.branch || u.disc == nil || u.discAt != u.at {
+		return nil
+	}
+	owner := u.at + ids.Ptr("discriminator")
+	scope := "discriminator"
+	if rest, beneath := strings.CutPrefix(string(owner), string(n.Provenance.Pointer)+"/"); beneath {
+		scope = rest
+	}
+	kept, diags := annotation.ExtensionsUnder(u.disc.GetExtensions(), c.Place(), owner, scope)
+	diags = append(diags, annotation.UnknownKeysUnder(&kept, u.disc, c.Place(), owner, scope)...)
+	n.Unmodeled = annotation.MergeUnmodeled(n.Unmodeled, kept)
+	return diags
 }
 
 // unionAt is a union a position lowers: the oneOf or anyOf, whichever
@@ -308,6 +330,8 @@ type unionAt struct {
 	// beside it, else one beside the allOf holding its branch (branchUnion).
 	disc   *oas3.Discriminator
 	discAt jsontext.Pointer
+	// branch marks a holder that is an allOf branch, no schema at a position.
+	branch bool
 }
 
 // besideUnion is the union s, written at pointer, writes itself, with the
@@ -341,7 +365,7 @@ func branchUnion(c lowering.Ctx, s *oas3.Schema, pointer jsontext.Pointer) (unio
 		return unionAt{}, 0, false
 	}
 	e := allOfBranches(s, pointer).branches[at.index]
-	u := unionAt{holder: e.schema.GetSchema(), at: e.pointer, disc: s.GetDiscriminator(), discAt: pointer}
+	u := unionAt{holder: e.schema.GetSchema(), at: e.pointer, disc: s.GetDiscriminator(), discAt: pointer, branch: true}
 	if d := u.holder.GetDiscriminator(); d != nil {
 		u.disc, u.discAt = d, e.pointer
 	}
