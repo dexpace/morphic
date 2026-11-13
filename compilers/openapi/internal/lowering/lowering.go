@@ -536,6 +536,13 @@ func NameAt(c Ctx, pointer jsontext.Pointer) string {
 	return c.loaded.names.At(bind.Position{Doc: c.homeDoc, Pointer: pointer})
 }
 
+// NameTitle returns the name the title of the schema at pointer in c's
+// document gives the node built there (naming.Namer.Title), and false where it
+// gives none.
+func NameTitle(c Ctx, pointer jsontext.Pointer) (string, bool) {
+	return c.loaded.names.Title(bind.Position{Doc: c.homeDoc, Pointer: pointer})
+}
+
 // NameThrough returns the name the $ref written at pointer in c's document
 // suggests (naming.Namer.Through), and "" where it suggests none.
 func NameThrough(c Ctx, pointer jsontext.Pointer) string {

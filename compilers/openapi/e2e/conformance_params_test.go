@@ -553,3 +553,91 @@ func assertParamContentFields(t *testing.T, doc *ir.Document, diags []ir.Diagnos
 	openapitest.AssertInfoDiagAt(t, diags,
 		"/paths/~1search/get/parameters/0/content/application~1json/itemSchema")
 }
+
+// assertHeaderNameCase covers a header's name read in any case, as HTTP reads
+// it, wherever one is written in a document that breaks no rule doing so: the
+// operation's x-trace overrides the path item's X-Trace, and two keys of one
+// headers map naming one header, a response's and an encoding's, both lower,
+// the key later in byte order drawing a warning.
+func assertHeaderNameCase(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
+	list, ok := opByName(doc, "listTraces")
+	require.True(t, ok)
+	require.Len(t, list.Params, 1, "the path item's X-Trace is the operation's x-trace")
+	assert.Equal(t, "x-trace", list.Params[0].Name.Source)
+	assert.Equal(t, ir.TypeID("t/prim/integer"), list.Params[0].Type.Target, "the operation's declaration wins")
+
+	require.Len(t, list.Responses, 1)
+	keys := make([]string, 0, len(list.Responses[0].Headers))
+	for _, h := range list.Responses[0].Headers {
+		keys = append(keys, h.EffectiveWireName())
+	}
+	assert.Equal(t, []string{"x-rate", "X-Rate"}, keys, "both keys lower, in source order")
+
+	upload, ok := opByName(doc, "uploadTrace")
+	require.True(t, ok)
+	content := requestContent(t, upload)
+	require.Len(t, content.Encoding, 1)
+	for _, part := range content.Encoding {
+		assert.Len(t, part.Headers, 2, "an encoding's two keys both lower")
+	}
+
+	const rate = "/paths/~1traces/get/responses/200/headers/x-rate"
+	const part = "/paths/~1traces/post/requestBody/content/multipart~1form-data/encoding/part/headers/x-part"
+	duplicate := diag.Validation + "/validation-duplicate-key"
+	assert.Equal(t, []ir.Severity{ir.SeverityWarning}, diagsAt(diags, duplicate, rate))
+	assert.Equal(t, []ir.Severity{ir.SeverityWarning}, diagsAt(diags, duplicate, part))
+	drawn := 0
+	for _, d := range diags {
+		if d.Code == duplicate {
+			drawn++
+		}
+	}
+	assert.Equal(t, 2, drawn, "the keys lower in byte order draw nothing")
+}
+
+// assertHeaderNameSyntax covers a header name no HTTP field can have, each an
+// error that still lowers as declared: a headers map's key that is no token,
+// the empty one included, wherever the map is, and one header parameter
+// spelled in two cases, both kept, the repeat's ID numbered. What lies beneath
+// a header keyed "" composes from the minted name, beneath an Encoding Object
+// another nests too.
+func assertHeaderNameSyntax(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
+	op, ok := opByName(doc, "getTrace")
+	require.True(t, ok)
+	ids := make([]ir.ParamID, 0, len(op.Params))
+	for _, p := range op.Params {
+		ids = append(ids, p.ID)
+	}
+	assert.Equal(t, []ir.ParamID{
+		"param/openapi/paths/~1traces/get/parameters/X-Trace/header",
+		"param/openapi/paths/~1traces/get/parameters/x-trace/header/2",
+	}, ids)
+	assert.Equal(t, []ir.Severity{ir.SeverityError},
+		diagsAt(diags, diag.DuplicateParameter, "/paths/~1traces/get/parameters/1"))
+
+	require.Len(t, op.Responses, 1)
+	header, ok := headerByWire(op.Responses[0].Headers, "not a token")
+	require.True(t, ok, "a key that is no token lowers as declared")
+	assert.Equal(t, "not_a_token", header.Name.Canonical)
+	format := diag.Validation + "/validation-invalid-format"
+	for _, at := range []string{
+		"/paths/~1traces/get/responses/200/headers/not a token",
+		"/components/responses/Framed/headers/", "/components/responses/Listed/headers/",
+		"/components/responses/Carried/headers/",
+		"/components/requestBodies/Parts/content/multipart~1form-data/encoding/part/encoding/inner/headers/",
+	} {
+		assert.Equal(t, []ir.Severity{ir.SeverityError}, diagsAt(diags, format, at), at)
+	}
+
+	for id, hint := range map[ir.TypeID]string{
+		"t/anon/components/responses/Framed/headers//content/application~1jsonl/itemSchema":   "empty_item",
+		"t/anon/components/responses/Listed/headers//schema/items":                            "empty_item",
+		"t/anon/components/responses/Carried/headers//content/application~1json/schema/items": "empty_item",
+		"t/anon/components/requestBodies/Parts/content/multipart~1form-data/encoding/part/encoding/" +
+			"inner/headers//schema/items": "empty_item",
+	} {
+		node, found := doc.Types[id]
+		require.True(t, found, "no node at %s", id)
+		assert.Equal(t, hint, node.Common().Name.Hint, "%s", id)
+	}
+}

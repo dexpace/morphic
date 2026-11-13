@@ -24,8 +24,9 @@ type Naming struct {
 	Source string `json:"source,omitempty"`
 	// Canonical is the IR-normalized identifier in neutral form: lower_snake
 	// words with no casing opinions. A word is letters and digits (plus the
-	// combining marks belonging to them); every other character in the source
-	// name separates two words rather than surviving into the sequence.
+	// combining marks belonging to them), none of them default-ignorable; every
+	// other character in the source name separates two words rather than
+	// surviving into the sequence.
 	Canonical string `json:"canonical,omitempty"`
 	// Hint is a context-derived suggestion for an entity with no source name to
 	// render: a hoisted anonymous type (e.g. "connection_domain"), or one the
@@ -189,7 +190,7 @@ func sourceWords(name string) iter.Seq[string] {
 			// rune, so it separates.
 			r, size := utf8.DecodeRuneInString(name[i:])
 			switch {
-			case !isWordRune(r):
+			case !IsWordRune(r):
 				if inWord && !yield(name[start:i]) {
 					return
 				}
@@ -211,15 +212,52 @@ func sourceWords(name string) iter.Seq[string] {
 	}
 }
 
-// isWordRune reports whether r belongs to a word rather than separating two.
+// IsWordRune reports whether r belongs to a word rather than separating two.
 // Letters and digits are word characters, and a combining mark belongs to the
-// letter it follows: a decomposed "é" is one letter written as two runes, so
-// reading the mark as a separator would split a word in half.
+// letter it follows: a decomposed "é" is one letter written as two runes. One
+// that is default-ignorable (IsDefaultIgnorable), such as a variation selector
+// or the Hangul filler U+3164, renders as nothing, so it separates too.
 //
-// Everything else separates, so the result is a word sequence whatever the
-// source spelled the boundary as: a dot, a slash, brackets, _, - or a space.
-func isWordRune(r rune) bool {
-	return unicode.IsLetter(r) || unicode.IsDigit(r) || unicode.IsMark(r)
+// So the result is a word sequence whatever the source spelled the boundary
+// as: a dot, a slash, brackets, _, - or a space. No ASCII rune is
+// default-ignorable, which spares the common case the tables.
+func IsWordRune(r rune) bool {
+	return (unicode.IsLetter(r) || unicode.IsDigit(r) || unicode.IsMark(r)) &&
+		(r < utf8.RuneSelf || !IsDefaultIgnorable(r))
+}
+
+// IsDefaultIgnorable reports whether r is a Default_Ignorable_Code_Point: a
+// character that renders as nothing where a renderer does not support it. The
+// word grammar separates on one (IsWordRune), and irverify's blank rules take
+// one as invisible.
+//
+// Package unicode has no table for the property, so it is built from its
+// terms as DerivedCoreProperties.txt defines it: Other_Default_Ignorable_Code_Point,
+// Cf and Variation_Selector, less Prepended_Concatenation_Mark and the two
+// ranges unicode lacks a table for, the interlinear annotation characters and
+// the Egyptian hieroglyph format controls, which are Cf and render. White_Space
+// is subtracted too, and no rune of it is in any term (GitHub #832).
+func IsDefaultIgnorable(r rune) bool {
+	// The Cf ranges Unicode 17.0.0 takes out of Default_Ignorable_Code_Point that
+	// package unicode has no table for: U+FFF9..U+FFFB and U+13430..U+1343F.
+	// DerivedCoreProperties.txt's header writes the second as 13430..13440, but
+	// U+13440 is Mn and in no added term, so subtracting it changes nothing.
+	// TestIsDefaultIgnorable_WasSweptAgainstThisUnicode fails when a Go release
+	// moves unicode.Version. Rechecking these ranges is then not enough, as
+	// Unicode has changed the derivation itself between releases: rebuild this
+	// from that derivation and sweep every code point against it.
+	const (
+		interlinearFirst, interlinearLast       = '￹', '￻'
+		egyptianFormatFirst, egyptianFormatLast = '\U00013430', '\U0001343F'
+	)
+
+	interlinear := r >= interlinearFirst && r <= interlinearLast
+	egyptianFormat := r >= egyptianFormatFirst && r <= egyptianFormatLast
+	if interlinear || egyptianFormat || unicode.Is(unicode.Prepended_Concatenation_Mark, r) {
+		return false
+	}
+	return unicode.Is(unicode.Cf, r) || unicode.Is(unicode.Other_Default_Ignorable_Code_Point, r) ||
+		unicode.Is(unicode.Variation_Selector, r)
 }
 
 // wordBoundary reports whether a new word starts at word rune r, which follows

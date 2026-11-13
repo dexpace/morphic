@@ -185,6 +185,7 @@ components:
     Trace: {schema: {type: object}}
   mediaTypes:
     Events: {schema: {type: object}, itemSchema: {type: object}}
+    "": {schema: {type: object}, itemSchema: {type: object}}
   pathItems:
     Item:
       get:
@@ -198,8 +199,8 @@ components:
 // component's key or the operationId of the operation declaring it, else
 // "request"; a response by its component's key, else "response"; a parameter
 // by its name, its content included; a header by its key; a
-// components/mediaTypes entry by its key; an itemSchema as its media type's
-// item. Each holds wherever the operation is written: a path item, a
+// components/mediaTypes entry by its key, "" included; an itemSchema as its
+// media type's item. Each holds wherever the operation is written: a path item, a
 // callback, a webhook or a component path item.
 func TestAt_NamesASchemaAfterItsOwner(t *testing.T) {
 	t.Parallel()
@@ -234,6 +235,9 @@ func TestAt_NamesASchemaAfterItsOwner(t *testing.T) {
 		{"a component media type, by its key", "/components/mediaTypes/Events/schema", "Events"},
 		{"a component media type's itemSchema, as its item", "/components/mediaTypes/Events/itemSchema",
 			compile.SubHint("Events", "item")},
+		{`a component media type keyed ""`, "/components/mediaTypes//schema", ""},
+		{`its items, off that name`, "/components/mediaTypes//schema/items", compile.SubHint("", "item")},
+		{`its itemSchema, as its item`, "/components/mediaTypes//itemSchema", compile.SubHint("", "item")},
 		{"a callback's request body", op + "/callbacks/onEvent/{$request.body#~1url}/post/requestBody" + json,
 			"notify_request"},
 		{"a webhook's request body", "/webhooks/hook/post/requestBody" + json, "onHook_request"},
@@ -502,4 +506,280 @@ components:
 	assert.Equal(t, "page", read.At(bind.Position{Doc: lib, Pointer: "/x-params/P/schema"}),
 		"a parameter in a document read whole as a schema")
 	assert.Equal(t, "lib.yaml", read.At(bind.Position{Doc: lib}), "the document read whole")
+}
+
+// titlesSpec writes a title at each kind of position a title names, beside one
+// of each kind that keeps the name it has without one.
+const titlesSpec = head + `paths:
+  /a:
+    post:
+      operationId: postA
+      parameters:
+        - {name: limit, in: query, schema: {title: Page Size, type: object}}
+      requestBody:
+        content:
+          application/json: {schema: {title: New Thing, type: object, properties: {x: {type: object}}}}
+      responses:
+        "200":
+          description: ok
+          headers:
+            X-Rate: {schema: {title: Rate Window, type: object}}
+          content:
+            application/json: {schema: {title: Thing Page, type: array, items: {type: object}}}
+components:
+  schemas:
+    Pet: {type: object}
+    Keyed:
+      title: Not The Name
+      type: object
+      properties:
+        address: {title: Postal Address, type: object, properties: {lines: {type: array, items: {type: object}}}}
+        plain: {type: object}
+        pet: {title: Pet, type: object}
+        blank: {title: '***', type: object}
+        merged: {<<: {title: Merged Title}, type: object}
+        numbered: {title: 42, type: object}
+        binary: {title: !!binary aGVsbG8=, type: object}
+        tagged: {title: !acme Tagged, type: object}
+        sentence: {title: 'A list of the things.', type: object}
+        negated: {not: {title: Negation, type: object}}
+        valued: {enum: [{title: Not A Schema}, 1]}
+        conjunct: {allOf: [{$ref: '#/components/schemas/Pet'}, {title: Premium, type: object}]}
+        conjuncts: {allOf: [{title: One, type: object}, {title: Other, type: object}]}
+        agreeing: {allOf: [{title: One, type: object}, {title: One, type: object}]}
+        overruled: {title: Own, allOf: [{title: One, type: object}]}
+        referenced: {allOf: [{$ref: '#/components/schemas/Pet', title: Beside A Ref}]}
+        nested: {allOf: [{allOf: [{title: Deep, type: object}]}]}
+        mapped: {allOf: {a: {title: Mapped Title, type: object}}}
+      $defs:
+        Local: {title: Not This, type: object}
+      definitions:
+        Old: {title: Nor This, type: object}
+      allOf:
+        - {title: Conjunct, type: object}
+    Lookup:
+      oneOf:
+        - {title: By Name, type: object, properties: {tags: {type: array, items: {type: object}}}}
+        - {title: Points, type: array, items: {type: object}}
+        - {title: Pet, type: object}
+        - {title: Same, type: object}
+        - {title: Same, type: object}
+        - {title: Variant 7, type: object}
+        - {title: variant 6, type: object}
+        - {title: Variant 99, type: object}
+        - {$ref: '#/components/schemas/Pet', title: Indoor}
+        - {$ref: '#/components/schemas/Lookup/oneOf/0'}
+        - {$ref: '#/components/schemas/Pet'}
+        - {title: Variant 01, type: object}
+    ToOld: {$ref: '#/components/schemas/Keyed/definitions/Old'}
+    Conjoined:
+      anyOf:
+        - {allOf: [{$ref: '#/components/schemas/Pet'}, {title: Twice, type: object}]}
+        - {title: Twice, type: object}
+`
+
+// TestAt_NamesASchemaByItsTitle pins that a schema writing a title with a word
+// in it, itself or in the inline branches of its allOf, is named by the
+// title's words wherever the grammar reads a schema, an owner's or a branch's
+// included, the positions beneath composing from it, and that one a key names,
+// an allOf branch and a title with no word keep the name they have without it.
+// A title is read as the parser reads a string.
+func TestAt_NamesASchemaByItsTitle(t *testing.T) {
+	t.Parallel()
+	tb := table(t, titlesSpec, nil)
+	const op, json = "/paths/~1a/post", "/content/application~1json/schema"
+	const keyed = "/components/schemas/Keyed"
+	tests := []struct {
+		name, pointer, want string
+	}{
+		{"a parameter's schema", op + "/parameters/0/schema", "page_size"},
+		{"a request body's schema", op + "/requestBody" + json, "new_thing"},
+		{"beneath it, a key still names a property", op + "/requestBody" + json + "/properties/x", "x"},
+		{"a header's schema", op + "/responses/200/headers/X-Rate/schema", "rate_window"},
+		{"a response's schema", op + "/responses/200" + json, "thing_page"},
+		{"beneath it, off the title", op + "/responses/200" + json + "/items", "thing_page_item"},
+		{"a component schema keeps its key", keyed, "Keyed"},
+		{"a property's schema", keyed + "/properties/address", "postal_address"},
+		{"beneath it, a key still names a property", keyed + "/properties/address/properties/lines", "lines"},
+		{"a property's schema with no title", keyed + "/properties/plain", "plain"},
+		{"a title that is a component's name", keyed + "/properties/pet", "pet"},
+		{"a title with no word", keyed + "/properties/blank", "blank"},
+		{"a title a merge key writes", keyed + "/properties/merged", "merged_title"},
+		{"a number, as the text it spells", keyed + "/properties/numbered", "42"},
+		{"a scalar the parser reads no string from", keyed + "/properties/binary", "binary"},
+		{"a scalar under a local tag", keyed + "/properties/tagged", "tagged"},
+		{"a sentence, by its every word", keyed + "/properties/sentence", "a_list_of_the_things"},
+		{"a keyword the lowering does not walk", keyed + "/properties/negated/not", "negation"},
+		{"an enum literal is a value, whose title names nothing", keyed + "/properties/valued/enum/0", "valued_0"},
+		{"the title an allOf branch writes", keyed + "/properties/conjunct", "premium"},
+		{"two titles allOf branches write", keyed + "/properties/conjuncts", "conjuncts"},
+		{"one title allOf branches agree on", keyed + "/properties/agreeing", "one"},
+		{"a schema's own title before its branches'", keyed + "/properties/overruled", "own"},
+		{"a title beside a $ref in an allOf", keyed + "/properties/referenced", "referenced"},
+		{"a title an allOf branch nests", keyed + "/properties/nested", "nested"},
+		{"a title under an allOf written as a mapping", keyed + "/properties/mapped", "mapped"},
+		{"a title a branch's allOf writes is its siblings' too", "/components/schemas/Conjoined/anyOf/0", "variant_0"},
+		{"a $defs entry keeps its key", keyed + "/$defs/Local", "Local"},
+		{"a definitions entry a $ref reads keeps its key", keyed + "/definitions/Old", "Old"},
+		{"an allOf branch is named as the schema holding it", keyed + "/allOf/0", "Keyed"},
+		{"a branch", "/components/schemas/Lookup/oneOf/0", "by_name"},
+		{"beneath a branch, a key names a property", "/components/schemas/Lookup/oneOf/0/properties/tags", "tags"},
+		{"beneath a branch, off the title", "/components/schemas/Lookup/oneOf/1/items", "points_item"},
+		{"a branch titled as a component is named by position", "/components/schemas/Lookup/oneOf/2", "variant_2"},
+		{"two branches titled alike are both named by position", "/components/schemas/Lookup/oneOf/3", "variant_3"},
+		{"the second of them", "/components/schemas/Lookup/oneOf/4", "variant_4"},
+		{"a title spelling another branch's position", "/components/schemas/Lookup/oneOf/5", "variant_5"},
+		{"the branch whose position it spells", "/components/schemas/Lookup/oneOf/6", "variant_6"},
+		{"a title spelling a position the list has not", "/components/schemas/Lookup/oneOf/7", "variant_99"},
+		{"a title beside a $ref names the branch", "/components/schemas/Lookup/oneOf/8", "indoor"},
+		{"a $ref landing on a titled branch", "/components/schemas/Lookup/oneOf/9", "by_name"},
+		{"a $ref beside no title", "/components/schemas/Lookup/oneOf/10", "Pet"},
+		{"a title spelling no position as the list spells one", "/components/schemas/Lookup/oneOf/11", "variant_01"},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			assert.Equal(t, tc.want, naming.New(tb).At(at(tc.pointer)))
+		})
+	}
+}
+
+// TestTitle_IsTheNameATitleGives pins Title apart from At: the name the title
+// at a position gives the node built there, and false where the title gives
+// none or the position holds no node, which At names otherwise.
+func TestTitle_IsTheNameATitleGives(t *testing.T) {
+	t.Parallel()
+	read := naming.New(table(t, titlesSpec, nil))
+	title, ok := read.Title(at("/components/schemas/Lookup/oneOf/0"))
+	assert.True(t, ok)
+	assert.Equal(t, "by_name", title)
+	for _, pointer := range []string{
+		"/components/schemas/Lookup/oneOf/2", "/components/schemas/Lookup/oneOf/10",
+		"/components/schemas/Keyed", "/components/schemas/Keyed/allOf/0",
+		"/components/schemas/Lookup/oneOf/99", "/components/schemas/Lookup/oneOf/0/properties/tags/items/x",
+	} {
+		title, ok := read.Title(at(pointer))
+		assert.False(t, ok, pointer)
+		assert.Empty(t, title, pointer)
+	}
+	title, ok = naming.New(nil).Title(at("/components/schemas/Lookup/oneOf/0"))
+	assert.False(t, ok, "a namer with no table reads no title")
+	assert.Empty(t, title)
+}
+
+// TestAt_ATitleNamesAlikeInEitherOrder pins that the names two branches titled
+// alike fall back to, and a lone title, are the same whichever branch is asked
+// first and whichever the list writes first.
+func TestAt_ATitleNamesAlikeInEitherOrder(t *testing.T) {
+	t.Parallel()
+	spec := func(branches string) string {
+		return head + "paths: {}\ncomponents:\n  schemas:\n    U:\n      anyOf:\n" + branches
+	}
+	for _, branches := range []string{
+		"        - {title: Same, type: object}\n        - {title: Same, type: object}\n        - {title: Own, type: object}\n",
+		"        - {title: Own, type: object}\n        - {title: Same, type: object}\n        - {title: Same, type: object}\n",
+	} {
+		tb := table(t, spec(branches), nil)
+		forward, backward := make([]string, 3), make([]string, 3)
+		read := naming.New(tb)
+		for i := range 3 {
+			forward[i] = read.At(at("/components/schemas/U/anyOf/" + strconv.Itoa(i)))
+		}
+		read = naming.New(tb)
+		for i := 2; i >= 0; i-- {
+			backward[i] = read.At(at("/components/schemas/U/anyOf/" + strconv.Itoa(i)))
+		}
+		assert.Equal(t, forward, backward, branches)
+		assert.Contains(t, forward, "own", branches)
+		assert.NotContains(t, forward, "same", branches)
+	}
+}
+
+// TestAt_ATitleNamesAcrossDocuments pins that a title names a schema in
+// another document, its root included, and that a component of another
+// document holds its name from a title, as the source's components do.
+func TestAt_ATitleNamesAcrossDocuments(t *testing.T) {
+	t.Parallel()
+	tb := table(t, head+`paths: {}
+components:
+  schemas:
+    A: {$ref: './pet.yaml'}
+    B: {$ref: './lib.yaml#/components/schemas/Lib'}
+    C: {title: Shared, type: object, properties: {s: {title: Lib Thing, type: object}}}
+`, map[string]string{
+		"pet.yaml": "title: Domestic Pet\ntype: object\nproperties: {tag: {title: Tag Line, type: object}}\n",
+		"lib.yaml": "components: {schemas: {Lib: {type: object}, LibThing: {type: object}}}\n",
+	})
+	read := naming.New(tb)
+	pet := docNamed(t, tb, "pet.yaml")
+	assert.Equal(t, "domestic_pet", read.At(bind.Position{Doc: pet}), "a document's root, by its title")
+	assert.Equal(t, "tag_line", read.At(bind.Position{Doc: pet, Pointer: "/properties/tag"}))
+	assert.Equal(t, "s", read.At(at("/components/schemas/C/properties/s")),
+		"a title another document's component is named by")
+}
+
+// TestAt_NamesAHeaderAnEncodingNests pins that a schema under a header of an
+// Encoding Object another nests, through 3.2's encoding, prefixEncoding or
+// itemEncoding, which the model does not read, is named by the header's key,
+// its content's and its itemSchema included, as one the model reads is, and
+// that raw YAML above the root that spells no such header, or spells one
+// beside no Encoding Object or above the root, is named from its pointer.
+func TestAt_NamesAHeaderAnEncodingNests(t *testing.T) {
+	t.Parallel()
+	const body = "/components/requestBodies/E/content/multipart~1form-data"
+	refs := []string{
+		body + "/encoding/plain/headers/X-A/schema/items",
+		body + "/encoding/f/encoding/g/headers/X-B/schema/items",
+		body + "/encoding/h/prefixEncoding/0/headers/X-C/schema/items",
+		body + "/encoding/j/itemEncoding/itemEncoding/headers/X-D/schema",
+		body + "/encoding/k/encoding/g/headers/X-E/content/application~1json/schema/items",
+		body + "/encoding/k/encoding/g/headers/X-F/content/application~1jsonl/itemSchema",
+		body + "/encoding/m/encoding/g/x-kept/H/schema/items",
+		body + "/encoding/m/encoding/g/headers/X-G/examples/a/value",
+		"/components/schemas/S/headers/X-H/schema/items",
+		body + "/encoding/n/encoding/g",
+		body + "/encoding/p/encoding/g/headers/X-P/content/application~1json",
+	}
+	var spec strings.Builder
+	spec.WriteString("openapi: 3.2.0\ninfo: {title: T, version: \"1\"}\npaths: {}\ncomponents:\n  schemas:\n")
+	for i, ref := range refs {
+		spec.WriteString("    R" + strconv.Itoa(i) + ": {$ref: '#" + ref + "'}\n")
+	}
+	spec.WriteString(`    S: {type: object, headers: {X-H: {schema: {type: array, items: {type: object}}}}}
+  requestBodies:
+    E:
+      content:
+        multipart/form-data:
+          schema: {type: object}
+          encoding:
+            plain: {headers: {X-A: {schema: {type: array, items: {type: object}}}}}
+            f: {encoding: {g: {headers: {X-B: {schema: {type: array, items: {type: object}}}}}}}
+            h: {prefixEncoding: [{headers: {X-C: {schema: {type: array, items: {type: object}}}}}]}
+            j: {itemEncoding: {itemEncoding: {headers: {X-D: {schema: {type: object}}}}}}
+            k:
+              encoding:
+                g:
+                  headers:
+                    X-E: {content: {application/json: {schema: {type: array, items: {type: object}}}}}
+                    X-F: {content: {application/jsonl: {itemSchema: {type: object}}}}
+            m:
+              encoding:
+                g:
+                  x-kept: {H: {schema: {type: array, items: {type: object}}}}
+                  headers: {X-G: {schema: {type: object}, examples: {a: {value: {type: object}}}}}
+            n: {encoding: {g: {headers: {X-N: {schema: {type: object}}}}}}
+            p: {encoding: {g: {headers: {X-P: {content: {application/json: {schema: {type: object}}}}}}}}
+`)
+	read := naming.New(table(t, spec.String(), nil))
+	for i, want := range []string{
+		compile.SubHint("X-A", "item"), compile.SubHint("X-B", "item"), compile.SubHint("X-C", "item"), "X-D",
+		compile.SubHint("X-E", "item"), compile.SubHint("X-F", "item"),
+		compile.SubHint("schema", "item"), "value", compile.SubHint("schema", "item"), "g", "application/json",
+	} {
+		assert.Equal(t, want, read.At(at(refs[i])), refs[i])
+	}
+	assert.Equal(t, "schema", read.At(at(body+"/encoding/n/encoding/g/headers/X-N/schema")),
+		"a header beneath a structure an Encoding Object read as a schema roots is no owner of it")
+	assert.Equal(t, "schema", read.At(at(body+"/encoding/p/encoding/g/headers/X-P/content/application~1json/schema")),
+		"nor is one whose media type a reference reads as a schema")
 }

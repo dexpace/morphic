@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"reflect"
 	"testing"
-	"unicode"
 	"unicode/utf8"
 
 	"github.com/stretchr/testify/assert"
@@ -147,19 +146,6 @@ func TestVerify_VisibleAliasIsNotBlank(t *testing.T) {
 			assert.Empty(t, aliasViolations(t, alias))
 		})
 	}
-}
-
-// TestIsInvisible_WasSweptAgainstThisUnicode fails when a Go release moves
-// unicode.Version, since isInvisible holds two ranges no table of package unicode
-// carries, and Unicode has changed the derivation itself between releases, not
-// only those ranges. Rebuild isInvisible from DerivedCoreProperties.txt's
-// Default_Ignorable_Code_Point derivation and sweep every code point against it,
-// then move the version here.
-func TestIsInvisible_WasSweptAgainstThisUnicode(t *testing.T) {
-	t.Parallel()
-	assert.Equal(t, "17.0.0", unicode.Version,
-		"rebuild isInvisible from DerivedCoreProperties.txt's Default_Ignorable_Code_Point "+
-			"derivation and sweep every code point against it, then move this version")
 }
 
 // TestVerify_IllFormedAliasIsAViolation covers the rule every channel shares,

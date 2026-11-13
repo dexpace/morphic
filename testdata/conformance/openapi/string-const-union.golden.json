@@ -63,7 +63,7 @@
       "kind": "literal",
       "id": "t/anon/components/schemas/Color/oneOf/0",
       "name": {
-        "hint": "variant_0"
+        "hint": "red"
       },
       "anonymous": true,
       "docs": {
@@ -379,7 +379,7 @@
       "variants": [
         {
           "name": {
-            "hint": "variant_0"
+            "hint": "red"
           },
           "type": {
             "target": "t/anon/components/schemas/Color/oneOf/0",

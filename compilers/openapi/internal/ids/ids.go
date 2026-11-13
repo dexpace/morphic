@@ -231,6 +231,22 @@ func Param(mount jsontext.Pointer, name, in string, occurrence int) ir.ParamID {
 	return compile.ParamID(OpenAPISpace, string(mount+ParamPath(name, in, occurrence)))
 }
 
+// ParamSlot is what OpenAPI identifies a parameter by within one list: its
+// location and its name, a header's in lower case, since HTTP compares field
+// names in any case (RFC 9110 §5.1), so X-Trace and x-trace are one header.
+// Param numbers the parameters of one slot, each under its own spelling.
+type ParamSlot struct {
+	Name, In string
+}
+
+// SlotOf returns the slot of a parameter named name in location in.
+func SlotOf(name, in string) ParamSlot {
+	if in == "header" {
+		name = strings.ToLower(name)
+	}
+	return ParamSlot{Name: name, In: in}
+}
+
 // ParamPath returns the path below a mount that Param mints the occurrence-th
 // holder of name in location in from. A path item that mounts no operation
 // keys each parameter it keeps verbatim by it, so a kept parameter and a
@@ -307,10 +323,9 @@ func DeclarationHint(pointer jsontext.Pointer, fallback string) string {
 // ComponentEntry returns the kind and name of the top-level component entry
 // pointer addresses (/components/<kind>/<name>, no deeper path), both decoded,
 // and ok=false for any other pointer or for an entry keyed "".
-// componentEntryName drops the kind, and ComponentSchema narrows it to the
-// schemas kind, which is the only one that earns a named TypeID.
+// componentEntryName drops the kind.
 func ComponentEntry(pointer jsontext.Pointer) (kind, name string, ok bool) {
-	kind, name, ok = componentEntrySplit(pointer)
+	kind, name, ok = ComponentKey(pointer)
 	if !ok || name == "" {
 		return "", "", false
 	}
@@ -320,16 +335,16 @@ func ComponentEntry(pointer jsontext.Pointer) (kind, name string, ok bool) {
 // componentsRoot is the pointer every component entry sits two tokens beneath.
 const componentsRoot jsontext.Pointer = "/components"
 
-// componentEntrySplit is the one place the /components/<kind>/<name> shape is
+// ComponentKey is the one place the /components/<kind>/<name> shape is
 // parsed: it reads the kind and name off pointer's last two tokens, decoded, when
 // the pointer sits two tokens beneath /components.
 //
 // It does not judge the name, so a caller that must tell "not that shape at all"
 // from "that shape with an empty name" can. ComponentEntry folds the two together
-// on purpose — an entry keyed "" earns no named TypeID either way — but the two
-// are different facts about a document, and a diagnostic naming the wrong one is
-// simply false.
-func componentEntrySplit(pointer jsontext.Pointer) (kind, name string, ok bool) {
+// on purpose, and ComponentSchema narrows it to the schemas kind, the only one
+// that earns a named TypeID, but the two are different facts about a document,
+// and a diagnostic naming the wrong one is simply false.
+func ComponentKey(pointer jsontext.Pointer) (kind, name string, ok bool) {
 	section := pointer.Parent()
 	if section.Parent() != componentsRoot {
 		return "", "", false
@@ -397,7 +412,7 @@ func (s ComponentState) ByName() bool { return s == NamedComponent || s == Undec
 // ComponentSchema classifies pointer against the top-level component schemas,
 // and returns the decoded name of a NamedComponent.
 func ComponentSchema(pointer jsontext.Pointer) (string, ComponentState) {
-	kind, name, ok := componentEntrySplit(pointer)
+	kind, name, ok := ComponentKey(pointer)
 	switch {
 	case !ok || kind != "schemas":
 		return "", NotComponent

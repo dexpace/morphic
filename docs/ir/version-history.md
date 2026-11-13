@@ -470,3 +470,17 @@ it sees. Changes made together in one bump are listed together under it.
   headers](./responses.md#prefix-headers)). `irverify` holds such a header to a map type and no
   wire name, and `irfacts.CorrelationVersion` moved to 3, keying it by its prefix. No compiler
   fills it yet. A consumer pinned to 0.45.0 refuses a document with a prefix header.
+- **0.47.0** — names an emitter renders moved, and one lowering changed, at an unmoved shape:
+  - The [word grammar](./naming.md#the-word-grammar) separates on a letter or mark that is a
+    `Default_Ignorable_Code_Point`, a variation selector or the Hangul filler U+3164 among them, as
+    on the format characters in that property, so a name of only such characters has no
+    `Canonical`, and `irverify` refuses one in a canonical or a hint. A consumer pinned to 0.46.0
+    meets `Canonical` and `Hint` it would have carried such a character in without it.
+  - The OpenAPI compiler names an anonymous schema that writes a `title`, a union branch's variant
+    included, by the title's words, where its position, its owner or the `$ref` beside it named it
+    ([`naming`](../compilers/openapi.md#naming)); names the items of a `components/mediaTypes` entry
+    keyed `""` from the minted name rather than the pointer; and names a schema under a header of an
+    Encoding Object another nests by the header's key.
+  - The OpenAPI compiler compares a header parameter's name in any case
+    ([`parameters`](../compilers/openapi.md#parameters)), so an operation's `x-trace` overrides
+    its path item's `X-Trace`, and one list writing both keeps the second under an ID numbered `/2`.

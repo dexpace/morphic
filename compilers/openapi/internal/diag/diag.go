@@ -180,8 +180,8 @@ const (
 	// on nothing but declaration order.
 	DuplicateStatusKey = "openapi/duplicate-status-key"
 	// DuplicateParameter reports a parameter list entry repeating the name and
-	// location of an earlier entry in the same list, its $refs resolved, which
-	// OpenAPI forbids. The rule table states the rule and leaves it here, where
+	// location of an earlier entry in the same list (ids.SlotOf), its $refs
+	// resolved, which OpenAPI forbids. The rule table leaves it here, where
 	// every entry is read through its $ref: every list the source writes is
 	// checked whether or not it lowers (load), and a list another document
 	// writes where it lowers (the parameter lowering) or where a path item

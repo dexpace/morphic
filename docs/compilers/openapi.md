@@ -880,34 +880,63 @@ the word sequence [naming](../ir/naming.md) derives from it, at every position t
 `info.title`, a tag, an `operationId`, a parameter, response-header or property name, a component
 schema or security scheme key, a scheme a security requirement names, an enum member's value as
 text, a 3.2 server `name`, and under `grouping=path-prefix` a first path segment. A name with no
-letter or digit (`***`, `>=`) keeps its `Source` and has no `Canonical`; an emitter names it by its
-characters ([naming](../emitters/refine/naming.md)). A name spelled as the empty string is minted
-`Hint: "empty"` and no `Source` rather than passed through (an `operationId` of `""` is read as
-absent instead, [`operation-ids`](#operation-ids)), and a property's wire name stays `""`. A
-component schema keyed `""` earns no named `TypeID`: it hoists anonymously at its own pointer
-(`t/anon/components/schemas/`) with that hint. An entity the document gives no name — an inline
-schema, a union variant, a response ([`response-conditions`](#response-conditions)), a server with
-no `name` (its URL's words, else `server`), the synthesized `default` and `webhooks` groups —
-carries a `Hint` alone, in the same word grammar and composed from its position, each half
-neutralized first so an empty parent gives `empty_item`, never `_item`. A request body or header
-that references reach is named for its declaration, never for whichever reference lowered first: a
-component's name, a header's own key, the `operationId` of the operation declaring the body, in this
-document or another and whether or not that operation is lowered, or `request` for a body no
-operation with an `operationId` declares. A schema is named for the nearest object holding it, so
-one a parameter, request body or response holds is named for that object even where the object is
-kept under an extension and read through a `$ref`, and a document a `$ref` reads whole as a schema
-is named for the document (`./Cat.yaml` names its root `cat_yaml`). Every such name is a function of
-the documents and the position alone, read where the position is written, so no lowering order
-changes it: a union variant, or a composition branch holding a `$ref`, is named as the position the
-`$ref` lands on, in whichever document, and keeps its own name where that names nothing. An inline
-`allOf` branch is a conjunct of the schema holding it, so a node built there
-([`allof-refinement`](#allof-refinement)) is named as that schema is. `Aliases` is never set. These
-names are what an emitter renders, so a change to how one is derived moves `IRVersion`
+word character (`***`, `>=`, or only variation selectors) keeps its `Source` and has no
+`Canonical`; an emitter names it by its characters ([naming](../emitters/refine/naming.md)). A name
+spelled as the empty string is minted `Hint: "empty"` and no `Source` rather than passed through (an
+`operationId` of `""` is read as absent instead, [`operation-ids`](#operation-ids)), and a
+property's wire name stays `""`. A component schema keyed `""` earns no named `TypeID`: it hoists
+anonymously at its own pointer (`t/anon/components/schemas/`) with that hint. An entity the document
+gives no name — an inline schema, a union variant, a response
+([`response-conditions`](#response-conditions)), a server with no `name` (its URL's words, else
+`server`), the synthesized `default` and `webhooks` groups — carries a `Hint` alone, in the same
+word grammar and composed from its position, each half neutralized first so an empty parent gives
+`empty_item`, never `_item`. A request body or header that references reach is named for its
+declaration, never for whichever reference lowered first: a component's name, a header's own key,
+the `operationId` of the operation declaring the body, in this document or another and whether or
+not that operation is lowered, or `request` for a body no operation with an `operationId` declares.
+A schema is named for the nearest object holding it, so one a parameter, request body or response
+holds is named for that object even where the object is kept under an extension and read through a
+`$ref`, and a document a `$ref` reads whole as a schema is named for the document (`./Cat.yaml`
+names its root `cat_yaml`). A `components/mediaTypes` entry is named by its key, `""` minted as a
+component schema's is, and a header of an Encoding Object that another nests through 3.2's
+`encoding`, `prefixEncoding` or `itemEncoding`, which the parser does not model, by its key, as one
+the parser models is. Every such name is a function of the documents and the position alone, read
+where the position is written, so no lowering order changes it: a union variant, or a composition
+branch holding a `$ref`, is named as the position the `$ref` lands on, in whichever document, and
+keeps its own name where that names nothing. An inline `allOf` branch is a conjunct of the schema
+holding it, so a node built there ([`allof-refinement`](#allof-refinement)) is named as that schema
+is. `Aliases` is never set.
+
+A schema whose `title` holds a word character is named by the title's words instead of its
+position, wherever the grammar reads a schema: a union branch, `by_name` for
+`{title: By Name, …}` where its position gives `variant_0`, ahead of the name a `$ref` beside it
+suggests; an inline schema under a property or a role; the schema of a parameter, header, request
+body or response; and a document a `$ref` reads whole. The positions beneath it compose from that
+name, and the title stays the node's `Docs.Summary`. A schema writing no title takes the one the
+inline branches of its `allOf` write between them, each conjunct describing the same instance, where
+they write one set of words, and none where they write two; a branch holding a `$ref` lends no
+title, and one nested in a branch is not read. A title is read whole, one that is a sentence giving
+all its words, and as the parser reads a string, so one under `!!binary` or a local tag names
+nothing. It names nothing where the document names the schema by a key: a component schema, and a
+`$defs` or `definitions` entry, which keep their keys. It names nothing at an `allOf` branch, named
+as its holder, and nothing where its words are a component schema's canonical name in any document
+read, or another branch's of the same `oneOf` or `anyOf`, written as its title or as its position
+(`variant_2`): the position keeps the name it has without the title, so two branches titled alike
+are both named by position, whichever is written first. A title is compared with no name a sibling
+`$ref` takes from the position it lands on, which the component names cover where it lands on a
+component, so a pair meeting elsewhere is the names pass's to report (`pass/name-collision`), since
+comparing would resolve every sibling's chain for each branch. A title is declared, read at the
+schema's own position, and changes no fact of the API, only what an anonymous node is suggested to
+be called, as a property's key or an `operationId` does, so it takes no policy and is marked no
+`Inferred` (invariant 6); a hint changes no ID. A const branch's title is its member's summary alone
+([`string-const-union`](#string-const-union)).
+
+These names are what an emitter renders, so a change to how one is derived moves `IRVersion`
 ([ir-version](../ir/ir-version.md)), and `testdata/golden/openapi/hint_positions.yaml` writes the
 positions within one document that a hint is composed from, one for each way the naming composes
 one.
 
-- Cases: `neutral-naming`, `empty-names`
+- Cases: `neutral-naming`, `empty-names`, `title-hints`
 - Tests: `ids.TestComponentSchema_ClassifiesEveryPointer`,
   `schema.TestEnumMemberIDs_NamesThatCanonicalizeToNothingStillGetIDs`,
   `schema.TestInlinePosition_HintIsTheSameInBothOrders`,
@@ -916,8 +945,10 @@ one.
   `schema.TestUnionVariant_UnderPathsIsNamedAsTheNodeItHolds`,
   `schema.TestUnionVariant_AWholeDocumentIsNamedForIt`, `naming.TestAt_NamesASchemaAfterItsOwner`,
   `naming.TestAt_NamesABranchAfterItsTarget`, `naming.TestAt_NamesAStructureAReferenceReadsInsideRawYAML`,
+  `naming.TestAt_NamesASchemaByItsTitle`, `naming.TestAt_ATitleNamesAlikeInEitherOrder`,
+  `naming.TestAt_ATitleNamesAcrossDocuments`, `naming.TestTitle_IsTheNameATitleGives`,
+  `naming.TestAt_NamesAHeaderAnEncodingNests`, `schema.TestRefinement_TwinsTheRefSpelling`,
   `e2e.TestGolden_HintPositions`
-- Status: partly built: union variants and inline schemas ignore their `title` as a hint (#662).
 
 ### `values`
 
@@ -974,10 +1005,10 @@ that primitive, and one that is only a `$ref` lowers to a `Scalar` alias whose `
 An inline schema whose lowering is a node — a model, an enum, a union, a list, a map, a tuple, or a
 scalar a format names ([`string-formats`](#string-formats)) — is hoisted into the registry under an
 anonymous `TypeID` derived from its own pointer (`t/anon/<pointer>`), with a `Hint` composed from
-its position ([`naming`](#naming)), and the position holds a `TypeRef` to it. One whose lowering is
-a primitive, `{type: string}` with or without bounds beside it, hoists nothing: the position names
-the shared primitive, and what it declares beside the type lands on the property or parameter that
-carries it ([`constraints`](#constraints)).
+its position or read from its title ([`naming`](#naming)), and the position holds a `TypeRef` to
+it. One whose lowering is a primitive, `{type: string}` with or without bounds beside it, hoists
+nothing: the position names the shared primitive, and what it declares beside the type lands on the
+property or parameter that carries it ([`constraints`](#constraints)).
 
 - Cases: `inline-types`, `inline-hoist-positions`, `inline-annotations`
 
@@ -2134,8 +2165,9 @@ combinator ([`union-beside-structure`](#union-beside-structure),
 [`union-beside-ref`](#union-beside-ref), [`competing-keywords`](#competing-keywords)) lower
 otherwise.
 
-Each variant's `Name.Hint` is its branch's: a `$ref` branch's is its target's name, and an inline
-branch's its position (`variant_1`). An inline branch that refines a `$ref`
+Each variant's `Name.Hint` is its branch's: one its title names is the title's
+([`naming`](#naming)), and otherwise a `$ref` branch's is its target's name, and an inline branch's
+its position (`variant_1`). An inline branch no title names that refines a `$ref`
 ([`allof-refinement`](#allof-refinement)), or whose node is a decorator
 ([annotations](../ir/annotations.md#decorators)) over a `$ref` its `allOf` names, the one way
 3.0 annotates a branch, takes the hint that `$ref` takes as a branch of its own, as 3.1's spelling
@@ -2632,8 +2664,10 @@ those values at the union's own ID, so an emitter meets one shape however the do
 set. A branch that is such a union is read as the `Enum` it becomes, in the same run, so no second
 run finds one. Each member is identified and named as the same value in an `enum` is
 ([`enum-const`](#enum-const)), in branch order, and holds what its branch says of its value: its
-docs, deprecation, availability, examples and kept constructs. A branch's type nothing else
-references goes with the union.
+docs, deprecation, availability, examples and kept constructs. A branch's `title` is its member's
+`Docs.Summary` and no name of it: the member is named by its value, as an `enum`'s is, so the two
+spellings of one set name its members alike, and the branch's type, whose hint the title is
+([`naming`](#naming)), goes with the union when nothing else references it.
 
 The union stays where an `Enum` could not say all it does: a branch naming a component, a type of
 its own that an `Enum` member is not; a branch holding several values, a set of its own that the
@@ -3524,33 +3558,37 @@ under tags, whatever its key states.
 
 An operation's own parameters, in order, and then those of its path item it does not override, in
 order, lower to the operation's `Params`, an operation's parameter overriding a path item's of the
-same `name` and `in`. Each is placed on the HTTP binding at its location (`path`, `query`,
+same `name` and `in`, a header's `name` compared in any case, as HTTP compares a field's name
+(RFC 9110 §5.1), so `x-trace` overrides `X-Trace`, and so does a nearer layer's of a path item a
+`$ref` composes. Each is placed on the HTTP binding at its location (`path`, `query`,
 `querystring`, `header` or `cookie`) under its wire name, with its `style`, `explode` and
 `allowReserved`, each the default where the parameter writes none
 ([http-binding](../ir/http-binding.md)): the location's style, and an `explode` true under
 `form` and 3.2's `cookie` style, false under any other. A parameter's ID is derived from the
 operation's mount pointer, its name and its location ([identity](../ir/identity.md)). A list
-repeating an earlier entry's `name` and `in`, its `$ref`s resolved, which OpenAPI forbids, keeps
-every occurrence, each repeat's ID ending in its occurrence number, and is reported as an
-`openapi/duplicate-parameter` error at the repeat. Every list the source writes is checked, whether
-or not it lowers, and a list another document writes where it lowers or where a path item that
-mounts no operation keeps it; the rule table
+repeating an earlier entry's `name` and `in`, its `$ref`s resolved and a header's `name` compared
+in any case, which OpenAPI forbids, keeps every occurrence, each repeat's ID ending in its
+occurrence number after its own spelling, and is reported as an `openapi/duplicate-parameter` error
+at the repeat, naming the first entry's spelling where it differs. Every list the source writes is
+checked, whether or not it lowers, and a list another document writes where it lowers or where a
+path item that mounts no operation keeps it; the rule table
 ([`validation`](#validation)) states this rule and leaves it to this one. A path item that mounts
 no operation has none to merge its parameters into, so it keeps each entry as written, a `$ref`
 included, where it keeps what else it writes ([`path-item-servers`](#path-item-servers)), under
 `openapi:pathItem/<item pointer>/parameters/<name>/<in>`, the path its ID would be derived from, a
 repeat's ending in its occurrence number (`no_ir_home`).
 
-- Cases: `param-styles`, `param-style-matrix`, `param-identity`
+- Cases: `param-styles`, `param-style-matrix`, `param-identity`, `header-name-case`,
+  `header-name-syntax`
 - Codes: `openapi/duplicate-parameter`
 - Tests: `operation.TestParams_RepeatedNameAndLocationKeepsEveryParameter`,
   `operation.TestPathItem_WithNoOperationKeepsItsParameters`,
   `operation.TestPathItem_WithNoOperationNumbersARepeatedParameter`,
-  `operation.TestPathItem_WithNoOperationReportsARepeatInAnotherDocument`
+  `operation.TestPathItem_WithNoOperationReportsARepeatInAnotherDocument`,
+  `ids.TestSlotOf_ComparesAHeadersNameInAnyCase`
 - Status: partly built: an undeclared `explode` is written out as the location's default, which
-  erases whether the document declared it (#627); header parameters whose names differ only in case
-  are two parameters, unreported (#635); and a list only a `$ref` reaches is never checked for
-  repeats (#880).
+  erases whether the document declared it (#627); and a list only a `$ref` reaches is never checked
+  for repeats (#880).
 
 ### `content-parameters`
 
@@ -4033,16 +4071,24 @@ map, which OpenAPI says SHALL be ignored, lowers as declared and is reported as 
 `openapi/reserved-header-name` warning at the entry, as a parameter is
 ([`reserved-header-names`](#reserved-header-names)).
 
-- Cases: `header-content-schema`
-- Codes: `openapi/reserved-header-name`
+A key of either headers map is the header's name, so an HTTP field name: one that is no token, the
+empty key and one holding a space among them, lowers as declared and is an `openapi/validation`
+error of the class `validation-invalid-format` at the entry, as a header parameter's `name` is
+([`validation`](#validation)). Two keys of one map naming one header in different case, which HTTP
+compares in any case, both lower, and each but the one lowest in byte order is an
+`openapi/validation` warning of the class `validation-duplicate-key` at its entry, so which is
+reported follows the spellings and not the order the map writes them in.
+
+- Cases: `header-content-schema`, `header-name-case`, `header-name-syntax`
+- Codes: `openapi/reserved-header-name`, `openapi/validation`
 - Tests: `operation.TestHeaders_SerializationKeywordsLower`,
   `operation.TestHeaders_SerializationKeywordsAbsentRecordNothing`,
   `operation.TestHeaders_SerializationKeywordsFollowTheDeclaration`,
   `operation.TestHeaders_ReservedContentTypeEntryIsReported`,
-  `operation.TestHeaders_ReservedContentTypeInEncodingIsReported`
-- Status: partly built: response headers whose names differ only in case are two headers, unreported
-  (#635); and a `style` or `explode` beside a header's `content`, where they have no effect, lowers
-  in silence, as a parameter's does (#887).
+  `operation.TestHeaders_ReservedContentTypeInEncodingIsReported`,
+  `oas.TestCheck_HeaderNamesAreFieldNames`
+- Status: partly built: a `style` or `explode` beside a header's `content`, where they have no
+  effect, lowers in silence, as a parameter's does (#887).
 
 ### `links`
 
@@ -4482,10 +4528,8 @@ the node's own keys alone, never lent by a `$ref`'s target, whose class is anoth
   its schema write shares one entry, so the object's is all that is read (#396); a schema a use names
   between it and the end of its chain lends no key, as it lends no keyword (#1029); a key inside a
   `oneOf` kept verbatim beside a body, as the base of a hierarchy keeps the union of its subtypes
-  ([`union-beside-structure`](#union-beside-structure)), reaches no field; a mapping naming a target
-  nothing reads is accepted in silence (#1281); and header parameters or response headers whose
-  names differ only in case lower as two, so a replacement naming either names both and fills
-  nothing (#635).
+  ([`union-beside-structure`](#union-beside-structure)), reaches no field; and a mapping naming a
+  target nothing reads is accepted in silence (#1281).
 
 ### `mutually-exclusive-parameters`
 

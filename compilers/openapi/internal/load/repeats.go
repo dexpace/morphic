@@ -5,12 +5,14 @@ package load
 
 import (
 	"encoding/json/jsontext"
+	"fmt"
 	"iter"
 	"strconv"
 
 	soa "github.com/speakeasy-api/openapi/openapi"
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
+	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
 	"github.com/dexpace/morphic/compilers/openapi/internal/provenance"
 	refscope "github.com/dexpace/morphic/compilers/openapi/internal/resolve"
 	"github.com/dexpace/morphic/ir"
@@ -67,22 +69,21 @@ func writtenItem(rp *soa.ReferencedPathItem, sibs Siblings, site jsontext.Pointe
 	return sib.Item, ok && sib.Pointer == site
 }
 
-// paramSlot is what OpenAPI identifies a parameter by within one list: its name
-// and location, compared as written.
-type paramSlot struct {
-	name, in string
-}
-
 // paramRepeats reports each entry of the parameter list held by the object at
-// owner that repeats an earlier entry's slot, which OpenAPI forbids, at the
-// repeat, naming the first holder. The rule table states the rule and leaves
-// it here, where every entry is read through its $ref.
+// owner that repeats an earlier entry's slot (ids.SlotOf), which OpenAPI
+// forbids, at the repeat, naming the first holder, and its spelling where a
+// header's differs. The rule table states the rule and leaves it here, where
+// every entry is read through its $ref.
 //
 // An entry is read as the lowering reads it (refscope.Object), so a repeat
 // reported here is one the lowering numbers; one whose $ref resolved to nothing
 // has no slot.
 func paramRepeats(place provenance.Doc, params []*soa.ReferencedParameter, owner jsontext.Pointer) []ir.Diagnostic {
-	firstAt := make(map[paramSlot]jsontext.Pointer, len(params))
+	type holder struct {
+		at   jsontext.Pointer
+		name string
+	}
+	firstAt := make(map[ids.ParamSlot]holder, len(params))
 	var diags []ir.Diagnostic
 	for i, rp := range params {
 		p := refscope.Object[soa.Parameter](rp)
@@ -90,16 +91,26 @@ func paramRepeats(place provenance.Doc, params []*soa.ReferencedParameter, owner
 			continue
 		}
 		entry := owner.AppendToken("parameters").AppendToken(strconv.Itoa(i))
-		slot := paramSlot{name: p.GetName(), in: string(p.GetIn())}
-		first, repeated := firstAt[slot]
+		name, in := p.GetName(), string(p.GetIn())
+		first, repeated := firstAt[ids.SlotOf(name, in)]
 		if !repeated {
-			firstAt[slot] = entry
+			firstAt[ids.SlotOf(name, in)] = holder{at: entry, name: name}
 			continue
 		}
 		diags = append(diags, diag.Newf(ir.SeverityError, diag.DuplicateParameter, place.At(entry),
-			"parameter %q in %q repeats the entry at %s", slot.name, slot.in, first))
+			"parameter %q in %q repeats the entry at %s%s", name, in, first.at, headerSpelling(first.name, name)))
 	}
 	return diags
+}
+
+// headerSpelling says how first, the name of the entry a header parameter named
+// name repeats, is spelled where the two differ in case alone, and nothing
+// where they are spelled alike.
+func headerSpelling(first, name string) string {
+	if first == name {
+		return ""
+	}
+	return fmt.Sprintf(", spelled %q, as HTTP compares header names in any case", first)
 }
 
 // serverRepeats reports each entry of the servers list held by the object at

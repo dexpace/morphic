@@ -37,6 +37,9 @@ const (
 	KindResponse
 	// KindMediaType is a Media Type Object.
 	KindMediaType
+	// KindEncoding is an Encoding Object, whose 3.2 fields nesting another the
+	// model does not read, so what they hold is raw YAML to it.
+	KindEncoding
 )
 
 // kindOf is the Kind of a position read at s.
@@ -62,6 +65,8 @@ func kindOf(s state) Kind {
 		return KindResponse
 	case sMediaType:
 		return KindMediaType
+	case sEncoding:
+		return KindEncoding
 	default:
 		return KindOther
 	}

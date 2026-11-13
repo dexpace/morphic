@@ -117,6 +117,9 @@ var generations = []generation{
 		names: "5506159ecd463736fdbbad0c4cabfad3fd50b48509b46fbea55862e82eca9675"},
 	{version: "0.46.0", format: 1, shape: "579d8cf68b18eb8fb9e58bc0baf0f89dd640a8f916a95f473a407d0513b2f81f",
 		names: "5506159ecd463736fdbbad0c4cabfad3fd50b48509b46fbea55862e82eca9675"},
+	{version: "0.47.0", format: 1, shape: "579d8cf68b18eb8fb9e58bc0baf0f89dd640a8f916a95f473a407d0513b2f81f",
+		names:   "c81be0f2b36405f2d981ea6c635ea75c4154521622c148c008ae2e7f345264b2",
+		meaning: "a default-ignorable letter or mark separates words; the OpenAPI compiler names an anonymous schema by its title, a media type component keyed \"\" by its key and a header an Encoding Object nests by its key, and compares a header parameter's name in any case"},
 }
 
 // shapeGolden holds the description the newest row's shape hashes, so a change

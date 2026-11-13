@@ -207,6 +207,74 @@ func TestParams_RepeatedNameAndLocationKeepsEveryParameter(t *testing.T) {
 	}
 }
 
+// TestParams_AHeaderIsOneParameterInAnyCase covers a header parameter's name
+// read in any case, as HTTP reads it: one an operation writes overrides the
+// path item's spelled in another case, and one list writing it in two cases
+// repeats it, each kept under its own spelling, the repeat's ID numbered. Any
+// other location's name is read as written.
+func TestParams_AHeaderIsOneParameterInAnyCase(t *testing.T) {
+	t.Parallel()
+	const (
+		upper = "{name: X-Trace, in: header, schema: {type: string}}"
+		lower = "{name: x-trace, in: header, schema: {type: integer}}"
+	)
+	doc, diags := parseFull(t, repeatSpec([]string{upper}, []string{lower}))
+	op := openapitest.FindOp(t, doc, "g")
+	require.Len(t, op.Params, 1, "the operation's overrides the path item's")
+	assert.Equal(t, ir.ParamID("param/openapi/paths/~1x/get/parameters/x-trace/header"), op.Params[0].ID)
+	assert.Equal(t, ir.TypeID("t/prim/integer"), op.Params[0].Type.Target)
+	assert.Empty(t, errorFindings(diags))
+
+	doc, diags = parseFull(t, repeatSpec(nil, []string{upper, lower}))
+	op = openapitest.FindOp(t, doc, "g")
+	require.Len(t, op.Params, 2, "neither occurrence is dropped")
+	assert.Equal(t, ir.ParamID("param/openapi/paths/~1x/get/parameters/X-Trace/header"), op.Params[0].ID)
+	assert.Equal(t, ir.ParamID("param/openapi/paths/~1x/get/parameters/x-trace/header/2"), op.Params[1].ID)
+	assert.Equal(t, []string{diag.DuplicateParameter + " at /paths/~1x/get/parameters/1"}, errorFindings(diags))
+
+	doc, diags = parseFull(t, repeatSpec([]string{"{name: Q, in: query, schema: {type: string}}"},
+		[]string{"{name: q, in: query, schema: {type: string}}"}))
+	op = openapitest.FindOp(t, doc, "g")
+	assert.Len(t, op.Params, 2, "a query parameter's name is read as written")
+	assert.Empty(t, errorFindings(diags))
+}
+
+// TestParams_AHeaderRepeatedInAnotherDocumentInAnyCaseIsReported covers the
+// lowering's own report of a repeat in a list another document writes, which
+// load's walk does not reach: a header spelled in two cases is one.
+func TestParams_AHeaderRepeatedInAnotherDocumentInAnyCaseIsReported(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	const other = `X:
+  get:
+    operationId: q
+    parameters:
+      - {name: X-Q, in: header, schema: {type: string}}
+      - {name: x-q, in: header, schema: {type: string}}
+    responses: {"200": {description: ok}}
+`
+	const root = "openapi: 3.1.0\ninfo: {title: T, version: \"1\"}\npaths:\n  /x: {$ref: \"./other.yaml#/X\"}\n"
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "other.yaml"), []byte(other), 0o600))
+	path := filepath.Join(dir, "root.yaml")
+	require.NoError(t, os.WriteFile(path, []byte(root), 0o600))
+
+	doc, diags, err := openapi.New().Compile(t.Context(),
+		[]compilers.Source{{Path: path, Data: []byte(root)}},
+		compilers.Options{Reader: reader.Disk{}, FormatOptions: openapi.Options{AllowExternalRefs: true}})
+	require.NoError(t, err)
+	op := openapitest.FindOp(t, doc, "q")
+	require.Len(t, op.Params, 2)
+	assert.Equal(t, ir.ParamID("param/openapi/paths/~1x/get/parameters/x-q/header/2"), op.Params[1].ID)
+	var repeats []ir.Diagnostic
+	for _, d := range diags {
+		if d.Code == diag.DuplicateParameter {
+			repeats = append(repeats, d)
+		}
+	}
+	require.Len(t, repeats, 1)
+	assert.Equal(t, ir.Provenance{Source: 1, Pointer: "/X/get/parameters/1"}, repeats[0].Provenance)
+}
+
 // TestParams_RepeatsAreNumberedInListOrder holds the occurrence number to the
 // entry's place among the parameters holding its slot, and each report to the
 // first of them, not to the occurrence just before.

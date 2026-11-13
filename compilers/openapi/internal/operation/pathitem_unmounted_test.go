@@ -272,3 +272,23 @@ components:
 		{"openapi:pathItem/paths/~1b/parameters/q/query", param, decl + "/parameters/0"},
 	})
 }
+
+// TestPathItem_WithNoOperationNumbersAHeaderRepeatedInAnyCase pins that a path
+// item mounting no operation keys a header parameter repeated in another case
+// as a parameter's ID would be: the repeat under its own spelling, numbered.
+func TestPathItem_WithNoOperationNumbersAHeaderRepeatedInAnyCase(t *testing.T) {
+	t.Parallel()
+	doc, diags := parseFull(t, openapitest.PathsSpec(`  /p:
+    parameters:
+      - {name: X-A, in: header, description: first, schema: {type: string}}
+      - {name: x-a, in: header, description: second, schema: {type: string}}
+`))
+
+	assertKept(t, doc.Services[0].Unmodeled, []keptEntry{
+		{"openapi:pathItem/paths/~1p/parameters/X-A/header",
+			`{"name": "X-A", "in": "header", "description": "first", "schema": {"type": "string"}}`, "/paths/~1p/parameters/0"},
+		{"openapi:pathItem/paths/~1p/parameters/x-a/header/2",
+			`{"name": "x-a", "in": "header", "description": "second", "schema": {"type": "string"}}`, "/paths/~1p/parameters/1"},
+	})
+	assert.True(t, openapitest.HasDiagCodeAt(diags, diag.DuplicateParameter, "/paths/~1p/parameters/1"))
+}

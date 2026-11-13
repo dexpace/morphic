@@ -523,3 +523,17 @@ func TestParam_ScopesByOperationNameAndLocation(t *testing.T) {
 		seen[tc.got] = tc.name
 	}
 }
+
+// TestSlotOf_ComparesAHeadersNameInAnyCase pins the identity a parameter is
+// merged, numbered and checked for repeats by: a header's name in any case, as
+// HTTP compares it, and every other location's as written.
+func TestSlotOf_ComparesAHeadersNameInAnyCase(t *testing.T) {
+	t.Parallel()
+	assert.Equal(t, ids.SlotOf("X-Trace", "header"), ids.SlotOf("x-trace", "header"))
+	assert.Equal(t, ids.ParamSlot{Name: "x-trace", In: "header"}, ids.SlotOf("X-TRACE", "header"))
+	for _, in := range []string{"query", "path", "cookie", "querystring"} {
+		assert.NotEqual(t, ids.SlotOf("Limit", in), ids.SlotOf("limit", in), in)
+		assert.Equal(t, ids.ParamSlot{Name: "Limit", In: in}, ids.SlotOf("Limit", in), in)
+	}
+	assert.NotEqual(t, ids.SlotOf("a", "header"), ids.SlotOf("a", "query"), "the location still tells two apart")
+}
