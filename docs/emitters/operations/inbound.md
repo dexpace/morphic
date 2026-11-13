@@ -19,8 +19,14 @@ it to. A target generates instead, for each service holding an inbound operation
 - **The operation's request type**, as [request shaping](../refine/requests.md) builds it, in the
   `read` projection the API's side gives it
   ([shapes](../plan/types.md#a-shape-reaches-what-it-holds)), holding its parameters and its body.
-  It lands in the operation's group's unit ([output units](../refine/output-units.md)), which the
-  receiver imports as the client imports its sub-clients.
+  Where its contents give the body different forms ([the body](../refine/requests.md#the-body)), as
+  `multipart/form-data` and `application/json` of one model do, it holds each form once, a form or
+  multipart content's fields in the body's place and another content's value in a field of its own,
+  every one optional, and a parse method sets those of the content that arrived alone, so a handler
+  reads what arrived by its content: an object `metadata` as pairs from a multipart request and
+  typed in the model from a JSON one. Two contents giving one form share it. It lands in the
+  operation's group's unit ([output units](../refine/output-units.md)), which the receiver imports
+  as the client imports its sub-clients.
 - **A response type for each response it declares**, `Return`, each of `Others` and each of `Errors`
   alike, since the receiver chooses which to answer: its status, its declared headers and its body,
   with a method writing them, landing beside the request type. A range's type holds a status the

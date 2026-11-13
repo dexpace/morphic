@@ -6,8 +6,9 @@ Go's request type ([request shaping](../../refine/requests.md)) is a `<Operation
 input no style arranges ([values as text](../../refine/text.md#a-value-no-style-arranges)) is a
 `string` field, or a `[][2]string` of names and values where its position carries pairs, a pair
 whose name the input does not own being the call's `error` return, naming the input, nothing sent. A
-body one of whose fields or parts is such an input gives the struct a field for each of its members
-in place of the one holding the body ([the body](../../refine/requests.md#the-body)).
+form or multipart body gives the struct a field for each of its members in place of one holding the
+body, a caller writing `UploadParams{File: f, Title: &t}` ([the
+body](../../refine/requests.md#the-body)).
 
 ## Pagination
 

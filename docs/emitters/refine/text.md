@@ -59,6 +59,10 @@ media type's serialization of the value instead, so as JSON a string keeps its q
 part under `PartEncoding.Multi` is one for each element of its list, each carrying its element as
 the rules here carry a value, as OpenAPI applies an Encoding Object to each item (§4.14.5.1), and a
 value that is no list, which a union with a list among its variants can hold, is one field or part.
+That holds where its encoding sets no `Style` and no `Explode`; where it sets either, the style
+arranges the value as it does a parameter's, since `Multi`, which the compiler sets from the type
+alone, says only that the field may repeat: under `style: form, explode: false` a list is the one
+field `u=a,b`.
 
 ## Null and empty
 
@@ -157,16 +161,18 @@ declares: `{a}/x/{b}` under `AllowReserved` would send `p` and `q/x/r` as a path
 `p/x/q` and `r`.
 
 A header's text, and a cookie's under the `cookie` style, is sent as it is, never percent-encoded
-(§4.12.2.2), and OpenAPI leaves escaping it to the caller (Appendix D). One holding a control
-character other than a tab, or a space or a tab at either end, which no field value carries
-(RFC 9110 §5.5), a character past ASCII, or named by a `Prefix` key that is no field name (§5.1),
-fails the call before anything is sent, never trimmed or escaped. So does a list's or an object's
-text in a header holding an empty element, which a sender must not write, or one with a space or a
-tab at either end, which a reader takes for the whitespace beside a comma (§5.6.1). A CR LF would
-begin a header of its own, the HTTP libraries the targets can run on each trim the whitespace at a
-text's ends, and they disagree past ASCII: Go sends `é` as its UTF-8 octets and JavaScript's
-`fetch` as one ISO-8859-1 octet, while `fetch` and the JDK's `HttpClient` refuse the `€` Go sends
-(Go 1.27, Node 26, JDK 25).
+(§4.12.2.2), and OpenAPI leaves escaping it to the caller (Appendix D). A header's holding a control
+character other than a tab, or a space or a tab at either end, which no field value carries (RFC
+9110 §5.5), a character past ASCII, or named by a `Prefix` key that is no field name (§5.1), fails
+the call before anything is sent, never trimmed or escaped, as does a cookie's holding, in a value,
+an element or a member, a character that is no `cookie-octet` (RFC 6265 §4.1.1): a control
+character, a space, a `"`, a `,`, a `;`, a `\` or one past ASCII, the `,` the style writes between
+elements being its own. So does a list's or an object's text in a header holding an empty element,
+which a sender must not write, or one with a space or a tab at either end, which a reader takes for
+the whitespace beside a comma (§5.6.1). A CR LF would begin a header of its own, the HTTP libraries
+the targets can run on each trim the whitespace at a text's ends, and they disagree past ASCII: Go
+sends `é` as its UTF-8 octets and JavaScript's `fetch` as one ISO-8859-1 octet, while `fetch` and
+the JDK's `HttpClient` refuse the `€` Go sends (Go 1.27, Node 26, JDK 25).
 
 A name outside a URL and a form body is sent as it is, since no reader decodes one there, and one
 its position cannot carry fails the call before anything is sent, whether a parameter's own, a
@@ -175,13 +181,13 @@ member's that an exploded object writes, a map's key or a caller's pair's
 that is no token (RFC 6265 §4.1.1), and a multipart part's, written as its UTF-8 octets in the
 quoted `name` of its `Content-Disposition` (RFC 7578 §4.2), that holds a `"`, a `\` or a control
 character, which writers escape each their own way. So a cookie carries a pair named `filters.0.key`
-and none named `filters[0][key]`. A value or a member whose text holds a `;` under the `cookie`
-style fails the same way, since it would begin a pair of its own. On Go 1.27.3 and Node 26.13, Go's
-server reads no cookie named `filters[0][key]` from a header holding one and reads `filters%5B0%5D`
-as that name, undecoded; Go's transport refuses a header named `X-Foo[0]`; Go's multipart reader
-gives a part named `deep%5Ba%5D` back as written; and Go writes a `"` in a part's name as `\"` where
-`fetch` writes `%22` and leaves a `\` alone. At the revisions above the golden spec binds no cookie,
-and no header or multipart part it names is refused.
+and none named `filters[0][key]`. On Go 1.27.3 and Node 26.13, Go's server reads no cookie named
+`filters[0][key]` from a header holding one and reads `filters%5B0%5D` as that name, undecoded,
+reads no cookie `p=a"b` or `p=a\b`, reads `p="ab"` as `ab` and `p=a; b=c` as two; Go's transport
+refuses a header named `X-Foo[0]`; Go's multipart reader gives a part named `deep%5Ba%5D` back as
+written; and Go writes a `"` in a part's name as `\"` where `fetch` writes `%22` and leaves a `\`
+alone. At the revisions above the golden spec binds no cookie, and no header or multipart part it
+names is refused.
 
 A `text/plain` body or part is its text's UTF-8 octets, with no byte-order mark, and is read as
 UTF-8 with one leading mark dropped, as RFC 3629 §6 suggests and WHATWG's UTF-8 decode does. One
@@ -318,20 +324,28 @@ on what the position carries:
   name the binding does not have, or one name twice. Each of those names starts with one the input
   owns, and a pair is sent only under such a name. Ownership is one rule for a query, a cookie, a
   form body and a multipart one, which every binding there follows, arranged or not: it writes, and
-  its reader reads, only the names it owns. Every parameter, field or part owns its `WireName`; one
-  a style explodes as an object the wire names of the object's members too, each variant's of a
-  union; a `deepObject` each name it writes, its own followed by a member's or a key's in brackets;
-  and an input no style arranges each name extending one of these, the name followed by `[` or `.`.
-  A name several own is the one's that owns it whole, its own name before a member's, else the one's
-  whose name it extends is the longest, and where they still tie the one's whose wire name is the
-  smaller by bytes, as [one election](../plan/responses.md#one-election) breaks a tie. A map or a
-  catch-all spread over names of its own, by an exploded style or a `Prefix`, arranged or not, owns
-  the rest: each name nothing else there owns, under a `Prefix` only one starting with it, ties
-  going as before. So no input claims a name an arranged binding writes, `deep[a]` staying the
-  `deepObject` `deep`'s beside an input exploding an object whose member is `deep`, and none loses
-  its own: the input named `a` owns `a` beside an exploded object declaring a member `a`. A pair
-  whose name its input does not own, an empty one among them, fails the call before anything is
-  sent, as does a value in a member whose name another binding owns: a caller's `filter` for the
+  its reader reads, only the names it owns. An arranged binding owns exactly the names it writes:
+  its `WireName`, or, where a style explodes it as an object, the wire names of the object's members
+  in its place, each variant's of a union, and under `deepObject` its own followed by a member's or
+  a key's in brackets. An input no style arranges owns its `WireName`, the names its style would
+  write, and each name extending one of these, the name followed by `[` or `.`. A name several own
+  is the one's that owns it whole, its own name before a member's, else the one's whose name it
+  extends is the longest, and where they still tie the one's whose wire name is the smaller by
+  bytes, as [one election](../plan/responses.md#one-election) breaks a tie. A map or a catch-all
+  spread over names of its own, by an exploded style or a `Prefix`, arranged or not, owns the rest:
+  each name nothing else there owns, under a `Prefix` only one starting with it, ties going as
+  before. So no input claims a name an arranged binding writes, `deep[a]` staying the `deepObject`
+  `deep`'s beside an input exploding an object whose member is `deep`; none loses its own, the input
+  named `a` owning `a` beside an exploded object declaring a member `a`; and none holds a name it
+  never writes, so an exploded object `a` declaring `k` leaves `a` to one declaring a member `a`.
+  Where two bindings own a name, or two maps or catch-alls share the rest, the document fixes which
+  one it goes to, so the plan reports each such two once, as a warning
+  `emitters/plan/name-owned-twice` at the location naming both and the one the names go to, and the
+  other writes nothing there, a member's value or a map's entry under them left out as an entry
+  giving way to a header is. Failing
+  each call that sets such a member was weighed and refused: it fails for a fact fixed at
+  generation, every call where the member is required. A pair whose name its input does not own, an
+  empty one among them, fails the call before anything is sent: a caller's `filter` for the
   `filters` of `DELETE /accounts/{account_id}/ai-gateway/gateways/{gateway_id}/logs` would send a
   request the server reads as one with no filter. An input holding no pair is an empty list
   ([above](#null-and-empty)).
@@ -378,8 +392,9 @@ At spec @bc6fad24, morphic @fa253fe19, the golden spec has 12 such parameters, e
 under an exploded `form` whose elements are objects or lists, three such multipart parts, and no
 other parameter, header or form field. Two operations hold two of the parameters in one query,
 `search` beside `searchBranches` or `tagSearch`, and no name one of them or a part owns is another
-binding's: over each operation's query and each of its form or multipart request contents typed by a
-model, 994 in all, no name is owned whole by two bindings. The parts are the `metadata` of `POST
+binding's: over each operation's query and cookie and each of its form or multipart request contents
+typed by a model, 994 in all, no two bindings own a name and no two maps share the rest, so the
+golden spec draws no `name-owned-twice`. The parts are the `metadata` of `POST
 /accounts/{account_id}/images/v1`, of `POST /accounts/{account_id}/images/v2/direct_upload` and of
 `PUT /zones/{zone_id}/snippets/{snippet_name}`, each an object no Encoding Object names, and they
 stay their caller's text until the compiler lowers OpenAPI's default for them (#1777), which types

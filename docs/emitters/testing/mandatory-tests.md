@@ -213,12 +213,14 @@ throughout these documents.
     another unit the declared headers of the response it reads, typed, before its first frame,
     against a server holding that frame back until they are read, those of the `Others` entry whose
     content streams where `Return` declares others, each collection of one Kotlin `Flow` given its
-    own response's, and a response's first declared header adds a field and changes no signature; a
-    stream under a binding other than HTTP draws no `unframed-stream`; a media type only a compiler
-    option names gets the one stream method, as `bytes`, with that warning; a primary `Default` that
-    streams is `bidi` beside a `Send`; a `bytes` side lowers as a file, and a request's file body is
-    a byte source whatever its `Type`; and each operation of the golden spec that streams gets a
-    `StreamPlan` ([streams](../plan/streams.md), [streaming](../operations/streaming.md), [request
+    own response's, a Kotlin caller leaving `onHeaders` out building, and a Swift caller, whom
+    `tailMetricsStream(onHeaders:)` has pass a block, given them, and a response's first declared
+    header adds a field and changes no signature; a stream under a binding other than HTTP draws no
+    `unframed-stream`; a media type only a compiler option names gets the one stream method, as
+    `bytes`, with that warning; a primary `Default` that streams is `bidi` beside a `Send`; a
+    `bytes` side lowers as a file, and a request's file body is a byte source whatever its `Type`;
+    and each operation of the golden spec that streams gets a `StreamPlan`
+    ([streams](../plan/streams.md), [streaming](../operations/streaming.md), [request
     shaping](../refine/requests.md)).
 25. **T-25 · Emit-layer rules** — one check per rule of the [emit rules](../emit/rules.md). A
     template's context type holds no pointer, map, function or method, by reflection. A golden whose
@@ -718,18 +720,19 @@ throughout these documents.
     all 6 items of a server whose constant cursor names state it holds, 3 pages and an empty one,
     under an empty `Stop` and under `[empty]`, and failing at `Pagination.MaxPages` against one
     handing back the cursor it was sent beside the same items, under an empty `Stop` and under
-    `[no_next]`; an empty cursor under a `Stop` without `no_next` is sent back; a string offset and
-    limit are sent as decimal text, a `number` one as a JSON number, a total of `2.5`, of `"ten"` or
-    below 0 ends nothing, one a JSON number spells `1e2` or `100.0` is 100, a total past every
-    target's integer is compared whole, and a next offset past an `int32` input's range fails the
-    walk naming it, unsent; each next request is the last with the cursor or token read at
-    `CursorIn`, the offset plus the items read, or the number plus one, the first counted from a
-    declared default, unmarked, else `plan.Policy.FirstPage`, marked under `Page.FirstPage` in
-    `OpPlan.Inferred`, a declared minimum of 0 beside a default of 1 starting at 1, and a string
-    input sent the number's decimal text, and with that null an operation whose input declares no
-    default has no pager and draws `emitters/plan/first-page-unknown`; and a link is a `GET` of it,
-    on a `POST` operation too, resolved against its page's URL, sending no body and each header
-    input again, carrying credentials to another origin only as a redirect would
+    `[no_next]`, and ending after three pages holding `0 1 0 1 0 1` against one doing so beside the
+    items 0 and 1 and a total of 6 under `[total]`; an empty cursor under a `Stop` without `no_next`
+    is sent back; a string offset and limit are sent as decimal text, a `number` one as a JSON
+    number, a total of `2.5`, of `"ten"` or below 0 ends nothing, one a JSON number spells `1e2` or
+    `100.0` is 100, a total past every target's integer is compared whole, and a next offset past an
+    `int32` input's range fails the walk naming it, unsent; each next request is the last with the
+    cursor or token read at `CursorIn`, the offset plus the items read, or the number plus one, the
+    first counted from a declared default, unmarked, else `plan.Policy.FirstPage`, marked under
+    `Page.FirstPage` in `OpPlan.Inferred`, a declared minimum of 0 beside a default of 1 starting at
+    1, and a string input sent the number's decimal text, and with that null an operation whose
+    input declares no default has no pager and draws `emitters/plan/first-page-unknown`; and a link
+    is a `GET` of it, on a `POST` operation too, resolved against its page's URL, sending no body
+    and each header input again, carrying credentials to another origin only as a redirect would
     ([pagination](../operations/pagination.md#what-a-pager-sends-next), [plan
     policy](../plan/policy.md#a-page-walks-first-page)). A pager that ends on a repeat under a
     listed condition or on a page holding items, follows one on a page holding none under an empty
@@ -778,32 +781,35 @@ throughout these documents.
     `%2B02%3A00`, a `uuid` given in upper case as lower case, `bytes` as padded base64
     percent-encoded in a path and as it is in a header, a space as `%20`, a query parameter named
     `a<b` as `a%3Cb`, a `,` in a member of an unexploded query list as `%2C`, an exploded `form`
-    list in a cookie as `p=a; p=b`, `a/b?c#d` and `a//b` in a path under `AllowReserved` as
-    `a/b%3Fc%23d` and `a//b`, a map's entries and a `Prefix` map's fields in their keys' order, the
-    map's entry, and a `form`-exploded map's, giving way to a field another binding writes, a string
-    under `ContentType` `application/json` with its quotes, a `text/plain` body as its UTF-8 octets
-    with no byte-order mark, and a scalar's class and an `enum class` entry as their wire forms,
-    never their `toString()`. An optional query input holding null or an empty list is sent as an
-    absent one, a null member of a list is left out, and a path parameter or a `host` label holding
-    null or an empty string, a path parameter holding `..`, or `/` alone under `AllowReserved`, an
-    `event_t` of `1.5` in `{event_t}.{event_n}`, a required query list holding no member, a header
-    holding a CR LF, a `\u0001`, an `é` or a trailing space, a header list holding an empty string,
-    a header `Prefix` map holding keys `A` and `a`, a header parameter named `X Foo`, a cookie
-    parameter named `a[b]`, a `cookie`-style cookie holding `a; b=c`, a multipart part named `a"b`
-    or `a\b`, a `text/plain` request whose media type names `charset=iso-8859-1`, a NaN, a year past
-    9999, an offset with seconds and a `decimal` `1E+999999999` each fail before anything is sent,
-    as a NaN, a year past 9999 and an offset with seconds in a body do. The mock server reads each
-    such request back to the values sent, a header `Prefix` map's keys in lower case, as an SDK
-    reads an inbound request's parameters, and either reads a query's `a+b` as `a b`, a scalar's
-    `page=1&page=2` as a text that does not parse, a `page=` as no `page` where `AllowEmptyValue` is
-    set, and an `any` path parameter's `abc` as the JSON string `"abc"`. A response header of each
-    primitive reads `+00:00`, a fraction of each length, one finer than its type's precision cut to
-    it, an upper-case `uuid`, a list sent on two lines and one holding an empty element without it,
-    a `Set-Cookie` list of two lines whose values hold commas as two elements, a header whose
-    `Prefix` is set holding a field another header reads too, keyed in lower case, a `string` header
-    sent as `no-cache, no-store` keeps its space, a `text/plain` body reads `42` after a byte-order
-    mark and does not decode under `charset=iso-8859-1`, and a leap second leaves its field unset
-    with `RawHeader` holding the text (T-26) ([the type
+    list in a cookie as `p=a; p=b`, an unexploded `cookie`-style list as `p=a,b`, `a/b?c#d` and
+    `a//b` in a path under `AllowReserved` as `a/b%3Fc%23d` and `a//b`, a map's entries and a
+    `Prefix` map's fields in their keys' order, the map's entry, and a `form`-exploded map's, giving
+    way to a field another binding writes, a string under `ContentType` `application/json` with its
+    quotes, a `text/plain` body as its UTF-8 octets with no byte-order mark, and a scalar's class
+    and an `enum class` entry as their wire forms, never their `toString()`. An optional query input
+    holding null or an empty list is sent as an absent one, a null member of a list is left out, and
+    a path parameter or a `host` label holding null or an empty string, a path parameter holding
+    `..`, or `/` alone under `AllowReserved`, an `event_t` of `1.5` in `{event_t}.{event_n}`, a
+    required query list holding no member, a header holding a CR LF, a `\u0001`, an `é` or a
+    trailing space, a header list holding an empty string, a header `Prefix` map holding keys `A`
+    and `a`, a header parameter named `X Foo`, a cookie parameter named `a[b]`, a `form`-exploded
+    cookie object's member and a cookie map's key named `a[b]`, a header `Prefix` map's key `a b`, a
+    `cookie`-style cookie holding `a; b=c`, `a"b`, `a\b`, `a b` or `é`, or a list holding `a,b`, a
+    multipart part named `a"b`, `a\b` or `a\u0001b`, or by a catch-all's key `a"b`, a `text/plain`
+    request whose media type names `charset=iso-8859-1`, a NaN, a year past 9999, an offset with
+    seconds and a `decimal` `1E+999999999` each fail before anything is sent, as a NaN, a year past
+    9999 and an offset with seconds in a body do. The mock server reads each such request back to
+    the values sent, a header `Prefix` map's keys in lower case, as an SDK reads an inbound
+    request's parameters, and either reads a query's `a+b` as `a b`, a scalar's `page=1&page=2` as a
+    text that does not parse, a `page=` as no `page` where `AllowEmptyValue` is set, and an `any`
+    path parameter's `abc` as the JSON string `"abc"`. A response header of each primitive reads
+    `+00:00`, a fraction of each length, one finer than its type's precision cut to it, an
+    upper-case `uuid`, a list sent on two lines and one holding an empty element without it, a
+    `Set-Cookie` list of two lines whose values hold commas as two elements, a header whose `Prefix`
+    is set holding a field another header reads too, keyed in lower case, a `string` header sent as
+    `no-cache, no-store` keeps its space, a `text/plain` body reads `42` after a byte-order mark and
+    does not decode under `charset=iso-8859-1`, and a leap second leaves its field unset with
+    `RawHeader` holding the text (T-26) ([the type
     table](../contract/type-table.md#what-a-built-in-row-writes)).
 48. **T-48 · A value no style arranges** — on every target, under T-12's interception, a query
     parameter whose list holds objects, one whose list holds lists, one whose list holds a union of
@@ -826,14 +832,19 @@ throughout these documents.
     `filter` for `filters`, one naming another parameter of the operation, `name.exact` for `name`
     where the query declares both, `k` for `y` where exploded objects `x` and `y` each declare `k`,
     `filter.x.y` for `filter` where the query declares inputs `filter` and `filter.x`, `deep[a]` for
-    an input exploding an object whose member is `deep` beside a `deepObject` parameter `deep`, a
-    value in the member `a` of an arranged exploded object beside an input named `a`, and a required
-    input holding no pair each fail before anything is sent, while an input exploding a map of lists
-    sends `k1[x]` and `zz`, and `filter` sends `filter.xy` beside `filter.x`. A multipart part of a
-    string that declares no encoding is its text with no `Content-Type` of its own, one of a list of
-    strings a part for each element, and one of a list of strings declaring `text/plain`, or of
-    objects declaring `application/json`, a list too, a part of that type for each element; a
-    `deepObject` object of leaves whose `Explode` is false is arranged, sent as
+    an input exploding an object whose member is `deep` beside a `deepObject` parameter `deep`, and
+    a required input holding no pair each fail before anything is sent, while an input exploding a
+    map of lists sends `k1[x]` and `zz`, and `filter` sends `filter.xy` beside `filter.x`. Exploded
+    objects `a` declaring `k` and `b` declaring a required `a` draw no diagnostic and send
+    `k=1&a=2`; an arranged exploded object declaring a member `a` beside an input named `a`, two
+    exploded objects each declaring `k`, two exploded maps `m1` and `m2`, and a `deepObject` map `d`
+    beside an input `d[x]` each draw one `emitters/plan/name-owned-twice` at the query naming the
+    binding the name goes to, `a`, the object of the smaller wire name, `m1` and `d[x]`, and the
+    other's member or entry under it is left out, no call failing. A multipart part of a string that
+    declares no encoding is its text with no `Content-Type` of its own, one of a list of strings a
+    part for each element, and one of a list of strings declaring `text/plain`, or of objects
+    declaring `application/json`, a list too, a part of that type for each element; a `deepObject`
+    object of leaves whose `Explode` is false is arranged, sent as
     `color%5BR%5D=100&color%5BG%5D=200`. The mock server and an inbound request's reader give back
     each input's pairs, in order, `search` and `searchBranches` sharing one query each their own,
     and the string sent, for the values `a&b=c`, `a+b c`, `100%`, `é` and an empty string too, a
@@ -844,22 +855,32 @@ throughout these documents.
     by one operation as multipart with no encoding and by another as `application/json`, gives the
     first's request type the content's fields, `metadata` as pairs, and the second the model's
     declaration as its body, `metadata` typed, and adding either operation changes no declaration of
-    the other; a form body's catch-all of objects is one list of pairs, marked in `Rest`; a
-    multipart response holding such a part is `raw`, its `Text.Content` set; and a `string | list of
-    string` part under `Multi` holding the string is one part. A `text/plain` response declaring an
-    object, and a response header of a list of objects, each return their text as a string, the mock
-    answers the first with no body and a warning `emitters/mock/example-missing`, and an inbound
-    operation declaring a `text/plain` request content of an object beside an `application/json` one
-    reports the content and reads a request sent as `text/plain` as the string it held. The same
-    parameter declaring `content` as `application/json` is typed as its list and sends that JSON
-    text, a `string | list of string` parameter keeps both arrangements, an `any` parameter holding
-    a list fails before anything is sent, a `text/plain` content of an object beside an
-    `application/json` one the ranking elects draws no diagnostic, and a declared example of such a
-    parameter is refused as `emitters/plan/example-refused`, none being synthesized in its place
-    ([values as text](../refine/text.md#a-value-no-style-arranges), [request
+    the other; a multipart model of leaves gives its request type its fields too, so a caller in
+    another unit setting `file` and `title` builds before and after the model gains an optional
+    `metadata` object, and an optional multipart body of a model requiring `file` sends no body
+    where no field is set and fails before anything is sent where `title` alone is; an inbound
+    operation declaring the model as multipart and as `application/json` reads a multipart request
+    into the content's fields, `metadata` as pairs, and a JSON one into the model's own field, each
+    leaving the other's unset; a form body's catch-all of objects is one list of pairs, marked in
+    `Rest`; a multipart response holding such a part is `raw`, its `Text.Content` set; and a `string
+    | list of string` part under `Multi` holding the string is one part, and a form field of it
+    under `style: form, explode: false` holding `a` and `b` one field `u=a,b`. A `text/plain`
+    response declaring an object, and a response header of a list of objects, each return their text
+    as a string, the mock answers the first with no body and a warning
+    `emitters/mock/example-missing`, and an inbound operation declaring a `text/plain` request
+    content of an object beside an `application/json` one reports the content and reads a request
+    sent as `text/plain` as the string it held. The same parameter declaring `content` as
+    `application/json` is typed as its list and sends that JSON text, a `string | list of string`
+    parameter keeps both arrangements, an `any` parameter holding a list fails before anything is
+    sent, a `text/plain` content of an object beside an `application/json` one the ranking elects
+    draws no diagnostic, and a declared example of such a parameter is refused as
+    `emitters/plan/example-refused`, none being synthesized in its place ([values as
+    text](../refine/text.md#a-value-no-style-arranges), [request
     shaping](../refine/requests.md#the-body)). An owner chosen by the shortest extension or by a
-    member's name before an input's own, a reader taking a name its binding does not own, and a
-    member typed as pairs in a model's declaration each fail it.
+    member's name before an input's own, an arranged exploded object owning its own name, a name two
+    bindings own drawing no warning or failing a call, a reader taking a name its binding does not
+    own, a member typed as pairs in a model's declaration, and a form body held whole until a member
+    no style arranges appears each fail it.
 49. **T-49 · A date in a header** — on every target, a response header declared `datetime_offset`
     with no encoding reads `2023-10-21T07:28:00Z`, `Sun, 06 Nov 1994 08:49:37 GMT`, `Sunday,
     06-Nov-94 08:49:37 GMT`, `Sun Nov  6 08:49:37 1994` and `Wed Nov 16 08:49:37 1994` each as its
@@ -887,15 +908,16 @@ throughout these documents.
     `shelves/a:b%41?c/books/é` as `shelves/a%3Ab%2541%3Fc/books/%C3%A9` and `shelves//books/b2` as
     written, and fails before anything is sent for `shelves/s1`, `shelves/s1/books/b2/x` and `a//b`,
     none of four segments, each with `AllowReserved` set or unset, and each failing before anything
-    is sent for `a/../b`, a null and an empty string; one whose pattern is `*` sends `a/b` as
-    `a%2Fb`. One whose pattern is `**` in the template `/prefix/{label}/suffix` sends
-    `foo/suffix/bar` as written, and the mock reads `/prefix/foo/suffix/bar/suffix` back to it; the
-    mock reads `/v1/shelves/s1/books/authors/a/x`, sent in
-    `/v1/{parent=shelves/*}/books/{name=authors/*/x}`, back to `shelves/s1` and `authors/a/x`, and
-    `shelves/books` and `authors/books/x`, sent there with `AllowReserved` set on both, back to
-    themselves; and `p` and `q/x/r` under `AllowReserved` in `/{a}/x/{b}` fail before anything is
-    sent. The mock server reads each text back as sent, and reads a path another client sent as
-    `a%2Fb/c` or as `a%2fb/c` as that text, its triple kept. Each such binding draws an info
+    is sent for `a/../b`, `shelves/../books/b2` and `///`, which have the count, a null and an empty
+    string; one whose pattern is `*` sends `a/b` as `a%2Fb` with `AllowReserved` unset and as `a/b`
+    with it set, as a binding with no pattern does. One whose pattern is `**` in the template
+    `/prefix/{label}/suffix` sends `foo/suffix/bar` as written, and the mock reads
+    `/prefix/foo/suffix/bar/suffix` back to it; the mock reads `/v1/shelves/s1/books/authors/a/x`,
+    sent in `/v1/{parent=shelves/*}/books/{name=authors/*/x}`, back to `shelves/s1` and
+    `authors/a/x`, and `shelves/books` and `authors/books/x`, sent there with `AllowReserved` set on
+    both, back to themselves; and `p` and `q/x/r` under `AllowReserved` in `/{a}/x/{b}` fail before
+    anything is sent. The mock server reads each text back as sent, and reads a path another client
+    sent as `a%2Fb/c` or as `a%2fb/c` as that text, its triple kept. Each such binding draws an info
     `emitters/<target>/unchecked-constraint`, and none drops its escaping with the check ([values as
     text](../refine/text.md#escaping)). A target sending a value of another count of segments under
     a pattern holding no `**`, or reading such a pattern as a longest run under `AllowReserved`,
@@ -1265,24 +1287,26 @@ throughout these documents.
     again where it ends on a refusal, and ends, a limit of 0 included; under a continuation, a link
     among them, that is required and not nullable it ends on a refusal where no listed condition
     ends it first, as `short` does where a limit is sent, the operation drawing
-    `emitters/mock/page-walk-refused`, unless `Stop` is empty, where the end page's repeat ends it,
-    or lists `empty`, where it ends on the page past the last item, `no_next` over a type admitting
-    the empty value, or `total` with a total to read, where the last page's required continuation
-    still holds a value; a continuation the mock did not mint is refused, a page number below
-    `FirstPage` that the input admits, an offset below 0 or holding a fraction, an offset past the
-    end and page 4611686018427387905 at a size of 4 get an empty page, a limit of a billion one page
-    of the walk, and one request the same page whatever came before it; with `Synthesize` off a
-    walk's items and continuations are values the document declares, and one declared cursor value
-    gives a walk of two pages of `n` items where the walk's end is not minted; a pager's `GET` of a
-    link a `POST` operation wrote, its limit in the body, gets its page at that limit and the same
-    `TotalPages`; and a caller whose filter is spelt `q=a%20b&z=1&a=2` reads each item once at a
-    limit of a billion under an empty `Stop`. A mock whose last page keeps a continuation, that
-    repeats one on a page holding items, or repeats one or writes an empty link where `Stop` lists a
-    condition other than `no_next`, that leaves a required continuation out of a page `total` ends
-    the walk on, ignores an offset, counts pages from another first page, refuses a number below it
-    that the input admits, computes a position in a fixed-width integer, ends a page short before
-    the last, sizes a page by a limit of 0, names no size in a link's value, or writes its last link
-    rebuilt from the query it parsed fails it ([a page walk on the
+    `emitters/mock/page-walk-refused`, `[total]` among them, unless `Stop` is empty, where the end
+    page's repeat ends it, or lists `empty`, where it ends on the page past the last item, or
+    `no_next` over a type admitting the empty value; a walk begun at the second page with the
+    continuation the mock wrote reads each item from there once and ends as one begun at the first
+    does, on a refusal only where the operation draws that warning, `[empty, total]` ending on the
+    end page; a continuation the mock did not mint is refused, a page number below `FirstPage` that
+    the input admits, an offset below 0 or holding a fraction, an offset past the end and page
+    4611686018427387905 at a size of 4 get an empty page, a limit of a billion one page of the walk,
+    and one request the same page whatever came before it; with `Synthesize` off a walk's items and
+    continuations are values the document declares, and one declared cursor value gives a walk of
+    two pages of `n` items where the walk's end is not minted; a pager's `GET` of a link a `POST`
+    operation wrote, its limit in the body, gets its page at that limit and the same `TotalPages`;
+    and a caller whose filter is spelt `q=a%20b&z=1&a=2` reads each item once at a limit of a
+    billion under an empty `Stop`. A mock whose last page keeps a continuation, that repeats one on
+    a page holding items, or repeats one or writes an empty link where `Stop` lists a condition
+    other than `no_next`, that leaves a required continuation out of a page `total` ends the walk on
+    or writes there a value naming no page, ignores an offset, counts pages from another first page,
+    refuses a number below it that the input admits, computes a position in a fixed-width integer,
+    ends a page short before the last, sizes a page by a limit of 0, names no size in a link's
+    value, or writes its last link rebuilt from the query it parsed fails it ([a page walk on the
     mock](../docs-and-mock.md#a-page-walk-on-the-mock)).
 68. **T-68 · Bindings a target covers** — a plan binding of each `OpBindings` field carries that
     field's `Protocol` and its binding by reference, a message binding's `Unmodeled` reached through

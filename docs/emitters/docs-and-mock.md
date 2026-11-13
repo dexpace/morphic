@@ -729,38 +729,40 @@ test running beside it would move the count, and a request's page would turn on 
   header; every page states the walk's items where `TotalCount` reads them and its pages at the
   request's size where `TotalPages` does; and the rest of each is the response's example, shown as
   any is. The last carries no continuation: its member absent where optional, else null where
-  nullable; else the empty value where `no_next` is listed and its type admits one; else, where
-  `total` with a total to read ends the walk on it, a value of its type naming no page, refused when
-  sent back, or any value where its type or its set leaves none, since the member must hold one and
-  a pager ending on `total` sends none. Where the continuation is required and not nullable and
-  neither of those nor `total` with a total to read ends the walk on the page holding its last item,
-  the mock mints one more position, the walk's end: that page carries its continuation, and the page
-  asking for it, the end page, holds none, which `empty` ends, and `short` where the request sent a
-  limit. The end page carries, where `Stop` is empty, the continuation its own request sent, a link
-  the URL it was sent to, the target written as it arrived, so the repeat ends the walk however the
-  caller spelt its query ([where a page walk
-  ends](operations/pagination.md#where-a-page-walk-ends)), and otherwise a value the mock did not
-  mint, refused when sent back. A repeat, an empty link among them, ends a walk only under an empty
-  `Stop` and on a page holding no items, so the mock writes one only on the end page there or where
-  `no_next` ends the walk, never where a pager would fetch the page again until its bound. A walk
-  whose continuation is required and not nullable therefore ends on a refusal where no listed
-  condition ends it first, and such an operation draws a warning `emitters/mock/page-walk-refused`,
-  once, unless `Stop` is empty or lists `empty`, `no_next` over a type admitting the empty value, or
-  `total` with a total to read. Leaving the member out all the same was weighed and refused: the SDK
-  would fail to decode the last page and lose its items.
+  nullable; else the empty value where `no_next` is listed and its type admits one. Where the
+  continuation is required and not nullable and neither of those ends the walk, the mock mints one
+  more position, the walk's end, `total` with a total to read listed or not, since `total` counts
+  what the walk read and a walk a caller begins past the first page never reaches it: the page
+  holding the last item carries its continuation, and the page asking for it, the end page, holds
+  none, which `empty` ends, and `short` where the request sent a limit. Ending a walk `total` ends
+  on a value naming no page was weighed and refused: 5,208 walks begun at the second page ended on a
+  refusal with no warning, under every `Stop` listing `total`, `[empty, total]` among them. The end
+  page carries, where `Stop` is empty, the continuation its own request sent, a link the URL it was
+  sent to, the target written as it arrived, so the repeat ends the walk however the caller spelt
+  its query ([where a page walk ends](operations/pagination.md#where-a-page-walk-ends)), and
+  otherwise a value the mock did not mint, refused when sent back. A repeat, an empty link among
+  them, ends a walk only under an empty `Stop` and on a page holding no items, so the mock writes
+  one only on the end page there or where `no_next` ends the walk, never where a pager would fetch
+  the page again until its bound. A walk whose continuation is required and not nullable therefore
+  ends on a refusal where no listed condition ends it first, and such an operation draws a warning
+  `emitters/mock/page-walk-refused`, once, unless `Stop` is empty or lists `empty` or `no_next` over
+  a type admitting the empty value. Leaving the member out all the same was weighed and refused: the
+  SDK would fail to decode the last page and lose its items.
 - **Why every walk ends.** Each continuation the mock writes names a position past the page's last
-  item, so none repeats the one its request sent but the walk's end under an empty `Stop`, a page
-  holding none is the last, and the walk is finite, so a pager sending [its next
+  item, save three that end the walk: the end page's repeat under an empty `Stop`, the empty link
+  `no_next` ends on, and a value it did not mint, which it refuses. So a page holding none is the
+  last and the walk is finite, and a pager sending [its next
   request](operations/pagination.md#what-a-pager-sends-next) reads each item once, in order, in at
   most one request more than the walk has items, and one more again where it ends on a refusal. A
-  page but the last is full, so `short` ends nothing early; `total` is reached on the last data
-  page, `no_next` holds on it, and `empty` holds on the page past the end, where a walk under
-  `offset` or `page` ends whatever `Stop` lists. Run over each strategy, each set of `Stop`
-  conditions, a continuation optional, nullable and required, each total, both first pages, a `GET`
-  and a `POST` operation, `n` of 1 to 3, one, two or unbounded declared cursor values and seven
-  limits, 70,560 walks, a pager following these rules read each item once and ended within that
-  bound, refused only where the warning was drawn; a link whose value named no size lost items in
-  1,824 of them.
+  page but the last is full, so `short` ends nothing early; `total` is reached on the last data page
+  by a walk begun at the first, `no_next` holds on it, and `empty` holds on the page past the end,
+  where a walk under `offset` or `page` ends whatever `Stop` lists. Run over each strategy, each set
+  of `Stop` conditions, a continuation optional, nullable and required, each total, both first
+  pages, a `GET` and a `POST` operation, `n` of 1 to 3, one, two or unbounded declared cursor values
+  and seven limits, 70,560 walks begun at the first page and 43,008 begun at the second with the
+  continuation the mock wrote, a link's walks by a `GET`, a pager following these rules read each
+  item from where it began once and ended within that bound, refused only where the warning was
+  drawn; a link whose value named no size lost items in 1,824 of the first.
 - **What a caller controls.** A limit sizes only its own page, which never holds more than the walk:
   a limit of a billion gets one page of the `2n` items, short and so the last, so a response's size
   is bounded by the document's example and never by the request. An offset or a page number past the

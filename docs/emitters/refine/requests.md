@@ -39,27 +39,35 @@ per-target rather than a plan fact.
 
 ## The body
 
-The body is what its content's `Type` lowers to, or a string where `OpPlan.RequestText` marks that
-content itself ([values as text](text.md#a-value-no-style-arranges)), as an input `ParamBind.Text`
-marks is its caller's text, a string in a path, a host label or a header and a list of pairs of
-strings in a query or a cookie, unless that content is a file (`Content.File`): then it is a byte
+The body is what its content's `Type` lowers to, save for a form or multipart one's fields, below,
+or a string where `OpPlan.RequestText` marks that content itself ([values as
+text](text.md#a-value-no-style-arranges)), as an input `ParamBind.Text` marks is its caller's text,
+a string in a path, a host label or a header and a list of pairs of strings in a query or a cookie,
+unless that content is a file (`Content.File`): then it is a byte
 source among the request's inputs, as a `bytes` side a client writes is
 ([streaming](../operations/streaming.md)), whatever its `Type`. `Type` holds what the source
 declares of the file ([payloads](../../ir/payloads.md)), which need not be bytes, as a type array
 lowers to a union, so a target reads `File` first here as `raw` does for a response ([body
 shapes](../plan/responses.md#body-shapes)).
 
-Where `RequestText` names a field or part of the content, or its `Rest`, the request type holds the
-content's fields and parts in the body's place: a field for each member the body's shape holds,
-typed, optional and required as that shape declares it ([the declaration a shape
-takes](../plan/types.md#the-declaration-a-shape-takes)), each one `RequestText` names a list of
-pairs, and the catch-all's or a map's entries one list under `Rest`, each pair sent as a field or a
-part of the body. No declaration of the model holds the pairs: a model's declaration is its shape's,
-whichever contents carry it, so a content that arranges the member, as `application/json` does,
-keeps it typed, and an operation first sending the model in either content changes no declaration
-the other's callers build. With `Upload` sent as multipart by one operation and as JSON by another,
-the first's request type holds `metadata` as pairs and the second's body is `Upload`. A field named
-as another of the request type is a collision as any is
+A form or multipart content whose type, read through `TypePlan.Alias` and its scalar chain, is a
+model or a map holds its fields and parts in the body's place, whether or not `RequestText` names
+one: the request type has a field for each member the body's shape holds and one for its catch-all,
+or one for a map's entries, each declared as that shape declares it ([the declaration a shape
+takes](../plan/types.md#the-declaration-a-shape-takes)), save that each `RequestText` names, its
+`Rest` among them, is a list of pairs, each pair sent as a field or a part of the body. Where
+`Payload.Required` is not true, each field is optional, none set sends no body, and a member the
+shape requires left unset beside one that is set fails the call before anything is sent. So a member
+the source adds is a field the request type gains, however it is arranged. Holding the body whole
+until a member no style arranges appears was refused: an optional `metadata` object added to a
+multipart `Upload` turned a caller's `Body: Upload{…}` into `unknown field Body in struct literal`
+on Go 1.27.3 and `UpRequest(body = …)` into `no parameter with name 'body' found` on Kotlin 2.4.0,
+for a member the caller never sets. No declaration of the model holds the pairs: a model's
+declaration is its shape's, whichever contents carry it, so a content that arranges the member, as
+`application/json` does, keeps it typed, and an operation first sending the model in either content
+changes no declaration the other's callers build. With `Upload` sent as multipart by one operation
+and as JSON by another, the first's request type holds `metadata` as pairs and the second's body is
+`Upload`. A field named as another of the request type is a collision as any is
 ([collisions](naming.md#collisions-and-the-names-a-generation-shipped)). Two designs lost. The
 member typed as pairs in the model's own declaration gives a JSON body pairs it cannot write, and a
 multipart content added later would retype a member its callers build. A declaration of the model
