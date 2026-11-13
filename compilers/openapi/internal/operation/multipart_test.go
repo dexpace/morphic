@@ -1795,9 +1795,10 @@ func TestPartEncodings_AUnionPastItsBoundIsReported(t *testing.T) {
 }
 
 // TestPartEncodings_KeptEntriesDoNotDependOnDeclarationOrder compiles one form
-// content with its encoding entries in two orders, and one document with its
-// two paths in two orders, each writing an entry of the same name. The Contents
-// come out equal. The order oracle (internal/harness diffOrderInvariants) reads
+// content with its encoding entries in two orders, one document with its two
+// paths in two orders, each writing an entry of the same name, and one whose
+// bodies are components a union keys or no property holds, declared before and
+// after their uses. The Contents come out equal. The order oracle (internal/harness diffOrderInvariants) reads
 // no Content.Unmodeled, so this unit test holds the kept entries instead.
 func TestPartEncodings_KeptEntriesDoNotDependOnDeclarationOrder(t *testing.T) {
 	t.Parallel()
@@ -1842,6 +1843,41 @@ func TestPartEncodings_KeptEntriesDoNotDependOnDeclarationOrder(t *testing.T) {
 		reversed := contents(t, openapitest.PathsSpec(path("q")+path("p")))
 		require.Len(t, forward, 2)
 		assert.Empty(t, cmp.Diff(forward, reversed), "the order of the paths changes nothing (-forward +reversed)")
+	})
+	t.Run("components", func(t *testing.T) {
+		t.Parallel()
+		const paths = `paths:
+  /u:
+    post:
+      operationId: up
+      requestBody:
+        content:
+          multipart/form-data:
+            schema: {$ref: '#/components/schemas/U'}
+            encoding: {doc: {contentType: image/png, x-k: 1}, meta: {x-k: 2}}
+      responses: {"200": {description: ok}}
+  /v:
+    post:
+      operationId: vp
+      requestBody:
+        content:
+          multipart/form-data:
+            schema: {$ref: '#/components/schemas/C'}
+            encoding: {file: {contentType: image/png, x-k: 3}}
+      responses: {"200": {description: ok}}
+`
+		u := "    U: {oneOf: [{$ref: '#/components/schemas/A'}, {$ref: '#/components/schemas/B'}]}\n"
+		a := "    A: {type: object, properties: {doc: {type: string, format: binary}, meta: {type: object}}}\n"
+		b := "    B: {type: object, properties: {doc: {type: array, items: {type: string, format: binary}}}}\n"
+		c := "    C: {const: x, properties: {file: {type: string}}}\n"
+		head := "openapi: 3.1.0\ninfo: {title: T, version: \"1\"}\n"
+		forward := contents(t, head+paths+"components:\n  schemas:\n"+u+a+b+c)
+		reversed := contents(t, head+"components:\n  schemas:\n"+c+b+a+u+paths)
+		require.Len(t, forward, 2)
+		assert.Len(t, forward["op/openapi/paths/~1u/post"].Encoding, 2, "doc and meta are keyed")
+		assert.Equal(t, []string{"file"}, keptEncodingNames(forward["op/openapi/paths/~1v/post"].Unmodeled))
+		assert.Empty(t, cmp.Diff(forward, reversed),
+			"whether a component lowers before its use changes nothing it settles (-forward +reversed)")
 	})
 }
 
