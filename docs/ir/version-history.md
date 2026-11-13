@@ -610,7 +610,29 @@ it sees. Changes made together in one bump are listed together under it.
   null to a type beside it gives that type. A consumer pinned to 0.54.0 that read such a count's
   field finds none there, one reading such a branch under `openapi:allOf/<n>` finds its keywords at
   the position instead, and one reading such a field may find a node minted for it.
-- **0.56.0** — what the OpenAPI compiler writes for `unevaluatedProperties` and `unevaluatedItems`
+- **0.56.0** — three changes of meaning, the shape kept:
+  - A schema admitting `null` and nothing else is a closed `Enum` with no member behind a nullable
+    reference, whatever spells it ([enums](./enums.md#the-empty-enum)). The OpenAPI compiler had
+    lowered a `type` naming `null` alone to the `any` primitive behind a nullable reference, which
+    also admits every other value, or to a `Model` where `properties` was written beside it, and a
+    `oneOf` or `anyOf` of nothing but such branches to an alias over that `any`. A consumer pinned
+    to 0.55.0 finds an `Enum` with no member where it read nullable `any` or an alias of it.
+  - A union branch admitting `null` alone, written in place, is the union's `null` in every
+    spelling, carried by the reference to the union rather than by a variant
+    ([type-graph](./type-graph.md#type-references)). The OpenAPI compiler had lifted only a branch
+    of `type: "null"`, and kept an `enum` of `null` alone or a `const: null` as a variant naming an
+    `Enum` with no member, so a union of one such branch and one other is now a nullable reference
+    to the other, and a union of more has one variant fewer, while one written beside a structural
+    body is kept verbatim beside it, as one holding a `type: "null"` branch already was. A consumer
+    pinned to 0.55.0 finds no variant where it read one admitting `null` alone. The reverse holds
+    too: a `type: "null"` branch writing a `$ref`, a `$dynamicRef`, an `allOf`, a union, or an
+    `enum` or a `const` of other than `null` alone is a variant where the compiler had lifted it
+    and dropped what it wrote beside its type, so such a consumer also finds a variant where it
+    read none.
+  - Such a branch writing more than its `null`, a `description` among it, is kept whole under the
+    new key `openapi:oneOf/<index>` or `openapi:anyOf/<index>`, reason `no_ir_home`, where the
+    compiler had dropped what a lifted `type: "null"` branch wrote beside its type.
+- **0.57.0** — what the OpenAPI compiler writes for `unevaluatedProperties` and `unevaluatedItems`
   changed, the shape unchanged
   ([`additional-properties`](../compilers/openapi.md#additional-properties),
   [`validation-only`](../compilers/openapi.md#validation-only),
@@ -619,15 +641,15 @@ it sees. Changes made together in one bump are listed together under it.
     beside the `unevaluatedProperties: false`, which would leave it inert. Beside one the model is
     `closed` for `false`, and otherwise open with its catch-all, so `{type: object,
     additionalProperties: {…}, unevaluatedProperties: false}` is a `MapT`. A consumer pinned to
-    0.55.0 read such a model as closed.
+    0.56.0 read such a model as closed.
   - A catch-all beside `closed_after_composition` holds its patterns and no `Value`, where it held
     the top type: a key no pattern matches is allowed only where composition evaluates it.
   - `openapi:unevaluated` holds an `unevaluatedProperties: false` wherever no model holds it as its
     closure, where it was dropped, and holds an inert keyword together with the
     `additionalProperties`, `items` or `additionalItems` beside it that leaves it inert. A consumer
-    pinned to 0.55.0 applying the entry read every keyword in it as live.
+    pinned to 0.56.0 applying the entry read every keyword in it as live.
   - Neither keyword an inline `allOf` branch writes folds into the position's `openapi:unevaluated`
     any more: the branch is kept whole under `openapi:allOf/<n>`, as a branch writing
     `unevaluatedProperties: false` already was. At the position the keyword exempted what the other
     conjuncts evaluate, where on its branch it exempts only what the branch evaluates. A consumer
-    pinned to 0.55.0 finds the keyword at the position.
+    pinned to 0.56.0 finds the keyword at the position.
