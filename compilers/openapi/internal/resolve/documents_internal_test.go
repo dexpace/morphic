@@ -4,18 +4,22 @@
 package resolve
 
 import (
+	"context"
 	"errors"
 	"path/filepath"
-	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/dexpace/morphic/compilers"
 )
 
 // TestSameDocument pins when the resolver reading one path reads the document
-// at another: the same spelling, or the same file however reached. A URL is
-// one document only as spelled, and an empty path names none.
+// at another: the same spelling, or the same path once cleaned, a file URI
+// naming the path it names. A relative and an absolute path are two documents,
+// the working directory being no input, any other URL is one document only as
+// spelled, and an empty path names none.
 func TestSameDocument(t *testing.T) {
 	t.Parallel()
 	abs, err := filepath.Abs("api/spec.yaml")
@@ -26,184 +30,136 @@ func TestSameDocument(t *testing.T) {
 	}{
 		{"api/spec.yaml", "api/spec.yaml", true},
 		{"api/spec.yaml", "api/./sub/../spec.yaml", true},
-		{"api/spec.yaml", abs, true},
+		{abs, filepath.Join(filepath.Dir(abs), "x", "..", "spec.yaml"), true},
+		{"api/spec.yaml", abs, false},
+		{abs, "api/spec.yaml", false},
+		{"../api/spec.yaml", "spec.yaml", false},
 		{"api/spec.yaml", "api/other.yaml", false},
 		{"api/x:/spec.yaml", "api/x://spec.yaml", true},
 		{"https://example.com/a.yaml", "https://example.com/a.yaml", true},
 		{"https://example.com/a.yaml", "https://example.com/./a.yaml", false},
-		{"file:/api/spec.yaml", "file:/api/./spec.yaml", false},
+		{"file:/api/spec.yaml", "file:/api/./spec.yaml", true},
+		{"file:///api/spec.yaml", "/api/x/../spec.yaml", true},
+		{"/api/spec.yaml", "file://localhost/api/my%20spec.yaml", false},
+		{"/api/my spec.yaml", "file://localhost/api/my%20spec.yaml", true},
+		{"file:///api/spec.yaml", "api/spec.yaml", false},
+		{"file://host/api/spec.yaml", "/api/spec.yaml", false},
+		{"file:spec.yaml", "spec.yaml", false},
 		{"", "", false},
 	} {
-		assert.Equal(t, c.want, SameDocument(c.a, c.b), "%q %q", c.a, c.b)
+		assert.Equal(t, c.want, (*Places)(nil).SameDocument(c.a, c.b), "%q %q", c.a, c.b)
 	}
 }
 
-// sameDocumentByWorkingDirectory is SameDocument's reading when every pair of
-// file paths is made absolute against the working directory: the reading the
-// quicker one must agree with.
-func sameDocumentByWorkingDirectory(a, b string) bool {
-	if a == "" || b == "" {
-		return false
-	}
-	if a == b {
-		return true
-	}
-	if IsURL(a) || IsURL(b) {
-		return false
-	}
-	absA, errA := filepath.Abs(a)
-	absB, errB := filepath.Abs(b)
-	return errA == nil && errB == nil && absA == absB
-}
-
-// TestSameDocument_AgreesWithTheWorkingDirectoryReading pins that reading the
-// working directory only where it matters changes no answer. The grid is every
-// pair of spellings of two files and a directory, relative and absolute, with
-// parents climbing out of the working directory and back in, which cleaned
-// strings alone cannot equate. Each file is also spelled rooted without its
-// volume: on Windows that path is neither absolute nor below the directory,
-// and elsewhere, with no volume, it is the absolute spelling again. So only a
-// Windows run reaches that form here; the test for non-local Windows paths pins
-// it on any host.
-func TestSameDocument_AgreesWithTheWorkingDirectoryReading(t *testing.T) {
+// TestLocate pins the document a reference's document part names against the
+// document holding it: as the resolver joins it, but read percent-decoded where
+// that names a file, by RFC 3986 against an http(s) URL, an absolute path and a
+// network-path reference among them, and with a leading "./" kept where the
+// join would spell a URL.
+func TestLocate(t *testing.T) {
 	t.Parallel()
-	cwd, err := filepath.Abs(".")
-	require.NoError(t, err)
-	rooted := strings.TrimPrefix(cwd, filepath.VolumeName(cwd))
-	up := filepath.Join("..", filepath.Base(cwd))
-	names := []string{"spec.yaml", "api/spec.yaml", "other.yaml"}
-	forms := []string{"%s", "./%s", "api/../%s", "x/./../%s", up + "/%s", "../../%s"}
-	rest := []string{"", ".", "..", cwd, "https://example.com/spec.yaml", "https://example.com/./spec.yaml"}
-	paths := make([]string, 0, len(names)*len(forms)*5+len(rest))
-	for _, name := range names {
-		for _, form := range forms {
-			rel := strings.Replace(form, "%s", name, 1)
-			paths = append(paths, rel, filepath.Join(cwd, rel), cwd+"//"+rel, cwd+"/./"+rel,
-				filepath.Join(rooted, rel))
-		}
+	for _, c := range []struct{ uri, base, want string }{
+		{"", "/api/spec.yaml", "/api/spec.yaml"},
+		{"common.yaml", "/api/spec.yaml", "/api/common.yaml"},
+		{"../common.yaml", "/api/spec.yaml", "/common.yaml"},
+		{"common.yaml", "api/spec.yaml", "api/common.yaml"},
+		{"/abs/common.yaml", "api/spec.yaml", "/abs/common.yaml"},
+		{"my%20file.yaml", "/api/spec.yaml", "/api/my file.yaml"},
+		{"/abs/my%20file.yaml", "api/spec.yaml", "/abs/my file.yaml"},
+		{"a%2Fb.yaml", "/api/spec.yaml", "/api/a%2Fb.yaml"},
+		{"./file:x.yaml", "spec.yaml", "./file:x.yaml"},
+		{"./file:x.yaml", "/api/spec.yaml", "/api/file:x.yaml"},
+		{"sub/../file:x.yaml", "spec.yaml", "./file:x.yaml"},
+		{"file:x.yaml", "spec.yaml", "file:x.yaml"},
+		{"https://example.com/a.yaml", "/api/spec.yaml", "https://example.com/a.yaml"},
+		{"b.yaml", "https://example.com/v1/a.yaml", "https://example.com/v1/b.yaml"},
+		{"/schemas/pet.yaml", "https://example.com/v1/a.yaml", "https://example.com/schemas/pet.yaml"},
+		{"//cdn.example.com/pet.yaml", "https://example.com/v1/a.yaml", "https://cdn.example.com/pet.yaml"},
+		{"my%20file.yaml", "https://example.com/v1/a.yaml", "https://example.com/v1/my%20file.yaml"},
+		{"file:///etc/a.yaml", "https://example.com/v1/a.yaml", "file:///etc/a.yaml"},
+		{"", "https://example.com/v1/a.yaml", "https://example.com/v1/a.yaml"},
+	} {
+		got, ok := Locate(c.uri, c.base)
+		assert.True(t, ok, "%q in %q", c.uri, c.base)
+		assert.Equal(t, c.want, got, "%q in %q", c.uri, c.base)
 	}
-	paths = append(paths, rest...)
-	for _, a := range paths {
-		for _, b := range paths {
-			assert.Equal(t, sameDocumentByWorkingDirectory(a, b), SameDocument(a, b), "%q %q", a, b)
-		}
-	}
+	_, ok := Locate("a.yaml", "%zz")
+	assert.False(t, ok, "a base the resolver cannot read places nothing")
+	_, ok = Locate("%zz/a.yaml", "https://example.com/a.yaml")
+	assert.False(t, ok, "a reference no URL parser reads names nothing against a URL")
 }
 
-// TestSameDocument_ReadsTheWorkingDirectoryOnlyWhereItMatters pins when
-// SameDocument makes a path absolute, which reads the working directory: two
-// absolute paths, or two relative ones that stay below it, are compared as
-// cleaned and never read it, so a compile that names no document through an
-// absolute path has no ambient read. A relative path against an absolute one,
-// or one not below the directory, cannot be told apart without it.
-func TestSameDocument_ReadsTheWorkingDirectoryOnlyWhereItMatters(t *testing.T) {
+// TestFileOf pins the file a document name names: a path itself, and a file
+// URI the path a reader reads it as; no other URL, and no file URI naming no
+// local file, names one.
+func TestFileOf(t *testing.T) {
 	t.Parallel()
 	for _, c := range []struct {
-		a, b  string
-		wd    string // the working directory the paths are made absolute against
-		same  bool
-		reads bool
+		name, want string
+		ok         bool
 	}{
-		{"spec.yaml", "spec.yaml", "/abs", true, false},
-		{"spec.yaml", "./sub/../spec.yaml", "/abs", true, false},
-		{"spec.yaml", "other.yaml", "/abs", false, false},
-		{"api/spec.yaml", "api/sub/spec.yaml", "/abs", false, false},
-		{"/abs/spec.yaml", "/abs/./sub/../spec.yaml", "/elsewhere", true, false},
-		{"/abs/spec.yaml", "/abs/other.yaml", "/elsewhere", false, false},
-		{"https://example.com/a.yaml", "a.yaml", "/abs", false, false},
-		{"", "spec.yaml", "/abs", false, false},
-		{"spec.yaml", "/abs/spec.yaml", "/abs", true, true},
-		{"spec.yaml", "/abs/spec.yaml", "/elsewhere", false, true},
-		{"/abs/spec.yaml", "spec.yaml", "/abs", true, true},
-		{"../api/spec.yaml", "spec.yaml", "/abs/api", true, true},
-		{"../api/spec.yaml", "spec.yaml", "/abs/other", false, true},
-		{"..", ".", "/abs", false, true},
-		{"../a.yaml", "../b.yaml", "/abs", false, true},
-		{"../a.yaml", "../b.yaml", "", false, true}, // no working directory to read: neither is made absolute
+		{"api/spec.yaml", "api/spec.yaml", true},
+		{"./file:x.yaml", "./file:x.yaml", true},
+		{"/api/spec.yaml", "/api/spec.yaml", true},
+		{"file:///api/my%20spec.yaml", "/api/my spec.yaml", true},
+		{"FILE:///api/spec.yaml", "/api/spec.yaml", true},
+		{"file://server/api/spec.yaml", "", false},
+		{"file:spec.yaml", "", false},
+		{"https://example.com/spec.yaml", "", false},
+		{"urn:example:spec", "", false},
 	} {
-		reads := 0
-		abs := func(p string) (string, error) {
-			reads++
-			if filepath.IsAbs(p) {
-				return filepath.Clean(p), nil
-			}
-			if c.wd == "" {
-				return "", errors.New("no working directory")
-			}
-			return filepath.Join(c.wd, p), nil
-		}
-
-		rules := systemRules()
-		rules.abs = abs
-
-		got := sameDocument(c.a, c.b, rules)
-
-		assert.Equal(t, c.same, got, "%q %q from %s", c.a, c.b, c.wd)
-		assert.Equal(t, c.reads, reads > 0, "reads the working directory: %q %q", c.a, c.b)
+		got, ok := (*Places)(nil).FileOf(c.name)
+		assert.Equal(t, c.ok, ok, "%q", c.name)
+		assert.Equal(t, c.want, got, "%q", c.name)
 	}
 }
 
-// TestSameDocument_ReadsTheWorkingDirectoryForNonLocalWindowsPaths pins how
-// SameDocument treats the Windows paths that are neither absolute nor below the
-// working directory: one rooted without a volume, one naming a drive, a
-// reserved name. Each is made absolute before it is compared, so two spellings
-// of one file are one document. The table states what filepath documents for
-// Windows (IsAbs, IsLocal) and what Abs names, so the test checks how
-// SameDocument uses those answers on any host; only a Windows run of the grid
-// test checks the answers themselves.
-func TestSameDocument_ReadsTheWorkingDirectoryForNonLocalWindowsPaths(t *testing.T) {
+// TestForResolver pins how a reference's document part is spelled for the
+// parser's resolver, so that its own join reads the document Locate names:
+// decoded where it names a file, and against an http(s) URL, as the URL Locate
+// names wherever the resolver reads another, as it reads an absolute path or a
+// network-path reference as a local file, any other part as written.
+func TestForResolver(t *testing.T) {
 	t.Parallel()
-	// A path's reading on Windows with C:\specs the working directory: whether
-	// IsAbs and IsLocal accept it, and the file Abs names.
-	type reading struct {
-		abs, local bool
-		file       string
-	}
-	windows := map[string]reading{
-		`C:\specs\api.yaml`:   {abs: true, file: `C:\specs\api.yaml`},
-		`C:\specs\other.yaml`: {abs: true, file: `C:\specs\other.yaml`},
-		`api.yaml`:            {local: true, file: `C:\specs\api.yaml`},
-		`sub\api.yaml`:        {local: true, file: `C:\specs\sub\api.yaml`},
-		`\specs\api.yaml`:     {file: `C:\specs\api.yaml`},     // rooted, no volume
-		`C:sub\api.yaml`:      {file: `C:\specs\sub\api.yaml`}, // names a drive; the backslash makes IsURL read a file
-		`NUL`:                 {file: `\\.\NUL`},               // a reserved name
-	}
-	read := func(path string) reading {
-		r, ok := windows[path]
-		if !ok {
-			t.Errorf("path %q has no Windows reading in this test", path)
-		}
-		return r
-	}
-	for _, c := range []struct {
-		a, b  string
-		same  bool
-		reads bool
-	}{
-		{`\specs\api.yaml`, `api.yaml`, true, true},
-		{`api.yaml`, `\specs\api.yaml`, true, true},
-		{`C:sub\api.yaml`, `sub\api.yaml`, true, true},
-		{`sub\api.yaml`, `C:sub\api.yaml`, true, true},
-		{`\specs\api.yaml`, `C:\specs\api.yaml`, true, true},
-		{`NUL`, `api.yaml`, false, true},
-		{`api.yaml`, `sub\api.yaml`, false, false},
-		{`C:\specs\api.yaml`, `C:\specs\other.yaml`, false, false},
+	for _, c := range []struct{ uri, base, want string }{
+		{"my%20file.yaml", "/api/spec.yaml", "my file.yaml"},
+		{" my%20file.yaml ", "spec.yaml", "my file.yaml"},
+		{"common.yaml", "/api/spec.yaml", "common.yaml"},
+		{"/schemas/pet.yaml", "https://example.com/v1/a.yaml", "https://example.com/schemas/pet.yaml"},
+		{"//cdn.example.com/pet.yaml", "https://example.com/v1/a.yaml", "https://cdn.example.com/pet.yaml"},
+		{"pet%20s.yaml", "https://example.com/v1/a.yaml", "pet%20s.yaml"},
+		{"file:///etc/x.yaml", "https://example.com/v1/a.yaml", "file:///etc/x.yaml"},
+		{"/%zz", "https://example.com/v1/a.yaml", "/%zz"},
+		{"", "https://example.com/v1/a.yaml", ""},
+		{"../b.yaml", "https://example.com/v1/a.yaml", "../b.yaml"},
+		{"https://other.example/b.yaml", "https://example.com/v1/a.yaml", "https://other.example/b.yaml"},
 	} {
-		require.Equal(t, c.same, read(c.a).file == read(c.b).file, "the table disagrees with the row %q %q", c.a, c.b)
-		reads := 0
-		rules := pathRules{
-			abs: func(path string) (string, error) {
-				reads++
-				return read(path).file, nil
-			},
-			isAbs:   func(path string) bool { return read(path).abs },
-			isLocal: func(path string) bool { return read(path).local },
-		}
+		assert.Equal(t, c.want, ForResolver(c.uri, c.base), "%q in %q", c.uri, c.base)
+	}
+}
 
-		got := sameDocument(c.a, c.b, rules)
-
-		assert.Equal(t, c.same, got, "%q %q", c.a, c.b)
-		assert.Equal(t, c.reads, reads > 0, "reads the working directory: %q %q", c.a, c.b)
+// TestFilePart pins the file a reference's document part names: decoded, but
+// kept as written where decoding would name another document or text no IR
+// string holds, and for a URL, whose escapes are its own.
+func TestFilePart(t *testing.T) {
+	t.Parallel()
+	for uri, want := range map[string]string{
+		"my%20file.yaml":        "my file.yaml",
+		"d~x/my%20file@v1.yaml": "d~x/my file@v1.yaml",
+		"caf%C3%A9.yaml":        "café.yaml",
+		"plain.yaml":            "plain.yaml",
+		"100%.yaml":             "100%.yaml",
+		"bad%FF.yaml":           "bad%FF.yaml",
+		"a%2Fb.yaml":            "a%2Fb.yaml",
+		"a%2fb.yaml":            "a%2fb.yaml",
+		"a%5Cb.yaml":            "a%5Cb.yaml",
+		"a%23b.yaml":            "a%23b.yaml",
+		"file%3Ax.yaml":         "file%3Ax.yaml",
+		"x%3Ay.yaml":            "x%3Ay.yaml",
+		"sub/x%3Ay.yaml":        "sub/x:y.yaml",
+		"https://h/my%20f.yaml": "https://h/my%20f.yaml",
+	} {
+		assert.Equal(t, want, FilePart(uri), "%q", uri)
 	}
 }
 
@@ -230,4 +186,54 @@ func TestIsURL(t *testing.T) {
 	} {
 		assert.Equal(t, want, IsURL(location), "%q", location)
 	}
+}
+
+// linkReader places one directory elsewhere, as a link to it would, counting
+// each time it is asked, and reads nothing.
+type linkReader struct {
+	from, to string
+	asked    map[string]int
+}
+
+func (r *linkReader) ReadDocument(context.Context, compilers.DocumentRequest) ([]byte, error) {
+	return nil, errors.New("reads nothing")
+}
+
+func (r *linkReader) LocateDirectory(dir string) string {
+	r.asked[dir]++
+	if dir == r.from {
+		return r.to
+	}
+	return dir
+}
+
+// TestPlaces_PlacesAFileWhereItsDirectoryLies pins where a compile's files
+// lie: an absolute path, its dot segments removed, in its directory as the
+// reader places it, asked once a directory, its own name kept; a relative path
+// and every path under a reader placing none, as spelled. One file spelled
+// through the link, as its target or by a file URI is one document.
+func TestPlaces_PlacesAFileWhereItsDirectoryLies(t *testing.T) {
+	t.Parallel()
+	r := &linkReader{from: "/link", to: "/real", asked: map[string]int{}}
+	p := NewPlaces(r)
+	require.NotNil(t, p)
+
+	assert.Equal(t, "/real/a.yaml", p.File("/link/a.yaml"))
+	assert.Equal(t, "/real/a.yaml", p.File("/link/x/../a.yaml"))
+	assert.Equal(t, "/other/a.yaml", p.File("/other/a.yaml"))
+	assert.Equal(t, "link/a.yaml", p.File("link/a.yaml"), "a relative path, kept as spelled")
+	assert.Equal(t, "/real", p.Directory("/link"))
+	assert.Equal(t, "link", p.Directory("link"))
+	assert.Equal(t, 1, r.asked["/link"], "a directory is asked once")
+	file, ok := p.FileOf("file:///link/a.yaml")
+	assert.True(t, ok)
+	assert.Equal(t, "/real/a.yaml", file)
+	assert.True(t, p.SameDocument("/link/a.yaml", "file:///real/a.yaml"))
+	assert.False(t, p.SameDocument("/link/a.yaml", "/other/a.yaml"))
+
+	assert.Nil(t, NewPlaces(nil), "a reader placing no directory")
+	var none *Places
+	assert.Equal(t, "/link/a.yaml", none.File("/link/a.yaml"))
+	assert.Equal(t, "/link", none.Directory("/link"))
+	assert.False(t, none.SameDocument("/link/a.yaml", "/real/a.yaml"), "read lexically")
 }
