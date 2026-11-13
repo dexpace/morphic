@@ -237,7 +237,7 @@ func lowerSchemaBody(c lowering.Ctx, ts *compile.Types, depth int, schema *oas3.
 			pointer+ids.Ptr("$dynamicRef"),
 			"$dynamicRef expanded to %q, the one matching $dynamicAnchor in this document", target)}, nullDiags...)
 	}
-	if len(schema.GetOneOf()) > 0 || len(schema.GetAnyOf()) > 0 {
+	if declaresUnion(schema) && !refinesToBranch(c, schema, pointer) {
 		if hasUnionSiblings(c, schema) {
 			id, unionDiags := lowerCoDeclaredUnion(c, ts, depth, schema, pointer)
 			ref, nullDiags := schemaNullRef(c, id, schema, siteAt(pointer))
@@ -253,6 +253,24 @@ func lowerSchemaBody(c lowering.Ctx, ts *compile.Types, depth int, schema *oas3.
 	id, bodyDiags := lower(c, ts, depth, schema, pointer)
 	ref, nullDiags := schemaNullRef(c, id, schema, siteAt(pointer))
 	return ref, append(bodyDiags, nullDiags...)
+}
+
+// refinesToBranch reports whether s, written at pointer, refines to one of its
+// allOf branches, which then decides the position, a union beside the allOf
+// being one of the conjuncts it refines (docs/compilers/openapi.md#allof-refinement).
+func refinesToBranch(c lowering.Ctx, s *oas3.Schema, pointer jsontext.Pointer) bool {
+	r, refines := refinementOf(c, s, pointer)
+	return refines && r.principal != nil
+}
+
+// allOfComposes reports whether s writes an allOf that composes rather than
+// refines, the one a union beside it distributes across or is kept beside.
+func allOfComposes(c lowering.Ctx, s *oas3.Schema) bool {
+	if len(s.GetAllOf()) == 0 {
+		return false
+	}
+	_, refines := refinementOf(c, s, "")
+	return !refines
 }
 
 // lower interns the inline schema at pointer and returns its TypeID. An allOf

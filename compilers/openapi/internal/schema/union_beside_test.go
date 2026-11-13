@@ -203,6 +203,30 @@ func deepChain(n int) string {
 	return b.String()
 }
 
+// TestOneOf_CoDeclaredBesideAComposingAllOfDistributes pins that an allOf that
+// composes is a body a union beside it distributes across, as one that refines
+// is not (docs/compilers/openapi.md#allof-refinement): two $refs, or an inline
+// branch an object, lower to a union of models composed over each branch, in
+// either declaration order.
+func TestOneOf_CoDeclaredBesideAComposingAllOfDistributes(t *testing.T) {
+	t.Parallel()
+	for _, doc := range discriminatedOrders(t, "3.1.0", `    TwoRefs:
+      allOf: [{$ref: '#/components/schemas/A'}, {$ref: '#/components/schemas/B'}]
+      oneOf: [{$ref: '#/components/schemas/C'}, {$ref: '#/components/schemas/D'}]
+    Inline:
+      allOf: [{type: object, properties: {a: {type: string}}}]
+      anyOf: [{$ref: '#/components/schemas/C'}, {$ref: '#/components/schemas/D'}]
+`, `    A: {type: object, properties: {a: {type: string}}}
+    B: {type: object, properties: {b: {type: string}}}
+    C: {type: object, properties: {c: {type: string}}}
+    D: {type: object, properties: {d: {type: string}}}
+`) {
+		for _, name := range []string{"TwoRefs", "Inline"} {
+			assert.Equal(t, readDistributed, unionReading(doc, name), name)
+		}
+	}
+}
+
 // TestAllOf_AUnionBranchDistributesAsBesideTheAllOf pins a oneOf or anyOf
 // written as an inline allOf branch, which distributes as the same union beside
 // the allOf does (docs/compilers/openapi.md#union-beside-structure): the

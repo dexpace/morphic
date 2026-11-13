@@ -95,11 +95,12 @@ func allOfBesideNoRef(s *oas3.Schema) bool {
 	return len(s.GetAllOf()) > 0 && s.Ref == nil
 }
 
-// allOfMayRefine reports whether s's allOf may refine: no $ref, union or
-// $dynamicRef stands beside it, the last two keeping it the composition it would
-// otherwise be (docs/compilers/openapi.md#allof-refinement).
+// allOfMayRefine reports whether s's allOf may refine: no $ref or $dynamicRef
+// stands beside it, the last keeping it the composition it would otherwise be
+// (docs/compilers/openapi.md#allof-refinement). A union beside it is one more
+// conjunct (admission.conjuncts).
 func allOfMayRefine(s *oas3.Schema) bool {
-	return allOfBesideNoRef(s) && !declaresUnion(s) && !declaresDynamicRef(s)
+	return allOfBesideNoRef(s) && !declaresDynamicRef(s)
 }
 
 // allOfDecides reports whether s's allOf is what its position lowers: one the

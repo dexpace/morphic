@@ -469,12 +469,16 @@ func typesDisjoint(types []oas3.SchemaType) bool {
 // branches declare shape and say every one of those keywords (branchesSay): the
 // schema then means the union alone. Branches declaring none narrow the body,
 // whatever they repeat, and a discriminator routing to branches composing the
-// body keeps it, their base (branchesComposeBody).
+// body keeps it, their base (branchesComposeBody). An allOf that refines is no
+// body: the union is one of its conjuncts (docs/compilers/openapi.md#allof-refinement).
 func hasUnionSiblings(c lowering.Ctx, s *oas3.Schema) bool {
 	if !declaresUnion(s) || branchesComposeBody(c, s) {
 		return writesSiblingKeyword(s) // no branch says it, or the body is their base
 	}
 	siblings := siblingKeywords(s)
+	if !allOfComposes(c, s) {
+		siblings = slices.DeleteFunc(siblings, func(k string) bool { return k == "allOf" })
+	}
 	if len(siblings) == 0 {
 		return false
 	}
@@ -649,14 +653,15 @@ func classifyBranchSet(c lowering.Ctx, holder *oas3.Schema) unionLowering {
 // composesAsModel reports whether the structural siblings lower to a Model,
 // which is the only node with composition fields for a union to distribute
 // across. It mirrors lower's dispatch: const and enum win over everything, then
-// allOf, then a declared object type or a bare property set. A bare `required`
-// is one too where every branch admits only an object, the one instance it
-// constrains, or null, which it leaves alone (branchesAdmitOnlyObjects).
+// an allOf that composes, then a declared object type or a bare property set. A
+// bare `required` is one too where every branch admits only an object, the one
+// instance it constrains, or null, which it leaves alone
+// (branchesAdmitOnlyObjects).
 func composesAsModel(c lowering.Ctx, s *oas3.Schema) bool {
 	if s.GetConst() != nil || enumWritten(s) {
 		return false
 	}
-	if len(s.GetAllOf()) > 0 {
+	if allOfComposes(c, s) {
 		return true
 	}
 	types := effectiveTypes(s)
