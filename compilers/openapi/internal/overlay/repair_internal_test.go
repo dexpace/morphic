@@ -36,14 +36,60 @@ func detached() (*yaml.Node, *grafter) {
 func TestRepairAliases_CopiesWithinItsBoundAndRefusesPastIt(t *testing.T) {
 	t.Parallel()
 	root, g := detached()
-	done, safe := repairAliases(t.Context(), root, g, budget.AtMost(7))
+	done, safe, _ := repairAliases(t.Context(), root, g, budget.AtMost(7), budget.Unbounded())
 	assert.True(t, done && safe, "seven nodes fit a bound of seven")
 	assert.Equal(t, yaml.MappingNode, root.Content[0].Content[1].Kind)
 
 	root, g = detached()
-	done, safe = repairAliases(t.Context(), root, g, budget.AtMost(6))
+	done, safe, _ = repairAliases(t.Context(), root, g, budget.AtMost(6), budget.Unbounded())
 	assert.True(t, done)
 	assert.False(t, safe, "and one fewer refuses")
+}
+
+// TestRepairAliases_CopiesWithinTheRoomTheNodeBudgetLeaves pins the node
+// budget's hold on a repair: the tree of a mapping holding the alias, three
+// nodes, and the seven-node copy that replaces the alias, nine in all, fits a
+// budget of nine, the alias's own node counted as room, and a budget of eight
+// refuses the repair before the copy passes it, reported as the budget's.
+func TestRepairAliases_CopiesWithinTheRoomTheNodeBudgetLeaves(t *testing.T) {
+	t.Parallel()
+	root, g := detached()
+	done, safe, budgeted := repairAliases(t.Context(), root, g, budget.AtMost(maxNodes), budget.AtMost(9))
+	require.True(t, done && safe, "nine nodes fit a budget of nine")
+	assert.False(t, budgeted)
+	assert.Equal(t, 9, countNodes(t.Context(), root, budget.Unbounded()), "what the budget is held to")
+
+	root, g = detached()
+	done, safe, budgeted = repairAliases(t.Context(), root, g, budget.AtMost(maxNodes), budget.AtMost(8))
+	assert.True(t, done)
+	assert.False(t, safe, "and one fewer refuses")
+	assert.True(t, budgeted, "on the budget's account")
+
+	root, g = detached()
+	_, safe, budgeted = repairAliases(t.Context(), root, g, budget.AtMost(6), budget.AtMost(20))
+	assert.False(t, safe)
+	assert.False(t, budgeted, "where the bound on a repair is the tighter, it is the bound's")
+}
+
+// TestApplyWithin_RefusesARepairPastTheNodeBudget pins the refusal a repair
+// the node budget cannot hold draws: the budget's, naming it, with nothing
+// applied.
+func TestApplyWithin_RefusesARepairPastTheNodeBudget(t *testing.T) {
+	t.Parallel()
+	var root yaml.Node
+	require.NoError(t, yaml.Unmarshal([]byte("x-t: &s {a: 1, b: 2, c: 3}\nx-use: *s\n"), &root))
+	const ov = "overlay: 1.1.0\ninfo: {title: o, version: \"1\"}\nactions:\n  - target: $['x-t']\n    remove: true\n"
+
+	origin, diags := applyWithin(t.Context(), 1, &root, Options{Data: []byte(ov), MaxNodes: budget.AtMost(8)}, budget.AtMost(maxNodes))
+
+	assert.False(t, origin.Applied())
+	require.Len(t, diags, 1)
+	assert.Equal(t, diag.BudgetExceeded, diags[0].Code)
+	assert.Contains(t, diags[0].Message, "past the 8-node budget")
+
+	require.NoError(t, yaml.Unmarshal([]byte("x-t: &s {a: 1, b: 2, c: 3}\nx-use: *s\n"), &root))
+	origin, diags = applyWithin(t.Context(), 1, &root, Options{Data: []byte(ov), MaxNodes: budget.AtMost(9)}, budget.AtMost(maxNodes))
+	assert.True(t, origin.Applied(), "a budget of nine holds the mapping, x-use and its seven-node copy: %+v", diags)
 }
 
 // TestRepairAliases_IsRefusedOnceTheContextIsDone pins the repair's context,
@@ -54,7 +100,7 @@ func TestRepairAliases_IsRefusedOnceTheContextIsDone(t *testing.T) {
 	cancelled, cancel := context.WithCancel(t.Context())
 	cancel()
 	root, g := detached()
-	done, _ := repairAliases(cancelled, root, g, budget.AtMost(maxNodes))
+	done, _, _ := repairAliases(cancelled, root, g, budget.AtMost(maxNodes), budget.Unbounded())
 	assert.False(t, done)
 
 	reachable, walked := reachableNodes(t.Context(), root.Content[0])
@@ -72,17 +118,17 @@ func TestRepairAliases_RunsOnlyOnceARemoveApplied(t *testing.T) {
 	t.Parallel()
 	root, g := detached()
 	g.removed = false
-	done, safe := repairAliases(t.Context(), root, g, budget.AtMost(maxNodes))
+	done, safe, _ := repairAliases(t.Context(), root, g, budget.AtMost(maxNodes), budget.Unbounded())
 	assert.True(t, done && safe)
 	assert.Equal(t, yaml.AliasNode, root.Content[0].Content[1].Kind, "no remove, no repair")
 
 	nowhere := &yaml.Node{Kind: yaml.DocumentNode, Content: []*yaml.Node{ynode.Map(ynode.Scalar("x"), &yaml.Node{Kind: yaml.AliasNode})}}
 	g.removed = true
-	done, safe = repairAliases(t.Context(), nowhere, g, budget.AtMost(maxNodes))
+	done, safe, _ = repairAliases(t.Context(), nowhere, g, budget.AtMost(maxNodes), budget.Unbounded())
 	assert.True(t, done)
 	assert.False(t, safe)
 
-	done, safe = repairAliases(t.Context(), &yaml.Node{Kind: yaml.DocumentNode}, g, budget.AtMost(maxNodes))
+	done, safe, _ = repairAliases(t.Context(), &yaml.Node{Kind: yaml.DocumentNode}, g, budget.AtMost(maxNodes), budget.Unbounded())
 	assert.True(t, done && safe, "a document holding nothing holds no alias")
 }
 

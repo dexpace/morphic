@@ -242,9 +242,10 @@ remove, or an action setting none, is an `openapi/overlay-action` warning. An ac
 an `openapi/overlay-failed` error naming both. A remove deletes each node its target selects from
 the object or array holding it, at Overlay 1.0 a primitive too, since 1.0 has no other spelling for
 removing a primitive member. A YAML alias elsewhere naming a node it removed keeps the value it
-stood for, as a copy, each node of which names as its writer the document that wrote it; a copy past
-the attribution walk's node budget refuses the overlay as an `openapi/overlay-failed` error. An
-update writes its value into each node its target selects, and a copy writes the one node its `copy`
+stood for, as a copy, each node of which names as its writer the document that wrote it; a copy that
+would grow the tree past `MaxSourceNodes` refuses the overlay as an `openapi/budget-exceeded` error,
+and one past the attribution walk's node budget as an `openapi/overlay-failed` error. An update
+writes its value into each node its target selects, and a copy writes the one node its `copy`
 selects, as that node stood when the action began:
 
 1. into an object, an object is merged member by member: a member the object lacks is added, a
@@ -314,6 +315,7 @@ no overlay, reported as an `openapi/overlay-origin-incomplete` warning.
   `overlay.TestRepairAliases_CopiesWhatARemoveLeftAnAliasNaming`,
   `overlay.TestRepairAliases_KeepsTheWriterOfWhatItCopies`,
   `overlay.TestApplyWithin_RefusesARepairPastItsBound`,
+  `overlay.TestApplyWithin_RefusesARepairPastTheNodeBudget`,
   `load.TestLoad_ATaggedMappingLeftBehindARemovedAnchorIsRefused`,
   `load.TestLoad_ReadsANamedOverlayThroughTheReader`,
   `load.TestLoad_ANamedOverlayThatCannotBeReadIsAGoError`,

@@ -15,24 +15,42 @@ import (
 
 // repairAliases replaces each alias the actions left naming a node outside the
 // tree, as a remove of its anchor leaves it, with a copy of the value it
-// stands for. Readers here walk Content and read an alias as a leaf, so the
-// refusals, the node budget and the attribution would miss what the parser
-// follows (GitHub #477).
-//
-// It is whole or refused, never skipped, and runs once g removed a node, the
-// one way g detaches one. done is false once ctx is done, and safe is false
-// for copies past copies nodes.
-func repairAliases(ctx context.Context, root *yaml.Node, g *grafter, copies budget.Limit) (done, safe bool) {
+// stands for, since readers here walk Content and read an alias as a leaf
+// while the parser follows it (GitHub #477). It runs once g removed a node,
+// the one way g detaches one, and is whole or refused: done is false once ctx
+// is done, and safe false for copies past copies nodes, or past the room the
+// node budget, nodes, leaves the tree, which budgeted then reports.
+func repairAliases(ctx context.Context, root *yaml.Node, g *grafter, copies, nodes budget.Limit) (done, safe, budgeted bool) {
 	content := nodeview.DocumentRoot(root)
 	if !g.removed || content == nil {
-		return true, true
+		return true, true, false
 	}
 	reachable, walked := reachableNodes(ctx, content)
 	if !walked {
-		return false, true
+		return false, true, false
 	}
-	work := budget.New(copies)
-	return substituteDetached(ctx, content, reachable, g.written, &work)
+	limit := copies
+	if most, bounded := nodes.Max(); bounded {
+		// Each alias a copy replaces leaves the tree, so its node is room too.
+		if room := max(most-len(reachable)+detachedAliases(reachable), 0); room < copies.Cap() {
+			limit, budgeted = budget.AtMost(room), true
+		}
+	}
+	work := budget.New(limit)
+	done, safe = substituteDetached(ctx, content, reachable, g.written, &work)
+	return done, safe, budgeted && !safe
+}
+
+// detachedAliases counts the aliases among reachable naming a node outside it,
+// each of which a repair replaces with a copy.
+func detachedAliases(reachable map[*yaml.Node]bool) int {
+	count := 0
+	for n := range reachable {
+		if n.Kind == yaml.AliasNode && !reachable[n.Alias] {
+			count++
+		}
+	}
+	return count
 }
 
 // reachableNodes collects every node a Content walk from root reaches, which

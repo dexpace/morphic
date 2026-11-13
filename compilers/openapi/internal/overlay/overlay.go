@@ -40,10 +40,11 @@ type Options struct {
 	// reported as a warning, and the rest of the overlay applies.
 	Lax bool
 	// MaxNodes bounds the document the overlay may grow the source to, checked
-	// before each action builds anything; unset, it is unbounded. It is the
-	// compile's node budget: the loader checks the patched tree against the
-	// same limit afterwards, and this is what stops an overlay spending memory
-	// to build a tree that check would refuse (GitHub #491).
+	// before each action builds anything and as the alias repair copies;
+	// unset, it is unbounded. It is the compile's node budget: the loader
+	// checks the patched tree against the same limit afterwards, and this is
+	// what stops an overlay spending memory to build a tree that check would
+	// refuse (GitHub #491).
 	MaxNodes budget.Limit
 }
 
@@ -120,9 +121,13 @@ func applyWithin(ctx context.Context, index int, root *yaml.Node, opts Options, 
 
 	// A repair a cancel cut short refuses as a cancelled sequence does, with
 	// nothing reported, since the caller reads its context next.
-	switch done, safe := repairAliases(ctx, root, g, walks); {
+	switch done, safe, budgeted := repairAliases(ctx, root, g, walks, opts.MaxNodes); {
 	case !done:
 		return Origin{}, diags
+	case budgeted:
+		return Origin{}, append(diags, diag.Newf(ir.SeverityError, diag.BudgetExceeded, at,
+			"overlay applied, but copying what a remove left YAML aliases naming would grow the document past the %d-node budget",
+			opts.MaxNodes.Cap()))
 	case !safe:
 		return Origin{}, append(diags, diag.Newf(ir.SeverityError, diag.OverlayFailed, at,
 			"overlay applied, but the aliases a remove left naming what it removed expand past %d nodes", walks.Cap()))
