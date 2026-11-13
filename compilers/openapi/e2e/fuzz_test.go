@@ -34,9 +34,8 @@ const cycleFixtureDir = "../../../testdata/openapi"
 // structural oracles (irverify passes, JSON round-trips byte-identical, recompile
 // is deterministic) on every document that compiles cleanly. A Go error, nil
 // document, or error-severity diagnostic (e.g. a dangling $ref) marks malformed
-// input or a spec-author problem rather than a compiler defect and is skipped,
-// mirroring the gate internal/harness.Check applies before running its own
-// oracles. A panic is always a real defect and fails the fuzz run.
+// input or a spec-author problem rather than a compiler defect and is skipped.
+// A panic is always a real defect and fails the fuzz run.
 func FuzzCompile(f *testing.F) {
 	seedCorpus(f)
 	f.Fuzz(func(t *testing.T, data []byte) {

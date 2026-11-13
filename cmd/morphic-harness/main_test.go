@@ -8,11 +8,13 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/dexpace/morphic/internal/harness"
 	"github.com/dexpace/morphic/internal/testspec"
 )
 
@@ -33,6 +35,35 @@ func TestRun_AllOKExitsZero(t *testing.T) {
 	require.Equal(t, 0, code, "stderr: %s", stderr.String())
 	assert.Contains(t, stdout.String(), "a.yaml")
 	assert.Contains(t, stdout.String(), "b.yaml")
+}
+
+// TestRun_PrintsWhatEachOracleReached pins the summary after the report: a
+// row per oracle, counting what it asked and declined, so a spec an oracle
+// could not ask is never read as one it passed. A key written twice compiles,
+// last declaration winning, and is no spec the order oracle can permute.
+func TestRun_PrintsWhatEachOracleReached(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	writeSpec(t, dir, "a.yaml", testspec.Minimal)
+	writeSpec(t, dir, "dup.yaml", testspec.Minimal+"info: {title: again, version: \"2\"}\n")
+
+	var stdout, stderr bytes.Buffer
+	code := run(context.Background(), []string{dir}, &stdout, &stderr)
+
+	require.Equal(t, 0, code, "stderr: %s", stderr.String())
+	report, summary, found := strings.Cut(stdout.String(), "\n\n")
+	require.True(t, found, "a blank line parts the report from the summary: %s", stdout.String())
+	assert.Contains(t, report, "a.yaml")
+	assert.Equal(t, harness.Summary(mustCheck(t, dir)), summary)
+	assert.Contains(t, summary, "order-invariance         1      0        1  duplicate key 1\n")
+}
+
+// mustCheck sweeps dir as run does.
+func mustCheck(t *testing.T, dir string) []harness.Result {
+	t.Helper()
+	results, err := harness.CheckPath(context.Background(), dir)
+	require.NoError(t, err)
+	return results
 }
 
 func TestRun_AnyFailureExitsOne(t *testing.T) {

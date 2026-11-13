@@ -197,8 +197,9 @@ func (c *correlator) callbackTargets(op *ir.Operation) []callbackTarget {
 }
 
 // params offers each parameter of op its key: op's, then where the parameter
-// travels and its wire name, a header's in lower case, or its name where no
-// binding places it. A parameter offers its type the key of its schema.
+// travels and its wire name, or its prefix under one, a header's in lower
+// case, or its name where no binding places it. A parameter offers its type the
+// key of its schema.
 func (c *correlator) params(key string, op *ir.Operation) {
 	for i := range op.Params {
 		p := &op.Params[i]
@@ -210,27 +211,39 @@ func (c *correlator) params(key string, op *ir.Operation) {
 
 // paramKey is the key of p, a parameter of op keyed key. A host binding is
 // passed over: it fills a host-prefix label in addition to the binding at the
-// parameter's modeled location (docs/ir/http-binding.md), which places it.
+// parameter's modeled location (docs/ir/http-binding.md), which places it. A
+// binding under a prefix names no field of its own, so it is keyed by where it
+// travels and its prefix, in a segment of another kind than a wire name's
+// (docs/ir/http-binding.md#prefix-bindings).
 func paramKey(key string, op *ir.Operation, p *ir.Parameter) string {
 	for _, b := range op.Bindings.HTTP {
 		for _, pb := range b.ParamBindings {
 			if pb.Param != p.ID || pb.Location == ir.HTTPLocationHost {
 				continue
 			}
+			if pb.Prefix != nil {
+				return child(part(key, string(pb.Location)), "prefix", wireCase(pb.Location, *pb.Prefix))
+			}
 			wire := pb.WireName
 			if wire == "" {
 				wire = p.Name.Source
 			}
-			if pb.Location == ir.HTTPLocationHeader {
-				wire = strings.ToLower(wire)
-			}
-			return child(key, "param", string(pb.Location)+" "+wire)
+			return child(key, "param", string(pb.Location)+" "+wireCase(pb.Location, wire))
 		}
 	}
 	if p.Name.Source == "" {
 		return ""
 	}
 	return child(key, "arg", p.Name.Source)
+}
+
+// wireCase is name as a key compares it at location: a header's in lower case,
+// as HTTP compares a field name (RFC 9110 §5.1), and any other as written.
+func wireCase(location ir.HTTPLocation, name string) string {
+	if location == ir.HTTPLocationHeader {
+		return strings.ToLower(name)
+	}
+	return name
 }
 
 // conditions spells the status ranges a response applies to, each as its code

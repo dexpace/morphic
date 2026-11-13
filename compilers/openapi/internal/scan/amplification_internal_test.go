@@ -583,6 +583,40 @@ func TestAliasWeigher_InFlightCycleSaturates(t *testing.T) {
 		"the node the cycle cut holds a weight, and its frame pops uncomputed")
 }
 
+// TestAliases_ARecursiveAnchorBelowTheTrackedDepthReachesTheCut pins that a
+// parsed document reaches pushChildren's cut: a recursive anchor nested past
+// the depth the index tracks ancestors to (sourceindex's maxTrackedDepth) is no
+// anchor cycle the index finds, so the weigh walk meets the cycle and the cut
+// carries the document to an amplification refusal, while Nesting refuses it
+// as too deep. One level up, the index finds it, anchorCycle refuses it and
+// Nesting leaves it alone. The deeper row is the deepest nesting the parser
+// decodes.
+func TestAliases_ARecursiveAnchorBelowTheTrackedDepthReachesTheCut(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name  string
+		depth int
+		cycle bool
+		code  string
+	}{
+		{"at the tracked depth", 9998, true, diag.CyclicRef},
+		{"below it", 9999, false, diag.AliasAmplification},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			src := "x: " + strings.Repeat("[", tc.depth) + "&a [*a]" + strings.Repeat("]", tc.depth) + "\n"
+			idx := indexOf(t, []byte(src))
+			require.Equal(t, tc.cycle, len(idx.AnchorCycles()) > 0, "whether the index finds the anchor cycle")
+
+			diags := Aliases(t.Context(), provenance.Tree{}, ir.Provenance{}, idx, budget.Unbounded())
+			require.Len(t, diags, 1)
+			assert.Equal(t, tc.code, diags[0].Code)
+			_, deep := Nesting(t.Context(), provenance.Tree{}, idx)
+			assert.Equal(t, !tc.cycle, deep, "whether Nesting refuses the document as too deep")
+		})
+	}
+}
+
 // TestYAMLUnmarshal_IntoANodeSpendsNoAliasBudget pins the yaml.v3 fact the alias
 // weigher's reason for existing rests on, and that Aliases's comment states: the
 // library's excessive-aliasing guard counts expansions, and decoding into a

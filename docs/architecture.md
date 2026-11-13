@@ -526,12 +526,15 @@ compiler settings. Each is there because the document depends on it. The path is
 against, so it reaches the IDs of what the documents they name declare. The working directory is
 not covered: it reaches the document only through where the spec lies and through the documents a
 run reads, which an entry lists (below). The build is the identity of the code, compilers and
-passes included: `cache.BuildID` hashes the executable, since a module version names neither a
-dirty tree nor the toolchain. It reads the file at the executable's path, as no portable call reads
-the image running, so a build installed as a run starts, before that read, is the one named: the
-run keeps what the old build compiled under the new build's key, and that entry answers the new
-build (#1318). The threshold is not covered, as a hit judges the verdict afresh, and neither is the
-format, which follows from the bytes and which finding is what a hit skips.
+passes included: `cache.BuildID` hashes the image the process runs, since a module version names
+neither a dirty tree nor the toolchain. A path names that image only until a build is installed
+over it, and a run that named the installed build would keep what the old one compiled under the
+new one's key, where it would answer the new build. So on Linux the image is read through
+`/proc/self/exe`, which serves the file the process started from whatever has since replaced its
+path. Elsewhere, macOS among them, the executable's path is read, and a build installed as a run
+starts, before that read, is the one named (#1318). The threshold is not covered, as a hit judges
+the verdict afresh, and neither is the format, which follows from the bytes and which finding is
+what a hit skips.
 
 **What a key cannot cover.** Which other documents a compile reads is known only once it has run.
 So a compile reads through a recorder, the entry lists each request with the hash of what came
@@ -745,10 +748,15 @@ something a caller asks for with `none`, never a default.
   order — no panic, `irverify`'s structural invariants, no error diagnostic, JSON round-trip,
   determinism across two compiles, each pass's idempotence and the pass list's (§2.2), and
   **order-independence**. The last one compiles the same source twice with every mapping's entry
-  order reversed and diffs the two documents. It is the general form of the two-order check, and it
-  is what catches an interning collision: two declarations minting one node at a single pointer
-  produce the same document read either way only if neither is the one that got there first. Both
-  pointer collisions the compiler has had were invisible to a single-order suite.
+  order reversed, each YAML anchor moved to the first place that names it, and diffs the two
+  documents whole, forgiving only the order of what a mapping orders. It is the general form of the
+  two-order check, and it is what catches an interning collision: two declarations minting one node
+  at a single pointer produce the same document read either way only if neither is the one that got
+  there first. Both pointer collisions the compiler has had were invisible to a single-order suite.
+  An error diagnostic stops none of the oracles, and an oracle with nothing to compare declines,
+  saying why, so a sweep's summary counts what each asked and what it could not. The order oracle
+  leaves sequences as written, an `allOf`'s branches among them (#1666), and compiles at the
+  default limits alone (#1519).
 - **Architecture test** (`internal/archtest`): import-graph assertions for the layering rules
   above, plus the rules the graph cannot express — which lowerings are mutually recursive (so a
   set that grows is noticed rather than measured), the method-per-type cap, that no function is
