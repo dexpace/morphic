@@ -236,8 +236,9 @@ routes there. A tag routes to a variant where `Discrim.Mapping` names the varian
 as [above](#discriminators). The plan writes a union's routes out: the entries of the IR's
 `Mapping`, or, where the IR leaves it nil, each variant under the source name of its type, the name
 OpenAPI's implicit mapping routes by, which an anonymous variant lacks
-([discriminator](../../ir/models.md#discriminator)). A `Mapping` holding an entry holds every route,
-the compiler writing in those the source implies, so a variant it leaves out has none.
+([discriminator](../../ir/models.md#discriminator)). A `Mapping` holding an entry holds, beside the
+source's entries, the route the source implies to each variant they leave out, so a variant it
+leaves out has none.
 
 A variant's own tags are the tags routing to it that its tag member admits: every declaration of the
 member in the variant's flattening, the one it takes and those it overrides, admits the value of the

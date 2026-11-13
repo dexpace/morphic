@@ -470,11 +470,11 @@ it sees. Changes made together in one bump are listed together under it.
   headers](./responses.md#prefix-headers)). `irverify` holds such a header to a map type and no
   wire name, and `irfacts.CorrelationVersion` moved to 3, keying it by its prefix. No compiler
   fills it yet. A consumer pinned to 0.45.0 refuses a document with a prefix header.
-- **0.47.0** — no shape change. A union's `Discriminator.Mapping` that holds an entry holds every
-  route of the union ([models](./models.md#discriminator)): the OpenAPI compiler writes into it the
-  route OpenAPI implies to each variant no entry routes, the name of the component its branch names,
-  and writes the routes out too where a variant's type is an alias for a keyword beside its `$ref`,
-  as it did for a variant composed over its branch
+- **0.47.0** — no shape change. A union's `Discriminator.Mapping` that holds an entry holds, beside
+  the entries its source writes, the route the source implies to each variant it declares none for
+  ([models](./models.md#discriminator)): the OpenAPI compiler writes into it the name of the
+  component that variant's branch names, and writes the routes out too where a variant's type is an
+  alias for a keyword beside its `$ref`, as it did for a variant composed over its branch
   ([`discriminator`](../compilers/openapi.md#discriminator)). Its discriminator-inference policy
   reads what a variant or a subtype admits as a set of strings
   ([`discriminator-inference`](../compilers/openapi.md#discriminator-inference)): a variant pinning

@@ -2248,9 +2248,9 @@ distributed union ([`discriminator`](#discriminator)): a `mapping` target, or th
 `defaultMapping`, naming the component a `$ref` branch names routes to the variant composed over
 that branch. OpenAPI routes a variant no entry names by the name of the component its branch
 names, which a composed variant, named for its position, does not carry, so that route is written
-into the `Mapping`, as [`discriminator`](#discriminator) writes each route a nil one would not say.
-No variant carries a `DiscriminatorValue`, which tags a subtype in a
-hierarchy, since the mapping's keys tag the union's variants, and
+into the `Mapping`, as [`discriminator`](#discriminator) writes it wherever a nil one would not say
+it. No variant carries a `DiscriminatorValue`, which tags a subtype in a hierarchy, since the
+mapping's keys tag the union's variants, and
 [`discriminator-inference`](#discriminator-inference) may read the mapping off the tags they pin.
 
 A `oneOf` or `anyOf` written as an inline branch of the schema's `allOf` conjoins with the rest of
@@ -2485,16 +2485,28 @@ On a `Model` whose own properties include the one `propertyName` names, the tag 
 in `Discriminator.PropertyName`. Each `mapping` entry lowers to its key and the `TypeID` its target
 lowers to, the target named by reference or by bare schema name, and 3.2's `defaultMapping` to
 `Discriminator.Default`. `Inferred` is not set: the document declares the discriminator. OpenAPI
-routes a variant no `mapping` entry routes by the name of the component its `$ref` branch names, its
-implicit mapping, and the IR routes by a variant type's name only where a union's `Mapping` is nil
-([models](../ir/models.md#discriminator)). So a union's `Mapping` holds that route, the name keying
-its variant, wherever a nil one would not say it: where the `mapping` holds an entry, or where a
-variant's type is not the component its branch names, as an alias for a keyword beside the `$ref` is
-not, nor a variant composed over its branch ([`union-beside-structure`](#union-beside-structure)). A
-name two branches name, or one an entry spells already, keys nothing more, and an inline variant has
-none. A variant an entry routes is not routed by its name too, as OpenAPI's own example maps `dog`
-to `Dog` "rather than the default (implicit) value of Dog"; one the `defaultMapping` names still is.
-With no `mapping`, and each variant whose branch names a component that component itself, the
+reads a tag per value, as the name of a component schema unless a `mapping` entry keys that value,
+its implicit mapping: 3.0.4, 3.1.1 and 3.2.0 say so ("_unless_ a `mapping` is present for that
+value"), and 3.0.3 and 3.1.0, which those patch releases clarify, fail a value only where it matches
+no "implicit or explicit mapping". Their example maps the value `dog` to `Dog` "rather than the
+default (implicit) value of `Dog`", which the patch releases correct to "of
+`#/components/schemas/dog`", the reading `dog` itself takes with no entry. So the name of the
+component a variant's `$ref` branch names routes to the variant whether or not an entry routes it
+too. The IR routes by a variant type's name only where a union's `Mapping` is nil
+([models](../ir/models.md#discriminator)), so a union's `Mapping` holds the name route to each
+variant no entry routes, the name keying its variant, wherever a nil one would not say it: where the
+`mapping` holds an entry, or where a variant's type is not the component its branch names, as an
+alias for a keyword beside the `$ref` is not, nor a variant composed over its branch
+([`union-beside-structure`](#union-beside-structure)). A name two branches name, or one an entry
+spells already, keys nothing more, and an inline variant has none. The compiler leaves out the name
+of a variant an entry routes, though OpenAPI routes by it: a `Mapping` is what a consumer writing an
+instance picks the variant's tag from, and a map cannot mark one of two routes to a variant as read
+and never written, so the name written in would give the variant a second tag to write and nothing
+to say which. A hierarchy leaves out the name of a subtype a key tags in the same way, its
+`DiscriminatorValue` being a key ([`discriminator-value`](#discriminator-value)). A payload
+carrying such a name routes nowhere in the IR, or to `Default` where a 3.2 document declares
+`defaultMapping`. A variant the `defaultMapping` names and no entry routes is still routed by its
+name. With no `mapping`, and each variant whose branch names a component that component itself, the
 `Mapping` is nil and a union routes each variant by the name of its type, unless
 [`discriminator-inference`](#discriminator-inference) reads it off the tags the variants pin. A
 mapping target that resolves to no schema is reported as an `openapi/unresolved-ref` error at the
@@ -2526,7 +2538,10 @@ a position that writes a `$ref`, other than a component or a variant, is read th
   mapping to a component that is a `$ref` to a subtype fails validation (#844), and so does one to a
   type two variants alias, which a valid document can write (#1298); a variant whose branch names a
   component of another document is routed by its type's name where the `Mapping` is nil, and by
-  nothing where it holds an entry (#1829).
+  nothing where it holds an entry (#1829); and a payload tagged with the name of a union's variant
+  or a hierarchy's subtype that an entry routes reaches no variant, or `Default`, though OpenAPI
+  routes it by that name, as the IR has no place for a route a consumer reads and never writes
+  (#1863).
 
 ### `discriminator-value`
 
