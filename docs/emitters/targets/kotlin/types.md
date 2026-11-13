@@ -16,15 +16,65 @@ Multiplatform differ.
 A Kotlin type codes through its row's `Codec`, a `KSerializer` the row names unless the type is
 `@Serializable`.
 
+## Integers
+
+Each built-in integer row names a serializer of the runtime's as its `Codec`, which decides [by
+value](../../contract/type-table.md#an-integer-row-reads-a-number-by-its-value). Under a
+`JsonDecoder` it reads the literal's text through `decodeJsonElement()`, the one way kotlinx hands a
+serializer a number unparsed, and under any other format it reads as the type's own serializer does.
+It applies wherever the row types a position, as any row's codec does: a property, a list's element,
+a map's value, a nullable and a scalar's class each read a whole number spelled with a fraction or
+an exponent under the SDK's `Json`, under a caller's own and from a `JsonElement`, where the same
+member without it refuses `5.0`. On a 173 KB body of 2,000 models holding fourteen integers each,
+decoding took 0.95 ms with kotlinx alone and 1.90 ms through the serializer (Kotlin 2.4.0,
+kotlinx-serialization-json 1.11.0, JVM 25). kotlinx offers no cheaper seam: its `Long` decoder
+cannot be asked to try and fall back, since a refused literal has already been consumed.
+
+A map's key names the row's text serializer instead, a `KSerializer` over a string that writes [the
+value's text and reads one](../../contract/type-table.md#a-maps-key-is-text), and never the row's
+`Codec`, which cannot tell a name from a string value. The map itself codes through the runtime's
+serializer for a typed key, which refuses a second name reading as a key it holds, where kotlinx's
+own kept the last of `{"1": …, "1.0": …, "1e0": …}` under such a key serializer. T-61 holds this
+section.
+
+## Bytes
+
+A `ByteArray` equals only itself, and no declaration holding one repairs that. A value class over
+one compares by identity, and Kotlin reserves `equals` on a value class (`member name 'equals' is
+reserved for future releases`, Kotlin 2.4.0). A model that compares the member with `contentEquals`
+still compares a list of them, a map's values, a union's variant and a value class over them by
+identity. A `data class` copies the reference, so a copy's array is the original's. So the built-in
+row for `bytes` is the runtime's `Bytes`: a final class over an array it copied in, with `size`,
+`get`, a `toByteArray()` that copies out, `equals` and `hashCode` over the content, and a `toString`
+that shows only its size. With it two values holding the same bytes are equal as themselves, in a
+scalar's class, in a model's generated `equals`, in a list, as a map's key and as a union's variant,
+and hash alike; the Swift export gives the class the same `==` and `hash`, so it keys a
+`Dictionary`, where a `KotlinByteArray` compares by identity as it does in Kotlin (Kotlin/JVM and
+Kotlin/Native 2.4.0, Swift 6.2).
+
+The copies are the price, one in and one out, on values that arrive as base64 inside a JSON text; a
+body that is bytes whole is a file or a stream ([return shapes](returns.md)) and no `bytes`
+position, and the raw body a failure holds stays a `ByteArray`, compared by identity as its
+exception is. Three alternatives lost. Content equality in each generated member needs a rule for
+every position bytes can sit in, and has none for one a caller holds outside a model: on the golden
+spec (spec @bc6fad24, morphic @fa253fe19) `bytes`, or one of the 25 scalars over it, types 24 model
+properties, 8 lists' elements, 4 maps' values and 2 union variants. A `typealias` over `ByteArray`
+leaves identity everywhere. And `kotlinx-io`'s `ByteString` is this type as a dependency every SDK
+would take for one class. A configuration that maps `bytes` to `ByteArray` takes its identity with
+it ([type table](../../contract/type-table.md)). T-62 holds this.
+
 ## A declaration over a root
 
-Kotlin draws the [shared line](../../refine/scalars.md) at its own types: a value class over
-`Boolean`, a number, `String` or `ByteArray`, and a `typealias` over any other root, which leaves
-the root's type, and its serializer, in every signature. A value class over a sensitive chain, and a
-sensitive enum's class, whose entry's name would spell its member, override `toString` to show
-`[REDACTED]` ([redaction](../../refine/redaction.md#a-redacted-value)), while their serializers and
-a parameter write the value itself, never `toString`; a `typealias` can declare nothing, so only its
-holders redact it.
+Kotlin draws the [shared line](../../refine/scalars.md) at its own types: a final class over
+`Boolean`, a number, `String` or the runtime's `Bytes`, and a `typealias` over any other root, which
+leaves the root's type, and its serializer, in every signature. The class holds the value as
+`value`, compares, hashes and prints by it, and codes through a generated serializer that writes it
+as the root's row does. It is a class and no value class on both Kotlin targets ([no value
+class](swift.md#no-value-class)). A class over a sensitive chain, and a sensitive enum's class,
+whose entry's name would spell its member, override `toString` to show `[REDACTED]`
+([redaction](../../refine/redaction.md#a-redacted-value)), while their serializers and a parameter
+write the value itself, never `toString`; a `typealias` can declare nothing, so only its holders
+redact it.
 
 ## Enums
 
@@ -39,22 +89,32 @@ wire](../../refine/enums.md#a-member-on-the-wire)). Of two entries sharing a `@S
 decodes the last, where the first is canonical; it throws on a name no entry has, which a
 `FallbackMember` decodes; and it refuses `1.0` as a `Long`, which an `integer` admits. So a closed
 enum keeps `@SerialName` only where it is a `string` one holding each value once and declaring no
-`FallbackMember`, and every other one but a flags one and an open `string` one, a value class over
-`String`, codes through a generated `KSerializer`. It writes each member's wire form, the value
-type's JSON kind where it has no `WireName`, and decodes by comparing as JSON does, members holding
-one value taking the first's form both ways. A closed one is an `enum class` whose entry holds its
-wire text, `val wire: String`, and the member as the row's type, `val value: LocalDate`, decoded
-from that text through the row's codec when first read wherever Kotlin can write no `const val` of
-the type, as of a `LocalDate`. A member the codec refuses, such as a leap second `java.time` cannot
-hold, then fails where it is read, as Go's `Value` returns its error, and not wherever the class
-loads. A member a row's width cannot hold has no entry ([a member on the
+`FallbackMember`, and every other enum, an open one and a flags one included, codes through a
+generated `KSerializer`. It writes each member's wire form, a flags enum's bits as a number, the
+value type's JSON kind where it has no `WireName`, and decodes by comparing as JSON does, members
+holding one value taking the first's form both ways. A closed one is an `enum class` whose entry
+holds its wire text, `val wire: String`, and the member as the row's type, `val value: LocalDate`,
+decoded from that text through the row's codec when first read wherever Kotlin can write no `const
+val` of the type, as of a `LocalDate`. A member the codec refuses, such as a leap second `java.time`
+cannot hold, then fails where it is read, as Go's `Value` returns its error, and not wherever the
+class loads. A member a row's width cannot hold has no entry ([a member on the
 wire](../../refine/enums.md#a-member-on-the-wire)), as a `Long` literal past its range does not
 compile.
 
-An open one is a value class, which equals as its underlying value does, since Kotlin reserves
-`equals` and `hashCode` on a value class, so it holds the member's wire text, `val wire: String`,
-wherever Kotlin can write no `const val` of the row's type, and its `value` is decoded through the
-row's codec when read, as a closed entry's is. A value class over the row's type would tell members
-apart or merge them unlike JSON: a `BigDecimal` keeps its scale, so `0.1` and `0.10` would be two, a
-`ByteArray` equals only itself, and a `Uuid` or a time type reads two texts as one value, a `uuid`
-in either case or `10:00:00` and `10:00:00.000`, and writes back a spelling of its own.
+An open one is a final class with a constant per member in its companion, comparing by a generated
+`equals` and `hashCode` over what it holds: the value as the row's type, or the member's wire text,
+`val wire: String`, wherever Kotlin can write no `const val` of that type, its `value` then decoded
+through the row's codec when read, as a closed entry's is. A class comparing by the row's type there
+would tell members apart or merge them unlike JSON: a `BigDecimal` keeps its scale, so `0.1` and
+`0.10` would be two, and a `Uuid` or a time type reads two texts as one value, a `uuid` in either
+case or `10:00:00` and `10:00:00.000`, and writes back a spelling of its own. A flags enum is a
+final class over its integer, `val bits`, with a constant per member, `or` and `contains`, comparing
+by its bits. Neither is a value class ([no value class](swift.md#no-value-class)): every enum the
+policy covers is open ([plan policy](../../plan/policy.md#an-enum-keeps-a-value-it-does-not-list)),
+so a value class would leave a Swift caller no enum type at all.
+
+An enum with no members ([enums](../../refine/enums.md#an-enum-with-no-members)) is an `enum class`
+with no entries, which Kotlin compiles and whose serializer, the plugin's or the generated one,
+refuses every value: measured with Kotlin/Native 2.4.0 and kotlinx-serialization-json 1.11.0, a
+nullable property of one decoded where it was absent and threw on `"x"`. No value of it exists to
+encode.

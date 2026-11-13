@@ -70,7 +70,9 @@ answers](../plan/responses.md#which-entry-answers)):
 - a `value` body decodes into `Body`, whatever `Type`'s kind, and a `void` or `raw` one leaves it
   nil, with `RawBody` holding whatever arrived;
 - a body that does not decode never hides the failure: `Body` stays nil and `BodyErr` holds the
-  decode error, since the status is what the caller must learn;
+  runtime's decode failure, which keeps of the decoder's only its types
+  ([redaction](../refine/redaction.md#nothing-a-library-wrote-is-shown)), since the status is what
+  the caller must learn;
 - a failure an envelope reports in-band, a success whose flag holds a value its `Succeeds` does not
   list ([envelopes](../plan/responses.md#envelopes)), takes no entry of `Errors`: it has no `Fault`
   and no kind, since its status states neither, its `Body` is what the first of
@@ -79,8 +81,8 @@ answers](../plan/responses.md#which-entry-answers)):
 
 A body is buffered up to `Policy.Errors`' bound and no further, so an endless one cannot exhaust the
 caller; `RawBody` holds what was read, and a body cut there is one that does not decode. A union
-body is the union's own type ([unions](../refine/unions.md)), and being read it is `Open`, so a new
-variant in an error reaches the caller as one rather than as a decode failure. `Headers` holds a
-value of what the entry declares, its type named by its operation and case (`GetZone429Headers`)
-and read as a success's are ([return shapes](returns.md)), so two cases sharing a body may declare
-different headers.
+body is the union's own type ([unions](../refine/unions.md)), which is `Open`, so a new variant in
+an error reaches the caller as one rather than as a decode failure. `Headers` holds a value of what
+the entry declares, its type named by its operation and case (`GetZone429Headers`) and read as a
+success's are ([return shapes](returns.md)), so two cases sharing a body may declare different
+headers.
