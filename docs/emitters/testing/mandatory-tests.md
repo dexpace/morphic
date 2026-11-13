@@ -694,14 +694,17 @@ throughout these documents.
     against both totals; a condition the page gives nothing to read for ends nothing; and whatever
     `Stop` lists, the walk ends at a page giving no continuation under each strategy reading one,
     `link_header` among them, and at a page holding no items under `offset` or `page`; under an
-    empty `Stop` a repeat ends it too, a link resolving to its own page's URL, an empty one and one
-    spelt with other letter case in its host or its percent-encoding among them, and a cursor or
-    token page handing back the value its request sent, while under a listed condition the pager
-    follows each, reading all 6 items of a server whose constant cursor names state it holds, 3
-    pages and an empty one under `[empty]`, and failing at `Pagination.MaxPages` against one handing
-    back the cursor it was sent under `[no_next]`; an empty cursor under a `Stop` without `no_next`
+    empty `Stop` a repeat on a page holding no items ends it too, a link resolving to its own page's
+    URL, an empty one and one spelt with other letter case in its host or its percent-encoding among
+    them, and a cursor or token page handing back the value its request sent, while a repeat on a
+    page holding items, and every repeat under a listed condition, is followed, the pager reading
+    all 6 items of a server whose constant cursor names state it holds, 3 pages and an empty one,
+    under an empty `Stop` and under `[empty]`, and failing at `Pagination.MaxPages` against one
+    handing back the cursor it was sent beside the same items, under an empty `Stop` and under
+    `[no_next]`; an empty cursor under a `Stop` without `no_next`
     is sent back; a string offset and limit are sent as decimal text, a `number` one as a JSON
-    number, a total of `2.5`, of `"ten"` or below 0 ends nothing, a total past every target's
+    number, a total of `2.5`, of `"ten"` or below 0 ends nothing, one a JSON number spells `1e2` or
+    `100.0` is 100, a total past every target's
     integer is compared whole, and a next offset past an `int32` input's range fails the walk naming
     it, unsent; each next request is the last with the cursor or token read at `CursorIn`, the
     offset plus the items read, or the number plus one, the first counted from a declared default,
@@ -713,8 +716,9 @@ throughout these documents.
     credentials to another origin only as a redirect would
     ([pagination](../operations/pagination.md#what-a-pager-sends-next), [plan
     policy](../plan/policy.md#a-page-walks-first-page)). A pager that ends on a repeat under a
-    listed condition, follows one under an empty `Stop`, takes an empty cursor as none without
-    `no_next`, wraps a number, or counts from a minimum, fails it.
+    listed condition or on a page holding items, follows one on a page holding none under an empty
+    `Stop`, takes an empty cursor as none without `no_next`, reads a total of `1e2` as none, wraps a
+    number, or counts from a minimum, fails it.
 46. **T-46 · A model composing a union** — on every target, a model composing a discriminated union
     by `$ref` beside a property of its own decodes a payload of each variant into the variant
     composed over it, the model's property beside the variant's members, and encodes it back byte
@@ -1187,7 +1191,8 @@ throughout these documents.
     ends it first, as `short` does where a limit is sent, the operation drawing
     `emitters/mock/page-walk-refused`, unless `Stop` is empty, where the end page's repeat ends it,
     or lists `empty`, where it ends on the page past the last item, `no_next` over a type admitting
-    the empty value, or `total` with a total to read; a continuation the mock did not mint is
+    the empty value, or `total` with a total to read, where the last page's required continuation
+    still holds a value; a continuation the mock did not mint is
     refused, a page number below `FirstPage` that the input admits, an offset below 0 or holding a
     fraction, an offset past the end and page 4611686018427387905 at a size of 4 get an empty page,
     a limit of a billion one page of the walk, and one request the same page whatever came before
@@ -1196,11 +1201,12 @@ throughout these documents.
     minted; a pager's `GET` of a link a `POST` operation wrote, its limit in the body, gets its page
     at that limit and the same `TotalPages`; and a caller whose filter is spelt `q=a%20b&z=1&a=2`
     reads each item once at a limit of a billion under an empty `Stop`. A mock whose last page keeps
-    a continuation, that repeats one or writes an empty link where `Stop` lists a condition other
-    than `no_next`, ignores an offset, counts pages from another first page, refuses a number below
-    it that the input admits, computes a position in a fixed-width integer, ends a page short before
-    the last, sizes a page by a limit of 0, names no size in a link's value, or writes its last link
-    rebuilt from the query it parsed fails it ([a page walk on the
+    a continuation, that repeats one on a page holding items, or repeats one or writes an empty link
+    where `Stop` lists a condition other than `no_next`, that leaves a required continuation out of
+    a page `total` ends the walk on, ignores an offset, counts pages from another first page,
+    refuses a number below it that the input admits, computes a position in a fixed-width integer,
+    ends a page short before the last, sizes a page by a limit of 0, names no size in a link's
+    value, or writes its last link rebuilt from the query it parsed fails it ([a page walk on the
     mock](../docs-and-mock.md#a-page-walk-on-the-mock)).
 68. **T-68 · Bindings a target covers** — a plan binding of each `OpBindings` field carries that
     field's `Protocol` and its binding by reference, a message binding's `Unmodeled` reached through

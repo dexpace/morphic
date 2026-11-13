@@ -91,15 +91,17 @@ reads no item fewer than the source's own rule would.
 A continuation that would send the request just sent repeats: under `cursor` and `token` one that
 encodes at `CursorIn` as the value the request sent there, and under a link one that resolves (RFC
 3986 §5.2) to the URL of the page giving it, as an empty one does, the two compared after the
-syntax-based normalization of RFC 3986 §6.2.2, which changes no URL's meaning. A repeat ends the
-walk only where `Stop` is empty, which states no rule, so the pager reads none into the shape and
-following would fetch that page until the bound below. Where `Stop` lists a condition, the pager
-follows it, since a cursor naming state the server holds repeats while its pages advance: against
-such a server, 6 items in 3 pages and then an empty one under `Stop` `[empty]`, a pager ending on
-the repeat read 4 items in 2 requests and reported the walk complete, and one following it read all
-6 in 4. A server that repeats and never meets a listed condition, as one handing back the cursor it
-was sent does, meets the bound and fails the walk, never handing a caller part of a collection as
-the whole of it. T-45 holds this section.
+syntax-based normalization of RFC 3986 §6.2.2, which changes no URL's meaning. A pager follows a
+repeat while its page brings items, whatever `Stop` lists, since a cursor naming state the server
+holds repeats while its pages advance: against such a server, 6 items in 3 pages and then an empty
+one, a pager ending on the first repeat read 4 items in 2 requests and reported the walk complete,
+under an empty `Stop` as under `[empty]`, and one following it read all 6 in 4. A repeat ends the
+walk only where `Stop` is empty and the page holds no items: no rule then says where the walk ends,
+and a page that brings nothing and asks for itself again would be fetched until the bound below.
+Where `Stop` lists a condition, the pager follows every repeat and waits for the condition. A server
+that repeats and never ends a walk so, as one handing back the cursor it was sent beside the same
+items does, meets the bound and fails the walk, never handing a caller part of a collection as the
+whole of it. T-45 holds this section.
 
 A server whose continuations never end, whether they differ or repeat, meets none of these, so a
 walk is bounded as well: it fetches at most the runtime policy's `Pagination.MaxPages` pages and

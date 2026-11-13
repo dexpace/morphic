@@ -729,7 +729,10 @@ test running beside it would move the count, and a request's page would turn on 
   header; every page states the walk's items where `TotalCount` reads them and its pages at the
   request's size where `TotalPages` does; and the rest of each is the response's example, shown as
   any is. The last carries no continuation: its member absent where optional, else null where
-  nullable; else the empty value where `no_next` is listed and its type admits one. Where the
+  nullable; else the empty value where `no_next` is listed and its type admits one; else, where
+  `total` with a total to read ends the walk on it, a value of its type naming no page, refused when
+  sent back, or any value where its type or its set leaves none, since the member must hold one and
+  a pager ending on `total` sends none. Where the
   continuation is required and not nullable and neither of those nor `total` with a total to read
   ends the walk on the page holding its last item, the mock mints one more position, the walk's end:
   that page carries its continuation, and the page asking for it, the end page, holds none, which
@@ -738,13 +741,13 @@ test running beside it would move the count, and a request's page would turn on 
   it arrived, so the repeat ends the walk however the caller spelt its query ([where a page walk
   ends](operations/pagination.md#where-a-page-walk-ends)), and otherwise a value the mock did not
   mint, refused when sent back. A repeat, an empty link among them, ends a walk only under an empty
-  `Stop`, so the mock writes one only where that or `no_next` ends the walk, never where a pager
-  would fetch the page again until its bound. A walk whose continuation is required and not nullable
-  therefore ends on a refusal where no listed condition ends it first, and such an operation draws a
-  warning `emitters/mock/page-walk-refused`, once, unless `Stop` is empty or lists `empty`,
-  `no_next` over a type admitting the empty value, or `total` with a total to read. Leaving the
-  member out all the same was weighed and refused: the SDK would fail to decode the last page and
-  lose its items.
+  `Stop` and on a page holding no items, so the mock writes one only on the end page there or where
+  `no_next` ends the walk, never where a pager would fetch the page again until its bound. A walk
+  whose continuation is required and not nullable therefore ends on a refusal where no listed
+  condition ends it first, and such an operation draws a warning `emitters/mock/page-walk-refused`,
+  once, unless `Stop` is empty or lists `empty`, `no_next` over a type admitting the empty value, or
+  `total` with a total to read. Leaving the member out all the same was weighed and refused: the SDK
+  would fail to decode the last page and lose its items.
 - **Why every walk ends.** Each continuation the mock writes names a position past the page's last
   item, so none repeats the one its request sent but the walk's end under an empty `Stop`, a page
   holding none is the last, and the walk is finite, so a pager sending [its next
