@@ -137,7 +137,10 @@ var generations = []generation{
 		names:   "5506159ecd463736fdbbad0c4cabfad3fd50b48509b46fbea55862e82eca9675",
 		meaning: "an enum's or a const's null is no member, variant or Literal but its reference's, so an enum of null alone or a const of null is an Enum with no member; an Enum's ValueType is one its members are values of; a number's format on a string is a Scalar over the number whose Encoding string travels as a string WireType, its bounds kept verbatim; and over a string a WireType marks text to encode"},
 	{version: "0.54.0", format: 1, shape: "0b2f5e45e4be29c67a153976848af676bc99d9f21d9e41a91b7abfd167ae026b",
-		names:   "5506159ecd463736fdbbad0c4cabfad3fd50b48509b46fbea55862e82eca9675",
+		names:   "c81be0f2b36405f2d981ea6c635ea75c4154521622c148c008ae2e7f345264b2",
+		meaning: "a default-ignorable letter or mark separates words; the OpenAPI compiler names an anonymous schema by its title, a media type component keyed \"\" by its key and a header an Encoding Object nests by its key, and compares a header parameter's name in any case"},
+	{version: "0.55.0", format: 1, shape: "0b2f5e45e4be29c67a153976848af676bc99d9f21d9e41a91b7abfd167ae026b",
+		names:   "c81be0f2b36405f2d981ea6c635ea75c4154521622c148c008ae2e7f345264b2",
 		meaning: "the OpenAPI compiler writes closed_after_composition only for an unevaluatedProperties: false no additionalProperties leaves inert, supplies no catch-all value beside it, and keeps every other unevaluated form under openapi:unevaluated, with the keyword that leaves an inert one inert"},
 }
 

@@ -169,9 +169,10 @@ func assertEmptyNamedProperty(t *testing.T, doc *ir.Document) {
 // enclosing node's. Each pairs an unnamed position with the role or index that
 // distinguishes the child from its siblings — a list element, a map value, a
 // pattern group, a tuple slot or rest (a draft's spelling too), an enum branch,
-// a composed union variant, a contentSchema, a media type's itemSchema, and the
-// items of a schema a header or a parameter holds, directly or under its
-// content. A slice rather than a map so a failure names them in a fixed order.
+// a composed union variant, a contentSchema, a media type's itemSchema, the
+// items of a parameter's schema, directly or under its content, and what a
+// media type component keyed "" holds. A slice, so a failure names them in a
+// fixed order.
 var composedHints = []struct {
 	id   ir.TypeID
 	hint string
@@ -187,12 +188,11 @@ var composedHints = []struct {
 	{"t/anon/components/schemas/Mixed/properties//enum/1", "empty_1"},
 	{"t/composed/components/schemas/Host/properties//oneOf/0", "empty_alt"},
 	{"t/anon/components/schemas/Blob/properties//contentSchema", "empty_content"},
-	{"t/anon/components/responses/Framed/headers//content/application~1jsonl/itemSchema", "empty_item"},
 	{"t/anon/components/parameters/Unnamed/content/application~1jsonl/itemSchema", "empty_item"},
-	{"t/anon/components/responses/Listed/headers//schema/items", "empty_item"},
 	{"t/anon/components/parameters/UnnamedList/schema/items", "empty_item"},
-	{"t/anon/components/responses/Carried/headers//content/application~1json/schema/items", "empty_item"},
 	{"t/anon/components/parameters/UnnamedContent/content/application~1json/schema/items", "empty_item"},
+	{"t/anon/components/mediaTypes//schema/items", "empty_item"},
+	{"t/anon/components/mediaTypes//itemSchema", "empty_item"},
 }
 
 // assertEmptyDerivedHints covers hints a child composes from an enclosing
@@ -201,10 +201,8 @@ var composedHints = []struct {
 //
 // A composed variant of an inline branch has no row:
 // docs/compilers/openapi.md#union-beside-structure keeps that union verbatim,
-// so only the $ref form the Host case uses reaches composedVariant. A
-// components/mediaTypes entry keyed "" (#1536) and a header under a nested
-// encoding (#1535) have none either: each is named from its pointer, not by a
-// path that composes from the empty name.
+// so only the $ref form the Host case uses reaches composedVariant. A header
+// keyed "" has none: it is no header name, so header-name-syntax holds those.
 func assertEmptyDerivedHints(t *testing.T, doc *ir.Document) {
 	t.Helper()
 	mixed, ok := doc.Types[componentID("Mixed")].(*ir.Model)
@@ -656,4 +654,44 @@ func assertUnreferencedComponents(t *testing.T, doc *ir.Document, diags []ir.Dia
 	require.Len(t, op.Responses[0].Links, 1, "the link the response names lowers onto it")
 	assert.Equal(t, op.ID, op.Responses[0].Links[0].Operation)
 	assert.False(t, openapitest.HasDiag(diags, diag.UnknownObjectKey))
+}
+
+// assertTitleHints covers a schema's title as the hint of the node it lowers
+// to: a union branch's, the variant's name too, beside a $ref or in its
+// allOf's branch, an owner's schema's and a property's, the positions beneath
+// composing from it. A component and a $defs entry keep their keys, and a
+// branch whose title another branch's or a component's name shares keeps its
+// position.
+func assertTitleHints(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
+	lookup, ok := doc.Types[componentID("Lookup")].(*ir.Union)
+	require.True(t, ok)
+	variants := make([]string, 0, len(lookup.Variants))
+	for _, v := range lookup.Variants {
+		variants = append(variants, v.Name.Hint)
+	}
+	assert.Equal(t, []string{"by_name", "by_id", "variant_2", "variant_3", "variant_4", "indoor_pet", "premium_pet"},
+		variants)
+
+	holder, ok := doc.Types[componentID("Holder")].(*ir.Model)
+	require.True(t, ok)
+	assert.Equal(t, "holder", holder.Name.Canonical, "a component keeps its key")
+	assert.Equal(t, "Not The Name", holder.Docs.Summary, "the title stays the summary")
+
+	for id, hint := range map[ir.TypeID]string{
+		"t/anon/components/schemas/Lookup/oneOf/0":                                   "by_name",
+		"t/anon/components/schemas/Lookup/oneOf/0/properties/tags/items":             "tags_item",
+		"t/anon/components/schemas/Lookup/oneOf/2":                                   "variant_2",
+		"t/anon/components/schemas/Holder/properties/address":                        "postal_address",
+		"t/anon/components/schemas/Holder/properties/address/properties/lines/items": "lines_item",
+		"t/anon/components/schemas/Holder/properties/points":                         "point_list",
+		"t/anon/components/schemas/Holder/properties/points/items":                   "point_list_item",
+		"t/anon/components/schemas/Holder/$defs/Local":                               "local",
+		"t/anon/paths/~1lookups/post/requestBody/content/application~1json/schema":   "new_lookup",
+	} {
+		node, found := doc.Types[id]
+		require.True(t, found, "no node at %s", id)
+		assert.Equal(t, hint, node.Common().Name.Hint, "%s", id)
+	}
+	address := doc.Types["t/anon/components/schemas/Holder/properties/address"]
+	assert.Equal(t, "Postal Address", address.Common().Docs.Summary, "the title stays the summary")
 }

@@ -182,6 +182,11 @@ func TestVerify_CasedOrPunctuatedHintIsAViolation(t *testing.T) {
 		{"a path template", "get_/pets/{pet_id}", []string{"ir/naming-not-words"}},
 		{"a header name", "X-Report-List", []string{"ir/naming-cased", "ir/naming-not-words"}},
 		{"a letter-digit run", "foo2bar", []string{"ir/naming-unsegmented"}},
+		// A default-ignorable mark or letter renders as nothing, so the grammar
+		// separates on one and can write none into a word (GitHub #1544).
+		{"a variation selector in a word", "a\ufe0fb", []string{"ir/naming-not-words"}},
+		{"a Hangul filler as a word", "\u3164", []string{"ir/naming-not-words"}},
+		{"a variation selector past the BMP", "x_\U000e0100", []string{"ir/naming-not-words"}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()

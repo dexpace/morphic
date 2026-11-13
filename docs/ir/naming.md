@@ -37,7 +37,10 @@ and digits (with the combining marks that belong to them), a camel-case or lette
 starts a new one, and **every other character separates** — `.`, `/`, `[`, `-`, a space alike. So
 `com.example.User` and `com-example-user` canonicalize the same, and an emitter reading `Canonical`
 never has to ask which compiler produced it. A source name with no word character in it
-canonicalizes to the empty string; `Source` keeps the spelling.
+canonicalizes to the empty string; `Source` keeps the spelling. A letter or mark that Unicode makes
+a `Default_Ignorable_Code_Point`, such as a variation selector or the Hangul filler U+3164, renders
+as nothing, so it is no word character either: it separates, as the zero-width space beside it in
+that property does, and a name of only such characters has no words, as `***` has none.
 
 At least one of `Source`, `Canonical` and `Hint` is set. A `Naming` with all three empty names the
 entity to nobody, and every rule above is vacuously true of it, so `irverify` reports it

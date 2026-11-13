@@ -114,6 +114,98 @@
     }
   ],
   "types": {
+    "t/anon/components/mediaTypes//itemSchema": {
+      "kind": "model",
+      "id": "t/anon/components/mediaTypes//itemSchema",
+      "name": {
+        "hint": "empty_item"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/mediaTypes//itemSchema"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/mediaTypes//itemSchema/properties/l",
+          "name": {
+            "source": "l",
+            "canonical": "l"
+          },
+          "wireName": "l",
+          "type": {
+            "target": "t/prim/string",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/mediaTypes//itemSchema/properties/l"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/anon/components/mediaTypes//schema/items": {
+      "kind": "model",
+      "id": "t/anon/components/mediaTypes//schema/items",
+      "name": {
+        "hint": "empty_item"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/mediaTypes//schema/items"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/mediaTypes//schema/items/properties/k",
+          "name": {
+            "source": "k",
+            "canonical": "k"
+          },
+          "wireName": "k",
+          "type": {
+            "target": "t/prim/string",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/mediaTypes//schema/items/properties/k"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
     "t/anon/components/parameters/Unnamed/content/application~1jsonl/itemSchema": {
       "kind": "model",
       "id": "t/anon/components/parameters/Unnamed/content/application~1jsonl/itemSchema",
@@ -245,144 +337,6 @@
           "provenance": {
             "source": 0,
             "pointer": "/components/parameters/UnnamedList/schema/items/properties/p"
-          }
-        }
-      ],
-      "abstract": false,
-      "positional": false,
-      "inputOnly": false
-    },
-    "t/anon/components/responses/Carried/headers//content/application~1json/schema/items": {
-      "kind": "model",
-      "id": "t/anon/components/responses/Carried/headers//content/application~1json/schema/items",
-      "name": {
-        "hint": "empty_item"
-      },
-      "anonymous": true,
-      "docs": {},
-      "sensitive": false,
-      "provenance": {
-        "source": 0,
-        "pointer": "/components/responses/Carried/headers//content/application~1json/schema/items"
-      },
-      "properties": [
-        {
-          "id": "p/openapi/components/responses/Carried/headers//content/application~1json/schema/items/properties/i",
-          "name": {
-            "source": "i",
-            "canonical": "i"
-          },
-          "wireName": "i",
-          "type": {
-            "target": "t/prim/string",
-            "nullable": false
-          },
-          "required": false,
-          "clientOptional": false,
-          "defaultAdded": false,
-          "visibility": {
-            "none": false
-          },
-          "flatten": false,
-          "eventHeader": false,
-          "eventPayload": false,
-          "secret": false,
-          "docs": {},
-          "provenance": {
-            "source": 0,
-            "pointer": "/components/responses/Carried/headers//content/application~1json/schema/items/properties/i"
-          }
-        }
-      ],
-      "abstract": false,
-      "positional": false,
-      "inputOnly": false
-    },
-    "t/anon/components/responses/Framed/headers//content/application~1jsonl/itemSchema": {
-      "kind": "model",
-      "id": "t/anon/components/responses/Framed/headers//content/application~1jsonl/itemSchema",
-      "name": {
-        "hint": "empty_item"
-      },
-      "anonymous": true,
-      "docs": {},
-      "sensitive": false,
-      "provenance": {
-        "source": 0,
-        "pointer": "/components/responses/Framed/headers//content/application~1jsonl/itemSchema"
-      },
-      "properties": [
-        {
-          "id": "p/openapi/components/responses/Framed/headers//content/application~1jsonl/itemSchema/properties/f",
-          "name": {
-            "source": "f",
-            "canonical": "f"
-          },
-          "wireName": "f",
-          "type": {
-            "target": "t/prim/string",
-            "nullable": false
-          },
-          "required": false,
-          "clientOptional": false,
-          "defaultAdded": false,
-          "visibility": {
-            "none": false
-          },
-          "flatten": false,
-          "eventHeader": false,
-          "eventPayload": false,
-          "secret": false,
-          "docs": {},
-          "provenance": {
-            "source": 0,
-            "pointer": "/components/responses/Framed/headers//content/application~1jsonl/itemSchema/properties/f"
-          }
-        }
-      ],
-      "abstract": false,
-      "positional": false,
-      "inputOnly": false
-    },
-    "t/anon/components/responses/Listed/headers//schema/items": {
-      "kind": "model",
-      "id": "t/anon/components/responses/Listed/headers//schema/items",
-      "name": {
-        "hint": "empty_item"
-      },
-      "anonymous": true,
-      "docs": {},
-      "sensitive": false,
-      "provenance": {
-        "source": 0,
-        "pointer": "/components/responses/Listed/headers//schema/items"
-      },
-      "properties": [
-        {
-          "id": "p/openapi/components/responses/Listed/headers//schema/items/properties/h",
-          "name": {
-            "source": "h",
-            "canonical": "h"
-          },
-          "wireName": "h",
-          "type": {
-            "target": "t/prim/string",
-            "nullable": false
-          },
-          "required": false,
-          "clientOptional": false,
-          "defaultAdded": false,
-          "visibility": {
-            "none": false
-          },
-          "flatten": false,
-          "eventHeader": false,
-          "eventPayload": false,
-          "secret": false,
-          "docs": {},
-          "provenance": {
-            "source": 0,
-            "pointer": "/components/responses/Listed/headers//schema/items/properties/h"
           }
         }
       ],
@@ -1237,63 +1191,6 @@
       "positional": false,
       "inputOnly": false
     },
-    "t/openapi/components/schemas/Frame": {
-      "kind": "scalar",
-      "id": "t/openapi/components/schemas/Frame",
-      "name": {
-        "source": "Frame",
-        "canonical": "frame"
-      },
-      "anonymous": false,
-      "docs": {},
-      "sensitive": false,
-      "provenance": {
-        "source": 0,
-        "pointer": "/components/schemas/Frame"
-      },
-      "base": {
-        "target": "t/anon/components/responses/Framed/headers//content/application~1jsonl/itemSchema",
-        "nullable": false
-      }
-    },
-    "t/openapi/components/schemas/HeaderContentItem": {
-      "kind": "scalar",
-      "id": "t/openapi/components/schemas/HeaderContentItem",
-      "name": {
-        "source": "HeaderContentItem",
-        "canonical": "header_content_item"
-      },
-      "anonymous": false,
-      "docs": {},
-      "sensitive": false,
-      "provenance": {
-        "source": 0,
-        "pointer": "/components/schemas/HeaderContentItem"
-      },
-      "base": {
-        "target": "t/anon/components/responses/Carried/headers//content/application~1json/schema/items",
-        "nullable": false
-      }
-    },
-    "t/openapi/components/schemas/HeaderItem": {
-      "kind": "scalar",
-      "id": "t/openapi/components/schemas/HeaderItem",
-      "name": {
-        "source": "HeaderItem",
-        "canonical": "header_item"
-      },
-      "anonymous": false,
-      "docs": {},
-      "sensitive": false,
-      "provenance": {
-        "source": 0,
-        "pointer": "/components/schemas/HeaderItem"
-      },
-      "base": {
-        "target": "t/anon/components/responses/Listed/headers//schema/items",
-        "nullable": false
-      }
-    },
     "t/openapi/components/schemas/Host": {
       "kind": "model",
       "id": "t/openapi/components/schemas/Host",
@@ -1447,6 +1344,44 @@
       "abstract": false,
       "positional": false,
       "inputOnly": false
+    },
+    "t/openapi/components/schemas/MediaItem": {
+      "kind": "scalar",
+      "id": "t/openapi/components/schemas/MediaItem",
+      "name": {
+        "source": "MediaItem",
+        "canonical": "media_item"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/MediaItem"
+      },
+      "base": {
+        "target": "t/anon/components/mediaTypes//schema/items",
+        "nullable": false
+      }
+    },
+    "t/openapi/components/schemas/MediaItemSchema": {
+      "kind": "scalar",
+      "id": "t/openapi/components/schemas/MediaItemSchema",
+      "name": {
+        "source": "MediaItemSchema",
+        "canonical": "media_item_schema"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/MediaItemSchema"
+      },
+      "base": {
+        "target": "t/anon/components/mediaTypes//itemSchema",
+        "nullable": false
+      }
     },
     "t/openapi/components/schemas/Mixed": {
       "kind": "model",
@@ -1828,6 +1763,34 @@
     }
   },
   "unmodeled": {
+    "openapi:components/mediaTypes/": {
+      "reason": "no_ir_home",
+      "value": {
+        "itemSchema": {
+          "properties": {
+            "l": {
+              "type": "string"
+            }
+          },
+          "type": "object"
+        },
+        "schema": {
+          "items": {
+            "properties": {
+              "k": {
+                "type": "string"
+              }
+            },
+            "type": "object"
+          },
+          "type": "array"
+        }
+      },
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/mediaTypes/"
+      }
+    },
     "openapi:components/parameters/Unnamed": {
       "reason": "no_ir_home",
       "value": {
@@ -1898,86 +1861,6 @@
         "source": 0,
         "pointer": "/components/parameters/UnnamedList"
       }
-    },
-    "openapi:components/responses/Carried": {
-      "reason": "no_ir_home",
-      "value": {
-        "description": "ok",
-        "headers": {
-          "": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "items": {
-                    "properties": {
-                      "i": {
-                        "type": "string"
-                      }
-                    },
-                    "type": "object"
-                  },
-                  "type": "array"
-                }
-              }
-            }
-          }
-        }
-      },
-      "provenance": {
-        "source": 0,
-        "pointer": "/components/responses/Carried"
-      }
-    },
-    "openapi:components/responses/Framed": {
-      "reason": "no_ir_home",
-      "value": {
-        "description": "ok",
-        "headers": {
-          "": {
-            "content": {
-              "application/jsonl": {
-                "itemSchema": {
-                  "properties": {
-                    "f": {
-                      "type": "string"
-                    }
-                  },
-                  "type": "object"
-                }
-              }
-            }
-          }
-        }
-      },
-      "provenance": {
-        "source": 0,
-        "pointer": "/components/responses/Framed"
-      }
-    },
-    "openapi:components/responses/Listed": {
-      "reason": "no_ir_home",
-      "value": {
-        "description": "ok",
-        "headers": {
-          "": {
-            "schema": {
-              "items": {
-                "properties": {
-                  "h": {
-                    "type": "string"
-                  }
-                },
-                "type": "object"
-              },
-              "type": "array"
-            }
-          }
-        }
-      },
-      "provenance": {
-        "source": 0,
-        "pointer": "/components/responses/Listed"
-      }
     }
   },
   "diagnostics": [
@@ -2004,6 +1887,19 @@
         "position": {
           "line": 12,
           "column": 9
+        }
+      }
+    },
+    {
+      "severity": "warning",
+      "code": "openapi/validation/validation-invalid-syntax",
+      "message": "Components Object field \"mediaTypes\" has the key \"\", which must be a name of letters, digits, '.', '-' and '_' in OpenAPI 3.2 (Components Object)",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/mediaTypes/",
+        "position": {
+          "line": 105,
+          "column": 7
         }
       }
     },
@@ -2039,7 +1935,7 @@
     {
       "format": "openapi@3.2",
       "path": "empty-names.yaml",
-      "hash": "9a0d89f699f4e35b15bcdf23e81d9749bb58efbd1b1887dc0bbbc8d46098bfc2"
+      "hash": "4b9ab74e8f16d6fc0d23ccf2b19e0cd0d51a3ccbc86c926b2a40221fff5e0091"
     }
   ]
 }

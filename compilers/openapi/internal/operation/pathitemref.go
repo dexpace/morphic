@@ -135,6 +135,12 @@ const (
 // constructOf returns the key of one construct of kind named name.
 func constructOf(kind, name string) string { return kind + "\x00" + name }
 
+// paramConstruct returns the key of the construct a parameter of slot is, so
+// two layers declaring one slot, a header's in any case, declare one construct.
+func paramConstruct(slot ids.ParamSlot) string {
+	return constructOf(constructParameter, slot.In+"\x00"+slot.Name)
+}
+
 // itemConstruct is one construct a layer declares: its key, how a finding
 // names it, and where it is written relative to the layer.
 type itemConstruct struct {
@@ -167,10 +173,11 @@ func itemConstructs(l layer) []itemConstruct {
 		add(constructKey, key, "the undeclared key "+strconv.Quote(key), ids.Ptr(key))
 	}
 	for i, rp := range l.item.GetParameters() {
-		if key, ok := paramKey(rp); ok {
+		if slot, ok := paramKey(rp); ok {
 			p := resolve.Object[soa.Parameter](rp)
-			add(constructParameter, key, fmt.Sprintf("the parameter %q in %s", p.GetName(), p.GetIn()),
-				ids.Ptr("parameters", strconv.Itoa(i)))
+			out = append(out, itemConstruct{key: paramConstruct(slot),
+				label: fmt.Sprintf("the parameter %q in %s", p.GetName(), p.GetIn()),
+				rel:   ids.Ptr("parameters", strconv.Itoa(i))})
 		}
 	}
 	return out
@@ -270,7 +277,7 @@ func itemParams(layers []layer) []sourcedParam {
 		return appendSourced(nil, layers[0].item.GetParameters(), layers[0].decl, nil, nil)
 	}
 	var params []sourcedParam
-	shadowed := map[string]bool{}
+	shadowed := map[ids.ParamSlot]bool{}
 	for _, l := range layers {
 		params = appendSourced(params, l.item.GetParameters(), l.decl, shadowed, &l.in)
 		for key := range shadowedKeys(l.item.GetParameters()) {

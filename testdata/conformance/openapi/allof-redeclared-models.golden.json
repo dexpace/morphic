@@ -788,7 +788,7 @@
       "kind": "model",
       "id": "t/anon/components/schemas/TitledAndModel/allOf/0/properties/data",
       "name": {
-        "hint": "data"
+        "hint": "held_on_the_composition"
       },
       "anonymous": true,
       "docs": {
