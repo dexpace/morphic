@@ -715,9 +715,12 @@ finding's pointer in the spec or its IR node, the two locators that stay put whi
 edited, as a line does not. The decisions it rests on:
 
 - *No pattern.* A `*` in a code is refused, and a rule names one place or none, so a rule written
-  for the findings someone has seen never applies to findings nobody has: a new finding a pattern
-  happened to match would be accepted unread. Rating a whole code is the one breadth admitted, as a
-  rated finding is still counted and shown at its rating.
+  for the findings someone has seen applies to none elsewhere: a new finding a pattern happened to
+  match would be accepted unread. Rating a whole code is the one breadth admitted, as a rated
+  finding is still counted and shown at its rating. A place still holds every finding of a code
+  there, one reported later included, and it can hold a whole scope: a pass places a collision
+  between two of the document's types at the document's node, so a rule accepting one accepts the
+  next (#1825).
 - *An acceptance names a place.* Accepting a code everywhere would be a blanket suppression, so an
   acceptance is keyed by code and place, the code-by-entity key the [prior art](./prior-art.md)
   takes for an approval.

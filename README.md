@@ -220,7 +220,9 @@ exactly, and a reason:
   ends the run with exit `2`, as a stage breaking its contract, whatever a rule says of it.
 - `accept: true` accepts the findings, which then fail the run at no `--fail-on`, `info` included,
   and are counted rather than written. A rule accepting findings names their place, so it accepts
-  findings someone has looked at rather than whatever the code reports next.
+  none its code reports elsewhere. It does accept every finding of its code at that place, one
+  reported later included, and a place can hold a whole scope: a pass reports a collision between
+  two of the document's types at `doc`, so a rule accepting one there accepts the next (#1825).
 - `pointer` places the rule at the findings this JSON Pointer locates in the spec, the file
   compiled, an overlay's writing into it included; `node` places it at the findings an IR pass
   located at that IR node, such as `s/openapi/0`. A rule names at most one place, and one naming a
@@ -245,7 +247,9 @@ morphic validate openapi.yaml --diag-format json 2>&1 >/dev/null |
     | . + {accept: true, reason: "accepted as found"}] | unique}' > triage.json
 ```
 
-Write each `reason` yourself before relying on it: it is what the next reader has to go on.
+Write each `reason` yourself before relying on it: it is what the next reader has to go on. A rule
+the recipe places at a scope, such as `doc`, accepts every later finding of its code about that
+scope too.
 
 #### JSON report
 
