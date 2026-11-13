@@ -346,7 +346,7 @@ type branchUnionOf struct {
 }
 
 // branchUnionIndex is where in a schema's flattened allOf the branch whose
-// union it distributes is, where one is.
+// union it conjoins is, where one is.
 type branchUnionIndex struct {
 	index int
 	ok    bool

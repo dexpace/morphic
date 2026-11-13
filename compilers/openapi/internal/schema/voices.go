@@ -109,8 +109,8 @@ func allOfMayRefine(s *oas3.Schema) bool {
 // value set beats otherwise stays verbatim
 // (docs/compilers/openapi.md#competing-keywords). A union beside the composing
 // allOf or on one of its branches leaves it deciding, composed into each variant
-// the union distributes across or into the Model keeping the union verbatim, and
-// so does a $dynamicRef it keeps from expanding.
+// the union distributes across, or into the Model keeping the union verbatim or
+// composing it as a mixin, and so does a $dynamicRef it keeps from expanding.
 func allOfDecides(c lowering.Ctx, s *oas3.Schema) bool {
 	if !allOfBesideNoRef(s) {
 		return false
