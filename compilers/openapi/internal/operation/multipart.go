@@ -144,7 +144,7 @@ const (
 // position of the body that can declare a property, and no catch-all admits
 // the key, the key names no property and draws a warning besides
 // (unknownEncodingKey). Nothing an entry kept declares is lowered or judged
-// (#1662). An entry that is no object is skipped, since load reports it.
+// (GitHub #1662). An entry that is no object is skipped, since load reports it.
 func keepUnkeyedEncodings(c lowering.Ctx, media *soa.MediaType, mediaPtr jsontext.Pointer, w partWalk, why string) (ir.Unmodeled, []ir.Diagnostic) {
 	walked := make(map[string]struct{}, len(w.parts))
 	for _, part := range w.parts {
@@ -264,8 +264,8 @@ func (k partKeys) Settle(reg ir.TypeRegistry) []ir.Diagnostic {
 // keepWhole keeps the entry of p, a part the body's type holds no property for,
 // whole, as keepUnkeyedEncodings keeps one naming no part. Where the entry
 // cannot be kept, what its lowering kept of it stands instead, so what the
-// lowering announced holds. A part with no entry keeps nothing: its flags are
-// read off a property the schema lowering kept verbatim, which carries them.
+// lowering announced holds. A part with no entry keeps nothing: the schema
+// lowering kept the properties declaring it, which say what its flags would.
 func (k partKeys) keepWhole(p keyedPart) []ir.Diagnostic {
 	if p.entry == nil {
 		return nil
@@ -432,13 +432,13 @@ func admitsMembers(s *oas3.Schema) bool {
 		s.GetPatternProperties().Len() > 0
 }
 
-// declaresUnread reports whether a property can be declared where the part
-// walk reads none: beside a $ref on the chain js starts, which the walk reads
-// to its end (schemaOf), past a $ref resolving to nothing, a $dynamicRef, and
-// under if, then, else or dependentSchemas, which s, the chain's end, writes.
+// declaresUnread reports whether a property can be declared, or a member
+// admitted, where the part walk reads none: under what s, the end of the chain
+// of $refs js starts, writes that it does not read (writesUnread), past a $ref
+// resolving to nothing, and beside a $ref on the chain, which the walk reads
+// to its end (schemaOf).
 func declaresUnread(refs *typed.Bindings, js *oas3.JSONSchema[oas3.Referenceable], s *oas3.Schema) bool {
-	if s.GetIf() != nil || s.GetThen() != nil || s.GetElse() != nil || s.GetDependentSchemas().Len() > 0 ||
-		nodeview.Child(s.GetRootNode(), "$dynamicRef") != nil {
+	if writesUnread(s) {
 		return true
 	}
 	for range maxBodyAliasHops {
@@ -446,13 +446,21 @@ func declaresUnread(refs *typed.Bindings, js *oas3.JSONSchema[oas3.Referenceable
 			return false
 		}
 		site := js.GetSchema()
-		if refs.End(js) == nil || len(site.GetAllOf()) > 0 || len(site.GetOneOf()) > 0 || len(site.GetAnyOf()) > 0 ||
-			site.GetProperties().Len() > 0 {
+		if refs.End(js) == nil || writesUnread(site) || admitsMembers(site) || len(site.GetAllOf()) > 0 ||
+			len(site.GetOneOf()) > 0 || len(site.GetAnyOf()) > 0 || site.GetProperties().Len() > 0 {
 			return true
 		}
 		js = refs.Declared(js)
 	}
 	return true
+}
+
+// writesUnread reports whether s writes a keyword that can declare a property
+// the part walk does not read: if, then, else, dependentSchemas or a
+// $dynamicRef.
+func writesUnread(s *oas3.Schema) bool {
+	return s.GetIf() != nil || s.GetThen() != nil || s.GetElse() != nil || s.GetDependentSchemas().Len() > 0 ||
+		nodeview.Child(s.GetRootNode(), "$dynamicRef") != nil
 }
 
 // propertyParts returns the properties s declares itself, in source order.

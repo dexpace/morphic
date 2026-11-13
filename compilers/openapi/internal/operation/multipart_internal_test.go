@@ -415,6 +415,8 @@ func TestPartWalk_DecidesKeysOnlyWhereItReadsEveryDeclaration(t *testing.T) {
 		{"allOf beside a $ref", "{$ref: '#/components/schemas/Form', allOf: [{properties: {b: {type: string}}}]}", false},
 		{"oneOf beside a $ref", "{$ref: '#/components/schemas/Form', oneOf: [{properties: {b: {type: string}}}]}", false},
 		{"anyOf beside a $ref", "{$ref: '#/components/schemas/Form', anyOf: [{properties: {b: {type: string}}}]}", false},
+		{"a catch-all beside a $ref", "{$ref: '#/components/schemas/Form', additionalProperties: true}", false},
+		{"then beside a $ref", "{$ref: '#/components/schemas/Form', then: {properties: {b: {type: string}}}}", false},
 		{"a bare $ref chain", "{$ref: '#/components/schemas/Hop'}", true},
 		{"a $ref resolving to nothing", "{$ref: '#/components/schemas/Missing'}", false},
 	} {

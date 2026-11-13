@@ -3895,7 +3895,7 @@ at the entry, and reported there as an info `openapi/degraded-construct` saying 
    giving such an entry no effect (3.2.0: "`encoding` entries with no corresponding property SHALL be
    ignored"); it is reported besides as a warning `openapi/unknown-encoding-key` at the entry. A
    catch-all is an `additionalProperties` or `unevaluatedProperties` other than `false`, or a
-   `patternProperties`; the walk reads no property declared beside a `$ref`, past one resolving to
+   `patternProperties`; the walk reads nothing written beside a `$ref`, past one resolving to
    nothing, through a `$dynamicRef`, or under `if`, `then`, `else` or `dependentSchemas`. A key of
    the nested `encoding` a 3.2 Encoding Object writes, which a part's record keeps verbatim
    ([`unmodeled-dialect-fields`](#unmodeled-dialect-fields)), is held to the properties of the value
