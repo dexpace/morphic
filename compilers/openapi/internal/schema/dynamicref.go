@@ -161,7 +161,7 @@ func unresolvedRoot(root bind.Position) string {
 // resource, so the outermost on any path is root. A document whose
 // identifiers were not read whole may hide another, which must not read as
 // none. Two unrelated resources each declaring one are not told apart from a
-// path through both (GitHub #NNNN).
+// path through both (GitHub #1884).
 func recursiveScope(c lowering.Ctx, root bind.Position) (string, bool) {
 	sites, complete := c.RecursiveAnchorSites()
 	resources := map[bind.Position]bool{}

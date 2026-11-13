@@ -3239,7 +3239,7 @@ written beside a reference that expands is read as one beside a `$ref` is
   `bind.TestRecursiveAnchors_CountsWhatADocumentDeclares`,
   `bind.TestResource_NamesTheRootOfAPositionsResource`
 - Status: partly built: a `$recursiveRef` is kept where two resources of its document each declare
-  `$recursiveAnchor: true`, even where neither can reach the other (#NNNN); and a `$dynamicRef` whose
+  `$recursiveAnchor: true`, even where neither can reach the other (#1884); and a `$dynamicRef` whose
   value names no `$dynamicAnchor` is kept, though JSON Schema reads it as the `$ref` it spells (#1860).
 
 ### `content-vocabulary`
