@@ -1575,15 +1575,18 @@ by value domain and spelling (`integer` against `number`, `uuid` against `string
 (`string` against `format: byte`, or an unknown format over bare `string`), is disjoint from a kind
 of another family, or from another string format where neither is `bytes` (`uuid` against
 `format: date`), and overlaps any other kind (`uuid` against `format: byte`); for an `Enum`, that
-overlap is disjoint where the kind's judge refuses every member. A `Scalar` hoisted for `time`,
+overlap is disjoint where the kind's judge refuses every member, an enum behind an alias, as a
+member written beside a bound is, judged by the members of the enum it stands for, which the alias
+can only narrow. A `Scalar` hoisted for `time`,
 whose grammar, RFC 3339's `full-time`, the compiler holds though the table pairs it with no kind
 ([`string-formats`](#string-formats)), is read wherever a kind is, through an alias too, as a
 string format of its own: within `string`, an overlap with `bytes`, and disjoint from every other
 kind, `time-local` and `date-time` among them, and from an `Enum` none of whose members it
 admits. An enum with no members is refused
 vacuously, so it is disjoint from any kind it would otherwise overlap, `bytes` included; an enum
-with members against `bytes` stays an overlap. A `const` wins when the kind admits its value; where
-it does not, it is disjoint from a kind with a judge and overlaps `bytes`, which has none. Against a
+with members against `bytes` stays an overlap. A `const`, or an alias of one, wins when the kind
+admits its value; where it does not, it is disjoint from a kind with a judge and overlaps `bytes`,
+which has none. Against a
 `Scalar` hoisted for `time`, a `const` is disjoint where the node refuses its value, and wins where
 the node admits it and says nothing but its base, the format and bounds, so a field typed by the
 `const` loses none of it. Where the node also says what a `const` can hold beside its value, a
@@ -1598,14 +1601,17 @@ are two types the source declared apart, which overlap. A copy is one type with 
 gives way to it, only where what the two keep under `Unmodeled` writes no relative `$ref`, or both
 read it against one base where each is written: under an `$id` naming another URI, or in another
 document, a `$ref` spelled alike names another schema, so the two were declared apart and overlap.
-Two `const`s of different values share none, so they are disjoint. Two enums of one value type,
-closedness, bit-flag reading and fallback, whose members holding one value say the same of it, are
-judged by the values they hold: sharing none, they are disjoint; one whose values the other holds
-every one of is narrower where it also says all the other does beside its members, and otherwise the
-two meet, as do two each holding a value the other lacks, in an enum of the values they share
-(below), where both list those values in one order. Two listing them in different orders overlap,
-since an enum of both would take its order from one declaration. Two holding one set of values in
-another order or saying the rest differently, and any other pair of enums, are judged by their kind.
+Two `const`s of different values share none, so they are disjoint. Two enums of one closedness,
+bit-flag reading and fallback, whose members holding one value say the same of it, are judged by
+the values they hold: sharing none, they are disjoint, whatever their value types. Of two value
+types one within the other, the narrower says more (`integer` against `number`), so one whose
+values the other holds every one of, of the same value type or the narrower, is narrower where it
+also says all the other does beside its members, and otherwise the two meet, as do two each holding
+a value the other lacks, in an enum of the values they share, of the narrower value type (below),
+where both list those values in one order. Two listing them in different orders overlap, since an
+enum of both would take its order from one declaration. Two holding one set of values of one value
+type, or in another order, or saying the rest differently, two of value types neither within the
+other (`int32` against `uint32`), and any other pair of enums, are judged by their kind.
 Two models alike in every member but where they and what they name were declared (the same
 properties in the same order, each with the same wire name, required flag, visibility, docs,
 constraints, values and kept text, and the same catch-all, composition and discriminator, its tag
@@ -1617,6 +1623,15 @@ apart, and models alike in all but a type that relates otherwise are no copies, 
 composes as two models do (below). One judgment compares at most 64 pairs of models member by
 member, since a `$ref` to a sibling position adds width at no cost in document size; past that the
 two are unrelated and compose, which loses nothing.
+An alias is narrower than the type it stands for, whatever its kind: a reference to it reads all
+that type says, and it may say more. Any other alias is judged, and a node it meets built, as the
+node it stands for where its chain ends in an enum, a `const`, a `Scalar`, a list, a map or a tuple:
+that node holding the bounds the chain and the node say together and each detail the nearest of them
+sets, as a reference to the alias reads it. So `{$ref: E, description: d}` and an `allOf` of `E`
+alone each meet an enum beside them as `E` would, holding what they add. Two aliases of one node are
+read only down to it, so they are judged as two `Scalar`s of one base are, and meet in an alias of
+it. A chain giving an encoding, bounds no one value states, bounds an enum's or a `const`'s value
+fails or no judge reads, or keeping a relative `$ref` under `Unmodeled` is judged as it is written.
 Two lists, two maps with one key, or two tuples of one length are judged by their parts: each
 element, value or position, with what may follow a tuple's last, judged as a pair a level down, null
 included, nested up to a bound; their bounds, a keyword with no order (`pattern`) given two ways
@@ -1636,8 +1651,8 @@ still overlap where both admit null, or where both containers admit the empty on
 related otherwise leave their containers so. A tuple that a container or another tuple holds is not
 compared, since a tuple has a member per position where any other node has one, and comparing them
 nested would cost its width to the power of the depth. A structure is narrower than
-one it says it is: an alias than the type it stands for, and a model than what it composes through
-`Base` or `Mixins`, read through aliases, up to 64 types for one question. A model, a map or a
+one it says it is: a model than what it composes through `Base` or `Mixins`, read through aliases,
+up to 64 types for one question. A model, a map or a
 `const` object is narrower than a model saying nothing but `type: object`, and two such models are
 judged as two equal enums are. That model says nothing at all but where it was declared, and an
 alias of it is not one, since an alias may say more: a type composing another still reaches it,
@@ -1825,7 +1840,8 @@ value where one is never empty. Types that share values but that the merge does 
 a `const` against a kind with no judge, against a node that ends in a kind, but for the `time` node
 above, or against a `const` of its value saying more, two `Scalar`s of different encodings, such as
 `format: hex` against `format: byte`, which no one node holds, two nodes saying one set of values
-differently, two enums listing the values they share in different orders, two nodes giving one
+differently, two enums listing the values they share in different orders, two enums of value types
+neither within the other sharing a value, two nodes giving one
 detail differently or examples only one gives, or two lists or maps whose members share only null
 or share nothing while both admit the empty one) are named in an info `openapi/degraded-construct`,
 and so are two types the judgment does not compare (a list and a tuple, a map or a union with no
@@ -1911,6 +1927,18 @@ field's first 64 at most; each later one is kept verbatim, unjudged, under an
   `merge.TestBuilder_RefusesWhatNoNodeHolds`,
   `merge.TestFold_AValueIsJudgedByTheNodeTheFieldHolds`,
   `schema.TestAllOf_ADefaultIsJudgedByTheNodeTheFieldHolds`,
+  `merge.TestFold_EnumsOfDifferentValueTypesAreJudgedByTheirValues`,
+  `merge.TestFold_ThreeEnumsMeetInTheNarrowestValueType`,
+  `schema.TestAllOf_EnumsOfDifferentValueTypesAreJudgedByTheirValues`,
+  `merge.TestView_ReadsAnAliasAsTheNodeItStandsFor`,
+  `merge.TestView_StopsAtTheNodeTheChainsShare`,
+  `merge.TestSharedLink_NamesTheFirstNodeEveryChainNames`,
+  `merge.TestAliasedNode_ReadsAChainUpToItsBound`,
+  `merge.TestStandsFor_ReadsOnlyAnAliasChain`,
+  `merge.TestFold_AnAliasMeetsAsTheNodeItStandsFor`,
+  `merge.TestFold_AnAliasIsWithinTheNodeItStandsFor`,
+  `schema.TestAllOf_AnAliasMeetsAsTheNodeItStandsFor`,
+  `schema.TestAllOf_AMemberBehindAnAliasIsJudgedByWhatItStandsFor`,
   `merge.TestUnaliased_ReadsAChainUpToItsBound`,
   `merge.TestComposes_ReadsAChainUpToItsBound`,
   `merge.TestComposes_ReadsEachPartOnce`,
@@ -2008,12 +2036,9 @@ field's first 64 at most; each later one is kept verbatim, unjudged, under an
   `schema.TestAllOf_RedeclarationsWritingNoRelativeReferenceFoldUnderAnyBase`,
   `schema.TestAllOf_ACopyOfAComponentUnderAnotherBaseStaysApart`,
   `e2e.TestExternalContent_ACopyOfAnotherDocumentsComponentStaysApart`
-- Status: partly built: two enums of different value types are judged by their kind, so one within
-  the other overlaps it rather than narrowing (#1654); a structure stating no instance type that
+- Status: partly built: a structure stating no instance type that
   refuses some kinds only through a `oneOf`, `anyOf`, `not` or `if` reads as stating its type, so
-  it conflicts with a kind it admits (#1671); an alias of an enum, a `Scalar` or a list is judged
-  by its kind beside a node it could meet, so the two overlap or are not compared rather than
-  meeting (#1672); a model and the wrapper it flattens that fold different sets only because the
+  it conflicts with a kind it admits (#1671); a model and the wrapper it flattens that fold different sets only because the
   model stops at the flattening depth are refused as `compile/registry-refused`, not told apart,
   since one declaration names both.
 
