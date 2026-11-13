@@ -1156,16 +1156,19 @@ names wins, and one a key fails to name stays unset:
 
 A code span is read as CommonMark reads one. The names fill the field all or none, the node itself
 passed over and a repeat kept once: a name naming no entity, or several, leaves the field unset in
-silence, since prose naming something else is no defect, and the message keeps its prose either
-way. A node they fill has `Provenance.Inferred` naming `replacement-inference`. The reading runs
-once the document is whole, as a replacement may be declared after what it replaces. A Markdown
-link's title is display text and its URL a page of documentation, neither naming an entity the
-document holds, so a link is never read; nor is a header's, a schema's or a security scheme's
-message, where no measured document names a replacement such a scope resolves. On the golden spec
-(spec @86556f6f), of the 217 operations whose deprecation carries a message, 25 name a route the
-document declares, 16 in a code span and 9 beside one, and take it; 10 name a path relative to
-the prefix the document mounts it under, which names no route as written, and 146 a link, and take
-nothing; 2 parameters and 32 members take the sibling a code span names.
+silence, since prose naming something else is no defect, and the message keeps its prose either way.
+The words around a name are not read, so a message naming a declared entity for another reason, as
+``Unlike `GET /v0/zones`, this pages.`` or ``Formerly `b`.`` does, fills the field with it, and a
+document whose messages write so is compiled with the policy off. A node they fill has
+`Provenance.Inferred` naming `replacement-inference`. The reading runs once the document is whole,
+as a replacement may be declared after what it replaces. A Markdown link's title is display text and
+its URL a page of documentation, neither naming an entity the document holds, so a link is never
+read; nor is a header's, a schema's or a security scheme's message, where no measured document names
+a replacement such a scope resolves. On the golden spec (spec @86556f6f), of the 217 operations
+whose deprecation carries a message, 25 name a route the document declares, 16 in a code span and 9
+beside one, and take it; 10 name a path relative to the prefix the document mounts it under, which
+names no route as written, and 146 a link, and take nothing; 2 parameters and 32 members take the
+sibling a code span names. Each of the 59 is the replacement its message tells a caller to use.
 
 - Cases: `replacement-inference`
 - Tests: `replacement.TestMessage_AnOperationsNamesItsReplacementByRoute`,
@@ -3705,15 +3708,19 @@ exactly one header parameter named `Idempotency-Key`, compared without case, tak
 `Idempotency` of the `idempotency_token` kind whose `TokenParam` names that parameter
 ([operations](../ir/operations.md)), and its `Provenance.Inferred` names `idempotency-inference`.
 The name is the field the IETF HTTPAPI working group's Idempotency-Key draft defines for a caller's
-key, and no other spelling is read: none appears on the golden spec or in 1,840 public OpenAPI 3
-documents. A safe method needs no key, and what its binding defines says more of it than a token,
-so `GET`, `HEAD`, `OPTIONS`, `TRACE` and `QUERY` take none, nor does a method only an
-`additionalOperations` entry declares, whose safety the compiler does not know. Two header
-parameters of that name, which can differ only in case, name no one token, so the operation takes
-none. The reading departs from nothing the document says, so nothing is reported. On the golden
-spec it names the token of the 6 operations declaring the header, 5 `POST` and a `PUT`: 4 describe
-it as what makes a retry safe or keeps a request from applying twice, and 2 as a client command key
-(spec @86556f6f).
+key, and no other spelling is read: no other header carries a key on the golden spec or in 1,840
+public OpenAPI 3 documents, and the one other parameter the golden spec names for one, the query
+parameter `idemp_key` of `POST /accounts/{account_id}/bulk/subscriptions`, abbreviates the name and
+describes nothing. A safe method needs no key, and what its binding defines says more of it than a
+token, so `GET`, `HEAD`, `OPTIONS`, `TRACE` and `QUERY` take none, nor does a method only an
+`additionalOperations` entry declares, whose safety the compiler does not know. An operation a
+webhook or a callback declares takes its token too: the API sends that request, and the key tells
+its receiver a delivery it has seen. Two header parameters of that name, which can differ only in
+case, name no one token, so the operation takes none. The reading departs from nothing the document
+says, so nothing is reported. On the golden spec it names the token of the 6 operations declaring
+the header, 5 `POST` and a `PUT`: 4 describe it as what makes a retry safe or keeps a request from
+applying twice, and 2 as a client command key whose reuse for another request is refused with a
+`409`, as a reused idempotency key is (spec @86556f6f).
 
 - Cases: `idempotency-inference`
 - Tests: `convention.TestIdempotency_TheKeyHeaderIsTheToken`,
@@ -4159,13 +4166,14 @@ field an RFC defines as an HTTP-date, or as one in its date form, `Date`, `Last-
 `If-Modified-Since`, `If-Unmodified-Since`, `Retry-After` and `If-Range` (RFC 9110 §6.6.1, §8.8.2,
 §13.1.3, §13.1.4, §10.2.3, §13.1.5), `Expires` (RFC 9111 §5.3) and `Sunset` (RFC 8594 §3), and
 whose type reads, through its scalars, as the `datetime_offset` `format: date-time` lowers to
-([`string-formats`](#string-formats)), with no encoding named on the header or along that chain,
-takes an `Encoding` named `http-date` ([encodings](../ir/constraints.md#encodings)) on the header
-itself. It is an override of that one use, so a component a `$ref` names keeps its own text
-wherever else it is used. Its `Provenance.Inferred` names `http-date-inference`, and an info
-`openapi/inferred-http-date` at the header reports it, since `date-time` names RFC 3339's text,
-which the field's definition rules out. A header an encoding gives a part is a MIME header no such
-definition covers, and is not read. On the golden spec one header is read, the `Last-Modified` of
+([`string-formats`](#string-formats)), with no `Encoding` on the header, as the media type of one
+declared by `content` is, and no encoding named along that chain, takes an `Encoding` named
+`http-date` ([encodings](../ir/constraints.md#encodings)) on the header itself. It is an override
+of that one use, so a component a `$ref` names keeps its own text wherever else it is used. Its
+`Provenance.Inferred` names `http-date-inference`, and an info `openapi/inferred-http-date` at the
+header reports it, since `date-time` names RFC 3339's text, which the field's definition rules out.
+A header an encoding gives a part is a MIME header no such definition covers, and is not read. On
+the golden spec one header is read, the `Last-Modified` of
 `GET /accounts/{account_id}/dex/commands/{command_id}/downloads/{filename}`, whose example is an
 HTTP-date (spec @86556f6f).
 
