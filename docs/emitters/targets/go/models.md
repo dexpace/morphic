@@ -89,14 +89,17 @@ func (s Secret[T]) Value() T         // the value; T's zero for a zero Secret
 ```
 
 `Secret` declares the redacting forms, the codec pair, which writes and reads what `T` does,
-`Equal`, and `IsZero`, which answers as `omitzero` would for the value held: `T`'s own `IsZero`
-where `T` or its pointer declares one, otherwise whether the value is `T`'s zero, which a zero
-`Secret` holds. So a redacted field is left out exactly where a plain field of its type and tag is:
-of 18 values, an unset and a set box, a zero and a set number, a nil and an empty map and slice and
-a nil pointer among them, under `omitzero`, under `omitzero,omitempty` and under neither, the two
-wrote the same bytes each time, where an `IsZero` answering only for a `T` that declares one
-differed in 12, `SecretOf(int64(0))` writing `"pin":0` under the implicit tag and a nil map
-`"tags":{}` (Go 1.27.3). A function is the one kind `fmt` prints as an address however it is asked.
+`Equal`, and `IsZero`, which answers what `omitzero` does for a field of type `T` holding the value:
+where `T` or its pointer declares `IsZero` it asks that, a nil pointer, a nil interface and an
+interface holding a nil pointer being zero unasked, and otherwise whether the value is `T`'s zero,
+which a zero `Secret` holds. So a redacted field is left out exactly where a plain field of its type
+and tag is: of 41 values, an unset and a set box, a zero and a set number, a nil and an empty map
+and slice, and a nil pointer to a type declaring `IsZero` on its value and on its pointer among
+them, under `omitzero`, under `omitzero,omitempty` and under neither, the two wrote the same bytes
+each time. Asking `T`'s `IsZero` of a nil pointer or interface panicked where the plain field wrote
+`{}`, and an `IsZero` answering only for a `T` that declares one differed in 21 of the 123 writes,
+`SecretOf(int64(0))` writing `"pin":0` under the implicit tag and a nil map `"tags":{}` (Go 1.27.3).
+A function is the one kind `fmt` prints as an address however it is asked.
 A pointer was built first: one to a list, a struct or a map is followed once under a verb `fmt` has
 no pointer form for, `%s` among them, and printed a `*[]string`'s secret in 216 of the same
 renderings, where `Secret` held it in none, nor did a failure holding the model. The costs are a
@@ -179,7 +182,15 @@ ended the process on a model whose pointer led back to it (`fatal error: stack o
 other exported method carries the state into another unit, since an exported signature naming an
 internal type is refused (T-64). Measured so, with the checked type in another package, a value
 holding itself was reported at the limit, and one sharing each child at 60 levels after 16,777,216
-values in 1.5 s (Go 1.27.3). T-63 holds these.
+values in 1.5 s (Go 1.27.3). An inclusive union's `Format` passes the state to each set field's and
+drops the constraint failures they reported once one passed, never a nesting failure: a union
+holding itself through one field beside one that passes answered `ErrNesting` in either order of the
+fields, as did one whose field held a value past either limit of a type in another package, where
+dropping all they reported returned nil. The state keeps the first 1,000 constraint failures,
+counting the rest, which the error's text gives, and the nesting failure beside them: the value
+sharing each child at 60 levels, its every node failing two constraints, gave 1,000 and a 21 KB text
+in 50 ms and 6 MB, where keeping all gave 16,777,216, a 352 MB text and 4.5 GB (Go 1.27.3). T-63
+holds these.
 
 ## Recursive references
 

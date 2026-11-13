@@ -153,11 +153,12 @@ cannot hold, as after a caller adds it to the open one, is an encode error too, 
 variant would no longer read the value back. A union with no variant set refuses to encode and
 fails validation, and the fallback is never set beside a variant.
 
-An inclusive union is valid when one set variant is, which is all `anyOf` asks. A variant can admit
-a value it does not validate, since admitting leaves bounds to validation: the golden spec's API
-Shield token sources are strings under two `pattern`s, so a header's value is admitted by the cookie
-variant too and fails only its pattern. Validation reports every set variant's failures when none
-passes, and refuses a union with no variant set.
+An inclusive union within the nesting limits ([how deep a value
+nests](models.md#how-deep-a-value-nests)) is valid when one set variant is, which is all `anyOf`
+asks. A variant can admit a value it does not validate, since admitting leaves bounds to validation:
+the golden spec's API Shield token sources are strings under two `pattern`s, so a header's value is
+admitted by the cookie variant too and fails only its pattern. Validation reports every set
+variant's failures when none passes, and refuses a union with no variant set.
 
 The set variants hold one value, so a member any of them redacts is redacted in all: where an SDK
 renders or logs an inclusive union, a position is redacted when a set variant holding it redacts it

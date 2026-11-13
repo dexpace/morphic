@@ -78,8 +78,9 @@ type Target struct {        // anyOf: [Zone, Account], which one value can fit
   variants. Every type keeps its one codec, which reaches a variant in another unit with no exported
   helper, and each variant still reads the bytes beneath it. `MarshalJSONTo` writes the merge and
   runs each set field's admission check over it.
-- **`Validate` passes when a set field's `Validate` passes**, reports every set field's failures
-  when none does, and reports a struct with no field set. With no sum to close, it has no marker, no
+- **`Validate` passes when a set field's checks pass**, each walked through the state the walk
+  carries ([nesting](models.md#nesting)), reports every set field's failures when none does, and
+  reports a struct with no field set. With no sum to close, it has no marker, no
   wrapper and no switch-completeness test.
 - **`Format`, `String`, `GoString` and `LogValue` redact** a member any set field redacts
   ([redaction](../../refine/redaction.md#a-redacted-value)), in every set field they render.

@@ -153,7 +153,7 @@ program, so there the limit is the one bound, and a model wide enough overflows 
 production and run under node 26.13.0 (Kotlin 2.4.0, kotlinx-serialization-json 1.11.0), a model
 nested through a member, a list, a map and an `any`, one whose member is a union read through a
 `JsonElement` and one of 200 members each decoded, encoded, printed, hashed and compared at every
-depth from 1 to 64 on both; the 200-member model overflowed first, at 229 levels on JS and 265 on
+depth from 1 to 64 on both; the 200-member model overflowed first, at 229 levels on JS and 266 on
 Wasm, each depth in a process of its own, and a JS decode overflowing below a caller deep in its own
 stack was caught, the next call decoding. A browser's stack was not run. Multiplatform still reports
 a `MaxDepth` above 64 ([runtime policy](../../contract/runtime-policy.md#how-deep-a-value-nests)),
@@ -167,23 +167,27 @@ by itself: `parseToJsonElement` read 100,000 levels, and `decodeFromJsonElement`
 call and the text are theirs.
 
 A value a caller builds can nest past the limit, and on Native printing one would end the process as
-decoding one would. So every model, union wrapper and positional class records, when it is
-constructed, how deep its JSON form nests, one more than its deepest member's, in `jsonDepth`, a
-member marked `@InternalSdkApi` ([the runtime](overview.md#what-a-caller-reaches-of-the-runtime));
+decoding one would. So every model, union wrapper, inclusive union's class and positional class
+records, when it is constructed, how deep its JSON form nests, one more than its deepest member's,
+a wrapper and an inclusive union's class adding no level of their own, in `jsonDepth`, a member
+marked `@InternalSdkApi` ([the runtime](overview.md#what-a-caller-reaches-of-the-runtime));
 the record holds because a built value never changes (above). Nothing recurses into a value past the
 limit: the client refuses to encode it, with an error and nothing sent, `toString` shows its class
 and its depth alone, `equals` compares the depths first and holds such a value equal only to itself,
 `hashCode` is then its depth, and `validate()` reports it as nested past the limit: it returns its
-failures, none for a value that passes, each a `ValidationFailure` of the runtime's naming the
-member and the check, whose `nesting` is true for a value past either limit and false for a
-constraint's, so a caller tells them apart by no message. Throwing them was the alternative, and
-reaches a Swift caller only through `@Throws`, any other exception ending its app
-([Swift](swift.md)); a Swift caller read `nesting` from the list returned (Kotlin/Native 2.4.0).
-Each records in `jsonValues`, beside it, how many values its JSON form holds, the sum of its
-members' and one for itself, held at the greatest `Int` once past it, and a value past `MaxValues`
-is treated the same way, its count shown beside its depth: one sharing each child at 22 levels,
-16,777,214 values, printed, hashed, compared and was found in a set in 0.9 s, and one at 30 levels
-answered all four in 68 µs, equal only to itself (Kotlin 2.4.0, JVM 25). Measured on Kotlin/Native
+failures, none for a value that passes, the first 1,000 and then one naming the check `maxFailures`
+where it found more (one sharing each child at 22 levels, its every node failing two constraints,
+returned 1,001 in 105 ms, where keeping all held 8,388,606 in 1.2 GB, Kotlin 2.4.0, JVM 25), each a
+`ValidationFailure` of the runtime's naming the member and the check, whose `nesting` is true for a
+value past either limit and false for a constraint's and for that last, so a caller tells them apart
+by no message. Throwing them was the alternative, and reaches a Swift caller only through `@Throws`,
+any other exception ending its app ([Swift](swift.md)); a Swift caller read `nesting` from the list
+returned (Kotlin/Native 2.4.0). Each records in `jsonValues`, beside it, how many values its JSON
+form holds, the sum of its members' and one for itself, none for a wrapper or an inclusive union's
+class, held at the greatest `Int` once past it, and a value past `MaxValues` is treated the same
+way, its count shown beside its depth: one sharing each child at 22 levels, 16,777,214 values,
+printed, hashed, compared and was found in a set in 0.9 s, and one at 30 levels answered all four in
+68 µs, equal only to itself (Kotlin 2.4.0, JVM 25). Measured on Kotlin/Native
 2.4.0, a value 200,002 levels deep printed, hashed, compared and was found in a set on a 64 KB
 stack, where the same nesting with no record ended the process on 512 KB. Both Kotlin targets do
 this. On the JVM a `MaxDepth` raised past what a thread's stack takes still leaves a value within it
