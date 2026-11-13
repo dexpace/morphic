@@ -79,18 +79,20 @@ func TestScopeReached_FollowsAtMostMaxRefChainRefs(t *testing.T) {
 // TestScopeReached_AnEndInTheSourcesFileIsTheSources pins a hop that resolved
 // against the source's file read again rather than its model, as the resolver
 // reads it when the load phase does not hold the source: it is the source's
-// own content, under any spelling of its path, and not another document's.
+// own content, under any spelling of its path, and not another document's. An
+// absolute spelling of a relative path is another document, as nothing but the
+// working directory, which is not read, relates the two.
 func TestScopeReached_AnEndInTheSourcesFileIsTheSources(t *testing.T) {
 	t.Parallel()
 	abs, err := filepath.Abs("dir/root.yaml")
 	require.NoError(t, err)
 	sc := Scope{SelfPath: "dir/root.yaml"}
-	for _, path := range []string{"dir/root.yaml", "dir/./root.yaml", "dir/x/../root.yaml", abs} {
+	for _, path := range []string{"dir/root.yaml", "dir/./root.yaml", "dir/x/../root.yaml"} {
 		got := sc.reached(End{Document: new(int), Path: path, Pointer: "/components/pathItems/Own"})
 		assert.False(t, got.Foreign, path)
 		assert.Empty(t, got.Holder, path)
 	}
-	for _, path := range []string{"dir/other.yaml", "other/root.yaml", "https://example.com/dir/root.yaml"} {
+	for _, path := range []string{"dir/other.yaml", "other/root.yaml", "https://example.com/dir/root.yaml", abs} {
 		got := sc.reached(End{Document: new(int), Path: path, Pointer: "/x"})
 		assert.True(t, got.Foreign, path)
 		assert.Equal(t, path, got.Holder, path)

@@ -6,12 +6,15 @@ package harness
 import (
 	"bytes"
 	"context"
+	"encoding/json/jsontext"
+	"encoding/json/v2"
 	"errors"
 	"fmt"
+	"io"
 	"slices"
+	"strings"
 
 	"github.com/google/go-cmp/cmp"
-	"github.com/google/go-cmp/cmp/cmpopts"
 	yaml "go.yaml.in/yaml/v3"
 
 	"github.com/dexpace/morphic/ir"
@@ -24,78 +27,90 @@ import (
 // refuses. TestMaxReverseDepth_ReachesEveryAdmittedDocument holds it there.
 const maxReverseDepth = 1025
 
-// orderInvariant compiles a source twice, once with its mappings as declared
-// and once with every mapping's entry order reversed, and reports what the
-// permutation changed beyond source order. Sequences are not reversed: their
-// order is semantic.
+// orderInvariant compiles a source twice, once as re-encoded and once with
+// every mapping's entry order reversed, and reports what the permutation
+// changed beyond source order. Sequences are not reversed: their order is
+// semantic, which leaves the order of an allOf's branches unasked (#1666).
 //
 // Unlike `deterministic`, which recompiles the same bytes, permuted input
 // catches a lowering that depends on which declaration reached a pointer
-// first (#108, #112). Both arms compile the encoder's output (see
-// reencodeMappings). A source whose reversal changes its meaning, or whose
-// re-encoding yields no document, is excluded rather than reported. It proves
-// order-independence only for the constructs its input contains, so it runs
-// over the corpus.
-func orderInvariant(ctx context.Context, spec string, data []byte) (string, bool) {
-	baseline, ok := reencodeMappings(data)
-	if !ok {
-		return "", true // the source does not survive a parse and re-encode
+// first (#108, #112). Both arms compile the encoder's output
+// (reencodeMappings). It declines a source it cannot permute faithfully, or
+// whose re-encoding alone is refused (compiled), and proves order-independence
+// only for what its input contains, at the default options.
+func orderInvariant(ctx context.Context, spec string, data []byte, compiled bool) Verdict {
+	baseline, why := reencodeMappings(data)
+	if why != "" {
+		return declined(OracleOrder, why)
 	}
-	reversed, ok := reverseMappings(data)
-	if !ok {
-		return "", true // its permutation would not be meaning-preserving
+	reversed, why := reverseMappings(data)
+	if why != "" {
+		return declined(OracleOrder, why)
 	}
 	if bytes.Equal(reversed, baseline) {
-		return "", true // nothing to permute; the oracle has no question to ask
+		return declined(OracleOrder, DeclineNothingToPermute)
 	}
-	doc, _, err := compile(ctx, spec, baseline, passes())
+	doc, diags, err := compile(ctx, spec, baseline, passes())
 	if errors.Is(err, errUnrecognized) {
-		return "", true // the re-encoding reads as no spec, so there is no baseline
+		return declined(OracleOrder, DeclineReencodingNoSpec)
 	}
 	if err != nil {
 		// A Go error is never the spec's, so it is reported, as on the other arm.
-		return "compile re-encoded: " + err.Error(), false
+		return found(OracleOrder, "compile re-encoded: "+err.Error())
 	}
-	if doc == nil {
-		return "", true // nor does a re-encoding the compiler declines outright
+	if doc == nil && compiled {
+		return declined(OracleOrder, DeclineReencodingRefused)
 	}
 	other, otherDiags, err := compile(ctx, spec, reversed, passes())
 	if err != nil {
-		return "recompile permuted: " + err.Error(), false
+		return found(OracleOrder, "recompile permuted: "+err.Error())
 	}
-	if other == nil {
-		return "permuted source compiled to no document", false
-	}
-	return diffOrderInvariants(doc, other, otherDiags)
+	return OracleOrder.judge(diffOrderInvariants(doc, diags, other, otherDiags))
 }
 
 // diffOrderInvariants compares what a declaration-order permutation must leave
-// untouched: the type, server and auth registries and the diagnostics.
+// untouched: the whole document, and the diagnostics as a multiset. A refusal
+// returns no document, so two refusals compare their diagnostics alone, and a
+// refusal in one order only is a finding.
 //
-// A registry is ID-keyed, so a permutation leaves it unchanged, while every
-// interning collision shows as a difference in it: a node minted at the wrong
-// pointer, a hint kept from whichever lowering came first, a body that lost what
-// a second declaration wrote. Operations, responses and content types follow
-// source order (invariant #7), so go uncompared.
-//
-// The collections whose order follows the source's (sourceOrderedCollections)
-// are compared regardless of order, not ignored: a changed property still
-// differs, a moved one does not.
-func diffOrderInvariants(first, second *ir.Document, secondDiags []ir.Diagnostic) (string, bool) {
-	if a, b := len(first.Types), len(second.Types); a != b {
-		return fmt.Sprintf("permuted source interns %d types against %d", b, a), false
+// IDs derive from pointers, so a permutation leaves every ID and registry key
+// unchanged, while an interning collision shows as a difference: a node minted
+// at the wrong pointer, a hint kept from whichever lowering came first, a body
+// that lost what a second declaration wrote. What the permutation reorders by
+// design is compared regardless of order (canonicalJSON).
+func diffOrderInvariants(first *ir.Document, firstDiags []ir.Diagnostic, second *ir.Document, secondDiags []ir.Diagnostic) (string, bool) {
+	switch {
+	case first == nil && second != nil:
+		return "the permuted source compiles to a document, and as written to none", false
+	case first != nil && second == nil:
+		return "the permuted source compiles to no document, and as written to one", false
+	case first != nil:
+		if a, b := len(first.Types), len(second.Types); a != b {
+			return fmt.Sprintf("permuted source interns %d types against %d", b, a), false
+		}
+		if detail, ok := sameDocument(first, second); !ok {
+			return detail, false
+		}
 	}
-	if d := cmp.Diff(first.Types, second.Types, sourceOrderedCollections()...); d != "" {
-		return "type registry depends on declaration order (-as-written +reversed):\n" + d, false
-	}
-	if d := cmp.Diff(first.Servers, second.Servers, sourceOrderedCollections()...); d != "" {
-		return "server registry depends on declaration order (-as-written +reversed):\n" + d, false
-	}
-	if d := cmp.Diff(first.Auth, second.Auth, sourceOrderedCollections()...); d != "" {
-		return "auth registry depends on declaration order (-as-written +reversed):\n" + d, false
-	}
-	if d := cmp.Diff(diagnosticSet(first.Diagnostics), diagnosticSet(secondDiags)); d != "" {
+	if d := cmp.Diff(diagnosticSet(firstDiags), diagnosticSet(secondDiags)); d != "" {
 		return "diagnostics depend on declaration order (-as-written +reversed):\n" + d, false
+	}
+	return "", true
+}
+
+// sameDocument compares two documents' canonical encodings, and reports the
+// lines the second changes.
+func sameDocument(first, second *ir.Document) (string, bool) {
+	a, err := canonicalJSON(first)
+	if err != nil {
+		return "encode as written: " + err.Error(), false
+	}
+	b, err := canonicalJSON(second)
+	if err != nil {
+		return "encode permuted: " + err.Error(), false
+	}
+	if !bytes.Equal(a, b) {
+		return "document depends on declaration order (-as-written +reversed):\n" + cmp.Diff(lines(a), lines(b)), false
 	}
 	return "", true
 }
@@ -104,153 +119,333 @@ func diffOrderInvariants(first, second *ir.Document, secondDiags []ir.Diagnostic
 // and where, so two orders of one document compare on their findings rather
 // than on append order, which follows traversal order.
 //
-// The registry comparison does not subsume this: a collision can leave the
-// registry identical yet change what the compiler reports.
+// The document comparison does not subsume this: a collision can leave the
+// document identical yet change what the compiler reports.
 //
 // Message text is not compared: some messages list source keywords in the
 // author's order ("type, maxLength" against "maxLength, type"), which is
-// invariant #7 reaching the message. Source position is left out because a
-// permutation moves constructs by design; whether a finding has one stays in.
+// invariant #7 reaching the message. Of its provenance, only line and column
+// are left out, which a permutation moves by design, keeping whether it has any.
 func diagnosticSet(diags []ir.Diagnostic) []string {
 	out := make([]string, 0, len(diags))
 	for _, d := range diags {
 		p := d.Provenance
 		positioned := p.Position != ir.Position{}
-		out = append(out, fmt.Sprintf("%s\x00%s\x00%s\x00%t\x00%s\x00%d",
-			d.Severity, d.Code, p.Pointer, positioned, p.Node, p.Source))
+		out = append(out, fmt.Sprintf("%s\x00%s\x00%s\x00%t\x00%s\x00%d\x00%d\x00%s",
+			d.Severity, d.Code, p.Pointer, positioned, p.Node, p.Source, p.WrittenBy, p.Inferred))
 	}
 	slices.Sort(out)
 	return out
 }
 
-// sourceOrderedCollections makes the comparison blind to the order of the
-// collections a mapping's entry order decides, so two permutations of one
-// document do not differ by their own permutation.
+// lines splits an encoding into its lines, so a difference reads line by line.
+func lines(encoded []byte) []string { return strings.Split(string(encoded), "\n") }
+
+// canonicalJSON encodes doc as the permutation must leave it, indented so a
+// difference reads line by line. It leaves out the diagnostics, compared apart
+// (diagnosticSet), and the hash of the source compiled, the first of its
+// table, whose bytes the permutation rewrote; another source is the same file
+// in both orders.
 //
-// Each is sorted by what identifies its elements. An object value's members are among them: the
-// rewrite reverses a default's or an example's mapping like any other, and
-// Value.Object keeps source order on purpose (#683). A member's name is unique,
-// because reverseMappings refuses a mapping that declares a key twice.
-//
-// Examples have no identity, so sameExamples matches them under the keyed
-// options: an example holds no list of examples to need more.
-func sourceOrderedCollections() []cmp.Option {
-	keyed := cmp.Options{
-		cmpopts.SortSlices(func(a, b ir.Property) bool { return a.ID < b.ID }),
-		cmpopts.SortSlices(func(a, b ir.PatternProps) bool { return a.Pattern < b.Pattern }),
-		cmpopts.SortSlices(func(a, b ir.Field) bool { return a.Name < b.Name }),
-		cmpopts.SortSlices(func(a, b ir.ServerVariable) bool { return a.Name < b.Name }),
-		cmpopts.SortSlices(func(a, b ir.OAuthScope) bool { return a.Name < b.Name }),
+// Each collection a mapping's entry order decides is written in one order
+// (orderFree), and a verbatim JSON value's object members are sorted, so a
+// changed element still differs and a moved one does not. A collection a
+// sequence orders, such as an enum's members, keeps its order.
+func canonicalJSON(doc *ir.Document) ([]byte, error) {
+	type plain ir.Document // no methods, so the options below reach it
+	own := plain(*doc)
+	own.Diagnostics = nil
+	if len(own.Sources) > 0 {
+		own.Sources = slices.Clone(own.Sources)
+		own.Sources[0].Hash = ""
 	}
-	return []cmp.Option{keyed, cmp.Comparer(func(a, b []ir.Example) bool { return sameExamples(a, b, keyed) })}
+	return json.Marshal(&own, json.Deterministic(true), json.WithMarshalers(orderFree()),
+		jsontext.ReorderRawObjects(true), jsontext.WithIndent("  "))
 }
 
-// sameExamples reports whether a and b hold equal examples, each as often, in
-// any order. Name cannot sort them, since the singular `example` keyword
-// carries none. A rendering could, but it would be a second reading of
-// equality, and one taken as written pairs two unnamed examples crosswise once
-// the permutation reverses their members. Matching under cmp.Equal leaves
-// nothing to drift from the comparison itself.
-//
-// Equal examples share a name, so each is sought only among b's of its name,
-// which keeps matching a reversed list of named examples linear.
-func sameExamples(a, b []ir.Example, opts ...cmp.Option) bool {
-	if len(a) != len(b) || (a == nil) != (b == nil) {
-		return false
-	}
-	unmatched := make(map[string][]int, len(b))
-	for j, y := range b {
-		unmatched[y.Name] = append(unmatched[y.Name], j)
-	}
-	for _, x := range a {
-		js := unmatched[x.Name]
-		i := slices.IndexFunc(js, func(j int) bool { return cmp.Equal(x, b[j], opts...) })
-		if i < 0 {
-			return false
-		}
-		unmatched[x.Name] = slices.Delete(js, i, i+1)
-	}
-	return true
+// orderFree writes the collections a mapping's entry order decides, each one
+// the corpus's two orders tell apart by design, with their elements sorted by
+// their own canonical encodings. That needs no key, so elements carrying none
+// unique compare as the multiset they are: an element's encoding sorts its own
+// collections first, so two whose members the permutation reversed still pair
+// up (#683). Examples alone hold both a mapping's entries and a sequence's
+// elements (sortedExamples).
+func orderFree() *json.Marshalers {
+	return json.JoinMarshalers(
+		sortedElements[ir.Property](),
+		sortedElements[ir.Header](),
+		// The service tree's elements are read by value, never through a generic
+		// of this module, whose writes the lint keeping them in ir cannot read.
+		json.MarshalToFunc(func(enc *jsontext.Encoder, v []ir.Operation) error {
+			return writeSorted(enc, len(v), func(i int) any { return v[i] })
+		}),
+		json.MarshalToFunc(func(enc *jsontext.Encoder, v []ir.OperationGroup) error {
+			return writeSorted(enc, len(v), func(i int) any { return v[i] })
+		}),
+		sortedElements[ir.PatternProps](),
+		sortedElements[ir.Field](),
+		sortedElements[ir.ServerVariable](),
+		sortedElements[ir.OAuthScope](),
+		json.MarshalToFunc(sortedExamples),
+		sortedElements[ir.Content](),
+		sortedElements[ir.Response](),
+		sortedElements[ir.ErrorCase](),
+		sortedElements[ir.OperationLink](),
+		sortedElements[ir.LinkParam](),
+		sortedElements[ir.Callback](),
+		sortedElements[ir.SchemeUse](),
+		json.MarshalToFunc(sortedRequestContentTypes),
+	)
 }
+
+// sortedElements writes a []T with its elements in the byte order of their
+// encodings (writeSorted).
+func sortedElements[T any]() *json.Marshalers {
+	return json.MarshalToFunc(func(enc *jsontext.Encoder, v []T) error {
+		return writeSorted(enc, len(v), func(i int) any { return &v[i] })
+	})
+}
+
+// sortedExamples writes a list of examples holding a named one, an `examples`
+// mapping's entry, sorted (writeSorted), and a list of unnamed ones in order.
+// An unnamed example is the `example` keyword's value or an element of a
+// schema's `examples` array, which no mapping orders. A mapping entry keyed by
+// the empty string is unnamed too, so a list holding a named one is sorted
+// whole, unnamed ones among it included.
+func sortedExamples(enc *jsontext.Encoder, v []ir.Example) error {
+	if !slices.ContainsFunc(v, func(e ir.Example) bool { return e.Name != "" }) {
+		return errors.ErrUnsupported
+	}
+	return writeSorted(enc, len(v), func(i int) any { return &v[i] })
+}
+
+// writeSorted writes the n elements at gives as an array, in the byte order of
+// their encodings, each encoded under the options writing the array, these
+// marshalers among them. An empty array is written as it would be otherwise.
+func writeSorted(enc *jsontext.Encoder, n int, at func(i int) any) error {
+	if n == 0 {
+		return errors.ErrUnsupported
+	}
+	elems := make([][]byte, n)
+	for i := range n {
+		b, err := json.Marshal(at(i), enc.Options())
+		if err != nil {
+			return err
+		}
+		elems[i] = b
+	}
+	slices.SortFunc(elems, bytes.Compare)
+	return enc.WriteValue(append(append([]byte{'['}, bytes.Join(elems, []byte{','})...), ']'))
+}
+
+// sortedRequestContentTypes writes an HTTP binding with its request's content
+// types sorted: the request body's content map orders them. Every other []string
+// of the IR keeps its order, so this one alone is sorted, here.
+func sortedRequestContentTypes(enc *jsontext.Encoder, b ir.HTTPBinding) error {
+	type plain ir.HTTPBinding // no methods, so this function does not reach it again
+	b.RequestContentTypes = slices.Sorted(slices.Values(b.RequestContentTypes))
+	return json.MarshalEncode(enc, (*plain)(&b))
+}
+
+// maxPermutedDocuments bounds the documents of a stream the rewrite reads. A
+// stream holding more is declined rather than permuted in part, since a
+// compile of the part would answer for another source.
+const maxPermutedDocuments = 1024
 
 // reencodeMappings returns src parsed and re-encoded with its entry order
-// intact: the same normalization reverseMappings applies, minus the permutation.
-// It is what the permuted source is compared against, so a spelling the encoder
-// rewrites (a flow-style implicit null comes back as an empty string) changes
-// both sides alike.
-func reencodeMappings(src []byte) ([]byte, bool) {
-	var root yaml.Node
-	if err := yaml.Unmarshal(src, &root); err != nil {
-		return nil, false
+// intact, every document of its stream: the same normalization reverseMappings
+// applies, minus the permutation. It is what the permuted source is compared
+// against, so a spelling the encoder rewrites (a flow-style implicit null comes
+// back as an empty string) changes both sides alike. A Decline says why there is
+// no re-encoding; it is empty when there is one.
+func reencodeMappings(src []byte) ([]byte, Decline) {
+	docs, why := parseStream(src)
+	if why != "" {
+		return nil, why
 	}
-	out, err := encodeYAML(&root)
+	out, err := encodeYAML(docs)
 	if err != nil {
-		return nil, false
+		return nil, DeclineUnencodable
 	}
-	return out, true
+	return out, ""
 }
 
 // reverseMappings returns src with the entry order of every YAML mapping
-// reversed, and ok=false for a source the rewrite cannot faithfully permute: one
-// that does not parse, one that will not re-encode, one carrying a duplicate
-// mapping key, whose meaning depends on the order being changed, or one whose
-// permutation no longer parses.
+// reversed, in every document of its stream, or why the rewrite cannot permute
+// it faithfully: it does not parse, declares a key twice in one mapping, whose
+// meaning depends on the order changed, gives two nodes one anchor name, nests
+// too deep, or will not re-encode.
 //
-// That last case is the rewrite's own doing rather than a fact about the
-// compiler: reversing a mapping can carry an alias above the anchor it names,
-// which YAML forbids. Re-parsing catches it without enumerating it, and covers
-// any later ordering rule of the same kind.
-func reverseMappings(src []byte) ([]byte, bool) {
-	var root yaml.Node
-	if err := yaml.Unmarshal(src, &root); err != nil {
-		return nil, false
+// Reversing can carry an alias above its anchor, which YAML forbids, so each
+// anchor moves to the first place naming it (hoistAnchors). A permutation that
+// does not parse again is declined, as the rewrite's fault, not the compiler's.
+func reverseMappings(src []byte) ([]byte, Decline) {
+	docs, why := parseStream(src)
+	if why != "" {
+		return nil, why
 	}
-	if !reverseNode(&root, 0) {
-		return nil, false
+	for _, doc := range docs {
+		if why := reverseNode(doc, 0); why != "" {
+			return nil, why
+		}
+		if why := hoistAnchors(doc); why != "" {
+			return nil, why
+		}
 	}
-	out, err := encodeYAML(&root)
+	out, err := encodeYAML(docs)
 	if err != nil {
-		return nil, false
+		return nil, DeclineUnencodable
 	}
-	var check yaml.Node
-	if err := yaml.Unmarshal(out, &check); err != nil {
-		return nil, false
+	if _, why := parseStream(out); why != "" {
+		return nil, DeclinePermutationUnparsable
 	}
-	return out, true
+	return out, ""
 }
 
-// encodeYAML re-encodes a permuted node tree. It is a package-level seam over
-// yaml.Marshal that defaults to it in production, where a tree that has just
-// parsed cannot fail to re-encode; tests replace it to drive that
-// otherwise-unreachable defensive path, exactly as reserializeJSON is a seam
-// over json.Marshal for the same reason.
-var encodeYAML = yaml.Marshal
+// parseStream parses src as a YAML stream, a node per document, or says why
+// it cannot: it does not parse, or holds more documents than the rewrite reads.
+func parseStream(src []byte) ([]*yaml.Node, Decline) {
+	dec := yaml.NewDecoder(bytes.NewReader(src))
+	var docs []*yaml.Node
+	for range maxPermutedDocuments + 1 {
+		doc := &yaml.Node{}
+		err := dec.Decode(doc)
+		if errors.Is(err, io.EOF) {
+			return docs, ""
+		}
+		if err != nil {
+			return nil, DeclineNotYAML
+		}
+		docs = append(docs, doc)
+	}
+	return nil, DeclineTooManyDocuments
+}
+
+// encodeYAML encodes a parsed or permuted stream. It is a package-level seam:
+// a tree that has just parsed cannot fail to re-encode, nor encode to text that
+// does not parse, and tests replace it to drive those otherwise-unreachable
+// defensive paths, as reserializeJSON is a seam over json.Marshal for the same
+// reason.
+var encodeYAML = func(docs []*yaml.Node) ([]byte, error) {
+	var buf bytes.Buffer
+	if err := encodeStream(&buf, docs); err != nil {
+		return nil, err
+	}
+	return buf.Bytes(), nil
+}
+
+// encodeStream writes docs to w as one YAML stream, a document each. A stream
+// of no documents writes nothing, where the encoder would refuse to close.
+func encodeStream(w io.Writer, docs []*yaml.Node) error {
+	if len(docs) == 0 {
+		return nil
+	}
+	enc := yaml.NewEncoder(w)
+	for _, doc := range docs {
+		if err := enc.Encode(doc); err != nil {
+			return err
+		}
+	}
+	return enc.Close()
+}
 
 // reverseNode reverses n's entry pairs when n is a mapping, then descends. It
-// reports false for a mapping with a duplicate key, and for a tree deeper than
-// the bound.
+// declines a mapping with a duplicate key, and a tree deeper than the bound.
 //
 // An alias needs no case of its own. It holds its target in Alias rather than in
 // Content, so the descent below reaches nothing through it and the anchored
-// mapping is reversed exactly once, at the anchor's own position — which is what
-// a guard here would have had to arrange, for a state the parser does not
-// produce. TestReverseMappings_AliasIsNotFollowed pins the resulting shape.
-func reverseNode(n *yaml.Node, depth int) bool {
-	if n == nil || depth > maxReverseDepth {
-		return n == nil
+// mapping is reversed exactly once, at the anchor's own position.
+// TestReverseMappings_AliasIsNotFollowed pins the resulting shape.
+func reverseNode(n *yaml.Node, depth int) Decline {
+	if n == nil {
+		return ""
+	}
+	if depth > maxReverseDepth {
+		return DeclineTooDeep
 	}
 	if n.Kind == yaml.MappingNode {
 		if duplicateKeys(n) {
-			return false
+			return DeclineDuplicateKey
 		}
 		n.Content = reversedPairs(n.Content)
 	}
 	for _, child := range n.Content {
-		if !reverseNode(child, depth+1) {
-			return false
+		if why := reverseNode(child, depth+1); why != "" {
+			return why
 		}
 	}
-	return true
+	return ""
+}
+
+// slot is a place in a node tree: the index'th of parent's Content.
+type slot struct {
+	parent *yaml.Node
+	index  int
+}
+
+// hoistAnchors moves each anchored node of doc to the first place that names
+// it, in the order an encoder writes the tree, and leaves an alias where it
+// was. Which occurrence carries the anchor means nothing in YAML, but an alias
+// written before its anchor does not parse, and reversing mappings writes them
+// so. It declines a document giving one anchor name to two nodes, since the
+// encoder writes an alias by name and a move could rebind it, and one nested
+// past the bound.
+func hoistAnchors(doc *yaml.Node) Decline {
+	anchored := map[*yaml.Node]slot{}
+	named := map[string]*yaml.Node{}
+	if why := findAnchors(doc, 0, anchored, named); why != "" {
+		return why
+	}
+	if len(anchored) == 0 {
+		return ""
+	}
+	return hoistFirstUses(doc, 0, anchored, map[*yaml.Node]bool{})
+}
+
+// findAnchors records, below n, where each anchored node sits, and declines a
+// tree giving one name to two nodes or nested past the bound.
+func findAnchors(n *yaml.Node, depth int, anchored map[*yaml.Node]slot, named map[string]*yaml.Node) Decline {
+	if depth > maxReverseDepth {
+		return DeclineTooDeep
+	}
+	for i, child := range n.Content {
+		if child.Anchor != "" {
+			if other, ok := named[child.Anchor]; ok && other != child {
+				return DeclineAnchorRedefined
+			}
+			named[child.Anchor], anchored[child] = child, slot{parent: n, index: i}
+		}
+		if why := findAnchors(child, depth+1, anchored, named); why != "" {
+			return why
+		}
+	}
+	return ""
+}
+
+// hoistFirstUses walks below n in the order an encoder writes it. An alias met
+// before the node it names trades places with that node, which then sits where
+// it is first named, and the walk goes on into it there. anchored tracks where
+// each anchored node sits, and written holds those already passed.
+func hoistFirstUses(n *yaml.Node, depth int, anchored map[*yaml.Node]slot, written map[*yaml.Node]bool) Decline {
+	if depth > maxReverseDepth {
+		return DeclineTooDeep
+	}
+	for i := range n.Content {
+		child := n.Content[i]
+		if child.Kind == yaml.AliasNode && !written[child.Alias] {
+			target, at := child.Alias, anchored[child.Alias]
+			at.parent.Content[at.index], n.Content[i] = child, target
+			anchored[target] = slot{parent: n, index: i}
+			child = target
+		}
+		if child.Anchor != "" {
+			written[child] = true
+		}
+		if why := hoistFirstUses(child, depth+1, anchored, written); why != "" {
+			return why
+		}
+	}
+	return ""
 }
 
 // reversedPairs reverses a mapping's key/value pairs, keeping each key with its

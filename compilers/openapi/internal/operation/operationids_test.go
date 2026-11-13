@@ -506,10 +506,10 @@ paths:
 }
 
 // TestOperations_OperationIDFindingsIgnoreDeclarationOrder is the two-order
-// half of TestOperations_OperationIDUniqueness: harness.Check stops at the
-// first error diagnostic, so its order-invariance oracle never reaches
-// conflicting-operation-id, and a hand-written case is the only thing that can
-// pin it. Each pair declares the same document with two of its entries
+// half of TestOperations_OperationIDUniqueness: no committed spec draws
+// conflicting-operation-id, so the harness's order-invariance oracle never
+// meets it, and a hand-written case is the only thing that pins it. Each pair
+// declares the same document with two of its entries
 // swapped, the first in an order the check this replaced got wrong: it
 // reported whichever claim was lowered second, so a document and its reverse
 // named different operations.

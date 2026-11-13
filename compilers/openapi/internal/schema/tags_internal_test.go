@@ -57,12 +57,12 @@ func TestUnionTags_ReadsOnlyWhatItWasDeferredFor(t *testing.T) {
 	for name, tc := range map[string]struct {
 		union    *ir.Union
 		at       jsontext.Pointer
-		implicit []string
+		implicit []implicitRoute
 		bug      bool
 	}{
-		"declared, none held": {&ir.Union{ID: "t/u", Variants: variants, Closed: true}, "/d", []string{"A", "B"}, true},
+		"declared, none held": {&ir.Union{ID: "t/u", Variants: variants, Closed: true}, "/d", []implicitRoute{{name: "A", named: true}, {name: "B", named: true}}, true},
 		"declared, miscounted": {&ir.Union{ID: "t/u", Variants: variants, Closed: true,
-			Discriminator: &ir.Discriminator{PropertyName: "kind"}}, "/d", []string{"A"}, true},
+			Discriminator: &ir.Discriminator{PropertyName: "kind"}}, "/d", []implicitRoute{{name: "A", named: true}}, true},
 		"undeclared, tagged": {&ir.Union{ID: "t/u", Variants: variants, Closed: true, WireTagged: true,
 			Discriminator: &ir.Discriminator{PropertyName: "other"}}, "", nil, true},
 		"undeclared, open": {&ir.Union{ID: "t/u", Variants: variants}, "", nil, false},
@@ -109,85 +109,6 @@ func TestSpellImplicitRoutes_ReportsAVariantNoBranchStandsFor(t *testing.T) {
 	require.Len(t, diags, 1)
 	assert.Equal(t, diag.InternalInvariant, diags[0].Code)
 	assert.Nil(t, u.Discriminator.Mapping)
-}
-
-// TestPinnedValue_ReadsOneStringOnly pins what a type must be to pin a tag: a
-// string Literal, or a closed Enum of one string member that marks no flags.
-// No other node, a nil one included, pins one.
-func TestPinnedValue_ReadsOneStringOnly(t *testing.T) {
-	t.Parallel()
-	str := ir.Value{Kind: ir.ValueString, Str: "a"}
-	member := []ir.EnumMember{{Value: str}}
-	for name, tc := range map[string]struct {
-		node ir.TypeDef
-		ok   bool
-	}{
-		"literal":     {&ir.Literal{Value: str}, true},
-		"enum":        {&ir.Enum{Members: member, Closed: true}, true},
-		"nil literal": {(*ir.Literal)(nil), false},
-		"nil enum":    {(*ir.Enum)(nil), false},
-		"open enum":   {&ir.Enum{Members: member}, false},
-		"flags":       {&ir.Enum{Members: member, Closed: true, Flags: true}, false},
-		"two members": {&ir.Enum{Members: append(member, ir.EnumMember{Value: ir.Value{Kind: ir.ValueString, Str: "b"}}), Closed: true}, false},
-		"number":      {&ir.Literal{Value: ir.Value{Kind: ir.ValueNumber, Num: "1"}}, false},
-		"model":       {&ir.Model{}, false},
-	} {
-		t.Run(name, func(t *testing.T) {
-			t.Parallel()
-			got, ok := pinnedValue(ir.TypeRegistry{"t/x": tc.node}, "t/x")
-			assert.Equal(t, tc.ok, ok)
-			if tc.ok {
-				assert.Equal(t, "a", got)
-			}
-		})
-	}
-}
-
-// TestPinnedMember_ReadsEveryDeclaration pins that a member's tag is read off
-// every declaration it conjoins, as an instance meets them all: a pin the
-// taken declaration overrides stands, two pins of different values pin
-// nothing, null admitted by one declaration is excluded by another, and a
-// member every declaration lets hold null, or one a required tag needs and the
-// variant may leave out, pins nothing.
-func TestPinnedMember_ReadsEveryDeclaration(t *testing.T) {
-	t.Parallel()
-	reg := ir.TypeRegistry{
-		"t/a": &ir.Literal{ID: "t/a", Value: ir.Value{Kind: ir.ValueString, Str: "a"}},
-		"t/b": &ir.Literal{ID: "t/b", Value: ir.Value{Kind: ir.ValueString, Str: "b"}},
-	}
-	decl := func(target ir.TypeID, nullable bool) ir.PropertyDecl {
-		return ir.PropertyDecl{Owner: "t/m", Property: &ir.Property{Name: ir.Naming{Source: "kind"},
-			Type: ir.TypeRef{Target: target, Nullable: nullable}}}
-	}
-	ref := func(target ir.TypeID) ir.PropertyDecl { return decl(target, false /* nullable */) }
-	refOrNull := func(target ir.TypeID) ir.PropertyDecl { return decl(target, true /* nullable */) }
-	required := func(taken ir.PropertyDecl, overridden ...ir.PropertyDecl) ir.FlatProperty {
-		return ir.FlatProperty{PropertyDecl: taken, Overridden: overridden, Required: true}
-	}
-	const str = "t/prim/string"
-	for name, tc := range map[string]struct {
-		p    ir.FlatProperty
-		want string // "" for no pin
-	}{
-		"taken":                          {required(ref("t/a")), "a"},
-		"overridden":                     {required(ref(str), ref("t/a")), "a"},
-		"agreeing":                       {required(ref("t/a"), ref(str), refOrNull("t/a")), "a"},
-		"disagreeing":                    {required(ref("t/a"), ref("t/b")), ""},
-		"disagreeing, each admits null":  {required(refOrNull("t/a"), refOrNull("t/b")), ""},
-		"a null another excludes":        {required(refOrNull("t/a"), ref(str)), "a"},
-		"a null every one admits":        {required(refOrNull("t/a"), refOrNull(str)), ""},
-		"optional where one is required": {ir.FlatProperty{PropertyDecl: ref("t/a")}, ""},
-	} {
-		t.Run(name, func(t *testing.T) {
-			t.Parallel()
-			got, ok := pinnedMember(reg, tc.p, true /* required */)
-			assert.Equal(t, tc.want != "", ok)
-			assert.Equal(t, tc.want, got)
-		})
-	}
-	got, ok := pinnedMember(reg, ir.FlatProperty{PropertyDecl: ref("t/a")}, false /* required */)
-	assert.True(t, ok, "an optional member pins where no requirement is asked")
-	assert.Equal(t, "a", got)
 }
 
 // TestUnionTags_FlattensTheOtherVariantsOnlyForACandidate pins what an

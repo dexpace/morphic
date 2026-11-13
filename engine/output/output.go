@@ -11,6 +11,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"os"
 
 	"github.com/dexpace/morphic/engine/internal/atomicfile"
 	"github.com/dexpace/morphic/ir"
@@ -75,18 +76,23 @@ func WriteDocument(ctx context.Context, w io.Writer, doc *ir.Document, layout La
 	return nil
 }
 
-// ReplaceDocument replaces the file at path with doc's IR JSON, laid out as
-// layout and ending in a newline, through a temporary file renamed over it:
-// path holds the whole previous content or the whole document, and a document
-// that will not marshal, or a ctx that ends first, leaves it be.
-//
-// Publishing by rename needs path's directory to take a new entry, so
-// /dev/null and a read-only directory fail. A symlink or FIFO at path is
-// replaced, other hard links keep the old content, a name near the
-// filesystem's limit can fail, and the directory is not synced.
+// ReplaceDocument writes doc's IR JSON, laid out as layout and ending in a
+// newline, to what path names. A regular file, or nothing, is replaced through
+// a temporary file renamed over path: path holds the whole previous content or
+// the whole document, and a failed marshal or a ctx that ends first leaves it
+// be. Renaming needs path's directory to take a new entry, replaces a symlink
+// rather than its target, and leaves other hard links the old content. A FIFO
+// or a character device, such as /dev/null, is written as a stream; anything
+// else is refused (writeStream).
 func ReplaceDocument(ctx context.Context, path string, doc *ir.Document, layout Layout) error {
 	if err := check(ctx, doc, layout); err != nil {
 		return err
+	}
+	// Stat reads through a symlink, so a link to a stream is written and one to
+	// a file is renamed over: /dev/stdout too, where /dev takes the temporary
+	// file, as it does for root (#1864).
+	if info, err := os.Stat(path); err == nil && !info.Mode().IsRegular() {
+		return writeStream(ctx, path, info.Mode(), doc, layout)
 	}
 	return atomicfile.Replace(ctx, path, func(w io.Writer) error {
 		return encode(ctx, w, doc, layout)

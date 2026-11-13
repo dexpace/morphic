@@ -59,6 +59,26 @@
     }
   ],
   "types": {
+    "t/anon/components/schemas/Implied/oneOf/0": {
+      "kind": "scalar",
+      "id": "t/anon/components/schemas/Implied/oneOf/0",
+      "name": {
+        "hint": "cat"
+      },
+      "anonymous": true,
+      "docs": {
+        "description": "a cat"
+      },
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Implied/oneOf/0"
+      },
+      "base": {
+        "target": "t/openapi/components/schemas/Cat",
+        "nullable": false
+      }
+    },
     "t/anon/components/schemas/Pet/oneOf/0": {
       "kind": "scalar",
       "id": "t/anon/components/schemas/Pet/oneOf/0",
@@ -201,6 +221,55 @@
       "positional": false,
       "inputOnly": false
     },
+    "t/openapi/components/schemas/Implied": {
+      "kind": "union",
+      "id": "t/openapi/components/schemas/Implied",
+      "name": {
+        "source": "Implied",
+        "canonical": "implied"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Implied"
+      },
+      "variants": [
+        {
+          "name": {
+            "hint": "cat"
+          },
+          "type": {
+            "target": "t/anon/components/schemas/Implied/oneOf/0",
+            "nullable": false
+          },
+          "docs": {}
+        },
+        {
+          "name": {
+            "hint": "dog"
+          },
+          "type": {
+            "target": "t/openapi/components/schemas/Dog",
+            "nullable": false
+          },
+          "docs": {}
+        }
+      ],
+      "exclusive": true,
+      "wireTagged": true,
+      "discriminator": {
+        "propertyName": "kind",
+        "mapping": {
+          "Cat": "t/anon/components/schemas/Implied/oneOf/0",
+          "Dog": "t/openapi/components/schemas/Dog"
+        },
+        "inferred": false
+      },
+      "closed": true,
+      "inputOnly": false
+    },
     "t/openapi/components/schemas/Pet": {
       "kind": "union",
       "id": "t/openapi/components/schemas/Pet",
@@ -291,6 +360,7 @@
       "discriminator": {
         "propertyName": "kind",
         "mapping": {
+          "Dog": "t/openapi/components/schemas/Dog",
           "cat": "t/anon/components/schemas/Unknown/oneOf/0"
         },
         "inferred": false
@@ -339,7 +409,7 @@
     {
       "format": "openapi@3.1",
       "path": "discriminator-aliased-branch.yaml",
-      "hash": "6f7620c5ca4757bdce0e93cb73ed69031196299c03ecc3d6d08697b00cb3a528"
+      "hash": "c30307b15f21feae5e68d4e5ef4c3bfacb1b723c539136a05ae2c1cf14817f25"
     }
   ]
 }

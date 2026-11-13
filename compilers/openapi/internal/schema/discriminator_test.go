@@ -97,6 +97,77 @@ components:
 		"the type itself is a variant, so the mapping stays on it")
 }
 
+// TestDiscriminatorMapping_WritesTheRoutesItImplies pins how a union's mapping
+// holds the routes OpenAPI implies (docs/compilers/openapi.md#discriminator):
+// where it declares an entry, or a variant's type is not the component its
+// branch names, each variant no entry routes takes the name of that component,
+// past a null branch, unless two branches name it, an entry spells it already
+// or the branch names none. A union whose variants are the components their
+// branches name, with no mapping, routes by their names and holds none. Each is
+// read in both declaration orders, and the policy reading tags reads nothing in.
+func TestDiscriminatorMapping_WritesTheRoutesItImplies(t *testing.T) {
+	t.Parallel()
+	const cat, dog = "{$ref: '#/components/schemas/Cat'}", "{$ref: '#/components/schemas/Dog'}"
+	const aliasedCat = "{$ref: '#/components/schemas/Cat', description: a cat}"
+	const inline = "{type: object, properties: {kind: {type: string}}}"
+	cases := []struct {
+		name, ver, branches, mapping string
+		want                         map[string]string // tag -> the variant's target; "alias" for U/oneOf/0's
+	}{
+		// OpenAPI routes the value Cat to Cat beside the entry, but a mapping is
+		// what a writer takes Cat's tag from, and the key Cat would give it a
+		// second tag to write, which nothing could mark as only read (#1863).
+		{"an entry beside an unnamed variant", "3.1.0", cat + ", " + dog, "{cat: Cat}",
+			map[string]string{"cat": "Cat", "Dog": "Dog"}},
+		{"past a null branch", "3.1.0", "{type: 'null'}, " + cat + ", " + dog, "{cat: Cat}",
+			map[string]string{"cat": "Cat", "Dog": "Dog"}},
+		{"an aliased variant", "3.1.0", aliasedCat + ", " + dog, "",
+			map[string]string{"Cat": "alias", "Dog": "Dog"}},
+		{"the components themselves", "3.1.0", cat + ", " + dog, "", nil},
+		{"an entry spelling the name", "3.1.0", cat + ", " + dog, "{Dog: Cat}", map[string]string{"Dog": "Cat"}},
+		{"two branches naming one", "3.1.0", aliasedCat + ", " + cat + ", " + dog, "{d: Dog}", map[string]string{"d": "Dog"}},
+		{"an inline variant", "3.1.0", cat + ", " + inline, "{cat: Cat}", map[string]string{"cat": "Cat"}},
+		{"the default named", "3.2.0", cat + ", " + dog, "{cat: Cat}, defaultMapping: Dog",
+			map[string]string{"cat": "Cat", "Dog": "Dog"}},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			t.Parallel()
+			disc := "      discriminator: {propertyName: kind}\n"
+			if c.mapping != "" {
+				disc = "      discriminator: {propertyName: kind, mapping: " + c.mapping + "}\n"
+			}
+			union := "    U:\n      oneOf: [" + c.branches + "]\n" + disc
+			const rest = "    Cat: {type: object, properties: {kind: {type: string}}}\n" +
+				"    Dog: {type: object, properties: {kind: {type: string}}}\n"
+			var docs []*ir.Document
+			for _, src := range []string{union + rest, rest + union} {
+				doc, diags := parseFull(t, openapitest.ComponentSpecVer(c.ver, src))
+				openapitest.RequireNoErrorDiags(t, diags)
+				assert.Empty(t, validated(t, doc), "the document must validate")
+				docs = append(docs, doc)
+			}
+			assert.Empty(t, cmp.Diff(docs[0].Types, docs[1].Types))
+			u, ok := typeByName(docs[0], "U").(*ir.Union)
+			require.True(t, ok)
+			require.NotNil(t, u.Discriminator)
+			assert.Empty(t, u.Provenance.Inferred, "the routes are the document's")
+			if c.want == nil {
+				assert.Nil(t, u.Discriminator.Mapping)
+				return
+			}
+			want := make(map[string]ir.TypeID, len(c.want))
+			for tag, target := range c.want {
+				want[tag] = componentID(target)
+				if target == "alias" {
+					want[tag] = u.Variants[0].Type.Target
+				}
+			}
+			assert.Empty(t, cmp.Diff(want, u.Discriminator.Mapping))
+		})
+	}
+}
+
 // TestDiscriminatorDefault_RoutesToTheVariantAliasingItsTarget pins that a
 // defaultMapping is routed as a mapping's target is, so it names a variant
 // where a keyword beside the branch's $ref gave the branch an alias.

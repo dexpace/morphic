@@ -100,10 +100,11 @@ func newExternalReads(self sourceDocument, documents budget.Limit) *externalRead
 }
 
 // answer is how a read was answered: the error it failed with, or the body
-// read.
+// read and the spelling the document was prepared under.
 type answer struct {
-	body []byte
-	err  error
+	body     []byte
+	err      error
+	prepared string
 }
 
 // response returns a as the client returned it: its error, or a successful
@@ -147,6 +148,19 @@ func (r *externalReads) once(key string, read func() answer) answer {
 		rd.answer = read()
 	})
 	return rd.answer
+}
+
+// adopt returns the tree and the bytes prepared under prepared, for key,
+// another spelling of one document, to be held under too, and false where key
+// has a tree already or prepared none.
+func (r *externalReads) adopt(key, prepared string) (*yaml.Node, []byte, bool) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if _, held := r.trees[key]; held {
+		return nil, nil, false
+	}
+	tree, ok := r.trees[prepared]
+	return tree, r.data[prepared], ok
 }
 
 // keys returns the key of every document read so far.
@@ -448,7 +462,9 @@ func resolveExternal(ctx context.Context, doc *soa.OpenAPI, sibs Siblings, media
 // it, holds a node readyForModel changes: an anchor, the one thing the fold's
 // skip reads, or a mistagged scalar, which the model reads as no string.
 func anyUnready(ctx context.Context, doc *soa.OpenAPI, missed []usedDocument) bool {
-	return anyParsed(ctx, doc, missed, unready)
+	return anyParsed(ctx, doc, missed, func(ctx context.Context, tree *yaml.Node, _ string) bool {
+		return unready(ctx, tree)
+	})
 }
 
 // anyRewritable reports whether any document in missed, as the resolver parsed
@@ -460,14 +476,15 @@ func anyRewritable(ctx context.Context, doc *soa.OpenAPI, missed []usedDocument,
 }
 
 // anyParsed reports whether the tree the resolver parsed for any document in
-// missed satisfies holds.
+// missed satisfies holds, handed the key the resolver read it by, against
+// which its references are read.
 func anyParsed(ctx context.Context, doc *soa.OpenAPI, missed []usedDocument,
-	holds func(context.Context, *yaml.Node) bool,
+	holds func(context.Context, *yaml.Node, string) bool,
 ) bool {
 	return slices.ContainsFunc(missed, func(m usedDocument) bool {
 		cached, _ := doc.GetCachedExternalDocument(m.key)
 		tree, ok := cached.(*yaml.Node)
-		return ok && holds(ctx, tree)
+		return ok && holds(ctx, tree, m.key)
 	})
 }
 

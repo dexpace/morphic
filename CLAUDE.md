@@ -119,7 +119,9 @@ in the docs.
    (severity, stable string code, message, provenance). The engine decides what is fatal.
 6. **Heuristics are policy, not semantics.** Anything inferred rather than declared (pagination
    from param names, envelope detection, acronym casing) lives in injectable per-compiler/emitter
-   policy, is marked `Inferred` in provenance, and can be disabled.
+   policy, is marked `Inferred` in provenance, and can be disabled. The OpenAPI compiler's policies
+   follow one model, `docs/compilers/openapi.md#policies`, which a new one cites rather than
+   restates.
 7. **Serializable & deterministic.** The whole `Document` round-trips through JSON (maps emitted in
    sorted-key order, slices in source order). This underpins golden snapshots, IR diffing, caching.
 8. **Optionality ≠ nullability.** `Property.Required` (wire presence) is orthogonal to
@@ -184,10 +186,12 @@ engine/      Layer 3 — orchestration; imports everything below. It owns every 
   cache/     what a run compiled, kept on disk between processes, and what names a build.
              Imports reader and internal/atomicfile.
   reader/    what a run's references name, from disk, the network or memory. Imports compilers.
-  report/    diagnostics and --explain, rendered for a person. Imports ir only.
+  triage/    the rules a caller writes about a run's findings, and the findings as rated.
+             Imports ir only.
+  report/    the findings, as text or a JSON report, and --explain. Imports ir and triage.
   output/    the IR document to a stream or a file, through engine/internal/atomicfile.
-cmd/morphic/ Layer 4 — CLI; imports ir + engine (and its report and output) + its command
-             framework (cobra, pflag).
+cmd/morphic/ Layer 4 — CLI; imports ir + engine (and its report, output and triage) + its
+             command framework (cobra, pflag).
 cmd/morphic-harness/
              Layer 4 — sweeps a spec or directory through the oracles; imports internal/harness.
 cmd/morphic-census/
@@ -274,12 +278,14 @@ These all exist already — extend them rather than building a parallel mechanis
 - **Oracles**: `internal/harness` runs a spec through the engine as `morphic compile --verify` does,
   its passes included and every stage's document verified, and drives it through no-panic →
   `irverify` invariants → no error diagnostic → JSON round-trip → determinism → pass idempotence →
-  order-invariance, stopping at the first one that fires. `harness.Check` is the list — read it
-  there rather than trusting this sentence; `go run ./cmd/morphic-harness <file|dir>` runs them over
-  one spec or a whole tree. `irverify` is the structural-invariant checker (stable IDs, no dangling
-  refs, neutral naming, routable `Unmodeled`, in-range provenance); its findings are `Violation`
-  values — *our* bugs — deliberately a channel separate from `ir.Diagnostic`, which reports problems
-  in the source spec.
+  order-invariance. An error diagnostic stops none of them: each gives the `Result` a verdict, what
+  it found or why it declined, and a fault ending the run, such as a panic, leaves the ones after
+  it not reached. `harness.Check` is the list — read it there rather than trusting this sentence;
+  `go run ./cmd/morphic-harness <file|dir>` runs them over one spec or a whole tree and counts, per
+  oracle, what it asked and declined. `irverify` is the structural-invariant checker (stable IDs, no
+  dangling refs, neutral naming, routable `Unmodeled`, in-range provenance); its findings are
+  `Violation` values — *our* bugs — deliberately a channel separate from `ir.Diagnostic`, which
+  reports problems in the source spec.
 - **Architecture test**: `internal/archtest`, per the layering section above. It also holds each
   production package's uses of the parser library's reference-resolution API, which it derives
   from the library's sources, to `resolutionBaseline`. The baseline only shrinks: removing a use
@@ -321,20 +327,24 @@ assertion shapes:
   colliding lowering, which is why the pointer collisions survived the suite. The order-invariance
   oracle above is the general form of this and already runs it across the corpus under `testdata/`,
   so the usual way to cover a new construct is to add a spec the sweep reaches, not to hand-roll
-  the diff. The oracle compares only what `diffOrderInvariants` in `internal/harness/order.go`
-  names, so a fact held anywhere else, such as on an operation, passes it unread and needs its own
-  two-order diff. A targeted case still earns its place when it pins one lowering, because the
-  oracle proves order-independence only for the constructs its inputs happen to contain.
+  the diff. The oracle compares the whole document but the compiled source's hash, forgiving only
+  the order of what `orderFree` in `internal/harness/order.go` lists and of a verbatim JSON object's
+  members, and the diagnostics without their message text or line and column. It permutes mappings
+  alone and compiles at the default limits, so an order dependence among a listed collection's
+  elements, in a sequence such as an `allOf`'s branches (#1666), or in a verdict at another limit
+  (#1519) needs its own two-order diff. A targeted case still earns its place when it pins one
+  lowering, because the oracle proves order-independence only for the constructs its inputs happen
+  to contain.
   - A fixture's own declaration order is part of the test. A golden that happens to declare things
     in the order the *correct* lowering already produced cannot see the fix at all: reverting it
     leaves the golden green, and only the two-order oracle reddens. If a single-order case is meant
     to guard an order-dependent fix, declare them in the order that was wrong, and confirm the
     revert reddens it rather than assuming the case covers what its name says.
-- **A negative fixture must be reachable.** `harness.Check` returns at the *first* error diagnostic,
-  before the round trip, determinism, idempotence and order oracles run, so a fixture that trips one
-  never reaches the oracle it was written to exercise. `irverify` runs before it, over every
-  document a run returns. Verify the fixture lands where you think it does, not merely that the
-  check exists.
+- **A negative fixture must be reachable.** An oracle with nothing to compare declines, saying why:
+  a refusal leaves no document to round-trip, the order oracle permutes no spec writing a key
+  twice, and a panic leaves every later oracle unasked. Read the oracle's verdict, in the summary
+  `morphic-harness` prints or `Result.Verdicts`, not the outcome alone, and verify the fixture lands
+  where you think it does, not merely that the check exists.
 
 ## Go code style — the dexpace styleguide is binding
 

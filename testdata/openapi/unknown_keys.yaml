@@ -19,16 +19,15 @@
 # The path item's key holds a whole operation where the rest hold a scalar. A key
 # the library does not recognize there is folded into the item's operations map
 # and unmarshalled as an Operation, so anything that is not one draws a
-# validation error, and an error stops harness.Check before the oracles this
-# fixture exists to reach. `GET` is the key for the same reason: a method with the
-# case wrong is what a document really writes at a position that accepts an
-# operation. It is also the shape the compiler lost most quietly — folding a
-# well-formed operation raises no validation error at all, so nothing named it.
+# validation error in place of the unknown-key finding this fixture pins. `GET`
+# is the key for the same reason: a method with the case wrong is what a
+# document really writes at a position that accepts an operation. It is also the
+# shape the compiler lost most quietly — folding a well-formed operation raises
+# no validation error at all, so nothing named it.
 #
 # A schema's own xml, discriminator and externalDocs are censused too but are not
 # here. The OpenAPI dialect meta-schema closes those three to undeclared keys, so
-# one draws a library validation error, and an error diagnostic stops
-# harness.Check before the oracles this fixture exists to reach — see
+# one draws a library validation error in place of the unknown-key finding — see
 # TestUnknownKeys_SchemaSubObjects for where they are asserted instead.
 #
 # How a key is *spelled* is a separate property with a fixture of its own; see

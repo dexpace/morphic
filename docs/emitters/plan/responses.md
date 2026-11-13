@@ -14,6 +14,19 @@ type ResponsePlan struct {
     Envelope *EnvelopeRead // how an enveloped body is read; nil = the body decodes into
                            // Type (below)
     Headers  []ir.Header   // the headers the response declares, each whole (below)
+    Text     TextPlan      // what of Content and Headers holds a value no style arranges
+}
+
+// TextPlan is what of one content, and of a response's headers, holds a value no style arranges,
+// which its reader gets and its writer is given as text
+// (../refine/text.md#a-value-no-style-arranges).
+type TextPlan struct {
+    Content bool           // the content itself: a text/plain one whose type is no leaf, or a
+                           // response's form or multipart one read raw (below)
+    Props   []ir.PropID    // a request content's fields and parts, in TypePlan.Flattened's
+                           // order; a response's headers, in Headers' order
+    Rest    bool           // a request content's fields and parts no member declares: its
+                           // model's catch-all's, or its entries where its type is a map
 }
 
 // EnvelopeRead is a body one of plan.Policy.Envelopes matched (policy.md), as it is read here.
@@ -59,6 +72,16 @@ and cut at its first `;`, as RFC 6838 §4.2 and the compiler's own reading
 the key as written. A media type no entry ranks comes after every one that is ranked, and a tie goes
 to the smaller key by bytes, since a format's map of media types has no order to honour.
 
+One tie is settled before that. Under `plan.Policy.MergePatch`, among the contents of a `PATCH`
+request whose binding leaves `PatchImplicitOptionality` nil, an `application/merge-patch+json`
+content, compared as above, comes before every content it ties with, and `OpPlan.Inferred` marks
+`RequestContent` where that decided. The plan relaxes that content's members
+([TypePlan](types.md#what-a-patch-relaxes)), and a relaxed shape no request carries relaxes nothing:
+`application/json` is the smaller key, and each of the golden spec's six merge patches sits beside
+one (spec @bc6fad24, morphic @fa253fe19). A ranking that names either media type by itself places it
+as written, so a configuration can still send `application/json`, and with the policy off the tie
+goes to the smaller key. T-59 holds it.
+
 ## Body shapes
 
 `Shape` says how a body is read, not what it holds: what it holds is `Type`, and every type kind
@@ -66,17 +89,27 @@ already has a lowering ([step list](../refine/steps.md)), so a shape per kind wo
 in a second channel. The first rule that applies decides:
 
 1. **`void`** — nothing is read: the operation has no primary response ([plan policy](policy.md)),
-   the response carries no content, or the binding's method is `HEAD`, whose response has no body
-   (RFC 9110 §9.3.2). An operation with no primary response returns only an error, and "Which entry
-   answers" below says which statuses raise one.
+   or the response carries no content. A binding can leave a response no body too, as an HTTP `HEAD`
+   does, which is that binding's `NoBody` and no `Shape`, since another binding of the operation may
+   carry one: a target lowering such a binding reads every response as `void`
+   ([bindings](bindings.md)). An operation with no primary response returns only an error, and
+   "Which entry answers" below says which statuses raise one.
 2. **`raw`** — the elected content is a file (`Content.File`, [payloads](../../ir/payloads.md)): the
    body reaches the caller unread, a byte stream beside the media type it arrived as, and nothing
-   decodes it.
+   decodes it. So does a form or multipart content one of whose fields or parts no style arranges
+   ([values as text](../refine/text.md#a-value-no-style-arranges)), `Text.Content` set: no
+   declaration of its type holds a field's pairs ([request
+   shaping](../refine/requests.md#the-body)), and a part carries bytes and a content type that pairs
+   of strings cannot. The golden spec's 5 multipart response contents, each a map of `bytes` or of a
+   list of them, hold none (spec @bc6fad24, morphic @fa253fe19).
 3. **`stream`** — the elected content streams ([streams](streams.md)): frames are read one at a
    time, as `Stream` describes ([streaming](../operations/streaming.md)).
 4. **`value`** — otherwise: the elected content's codec decodes the body, and its reader gets
    `Type`, whatever its kind — a model, a list, a map, a union, an enum, a scalar, `any`. A
-   paginated operation's `Return.Type` is one page, from which `Page` takes the items.
+   paginated operation's `Return.Type` is one page, from which `Page` takes the items. A
+   `text/plain` content whose type is no leaf has no text to decode, so its `Type` is `string`, the
+   body as it arrived, and `Text.Content` is set ([values as
+   text](../refine/text.md#a-value-no-style-arranges)).
 
 `Type` is the elected content's type, lowered through `TypePlan.Alias` as any reference is ([the
 plan](overview.md), [decorators](../refine/decorators.md)), so an anonymous `allOf` decorator around
@@ -91,10 +124,10 @@ end in a default; [Return shapes](../operations/returns.md) traces each through 
 ## Envelopes
 
 A `value` body that one of `plan.Policy.Envelopes` matches ([plan policy](policy.md#envelopes)) is
-read through it, and `Envelope` records how, marked `Inferred` as the policy says. Only a body
-the client receives is matched: the response a webhook or a callback answers with is the SDK's to
-send, and no envelope wraps it, what an SDK generates for one being #1415's. A matched body is read
-as follows:
+read through it, and `Envelope` records how, marked `Inferred` as the policy says. Only a body the
+client receives is matched: the response a webhook or a callback answers with is the SDK's to send,
+and no envelope wraps it ([operations the API sends](../operations/inbound.md)). A matched body is
+read as follows:
 
 - **The value.** The body decodes into `Envelope.Body`, and the reader gets the member at `Value`:
   `Type` is that member's type, so `Return.Type` is the `Zone` inside `{success, errors, messages,
@@ -141,9 +174,10 @@ reader gets. One that reaches an `OtherResponse` holds the member at `Value` in 
 `Headers` are what the response declares, each whole, so its name, its type and the `Style`,
 `Explode` and [`Prefix`](../../ir/responses.md#prefix-headers) it is read by reach the reader.
 `Return`'s are the primary response's, and each entry of `Others` and `Errors` holds its own. A
-success and a failure then read alike: the raw headers are on
-the value, and the declared ones typed beside its body ([failures](../operations/errors.md), [return
-shapes](../operations/returns.md)).
+success and a failure then read alike: the raw headers are on the value, and the declared ones typed
+beside its body ([failures](../operations/errors.md), [return shapes](../operations/returns.md)).
+Each header's text is read as [values as text](../refine/text.md#reading-a-text) says, and one
+`Text.Props` names, whose type no style arranges, is a string holding the text as it arrived.
 
 ## Other responses
 
@@ -180,12 +214,12 @@ own form ([failures](../operations/errors.md)).
 ## Errors
 
 `Errors` holds every failure the operation declares: its `ErrorCase`s, then its service's
-`CommonErrors`, then its `Default` where the policy takes it as a failure ([plan
-policy](policy.md)), whose condition is the catch-all. Entries that agree on everything but
-`Conditions` collapse into one. `Response` follows the rules above with one exception: a failure is
-read whole, so a content that streams is `raw`. `Type` may be of any kind, since an error body may
-be a union, a list or a primitive as well as a model, and where each lands in the SDK is in
-[failures](../operations/errors.md).
+`CommonErrors`, save for an operation the API sends ([inbound](../operations/inbound.md)), then its
+`Default` where the policy takes it as a failure ([plan policy](policy.md)), whose condition is the
+catch-all. Entries that agree on everything but `Conditions` collapse into one. `Response` follows
+the rules above with one exception: a failure is read whole, so a content that streams is `raw`.
+`Type` may be of any kind, since an error body may be a union, a list or a primitive as well as a
+model, and where each lands in the SDK is in [failures](../operations/errors.md).
 
 ## Which entry answers
 

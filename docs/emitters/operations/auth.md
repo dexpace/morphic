@@ -40,3 +40,142 @@ of its own: the document's diagnostics already carry it.
   is where a request starts: a call's error, a pager's first page, a stream's open. The service's
   credentials are never sent in its place, and a request goes with none only where the list itself
   offers the empty option.
+
+## A declared credential shape
+
+`AuthScheme.Credentials` names the type of what a caller configures where a scheme's credential is
+several fields combined into a request ([auth](../../ir/auth.md)). Nil, which every compiler writes
+today, changes nothing here. Where a scheme states one, whatever its `Kind`:
+
+- **refine.** The scheme's option takes the caller's `Authenticator`, as an unresolved scheme's does
+  ([above](#unresolved-schemes)): the IR says what the fields are and nothing of where each goes, so
+  the kind's own injector, which writes one value, does not apply. The type is declared as any
+  registered type is, for that `Authenticator` to be built from, and no option takes the value
+  itself, which nothing generated would read.
+- **redaction.** A value of the type is a credential whole, so every form of it shows `[REDACTED]`,
+  as a sensitive type's does ([redaction](../refine/redaction.md#a-redacted-value)), whatever its
+  members mark.
+
+T-65 holds this section.
+
+## A parameter in a credential's slot
+
+A document may declare as a parameter what a scheme already sends: an `X-Api-Key` header parameter
+beside the `apiKey` scheme naming that header, or an `Authorization` header parameter, which the
+OpenAPI compiler keeps and reports
+([`reserved-header-names`](../../compilers/openapi.md#reserved-header-names)). A **slot** is a
+header, its name compared without case, a query parameter or a cookie, and a scheme owns the one its
+row [below](#where-a-credential-can-be-read) names. Left as declared, the request type and the
+scheme's injector both write it. What a parameter in a slot lowers to follows from who else writes
+there:
+
+- **A scheme one of the operation's options names owns it** (`OpPlan.Auth`). The slot is the auth
+  step's alone: `BuildRequestShaping` gives the parameter no input, whatever its `Required`, its
+  default or its type say, and the request builder writes nothing there. The credential is the
+  client's to configure once, and a required field would ask every call for it. An option left
+  unconfigured sends nothing in the slot, and the request is refused where no option remains
+  ([above](#unresolved-schemes)).
+- **A scheme of the document owns it, and none of the operation's options names that scheme**, as on
+  an operation the document makes public. No injector writes there for this operation, so the
+  parameter is an input like any other, the one way its caller sends the value, and it is redacted
+  ([redaction](../refine/redaction.md#a-redacted-value)).
+- **No scheme owns it.** It is an input like any other, redacted only where its declaration says so,
+  save one case: a header parameter named `Authorization` or `Proxy-Authorization` is redacted
+  whatever the document's schemes, since RFC 9110 §11.6.2 and §11.7.2 define each field's value as
+  credentials.
+
+An `Authenticator` the caller wrote may write any slot, a kept parameter's among them. The auth step
+runs last and sets what it writes, never adding a second value
+([below](#where-a-credential-can-be-read)), so no request carries a slot twice. An operation the API
+sends keeps such a parameter: its receiver reads the slot to check it ([operations the API
+sends](inbound.md)), and the parsed request holds it redacted. The docs show a parameter the auth
+step writes with its scheme, and among no operation's inputs.
+
+Two other rules were weighed. Dropping every parameter in a scheme's slot, as OpenAPI says of
+`Authorization`, leaves an operation whose options name no scheme unable to send what it declares.
+Keeping each as a field that overrides the client's credential makes a required one ask every call
+for what the client holds, or relaxes a declared `Required` to make it optional. A document that
+later lists the scheme among an operation's options removes the field, a break the surface differ
+reports ([surface verification](../surface-verification.md)). The rule reads `Document.Auth` and
+`OpPlan.Auth` and nothing a name suggests, and on the golden spec it finds nothing: no parameter
+sits in a slot of its four schemes ([redaction](../refine/redaction.md#a-redacted-value)) and no
+header parameter is named `Authorization` or `Proxy-Authorization` (`jq '[paths(objects) as $p |
+getpath($p) | select(.in? == "header" and (.name? // "" | ascii_downcase | IN("authorization",
+"proxy-authorization")))] | length'` gives 0; spec @bc6fad24). T-65 holds it.
+
+## Where a credential can be read
+
+A credential is what a caller configures for a scheme, and no IR fact holds one, so no `Secret` or
+`Sensitive` marks it ([redaction](../refine/redaction.md)): `Credentials` types such a value and
+holds none ([above](#a-declared-credential-shape)). Where it sits in a call follows from the
+scheme's `Kind`:
+
+| `AuthKind` | Where its credential sits |
+|---|---|
+| `apiKey`, `In` `header`, `query` or `cookie` | the header, the query parameter or the `Cookie` pair `KeyName` names, after its `Scheme` where it states one |
+| `http_basic`, `http_bearer`, and a `custom` scheme stating an HTTP `Scheme`, as `digest` lowers | the `Authorization` header (RFC 9110 §11.6.2) |
+| `oauth2`, `openid_connect` | the `Authorization` header, as a token the caller's token source gave: the runtime sends no token request ([above](#auth)), so it has no event and no failure describing one, a client secret or a refresh token |
+| `apiKey`, `In` `user` or `password`; `user_password`, `mutual_tls`, `x509`, the SASL kinds, `symmetric_encryption`, `asymmetric_encryption` | the connection the transport opens, never a request's text |
+| any other `custom`, `unresolved`, and a scheme of any kind stating `Credentials` | wherever the caller's `Authenticator` writes: any header, query parameter or cookie |
+
+A call holds secrets no scheme put there too: the user and password, or a signed query, of a base
+URL its caller gave; a URL a response supplies already signed, in a redirect's `Location`, a link to
+the next page or a place to poll; a response's `Set-Cookie`; and a body's fields. So the rule names
+no header and no parameter: a list would miss the header an `Authenticator` invents and the one the
+next scheme adds.
+
+**The auth step runs last, and only writes.** For each attempt the runtime builds the request from
+the operation's bindings, fixes what it will show of it ([the URL as
+shown](../contract/runtime-policy.md#what-an-event-holds)), and only then lets the selector's
+injectors and the caller's `Authenticator`s write into it and sends it. A write sets its slot,
+replacing what the request builder put there, and adds no second value. Nothing the runtime renders
+as text reads the request after that step, on a retry as on the first attempt, each of which runs
+the step again. So a credential reaches the transport and nothing else, wherever it was written:
+
+- **An event** has no member a credential fits ([what an event
+  holds](../contract/runtime-policy.md#what-an-event-holds)).
+- **A failure's message** quotes a status, or a method and the URL as shown, never a header or a
+  body. A failure a response caused holds that response's headers and body for its caller to read, a
+  `Set-Cookie` among them, and shows neither in any form, whatever reads the value
+  ([redaction](../refine/redaction.md#what-the-runtime-holds-raw)). A request refused unsent names
+  its scheme ([above](#unresolved-schemes)), which is the document's name for it.
+- **A transport's failure** is the library's, and a library quotes what it was sent. Measured with
+  Go 1.27.3, a request to a closed port with a key in its query came back from `net/http` as `Get
+  "http://127.0.0.1:1/v1/things?limit=5&pw=…": dial tcp 127.0.0.1:1: connect: connection refused`,
+  the value in full, in a `*url.Error` whose `URL` member holds it too. With Ktor 3.2.3 on Kotlin
+  2.4.0, each of the library's timeouts, the request's, the connection's and the socket's, wrote
+  `[url=http://…?limit=5&api_key=…` into its message with the key in full, the last as a
+  `java.net.SocketTimeoutException`, so an exception's class does not tell the platform's text from
+  the library's. So on every target the runtime returns a failure of its own, holding the method,
+  the URL as shown and the types in the library's chain, and no text the library wrote
+  ([redaction](../refine/redaction.md#nothing-a-library-wrote-is-shown)): with Go 1.27.3 a refused
+  request to a base URL with a path, a key in the operation's path, read `GET
+  http://127.0.0.1:51351/[REDACTED]/users/[REDACTED]: *net.OpError > *os.SyscallError >
+  syscall.Errno`, `errors.Is` still matched `syscall.ECONNREFUSED`, and `errors.As` found no
+  `*url.Error`. Keeping the cause under the library's wrapper, the `Err` of a `*url.Error`, was
+  weighed: its text is the library's too, and names the address dialled, or the host a certificate
+  or a lookup failed for.
+- **What a caller's code is handed.** An `Authenticator` is handed the request whole once the
+  request builder and the injectors wrote it: its method, its URL with the query, its headers, and
+  its body's bytes wherever the runtime holds them, every body but a stream its caller writes, so a
+  signer reads what it signs. Go's is `Authenticate(req *http.Request) error`, the body read through
+  `req.GetBody`, and Kotlin's `suspend fun authenticate(request: TransportRequest)` over the
+  runtime's `TransportRequest` ([Go](../targets/go/operations.md#the-client),
+  [Kotlin](../targets/kotlin/operations.md#the-client)). A `Transport` is handed the request after
+  the auth step, in the context the call's hook returned, so a header a wrapper adds, a trace's
+  among them, follows the signer: a scheme whose signature must cover every header signs in a
+  `Transport` wrapper of its own, the innermost. Measured with Go 1.27.3 and Kotlin 2.4.0, a server
+  verified an HMAC over the method, the URL, a header the `Authenticator` wrote and the body on each
+  of four requests, a second attempt among them.
+- **No dump.** The runtime declares no rendering of a request or a response as sent, a wire log or a
+  command line that would replay it. A caller who wants one wraps the `Transport`, which is handed
+  each request as it goes out, credentials included, since it sends it; what such a wrapper prints
+  is its author's.
+- **Docs and the mock.** A sample sets a credential from a placeholder the SDK target writes
+  ([docs](../docs-and-mock.md#samples-come-from-the-sdk-emitters)), a scheme having no example in
+  the IR to copy, and a mock server that logs a request logs what an event holds of it, so a key a
+  test sends it reaches no log line.
+
+A redirect to another origin carries none of the client's credentials ([runtime
+policy](../contract/runtime-policy.md#the-canonical-vocabulary)), which is this rule's other half:
+the step does not run for a host the client was not configured for. T-65 holds this section.

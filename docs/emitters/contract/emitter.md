@@ -165,10 +165,61 @@ the document, which determines it.
   snapshot's at the output root, the one exception being the pages its last label writes for what
   spans versions ([docs and mocks](../docs-and-mock.md#routes-and-links)). So no two runs share a
   path, and the runs make one generation ([write /
-  integrate](../write-integrate.md#what-the-manifest-records)). A label that is no single segment,
-  is `.` or `..`, or differs from another only by letter case is an error
-  `engine/snapshot-label-invalid` before any run. Any other target is run on a sliced document only
-  for its samples, which writes nothing, until its design says how (#1531); one named there for its
-  artifacts is an error `engine/target-unversioned` before any run. The pass is designed, not built
-  (architecture.md §2.2); until it is, no pass slices a document, and every run's `Snapshot` is
-  `""`, the one label a cross-version run's `Routes` keys.
+  integrate](../write-integrate.md#what-the-manifest-records)). A label is checked as a path only in
+  a run that writes it as one, a run of at least one target whose `CrossVersion` is set: there a
+  label that is no single segment, or is `.` or `..`, is an error `engine/snapshot-label-invalid`
+  before any target runs. A run of other targets alone writes one snapshot at the output root
+  (below) and no label's directory, so it refuses none: `2024-01-01T00:00Z`, whose `:` Windows
+  refuses in a name, is a version an SDK is generated for. Two labels that fold alike, by the fold
+  the engine compares artifact paths by ([emit rules](../emit/rules.md)), would name one directory
+  on a file system that ignores case, as macOS's and Windows' do by default. So each label, in
+  `Document.Versions` order, names its directory where that folds as no directory an earlier label
+  took, and otherwise the label followed by `-` and the lowest number, `2` up, that does not: `v1`,
+  `V1` and `V1-2` write under `v1`, `V1-2` and `V1-2-2`. Every run reads `Document.Versions` whole,
+  so each derives the same directories; a version added after the others moves none, and one removed
+  can return a later label to its own name. A set of the folded directories taken, each base holding
+  the next number to try, keeps this linear in the labels. Each directory so named, its suffix
+  included, is held to what every path segment is ([emit rules](../emit/rules.md)): one past 255
+  bytes, a Windows device name up to its first dot, or one holding a character Windows refuses or
+  ending in `.` or a space is the same error, naming the label and the rule it breaks, before any
+  target runs, where the check of artifact paths would refuse it only once every target had
+  generated. Such a label is refused where two that fold alike are told apart: a suffix leaves the
+  label whole in its directory and in every link, and a directory escaped or cut to length would be
+  a version's address under a name the API never gave it. Keeping a label's directory from the prior
+  manifest while it stays free, as a shipped name keeps its symbol, was not taken either: it serves
+  only two labels that fold alike once the earlier is removed, and each run would then need the
+  manifest to derive what it now reads off the document. Refusing two labels that differ in letter
+  case alone, as this rule once did, failed a run on a valid document whose author could part them
+  only by renaming a version of the API, the reason two names that fold alike are told apart rather
+  than refused ([collisions](../refine/naming.md#collisions-and-the-names-a-generation-shipped)).
+  Any other target, an SDK, a mock server, a CLI or a validator, writes one snapshot: the one whose
+  label `RunOptions.Version` names. A run asking such a target for its artifacts from a sliced
+  document without the setting is an error `engine/target-unversioned` before any run, its message
+  naming the labels. It writes the snapshot at the output root, as an unsliced run does, its
+  manifest a `Manifest` whose IDs, which every snapshot shares, carry the names it shipped when the
+  label changes, and it is run on every other snapshot only for its samples, which writes nothing
+  and which a docs page shows under that snapshot's label ([docs and
+  mocks](../docs-and-mock.md#samples-come-from-the-sdk-emitters)). A label the setting names that a
+  document stating versions lacks is an error `engine/snapshot-unknown` before any run. On a
+  document stating none the setting selects nothing: the run writes the one snapshot, `""`, and
+  reports an info `engine/version-unused`. So a pipeline names its label before the revision at
+  which the document first states versions, and that revision changes no setting and, the manifest's
+  IDs being every snapshot's, no shipped name; refused there, no value would be right on both sides
+  of the revision, a set one failing before it and an unset one after. A pipeline that set none
+  fails at that revision with `engine/target-unversioned`, which names the labels to choose from.
+  The setting is the run's, not each target's, so an SDK and the mock server its wire conformance
+  runs against read one version (T-69 holds this). Writing a unit for each snapshot under the one
+  module path, Gradle coordinate or framework was rejected: a Kotlin Multiplatform framework gives
+  every unit one Objective-C namespace ([Swift](../targets/kotlin/swift.md)), and Kotlin/Native
+  2.4.0 exports `sdk.v1.Zone` and `sdk.v2.Zone` as `Zone` and `Zone_`, so each class a second
+  version keeps loses its name in Swift; each entity becomes a type per version, a value of one
+  passing to no method of another; and a mock server or a CLI answering every version needs to know
+  how a request names its version, which no IR field states, an `api-version` being an ordinary
+  parameter of each operation. Refusing every sliced document would leave a versioned API with no
+  SDK. A run wanting several versions runs once per label, each into an output root of its own.
+  Defaulting to the last label, as the newest, was rejected: `Document.Versions` orders the labels
+  and says of none that an SDK ships it, so a document appending a preview label would move the SDK,
+  its mock server and a CLI to it on the next run, while only an SDK has a surface differ to report
+  what that breaks. The pass is designed, not built (architecture.md §2.2); until it is, no pass
+  slices a document, and every run's `Snapshot` is `""`, the one label a cross-version run's
+  `Routes` keys.

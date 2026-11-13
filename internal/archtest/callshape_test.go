@@ -61,9 +61,9 @@ var callShapeBaseline = map[string]map[string]int{
 		"engine/reader": 6,
 	},
 	"compilers/openapi/internal/lowering": {
-		// Promoter.Referent and Remembered each call the function they are handed
-		// before they return: immediate callbacks.
-		"compilers/openapi/internal/schema": 13,
+		// Promoter.Referent, Remembered and Settled each call the function they
+		// are handed before they return: immediate callbacks.
+		"compilers/openapi/internal/schema": 14,
 	},
 	"compilers/openapi/internal/merge": {
 		// What a fold asks the walk that declared the field, through merge.Walk:
@@ -75,9 +75,9 @@ var callShapeBaseline = map[string]map[string]int{
 	"compilers/openapi/internal/nodeview": {
 		// What nodeview.Walk calls as it visits and leaves a node: traversal
 		// callbacks.
-		"compilers/openapi/internal/load":        7,
+		"compilers/openapi/internal/load":        6,
 		"compilers/openapi/internal/oas":         2,
-		"compilers/openapi/internal/overlay":     3,
+		"compilers/openapi/internal/overlay":     4,
 		"compilers/openapi/internal/sourceindex": 2,
 	},
 	"compilers/openapi/internal/oas": {
@@ -99,6 +99,10 @@ var callShapeBaseline = map[string]map[string]int{
 		// rule: a lazily built index (Holds), and queries of load's index of the
 		// fields written beside a path item $ref (Beside, Writes).
 		"compilers/openapi/internal/load": 3,
+		// DirectoryLocator, through which Places asks the reader where a
+		// directory lies: I/O at a designed seam, as DocumentReader is load's.
+		"engine":        1,
+		"engine/reader": 2,
 	},
 	"engine/internal/atomicfile": {
 		// Replace calls the fill it is handed before it returns: an immediate
@@ -108,6 +112,7 @@ var callShapeBaseline = map[string]map[string]int{
 	},
 	"ir": {
 		// ir.Visitor and the ForEach walks: traversal callbacks.
+		"engine/report":   1,
 		"internal/census": 1,
 		"ir/irfacts":      3,
 		"ir/irverify":     2,

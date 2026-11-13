@@ -6,6 +6,7 @@ package reader_test
 import (
 	"context"
 	"io/fs"
+	"os"
 	"path/filepath"
 	"testing"
 
@@ -147,4 +148,25 @@ func TestLayered_ACancelledContextStopsEitherRead(t *testing.T) {
 		require.ErrorIs(t, err, context.Canceled, location)
 		assert.Nil(t, got, location)
 	}
+}
+
+// TestLayered_LocatesADirectoryAsTheReaderBeneath pins where a Layered places
+// a directory: as Disk does, through its links, for a nil Under, as an Under
+// placing directories does, and as spelled for one placing none, since every
+// document Held does not hold is read there. Disk keeps a directory whose
+// links do not resolve, a missing one among them, as spelled.
+func TestLayered_LocatesADirectoryAsTheReaderBeneath(t *testing.T) {
+	t.Parallel()
+	target, err := filepath.EvalSymlinks(t.TempDir())
+	require.NoError(t, err)
+	link := filepath.Join(t.TempDir(), "link")
+	require.NoError(t, os.Symlink(target, link))
+	missing := filepath.Join(link, "missing")
+
+	assert.Equal(t, target, reader.Disk{}.LocateDirectory(link))
+	assert.Equal(t, missing, reader.Disk{}.LocateDirectory(missing))
+	assert.Equal(t, target, reader.Layered{}.LocateDirectory(link), "a nil Under reads through Disk")
+	assert.Equal(t, target, reader.Layered{Under: reader.Disk{}}.LocateDirectory(link))
+	assert.Equal(t, link, reader.Layered{Under: &recordingReader{}}.LocateDirectory(link),
+		"an Under placing none leaves it as spelled")
 }
