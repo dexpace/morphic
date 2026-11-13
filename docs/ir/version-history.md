@@ -510,8 +510,8 @@ it sees. Changes made together in one bump are listed together under it.
   walk off the names an operation's query parameters and success responses use
   ([`pagination-policy`](../compilers/openapi.md#pagination-policy)), each such `Pagination` marked
   `Inferred` and its operation's `Provenance.Inferred` naming `pagination-inference`. An operation
-  whose extensions the promotion policy reads as stating a pagination, or as stating there is none,
-  gets none from it ([`extension-pagination`](../compilers/openapi.md#extension-pagination)). The
+  whose extensions speak of a pagination, filling one, resolving to nothing or stating none, gets
+  none from it ([`extension-pagination`](../compilers/openapi.md#extension-pagination)). The
   shape is 0.48.0's. A consumer pinned to 0.48.0 met a `Pagination` only where an extension stated
   one, and now meets one on each operation the policy settles, which it reads as declared unless it
   reads `Inferred`.

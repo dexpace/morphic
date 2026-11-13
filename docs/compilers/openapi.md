@@ -4739,7 +4739,8 @@ the operation itself, is read by no source, so it speaks of nothing.
   `operation.TestPromotePagination_ReadsNoOperationHoldingOne`,
   `lowering.TestOperations_ReadsEveryGroupToTheCap`,
   `operation.TestMarker_AUseOfATypeTheRegistryLacksMarksNothing`,
-  `lowering.TestPageStatementOf_ReadsAnExpressionOrAMark`
+  `lowering.TestPageStatementOf_ReadsAnExpressionOrAMark`,
+  `pagination.TestInfer_LeavesWhatAnExtensionSpeaksOf`
 
 ### `pagination-policy`
 
@@ -4749,9 +4750,9 @@ option `Options.PaginationInference`, whose zero value is on and whose `Disabled
 the text option `pagination-inference`, which `false` turns off (invariant 6). It reads each
 operation the client sends, a webhook or a callback being one it receives, once the registry is
 whole, and comes last in the precedence [`extension-pagination`](#extension-pagination) states: an
-operation holding a `Pagination`, or one whose extensions speak of a pagination, filled, resolving to
-nothing or stating none, is neither read nor reported, as the document has answered for it. Under a
-promotion policy mapping no pagination target, `extension-promotion=false` among them, no key is
+operation holding a `Pagination`, or one whose extensions speak of a pagination, filled, resolving
+to nothing or stating none, is neither read nor reported, as the document has answered for it. Under
+a promotion policy mapping no pagination target, `extension-promotion=false` among them, no key is
 read, so no extension speaks and the policy reads every operation. A walk sends its operation again
 for each page, so it settles one only for a `GET` or a `QUERY`, the methods asking for no change on
 the server: a `POST` taking its path item's page parameters, as one creating a resource does, would
