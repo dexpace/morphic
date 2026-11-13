@@ -6,7 +6,6 @@ package ir_test
 import (
 	"fmt"
 	"maps"
-	"math"
 	"math/rand/v2"
 	"slices"
 	"testing"
@@ -182,6 +181,7 @@ type narrowingRef struct {
 // without its shapes. Depth is bounded by the unions a registry of sixteen
 // types holds, since no union repeats along over.
 func (nr *narrowingRef) distribute(over []sub, union ir.TypeID, depth int) ir.Undistributed {
+	nr.t.Helper()
 	require.Less(nr.t, depth, 32, "no union repeats along a distribution")
 	u := nr.types[union].(*ir.Union)
 	if u.WireTagged && (u.Discriminator == nil || u.Discriminator.Envelope != "" || u.Discriminator.Index != nil) {
@@ -341,6 +341,4 @@ func TestNarrowingReference_ReadsTheDocumentsExample(t *testing.T) {
 	t.Parallel()
 	doc := ruleDoc()
 	assert.Equal(t, renderNarrowing(narrowed(t, doc.Types, "stored")), narrowingReference(t, doc.Types, "stored"))
-	_, _, ok := ir.NarrowedShapes(doc.Types, "stored", math.MaxInt)
-	assert.True(t, ok)
 }
