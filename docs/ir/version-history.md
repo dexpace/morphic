@@ -588,6 +588,8 @@ it sees. Changes made together in one bump are listed together under it.
   compiler composes ([models](./models.md#composition-beside-a-union)), where the union was kept
   under `openapi:oneOf`, `openapi:anyOf` or `openapi:allOf/<n>`. A `$ref` entry to a schema composing
   a discriminated one at any depth is the `Base`
-  ([`allof-classification`](../compilers/openapi.md#allof-classification)). A consumer pinned to
-  0.53.0 finds those keys gone at those positions, a refined node, a `Union` or a `Mixin` where it
+  ([`allof-classification`](../compilers/openapi.md#allof-classification)), and so is a type a field
+  is redeclared as that holds a declared discriminator on a `Model` or a `Union`, or composes one
+  ([`allof-redeclared-property`](../compilers/openapi.md#allof-redeclared-property)). A consumer
+  pinned to 0.53.0 finds those keys gone at those positions, a refined node, a `Union` or a `Mixin` where it
   read a `Model` keeping them, and a `Base` where it read a `Mixin`.
