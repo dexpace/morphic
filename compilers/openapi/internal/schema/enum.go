@@ -99,8 +99,8 @@ func (e enumEntry) isNull() bool { return e.err == nil && e.val.Kind == ir.Value
 // admit no instance, since JSON Schema conjoins enum with the keywords beside
 // it, and each is reported at itself as a warning: a null where those keywords
 // exclude null, which nothing then holds, and a value no type s declares
-// admits, `null` among them, which is kept as written beside the type the
-// census keeps verbatim.
+// admits, a type of null included, which is kept as written beside the type
+// the census keeps verbatim.
 func enumEntries(c lowering.Ctx, s *oas3.Schema, entries []enumEntry, pointer jsontext.Pointer) ([]enumEntry, []ir.Diagnostic) {
 	admitsNull := slices.ContainsFunc(entries, enumEntry.isNull) && schemaAdmitsNull(c, s)
 	types := s.GetType()
