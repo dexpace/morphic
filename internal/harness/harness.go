@@ -168,8 +168,9 @@ func check(ctx context.Context, spec string, data []byte, give func(Verdict)) er
 // invariants holds what the run returned to irverify's invariants: a document
 // breaking one is a compiler's or a pass's bug whatever the spec says. Only a
 // refusal, an error and no document, has nothing to hold. The run's
-// verification does not reach the findings the engine writes onto the
-// document after its last stage (#1121), so this hold stays beside it.
+// verification holds each stage's document and findings (#1121); this hold is
+// Check's own, of whatever compile returns, no document beside no error
+// included.
 func invariants(doc *ir.Document, diags []ir.Diagnostic) Verdict {
 	if _, failed := ir.FirstError(diags); doc == nil && failed {
 		return declined(OracleInvariants, DeclineNoDocument)
@@ -205,12 +206,12 @@ var registered = engine.Compilers
 var passes = engine.Passes
 
 // runOptions is what every engine run a sweep makes runs under: verified, so
-// each document a compiler or a pass returns, in every run an oracle makes, is
-// held to irverify's invariants, and each pass to leaving the document it is
-// handed as it was. The walk costs a run more than its compile does; the sweep
-// pays it for the reach. A verify error on the first compile is
-// OutcomeViolations; on a later run, the oracle making it reports it, with the
-// engine's account in its detail.
+// each document a compiler or a pass returns, and the findings each stage
+// reports, in every run an oracle makes, are held to irverify's invariants,
+// and each pass to leaving the document it is handed as it was. The walk costs
+// a run more than its compile does; the sweep pays it for the reach. A verify
+// error on the first compile is OutcomeViolations; on a later run, the oracle
+// making it reports it, with the engine's account in its detail.
 func runOptions() engine.RunOptions { return engine.RunOptions{Verify: true} }
 
 // newEngine builds the engine a sweep runs: the registered compilers, and ps

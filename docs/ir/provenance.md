@@ -24,7 +24,7 @@ type Position struct {
 const NoSource = -1 // the node addresses no input file
 
 type Diagnostic struct {
-    Severity   Severity  // error | warning | info
+    Severity   Severity  // error | warning | info, most severe first; Severities ranks them
     Code       string    // stable: "openapi/unresolved-ref", "ir/dangling-type-ref"
     Message    string
     Provenance Provenance
