@@ -11,6 +11,9 @@ import (
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
+	"github.com/stretchr/testify/assert"
+
+	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
 )
 
 // Phrases pathKeyDefects returns for the rules that name nothing of the key.
@@ -226,4 +229,19 @@ func FuzzPathKeyDefects_AgreesWithTheABNF(f *testing.F) {
 			t.Fatalf("key %q: route %q without a fragment", key, route)
 		}
 	})
+}
+
+// TestPathRoute_SplitsAsTheRuleTableDoes holds pathRoute to the table the rule
+// table's split of a path key is held to, so the template a key lowers to is
+// the one its path parameters are checked against.
+func TestPathRoute_SplitsAsTheRuleTableDoes(t *testing.T) {
+	t.Parallel()
+	for key, at := range openapitest.PathKeyFragments() {
+		route, fragment, fragmented := pathRoute(key)
+		want := [3]any{key, "", false}
+		if at >= 0 {
+			want = [3]any{key[:at], key[at+1:], true}
+		}
+		assert.Equal(t, want, [3]any{route, fragment, fragmented}, "pathRoute(%q)", key)
+	}
 }

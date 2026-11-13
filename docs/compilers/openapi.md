@@ -3317,9 +3317,10 @@ error.
 - Tests: `operation.TestPathKeys_MalformedKeyIsReportedOnce`,
   `operation.TestPathKeys_RulesAreNotVersionGated`,
   `operation.TestPathKeys_FragmentIsLeftOutOfTheTemplate`, `operation.TestPathKeyDefects`,
+  `operation.TestPathRoute_SplitsAsTheRuleTableDoes`,
   `operation.TestSharedRoute_MarksEveryOperationSendingARouteAnotherSends`,
   `operation.TestRouteShape_LeavesOutEachExpressionsName`,
-  `oas.TestCheck_PathTemplatesAnswerToPathParameters`
+  `oas.TestCheck_PathTemplatesAnswerToPathParameters`, `oas.TestFragmentAt_SplitsAsTheLoweringDoes`
 
 ### `path-item-operations`
 
