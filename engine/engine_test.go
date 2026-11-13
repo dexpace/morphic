@@ -232,7 +232,7 @@ func TestEngine_RunResultSourcesOnARefusedOverlay(t *testing.T) {
 	t.Parallel()
 	// The same recursive-anchor shape TestCompiler_SourceTableOnARefusal pins at
 	// the compiler's own level: an alias inside the update names one of its own
-	// ancestors, which gives the overlay library's clone no base case.
+	// ancestors, which gives the overlay's copy of it no base case.
 	const anchorCycle = "overlay: 1.0.0\ninfo: {title: o, version: \"1\"}\n" +
 		"actions:\n  - target: $.info\n    update: {p: &a [*a]}\n"
 
@@ -954,6 +954,87 @@ func TestEngine_RunASpecNoOneCanLocateIsAGoError(t *testing.T) {
 	require.ErrorIs(t, err, boom)
 	assert.ErrorContains(t, err, "engine: locate spec")
 	assert.Zero(t, counter.compiles.Load())
+}
+
+// TestEngine_RunReadsAFileAlikeThroughALinkToItsDirectory pins that a file is
+// one document however a reference spells its directory: the spec and the
+// file beside it, named by absolute paths through a link to their directory,
+// are the spec itself and the file a relative path names, from a schema and
+// from a parameter, so the spec is never read twice, the file is read once and
+// declares its identifier once, whether the spec is named through the link or
+// not, from either directory. The default refuses only the absolute path
+// naming another document.
+func TestEngine_RunReadsAFileAlikeThroughALinkToItsDirectory(t *testing.T) {
+	dir, err := filepath.EvalSymlinks(t.TempDir())
+	require.NoError(t, err)
+	api := filepath.Join(dir, "api")
+	require.NoError(t, os.Mkdir(api, 0o755))
+	link := filepath.Join(t.TempDir(), "link")
+	require.NoError(t, os.Symlink(api, link))
+	require.NoError(t, os.WriteFile(filepath.Join(api, "common.yaml"), []byte(
+		"components:\n  schemas:\n    A: {type: integer}\n    U: {$id: 'urn:x:u', type: boolean}\n"+
+			"  parameters:\n    P: {name: p, in: query, schema: {type: integer}}\n"+
+			"    Q: {name: q, in: query, schema: {type: integer}}\n"),
+		0o644))
+	require.NoError(t, os.WriteFile(filepath.Join(api, "spec.yaml"), []byte(`openapi: 3.1.0
+info: {title: t, version: "1"}
+paths:
+  /x:
+    get:
+      parameters:
+        - {$ref: 'common.yaml#/components/parameters/P'}
+        - {$ref: '`+link+`/common.yaml#/components/parameters/Q'}
+        - {$ref: '`+link+`/spec.yaml#/components/parameters/Own'}
+      responses: {"200": {description: ok}}
+components:
+  parameters:
+    Own: {name: own, in: query, schema: {type: string}}
+  schemas:
+    T: {type: string}
+    Rel: {$ref: 'common.yaml#/components/schemas/A'}
+    Linked: {$ref: '`+link+`/common.yaml#/components/schemas/A'}
+    Self: {$ref: '`+link+`/spec.yaml#/components/schemas/T'}
+    ByID: {$ref: 'urn:x:u'}
+`), 0o644))
+	eng, err := engine.New()
+	require.NoError(t, err)
+	namings := []struct{ cwd, path string }{
+		{api, "spec.yaml"}, {link, "spec.yaml"}, {dir, filepath.Join("api", "spec.yaml")},
+		{t.TempDir(), filepath.Join(api, "spec.yaml")}, {t.TempDir(), filepath.Join(link, "spec.yaml")},
+	}
+
+	for _, allow := range []string{"true", "false"} {
+		opts := engine.RunOptions{CompilerOptions: map[string]string{"allow-external-refs": allow}}
+		var first *ir.Document
+		for _, n := range namings {
+			t.Chdir(n.cwd)
+			res, err := eng.Run(t.Context(), n.path, opts)
+			require.NoError(t, err)
+			require.NotNil(t, res.Document)
+			for i := range res.Document.Sources {
+				res.Document.Sources[i].Path = ""
+			}
+			if first == nil {
+				first = res.Document
+				continue
+			}
+			assert.Empty(t, cmp.Diff(first, res.Document), "allowed: %s; %s from %s", allow, n.path, n.cwd)
+		}
+		var unresolved []string
+		for _, d := range first.Diagnostics {
+			assert.NotEqual(t, "pass/name-collision", d.Code, "the spec is read once: %s", d.Message)
+			if d.Code == "openapi/unresolved-ref" {
+				unresolved = append(unresolved, string(d.Provenance.Pointer))
+			}
+		}
+		if allow == "true" {
+			assert.Len(t, first.Sources, 2, "the spec and the file beside it, each once")
+			assert.Empty(t, unresolved, "every reference resolves")
+			continue
+		}
+		assert.Equal(t, []string{"/paths/~1x/get/parameters/1", "/components/schemas/Linked"}, unresolved,
+			"the default refuses an absolute path naming another document, and no other")
+	}
 }
 
 // splitAcrossFiles writes, under dir, a spec whose references name the files

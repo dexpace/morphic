@@ -302,3 +302,4 @@ testdata/openapi/cycle_duplicate_key.yaml	12:8	validation-duplicate-key	compiler
 testdata/openapi/cycle_pointer_whitespace_self.yaml	10:15	validation-invalid-format	compiler	library-silent
 testdata/openapi/cycle_schema_empty_key.yaml	10:9	validation-invalid-reference	library	component-names
 testdata/openapi/cycle_schema_empty_key.yaml	11:9	validation-invalid-syntax	compiler	component-names
+testdata/openapi/discriminator_maps_its_own_base.yaml	20:25	validation-invalid-schema	library	old-grammar

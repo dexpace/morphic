@@ -31,7 +31,7 @@ import (
 // opts, that has read none.
 func diskReader(opts Options) *external {
 	opts.Reader = reader.Disk{}
-	return newExternal("", opts, newExternalReads(sourceDocument{}, opts.MaxExternalDocuments))
+	return newExternal(opts, newExternalReads(sourceDocument{}, opts.MaxExternalDocuments))
 }
 
 // TestExternal_DocumentOfAMissingFilePassesTheReadersErrorThrough pins that
@@ -125,7 +125,7 @@ func TestExternal_PrepareRefusesBytesThatDoNotParse(t *testing.T) {
 	t.Parallel()
 	read := newExternalReads(sourceDocument{}, budget.Unbounded())
 
-	data, err := newExternal("", Options{}, read).prepare(t.Context(), "k", "k", []byte("a: [\n"))
+	data, err := newExternal(Options{}, read).prepare(t.Context(), "k", "k", []byte("a: [\n"))
 
 	var unparsable *bind.UnparsableError
 	require.ErrorAs(t, err, &unparsable)
@@ -152,7 +152,7 @@ func TestExternal_PrepareRefusesADocumentHoldingNothing(t *testing.T) {
 			t.Parallel()
 			read := newExternalReads(sourceDocument{}, budget.Unbounded())
 
-			_, err := newExternal("", Options{}, read).prepare(t.Context(), "k", "k", []byte(tc.body))
+			_, err := newExternal(Options{}, read).prepare(t.Context(), "k", "k", []byte(tc.body))
 
 			_, recorded := read.preparedFor("k")
 			if !tc.empty {
@@ -174,7 +174,7 @@ func TestExternal_AdmitRefusesARecursiveAnchor(t *testing.T) {
 	root, err := parseTree(t.Context(), []byte("p: &a [*a]\n"))
 	require.NoError(t, err)
 
-	err = newExternal("", Options{}, newExternalReads(sourceDocument{}, budget.Unbounded())).admit(t.Context(), "k", root)
+	err = newExternal(Options{}, newExternalReads(sourceDocument{}, budget.Unbounded())).admit(t.Context(), "k", root)
 
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "refused")
@@ -191,7 +191,7 @@ func TestExternal_AdmitJoinsTwoFindings(t *testing.T) {
 	root, err := parseTree(t.Context(), []byte("p: &a [*a]\nq: !x {b: 1}\n"))
 	require.NoError(t, err)
 
-	err = newExternal("", Options{}, newExternalReads(sourceDocument{}, budget.Unbounded())).admit(t.Context(), "k", root)
+	err = newExternal(Options{}, newExternalReads(sourceDocument{}, budget.Unbounded())).admit(t.Context(), "k", root)
 
 	require.Error(t, err)
 	assert.Contains(t, err.Error(),
@@ -209,7 +209,7 @@ func TestExternal_AdmitOverTheNodeBudgetIsRefused(t *testing.T) {
 	require.NoError(t, err)
 	nodes := nodeCount(t.Context(), root)
 	admit := func(limit int) error {
-		return newExternal("", Options{MaxSourceNodes: budget.AtMost(limit)},
+		return newExternal(Options{MaxSourceNodes: budget.AtMost(limit)},
 			newExternalReads(sourceDocument{}, budget.Unbounded())).admit(t.Context(), "k", root)
 	}
 
@@ -228,7 +228,7 @@ func TestExternal_AdmitHoldsTheAliasBudget(t *testing.T) {
 	root, err := parseTree(t.Context(), []byte("a: &x {b: 1}\nc: *x\n"))
 	require.NoError(t, err)
 
-	err = newExternal("", Options{MaxAliasSurplus: budget.AtMost(1)}, newExternalReads(sourceDocument{}, budget.Unbounded())).admit(t.Context(), "k", root)
+	err = newExternal(Options{MaxAliasSurplus: budget.AtMost(1)}, newExternalReads(sourceDocument{}, budget.Unbounded())).admit(t.Context(), "k", root)
 
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "refused")
@@ -273,7 +273,7 @@ func TestExternal_DocumentPassesAReadFailureThrough(t *testing.T) {
 	const key = "http://host/doc.yaml"
 	told := errors.New("dial tcp 127.0.0.1:9: connect: connection refused")
 	failing := &fakeReader{err: told}
-	ext := newExternal("", Options{Reader: failing}, newExternalReads(sourceDocument{}, budget.Unbounded()))
+	ext := newExternal(Options{Reader: failing}, newExternalReads(sourceDocument{}, budget.Unbounded()))
 
 	_, err := ext.document(t.Context(), key)
 

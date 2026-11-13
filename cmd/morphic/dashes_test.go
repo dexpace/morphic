@@ -9,6 +9,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/spf13/cobra"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -95,6 +96,98 @@ func TestRun_SingleDashLongFlagsAreRefused(t *testing.T) {
 			require.NoError(t, err)
 			assert.Empty(t, entries, "a refused run writes nothing")
 		})
+	}
+}
+
+// TestRun_GoTestPrefixedArgumentsAreRefused pins that an argument pflag would
+// drop unread, as it keeps what starts "test." for go test's own flags, is
+// refused as the shorthand it spells: "-test.output=ir.json" would otherwise
+// write the document to stdout and exit 0. Each row runs in an empty directory
+// of its own, which a refused run leaves empty.
+func TestRun_GoTestPrefixedArgumentsAreRefused(t *testing.T) {
+	spec := writeFile(t, "spec.yaml", testspec.Tiny)
+
+	tests := []struct {
+		name string
+		args []string
+		tok  string // the argument refused
+		help string // the command the hint points at
+	}{
+		{"a switch", []string{"compile", spec, "-test.v"}, "-test.v", "morphic compile"},
+		{"one with a value", []string{"compile", spec, "-test.output=ir.json"}, "-test.output=ir.json", "morphic compile"},
+		{"validate's", []string{"validate", spec, "-test.anything"}, "-test.anything", "morphic validate"},
+		{"before the command", []string{"-test.v", "validate", spec}, "-test.v", "morphic validate"},
+		{"after switches", []string{"compile", spec, "-hhtest.v"}, "-hhtest.v", "morphic compile"},
+		{"on root", []string{"-vtest.v"}, "-vtest.v", "morphic"},
+		{"help's", []string{"help", "-test.v"}, "-test.v", "morphic help"},
+		{"a completion script's", []string{"completion", "bash", "-test.v"}, "-test.v", "morphic completion bash"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Chdir(t.TempDir())
+			var stdout, stderr bytes.Buffer
+
+			assert.Equal(t, 2, run(t.Context(), tt.args, &stdout, &stderr))
+			assert.Empty(t, stdout.String())
+			assert.Equal(t, "morphic: unknown shorthand flag: 't' in "+tt.tok+"\n"+
+				`Try "`+tt.help+` --help" for usage.`+"\n", stderr.String())
+			assert.Empty(t, namesIn(t, "."), "a refused run writes nothing")
+		})
+	}
+}
+
+// TestRun_GoTestPrefixedArgumentsThatAreNotDropped pins what that refusal leaves
+// alone: a value of a flag, a shorthand's attached value, a long flag, and an
+// operand after "--", which pflag reads as it reads any other.
+func TestRun_GoTestPrefixedArgumentsThatAreNotDropped(t *testing.T) {
+	spec := writeFile(t, "spec.yaml", testspec.Tiny)
+
+	tests := []struct {
+		name   string
+		args   []string
+		code   int
+		stderr string
+		files  []string
+	}{
+		{"a long flag's value", []string{"compile", spec, "--output", "-test.x"}, 0, "", []string{"-test.x"}},
+		{"a short flag's value", []string{"compile", spec, "-o", "-test.x"}, 0, "", []string{"-test.x"}},
+		{"a short flag's attached value", []string{"compile", spec, "-otest.json"}, 0, "", []string{"test.json"}},
+		{"a switch then an attached value", []string{"compile", spec, "-hotest.json"}, 0, "", nil},
+		{"a long flag", []string{"compile", spec, "--test.v"}, 2, "morphic: unknown flag: --test.v\n", nil},
+		{"an operand after --", []string{"compile", "--", "-test.v"}, 2, `read spec "-test.v"`, nil},
+		{"an operand spelled with test. after its first letter", []string{"compile", "xtest.yaml"}, 2,
+			`read spec "xtest.yaml"`, nil},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Chdir(t.TempDir())
+			var stdout, stderr bytes.Buffer
+
+			assert.Equal(t, tt.code, run(t.Context(), tt.args, &stdout, &stderr), "stderr: %s", stderr.String())
+			if tt.stderr == "" {
+				assert.Empty(t, stderr.String())
+			} else {
+				assert.Contains(t, stderr.String(), tt.stderr)
+			}
+			assert.ElementsMatch(t, tt.files, namesIn(t, "."))
+		})
+	}
+}
+
+// TestDropsAsGoTestFlag_NoCommandDefinesT holds the refusal's message to the
+// tree: it names 't' an unknown shorthand, which is true only while no command
+// defines one.
+func TestDropsAsGoTestFlag_NoCommandDefinesT(t *testing.T) {
+	t.Parallel()
+	root := newRootCmd()
+	root.InitDefaultHelpCmd()
+	root.InitDefaultCompletionCmd()
+
+	pending := []*cobra.Command{root}
+	for len(pending) > 0 {
+		c := pending[0]
+		pending = append(pending[1:], c.Commands()...)
+		assert.Nil(t, c.Flags().ShorthandLookup("t"), "%s defines -t", c.CommandPath())
 	}
 }
 

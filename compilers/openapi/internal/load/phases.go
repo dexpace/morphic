@@ -15,6 +15,7 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/overlay"
 	"github.com/dexpace/morphic/compilers/openapi/internal/provenance"
+	refscope "github.com/dexpace/morphic/compilers/openapi/internal/resolve"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -74,6 +75,9 @@ type loading struct {
 	src      compilers.Source
 	opts     Options
 	root     *yaml.Node
+	// places is where the files the compile names lie, one answer for each
+	// directory however often a read asks.
+	places *refscope.Places
 	// early is what the phases up to the model report: a refusal among them
 	// ends the load with these alone.
 	early  []ir.Diagnostic
@@ -184,7 +188,7 @@ func (l *loading) findSiblings(ctx context.Context) (bool, error) {
 	var mediaFaults []ir.Diagnostic
 	l.media, mediaFaults = modelMediaTypes(ctx, l.doc, l.tree)
 	l.sibFaults = append(l.sibFaults, mediaFaults...)
-	l.self = newSourceDocument(l.src, l.root, l.judged, l.tree)
+	l.self = newSourceDocument(l.src, l.places, l.root, l.judged, l.tree)
 	return false, nil
 }
 
@@ -193,9 +197,9 @@ func (l *loading) findSiblings(ctx context.Context) (bool, error) {
 // places what it found where the binding places each document.
 func (l *loading) bindRefs(ctx context.Context) (bool, error) {
 	if l.opts.Reader != nil {
-		l.reader = newExternal(l.doc.GetOpenAPI(), l.opts, newExternalReads(l.self, l.opts.MaxExternalDocuments))
+		l.reader = newExternal(l.opts, newExternalReads(l.self, l.opts.MaxExternalDocuments))
 	}
-	l.bound = bindAll(ctx, l.doc, l.sibs, l.media, l.self, l.reader, refusedByName(l.opts, l.self.path), l.dialects)
+	l.bound = bindAll(ctx, l.doc, l.sibs, l.media, l.self, l.reader, refusedByName(l.opts, l.self.path, l.places), l.dialects)
 	table := l.bound.bindings.Table()
 	if l.reader != nil {
 		first := l.srcIndex + 1
@@ -236,6 +240,7 @@ func (l *loading) document(hash string) (*Document, []ir.Diagnostic) {
 	return &Document{
 		Doc:      l.doc,
 		Location: l.self.path,
+		Places:   l.places,
 		Bindings: l.bound.bindings,
 		Source: ir.SourceInfo{
 			Format:  "openapi@" + l.minor,

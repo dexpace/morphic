@@ -60,7 +60,9 @@ func TestHops_ListsTheReferencesAChainPassesThrough(t *testing.T) {
 // the next in the source.
 func TestHops_AHopAnotherDocumentHoldsIsPlacedThere(t *testing.T) {
 	t.Parallel()
-	dir := t.TempDir()
+	// The compile names a file where it lies, its directory's links resolved.
+	dir, err := filepath.EvalSymlinks(t.TempDir())
+	require.NoError(t, err)
 	mainPath := filepath.Join(dir, "main.yaml")
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "other.yaml"), []byte(`openapi: 3.1.0
 info: {title: O, version: "1"}

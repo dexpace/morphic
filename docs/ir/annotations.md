@@ -75,8 +75,13 @@ replacement names an entity; it is no use of it, so neither `ir.TypeEdges` nor u
 
 No format states a replacement in a keyword: Smithy, TypeSpec and GraphQL carry a deprecation's
 message and Protobuf only its flag, so a source that names a replacement does so in that prose or
-in a vendor extension. A compiler fills the field only from what its policy maps
-([promotion](./unmodeled.md#promotion)); a name in prose stays in `Message`.
+in a vendor extension. A compiler fills the field from what its policy maps
+([promotion](./unmodeled.md#promotion)), or, under a policy reading prose, from a name the message
+gives in a form the document's own entities resolve, as the OpenAPI compiler reads an operation's
+route or a code span naming a sibling
+([`replacement-inference`](../compilers/openapi.md#replacement-inference)), the node marked
+inferred. `Message` keeps the prose either way, so a consumer setting the guess aside loses
+nothing.
 
 ## References in prose
 

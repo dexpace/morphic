@@ -13,6 +13,7 @@ import (
 	"github.com/dexpace/morphic/compilers"
 	"github.com/dexpace/morphic/compilers/openapi"
 	"github.com/dexpace/morphic/engine/reader"
+	"github.com/dexpace/morphic/engine/triage"
 	"github.com/dexpace/morphic/ir"
 	"github.com/dexpace/morphic/ir/irverify"
 	"github.com/dexpace/morphic/pass"
@@ -39,8 +40,15 @@ type RunOptions struct {
 	// and Result.Failed is the verdict. A value naming no threshold fails the
 	// run with ErrUnknownFailOn before the spec is read.
 	FailOn FailOn `json:"failOn,omitempty"`
+	// Triage rates the run's findings before the verdict reads them
+	// (triage.Ruleset.Rate), so a rule can rate a code's findings at another
+	// severity or accept the findings at one place. A list triage.NewRuleset
+	// refuses fails the run with an error wrapping triage.ErrInvalidRule before
+	// the spec is read.
+	Triage []triage.Rule `json:"triage,omitempty"`
 	// Verify holds the document the compiler returns, and each pass's, to the
-	// invariants ir/irverify states, and each pass to leaving the document it was
+	// invariants ir/irverify states, with the findings each stage reports, a
+	// refusing compile's included, and each pass to leaving the document it was
 	// handed as it found it. The first stage to break one fails the run with a
 	// *VerifyError, or an error wrapping pass.ErrContract. It slows the run, and
 	// ctx does not interrupt it, though a run cancelled meanwhile still fails,
@@ -75,10 +83,18 @@ type Result struct {
 	Diagnostics []ir.Diagnostic        `json:"diagnostics,omitempty"`
 	Sources     []ir.SourceInfo        `json:"sources,omitempty"`
 	Format      compilers.SourceFormat `json:"format"`
+	// Findings is Diagnostics as RunOptions.Triage rated them, index for
+	// index: what the verdict reads, and what a renderer shows.
+	Findings []triage.Finding `json:"findings,omitempty"`
+	// UnusedRules lists the rules of RunOptions.Triage that matched no finding,
+	// in the order given, on a run that produced a document: a rule that may
+	// have outlived the finding it was written for, or whose pass is off.
+	UnusedRules []triage.Rule `json:"unusedRules,omitempty"`
 	// Failed is the engine's verdict: the run produced no document, or one
-	// with a diagnostic at or above RunOptions.FailOn. A failed run still
-	// returns what it produced, to inspect or persist. What failing stops is
-	// building on it: the engine starts no emitter on a failed run.
+	// with a finding rated at or above RunOptions.FailOn that no rule accepted.
+	// A failed run still returns what it produced, to inspect or persist. What
+	// failing stops is building on it: the engine starts no emitter on a failed
+	// run.
 	Failed bool `json:"failed,omitzero"`
 	// CacheErr is why the engine's cache could not answer this run or keep what
 	// it compiled. The run is otherwise whole: a cache never fails one.
@@ -244,7 +260,7 @@ func (e *Engine) runHeld(ctx context.Context, spec compilers.Source, opts RunOpt
 	if err != nil {
 		return nil, err
 	}
-	return p.failOn.judge(res)
+	return p.judge(res)
 }
 
 // located returns spec with its Location set where reader.SpecLocation
@@ -298,7 +314,7 @@ func (e *Engine) RunSources(ctx context.Context, sources []compilers.Source, opt
 	if err != nil {
 		return nil, err
 	}
-	return p.failOn.judge(res)
+	return p.judge(res)
 }
 
 // RunDocument runs the passes not named in opts.DisablePasses over doc, a
@@ -354,14 +370,15 @@ func (e *Engine) RunDocument(ctx context.Context, doc *ir.Document, opts RunOpti
 	// the document it is handed; a copy of the list keeps the Result from sharing
 	// the caller's slice.
 	out = withFindings(out, ir.MergeDiagnostics(slices.Clone(doc.Diagnostics), found))
-	return p.failOn.judge(&Result{Document: out, Diagnostics: out.Diagnostics, Sources: out.Sources})
+	return p.judge(&Result{Document: out, Diagnostics: out.Diagnostics, Sources: out.Sources})
 }
 
 // plan is what a run needs once its options are checked: the passes it runs,
-// in order, the threshold it is judged at, and the verifier it holds each stage
-// to, if any.
+// in order, the rules its findings are rated by, the threshold it is judged at,
+// and the verifier it holds each stage to, if any.
 type plan struct {
 	passes []namedPass
+	rules  triage.Ruleset
 	failOn threshold
 	// verify is the verifier a verified run holds each document to, nil for a
 	// run that does not verify.
@@ -369,8 +386,8 @@ type plan struct {
 }
 
 // prepare checks what every entry point checks before it reads anything, and
-// returns the plan opts leave: the passes they leave on and the threshold the
-// run is judged at.
+// returns the plan opts leave: the passes left on, the rules and the
+// threshold.
 //
 // An engine no constructor built is the caller's mistake whatever the input
 // says, and reporting the input first would send them to look at it;
@@ -394,7 +411,11 @@ func (e *Engine) prepare(opts RunOptions) (plan, error) {
 	if err != nil {
 		return plan{}, err
 	}
-	p := plan{passes: passes, failOn: failOn}
+	rules, err := triage.NewRuleset(opts.Triage)
+	if err != nil {
+		return plan{}, fmt.Errorf("engine: %w", err)
+	}
+	p := plan{passes: passes, rules: rules, failOn: failOn}
 	if opts.Verify {
 		p.verify = e.verifier
 	}
@@ -414,8 +435,12 @@ func (e *Engine) compile(ctx context.Context, source compilers.Source, cfg compi
 	if !ok {
 		// Detection is handed the one source, which is the whole table its
 		// findings and the engine's own can index.
-		return &Result{Format: format, Diagnostics: e.undetected(format, det.Declined),
-			Sources: []ir.SourceInfo{{Path: source.Path}}}, nil
+		table := []ir.SourceInfo{{Path: source.Path}}
+		if err := p.holdFindings(fmt.Sprintf("detect %q", source.Path), compilers.ErrContract,
+			det.Declined, table); err != nil {
+			return nil, err
+		}
+		return &Result{Format: format, Diagnostics: e.undetected(format, det.Declined), Sources: table}, nil
 	}
 	// The detection hands the compile what recognizing the source parsed, and
 	// holds what comes back to the compiler's contract, so a Result never carries
@@ -424,13 +449,22 @@ func (e *Engine) compile(ctx context.Context, source compilers.Source, cfg compi
 	if err != nil {
 		return nil, fmt.Errorf("engine: compile %q: %w", source.Path, err)
 	}
+	stage := fmt.Sprintf("compile %q", source.Path)
 	doc, compiled := out.Document, out.Diagnostics
 	if doc == nil {
+		if err := p.holdFindings(stage, compilers.ErrContract, compiled, out.Sources); err != nil {
+			return nil, err
+		}
 		return &Result{Diagnostics: compiled, Format: format, Sources: out.Sources}, nil
 	}
-	// A verified run holds the document to the invariants before any pass reads it.
-	sum, err := p.hold(fmt.Sprintf("compile %q", source.Path), compilers.ErrContract, doc)
+	// A verified run holds the document to the invariants before any pass reads
+	// it, and every finding of the compile's with it: those the compiler
+	// returned beside the document are not on it yet.
+	sum, err := p.hold(stage, compilers.ErrContract, doc)
 	if err != nil {
+		return nil, err
+	}
+	if err := p.holdFindings(stage, compilers.ErrContract, compiled, doc.Sources); err != nil {
 		return nil, err
 	}
 	// Both channels end up carrying the whole list: the Result is what a caller

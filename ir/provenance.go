@@ -78,9 +78,9 @@ type Position struct {
 	Column int `json:"column,omitzero"`
 }
 
-// Severity classifies a Diagnostic as one of the constants below. The engine
-// decides from it whether a run fails, and refuses a diagnostic carrying any
-// other value, which no threshold could rank.
+// Severity classifies a Diagnostic as one of the constants below, which
+// Severities ranks. The engine decides from it whether a run fails, and refuses
+// a diagnostic carrying any other value, which no threshold could rank.
 type Severity string
 
 // Diagnostic severities.
@@ -89,6 +89,37 @@ const (
 	SeverityWarning Severity = "warning"
 	SeverityInfo    Severity = "info"
 )
+
+// Severities returns every Severity declared above, least severe first, so a
+// severity's position is its rank. It is the one statement of their order,
+// which every reader comparing or listing severities takes from here.
+func Severities() []Severity {
+	return []Severity{SeverityInfo, SeverityWarning, SeverityError}
+}
+
+// Valid reports whether s is one of the severities declared above. Severity is
+// a bare string enum, so nothing rejects a misspelt value on the wire, and a
+// reader that ranked one below the rest would let a misspelt error through.
+func (s Severity) Valid() bool {
+	return slices.Contains(Severities(), s)
+}
+
+// Rank returns s's position in Severities and true, or false for a value no
+// constant declares, which no order ranks.
+func (s Severity) Rank() (int, bool) {
+	rank := slices.Index(Severities(), s)
+	return rank, rank >= 0
+}
+
+// SeverityNames spells each Severity, most severe first: the order a message
+// naming the severities a caller may give lists them in.
+func SeverityNames() []string {
+	names := make([]string, 0, len(Severities()))
+	for _, s := range slices.Backward(Severities()) {
+		names = append(names, string(s))
+	}
+	return names
+}
 
 // Diagnostic is a typed report from a compiler or pass. Codes are stable
 // strings ("openapi/unresolved-ref", "ir/dangling-type-ref") so CI can

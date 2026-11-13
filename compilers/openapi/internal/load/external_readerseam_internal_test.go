@@ -61,7 +61,7 @@ func (f *fakeReader) contexts() []any {
 // externalOver returns an external reading through r under opts.
 func externalOver(opts Options, r compilers.DocumentReader) *external {
 	opts.Reader = r
-	return newExternal("", opts, newExternalReads(sourceDocument{}, budget.Unbounded()))
+	return newExternal(opts, newExternalReads(sourceDocument{}, budget.Unbounded()))
 }
 
 // TestExternal_FetchWithNoReaderIsRefusedUnread pins that a compile handed no
@@ -326,7 +326,7 @@ func TestRefusedByName_JudgesADocumentPartByItsSpelling(t *testing.T) {
 		for _, run := range []struct {
 			within, want string
 		}{{"/r", tc.confined}, {"", tc.anywhere}} {
-			err := refusedByName(Options{Within: run.within, Reader: &fakeReader{}}, "/r/root.yaml")(tc.uri)
+			err := refusedByName(Options{Within: run.within, Reader: &fakeReader{}}, "/r/root.yaml", nil)(tc.uri)
 			if run.want == "" {
 				assert.NoError(t, err, "%s within %q", tc.uri, run.within)
 				continue
@@ -336,6 +336,6 @@ func TestRefusedByName_JudgesADocumentPartByItsSpelling(t *testing.T) {
 		}
 	}
 	confined := Options{Within: "/r", Reader: &fakeReader{}}
-	assert.Error(t, refusedByName(confined, "")("/r/root.yaml"), "a source with no path is named by none")
-	assert.Nil(t, refusedByName(Options{Within: "/r"}, "/r/root.yaml"), "no reader reads nothing")
+	assert.Error(t, refusedByName(confined, "", nil)("/r/root.yaml"), "a source with no path is named by none")
+	assert.Nil(t, refusedByName(Options{Within: "/r"}, "/r/root.yaml", nil), "no reader reads nothing")
 }

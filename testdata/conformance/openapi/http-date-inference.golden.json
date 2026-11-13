@@ -1,0 +1,381 @@
+{
+  "idSpaces": {
+    "auth": [
+      "openapi",
+      "unresolved"
+    ],
+    "e": [
+      "anon",
+      "composed",
+      "openapi"
+    ],
+    "g": [
+      "default",
+      "extension",
+      "path-prefix",
+      "tags",
+      "webhooks"
+    ],
+    "op": [
+      "openapi"
+    ],
+    "p": [
+      "composed",
+      "openapi"
+    ],
+    "param": [
+      "openapi"
+    ],
+    "s": [
+      "openapi"
+    ],
+    "server": [
+      "default",
+      "openapi"
+    ],
+    "t": [
+      "anon",
+      "composed",
+      "openapi"
+    ]
+  },
+  "name": "HTTPDateInference",
+  "version": "1.0.0",
+  "docs": {},
+  "services": [
+    {
+      "id": "s/openapi/0",
+      "name": {
+        "source": "HTTPDateInference",
+        "canonical": "http_date_inference"
+      },
+      "docs": {},
+      "groups": [
+        {
+          "id": "g/default",
+          "name": {
+            "hint": "default"
+          },
+          "docs": {},
+          "operations": [
+            {
+              "id": "op/openapi/paths/~1files~1{name}/put",
+              "name": {
+                "source": "putFile",
+                "canonical": "put_file"
+              },
+              "docs": {},
+              "params": [
+                {
+                  "id": "param/openapi/paths/~1files~1{name}/put/parameters/name/path",
+                  "name": {
+                    "source": "name",
+                    "canonical": "name"
+                  },
+                  "type": {
+                    "target": "t/prim/string",
+                    "nullable": false
+                  },
+                  "required": true,
+                  "docs": {},
+                  "provenance": {
+                    "source": 0,
+                    "pointer": "/paths/~1files~1{name}/put/parameters/0"
+                  }
+                },
+                {
+                  "id": "param/openapi/paths/~1files~1{name}/put/parameters/If-Unmodified-Since/header",
+                  "name": {
+                    "source": "If-Unmodified-Since",
+                    "canonical": "if_unmodified_since"
+                  },
+                  "type": {
+                    "target": "t/prim/datetime_offset",
+                    "nullable": false
+                  },
+                  "required": false,
+                  "docs": {},
+                  "provenance": {
+                    "source": 0,
+                    "pointer": "/paths/~1files~1{name}/put/parameters/1"
+                  }
+                }
+              ],
+              "responses": [
+                {
+                  "name": {
+                    "hint": "204"
+                  },
+                  "conditions": {
+                    "statusCodes": [
+                      {
+                        "from": 204,
+                        "to": 204
+                      }
+                    ]
+                  },
+                  "headers": [
+                    {
+                      "id": "p/openapi/paths/~1files~1{name}/put/responses/204/headers/Last-Modified",
+                      "name": {
+                        "source": "Last-Modified",
+                        "canonical": "last_modified"
+                      },
+                      "wireName": "Last-Modified",
+                      "type": {
+                        "target": "t/prim/datetime_offset",
+                        "nullable": false
+                      },
+                      "required": false,
+                      "clientOptional": false,
+                      "defaultAdded": false,
+                      "visibility": {
+                        "none": false
+                      },
+                      "encoding": {
+                        "name": "http-date"
+                      },
+                      "flatten": false,
+                      "eventHeader": false,
+                      "eventPayload": false,
+                      "secret": false,
+                      "examples": [
+                        {
+                          "value": {
+                            "kind": "string",
+                            "str": "Wed, 21 Oct 2023 07:28:00 GMT"
+                          }
+                        }
+                      ],
+                      "docs": {},
+                      "provenance": {
+                        "source": 0,
+                        "pointer": "/paths/~1files~1{name}/put/responses/204/headers/Last-Modified",
+                        "inferred": "http-date-inference"
+                      }
+                    },
+                    {
+                      "id": "p/openapi/paths/~1files~1{name}/put/responses/204/headers/Expires",
+                      "name": {
+                        "source": "Expires",
+                        "canonical": "expires"
+                      },
+                      "wireName": "Expires",
+                      "type": {
+                        "target": "t/openapi/components/schemas/Instant",
+                        "nullable": false
+                      },
+                      "required": false,
+                      "clientOptional": false,
+                      "defaultAdded": false,
+                      "visibility": {
+                        "none": false
+                      },
+                      "encoding": {
+                        "name": "http-date"
+                      },
+                      "flatten": false,
+                      "eventHeader": false,
+                      "eventPayload": false,
+                      "secret": false,
+                      "docs": {},
+                      "provenance": {
+                        "source": 0,
+                        "pointer": "/paths/~1files~1{name}/put/responses/204/headers/Expires",
+                        "inferred": "http-date-inference"
+                      }
+                    },
+                    {
+                      "id": "p/openapi/paths/~1files~1{name}/put/responses/204/headers/Date",
+                      "name": {
+                        "source": "Date",
+                        "canonical": "date"
+                      },
+                      "wireName": "Date",
+                      "type": {
+                        "target": "t/prim/string",
+                        "nullable": false
+                      },
+                      "required": false,
+                      "clientOptional": false,
+                      "defaultAdded": false,
+                      "visibility": {
+                        "none": false
+                      },
+                      "flatten": false,
+                      "eventHeader": false,
+                      "eventPayload": false,
+                      "secret": false,
+                      "docs": {},
+                      "provenance": {
+                        "source": 0,
+                        "pointer": "/paths/~1files~1{name}/put/responses/204/headers/Date"
+                      }
+                    },
+                    {
+                      "id": "p/openapi/paths/~1files~1{name}/put/responses/204/headers/X-Modified",
+                      "name": {
+                        "source": "X-Modified",
+                        "canonical": "x_modified"
+                      },
+                      "wireName": "X-Modified",
+                      "type": {
+                        "target": "t/prim/datetime_offset",
+                        "nullable": false
+                      },
+                      "required": false,
+                      "clientOptional": false,
+                      "defaultAdded": false,
+                      "visibility": {
+                        "none": false
+                      },
+                      "flatten": false,
+                      "eventHeader": false,
+                      "eventPayload": false,
+                      "secret": false,
+                      "docs": {},
+                      "provenance": {
+                        "source": 0,
+                        "pointer": "/paths/~1files~1{name}/put/responses/204/headers/X-Modified"
+                      }
+                    }
+                  ],
+                  "docs": {
+                    "description": "ok"
+                  }
+                }
+              ],
+              "oneWay": false,
+              "idempotency": {},
+              "bindings": {
+                "http": [
+                  {
+                    "method": "PUT",
+                    "uriTemplate": "/files/{name}",
+                    "paramBindings": [
+                      {
+                        "param": "param/openapi/paths/~1files~1{name}/put/parameters/name/path",
+                        "location": "path",
+                        "wireName": "name",
+                        "style": "simple",
+                        "explode": false,
+                        "allowReserved": false,
+                        "allowEmptyValue": false
+                      },
+                      {
+                        "param": "param/openapi/paths/~1files~1{name}/put/parameters/If-Unmodified-Since/header",
+                        "location": "header",
+                        "wireName": "If-Unmodified-Since",
+                        "style": "simple",
+                        "explode": false,
+                        "allowReserved": false,
+                        "allowEmptyValue": false
+                      }
+                    ],
+                    "sharedRoute": false,
+                    "checksumRequired": false
+                  }
+                ]
+              },
+              "provenance": {
+                "source": 0,
+                "pointer": "/paths/~1files~1{name}/put"
+              }
+            }
+          ]
+        }
+      ],
+      "servers": [
+        "server/default"
+      ],
+      "provenance": {
+        "source": 0
+      }
+    }
+  ],
+  "types": {
+    "t/openapi/components/schemas/Instant": {
+      "kind": "scalar",
+      "id": "t/openapi/components/schemas/Instant",
+      "name": {
+        "source": "Instant",
+        "canonical": "instant"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Instant"
+      },
+      "base": {
+        "target": "t/prim/datetime_offset",
+        "nullable": false
+      }
+    },
+    "t/prim/datetime_offset": {
+      "kind": "primitive",
+      "id": "t/prim/datetime_offset",
+      "name": {},
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": -1
+      },
+      "prim": "datetime_offset"
+    },
+    "t/prim/string": {
+      "kind": "primitive",
+      "id": "t/prim/string",
+      "name": {},
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": -1
+      },
+      "prim": "string"
+    }
+  },
+  "servers": {
+    "server/default": {
+      "id": "server/default",
+      "name": {
+        "hint": "server"
+      },
+      "urlTemplate": "/",
+      "description": {},
+      "provenance": {
+        "source": 0
+      }
+    }
+  },
+  "diagnostics": [
+    {
+      "severity": "info",
+      "code": "openapi/inferred-http-date",
+      "message": "header \"Last-Modified\" is a field its RFC defines as an HTTP-date, so its date-time is written and read as one (http-date) rather than in RFC 3339's text, which its format names",
+      "provenance": {
+        "source": 0,
+        "pointer": "/paths/~1files~1{name}/put/responses/204/headers/Last-Modified"
+      }
+    },
+    {
+      "severity": "info",
+      "code": "openapi/inferred-http-date",
+      "message": "header \"Expires\" is a field its RFC defines as an HTTP-date, so its date-time is written and read as one (http-date) rather than in RFC 3339's text, which its format names",
+      "provenance": {
+        "source": 0,
+        "pointer": "/paths/~1files~1{name}/put/responses/204/headers/Expires"
+      }
+    }
+  ],
+  "sources": [
+    {
+      "format": "openapi@3.0",
+      "path": "http-date-inference.yaml",
+      "hash": "be1a790729bd174b256e9d8272032a2f0e2f0730d088abf3b3ed4c31748aac1b"
+    }
+  ]
+}

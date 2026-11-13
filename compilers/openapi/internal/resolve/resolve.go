@@ -21,6 +21,9 @@ type Scope struct {
 	// are read against (load.Location), against which a reference's document
 	// part is judged internal or external.
 	SelfPath string
+	// Places is where the compile's files lie, which a document part naming
+	// the source is compared by.
+	Places *Places
 	// Declares holds the names of the component schemas the document declares.
 	Declares Names
 	// Bindings answers where each reference lands, a schema's $ref or a

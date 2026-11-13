@@ -109,8 +109,7 @@ func contentSpelling(c lowering.Ctx, media *soa.MediaType, mt string, mediaPtr j
 // the keyword families its own election passes over. The severity is warning,
 // not the info announcing a conjunction JSON Schema allows, because OpenAPI
 // forbids this one; it matches passedOverEntries'. It is not an error: the
-// document lowers as well as an election can make it, and harness.Check stops
-// at the first error diagnostic, hiding later findings.
+// document lowers as well as an election can make it.
 func passedOverSpelling(c lowering.Ctx, u *ir.Unmodeled, root *yaml.Node, passed, elected string, at jsontext.Pointer) []ir.Diagnostic {
 	pointer := at + ids.Ptr(passed)
 	kept, diags := annotation.PreserveNodeInto(u, "openapi:"+passed,

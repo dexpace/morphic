@@ -6,17 +6,18 @@ package engine
 import (
 	"errors"
 	"fmt"
-	"slices"
 	"strings"
 
+	"github.com/dexpace/morphic/engine/triage"
 	"github.com/dexpace/morphic/ir"
 )
 
-// FailOn is the lowest diagnostic severity that fails a run, spelled as that
-// severity, or FailOnNone. The engine judges a run once its passes have
-// reported and records the verdict as Result.Failed, so the CLI's exit status
-// and any other driver's decision to go on rest on one rule rather than on
-// each caller's reading of the diagnostics.
+// FailOn is the lowest severity a finding is rated at that fails a run,
+// spelled as that severity, or FailOnNone. The engine judges a run once its
+// passes have reported and its triage has rated their findings, and records
+// the verdict as Result.Failed, so the CLI's exit status and any other driver's
+// decision to go on rest on one rule rather than on each caller's reading of
+// the diagnostics.
 type FailOn string
 
 // The thresholds a run takes, from the default through the stricter ones to
@@ -59,17 +60,11 @@ func ParseFailOn(s string) (FailOn, error) {
 	return FailOn(s), nil
 }
 
-// severities lists the IR's severities, least severe first, so a severity's
-// position is its rank and a threshold is a plain integer compare.
-func severities() []ir.Severity {
-	return []ir.Severity{ir.SeverityInfo, ir.SeverityWarning, ir.SeverityError}
-}
-
 // threshold is a FailOn that resolve accepted: the rank of the least severe
-// diagnostic that fails a run. FailOnNone's lies past every severity's, so no
-// diagnostic reaches it. Being a type of its own keeps an unresolved FailOn
-// from judging a run, and its zero value fails a run on any diagnostic, so a
-// threshold never resolved fails closed.
+// finding that fails a run. FailOnNone's lies past every severity's, so no
+// finding reaches it. Being a type of its own keeps an unresolved FailOn
+// from judging a run, and its zero value fails a run on every finding no rule
+// accepted, so a threshold never resolved fails closed.
 type threshold int
 
 // resolve reads f as the threshold a run is judged at, the zero value as
@@ -78,11 +73,10 @@ func (f FailOn) resolve() (threshold, error) {
 	if f == "" {
 		f = FailOnError
 	}
-	known := severities()
 	if f == FailOnNone {
-		return threshold(len(known)), nil
+		return threshold(len(ir.Severities())), nil
 	}
-	if rank := slices.Index(known, ir.Severity(f)); rank >= 0 {
+	if rank, known := ir.Severity(f).Rank(); known {
 		return threshold(rank), nil
 	}
 	return 0, unknownFailOn(string(f))
@@ -91,41 +85,50 @@ func (f FailOn) resolve() (threshold, error) {
 // unknownFailOn reports s as naming no threshold, and names every one that
 // exists, most severe first.
 func unknownFailOn(s string) error {
-	known := severities()
-	names := make([]string, 0, len(known)+1)
-	for _, sev := range slices.Backward(known) {
-		names = append(names, string(sev))
-	}
-	names = append(names, string(FailOnNone))
+	names := append(ir.SeverityNames(), string(FailOnNone))
 	return fmt.Errorf("engine: fail-on %q (known: %s): %w", s, strings.Join(names, ", "), ErrUnknownFailOn)
 }
 
-// verdict reports whether res fails at t: it fails when it holds no document,
-// and otherwise when a diagnostic's severity ranks at t or above. A severity
-// the IR does not define is refused at every threshold, FailOnNone's included,
-// because a stage that broke its contract is the caller's to hear about
-// whatever gate they chose.
-func (t threshold) verdict(res *Result) (bool, error) {
-	known := severities()
-	failed := res.Document == nil
-	for _, d := range res.Diagnostics {
-		rank := slices.Index(known, d.Severity)
-		if rank < 0 {
+// verdict reports whether a run that produced doc and findings fails at t: it
+// fails when it holds no document, and otherwise when a finding no rule
+// accepted is rated at t or above. A finding reported at a severity the IR does
+// not declare is refused at every threshold, FailOnNone's included, whatever a
+// rule rates it at, because a stage that broke its contract is the caller's to
+// hear about whatever gate they chose.
+func (t threshold) verdict(doc *ir.Document, findings []triage.Finding) (bool, error) {
+	failed := doc == nil
+	for _, f := range findings {
+		d := f.Diagnostic
+		if !d.Severity.Valid() {
 			return false, fmt.Errorf("engine: diagnostic %q has severity %q: %w",
 				d.Code, d.Severity, errUnknownSeverity)
 		}
-		failed = failed || threshold(rank) >= t
+		rank, ranked := f.Severity.Rank()
+		if !ranked {
+			return false, fmt.Errorf("engine: diagnostic %q is rated at severity %q: %w",
+				d.Code, f.Severity, errUnknownSeverity)
+		}
+		failed = failed || !f.Accepted && threshold(rank) >= t
 	}
 	return failed, nil
 }
 
-// judge records res's verdict at t as Result.Failed and returns res, or the
-// error the verdict refused it with.
-func (t threshold) judge(res *Result) (*Result, error) {
-	failed, err := t.verdict(res)
+// judge rates res's findings by the plan's rules, records them and the rules
+// none matched on res, and its verdict at the plan's threshold as
+// Result.Failed. It returns res, or the error the verdict refused it with.
+//
+// A run that produced no document stopped short of most of the findings a
+// rule is written for, so it lists no rule as unused: none it missed is shown
+// to have outlived its finding.
+func (p plan) judge(res *Result) (*Result, error) {
+	findings, unused := p.rules.Rate(res.Diagnostics)
+	failed, err := p.failOn.verdict(res.Document, findings)
 	if err != nil {
 		return nil, err
 	}
-	res.Failed = failed
+	if res.Document == nil {
+		unused = nil
+	}
+	res.Findings, res.UnusedRules, res.Failed = findings, unused, failed
 	return res, nil
 }

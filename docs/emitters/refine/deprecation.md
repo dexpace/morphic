@@ -9,6 +9,14 @@ request type holding it, the setter a builder gives that field, an enum's consta
 wrapper. `MarkDeprecation` adds it once the declarations exist ([step list](steps.md)). Nothing
 deprecated changes what is sent or read, so the mock server reads none of it.
 
+A model's member is deprecated where its flattened member is, any of its declarations stating a
+deprecation, and carries that member's text (`ir.FlatProperty.Deprecation`, [the
+flattening](../../ir/models.md#the-flattening)), so a conjunct redeclaring a deprecated field
+without `deprecated` leaves the field marked, in a shape a model narrowing a union takes as in the
+model's own. The plan reads it off the flattenings it computes: `TypePlan.Deprecated` gives each
+such member of the model its deprecation, and a `TypePlan.Composed` entry's those of the variant
+composed over that entry ([TypePlan](../plan/types.md#a-model-narrowing-a-union)).
+
 A mark counts only where the target's tools show it at a use in another output unit, the caller's.
 Where a target's mechanism marks a declaration partly or not at all, its document says so and puts
 the text where the caller reads it instead: Kotlin 2.4.0 shows no use in another module of an enum
@@ -41,7 +49,11 @@ spec (spec @bc6fad24, morphic @fa253fe19), 465 of 778 deprecations set no field 
 message, none names a replacement in `ReplacedBy`, and of the 187 operations'
 `x-stainless-deprecation-message` values, 175 name a replacement operation: 147 by a Markdown link
 to its page, 26 by its method and path, as `Use GET /events/event-categories/by-id/{category_id}
-before 2026-11-28.` does, and 2 by its path alone. T-70 holds this section.
+before 2026-11-28.` does, and 2 by its path alone. The OpenAPI compiler's replacement policy reads a
+route a message names, and a sibling a parameter's or a member's message names in a code span, into
+`ReplacedBy` where the document declares it
+([`replacement-inference`](../../compilers/openapi.md#replacement-inference)): at spec @86556f6f it
+fills 25 operations', 2 parameters' and 32 members', and none from a link. T-70 holds this section.
 
 ## Each replacement
 

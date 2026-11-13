@@ -5,15 +5,12 @@ package load
 
 import (
 	"bytes"
-	"cmp"
 	"context"
 	"errors"
 	"fmt"
 	"io"
-	"maps"
 	"net/url"
 	"path/filepath"
-	"slices"
 	"strconv"
 	"strings"
 
@@ -21,10 +18,8 @@ import (
 
 	"github.com/dexpace/morphic/compilers"
 	"github.com/dexpace/morphic/compilers/openapi/internal/bind"
-	"github.com/dexpace/morphic/compilers/openapi/internal/nodeview"
 	"github.com/dexpace/morphic/compilers/openapi/internal/provenance"
 	refscope "github.com/dexpace/morphic/compilers/openapi/internal/resolve"
-	"github.com/dexpace/morphic/compilers/openapi/internal/scan"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -39,16 +34,13 @@ type external struct {
 	// read holds every document prepared and the answer each document's one
 	// read got.
 	read *externalReads
-	// version is the source's OpenAPI version, whose rows read a document
-	// that declares none (readsID).
-	version string
 }
 
-// newExternal returns the reader of the documents the references of a source
-// declaring version name, recording in read what it prepares and how each
-// document's read was answered.
-func newExternal(version string, opts Options, read *externalReads) *external {
-	return &external{opts: opts, read: read, version: version}
+// newExternal returns the reader of the documents a source's references name,
+// recording in read what it prepares and how each document's read was
+// answered.
+func newExternal(opts Options, read *externalReads) *external {
+	return &external{opts: opts, read: read}
 }
 
 // readAs answers the read of the document id names, asked for by the spelling
@@ -61,7 +53,7 @@ func (e external) readAs(ctx context.Context, id, key, location string) answer {
 	if e.opts.Reader == nil {
 		return answer{err: refused(key, "no reader was supplied to read it")}
 	}
-	if err := e.unnamed(location); err != nil {
+	if err := e.unnamed(key, location); err != nil {
 		return answer{err: refused(key, err.Error())}
 	}
 	a := e.read.once(id, func() answer { return e.fetch(ctx, id, key, location) })
@@ -91,10 +83,11 @@ func fileNamed(name string) string {
 	return clean
 }
 
-// documentID names the document a URL key, as a request spells it, reads: the
-// file a file URI names, as fileNamed names one, or the URL itself.
-func documentID(key string) string {
-	if file, ok := refscope.FileOf(key); ok {
+// documentID names the document key, a path or a URL as a request spells it,
+// reads: the file it names where it lies (refscope.Places.FileOf), however a
+// reference spells it, or the URL itself.
+func (e external) documentID(key string) string {
+	if file, ok := e.read.self.places.FileOf(key); ok {
 		return fileNamed(file)
 	}
 	return key
@@ -118,10 +111,15 @@ func (e external) fetch(ctx context.Context, id, key, location string) answer {
 	return answer{body: data, prepared: key}
 }
 
-// unnamed returns why a read confined to Options.Within refuses the document
-// read at location unread, or nil: a file URI names it. A file read at a path
-// is no file URI, though its name may start like one ("./file:a.yaml").
-func (e external) unnamed(location string) error {
+// unnamed returns the refusal of the document under key, read at location,
+// unread, or nil: a location a source read over the network may not reach
+// (bind.Reachable), as every document it reads is read over it too; or, for a
+// read confined to Options.Within, a file URI's. A file read at a path is no
+// file URI, though its name may start like one ("./file:a.yaml").
+func (e external) unnamed(key, location string) error {
+	if !bind.Reachable(e.read.self.path, location) {
+		return refused(key, bind.OffNetwork)
+	}
 	if e.opts.Within != "" && isFileURI(location) {
 		return errors.New("it is named by a file URI" + followedWhenAllowed)
 	}
@@ -140,14 +138,14 @@ const followedWhenAllowed = ", which a read follows only when external reference
 // either mode it refuses a URL whose scheme is none of http, https and file,
 // which a reader would take for a path against the working directory. With no
 // reader it is nil.
-func refusedByName(opts Options, self string) func(uri string) error {
+func refusedByName(opts Options, self string, places *refscope.Places) func(uri string) error {
 	if opts.Reader == nil {
 		return nil
 	}
 	confined := opts.Within != ""
 	return func(uri string) error {
 		if !refscope.IsURL(uri) {
-			if confined && filepath.IsAbs(uri) && !namesSource(self, uri) {
+			if confined && filepath.IsAbs(uri) && !namesSource(places, self, uri) {
 				return refused(uri, "the $ref names it by an absolute path"+followedWhenAllowed)
 			}
 			return nil
@@ -165,10 +163,11 @@ func refusedByName(opts Options, self string) func(uri string) error {
 }
 
 // namesSource reports whether uri, a $ref's document part, names the source
-// at self, read as every reference is (resolve.Locate).
-func namesSource(self, uri string) bool {
+// at self, read as every reference is (resolve.Locate), where the files lie in
+// places.
+func namesSource(places *refscope.Places, self, uri string) bool {
 	named, ok := refscope.Locate(uri, self)
-	return ok && refscope.SameDocument(self, named)
+	return ok && places.SameDocument(self, named)
 }
 
 // readFailure returns the error a reference into the document under key fails
@@ -180,7 +179,7 @@ func readFailure(opts Options, key string, err error) error {
 	switch {
 	case errors.Is(err, compilers.ErrDocumentTooLarge):
 		return refused(key, fmt.Sprintf("it is past the %d-byte budget", opts.MaxSourceBytes.Cap()))
-	case errors.Is(err, compilers.ErrOutsideWithin) && overNetwork(key):
+	case errors.Is(err, compilers.ErrOutsideWithin) && bind.OverNetwork(key):
 		return refused(key, "it is on the network, which a read reaches only when external references are allowed")
 	case errors.Is(err, compilers.ErrOutsideWithin):
 		return refused(key, fmt.Sprintf("it lies outside the source's directory %s, "+
@@ -267,147 +266,7 @@ func (e external) admit(ctx context.Context, key string, root *yaml.Node) error 
 		return refused(key, fmt.Sprintf("it parses to %d nodes, past the %d-node budget",
 			nodes, e.opts.MaxSourceNodes.Cap()))
 	}
-	if reason, refuse := reachesLocal(ctx, root, key, e.readsID(root)); refuse {
-		return refused(key, "it is fetched over the network and "+reason+
-			", which a remote document must not do")
-	}
 	return nil
-}
-
-// readsID returns whether the binder reads a schema of root, a document read
-// beside the source, written in dialect as naming its identifier `id`: by the
-// rows dialect has at the version root declares, or the source's, as the
-// binder asks them (bindAll).
-func (e external) readsID(root *yaml.Node) func(dialect string) bool {
-	d := &dialects{spec: e.read.self.judged.checker.Spec(), version: e.version}
-	declared := declaredVersion(root)
-	return func(dialect string) bool {
-		_, _, rows := d.of(declared, dialect)
-		return dialectRuleOf(rows.Schema, dialect).Keyword == "id"
-	}
-}
-
-// reachesLocal returns why root, a document fetched over the network, must not
-// be read, when a $ref or an identifier in it takes a read to the local file
-// system, and whether one does (GitHub #929). base keys the document.
-//
-// A $ref or $id naming a local location against base does (localTarget). An
-// `id` does only where a dialect root's `$schema` or jsonSchemaDialect names
-// reads it as an identifier (readsID), as draft 4 does, so an example's is
-// none. A value is read through an alias. The reason names the one at the
-// least pointer (scan.Least), which no declaration order moves.
-func reachesLocal(ctx context.Context, root *yaml.Node, base string, readsID func(dialect string) bool,
-) (reason string, refuse bool) {
-	if !overNetwork(base) {
-		return "", false
-	}
-	r := localReading{base: base, named: map[string]bool{declaredDialect(root): true},
-		refs: map[*yaml.Node]string{}, ids: map[*yaml.Node]string{}}
-	nodeview.Walk{Nodes: maxTreeNodes, Visit: func(n *yaml.Node, _ int) nodeview.Step {
-		r.read(n)
-		return nodeview.Descend
-	}}.Run(ctx, root)
-	if len(r.refs) > 0 {
-		return leastOf(ctx, root, r.refs), true
-	}
-	for dialect := range r.named {
-		if readsID(dialect) && len(r.ids) > 0 {
-			return leastOf(ctx, root, r.ids), true
-		}
-	}
-	return "", false
-}
-
-// localReading is what a walk of a document read from base has found that can
-// take a read of it to the local file system: why each $ref or $id value that
-// does, and each `id` value that would were it an identifier, does, by the
-// value's node, and each dialect a `$schema` or its jsonSchemaDialect names.
-type localReading struct {
-	base      string
-	refs, ids map[*yaml.Node]string
-	named     map[string]bool
-}
-
-// read notes what the mapping n writes itself, a value's alias followed.
-func (r *localReading) read(n *yaml.Node) {
-	for i := 0; n.Kind == yaml.MappingNode && i+1 < len(n.Content); i += 2 {
-		key, own := nodeview.KeyOf(n.Content[i])
-		value := nodeview.Deref(n.Content[i+1])
-		if !own || value == nil || value.Kind != yaml.ScalarNode {
-			continue
-		}
-		switch key {
-		case "$ref", "$id":
-			if why := localReference(key, value.Value, r.base); why != "" {
-				r.refs[value] = why
-			}
-		case "id":
-			if why := localID(value.Value, r.base); why != "" {
-				r.ids[value] = why
-			}
-		case "$schema":
-			r.named[value.Value] = true
-		}
-	}
-}
-
-// leastOf returns why the value at the least pointer of root among found
-// reaches the local file system: the nodes are handed over in the order the
-// document writes them, so of a key written twice the first is named.
-func leastOf(ctx context.Context, root *yaml.Node, found map[*yaml.Node]string) string {
-	nodes := slices.SortedFunc(maps.Keys(found), func(a, b *yaml.Node) int {
-		return cmp.Or(cmp.Compare(a.Line, b.Line), cmp.Compare(a.Column, b.Column))
-	})
-	return found[scan.Least(ctx, root, nodes)]
-}
-
-// localReference returns why a $ref or $id, key, written value in a document
-// read from base takes the resolver to the local file system: a $ref naming a
-// local file, or a $id naming a local location. It is "" for one that does not.
-func localReference(key, value, base string) string {
-	t, local := localTarget(value, base)
-	switch {
-	case !local:
-		return ""
-	case key == "$ref":
-		return fmt.Sprintf("its $ref %q reaches the local file %s", value, t)
-	default:
-		return fmt.Sprintf("its $id %q rebases references onto the local %s", value, t)
-	}
-}
-
-// localID returns why an `id` written value in a document read from base would
-// rebase references onto the local file system, were it read as JSON Schema
-// draft 4 reads it: where it names a location on disk as the binder, which
-// alone reads one, resolves it (bind.IdentifierURI). It is "" for one that
-// stays on the network, as a relative one does, or names nothing.
-func localID(value, base string) string {
-	if t, local, named := bind.IdentifierURI(value, base); named && local {
-		return fmt.Sprintf("its id %q rebases references onto the local %s", value, t)
-	}
-	return ""
-}
-
-// overNetwork reports whether key names a document the reader fetched over the
-// network: an http or https URL. A file: URI is local, and so is a path.
-func overNetwork(key string) bool {
-	u, err := url.Parse(key)
-	return err == nil && (strings.EqualFold(u.Scheme, "http") || strings.EqualFold(u.Scheme, "https"))
-}
-
-// localTarget returns the location the $ref or $id value ref, read against
-// base, names (resolve.Locate), and whether a reader reads it from disk: a
-// location with no scheme of two letters or more, a path or a drive letter's,
-// or a file: URI. A URL of any other scheme is no file, and a value no reading
-// can place names nothing, each left for the read to refuse or report.
-func localTarget(ref, base string) (string, bool) {
-	uri, _, _ := strings.Cut(ref, "#")
-	target, ok := refscope.Locate(uri, base)
-	if !ok {
-		return "", false
-	}
-	u, err := url.Parse(target)
-	return target, err != nil || len(u.Scheme) < 2 || strings.EqualFold(u.Scheme, "file")
 }
 
 // isFileURI reports whether s is a file: URI.

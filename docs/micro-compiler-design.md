@@ -318,6 +318,15 @@ the document rather than assemble one from whichever copies came first
 (GitHub #1430, #1470). Of what copies of `Ctx` share, it is the one that changes what
 another lowering reads.
 
+*Later:* a memo `Ctx` holds reads the registry rather than the documents. The
+discriminator-inference policy's settlements share one store of what they read of the registry's
+types (`lowering.Settled`, GitHub #1712), so a type many of them ask about is read once a run.
+Unlike an answer `Remembered` keeps, which no order can make stale, a reading of the registry
+holds only while no settlement after it rewrites what it read, so the store is held apart from
+those answers. Of the settlements, only the fold of a redeclared field changes what a reading
+answers; it runs as a completion, before every reading, and reports a compiler bug where it
+finds one stored.
+
 *Later:* the `operationIDs` row did not survive either. The operation walk recurses
 through callbacks, each a path item with operations of its own, and whether an
 operationId is unique is a question about every operation the service mounts, callbacks
@@ -715,9 +724,9 @@ Both oracles landed before Tier 1, proven against the current code first.
 ### 8.4 Blind spots, stated so they are not mistaken for coverage
 
 - ~~**`harness.Check` returns at the first error diagnostic, before `irverify` runs.**~~ —
-  **closed** for `irverify`: every document a run returns is held to it before the spec's own
-  errors are read. The oracles after it still stop there (#685), so establish where each new
-  fixture lands rather than assuming it arrives.
+  **closed**: every document a run returns is held to `irverify` before the spec's own errors are
+  read, and since #685 no oracle stops at an error. One with nothing to compare, such as the round
+  trip of a refusal, declines and says why, which the sweep's summary counts.
 - ~~**The annotation grid cannot express a carrier position** (#142)~~ — **closed.** The grid gained
   a kind for each carrier, and they are separate kinds because the two hold different sets:
   `ir.Property` has XML and Visibility fields and `ir.Parameter` has neither, so one shared row would

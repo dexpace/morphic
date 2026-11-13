@@ -4,11 +4,15 @@
 package resolve
 
 import (
+	"context"
+	"errors"
 	"path/filepath"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/dexpace/morphic/compilers"
 )
 
 // TestSameDocument pins when the resolver reading one path reads the document
@@ -43,7 +47,7 @@ func TestSameDocument(t *testing.T) {
 		{"file:spec.yaml", "spec.yaml", false},
 		{"", "", false},
 	} {
-		assert.Equal(t, c.want, SameDocument(c.a, c.b), "%q %q", c.a, c.b)
+		assert.Equal(t, c.want, (*Places)(nil).SameDocument(c.a, c.b), "%q %q", c.a, c.b)
 	}
 }
 
@@ -104,7 +108,7 @@ func TestFileOf(t *testing.T) {
 		{"https://example.com/spec.yaml", "", false},
 		{"urn:example:spec", "", false},
 	} {
-		got, ok := FileOf(c.name)
+		got, ok := (*Places)(nil).FileOf(c.name)
 		assert.Equal(t, c.ok, ok, "%q", c.name)
 		assert.Equal(t, c.want, got, "%q", c.name)
 	}
@@ -158,4 +162,54 @@ func TestIsURL(t *testing.T) {
 	} {
 		assert.Equal(t, want, IsURL(location), "%q", location)
 	}
+}
+
+// linkReader places one directory elsewhere, as a link to it would, counting
+// each time it is asked, and reads nothing.
+type linkReader struct {
+	from, to string
+	asked    map[string]int
+}
+
+func (r *linkReader) ReadDocument(context.Context, compilers.DocumentRequest) ([]byte, error) {
+	return nil, errors.New("reads nothing")
+}
+
+func (r *linkReader) LocateDirectory(dir string) string {
+	r.asked[dir]++
+	if dir == r.from {
+		return r.to
+	}
+	return dir
+}
+
+// TestPlaces_PlacesAFileWhereItsDirectoryLies pins where a compile's files
+// lie: an absolute path, its dot segments removed, in its directory as the
+// reader places it, asked once a directory, its own name kept; a relative path
+// and every path under a reader placing none, as spelled. One file spelled
+// through the link, as its target or by a file URI is one document.
+func TestPlaces_PlacesAFileWhereItsDirectoryLies(t *testing.T) {
+	t.Parallel()
+	r := &linkReader{from: "/link", to: "/real", asked: map[string]int{}}
+	p := NewPlaces(r)
+	require.NotNil(t, p)
+
+	assert.Equal(t, "/real/a.yaml", p.File("/link/a.yaml"))
+	assert.Equal(t, "/real/a.yaml", p.File("/link/x/../a.yaml"))
+	assert.Equal(t, "/other/a.yaml", p.File("/other/a.yaml"))
+	assert.Equal(t, "link/a.yaml", p.File("link/a.yaml"), "a relative path, kept as spelled")
+	assert.Equal(t, "/real", p.Directory("/link"))
+	assert.Equal(t, "link", p.Directory("link"))
+	assert.Equal(t, 1, r.asked["/link"], "a directory is asked once")
+	file, ok := p.FileOf("file:///link/a.yaml")
+	assert.True(t, ok)
+	assert.Equal(t, "/real/a.yaml", file)
+	assert.True(t, p.SameDocument("/link/a.yaml", "file:///real/a.yaml"))
+	assert.False(t, p.SameDocument("/link/a.yaml", "/other/a.yaml"))
+
+	assert.Nil(t, NewPlaces(nil), "a reader placing no directory")
+	var none *Places
+	assert.Equal(t, "/link/a.yaml", none.File("/link/a.yaml"))
+	assert.Equal(t, "/link", none.Directory("/link"))
+	assert.False(t, none.SameDocument("/link/a.yaml", "/real/a.yaml"), "read lexically")
 }

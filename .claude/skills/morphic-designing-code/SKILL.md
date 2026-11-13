@@ -32,7 +32,7 @@ Each row names the rule, and code holding it to copy.
 | a limit | `references/design-rules.md#bound-the-product` | `maxResumeWork` in `compilers/openapi/internal/load/resume.go` |
 | a call into code the package does not own | `references/design-rules.md#catch-reaches-one-goroutine` | `taggedMappingRefusal` in `compilers/openapi/internal/load/load.go` |
 | a shape a caller or another consumer will use | `.claude/skills/morphic-changing-the-ir/references/ir-lessons.md#measure-the-premise` | `Deprecation` in `ir/docs.go` |
-| a flattened member's reader | `.claude/skills/morphic-changing-the-ir/references/ir-lessons.md#flattened-member-declarations` | `pinnedMember` in `compilers/openapi/internal/schema/tags.go` |
+| a flattened member's reader | `.claude/skills/morphic-changing-the-ir/references/ir-lessons.md#flattened-member-declarations` | `member` in `compilers/openapi/internal/schema/tagreadings.go` |
 | a rule another package already implements | `.claude/skills/morphic-verifying-changes/references/derive-never-maintain.md#parallel-implementations-agree` | `Inferred` in `ir/inferred.go` |
 | a reading the parser library already makes | `.claude/skills/morphic-openapi-compiler/references/openapi-lessons.md#reuse-library-readings` | `Pointer` in `compilers/openapi/internal/fragment/fragment.go` |
 | a helper or algorithm another site may hold | `references/design-rules.md#share-only-what-means-the-same`, `references/design-rules.md#fallback-suits-the-decision` | `hoistScalar` in `compilers/openapi/internal/schema/scalar.go` |

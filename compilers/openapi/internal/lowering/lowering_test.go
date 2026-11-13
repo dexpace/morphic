@@ -323,6 +323,30 @@ func TestRemembered_KeepsWhatAReadingRemembers(t *testing.T) {
 	assert.Equal(t, 2, reads, "inner was read once, within outer")
 }
 
+// TestSettled_BuildsOneStorePerRun pins that a store is built once for every
+// copy of a context, one for each type of store, and afresh for another
+// context, whose settlements read another registry.
+func TestSettled_BuildsOneStorePerRun(t *testing.T) {
+	t.Parallel()
+	type counts struct{ n int }
+	type names struct{ s string }
+	builds := 0
+	build := func() *counts {
+		builds++
+		return &counts{n: builds}
+	}
+	c := loweringtest.Context(t, bindingsSpec, lowering.Policy{})
+
+	first := lowering.Settled(c, build)
+	assert.Same(t, first, lowering.Settled(c.InScope(c.RefScope().InSource()), build), "a copy shares c's store")
+	assert.Equal(t, &names{s: "n"}, lowering.Settled(c, func() *names { return &names{s: "n"} }),
+		"another type of store is another store")
+	assert.Same(t, first, lowering.Settled(c, build), "a store of another type replaces none")
+	other := lowering.Settled(loweringtest.Context(t, bindingsSpec, lowering.Policy{}), build)
+	assert.NotSame(t, first, other, "another context builds its own")
+	assert.Equal(t, 2, builds, "one store of a type per run")
+}
+
 // TestScoped_KeysAPositionByTheScopeItIsReadIn pins the key a position is
 // remembered under: one for every copy of a context in its scope, and another
 // for another position and for another document's scope.

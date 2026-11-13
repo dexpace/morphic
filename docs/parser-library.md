@@ -2,10 +2,11 @@
 
 The OpenAPI compiler reads a document through `github.com/speakeasy-api/openapi`, the parser
 library. Its decoder builds the typed model from the YAML tree, its resolver follows `$ref`s, which
-the compiler never asks it to, and its overlay applier patches a YAML tree. This page records what
-the compiler depends on the library doing, defects included: each behaviour the compiler refuses input over or works around. Each entry
-gives the behaviour, the smallest input that shows it, the compiler code that exists because of it,
-and the test that pins it.
+the compiler never asks it to, and its overlay package reads an overlay document and the JSONPath
+selectors in it, which the compiler applies itself. This page records what the compiler depends on
+the library doing, defects included: each behaviour the compiler refuses input over or works
+around. Each entry gives the behaviour, the smallest input that shows it, the compiler code that
+exists because of it, and the test that pins it.
 
 Not every reading the compiler shares with the library is an entry. Where the compiler reproduces
 one, a test beside the reproduction asks the library the same question. The binding oracle in
@@ -583,9 +584,9 @@ boolean, as its text. A `!!timestamp`, which any plain date is
 a `!!binary` and a local tag are none of these. A string field so written reads as empty, and a
 Reference Object's `$ref` as no reference, its wrapper holding no object, and the model holds no
 `summary` or `description` beside it either. The compiler binds reference objects itself, reading
-the `$ref` as its text, so the reference is followed all the same. The validator, which the compiler does not call,
-reports a type mismatch at each; the compiler's table reads any scalar as a string and reports
-neither. The core keeps the node, and what is written beside it.
+the `$ref` as its text, so the reference is followed all the same. The validator, which the compiler
+does not call, reports a type mismatch at each; the compiler's table reads any scalar as a string
+and reports neither. The core keeps the node, and what is written beside it.
 
 YAML 1.2, which OpenAPI recommends, reads a plain date and a plain `<<` as strings, as it reads any
 scalar under the non-specific `!`, so the compiler tags each such date and `<<` a string in the
@@ -723,24 +724,49 @@ components:
 
 ## Overlays
 
-### `overlay-alias-clone`
+### `overlay-jsonpath-dialect`
 
-Applying an overlay clones each update into what its target selects, and the clone follows aliases
-with no record of where it has been. So an update whose anchor names its own ancestor overflows the
-stack, and one whose aliases multiply expands until memory runs out. A cloned alias names a copy of
-its target outside the tree, one in no `Content` list, rather than the anchored node the clone
-placed.
+`Overlay.NewPath`, the overlay package's reader of a selector, reads one as RFC 9535 only for an
+overlay declaring Overlay 1.1 or later, or one whose `x-speakeasy-jsonpath` extension says
+`rfc9535`. It reads any other in an older dialect of its own, in which an RFC 9535 filter does not
+parse, though both versions of the Overlay Specification make every selector RFC 9535. With the
+overlay's `JSONPathVersion` field set to `rfc9535` it reads every selector as RFC 9535, the
+property-name operator `~` included, which RFC 9535 does not have.
 
 ```yaml
+overlay: 1.0.0
 actions:
-  - target: $.info
-    update: {x-a: &a [*a]}
+  - target: '$.paths.*[?@.operationId=="putBlob"]'   # does not parse
 ```
 
 - Verified at: v1.26.3
-- Pinned by: `TestLibraryBehaviour/overlay-alias-clone`
+- Pinned by: `TestLibraryBehaviour/overlay-jsonpath-dialect`
 - Code:
-  - `scan.Aliases` refuses an overlay document whose aliases recurse or expand past its size.
-  - `load.overlayRefusals` runs it before the overlay is applied.
-  - `overlay.repairGrafts` replaces each alias the application leaves naming a copy with what it
-    stands for.
+  - `overlay.read` sets every overlay it reads to RFC 9535, whatever it declares.
+  - `overlay.scanSelector` finds a `~`, which `overlay.readSelector` refuses.
+
+### `jsonpath-rfc9535`
+
+The RFC 9535 parser the overlay package reads selectors with parts from RFC 9535. It refuses a
+member name `true`, `false` or `null` written after a dot, and any `\u` escape in a string, both of
+which RFC 9535 reads. It reads the escape `\r` as a line feed, so a selector naming a member by one
+selects another, and it accepts a control character written unescaped in a string, which RFC 9535
+refuses. Its `match()` and `search()` answer true for a node lacking the value they test, where RFC
+9535 answers false, so a filter calling one selects every such node. Its comparisons read a scalar
+by its YAML tag: a plain date, which the compiler reads as the string it spells, equals no string
+and equals every other plain date, and `0x10` compares as 0. Two objects compare equal only with
+their members in the same order.
+
+```yaml
+actions:
+  - target: "$.paths.*[?match(@.summary, 'Pets.*')]"   # selects every operation with no summary too
+  - target: "$.paths.*[?@['x-limit'] == 0]"           # selects x-limit: 0x10 too
+```
+
+- Verified at: v1.26.3
+- Pinned by: `TestLibraryBehaviour/jsonpath-rfc9535`
+- Code:
+  - `overlay.scanSelector` finds each of these in a selector's text, bar the comparisons, which no
+    text shows.
+  - `overlay.readSelector` refuses each it finds, before any action applies. A comparison applies
+    as the library reads it (#1835).

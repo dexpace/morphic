@@ -307,10 +307,9 @@ func statusConditions(rng ir.StatusRange, ok bool) ir.ResponseConditions {
 //
 // A warning rather than an error: the response itself lowers completely — body,
 // headers, docs, name — and only the status it answers to is unknown, so the
-// document still compiles to IR worth having. It also keeps a fixture carrying
-// one reachable, since harness.Check returns at the first error diagnostic and
-// FuzzCompile skips an input that produces one, which would put every oracle
-// past this point out of reach of the case that provokes it.
+// document still compiles to IR worth having. It also keeps an input carrying
+// one in reach of FuzzCompile, which skips an input that draws an error and so
+// would hold none of its oracles to the case that provokes it.
 func invalidStatusKeyDiag(c lowering.Ctx, code string, entry jsontext.Pointer) ir.Diagnostic {
 	return c.DiagAt(ir.SeverityWarning, diag.InvalidStatusKey, entry,
 		"response key %q is no status code, no 1XX-5XX range, and not %s; "+

@@ -761,3 +761,35 @@ paths:
 		assert.Equal(t, want, params[0].Type.Target, spelling)
 	}
 }
+
+// TestReferenceObjects_ADocumentPartIsReadWhereTheSourceLies pins a reference
+// object's document part read as a schema $ref's is, against where the source
+// lies though it declares $self, so the two kinds read one document alike
+// (GitHub #863, docs/compilers/openapi.md#self-uri).
+func TestReferenceObjects_ADocumentPartIsReadWhereTheSourceLies(t *testing.T) {
+	t.Parallel()
+	doc, diags := refSpec{disk: true, others: map[string]string{"other.yaml": `openapi: 3.2.0
+info: {title: o, version: "1"}
+paths: {}
+components:
+  responses:
+    R: {description: r}
+  schemas:
+    OS: {type: string}
+`}}.compile(t, `openapi: 3.2.0
+$self: https://example.com/api/openapi.yaml
+info: {title: t, version: "1"}
+paths:
+  /a:
+    get:
+      operationId: a
+      responses:
+        "200": {$ref: "other.yaml#/components/responses/R"}
+        "201": {description: s, content: {application/json: {schema: {$ref: "other.yaml#/components/schemas/OS"}}}}
+`)
+	assert.Empty(t, sitedFindings(diags))
+	op, ok := opByName(doc, "a")
+	require.True(t, ok)
+	require.Len(t, op.Responses, 2)
+	assert.Equal(t, ir.Docs{Description: "r"}, op.Responses[0].Docs, "the response other.yaml declares")
+}

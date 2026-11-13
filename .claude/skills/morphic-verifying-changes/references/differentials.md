@@ -98,26 +98,30 @@ whether the answer means anything.
 - **Why.** Diagnostics append in walk order, which the permutation changes (#808). A types-only diff
   missed a reference that took a type already interned at its pointer (#591).
 
-## A clean order oracle says nothing of a fact it does not compare
+## A clean order oracle says nothing of an order it forgives
 `order-oracle-reads-what-it-compares`
 
-- **Rule.** Read `diffOrderInvariants` in `internal/harness/order.go` before trusting a clean order
-  oracle: it is what the oracle compares. A fact outside it, such as one held on an operation or a
-  response, needs its own two-order diff, however many specs reach the sweep, and a spec is not
-  permuted at all where reversing its mappings would lift an alias above its anchor (#403).
-- **Why.** With the normalization of a slice held only on operations deleted, `morphic-harness`
-  still passed a spec whose two headers lower in opposite orders, since no comparison reads them
-  (#1166).
-- **Probe.** `grep -n 'cmp\.Diff' internal/harness/order.go` lists the comparisons; plant an order
-  dependence in the fact and see whether the oracle reddens.
+- **Rule.** Read `orderFree` and `diagnosticSet` in `internal/harness/order.go` before trusting a
+  clean order oracle: it forgives the order of what `orderFree` lists and a message's text, and
+  permutes mappings alone at the default limits. An order dependence among a listed collection's
+  elements, in a message, in a sequence such as an `allOf`'s branches (#1666), or at another
+  limit (#1519) needs its own two-order diff, however many specs reach the sweep.
+- **Why.** With a slice held only on operations left unread, `morphic-harness` passed a spec whose
+  two headers lower in opposite orders (#1166, #684); sorting every list of examples passed a
+  schema whose `examples` array lowered reversed in one order (#1818).
+- **Probe.** Plant an order dependence in the fact and see whether the oracle reddens.
 
-## The order oracle never reaches specs with errors
+## An oracle that declines a spec asked it nothing
 `order-oracle-errors`
 
-- **Rule.** `harness.Check` stops at the first error diagnostic. To measure order dependence over
-  specs with errors, call `orderInvariant` from a scratch test in `internal/harness` on both
-  builds, and delete it after.
-- **Why.** Order-dependent specs hid behind their errors (#917).
+- **Rule.** Before claiming an oracle covered a spec, read its verdict: the `declined` column of
+  the summary `morphic-harness` prints after its report, or `Result.Verdicts`. An oracle with
+  nothing to compare declines, by reason, such as a refusal's round trip or a spec writing a key
+  twice for the order oracle, and a panic leaves every later oracle not reached.
+- **Why.** Order-dependent specs hid behind their errors while the sweep stopped at the first one
+  (#917, #685), and the order oracle reported `ok` on every spec using an anchor it could not
+  permute (#403).
+- **Probe.** `go run ./cmd/morphic-harness <spec>` and read the row of the oracle in question.
 
 ## Never compare cmp.Diff text across runs
 `cmp-diff-random`
@@ -178,8 +182,8 @@ whether the answer means anything.
   no binary is rebuilt while a run of it starts with the flag.
 - **Why.** The key names a build by its executable's bytes and holds no environment (#1304): a run
   setting `ZZMUT=1`, which selected a mutant, got the document an unset run had stored, and an unset
-  run got the mutant's when the mutant ran first (morphic @c1d984a06). A run that starts as its
-  binary is replaced stores under the new build (#1318).
+  run got the mutant's when the mutant ran first (morphic @c1d984a06). Off Linux, a run that starts
+  as its binary is replaced stores under the new build (#1318).
 - **Probe.** Plant a mutant behind a variable and run it set and unset over one cache directory:
   both runs print the first one's document.
 

@@ -47,10 +47,19 @@ func specLocation(path string, absolute func(string) (string, error)) (string, e
 	if err != nil {
 		return "", err
 	}
-	if dir, err := filepath.EvalSymlinks(filepath.Dir(abs)); err == nil {
-		return filepath.Join(dir, filepath.Base(abs)), nil
+	return filepath.Join(locateDirectory(filepath.Dir(abs)), filepath.Base(abs)), nil
+}
+
+// locateDirectory is compilers.DirectoryLocator for a reader of the local file
+// system: dir with its symbolic links resolved, or dir where they do not
+// resolve, as where it does not exist. The spec's directory is located by it
+// too (SpecLocation), so every file a compile reads lies where the spec's
+// rule places it.
+func locateDirectory(dir string) string {
+	if located, err := filepath.EvalSymlinks(dir); err == nil {
+		return located
 	}
-	return abs, nil
+	return dir
 }
 
 // readSource is ReadSource over fsys.

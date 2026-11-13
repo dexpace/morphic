@@ -15,10 +15,11 @@ import (
 
 // runKey derives the key of a run: everything the document depends on but the
 // documents it reads, which no key made before the compile can name, so an
-// entry lists them instead (entryHead.Reads). FailOn is absent: the verdict is
-// judged afresh. The format is too: it follows from the bytes, and finding it
-// is what a hit skips. The spec's Location is present beside its Path because
-// what its references name is read against it.
+// entry lists them instead (entryHead.Reads). FailOn and Triage are absent: a
+// hit's findings are rated and its verdict judged afresh. The format is too: it
+// follows from the bytes, and finding it is what a hit skips. The spec's
+// Location is present beside its Path because what its references name is
+// read against it.
 func (b *cacheBinding) runKey(spec compilers.Source, opts RunOptions, p plan) cache.Key {
 	passes := make([]string, 0, len(p.passes))
 	for _, np := range p.passes {

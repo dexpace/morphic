@@ -146,7 +146,7 @@ func TestLabelOf_IsTheLocationTheSourcesDirectoryReachesADocumentBy(t *testing.T
 		{"/work/specs/root.yaml", "inner/pet.yaml", "inner/pet.yaml", false},
 		{"/r/root.yaml", "https://h/pet.yaml", "https://h/pet.yaml", false},
 	} {
-		label, relative := labelOf(tc.self, tc.key)
+		label, relative := sourceDocument{path: tc.self}.labelOf(tc.key)
 		assert.Equal(t, tc.want, label, "%s from %s", tc.key, tc.self)
 		assert.Equal(t, tc.relative, relative, "%s from %s", tc.key, tc.self)
 	}

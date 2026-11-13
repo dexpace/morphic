@@ -10,6 +10,7 @@ import (
 
 	"github.com/dexpace/morphic/compilers"
 	"github.com/dexpace/morphic/compilers/openapi/internal/provenance"
+	refscope "github.com/dexpace/morphic/compilers/openapi/internal/resolve"
 	"github.com/dexpace/morphic/compilers/openapi/internal/scan"
 )
 
@@ -24,6 +25,7 @@ import (
 // nodes a finding is reported for once (GitHub #759).
 type sourceDocument struct {
 	path   string
+	places *refscope.Places
 	handed string
 	data   []byte
 	root   *yaml.Node
@@ -49,11 +51,13 @@ func treeHolds(tree provenance.Tree, n *yaml.Node) bool {
 }
 
 // newSourceDocument returns src, built from its data into root, which the
-// table judged as judged, and whose findings tree places.
-func newSourceDocument(src compilers.Source, root *yaml.Node, judged judgment, tree provenance.Tree,
+// table judged as judged, and whose findings tree places, the files the
+// compile names lying in places.
+func newSourceDocument(src compilers.Source, places *refscope.Places, root *yaml.Node, judged judgment,
+	tree provenance.Tree,
 ) sourceDocument {
-	return sourceDocument{path: Location(src), handed: src.Path, data: src.Data, root: root, judged: judged,
-		tree: tree}
+	return sourceDocument{path: Location(src), places: places, handed: src.Path, data: src.Data, root: root,
+		judged: judged, tree: tree}
 }
 
 // Location is where src lies, as the references in it are read against: its

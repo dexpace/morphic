@@ -27,6 +27,16 @@ type DocumentReader interface {
 	ReadDocument(ctx context.Context, req DocumentRequest) ([]byte, error)
 }
 
+// DirectoryLocator is what a DocumentReader that reads files may also offer:
+// where a directory lies, so a compile names a file reached through two
+// spellings of its directory, such as a symbolic link and its target, as one
+// document. A reader without it leaves every path as spelled.
+type DirectoryLocator interface {
+	// LocateDirectory returns the absolute directory dir with its symbolic
+	// links resolved, or dir itself where they do not resolve.
+	LocateDirectory(dir string) string
+}
+
 // DocumentRequest names one document to read and the bounds the read is held
 // to.
 type DocumentRequest struct {

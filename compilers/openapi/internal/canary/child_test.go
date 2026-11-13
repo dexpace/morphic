@@ -100,7 +100,6 @@ func children() map[string]child {
 		"alive":           goroutinesAlive,
 		"orders":          unknownKeyOrders,
 		"allocations":     allocations,
-		"overlay":         applyOverlay,
 		// The binding oracle's library side.
 		"binding-oracle": libraryAnswers,
 		// Two whose ending is known, for the tests of probe itself.

@@ -213,7 +213,7 @@ func TestBindingDiags_ReportsAChainBackIntoTheSourceWhereItFails(t *testing.T) {
 // prepared for it, so one with none is the compiler's fault, said so.
 func TestExternal_DocumentReportsAReadWithNoTreeAsAFault(t *testing.T) {
 	t.Parallel()
-	ext := newExternal("", Options{Reader: &fakeReader{}}, newExternalReads(sourceDocument{}, budget.Unbounded()))
+	ext := newExternal(Options{Reader: &fakeReader{}}, newExternalReads(sourceDocument{}, budget.Unbounded()))
 	ext.read.once("doc.yaml", func() answer { return answer{body: []byte("a: 1\n")} })
 
 	tree, err := ext.document(t.Context(), "doc.yaml")

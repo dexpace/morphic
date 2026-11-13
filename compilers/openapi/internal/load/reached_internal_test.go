@@ -32,10 +32,12 @@ import (
 )
 
 // externalDir writes files, name to content, into a fresh directory for a root
-// to reach, and returns the directory.
+// to reach, and returns the directory, its links resolved, as a compile names
+// the files in it.
 func externalDir(t *testing.T, files map[string]string) string {
 	t.Helper()
-	dir := t.TempDir()
+	dir, err := filepath.EvalSymlinks(t.TempDir())
+	require.NoError(t, err)
 	for name, content := range files {
 		writeFile(t, dir, name, content)
 	}

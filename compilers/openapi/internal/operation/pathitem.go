@@ -11,6 +11,7 @@ import (
 	"strings"
 
 	soa "github.com/speakeasy-api/openapi/openapi"
+	yaml "go.yaml.in/yaml/v3"
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/annotation"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
@@ -122,55 +123,89 @@ func lowerPaths(ctx context.Context, c lowering.Ctx, w walk, groups *serviceGrou
 			continue
 		}
 		diags = append(diags, found...)
-		diags = append(diags, lowerPathItem(w, groups, svc, path, layers)...)
+		diags = append(diags, lowerPathItem(c, w, groups, svc, path, layers)...)
 	}
 	return diags
 }
 
 // lowerPathItem lowers each method operation the layers of one path declare
 // into its group, carrying along any callback operations registered under the
-// same group. Each operation keeps its mount pointer (under path) as its
-// identity, and lowers from where its layer declares it (see pathItemLayers).
-func lowerPathItem(w walk, groups *serviceGroups, svc *ir.Service, path string, layers []layer) []ir.Diagnostic {
-	route := opContext{key: path, withCallbacks: true, groups: groups}
-	mounted, diags := mountPathItem(w, layers, ids.Ptr("paths", path), route, &svc.Unmodeled)
+// same group, and makes each group the operation's filing names a remount
+// under. Each operation keeps its mount pointer (under path) as its identity,
+// and lowers from where its layer declares it (see pathItemLayers). A fragment
+// the path's key carries is left out of the URI template and the grouping, and
+// kept on each operation's binding (docs/compilers/openapi.md#path-keys).
+func lowerPathItem(c lowering.Ctx, w walk, groups *serviceGroups, svc *ir.Service, path string, layers []layer,
+) []ir.Diagnostic {
+	template, fragment, fragmented := pathRoute(path)
+	route := opContext{key: path, template: template, groups: groups}
+	ptr := ids.Ptr("paths", path)
+	mounted, diags := mountPathItem(w, layers, mountSite{ptr: ptr, use: c, usePtr: ptr, residue: &svc.Unmodeled}, route)
 	for _, m := range mounted {
+		if fragmented {
+			diags = append(diags, keepFragment(c, &m.op, ptr, fragment)...)
+		}
 		grp := groups.place(m.levels)
 		grp.Operations = append(grp.Operations, m.op)
 		grp.Operations = append(grp.Operations, m.extra...)
+		for _, levels := range m.remounts {
+			groups.place(levels)
+		}
 	}
 	return diags
 }
 
+// keepFragment keeps on op's HTTP binding the fragment the key at ptr carries,
+// which its URI template leaves out, verbatim and without its "#". It is text
+// whatever it spells, as a quoted scalar is, so "123" stays no number.
+func keepFragment(c lowering.Ctx, op *ir.Operation, ptr jsontext.Pointer, fragment string) []ir.Diagnostic {
+	text := &yaml.Node{Kind: yaml.ScalarNode, Style: yaml.DoubleQuotedStyle, Value: fragment}
+	_, diags := annotation.PreserveNodeInto(&op.Bindings.HTTP[0].Unmodeled, annotation.EntryKey("", "fragment"), text,
+		ir.ReasonDegradedLowering, c.Place().At(ptr))
+	return diags
+}
+
 // mountedOp is one operation a path item mounts, the callback operations
-// lowered under it, and the groups its route files it in, nil on a route
-// filing none.
+// lowered under it, the groups its route files it in, nil on a route filing
+// none, and the further groups its filing names a remount under.
 type mountedOp struct {
-	op     ir.Operation
-	extra  []ir.Operation
-	levels []groupLevel
+	op       ir.Operation
+	extra    []ir.Operation
+	levels   []groupLevel
+	remounts [][]groupLevel
+}
+
+// mountSite is where a route mounts a path item: the pointer the operations it
+// mounts take their identity from, the use site writing the item, in the
+// document use reads, where a finding about the mount as a whole is sited, and
+// the carrier of what an item mounting no operation writes. A path's and a
+// webhook's use site is the mount; a callback expression's is where its
+// Callback Object writes it, which a mount below a $ref'd one does not address.
+type mountSite struct {
+	ptr     jsontext.Pointer
+	use     lowering.Ctx
+	usePtr  jsontext.Pointer
+	residue *ir.Unmodeled
 }
 
 // mountPathItem lowers every operation the layers of one path item mount, below
-// mount, the one way a path, a webhook and a callback expression lower them.
+// at.ptr, the one way a path, a webhook and a callback expression lower them.
 // Each lowers from the nearest layer declaring it, in that layer's context and
 // below its declaration pointer, in mountedOperations' order; it takes every
 // layer's item parameters merged into its own, the mount's servers where it names
 // none (itemServers), and what the layers keep (keepOn). A mount lowering none
-// keeps what its layers declare in residue instead. route holds what the route
-// sets on every operation; each brings its own method, pointers and parameters.
-func mountPathItem(w walk, layers []layer, mount jsontext.Pointer, route opContext, residue *ir.Unmodeled) ([]mountedOp, []ir.Diagnostic) {
+// keeps what its layers declare in at.residue instead (preserveUnmounted).
+// route holds what the route sets on every operation; each brings its own
+// method, pointers and parameters.
+func mountPathItem(w walk, layers []layer, at mountSite, route opContext) ([]mountedOp, []ir.Diagnostic) {
+	mount := at.ptr
 	ops := mountedOperations(layers)
 	owner, diags := precedence(layers)
 	params := itemParams(layers)
 	named, serverDiags := itemServers(w.servers, layers, owner)
 	diags = append(diags, serverDiags...)
 	if len(ops) == 0 {
-		for i, l := range layers {
-			diags = append(diags, preserveUnmountedPathItem(l.in, onNearestNode(residue, mount), l.item,
-				mount, l.decl, owner.cedes(i), named)...)
-		}
-		return nil, diags
+		return nil, append(diags, preserveUnmounted(layers, owner, named, at)...)
 	}
 	var kept ir.Unmodeled
 	var docs ir.Docs
@@ -191,7 +226,7 @@ func mountPathItem(w walk, layers []layer, mount jsontext.Pointer, route opConte
 		opCtx.params = mergeParameters(l.in.Bindings(), params, po.src.GetParameters(), opCtx.ptrs.decl)
 		var filed filing
 		if route.groups != nil {
-			filed = route.groups.filingFor(l.in, po.src, opCtx.ptrs.decl, route.key)
+			filed = route.groups.filingFor(l.in, po.src, opCtx.ptrs.decl, route.template)
 			opCtx.inferred = filed.inferred
 			diags = append(diags, filed.diags...)
 		}
@@ -202,7 +237,7 @@ func mountPathItem(w walk, layers []layer, mount jsontext.Pointer, route opConte
 			op.Servers = slices.Clone(named)
 		}
 		diags = append(diags, keepOn(&op, kept, docs)...)
-		mounted = append(mounted, mountedOp{op: op, extra: extra, levels: filed.levels})
+		mounted = append(mounted, mountedOp{op: op, extra: extra, levels: filed.levels, remounts: filed.remounts})
 		if po.additional {
 			// mergeParameters puts the operation's own parameters first, so what
 			// follows them is what it takes of its item's.
@@ -297,24 +332,26 @@ func onNearestNode(u *ir.Unmodeled, mountPtr jsontext.Pointer) carrier {
 	return carrier{unmodeled: u, scope: pathItemScope + string(mountPtr)}
 }
 
-// preserveUnmountedPathItem keeps what an item that produced no operation
-// wrote, and says so: a reader seeing its declarations away from any operation
-// needs to know why. It keeps what applyPathItem keeps, and the item's
-// parameters (keepItemParams). named is itemServers' result.
+// preserveUnmounted keeps what the layers of a mount that produced no
+// operation write, and says so once, at the mount's use site: a reader seeing
+// their declarations away from any operation needs to know why. Each layer
+// keeps what applyPathItem keeps, and its parameters (keepItemParams), less
+// what a nearer layer keeps. named is itemServers' result.
 //
-// The finding is sited in c's document, wrong for a layer another document
-// declares (GitHub #1164). It follows what landed, not what the item wrote: a
-// construct merged in from past nodeview.MergeDepthLimit is read by the model
-// and not by nodeview.Child, so a model predicate would claim a preservation
-// that did not happen.
-func preserveUnmountedPathItem(c lowering.Ctx, into carrier, pi *soa.PathItem, mountPtr, declPtr jsontext.Pointer,
-	cedes func(string) bool, named []ir.ServerID,
-) []ir.Diagnostic {
+// The finding follows what landed, not what the item wrote: a construct merged
+// in from past nodeview.MergeDepthLimit is read by the model and not by
+// nodeview.Child, so a model predicate would claim a preservation that did not
+// happen.
+func preserveUnmounted(layers []layer, owner owners, named []ir.ServerID, at mountSite) []ir.Diagnostic {
+	into := onNearestNode(at.residue, at.ptr)
 	before := len(*into.unmodeled)
-	diags := applyPathItem(c, into, pi, declPtr, cedes)
-	diags = append(diags, keepItemParams(c, into, pi, mountPtr, declPtr, cedes)...)
+	var diags []ir.Diagnostic
+	for i, l := range layers {
+		diags = append(diags, applyPathItem(l.in, into, l.item, l.decl, owner.cedes(i))...)
+		diags = append(diags, keepItemParams(l.in, into, l.item, at.ptr, l.decl, owner.cedes(i))...)
+	}
 	var landed []string
-	if len(named) > 0 && !cedes(constructOf(constructServers, "")) {
+	if len(named) > 0 {
 		landed = append(landed, "its servers are registered, named by no operation")
 	}
 	if len(*into.unmodeled) > before {
@@ -323,7 +360,7 @@ func preserveUnmountedPathItem(c lowering.Ctx, into carrier, pi *soa.PathItem, m
 	if len(landed) == 0 {
 		return diags // nothing landed, so there is no preservation to explain
 	}
-	return append(diags, c.DiagAt(ir.SeverityWarning, diag.DegradedConstruct, mountPtr,
+	return append(diags, at.use.DiagAt(ir.SeverityWarning, diag.DegradedConstruct, at.usePtr,
 		"path item declares no operation this compiler lowers; %s", strings.Join(landed, ", and ")))
 }
 

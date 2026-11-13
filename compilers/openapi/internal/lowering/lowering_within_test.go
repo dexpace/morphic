@@ -26,7 +26,8 @@ import (
 // was taken from is left as it was.
 func TestInScope_ReadsWhereTheBindingsPlaceASchema(t *testing.T) {
 	t.Parallel()
-	dir := t.TempDir()
+	dir, err := filepath.EvalSymlinks(t.TempDir())
+	require.NoError(t, err)
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "ext.yaml"), []byte("paths:\n  /x: {get: {responses: {\"200\": "+
 		"{description: ok, content: {application/json: {schema: {type: string}}}}}}}\n"), 0o600))
 	const root = `openapi: 3.1.0
