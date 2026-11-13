@@ -5,14 +5,19 @@ package operation_test
 
 import (
 	"encoding/json/jsontext"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/dexpace/morphic/compilers"
+	"github.com/dexpace/morphic/compilers/openapi"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
+	"github.com/dexpace/morphic/engine/reader"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -51,11 +56,11 @@ func TestPathItemRefSiblings_UnmountedKeepsSiblings(t *testing.T) {
 		"the preservation is announced at the use site's own pointer")
 }
 
-// TestPathItemRefSiblings_UnmountedSaysEachLayerKept pins that of two layers
-// mounting no operation, each announcement says what its own layer landed: the
-// use site wrote an extension and the referent the servers, so only the
-// referent's mentions them.
-func TestPathItemRefSiblings_UnmountedSaysEachLayerKept(t *testing.T) {
+// TestPathItemRefSiblings_UnmountedSaysOnceWhatEveryLayerKept pins that a
+// mount producing no operation is announced once, at its use site, naming what
+// any of its layers landed: the use site wrote an extension and the referent
+// the servers, and one finding says both.
+func TestPathItemRefSiblings_UnmountedSaysOnceWhatEveryLayerKept(t *testing.T) {
 	t.Parallel()
 	_, diags := parseFull(t, `openapi: 3.1.0
 info: {title: T, version: "1"}
@@ -74,9 +79,9 @@ paths:
 			said = append(said, strings.TrimPrefix(d.Message, "path item declares no operation this compiler lowers; "))
 		}
 	}
-	assert.ElementsMatch(t, []string{
-		"what else it writes is kept beside it, having no operation to hold it",
-		"its servers are registered, named by no operation",
+	assert.Equal(t, []string{
+		"its servers are registered, named by no operation, and what else it writes is kept beside it, " +
+			"having no operation to hold it",
 	}, said)
 }
 
@@ -201,4 +206,50 @@ func TestPathItemRefSiblings_UnmountedCollisionKeepsTheUseSite(t *testing.T) {
 		assert.True(t, openapitest.HasDiagCodeAt(diags, diag.PathItemRefCollision, "/paths/~1a/"+at), at)
 	}
 	assert.False(t, openapitest.HasDiag(diags, diag.UnknownKeyEntryTaken))
+}
+
+// TestPathItem_WithNoOperationIsReportedAtItsUseSite pins where a mount
+// producing no operation is announced when the item is another document's: at
+// the use site writing it, in the document writing it, for a path, and for a
+// callback expression, whose use site is where its Callback Object writes it.
+// Neither the mount's pointer nor the item's document holds the position a
+// finding named there.
+func TestPathItem_WithNoOperationIsReportedAtItsUseSite(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "other.yaml"), []byte(`openapi: 3.1.0
+info: {title: O, version: "1"}
+paths: {}
+components:
+  pathItems:
+    P:
+      x-far: 1
+  callbacks:
+    C:
+      '{$request.body#/u}': {$ref: '#/components/pathItems/P'}
+`), 0o600))
+	doc, diags, err := openapi.New().Compile(t.Context(),
+		[]compilers.Source{{Path: filepath.Join(dir, "root.yaml"), Data: []byte(`openapi: 3.1.0
+info: {title: T, version: "1"}
+paths:
+  /a:
+    $ref: './other.yaml#/components/pathItems/P'
+    x-near: 1
+  /b:
+    post:
+      responses: {"200": {description: ok}}
+      callbacks:
+        cb: {$ref: './other.yaml#/components/callbacks/C'}
+`)}}, compilers.Options{Reader: reader.Disk{}, FormatOptions: openapi.Options{AllowExternalRefs: true}})
+	require.NoError(t, err)
+	require.NotNil(t, doc)
+
+	var found []string
+	for _, d := range diags {
+		if d.Code == diag.DegradedConstruct {
+			require.Less(t, d.Provenance.Source, len(doc.Sources))
+			found = append(found, filepath.Base(doc.Sources[d.Provenance.Source].Path)+"#"+string(d.Provenance.Pointer))
+		}
+	}
+	assert.Equal(t, []string{"root.yaml#/paths/~1a", "other.yaml#/components/callbacks/C/{$request.body#~1u}"}, found)
 }
