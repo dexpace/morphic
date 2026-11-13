@@ -137,11 +137,11 @@ func (e *escapes) forResolver(v, base string) string {
 
 // escape respells, in the tree under root, the document at base, each $ref
 // value the resolver would misread to forResolver's spelling, and records what
-// it changed. A $ref
-// written as an alias becomes a scalar of its own, so the scalar it names is
-// not changed. One written as a scalar is changed, and an alias naming it
-// elsewhere, which may be text, becomes a scalar holding it as written. Every
-// node keeps its identity, which models and indexes of the tree are keyed by.
+// it changed. A $ref written as an alias becomes a scalar of its own, so the
+// scalar it names is not changed. One written as a scalar is changed, and an
+// alias naming it elsewhere, which may be text, becomes a scalar holding it as
+// written. Every node keeps its identity, which models and indexes of the tree
+// are keyed by.
 func (e *escapes) escape(ctx context.Context, root *yaml.Node, base string) {
 	if e == nil {
 		return
