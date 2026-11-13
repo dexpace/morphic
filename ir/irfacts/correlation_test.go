@@ -203,7 +203,7 @@ func TestCorrelation_KeysWhatAnOperationNamesByItsPosition(t *testing.T) {
 
 // prefixesFixture holds a header under a prefix beside a header named as the
 // prefix is, and a header under the empty prefix, and the same of a request's
-// parameters, with a query map under the empty prefix.
+// parameters, with query maps under the empty prefix and under a mixed-case one.
 func prefixesFixture() *ir.Document {
 	op := namedOp("op/test/a", "getA", "/a")
 	op.Params = []ir.Parameter{
@@ -211,12 +211,14 @@ func prefixesFixture() *ir.Document {
 		{ID: "param/test/meta", Name: ir.Naming{Source: "meta"}, Type: ir.TypeRef{Target: "t/anon/pmeta"}},
 		{ID: "param/test/all", Name: ir.Naming{Source: "all"}},
 		{ID: "param/test/rest", Name: ir.Naming{Source: "rest"}},
+		{ID: "param/test/filter", Name: ir.Naming{Source: "filter"}},
 	}
 	op.Bindings.HTTP[0].ParamBindings = []ir.HTTPParamBinding{
 		{Param: "param/test/named", Location: ir.HTTPLocationHeader, WireName: "X-Meta-"},
 		{Param: "param/test/meta", Location: ir.HTTPLocationHeader, Prefix: new("X-Meta-")},
 		{Param: "param/test/all", Location: ir.HTTPLocationHeader, Prefix: new("")},
 		{Param: "param/test/rest", Location: ir.HTTPLocationQuery, Prefix: new("")},
+		{Param: "param/test/filter", Location: ir.HTTPLocationQuery, Prefix: new("Filter-")},
 	}
 	op.Responses = []ir.Response{{
 		Conditions: ir.ResponseConditions{StatusCodes: []ir.StatusRange{{From: 200, To: 200}}},
@@ -247,17 +249,18 @@ func TestCorrelation_KeysAHeaderUnderAPrefixByItsPrefix(t *testing.T) {
 
 // TestCorrelation_KeysAParameterUnderAPrefixByItsPrefix holds a parameter
 // bound under a prefix to where it travels and its prefix rather than its
-// name, apart from a parameter whose wire name is the prefix, and keys the
-// empty prefix of a header and of a query apart
+// name, apart from a parameter whose wire name is the prefix, keys the empty
+// prefix of a header and of a query apart, and keeps a query prefix's case
 // (docs/ir/http-binding.md#prefix-bindings).
 func TestCorrelation_KeysAParameterUnderAPrefixByItsPrefix(t *testing.T) {
 	t.Parallel()
 	assertKeys(t, prefixesFixture(), map[string]string{
-		"param/test/named": "route:GET ~1a/param:header x-meta-",
-		"param/test/meta":  "route:GET ~1a/header/prefix:x-meta-",
-		"t/anon/pmeta":     "route:GET ~1a/header/prefix:x-meta-/schema",
-		"param/test/all":   "route:GET ~1a/header/prefix:",
-		"param/test/rest":  "route:GET ~1a/query/prefix:",
+		"param/test/named":  "route:GET ~1a/param:header x-meta-",
+		"param/test/meta":   "route:GET ~1a/header/prefix:x-meta-",
+		"t/anon/pmeta":      "route:GET ~1a/header/prefix:x-meta-/schema",
+		"param/test/all":    "route:GET ~1a/header/prefix:",
+		"param/test/rest":   "route:GET ~1a/query/prefix:",
+		"param/test/filter": "route:GET ~1a/query/prefix:Filter-",
 	})
 }
 

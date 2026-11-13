@@ -107,6 +107,7 @@ prefixes	p/test/all	route:GET ~1a/error:500/prefix:
 prefixes	p/test/meta	route:GET ~1a/response:200/prefix:x-meta-
 prefixes	p/test/named	route:GET ~1a/response:200/header:x-meta-
 prefixes	param/test/all	route:GET ~1a/header/prefix:
+prefixes	param/test/filter	route:GET ~1a/query/prefix:Filter-
 prefixes	param/test/meta	route:GET ~1a/header/prefix:x-meta-
 prefixes	param/test/named	route:GET ~1a/param:header x-meta-
 prefixes	param/test/rest	route:GET ~1a/query/prefix:
