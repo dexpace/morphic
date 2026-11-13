@@ -286,3 +286,51 @@ func TestReadSource_ReadsARealFile(t *testing.T) {
 	var pathErr *fs.PathError
 	assert.ErrorAs(t, err, &pathErr, "os.Open's error, naming the file")
 }
+
+// TestSpecLocation_PlacesASpecWhereItsDirectoryLies pins where a spec lies, as
+// its references are read against: absolute, the symbolic links of its
+// directory resolved, so the directory reached through a link and by its own
+// path, from any working directory, is one location, while a link to the spec
+// itself is kept, its references read beside it. A directory that does not
+// resolve is kept as written, a URL lies at no path, and an empty path names
+// nothing. Not parallel: it changes directory.
+func TestSpecLocation_PlacesASpecWhereItsDirectoryLies(t *testing.T) {
+	dir, err := filepath.EvalSymlinks(t.TempDir())
+	require.NoError(t, err)
+	spec := filepath.Join(dir, "spec.yaml")
+	require.NoError(t, os.WriteFile(spec, []byte("x"), 0o600))
+	link := filepath.Join(t.TempDir(), "link")
+	require.NoError(t, os.Symlink(dir, link))
+	alias := filepath.Join(link, "alias.yaml")
+	require.NoError(t, os.Symlink(spec, alias))
+
+	for _, c := range []struct{ cwd, path, want string }{
+		{dir, "spec.yaml", spec},
+		{link, "spec.yaml", spec},
+		{filepath.Dir(dir), filepath.Join(filepath.Base(dir), ".", "spec.yaml"), spec},
+		{t.TempDir(), filepath.Join(link, "spec.yaml"), spec},
+		{t.TempDir(), alias, filepath.Join(dir, "alias.yaml")},
+		{dir, "missing/spec.yaml", filepath.Join(dir, "missing", "spec.yaml")},
+		{dir, "https://example.com/spec.yaml", ""},
+		{dir, "file:///spec.yaml", ""},
+	} {
+		t.Chdir(c.cwd)
+		got, err := reader.SpecLocation(c.path)
+		require.NoError(t, err, "%s from %s", c.path, c.cwd)
+		assert.Equal(t, c.want, got, "%s from %s", c.path, c.cwd)
+	}
+	_, err = reader.SpecLocation("")
+	assert.Error(t, err, "an empty path names nothing")
+}
+
+// TestSpecLocation_FailsWhereTheWorkingDirectoryCannotBeRead pins that a
+// relative path the working directory cannot place is an error, not a location
+// read against nothing.
+func TestSpecLocation_FailsWhereTheWorkingDirectoryCannotBeRead(t *testing.T) {
+	t.Parallel()
+	boom := errors.New("no working directory")
+
+	_, err := reader.SpecLocationWith("spec.yaml", func(string) (string, error) { return "", boom })
+
+	require.ErrorIs(t, err, boom)
+}

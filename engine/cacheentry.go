@@ -28,6 +28,9 @@ type entryHead struct {
 	// Reads is every document the compile read. An entry answers only a run
 	// reading the same bytes from each.
 	Reads []documentRead `json:"reads,omitempty"`
+	// Directories is every directory the compile's reader placed. An entry
+	// answers only a run placing each where it did.
+	Directories []locatedDirectory `json:"directories,omitempty"`
 }
 
 // sealOf hashes key and then content. Sealing with the key is what ties an entry
@@ -49,12 +52,12 @@ func sealed(key cache.Key, head, body []byte) []byte {
 }
 
 // encodeEntry writes res as the entry named key, its body the compact document.
-func encodeEntry(key cache.Key, res *Result, reads []documentRead) ([]byte, error) {
+func encodeEntry(key cache.Key, res *Result, reads []documentRead, dirs []locatedDirectory) ([]byte, error) {
 	body, err := json.Marshal(res.Document)
 	if err != nil {
 		return nil, fmt.Errorf("encode document: %w", err)
 	}
-	head, err := json.Marshal(entryHead{Format: res.Format, Reads: reads})
+	head, err := json.Marshal(entryHead{Format: res.Format, Reads: reads, Directories: dirs})
 	if err != nil {
 		return nil, fmt.Errorf("encode head: %w", err)
 	}

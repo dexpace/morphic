@@ -446,7 +446,8 @@ func TestCompile_ALoopThroughAnotherDocumentIsReportedOnce(t *testing.T) {
 			ir.Provenance{Pointer: "/components/schemas/L1"}, false},
 	}
 	for _, tc := range tests {
-		dir := t.TempDir()
+		dir, err := filepath.EvalSymlinks(t.TempDir())
+		require.NoError(t, err)
 		compiled := make([][]string, 0, 2)
 		for _, reversed := range []bool{false, true} {
 			source, other := slices.Clone(tc.source), slices.Clone(tc.other)
