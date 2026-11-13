@@ -99,8 +99,9 @@ type HTTPBinding struct {
 	// Callbacks are out-of-band operations keyed by runtime expressions.
 	Callbacks []Callback `json:"callbacks,omitempty"`
 	// SharedRoute reports that multiple operations legally share method+path,
-	// disambiguated by request content (TypeSpec @sharedRoute); validate must not
-	// reject the duplicate, and single-route emitters must merge.
+	// disambiguated by request content (TypeSpec @sharedRoute) or by nothing on
+	// the wire (OpenAPI path keys differing only in a fragment); validate must
+	// not reject the duplicate, and single-route emitters must merge.
 	SharedRoute bool `json:"sharedRoute"`
 	// ChecksumRequired requires the client to send a payload checksum
 	// (Smithy @httpChecksumRequired).
@@ -171,9 +172,10 @@ const (
 	// HTTPInboundWebhook is a request the API sends on an event, to a URL
 	// arranged outside the document (OpenAPI webhooks).
 	HTTPInboundWebhook HTTPInbound = "webhook"
-	// HTTPInboundCallback is a request the API sends to a URL an operation the
-	// client sent supplies, which that operation's binding lists among its
-	// Callbacks (OpenAPI callbacks).
+	// HTTPInboundCallback is a request the API sends to a URL the exchange of
+	// the operation declaring it supplies, one the client sent or one the API
+	// sent in turn, whose binding lists it among its Callbacks (OpenAPI
+	// callbacks).
 	HTTPInboundCallback HTTPInbound = "callback"
 )
 

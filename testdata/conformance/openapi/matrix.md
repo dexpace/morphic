@@ -124,7 +124,7 @@ witnessing it.
 
 ### `http-binding`
 
-- Witnesses: `param-identity`, `http-binding`, `path-item-operations`
+- Witnesses: `param-identity`, `http-binding`, `path-item-operations`, `path-key-fragments`
 
 ### `param-styles`
 

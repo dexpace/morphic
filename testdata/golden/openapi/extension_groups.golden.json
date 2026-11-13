@@ -42,7 +42,7 @@
   "name": "Extension groups",
   "version": "1",
   "docs": {
-    "description": "Operations grouped by the path x-fern-sdk-group-name states, compiled with grouping=extension: a dotted string, a list of segments, a path nested in another that holds operations of its own, an operation stating no path and one whose value names none, both grouped by their tags, a callback filed with its parent and a webhook in the webhook group."
+    "description": "Operations grouped by the path x-fern-sdk-group-name states, compiled with grouping=extension: a dotted string, a list of segments, a path nested in another that holds operations of its own, an operation stating no path and one whose value names none, both grouped by their tags, a callback filed with its parent and a webhook in the webhook group. The paths an operation's aliases name in x-forge-aliases each get a group holding no operation, for a remount to name."
   },
   "services": [
     {
@@ -52,7 +52,7 @@
         "canonical": "extension_groups"
       },
       "docs": {
-        "description": "Operations grouped by the path x-fern-sdk-group-name states, compiled with grouping=extension: a dotted string, a list of segments, a path nested in another that holds operations of its own, an operation stating no path and one whose value names none, both grouped by their tags, a callback filed with its parent and a webhook in the webhook group."
+        "description": "Operations grouped by the path x-fern-sdk-group-name states, compiled with grouping=extension: a dotted string, a list of segments, a path nested in another that holds operations of its own, an operation stating no path and one whose value names none, both grouped by their tags, a callback filed with its parent and a webhook in the webhook group. The paths an operation's aliases name in x-forge-aliases each get a group holding no operation, for a remount to name."
       },
       "groups": [
         {
@@ -212,6 +212,22 @@
                     "source": 0,
                     "pointer": "/paths/~1accounts/get/x-fern-sdk-group-name"
                   }
+                },
+                "openapi:x-forge-aliases": {
+                  "reason": "vendor_extension",
+                  "value": [
+                    {
+                      "x-fern-sdk-group-name": "iam.accounts",
+                      "x-fern-sdk-method-name": "list"
+                    },
+                    {
+                      "x-fern-sdk-group-name": "accounts.members"
+                    }
+                  ],
+                  "provenance": {
+                    "source": 0,
+                    "pointer": "/paths/~1accounts/get/x-forge-aliases"
+                  }
                 }
               },
               "provenance": {
@@ -263,6 +279,24 @@
                 "pointer": "/paths/~1accounts/get/callbacks/changed/{$request.query.callback}/post",
                 "inferred": "group-extension"
               }
+            }
+          ]
+        },
+        {
+          "id": "g/extension/iam",
+          "name": {
+            "source": "iam",
+            "canonical": "iam"
+          },
+          "docs": {},
+          "groups": [
+            {
+              "id": "g/extension/iam/accounts",
+              "name": {
+                "source": "accounts",
+                "canonical": "accounts"
+              },
+              "docs": {}
             }
           ]
         },
@@ -581,7 +615,7 @@
     {
       "format": "openapi@3.1",
       "path": "extension_groups.yaml",
-      "hash": "d06cd5483a2f82093ec3cc09988e4c93912f4f4afed36f9da6a5778ed50b0f74"
+      "hash": "a03ca48e89e01f95fed9624987a30e0d1474b9f5e4149acda5e6a02a1ede7efe"
     }
   ]
 }
