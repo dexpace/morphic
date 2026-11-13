@@ -556,3 +556,25 @@ it sees. Changes made together in one bump are listed together under it.
   (`ir/content-item-without-stream`), and a streaming content of a request or a success response to
   its side's `StreamDetail` (`ir/content-stream-without-detail`). A consumer pinned to 0.51.0
   refuses a document with a streaming content.
+- **0.53.0** — four changes of meaning, the shape kept:
+  - A `null` is no `Enum` member, no variant of the `Union` an enumeration lowers to and no
+    `Literal`'s value, but its reference's `Nullable` bit, so an enumeration of `null` alone and a
+    constant of `null` are each a closed `Enum` with no member behind a nullable reference
+    ([enums](./enums.md#the-empty-enum), [containers](./containers.md#literals)). The OpenAPI
+    compiler had lowered a `null` beside members of several kinds to a `null` `Literal` variant as
+    well as a nullable reference, `null` alone to a union of that one variant, and `const: null` to
+    a `null` `Literal`. A consumer pinned to 0.52.0 finds no `null` variant or `Literal` where it
+    read one.
+  - An `Enum`'s `ValueType` is a primitive every member is a value of. The OpenAPI compiler had
+    taken a declared `type` the members are not values of, a `type: integer` over strings among
+    them; it now takes the members' primitive and keeps the type verbatim.
+  - A number's format on a string, `type: string, format: int64` among them, is a `Scalar` over the
+    number whose `Encoding` is named `string`, a number written as the text of its value, with a
+    `string` `WireType`, as `bytes` under `base64` is ([encodings](./constraints.md#encodings)), and
+    its `Constraints`, which speak of the number ([constraints](./constraints.md#constraints)), hold
+    none of the bounds written beside it, which bound its text or no string instance and are kept
+    verbatim. It had been a `Scalar` over `string` whose encoding named the format, holding those
+    bounds. A consumer pinned to 0.52.0 reads such a value's base as the number where it read a
+    string.
+  - Over a `string`, a `WireType` of `string` marks text the encoding is applied to, and none marks
+    text already encoded. No compiler writes the first yet.

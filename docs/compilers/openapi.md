@@ -353,7 +353,8 @@ no overlay, reported as an `openapi/overlay-origin-incomplete` warning.
 The load phase holds the source to a table of the OpenAPI Specification's rules, at the minor it
 declares, and the parser's own validation does not run. Each row of the table cites the sentence of
 the specification it comes from. It gives every object's fields, the shape, values and syntax of
-each, which fields each minor requires, the rules that bind fields together, and the defaults of
+each, the empty string held to a syntax as any text is, so `''` breaks an email's or an absolute
+URI's and not a URI reference's, which fields each minor requires, the rules that bind fields together, and the defaults of
 fields left unwritten that a lowering reads ([`multipart-encoding`](#multipart-encoding)); what data
 cannot state is written as code beside it, such as a path template against its path parameters, a
 server URL against its variables, a tag's parent, and where an encoding applies. Each finding is reported
@@ -420,6 +421,7 @@ gives it no effect is [`allow-reserved-locations`](#allow-reserved-locations)' a
   `oas.TestCheck_RulesAnotherPackageOwnsAreNotApplied`,
   `oas.TestCheck_AnAnchorIsANameJSONSchemaAdmits`,
   `oas.TestCheck_KeywordsHoldWhatJSONSchemaRequires`, `oas.TestCheckFormat_AKeyIsAString`,
+  `oas.TestCheck_TheEmptyStringIsJudgedByItsFormat`,
   `oas.TestTable_EveryRowCitesTheSpecification`, `load.TestJudgeSource_PlacesEachFindingAtItsNode`,
   `load.TestJudgeSource_RefusesTheAnchorsNoReferenceCanName`,
   `load.TestLoad_WhatAnAliasMountsIsReportedOnce`,
@@ -893,14 +895,17 @@ followed, `<<` merge keys merged in the parser's order
 specification reads every key as a string, and one that is no scalar as the empty string
 ([`validation`](#validation) reports it), a number in its digits with its YAML base resolved, past
 float64's range included, a YAML timestamp in the spelling written, a `!!binary` as its source text,
-and a scalar under a tag of the document's own as its text. A field a reader finds is found the same
-way, so one supplied through a merge key or an alias is kept as a written one is. A node no JSON can
-hold — a key a mapping or a mapping merged into it writes twice, `.nan` or `.inf`, a scalar whose
-text its tag does not admit, invalid UTF-8, an alias that cycles or expands past the converter's
-node budget, a merge chain deeper than the reader expands — reaches the IR in no form. It is
-reported as an `openapi/unpreservable-construct` error at the construct, and the rule that would
-have kept it announces nothing as kept, so no diagnostic claims what the Document does not hold. A
-vendor extension that converts to no JSON is [`vendor-extensions`](#vendor-extensions)' instead.
+and a scalar under a tag of the document's own as its text, since that tag claims no kind its text
+could contradict. A field a reader finds is found the same way, so one supplied through a merge key
+or an alias is kept as a written one is. A node no JSON can hold — a key a mapping or a mapping
+merged into it writes twice, `.nan` or `.inf`, a scalar whose text its tag does not admit, which
+[`values`](#values) refuses for the reason given there, invalid UTF-8, an alias that cycles or
+expands past the converter's node budget, a merge chain deeper than the reader expands — reaches the
+IR in no form, and so does a number past `ir.MaxDecimalExp`, which the reader a lowered value goes
+through refuses, so the two never read one scalar as two kinds. It is reported as an
+`openapi/unpreservable-construct` error at the construct, and the rule that would have kept it
+announces nothing as kept, so no diagnostic claims what the Document does not hold. A vendor
+extension that converts to no JSON is [`vendor-extensions`](#vendor-extensions)' instead.
 
 - Cases: `yaml-merge-keys`
 - Codes: `openapi/unpreservable-construct`
@@ -910,8 +915,6 @@ vendor extension that converts to no JSON is [`vendor-extensions`](#vendor-exten
   `annotation.TestRawFromNode_PreservesMergeAndOrderingSemantics`,
   `annotation.TestRawFromNode_NamesTheRepeatedKey`, `annotation.TestScalarRenderers_AgreeOnKind`,
   `annotation.TestRawPropertyNode_ReadsAKeywordAsTheParserDoes`
-- Status: partly built: whether a scalar its own tag does not admit is refused or kept as its text
-  is open (#245).
 
 ### `unmodeled-dialect-fields`
 
@@ -1057,14 +1060,19 @@ number is the literal's exact decimal text in `Num`, never a `float64`: a magnit
 int64 keeps every digit, `.5`, `+5` and `09` take their JSON spellings (`0.5`, `5`, `9`), `_`
 separators drop, a YAML integer base resolves (`0644` is `420`, `0x1f` is `31`, `0b1010` is `10`),
 and digits, exponent and trailing zeros otherwise stand as written (`10.0`, `1.10e+3`). A plain
-scalar that YAML resolves to a string only because it is past float64's range is still a number when
-it is a decimal literal a `BigVal` holds (its exponent within `ir.MaxDecimalExp`), and a quoted one
-stays a string. A value no `Value` holds — `.inf` or `.nan`, a `!!binary` that is not base64, a
-scalar whose text its tag does not admit (`!!null abc`, `!!timestamp soon`), a tag the compiler does
-not lower (`!acme`), a key a mapping or a mapping merged into it writes twice, a merge chain deeper
-than the reader expands, nesting past the reader's depth bound — is not coerced: a default or
-example is dropped with an `openapi/degraded-construct` warning at its position, and a `const` or an
-enum member is [`enum-const`](#enum-const)'s. The number reader is the numeric bounds' as well
+scalar that YAML resolves to a string only because it is past float64's range is still the number
+it spells, never its text: a decimal literal a `BigVal` holds (its exponent within
+`ir.MaxDecimalExp`) is that number, and one past that exponent is a number no `Value` holds, as the
+same literal tagged `!!float` is. A quoted one stays a string. A value no `Value` holds — `.inf` or
+`.nan`, a number past `ir.MaxDecimalExp`, a `!!binary` that is not base64, a scalar whose text its
+tag does not admit (`!!null abc`, `!!timestamp soon`), a tag the compiler does not lower (`!acme`), a
+key a mapping or a mapping merged into it writes twice, a merge chain deeper than the reader
+expands, nesting past the reader's depth bound — is not coerced: a default or example is dropped
+with an `openapi/degraded-construct` warning at its position, and a `const` or an enum member is
+[`enum-const`](#enum-const)'s. A scalar whose text its tag does not admit is refused rather than
+read as its text, since its tag says what kind of value it is, YAML's own decoding refuses it, and
+its text read as a string would be a value of a kind the source never wrote, where the warning says
+what the document got wrong. The number reader is the numeric bounds' as well
 ([`constraints`](#constraints)). A value kept verbatim instead is
 [`verbatim-preservation`](#verbatim-preservation)'s.
 
@@ -1073,10 +1081,10 @@ enum member is [`enum-const`](#enum-const)'s. The number reader is the numeric b
 - Tests: `value.TestNumericLiteral_YAMLBases`, `value.TestValueFromNode_Timestamp`,
   `value.TestValueFromNode_Scalars`, `value.TestValueFromNode_ReadsAMappingAsTheParserDoes`,
   `value.TestValueFromNode_RefusesWhatNoObjectHolds`, `value.TestClassify_ReadsEachSpellingOnce`,
+  `value.TestClassify_RefusesAPlainNumberPastTheExponentRange`,
   `annotation.TestSchemaExamplesAt_UnconvertibleValueIsReportedNotDropped`
 - Status: partly built: an unconvertible default is reported at the schema of the property or
-  parameter that reads it rather than at its own position (#1101); and a plain number past
-  `ir.MaxDecimalExp` lowers as the string YAML reads, unreported (#1115).
+  parameter that reads it rather than at its own position (#1101).
 
 ## 4. Schemas: identity, references and annotations
 
@@ -2882,50 +2890,69 @@ several kinds, is outside this rule and stays a union.
 ### `enum-const`
 
 An `enum` lowers to a closed `Enum` at any member count, one member included, each entry a member
-holding its value ([`values`](#values)) in source order ([enums](../ir/enums.md)); a `null`
-entry beside others is no member but makes the position nullable ([`nullable`](#nullable)). Its
-`ValueType` is the primitive one declared `type` and its `format` select, as a scalar's are read
-([`string-formats`](#string-formats), [`numeric-formats`](#numeric-formats)), where every member is
-a value of that primitive. Otherwise it is the primitive of the `type` alone, else of the members,
-and a `format` that reaches no `ValueType`, whether the table lacks the pairing or a member does not
-fit it, as none is a value of `binary`'s `bytes`, is kept verbatim under `openapi:format`
-(`degraded_lowering`), with an info `openapi/degraded-construct` at the schema, but for `password`,
-which is a redaction ([`password`](#password)). An enumeration an `Enum` cannot hold — a list or
-object member, members of different kinds, or only `null` — lowers to a `Union` of `Literal`s
-instead, reported as an info `openapi/degraded-construct` at the schema, and a member whose value
-cannot convert makes the enumeration such a union, its own variant the top type, reported as an
-`openapi/degraded-construct` warning at the member. That union is exclusive unless an instance can
-match two variants: an entry repeats, or one lowered to the top type. `enum: []` lowers to a closed
-`Enum` with no members, a position accepting no value, reported as an `openapi/empty-enum` warning.
-An entry repeating an earlier entry's value, compared as JSON Schema compares instances, is kept,
-each occurrence a member of its own ([enums](../ir/enums.md)), and reported as an
-`openapi/duplicate-enum-value` warning at the repeat. An `enum` past `Limits.MaxEnumMembers` lowers
-to the top type, with an `openapi/budget-exceeded` error at the schema. A `const` lowers to a
-`Literal` of its value, whose `ValueType` is read as an enum's is, from the type and format the
-value fits, else the type, else the value's own kind ([containers](../ir/containers.md#literals)),
-so a `type` or `format` the value fits is held and draws nothing, and one it does not fit is kept
-verbatim with the same info report. A `const` that cannot convert lowers to the top type, with an
-`openapi/degraded-construct` warning at the schema. A value set an `allOf` refines is typed by every
-conjunct ([`allof-refinement`](#allof-refinement)). A
-`$ref` into a member of such a union names the member's `Literal`, the node the enumeration lowers
-at that position, whichever is lowered first.
+holding its value ([`values`](#values)) in source order ([enums](../ir/enums.md)). A `null` entry is
+no member and no variant: whether the position admits null is its reference's
+([`nullable`](#nullable)), as for a `oneOf` holding a `type: "null"` branch, so the fact is stated
+once, and an `enum` listing `null` alone lowers to an `Enum` with no member, which a nullable
+reference makes a position admitting null and nothing else. A keyword beside the `enum` that
+excludes null, as `type: string` does, leaves a `null` entry admitting no instance, since JSON
+Schema conjoins the two, so it is dropped and reported as an `openapi/degraded-construct` warning at
+it. Its `ValueType` is the primitive one declared `type` and its `format` select, as a scalar's are
+read ([`string-formats`](#string-formats), [`numeric-formats`](#numeric-formats)), else the
+primitive of the `type` alone, where every member is a value of that primitive, else the primitive
+of the members. A `format` that reaches no `ValueType`, whether the table lacks the pairing or a
+member does not fit it, as none is a value of `binary`'s `bytes`, is kept verbatim under
+`openapi:format` (`degraded_lowering`), with an info `openapi/degraded-construct` at the schema, but
+for `password`, which is a redaction ([`password`](#password)). A member that no declared `type`
+admits, as `"a"` under `type: integer` or under `type: "null"`, matches no instance either, and is
+reported as an `openapi/degraded-construct` warning at it; a `!!binary` member is the string of its
+text to the `type`, as the rest of the compiler reads a value's kind, and `bytes`, a format of
+string, to the `ValueType`. Such a member is kept, the members lowering as written and the `type`
+kept verbatim under `openapi:type` (`degraded_lowering`) with the info at the schema: the document
+contradicts itself, as unquoted numbers under `type: string` do, and keeping either side alone would
+guess which statement it means, where keeping both loses nothing. A `type` beside an `Enum` with no
+member types no value, and draws nothing. An enumeration an `Enum` cannot hold — a list or object
+member, or members of different kinds — lowers to a `Union` of `Literal`s over its entries but
+`null` instead, reported as an info `openapi/degraded-construct` at the schema, and a member whose
+value cannot convert makes the enumeration such a union, its own variant the top type, reported as
+an `openapi/degraded-construct` warning at the member. That union is exclusive unless an instance
+can match two variants: an entry it holds repeats, or one lowered to the top type. `enum: []` lowers
+to a closed `Enum` with no members, a position accepting no value, reported as an
+`openapi/empty-enum` warning. An entry repeating an earlier entry's value, compared as JSON Schema
+compares instances, is kept, each occurrence a member of its own ([enums](../ir/enums.md)), and
+reported as an `openapi/duplicate-enum-value` warning at the repeat. An `enum` past
+`Limits.MaxEnumMembers` lowers to the top type, with an `openapi/budget-exceeded` error at the
+schema. A `const` lowers to a `Literal` of its value, whose `ValueType` is read as an enum's is,
+from the type and format the value fits, else the type, else the value's own kind
+([containers](../ir/containers.md#literals)), so a `type` or `format` the value fits is held and
+draws nothing, and one it does not fit is kept verbatim with the same info report. A `const` of a
+value no declared `type` admits matches no instance, keeps its `Literal` and is reported as an
+`openapi/degraded-construct` warning at the `const`. A `const: null` lowers as `enum: [null]` does,
+to an `Enum` with no member, its null the reference's, so no `Literal` holds a null
+([containers](../ir/containers.md#literals)), and where a keyword beside it excludes null it is
+reported as that enum's entry is, at the `const`. A `const` that cannot convert lowers to the top
+type, with an `openapi/degraded-construct` warning at the schema. A value set an `allOf` refines is
+typed by every conjunct ([`allof-refinement`](#allof-refinement)). A `$ref` into a member of such a
+union names the member's `Literal`, the node the enumeration lowers at that position, whichever is
+lowered first.
 
 - Cases: `enum-string`, `enum-numeric`, `empty-enum`, `enum-member-identity`, `nullable-enum-31`,
-  `literal-const`
+  `enum-null-member`, `literal-const`
 - Codes: `openapi/empty-enum`, `openapi/duplicate-enum-value`, `openapi/degraded-construct`,
   `openapi/budget-exceeded`
 - Tests: `schema.TestEnum_HeterogeneousBecomesUnionWithBadValue`,
-  `schema.TestEnum_NonScalarAndMidListMismatch`,
+  `schema.TestEnum_NonScalarAndMidListMismatch`, `schema.TestEnum_NullIsNeverAMember`,
+  `schema.TestEnum_NullAgreesWithTheOneOfSpelling`,
   `schema.TestEnum_ValueTypeReadsTheFormatItsMembersFit`,
+  `schema.TestEnum_AMemberNoTypeAdmitsIsReportedAndKept`,
   `schema.TestLiteral_ValueTypeReadsTheTypeAndFormatItsValueFits`,
+  `schema.TestConst_NullLowersAsAnEnumOfNullAlone`,
   `schema.TestEnum_ReportsWhyAFormatStayedVerbatim`,
   `schema.TestEnum_NarrowsARedeclaredPrimitiveInEitherOrder`,
   `schema.TestEnumAsUnion_UnconvertibleMemberBecomesAny`,
   `schema.TestEnumAsUnion_ExclusiveWhereNoInstanceMatchesTwoEntries`,
+  `schema.TestNullableWidening_AnEnumsNullMemberFollowsTheReadingInForce`,
   `e2e.TestCompile_AReferenceLeavesItsTargetToItsOwnerInEitherOrder`
-- Status: partly built: an enum whose members do not match its declared type lowers to a union with
-  only an info diagnostic (#619). Open: whether a mixed-type enum's `null` lifts out of its union
-  (#618).
 
 ## 6. Schemas: objects, arrays and scalars
 
@@ -3093,7 +3120,11 @@ never re-derived from the dispatch that produced it. A position that reduced to 
 an alias of its own first: a shared primitive must never carry one declaration's keywords. The
 `format` keyword joins the list wherever the lowered node does not pair it with a primitive — no
 `type` declared, or an object, an array or an enum — since it is homed by pairing with a type rather
-than by a node kind, and `password` is never unhomed ([`password`](#password)). The census reads
+than by a node kind, and `password` is never unhomed ([`password`](#password)). A format on an array
+is kept so whatever its name, `format: set` among them, which some documents write to mean distinct
+items and no specification defines: reading it as `uniqueItems` would be a heuristic, which only an
+injectable policy may apply, and the entry it is kept under is what such a policy would read. The
+census reads
 `type`, `const`, `enum`, `minItems`, `maxItems` and `uniqueItems` beside these, so a collection
 bound on an object, a scalar or a position with no type is kept the same way, and a keyword the
 elected lowering of [`competing-keywords`](#competing-keywords) never reads is too. `discriminator`
@@ -3116,8 +3147,8 @@ is kept on the union, under a report naming a union of models.
 - Tests: `schema.TestObject_ACatchAllBesideARequiredNameStaysAModel`,
   `schema.TestUnhomedApplicator_KeptOnAListAndAnnounced`,
   `schema.TestUnhomedApplicator_FormatWithNoTypeIsKept`,
+  `schema.TestUnhomedApplicator_AFormatOnAnArrayIsKeptNotRead`,
   `schema.TestPreserveUnknownKeywords_ReadsWhatADraftSpellsOtherwise`
-- Status: partly built. Open: whether `format: set` on an array reads as `uniqueItems` (#638).
 
 ### `string-formats`
 
@@ -3125,25 +3156,44 @@ A `type: string` with a `format` the table names lowers to the shared primitive 
 and no node of its own: `date` to `date`, `time-local` to `time`, `duration` to `duration`, `uuid`
 to `uuid`, `uri` to `url`, `date-time` to `datetime_offset`, `date-time-local` to `datetime`,
 `binary` to `bytes`. `byte` lowers to a hoisted `Scalar` over `bytes` whose `Encoding` is `base64`,
-with the `string` it travels as in `WireType`. Any other format (`time`, `email`, `uri-reference`,
-`ipv4`, an invented one) lowers to a hoisted `Scalar` over `string` whose `Encoding.Name` is the
-format as written, case kept, since the compiler knows no registry of formats beyond the table, and
-the table leaves out `time`, RFC 3339's `full-time`, because it carries an offset and the `time`
+with the `string` it travels as in `WireType`. A numeric format the table pairs with `number`
+([`numeric-formats`](#numeric-formats)), such as `int64`, `decimal` or `double`, names a number
+written as its text, as a value too wide for a JSON number's readers may travel, so it lowers the
+same way: to a hoisted `Scalar` over the primitive it selects under `number`, whose `Encoding`
+is `string`, a number written as the text of its value, with the `string` in `WireType`. The base is
+the logical type and `WireType` the wire's, for both, as [encodings](../ir/constraints.md#encodings)
+orients the triple. Any other format (`time`, `email`, `uri-reference`, `ipv4`, an invented one)
+lowers to a hoisted `Scalar` over `string` whose `Encoding.Name` is the format as written, case
+kept, with no `WireType`, since the compiler knows no registry of formats beyond the table, and the
+table leaves out `time`, RFC 3339's `full-time`, because it carries an offset and the `time`
 primitive holds none ([primitives](../ir/primitives.md#offsets)). A `contentEncoding` beside a
-`byte` or unknown format names the encoding instead; where the two name different encodings the
-format is kept verbatim under `openapi:format` (`no_ir_home`) with an info
-`openapi/degraded-construct` at it. A scalar hoisted for its format carries the bounds written
-beside it. The table is the same at every minor, and a pairing of `format` with another `type` is
+`byte`, numeric or unknown format names the encoding instead; where the two name different encodings
+the format is kept verbatim under `openapi:format` (`no_ir_home`) with an info
+`openapi/degraded-construct` at it. A numeric format so kept selects no base, since the string is
+then that encoding's text and not a number's:
+`{type: string, format: int64, contentEncoding: base64}` lowers to a `Scalar` over `string` under
+`base64` with no `WireType`, as the encoding alone does
+([`content-vocabulary`](#content-vocabulary)). A scalar hoisted for its format carries the bounds
+written beside it, but for a number carried as text, whose `Constraints` speak of the number
+([constraints](../ir/constraints.md#constraints)): a length or a `pattern` bounds its text and a
+numeric bound no string instance, so each value bound written beside it is kept verbatim under
+`openapi:<keyword>` (`no_ir_home`) with an info `openapi/degraded-construct` at it, one an inline
+`allOf` branch writes keeps its branch whole ([`allof-inline-residue`](#allof-inline-residue)), and
+neither the `Scalar` nor a property or parameter carrying it holds one. The table is the same at every minor, and a pairing of `format` with another `type` is
 [`numeric-formats`](#numeric-formats)'.
 
 - Cases: `encoding-byte`, `scalar-format`
 - Codes: `openapi/degraded-construct`
 - Tests: `schema.TestScalar_UnknownFormatPerBaseType`,
+  `schema.TestScalar_ANumberAsTextIsItsNumberOnAString`,
+  `schema.TestScalar_ANumberAsTextKeepsItsBoundsVerbatim`,
   `schema.TestLower_NamedScalarComponentResolves`,
+  `merge.TestKindOf_ANumberAsTextIsAString`,
   `spelling.TestFormatTable_EveryRowDistinguishesTheBareType`,
   `spelling.TestFormatTable_EveryStringRowLowersToItsPrimitive`
-- Status: partly built: a `byte` string and a string-carried number put the logical and the wire
-  type on opposite fields (#637).
+- Status: partly built: a value bound beside a `$ref` to a number carried as text, or beside an
+  `allOf` refining one, lands in the `Constraints` of the alias over it, and a length or `pattern`
+  beside `byte` in those of its `bytes` (#1851).
 
 ### `numeric-formats`
 
@@ -3340,7 +3390,8 @@ kept verbatim under `openapi:<keyword>`
 (`degraded_lowering`) with an info `openapi/degraded-construct` naming the node it lowered to, as
 [`shape-applicator`](#shape-applicator) keeps a collection bound on an object. A collection bound
 beside a reference that `Constraints` cannot state is kept the same way: a `uniqueItems` of `false`,
-which a bool cannot tell from one never written, and a count that does not fit in 64 bits.
+which a bool cannot tell from one never written, and a count that does not fit in 64 bits. A
+number carried as text holds no bound ([`string-formats`](#string-formats)).
 
 - Cases: `constraints`, `numeric-precision`, `ref-collection-bounds`
 - Codes: `openapi/invalid-numeric-literal`, `openapi/invalid-exclusive-bound`,
@@ -3449,7 +3500,9 @@ value is a schema and lowers like one — hoisted at its own source pointer and 
 rather than riding along as a payload a consumer would have to re-parse. Where the position lowers
 to a shape with no `Encoding` field, all three stay verbatim under `no_ir_home`, each under
 `openapi:<keyword>` and each reported as an info `openapi/degraded-construct` at it
-([boundaries](../ir/boundaries.md#validation-only-constructs)).
+([boundaries](../ir/boundaries.md#validation-only-constructs)). A `contentEncoding` on a string
+writing no format names what the string already is, the encoded text, so its `Encoding` names no
+`WireType` ([encodings](../ir/constraints.md#encodings)).
 
 - Cases: `content-vocabulary`
 - Codes: `openapi/degraded-construct`
