@@ -57,13 +57,9 @@ var arrangingFields = []string{"style", "explode", "allowReserved"}
 // arranges reports whether enc writes an RFC6570-style field the table does
 // not say has no effect under mt, which arranges the part's value.
 func arranges(rules oas.EncodingRules, enc *soa.Encoding, mt string) bool {
-	written := [...]bool{enc.Style != nil, enc.Explode != nil, enc.AllowReserved != nil}
-	for i, field := range arrangingFields {
-		if written[i] && !rules.Ignores(field, mt) {
-			return true
-		}
-	}
-	return false
+	return enc.Style != nil && !rules.Ignores("style", mt) ||
+		enc.Explode != nil && !rules.Ignores("explode", mt) ||
+		enc.AllowReserved != nil && !rules.Ignores("allowReserved", mt)
 }
 
 // arrangement returns the arrangement enc writes: its style, or a query
