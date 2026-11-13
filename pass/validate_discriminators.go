@@ -41,7 +41,9 @@ type mappingReads struct {
 }
 
 // checkUnionDiscriminator requires each mapping target to be one of the union's
-// variant targets.
+// variant targets. It asks nothing of what a variant declares of the tag
+// (docs/ir/unions.md#tag-modes), so a closed variant declaring no tag member,
+// which no tagged payload can be, passes (GitHub #1807).
 func checkUnionDiscriminator(doc *ir.Document, u *ir.Union, read *mappingReads) []ir.Diagnostic {
 	if u.Discriminator == nil {
 		return nil

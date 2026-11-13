@@ -2177,10 +2177,10 @@ verbatim is settled ([`union-beside-structure`](#union-beside-structure)), would
 it routes nowhere, and would have to find every component composing the schema to know that. Two
 typed homes lose as well. A subtype's `Base` naming the variant would compose the schema's object
 half where its `allOf` names the schema, and `Base` names what the source wrote
-([composition entries](../ir/models.md#composition-entries)). And `pass/validate` holds a model
-discriminator to `ir.IsSubtype`, the subtype relation every consumer reads: a check stepping from a
-`Union` base into its object variant would part from that relation, and teaching the relation the
-step would change what it means for every document.
+([composition entries](../ir/models.md#composition-entries)). And `pass/validate` holds each route
+of a model discriminator to another type to `ir.IsSubtype`, the subtype relation every consumer
+reads: a check stepping from a `Union` base into its object variant would part from that relation,
+and teaching the relation the step would change what it means for every document.
 
 - Cases: `keywords-at-every-outcome`, `type-array-numeric`, `type-array-discriminator`
 - Codes: `openapi/unresolved-ref`
@@ -2285,9 +2285,9 @@ shares one reading of it, which has none. Distribution cannot reach these shapes
 6. a `discriminator` on an `allOf` ancestor routes to the schema, by a `mapping` key or by its name
    as a component ([`discriminator-value`](#discriminator-value)): the route names what the schema
    lowers to, which as a `Union` would be no subtype of that ancestor (`ir.IsSubtype`, what
-   `pass/validate` holds a mapping to), so it stays a `Model` under it, with the tag that rule gives
-   it, if any. One written beside a union routes by name only what that union lists, so beside a
-   schema it does not list, and no `mapping` key names, a union distributes.
+   `pass/validate` holds a route to another type to), so it stays a `Model` under it, with the tag
+   that rule gives it, if any. One written beside a union routes by name only what that union lists,
+   so beside a schema it does not list, and no `mapping` key names, a union distributes.
 
 In each, whatever structural body the schema declares is lowered — `properties` or a declared
 `type` yields a `Model` or typed node — and the union branches are kept verbatim in
@@ -2319,17 +2319,17 @@ which stays validation logic beside it whatever they repeat, and a `discriminato
 keeps the body where a branch composes it (shape 4).
 
 A `discriminator` beside any of these shapes whose body lowers to a `Model` stays on that `Model` only
-when every type it routes to is a subtype of it at any depth (`ir.IsSubtype`, the rule
-`pass/validate` holds a model discriminator to): each `mapping` target, the `defaultMapping`, and
-each component a `$ref` branch names, which it routes to by name — `oneOf`'s branches where `oneOf`
-and `anyOf` are both declared, since `oneOf` wins. An inline branch, or one naming no component, is
-no route unless the `mapping` names it. Otherwise the whole object (`propertyName`, `mapping`,
-`defaultMapping`) is kept verbatim in `Unmodeled["openapi:discriminator"]` on the node keeping the
-union, with an info `openapi/degraded-construct` at the discriminator; a subtype keeps the
-`DiscriminatorValue` its mapping key gives it, since that is still the tag its instances carry, and
-a body the move leaves holding a map and nothing else lowers to that map's `MapT`
-([containers](../ir/containers.md)). A union whose branches declare no shape
-(`validation_only`) is held to the same rule. A multi-typed body leaves no discriminator to settle:
+when every type it routes to is a subtype of it at any depth (`ir.IsSubtype`): each `mapping` target,
+the `defaultMapping`, and each component a `$ref` branch names, which it routes to by name —
+`oneOf`'s branches where `oneOf` and `anyOf` are both declared, since `oneOf` wins. An inline branch,
+or one naming no component, is no route unless the `mapping` names it, and a route to the `Model`
+itself is none of its subtypes, though `pass/validate` takes one where the model is concrete.
+Otherwise the whole object (`propertyName`, `mapping`, `defaultMapping`) is kept verbatim in
+`Unmodeled["openapi:discriminator"]` on the node keeping the union, with an info
+`openapi/degraded-construct` at the discriminator; a subtype keeps the `DiscriminatorValue` its
+mapping key gives it, since that is still the tag its instances carry, and a body the move leaves
+holding a map and nothing else lowers to that map's `MapT` ([containers](../ir/containers.md)). A
+union whose branches declare no shape (`validation_only`) is held to the same rule. A multi-typed body leaves no discriminator to settle:
 [`type-arrays`](#type-arrays) keeps it on the `Union` the body lowers to, beside the kept union.
 The compiler decides once every node is interned (`compile.Settlement`), because neither the walk
 nor the source schemas can answer it: a subtype declared after the `Model` has no `Base` while the
@@ -2426,8 +2426,9 @@ as one whose branches declare shape.
 - Status: partly built: a union beside a composition the bounds cut short degrades even where each
   branch restates only what the body itself writes (#1423), a subtype a discriminator routes to
   keeps its union verbatim (#1694), a union on a branch below a discriminated base stays whole where
-  no route names the schema (#1695), and a discriminated union on a branch stays whole with its
-  branch (#1698).
+  no route names the schema (#1695), a discriminated union on a branch stays whole with its
+  branch (#1698), and a discriminator routing to the model holding it moves though that route is
+  legal (#1806).
 
 ### `union-beside-ref`
 

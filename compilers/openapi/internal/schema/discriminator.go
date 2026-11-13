@@ -638,9 +638,10 @@ func spellImplicitRoutes(c lowering.Ctx, holder *oas3.Schema, u *ir.Union, point
 
 // besideUnionDiscriminator settles a discriminator a model holds beside a
 // union kept verbatim. A model discriminator says the model is a hierarchy's
-// base, so it stays only where every type it routes to is a subtype, the rule
-// pass/validate holds it to (ir.IsSubtype). Otherwise it moves, whole, to the
-// model's Unmodeled, beside the union it was written for.
+// base, so it stays only where every type it routes to is a subtype
+// (ir.IsSubtype). Otherwise it moves, whole, to the model's Unmodeled, beside
+// the union it was written for, a route to the model itself among them, which
+// pass/validate takes from a concrete model (GitHub #1806).
 //
 // It is a settlement because only a lowered node says whether its type is a
 // subtype, and a subtype lowered after the model has no Base yet when the

@@ -75,7 +75,8 @@ OpenAPI asks that the payload hold the property and says only that a schema shou
 a variant typing it as a number owns the tags whose text is that number's literal ([the tag a
 variant's value carries](../emitters/refine/unions.md#the-tag-a-variants-value-carries)). So
 `pass.Validate` holds a union's discriminator to its routes, each naming a variant, and reports
-nothing a variant declares of the tag. A rule refusing a variant that does not declare the tag would
+nothing a variant declares of the tag, nor yet a closed variant declaring no such property, which no
+tagged payload can be (#1807). A rule refusing a variant that does not declare the tag would
 refuse OpenAPI's own shape, a `oneOf` of schemas a `discriminator` beside it tags, and warning where
 one leaves it optional or a number would report documents the compiler lowers as written: on the
 golden spec (spec @`86556f6f`, morphic @`0cd087ff6`), of the 551 variants of the 145 unions a
