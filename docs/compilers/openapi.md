@@ -5097,15 +5097,15 @@ how operations are arranged rather than filling a fact a node holds.
 - Tests: `openapi.TestSwitchOptions_NameEveryPolicy`, `openapi.TestDecodeOptions_TextReachesEveryField`,
   `lowering.TestPromoter_WritesSeesAKeyWhateverItSays`, `lowering.TestPromoter_WritesKnowsEveryTarget`,
   `lowering.TestPromoter_WritesSeesEveryDefaultKey`,
+  `pagination.TestInferWalks_LeavesWhatAnExtensionSpeaksOf`,
   `replacement.TestMessage_YieldsToWhatTheDocumentSays`, `convention.TestRedact_LeavesWhatTheDocumentSays`,
   `convention.TestIdempotency_ReportsWhatItCannotSettle`, `e2e.TestConventions_DisabledFillsNothing`
-- Status: partly built: `Pagination` is filled by a promotion alone
-  ([`extension-pagination`](#extension-pagination)), as no inference reads one (#989), and that
-  promotion is read in `operation`, whose reader of runtime expressions it shares with the links,
-  rather than in a package of its own (#1905); and the streaming and binary policies mark
-  `streaming-media-type` and `binary-media-type`, which their options `streaming-inference` and
-  `binary-inference` do not spell, while nullable widening marks `nullable-widening`, a name for the
-  reading rather than the fact (#1847).
+- Status: partly built: the pagination promotion ([`extension-pagination`](#extension-pagination))
+  is read in `operation`, whose reader of runtime expressions it shares with the links, rather than
+  in a package of its own (#1905); and the streaming and binary policies mark `streaming-media-type`
+  and `binary-media-type`, which their options `streaming-inference` and `binary-inference` do not
+  spell, while nullable widening marks `nullable-widening`, a name for the reading rather than the
+  fact (#1847).
 
 ### `extension-promotion`
 
@@ -5430,18 +5430,18 @@ streams, or as a mark on the operation itself, is read by no source, so it speak
 ### `pagination-policy`
 
 OpenAPI has no keyword for pagination, so where no extension speaks of an operation's walk, the
-operation states it only by the names it uses, which the pagination-inference policy reads: the Go
-option `Options.PaginationInference`, whose zero value is on and whose `Disabled` infers none, and
-the text option `pagination-inference`, which `false` turns off (invariant 6). It reads each
-operation the client sends, a webhook or a callback being one it receives, once the registry is
-whole, and comes last in the precedence [`extension-pagination`](#extension-pagination) states: an
-operation holding a `Pagination`, or one whose extensions speak of a pagination, is neither read nor
-reported, as the document has answered for it. Under a promotion policy mapping no pagination
-target, `extension-promotion=false` among them, no key is read, so no extension speaks and the
-policy reads every operation. A walk sends its operation again for each page, so it settles one only
-for a `GET` or a `QUERY`, the methods asking for no change on the server: a `POST` taking its path
-item's page parameters, as one creating a resource does, would create it once per page. A name is
-compared by its canonical words (`Naming.Canonical`), so `pageSize` and `page_size` are one name:
+operation states it only by the names it uses, which the pagination-inference policy,
+`Options.PaginationInference` and the text option `pagination-inference` ([`policies`](#policies)),
+reads. It reads each operation the client sends, a webhook or a callback being one it receives, once
+the registry is whole, and yields as [`policies`](#policies) orders every inference: an operation
+holding a `Pagination`, or one whose extensions speak of a pagination where
+[`extension-pagination`](#extension-pagination) reads them, is neither read nor reported, as the
+document has answered for it. Under a promotion policy mapping no pagination target,
+`extension-promotion=false` among them, no key is read, so no extension speaks and the policy reads
+every operation. A walk sends its operation again for each page, so it settles one only for a `GET`
+or a `QUERY`, the methods asking for no change on the server: a `POST` taking its path item's page
+parameters, as one creating a resource does, would create it once per page. A name is compared by
+its canonical words (`Naming.Canonical`), so `pageSize` and `page_size` are one name:
 
 1. **Where a walk continues** is a query parameter named `page` or `page_number`, under the `page`
    strategy; `offset`, under `offset`; `cursor`, under `cursor`; or `page_token`, `next_token` or
@@ -5476,15 +5476,16 @@ compared by its canonical words (`Naming.Canonical`), so `pageSize` and `page_si
    named `total_pages`, each of a type a walk counts with, in the body or in a model a member of it
    holds. A page naming none or several states no total, and the field is unset.
 
-What the policy fills is marked twice: `Pagination.Inferred` is set, and the operation's
-`Provenance.Inferred` names `pagination-inference`. An operation whose query parameters name where a
-walk continues and that the policy cannot settle gets no `Pagination`, never a guess, reported as an
-info `openapi/undecided-pagination` at the operation's declaration naming what stops it: a method
-other than `GET` and `QUERY`, two parameters naming a continuation or a page size, one of a type a
-walk does not send, a `page` string with no whole number for its default or an example, no success
-response or none with a body, a body that is neither an object nor a list, items or a next cursor it
-names none or several of, a flag beside the next cursor, or bodies holding the page at different
-members. A path item mounted twice is reported once, at the declaration both mounts share.
+What the policy fills is marked as [`policies`](#policies) marks an inference: `Pagination.Inferred`
+is set, and the operation's `Provenance.Inferred` names `pagination-inference`. An operation whose
+query parameters name where a walk continues and that the policy cannot settle gets no `Pagination`,
+never a guess, reported as an info `openapi/undecided-pagination` at the operation's declaration
+naming what stops it: a method other than `GET` and `QUERY`, two parameters naming a continuation or
+a page size, one of a type a walk does not send, a `page` string with no whole number for its
+default or an example, no success response or none with a body, a body that is neither an object nor
+a list, items or a next cursor it names none or several of, a flag beside the next cursor, or bodies
+holding the page at different members. A path item mounted twice is reported once, at the
+declaration both mounts share.
 
 - Cases: `pagination-inferred`
 - Codes: `openapi/undecided-pagination`
