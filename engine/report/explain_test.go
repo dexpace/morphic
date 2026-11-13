@@ -575,6 +575,35 @@ func TestExplain_ListsWhatIsKeptAtAndBelow(t *testing.T) {
 	assert.Empty(t, report.Explain(nil, nil, "").Unmodeled, "a nil document keeps nothing")
 }
 
+// TestExplain_ListsAnEntryOnManyNodesInTheirOrder pins the order of one entry
+// kept on every operation, beside an entry of each operation's own: the
+// document's. The list is longer than a sort orders by insertion, which keeps
+// equal entries in place whether or not the sort is stable.
+func TestExplain_ListsAnEntryOnManyNodesInTheirOrder(t *testing.T) {
+	t.Parallel()
+	const at, key = jsontext.Pointer("/paths/~1p"), "openapi:pathItem/x-s"
+	operations := make([]ir.Operation, 12)
+	var want []string
+	for i := range operations {
+		own := fmt.Sprintf("openapi:x-%02d", i)
+		operations[i] = ir.Operation{ID: ir.OpID(fmt.Sprintf("op/%d", i)), Unmodeled: ir.Unmodeled{
+			key: kept(key, 0, at+"/x-s")[key],
+			own: kept(own, 0, at+jsontext.Pointer(fmt.Sprintf("/x-%02d", i)))[own],
+		}}
+		want = append(want, fmt.Sprintf("doc.Services[0].Groups[0].Operations[%d]", i))
+	}
+	doc := &ir.Document{Services: []ir.Service{{Groups: []ir.OperationGroup{{Operations: operations}}}}}
+
+	var got []string
+	for _, k := range report.Explain(doc, nil, at).Unmodeled {
+		if k.Key == key {
+			got = append(got, k.Holder)
+		}
+	}
+
+	assert.Equal(t, want, got)
+}
+
 // TestExplain_SaysWhenTheWalkWasTruncated pins that an entry the walk could
 // not reach is not passed over in silence: a document nested past
 // ir.MaxWalkDepth marks the explanation, whose list can then lack one.
