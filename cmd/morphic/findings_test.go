@@ -6,6 +6,7 @@ package main
 import (
 	"bytes"
 	"encoding/json/v2"
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
@@ -14,6 +15,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/dexpace/morphic/engine"
 	"github.com/dexpace/morphic/engine/report"
 	"github.com/dexpace/morphic/internal/testspec"
 )
@@ -369,15 +371,31 @@ func TestRun_DiagFormatJSONWritesAFailureAfterItsReport(t *testing.T) {
 
 // TestRun_DiagFormatJSONWritesWhatItHeldOnAFailure pins the warnings a JSON
 // run held for its report as written on their own lines when the run fails
-// before its report, as text writes them, so the failure drops none.
+// before its report, as text writes them, so the failure drops none: the
+// engine refusing to be built, or the run refusing the spec.
 func TestRun_DiagFormatJSONWritesWhatItHeldOnAFailure(t *testing.T) {
-	failBuildID(t, os.ErrPermission)
-	missing := filepath.Join(t.TempDir(), "absent.yaml")
-	code, stdout, stderr := runCommand(t, "validate", missing, "--cache-dir", t.TempDir(), "--diag-format", "json")
-	assert.Equal(t, exitFailure, code)
-	assert.Empty(t, stdout)
-	lines := strings.Split(strings.TrimSuffix(stderr, "\n"), "\n")
-	require.Len(t, lines, 2, stderr)
-	assert.Equal(t, "morphic: warning: "+os.ErrPermission.Error(), lines[0])
-	assert.True(t, strings.HasPrefix(lines[1], "morphic: engine: read spec"), lines[1])
+	for _, tc := range []struct {
+		name, reason string
+		refuse       bool
+	}{
+		{"an engine it could not build", "morphic: no compilers", true},
+		{"a run that failed", "morphic: engine: read spec", false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			failBuildID(t, os.ErrPermission)
+			if tc.refuse {
+				orig := newEngine
+				t.Cleanup(func() { newEngine = orig })
+				newEngine = func(...engine.Option) (*engine.Engine, error) { return nil, errors.New("no compilers") }
+			}
+			missing := filepath.Join(t.TempDir(), "absent.yaml")
+			code, stdout, stderr := runCommand(t, "validate", missing, "--cache-dir", t.TempDir(), "--diag-format", "json")
+			assert.Equal(t, exitFailure, code)
+			assert.Empty(t, stdout)
+			lines := strings.Split(strings.TrimSuffix(stderr, "\n"), "\n")
+			require.Len(t, lines, 2, stderr)
+			assert.Equal(t, "morphic: warning: "+os.ErrPermission.Error(), lines[0])
+			assert.True(t, strings.HasPrefix(lines[1], tc.reason), lines[1])
+		})
+	}
 }
