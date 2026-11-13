@@ -429,16 +429,17 @@ func TestWriteText_RefusesOptionsItCannotRead(t *testing.T) {
 // TestWriteText_EscapesWhatASpecWrites holds every string a spec can write to
 // one printable line: a path, a pointer, a node, a code and a message, in the
 // lines and in the counts, each control character, DEL, C1 control, format
-// character and byte that is not UTF-8 spelled as %q spells it. A key holding a
-// newline cannot forge a second finding.
+// character and byte that is not UTF-8 spelled as %q spells it, a DEL or a
+// format character alone in its string too. A key holding a newline cannot
+// forge a second finding.
 func TestWriteText_EscapesWhatASpecWrites(t *testing.T) {
 	t.Parallel()
 	forged := finding(ir.SeverityInfo, "a", "/S\nerror openapi-forged spec.yaml: forged")
 	shown := []ir.Diagnostic{
 		{Severity: ir.SeverityWarning, Code: "c\x1b[31m", Message: "\a\x7f\u009b\u202e\u00a0\xff é \\x1b \ufffd",
 			Provenance: ir.Provenance{Source: 0, Pointer: "/k\x1b]0;PWNED\a", Position: ir.Position{Line: 1}}},
-		{Severity: ir.SeverityWarning, Code: "n", Message: "m", Provenance: ir.Provenance{Source: ir.NoSource, Node: "s/\r"}},
-		{Severity: ir.SeverityWarning, Code: "w", Message: "m", Provenance: ir.Provenance{Source: 0, Pointer: "/p", WrittenBy: 1}},
+		{Severity: ir.SeverityWarning, Code: "n", Message: "m\u202e", Provenance: ir.Provenance{Source: ir.NoSource, Node: "s/\r"}},
+		{Severity: ir.SeverityWarning, Code: "w", Message: "m\x7f", Provenance: ir.Provenance{Source: 0, Pointer: "/p", WrittenBy: 1}},
 	}
 	r := report.Report{
 		Sources:  []ir.SourceInfo{{Path: "dir\t/s.yaml"}, {Path: "o\nverlay.yaml", Format: "overlay@1.0.0"}},
@@ -451,8 +452,8 @@ func TestWriteText_EscapesWhatASpecWrites(t *testing.T) {
 	var w strings.Builder
 	require.NoError(t, report.WriteText(&w, r, report.TextOptions{PerCode: 1}))
 	assert.Equal(t, `warning c\x1b[31m dir\t/s.yaml:1 (#/k\x1b]0;PWNED\a): \a\x7f\u009b\u202e\u00a0\xff é \x1b `+"\ufffd\n"+
-		`warning n s/\r: m`+"\n"+
-		`warning w dir\t/s.yaml#/p (written by o\nverlay.yaml): m`+"\n"+
+		`warning n s/\r: m\u202e`+"\n"+
+		`warning w dir\t/s.yaml#/p (written by o\nverlay.yaml): m\x7f`+"\n"+
 		`info a dir\t/s.yaml#/S\nerror openapi-forged spec.yaml: forged: m`+"\n"+
 		`info a\x00 dir\t/s.yaml#/1: m`+"\n"+
 		`  1 more info a\x00 not shown`+"\n"+
@@ -462,4 +463,10 @@ func TestWriteText_EscapesWhatASpecWrites(t *testing.T) {
 	for i, line := range strings.Split(strings.TrimSuffix(w.String(), "\n"), "\n") {
 		assert.Negative(t, strings.IndexFunc(line, func(r rune) bool { return r < 0x20 || r == 0x7f }), "line %d: %q", i, line)
 	}
+
+	w.Reset()
+	below := report.Report{Findings: []triage.Finding{finding(ir.SeverityInfo, "i\x1b", "/q")}}
+	require.NoError(t, report.WriteText(&w, below, report.TextOptions{Least: ir.SeverityWarning}))
+	assert.Equal(t, `  1 info i\x1b not shown`+"\n"+
+		"  0 of 1 findings shown: 0 error, 0 warning, 1 info, 0 accepted\n", w.String())
 }
