@@ -526,8 +526,8 @@ const stubSource = "stub: 1\na: x\nb: y\n"
 // TestCheck_ASecondRegisteredCompilerIsSweptWithEveryOracle is the point of
 // compiling through the registry: a compiler added beside the built-ins gets its
 // files listed, compiled and put through the oracles with no change to the
-// harness. The order oracle is the last of them, so reaching it shows the rest
-// were passed.
+// harness. The order oracle is the last of them, so its finding being the
+// outcome, the first one Check met, shows every oracle before it found nothing.
 func TestCheck_ASecondRegisteredCompilerIsSweptWithEveryOracle(t *testing.T) {
 	for _, tc := range []struct {
 		name       string

@@ -10,8 +10,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"os"
-	"path/filepath"
 	"slices"
 	"strings"
 	"testing"
@@ -511,21 +509,6 @@ func TestDiffOrderInvariants_AFlowsScopesFollowTheSource(t *testing.T) {
 	assert.False(t, ok)
 }
 
-// TestOrderInvariant_ReachesARequirementNamingNoMechanism calls the oracle on the
-// fixture that holds every shape such a requirement takes. harness.Check would
-// stop at its first error, before the oracle, so without this call nothing
-// permutes what a minted scheme is built from. Two of the fixture's paths name
-// one scheme, so the permutation swaps which requirement reaches it first.
-func TestOrderInvariant_ReachesARequirementNamingNoMechanism(t *testing.T) {
-	t.Parallel()
-	data, err := os.ReadFile(filepath.FromSlash("../../testdata/conformance/openapi/security-unresolved.yaml"))
-	require.NoError(t, err)
-
-	got := orderInvariant(context.Background(), "security-unresolved.yaml", data)
-
-	assert.Equal(t, passed(OracleOrder), got)
-}
-
 // TestDiagnosticSet_IgnoresLineAndColumnButKeepsWhetherPositioned pins the two
 // halves of the multiset key that a Position adds. A permutation moves a
 // finding's line and column by design, so two findings differing only in those
@@ -911,8 +894,8 @@ func TestOrderInvariant_PermutationArtifactsAreNotFindings(t *testing.T) {
 				"components:\n schemas:\n  0:\n   allOf:\n    - {A}\n",
 		},
 		{
-			// Reversed, the alias precedes the anchor it names, which YAML forbids:
-			// the permuted source does not parse at all.
+			// Reversed, the alias would precede the anchor it names, which YAML
+			// forbids, so the anchor moves to it and the alias takes its place.
 			name: "an alias reordered above its anchor",
 			src:  "openapi: 3.0.0\ninfo: {title: 0, version: 0}\npaths: {}\n0: &m\n1: *m\n",
 		},

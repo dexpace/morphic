@@ -146,6 +146,19 @@ func TestCheck_AFaultEndingTheRunLeavesTheRestNotReached(t *testing.T) {
 		assert.Equal(t, OutcomeError, r.Outcome)
 		assert.Equal(t, append([]Verdict{passed(OracleNoPanic)}, notReached(Oracles()[1:]...)...), r.Verdicts)
 	})
+	t.Run("a stage the verified run refuses", func(t *testing.T) {
+		withPasses(t, faulting{first: func(own *ir.Document) *ir.Document {
+			own.Types = ir.TypeRegistry{ir.TypeID("t/x/Key"): &ir.Any{ID: "t/x/Other"}}
+			return own
+		}})
+
+		r := Check(context.Background(), "spec.yaml", []byte(testspec.Tiny))
+
+		require.Len(t, r.Verdicts, len(Oracles()))
+		assert.Equal(t, passed(OracleNoPanic), r.Verdicts[0])
+		assert.Equal(t, OutcomeViolations, r.Verdicts[1].Outcome, "the engine's refusal is the invariants oracle's")
+		assert.Equal(t, notReached(Oracles()[2:]...), r.Verdicts[2:], "the engine returns no document to ask of")
+	})
 	t.Run("a caller's mistake", func(t *testing.T) {
 		r := Check(context.Background(), "", []byte(testspec.Minimal))
 

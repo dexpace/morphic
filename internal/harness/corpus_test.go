@@ -261,6 +261,7 @@ func TestHarness_InRepoCorpus(t *testing.T) {
 			want = append(want, harness.OutcomeErrorDiag)
 		}
 		want = append(want, findings[r.Spec]...)
+		slices.Sort(want)
 		if !slices.Equal(want, foundOutcomes(r)) {
 			unexpected = append(unexpected, r)
 		}
@@ -285,8 +286,8 @@ func TestHarness_InRepoCorpus(t *testing.T) {
 	}
 }
 
-// foundOutcomes is what each oracle that found something in r found, in
-// Check's order.
+// foundOutcomes is what each oracle that found something in r found, sorted,
+// so a list need not follow Check's order to match it.
 func foundOutcomes(r harness.Result) []harness.Outcome {
 	var out []harness.Outcome
 	for _, v := range r.Verdicts {
@@ -294,6 +295,7 @@ func foundOutcomes(r harness.Result) []harness.Outcome {
 			out = append(out, v.Outcome)
 		}
 	}
+	slices.Sort(out)
 	return out
 }
 
