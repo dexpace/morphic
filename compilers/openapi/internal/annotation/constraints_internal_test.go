@@ -148,9 +148,9 @@ func TestConstraints_KeepsTheExactLiteral(t *testing.T) {
 }
 
 // TestNumericBounds_AMalformedLiteralIsDropped pins what a bound no decimal
-// spells reads as: nothing, rather than half a bound. The load phase reports
-// it, at every schema its check reads (docs/compilers/openapi.md#constraints), so a reading here
-// says nothing of it.
+// spells reads as: nothing, rather than half a bound. The rule table's check
+// reports it, at every schema it reads (docs/compilers/openapi.md#constraints),
+// so a reading here says nothing of it.
 func TestNumericBounds_AMalformedLiteralIsDropped(t *testing.T) {
 	t.Parallel()
 	for _, keyword := range []string{"minimum", "maximum", "multipleOf"} {
@@ -210,7 +210,8 @@ func TestApplyExclusive_BothDialects(t *testing.T) {
 
 // TestApplyExclusive_TheWrongFormForTheDialectIsDropped pins the mismatch. A
 // value in the other dialect's form carries no usable bound here, so it sets
-// none, and the load phase reports it (docs/compilers/openapi.md#constraints).
+// none, and the rule table's check reports it
+// (docs/compilers/openapi.md#constraints).
 func TestApplyExclusive_TheWrongFormForTheDialectIsDropped(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
@@ -242,8 +243,8 @@ func TestApplyExclusive_TheWrongFormForTheDialectIsDropped(t *testing.T) {
 
 // TestApplyExclusive_AMalformedNumericBoundIsDropped pins the 2020-12 arm, which
 // reads its own bound off the raw node and so has the same way to fail as
-// minimum and maximum do: the bound is dropped, and the load phase reports it
-// (docs/compilers/openapi.md#constraints).
+// minimum and maximum do: the bound is dropped, and the rule table's check
+// reports it (docs/compilers/openapi.md#constraints).
 func TestApplyExclusive_AMalformedNumericBoundIsDropped(t *testing.T) {
 	t.Parallel()
 	got, _, diags := Constraints(schemaFromYAML(t, "type: number\nexclusiveMaximum: .inf\n"), false, "/p", sourced(0))
@@ -480,7 +481,7 @@ func TestConstraints_AttributesAKeptModifierAtItsKeyword(t *testing.T) {
 // leaves the parsed slot nil in both cases, so a modifier reading only the slot
 // took the second for the first: it drew a diagnostic asserting the keyword was
 // absent, and parked the modifier under Unmodeled as an orphan — on a schema
-// that wrote the bound on the line above. The bad literal is the load phase's
+// that wrote the bound on the line above. The bad literal is the rule table's
 // to report (docs/compilers/openapi.md#constraints), so nothing is said here.
 func TestApplyExclusiveFlag_AnUnreadableBoundIsNotAMissingOne(t *testing.T) {
 	t.Parallel()

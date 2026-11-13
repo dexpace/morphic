@@ -326,7 +326,7 @@ func TestVoices_BoundsMeetInEveryOrder(t *testing.T) {
 	}
 }
 
-// TestVoices_ARefusedBoundPartsNoWriter pins a bound beside one the load phase
+// TestVoices_ARefusedBoundPartsNoWriter pins a bound beside one the rule table
 // refuses, in either order (GitHub #1494): the refused value states nothing, so
 // both branches fold, the stated bound reaches the node, and the refusal is
 // reported once, at the keyword, as it is beside the allOf.

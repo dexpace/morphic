@@ -531,11 +531,12 @@ in a 3.0 schema or in one a draft before it reads ([`dialect-keywords`](#dialect
 as 2020-12 reads it and draws the warning too, at its key, its value held to 2020-12's row, true and
 false standing as schemas where that row admits a schema, an entry of its list or map among them: in
 a 3.0 schema in the words above, as a field 3.1 added, and in a draft's as a keyword its dialect
-does not define. Three such keywords are
-not read: a `$schema` in a 3.0 schema, whose dialect is fixed, which the warning says is kept
-verbatim and chooses nothing; draft 4's `$id`, which its `id` spells, read for nothing and warned of
-by no such warning; and a `prefixItems` beside the `items` list a draft reads as its own tuple, which
-is kept verbatim beside it ([`tuples`](#tuples)), as the warning says. The same table
+does not define. The rules 3.1 states over such a keyword, such as `prefixItems` holding an entry,
+hold in a draft's schema and not in a 3.0 one, where the declared minor's rules run. Three such
+keywords are not read: a `$schema` in a 3.0 schema, whose dialect is fixed, which the warning says
+is kept verbatim and chooses nothing; draft 4's `$id`, which its `id` spells, read for nothing and
+warned of by no such warning; and a `prefixItems` beside the `items` list a draft reads as its own
+tuple, which is kept verbatim beside it ([`tuples`](#tuples)), as the warning says. The same table
 judges a Parameter Object's `allowReserved` against where the declared minor applies it
 ([`allow-reserved-locations`](#allow-reserved-locations)), and its `allowEmptyValue` against the
 style it is written under ([`allow-empty-value`](#allow-empty-value)).
@@ -648,8 +649,8 @@ so one in a literal, a value or an extension declares none, and the document's r
 or a map of them. An `$id` gives its base to what is written below it by the same reading, wherever
 it is read. A schema read in JSON Schema draft 4 ([`dialect-keywords`](#dialect-keywords)) spells
 it `id`, its `$id` then naming nothing. In drafts 4, 6 and 7 one naming a fragment alone, `#name`,
-declares that plain name as an `$anchor` does, which is why the load phase holds an `$id`'s format
-to the schema's dialect rather than to the rule table's 2020-12 row; one beside a `$ref` gives it no
+declares that plain name as an `$anchor` does, which is why the rule table holds an `$id`'s format
+to the row of the schema's dialect ([`validation`](#validation)); one beside a `$ref` gives it no
 base, roots no resource and declares no name, as those drafts ignore every keyword there;
 `definitions` holds schemas as `$defs` does, and so does `dependencies` where a value is one. A
 schema another holds roots a resource where it writes an identifier as the

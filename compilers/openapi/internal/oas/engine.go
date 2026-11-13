@@ -383,7 +383,9 @@ func (f frame) addedLater(key string, m Minor) (Field, bool) {
 
 // asLater returns f as it reads fld, a field the dialect the compiler reads
 // natively added: true and false stand as schemas there, as from 3.1, and a
-// finding holds it to that dialect's minor.
+// finding holds it to that dialect's minor. Only fld's row is that dialect's:
+// the rules run at the declared minor, so at 3.0 none 3.1 states over the
+// field holds, such as prefixItems holding an entry.
 func (f frame) asLater(fld Field, m Minor) frame {
 	f.booleans, f.where = true, "OpenAPI "+max(fld.Defined.Since, m).String()
 	return f
