@@ -87,7 +87,8 @@ type Result struct {
 	// index: what the verdict reads, and what a renderer shows.
 	Findings []triage.Finding `json:"findings,omitempty"`
 	// UnusedRules lists the rules of RunOptions.Triage that matched no finding,
-	// in the order given: a rule that has outlived what it was written for.
+	// in the order given, on a run that produced a document: a rule that may
+	// have outlived the finding it was written for, or whose pass is off.
 	UnusedRules []triage.Rule `json:"unusedRules,omitempty"`
 	// Failed is the engine's verdict: the run produced no document, or one
 	// with a finding rated at or above RunOptions.FailOn that no rule accepted.

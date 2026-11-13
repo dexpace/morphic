@@ -229,8 +229,10 @@ exactly, and a reason:
 A rule names no pattern: a `*` in a code is refused, as is a rule both rating and accepting, an
 acceptance naming no place, two rules ruling the same findings, a pointer that is not RFC 6901, a
 member the file does not define and a missing reason. A rule no finding matched is named after the
-findings, and listed as `unusedRules` in the JSON report: the finding it was written for is gone,
-and the rule can go too. A file is read as a spec is, no further than 16 MiB.
+findings, as many of each code as of a code's findings, and listed as `unusedRules` in the JSON
+report: unless a pass it was written for is off, the finding it names is gone, and the rule can go
+too. A run that lowered no document stopped short of most findings, so it names no rule unused. A
+file is read as a spec is, no further than 16 MiB.
 
 A file accepting each finding a run now draws at a place can start from the run's own report:
 

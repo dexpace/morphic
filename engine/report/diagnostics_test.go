@@ -382,6 +382,26 @@ func TestWriteText_NamesEachUnusedRule(t *testing.T) {
 		"  triage rule for c at node s/x matched no finding\n", w.String())
 }
 
+// TestWriteText_CountsUnusedRulesPastTheCountOfACode holds the unused rules to
+// PerCode as findings are: the first of each code named, in the order given,
+// and the rest of that code counted on a line after them.
+func TestWriteText_CountsUnusedRulesPastTheCountOfACode(t *testing.T) {
+	t.Parallel()
+	at := func(code, pointer string) triage.Rule {
+		return triage.Rule{Code: code, Pointer: jsontext.Pointer(pointer), Accept: true, Reason: "r"}
+	}
+	r := report.Report{UnusedRules: []triage.Rule{
+		at("a", "/1"), at("b", "/2"), at("a", "/3"), at("a", "/4"), at("b", "/5"), at("c", "/6"),
+	}}
+	var w strings.Builder
+	require.NoError(t, report.WriteText(&w, r, report.TextOptions{PerCode: 1}))
+	assert.Equal(t, "  triage rule for a at /1 matched no finding\n"+
+		"  triage rule for b at /2 matched no finding\n"+
+		"  triage rule for c at /6 matched no finding\n"+
+		"  2 more of the triage rules for a matched no finding\n"+
+		"  1 more of the triage rules for b matched no finding\n", w.String())
+}
+
 // TestWriteText_RefusesOptionsItCannotRead pins a Least naming no severity and
 // a negative count as refused before anything is written.
 func TestWriteText_RefusesOptionsItCannotRead(t *testing.T) {

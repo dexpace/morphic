@@ -122,11 +122,18 @@ func (t threshold) verdict(doc *ir.Document, findings []triage.Finding) (bool, e
 // judge rates res's findings by the plan's rules, records them and the rules
 // none matched on res, and its verdict at the plan's threshold as
 // Result.Failed. It returns res, or the error the verdict refused it with.
+//
+// A run that produced no document stopped short of most of the findings a
+// rule is written for, so it lists no rule as unused: none it missed is shown
+// to have outlived its finding.
 func (p plan) judge(res *Result) (*Result, error) {
 	findings, unused := p.rules.Rate(res.Diagnostics)
 	failed, err := p.failOn.verdict(res.Document, findings)
 	if err != nil {
 		return nil, err
+	}
+	if res.Document == nil {
+		unused = nil
 	}
 	res.Findings, res.UnusedRules, res.Failed = findings, unused, failed
 	return res, nil

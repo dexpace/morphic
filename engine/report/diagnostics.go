@@ -79,9 +79,9 @@ type group struct {
 // WriteText writes r's findings to w for a person, one per line as
 // "<severity> <code><location>: <message>" at the rated severity, in reported
 // order, as many as opts admits. Then, indented so no line parser reads it as
-// a finding, a line for each code and rating it withheld findings of, one per
-// unused rule, and, once it withheld any or a rule accepted any, a tally.
-// It escapes every string a spec can write (printable).
+// a finding: a line per code and rating it withheld findings of, the unused
+// rules as findings are, and, once a finding was withheld or accepted, a
+// tally. It escapes every string a spec can write (printable).
 //
 // It refuses a nil w and options naming no severity or a negative count, and
 // stops at the first write that fails, returning its error.
@@ -116,7 +116,7 @@ func WriteText(w io.Writer, r Report, opts TextOptions) error {
 		g.shown++
 		lw.printf("%s\n", line(f, r.Sources))
 	}
-	writeFooter(lw, r, groups, accepted)
+	writeFooter(lw, r, groups, accepted, opts.PerCode)
 	return lw.err
 }
 
@@ -138,7 +138,7 @@ func (o TextOptions) least() (int, error) {
 // writeFooter writes what follows the findings WriteText shows: what it
 // withheld of each group, the unused rules, and the tally once anything was
 // withheld or accepted.
-func writeFooter(lw *lineWriter, r Report, groups []*group, accepted int) {
+func writeFooter(lw *lineWriter, r Report, groups []*group, accepted, perCode int) {
 	withheld := accepted
 	for _, g := range groups {
 		withheld += g.withheld
@@ -150,9 +150,7 @@ func writeFooter(lw *lineWriter, r Report, groups []*group, accepted int) {
 			lw.printf("  %d %s %s not shown\n", g.withheld, printable(string(g.severity)), printable(g.code))
 		}
 	}
-	for _, rule := range r.UnusedRules {
-		lw.printf("  triage rule for %s%s matched no finding\n", printable(rule.Code), rulePlace(rule))
-	}
+	writeUnused(lw, r.UnusedRules, perCode)
 	if withheld == 0 {
 		return
 	}
@@ -167,6 +165,31 @@ func writeFooter(lw *lineWriter, r Report, groups []*group, accepted int) {
 		fmt.Fprintf(&tally, "%d %s, ", counts[sev], sev)
 	}
 	lw.printf("  %d of %d findings shown: %s%d accepted\n", len(r.Findings)-withheld, len(r.Findings), tally.String(), accepted)
+}
+
+// writeUnused writes a line naming each unused rule, the first perCode of each
+// code when perCode is positive, then a line counting the rest of that code:
+// a file of rules written for every finding of a spec can leave thousands
+// unused once the spec is fixed.
+func writeUnused(lw *lineWriter, unused []triage.Rule, perCode int) {
+	var codes []string
+	named, more := map[string]int{}, map[string]int{}
+	for _, rule := range unused {
+		if _, seen := named[rule.Code]; !seen {
+			codes = append(codes, rule.Code)
+		}
+		if perCode > 0 && named[rule.Code] == perCode {
+			more[rule.Code]++
+			continue
+		}
+		named[rule.Code]++
+		lw.printf("  triage rule for %s%s matched no finding\n", printable(rule.Code), rulePlace(rule))
+	}
+	for _, code := range codes {
+		if more[code] > 0 {
+			lw.printf("  %d more of the triage rules for %s matched no finding\n", more[code], printable(code))
+		}
+	}
 }
 
 // rulePlace spells where rule rules, leading space included: " at <pointer>",

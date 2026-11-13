@@ -527,8 +527,9 @@ directories (#1297). The build is the identity of the code, compilers and passes
 toolchain. It reads the file at the executable's path, as no portable call reads the image running,
 so a build installed as a run starts, before that read, is the one named: the run keeps what the
 old build compiled under the new build's key, and that entry answers the new build (#1318). The
-threshold is not covered, as a hit judges the verdict afresh, and neither is the format, which
-follows from the bytes and which finding is what a hit skips.
+threshold and the triage rules are not covered, as a hit rates its findings and judges the verdict
+afresh, and neither is the format, which follows from the bytes and which finding is what a hit
+skips.
 
 **What a key cannot cover.** Which other documents a compile reads is known only once it has run.
 So a compile reads through a recorder, the entry lists each request with the hash of what came
@@ -720,9 +721,9 @@ edited, as a line does not. The decisions it rests on:
 - *An acceptance names a place.* Accepting a code everywhere would be a blanket suppression, so an
   acceptance is keyed by code and place, the code-by-entity key the [prior art](./prior-art.md)
   takes for an approval.
-- *A rule that matches nothing is reported.* `Result.UnusedRules` lists it, and the CLI names it:
-  the finding it was written for has gone, because the spec changed or a later build lowers the
-  construct, and the rule can go too. That is the decay an approval's expiry stands guard against,
+- *A rule that matches nothing is reported.* `Result.UnusedRules` lists it on a run that produced
+  a document, and the CLI names it: unless its pass is off, the finding it was written for has gone,
+  because the spec changed or a later build lowers the construct, and the rule can go too. That is the decay an approval's expiry stands guard against,
   found by the run itself; an expiry by date would make one run's verdict depend on the day it ran,
   and morphic has no release a rule could name.
 - *Rules are applied after the run, never stored.* `Result.Diagnostics` and the document keep the

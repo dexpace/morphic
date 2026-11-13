@@ -143,7 +143,8 @@ func TestEngine_RunVerdictReadsThePassesFindings(t *testing.T) {
 // TestEngine_RunWithoutADocumentFails pins that no threshold passes a run that
 // produced no document, FailOnNone included, nor a rule rating its findings
 // down: there is nothing for the next stage to read. Both refusal paths are
-// covered, a source no compiler claims and a compile that lowered nothing.
+// covered, a source no compiler claims and a compile that lowered nothing, and
+// neither lists the rule its finding did not meet as unused.
 func TestEngine_RunWithoutADocumentFails(t *testing.T) {
 	t.Parallel()
 	unclaimed, err := engine.New()
@@ -169,7 +170,9 @@ func TestEngine_RunWithoutADocumentFails(t *testing.T) {
 
 				require.NoError(t, err)
 				assert.Nil(t, res.Document)
-				assert.Len(t, res.UnusedRules, 1, "one rule rates the run's one finding down")
+				require.Len(t, res.Findings, 1)
+				assert.Equal(t, ir.SeverityInfo, res.Findings[0].Severity, "a rule rates the run's one finding down")
+				assert.Empty(t, res.UnusedRules, "a run with no document shows no rule outlived its finding")
 				assert.True(t, res.Failed)
 			})
 		}
