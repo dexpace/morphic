@@ -60,7 +60,7 @@ func (a *agreement) write(conjunct *oas3.Schema) []string {
 			// warns of and keeps, the lowering does where it reads a branch that
 			// folds; a branch kept apart is kept whole instead. Nothing this
 			// reading places is kept, so it places at the zero Doc.
-			cons, _, _ = annotation.Constraints(conjunct, exclusiveIsBoolean(a.c, conjunct), "", provenance.Doc{})
+			cons, _, _ = annotation.Constraints(conjunct, annotation.AllBounds, exclusiveIsBoolean(a.c, conjunct), "", provenance.Doc{})
 			cons = merge.Constraints(cons, heldCollectionBounds(conjunct))
 			read = true
 		}

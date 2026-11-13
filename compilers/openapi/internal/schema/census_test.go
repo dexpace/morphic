@@ -157,7 +157,7 @@ func TestUnhomedKeywords_ElectedLoweringKeepsWhatItCannotRead(t *testing.T) {
 			if len(tc.kept) == 0 {
 				want = 0
 			}
-			assert.Len(t, diagsAtPointer(diags, diag.DegradedConstruct, "/components/schemas/S"), want,
+			assert.Len(t, degradedAt(diags, "/components/schemas/S"), want,
 				"a position keeps nothing quietly and reports everything it keeps: %+v", diags)
 		})
 	}

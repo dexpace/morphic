@@ -19,17 +19,46 @@ import (
 
 // scalarTypeID maps a scalar (type, format) pair to a TypeID via spelling.Lookup: a
 // known pairing interns the shared primitive; byte, a pairing the table does
-// not list, and the 2020-12 content vocabulary each hoist a named Scalar
-// wrapping the base primitive with an Encoding, so what the position wrote
-// never leaks onto the shared primitive every other declaration of that type
-// also resolves to.
+// not list, and the 2020-12 content vocabulary beside a string each hoist a
+// named Scalar wrapping the base primitive with an Encoding, so what the
+// position wrote never leaks onto the shared primitive every other declaration
+// of that type also resolves to.
 func scalarTypeID(c lowering.Ctx, ts *compile.Types, depth int, s *oas3.Schema, st oas3.SchemaType, pointer jsontext.Pointer) (ir.TypeID, []ir.Diagnostic) {
-	format := s.GetFormat()
-	if annotation.DeclaresRedaction(s) {
-		format = "" // a redaction, not a shape: the annotation readers hold it
+	shape := scalarShapeOf(s, st, writtenFormat(s))
+	if shape.shared {
+		return ts.PrimID(shape.base), nil
 	}
+	return hoistScalar(c, ts, depth, s, shape, typeKinds(st), positionVoices(c, ts, s, pointer, ir.TypeRef{}), pointer)
+}
+
+// writtenFormat returns the format s writes, but for a redaction, which names no
+// shape: the annotation readers hold it.
+func writtenFormat(s *oas3.Schema) string {
+	if annotation.DeclaresRedaction(s) {
+		return ""
+	}
+	return s.GetFormat()
+}
+
+// scalarShape is what a scalar of one type lowers to: the primitive it is over,
+// the encoding name and wire type a Scalar over that primitive holds, and
+// whether the primitive alone says all of it, so the shared one stands for it.
+type scalarShape struct {
+	base   ir.PrimKind
+	format string
+	wire   *ir.PrimKind
+	shared bool
+}
+
+// scalarShapeOf returns what a scalar of type st that s writes, with format,
+// lowers to: byte beside a string a Scalar over bytes encoded base64, carried
+// as a string; a pairing the table does not list a Scalar over the type's base
+// keeping the format as its encoding name; and a pairing it lists the primitive
+// it selects, shared unless s writes the content vocabulary for a type that
+// takes it, a string's (keywordKinds).
+func scalarShapeOf(s *oas3.Schema, st oas3.SchemaType, format string) scalarShape {
 	if st == oas3.SchemaTypeString && format == "byte" {
-		return hoistScalar(c, ts, depth, s, ir.PrimBytes, "base64", new(ir.PrimString), pointer)
+		return scalarShape{base: ir.PrimBytes, format: "base64", wire: new(ir.PrimString)}
 	}
 	key := string(st)
 	if format != "" {
@@ -37,12 +66,9 @@ func scalarTypeID(c lowering.Ctx, ts *compile.Types, depth int, s *oas3.Schema, 
 	}
 	prim, known := spelling.Lookup(key)
 	if !known {
-		return hoistScalar(c, ts, depth, s, baseForType(st), format, nil, pointer)
+		return scalarShape{base: baseForType(st), format: format}
 	}
-	if !declaresContentVocabulary(s) {
-		return ts.PrimID(prim), nil
-	}
-	return hoistScalar(c, ts, depth, s, prim, "", nil, pointer)
+	return scalarShape{base: prim, shared: !takesContent(typeKinds(st)) || !declaresContentVocabulary(s)}
 }
 
 // formatPrimitive returns the primitive that s's one declared type and its
@@ -69,26 +95,30 @@ func baseForType(st oas3.SchemaType) ir.PrimKind {
 	}
 }
 
-// hoistScalar hoists a scalar over base, giving what the position wrote a node
-// of its own to sit on: the encoding scalarEncoding builds from formatName and,
-// when wire is non-nil, the primitive the encoded value travels as.
+// hoistScalar hoists the Scalar shape describes at pointer, giving what the
+// position wrote a node of its own: the encoding scalarEncoding builds from the
+// shape's format name and the wire type it names, if any.
 //
-// The node carries the position's value constraints itself, because owning a
-// node is what stops hoistDeclarationHome hoisting the alias that would
-// otherwise carry them: that fallback resolves to whatever node the pointer
-// already owns and returns early. A scalar that hoisted because it wrote a
-// format must not lose the bounds it wrote beside it (invariant 2).
-func hoistScalar(c lowering.Ctx, ts *compile.Types, depth int, s *oas3.Schema, base ir.PrimKind, formatName string, wire *ir.PrimKind, pointer jsontext.Pointer) (ir.TypeID, []ir.Diagnostic) {
+// The node carries the value constraints s and voices, the position's, write
+// that apply to the kinds takes, because owning a node is what stops
+// hoistDeclarationHome hoisting the alias that would otherwise carry them: that
+// fallback resolves to whatever node the pointer already owns. A scalar hoisted
+// for its format must not lose the bounds written beside it (invariant 2).
+func hoistScalar(c lowering.Ctx, ts *compile.Types, depth int, s *oas3.Schema, shape scalarShape, takes kindSet, voices []annotation.Voice, pointer jsontext.Pointer) (ir.TypeID, []ir.Diagnostic) {
 	var diags []ir.Diagnostic
 	id := internNode(c, ts, pointer, func(common ir.TypeCommon) ir.TypeDef {
-		baseRef := ts.PrimRef(base)
-		enc, encDiags := scalarEncoding(c, ts, depth, s, formatName, &common, pointer)
+		baseRef := ts.PrimRef(shape.base)
+		enc, encDiags := scalarEncoding(c, ts, depth, s, shape.format, takesContent(takes), &common, pointer)
 		diags = append(diags, encDiags...)
-		if wire != nil {
-			wireRef := ts.PrimRef(*wire)
+		if shape.wire != nil {
+			wireRef := ts.PrimRef(*shape.wire)
 			enc.WireType = &wireRef
 		}
-		cons, consDiags := ConstraintsOf(c, &common.Unmodeled, s, positionVoices(c, ts, s, pointer, ir.TypeRef{}), pointer)
+		if *enc == (ir.Encoding{}) {
+			// A variant hoisted for a bound alone names no encoding.
+			enc = nil
+		}
+		cons, consDiags := ConstraintsOf(c, &common.Unmodeled, s, voices, pointer, takes)
 		diags = append(diags, consDiags...)
 		return &ir.Scalar{
 			TypeCommon:  common,
@@ -101,13 +131,17 @@ func hoistScalar(c lowering.Ctx, ts *compile.Types, depth int, s *oas3.Schema, b
 }
 
 // scalarEncoding builds the Encoding a scalar position declares: the whole
-// 2020-12 content vocabulary over the OpenAPI `format` spelling of the encoding
-// name. formatName is the encoding name the format contributes — "base64" for
-// format: byte, an unrecognized format verbatim, "" when the pairing is already
-// captured by the primitive kind.
+// 2020-12 content vocabulary, where withContent says the scalar's type takes it,
+// over the OpenAPI `format` spelling of the encoding name. formatName is the
+// encoding name the format contributes — "base64" for format: byte, an
+// unrecognized format verbatim, "" when the pairing is already captured by the
+// primitive kind.
 func scalarEncoding(c lowering.Ctx, ts *compile.Types, depth int, s *oas3.Schema,
-	formatName string, common *ir.TypeCommon, pointer jsontext.Pointer,
+	formatName string, withContent bool, common *ir.TypeCommon, pointer jsontext.Pointer,
 ) (*ir.Encoding, []ir.Diagnostic) {
+	if !withContent {
+		return &ir.Encoding{Name: formatName}, nil
+	}
 	name, diags := encodingName(c, s, formatName, common, pointer)
 	content, contentDiags := contentSchemaRef(c, ts, depth, s, pointer)
 	enc := &ir.Encoding{Name: name, MediaType: s.GetContentMediaType(), Schema: content}
@@ -166,6 +200,12 @@ func contentSchemaRef(c lowering.Ctx, ts *compile.Types, depth int, s *oas3.Sche
 // reached an Encoding keeps none.
 var contentKeywords = []string{"contentEncoding", "contentMediaType", "contentSchema"}
 
+// takesContent reports whether a reader of values of the kinds takes reads the
+// content vocabulary, which applies to a string alone (keywordKinds).
+func takesContent(takes kindSet) bool {
+	return taken(takes, "contentEncoding")
+}
+
 // declaresContentVocabulary reports whether s writes any content-vocabulary
 // keyword, so a position that wrote one owns a node to keep it on.
 func declaresContentVocabulary(s *oas3.Schema) bool {
@@ -176,14 +216,14 @@ func declaresContentVocabulary(s *oas3.Schema) bool {
 // recordUnplacedContent keeps each content keyword verbatim on p, for a position
 // whose lowering produced no ir.Encoding to hold it.
 //
-// A string position lowers them (scalarEncoding). An object, an array, a union,
-// an alias over a $ref, or a schema with no declared type at all has no Encoding
-// field — yet JSON Schema Validation 2020-12 §8 gives these keywords meaning on
-// whatever instance turns out to be a string, so they are kept rather than
-// dropped. It asks the node the position actually lowered to instead of
-// re-deriving lower()'s dispatch, so the two cannot drift apart.
+// A string position lowers them (scalarEncoding), and a type array listing a
+// string on its string variant. Any other type, an alias over a $ref, or a
+// schema with no declared type reaches no Encoding holding them — yet JSON
+// Schema Validation 2020-12 §8 gives these keywords meaning on whatever instance
+// turns out to be a string, so they are kept rather than dropped. It asks the
+// node the position lowered to (holdsContent), not lower()'s dispatch.
 func recordUnplacedContent(c lowering.Ctx, p *ir.Unmodeled, s *oas3.Schema, td ir.TypeDef, pointer jsontext.Pointer) []ir.Diagnostic {
-	if !declaresContentVocabulary(s) || scalarHasEncoding(td) {
+	if !declaresContentVocabulary(s) || holdsContent(c, s, td, pointer) {
 		return nil
 	}
 	var diags []ir.Diagnostic
@@ -200,10 +240,21 @@ func recordUnplacedContent(c lowering.Ctx, p *ir.Unmodeled, s *oas3.Schema, td i
 	return diags
 }
 
-// scalarHasEncoding reports whether td is a Scalar already carrying the
-// position's Encoding. A nil td is the property-carrier case — no node, so no
-// Encoding.
-func scalarHasEncoding(td ir.TypeDef) bool {
-	sc, ok := td.(*ir.Scalar)
-	return ok && sc.Encoding != nil
+// holdsContent reports whether td, the node s lowered to at pointer, holds the
+// content vocabulary s writes: a Scalar carrying an Encoding for a type that
+// takes it, or the Union of a type array listing a string, whose string variant
+// carries one (lowerTypeVariant). A nil td is the property-carrier case — no
+// node, so no Encoding.
+func holdsContent(c lowering.Ctx, s *oas3.Schema, td ir.TypeDef, pointer jsontext.Pointer) bool {
+	if !takesContent(declaredKinds(s)) {
+		return false
+	}
+	switch n := td.(type) {
+	case *ir.Scalar:
+		return n.Encoding != nil
+	case *ir.Union:
+		return lowersTypeArray(c, s, pointer)
+	default:
+		return false
+	}
 }

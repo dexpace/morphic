@@ -23,25 +23,26 @@ import (
 	"github.com/dexpace/morphic/ir"
 )
 
-// ConstraintsOf returns the value constraints s and its voices write, or nil
-// where they write none, for the node or carrier at pointer to hold, so a node a
-// position owns, a property and a parameter read them alike. A bound several
-// write meets (merge.Constraints): a voice speaks only where its bounds meet
-// every other writer's (docs/compilers/openapi.md#allof-inline-residue).
+// ConstraintsOf returns the value constraints s and its voices write that apply
+// to a value of the kinds takes, the position's types', or nil where they write
+// none, for the node or carrier at pointer to hold, so a node, a property and a
+// parameter read them alike (docs/compilers/openapi.md#constraints). A bound
+// several write meets (merge.Constraints): a voice speaks only where its bounds
+// meet every other writer's (docs/compilers/openapi.md#allof-inline-residue).
 //
 // p is the Unmodeled map of the node or carrier the constraints land on. A 3.0
 // exclusive modifier with no bound beside it to modify, which no ir.Constraints
-// field holds, is kept there, beside the constraints it did not reach (GitHub
-// #286).
-func ConstraintsOf(c lowering.Ctx, p *ir.Unmodeled, s *oas3.Schema, voices []annotation.Voice, pointer jsontext.Pointer) (*ir.Constraints, []ir.Diagnostic) {
-	cons, diags := constraintsAt(c, p, s, pointer)
+// field holds, is kept there (GitHub #286).
+func ConstraintsOf(c lowering.Ctx, p *ir.Unmodeled, s *oas3.Schema, voices []annotation.Voice, pointer jsontext.Pointer, takes kindSet) (*ir.Constraints, []ir.Diagnostic) {
+	take := boundsFor(takes)
+	cons, diags := constraintsAt(c, p, s, pointer, take)
 	for _, v := range voices {
-		voiced, voicedDiags := constraintsAt(c, p, v.Node, v.At)
+		voiced, voicedDiags := constraintsAt(c, p, v.Node, v.At, take)
 		diags = append(diags, voicedDiags...)
 		cons = merge.Constraints(cons, voiced)
 	}
 	writers := append([]annotation.Voice{{Node: s, At: pointer}}, voices...)
-	return cons, append(diags, keepCounts(c, p, writers)...)
+	return cons, append(diags, keepCounts(c, p, writers, takes)...)
 }
 
 // exclusiveIsBoolean reports whether s spells an exclusive bound as a boolean
@@ -55,12 +56,13 @@ func exclusiveIsBoolean(c lowering.Ctx, s *oas3.Schema) bool {
 	return rulesOf(c, s).Takes("exclusiveMinimum", oas.Boolean)
 }
 
-// constraintsAt reads what s, written at pointer, bounds.
-func constraintsAt(c lowering.Ctx, p *ir.Unmodeled, s *oas3.Schema, pointer jsontext.Pointer) (*ir.Constraints, []ir.Diagnostic) {
+// constraintsAt reads what s, written at pointer, bounds of the groups take
+// names.
+func constraintsAt(c lowering.Ctx, p *ir.Unmodeled, s *oas3.Schema, pointer jsontext.Pointer, take annotation.Bounds) (*ir.Constraints, []ir.Diagnostic) {
 	if s == nil {
 		return nil, nil
 	}
-	cons, kept, diags := annotation.Constraints(s, exclusiveIsBoolean(c, s), pointer, c.Place())
+	cons, kept, diags := annotation.Constraints(s, take, exclusiveIsBoolean(c, s), pointer, c.Place())
 	*p = annotation.MergeUnmodeled(*p, kept)
 	return cons, stampConstraintDiags(c, diags, pointer)
 }
@@ -70,14 +72,19 @@ func constraintsAt(c lowering.Ctx, p *ir.Unmodeled, s *oas3.Schema, pointer json
 var valueCountKeywords = []string{"maxLength", "maxProperties", "minLength", "minProperties"}
 
 // keepCounts keeps verbatim in p each value count that writers, a position's
-// schema and its voices, write and no field states (keptCount): of several
-// writing one keyword, the one binding the rest (bindingCount), so the entry is
-// the same whatever their order. Each writer's kept counts are reported once,
-// where it was written (docs/compilers/openapi.md#constraints).
-func keepCounts(c lowering.Ctx, p *ir.Unmodeled, writers []annotation.Voice) []ir.Diagnostic {
+// schema and its voices, write and no field states (keptCount), of those a
+// reader of the kinds takes reads: of several writing one keyword, the one
+// binding the rest (bindingCount), so the entry is the same whatever their
+// order. Each writer's kept counts are reported once, where it was written
+// (docs/compilers/openapi.md#constraints). A count no such reader reads is the
+// census's to keep (untakenBounds).
+func keepCounts(c lowering.Ctx, p *ir.Unmodeled, writers []annotation.Voice, takes kindSet) []ir.Diagnostic {
 	binding := make([]int, len(valueCountKeywords))
 	for k, keyword := range valueCountKeywords {
-		binding[k] = bindingCount(writers, keyword)
+		binding[k] = -1
+		if taken(takes, keyword) {
+			binding[k] = bindingCount(writers, keyword)
+		}
 	}
 	var diags []ir.Diagnostic
 	for w, writer := range writers {
@@ -261,14 +268,20 @@ func stampConstraintDiags(c lowering.Ctx, diags []ir.Diagnostic, pointer jsontex
 
 // CarrierConstraintsOf is ConstraintsOf for the carrier of a position of type t.
 // A position owning its node leaves the collection bounds to it, one home per
-// declaration, so the carrier reads the value bounds alone. One owning none holds
-// those a reference does (referenceConstraintsOf), since the census hoists an
-// alias to keep any other. PreserveRefSiteKeywords draws the same line.
+// declaration, so the carrier reads the value bounds alone, and none where the
+// node is the Union of a type array, each of whose bounds is the variant's it
+// applies to (lowersTypeArray). One owning none holds those a reference does
+// (referenceConstraintsOf), since the census hoists an alias to keep any other.
+// PreserveRefSiteKeywords draws the same line.
 func CarrierConstraintsOf(c lowering.Ctx, ts *compile.Types, p *ir.Unmodeled, s *oas3.Schema, voices []annotation.Voice, t ir.TypeRef, pointer jsontext.Pointer) (*ir.Constraints, []ir.Diagnostic) {
-	if LoweredToOwnNode(c, ts, pointer, t) {
-		return ConstraintsOf(c, p, s, voices, pointer)
+	if !LoweredToOwnNode(c, ts, pointer, t) {
+		return referenceConstraintsOf(c, ts, p, s, voices, t, pointer)
 	}
-	return referenceConstraintsOf(c, ts, p, s, voices, t, pointer)
+	var takes kindSet
+	if s != nil && !lowersTypeArray(c, s, pointer) {
+		takes = declaredKinds(s)
+	}
+	return ConstraintsOf(c, p, s, voices, pointer, takes)
 }
 
 // referenceConstraintsOf is ConstraintsOf for a position that lowered to target,
@@ -276,12 +289,14 @@ func CarrierConstraintsOf(c lowering.Ctx, ts *compile.Types, p *ir.Unmodeled, s 
 // refinement: no node of its own holds the collection bounds it wrote, so they
 // join its value bounds on the alias or carrier it owns
 // (docs/compilers/openapi.md#constraints), with those its voices write where
-// the position holds them (homesAt).
+// the position holds them (homesAt). The value bounds are those the types the
+// position declares take, every one where it declares none, and never by what
+// target is.
 func referenceConstraintsOf(c lowering.Ctx, ts *compile.Types, p *ir.Unmodeled, s *oas3.Schema, voices []annotation.Voice, target ir.TypeRef, pointer jsontext.Pointer) (*ir.Constraints, []ir.Diagnostic) {
-	cons, diags := ConstraintsOf(c, p, s, voices, pointer)
 	if s == nil {
-		return cons, diags
+		return nil, nil
 	}
+	cons, diags := ConstraintsOf(c, p, s, voices, pointer, declaredKinds(s))
 	cons = merge.Constraints(cons, heldCollectionBounds(s))
 	if len(voices) > 0 && homesAt(c, ts, s, target, pointer).collection {
 		cons = voicedCollectionBounds(cons, voices)

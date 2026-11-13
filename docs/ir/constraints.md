@@ -32,6 +32,13 @@ it reaches no field and is kept verbatim under `Unmodeled` with `ReasonDegradedL
 ([degraded constructs](./boundaries.md#degraded-constructs)), so an absent count beside such an
 entry bounds nothing less than the entry does.
 
+Each bound applies to values of one kind and admits every value of another, as JSON Schema's do:
+`Min`, `Max`, `ExclusiveMin`, `ExclusiveMax` and `MultipleOf` to numbers, `MinLength`, `MaxLength`
+and `Pattern` to strings, `MinItems`, `MaxItems` and `UniqueItems` to lists, and `MinProps` and
+`MaxProps` to objects. A compiler writes one only where the source declares a type it applies to,
+or declares no type at all, and keeps one written beside another type verbatim under `Unmodeled`
+with `ReasonDegradedLowering`: beside a declared type, it bounds nothing that type admits.
+
 ## Encodings
 
 ```go

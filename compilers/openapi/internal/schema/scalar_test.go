@@ -298,6 +298,16 @@ func TestContentVocabulary_KeptWhereNoEncodingHolds(t *testing.T) {
 			schemas: "    A: {type: string, format: iban, contentEncoding: base64}\n",
 			key:     "openapi:format", wantJSON: `"iban"`, at: componentID("A"),
 		},
+		{
+			name:    "an integer takes no content vocabulary",
+			schemas: "    A: {type: integer, contentEncoding: base64}\n",
+			key:     "openapi:contentEncoding", wantJSON: `"base64"`, at: componentID("A"),
+		},
+		{
+			name:    "an integer's format keeps Encoding.Name",
+			schemas: "    A: {type: integer, format: x-mine, contentMediaType: application/zip}\n",
+			key:     "openapi:contentMediaType", wantJSON: `"application/zip"`, at: componentID("A"),
+		},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -314,6 +324,24 @@ func TestContentVocabulary_KeptWhereNoEncodingHolds(t *testing.T) {
 			openapitest.AssertInfoDiagAt(t, diags, string(entry.Provenance.Pointer))
 		})
 	}
+}
+
+// TestContentVocabulary_ANumberTakesNone pins the content vocabulary beside a
+// type it does not apply to, at every site: a number's Scalar hoisted for its
+// format keeps the format as its encoding name and reads no content keyword,
+// which is kept verbatim with one info, as one beside a bare number is.
+func TestContentVocabulary_ANumberTakesNone(t *testing.T) {
+	t.Parallel()
+	doc, diags := parseFull(t, atEverySite("3.1.0", "{type: number, format: x-mine, contentEncoding: base64}"))
+	openapitest.RequireNoErrorDiags(t, diags)
+	for _, site := range sitesOf(t, doc) {
+		sc, ok := site.node.(*ir.Scalar)
+		require.True(t, ok, "%s: got %T", site.pointer, site.node)
+		assert.Equal(t, &ir.Encoding{Name: "x-mine"}, sc.Encoding, site.pointer)
+		assert.Equal(t, []string{"openapi:contentEncoding"}, unmodeledKeys(sc.Unmodeled), site.pointer)
+		openapitest.AssertInfoDiagAt(t, diags, site.pointer+"/contentEncoding")
+	}
+	assert.Len(t, diags, 4)
 }
 
 // TestContentVocabulary_KeptOnACarrierWithNoNode covers the position whose

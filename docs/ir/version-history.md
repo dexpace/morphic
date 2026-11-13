@@ -509,3 +509,21 @@ it sees. Changes made together in one bump are listed together under it.
   null to a type beside it gives that type. A consumer pinned to 0.47.0 that read such a count's
   field finds none there, one reading such a branch under `openapi:allOf/<n>` finds its keywords at
   the position instead, and one reading such a field may find a node minted for it.
+- **0.49.0** — no shape change. The OpenAPI compiler writes a value bound to `Constraints` only
+  where a type the schema declares takes it, as JSON Schema applies each to instances of one kind:
+  `minimum`, `maximum`, their exclusive forms and `multipleOf` beside `integer` or `number`,
+  `minLength`, `maxLength` and `pattern` beside `string`, and `minProperties` and `maxProperties`
+  beside `object` ([`constraints`](../compilers/openapi.md#constraints)). One beside another type
+  is kept verbatim under `openapi:<keyword>` (`degraded_lowering`), on an alias hoisted where the
+  position lowered to a shared primitive, which then holds the docs its property held, and the
+  content vocabulary beside a type other than `string` reaches no `Encoding`
+  ([`content-vocabulary`](../compilers/openapi.md#content-vocabulary)). A type array's scalar
+  variant holding a bound, an encoding or the content vocabulary is a `Scalar` at
+  `<pointer>/type/<index>`, each bound and a format the table pairs with one listed type land on
+  the variant whose type takes them, and the property or parameter carrying the union holds no
+  bound ([`type-arrays`](../compilers/openapi.md#type-arrays)); a bound on an `allOf` branch beside
+  the type list folds onto that variant
+  ([`allof-inline-residue`](../compilers/openapi.md#allof-inline-residue)). A consumer pinned to
+  0.48.0 that read a numeric bound on a string, a bound on the carrier of a type array, or a
+  variant's encoding taken from a format another listed type pairs with finds it under
+  `openapi:<keyword>`, on the variant it applies to, or not at all.

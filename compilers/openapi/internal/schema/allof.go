@@ -36,7 +36,7 @@ import (
 func lowerAllOf(c lowering.Ctx, ts *compile.Types, depth int, s *oas3.Schema, pointer jsontext.Pointer) (ir.TypeID, []ir.Diagnostic) {
 	var diags []ir.Diagnostic
 	id := internNode(c, ts, pointer, func(common ir.TypeCommon) ir.TypeDef {
-		cons, consDiags := ConstraintsOf(c, &common.Unmodeled, s, positionVoices(c, ts, s, pointer, ir.TypeRef{}), pointer)
+		cons, consDiags := ConstraintsOf(c, &common.Unmodeled, s, positionVoices(c, ts, s, pointer, ir.TypeRef{}), pointer, declaredKinds(s))
 		diags = append(diags, consDiags...)
 		m := &ir.Model{TypeCommon: common, Constraints: cons}
 		comp := readAllOf(c, s, pointer) // the one flattened list; the readers below take it, not s
@@ -172,6 +172,10 @@ type allOfComposition struct {
 	// distributes across its variants (branchUnion), whose merge consumes it,
 	// and empty where no branch's is.
 	distributes jsontext.Pointer
+	// bounds is the kinds whose value bounds the node composing the branches
+	// reads, those of the types the schema declares (readAllOf), so a branch's
+	// bound folds where they take it.
+	bounds kindSet
 }
 
 // branchSpeaks reports whether the branch at index i folds at the position.
@@ -201,6 +205,7 @@ func allOfBranches(s *oas3.Schema, pointer jsontext.Pointer) allOfComposition {
 func readAllOf(c lowering.Ctx, s *oas3.Schema, pointer jsontext.Pointer) allOfComposition {
 	comp := allOfBranches(s, pointer)
 	comp.disjoint = disjointConjuncts(c, s, comp)
+	comp.bounds = declaredKinds(s)
 	if allOfDecides(c, s) {
 		v := voicingOf(c, s)
 		comp.speaks, comp.rebased = v.speaks, v.rebased
@@ -409,7 +414,7 @@ func preserveUnmergedBranch(c lowering.Ctx, m *ir.Model, comp allOfComposition, 
 	speaks := comp.branchSpeaks(i)
 	distributed := comp.distributes != "" && e.pointer == comp.distributes
 	residue := unmergedBranchKeys(bs, func(keyword string) bool {
-		return mergeConsumes(bs, keyword, e.wrapper) || (speaks && folds(c, bs, keyword, boundHomes{value: true})) ||
+		return mergeConsumes(bs, keyword, e.wrapper) || (speaks && folds(c, bs, keyword, boundHomes{value: comp.bounds})) ||
 			(distributed && declaresUnionKeyword(keyword))
 	})
 	if len(residue) == 0 {

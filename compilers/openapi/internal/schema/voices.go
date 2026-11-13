@@ -287,7 +287,7 @@ func folds(c lowering.Ctx, bs *oas3.Schema, keyword string, homes boundHomes) bo
 		return c.NullableWidening.Honours() && foldsNullable(bs)
 	}
 	if slices.Contains(valueConstraintKeywords, keyword) {
-		return homes.value
+		return taken(homes.value, keyword)
 	}
 	_, fold := foldEntry(c, bs, keyword)
 	if slices.Contains(collectionBoundKeywords, keyword) {
@@ -297,9 +297,10 @@ func folds(c lowering.Ctx, bs *oas3.Schema, keyword string, homes boundHomes) bo
 }
 
 // boundHomes says which bounds the position an allOf is written at has a field
-// for, so that a branch writing one folds there.
+// for, so that a branch writing one folds there: the value bounds that apply to
+// a value of the kinds value (keywordKinds), and the collection bounds.
 type boundHomes struct {
-	value      bool
+	value      kindSet
 	collection bool
 }
 

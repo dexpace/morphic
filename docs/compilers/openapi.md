@@ -1467,14 +1467,15 @@ the `allOf` lands, each read at the branch's own pointer and reported as that ke
 which for most is not at all. A `nullable` folds only from a branch writing no `properties`, under
 the nullable-widening policy ([`nullable`](#nullable)). A `unevaluatedProperties: false` does not
 fold, being a composing model's openness; a bound does not where the position has no field for it,
-as one beside the `allOf` reaches none ([`constraints`](#constraints)): a value bound on a node with
-no `Constraints` for one, and a collection bound on any node but a `List` or a `Tuple`, the `Union`
-of a type list holding one where such a variant does; a collection bound `Constraints` cannot state,
-a `uniqueItems` of `false` or a count past 64 bits, never folds. A `oneOf`, an `anyOf` or a
-`$dynamicRef` beside the `allOf` keeps it from refining ([`allof-refinement`](#allof-refinement))
-and changes nothing else here: where the `allOf` composes, its branches fold into the composition
-as they do with none of them there, beside a `$dynamicRef` it keeps from expanding
-([`dynamic-ref`](#dynamic-ref)) or a union kept verbatim
+as one beside the `allOf` reaches none ([`constraints`](#constraints)): a value bound no type the
+position declares takes, or on a node with no `Constraints` for one, the `Union` of a type list
+holding one where a variant whose type takes it does, and a collection bound on any node but a
+`List` or a `Tuple`, that `Union` holding one where such a variant does; a collection bound
+`Constraints` cannot state, a `uniqueItems` of `false` or a count past 64 bits, never folds. A
+`oneOf`, an `anyOf` or a `$dynamicRef` beside the `allOf` keeps it from refining
+([`allof-refinement`](#allof-refinement)) and changes nothing else here: where the `allOf`
+composes, its branches fold into the composition as they do with none of them there, beside a
+`$dynamicRef` it keeps from expanding ([`dynamic-ref`](#dynamic-ref)) or a union kept verbatim
 ([`union-beside-structure`](#union-beside-structure)). Where a union beside the `allOf` or on one of
 its branches distributes, a branch's annotations and what a use binds reach the `Union` and its
 carriers, and a value bound each variant, as the same keyword beside the `allOf` does, and a branch
@@ -1553,10 +1554,9 @@ every entry reads that one twice.
   `schema.TestCollectionBound_OnABranchLandsAsItsFlatSpelling`,
   `schema.TestCollectionBound_OnABranchMeetsInEveryOrder`,
   `schema.TestCollectionBound_OnABranchWithNoFieldStaysWithItsBranch`,
-  `schema.TestRefinement_AValueBoundOnABranchBesideATypeListStaysWithIt`
-- Status: partly built: a value bound on a branch beside a type list stays with its branch, though
-  the variants that hold one beside the `allOf` hold it too, since those need not be variants it
-  constrains (#1310).
+  `schema.TestRefinement_AValueBoundOnABranchBesideATypeListLandsOnItsVariant`,
+  `schema.TestRefinement_ABranchBoundBesideATypeListIsReadAtTheBranch`,
+  `schema.TestAllOf_ABranchBoundTheTypeCannotTakeStaysWithIt`
 
 ### `allof-redeclared-property`
 
@@ -2196,17 +2196,29 @@ renders it, since a decorator collapses into its reference.
 ### `type-arrays`
 
 A schema whose `type` lists more than one type lowers to a `Union` with one variant per listed type
-other than `null`, in order, each lowered from the same schema as that type alone and named by it: a
-shared primitive for a scalar type, and for `object` or `array` a node hoisted at
-`<pointer>/type/<index>`. A `null` among them makes the position nullable instead
-([`nullable`](#nullable)), so one type and `null` lower as that type alone, nullable. The union is
-exclusive unless two listed types overlap: `integer` and `number`, the one pair of JSON types that
-do, since every integer is a number, or a type listed twice, which [`validation`](#validation)
-reports. Two variants the types resolve to one primitive, as a width does
-([`numeric-formats`](#numeric-formats)), stay two. The bounds a carried schema writes land on its
-property or parameter ([`constraints`](#constraints)). Each variant is built from the whole schema,
-so the keyword census asks the variants rather than the union: a keyword or bound some variant holds
-is homed, and one none holds is kept on the union ([`shape-applicator`](#shape-applicator)).
+other than `null`, in order, each lowered from the same schema as that type alone, taking only what
+applies to it, and named by it: for `object` or `array` a node hoisted at `<pointer>/type/<index>`,
+and for a scalar type the shared primitive, or a `Scalar` hoisted at that pointer where the variant
+holds what the primitive cannot, a value bound, a format naming an encoding or the content
+vocabulary. The pointer holds a type's name and no schema, so nothing else is interned there. A
+`null` among them makes the position nullable instead ([`nullable`](#nullable)), so one type and
+`null` lower as that type alone, nullable. The union is exclusive unless two listed types overlap:
+`integer` and `number`, the one pair of JSON types that do, since every integer is a number, or a
+type listed twice, which [`validation`](#validation) reports. Two variants the types resolve to one
+primitive, as a width does ([`numeric-formats`](#numeric-formats)), stay two.
+
+Each variant takes the value bounds its own type takes ([`constraints`](#constraints)), so
+`[string, integer]` with `maxLength` and `minimum` lowers to a `string` holding the one and an
+`integer` holding the other, and the content vocabulary is the `string` variant's
+([`content-vocabulary`](#content-vocabulary)). The property or parameter carrying the union holds no
+value bound, each being the variant's it applies to, which a bound on the whole value would not say.
+A `format` the table pairs with a listed type is that variant's alone: with `date` the list lowers
+to `date | integer`, and with `int32` to `string | int32`. One the table pairs with no listed type
+is every scalar variant's encoding name, since nothing says which type it describes and a format
+validates only the instances of the types it is defined for (JSON Schema Validation 2020-12 §7.1).
+The keyword census asks the variants rather than the union: a keyword or bound some variant holds is
+homed, and one none holds, a bound no listed type takes among them, is kept on the union
+([`shape-applicator`](#shape-applicator)).
 
 The `object` variant holds no `discriminator`, so the census keeps it on the union, whether or not a
 `oneOf` or `anyOf` is written beside it. No `$ref` or `mapping` can name the variant's position,
@@ -2228,17 +2240,22 @@ discriminator to `ir.IsSubtype`, the subtype relation every consumer reads: a ch
 `Union` base into its object variant would part from that relation, and teaching the relation the
 step would change what it means for every document.
 
-- Cases: `keywords-at-every-outcome`, `type-array-numeric`, `type-array-discriminator`
+- Cases: `keywords-at-every-outcome`, `type-array-numeric`, `type-array-discriminator`,
+  `type-array-bounds`
 - Codes: `openapi/unresolved-ref`
 - Tests: `schema.TestLower_MultiTypeUnion`,
   `schema.TestLower_ATypeArrayIsExclusiveOnlyOverDisjointTypes`,
   `schema.TestLower_ATypeListedTwiceIsNotExclusive`,
   `schema.TestLower_ATypeArrayKeepsItsDiscriminatorOnTheUnion`,
-  `schema.TestLower_ATypeArrayResolvesItsDiscriminatorRoutes`
-- Status: partly built: a value bound lands on any variant with a `Constraints` field, whether or
-  not it constrains that variant's type (#1310); and a type array listing no `object`, as every
-  node keeping a discriminator verbatim, reports no target naming nothing (#1662) and lowers no
-  position only a target reaches (#1708).
+  `schema.TestLower_ATypeArrayResolvesItsDiscriminatorRoutes`,
+  `schema.TestLower_ATypeArraysBoundLandsOnTheVariantItConstrains`,
+  `schema.TestLower_ATypeArraysVariantsSwapWithItsTypes`,
+  `schema.TestLower_ATypeArraysFormatIsTheVariantsItPairsWith`,
+  `schema.TestLower_ATypeArraysContentIsTheStringVariants`,
+  `schema.TestConstraints_ACountAVariantKeepsIsKeptOnce`
+- Status: partly built: a type array listing no `object`, as every node keeping a discriminator
+  verbatim, reports no target naming nothing (#1662) and lowers no position only a target reaches
+  (#1708).
 
 ### `union-null-variant`
 
@@ -2923,8 +2940,9 @@ reference, so they are read as a `$ref` position is, and an `allOf` that refines
 census, but for what its principal already says ([`allof-refinement`](#allof-refinement)). A
 multi-typed schema (`type: [string, object]`) and a union distributed over its branches are built
 from the one schema per variant, so the census asks the variants, and a keyword is homed where any
-holds it: a distributed union's `properties` are consumed, and a `format` or `maxItems` beside them
-is kept on the union, under a report naming a union of models.
+holds it, a value bound where a variant whose type takes it does: a distributed union's `properties`
+are consumed, and a `format` or `maxItems` beside them is kept on the union, under a report naming a
+union of models.
 
 - Cases: `unhomed-keywords`, `empty-enum`, `keywords-at-every-outcome`
 - Codes: `openapi/degraded-construct`
@@ -2949,11 +2967,13 @@ primitive holds none ([primitives](../ir/primitives.md#offsets)). A `contentEnco
 format is kept verbatim under `openapi:format` (`no_ir_home`) with an info
 `openapi/degraded-construct` at it. A scalar hoisted for its format carries the bounds written
 beside it. The table is the same at every minor, and a pairing of `format` with another `type` is
-[`numeric-formats`](#numeric-formats)'.
+[`numeric-formats`](#numeric-formats)'. Beside a type array, a format the table pairs with `string`,
+`byte` among them, is the `string` variant's alone ([`type-arrays`](#type-arrays)).
 
 - Cases: `encoding-byte`, `scalar-format`
 - Codes: `openapi/degraded-construct`
-- Tests: `schema.TestScalar_UnknownFormatPerBaseType`,
+- Tests: `schema.TestLower_ATypeArraysFormatIsTheVariantsItPairsWith`,
+  `schema.TestScalar_UnknownFormatPerBaseType`,
   `schema.TestLower_NamedScalarComponentResolves`,
   `spelling.TestFormatTable_EveryRowDistinguishesTheBareType`,
   `spelling.TestFormatTable_EveryStringRowLowersToItsPrimitive`
@@ -2968,14 +2988,16 @@ node of its own: an integer width — `int8`, `int16`, `int32`, `int64`, `uint8`
 §4.4.1), and `float`, `double`, `decimal` and `decimal128`, to `float32`, `float64`, `decimal` and
 `decimal128`, under `number` alone, since under `integer` they admit only integral values, which no
 primitive narrower than `integer` holds. A pairing the table does not name lowers to a hoisted
-`Scalar` over the type's primitive that keeps the format as `Encoding.Name`, or, where a
-`contentEncoding` beside it takes that field, keeps the format verbatim under `openapi:format`
-(`no_ir_home`) with an info `openapi/degraded-construct` at it.
+`Scalar` over the type's primitive that keeps the format as `Encoding.Name`; a `contentEncoding`
+beside it applies to strings alone and takes nothing from it
+([`content-vocabulary`](#content-vocabulary)). Beside a type array, a format the table pairs with a
+listed number is that number's variant's alone, and both an `integer` and a `number` variant take a
+width ([`type-arrays`](#type-arrays)).
 
 - Cases: `scalar-format`
-- Codes: `openapi/degraded-construct`
 - Tests: `schema.TestScalar_NumericFormatPairings`,
-  `schema.TestContentVocabulary_KeptWhereNoEncodingHolds`
+  `schema.TestContentVocabulary_ANumberTakesNone`,
+  `schema.TestLower_ATypeArraysFormatIsTheVariantsItPairsWith`
 
 ### `password`
 
@@ -3099,8 +3121,20 @@ carrier does not restate, or, where the position lowers to a reference (a `$ref`
 union or an expanded `$dynamicRef`), to the `Constraints` of the alias or carrier it owns, whatever
 the target is, as does one on an inline `allOf` branch
 ([`allof-inline-residue`](#allof-inline-residue)); and
-`minProperties` and `maxProperties` per [`additional-properties`](#additional-properties). A bound
-is read off the raw node, never the parser's `float64`, so its `BigVal` keeps every digit the
+`minProperties` and `maxProperties` per [`additional-properties`](#additional-properties). A value
+bound is read only where a type the schema declares takes it, since JSON Schema applies each to
+instances of one kind and lets any other through (JSON Schema Validation 2020-12 §6.2, §6.3 and
+§6.5): the numeric bounds, the exclusive ones among them, where it declares `integer` or `number`,
+`minLength`, `maxLength` and `pattern` where it declares `string`, and `minProperties` and
+`maxProperties` where it declares `object`; `boolean` and `null` take none. A schema declaring no
+type, or `null` alone, which lowers as one declaring none, reads every bound, and so does a position
+lowering to a reference whose schema declares none; one declaring a type beside its `$ref` or its
+`allOf` reads by that type, never by what the reference names. A bound no declared type takes
+reaches no `Constraints`, the carrier's included, and is kept verbatim under `openapi:<keyword>`
+(`degraded_lowering`) with an info `openapi/degraded-construct` naming what the position lowered
+to: on the node it owns, on the alias it holds where it lowered to a shared node or a reference, or
+on the carrier of a reference. A type array's variants each take their own type's ([`type-arrays`](#type-arrays)). A
+bound is read off the raw node, never the parser's `float64`, so its `BigVal` keeps every digit the
 literal wrote ([`values`](#values)), a quoted one as the decimal it spells; one that is no decimal
 literal a `BigVal` holds is dropped with an `openapi/invalid-numeric-literal` error at the keyword.
 Exclusive bounds follow the schema's dialect
@@ -3140,7 +3174,17 @@ declaration. A count literal that is no non-negative integer is the load phase's
 - Cases: `constraints`, `numeric-precision`, `ref-collection-bounds`
 - Codes: `openapi/invalid-numeric-literal`, `openapi/invalid-exclusive-bound`,
   `openapi/degraded-construct`
-- Tests: `e2e.TestOwnedShapes_AreReportedWhereverTheCheckReadsASchema`,
+- Tests: `schema.TestConstraints_ABoundIsReadWhereItsTypeTakesIt`,
+  `schema.TestConstraints_SeveralBoundsATypeCannotTakeDrawOneReport`,
+  `schema.TestConstraints_APositionDeclaringNoTypeReadsEveryBound`,
+  `schema.TestConstraints_AReferenceOutcomeReadsByThePositionsOwnType`,
+  `schema.TestConstraints_ABoundAListKeepsIsKeptOnce`,
+  `schema.TestConstraints_ACountATypeCannotTakeIsTheCensuss`,
+  `schema.TestConstraints_AModifierATypeCannotTakeIsTheCensuss`,
+  `schema.TestKeywordKinds_ListsEveryValueBoundAndTheContentVocabulary`,
+  `schema.TestBoundsFor_ReadsEachBoundForTheKindsItAppliesTo`,
+  `schema.TestDeclaredKinds_ReadsTheTypesASchemaDeclares`,
+  `e2e.TestOwnedShapes_AreReportedWhereverTheCheckReadsASchema`,
   `load.TestOwnedFinding_JudgesEachValueInItsSchemasDialect`,
   `load.TestOwnedFindings_ReportAnAliasedValueOnce`,
   `schema.TestConstraints_ExclusiveBoolean30`,
@@ -3246,16 +3290,21 @@ written beside a reference that expands is read as one beside a `$ref` is
 The content vocabulary is modelled, not preserved. All three keywords share one home, so a position
 keeps them all or lowers them all: `contentEncoding` to `Encoding.Name`, `contentMediaType` to
 `Encoding.MediaType`, and `contentSchema` to `Encoding.Schema`
-([constraints](../ir/constraints.md)) on the scalar the position lowers to. `contentSchema`'s
-value is a schema and lowers like one — hoisted at its own source pointer and referenced by ID —
-rather than riding along as a payload a consumer would have to re-parse. Where the position lowers
-to a shape with no `Encoding` field, all three stay verbatim under `no_ir_home`, each under
-`openapi:<keyword>` and each reported as an info `openapi/degraded-construct` at it
-([boundaries](../ir/boundaries.md#validation-only-constructs)).
+([constraints](../ir/constraints.md)) on the scalar a `string` position lowers to, the one type the
+vocabulary applies to (JSON Schema Validation 2020-12 §8.2), or a type array's `string` variant
+([`type-arrays`](#type-arrays)). `contentSchema`'s value is a schema and lowers like one — hoisted
+at its own source pointer and referenced by ID — rather than riding along as a payload a consumer
+would have to re-parse. Where the position lowers to a shape with no `Encoding` field, or to one
+whose type is no `string`, such as a number's `Scalar` hoisted for its format, all three stay
+verbatim under `no_ir_home`, each under `openapi:<keyword>` and each reported as an info
+`openapi/degraded-construct` at it ([boundaries](../ir/boundaries.md#validation-only-constructs)).
 
 - Cases: `content-vocabulary`
 - Codes: `openapi/degraded-construct`
-- Tests: `schema.TestContentVocabulary_LowersToEncoding`
+- Tests: `schema.TestContentVocabulary_LowersToEncoding`,
+  `schema.TestContentVocabulary_KeptWhereNoEncodingHolds`,
+  `schema.TestContentVocabulary_ANumberTakesNone`,
+  `schema.TestLower_ATypeArraysContentIsTheStringVariants`
 
 ### `dialect-keywords`
 
