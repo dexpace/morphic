@@ -28,14 +28,15 @@ import (
 // Variant per non-null branch (oneOf exclusive, anyOf not), never collapsing a
 // union into optional fields.
 func lowerOneOfAnyOf(c lowering.Ctx, ts *compile.Types, depth int, s *oas3.Schema, pointer jsontext.Pointer) (ir.TypeRef, []ir.Diagnostic) {
-	if inner, ip, ok := nullUnionCollapse(s, pointer); ok {
+	if inner, ip, ok := nullUnionCollapse(c, s, pointer); ok {
 		ref, diags := Ref(c, ts, depth, inner, ip)
-		// The null branch declares the null, so no heuristic's marker the
-		// branch's own reference carried says anything of it.
-		ref.Nullable, ref.Inferred = true, ""
-		return ref, diags
+		// The null branches say the null, so the reference admits it whatever
+		// the branch it names says, and declares it where theirs or that
+		// branch's own reference does (unionNullReading).
+		declared := ref.Nullable && ref.Inferred == "" || valueNulls(c, s).union.declared == nullAdmitted
+		return nullRef(c, ref.Target, declared, true), append(diags, liftedNullFindings(c, s, pointer)...)
 	}
-	if allNullUnion(s) {
+	if allNullUnion(c, s) {
 		return lowerNullOnlyUnion(c, ts, s, pointer)
 	}
 	var diags []ir.Diagnostic
@@ -51,18 +52,18 @@ func lowerOneOfAnyOf(c lowering.Ctx, ts *compile.Types, depth int, s *oas3.Schem
 	})
 	owner, unhomedDiags := preserveUnhomedKeywords(c, ts, s, pointer, tid, dispatch{said: branchesSay(c, s)})
 	ref, nullDiags := schemaNullRef(c, owner, s, siteAt(pointer))
-	return ref, slices.Concat(diags, unhomedDiags, nullDiags)
+	return ref, slices.Concat(diags, unhomedDiags, nullDiags, liftedNullFindings(c, s, pointer))
 }
 
 // nullUnionCollapse detects a oneOf/anyOf with exactly one non-null branch
-// beside `type: null` branches, and returns that branch's schema and pointer,
-// so it lowers as nullable X, not a union node
+// beside null branches (nullBranch), and returns that branch's schema and
+// pointer, so it lowers as nullable X, not a union node
 // (docs/ir/type-graph.md#type-references).
 //
 // A schema declaring both combinators collapses neither: the co-declared anyOf
 // conjoins, so the position is not nullable X. The Union keeps the unused
 // combinator (preserveUnusedCombinator), which X's shared node cannot.
-func nullUnionCollapse(s *oas3.Schema, pointer jsontext.Pointer) (*oas3.JSONSchema[oas3.Referenceable], jsontext.Pointer, bool) {
+func nullUnionCollapse(c lowering.Ctx, s *oas3.Schema, pointer jsontext.Pointer) (*oas3.JSONSchema[oas3.Referenceable], jsontext.Pointer, bool) {
 	if len(s.GetOneOf()) > 0 && len(s.GetAnyOf()) > 0 {
 		return nil, "", false
 	}
@@ -70,7 +71,7 @@ func nullUnionCollapse(s *oas3.Schema, pointer jsontext.Pointer) (*oas3.JSONSche
 	var nonNull *oas3.JSONSchema[oas3.Referenceable]
 	nonNullIdx, nonNullCount, nullCount := -1, 0, 0
 	for i, v := range variants {
-		if isNullSchema(v) {
+		if nullBranch(c, v) {
 			nullCount++
 			continue
 		}
@@ -83,48 +84,19 @@ func nullUnionCollapse(s *oas3.Schema, pointer jsontext.Pointer) (*oas3.JSONSche
 	return nonNull, pointer + ids.Ptr(key, strconv.Itoa(nonNullIdx)), true
 }
 
-// isNullSchema reports whether a variant schema is the bare null-typed schema.
-func isNullSchema(js *oas3.JSONSchema[oas3.Referenceable]) bool {
-	if js == nil || !js.IsSchema() {
-		return false
-	}
-	s := js.GetSchema()
-	if s == nil {
-		return false
-	}
-	types := s.GetType()
-	return len(types) == 1 && types[0] == oas3.SchemaTypeNull
-}
-
 // allNullUnion reports whether every branch of the oneOf/anyOf combinator
-// unionBranches elects is a bare `type: null` schema. nullUnionCollapse has no
+// unionBranches elects is a null branch (nullBranch). nullUnionCollapse has no
 // non-null branch to collapse a set like this onto, so without this check
 // lowerOneOfAnyOf's buildUnion fallback strips every branch as a null marker
 // and interns a Union with none left — the empty value space irverify's
 // ir/union-no-variants rejects (GitHub #416). The branch set still admits
-// exactly one value, the same one a bare `{type: null}` schema at this
-// position admits, so lowerOneOfAnyOf lowers it the same way instead.
-func allNullUnion(s *oas3.Schema) bool {
+// exactly one value, the one a schema of null alone at this position admits,
+// so lowerOneOfAnyOf lowers it the same way instead.
+func allNullUnion(c lowering.Ctx, s *oas3.Schema) bool {
 	variants, _, _ := unionBranches(s)
-	if len(variants) == 0 {
-		return false
-	}
-	for _, v := range variants {
-		if !isNullSchema(v) {
-			return false
-		}
-	}
-	return true
-}
-
-// oneOfAnyOfHasNull reports whether any oneOf/anyOf branch is a bare `type: null`
-// schema, so its nullability lifts onto the enclosing union ref rather than
-// degrading to an `any` variant.
-func oneOfAnyOfHasNull(s *oas3.Schema) bool {
-	if slices.ContainsFunc(s.GetOneOf(), isNullSchema) {
-		return true
-	}
-	return slices.ContainsFunc(s.GetAnyOf(), isNullSchema)
+	return len(variants) > 0 && !slices.ContainsFunc(variants, func(v *oas3.JSONSchema[oas3.Referenceable]) bool {
+		return !nullBranch(c, v)
+	})
 }
 
 // lowerNullOnlyUnion lowers a oneOf/anyOf every one of whose branches admits
@@ -139,7 +111,7 @@ func lowerNullOnlyUnion(c lowering.Ctx, ts *compile.Types, s *oas3.Schema, point
 	owner, diags := preserveUnhomedKeywords(c, ts, s, pointer, lowerNullAlone(c, ts, s, pointer), dispatch{})
 	diags = append(diags, preserveNullOnlyUnion(c, ts, owner, s, pointer)...)
 	ref, nullDiags := schemaNullRef(c, owner, s, siteAt(pointer))
-	return ref, append(diags, nullDiags...)
+	return ref, slices.Concat(diags, nullDiags, liftedNullFindings(c, s, pointer))
 }
 
 // preserveNullOnlyUnion keeps s's oneOf/anyOf verbatim under the Unmodeled of
@@ -256,9 +228,10 @@ func buildUnion(c lowering.Ctx, ts *compile.Types, s *oas3.Schema, u unionAt, co
 ) (*ir.Union, []ir.Diagnostic) {
 	branches, key, exclusive := unionBranches(u.holder)
 	diags := preserveUnusedCombinator(c, &common.Unmodeled, u.holder, key, u.at)
+	diags = append(diags, recordNullBranches(c, &common.Unmodeled, nullBranchKeeps(c, u.holder, u.at))...)
 	variants := make([]ir.Variant, 0, len(branches))
 	for i, b := range branches {
-		if isNullSchema(b) {
+		if nullBranch(c, b) {
 			continue // null branches lift to the enclosing ref's Nullable bit
 		}
 		vptr := u.at + ids.Ptr(key, strconv.Itoa(i))
@@ -558,9 +531,9 @@ const (
 	// compilation can resolve — a target in a document it did not read, an
 	// undeclared component, a pointer addressing no schema.
 	unionUnresolvedBranch
-	// unionNullBranch marks a union with a bare `type: null` branch, which
+	// unionNullBranch marks a union with a null branch (nullBranch), which
 	// buildUnion lifts onto the position's Nullable rather than conjoining it, so
-	// no variant could say whether the body admits the null.
+	// no variant could say whether the body admits the null (GitHub #1856).
 	unionNullBranch
 	// unionHierarchyBase marks a union beside a discriminator routing to
 	// branches that compose the body through allOf, its subtypes, which a union
@@ -623,7 +596,7 @@ func classifyBranchSet(c lowering.Ctx, holder *oas3.Schema) unionLowering {
 		return unionBothCombinators
 	}
 	branches, _, _ := unionBranches(holder)
-	if slices.ContainsFunc(branches, isNullSchema) {
+	if slices.ContainsFunc(branches, func(b *oas3.JSONSchema[oas3.Referenceable]) bool { return nullBranch(c, b) }) {
 		return unionNullBranch
 	}
 	if !branchesNameReferents(c, holder) {
@@ -714,7 +687,7 @@ func lowerCoDeclaredUnion(c lowering.Ctx, ts *compile.Types, depth int, s *oas3.
 		return id, append(diagUnresolvedBranches(c, s, pointer), diags...)
 	case unionNullBranch:
 		return beside(ir.ReasonDegradedLowering,
-			"a branch is a bare null, which the union lifts onto the position, so no variant can conjoin the body with it")
+			"a branch admits null alone, which the union lifts onto the position, so no variant can conjoin the body with it")
 	case unionRoutedSubtype:
 		return beside(ir.ReasonDegradedLowering,
 			"a discriminator on an ancestor routes to this schema as its subtype, which distributing it into a union would undo")

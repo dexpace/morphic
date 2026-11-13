@@ -492,10 +492,21 @@ it sees. Changes made together in one bump are listed together under it.
     string.
   - Over a `string`, a `WireType` of `string` marks text the encoding is applied to, and none marks
     text already encoded. No compiler writes the first yet.
-- **0.48.0** — one change of meaning, the shape kept:
+- **0.48.0** — three changes of meaning, the shape kept:
   - A schema admitting `null` and nothing else is a closed `Enum` with no member behind a nullable
     reference, whatever spells it ([enums](./enums.md#the-empty-enum)). The OpenAPI compiler had
     lowered a `type` naming `null` alone to the `any` primitive behind a nullable reference, which
     also admits every other value, or to a `Model` where `properties` was written beside it, and a
     `oneOf` or `anyOf` of nothing but such branches to an alias over that `any`. A consumer pinned
     to 0.47.0 finds an `Enum` with no member where it read nullable `any` or an alias of it.
+  - A union branch admitting `null` alone, written in place, is the union's `null` in every
+    spelling, carried by the reference to the union rather than by a variant
+    ([type-graph](./type-graph.md#type-references)). The OpenAPI compiler had lifted only a branch
+    of `type: "null"`, and kept an `enum` of `null` alone or a `const: null` as a variant naming an
+    `Enum` with no member, so a union of one such branch and one other is now a nullable reference
+    to the other, and a union of more has one variant fewer, while one written beside a structural
+    body is kept verbatim beside it, as one holding a `type: "null"` branch already was. A consumer
+    pinned to 0.47.0 finds no variant where it read one admitting `null` alone.
+  - Such a branch writing more than its `null`, a `description` among it, is kept whole under the
+    new key `openapi:oneOf/<index>` or `openapi:anyOf/<index>`, reason `no_ir_home`, where the
+    compiler had dropped what a lifted `type: "null"` branch wrote beside its type.

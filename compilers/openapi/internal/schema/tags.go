@@ -58,7 +58,7 @@ func implicitTags(c lowering.Ctx, s *oas3.Schema) []string {
 	branches, _, _ := unionBranches(s)
 	tags := make([]string, 0, len(branches))
 	for _, b := range branches {
-		if isNullSchema(b) {
+		if nullBranch(c, b) {
 			continue
 		}
 		name, _, _ := componentNamed(scope, b)

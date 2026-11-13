@@ -360,7 +360,7 @@ func referenceOutcomeKeywords(c lowering.Ctx, s *oas3.Schema, pointer jsontext.P
 	if hasUnionSiblings(c, s) {
 		return nil, ""
 	}
-	if _, _, collapses := nullUnionCollapse(s, ""); !collapses {
+	if _, _, collapses := nullUnionCollapse(c, s, ""); !collapses {
 		return nil, ""
 	}
 	return unhomedKeywords(s, nil, branchesSay(c, s)), collapsedShape

@@ -217,8 +217,11 @@ func TestLowerNullAlone_KeepsWhatTheEnumCannotHold(t *testing.T) {
 				want = append(want, "openapi:"+k)
 			}
 			assert.ElementsMatch(t, want, keys, "only what the Enum cannot hold is kept, never the type")
-			infos := diagsAtPointer(diags, diag.DegradedConstruct, "/components/schemas/S")
-			assert.Len(t, infos, tc.infos, "each keeping is reported once")
+			got := codesAt(diags, "/components/schemas/S")
+			assert.Len(t, got, tc.infos, "each keeping is reported once, and nothing else is")
+			for _, d := range got {
+				assert.Equal(t, ir.Diagnostic{Severity: ir.SeverityInfo, Code: diag.DegradedConstruct}, d)
+			}
 		})
 	}
 }

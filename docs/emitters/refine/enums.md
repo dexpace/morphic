@@ -45,7 +45,7 @@ place as the target's type admitting `null` alone, Kotlin's `Nothing?` and Go's 
 ([Go](../targets/go/types.md#enums), [Kotlin](../targets/kotlin/types.md#enums)), presence boxed as
 for any member: required, it decodes `null` alone and writes `null`; optional, it decodes where
 absent too and is left out unset. An enum with no members that some reference reaches without
-`Nullable`, or that a source names, declares its closed form as above. The golden spec declares 188
+`Nullable`, or that a source names, declares its closed form as above. The golden spec declares 174
 anonymous enums of `null` alone, each reached only through nullable references, a deletion's
 `result` among them ([enum-const](../../compilers/openapi.md#enum-const); spec @86556f6f), and none
 named. T-36 holds the rule.

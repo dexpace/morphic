@@ -292,6 +292,33 @@
             "source": 0,
             "pointer": "/components/schemas/Holder/properties/bothNull"
           }
+        },
+        {
+          "id": "p/openapi/components/schemas/Holder/properties/otherSpellings",
+          "name": {
+            "source": "otherSpellings",
+            "canonical": "other_spellings"
+          },
+          "wireName": "otherSpellings",
+          "type": {
+            "target": "t/openapi/components/schemas/OtherSpellings",
+            "nullable": true
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Holder/properties/otherSpellings"
+          }
         }
       ],
       "abstract": false,
@@ -325,6 +352,43 @@
       "provenance": {
         "source": 0,
         "pointer": "/components/schemas/OneOfNull"
+      },
+      "valueType": "any",
+      "closed": true,
+      "flags": false
+    },
+    "t/openapi/components/schemas/OtherSpellings": {
+      "kind": "enum",
+      "id": "t/openapi/components/schemas/OtherSpellings",
+      "name": {
+        "source": "OtherSpellings",
+        "canonical": "other_spellings"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "unmodeled": {
+        "openapi:oneOf": {
+          "reason": "degraded_lowering",
+          "value": [
+            {
+              "enum": [
+                null
+              ]
+            },
+            {
+              "const": null
+            }
+          ],
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/OtherSpellings/oneOf"
+          }
+        }
+      },
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/OtherSpellings"
       },
       "valueType": "any",
       "closed": true,
@@ -380,13 +444,22 @@
         "source": 0,
         "pointer": "/components/schemas/BothNull"
       }
+    },
+    {
+      "severity": "info",
+      "code": "openapi/degraded-construct",
+      "message": "every branch admits only the null value, so this position lowered as an enum with no member behind a nullable reference; oneOf kept verbatim under Unmodeled",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/OtherSpellings"
+      }
     }
   ],
   "sources": [
     {
       "format": "openapi@3.1",
       "path": "null-only-union.yaml",
-      "hash": "db8968cc2fb315c84a2170bb7c62f5e19ae121fcbb240263a944fc6060ab9b0a"
+      "hash": "435558d2bdb2a706f22b4ea55b4442b1a5f89d31371ed3da9e4c0877a1b3adf3"
     }
   ]
 }

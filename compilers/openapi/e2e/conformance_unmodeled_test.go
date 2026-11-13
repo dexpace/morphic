@@ -1310,14 +1310,14 @@ func assertKeptRaw(t *testing.T, p ir.Unmodeled, key, want string) {
 	assert.JSONEq(t, want, string(entry.Value))
 }
 
-// assertNullOnlyUnion covers a oneOf/anyOf whose only branches are a bare
-// `type: null` schema: one branch, two, either combinator, and both declared at
-// once with the elected one null-only. With no non-null branch to collapse onto,
-// buildUnion would strip every branch as a null marker and intern a Union with
-// no variants, which irverify rejects as ir/union-no-variants (GitHub #416).
-// Such a set admits only null, as a bare `{type: null}` does, so it lowers the
-// same way: an Enum with no member behind a nullable reference, the combinators
-// kept verbatim under Unmodeled because the Enum has no field for them.
+// assertNullOnlyUnion covers a oneOf/anyOf whose only branches admit null
+// alone: one branch, two, either combinator, the other spellings of the null,
+// and both combinators declared at once with the elected one null-only. With no
+// other branch to collapse onto, buildUnion would strip every branch and intern
+// a Union with no variants, which irverify rejects as ir/union-no-variants
+// (GitHub #416). Such a set admits only null, as `{type: null}` does, so it
+// lowers the same way: an Enum with no member behind a nullable reference, the
+// combinators kept verbatim because the Enum has no field for them.
 func assertNullOnlyUnion(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
 	cases := []struct {
 		name string
@@ -1327,6 +1327,7 @@ func assertNullOnlyUnion(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) 
 		{"AnyOfNull", "openapi:anyOf", `[{"type":"null"}]`},
 		{"OneOfNull", "openapi:oneOf", `[{"type":"null"}]`},
 		{"AnyOfTwoNull", "openapi:anyOf", `[{"type":"null"},{"type":"null"}]`},
+		{"OtherSpellings", "openapi:oneOf", `[{"enum":[null]},{"const":null}]`},
 	}
 	for _, tc := range cases {
 		e := assertNullOnlyEnum(t, doc, tc.name)

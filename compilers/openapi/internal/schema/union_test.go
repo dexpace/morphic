@@ -256,11 +256,12 @@ components:
 }
 
 // TestOneOfAnyOf_NullOnlyLowersAsNullAlone covers a oneOf/anyOf whose every
-// branch admits null alone. No branch is a variant, so a Union would have none,
-// the empty value space irverify's ir/union-no-variants rejects (GitHub #416).
-// The set admits what a schema of null alone admits, so it lowers to the node
-// `{type: "null"}` does, an Enum with no member, behind a nullable reference,
-// the combinator kept verbatim on it (docs/compilers/openapi.md#union-null-only).
+// branch admits null alone, in any spelling. No branch is a variant, so a Union
+// would have none, the empty value space irverify's ir/union-no-variants
+// rejects (GitHub #416). The set admits what a schema of null alone admits, so
+// it lowers to the node `{type: "null"}` does, an Enum with no member, behind a
+// nullable reference, the combinator kept verbatim on it
+// (docs/compilers/openapi.md#union-null-only).
 func TestOneOfAnyOf_NullOnlyLowersAsNullAlone(t *testing.T) {
 	t.Parallel()
 	spec := openapitest.ComponentSpec(`    AnyOfNull:
@@ -269,6 +270,8 @@ func TestOneOfAnyOf_NullOnlyLowersAsNullAlone(t *testing.T) {
       oneOf: [{type: "null"}]
     AnyOfTwoNull:
       anyOf: [{type: "null"}, {type: "null"}]
+    OtherSpellings:
+      oneOf: [{enum: [null]}, {const: null}]
     Nil: {type: "null"}
     Holder:
       type: object
@@ -283,6 +286,7 @@ func TestOneOfAnyOf_NullOnlyLowersAsNullAlone(t *testing.T) {
 		{"AnyOfNull", "openapi:anyOf"},
 		{"OneOfNull", "openapi:oneOf"},
 		{"AnyOfTwoNull", "openapi:anyOf"},
+		{"OtherSpellings", "openapi:oneOf"},
 		{"Nil", ""},
 	} {
 		e, ok := doc.Types[componentID(tc.name)].(*ir.Enum)

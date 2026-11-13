@@ -122,7 +122,7 @@ var generations = []generation{
 		meaning: "an enum's or a const's null is no member, variant or Literal but its reference's, so an enum of null alone or a const of null is an Enum with no member; an Enum's ValueType is one its members are values of; a number's format on a string is a Scalar over the number whose Encoding string travels as a string WireType, its bounds kept verbatim; and over a string a WireType marks text to encode"},
 	{version: "0.48.0", format: 1, shape: "579d8cf68b18eb8fb9e58bc0baf0f89dd640a8f916a95f473a407d0513b2f81f",
 		names:   "5506159ecd463736fdbbad0c4cabfad3fd50b48509b46fbea55862e82eca9675",
-		meaning: "a schema of a type naming null alone, and a union all of whose branches are one, is an Enum with no member behind a nullable reference, where it had been nullable any and an alias over it"},
+		meaning: "a schema admitting null alone is an Enum with no member behind a nullable reference in every spelling, a type naming null alone and a union of nothing else among them, where those were nullable any and an alias over it; and a union branch admitting null alone, written in place, is the union's null in every spelling, no variant, what else it writes kept under openapi:<combinator>/<index>"},
 }
 
 // shapeGolden holds the description the newest row's shape hashes, so a change

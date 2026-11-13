@@ -88,3 +88,35 @@ func TestNulls_ABranchWithNoSchemaSaysNothing(t *testing.T) {
 	assert.Equal(t, alike(nullSilent), n.conjunct(openapitest.EmptyEitherSchema(), nullSite{}),
 		"a branch whose either-value holds neither schema nor bool says nothing either")
 }
+
+// TestNullAloneReading_IsTheWholeSchemasReading holds the reading a null branch
+// is taken by to the one every Nullable site shares: over a schema whose own
+// keywords leave no value but null, it is what reading the whole schema gives,
+// under each reading and each dialect's nullable, so the union that lifts the
+// branch and the branch lowered alone cannot disagree.
+func TestNullAloneReading_IsTheWholeSchemasReading(t *testing.T) {
+	t.Parallel()
+	schemas := []string{
+		`{type: "null"}`, `{type: ["null", "null"]}`, `{enum: [null]}`, `{const: null}`,
+		`{type: string, const: null}`, `{type: [string, "null"], enum: [null]}`, `{type: string, enum: [null]}`,
+		`{type: object, enum: [null], nullable: true}`, `{type: string, const: null, nullable: true}`,
+		`{type: "null", nullable: false}`, `{enum: [null], const: 1}`,
+	}
+	for _, version := range []string{"3.0.3", "3.1.0"} {
+		var body strings.Builder
+		for i, s := range schemas {
+			body.WriteString("    S" + string(rune('a'+i)) + ": " + s + "\n")
+		}
+		l, _ := LoweredFor(t, openapitest.ComponentSpecVer(version, body.String()))
+		for i, src := range schemas {
+			s := declared(t, l, "S"+string(rune('a'+i)))
+			got, ok := nullAloneReading(l.Ctx, s)
+			require.True(t, ok, "%s %s leaves no value but null", version, src)
+			n := newNulls(l.Ctx)
+			assert.Equal(t, n.schema(s, nullSite{}), got, "%s %s", version, src)
+		}
+	}
+	l, _ := LoweredFor(t, openapitest.ComponentSpec("    S: {type: [string, \"null\"]}\n"))
+	_, ok := nullAloneReading(l.Ctx, declared(t, l, "S"))
+	assert.False(t, ok, "a type admitting a string leaves more than null")
+}

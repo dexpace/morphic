@@ -6,6 +6,8 @@ components:
     # A schema admitting null and nothing else, in each spelling: an Enum with
     # no member at its own position, behind a nullable reference.
     Nil: {type: "null"}
+    X: {type: object, properties: {id: {type: string}}}
+    Y: {type: object, properties: {n: {type: integer}}}
     Holder:
       type: object
       required: [onlyNull]
@@ -14,9 +16,21 @@ components:
         listed: {type: ["null"]}
         enumNull: {enum: [null]}
         constNull: {const: null}
-        nullUnion: {oneOf: [{type: "null"}, {type: "null"}]}
+        nullUnion: {oneOf: [{type: "null"}, {enum: [null]}]}
         nil: {$ref: '#/components/schemas/Nil'}
         # Every value and null, which is no schema of null alone: the top type.
         anything: {anyOf: [{}, {type: "null"}]}
         # A property set the Enum has no home for, kept verbatim beside it.
         withProps: {type: "null", properties: {a: {type: string}}}
+        # A union branch of null alone, in each spelling, is the union's null:
+        # the union of one other branch is a nullable reference to it.
+        typed: {oneOf: [{$ref: '#/components/schemas/X'}, {type: "null"}]}
+        enumed: {oneOf: [{$ref: '#/components/schemas/X'}, {enum: [null]}]}
+        constant: {anyOf: [{const: null}, {$ref: '#/components/schemas/X'}]}
+        # What else the branch writes is kept whole on the carrier.
+        described: {oneOf: [{$ref: '#/components/schemas/X'}, {type: "null", description: nothing}]}
+        # Beside two others, the union of those behind a nullable reference.
+        many: {oneOf: [{$ref: '#/components/schemas/X'}, {$ref: '#/components/schemas/Y'}, {enum: [null]}]}
+        # A $ref to a schema of null alone names a declaration, and stays a
+        # variant.
+        refNull: {oneOf: [{$ref: '#/components/schemas/X'}, {$ref: '#/components/schemas/Nil'}]}
