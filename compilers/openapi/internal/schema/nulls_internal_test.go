@@ -120,3 +120,19 @@ func TestNullAloneReading_IsTheWholeSchemasReading(t *testing.T) {
 	_, ok := nullAloneReading(l.Ctx, declared(t, l, "S"))
 	assert.False(t, ok, "a type admitting a string leaves more than null")
 }
+
+// TestNullAloneReading_ReadsASchemaOnce pins that a schema's reading as a
+// branch of null alone is read once a run, since each reader of a union asks of
+// every branch, and an enum of nulls costs a read per member: it goes after the
+// first read, which no lowering does, so only a remembered answer stays.
+func TestNullAloneReading_ReadsASchemaOnce(t *testing.T) {
+	t.Parallel()
+	l, _ := LoweredFor(t, openapitest.ComponentSpec("    S: {enum: [null]}\n"))
+	s := declared(t, l, "S")
+	first, ok := nullAloneReading(l.Ctx, s)
+	require.True(t, ok)
+	s.Enum = nil
+	again, ok := nullAloneReading(l.Ctx, s)
+	assert.True(t, ok, "the second ask reads what the first read")
+	assert.Equal(t, first, again)
+}

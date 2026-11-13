@@ -11,8 +11,11 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/dexpace/morphic/compilers/openapi/internal/budget"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
+	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
+	"github.com/dexpace/morphic/compilers/openapi/internal/schema"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -285,5 +288,66 @@ func TestNullBranch_BesideABodyIsNotLifted(t *testing.T) {
 					"/components/schemas/Holder/properties/"+wire), "a branch admits null alone", wire)
 			}
 		})
+	}
+}
+
+// TestNullBranch_KeepsANullableNothingReads pins a null branch's `nullable`:
+// it says the null where it is read, by the 3.0 dialect defining it or by the
+// nullable-widening policy, and keeps nothing; under 3.1 with the policy off it
+// is a keyword the dialect does not define, which the branch is kept whole for,
+// as a schema writing it alone keeps it (docs/compilers/openapi.md#nullable).
+func TestNullBranch_KeepsANullableNothingReads(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		version, branch string
+		off, kept       bool
+	}{
+		{version: "3.1.0", branch: `{type: "null", nullable: true}`},
+		{version: "3.1.0", branch: `{type: "null", nullable: true}`, off: true, kept: true},
+		{version: "3.0.3", branch: `{enum: [null], nullable: true}`},
+		{version: "3.0.3", branch: `{enum: [null], nullable: true}`, off: true},
+	} {
+		doc, diags := compileNullable(t, openapitest.HolderSpec(tc.version,
+			"{oneOf: [{$ref: '#/components/schemas/Pet'}, "+tc.branch+"]}", ""), tc.off)
+		openapitest.RequireNoErrorDiags(t, diags)
+		name := tc.version + " " + tc.branch
+		assert.Equal(t, ir.TypeRef{Target: componentID("Pet"), Nullable: true}, holderP(t, doc), name)
+		p := propertyOf(t, doc, "Holder", "p")
+		_, kept := p.Unmodeled["openapi:oneOf/1"]
+		assert.Equal(t, tc.kept, kept, "%s, policy off: %v", name, tc.off)
+	}
+}
+
+// TestNullBranch_AnEnumPastTheMemberBudgetIsNoNullBranch pins a branch listing
+// null alone past Limits.MaxEnumMembers: an enum past the budget lowers to the
+// top type with an error rather than to an Enum, so it is no branch of null
+// alone, and it stays a variant whose refusal is reported, as on its own.
+func TestNullBranch_AnEnumPastTheMemberBudgetIsNoNullBranch(t *testing.T) {
+	t.Parallel()
+	const spec = `openapi: 3.1.0
+info: {title: T, version: "1"}
+paths: {}
+components:
+  schemas:
+    X: {type: object, properties: {id: {type: string}}}
+    H: {oneOf: [{$ref: '#/components/schemas/X'}, {enum: [null, null, null]}]}
+`
+	for _, tc := range []struct {
+		limit   int
+		refused bool
+	}{{limit: 3}, {limit: 2, refused: true}} {
+		l, _ := schema.LoweredFor(t, spec)
+		l.Ctx.Limits = lowering.Limits{MaxEnumMembers: budget.AtMost(tc.limit)}
+		diags := schema.LowerComponentSchemas(t.Context(), l.Ctx, l.Types)
+		doc := l.Document(t)
+		u, isUnion := typeByName(doc, "H").(*ir.Union)
+		assert.Equal(t, tc.refused, isUnion, "limit %d: a union only where the branch is past the budget", tc.limit)
+		refusals := openapitest.PointersOf(diags, diag.BudgetExceeded)
+		if !tc.refused {
+			assert.Empty(t, refusals, "limit %d", tc.limit)
+			continue
+		}
+		require.Len(t, u.Variants, 2, "the branch is a variant")
+		assert.Equal(t, []jsontext.Pointer{"/components/schemas/H/oneOf/1"}, refusals)
 	}
 }

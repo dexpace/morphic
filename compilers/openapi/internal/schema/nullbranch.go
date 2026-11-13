@@ -5,7 +5,6 @@ package schema
 
 import (
 	"encoding/json/jsontext"
-	"slices"
 	"strconv"
 	"strings"
 
@@ -58,9 +57,21 @@ func liftedNulls(c lowering.Ctx, s *oas3.Schema, pointer jsontext.Pointer) []lif
 	return out
 }
 
-// nullKeywords are the keywords a null branch says its null by, which the
-// reference to its union holds whole.
-var nullKeywords = []string{"type", "enum", "const", "nullable"}
+// saysTheNull reports whether key, written on the null branch at, says only
+// the null the reference to its union holds: a type, an enum or a const, and a
+// nullable where it is read, by the dialect defining it or by the
+// nullable-widening policy (docs/compilers/openapi.md#nullable). A nullable
+// neither reads is a keyword its dialect does not define, kept as one is.
+func saysTheNull(c lowering.Ctx, at jsontext.Pointer, key string) bool {
+	switch key {
+	case "type", "enum", "const":
+		return true
+	case "nullable":
+		return c.NullableWidening.Honours() || lowering.SchemaRulesAt(c, at).Defines(key)
+	default:
+		return false
+	}
+}
 
 // keptNullBranch is a null branch that writes more than its null, with the
 // keys that do.
@@ -70,7 +81,7 @@ type keptNullBranch struct {
 }
 
 // nullBranchKeeps returns the null branches of s's union, written at pointer,
-// that write a key beside those saying the null (nullKeywords): an annotation,
+// that write a key beside those saying the null (saysTheNull): an annotation,
 // an extension or any other keyword, but a `null` written for one, which is
 // that keyword left out (annotation.WritesKeywordLeftOut). A branch is no
 // variant, so nothing else keeps what it says.
@@ -79,7 +90,7 @@ func nullBranchKeeps(c lowering.Ctx, s *oas3.Schema, pointer jsontext.Pointer) [
 	for _, b := range liftedNulls(c, s, pointer) {
 		var written []string
 		for _, key := range rawMappingKeys(b.schema.GetRootNode()) {
-			if !slices.Contains(nullKeywords, key) && !annotation.WritesKeywordLeftOut(b.schema, key) {
+			if !saysTheNull(c, b.at, key) && !annotation.WritesKeywordLeftOut(b.schema, key) {
 				written = append(written, key)
 			}
 		}

@@ -489,33 +489,50 @@ func NullAlone(c lowering.Ctx, s *oas3.Schema) bool {
 	return ok && r.admits(c)
 }
 
+// nullAloneOf keys what nullAloneReading read of one schema.
+type nullAloneOf struct {
+	schema *oas3.Schema
+}
+
+// nullAloneRead is nullAloneReading's answer for one schema.
+type nullAloneRead struct {
+	reading nullReading
+	ok      bool
+}
+
 // nullAloneReading is what s, a schema whose own keywords leave it no value but
 // null (leavesOnlyNull), says of that null under each reading, and false for
 // any other schema. It writes no union, allOf or $ref, so its type, const and
 // enum, widened where it writes `nullable: true`, are all a read of the whole
 // schema finds (schemaAdmitsNull), read here without asking valueNulls, which
-// reads a union's branches by this.
+// reads a union's branches by this. Every reader of a branch asks, so it is
+// read once a run.
 func nullAloneReading(c lowering.Ctx, s *oas3.Schema) (nullReading, bool) {
-	if !leavesOnlyNull(s) {
-		return nullReading{}, false
-	}
-	n := newNulls(c)
-	own := n.typed(s, constNullVerdict(s), enumNullVerdict(s))
-	return n.widen(s, own, own, nullSite{}), true
+	r := lowering.Remembered(c, nullAloneOf{s}, func() nullAloneRead {
+		if !leavesOnlyNull(c, s) {
+			return nullAloneRead{}
+		}
+		n := newNulls(c)
+		own := n.typed(s, constNullVerdict(s), enumNullVerdict(s))
+		return nullAloneRead{reading: n.widen(s, own, own, nullSite{}), ok: true}
+	})
+	return r.reading, r.ok
 }
 
 // leavesOnlyNull reports whether the keywords s itself writes leave it no value
 // but null, whether or not they admit that one: it writes no $ref, allOf,
 // oneOf, anyOf or $dynamicRef, which admit what other schemas do; an enum it
-// writes lists null and nothing else; and it writes a const, which the null
-// reading holds to null, such an enum, or a type naming null alone.
-func leavesOnlyNull(s *oas3.Schema) bool {
+// writes lists null and nothing else, within the member budget an enum past
+// which lowers to the top type (lowerEnum); and it writes a const, which the
+// null reading holds to null, such an enum, or a type naming null alone.
+func leavesOnlyNull(c lowering.Ctx, s *oas3.Schema) bool {
 	if s == nil || s.Ref != nil || len(s.GetAllOf()) > 0 || declaresUnion(s) || declaresDynamicRef(s) {
 		return false
 	}
 	if enumWritten(s) {
 		members := s.GetEnum()
-		return len(members) > 0 && !slices.ContainsFunc(members, func(v values.Value) bool { return !isNullValue(v) })
+		return len(members) > 0 && c.Limits.MaxEnumMembers.Admits(len(members)) &&
+			!slices.ContainsFunc(members, func(v values.Value) bool { return !isNullValue(v) })
 	}
 	return s.GetConst() != nil || writesType(s) && len(effectiveTypes(s)) == 0
 }

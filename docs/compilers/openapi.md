@@ -2224,12 +2224,14 @@ while the policy is on, and the reference's `null` then names it in `Inferred`, 
 `openapi/inferred-nullable` info at the branch ([`nullable`](#nullable)); with the policy off, the
 branch admits nothing and is a variant.
 
-A null branch writing a key beside `type`, `enum`, `const` and `nullable`, such as a `description`,
-is kept whole under `openapi:<combinator>/<index>`, the branch's path from the schema, with the
-reason `no_ir_home`, since the `null` is typed exactly and only what the branch says of it has no
-field: on the `Union` the branches leave, or, where they collapse, where the position keeps what
-else the collapse cannot hold, below. It is reported as an info `openapi/degraded-construct` at the
-branch. A `null` written for one of those keys is the key left out
+A null branch writing a key beside `type`, `enum`, `const`, and a `nullable` its dialect or the
+nullable-widening policy reads, such as a `description`, is kept whole under
+`openapi:<combinator>/<index>`, the branch's path from the schema, with the reason `no_ir_home`,
+since the `null` is typed exactly and only what the branch says of it has no field: on the `Union`
+the branches leave, or, where they collapse, where the position keeps what else the collapse cannot
+hold, below. It is reported as an info `openapi/degraded-construct` at the branch. A `nullable`
+nothing reads is a keyword the branch's dialect does not define, which keeps the branch as any other
+does, and a `null` written for one of those keys is the key left out
 ([`null-keywords`](#null-keywords)), and keeps nothing.
 
 The collapse is held to a `$ref` site's rule ([models](../ir/models.md#composition-entries)), since
@@ -2251,6 +2253,7 @@ carrier of a property, parameter or header, and on an alias hoisted at any other
   `schema.TestNullBranch_ADiscriminatorLinesItsVariantsUpPastTheNull`,
   `schema.TestNullBranch_KeepsWhatTheBranchWrites`,
   `schema.TestNullBranch_AKeptBranchTheKeeperCannotConvertIsReportedByIt`,
+  `schema.TestNullBranch_KeepsANullableNothingReads`,
   `schema.TestNullableWidening_EachShapeReadsByItsVersion`
 
 ### `union-null-only`
@@ -3141,9 +3144,10 @@ A schema whose own keywords leave it no value but `null` lowers, at its own posi
 the reference naming it admits `null` where the schema does ([`nullable`](#nullable)): a position
 admitting `null` and nothing else is a nullable reference to that `Enum`, and one admitting nothing
 is a reference to it that is not. Its own keywords leave it `null` alone where it writes no `$ref`,
-`allOf`, `oneOf`, `anyOf` or `$dynamicRef`, an `enum` it writes lists `null` and nothing else, and
-it writes a `const`, such an `enum`, or a `type` naming `null` and no other type, as `type: "null"`
-and `type: ["null"]` do. An `enum` and a `const` lower so by [`enum-const`](#enum-const). A `type`
+`allOf`, `oneOf`, `anyOf` or `$dynamicRef`, an `enum` it writes lists `null` and nothing else,
+within the `Limits.MaxEnumMembers` past which an `enum` lowers to the top type, and it writes a
+`const`, such an `enum`, or a `type` naming `null` and no other type, as `type: "null"` and
+`type: ["null"]` do. An `enum` and a `const` lower so by [`enum-const`](#enum-const). A `type`
 naming only `null`, with neither beside it, lowers so too, not to the top type behind a nullable
 reference, which admits every value: `{anyOf: [{}, {type: "null"}]}` lowers to that, and a consumer
 could not tell the two apart. The `Enum`'s `ValueType` is what the schema's `type` and `format`
@@ -3163,6 +3167,8 @@ wherever it stands.
 - Codes: `openapi/degraded-construct`
 - Tests: `schema.TestNullAlone_ReadsTheSchemasOwnKeywords`,
   `schema.TestNullAloneReading_IsTheWholeSchemasReading`,
+  `schema.TestNullAloneReading_ReadsASchemaOnce`,
+  `schema.TestNullBranch_AnEnumPastTheMemberBudgetIsNoNullBranch`,
   `schema.TestLowerNullAlone_EveryPositionNamesAnEnumWithNoMember`,
   `schema.TestLowerNullAlone_IsToldFromTheTopType`,
   `schema.TestLowerNullAlone_KeepsWhatTheEnumCannotHold`,
