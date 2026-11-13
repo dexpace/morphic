@@ -9,6 +9,14 @@ request type holding it, the setter a builder gives that field, an enum's consta
 wrapper. `MarkDeprecation` adds it once the declarations exist ([step list](steps.md)). Nothing
 deprecated changes what is sent or read, so the mock server reads none of it.
 
+A model's member is deprecated where its flattened member is, any of its declarations stating a
+deprecation, and carries that member's text (`ir.FlatProperty.Deprecation`, [the
+flattening](../../ir/models.md#the-flattening)), so a conjunct redeclaring a deprecated field
+without `deprecated` leaves the field marked, in a shape a model narrowing a union takes as in the
+model's own. The plan reads it off the flattenings it computes: `TypePlan.Deprecated` gives each
+such member of the model its deprecation, and a `TypePlan.Composed` entry's those of the variant
+composed over that entry ([TypePlan](../plan/types.md#a-model-narrowing-a-union)).
+
 A mark counts only where the target's tools show it at a use in another output unit, the caller's.
 Where a target's mechanism marks a declaration partly or not at all, its document says so and puts
 the text where the caller reads it instead: Kotlin 2.4.0 shows no use in another module of an enum

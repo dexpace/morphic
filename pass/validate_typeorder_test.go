@@ -36,6 +36,13 @@ func TestValidate_TypeRegistryDiagnosticsAreDeterministic(t *testing.T) {
 			at: func(id ir.TypeID) string { return string(id) },
 		},
 		{
+			name: "checkRepeatedVariants", code: "pass/inclusive-union-redundant-variant",
+			typeOf: func(id ir.TypeID) ir.TypeDef {
+				return &ir.Union{ID: id, Variants: []ir.Variant{{Type: ir.TypeRef{Target: "t/m"}}, {Type: ir.TypeRef{Target: "t/m"}}}}
+			},
+			at: func(id ir.TypeID) string { return string(id) + "/variants/1" },
+		},
+		{
 			name: "checkDuplicateMemberIDs", code: "pass/duplicate-enum-member-id",
 			typeOf: func(id ir.TypeID) ir.TypeDef {
 				return &ir.Enum{ID: id, ValueType: ir.PrimString, Closed: true, Members: []ir.EnumMember{

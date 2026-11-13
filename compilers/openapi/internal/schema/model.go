@@ -15,6 +15,7 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/annotation"
 	"github.com/dexpace/morphic/compilers/openapi/internal/bind"
 	"github.com/dexpace/morphic/compilers/openapi/internal/budget"
+	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
 	"github.com/dexpace/morphic/compilers/openapi/internal/merge"
@@ -71,17 +72,19 @@ func objectNode(m *ir.Model) ir.TypeDef {
 // (compile.Types.Complete), queued at the model's first redeclaration: a
 // settlement that reads the merged field, such as a form part's flags, finds it
 // folded, and a fold mid-walk would follow the order the declarations lower in
-// (GitHub #898). It is the walk the fold asks (merge.Walk).
+// (GitHub #898). It is the walk the fold asks (merge.Walk). pointer is where
+// the model is written.
 type modelFields struct {
-	c   lowering.Ctx
-	ts  *compile.Types
-	idx *merge.PropIndex
+	c       lowering.Ctx
+	ts      *compile.Types
+	idx     *merge.PropIndex
+	pointer jsontext.Pointer
 }
 
 // newModelFields returns the fields of m, which holds no property yet, lowered
 // in c and registered with ts.
 func newModelFields(c lowering.Ctx, ts *compile.Types, m *ir.Model) modelFields {
-	return modelFields{c: c, ts: ts, idx: merge.NewPropIndex(m)}
+	return modelFields{c: c, ts: ts, idx: merge.NewPropIndex(m), pointer: m.Provenance.Pointer}
 }
 
 // merge lands p on the model, or records it as one more declaration of the
@@ -95,9 +98,18 @@ func (f modelFields) merge(p ir.Property, source merge.Source, secretBy ir.Infer
 
 // Settle folds the model's redeclared fields against reg, the registry every
 // lowering left, and returns what the folds report (compile.Settlement). A
-// fold rewrites the model's property, and adds a node only through Mint.
+// fold rewrites the model's property, and adds a node only through Mint. A tag
+// reading reads that property (tagReadings), so a fold, a completion, runs
+// before every one; one following a stored reading, which may have read the
+// property unfolded, is a compiler bug, reported.
 func (f modelFields) Settle(reg ir.TypeRegistry) []ir.Diagnostic {
-	return f.idx.Fold(merge.Merger{Reg: reg, IDs: f.c.IDs(), Doc: f.c.Place(), Walk: f})
+	diags := f.idx.Fold(merge.Merger{Reg: reg, IDs: f.c.IDs(), Doc: f.c.Place(), Walk: f})
+	if readingsOf(f.c).stored() {
+		diags = append(diags, f.c.DiagAt(ir.SeverityError, diag.InternalInvariant, f.pointer,
+			"internal: the model's redeclared fields fold after a discriminator-inference reading is stored, "+
+				"which may have read them unfolded"))
+	}
+	return diags
 }
 
 // Interned reports whether a node stands at pointer of the model's document
