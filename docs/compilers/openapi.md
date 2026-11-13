@@ -2651,50 +2651,63 @@ numbers, or of values of several kinds, is outside this rule and stays a union.
 ### `enum-const`
 
 An `enum` lowers to a closed `Enum` at any member count, one member included, each entry a member
-holding its value ([`values`](#values)) in source order ([enums](../ir/enums.md)); a `null`
-entry beside others is no member but makes the position nullable ([`nullable`](#nullable)). Its
-`ValueType` is the primitive one declared `type` and its `format` select, as a scalar's are read
-([`string-formats`](#string-formats), [`numeric-formats`](#numeric-formats)), where every member is
-a value of that primitive. Otherwise it is the primitive of the `type` alone, else of the members,
-and a `format` that reaches no `ValueType`, whether the table lacks the pairing or a member does not
-fit it, as none is a value of `binary`'s `bytes`, is kept verbatim under `openapi:format`
+holding its value ([`values`](#values)) in source order ([enums](../ir/enums.md)). A `null` entry
+is no member and no variant: whether the position admits null is its reference's
+([`nullable`](#nullable)), as for a `oneOf` holding a `type: "null"` branch, so the fact is stated
+once, and an `enum` listing `null` alone lowers to an `Enum` with no member, which a nullable
+reference makes a position admitting null and nothing else. A keyword beside the `enum` that
+excludes null, as `type: string` does, leaves a `null` entry admitting no instance, since JSON
+Schema conjoins the two, so it is dropped and reported as an `openapi/degraded-construct` warning at
+it. Its `ValueType` is the primitive one declared `type` and its `format` select, as a scalar's are
+read ([`string-formats`](#string-formats), [`numeric-formats`](#numeric-formats)), else the primitive
+of the `type` alone, where every member is a value of that primitive, else the primitive of the
+members. A `format` that reaches no `ValueType`, whether the table lacks the pairing or a member does
+not fit it, as none is a value of `binary`'s `bytes`, is kept verbatim under `openapi:format`
 (`degraded_lowering`), with an info `openapi/degraded-construct` at the schema, but for `password`,
-which is a redaction ([`password`](#password)). An enumeration an `Enum` cannot hold — a list or
-object member, members of different kinds, or only `null` — lowers to a `Union` of `Literal`s
-instead, reported as an info `openapi/degraded-construct` at the schema, and a member whose value
-cannot convert makes the enumeration such a union, its own variant the top type, reported as an
-`openapi/degraded-construct` warning at the member. That union is exclusive unless an instance can
-match two variants: an entry repeats, or one lowered to the top type. `enum: []` lowers to a closed
-`Enum` with no members, a position accepting no value, reported as an `openapi/empty-enum` warning.
-An entry repeating an earlier entry's value, compared as JSON Schema compares instances, is kept,
-each occurrence a member of its own ([enums](../ir/enums.md)), and reported as an
+which is a redaction ([`password`](#password)). A member that no declared `type` admits, as `"a"`
+under `type: integer` or a `!!binary` under `type: string`, matches no instance either, and is
+reported as an `openapi/degraded-construct` warning at it. Such a member is kept, the members
+lowering as written and the `type` kept verbatim under `openapi:type` (`degraded_lowering`) with the
+info at the schema: a list whose every entry the type rejects, such as unquoted numbers under
+`type: string`, more often means its members than its type, and dropping either side would guess
+which, where keeping both loses nothing. A `type` beside an `Enum` with no member types no value,
+and draws nothing. An enumeration an `Enum` cannot hold — a list or object member, or members of
+different kinds — lowers to a `Union` of `Literal`s over its entries but `null` instead, reported as
+an info `openapi/degraded-construct` at the schema, and a member whose value cannot convert makes the
+enumeration such a union, its own variant the top type, reported as an `openapi/degraded-construct`
+warning at the member. That union is exclusive unless an instance can match two variants: an entry
+it holds repeats, or one lowered to the top type. `enum: []` lowers to a closed `Enum` with no
+members, a position accepting no value, reported as an `openapi/empty-enum` warning. An entry
+repeating an earlier entry's value, compared as JSON Schema compares instances, is kept, each
+occurrence a member of its own ([enums](../ir/enums.md)), and reported as an
 `openapi/duplicate-enum-value` warning at the repeat. An `enum` past `Limits.MaxEnumMembers` lowers
 to the top type, with an `openapi/budget-exceeded` error at the schema. A `const` lowers to a
 `Literal` of its value, whose `ValueType` is read as an enum's is, from the type and format the
 value fits, else the type, else the value's own kind ([containers](../ir/containers.md#literals)),
 so a `type` or `format` the value fits is held and draws nothing, and one it does not fit is kept
-verbatim with the same info report. A `const` that cannot convert lowers to the top type, with an
-`openapi/degraded-construct` warning at the schema. A value set an `allOf` refines is typed by every
-conjunct ([`allof-refinement`](#allof-refinement)). A
+verbatim with the same info report. A `const` matching no instance, a value no declared `type`
+admits or a `null` a keyword beside it excludes, keeps its `Literal` and is reported as an
+`openapi/degraded-construct` warning at the `const`. A `const` that cannot convert lowers to the top
+type, with an `openapi/degraded-construct` warning at the schema. A value set an `allOf` refines is
+typed by every conjunct ([`allof-refinement`](#allof-refinement)). A
 `$ref` into a member of such a union names the member's `Literal`, the node the enumeration lowers
 at that position, whichever is lowered first.
 
 - Cases: `enum-string`, `enum-numeric`, `empty-enum`, `enum-member-identity`, `nullable-enum-31`,
-  `literal-const`
+  `enum-null-member`, `literal-const`
 - Codes: `openapi/empty-enum`, `openapi/duplicate-enum-value`, `openapi/degraded-construct`,
   `openapi/budget-exceeded`
 - Tests: `schema.TestEnum_HeterogeneousBecomesUnionWithBadValue`,
-  `schema.TestEnum_NonScalarAndMidListMismatch`,
+  `schema.TestEnum_NonScalarAndMidListMismatch`, `schema.TestEnum_NullIsNeverAMember`,
   `schema.TestEnum_ValueTypeReadsTheFormatItsMembersFit`,
+  `schema.TestEnum_AMemberNoTypeAdmitsIsReportedAndKept`,
   `schema.TestLiteral_ValueTypeReadsTheTypeAndFormatItsValueFits`,
   `schema.TestEnum_ReportsWhyAFormatStayedVerbatim`,
   `schema.TestEnum_NarrowsARedeclaredPrimitiveInEitherOrder`,
   `schema.TestEnumAsUnion_UnconvertibleMemberBecomesAny`,
   `schema.TestEnumAsUnion_ExclusiveWhereNoInstanceMatchesTwoEntries`,
+  `schema.TestNullableWidening_AnEnumsNullMemberFollowsTheReadingInForce`,
   `e2e.TestCompile_AReferenceLeavesItsTargetToItsOwnerInEitherOrder`
-- Status: partly built: an enum whose members do not match its declared type lowers to a union with
-  only an info diagnostic (#619). Open: whether a mixed-type enum's `null` lifts out of its union
-  (#618).
 
 ## 6. Schemas: objects, arrays and scalars
 

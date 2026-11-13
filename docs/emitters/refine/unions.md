@@ -64,15 +64,17 @@ them admit is a coded decode error unless its constraints single one out. A `pat
 
 On an untagged union, `null` is the union's value, never a variant's. A variant admits `null` when
 `null` decodes into it: its reference is `Nullable`, or its type, read through decorators and alias
-scalars, is the `null` literal, an enum with a `null` member, the `Any` type or the `any` primitive,
-or a union one of whose variants admits `null`. `null` holds nothing a variant could keep apart, so
-the union holds it itself: every reference to a union with such a variant lowers as a nullable
-reference does ([optionality](models.md#optionality--nullability--presence-inv8)), a `null` never
-reaches a variant, and a variant admitting nothing else lowers to no member. The rule reads through
-unions: `Outer: {anyOf: [{$ref: Inner}, {type: integer}]}` admits `null` when `Inner`'s variants are
+scalars, is the `null` literal, the `Any` type or the `any` primitive, or a union one of whose
+variants admits `null`; no enum has a `null` member ([enums](../../ir/enums.md#the-empty-enum)).
+`null` holds nothing a variant could keep apart, so the union holds it itself: every reference to a
+union with such a variant lowers as a nullable reference does
+([optionality](models.md#optionality--nullability--presence-inv8)), a `null` never reaches a
+variant, and a variant admitting nothing else lowers to no member, as a nullable reference to an
+enum with no member does. The rule reads through unions:
+`Outer: {anyOf: [{$ref: Inner}, {type: integer}]}` admits `null` when `Inner`'s variants are
 nullable, and holds it, where a rule read only at `Outer`'s own variants would let a `null` reach
-them and match none. Both spellings the compiler can give a null member (#618) then lower alike. The
-golden spec's single-result envelope declares `result` as
+them and match none. A `null` literal variant and a nullable one then lower alike, whichever a
+compiler writes. The golden spec's single-result envelope declares `result` as
 `anyOf: [{type: object, nullable: true}, {type: string, nullable: true}]`: an object, a string or
 `null`, the last held by the reference.
 

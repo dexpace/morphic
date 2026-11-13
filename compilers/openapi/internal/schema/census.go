@@ -152,15 +152,25 @@ func formatHome(td ir.TypeDef, s *oas3.Schema) bool {
 }
 
 // typeHome reports whether every shape s's declared type set names is a shape td
-// can be. One that td cannot be was read by nothing: the walk built a different
-// shape, so `type: string` beside an allOf that composed a Model states something
-// the IR no longer holds.
+// can be. One td cannot be was read by nothing: the walk built a different
+// shape, so `type: string` beside an allOf composing a Model states what the IR
+// no longer holds.
 //
 // A type set that reduces to nothing — `type: "null"` on its own — is carried by
-// TypeRef.Nullable rather than by a node, so it is homed wherever it is written.
+// TypeRef.Nullable rather than a node, so it is homed wherever it is written.
+// An Enum answers by its members: a type one of them is not of reached no
+// field, and an Enum of none has nothing to type.
 func typeHome(td ir.TypeDef, s *oas3.Schema) bool {
 	if lit, ok := td.(*ir.Literal); ok {
 		return literalTyped(lit, s)
+	}
+	if e, ok := td.(*ir.Enum); ok {
+		if len(e.Members) == 0 {
+			return true
+		}
+		if !membersTyped(e.Members, s) {
+			return false
+		}
 	}
 	for _, st := range effectiveTypes(s) {
 		if !typeShapedBy(td, st) {
@@ -206,10 +216,18 @@ func literalTyped(lit *ir.Literal, s *oas3.Schema) bool {
 	return known && prim == lit.ValueType
 }
 
+// membersTyped reports whether every member of an Enum is a value of the type
+// set s declares, which then says nothing the members do not. One a member is
+// no value of is a type the Enum's ValueType does not take (enumValueType).
+func membersTyped(members []ir.EnumMember, s *oas3.Schema) bool {
+	types := effectiveTypes(s)
+	return !slices.ContainsFunc(members, func(m ir.EnumMember) bool { return !typesAdmit(types, m.Value) })
+}
+
 // typeShapedBy reports whether td is a node kind that carries the shape st names.
 //
 // An Enum carries a scalar type in ValueType, which enumValueType fills from
-// exactly that type set. A Literal is typeHome's to judge, since what it holds
+// that type set where its members are values of it. A Literal is typeHome's to judge, since what it holds
 // depends on the format beside the type. Any admits every shape, so it
 // contradicts none; External and keywordHome's nil td carry no shape.
 func typeShapedBy(td ir.TypeDef, st oas3.SchemaType) bool {
@@ -384,11 +402,14 @@ const refSiteShape = "an alias over its $ref target"
 func nodeShape(kind ir.TypeKind) string { return fmt.Sprintf("a node of kind %q", kind) }
 
 // positionShape is nodeShape for the node td, the position's declaration s
-// lowered to. An Enum's ValueType is the home of any format the table pairs, so
-// an enum that left one verbatim says its members are why: its kind alone would
-// deny the home.
+// lowered to. An Enum's ValueType is the home of its type and of any format the
+// table pairs, so an enum that left one verbatim says its members are why: its
+// kind alone would deny the home.
 func positionShape(td ir.TypeDef, s *oas3.Schema) string {
 	if e, ok := td.(*ir.Enum); ok {
+		if !membersTyped(e.Members, s) {
+			return "an enum whose members are not all values of its declared type"
+		}
 		if prim, paired := formatPrimitive(s); paired && !enumMembersAre(e.Members, prim) {
 			return fmt.Sprintf("an enum whose members are not all values of %s", prim)
 		}

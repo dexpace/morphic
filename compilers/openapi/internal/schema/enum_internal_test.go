@@ -65,12 +65,12 @@ func TestEnumMembers_KeepsNoneBeneathAnIDNoMemberFits(t *testing.T) {
 	t.Parallel()
 	nodes := []*yaml.Node{{Kind: yaml.ScalarNode, Tag: "!!str", Value: "a"}}
 
-	members, _, ok := enumMembers(nodes, false, "t/openapi/components/schemas/E")
+	members, _, ok := enumMembers(readEnum(nodes), "t/openapi/components/schemas/E")
 	require.True(t, ok)
 	assert.Equal(t, []ir.EnumMember{{ID: "e/openapi/components/schemas/E/s:a", Name: ir.NamingFor("a"),
 		Value: ir.Value{Kind: ir.ValueString, Str: "a"}}}, members)
 
-	members, prim, ok := enumMembers(nodes, false, "openapi/components/schemas/E")
+	members, prim, ok := enumMembers(readEnum(nodes), "openapi/components/schemas/E")
 	assert.False(t, ok, "no member is placed beneath an ID that is no type ID")
 	assert.Empty(t, members)
 	assert.Empty(t, prim)
