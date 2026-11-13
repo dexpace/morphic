@@ -268,6 +268,14 @@ func (w *walker) entries(f frame, fld Field, shape Shape, node *yaml.Node, ptr j
 	}
 }
 
+// Admits reports whether node, a field's value, has the shape s as the check
+// reads one, an alias read as the node it names, so a package reading a value
+// the check owns can tell one it passed from one it reported.
+func (s Shape) Admits(node *yaml.Node) bool {
+	n := nodeview.Deref(node)
+	return n != nil && matches(s, n)
+}
+
 // matches reports whether the node has the shape.
 func matches(shape Shape, node *yaml.Node) bool {
 	switch shape {

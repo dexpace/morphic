@@ -6,11 +6,13 @@ package schema
 import (
 	"encoding/json/jsontext"
 	"slices"
+	"strings"
 
 	"github.com/speakeasy-api/openapi/jsonschema/oas3"
 
 	"github.com/dexpace/morphic/compilers/compile"
 	"github.com/dexpace/morphic/compilers/openapi/internal/annotation"
+	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
 	"github.com/dexpace/morphic/compilers/openapi/internal/merge"
 	"github.com/dexpace/morphic/compilers/openapi/internal/oas"
@@ -48,14 +50,56 @@ func exclusiveIsBoolean(c lowering.Ctx, s *oas3.Schema) bool {
 	return rulesOf(c, s).Takes("exclusiveMinimum", oas.Boolean)
 }
 
-// constraintsAt reads what s, written at pointer, bounds.
+// constraintsAt reads what s, written at pointer, bounds, keeping in p each count
+// it writes that no field can state (keepCounts).
 func constraintsAt(c lowering.Ctx, p *ir.Unmodeled, s *oas3.Schema, pointer jsontext.Pointer) (*ir.Constraints, []ir.Diagnostic) {
 	if s == nil {
 		return nil, nil
 	}
 	cons, kept, diags := annotation.Constraints(s, exclusiveIsBoolean(c, s), pointer, c.Place())
 	*p = annotation.MergeUnmodeled(*p, kept)
+	diags = append(diags, keepCounts(c, p, s, pointer)...)
 	return cons, stampConstraintDiags(c, diags, pointer)
+}
+
+// keepCounts keeps verbatim in p each value count s writes that keptCount says
+// no field states, reporting them once at pointer
+// (docs/compilers/openapi.md#constraints).
+func keepCounts(c lowering.Ctx, p *ir.Unmodeled, s *oas3.Schema, pointer jsontext.Pointer) []ir.Diagnostic {
+	var diags []ir.Diagnostic
+	var kept []string
+	for _, count := range []struct {
+		keyword string
+		model   *int64
+	}{
+		{"maxLength", s.MaxLength}, {"maxProperties", s.MaxProperties},
+		{"minLength", s.MinLength}, {"minProperties", s.MinProperties},
+	} {
+		if !keptCount(s, count.keyword, count.model) {
+			continue
+		}
+		ok, keptDiags := annotation.PreserveSchemaKeyword(p, s, count.keyword, ir.ReasonDegradedLowering, pointer, c.Place())
+		diags = append(diags, keptDiags...)
+		if ok {
+			kept = append(kept, count.keyword)
+		}
+	}
+	if len(kept) == 0 {
+		return diags
+	}
+	return append(diags, c.DiagAt(ir.SeverityInfo, diag.DegradedConstruct, pointer,
+		"%s is past what a 64-bit integer holds, so no Constraints field states it; kept verbatim under Unmodeled",
+		strings.Join(kept, ", ")))
+}
+
+// keptCount reports whether keyword, a count s writes, is one the lowering keeps
+// verbatim rather than in Constraints: a non-negative integer, as the check
+// reads one (oas.Natural), that the parser's model does not hold exactly, as it
+// does not one past int64 (annotation.CountIsExact). Any other literal the model
+// misreads is the load phase's to report, and reaches no field.
+func keptCount(s *oas3.Schema, keyword string, model *int64) bool {
+	node := annotation.RawPropertyNode(s, keyword)
+	return node != nil && oas.Natural.Admits(node) && !annotation.CountIsExact(s, keyword, model)
 }
 
 // stampConstraintDiags gives every constraint diagnostic the provenance of the

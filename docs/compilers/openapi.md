@@ -3107,7 +3107,14 @@ kept verbatim under `openapi:<keyword>`
 (`degraded_lowering`) with an info `openapi/degraded-construct` naming the node it lowered to, as
 [`shape-applicator`](#shape-applicator) keeps a collection bound on an object. A collection bound
 beside a reference that `Constraints` cannot state is kept the same way: a `uniqueItems` of `false`,
-which a bool cannot tell from one never written, and a count that does not fit in 64 bits.
+which a bool cannot tell from one never written, and a count that does not fit in 64 bits. A count,
+`minLength`, `maxLength`, `minItems`, `maxItems`, `minProperties` or `maxProperties`, is a
+non-negative integer with no upper limit, and its field holds one up to 2^63−1: one past that, at
+any node, carrier or `allOf` branch, reaches no field and is kept verbatim under `openapi:<keyword>`
+(`degraded_lowering`) with an info `openapi/degraded-construct` at the position, and on a branch it
+parts no other ([`allof-inline-residue`](#allof-inline-residue)). A count literal that is no
+non-negative integer is the load phase's to report ([`validation`](#validation)) and reaches no
+field.
 
 - Cases: `constraints`, `numeric-precision`, `ref-collection-bounds`
 - Codes: `openapi/invalid-numeric-literal`, `openapi/invalid-exclusive-bound`,
@@ -3128,9 +3135,12 @@ which a bool cannot tell from one never written, and a count that does not fit i
   `schema.TestCollectionBound_BesideAnExpandedDynamicRefReachesWhatThePositionOwns`,
   `operation.TestParams_CollectionBoundBesideARefReachesTheCarrier`,
   `schema.TestCollectionBound_ARefinementReachesWhatThePositionOwns`,
-  `schema.TestRefinement_ACollectionBoundLandsAtEveryPosition`
-- Status: partly built: an integer bound past what a 64-bit integer holds lowers as `0`, unreported,
-  everywhere but the collection bounds beside a reference or on an inline `allOf` branch (#1050).
+  `schema.TestRefinement_ACollectionBoundLandsAtEveryPosition`,
+  `schema.TestConstraints_ACountNoFieldStatesIsKeptVerbatim`,
+  `schema.TestConstraints_ACountTheLoadPhaseRefusesReachesNoField`,
+  `schema.TestAllOf_ACountNoFieldStatesIsKeptInEitherOrder`,
+  `annotation.TestExactCount_StatesOnlyAnExactCount`,
+  `oas.TestShape_Admits`
 
 ### `validation-only`
 

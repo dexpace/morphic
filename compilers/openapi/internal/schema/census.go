@@ -68,10 +68,13 @@ func keywordHome(td ir.TypeDef, s *oas3.Schema, keyword string) bool {
 		// keeps (PreserveUnknownKeywords).
 		_, listed := listedItems(s)
 		return isKind(td, ir.KindTuple) || !listed
-	case "maxItems", "minItems", "uniqueItems":
-		// Either collection node, since collectionConstraints fills both. That is
-		// also why valueConstraintKeywords leaves them out, which puts them in this
-		// census rather than in declaredConstraints.
+	case "maxItems", "minItems":
+		// Either collection node, since collectionConstraints fills both, or a
+		// reference's alias or carrier, unless the count is one no field states.
+		// That is also why valueConstraintKeywords leaves them out, which puts them
+		// in this census rather than in declaredConstraints.
+		return (holdsCollectionBounds(td) || ir.IsNilTypeDef(td)) && !keptCount(s, keyword, itemCount(s, keyword))
+	case "uniqueItems":
 		return holdsCollectionBounds(td) || (ir.IsNilTypeDef(td) && referenceHolds(s, keyword))
 	case "const":
 		// Any counts as well as Literal. hoistLiteral degrades a value ir.Value
@@ -97,6 +100,15 @@ func keywordHome(td ir.TypeDef, s *oas3.Schema, keyword string) bool {
 	default:
 		return false
 	}
+}
+
+// itemCount returns the parser model's reading of the count keyword, minItems or
+// maxItems, s writes.
+func itemCount(s *oas3.Schema, keyword string) *int64 {
+	if keyword == "minItems" {
+		return s.MinItems
+	}
+	return s.MaxItems
 }
 
 // discriminatorHome reports whether td holds the discriminator its position
@@ -360,8 +372,9 @@ func preserveUnhomedKeywords(c lowering.Ctx, ts *compile.Types, s *oas3.Schema, 
 	unhomed := unhomedKeywords(s, td, slices.Concat(d.skipped, d.said))
 	if owns == id && !constraintsHome(td) {
 		// No alias will be hoisted over a node the position already owns, so the
-		// bounds it wrote reach no Constraints field anywhere.
-		unhomed = append(unhomed, declaredConstraints(s)...)
+		// bounds it wrote reach no Constraints field anywhere, but for one the
+		// reader of its bounds kept already (keepCounts).
+		unhomed = append(unhomed, keptNowhere([]ir.TypeDef{td}, declaredConstraints(s))...)
 	}
 	if len(unhomed) == 0 && len(d.skipped) == 0 {
 		return id, diags
@@ -374,6 +387,18 @@ func preserveUnhomedKeywords(c lowering.Ctx, ts *compile.Types, s *oas3.Schema, 
 	}
 	diags = append(diags, recordUnhomedKeywords(c, ts, owner, s, unhomed, positionShape(td, s), pointer)...)
 	return owner, append(diags, recordSkippedFamilies(c, ts, owner, s, d, pointer)...)
+}
+
+// keptNowhere returns the keywords of declared no node of nodes keeps an entry
+// for, in order: a count the reader of a node's bounds kept (keepCounts) is not
+// kept and reported twice.
+func keptNowhere(nodes []ir.TypeDef, declared []string) []string {
+	return slices.DeleteFunc(declared, func(keyword string) bool {
+		return slices.ContainsFunc(nodes, func(td ir.TypeDef) bool {
+			_, kept := td.Common().Unmodeled[annotation.EntryKey("", keyword)]
+			return kept
+		})
+	})
 }
 
 // refSiteShape describes what a $ref position's own declaration lowers to, for
@@ -431,7 +456,7 @@ func preserveVariantsUnhomed(c lowering.Ctx, ts *compile.Types, s *oas3.Schema, 
 	}
 	unhomed := unhomedAcross(s, nodes, handled)
 	if !slices.ContainsFunc(nodes, constraintsHome) {
-		unhomed = append(unhomed, declaredConstraints(s)...)
+		unhomed = append(unhomed, keptNowhere(nodes, declaredConstraints(s))...)
 	}
 	return append(diags, recordUnhomedKeywords(c, ts, id, s, unhomed, shape, pointer)...)
 }

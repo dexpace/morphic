@@ -470,3 +470,15 @@ it sees. Changes made together in one bump are listed together under it.
   headers](./responses.md#prefix-headers)). `irverify` holds such a header to a map type and no
   wire name, and `irfacts.CorrelationVersion` moved to 3, keying it by its prefix. No compiler
   fills it yet. A consumer pinned to 0.45.0 refuses a document with a prefix header.
+- **0.47.0** — no shape change. The OpenAPI compiler writes a count, `minLength`, `maxLength`,
+  `minItems`, `maxItems`, `minProperties` or `maxProperties`, past what a 64-bit integer holds to
+  no `Constraints` field, where it wrote `0` or a number the source does not state, and keeps it
+  verbatim under `openapi:<keyword>` (`degraded_lowering`) on the node or carrier the position owns
+  ([`constraints`](../compilers/openapi.md#constraints)); a count literal that is no non-negative
+  integer, which the load phase refuses, reaches no field either. An inline `allOf` branch whose
+  bound keyword states no value, a 3.0 `exclusiveMinimum` with no bound beside it, one of `false` or
+  one the load phase refuses, parts no other branch, so it folds where nothing else parts it
+  ([`allof-inline-residue`](../compilers/openapi.md#allof-inline-residue)), what it keeps landing
+  under its keyword rather than under `openapi:allOf/<n>`. A consumer pinned to 0.46.0 that read
+  such a count's field finds none there, and one reading such a branch under `openapi:allOf/<n>`
+  finds its keywords at the position instead.

@@ -4,6 +4,8 @@
 package schema_test
 
 import (
+	"encoding/json/jsontext"
+	"fmt"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
@@ -222,4 +224,34 @@ func TestAllOf_AFoldedDeclarationLeavesNoRecordOfItself(t *testing.T) {
 	assert.Equal(t, onFirst, onSecond)
 	assert.Equal(t, "/components/schemas/T/allOf/0/properties/v", string(onSecond.Provenance.Pointer))
 	assert.Empty(t, onSecond.Unmodeled, "nothing was lost, so nothing is kept")
+}
+
+// TestAllOf_ACountNoFieldStatesIsKeptInEitherOrder pins GitHub #1050 under
+// allOf, in both orders: a count past int64 on a redeclared field, or on an
+// inline branch, states no bound, so the field and the schema take the counts
+// the other conjunct states, and it is kept verbatim with one info where it is
+// written.
+func TestAllOf_ACountNoFieldStatesIsKeptInEitherOrder(t *testing.T) {
+	t.Parallel()
+	const past, five = "{type: string, maxLength: 99999999999999999999}", "{type: string, maxLength: 5}"
+	for i, order := range [][2]string{{past, five}, {five, past}} {
+		p, _, diags := redeclared(t, order[0], order[1])
+		assert.Equal(t, &ir.Constraints{MaxLength: new(int64(5))}, p.Constraints, "%v", order)
+		assert.Equal(t, []string{"openapi:maxLength"}, unmodeledKeys(p.Unmodeled), "%v", order)
+		require.Len(t, diags, 1, "%v", order)
+		assert.Equal(t, jsontext.Pointer(fmt.Sprintf("/components/schemas/T/allOf/%d/properties/v", i)),
+			diags[0].Provenance.Pointer, "%v", order)
+	}
+
+	const branch, other = "{type: string, maxLength: 99999999999999999999}", "{type: string, minLength: 2}"
+	for i, order := range [][2]string{{branch, other}, {other, branch}} {
+		doc, diags := schema.LowerSpec(t, openapitest.ComponentSpec("    T: {allOf: ["+order[0]+", "+order[1]+"]}\n"))
+		openapitest.RequireNoErrorDiags(t, diags)
+		s, ok := doc.Types[componentID("T")].(*ir.Scalar)
+		require.True(t, ok, "%v", order)
+		assert.Equal(t, &ir.Constraints{MinLength: new(int64(2))}, s.Constraints, "%v", order)
+		assert.Equal(t, []string{"openapi:maxLength"}, unmodeledKeys(s.Unmodeled), "%v", order)
+		require.Len(t, diags, 1, "%v", order)
+		assert.Equal(t, jsontext.Pointer(fmt.Sprintf("/components/schemas/T/allOf/%d", i)), diags[0].Provenance.Pointer, "%v", order)
+	}
 }
