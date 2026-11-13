@@ -48,7 +48,7 @@ func TestVerify_ReportsTruncationOnce(t *testing.T) {
 // check: in one walk that reads the declarations too. It returns what the check
 // reports and whether the walk was cut short.
 func runCheck(newCheck func(*ir.Document) walkCheck, doc *ir.Document) ([]Violation, bool) {
-	return walkWith(doc, ir.WalkValues, []func(*ir.Document) walkCheck{newCheck})
+	return walkWith(doc, doc, ir.DocumentPath, ir.WalkValues, []func(*ir.Document) walkCheck{newCheck})
 }
 
 // TestVerify_WalksTheDocumentOnce counts the walks Verify makes, through the walk
@@ -81,7 +81,8 @@ func TestWalkWith_ReportsInTheOrderGiven(t *testing.T) {
 			return walkCheck{report: func(declarations) []Violation { return []Violation{{Code: code}} }}
 		}
 	}
-	got, truncated := walkWith(&ir.Document{}, ir.WalkValues,
+	doc := &ir.Document{}
+	got, truncated := walkWith(doc, doc, ir.DocumentPath, ir.WalkValues,
 		[]func(*ir.Document) walkCheck{reportingOnly("second"), reportingOnly("first")})
 	assert.False(t, truncated)
 	assert.Equal(t, []Violation{{Code: "second"}, {Code: "first"}}, got)
@@ -90,14 +91,15 @@ func TestWalkWith_ReportsInTheOrderGiven(t *testing.T) {
 // TestVerify_WalksOnlyThroughTheSharedWalk holds the other half, which counting
 // cannot see: a check that walked the document itself would not go through the
 // walk verify is handed. Of the traversals ir offers, irverify's production
-// code may name only ir.WalkValues, and only in Verify, which hands it on.
+// code may name only ir.WalkValues, and only in Verify and VerifyFindings,
+// which hand it on.
 func TestVerify_WalksOnlyThroughTheSharedWalk(t *testing.T) {
 	t.Parallel()
 	p := verifyDecls(t)
 	irAsSeen, reaches := p.Imported(irPath)
 	require.True(t, reaches, "this package must import ir")
 	for traversal, want := range map[string][]string{
-		"WalkValues":       {"Verify"},
+		"WalkValues":       {"Verify", "VerifyFindings"},
 		"ForEachOperation": nil,
 		"TypeEdges":        nil,
 	} {
