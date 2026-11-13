@@ -1048,6 +1048,7 @@ func TestLiteral_ValueTypeReadsTheTypeAndFormatItsValueFits(t *testing.T) {
 		{"several declared types", `{type: [integer, string], const: 1}`, ir.PrimNumber, "openapi:type", false},
 		{"an object", `{type: object, const: {a: 1}}`, "", "", false},
 		{"a list", `{type: array, const: [1]}`, "", "", false},
+		{"a binary under string", `{type: string, const: !!binary aGk=}`, ir.PrimBytes, "", false},
 		{"an object the type is not", `{type: array, const: {a: 1}}`, "", "openapi:type", true},
 		{"a list the type is not", `{type: object, const: [1]}`, "", "openapi:type", true},
 	}

@@ -191,10 +191,11 @@ func typeHome(td ir.TypeDef, s *oas3.Schema) bool {
 
 // literalTyped reports whether lit holds the type s declares: its ValueType is
 // the primitive that one type, or the type and format, select, which
-// literalValueType took because the value is one of it, or the type is the
-// object or array a composite value already is. A type set naming no shape is
-// TypeRef.Nullable's, as typeHome says; one naming several, or a type the
-// value is not, reached no field.
+// literalValueType took because the value is one of it, or a format of the
+// type, as bytes is of string, or the type is the object or array a composite
+// value already is. A type set naming no shape is TypeRef.Nullable's, as
+// typeHome says; one naming several, or a type the value is not, reached no
+// field.
 func literalTyped(lit *ir.Literal, s *oas3.Schema) bool {
 	types := effectiveTypes(s)
 	if len(types) == 0 {
@@ -222,7 +223,7 @@ func literalTyped(lit *ir.Literal, s *oas3.Schema) bool {
 	}
 
 	prim, known := spelling.Lookup(string(types[0]))
-	return known && prim == lit.ValueType
+	return known && narrowsOrIs(lit.ValueType, prim)
 }
 
 // membersTyped reports whether every member of an Enum is a value of the type
