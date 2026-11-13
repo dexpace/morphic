@@ -178,8 +178,8 @@ func decodeObject(ctx context.Context, kind bind.RefKind, node *yaml.Node,
 	}
 }
 
-// decoded decodes node into m as the parser's resolver decodes what a
-// reference names, behind runRecovered.
+// decoded decodes node into m as the parser decodes a reference-or-inline
+// entry of its model, behind runRecovered.
 func decoded[C any](ctx context.Context, node *yaml.Node, m marshaller.CoreAccessor[C]) error {
 	return runRecovered("parser", func() error {
 		_, err := marshaller.UnmarshalNode(ctx, "reference", node, m)

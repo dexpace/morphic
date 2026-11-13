@@ -81,9 +81,8 @@ func (o Others) At(index int) (Other, bool) {
 	return o.list[i], true
 }
 
-// Named returns the document a reference reads by name, as the parser's
-// resolver or the binder spells it, and false for one the compile did not
-// read beside the source.
+// Named returns the document a reference reads by name, as the binder spells
+// it, and false for one the compile did not read beside the source.
 func (o Others) Named(name string) (Other, bool) {
 	i, ok := o.index(name)
 	if !ok {

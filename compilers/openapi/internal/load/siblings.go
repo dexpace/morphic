@@ -51,9 +51,8 @@ type Sibling struct {
 // reference or writes nothing beside one.
 //
 // It answers by the mapping the use site is written as, not by rp, so a
-// reference the resolver reached through a chain finds the fields its own
-// wrapper was built from, and an alias reaching one mapping twice finds one
-// model.
+// reference a chain passes finds the fields its own wrapper was built from,
+// and an alias reaching one mapping twice finds one model.
 func (s Siblings) Of(rp *soa.ReferencedPathItem) (Sibling, bool) {
 	if !isReference(useSite(rp)) {
 		return Sibling{}, false

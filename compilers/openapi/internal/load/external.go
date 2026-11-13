@@ -65,10 +65,9 @@ func (e external) readAs(ctx context.Context, id, key, location string) answer {
 }
 
 // fileNamed returns the file the path name names: its dot segments removed, as
-// a URI reference's are before anything is read. The resolver cleans a relative
-// $ref this way and hands an absolute one over as written, so left to the
-// reader, one through a directory that is not there failed, and one through a
-// link read another file (GitHub #780). A relative path whose first segment
+// a URI reference's are before anything is read, so one through a directory
+// that is not there names the file its cleaned path does, and one through a
+// link no other file (GitHub #780). A relative path whose first segment
 // holds a colon keeps a leading "./", as RFC 3986 §4.2 writes one, so a reader
 // never reads it as a URL. An empty name names no file, where cleaned it would
 // name the current directory.

@@ -89,8 +89,8 @@ type draftParam struct {
 }
 
 // draftLinks drafts each link the response r, declared at rptr in c's
-// document, names. A $ref the resolver could not follow is its finding, and
-// drafts nothing. The summary and description written beside a link's $ref
+// document, names. A $ref the bindings could not follow is the load phase's
+// finding, and drafts nothing. The summary and description written beside a link's $ref
 // describe that use of it, so they fold over the declaration's docs
 // (docs/compilers/openapi.md#reference-object-siblings).
 func draftLinks(c lowering.Ctx, r *soa.Response, rptr jsontext.Pointer) ([]linkDraft, []ir.Diagnostic) {

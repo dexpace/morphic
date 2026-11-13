@@ -1,10 +1,10 @@
 // Copyright (c) 2026 dexpace.
 // Licensed under the MIT License. See LICENSE in the repository root for details.
 
-// Package bind resolves the schema $refs of an OpenAPI source into an
-// immutable table, over the decoded YAML trees and never through the parser's
-// resolver: for each reference, where its own $ref lands and where its chain
-// ends, or why it does not. Every answer is a function of the documents alone,
+// Package bind resolves every $ref of an OpenAPI source, a schema's and a
+// Reference Object's, into an immutable table, over the decoded YAML trees and
+// never through the parser's resolver: for each reference, where its own $ref
+// lands and where its chain ends, or why it does not. Every answer is a function of the documents alone,
 // and one work budget bounds the whole table.
 //
 // A reference is read as docs/compilers/openapi.md#references states: against
