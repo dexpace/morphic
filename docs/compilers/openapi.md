@@ -469,8 +469,8 @@ Each document a reference reaches is a `Document.Sources` entry after the source
 ordered by its location: its path from the directory the source lies in, or where no relative path
 reaches it, as from a source lying at a relative path to an absolute one, its own path. Its entry's
 path is that location joined to the directory of the source's `Path`, so a spec named relatively
-lists the documents beside it relatively, unless the location climbs out of a directory that `Path`
-names, which a link may place elsewhere, where it is the path read. What it declares lowers there, as
+lists the documents beside it relatively, the `..` segments climbing out of that directory kept, as a
+link may place it elsewhere than cleaning them away would. What it declares lowers there, as
 the source's own lowers where the source declares it: a schema a `$ref` lands on, and a parameter,
 request body, response, header, example, callback, path item, security scheme or media type a
 reference brings in, with the schemas inline in it. A reference object written in what another

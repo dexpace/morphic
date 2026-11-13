@@ -155,9 +155,10 @@ func TestLabelOf_IsTheLocationTheSourcesDirectoryReachesADocumentBy(t *testing.T
 // TestShownPathOf_NamesADocumentAsTheHandedPathNamesTheSource pins the path
 // Document.Sources records for another document: beside the path the caller
 // handed, as relative as it is, where its label is relative, though the
-// references were read against the source's absolute Location; else as read,
-// as it is where the label climbs out of a directory the handed path names,
-// which a link may place elsewhere than the Location's.
+// references were read against the source's absolute Location, a label
+// climbing out of the handed directory keeping its dot segments, which a link
+// to that directory gives another meaning than cleaning them away would; else
+// as read.
 func TestShownPathOf_NamesADocumentAsTheHandedPathNamesTheSource(t *testing.T) {
 	t.Parallel()
 	for _, tc := range []struct {
@@ -168,8 +169,9 @@ func TestShownPathOf_NamesADocumentAsTheHandedPathNamesTheSource(t *testing.T) {
 		{sourceDocument{path: "/r/api/root.yaml", handed: "api/root.yaml"}, "/r/api/common.yaml", "api/common.yaml"},
 		{sourceDocument{path: "/r/api/root.yaml", handed: "root.yaml"}, "/r/common.yaml", "../common.yaml"},
 		{sourceDocument{path: "/r/api/root.yaml", handed: "/l/api/root.yaml"}, "/r/api/s/c.yaml", "/l/api/s/c.yaml"},
-		{sourceDocument{path: "/r/api/root.yaml", handed: "api/root.yaml"}, "/r/common.yaml", "/r/common.yaml"},
-		{sourceDocument{path: "/r/api/root.yaml", handed: "/l/api/root.yaml"}, "/r/common.yaml", "/r/common.yaml"},
+		{sourceDocument{path: "/r/api/root.yaml", handed: "api/root.yaml"}, "/r/common.yaml", "api/../common.yaml"},
+		{sourceDocument{path: "/r/api/root.yaml", handed: "/l/api/root.yaml"}, "/r/common.yaml", "/l/api/../common.yaml"},
+		{sourceDocument{path: "/r/api/root.yaml", handed: "api/root.yaml"}, "/common.yaml", "api/../../common.yaml"},
 		{sourceDocument{path: "/r/api/root.yaml", handed: "root.yaml"}, "/r/api/file:x.yaml", "./file:x.yaml"},
 		{sourceDocument{path: "/r/api/root.yaml", handed: "root.yaml"}, "https://h/c.yaml", "https://h/c.yaml"},
 		{sourceDocument{path: "/r/api/root.yaml", handed: "https://h/root.yaml"}, "/r/api/c.yaml", "/r/api/c.yaml"},

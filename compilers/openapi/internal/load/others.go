@@ -201,21 +201,22 @@ func labelOf(self, key string) (label string, relative bool) {
 // under key: a URL's as spelled, and a file's as the path the caller handed
 // names the source, so a source named relatively lists the documents beside it
 // relatively too, wherever its Location lies. That is its label joined to the
-// handed path's directory, where the join cleans away no directory the handed
-// path names, which a link may have placed elsewhere: the label descends from
-// it, or the directory is the working one. Else it is the path as it was read
-// (fileNamed).
+// handed path's directory, keeping the dot segments a label climbing out of
+// that directory starts with, since a link may place the directory elsewhere
+// than cleaning them away would. A file no relative path reaches from the
+// source is its path as read (fileNamed).
 func (s sourceDocument) shownPathOf(key string) string {
 	label, relative := labelOf(s.path, key)
-	dir := filepath.Dir(s.handed)
-	climbs := label == ".." || strings.HasPrefix(label, "../")
+	dir, local := filepath.Dir(s.handed), filepath.FromSlash(label)
 	switch {
 	case refscope.IsURL(key):
 		return key
-	case !relative || s.handed == "" || s.handed == s.path || refscope.IsURL(s.handed) || climbs && dir != ".":
+	case !relative || s.handed == "" || s.handed == s.path || refscope.IsURL(s.handed):
 		return fileNamed(key)
+	case dir != "." && (label == ".." || strings.HasPrefix(label, "../")):
+		return dir + string(filepath.Separator) + local
 	default:
-		return fileNamed(filepath.Join(dir, filepath.FromSlash(label)))
+		return fileNamed(filepath.Join(dir, local))
 	}
 }
 
