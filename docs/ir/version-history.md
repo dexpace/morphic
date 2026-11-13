@@ -508,12 +508,37 @@ it sees. Changes made together in one bump are listed together under it.
     as `openapi:fragment`, and sets `SharedRoute` on each path operation whose method and route
     another sends ([`path-keys`](../compilers/openapi.md#path-keys)). A consumer pinned to 0.47.0
     builds the fragment into a URL and reads no route as shared.
-- **0.49.0** — no shape changed; what the OpenAPI compiler writes did:
+- **0.49.0** — no shape change. The engine's `const-unions` pass rewrites a closed union of strings
+  whose variant names an anonymous branch of several values, a closed `Enum` of strings or a union of
+  them, where that variant is the branch's one reference and neither says anything of all its
+  values: the branch's values become members of the union's `Enum`, each holding what its own
+  member held, and the branch type goes
+  ([`string-const-union`](../compilers/openapi.md#string-const-union)). A model's `Discriminator`
+  may route to the model itself where it is not `Abstract`, from its `Mapping` or its `Default`,
+  which `pass.Validate` had refused ([discriminator](./models.md#discriminator)). A consumer pinned
+  to 0.48.0 that read such a union as a `Union` finds an `Enum` there, no longer finds the branch
+  type, and meets a base among the types its own discriminator routes to.
+- **0.50.0** — no shape change. A union's `Discriminator.Mapping` that holds an entry its source
+  writes holds, beside those entries, the route the source implies to each variant it declares none
+  for ([models](./models.md#discriminator)): the OpenAPI compiler writes into it the name of the
+  component that variant's branch names, and writes the routes out too where a variant's type is an
+  alias for a keyword beside its `$ref`, as it did for a variant composed over its branch
+  ([`discriminator`](../compilers/openapi.md#discriminator)). Its discriminator-inference policy
+  reads what a variant or a subtype admits as a set of strings
+  ([`discriminator-inference`](../compilers/openapi.md#discriminator-inference)): a variant pinning
+  its tag to several strings no other variant admits maps each to it, in a declared discriminator's
+  `Mapping` and in an inferred one; a tag written as a union of string values bounds them as an
+  `enum` does; and what a schema composes as a union, its variants read as objects in turn, meets
+  what it declares. A consumer pinned to 0.49.0 that routed a variant a mapping left out by its
+  type's name finds the route in the `Mapping`, reads unions it read as untagged, or as routed by
+  component names, as routed by the strings their variants pin, and finds no `DiscriminatorValue` on
+  a subtype whose composed union rules its name out.
+- **0.51.0** — no shape changed; what the OpenAPI compiler writes did:
   - A `deprecated`, `readOnly` or `writeOnly` written `false` withdraws no `true` another schema of
     a use states, as JSON Schema reads the three, so `deprecated: false` beside a `$ref` to a
     deprecated target leaves the use's `Deprecation` set
     ([what a reference carries down](./annotations.md#what-a-reference-carries-down)). A consumer
-    pinned to 0.48.0 that read such a use as live finds it deprecated, and a `readOnly` or
+    pinned to 0.50.0 that read such a use as live finds it deprecated, and a `readOnly` or
     `writeOnly` it read as withdrawn in force. An `allOf` branch writing one `false` beside
     another's `true` no longer disagrees with it, so both fold where both were kept verbatim.
   - `Operation.Pagination` is filled from the extensions the promotion policy maps, by default those
@@ -521,7 +546,7 @@ it sees. Changes made together in one bump are listed together under it.
     with `Pagination.Inferred` set and each node whose key it read marked `extension-promotion`;
     `Server.Name` is filled from a key on a server the document names in no other way; and
     `HTTPParamBinding.AllowReserved` and `OAuthFlow.TokenEndpointAuthMethods` are filled where a
-    mapping names a key for them. A consumer pinned to 0.48.0 finds a pagination, a name or a field
+    mapping names a key for them. A consumer pinned to 0.50.0 finds a pagination, a name or a field
     where none was written.
   - A decorator over a target a keyword or a key deprecates holds the `Deprecation` its own keys'
     members state, which they were kept beside in silence.
