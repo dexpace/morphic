@@ -4203,8 +4203,9 @@ as an info `openapi/degraded-construct` at it. A schema's examples are
 
 ### `item-schema`
 
-3.2's `itemSchema` lowers to `Content.Item`, the type of each item of a sequential body, and
-`itemEncoding` to `Content.ItemEncoding`, with `Multi` set. In a multipart body its `Filename`, and
+3.2's `itemSchema` lowers to `Content.Item`, the type of each item of a sequential body, with
+`Content.Stream` set and no `Inferred`, since it declares the stream, and `itemEncoding` to
+`Content.ItemEncoding`, with `Multi` set. In a multipart body its `Filename`, and
 the `Inferred` beside it, are read off `itemSchema` and the `itemEncoding`'s `contentType` as a
 multipart part's declaration is read ([`multipart-encoding`](#multipart-encoding)), an item being
 one value where an array part is many, so an array item is no file; an item no `itemSchema`
@@ -4223,36 +4224,41 @@ repeat a structure is no closed set, so nothing else draws one.
 - Codes: `openapi/degraded-construct`, `openapi/item-schema-on-document`
 - Tests: `operation.TestStreaming_AnItemSchemaOnOneDocumentIsReported`,
   `operation.TestStreaming_AnItemSchemaIsItsFrameWhateverItHolds`,
+  `operation.TestStreaming_AnItemSchemaDeclaresItsContentAStream`,
   `lowering.TestHoldsOneDocument_AnswersOnlyForJSONAndXML`,
   `operation.TestItemFile_ReadsTheItemAsAPartDeclarationIs`
 
 ### `streaming-media`
 
-A request body or success response with a Content whose media type the streaming policy names —
-`application/json-seq`, `application/jsonl`, `application/x-ndjson`, `text/event-stream` and the
-`+json-seq` structured suffix by default, matched on the normalized key
-([`media-types`](#media-types)) at every minor — lowers to `Operation.RequestStream`
-and `ResponseStream` for the directions that have one, each with `Events` what one frame holds: the
-`Elem` of a `Type` whose root, read through aliases, is a list, since a schema applies to the whole
-body and OpenAPI 3.2 §4.14.3.1 maps a sequential body to an array of its values, else the `Type`
-itself, a schema with no array to read being the frame, or `bytes` on a file body
-([`file-bodies`](#file-bodies)), whose schema describes the file. `Content.Type` keeps the list.
-`Streaming` is the `client`, `server` or `bidi` summary of them, and `Provenance.Inferred` the marker
-`streaming-media-type` on
-the operation, joined by `,` to any other marker, since below 3.2 a media type is a guess about
-framing and not a declaration. A 3.2 `itemSchema` ([`item-schema`](#item-schema)) is a declaration:
-it streams on any media type with `Events` the `Item` type and no marker, and wins over the
-media-type reading at its own Content. An element settles once the registry is whole, since a `$ref`
-can name a list nothing has built yet. Streaming Contents whose frames differ leave `Events` unset
-on a direction that still streams, every Content kept, reported as an info
+A Content whose media type the streaming policy names — `application/json-seq`,
+`application/jsonl`, `application/x-ndjson`, `text/event-stream` and the `+json-seq` structured
+suffix by default, matched on the normalized key ([`media-types`](#media-types)) at every minor —
+sets `Content.Stream`, its `Inferred` the marker `streaming-media-type`, wherever it is written: a
+request body, a response, an error response, the default, a callback's or a webhook's. A Content
+declaring an `itemSchema` sets it with no marker ([`item-schema`](#item-schema)), and any other
+Content leaves it unset, so a response offering `application/json` beside `text/event-stream` marks
+the event stream alone. A request body or success response with a Content that streams lowers to
+`Operation.RequestStream` and `ResponseStream` for the directions that have one, each with `Events`
+what one frame holds: the `Elem` of a `Type` whose root, read through aliases, is a list, since a
+schema applies to the whole body and OpenAPI 3.2 §4.14.3.1 maps a sequential body to an array of its
+values, else the `Type` itself, a schema with no array to read being the frame, or `bytes` on a file
+body ([`file-bodies`](#file-bodies)), whose schema describes the file. `Content.Type` keeps the
+list. `Streaming` is the `client`, `server` or `bidi` summary of them, and the operation's
+`Provenance.Inferred` lists the markers of the Contents it reads, joined by `,` to any other marker,
+since below 3.2 a media type is a guess about framing and not a declaration. A 3.2 `itemSchema` is a
+declaration: it streams on any media type with `Events` the `Item` type and no marker, and wins over
+the media-type reading at its own Content. An element settles once the registry is whole, since a
+`$ref` can name a list nothing has built yet. Streaming Contents whose frames differ leave `Events`
+unset on a direction that still streams, every Content kept, reported as an info
 `openapi/degraded-construct` at the `requestBody` or `responses` pointer; Contents whose frames are
-one element elect it, a list of a type agreeing with that type. Error responses and the default are not read: whether the default answers a
-success is the plan's to decide ([`response-conditions`](#response-conditions)). The policy is the
-Go option `Options.StreamingMedia`: `Disabled` turns the media-type reading off, leaving only what
-an `itemSchema` declares, and `MediaTypes` replaces the default list instead of extending it, an
-entry starting with `+` naming a structured suffix. The `streaming-media` setting sets `MediaTypes`,
-its entries separated by commas, and refuses one that is neither a media type nor a suffix, and
-`streaming-inference=false` sets `Disabled`.
+one element elect it, a list of a type agreeing with that type. Error responses and the default set
+no `StreamDetail`, their Contents marked all the same: whether the default answers a success is the
+plan's to decide ([`response-conditions`](#response-conditions)). The policy is the Go option
+`Options.StreamingMedia`: `Disabled` turns the media-type reading off, on the Contents and the
+operation alike, leaving only what an `itemSchema` declares, and `MediaTypes` replaces the default
+list instead of extending it, an entry starting with `+` naming a structured suffix. The
+`streaming-media` setting sets `MediaTypes`, its entries separated by commas, and refuses one that
+is neither a media type nor a suffix, and `streaming-inference=false` sets `Disabled`.
 
 - Cases: `streaming-media-30`, `streaming-media-31`
 - Codes: `openapi/degraded-construct`
@@ -4262,12 +4268,14 @@ its entries separated by commas, and refuses one that is neither a media type no
   `operation.TestStreaming_AFileBodyStreamsBytes`,
   `operation.TestStreaming_AListBodyStreamsItsElement`,
   `operation.TestStreaming_ContentsCompareByTheirFrames`,
+  `operation.TestStreaming_EachContentSaysWhetherItStreams`,
+  `operation.TestStreaming_EachContentStreamsInEitherOrder`,
+  `operation.TestStreaming_ACallbackAndAWebhookMarkTheirContents`,
+  `operation.TestStreaming_AMediaTypeRefStreamsByTheKeyItIsWrittenUnder`,
   `e2e.TestExternalContent_AStreamReadsAListAnotherDocumentHolds`,
   `lowering.TestMediaTypeStreams_AnswersFromThePolicy`
-- Status: partly built: a response
-  offering a plain body and an event stream does not record which content streams (#601); and no
-  promotion reads an extension stating a stream's `Terminator`, or the input whose `Condition`
-  selects it, into either field (#1668).
+- Status: partly built: no promotion reads an extension stating a stream's `Terminator`, or the
+  input whose `Condition` selects it, into either field (#1668).
 
 ### `multipart-encoding`
 

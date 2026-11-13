@@ -546,12 +546,22 @@ it sees. Changes made together in one bump are listed together under it.
   ([`http-date-inference`](../compilers/openapi.md#http-date-inference)). A consumer pinned to
   0.50.0 refuses a document from this generation, whose idempotency, redaction, replacements and
   header texts it would read as no OpenAPI document wrote them.
-- **0.52.0** — the shape is unchanged, and the OpenAPI compiler lowers three registered formats as it
+- **0.52.0** — `Content` gained `Stream`, a `ContentStream` marking a body that is a sequence of
+  frames rather than one document, its `Inferred` naming the heuristics that read it as one
+  ([payloads](./payloads.md#a-content-that-streams)). Every content that streams sets it, in a
+  request, a response, an error or the default, one declaring an `Item` among them, so a response
+  offering `application/json` beside `text/event-stream` says which of the two streams. The OpenAPI
+  compiler sets it for a 3.2 `itemSchema` and for a media type its streaming policy names, the
+  latter marked `streaming-media-type`. `irverify` holds a content declaring an `Item` to a `Stream`
+  (`ir/content-item-without-stream`), and a streaming content of a request or a success response to
+  its side's `StreamDetail` (`ir/content-stream-without-detail`). A consumer pinned to 0.51.0
+  refuses a document with a streaming content.
+- **0.53.0** — the shape is unchanged, and the OpenAPI compiler lowers three registered formats as it
   lowers `format: byte`: to a `Scalar` over the primitive the value is, whose `Encoding` names the
   text it is written in as the [IR](./constraints.md#encodings) does. `http-date` is a
   `datetime_offset` under `http-date`, `unixtime` a `datetime_offset` under `unixTimestamp`, a name
   no compiler wrote before, with the JSON type it is written on as `WireType`, and `base64url` is
   `bytes` under `base64url` with a `string` `WireType`. So the secret policy, which reads a
   credential's name on text or bytes, no longer marks a use declared `http-date`, or `unixtime` on a
-  string, `Secret`. A consumer pinned to 0.51.0 refuses the document; read regardless, it would find
+  string, `Secret`. A consumer pinned to 0.52.0 refuses the document; read regardless, it would find
   an instant or bytes where it read text or a number, and `unixTimestamp` where it read `unixtime`.

@@ -131,7 +131,9 @@ var generations = []generation{
 	{version: "0.51.0", format: 1, shape: "630671af6248c7ff1ebd79765cf645b7ee3fde7308e1d8d9b8002a59268eb847",
 		names:   "5506159ecd463736fdbbad0c4cabfad3fd50b48509b46fbea55862e82eca9675",
 		meaning: "an OpenAPI document's names and messages fill an operation's idempotency token, a use's Secret, a deprecation's ReplacedBy and a response header's http-date Encoding, each marked inferred"},
-	{version: "0.52.0", format: 1, shape: "630671af6248c7ff1ebd79765cf645b7ee3fde7308e1d8d9b8002a59268eb847",
+	{version: "0.52.0", format: 1, shape: "0b2f5e45e4be29c67a153976848af676bc99d9f21d9e41a91b7abfd167ae026b",
+		names: "5506159ecd463736fdbbad0c4cabfad3fd50b48509b46fbea55862e82eca9675"},
+	{version: "0.53.0", format: 1, shape: "0b2f5e45e4be29c67a153976848af676bc99d9f21d9e41a91b7abfd167ae026b",
 		names:   "5506159ecd463736fdbbad0c4cabfad3fd50b48509b46fbea55862e82eca9675",
 		meaning: "the OpenAPI compiler lowers format http-date to a Scalar over datetime_offset under http-date, unixtime to one under unixTimestamp with its JSON type as WireType, and base64url to one over bytes, as byte"},
 }

@@ -224,10 +224,11 @@ throughout these documents.
     `tailMetricsStream(onHeaders:)` has pass a block, given them, and a response's first declared
     header adds a field and changes no signature; a stream under a binding other than HTTP draws no
     `unframed-stream`; a media type only a compiler option names gets the one stream method, as
-    `bytes`, with that warning; a primary `Default` that streams is `bidi` beside a `Send`; a
-    `bytes` side lowers as a file, and a request's file body is a byte source whatever its `Type`;
-    and each operation of the golden spec that streams gets a `StreamPlan`
-    ([streams](../plan/streams.md), [streaming](../operations/streaming.md), [request
+    `bytes`, with that warning, and a `text/event-stream` content with no `Content.Stream`, as the
+    compiler's policy turned off leaves one, is read whole; a primary `Default` that streams is
+    `bidi` beside a `Send`; a `bytes` side lowers as a file, and a request's file body is a byte
+    source whatever its `Type`; and each operation of the golden spec that streams gets a
+    `StreamPlan` ([streams](../plan/streams.md), [streaming](../operations/streaming.md), [request
     shaping](../refine/requests.md)).
 25. **T-25 · Emit-layer rules** — one check per rule of the [emit rules](../emit/rules.md). A
     template's context type holds no pointer, map, function or method, by reflection. A golden whose
