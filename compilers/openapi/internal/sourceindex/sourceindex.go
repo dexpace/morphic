@@ -123,7 +123,7 @@ const MapTag = "!!map"
 // refuses the document on this answer before the parser sees it.
 //
 // A tag on a scalar or sequence is not this question: neither faults the
-// parser (what a tagged scalar keeps is GitHub #245).
+// parser (docs/compilers/openapi.md#values).
 func (x Index) TaggedMappings() []*yaml.Node { return slices.Clone(x.taggedMappings) }
 
 // Truncated reports whether the walk stopped at its node bound or its context.

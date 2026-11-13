@@ -117,4 +117,8 @@ An enum with no members ([enums](../../refine/enums.md#an-enum-with-no-members))
 with no entries, which Kotlin compiles and whose serializer, the plugin's or the generated one,
 refuses every value: measured with Kotlin/Native 2.4.0 and kotlinx-serialization-json 1.11.0, a
 nullable property of one decoded where it was absent and threw on `"x"`. No value of it exists to
-encode.
+encode. An anonymous one every reference reaches as nullable declares nothing, and each use is
+`Nothing?`, which the plugin serializes with no serializer of the SDK's: measured with Kotlin/JVM
+2.4.0 and kotlinx-serialization-json 1.8.1, a required `Nothing?` property wrote `null`, read
+`null`, and threw on `"x"` and on a missing member, and one defaulting to `null` read a missing
+member, was left out when encoded and threw on `1`.

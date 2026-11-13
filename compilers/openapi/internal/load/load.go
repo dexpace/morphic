@@ -117,8 +117,9 @@ func readyForModel(ctx context.Context, root *yaml.Node) {
 // written reads as left out (docs/parser-library.md#undecoded-scalar, GitHub
 // #1280).
 //
-// A scalar under any other tag keeps it: what that reads as is GitHub #245's
-// and #1368's to settle.
+// A scalar under any other tag keeps it, and reads as
+// docs/compilers/openapi.md#values says; whether one outside YAML's JSON
+// schema ruleset is reported is GitHub #1368's to settle.
 func mistagged(n *yaml.Node, i int) bool {
 	c := n.Content[i]
 	if c == nil || c.Kind != yaml.ScalarNode || c.Style&yaml.TaggedStyle != 0 {

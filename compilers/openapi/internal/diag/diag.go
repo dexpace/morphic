@@ -86,7 +86,7 @@ const (
 	// The document is refused before parsing whatever the position, since telling
 	// the faulting ones apart would mean copying the parser's object model, at
 	// the tagged mapping with the least pointer. A tagged scalar is not refused
-	// (GitHub #245).
+	// (docs/compilers/openapi.md#values).
 	TaggedMapping = "openapi/tagged-mapping"
 	// StreamDocumentsDropped reports a YAML stream holding more than one
 	// document with content. An OpenAPI document is one YAML document, so the
@@ -227,15 +227,15 @@ const (
 	// method is unusable. speakeasy rejects a key naming a *standard* method, which
 	// belongs in its own field, but accepts this one.
 	InvalidMethodKey = "openapi/invalid-method-key"
-	// DegradedConstruct reports a construct the compiler could not carry into the
-	// IR as written: kept raw for want of a home or past a bound (callbacks too
-	// deep, operation.operationCallbacks), lowered weaker (a heterogeneous enum
-	// as a union, an unconvertible value as the top type), or dropped, as a
-	// default or the fields beside a path item $ref the load phase's walk does
-	// not reach are. A promotion or grouping by extension reports it for an
-	// extension kept but read into no field or group (lowering.Promoter,
-	// operation.extensionPaths). It marks the lossy lowerings the compiler
-	// reports, not every one.
+	// DegradedConstruct reports a construct the compiler could not lower as
+	// written: kept raw for want of a home or past a bound (callbacks too deep,
+	// operation.operationCallbacks), lowered weaker (a mixed enum as a union, an
+	// unconvertible value as the top type, a member or const its type rejects as
+	// written), or dropped (a default or example, an enum's excluded null, the
+	// fields beside a path item $ref the load phase's walk misses). A promotion
+	// or grouping by extension reports an extension kept but read into no field
+	// or group (lowering.Promoter, operation.extensionPaths). It marks the lossy
+	// lowerings reported, not every one.
 	DegradedConstruct = "openapi/degraded-construct"
 	// CompositionLowering reports that a schema conjoining a structural body with
 	// a oneOf/anyOf was lowered by distributing the body across the union
