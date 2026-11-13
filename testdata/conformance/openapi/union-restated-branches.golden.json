@@ -1410,6 +1410,110 @@
         "nullable": false
       }
     },
+    "t/openapi/components/schemas/RenderSelf": {
+      "kind": "model",
+      "id": "t/openapi/components/schemas/RenderSelf",
+      "name": {
+        "source": "RenderSelf",
+        "canonical": "render_self"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "unmodeled": {
+        "openapi:oneOf": {
+          "reason": "validation_only",
+          "value": [
+            {
+              "properties": {
+                "html": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "html"
+              ]
+            },
+            {
+              "required": [
+                "url"
+              ]
+            }
+          ],
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/RenderSelf/oneOf"
+          }
+        }
+      },
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/RenderSelf"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/RenderSelf/properties/html",
+          "name": {
+            "source": "html",
+            "canonical": "html"
+          },
+          "wireName": "html",
+          "type": {
+            "target": "t/prim/string",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/RenderSelf/properties/html"
+          }
+        },
+        {
+          "id": "p/openapi/components/schemas/RenderSelf/properties/url",
+          "name": {
+            "source": "url",
+            "canonical": "url"
+          },
+          "wireName": "url",
+          "type": {
+            "target": "t/prim/string",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/RenderSelf/properties/url"
+          }
+        }
+      ],
+      "base": {
+        "target": "t/openapi/components/schemas/RenderSelf",
+        "nullable": false
+      },
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
     "t/openapi/components/schemas/RenderSizes": {
       "kind": "list",
       "id": "t/openapi/components/schemas/RenderSizes",
@@ -1640,13 +1744,22 @@
         "source": 0,
         "pointer": "/components/schemas/RenderConjoined"
       }
+    },
+    {
+      "severity": "info",
+      "code": "openapi/validation-only-keyword",
+      "message": "validation-only keyword \"oneOf\" kept verbatim under Unmodeled",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/RenderSelf"
+      }
     }
   ],
   "sources": [
     {
       "format": "openapi@3.1",
       "path": "union-restated-branches.yaml",
-      "hash": "bdb364a53332b36797d472784209bdce952911ba466d02a563b9262020cc2858"
+      "hash": "9c0b79624426a0b62cbdfad0563e91eb89cadb715a75c1bea1e8d3a594a75438"
     }
   ]
 }

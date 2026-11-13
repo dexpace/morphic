@@ -86,3 +86,15 @@ func TestPreserveNullOnlyUnion_NothingToKeep(t *testing.T) {
 	diags := preserveNullOnlyUnion(l.Ctx, l.Types, id, &oas3.Schema{}, "/components/schemas/S")
 	assert.Empty(t, diags, "nothing was kept, so nothing is announced")
 }
+
+// TestComposeMixin_NeedsAModel drives the two states its one caller cannot
+// produce, having just lowered the routed subtype to a model: no node at id, and
+// a node of another kind, which has no Mixins to compose the union into.
+func TestComposeMixin_NeedsAModel(t *testing.T) {
+	t.Parallel()
+	l := NewRawLowerer(&soa.OpenAPI{})
+	assertInternalInvariant(t, composeMixin(l.Ctx, l.Types, "t/anon/missing", "t/composed/u", "/p"))
+
+	l.Types.Register("t/anon/scalar", &ir.Scalar{ID: "t/anon/scalar"})
+	assertInternalInvariant(t, composeMixin(l.Ctx, l.Types, "t/anon/scalar", "t/composed/u", "/p"))
+}
