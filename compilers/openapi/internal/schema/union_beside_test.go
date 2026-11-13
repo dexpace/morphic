@@ -146,7 +146,7 @@ func TestOneOf_CoDeclaredInlineBranchIsConjoinedByItsNode(t *testing.T) {
 	assert.Equal(t, string(ir.ReasonDegradedLowering), unionReading(doc, "WithNull"))
 	assert.Contains(t,
 		openapitest.DiagMessageAt(t, diags, diag.DegradedConstruct, ir.SeverityInfo, "/components/schemas/WithNull"),
-		"a branch is a bare null")
+		"a branch admits null alone")
 }
 
 // TestOneOf_CoDeclaredBareRequiredConjoinsObjectBranches pins a body writing

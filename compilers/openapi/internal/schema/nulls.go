@@ -291,10 +291,16 @@ func (n *nulls) widenRef(own, r nullReading, site nullSite) nullReading {
 // (declaredTypeVerdict); the conjuncts differ only as each is read.
 func (n *nulls) keywords(s *oas3.Schema, site nullSite) nullReading {
 	v := valueNulls(n.c, s)
-	all := n.allOf(s, site)
+	own := foldNullReadings(n.typed(s, v.constant, v.enum), v.union)
+	return foldNullReadings(own, n.allOf(s, site))
+}
+
+// typed is what s's type says of null under each reading, conjoined with the
+// verdicts of its const and enum.
+func (n *nulls) typed(s *oas3.Schema, constant, enum nullVerdict) nullReading {
 	return nullReading{
-		declared: foldNullVerdicts(n.declaredTypeVerdict(s), v.constant, v.enum, v.union, all.declared),
-		lenient:  foldNullVerdicts(typeNullVerdict(s), v.constant, v.enum, v.union, all.lenient),
+		declared: foldNullVerdicts(n.declaredTypeVerdict(s), constant, enum),
+		lenient:  foldNullVerdicts(typeNullVerdict(s), constant, enum),
 	}
 }
 
@@ -304,9 +310,11 @@ type valueNullsOf struct {
 }
 
 // valueVerdicts is what a schema's const, enum and union families say of null.
-// Each reads only the schema, the same whichever reading or site asks.
+// Each reads only the schema, the same whichever site asks; the union's is read
+// under each reading, as its null branches are.
 type valueVerdicts struct {
-	constant, enum, union nullVerdict
+	constant, enum nullVerdict
+	union          nullReading
 }
 
 // valueNulls returns s's valueVerdicts, read once a run: every $ref to s asks,
@@ -314,7 +322,7 @@ type valueVerdicts struct {
 // at each reference would cost the references times the members.
 func valueNulls(c lowering.Ctx, s *oas3.Schema) valueVerdicts {
 	return lowering.Remembered(c, valueNullsOf{s}, func() valueVerdicts {
-		return valueVerdicts{constant: constNullVerdict(s), enum: enumNullVerdict(s), union: unionNullVerdict(c, s)}
+		return valueVerdicts{constant: constNullVerdict(s), enum: enumNullVerdict(s), union: unionNullReading(c, s)}
 	})
 }
 
@@ -440,20 +448,93 @@ func isNullValue(node values.Value) bool {
 	return err == nil && val.Kind == ir.ValueNull
 }
 
-// unionNullVerdict reads a oneOf/anyOf null branch, which counts only when the
-// union is the type itself. Structural siblings intersect with the union, so
-// `{type: object, oneOf: [{type: string}, {type: null}]}` admits neither string
-// nor null, and that union is kept verbatim under Unmodeled. An inline
-// `type: null` branch also blocks distribution, so no distributed union can
-// strip a null branch from under this verdict.
-//
-// It never forbids: a union with no null branch says nothing about a null that
-// a sibling keyword admits, as in `{nullable: true, oneOf: [...]}`.
-func unionNullVerdict(c lowering.Ctx, s *oas3.Schema) nullVerdict {
-	if oneOfAnyOfHasNull(s) && !hasUnionSiblings(c, s) {
-		return nullAdmitted
+// unionNullReading reads the null branches of s's oneOf and anyOf
+// (nullAloneReading) under each reading: the union admits null where a branch
+// does, so its null rests on the policy where only a branch's lenient reading
+// admits it. A null branch counts only when the union is the type itself:
+// structural siblings intersect with the union, which is then kept verbatim,
+// and block its distribution. It never forbids: a union with no null branch
+// says nothing of a null a sibling admits, as in `{nullable: true, oneOf: …}`.
+func unionNullReading(c lowering.Ctx, s *oas3.Schema) nullReading {
+	out := alike(nullSilent)
+	for _, b := range slices.Concat(s.GetOneOf(), s.GetAnyOf()) {
+		if !inlineBranch(b) {
+			continue
+		}
+		r, ok := nullAloneReading(c, b.GetSchema())
+		if !ok {
+			continue
+		}
+		if r.declared == nullAdmitted {
+			out.declared = nullAdmitted
+		}
+		if r.lenient == nullAdmitted {
+			out.lenient = nullAdmitted
+		}
 	}
-	return nullSilent
+	// The lenient reading admits wherever the declared one does, so a union it
+	// leaves silent is silent under both, and asks no more of its siblings.
+	if out.lenient == nullSilent || hasUnionSiblings(c, s) {
+		return alike(nullSilent)
+	}
+	return out
+}
+
+// NullAlone reports whether s admits null and no other value by its own
+// keywords, as c's policy reads null (docs/compilers/openapi.md#null-alone).
+// Such a schema lowers to an Enum with no member behind a nullable reference,
+// and a union branch written so is the union's null.
+func NullAlone(c lowering.Ctx, s *oas3.Schema) bool {
+	r, ok := nullAloneReading(c, s)
+	return ok && r.admits(c)
+}
+
+// nullAloneOf keys what nullAloneReading read of one schema.
+type nullAloneOf struct {
+	schema *oas3.Schema
+}
+
+// nullAloneRead is nullAloneReading's answer for one schema.
+type nullAloneRead struct {
+	reading nullReading
+	ok      bool
+}
+
+// nullAloneReading is what s, a schema whose own keywords leave it no value but
+// null (leavesOnlyNull), says of that null under each reading, and false for
+// any other schema. It writes no union, allOf or $ref, so its type, const and
+// enum, widened where it writes `nullable: true`, are all a read of the whole
+// schema finds (schemaAdmitsNull), read here without asking valueNulls, which
+// reads a union's branches by this. Every reader of a branch asks, so it is
+// read once a run.
+func nullAloneReading(c lowering.Ctx, s *oas3.Schema) (nullReading, bool) {
+	r := lowering.Remembered(c, nullAloneOf{s}, func() nullAloneRead {
+		if !leavesOnlyNull(c, s) {
+			return nullAloneRead{}
+		}
+		n := newNulls(c)
+		own := n.typed(s, constNullVerdict(s), enumNullVerdict(s))
+		return nullAloneRead{reading: n.widen(s, own, own, nullSite{}), ok: true}
+	})
+	return r.reading, r.ok
+}
+
+// leavesOnlyNull reports whether the keywords s itself writes leave it no value
+// but null, whether or not they admit that one: it writes no $ref, allOf,
+// oneOf, anyOf or $dynamicRef, which admit what other schemas do; an enum it
+// writes lists null and nothing else, within the member budget an enum past
+// which lowers to the top type (lowerEnum); and it writes a const, which the
+// null reading holds to null, such an enum, or a type naming null alone.
+func leavesOnlyNull(c lowering.Ctx, s *oas3.Schema) bool {
+	if s == nil || s.Ref != nil || len(s.GetAllOf()) > 0 || declaresUnion(s) || declaresDynamicRef(s) {
+		return false
+	}
+	if enumWritten(s) {
+		members := s.GetEnum()
+		return len(members) > 0 && c.Limits.MaxEnumMembers.Admits(len(members)) &&
+			!slices.ContainsFunc(members, func(v values.Value) bool { return !isNullValue(v) })
+	}
+	return s.GetConst() != nil || writesType(s) && len(effectiveTypes(s)) == 0
 }
 
 // allOf conjoins what the allOf branches say. A conjunction admits null when a

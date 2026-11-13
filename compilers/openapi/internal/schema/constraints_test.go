@@ -965,7 +965,8 @@ func TestCollectionBound_ANodeOfAnotherShapeKeepsItVerbatim(t *testing.T) {
 		{"formatted string", "{type: string, format: date, minItems: 1}", ir.KindScalar},
 		{"no type", "{minItems: 1}", ir.KindScalar},
 		{"enum", "{enum: [a, b], minItems: 1}", ir.KindEnum},
-		{"null-only union", "{oneOf: [{type: 'null'}], minItems: 1}", ir.KindScalar},
+		{"null-only union", "{oneOf: [{type: 'null'}], minItems: 1}", ir.KindEnum},
+		{"type of null", "{type: 'null', minItems: 1}", ir.KindEnum},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()

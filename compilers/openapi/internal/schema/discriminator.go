@@ -108,7 +108,7 @@ func (r mappingRoute) routed(id ir.TypeID) ir.TypeID {
 // order.
 func referencedVariants(c lowering.Ctx, ts *compile.Types, s *oas3.Schema, variants []ir.Variant) map[ir.TypeID]ir.TypeID {
 	branches, _, _ := unionBranches(s)
-	branches = slices.DeleteFunc(slices.Clone(branches), isNullSchema)
+	branches = slices.DeleteFunc(slices.Clone(branches), func(b *oas3.JSONSchema[oas3.Referenceable]) bool { return nullBranch(c, b) })
 	if len(branches) != len(variants) {
 		return nil // a model's, which has no variants
 	}
@@ -675,7 +675,7 @@ func implicitRoutes(c lowering.Ctx, s *oas3.Schema) []implicitRoute {
 	branches, _, _ := unionBranches(s)
 	routes := make([]implicitRoute, 0, len(branches))
 	for _, b := range branches {
-		if isNullSchema(b) {
+		if nullBranch(c, b) {
 			continue
 		}
 		name, id, ok := componentNamed(scope, b)

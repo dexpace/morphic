@@ -277,22 +277,31 @@ func lowerConst(c lowering.Ctx, ts *compile.Types, s *oas3.Schema, pointer jsont
 	return id, diags
 }
 
-// nullConst lowers `const: null` as `enum: [null]` lowers (lowerEnum): a closed
-// Enum with no member, the null being its reference's, so no Literal holds a
-// null (docs/ir/containers.md#literals). Where a keyword beside the const
-// excludes null, the position admits nothing, which is reported at the const as
+// nullConst lowers `const: null` as `enum: [null]` lowers (lowerEnum), to the
+// node of null alone (lowerNullAlone), so no Literal holds a null
+// (docs/ir/containers.md#literals). Where a keyword beside the const excludes
+// null, the position admits nothing, which is reported at the const as
 // enumEntries reports such a member.
 func nullConst(c lowering.Ctx, ts *compile.Types, s *oas3.Schema, pointer jsontext.Pointer) (ir.TypeID, []ir.Diagnostic) {
-	var diags []ir.Diagnostic
-	id := internNode(c, ts, pointer, func(common ir.TypeCommon) ir.TypeDef {
-		if !schemaAdmitsNull(c, s) {
-			diags = append(diags, c.DiagAt(ir.SeverityWarning, diag.DegradedConstruct, pointer+ids.Ptr("const"),
-				"const null admits no instance: a keyword beside the const excludes null, and JSON Schema "+
-					"conjoins the two; lowered as an enum with no member, and the reference admits no null"))
-		}
+	id := lowerNullAlone(c, ts, s, pointer)
+	if schemaAdmitsNull(c, s) {
+		return id, nil
+	}
+	return id, []ir.Diagnostic{c.DiagAt(ir.SeverityWarning, diag.DegradedConstruct, pointer+ids.Ptr("const"),
+		"const null admits no instance: a keyword beside the const excludes null, and JSON Schema "+
+			"conjoins the two; lowered as an enum with no member, and the reference admits no null")}
+}
+
+// lowerNullAlone hoists at pointer the node s, a schema whose own keywords
+// leave it no value but null, lowers to: a closed Enum with no member, the empty
+// value space, which the nullable reference its position takes widens by null
+// alone (docs/compilers/openapi.md#null-alone). Its ValueType is what s's type
+// and format select, as an enum's is (enumValueType), the top type where they
+// select none.
+func lowerNullAlone(c lowering.Ctx, ts *compile.Types, s *oas3.Schema, pointer jsontext.Pointer) ir.TypeID {
+	return internNode(c, ts, pointer, func(common ir.TypeCommon) ir.TypeDef {
 		return &ir.Enum{TypeCommon: common, ValueType: enumValueType(s, nil, ir.PrimAny), Closed: true}
 	})
-	return id, diags
 }
 
 // hoistLiteral hoists a single node as a Literal type at its own pointer, or

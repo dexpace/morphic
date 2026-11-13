@@ -249,8 +249,8 @@ func TestEnum_NullAgreesWithTheOneOfSpelling(t *testing.T) {
 // `enum: [null]` lowers to beside the same keywords: a closed Enum with no
 // member, typed alike, behind a reference that alone says whether the position
 // admits null, and the same warning where a keyword beside it excludes null. No
-// Literal holds a null (docs/ir/containers.md#literals), as a branch of a union
-// either.
+// Literal holds a null (docs/ir/containers.md#literals). A union branch of
+// either is the union's null (TestUnion_EverySpellingOfANullBranchLowersAlike).
 func TestConst_NullLowersAsAnEnumOfNullAlone(t *testing.T) {
 	t.Parallel()
 	read := func(t *testing.T, body string) (*ir.Enum, bool, []jsontext.Pointer) {
@@ -264,9 +264,6 @@ func TestConst_NullLowersAsAnEnumOfNullAlone(t *testing.T) {
 		owner, ok := doc.Types[componentID("S")].(*ir.Model)
 		require.True(t, ok)
 		ref := owner.Properties[0].Type
-		if u, isUnion := doc.Types[ref.Target].(*ir.Union); isUnion {
-			ref = u.Variants[len(u.Variants)-1].Type
-		}
 		enum, ok := doc.Types[ref.Target].(*ir.Enum)
 		require.True(t, ok, "%s lowers to an Enum, got %T", body, doc.Types[ref.Target])
 		return enum, ref.Nullable, degradedWarnings(diags)
@@ -279,16 +276,10 @@ func TestConst_NullLowersAsAnEnumOfNullAlone(t *testing.T) {
 		{name: "a null type", beside: `type: "null", `, nullable: true},
 		{name: "a nullable string", beside: `type: [string, "null"], `, nullable: true},
 		{name: "a string excluding null", beside: `type: string, `},
-		{name: "a union branch", beside: "oneOf: [{const: a}, {", nullable: true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			body := func(set string) string {
-				if strings.HasPrefix(tc.beside, "oneOf") {
-					return "{" + tc.beside + set + "}]}"
-				}
-				return "{" + tc.beside + set + "}"
-			}
+			body := func(set string) string { return "{" + tc.beside + set + "}" }
 			got, gotNull, gotWarned := read(t, body("const: null"))
 			want, wantNull, wantWarned := read(t, body("enum: [null]"))
 			assert.Empty(t, got.Members, "no member holds the null")

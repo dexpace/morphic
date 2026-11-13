@@ -191,23 +191,6 @@
       },
       "valueType": "string"
     },
-    "t/anon/components/schemas/OrNull/oneOf/1": {
-      "kind": "enum",
-      "id": "t/anon/components/schemas/OrNull/oneOf/1",
-      "name": {
-        "hint": "variant_1"
-      },
-      "anonymous": true,
-      "docs": {},
-      "sensitive": false,
-      "provenance": {
-        "source": 0,
-        "pointer": "/components/schemas/OrNull/oneOf/1"
-      },
-      "valueType": "any",
-      "closed": true,
-      "flags": false
-    },
     "t/anon/paths/~1zones~1{id}/delete/responses/200/content/application~1json/schema": {
       "kind": "model",
       "id": "t/anon/paths/~1zones~1{id}/delete/responses/200/content/application~1json/schema",
@@ -393,7 +376,7 @@
           "wireName": "orNull",
           "type": {
             "target": "t/openapi/components/schemas/OrNull",
-            "nullable": false
+            "nullable": true
           },
           "required": false,
           "clientOptional": false,
@@ -490,7 +473,7 @@
       "flags": false
     },
     "t/openapi/components/schemas/OrNull": {
-      "kind": "union",
+      "kind": "scalar",
       "id": "t/openapi/components/schemas/OrNull",
       "name": {
         "source": "OrNull",
@@ -503,32 +486,10 @@
         "source": 0,
         "pointer": "/components/schemas/OrNull"
       },
-      "variants": [
-        {
-          "name": {
-            "hint": "mixed"
-          },
-          "type": {
-            "target": "t/openapi/components/schemas/Mixed",
-            "nullable": true
-          },
-          "docs": {}
-        },
-        {
-          "name": {
-            "hint": "variant_1"
-          },
-          "type": {
-            "target": "t/anon/components/schemas/OrNull/oneOf/1",
-            "nullable": true
-          },
-          "docs": {}
-        }
-      ],
-      "exclusive": true,
-      "wireTagged": false,
-      "closed": true,
-      "inputOnly": false
+      "base": {
+        "target": "t/openapi/components/schemas/Mixed",
+        "nullable": true
+      }
     },
     "t/prim/string": {
       "kind": "primitive",
@@ -580,7 +541,7 @@
     {
       "format": "openapi@3.0",
       "path": "enum-null-member.yaml",
-      "hash": "f8e24dd446f5e9e6a6a0ba1f839a63fa31e78101d49324ab07b2d4767c8dbf49"
+      "hash": "73b9632c9cc83f55bed796d2f303c7904c8d30d8e66a3f0ef35320875f04f29a"
     }
   ]
 }
