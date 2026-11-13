@@ -3738,6 +3738,8 @@ is a tag like any other.
   `operation.TestGrouping_BadgeOnlyOperationFallsToDefault`, `oas.TestCheck_TagParentsExist`,
   `oas.TestCheck_DuplicatesAreFound`, `operation.TestOperation_ARepeatedTagIsKeptOnce`,
   `operation.TestOperation_ALongTagListFoldsAsAShortOne`
+- Status: partly built: a tag written under a YAML tag outside the JSON schema ruleset reads as the
+  empty string, so two such tags fold to one, reported as a repeat of `""` (#1368).
 
 ### `path-prefix-groups`
 
