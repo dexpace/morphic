@@ -3544,7 +3544,9 @@ none. Each such path gets its groups too, nested as the operation's own are and 
 operation where none is filed there, so that a remount, which names a group by its ID
 ([shaping hints](../emitters/contract/shaping-hints.md)), names one the IR holds; placing the
 operation there is the remount's, read from the kept extension, since an `Operation` sits in one
-group. Leaving those groups to the remount was weighed and rejected: an ID is opaque to a consumer
+group. Nothing marks such a group `Inferred`: an `OperationGroup` has no provenance, and the
+marker is on each operation the extension files, which a group holding none lacks. Leaving those
+groups to the remount was weighed and rejected: an ID is opaque to a consumer
 ([identity](../ir/identity.md)), which could then neither name nor nest a group the IR does not
 hold.
 

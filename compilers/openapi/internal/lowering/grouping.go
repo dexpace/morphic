@@ -60,7 +60,8 @@ type GroupingExtension struct {
 	Lists ExtensionLists `json:"lists,omitempty"`
 	// Aliases is the extension listing an operation's aliases, each an object
 	// stating a further group path under Key (AliasPaths). A group is minted for
-	// each, for a remount to name, and no operation is filed in it. Empty reads
+	// each, for a remount to name, and no operation is filed in it, so no
+	// GroupExtensionHeuristic marks it: a group has no provenance. Empty reads
 	// none.
 	Aliases string `json:"aliases,omitempty"`
 	// Fallback groups an operation Key states no path for: GroupByTags or
