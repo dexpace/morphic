@@ -2365,8 +2365,9 @@ union ([`shape-applicator`](#shape-applicator)). Branches declaring no shape onl
 which stays validation logic beside it whatever they repeat, and a `discriminator` beside the union
 keeps the body where a branch composes it (shape 4).
 
-A `discriminator` beside any of these shapes whose body lowers to a `Model` stays on that `Model` only
-when every type it routes to is a subtype of it at any depth (`ir.IsSubtype`, the rule
+A `discriminator` beside any of these shapes whose body lowers to a `Model`, shape 4 written on an
+`allOf` branch among them, stays on that `Model` only when every type it routes to is a subtype of
+it at any depth (`ir.IsSubtype`, the rule
 `pass/validate` holds a model discriminator to): each `mapping` target, the `defaultMapping`, and
 each component a `$ref` branch names, which it routes to by name — `oneOf`'s branches where `oneOf`
 and `anyOf` are both declared, since `oneOf` wins. An inline branch, or one naming no component, is
@@ -2467,6 +2468,7 @@ judged as one whose branches declare shape.
   `schema.TestAllOf_ADiscriminatedBranchUnionDistributesAsBeside`,
   `schema.TestAllOf_ADiscriminatedBranchUnionReportsItsMappingAtTheBranch`,
   `schema.TestAllOf_ABranchDiscriminatorKeepsWhatNoFieldHolds`,
+  `schema.TestAllOf_AHierarchyBaseBranchUnionHoldsItsDiscriminatorToItsRoutes`,
   `schema.TestOneOf_CoDeclaredBesideAComposingAllOfDistributes`,
   `schema.TestOneOf_CoDeclaredRestatementOfTheBodyItselfOutlastsItsComposition`,
   `schema.TestOneOf_CoDeclaredOwnReadingSettlesInAnyBranchOrder`,

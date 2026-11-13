@@ -437,6 +437,32 @@ func TestAllOf_ADiscriminatedBranchUnionDistributesAsBeside(t *testing.T) {
 	}
 }
 
+// TestAllOf_AHierarchyBaseBranchUnionHoldsItsDiscriminatorToItsRoutes pins a
+// union on an allOf branch whose schema's discriminator routes to a branch
+// composing the schema (docs/compilers/openapi.md#union-beside-structure): the
+// union stays with its branch, and the discriminator on the model only where
+// every type it routes to is a subtype, as beside the union, else kept verbatim
+// and reported, so the document validates in either declaration order.
+func TestAllOf_AHierarchyBaseBranchUnionHoldsItsDiscriminatorToItsRoutes(t *testing.T) {
+	t.Parallel()
+	for _, doc := range discriminatedOrders(t, "3.1.0", `    Mixed:
+      discriminator: {propertyName: kind, mapping: {cat: '#/components/schemas/Cat'}}
+      allOf:
+        - {type: object, properties: {kind: {type: string}}}
+        - oneOf: [{$ref: '#/components/schemas/Puppy'}, {$ref: '#/components/schemas/Cat'}]
+`, `    Puppy:
+      allOf: [{$ref: '#/components/schemas/Mixed'}, {type: object, properties: {age: {type: integer}}}]
+    Cat: {type: object, properties: {kind: {type: string}, meow: {type: boolean}}}
+`) {
+		mixed, ok := typeByName(doc, "Mixed").(*ir.Model)
+		require.True(t, ok, "Mixed is a hierarchy's base; got %T", typeByName(doc, "Mixed"))
+		assert.Nil(t, mixed.Discriminator, "it routes to Cat, no subtype of it")
+		assert.Contains(t, mixed.Unmodeled, "openapi:discriminator")
+		assert.Contains(t, mixed.Unmodeled, "openapi:allOf/1", "the union stays with its branch")
+		assert.True(t, openapitest.HasDiagCodeAt(doc.Diagnostics, diag.DegradedConstruct, "/components/schemas/Mixed/discriminator"))
+	}
+}
+
 // TestAllOf_ADiscriminatedBranchUnionReportsItsMappingAtTheBranch pins where a
 // mapping entry of a discriminator written on an allOf branch that names no
 // schema is reported: at the entry, under the branch writing it.

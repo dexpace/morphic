@@ -550,14 +550,15 @@ func unvisitedRefTargets(refs *typed.Bindings, s *oas3.Schema, visited map[*oas3
 	return out
 }
 
-// deferDiscriminatorBesideUnion queues a settlement for the discriminator a
-// model at owner holds beside the union lowerBesideUnmodeledUnion kept verbatim
-// on it. A body that lowered to anything else holds none: the census kept its
+// deferDiscriminatorBesideUnion queues a settlement for the discriminator s
+// writes, which the model at owner holds beside the union holder writes, kept
+// verbatim: beside the model by lowerBesideUnmodeledUnion, or with its allOf
+// branch. A body that lowered to anything else holds none: the census kept its
 // discriminator where it kept the rest, a multi-typed body's on its union
 // (lowerTypeVariant).
-func deferDiscriminatorBesideUnion(c lowering.Ctx, ts *compile.Types, owner ir.TypeID, s *oas3.Schema, pointer jsontext.Pointer) {
+func deferDiscriminatorBesideUnion(c lowering.Ctx, ts *compile.Types, owner ir.TypeID, s, holder *oas3.Schema, pointer jsontext.Pointer) {
 	if td, _ := ts.Node(owner); isKind(td, ir.KindModel) {
-		ts.Defer(besideUnionDiscriminator{c: c, s: s, pointer: pointer, model: owner, named: namedBranches(c, s)})
+		ts.Defer(besideUnionDiscriminator{c: c, s: s, pointer: pointer, model: owner, named: namedBranches(c, holder)})
 	}
 }
 

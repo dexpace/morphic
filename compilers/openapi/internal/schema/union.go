@@ -835,7 +835,7 @@ func lowerBesideUnmodeledUnion(c lowering.Ctx, ts *compile.Types, depth int, s *
 		owner, aliasDiags = internAlias(c, ts, s, pointer, ir.TypeRef{Target: inner})
 		diags = append(diags, aliasDiags...)
 	}
-	deferDiscriminatorBesideUnion(c, ts, owner, s, pointer)
+	deferDiscriminatorBesideUnion(c, ts, owner, s, s, pointer)
 	return owner, append(diags, preserveUnionSiblings(c, ts, owner, s, pointer, reason, why)...)
 }
 

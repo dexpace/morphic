@@ -245,7 +245,8 @@ func lowerSchemaBody(c lowering.Ctx, ts *compile.Types, depth int, schema *oas3.
 		}
 		return lowerOneOfAnyOf(c, ts, depth, schema, pointer)
 	}
-	if u, how, ok := branchUnion(c, schema, pointer); ok {
+	u, how, ok := branchUnion(c, schema, pointer)
+	if ok {
 		lowerUnion := lowerDistributedUnion
 		if how == unionRoutedSubtype {
 			lowerUnion = lowerSubtypeUnion
@@ -255,6 +256,11 @@ func lowerSchemaBody(c lowering.Ctx, ts *compile.Types, depth int, schema *oas3.
 		return ref, append(unionDiags, nullDiags...)
 	}
 	id, bodyDiags := lower(c, ts, depth, schema, pointer)
+	if how == unionHierarchyBase {
+		// The union stays with its branch, and the discriminator standing with it
+		// on the model, held to its routes as one beside the union is.
+		deferDiscriminatorBesideUnion(c, ts, id, schema, u.holder, pointer)
+	}
 	ref, nullDiags := schemaNullRef(c, id, schema, siteAt(pointer))
 	return ref, append(bodyDiags, nullDiags...)
 }
