@@ -363,8 +363,8 @@ func preserveUnhomedKeywords(c lowering.Ctx, ts *compile.Types, s *oas3.Schema, 
 	unhomed := unhomedKeywords(s, td, slices.Concat(d.skipped, d.said))
 	if owns == id && !constraintsHome(td) {
 		// No alias will be hoisted over a node the position already owns, so the
-		// bounds it wrote reach no Constraints field anywhere, but for one the
-		// reader of its bounds kept already (keptNowhere).
+		// bounds it wrote reach no Constraints field anywhere, but for one a
+		// reader already accounts for (unreadBounds).
 		unhomed = append(unhomed, unreadBounds(s, []ir.TypeDef{td})...)
 	}
 	if len(unhomed) == 0 && len(d.skipped) == 0 {

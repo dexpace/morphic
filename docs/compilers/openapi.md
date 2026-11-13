@@ -1647,7 +1647,7 @@ or that nothing here judges, such as a `pattern` on one, any bound on an open en
 values it does not list too, or keeping a relative `$ref` under `Unmodeled` is judged as it is
 written. Whatever the arm, a type admitting null through its alias chain is narrower than no type
 whose reference refuses null, since a field holding it would admit null all the same: the two
-overlap.
+overlap. The top type, which loses before any arm, refuses no null whatever its reference says.
 Two lists, two maps with one key, or two tuples of one length are judged by their parts: each
 element, value or position, with what may follow a tuple's last, judged as a pair a level down, null
 included, nested up to a bound; their bounds, a keyword with no order (`pattern`) given two ways
