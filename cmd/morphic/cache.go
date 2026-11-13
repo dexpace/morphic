@@ -44,6 +44,13 @@ func warnCache(stderr io.Writer, err error) {
 	emitf(stderr, "morphic: warning: %s\n", warningText(err))
 }
 
+// warnAll reports each of warnings as warnCache does.
+func warnAll(stderr io.Writer, warnings []error) {
+	for _, w := range warnings {
+		warnCache(stderr, w)
+	}
+}
+
 // warningText spells err, a warning, on one line, however many failures it
 // joins.
 func warningText(err error) string {

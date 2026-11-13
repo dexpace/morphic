@@ -339,3 +339,18 @@ func TestRun_DiagFormatJSONWriteFailureEndsTheRun(t *testing.T) {
 		})
 	}
 }
+
+// TestRun_DiagFormatJSONWritesWhatItHeldOnAFailure pins the warnings a JSON
+// run held for its report as written on their own lines when the run fails
+// before its report, as text writes them, so the failure drops none.
+func TestRun_DiagFormatJSONWritesWhatItHeldOnAFailure(t *testing.T) {
+	failBuildID(t, os.ErrPermission)
+	missing := filepath.Join(t.TempDir(), "absent.yaml")
+	code, stdout, stderr := runCommand(t, "validate", missing, "--cache-dir", t.TempDir(), "--diag-format", "json")
+	assert.Equal(t, exitFailure, code)
+	assert.Empty(t, stdout)
+	lines := strings.Split(strings.TrimSuffix(stderr, "\n"), "\n")
+	require.Len(t, lines, 2, stderr)
+	assert.Equal(t, "morphic: warning: "+os.ErrPermission.Error(), lines[0])
+	assert.True(t, strings.HasPrefix(lines[1], "morphic: engine: read spec"), lines[1])
+}

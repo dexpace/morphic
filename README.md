@@ -251,9 +251,9 @@ Write each `reason` yourself before relying on it: it is what the next reader ha
 `--diag-format json` writes one JSON object to stderr, then a newline, for a program to read; the
 run's exit status and stdout are what text gives. It is written for every run that reaches its
 verdict, a spec that lowered to no document included, and nothing else is written to stderr then,
-not even a warning about the cache. A run that exits `2` before its verdict writes `morphic: ...`
-instead, and one that exits `2` after it, stopped or its document refused, adds that line after the
-report.
+not even a warning about the cache. A run that exits `2` before its verdict writes text instead, its
+warnings and then `morphic: ...`, and one that exits `2` after it, stopped or its document refused,
+adds that line after the report.
 
 ```json
 {"version": 1, "failed": true,

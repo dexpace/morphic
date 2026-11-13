@@ -264,7 +264,8 @@ func runPipeline(
 		return nil, 0, failure(err)
 	}
 	// A JSON report is the one thing written to stderr, so it carries the
-	// warnings text writes as lines of their own.
+	// warnings text writes as lines of their own; a run that ends before its
+	// report writes them as text does.
 	var held []error
 	switch {
 	case warning == nil:
@@ -275,6 +276,7 @@ func runPipeline(
 	}
 	eng, err := newEngine(cached...)
 	if err != nil {
+		warnAll(stderr, held)
 		return nil, 0, failure(err)
 	}
 
@@ -286,6 +288,7 @@ func runPipeline(
 		Triage:          rules,
 	})
 	if err != nil {
+		warnAll(stderr, held)
 		return nil, 0, failure(err)
 	}
 
