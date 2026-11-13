@@ -149,8 +149,8 @@ writes is itself what evaluates a key in JSON Schema.
 
 `ir.FlattenedProperties(types, id)` returns a model's full shape: its members, one per wire name,
 each with the declaration it takes, the declarations that one overrides, whether an instance must
-carry it and whether its value is redacted, beside the names a `Requires` lists that no member
-declares and the composition entries that name no model. Its rules:
+carry it, whether its value is redacted and whether it is deprecated, beside the names a `Requires`
+lists that no member declares and the composition entries that name no model. Its rules:
 
 - *What it reads.* The declarations `ExposedProps` reaches and no others: the model's own, and those
   of every model its `Base`, `Implements` and `Mixins` lead to at any distance. Every reference, the
@@ -174,8 +174,8 @@ declares and the composition entries that name no model. Its rules:
   at any distance, unless that model composes it too; and of two declarations whose models do not
   compose each other, the later conjunct's wins: a `Mixin`'s over the `Base`'s, a later `Mixin`'s
   over an earlier one's. A subtype narrowing its base's `petType` to `{const: dog}` keeps the base's
-  slot with its own type. The member takes every facet but whether it is required and whether it
-  is redacted — type, `Presence`, visibility, default, docs — from the declaration it takes, and
+  slot with its own type. The member takes every facet but whether it is required, redacted or
+  deprecated — type, `Presence`, visibility, default, docs — from the declaration it takes, and
   lists the ones it overrides, which is where a consumer conjoining more finds them. Nothing is
   reported: redeclaring is how a subtype narrows, and whether two declarations agree is a question
   about their types, which the flattening does not ask.
@@ -189,6 +189,11 @@ declares and the composition entries that name no model. Its rules:
   conjunct that redeclares a field another conjunct marks secret cannot print it in the clear: the
   member takes the later declaration's type and keeps the earlier one's redaction. A consumer reads
   the member's `Secret` and need not conjoin `Overridden` itself.
+- *Deprecation.* A member is deprecated (`FlatProperty.Deprecation`) where any of its declarations
+  states a `Deprecation`, and carries that of the last declaration the walk reads that states one,
+  the taken one's where it does: a deprecation only accumulates, as a redaction does, so a conjunct
+  redeclaring a field another conjunct deprecates does not make it current. A consumer reads the
+  member's `Deprecation`, which the taken declaration's own may not hold.
 - *Conjuncts that are no model.* A composition entry naming no model once read through alias
   scalars — a scalar, an enum, a union, a map, a list, or a type the registry does not hold —
   contributes no property, so the flattening lists the entry's target as written, once, for its
@@ -231,6 +236,16 @@ declaration taken alone would make optional. Visibility is the declaration taken
 directions occur: of the 41 members whose declarations disagree on it, 28 take one that makes them
 read-only, and 13 one that lifts the read-only an overridden declaration states, as a batch patch
 body redeclares the `id` it must send, which a conjunction of the two would forbid writing.
+
+Deprecation accumulates where visibility does not because no declaration can lift it: the IR has no
+"not deprecated" to state, a declaration without `Deprecation` saying nothing of it, and JSON Schema
+2020-12 (Validation §9.3) holds an instance location deprecated where any applicable `deprecated` is
+true. The OpenAPI compiler's fold of a field redeclared across inline `allOf` branches keeps the
+first deprecation any of them states, so taking the declaration's alone would make a field current
+or not by whether its conjuncts were written inline or by `$ref`. On the golden spec
+(`cloudflare/api-schemas` `openapi.json` at `86556f6f`, compiled at `0cd087ff6`) no member's taken
+declaration lacks a deprecation an overridden one states, of 63,587 members across 18,017 models,
+so the rule moves no member there.
 
 ## Composition entries
 

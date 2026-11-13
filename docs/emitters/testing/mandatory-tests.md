@@ -1378,7 +1378,8 @@ throughout these documents.
     [samples](../docs-and-mock.md#samples-come-from-the-sdk-emitters)).
 70. **T-70 · Deprecations** — on every target, a deprecated operation, type, property, parameter,
     enum member and union variant each carry the target's mark on every declaration they lower to,
-    each method of an operation, each shape of a model and a builder's setter among them, a
+    each method of an operation, each shape of a model and a builder's setter among them, a model's
+    member a later conjunct redeclares without `deprecated` marked as its earlier declaration is, a
     positional path parameter its text in its method's documentation, a member a caller sets
     unmarked while building its holder its text in the holder's, and one setting no field the shared
     sentence; its text holds the message escaped, each replacement as it renders after a collision

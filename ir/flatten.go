@@ -25,8 +25,8 @@ type Flattening struct {
 }
 
 // FlatProperty is one member of a [Flattening]: the declaration it takes, the
-// other declarations of its wire name, whether an instance must carry it, and
-// whether its value is redacted.
+// other declarations of its wire name, whether an instance must carry it,
+// whether its value is redacted, and whether it is deprecated.
 type FlatProperty struct {
 	// PropertyDecl is the declaration the member takes: the last of its wire
 	// name the walk reads, so a model's declaration overrides that of every
@@ -35,6 +35,11 @@ type FlatProperty struct {
 	// Overridden are the member's other declarations, once each, in the order
 	// the walk first reads them.
 	Overridden []PropertyDecl
+	// Deprecation is the member's deprecation, nil where none of its
+	// declarations states one. Like Required, it accumulates over every
+	// declaration; it points at the Deprecation of the last declaration the
+	// walk reads that states one, the taken one's where it does.
+	Deprecation *Deprecation
 	// Required reports that an instance must carry the member: one of its
 	// declarations is Required, or a model along the walk lists its wire name
 	// in Requires.
@@ -331,6 +336,9 @@ func (f *flattener) flat(mb member) FlatProperty {
 	for _, d := range mb.reads {
 		fp.Required = fp.Required || d.Property.Required
 		fp.Secret = fp.Secret || d.Property.Secret || f.sensitive(d.Property.Type.Target)
+		if d.Property.Deprecation != nil {
+			fp.Deprecation = d.Property.Deprecation
+		}
 		if d.Property.ID == last.Property.ID || listed[d.Property.ID] {
 			continue
 		}
