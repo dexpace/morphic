@@ -4,32 +4,22 @@
 package overlay
 
 import (
-	"bytes"
 	"context"
-	"encoding/json/jsontext"
-	"strconv"
 
-	soaoverlay "github.com/speakeasy-api/openapi/overlay"
 	yaml "go.yaml.in/yaml/v3"
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/budget"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
-	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
-	"github.com/dexpace/morphic/compilers/openapi/internal/nodeview"
 	"github.com/dexpace/morphic/compilers/openapi/internal/provenance"
 	"github.com/dexpace/morphic/ir"
 )
 
-// maxNodes bounds the walks around an overlay's application: the "before"
-// snapshot, graft repair and attribution; the application spends the caller's
-// Options.MaxNodes. It counts nodes visited, not depth, because the walks are
-// iterative, and a document this large is pathological.
-//
-// A walk that exhausts it abandons the whole attempt rather than return a
-// partial answer, since a half-taken snapshot would blame the overlay for every
-// unvisited node; every position then keeps the source as its origin. The
-// exception is substituting grafts: a partly repaired tree is worse than none,
-// so running out there refuses the overlay.
+// maxNodes bounds the walk that attributes the positions an overlay wrote; the
+// application spends the caller's Options.MaxNodes. It counts nodes visited,
+// not depth, because the walk is iterative, and a document this large is
+// pathological. A walk that exhausts it abandons the attribution whole rather
+// than return a partial one, and every position keeps the source as its
+// origin.
 const maxNodes = 1 << 21
 
 // Options is one pre-read overlay document and how strictly to apply it.
@@ -42,11 +32,11 @@ type Options struct {
 	Data []byte
 	// Lax turns off strict application.
 	//
-	// Strict — the zero value — is the default because an action whose selector
+	// Strict, the zero value, is the default because an action whose selector
 	// matches nothing is nearly always a typo in a JSONPath, and an overlay that
 	// silently does nothing ships an SDK missing the very fix it was written to
-	// make. Under strict, such an action is reported and the compile refuses;
-	// under lax it is not reported at all.
+	// make. Under strict, such an action refuses the overlay; under lax it is
+	// reported as a warning, and the rest of the overlay applies.
 	Lax bool
 	// MaxNodes bounds the document the overlay may grow the source to, checked
 	// before each action builds anything; unset, it is unbounded. It is the
@@ -64,8 +54,8 @@ type Origin struct {
 	// source is the overlay's identity as an input document.
 	source ir.SourceInfo
 	// attribution holds the positions the overlay introduced or rewrote. It
-	// attributes none when the overlay did not apply, or applied past the node
-	// budget.
+	// attributes none when the overlay did not apply, or applied past the
+	// attribution walk's bound.
 	attribution provenance.Attribution
 	// applied reports that the overlay was applied, whether or not it changed
 	// anything and whether or not its positions could be attributed to it.
@@ -73,10 +63,10 @@ type Origin struct {
 }
 
 // Applied reports whether an overlay was applied to the document at all. It
-// does not say its positions were attributed: past the node budget the overlay
-// still applies and every position keeps the source as its origin, but the
-// overlay remains an input the document was built from, and the warning that
-// says so names it.
+// does not say its positions were attributed: past the attribution walk's
+// bound the overlay still applies and every position keeps the source as its
+// origin, but the overlay remains an input the document was built from, and
+// the warning that says so names it.
 func (o Origin) Applied() bool { return o.applied }
 
 // Source is the overlay's identity as an input document, for Document.Sources.
@@ -93,75 +83,56 @@ func (o Origin) Attribution() provenance.Attribution { return o.attribution }
 // changed, with index as the overlay's place in Document.Sources.
 //
 // An error-severity diagnostic means root was not usefully overlaid and the
-// caller must refuse to lower: the library applies actions in order and does not
-// undo the ones that landed, so a tree left behind by a failed application is
-// neither the source nor what the overlay asked for.
+// caller must refuse to lower: actions apply in order and the ones that landed
+// are not undone, so a tree left behind by a failed application is neither the
+// source nor what the overlay asked for.
 func Apply(ctx context.Context, index int, root *yaml.Node, opts Options) (Origin, []ir.Diagnostic) {
 	return applyWithin(ctx, index, root, opts, budget.AtMost(maxNodes))
 }
 
-// applyWithin is Apply with the walks' node bound as a parameter.
+// applyWithin is Apply with the attribution walk's node bound as a parameter.
 //
-// The bound is the walks', not the caller's: Apply is the only production entry
-// and always passes maxNodes, so nothing outside this package can weaken it. It
-// is a parameter so the degradation at the bound is reachable from a test with
-// a small tree, rather than only from a document large enough that no test
-// would build one — an unreachable branch is an unverified claim.
+// The bound is the walk's, not the caller's: Apply is the only production
+// entry and always passes maxNodes, so nothing outside this package can weaken
+// it. It is a parameter so the degradation at the bound is reachable from a
+// test with a small tree.
 func applyWithin(ctx context.Context, index int, root *yaml.Node, opts Options, walks budget.Limit) (Origin, []ir.Diagnostic) {
 	at := ir.Provenance{Source: index}
-
-	doc, err := soaoverlay.ParseReader(bytes.NewReader(opts.Data))
-	if err != nil {
-		return Origin{}, []ir.Diagnostic{diag.Newf(ir.SeverityError, diag.OverlayInvalid, at,
-			"cannot parse overlay: %s", diag.OneLine(err))}
-	}
-	if err := doc.Validate(); err != nil {
-		return Origin{}, []ir.Diagnostic{diag.Newf(ir.SeverityError, diag.OverlayInvalid, at,
-			"invalid overlay: %s", diag.OneLine(err))}
+	p, diags := read(at, opts.Data)
+	if diag.HasError(diags) {
+		return Origin{}, diags
 	}
 
-	before, complete := snapshot(ctx, root, walks)
-	diags, applied := applyRecovered(at, func() ([]ir.Diagnostic, bool) {
-		return runSequence(ctx, doc, root, at, opts.Lax, opts.MaxNodes)
+	var written map[*yaml.Node]bool
+	reported, applied := applyRecovered(at, func() ([]ir.Diagnostic, bool) {
+		var (
+			out []ir.Diagnostic
+			ok  bool
+		)
+		written, out, ok = runSequence(ctx, p, root, opts.Lax, opts.MaxNodes)
+		return out, ok
 	})
+	diags = append(diags, reported...)
 	if !applied {
 		return Origin{}, diags
 	}
-	normalized, safe := repairGrafts(ctx, root, walks)
-	if !safe {
-		return Origin{}, append(diags, diag.Newf(ir.SeverityError, diag.OverlayFailed, at,
-			"overlay applied, but the content it grafted expands past %d nodes when its aliases are resolved", walks.Cap()))
-	}
-	complete = complete && normalized
 
-	var pointers map[jsontext.Pointer]bool
-	var nodes map[*yaml.Node]jsontext.Pointer
-	ok := false
-	if complete {
-		pointers, nodes, ok = attribute(ctx, root, before, walks)
-	}
-	if !ok {
+	source := ir.SourceInfo{Format: ir.OverlayFormat + "@" + p.declared, Path: opts.Path, Hash: ir.SourceHash(opts.Data)}
+	positions, complete := attribute(ctx, root, written, walks)
+	if !complete {
 		// Applied without attribution: the source keeps every position, but the
 		// overlay stays in Document.Sources, since the warning below names it.
-		degraded := Origin{source: sourceInfo(doc, opts), applied: true}
-		return degraded, append(diags, diag.Newf(ir.SeverityWarning, diag.OverlayOriginIncomplete, at,
+		return Origin{source: source, applied: true}, append(diags, diag.Newf(ir.SeverityWarning, diag.OverlayOriginIncomplete, at,
 			"overlay applied, but the document exceeds %d nodes; every position keeps the source as its origin", walks.Cap()))
 	}
-	return Origin{source: sourceInfo(doc, opts), attribution: provenance.Attributed(index, pointers, nodes), applied: true},
-		diags
+	return Origin{source: source, attribution: provenance.Attributed(index, positions), applied: true}, diags
 }
 
 // applyRecovered runs apply, the overlay's application, behind diag.Catch and
-// turns a panic in it into a refusal quoting what the library panicked with, so
-// the no-panics-escape invariant holds. The library faults on node shapes it
-// accepts elsewhere, such as a document node holding no root, and what reaches
-// its selector is not this package's to bound. A half-applied tree is never
-// reported as applied.
-//
-// The library's clone follows aliases, so a recursive anchor exhausts the stack
-// and an alias bomb memory, both fatal and beyond any barrier
-// (docs/parser-library.md#overlay-alias-clone); the loader refuses those shapes
-// before the overlay is applied (GitHub #489).
+// turns a panic in it into a refusal quoting what it panicked with, so the
+// no-panics-escape invariant holds. The application runs the parser library's
+// JSONPath evaluator, whose faults are not this package's to bound. A
+// half-applied tree is never reported as applied.
 func applyRecovered(at ir.Provenance, apply func() ([]ir.Diagnostic, bool)) ([]ir.Diagnostic, bool) {
 	var (
 		diags   []ir.Diagnostic
@@ -169,263 +140,7 @@ func applyRecovered(at ir.Provenance, apply func() ([]ir.Diagnostic, bool)) ([]i
 	)
 	if text, panicked := diag.Catch(func() { diags, applied = apply() }); panicked {
 		return []ir.Diagnostic{diag.Newf(ir.SeverityError, diag.OverlayFailed, at,
-			"cannot apply overlay: overlay library panicked (%s)", text)}, false
+			"cannot apply overlay: applying it panicked (%s)", text)}, false
 	}
 	return diags, applied
-}
-
-// failed builds the diagnostic for an overlay the library refused to apply.
-func failed(at ir.Provenance, err error) ir.Diagnostic {
-	return diag.Newf(ir.SeverityError, diag.OverlayFailed, at, "cannot apply overlay: %s", err)
-}
-
-// sourceInfo derives the overlay's identity as an input document. The format tag
-// carries the overlay dialect the document declares, so a reader of
-// Document.Sources can tell an overlay entry from the spec beside it.
-func sourceInfo(doc *soaoverlay.Overlay, opts Options) ir.SourceInfo {
-	return ir.SourceInfo{
-		Format: ir.OverlayFormat + "@" + doc.Version,
-		Path:   opts.Path,
-		Hash:   ir.SourceHash(opts.Data),
-	}
-}
-
-// repairGrafts replaces every alias the application left pointing outside the
-// tree with the content it stands for.
-//
-// The library's clone copies an alias's target too, leaving an alias to a node
-// in no Content list (docs/parser-library.md#overlay-alias-clone). Readers here
-// walk Content and treat an alias as a leaf, so the budget, alias scan and
-// attribution miss that content while the parser follows it (GitHub #477).
-//
-// normalized reports whether the tree was walked within walks; if not,
-// attribution is given up. safe is false when a graft could not be substituted;
-// a partly repaired tree is worse than refusing, so the caller refuses.
-func repairGrafts(ctx context.Context, root *yaml.Node, walks budget.Limit) (normalized, safe bool) {
-	content := nodeview.DocumentRoot(root)
-	if content == nil {
-		return true, true
-	}
-	reachable, walked := reachableNodes(ctx, content, walks)
-	if !walked {
-		return false, true
-	}
-	work := budget.New(walks)
-	if !substituteGrafts(ctx, content, reachable, &work) {
-		return false, false
-	}
-	return true, true
-}
-
-// reachableNodes collects every node a Content walk from root reaches, within
-// walks, which is every node this compiler's other readings can see.
-func reachableNodes(ctx context.Context, root *yaml.Node, walks budget.Limit) (map[*yaml.Node]bool, bool) {
-	reachable := make(map[*yaml.Node]bool)
-	out := nodeview.Walk{Nodes: walks.Cap(), Visit: func(n *yaml.Node, _ int) nodeview.Step {
-		if reachable[n] {
-			return nodeview.Prune
-		}
-		reachable[n] = true
-		return nodeview.Descend
-	}}.Run(ctx, root)
-	if out.Cut {
-		return nil, false
-	}
-	return reachable, true
-}
-
-// substituteGrafts walks the tree and replaces each child that is an alias to a
-// node outside reachable with the content that alias stands for, reporting
-// whether every one was replaced within work, which each child read and each
-// node copied spends.
-//
-// A node is replaced in its parent's Content, which is why the walk reads
-// children rather than the node it is at: the tree's own root is a mapping the
-// application never replaces wholesale, so no alias can sit there. A copy
-// holds no alias and is not walked.
-func substituteGrafts(ctx context.Context, n *yaml.Node, reachable map[*yaml.Node]bool, work *budget.Budget) bool {
-	safe := true
-	copies := map[*yaml.Node]bool{}
-	nodeview.Walk{Nodes: work.Remaining().Past(), Visit: func(n *yaml.Node, _ int) nodeview.Step {
-		if copies[n] {
-			return nodeview.Prune
-		}
-		if safe = substituteChildren(n, reachable, work, copies); !safe {
-			return nodeview.Stop
-		}
-		return nodeview.Descend
-	}}.Run(ctx, n)
-	return safe
-}
-
-// substituteChildren replaces each child of n that is a graft (see
-// substituteGrafts), recording each copy made in copies, and reports whether
-// work held for all of them.
-func substituteChildren(n *yaml.Node, reachable map[*yaml.Node]bool, work *budget.Budget, copies map[*yaml.Node]bool) bool {
-	for i, child := range n.Content {
-		if !work.Spend(1) {
-			return false
-		}
-		if child == nil || child.Kind != yaml.AliasNode || child.Alias == nil || reachable[child.Alias] {
-			continue
-		}
-		expanded, ok := expandAlias(child.Alias, work)
-		if !ok {
-			return false
-		}
-		n.Content[i], copies[expanded] = expanded, true
-	}
-	return true
-}
-
-// expandAlias returns the content an alias stands for, as a copy holding no
-// aliases of its own: one an alias inside it names is substituted too, since it
-// would be no more reachable than the one that led here.
-//
-// The copy drops the anchor it came from. An anchor is a name for a node, and
-// the node naming it is not the one being written; leaving the name on a copy
-// would spell an anchor twice in one document, which is not a document yaml.v3
-// would have produced.
-func expandAlias(target *yaml.Node, work *budget.Budget) (*yaml.Node, bool) {
-	if !work.Spend(1) {
-		return nil, false
-	}
-
-	if target.Kind == yaml.AliasNode {
-		if target.Alias == nil {
-			return nil, false // an alias naming nothing stands for nothing to graft
-		}
-		return expandAlias(target.Alias, work)
-	}
-
-	out := *target
-	out.Anchor = ""
-	out.Content = nil
-	if len(target.Content) > 0 {
-		out.Content = make([]*yaml.Node, len(target.Content))
-		for i, child := range target.Content {
-			expanded, ok := expandAlias(child, work)
-			if !ok {
-				return nil, false
-			}
-			out.Content[i] = expanded
-		}
-	}
-	return &out, true
-}
-
-// snapshot records every node reachable from root against its scalar value,
-// reporting whether it visited the whole tree.
-//
-// The value is recorded because the library rewrites a scalar in place: an
-// overlay that replaces info.title keeps that node's identity and changes only
-// what it holds, so identity alone would read the new title as the source's.
-//
-// It reaches a superset of what attribute reaches: both start at the document
-// root, and this one also descends into mapping keys. A superset is required: a
-// node attribute reaches that this one missed would read as introduced by the
-// overlay.
-func snapshot(ctx context.Context, root *yaml.Node, walks budget.Limit) (map[*yaml.Node]string, bool) {
-	before := make(map[*yaml.Node]string)
-	out := nodeview.Walk{Nodes: walks.Cap(), Visit: func(n *yaml.Node, _ int) nodeview.Step {
-		before[n] = n.Value
-		return nodeview.Descend
-	}}.Run(ctx, nodeview.DocumentRoot(root))
-	if out.Cut {
-		return nil, false
-	}
-	return before, true
-}
-
-// attribute collects every position the overlay is answerable for, as pointers
-// and as the nodes sitting at them, reporting whether it visited the whole
-// tree.
-//
-// A node absent from the snapshot is new, and one whose value moved was
-// rewritten in place; either came from the overlay. The walk descends past a
-// match, closing the set downwards: a grafted subtree is cloned, so its nodes
-// are all new.
-//
-// A key the overlay introduced is recorded under its member's pointer too: its
-// line and column are the overlay document's, which a finding on it would read
-// as the source's.
-func attribute(ctx context.Context, root *yaml.Node, before map[*yaml.Node]string, walks budget.Limit,
-) (map[jsontext.Pointer]bool, map[*yaml.Node]jsontext.Pointer, bool) {
-	changed := func(n *yaml.Node) bool {
-		prior, known := before[n]
-		return !known || prior != n.Value
-	}
-
-	pointers := map[jsontext.Pointer]bool{}
-	nodes := map[*yaml.Node]jsontext.Pointer{}
-	stack := []frame{{node: nodeview.DocumentRoot(root)}}
-	work := budget.New(walks)
-	for len(stack) > 0 {
-		if !work.Spend(1) || ctx.Err() != nil {
-			return nil, nil, false
-		}
-		f := stack[len(stack)-1]
-		stack = stack[:len(stack)-1]
-		if f.node == nil {
-			continue
-		}
-		if changed(f.node) {
-			pointers[f.pointer] = true
-			nodes[f.node] = f.pointer
-		}
-		if f.key != nil && changed(f.key) {
-			nodes[f.key] = f.pointer
-		}
-		stack = append(stack, children(f)...)
-	}
-	return pointers, nodes, true
-}
-
-// frame is one node of the attribution walk together with the JSON pointer that
-// addresses it and, for a mapping's value, the key it sits under. merged marks
-// a `<<` merge's value, whose members the parser reads as the merging
-// mapping's own, so it and a list of them are addressed at that mapping.
-type frame struct {
-	node    *yaml.Node
-	pointer jsontext.Pointer
-	key     *yaml.Node
-	merged  bool
-}
-
-// children returns the frames beneath f, addressed the way the compiler
-// addresses them: a mapping's values under their keys as nodeview.KeyOf names
-// them, a sequence's elements under their positions, and a `<<` merge's value
-// at the mapping merging it.
-//
-// Mapping keys are not walked in their own right; each rides on its value's
-// frame, since the library appends a new key and its value together. An alias
-// node is a leaf, because the content it stands for lives at the anchor's own
-// position, which the walk reaches there; repairGrafts has already replaced the
-// aliases the library grafted (GitHub #477).
-func children(f frame) []frame {
-	switch f.node.Kind {
-	case yaml.MappingNode:
-		out := make([]frame, 0, len(f.node.Content)/2)
-		for i := 0; i+1 < len(f.node.Content); i += 2 {
-			key, own := nodeview.KeyOf(f.node.Content[i])
-			at := frame{node: f.node.Content[i+1], pointer: f.pointer + ids.Ptr(key), key: f.node.Content[i]}
-			if !own {
-				at.pointer, at.merged = f.pointer, true
-			}
-			out = append(out, at)
-		}
-		return out
-	case yaml.SequenceNode:
-		out := make([]frame, 0, len(f.node.Content))
-		for i, child := range f.node.Content {
-			at := frame{node: child, pointer: f.pointer + ids.Ptr(strconv.Itoa(i))}
-			if f.merged {
-				at.pointer, at.merged = f.pointer, true
-			}
-			out = append(out, at)
-		}
-		return out
-	default:
-		return nil
-	}
 }

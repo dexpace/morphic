@@ -106,13 +106,12 @@ func TestLoad_ADiagnosticOnASourceNodeStillNamesTheSource(t *testing.T) {
 	assert.Equal(t, 1, found, "diagnostics: %+v", diags)
 }
 
-// TestLoad_ATaggedMappingGraftedThroughAnAliasIsRefused pins GitHub #477. The
-// overlay library clones an alias by cloning its target, so an update whose
-// value is an alias to a tagged anchor grafted a mapping that sat in no Content
-// list: invisible to the pre-parse refusal for that tag, yet followed by the
-// parser, which faults on a goroutine no recover reaches. The patched tree is
-// normalized before the refusals read it, so the tag is found where it was
-// grafted.
+// TestLoad_ATaggedMappingGraftedThroughAnAliasIsRefused pins GitHub #477. An
+// update whose value is an alias to a tagged anchor grafted a mapping that sat
+// in no Content list: invisible to the pre-parse refusal for that tag, yet
+// followed by the parser, which faults on a goroutine no recover reaches. The
+// overlay writes a copy of what an alias names in its place, so the tag is
+// found where it was grafted.
 //
 // The anchor is declared in three places because the overlay document's own
 // structure decides where a caller may put one.
@@ -147,16 +146,15 @@ func TestLoad_ATaggedMappingGraftedThroughAnAliasIsRefused(t *testing.T) {
 }
 
 // TestLoad_AnAliasGraftedFromTheSourceIsCountedWhereItLands is the other half
-// of the same repair, on a graft that crashes nothing. A copy action clones a
-// subtree of the source through the same clone, so an alias inside it was
-// detached too — no tag, no fault, but a subtree the node budget did not count
-// and the overlay's attribution could not name. Counting it is what the repair
-// restores.
+// of the same copy, on a graft that crashes nothing. A copy action copies a
+// subtree of the source, so an alias inside it would be detached too: no tag,
+// no fault, but a subtree the node budget would not count and the overlay's
+// attribution could not name. Copying what the alias names counts it.
 func TestLoad_AnAliasGraftedFromTheSourceIsCountedWhereItLands(t *testing.T) {
 	t.Parallel()
 	const spec = "openapi: 3.1.0\ninfo: {title: T, version: \"1\"}\n" +
 		"x-t: &s {description: d}\nx-shared: {inner: *s}\npaths: {}\n"
-	const ov = "overlay: 1.0.0\ninfo: {title: o, version: \"1\"}\n" +
+	const ov = "overlay: 1.1.0\ninfo: {title: o, version: \"1\"}\n" +
 		"actions:\n  - target: $.paths\n    copy: $[\"x-shared\"]\n"
 	opts := Options{Overlay: &overlay.Options{Path: "patch.yaml", Data: []byte(ov)}, OverlaySrcIndex: 1}
 

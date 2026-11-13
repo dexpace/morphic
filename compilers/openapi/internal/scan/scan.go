@@ -170,8 +170,8 @@ func scanRecovered(whole ir.Provenance, scan func() []ir.Diagnostic) []ir.Diagno
 // own ancestor overflows the parser's stack, and an alias bomb exhausts its
 // memory (docs/parser-library.md#alias-cycle,
 // docs/parser-library.md#alias-expansion). It serves an overlay too
-// (docs/parser-library.md#overlay-alias-clone). tree places a refusal at its
-// node; an incomplete scan yields a diag.CycleScanFailed warning at whole.
+// (load.overlayRefusals). tree places a refusal at its node; an incomplete
+// scan yields a diag.CycleScanFailed warning at whole.
 //
 // The index must cover the whole tree that will reach the parser: an alias to
 // an ancestor is visible only from the root. surplus is the alias budget;

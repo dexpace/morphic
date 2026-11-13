@@ -105,26 +105,31 @@ const (
 	// recognize it, and the reason it declined is the parse error it holds.
 	UndecodableSource = "openapi/undecodable-source"
 	// OverlayInvalid reports an overlay document that could not be parsed, or that
-	// parsed but is not a valid Overlay — a missing version, no actions, an action
-	// naming no target. Nothing is applied, so the compile refuses rather than
-	// lowering a source the caller believes was patched.
+	// parsed but is not a valid Overlay of a version the compiler applies — a
+	// missing version, no actions, an action naming no target, a selector that is
+	// no RFC 9535 query, a copy in an Overlay 1.0 document — as overlay.read and
+	// overlay.readSelector find. Nothing is applied, so the compile refuses rather
+	// than lowering a source the caller believes was patched.
 	OverlayInvalid = "openapi/invalid-overlay"
-	// OverlayFailed reports an overlay the library could not apply as written: a
-	// selector matching nothing under strict application, or an action whose
-	// update disagrees with the shape it targets. Actions are applied in order and
-	// the ones that landed are not undone, so the compile refuses — the tree left
-	// behind is neither the source nor what the overlay asked for.
+	// OverlayFailed reports an overlay the compiler could not apply as written: a
+	// selector the compiler's JSONPath implementation cannot read as RFC 9535 does
+	// (overlay.readSelector), an action whose selector selects nothing under
+	// strict application or whose write the specification's rules refuse
+	// (overlay.runSequence), and an application that panicked. Actions apply in
+	// order and the ones that landed are not undone, so the compile refuses.
 	OverlayFailed = "openapi/overlay-failed"
-	// OverlayAction reports one strict-mode finding about a single action, naming
-	// the action and its target: that it changed nothing, or that it relies on
-	// JSONPath behaviour the overlay did not opt into.
-	//
-	// It stands alone as often as it accompanies a refusal, and the difference is
-	// the point. An action whose selector matched nothing is a typo and refuses
-	// under OverlayFailed, with these naming which actions are why; an action that
-	// matched and then changed nothing is merely redundant — the fix it describes
-	// is already in the source — so it is reported and the compile proceeds.
+	// OverlayAction reports a warning about a single action, naming the action and
+	// its target: that it changed nothing, because what it writes is there
+	// already, because it selects nothing under lax application, or because it
+	// sets no modifier, or that it sets a field with no effect beside another, as
+	// overlay.runSequence and overlay.read find.
 	OverlayAction = "openapi/overlay-action"
+	// OverlayReplacedValue reports an action that replaced a primitive the source
+	// declares, as against adding one the source lacks, naming both values: an
+	// overlay written to fill a gap keeps winning once the source fills it, and
+	// this is how that shows (overlay.runSequence). Info, as overriding is a
+	// legitimate use; a caller treating overlays as gap-fillers promotes it.
+	OverlayReplacedValue = "openapi/overlay-replaced-value"
 	// OverlayOriginIncomplete reports that the overlay applied but the walk that
 	// attributes positions to it exceeded its node budget. Provenance degrades to
 	// naming the source for every position, which is what a compile with no
