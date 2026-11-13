@@ -76,7 +76,6 @@ member 0 0 HTTPBinding.compression
 member 0 0 HTTPBinding.hostPrefix
 member 0 0 HTTPBinding.patchImplicitOptionality
 member 0 0 HTTPBinding.responseBodyPath
-member 0 0 HTTPBinding.sharedRoute
 member 0 0 HTTPBinding.successStatus
 member 0 0 HTTPParamBinding.bodyPath
 member 0 0 HTTPParamBinding.paramPath

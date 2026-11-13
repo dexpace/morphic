@@ -48,6 +48,7 @@ func TestDecodeOptions_TextReachesEveryField(t *testing.T) {
 			"grouping":                "extension",
 			"grouping-key":            "x-speakeasy-group",
 			"grouping-lists":          "groups",
+			"grouping-aliases":        "x-speakeasy-aliases",
 			"grouping-fallback":       "path-prefix",
 			"allow-external-refs":     "true",
 			"overlay":                 "patch.yaml",
@@ -76,7 +77,8 @@ func TestDecodeOptions_TextReachesEveryField(t *testing.T) {
 	require.True(t, ok, "the decoded value must be this compiler's own options type")
 	assert.Equal(t, openapi.GroupByExtension, opts.Grouping)
 	assert.Equal(t, openapi.GroupingExtension{
-		Key: "x-speakeasy-group", Lists: openapi.ListsAreGroups, Fallback: openapi.GroupByPathPrefix,
+		Key: "x-speakeasy-group", Lists: openapi.ListsAreGroups, Aliases: "x-speakeasy-aliases",
+		Fallback: openapi.GroupByPathPrefix,
 	}, opts.GroupingExtension)
 	assert.True(t, opts.AllowExternalRefs)
 	require.NotNil(t, opts.Overlay)
@@ -172,7 +174,7 @@ func TestDecodeOptions_Refusals(t *testing.T) {
 	}{
 		{"unknown name", map[string]string{"gruoping": "tags"},
 			`unknown option "gruoping" (known: allow-external-refs, binary-inference, binary-media, ` +
-				`discriminator-inference, grouping, grouping-fallback, grouping-key, grouping-lists, ` +
+				`discriminator-inference, grouping, grouping-aliases, grouping-fallback, grouping-key, grouping-lists, ` +
 				`http-date-inference, idempotency-inference, max-alias-surplus, max-enum-members, ` +
 				`max-external-documents, max-reference-expansion, max-source-bytes, max-source-nodes, ` +
 				`nullable-widening, overlay, overlay-lax, replacement-inference, secret-inference, ` +
@@ -188,9 +190,11 @@ func TestDecodeOptions_Refusals(t *testing.T) {
 		// A grouping extension is read by one strategy alone, so naming one beside
 		// another is a mistake about which grouping is in force.
 		{"a grouping key with no strategy", map[string]string{"grouping-key": "x-group", "grouping-lists": "segments"},
-			`options "grouping-key", "grouping-lists" and "grouping-fallback" apply only with "grouping" set to "extension"`},
+			`options "grouping-key", "grouping-lists", "grouping-aliases" and "grouping-fallback" apply only with ` +
+				`"grouping" set to "extension"`},
 		{"a grouping fallback beside tags", map[string]string{"grouping": "tags", "grouping-fallback": "tags"},
-			`options "grouping-key", "grouping-lists" and "grouping-fallback" apply only with "grouping" set to "extension"`},
+			`options "grouping-key", "grouping-lists", "grouping-aliases" and "grouping-fallback" apply only with ` +
+				`"grouping" set to "extension"`},
 		// Conventions disagree on what a list means, so neither half of the pair
 		// is taken from the default's.
 		{"a grouping key with no list reading", map[string]string{"grouping": "extension", "grouping-key": "x-group"},
@@ -213,6 +217,17 @@ func TestDecodeOptions_Refusals(t *testing.T) {
 			`option "grouping-lists": want a value, got an empty one`},
 		{"an empty fallback", map[string]string{"grouping": "extension", "grouping-fallback": ""},
 			`option "grouping-fallback": want a value, got an empty one`},
+		{"an empty aliases key", map[string]string{"grouping": "extension", "grouping-aliases": ""},
+			`option "grouping-aliases": want a value, got an empty one`},
+		{"an aliases key beside tags", map[string]string{"grouping-aliases": "x-aliases"},
+			`options "grouping-key", "grouping-lists", "grouping-aliases" and "grouping-fallback" apply only with ` +
+				`"grouping" set to "extension"`},
+		{"an aliases key naming no extension", map[string]string{"grouping": "extension", "grouping-aliases": "aliases"},
+			`option "grouping-aliases": want an extension name starting "x-" other than "grouping-key"'s, got "aliases"`},
+		// One value read two ways would file and remount the operation by it.
+		{"an aliases key that is the grouping key", map[string]string{
+			"grouping": "extension", "grouping-key": "x-group", "grouping-lists": "segments", "grouping-aliases": "x-group",
+		}, `option "grouping-aliases": want an extension name starting "x-" other than "grouping-key"'s, got "x-group"`},
 		// An entry that could match nothing is refused: the list replaces the
 		// default, so a typo would turn the inference off for every media type.
 		{"empty streaming list", map[string]string{"streaming-media": ""},
@@ -384,11 +399,57 @@ func TestCompile_GroupingExtensionDefaultsAndRefusals(t *testing.T) {
 			openapi.Options{Grouping: openapi.GroupByExtension, GroupingExtension: openapi.GroupingExtension{Fallback: "first"}},
 			`option "grouping-fallback"`,
 		},
+		"an aliases key that is the grouping key": {
+			openapi.Options{Grouping: openapi.GroupByExtension, GroupingExtension: openapi.GroupingExtension{
+				Key: "x-a", Lists: openapi.ListsAreSegments, Aliases: "x-a",
+			}},
+			`option "grouping-aliases"`,
+		},
+		// A misspelt strategy is refused in the text option's words, never grouped
+		// by tags in silence.
+		"a strategy naming none": {
+			openapi.Options{Grouping: "extensions"},
+			`option "grouping": want "tags", "path-prefix" or "extension", got "extensions"`,
+		},
 	} {
 		_, err := filed(tc.opts)
 		require.Error(t, err, name)
 		assert.Contains(t, err.Error(), tc.wantErr, name)
 	}
+}
+
+// TestCompile_GroupingAliasesFollowTheKeysTheyRestate pins which aliases a Go
+// caller's grouping extension reads: the default's beside the default key, one
+// the caller names beside either key, and none beside a key the caller names
+// alone, since the default's entries restate the default key.
+func TestCompile_GroupingAliasesFollowTheKeysTheyRestate(t *testing.T) {
+	t.Parallel()
+	spec := "openapi: 3.1.0\ninfo: {title: T, version: \"1\"}\npaths:\n" +
+		"  /a:\n    get:\n      operationId: a\n      x-fern-sdk-group-name: a\n      x-g: a\n" +
+		"      x-forge-aliases: [{x-fern-sdk-group-name: forge}, {x-g: forge-g}]\n" +
+		"      x-other: [{x-fern-sdk-group-name: other}, {x-g: other-g}]\n" +
+		"      responses: {\"200\": {description: ok}}\n"
+	// groups compiles spec under ext and returns the IDs of its top-level groups.
+	groups := func(ext openapi.GroupingExtension) []ir.GroupID {
+		doc, _, err := openapi.New().Compile(context.Background(), []compilers.Source{openapitest.SourceOf(spec)},
+			compilers.Options{FormatOptions: openapi.Options{Grouping: openapi.GroupByExtension, GroupingExtension: ext}})
+		require.NoError(t, err)
+		require.NotNil(t, doc)
+		out := make([]ir.GroupID, 0, len(doc.Services[0].Groups))
+		for _, g := range doc.Services[0].Groups {
+			out = append(out, g.ID)
+		}
+		return out
+	}
+	assert.Equal(t, []ir.GroupID{"g/extension/a", "g/extension/forge"}, groups(openapi.GroupingExtension{}),
+		"the default key and its aliases")
+	assert.Equal(t, []ir.GroupID{"g/extension/a", "g/extension/other"},
+		groups(openapi.GroupingExtension{Aliases: "x-other"}), "the default key and the caller's aliases")
+	assert.Equal(t, []ir.GroupID{"g/extension/a"},
+		groups(openapi.GroupingExtension{Key: "x-g", Lists: openapi.ListsAreSegments}), "the caller's key alone")
+	assert.Equal(t, []ir.GroupID{"g/extension/a", "g/extension/other-g"},
+		groups(openapi.GroupingExtension{Key: "x-g", Lists: openapi.ListsAreSegments, Aliases: "x-other"}),
+		"the caller's key and aliases restating it")
 }
 
 // TestDefaultGroupingExtension_IsWhatTheLoweringApplies pins the exported

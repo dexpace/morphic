@@ -235,6 +235,7 @@ func conformanceCases() []conformanceCase {
 		{"enum-member-identity", assertEnumMemberIdentity},
 		{"http-binding", assertHTTPBinding},
 		{"idempotency-inference", assertIdempotencyInference},
+		{"path-key-fragments", assertPathKeyFragments},
 		{"param-styles", assertParamStyles},
 		{"param-style-matrix", assertParamStyleMatrix},
 		{"param-querystring", assertParamQuerystring},
