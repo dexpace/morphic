@@ -888,9 +888,10 @@ throughout these documents.
     text](../refine/text.md#a-value-no-style-arranges), [request
     shaping](../refine/requests.md#the-body)). An owner chosen by the shortest extension or by a
     member's name before an input's own, an arranged exploded object owning its own name, a name two
-    bindings own drawing no warning or failing a call, a reader taking a name its binding does not
-    own, a member typed as pairs in a model's declaration, and a form body held whole until a member
-    no style arranges appears each fail it.
+    bindings own drawing no warning, a member's value under one failing a call or a required member
+    left out so failing its call or its reader, a reader taking a name its binding does not own, a
+    member typed as pairs in a model's declaration, and a form body held whole until a member no
+    style arranges appears each fail it.
 49. **T-49 · A date in a header** — on every target, a response header declared `datetime_offset`
     with no encoding reads `2023-10-21T07:28:00Z`, `Sun, 06 Nov 1994 08:49:37 GMT`, `Sunday,
     06-Nov-94 08:49:37 GMT`, `Sun Nov  6 08:49:37 1994` and `Wed Nov 16 08:49:37 1994` each as its

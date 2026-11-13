@@ -55,14 +55,15 @@ write its query map, and its reader holds each parameter of its location that no
 which is what a client wrote into it. Smithy has a server put every parameter in the map, a named
 one too, which would hand one pair to two inputs. A parameter whose `ContentType` names a media type
 ([bindings](../plan/bindings.md)), and a form field or part of another content type, carries that
-media type's serialization of the value instead, so as JSON a string keeps its quotes. A field or
-part under `PartEncoding.Multi` is one for each element of its list, each carrying its element as
-the rules here carry a value, as OpenAPI applies an Encoding Object to each item (§4.14.5.1), and a
-value that is no list, which a union with a list among its variants can hold, is one field or part.
-That holds where its encoding sets no `Style` and no `Explode`; where it sets either, the style
-arranges the value as it does a parameter's, since `Multi`, which the compiler sets from the type
-alone, says only that the field may repeat: under `style: form, explode: false` a list is the one
-field `u=a,b`.
+media type's serialization of the value instead, so as JSON a string keeps its quotes, a field's or
+a part's only where its encoding sets no `Style` and no `Explode`, either of which OpenAPI has
+replace its content type (the Encoding Object's `style`). A field or part under `PartEncoding.Multi`
+is one for each element of its list, each carrying its element as the rules here carry a value, as
+OpenAPI applies an Encoding Object to each item (§4.14.5.1), and a value that is no list, which a
+union with a list among its variants can hold, is one field or part. That holds where its encoding
+sets no `Style` and no `Explode`; where it sets either, the style arranges the value as it does a
+parameter's, since `Multi`, which the compiler sets from the type alone, says only that the field
+may repeat: under `style: form, explode: false` a list is the one field `u=a,b`.
 
 ## Null and empty
 
@@ -167,12 +168,14 @@ character other than a tab, or a space or a tab at either end, which no field va
 the call before anything is sent, never trimmed or escaped, as does a cookie's holding, in a value,
 an element or a member, a character that is no `cookie-octet` (RFC 6265 §4.1.1): a control
 character, a space, a `"`, a `,`, a `;`, a `\` or one past ASCII, the `,` the style writes between
-elements being its own. So does a list's or an object's text in a header holding an empty element,
-which a sender must not write, or one with a space or a tab at either end, which a reader takes for
-the whitespace beside a comma (§5.6.1). A CR LF would begin a header of its own, the HTTP libraries
-the targets can run on each trim the whitespace at a text's ends, and they disagree past ASCII: Go
-sends `é` as its UTF-8 octets and JavaScript's `fetch` as one ISO-8859-1 octet, while `fetch` and
-the JDK's `HttpClient` refuse the `€` Go sends (Go 1.27, Node 26, JDK 25).
+elements being its own. A cookie's text under another style is held to `cookie-octet` once
+percent-encoded, so a `;` that `AllowReserved` passes fails the call as well. So does a list's or an
+object's text in a header holding an empty element, which a sender must not write, or one with a
+space or a tab at either end, which a reader takes for the whitespace beside a comma (§5.6.1). A CR
+LF would begin a header of its own, the HTTP libraries the targets can run on each trim the
+whitespace at a text's ends, and they disagree past ASCII: Go sends `é` as its UTF-8 octets and
+JavaScript's `fetch` as one ISO-8859-1 octet, while `fetch` and the JDK's `HttpClient` refuse the
+`€` Go sends (Go 1.27, Node 26, JDK 25).
 
 A name outside a URL and a form body is sent as it is, since no reader decodes one there, and one
 its position cannot carry fails the call before anything is sent, whether a parameter's own, a
@@ -340,14 +343,16 @@ on what the position carries:
   never writes, so an exploded object `a` declaring `k` leaves `a` to one declaring a member `a`.
   Where two bindings own a name, or two maps or catch-alls share the rest, the document fixes which
   one it goes to, so the plan reports each such two once, as a warning
-  `emitters/plan/name-owned-twice` at the location naming both and the one the names go to, and the
-  other writes nothing there, a member's value or a map's entry under them left out as an entry
-  giving way to a header is. Failing each call that sets such a member was weighed and refused: it
-  fails for a fact fixed at generation, every call where the member is required. A pair whose name
-  its input does not own, an empty one among them, fails the call before anything is sent: a
-  caller's `filter` for the `filters` of `DELETE
-  /accounts/{account_id}/ai-gateway/gateways/{gateway_id}/logs` would send a request the server
-  reads as one with no filter. An input holding no pair is an empty list ([above](#null-and-empty)).
+  `emitters/plan/name-owned-twice` at the location naming both and the one each name goes to, and
+  the other writes nothing there, a member's value or a map's entry under them left out as an entry
+  giving way to a header is. A member left out so is required of neither its writer nor its reader:
+  a required input holding nothing else is sent without it, and no receiver refuses a request for
+  its absence. Failing each call that sets such a member was weighed and refused: it fails for a
+  fact fixed at generation, every call where the member is required. A pair whose name its input
+  does not own, an empty one among them, fails the call before anything is sent: a caller's `filter`
+  for the `filters` of `DELETE /accounts/{account_id}/ai-gateway/gateways/{gateway_id}/logs` would
+  send a request the server reads as one with no filter. An input holding no pair is an empty list
+  ([above](#null-and-empty)).
 
 Whatever reads one reads what arrived, so a mock checks nothing of what it holds: the string, or, in
 the order they came, every pair whose name the input owns by that test. So each pair reaches one

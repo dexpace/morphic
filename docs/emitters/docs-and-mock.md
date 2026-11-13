@@ -749,7 +749,7 @@ test running beside it would move the count, and a request's page would turn on 
   a type admitting the empty value. Leaving the member out all the same was weighed and refused: the
   SDK would fail to decode the last page and lose its items.
 - **Why every walk ends.** Each continuation the mock writes names a position past the page's last
-  item, save three that end the walk: the end page's repeat under an empty `Stop`, the empty link
+  item, save three that end the walk: the end page's repeat under an empty `Stop`, the empty value
   `no_next` ends on, and a value it did not mint, which it refuses. So a page holding none is the
   last and the walk is finite, and a pager sending [its next
   request](operations/pagination.md#what-a-pager-sends-next) reads each item once, in order, in at
