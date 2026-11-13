@@ -197,12 +197,10 @@ lists that no member declares and the composition entries that name no model. It
 - *Conjuncts that are no model.* A composition entry naming no model once read through alias
   scalars — a scalar, an enum, a union, a map, a list, or a type the registry does not hold —
   contributes no property, so the flattening lists the entry's target as written, once, for its
-  consumer to lower (`Base` and `Mixins` name whatever the source composed with, below). A consumer
-  lowering a union there as the one the model narrows ([below](#a-union-a-composition-names))
-  flattens each shape an instance takes by this walk too, reading a variant where the walk meets the
-  union ([TypePlan](../emitters/plan/types.md#a-model-narrowing-a-union)), so the variant's members
-  are laid out and overridden as any conjunct's are; `FlattenedProperties` takes no variant yet
-  (#1734).
+  consumer to lower (`Base` and `Mixins` name whatever the source composed with, below). Where a
+  union there is one the model narrows, `ir.NarrowedShapes` flattens each shape an instance takes
+  by this walk too, with a variant read in the union's place
+  ([below](#the-shapes-of-a-model-narrowing-a-union)).
 - *What it leaves.* A catch-all, `AdditionalProps` and `Additional`, is not flattened: a consumer
   reads the model's own ([TypePlan](../emitters/plan/types.md)), so a conjunct closing its property
   set is the consumer's to weigh. A property marked `Flatten` is one member like any other, the
@@ -221,7 +219,8 @@ lists that no member declares and the composition entries that name no model. It
   the walk needs no step budget and no recursion. Each type a redaction is read through is read once
   too, so a `Base` chain many declarations name costs one reading, and one that cycles ends where it
   repeats. It costs the declarations it returns plus the models, entries, aliases and types it
-  passes, so an `irfacts` index could answer no faster, and it stays a function of `ir`.
+  passes, so an `irfacts` index could answer no faster, and it stays a function of `ir`, where a
+  compiler reads it too.
 
 Why the later conjunct wins: JSON Schema conjoins every `allOf` entry, so neither of two unrelated
 declarations is wrong on the wire, and the later conjunct is where a spec writes the specialization.
@@ -245,7 +244,8 @@ first deprecation any of them states, so taking the declaration's alone would ma
 or not by whether its conjuncts were written inline or by `$ref`. On the golden spec
 (`cloudflare/api-schemas` `openapi.json` at `86556f6f`, compiled at `0cd087ff6`) no member's taken
 declaration lacks a deprecation an overridden one states, of 63,587 members across 18,017 models,
-so the rule moves no member there.
+nor any of the 2,184 members of the shapes the models narrowing a union take, so the rule moves no
+member there.
 
 ## Composition entries
 
@@ -402,3 +402,58 @@ takes, and the tag a route to it. It was rejected on input the compiler must low
   union's variants and discriminator, the golden spec's most shared union ten times over, each
   composed variant a node minted per pair of schema and variant, and no node would say that the
   schema composes the union, as the source does.
+
+## The shapes of a model narrowing a union
+
+A model narrows a union where its composition reaches one at any distance, an entry naming it read
+through alias scalars, that does not list the model, its variants read through alias scalars too,
+since a model a union lists is that variant ([above](#a-union-a-composition-names)).
+`ir.NarrowedShapes(types, id, limit)` returns that union and the shapes an instance takes, each the
+model's flattening with a variant of the union in its place:
+
+- *A variant in a union's place.* Wherever the walk meets the union, at every entry standing for
+  it, it reads the variant there instead, as that entry's target, read through alias scalars. So the
+  variant's members are laid out, overridden, required, redacted and deprecated as any conjunct's
+  are ([the flattening](#the-flattening)), and a variant composing its own union reads itself in
+  its place there too. A variant naming no model is listed in `Unflattened` as the union's
+  `Variants` write it. `Stored` above takes two shapes: over `Block`, `action` and `status` and then
+  `id`, and over `Log`, `action` and then `id`.
+- *Unions in turn.* Where the composition over a variant narrows a union in turn, as a variant that
+  is a union, or composes one, makes it, that shape gives way to one for each of that union's
+  variants, and `NarrowedShape.Over` lists the variants read, outermost first. So no shape narrows
+  a union, and the shapes follow each union's variants in source order, depth first. A union with no
+  variant gives none.
+- *What it does not distribute* (`Narrowing.Undistributed`): a composition narrowing two unions or
+  more, the model's own or one over the variants a shape reads (`several`), whose shapes no one list
+  of variants names; one no distribution ends (`unending`), where a variant read in a union's place
+  composes the model in turn, so that a shape of the model holds the model, or a union reaches
+  itself through the unions among its variants; and a union tagged by a key, an envelope or a tuple
+  element (`not_values`), whose variants are not the values it admits ([tag
+  modes](./unions.md#tag-modes)). Each leaves the shapes empty, `Union` naming the union where the
+  model narrows one. A variant composing its own union, or a model the root composes rather than
+  the root itself, is distributed as any other.
+- *Cost.* It flattens the model once to find the union, then once for each shape and for each
+  composition that narrows a union in turn. Each walk also reads the variant it takes in a union's
+  place each time it meets the union, and the variants of each union it meets and reads none of, to
+  tell whether that one lists the model. Nested unions multiply the shapes and each walk reads the
+  whole composition again, so it counts every step of every walk, and one for each shape, against a
+  limit its caller sets, and stops once they pass it, finishing the walk it is taking. The emitter
+  plan sets `plan.MaxComposedSize`
+  ([TypePlan](../emitters/plan/types.md#a-model-narrowing-a-union)).
+
+It is a function of `ir`, beside the flattening it extends, and the one reading of these rules: the
+emitter plan's `TypePlan.Composed` takes its shapes, and the docs, the example set, a mock and the
+SDK targets read those. Two designs were weighed against it:
+
+- **A walk taking the variants to read, each caller listing the shapes.** Every caller would then
+  read the unions through alias scalars, tell a union listing the model from one it narrows, expand
+  the unions in turn, end what no distribution ends and count what the walks read, each a copy
+  that could disagree with the walk it calls.
+- **A model per shape, built in a copy of the registry and flattened.** It costs a copy of the
+  registry for each shape, gives the members owners that point into those copies rather than into
+  the document, and counts nothing of what a shape reads. The tests hold the shapes to it.
+
+On the golden spec (`cloudflare/api-schemas` `openapi.json` at `86556f6f`, compiled at
+`0cd087ff6`), 49 models narrow a union: 23 beside a member of their own, in 158 shapes and at most
+21 for one model, and 26 adding nothing to their union. None is undistributed, and
+`rulesets_ResponseRule` spends the most, 1,220 steps.

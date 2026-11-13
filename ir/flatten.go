@@ -4,11 +4,12 @@
 package ir
 
 // Flattening is the shape of a model across its composition, as
-// [FlattenedProperties] computes it (docs/ir/models.md#the-flattening): its
-// properties, which are required and which redacted, while each model's
-// catch-all stays its own. It points into the registry it was computed from
-// and copies no property, so it describes that registry as it stood; a caller
-// that changes the registry flattens again.
+// [FlattenedProperties] computes it (docs/ir/models.md#the-flattening), and
+// [NarrowedShapes] for each shape over a union: its properties, and which of
+// them are required, redacted or deprecated, while each model's catch-all
+// stays its own. It points into the registry it was computed from and copies
+// no property, so it describes that registry as it stood; a caller that
+// changes the registry flattens again.
 type Flattening struct {
 	// Properties are the members, one per wire name, each at the place the walk
 	// first reads its wire name.
@@ -19,8 +20,9 @@ type Flattening struct {
 	Undeclared []string
 	// Unflattened are the targets of the composition entries along the walk
 	// that name no model once read through alias scalars, once each, in the
-	// order the walk reads them. What such a conjunct contributes is no
-	// property, so its consumer lowers it.
+	// order the walk reads them, a variant read in a union's place as its
+	// union writes it. What such a conjunct contributes is no property, so its
+	// consumer lowers it.
 	Unflattened []TypeID
 }
 
@@ -114,6 +116,9 @@ type flattener struct {
 	// scalar, property and Requires name, and each type a redaction is read
 	// off.
 	steps int
+	// narrow is what a [NarrowedShapes] walk reads beside the flattening, nil
+	// in a [FlattenedProperties] walk.
+	narrow *narrowState
 }
 
 // member is one wire name's declarations, in the order the walk reads them.
@@ -140,6 +145,9 @@ func (f *flattener) flatten(root TypeID) Flattening {
 	m, ok := f.types[id].(*Model)
 	if !ok || m == nil {
 		return Flattening{}
+	}
+	if f.narrow != nil {
+		f.narrow.root = id
 	}
 	f.walk(id, m)
 	return f.result()
@@ -191,6 +199,9 @@ func (f *flattener) finish(fr frame) {
 	if fr.low < fr.num {
 		return
 	}
+	if f.narrow != nil && fr.num == 0 {
+		f.narrow.readRoot(f.finished[fr.since:])
+	}
 	for _, c := range f.finished[fr.since:] {
 		f.met[c.id] = metRead
 		f.emit(c.id, c.m)
@@ -219,20 +230,28 @@ func entry(m *Model, i int) (TypeID, bool) {
 }
 
 // parent returns the model an entry of from naming target composes in, read
-// through alias scalars, and whether the walk is yet to meet it. One met and
-// not yet read shares a component with from, which from's low then says. An
-// entry naming no model is recorded as unflattened, the first time the walk
-// reads it, and an unset one names nothing at all.
+// through alias scalars and, in a [NarrowedShapes] walk, through the variant
+// it reads in a union's place, and whether the walk is yet to meet it. One met
+// and not yet read shares a component with from, which from's low then says.
+// An entry naming no model is recorded as unflattened, as written or as the
+// variant standing in its place writes it, the first time the walk reads it,
+// and an unset one names nothing at all.
 func (f *flattener) parent(target TypeID, from *frame) (TypeID, *Model, bool) {
 	if target == "" {
 		return "", nil, false
 	}
 	id := f.resolve(target)
+	if f.narrow != nil {
+		target, id = f.substitute(target, id)
+	}
 	m, ok := f.types[id].(*Model)
 	if !ok || m == nil {
 		if _, marked := f.met[target]; !marked {
 			f.met[target] = metUnflattened
 			f.unflattened = append(f.unflattened, target)
+		}
+		if f.narrow != nil {
+			f.narrow.meet(f.types, id)
 		}
 		return "", nil, false
 	}

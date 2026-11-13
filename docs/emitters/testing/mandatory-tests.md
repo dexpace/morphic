@@ -769,9 +769,11 @@ throughout these documents.
     start of `Over` its entries share. Read by a client under `OpenUnions`, such a model keeps a
     variant its union does not list, and one whose variant holds the model compiles, the union
     breaking the cycle. Each target declares one variant for each entry of the model's
-    `TypePlan.Composed` and no other, entries sharing the start of their `Over` nested as a union of
-    them, and a model composing its union through an alias scalar, as a 3.1 `$ref` beside a
-    `description` hoists, narrows it as one naming the union does. An entry requiring a member that
+    `TypePlan.Composed`, each a shape `ir.NarrowedShapes` lists ([the shapes of a model narrowing a
+    union](../../ir/models.md#the-shapes-of-a-model-narrowing-a-union)), and no other, entries
+    sharing the start of their `Over` nested as a union of them, and a model composing its union
+    through an alias scalar, as a 3.1 `$ref` beside a `description` hoists, narrows it as one naming
+    the union does. An entry requiring a member that
     the model and a variant it is over pin to finite sets sharing no value is left out: `Item:
     {allOf: [Leaf, Node]}` over a `Node` of `Group` and `Leaf`, each pinning `kind`, declares the
     one variant over `Leaf`, still as a union, routes the tag `group` to no variant and has no

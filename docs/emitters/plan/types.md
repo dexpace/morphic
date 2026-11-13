@@ -101,45 +101,42 @@ targets lower a union there as [inheritance](../refine/models.md#inheritance) sa
 
 ## A model narrowing a union
 
-A model whose `Unflattened` holds a union that does not list it narrows that union, a union its
-composition reaches at any distance: each of its instances is an instance of one of the union's
-variants with the rest of the composition beside it
-([models](../../ir/models.md#a-union-a-composition-names)). `Unflattened` lists a composition
-entry's target as written, so where it names an alias scalar, as a 3.1 `$ref` beside a `description`
-hoists one ([composition entries](../../ir/models.md#composition-entries)), the union is the one the
-alias stands for, read through as the flattening reads every composition entry. `Composed` holds an
-entry for each shape that gives: the composition with a variant in the union's place, flattened by
-`ir`'s walk reading that variant where it meets the union ([the
-flattening](../../ir/models.md#the-flattening), #1734), never by a walk of the plan's own, so the
-variant's members are laid out, overridden and required as any conjunct's are. Where that
-composition narrows a union in turn, as a variant that is a union or narrows one makes it, the entry
-gives way to one for each of that union's variants, its `Over` one longer, so no entry narrows a
-union, and the entries follow each union's variants in source order, depth first. An entry's
-`Shapes` are the model's, each with the model's filter and patch and the `Props` the entry's
-`Flattened` shows there. In each shape the model is inclusive and strict where its union is
-([inheritance](../refine/models.md#inheritance)), which the union's own plan says, so no entry
-repeats it.
+A model narrows a union its composition reaches at any distance that does not list it, as
+`ir.NarrowedShapes` reads it: each of its instances is an instance of one of the union's variants
+with the rest of the composition beside it ([the shapes of a model narrowing a
+union](../../ir/models.md#the-shapes-of-a-model-narrowing-a-union)). The union is read through alias
+scalars, so where `Unflattened` names an alias, as a 3.1 `$ref` beside a `description` hoists one
+([composition entries](../../ir/models.md#composition-entries)), the model narrows the union the
+alias stands for, as the bare `$ref` does. `Composed` holds an entry for each shape
+`ir.NarrowedShapes` lists, in its order: its `Over`, and the `Flattened`, `Required`, `Undeclared`,
+`Redacted` and `Unflattened` read off its flattening as `TypePlan`'s own are read off the model's,
+never off a walk of the plan's own. So the variant's members are laid out, overridden and required
+as any conjunct's are, entries over a union the composition narrows in turn are one for each of its
+variants, and no entry narrows a union. An entry's `Shapes` are the model's, each with the model's
+filter and patch and the `Props` the entry's `Flattened` shows there. In each shape the model is
+inclusive and strict where its union is ([inheritance](../refine/models.md#inheritance)), which the
+union's own plan says, so no entry repeats it.
 
 `Composed` is empty for a model adding nothing to its union, which is that union, and for one no
-distribution serves: a model narrowing two unions, itself or through an entry; one whose union has a
-variant composing the model in turn, or reaches itself through the unions among its variants, either
-of which no distribution ends; one over a key-tagged or enveloped union, whose variants are not the
-values it admits; one over a union tagged by a tuple index, whose values are no objects; and one
-whose entries, counted with what each one's walk reads, would number more than
-`plan.MaxComposedSize`, a fixed limit the plan package states ([overview](overview.md)), which
-`Build` reports as a warning `emitters/plan/composed-limit` naming the model. A walk reads each
-variant it takes in a union's place, each model and composition entry it passes, each alias scalar
-it reads through, each property and `Requires` name, and each type it reads a redaction off, which
-is what it costs ([the flattening](../../ir/models.md#the-flattening)) and what `ir`'s walk is to
-report beside the entry it flattens (#1734). Nested unions multiply the entries and each walk reads
-the whole composition again, so counting only the members the entries hold would leave that cost
-free: a 124 KB spec composing a chain of 1,000 models, each redeclaring one member, beside unions
-nested 14 deep holds 81,918 entries and members where its walks take 83 million steps. Counting each
-variant read keeps the entries' `Over` lists within the limit too: a 193 KB spec nesting unions
-1,000 deep, each beside one leaf, gives 1,000 entries whose `Over` lists hold 500,500 variants,
-while the entries and the rest of what their walks read count 10,000. On the golden spec the
-largest, `rulesets_ResponseRule`, counts 1,143 (spec @bc6fad24, morphic @ea70eba79). The SDK targets
-alias a model adding nothing, and degrade the others
+distribution serves: one `ir.NarrowedShapes` leaves undistributed (`Narrowing.Undistributed`), as it
+does a model narrowing two unions, itself or through an entry, one whose union has a variant
+composing the model in turn or reaches itself through the unions among its variants, either of which
+no distribution ends, and one over a key-tagged, enveloped or index-tagged union, whose variants are
+not the object values it admits; and one whose entries, counted with what the walks flattening them
+read, would number more than `plan.MaxComposedSize`, a fixed limit the plan package states
+([overview](overview.md)) and passes as `ir.NarrowedShapes`'s limit, which `Build` reports as a
+warning `emitters/plan/composed-limit` naming the model. `ir.NarrowedShapes` counts what those
+walks read, each step a flattening takes and each variant read in a union's place, which is what
+they cost ([the shapes of a model narrowing a
+union](../../ir/models.md#the-shapes-of-a-model-narrowing-a-union)). Nested unions multiply the
+entries and each walk reads the whole composition again, so counting only the members the entries
+hold would leave that cost free: a 124 KB spec composing a chain of 1,000 models, each redeclaring
+one member, beside unions nested 14 deep holds 81,918 entries and members where its walks take 83
+million steps. Counting each variant read keeps the entries' `Over` lists within the limit too: a
+193 KB spec nesting unions 1,000 deep, each beside one leaf, gives 1,000 entries whose `Over` lists
+hold 500,500 variants, while the entries and the rest of what their walks read count 10,000. On the
+golden spec the most any model counts is `rulesets_ResponseRule`'s 1,220 (spec @86556f6f, compiled
+at morphic @0cd087ff6). The SDK targets alias a model adding nothing, and degrade the others
 ([inheritance](../refine/models.md#inheritance)).
 
 `Composed` leaves out an entry no value takes. An entry admits no value where a member its

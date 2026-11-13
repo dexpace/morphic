@@ -31,7 +31,7 @@ spec — field names and shapes in them are normative, receiver methods and help
 | [type-graph](./type-graph.md) | `TypeKind`, `TypeCommon` and `TypeRef` |
 | [primitives](./primitives.md) | `Primitive`, `PrimKind`, the offsets the time kinds hold, and containment between kinds |
 | [scalars](./scalars.md) | `Scalar`, and the alias a position hoists over a shared target |
-| [models](./models.md) | `Model`, `Discriminator`, composition and the flattening |
+| [models](./models.md) | `Model`, `Discriminator`, composition, the flattening and the shapes of a model narrowing a union |
 | [unions](./unions.md) | `Union`, `Variant` and tag modes |
 | [enums](./enums.md) | `Enum`, `EnumMember`, member identity, and the union of strings that becomes an `Enum` |
 | [containers](./containers.md) | `List`, `MapT`, `Tuple`, `Literal`, `External`, `Any` |
