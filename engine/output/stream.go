@@ -39,7 +39,8 @@ func writeStream(ctx context.Context, path string, mode fs.FileMode, doc *ir.Doc
 // a plain open would wait for a reader that may never come. Nor can a terminal
 // become the controlling one of a process without one. setNonblock is
 // syscall.SetNonblock, which then lets a write wait for room, as one to stdout
-// does, rather than fail once a FIFO is full; a test hands in one that fails.
+// does, rather than fail once a FIFO is full: the runtime waits only on a file
+// it polls, which a FIFO on macOS is not. A test hands in one that fails.
 func openStream(path string, mode fs.FileMode, setNonblock func(fd int, nonblocking bool) error) (*os.File, error) {
 	f, err := os.OpenFile(path, os.O_WRONLY|syscall.O_NONBLOCK|syscall.O_NOCTTY, 0)
 	if mode&fs.ModeNamedPipe != 0 && errors.Is(err, syscall.ENXIO) {

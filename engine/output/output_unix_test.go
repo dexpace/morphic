@@ -192,8 +192,9 @@ func TestReplaceDocument_AFileInAReadOnlyDirectoryIsRefused(t *testing.T) {
 // TestReplaceDocument_AStreamWaitsForItsReader pins that a document larger
 // than a FIFO holds is written whole, the write waiting for the reader to make
 // room as one to stdout does, rather than failing once the FIFO is full: the
-// FIFO is opened without waiting, which leaves a write unwilling to wait too
-// unless the file is put back in blocking mode.
+// FIFO is opened without waiting, which on macOS leaves a write unwilling to
+// wait too unless the file is put back in blocking mode. On Linux the runtime
+// polls the FIFO and waits either way, so only macOS shows that defect here.
 func TestReplaceDocument_AStreamWaitsForItsReader(t *testing.T) {
 	t.Parallel()
 	fifo := newFIFO(t)
