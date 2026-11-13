@@ -245,7 +245,7 @@ func lowerSchemaBody(c lowering.Ctx, ts *compile.Types, depth int, schema *oas3.
 		}
 		return lowerOneOfAnyOf(c, ts, depth, schema, pointer)
 	}
-	if u, ok := branchUnion(c, schema, pointer); ok {
+	if u, _, ok := branchUnion(c, schema, pointer); ok {
 		id, unionDiags := lowerDistributedUnion(c, ts, depth, schema, u, pointer)
 		ref, nullDiags := schemaNullRef(c, id, schema, siteAt(pointer))
 		return ref, append(unionDiags, nullDiags...)

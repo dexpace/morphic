@@ -329,22 +329,24 @@ type branchUnionIndex struct {
 }
 
 // branchUnion returns the union an inline branch of s's allOf writes that s,
-// written at pointer, distributes across the rest of its composition, as it
-// would the same union written beside the allOf
-// (docs/compilers/openapi.md#union-beside-structure): none where a
-// discriminator on an ancestor routes to s at its position (routedSubtype), as
-// beside it.
-func branchUnion(c lowering.Ctx, s *oas3.Schema, pointer jsontext.Pointer) (unionAt, bool) {
+// written at pointer, conjoins with the rest of its composition, as it would
+// the same union written beside the allOf
+// (docs/compilers/openapi.md#union-beside-structure), with the discriminator
+// written on the branch, else beside the allOf, and how the position lowers it
+// (classifyConjoined): ok is false where it distributes it nowhere, s being the
+// base of the hierarchy the discriminator routes or a subtype one routes to.
+func branchUnion(c lowering.Ctx, s *oas3.Schema, pointer jsontext.Pointer) (unionAt, unionLowering, bool) {
 	at := branchUnionIndexOf(c, s)
-	if !at.ok || routedSubtype(c, s, pointer) {
-		return unionAt{}, false
+	if !at.ok {
+		return unionAt{}, 0, false
 	}
 	e := allOfBranches(s, pointer).branches[at.index]
 	u := unionAt{holder: e.schema.GetSchema(), at: e.pointer, disc: s.GetDiscriminator(), discAt: pointer}
 	if d := u.holder.GetDiscriminator(); d != nil {
 		u.disc, u.discAt = d, e.pointer
 	}
-	return u, true
+	how := classifyConjoined(c, s, u, pointer)
+	return u, how, how == unionDistributed
 }
 
 // branchUnionIndexOf returns findBranchUnion's reading of s, read once a run, as
@@ -357,12 +359,13 @@ func branchUnionIndexOf(c lowering.Ctx, s *oas3.Schema) branchUnionIndex {
 // findBranchUnion is branchUnion's reading of s alone: where s lowers its
 // allOf, composing, not refining, the one branch whose union declares shape
 // against s, where that branch lies within the flattening depth and
-// classifyBranchSet distributes its union, neither writing a discriminator
-// (GitHub #1698). Two such unions leave none, either dropping the other, and
-// one declaring no shape stays residue. A $ref site or a union beside the allOf
-// lowers first (lowerSchemaBody), and is no reading of a branch's.
+// classifyBranchSet distributes its union. Two such unions leave none, either
+// dropping the other, and one declaring no shape stays residue. A union s and
+// its branch each write a discriminator beside leaves none either: nothing says
+// which routes it. A $ref site or a union beside the allOf lowers first
+// (lowerSchemaBody), and is no reading of a branch's.
 func findBranchUnion(c lowering.Ctx, s *oas3.Schema) branchUnionIndex {
-	if declaresUnion(s) || s.GetDiscriminator() != nil || dispatchOf(s).won != "allOf" {
+	if declaresUnion(s) || dispatchOf(s).won != "allOf" {
 		return branchUnionIndex{}
 	}
 	branches := allOfBranches(s, "").branches
@@ -377,7 +380,7 @@ func findBranchUnion(c lowering.Ctx, s *oas3.Schema) branchUnionIndex {
 	if count != 1 || branches[index].capped {
 		return branchUnionIndex{}
 	}
-	if holder := branches[index].schema.GetSchema(); holder.GetDiscriminator() != nil ||
+	if holder := branches[index].schema.GetSchema(); holder.GetDiscriminator() != nil && s.GetDiscriminator() != nil ||
 		classifyBranchSet(c, holder) != unionDistributed {
 		return branchUnionIndex{}
 	}
@@ -618,11 +621,8 @@ const (
 // sides: classified where the IR can express the conjunction, verbatim where it
 // cannot.
 //
-// A discriminator beside the union rules distribution out where a branch it
-// routes to composes s (composedByBranch), as one on an ancestor routing to
-// s, written at pointer, does (routedSubtype); any other routes the composed
-// variants (referencedVariants). docs/compilers/openapi.md#union-beside-structure
-// enumerates the shapes.
+// What the body does with a union it may distribute is classifyConjoined's.
+// docs/compilers/openapi.md#union-beside-structure enumerates the shapes.
 func classifyUnionSiblings(c lowering.Ctx, s *oas3.Schema, pointer jsontext.Pointer) unionLowering {
 	if !unionBranchesDeclareShape(c, s) {
 		return unionValidationOnly
@@ -633,7 +633,17 @@ func classifyUnionSiblings(c lowering.Ctx, s *oas3.Schema, pointer jsontext.Poin
 	if outcome := classifyBranchSet(c, s); outcome != unionDistributed {
 		return outcome
 	}
-	if composedByBranch(c, s, besideUnion(s, pointer)) {
+	return classifyConjoined(c, s, besideUnion(s, pointer), pointer)
+}
+
+// classifyConjoined is how s, written at pointer, lowers the union u it
+// conjoins with a composing body, beside it or on a branch of its allOf, once
+// u's own shape allows distribution: kept whole where the discriminator standing
+// with u routes to branches composing s (composedByBranch), and where one on an
+// ancestor routes to s (routedSubtype); else distributed, the discriminator
+// routing the composed variants (referencedVariants).
+func classifyConjoined(c lowering.Ctx, s *oas3.Schema, u unionAt, pointer jsontext.Pointer) unionLowering {
+	if composedByBranch(c, s, u) {
 		return unionHierarchyBase
 	}
 	if routedSubtype(c, s, pointer) {

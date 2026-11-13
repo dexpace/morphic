@@ -233,9 +233,9 @@ func TestOneOf_CoDeclaredBesideAComposingAllOfDistributes(t *testing.T) {
 // variants match the beside spelling's, inline branches conjoined by their own
 // nodes, the branch keeps nothing, another branch folds onto the union, and an
 // unexpanded $dynamicRef stays beside it. One declaring no shape, one of two
-// that do, one beside the schema's own union or discriminator, one distribution
-// declines, one past the flattening depth and one beside a branch's $ref, which
-// it conjoins with, stay with their branch; an enum beside the allOf decides.
+// that do, one beside the schema's own union, one distribution declines, one
+// past the flattening depth and one beside a branch's $ref, which it conjoins
+// with, stay with their branch; an enum beside the allOf decides.
 func TestAllOf_AUnionBranchDistributesAsBesideTheAllOf(t *testing.T) {
 	t.Parallel()
 	doc, diags := parseFull(t, openapitest.ComponentSpecVer("3.1.0", `    A: {type: object, properties: {a: {type: string}}}
@@ -295,16 +295,6 @@ func TestAllOf_AUnionBranchDistributesAsBesideTheAllOf(t *testing.T) {
       allOf:
         - {$ref: '#/components/schemas/A', oneOf: [{$ref: '#/components/schemas/B'}]}
         - {type: object, properties: {c: {type: string}}}
-    DiscriminatedBranch:
-      allOf:
-        - oneOf: [{$ref: '#/components/schemas/A'}, {$ref: '#/components/schemas/B'}]
-          discriminator: {propertyName: a}
-        - {type: object, properties: {c: {type: string}}}
-    OwnDiscriminator:
-      discriminator: {propertyName: c}
-      allOf:
-        - oneOf: [{$ref: '#/components/schemas/A'}, {$ref: '#/components/schemas/B'}]
-        - {type: object, properties: {c: {type: string}}}
     EnumBeside:
       type: string
       enum: [x, y]
@@ -350,13 +340,11 @@ func TestAllOf_AUnionBranchDistributesAsBesideTheAllOf(t *testing.T) {
 
 	capped := "openapi:" + strings.TrimPrefix(strings.Repeat("/allOf/0", schema.MaxAllOfFlattenDepth+1), "/")
 	for name, kept := range map[string][]string{
-		"Shapeless":           {"openapi:allOf/0"},
-		"Two":                 {"openapi:allOf/0", "openapi:allOf/1"},
-		"NullBranch":          {"openapi:allOf/0"},
-		"RefBranch":           nil,
-		"DiscriminatedBranch": {"openapi:allOf/0"},
-		"OwnDiscriminator":    {"openapi:allOf/0"},
-		"Capped":              {capped},
+		"Shapeless":  {"openapi:allOf/0"},
+		"Two":        {"openapi:allOf/0", "openapi:allOf/1"},
+		"NullBranch": {"openapi:allOf/0"},
+		"RefBranch":  nil,
+		"Capped":     {capped},
 	} {
 		m, ok := typeByName(doc, name).(*ir.Model)
 		require.True(t, ok, "%s stays a model; got %T", name, typeByName(doc, name))
@@ -381,6 +369,106 @@ func TestAllOf_AUnionBranchDistributesAsBesideTheAllOf(t *testing.T) {
 	for _, v := range variantModels(t, doc, "BesideToo") {
 		assert.Contains(t, v.Unmodeled, "openapi:allOf/0", "beside its own union, a branch's stays with the branch")
 	}
+}
+
+// TestAllOf_ADiscriminatedBranchUnionDistributesAsBeside pins a union on an allOf
+// branch standing with a discriminator, on its branch or beside the allOf
+// (docs/compilers/openapi.md#union-beside-structure): it distributes as the
+// same union beside the body does, the discriminator routing the composed
+// variants, a mapping's entries and the routes implied by name alike, its
+// branch keeping nothing, in either declaration order. A schema composing it
+// that the union does not list carries no tag. Two discriminators, or one
+// routing to branches composing the schema, keep the union whole with its
+// branch, the model holding the schema's own (GitHub #1698).
+func TestAllOf_ADiscriminatedBranchUnionDistributesAsBeside(t *testing.T) {
+	t.Parallel()
+	const cardBank = "oneOf: [{$ref: '#/components/schemas/Card'}, {$ref: '#/components/schemas/Bank'}]"
+	const method = "discriminator: {propertyName: method}"
+	for _, doc := range discriminatedOrders(t, "3.1.0", `    Payment:
+      allOf:
+        - {type: object, properties: {amount: {type: integer}}}
+        - {`+cardBank+`, `+method+`}
+    Refund:
+      `+method+`
+      allOf:
+        - {type: object, properties: {amount: {type: integer}}}
+        - {`+cardBank+`}
+    Mapped:
+      allOf:
+        - {type: object, properties: {amount: {type: integer}}}
+        - {`+cardBank+`, discriminator: {propertyName: method, mapping: {card: '#/components/schemas/Card'}}}
+    Both:
+      `+method+`
+      allOf:
+        - {type: object, properties: {amount: {type: integer}}}
+        - {`+cardBank+`, `+method+`}
+    Root:
+      `+method+`
+      allOf:
+        - {type: object, properties: {method: {type: string}}}
+        - {oneOf: [{$ref: '#/components/schemas/Sub1'}, {$ref: '#/components/schemas/Sub2'}]}
+    Sub: {allOf: [{$ref: '#/components/schemas/Refund'}]}
+`, `    Beside: {type: object, properties: {amount: {type: integer}}, `+cardBank+`, `+method+`}
+    Sub1: {allOf: [{$ref: '#/components/schemas/Root'}, {properties: {one: {type: string}}}]}
+    Sub2: {allOf: [{$ref: '#/components/schemas/Root'}, {properties: {two: {type: string}}}]}
+    Card: {type: object, required: [method], properties: {method: {type: string}, last4: {type: string}}}
+    Bank: {type: object, required: [method], properties: {method: {type: string}, iban: {type: string}}}
+`) {
+		want := routedBases(t, doc, "Beside")
+		require.Equal(t, map[string]ir.TypeID{"Card": componentID("Card"), "Bank": componentID("Bank")}, want)
+		for _, name := range []string{"Payment", "Refund"} {
+			assert.Equal(t, want, routedBases(t, doc, name), name)
+			for _, v := range variantModels(t, doc, name) {
+				assert.Empty(t, v.Unmodeled, "%s: the branch gives its union and discriminator up", name)
+			}
+		}
+		assert.Equal(t, map[string]ir.TypeID{"card": componentID("Card"), "Bank": componentID("Bank")},
+			routedBases(t, doc, "Mapped"), "a mapping entry routes beside the route a name implies")
+		for _, name := range []string{"Both", "Root"} {
+			m, ok := typeByName(doc, name).(*ir.Model)
+			require.True(t, ok, "%s keeps its union whole; got %T", name, typeByName(doc, name))
+			require.NotNil(t, m.Discriminator, name)
+			assert.Contains(t, m.Unmodeled, "openapi:allOf/1", name)
+		}
+		assert.Equal(t, "Sub1", typeByName(doc, "Sub1").(*ir.Model).DiscriminatorValue, "a subtype the union lists")
+		sub, ok := typeByName(doc, "Sub").(*ir.Model)
+		require.True(t, ok)
+		assert.Empty(t, sub.DiscriminatorValue, "a schema the union does not list narrows it, untagged")
+	}
+}
+
+// TestAllOf_ADiscriminatedBranchUnionReportsItsMappingAtTheBranch pins where a
+// mapping entry of a discriminator written on an allOf branch that names no
+// schema is reported: at the entry, under the branch writing it.
+func TestAllOf_ADiscriminatedBranchUnionReportsItsMappingAtTheBranch(t *testing.T) {
+	t.Parallel()
+	_, diags := parseFull(t, openapitest.ComponentSpecVer("3.1.0", `    Payment:
+      allOf:
+        - {type: object, properties: {amount: {type: integer}}}
+        - oneOf: [{$ref: '#/components/schemas/Card'}, {$ref: '#/components/schemas/Bank'}]
+          discriminator: {propertyName: method, mapping: {gone: '#/components/schemas/Gone'}}
+    Card: {type: object, properties: {last4: {type: string}}}
+    Bank: {type: object, properties: {iban: {type: string}}}
+`))
+	assert.Len(t, diagsAtPointer(diags, diag.UnresolvedRef, "/components/schemas/Payment/allOf/1/discriminator/mapping/gone"), 1, "%+v", diags)
+}
+
+// routedBases spells the mapping of the union the component name lowers to by
+// the Base of the composed variant each tag routes to.
+func routedBases(t *testing.T, doc *ir.Document, name string) map[string]ir.TypeID {
+	t.Helper()
+	u, ok := typeByName(doc, name).(*ir.Union)
+	require.True(t, ok, "%s is a union; got %T", name, typeByName(doc, name))
+	require.NotNil(t, u.Discriminator, name)
+	assert.True(t, u.WireTagged, name)
+	out := map[string]ir.TypeID{}
+	for tag, target := range u.Discriminator.Mapping {
+		m, ok := doc.Types[target].(*ir.Model)
+		require.True(t, ok, "%s routes %q to a composed variant", name, tag)
+		require.NotNil(t, m.Base)
+		out[tag] = m.Base.Target
+	}
+	return out
 }
 
 // TestUnion_ASubtypeADiscriminatorRoutesToStaysASubtype pins a union beside or

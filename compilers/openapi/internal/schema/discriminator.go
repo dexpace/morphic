@@ -431,8 +431,8 @@ func routesByName(c lowering.Ctx, a, s *oas3.Schema) bool {
 
 // standingUnion returns the schema writing the union the discriminator a
 // declares stands with: a where it writes one, else the branch of a's allOf
-// whose union a distributes, where that branch declares no discriminator of its
-// own (branchUnion), and nil for none, a hierarchy's base.
+// whose union a lowers (findBranchUnion), which writes no discriminator of its
+// own beside a's, and nil for none, a hierarchy's base.
 func standingUnion(c lowering.Ctx, a *oas3.Schema) *oas3.Schema {
 	if declaresUnion(a) {
 		return a
@@ -441,11 +441,7 @@ func standingUnion(c lowering.Ctx, a *oas3.Schema) *oas3.Schema {
 	if !at.ok {
 		return nil
 	}
-	holder := allOfBranches(a, "").branches[at.index].schema.GetSchema()
-	if holder.GetDiscriminator() != nil {
-		return nil
-	}
-	return holder
+	return allOfBranches(a, "").branches[at.index].schema.GetSchema()
 }
 
 // mappingTagsFor returns every key d's mapping spells for the type id, sorted
@@ -519,16 +515,17 @@ type composedByOf struct {
 	schema, holder *oas3.Schema
 }
 
-// composedByBranch reports whether s's own discriminator stands with u, a union
-// of s's, and a branch of it, the combinator unionBranches elects, composes s
-// through allOf at any depth, so that the discriminator routes to a subtype of
-// s: s is then the base of a hierarchy, which a union of its subtypes would no
-// longer be (docs/compilers/openapi.md#union-beside-structure). Such a branch
-// finds s's discriminator among its ancestors' (discriminatedAncestors). Every
-// reader of the position asks, so it is read once a run.
+// composedByBranch reports whether a branch of u, a union of s's, the combinator
+// unionBranches elects, composes s through allOf at any depth, so that s's
+// discriminator routes to a subtype of s: s is then the base of a hierarchy,
+// which a union of its subtypes would no longer be
+// (docs/compilers/openapi.md#union-beside-structure). Such a branch finds s's
+// discriminator among its ancestors' (discriminatedAncestors). Where s writes
+// one, it is the one standing with u (findBranchUnion). Every reader of the
+// position asks, so it is read once a run.
 func composedByBranch(c lowering.Ctx, s *oas3.Schema, u unionAt) bool {
 	d := s.GetDiscriminator()
-	if d == nil || u.disc != d {
+	if d == nil {
 		return false
 	}
 	return lowering.Remembered(c, composedByOf{s, u.holder}, func() bool {

@@ -205,7 +205,7 @@ func readAllOf(c lowering.Ctx, s *oas3.Schema, pointer jsontext.Pointer) allOfCo
 		v := voicingOf(c, s)
 		comp.speaks, comp.rebased = v.speaks, v.rebased
 	}
-	if u, ok := branchUnion(c, s, pointer); ok {
+	if u, _, ok := branchUnion(c, s, pointer); ok {
 		comp.conjoins = u.at
 	}
 	return comp
@@ -410,10 +410,10 @@ func preserveUnmergedBranch(c lowering.Ctx, m *ir.Model, comp allOfComposition, 
 		return nil // boolean branch; applyFalseBranches handles it.
 	}
 	speaks := comp.branchSpeaks(i)
-	distributed := comp.conjoins != "" && e.pointer == comp.conjoins
+	conjoined := comp.conjoins != "" && e.pointer == comp.conjoins
 	residue := unmergedBranchKeys(bs, func(keyword string) bool {
 		return mergeConsumes(bs, keyword, e.wrapper) || (speaks && folds(c, bs, keyword, boundHomes{value: true})) ||
-			(distributed && declaresUnionKeyword(keyword))
+			(conjoined && conjoinedKeyword(keyword))
 	})
 	if len(residue) == 0 {
 		return nil
@@ -528,9 +528,12 @@ func mergeConsumes(bs *oas3.Schema, key string, flattened bool) bool {
 	}
 }
 
-// declaresUnionKeyword reports whether keyword is oneOf or anyOf.
-func declaresUnionKeyword(keyword string) bool {
-	return keyword == "oneOf" || keyword == "anyOf"
+// conjoinedKeyword reports whether keyword is one a branch whose union the
+// position lowers gives up to that union: its oneOf or anyOf, and the
+// discriminator it writes, which is the union's where the position lowers it
+// (findBranchUnion).
+func conjoinedKeyword(keyword string) bool {
+	return keyword == "oneOf" || keyword == "anyOf" || keyword == "discriminator"
 }
 
 // declaresObjectOnly reports whether the branch's declared type is exactly
