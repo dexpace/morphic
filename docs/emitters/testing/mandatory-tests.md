@@ -164,8 +164,9 @@ throughout these documents.
     property's own value, calls each method and reaches each entry by the name the policy chose,
     which is the name the header gives it, a property `value` and one `version` keep their names,
     `hash`, `copy()` and `responds(to:)` on a model still answer as `NSObject`'s, and that enum's
-    `entries`, `values()` and `companion` as its own, and the table equals the selectors read from
-    the SDK the options version names ([Swift](../targets/kotlin/swift.md)).
+    `entries`, `values()` and `companion` as its own, and the table equals what that document's
+    commands read from the SDK the options version names, its selectors and `hashValue` alike
+    ([Swift](../targets/kotlin/swift.md)).
 20. **T-20 · Recursive types** — a model that holds itself directly, through a base, through a tuple
     and through another model, and one whose cycle passes through a list or a union, generate code
     that compiles on every target, and exactly the references on a cycle Go holds by value are held

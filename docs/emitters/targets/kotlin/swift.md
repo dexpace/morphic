@@ -27,10 +27,10 @@ A Multiplatform SDK reaches iOS through the Objective-C export, which shapes the
 - Every exported class extends `NSObject`, so a Swift caller sees `NSObject`'s members beside the
   class's own, and a member named as one is hidden by it, replaces it or breaks the header. Measured
   with Kotlin/Native 2.4.0 and Swift 6.2.3 against the macOS 26.2 SDK, a property, a method, a
-  `suspend` method and an enum entry were named for each of 119 names, those of the runtime's
-  `NSObject.h` (43, each selector's first piece) and those the Swift symbols of Foundation and
-  `ObjectiveC` give `NSObject` and its protocol (91, each Swift name before its parameters), and a
-  method of one parameter for each of their one-parameter selectors, split at each word. A property
+  `suspend` method and an enum entry were named for each selector of the table below, up to its
+  first colon, and for the Swift name, before its parameters, of each member or requirement the
+  symbol graphs it is read from give `NSObject` and its protocol, and a method of one parameter for
+  each one-parameter selector of the table, split at each word. A property
   or a method `dealloc` left a header no module builds from (`dealloc return type must be correctly
   specified as 'void' under ARC`), so no Swift file importing the framework compiled. A property
   `zone`, `copy`, `isProxy`, `retainCount` or `finalize` read as `NSObject`'s method, and
@@ -42,10 +42,14 @@ A Multiplatform SDK reaches iOS through the Objective-C export, which shapes the
   `load`, `initialize` and `version` among them (`instance member 'hash' cannot be used on type`). A
   method whose selector the export formed as one of theirs, `responds(toSelector:)` or
   `perform(selector:)`, was imported under `NSObject`'s Swift name (`incorrect argument label in
-  call (have 'toSelector:', expected 'to:')`). So the policy holds a table of the options version,
-  read from that SDK as the Swift type names are ([naming](naming.md#reserved-names)): each selector
-  `NSObject` and its protocol declare, the class's or an instance's, the members Swift adds
-  (`hashValue`), and `new`, which the export renames in a property too. A property, or a
+  call (have 'toSelector:', expected 'to:')`), and one formed as `setValuesForKeysWithDictionary:`
+  left a header no module builds from (`'swift_name' and 'swift_name' attributes are not
+  compatible`). So the policy holds a table of the options version, read from that SDK by the
+  commands below, as the Swift type names are ([naming](naming.md#reserved-names)): each selector
+  `NSObject`, a category of it or its protocol declares, the class's or an instance's, which the
+  first command lists; the members taking no parameter that Swift's own declarations add, which the
+  last lists, `hashValue` alone at that SDK; and `new`, which the export renames in a property too.
+  A property, or a
   parameterless method that is not `suspend`, takes an explicit name where its name is a
   parameterless instance selector of the table or one of those members; an enum entry where its
   Swift name is a parameterless selector, the class's or an instance's, one of those members, or one
@@ -65,10 +69,29 @@ A Multiplatform SDK reaches iOS through the Objective-C export, which shapes the
   `hash`, as this rule once did, left the rest. On the golden spec the rule gives 782 properties of
   its models an explicit name, 742 `description`, 14 `className`, 9 `class`, 9 `hash`, 5 `zone`, 2
   `self` and 1 `copy`, and 80 enum entries, 20 `load`, 19 `copy` and 12 `zone` among them, none of
-  its 32,915 named for an enum's own member, and no operation's method, while its 847 properties
-  `value` and 98 `version` keep their names; 10 of its parameters are named `description` or `hash`,
-  and take one wherever a request type holds them as a property (spec @bc6fad24, morphic @fa253fe19,
-  each name its words in camel case). T-19 holds it.
+  its 32,915 named `entries`, `values` or `companion`, and no operation's method, while its 847
+  properties `value` and 98 `version` keep their names; 10 of its parameters are named `description`
+  or `hash`, and take one wherever a request type holds them as a property (spec @bc6fad24, morphic
+  @fa253fe19, each name its words in camel case). T-19 holds it.
+
+  ```sh
+  echo '#import <Foundation/Foundation.h>' |
+    xcrun clang -x objective-c -fsyntax-only -Xclang -ast-dump=json - |
+    jq -r '.inner[]
+      | select((.kind == "ObjCInterfaceDecl" or .kind == "ObjCProtocolDecl") and .name == "NSObject"
+          or .kind == "ObjCCategoryDecl" and .interface.name == "NSObject")
+      | .inner[]? | select(.kind == "ObjCMethodDecl")
+      | (if .instance then "-" else "+" end) + .name' | sort -u
+  mkdir -p sg && for m in Foundation ObjectiveC; do
+    xcrun swift symbolgraph-extract -module-name "$m" -target arm64-apple-macosx26.2 \
+      -sdk "$(xcrun --show-sdk-path)" -output-dir sg
+  done
+  jq -r '(.symbols | map({key: .identifier.precise, value: .}) | from_entries) as $s
+    | .relationships[] | select(.kind == "memberOf" and .target == "c:objc(cs)NSObject")
+    | $s[.source] | select(. != null and (.identifier.precise | startswith("c:") | not))
+    | select(.kind.identifier | test("\\.(property|method)$")) | .names.title
+    | select(test(":") | not)' sg/*.json | sort -u
+  ```
 - The export renames an enum entry in camel case, splitting it at each `_`, so it loses a break
   letter case cannot mark
   ([naming](../../refine/naming.md#a-break-letter-case-cannot-mark-takes-an-underscore)): measured
