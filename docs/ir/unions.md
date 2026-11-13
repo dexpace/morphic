@@ -69,6 +69,19 @@ wire: what validation admits stays in `Exclusive`, and on an `anyOf` the tag pic
 several schemas a payload may satisfy. A mode for "tag plus validation" would spell the same wire
 shape twice.
 
+A variant need not declare the property a `PropertyName` tag sits at, require it, or type it as a
+string. The payload carries the tag, which an open variant admits whether or not it names it:
+OpenAPI asks that the payload hold the property and says only that a schema should require it, and
+a variant typing it as a number owns the tags whose text is that number's literal ([the tag a
+variant's value carries](../emitters/refine/unions.md#the-tag-a-variants-value-carries)). So
+`pass.Validate` holds a union's discriminator to its routes, each naming a variant, and reports
+nothing a variant declares of the tag. A rule refusing a variant that does not declare the tag would
+refuse OpenAPI's own shape, a `oneOf` of schemas a `discriminator` beside it tags, and warning where
+one leaves it optional or a number would report documents the compiler lowers as written: on the
+golden spec (spec @`86556f6f`, morphic @`0cd087ff6`), of the 551 variants of the 145 unions a
+property name tags, 59 declare the tag optional and 34 declare it a number, every one of them an
+integer error code its `mapping` routes.
+
 A union whose source declares no discriminator may still name its variant in the payload: where
 every variant requires one property and pins it to a distinct value, that value tells them apart as
 validation does. A compiler policy may read such a tag in, as a `Discriminator` with `Inferred` set

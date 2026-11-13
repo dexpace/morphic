@@ -386,3 +386,39 @@ func TestValidate_UnionMappingIsHeldToItsOwnVariants(t *testing.T) {
 	require.Len(t, found, 1, "the union listing t/n routes to it, and the other does not")
 	assert.Equal(t, `discriminator mapping "a" on t/u references "t/n", which is not a variant of it`, found[0].Message)
 }
+
+// TestValidate_UnionDiscriminatorAsksNothingOfAVariantsTag pins that a union's
+// discriminator is held to its routes alone, not to what each variant declares
+// of the tag (docs/ir/unions.md#tag-modes): a variant declaring the tag as a
+// required string, one declaring none, one leaving it optional and one typing
+// it as a number are all clean, as the payload carries the tag.
+func TestValidate_UnionDiscriminatorAsksNothingOfAVariantsTag(t *testing.T) {
+	t.Parallel()
+	doc := validDoc()
+	doc.Types["t/prim/int64"] = &ir.Primitive{ID: "t/prim/int64", Prim: ir.PrimInt64}
+	variant := func(id ir.TypeID, tag *ir.Property) *ir.Model {
+		m := &ir.Model{ID: id}
+		if tag != nil {
+			tag.ID = ir.PropID("p/" + id + "/kind")
+			m.Properties = []ir.Property{*tag}
+		}
+		return m
+	}
+	variants := map[ir.TypeID]*ir.Model{
+		"t/has":      variant("t/has", &ir.Property{WireName: "kind", Required: true, Type: ir.TypeRef{Target: "t/prim/string"}}),
+		"t/lacks":    variant("t/lacks", nil),
+		"t/optional": variant("t/optional", &ir.Property{WireName: "kind", Type: ir.TypeRef{Target: "t/prim/string"}}),
+		"t/number":   variant("t/number", &ir.Property{WireName: "kind", Required: true, Type: ir.TypeRef{Target: "t/prim/int64"}}),
+	}
+	u := &ir.Union{ID: "t/pet", Exclusive: true, WireTagged: true, Closed: true, Discriminator: &ir.Discriminator{
+		PropertyName: "kind", Mapping: map[string]ir.TypeID{},
+	}}
+	for _, id := range []ir.TypeID{"t/has", "t/lacks", "t/optional", "t/number"} {
+		doc.Types[id] = variants[id]
+		u.Variants = append(u.Variants, ir.Variant{Type: ir.TypeRef{Target: id}})
+		u.Discriminator.Mapping[string(id)] = id
+	}
+	doc.Types[u.ID] = u
+
+	assert.Empty(t, validated(t, doc))
+}
