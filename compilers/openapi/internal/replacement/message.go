@@ -14,11 +14,11 @@ import (
 // message fills, under the replacement policy, the replacements dep's message
 // names, on a deprecated node, self, whose own keys write none, so that
 // nothing the promotion fills is read over: each name named reads in the
-// message, resolved by find. They fill
-// the field all or none, a name resolving to self passed over and a repeat kept
-// once, so a name naming nothing, or several entities, leaves the field unset
-// in silence, the prose keeping it. prov is marked where they fill it. The rule
-// is docs/compilers/openapi.md#replacement-inference.
+// message, resolved by find. They fill the field all or none, a name resolving
+// to self passed over and a repeat kept once, so a name naming nothing, or
+// several entities, leaves the field unset in silence, the prose keeping it.
+// prov is marked where they fill it. The rule is
+// docs/compilers/openapi.md#replacement-inference.
 func (r *resolver) message(own ir.Unmodeled, dep *ir.Deprecation, prov *ir.Provenance, self ir.EntityRef,
 	named func(string) []string, find func(string) (ir.EntityRef, int),
 ) {

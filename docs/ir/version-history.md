@@ -472,7 +472,7 @@ it sees. Changes made together in one bump are listed together under it.
   fills it yet. A consumer pinned to 0.45.0 refuses a document with a prefix header.
 - **0.47.0** — no shape changed: four OpenAPI policies, each on by default and switched off by its
   option, fill facts a document implies by its names and messages, each node they fill marked in its
-  `Provenance.Inferred`. An operation sent by a method RFC 9110 does not define as safe takes the
+  `Provenance.Inferred`. An operation sent by `POST`, `PUT`, `PATCH` or `DELETE` takes its one
   header parameter `Idempotency-Key` as its `Idempotency` token
   ([`idempotency-inference`](../compilers/openapi.md#idempotency-inference)); a parameter, a header
   or a member whose name ends in a credential's and whose value is text or bytes is `Secret`
