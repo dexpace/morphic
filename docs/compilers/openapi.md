@@ -2646,6 +2646,7 @@ run, however many unions and subtypes ask. Two unions and a subtype meet it:
   `schema.TestTagReadings_ObjectMeetsWhatAComposedUnionAdmits`,
   `schema.TestTagReadings_ACycleOfCompositionReadsAlikeFromAnyEntry`,
   `schema.TestTagReadings_SweepsACycleAtMostTheBound`,
+  `schema.TestTagReadings_SweepsACycleUntilItsNullsSettle`,
   `schema.TestTagReadings_ReadsASharedTypeOnce`, `schema.TestThroughAliases_ReadsAtMostTheBound`,
   `schema.TestDiscriminatorInference_ReadsTheTagASubtypeAdmits`,
   `schema.TestDiscriminatorInference_ReadsAUnionItsSubtypesCompose`,
