@@ -9,6 +9,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/dexpace/morphic/compilers/openapi"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -210,7 +211,7 @@ func assertPaginationInferred(t *testing.T, doc *ir.Document, diags []ir.Diagnos
 			Stop: []ir.PageStop{ir.PageStopNoNext}},
 	} {
 		assert.Equal(t, want, op.Pagination, op.Name.Source)
-		assert.Equal(t, ir.Inferred("pagination-inference"), op.Provenance.Inferred, op.Name.Source)
+		assert.Equal(t, openapi.PaginationInferenceHeuristic, op.Provenance.Inferred, op.Name.Source)
 	}
 
 	events := linkOp(t, doc, "listEvents")
