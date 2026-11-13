@@ -4504,8 +4504,10 @@ value is on and whose `Disabled` infers none, and the text option `pagination-in
 `false` turns off (invariant 6). It reads each operation the client sends, a webhook or a callback
 being one it receives, once the registry is whole, and fills only an operation holding no
 `Pagination`, so it runs after every step that fills one the document declares and a declared walk
-always wins. A name is compared by its canonical words (`Naming.Canonical`), so `pageSize` and
-`page_size` are one name:
+always wins. A walk sends its operation again for each page, so it settles one only for a `GET` or
+a `QUERY`, the methods asking for no change on the server: a `POST` taking its path item's page
+parameters, as one creating a resource does, would create it once per page. A name is compared by
+its canonical words (`Naming.Canonical`), so `pageSize` and `page_size` are one name:
 
 1. **Where a walk continues** is a query parameter named `page` or `page_number`, under the `page`
    strategy; `offset`, under `offset`; `cursor`, under `cursor`; or `page_token`, `next_token` or
@@ -4536,8 +4538,9 @@ always wins. A name is compared by its canonical words (`Naming.Canonical`), so 
 What the policy fills is marked twice: `Pagination.Inferred` is set, and the operation's
 `Provenance.Inferred` names `pagination-inference`. An operation whose query parameters name where
 a walk continues and that the policy cannot settle gets no `Pagination`, never a guess, reported as
-an info `openapi/undecided-pagination` at the operation's declaration naming what stops it: two
-parameters naming a continuation or a page size, one of a type a walk does not send, no success
+an info `openapi/undecided-pagination` at the operation's declaration naming what stops it: a
+method other than `GET` and `QUERY`, two parameters naming a continuation or a page size, one of a
+type a walk does not send, no success
 response or one with no body, a body that is neither an object nor a list, items or a next cursor
 it names none or several of, or bodies holding the page at different members. A path item mounted
 twice is reported once, at the declaration both mounts share.
@@ -4547,6 +4550,7 @@ twice is reported once, at the declaration both mounts share.
 - Tests: `pagination.TestInfer_ReadsEachStrategy`, `pagination.TestInfer_MarksWhatItFills`,
   `pagination.TestInfer_LeavesWhatItCannotSettle`, `pagination.TestInfer_ReadsEveryResponse`,
   `pagination.TestInfer_LeavesAnOperationNamingNoWalk`,
+  `pagination.TestInfer_ReadsOnlyAMethodSafeToSendAgain`,
   `pagination.TestInfer_KeepsAPaginationTheOperationHolds`,
   `pagination.TestInfer_ReadsTheSameInEitherOrder`,
   `pagination.TestInfer_ReadsAMountedDeclarationForEachMount`,

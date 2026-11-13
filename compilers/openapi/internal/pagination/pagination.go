@@ -4,6 +4,7 @@
 package pagination
 
 import (
+	"fmt"
 	"slices"
 	"strconv"
 	"strings"
@@ -13,7 +14,7 @@ import (
 	"github.com/dexpace/morphic/ir"
 )
 
-// Infer fills the Pagination of each operation of doc the client sends that
+// Infer fills the Pagination of each GET or QUERY of doc the client sends that
 // holds none, where a query parameter names where its walk continues and its
 // success responses say where a page holds its items, and a cursor walk's next
 // cursor (docs/compilers/openapi.md#pagination-policy). What it fills is marked
@@ -48,6 +49,9 @@ func (r *reader) infer(op *ir.Operation) (why string, undecided bool) {
 	if !named {
 		return "", false
 	}
+	if m, ok := unsafeMethod(op); ok {
+		return fmt.Sprintf("the operation is a %s, and only a GET or a QUERY is safe to send again for each page", m), true
+	}
 	if why != "" {
 		return why, true
 	}
@@ -64,6 +68,20 @@ func (r *reader) infer(op *ir.Operation) (why string, undecided bool) {
 // or a callback, whose receiver walks no pages.
 func inbound(op *ir.Operation) bool {
 	return slices.ContainsFunc(op.Bindings.HTTP, func(b ir.HTTPBinding) bool { return b.Inbound != "" })
+}
+
+// unsafeMethod returns the method of op's first HTTP binding that a walk
+// cannot send again for each page: any but GET and QUERY, the methods asking
+// for no change on the server. A walk resends its operation, so a POST taking a
+// path item's page parameters, as one creating a resource can, would create it
+// once per page.
+func unsafeMethod(op *ir.Operation) (string, bool) {
+	for _, b := range op.Bindings.HTTP {
+		if b.Method != "GET" && b.Method != "QUERY" {
+			return b.Method, true
+		}
+	}
+	return "", false
 }
 
 // build is the Pagination a walk sending in reads off pg. A walk following a

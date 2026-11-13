@@ -307,6 +307,51 @@ webhooks:
 	}
 }
 
+// TestInfer_ReadsOnlyAMethodSafeToSendAgain pins that a walk is read only off
+// a GET or a QUERY, which a pager can send again for each page: a POST taking
+// its path item's page parameters, as one creating a resource does, is
+// reported and left with none, whatever its body holds.
+func TestInfer_ReadsOnlyAMethodSafeToSendAgain(t *testing.T) {
+	t.Parallel()
+	page := `{type: object, properties: {result: ` + stringList + `}}`
+	created := `{type: object, properties: {result: {type: object, properties: {tags: ` + stringList + `}}}}`
+	src := `openapi: 3.2.0
+info: {title: t, version: "1"}
+paths:
+  /things:
+    parameters: [{name: page, in: query, schema: {type: integer}}, {name: per_page, in: query, schema: {type: integer}}]
+    get:
+      operationId: listThings
+      responses: {"200": {description: ok, content: {application/json: {schema: ` + page + `}}}}
+    query:
+      operationId: queryThings
+      responses: {"200": {description: ok, content: {application/json: {schema: ` + page + `}}}}
+    post:
+      operationId: createThing
+      responses: {"200": {description: ok, content: {application/json: {schema: ` + created + `}}}}
+    additionalOperations:
+      SEARCH:
+        operationId: searchThings
+        responses: {"200": {description: ok, content: {application/json: {schema: ` + page + `}}}}
+`
+	doc, diags := compile(t, src, openapi.Options{})
+	openapitest.RequireNoErrorDiags(t, diags)
+	for name, want := range map[string]string{
+		"listThings":   "page cursor=page limit=per_page items=/result next=- count=- pages=- stop=[]",
+		"queryThings":  "page cursor=page limit=per_page items=/result next=- count=- pages=- stop=[]",
+		"createThing":  "-",
+		"searchThings": "-",
+	} {
+		assert.Equal(t, want, describe(doc, openapitest.FindOp(t, doc, name)), name)
+	}
+	got := undecided(diags)
+	slices.Sort(got)
+	assert.Equal(t, []string{
+		"no pagination is inferred: the operation is a POST, and only a GET or a QUERY is safe to send again for each page",
+		"no pagination is inferred: the operation is a SEARCH, and only a GET or a QUERY is safe to send again for each page",
+	}, got)
+}
+
 // TestInfer_KeepsAPaginationTheOperationHolds pins that inference fills only an
 // operation holding no Pagination: one a step before it filled from what the
 // document declares is kept whole, and nothing is marked or reported, so a
@@ -320,7 +365,7 @@ func TestInfer_KeepsAPaginationTheOperationHolds(t *testing.T) {
 		Services: []ir.Service{{Groups: []ir.OperationGroup{{Operations: []ir.Operation{{
 			ID:     "op/list",
 			Params: []ir.Parameter{{ID: "param/page", Name: ir.Naming{Source: "page", Canonical: "page"}, Type: ir.TypeRef{Target: "t/prim/integer"}}},
-			Bindings: ir.OpBindings{HTTP: []ir.HTTPBinding{{ParamBindings: []ir.HTTPParamBinding{
+			Bindings: ir.OpBindings{HTTP: []ir.HTTPBinding{{Method: "GET", ParamBindings: []ir.HTTPParamBinding{
 				{Param: "param/page", Location: ir.HTTPLocationQuery}}}}},
 			Responses:  []ir.Response{{Payload: &ir.Payload{Contents: []ir.Content{{MediaType: "application/json", Type: ir.TypeRef{Target: "t/list"}}}}}},
 			Pagination: declared,
