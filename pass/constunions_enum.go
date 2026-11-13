@@ -10,41 +10,50 @@ import (
 	"github.com/dexpace/morphic/ir"
 )
 
-// constEnum returns the closed Enum u is, where u is a closed union saying
-// nothing an Enum cannot (plainUnion) whose every variant names one string
-// (constValue), no value twice and all of one ValueType, and false otherwise.
-// The Enum keeps u's TypeCommon, so every reference to u reads it, and gives
-// each member the ID its value gives it beneath u, which needs u's namespace
+// unionValues are the values a union read as an Enum holds, in variant order:
+// each a member beside its key, or the values of a union branch of several
+// that only this union names, which its Enum reads in place. A branch of
+// several values named elsewhere too keeps the union, as an Enum would copy
+// the set into each union naming it, which a document can make grow with the
+// square of its size.
+type unionValues struct {
+	union *ir.Union
+	prim  ir.PrimKind
+	parts []valuePart
+	// n is how many values it holds, and keys the key of each, which the one
+	// union taking these values takes over (distinct).
+	n    int
+	keys map[string]bool
+}
+
+// valuePart is one value, a member holding what is said of it beside its key,
+// or, where of is set, the values of a union branch.
+type valuePart struct {
+	key    string
+	member ir.EnumMember
+	of     *unionValues
+}
+
+// valuesOf returns the values u holds, where u is a closed union saying
+// nothing an Enum cannot (plainUnion) whose every variant names values a
+// member can hold (appendValues), no value twice and all of one ValueType, and
+// false otherwise. Its members take IDs beneath u, which needs u's namespace
 // among spaces, those declared for members. Its values being distinct, an
 // instance matches one variant at most, so u's Exclusive says nothing lost.
-// typeAt reads the type a variant names.
-func constEnum(typeAt func(ir.TypeID) ir.TypeDef, spaces []string, u *ir.Union) (*ir.Enum, bool) {
+func (r *unionReading) valuesOf(u *ir.Union) (*unionValues, bool) {
 	space, spaced := ir.IDSpace(ir.IDKindType, string(u.ID))
-	if len(u.Variants) == 0 || !u.Closed || !plainUnion(*u) || !spaced || !slices.Contains(spaces, space) {
+	if len(u.Variants) == 0 || !u.Closed || !plainUnion(*u) || !spaced || !slices.Contains(r.spaces, space) {
 		return nil, false
 	}
-	members := make([]ir.EnumMember, 0, len(u.Variants))
-	var valueType ir.PrimKind
+	vs := &unionValues{union: u, parts: make([]valuePart, 0, len(u.Variants))}
 	for i, v := range u.Variants {
-		member, prim, ok := constValue(typeAt, v)
-		if !ok || (i > 0 && prim != valueType) {
+		parts, prim, ok := r.appendValues(vs.parts, v)
+		if !ok || (i > 0 && prim != vs.prim) {
 			return nil, false
 		}
-		valueType = prim
-		members = append(members, member)
+		vs.parts, vs.prim = parts, prim
 	}
-
-	placed := make(map[ir.EnumMemberID]bool, len(members))
-	for i := range members {
-		key, keyed := ir.EnumMemberKey(members[i].Value)
-		id, ok := ir.EnumMemberIDFor(u.ID, key, 1 /* occurrence */)
-		if !keyed || !ok || placed[id] {
-			return nil, false
-		}
-		placed[id] = true
-		members[i].ID = id
-	}
-	return &ir.Enum{TypeCommon: u.TypeCommon, ValueType: valueType, Members: members, Closed: true}, true
+	return vs, r.distinct(vs)
 }
 
 // plainUnion reports whether u says nothing beside its common part, its
@@ -56,59 +65,173 @@ func plainUnion(u ir.Union) bool {
 	return reflect.ValueOf(u).IsZero()
 }
 
-// constValue returns the member holding the one value the type v names holds,
-// with what v, that type and its member say of the value, and the primitive
-// typing it, where v says nothing but that (variantFacts) and the type is an
-// anonymous string Literal or closed Enum of one string saying nothing else
-// (typeValue, commonFacts). A type holding several values is a set of its own,
-// which the union keeps: an Enum would copy the set into each union naming it,
-// which a document can make grow with the square of its size.
-func constValue(typeAt func(ir.TypeID) ir.TypeDef, v ir.Variant) (ir.EnumMember, ir.PrimKind, bool) {
+// appendValues appends to parts the values v names, and returns them with the
+// primitive typing them, where v says nothing but what it says of a value
+// (variantFacts) and names an anonymous type of strings saying nothing else
+// (branchValues, commonFacts). One value takes what v and its type say of it.
+// Several are a set of their own, taken only where v is their type's one
+// reference and neither says anything of them all.
+func (r *unionReading) appendValues(parts []valuePart, v ir.Variant) ([]valuePart, ir.PrimKind, bool) {
 	said, plain := variantFacts(v)
 	if !plain {
-		return ir.EnumMember{}, "", false
+		return parts, "", false
 	}
-	member, prim, common, ok := typeValue(typeAt(v.Type.Target))
+	values, prim, common, ok := r.branchValues(v.Type.Target)
 	if !ok {
-		return ir.EnumMember{}, "", false
+		return parts, "", false
 	}
 	typed, plain := commonFacts(common)
 	if !plain {
-		return ir.EnumMember{}, "", false
+		return parts, "", false
+	}
+	if len(values) > 1 || values[0].of != nil {
+		if !r.refs.sole(v.Type.Target) || !said.none() || !typed.none() {
+			return parts, "", false
+		}
+		return append(parts, values...), prim, true
 	}
 	said, ok = said.with(typed)
 	if !ok {
-		return ir.EnumMember{}, "", false
+		return parts, "", false
 	}
-	said, ok = said.with(factsOf(member))
-	return said.onto(member), prim, ok
+	one := values[0]
+	said, ok = said.with(factsOf(one.member))
+	one.member = said.onto(one.member)
+	return append(parts, one), prim, ok
 }
 
-// typeValue returns the one value td holds as a member, its primitive and td's
-// common part, where td is a string Literal or a closed Enum of one string,
-// typed by a primitive, saying nothing else. A Literal's member is named by its
-// value, as an enum's members are; an Enum's is a copy of its own.
-func typeValue(td ir.TypeDef) (ir.EnumMember, ir.PrimKind, ir.TypeCommon, bool) {
-	switch t := td.(type) {
+// branchValues returns the values the type at id holds, its primitive and its
+// common part, where it is a string Literal or a closed Enum of strings, typed
+// by a primitive and saying nothing else, or a union read as an Enum. A
+// Literal's member is named by its value, as an enum's members are; an Enum's
+// are copies of its own; a union of one value gives its one member, and one of
+// several the values it holds.
+func (r *unionReading) branchValues(id ir.TypeID) ([]valuePart, ir.PrimKind, ir.TypeCommon, bool) {
+	switch t := r.types[id].(type) {
 	case *ir.Literal:
 		if t == nil || t.Value.Kind != ir.ValueString || t.ValueType == "" {
-			return ir.EnumMember{}, "", ir.TypeCommon{}, false
+			return nil, "", ir.TypeCommon{}, false
 		}
 		rest := *t
 		rest.TypeCommon, rest.Value, rest.ValueType = ir.TypeCommon{}, ir.Value{}, ""
-		return ir.EnumMember{Name: ir.NamingFor(t.Value.Str), Value: t.Value}, t.ValueType, t.TypeCommon,
-			reflect.ValueOf(rest).IsZero()
+		one := ir.EnumMember{Name: ir.NamingFor(t.Value.Str), Value: t.Value}
+		return []valuePart{{key: valueKey(t.Value), member: one}}, t.ValueType, t.TypeCommon, reflect.ValueOf(rest).IsZero()
 	case *ir.Enum:
-		if t == nil || !t.Closed || len(t.Members) != 1 || t.ValueType == "" ||
-			t.Members[0].Value.Kind != ir.ValueString {
-			return ir.EnumMember{}, "", ir.TypeCommon{}, false
+		if t == nil || !t.Closed || len(t.Members) == 0 || t.ValueType == "" ||
+			slices.ContainsFunc(t.Members, func(m ir.EnumMember) bool { return m.Value.Kind != ir.ValueString }) {
+			return nil, "", ir.TypeCommon{}, false
 		}
 		rest := *t
 		rest.TypeCommon, rest.ValueType, rest.Members, rest.Closed = ir.TypeCommon{}, "", nil, false
-		return t.Members[0], t.ValueType, t.TypeCommon, reflect.ValueOf(rest).IsZero()
+		values := make([]valuePart, len(t.Members))
+		for i, m := range t.Members {
+			values[i] = valuePart{key: valueKey(m.Value), member: m}
+		}
+		return values, t.ValueType, t.TypeCommon, reflect.ValueOf(rest).IsZero()
+	case *ir.Union:
+		vs, read := r.values[id]
+		switch {
+		case !read:
+			return nil, "", ir.TypeCommon{}, false
+		case vs.n == 1:
+			return vs.parts, vs.prim, vs.union.TypeCommon, true
+		default:
+			return []valuePart{{of: vs}}, vs.prim, vs.union.TypeCommon, true
+		}
 	default:
-		return ir.EnumMember{}, "", ir.TypeCommon{}, false
+		return nil, "", ir.TypeCommon{}, false
 	}
+}
+
+// valueKey returns the key of the string v (ir.EnumMemberKey), which every
+// string has.
+func valueKey(v ir.Value) string {
+	key, _ := ir.EnumMemberKey(v)
+	return key
+}
+
+// distinct reports whether vs holds no value twice, and records how many it
+// holds and their keys. It takes over the keys of the largest union whose
+// values it holds, which no other union takes, and adds the rest, so a key is
+// copied only into a set at least twice the size of the one it leaves, and a
+// chain of unions each naming the next costs the values it holds, not their
+// square.
+func (r *unionReading) distinct(vs *unionValues) bool {
+	var largest *unionValues
+	for _, p := range vs.parts {
+		if p.of != nil && (largest == nil || p.of.n > largest.n) {
+			largest = p.of
+		}
+	}
+	keys := map[string]bool{}
+	if largest != nil {
+		keys = largest.keys
+	}
+	for _, p := range vs.parts {
+		if !r.addPart(keys, p, largest) {
+			return false
+		}
+	}
+	vs.keys, vs.n = keys, len(keys)
+	return true
+}
+
+// addPart adds to keys the key of each value p holds, bar those of taken,
+// whose keys keys holds already, and reports whether none was there.
+func (r *unionReading) addPart(keys map[string]bool, p valuePart, taken *unionValues) bool {
+	switch p.of {
+	case nil:
+		return r.addKey(keys, p.key)
+	case taken:
+		return true
+	}
+	for key := range p.of.keys {
+		if !r.addKey(keys, key) {
+			return false
+		}
+	}
+	return true
+}
+
+// addKey adds key to keys and reports whether it was not there.
+func (r *unionReading) addKey(keys map[string]bool, key string) bool {
+	r.work++
+	if keys[key] {
+		return false
+	}
+	keys[key] = true
+	return true
+}
+
+// enum returns the Enum vs makes of its union: the union's common part, and a
+// member for each value in variant order, the values of each union it took
+// read in place, identified beneath the union. valuesOf took the union only
+// where its ID is well formed, so each member's ID derives.
+func (r *unionReading) enum(vs *unionValues) *ir.Enum {
+	type frame struct {
+		vs   *unionValues
+		next int
+	}
+	members := make([]ir.EnumMember, 0, vs.n)
+	stack := []frame{{vs: vs}}
+	for len(stack) > 0 {
+		top := &stack[len(stack)-1]
+		if top.next == len(top.vs.parts) {
+			stack = stack[:len(stack)-1]
+			continue
+		}
+		p := top.vs.parts[top.next]
+		top.next++
+		if p.of != nil {
+			stack = append(stack, frame{vs: p.of})
+			continue
+		}
+		r.work++
+		m := p.member
+		m.ID, _ = ir.EnumMemberIDFor(vs.union.ID, p.key, 1 /* occurrence */)
+		members = append(members, m)
+	}
+	return &ir.Enum{TypeCommon: vs.union.TypeCommon, ValueType: vs.prim, Members: members, Closed: true}
 }
 
 // commonFacts returns what c, the common part of a variant's type, says of a
@@ -176,6 +299,9 @@ func factsOf(m ir.EnumMember) memberFacts {
 	return memberFacts{docs: m.Docs, deprecation: m.Deprecation, availability: m.Availability,
 		examples: m.Examples, unmodeled: m.Unmodeled}
 }
+
+// none reports whether f says nothing.
+func (f memberFacts) none() bool { return reflect.ValueOf(f).IsZero() }
 
 // onto returns m holding f.
 func (f memberFacts) onto(m ir.EnumMember) ir.EnumMember {

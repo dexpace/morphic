@@ -15,18 +15,40 @@ components:
       anyOf:
         - {type: string, enum: [low], description: Low.}
         - {type: string, enum: [high]}
-    # A branch holding several values is a set of its own, which the enum of
-    # the union's values would copy, so the union stays.
+    # A branch holding several values that only this union names gives the
+    # enum of the union's values each of them.
     Tier:
       oneOf:
         - {const: free}
         - {type: string, enum: [pro, enterprise]}
+    # A branch holding several values that another schema names too is a set
+    # of its own, which the enum of either union's values would copy, so both
+    # unions stay.
+    Size:
+      anyOf:
+        - {type: string, enum: [s, m, l]}
+        - {const: xl}
+    Fit:
+      anyOf:
+        - $ref: '#/components/schemas/Size/anyOf/0'
+        - {const: one-size}
+    # A branch holding several values that says something of them all has no
+    # member to say it on, so the union stays.
+    Plan:
+      oneOf:
+        - {const: trial}
+        - {type: string, enum: [team, business], description: The paid plans.}
     # A union of one value is that value in another spelling, so a union naming
     # it is normalized with it, in one run.
     Direction:
       oneOf:
         - oneOf: [{const: up}]
         - {const: down}
+    # So is a union of several values that only this union names.
+    Compass:
+      oneOf:
+        - oneOf: [{const: north}, {const: south}]
+        - {const: east}
     # A branch naming a component is a type of its own, so the union stays.
     Shade:
       oneOf:

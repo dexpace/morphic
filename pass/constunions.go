@@ -5,7 +5,6 @@ package pass
 
 import (
 	"context"
-	"maps"
 	"slices"
 	"strings"
 
@@ -21,24 +20,35 @@ const ConstUnionsName = "const-unions"
 // them, at the union's own ID, so a consumer meets one closed set of strings in
 // one shape however the document spelled it
 // (docs/compilers/openapi.md#string-const-union). Each variant names one value,
-// a string Literal, a one-member Enum or a union of one value in turn, and
-// gives its member what it says of the value. Where the Enum could not say all
-// the union does, or a variant names several values, the union stays. It holds
-// no state, so it is safe for concurrent use.
+// which its member holds with what the variant says of it, or the values of a
+// branch only that variant names, which moves into the Enum whole. Where the
+// Enum could not say all the union does, the union stays. It holds no state,
+// so it is safe for concurrent use.
 type ConstUnions struct{}
 
 // Name returns [ConstUnionsName].
 func (ConstUnions) Name() string { return ConstUnionsName }
 
-// Run returns doc with each union constEnum reads as an Enum replaced by it,
-// and each type only those unions named, which nothing references once they
-// are gone, removed. It returns doc unchanged where no union is one, and with
-// nothing once ctx is done.
+// Run returns doc with each union read as an Enum replaced by it, and each
+// branch type those unions alone referenced removed. It returns doc unchanged
+// where no union is one, and with nothing once ctx is done. A document holding
+// no union that may be one costs no walk.
 func (ConstUnions) Run(ctx context.Context, doc *ir.Document) (*ir.Document, []ir.Diagnostic) {
 	if doc == nil {
 		return doc, nil
 	}
-	enums, branches := constEnums(doc)
+	refs := refsTo(doc.Types)
+	if len(refs.watched) == 0 {
+		return doc, nil
+	}
+	truncated, err := ir.WalkValuesContext(ctx, doc, ir.DocumentPath, refs)
+	if err != nil {
+		return doc, nil
+	}
+	if truncated {
+		refs = nil // the walk may have missed a reference, so it counted none
+	}
+	enums, dead := readingOf(doc, refs).rewrite()
 	if len(enums) == 0 || ctx.Err() != nil {
 		return doc, nil
 	}
@@ -46,64 +56,43 @@ func (ConstUnions) Run(ctx context.Context, doc *ir.Document) (*ir.Document, []i
 	for _, enum := range enums {
 		e.ReplaceType(enum)
 	}
-	out, diags := e.Finish()
-
-	dead, err := unreferenced(ctx, out, branches)
-	if err != nil {
-		return doc, nil
-	}
-	if len(dead) == 0 {
-		return out, diags
-	}
-	trim := ir.NewEditor(out)
 	for _, id := range dead {
-		trim.RemoveType(id)
+		e.RemoveType(id)
 	}
-	trimmed, more := trim.Finish()
-	return trimmed, append(diags, more...)
+	return e.Finish()
 }
 
-// constEnums returns, in ID order, the Enum of each union of doc that
-// constEnum reads as one, and the anonymous types their variants name, which
-// the Enums hold the values of. A union off its own key is left to validate.
-func constEnums(doc *ir.Document) ([]*ir.Enum, []ir.TypeID) {
-	r := readingOf(doc)
-	enums := slices.SortedFunc(maps.Values(r.enums), func(a, b *ir.Enum) int {
-		return strings.Compare(string(a.ID), string(b.ID))
-	})
-	return enums, slices.Sorted(maps.Keys(r.named))
-}
-
-// readingOf returns the reading of each union of doc.
-func readingOf(doc *ir.Document) *unionReading {
-	r := &unionReading{types: doc.Types, spaces: doc.IDSpaces[ir.IDKindEnumMember],
-		enums: map[ir.TypeID]*ir.Enum{}, named: map[ir.TypeID]bool{},
-		opened: map[ir.TypeID]bool{}, read: map[ir.TypeID]bool{}}
+// readingOf returns the reading of each union of doc, taking a branch of
+// several values only where refs shows the union naming it is its one
+// reference, and none where refs is nil.
+func readingOf(doc *ir.Document, refs *typeRefs) *unionReading {
+	r := &unionReading{types: doc.Types, spaces: doc.IDSpaces[ir.IDKindEnumMember], refs: refs,
+		values: map[ir.TypeID]*unionValues{}, opened: map[ir.TypeID]bool{}, read: map[ir.TypeID]bool{}}
 	for id := range doc.Types {
 		r.settle(id)
 	}
 	return r
 }
 
-// unionReading reads each union of a registry as constEnum does, after the
-// unions its variants name, each as the Enum it becomes: a union naming one is
-// rewritten in the run that rewrites it, where constEnum reads it as an Enum,
-// so a second run finds none left (docs/architecture.md §2.2).
+// unionReading reads each union of a registry as valuesOf does, after the
+// unions its variants name, each as the values it holds: a union naming one is
+// rewritten in the run that rewrites it, so a second run finds none left
+// (docs/architecture.md §2.2).
 type unionReading struct {
 	types  ir.TypeRegistry
 	spaces []string
-	// enums holds the Enum each union read as one becomes, and named the types
-	// those unions' variants name.
-	enums map[ir.TypeID]*ir.Enum
-	named map[ir.TypeID]bool
+	refs   *typeRefs
+	// values holds the values of each union read as an Enum.
+	values map[ir.TypeID]*unionValues
 	// opened holds each union whose variants were queued to be read first, and
 	// read each union read.
 	opened, read map[ir.TypeID]bool
 	// stack holds the IDs settle has yet to read.
 	stack []ir.TypeID
-	// reads counts the unions read, each once however many name it, which is
-	// what a reading costs.
-	reads int
+	// reads counts the unions read, each once however many name it, and work
+	// each key distinct sets and each member enum builds: what a reading
+	// costs.
+	reads, work int
 }
 
 // settle reads the union at root, if it is one keyed at its own ID and not
@@ -126,21 +115,11 @@ func (r *unionReading) settle(root ir.TypeID) {
 		default:
 			r.stack = r.stack[:len(r.stack)-1]
 			r.read[id] = true
-			r.readUnion(u)
+			r.reads++
+			if vs, ok := r.valuesOf(u); ok {
+				r.values[id] = vs
+			}
 		}
-	}
-}
-
-// readUnion records the Enum u is, where constEnum reads it as one.
-func (r *unionReading) readUnion(u *ir.Union) {
-	r.reads++
-	enum, ok := constEnum(r.typeAt, r.spaces, u)
-	if !ok {
-		return
-	}
-	r.enums[u.ID] = enum
-	for _, v := range u.Variants {
-		r.named[v.Type.Target] = true
 	}
 }
 
@@ -153,11 +132,33 @@ func (r *unionReading) union(id ir.TypeID) *ir.Union {
 	return u
 }
 
-// typeAt returns the type at id as read so far: the Enum a union read as one
-// becomes, and otherwise the registry's entry.
-func (r *unionReading) typeAt(id ir.TypeID) ir.TypeDef {
-	if enum, read := r.enums[id]; read {
-		return enum
+// rewrite returns, in ID order, the Enum each union read as one becomes, and
+// the branch types the rewrite leaves unreferenced, which it removes instead:
+// each type every reference to which is a variant of a union read as an Enum.
+// Those references go with the unions, and the rewrite moves every other a
+// branch or a variant holds onto a member rather than dropping it, so a type
+// one of them names stays. A union read as an Enum that goes too gave its
+// values to the union taking them, so its own Enum is never built.
+func (r *unionReading) rewrite() ([]*ir.Enum, []ir.TypeID) {
+	named := map[ir.TypeID]int{}
+	for _, vs := range r.values {
+		for _, v := range vs.union.Variants {
+			named[v.Type.Target]++
+		}
 	}
-	return r.types[id]
+	var dead []ir.TypeID
+	for id, variants := range named {
+		if r.refs.onlyVariants(id, variants) {
+			dead = append(dead, id)
+		}
+	}
+	slices.Sort(dead)
+	enums := make([]*ir.Enum, 0, len(r.values))
+	for id, vs := range r.values {
+		if _, gone := slices.BinarySearch(dead, id); !gone {
+			enums = append(enums, r.enum(vs))
+		}
+	}
+	slices.SortFunc(enums, func(a, b *ir.Enum) int { return strings.Compare(string(a.ID), string(b.ID)) })
+	return enums, dead
 }

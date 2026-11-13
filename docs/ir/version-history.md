@@ -470,3 +470,11 @@ it sees. Changes made together in one bump are listed together under it.
   headers](./responses.md#prefix-headers)). `irverify` holds such a header to a map type and no
   wire name, and `irfacts.CorrelationVersion` moved to 3, keying it by its prefix. No compiler
   fills it yet. A consumer pinned to 0.45.0 refuses a document with a prefix header.
+- **0.47.0** — no shape change. The engine's `const-unions` pass rewrites a closed union of strings
+  whose variant names an anonymous branch of several values, a closed `Enum` of strings or a union of
+  them, where that variant is the branch's one reference and neither says anything of all its
+  values: the branch's values become members of the union's `Enum`, each holding what its own
+  member held, and the branch type goes
+  ([`string-const-union`](../compilers/openapi.md#string-const-union)). A consumer pinned to
+  0.46.0 that read such a union as a `Union` finds an `Enum` there, and no longer finds the branch
+  type.

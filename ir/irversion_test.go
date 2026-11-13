@@ -117,6 +117,9 @@ var generations = []generation{
 		names: "5506159ecd463736fdbbad0c4cabfad3fd50b48509b46fbea55862e82eca9675"},
 	{version: "0.46.0", format: 1, shape: "579d8cf68b18eb8fb9e58bc0baf0f89dd640a8f916a95f473a407d0513b2f81f",
 		names: "5506159ecd463736fdbbad0c4cabfad3fd50b48509b46fbea55862e82eca9675"},
+	{version: "0.47.0", format: 1, shape: "579d8cf68b18eb8fb9e58bc0baf0f89dd640a8f916a95f473a407d0513b2f81f",
+		names:   "5506159ecd463736fdbbad0c4cabfad3fd50b48509b46fbea55862e82eca9675",
+		meaning: "a closed union of strings whose variant names an anonymous branch of several values only it references is the closed Enum of its values too, the branch gone"},
 }
 
 // shapeGolden holds the description the newest row's shape hashes, so a change
