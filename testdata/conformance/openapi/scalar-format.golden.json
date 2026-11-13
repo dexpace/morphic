@@ -109,6 +109,56 @@
         }
       }
     },
+    "t/anon/components/schemas/Holder/properties/issuedAt": {
+      "kind": "scalar",
+      "id": "t/anon/components/schemas/Holder/properties/issuedAt",
+      "name": {
+        "hint": "issued_at"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Holder/properties/issuedAt"
+      },
+      "base": {
+        "target": "t/prim/datetime_offset",
+        "nullable": false
+      },
+      "encoding": {
+        "name": "unixTimestamp",
+        "wireType": {
+          "target": "t/prim/string",
+          "nullable": false
+        }
+      }
+    },
+    "t/anon/components/schemas/Holder/properties/modified": {
+      "kind": "scalar",
+      "id": "t/anon/components/schemas/Holder/properties/modified",
+      "name": {
+        "hint": "modified"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Holder/properties/modified"
+      },
+      "base": {
+        "target": "t/prim/datetime_offset",
+        "nullable": false
+      },
+      "constraints": {
+        "minLength": 29,
+        "uniqueItems": false
+      },
+      "encoding": {
+        "name": "http-date"
+      }
+    },
     "t/anon/components/schemas/Holder/properties/opens": {
       "kind": "scalar",
       "id": "t/anon/components/schemas/Holder/properties/opens",
@@ -149,6 +199,85 @@
       },
       "encoding": {
         "name": "string",
+        "wireType": {
+          "target": "t/prim/string",
+          "nullable": false
+        }
+      }
+    },
+    "t/anon/components/schemas/Holder/properties/resetAt": {
+      "kind": "scalar",
+      "id": "t/anon/components/schemas/Holder/properties/resetAt",
+      "name": {
+        "hint": "reset_at"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Holder/properties/resetAt"
+      },
+      "base": {
+        "target": "t/prim/datetime_offset",
+        "nullable": false
+      },
+      "constraints": {
+        "min": "0",
+        "uniqueItems": false
+      },
+      "encoding": {
+        "name": "unixTimestamp",
+        "wireType": {
+          "target": "t/prim/integer",
+          "nullable": false
+        }
+      }
+    },
+    "t/anon/components/schemas/Holder/properties/seenAt": {
+      "kind": "scalar",
+      "id": "t/anon/components/schemas/Holder/properties/seenAt",
+      "name": {
+        "hint": "seen_at"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Holder/properties/seenAt"
+      },
+      "base": {
+        "target": "t/prim/datetime_offset",
+        "nullable": false
+      },
+      "encoding": {
+        "name": "unixTimestamp",
+        "wireType": {
+          "target": "t/prim/number",
+          "nullable": false
+        }
+      }
+    },
+    "t/anon/components/schemas/Holder/properties/thumbprint": {
+      "kind": "scalar",
+      "id": "t/anon/components/schemas/Holder/properties/thumbprint",
+      "name": {
+        "hint": "thumbprint"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Holder/properties/thumbprint"
+      },
+      "base": {
+        "target": "t/prim/bytes",
+        "nullable": false
+      },
+      "encoding": {
+        "name": "base64url",
         "wireType": {
           "target": "t/prim/string",
           "nullable": false
@@ -788,11 +917,166 @@
             "source": 0,
             "pointer": "/components/schemas/Holder/properties/price"
           }
+        },
+        {
+          "id": "p/openapi/components/schemas/Holder/properties/thumbprint",
+          "name": {
+            "source": "thumbprint",
+            "canonical": "thumbprint"
+          },
+          "wireName": "thumbprint",
+          "type": {
+            "target": "t/anon/components/schemas/Holder/properties/thumbprint",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Holder/properties/thumbprint"
+          }
+        },
+        {
+          "id": "p/openapi/components/schemas/Holder/properties/modified",
+          "name": {
+            "source": "modified",
+            "canonical": "modified"
+          },
+          "wireName": "modified",
+          "type": {
+            "target": "t/anon/components/schemas/Holder/properties/modified",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "constraints": {
+            "minLength": 29,
+            "uniqueItems": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Holder/properties/modified"
+          }
+        },
+        {
+          "id": "p/openapi/components/schemas/Holder/properties/resetAt",
+          "name": {
+            "source": "resetAt",
+            "canonical": "reset_at"
+          },
+          "wireName": "resetAt",
+          "type": {
+            "target": "t/anon/components/schemas/Holder/properties/resetAt",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "constraints": {
+            "min": "0",
+            "uniqueItems": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Holder/properties/resetAt"
+          }
+        },
+        {
+          "id": "p/openapi/components/schemas/Holder/properties/seenAt",
+          "name": {
+            "source": "seenAt",
+            "canonical": "seen_at"
+          },
+          "wireName": "seenAt",
+          "type": {
+            "target": "t/anon/components/schemas/Holder/properties/seenAt",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Holder/properties/seenAt"
+          }
+        },
+        {
+          "id": "p/openapi/components/schemas/Holder/properties/issuedAt",
+          "name": {
+            "source": "issuedAt",
+            "canonical": "issued_at"
+          },
+          "wireName": "issuedAt",
+          "type": {
+            "target": "t/anon/components/schemas/Holder/properties/issuedAt",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Holder/properties/issuedAt"
+          }
         }
       ],
       "abstract": false,
       "positional": false,
       "inputOnly": false
+    },
+    "t/prim/bytes": {
+      "kind": "primitive",
+      "id": "t/prim/bytes",
+      "name": {},
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": -1
+      },
+      "prim": "bytes"
     },
     "t/prim/datetime": {
       "kind": "primitive",
@@ -938,6 +1222,18 @@
       },
       "prim": "integer"
     },
+    "t/prim/number": {
+      "kind": "primitive",
+      "id": "t/prim/number",
+      "name": {},
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": -1
+      },
+      "prim": "number"
+    },
     "t/prim/string": {
       "kind": "primitive",
       "id": "t/prim/string",
@@ -1028,7 +1324,7 @@
     {
       "format": "openapi@3.1",
       "path": "scalar-format.yaml",
-      "hash": "19b77acfaba476e8dd07a26ceff1a9664e298475f5b73b0ed6ea5b3cf6eb3f92"
+      "hash": "c97786cf3cec04c81501ef3f27461ba63f5a2d1c8bb74efd4b58e15174dc3a2e"
     }
   ]
 }

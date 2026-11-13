@@ -250,16 +250,18 @@ value as its primitive's default row does unless the target's lowering table say
   date (Go 1.27, JDK 25). A header list of such dates splits around the comma each holds ([values as
   text](../refine/text.md#reading-a-text)).
 - **No row.** The IR's `unixTimestamp` and `seconds` have none yet: TypeSpec writes whole seconds in
-  an integer type and Smithy a number with a fraction, no compiler lowers either, and what each puts
-  in `WireType` decides what a row writes. Until one does, the lookup above types such a value as
-  its `WireType`, a `datetime_offset` under `unixTimestamp` as the `int64` of seconds its caller
-  fills, which is written right. A number under `string`, written as the text of its value, has none
-  either (#1852), so an `int64` carried as text is a string its caller fills, written as given. A
-  value so typed is checked against none of its constraints, which speak of the value and not of its
-  wire form, as a mapped type's are not. `varint`, `zigzag` and `fixed` name a binary layout, which
-  no JSON value or text shows, so the number's own row writes one. A row added for an encoding at a
-  later options version types its values anew, which is that version's break to state ([target
-  options](options.md)).
+  an integer type and Smithy a number with a fraction, the OpenAPI compiler lowers
+  `format: unixtime` to `unixTimestamp` with the JSON type it is written on, `integer`, `number` or
+  `string`, as its `WireType` ([`numeric-formats`](../../compilers/openapi.md#numeric-formats)),
+  and what each puts in `WireType` decides what a row writes. Until one lands, the lookup above
+  types such a value as its `WireType`, a `datetime_offset` under `unixTimestamp` as the `int64`,
+  `integer`, `number` or `string` of seconds its caller fills, which is written right. A number
+  under `string`, written as the text of its value, has none either (#1852), so an `int64` carried
+  as text is a string its caller fills, written as given. A value so typed is checked against none
+  of its constraints, which speak of the value and not of its wire form, as a mapped type's are not.
+  `varint`, `zigzag` and `fixed` name a binary layout, which no JSON value or text shows, so the
+  number's own row writes one. A row added for an encoding at a later options version types its
+  values anew, which is that version's break to state ([target options](options.md)).
 - **A string under an encoding** naming no `WireType` is the encoded text already, as OpenAPI's
   `contentEncoding` beside no `format` lowers it
   ([`content-vocabulary`](../../compilers/openapi.md#content-vocabulary)), so its key's row never

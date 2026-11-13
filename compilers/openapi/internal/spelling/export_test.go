@@ -6,5 +6,8 @@ package spelling
 // FormatTable is formatTable, for the external tests.
 var FormatTable = formatTable
 
+// EncodedTable is encodedTable, for the external tests.
+var EncodedTable = encodedTable
+
 // Narrows is narrows, for the external tests.
 var Narrows = narrows
