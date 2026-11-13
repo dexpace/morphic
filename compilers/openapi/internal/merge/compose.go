@@ -126,10 +126,10 @@ func inHierarchy(reg ir.TypeRegistry, node ir.TypeDef) bool {
 	return false
 }
 
-// declaresDiscriminator reports whether td, no nil, holds a discriminator its
-// source declares: a Model's, or a Union's, as a union written with structure
-// holds the one written with it. One a policy inferred is no source's, so it
-// makes no hierarchy, as the election over the source reads none.
+// declaresDiscriminator reports whether td, which is not nil, holds a
+// discriminator its source declares: a Model's, or a Union's, as a union written
+// with structure holds the one written with it. One a policy inferred is no
+// source's, so it makes no hierarchy, as the election over the source reads none.
 func declaresDiscriminator(td ir.TypeDef) bool {
 	var d *ir.Discriminator
 	switch n := td.(type) {
