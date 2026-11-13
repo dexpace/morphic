@@ -443,8 +443,9 @@ func TestInfer_LeavesWhatAnExtensionSpeaksOf(t *testing.T) {
 		next  = `{type: object, properties: {data: ` + stringList + `, next: `
 	)
 	// Each case's last three fields are what it compiles to with every policy
-	// on, with promotion off and with inference off: the strategy, the marker
-	// and the codes reported at its path.
+	// on, with promotion off or mapping no pagination target, and with
+	// inference off: the strategy, the marker and the codes reported at its
+	// path.
 	cases := []struct{ name, ext, params, headers, body, on, noPromotion, noInference string }{
 		{"filled", fern + `{cursor: $request.page_token, next_cursor: $response.next_page_token, results: $response.data}`,
 			`{name: page_token, in: query, schema: {type: string}}, {name: per_page, in: query, schema: {type: integer}}`,
@@ -473,6 +474,8 @@ func TestInfer_LeavesWhatAnExtensionSpeaksOf(t *testing.T) {
 	policies := map[string]openapi.Options{
 		"on":          {},
 		"noPromotion": {Promotions: openapi.ExtensionPromotions{Disabled: true}},
+		"noPageTarget": {Promotions: openapi.ExtensionPromotions{Targets: map[openapi.ExtensionTarget][]openapi.ExtensionSource{
+			openapi.TargetDeprecation: {{Key: "x-deprecated"}}}}},
 		"noInference": {PaginationInference: openapi.PaginationInference{Disabled: true}},
 		"neither": {Promotions: openapi.ExtensionPromotions{Disabled: true},
 			PaginationInference: openapi.PaginationInference{Disabled: true}},
@@ -492,8 +495,8 @@ func TestInfer_LeavesWhatAnExtensionSpeaksOf(t *testing.T) {
 					strings.Join(paths, "")+"components: {schemas: {Cursor: {type: string, "+mark+"next_cursor_field}}}}\n", opts)
 				got := spoken(t, doc, diags)
 				for _, tc := range cases {
-					want := map[string]string{"on": tc.on, "noPromotion": tc.noPromotion, "noInference": tc.noInference,
-						"neither": "- - []"}[policy]
+					want := map[string]string{"on": tc.on, "noPromotion": tc.noPromotion, "noPageTarget": tc.noPromotion,
+						"noInference": tc.noInference, "neither": "- - []"}[policy]
 					assert.Equal(t, want, got[tc.name], tc.name)
 				}
 			})
