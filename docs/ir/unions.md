@@ -76,6 +76,17 @@ validation does. A compiler policy may read such a tag in, as a `Discriminator` 
 name its variant. The mark keeps the reading auditable: a consumer taking only what the source
 declares reads such a union as untagged, which validation still decodes.
 
+## A type listed twice
+
+Two variants naming one type are told apart by nothing in a value of it, save the key of a
+key-tagged union: a payload tag routes to a type, which both variants name. Such a value matches
+both, so an exclusive union refuses every value of the type, and in an inclusive one neither variant
+admits a value the other does not, a `null` aside where only one is nullable. A source can write
+either, as `oneOf: [{$ref: A}, {$ref: A}]` or an `anyOf` listing `{type: string}` twice, so the IR
+keeps both variants, as it keeps every branch, and `pass.Validate` reports the later with
+`pass/union-repeated-variant`: a warning where the union is exclusive, which then admits less than
+the source seems to say, and an info where it is not.
+
 ## Open unions
 
 `Closed` says whether a payload can hold a variant the union does not list, as `Enum.Closed` says
