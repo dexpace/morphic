@@ -61,8 +61,8 @@ var callShapeBaseline = map[string]map[string]int{
 		"engine/reader": 6,
 	},
 	"compilers/openapi/internal/lowering": {
-		// Promoter.Referent and Remembered each call the function they are handed
-		// before they return: immediate callbacks.
+		// Promoter.Referent, Remembered and Settled each call the function they
+		// are handed before they return: immediate callbacks.
 		"compilers/openapi/internal/schema": 14,
 	},
 	"compilers/openapi/internal/merge": {

@@ -18,26 +18,26 @@ type readKey struct {
 	object bool
 }
 
-// tagReadingsKey keys a run's tagReadings (lowering.Remembered).
-type tagReadingsKey struct{}
-
-// tagReadings remembers what the policy reads of a settled registry, so a type
-// many settlements ask about is read once a run. What it reads, a type's
-// values, a union's variants and closure, a model's members and composition,
-// no settlement rewrites. One swapping a model for its map swaps one holding
-// no member and composing nothing, which admits any value either way, so a
-// reading taken before the swap answers as one taken after.
+// tagReadings remembers what the policy reads of a settled registry
+// (lowering.Settled), so a type many settlements ask about is read once a run.
+// It reads a type's values, an alias's base, a union's variants and closure,
+// and a model's members and composition. Of the settlements, only a fold
+// changes any of that, a member's type, and a fold is a completion: it runs
+// before every reading, and reports one stored before it as a compiler bug
+// (modelFields.Settle). A model swapped for its map (besideUnionDiscriminator)
+// holds no member and composes nothing, admitting any value either way.
 type tagReadings struct {
 	read map[readKey]tagSet
 }
 
-// readingsOf returns the run's tagReadings. A settlement reads the registry
-// once every lowering has returned, so every copy of c shares one.
+// readingsOf returns the run's tagReadings, which every copy of c shares.
 func readingsOf(c lowering.Ctx) *tagReadings {
-	return lowering.Remembered(c, tagReadingsKey{}, func() *tagReadings {
-		return &tagReadings{read: map[readKey]tagSet{}}
-	})
+	return lowering.Settled(c, func() *tagReadings { return &tagReadings{read: map[readKey]tagSet{}} })
 }
+
+// stored reports whether r holds a reading, which no settlement rewriting
+// what one reads may follow (modelFields.Settle).
+func (r *tagReadings) stored() bool { return len(r.read) > 0 }
 
 // object returns what an instance of the object flat flattens holds at the
 // property name: what its member admits (member, or any value where ok is

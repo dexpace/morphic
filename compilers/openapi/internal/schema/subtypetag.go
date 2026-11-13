@@ -30,9 +30,9 @@ func deferSubtypeTag(c lowering.Ctx, ts *compile.Types, tag subtypeTag, id ir.Ty
 }
 
 // subtypeTagReading settles the tag of the subtype id under the
-// discriminator-inference policy. What it reads no other settlement changes
-// (tagReadings), so the settling order changes no answer. One is deferred per
-// subtype, and the types they share are read once a run.
+// discriminator-inference policy. What it reads no settlement after it
+// changes (tagReadings), so the settling order changes no answer. One is
+// deferred per subtype, and the types they share are read once a run.
 type subtypeTagReading struct {
 	c        lowering.Ctx
 	id       ir.TypeID

@@ -2598,10 +2598,12 @@ So a body beside a union that redeclares the tag as a string, which its composed
 leaves each branch's pin in force ([`union-beside-structure`](#union-beside-structure)), and a tag
 written as a `oneOf` of `const`s reads as one written as an `enum`, the set
 [`string-const-union`](#string-const-union) later normalizes it to. A variant pins a property where
-it admits one or more strings and nothing else. The reading waits for every node to be interned
-(`compile.Settlement`), since a variant lowered after its union has no node while the union lowers,
-and what it finds no other settlement changes, whichever settles first; each type is read once a
-run, however many unions and subtypes ask. Two unions and a subtype meet it:
+it admits one or more strings and nothing else. The reading is a settlement (`compile.Settlement`):
+it waits for every node to be interned, since a variant lowered after its union has no node while
+the union lowers, and for every redeclared field to fold
+([`allof-redeclared-property`](#allof-redeclared-property)). No settlement after it changes what it
+finds, whichever settles first, and each type is read once a run, however many unions and subtypes
+ask. Two unions and a subtype meet it:
 
 1. A `discriminator` declaring no `mapping` routes each variant by the name of the component its
    `$ref` branch names, OpenAPI's implicit mapping, which reaches no inline variant, names a tag a
@@ -2648,6 +2650,8 @@ run, however many unions and subtypes ask. Two unions and a subtype meet it:
   `schema.TestTagReadings_SweepsACycleAtMostTheBound`,
   `schema.TestTagReadings_SweepsACycleUntilItsNullsSettle`,
   `schema.TestTagReadings_ReadsASharedTypeOnce`, `schema.TestThroughAliases_ReadsAtMostTheBound`,
+  `schema.TestTagReadings_ReadAModelAsTheMapItSwapsFor`,
+  `schema.TestModelFields_ReportsAFoldFollowingAStoredReading`,
   `schema.TestDiscriminatorInference_ReadsTheTagASubtypeAdmits`,
   `schema.TestDiscriminatorInference_ReadsAUnionItsSubtypesCompose`,
   `schema.TestSubtypeTagReading_ReportsWhatItCannotSettle`,

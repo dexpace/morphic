@@ -83,6 +83,10 @@ func TestDiscriminatorInference_MapsAnUnmappedDiscriminator(t *testing.T) {
 				"    Shapes: {oneOf: [" + inlinePin("{const: circle}") + ", " + inlinePin("{const: square}") + "]}\n",
 			map[string]string{"circle": "Shaped", "square": "Shaped", "text": "Text"},
 			`"circle", "square" where it routes by "Shaped"`},
+		{"a tag a fold narrows", "      oneOf: [{$ref: '#/components/schemas/Folded'}, {$ref: '#/components/schemas/Text'}]\n",
+			"    Folded: {type: object, required: [type], allOf: [{type: object, properties: {type: {type: string}}}], " +
+				"properties: {type: {const: folded}}}\n",
+			map[string]string{"folded": "Folded", "text": "Text"}, `"folded" where it routes by "Folded"`},
 		{"an inline variant pinning the empty string", "      oneOf: [{$ref: '#/components/schemas/json'}, " +
 			inlinePin("{const: ''}") + "]\n", "    json: {type: object, required: [type], properties: {type: {const: json}}}\n",
 			map[string]string{"json": "json", "": "U/oneOf/1"}, `"" where it names none`},

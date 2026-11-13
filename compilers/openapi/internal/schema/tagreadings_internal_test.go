@@ -7,10 +7,14 @@ import (
 	"fmt"
 	"maps"
 	"math"
+	"slices"
 	"testing"
 
+	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
+	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering/loweringtest"
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
@@ -444,4 +448,65 @@ func TestReadingsOf_SharesOneStorePerRun(t *testing.T) {
 	first, again := readingsOf(c), readingsOf(c)
 	assert.Same(t, first, again)
 	assert.NotSame(t, readingsOf(c), readingsOf(loweringtest.Context(t, openapitest.EmptySpec, lowering.Policy{})))
+}
+
+// TestModelFields_ReportsAFoldFollowingAStoredReading pins the order the tag
+// readings rest on (tagReadings): a fold, which rewrites a member's type, runs
+// before any reading is stored, and reports nothing. A reading stored ahead of
+// it, as one would be were the fold deferred behind a union's tags, leaves
+// the fold reported as a compiler bug at its model, and the fold still taken.
+func TestModelFields_ReportsAFoldFollowingAStoredReading(t *testing.T) {
+	t.Parallel()
+	const folded = "/components/schemas/Folded"
+	spec := openapitest.ComponentSpecVer("3.1.0", "    Folded:\n      type: object\n"+
+		"      allOf: [{type: object, properties: {kind: {type: string}}}]\n"+
+		"      properties: {kind: {const: folded}}\n")
+	models := make([]ir.TypeDef, 0, 2)
+	for _, early := range []bool{false, true} {
+		l, loaded := LoweredFor(t, spec)
+		require.Empty(t, loaded)
+		l.Diags.AppendAll(LowerComponentSchemas(t.Context(), l.Ctx, l.Types))
+		if early {
+			readingsOf(l.Ctx).refOf(ir.TypeRegistry{}, to("t/elsewhere"))
+		}
+		doc := l.Document(t)
+		diags := l.Diags.List()
+		assert.Equal(t, early, openapitest.HasDiagCodeAt(diags, diag.InternalInvariant, folded), "early: %v", early)
+		openapitest.RequireNoErrorDiags(t, slices.DeleteFunc(diags, func(d ir.Diagnostic) bool {
+			return d.Code == diag.InternalInvariant && d.Provenance.Pointer == folded
+		}))
+		models = append(models, doc.Types["t/openapi"+folded])
+	}
+	assert.Empty(t, cmp.Diff(models[0], models[1]), "the fold is taken either way")
+}
+
+// TestTagReadings_ReadAModelAsTheMapItSwapsFor pins what lets a reading stored
+// before a settlement swaps a model for its map (besideUnionDiscriminator)
+// answer as one taken after: a model holding only a catch-all, of a pinned
+// type, admits any value at a property, as a variant or a conjunct, and any
+// string as a value, as its map does.
+func TestTagReadings_ReadAModelAsTheMapItSwapsFor(t *testing.T) {
+	t.Parallel()
+	reg := ir.TypeRegistry{
+		"t/lit": lit("t/lit", "x"),
+		"t/m":   &ir.Model{ID: "t/m", AdditionalProps: &ir.AdditionalProps{Value: &ir.TypeRef{Target: "t/lit"}}},
+		"t/u":   unionOf("t/u", true, to("t/m")),
+		"t/s":   &ir.Model{ID: "t/s", Mixins: []ir.TypeRef{to("t/u"), to("t/m")}},
+	}
+	read := func() []tagSet {
+		r := newReadings(t)
+		flat := ir.FlattenedProperties(reg, "t/s")
+		p, declared := flatMember(flat, "kind")
+		return []tagSet{r.object(reg, flat, p, declared, "kind"), valueOf(r, reg, to("t/m"))}
+	}
+	before := read()
+	m, ok := reg["t/m"].(*ir.Model)
+	require.True(t, ok)
+	swapped, isMap := ir.AsMap(m)
+	require.True(t, isMap, "the model is its map")
+	reg["t/m"] = swapped
+
+	sets := cmp.AllowUnexported(tagSet{})
+	assert.Empty(t, cmp.Diff([]tagSet{anything(), anyString()}, before, sets))
+	assert.Empty(t, cmp.Diff(before, read(), sets), "the swap changes no reading")
 }

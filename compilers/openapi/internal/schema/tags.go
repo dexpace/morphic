@@ -49,8 +49,9 @@ func deferUnionTags(c lowering.Ctx, ts *compile.Types, s *oas3.Schema, id ir.Typ
 // unionTags settles the tag of the union id under the discriminator-inference
 // policy, from the strings each variant admits for its tag property: a mapping
 // for the discriminator written at at, which declares none, or, where at is
-// empty, a discriminator for a union declaring none. What it reads no other
-// settlement changes (tagReadings), so the settling order changes no answer.
+// empty, a discriminator for a union declaring none. What it reads no
+// settlement after it changes (tagReadings), so the settling order changes no
+// answer.
 type unionTags struct {
 	c        lowering.Ctx
 	id       ir.TypeID

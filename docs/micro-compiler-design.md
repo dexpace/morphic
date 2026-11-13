@@ -318,6 +318,15 @@ the document rather than assemble one from whichever copies came first
 (GitHub #1430, #1470). Of what copies of `Ctx` share, it is the one that changes what
 another lowering reads.
 
+*Later:* a memo `Ctx` holds reads the registry rather than the documents. The
+discriminator-inference policy's settlements share one store of what they read of a union, an
+enum or a model (`lowering.Settled`, GitHub #1712), so a type many of them ask about is read
+once a run. Unlike an answer `Remembered` keeps, which no order can make stale, a reading of the
+registry holds only while no settlement after it rewrites what it read, so the store is held apart
+from those answers. Of the settlements, only the fold of a redeclared field changes what a reading
+answers; it runs as a completion, before every reading, and reports a compiler bug where it finds
+one stored.
+
 *Later:* the `operationIDs` row did not survive either. The operation walk recurses
 through callbacks, each a path item with operations of its own, and whether an
 operationId is unique is a question about every operation the service mounts, callbacks
