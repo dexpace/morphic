@@ -58,10 +58,11 @@ type KeyInputs = keyInputs
 // DeriveKey exposes deriveKey.
 func DeriveKey(in KeyInputs) cache.Key { return deriveKey(in) }
 
-// FailWorkingDirectory makes e unable to name its working directory, which a
-// test cannot rely on a system to refuse: removing it leaves some still naming it.
-func FailWorkingDirectory(e *Engine, err error) {
-	e.cache.workingDir = func() (string, error) { return "", err }
+// FailLocate makes e unable to place a spec's Path, as where the working
+// directory cannot be named, which a test cannot rely on a system to refuse:
+// removing it leaves some still naming it.
+func FailLocate(e *Engine, err error) {
+	e.locate = func(string) (string, error) { return "", err }
 }
 
 // Recorder exposes the reader a cached compile reads through.
@@ -81,6 +82,17 @@ func SettledLocations(r *Recorder) ([]string, bool) {
 		locations = append(locations, read.Request.Location)
 	}
 	return locations, sound
+}
+
+// SettledDirectories returns each directory r placed and where, in the order
+// an entry lists them.
+func SettledDirectories(r *Recorder) [][2]string {
+	dirs := r.directories()
+	out := make([][2]string, 0, len(dirs))
+	for _, d := range dirs {
+		out = append(out, [2]string{d.Directory, d.Located})
+	}
+	return out
 }
 
 // SealedEntry returns an entry for key holding head and body, sealed as a store

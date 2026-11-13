@@ -14,8 +14,8 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// FilePathOf is filePathOf, for the external tests.
-var FilePathOf = filePathOf
+// SpecLocationWith is specLocation, for the external tests.
+var SpecLocationWith = specLocation
 
 // ReadOpened is readOpened, for the external tests.
 var ReadOpened = readOpened

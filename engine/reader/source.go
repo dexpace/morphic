@@ -6,6 +6,7 @@ package reader
 import (
 	"context"
 	"errors"
+	"path/filepath"
 )
 
 // ReadSource reads the file at path, a file path and never a URL, as a source
@@ -19,6 +20,46 @@ import (
 // without end.
 func ReadSource(ctx context.Context, path string, limit int) ([]byte, error) {
 	return readSource(ctx, osFiles{}, path, limit)
+}
+
+// SpecLocation returns where the spec at path lies, as a compile reads the
+// references in it against (compilers.Source.Location): path made absolute
+// against the working directory, the one read of it, the symbolic links of its
+// directory resolved where they resolve. One directory reached by two
+// spellings, the working directory's among them, is then one location, and
+// what a reference names depends on neither. The file's own name is kept, so a
+// spec that is a link reads its references beside the link. A URL lies at no
+// path, so it returns "" for one.
+func SpecLocation(path string) (string, error) {
+	return specLocation(path, filepath.Abs)
+}
+
+// specLocation is SpecLocation with the reading of the working directory handed
+// in, absolute, so a test can fail it, which no system reliably does.
+func specLocation(path string, absolute func(string) (string, error)) (string, error) {
+	if path == "" {
+		return "", errEmptyLocation
+	}
+	if _, isURL := asURL(path); isURL {
+		return "", nil
+	}
+	abs, err := absolute(path)
+	if err != nil {
+		return "", err
+	}
+	return filepath.Join(locateDirectory(filepath.Dir(abs)), filepath.Base(abs)), nil
+}
+
+// locateDirectory is compilers.DirectoryLocator for a reader of the local file
+// system: dir with its symbolic links resolved, or dir where they do not
+// resolve, as where it does not exist. The spec's directory is located by it
+// too (SpecLocation), so every file a compile reads lies where the spec's
+// rule places it.
+func locateDirectory(dir string) string {
+	if located, err := filepath.EvalSymlinks(dir); err == nil {
+		return located
+	}
+	return dir
 }
 
 // readSource is ReadSource over fsys.

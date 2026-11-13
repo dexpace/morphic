@@ -370,13 +370,16 @@ func TestWithCache_APassTurnedOffDoesNotSeeItsDiagnostics(t *testing.T) {
 	assert.Empty(t, off.Diagnostics)
 }
 
-// TestWithCache_WorkingDirectoryIsAnInput is the case no hash of the inputs a
+// TestWithCache_TheSpecsLocationIsAnInput is the case no hash of the bytes a
 // compile is handed covers. One spec, by one relative path, reaching one
-// absolute file reads the same bytes from two directories and lowers to two sets
-// of type IDs, so a key without the directory serves one directory's IDs to the
-// other. Not parallel: it changes directory.
-func TestWithCache_WorkingDirectoryIsAnInput(t *testing.T) {
-	root := t.TempDir()
+// absolute file lies in two directories, whose labels for that file differ, so
+// a key without the location serves one directory's IDs to the other. From one
+// directory reached through a symbolic link the spec lies where it does from
+// the directory itself: one location, one entry. Not parallel: it changes
+// directory.
+func TestWithCache_TheSpecsLocationIsAnInput(t *testing.T) {
+	root, err := filepath.EvalSymlinks(t.TempDir())
+	require.NoError(t, err)
 	shared := filepath.Join(root, "shared", "other.yaml")
 	require.NoError(t, os.MkdirAll(filepath.Dir(shared), 0o755))
 	require.NoError(t, os.WriteFile(shared, []byte(otherDoc("name")), 0o644))
@@ -384,11 +387,14 @@ func TestWithCache_WorkingDirectoryIsAnInput(t *testing.T) {
 	opts := engine.RunOptions{CompilerOptions: map[string]string{"allow-external-refs": "true"}}
 
 	store := newMemoryCache()
-	eng, _ := cachedEngine(t, store, "b1")
+	eng, counter := cachedEngine(t, store, "b1")
 	plain, err := engine.New()
 	require.NoError(t, err)
+	near, far := filepath.Join(root, "near"), filepath.Join(root, "much", "further", "down")
+	link := filepath.Join(t.TempDir(), "link")
+	require.NoError(t, os.Symlink(near, link))
 
-	for _, dir := range []string{filepath.Join(root, "near"), filepath.Join(root, "much", "further", "down")} {
+	for _, dir := range []string{near, far, link} {
 		require.NoError(t, os.MkdirAll(filepath.Join(dir, "spec"), 0o755))
 		require.NoError(t, os.WriteFile(filepath.Join(dir, "spec", "api.yaml"), []byte(spec), 0o644))
 		t.Chdir(dir)
@@ -400,7 +406,8 @@ func TestWithCache_WorkingDirectoryIsAnInput(t *testing.T) {
 		require.NoError(t, err)
 		assertSameRun(t, want, got)
 	}
-	assert.Len(t, store.entries, 2, "the two directories lower to two documents")
+	assert.Len(t, store.entries, 2, "the two locations lower to two documents")
+	assert.EqualValues(t, 2, counter.compiles.Load(), "the directory reached through the link is the one it names")
 }
 
 // splitSpec writes refSpec and the document it reaches, and returns the spec's
@@ -448,6 +455,44 @@ func TestWithCache_ADocumentARunReadsIsAnInput(t *testing.T) {
 	require.NoError(t, err)
 	assert.EqualValues(t, 3, counter.compiles.Load(), "a document no longer there misses")
 	assert.True(t, gone.Failed, "and the run reports what is missing, not the document it once read")
+}
+
+// TestWithCache_ADirectoryARunLocatesIsAnInput retargets a link a reference
+// names a file through, from one directory to another holding a file of the
+// same name and bytes: the run reads another document, whose IDs carry where
+// it lies, though every file the compile read still holds what it did. An
+// entry answers only a run placing each directory where it did.
+func TestWithCache_ADirectoryARunLocatesIsAnInput(t *testing.T) {
+	t.Parallel()
+	store := newMemoryCache()
+	eng, counter := cachedEngine(t, store, "b1")
+	plain, err := engine.New()
+	require.NoError(t, err)
+	dir, err := filepath.EvalSymlinks(t.TempDir())
+	require.NoError(t, err)
+	for _, sub := range []string{"one", "two"} {
+		require.NoError(t, os.Mkdir(filepath.Join(dir, sub), 0o755))
+		require.NoError(t, os.WriteFile(filepath.Join(dir, sub, "other.yaml"), []byte(otherDoc("name")), 0o644))
+	}
+	link := filepath.Join(dir, "link")
+	require.NoError(t, os.Symlink(filepath.Join(dir, "one"), link))
+	spec := filepath.Join(dir, "api.yaml")
+	require.NoError(t, os.WriteFile(spec, []byte(strings.ReplaceAll(refSpec, "other.yaml",
+		filepath.Join(link, "other.yaml"))), 0o644))
+	opts := engine.RunOptions{CompilerOptions: map[string]string{"allow-external-refs": "true"}}
+
+	_, err = eng.Run(t.Context(), spec, opts)
+	require.NoError(t, err)
+	require.NoError(t, os.Remove(link))
+	require.NoError(t, os.Symlink(filepath.Join(dir, "two"), link))
+	got, err := eng.Run(t.Context(), spec, opts)
+	require.NoError(t, err)
+
+	assert.EqualValues(t, 2, counter.compiles.Load(), "a moved directory misses")
+	want, err := plain.Run(t.Context(), spec, opts)
+	require.NoError(t, err)
+	assertSameRun(t, want, got)
+	assert.Equal(t, filepath.Join(dir, "two", "other.yaml"), got.Sources[1].Path, "the file the link now leads to")
 }
 
 // TestWithCache_ADocumentADocumentReadsIsAnInput changes a document the spec
@@ -943,29 +988,6 @@ func TestWithCache_AnEntryThatWillNotEncodeIsNotKept(t *testing.T) {
 			assert.Zero(t, store.stores)
 		})
 	}
-}
-
-// TestWithCache_AWorkingDirectoryNoOneCanNameCostsTheWork fails to name it: with
-// no way to derive a key, an entry could answer the wrong directory, so nothing
-// is looked up or kept, even where an entry for another run exists.
-func TestWithCache_AWorkingDirectoryNoOneCanNameCostsTheWork(t *testing.T) {
-	t.Parallel()
-	boom := errors.New("no working directory")
-	store := newMemoryCache()
-	eng, counter := cachedEngine(t, store, "b1")
-	spec := writeSpec(t, testspec.Tiny)
-	_, err := eng.Run(t.Context(), spec, engine.RunOptions{})
-	require.NoError(t, err)
-	loads, stores := store.loads, store.stores
-
-	engine.FailWorkingDirectory(eng, boom)
-	res, err := eng.Run(t.Context(), spec, engine.RunOptions{})
-	require.NoError(t, err)
-	require.NotNil(t, res.Document)
-	require.ErrorIs(t, res.CacheErr, boom)
-	assert.EqualValues(t, 2, counter.compiles.Load())
-	assert.Equal(t, loads, store.loads)
-	assert.Equal(t, stores, store.stores)
 }
 
 // TestWithCache_ACancelledRunReturnsNoDocument cancels inside the lookup of an
