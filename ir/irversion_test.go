@@ -136,7 +136,7 @@ var generations = []generation{
 	{version: "0.53.0", format: 1, shape: "0b2f5e45e4be29c67a153976848af676bc99d9f21d9e41a91b7abfd167ae026b",
 		names:   "5506159ecd463736fdbbad0c4cabfad3fd50b48509b46fbea55862e82eca9675",
 		meaning: "an enum's or a const's null is no member, variant or Literal but its reference's, so an enum of null alone or a const of null is an Enum with no member; an Enum's ValueType is one its members are values of; a number's format on a string is a Scalar over the number whose Encoding string travels as a string WireType, its bounds kept verbatim; and over a string a WireType marks text to encode"},
-	{version: "0.53.0", format: 1, shape: "630671af6248c7ff1ebd79765cf645b7ee3fde7308e1d8d9b8002a59268eb847",
+	{version: "0.54.0", format: 1, shape: "0b2f5e45e4be29c67a153976848af676bc99d9f21d9e41a91b7abfd167ae026b",
 		names:   "5506159ecd463736fdbbad0c4cabfad3fd50b48509b46fbea55862e82eca9675",
 		meaning: "a schema admitting null alone is an Enum with no member behind a nullable reference in every spelling, a type naming null alone and a union of nothing else among them, where those were nullable any and an alias over it; and a union branch admitting null alone, written in place, is the union's null in every spelling, no variant, what else it writes kept under openapi:<combinator>/<index>"},
 }
