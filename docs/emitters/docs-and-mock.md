@@ -720,7 +720,7 @@ test running beside it would move the count, and a request's page would turn on 
   query parameter of the mock's, `mock_page` prefixed with `_` until no input an operation at that
   path declares is bound under its name, its value naming the operation, the position and the page's
   size, which a limit sent in the body would otherwise lose, a value naming none of the walk
-  refused; an input binding every name, as an exploded map does, holds no entry the mock reads as
+  refused; an input owning the rest, as an exploded map does, holds no entry the mock reads as
   its own. The mock answers a `GET` carrying it as that page whatever the method of the operation
   that wrote it, since a pager follows a link with one ([what a pager sends
   next](operations/pagination.md#what-a-pager-sends-next)).
@@ -818,8 +818,11 @@ speaks HTTP/1.1 alone. So a test trusting the certificate the mock states assert
 transport negotiated, and one that fell back to HTTP/1.1 fails rather than passing as the HTTP/2
 case.
 
-Two costs are left to the server the mock runs in. The number of connections is the operating
-system's to bound, as the mock serves a test's own process, on loopback by default. A reader taking
+Three costs are left to the server the mock runs in. The number of connections is the operating
+system's to bound, as the mock serves a test's own process, on loopback by default. The size of a
+request's head is the server's, Go's `net/http` at 1 MB by default, which is what bounds the pairs a
+query or a cookie brings an input no style arranges ([values as
+text](refine/text.md#a-value-no-style-arranges)). A reader taking
 a byte within each `IdleTimeout` keeps its exchange open as long as the response lasts, which costs
 the mock one connection and its buffers for a response the document's examples bound. A connection
 holding no request, or part of one, is closed after `IdleTimeout`, the bound on a request's head and

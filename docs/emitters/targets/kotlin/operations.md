@@ -20,7 +20,8 @@ the method returned before collection would have none to hold; a block-scoped st
 <R> tailMetricsStream(block: suspend (Stream) -> R): R`, would hold them too, but drops the `Flow`
 every other stream and page returns. Measured with Kotlin 2.4.0 and Ktor 3.2.3's CIO engine, a
 caller compiled apart from the SDK read both headers in its callback half a second before a server
-holding its first frame back sent it. T-24 holds this section.
+holding its first frame back sent it. The default does not reach Swift, whose caller writes the
+block ([Swift](swift.md)). T-24 holds this section.
 
 ## Timeouts
 
@@ -40,7 +41,9 @@ Kotlin's request type ([request shaping](../../refine/requests.md)) is a class b
 text](../../refine/text.md#a-value-no-style-arranges)) is a `String` property, or a
 `List<Pair<String, String>>` of names and values where its position carries pairs, which Swift sees
 as an array of `KotlinPair` whose `first` and `second` are optionals (Kotlin/Native 2.4.0); a pair
-whose name the input does not own throws an exception naming the input, nothing sent.
+whose name the input does not own throws an exception naming the input, nothing sent. A body one of
+whose fields or parts is such an input gives the class a property for each of its members in place
+of the one holding the body ([the body](../../refine/requests.md#the-body)).
 
 ## The client
 

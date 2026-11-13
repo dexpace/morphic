@@ -202,13 +202,14 @@ throughout these documents.
     its first frame as an element, sends the initial request's members as the binding places them
     and gives the initial response's members as declared headers; a stream method gives a caller in
     another unit the declared headers of the response it reads, typed, before its first frame,
-    against a server holding that frame back until they are read, and a response's first declared
-    header adds a field and changes no signature; a stream under a binding other than HTTP draws no
-    `unframed-stream`; a media type only a compiler option names gets the one stream method, as
-    `bytes`, with that warning; a primary `Default` that streams is `bidi` beside a `Send`; a
-    `bytes` side lowers as a file, and a request's file body is a byte source whatever its `Type`;
-    and each operation of the golden spec that streams gets a `StreamPlan`
-    ([streams](../plan/streams.md), [streaming](../operations/streaming.md), [request
+    against a server holding that frame back until they are read, those of the `Others` entry whose
+    content streams where `Return` declares others, each collection of one Kotlin `Flow` given its
+    own response's, and a response's first declared header adds a field and changes no signature; a
+    stream under a binding other than HTTP draws no `unframed-stream`; a media type only a compiler
+    option names gets the one stream method, as `bytes`, with that warning; a primary `Default` that
+    streams is `bidi` beside a `Send`; a `bytes` side lowers as a file, and a request's file body is
+    a byte source whatever its `Type`; and each operation of the golden spec that streams gets a
+    `StreamPlan` ([streams](../plan/streams.md), [streaming](../operations/streaming.md), [request
     shaping](../refine/requests.md)).
 25. **T-25 · Emit-layer rules** — one check per rule of the [emit rules](../emit/rules.md). A
     template's context type holds no pointer, map, function or method, by reflection. A golden whose
@@ -772,7 +773,9 @@ throughout these documents.
     null or an empty string, a path parameter holding `..`, or `/` alone under `AllowReserved`, an
     `event_t` of `1.5` in `{event_t}.{event_n}`, a required query list holding no member, a header
     holding a CR LF, a `\u0001`, an `é` or a trailing space, a header list holding an empty string,
-    a header `Prefix` map holding keys `A` and `a`, a `text/plain` request whose media type names
+    a header `Prefix` map holding keys `A` and `a`, a header parameter named `X Foo`, a cookie
+    parameter named `a[b]`, a `cookie`-style cookie holding `a; b=c`, a multipart part named `a"b`
+    or `a\b`, a `text/plain` request whose media type names
     `charset=iso-8859-1`, a NaN, a year past 9999, an offset with seconds and a `decimal`
     `1E+999999999` each fail before anything is sent, as a NaN, a year past 9999 and an offset with
     seconds in a body do. The mock server reads each such request back to the values sent, a header
@@ -801,12 +804,18 @@ throughout these documents.
     and `[{"field":"value","op":"in","value":["evil.com","bad.org"]}]` of `search` are sent as
     parameters in that order, each name percent-encoded as a parameter's name is and each value as a
     string's text is, whatever the binding's `Style` and `Explode`, and as fields of a form body and
-    parts of a multipart one, none with a `Content-Type` of its own; the string is sent as its
+    parts of a multipart one, a part's name as it is, `name="deep[a][b]"`, none with a
+    `Content-Type` of its own; a cookie input sends a pair named `filters.0.key` as it is and fails
+    before anything is sent for one named `filters[0][key]`; the string is sent as its
     header's value, in its segment, in its label and as the body's UTF-8 octets. A pair with an
     empty name, `filter` for `filters`, one naming another parameter of the operation, `name.exact`
     for `name` where the query declares both, `k` for `y` where exploded objects `x` and `y` each
-    declare `k`, and a required input holding no pair each fail before anything is sent, while an
-    input exploding a map of lists sends `k1[x]` and `zz`. A multipart part of a string that
+    declare `k`, `filter.x.y` for `filter` where the query declares inputs `filter` and `filter.x`,
+    `deep[a]` for an input exploding an object whose member is `deep` beside a `deepObject`
+    parameter `deep`, a value in the member `a` of an arranged exploded object beside an input
+    named `a`, and a required input holding no pair each fail before anything is sent, while an
+    input exploding a map of lists sends `k1[x]` and `zz`, and `filter` sends `filter.xy` beside
+    `filter.x`. A multipart part of a string that
     declares no encoding is its text with no `Content-Type` of its own, one of a list of strings a
     part for each element, and one of a list of strings declaring `text/plain`, or of objects
     declaring `application/json`, a list too, a part of that type for each element; a `deepObject`
@@ -814,7 +823,16 @@ throughout these documents.
     `color%5BR%5D=100&color%5BG%5D=200`. The mock server and an inbound request's reader give back
     each input's pairs, in order, `search` and `searchBranches` sharing one query each their own,
     and the string sent, for the values `a&b=c`, `a+b c`, `100%`, `é` and an empty string too, a
-    pair named for a declared parameter left to that parameter and one no input owns to none. A
+    pair named for a declared parameter left to that parameter and one no input owns to none; they
+    give `a` to the input named `a` and never to the exploded object declaring a member `a`,
+    `deep[a]` to the `deepObject` `deep`, and, beside an arranged exploded map `m`, `filter[a]` to
+    `filter` alone and an undeclared `zz` to `m` alone. A model whose `metadata` is an object, sent
+    by one operation as multipart with no encoding and by another as `application/json`, gives the
+    first's request type the content's fields, `metadata` as pairs, and the second the model's
+    declaration as its body, `metadata` typed, and adding either operation changes no declaration
+    of the other; a form body's catch-all of objects is one list of pairs, marked in `Rest`; a
+    multipart response holding such a part is `raw`, its `Text.Content` set; and a `string | list
+    of string` part under `Multi` holding the string is one part. A
     `text/plain` response declaring an object, and a response header of a list of objects, each
     return their text as a string, the mock answers the first with no body and a warning
     `emitters/mock/example-missing`, and an inbound operation declaring a `text/plain` request
@@ -825,7 +843,10 @@ throughout these documents.
     sent, a `text/plain` content of an object beside an `application/json` one the ranking elects
     draws no diagnostic, and a declared example of such a parameter is refused as
     `emitters/plan/example-refused`, none being synthesized in its place ([values as
-    text](../refine/text.md#a-value-no-style-arranges)).
+    text](../refine/text.md#a-value-no-style-arranges), [request
+    shaping](../refine/requests.md#the-body)). An owner chosen by the shortest extension or by a
+    member's name before an input's own, a reader taking a name its binding does not own, and a
+    member typed as pairs in a model's declaration each fail it.
 49. **T-49 · A date in a header** — on every target, a response header declared `datetime_offset`
     with no encoding reads `2023-10-21T07:28:00Z`, `Sun, 06 Nov 1994 08:49:37 GMT`, `Sunday,
     06-Nov-94 08:49:37 GMT`, `Sun Nov  6 08:49:37 1994` and `Wed Nov 16 08:49:37 1994` each as its
@@ -847,18 +868,25 @@ throughout these documents.
     07:28:00 GMT` of such a header is `emitters/plan/example-refused`, and a `date`, a `time` and a
     `datetime` header read no HTTP-date ([values as text](../refine/text.md#reading-a-text)).
 50. **T-50 · A path pattern** — on every target, under T-12's interception, a path parameter whose
-    binding's `PathPattern` is `shelves/*/books/*` or `**` sends `shelves/s1/books/b2` with its
-    slashes, `a:b%41?c` as `a%3Ab%2541%3Fc`, `a b/é` as `a%20b/%C3%A9` and `a//b` as written, with
-    `AllowReserved` set or unset, and fails before anything is sent for `a/../b`, a null and an
-    empty string; one whose pattern is `*` sends `a/b` as `a%2Fb`. One whose pattern is `**` in the
-    template `/prefix/{label}/suffix` sends `foo/suffix/bar` as written, and the mock reads
-    `/prefix/foo/suffix/bar/suffix` back to it; the mock reads `/v1/shelves/s1/books/authors/a/x`,
-    sent in `/v1/{parent=shelves/*}/books/{name=authors/*/x}`, back to `shelves/s1` and
-    `authors/a/x`; and `p` and `q/x/r` under `AllowReserved` in `/{a}/x/{b}` fail before anything is
+    binding's `PathPattern` is `**` sends `shelves/s1/books/b2` with its slashes, `a:b%41?c` as
+    `a%3Ab%2541%3Fc`, `a b/é` as `a%20b/%C3%A9` and `a//b` as written, and one whose pattern is
+    `shelves/*/books/*` sends `shelves/s1/books/b2` and `x/s1/y/b2` with their slashes,
+    `shelves/a:b%41?c/books/é` as `shelves/a%3Ab%2541%3Fc/books/%C3%A9` and `shelves//books/b2` as
+    written, and fails before anything is sent for `shelves/s1`, `shelves/s1/books/b2/x` and `a//b`,
+    none of four segments, each with `AllowReserved` set or unset, and each failing before anything
+    is sent for `a/../b`, a null and an empty string; one whose pattern is `*` sends `a/b` as
+    `a%2Fb`. One whose pattern is `**` in the template `/prefix/{label}/suffix` sends
+    `foo/suffix/bar` as written, and the mock reads `/prefix/foo/suffix/bar/suffix` back to it; the
+    mock reads `/v1/shelves/s1/books/authors/a/x`, sent in
+    `/v1/{parent=shelves/*}/books/{name=authors/*/x}`, back to `shelves/s1` and `authors/a/x`, and
+    `shelves/books` and `authors/books/x`, sent there with `AllowReserved` set on both, back to
+    themselves; and `p` and `q/x/r` under `AllowReserved` in `/{a}/x/{b}` fail before anything is
     sent. The mock server reads each text back as sent, and reads a path another client sent as
     `a%2Fb/c` or as `a%2fb/c` as that text, its triple kept. Each such binding draws an info
     `emitters/<target>/unchecked-constraint`, and none drops its escaping with the check ([values as
-    text](../refine/text.md#escaping)).
+    text](../refine/text.md#escaping)). A target sending a value of another count of segments under
+    a pattern holding no `**`, or reading such a pattern as a longest run under `AllowReserved`,
+    fails it.
 51. **T-51 · A row keyed by an encoding** — each target's built-in table has, at every options
     version, a row for every key the type table lists for an encoding. On every target, `bytes` `fb
     ff` under `base64url` is written `-_8=` in a body and in a header and `-_8%3D` in a path, and

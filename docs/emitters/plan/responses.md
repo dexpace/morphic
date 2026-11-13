@@ -21,9 +21,12 @@ type ResponsePlan struct {
 // which its reader gets and its writer is given as text
 // (../refine/text.md#a-value-no-style-arranges).
 type TextPlan struct {
-    Content bool           // the content itself: a text/plain one whose type is no leaf
-    Props   []ir.PropID    // its fields and parts, in TypePlan.Flattened's order, then a
-                           // response's headers, in Headers' order
+    Content bool           // the content itself: a text/plain one whose type is no leaf, or a
+                           // response's form or multipart one read raw (below)
+    Props   []ir.PropID    // a request content's fields and parts, in TypePlan.Flattened's
+                           // order; a response's headers, in Headers' order
+    Rest    bool           // a request content's fields and parts no member declares: its
+                           // model's catch-all's, or its entries where its type is a map
 }
 
 // EnvelopeRead is a body one of plan.Policy.Envelopes matched (policy.md), as it is read here.
@@ -93,7 +96,12 @@ in a second channel. The first rule that applies decides:
    "Which entry answers" below says which statuses raise one.
 2. **`raw`** — the elected content is a file (`Content.File`, [payloads](../../ir/payloads.md)): the
    body reaches the caller unread, a byte stream beside the media type it arrived as, and nothing
-   decodes it.
+   decodes it. So does a form or multipart content one of whose fields or parts no style arranges
+   ([values as text](../refine/text.md#a-value-no-style-arranges)), `Text.Content` set: no
+   declaration of its type holds a field's pairs ([request
+   shaping](../refine/requests.md#the-body)), and a part carries bytes and a content type that pairs
+   of strings cannot. The golden spec's 5 multipart response contents, each a map of `bytes` or of a
+   list of them, hold none (spec @bc6fad24, morphic @fa253fe19).
 3. **`stream`** — the elected content streams ([streams](streams.md)): frames are read one at a
    time, as `Stream` describes ([streaming](../operations/streaming.md)).
 4. **`value`** — otherwise: the elected content's codec decodes the body, and its reader gets

@@ -156,7 +156,10 @@ A Multiplatform SDK reaches iOS through the Objective-C export, which shapes the
   framework reaches, which a declaration the spec adds can grow
   ([naming](naming.md#reserved-names)).
 - Default arguments do not reach Swift, which is one reason models and request types are built
-  through a builder rather than a constructor with defaults.
+  through a builder rather than a constructor with defaults. A stream method's `onHeaders` is the
+  one a Swift caller meets: Kotlin/Native 2.4.0 exports `tailMetricsStream(onHeaders:)`, and a call
+  without the block fails to compile (`missing argument for parameter 'onHeaders'`), so a caller
+  reading no header passes an empty one ([streams](operations.md#streams)).
 - An exception reaches Swift only as `@Throws` declares it: any other terminates the app, and a
   `suspend` function with no `@Throws` propagates cancellation alone. So every operation carries
   `@Throws(ApiException::class, OtherResponseException::class, CancellationException::class)`, which

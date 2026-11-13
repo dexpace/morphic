@@ -49,13 +49,16 @@ header, gives way to it, as Smithy has a client and a server do. Two entries nam
 field, as keys `A` and `a` do, fail the call before anything is sent, as a reader would hold one of
 them. An empty prefix on a request's binding, Smithy's catch-all for every header or query
 parameter, has no spelling yet (#1748). A map a `form` or `cookie` style explodes into parameters of
-its own is a catch-all the same way: an entry naming a parameter another binding writes gives way to
-it, and its reader holds every parameter its location carries, as Smithy's protocol tests have a
-client and a server treat its query map. A parameter whose `ContentType` names a media type
+its own is a catch-all the same way: an entry under a name another binding owns
+([below](#a-value-no-style-arranges)) gives way to it, as Smithy's protocol tests have a client
+write its query map, and its reader holds each parameter of its location that no other binding owns,
+which is what a client wrote into it. Smithy has a server put every parameter in the map, a named
+one too, which would hand one pair to two inputs. A parameter whose `ContentType` names a media type
 ([bindings](../plan/bindings.md)), and a form field or part of another content type, carries that
 media type's serialization of the value instead, so as JSON a string keeps its quotes. A field or
 part under `PartEncoding.Multi` is one for each element of its list, each carrying its element as
-the rules here carry a value, as OpenAPI applies an Encoding Object to each item (§4.14.5.1).
+the rules here carry a value, as OpenAPI applies an Encoding Object to each item (§4.14.5.1), and a
+value that is no list, which a union with a list among its variants can hold, is one field or part.
 
 ## Null and empty
 
@@ -95,10 +98,11 @@ bindings.
 A text is percent-encoded as OpenAPI says for its location (§4.12.4, Appendix E): as RFC 6570's
 expansion for its style encodes it, and a space always as `%20`. Every decoder those rules name
 reads `%20` as a space, while the `+` a form encoder writes, as Go's `url.Values` does, reads as a
-plus under RFC 3986's rules (Appendix E). A parameter's name is percent-encoded as a text without
-`AllowReserved` is, as OpenAPI requires of one outside RFC 6570's variable names (Appendix C.3): at
-the revisions above, the golden spec names a query parameter `meta.<field>[<operator>]`, which Go
-sends as written, `fetch` with its `<` and `>` encoded, and the JDK's `URI` refuses. `AllowReserved`
+plus under RFC 3986's rules (Appendix E). A parameter's name in a path or a query, and a field's in
+a form body, is percent-encoded as a text without `AllowReserved` is, as OpenAPI requires of one
+outside RFC 6570's variable names (Appendix C.3): at the revisions above, the golden spec names a
+query parameter `meta.<field>[<operator>]`, which Go sends as written, `fetch` with its `<` and `>`
+encoded, and the JDK's `URI` refuses. A name anywhere else is sent as it is (below). `AllowReserved`
 passes through, as RFC 6570's reserved expansion does, each percent-encoded triple and each of RFC
 3986's reserved characters, bar those a URL cannot hold there: a `#`, `[` or `]` in a path or a
 query, and a `?` in a path, is still encoded, and a `&`, `=`, `+` or `,` it passes is read for what
@@ -116,22 +120,26 @@ writes its text as google.api.http has a client write such a variable (`google/a
 `a%3Ab%2541%3Fc`, each `/` cutting a segment. Smithy writes a greedy label by the same rule
 (`httpLabel`, "Serialization rules"), so one is planned to lower to a pattern of `**` ([planned
 lowerings](../../compilers/planned-lowerings.md)) and never to `AllowReserved`, which passes the
-`%41` and the `?` that Smithy encodes. `AllowReserved` beside such a pattern changes nothing, since
-the pattern's format gives the rule, and what `AllowReserved` says of an empty segment and this
-section of a dot segment hold for it as for any path parameter. A pattern of one segment, `*` or a
-literal, is written as a binding with none is. A reader takes the segments the pattern names, a `**`
-the run the rest of the template leaves it ([below](#reading-a-text)), and decodes each triple but
-`%2F` and `%2f`, which it keeps as the three characters they are, as google.api.http has a server
-do, so every text written reads back and a `%2F` another client sent is never taken for a separator.
-A `PathPattern` is carried to a refiner as `ParamBind.PathPattern`
-([bindings](../plan/bindings.md)). No emitter checks a value against its pattern before it is sent,
-which the server still does, and each reports the binding as an info
+`%41` and the `?` that Smithy encodes. `AllowReserved` beside such a pattern changes nothing,
+written or read, since the pattern's format gives the rule, and what `AllowReserved` says of an
+empty segment and this section of a dot segment hold for it as for any path parameter. A pattern of
+one segment, `*` or a literal, is written as a binding with none is. A reader takes the segments the
+pattern names, a `**` the run the rest of the template leaves it ([below](#reading-a-text)), and
+decodes each triple but `%2F` and `%2f`, which it keeps as the three characters they are, as
+google.api.http has a server do, so every text written reads back and a `%2F` another client sent is
+never taken for a separator. A `PathPattern` is carried to a refiner as `ParamBind.PathPattern`
+([bindings](../plan/bindings.md)). A value whose segments, cut at its `/`s, number other than those
+a pattern holding no `**` names fails the call before anything is sent, since its reader would take
+other segments than it wrote: `shelves/s1` under `shelves/*/books/*` in `/v1/{name}/x` would send
+four segments where the template reads six. Over two million random templates and values, no path
+sent under that count read back as other texts, and 707,536 did without it. The count is all an
+emitter checks of a value against its pattern: a literal spelt otherwise still reads back, so it is
+the server's to refuse, and each emitter reports the binding as an info
 `emitters/<target>/unchecked-constraint`. That check is all an emitter drops: the IR has one that
 cannot validate a pattern drop it with a diagnostic ([HTTP bindings](../../ir/http-binding.md)), and
 a pattern dropped whole would send `a/b` as `a%2Fb`, one segment where the pattern names two, so the
 value is still escaped by this rule. The IR's comment on the field says the template uses reserved
-expansion, which this rule departs from and
-#1776 corrects. T-50 holds it.
+expansion, which this rule departs from and #1776 corrects. T-50 holds it.
 
 A path parameter whose expansion leaves a segment `.` or `..`, or one WHATWG URL reads as either,
 such as `%2e`, fails the call before anything is sent: `fetch` removes it, a `..` with the segment
@@ -143,7 +151,8 @@ before anything is sent too, and a reader ends the parameter's text where that l
 it, so every text sent reads back into its parts: at the revisions above, the golden spec's
 `{event_t}.{event_n}` binds two `number`s, and `1.5` and `3` would send `1.5.3`, which reads as `1`
 and `5.3`. So does a call whose path would read back as other texts where its template holds two
-runs of no fixed length, under `AllowReserved` or a `**`, which neither google.api.http, allowing
+runs of no fixed length, each read as a longest run ([below](#reading-a-text)), which neither
+google.api.http, allowing
 one `**` and that one last, nor Smithy, allowing one greedy label, declares: `{a}/x/{b}` under
 `AllowReserved` would send `p` and `q/x/r` as a path that reads as `p/x/q` and `r`.
 
@@ -158,6 +167,21 @@ begin a header of its own, the HTTP libraries the targets can run on each trim t
 text's ends, and they disagree past ASCII: Go sends `é` as its UTF-8 octets and JavaScript's
 `fetch` as one ISO-8859-1 octet, while `fetch` and the JDK's `HttpClient` refuse the `€` Go sends
 (Go 1.27, Node 26, JDK 25).
+
+A name outside a URL and a form body is sent as it is, since no reader decodes one there, and one
+its position cannot carry fails the call before anything is sent, whether a parameter's own, a
+member's that an exploded object writes, a map's key or a caller's pair's
+([below](#a-value-no-style-arranges)): a header's that is no field name (RFC 9110 §5.1), a cookie's
+that is no token (RFC 6265 §4.1.1), and a multipart part's, written as its UTF-8 octets in the
+quoted `name` of its `Content-Disposition` (RFC 7578 §4.2), that holds a `"`, a `\` or a control
+character, which writers escape each their own way. So a cookie carries a pair named
+`filters.0.key` and none named `filters[0][key]`. A value or a member whose text holds a `;` under
+the `cookie` style fails the same way, since it would begin a pair of its own. On Go 1.27.3 and Node
+26.13, Go's server reads no cookie named `filters[0][key]` from a header holding one and reads
+`filters%5B0%5D` as that name, undecoded; Go's transport refuses a header named `X-Foo[0]`; Go's
+multipart reader gives a part named `deep%5Ba%5D` back as written; and Go writes a `"` in a part's
+name as `\"` where `fetch` writes `%22` and leaves a `\` alone. At the revisions above the golden
+spec binds no cookie, and no header or multipart part it names is refused.
 
 A `text/plain` body or part is its text's UTF-8 octets, with no byte-order mark, and is read as
 UTF-8 with one leading mark dropped, as RFC 3629 §6 suggests and WHATWG's UTF-8 decode does. One
@@ -179,24 +203,27 @@ its `Style` and `Explode` arrange it before each part is percent-decoded, so a `
 element (Appendix C.2). A path parameter's text is what its expression in the template matches, read
 from the path cut at its unencoded `/`s before anything is percent-decoded, so a `%2F` stays in its
 segment: within one segment, ending where a literal after it there first follows, across the
-segments its `PathPattern` names where that names several and no `**`, or, under `AllowReserved` or
-a pattern holding `**`, across the longest run the rest of the template leaves it, as Smithy matches
-a greedy label: so `/v1/{parent=shelves/*}/books/{name=authors/*/x}` reads both back, where a
-longest run for each would leave `name` one segment. A text is percent-decoded as its location's
-rules say (Appendix E.5): a `+` as a space in a query or a form body, which OpenAPI has parse as
-WHATWG URL does (§4.12.4), as itself in a path, and a header's and a `cookie`-style cookie's not at
-all (§4.12.2.2). A parameter a query or a cookie repeats where its `Style` and `Explode` write it
-once, as a scalar's or an unexploded list's is written, is a text that does not parse, since no one
-value writes two. A header's text is every line it arrived on, joined with `, ` as RFC 9110 §5.3
-joins them, bar `Set-Cookie`'s, each of whose lines is one element since its values hold commas, as
-OpenAPI's Header Object has it (§4.21.3), and only a list's or an object's split drops anything, the
-whitespace beside a comma and an empty element (RFC 9110 §5.6.1), so a string header keeps its own
-whitespace. A `Prefix` binding's map, and a response header's whose `Prefix` is set ([prefix
+segments its `PathPattern` names where that names several and no `**`, whatever `AllowReserved`
+says, or, under a pattern holding `**` or under `AllowReserved` with no pattern of several segments,
+across the longest run the rest of the template leaves it, as Smithy matches a greedy label: so
+`/v1/{parent=shelves/*}/books/{name=authors/*/x}` reads both back, where a longest run for each
+would leave `name` one segment. A text is percent-decoded as its location's rules say (Appendix
+E.5): a `+` as a space in a query or a form body, which OpenAPI has parse as WHATWG URL does
+(§4.12.4), as itself in a path, and a header's and a `cookie`-style cookie's not at all (§4.12.2.2).
+A parameter a query or a cookie repeats where its `Style` and `Explode` write it once, as a scalar's
+or an unexploded list's is written, is a text that does not parse, since no one value writes two. A
+header's text is every line it arrived on, joined with `, ` as RFC 9110 §5.3 joins them, bar
+`Set-Cookie`'s, each of whose lines is one element since its values hold commas, as OpenAPI's Header
+Object has it (§4.21.3), and only a list's or an object's split drops anything, the whitespace
+beside a comma and an empty element (RFC 9110 §5.6.1), so a string header keeps its own whitespace.
+A header's `Prefix` map, a binding's or a response header's whose `Prefix` is set ([prefix
 headers](../../ir/responses.md#prefix-headers)), holds every field whose name starts with the
-prefix, a header's in any case (RFC 9110 §5.1), a field another binding reads included, as Smithy's
-protocol tests read one, keyed by the rest of the name in lower case, as HTTP/2 carries every field
-name (RFC 9113 §8.2) and as `X-Meta-fOO` reaches Go's server as `X-Meta-Foo`, the JDK's as
-`X-meta-foo` and Node's as `x-meta-foo`.
+prefix, in any case (RFC 9110 §5.1), a field another binding reads included, as Smithy's protocol
+tests read one, keyed by the rest of the name in lower case, as HTTP/2 carries every field name (RFC
+9113 §8.2) and as `X-Meta-fOO` reaches Go's server as `X-Meta-Foo`, the JDK's as `X-meta-foo` and
+Node's as `x-meta-foo`. A `Prefix` map anywhere else holds the names it owns
+([below](#a-value-no-style-arranges)), keyed by the rest of each. A name is percent-decoded where
+one is percent-encoded, in a path, a query and a form body, and nowhere else.
 
 Each text is read as the wire form it spells, through its codec as a body's value is, so a text and
 a body read a spelling alike. A built-in row reads every spelling its format admits of a value its
@@ -263,17 +290,17 @@ chain, and of where it is bound:
   to, which the compiler lowers for a `deepObject` setting none, so such an object is arranged as an
   exploded one is;
 - a form field, or a multipart part that is no file (`Filename`), whose `PartEncoding` is absent or
-  sets no `Style`, no `Explode` and no content type has one where its type is a leaf or a list of
-  leaves: a field is written as an exploded `form` writes it, and a part is its text with no
-  `Content-Type` of its own, which RFC 7578 reads as `text/plain` (§4.4), each element of a list a
-  part of that name (`Multi`). An object there has none. OpenAPI gives one a default media type,
-  `application/json` (§4.15.1), but the default is OpenAPI's and no other format's, so it is the
-  compiler's to lower into `ContentTypes` (#1777) and never an emitter's to assume of a document
-  whose format it does not read (INV1);
+  sets no `Style`, no `Explode` and no content type has one where its type is a leaf, a list of
+  leaves or a union of the two: a field is written as an exploded `form` writes it, and a part is
+  its text with no `Content-Type` of its own, which RFC 7578 reads as `text/plain` (§4.4), each
+  element of a list a part of that name (`Multi`). An object there has none. OpenAPI gives one a
+  default media type, `application/json` (§4.15.1), but the default is OpenAPI's and no other
+  format's, so it is the compiler's to lower into `ContentTypes` (#1777) and never an emitter's to
+  assume of a document whose format it does not read (INV1);
 - a `Prefix` binding, and a header whose `Prefix` is set, has one where its type is a map of leaves;
 - a `host` label, a `text/plain` body, and a form field or part whose content type is `text/plain`
-  have one where their type is a leaf, and a field or part under `Multi` where its elements are, a
-  `text/plain` one for each ([above](#the-text-of-a-value)).
+  have one where their type is a leaf, and a field or part under `Multi` where its elements are,
+  and each variant that is no list, a `text/plain` one for each ([above](#the-text-of-a-value)).
 
 An input with none is its caller's text, written as the API documents it. Nothing is guessed, since
 nothing in the IR says which of the spellings in use a server reads. What the caller writes depends
@@ -284,43 +311,51 @@ on what the position carries:
   its header's value or as the body's octets;
 - a query, a cookie, a form body and a multipart body carry named texts, so the SDK types the input
   a list of pairs of strings, a name and a value, and sends each as a parameter, a cookie, a field
-  or a part of its own, in the caller's order, its name written as a parameter's is and its value as
-  a string's text is there. One string under the binding's name cannot spell what an API documents
-  as `deep[a][b]=x` for a `deepObject` object holding an object, as `a=1&b[c]=2` for an exploded
-  one, or as `ids[]=1&ids[]=2` for a `deepObject` list: each sends a name the binding does not have,
-  or one name twice. Each of those names starts with one the input owns, and a pair is sent only
-  under such a name. Every parameter, field or part of a location owns its `WireName`, one exploding
-  an object the wire names of the object's members too, each variant's of a union, and an input no
-  style arranges each name extending one of these, the name followed by `[` or `.`. A name several
-  own is the one's that owns it whole, its own name before a member's, else the one's whose name it
-  extends is the longest, and where they still tie the one's whose wire name is the smaller by
-  bytes, as [one election](../plan/responses.md#one-election) breaks a tie. A map spread over names
-  of its own, by a `Prefix` or an exploded style, gives way and owns no name, as above, save that an
-  input no style arranges exploding a map or a catch-all, whose entries name themselves, owns each
-  name nothing else there owns, ties going as before. A pair whose name its input does not own, an
-  empty one among them, fails the call before anything is sent: a caller's `filter` for the
+  or a part of its own, in the caller's order, its name written as a name is there
+  ([above](#escaping)) and its value as a string's text is. One string under the binding's name
+  cannot spell what an API documents as `deep[a][b]=x` for a `deepObject` object holding an object,
+  as `a=1&b[c]=2` for an exploded one, or as `ids[]=1&ids[]=2` for a `deepObject` list: each sends a
+  name the binding does not have, or one name twice. Each of those names starts with one the input
+  owns, and a pair is sent only under such a name. Ownership is one rule for a query, a cookie, a
+  form body and a multipart one, which every binding there follows, arranged or not: it writes, and
+  its reader reads, only the names it owns. Every parameter, field or part owns its `WireName`; one
+  a style explodes as an object the wire names of the object's members too, each variant's of a
+  union; a `deepObject` each name it writes, its own followed by a member's or a key's in brackets;
+  and an input no style arranges each name extending one of these, the name followed by `[` or `.`.
+  A name several own is the one's that owns it whole, its own name before a member's, else the one's
+  whose name it extends is the longest, and where they still tie the one's whose wire name is the
+  smaller by bytes, as [one election](../plan/responses.md#one-election) breaks a tie. A map or a
+  catch-all spread over names of its own, by an exploded style or a `Prefix`, arranged or not, owns
+  the rest: each name nothing else there owns, under a `Prefix` only one starting with it, ties
+  going as before. So no input claims a name an arranged binding writes, `deep[a]` staying the
+  `deepObject` `deep`'s beside an input exploding an object whose member is `deep`, and none loses
+  its own: the input named `a` owns `a` beside an exploded object declaring a member `a`. A pair
+  whose name its input does not own, an empty one among them, fails the call before anything is
+  sent, as does a value in a member whose name another binding owns: a caller's `filter` for the
   `filters` of `DELETE /accounts/{account_id}/ai-gateway/gateways/{gateway_id}/logs` would send a
   request the server reads as one with no filter. An input holding no pair is an empty list
   ([above](#null-and-empty)).
 
 Whatever reads one reads what arrived, so a mock checks nothing of what it holds: the string, or, in
 the order they came, every pair whose name the input owns by that test. So each pair reaches one
-input, as `search` and `searchBranches`, which share the query of `GET
-/accounts/{account_id}/cloudforce-one/events`, each read back their own, and one no input owns, as a
-parameter the document does not declare, reaches none. A request's reader holds no more pairs than
-the request carries, so the request's bounds are its own: a query's and a cookie's are within what
-the server bounds a request's head to, Go's `net/http` at 1 MB by default, and a form or multipart
-body's within the bound its body is read to, the mock's `MaxRequestBytes` ([docs and
-mocks](../docs-and-mock.md#the-mocks-options)) and a receiver's buffered body's ([operations the API
-sends](../operations/inbound.md#reading-the-request)), while the test compares each pair with the
-names its location owns, which the document fixes.
+reader, arranged or not, as `search` and `searchBranches`, which share the query of `GET
+/accounts/{account_id}/cloudforce-one/events`, each read back their own, and one no binding owns, as
+a parameter the document does not declare where no map takes the rest, reaches none. A request's
+reader holds no more pairs than the request carries, so the request's bounds are its own: a query's
+and a cookie's are within what the server bounds a request's head to, Go's `net/http` at 1 MB by
+default, and a form or multipart body's within the bound its body is read to, the mock's
+`MaxRequestBytes` ([docs and mocks](../docs-and-mock.md#the-mocks-options)) and a receiver's
+buffered body's ([operations the API sends](../operations/inbound.md#reading-the-request)), while
+the test compares each pair with the names its location owns, which the document fixes.
 
 The plan decides once for every target which positions hold such a value, and carries it at each, so
 no refiner derives it again: `ParamBind.Text` for a parameter, a request's header among them
 ([bindings](../plan/bindings.md)), `ResponsePlan.Text` for a response's headers and the content it
-reads, with its fields and parts, whose reader's `Type` is then `string` ([body
-shapes](../plan/responses.md#body-shapes)), and `OpPlan.RequestText` for a request's contents
-([OpPlan](../plan/operations.md)). It reports each as a warning `emitters/plan/unarranged-value` at
+reads, whose reader's `Type` is then `string`, or whose shape is `raw` where a field or part of it
+is such a value ([body shapes](../plan/responses.md#body-shapes)), and `OpPlan.RequestText` for a
+request's contents, with their fields and parts ([OpPlan](../plan/operations.md)), which the request
+type holds in the body's place ([request shaping](requests.md#the-body)).
+It reports each as a warning `emitters/plan/unarranged-value` at
 its binding, its header or its content. A content no election picks is not reported, and no election
 passes over one. Whether a content holds such a value is its own fact, however it is chosen: an
 inbound request is read through the content its `Content-Type` names ([operations the API
@@ -344,18 +379,20 @@ At spec @bc6fad24, morphic @fa253fe19, the golden spec has 12 such parameters, e
 under an exploded `form` whose elements are objects or lists, three such multipart parts, and no
 other parameter, header or form field. Two operations hold two of the parameters in one query,
 `search` beside `searchBranches` or `tagSearch`, and no name one of them or a part owns is another
-binding's. The parts are the `metadata` of `POST /accounts/{account_id}/images/v1`, of `POST
-/accounts/{account_id}/images/v2/direct_upload` and of `PUT
-/zones/{zone_id}/snippets/{snippet_name}`, each an object no Encoding Object names, and they stay
-their caller's text until the compiler lowers OpenAPI's default for them (#1777), which types each
-as its object and sends it as JSON. The descriptions of ten of the parameters call theirs JSON, one
-array in one parameter, as in `search=[{"field":"value","op":"in","value":["evil.com","bad.org"]}]`,
-which a caller's one pair sends and an overlay declaring `content` types. The other two, the
-`filters` of `GET` and `DELETE /accounts/{account_id}/ai-gateway/gateways/{gateway_id}/logs`, say
-nothing of their text, and a `DELETE` whose filter the server did not read would delete as one given
-none. It has two such bodies, the `text/plain;charset=UTF-8` requests of `POST
-/accounts/{account_id}/one/integrations` and its `PATCH`, each an object beside an
-`application/json` content of the same schema. T-48 holds the rule.
+binding's: over each operation's query and each of its form or multipart request contents typed by a
+model, 994 in all, no name is owned whole by two bindings. The parts are the `metadata` of `POST
+/accounts/{account_id}/images/v1`, of `POST /accounts/{account_id}/images/v2/direct_upload` and of
+`PUT /zones/{zone_id}/snippets/{snippet_name}`, each an object no Encoding Object names, and they
+stay their caller's text until the compiler lowers OpenAPI's default for them (#1777), which types
+each as its object and sends it as JSON. The descriptions of ten of the parameters call theirs JSON,
+one array in one parameter, as in
+`search=[{"field":"value","op":"in","value":["evil.com","bad.org"]}]`, which a caller's one pair
+sends and an overlay declaring `content` types. The other two, the `filters` of `GET` and `DELETE
+/accounts/{account_id}/ai-gateway/gateways/{gateway_id}/logs`, say nothing of their text, and a
+`DELETE` whose filter the server did not read would delete as one given none. It has two such
+bodies, the `text/plain;charset=UTF-8` requests of `POST /accounts/{account_id}/one/integrations`
+and its `PATCH`, each an object beside an `application/json` content of the same schema. T-48 holds
+the rule.
 
 ## Other formats
 
@@ -445,6 +482,13 @@ table](../contract/type-table.md#a-row-keyed-by-an-encoding)).
 - **An input no style arranges as one string wherever it is bound**: sent once under its binding's
   name, it reaches a server reading one text there, as the golden spec's ten descriptions ask, and
   can spell no request whose names are not the binding's, `deep[a][b]=x` among them.
+- **A pattern of several segments read as a longest run under `AllowReserved`**: two such parameters
+  in one template would be two runs, failing calls that each one's count reads back.
+- **A reader taking every name its style could have written**, as an exploded map takes every
+  parameter and an exploded object each member's name: a pair would reach two inputs, and a map
+  would hold what no client wrote into it.
+- **A name percent-encoded in a cookie, a header or a multipart part**: no reader there decodes it,
+  so the name would arrive as another.
 - **A pair under any name its location declares for nothing else**: the caller's `filter` for the
   golden spec's `filters` is sent and read as no filter, and of two such inputs in one query each
   reader holds the other's pairs.
