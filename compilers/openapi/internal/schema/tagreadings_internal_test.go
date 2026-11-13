@@ -222,23 +222,26 @@ func TestTagReadings_SweepsACycleAtMostTheBound(t *testing.T) {
 	}
 }
 
-// TestTagReadings_SweepsACycleUntilItsNullsSettle pins that a sweep changing
-// only whether a reading admits null is not the last: on a cycle where every
-// model but the last lets its tag hold null, the last's exclusion of null
-// reaches the first on a sweep after the strings have settled.
+// TestTagReadings_SweepsACycleUntilItsNullsSettle pins how a cycle reads null,
+// from any value down: where every model on it lets its tag hold null, so
+// does each, and where all but the last do, the last's exclusion of null
+// reaches the first on a sweep changing nothing else, which is not the last.
 func TestTagReadings_SweepsACycleUntilItsNullsSettle(t *testing.T) {
 	t.Parallel()
 	const n = 3
-	reg := ir.TypeRegistry{"t/a": lit("t/a", "a")}
-	for i := range n {
-		u, m, next := fmt.Sprintf("t/u%d", i), fmt.Sprintf("t/m%d", i), fmt.Sprintf("t/u%d", (i+1)%n)
-		reg[ir.TypeID(u)] = unionOf(ir.TypeID(u), false, to(ir.TypeID(m)))
-		reg[ir.TypeID(m)] = &ir.Model{ID: ir.TypeID(m), Mixins: []ir.TypeRef{to(ir.TypeID(next))},
-			Properties: []ir.Property{{ID: ir.PropID("p/" + m), Name: ir.Naming{Source: "kind"},
-				Type: ir.TypeRef{Target: "t/a", Nullable: i < n-1}}}}
+	for _, lastNullable := range []bool{true, false} {
+		reg := ir.TypeRegistry{"t/a": lit("t/a", "a")}
+		for i := range n {
+			u, m, next := fmt.Sprintf("t/u%d", i), fmt.Sprintf("t/m%d", i), fmt.Sprintf("t/u%d", (i+1)%n)
+			reg[ir.TypeID(u)] = unionOf(ir.TypeID(u), false, to(ir.TypeID(m)))
+			reg[ir.TypeID(m)] = &ir.Model{ID: ir.TypeID(m), Mixins: []ir.TypeRef{to(ir.TypeID(next))},
+				Properties: []ir.Property{{ID: ir.PropID("p/" + m), Name: ir.Naming{Source: "kind"},
+					Type: ir.TypeRef{Target: "t/a", Nullable: i < n-1 || lastNullable}}}}
+		}
+		got := newReadings(t).fold(reg, readKey{id: "t/m0", name: "kind", object: true})
+		assert.Equal(t, tagSet{strings: []string{"a"}, closed: true, null: lastNullable}, got,
+			"the last model's tag nullable: %t", lastNullable)
 	}
-	got := newReadings(t).fold(reg, readKey{id: "t/m0", name: "kind", object: true})
-	assert.Equal(t, tagSet{strings: []string{"a"}, closed: true}, got)
 }
 
 // TestTagReadings_MemberMeetsEveryDeclaration pins that a member's tag is read
