@@ -306,8 +306,8 @@ func (e *escapes) trailOf(c chain) trail {
 	return t
 }
 
-// endOfText marks the end of a message, where a spelling may end as it may
-// before a closing quote.
+// endOfText marks either end of a message, which bounds a spelling as a
+// space before it and a quote on either side of it do.
 const endOfText = "\x00"
 
 // asWritten puts back, in the messages of diags, each spelling the resolver
@@ -315,25 +315,27 @@ const endOfText = "\x00"
 // the model it was resolving as that model then held it, in a reason or in a
 // whole value it could not use, which no model restore reaches.
 //
-// A spelling is put back only where it ends the message or a quoted string,
-// never inside a longer reference. One the source writes itself is left
-// alone, so where a source spells a reference both ways, the library's text
-// may quote the "%2B" one.
+// A spelling is put back only where it is the whole of a quoted string, or
+// the last word of the message, never a part of a longer reference. One the
+// source writes itself is left alone, so where a source spells a reference
+// both ways, the library's text may quote the "%2B" one.
 func (e *escapes) asWritten(diags []ir.Diagnostic) []ir.Diagnostic {
 	r := e.respellings()
 	if r == nil {
 		return diags
 	}
 	for i := range diags {
-		diags[i].Message = strings.TrimSuffix(r.Replace(diags[i].Message+endOfText), endOfText)
+		marked := r.Replace(endOfText + diags[i].Message + endOfText)
+		diags[i].Message = strings.TrimSuffix(strings.TrimPrefix(marked, endOfText), endOfText)
 	}
 	return diags
 }
 
 // respellings returns a replacer from each spelling the resolver was handed to
 // the source's, as the library writes each in text and as its JSON encoder
-// writes it in a value, at the end of a message or of a quoted string. It
-// returns nil when there is nothing to put back.
+// writes it in a value: the whole of a quoted string, or the last word of a
+// message, or the whole of one. It returns nil when there is nothing to put
+// back.
 func (e *escapes) respellings() *strings.Replacer {
 	if e == nil {
 		return nil
@@ -356,9 +358,10 @@ func (e *escapes) respellings() *strings.Replacer {
 	slices.SortFunc(pairs, func(a, b [2]string) int {
 		return cmp.Or(strings.Compare(a[0], b[0]), strings.Compare(a[1], b[1]))
 	})
-	args := make([]string, 0, 4*len(pairs))
+	args := make([]string, 0, 6*len(pairs))
 	for _, p := range pairs {
-		args = append(args, p[0]+endOfText, p[1]+endOfText, p[0]+`"`, p[1]+`"`)
+		args = append(args, `"`+p[0]+`"`, `"`+p[1]+`"`, " "+p[0]+endOfText, " "+p[1]+endOfText,
+			endOfText+p[0]+endOfText, endOfText+p[1]+endOfText)
 	}
 	return strings.NewReplacer(args...)
 }

@@ -454,6 +454,9 @@ func TestEscapes_AsWrittenPutsASpellingBackWhereItEnds(t *testing.T) {
 		"reference: #/c%2Bd&<e>",
 		`unresolved $ref "#/a%2Bb/f": not found`,
 		"no reference here",
+		"#/a%2Bb",
+		`unresolved $ref "x/#/a%2Bb": not found`,
+		"unable to resolve reference: x/#/a%2Bb",
 	)
 
 	assert.Equal(t, []string{
@@ -463,7 +466,28 @@ func TestEscapes_AsWrittenPutsASpellingBackWhereItEnds(t *testing.T) {
 		"reference: #/c+d&<e>",
 		`unresolved $ref "#/a%2Bb/f": not found`,
 		"no reference here",
-	}, got, "at the end of a message or a quoted string, as text and as JSON writes it, never inside a longer one")
+		"#/a+b",
+		`unresolved $ref "x/#/a%2Bb": not found`,
+		"unable to resolve reference: x/#/a%2Bb",
+	}, got, "the whole of a quoted string or the last word of a message, as text and as JSON writes it, "+
+		"never a part of a longer one")
+}
+
+// TestEscapes_AsWrittenNamesNoLongerReferenceByASpellingItEnds pins that a
+// failing reference whose spelling ends with a respelled one keeps its own:
+// "missing/o.yaml#/X", written as is, is not the respelling "%6F.yaml#/X" is
+// read by.
+func TestEscapes_AsWrittenNamesNoLongerReferenceByASpellingItEnds(t *testing.T) {
+	t.Parallel()
+	got := escapedMessages(t, "[{$ref: '%6F.yaml#/X'}, {$ref: 'missing/o.yaml#/X'}]",
+		`unresolved $ref "missing/o.yaml#/X": open missing/o.yaml: no such file or directory`,
+		`unresolved $ref "o.yaml#/X": not found`,
+	)
+
+	assert.Equal(t, []string{
+		`unresolved $ref "missing/o.yaml#/X": open missing/o.yaml: no such file or directory`,
+		`unresolved $ref "%6F.yaml#/X": not found`,
+	}, got)
 }
 
 func TestEscapes_AsWrittenKeepsASpellingTheSourceWrites(t *testing.T) {
