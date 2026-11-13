@@ -112,8 +112,9 @@ func TestFileOf(t *testing.T) {
 
 // TestForResolver pins how a reference's document part is spelled for the
 // parser's resolver, so that its own join reads the document Locate names:
-// decoded where it names a file, and against an http(s) URL, an absolute path
-// or a network-path reference as the URL it names, any other part as written.
+// decoded where it names a file, and against an http(s) URL, as the URL Locate
+// names wherever the resolver reads another, as it reads an absolute path or a
+// network-path reference as a local file, any other part as written.
 func TestForResolver(t *testing.T) {
 	t.Parallel()
 	for _, c := range []struct{ uri, base, want string }{
@@ -125,6 +126,9 @@ func TestForResolver(t *testing.T) {
 		{"pet%20s.yaml", "https://example.com/v1/a.yaml", "pet%20s.yaml"},
 		{"file:///etc/x.yaml", "https://example.com/v1/a.yaml", "file:///etc/x.yaml"},
 		{"/%zz", "https://example.com/v1/a.yaml", "/%zz"},
+		{"", "https://example.com/v1/a.yaml", ""},
+		{"../b.yaml", "https://example.com/v1/a.yaml", "../b.yaml"},
+		{"https://other.example/b.yaml", "https://example.com/v1/a.yaml", "https://other.example/b.yaml"},
 	} {
 		assert.Equal(t, c.want, ForResolver(c.uri, c.base), "%q in %q", c.uri, c.base)
 	}

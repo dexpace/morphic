@@ -693,16 +693,18 @@ func overNetwork(key string) bool {
 }
 
 // localTarget returns the location the $ref or $id value ref, read against
-// base, names, and whether that is local rather than a URL — a file: URI among
-// them, which the resolver reads from disk (readFileURI). A value the resolver
-// cannot place names nothing, and is left for it to report.
+// base, names (resolve.Locate), and whether a reader reads it from disk: a
+// location with no scheme of two letters or more, a path or a drive letter's,
+// or a file: URI. A URL of any other scheme is no file, and a value no reading
+// can place names nothing, each left for the read to refuse or report.
 func localTarget(ref, base string) (string, bool) {
 	uri, _, _ := strings.Cut(ref, "#")
 	target, ok := refscope.Locate(uri, base)
 	if !ok {
 		return "", false
 	}
-	return target, !refscope.IsURL(target) || isFileURI(target)
+	u, err := url.Parse(target)
+	return target, err != nil || len(u.Scheme) < 2 || strings.EqualFold(u.Scheme, "file")
 }
 
 // isFileURI reports whether s is a file: URI.

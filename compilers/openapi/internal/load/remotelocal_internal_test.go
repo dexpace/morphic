@@ -36,8 +36,8 @@ func TestOverNetwork(t *testing.T) {
 }
 
 // TestLocalTarget pins which $ref and $id values, read against a network base,
-// name a local location, and the location each names: a file: URI does, and
-// nothing else. An absolute path and a network-path reference name a resource
+// name a local location, and the location each names: a file: URI does, and a
+// drive path, which a reader reads from disk, and nothing else. An absolute path and a network-path reference name a resource
 // on the network, as RFC 3986 §5.2 resolves them against the document's URL
 // (GitHub #936), as do a relative path and an absolute URL; an internal
 // pointer names the document itself, and a URI on another scheme names no file.
@@ -72,6 +72,8 @@ func TestLocalTarget(t *testing.T) {
 	}
 	_, local := localTarget("://bad", base)
 	assert.False(t, local, "the resolver cannot place it, and reports it itself")
+	_, local = localTarget(`C:\x.yaml`, base)
+	assert.True(t, local, "a drive path, spelled as the system spells it, a reader reads from disk")
 }
 
 // remoteDoc is a document whose one schema is a $ref to ref, as a network

@@ -56,20 +56,24 @@ func Locate(uri, base string) (string, bool) {
 // ForResolver returns uri, the document part of a reference written in the
 // document at base, spelled so that the parser's resolver, joining it its own
 // way, reads the document Locate names: as the file it names (FilePart), and,
-// against an http(s) URL, an absolute path or a network-path reference as the
-// URL it names, which the resolver would read as a local file.
+// against an http(s) URL, as the URL Locate names wherever the resolver's own
+// reading names another, as it does an absolute path or a network-path
+// reference, which it reads as a local file. So no reference in a document
+// fetched over the network is read where Locate does not place it.
 func ForResolver(uri, base string) string {
 	uri = strings.TrimSpace(uri)
 	if _, ok := networkURL(base); !ok {
 		return FilePart(uri)
 	}
-	if !strings.HasPrefix(uri, "/") {
+	located, ok := Locate(uri, base)
+	if !ok {
 		return uri
 	}
-	if located, ok := Locate(uri, base); ok {
-		return located
+	own, err := references.ResolveAbsoluteReference(references.Reference(uri), base)
+	if err == nil && own.AbsoluteReference == located {
+		return uri
 	}
-	return uri
+	return located
 }
 
 // networkURL returns base parsed as an http or https URL, and false for any
