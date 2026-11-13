@@ -63,9 +63,9 @@ type Discriminator struct {
                                    // (Erlang tagged tuples {ok, V} | {error, R}; JSON arrays with a
                                    // const head via prefixItems)
     Mapping  map[string]TypeID     // wire value → subtype; nil on a union = infer by type name,
-                                   // else the source's entries and the route it implies to each
-                                   // variant they leave out; a hierarchy routes to each subtype
-                                   // by its DiscriminatorValue
+                                   // else the routes declared or inferred and the one the source
+                                   // implies to each variant they leave out; a hierarchy routes
+                                   // to each subtype by its DiscriminatorValue
     Default  TypeID                // variant to use when the tag is absent/unrecognized
                                    // (OpenAPI 3.2 defaultMapping); zero = none
     Envelope string                // "" = tag inline in the variant object;

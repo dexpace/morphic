@@ -119,7 +119,7 @@ var generations = []generation{
 		names: "5506159ecd463736fdbbad0c4cabfad3fd50b48509b46fbea55862e82eca9675"},
 	{version: "0.47.0", format: 1, shape: "579d8cf68b18eb8fb9e58bc0baf0f89dd640a8f916a95f473a407d0513b2f81f",
 		names:   "5506159ecd463736fdbbad0c4cabfad3fd50b48509b46fbea55862e82eca9675",
-		meaning: "a union's Discriminator.Mapping holding an entry holds, beside the entries its source writes, the route the source implies to each variant it declares none for; a policy reads a union's mapping, an undeclared discriminator and a subtype's tag off the sets of strings the variants and the subtype admit, read through unions of values and the unions they compose"},
+		meaning: "a union's Discriminator.Mapping holding an entry its source writes holds, beside those entries, the route the source implies to each variant it declares none for; a policy reads a union's mapping, an undeclared discriminator and a subtype's tag off the sets of strings the variants and the subtype admit, read through unions of values and the unions they compose"},
 }
 
 // shapeGolden holds the description the newest row's shape hashes, so a change
