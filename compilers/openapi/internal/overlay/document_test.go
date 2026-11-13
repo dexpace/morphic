@@ -32,6 +32,7 @@ func TestRead_AppliesTheVersionsTheCompilerKnowsAtAnyPatch(t *testing.T) {
 		assert.Equal(t, refused == "", origin.Applied(), "%s: %+v", version, diags)
 		if refused != "" {
 			sameCodes(t, []string{"error " + refused}, diags)
+			require.Len(t, diags, 1)
 			assert.Contains(t, diags[0].Message, version)
 		}
 	}
@@ -120,6 +121,7 @@ func TestRead_RefusesAnActionSettingBothUpdateAndCopy(t *testing.T) {
 
 	assert.False(t, origin.Applied())
 	sameCodes(t, []string{"error " + diag.OverlayFailed}, diags)
+	require.Len(t, diags, 1)
 	assert.Contains(t, diags[0].Message, "action 2 of 2")
 	assert.Contains(t, diags[0].Message, "sets both update and copy")
 	sameValue(t, src, root)
