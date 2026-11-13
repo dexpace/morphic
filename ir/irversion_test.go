@@ -141,6 +141,9 @@ var generations = []generation{
 		meaning: "a default-ignorable letter or mark separates words; the OpenAPI compiler names an anonymous schema by its title, a media type component keyed \"\" by its key and a header an Encoding Object nests by its key, and compares a header parameter's name in any case"},
 	{version: "0.55.0", format: 1, shape: "0b2f5e45e4be29c67a153976848af676bc99d9f21d9e41a91b7abfd167ae026b",
 		names:   "c81be0f2b36405f2d981ea6c635ea75c4154521622c148c008ae2e7f345264b2",
+		meaning: "a count past 64 bits reaches no Constraints field and is kept verbatim under its keyword, and an inline allOf branch whose bound states no value folds"},
+	{version: "0.56.0", format: 1, shape: "0b2f5e45e4be29c67a153976848af676bc99d9f21d9e41a91b7abfd167ae026b",
+		names:   "c81be0f2b36405f2d981ea6c635ea75c4154521622c148c008ae2e7f345264b2",
 		meaning: "the OpenAPI compiler writes closed_after_composition only for an unevaluatedProperties: false no additionalProperties leaves inert, supplies no catch-all value beside it, and keeps every other unevaluated form under openapi:unevaluated, with the keyword that leaves an inert one inert"},
 }
 

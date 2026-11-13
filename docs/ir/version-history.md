@@ -593,7 +593,24 @@ it sees. Changes made together in one bump are listed together under it.
     ([`parameters`](../compilers/openapi.md#parameters)), so an operation's `x-trace` overrides
     its path item's `X-Trace`, and one list writing both reports the second as a repeat, each kept
     under the ID its spelling gives it.
-- **0.55.0** — what the OpenAPI compiler writes for `unevaluatedProperties` and `unevaluatedItems`
+- **0.55.0** — no shape change. The OpenAPI compiler writes a count, `minLength`, `maxLength`,
+  `minItems`, `maxItems`, `minProperties` or `maxProperties`, past what a 64-bit integer holds to
+  no `Constraints` field, where it wrote `0` or a number the source does not state, and keeps it
+  verbatim under `openapi:<keyword>` (`degraded_lowering`) on the node or carrier the position owns
+  ([`constraints`](../compilers/openapi.md#constraints)); a count literal that is no non-negative
+  integer, which the load phase refuses, reaches no field either. An inline `allOf` branch whose
+  bound keyword states no value, a 3.0 `exclusiveMinimum` with no bound beside it, one of `false` or
+  one the load phase refuses, parts no other branch, so it folds where nothing else parts it
+  ([`allof-inline-residue`](../compilers/openapi.md#allof-inline-residue)), what it keeps landing
+  under its keyword rather than under `openapi:allOf/<n>`. A field several `allOf` conjuncts
+  declare ([`allof-redeclared-property`](../compilers/openapi.md#allof-redeclared-property)) now
+  holds two enums' shared values of the narrower value type, where it kept the first enum of
+  different value types, and holds what an alias of an enum, a `const`, a `Scalar`, a list, a map
+  or a tuple meets beside the node it stands for, where it kept the first; an alias adding only
+  null to a type beside it gives that type. A consumer pinned to 0.54.0 that read such a count's
+  field finds none there, one reading such a branch under `openapi:allOf/<n>` finds its keywords at
+  the position instead, and one reading such a field may find a node minted for it.
+- **0.56.0** — what the OpenAPI compiler writes for `unevaluatedProperties` and `unevaluatedItems`
   changed, the shape unchanged
   ([`additional-properties`](../compilers/openapi.md#additional-properties),
   [`validation-only`](../compilers/openapi.md#validation-only)):
@@ -601,10 +618,10 @@ it sees. Changes made together in one bump are listed together under it.
     beside the `unevaluatedProperties: false`, which would leave it inert. Beside one the model is
     `closed` for `false`, and otherwise open with its catch-all, so `{type: object,
     additionalProperties: {…}, unevaluatedProperties: false}` is a `MapT`. A consumer pinned to
-    0.54.0 read such a model as closed.
+    0.55.0 read such a model as closed.
   - A catch-all beside `closed_after_composition` holds its patterns and no `Value`, where it held
     the top type: a key no pattern matches is allowed only where composition evaluates it.
   - `openapi:unevaluated` holds an `unevaluatedProperties: false` wherever no model holds it as its
     closure, where it was dropped, and holds an inert keyword together with the
     `additionalProperties`, `items` or `additionalItems` beside it that leaves it inert. A consumer
-    pinned to 0.54.0 applying the entry read every keyword in it as live.
+    pinned to 0.55.0 applying the entry read every keyword in it as live.

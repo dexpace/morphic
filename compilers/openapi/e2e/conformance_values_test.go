@@ -219,6 +219,20 @@ func assertConstraints(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
 	assertLengthAndCollectionBounds(t, doc, m)
 	assertCoDeclaredBounds(t, m, diags)
 	assertCoDeclaredBoundKept(t, doc, m)
+	assertHugeCountKept(t, doc, diags)
+}
+
+// assertHugeCountKept pins a count past 64 bits: no Constraints field states it,
+// so it is kept verbatim under its keyword, with one info at its schema, beside
+// the count the field does state.
+func assertHugeCountKept(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
+	t.Helper()
+	s, ok := doc.Types[componentID("HugeCount")].(*ir.Scalar)
+	require.True(t, ok)
+	assert.Equal(t, &ir.Constraints{MinLength: new(int64(1))}, s.Constraints)
+	require.Contains(t, s.Unmodeled, "openapi:maxLength")
+	assert.Equal(t, ir.RawValue("99999999999999999999"), s.Unmodeled["openapi:maxLength"].Value)
+	assert.Len(t, diagsUnder(diags, "/components/schemas/HugeCount"), 1)
 }
 
 // assertCoDeclaredBounds pins the 2020-12 rule that a side declaring both of
