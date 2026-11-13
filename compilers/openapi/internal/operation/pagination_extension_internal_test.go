@@ -44,7 +44,8 @@ func TestPager_AParameterOnlyABindingNamesResolvesNothing(t *testing.T) {
 // whose members reach its key (pager.reaching): with no member keeping the key
 // no model is flattened and the root is not read, and a level steps into a
 // member's model only where that model reaches the key. None of this changes
-// what a search finds, only what it reads, so it is held here.
+// what a search finds, only what it reads, so it is held here. A member naming
+// a type the registry lacks, as a dangling reference would, keeps nothing.
 func TestMarker_DescendsOnlyIntoModelsReachingTheKey(t *testing.T) {
 	t.Parallel()
 	c := newRawLowerer(&soa.OpenAPI{}).ctx
@@ -54,7 +55,7 @@ func TestMarker_DescendsOnlyIntoModelsReachingTheKey(t *testing.T) {
 	}
 	reg := ir.TypeRegistry{
 		"t/root":   &ir.Model{ID: "t/root", Properties: []ir.Property{member("p/a", "t/marked"), member("p/b", "t/plain")}},
-		"t/plain":  &ir.Model{ID: "t/plain", Properties: []ir.Property{member("p/c", "t/text")}},
+		"t/plain":  &ir.Model{ID: "t/plain", Properties: []ir.Property{member("p/c", "t/text"), member("p/e", "t/gone")}},
 		"t/marked": &ir.Model{ID: "t/marked", Properties: []ir.Property{member("p/d", "t/text")}},
 		"t/text":   &ir.Scalar{ID: "t/text"},
 	}
