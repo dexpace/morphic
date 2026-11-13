@@ -1743,6 +1743,20 @@ func TestPartEncodings_AnEntryThatCannotBeKeptIsReportedNotAnnounced(t *testing.
 	assert.Empty(t, openapitest.PreservationClaims(diags), "no announcement says the entry was kept")
 }
 
+// TestPartEncodings_AContentTypeWrittenTakesNoDefault holds a part whose entry
+// writes a contentType naming no media type, which load reports, to no
+// default content type: the entry wrote one, and a default would read as a
+// valid value standing for a malformed one.
+func TestPartEncodings_AContentTypeWrittenTakesNoDefault(t *testing.T) {
+	t.Parallel()
+	_, svc, diags := compileService(t, formDoc("", multipartForm,
+		"{type: object, properties: {a: {type: string}}}", `{a: {contentType: "", headers: {X-A: {schema: {type: string}}}}}`, ""))
+	openapitest.AssertHasCode(t, diags, "openapi/validation/validation-empty-value", ir.SeverityError)
+	pe, ok := formContent(t, svc, false).Encoding[partProp(requestMedia(multipartForm), "a")]
+	require.True(t, ok, "the part keeps its header")
+	assert.Empty(t, pe.ContentTypes)
+}
+
 // TestPartEncodings_AnEntryKeptAtSettlementThatCannotBeKeptKeepsItsRecords
 // holds an entry for a part no property holds, which cannot be kept whole
 // since it writes a key twice, to the records its lowering kept of it, its

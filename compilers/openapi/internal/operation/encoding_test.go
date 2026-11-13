@@ -108,6 +108,7 @@ func TestEncoding_OnlyUnhomedFieldsOutliveTheEmptyPartEncoding(t *testing.T) {
 	for id, pe := range content.Encoding {
 		assert.Contains(t, string(id), "/properties/r", "the part kept is the one declaring allowReserved")
 		assert.True(t, pe.AllowReserved, "and it keeps what it declared")
+		assert.Empty(t, pe.ContentTypes, "which replaces its content type")
 	}
 	assert.Contains(t, content.Unmodeled, "openapi:encoding/q/x-vendor", "the empty part's own x-* outlives it")
 }

@@ -42,16 +42,18 @@ func partEncodings(c lowering.Ctx, w walk, media *soa.MediaType, mt string, medi
 	if len(parts) == 0 {
 		return nil, unmodeled, diags
 	}
-	if unmodeled == nil {
-		unmodeled = ir.Unmodeled{}
-	}
 	encMap := media.GetEncoding()
-	keys := partKeys{c: c, body: body, schema: mediaPtr + ids.Ptr("schema"), mediaType: lowering.NormalizeMediaType(mt), kept: unmodeled}
+	keys := partKeys{c: c, body: body, schema: mediaPtr + ids.Ptr("schema"), mediaType: lowering.NormalizeMediaType(mt)}
 	for _, part := range parts {
 		kp, partDiags := lowerPart(c, w, part, encMap, mediaPtr, keys.mediaType)
 		diags = append(diags, partDiags...)
 		keys.parts = append(keys.parts, kp)
+		if kp.entry != nil && unmodeled == nil {
+			// The content holds this map, which Settle writes each entry's records to.
+			unmodeled = ir.Unmodeled{}
+		}
 	}
+	keys.kept = unmodeled
 	keys.out = make(map[ir.PropID]ir.PartEncoding, len(keys.parts))
 	w.types.Defer(keys)
 	return keys.out, unmodeled, diags
@@ -69,10 +71,11 @@ func lowerPart(c lowering.Ctx, w walk, part bodyPart, encMap *sequencedmap.Map[s
 		at:        mediaPtr + ids.Ptr("encoding", part.name),
 		file:      readPartFile(c, part, pe.ContentTypes, isMultipart(mt)),
 		encoded:   readContentEncoding(c, part.schemas),
+		defaulted: true,
 	}
 	if enc, ok := encMap.Get(part.name); ok && enc != nil {
 		kp.entry = enc.GetRootNode()
-		kp.arranged = arranged(lowering.EncodingRules(c), enc, mt)
+		kp.defaulted = takesDefault(lowering.EncodingRules(c), enc, mt)
 		diags = append(diags, unknownNestedKeys(c, part, kp.entry, kp.at)...)
 	}
 	return kp, diags
@@ -111,15 +114,17 @@ func unknownNestedKeys(c lowering.Ctx, part bodyPart, entry *yaml.Node, at jsont
 	return diags
 }
 
-// arranged reports whether enc, a part's Encoding Object under mt, a normalized
-// media type, writes a style, an explode or an allowReserved where it takes
-// effect, replacing the part's content type, implicit or explicit, with the
-// arrangement a query parameter's would take
-// (docs/compilers/openapi.md#multipart-encoding).
-func arranged(rules oas.EncodingRules, enc *soa.Encoding, mt string) bool {
-	return enc.Style != nil && rules.TakesEffect("style", mt) ||
-		enc.Explode != nil && rules.TakesEffect("explode", mt) ||
-		enc.AllowReserved != nil && rules.TakesEffect("allowReserved", mt)
+// takesDefault reports whether a part whose Encoding Object is enc, under mt, a
+// normalized media type, takes the content type OpenAPI gives it by default
+// (docs/compilers/openapi.md#multipart-encoding): enc writes no contentType,
+// even an empty one, and no style, explode or allowReserved where it takes
+// effect, which replaces the content type, implicit or explicit, with the
+// arrangement a query parameter's would take.
+func takesDefault(rules oas.EncodingRules, enc *soa.Encoding, mt string) bool {
+	return enc.ContentType == nil &&
+		(enc.Style == nil || !rules.TakesEffect("style", mt)) &&
+		(enc.Explode == nil || !rules.TakesEffect("explode", mt)) &&
+		(enc.AllowReserved == nil || !rules.TakesEffect("allowReserved", mt))
 }
 
 // unkeyedFormEntry, unkeyedFileEntry and unkeyedOtherEntry say why an encoding
@@ -206,8 +211,8 @@ type partKeys struct {
 // keyedPart is one part: the encoding its entry declares and what that entry
 // keeps of its own, the entry as written and where, what its declarations and
 // that entry say of it being a file (readPartFile), whether its declarations
-// write contentEncoding (readContentEncoding), and whether its entry arranges it
-// as a query parameter's value, replacing its content type (arranged).
+// write contentEncoding (readContentEncoding), and whether it takes the
+// default content type (takesDefault).
 type keyedPart struct {
 	file      partFile
 	unmodeled ir.Unmodeled
@@ -216,7 +221,7 @@ type keyedPart struct {
 	part      bodyPart
 	encoding  ir.PartEncoding
 	encoded   contentEncoding
-	arranged  bool
+	defaulted bool
 }
 
 // unkeyedPartEntry says, in its info, why the entry of a part the walk found

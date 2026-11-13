@@ -73,10 +73,10 @@ func partValues(node func(ir.TypeID) (ir.TypeDef, bool), decls []*ir.Property) (
 }
 
 // withDefaultContentType returns pe, the encoding of p, a part decls declare,
-// with the content type OpenAPI gives it by default where its entry names none
-// and writes no field that replaces it (keyedPart.arranged).
+// with the content type OpenAPI gives it by default where it takes one
+// (keyedPart.defaulted).
 func withDefaultContentType(node func(ir.TypeID) (ir.TypeDef, bool), rules oas.EncodingRules, decls []*ir.Property, p keyedPart, pe ir.PartEncoding) ir.PartEncoding {
-	if len(pe.ContentTypes) > 0 || p.arranged {
+	if !p.defaulted {
 		return pe
 	}
 	if values, ok := partValues(node, decls); ok {

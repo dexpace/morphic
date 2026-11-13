@@ -58,7 +58,7 @@ func fillSequential(c lowering.Ctx, w walk, content *ir.Content, media *soa.Medi
 	pe = file.apply(pe)
 	content.ItemEncoding = &pe
 	mt := lowering.NormalizeMediaType(content.MediaType)
-	if parts && len(pe.ContentTypes) == 0 && (enc == nil || !arranged(lowering.EncodingRules(c), enc, mt)) {
+	if parts && (enc == nil || takesDefault(lowering.EncodingRules(c), enc, mt)) {
 		w.types.Defer(itemDefault{c: c, encoding: content.ItemEncoding, item: *content.Item,
 			encoded: readContentEncoding(c, []*oas3.JSONSchema[oas3.Referenceable]{media.GetItemSchema()})})
 	}
