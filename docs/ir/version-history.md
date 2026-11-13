@@ -470,8 +470,8 @@ it sees. Changes made together in one bump are listed together under it.
   headers](./responses.md#prefix-headers)). `irverify` holds such a header to a map type and no
   wire name, and `irfacts.CorrelationVersion` moved to 3, keying it by its prefix. No compiler
   fills it yet. A consumer pinned to 0.45.0 refuses a document with a prefix header.
-- **0.47.0** — the empty prefix of a parameter's binding got a spelling, and four of the fields a
-  request is written by changed meaning ([HTTP binding](./http-binding.md)):
+- **0.47.0** — the empty prefix of a parameter's binding got a spelling, and other fields a request
+  is written by changed meaning ([HTTP binding](./http-binding.md)):
   - `HTTPParamBinding.Prefix` became a pointer, nil for a binding of one field, so the empty prefix,
     which takes every header or query parameter, as Smithy's `@httpPrefixHeaders("")` and
     `@httpQueryParams` bind one, is a prefix ([prefix bindings](./http-binding.md#prefix-bindings)).
