@@ -578,3 +578,18 @@ it sees. Changes made together in one bump are listed together under it.
     string.
   - Over a `string`, a `WireType` of `string` marks text the encoding is applied to, and none marks
     text already encoded. No compiler writes the first yet.
+- **0.54.0** — names an emitter renders moved, and one lowering changed, at an unmoved shape:
+  - The [word grammar](./naming.md#the-word-grammar) separates on a letter or mark that is a
+    `Default_Ignorable_Code_Point`, a variation selector or the Hangul filler U+3164 among them, as
+    on the format characters in that property, so a name of only such characters has no
+    `Canonical`, and `irverify` refuses one in a canonical or a hint. A consumer pinned to 0.53.0
+    meets `Canonical` and `Hint` it would have carried such a character in without it.
+  - The OpenAPI compiler names an anonymous schema that writes a `title`, a union branch's variant
+    included, by the title's words, where its position, its owner or the `$ref` beside it named it,
+    under a policy `title-names=false` turns off ([`naming`](../compilers/openapi.md#naming)); names the items of a `components/mediaTypes` entry
+    keyed `""` from the minted name rather than the pointer; and names a schema under a header of an
+    Encoding Object another nests by the header's key.
+  - The OpenAPI compiler compares a header parameter's name in any case
+    ([`parameters`](../compilers/openapi.md#parameters)), so an operation's `x-trace` overrides
+    its path item's `X-Trace`, and one list writing both reports the second as a repeat, each kept
+    under the ID its spelling gives it.

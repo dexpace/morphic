@@ -30,12 +30,15 @@ var adversarialRunes = []string{
 	// changes length.
 	"Aϒ", "xǅy", "aẞb", "İstanbul", "ǅungla",
 	// A decomposed é: one letter written as a letter and a combining mark.
-	"café_v2", "́x", "x́",
+	"café_v2", "\u0301x", "x\u0301",
 	// The scripts: a grammar can mishandle exactly one of them, so Latin alone
 	// would not show it. Cherokee and Deseret are cased and rarely tested,
 	// Greek and Cyrillic are the common non-Latin cased scripts, and Han and
 	// Hebrew are cased by nothing at all.
 	"ᎠᎡ", "ꭰx", "𐐀𐐨", "Δε", "Жx", "中文", "אב",
+	// Letters and marks that are default-ignorable, which separate, alone and
+	// between letters, in the BMP and past it (#1544).
+	"\ufe0f", "a\ufe0fb", "\u3164", "x\u3164y", "\U000e0100", "a\u034f\u0301",
 	// The boundaries the grammar splits on, and names with no words.
 	"userID", "HTTPServer", "APIKey2", "v2Beta", "foo2bar",
 	"com.example.User", "get /pets/{petId}", "filter[name]",
@@ -124,9 +127,9 @@ func assertIdempotent(t *testing.T, name, got string) {
 
 // assertWordSequenceShape pins that the grammar's output is what
 // ir.Naming.Canonical's doc comment promises, restated from the field rather
-// than from the implementation: words of letters, digits and marks, joined by
-// single underscores, carrying no casing and straddling no letter/digit
-// boundary.
+// than from the implementation: words of letters, digits and marks
+// (isWordRune), joined by single underscores, carrying no casing and straddling
+// no letter/digit boundary.
 //
 // This is the property that ties the producer to the consumer. irverify rejects
 // a canonical failing any of these, so a grammar that could emit one would put
@@ -155,7 +158,7 @@ func assertWordRunes(t *testing.T, name, got, word string) {
 	t.Helper()
 	var prev rune
 	for i, r := range word {
-		if !unicode.IsLetter(r) && !unicode.IsDigit(r) && !unicode.IsMark(r) {
+		if !isWordRune(r) {
 			t.Fatalf("non-word rune %q in a word\n  input: %q\n  got: %q", r, name, got)
 		}
 		straddles := (unicode.IsLetter(prev) && unicode.IsDigit(r)) ||
@@ -189,9 +192,18 @@ func assertWordRunesPreserved(t *testing.T, name, got string) {
 func wordRunesOf(s string) string {
 	var b strings.Builder
 	for _, r := range strings.ToLower(s) {
-		if unicode.IsLetter(r) || unicode.IsDigit(r) || unicode.IsMark(r) {
+		if isWordRune(r) {
 			b.WriteRune(r)
 		}
 	}
 	return b.String()
+}
+
+// isWordRune is the word rune ir.Naming.Canonical's doc comment promises,
+// restated from Unicode's tables rather than from the implementation: a letter,
+// digit or mark that is not default-ignorable. Of the terms that property is
+// built from, only these two hold a letter, a digit or a mark, Cf holding none.
+func isWordRune(r rune) bool {
+	return (unicode.IsLetter(r) || unicode.IsDigit(r) || unicode.IsMark(r)) &&
+		!unicode.Is(unicode.Other_Default_Ignorable_Code_Point, r) && !unicode.Is(unicode.Variation_Selector, r)
 }

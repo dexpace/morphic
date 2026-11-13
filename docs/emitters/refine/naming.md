@@ -196,7 +196,7 @@ either, since a configuration replaces the table and the pass serves every targe
 
 ## A name with no words takes its characters' names
 
-A `Source` with no letter or digit in it — an enum value `>=`, an `operationId` `***`, a property
+A `Source` with no word character in it — an enum value `>=`, an `operationId` `***`, a property
 `<` — has neither `Canonical` nor `Hint` ([naming](../../ir/naming.md)), and still needs an
 identifier, wherever it is written. `RenderCasing` names it: from each position, the longest
 sequence the character-name table holds becomes that entry's words, and a character it does not hold

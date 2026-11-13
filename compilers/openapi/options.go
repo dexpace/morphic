@@ -185,6 +185,12 @@ type ReplacementInference = lowering.ReplacementInference
 // replacements out of the message.
 const ReplacementInferenceHeuristic = lowering.ReplacementInferenceHeuristic
 
+// TitleNames is the title-names policy: whether a schema's title names the
+// anonymous node built from it, in place of the hint its position composes.
+// It is another injectable-policy seam (architecture principle 6), and is
+// named here rather than restated for the reason GroupingStrategy is.
+type TitleNames = lowering.TitleNames
+
 // DefaultExtensionPromotions returns the extension-to-field mapping applied
 // when the caller names none. It is exported so a caller changing the mapping
 // can start from it rather than transcribe it.
@@ -254,6 +260,10 @@ type Options struct {
 	// zero value is on; a caller who wants the replacement left in the message
 	// disables it.
 	ReplacementInference ReplacementInference `json:"replacementInference"`
+	// TitleNames selects whether a schema's title names the anonymous node
+	// built from it, its title its summary either way. The zero value is on; a
+	// caller who wants every such node named by its position disables it.
+	TitleNames TitleNames `json:"titleNames"`
 	// AllowExternalRefs lets a read of another document leave the directory the
 	// source lies in (Source.Location, else Source.Path) for any file and
 	// http(s) URLs. Off by default, since a spec is untrusted: reads stay
@@ -509,7 +519,7 @@ const (
 // field its being off, as each policy's Disabled does. A name is the marker
 // the policy leaves on what it fills (docs/compilers/openapi.md#policies), but
 // for the streaming and binary policies', whose markers predate the rule
-// (#1847).
+// (#1847), and the title-names policy's, which leaves none.
 func switchOptions(o *Options) map[string]*bool {
 	return map[string]*bool{
 		string(NullableWideningHeuristic):       &o.NullableWidening.Disabled,
@@ -520,6 +530,7 @@ func switchOptions(o *Options) map[string]*bool {
 		string(ReplacementInferenceHeuristic):   &o.ReplacementInference.Disabled,
 		"streaming-inference":                   &o.StreamingMedia.Disabled,
 		"binary-inference":                      &o.BinaryMedia.Disabled,
+		"title-names":                           &o.TitleNames.Disabled,
 	}
 }
 
