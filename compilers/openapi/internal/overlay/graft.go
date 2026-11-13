@@ -164,7 +164,8 @@ func (g *grafter) writeInto(target, payload *yaml.Node) (bool, error) {
 		return g.appendTo(target, payload, 0)
 	case shapePrimitive:
 		if g.version == v10 {
-			return false, fmt.Errorf("it selects the primitive at %s, and an Overlay 1.0 target selects objects and arrays", where(target))
+			return false, fmt.Errorf("it selects the primitive at %s, and an Overlay 1.0 update targets objects and arrays; "+
+				"target the object holding it and update the member, or declare overlay: 1.1.0", where(target))
 		}
 		if shapeOf(payload) != shapePrimitive {
 			return false, fmt.Errorf("it writes %s over the primitive at %s, which only a primitive replaces", shapeOf(payload), where(target))

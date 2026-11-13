@@ -14,20 +14,24 @@ import (
 
 // TestRead_AppliesTheVersionsTheCompilerKnowsAtAnyPatch pins the versions an
 // overlay may declare: 1.0 and 1.1, whose patch the specification asks
-// tooling not to tell apart, and no other, each refused before anything
-// applies.
+// tooling not to tell apart, applied; 1.2, a valid version the compiler does
+// not apply yet, unsupported; and any other invalid. Each refusal comes before
+// anything applies.
 func TestRead_AppliesTheVersionsTheCompilerKnowsAtAnyPatch(t *testing.T) {
 	t.Parallel()
 	const head = "info: {title: O, version: \"1\"}\nactions:\n  - target: $.info\n    update: {description: d}\n"
-	for version, applies := range map[string]bool{
-		"1.0.0": true, "1.0.1": true, "1.0.10": true, "1.1.0": true, "1.1.7": true,
-		"1.2.0": false, "2.0.0": false, "1.0": false, "1.1.x": false, "1.1.0-rc1": false, "0.1.0": false, "1..0": false, "1.1.": false,
+	for version, refused := range map[string]string{
+		"1.0.0": "", "1.0.1": "", "1.0.10": "", "1.1.0": "", "1.1.7": "",
+		"1.2.0": diag.OverlayUnsupported, "1.2.3": diag.OverlayUnsupported,
+		"1.3.0": diag.OverlayInvalid, "2.0.0": diag.OverlayInvalid, "1.0": diag.OverlayInvalid, "1.2": diag.OverlayInvalid,
+		"1.1.x": diag.OverlayInvalid, "1.1.0-rc1": diag.OverlayInvalid, "0.1.0": diag.OverlayInvalid,
+		"1..0": diag.OverlayInvalid, "1.1.": diag.OverlayInvalid,
 	} {
 		origin, _, diags := applied(t, "info: {title: T}\n", "overlay: "+version+"\n"+head, false)
 
-		assert.Equal(t, applies, origin.Applied(), "%s: %+v", version, diags)
-		if !applies {
-			sameCodes(t, []string{"error " + diag.OverlayInvalid}, diags)
+		assert.Equal(t, refused == "", origin.Applied(), "%s: %+v", version, diags)
+		if refused != "" {
+			sameCodes(t, []string{"error " + refused}, diags)
 			assert.Contains(t, diags[0].Message, version)
 		}
 	}
@@ -77,9 +81,8 @@ func TestRead_RefusesACopyInAnOverlay10Document(t *testing.T) {
 }
 
 // TestRead_WarnsOfAFieldWithNoEffect pins the fields the specification gives
-// no effect: an update beside a remove, a copy beside a remove or an update,
-// and an action setting none of the three. Each is applied as the kind it
-// takes, remove before update before copy, and warned of.
+// no effect beside a remove: an update and a copy, and an action setting none
+// of the three. Each is applied as the kind it takes and warned of.
 func TestRead_WarnsOfAFieldWithNoEffect(t *testing.T) {
 	t.Parallel()
 	const src = "info: {title: T, x-gone: 1}\nx-from: {y: 1}\n"
@@ -90,8 +93,6 @@ func TestRead_WarnsOfAFieldWithNoEffect(t *testing.T) {
 			"{info: {title: T}, x-from: {y: 1}}"},
 		{"a copy beside a remove", "  - target: $.info['x-gone']\n    remove: true\n    copy: $['x-from']\n",
 			"{info: {title: T}, x-from: {y: 1}}"},
-		{"a copy beside an update", "  - target: $.info\n    update: {z: 1}\n    copy: $['x-from']\n",
-			"{info: {title: T, x-gone: 1, z: 1}, x-from: {y: 1}}"},
 		{"no modifier", "  - target: $.info\n", "{info: {title: T, x-gone: 1}, x-from: {y: 1}}"},
 	}
 	for _, tc := range tests {
@@ -104,4 +105,27 @@ func TestRead_WarnsOfAFieldWithNoEffect(t *testing.T) {
 			sameValue(t, tc.want, root)
 		})
 	}
+}
+
+// TestRead_RefusesAnActionSettingBothUpdateAndCopy pins the one pair of
+// fields the specification gives no meaning together: each of update and copy
+// has no effect beside the other, so applying either would be a guess, and
+// the action is refused naming both, before any action applies. Beside a
+// remove, both are idle and the remove applies.
+func TestRead_RefusesAnActionSettingBothUpdateAndCopy(t *testing.T) {
+	t.Parallel()
+	const src = "info: {title: T}\nx-from: {y: 1}\n"
+	ov := v11 + "  - target: $.info\n    update: {z: 1}\n  - target: $.info\n    update: {z: 2}\n    copy: $['x-from']\n"
+	origin, root, diags := applied(t, src, ov, false)
+
+	assert.False(t, origin.Applied())
+	sameCodes(t, []string{"error " + diag.OverlayFailed}, diags)
+	assert.Contains(t, diags[0].Message, "action 2 of 2")
+	assert.Contains(t, diags[0].Message, "sets both update and copy")
+	sameValue(t, src, root)
+
+	origin, root, diags = applied(t, src, v11+"  - target: $['x-from']\n    remove: true\n    update: {z: 2}\n    copy: $.info\n", false)
+	require.True(t, origin.Applied(), "%+v", diags)
+	sameCodes(t, []string{"warning " + diag.OverlayAction, "warning " + diag.OverlayAction}, diags)
+	sameValue(t, "info: {title: T}\n", root)
 }

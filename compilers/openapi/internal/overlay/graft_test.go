@@ -124,6 +124,24 @@ func TestGrafter_WritesAnUpdateAsTheSpecificationSays(t *testing.T) {
 	}
 }
 
+// TestGrafter_TellsA10PrimitiveRemoveFromAnUpdate pins the asymmetry Overlay
+// 1.0 leaves for a primitive: a remove of one applies, as 1.0 has no other
+// spelling for removing a primitive member, while an update of one is refused
+// naming both of the spellings that write it, since one exists.
+func TestGrafter_TellsA10PrimitiveRemoveFromAnUpdate(t *testing.T) {
+	t.Parallel()
+	_, root, diags := applied(t, mergeSpec, v10+"  - target: $.info.version\n    remove: true\n", false)
+	require.Empty(t, diags)
+	_, info := member(t, root, "info")
+	var got map[string]any
+	require.NoError(t, info.Decode(&got))
+	assert.Equal(t, map[string]any{"title": "T"}, got, "the version is removed")
+
+	_, _, diags = applied(t, mergeSpec, v10+"  - target: $.info.title\n    update: New\n", false)
+	sameCodes(t, []string{"error " + diag.OverlayFailed}, diags)
+	assert.Contains(t, diags[0].Message, "target the object holding it and update the member, or declare overlay: 1.1.0")
+}
+
 // TestGrafter_QuotesATargetAsWritten pins the action a refusal names: its
 // target as the overlay writes it, quoted, a `%` in it included, which a
 // message built from it as a format would read as a verb, and a line break,

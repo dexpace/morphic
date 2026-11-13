@@ -4,6 +4,7 @@
 package overlay
 
 import (
+	"strconv"
 	"testing"
 
 	soaoverlay "github.com/speakeasy-api/openapi/overlay"
@@ -99,6 +100,24 @@ func TestScanSelector_TellsAStringFromTheRest(t *testing.T) {
 		`$[?!search(@.a, 'x')]`: {misread: "calls search(), which the compiler's JSONPath evaluator answers true for a node lacking the value it tests"},
 		"$['a\x01']":            {foreign: "holds a control character unescaped in a string, which RFC 9535 refuses"},
 		"$[?@.a ==\t1]":         {},
+		`$.a_b._c.é`:            {},
+		`$.*.a`:                 {},
+		`$..*`:                  {},
+		`$..[0]`:                {},
+		`$[?@.a == 1.5]`:        {},
+		`$[?@.a==-1.5e+3]`:      {},
+		`$[?@.a == 2E7].b`:      {},
+		`$[1:-1]`:               {},
+		`$.x-internal`:          {foreign: shorthandRefusal("x-internal", `['x-internal']`)},
+		`$.paths.*.get[?@.x-oai-traits.paged]`: {
+			foreign: shorthandRefusal("x-oai-traits", `['x-oai-traits']`),
+		},
+		`$..x-a`:             {foreign: shorthandRefusal("x-a", `['x-a']`)},
+		`$.responses.200`:    {foreign: shorthandRefusal("200", `['200']`)},
+		`$.a.$ref`:           {foreign: shorthandRefusal("$ref", `['$ref']`)},
+		`$.a.true-x`:         {foreign: shorthandRefusal("true-x", `['true-x']`)},
+		`$.a\b`:              {foreign: shorthandRefusal(`a\b`, `['a\\b']`)},
+		`$[?@.a == 1.5].b-c`: {foreign: shorthandRefusal("b-c", `['b-c']`)},
 		"$.a~[?match(@,'\\r')]": {
 			foreign: "uses ~, which RFC 9535 does not define",
 			misread: "calls match(), which the compiler's JSONPath evaluator answers true for a node lacking the value it tests",
@@ -107,6 +126,13 @@ func TestScanSelector_TellsAStringFromTheRest(t *testing.T) {
 	for selector, want := range tests {
 		assert.Equal(t, want, scanSelector(selector), "%q", selector)
 	}
+}
+
+// shorthandRefusal is the finding on a member name after a dot that RFC 9535's
+// shorthand does not admit, which fix spells as a name selector.
+func shorthandRefusal(name, fix string) string {
+	return `names the member ` + strconv.Quote(name) + ` after a dot, where RFC 9535 admits only letters, digits, underscores ` +
+		`and characters past ASCII, starting with no digit; write it ` + fix
 }
 
 // TestScanSelector_TellsAWellFormedEscapeFromAMalformedOne pins the
@@ -118,14 +144,16 @@ func TestScanSelector_TellsAStringFromTheRest(t *testing.T) {
 func TestScanSelector_TellsAWellFormedEscapeFromAMalformedOne(t *testing.T) {
 	t.Parallel()
 	u := `\` + "u"
-	unread := selectorFacts{unread: `writes a ` + u + ` escape, which the compiler's JSONPath parser cannot read`}
+	unread := func(fix string) selectorFacts {
+		return selectorFacts{unread: `writes a ` + u + ` escape, which the compiler's JSONPath parser cannot read; ` + fix}
+	}
 	foreign := selectorFacts{foreign: `writes a ` + u + ` escape of other than four hexadecimal digits naming a character, ` +
 		`which RFC 9535 refuses`}
 	tests := map[string]selectorFacts{
-		u + "00e9":               unread,
-		u + "263A":               unread,
-		u + "D834" + u + "DD1E":  unread,
-		u + "D7FF" + u + "E000":  unread,
+		u + "00e9":               unread("write the character it names, U+00E9 'é', itself"),
+		u + "263A":               unread("write the character it names, U+263A '☺', itself"),
+		u + "D834" + u + "DD1E":  unread("write the character it names, U+1D11E '𝄞', itself"),
+		u + "D7FF" + u + "E000":  unread("write the character it names, U+D7FF, itself"),
 		u:                        foreign,
 		u + "12":                 foreign,
 		u + "+123":               foreign,
@@ -146,5 +174,35 @@ func TestScanSelector_TellsAWellFormedEscapeFromAMalformedOne(t *testing.T) {
 			got.unread = ""
 		}
 		assert.Equal(t, want, got, "%q", selector)
+	}
+}
+
+// TestSpelledOtherwise_NamesAFixForEachCharacter pins the fix a refusal of a
+// \u escape names: the character itself where a string may hold it, the
+// two-character escape where RFC 9535 gives one, the closing quote and the
+// backslash escaped, and no fix for a control character with no escape the
+// parser reads, the carriage return among them.
+func TestSpelledOtherwise_NamesAFixForEachCharacter(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		r     rune
+		quote byte
+		want  string
+	}{
+		{'é', '\'', "write the character it names, U+00E9 'é', itself"},
+		{'"', '\'', `write the character it names, U+0022 '"', itself`},
+		{'\'', '\'', `write \' instead`},
+		{'"', '"', `write \" instead`},
+		{'\\', '"', `write \\ instead`},
+		{'\n', '\'', `write \n instead`},
+		{'\t', '"', `write \t instead`},
+		{'\b', '"', `write \b instead`},
+		{'\f', '"', `write \f instead`},
+		{'\r', '"', "no other spelling of that character is one it reads"},
+		{0x01, '"', "no other spelling of that character is one it reads"},
+		{0x200B, '"', "write the character it names, U+200B, itself"},
+	}
+	for _, tc := range tests {
+		assert.Equal(t, tc.want, spelledOtherwise(tc.r, tc.quote), "%U in %c", tc.r, tc.quote)
 	}
 }

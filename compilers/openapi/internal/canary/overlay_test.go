@@ -72,7 +72,9 @@ func overlayJSONPathDialect(t *testing.T) {
 // library reads selectors with refuses a member name true, false or null
 // after a dot and a \u escape, reads the escape \r as a line feed, accepts a
 // control character unescaped in a string, and answers match() and search()
-// true for a node lacking the value they test.
+// true for a node lacking the value they test. Its comparisons read a plain
+// date as no string, any two plain dates as equal and 0x10 as 0, and compare
+// objects member by member in written order.
 func jsonpathRFC9535(t *testing.T) {
 	o := overlayDeclaring(t, "1.1.0", "")
 	const doc = "{\"true\": T, \"null\": N, \"é\": E, \"a\\nb\": LF, \"a\\rb\": CR, \"a\\tb\": TAB}\n"
@@ -95,5 +97,17 @@ func jsonpathRFC9535(t *testing.T) {
 		got, err = selected(t, o, "$[?"+fn+"(@.name, 'nothing')].other", list)
 		require.NoError(t, err, revisit(t, result{}))
 		assert.Equal(t, []string{"1"}, got, "%s() selects the element lacking name: %s", fn, revisit(t, result{}))
+	}
+
+	const values = "[{since: 2021-01-01, other: 2022-02-02, limit: 0x10, meta: {p: 1, q: 2}, same: {q: 2, p: 1}}]\n"
+	for selector, want := range map[string][]string{
+		"$[?@.since == '2021-01-01'].limit": nil,
+		"$[?@.since == @.other].limit":      {"0x10"},
+		"$[?@.limit == 0].limit":            {"0x10"},
+		"$[?@.meta == @.same].limit":        nil,
+	} {
+		got, err = selected(t, o, selector, values)
+		require.NoError(t, err, revisit(t, result{}))
+		assert.Equal(t, want, got, "%s: %s", selector, revisit(t, result{}))
 	}
 }

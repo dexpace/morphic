@@ -105,19 +105,24 @@ const (
 	// recognize it, and the reason it declined is the parse error it holds.
 	UndecodableSource = "openapi/undecodable-source"
 	// OverlayInvalid reports an overlay document that could not be parsed, or that
-	// parsed but is not a valid Overlay of a version the compiler applies — a
-	// missing version, no actions, an action naming no target, a selector that is
-	// no RFC 9535 query, a copy in an Overlay 1.0 document — as overlay.read and
+	// parsed but is not a valid Overlay — a missing version or one no Overlay
+	// Specification names, no actions, an action naming no target, a selector that
+	// is no RFC 9535 query, a copy in an Overlay 1.0 document — as overlay.read and
 	// overlay.readSelector find. Nothing is applied, so the compile refuses rather
 	// than lowering a source the caller believes was patched.
 	OverlayInvalid = "openapi/invalid-overlay"
-	// OverlayFailed reports an overlay the compiler could not apply as written: a
-	// selector the compiler's JSONPath implementation cannot read as RFC 9535 does
-	// (overlay.readSelector), an action whose selector selects nothing under
-	// strict application or whose write the specification's rules refuse
+	// OverlayFailed reports an overlay that does not fit the document it is
+	// applied to, or no rule applies as written: an action setting both update
+	// and copy (overlay.read), one whose selector selects nothing under strict
+	// application or whose write the specification's rules refuse
 	// (overlay.runSequence), and an application that panicked. Actions apply in
 	// order and the ones that landed are not undone, so the compile refuses.
 	OverlayFailed = "openapi/overlay-failed"
+	// OverlayUnsupported reports a valid overlay the compiler does not apply: an
+	// Overlay 1.2 document, or a selector RFC 9535 reads that the compiler's
+	// JSONPath implementation refuses or misreads (overlay.readSelector). Nothing
+	// is applied, so the compile refuses.
+	OverlayUnsupported = "openapi/overlay-unsupported"
 	// OverlayAction reports a warning about a single action, naming the action and
 	// its target: that it changed nothing, because what it writes is there
 	// already, because it selects nothing under lax application, or because it
@@ -128,7 +133,7 @@ const (
 	// declares, as against adding one the source lacks, naming both values: an
 	// overlay written to fill a gap keeps winning once the source fills it, and
 	// this is how that shows (overlay.runSequence). Info, as overriding is a
-	// legitimate use; a caller treating overlays as gap-fillers promotes it.
+	// legitimate use.
 	OverlayReplacedValue = "openapi/overlay-replaced-value"
 	// OverlayOriginIncomplete reports that the overlay applied but the walk that
 	// attributes positions to it exceeded its node budget. Provenance degrades to

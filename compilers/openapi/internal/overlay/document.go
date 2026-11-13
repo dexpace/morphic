@@ -30,6 +30,9 @@ const (
 	// or a copy selects are all of one kind, and an action may copy a node of
 	// the document.
 	v11
+	// v12 is Overlay 1.2, which the compiler reads as valid and does not apply
+	// (GitHub #1836), so no action of it reaches the grafter.
+	v12
 )
 
 // kind is what an action does, the first of remove, update and copy it sets,
@@ -128,7 +131,8 @@ func read(at ir.Provenance, data []byte) (plan, []ir.Diagnostic) {
 // readHead holds doc's fixed fields to the specification and returns the
 // version it declares: 1.0 or 1.1 at any patch, an info object naming a title
 // and a version, an extends that parses as a URI reference, and at least one
-// action.
+// action. A 1.2 document is valid and refused as one the compiler does not
+// apply yet; any other version is invalid.
 func readHead(at ir.Provenance, doc *soaoverlay.Overlay) (version, []ir.Diagnostic) {
 	var diags []ir.Diagnostic
 	invalid := func(format string, args ...any) {
@@ -140,6 +144,10 @@ func readHead(at ir.Provenance, doc *soaoverlay.Overlay) (version, []ir.Diagnost
 		invalid("invalid overlay: it declares no overlay version")
 	case !known:
 		invalid("overlay version %q is not one the compiler applies, which are 1.0.x and 1.1.x", doc.Version)
+	case v == v12:
+		diags = append(diags, diag.Newf(ir.SeverityError, diag.OverlayUnsupported, at,
+			"overlay version %q is Overlay 1.2, which the compiler does not apply yet (GitHub #1836); "+
+				"it applies 1.0.x and 1.1.x", doc.Version))
 	}
 	if doc.Info.Title == "" {
 		invalid("invalid overlay: the info object names no title")
@@ -156,8 +164,8 @@ func readHead(at ir.Provenance, doc *soaoverlay.Overlay) (version, []ir.Diagnost
 	return v, diags
 }
 
-// versionOf reads a declared version as the minor it names: 1.0 or 1.1, and a
-// patch of digits, as the specification's own schemas spell it.
+// versionOf reads a declared version as the minor it names: 1.0, 1.1 or 1.2,
+// and a patch of digits, as the specification's own schemas spell it.
 func versionOf(declared string) (version, bool) {
 	rest, isOne := strings.CutPrefix(declared, "1.")
 	minor, patch, cut := strings.Cut(rest, ".")
@@ -169,6 +177,8 @@ func versionOf(declared string) (version, bool) {
 		return v10, true
 	case "1":
 		return v11, true
+	case "2":
+		return v12, true
 	default:
 		return 0, false
 	}
@@ -176,8 +186,11 @@ func versionOf(declared string) (version, bool) {
 
 // readAction reads the action written at index i of doc, which declares v:
 // its kind, its selectors and what it writes. A field the specification gives
-// no effect beside the kind the action takes is a warning, and a copy in an
-// Overlay 1.0 document, which has no such field, is refused.
+// no effect beside the kind the action takes is a warning, a copy in an
+// Overlay 1.0 document, which has no such field, is refused, and so is an
+// Overlay 1.1 action setting both update and copy, to each of which the
+// specification gives no effect beside the other, leaving the action no
+// meaning.
 func readAction(at ir.Provenance, doc *soaoverlay.Overlay, v version, i int, written soaoverlay.Action,
 ) (action, []ir.Diagnostic) {
 	a := action{index: i, of: len(doc.Actions), target: written.Target, kind: kindOf(written)}
@@ -190,9 +203,14 @@ func readAction(at ir.Provenance, doc *soaoverlay.Overlay, v version, i int, wri
 			"invalid overlay: action %d of %d names no target", i+1, a.of)}
 	}
 	var diags []ir.Diagnostic
-	if written.Copy != "" && v == v10 {
+	switch {
+	case written.Copy != "" && v == v10:
 		diags = append(diags, diag.Newf(ir.SeverityError, diag.OverlayInvalid, a.overlay,
 			"%s sets copy, which Overlay 1.1 introduced; this overlay declares %s", a.label(), doc.Version))
+	case a.kind == kindUpdate && written.Copy != "":
+		diags = append(diags, diag.Newf(ir.SeverityError, diag.OverlayFailed, a.overlay,
+			"%s sets both update and copy, and the specification gives each no effect beside the other; "+
+				"write one of them", a.label()))
 	}
 	var found []ir.Diagnostic
 	a.targets, found = readSelector(doc, a, "target", written.Target)
@@ -219,7 +237,7 @@ func kindOf(written soaoverlay.Action) kind {
 }
 
 // idleFields warns of each field a writes that has no effect: an update or a
-// copy beside the kind a takes, and the action as a whole when it sets none.
+// copy beside a remove, and the action as a whole when it sets none.
 func idleFields(a action, written soaoverlay.Action) []ir.Diagnostic {
 	var diags []ir.Diagnostic
 	warn := func(format string, args ...any) {
@@ -231,8 +249,8 @@ func idleFields(a action, written soaoverlay.Action) []ir.Diagnostic {
 	if a.kind == kindRemove && !written.Update.IsZero() {
 		warn("%s also sets update, which has no effect beside remove", a.label())
 	}
-	if (a.kind == kindRemove || a.kind == kindUpdate) && written.Copy != "" {
-		warn("%s also sets copy, which has no effect beside %s", a.label(), a.kind)
+	if a.kind == kindRemove && written.Copy != "" {
+		warn("%s also sets copy, which has no effect beside remove", a.label())
 	}
 	return diags
 }

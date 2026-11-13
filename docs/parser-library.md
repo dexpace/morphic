@@ -768,14 +768,21 @@ member name `true`, `false` or `null` written after a dot, and any `\u` escape i
 which RFC 9535 reads. It reads the escape `\r` as a line feed, so a selector naming a member by one
 selects another, and it accepts a control character written unescaped in a string, which RFC 9535
 refuses. Its `match()` and `search()` answer true for a node lacking the value they test, where RFC
-9535 answers false, so a filter calling one selects every such node.
+9535 answers false, so a filter calling one selects every such node. Its comparisons read a scalar
+by its YAML tag: a plain date, which the compiler reads as the string it spells, equals no string
+and equals every other plain date, and `0x10` compares as 0. Two objects compare equal only with
+their members in the same order.
 
 ```yaml
-target: "$.paths.*[?match(@.summary, 'Pets.*')]"   # selects every operation with no summary too
+actions:
+  - target: "$.paths.*[?match(@.summary, 'Pets.*')]"   # selects every operation with no summary too
+  - target: "$.paths.*[?@['x-limit'] == 0]"           # selects x-limit: 0x10 too
 ```
 
 - Verified at: v1.26.3
 - Pinned by: `TestLibraryBehaviour/jsonpath-rfc9535`
 - Code:
-  - `overlay.scanSelector` finds each of these in a selector's text.
-  - `overlay.readSelector` refuses each, before any action applies.
+  - `overlay.scanSelector` finds each of these in a selector's text, bar the comparisons, which no
+    text shows.
+  - `overlay.readSelector` refuses each it finds, before any action applies. A comparison applies
+    as the library reads it (#1835).

@@ -137,7 +137,7 @@ func codes() []string {
 		diag.CycleScanFailed, diag.SourceTooLarge, diag.SourceTooDeep, diag.PointerAmplification, diag.TaggedMapping,
 		diag.StreamDocumentsDropped,
 		diag.UndecodableSource,
-		diag.OverlayInvalid, diag.OverlayFailed,
+		diag.OverlayInvalid, diag.OverlayFailed, diag.OverlayUnsupported,
 		diag.OverlayAction, diag.OverlayReplacedValue, diag.OverlayOriginIncomplete,
 		diag.ValidationOnlyKeyword, diag.FalseSchema, diag.EmptyEnum, diag.DuplicateEnumValue,
 		diag.NumericPrecision, diag.ExclusiveBoundForm, diag.InvalidStatusKey,
