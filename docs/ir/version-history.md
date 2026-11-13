@@ -533,7 +533,20 @@ it sees. Changes made together in one bump are listed together under it.
   type's name finds the route in the `Mapping`, reads unions it read as untagged, or as routed by
   component names, as routed by the strings their variants pin, and finds no `DiscriminatorValue` on
   a subtype whose composed union rules its name out.
-- **0.51.0** — no shape change. The OpenAPI compiler expands a `$dynamicRef` to an anchor at any
+- **0.51.0** — no shape changed: four OpenAPI policies, each on by default and switched off by its
+  option, fill facts a document implies by its names and messages, each node they fill marked in its
+  `Provenance.Inferred`. An operation sent by `POST`, `PUT`, `PATCH` or `DELETE` takes its one
+  header parameter `Idempotency-Key` as its `Idempotency` token
+  ([`idempotency-inference`](../compilers/openapi.md#idempotency-inference)); a parameter, a header
+  or a member whose name ends in a credential's and whose value is text or bytes is `Secret`
+  ([`secret-inference`](../compilers/openapi.md#secret-inference)); a deprecation's message naming a
+  declared route or a sibling in code fills `ReplacedBy`
+  ([`replacement-inference`](../compilers/openapi.md#replacement-inference)); and a `date-time`
+  response header whose field an RFC defines as an HTTP-date takes `Encoding` `http-date`
+  ([`http-date-inference`](../compilers/openapi.md#http-date-inference)). A consumer pinned to
+  0.50.0 refuses a document from this generation, whose idempotency, redaction, replacements and
+  header texts it would read as no OpenAPI document wrote them.
+- **0.52.0** — no shape change. The OpenAPI compiler expands a `$dynamicRef` to an anchor at any
   position of its schema resource, and JSON Schema 2019-09's `$recursiveRef` to the root of the
   resource it is written in ([`dynamic-ref`](../compilers/openapi.md#dynamic-ref)): such a
   reference's `TypeRef` names the type at that position where it named a node keeping
@@ -542,5 +555,5 @@ it sees. Changes made together in one bump are listed together under it.
   `openapi:$recursiveAnchor` is no longer kept in a 2019-09 schema. A body schema writing `$schema`
   or `$vocabulary` is a file where it was not ([`file-bodies`](../compilers/openapi.md#file-bodies)).
   A `prefixItems` beside a JSON Schema draft's `items` list is kept under `openapi:prefixItems`,
-  where it was dropped ([`tuples`](../compilers/openapi.md#tuples)). A consumer pinned to 0.50.0
+  where it was dropped ([`tuples`](../compilers/openapi.md#tuples)). A consumer pinned to 0.51.0
   reads such a reference as the top type and such a body as a model.

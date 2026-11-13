@@ -25,7 +25,6 @@ member 0 0 CtorValue.args
 member 0 0 CtorValue.name
 member 0 0 CtorValue.scalar
 member 0 0 Deprecation.removalVersion
-member 0 0 Deprecation.replacedBy
 member 0 0 Discriminator.envelope
 member 0 0 Discriminator.envelopeValueName
 member 0 0 Discriminator.index
@@ -41,9 +40,6 @@ member 0 0 EntityRef.channel
 member 0 0 EntityRef.group
 member 0 0 EntityRef.member
 member 0 0 EntityRef.message
-member 0 0 EntityRef.operation
-member 0 0 EntityRef.param
-member 0 0 EntityRef.property
 member 0 0 EntityRef.server
 member 0 0 EntityRef.service
 member 0 0 EntityRef.type
@@ -86,8 +82,6 @@ member 0 0 HTTPParamBinding.paramPath
 member 0 0 HTTPParamBinding.pathPattern
 member 0 0 HTTPParamBinding.prefix
 member 0 0 Header.prefix
-member 0 0 Idempotency.kind
-member 0 0 Idempotency.tokenParam
 member 0 0 List.encoding
 member 0 0 LongRunning.finalOperation
 member 0 0 LongRunning.finalStateVia
@@ -134,7 +128,6 @@ member 0 0 OpBindings.otp
 member 0 0 OpBindings.rpc
 member 0 0 Operation.availability
 member 0 0 Operation.examples
-member 0 0 Operation.idempotency
 member 0 0 Operation.longRunning
 member 0 0 Operation.oneWay
 member 0 0 Operation.overloadOf
@@ -256,7 +249,6 @@ value 0 0 AuthKind "x509"
 value 0 0 HTTPLocation "body"
 value 0 0 HTTPLocation "body_property"
 value 0 0 HTTPLocation "host"
-value 0 0 IdempotencyKind "idempotency_token"
 value 0 0 IdempotencyKind "idempotent"
 value 0 0 IdempotencyKind "safe"
 value 0 0 MsgDirection "receive"

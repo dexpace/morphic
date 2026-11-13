@@ -517,6 +517,26 @@ const (
 	// Info, as InferredNullable is: the reading is the document's evident
 	// intent, and the mark keeps the declared one.
 	InferredDiscriminator = "openapi/inferred-discriminator"
+	// InferredHTTPDate reports a response header the HTTP-date policy writes and
+	// reads as an HTTP-date, a field an RFC defines so whose schema declares a
+	// date-time, whose text format spells as RFC 3339's, at the header. The
+	// header is marked Inferred (docs/compilers/openapi.md#http-date-inference).
+	// Info, as InferredDiscriminator is: the reading departs from what the
+	// format says, and the mark keeps what the document declared.
+	InferredHTTPDate = "openapi/inferred-http-date"
+	// UndecidedIdempotency reports an operation binding an Idempotency-Key
+	// header parameter that the idempotency policy cannot settle as its token,
+	// saying why, at the operation: it is sent by a method whose safety the
+	// compiler does not know, or binds the header more than once
+	// (docs/compilers/openapi.md#idempotency-inference). Info: the document
+	// declares no idempotency, so nothing it says is lost.
+	UndecidedIdempotency = "openapi/undecided-idempotency"
+	// UndecidedReplacement reports a deprecation whose message names an entity
+	// the replacement policy would read as its replacement, beside a name naming
+	// none or several, so the names fill nothing, saying which, at the
+	// deprecated node (docs/compilers/openapi.md#replacement-inference). Info:
+	// the message keeps its prose, so nothing it says is lost.
+	UndecidedReplacement = "openapi/undecided-replacement"
 )
 
 // Newf builds an ir.Diagnostic with a formatted message. It is the single

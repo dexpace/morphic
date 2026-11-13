@@ -10,6 +10,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/dexpace/morphic/compilers/openapi"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
 	"github.com/dexpace/morphic/ir"
@@ -526,4 +527,40 @@ func assertXMLNodeType32(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) 
 
 	assert.Empty(t, diagsAt(diags, diag.UnknownObjectKey, "/components/schemas/Report/properties/id/xml/nodeType"),
 		"a key 3.2 defines is not an undefined key")
+}
+
+// assertSecretInference pins the secret policy at each use of its case: a
+// parameter, a response header and a member whose name ends in a credential's
+// and whose value is text or bytes are redacted and marked; one ending in
+// another word, one of another type, and one the document marks either way,
+// at the use or on its $ref's target, keep what it says.
+func assertSecretInference(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
+	op, ok := opByName(doc, "listLogs")
+	require.True(t, ok)
+	for name, inferred := range map[string]bool{
+		"R2-Secret-Access-Key": true, "api_key": true, "R2-Access-Key-Id": false, "page_token": false, "password": false,
+	} {
+		p, ok := openapitest.ParamBySource(op, name)
+		require.True(t, ok, name)
+		assert.Equal(t, inferred, p.Secret, name)
+		assert.Equal(t, inferred, p.Provenance.Inferred == openapi.SecretInferenceHeuristic, "%s marked", name)
+	}
+	require.Len(t, op.Responses, 1)
+	for wire, inferred := range map[string]bool{"X-Auth-Token": true, "X-Token-Type": false} {
+		h, ok := headerByWire(op.Responses[0].Headers, wire)
+		require.True(t, ok, wire)
+		assert.Equal(t, inferred, h.Secret, wire)
+		assert.Equal(t, inferred, h.Provenance.Inferred == openapi.SecretInferenceHeuristic, "%s marked", wire)
+	}
+	creds := secretModel(t, doc, "Credentials")
+	for wire, tc := range map[string]struct{ secret, marked bool }{
+		"client_secret": {true, true}, "privateKey": {true, true}, "session_token": {true, false},
+		"secret_id": {false, false}, "has_password": {false, false}, "secret": {false, false},
+		"refresh_token": {false, false},
+	} {
+		p, ok := propByWire(creds, wire)
+		require.True(t, ok, wire)
+		assert.Equal(t, tc.secret, p.Secret, wire)
+		assert.Equal(t, tc.marked, p.Provenance.Inferred == openapi.SecretInferenceHeuristic, "%s marked", wire)
+	}
 }
