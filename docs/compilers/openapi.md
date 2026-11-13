@@ -4401,13 +4401,14 @@ the part, read once every type has lowered, and `Filename` also from the media t
 entry names. Where the body model has the property and its type is a list, a tuple, a primitive, or
 a scalar whose bases end in one of those or in no base, they are read off that type, the one the
 `allOf` merge settled on, of the declaration the key names: `Multi` where it ends in a list or
-tuple, `Filename` where it ends in `bytes` (`format` `binary`, `byte` or `base64url`) or, in a
-multipart body, in a list or tuple every element of which ends in `bytes` no encoding such as
-`format: byte` re-encodes, a tuple's rest included where elements may follow its prefix. A union
-is read off its variants, through the unions nested in them, each as such a type is and one of
-another kind as neither: `Multi` where any is, since a part that may repeat travels as repeated
-parts, and, in a multipart body, `Filename` where every one is `bytes` no encoding re-encodes or a
-list or tuple of them. For a property of any other kind, such as an enum, literal, model or
+tuple, `Filename` where it ends in `bytes` (`format` `binary` or `byte`, not `base64url`, whose
+bytes travel as the text its `WireType` names) or, in a multipart body, in
+a list or tuple every element of which ends in `bytes` no encoding such as `format: byte`
+re-encodes, a tuple's rest included where elements may follow its prefix. A union is read off its
+variants, through the unions nested in them, each as such a type is and one of another kind as
+neither: `Multi` where any is, since a part that may repeat travels as repeated parts, and, in a
+multipart body, `Filename` where every one is `bytes` no encoding re-encodes or a list or tuple of
+them. For a property of any other kind, such as an enum, literal, model or
 map, for a union reaching more nested unions than a bound of its own, and for a body with no model,
 they are read from every declaration of the part's name: `Multi` where any is an array, or writes
 no `type` and a union with an array among its branches, `Filename` where any is a `string` with
@@ -4462,8 +4463,8 @@ without its parameters and in any case.
 - Status: partly built: an `encoding` key that names no property, or one declared only inside a
   `oneOf` or `anyOf` branch, is dropped with no diagnostic (#604); on a multi-typed body the entry
   is keyed by a property no node holds, which validation then refuses (#744); a part's own
-  `format: byte` or `base64url`, and a part of a url-encoded body, is marked as carrying a filename
-  (#1214); and an encoding under a media type it does not apply to is kept in no form (#1047).
+  `format: byte`, and a part of a url-encoded body, is marked as carrying a filename (#1214); and an
+  encoding under a media type it does not apply to is kept in no form (#1047).
 
 ### `encoding-allow-reserved`
 

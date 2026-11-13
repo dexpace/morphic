@@ -401,12 +401,12 @@ func unionMembers(node func(ir.TypeID) (ir.TypeDef, bool), union *ir.Union) (mem
 
 // memberFlags reads the structural flags of a part from its type: multi when
 // it is a list or tuple, file when it is bytes, following the alias scalars a
-// hoisted position or `format: byte` puts over the primitive, or, in a
-// multipart body, a list or tuple whose every element is raw bytes (rawBytes,
-// rawTuple). A part's own `format: byte` and a form body's bytes still read as
-// files (GitHub #1214). decided reports that the walk judged the type; false
-// means the type is a kind it cannot answer for. The walk is bounded by
-// maxBodyAliasHops.
+// hoisted position or `format: byte` puts over the primitive but not bytes
+// another format writes as text (encodedAsText), or, in a multipart body, a
+// list or tuple whose every element is raw bytes (rawBytes, rawTuple). A part's
+// own `format: byte` and a form body's bytes still read as files (GitHub
+// #1214). decided reports that the walk judged the type, false for a kind it
+// cannot judge. The walk is bounded by maxBodyAliasHops.
 func memberFlags(node func(ir.TypeID) (ir.TypeDef, bool), ref ir.TypeRef, multipart bool) (multi, file, decided bool) {
 	id := ref.Target
 	for range maxBodyAliasHops {
@@ -422,7 +422,7 @@ func memberFlags(node func(ir.TypeID) (ir.TypeDef, bool), ref ir.TypeRef, multip
 		case *ir.Primitive:
 			return false, t.Prim == ir.PrimBytes, true
 		case *ir.Scalar:
-			if t.Base == nil {
+			if t.Base == nil || encodedAsText(t) {
 				return false, false, true
 			}
 			id = t.Base.Target
@@ -431,6 +431,15 @@ func memberFlags(node func(ir.TypeID) (ir.TypeDef, bool), ref ir.TypeRef, multip
 		}
 	}
 	return false, false, true
+}
+
+// encodedAsText reports whether s is a value a format writes as the text its
+// Encoding's WireType names, as `format: base64url` writes bytes, which a part
+// sends as a text field and no file. `format: byte`'s base64 is the one such
+// text a part still reads as a file (GitHub #1214), as it did before any other
+// format lowered so.
+func encodedAsText(s *ir.Scalar) bool {
+	return s.Encoding != nil && s.Encoding.WireType != nil && s.Encoding.Name != "base64"
 }
 
 // buildPartEncoding assembles the explicit encoding config of the part named
