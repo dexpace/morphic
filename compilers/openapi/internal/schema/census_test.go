@@ -4,6 +4,7 @@
 package schema_test
 
 import (
+	"regexp"
 	"slices"
 	"strings"
 	"testing"
@@ -296,6 +297,69 @@ func TestHeldDiscriminator_IsNotKeptTwice(t *testing.T) {
 	}
 	assert.NotContains(t, marshalForTest(t, doc), "openapi:discriminator")
 	assert.Zero(t, openapitest.CountDiagsAt(diags, diag.DegradedConstruct, ir.SeverityInfo), "%+v", diags)
+}
+
+// TestKeptDiscriminator_ResolvesItsValuesAtEverySite pins that a
+// discriminator the census keeps verbatim still has its values read as the
+// references they are (docs/compilers/openapi.md#discriminator), at every site
+// that keeps one: a $defs member only a value reaches is lowered, and a value
+// naming nothing is reported, once at each site, in either declaration order.
+// The sites are homelessSpec's and unplacedSpec's, and three more: a type array
+// listing no object, one listing an object, and a collapsed union.
+func TestKeptDiscriminator_ResolvesItsValuesAtEverySite(t *testing.T) {
+	t.Parallel()
+	const routed = "$defs: {Sub: {type: object, properties: {m: {type: string}}}}, " +
+		"discriminator: {propertyName: kind, mapping: {s: '#/$defs/Sub', g: '#/$defs/Ghost'}}"
+	// A block mapping takes each key on a line of its own, at the indent of the
+	// one it replaces; a flow mapping takes them in line.
+	block := regexp.MustCompile(`(?m)^ +discriminator: \{propertyName: kind\}$`)
+	withValues := func(spec string) string {
+		spec = block.ReplaceAllStringFunc(spec, func(line string) string {
+			indent := line[:len(line)-len(strings.TrimLeft(line, " "))]
+			return indent + strings.ReplaceAll(routed, ", discriminator", "\n"+indent+"discriminator")
+		})
+		return strings.ReplaceAll(spec, "discriminator: {propertyName: kind}", routed)
+	}
+	const more = "    Multi: {type: [string, integer], discriminator: {propertyName: kind}}\n" +
+		"    Obj: {type: [object, string], discriminator: {propertyName: kind}}\n" +
+		"    Collapsed: {oneOf: [{type: 'null'}, {$ref: '#/components/schemas/Cat'}], discriminator: {propertyName: kind}}\n"
+	for _, c := range []struct {
+		name, spec string
+		sites      []string
+	}{
+		{"beside no union", homelessSpec + more, []string{"/paths/~1p/get/parameters/0/schema", "Str", "En", "Mixed", "Arr",
+			"Bare", "RefD", "Items/items", "Sub/allOf/0", "Holder/properties/p", "Holder/properties/q", "Multi", "Obj", "Collapsed"}},
+		{"beside a union", unplacedSpec, []string{"NullOnly", "NullBoth", "EnumU", "ConstU", "ScalarU", "RefSite",
+			"Holder/properties/n", "Holder/properties/r"}},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			t.Parallel()
+			spec := withValues(c.spec)
+			// Cat, which the $ref sites name, declared first and then last.
+			const catFirst = "    Cat: {type: object, properties: {kind: {type: string}}}\n"
+			require.Contains(t, spec, "  schemas:\n"+catFirst)
+			last := strings.Replace(spec, catFirst, "", 1) + catFirst
+			for _, src := range []string{spec, last} {
+				doc, diags := parseFull(t, src)
+				var unresolved []string
+				for _, d := range withCode(diags, diag.UnresolvedRef) {
+					unresolved = append(unresolved, string(d.Provenance.Pointer))
+				}
+				slices.Sort(unresolved)
+				var want []string
+				for _, site := range c.sites {
+					if !strings.HasPrefix(site, "/") {
+						site = "/components/schemas/" + site
+					}
+					want = append(want, site+"/discriminator/mapping/g")
+					_, ok := doc.Types[ir.TypeID("t/anon"+site+"/$defs/Sub")]
+					assert.True(t, ok, "%s's $defs member, which only its discriminator reaches, is lowered", site)
+				}
+				slices.Sort(want)
+				assert.Equal(t, want, unresolved, "a value naming nothing is reported once at each site")
+			}
+		})
+	}
 }
 
 // unplacedSpec declares a discriminator beside a oneOf/anyOf at each position

@@ -160,7 +160,7 @@ func preserveNullOnlyUnion(c lowering.Ctx, ts *compile.Types, id ir.TypeID, s *o
 		return diags
 	}
 	common := td.Common()
-	diags = append(diags, recordUnhomedAt(c, &common.Unmodeled, s, unhomedKeywords(s, td, nil), nodeShape(ir.KindPrimitive), pointer)...)
+	diags = append(diags, recordUnhomedAt(c, ts, &common.Unmodeled, s, unhomedKeywords(s, td, nil), nodeShape(ir.KindPrimitive), pointer)...)
 	kept, keepDiags := preserveBranchSets(c, &common.Unmodeled, s, ir.ReasonDegradedLowering, pointer)
 	diags = append(diags, keepDiags...)
 	if len(kept) == 0 {
@@ -426,11 +426,6 @@ func lowerUnion(c lowering.Ctx, ts *compile.Types, depth int, s *oas3.Schema, po
 				Name: compile.NamingHint(string(st)),
 				Type: ir.TypeRef{Target: vid},
 			})
-		}
-		// A type array listing no object routes no instance and resolves nothing,
-		// as no node keeping a discriminator verbatim does (GitHub #1662, #1708).
-		if slices.Contains(types, oas3.SchemaTypeObject) {
-			diags = append(diags, resolveDiscriminatorRoutes(c, ts, s, pointer)...)
 		}
 		return &ir.Union{
 			TypeCommon: common,

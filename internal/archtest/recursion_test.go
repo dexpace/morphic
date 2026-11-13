@@ -80,24 +80,27 @@ var loweringRecursions = [][]string{
 }
 
 // schemaRecursion is the largest of them, named because the design refers to it
-// directly and because #176's package split is sized by it. The two exported
-// names are the walk's entry points, which is how the operation lowering
-// reaches it; the rest is unexported because nothing outside the schema package
-// has any business entering mid-walk. The scalar hoisters and the encoding
-// reader are members because contentSchema's value is a schema, so lowering it
-// re-enters the walk from a scalar position. Discriminator lowering is one
-// because resolving a mapping target can hoist the position it names.
+// directly and because #176's package split is sized by it. Its exported names
+// are how the operation lowering reaches it; the rest is unexported because
+// nothing outside the schema package has any business entering mid-walk. The
+// scalar hoisters and the encoding reader are members because contentSchema's
+// value is a schema, so lowering it re-enters the walk from a scalar position.
+// Discriminator lowering is one because resolving a mapping target can hoist
+// the position it names, and so is the census, which resolves a kept one's.
 var schemaRecursion = []string{
-	"CarriedRef", "Ref", "buildComposedVariant", "buildListedTuple", "buildTuple", "buildUnion",
+	"CarriedRef", "FillPropertyDetail", "PreserveRefSiteKeywords", "Ref", "buildComposedVariant",
+	"buildListedTuple", "buildTuple", "buildUnion",
 	"composedVariant", "contentSchemaRef", "discriminatorDefault",
 	"discriminatorMapping", "fillAdditional", "fillAllOf",
 	"fillModelProperties", "fillRefBranch", "hierarchyRoute", "hoistScalar", "hoistSubSchema", "lower",
 	"lowerAllOf",
 	"lowerArray", "lowerBesideUnmodeledUnion", "lowerCoDeclaredUnion",
-	"lowerDiscriminator", "lowerDistributedUnion", "lowerElected", "lowerModel",
+	"lowerDiscriminator", "lowerDistributedUnion", "lowerElected", "lowerModel", "lowerNullOnlyUnion",
 	"lowerOneOfAnyOf", "lowerPrincipal", "lowerSchemaBody", "lowerTypeVariant", "lowerTyped",
 	"lowerUnion",
-	"lowerUntyped", "patternProps", "refSiteRef", "refTypeRef",
+	"lowerUntyped", "outcomeKeeps.record", "outcomeKeeps.recordOn", "patternProps",
+	"preserveNullOnlyUnion", "preserveUnhomedKeywords", "preserveVariantsUnhomed",
+	"recordUnhomedAt", "recordUnhomedKeywords", "refSiteRef", "refTypeRef",
 	"resolveAt", "resolveBeaten", "resolveDiscriminatorRoutes",
 	"resolvePointer", "resolveSchemaRef", "routeEntry",
 	"scalarEncoding", "scalarTypeID", "schemaBody", "schemaRefHomed",

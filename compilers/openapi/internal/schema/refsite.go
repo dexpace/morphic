@@ -112,9 +112,9 @@ func PreserveRefSiteKeywords(c lowering.Ctx, ts *compile.Types, p *ir.Unmodeled,
 	if !resolve.IsRefSite(js, s) {
 		// A collapsed union, an expanded $dynamicRef and a refinement lower to a
 		// reference just as a $ref site does.
-		return keepsAtOutcome(c, ts, s, t, pointer).record(c, p, s, pointer)
+		return keepsAtOutcome(c, ts, s, t, pointer).record(c, ts, p, s, pointer)
 	}
-	diags := recordUnhomedAt(c, p, s, refSiteUnhomedKeywords(s, nil), refSiteShape, pointer)
+	diags := recordUnhomedAt(c, ts, p, s, refSiteUnhomedKeywords(s, nil), refSiteShape, pointer)
 	if !declaresUnion(s) {
 		return diags
 	}
