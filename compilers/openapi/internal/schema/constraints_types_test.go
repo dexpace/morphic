@@ -286,10 +286,10 @@ func TestConstraints_ABoundAListKeepsIsKeptOnce(t *testing.T) {
 	assert.Len(t, diags, 1)
 }
 
-// TestConstraints_ACountATypeCannotTakeIsTheCensuss pins a count past 64 bits
+// TestConstraints_ACountATypeCannotTakeIsKeptByTheCensus pins a count past 64 bits
 // beside a type that takes no count of its kind: the census keeps it once, with
 // its own report, and the reader of the node's bounds keeps and reports nothing.
-func TestConstraints_ACountATypeCannotTakeIsTheCensuss(t *testing.T) {
+func TestConstraints_ACountATypeCannotTakeIsKeptByTheCensus(t *testing.T) {
 	t.Parallel()
 	doc, diags := parseFull(t, atEverySite("3.1.0", "{type: integer, maxLength: 99999999999999999999}"))
 	openapitest.RequireNoErrorDiags(t, diags)
@@ -301,11 +301,11 @@ func TestConstraints_ACountATypeCannotTakeIsTheCensuss(t *testing.T) {
 	assert.Len(t, diags, 4)
 }
 
-// TestConstraints_AModifierATypeCannotTakeIsTheCensuss pins a 3.0 exclusive
+// TestConstraints_AModifierATypeCannotTakeIsKeptByTheCensus pins a 3.0 exclusive
 // modifier with no bound beside a string: no reader of numeric bounds reads it,
 // so it draws no warning that it bounds nothing; the census keeps it once, with
 // its info.
-func TestConstraints_AModifierATypeCannotTakeIsTheCensuss(t *testing.T) {
+func TestConstraints_AModifierATypeCannotTakeIsKeptByTheCensus(t *testing.T) {
 	t.Parallel()
 	doc, diags := parseFull(t, atEverySite("3.0.3", "{type: string, exclusiveMinimum: true}"))
 	openapitest.RequireNoErrorDiags(t, diags)
@@ -317,5 +317,29 @@ func TestConstraints_AModifierATypeCannotTakeIsTheCensuss(t *testing.T) {
 	require.Len(t, diags, 4, "%+v", diags)
 	for _, d := range diags {
 		assert.Equal(t, ir.SeverityInfo, d.Severity, "no warning from a reader")
+	}
+}
+
+// TestConstraints_ACarrierRestatesTheBoundsItsNodeTakes pins the carrier of a
+// position owning its node: a property and a parameter restate the value bounds
+// the node's type takes, a Scalar hoisted for its format, a Model and the
+// literals of an enum beside a type list alike, and hold none where the type list
+// lowers to its variants, which hold each (docs/compilers/openapi.md#type-arrays).
+func TestConstraints_ACarrierRestatesTheBoundsItsNodeTakes(t *testing.T) {
+	t.Parallel()
+	for schema, want := range map[string]*ir.Constraints{
+		"{type: string, format: x-mine, maxLength: 3, minimum: 1}": {MaxLength: new(int64(3))},
+		"{type: object, minProperties: 1, maxLength: 3}":           {MinProps: new(int64(1))},
+		"{type: [string, integer], maxLength: 3, minimum: 1}":      nil,
+		"{type: [string, integer], format: x-mine, maxLength: 3}":  nil,
+		"{type: [string, integer], enum: [a, 1], maxLength: 3}":    {MaxLength: new(int64(3))},
+	} {
+		doc, diags := parseFull(t, atEverySite("3.1.0", schema))
+		openapitest.RequireNoErrorDiags(t, diags)
+		p := propertyOf(t, doc, "Holder", "p")
+		assert.Equal(t, want, p.Constraints, "property %s", schema)
+		q, ok := openapitest.ParamBySource(openapitest.FirstOp(t, doc.Services[0]), "q")
+		require.True(t, ok)
+		assert.Equal(t, want, q.Constraints, "parameter %s", schema)
 	}
 }

@@ -2991,8 +2991,8 @@ primitive narrower than `integer` holds. A pairing the table does not name lower
 `Scalar` over the type's primitive that keeps the format as `Encoding.Name`; a `contentEncoding`
 beside it applies to strings alone and takes nothing from it
 ([`content-vocabulary`](#content-vocabulary)). Beside a type array, a format the table pairs with a
-listed number is that number's variant's alone, and both an `integer` and a `number` variant take a
-width ([`type-arrays`](#type-arrays)).
+listed number is that variant's alone, so a width beside `integer` and `number` is both variants'
+([`type-arrays`](#type-arrays)).
 
 - Cases: `scalar-format`
 - Tests: `schema.TestScalar_NumericFormatPairings`,
@@ -3132,11 +3132,12 @@ lowering to a reference whose schema declares none; one declaring a type beside 
 `allOf` reads by that type, never by what the reference names. A bound no declared type takes
 reaches no `Constraints`, the carrier's included, and is kept verbatim under `openapi:<keyword>`
 (`degraded_lowering`) with an info `openapi/degraded-construct` naming what the position lowered
-to: on the node it owns, on the alias it holds where it lowered to a shared node or a reference, or
-on the carrier of a reference. A type array's variants each take their own type's ([`type-arrays`](#type-arrays)). A
-bound is read off the raw node, never the parser's `float64`, so its `BigVal` keeps every digit the
-literal wrote ([`values`](#values)), a quoted one as the decimal it spells; one that is no decimal
-literal a `BigVal` holds is dropped with an `openapi/invalid-numeric-literal` error at the keyword.
+to: on the node it owns, on an alias hoisted where it lowered to a shared node or a reference, or
+on the carrier of a reference. A type array's variants each take their own type's
+([`type-arrays`](#type-arrays)). A bound is read off the raw node, never the parser's `float64`, so
+its `BigVal` keeps every digit the literal wrote ([`values`](#values)), a quoted one as the decimal
+it spells; one that is no decimal literal a `BigVal` holds is dropped with an
+`openapi/invalid-numeric-literal` error at the keyword.
 Exclusive bounds follow the schema's dialect
 ([`dialect-keywords`](#dialect-keywords)). In 3.0's, and in JSON Schema draft 4's, the boolean
 modifies the bound beside it: `true` moves that bound to `ExclusiveMin` or `ExclusiveMax` and clears
@@ -3179,8 +3180,9 @@ declaration. A count literal that is no non-negative integer is the load phase's
   `schema.TestConstraints_APositionDeclaringNoTypeReadsEveryBound`,
   `schema.TestConstraints_AReferenceOutcomeReadsByThePositionsOwnType`,
   `schema.TestConstraints_ABoundAListKeepsIsKeptOnce`,
-  `schema.TestConstraints_ACountATypeCannotTakeIsTheCensuss`,
-  `schema.TestConstraints_AModifierATypeCannotTakeIsTheCensuss`,
+  `schema.TestConstraints_ACarrierRestatesTheBoundsItsNodeTakes`,
+  `schema.TestConstraints_ACountATypeCannotTakeIsKeptByTheCensus`,
+  `schema.TestConstraints_AModifierATypeCannotTakeIsKeptByTheCensus`,
   `schema.TestKeywordKinds_ListsEveryValueBoundAndTheContentVocabulary`,
   `schema.TestBoundsFor_ReadsEachBoundForTheKindsItAppliesTo`,
   `schema.TestDeclaredKinds_ReadsTheTypesASchemaDeclares`,
