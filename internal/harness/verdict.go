@@ -62,8 +62,9 @@ func (o Oracle) finds() (Outcome, bool) {
 // (Summary), so an oracle that could not ask is never read as one that passed.
 type Decline string
 
-// Why an oracle declines. The order-invariance oracle declines for every
-// reason after DeclineNoDocument; reverseMappings says when each applies.
+// Why an oracle declines. The reasons after DeclineNoDocument are the
+// order-invariance oracle's alone: what its permutation cannot rewrite
+// faithfully, or leaves nothing to compare.
 const (
 	// DeclineNotReached: the run ended before the oracle, as Result.Outcome
 	// says: a panic, a Go error, or a source no registered compiler takes.

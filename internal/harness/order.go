@@ -116,8 +116,8 @@ func sameDocument(first, second *ir.Document) (string, bool) {
 // and where, so two orders of one document compare on their findings rather
 // than on append order, which follows traversal order.
 //
-// The registry comparison does not subsume this: a collision can leave the
-// registry identical yet change what the compiler reports.
+// The document comparison does not subsume this: a collision can leave the
+// document identical yet change what the compiler reports.
 //
 // Message text is not compared: some messages list source keywords in the
 // author's order ("type, maxLength" against "maxLength, type"), which is
@@ -160,13 +160,13 @@ func canonicalJSON(doc *ir.Document) ([]byte, error) {
 		jsontext.ReorderRawObjects(true), jsontext.WithIndent("  "))
 }
 
-// orderFree writes the collections a mapping's entry order decides with their
-// elements sorted by their own canonical encodings: each collection the
-// corpus's two orders tell apart by design. Sorting by the encoding needs no key, so a
-// collection whose elements carry none unique, as the singular `example`
-// keyword gives no name, is compared as the multiset it is: an element's
-// encoding sorts its own collections first, so two unnamed examples whose
-// members the permutation reversed still pair up (#683).
+// orderFree writes the collections a mapping's entry order decides, each one
+// the corpus's two orders tell apart by design, with their elements sorted by
+// their own canonical encodings. That needs no key, so a collection whose
+// elements carry none unique, as the singular `example` keyword gives no name,
+// is compared as the multiset it is: an element's encoding sorts its own
+// collections first, so two unnamed examples whose members the permutation
+// reversed still pair up (#683).
 func orderFree() *json.Marshalers {
 	return json.JoinMarshalers(
 		sortedElements[ir.Property](),
