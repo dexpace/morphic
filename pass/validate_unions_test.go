@@ -41,6 +41,8 @@ func TestValidate_ReportsAVariantNamingAnEarlierVariantsType(t *testing.T) {
 		}}, []string{"warning t/u/variants/1: variants 0 and 1"}},
 		{"three times", ir.Union{Exclusive: true, Variants: variants("t/m", "t/prim/string", "t/m", "t/m")},
 			[]string{"warning t/u/variants/2: variants 0 and 2", "warning t/u/variants/3: variants 0 and 3"}},
+		{"after another type", ir.Union{Exclusive: true, Variants: variants("t/prim/string", "t/m", "t/m")},
+			[]string{"warning t/u/variants/2: variants 1 and 2"}},
 		{"tagged in the payload", ir.Union{Exclusive: true, WireTagged: true,
 			Discriminator: &ir.Discriminator{PropertyName: "kind"}, Variants: variants("t/m", "t/m")},
 			[]string{"warning t/u/variants/1: variants 0 and 1"}},
