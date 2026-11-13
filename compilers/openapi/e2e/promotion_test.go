@@ -8,6 +8,7 @@
 package e2e_test // external test package — exercises only the public API
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -386,9 +387,9 @@ components:
 
 // defaultKeySpec is a document one default source fills one target of: the key,
 // writing value at its member if it has one, sits on a deprecated operation, on
-// an undeprecated one and on an enum, since the targets live on those carriers
-// and a key reaching only the wrong one would read as a mapping that fills
-// nothing.
+// an undeprecated one, on an enum and on a server, since the targets live on
+// those carriers and a key reaching only the wrong one would read as a mapping
+// that fills nothing.
 func defaultKeySpec(src openapi.ExtensionSource, value string) string {
 	written := "      " + src.Key + ": " + value + "\n"
 	if src.Member != "" {
@@ -396,7 +397,9 @@ func defaultKeySpec(src openapi.ExtensionSource, value string) string {
 	}
 	return `openapi: 3.1.0
 info: {title: T, version: "1"}
-paths:
+servers:
+  - url: https://x.example
+` + written[2:] + `paths:
   /x:
     get:
       operationId: getX
@@ -449,6 +452,9 @@ var defaultTargetRead = map[openapi.ExtensionTarget]struct {
 	openapi.TargetRedaction: {"true", func(doc *ir.Document, _, _ ir.Operation) string {
 		return filledWhen(doc.Types[componentID("E")].Common().Sensitive)
 	}},
+	openapi.TargetServerName: {"filled", func(doc *ir.Document, _, _ ir.Operation) string {
+		return doc.Servers["server/openapi/servers/0"].Name.Source
+	}},
 }
 
 // TestPromotion_DefaultTargetsAreTheOnesApplied holds the exported mapping to
@@ -465,6 +471,9 @@ func TestPromotion_DefaultTargetsAreTheOnesApplied(t *testing.T) {
 	require.NotEmpty(t, defaults, "an empty mapping would make this vacuous")
 
 	for target, sources := range defaults {
+		if strings.HasPrefix(string(target), "pagination.") {
+			continue // no one key fills a pagination; the extension-pagination case reads each
+		}
 		read, known := defaultTargetRead[target]
 		require.True(t, known, "%s is a default target this test reads no field for", target)
 		for _, src := range sources {

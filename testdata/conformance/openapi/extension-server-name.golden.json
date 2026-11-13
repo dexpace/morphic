@@ -1,0 +1,263 @@
+{
+  "idSpaces": {
+    "auth": [
+      "openapi",
+      "unresolved"
+    ],
+    "e": [
+      "anon",
+      "composed",
+      "openapi"
+    ],
+    "g": [
+      "default",
+      "extension",
+      "path-prefix",
+      "tags",
+      "webhooks"
+    ],
+    "op": [
+      "openapi"
+    ],
+    "p": [
+      "composed",
+      "openapi"
+    ],
+    "param": [
+      "openapi"
+    ],
+    "s": [
+      "openapi"
+    ],
+    "server": [
+      "default",
+      "openapi"
+    ],
+    "t": [
+      "anon",
+      "composed",
+      "openapi"
+    ]
+  },
+  "name": "ExtensionServerName",
+  "version": "1.0.0",
+  "docs": {},
+  "services": [
+    {
+      "id": "s/openapi/0",
+      "name": {
+        "source": "ExtensionServerName",
+        "canonical": "extension_server_name"
+      },
+      "docs": {},
+      "groups": [
+        {
+          "id": "g/default",
+          "name": {
+            "hint": "default"
+          },
+          "docs": {},
+          "operations": [
+            {
+              "id": "op/openapi/paths/~1stream/get",
+              "name": {
+                "source": "consume",
+                "canonical": "consume"
+              },
+              "docs": {},
+              "responses": [
+                {
+                  "name": {
+                    "hint": "200"
+                  },
+                  "conditions": {
+                    "statusCodes": [
+                      {
+                        "from": 200,
+                        "to": 200
+                      }
+                    ]
+                  },
+                  "docs": {
+                    "description": "ok"
+                  }
+                }
+              ],
+              "oneWay": false,
+              "idempotency": {},
+              "servers": [
+                "server/openapi/paths/~1stream/servers/0"
+              ],
+              "bindings": {
+                "http": [
+                  {
+                    "method": "GET",
+                    "uriTemplate": "/stream",
+                    "sharedRoute": false,
+                    "checksumRequired": false
+                  }
+                ]
+              },
+              "provenance": {
+                "source": 0,
+                "pointer": "/paths/~1stream/get"
+              }
+            },
+            {
+              "id": "op/openapi/paths/~1stream/put",
+              "name": {
+                "source": "produce",
+                "canonical": "produce"
+              },
+              "docs": {},
+              "responses": [
+                {
+                  "name": {
+                    "hint": "200"
+                  },
+                  "conditions": {
+                    "statusCodes": [
+                      {
+                        "from": 200,
+                        "to": 200
+                      }
+                    ]
+                  },
+                  "docs": {
+                    "description": "ok"
+                  }
+                }
+              ],
+              "oneWay": false,
+              "idempotency": {},
+              "servers": [
+                "server/openapi/paths/~1stream/put/servers/0"
+              ],
+              "bindings": {
+                "http": [
+                  {
+                    "method": "PUT",
+                    "uriTemplate": "/stream",
+                    "sharedRoute": false,
+                    "checksumRequired": false
+                  }
+                ]
+              },
+              "provenance": {
+                "source": 0,
+                "pointer": "/paths/~1stream/put"
+              }
+            }
+          ]
+        }
+      ],
+      "servers": [
+        "server/openapi/servers/0",
+        "server/openapi/servers/1"
+      ],
+      "provenance": {
+        "source": 0
+      }
+    }
+  ],
+  "servers": {
+    "server/openapi/paths/~1stream/put/servers/0": {
+      "id": "server/openapi/paths/~1stream/put/servers/0",
+      "name": {
+        "source": "ingest",
+        "canonical": "ingest"
+      },
+      "urlTemplate": "https://ingest.example.com",
+      "description": {},
+      "unmodeled": {
+        "openapi:x-fern-server-name": {
+          "reason": "vendor_extension",
+          "value": "ingest",
+          "provenance": {
+            "source": 0,
+            "pointer": "/paths/~1stream/put/servers/0/x-fern-server-name"
+          }
+        }
+      },
+      "provenance": {
+        "source": 0,
+        "pointer": "/paths/~1stream/put/servers/0",
+        "inferred": "extension-promotion"
+      }
+    },
+    "server/openapi/paths/~1stream/servers/0": {
+      "id": "server/openapi/paths/~1stream/servers/0",
+      "name": {
+        "source": "stream",
+        "canonical": "stream"
+      },
+      "urlTemplate": "https://{stream_id}.stream.example.com",
+      "description": {},
+      "variables": [
+        {
+          "name": "stream_id",
+          "default": "s1",
+          "docs": {}
+        }
+      ],
+      "unmodeled": {
+        "openapi:x-fern-server-name": {
+          "reason": "vendor_extension",
+          "value": "stream",
+          "provenance": {
+            "source": 0,
+            "pointer": "/paths/~1stream/servers/0/x-fern-server-name"
+          }
+        }
+      },
+      "provenance": {
+        "source": 0,
+        "pointer": "/paths/~1stream/servers/0",
+        "inferred": "extension-promotion"
+      }
+    },
+    "server/openapi/servers/0": {
+      "id": "server/openapi/servers/0",
+      "name": {
+        "source": "production",
+        "canonical": "production"
+      },
+      "urlTemplate": "https://api.example.com/v1",
+      "description": {},
+      "unmodeled": {
+        "openapi:x-fern-server-name": {
+          "reason": "vendor_extension",
+          "value": "production",
+          "provenance": {
+            "source": 0,
+            "pointer": "/servers/0/x-fern-server-name"
+          }
+        }
+      },
+      "provenance": {
+        "source": 0,
+        "pointer": "/servers/0",
+        "inferred": "extension-promotion"
+      }
+    },
+    "server/openapi/servers/1": {
+      "id": "server/openapi/servers/1",
+      "name": {
+        "hint": "https_staging_example_com_v_1"
+      },
+      "urlTemplate": "https://staging.example.com/v1",
+      "description": {},
+      "provenance": {
+        "source": 0,
+        "pointer": "/servers/1"
+      }
+    }
+  },
+  "sources": [
+    {
+      "format": "openapi@3.0",
+      "path": "extension-server-name.yaml",
+      "hash": "e2e4f55a9ef2f718ba5f3c83f252b280563162a88653cd9cf1972307938045b3"
+    }
+  ]
+}

@@ -1,0 +1,21 @@
+# A server's name reaches Server.Name from a vendor extension where the
+# document names it in no other way, as below OpenAPI 3.2 none can. Each server
+# list a document writes is read: its own, a path item's and an operation's.
+openapi: 3.0.3
+info: {title: ExtensionServerName, version: "1.0.0"}
+servers:
+  - {url: "https://api.example.com/v1", x-fern-server-name: production}
+  - {url: "https://staging.example.com/v1"}
+paths:
+  /stream:
+    servers:
+      - url: "https://{stream_id}.stream.example.com"
+        variables: {stream_id: {default: s1}}
+        x-fern-server-name: stream
+    get:
+      operationId: consume
+      responses: {"200": {description: ok}}
+    put:
+      operationId: produce
+      servers: [{url: "https://ingest.example.com", x-fern-server-name: ingest}]
+      responses: {"200": {description: ok}}

@@ -86,7 +86,14 @@ func lowerParameter(c lowering.Ctx, w walk, id ir.ParamID, p *soa.Parameter, ppt
 	}
 	elected, diags := fillParamType(c, w, &param, &binding, p, pptr)
 	diags = append(diags, reservedHeaderParamDiag(c, name, in, pptr)...)
-	return param, binding, append(diags, fillParamDetail(c, w.types, &param, p, pptr, elected)...)
+	diags = append(diags, fillParamDetail(c, w.types, &param, p, pptr, elected)...)
+	if p.AllowReserved != nil {
+		return param, binding, diags
+	}
+	// Read once the keys are kept, and only where the parameter decides nothing.
+	reserved, promoted := c.Promoter().AllowReserved(param.Unmodeled, &param.Provenance)
+	binding.AllowReserved = reserved
+	return param, binding, append(diags, promoted...)
 }
 
 // reservedHeaderParamDiag reports a header parameter OpenAPI §4.8.12 reserves —

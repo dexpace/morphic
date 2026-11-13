@@ -160,7 +160,7 @@ func attachDeclaredAnnotations(c lowering.Ctx, ts *compile.Types, s *oas3.Schema
 		common.XML = a.XML
 	}
 	common.Unmodeled = annotation.MergeUnmodeled(common.Unmodeled, a.Unmodeled)
-	from := use.lentKeys(c, s)
+	from := use.lentKeys(c)
 	diags = append(diags, c.Promoter().Deprecation(common.Unmodeled, from, &common.Deprecation, &common.Provenance)...)
 	diags = append(diags, c.Promoter().Redaction(common.Unmodeled, from, &common.Sensitive, &common.Provenance)...)
 	// The openness promotions are applied here rather than where the Enum or

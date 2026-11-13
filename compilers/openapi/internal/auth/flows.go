@@ -162,7 +162,8 @@ func oauthNoFlowDiag(c lowering.Ctx, decl jsontext.Pointer) ir.Diagnostic {
 }
 
 // applyFlowAnnotations writes each declared flow's own x-*, undeclared keys and
-// the fields its kind does not define onto the ir.OAuthFlow it lowered to. Both
+// the fields its kind does not define onto the ir.OAuthFlow it lowered to, and
+// what its keys state of its token endpoint's authentication. Both
 // lists are one ordered reading of the same object — scheme.Flows came from
 // oauthFlows, which walks presentFlows — so the i-th lowered flow is the i-th
 // declared one and the two cannot differ in length.
@@ -175,6 +176,9 @@ func applyFlowAnnotations(c lowering.Ctx, lowered []ir.OAuthFlow, flows *soa.OAu
 		diags = append(diags, extDiags...)
 		diags = append(diags, preserveUndefinedFlowFields(c, &lowered[i], f, fptr)...)
 		diags = append(diags, annotation.UnknownKeysIn(&lowered[i].Unmodeled, f.src, c.Place(), fptr)...)
+		methods, promoted := c.Promoter().TokenEndpointAuthMethods(lowered[i].Unmodeled, &lowered[i].Inferred)
+		lowered[i].TokenEndpointAuthMethods = methods
+		diags = append(diags, promoted...)
 	}
 	return diags
 }

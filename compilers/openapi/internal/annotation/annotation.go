@@ -20,10 +20,12 @@ import (
 	"github.com/dexpace/morphic/ir"
 )
 
-// EffectiveDeprecated reports the deprecated flag, the nearest schema of chain
-// writing one deciding (Site.Chain).
+// EffectiveDeprecated reports whether a schema of chain (Site.Chain) is
+// deprecated. JSON Schema reads a location deprecated where any occurrence of
+// the keyword applying to it is true, and an occurrence false as one omitted,
+// so no schema of a chain withdraws another's.
 func EffectiveDeprecated(chain []*oas3.Schema) bool {
-	return pickFlag(chain, func(s *oas3.Schema) *bool { return s.Deprecated })
+	return anyFlag(chain, func(s *oas3.Schema) *bool { return s.Deprecated })
 }
 
 // EffectiveVisibility maps readOnly/writeOnly to a lifecycle visibility set
@@ -32,16 +34,16 @@ func EffectiveDeprecated(chain []*oas3.Schema) bool {
 // reports both flags in force, which no lifecycle satisfies. It is not a
 // diagnostic because this reader has no provenance of its own.
 //
-// Each flag resolves on its own, by the nearest schema of chain writing it
-// (docs/compilers/openapi.md#ref-use-site).
+// Each flag is in force where any schema of chain sets it, as JSON Schema
+// reads both (docs/compilers/openapi.md#ref-use-site).
 //
-// Both in force is contradictory but legal: JSON Schema forbids neither beside
-// the other. Read as sets they leave nothing, which Visibility{None: true}
-// states, as merge.mergeVisibility answers for the pair spread over two allOf
-// branches (GitHub #276).
+// Both in force is contradictory but legal: JSON Schema forbids neither. Read
+// as sets they leave nothing, which Visibility{None: true} states, as
+// merge.mergeVisibility answers for the pair spread over two allOf branches
+// (GitHub #276).
 func EffectiveVisibility(chain []*oas3.Schema) (ir.Visibility, bool) {
-	readOnly := pickFlag(chain, func(s *oas3.Schema) *bool { return s.ReadOnly })
-	writeOnly := pickFlag(chain, func(s *oas3.Schema) *bool { return s.WriteOnly })
+	readOnly := anyFlag(chain, func(s *oas3.Schema) *bool { return s.ReadOnly })
+	writeOnly := anyFlag(chain, func(s *oas3.Schema) *bool { return s.WriteOnly })
 
 	switch {
 	case readOnly && writeOnly:
@@ -73,19 +75,18 @@ func EffectiveDefault(chain []*oas3.Schema, pointer jsontext.Pointer, doc proven
 	return &v, nil
 }
 
-// pickFlag returns the bool field accessor extracts from the nearest schema of
-// chain writing it, else false. It is the single "nearer overrides farther"
-// primitive for boolean schema flags (readOnly, writeOnly, deprecated).
-func pickFlag(chain []*oas3.Schema, accessor func(*oas3.Schema) *bool) bool {
-	for _, s := range chain {
-		if s == nil {
-			continue
+// anyFlag reports whether a schema of chain sets the bool field accessor
+// extracts. It is the one reading of the boolean annotations JSON Schema
+// defines (deprecated, readOnly, writeOnly): each in force where any
+// occurrence is true, and false the same as absent.
+func anyFlag(chain []*oas3.Schema, accessor func(*oas3.Schema) *bool) bool {
+	return slices.ContainsFunc(chain, func(s *oas3.Schema) bool {
+		v := (*bool)(nil)
+		if s != nil {
+			v = accessor(s)
 		}
-		if v := accessor(s); v != nil {
-			return *v
-		}
-	}
-	return false
+		return v != nil && *v
+	})
 }
 
 // FillTypeDocs maps a schema's title, description, and externalDocs onto Docs.

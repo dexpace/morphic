@@ -48,6 +48,7 @@ func assertExtensionStability(t *testing.T, doc *ir.Document, diags []ir.Diagnos
 		{"legacyWord", ir.StabilityUnstated, false, "", []string{"openapi:x-fern-availability"}},
 		{"unknownWord", ir.StabilityUnstated, false, "", []string{"openapi:x-stability"}},
 		{"notText", ir.StabilityUnstated, false, "", []string{"openapi:x-stability"}},
+		{"notAWord", ir.StabilityUnstated, false, "", []string{"openapi:x-stability"}},
 		{"unstated", ir.StabilityUnstated, false, "", nil},
 		{"underPathItemKey", ir.StabilityUnstated, false, "", []string{"openapi:pathItem/x-stability"}},
 	} {
@@ -69,7 +70,8 @@ func assertExtensionStability(t *testing.T, doc *ir.Document, diags []ir.Diagnos
 	assert.Equal(t, info, degradedAt(diags, "/paths/~1unread/get/x-fern-availability"), "legacy names no tier")
 	assert.Equal(t, info, degradedAt(diags, "/paths/~1unread/put/x-stability"), "nor does an unknown word")
 	assert.Equal(t, info, degradedAt(diags, "/paths/~1unread/post/x-stability"), "and text is what a tier is")
-	assert.Len(t, diags, 4, "agreeing keys, the word deprecated and an absent key report nothing: %+v", diags)
+	assert.Equal(t, info, degradedAt(diags, "/paths/~1unread/patch/x-stability"), "a true is no tier, nor deprecates")
+	assert.Len(t, diags, 5, "agreeing keys, the word deprecated and an absent key report nothing: %+v", diags)
 }
 
 // assertExtensionRedaction is x-sensitive at every position format: password
@@ -220,4 +222,103 @@ func unionOf(t *testing.T, doc *ir.Document, name string) *ir.Union {
 	u, ok := doc.Types[componentID(name)].(*ir.Union)
 	require.True(t, ok, "%s is a union", name)
 	return u
+}
+
+// wireNames spells segments by the wire names of the properties they name,
+// read off every model of doc, so a page value reads as the document writes
+// it.
+func wireNames(doc *ir.Document, segments []ir.PropID) []string {
+	names := map[ir.PropID]string{}
+	for _, td := range doc.Types {
+		if m, ok := td.(*ir.Model); ok {
+			for _, p := range m.Properties {
+				names[p.ID] = p.EffectiveWireName()
+			}
+		}
+	}
+	out := make([]string, len(segments))
+	for i, s := range segments {
+		out[i] = names[s]
+	}
+	return out
+}
+
+// assertExtensionPagination is a page walk the default mapping reads in each
+// convention it maps: one operation's object of expressions, another's keys
+// marking a parameter, a member and the type a member names, and a third's
+// next link. Each is marked inferred, as is each node whose key it read; an
+// offset the default maps no source for leaves a walk with no next page,
+// reported and unfilled.
+func assertExtensionPagination(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
+	const marker ir.Inferred = "extension-promotion"
+	param := func(op ir.Operation, in *ir.InputPath) string {
+		require.NotNil(t, in)
+		require.NotNil(t, in.Param)
+		for _, p := range op.Params {
+			if p.ID == *in.Param {
+				return p.Name.Source
+			}
+		}
+		return ""
+	}
+	byExpression, ok := opByName(doc, "byExpression")
+	require.True(t, ok)
+	page := byExpression.Pagination
+	require.NotNil(t, page)
+	assert.Equal(t, ir.PageStrategyCursor, page.Strategy)
+	assert.True(t, page.Inferred)
+	assert.Equal(t, "page_token", param(byExpression, page.InputCursor))
+	assert.Equal(t, []string{"result"}, wireNames(doc, page.Items.Segments))
+	assert.Equal(t, []string{"result_info", "next_page_token"}, wireNames(doc, page.NextCursor.Segments))
+	assert.Equal(t, marker, byExpression.Provenance.Inferred)
+
+	byMarks, ok := opByName(doc, "byMarks")
+	require.True(t, ok)
+	page = byMarks.Pagination
+	require.NotNil(t, page)
+	assert.Equal(t, ir.PageStrategyCursor, page.Strategy)
+	assert.Equal(t, "cursor", param(byMarks, page.InputCursor))
+	assert.Equal(t, []string{"result"}, wireNames(doc, page.Items.Segments))
+	assert.Equal(t, []string{"result_info", "cursor"}, wireNames(doc, page.NextCursor.Segments))
+	assert.Equal(t, marker, byMarks.Params[0].Provenance.Inferred, "the parameter whose key marks the cursor")
+	assert.Equal(t, marker, doc.Types[componentID("Cursor")].Common().Provenance.Inferred,
+		"the type whose key marks the next cursor")
+	assert.Empty(t, byMarks.Provenance.Inferred, "the operation keeps no key")
+
+	byNextLink, ok := opByName(doc, "byNextLink")
+	require.True(t, ok)
+	require.NotNil(t, byNextLink.Pagination)
+	assert.Equal(t, ir.PageStrategyNextLink, byNextLink.Pagination.Strategy)
+	assert.Equal(t, []string{"next"}, wireNames(doc, byNextLink.Pagination.NextLink.Segments))
+	assert.Equal(t, []string{"data"}, wireNames(doc, byNextLink.Pagination.Items.Segments))
+
+	noNextPage, ok := opByName(doc, "noNextPage")
+	require.True(t, ok)
+	assert.Nil(t, noNextPage.Pagination)
+	assert.Empty(t, noNextPage.Provenance.Inferred)
+	require.Len(t, diags, 1, "the one walk with no next page: %+v", diags)
+	assert.Equal(t, `operation "op/openapi/paths/~1offsets/get": its extensions state a pagination that names `+
+		`neither an input continuing it nor a next link, so it fills none`, diags[0].Message)
+}
+
+// assertExtensionServerName is a server named by the default key in each list
+// a document writes servers in, and one the key does not name keeping the hint
+// its URL gives.
+func assertExtensionServerName(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
+	const marker ir.Inferred = "extension-promotion"
+	assert.Empty(t, diags)
+	for id, want := range map[ir.ServerID]string{
+		"server/openapi/servers/0":                    "production",
+		"server/openapi/paths/~1stream/servers/0":     "stream",
+		"server/openapi/paths/~1stream/put/servers/0": "ingest",
+	} {
+		s, ok := doc.Servers[id]
+		require.True(t, ok, id)
+		assert.Equal(t, ir.NamingFor(want), s.Name, id)
+		assert.Equal(t, marker, s.Provenance.Inferred, id)
+	}
+	unnamed, ok := doc.Servers["server/openapi/servers/1"]
+	require.True(t, ok)
+	assert.Equal(t, "https_staging_example_com_v_1", unnamed.Name.Hint)
+	assert.Empty(t, unnamed.Provenance.Inferred)
 }

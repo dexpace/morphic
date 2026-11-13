@@ -58,6 +58,8 @@ func TestDecodeOptions_TextReachesEveryField(t *testing.T) {
 			"streaming-inference":     "false",
 			"binary-media":            "image/*, application/vnd.acme.blob, +zip",
 			"binary-inference":        "false",
+			"promotion-targets":       `{"deprecation.message": [{"key": "x-why"}], "enum.open": [{"key": "x-u", "values": ["allow"]}]}`,
+			"promotion-prefixes":      "x-acme-,x-why",
 			"max-source-bytes":        "11",
 			"max-source-nodes":        "-1",
 			"max-enum-members":        "0",
@@ -91,6 +93,18 @@ func TestDecodeOptions_TextReachesEveryField(t *testing.T) {
 	}, opts.BinaryMedia, "the list as the Go field reads it, and binary-inference=false turns it off")
 	assert.Equal(t, openapi.Limits{MaxSourceBytes: 11, MaxSourceNodes: -1, MaxAliasSurplus: 13, MaxExternalDocuments: 14,
 		MaxReferenceExpansion: 15}, opts.Limits, "each budget as the Go field reads it, 0 left for the default")
+	assert.Equal(t, openapi.ExtensionPromotions{
+		Targets: map[openapi.ExtensionTarget][]openapi.ExtensionSource{
+			openapi.TargetDeprecationMessage: {{Key: "x-why"}},
+			openapi.TargetEnumOpen:           {{Key: "x-u", Values: []string{"allow"}}},
+		},
+		Prefixes: []string{"x-acme-", "x-why"},
+	}, opts.Promotions, "the mapping as its JSON reads, and the prefixes one entry each")
+
+	off, err := openapi.New().DecodeOptions(compilers.OptionSet{Settings: map[string]string{"extension-promotion": "false"}})
+	require.NoError(t, err)
+	assert.Equal(t, openapi.ExtensionPromotions{Disabled: true}, off.(openapi.Options).Promotions,
+		"extension-promotion=false turns the policy off")
 }
 
 // TestLimitOptions_NameEveryBudget holds the text vocabulary to Limits itself:
@@ -131,10 +145,10 @@ func TestDecodeOptions_Refusals(t *testing.T) {
 	}{
 		{"unknown name", map[string]string{"gruoping": "tags"},
 			`unknown option "gruoping" (known: allow-external-refs, binary-inference, binary-media, ` +
-				`discriminator-inference, grouping, grouping-fallback, grouping-key, grouping-lists, ` +
+				`discriminator-inference, extension-promotion, grouping, grouping-fallback, grouping-key, grouping-lists, ` +
 				`max-alias-surplus, max-enum-members, max-external-documents, max-reference-expansion, ` +
-				`max-source-bytes, max-source-nodes, nullable-widening, overlay, overlay-lax, streaming-inference, ` +
-				`streaming-media)`},
+				`max-source-bytes, max-source-nodes, nullable-widening, overlay, overlay-lax, promotion-prefixes, ` +
+				`promotion-targets, streaming-inference, streaming-media)`},
 		{"non-integer budget", map[string]string{"max-source-bytes": "64MiB"},
 			`"max-source-bytes": want an integer (0 for the default, negative for none), got "64MiB"`},
 		{"budget past an int", map[string]string{"max-source-nodes": "99999999999999999999"},
@@ -228,6 +242,25 @@ func TestDecodeOptions_Refusals(t *testing.T) {
 			`"overlay": want a file path, got an empty value`},
 		{"empty overlay path with laxness", map[string]string{"overlay": "", "overlay-lax": "true"},
 			`"overlay": want a file path, got an empty value`},
+		{"non-boolean promotion", map[string]string{"extension-promotion": "maybe"},
+			`option "extension-promotion": want a boolean, got "maybe"`},
+		// The mapping replaces the default whole, so text that reads as less than
+		// the caller wrote would drop what the default reads in silence.
+		{"a mapping that is no JSON", map[string]string{"promotion-targets": "deprecation.message=x-why"},
+			`option "promotion-targets": want a JSON object from each target to its sources`},
+		{"a mapping holding a member no source declares", map[string]string{
+			"promotion-targets": `{"deprecation.message": [{"key": "x-why", "membr": "a"}]}`,
+		}, `option "promotion-targets": want a JSON object from each target to its sources`},
+		{"an empty mapping", map[string]string{"promotion-targets": "{}"},
+			`option "promotion-targets": want a target, got none; "extension-promotion" turns promotion off`},
+		{"a mapping naming an unknown target", map[string]string{
+			"promotion-targets": `{"deprecation.mesage": [{"key": "x-why"}]}`,
+		}, `promotions: target "deprecation.mesage" is none the compiler reads (known: deprecation, `},
+		{"a prefix naming no extension", map[string]string{"promotion-prefixes": "acme-"},
+			`promotions: prefix "acme-": want "x-" followed by the start of an extension name`},
+		{"a mapping beside the policy off", map[string]string{
+			"extension-promotion": "false", "promotion-targets": `{"deprecation.message": [{"key": "x-why"}]}`,
+		}, `promotions: disabled, so the targets and prefixes named would read nothing`},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
@@ -368,4 +401,21 @@ func TestDefaultBinaryMediaTypes_IsWhatTheLoweringApplies(t *testing.T) {
 func TestDefaultExtensionPromotions_IsWhatTheLoweringApplies(t *testing.T) {
 	t.Parallel()
 	assert.Equal(t, lowering.DefaultExtensionPromotions(), openapi.DefaultExtensionPromotions())
+}
+
+// TestCompile_RefusesAPromotionPolicyItCannotRead pins the check where a Go
+// caller's policy enters: a mapping naming a target nothing reads is refused
+// with an error, before the document is read, rather than compiling a document
+// in which the key it names stays unread in silence.
+func TestCompile_RefusesAPromotionPolicyItCannotRead(t *testing.T) {
+	t.Parallel()
+	doc, diags, err := openapi.New().Compile(context.Background(),
+		[]compilers.Source{openapitest.SourceOf("openapi: 3.1.0\ninfo: {title: T, version: \"1\"}\npaths: {}\n")},
+		compilers.Options{FormatOptions: openapi.Options{Promotions: openapi.ExtensionPromotions{
+			Targets: map[openapi.ExtensionTarget][]openapi.ExtensionSource{"deprecation.mesage": {{Key: "x-why"}}},
+		}}})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), `openapi: promotions: target "deprecation.mesage" is none the compiler reads`)
+	assert.Nil(t, doc)
+	assert.Empty(t, diags)
 }

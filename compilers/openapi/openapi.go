@@ -81,6 +81,9 @@ func (c *Compiler) Compile(ctx context.Context, sources []compilers.Source, opts
 	if err := formatOpts.checkGrouping(); err != nil {
 		return nil, nil, err
 	}
+	if err := formatOpts.Promotions.Check(); err != nil {
+		return nil, nil, fmt.Errorf("openapi: %w", err)
+	}
 	loadedDoc, loadDiags, err := load.Load(ctx, rootSrcIndex, sources[0], loadOptions(formatOpts, opts.Reader, sources[0]))
 	// The load phase reads a document once under each name a reference spells
 	// it by, as a relative and an absolute path to one file where external
@@ -224,9 +227,15 @@ func run(ctx context.Context, c lowering.Ctx, ts *compile.Types) (*ir.Document, 
 	srv := servers.Reopen(lowered.Servers)
 	acc.AppendAll(lowered.Links.Resolve(c, &out.Services[0], reg, srv))
 	out.Servers = srv.Servers()
+	// A pagination an extension declares names members of response bodies, so
+	// it too is read once the registry is whole.
+	acc.AppendAll(operation.PromotePagination(c, &out.Services[0], reg))
 	// What a deprecation names as its replacement may be declared anywhere, so
 	// it is read once every node it can name is built.
 	acc.AppendAll(replacement.Resolve(c, out))
+	// An extension under a prefix the policy owns is judged once every node
+	// that could keep one is built.
+	acc.AppendAll(lowering.UnreadExtensions(c.Promoter(), out))
 
 	m, metaDiags := document.Lower(c)
 	out.Name, out.Version = m.Name, m.Version

@@ -392,6 +392,11 @@ const (
 	// document still lowers, and harness.Check stops at the first error
 	// diagnostic, which would hide every later finding.
 	UnknownObjectKey = "openapi/unknown-object-key"
+	// UnreadExtension reports a vendor extension under a prefix the promotion
+	// policy owns that no source of its mapping reads, naming the nearest key it
+	// reads (lowering.UnreadExtensions). Warning for UnknownObjectKey's reason:
+	// a key under a prefix a policy owns is most likely one it reads, misspelt.
+	UnreadExtension = "openapi/unread-extension"
 	// UnknownKeyBudget reports an object declaring more keys the model does not
 	// name than the compiler keeps, so the ones past the bound reached the IR in no
 	// form at all.

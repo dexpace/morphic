@@ -117,6 +117,9 @@ var generations = []generation{
 		names: "5506159ecd463736fdbbad0c4cabfad3fd50b48509b46fbea55862e82eca9675"},
 	{version: "0.46.0", format: 1, shape: "579d8cf68b18eb8fb9e58bc0baf0f89dd640a8f916a95f473a407d0513b2f81f",
 		names: "5506159ecd463736fdbbad0c4cabfad3fd50b48509b46fbea55862e82eca9675"},
+	{version: "0.47.0", format: 1, shape: "579d8cf68b18eb8fb9e58bc0baf0f89dd640a8f916a95f473a407d0513b2f81f",
+		names:   "5506159ecd463736fdbbad0c4cabfad3fd50b48509b46fbea55862e82eca9675",
+		meaning: "a deprecated, readOnly or writeOnly false withdraws no other schema's true; the OpenAPI compiler fills Operation.Pagination, Server.Name, HTTPParamBinding.AllowReserved and OAuthFlow.TokenEndpointAuthMethods from the extensions its promotion policy maps, and a decorator over a deprecated target holds the Deprecation its own keys state"},
 }
 
 // shapeGolden holds the description the newest row's shape hashes, so a change

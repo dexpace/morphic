@@ -427,3 +427,39 @@ paths: {}
 	}
 	assert.Equal(t, map[string]*string{"base": new(""), "v": new("v1"), "w": nil}, got)
 }
+
+// TestLowerServer_AKeyNamesAServerTheDocumentNamesNot pins the server-name
+// promotion at each place a server is declared: the default key names a server
+// written with no name, marking it, and a 3.2 `name`, the document's own, wins
+// over the key and leaves the server unmarked. A key's empty text names
+// nothing, which leaves the URL's hint.
+func TestLowerServer_AKeyNamesAServerTheDocumentNamesNot(t *testing.T) {
+	t.Parallel()
+	doc, diags := parseFull(t, `openapi: 3.2.0
+info: {title: T, version: "1"}
+servers:
+  - {url: "https://a.example", x-fern-server-name: primary}
+  - {url: "https://b.example", name: declared, x-fern-server-name: keyed}
+  - {url: "https://c.example", x-fern-server-name: ""}
+paths:
+  /x:
+    servers: [{url: "https://d.example", x-fern-server-name: stream}]
+    get: {operationId: x, responses: {"200": {description: ok}}}
+`)
+	openapitest.RequireNoErrorDiags(t, diags)
+	for id, want := range map[ir.ServerID]struct {
+		name   ir.Naming
+		marked bool
+	}{
+		"server/openapi/servers/0":           {ir.NamingFor("primary"), true},
+		"server/openapi/servers/1":           {ir.NamingFor("declared"), false},
+		"server/openapi/servers/2":           {ir.Naming{Hint: "https_c_example"}, false},
+		"server/openapi/paths/~1x/servers/0": {ir.NamingFor("stream"), true},
+	} {
+		s, ok := doc.Servers[id]
+		require.True(t, ok, id)
+		assert.Equal(t, want.name, s.Name, id)
+		assert.Equal(t, want.marked, s.Provenance.Inferred == lowering.ExtensionPromotionHeuristic, id)
+		assert.Contains(t, s.Unmodeled, "openapi:x-fern-server-name", "%s keeps the key it read", id)
+	}
+}

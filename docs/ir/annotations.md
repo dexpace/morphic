@@ -176,8 +176,11 @@ description and its `Refs` counting as one ([references in prose](#references-in
 single value that one position may restate for another — a `description` beside the `$ref` says what
 *this* input is, replacing the target's — so the two can never both be true at once, and any
 consumer reading both would need this precedence rule anyway. Applying it once, in the compiler, is
-what keeps every carrier alike. Redaction is the one with a single side: a position can ask for it
-and none can withdraw it, so a use holds it where either position asks.
+what keeps every carrier alike. Redaction, deprecation and visibility have a single side: a position
+can state each and none can withdraw one another states, so a use holds it where either position
+does. That is JSON Schema's own reading of `deprecated`, `readOnly` and `writeOnly`, each in force
+where any occurrence applying to a location is true and absent where one is false, and it is the
+reading a [decorator](#decorators)'s fold makes too, so the two spellings of one use agree.
 
 An OpenAPI Reference Object's own `summary` and `description` fold onto the use site the same way,
 by the OpenAPI compiler's rule
