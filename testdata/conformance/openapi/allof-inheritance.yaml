@@ -16,3 +16,22 @@ components:
         - {$ref: '#/components/schemas/Base'}
       properties:
         extra: {type: string}
+    # Leaf composes Mid, a subtype of the discriminated Root, beside Other, so
+    # Mid takes part in Root's hierarchy and is Leaf's Base. Leaf is declared
+    # before Mid and Mid before Root, the order a reading of the registry would
+    # find nothing in.
+    Leaf:
+      allOf:
+        - {$ref: '#/components/schemas/Other'}
+        - {$ref: '#/components/schemas/Mid'}
+    Mid:
+      allOf: [{$ref: '#/components/schemas/Root'}]
+    Root:
+      type: object
+      properties:
+        kind: {type: string}
+      discriminator: {propertyName: kind}
+    Other:
+      type: object
+      properties:
+        x: {type: string}

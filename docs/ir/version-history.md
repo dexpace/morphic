@@ -632,12 +632,27 @@ it sees. Changes made together in one bump are listed together under it.
   - Such a branch writing more than its `null`, a `description` among it, is kept whole under the
     new key `openapi:oneOf/<index>` or `openapi:anyOf/<index>`, reason `no_ir_home`, where the
     compiler had dropped what a lifted `type: "null"` branch wrote beside its type.
-- **0.57.0** — no shape changed; what the OpenAPI compiler writes did:
+- **0.57.0** — no shape change. In the OpenAPI compiler, a `oneOf` or `anyOf` beside an `allOf` is
+  one of its conjuncts ([`allof-refinement`](../compilers/openapi.md#allof-refinement)), so an
+  `allOf` no conjunct makes an object refines with a union beside it, where it composed a `Model` or
+  a union of `Model`s. A union on an `allOf` branch lowers with the discriminator written on the
+  branch or beside the `allOf`, and below a discriminated base at a position no route names, where it
+  was kept whole under `openapi:allOf/<n>`. A subtype a discriminator routes to composes a union
+  written beside or on its `allOf` as a `Mixin` naming a `Union` minted for it, whose hint the
+  compiler composes ([models](./models.md#composition-beside-a-union)), where the union was kept
+  under `openapi:oneOf`, `openapi:anyOf` or `openapi:allOf/<n>`. A `$ref` entry to a schema composing
+  a discriminated one at any depth is the `Base`
+  ([`allof-classification`](../compilers/openapi.md#allof-classification)), and so is a type a field
+  is redeclared as that holds a declared discriminator on a `Model` or a `Union`, or composes one
+  ([`allof-redeclared-property`](../compilers/openapi.md#allof-redeclared-property)). A consumer
+  pinned to 0.56.0 finds those keys gone at those positions, a refined node, a `Union` or a `Mixin` where it
+  read a `Model` keeping them, and a `Base` where it read a `Mixin`.
+- **0.58.0** — no shape changed; what the OpenAPI compiler writes did:
   - A `deprecated`, `readOnly` or `writeOnly` written `false` withdraws no `true` another schema of
     a use states, as JSON Schema reads the three, so `deprecated: false` beside a `$ref` to a
     deprecated target leaves the use's `Deprecation` set
     ([what a reference carries down](./annotations.md#what-a-reference-carries-down)). A consumer
-    pinned to 0.56.0 that read such a use as live finds it deprecated, and a `readOnly` or
+    pinned to 0.57.0 that read such a use as live finds it deprecated, and a `readOnly` or
     `writeOnly` it read as withdrawn in force. An `allOf` branch writing one `false` beside
     another's `true` no longer disagrees with it, so both fold where both were kept verbatim.
   - `Operation.Pagination` is filled from the extensions the promotion policy maps, by default those
@@ -645,7 +660,7 @@ it sees. Changes made together in one bump are listed together under it.
     with `Pagination.Inferred` set and each node whose key it read marked `extension-promotion`;
     `Server.Name` is filled from a key on a server the document names in no other way; and
     `HTTPParamBinding.AllowReserved` and `OAuthFlow.TokenEndpointAuthMethods` are filled where a
-    mapping names a key for them. A consumer pinned to 0.56.0 finds a pagination, a name or a field
+    mapping names a key for them. A consumer pinned to 0.57.0 finds a pagination, a name or a field
     where none was written.
   - A decorator over a target a keyword or a key deprecates holds the `Deprecation` its own keys'
     members state, which they were kept beside in silence.
