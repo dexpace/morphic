@@ -57,8 +57,8 @@ const numberTextEncoding = "string"
 
 // numberAsText returns the numeric primitive format selects under
 // `type: number`, where a `type: string` writes it: the string is the text of
-// a number of that primitive, as an int64 or a decimal too wide for a JSON
-// number commonly travels.
+// a number of that primitive, as an int64 or a decimal wider than a JSON
+// number's readers hold may travel.
 func numberAsText(st oas3.SchemaType, format string) (ir.PrimKind, bool) {
 	if st != oas3.SchemaTypeString || format == "" {
 		return "", false

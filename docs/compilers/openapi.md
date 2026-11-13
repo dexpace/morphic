@@ -2922,8 +2922,8 @@ to `uuid`, `uri` to `url`, `date-time` to `datetime_offset`, `date-time-local` t
 `binary` to `bytes`. `byte` lowers to a hoisted `Scalar` over `bytes` whose `Encoding` is `base64`,
 with the `string` it travels as in `WireType`. A numeric format the table pairs with `number`
 ([`numeric-formats`](#numeric-formats)), such as `int64`, `decimal` or `double`, names a number
-written as its text, which is how a value too wide for a JSON number commonly travels, so it lowers
-the same way: to a hoisted `Scalar` over the primitive it selects under `number`, whose `Encoding`
+written as its text, as a value too wide for a JSON number's readers may travel, so it lowers the
+same way: to a hoisted `Scalar` over the primitive it selects under `number`, whose `Encoding`
 is `string`, a number written as the text of its value, with the `string` in `WireType`. The base is
 the logical type and `WireType` the wire's, for both, as [encodings](../ir/constraints.md#encodings)
 orients the triple. Any other format (`time`, `email`, `uri-reference`, `ipv4`, an invented one)
