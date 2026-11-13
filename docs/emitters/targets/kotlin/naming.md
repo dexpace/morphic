@@ -275,4 +275,4 @@ Four other designs were weighed, and each fails an input:
   all the same. It drops the nesting a Kotlin caller writes, and puts each wrapper among its unit's
   names, where 48 of the golden spec's, joined as `PetDog` is, fold as a declared type's name and
   1,454 as another wrapper's, so a wrapper's name, which a caller writes, would turn on the rest of
-  its unit. 
+  its unit.

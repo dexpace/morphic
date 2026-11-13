@@ -154,8 +154,9 @@ throughout these documents.
     name the export declares for a class of its own or for a class, object or interface of the
     standard library, so a Swift file that imports the framework and Foundation compiles its uses of
     both, `KotlinInt`, `KotlinThrowable` and `KotlinComparable` among them, and qualifies a name by
-    either module; the two types `Duration` export as `Duration__` and `Duration__2` beside the
-    runtime's `Duration_` under both orders of their units' packages. The fixture also names a
+    either module; of the two types `Duration` the one whose ID sorts first exports as `Duration__`
+    and the other as `Duration__2`, beside the runtime's `Duration_`, each keeping its name under
+    both orders of their units' packages. The fixture also names a
     property, a parameterless method, a `suspend` method and an enum entry after every member of the
     table of `NSObject`'s, `dealloc`, `zone`, `hash`, `self`, `load` and `copy` among them, a method
     of one parameter after each of its one-parameter selectors (`responds(toSelector:)`), a method
