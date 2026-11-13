@@ -4565,17 +4565,17 @@ scheme of kind `unresolved` ([auth](../ir/auth.md#unresolved-schemes)), one per 
 reported as an `openapi/unresolved-security-scheme` error at each requirement, quoting the key as
 written. Where a declared scheme that reaches a mechanism is a near miss of the name, the error
 names it, resolution staying exact: the first that holds of the same neutral name, the same letters
-and digits in any case, and, for a name of 4 to 64 bytes in a document declaring at most 64 schemes,
-a name one edit apart, an insertion, a deletion, a substitution or two adjacent runes swapped, the
-least in byte order where several do. In a 3.2 document the error then adds that a URI naming a
-Security Scheme Object outside the source's `securitySchemes` is not read. Nothing else about the
-requirement changes: the option keeps its other schemes, its scopes and its place in the list, so an
-operation stating its own requirement does not read as inheriting, and an option whose name reaches
-no mechanism does not vanish from the options beside it. The error stands however the rest lowers,
-since the specification requires the name to correspond to a scheme and what it means is missing
-([`validation`](#validation)). A name stands whatever is beside it, whether or not it reaches a
-mechanism, since an option demands every scheme it names: a value that reads as no list of strings
-lists no scopes, a warning from the rule table for a `null` and an error for any other
+and digits in any case, and, for a name of 4 to 64 bytes where at most 64 declared schemes reach a
+mechanism, a name one edit apart, an insertion, a deletion, a substitution or two adjacent runes
+swapped, the least in byte order where several do. In a 3.2 document the error then adds that a URI
+naming a Security Scheme Object outside the source's `securitySchemes` is not read. Nothing else
+about the requirement changes: the option keeps its other schemes, its scopes and its place in the
+list, so an operation stating its own requirement does not read as inheriting, and an option whose
+name reaches no mechanism does not vanish from the options beside it. The error stands however the
+rest lowers, since the specification requires the name to correspond to a scheme and what it means
+is missing ([`validation`](#validation)). A name stands whatever is beside it, whether or not it
+reaches a mechanism, since an option demands every scheme it names: a value that reads as no list of
+strings lists no scopes, a warning from the rule table for a `null` and an error for any other
 ([`requirement-scopes`](../parser-library.md#requirement-scopes)). A scope is the text an item
 writes, so a plain date is one ([`undecoded-scalar`](../parser-library.md#undecoded-scalar)). The
 scopes an option lists for one scheme are a set: a scope written again is kept once, at its first
@@ -4641,8 +4641,8 @@ requirement naming no scheme and a scheme naming no mechanism, and leaves them t
   `auth.TestSecurityRequirement_ANameAndItsURIAreOneSchemeInEitherOrder`,
   `oas.TestSecurityRules_AnswerAsTheTableDoes`,
   `auth.TestSecurityRequirement_AnUnresolvedNameNamesADeclaredNearMiss`,
-  `auth.TestNearest_TakesTheFirstReadingThatMatches`, `auth.TestNearest_ReadsOneEditWithinItsBounds`,
-  `auth.TestOneEditApart_CountsOneEdit`,
+  `auth.TestNearest_TakesTheFirstReadingThatMatches`,
+  `auth.TestNearest_ReadsOneEditWithinItsBounds`, `auth.TestOneEditApart_CountsOneEdit`,
   `lowering.TestFirstOccurrences_KeepsEachEntryOnceAtItsFirst`,
   `auth.TestAuth_RequirementsOrOfAnds`
 - Status: partly built: a 3.2 requirement naming a scheme by a URI outside the source's
