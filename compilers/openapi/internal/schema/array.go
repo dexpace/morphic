@@ -226,9 +226,10 @@ func ownCollectionConstraints(s *oas3.Schema) *ir.Constraints {
 // is alike in every dialect, so only this tells the document.
 //
 // It reads the declaration, never what it lowered to, so an array lowering to
-// a tuple or an enum is held to the rule as a List is; that a 3.0 prefixItems
-// lowers at all is GitHub #820. `items: {}` is silent, as is a list, read off
-// the raw node, which no documented parser behaviour models.
+// a tuple or an enum is held to the rule as a List is, a 3.0 prefixItems
+// among them (docs/compilers/openapi.md#later-version-construct). `items: {}`
+// is silent, as is a list, read off the raw node, which no documented parser
+// behaviour models.
 // missingArrayItemsBesideRef holds a $ref site's keywords to it; a subschema
 // kept verbatim never reaches it.
 func missingArrayItems(c lowering.Ctx, s *oas3.Schema, pointer jsontext.Pointer) []ir.Diagnostic {

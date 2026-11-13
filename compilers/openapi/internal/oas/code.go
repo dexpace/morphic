@@ -459,9 +459,10 @@ func encodingApplies(r ruler, rule Rule) {
 
 // nullableApplies warns of a `nullable: true` a 3.0 Schema Object writes with no
 // `type` beside it, to which the specification applies it, so it has no
-// effect, whatever the nullable-widening policy reads (GitHub #1070). Beside a
-// `$ref` every key is a later minor's construct, warned of as one
-// (walker.reference), so it is left alone there.
+// effect, whatever the nullable-widening policy reads
+// (docs/compilers/openapi.md#nullable). Beside a `$ref` every key is a later
+// minor's construct, warned of as one (walker.reference), so it is left alone
+// there.
 func nullableApplies(r ruler, rule Rule) {
 	n := nodeview.Deref(r.f.byKey["nullable"])
 	if n == nil || !matches(Boolean, n) || !strings.EqualFold(n.Value, "true") ||
