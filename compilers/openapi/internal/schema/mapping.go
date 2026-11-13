@@ -63,7 +63,7 @@ type chainFrom struct {
 // false for a value that resolves to no schema, which the caller reports. The
 // chain from a position is read once a run, as many values may name it.
 func chainOf(c lowering.Ctx, d *oas3.Discriminator, value string) (valueChain, bool) {
-	at, decl, ok := named(c, d, value)
+	at, decl, ok := valuePosition(c, d, value)
 	if !ok {
 		return valueChain{}, false
 	}
@@ -76,10 +76,10 @@ func chainOf(c lowering.Ctx, d *oas3.Discriminator, value string) (valueChain, b
 	}), true
 }
 
-// named is the position value, a value of d's mapping, names, and the schema
-// held there: the entry document's component it is the name of, else where it
-// lands read as a URI reference, false where it lands on no schema.
-func named(c lowering.Ctx, d *oas3.Discriminator, value string) (bind.Position, *oas3.JSONSchema[oas3.Referenceable], bool) {
+// valuePosition is the position value, a value of d's mapping, names, and the
+// schema held there: the entry document's component it is the name of, else
+// where it lands read as a URI reference, false where it lands on no schema.
+func valuePosition(c lowering.Ctx, d *oas3.Discriminator, value string) (bind.Position, *oas3.JSONSchema[oas3.Referenceable], bool) {
 	if c.DeclaresSchema(value) {
 		at := bind.Position{Doc: bind.Source, Pointer: ids.Ptr("components", "schemas", value)}
 		return at, c.Bindings().At(at), true
@@ -146,11 +146,12 @@ func hierarchyRoute(c lowering.Ctx, ts *compile.Types, chain valueChain) (ir.Typ
 	return id, ok && !chain.broken
 }
 
-// branchIndex is what a union's branches tell a mapping value, in branch order
-// past the null branches, as its variants are. is keys each branch's own
-// position and its variant's type by the first branch they are; passes keys
-// each other position a branch's chain of $refs passes by the first branch
-// passing it, and several by every branch passing it, where more than one does.
+// branchIndex is what a union's branches tell a mapping value: its variants,
+// in branch order past the null branches, and the pointer of each one's
+// branch. is keys each branch's own position and its variant's type by the
+// first branch they are; passes keys each other position a branch's chain of
+// $refs passes by the first branch passing it, and several by every branch
+// passing it.
 type branchIndex struct {
 	variants []ir.Variant
 	pointers []jsontext.Pointer
