@@ -216,7 +216,7 @@ func TestEnum_NullIsNeverAMember(t *testing.T) {
 			if tc.wantDropped != "" {
 				wantDropped = []jsontext.Pointer{jsontext.Pointer(at + tc.wantDropped)}
 			}
-			assert.Equal(t, wantDropped, warningPointers(diags, diag.DegradedConstruct),
+			assert.Equal(t, wantDropped, degradedWarnings(diags),
 				"a null the schema excludes is reported at itself, and only it")
 		})
 	}
@@ -269,7 +269,7 @@ func TestConst_NullLowersAsAnEnumOfNullAlone(t *testing.T) {
 		}
 		enum, ok := doc.Types[ref.Target].(*ir.Enum)
 		require.True(t, ok, "%s lowers to an Enum, got %T", body, doc.Types[ref.Target])
-		return enum, ref.Nullable, warningPointers(diags, diag.DegradedConstruct)
+		return enum, ref.Nullable, degradedWarnings(diags)
 	}
 	for _, tc := range []struct {
 		name, beside string
@@ -297,7 +297,7 @@ func TestConst_NullLowersAsAnEnumOfNullAlone(t *testing.T) {
 			assert.Equal(t, want.ValueType, got.ValueType, "typed as the enum spelling is")
 			assert.Equal(t, tc.nullable, gotNull, "the reference alone admits the null")
 			assert.Equal(t, wantNull, gotNull)
-			assert.Equal(t, len(wantWarned), len(gotWarned), "warned where the enum spelling is: %v", gotWarned)
+			assert.Len(t, gotWarned, len(wantWarned), "warned where the enum spelling is")
 			for _, at := range gotWarned {
 				assert.True(t, strings.HasSuffix(string(at), "/const"), "the warning is at the const, got %s", at)
 			}
@@ -332,11 +332,12 @@ func enumValuesAt(t *testing.T, doc *ir.Document, id ir.TypeID) ([]ir.Value, boo
 	}
 }
 
-// warningPointers returns the pointers of diags' warnings of code, in order.
-func warningPointers(diags []ir.Diagnostic, code string) []jsontext.Pointer {
+// degradedWarnings returns the pointers of diags' openapi/degraded-construct
+// warnings, in order.
+func degradedWarnings(diags []ir.Diagnostic) []jsontext.Pointer {
 	var out []jsontext.Pointer
 	for _, d := range diags {
-		if d.Code == code && d.Severity == ir.SeverityWarning {
+		if d.Code == diag.DegradedConstruct && d.Severity == ir.SeverityWarning {
 			out = append(out, d.Provenance.Pointer)
 		}
 	}
@@ -633,7 +634,7 @@ func TestEnum_AMemberNoTypeAdmitsIsReportedAndKept(t *testing.T) {
 			for _, r := range tc.rejected {
 				want = append(want, jsontext.Pointer(at+r))
 			}
-			assert.Equal(t, want, warningPointers(diags, diag.DegradedConstruct), "each member no type admits, and only it")
+			assert.Equal(t, want, degradedWarnings(diags), "each member no type admits, and only it")
 
 			e, isEnum := doc.Types[componentID("E")].(*ir.Enum)
 			assert.Equal(t, tc.want != "", isEnum, "got %T", doc.Types[componentID("E")])
@@ -1073,7 +1074,7 @@ func TestLiteral_ValueTypeReadsTheTypeAndFormatItsValueFits(t *testing.T) {
 			if tc.rejected {
 				want = []jsontext.Pointer{"/components/schemas/L/const"}
 			}
-			assert.Equal(t, want, warningPointers(diags, diag.DegradedConstruct),
+			assert.Equal(t, want, degradedWarnings(diags),
 				"a const no instance matches is reported at it, and only then")
 		})
 	}
