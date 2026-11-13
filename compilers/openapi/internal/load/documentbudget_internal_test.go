@@ -18,6 +18,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/dexpace/morphic/compilers"
 	"github.com/dexpace/morphic/compilers/openapi/internal/bind"
 	"github.com/dexpace/morphic/compilers/openapi/internal/budget"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
@@ -215,7 +216,7 @@ func resolveCounting(t *testing.T, spec, path string, opts Options) ([]ir.Diagno
 	opts.Reader = reader.Disk{}
 	at := provenance.Doc{}
 	_, _, ext, pass, missed, err := resolveExternal(t.Context(), doc, Siblings{}, MediaTypes{},
-		newSourceDocument(path, data, root, judgment{}, treeOf(t.Context(), provenance.Doc{}, root), nil), opts, rebuild)
+		newSourceDocument(compilers.Source{Path: path, Data: data}, root, judgment{}, treeOf(t.Context(), provenance.Doc{}, root), nil), opts, rebuild)
 	require.NoError(t, err)
 	return append(passDiags(at, pass, missed), crossed(at, ext)...), rebuilds
 }

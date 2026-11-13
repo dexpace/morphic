@@ -5,6 +5,7 @@ package load
 
 import (
 	"bytes"
+	"cmp"
 	"context"
 	"encoding/json/jsontext"
 	"errors"
@@ -12,9 +13,11 @@ import (
 	"io"
 	"io/fs"
 	"iter"
+	"maps"
 	"net/http"
 	"net/url"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -30,6 +33,7 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/nodeview"
 	"github.com/dexpace/morphic/compilers/openapi/internal/provenance"
 	refscope "github.com/dexpace/morphic/compilers/openapi/internal/resolve"
+	"github.com/dexpace/morphic/compilers/openapi/internal/scan"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -340,27 +344,37 @@ func (e external) Open(name string) (fs.File, error) {
 // a URI reference's are before anything is read. The resolver cleans a relative
 // $ref this way and hands an absolute one over as written, so left to the
 // reader, one through a directory that is not there failed, and one through a
-// link read another file (GitHub #780). An empty name names no file, where
-// cleaned it would name the current directory.
+// link read another file (GitHub #780). A relative path whose first segment
+// holds a colon keeps a leading "./", as RFC 3986 §4.2 writes one, so a reader
+// never reads it as a URL. An empty name names no file, where cleaned it would
+// name the current directory.
 func fileNamed(name string) string {
 	if name == "" {
 		return name
 	}
-	return filepath.Clean(name)
+	clean := filepath.Clean(name)
+	if refscope.IsURL(clean) && !filepath.IsAbs(clean) {
+		return "./" + clean
+	}
+	return clean
 }
 
 // Do answers req as the one read in the compile of the document at its URL
 // answered it (see externalReads.once), fetching it the first time it is
 // asked for (see fetch). A document read is a successful response; a failed
 // read is the client's error, which the resolver reports as the reference's
-// reason. The resolver hands a file URI here too, for the reader to read as
-// the file it names.
+// reason. A file URI comes here too, read as the file it names, the source
+// served as held, as by Open.
 //
 // The resolver looks a document up by its URL as net/url spells it, so an
 // absolute $ref spelled otherwise misses; resolveExternal recovers that
 // document (GitHub #538).
 func (e external) Do(req *http.Request) (*http.Response, error) {
 	key := req.URL.String()
+	if e.read.self.names(key) {
+		e.holdOpened(key)
+		return answer{}.response(req)
+	}
 	return e.read.once(key, func() answer {
 		return e.fetch(req.Context(), key, key)
 	}).response(req)
@@ -373,7 +387,7 @@ func (e external) fetch(ctx context.Context, key, location string) answer {
 	if e.opts.Reader == nil {
 		return answer{err: refused(key, "no reader was supplied to read it")}
 	}
-	if err := e.unnamed(key); err != nil {
+	if err := e.unnamed(key, location); err != nil {
 		return answer{err: err}
 	}
 	data, err := e.opts.Reader.ReadDocument(ctx, compilers.DocumentRequest{
@@ -389,14 +403,17 @@ func (e external) fetch(ctx context.Context, key, location string) answer {
 	return answer{body: data}
 }
 
-// unnamed returns the refusal of the document under key, unread, or nil: the
-// one its $ref drew by how it is spelled, respelled for the resolver (see
-// refusedByName), or, for a read confined to Options.Within, a file URI's.
-func (e external) unnamed(key string) error {
+// unnamed returns the refusal of the document under key, read at location,
+// unread, or nil: the one its $ref drew by how it is spelled, respelled for the
+// resolver (see refusedByName), or, for a read confined to Options.Within, a
+// file URI's. A file read at a path is no file URI, though its name, as the
+// resolver joins it, may start like one ("./file:a.yaml" is read as
+// "file:a.yaml").
+func (e external) unnamed(key, location string) error {
 	if why := e.read.self.escapes.refusalOf(key); why != nil {
 		return why
 	}
-	if e.opts.Within != "" && len(key) >= len("file:") && strings.EqualFold(key[:len("file:")], "file:") {
+	if e.opts.Within != "" && isFileURI(location) {
 		return refused(key, "it is named by a file URI"+followedWhenAllowed)
 	}
 	return nil
@@ -421,7 +438,7 @@ func refusedByName(opts Options, self string) func(uri string) error {
 	confined := opts.Within != ""
 	return func(uri string) error {
 		if !refscope.IsURL(uri) {
-			if confined && filepath.IsAbs(uri) && !refscope.SameDocument(self, uri) {
+			if confined && filepath.IsAbs(uri) && !namesSource(self, uri) {
 				return refused(uri, "the $ref names it by an absolute path"+followedWhenAllowed)
 			}
 			return nil
@@ -436,6 +453,13 @@ func refusedByName(opts Options, self string) func(uri string) error {
 				"and only http, https and file URLs are read", scheme))
 		}
 	}
+}
+
+// namesSource reports whether uri, a $ref's document part, names the source
+// at self, read as every reference is (resolve.Locate).
+func namesSource(self, uri string) bool {
+	named, ok := refscope.Locate(uri, self)
+	return ok && refscope.SameDocument(self, named)
 }
 
 // readFailure returns the error a reference into the document under key fails
@@ -493,7 +517,7 @@ func (e external) prepare(ctx context.Context, key string, data []byte) ([]byte,
 		return nil, err
 	}
 	readyForModel(ctx, root)
-	e.read.self.escapes.escape(ctx, root)
+	e.read.self.escapes.escape(ctx, root, key)
 	e.doc.StoreExternalDocumentInCache(key, root)
 	e.read.recordTree(key, root, data)
 	e.holdSpellings(ctx, root, key)
@@ -564,64 +588,74 @@ func (e external) readsID(root *yaml.Node) func(dialect string) bool {
 // be read, when a $ref or an identifier in it takes a read to the local file
 // system, and whether one does (GitHub #929). base keys the document.
 //
-// A $ref naming a local file against base does (localTarget), as does a $id
-// naming a local location, rebasing a relative $ref under it onto the disk. An
+// A $ref or $id naming a local location against base does (localTarget). An
 // `id` does only where a dialect root's `$schema` or jsonSchemaDialect names
 // reads it as an identifier (readsID), as draft 4 does, so an example's is
-// none. The walk reads a value through an alias.
+// none. A value is read through an alias. The reason names the one at the
+// least pointer (scan.Least), which no declaration order moves.
 func reachesLocal(ctx context.Context, root *yaml.Node, base string, readsID func(dialect string) bool,
 ) (reason string, refuse bool) {
 	if !overNetwork(base) {
 		return "", false
 	}
-	r := localReading{base: base, named: map[string]bool{declaredDialect(root): true}}
+	r := localReading{base: base, named: map[string]bool{declaredDialect(root): true},
+		refs: map[*yaml.Node]string{}, ids: map[*yaml.Node]string{}}
 	nodeview.Walk{Nodes: maxTreeNodes, Visit: func(n *yaml.Node, _ int) nodeview.Step {
-		if r.read(n) {
-			return nodeview.Stop
-		}
+		r.read(n)
 		return nodeview.Descend
 	}}.Run(ctx, root)
-	if r.reason != "" || r.rebased == "" {
-		return r.reason, r.reason != ""
+	if len(r.refs) > 0 {
+		return leastOf(ctx, root, r.refs), true
 	}
 	for dialect := range r.named {
-		if readsID(dialect) {
-			return r.rebased, true
+		if readsID(dialect) && len(r.ids) > 0 {
+			return leastOf(ctx, root, r.ids), true
 		}
 	}
 	return "", false
 }
 
 // localReading is what a walk of a document read from base has found that can
-// take a read of it to the local file system: the first $ref or $id that does,
-// the first `id` that would were it an identifier, and each dialect a
-// `$schema` or its jsonSchemaDialect names.
+// take a read of it to the local file system: why each $ref or $id value that
+// does, and each `id` value that would were it an identifier, does, by the
+// value's node, and each dialect a `$schema` or its jsonSchemaDialect names.
 type localReading struct {
-	base, reason, rebased string
-	named                 map[string]bool
+	base      string
+	refs, ids map[*yaml.Node]string
+	named     map[string]bool
 }
 
-// read notes what the mapping n writes itself, a value's alias followed, and
-// reports whether a $ref or $id of it reaches the local file system.
-func (r *localReading) read(n *yaml.Node) bool {
+// read notes what the mapping n writes itself, a value's alias followed.
+func (r *localReading) read(n *yaml.Node) {
 	for i := 0; n.Kind == yaml.MappingNode && i+1 < len(n.Content); i += 2 {
 		key, own := nodeview.KeyOf(n.Content[i])
 		value := nodeview.Deref(n.Content[i+1])
 		if !own || value == nil || value.Kind != yaml.ScalarNode {
 			continue
 		}
-		switch {
-		case key == "$ref", key == "$id":
-			if r.reason = localReference(key, value.Value, r.base); r.reason != "" {
-				return true
+		switch key {
+		case "$ref", "$id":
+			if why := localReference(key, value.Value, r.base); why != "" {
+				r.refs[value] = why
 			}
-		case key == "id" && r.rebased == "":
-			r.rebased = localID(value.Value, r.base)
-		case key == "$schema":
+		case "id":
+			if why := localID(value.Value, r.base); why != "" {
+				r.ids[value] = why
+			}
+		case "$schema":
 			r.named[value.Value] = true
 		}
 	}
-	return false
+}
+
+// leastOf returns why the value at the least pointer of root among found
+// reaches the local file system: the nodes are handed over in the order the
+// document writes them, so of a key written twice the first is named.
+func leastOf(ctx context.Context, root *yaml.Node, found map[*yaml.Node]string) string {
+	nodes := slices.SortedFunc(maps.Keys(found), func(a, b *yaml.Node) int {
+		return cmp.Or(cmp.Compare(a.Line, b.Line), cmp.Compare(a.Column, b.Column))
+	})
+	return found[scan.Least(ctx, root, nodes)]
 }
 
 // localReference returns why a $ref or $id, key, written value in a document
@@ -663,11 +697,11 @@ func overNetwork(key string) bool {
 // them, which the resolver reads from disk (readFileURI). A value the resolver
 // cannot place names nothing, and is left for it to report.
 func localTarget(ref, base string) (string, bool) {
-	abs, err := references.ResolveAbsoluteReference(references.Reference(ref), base)
-	if err != nil {
+	uri, _, _ := strings.Cut(ref, "#")
+	target, ok := refscope.Locate(uri, base)
+	if !ok {
 		return "", false
 	}
-	target := abs.AbsoluteReference
 	return target, !refscope.IsURL(target) || isFileURI(target)
 }
 

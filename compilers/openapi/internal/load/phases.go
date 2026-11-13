@@ -165,8 +165,8 @@ func (l *loading) judge(ctx context.Context) (bool, error) {
 // the end of resolution.
 func (l *loading) buildModel(ctx context.Context) (bool, error) {
 	readyForModel(ctx, l.root)
-	l.esc = newEscapes(refusedByName(l.opts, l.src.Path))
-	l.esc.escape(ctx, l.root)
+	l.esc = newEscapes(refusedByName(l.opts, Location(l.src)))
+	l.esc.escape(ctx, l.root, Location(l.src))
 	// The model build reads no context, so a cancel that cut the walks above
 	// short is seen before it starts, and never waited out on a tree half
 	// prepared for it.
@@ -197,7 +197,7 @@ func (l *loading) findSiblings(ctx context.Context) (bool, error) {
 	var mediaFaults []ir.Diagnostic
 	l.media, mediaFaults = modelMediaTypes(ctx, l.doc, l.tree)
 	l.sibFaults = append(l.sibFaults, mediaFaults...)
-	l.self = newSourceDocument(l.src.Path, l.src.Data, l.root, l.judged, l.tree, l.esc)
+	l.self = newSourceDocument(l.src, l.root, l.judged, l.tree, l.esc)
 	return false, nil
 }
 
@@ -287,6 +287,7 @@ func (l *loading) document(hash string) (*Document, []ir.Diagnostic) {
 	diags := slices.Concat(l.early, l.sibFaults, l.judged.diags, l.resolved, l.checked)
 	return &Document{
 		Doc:      l.doc,
+		Location: l.self.path,
 		Bindings: l.bound.bindings,
 		Holds:    newTreeReads().holds,
 		Source: ir.SourceInfo{

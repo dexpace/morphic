@@ -36,38 +36,42 @@ func TestOverNetwork(t *testing.T) {
 }
 
 // TestLocalTarget pins which $ref and $id values, read against a network base,
-// name a local location: an absolute path, a protocol-relative //host path the
-// resolver reads as a file, and a file: URI; and which do not: a relative path
-// and an absolute URL, which stay on the network, an internal pointer, and a
-// URI on another scheme, under which a relative $ref names no file either.
+// name a local location, and the location each names: a file: URI does, and
+// nothing else. An absolute path and a network-path reference name a resource
+// on the network, as RFC 3986 §5.2 resolves them against the document's URL
+// (GitHub #936), as do a relative path and an absolute URL; an internal
+// pointer names the document itself, and a URI on another scheme names no file.
 func TestLocalTarget(t *testing.T) {
 	t.Parallel()
 	const base = "http://host/dir/a.yaml"
 	tests := []struct {
-		ref   string
-		local bool
+		ref, target string
+		local       bool
 	}{
-		{"/etc/passwd", true},
-		{"//evil/etc/passwd", true},
-		{"file:///etc/passwd", true},
-		{"FILE:///etc/passwd", true},
-		{"./b.yaml", false},
-		{"../c.yaml", false},
-		{"https://other/d.yaml", false},
-		{"#/components/schemas/S", false},
-		{"/x/", true},
-		{"./v2/", false},
-		{"urn:example:pets", false},
-		{"tag:example.com,2026:pets", false},
-		{"://bad", false}, // the resolver cannot place it, and reports it itself
+		{"/etc/passwd", "http://host/etc/passwd", false},
+		{"//evil/etc/passwd", "http://evil/etc/passwd", false},
+		{"/x/", "http://host/x/", false},
+		{"/x/b.yaml#/S", "http://host/x/b.yaml", false},
+		{"file:///etc/passwd", "file:///etc/passwd", true},
+		{"FILE:///etc/passwd", "FILE:///etc/passwd", true},
+		{"./b.yaml", "http://host/dir/b.yaml", false},
+		{"../c.yaml", "http://host/c.yaml", false},
+		{"https://other/d.yaml", "https://other/d.yaml", false},
+		{"#/components/schemas/S", base, false},
+		{"./v2/", "http://host/dir/v2/", false},
+		{"urn:example:pets", "urn:example:pets", false},
+		{"tag:example.com,2026:pets", "tag:example.com,2026:pets", false},
 	}
 	for _, tc := range tests {
 		t.Run(tc.ref, func(t *testing.T) {
 			t.Parallel()
-			_, local := localTarget(tc.ref, base)
+			target, local := localTarget(tc.ref, base)
 			assert.Equal(t, tc.local, local)
+			assert.Equal(t, tc.target, target)
 		})
 	}
+	_, local := localTarget("://bad", base)
+	assert.False(t, local, "the resolver cannot place it, and reports it itself")
 }
 
 // remoteDoc is a document whose one schema is a $ref to ref, as a network
@@ -93,14 +97,13 @@ func remoteReader(t *testing.T, doc *soa.OpenAPI) external {
 
 // TestExternal_DoRefusesANetworkDocumentReachingALocalFile pins GitHub #929: a
 // document fetched over the network that references a local file is refused
-// when it is prepared, before the file is opened, however the $ref spells the
-// file — an absolute path, a //host path, or a file: URI. The refusal names
-// the $ref and the file, and the document is not stored.
+// when it is prepared, before the file is opened, a $ref naming a file: URI or
+// an identifier rebasing one onto one. The refusal names the $ref and the
+// file, and the document is not stored. An absolute path names a resource on
+// the network (TestLocalTarget).
 func TestExternal_DoRefusesANetworkDocumentReachingALocalFile(t *testing.T) {
 	t.Parallel()
 	tests := map[string]struct{ body, reason string }{
-		"an absolute path $ref":   {remoteDoc("/etc/passwd"), `its $ref "/etc/passwd" reaches the local file /etc/passwd`},
-		"a //host $ref":           {remoteDoc("//evil/etc/passwd"), `its $ref "//evil/etc/passwd" reaches the local file //evil/etc/passwd`},
 		"a file: $ref":            {remoteDoc("file:///etc/passwd"), `its $ref "file:///etc/passwd" reaches the local file file:///etc/passwd`},
 		"a file: $id above a ref": {"components:\n  schemas:\n    S:\n      $id: 'file:///x/'\n      $ref: './secret.yaml#/x'\n", `its $id "file:///x/" rebases references onto the local file:///x/`},
 		"a draft 4 file: id above a ref": {"components:\n  schemas:\n    S:\n      $schema: 'http://json-schema.org/draft-04/schema#'\n" +
@@ -172,6 +175,36 @@ func TestReachesLocal_PassesALocalDocumentAndANetworkOne(t *testing.T) {
 	assert.True(t, refuse, "once it names draft 4, an id naming a file rebases its schema's references")
 }
 
+// TestReachesLocal_NamesTheLeastOffenderInEitherOrder pins whose value the
+// refusal of a network document quotes when several reach the local file
+// system: the one at the least pointer, whichever is declared first (GitHub
+// #940). Of one schema's, an $id sorts before its $ref, and of a key written
+// twice, the first is named; an `id` read as draft 4 reads it is named the same
+// way, where no $ref or $id reaches the disk.
+func TestReachesLocal_NamesTheLeastOffenderInEitherOrder(t *testing.T) {
+	t.Parallel()
+	const draft4 = "    D: {$schema: 'http://json-schema.org/draft-04/schema#'}\n"
+	for _, tc := range []struct{ name, first, second, quoted string }{
+		{"two $refs", "    a: {$ref: 'file:///etc/a.yaml'}\n", "    b: {$ref: 'file:///etc/b.yaml'}\n",
+			`its $ref "file:///etc/a.yaml" reaches the local file file:///etc/a.yaml`},
+		{"an $id beside a $ref", "    a: {$ref: 'file:///etc/a.yaml', $id: 'file:///etc/'}\n", "    b: {$ref: 'file:///etc/b.yaml'}\n",
+			`its $id "file:///etc/" rebases references onto the local file:///etc/`},
+		{"a key written twice", "    a: {$ref: 'file:///etc/a.yaml', $ref: 'file:///etc/c.yaml'}\n", "    b: {$ref: 'file:///etc/b.yaml'}\n",
+			`its $ref "file:///etc/a.yaml" reaches the local file file:///etc/a.yaml`},
+		{"two ids", draft4 + "    a: {id: 'file:///etc/a/'}\n", "    b: {id: 'file:///etc/b/'}\n",
+			`its id "file:///etc/a/" rebases references onto the local file:///etc/a/`},
+	} {
+		for _, order := range []string{tc.first + tc.second, tc.second + tc.first} {
+			root := openapitest.YAMLDocument(t, "components:\n  schemas:\n"+order)
+
+			reason, refuse := reachesLocal(t.Context(), root, "http://host/x.yaml", readsDraft4ID)
+
+			require.True(t, refuse, "%s: %s", tc.name, order)
+			assert.Equal(t, tc.quoted, reason, "%s: %s", tc.name, order)
+		}
+	}
+}
+
 // TestExternal_DoReadsANetworkDocumentStayingOnTheHost pins the other side:
 // a network document whose $refs stay on the host is prepared and stored, not
 // refused, and so is one whose example writes an `id` a drive letter would
@@ -216,7 +249,8 @@ func TestLoad_ANetworkDocumentReachingALocalFileIsRefusedAndReadsNothing(t *test
 		"local.yaml": "components:\n  schemas:\n    S: {type: string}\n",
 	})
 	srv := newTestServer(t, func(w http.ResponseWriter, _ *http.Request) {
-		_, err := w.Write([]byte(remoteDoc(filepath.Join(dir, "local.yaml") + "#/components/schemas/S")))
+		_, err := w.Write([]byte(remoteDoc("file://" + filepath.ToSlash(filepath.Join(dir, "local.yaml")) +
+			"#/components/schemas/S")))
 		assert.NoError(t, err)
 	})
 	remote := "    R: {$ref: '" + srv.URL + "/remote.yaml#/components/schemas/S'}\n"

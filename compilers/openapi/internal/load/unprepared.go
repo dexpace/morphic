@@ -448,7 +448,9 @@ func resolveExternal(ctx context.Context, doc *soa.OpenAPI, sibs Siblings, media
 // it, holds a node readyForModel changes: an anchor, the one thing the fold's
 // skip reads, or a mistagged scalar, which the model reads as no string.
 func anyUnready(ctx context.Context, doc *soa.OpenAPI, missed []usedDocument) bool {
-	return anyParsed(ctx, doc, missed, unready)
+	return anyParsed(ctx, doc, missed, func(ctx context.Context, tree *yaml.Node, _ string) bool {
+		return unready(ctx, tree)
+	})
 }
 
 // anyRewritable reports whether any document in missed, as the resolver parsed
@@ -460,14 +462,15 @@ func anyRewritable(ctx context.Context, doc *soa.OpenAPI, missed []usedDocument,
 }
 
 // anyParsed reports whether the tree the resolver parsed for any document in
-// missed satisfies holds.
+// missed satisfies holds, handed the key the resolver read it by, against
+// which its references are read.
 func anyParsed(ctx context.Context, doc *soa.OpenAPI, missed []usedDocument,
-	holds func(context.Context, *yaml.Node) bool,
+	holds func(context.Context, *yaml.Node, string) bool,
 ) bool {
 	return slices.ContainsFunc(missed, func(m usedDocument) bool {
 		cached, _ := doc.GetCachedExternalDocument(m.key)
 		tree, ok := cached.(*yaml.Node)
-		return ok && holds(ctx, tree)
+		return ok && holds(ctx, tree, m.key)
 	})
 }
 

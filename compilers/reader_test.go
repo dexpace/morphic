@@ -1,7 +1,7 @@
 // Copyright (c) 2026 dexpace.
 // Licensed under the MIT License. See LICENSE in the repository root for details.
 
-package reader_test
+package compilers_test
 
 import (
 	"net/url"
@@ -10,15 +10,15 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/dexpace/morphic/engine/reader"
+	"github.com/dexpace/morphic/compilers"
 )
 
-// TestFilePathOf_NamesTheLocalFileAFileURINames pins how a file URI names a
+// TestFilePath_NamesTheLocalFileAFileURINames pins how a file URI names a
 // local file (RFC 8089): decoded, with localhost read as no host, a drive
 // letter's leading slash dropped only where paths are read as Windows reads
 // them, and every URI naming no local file, or naming one ambiguously,
 // refused with the reason.
-func TestFilePathOf_NamesTheLocalFileAFileURINames(t *testing.T) {
+func TestFilePath_NamesTheLocalFileAFileURINames(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
 		name, uri string
@@ -67,7 +67,7 @@ func TestFilePathOf_NamesTheLocalFileAFileURINames(t *testing.T) {
 			u, err := url.Parse(tc.uri)
 			require.NoError(t, err)
 
-			got, err := reader.FilePathOf(u, tc.windows)
+			got, err := compilers.FilePath(u, tc.windows)
 
 			if tc.wantErr != "" {
 				require.Error(t, err)

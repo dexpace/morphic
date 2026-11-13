@@ -114,28 +114,35 @@ func (e *escapes) refusal() func(uri string) error {
 }
 
 // forResolver returns the spelling the resolver is handed for the $ref value
-// v: its fragment as fragment.ForResolver spells it, and a document part
-// e.refuses refuses respelled under refusedScheme, so that the resolver asks
-// for it where the read refuses it.
-func (e *escapes) forResolver(v string) string {
+// v, written in the document at base: its fragment as fragment.ForResolver
+// spells it, and its document part as resolve.ForResolver does, so the
+// resolver reads the document the binder reads (resolve.Locate), or, where
+// e.refuses refuses that part, respelled under refusedScheme, so that the
+// resolver asks for it where the read refuses it.
+func (e *escapes) forResolver(v, base string) string {
 	spelled := fragment.ForResolver(v)
+	uri, rest, found := strings.Cut(spelled, "#")
 	key, why := e.refused(spelled)
-	if why == nil {
+	switch {
+	case why == nil && refscope.ForResolver(uri, base) == strings.TrimSpace(uri):
 		return spelled
+	case why == nil:
+		key = refscope.ForResolver(uri, base)
 	}
-	if _, rest, found := strings.Cut(spelled, "#"); found {
+	if found {
 		return key + "#" + rest
 	}
 	return key
 }
 
-// escape respells, in the tree under root, each $ref value the resolver would
-// misread to ForResolver's spelling, and records what it changed. A $ref
+// escape respells, in the tree under root, the document at base, each $ref
+// value the resolver would misread to forResolver's spelling, and records what
+// it changed. A $ref
 // written as an alias becomes a scalar of its own, so the scalar it names is
 // not changed. One written as a scalar is changed, and an alias naming it
 // elsewhere, which may be text, becomes a scalar holding it as written. Every
 // node keeps its identity, which models and indexes of the tree are keyed by.
-func (e *escapes) escape(ctx context.Context, root *yaml.Node) {
+func (e *escapes) escape(ctx context.Context, root *yaml.Node, base string) {
 	if e == nil {
 		return
 	}
@@ -144,7 +151,7 @@ func (e *escapes) escape(ctx context.Context, root *yaml.Node) {
 	respelled := map[*yaml.Node]string{}
 	eachRefValue(ctx, root, func(n *yaml.Node) bool {
 		v := nodeview.Deref(n)
-		spelled := e.forResolver(v.Value)
+		spelled := e.forResolver(v.Value, base)
 		if spelled == v.Value {
 			if strings.Contains(v.Value, "%2B") {
 				e.verbatim[v.Value] = true
@@ -183,13 +190,13 @@ func (e *escapes) becomeScalar(n, v *yaml.Node, value string) {
 	n.Value, n.Line, n.Column, n.Anchor = value, line, column, anchor
 }
 
-// rewritable reports whether the tree under root holds a $ref value
-// forResolver respells.
-func (e *escapes) rewritable(ctx context.Context, root *yaml.Node) bool {
+// rewritable reports whether the tree under root, the document at base, holds
+// a $ref value forResolver respells.
+func (e *escapes) rewritable(ctx context.Context, root *yaml.Node, base string) bool {
 	found := false
 	eachRefValue(ctx, root, func(n *yaml.Node) bool {
 		v := nodeview.Deref(n)
-		found = e.forResolver(v.Value) != v.Value
+		found = e.forResolver(v.Value, base) != v.Value
 		return !found
 	})
 	return found

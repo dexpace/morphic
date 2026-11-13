@@ -8,7 +8,6 @@ import (
 	"encoding/json/v2"
 	"errors"
 	"fmt"
-	"os"
 
 	"github.com/dexpace/morphic/barrier"
 	"github.com/dexpace/morphic/compilers"
@@ -35,8 +34,6 @@ type Cache interface {
 type cacheBinding struct {
 	store Cache
 	build string
-	// workingDir names the directory a compile reads, os.Getwd outside a test.
-	workingDir func() (string, error)
 }
 
 // WithCache answers a run from c when an earlier one had the same inputs, and
@@ -49,7 +46,7 @@ type cacheBinding struct {
 // one across two builds serves one's documents to the other. New refuses a nil
 // c and an empty build.
 func WithCache(c Cache, build string) Option {
-	return func(cfg *config) { cfg.cache = &cacheBinding{store: c, build: build, workingDir: os.Getwd} }
+	return func(cfg *config) { cfg.cache = &cacheBinding{store: c, build: build} }
 }
 
 // check refuses a binding no run could use.
@@ -71,7 +68,7 @@ func cacheable(opts RunOptions) bool {
 }
 
 // compileCached is compile, answered from the engine's cache where the run takes
-// part, which skips detection too: that parses the spec. A failed key, lookup or
+// part, which skips detection too: that parses the spec. A failed lookup or
 // store costs the work and goes on Result.CacheErr, and never fails the run.
 func (e *Engine) compileCached(ctx context.Context, spec compilers.Source, opts RunOptions,
 	docs compilers.DocumentReader, p plan,
@@ -79,14 +76,7 @@ func (e *Engine) compileCached(ctx context.Context, spec compilers.Source, opts 
 	if e.cache == nil || !cacheable(opts) {
 		return e.compile(ctx, spec, configuration(opts, docs), p)
 	}
-	key, keyErr := e.cache.runKey(spec, opts, p)
-	if keyErr != nil {
-		res, err := e.compile(ctx, spec, configuration(opts, docs), p)
-		if err == nil {
-			res.CacheErr = keyErr
-		}
-		return res, err
-	}
+	key := e.cache.runKey(spec, opts, p)
 	res, hit, lookupErr := e.cache.fetch(ctx, key, docs)
 	if hit {
 		// A run cancelled meanwhile returns no document, as one cancelled in a

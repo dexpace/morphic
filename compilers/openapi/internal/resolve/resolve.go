@@ -20,8 +20,9 @@ import (
 // Declares is a Names rather than a map because a copied struct shares a map,
 // and a reader has no business writing to one.
 type Scope struct {
-	// SelfPath is the source path of the document being compiled, against which
-	// a reference's document part is judged internal or external.
+	// SelfPath is where the document being compiled lies, as its references
+	// are read against (load.Location), against which a reference's document
+	// part is judged internal or external.
 	SelfPath string
 	// Declares holds the names of the component schemas the document declares.
 	Declares Names

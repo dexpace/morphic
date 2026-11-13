@@ -382,8 +382,10 @@ func TestLoad_RecoverableLiteralAmongOtherScalarsIsNotAFinding(t *testing.T) {
 // the spec and by an absolute one, is one document: one Document.Sources
 // entry, its declarations lowered once under one label, each finding in it
 // reported once, and every ID the same whether the spec itself was named by a
-// relative path or an absolute one.
+// relative path or an absolute one, located where it lies as the engine
+// locates it.
 func TestCompile_OneFileUnderTwoNamesIsOneDocument(t *testing.T) {
+	t.Parallel()
 	dir := t.TempDir()
 	require.NoError(t, os.Mkdir(filepath.Join(dir, "inner"), 0o700))
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "inner", "real.yaml"), []byte(
@@ -391,10 +393,10 @@ func TestCompile_OneFileUnderTwoNamesIsOneDocument(t *testing.T) {
 	root := []byte("openapi: 3.1.0\ninfo: {title: T, version: \"1\"}\npaths: {}\ncomponents:\n  schemas:\n" +
 		"    A: {$ref: './inner/real.yaml#/components/schemas/S'}\n" +
 		"    B: {$ref: '" + filepath.Join(dir, "inner", "real.yaml") + "#/components/schemas/S'}\n")
-	t.Chdir(dir)
 	compileAt := func(path string) (*ir.Document, []ir.Diagnostic) {
 		t.Helper()
-		doc, diags, err := openapi.New().Compile(t.Context(), []compilers.Source{{Path: path, Data: root}},
+		doc, diags, err := openapi.New().Compile(t.Context(),
+			[]compilers.Source{{Path: path, Location: filepath.Join(dir, "root.yaml"), Data: root}},
 			compilers.Options{Reader: reader.Disk{}, FormatOptions: openapi.Options{AllowExternalRefs: true}})
 		require.NoError(t, err)
 		require.NotNil(t, doc)
@@ -646,9 +648,9 @@ func TestCompile_ARelativeRefUnderAnIDReadsWhereTheIDPlacesIt(t *testing.T) {
 // refused while a relative one naming the same file is followed, in a schema
 // and in a parameter, whichever of the documents holding the schema $refs is
 // declared first, the spec named relatively or not. An absolute $ref naming
-// the spec itself resolves. Under the first order, with the spec named by an
-// absolute path, an earlier reading refused the relative $ref too.
+// the spec itself resolves, the spec located as the engine locates it.
 func TestCompile_ByDefaultEachReferenceIsJudgedByItsOwnSpelling(t *testing.T) {
+	t.Parallel()
 	dir, err := filepath.EvalSymlinks(t.TempDir())
 	require.NoError(t, err)
 	b, p, self := filepath.Join(dir, "b.yaml"), filepath.Join(dir, "p.yaml"), filepath.Join(dir, "root.yaml")
@@ -669,13 +671,13 @@ func TestCompile_ByDefaultEachReferenceIsJudgedByItsOwnSpelling(t *testing.T) {
 			"    Leaf: {type: integer}\n    Self: {$ref: '" + self + "#/components/schemas/Leaf'}\n" +
 			"    " + first + ": {$ref: 'abs.yaml#/Y'}\n    " + second + ": {$ref: 'rel.yaml#/W'}\n")
 	}
-	t.Chdir(dir)
 	const refused = "the $ref names it by an absolute path, which a read follows only when external references are allowed"
 
 	for _, order := range [][2]string{{"C", "D"}, {"D", "C"}} {
 		types := make([]ir.TypeRegistry, 0, 2)
 		for _, path := range []string{"root.yaml", self} {
-			doc, diags, err := openapi.New().Compile(t.Context(), []compilers.Source{{Path: path, Data: spec(order[0], order[1])}},
+			doc, diags, err := openapi.New().Compile(t.Context(),
+				[]compilers.Source{{Path: path, Location: self, Data: spec(order[0], order[1])}},
 				compilers.Options{Reader: reader.Disk{}})
 			require.NoError(t, err)
 			require.NotNil(t, doc)
@@ -695,4 +697,53 @@ func TestCompile_ByDefaultEachReferenceIsJudgedByItsOwnSpelling(t *testing.T) {
 		}
 		assert.Empty(t, cmp.Diff(types[0], types[1]), "%v: the IDs do not depend on how the spec was named", order)
 	}
+}
+
+// TestCompile_AnAbsolutePathInANetworkDocumentNamesItsHost pins that a $ref a
+// document fetched over the network writes as an absolute path, or as a
+// network-path reference, names what RFC 3986 §5.2 resolves it to on the
+// network, never a local file: it is read from the host, by a schema the
+// compiler binds and by a parameter the parser's resolver follows, and nothing
+// is refused.
+func TestCompile_AnAbsolutePathInANetworkDocumentNamesItsHost(t *testing.T) {
+	t.Parallel()
+	served := map[string]string{
+		"/v1/api.yaml": "components:\n  schemas:\n    S: {$ref: '/schemas/pet.yaml#/Pet'}\n" +
+			"  parameters:\n    P: {$ref: '/params.yaml#/P'}\n    N: {$ref: '//{host}/params.yaml#/N'}\n",
+		"/schemas/pet.yaml": "Pet: {type: object, properties: {name: {type: string}}}\n",
+		"/params.yaml": "P: {name: p, in: query, schema: {type: string}}\n" +
+			"N: {name: n, in: query, schema: {$ref: '/schemas/pet.yaml#/Pet'}}\n",
+	}
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		body, ok := served[r.URL.Path]
+		if !ok {
+			http.NotFound(w, r)
+			return
+		}
+		_, err := w.Write([]byte(strings.ReplaceAll(body, "{host}", r.Host)))
+		assert.NoError(t, err)
+	}))
+	t.Cleanup(srv.Close)
+	api := srv.URL + "/v1/api.yaml"
+	root := []byte("openapi: 3.1.0\ninfo: {title: T, version: \"1\"}\npaths:\n  /x:\n    get:\n      parameters:\n" +
+		"        - {$ref: '" + api + "#/components/parameters/P'}\n        - {$ref: '" + api + "#/components/parameters/N'}\n" +
+		"      responses: {\"200\": {description: ok}}\ncomponents:\n  schemas:\n" +
+		"    S: {$ref: '" + api + "#/components/schemas/S'}\n")
+
+	doc, diags, err := openapi.New().Compile(t.Context(),
+		[]compilers.Source{{Path: filepath.Join(t.TempDir(), "root.yaml"), Data: root}},
+		compilers.Options{Reader: reader.Disk{Client: srv.Client()}, FormatOptions: openapi.Options{AllowExternalRefs: true}})
+
+	require.NoError(t, err)
+	require.NotNil(t, doc)
+	assert.Empty(t, diags)
+	pet := ids.In(srv.URL + "/schemas/pet.yaml").AnonType("/Pet")
+	assert.Contains(t, doc.Types, pet, "the schema the absolute path names, read from the host")
+	ops := doc.Services[0].Groups[0].Operations
+	require.Len(t, ops, 1)
+	var names []string
+	for _, p := range ops[0].Params {
+		names = append(names, p.Name.Source)
+	}
+	assert.Equal(t, []string{"p", "n"}, names, "each parameter the network-path reference and the absolute path name")
 }

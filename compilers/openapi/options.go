@@ -189,9 +189,9 @@ type Options struct {
 	// values it admits, what it reads marked as inferred. The zero value is on;
 	// a caller who wants only what the document declares disables it.
 	DiscriminatorInference DiscriminatorInference `json:"discriminatorInference"`
-	// AllowExternalRefs lets a read of another document leave the directory of
-	// Source.Path, against which references resolve, for any file and http(s)
-	// URLs. Off by default, since a spec is untrusted: reads stay inside that
+	// AllowExternalRefs lets a read of another document leave the directory
+	// the source lies in (Source.Location, else Source.Path) for any file and
+	// http(s) URLs. Off by default, since a spec is untrusted: reads stay inside that
 	// directory, symbolic links included, and follow relative references alone:
 	// a $ref spelling a file URI, or an absolute path to any document but the
 	// source, is refused.

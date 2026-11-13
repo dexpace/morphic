@@ -14,6 +14,7 @@ import (
 	"github.com/stretchr/testify/require"
 	yaml "go.yaml.in/yaml/v3"
 
+	"github.com/dexpace/morphic/compilers"
 	"github.com/dexpace/morphic/compilers/openapi/internal/budget"
 	"github.com/dexpace/morphic/compilers/openapi/internal/oas"
 	"github.com/dexpace/morphic/compilers/openapi/internal/provenance"
@@ -61,13 +62,15 @@ func TestSourceDocument_Keys(t *testing.T) {
 }
 
 // TestSourceDocument_Names pins which file names the resolver may open that
-// name the source.
+// name the source: its path however cleaned, but not the absolute spelling of
+// a relative one, nor the reverse, which only the working directory relates.
 func TestSourceDocument_Names(t *testing.T) {
 	t.Parallel()
 	tree := &yaml.Node{}
 	self := sourceDocument{path: "dir/root.yaml", root: tree}
 	abs, err := filepath.Abs("dir/root.yaml")
 	require.NoError(t, err)
+	located := sourceDocument{path: abs, root: tree}
 	for _, c := range []struct {
 		name string
 		self sourceDocument
@@ -76,7 +79,9 @@ func TestSourceDocument_Names(t *testing.T) {
 	}{
 		{"itself", self, "dir/root.yaml", true},
 		{"through a directory", self, "dir/../dir/./root.yaml", true},
-		{"its absolute path", self, abs, true},
+		{"its absolute path", self, abs, false},
+		{"located absolutely", located, filepath.Join(filepath.Dir(abs), "x", "..", "root.yaml"), true},
+		{"its relative path, located absolutely", located, "dir/root.yaml", false},
 		{"another file", self, "dir/other.yaml", false},
 		{"from a source with no tree", sourceDocument{path: "dir/root.yaml"}, "dir/root.yaml", false},
 		{"from a source named by URL", sourceDocument{path: "https://example.com/a.yaml", root: tree},
@@ -101,7 +106,7 @@ func heldResolution(t *testing.T, spec, path string) (*soa.OpenAPI, *resolution)
 	readyForModel(t.Context(), root)
 	doc, err := unmarshal(t.Context(), data, root)
 	require.NoError(t, err)
-	self := newSourceDocument(path, data, root, judgment{}, treeOf(t.Context(), provenance.Doc{}, root), nil)
+	self := newSourceDocument(compilers.Source{Path: path, Data: data}, root, judgment{}, treeOf(t.Context(), provenance.Doc{}, root), nil)
 	opts := Options{Reader: reader.Disk{}}
 	ext := newExternal(t.Context(), doc, opts, newExternalReads(self, budget.Unbounded()))
 	return doc, newResolution(t.Context(), doc, Siblings{}, MediaTypes{}, self, opts, &ext)

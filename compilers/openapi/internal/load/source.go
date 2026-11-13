@@ -9,21 +9,24 @@ import (
 
 	yaml "go.yaml.in/yaml/v3"
 
+	"github.com/dexpace/morphic/compilers"
 	"github.com/dexpace/morphic/compilers/openapi/internal/provenance"
 	refscope "github.com/dexpace/morphic/compilers/openapi/internal/resolve"
 	"github.com/dexpace/morphic/compilers/openapi/internal/scan"
 )
 
 // sourceDocument is the source as its references' resolution reads it: the
-// path they are relative to, the bytes and the tree its model was built from,
-// what the table found in it, and where a finding about a node of that tree is
-// placed, at the $ref that reached it where the tree holds no node.
+// path they are relative to (Location), the one Document.Sources records, the
+// bytes and the tree its model was built from, what the table found in it, and
+// where a finding about a node of that tree is placed, at the $ref that
+// reached it where the tree holds no node.
 //
 // A $ref from another document back into the source is answered from here,
 // not from the file, so it reaches what the compile holds: the tree an overlay
 // patched, and nodes a finding is reported for once (GitHub #759).
 type sourceDocument struct {
 	path   string
+	handed string
 	data   []byte
 	root   *yaml.Node
 	judged judgment
@@ -50,12 +53,22 @@ func treeHolds(tree provenance.Tree, n *yaml.Node) bool {
 	return held
 }
 
-// newSourceDocument returns the source at path, built from data into root,
-// which the table judged as judged, and whose findings tree places. esc holds
-// the $refs rewritten in root.
-func newSourceDocument(path string, data []byte, root *yaml.Node, judged judgment, tree provenance.Tree, esc *escapes,
+// newSourceDocument returns src, built from its data into root, which the
+// table judged as judged, and whose findings tree places. esc holds the $refs
+// rewritten in root.
+func newSourceDocument(src compilers.Source, root *yaml.Node, judged judgment, tree provenance.Tree, esc *escapes,
 ) sourceDocument {
-	return sourceDocument{path: path, data: data, root: root, judged: judged, tree: tree, escapes: esc}
+	return sourceDocument{path: Location(src), handed: src.Path, data: src.Data, root: root, judged: judged,
+		tree: tree, escapes: esc}
+}
+
+// Location is where src lies, as the references in it are read against: its
+// Location, or its Path where the caller gave none (compilers.Source).
+func Location(src compilers.Source) string {
+	if src.Location != "" {
+		return src.Location
+	}
+	return src.Path
 }
 
 // keys returns the keys the resolver looks the source up by: its path, as an

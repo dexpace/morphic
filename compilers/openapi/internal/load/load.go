@@ -7,6 +7,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"path/filepath"
 
 	"github.com/speakeasy-api/openapi/marshaller"
 	soa "github.com/speakeasy-api/openapi/openapi"
@@ -149,6 +150,9 @@ var ErrParse = errors.New("parse source")
 type Document struct {
 	Doc    *soa.OpenAPI  // parsed, reference-resolved document
 	Source ir.SourceInfo // the entry Document.Sources records for this source
+	// Location is where the source lies, as its references are read against
+	// (see Location).
+	Location string
 	// Bindings answers where each schema $ref lands and where its chain ends,
 	// as the compiler resolved it (bindSchemas), and the schemas there.
 	Bindings *typed.Bindings
@@ -198,6 +202,11 @@ func Load(ctx context.Context, srcIndex int, src compilers.Source, opts Options)
 	// reference it is; this collision is not, so it is checked here.
 	if opts.Overlay != nil && opts.OverlaySrcIndex == srcIndex {
 		return nil, nil, fmt.Errorf("openapi: overlay source index %d is source %d's own", opts.OverlaySrcIndex, srcIndex)
+	}
+	// A relative Location would leave what a reference names to the working
+	// directory, which Location exists to keep out of the compile.
+	if src.Location != "" && !filepath.IsAbs(src.Location) {
+		return nil, nil, fmt.Errorf("openapi: source %d's location %q is not an absolute path", srcIndex, src.Location)
 	}
 
 	// The byte budget is checked before anything reads the bytes, because it is

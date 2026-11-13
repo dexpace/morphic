@@ -14,7 +14,6 @@ import (
 	"strings"
 
 	soa "github.com/speakeasy-api/openapi/openapi"
-	"github.com/speakeasy-api/openapi/references"
 	yaml "go.yaml.in/yaml/v3"
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/bind"
@@ -179,14 +178,14 @@ func unplaced(ctx context.Context, bd *typed.Builder, e referenceEnd, site refSi
 }
 
 // locate is bind.Config.Locate for the source: the document uri names when
-// written in the one named base, as the parser's resolver places it, named as
-// bind names the source when it is the source.
+// written in the one named base (resolve.Locate), named as bind names the
+// source when it is the source.
 func (s sourceDocument) locate(uri, base string) (string, bool) {
-	abs, err := references.ResolveAbsoluteReference(references.Reference(uri), base)
-	if err != nil {
+	named, ok := refscope.Locate(uri, base)
+	if !ok {
 		return "", false
 	}
-	return s.nameOf(abs.AbsoluteReference), true
+	return s.nameOf(named), true
 }
 
 // nameOf is the name bind reads the document name names under: the source's

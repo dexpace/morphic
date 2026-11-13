@@ -264,7 +264,7 @@ func optionsFrom(opts compilers.Options) (Options, error) {
 
 // loadOptions projects Options onto the subset the load phase reads, with the
 // caller's reader and the confinement Options.AllowExternalRefs sets for it:
-// the directory of src's path unless it is on. It exists so the mapping lives
+// the directory src lies in (load.Location) unless it is on. It exists so the mapping lives
 // in one place: load.Options is that package's own input, deliberately not this
 // public type, whose shape is a published contract (see Options) and most of
 // which describes lowering the loader cannot see. Each budget is read as
@@ -278,7 +278,7 @@ func loadOptions(o Options, reader compilers.DocumentReader, src compilers.Sourc
 		MaxExternalDocuments: budget.FromOption(o.Limits.MaxExternalDocuments, DefaultMaxExternalDocuments),
 	}
 	if !o.AllowExternalRefs {
-		out.Within = filepath.Dir(src.Path)
+		out.Within = filepath.Dir(load.Location(src))
 	}
 	if o.Overlay != nil {
 		out.Overlay = &overlay.Options{Path: o.Overlay.Path, Data: o.Overlay.Data, Lax: o.Overlay.Lax}

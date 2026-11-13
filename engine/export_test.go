@@ -58,10 +58,11 @@ type KeyInputs = keyInputs
 // DeriveKey exposes deriveKey.
 func DeriveKey(in KeyInputs) cache.Key { return deriveKey(in) }
 
-// FailWorkingDirectory makes e unable to name its working directory, which a
-// test cannot rely on a system to refuse: removing it leaves some still naming it.
-func FailWorkingDirectory(e *Engine, err error) {
-	e.cache.workingDir = func() (string, error) { return "", err }
+// FailLocate makes e unable to place a spec's Path, as where the working
+// directory cannot be named, which a test cannot rely on a system to refuse:
+// removing it leaves some still naming it.
+func FailLocate(e *Engine, err error) {
+	e.locate = func(string) (string, error) { return "", err }
 }
 
 // Recorder exposes the reader a cached compile reads through.

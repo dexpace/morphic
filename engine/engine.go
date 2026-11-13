@@ -104,6 +104,9 @@ type Engine struct {
 	verifier verifier
 	// cache is what runs are answered from and kept in, nil for none.
 	cache *cacheBinding
+	// locate places a spec's Path (Engine.located): reader.SpecLocation
+	// outside a test.
+	locate func(path string) (string, error)
 }
 
 // Compilers returns the built-in compilers, fresh values in registration order:
@@ -177,7 +180,8 @@ func New(opts ...Option) (*Engine, error) {
 			return nil, err
 		}
 	}
-	return &Engine{registry: reg, passes: passes, verifier: irverify.Verify, cache: cfg.cache}, nil
+	return &Engine{registry: reg, passes: passes, verifier: irverify.Verify, cache: cfg.cache,
+		locate: reader.SpecLocation}, nil
 }
 
 // Run executes the pipeline for the spec at specPath, a regular file: read it
@@ -226,17 +230,35 @@ func (e *Engine) RunSpec(ctx context.Context, spec compilers.Source, opts RunOpt
 	return e.runHeld(ctx, compilers.Source{Path: spec.Path, Data: spec.Data}, opts, p)
 }
 
-// runHeld runs the pipeline over spec, whose bytes it holds, and judges the
-// Result at p's threshold. A reference or a setting naming spec.Path is served
-// those bytes, as reader.Memory names a document, so the run reads one spec
-// even where a compiler asks for it again. Every other document is read from
-// disk.
+// runHeld runs the pipeline over spec, whose bytes it holds, located where
+// its Path lies (Engine.located), and judges the Result at p's threshold. A
+// reference or a setting naming spec.Path is served those bytes, as
+// reader.Memory names a document, so the run reads one spec even where a
+// compiler asks for it again. Every other document is read from disk.
 func (e *Engine) runHeld(ctx context.Context, spec compilers.Source, opts RunOptions, p plan) (*Result, error) {
+	spec, err := e.located(spec)
+	if err != nil {
+		return nil, err
+	}
 	res, err := e.compileCached(ctx, spec, opts, reader.Layered{Held: specMemory(spec)}, p)
 	if err != nil {
 		return nil, err
 	}
 	return p.failOn.judge(res)
+}
+
+// located returns spec with its Location set where reader.SpecLocation
+// places its Path, so the compile reads its references against the directory
+// it lies in, and against no spelling of the working directory or of the Path.
+// A Path it cannot place, as where the working directory cannot be named, is
+// an error.
+func (e *Engine) located(spec compilers.Source) (compilers.Source, error) {
+	location, err := e.locate(spec.Path)
+	if err != nil {
+		return compilers.Source{}, fmt.Errorf("engine: locate spec %q: %w", spec.Path, err)
+	}
+	spec.Location = location
+	return spec, nil
 }
 
 // specMemory returns a Memory serving spec at its path to the references, or
