@@ -181,10 +181,18 @@ func mediaTypeRules(c func(Minor, string) Cite) []Rule {
 		c(V32, "The `encoding` field SHALL only apply when the media type is `multipart` or `application/x-www-form-urlencoded`."),
 		c(V32, "The `prefixEncoding` field SHALL only apply when the media type is `multipart`."))
 	applies.Level = Should
+	// Whether an encoding key names a property needs the body's schema read
+	// through its references and compositions, which the operation package's
+	// part walk does; a warning, as 3.2 gives such an entry no effect.
+	keys := code(Always(), "encoding-keys", ownerOperation,
+		c(V30, "The key, being the property name, MUST exist in the schema as a property."),
+		sectioned("Encoding By Name")(V32, "each key under the field MUST exist as a property"))
+	keys.Level = Should
 	return []Rule{
 		exclusive(Always(), fields("example", "examples"),
 			c(V30, "The `example` and `examples` fields are mutually exclusive")),
 		applies,
+		keys,
 	}
 }
 
