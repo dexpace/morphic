@@ -3,9 +3,10 @@
 
 // Package spelling relates the primitive kinds OpenAPI spells.
 //
-// It holds the table that maps a (type, format) pair to a kind, and the
-// relation between two kinds that the table and ir.PrimKind.StrictlyWithin
-// give. The value-domain half lives in ir (docs/ir/primitives.md). This package
+// It holds the table that maps a (type, format) pair to a kind, the table of
+// pairings whose value is a kind written in a text of its own, as base64 bytes
+// are, and the relation between two kinds that the first table and
+// ir.PrimKind.StrictlyWithin give. The value-domain half lives in ir (docs/ir/primitives.md). This package
 // adds the spelling half: a string format's kind refines string, derived from
 // the table's string rows. A narrowing must hold of every value and every JSON
 // instance, so float32, float64 and float take only the integers that fit them

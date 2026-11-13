@@ -18,22 +18,22 @@ import (
 )
 
 // scalarTypeID maps a scalar (type, format) pair to a TypeID via spelling.Lookup: a
-// known pairing interns the shared primitive; byte, a pairing the table does
-// not list, and the 2020-12 content vocabulary each hoist a named Scalar
-// wrapping the base primitive with an Encoding, so what the position wrote
-// never leaks onto the shared primitive every other declaration of that type
-// also resolves to.
+// known pairing interns the shared primitive; a pairing spelling.LookupEncoded
+// knows, such as byte, one neither table lists, and the 2020-12 content
+// vocabulary each hoist a named Scalar wrapping the base primitive with an
+// Encoding, so what the position wrote never leaks onto the shared primitive
+// every other declaration of that type also resolves to.
 func scalarTypeID(c lowering.Ctx, ts *compile.Types, depth int, s *oas3.Schema, st oas3.SchemaType, pointer jsontext.Pointer) (ir.TypeID, []ir.Diagnostic) {
 	format := s.GetFormat()
 	if annotation.DeclaresRedaction(s) {
 		format = "" // a redaction, not a shape: the annotation readers hold it
 	}
-	if st == oas3.SchemaTypeString && format == "byte" {
-		return hoistScalar(c, ts, depth, s, ir.PrimBytes, "base64", new(ir.PrimString), pointer)
-	}
 	key := string(st)
 	if format != "" {
 		key += "/" + format
+	}
+	if row, encoded := spelling.LookupEncoded(key); encoded {
+		return hoistScalar(c, ts, depth, s, row.Prim, row.Encoding, wireOf(row), pointer)
 	}
 	prim, known := spelling.Lookup(key)
 	if !known {
@@ -43,6 +43,15 @@ func scalarTypeID(c lowering.Ctx, ts *compile.Types, depth int, s *oas3.Schema, 
 		return ts.PrimID(prim), nil
 	}
 	return hoistScalar(c, ts, depth, s, prim, "", nil, pointer)
+}
+
+// wireOf returns the primitive row's value travels as, for hoistScalar: nil
+// where the primitive's own spelling says it.
+func wireOf(row spelling.Encoded) *ir.PrimKind {
+	if row.Wire == "" {
+		return nil
+	}
+	return &row.Wire
 }
 
 // formatPrimitive returns the primitive that s's one declared type and its
@@ -102,9 +111,9 @@ func hoistScalar(c lowering.Ctx, ts *compile.Types, depth int, s *oas3.Schema, b
 
 // scalarEncoding builds the Encoding a scalar position declares: the whole
 // 2020-12 content vocabulary over the OpenAPI `format` spelling of the encoding
-// name. formatName is the encoding name the format contributes — "base64" for
-// format: byte, an unrecognized format verbatim, "" when the pairing is already
-// captured by the primitive kind.
+// name. formatName is the encoding name the format contributes — the one
+// spelling.LookupEncoded names, as "base64" for format: byte, an unrecognized
+// format verbatim, "" when the pairing is already captured by the primitive kind.
 func scalarEncoding(c lowering.Ctx, ts *compile.Types, depth int, s *oas3.Schema,
 	formatName string, common *ir.TypeCommon, pointer jsontext.Pointer,
 ) (*ir.Encoding, []ir.Diagnostic) {
