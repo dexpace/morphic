@@ -118,11 +118,11 @@ func nameBuildOf(t *testing.T, app string, replace func()) string {
 // installed over the executable's path opens: a process started from one build
 // and naming its build once the other is at the path. Linux serves the image
 // running, so the process names its own build, and not the one whose key would
-// then hold what it compiles. No other system serves one (#1318).
+// then hold what it compiles. BuildID reads the image on Linux alone (#1318).
 func TestBuildID_ABuildInstalledAsARunStartsIsNotNamed(t *testing.T) {
 	t.Parallel()
 	if runtime.GOOS != "linux" {
-		t.Skip("only Linux serves the image a process runs (#1318)")
+		t.Skip("BuildID reads the image a process runs on Linux alone (#1318)")
 	}
 	app := copyExecutable(t, "app", "")
 	running := hashOf(t, app)

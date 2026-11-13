@@ -527,9 +527,9 @@ directories (#1297). The build is the identity of the code, compilers and passes
 nor the toolchain. A path names that image only until a build is installed over it, and a run that
 named the installed build would keep what the old one compiled under the new one's key, where it
 would answer the new build. So on Linux the image is read through `/proc/self/exe`, which serves the
-file the process started from whatever has since replaced its path. No other system serves one, and
-there the executable's path is read: a build installed as a run starts, before that read, is the
-one named (#1318). The threshold is not covered, as a hit judges the verdict afresh, and neither is
+file the process started from whatever has since replaced its path. Elsewhere, macOS among them, the
+executable's path is read, and a build installed as a run starts, before that read, is the one
+named (#1318). The threshold is not covered, as a hit judges the verdict afresh, and neither is
 the format, which follows from the bytes and which finding is what a hit skips.
 
 **What a key cannot cover.** Which other documents a compile reads is known only once it has run.
