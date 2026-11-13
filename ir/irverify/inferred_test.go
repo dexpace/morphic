@@ -92,6 +92,11 @@ func markerCarriers() []markerCarrier {
 				"p/x/M/f": {Filename: true, Inferred: list},
 			}})
 		}, "doc.Services[0].Groups[0].Operations[0].Request.Contents[0].Encoding[p/x/M/f].Inferred"},
+		{"a streaming content's own marker", func(list ir.Inferred) *ir.Document {
+			doc := content(ir.Content{Stream: &ir.ContentStream{Inferred: list}})
+			doc.Services[0].Groups[0].Operations[0].RequestStream = &ir.StreamDetail{}
+			return doc
+		}, "doc.Services[0].Groups[0].Operations[0].Request.Contents[0].Stream.Inferred"},
 		{"a diagnostic's provenance", func(list ir.Inferred) *ir.Document {
 			doc := closedDoc()
 			doc.Diagnostics = []ir.Diagnostic{{
