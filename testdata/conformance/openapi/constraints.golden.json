@@ -106,6 +106,39 @@
         "uniqueItems": false
       }
     },
+    "t/openapi/components/schemas/HugeCount": {
+      "kind": "scalar",
+      "id": "t/openapi/components/schemas/HugeCount",
+      "name": {
+        "source": "HugeCount",
+        "canonical": "huge_count"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "unmodeled": {
+        "openapi:maxLength": {
+          "reason": "degraded_lowering",
+          "value": 99999999999999999999,
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/HugeCount/maxLength"
+          }
+        }
+      },
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/HugeCount"
+      },
+      "base": {
+        "target": "t/prim/string",
+        "nullable": false
+      },
+      "constraints": {
+        "minLength": 1,
+        "uniqueItems": false
+      }
+    },
     "t/openapi/components/schemas/S": {
       "kind": "model",
       "id": "t/openapi/components/schemas/S",
@@ -337,11 +370,22 @@
       }
     }
   },
+  "diagnostics": [
+    {
+      "severity": "info",
+      "code": "openapi/degraded-construct",
+      "message": "maxLength is past what a 64-bit integer holds, so no Constraints field states it; kept verbatim under Unmodeled",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/HugeCount"
+      }
+    }
+  ],
   "sources": [
     {
       "format": "openapi@3.1",
       "path": "constraints.yaml",
-      "hash": "26eb5b8535115a810b33386594ce36baafe0fc21f0bf7171d6cc923754a2ddaa"
+      "hash": "a393ef3e591634c4220bd8aefc97c26e52f08c1593b49452eab190100f805ed0"
     }
   ]
 }

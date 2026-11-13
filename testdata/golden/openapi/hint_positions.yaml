@@ -104,6 +104,11 @@ paths:
                     content:
                       application/json:
                         schema: {type: object, properties: {z: {type: string}}}
+                encoding:
+                  inner:
+                    headers:
+                      X-Nested:
+                        schema: {type: array, items: {type: object, properties: {za: {type: string}}}}
       responses:
         '204': {description: stored}
   /shared: {$ref: '#/components/pathItems/Shared'}
@@ -120,6 +125,8 @@ paths:
           headers:
             X-List:
               schema: {type: array, items: {type: object, properties: {cb: {type: string}}}}
+            X-Titled:
+              schema: {title: Titled Header, type: object, properties: {cn: {type: string}}}
           content:
             application/json:
               schema: {type: array, items: {type: object, properties: {cc: {type: string}}}}
@@ -192,6 +199,14 @@ components:
     Owner:
       type: object
       properties: {since: {type: string}}
+    Kennel:
+      type: object
+      properties: {kind: {type: string}}
+      discriminator:
+        propertyName: kind
+        mapping:
+          routed: '#/components/schemas/Positions/properties/routed'
+          routedBranch: '#/components/schemas/Positions/properties/routedBranch'
     Positions:
       type: object
       x-parameter: {name: foo, in: query, schema: {type: object, properties: {ck: {type: string}}}}
@@ -251,6 +266,17 @@ components:
           oneOf:
             - {$ref: '#/components/schemas/Pet'}
             - {$ref: '#/components/schemas/Owner'}
+        routed:
+          allOf: [{$ref: '#/components/schemas/Kennel'}]
+          oneOf:
+            - {$ref: '#/components/schemas/Pet'}
+            - {$ref: '#/components/schemas/Owner'}
+        routedBranch:
+          allOf:
+            - {$ref: '#/components/schemas/Kennel'}
+            - oneOf:
+                - {$ref: '#/components/schemas/Pet'}
+                - {$ref: '#/components/schemas/Owner'}
         multiTyped: {type: [string, integer]}
         multiTypedObject: {type: [object, string], properties: {w: {type: string}}}
         mixedEnum: {enum: [a, 1, true]}
@@ -270,10 +296,30 @@ components:
         throughExtension: {$ref: '#/x-library/Shared'}
         throughExtensionRole: {$ref: '#/x-library/items'}
         throughAllOf: {$ref: '#/components/schemas/Positions/properties/composed/allOf/1'}
+        titledList:
+          title: Titled List
+          type: array
+          items: {type: object, properties: {ta: {type: string}}}
+        titledVariants:
+          oneOf:
+            - {title: By Name, type: object, properties: {tb: {type: string}}}
+            - {title: Clash, type: object, properties: {tc: {type: string}}}
+            - {title: Clash, type: object, properties: {td: {type: string}}}
+            - {title: Pet, type: object, properties: {te: {type: string}}}
+            - {title: Variant 0, type: object, properties: {tf: {type: string}}}
+            - {$ref: '#/components/schemas/Pet', title: Indoor}
+            - allOf:
+                - {$ref: '#/components/schemas/Pet'}
+                - {title: Premium, type: object, properties: {tg: {type: string}}}
+        throughNestedEncoding:
+          $ref: '#/paths/~1forms/post/requestBody/content/multipart~1form-data/encoding/part/encoding/inner/headers/X-Nested/schema/items'
+        throughEmptyMediaType: {$ref: '#/components/mediaTypes//schema/items'}
+        throughEmptyItemSchema: {$ref: '#/components/mediaTypes//itemSchema'}
     Keyed:
+      title: Not A Hint
       type: object
       $defs:
-        items: {type: object, properties: {aa: {type: string}}}
+        items: {title: Nor A Hint, type: object, properties: {aa: {type: string}}}
       definitions:
         items: {type: object, properties: {ab: {type: string}}}
       dependentSchemas:
@@ -339,3 +385,7 @@ components:
   headers:
     Trace:
       schema: {type: object, properties: {t: {type: string}}}
+  mediaTypes:
+    "":
+      schema: {type: array, items: {type: object, properties: {u: {type: string}}}}
+      itemSchema: {type: object, properties: {v: {type: string}}}

@@ -33,7 +33,7 @@ func checkPrimKinds(doc *ir.Document) []Violation {
 		case *ir.Enum:
 			vs = append(vs, undeclaredKind(n.ValueType, "enum's value type is", id, ".ValueType")...)
 		case *ir.Literal:
-			if n.ValueType != "" { // a null, a list or an object has no primitive
+			if n.ValueType != "" { // a list or an object has no primitive
 				vs = append(vs, undeclaredKind(n.ValueType, "literal's value type is", id, ".ValueType")...)
 			}
 		default:

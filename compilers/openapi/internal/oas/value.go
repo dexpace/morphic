@@ -179,7 +179,9 @@ func (s Spec) booleanHeld(k Kind, m Minor) bool {
 
 // scalar checks a scalar value: that it is not empty where the grammar refuses
 // that, that it is one the field enumerates, and that it has its syntax, where
-// no other package judges that (Field.FormatOwner).
+// no other package judges that (Field.FormatOwner). The empty string is judged
+// as any text is, so a format it breaks, as an absolute URI's, refuses it, and
+// one admitting it says so in validFormat.
 func (w *walker) scalar(f frame, fld Field, node *yaml.Node, ptr jsontext.Pointer) {
 	if node.Kind != yaml.ScalarNode {
 		return
@@ -191,7 +193,7 @@ func (w *walker) scalar(f frame, fld Field, node *yaml.Node, ptr jsontext.Pointe
 			f.obj.Name, fld.Name, w.minor, section)
 	case len(fld.Values) > 0:
 		w.enumerated(f, fld, node.Value, ptr)
-	case fld.Format != FormatNone && fld.FormatOwner == "" && node.Value != "" && !validFormat(fld.Format, node.Value):
+	case fld.Format != FormatNone && fld.FormatOwner == "" && !validFormat(fld.Format, node.Value):
 		w.report(ir.SeverityError, classFormat, ptr, "%s field %q must be %s in OpenAPI %s (%s)",
 			f.obj.Name, fld.Name, describeFormat(fld.Format), w.minor, section)
 	}
@@ -239,12 +241,11 @@ func (w *walker) entries(f frame, fld Field, shape Shape, node *yaml.Node, ptr j
 		w.object(site{kind: fld.Of, node: node, ptr: ptr, held: fld.Name, in: f.obj.Kind}, depth+1)
 	case Map:
 		w.repeated(node, ptr, "field "+strconv.Quote(fld.Name)+" of the "+f.obj.Name)
-		for _, p := range w.view.MappingPairs(node) {
-			if fld.Keys == ComponentName && !validFormat(ComponentName, p.Key) {
-				w.report(ir.SeverityWarning, classSyntax, ptr.AppendToken(p.Key),
-					"%s field %q has the key %q, which must be %s in OpenAPI %s (%s)",
-					f.obj.Name, fld.Name, p.Key, describeFormat(fld.Keys), w.minor, citeFor(fld.Cites, w.minor).Section)
-			}
+		pairs := w.view.MappingPairs(node)
+		for _, k := range keyFindings(f.obj, fld, pairs, ptr, w.minor) {
+			w.report(k.sev, k.class, k.ptr, "%s", k.message)
+		}
+		for _, p := range pairs {
 			w.object(site{kind: fld.Of, node: p.Val, ptr: ptr.AppendToken(p.Key), held: p.Key, in: f.obj.Kind}, depth+1)
 		}
 	case List:
@@ -266,6 +267,74 @@ func (w *walker) entries(f frame, fld Field, shape Shape, node *yaml.Node, ptr j
 	default:
 		// A scalar, or a container of values the table leaves unread.
 	}
+}
+
+// keyFinding is one finding about a key of a map (keyFindings).
+type keyFinding struct {
+	sev     ir.Severity
+	class   string
+	ptr     jsontext.Pointer
+	message string
+}
+
+// keyFindings checks the keys of the map field fld of obj holds, pairs,
+// written at ptr, against the syntax the table gives them at minor: a component
+// name, which the specification writes as a pattern every key must match, is
+// held to it by a warning, and an HTTP field name by an error, as a header
+// parameter's name is, beside what fieldNames finds.
+func keyFindings(obj Object, fld Field, pairs []nodeview.Pair, ptr jsontext.Pointer, minor Minor) []keyFinding {
+	if fld.Keys != ComponentName && fld.Keys != FieldName {
+		return nil
+	}
+	var found []keyFinding
+	sev, class := ir.SeverityWarning, classSyntax
+	if fld.Keys == FieldName {
+		sev, class = ir.SeverityError, classFormat
+	}
+	for _, p := range pairs {
+		if !validFormat(fld.Keys, p.Key) {
+			found = append(found, keyFinding{sev: sev, class: class, ptr: ptr.AppendToken(p.Key),
+				message: fmt.Sprintf("%s field %q has the key %q, which must be %s in OpenAPI %s (%s)", obj.Name,
+					fld.Name, p.Key, describeFormat(fld.Keys), minor, citeFor(fld.Cites, minor).Section)})
+		}
+	}
+	if fld.Keys == FieldName {
+		found = append(found, fieldNames(obj, fld, pairs, ptr, minor)...)
+	}
+	return found
+}
+
+// fieldNames finds each key of the map field fld of obj holds, pairs, written
+// at ptr, that names the header a key spelled lower in byte order names in
+// another case, a warning: HTTP reads the two as one, and the model as two.
+// Which key draws it follows the spellings rather than the order the map writes
+// them in.
+func fieldNames(obj Object, fld Field, pairs []nodeview.Pair, ptr jsontext.Pointer, minor Minor) []keyFinding {
+	lowest := make(map[string]string, len(pairs))
+	for _, p := range pairs {
+		folded := strings.ToLower(p.Key)
+		if spelled, ok := lowest[folded]; !ok || p.Key < spelled {
+			lowest[folded] = p.Key
+		}
+	}
+	var found []keyFinding
+	for _, p := range pairs {
+		if first := lowest[strings.ToLower(p.Key)]; first != p.Key {
+			found = append(found, keyFinding{sev: ir.SeverityWarning, class: classDuplicate, ptr: ptr.AppendToken(p.Key),
+				message: fmt.Sprintf("%s field %q has the keys %q and %q, which name one header, as HTTP compares "+
+					"field names in any case, and both are read in OpenAPI %s (%s)", obj.Name, fld.Name, first, p.Key,
+					minor, citeFor(fld.Cites, minor).Section)})
+		}
+	}
+	return found
+}
+
+// Admits reports whether node, a field's value, has the shape s as the check
+// reads one, an alias read as the node it names, so a package reading a value
+// the check owns can tell one it passed from one it reported.
+func (s Shape) Admits(node *yaml.Node) bool {
+	n := nodeview.Deref(node)
+	return n != nil && matches(s, n)
 }
 
 // matches reports whether the node has the shape.

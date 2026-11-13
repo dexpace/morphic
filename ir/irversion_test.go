@@ -133,6 +133,21 @@ var generations = []generation{
 		meaning: "an OpenAPI document's names and messages fill an operation's idempotency token, a use's Secret, a deprecation's ReplacedBy and a response header's http-date Encoding, each marked inferred"},
 	{version: "0.52.0", format: 1, shape: "0b2f5e45e4be29c67a153976848af676bc99d9f21d9e41a91b7abfd167ae026b",
 		names: "5506159ecd463736fdbbad0c4cabfad3fd50b48509b46fbea55862e82eca9675"},
+	{version: "0.53.0", format: 1, shape: "0b2f5e45e4be29c67a153976848af676bc99d9f21d9e41a91b7abfd167ae026b",
+		names:   "5506159ecd463736fdbbad0c4cabfad3fd50b48509b46fbea55862e82eca9675",
+		meaning: "an enum's or a const's null is no member, variant or Literal but its reference's, so an enum of null alone or a const of null is an Enum with no member; an Enum's ValueType is one its members are values of; a number's format on a string is a Scalar over the number whose Encoding string travels as a string WireType, its bounds kept verbatim; and over a string a WireType marks text to encode"},
+	{version: "0.54.0", format: 1, shape: "0b2f5e45e4be29c67a153976848af676bc99d9f21d9e41a91b7abfd167ae026b",
+		names:   "c81be0f2b36405f2d981ea6c635ea75c4154521622c148c008ae2e7f345264b2",
+		meaning: "a default-ignorable letter or mark separates words; the OpenAPI compiler names an anonymous schema by its title, a media type component keyed \"\" by its key and a header an Encoding Object nests by its key, and compares a header parameter's name in any case"},
+	{version: "0.55.0", format: 1, shape: "0b2f5e45e4be29c67a153976848af676bc99d9f21d9e41a91b7abfd167ae026b",
+		names:   "c81be0f2b36405f2d981ea6c635ea75c4154521622c148c008ae2e7f345264b2",
+		meaning: "a count past 64 bits reaches no Constraints field and is kept verbatim under its keyword, and an inline allOf branch whose bound states no value folds"},
+	{version: "0.56.0", format: 1, shape: "0b2f5e45e4be29c67a153976848af676bc99d9f21d9e41a91b7abfd167ae026b",
+		names:   "c81be0f2b36405f2d981ea6c635ea75c4154521622c148c008ae2e7f345264b2",
+		meaning: "a schema admitting null alone is an Enum with no member behind a nullable reference in every spelling, a type naming null alone and a union of nothing else among them, where those were nullable any and an alias over it; and a union branch admitting null alone, written in place, is the union's null in every spelling, no variant, what else it writes kept under openapi:<combinator>/<index>"},
+	{version: "0.57.0", format: 1, shape: "0b2f5e45e4be29c67a153976848af676bc99d9f21d9e41a91b7abfd167ae026b",
+		names:   "825b85ca996798c9051c78f69d22b7c1ad6d30e36341b320540fab82f21b6890",
+		meaning: "a union beside an allOf of the OpenAPI compiler is one of its conjuncts; a union on an allOf branch lowers with the discriminator on the branch or beside the allOf, and at a position no route names; a routed subtype names its union as a Mixin minted for it, no longer kept under openapi:oneOf, openapi:anyOf or openapi:allOf/<n>; Base is elected through a discriminator hierarchy"},
 }
 
 // shapeGolden holds the description the newest row's shape hashes, so a change

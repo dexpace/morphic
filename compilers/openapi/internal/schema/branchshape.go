@@ -42,6 +42,9 @@ type bodyReading struct {
 	body  *oas3.Schema
 	held  admitted
 	decls *declarationSet
+	// own marks a reading of the body's own keywords and declarations alone,
+	// nothing it composes (readOwnBody).
+	own bool
 }
 
 // readBody reads s, the schema writing a union, for its branches to be judged
@@ -55,12 +58,27 @@ func readBody(c lowering.Ctx, s *oas3.Schema) *bodyReading {
 	return r
 }
 
+// readOwnBody reads only what s itself writes: its own keywords, and its own
+// properties and items as the declarations of what a branch nests, each read
+// whole as readBody reads it. It spends a budget of its own, so what it reads
+// the whole reading does not pay for.
+func readOwnBody(c lowering.Ctx, s *oas3.Schema) *bodyReading {
+	r := &bodyReading{w: newAdmission(c), body: s, own: true}
+	r.held = r.w.written(s, r.w.nullable)
+	return r
+}
+
 // declared returns what the body declares of its properties and elements,
 // read the first time a branch nests a claim, so a verdict needing none spends
 // none of the budget on them.
 func (r *bodyReading) declared() declarationSet {
 	if r.decls == nil {
-		d := r.w.declarations(r.body)
+		d := newDeclarationSet()
+		if r.own {
+			d.add(r.body)
+		} else {
+			d = r.w.declarations(r.body)
+		}
 		r.decls = &d
 	}
 	return *r.decls
@@ -72,15 +90,22 @@ func (r *bodyReading) declared() declarationSet {
 // accepts without reshaping it, which is validation logic
 // (docs/ir/boundaries.md#validation-only-constructs). A $ref branch always
 // declares shape, so the body is read only once an inline branch needs it, and
-// a reading its budget cut short says nothing, so it counts as one that does,
-// even where the body's own keywords would settle it (GitHub #1423).
+// a reading its budget cut short says nothing, so it counts as one that does.
 func unionBranchesDeclareShape(c lowering.Ctx, s *oas3.Schema) bool {
 	return setsDeclareShape(c, s, s.GetOneOf(), s.GetAnyOf())
 }
 
 // setsDeclareShape is unionBranchesDeclareShape for the branches of sets, a
-// union on an allOf branch of s among them, judged against s as the body.
+// union on an allOf branch of s among them, judged against s as the body. The
+// body's own reading settles first each branch restating what s itself writes
+// (ownRestatements), and only the rest are judged against the whole reading,
+// which they would restate under too, as more declarations admit less.
 func setsDeclareShape(c lowering.Ctx, s *oas3.Schema, sets ...[]*oas3.JSONSchema[oas3.Referenceable]) bool {
+	branches := slices.Concat(sets...)
+	if slices.ContainsFunc(branches, isRefBranch) {
+		return true
+	}
+	settled := ownRestatements(c, s, branches)
 	var r *bodyReading
 	body := func() *bodyReading {
 		if r == nil {
@@ -88,13 +113,34 @@ func setsDeclareShape(c lowering.Ctx, s *oas3.Schema, sets ...[]*oas3.JSONSchema
 		}
 		return r
 	}
-	declares := func(b *oas3.JSONSchema[oas3.Referenceable]) bool {
-		return isRefBranch(b) || branchDeclaresShape(body, b)
-	}
-	found := slices.ContainsFunc(sets, func(set []*oas3.JSONSchema[oas3.Referenceable]) bool {
-		return slices.ContainsFunc(set, declares)
+	found := slices.ContainsFunc(branches, func(b *oas3.JSONSchema[oas3.Referenceable]) bool {
+		return !settled[b] && branchDeclaresShape(body, b)
 	})
 	return found || r != nil && r.w.incomplete()
+}
+
+// ownRestatements returns the inline branches of branches that restate s read
+// alone (readOwnBody), judged all, and none where that reading ran out: which
+// branches it settled before running out would follow their order, and with it
+// what the whole reading is left to read (GitHub #1423).
+func ownRestatements(c lowering.Ctx, s *oas3.Schema, branches []*oas3.JSONSchema[oas3.Referenceable]) map[*oas3.JSONSchema[oas3.Referenceable]]bool {
+	var r *bodyReading
+	body := func() *bodyReading {
+		if r == nil {
+			r = readOwnBody(c, s)
+		}
+		return r
+	}
+	settled := make(map[*oas3.JSONSchema[oas3.Referenceable]]bool, len(branches))
+	for _, b := range branches {
+		if !branchDeclaresShape(body, b) {
+			settled[b] = true
+		}
+	}
+	if r != nil && r.w.incomplete() {
+		return nil
+	}
+	return settled
 }
 
 // branchDeclaresShape reports whether the inline union branch b declares data

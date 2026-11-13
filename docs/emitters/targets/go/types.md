@@ -85,7 +85,11 @@ caller. An enum with no members is that type with no constant and the strict dec
 refuses every value ([enums](../../refine/enums.md#an-enum-with-no-members)), and its
 `MarshalJSONTo` refuses every value too, the zero value among them: a struct requiring one then
 fails to encode, where decoding alone refused and `json.Marshal` wrote `{"must":""}`, and an
-optional member left unset is still left out (Go 1.27.3).
+optional member left unset is still left out (Go 1.27.3). An anonymous one every reference reaches
+as nullable declares nothing, and each use is the runtime's `Null`, a struct with no field whose
+`MarshalJSONTo` writes `null` and whose `UnmarshalJSONFrom` reads `null` alone, required as `Null`
+and optional as `Opt[Null]`: a required one wrote `{"result":null}` and refused `"x"`, and an
+optional one tagged `omitzero` was left out unset, wrote `null` set, and refused `1` (Go 1.27.3).
 
 Go declares constants of boolean, numeric and string types alone, so an enum lowers over its
 members' wire forms ([a member on the wire](../../refine/enums.md#a-member-on-the-wire)) where its

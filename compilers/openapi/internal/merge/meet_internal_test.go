@@ -5,6 +5,7 @@ package merge
 
 import (
 	"encoding/json/jsontext"
+	"fmt"
 	"maps"
 	"slices"
 	"testing"
@@ -488,5 +489,79 @@ func TestFold_AValueIsJudgedByTheNodeTheFieldHolds(t *testing.T) {
 			require.Len(t, *recorded, 1, "%s (order %d)", tc.name, i)
 			assert.Equal(t, declaredAt(i), (*recorded)[0].Provenance.Pointer, "%s (order %d)", tc.name, i)
 		}
+	}
+}
+
+// TestFold_AnAliasMeetsAsTheNodeItStandsFor pins GitHub #1672 in both orders: a
+// field declared as an alias of an enum or a list and as a node it meets stands
+// on the node they meet in, built from the node the alias stands for, holding
+// what the alias adds: its bounds and its docs. Two aliases of one node meet in
+// an alias of it holding what each adds. Nothing is kept or reported.
+func TestFold_AnAliasMeetsAsTheNodeItStandsFor(t *testing.T) {
+	t.Parallel()
+	reg := meetRegistry()
+	alias := func(id, base ir.TypeID, docs string, c *ir.Constraints) {
+		reg[id] = &ir.Scalar{ID: id, Provenance: ptrAt("/components/schemas/" + jsontext.Pointer(id[2:])),
+			Docs: ir.Docs{Description: docs}, Base: &ir.TypeRef{Target: base}, Constraints: c}
+	}
+	alias("t/ab-alias", "t/ab", "alias", nil)
+	alias("t/ints-alias", "t/ints-described", "", &ir.Constraints{MaxItems: new(int64(3))})
+	alias("t/As-min", "t/As", "", &ir.Constraints{MinItems: new(int64(1))})
+	alias("t/As-max", "t/As", "", &ir.Constraints{MaxItems: new(int64(3))})
+	for _, tc := range []struct {
+		name  string
+		a, b  ir.TypeID
+		check func(t *testing.T, td ir.TypeDef, label string)
+	}{
+		{"an alias of an enum", "t/ab-alias", "t/bc", func(t *testing.T, td ir.TypeDef, label string) {
+			e, ok := td.(*ir.Enum)
+			require.True(t, ok, label)
+			assert.Equal(t, []ir.Value{str("b")}, valuesOf(e), label)
+			assert.Equal(t, "alias", e.Docs.Description, label)
+		}},
+		{"an alias of a list", "t/ints-alias", "t/i32s", func(t *testing.T, td ir.TypeDef, label string) {
+			l, ok := td.(*ir.List)
+			require.True(t, ok, label)
+			assert.Equal(t, primRef(ir.PrimInt32), l.Elem, label)
+			assert.Equal(t, "d", l.Docs.Description, "%s: the docs the alias reads from its node", label)
+			assert.Equal(t, &ir.Constraints{MaxItems: new(int64(3))}, l.Constraints, label)
+		}},
+		{"two aliases of one list", "t/As-min", "t/As-max", func(t *testing.T, td ir.TypeDef, label string) {
+			s, ok := td.(*ir.Scalar)
+			require.True(t, ok, "%s: an alias of the list they share", label)
+			assert.Equal(t, ir.TypeRef{Target: "t/As"}, *s.Base, label)
+			assert.Equal(t, &ir.Constraints{MinItems: new(int64(1)), MaxItems: new(int64(3))}, s.Constraints, label)
+		}},
+	} {
+		for _, order := range [][]ir.TypeID{{tc.a, tc.b}, {tc.b, tc.a}} {
+			g, recorded := stubMerger(maps.Clone(reg))
+			label := fmt.Sprintf("%s: %v", tc.name, order)
+
+			got := g.fold(declsOf(order...))
+
+			require.Equal(t, composedAt(declaredAt(1)), got.Type.Target, label)
+			tc.check(t, g.Reg[got.Type.Target], label)
+			assert.Empty(t, *recorded, label)
+			assert.Empty(t, got.Unmodeled, label)
+		}
+	}
+}
+
+// TestFold_AnAliasIsWithinTheNodeItStandsFor pins an alias against the node it
+// stands for, in either order: the alias says all the node does and may say more,
+// so the field takes it, with nothing minted, kept or reported.
+func TestFold_AnAliasIsWithinTheNodeItStandsFor(t *testing.T) {
+	t.Parallel()
+	reg := meetRegistry()
+	reg["t/ab-alias"] = &ir.Scalar{ID: "t/ab-alias", Base: &ir.TypeRef{Target: "t/ab"}}
+	for _, order := range [][]ir.TypeID{{"t/ab-alias", "t/ab"}, {"t/ab", "t/ab-alias"}} {
+		g, recorded := stubMerger(maps.Clone(reg))
+
+		got := g.fold(declsOf(order...))
+
+		assert.Equal(t, ir.TypeID("t/ab-alias"), got.Type.Target, "%v", order)
+		assert.Zero(t, g.walk.minted, "%v", order)
+		assert.Empty(t, *recorded, "%v", order)
+		assert.Empty(t, got.Unmodeled, "%v", order)
 	}
 }

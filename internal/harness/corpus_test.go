@@ -145,6 +145,14 @@ func knownInvalid() map[string]bool {
 		// specification bars ("MUST only contain one entry"); the case pins how
 		// such a document lowers.
 		filepath.FromSlash("../../testdata/conformance/openapi/content-several-entries.yaml"): true,
+		// Header names no HTTP field can have, which the specification bars: a
+		// headers map keyed by what is no token, and a header parameter spelled in
+		// two cases; the case pins how such a document lowers.
+		filepath.FromSlash("../../testdata/conformance/openapi/header-name-syntax.yaml"): true,
+		// An operation binding Idempotency-Key in two cases, a repeat as header
+		// names compare in any case; the case pins that the idempotency policy
+		// then infers no token.
+		filepath.FromSlash("../../testdata/conformance/openapi/idempotency-inference.yaml"): true,
 		// Discriminator mappings naming a schema that is not a variant of the
 		// base: a sub-schema (f08, f13), a component named "" (f31), and a
 		// $defs entry mapped from a base with no composition (defs_at_root,

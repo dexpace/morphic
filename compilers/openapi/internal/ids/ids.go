@@ -55,16 +55,15 @@ const (
 	OpenAPISpace compile.Space = "openapi"
 	AnonSpace    compile.Space = "anon"
 	// ComposedSpace holds what no schema or declaration in the source occupies:
-	// the Models for distributed union variants
+	// distributed union variants and the Union a routed subtype composes
 	// (docs/ir/models.md#composition-beside-a-union), the node a field's
 	// declarations compose or meet to, and the identity of a field whose first
 	// declaration another model carries
-	// (docs/compilers/openapi.md#allof-redeclared-property).
-	// A $ref naming the pointer must keep resolving to what is written there. A
-	// variant's path ends in oneOf or anyOf and an index, and a field's in
-	// properties and a name, so the two never meet. ForPointer yields only the
-	// openapi and anon spaces, so resolveSchemaRef can never hand a composed ID
-	// to a reference.
+	// (docs/compilers/openapi.md#allof-redeclared-property). A $ref naming the
+	// pointer keeps resolving to what is written there. A variant's path ends in
+	// oneOf or anyOf and an index, a minted union's in that keyword, and a
+	// field's in properties and a name, so none meet. ForPointer yields only the
+	// openapi and anon spaces, so no reference resolves to a composed ID.
 	ComposedSpace compile.Space = "composed"
 )
 
@@ -194,9 +193,10 @@ func (d Document) AnonType(pointer jsontext.Pointer) ir.TypeID {
 }
 
 // ComposedType returns the stable ID of the node synthesized at pointer in d:
-// a distributed union variant's branch
-// (docs/ir/models.md#composition-beside-a-union), or the declaration naming a
-// field whose declarations compose or meet to a node none of them wrote.
+// a distributed union variant's branch, the keyword writing the union a routed
+// subtype composes (docs/ir/models.md#composition-beside-a-union), or the
+// declaration naming a field whose declarations compose or meet to a node none
+// of them wrote.
 func (d Document) ComposedType(pointer jsontext.Pointer) ir.TypeID {
 	return compile.TypeID(d.space(ComposedSpace), string(pointer))
 }
@@ -229,6 +229,23 @@ func (d Document) Prop(pointer jsontext.Pointer) ir.PropID {
 // that would take an operation mounted at another's parameters list.
 func Param(mount jsontext.Pointer, name, in string, occurrence int) ir.ParamID {
 	return compile.ParamID(OpenAPISpace, string(mount+ParamPath(name, in, occurrence)))
+}
+
+// ParamSlot is what OpenAPI identifies a parameter by within one list: its
+// location and its name, a header's in lower case, since HTTP compares field
+// names in any case (RFC 9110 §5.1), so X-Trace and x-trace are one header.
+// It merges and finds repeats; Param derives an ID from the name as written,
+// numbering a repeat among the parameters spelled alike.
+type ParamSlot struct {
+	Name, In string
+}
+
+// SlotOf returns the slot of a parameter named name in location in.
+func SlotOf(name, in string) ParamSlot {
+	if in == "header" {
+		name = strings.ToLower(name)
+	}
+	return ParamSlot{Name: name, In: in}
 }
 
 // ParamPath returns the path below a mount that Param mints the occurrence-th
@@ -307,10 +324,9 @@ func DeclarationHint(pointer jsontext.Pointer, fallback string) string {
 // ComponentEntry returns the kind and name of the top-level component entry
 // pointer addresses (/components/<kind>/<name>, no deeper path), both decoded,
 // and ok=false for any other pointer or for an entry keyed "".
-// componentEntryName drops the kind, and ComponentSchema narrows it to the
-// schemas kind, which is the only one that earns a named TypeID.
+// componentEntryName drops the kind.
 func ComponentEntry(pointer jsontext.Pointer) (kind, name string, ok bool) {
-	kind, name, ok = componentEntrySplit(pointer)
+	kind, name, ok = ComponentKey(pointer)
 	if !ok || name == "" {
 		return "", "", false
 	}
@@ -320,16 +336,16 @@ func ComponentEntry(pointer jsontext.Pointer) (kind, name string, ok bool) {
 // componentsRoot is the pointer every component entry sits two tokens beneath.
 const componentsRoot jsontext.Pointer = "/components"
 
-// componentEntrySplit is the one place the /components/<kind>/<name> shape is
+// ComponentKey is the one place the /components/<kind>/<name> shape is
 // parsed: it reads the kind and name off pointer's last two tokens, decoded, when
 // the pointer sits two tokens beneath /components.
 //
 // It does not judge the name, so a caller that must tell "not that shape at all"
 // from "that shape with an empty name" can. ComponentEntry folds the two together
-// on purpose — an entry keyed "" earns no named TypeID either way — but the two
-// are different facts about a document, and a diagnostic naming the wrong one is
-// simply false.
-func componentEntrySplit(pointer jsontext.Pointer) (kind, name string, ok bool) {
+// on purpose, and ComponentSchema narrows it to the schemas kind, the only one
+// that earns a named TypeID, but the two are different facts about a document,
+// and a diagnostic naming the wrong one is simply false.
+func ComponentKey(pointer jsontext.Pointer) (kind, name string, ok bool) {
 	section := pointer.Parent()
 	if section.Parent() != componentsRoot {
 		return "", "", false
@@ -397,7 +413,7 @@ func (s ComponentState) ByName() bool { return s == NamedComponent || s == Undec
 // ComponentSchema classifies pointer against the top-level component schemas,
 // and returns the decoded name of a NamedComponent.
 func ComponentSchema(pointer jsontext.Pointer) (string, ComponentState) {
-	kind, name, ok := componentEntrySplit(pointer)
+	kind, name, ok := ComponentKey(pointer)
 	switch {
 	case !ok || kind != "schemas":
 		return "", NotComponent

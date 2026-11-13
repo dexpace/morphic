@@ -1,0 +1,33 @@
+openapi: 3.1.0
+info: {title: Header Name Case, version: "1.0.0"}
+paths:
+  /traces:
+    # HTTP compares a header's name in any case, so the operation's x-trace
+    # overrides the path item's X-Trace as one spelled alike would.
+    parameters:
+      - {name: X-Trace, in: header, schema: {type: string}}
+    get:
+      operationId: listTraces
+      parameters:
+        - {name: x-trace, in: header, schema: {type: integer}}
+      responses:
+        "200":
+          description: ok
+          # Two keys naming one header: both lower, and the one later in byte
+          # order draws a warning.
+          headers:
+            x-rate: {schema: {type: integer}}
+            X-Rate: {schema: {type: string}}
+    post:
+      operationId: uploadTrace
+      requestBody:
+        content:
+          multipart/form-data:
+            schema: {type: object, properties: {part: {type: string}}}
+            encoding:
+              part:
+                headers:
+                  X-Part: {schema: {type: string}}
+                  x-part: {schema: {type: integer}}
+      responses:
+        "204": {description: stored}

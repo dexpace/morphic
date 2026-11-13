@@ -4,6 +4,9 @@
 package schema_test
 
 import (
+	"encoding/json/jsontext"
+	"fmt"
+	"maps"
 	"slices"
 	"strings"
 	"testing"
@@ -272,8 +275,9 @@ func TestVoices_ABranchDisagreeingFoldsNothingInEveryOrder(t *testing.T) {
 
 // TestVoices_BoundsMeetInEveryOrder pins value bounds two conjuncts write apart:
 // they meet as a redeclared field's do, each taking what they say together, in
-// either order, unless a writer states no value, as a lone 3.0 exclusive modifier
-// does, where two spellings disagree as any other keyword's.
+// either order. A writer stating no value, as a 3.0 exclusive modifier with no
+// bound beside it or one of false, parts none (GitHub #1494): both fold, and the
+// modifier that bounds nothing is kept and warned of at its own branch.
 func TestVoices_BoundsMeetInEveryOrder(t *testing.T) {
 	t.Parallel()
 	const ref = "{$ref: '#/components/schemas/Base'}"
@@ -287,6 +291,8 @@ func TestVoices_BoundsMeetInEveryOrder(t *testing.T) {
 			&ir.Constraints{Min: new(ir.BigVal("1")), ExclusiveMin: new(ir.BigVal("2"))}},
 		"a 3.0 modifier": {"3.0.3", "{minimum: 5, exclusiveMinimum: true}", "{minimum: 3}",
 			&ir.Constraints{Min: new(ir.BigVal("3")), ExclusiveMin: new(ir.BigVal("5"))}},
+		"a 3.0 modifier beside one of false": {"3.0.3", "{minimum: 3, exclusiveMinimum: true}", "{exclusiveMinimum: false}",
+			&ir.Constraints{ExclusiveMin: new(ir.BigVal("3"))}},
 	} {
 		for _, order := range [][2]string{{tc.a, tc.b}, {tc.b, tc.a}} {
 			doc, diags := parseFull(t, openapitest.ComponentSpecVer(tc.version,
@@ -305,13 +311,39 @@ func TestVoices_BoundsMeetInEveryOrder(t *testing.T) {
 	assert.Equal(t, &ir.Constraints{MaxProps: new(int64(3))}, m.Constraints, "a bound beside the allOf meets one on a branch")
 	assert.Empty(t, m.Unmodeled)
 
-	for _, order := range []string{"{exclusiveMinimum: true}, {exclusiveMinimum: false}", "{exclusiveMinimum: false}, {exclusiveMinimum: true}"} {
-		doc, _ := parseFull(t, openapitest.ComponentSpecVer("3.0.3",
+	for i, order := range []string{"{exclusiveMinimum: true}, {exclusiveMinimum: false}", "{exclusiveMinimum: false}, {exclusiveMinimum: true}"} {
+		doc, diags := parseFull(t, openapitest.ComponentSpecVer("3.0.3",
 			"    Base: {type: object}\n    S: {allOf: ["+ref+", "+order+"]}\n"))
 		m, ok := typeByName(doc, "S").(*ir.Model)
 		require.True(t, ok)
-		assert.Contains(t, m.Unmodeled, "openapi:allOf/1", order)
-		assert.Contains(t, m.Unmodeled, "openapi:allOf/2", order)
+		at := fmt.Sprintf("/components/schemas/S/allOf/%d", i+1)
+		assert.Equal(t, []string{"openapi:exclusiveMinimum"}, slices.Collect(maps.Keys(m.Unmodeled)), order)
+		assert.Equal(t, jsontext.Pointer(at+"/exclusiveMinimum"), m.Unmodeled["openapi:exclusiveMinimum"].Provenance.Pointer, order)
+		require.Len(t, diags, 1, order)
+		assert.Equal(t, ir.SeverityWarning, diags[0].Severity, order)
+		assert.Equal(t, jsontext.Pointer(at), diags[0].Provenance.Pointer, order)
+		assert.Nil(t, m.Constraints, order)
+	}
+}
+
+// TestVoices_ARefusedBoundPartsNoWriter pins a bound beside one the load phase
+// refuses, in either order (GitHub #1494): the refused value states nothing, so
+// both branches fold, the stated bound reaches the node, and the refusal is
+// reported once, at the keyword, as it is beside the allOf.
+func TestVoices_ARefusedBoundPartsNoWriter(t *testing.T) {
+	t.Parallel()
+	const ref = "{$ref: '#/components/schemas/Base'}"
+	for i, order := range []string{"{exclusiveMinimum: 5}, {exclusiveMinimum: true}", "{exclusiveMinimum: true}, {exclusiveMinimum: 5}"} {
+		doc, diags := parseFull(t, openapitest.ComponentSpecVer("3.1.0",
+			"    Base: {type: object}\n    S: {allOf: ["+ref+", "+order+"]}\n"))
+		m, ok := typeByName(doc, "S").(*ir.Model)
+		require.True(t, ok)
+		assert.Equal(t, &ir.Constraints{ExclusiveMin: new(ir.BigVal("5"))}, m.Constraints, order)
+		assert.Empty(t, m.Unmodeled, order)
+		require.Len(t, diags, 1, order)
+		assert.Equal(t, diag.ExclusiveBoundForm, diags[0].Code, order)
+		assert.Equal(t, jsontext.Pointer(fmt.Sprintf("/components/schemas/S/allOf/%d/exclusiveMinimum", 2-i)),
+			diags[0].Provenance.Pointer, order)
 	}
 }
 

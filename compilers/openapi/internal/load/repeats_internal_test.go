@@ -148,6 +148,28 @@ webhooks:
 			},
 		},
 		{
+			name: "a header's name in two cases, and a query parameter's",
+			src: head + `paths:
+  /x:
+    get:
+      parameters:
+        - {name: X-Trace, in: header, schema: {type: string}}
+        - {name: Limit, in: query, schema: {type: string}}
+        - {name: x-trace, in: header, schema: {type: string}}
+        - {name: limit, in: query, schema: {type: string}}
+        - {name: X-TRACE, in: header, schema: {type: string}}
+        - {name: X-Trace, in: header, schema: {type: string}}
+      responses: {"200": {description: ok}}
+`,
+			want: map[jsontext.Pointer]string{
+				"/paths/~1x/get/parameters/2": `parameter "x-trace" in "header" repeats the entry at ` +
+					`/paths/~1x/get/parameters/0, spelled "X-Trace", as HTTP compares header names in any case`,
+				"/paths/~1x/get/parameters/4": `parameter "X-TRACE" in "header" repeats the entry at ` +
+					`/paths/~1x/get/parameters/0, spelled "X-Trace", as HTTP compares header names in any case`,
+				"/paths/~1x/get/parameters/5": `parameter "X-Trace" in "header" repeats the entry at /paths/~1x/get/parameters/0`,
+			},
+		},
+		{
 			name: "one name in two locations, and a $ref that resolves to nothing",
 			src: head + `paths:
   /x/{limit}:

@@ -315,6 +315,7 @@ func loweringCtx(doc *load.Document, o Options) lowering.Ctx {
 		SecretInference:        o.SecretInference,
 		HTTPDateInference:      o.HTTPDateInference,
 		ReplacementInference:   o.ReplacementInference,
+		TitleNames:             o.TitleNames,
 	})
 }
 

@@ -181,18 +181,20 @@ func buildTuple(c lowering.Ctx, ts *compile.Types, depth int, s *oas3.Schema, co
 // at pointer, which bound the whole instance whether it lowers to a List or a
 // Tuple, met with those the branches of its allOf write for it (positionVoices).
 // Only the integer and boolean bounds are read here, from the parser's model,
-// which holds an integer past int64 as 0 (GitHub #1050); numeric-value bounds go
-// through raw nodes elsewhere to avoid the float64 trap.
+// each count where the model holds the number its literal states
+// (annotation.ExactCount); the census keeps one it does not (keptCount).
 func collectionConstraints(c lowering.Ctx, ts *compile.Types, s *oas3.Schema, pointer jsontext.Pointer) *ir.Constraints {
 	return voicedCollectionBounds(ownCollectionConstraints(s), positionVoices(c, ts, s, pointer, ir.TypeRef{}))
 }
 
-// ownCollectionConstraints reads the collection bounds s itself writes.
+// ownCollectionConstraints reads the collection bounds s itself writes, and nil
+// where it states none.
 func ownCollectionConstraints(s *oas3.Schema) *ir.Constraints {
-	if s.MinItems == nil && s.MaxItems == nil && s.UniqueItems == nil {
+	minItems, maxItems := annotation.ExactCount(s, "minItems", s.MinItems), annotation.ExactCount(s, "maxItems", s.MaxItems)
+	if minItems == nil && maxItems == nil && s.UniqueItems == nil {
 		return nil
 	}
-	cons := &ir.Constraints{MinItems: s.MinItems, MaxItems: s.MaxItems}
+	cons := &ir.Constraints{MinItems: minItems, MaxItems: maxItems}
 	if s.UniqueItems != nil {
 		cons.UniqueItems = *s.UniqueItems
 	}

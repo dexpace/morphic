@@ -34,8 +34,21 @@ only as `null`, and a model requiring one decodes and encodes no value, which is
 states. It has no example, and a model requiring it none ([one set of
 examples](../docs-and-mock.md#one-set-of-examples)). The rule reads the member list, which adding a
 member changes: an enum gaining its first member takes the open form, and with it a meaning, some
-value, that it did not have. The golden spec declares none (spec @bc6fad24, morphic @fa253fe19).
-T-36 holds the rule.
+value, that it did not have. The golden spec declares none admitting nothing. T-36 holds the rule.
+
+An anonymous enum with no members that every reference to it reaches as `Nullable` admits `null` and
+nothing else, which is how an enumeration of `null` alone, a constant of `null`, a type of `null`
+alone or a union of nothing else lowers ([the empty enum](../../ir/enums.md#the-empty-enum)). It
+declares no type: one with no constant would give a caller nothing to name or hold, since the one
+value it is ever handed is the `null` its reference already says it admits. Each use renders in
+place as the target's type admitting `null` alone, Kotlin's `Nothing?` and Go's runtime `Null`
+([Go](../targets/go/types.md#enums), [Kotlin](../targets/kotlin/types.md#enums)), presence boxed as
+for any member: required, it decodes `null` alone and writes `null`; optional, it decodes where
+absent too and is left out unset. An enum with no members that some reference reaches without
+`Nullable`, or that a source names, declares its closed form as above. The golden spec declares 174
+anonymous enums of `null` alone, each reached only through nullable references, a deletion's
+`result` among them ([enum-const](../../compilers/openapi.md#enum-const); spec @86556f6f), and none
+named. T-36 holds the rule.
 
 ## A member on the wire
 
