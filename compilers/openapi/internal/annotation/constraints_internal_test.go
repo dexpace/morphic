@@ -44,6 +44,7 @@ func TestCountIsExact(t *testing.T) {
 		{"integer past int64", "99999999999999999999", 0, false},
 		{"float past float64", "1e400", 0, false},
 		{"truncated fraction", "1.5", 1, false},
+		{"negative", "-1", -1, false},
 		{"no number", "many", 0, false},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -489,4 +490,14 @@ func TestApplyExclusiveFlag_AnUnreadableBoundIsNotAMissingOne(t *testing.T) {
 	assert.Nil(t, got, "an unreadable bound leaves no constraint behind")
 	assert.Empty(t, kept, "the modifier modifies a bound that was written; it is no orphan")
 	assert.Empty(t, diags, "the bad literal is the whole complaint, and it is load's")
+}
+
+// TestExactCount_StatesOnlyAnExactCount pins what a reader of a count takes from
+// the model: its reading where the literal states it, and none where it does
+// not, so no bound stands for a number the source does not write.
+func TestExactCount_StatesOnlyAnExactCount(t *testing.T) {
+	t.Parallel()
+	exact := new(int64(3))
+	assert.Same(t, exact, ExactCount(schemaFromYAMLUnvalidated(t, "minLength: 3"), "minLength", exact))
+	assert.Nil(t, ExactCount(schemaFromYAMLUnvalidated(t, "minLength: 99999999999999999999"), "minLength", new(int64(0))))
 }

@@ -56,11 +56,10 @@ func (a *agreement) write(conjunct *oas3.Schema) []string {
 		}
 		if !read {
 			// A bound no decimal spells, or in the other form than the dialect's,
-			// is the rule table's to report (docs/compilers/openapi.md#constraints). What else it
-			// warns of and keeps, the lowering does where it reads it, which it
-			// never does for a branch kept apart, so a 3.0 exclusive flag beside
-			// no bound there goes unwarned (GitHub #1494). Nothing this reading
-			// places is kept, so it places at the zero Doc.
+			// is the rule table's to report (docs/compilers/openapi.md#constraints).
+			// What else it warns of and keeps, the lowering does where it reads a
+			// branch that folds; a branch kept apart is kept whole instead.
+			// Nothing this reading places is kept, so it places at the zero Doc.
 			cons, _, _ = annotation.Constraints(conjunct, exclusiveIsBoolean(a.c, conjunct), "", provenance.Doc{})
 			cons = merge.Constraints(cons, heldCollectionBounds(conjunct))
 			read = true
@@ -88,9 +87,9 @@ func (a *agreement) bound(entry string) *boundReading {
 }
 
 // apart reports whether the writers of entry disagree, so none of them folds: a
-// bound agrees where every writer states a value and the values meet, as a
-// redeclared field's bounds do (merge.Constraints), and any entry agrees where
-// every writer renders it alike.
+// bound agrees where the values its writers state meet, as a redeclared field's
+// bounds do (merge.Constraints), and any entry agrees where every writer renders
+// it alike.
 func (a *agreement) apart(entry string) bool {
 	if b, ok := a.bounds[entry]; ok && b.meets() {
 		return false
@@ -102,18 +101,17 @@ func (a *agreement) apart(entry string) bool {
 type boundReading struct {
 	// met is what they say together, nil before one states a value.
 	met *ir.Constraints
-	// unstated marks a writer whose keyword fills no field, a 3.0 exclusive
-	// modifier with no bound beside it or a value the reader refused.
-	unstated bool
 	// disjoint marks two values no one value holds (merge.Meets).
 	disjoint bool
 }
 
-// add records one writer's reading of the bound.
+// add records one writer's reading of the bound. A writer whose keyword fills no
+// field, a 3.0 exclusive modifier with no bound beside it, one of false, or a
+// value the reader refused, states nothing a value needs to meet, so it parts no
+// writer: where its branch folds, its own reading is reported and kept there.
 func (b *boundReading) add(bound ir.Constraints) {
 	switch {
 	case bound == ir.Constraints{}:
-		b.unstated = true
 	case b.met == nil:
 		b.met = &bound
 	case !merge.Meets(b.met, &bound):
@@ -123,10 +121,10 @@ func (b *boundReading) add(bound ir.Constraints) {
 	}
 }
 
-// meets reports whether every writer states a value and the values meet. Whether
-// two meet is a set's answer: an ordered bound always meets another, and one with
-// no order, or a literal no decimal holds, meets only one written alike.
-func (b *boundReading) meets() bool { return !b.unstated && !b.disjoint }
+// meets reports whether the values the writers state meet. Whether two meet is a
+// set's answer: an ordered bound always meets another, and one with no order, or
+// a literal no decimal holds, meets only one written alike.
+func (b *boundReading) meets() bool { return !b.disjoint }
 
 // boundOf returns the fields of cons the bound keyword entry fills. A 3.0
 // exclusive modifier moves the bound beside it, so a minimum and its exclusive

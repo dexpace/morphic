@@ -593,7 +593,24 @@ it sees. Changes made together in one bump are listed together under it.
     ([`parameters`](../compilers/openapi.md#parameters)), so an operation's `x-trace` overrides
     its path item's `X-Trace`, and one list writing both reports the second as a repeat, each kept
     under the ID its spelling gives it.
-- **0.55.0** — no shape change. The OpenAPI compiler expands a `$dynamicRef` to an anchor at any
+- **0.55.0** — no shape change. The OpenAPI compiler writes a count, `minLength`, `maxLength`,
+  `minItems`, `maxItems`, `minProperties` or `maxProperties`, past what a 64-bit integer holds to
+  no `Constraints` field, where it wrote `0` or a number the source does not state, and keeps it
+  verbatim under `openapi:<keyword>` (`degraded_lowering`) on the node or carrier the position owns
+  ([`constraints`](../compilers/openapi.md#constraints)); a count literal that is no non-negative
+  integer, which the load phase refuses, reaches no field either. An inline `allOf` branch whose
+  bound keyword states no value, a 3.0 `exclusiveMinimum` with no bound beside it, one of `false` or
+  one the load phase refuses, parts no other branch, so it folds where nothing else parts it
+  ([`allof-inline-residue`](../compilers/openapi.md#allof-inline-residue)), what it keeps landing
+  under its keyword rather than under `openapi:allOf/<n>`. A field several `allOf` conjuncts
+  declare ([`allof-redeclared-property`](../compilers/openapi.md#allof-redeclared-property)) now
+  holds two enums' shared values of the narrower value type, where it kept the first enum of
+  different value types, and holds what an alias of an enum, a `const`, a `Scalar`, a list, a map
+  or a tuple meets beside the node it stands for, where it kept the first; an alias adding only
+  null to a type beside it gives that type. A consumer pinned to 0.54.0 that read such a count's
+  field finds none there, one reading such a branch under `openapi:allOf/<n>` finds its keywords at
+  the position instead, and one reading such a field may find a node minted for it.
+- **0.56.0** — no shape change. The OpenAPI compiler expands a `$dynamicRef` to an anchor at any
   position of its schema resource, and JSON Schema 2019-09's `$recursiveRef` to the root of the
   resource it is written in ([`dynamic-ref`](../compilers/openapi.md#dynamic-ref)): such a
   reference's `TypeRef` names the type at that position where it named a node keeping
@@ -602,5 +619,5 @@ it sees. Changes made together in one bump are listed together under it.
   `openapi:$recursiveAnchor` is no longer kept in a 2019-09 schema. A body schema writing `$schema`
   or `$vocabulary` is a file where it was not ([`file-bodies`](../compilers/openapi.md#file-bodies)).
   A `prefixItems` beside a JSON Schema draft's `items` list is kept under `openapi:prefixItems`,
-  where it was dropped ([`tuples`](../compilers/openapi.md#tuples)). A consumer pinned to 0.54.0
+  where it was dropped ([`tuples`](../compilers/openapi.md#tuples)). A consumer pinned to 0.55.0
   reads such a reference as the top type and such a body as a model.

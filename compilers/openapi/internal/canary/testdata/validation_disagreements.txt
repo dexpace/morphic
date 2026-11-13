@@ -172,6 +172,7 @@ testdata/conformance/openapi/allof-refinement.yaml	122:19	later-version-construc
 testdata/conformance/openapi/codeclared-schema-content.yaml	17:11	validation-mutually-exclusive-fields	compiler	library-silent
 testdata/conformance/openapi/codeclared-schema-content.yaml	25:11	validation-mutually-exclusive-fields	compiler	library-silent
 testdata/conformance/openapi/codeclared-schema-content.yaml	35:15	validation-mutually-exclusive-fields	compiler	library-silent
+testdata/conformance/openapi/constraints.yaml	52:18	validation-type-mismatch	library	count-width
 testdata/conformance/openapi/content-several-entries.yaml	18:13	validation-allowed-values	library	rule-name
 testdata/conformance/openapi/content-several-entries.yaml	18:13	validation-entry-count	compiler	rule-name
 testdata/conformance/openapi/content-several-entries.yaml	26:17	validation-entry-count	compiler	library-silent

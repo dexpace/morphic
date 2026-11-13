@@ -31,13 +31,12 @@ const (
 // object-count) into an ir.Constraints, nil when none is present; collection
 // bounds are read where lists are lowered. Numeric bounds come from the raw
 // YAML nodes, never the *float64 model fields, to keep full decimal precision.
-// A literal no BigVal holds, or an exclusive bound in the other form than
-// exclusiveBoolean selects, is skipped; the rule table's check reports it
-// (docs/compilers/openapi.md#constraints).
-//
-// The second return holds the one keyword that reaches no field, a 3.0
-// exclusive modifier with no bound beside it (applyExclusiveFlag), placed by
-// pointer and doc, for the caller to merge.
+// A literal no BigVal holds, an exclusive bound in the other form than
+// exclusiveBoolean selects, or a count the model misreads (ExactCount) is
+// skipped, for the rule table's check to report
+// (docs/compilers/openapi.md#constraints) or the caller to keep. The second
+// return holds a 3.0 exclusive modifier with no bound beside it
+// (applyExclusiveFlag), placed by pointer and doc.
 func Constraints(s *oas3.Schema, exclusiveBoolean bool, pointer jsontext.Pointer, doc provenance.Doc) (*ir.Constraints, ir.Unmodeled, []ir.Diagnostic) {
 	if s == nil {
 		return nil, nil, nil
@@ -47,25 +46,34 @@ func Constraints(s *oas3.Schema, exclusiveBoolean bool, pointer jsontext.Pointer
 	numericBounds(c, s)
 	diags := applyExclusive(c, s, minBound, &residue, exclusiveBoolean)
 	diags = append(diags, applyExclusive(c, s, maxBound, &residue, exclusiveBoolean)...)
-	// The parser's model holds these four as int64, and a literal past that as 0,
-	// which nothing reports yet (GitHub #1050).
-	c.MinLength = s.MinLength
-	c.MaxLength = s.MaxLength
+	c.MinLength = ExactCount(s, "minLength", s.MinLength)
+	c.MaxLength = ExactCount(s, "maxLength", s.MaxLength)
 	c.Pattern = s.GetPattern()
-	c.MinProps = s.MinProperties
-	c.MaxProps = s.MaxProperties
+	c.MinProps = ExactCount(s, "minProperties", s.MinProperties)
+	c.MaxProps = ExactCount(s, "maxProperties", s.MaxProperties)
 	if emptyConstraints(c) {
 		return nil, residue.kept, diags
 	}
 	return c, residue.kept, diags
 }
 
+// ExactCount returns count, the parser's reading of the integer keyword s writes,
+// where it is the number the keyword's literal states (CountIsExact), and nil
+// where it is not, so no bound stands for a value the source does not state.
+func ExactCount(s *oas3.Schema, keyword string, count *int64) *int64 {
+	if !CountIsExact(s, keyword, count) {
+		return nil
+	}
+	return count
+}
+
 // CountIsExact reports whether count, the parser's reading of the integer
-// keyword s writes, is the number the keyword's literal states. The model holds
-// an integer past int64 as 0 (GitHub #1050), so a caller able to keep the raw
-// keyword instead asks here before it trusts the model.
+// keyword s writes, is the number the keyword's literal states, and a count,
+// which is never negative. The model holds an integer past int64 as 0, and a
+// fraction cut to an integer, so a reader asks here before it trusts the model;
+// a negative one is the load phase's to report.
 func CountIsExact(s *oas3.Schema, keyword string, count *int64) bool {
-	if count == nil {
+	if count == nil || *count < 0 {
 		return false
 	}
 	literal, err := value.NumericLiteral(RawPropertyNode(s, keyword))
@@ -135,7 +143,7 @@ func numericBounds(c *ir.Constraints, s *oas3.Schema) {
 // exclusive field beside any minimum/maximum rather than in place of it.
 // exclusiveBoolean is true for 3.0's dialect and draft 4's. A value in the
 // wrong form for the dialect, or a literal no decimal spells, is dropped, and
-// the load phase reports it (Constraints).
+// the rule table's check reports it (Constraints).
 func applyExclusive(c *ir.Constraints, s *oas3.Schema, side boundSide, residue *boundResidue, exclusiveBoolean bool) []ir.Diagnostic {
 	ev := s.GetExclusiveMaximum()
 	if side == minBound {

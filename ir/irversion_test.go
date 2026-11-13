@@ -141,6 +141,9 @@ var generations = []generation{
 		meaning: "a default-ignorable letter or mark separates words; the OpenAPI compiler names an anonymous schema by its title, a media type component keyed \"\" by its key and a header an Encoding Object nests by its key, and compares a header parameter's name in any case"},
 	{version: "0.55.0", format: 1, shape: "0b2f5e45e4be29c67a153976848af676bc99d9f21d9e41a91b7abfd167ae026b",
 		names:   "c81be0f2b36405f2d981ea6c635ea75c4154521622c148c008ae2e7f345264b2",
+		meaning: "a count past 64 bits reaches no Constraints field and is kept verbatim under its keyword, and an inline allOf branch whose bound states no value folds"},
+	{version: "0.56.0", format: 1, shape: "0b2f5e45e4be29c67a153976848af676bc99d9f21d9e41a91b7abfd167ae026b",
+		names:   "c81be0f2b36405f2d981ea6c635ea75c4154521622c148c008ae2e7f345264b2",
 		meaning: "the OpenAPI compiler expands a $dynamicRef to an anchor at any position of its schema resource, and 2019-09's $recursiveRef to its resource's root, where it kept each verbatim; a body schema writing $schema or $vocabulary is a file, and a prefixItems beside a draft's items list is kept under openapi:prefixItems"},
 }
 
