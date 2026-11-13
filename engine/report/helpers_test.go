@@ -5,8 +5,11 @@ package report_test
 
 import (
 	"errors"
+	"io"
 	"strings"
 
+	"github.com/dexpace/morphic/engine/report"
+	"github.com/dexpace/morphic/engine/triage"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -33,4 +36,16 @@ func (w *failingWriter) Write(p []byte) (int, error) {
 // diag returns an error diagnostic with message "m" at prov.
 func diag(code string, prov ir.Provenance) ir.Diagnostic {
 	return ir.Diagnostic{Severity: ir.SeverityError, Code: code, Message: "m", Provenance: prov}
+}
+
+// rated returns diags as findings no rule met, each at its reported severity.
+func rated(diags []ir.Diagnostic) []triage.Finding {
+	findings, _ := triage.Ruleset{}.Rate(diags)
+	return findings
+}
+
+// writeDiagnostics writes diags, as findings no rule met, the way WriteText
+// writes a run that withholds nothing: one line each.
+func writeDiagnostics(w io.Writer, diags []ir.Diagnostic, sources []ir.SourceInfo) error {
+	return report.WriteText(w, report.Report{Findings: rated(diags), Sources: sources}, report.TextOptions{})
 }

@@ -32,6 +32,7 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi"
 	"github.com/dexpace/morphic/engine"
 	"github.com/dexpace/morphic/engine/cache"
+	"github.com/dexpace/morphic/engine/triage"
 	"github.com/dexpace/morphic/internal/decls"
 	"github.com/dexpace/morphic/internal/testspec"
 	"github.com/dexpace/morphic/ir"
@@ -186,6 +187,12 @@ func TestAssertSameRun_SeesEachField(t *testing.T) {
 		"Sources":     func(r *engine.Result) { r.Sources = []ir.SourceInfo{{Path: "q"}} },
 		"Format":      func(r *engine.Result) { r.Format.Version = "2" },
 		"Failed":      func(r *engine.Result) { r.Failed = true },
+		"Findings": func(r *engine.Result) {
+			r.Findings = []triage.Finding{{Diagnostic: r.Diagnostics[0], Severity: ir.SeverityInfo}}
+		},
+		"UnusedRules": func(r *engine.Result) {
+			r.UnusedRules = []triage.Rule{{Code: "c", Severity: ir.SeverityInfo, Reason: "r"}}
+		},
 	}
 	for field, change := range rows {
 		changed := base
@@ -638,6 +645,33 @@ func TestWithCache_AHitIsJudgedAtTheRunsOwnThreshold(t *testing.T) {
 		"the format a hit did not detect")
 }
 
+// TestWithCache_AHitIsRatedByTheRunsOwnRules shares one entry between two
+// triages, which the key leaves out for this reason: the entry holds the
+// findings as reported, and each run rates them by its own rules.
+func TestWithCache_AHitIsRatedByTheRunsOwnRules(t *testing.T) {
+	t.Parallel()
+	store := newMemoryCache()
+	counter := &countingCompiler{Compiler: warningCompiler{}}
+	eng, err := engine.New(engine.WithCompilers(counter), engine.WithCache(store, "b1"), engine.WithPasses())
+	require.NoError(t, err)
+	spec := writeSpec(t, testspec.Tiny)
+
+	raised, err := eng.Run(t.Context(), spec, engine.RunOptions{
+		Triage: []triage.Rule{{Code: "test/warning", Severity: ir.SeverityError, Reason: "r"}},
+	})
+	require.NoError(t, err)
+	require.Len(t, raised.Findings, 1)
+	assert.Equal(t, ir.SeverityError, raised.Findings[0].Severity)
+	assert.True(t, raised.Failed)
+
+	plain, err := eng.Run(t.Context(), spec, engine.RunOptions{})
+	require.NoError(t, err)
+	require.Len(t, plain.Findings, 1)
+	assert.Equal(t, ir.SeverityWarning, plain.Findings[0].Severity, "the entry holds the finding as reported")
+	assert.False(t, plain.Failed)
+	assert.EqualValues(t, 1, counter.compiles.Load(), "the second run is answered from the entry")
+}
+
 // TestWithCache_NothingCompiledLeavesNoEntry covers each way a run ends with no
 // document: an entry holds one, and a refusal costs little to repeat.
 func TestWithCache_NothingCompiledLeavesNoEntry(t *testing.T) {
@@ -777,6 +811,7 @@ func TestWithCache_EveryRunOptionIsAnswered(t *testing.T) {
 		"DisablePasses":   "in the key, as the passes left on: TestWithCache_APassTurnedOffDoesNotSeeItsDiagnostics",
 		"FailOn":          "judged afresh on a hit: TestWithCache_AHitIsJudgedAtTheRunsOwnThreshold",
 		"FormatOptions":   "keeps its run out: TestWithCache_FormatOptionsTakeNoPart",
+		"Triage":          "rated afresh on a hit: TestWithCache_AHitIsRatedByTheRunsOwnRules",
 		"Verify":          "keeps its run out: TestWithCache_AVerifiedRunRunsItsStages",
 	}
 	assert.Empty(t, cmp.Diff(slices.Sorted(maps.Keys(answered)), declaredFields(t, "RunOptions")),
