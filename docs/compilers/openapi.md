@@ -529,8 +529,9 @@ Path Item's `additionalOperations` before 3.2, and a field 3.2 added to a Discri
 Object, draw the warning as any other construct does. A keyword JSON Schema 2020-12 added, written
 in a 3.0 schema or in one a draft before it reads ([`dialect-keywords`](#dialect-keywords)), is read
 as 2020-12 reads it and draws the warning too, at its key, its value held to 2020-12's row, true and
-false standing as schemas where that row admits a schema: in a 3.0 schema in the words above, as a
-field 3.1 added, and in a draft's as a keyword its dialect does not define. Three such keywords are
+false standing as schemas where that row admits a schema, an entry of its list or map among them: in
+a 3.0 schema in the words above, as a field 3.1 added, and in a draft's as a keyword its dialect
+does not define. Three such keywords are
 not read: a `$schema` in a 3.0 schema, whose dialect is fixed, which the warning says is kept
 verbatim and chooses nothing; draft 4's `$id`, which its `id` spells, read for nothing and warned of
 by no such warning; and a `prefixItems` beside the `items` list a draft reads as its own tuple, which
@@ -552,6 +553,7 @@ style it is written under ([`allow-empty-value`](#allow-empty-value)).
   `oas.TestTable_AgreesWithTheConstructsLaterMinorsAdded`,
   `load.TestResolve_AReachedObjectIsHeldToTheLaterVersionTable`,
   `oas.TestCheck_AKeywordALaterDialectAddsIsWarnedOf`, `oas.TestCheck_ARefsSiblingsInADraftAreWarnedOf`,
+  `oas.TestCheck_ABooleanSchemaStandsWhereItsDialectAdmitsOne`,
   `oas.TestSchemaRules_LaterKeywordsAreTheOwnRowsADialectLacks`
 
 ### `references`

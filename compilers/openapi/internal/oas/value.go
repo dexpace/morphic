@@ -215,13 +215,24 @@ func (w *walker) shapeOf(f frame, fld Field, node *yaml.Node) (Shape, bool) {
 			return alt.Shape, true
 		}
 	}
-	// True and false stand as a schema wherever f's fields hold one, where
-	// its dialect admits them (frame.booleans), and only the Schema Object
-	// stands as a boolean.
-	if fld.Shape == Nested && fld.Of == Schema && f.booleans && matches(Boolean, node) {
+	// Only the Schema Object stands as a boolean. A schema no schema holds
+	// is read as the object it is, so the rows it is read with decide
+	// (walker.notMapping), where the minor admits one at all.
+	switch {
+	case f.holdsBoolean(fld, node):
 		return Boolean, true
+	case fld.Shape == Nested && fld.Of == Schema && f.booleans && matches(Boolean, node):
+		return Nested, true
 	}
 	return fld.Shape, false
+}
+
+// holdsBoolean reports whether node, a value of fld, is true or false that f, a
+// Schema Object, admits as the schema fld holds there: by its rows, or as
+// 2020-12 reads a keyword it added (frame.asLater). A schema decides for the
+// schemas it holds, as they are read in its dialect.
+func (f frame) holdsBoolean(fld Field, node *yaml.Node) bool {
+	return fld.Of == Schema && f.rows.rows != nil && f.booleans && matches(Boolean, nodeview.Deref(node))
 }
 
 // booleanHeld reports whether the kind admits a boolean in its place at minor
@@ -299,12 +310,16 @@ func (w *walker) entries(f frame, fld Field, shape Shape, node *yaml.Node, ptr j
 			w.report(k.sev, k.class, k.ptr, "%s", k.message)
 		}
 		for _, p := range pairs {
-			w.object(site{kind: fld.Of, node: p.Val, ptr: ptr.AppendToken(p.Key), held: p.Key, rows: f.rows, in: f.obj.Kind},
-				depth+1)
+			if !f.holdsBoolean(fld, p.Val) {
+				w.object(site{kind: fld.Of, node: p.Val, ptr: ptr.AppendToken(p.Key), held: p.Key, rows: f.rows,
+					in: f.obj.Kind}, depth+1)
+			}
 		}
 	case List:
 		for i, item := range node.Content {
-			w.object(site{kind: fld.Of, node: item, ptr: itemPointer(ptr, i), rows: f.rows, in: f.obj.Kind}, depth+1)
+			if !f.holdsBoolean(fld, item) {
+				w.object(site{kind: fld.Of, node: item, ptr: itemPointer(ptr, i), rows: f.rows, in: f.obj.Kind}, depth+1)
+			}
 		}
 	case StringList:
 		for i, item := range node.Content {

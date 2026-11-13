@@ -86,6 +86,48 @@ func TestCheck_ASchemaIsHeldToItsDialectsRows(t *testing.T) {
 	}
 }
 
+// TestCheck_ABooleanSchemaStandsWhereItsDialectAdmitsOne pins who admits true
+// and false as a schema: a schema, for the schemas it holds, by its rows or as
+// 2020-12 reads a keyword it added, a list's or a map's entries included, and
+// the rows a schema no schema holds is read with, for that schema, so draft 4
+// refuses one a media type or a parameter holds as it refuses a component.
+func TestCheck_ABooleanSchemaStandsWhereItsDialectAdmitsOne(t *testing.T) {
+	for _, tc := range []struct {
+		name, dialect string
+		kind          oas.Kind
+		doc           string
+		want          []finding
+	}{
+		{"in a keyword 2020-12 added", draft04, oas.Schema,
+			`{prefixItems: [true], $defs: {A: false}, dependentSchemas: {a: true}, contains: true}`,
+			[]finding{at(later, "/prefixItems"), at(later, "/$defs"), at(later, "/dependentSchemas"), at(later, "/contains")}},
+		{"in draft 4's own keywords", draft04, oas.Schema, `{allOf: [true], properties: {a: false}}`,
+			[]finding{at(mismatch, "/allOf/0"), at(mismatch, "/properties/a")}},
+		{"a media type's in draft 4", draft04, oas.MediaType, `{schema: true}`, []finding{at(mismatch, "/schema")}},
+		{"a parameter's in draft 4", draft04, oas.Parameter, `{name: q, in: query, schema: false}`,
+			[]finding{at(mismatch, "/schema")}},
+		{"a media type's in draft 6", draft06, oas.MediaType, `{schema: true}`, nil},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			var n yaml.Node
+			require.NoError(t, yaml.Unmarshal([]byte(tc.doc), &n))
+			diags := oas.NewChecker().Check(t.Context(), &n, "3.1.0", oas.Options{
+				Start:  tc.kind,
+				Rows:   rulesOf("3.1.0", tc.dialect),
+				Locate: func(p jsontext.Pointer) ir.Provenance { return ir.Provenance{Pointer: p} },
+			})
+			got := make([]finding, 0, len(diags))
+			for _, d := range diags {
+				got = append(got, finding{Code: d.Code, At: string(d.Provenance.Pointer)})
+			}
+			sortFindings(got)
+			want := append([]finding(nil), tc.want...)
+			sortFindings(want)
+			assert.Empty(t, cmp.Diff(want, got, cmpopts.EquateEmpty()))
+		})
+	}
+}
+
 // TestCheck_AFindingInADraftNamesItsDialect pins the wording of a finding
 // about a schema a JSON Schema draft's rows read: it holds the schema to its
 // dialect and cites the draft's section, where one the minor's own rows read

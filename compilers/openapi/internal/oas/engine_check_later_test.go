@@ -160,6 +160,8 @@ func TestCheck_AKeywordALaterDialectAddsIsWarnedOf(t *testing.T) {
 	verify(t, []scenario{
 		{"a boolean schema 3.1 admits", "3.0.3", oas.Schema, `{unevaluatedProperties: false, if: true}`,
 			[]finding{at(later, "/unevaluatedProperties"), at(later, "/if")}},
+		{"a boolean schema 3.1 admits as an entry", "3.0.3", oas.Schema, `{prefixItems: [true], $defs: {A: false}}`,
+			[]finding{at(later, "/prefixItems"), at(later, "/$defs")}},
 		{"a value 3.1 refuses", "3.0.3", oas.Schema, `{const: 1, contentSchema: 5}`,
 			[]finding{at(later, "/const"), at(later, "/contentSchema"), at(mismatch, "/contentSchema")}},
 		{"beside a $ref", "3.0.3", oas.Schema, `{$ref: '#/a', const: 1, prefixItems: [{}]}`,

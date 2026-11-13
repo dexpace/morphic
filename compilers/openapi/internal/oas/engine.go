@@ -172,8 +172,11 @@ type site struct {
 
 // frame is a mapping read as an object, how deep it is, and for a Schema
 // Object the rows it is read with, which its object is. booleans reports that
-// true and false stand as the schemas its fields hold, and where, unless
-// empty, names what a finding about it holds it to in place of its minor.
+// true and false stand as the schemas its fields hold: by its rows for a
+// Schema Object, which decides for those it holds, else by its minor, where
+// the rows a schema is read with have the last word (walker.shapeOf). where,
+// unless empty, names what a finding about it holds it to in place of its
+// minor.
 type frame struct {
 	obj      Object
 	at       site
