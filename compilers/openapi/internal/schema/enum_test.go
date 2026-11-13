@@ -245,6 +245,67 @@ func TestEnum_NullAgreesWithTheOneOfSpelling(t *testing.T) {
 	assert.Equal(t, oneOfNull, enumNull)
 }
 
+// TestConst_NullLowersAsAnEnumOfNullAlone holds `const: null` to the node
+// `enum: [null]` lowers to beside the same keywords: a closed Enum with no
+// member, typed alike, behind a reference that alone says whether the position
+// admits null, and the same warning where a keyword beside it excludes null. No
+// Literal holds a null (docs/ir/containers.md#literals), as a branch of a union
+// either.
+func TestConst_NullLowersAsAnEnumOfNullAlone(t *testing.T) {
+	t.Parallel()
+	read := func(t *testing.T, body string) (*ir.Enum, bool, []jsontext.Pointer) {
+		t.Helper()
+		doc, diags := schema.LowerSpec(t, enumPropertySpec("3.1.0", body))
+		openapitest.RequireNoErrorDiags(t, diags)
+		for id, td := range doc.Types {
+			lit, isLit := td.(*ir.Literal)
+			assert.False(t, isLit && lit.Value.Kind == ir.ValueNull, "%s is a Literal of null", id)
+		}
+		owner, ok := doc.Types[componentID("S")].(*ir.Model)
+		require.True(t, ok)
+		ref := owner.Properties[0].Type
+		if u, isUnion := doc.Types[ref.Target].(*ir.Union); isUnion {
+			ref = u.Variants[len(u.Variants)-1].Type
+		}
+		enum, ok := doc.Types[ref.Target].(*ir.Enum)
+		require.True(t, ok, "%s lowers to an Enum, got %T", body, doc.Types[ref.Target])
+		return enum, ref.Nullable, warningPointers(diags, diag.DegradedConstruct)
+	}
+	for _, tc := range []struct {
+		name, beside string
+		nullable     bool
+	}{
+		{name: "alone", nullable: true},
+		{name: "a null type", beside: `type: "null", `, nullable: true},
+		{name: "a nullable string", beside: `type: [string, "null"], `, nullable: true},
+		{name: "a string excluding null", beside: `type: string, `},
+		{name: "a union branch", beside: "oneOf: [{const: a}, {", nullable: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			body := func(set string) string {
+				if strings.HasPrefix(tc.beside, "oneOf") {
+					return "{" + tc.beside + set + "}]}"
+				}
+				return "{" + tc.beside + set + "}"
+			}
+			got, gotNull, gotWarned := read(t, body("const: null"))
+			want, wantNull, wantWarned := read(t, body("enum: [null]"))
+			assert.Empty(t, got.Members, "no member holds the null")
+			assert.True(t, got.Closed)
+			assert.Empty(t, got.Unmodeled, "the const and a type beside it are read, so nothing is kept verbatim")
+			assert.Equal(t, want.ValueType, got.ValueType, "typed as the enum spelling is")
+			assert.Equal(t, tc.nullable, gotNull, "the reference alone admits the null")
+			assert.Equal(t, wantNull, gotNull)
+			assert.Equal(t, len(wantWarned), len(gotWarned), "warned where the enum spelling is: %v", gotWarned)
+			for _, at := range gotWarned {
+				assert.True(t, strings.HasSuffix(string(at), "/const"), "the warning is at the const, got %s", at)
+			}
+			assert.Equal(t, !tc.nullable, len(gotWarned) == 1, "a null the type excludes is reported")
+		})
+	}
+}
+
 // enumValuesAt returns the values the enum lowered at id holds: an Enum's
 // members, or the values of a Union's Literal variants, and whether it is the
 // Union.
@@ -988,8 +1049,6 @@ func TestLiteral_ValueTypeReadsTheTypeAndFormatItsValueFits(t *testing.T) {
 		{"a list", `{type: array, const: [1]}`, "", "", false},
 		{"an object the type is not", `{type: array, const: {a: 1}}`, "", "openapi:type", true},
 		{"a list the type is not", `{type: object, const: [1]}`, "", "openapi:type", true},
-		{"a null", `{type: "null", const: null}`, "", "", false},
-		{"a null the type excludes", `{type: string, const: null}`, "", "openapi:type", true},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {

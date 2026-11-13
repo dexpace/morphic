@@ -254,28 +254,43 @@ func enumAsUnion(c lowering.Ctx, ts *compile.Types, s *oas3.Schema, common ir.Ty
 	}, diags
 }
 
-// lowerConst hoists s's const as a Literal of its value (hoistLiteral) and
-// reports, at the const, a value admitting no instance, as enumEntries reports
-// an enum member: a null a keyword beside it excludes, or a value no type s
-// declares admits. The Literal holds the value as written either way, and the
-// census keeps a type it does not fit verbatim.
+// lowerConst hoists s's const as a Literal of its value (hoistLiteral), but a
+// null, which is no Literal's (nullConst), and reports, at the const, a value
+// no type s declares admits, as enumEntries reports an enum member. The Literal
+// holds the value as written, and the census keeps a type it does not fit
+// verbatim.
 func lowerConst(c lowering.Ctx, ts *compile.Types, s *oas3.Schema, pointer jsontext.Pointer) (ir.TypeID, []ir.Diagnostic) {
-	id, diags := hoistLiteral(c, ts, s, s.GetConst(), pointer)
 	val, err := value.FromNode(s.GetConst())
+	if err == nil && val.Kind == ir.ValueNull {
+		return nullConst(c, ts, s, pointer)
+	}
+	id, diags := hoistLiteral(c, ts, s, s.GetConst(), pointer)
 	if err != nil {
 		return id, diags // hoistLiteral reported it
 	}
-	at := pointer + ids.Ptr("const")
-	if types := effectiveTypes(s); val.Kind != ir.ValueNull && !typesAdmit(types, val) {
-		diags = append(diags, c.DiagAt(ir.SeverityWarning, diag.DegradedConstruct, at,
+	if types := effectiveTypes(s); !typesAdmit(types, val) {
+		diags = append(diags, c.DiagAt(ir.SeverityWarning, diag.DegradedConstruct, pointer+ids.Ptr("const"),
 			"const %s is no value of the declared type %s, which JSON Schema conjoins with const, so no instance "+
 				"matches it; the literal holds the value as written", describeValue(val), typeList(types)))
 	}
-	if val.Kind == ir.ValueNull && !schemaAdmitsNull(c, s) {
-		diags = append(diags, c.DiagAt(ir.SeverityWarning, diag.DegradedConstruct, at,
-			"const null admits no instance: a keyword beside the const excludes null, and JSON Schema conjoins "+
-				"the two; the reference admits no null"))
-	}
+	return id, diags
+}
+
+// nullConst lowers `const: null` as `enum: [null]` lowers (lowerEnum): a closed
+// Enum with no member, the null being its reference's, so no Literal holds a
+// null (docs/ir/containers.md#literals). Where a keyword beside the const
+// excludes null, the position admits nothing, which is reported at the const as
+// enumEntries reports such a member.
+func nullConst(c lowering.Ctx, ts *compile.Types, s *oas3.Schema, pointer jsontext.Pointer) (ir.TypeID, []ir.Diagnostic) {
+	var diags []ir.Diagnostic
+	id := internNode(c, ts, pointer, func(common ir.TypeCommon) ir.TypeDef {
+		if !schemaAdmitsNull(c, s) {
+			diags = append(diags, c.DiagAt(ir.SeverityWarning, diag.DegradedConstruct, pointer+ids.Ptr("const"),
+				"const null admits no instance: a keyword beside the const excludes null, and JSON Schema "+
+					"conjoins the two; lowered as an enum with no member, and the reference admits no null"))
+		}
+		return &ir.Enum{TypeCommon: common, ValueType: enumValueType(s, nil, ir.PrimAny), Closed: true}
+	})
 	return id, diags
 }
 
@@ -312,8 +327,8 @@ func hoistLiteral(c lowering.Ctx, ts *compile.Types, s *oas3.Schema, node values
 // literalValueType picks a Literal's ValueType as enumValueType picks an
 // Enum's, for its one value: the primitive the declared type and format
 // select, else the declared type's, where the value is one of it (declaredPrim);
-// else the primitive the value's own kind declares, and none for a null, a list
-// or an object, which no primitive types. A refinement's principal is typed by
+// else the primitive the value's own kind declares, and none for a list or an
+// object, which no primitive types. A refinement's principal is typed by
 // every conjunct after (typeValueSet).
 func literalValueType(s *oas3.Schema, val ir.Value) ir.PrimKind {
 	if prim, ok := declaredPrim(s, func(p ir.PrimKind) bool { return merge.Admits(p, val) }); ok {

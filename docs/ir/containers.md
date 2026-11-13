@@ -21,7 +21,8 @@ type Tuple struct   { TypeCommon; Elems []TypeRef; Rest *TypeRef; Constraints *C
 type Literal struct { TypeCommon; Value Value; ValueType PrimKind }
                     // const, a source's literal types, Erlang atoms;
                     // a one-member enum is an Enum (docs/ir/enums.md);
-                    // ValueType as an Enum's, "" for a null, list or object
+                    // ValueType as an Enum's, "" for a list or object;
+                    // Value is never null (below)
 type External struct{ TypeCommon; Identity string; Package string; MinVersion string } // resolve to a well-known library type (TCGC external)
 type Any struct     { TypeCommon }                                         // schemaless
 ```
@@ -38,8 +39,14 @@ enum's `ValueType` is ([enums](./enums.md)): the primitive a declared type and f
 the value is one of it, else the declared type's, else the primitive the value's own kind declares.
 The `Value` alone cannot say it: `80` declared an integer and `80` declared a number are one
 `Value`, as are a string and a date of one text, and an emitter typing the literal needs the
-difference. A null, a list and an object are of no primitive, so their `ValueType` is empty, and a
-type a composite value already is, `object` beside an object, says nothing the value does not.
+difference. A list and an object are of no primitive, so their `ValueType` is empty, and a type a
+composite value already is, `object` beside an object, says nothing the value does not.
+
+No `Literal` holds `null`. Whether a position admits `null` is its reference's `Nullable` bit
+([type-graph](./type-graph.md#type-references)), so a constant of `null` alone, JSON Schema's
+`const: null`, is a closed `Enum` with no member behind a nullable reference, as an enumeration of
+`null` alone is ([enums](./enums.md#the-empty-enum)): a `null` `Literal` would state the fact a
+second time, on a node, where every other spelling states it once.
 
 ## Maps
 

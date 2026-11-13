@@ -462,9 +462,9 @@ func TestConst_FixesWhetherTheValueSpaceHoldsNull(t *testing.T) {
 	require.Len(t, props, 2)
 
 	assert.True(t, props["justNull"].Type.Nullable, "a const of null admits null")
-	lit, isLit := doc.Types[props["justNull"].Type.Target].(*ir.Literal)
-	require.True(t, isLit, "the const still lowers to its Literal")
-	assert.Equal(t, ir.Value{Kind: ir.ValueNull}, lit.Value)
+	enum, isEnum := doc.Types[props["justNull"].Type.Target].(*ir.Enum)
+	require.True(t, isEnum, "the const lowers as an enum of null alone does")
+	assert.Empty(t, enum.Members, "the null is the reference's")
 
 	assert.False(t, props["narrowed"].Type.Nullable,
 		"a non-null const conjoins with the type array and takes the null back out")

@@ -78,8 +78,9 @@ func keywordHome(td ir.TypeDef, s *oas3.Schema, keyword string) bool {
 		// cannot represent to the top type and reports it, so the const was read
 		// — badly, and already announced — rather than left unread. Claiming it
 		// here would report one keyword twice, the second time as an error, since
-		// a value no converter can read is one no preserver can read either.
-		return isKind(td, ir.KindLiteral) || isKind(td, ir.KindAny)
+		// a value no converter can read is one no preserver can read either. A
+		// null is an Enum with no member (nullConst).
+		return isKind(td, ir.KindLiteral) || isKind(td, ir.KindAny) || nullConstHome(td, s)
 	case "enum":
 		// Any counts here for the reason it counts for const: lowerEnum degrades a
 		// member set past the caller's budget to the top type and reports it, so
@@ -97,6 +98,13 @@ func keywordHome(td ir.TypeDef, s *oas3.Schema, keyword string) bool {
 	default:
 		return false
 	}
+}
+
+// nullConstHome reports whether td is the Enum with no member a `const: null`
+// lowers to (nullConst).
+func nullConstHome(td ir.TypeDef, s *oas3.Schema) bool {
+	e, ok := td.(*ir.Enum)
+	return ok && e != nil && len(e.Members) == 0 && isNullValue(s.GetConst())
 }
 
 // discriminatorHome reports whether td holds the discriminator its position

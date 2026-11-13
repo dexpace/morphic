@@ -298,9 +298,9 @@ throughout these documents.
     list, its elements keep the member and it stays closed. A required member no shape holds
     (`Visibility.None`) is required of no value, and of two tuple variants, one with two required
     positions and one with one and no `Rest`, each admits only its own length. A `null` that two
-    nullable variants admit, a `null` literal variant does or a variant that is such a union does,
-    is held by the reference, as a nullable one's is. A value no variant admits takes the fallback
-    on an open union and is a coded error on a closed one
+    nullable variants admit, one of them a nullable reference to an enum with no member, or a
+    variant that is such a union does, is held by the reference, as a nullable one's is. A value no
+    variant admits takes the fallback on an open union and is a coded error on a closed one
     ([unions](../refine/unions.md#a-value-several-variants-admit),
     [TypePlan](../plan/types.md#variants-that-can-share-a-value)).
 30. **T-30 · Visibility projections** — on every target, a model holding a model, a union, a list

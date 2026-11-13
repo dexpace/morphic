@@ -471,12 +471,14 @@ it sees. Changes made together in one bump are listed together under it.
   wire name, and `irfacts.CorrelationVersion` moved to 3, keying it by its prefix. No compiler
   fills it yet. A consumer pinned to 0.45.0 refuses a document with a prefix header.
 - **0.47.0** — four changes of meaning, the shape kept:
-  - A `null` is no `Enum` member and no variant of the `Union` an enumeration lowers to, but its
-    reference's `Nullable` bit, so an enumeration of `null` alone is a closed `Enum` with no member
-    behind a nullable reference ([enums](./enums.md#the-empty-enum)). The OpenAPI compiler had
-    lowered a `null` beside members of several kinds to a `null` `Literal` variant as well as a
-    nullable reference, and `null` alone to a union of that one variant. A consumer pinned to 0.46.0
-    finds no `null` variant where it read one.
+  - A `null` is no `Enum` member, no variant of the `Union` an enumeration lowers to and no
+    `Literal`'s value, but its reference's `Nullable` bit, so an enumeration of `null` alone and a
+    constant of `null` are each a closed `Enum` with no member behind a nullable reference
+    ([enums](./enums.md#the-empty-enum), [containers](./containers.md#literals)). The OpenAPI
+    compiler had lowered a `null` beside members of several kinds to a `null` `Literal` variant as
+    well as a nullable reference, `null` alone to a union of that one variant, and `const: null` to
+    a `null` `Literal`. A consumer pinned to 0.46.0 finds no `null` variant or `Literal` where it
+    read one.
   - An `Enum`'s `ValueType` is a primitive every member is a value of. The OpenAPI compiler had
     taken a declared `type` the members are not values of, a `type: integer` over strings among
     them; it now takes the members' primitive and keeps the type verbatim.
