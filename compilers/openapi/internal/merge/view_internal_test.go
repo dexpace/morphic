@@ -25,10 +25,11 @@ func viewRegistry() map[ir.TypeID]ir.TypeDef {
 	}
 	described := func(d string) ir.TypeCommon { return ir.TypeCommon{Docs: ir.Docs{Description: d}} }
 	kept := func(key, v string) ir.Unmodeled { return ir.Unmodeled{key: {Value: ir.RawValue(v)}} }
-	reg["t/E"] = &ir.Enum{ID: "t/E", Anonymous: true, Provenance: ptrAt("/E"), ValueType: ir.PrimString, Sensitive: true,
+	reg["t/E"] = &ir.Enum{ID: "t/E", Anonymous: true, Provenance: ptrAt("/E"), ValueType: ir.PrimString, Sensitive: true, Closed: true,
 		Docs: ir.Docs{Description: "e"}, Unmodeled: kept("openapi:x-e", "1"),
 		Members: []ir.EnumMember{{ID: "e/E/s:a", Value: str("a")}, {ID: "e/E/s:bb", Value: str("bb")}}}
 	reg["t/C"] = &ir.Literal{ID: "t/C", Value: str("abc")}
+	reg["t/OE"] = &ir.Enum{ID: "t/OE", ValueType: ir.PrimString, Members: []ir.EnumMember{{ID: "e/OE/s:a", Value: str("a")}}}
 	reg["t/S"] = &ir.Scalar{ID: "t/S", Base: &ir.TypeRef{Target: "t/prim/string"}, Docs: ir.Docs{Description: "s"},
 		Constraints: &ir.Constraints{MaxLength: new(int64(5))}}
 	reg["t/L"] = &ir.List{ID: "t/L", Elem: primRef(ir.PrimInt32), Constraints: &ir.Constraints{MinItems: new(int64(1))}}
@@ -43,6 +44,9 @@ func viewRegistry() map[ir.TypeID]ir.TypeDef {
 	alias("t/E-max", "t/E", ir.TypeCommon{}, &ir.Constraints{MaxLength: new(int64(2))})
 	alias("t/E-cut", "t/E", ir.TypeCommon{}, &ir.Constraints{MaxLength: new(int64(1))})
 	alias("t/E-pattern", "t/E", ir.TypeCommon{}, &ir.Constraints{Pattern: "^a"})
+	alias("t/OE-max", "t/OE", ir.TypeCommon{}, &ir.Constraints{MaxLength: new(int64(2))})
+	alias("t/OE-docs", "t/OE", described("near"), nil)
+	alias("t/E-docs-title", "t/E-docs", ir.TypeCommon{Docs: ir.Docs{Summary: "title", ExternalDocs: []ir.Link{{URL: "u"}}}}, nil)
 	alias("t/C-docs", "t/C", described("near"), nil)
 	alias("t/C-max", "t/C", ir.TypeCommon{}, &ir.Constraints{MaxLength: new(int64(3))})
 	alias("t/C-cut", "t/C", ir.TypeCommon{}, &ir.Constraints{MaxLength: new(int64(2))})
@@ -95,6 +99,11 @@ func TestView_ReadsAnAliasAsTheNodeItStandsFor(t *testing.T) {
 	nearest, ok := read("t/E-over-docs").(*ir.Enum)
 	require.True(t, ok)
 	assert.Equal(t, "nearest", nearest.Docs.Description, "over a chain of two, the nearest alias's")
+	assert.Equal(t, ir.Docs{Summary: "title", Description: "near", ExternalDocs: []ir.Link{{URL: "u"}}},
+		read("t/E-docs-title").Common().Docs, "docs read field by field: a title over an alias's description keeps it")
+
+	_, ok = read("t/OE-docs").(*ir.Enum)
+	assert.True(t, ok, "an open enum's alias bounding nothing reads as the enum")
 
 	_, ok = read("t/E-max").(*ir.Enum)
 	assert.True(t, ok, "bounds every member meets say nothing of an enum")
@@ -122,7 +131,7 @@ func TestView_ReadsAnAliasAsTheNodeItStandsFor(t *testing.T) {
 	assert.Nil(t, tuple.Constraints, "a chain bounding nothing adds no bounds")
 
 	for _, id := range []ir.TypeID{
-		"t/E-cut", "t/E-pattern", "t/C-cut", "t/S-pattern-b", "t/L-encoded", "t/L-ref", "t/Ref-docs",
+		"t/E-cut", "t/E-pattern", "t/OE-max", "t/C-cut", "t/S-pattern-b", "t/L-encoded", "t/L-ref", "t/Ref-docs",
 		"t/Model-docs", "t/gone", "t/gone-deep", "t/S", "t/E", "t/prim/string",
 	} {
 		td, _ := r.resolve(id)
@@ -200,30 +209,61 @@ func TestAliasedNode_ReadsAChainUpToItsBound(t *testing.T) {
 		_, isList := r.view(reg[next], "").(*ir.List)
 
 		assert.Equal(t, tc.read, isList, tc.name)
-		assert.Equal(t, tc.read, r.standsFor(reg[next], "t/L"), "%s: standsFor reads as far", tc.name)
+		assert.Equal(t, tc.read, r.standsFor(reg[next], "t/L", 0) == relANarrower, "%s: standsFor reads as far", tc.name)
 	}
 }
 
 // TestStandsFor_ReadsOnlyAnAliasChain pins which types an alias stands for: each
-// node its chain names, and nothing for a node that is no alias, a chain naming
-// nothing the registry holds, or a type the chain does not name.
+// node its chain names, within it, but through a link admitting null, which
+// adds null to it alone (the first alias's docs carried at depth 0) or more;
+// and nothing for a node that is no alias, a chain naming nothing the registry
+// holds, or a type the chain does not name.
 func TestStandsFor_ReadsOnlyAnAliasChain(t *testing.T) {
 	t.Parallel()
-	reg := viewRegistry()
+	reg := nullableAliases(viewRegistry())
 	r := registry{resolve: stubResolve(reg)}
 	for _, tc := range []struct {
-		td   ir.TypeID
-		id   ir.TypeID
-		want bool
+		td    ir.TypeID
+		id    ir.TypeID
+		depth int
+		want  relation
 	}{
-		{"t/L-max-docs", "t/L-max", true},
-		{"t/L-max-docs", "t/L", true},
-		{"t/L-max", "t/L-max-docs", false},
-		{"t/L", "t/L", false},
-		{"t/gone", "t/L", false},
-		{"t/S", "t/prim/string", true},
+		{"t/L-max-docs", "t/L-max", 1, relANarrower},
+		{"t/L-max-docs", "t/L", 1, relANarrower},
+		{"t/L-max", "t/L-max-docs", 0, relUnrelated},
+		{"t/L", "t/L", 0, relUnrelated},
+		{"t/gone", "t/L", 0, relUnrelated},
+		{"t/S", "t/prim/string", 0, relANarrower},
+		{"t/L-null", "t/L", 1, relBNarrower},
+		{"t/L-null-docs", "t/L", 0, relBNarrower},
+		{"t/L-null-docs", "t/L", 1, relUnrelated},
+		{"t/L-null-max", "t/L", 0, relUnrelated},
+		{"t/L-over-null", "t/L", 0, relBNarrower},
+		{"t/L-over-null", "t/L", 1, relUnrelated},
+		{"t/L-over-null", "t/L-null", 1, relANarrower},
+		{"t/L-over-null-docs", "t/L", 0, relUnrelated},
 	} {
-		assert.Equal(t, tc.want, r.standsFor(reg[tc.td], tc.id), "%s for %s", tc.td, tc.id)
+		assert.Equal(t, tc.want, r.standsFor(reg[tc.td], tc.id, tc.depth), "%s for %s at %d", tc.td, tc.id, tc.depth)
 	}
-	assert.Empty(t, cmp.Diff(viewRegistry(), reg), "reading writes to no node")
+	assert.True(t, r.nullThroughChain(reg["t/L-over-null"]), "a link past the first admits null")
+	assert.False(t, r.nullThroughChain(reg["t/L-max-docs"]))
+	assert.False(t, r.nullThroughChain(reg["t/L"]), "no alias")
+	assert.Empty(t, cmp.Diff(nullableAliases(viewRegistry()), reg), "reading writes to no node")
+}
+
+// nullableAliases adds to reg aliases of t/L whose chains admit null: one adding
+// null alone, one adding docs, one adding a bound, and one over each of the
+// first two.
+func nullableAliases(reg map[ir.TypeID]ir.TypeDef) map[ir.TypeID]ir.TypeDef {
+	nullable := func(id ir.TypeID, c ir.TypeCommon, bounds *ir.Constraints) {
+		c.ID = id
+		reg[id] = &ir.Scalar{TypeCommon: c, Base: &ir.TypeRef{Target: "t/L", Nullable: true}, Constraints: bounds}
+	}
+	nullable("t/L-null", ir.TypeCommon{}, nil)
+	nullable("t/L-null-docs", ir.TypeCommon{Docs: ir.Docs{Description: "near"}}, nil)
+	nullable("t/L-null-max", ir.TypeCommon{}, &ir.Constraints{MaxItems: new(int64(3))})
+	reg["t/L-over-null"] = &ir.Scalar{ID: "t/L-over-null", Base: &ir.TypeRef{Target: "t/L-null"},
+		Docs: ir.Docs{Description: "over"}}
+	reg["t/L-over-null-docs"] = &ir.Scalar{ID: "t/L-over-null-docs", Base: &ir.TypeRef{Target: "t/L-null-docs"}}
+	return reg
 }

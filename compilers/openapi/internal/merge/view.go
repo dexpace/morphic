@@ -98,10 +98,12 @@ func (r registry) links(td ir.TypeDef) []ir.TypeID {
 }
 
 // chainBounds returns the bounds end and every alias of chain say together, and
-// false where two say a keyword no one value states. An enum or a const holds
-// none: bounds every value it lists meets say nothing of it, and false is
+// false where two say a keyword no one value states. A closed enum or a const
+// holds none: bounds every value it lists meets say nothing of it, and false is
 // returned where they cut a value or have no judge (admitsConstraints), since
-// the node they leave lists values none of its declarations do.
+// the node they leave lists values none of its declarations do. An open enum's
+// bounds also constrain the values it does not list, which no node of its kind
+// holds, so false is returned for any.
 func chainBounds(chain []*ir.Scalar, end ir.TypeDef) (*ir.Constraints, bool) {
 	bounds := boundsOf(end)
 	for _, s := range chain {
@@ -116,6 +118,9 @@ func chainBounds(chain []*ir.Scalar, end ir.TypeDef) (*ir.Constraints, bool) {
 	}
 	switch n := end.(type) {
 	case *ir.Enum:
+		if !n.Closed && !sameBounds(bounds, nil) {
+			return nil, false
+		}
 		return nil, !slices.ContainsFunc(n.Members, func(m ir.EnumMember) bool {
 			return !admitsConstraints(bounds, m.Value, 0)
 		})
@@ -127,10 +132,10 @@ func chainBounds(chain []*ir.Scalar, end ir.TypeDef) (*ir.Constraints, bool) {
 }
 
 // chainCommon returns the TypeCommon a reference to chain's first alias reads:
-// each field the nearest of chain and end sets, a redaction where any asks for
-// it, and every Unmodeled key, the nearest keeping it giving it. It holds the
-// first alias's site but for the ID, end's, beneath which an enum's members are
-// named, and writes to no node.
+// each field the nearest of chain and end sets, the documentation field by field
+// (nearerDocs), a redaction where any asks for it, and every Unmodeled key, the
+// nearest keeping it giving it. It holds the first alias's site but for the ID,
+// end's, beneath which an enum's members are named, and writes to no node.
 func chainCommon(chain []*ir.Scalar, end ir.TypeDef) ir.TypeCommon {
 	c := *end.Common()
 	id := c.ID
@@ -138,14 +143,14 @@ func chainCommon(chain []*ir.Scalar, end ir.TypeDef) ir.TypeCommon {
 	out := reflect.ValueOf(&c).Elem()
 	for _, s := range slices.Backward(chain) {
 		near := s.TypeCommon
-		kept := c.Unmodeled
+		kept, docs := c.Unmodeled, nearerDocs(c.Docs, near.Docs)
 		said := reflect.ValueOf(near)
 		for i := range out.NumField() {
 			if f := said.Field(i); !f.IsZero() {
 				out.Field(i).Set(f)
 			}
 		}
-		c.Unmodeled = kept
+		c.Unmodeled, c.Docs = kept, docs
 		for key, entry := range near.Unmodeled {
 			if c.Unmodeled == nil {
 				c.Unmodeled = ir.Unmodeled{}
@@ -156,6 +161,22 @@ func chainCommon(chain []*ir.Scalar, end ir.TypeDef) ir.TypeCommon {
 	site := chain[0].TypeCommon
 	c.ID, c.Name, c.Anonymous, c.Provenance = id, site.Name, site.Anonymous, site.Provenance
 	return c
+}
+
+// nearerDocs returns far with each field near sets in its place, a description
+// and its Refs as one, as a reference carries documentation down to its use
+// (docs/ir/annotations.md#what-a-reference-carries-down).
+func nearerDocs(far, near ir.Docs) ir.Docs {
+	if near.Summary != "" {
+		far.Summary = near.Summary
+	}
+	if near.Description != "" {
+		far.Description, far.Refs = near.Description, near.Refs
+	}
+	if len(near.ExternalDocs) > 0 {
+		far.ExternalDocs = near.ExternalDocs
+	}
+	return far
 }
 
 // viewOf returns a copy of end holding what a reference to chain's first alias
@@ -193,23 +214,50 @@ func viewOf(end ir.TypeDef, chain []*ir.Scalar, bounds *ir.Constraints) (ir.Type
 	}
 }
 
-// standsFor reports whether td is an alias whose chain reaches id: every value
-// of td is one of id's, and a reference to td reads all id says where td says
-// nothing else, so td is within the type id names.
-func (r registry) standsFor(td ir.TypeDef, id ir.TypeID) bool {
+// standsFor relates td, at depth, to the type id names where td is an alias
+// whose chain reaches id: a reference to td reads all id says, and td may say
+// more, so td is within it (relANarrower), unless a link admits null, which id
+// lacks. Such a chain whose every alias says nothing else (aliasSaysNothing, the
+// first as topAt reads it) adds only null, so id is within td (relBNarrower);
+// any other is relUnrelated, for the view to judge, as is a td whose chain does
+// not reach id.
+func (r registry) standsFor(td ir.TypeDef, id ir.TypeID, depth int) relation {
+	carried, null, says := depth == 0, false, false
 	for range maxTypeResolveDepth {
 		s, alias := td.(*ir.Scalar)
 		if !alias || s.Base == nil {
-			return false
+			return relUnrelated
 		}
+		null, says = null || s.Base.Nullable, says || !aliasSaysNothing(s, carried)
 		if s.Base.Target == id {
-			return true
+			return addsNull(null, says)
 		}
 		next, ok := r.resolve(s.Base.Target)
 		if !ok {
-			return false
+			return relUnrelated
 		}
-		td = next
+		td, carried = next, false
 	}
-	return false
+	return relUnrelated
+}
+
+// addsNull relates an alias chain to the type it reaches by what it adds: one
+// admitting no null is within the type, one adding null alone holds it, and one
+// adding null and more is related to it by neither.
+func addsNull(null, says bool) relation {
+	switch {
+	case !null:
+		return relANarrower
+	case !says:
+		return relBNarrower
+	default:
+		return relUnrelated
+	}
+}
+
+// nullThroughChain reports whether a link of td's alias chain admits null, so
+// td's values hold null whatever a reference to it says.
+func (r registry) nullThroughChain(td ir.TypeDef) bool {
+	chain, _ := r.aliasChain(td)
+	return slices.ContainsFunc(chain, func(s *ir.Scalar) bool { return s.Base.Nullable })
 }

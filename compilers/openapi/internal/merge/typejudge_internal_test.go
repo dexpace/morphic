@@ -242,6 +242,8 @@ func aliasesOverNodes(reg map[ir.TypeID]ir.TypeDef) {
 	alias("t/alias-list-i32-min-doc", "t/list-i32-min", nil)
 	alias("t/alias-time-ref", "t/scalar-time", nil)
 	reg["t/alias-time-ref"].Common().Unmodeled = ir.Unmodeled{"openapi:not": {Value: ir.RawValue(`{"$ref":"n.json"}`)}}
+	reg["t/alias-enum-str-null"] = &ir.Scalar{ID: "t/alias-enum-str-null",
+		Base: &ir.TypeRef{Target: "t/enum-str", Nullable: true}}
 	reg["t/enum-str-closed"] = &ir.Enum{ID: "t/enum-str-closed", ValueType: ir.PrimString, Closed: true,
 		Members: []ir.EnumMember{{Value: str("a")}}}
 	reg["t/alias-list-i32-min-doc"].Common().Docs = ir.Docs{Description: "d"}
@@ -436,6 +438,9 @@ func TestTypeJudge_RelateArms(t *testing.T) {
 		{"two aliases of one list saying it otherwise, judged as two scalars", "t/alias-list-i32-min", "t/alias-list-i32-min-doc", relUnrelated},
 		{"a time against an alias of a time scalar the view cannot read", "t/lit-time", "t/alias-time-ref", relOverlap},
 		{"two enums differing in closedness", "t/enum-str", "t/enum-str-closed", relOverlap},
+		{"an alias of the top type against the top it stands for", "t/alias-doc-scalar-any", "t/scalar-any", relANarrower},
+		{"an alias adding null to an enum against the enum", "t/alias-enum-str-null", "t/enum-str", relBNarrower},
+		{"an alias adding null to an enum against a kind holding it", "t/alias-enum-str-null", prim(ir.PrimString), relOverlap},
 	} {
 		want := tc.want
 		assert.Equal(t, want, j.relate(ref(tc.a), ref(tc.b)), tc.name)
@@ -451,6 +456,11 @@ func TestTypeJudge_RelateArms(t *testing.T) {
 	nullInt.Nullable = true
 	assert.Equal(t, relANarrower, j.relate(ref("t/lit-null"), nullInt), "a null literal against a nullable integer")
 	assert.Equal(t, relBNarrower, j.relate(nullInt, ref("t/lit-null")), "a nullable integer against a null literal")
+
+	nullString := primRef(ir.PrimString)
+	nullString.Nullable = true
+	assert.Equal(t, relANarrower, j.relate(ref("t/alias-enum-str-null"), nullString),
+		"an alias admitting null within a kind whose reference admits null too")
 
 	nullTime := ref("t/scalar-time")
 	nullTime.Nullable = true

@@ -100,9 +100,9 @@ type declarationSites struct {
 // The winner never depends on which is which: swapping the arguments, and
 // written's two pointers with them, flips a narrowing and leaves any other
 // verdict as it was. The arms, in order: the same target; a degraded Any node,
-// which is unrelated to every type; the top type, or an alias read as it
-// (topAt), which loses to anything else; then arms, and classify for a pair
-// arms leaves unrelated.
+// unrelated to every type; the top type, or an alias read as it (topAt), losing
+// to anything but another; then arms, or classify where arms finds nothing,
+// read for null (heldNull).
 func (j typeJudge) relateFrom(a, b ir.TypeRef, depth int) relation {
 	j.modelPairs = modelPairs()
 	return j.relateAt(a, b, depth)
@@ -126,20 +126,39 @@ func (j typeJudge) relateAt(a, b ir.TypeRef, depth int) relation {
 	}
 	aTop, bTop := j.topAt(at, depth), j.topAt(bt, depth)
 	switch {
+	case aTop && bTop:
+		// Neither loses for being the top type; what else each says decides.
 	case aTop:
 		return relBNarrower
 	case bTop:
 		return relANarrower
 	}
-	if rel := j.arms(a, at, b, bt, depth); rel != relUnrelated {
+	rel := j.arms(a, at, b, bt, depth)
+	if rel == relUnrelated {
+		rel = j.classify(a, at, b, bt, depth)
+	}
+	return j.heldNull(a, at, b, bt, rel)
+}
+
+// heldNull returns rel but where it puts a type admitting null through its alias
+// chain (nullThroughChain) within one whose reference admits none: a field
+// holding that type would admit null the other refuses, whatever the field's
+// reference says, so the two overlap.
+func (j typeJudge) heldNull(a ir.TypeRef, at ir.TypeDef, b ir.TypeRef, bt ir.TypeDef, rel relation) relation {
+	switch {
+	case rel == relANarrower && !b.Nullable && j.nullThroughChain(at):
+		return relOverlap
+	case rel == relBNarrower && !a.Nullable && j.nullThroughChain(bt):
+		return relOverlap
+	default:
 		return rel
 	}
-	return j.classify(a, at, b, bt, depth)
 }
 
 // arms relates two resolved types, neither the top type nor degraded, that it
 // can narrow: two bare primitives (spelling.Relate); a Scalar, Enum or Literal
-// against a bare primitive; an alias against the type it stands for (standsFor);
+// against a bare primitive; an alias against the type it stands for, by what it
+// adds (standsFor);
 // then each as the node it stands for (view): two identical such nodes; two
 // literals of different values, disjoint; two enums (enums); two models alike
 // (models); two nodes holding bounds (boundedNodes), two alike in every member
@@ -148,7 +167,7 @@ func (j typeJudge) relateAt(a, b ir.TypeRef, depth int) relation {
 func (j typeJudge) arms(a ir.TypeRef, at ir.TypeDef, b ir.TypeRef, bt ir.TypeDef, depth int) relation {
 	ap, aBare := at.(*ir.Primitive)
 	bp, bBare := bt.(*ir.Primitive)
-	aFor, bFor := j.standsFor(at, b.Target), j.standsFor(bt, a.Target)
+	aFor, bFor := j.standsFor(at, b.Target, depth), j.standsFor(bt, a.Target, depth).flipped()
 	switch {
 	case aBare && bBare:
 		return fromSpelling(spelling.Relate(ap.Prim, bp.Prim))
@@ -156,10 +175,10 @@ func (j typeJudge) arms(a ir.TypeRef, at ir.TypeDef, b ir.TypeRef, bt ir.TypeDef
 		return j.nodeAgainstBare(a, at, b, bp.Prim)
 	case aBare:
 		return j.nodeAgainstBare(b, bt, a, ap.Prim).flipped()
-	case aFor && !bFor:
-		return relANarrower
-	case bFor && !aFor:
-		return relBNarrower
+	case aFor != relUnrelated && bFor == relUnrelated:
+		return aFor
+	case bFor != relUnrelated && aFor == relUnrelated:
+		return bFor
 	}
 	stop := j.sharedLink(at, bt)
 	at, bt = j.view(at, stop), j.view(bt, stop)

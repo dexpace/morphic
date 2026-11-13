@@ -1574,7 +1574,9 @@ this order.
 unconvertible const), which is unrelated to every type, and so does an alias of `{}` that says
 nothing of its values: as a field's own type it may hold the docs, deprecation and redaction a
 reference carries down to the field ([annotations](../ir/annotations.md#what-a-reference-carries-down)),
-and anywhere else nothing but where it was declared. Where `{}` loses, the winner's own null
+and anywhere else nothing but where it was declared. Two such types lose to neither: what else each
+says decides, so an alias of one is narrower than the other it stands for, and two aliases neither
+standing for the other are not compared. Where `{}` loses, the winner's own null
 admission stands alone, since `{}` admits null yet lowers non-nullable. Two bare primitives compare
 by value domain and spelling (`integer` against `number`, `uuid` against `string`, `int32` against
 `int64`). A `Scalar` or `Enum` against a bare primitive wins over a kind it equals or narrows
@@ -1630,15 +1632,23 @@ composes as two models do (below). One judgment compares at most 64 pairs of mod
 member, since a `$ref` to a sibling position adds width at no cost in document size; past that the
 two are unrelated and compose, which loses nothing.
 An alias is narrower than the type it stands for, whatever its kind: a reference to it reads all
-that type says, and it may say more. Against any other type, an alias whose chain ends in an enum, a
-`const`, a `Scalar`, a list, a map or a tuple is judged, and a node it meets built, as that node
-holding the bounds the chain and the node say together and each detail the nearest of them sets, as
-a reference to the alias reads it. So `{$ref: E, description: d}` and an `allOf` of `E`
-alone each meet an enum beside them as `E` would, holding what they add. Two aliases of one node are
-read only down to it, so they are judged as two `Scalar`s of one base are, and meet in an alias of
-it. A chain giving an encoding, bounds no one value states, bounds that a value an enum or a
-`const` lists fails or that nothing here judges, such as a `pattern` on one, or keeping a relative
-`$ref` under `Unmodeled` is judged as it is written.
+that type says, and it may say more. One whose chain admits null, as `{anyOf: [E, {type: null}]}`
+does, is not, since `E` refuses null: where the chain adds nothing else, `E` is narrower, and the
+field holds `E` (as a field's own type the first alias may hold what a reference carries down), and
+otherwise the two are judged as below. Against any other type, an alias whose chain ends in an enum,
+a `const`, a `Scalar`, a list, a map or a tuple is judged, and a node it meets built, as that node
+holding the bounds the chain and the node say together and each detail the nearest of them sets,
+documentation field by field, as a reference to the alias reads it
+([annotations](../ir/annotations.md#what-a-reference-carries-down)). So `{$ref: E, description: d}`
+and an `allOf` of `E` alone each meet an enum beside them as `E` would, holding what they add, and
+a title over an alias holding a description keeps both. Two aliases of one node are read only down
+to it, so they are judged as two `Scalar`s of one base are, and meet in an alias of it. A chain
+giving an encoding, bounds no one value states, bounds that a value an enum or a `const` lists fails
+or that nothing here judges, such as a `pattern` on one, any bound on an open enum, which bounds the
+values it does not list too, or keeping a relative `$ref` under `Unmodeled` is judged as it is
+written. Whatever the arm, a type admitting null through its alias chain is narrower than no type
+whose reference refuses null, since a field holding it would admit null all the same: the two
+overlap.
 Two lists, two maps with one key, or two tuples of one length are judged by their parts: each
 element, value or position, with what may follow a tuple's last, judged as a pair a level down, null
 included, nested up to a bound; their bounds, a keyword with no order (`pattern`) given two ways
@@ -1946,6 +1956,7 @@ field's first 64 at most; each later one is kept verbatim, unjudged, under an
   `merge.TestFold_AnAliasIsWithinTheNodeItStandsFor`,
   `schema.TestAllOf_AnAliasMeetsAsTheNodeItStandsFor`,
   `schema.TestAllOf_AMemberBehindAnAliasIsJudgedByWhatItStandsFor`,
+  `schema.TestAllOf_AnAliasIsJudgedByWhatItAdds`,
   `merge.TestUnaliased_ReadsAChainUpToItsBound`,
   `merge.TestComposes_ReadsAChainUpToItsBound`,
   `merge.TestComposes_ReadsEachPartOnce`,
