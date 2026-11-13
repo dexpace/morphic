@@ -4367,8 +4367,10 @@ string's text, or with a boolean's or a number's JSON, so `true` lists both `tru
 value it lists states the fact, and any other states nothing. That other value is reported as an
 info `openapi/degraded-construct` at the key, unless another target reads the same member of the
 key, whose reading then decides what it is: a key spelling openness `allow` or `disallow`, listed
-`allow`, reads `disallow` as closed and reports `alow`. A source with no list reads its target's own
-vocabulary, as below.
+`allow`, opens an enum on `allow` alone and reports `disallow` as it reports a misspelt `alow`, while
+the default's `x-stability`, listed `deprecated` for a deprecation, leaves a `true` to the stability
+reading of the same key, which reports it. A source with no list reads its target's own vocabulary,
+as below.
 
 A policy that would read less than it says is refused when the compile starts, as a Go error and no
 diagnostic, since the mistake is the caller's and not the document's: a target outside the
@@ -4467,7 +4469,9 @@ that names its key. The union a mixed `enum` lowers to ([`enum-const`](#enum-con
 `enum.open` instead, as the enum would, since a target names what the document writes, whatever
 node holds it: `x-extensible-enum` opens it under the default mapping, a `union.open` key does not,
 and on a `oneOf` the enum's key opens nothing. Each node reads one target, so no fact is read twice,
-where one reading could override what the other reports.
+where one reading could override what the other reports. No default source lists the values
+stating openness, as no key spelling it by a word has become common: a mapping naming one lists
+them, and reads any other value as closed and reports it.
 
 `Server.Name` reads `x-fern-server-name` on a server its document names in no other way, as no
 server below 3.2 can be named: a 3.2 `name` is the document's own and the key does not override it.
@@ -4620,7 +4624,9 @@ not read.
 ### `pagination-policy`
 
 Pagination is set only by an injectable policy, and what it sets is marked `Inferred` (invariant 6):
-the compiler reads no pagination out of a document's parameter or response names by itself.
+the compiler reads no pagination out of a document's parameter or response names by itself. A
+pagination an extension declares ([`extension-pagination`](#extension-pagination)) is the
+document's own statement of the walk, so a policy inferring one reads no operation holding it.
 
 - Status: not built: no policy infers pagination yet, so the compiler sets a `Pagination` only
   where an extension declares one ([`extension-pagination`](#extension-pagination)) (#989).
