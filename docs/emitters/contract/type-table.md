@@ -253,12 +253,13 @@ value as its primitive's default row does unless the target's lowering table say
   an integer type and Smithy a number with a fraction, no compiler lowers either, and what each puts
   in `WireType` decides what a row writes. Until one does, the lookup above types such a value as
   its `WireType`, a `datetime_offset` under `unixTimestamp` as the `int64` of seconds its caller
-  fills, which is written right. A number under `string`, written as the text of its value, has
-  none either, so an `int64` carried as text is a string its caller fills, written as given. A value so typed is checked against none of its constraints, which
-  speak of the value and not of its wire form, as a mapped type's are not. `varint`, `zigzag` and
-  `fixed` name a binary layout, which no JSON value or text shows, so the number's own row writes
-  one. A row added for an encoding at a later options version types its values anew, which is that
-  version's break to state ([target options](options.md)).
+  fills, which is written right. A number under `string`, written as the text of its value, has none
+  either (#1852), so an `int64` carried as text is a string its caller fills, written as given. A
+  value so typed is checked against none of its constraints, which speak of the value and not of its
+  wire form, as a mapped type's are not. `varint`, `zigzag` and `fixed` name a binary layout, which
+  no JSON value or text shows, so the number's own row writes one. A row added for an encoding at a
+  later options version types its values anew, which is that version's break to state ([target
+  options](options.md)).
 - **A string under an encoding** naming no `WireType` is the encoded text already, as OpenAPI's
   `contentEncoding` beside no `format` lowers it
   ([`content-vocabulary`](../../compilers/openapi.md#content-vocabulary)), so its key's row never
