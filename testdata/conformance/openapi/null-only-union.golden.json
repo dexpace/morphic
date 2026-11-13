@@ -60,7 +60,7 @@
   ],
   "types": {
     "t/openapi/components/schemas/AnyOfNull": {
-      "kind": "scalar",
+      "kind": "enum",
       "id": "t/openapi/components/schemas/AnyOfNull",
       "name": {
         "source": "AnyOfNull",
@@ -87,13 +87,12 @@
         "source": 0,
         "pointer": "/components/schemas/AnyOfNull"
       },
-      "base": {
-        "target": "t/prim/any",
-        "nullable": true
-      }
+      "valueType": "any",
+      "closed": true,
+      "flags": false
     },
     "t/openapi/components/schemas/AnyOfTwoNull": {
-      "kind": "scalar",
+      "kind": "enum",
       "id": "t/openapi/components/schemas/AnyOfTwoNull",
       "name": {
         "source": "AnyOfTwoNull",
@@ -123,13 +122,12 @@
         "source": 0,
         "pointer": "/components/schemas/AnyOfTwoNull"
       },
-      "base": {
-        "target": "t/prim/any",
-        "nullable": true
-      }
+      "valueType": "any",
+      "closed": true,
+      "flags": false
     },
     "t/openapi/components/schemas/BothNull": {
-      "kind": "scalar",
+      "kind": "enum",
       "id": "t/openapi/components/schemas/BothNull",
       "name": {
         "source": "BothNull",
@@ -168,13 +166,167 @@
         "source": 0,
         "pointer": "/components/schemas/BothNull"
       },
-      "base": {
-        "target": "t/prim/any",
-        "nullable": true
-      }
+      "valueType": "any",
+      "closed": true,
+      "flags": false
+    },
+    "t/openapi/components/schemas/Holder": {
+      "kind": "model",
+      "id": "t/openapi/components/schemas/Holder",
+      "name": {
+        "source": "Holder",
+        "canonical": "holder"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Holder"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/Holder/properties/anyOfNull",
+          "name": {
+            "source": "anyOfNull",
+            "canonical": "any_of_null"
+          },
+          "wireName": "anyOfNull",
+          "type": {
+            "target": "t/openapi/components/schemas/AnyOfNull",
+            "nullable": true
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Holder/properties/anyOfNull"
+          }
+        },
+        {
+          "id": "p/openapi/components/schemas/Holder/properties/oneOfNull",
+          "name": {
+            "source": "oneOfNull",
+            "canonical": "one_of_null"
+          },
+          "wireName": "oneOfNull",
+          "type": {
+            "target": "t/openapi/components/schemas/OneOfNull",
+            "nullable": true
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Holder/properties/oneOfNull"
+          }
+        },
+        {
+          "id": "p/openapi/components/schemas/Holder/properties/anyOfTwoNull",
+          "name": {
+            "source": "anyOfTwoNull",
+            "canonical": "any_of_two_null"
+          },
+          "wireName": "anyOfTwoNull",
+          "type": {
+            "target": "t/openapi/components/schemas/AnyOfTwoNull",
+            "nullable": true
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Holder/properties/anyOfTwoNull"
+          }
+        },
+        {
+          "id": "p/openapi/components/schemas/Holder/properties/bothNull",
+          "name": {
+            "source": "bothNull",
+            "canonical": "both_null"
+          },
+          "wireName": "bothNull",
+          "type": {
+            "target": "t/openapi/components/schemas/BothNull",
+            "nullable": true
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Holder/properties/bothNull"
+          }
+        },
+        {
+          "id": "p/openapi/components/schemas/Holder/properties/otherSpellings",
+          "name": {
+            "source": "otherSpellings",
+            "canonical": "other_spellings"
+          },
+          "wireName": "otherSpellings",
+          "type": {
+            "target": "t/openapi/components/schemas/OtherSpellings",
+            "nullable": true
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Holder/properties/otherSpellings"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
     },
     "t/openapi/components/schemas/OneOfNull": {
-      "kind": "scalar",
+      "kind": "enum",
       "id": "t/openapi/components/schemas/OneOfNull",
       "name": {
         "source": "OneOfNull",
@@ -201,22 +353,46 @@
         "source": 0,
         "pointer": "/components/schemas/OneOfNull"
       },
-      "base": {
-        "target": "t/prim/any",
-        "nullable": true
-      }
+      "valueType": "any",
+      "closed": true,
+      "flags": false
     },
-    "t/prim/any": {
-      "kind": "primitive",
-      "id": "t/prim/any",
-      "name": {},
+    "t/openapi/components/schemas/OtherSpellings": {
+      "kind": "enum",
+      "id": "t/openapi/components/schemas/OtherSpellings",
+      "name": {
+        "source": "OtherSpellings",
+        "canonical": "other_spellings"
+      },
       "anonymous": false,
       "docs": {},
       "sensitive": false,
-      "provenance": {
-        "source": -1
+      "unmodeled": {
+        "openapi:oneOf": {
+          "reason": "degraded_lowering",
+          "value": [
+            {
+              "enum": [
+                null
+              ]
+            },
+            {
+              "const": null
+            }
+          ],
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/OtherSpellings/oneOf"
+          }
+        }
       },
-      "prim": "any"
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/OtherSpellings"
+      },
+      "valueType": "any",
+      "closed": true,
+      "flags": false
     }
   },
   "servers": {
@@ -236,7 +412,7 @@
     {
       "severity": "info",
       "code": "openapi/degraded-construct",
-      "message": "every branch admits only the null value, so this position lowered as nullable any; anyOf kept verbatim under Unmodeled",
+      "message": "every branch admits only the null value, so this position lowered as an enum with no member behind a nullable reference; anyOf kept verbatim under Unmodeled",
       "provenance": {
         "source": 0,
         "pointer": "/components/schemas/AnyOfNull"
@@ -245,7 +421,7 @@
     {
       "severity": "info",
       "code": "openapi/degraded-construct",
-      "message": "every branch admits only the null value, so this position lowered as nullable any; oneOf kept verbatim under Unmodeled",
+      "message": "every branch admits only the null value, so this position lowered as an enum with no member behind a nullable reference; oneOf kept verbatim under Unmodeled",
       "provenance": {
         "source": 0,
         "pointer": "/components/schemas/OneOfNull"
@@ -254,7 +430,7 @@
     {
       "severity": "info",
       "code": "openapi/degraded-construct",
-      "message": "every branch admits only the null value, so this position lowered as nullable any; anyOf kept verbatim under Unmodeled",
+      "message": "every branch admits only the null value, so this position lowered as an enum with no member behind a nullable reference; anyOf kept verbatim under Unmodeled",
       "provenance": {
         "source": 0,
         "pointer": "/components/schemas/AnyOfTwoNull"
@@ -263,10 +439,19 @@
     {
       "severity": "info",
       "code": "openapi/degraded-construct",
-      "message": "every branch admits only the null value, so this position lowered as nullable any; oneOf and anyOf kept verbatim under Unmodeled",
+      "message": "every branch admits only the null value, so this position lowered as an enum with no member behind a nullable reference; oneOf and anyOf kept verbatim under Unmodeled",
       "provenance": {
         "source": 0,
         "pointer": "/components/schemas/BothNull"
+      }
+    },
+    {
+      "severity": "info",
+      "code": "openapi/degraded-construct",
+      "message": "every branch admits only the null value, so this position lowered as an enum with no member behind a nullable reference; oneOf kept verbatim under Unmodeled",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/OtherSpellings"
       }
     }
   ],
@@ -274,7 +459,7 @@
     {
       "format": "openapi@3.1",
       "path": "null-only-union.yaml",
-      "hash": "d9236f057b2a86756d7f39170f69d2a2c685d20adf0f7bc032a795fc4a6ceed5"
+      "hash": "435558d2bdb2a706f22b4ea55b4442b1a5f89d31371ed3da9e4c0877a1b3adf3"
     }
   ]
 }
