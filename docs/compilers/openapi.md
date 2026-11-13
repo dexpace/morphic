@@ -479,8 +479,8 @@ them all: a `$ref` to an inline content entry reaches it, as one to an inline pa
 the parser faults building a reference from is reported once, as an `openapi/validation` error where
 it is written, and lowers nothing.
 
-A schema `$ref`, and a discriminator mapping value spelled as one, is bound by the compiler itself,
-never by the parser's resolver
+A schema `$ref`, and a discriminator mapping value naming no schema component of the entry document
+([`discriminator`](#discriminator)), is bound by the compiler itself, never by the parser's resolver
 ([`schema-cycle-overflow`](../parser-library.md#schema-cycle-overflow)), and the answer depends on
 nothing read before it. It is read against the base URI of the schema resource it is written in
 (JSON Schema 2020-12 §8.2.1): the document, for a schema under no `$id`, as OAS 3.1 reads one, or
@@ -2167,20 +2167,19 @@ The `object` variant holds no `discriminator`, so the census keeps it on the uni
 which holds a type's name and no schema, so no type is its subtype, and every route the
 discriminator takes leads elsewhere: a `mapping` target, the `defaultMapping`, or a component whose
 `allOf` names the schema, which composes the union and keeps it as its `Base`, with the
-`DiscriminatorValue` the discriminator gives it ([`discriminator-value`](#discriminator-value)). The
-object instances the union admits still route by the discriminator, so its targets are resolved as
-[`discriminator`](#discriminator) resolves a model's: each position one names is lowered, and one
-naming no schema is reported as an `openapi/unresolved-ref` error at its entry. A type array listing
-no `object` admits no instance a tag routes, and resolves nothing, as a scalar beside a
-discriminator does. Settling the variant's discriminator by its routes, as one beside a union kept
-verbatim is settled ([`union-beside-structure`](#union-beside-structure)), would keep it only where
-it routes nowhere, and would have to find every component composing the schema to know that. Two
-typed homes lose as well. A subtype's `Base` naming the variant would compose the schema's object
-half where its `allOf` names the schema, and `Base` names what the source wrote
-([composition entries](../ir/models.md#composition-entries)). And `pass/validate` holds a model
-discriminator to `ir.IsSubtype`, the subtype relation every consumer reads: a check stepping from a
-`Union` base into its object variant would part from that relation, and teaching the relation the
-step would change what it means for every document.
+`DiscriminatorValue` the discriminator gives it ([`discriminator-value`](#discriminator-value)). Its
+values are read as every kept discriminator's are ([`discriminator`](#discriminator)): each position
+one names is lowered, and one naming no schema is reported as an `openapi/unresolved-ref` error at
+its entry, whether or not the array lists `object`. Settling the variant's discriminator by its
+routes, as one beside a union kept verbatim is settled
+([`union-beside-structure`](#union-beside-structure)), would keep it only where it routes nowhere,
+and would have to find every component composing the schema to know that. Two typed homes lose as
+well. A subtype's `Base` naming the variant would compose the schema's object half where its `allOf`
+names the schema, and `Base` names what the source wrote ([composition
+entries](../ir/models.md#composition-entries)). And `pass/validate` holds a model discriminator to
+`ir.IsSubtype`, the subtype relation every consumer reads: a check stepping from a `Union` base into
+its object variant would part from that relation, and teaching the relation the step would change
+what it means for every document.
 
 - Cases: `keywords-at-every-outcome`, `type-array-numeric`, `type-array-discriminator`
 - Codes: `openapi/unresolved-ref`
@@ -2190,9 +2189,7 @@ step would change what it means for every document.
   `schema.TestLower_ATypeArrayKeepsItsDiscriminatorOnTheUnion`,
   `schema.TestLower_ATypeArrayResolvesItsDiscriminatorRoutes`
 - Status: partly built: a value bound lands on any variant with a `Constraints` field, whether or
-  not it constrains that variant's type (#1310); and a type array listing no `object`, as every
-  node keeping a discriminator verbatim, reports no target naming nothing (#1662) and lowers no
-  position only a target reaches (#1708).
+  not it constrains that variant's type (#1310).
 
 ### `union-null-variant`
 
@@ -2482,8 +2479,12 @@ asserts, and keeps nothing, and a `type` beside an `allOf` that refines is
 A `discriminator` on a schema that lowers to a `Model` or a `Union` lowers to its `Discriminator`.
 On a `Model` whose own properties include the one `propertyName` names, the tag is that property's
 `PropID`, in `Discriminator.Property`; otherwise, and on every `Union`, it is the name as written,
-in `Discriminator.PropertyName`. Each `mapping` entry lowers to its key and the `TypeID` its target
-lowers to, the target named by reference or by bare schema name, and 3.2's `defaultMapping` to
+in `Discriminator.PropertyName`. A `propertyName` that is the empty string, a legal member name, has
+no spelling there, since an empty `PropertyName` means none, so where no own property of a model
+carries it the node holds no `Discriminator`, and the census keeps the whole object verbatim and
+says why ([`shape-applicator`](#shape-applicator)): a union so written is untagged, and
+[`discriminator-inference`](#discriminator-inference) reads nothing for it. Each `mapping` entry
+lowers to its key and the type its value routes to, and 3.2's `defaultMapping` to
 `Discriminator.Default`. `Inferred` is not set: the document declares the discriminator. OpenAPI
 routes a variant no `mapping` entry routes by the name of the component its `$ref` branch names, its
 implicit mapping, and the IR routes by a variant type's name only where a union's `Mapping` is nil
@@ -2497,36 +2498,79 @@ to `Dog` "rather than the default (implicit) value of Dog"; one the `defaultMapp
 With no `mapping`, and each variant whose branch names a component that component itself, the
 `Mapping` is nil and a union routes each variant by the name of its type, unless
 [`discriminator-inference`](#discriminator-inference) reads it off the tags the variants pin. A
-mapping target that resolves to no schema is reported as an `openapi/unresolved-ref` error at the
-entry, which the `Mapping` leaves out. A subtype the mapping names under several keys — an alias tag
-— takes the smallest in byte order as its `DiscriminatorValue`
-([`discriminator-value`](#discriminator-value)), since the field holds one and a mapping's key order
-is not a property of the document, with every key kept in the base's `Mapping` and the election
-reported as an info `openapi/degraded-construct` at the subtype. A discriminator beside a node that
-routes by none is kept verbatim by [`shape-applicator`](#shape-applicator), and one beside a union
-written with structure is [`union-beside-structure`](#union-beside-structure)'s. A union's mapping
-names a variant, what `pass/discriminator-missing-variant` holds it to and what an emitter routes
-by, so a target naming a type that one variant's branch aliases, for a keyword written beside that
-branch's `$ref`, lowers to that variant. A type two variants alias stays the target, since nothing
-in the mapping says which, and that is reported as any target that is no variant is. A target naming
-a position that writes a `$ref`, other than a component or a variant, is read through to what the
-`$ref` names, whatever is written beside it: an alias there is neither a variant nor a subtype.
+subtype the mapping names under several keys — an alias tag — takes the smallest in byte order as
+its `DiscriminatorValue` ([`discriminator-value`](#discriminator-value)), since the field holds one
+and a mapping's key order is not a property of the document, with every key kept in the base's
+`Mapping` and the election reported as an info `openapi/degraded-construct` at the subtype. A
+discriminator beside a node that routes by none is kept verbatim by
+[`shape-applicator`](#shape-applicator), and one beside a union written with structure is
+[`union-beside-structure`](#union-beside-structure)'s.
+
+A `mapping` value, and a `defaultMapping`, is read as OpenAPI 3.0.4, 3.1.1 and 3.2.0 read it: "The
+`mapping` entry maps a specific property value to either a different schema component name, or to a
+schema identified by a URI", and the behaviour of a value "that is both a valid schema name and a
+valid relative URI reference is implementation-defined, but it is RECOMMENDED that it be treated as a
+schema name". So a value that is the key of a schema component the entry document declares names
+that component, whatever its characters and in whichever document the discriminator is written, as
+OpenAPI recommends resolving a component's name "from the entry document, rather than the current
+document". Any other value is a URI reference written at the discriminator, with a fragment or
+without (`https://example.com/cat`, `./cat.yaml`, `cat.yaml`, `other.yaml#/Cat`,
+`#/components/schemas/Cat`), read as a `$ref` written there is ([`references`](#references)). A value
+that is neither is reported as an `openapi/unresolved-ref` error at its entry, which the `Mapping`
+leaves out, and one holding no `#` says both readings failed. Reading every value as a reference
+first would read a file named `Dog` beside each document writing `dog: Dog`, and reading a value
+shaped like a component's name only as a name would refuse `cat.yaml`, which 3.0.3 and 3.1.0, whose
+text asks for no `./` prefix on a relative reference, let a document write.
+
+From the position a value names, its chain follows each `$ref` in turn, a component's as much as any
+other position's, to the first position writing none, at most 64 `$ref`s, a longer chain stopping
+where the bound reached. A position writing a `$ref` lowers to an alias over what the `$ref` names,
+whatever is written beside it, and an alias is no subtype and no variant, so a route means such a
+position only where a union's variant is that alias. On a `Model` a value routes to the type
+declared where its chain ends, and a subtype's tag is read off the same chains
+([`discriminator-value`](#discriminator-value)). A union's `Mapping` names variants, which is what
+`pass/discriminator-missing-variant` holds it to and what an emitter routes by, so on a `Union` the
+first position of the chain a branch meets decides: the variant whose branch is that position or
+whose type it is, and otherwise the variant whose branch's own chain of `$ref`s passes it, the first
+in branch order where several do. Several branches each aliasing one type for a keyword beside its
+`$ref` are told apart by nothing the value says, and the route must name a variant, so it names the
+first, reported as an info `openapi/degraded-construct` at the entry naming the branches; neither
+the mapping's key order nor any lowering order decides. A chain no branch meets routes to the type
+it ends on, as on a model, which `pass/discriminator-missing-variant` reports as no variant, the
+compiler reporting nothing. Where a position on a chain writes a `$ref` landing on no schema, or on
+a loop, the value names no type: its entry is left out, unreported, since the failing `$ref` is
+reported where it is written, and the last position the chain reached is lowered all the same. A
+union's value naming the failing branch itself still routes to that branch's variant, as the branch
+meets the chain before it breaks. A discriminator the census keeps verbatim has its values read in
+the same way, what each chain ends on lowered and a value naming no schema reported, since a value
+is a reference wherever its discriminator ends up.
 
 - Cases: `oneof-discriminated`, `discriminator-inheritance`, `discriminator-default-mapping`,
   `discriminator-alias-mapping`, `nullable-union-discriminator`, `discriminator-aliased-branch`
 - Codes: `openapi/degraded-construct`, `openapi/unresolved-ref`
 - Tests: `schema.TestHomelessDiscriminator_IsKeptBesideEveryOtherNode`,
   `schema.TestUnplacedDiscriminator_IsKeptAtEveryUnionSite`,
+  `schema.TestKeptDiscriminator_ResolvesItsValuesAtEverySite`,
+  `schema.TestDiscriminator_AnEmptyPropertyNameIsKeptVerbatim`,
   `e2e.TestMappingTargets_ADiscriminatorAReferenceReachesIsBoundWhereItSits`,
+  `bind.TestBind_ReadsAMappingValueNamingNoComponentAsAReference`,
+  `load.TestBindSchemas_ReadsTheComponentNamesTheModelReads`,
+  `schema.TestDiscriminatorMapping_ReadsAValueNamingNoComponentAsAReference`,
+  `schema.TestDiscriminatorMapping_ReadsAComponentsNameFirst`,
+  `schema.TestDiscriminatorMapping_ReportsAValueNamingNothingOnce`,
+  `schema.TestMappingWhy_SaysBothReadingsOfAValueWithNoHash`,
+  `schema.TestDiscriminatorMapping_ReadsThroughAComponentThatIsARef`,
+  `schema.TestDiscriminatorMapping_ChainOfPositionsDeeperThanCap`,
   `schema.TestDiscriminatorMapping_RoutesToTheVariantAliasingItsTarget`,
   `schema.TestDiscriminatorDefault_RoutesToTheVariantAliasingItsTarget`,
+  `schema.TestDiscriminatorMapping_RoutesToTheNearestVariant`,
   `schema.TestDiscriminatorMapping_ATypeSeveralVariantsAliasRoutesToTheFirst`,
-  `schema.TestDiscriminatorMapping_WritesTheRoutesItImplies`
-- Status: partly built: an empty `propertyName` lowers to IR that `irverify` refuses (#882); a
-  mapping to a component that is a `$ref` to a subtype fails validation (#844), and so does one to a
-  type two variants alias, which a valid document can write (#1298); a variant whose branch names a
-  component of another document is routed by its type's name where the `Mapping` is nil, and by
-  nothing where it holds an entry (#1829).
+  `schema.TestDiscriminatorMapping_LeavesAValueNamingNoVariantToValidate`,
+  `schema.TestDiscriminatorMapping_ABrokenChainDrawsOnlyItsRefsError`,
+  `schema.TestDiscriminatorMapping_WritesTheRoutesItImplies`,
+  `schema.TestMappingTagsFor_ReadsTheMappingOnce`
+- Status: partly built: a variant whose branch names a component of another document is routed by
+  its type's name where the `Mapping` is nil, and by nothing where it holds an entry (#1829).
 
 ### `discriminator-value`
 
@@ -2534,7 +2578,8 @@ A subtype's wire tag lowers to `Model.DiscriminatorValue`, left empty on the bas
 off the discriminators of the subtype's `allOf` ancestors — the `$ref` branches' targets, then
 theirs, level by level to the walk's depth bound, nearest first, a schema that declares none passed
 through and no schema its own ancestor — as the key an ancestor's `mapping` spells for the subtype,
-the mapping naming it by reference or by bare schema name, an inline subtype by its position's
+the mapping naming it by reference or by schema name, read through each `$ref`, a component's among
+them, as [`discriminator`](#discriminator) reads it, an inline subtype by its position's
 reference, and where several keys name it [`discriminator`](#discriminator) elects one. A key of
 `""` is a tag, not an absence. Once no ancestor's mapping names it, the tag is the subtype's schema
 name as declared (`Cat/Dog`, not its pointer token) if it is a component schema that an ancestor's
@@ -2906,7 +2951,9 @@ bound on an object, a scalar or a position with no type is kept the same way, an
 elected lowering of [`competing-keywords`](#competing-keywords) never reads is too. `discriminator`
 joins the list, homed by a `Model` or `Union` that routes by it and by nothing else, so one beside
 any other node — the top type, an enum, a literal, a scalar, an alias over a `$ref` — is kept the
-same way. At a
+same way, its values still read as references ([`discriminator`](#discriminator)), and so is one
+naming the empty string as its tag on a `Model` or `Union` that cannot hold it, whose report says
+so. At a
 `$ref` position the census runs on the alias the use-site rule of
 [models](../ir/models.md#composition-entries) hoists, since the siblings bind the position rather
 than the referent. Every outcome of a schema runs it, and each says what it lowered to. A union

@@ -11,14 +11,42 @@ components:
       # Two keys name one subtype: an alias tag. The base's mapping keeps both,
       # and the subtype's single discriminatorValue takes the smallest in byte
       # order — declared here larger-first, the order a first-key-wins reading
-      # gets wrong, so the order-invariance sweep meets both orders.
+      # gets wrong, so the order-invariance sweep meets both orders. A key
+      # naming a component that is only a $ref, bare or beside a keyword, routes
+      # to what the $ref names: the component lowers to an alias, no subtype.
       discriminator:
         propertyName: petType
         mapping:
           zulu: '#/components/schemas/Dog'
           alpha: '#/components/schemas/Dog'
+          kitten: '#/components/schemas/CatNote'
+          cat: CatAlias
     Dog:
       allOf:
         - {$ref: '#/components/schemas/Pet'}
       properties:
         bark: {type: boolean}
+    Cat:
+      allOf:
+        - {$ref: '#/components/schemas/Pet'}
+      properties:
+        meow: {type: boolean}
+    CatAlias: {$ref: '#/components/schemas/Cat'}
+    CatNote: {$ref: '#/components/schemas/Cat', description: a noted cat}
+    # A union's mapping routes to its variants alike, a value naming a schema
+    # by its $id, with no fragment, among them.
+    Pets:
+      oneOf:
+        - {$ref: '#/components/schemas/Cat'}
+        - {$ref: '#/components/schemas/Bird'}
+      discriminator:
+        propertyName: petType
+        mapping:
+          cat: CatAlias
+          kitten: '#/components/schemas/CatNote'
+          bird: 'https://example.com/bird'
+    Bird:
+      $id: 'https://example.com/bird'
+      type: object
+      properties:
+        petType: {type: string}

@@ -627,20 +627,30 @@ func assertDiscriminatorTransitive(t *testing.T, doc *ir.Document, _ []ir.Diagno
 // is unordered, so the subtype takes the smallest key in byte order whichever
 // was written first — the fixture writes the larger first — while the base's
 // mapping keeps both, and the election is reported at the subtype as
-// information since nothing is lost.
+// information since nothing is lost. A key naming a component that is only a
+// $ref routes to what it names, on the base and on a union, whose value naming
+// a schema by its $id resolves too (docs/compilers/openapi.md#discriminator).
 func assertDiscriminatorAliasMapping(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
 	pet, ok := doc.Types[componentID("Pet")].(*ir.Model)
 	require.True(t, ok, "the base is a Model")
 	require.NotNil(t, pet.Discriminator)
-	assert.Equal(t, map[string]ir.TypeID{"alpha": componentID("Dog"), "zulu": componentID("Dog")},
-		pet.Discriminator.Mapping, "the base keeps every key")
+	dogID, catID := componentID("Dog"), componentID("Cat")
+	assert.Equal(t, map[string]ir.TypeID{"alpha": dogID, "zulu": dogID, "cat": catID, "kitten": catID},
+		pet.Discriminator.Mapping, "the base keeps every key, a component that is a $ref read through")
 
-	dog, ok := doc.Types[componentID("Dog")].(*ir.Model)
-	require.True(t, ok, "Dog composes as a Model")
-	assert.Equal(t, "alpha", dog.DiscriminatorValue,
-		"the smallest key in byte order, not the first written")
-	assert.True(t, openapitest.HasDiagCodeAt(diags, diag.DegradedConstruct, "/components/schemas/Dog"),
-		"the election is reported at the subtype: %+v", diags)
+	for name, tag := range map[string]string{"Dog": "alpha", "Cat": "cat"} {
+		sub, ok := doc.Types[componentID(name)].(*ir.Model)
+		require.True(t, ok, "%s composes as a Model", name)
+		assert.Equal(t, tag, sub.DiscriminatorValue, "%s: the smallest key in byte order, not the first written", name)
+		assert.True(t, openapitest.HasDiagCodeAt(diags, diag.DegradedConstruct, "/components/schemas/"+name),
+			"the election is reported at the subtype: %+v", diags)
+	}
+
+	pets, ok := doc.Types[componentID("Pets")].(*ir.Union)
+	require.True(t, ok, "Pets is a union")
+	require.NotNil(t, pets.Discriminator)
+	assert.Equal(t, map[string]ir.TypeID{"cat": catID, "kitten": catID, "bird": componentID("Bird")},
+		pets.Discriminator.Mapping, "each value routes to a variant, and no route by name is written beside them")
 }
 
 // assertDiscriminatorDefaultMapping pins Discriminator.Default, whose only source
