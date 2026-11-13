@@ -28,7 +28,8 @@ type Operation struct {
                                   // Distinct from a response with no body (an ack still exists);
                                   // validate rejects OneWay with any response, Default included
     Streaming  StreamingMode      // client | server | bidi; "" = does not stream (derived summary
-                                  // of the two below)
+                                  // of the two below, which summarize the contents that stream:
+                                  // Content.Stream, docs/ir/payloads.md)
     RequestStream  *StreamDetail  // client→server streaming semantics, when present
     ResponseStream *StreamDetail  // server→client streaming semantics, when present
     Pagination *Pagination

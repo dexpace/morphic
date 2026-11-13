@@ -14,13 +14,14 @@ import (
 	"github.com/dexpace/morphic/ir"
 )
 
-// streamCandidate is one lowered content that carries a stream, and how the
-// compiler came to say so. declared distinguishes a 3.2 itemSchema — which
-// states outright that the body is a sequence — from a media type the policy
-// recognizes, which is a guess about what the media type implies.
+// streamCandidate is one lowered content that streams, and what it offers as a
+// frame. item says events is a 3.2 itemSchema, which states each item outright,
+// rather than a schema of the whole body, and inferred is the content's own
+// ContentStream.Inferred, the heuristics that read it as a stream.
 type streamCandidate struct {
 	events   ir.TypeRef
-	declared bool
+	inferred ir.Inferred
+	item     bool
 }
 
 // frame is what one frame of the candidate holds. An itemSchema states it. A
@@ -28,7 +29,7 @@ type streamCandidate struct {
 // of its values (3.2 §4.14.3.1), so a list describes the body and its Elem one
 // frame. Any other schema has no array to read, and is the frame itself.
 func (s streamCandidate) frame(reg ir.TypeRegistry) ir.TypeRef {
-	if s.declared {
+	if s.item {
 		return s.events
 	}
 	if list, ok := listBehind(reg, s.events.Target); ok {
@@ -51,28 +52,46 @@ func listBehind(reg ir.TypeRegistry, id ir.TypeID) (*ir.List, bool) {
 	return list, ok
 }
 
+// contentStream is whether a content written under mediaType, declaring item,
+// streams (docs/compilers/openapi.md#streaming-media): an itemSchema declares it
+// on any media type, and otherwise the streaming policy guesses it from the
+// media type, the guess marked. Every content is read here, an error's and the
+// default's too, and applyStreaming reads the answer back rather than asking the
+// policy again, so the operation and its contents never disagree.
+func contentStream(c lowering.Ctx, mediaType string, item *ir.TypeRef) *ir.ContentStream {
+	switch {
+	case item != nil:
+		return &ir.ContentStream{}
+	case c.MediaTypeStreams(mediaType):
+		return &ir.ContentStream{Inferred: lowering.StreamingMediaTypeHeuristic}
+	default:
+		return nil
+	}
+}
+
 // applyStreaming writes the operation's streaming summary and per-direction
-// details, and returns the heuristic marker its provenance should carry ("" when
-// the streams it found were all declared).
+// details from the contents that stream, and returns the heuristic markers its
+// provenance should carry: those of every such content ("" when each declared
+// its stream).
 //
 // It runs over the lowered operation rather than the source, so it reads one
 // answer per direction no matter how many places a payload was assembled from,
 // and it is the only writer of the three streaming fields. What each direction
 // streams is settled later (streamElement); that it streams needs no other node.
 func applyStreaming(c lowering.Ctx, ts *compile.Types, op *ir.Operation, declPtr jsontext.Pointer) ir.Inferred {
-	request := streamCandidates(c, ts, op.Request)
-	response := responseCandidates(c, ts, op.Responses)
+	request := streamCandidates(ts, op.Request)
+	response := responseCandidates(ts, op.Responses)
 	if len(request) == 0 && len(response) == 0 {
 		return ""
 	}
 	op.RequestStream = electStream(c, ts, request, declPtr+ids.Ptr("requestBody"), "request")
 	op.ResponseStream = electStream(c, ts, response, declPtr+ids.Ptr("responses"), "response")
 	op.Streaming = streamingMode(op.RequestStream != nil, op.ResponseStream != nil)
-	guessed := func(candidate streamCandidate) bool { return !candidate.declared }
-	if slices.ContainsFunc(request, guessed) || slices.ContainsFunc(response, guessed) {
-		return lowering.StreamingMediaTypeHeuristic
+	var markers []ir.Inferred
+	for _, candidate := range slices.Concat(request, response) {
+		markers = append(markers, candidate.inferred)
 	}
-	return ""
+	return ir.JoinInferred(markers...)
 }
 
 // electStream returns the detail of a direction with candidates, nil for one
@@ -123,28 +142,29 @@ func (e streamElement) Settle(reg ir.TypeRegistry) []ir.Diagnostic {
 // streaming. Nor is the default, whose class only the plan's policy decides
 // (docs/ir/responses.md): a stream it alone declares sets no ResponseStream,
 // and a plan taking it for the success response reads its Contents itself.
-func responseCandidates(c lowering.Ctx, ts *compile.Types, responses []ir.Response) []streamCandidate {
+func responseCandidates(ts *compile.Types, responses []ir.Response) []streamCandidate {
 	out := make([]streamCandidate, 0, len(responses))
 	for i := range responses {
-		out = append(out, streamCandidates(c, ts, responses[i].Payload)...)
+		out = append(out, streamCandidates(ts, responses[i].Payload)...)
 	}
 	return out
 }
 
-// streamCandidates collects the contents of one payload that carry a stream. A
-// declared itemSchema wins over the media-type reading at the same content, so
-// the two can never both classify it.
-func streamCandidates(c lowering.Ctx, ts *compile.Types, payload *ir.Payload) []streamCandidate {
+// streamCandidates collects the contents of one payload that stream
+// (contentStream). A declared itemSchema is the frame at its content, so the
+// content's own schema is not read as a second one there.
+func streamCandidates(ts *compile.Types, payload *ir.Payload) []streamCandidate {
 	if payload == nil {
 		return nil
 	}
 	var out []streamCandidate
 	for _, content := range payload.Contents {
 		switch {
+		case content.Stream == nil:
 		case content.Item != nil:
-			out = append(out, streamCandidate{events: *content.Item, declared: true})
-		case c.MediaTypeStreams(content.MediaType):
-			out = append(out, streamCandidate{events: frameType(ts, content)})
+			out = append(out, streamCandidate{events: *content.Item, inferred: content.Stream.Inferred, item: true})
+		default:
+			out = append(out, streamCandidate{events: frameType(ts, content), inferred: content.Stream.Inferred})
 		}
 	}
 	return out

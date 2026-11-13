@@ -9,8 +9,10 @@ its methods from that ([Go](../targets/go/operations.md#streaming),
 `TailMetrics`, JSON or server-sent events.
 
 IR: `Operation{ Streaming:server, ResponseStream:&StreamDetail{ Events:&TypeRef→Metrics },
-Responses:[200 → {application/json → MetricsPage, text/event-stream → Metrics}] }`, bound
-`HTTPBinding{GET /metrics}`. No binding field states the framing: the content's `MediaType` does.
+Responses:[200 → {application/json → MetricsPage, text/event-stream → Metrics
+Stream:&ContentStream{Inferred:streaming-media-type}}] }`, bound `HTTPBinding{GET /metrics}`. The
+event stream's `Stream` says it is the content that streams, and no binding field states the
+framing: the content's `MediaType` does.
 
 `OpPlan{ Return:{Shape:value, Content:application/json, Type:MetricsPage}, Stream:&StreamPlan{
 Direction:server, Recv:&StreamSide{ Content:text/event-stream, Framing:sse, Element:Metrics } }

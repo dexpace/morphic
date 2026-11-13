@@ -88,7 +88,7 @@ the `Default`, which is the only description of a success an operation declaring
 Leaving out the `default` rule and `DefaultFails` leaves an operation with no success response
 `void` ([body shapes](responses.md#body-shapes)) and its `Default` in no plan field. `Streaming`
 summarizes only the streams an operation's success responses declare, so no `StreamDetail` covers a
-`Default`, and a primary one streams only where a content of it declares an `Item`
+`Default`, and a primary one streams where a content of it does, its `Content.Stream` set
 ([streams](streams.md)).
 
 ## A union keeps a variant it does not know
@@ -306,17 +306,17 @@ since only a model does.
 ## Framings
 
 Framings state what a media type means, not a guess about an API, so the table marks nothing
-`Inferred`: whether a content streams is the source's to declare or the compiler's to infer, and the
-table says only how it divides. Its default holds the sequential media types OpenAPI 3.2 names:
-`text/event-stream` is `sse`; `application/jsonl` and `application/x-ndjson` are `json_lines`;
-`application/json-seq` and the `+json-seq` structured suffix, which `application/geo+json-seq`
-carries, are `json_seq`; and `multipart/mixed` is `multipart`. An entry matches a media type
-compared as [one election](responses.md#one-election) says, and one starting with `+` every media
-type with that suffix, as the compiler's streaming policy reads one
-([`streaming-media`](../../compilers/openapi.md#streaming-media)), an entry naming the whole media
-type winning over a suffix. A configuration adds one for a media type its compiler was told streams.
-A framing a target has no reader for is that target's coded degrade to `raw` ([body
-shapes](responses.md#body-shapes)).
+`Inferred`: whether a content streams is the source's to declare or the compiler's to infer, which
+`Content.Stream` records, and the table says only how it divides. Its default holds the sequential
+media types OpenAPI 3.2 names: `text/event-stream` is `sse`; `application/jsonl` and
+`application/x-ndjson` are `json_lines`; `application/json-seq` and the `+json-seq` structured
+suffix, which `application/geo+json-seq` carries, are `json_seq`; and `multipart/mixed` is
+`multipart`. An entry matches a media type compared as [one election](responses.md#one-election)
+says, and one starting with `+` every media type with that suffix, as the compiler's streaming
+policy reads one ([`streaming-media`](../../compilers/openapi.md#streaming-media)), an entry naming
+the whole media type winning over a suffix. A configuration adds one for a media type its compiler
+was told streams. A framing a target has no reader for is that target's coded degrade to `raw`
+([body shapes](responses.md#body-shapes)).
 
 ## A page walk's first page
 
