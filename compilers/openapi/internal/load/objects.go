@@ -69,10 +69,10 @@ func refKindOf(model any) (bind.RefKind, bool) {
 // ctx is done.
 func buildObjects(ctx context.Context, bd *typed.Builder, table *bind.Table, media MediaTypes, faults mediaFaults,
 ) []builtObject {
-	o := objectBuild{ctx: ctx, bd: bd, table: table, media: media, faults: faults, view: nodeview.New(),
+	o := objectBuild{bd: bd, table: table, media: media, faults: faults, view: nodeview.New(),
 		tried: map[objectSite]bool{}}
 	for _, l := range table.ObjectLandings() {
-		if !o.build(l) {
+		if !o.build(ctx, l) {
 			return o.failed
 		}
 	}
@@ -82,7 +82,7 @@ func buildObjects(ctx context.Context, bd *typed.Builder, table *bind.Table, med
 			at = append(at, r.Chain.End)
 		}
 		for _, p := range at {
-			if !o.build(bind.ObjectLanding{At: p, Kind: r.Kind, Name: table.Document(p.Doc).Name, Site: r.Site,
+			if !o.build(ctx, bind.ObjectLanding{At: p, Kind: r.Kind, Name: table.Document(p.Doc).Name, Site: r.Site,
 				Reached: true}) {
 				return o.failed
 			}
@@ -94,7 +94,6 @@ func buildObjects(ctx context.Context, bd *typed.Builder, table *bind.Table, med
 // objectBuild is what buildObjects reads and records, and the positions it
 // could build nothing for.
 type objectBuild struct {
-	ctx    context.Context
 	bd     *typed.Builder
 	table  *bind.Table
 	media  MediaTypes
@@ -115,22 +114,22 @@ type objectSite struct {
 // build builds the object l stands for, unless one is held there or a build
 // was tried there before, and reports whether the building goes on: false
 // once ctx is done.
-func (o *objectBuild) build(l bind.ObjectLanding) bool {
+func (o *objectBuild) build(ctx context.Context, l bind.ObjectLanding) bool {
 	key := objectSite{at: l.At, kind: l.Kind}
 	if o.tried[key] || o.bd.HoldsObject(l.At, l.Kind) {
 		return true
 	}
-	if o.ctx.Err() != nil {
+	if ctx.Err() != nil {
 		return false
 	}
 	o.tried[key] = true
-	model, items, err := decodeObject(o.ctx, l.Kind, writtenIn(o.view, o.table, l.At))
+	model, items, err := decodeObject(ctx, l.Kind, writtenIn(o.view, o.table, l.At))
 	if err != nil {
 		o.failed = append(o.failed, builtObject{landing: l, err: err})
 		return true
 	}
 	o.bd.Object(model, l.Kind, l.At)
-	indexWalk(o.bd, o.media.within(o.ctx, items), l.At, o.faults)
+	indexWalk(o.bd, o.media.within(ctx, items), l.At, o.faults)
 	return true
 }
 

@@ -4,13 +4,16 @@
 package load
 
 import (
+	"encoding/json/jsontext"
 	"errors"
 	"strings"
 	"testing"
 
+	soa "github.com/speakeasy-api/openapi/openapi"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/dexpace/morphic/compilers/openapi/internal/bind"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 )
 
@@ -37,4 +40,25 @@ func TestRunRecovered_ReturnsWhatTheWorkReturned(t *testing.T) {
 
 	require.NoError(t, runRecovered("walk", func() error { return nil }))
 	assert.Same(t, refused, runRecovered("walk", func() error { return refused }))
+}
+
+// TestEachSighting_StopsAtTheModelAVisitRefuses pins that an error from visit
+// stops the walk at the model being visited, and is returned as it is.
+func TestEachSighting_StopsAtTheModelAVisitRefuses(t *testing.T) {
+	t.Parallel()
+	doc := modelOf(t, "openapi: 3.1.0\ninfo: {title: T, version: \"1\"}\npaths:\n  /a: {get: {responses: {'200': {description: ok}}}}\n")
+	refused := errors.New("refused")
+	site, err := eachSighting(walk(t.Context(), doc), "walk", func(jsontext.Pointer, soa.Locations, *soa.Operation) error {
+		return refused
+	})
+	assert.Same(t, refused, err)
+	assert.Equal(t, jsontext.Pointer("/paths/~1a/get"), site)
+}
+
+// TestDecodeObject_BuildsNothingWhereTheDocumentHoldsNothing pins the build of
+// a landing at a position its document holds no node at.
+func TestDecodeObject_BuildsNothingWhereTheDocumentHoldsNothing(t *testing.T) {
+	t.Parallel()
+	_, _, err := decodeObject(t.Context(), bind.RefParameter, nil)
+	assert.ErrorIs(t, err, errNothingThere)
 }

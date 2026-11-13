@@ -187,7 +187,7 @@ func mappingWhy(c lowering.Ctx, d *oas3.Discriminator, target string) string {
 	case !strings.Contains(target, "#"):
 		return ""
 	}
-	return unreadWhy(c.Bindings(), d)
+	return unreadWhy(c.Bindings())
 }
 
 // resolveMappingTarget resolves a mapping target, a mapping entry's or a

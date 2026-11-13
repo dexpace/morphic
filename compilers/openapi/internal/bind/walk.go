@@ -156,17 +156,16 @@ func (w *finder) declared(n *yaml.Node, f frame) frame {
 
 // visit notes what the position f, holding n, gives the table.
 func (w *finder) visit(n *yaml.Node, f frame) {
-	switch {
-	case f.state == sSchema:
-		if _, ok := w.docs.refOf(f.at.Doc, n); ok && !w.sites[f.at] {
-			w.sites[f.at] = true
-			w.fresh = append(w.fresh, f.at)
-		}
-		w.mappingsOf(n, f.at)
-		w.dynamicOf(n, f.at)
-	default:
+	if f.state != sSchema {
 		w.objectOf(n, f)
+		return
 	}
+	if _, ok := w.docs.refOf(f.at.Doc, n); ok && !w.sites[f.at] {
+		w.sites[f.at] = true
+		w.fresh = append(w.fresh, f.at)
+	}
+	w.mappingsOf(n, f.at)
+	w.dynamicOf(n, f.at)
 }
 
 // objectOf notes the position f, holding n, as a reference object of the kind

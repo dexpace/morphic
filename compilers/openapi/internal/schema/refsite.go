@@ -151,13 +151,12 @@ func unresolvedWhy(c lowering.Ctx, js *oas3.JSONSchema[oas3.Referenceable]) stri
 	if e, ok := c.Bindings().Entry(js); ok {
 		return hopWhy(e.Hop)
 	}
-	return unreadWhy(c.Bindings(), js)
+	return unreadWhy(c.Bindings())
 }
 
-// unreadWhy is why the table holds nothing for model, a schema or a
-// discriminator: the budget or the merge bound stopped the reading
-// (bind.Table.Unread).
-func unreadWhy(refs *typed.Bindings, model any) string {
+// unreadWhy is why the table holds nothing for a schema or a discriminator it
+// read: the budget or the merge bound stopped the reading (bind.Table.Unread).
+func unreadWhy(refs *typed.Bindings) string {
 	if why := refs.Table().Unread(); why != "" {
 		return ": " + why
 	}

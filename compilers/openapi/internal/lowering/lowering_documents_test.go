@@ -332,6 +332,27 @@ func TestDeclared_LowersAReferencedObjectWhereItIsDeclared(t *testing.T) {
 	}
 }
 
+// TestDeclared_LowersNothingInADocumentTheContextDidNotList pins a reference
+// object whose chain ends in a document the context's compile did not list:
+// it lowers nothing, rather than read the declaration in the use site's
+// document.
+func TestDeclared_LowersNothingInADocumentTheContextDidNotList(t *testing.T) {
+	t.Parallel()
+	c, doc := loadSplit(t, "X: {type: string}\nP: {name: p, in: query}\n")
+	none := *doc
+	none.Others = load.Others{}
+	unread := lowering.New(0, &none, lowering.Policy{})
+	a, ok := c.Doc.Paths.Get("/a")
+	require.True(t, ok)
+	ref := a.GetObject().Get().GetParameters()[0]
+
+	p, at, ptr := lowering.Declared[soa.Parameter](unread, ref, "/paths/~1a/get/parameters/0")
+
+	assert.Nil(t, p)
+	assert.Equal(t, unread.IDs(), at.IDs())
+	assert.Equal(t, "/paths/~1a/get/parameters/0", string(ptr))
+}
+
 // TestDeclared_ReadsTheEndOfTheDocumentWritingTheReference pins that a
 // reference object's end is the one the bindings' table reads for the
 // position the wrapper was read at, in the document writing it (GitHub #751),

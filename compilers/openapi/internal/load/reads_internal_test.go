@@ -165,3 +165,11 @@ func TestExternalReads_IsSafeForConcurrentUse(t *testing.T) {
 		})
 	}
 }
+
+// TestExternalReads_PreparedForAnUnreadableURLIsNone pins that a name no
+// request can be built from is prepared under no key.
+func TestExternalReads_PreparedForAnUnreadableURLIsNone(t *testing.T) {
+	t.Parallel()
+	_, ok := newExternalReads(sourceDocument{}, budget.Unbounded()).preparedFor("http://%zz")
+	assert.False(t, ok)
+}

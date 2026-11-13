@@ -66,6 +66,16 @@ func (s refSpec) inBothOrders(t *testing.T, check func(t *testing.T, doc *ir.Doc
 	assert.Equal(t, placedFindings(forwardDiags), placedFindings(backDiags), "one set of findings in either order")
 }
 
+// sitedFindings returns each of diags as its severity, code and pointer, in
+// order.
+func sitedFindings(diags []ir.Diagnostic) []string {
+	out := make([]string, 0, len(diags))
+	for _, d := range diags {
+		out = append(out, fmt.Sprintf("%s %s %s", d.Severity, d.Code, d.Provenance.Pointer))
+	}
+	return out
+}
+
 // requestType is the type the request body of the operation named name holds.
 func requestType(t *testing.T, doc *ir.Document, name string) ir.TypeID {
 	t.Helper()
@@ -80,9 +90,10 @@ func bodyAt(pointer string) ir.TypeID {
 }
 
 // TestReferenceObjects_APointerThroughAPathItemRefReadsWhereItsChainEnds pins
-// GitHub #876: a request body $ref whose pointer passes /a, a path item $ref,
-// reads on in /b, where /a's chain ends, whichever is declared first, and
-// names the body /b declares rather than a second one at the spelling.
+// GitHub #876: a request body $ref whose pointer passes /z, a path item $ref,
+// reads on in /b, where /z's chain ends, whichever is declared first and
+// though /z is read after the $ref passing it, and names the body /b declares
+// rather than a second one at the spelling.
 func TestReferenceObjects_APointerThroughAPathItemRefReadsWhereItsChainEnds(t *testing.T) {
 	t.Parallel()
 	refSpec{spec: `openapi: 3.1.0
@@ -91,9 +102,9 @@ paths:
   /c:
     post:
       operationId: c
-      requestBody: {$ref: '#/paths/~1a/post/requestBody'}
+      requestBody: {$ref: '#/paths/~1z/post/requestBody'}
       responses: {"200": {description: ok}}
-  /a: {$ref: '#/paths/~1b'}
+  /z: {$ref: '#/paths/~1b'}
   /b:
     post:
       operationId: b
@@ -103,7 +114,7 @@ paths:
 		t.Helper()
 		assertNoErrorDiags(t, diags)
 		assert.Equal(t, bodyAt("/paths/~1b/post"), requestType(t, doc, "c"))
-		assert.NotContains(t, doc.Types, bodyAt("/paths/~1a/post"), "no second node at the spelling")
+		assert.NotContains(t, doc.Types, bodyAt("/paths/~1z/post"), "no second node at the spelling")
 	})
 }
 
@@ -303,6 +314,7 @@ components:
     S2: {$ref: '#/components/schemas/S1'}
     S1: {$ref: '#/components/schemas/S2'}
   responses:
+    A0: {$ref: '#/components/responses/T3'}
     T3: {$ref: '#/components/responses/T1'}
     T2: {$ref: '#/components/responses/T3'}
     T1: {$ref: '#/components/responses/T2'}
@@ -402,9 +414,8 @@ x-raw:
   m: {in: query, schema: {type: string}}
 `}.inBothOrders(t, func(t *testing.T, _ *ir.Document, diags []ir.Diagnostic) {
 		t.Helper()
-		var got []string
+		got := sitedFindings(diags)
 		for _, d := range diags {
-			got = append(got, fmt.Sprintf("%s %s %s", d.Severity, d.Code, d.Provenance.Pointer))
 			if d.Code == diag.UnresolvedRef {
 				assert.Contains(t, d.Message, ": it names a position that holds no parameter", d.Provenance.Pointer)
 			}
@@ -418,7 +429,8 @@ x-raw:
 // TestReferenceObjects_AMergedRefIsAReference pins that a mapping at a
 // reference object's position is a reference when it holds a string $ref, a
 // `<<` merging one in included, as the document's JSON spells it: the
-// parameter and the response it names lower, a description beside it or not.
+// parameter, the response and the path item it names lower, and what is
+// written beside it, a description or a path item's operation.
 func TestReferenceObjects_AMergedRefIsAReference(t *testing.T) {
 	t.Parallel()
 	refSpec{spec: `openapi: 3.1.0
@@ -432,6 +444,8 @@ paths:
         - {<<: {$ref: '#/components/parameters/Q'}, description: beside}
       responses:
         "200": {<<: {$ref: '#/components/responses/R'}}
+  /m: {<<: {$ref: '#/paths/~1b'}, put: {operationId: mput, responses: {"200": {description: ok}}}}
+  /b: {get: {responses: {"200": {description: ok}}}}
 components:
   parameters:
     P: {name: p, in: query, schema: {type: string}}
@@ -441,6 +455,8 @@ components:
 `}.inBothOrders(t, func(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
 		t.Helper()
 		assert.Empty(t, placedFindings(diags))
+		operationAt(t, doc, "GET", "/m")
+		assert.Equal(t, "mput", operationAt(t, doc, "PUT", "/m").Name.Source, "the field beside the merged $ref")
 		op, ok := opByName(doc, "a")
 		require.True(t, ok)
 		require.Len(t, op.Params, 2)
@@ -563,10 +579,7 @@ x-params:
 `
 	const duplicate = "warning openapi/validation/validation-duplicate-key /x-params"
 	doc, diags := refSpec{}.compile(t, spec)
-	var got []string
-	for _, d := range diags {
-		got = append(got, fmt.Sprintf("%s %s %s", d.Severity, d.Code, d.Provenance.Pointer))
-	}
+	got := sitedFindings(diags)
 	assert.Equal(t, []string{duplicate}, got)
 	require.Len(t, doc.Services[0].Groups[0].Operations[0].Params, 1)
 	assert.Equal(t, ir.TypeID("t/prim/string"), doc.Services[0].Groups[0].Operations[0].Params[0].Type.Target)
@@ -575,12 +588,16 @@ x-params:
 		"x-params:\n  q: {name: q, in: query, schema: {type: string}}\nx-params:\n  q: {name: q, in: query, schema: {type: object", 1)
 	swapped = strings.TrimSuffix(swapped, "x-params:\n  q: {name: q, in: query, schema: {type: string}}\n")
 	_, diags = refSpec{}.compile(t, swapped)
-	got = got[:0]
-	for _, d := range diags {
-		got = append(got, fmt.Sprintf("%s %s %s", d.Severity, d.Code, d.Provenance.Pointer))
-	}
+	got = sitedFindings(diags)
 	assert.Equal(t, []string{duplicate, "error " + diag.UnresolvedRef + " /x-params/q/schema/not",
 		"info " + diag.ValidationOnlyKeyword + " /x-params/q/schema"}, got)
+
+	firstRefs := strings.Replace(spec, "x-params:\n  q: {name: q, in: query, schema: {type: object, not: {$ref: '#/components/schemas/Ghost'}}}",
+		"x-params:\n  q: {$ref: '#/components/parameters/Ghost'}", 1)
+	doc, diags = refSpec{}.compile(t, firstRefs)
+	got = sitedFindings(diags)
+	assert.Equal(t, []string{duplicate}, got, "a $ref the first copy writes is never read")
+	require.Len(t, doc.Services[0].Groups[0].Operations[0].Params, 1)
 }
 
 // TestReferenceObjects_AnObjectThatCannotBeBuiltIsReported pins a reference
@@ -731,17 +748,13 @@ paths:
 	want := ids.In(srv.URL + "/c%20d.yaml").AnonType("/paths/~1x/get/parameters/0/schema")
 	for spelling, findings := range map[string][]string{
 		"c d.yaml":   {"error openapi/validation/validation-invalid-format /paths/~1p/$ref"},
-		"c%20d.yaml": nil,
+		"c%20d.yaml": {},
 	} {
 		doc, diags, err := openapi.New().Compile(t.Context(), []compilers.Source{{Path: "root.yaml", Data: []byte(
 			"openapi: 3.1.0\ninfo: {title: t, version: \"1\"}\npaths:\n  /p: {$ref: '" + srv.URL + "/" + spelling +
 				"#/paths/~1x'}\n")}}, compilers.Options{Reader: reader.Disk{}, FormatOptions: openapi.Options{AllowExternalRefs: true}})
 		require.NoError(t, err, spelling)
-		var got []string
-		for _, d := range diags {
-			got = append(got, fmt.Sprintf("%s %s %s", d.Severity, d.Code, d.Provenance.Pointer))
-		}
-		assert.Equal(t, findings, got, spelling)
+		assert.Equal(t, findings, sitedFindings(diags), spelling)
 		params := allOperations(doc)[0].Params
 		require.Len(t, params, 1, spelling)
 		assert.Equal(t, ir.Provenance{Source: 1, Pointer: "/paths/~1x/get/parameters/0"}, params[0].Provenance, spelling)

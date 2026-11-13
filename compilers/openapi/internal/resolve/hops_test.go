@@ -13,9 +13,11 @@ import (
 	soa "github.com/speakeasy-api/openapi/openapi"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	yaml "go.yaml.in/yaml/v3"
 
 	"github.com/dexpace/morphic/compilers"
 	"github.com/dexpace/morphic/compilers/openapi/internal/bind"
+	"github.com/dexpace/morphic/compilers/openapi/internal/bind/typed"
 	"github.com/dexpace/morphic/compilers/openapi/internal/load"
 	"github.com/dexpace/morphic/compilers/openapi/internal/resolve"
 	"github.com/dexpace/morphic/engine/reader"
@@ -44,7 +46,7 @@ func TestHops_ListsTheReferencesAChainPassesThrough(t *testing.T) {
 			pointer := jsontext.Pointer("/components/parameters/P" + strconv.Itoa(i))
 			assert.Equal(t, bind.Position{Pointer: pointer}, hop.At, "hop %d is P%d", i, i)
 			wrapper, _ := doc.Doc.Components.GetParameters().Get("P" + strconv.Itoa(i))
-			assert.True(t, wrapper == hop.Ref, "hop %d is the wrapper read there", i)
+			assert.Same(t, wrapper, hop.Ref, "hop %d is the wrapper read there", i)
 		}
 		for _, name := range []string{"L1", "Missing", "Fails"} {
 			assert.Empty(t, resolve.Hops[soa.Parameter](doc.Bindings, doc.Doc.Components.GetParameters().GetOrZero(name)), name)
@@ -96,4 +98,28 @@ func documentNamed(t *testing.T, table *bind.Table, name string) bind.DocID {
 	}
 	require.FailNow(t, "no document named "+name)
 	return 0
+}
+
+// TestHops_AChainNoWrapperIsHeldForStopsThere pins Hops and Object over
+// bindings that hold no wrapper at a position the chain passes or ends at, as
+// where no object could be built there: the chain is followed no further, and
+// what it names is nothing, never another object.
+func TestHops_AChainNoWrapperIsHeldForStopsThere(t *testing.T) {
+	t.Parallel()
+	var tree yaml.Node
+	require.NoError(t, yaml.Unmarshal([]byte(`openapi: 3.1.0
+info: {title: T, version: "1"}
+paths: {}
+components:
+  parameters:
+    A: {$ref: '#/components/parameters/B'}
+    B: {$ref: '#/components/parameters/C'}
+    C: {name: c, in: query}
+`), &tree))
+	bd := typed.NewBuilder(bind.Bind(t.Context(), &tree, bind.Config{Self: "spec.yaml"}))
+	a := &soa.ReferencedParameter{}
+	bd.Object(a, bind.RefParameter, bind.Position{Pointer: "/components/parameters/A"})
+
+	assert.Empty(t, resolve.Hops[soa.Parameter](bd.Bindings(), a), "no wrapper is held at B")
+	assert.Nil(t, resolve.Object[soa.Parameter](bd.Bindings(), a), "nor at C, where the chain ends")
 }

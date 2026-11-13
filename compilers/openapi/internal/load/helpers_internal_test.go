@@ -25,11 +25,11 @@ import (
 	"github.com/dexpace/morphic/ir"
 )
 
-// buildDoc runs a source through the steps build runs before resolving:
-// decode, release anchors, populate the model. It returns the populated
-// document and the raw tree, so a test can drive one stage directly instead
-// of paying for the whole Load pipeline.
-func buildDoc(t *testing.T, spec string) (*soa.OpenAPI, *yaml.Node) {
+// buildTree runs a source through the steps the load phase runs before
+// binding: decode, release anchors, populate the model. It returns the raw
+// tree, so a test can drive one stage directly instead of paying for the whole
+// Load pipeline.
+func buildTree(t *testing.T, spec string) *yaml.Node {
 	t.Helper()
 	parsed, err := parsedFor(t.Context(), compilers.Source{Path: "spec.yaml", Data: []byte(spec)})
 	require.NoError(t, err)
@@ -37,7 +37,7 @@ func buildDoc(t *testing.T, spec string) (*soa.OpenAPI, *yaml.Node) {
 	doc, err := unmarshal(t.Context(), []byte(spec), parsed.root)
 	require.NoError(t, err)
 	require.NotNil(t, doc)
-	return doc, parsed.root
+	return parsed.root
 }
 
 // mappingSpec is a source whose component schemas are schemas, and whose
@@ -200,34 +200,4 @@ func countingServer(t *testing.T, body string) (*httptest.Server, *atomic.Int32)
 func writeFile(t *testing.T, dir, name, content string) {
 	t.Helper()
 	require.NoError(t, os.WriteFile(filepath.Join(dir, name), []byte(content), 0o600))
-}
-
-// respelled returns url with its scheme spelled scheme, which net/url respells
-// back to "http" in the request built from it.
-func respelled(url, scheme string) string {
-	return scheme + "://" + strings.TrimPrefix(url, "http://")
-}
-
-// respellings is the set of URL spellings net/url respells relative to how
-// http.NewRequest's caller wrote them (GitHub #538): the resolver keys a
-// document by the reference's absolute URL as written, while the reader stores
-// it under req.URL.String().
-//
-// A literal space in the path is absent: url.Parse and http.NewRequest
-// normalize it and its %20 escape to one request key, so the two spellings
-// never produce different keys. An empty port is covered by TestPreparedFor,
-// since a test server cannot listen on the default port.
-var respellings = []struct {
-	name  string
-	spell func(canonical string) string
-}{
-	{"upper-case scheme", func(c string) string {
-		return "HTTP://" + strings.TrimPrefix(c, "http://")
-	}},
-	{"mixed-case scheme", func(c string) string {
-		return "Http://" + strings.TrimPrefix(c, "http://")
-	}},
-	{"escaped userinfo", func(c string) string {
-		return strings.Replace(c, "http://", "http://us%65r@", 1)
-	}},
 }

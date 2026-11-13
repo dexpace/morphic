@@ -229,7 +229,8 @@ func TestModelItem_HandsTheModelToAnyAlone(t *testing.T) {
 // TestIndexWalk_ReportsAMediaTypeUseTheParserFaultsOnOnce pins the fault of a
 // content entry the parser cannot build a reference from although its $ref is
 // a scalar: noted once, where the walk first met the mapping, though an alias
-// mounts it at a second position, and reported there.
+// mounts it at a second position, and reported there, each in order of
+// position.
 func TestIndexWalk_ReportsAMediaTypeUseTheParserFaultsOnOnce(t *testing.T) {
 	t.Parallel()
 	doc := modelOf(t, `openapi: 3.2.0
@@ -249,6 +250,13 @@ paths:
           description: ok
           content:
             application/json: *use
+  /c:
+    get:
+      responses:
+        "200":
+          description: ok
+          content:
+            application/json: {$ref: '#/components/mediaTypes/Y'}
 `)
 	media, _ := mediaTypesFrom(t.Context(), doc, provenance.Tree{}, faulting)
 	bd := typed.NewBuilder(bind.Bind(t.Context(), doc.GetRootNode(), bind.Config{Self: "spec.yaml"}))
@@ -257,10 +265,13 @@ paths:
 	indexWalk(bd, walkSource(t.Context(), doc, Siblings{}, media), bind.Position{}, faults)
 
 	diags := faults.diags(places{}, bd.Bindings().Table())
-	require.Len(t, diags, 1, "%+v", diags)
-	assert.Equal(t, diag.Validation, diags[0].Code)
-	assert.Equal(t, jsontext.Pointer("/paths/~1a/get/responses/200/content/application~1json"), diags[0].Provenance.Pointer)
-	assert.Contains(t, diags[0].Message, "this media type's $ref could not be read: ")
+	require.Len(t, diags, 2, "%+v", diags)
+	for i, at := range []jsontext.Pointer{"/paths/~1a/get/responses/200/content/application~1json",
+		"/paths/~1c/get/responses/200/content/application~1json"} {
+		assert.Equal(t, diag.Validation, diags[i].Code)
+		assert.Equal(t, at, diags[i].Provenance.Pointer, "in order of position")
+		assert.Contains(t, diags[i].Message, "this media type's $ref could not be read: ")
+	}
 }
 
 // TestLoad_AMediaTypeRefEndsOnTheDeclarationsOwnModel pins that a content

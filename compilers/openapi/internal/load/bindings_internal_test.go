@@ -45,7 +45,7 @@ func TestBindSchemas_HoldsTheTableToMaxSteps(t *testing.T) {
 // left unread is not reported unresolved: it was not found wanting.
 func TestBindingDiags_ReportsTheBudgetOnce(t *testing.T) {
 	t.Parallel()
-	_, root := buildDoc(t, schemaRoot("#/components/schemas/B")+"    B: {type: string}\n")
+	root := buildTree(t, schemaRoot("#/components/schemas/B")+"    B: {type: string}\n")
 	table := bind.Bind(t.Context(), root, bind.Config{Self: "spec.yaml", Limit: budget.AtMost(2)})
 	require.True(t, table.Exhausted(), "sanity: two steps are not enough to bind the document")
 
@@ -94,7 +94,7 @@ x-params:
 // table cut before the walk read it reports the budget instead.
 func TestBindingDiags_ReportsAFailedRefOnceWhereItIsWrittenAtEveryBudget(t *testing.T) {
 	t.Parallel()
-	_, root := buildDoc(t, schemaRoot("other.yaml#/X")+"    B: {$ref: 'other.yaml#/P'}\n")
+	root := buildTree(t, schemaRoot("other.yaml#/X")+"    B: {$ref: 'other.yaml#/P'}\n")
 	var other yaml.Node
 	require.NoError(t, yaml.Unmarshal([]byte("X: {$ref: '#/Y'}\nY: {$ref: '#/Missing'}\nP: {$ref: '#/X'}\n"), &other))
 	cfg := bind.Config{Self: "spec.yaml", Open: func(string) (*yaml.Node, error) { return &other, nil }}
@@ -134,7 +134,7 @@ func TestBindingDiags_ReportsAFailedRefOnceWhereItIsWrittenAtEveryBudget(t *test
 // loop is not reported for it.
 func TestBindingDiags_NamesALoopsMembersByTheirDocument(t *testing.T) {
 	t.Parallel()
-	_, root := buildDoc(t, schemaRoot("other.yaml#/X")+"    B: {$ref: '#/components/schemas/B'}\n"+
+	root := buildTree(t, schemaRoot("other.yaml#/X")+"    B: {$ref: '#/components/schemas/B'}\n"+
 		"    C: {$ref: 'other.yaml#/P'}\n    D: {$ref: 'other.yaml#/Q'}\n")
 	docs := map[string]string{
 		"other.yaml": "X: {$ref: '#/Y'}\nY: {$ref: '#/X'}\nP: {$ref: 'spec.yaml#/components/schemas/C'}\n" +
@@ -196,7 +196,7 @@ components:
 // reported for that failure: B's $ref is, where it is written.
 func TestBindingDiags_ReportsAChainBackIntoTheSourceWhereItFails(t *testing.T) {
 	t.Parallel()
-	_, root := buildDoc(t, schemaRoot("other.yaml#/S")+"    B: {$ref: '#/components/schemas/Gone'}\n")
+	root := buildTree(t, schemaRoot("other.yaml#/S")+"    B: {$ref: '#/components/schemas/Gone'}\n")
 	var other yaml.Node
 	require.NoError(t, yaml.Unmarshal([]byte("S: {$ref: 'spec.yaml#/components/schemas/B'}\n"), &other))
 	table := bind.Bind(t.Context(), root, bind.Config{Self: "spec.yaml",

@@ -29,6 +29,8 @@ paths:
     put: {requestBody: {content: {a/b: {schema: {type: string}}}}, responses: {'200': {description: ok}}}
   /b:
     post: {requestBody: {content: {a/b: {schema: {type: string}}}}, responses: {'200': {description: ok}}}
+  x-lib:
+    q: {name: q, in: query}
 components:
   parameters:
     Chain: {$ref: '#/components/parameters/Middle'}
@@ -43,6 +45,9 @@ components:
     Name: {$ref: '#q'}
     Merged: {$ref: '#/x-m/q'}
     Wide: {$ref: '#/x-p/😀'}
+    External: {$ref: 'other.yaml#/P'}
+    Resource: {$ref: 'https://x.test/s#/missing'}
+    Paths: {$ref: '#/paths/x-lib/q'}
   requestBodies:
     Beside: {$ref: '#/paths/~1a/put/requestBody'}
     Through: {$ref: '#/paths/~1a/post/requestBody'}
@@ -55,6 +60,9 @@ components:
     H: {schema: {type: string}}
   schemas:
     S: {type: string}
+    Identified: {$id: 'https://x.test/s', type: object}
+    D1: {discriminator: {propertyName: k, mapping: {a: '#/components/schemas/S'}}}
+    D2: {discriminator: {propertyName: k, mapping: {b: '#/components/schemas/S'}}}
 x-p:
   q: {name: q, in: query}
   s: a string
@@ -85,6 +93,7 @@ func TestBind_ReadsEachReferenceObject(t *testing.T) {
 		params + "Empty":   "/x-p/e/",
 		params + "Merged":  "/x-m/q",
 		params + "Wide":    "/x-p/😀",
+		params + "Paths":   "/paths/x-lib/q",
 		bodies + "Beside":  "/paths/~1a/put/requestBody",
 		bodies + "Through": "/paths/~1b/post/requestBody",
 	}
@@ -97,11 +106,14 @@ func TestBind_ReadsEachReferenceObject(t *testing.T) {
 		assert.Equal(t, bind.Chain{Status: bind.Resolved, End: at(end), Hops: hopsTo(site)}, r.Chain, site)
 	}
 	fails := map[jsontext.Pointer]bind.Hop{
-		params + "Header": {Ref: "#/components/headers/H", Status: bind.Unresolved, Reason: bind.NotObject, Detail: "parameter"},
-		params + "Schema": {Ref: "#/components/schemas/S", Status: bind.Unresolved, Reason: bind.NotObject, Detail: "parameter"},
-		params + "Scalar": {Ref: "#/x-p/s", Status: bind.Unresolved, Reason: bind.NotObject, Detail: "parameter"},
-		params + "Slash":  {Ref: "#/x-p/q/", Status: bind.Unresolved, Reason: bind.NoTarget},
-		params + "Name":   {Ref: "#q", Status: bind.Unresolved, Reason: bind.BadPointer},
+		params + "Header":   {Ref: "#/components/headers/H", Status: bind.Unresolved, Reason: bind.NotObject, Detail: "parameter"},
+		params + "Schema":   {Ref: "#/components/schemas/S", Status: bind.Unresolved, Reason: bind.NotObject, Detail: "parameter"},
+		params + "Scalar":   {Ref: "#/x-p/s", Status: bind.Unresolved, Reason: bind.NotObject, Detail: "parameter"},
+		params + "Slash":    {Ref: "#/x-p/q/", Status: bind.Unresolved, Reason: bind.NoTarget},
+		params + "Name":     {Ref: "#q", Status: bind.Unresolved, Reason: bind.BadPointer},
+		params + "External": {Ref: "other.yaml#/P", Status: bind.Unresolved, Reason: bind.ExternalOff},
+		params + "Resource": {Ref: "https://x.test/s#/missing", Status: bind.Unresolved,
+			Reason: bind.NoResourceTarget, Detail: "https://x.test/s"},
 	}
 	for site, hop := range fails {
 		r := referenceAt(t, table, site, bind.RefParameter)
@@ -245,4 +257,87 @@ func TestBind_PlacesEachObjectLandingAtTheLeastReferenceReachingIt(t *testing.T)
 		reached("/x-p/q", "/components/parameters/A"),
 		reached("/x-p/r", "/components/parameters/A"),
 	}, table.ObjectLandings())
+}
+
+// TestBind_AReferenceObjectWaitsForAHeldDocument pins reference objects whose
+// reading waits for a document an absolute URI names: one naming it, one
+// whose chain passes that one, and one whose pointer passes it, each answered
+// once the pass has read the document, as if it had been read first.
+func TestBind_AReferenceObjectWaitsForAHeldDocument(t *testing.T) {
+	t.Parallel()
+	table := bound(t, head+`components:
+  parameters:
+    A: {$ref: 'https://x.test/p.yaml#/P'}
+    B: {$ref: '#/components/parameters/A'}
+    C: {$ref: '#/components/parameters/A/x-alt'}
+`, withDocuments(map[string]string{"https://x.test/p.yaml": "P: {name: p, in: query, x-alt: {name: q, in: query}}\n"}))
+	other := bind.DocID(1)
+	require.Equal(t, "https://x.test/p.yaml", table.Document(other).Name)
+	for site, end := range map[jsontext.Pointer]bind.Position{
+		"A": {Doc: other, Pointer: "/P"},
+		"B": {Doc: other, Pointer: "/P"},
+		"C": {Doc: other, Pointer: "/P/x-alt"},
+	} {
+		r := referenceAt(t, table, "/components/parameters/"+site, bind.RefParameter)
+		assert.Equal(t, bind.Resolved, r.Chain.Status, site)
+		assert.Equal(t, end, r.Chain.End, site)
+	}
+}
+
+// TestBind_ReadsOnePositionAsTwoKinds pins raw YAML that references of two
+// kinds reach: a landing of each kind, and a loop of reference objects
+// reported once, at its least member, as the lesser kind.
+func TestBind_ReadsOnePositionAsTwoKinds(t *testing.T) {
+	t.Parallel()
+	table := bound(t, head+`components:
+  parameters:
+    P: {$ref: '#/x-l/q'}
+    LP: {$ref: '#/x-l/a'}
+  headers:
+    H: {$ref: '#/x-l/q'}
+    LH: {$ref: '#/x-l/a'}
+x-l:
+  a: {$ref: '#/x-l/b'}
+  b: {$ref: '#/x-l/a'}
+  q: {name: q, in: query, schema: {type: string}}
+`, self)
+	var kinds []bind.RefKind
+	for _, l := range table.ObjectLandings() {
+		if l.At == at("/x-l/q") {
+			kinds = append(kinds, l.Kind)
+		}
+	}
+	assert.Equal(t, []bind.RefKind{bind.RefParameter, bind.RefHeader}, kinds)
+	require.Len(t, table.Loops(), 1)
+	assert.Equal(t, bind.Loop{Members: []bind.Position{at("/x-l/a"), at("/x-l/b")}, Site: at("/x-l/a"),
+		Kind: bind.RefParameter}, table.Loops()[0])
+}
+
+// TestPositionOrder_ReadsTheSourceFirstThenEachDocumentByName pins the order a
+// table reads positions in, whatever order it read the documents in.
+func TestPositionOrder_ReadsTheSourceFirstThenEachDocumentByName(t *testing.T) {
+	t.Parallel()
+	table := bound(t, head+`components:
+  parameters:
+    A: {$ref: 'b.yaml#/P'}
+    B: {$ref: 'a.yaml#/P'}
+`, withDocuments(map[string]string{"a.yaml": "P: {name: a, in: query}\n", "b.yaml": "P: {name: b, in: query}\n"}))
+	b, ok := table.Find("b.yaml")
+	require.True(t, ok)
+	a, ok := table.Find("a.yaml")
+	require.True(t, ok)
+	require.Less(t, b, a, "b.yaml is read first")
+	order := bind.PositionOrder(table)
+	assert.Negative(t, order(bind.Position{Doc: a, Pointer: "/P"}, bind.Position{Doc: b, Pointer: "/A"}))
+	assert.Negative(t, order(at("/z"), bind.Position{Doc: a, Pointer: "/A"}))
+	assert.Negative(t, order(bind.Position{Doc: a, Pointer: "/A"}, bind.Position{Doc: a, Pointer: "/P"}))
+}
+
+// TestRefKind_SpellsEachKind pins how a kind of object reads in a message.
+func TestRefKind_SpellsEachKind(t *testing.T) {
+	t.Parallel()
+	assert.Equal(t, "schema", bind.RefKind(0).String())
+	assert.Equal(t, "request body", bind.RefRequestBody.String())
+	assert.Equal(t, "media type", bind.RefMediaType.String())
+	assert.Equal(t, "object", (bind.RefMediaType + 1).String())
 }
