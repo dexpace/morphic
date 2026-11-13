@@ -274,8 +274,6 @@ func TestAllOf_TheBindingCountIsKeptInEveryOrder(t *testing.T) {
 		{"two minima", "minProperties", []string{"88888888888888888888", "99999999999999999999"}, "99999999999999999999"},
 		{"three minima", "minLength", []string{"99999999999999999999", "88888888888888888888", "77777777777777777777"},
 			"99999999999999999999"},
-		{"maxima past a decimal's range, kept as a string (GitHub #1115)", "maxLength",
-			[]string{"2e1000000000000000000", "1e1000000000000000000"}, `"1e1000000000000000000"`},
 	} {
 		for _, order := range permutations(len(tc.counts)) {
 			branches := make([]string, len(order))
@@ -295,6 +293,41 @@ func TestAllOf_TheBindingCountIsKeptInEveryOrder(t *testing.T) {
 				assert.Equal(t, tc.want, string(um["openapi:"+tc.keyword].Value), "%s %v %v", tc.name, order, beside)
 				assert.Len(t, diags, 1, "%s %v %v: one report", tc.name, order, beside)
 			}
+		}
+	}
+}
+
+// TestAllOf_TheBindingCountPastTheDecimalRangeIsRefusedInEveryOrder pins two
+// maxima past what a BigVal holds, on branches or beside the allOf: the binding
+// one is refused as any number past that range kept verbatim is
+// (docs/compilers/openapi.md#verbatim-preservation), with one error where it is
+// written and no entry, in every order.
+func TestAllOf_TheBindingCountPastTheDecimalRangeIsRefusedInEveryOrder(t *testing.T) {
+	t.Parallel()
+	counts := []string{"2e1000000000000000000", "1e1000000000000000000"}
+	for _, order := range permutations(len(counts)) {
+		branches := make([]string, len(order))
+		for k, i := range order {
+			branches[k] = "{maxLength: " + counts[i] + "}"
+		}
+		binding := slices.Index(order, 1)
+		for _, beside := range []bool{false, true} {
+			spec := "    T: {type: string, allOf: [" + strings.Join(branches, ", ") + "]}\n"
+			at := fmt.Sprintf("/components/schemas/T/allOf/%d", binding)
+			if beside {
+				spec = "    T: {type: string, " + branches[0][1:len(branches[0])-1] + ", allOf: [" +
+					strings.Join(branches[1:], ", ") + "]}\n"
+				at = "/components/schemas/T"
+				if binding > 0 {
+					at = fmt.Sprintf("/components/schemas/T/allOf/%d", binding-1)
+				}
+			}
+			doc, diags := schema.LowerSpec(t, openapitest.ComponentSpec(spec))
+			assert.Empty(t, typeByName(doc, "T").Common().Unmodeled, "%v %v", order, beside)
+			require.Len(t, diags, 1, "%v %v: one report", order, beside)
+			assert.Equal(t, ir.SeverityError, diags[0].Severity, "%v %v", order, beside)
+			assert.Equal(t, diag.UnpreservableConstruct, diags[0].Code, "%v %v", order, beside)
+			assert.Equal(t, jsontext.Pointer(at), diags[0].Provenance.Pointer, "%v %v", order, beside)
 		}
 	}
 }

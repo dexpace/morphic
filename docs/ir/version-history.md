@@ -492,7 +492,98 @@ it sees. Changes made together in one bump are listed together under it.
     consumer pinned to 0.46.0 encoded a triple's `%` again.
   - `HTTPBinding.RequestContentTypes` lists the request body's media types in source order and
     states no preference among them, where it was worded as priority-ordered.
-- **0.48.0** — no shape change. The OpenAPI compiler writes a count, `minLength`, `maxLength`,
+- **0.48.0** — four changes of meaning, made together, with no change of shape:
+  - An inbound operation's empty `Servers` names no server where it had named its service's
+    ([servers](./servers.md#inbound-operations)), as its `Auth` inherits nothing: the service's
+    servers are where the API is sent requests. A consumer pinned to 0.47.0 sends a webhook or a
+    callback to the API itself.
+  - An `OperationGroup` may hold no operation and no group. The OpenAPI compiler's grouping by
+    extension makes one for each path a `groups` list names after the first and each path an
+    operation's aliases name ([`extension-groups`](../compilers/openapi.md#extension-groups)), for a
+    remount to name. A consumer pinned to 0.47.0 meets a sub-client with nothing in it.
+  - A callback's operation may list callbacks of its own on its binding, each lowered as its
+    parent's are ([`callbacks`](../compilers/openapi.md#callbacks)), where the OpenAPI compiler had
+    dropped them. A consumer pinned to 0.47.0 that walks one level of callbacks misses them.
+  - The OpenAPI compiler leaves a path key's fragment out of `URITemplate`, keeping it on the binding
+    as `openapi:fragment`, and sets `SharedRoute` on each path operation whose method and route
+    another sends ([`path-keys`](../compilers/openapi.md#path-keys)). A consumer pinned to 0.47.0
+    builds the fragment into a URL and reads no route as shared.
+- **0.49.0** — no shape change. The engine's `const-unions` pass rewrites a closed union of strings
+  whose variant names an anonymous branch of several values, a closed `Enum` of strings or a union of
+  them, where that variant is the branch's one reference and neither says anything of all its
+  values: the branch's values become members of the union's `Enum`, each holding what its own
+  member held, and the branch type goes
+  ([`string-const-union`](../compilers/openapi.md#string-const-union)). A model's `Discriminator`
+  may route to the model itself where it is not `Abstract`, from its `Mapping` or its `Default`,
+  which `pass.Validate` had refused ([discriminator](./models.md#discriminator)). A consumer pinned
+  to 0.48.0 that read such a union as a `Union` finds an `Enum` there, no longer finds the branch
+  type, and meets a base among the types its own discriminator routes to.
+- **0.50.0** — no shape change. A union's `Discriminator.Mapping` that holds an entry its source
+  writes holds, beside those entries, the route the source implies to each variant it declares none
+  for ([models](./models.md#discriminator)): the OpenAPI compiler writes into it the name of the
+  component that variant's branch names, and writes the routes out too where a variant's type is an
+  alias for a keyword beside its `$ref`, as it did for a variant composed over its branch
+  ([`discriminator`](../compilers/openapi.md#discriminator)). Its discriminator-inference policy
+  reads what a variant or a subtype admits as a set of strings
+  ([`discriminator-inference`](../compilers/openapi.md#discriminator-inference)): a variant pinning
+  its tag to several strings no other variant admits maps each to it, in a declared discriminator's
+  `Mapping` and in an inferred one; a tag written as a union of string values bounds them as an
+  `enum` does; and what a schema composes as a union, its variants read as objects in turn, meets
+  what it declares. A consumer pinned to 0.49.0 that routed a variant a mapping left out by its
+  type's name finds the route in the `Mapping`, reads unions it read as untagged, or as routed by
+  component names, as routed by the strings their variants pin, and finds no `DiscriminatorValue` on
+  a subtype whose composed union rules its name out.
+- **0.51.0** — no shape changed: four OpenAPI policies, each on by default and switched off by its
+  option, fill facts a document implies by its names and messages, each node they fill marked in its
+  `Provenance.Inferred`. An operation sent by `POST`, `PUT`, `PATCH` or `DELETE` takes its one
+  header parameter `Idempotency-Key` as its `Idempotency` token
+  ([`idempotency-inference`](../compilers/openapi.md#idempotency-inference)); a parameter, a header
+  or a member whose name ends in a credential's and whose value is text or bytes is `Secret`
+  ([`secret-inference`](../compilers/openapi.md#secret-inference)); a deprecation's message naming a
+  declared route or a sibling in code fills `ReplacedBy`
+  ([`replacement-inference`](../compilers/openapi.md#replacement-inference)); and a `date-time`
+  response header whose field an RFC defines as an HTTP-date takes `Encoding` `http-date`
+  ([`http-date-inference`](../compilers/openapi.md#http-date-inference)). A consumer pinned to
+  0.50.0 refuses a document from this generation, whose idempotency, redaction, replacements and
+  header texts it would read as no OpenAPI document wrote them.
+- **0.52.0** — four changes of meaning, the shape kept:
+  - A `null` is no `Enum` member, no variant of the `Union` an enumeration lowers to and no
+    `Literal`'s value, but its reference's `Nullable` bit, so an enumeration of `null` alone and a
+    constant of `null` are each a closed `Enum` with no member behind a nullable reference
+    ([enums](./enums.md#the-empty-enum), [containers](./containers.md#literals)). The OpenAPI
+    compiler had lowered a `null` beside members of several kinds to a `null` `Literal` variant as
+    well as a nullable reference, `null` alone to a union of that one variant, and `const: null` to
+    a `null` `Literal`. A consumer pinned to 0.51.0 finds no `null` variant or `Literal` where it
+    read one.
+  - An `Enum`'s `ValueType` is a primitive every member is a value of. The OpenAPI compiler had
+    taken a declared `type` the members are not values of, a `type: integer` over strings among
+    them; it now takes the members' primitive and keeps the type verbatim.
+  - A number's format on a string, `type: string, format: int64` among them, is a `Scalar` over the
+    number whose `Encoding` is named `string`, a number written as the text of its value, with a
+    `string` `WireType`, as `bytes` under `base64` is ([encodings](./constraints.md#encodings)), and
+    its `Constraints`, which speak of the number ([constraints](./constraints.md#constraints)), hold
+    none of the bounds written beside it, which bound its text or no string instance and are kept
+    verbatim. It had been a `Scalar` over `string` whose encoding named the format, holding those
+    bounds. A consumer pinned to 0.51.0 reads such a value's base as the number where it read a
+    string.
+  - Over a `string`, a `WireType` of `string` marks text the encoding is applied to, and none marks
+    text already encoded. No compiler writes the first yet.
+- **0.53.0** — names an emitter renders moved, and one lowering changed, at an unmoved shape:
+  - The [word grammar](./naming.md#the-word-grammar) separates on a letter or mark that is a
+    `Default_Ignorable_Code_Point`, a variation selector or the Hangul filler U+3164 among them, as
+    on the format characters in that property, so a name of only such characters has no
+    `Canonical`, and `irverify` refuses one in a canonical or a hint. A consumer pinned to 0.52.0
+    meets `Canonical` and `Hint` it would have carried such a character in without it.
+  - The OpenAPI compiler names an anonymous schema that writes a `title`, a union branch's variant
+    included, by the title's words, where its position, its owner or the `$ref` beside it named it,
+    under a policy `title-names=false` turns off ([`naming`](../compilers/openapi.md#naming)); names the items of a `components/mediaTypes` entry
+    keyed `""` from the minted name rather than the pointer; and names a schema under a header of an
+    Encoding Object another nests by the header's key.
+  - The OpenAPI compiler compares a header parameter's name in any case
+    ([`parameters`](../compilers/openapi.md#parameters)), so an operation's `x-trace` overrides
+    its path item's `X-Trace`, and one list writing both reports the second as a repeat, each kept
+    under the ID its spelling gives it.
+- **0.54.0** — no shape change. The OpenAPI compiler writes a count, `minLength`, `maxLength`,
   `minItems`, `maxItems`, `minProperties` or `maxProperties`, past what a 64-bit integer holds to
   no `Constraints` field, where it wrote `0` or a number the source does not state, and keeps it
   verbatim under `openapi:<keyword>` (`degraded_lowering`) on the node or carrier the position owns
@@ -506,6 +597,6 @@ it sees. Changes made together in one bump are listed together under it.
   holds two enums' shared values of the narrower value type, where it kept the first enum of
   different value types, and holds what an alias of an enum, a `const`, a `Scalar`, a list, a map
   or a tuple meets beside the node it stands for, where it kept the first; an alias adding only
-  null to a type beside it gives that type. A consumer pinned to 0.47.0 that read such a count's
+  null to a type beside it gives that type. A consumer pinned to 0.53.0 that read such a count's
   field finds none there, one reading such a branch under `openapi:allOf/<n>` finds its keywords at
   the position instead, and one reading such a field may find a node minted for it.

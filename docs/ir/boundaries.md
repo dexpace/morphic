@@ -108,12 +108,15 @@ simply absent from the IR and preserve nothing.
 - **TCGC-style client-shaping decorators** (`@clientName`, `@access`, `@usage`, `@scope`, …) —
   per-language SDK-surface policy, preserved as namespaced entries for emitter policy layers
   ([access](#access) says why `@access` is one and `TypeCommon.Access` is not). A vendor extension
-  stating an operation's sub-client path is the one such hint a compiler reads, and only into the
-  grouping it forms by policy anyway: an OpenAPI `OperationGroup` is a grouping strategy's output,
-  not a declaration, so a strategy reading a declared path changes which fact feeds it, not what the
-  IR models ([`extension-groups`](../compilers/openapi.md#extension-groups)). The reading is opt-in
-  and marked `Inferred`, the extension stays a `vendor_extension` entry, and every other
-  client-shaping key, a method name among them, is left to an emitter's policy layer.
+  stating an operation's sub-client paths, its own or its aliases', is the one such hint a compiler
+  reads, and only into the grouping it forms by policy anyway: an OpenAPI `OperationGroup` is a
+  grouping strategy's output, not a declaration, so a strategy reading a declared path changes which
+  fact feeds it, not what the IR models
+  ([`extension-groups`](../compilers/openapi.md#extension-groups)). The reading is opt-in and marks
+  each operation it files `Inferred`, while a group no operation is filed in, as one only an alias
+  names, carries no mark, since a group has no provenance. The extension stays a `vendor_extension`
+  entry, and every other client-shaping key, a method name and the remount placing an operation
+  under an alias among them, is left to an emitter's policy layer.
 - **Arbitrary GraphQL persisted queries** — the type graph and entry points are retained; query
   composition is a emitters/runtime feature.
 - **Capability/interface-typed fields** (Cap'n Proto capability passing) — requires

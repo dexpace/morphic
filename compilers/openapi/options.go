@@ -49,7 +49,7 @@ const (
 	// ListsAreSegments reads a list as one path, each entry adding its segments.
 	ListsAreSegments = lowering.ListsAreSegments
 	// ListsAreGroups reads a list as several paths, filing the operation under
-	// the first.
+	// the first and making a group for each of the rest.
 	ListsAreGroups = lowering.ListsAreGroups
 )
 
@@ -129,9 +129,9 @@ type NullableWidening = lowering.NullableWidening
 const NullableWideningHeuristic = lowering.NullableWideningHeuristic
 
 // DiscriminatorInference is the discriminator-inference policy: whether a
-// union's tag is read off the value each variant pins its tag property to,
-// where the document declares no mapping or no discriminator, and a subtype's
-// off the values it admits, where it is routed by name. It is another
+// union's tags are read off the strings each variant pins its tag property
+// to, where the document declares no mapping or no discriminator, and a
+// subtype's off the strings it admits, where it is routed by name. It is another
 // injectable-policy seam (architecture principle 6), and is named here rather
 // than restated for the reason GroupingStrategy is.
 type DiscriminatorInference = lowering.DiscriminatorInference
@@ -140,6 +140,56 @@ type DiscriminatorInference = lowering.DiscriminatorInference
 // carries where the discriminator-inference policy filled its discriminator,
 // and a subtype's where it read its tag.
 const DiscriminatorInferenceHeuristic = lowering.DiscriminatorInferenceHeuristic
+
+// IdempotencyInference is the idempotency policy: whether an operation
+// declaring an `Idempotency-Key` header parameter, and no idempotency, takes it
+// as its idempotency token. It is another injectable-policy seam (architecture
+// principle 6), named here for the reason GroupingStrategy is.
+type IdempotencyInference = lowering.IdempotencyInference
+
+// IdempotencyInferenceHeuristic is the name an operation's Provenance.Inferred
+// carries where the idempotency policy read its token.
+const IdempotencyInferenceHeuristic = lowering.IdempotencyInferenceHeuristic
+
+// SecretInference is the secret policy: whether a parameter, a header or a
+// property whose name says it holds a credential, and whose value is text, is
+// redacted where the document asks for no redaction. It is another
+// injectable-policy seam (architecture principle 6), named here for the reason
+// GroupingStrategy is.
+type SecretInference = lowering.SecretInference
+
+// SecretInferenceHeuristic is the name a parameter's, a header's or a
+// property's Provenance.Inferred carries where the secret policy set its
+// Secret.
+const SecretInferenceHeuristic = lowering.SecretInferenceHeuristic
+
+// HTTPDateInference is the HTTP-date policy: whether a response header whose
+// field an RFC defines as an HTTP-date, and whose schema declares a date-time
+// with no encoding, is written and read as an HTTP-date. It is another
+// injectable-policy seam (architecture principle 6), named here for the reason
+// GroupingStrategy is.
+type HTTPDateInference = lowering.HTTPDateInference
+
+// HTTPDateInferenceHeuristic is the name a header's Provenance.Inferred
+// carries where the HTTP-date policy set its Encoding.
+const HTTPDateInferenceHeuristic = lowering.HTTPDateInferenceHeuristic
+
+// ReplacementInference is the replacement policy: whether a deprecation whose
+// message names what to use instead, in a form the document's entities
+// resolve, names it in ReplacedBy too. It is another injectable-policy seam
+// (architecture principle 6), named here for the reason GroupingStrategy is.
+type ReplacementInference = lowering.ReplacementInference
+
+// ReplacementInferenceHeuristic is the name a deprecated node's
+// Provenance.Inferred carries where the replacement policy read its
+// replacements out of the message.
+const ReplacementInferenceHeuristic = lowering.ReplacementInferenceHeuristic
+
+// TitleNames is the title-names policy: whether a schema's title names the
+// anonymous node built from it, in place of the hint its position composes.
+// It is another injectable-policy seam (architecture principle 6), and is
+// named here rather than restated for the reason GroupingStrategy is.
+type TitleNames = lowering.TitleNames
 
 // DefaultExtensionPromotions returns the extension-to-field mapping applied
 // when the caller names none. It is exported so a caller changing the mapping
@@ -160,10 +210,11 @@ type Options struct {
 	// Grouping selects the operation-grouping strategy.
 	Grouping GroupingStrategy `json:"grouping,omitempty"`
 	// GroupingExtension is what GroupByExtension reads, set as text by the
-	// options grouping-key, grouping-lists and grouping-fallback, and refused
-	// with any other strategy. Naming neither Key nor Lists reads
-	// DefaultGroupingExtension's, and naming one without the other is refused,
-	// since conventions disagree on a list. Fallback defaults to GroupByTags.
+	// options grouping-key, grouping-lists, grouping-aliases and
+	// grouping-fallback, and refused with any other strategy. Naming neither Key
+	// nor Lists reads DefaultGroupingExtension's, its Aliases unless the caller
+	// names one, and naming one without the other is refused, since conventions
+	// disagree on a list. Fallback defaults to GroupByTags.
 	GroupingExtension GroupingExtension `json:"groupingExtension,omitzero"`
 	// StreamingMedia selects which media types imply a stream. The zero value is
 	// the default list, on; a caller who wants only what a document declares
@@ -183,12 +234,36 @@ type Options struct {
 	// written on, a reference it decides marked as inferred. The zero value is
 	// on; a caller who wants only what the document's version says disables it.
 	NullableWidening NullableWidening `json:"nullableWidening"`
-	// DiscriminatorInference selects whether a union's tag is read off the
-	// value each variant pins its tag property to, where the document declares
-	// no mapping or no discriminator, and a subtype's routed by name off the
-	// values it admits, what it reads marked as inferred. The zero value is on;
+	// DiscriminatorInference selects whether a union's tags are read off the
+	// strings each variant pins its tag property to, where the document
+	// declares no mapping or no discriminator, and a subtype's routed by name
+	// off the strings it admits, what it reads marked as inferred. The zero value is on;
 	// a caller who wants only what the document declares disables it.
 	DiscriminatorInference DiscriminatorInference `json:"discriminatorInference"`
+	// IdempotencyInference selects whether an operation declaring an
+	// `Idempotency-Key` header parameter, and no idempotency, takes it as its
+	// idempotency token, marked as inferred. The zero value is on; a caller who
+	// wants only what the document declares disables it.
+	IdempotencyInference IdempotencyInference `json:"idempotencyInference"`
+	// SecretInference selects whether a parameter, a header or a property whose
+	// name says it holds a credential is redacted, marked as inferred. The zero
+	// value is on; a caller who wants only the redaction the document asks for
+	// disables it.
+	SecretInference SecretInference `json:"secretInference"`
+	// HTTPDateInference selects whether a date-time response header whose field
+	// an RFC defines as an HTTP-date is written and read as one, marked as
+	// inferred. The zero value is on; a caller who wants the text the format
+	// names disables it.
+	HTTPDateInference HTTPDateInference `json:"httpDateInference"`
+	// ReplacementInference selects whether a deprecation whose message names
+	// what to use instead names it in ReplacedBy too, marked as inferred. The
+	// zero value is on; a caller who wants the replacement left in the message
+	// disables it.
+	ReplacementInference ReplacementInference `json:"replacementInference"`
+	// TitleNames selects whether a schema's title names the anonymous node
+	// built from it, its title its summary either way. The zero value is on; a
+	// caller who wants every such node named by its position disables it.
+	TitleNames TitleNames `json:"titleNames"`
 	// AllowExternalRefs lets a read of another document leave the directory of
 	// Source.Path, against which references resolve, for any file and http(s)
 	// URLs. Off by default, since a spec is untrusted: reads stay inside that
@@ -357,8 +432,8 @@ type Overlay struct {
 	// Strict — the zero value — is the default because an action whose selector
 	// matches nothing is nearly always a typo in a JSONPath, and an overlay that
 	// silently does nothing ships an SDK missing the very fix it was written to
-	// make. Under strict such an action is reported and the compile refuses;
-	// under lax it is not reported at all.
+	// make. Under strict such an action refuses the compile; under lax it is
+	// reported as a warning, and the rest of the overlay applies.
 	Lax bool `json:"lax,omitzero"`
 }
 
@@ -375,6 +450,9 @@ func (o Options) withDefaults() Options {
 	if o.GroupingExtension.Key == "" && o.GroupingExtension.Lists == "" {
 		def := DefaultGroupingExtension()
 		def.Fallback = o.GroupingExtension.Fallback
+		if o.GroupingExtension.Aliases != "" {
+			def.Aliases = o.GroupingExtension.Aliases
+		}
 		o.GroupingExtension = def
 	}
 	if o.GroupingExtension.Fallback == "" {
@@ -383,17 +461,22 @@ func (o Options) withDefaults() Options {
 	return o
 }
 
-// checkGrouping refuses a grouping extension o cannot read as asked, o having
-// its defaults: one beside another strategy, a key naming no extension, a key
-// or list reading without the other, and a fallback that is not a strategy an
-// operation stating no path can be grouped by. Each error names the text
-// option setting the field, as GroupingExtension's doc pairs them.
+// checkGrouping refuses a grouping o cannot honour, o having its defaults: a
+// strategy it does not name, as the text option refuses one, and a grouping
+// extension it cannot read as asked: one beside another strategy, a key naming
+// no extension, a key or list reading without the other, an aliases key naming
+// no extension or the key itself, and a fallback that is not a strategy an
+// operation stating no path can be grouped by. Each error names the text option
+// setting the field, as GroupingExtension's doc pairs them.
 func (o Options) checkGrouping() error {
+	if err := checkStrategy(o.Grouping); err != nil {
+		return err
+	}
 	ext := o.GroupingExtension
 	if o.Grouping != GroupByExtension {
 		if ext != (GroupingExtension{}) {
-			return fmt.Errorf("openapi: options %q, %q and %q apply only with %q set to %q",
-				optGroupingKey, optGroupingLists, optGroupingFallback, optGrouping, GroupByExtension)
+			return fmt.Errorf("openapi: options %q, %q, %q and %q apply only with %q set to %q",
+				optGroupingKey, optGroupingLists, optGroupingAliases, optGroupingFallback, optGrouping, GroupByExtension)
 		}
 		return nil
 	}
@@ -403,6 +486,10 @@ func (o Options) checkGrouping() error {
 	if ext.Lists != ListsAreSegments && ext.Lists != ListsAreGroups {
 		return fmt.Errorf("openapi: option %q: want %q or %q beside %q, as conventions disagree on what a list means, got %q",
 			optGroupingLists, ListsAreSegments, ListsAreGroups, optGroupingKey, ext.Lists)
+	}
+	if ext.Aliases != "" && (!strings.HasPrefix(ext.Aliases, "x-") || ext.Aliases == ext.Key) {
+		return fmt.Errorf("openapi: option %q: want an extension name starting \"x-\" other than %q's, got %q",
+			optGroupingAliases, optGroupingKey, ext.Aliases)
 	}
 	if ext.Fallback != GroupByTags && ext.Fallback != GroupByPathPrefix {
 		return fmt.Errorf("openapi: option %q: want %q or %q, got %q",
@@ -415,20 +502,37 @@ func (o Options) checkGrouping() error {
 // vocabulary: a caller writes them without knowing which compiler reads them,
 // and nothing above this package holds the list.
 const (
-	optGrouping               = "grouping"
-	optGroupingKey            = "grouping-key"
-	optGroupingLists          = "grouping-lists"
-	optGroupingFallback       = "grouping-fallback"
-	optAllowExternalRefs      = "allow-external-refs"
-	optOverlay                = "overlay"
-	optOverlayLax             = "overlay-lax"
-	optNullableWidening       = "nullable-widening"
-	optDiscriminatorInference = "discriminator-inference"
-	optStreamingMedia         = "streaming-media"
-	optStreamingInference     = "streaming-inference"
-	optBinaryMedia            = "binary-media"
-	optBinaryInference        = "binary-inference"
+	optGrouping          = "grouping"
+	optGroupingKey       = "grouping-key"
+	optGroupingLists     = "grouping-lists"
+	optGroupingAliases   = "grouping-aliases"
+	optGroupingFallback  = "grouping-fallback"
+	optAllowExternalRefs = "allow-external-refs"
+	optOverlay           = "overlay"
+	optOverlayLax        = "overlay-lax"
+	optStreamingMedia    = "streaming-media"
+	optBinaryMedia       = "binary-media"
 )
+
+// switchOptions maps the name of each policy in o that text turns on or off to
+// the field saying it is off: the text names a policy as on or off, and the Go
+// field its being off, as each policy's Disabled does. A name is the marker
+// the policy leaves on what it fills (docs/compilers/openapi.md#policies), but
+// for the streaming and binary policies', whose markers predate the rule
+// (#1847), and the title-names policy's, which leaves none.
+func switchOptions(o *Options) map[string]*bool {
+	return map[string]*bool{
+		string(NullableWideningHeuristic):       &o.NullableWidening.Disabled,
+		string(DiscriminatorInferenceHeuristic): &o.DiscriminatorInference.Disabled,
+		string(IdempotencyInferenceHeuristic):   &o.IdempotencyInference.Disabled,
+		string(SecretInferenceHeuristic):        &o.SecretInference.Disabled,
+		string(HTTPDateInferenceHeuristic):      &o.HTTPDateInference.Disabled,
+		string(ReplacementInferenceHeuristic):   &o.ReplacementInference.Disabled,
+		"streaming-inference":                   &o.StreamingMedia.Disabled,
+		"binary-inference":                      &o.BinaryMedia.Disabled,
+		"title-names":                           &o.TitleNames.Disabled,
+	}
+}
 
 // limitOptions maps the name of each budget in l to the field it sets, so a
 // caller holding only text sets the budgets a Go caller does.
@@ -448,10 +552,10 @@ func limitOptions(l *Limits) map[string]*int {
 // as the vocabulary grows.
 func optionNames() []string {
 	names := []string{
-		optGrouping, optGroupingKey, optGroupingLists, optGroupingFallback, optAllowExternalRefs, optOverlay,
-		optOverlayLax, optNullableWidening, optDiscriminatorInference, optStreamingMedia, optStreamingInference,
-		optBinaryMedia, optBinaryInference,
+		optGrouping, optGroupingKey, optGroupingLists, optGroupingAliases, optGroupingFallback, optAllowExternalRefs,
+		optOverlay, optOverlayLax, optStreamingMedia, optBinaryMedia,
 	}
+	names = slices.AppendSeq(names, maps.Keys(switchOptions(&Options{})))
 	names = slices.AppendSeq(names, maps.Keys(limitOptions(&Limits{})))
 	slices.Sort(names)
 	return names
@@ -490,7 +594,7 @@ func (d *optionDecode) set(key, value string) error {
 	switch key {
 	case optGrouping:
 		return decodeGrouping(&d.opts.Grouping, value)
-	case optGroupingKey, optGroupingLists, optGroupingFallback:
+	case optGroupingKey, optGroupingLists, optGroupingAliases, optGroupingFallback:
 		return d.groupingExtension(key, value)
 	case optAllowExternalRefs:
 		return decodeBool(&d.opts.AllowExternalRefs, key, value)
@@ -507,31 +611,15 @@ func (d *optionDecode) set(key, value string) error {
 	case optOverlayLax:
 		d.laxSet = true
 		return decodeBool(&d.lax, key, value)
-	case optNullableWidening:
-		// The text names the policy as on or off, and the Go field its being off,
-		// as the other policies' Disabled does.
-		on := true
-		err := decodeBool(&on, key, value)
-		d.opts.NullableWidening.Disabled = !on
-		return err
-	case optDiscriminatorInference:
-		on := true
-		err := decodeBool(&on, key, value)
-		d.opts.DiscriminatorInference.Disabled = !on
-		return err
 	case optStreamingMedia:
 		return decodeMediaList(&d.opts.StreamingMedia.MediaTypes, key, value)
-	case optStreamingInference:
-		on := true
-		err := decodeBool(&on, key, value)
-		d.opts.StreamingMedia.Disabled = !on
-		return err
 	case optBinaryMedia:
 		return decodeMediaList(&d.opts.BinaryMedia.MediaTypes, key, value)
-	case optBinaryInference:
+	}
+	if disabled, ok := switchOptions(&d.opts)[key]; ok {
 		on := true
 		err := decodeBool(&on, key, value)
-		d.opts.BinaryMedia.Disabled = !on
+		*disabled = !on
 		return err
 	}
 	if budget, ok := limitOptions(&d.opts.Limits)[key]; ok {
@@ -555,6 +643,8 @@ func (d *optionDecode) groupingExtension(key, value string) error {
 		ext.Key = value
 	case optGroupingLists:
 		ext.Lists = ExtensionLists(value)
+	case optGroupingAliases:
+		ext.Aliases = value
 	default:
 		ext.Fallback = GroupingStrategy(value)
 	}
@@ -581,13 +671,24 @@ func (d *optionDecode) finish() (Options, error) {
 // decodeGrouping reads a grouping strategy by its own name, which is the same
 // string the JSON form uses.
 func decodeGrouping(out *GroupingStrategy, value string) error {
-	switch strategy := GroupingStrategy(value); strategy {
+	strategy := GroupingStrategy(value)
+	if err := checkStrategy(strategy); err != nil {
+		return err
+	}
+	*out = strategy
+	return nil
+}
+
+// checkStrategy refuses a grouping strategy the compiler does not name, in the
+// words of the text option, so a Go caller's misspelling is refused as the
+// text one is rather than grouped by tags.
+func checkStrategy(strategy GroupingStrategy) error {
+	switch strategy {
 	case GroupByTags, GroupByPathPrefix, GroupByExtension:
-		*out = strategy
 		return nil
 	default:
 		return fmt.Errorf("openapi: option %q: want %q, %q or %q, got %q",
-			optGrouping, GroupByTags, GroupByPathPrefix, GroupByExtension, value)
+			optGrouping, GroupByTags, GroupByPathPrefix, GroupByExtension, strategy)
 	}
 }
 

@@ -517,6 +517,38 @@ func TestKindOf_TheFirstEncodingDecidesTheFormat(t *testing.T) {
 	}
 }
 
+// TestKindOf_ANumberAsTextIsAString pins travelsAs: a Scalar whose Encoding
+// carries a number as a string has a string's instances, so it relates to a
+// string and not to its number, while bytes, which JSON spells as a string
+// already, keeps its own kind however it is encoded
+// (docs/compilers/openapi.md#string-formats).
+func TestKindOf_ANumberAsTextIsAString(t *testing.T) {
+	t.Parallel()
+	wire := func() *ir.Encoding { s := primRef(ir.PrimString); return &ir.Encoding{Name: "string", WireType: &s} }
+	reg := map[ir.TypeID]ir.TypeDef{}
+	for _, k := range []ir.PrimKind{ir.PrimString, ir.PrimInt64, ir.PrimBytes} {
+		reg[primRef(k).Target] = &ir.Primitive{ID: primRef(k).Target, Prim: k}
+	}
+	i64, b := primRef(ir.PrimInt64), primRef(ir.PrimBytes)
+	reg["t/num-text"] = &ir.Scalar{ID: "t/num-text", Base: &i64, Encoding: wire()}
+	reg["t/alias-num-text"] = &ir.Scalar{ID: "t/alias-num-text", Base: &ir.TypeRef{Target: "t/num-text"}}
+	reg["t/num"] = &ir.Scalar{ID: "t/num", Base: &i64, Encoding: &ir.Encoding{Name: "string"}}
+	reg["t/bytes-b64"] = &ir.Scalar{ID: "t/bytes-b64", Base: &b, Encoding: wire()}
+	j := typeJudge{resolve: stubResolve(reg), sites: declarationSites{walk: &stubWalk{}}}
+	for id, want := range map[ir.TypeID]ir.PrimKind{
+		"t/num-text": ir.PrimString, "t/alias-num-text": ir.PrimString, "t/num": ir.PrimInt64, "t/bytes-b64": ir.PrimBytes,
+	} {
+		got, ok := j.kindOf(ref(id))
+		require.True(t, ok, "%s", id)
+		assert.Equal(t, valueKind{prim: want}, got, "%s", id)
+	}
+	str, _ := j.kindOf(primRef(ir.PrimString))
+	num, _ := j.kindOf(primRef(ir.PrimInt64))
+	text, _ := j.kindOf(ref("t/num-text"))
+	assert.Equal(t, relSame, relateKinds(str, text), "a string and a number as text share their instances")
+	assert.Equal(t, relDisjoint, relateKinds(num, text), "a JSON number is no string")
+}
+
 func TestTypeJudge_AdmitsPerNode(t *testing.T) {
 	t.Parallel()
 	reg := judgeRegistry()

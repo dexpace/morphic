@@ -22,6 +22,9 @@ compile needs it here too, or what is checked is not what would be built.
 --cache-dir is compile's, and shares its entries: a run of either answers the
 other.
 
+--triage, --diag-format, --show and --diag-limit are compile's, and write the
+same findings the same way.
+
 SIGINT, SIGTERM or SIGHUP stops the run, unless it comes once the compile is
 over: the diagnostics are then written whole, and the run exits as though it
 had not come. Another while the run is stopping changes nothing.
@@ -38,9 +41,13 @@ Examples:
 
 Flags:
       --cache-dir string             keep compiled documents in this directory, and reuse one while nothing it depends on has changed
+      --diag-format format           write the findings to stderr as text, for a person, or as one JSON report, for a program (default text)
+      --diag-limit count             in text, write this many findings of one code and severity, and count the rest; 0 writes every one (default 3)
       --disable-pass name            turn off the IR pass with this name (repeatable)
-      --fail-on threshold            exit 1 on a diagnostic at or above this severity: error, warning or info; none exits 1 only when the spec lowered to no document (default error)
+      --fail-on threshold            exit 1 on a finding rated at or above this severity that no --triage rule accepted: error, warning or info; none exits 1 only when the spec lowered to no document (default error)
   -h, --help[=true|false]            help for validate
       --opt key=value                set one key=value option on the compiler the spec selects (repeatable)
+      --show severity                in text, write each finding at or above this severity, error, warning or info, and count the rest (default info)
       --skip-validate[=true|false]   alias for --disable-pass validate
+      --triage string                rate or accept findings by code and place, as the rules this JSON file lists say
       --verify[=true|false]          check the IR each stage returns against the IR's invariants, and that no pass changes its input; for developing a stage, and slow

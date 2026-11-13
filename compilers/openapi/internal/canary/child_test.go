@@ -100,7 +100,6 @@ func children() map[string]child {
 		"orders":      unknownKeyOrders,
 		"allocations": allocations,
 		"chain-root":  chainRootAllocations,
-		"overlay":     applyOverlay,
 		// The binding oracle's library side.
 		"binding-oracle": libraryAnswers,
 		// Two whose ending is known, for the tests of probe itself.
