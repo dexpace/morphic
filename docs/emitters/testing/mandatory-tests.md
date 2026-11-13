@@ -167,12 +167,14 @@ throughout these documents.
     selectors (`responds(toSelector:)`), a method and an entry after a name of each method family,
     and entries `ENTRIES`, `VALUES` and `COMPANION` of an enum with a companion object: the header
     builds a module, a Swift caller importing the platform's UI framework reads each property's own
-    value, calls each method and reaches each entry by the name the policy chose, which is the name
-    the header gives it, a property `value`, one `version`, a method `hashValue()` and an entry
-    `HASH_VALUE` keep their names, `hash`, `copy()` and `responds(to:)` on a model still answer as
-    `NSObject`'s, and that enum's `entries`, `values()` and `companion` as its own, and the table
-    equals what that document's commands read from each SDK the options version names, Foundation's
-    selectors, AppKit's and UIKit's and `hashValue` alike ([Swift](../targets/kotlin/swift.md)).
+    value into a binding that states no type, calls each method and reaches each entry, of an enum
+    lowered with `OpenEnums` off so that it is an `enum class`, by the name the policy chose, which
+    is the name the header gives it, a property `value`, one `version`, a method `hashValue()` and
+    an entry `HASH_VALUE` keep their names, `hash`, `copy()` and `responds(to:)` on a model still
+    answer as `NSObject`'s, and that enum's `entries`, `values()` and `companion` as its own, and
+    the table equals what that document's commands read from each SDK the options version names,
+    Foundation's selectors, AppKit's and UIKit's and `hashValue` alike
+    ([Swift](../targets/kotlin/swift.md)).
 20. **T-20 · Recursive types** — a model that holds itself directly, through a base, through a tuple
     and through another model, and one whose cycle passes through a list or a union, generate code
     that compiles on every target, and exactly the references on a cycle Go holds by value are held
