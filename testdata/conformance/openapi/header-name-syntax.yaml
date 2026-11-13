@@ -6,7 +6,7 @@ paths:
       operationId: getTrace
       parameters:
         # One header spelled in two cases, a repeat OpenAPI forbids as it does any:
-        # both are kept, the repeat's ID numbered.
+        # both are kept, each under the ID its spelling gives it.
         - {name: X-Trace, in: header, schema: {type: string}}
         - {name: x-trace, in: header, schema: {type: string}}
       responses:
