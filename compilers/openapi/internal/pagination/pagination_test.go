@@ -429,10 +429,11 @@ func TestInfer_KeepsAPaginationTheOperationHolds(t *testing.T) {
 
 // TestInfer_LeavesWhatAnExtensionSpeaksOf compiles GETs taking parameters the
 // names read as a walk, beside extensions that speak of a pagination, filling
-// one, resolving to nothing, answering false or marking a parameter, a member,
-// a header or a shared type, and two that speak of none. Inference fills and
-// reports only where none speaks under the options in force, in either
-// declaration order (docs/compilers/openapi.md#extension-pagination).
+// one, resolving to nothing, answering false, holding nothing a walk is read
+// from or marking a parameter, a member, a header or a shared type, and two
+// that speak of none. Inference fills and reports only where none speaks under
+// the options in force, in either declaration order, and false draws no report
+// (docs/compilers/openapi.md#extension-pagination).
 func TestInfer_LeavesWhatAnExtensionSpeaksOf(t *testing.T) {
 	t.Parallel()
 	const (
@@ -456,6 +457,12 @@ func TestInfer_LeavesWhatAnExtensionSpeaksOf(t *testing.T) {
 		{"answered", fern + `false`, pages, "", data, "- - []", "page pagination-inference []", "- - []"},
 		{"answeredUnsettled", fern + `false`, pages + `, {name: cursor, in: query, schema: {type: string}}`, "", data,
 			"- - []", "- - [undecided-pagination]", "- - []"},
+		{"unreadable", fern + `true`, pages, "", data,
+			"- - [degraded-construct]", "page pagination-inference []", "- - [degraded-construct]"},
+		{"unreadableMembers", fern + `{}`, pages, "", data,
+			"- - [degraded-construct]", "page pagination-inference []", "- - [degraded-construct]"},
+		{"unreadableMark", "", pages + `, {name: after, in: query, schema: {type: string}, x-stainless-pagination-property: null}`,
+			"", data, "- - [degraded-construct]", "page pagination-inference []", "- - [degraded-construct]"},
 		{"markedParam", "", pages + `, {name: after, in: query, schema: {type: string}, ` + mark + `next_cursor_param}}`,
 			"", data, "- - [degraded-construct]", "page pagination-inference []", "- - [degraded-construct]"},
 		{"markedMember", "", pages, "", next + `{type: string, ` + mark + `next_cursor_field}}}}`,
@@ -469,6 +476,16 @@ func TestInfer_LeavesWhatAnExtensionSpeaksOf(t *testing.T) {
 		{"markedOperation", mark + `next_cursor_param}`, pages, "", data,
 			"page pagination-inference []", "page pagination-inference []", "- - []"},
 		{"unmarked", "", pages, "", data, "page pagination-inference []", "page pagination-inference []", "- - []"},
+	}
+	// What the promotion reports of each value no walk is read from: that the
+	// key, being written, keeps an inferred pagination off.
+	const unread = ", so it states no value of a walk, and as the key is written, no pagination is inferred for "
+	unreadable := map[string]string{
+		"unreadable": `extension "x-fern-pagination" is true, not an object` + unread + "the operation",
+		"unreadableMembers": `extension "x-fern-pagination" holds none of the members the policy reads ` +
+			`(cursor, next_cursor, next_uri, results)` + unread + "the operation",
+		"unreadableMark": `extension "x-stainless-pagination-property" is null, not an object` + unread +
+			"an operation reaching it",
 	}
 	policies := map[string]openapi.Options{
 		"on":          {},
@@ -498,9 +515,26 @@ func TestInfer_LeavesWhatAnExtensionSpeaksOf(t *testing.T) {
 						"noInference": tc.noInference, "neither": "- - []"}[policy]
 					assert.Equal(t, want, got[tc.name], tc.name)
 				}
+				if policy == "on" || policy == "noInference" {
+					for name, want := range unreadable {
+						assert.Equal(t, []string{want}, reportsAt(diags, name), name)
+					}
+				}
 			})
 		}
 	}
+}
+
+// reportsAt returns the messages of diags reported within the path item
+// /name.
+func reportsAt(diags []ir.Diagnostic, name string) []string {
+	var out []string
+	for _, d := range diags {
+		if strings.HasPrefix(string(d.Provenance.Pointer), "/paths/~1"+name+"/") {
+			out = append(out, d.Message)
+		}
+	}
+	return out
 }
 
 // getPath is a path item /name holding one GET, name, carrying the operation
