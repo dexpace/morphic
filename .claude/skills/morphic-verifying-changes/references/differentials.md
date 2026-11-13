@@ -101,16 +101,15 @@ whether the answer means anything.
 ## A clean order oracle says nothing of an order it forgives
 `order-oracle-reads-what-it-compares`
 
-- **Rule.** Read `diffOrderInvariants` in `internal/harness/order.go` before trusting a clean order
-  oracle. It compares the whole document, forgiving the order of each collection `orderFree`
-  lists, and permutes mappings alone at the default limits. An order dependence in a listed
-  collection's order, in a sequence such as an `allOf`'s branches (#1666), or at another limit
-  (#1519) needs its own two-order diff, however many specs reach the sweep.
-- **Why.** With the normalization of a slice held only on operations deleted, `morphic-harness`
-  still passed a spec whose two headers lower in opposite orders, since no comparison read them
-  (#1166, #684).
-- **Probe.** `grep -n 'sortedElements\[' internal/harness/order.go` lists what it forgives; plant
-  an order dependence in the fact and see whether the oracle reddens.
+- **Rule.** Read `orderFree` and `diagnosticSet` in `internal/harness/order.go` before trusting a
+  clean order oracle: it forgives the order of what `orderFree` lists and a message's text, and
+  permutes mappings alone at the default limits. An order dependence among a listed collection's
+  elements, in a message, in a sequence such as an `allOf`'s branches (#1666), or at another
+  limit (#1519) needs its own two-order diff, however many specs reach the sweep.
+- **Why.** With a slice held only on operations left unread, `morphic-harness` passed a spec whose
+  two headers lower in opposite orders (#1166, #684); sorting every list of examples passed a
+  schema whose `examples` array lowered reversed in one order (#1818).
+- **Probe.** Plant an order dependence in the fact and see whether the oracle reddens.
 
 ## An oracle that declines a spec asked it nothing
 `order-oracle-errors`

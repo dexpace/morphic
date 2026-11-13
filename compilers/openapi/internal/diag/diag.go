@@ -441,8 +441,8 @@ const (
 	// type array and no `items`, which 3.0 requires, at the schema's pointer. It
 	// lowers as it would in 3.1, where `items` is optional: a List's element is
 	// the top type. A warning rather than an error: nothing the document
-	// declared is dropped. A code of its own rather than DegradedConstruct, because
-	// nothing is kept in a weaker shape.
+	// declared is dropped. A code of its own rather than DegradedConstruct,
+	// because nothing is kept in a weaker shape.
 	MissingArrayItems = "openapi/missing-array-items"
 	// LaterVersionConstruct reports a field, or a value of one, that a later
 	// OpenAPI minor than the document declares added to the object it is written
@@ -469,9 +469,9 @@ const (
 	// template expression, an expression used twice, an empty segment, or a
 	// query. One warning per key names each, at the key's path item.
 	//
-	// Warning, as InvalidStatusKey is: the key is used as written. A "#" fragment is GitHub
-	// #602's to report, so nothing from it on is read, and matching the
-	// expressions to path parameters is #640's.
+	// Warning, as InvalidStatusKey is: the key is used as written. A "#"
+	// fragment is GitHub #602's to report, so nothing from it on is read, and
+	// matching the expressions to path parameters is #640's.
 	InvalidPathKey = "openapi/invalid-path-key"
 	// InferredNullable reports a null the nullable-widening policy reads in
 	// where the document's version does not: a `nullable: true` in a 3.1 or 3.2

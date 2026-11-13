@@ -164,7 +164,9 @@ func knownInvalid() map[string]bool {
 // knownFindings lists the findings an oracle other than the error diagnostic
 // makes on a committed fixture: a defect in the compiler, each beside the issue
 // that holds it. TestHarness_InRepoCorpus fails a fixture whose findings are
-// not exactly these, so a fix takes its entry out.
+// not exactly these, so a fix takes its entry out. An entry names an outcome,
+// not what differs, so until then it also stands for any other finding of its
+// oracle on that fixture.
 func knownFindings() map[string][]harness.Outcome {
 	return map[string][]harness.Outcome{
 		// A $ref on a failing chain is reported only if the walk reaches it
