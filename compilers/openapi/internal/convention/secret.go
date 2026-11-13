@@ -42,17 +42,23 @@ func redactUse(c lowering.Ctx, reg ir.TypeRegistry, name ir.Naming, t ir.TypeRef
 }
 
 // credentialName reports whether canonical, a name's canonical words, ends in
-// a phrase naming a credential: a password, a passphrase or a secret, an API,
-// access, secret or private key, or an access, refresh, auth, bearer, session
-// or API token. A name ending in another word, as `secret_id` and `page_token`
-// do, names something else, and `token` alone names a credential in one
-// document and a unit of text in another.
+// a phrase naming a credential, numbers after it aside: a password, a
+// passphrase or a secret, an API, access, secret or private key, an access,
+// refresh, auth, bearer, session or API token, or, as the whole name, the
+// field RFC 9110 defines as credentials, an authorization or a proxy's. A name
+// ending in another word, as `secret_id` and `page_token` do, names something
+// else, and `token` alone names a credential in one document and a unit of
+// text in another.
 func credentialName(canonical string) bool {
-	rest, last := lastWord(canonical)
+	rest, last := lastWord(strings.TrimRight(canonical, "_0123456789"))
 	_, before := lastWord(rest)
 	switch last {
 	case "password", "passwd", "passphrase", "secret", "apikey":
 		return true
+	case "phrase":
+		return before == "pass"
+	case "authorization":
+		return rest == "" || rest == "proxy"
 	case "key":
 		return before == "api" || before == "access" || before == "secret" || before == "private"
 	case "token":

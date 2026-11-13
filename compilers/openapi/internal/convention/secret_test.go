@@ -52,9 +52,10 @@ func propertyOf(t *testing.T, doc *ir.Document) ir.Property {
 }
 
 // TestRedact_ReadsTheNamesTail pins which names say a value is a credential:
-// those whose canonical words end in a credential's, whatever their spelling,
-// and not one ending in another word, a credential's identifier or a page's
-// token among them, nor `token` alone.
+// those whose canonical words end in a credential's, whatever their spelling
+// and numbers after it, and not one ending in another word, a credential's
+// identifier or a page's token among them, nor `token` alone, nor an
+// authorization that is not the whole name.
 func TestRedact_ReadsTheNamesTail(t *testing.T) {
 	t.Parallel()
 	for name, secret := range map[string]bool{
@@ -62,8 +63,10 @@ func TestRedact_ReadsTheNamesTail(t *testing.T) {
 		"secret": true, "client_secret": true, "signingSecret": true, "apikey": true, "APIKEY": true,
 		"api_key": true, "X-Api-Key": true, "apiKey": true, "access_key": true, "R2-Secret-Access-Key": true,
 		"secret_key": true, "privateKey": true, "access_token": true, "refreshToken": true, "X-Auth-Token": true,
-		"bearer_token": true, "session_token": true, "api_token": true,
-		"secret_id": false, "secret_name": false, "R2-Access-Key-Id": false, "api_key_id": false, "key": false,
+		"bearer_token": true, "session_token": true, "api_token": true, "password2": true, "apiKey2": true,
+		"Password_1_2": true, "passPhrase": true, "pass_phrase": true, "authorization": true, "Authorization": true,
+		"Proxy-Authorization": true, "2": false, "secret2FA": false, "api_key_v2": false, "bypass_phrase": false,
+		"phrase": false, "payment_authorization": false, "X-Authorization": false, "secret_id": false, "secret_name": false, "R2-Access-Key-Id": false, "api_key_id": false, "key": false,
 		"token": false, "page_token": false, "next_token": false, "token_type": false, "password_policy": false,
 		"client_secret_version": false, "keys": false, "passwords": false, "": false,
 		"_": false, "public_key": false, "id_token_hint": false,

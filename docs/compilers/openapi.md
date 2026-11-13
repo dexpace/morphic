@@ -2994,12 +2994,15 @@ The secret policy redacts a value whose name says it is a credential where the d
 about its redaction: the Go option `Options.SecretInference`, whose zero value is on and whose
 `Disabled` reads no name, and the text option `secret-inference`, which `false` turns off (invariant
 6). A parameter, a header of a response or of an encoding, or a model's member is `Secret`, its
-`Provenance.Inferred` naming `secret-inference`, where its name's canonical words end in `password`,
-`passwd`, `passphrase`, `secret` or `apikey`, in `api`, `access`, `secret` or `private` followed by
-`key`, or in `access`, `refresh`, `auth`, `bearer`, `session` or `api` followed by `token`, and its
-type reads, through its scalars, as `string` or `bytes`. A name's last words decide what it names,
-so `secret_id`, `R2-Access-Key-Id` and `page_token` name no credential, and `token` alone names
-none, since one API calls a credential so and another a unit of text; a value of another type, as
+`Provenance.Inferred` naming `secret-inference`, where its name's canonical words, a number after
+them aside, end in `password`, `passwd`, `passphrase`, `secret` or `apikey`, in `pass` followed by
+`phrase`, in `api`, `access`, `secret` or `private` followed by `key`, or in `access`, `refresh`,
+`auth`, `bearer`, `session` or `api` followed by `token`, or are `authorization` or `proxy`
+`authorization` alone, the fields whose value RFC 9110 defines as credentials (§11.6.2, §11.7.2),
+and its type reads, through its scalars, as `string` or `bytes`. A name's last words decide what it
+names, so `secret_id`, `R2-Access-Key-Id`, `page_token` and `payment_authorization` name no
+credential while `password2` and `passPhrase` name one, and `token` alone names none, since one API
+calls a credential so and another a unit of text; a value of another type, as
 `has_password: {type: boolean}` or a `secret` object holding a credential's parts, is none either. A
 use already `Secret` takes nothing more, nor does one whose type is `Sensitive`
 ([`password`](#password)), and a redaction key the promotion maps, written on the use or on a node
@@ -3007,9 +3010,11 @@ its type reads through, decides whatever it says, so `x-sensitive: false` keeps 
 from asking. The reading waits for the document to be whole, since a `$ref` can name a type built
 after its use. Redaction changes how a value is shown and nothing sent, a wrong guess hiding a value
 from a log and a missed one printing a credential, so nothing is reported. On the golden spec, of
-the 106 uses its words and types match, the document redacts 93 itself, and the policy marks the
-other 13: the 2 `R2-Secret-Access-Key` header parameters and 11 members, 4 `client_secret`, 3
-`password`, 2 `secret_access_key`, a `build_token_secret` and an `r2_secret` (spec @86556f6f).
+the 123 uses its words and types match, the document redacts 93 itself, and the policy marks the
+other 30: the 2 `R2-Secret-Access-Key` header parameters and 28 members, 17 `authorization`, 4
+`client_secret`, 3 `password`, 2 `secret_access_key`, a `build_token_secret` and an `r2_secret`. One
+of the `password` members, a leaked-credential detection's, holds the ruleset expression that finds
+a password in a request rather than a password, which its name cannot tell apart (spec @86556f6f).
 
 - Cases: `secret-inference`
 - Tests: `convention.TestRedact_ReadsTheNamesTail`, `convention.TestRedact_ReadsTheValuesType`,
