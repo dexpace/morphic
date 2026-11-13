@@ -92,8 +92,9 @@ type Dependency struct {
 `Type`, `Codec` and `Imports` are written as the target writes them in a file
 ([Go](../targets/go/types.md), [Kotlin](../targets/kotlin/types.md)). Decoding parses `Type` and
 `Codec` into the target's AST with each imported name bound through `Imports`, so a node holds what
-it imports and never the name a row spelled it by, and what a file calls each import is settled with
-every other name ([reserved names](../refine/reserved-names.md)): two rows that spell `decimal` for
+it imports and never the name a row spelled it by, and what a file calls each import is settled by
+the naming steps, as every other name is ([reserved names](../refine/reserved-names.md)): two rows
+that spell `decimal` for
 two packages, or a row's package and a unit of the SDK's own, can meet in one file. A built-in row
 may name a type of the SDK's runtime, which the target imports from the runtime's unit ([output
 units](../refine/output-units.md#the-runtimes-unit)).
