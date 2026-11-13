@@ -149,11 +149,33 @@ func operationsOf(r ruler, item map[string]*yaml.Node, ptr jsontext.Pointer) []o
 	return out
 }
 
-// expressions returns the names of the template expressions of a path. A "#"
-// ends the path, as it ends what the path-key check reads (GitHub #602).
+// expressions returns the names of the template expressions of a path, less
+// its fragment (fragmentAt), which is no part of the route a request is sent to.
 func expressions(path string) []string {
-	before, _, _ := strings.Cut(path, "#")
-	return braced(before)
+	return braced(path[:fragmentAt(path)])
+}
+
+// fragmentAt returns where a path key's fragment begins, or its length where
+// it carries none, as the lowering splits one (docs/compilers/openapi.md#path-keys):
+// at the first "#" outside a template expression, "{", a name holding no brace,
+// then "}", or the first "#" after a "?", which ends the path in a query.
+func fragmentAt(path string) int {
+	for i := 0; i < len(path); i++ {
+		switch path[i] {
+		case '#':
+			return i
+		case '?':
+			if at := strings.IndexByte(path[i:], '#'); at >= 0 {
+				return i + at
+			}
+			return len(path)
+		case '{':
+			if n := strings.IndexAny(path[i+1:], "{}"); n > 0 && path[i+1+n] == '}' {
+				i += n + 1
+			}
+		}
+	}
+	return len(path)
 }
 
 // braced returns the text of each {group} s writes, up to the first brace no

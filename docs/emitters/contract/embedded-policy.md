@@ -156,6 +156,8 @@ method names hold only beside it: under the default grouping by tags, 1,745 of t
 name with another method of the group the IR places them in, which the collision resolver then
 renames ([naming](../refine/naming.md)). Grouped by the path, 94 of 3,792 do (spec @e411be7e, where
 1,751 do by tags), each one the document itself names alike under one sub-client. That grouping
-makes the groups of the paths operations are filed under, their prefixes among them, and no other,
-so 44 of the 48 aliases on 45 operations name a path it has no group for (spec @bc6fad24): an
-`AlsoMount` there names a group the IR does not have, which is reported (#1726).
+also makes a group for each path an operation's aliases name, holding no operation where none is
+filed there, so an `AlsoMount` naming any of the 48 aliases on 45 operations names a group the IR
+has (spec @86556f6f), provided the key a mapping reads into `AlsoMount` is the one the compiler's
+`grouping-aliases` reads: the two read one extension, and nothing pairs them but the mapping's
+configuration ([`extension-groups`](../../compilers/openapi.md#extension-groups)).

@@ -18,3 +18,13 @@ paths:
               responses:
                 "200":
                   description: ok
+              # A callback's operation declares callbacks of its own, which lower
+              # as its parent's do.
+              callbacks:
+                onReply:
+                  '{$response.body#/replyUrl}':
+                    post:
+                      operationId: onReply
+                      responses:
+                        "200":
+                          description: ok
