@@ -77,6 +77,31 @@ paths:
               schema: {type: array, items: {$ref: '#/components/schemas/Frame'}}
             text/event-stream:
               schema: {$ref: '#/components/schemas/Frame'}
+  # A plain body beside a stream: each content says whether it streams, as do
+  # an error's and the default's, which no stream of the operation summarizes.
+  /metrics:
+    get:
+      operationId: tailMetrics
+      responses:
+        "200":
+          description: ok
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Frame'}
+            text/event-stream:
+              schema: {$ref: '#/components/schemas/Frame'}
+        "4XX":
+          description: failed
+          content:
+            text/event-stream:
+              schema: {$ref: '#/components/schemas/Frame'}
+        default:
+          description: other
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Frame'}
+            application/x-ndjson:
+              schema: {$ref: '#/components/schemas/Frame'}
   # A registered sequence type (RFC 7464), and its structured suffix (RFC 8091).
   /sequence:
     get:
