@@ -4271,13 +4271,11 @@ JSON Pointer token) with reason `no_ir_home`, located at the entry, and reported
 schema or its `allOf` branches, or, on a file body, that the body has no parts, and names no other
 cause, since the walk cannot tell a misspelt key from a catch-all's or a union branch's. A key
 naming no property and an entry of a file body are ones OpenAPI gives no effect, 3.2 saying such an
-entry "SHALL be ignored". No reason states that, so they keep `no_ir_home` rather than be dropped,
-and stay where a union branch's entry and a catch-all's leave once keyed. Nothing a kept entry
-declares is lowered or judged: its header schemas register no type, its `x-*`, unknown keys and
-nested encodings have no record of their own, and neither an unknown key nor a reserved header name
-in it is reported, though load still validates its fields. An entry that is no object is kept
-nowhere and draws only the `openapi/validation` error that load reports for it.
-`contentType` lowers to `ContentTypes`, split on `,`
+entry "SHALL be ignored". They are kept all the same. Nothing a kept entry declares is lowered or
+judged: its header schemas register no type, its `x-*`, unknown keys and nested encodings have no
+record of their own, and neither an unknown key nor a reserved header name in it is reported, though
+load still validates its fields. An entry that is no object is kept nowhere and draws only the
+`openapi/validation` error load reports. `contentType` lowers to `ContentTypes`, split on `,`
 and trimmed with empty items dropped, and one naming no media type is an `openapi/validation` error
 ([`validation`](#validation)); `headers` to `Headers`, lowered as a response's are; and `style` and
 `explode` to `Style` and `Explode` as declared, nothing defaulted. `Multi` and `Filename` come from
@@ -4353,12 +4351,14 @@ without its parameters and in any case.
   `operation.TestPartEncodings_AFileBodyOutsideAFormKeepsNoEncodingEntry`
 - Status: partly built: a part only a `oneOf` or `anyOf` branch declares is not keyed, its entry
   kept whole (#1771); an entry naming one a catch-all governs has no typed home (#1770); a key
-  naming no property draws only the info (#1661); a kept entry's unknown keys and reserved header
-  names go unreported, as in the other objects kept whole (#1662); a part of a body declaring
-  `properties` beside a keyword that lowers it to no model is keyed by a property no node holds,
-  which validation then refuses (#1772); a part's own `format: byte`, and a part of a url-encoded
-  body, is marked as carrying a filename (#1214); and an encoding under a media type it does not
-  apply to is kept in no form (#1047).
+  naming no property draws only the info (#1661); an entry OpenAPI gives no effect, one whose key
+  names no property or one of a file body, keeps `no_ir_home`, a reason promised to leave, until
+  which reason it takes is decided (#1791); a kept entry's unknown keys and reserved header names go
+  unreported, as in the other objects kept whole (#1662); a part of a body declaring `properties`
+  beside a keyword that lowers it to no model is keyed by a property no node holds, which validation
+  then refuses (#1772); a part's own `format: byte`, and a part of a url-encoded body, is marked as
+  carrying a filename (#1214); and an encoding under a media type it does not apply to is kept in no
+  form (#1047).
 
 ### `encoding-allow-reserved`
 

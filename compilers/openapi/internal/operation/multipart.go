@@ -70,9 +70,9 @@ const (
 // with one info each, which why completes
 // (docs/compilers/openapi.md#multipart-encoding). Nothing it declares is lowered
 // or judged: its unknown keys and reserved header names go unreported, as in the
-// other objects kept whole #1662 lists. An entry that is no object is skipped,
-// since load reports it. A union branch's part is not keyed (#1771), nor a
-// catch-all's entry (#1770).
+// other objects kept whole GitHub #1662 lists. An entry that is no object is
+// skipped, since load reports it. A union branch's part is not keyed (GitHub
+// #1771), nor a catch-all's entry (GitHub #1770).
 func keepUnkeyedEncodings(c lowering.Ctx, media *soa.MediaType, mediaPtr jsontext.Pointer, parts []bodyPart, why string) (ir.Unmodeled, []ir.Diagnostic) {
 	walked := make(map[string]struct{}, len(parts))
 	for _, part := range parts {
@@ -87,6 +87,8 @@ func keepUnkeyedEncodings(c lowering.Ctx, media *soa.MediaType, mediaPtr jsontex
 		at := mediaPtr + ids.Ptr("encoding", name)
 		// The model reads an entry that is no mapping as one with no node, so
 		// PreserveNodeInto keeps nothing for it and load's error is its one finding.
+		// An entry OpenAPI gives no effect, a key naming no property or a file
+		// body's, takes no_ir_home too until GitHub #1791 decides its reason.
 		written, keepDiags := annotation.PreserveNodeInto(&kept, annotation.EntryKey("encoding", name),
 			enc.GetRootNode(), ir.ReasonNoIRHome, c.Place().At(at))
 		diags = append(diags, keepDiags...)
