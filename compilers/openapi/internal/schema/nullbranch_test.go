@@ -355,3 +355,32 @@ components:
 		assert.Equal(t, []jsontext.Pointer{"/components/schemas/H/oneOf/1"}, refusals)
 	}
 }
+
+// TestNullBranch_ARepeatedNullIsReportedAtTheBranch pins a null branch whose
+// enum repeats its null: no variant lowers it, yet the repeat is the
+// document's, so it draws the warning the same enum draws written alone
+// (docs/compilers/openapi.md#enum-const), at each repeat, whichever path lifts
+// the branch.
+func TestNullBranch_ARepeatedNullIsReportedAtTheBranch(t *testing.T) {
+	t.Parallel()
+	doc, diags := parseFull(t, openapitest.ComponentSpecVer("3.1.0", `    X: {type: object, properties: {id: {type: string}}}
+    Holder:
+      type: object
+      properties:
+        alone: {enum: [null, null]}
+        collapsed: {oneOf: [{$ref: '#/components/schemas/X'}, {enum: [null, null]}]}
+        many: {anyOf: [{$ref: '#/components/schemas/X'}, {type: string}, {type: "null", enum: [null, null], title: t}]}
+        only: {oneOf: [{enum: [null, null, null]}]}
+`))
+	openapitest.RequireNoErrorDiags(t, diags)
+	assert.Equal(t, ir.TypeRef{Target: componentID("X"), Nullable: true}, propertyOf(t, doc, "Holder", "collapsed").Type,
+		"the branch is lifted")
+	const at = "/components/schemas/Holder/properties/"
+	for _, repeat := range []string{"alone/enum/1", "collapsed/oneOf/1/enum/1", "many/anyOf/2/enum/1",
+		"only/oneOf/0/enum/1", "only/oneOf/0/enum/2"} {
+		assert.Contains(t, codesAt(diags, at+repeat),
+			ir.Diagnostic{Severity: ir.SeverityWarning, Code: diag.DuplicateEnumValue}, repeat)
+	}
+	assert.Equal(t, 5, openapitest.CountDiagsAt(diags, diag.DuplicateEnumValue, ir.SeverityWarning),
+		"each repeat is reported once")
+}

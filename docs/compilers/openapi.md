@@ -2406,7 +2406,10 @@ the branches leave, or, where they collapse, where the position keeps what else 
 hold, below. It is reported as an info `openapi/degraded-construct` at the branch. A `nullable`
 nothing reads is a keyword the branch's dialect does not define, which keeps the branch as any other
 does, and a `null` written for one of those keys is the key left out
-([`null-keywords`](#null-keywords)), and keeps nothing.
+([`null-keywords`](#null-keywords)), and keeps nothing. An `enum` that repeats its `null` is the
+document's whichever path takes the branch, so each repeat is reported as an
+`openapi/duplicate-enum-value` warning at it, as for that `enum` written alone
+([`enum-const`](#enum-const)).
 
 The collapse is held to a `$ref` site's rule ([models](../ir/models.md#composition-entries)), since
 it too lowers to a reference: a collection bound beside it reaches what the position owns
@@ -2417,7 +2420,7 @@ it too lowers to a reference: a collection bound beside it reaches what the posi
 carrier of a property, parameter or header, and on an alias hoisted at any other position.
 
 - Cases: `nullable-union-discriminator`, `nullable-31-ref`, `null-alone`, `enum-null-member`
-- Codes: `openapi/degraded-construct`, `openapi/inferred-nullable`
+- Codes: `openapi/degraded-construct`, `openapi/inferred-nullable`, `openapi/duplicate-enum-value`
 - Tests: `schema.TestCollapsedUnion_KeepsEveryCensusKeywordItCannotHold`,
   `schema.TestCollapsedUnion_KeepsItsDiscriminatorAtEveryPosition`,
   `schema.TestNullAlone_ReadsTheSchemasOwnKeywords`,
@@ -2428,6 +2431,7 @@ carrier of a property, parameter or header, and on an alias hoisted at any other
   `schema.TestNullBranch_KeepsWhatTheBranchWrites`,
   `schema.TestNullBranch_AKeptBranchTheKeeperCannotConvertIsReportedByIt`,
   `schema.TestNullBranch_KeepsANullableNothingReads`,
+  `schema.TestNullBranch_ARepeatedNullIsReportedAtTheBranch`,
   `schema.TestNullableWidening_EachShapeReadsByItsVersion`
 
 ### `union-null-only`

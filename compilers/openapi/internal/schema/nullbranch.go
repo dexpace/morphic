@@ -120,9 +120,10 @@ func recordNullBranches(c lowering.Ctx, p *ir.Unmodeled, kept []keptNullBranch) 
 }
 
 // liftedNullFindings returns what reading each null branch of s's union,
-// written at pointer, reports at the branch: a null the nullable-widening
-// policy reads in (nulls.findings), which the branch's own lowering reports
-// where it is a variant.
+// written at pointer, reports at the branch, as its own lowering reports it
+// where it is a variant: a null the nullable-widening policy reads in
+// (nulls.findings), and an enum entry repeating an earlier one (enumRepeats),
+// which the document writes whichever path takes the branch.
 func liftedNullFindings(c lowering.Ctx, s *oas3.Schema, pointer jsontext.Pointer) []ir.Diagnostic {
 	lifted := liftedNulls(c, s, pointer)
 	diags := make([]ir.Diagnostic, 0, len(lifted))
@@ -130,6 +131,7 @@ func liftedNullFindings(c lowering.Ctx, s *oas3.Schema, pointer jsontext.Pointer
 		n := newNulls(c)
 		n.schema(b.schema, siteAt(b.at))
 		diags = append(diags, n.findings(c)...)
+		diags = append(diags, enumRepeats(c, readEnum(b.schema.GetEnum()), b.at)...)
 	}
 	return diags
 }
