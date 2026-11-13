@@ -60,10 +60,11 @@ a part's only where its encoding sets no `Style` and no `Explode`, either of whi
 replace its content type (the Encoding Object's `style`). A field or part under `PartEncoding.Multi`
 is one for each element of its list, each carrying its element as the rules here carry a value, as
 OpenAPI applies an Encoding Object to each item (§4.14.5.1), and a value that is no list, which a
-union with a list among its variants can hold, is one field or part. That holds where its encoding
-sets no `Style` and no `Explode`; where it sets either, the style arranges the value as it does a
-parameter's, since `Multi`, which the compiler sets from the type alone, says only that the field
-may repeat: under `style: form, explode: false` a list is the one field `u=a,b`.
+union with a list among its variants can hold, is one field or part. A part's own headers
+(`PartEncoding.Headers`) have no rule yet (#1786). That holds where its encoding sets no `Style` and
+no `Explode`; where it sets either, the style arranges the value as it does a parameter's, since
+`Multi`, which the compiler sets from the type alone, says only that the field may repeat: under
+`style: form, explode: false` a list is the one field `u=a,b`.
 
 ## Null and empty
 

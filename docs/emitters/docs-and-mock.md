@@ -740,14 +740,15 @@ test running beside it would move the count, and a request's page would turn on 
   page carries, where `Stop` is empty, the continuation its own request sent, a link the URL it was
   sent to, the target written as it arrived, so the repeat ends the walk however the caller spelt
   its query ([where a page walk ends](operations/pagination.md#where-a-page-walk-ends)), and
-  otherwise a value the mock did not mint, refused when sent back. A repeat, an empty link among
-  them, ends a walk only under an empty `Stop` and on a page holding no items, so the mock writes
-  one only on the end page there or where `no_next` ends the walk, never where a pager would fetch
-  the page again until its bound. A walk whose continuation is required and not nullable therefore
-  ends on a refusal where no listed condition ends it first, and such an operation draws a warning
-  `emitters/mock/page-walk-refused`, once, unless `Stop` is empty or lists `empty` or `no_next` over
-  a type admitting the empty value. Leaving the member out all the same was weighed and refused: the
-  SDK would fail to decode the last page and lose its items.
+  otherwise a value the mock did not mint, refused when sent back, which a type holding too few
+  values does not leave it (#1788). A repeat, an empty link among them, ends a walk only under an
+  empty `Stop` and on a page holding no items, so the mock writes one only on the end page there or
+  where `no_next` ends the walk, never where a pager would fetch the page again until its bound. A
+  walk whose continuation is required and not nullable therefore ends on a refusal where no listed
+  condition ends it first, and such an operation draws a warning `emitters/mock/page-walk-refused`,
+  once, unless `Stop` is empty or lists `empty` or `no_next` over a type admitting the empty value.
+  Leaving the member out all the same was weighed and refused: the SDK would fail to decode the last
+  page and lose its items.
 - **Why every walk ends.** Each continuation the mock writes names a position past the page's last
   item, save three that end the walk: the end page's repeat under an empty `Stop`, the empty value
   `no_next` ends on, and a value it did not mint, which it refuses. So a page holding none is the

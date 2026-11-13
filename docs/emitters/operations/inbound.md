@@ -24,7 +24,8 @@ it to. A target generates instead, for each service holding an inbound operation
   multipart content's fields in the body's place and another content's value in a field of its own,
   every one optional, and a parse method sets those of the content that arrived alone, so a handler
   reads what arrived by its content: an object `metadata` as pairs from a multipart request and
-  typed in the model from a JSON one. Two contents giving one form share it. It lands in the
+  typed in the model from a JSON one. Two contents giving one form share it. What each such field is
+  named, and which fields two form contents of one model share, is #1787's. It lands in the
   operation's group's unit ([output units](../refine/output-units.md)), which the receiver imports
   as the client imports its sub-clients.
 - **A response type for each response it declares**, `Return`, each of `Others` and each of `Errors`
