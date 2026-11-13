@@ -529,3 +529,43 @@ func TestPartWalk_ReadsARefChainToItsBound(t *testing.T) {
 		assert.Equal(t, decides, w.decidesKeys(), "%d sites", sites)
 	}
 }
+
+// TestDeclarationSchemas_PlacesEachSchemaOnce holds the schemas of a part n
+// union branches declare to one for each branch's declaration, a schema
+// declaring none of them to every one, and their reading to a cost linear in
+// n: placing every schema for every declaration costs n², so doubling n would
+// quadruple it. It is not run in parallel: AllocsPerRun measures the process.
+func TestDeclarationSchemas_PlacesEachSchemaOnce(t *testing.T) {
+	unplaced := oas3.NewJSONSchemaFromSchema[oas3.Referenceable](&oas3.Schema{})
+	read := func(n int) (map[ir.PropID][]*oas3.JSONSchema[oas3.Referenceable], []*ir.Property, float64) {
+		var b strings.Builder
+		b.WriteString("    U:\n      oneOf:\n")
+		for range n {
+			b.WriteString("        - {type: object, properties: {file: {type: string}}}\n")
+		}
+		l, _ := loweredFor(t, openapitest.ComponentSpec(b.String()))
+		js, ok := l.ctx.Doc.Components.Schemas.Get("U")
+		require.True(t, ok)
+		w := walkBodyParts(l.ctx.Bindings(), js)
+		require.Len(t, w.parts, 1)
+		part := w.parts[0]
+		require.Len(t, part.schemas, n)
+		decls := make([]*ir.Property, 0, n)
+		for _, s := range part.schemas {
+			id, placed := declaredProp(l.ctx, s)
+			require.True(t, placed)
+			decls = append(decls, &ir.Property{ID: id})
+		}
+		cost := testing.AllocsPerRun(5, func() { declarationSchemas(l.ctx, part, decls) })
+		part.schemas = append(part.schemas, unplaced)
+		return declarationSchemas(l.ctx, part, decls), decls, cost
+	}
+	schemas, decls, few := read(50)
+	for i, d := range decls {
+		require.Len(t, schemas[d.ID], 2, "declaration %d", i)
+		assert.NotSame(t, unplaced, schemas[d.ID][0], "declaration %d reads its own schema", i)
+		assert.Same(t, unplaced, schemas[d.ID][1], "and the one no declaration is written as, after it: %d", i)
+	}
+	_, _, many := read(100)
+	assert.Less(t, many, 3*few, "doubling the branches costs %v allocations against %v", many, few)
+}

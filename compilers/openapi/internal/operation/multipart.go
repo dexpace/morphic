@@ -246,8 +246,9 @@ func (k partKeys) Settle(reg ir.TypeRegistry) []ir.Diagnostic {
 			continue
 		}
 		maps.Copy(k.kept, p.unmodeled)
+		schemas := declarationSchemas(k.c, p.part, decls)
 		for _, d := range decls {
-			if pe := k.declared(node, p, d, decls); !partEncodingEmpty(pe) {
+			if pe := k.declared(node, p, bodyPart{name: p.part.name, schemas: schemas[d.ID]}, d); !partEncodingEmpty(pe) {
 				k.out[d.ID] = pe
 			}
 		}
@@ -255,13 +256,13 @@ func (k partKeys) Settle(reg ir.TypeRegistry) []ir.Diagnostic {
 	return diags
 }
 
-// declared returns the encoding of p as d, one of decls, the declarations the
-// body's type holds of its name, declares it: the entry written, with the
-// structural flags and the default content type read off d and the schemas
-// declaring it alone (declarationOf), so a part two variants declare apart
+// declared returns the encoding of p as d, one of the declarations the body's
+// type holds of its name, declares it: the entry written, with the structural
+// flags and the default content type read off d and part, the schemas
+// declaring it (declarationSchemas), so a part two variants declare apart
 // reads as each declares it.
-func (k partKeys) declared(node func(ir.TypeID) (ir.TypeDef, bool), p keyedPart, d *ir.Property, decls []*ir.Property) ir.PartEncoding {
-	part, one := declarationOf(k.c, p.part, d, decls), []*ir.Property{d}
+func (k partKeys) declared(node func(ir.TypeID) (ir.TypeDef, bool), p keyedPart, part bodyPart, d *ir.Property) ir.PartEncoding {
+	one := []*ir.Property{d}
 	multipart := isMultipart(k.mediaType)
 	pe := partFlags(node, k.c.Bindings(), one, part, p.encoding, multipart)
 	pe = readPartFile(k.c, part, p.encoding.ContentTypes, multipart).apply(pe)
@@ -271,26 +272,32 @@ func (k partKeys) declared(node func(ir.TypeID) (ir.TypeDef, bool), p keyedPart,
 	return withDefaultContentType(node, lowering.EncodingRules(k.c), one, readContentEncoding(k.c, part.schemas), pe)
 }
 
-// declarationOf returns part with the schemas declaring d alone: every one but
-// those declaring another of decls, the declarations the body's type holds of
-// its name, so one variant's declaration is read apart from another's while a
-// declaration the merge folded into d, an allOf branch's, is read with it. A
-// schema is matched by the ID the schema lowering gives a property read where
-// it was read (declaredProp).
-func declarationOf(c lowering.Ctx, part bodyPart, d *ir.Property, decls []*ir.Property) bodyPart {
+// declarationSchemas returns, for each of decls, the declarations the body's
+// type holds of part's name, the schemas of part declaring it, in source
+// order: the one written where it is (declaredProp), and every one written
+// where none of decls is, which a declaration the merge folded into one of
+// them, an allOf branch's, is. So one variant's declaration is read apart
+// from another's, and each schema is placed once.
+func declarationSchemas(c lowering.Ctx, part bodyPart, decls []*ir.Property) map[ir.PropID][]*oas3.JSONSchema[oas3.Referenceable] {
+	out := make(map[ir.PropID][]*oas3.JSONSchema[oas3.Referenceable], len(decls))
 	if len(decls) < 2 {
-		return part
+		for _, d := range decls {
+			out[d.ID] = part.schemas
+		}
+		return out
 	}
-	others := make(map[ir.PropID]bool, len(decls))
-	for _, o := range decls {
-		others[o.ID] = o.ID != d.ID
+	held := make(map[ir.PropID]bool, len(decls))
+	for _, d := range decls {
+		held[d.ID] = true
 	}
-	out := bodyPart{name: part.name}
 	for _, js := range part.schemas {
-		if id, ok := declaredProp(c, js); ok && others[id] {
+		if id, ok := declaredProp(c, js); ok && held[id] {
+			out[id] = append(out[id], js)
 			continue
 		}
-		out.schemas = append(out.schemas, js)
+		for _, d := range decls {
+			out[d.ID] = append(out[d.ID], js)
+		}
 	}
 	return out
 }
