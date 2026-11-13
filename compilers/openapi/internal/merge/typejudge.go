@@ -100,9 +100,9 @@ type declarationSites struct {
 // The winner never depends on which is which: swapping the arguments, and
 // written's two pointers with them, flips a narrowing and leaves any other
 // verdict as it was. The arms, in order: the same target; a degraded Any node,
-// which is unrelated to every type; the top type, or an alias read as it
-// (topAt), which loses to anything else; then arms, and classify for a pair
-// arms leaves unrelated.
+// unrelated to every type; the top type, or an alias read as it (topAt), losing
+// to anything but another; then arms, or classify where arms finds nothing,
+// read for null (heldNull).
 func (j typeJudge) relateFrom(a, b ir.TypeRef, depth int) relation {
 	j.modelPairs = modelPairs()
 	return j.relateAt(a, b, depth)
@@ -126,28 +126,47 @@ func (j typeJudge) relateAt(a, b ir.TypeRef, depth int) relation {
 	}
 	aTop, bTop := j.topAt(at, depth), j.topAt(bt, depth)
 	switch {
+	case aTop && bTop:
+		// Neither loses for being the top type; what else each says decides.
 	case aTop:
 		return relBNarrower
 	case bTop:
 		return relANarrower
 	}
-	if rel := j.arms(a, at, b, bt, depth); rel != relUnrelated {
+	rel := j.arms(a, at, b, bt, depth)
+	if rel == relUnrelated {
+		rel = j.classify(a, at, b, bt, depth)
+	}
+	return j.heldNull(a, at, b, bt, rel)
+}
+
+// heldNull returns rel but where it puts a type admitting null through its alias
+// chain (nullThroughChain) within one whose reference admits none: a field
+// holding that type would admit null the other refuses, whatever the field's
+// reference says, so the two overlap.
+func (j typeJudge) heldNull(a ir.TypeRef, at ir.TypeDef, b ir.TypeRef, bt ir.TypeDef, rel relation) relation {
+	switch {
+	case rel == relANarrower && !b.Nullable && j.nullThroughChain(at):
+		return relOverlap
+	case rel == relBNarrower && !a.Nullable && j.nullThroughChain(bt):
+		return relOverlap
+	default:
 		return rel
 	}
-	return j.classify(a, at, b, bt, depth)
 }
 
 // arms relates two resolved types, neither the top type nor degraded, that it
 // can narrow: two bare primitives (spelling.Relate); a Scalar, Enum or Literal
-// against a bare primitive; two identical such nodes; two literals of different
-// values, which are disjoint; two enums by their values (enums); two models
-// alike in every member (models); two nodes that hold bounds (boundedNodes), two
-// alike in every member and detail taking the copy rule identical nodes take
-// (sameNodes); and a structure against one it says it is (structures). Any other
-// pair is unrelated here.
+// against a bare primitive; an alias against the type it stands for, by what it
+// adds (standsFor); then each as the node it stands for (view): two identical
+// such nodes; two literals of different values, disjoint; two enums (enums);
+// two models alike (models); two nodes holding bounds (boundedNodes), two alike
+// in every member and detail taking the copy rule (sameNodes); and a structure
+// against one it says it is (structures). Any other pair is unrelated here.
 func (j typeJudge) arms(a ir.TypeRef, at ir.TypeDef, b ir.TypeRef, bt ir.TypeDef, depth int) relation {
 	ap, aBare := at.(*ir.Primitive)
 	bp, bBare := bt.(*ir.Primitive)
+	aFor, bFor := j.standsFor(at, b.Target), j.standsFor(bt, a.Target).flipped()
 	switch {
 	case aBare && bBare:
 		return fromSpelling(spelling.Relate(ap.Prim, bp.Prim))
@@ -155,6 +174,14 @@ func (j typeJudge) arms(a ir.TypeRef, at ir.TypeDef, b ir.TypeRef, bt ir.TypeDef
 		return j.nodeAgainstBare(a, at, b, bp.Prim)
 	case aBare:
 		return j.nodeAgainstBare(b, bt, a, ap.Prim).flipped()
+	case aFor != relUnrelated && bFor == relUnrelated:
+		return aFor
+	case bFor != relUnrelated && aFor == relUnrelated:
+		return bFor
+	}
+	stop := j.sharedLink(at, bt)
+	at, bt = j.view(at, stop), j.view(bt, stop)
+	switch {
 	case sameNode(at, bt):
 		return j.sites.copies(a, at, b, bt)
 	case differentLiterals(at, bt):
@@ -300,7 +327,7 @@ func (j typeJudge) classify(a ir.TypeRef, at ir.TypeDef, b ir.TypeRef, bt ir.Typ
 	case aok && ak.prim == ir.PrimAny, bok && bk.prim == ir.PrimAny:
 		return relUnrelated
 	case aok && bok:
-		if relateKinds(ak, bk) == relDisjoint || enumMisses(at, bk, b.Nullable) || enumMisses(bt, ak, a.Nullable) {
+		if relateKinds(ak, bk) == relDisjoint || enumMisses(au, bk, b.Nullable) || enumMisses(bu, ak, a.Nullable) {
 			return relDisjoint
 		}
 		return relOverlap
@@ -309,9 +336,9 @@ func (j typeJudge) classify(a ir.TypeRef, at ir.TypeDef, b ir.TypeRef, bt ir.Typ
 	case bok && isStructural(au):
 		return j.againstOtherInstance(at, aSite, depth)
 	case aok:
-		return j.againstKind(bu, a, at, ak).flipped()
+		return j.againstKind(j.view(bt, ""), a, j.view(at, ""), ak).flipped()
 	case bok:
-		return j.againstKind(au, b, bt, bk)
+		return j.againstKind(j.view(at, ""), b, j.view(bt, ""), bk)
 	case isLiteral(au) && isLiteral(bu):
 		return relOverlap
 	case saysItsValues(au) && saysItsValues(bu) && instanceKind(au) != instanceKind(bu):
@@ -708,9 +735,12 @@ func isDegraded(td ir.TypeDef) bool {
 // a Scalar by its kind and held format (kindOf, relateKinds). Any other node is
 // unrelated. Where an Enum's kind and the bare kind overlap, the pair is
 // disjoint when the bare kind refuses every member, as literalAgainst judges one
-// value, so an enum with no members is disjoint from any such kind.
+// value, so an enum with no members is disjoint from any such kind. An enum or a
+// literal behind aliases is judged by its members or its value, which the
+// aliases can only narrow.
 func (j typeJudge) nodeAgainstBare(ref ir.TypeRef, td ir.TypeDef, bare ir.TypeRef, bareKind ir.PrimKind) relation {
-	if lit, ok := td.(*ir.Literal); ok {
+	end := j.unaliased(td)
+	if lit, ok := end.(*ir.Literal); ok {
 		return literalAgainst(lit.Value, valueKind{prim: bareKind}, bare.Nullable)
 	}
 	if _, ok := td.(*ir.Scalar); !ok {
@@ -730,7 +760,7 @@ func (j typeJudge) nodeAgainstBare(ref ir.TypeRef, td ir.TypeDef, bare ir.TypeRe
 	if rel == relBNarrower {
 		rel = relOverlap
 	}
-	if en, ok := td.(*ir.Enum); ok && rel == relOverlap && noMemberMeets(en, bareK, bare.Nullable) {
+	if en, ok := end.(*ir.Enum); ok && rel == relOverlap && noMemberMeets(en, bareK, bare.Nullable) {
 		return relDisjoint
 	}
 	return rel

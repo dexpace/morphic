@@ -1748,3 +1748,33 @@ func TestAllOf_ContainersOfDifferentModelsComposeTheirMembers(t *testing.T) {
 		}
 	}
 }
+
+// TestAllOf_AMemberBehindAnAliasIsJudgedByWhatItStandsFor pins GitHub #1365 in
+// both branch orders: a list's or a map's member written as an enum or a const
+// beside a bound is an alias of it, judged by its members, so against a uuid no
+// member is, beside a container never empty, the field draws the conflict its
+// direct spelling draws.
+func TestAllOf_AMemberBehindAnAliasIsJudgedByWhatItStandsFor(t *testing.T) {
+	t.Parallel()
+	const components = `    E: {type: string, enum: [a, b]}
+    C: {const: a}
+`
+	const uuid = "{type: string, format: uuid}"
+	for _, member := range []string{
+		"{$ref: '#/components/schemas/E'}", "{$ref: '#/components/schemas/E', maxLength: 5}",
+		"{$ref: '#/components/schemas/C'}", "{$ref: '#/components/schemas/C', maxLength: 5}",
+	} {
+		for _, container := range []struct{ never, other string }{
+			{"{type: array, minItems: 1, items: " + member + "}", "{type: array, items: " + uuid + "}"},
+			{"{type: object, minProperties: 1, additionalProperties: " + member + "}",
+				"{type: object, additionalProperties: " + uuid + "}"},
+		} {
+			for _, order := range [][2]string{{container.never, container.other}, {container.other, container.never}} {
+				_, diags := settledSpec(t, components, order[0], order[1])
+				openapitest.RequireNoErrorDiags(t, diags)
+				assert.Len(t, conflictDiags(diags), 1, "%v", order)
+				assert.Len(t, diags, 1, "%v: and nothing else", order)
+			}
+		}
+	}
+}

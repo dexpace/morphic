@@ -94,3 +94,37 @@ func TestStampConstraintDiags_RelocatesEveryDiagnosticToTheReadingPointer(t *tes
 	}
 	assert.Equal(t, diag.NumericPrecision, got[1].Code, "only the provenance changes")
 }
+
+// TestCompareCounts_OrdersLiteralsExactly pins compareCounts on spellings of
+// one value and on powers of ten past what an ir.Decimal holds, where reading
+// either through a float64 or an int64 would tie or wrap, a carry crossing such
+// a power's digits among them, and on an exponent no count is written with,
+// read as 0.
+func TestCompareCounts_OrdersLiteralsExactly(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		a, b string
+		want int
+	}{
+		{"99999999999999999999", "88888888888888888888", 1},
+		{"100000000000000000000", "1e20", 0},
+		{"1E20", "0.0001e24", 0},
+		{"+00012.30e19", "123e18", 0},
+		{"100000000000000000001", "1e20", 1},
+		{"1e1000000000000000000", "2e1000000000000000000", -1},
+		{"1e99999999999999999999", "9e1000000000000000000", 1},
+		{"1e400", "99999999999999999999", 1},
+		{"1e1000000000000000000", "10e999999999999999999", 0},
+		{"1e1000000000000000000", "1000e999999999999999998", -1},
+		{"1e1000000000000000000", "0.001e1000000000000000003", 0},
+		{"0.0001e1000000000000000003", "1e999999999999999999", 0},
+		{"123e1000000000000000000", "0.00124e1000000000000000005", -1},
+		{"1e10000000000000000000", "9e9999999999999999999", 1},
+		{"1ex", "1", 0},
+		{"1e-10000000000000000000", "1", 0},
+		{"1e-1000000000000000000", "1", 0},
+	} {
+		assert.Equal(t, tc.want, compareCounts(tc.a, tc.b), "%s against %s", tc.a, tc.b)
+		assert.Equal(t, -tc.want, compareCounts(tc.b, tc.a), "%s against %s", tc.b, tc.a)
+	}
+}
