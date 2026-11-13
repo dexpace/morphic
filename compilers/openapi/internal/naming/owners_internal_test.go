@@ -19,7 +19,7 @@ import (
 // name it nothing rather than read past the pointer's start.
 func TestOwnerOf_NamesOnlyAMediaTypeAContentMapHolds(t *testing.T) {
 	t.Parallel()
-	n := New(nil)
+	n := New(nil, true)
 	hint, ok := n.ownerOf(bind.Source, []string{"schema"}, []bind.Kind{bind.KindMediaType, bind.KindSchema}, 0)
 	assert.False(t, ok, "a media type no content map holds")
 	assert.Empty(t, hint)

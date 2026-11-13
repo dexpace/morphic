@@ -1,0 +1,50 @@
+openapi: 3.1.0
+info: {title: Title Hints, version: "1.0.0"}
+paths:
+  /lookups:
+    post:
+      operationId: createLookup
+      requestBody:
+        content:
+          application/json:
+            # A title names the node an owner's schema lowers to, as it names
+            # any other.
+            schema: {title: New Lookup, type: object, properties: {query: {type: string}}}
+      responses:
+        "204": {description: created}
+components:
+  schemas:
+    Pet: {type: object, properties: {name: {type: string}}}
+    Lookup:
+      # Each branch is named by its title where no other branch of the list, and
+      # no component, is named by its words, and by its position otherwise.
+      oneOf:
+        - title: By Name
+          type: object
+          properties:
+            name: {type: string}
+            tags: {type: array, items: {type: object, properties: {tag: {type: string}}}}
+        - {title: By Id, type: object, properties: {id: {type: string}}}
+        - {title: Pet, type: object, properties: {kind: {type: string}}}
+        - {title: Same Words, type: object, properties: {a: {type: string}}}
+        - {title: Same Words, type: object, properties: {b: {type: string}}}
+        - {$ref: '#/components/schemas/Pet', title: Indoor Pet}
+        - allOf:
+            - {$ref: '#/components/schemas/Pet'}
+            - {title: Premium Pet, type: object, properties: {tier: {type: string}}}
+    Holder:
+      title: Not The Name
+      type: object
+      properties:
+        # A property's schema is named by its title rather than its key, and
+        # what lies beneath composes from it.
+        address:
+          title: Postal Address
+          type: object
+          properties:
+            lines: {type: array, items: {type: object, properties: {line: {type: string}}}}
+        points: {title: Point List, type: array, items: {type: object, properties: {x: {type: integer}}}}
+        local: {$ref: '#/components/schemas/Holder/$defs/Local'}
+      # A $defs entry is named by its key, as a component is.
+      $defs:
+        Local: {title: Not This Either, type: object, properties: {c: {type: string}}}

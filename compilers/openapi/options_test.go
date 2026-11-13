@@ -59,6 +59,7 @@ func TestDecodeOptions_TextReachesEveryField(t *testing.T) {
 			"secret-inference":        "false",
 			"http-date-inference":     "false",
 			"replacement-inference":   "false",
+			"title-names":             "false",
 			"streaming-media":         "application/vnd.acme.frames; charset=utf-8, +frames",
 			"streaming-inference":     "false",
 			"binary-media":            "image/*, application/vnd.acme.blob, +zip",
@@ -91,6 +92,7 @@ func TestDecodeOptions_TextReachesEveryField(t *testing.T) {
 	assert.True(t, opts.SecretInference.Disabled, "secret-inference=false turns the policy off")
 	assert.True(t, opts.HTTPDateInference.Disabled, "http-date-inference=false turns the policy off")
 	assert.True(t, opts.ReplacementInference.Disabled, "replacement-inference=false turns the policy off")
+	assert.True(t, opts.TitleNames.Disabled, "title-names=false turns the policy off")
 	assert.Equal(t, openapi.StreamingMedia{
 		Disabled:   true,
 		MediaTypes: []string{"application/vnd.acme.frames; charset=utf-8", "+frames"},
@@ -178,7 +180,7 @@ func TestDecodeOptions_Refusals(t *testing.T) {
 				`http-date-inference, idempotency-inference, max-alias-surplus, max-enum-members, ` +
 				`max-external-documents, max-reference-expansion, max-source-bytes, max-source-nodes, ` +
 				`nullable-widening, overlay, overlay-lax, replacement-inference, secret-inference, ` +
-				`streaming-inference, streaming-media)`},
+				`streaming-inference, streaming-media, title-names)`},
 		{"non-integer budget", map[string]string{"max-source-bytes": "64MiB"},
 			`"max-source-bytes": want an integer (0 for the default, negative for none), got "64MiB"`},
 		{"budget past an int", map[string]string{"max-source-nodes": "99999999999999999999"},
@@ -279,6 +281,8 @@ func TestDecodeOptions_Refusals(t *testing.T) {
 			`option "http-date-inference": want a boolean, got "maybe"`},
 		{"non-boolean replacement inference", map[string]string{"replacement-inference": "maybe"},
 			`option "replacement-inference": want a boolean, got "maybe"`},
+		{"non-boolean title names", map[string]string{"title-names": "maybe"},
+			`option "title-names": want a boolean, got "maybe"`},
 		{"non-boolean", map[string]string{"allow-external-refs": "yes please"},
 			`want a boolean, got "yes please"`},
 		{"non-boolean laxness", map[string]string{"overlay": "p.yaml", "overlay-lax": "sort of"},
