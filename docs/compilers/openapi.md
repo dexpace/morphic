@@ -2524,7 +2524,9 @@ a position that writes a `$ref`, other than a component or a variant, is read th
   `schema.TestDiscriminatorMapping_WritesTheRoutesItImplies`
 - Status: partly built: an empty `propertyName` lowers to IR that `irverify` refuses (#882); a
   mapping to a component that is a `$ref` to a subtype fails validation (#844), and so does one to a
-  type two variants alias, which a valid document can write (#1298).
+  type two variants alias, which a valid document can write (#1298); a variant whose branch names a
+  component of another document is routed by its type's name where the `Mapping` is nil, and by
+  nothing where it holds an entry (#1829).
 
 ### `discriminator-value`
 
