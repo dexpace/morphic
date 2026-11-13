@@ -23,10 +23,10 @@ a keyword beside it leaves inert, as `additionalProperties` leaves `unevaluatedP
 `items` leaves `unevaluatedItems`, each evaluating every location the other could apply to. An
 inert one is kept with that keyword, so the entry, read beside what its position states, means what
 the source means: nothing. Read as a schema of its own an `unevaluated*` entry means something
-else, as what it applies to depends on the keywords beside it. `propertyNames` is not a second carve-back onto `AdditionalProps.Key`: it constrains
-*every* key of the object, including the ones `properties` declares — where there is no
-`AdditionalProps` to hold a key type at all — and it is a whole schema rather than a type, so only
-its degenerate `{type: string}` form names one.
+else, as what it applies to depends on the keywords beside it. `propertyNames` is not a second
+carve-back onto `AdditionalProps.Key`: it constrains *every* key of the object, including the ones
+`properties` declares — where there is no `AdditionalProps` to hold a key type at all — and it is a
+whole schema rather than a type, so only its degenerate `{type: string}` form names one.
 
 Two neighbouring keyword groups are *not* part of this boundary — the content vocabulary
 (`contentEncoding`, `contentMediaType`, `contentSchema`) and the keywords that identify a schema
