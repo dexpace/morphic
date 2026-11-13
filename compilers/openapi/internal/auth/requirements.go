@@ -24,9 +24,9 @@ import (
 // choice".
 //
 // A security written as no list arrives nil, beside the loader's report, and so
-// does one under a local tag, with none (#1368). A list of entries that are no
-// object yields no option, beside the loader's report, and collapses to nil, since
-// [] would read as public.
+// does one under a local tag, with none (#1368). A list of entries naming no
+// option (namesAnOption) yields none, beside the loader's report, and collapses
+// to nil, since [] would read as public.
 func (r *Registry) Requirements(c lowering.Ctx, reqs []*soa.SecurityRequirement, base jsontext.Pointer) ([]ir.AuthRequirement, []ir.Diagnostic) {
 	if reqs == nil {
 		return nil, nil
@@ -34,7 +34,7 @@ func (r *Registry) Requirements(c lowering.Ctx, reqs []*soa.SecurityRequirement,
 	out := make([]ir.AuthRequirement, 0, len(reqs))
 	var diags []ir.Diagnostic
 	for i, req := range reqs {
-		if !writtenAsObject(req) {
+		if !namesAnOption(req) {
 			continue
 		}
 		pointer := base + ids.Ptr("security", strconv.Itoa(i))
@@ -78,18 +78,24 @@ func (r *Registry) requirement(c lowering.Ctx, req *soa.SecurityRequirement, poi
 	return ir.AuthRequirement{Schemes: uses}, diags
 }
 
-// writtenAsObject reports whether the document wrote req as an object, the only
-// shape a requirement has.
+// namesAnOption reports whether req lowers to an option: an object naming a
+// scheme, or {} as the document wrote it, meaning "no auth is one acceptable
+// choice".
 //
-// Null, a scalar and a sequence all unmarshal to a requirement with no members,
-// like the {} meaning "no auth is one acceptable choice" (issue #284). The
-// marshaller records a root node only for a value it could read as a mapping, so
-// {} carries one inline or through an alias; being library behavior, that is
-// tested through compiled documents. A lone `<<` naming no mapping still reads as
-// {} (#1244).
-//
-// A nil req is unreachable from a parsed document; that guard is for a
-// hand-built slice, as in unresolvableScheme.
-func writtenAsObject(req *soa.SecurityRequirement) bool {
-	return req != nil && req.GetRootNode() != nil
+// Null, a scalar and a sequence unmarshal to a requirement with no members, like
+// {} (issue #284); the marshaller records a root node only for a mapping, tested
+// through compiled documents. A memberless mapping wrote {} only where every
+// `<<` it merges through names a mapping: one naming none merges nothing
+// (docs/parser-library.md#merge-keys), and reading the entry as {} would grant
+// access the document never wrote. Only a hand-built requirement is nil or has a
+// root that is no mapping.
+func namesAnOption(req *soa.SecurityRequirement) bool {
+	if req == nil {
+		return false
+	}
+	root := req.GetRootNode()
+	if root == nil || nodeview.NotMapping(root) {
+		return false
+	}
+	return req.GetCore().Len() > 0 || !nodeview.MergesNothing(root)
 }

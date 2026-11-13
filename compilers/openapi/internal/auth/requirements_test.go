@@ -9,15 +9,19 @@ import (
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
 	soa "github.com/speakeasy-api/openapi/openapi"
+	soacore "github.com/speakeasy-api/openapi/openapi/core"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	yaml "go.yaml.in/yaml/v3"
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/auth"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering/loweringtest"
+	"github.com/dexpace/morphic/compilers/openapi/internal/nodeview"
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
 	"github.com/dexpace/morphic/ir"
 )
@@ -661,5 +665,183 @@ func TestRegistryRequirements_DropsANilEntrySilently(t *testing.T) {
 	got, diags := reg.Requirements(c, []*soa.SecurityRequirement{nil}, "/security")
 
 	assert.Empty(t, got, "a nil entry is no requirement, so it is dropped")
+	assert.Empty(t, diags)
+}
+
+// mergeCarriers is a document writing one security list at every position one
+// can be written: the root, an inline operation, a callback's, an operation of
+// a path item a path mounts by $ref, and a webhook's. LIST is the list.
+const mergeCarriers = `openapi: 3.1.0
+info: {title: T, version: "1"}
+x-defs:
+  s: &s 5
+  e: &e {}
+  bad: &bad {<<: 5}
+security: LIST
+paths:
+  /x:
+    get:
+      operationId: inline
+      security: LIST
+      responses: {"200": {description: ok}}
+      callbacks:
+        onEvent:
+          '{$request.body#/url}':
+            post:
+              operationId: callback
+              security: LIST
+              responses: {"200": {description: ok}}
+  /mounted:
+    $ref: '#/components/pathItems/Mounted'
+webhooks:
+  hook:
+    post:
+      operationId: hook
+      security: LIST
+      responses: {"200": {description: ok}}
+components:
+  pathItems:
+    Mounted:
+      get:
+        operationId: mounted
+        security: LIST
+        responses: {"200": {description: ok}}
+  securitySchemes:
+    key: {type: apiKey, in: header, name: X-Key}
+`
+
+// carrierAuth returns the security each carrier of mergeCarriers lowered to,
+// keyed by its operationId, the root's under "root".
+func carrierAuth(t *testing.T, doc *ir.Document) map[string][]ir.AuthRequirement {
+	t.Helper()
+	out := map[string][]ir.AuthRequirement{"root": doc.Services[0].Auth}
+	for _, name := range []string{"inline", "callback", "mounted", "hook"} {
+		out[name] = openapitest.FindOp(t, doc, name).Auth
+	}
+	return out
+}
+
+// TestSecurityRequirement_AMergeNamingNoMappingIsNoOption is the reproduction of
+// issue #1244. An entry whose `<<` names nothing to merge reads as {}, and read
+// as the option meaning "no auth is one acceptable choice", it grants anonymous
+// access the document never wrote. It names no scheme either, so it lowers to no
+// option, at every carrier and in every spelling of the merge, while a merge of
+// a mapping, an empty one included, is what it merges. The loader's error at
+// the fault is the one report of a dropped entry: at the entry, or where an
+// alias it merges is written.
+func TestSecurityRequirement_AMergeNamingNoMappingIsNoOption(t *testing.T) {
+	t.Parallel()
+	key := ir.AuthRequirement{Schemes: []ir.SchemeUse{{Scheme: ids.Auth("key")}}}
+	none := []ir.AuthRequirement{key}
+	empty := []ir.AuthRequirement{key, {}}
+	cases := []struct {
+		entry string
+		want  []ir.AuthRequirement
+		// fault is where the loader reports the merge, for an entry dropped.
+		fault string
+	}{
+		{`{<<: 5}`, none, "/security/1"}, {`{<<: null}`, none, "/security/1"},
+		{`{<<: [5]}`, none, "/security/1"}, {`{<<: [{}, 5]}`, none, "/security/1"},
+		{`{<<: {<<: 5}}`, none, "/security/1"}, {`{!!merge <<: 5}`, none, "/security/1"},
+		{`{!!merge "<<": 5}`, none, "/security/1"}, {`{<<: *s}`, none, "/security/1"},
+		{`{<<: [*e, *s]}`, none, "/security/1"}, {`*bad`, none, "/x-defs/bad"}, {`{<<: *bad}`, none, "/x-defs/bad"},
+		{`{<<: {}}`, empty, ""}, {`{<<: &empty {}}`, empty, ""}, {`{<<: *e}`, empty, ""}, {`{<<: []}`, empty, ""},
+		{`{<<: 5, key: []}`, []ir.AuthRequirement{key, key}, ""},
+		// JSON has no merge key: the quoted key is a name, which reaches no
+		// scheme, and the option stands.
+		{`{"<<": 5}`, []ir.AuthRequirement{key, {Schemes: []ir.SchemeUse{{Scheme: ids.UnresolvedAuth("<<")}}}}, ""},
+	}
+	for _, tc := range cases {
+		t.Run(tc.entry, func(t *testing.T) {
+			t.Parallel()
+			doc, _, diags := serviceSpec(t, strings.ReplaceAll(mergeCarriers, "LIST", "[{key: []}, "+tc.entry+"]"))
+			for carrier, got := range carrierAuth(t, doc) {
+				assert.Empty(t, cmp.Diff(tc.want, got, cmpopts.EquateEmpty()), carrier)
+			}
+			if tc.fault != "" {
+				assert.Contains(t, strings.Join(loaderErrors(diags), "\n"), tc.fault+": a `<<` merge key",
+					"the merge naming nothing is reported: %+v", diags)
+			}
+		})
+	}
+}
+
+// TestSecurityRequirement_AJSONDocumentWritesNoMerge pins #1244's spelling in a
+// JSON document, at the root and on an operation: JSON has no merge key, so
+// `"<<"` is a name like any other, which reaches no scheme and keeps its
+// option, reported, rather than reading as the empty one.
+func TestSecurityRequirement_AJSONDocumentWritesNoMerge(t *testing.T) {
+	t.Parallel()
+	const list = `[{"<<": 5}, {"<<": {}}]`
+	doc, svc, diags := serviceSpec(t, `{"openapi": "3.1.0", "info": {"title": "T", "version": "1"},
+  "security": `+list+`,
+  "paths": {"/x": {"get": {"operationId": "x", "security": `+list+`,
+    "responses": {"200": {"description": "ok"}}}}}}`)
+	want := []ir.AuthRequirement{
+		{Schemes: []ir.SchemeUse{{Scheme: ids.UnresolvedAuth("<<")}}},
+		{Schemes: []ir.SchemeUse{{Scheme: ids.UnresolvedAuth("<<")}}},
+	}
+	assert.Empty(t, cmp.Diff(want, svc.Auth), "the document")
+	assert.Empty(t, cmp.Diff(want, onlyOperation(t, svc).Auth), "the operation")
+	assert.Contains(t, doc.Auth, ids.UnresolvedAuth("<<"))
+	assert.Equal(t, []string{"/paths/~1x/get/security/0", "/paths/~1x/get/security/1", "/security/0", "/security/1"},
+		sortedPointersAt(diags, diag.UnresolvedSecurityScheme))
+}
+
+// TestSecurityRequirement_ASoleMergeNamingNoMappingCollapsesTheListToNil pins
+// the worse half of #1244 at every carrier: read as [{}], `security: [{<<: 5}]`
+// is public to anyone who accepts the error. Its one entry names no option, so
+// the list says nothing about auth and collapses to nil, where the loader
+// reports the merge at the entry.
+func TestSecurityRequirement_ASoleMergeNamingNoMappingCollapsesTheListToNil(t *testing.T) {
+	t.Parallel()
+	doc, _, diags := serviceSpec(t, strings.ReplaceAll(mergeCarriers, "LIST", "[{<<: 5}]"))
+	for carrier, got := range carrierAuth(t, doc) {
+		assert.Nil(t, got, carrier)
+	}
+	reported := strings.Join(loaderErrors(diags), "\n")
+	for _, at := range []string{"/security/0: ", "/paths/~1x/get/security/0: ", "/webhooks/hook/post/security/0: ",
+		"/components/pathItems/Mounted/get/security/0: ",
+		"/paths/~1x/get/callbacks/onEvent/{$request.body#~1url}/post/security/0: "} {
+		assert.Contains(t, reported, at, "the loader places the merge at the entry")
+	}
+}
+
+// TestSecurityRequirement_AMergeChainIsReadToItsEnd pins that an entry merging
+// through a chain longer than nodeview.MergeDepthLimit is read as the parser
+// reads it: empty mappings all the way down write {}, and a `<<` naming no
+// mapping at the end names no option.
+func TestSecurityRequirement_AMergeChainIsReadToItsEnd(t *testing.T) {
+	t.Parallel()
+	chain := func(leaf string) string {
+		for range nodeview.MergeDepthLimit + 6 {
+			leaf = "{<<: " + leaf + "}"
+		}
+		return leaf
+	}
+	key := ir.AuthRequirement{Schemes: []ir.SchemeUse{{Scheme: ids.Auth("key")}}}
+	for leaf, want := range map[string][]ir.AuthRequirement{
+		"{}": {key, {}}, "{<<: 5}": {key},
+	} {
+		_, svc, _ := serviceSpec(t, strings.ReplaceAll(mergeCarriers, "LIST", "[{key: []}, "+chain(leaf)+"]"))
+		assert.Empty(t, cmp.Diff(want, svc.Auth, cmpopts.EquateEmpty()), leaf)
+	}
+}
+
+// TestRegistryRequirements_AnEntryWhoseRootIsNoMappingIsNoOption covers the
+// guard a parsed document cannot reach: a requirement whose root node is no
+// mapping. The marshaller records a root only for a mapping, so only a
+// hand-built requirement holds one, and it is no option rather than {}.
+func TestRegistryRequirements_AnEntryWhoseRootIsNoMappingIsNoOption(t *testing.T) {
+	t.Parallel()
+	c := loweringtest.Context(t, openapitest.EmptySpec, lowering.Policy{})
+	reg := auth.RegistryOf(c, nil)
+	req := soa.NewSecurityRequirement()
+	core := soacore.NewSecurityRequirement()
+	core.SetRootNode(&yaml.Node{Kind: yaml.ScalarNode, Value: "5"})
+	req.SetCore(core)
+
+	got, diags := reg.Requirements(c, []*soa.SecurityRequirement{req}, "")
+	assert.Nil(t, got, "no option, so the list collapses")
 	assert.Empty(t, diags)
 }

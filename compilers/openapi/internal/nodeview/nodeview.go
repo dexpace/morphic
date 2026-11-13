@@ -486,8 +486,9 @@ func NotMapping(src *yaml.Node) bool {
 }
 
 // MergesNothing reports whether a `<<` of the mapping n, or of a mapping a `<<`
-// merges in at any depth, names something that is no mapping (NotMapping). n is
-// dereferenced, and a node that is no mapping writes no `<<`.
+// merges in at any depth, names something that is no mapping, which merges
+// nothing (docs/parser-library.md#merge-keys). n is dereferenced, and a node
+// that is no mapping writes no `<<`.
 //
 // It reads the merges to their end, as the parser does, where View stops at
 // MergeDepthLimit: a mapping the chain shows no fault in is one the parser reads

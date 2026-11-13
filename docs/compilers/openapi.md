@@ -4179,10 +4179,13 @@ verbatim in `Unmodeled` under `openapi:<field>` (`degraded_lowering`), each repo
 `openapi/degraded-construct` at the field, and its extensions and undeclared keys as any scheme's are.
 A `$ref` that reached nothing is kept the same way, under `openapi:$ref`, with only its error. An
 entry written as no object holds no field to keep. A `security` entry written as no object names
-nothing, so a list holding nothing else, though it writes entries, lowers to no option: it collapses
-to nil, beside the rule table's error, since `[]` would read as public. A `security` that is no list
-lowers as one left out, beside the rule table's finding, a warning for a `null` and otherwise an
-error.
+nothing, and so does one with no member whose `<<`, or a `<<` of a mapping it merges at any depth,
+names no mapping, which merges nothing
+([`merge-keys`](../parser-library.md#merge-keys)): each lowers to no option, never the empty one,
+which would grant access the document never wrote. A list holding nothing else, though it writes
+entries, collapses to nil, beside the rule table's error, since `[]` would read as public. A
+`security` that is no list lowers as one left out, beside the rule table's finding, a warning for a
+`null` and otherwise an error.
 
 3.2's device flow lowers to `Flows` beside the other flows, and `oauth2MetadataUrl` to
 `OAuth2MetadataURL`. An `oauth2` scheme whose `flows` declares no flow — `flows: {}`, only `x-*` and
@@ -4210,11 +4213,14 @@ requirement naming no scheme and a scheme naming no mechanism, and leaves them t
   `e2e.TestSecurityUnresolved_ANameTwoDocumentsUseIsOneSchemeOfTheSource`,
   `auth.TestSecurityRequirement_AnOperationsOwnUnresolvedListDoesNotInherit`,
   `auth.TestSecurityRequirement_ASoleNonObjectEntryCollapsesTheListToNil`,
+  `auth.TestSecurityRequirement_AMergeNamingNoMappingIsNoOption`,
+  `auth.TestSecurityRequirement_ASoleMergeNamingNoMappingCollapsesTheListToNil`,
+  `auth.TestSecurityRequirement_AMergeChainIsReadToItsEnd`,
+  `auth.TestSecurityRequirement_AJSONDocumentWritesNoMerge`,
   `auth.TestAuth_RequirementsOrOfAnds`
 - Status: partly built: a 3.2 requirement naming a scheme by URI lowers as unresolved (#1212), an
   unresolved scheme name gets no near-miss hint (#694), a scope a requirement repeats passes into
-  the IR undeduplicated (#738), a requirement whose only key is a `<<` naming no mapping lowers to
-  the empty option, beside the rule table's error (#1244), and a field under a tag outside YAML's
+  the IR undeduplicated (#738), and a field under a tag outside YAML's
   JSON schema ruleset reads as left out, so `scheme: !local bearer` is reported as omitted and names
   no mechanism, and a `security` list under a local tag inherits with no finding (#1368), and a
   `$ref` written as null refuses the whole document (#1284).
