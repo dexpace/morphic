@@ -57,8 +57,9 @@ func (in inputs) readsNextCursor() bool {
 
 // requestInputs returns the inputs op's query parameters name. named reports
 // whether one names where a walk continues; where one does and they give no
-// walk, why says what stops it: two naming a continuation or a page size, or
-// one of a type a walk cannot send.
+// walk, why says what stops it: two naming a continuation or a page size, one
+// of a type a walk cannot send, or a page sent as a string no number shows it
+// counts.
 func requestInputs(types ir.TypeRegistry, op *ir.Operation) (in inputs, why string, named bool) {
 	var continuations, limits []*ir.Parameter
 	var query map[ir.ParamID]bool // read at the first parameter giving a role
