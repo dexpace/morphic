@@ -80,12 +80,14 @@ func operationsOf(svc *ir.Service) []*ir.Operation {
 
 // pager is what one PromotePagination reads its operations against. flat holds
 // each model's members in layout order, read once for every operation that
-// walks through it.
+// walks through it, and reach the models reaching each marking key
+// (pager.reaching).
 type pager struct {
-	c    lowering.Ctx
-	p    lowering.Promoter
-	lk   *lookups
-	flat map[ir.TypeID][]*ir.Property
+	c     lowering.Ctx
+	p     lowering.Promoter
+	lk    *lookups
+	flat  map[ir.TypeID][]*ir.Property
+	reach map[string]map[ir.TypeID]bool
 }
 
 // maps reports whether the policy reads any pagination target.
