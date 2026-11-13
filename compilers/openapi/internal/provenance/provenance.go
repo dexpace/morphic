@@ -12,41 +12,44 @@ import (
 )
 
 // Attribution is the positions an applied overlay supplied: those it introduced
-// or rewrote, by pointer and by the node sitting at each. Its zero value
-// attributes nothing, the answer for a compile with no overlay.
+// or rewrote, and the nodes sitting at them. Its zero value attributes nothing,
+// the answer for a compile with no overlay.
 type Attribution struct {
 	// index is the overlay's position in Document.Sources.
 	index int
-	// pointers holds every position the overlay introduced or rewrote, closed
-	// downwards: a cloned subtree contributes each of its own nodes, so a lookup
-	// is one map hit rather than a walk up the pointer's prefixes.
-	pointers map[jsontext.Pointer]bool
-	// nodes holds the same positions keyed by the node that sits at each: the
-	// value the walk attributed, and the key beside it when the overlay
-	// introduced that too. A finding raised on a raw node has the node and not
-	// the pointer, and a grafted node carries no line and column of its own,
-	// since the library's clone keeps neither (GitHub #476).
-	nodes map[*yaml.Node]jsontext.Pointer
+	// written holds the positions, nil when the overlay supplied none.
+	written *Positions
 }
 
 // Attributed returns the attribution of the overlay at index in
-// Document.Sources, which supplied the positions pointers holds and the nodes
-// nodes holds, each at its pointer. It keeps both maps, which nothing may write
-// afterwards; nil maps attribute nothing.
-func Attributed(index int, pointers map[jsontext.Pointer]bool, nodes map[*yaml.Node]jsontext.Pointer) Attribution {
-	return Attribution{index: index, pointers: pointers, nodes: nodes}
+// Document.Sources, which supplied the positions written records. It keeps
+// written, which nothing may write afterwards; nil attributes nothing.
+func Attributed(index int, written *Positions) Attribution {
+	return Attribution{index: index, written: written}
 }
 
 // WriterAt returns the overlay's index when it introduced or rewrote the
 // position at pointer, and 0 otherwise: what ir.Provenance.WrittenBy holds for
-// that position of the patched document.
+// that position of the patched document. It costs a lookup per token of
+// pointer, however many positions the overlay wrote.
 //
 // A pointer the attribution never recorded, such as a position reached through
 // an alias or a `<<` merge key, which the node tree holds once at the anchor's
 // own position, answers 0: an unrecognized pointer under-attributes rather than
 // misattributes.
 func (a Attribution) WriterAt(pointer jsontext.Pointer) int {
-	if a.pointers[pointer] {
+	if a.written == nil {
+		return 0
+	}
+	at := a.written.Root()
+	for token := range pointer.Tokens() {
+		next, ok := a.written.steps[step{holder: at, token: token}]
+		if !ok {
+			return 0
+		}
+		at = next
+	}
+	if at.written {
 		return a.index
 	}
 	return 0
@@ -75,10 +78,17 @@ func (a Attribution) WriterOf(pointer jsontext.Pointer, from []jsontext.Pointer)
 }
 
 // At returns the pointer at which the overlay put a node it introduced or
-// rewrote, and false for any other node, nil included.
+// rewrote, and false for any other node, nil included. The pointer is spelled
+// when asked for, never stored.
 func (a Attribution) At(n *yaml.Node) (jsontext.Pointer, bool) {
-	pointer, ok := a.nodes[n]
-	return pointer, ok
+	if a.written == nil {
+		return "", false
+	}
+	at, ok := a.written.nodes[n]
+	if !ok {
+		return "", false
+	}
+	return at.pointer(), true
 }
 
 // Doc places the pointers of one input document: at Source, the document's

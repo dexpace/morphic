@@ -22,9 +22,7 @@ import (
 func TestAttribution_WriterOfNamesTheOverlayWhenItWroteEveryPosition(t *testing.T) {
 	t.Parallel()
 	const overlay, base = 5, 0
-	attributed := provenance.Attributed(overlay, map[jsontext.Pointer]bool{
-		"/s/if": true, "/s/then": true, "/t": true, "/t/if": true,
-	}, nil)
+	attributed := provenance.Attributed(overlay, written("/s/if", "/s/then", "/t", "/t/if"))
 	tests := []struct {
 		name        string
 		attribution provenance.Attribution
@@ -55,9 +53,7 @@ func TestAttribution_WriterOfNamesTheOverlayWhenItWroteEveryPosition(t *testing.
 // several positions names it only where it supplied all of them.
 func TestDoc_AtPlacesAPointerInItsDocumentAndNamesTheWriter(t *testing.T) {
 	t.Parallel()
-	doc := provenance.Doc{Source: 4, Overlay: provenance.Attributed(5, map[jsontext.Pointer]bool{
-		"/a": true, "/s/if": true, "/s/then": true,
-	}, nil)}
+	doc := provenance.Doc{Source: 4, Overlay: provenance.Attributed(5, written("/a", "/s/if", "/s/then"))}
 
 	assert.Equal(t, ir.Provenance{Source: 4, Pointer: "/a", WrittenBy: 5}, doc.At("/a"))
 	assert.Equal(t, ir.Provenance{Source: 4, Pointer: "/b"}, doc.At("/b"))
@@ -108,9 +104,10 @@ func TestTree_NodeTakesTheOverlaysPlaceOverTheTrees(t *testing.T) {
 	t.Parallel()
 	grafted := &yaml.Node{Kind: yaml.ScalarNode}
 	own := &yaml.Node{Kind: yaml.ScalarNode, Line: 3, Column: 9}
+	positions := provenance.NewPositions()
+	positions.Place(grafted, at(positions, "/info/title"))
 	tree := provenance.Tree{
-		Doc: provenance.Doc{Source: 2, Overlay: provenance.Attributed(1, nil,
-			map[*yaml.Node]jsontext.Pointer{grafted: "/info/title"})},
+		Doc:      provenance.Doc{Source: 2, Overlay: provenance.Attributed(1, positions)},
 		Pointers: func(*yaml.Node) (jsontext.Pointer, bool) { return "/from/the/tree", true },
 	}
 
@@ -118,4 +115,82 @@ func TestTree_NodeTakesTheOverlaysPlaceOverTheTrees(t *testing.T) {
 	assert.Equal(t, ir.Provenance{Source: 2, Pointer: "/from/the/tree", Position: ir.Position{Line: 3, Column: 9}},
 		tree.Node(own))
 	assert.Equal(t, ir.Provenance{Source: 2}, tree.Node(nil), "the tree is not asked about no node")
+}
+
+// at returns the position pointer names in positions, recording it and every
+// position above it.
+func at(positions *provenance.Positions, pointer jsontext.Pointer) *provenance.Position {
+	p := positions.Root()
+	for token := range pointer.Tokens() {
+		p = positions.Child(p, token)
+	}
+	return p
+}
+
+// written returns a record of the positions pointers name, each written.
+func written(pointers ...jsontext.Pointer) *provenance.Positions {
+	positions := provenance.NewPositions()
+	for _, p := range pointers {
+		at(positions, p).Write()
+	}
+	return positions
+}
+
+// TestAttribution_WriterAtReadsAPointerTokenByToken pins how WriterAt reads
+// the record: a position the overlay wrote answers its index, one recorded
+// only on the way to one, a position beneath one, the root and a position
+// never recorded answer 0, a token holding "/" or "~" is read unescaped, and a
+// nil record, as an Attribution's zero value holds, answers 0 for any.
+func TestAttribution_WriterAtReadsAPointerTokenByToken(t *testing.T) {
+	t.Parallel()
+	a := provenance.Attributed(3, written("/paths/~1a~0b/get", "/tags/0"))
+
+	tests := map[jsontext.Pointer]int{
+		"/paths/~1a~0b/get":         3,
+		"/tags/0":                   3,
+		"/paths/~1a~0b":             0,
+		"/paths/~1a~0b/get/summary": 0,
+		"":                          0,
+		"/tags/1":                   0,
+		"/paths/~1a~0c/get":         0,
+	}
+	for pointer, want := range tests {
+		assert.Equal(t, want, a.WriterAt(pointer), "%q", pointer)
+		assert.Equal(t, 0, provenance.Attributed(3, nil).WriterAt(pointer), "%q", pointer)
+	}
+}
+
+// TestAttribution_AtSpellsThePointerOfAPlacedNode pins the node half: a node
+// placed at a position answers that position's pointer, escaped as RFC 6901
+// writes it, the root's included, and any other node answers none.
+func TestAttribution_AtSpellsThePointerOfAPlacedNode(t *testing.T) {
+	t.Parallel()
+	positions := provenance.NewPositions()
+	deep, root, other := &yaml.Node{}, &yaml.Node{}, &yaml.Node{}
+	positions.Place(deep, at(positions, "/paths/~1a~0b/get"))
+	positions.Place(root, positions.Root())
+	a := provenance.Attributed(1, positions)
+
+	got, found := a.At(deep)
+	assert.True(t, found)
+	assert.Equal(t, jsontext.Pointer("/paths/~1a~0b/get"), got)
+	got, found = a.At(root)
+	assert.True(t, found)
+	assert.Equal(t, jsontext.Pointer(""), got)
+	_, found = a.At(other)
+	assert.False(t, found)
+	_, found = provenance.Attributed(1, nil).At(deep)
+	assert.False(t, found, "a nil record places nothing")
+}
+
+// TestPositions_ChildRecordsAPositionOnce pins that asking for a position
+// twice returns the one recorded, so a write through either is the same
+// write.
+func TestPositions_ChildRecordsAPositionOnce(t *testing.T) {
+	t.Parallel()
+	positions := provenance.NewPositions()
+	first := positions.Child(positions.Root(), "a")
+	assert.Same(t, first, positions.Child(positions.Root(), "a"))
+	assert.NotSame(t, first, positions.Child(positions.Root(), "b"))
+	assert.NotSame(t, first, positions.Child(first, "a"), "a token names a position within its holder alone")
 }

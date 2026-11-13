@@ -188,14 +188,13 @@ var rules = map[string][]string{
 		"github.com/speakeasy-api/openapi/yml", "go.yaml.in/yaml/v3"},
 	// Source-document patching: an OpenAPI Overlay applied to the decoded node
 	// tree, and the attribution of what it changed. It reads bytes and nodes and
-	// reports through diag, reaching ids for the pointer that names a position,
-	// nodeview for the document root, budget for the node budget it builds
-	// within and provenance for the attribution it hands out — and nothing that
-	// lowers, because it runs before there is anything to lower.
+	// reports through diag, reaching nodeview for the document root and the
+	// keys the parser reads, budget for the node budget it builds within and
+	// provenance for the attribution it hands out — and nothing that lowers,
+	// because it runs before there is anything to lower.
 	"compilers/openapi/internal/overlay": {module + "/ir",
 		module + "/compilers/openapi/internal/budget",
 		module + "/compilers/openapi/internal/diag",
-		module + "/compilers/openapi/internal/ids",
 		module + "/compilers/openapi/internal/nodeview",
 		module + "/compilers/openapi/internal/provenance",
 		"github.com/speakeasy-api/openapi/overlay", "go.yaml.in/yaml/v3"},
