@@ -7,6 +7,7 @@ import (
 	"slices"
 	"testing"
 
+	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -232,6 +233,46 @@ func assertScalarFormat(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 	assert.Equal(t, ir.PrimTypeID(ir.PrimString), ts.Base.Target)
 	require.NotNil(t, ts.Encoding)
 	assert.Equal(t, "time", ts.Encoding.Name)
+
+	assertEncodedFormats(t, doc, h)
+}
+
+// assertEncodedFormats pins the registered formats whose value is of another
+// primitive than the JSON type they are written on: each hoists a Scalar over
+// that primitive under the encoding the IR names its text by, the JSON type in
+// WireType where the primitive's own spelling does not say it, and the bounds
+// written beside it kept (docs/compilers/openapi.md#string-formats,
+// docs/compilers/openapi.md#numeric-formats).
+func assertEncodedFormats(t *testing.T, doc *ir.Document, h *ir.Model) {
+	t.Helper()
+	wire := func(k ir.PrimKind) *ir.TypeRef { return &ir.TypeRef{Target: ir.PrimTypeID(k)} }
+	for prop, want := range map[string]struct {
+		base ir.PrimKind
+		enc  ir.Encoding
+	}{
+		"thumbprint": {ir.PrimBytes, ir.Encoding{Name: "base64url", WireType: wire(ir.PrimString)}},
+		"modified":   {ir.PrimDatetimeOffset, ir.Encoding{Name: "http-date"}},
+		"resetAt":    {ir.PrimDatetimeOffset, ir.Encoding{Name: "unixTimestamp", WireType: wire(ir.PrimInteger)}},
+		"seenAt":     {ir.PrimDatetimeOffset, ir.Encoding{Name: "unixTimestamp", WireType: wire(ir.PrimNumber)}},
+		"issuedAt":   {ir.PrimDatetimeOffset, ir.Encoding{Name: "unixTimestamp", WireType: wire(ir.PrimString)}},
+	} {
+		t.Run(prop, func(t *testing.T) {
+			p, ok := propByWire(h, prop)
+			require.True(t, ok, "the property is declared")
+			sc, ok := doc.Types[p.Type.Target].(*ir.Scalar)
+			require.True(t, ok, "the format hoists a Scalar")
+			require.NotNil(t, sc.Base)
+			assert.Equal(t, ir.PrimTypeID(want.base), sc.Base.Target, "over the primitive the value is")
+			require.NotNil(t, sc.Encoding)
+			assert.Empty(t, cmp.Diff(want.enc, *sc.Encoding), "under the encoding the IR names")
+		})
+	}
+	modified, ok := propByWire(h, "modified")
+	require.True(t, ok)
+	sc, ok := doc.Types[modified.Type.Target].(*ir.Scalar)
+	require.True(t, ok)
+	require.NotNil(t, sc.Constraints, "the bound beside the format stays on its Scalar")
+	assert.Equal(t, new(int64(29)), sc.Constraints.MinLength)
 }
 
 // assertSelectedPrimitives pins the table's pairings this spec writes: each
@@ -556,7 +597,10 @@ func assertSecretInference(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 	for wire, tc := range map[string]struct{ secret, marked bool }{
 		"client_secret": {true, true}, "privateKey": {true, true}, "session_token": {true, false},
 		"secret_id": {false, false}, "has_password": {false, false}, "secret": {false, false},
-		"refresh_token": {false, false},
+		"refresh_token": {false, false}, "access_key": {true, true},
+		// An HTTP-date is an instant, no text or bytes
+		// (docs/compilers/openapi.md#string-formats).
+		"bearer_token": {false, false},
 	} {
 		p, ok := propByWire(creds, wire)
 		require.True(t, ok, wire)

@@ -39,3 +39,13 @@ components:
         # A float format on an integer admits only its integral values, which
         # no primitive narrower than integer holds, so the format is kept.
         whole: {type: integer, format: double}
+        # A registered format whose value is of another primitive than the
+        # JSON type it is written on hoists a Scalar over that primitive, under
+        # the encoding the IR names its text by, as byte does: URL-safe base64
+        # bytes, an instant as an HTTP-date, and an instant as its seconds,
+        # whose JSON type is the wire type.
+        thumbprint: {type: string, format: base64url}
+        modified: {type: string, format: http-date, minLength: 29}
+        resetAt: {type: integer, format: unixtime, minimum: 0}
+        seenAt: {type: number, format: unixtime}
+        issuedAt: {type: string, format: unixtime}

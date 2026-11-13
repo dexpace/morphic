@@ -546,3 +546,12 @@ it sees. Changes made together in one bump are listed together under it.
   ([`http-date-inference`](../compilers/openapi.md#http-date-inference)). A consumer pinned to
   0.50.0 refuses a document from this generation, whose idempotency, redaction, replacements and
   header texts it would read as no OpenAPI document wrote them.
+- **0.52.0** — the shape is unchanged, and the OpenAPI compiler lowers three registered formats as it
+  lowers `format: byte`: to a `Scalar` over the primitive the value is, whose `Encoding` names the
+  text it is written in as the [IR](./constraints.md#encodings) does. `http-date` is a
+  `datetime_offset` under `http-date`, `unixtime` a `datetime_offset` under `unixTimestamp`, a name
+  no compiler wrote before, with the JSON type it is written on as `WireType`, and `base64url` is
+  `bytes` under `base64url` with a `string` `WireType`. So the secret policy, which reads a
+  credential's name on text or bytes, no longer marks a use declared `http-date`, or `unixtime` on a
+  string, `Secret`. A consumer pinned to 0.51.0 refuses the document; read regardless, it would find
+  an instant or bytes where it read text or a number, and `unixTimestamp` where it read `unixtime`.

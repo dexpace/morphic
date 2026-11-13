@@ -78,8 +78,18 @@ type Encoded struct {
 // (docs/compilers/openapi.md#string-formats,
 // docs/compilers/openapi.md#numeric-formats). No key is also formatTable's
 // (TestEncodedTable_IsApartFromTheFormatTable).
+//
+// unixtime is named unixTimestamp, the IR's name for seconds since the epoch,
+// since a consumer keys a row by that name and never reads which format a
+// document came from. Its Wire is the JSON type it is written on, which tells
+// whole seconds from a fraction or a decimal text.
 var encodedTable = map[string]Encoded{
-	"string/byte": {Prim: ir.PrimBytes, Encoding: "base64", Wire: ir.PrimString},
+	"string/byte":      {Prim: ir.PrimBytes, Encoding: "base64", Wire: ir.PrimString},
+	"string/base64url": {Prim: ir.PrimBytes, Encoding: "base64url", Wire: ir.PrimString},
+	"string/http-date": {Prim: ir.PrimDatetimeOffset, Encoding: "http-date"},
+	"integer/unixtime": {Prim: ir.PrimDatetimeOffset, Encoding: "unixTimestamp", Wire: ir.PrimInteger},
+	"number/unixtime":  {Prim: ir.PrimDatetimeOffset, Encoding: "unixTimestamp", Wire: ir.PrimNumber},
+	"string/unixtime":  {Prim: ir.PrimDatetimeOffset, Encoding: "unixTimestamp", Wire: ir.PrimString},
 }
 
 // LookupEncoded returns the pairing a "type/format" key selects, and whether
