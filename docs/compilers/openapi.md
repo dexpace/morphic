@@ -4577,9 +4577,9 @@ OpenAPI runtime expression, `$request.query.<name>`, `$request.path.<name>`,
 pointer or `$response.header.<name>` for a page value, or the shorthand `$request.` or `$response.`
 and a dotted chain of names, the first of an input a parameter's where one parameter carries it and
 the request body's member otherwise. A source listing values marks the node its key sits on as the
-value its word names: a parameter, a property, or the type a parameter or property names, found
-from the request, its parameters and its body, or from each success response's body, nearest the
-root. The default reads both conventions: the `cursor`, `next_cursor`, `results` and `next_uri`
+value its word names: a parameter, a property, a response header, or the type one of them names,
+found from the request, its parameters and its body, or from each success response's headers and
+body, nearest the body's root. The default reads both conventions: the `cursor`, `next_cursor`, `results` and `next_uri`
 members of `x-fern-pagination`, and the `purpose` of `x-stainless-pagination-property`, whose
 `next_cursor_param`, `next_cursor_field` and `items` mark the cursor, the next cursor and the items.
 Neither reads an offset or a page number by default, since each convention leaves to its own
@@ -4587,7 +4587,8 @@ configuration which of the two its walk counts.
 
 A page value is one member of every success response declaring a body, of each of its media types:
 one that a response or a media type holds at another member, as a header two success responses each
-declare does, resolves to nothing, as does a value a mark finds at two members as near the root. The
+declare does, resolves to nothing, as does a value a mark finds at two members as near the root, or
+at a header and a member of one response. The
 fields fill a pagination whole or not at all: a value that resolves to nothing, two inputs
 continuing the walk, a cursor beside no next cursor or a next cursor beside no cursor, and a walk
 with neither an input nor a next link are each reported as an info `openapi/degraded-construct`,

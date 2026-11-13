@@ -11,13 +11,14 @@ import (
 )
 
 // position is one place a marking source's key says a pagination value sits:
-// the members walked to it from a body, none for the body whole, the node
-// whose key marks it, and whether its model is reached by more than one walk
-// as short.
+// the members walked to it from a body, none for the body whole, or a header,
+// the node whose key marks it, and whether its model is reached by more than
+// one walk as short.
 type position struct {
 	segments []ir.PropID
 	keeper   *ir.Provenance
 	shared   bool
+	header   bool
 }
 
 // marker is one marking source of a pagination target, asked of the nodes of
@@ -80,26 +81,56 @@ func (pg *pager) markedInput(op *ir.Operation, target lowering.ExtensionTarget, 
 }
 
 // markedOutput resolves where src marks a value of a page: a member of the body
-// of the success responses, which must all mark the same one.
+// of the success responses, or one of their headers, which must all mark the
+// same one.
 func (pg *pager) markedOutput(op *ir.Operation, target lowering.ExtensionTarget, src lowering.ExtensionSource) (resolved[*ir.PropPath], string, []ir.Diagnostic) {
 	m := &marker{pg: pg, target: target, src: src}
 	r := resolved[*ir.PropPath]{at: op.Provenance}
 	for i := range op.Responses {
-		found, failure := m.within(op.Responses[i].Payload)
+		found, failure := m.inResponse(&op.Responses[i])
 		switch {
 		case failure != "":
 			r.stated = true
 			return r, failure, m.diags
 		case found == nil:
 		case r.value == nil:
-			r.value, r.read, r.stated = &ir.PropPath{Segments: found.segments}, []*ir.Provenance{found.keeper}, true
-		case !slices.Equal(r.value.Segments, found.segments):
-			return r, "marks different members of the success responses' bodies", m.diags
+			r.value, r.read, r.stated = found.path(), []*ir.Provenance{found.keeper}, true
+		case !sameOutput(r.value, found.path()):
+			return r, "marks different members of the success responses", m.diags
 		default:
 			r.read = append(r.read, found.keeper)
 		}
 	}
 	return r, "", m.diags
+}
+
+// inResponse returns where m's source marks a value of r: a member of its body
+// or one of its headers, and why it marks none where it marks more than one.
+func (m *marker) inResponse(r *ir.Response) (*position, string) {
+	found, failure := m.within(r.Payload)
+	if failure != "" {
+		return nil, failure
+	}
+	for i := range r.Headers {
+		h := &r.Headers[i].Property
+		keeper, ok := m.marksUse(h.Unmodeled, &h.Provenance, h.Type.Target)
+		switch {
+		case !ok:
+		case found != nil:
+			return nil, "marks more than one value of a response"
+		default:
+			found = &position{segments: []ir.PropID{h.ID}, keeper: keeper, header: true}
+		}
+	}
+	return found, ""
+}
+
+// path is the page value p names.
+func (p *position) path() *ir.PropPath {
+	if p.header {
+		return &ir.PropPath{In: "header", Segments: p.segments}
+	}
+	return &ir.PropPath{Segments: p.segments}
 }
 
 // within returns where m's source marks a value of body, the one position each

@@ -327,7 +327,20 @@ func TestPromotePagination_ReadsEverySuccessResponse(t *testing.T) {
 		{"two marks in two responses", "      x-page: {cursor: $request.c}\n" + queryC +
 			twoResponses(`{$ref: '#/components/schemas/Tokens'}`) + "\n        \"202\":\n          description: ok\n" +
 			"          content: {application/json: {schema: {type: object, properties: {t: {$ref: '#/components/schemas/Token'}}}}}",
-			"none", "marks different members of the success responses' bodies"},
+			"none", "marks different members of the success responses"},
+		{"a marked header", "      x-page: {cursor: $request.c}\n" + queryC + "      responses:\n" +
+			"        \"200\":\n          description: ok\n" +
+			"          headers: {Next: {schema: {$ref: '#/components/schemas/Token'}}}",
+			"cursor in=param:c next=header:Next", ""},
+		{"a marked header beside a marked member", "      x-page: {cursor: $request.c}\n" + queryC + "      responses:\n" +
+			"        \"200\":\n          description: ok\n" +
+			"          headers: {Next: {schema: {$ref: '#/components/schemas/Token'}}}\n" +
+			"          content: {application/json: {schema: {$ref: '#/components/schemas/Tokens'}}}",
+			"none", "marks more than one value of a response"},
+		{"a body marking two members", "      x-page: {cursor: $request.c}\n" + queryC + "      responses:\n" +
+			"        \"200\":\n          description: ok\n          content:\n            application/json:\n" +
+			"              schema: {type: object, properties: {a: {$ref: '#/components/schemas/Token'}, " +
+			"b: {$ref: '#/components/schemas/Token'}}}", "none", "marks more than one member of a body, as near its root"},
 		{"one mark in two responses", "      x-page: {cursor: $request.c}\n" + queryC + "      responses:\n" +
 			"        \"200\": {description: ok, content: {application/json: {schema: {$ref: '#/components/schemas/Tokens'}}}}\n" +
 			"        \"201\": {description: ok, content: {application/json: {schema: {$ref: '#/components/schemas/Tokens'}}}}",
