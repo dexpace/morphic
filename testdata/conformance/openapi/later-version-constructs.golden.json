@@ -122,6 +122,7 @@
                               "target": "t/prim/any",
                               "nullable": false
                             },
+                            "stream": {},
                             "item": {
                               "target": "t/openapi/components/schemas/Book",
                               "nullable": false
