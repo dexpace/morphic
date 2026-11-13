@@ -68,7 +68,8 @@ begins with a name no nearer declaration takes, as each target says
 ([Go](../targets/go/naming.md#imports), [Kotlin](../targets/kotlin/naming.md#imports)). A Go caller
 names no parameter, so there a parameter the spec names yields to an import instead, and the
 function's scope reserves the name its file gives each import. The naming steps settle that name
-first, after the units' names, since on Go it reads only its package's name, what the target binds,
+after the units' names and before any other scope's ([the refiner contract](pipeline.md)), since on
+Go it reads only its package's name, what the target binds,
 the predeclared identifiers its file writes and its file's other imports: with Go 1.27.3, a
 parameter `time2`, escaped against `time` alone, hid the unit `time` its file then imported as
 `time2` (`time2.Zone is not a type`). A Kotlin caller names one in a named argument, and a Swift

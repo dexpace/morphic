@@ -59,7 +59,8 @@ throughout these documents.
    `Multiplier` is the same number of milliseconds on every target ([what a layer
    writes](../contract/runtime-policy.md#what-a-layer-writes)).
 10. **T-10 · Step-trace golden** — the ordered refine step list produces a pinned, deterministic
-    trace (guards implicit inter-step coupling).
+    trace (guards implicit inter-step coupling), Go's ending in casing and then the escaping and
+    collision steps twice ([the refiner contract](../refine/pipeline.md)).
 11. **T-11 · Architecture import-graph** — the layering in [package layout](../packages.md).
 12. **T-12 · Wire-conformance (milestone 3)** — expected request shapes derived from `Doc + Plan`
     alone, the elected media type among them, diffed against the generated SDK under HTTP
