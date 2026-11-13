@@ -217,11 +217,11 @@ type trail struct {
 
 // then is t extended by member.
 func (t *trail) then(member ir.PropID) *trail {
-	return &trail{member: member, up: t, length: t.len() + 1}
+	return &trail{member: member, up: t, length: t.size() + 1}
 }
 
-// len is how many members t holds, none for nil, the root's.
-func (t *trail) len() int {
+// size is how many members t holds, none for nil, the root's.
+func (t *trail) size() int {
 	if t == nil {
 		return 0
 	}
@@ -230,7 +230,7 @@ func (t *trail) len() int {
 
 // segments is t's members from the root, then last.
 func (t *trail) segments(last ir.PropID) []ir.PropID {
-	out := make([]ir.PropID, t.len()+1)
+	out := make([]ir.PropID, t.size()+1)
 	out[len(out)-1] = last
 	for i, at := len(out)-2, t; at != nil; i, at = i-1, at.up {
 		out[i] = at.member
