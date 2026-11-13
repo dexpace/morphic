@@ -232,7 +232,7 @@ func TestEngine_RunResultSourcesOnARefusedOverlay(t *testing.T) {
 	t.Parallel()
 	// The same recursive-anchor shape TestCompiler_SourceTableOnARefusal pins at
 	// the compiler's own level: an alias inside the update names one of its own
-	// ancestors, which gives the overlay library's clone no base case.
+	// ancestors, which gives the overlay's copy of it no base case.
 	const anchorCycle = "overlay: 1.0.0\ninfo: {title: o, version: \"1\"}\n" +
 		"actions:\n  - target: $.info\n    update: {p: &a [*a]}\n"
 

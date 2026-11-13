@@ -85,8 +85,8 @@ type scope struct {
 	// variant, which has none, by the ID of the type it holds. It is nil for a
 	// model's properties and an enum's members, named by index, as their IDs
 	// hold a source key or value verbatim, control characters included. Any
-	// other ID can carry one from a name too, written raw where diagnostics
-	// render (GitHub #816).
+	// other ID can carry one from a name too, which a message holds as written
+	// and a renderer escapes (GitHub #816).
 	ids []string
 }
 
