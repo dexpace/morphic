@@ -1489,11 +1489,15 @@ bounds and the counts `minItems` and `maxItems` agree where they meet, as a rede
 ([`allof-redeclared-property`](#allof-redeclared-property)): `maxLength: 3` beside `maxLength: 5`
 folds to `3`, `minItems: 1` beside `minItems: 2` to `2`, and `multipleOf: 4` beside `multipleOf: 6`
 to `12`, whatever their order, a number written two ways keeping the first spelling. Two `pattern`s
-have no one value, and neither has a 3.0 `exclusiveMinimum` with no bound beside it, which fills no
-field, so each disagrees with another written differently. A branch whose folding keywords write a
-relative `$ref` it reads against another base than the position does, an `$id` at or above it naming
-another URI, folds nothing either, since that `$ref` would name another schema read at the position;
-it stays whole, with its report, and is no conjunct the others are compared with. One writing none
+have no one value, so each disagrees with another written differently. A writer stating no value
+parts no other: a 3.0 `exclusiveMinimum` of `false`, or of `true` with no bound beside it, which
+fills no field, and a bound the load phase refuses ([`validation`](#validation)) say nothing a value
+must meet, so its branch folds where nothing else parts it, and what the writer wrote is read,
+reported and kept at its own pointer as the same keyword is beside the `allOf`. A branch whose
+folding keywords write a relative `$ref` it reads against another base than the position does, an
+`$id` at or above it naming another URI, folds nothing either, since that `$ref` would name another
+schema read at the position; it stays whole, with its report, and is no conjunct the others are
+compared with. One writing none
 there, or only absolute ones, reads the same at the position, so an `$id` alone keeps nothing it
 writes from folding.
 
@@ -1536,6 +1540,8 @@ every entry reads that one twice.
   `schema.TestVoices_AKeywordFoldsWhereTheAllOfWouldKeepIt`,
   `schema.TestVoices_ABranchDisagreeingFoldsNothingInEveryOrder`,
   `schema.TestVoices_BoundsMeetInEveryOrder`,
+  `schema.TestVoices_ARefusedBoundPartsNoWriter`,
+  `schema.TestAgreement_ReadsABoundInTheDialectOfItsSchemas`,
   `schema.TestVoices_KeywordsOneEntryHoldsDisagreeAsOne`,
   `schema.TestVoices_UnevaluatedFalseStaysTheModels`,
   `schema.TestVoices_AUseBindingKeywordReachesItsCarrierOrItsNode`,
@@ -2036,11 +2042,11 @@ field's first 64 at most; each later one is kept verbatim, unjudged, under an
   `schema.TestAllOf_RedeclarationsWritingNoRelativeReferenceFoldUnderAnyBase`,
   `schema.TestAllOf_ACopyOfAComponentUnderAnotherBaseStaysApart`,
   `e2e.TestExternalContent_ACopyOfAnotherDocumentsComponentStaysApart`
-- Status: partly built: a structure stating no instance type that
-  refuses some kinds only through a `oneOf`, `anyOf`, `not` or `if` reads as stating its type, so
-  it conflicts with a kind it admits (#1671); a model and the wrapper it flattens that fold different sets only because the
-  model stops at the flattening depth are refused as `compile/registry-refused`, not told apart,
-  since one declaration names both.
+- Status: partly built: a structure stating no instance type that refuses some kinds only through
+  a `oneOf`, `anyOf`, `not` or `if` reads as stating its type, so it conflicts with a kind it admits
+  (#1671); a model and the wrapper it flattens that fold different sets only because the model
+  stops at the flattening depth are refused as `compile/registry-refused`, not told apart, since
+  one declaration names both.
 
 ### `allof-required`
 
