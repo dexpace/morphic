@@ -3228,9 +3228,9 @@ it carries an offset and the `time` primitive holds none
 ([primitives](../ir/primitives.md#offsets)). A `contentEncoding` beside such a format, a numeric or
 an unknown one names the encoding instead; where the two name different encodings the format is
 kept verbatim under `openapi:format` (`no_ir_home`) with an info `openapi/degraded-construct` at it.
-A format of the first kind so kept leaves the primitive and the `WireType` it selects in place, while
-a numeric format so kept selects no base, since the string is then that encoding's text and not a
-number's:
+A format of the first kind so kept leaves the primitive and the `WireType` it selects in place,
+while a numeric format so kept selects no base, since the string is then that encoding's text and
+not a number's:
 `{type: string, format: int64, contentEncoding: base64}` lowers to a `Scalar` over `string` under
 `base64` with no `WireType`, as the encoding alone does
 ([`content-vocabulary`](#content-vocabulary)). A scalar hoisted for its format carries the bounds
@@ -4588,12 +4588,14 @@ lowers to ([`string-formats`](#string-formats)), with no `Encoding` on the heade
 of one declared by `content` is, and no encoding named along that chain, takes an `Encoding` named
 `http-date` ([encodings](../ir/constraints.md#encodings)) on the header itself. Such a name on such
 a type is the policy's trigger, an encoding the document writes being where it has spoken, and it
-declines nothing that meets it. A header declared `format: http-date` or `unixtime` carries that
-encoding on its type ([`string-formats`](#string-formats)), so the document has spoken for it. It is an override of that one use, so a component a `$ref` names
-keeps its own text wherever else it is used. An info `openapi/inferred-http-date` at the header
-reports it, since the reading replaces the RFC 3339 text `date-time` names, which the field's
-definition rules out. A header an encoding gives a part is a MIME header no such definition covers,
-and is not read. On the golden spec one header is read, the `Last-Modified` of
+declines nothing that meets it. A header declared `format: http-date` or `unixtime` carries the
+encoding its format names on its type ([`string-formats`](#string-formats),
+[`numeric-formats`](#numeric-formats)), so the document has spoken for it. It is an override of that
+one use, so a component a `$ref` names keeps its own text wherever else it is used. An info
+`openapi/inferred-http-date` at the header reports it, since the reading replaces the RFC 3339 text
+`date-time` names, which the field's definition rules out. A header an encoding gives a part is a
+MIME header no such definition covers, and is not read. On the golden spec one header is read, the
+`Last-Modified` of
 `GET /accounts/{account_id}/dex/commands/{command_id}/downloads/{filename}`, whose example is an
 HTTP-date (spec @86556f6f).
 
