@@ -817,6 +817,15 @@ func declaresUnion(s *oas3.Schema) bool {
 	return len(s.GetOneOf()) > 0 || len(s.GetAnyOf()) > 0
 }
 
+// buildsVariants reports whether a Union s lowers to holds variants s builds
+// itself, each conjoining what s writes: a type array's (lowerUnion) or a
+// distributed composition's (lowerDistributedUnion). A union of s's oneOf or
+// anyOf alone (lowerOneOfAnyOf) holds the nodes its branches lowered to
+// instead. It reads what lowerSchemaBody dispatches on.
+func buildsVariants(c lowering.Ctx, s *oas3.Schema) bool {
+	return !declaresUnion(s) || hasUnionSiblings(c, s)
+}
+
 // refSiteUnionWhy is preserveUnionSiblingsAt's why at every $ref site: a
 // complete sentence in its own right (see preserveUnionSiblingsAt's doc for
 // why it cannot share lowerCoDeclaredUnion's framing), because a $ref site's

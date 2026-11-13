@@ -1598,6 +1598,47 @@ func assertKeywordsAtEveryOutcome(t *testing.T, doc *ir.Document, diags []ir.Dia
 	assert.Empty(t, diagsAt(diags, "openapi/degraded-construct", "/components/schemas/Homed"))
 }
 
+// assertUnevaluatedAtEveryOutcome pins where `unevaluatedProperties: false`
+// reaches the IR: a model's openness where the position built one closed after
+// composition, itself or as a variant of a union it built, and otherwise
+// verbatim under openapi:unevaluated, once, on the node or carrier the position
+// owns, at a component, a property, an items schema and a parameter's schema.
+// No matrix row: the case is a preservation claim.
+func assertUnevaluatedAtEveryOutcome(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
+	for _, name := range []string{"Closed", "ObjectVariant", "Distributed"} {
+		assert.NotContains(t, typeByName(doc, name).Common().Unmodeled, "openapi:unevaluated", "%s holds it as a closure", name)
+	}
+	kept := map[string]ir.Unmodeled{}
+	for _, name := range []string{"Scalar", "Enumerated", "Constant", "Listed", "Paired", "Alias", "PlainUnion",
+		"NoObjectVariant", "Anything", "ClosedByABranch"} {
+		kept["/components/schemas/"+name] = typeByName(doc, name).Common().Unmodeled
+	}
+	holder, ok := typeByName(doc, "Holder").(*ir.Model)
+	require.True(t, ok)
+	for _, wire := range []string{"scalar", "ref"} {
+		p, found := propByWire(holder, wire)
+		require.True(t, found, wire)
+		kept["/components/schemas/Holder/properties/"+wire] = p.Unmodeled
+	}
+	items, ok := doc.Types["t/anon/components/schemas/Holder/properties/list/items"]
+	require.True(t, ok, "an items schema keeping it owns a node")
+	kept["/components/schemas/Holder/properties/list/items"] = items.Common().Unmodeled
+	op, ok := opByName(doc, "getThings")
+	require.True(t, ok)
+	require.Len(t, op.Params, 1)
+	kept["/paths/~1things/get/parameters/0/schema"] = op.Params[0].Unmodeled
+	for at, unmodeled := range kept {
+		entry := unmodeledEntry(t, unmodeled, "openapi:unevaluated")
+		assert.Equal(t, `{"unevaluatedProperties":false}`, string(entry.Value), at)
+		assert.Equal(t, ir.ReasonValidationOnly, entry.Reason, at)
+		assert.Equal(t, jsontext.Pointer(at), entry.Provenance.Pointer, at)
+		assert.Equal(t, []ir.Severity{ir.SeverityInfo}, diagsAt(diags, "openapi/validation-only-keyword", at), at)
+	}
+	closed, ok := typeByName(doc, "ClosedByABranch").(*ir.Model)
+	require.True(t, ok)
+	assert.Equal(t, ir.AdditionalClosed, closed.Additional, "the false branch closes it outright")
+}
+
 // assertUnknownKeywordsAtSharedNodes pins that a keyword no field of the model
 // names reaches the IR at a position that lowers to a shared node and has no
 // carrier, on an alias hoisted for it, and that a position writing only a

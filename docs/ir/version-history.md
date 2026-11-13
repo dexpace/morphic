@@ -546,3 +546,18 @@ it sees. Changes made together in one bump are listed together under it.
   ([`http-date-inference`](../compilers/openapi.md#http-date-inference)). A consumer pinned to
   0.50.0 refuses a document from this generation, whose idempotency, redaction, replacements and
   header texts it would read as no OpenAPI document wrote them.
+- **0.52.0** — what the OpenAPI compiler writes for `unevaluatedProperties` and `unevaluatedItems`
+  changed, the shape unchanged
+  ([`additional-properties`](../compilers/openapi.md#additional-properties),
+  [`validation-only`](../compilers/openapi.md#validation-only)):
+  - `Model.Additional` is `closed_after_composition` only where no `additionalProperties` is written
+    beside the `unevaluatedProperties: false`, which would leave it inert. Beside one the model is
+    `closed` for `false`, and otherwise open with its catch-all, so `{type: object,
+    additionalProperties: {…}, unevaluatedProperties: false}` is a `MapT`. A consumer pinned to
+    0.51.0 read such a model as closed.
+  - A catch-all beside `closed_after_composition` holds its patterns and no `Value`, where it held
+    the top type: a key no pattern matches is allowed only where composition evaluates it.
+  - `openapi:unevaluated` holds an `unevaluatedProperties: false` wherever no model holds it as its
+    closure, where it was dropped, and holds an inert keyword together with the
+    `additionalProperties`, `items` or `additionalItems` beside it that leaves it inert. A consumer
+    pinned to 0.51.0 applying the entry read every keyword in it as live.

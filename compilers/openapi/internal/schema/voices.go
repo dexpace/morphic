@@ -42,8 +42,9 @@ func foldEntry(c lowering.Ctx, s *oas3.Schema, keyword string) (string, bool) {
 	case "unevaluatedItems":
 		return "unevaluated", true
 	case "unevaluatedProperties":
-		// `false` is the model's openness, which no annotation reader keeps
-		// (fillAdditional).
+		// A branch's `false` holds the instance to what that branch alone
+		// evaluates, which is no closure of the composed model, so it stays with
+		// the branch kept whole.
 		return "unevaluated", !annotation.IsFalseSchema(s.GetUnevaluatedProperties())
 	case "format":
 		return keyword, annotation.DeclaresRedaction(s)
@@ -70,8 +71,9 @@ func (r foldRendering) agrees(o foldRendering) bool {
 	return r.err == nil && o.err == nil && bytes.Equal(r.raw, o.raw)
 }
 
-// foldValue renders what s writes for entry.
-func foldValue(s *oas3.Schema, entry string) foldRendering {
+// foldValue renders what s, a schema of c, writes for entry: an unevaluated
+// keyword as the voice holding it keeps it (annotation.Read).
+func foldValue(c lowering.Ctx, s *oas3.Schema, entry string) foldRendering {
 	var r foldRendering
 	switch entry {
 	case "examples":
@@ -81,7 +83,7 @@ func foldValue(s *oas3.Schema, entry string) foldRendering {
 	case "contains":
 		r.raw, _, r.err = annotation.ContainsRaw(s)
 	case "unevaluated":
-		r.raw, _, r.err = annotation.UnevaluatedRaw(s)
+		r.raw, _, r.err = annotation.UnevaluatedRaw(s, true, dialectIn(rulesOf(c, s), s))
 	default:
 		r.raw, r.err = annotation.RawFromNode(annotation.RawPropertyNode(s, entry))
 	}
@@ -227,7 +229,7 @@ func writesIdentifier(s *oas3.Schema) bool {
 func foldsReference(c lowering.Ctx, bs *oas3.Schema) bool {
 	return slices.ContainsFunc(rawMappingKeys(bs.GetRootNode()), func(keyword string) bool {
 		entry, fold := foldEntry(c, bs, keyword)
-		return fold && annotation.WritesReference(foldValue(bs, entry).raw)
+		return fold && annotation.WritesReference(foldValue(c, bs, entry).raw)
 	})
 }
 

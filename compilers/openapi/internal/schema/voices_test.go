@@ -456,15 +456,62 @@ func TestVoices_KeywordsOneEntryHoldsDisagreeAsOne(t *testing.T) {
 }
 
 // TestVoices_UnevaluatedFalseStaysTheModels pins the one validation keyword no
-// annotation reader keeps: `unevaluatedProperties: false` is a model's openness,
-// so on a branch it stays residue rather than folding to nowhere.
+// fold reads: on a branch, `unevaluatedProperties: false` holds the instance to
+// what that branch alone evaluates, which is no closure of the composed model,
+// so it stays with the branch kept whole, whether or not the branch speaks for
+// the position, and the position keeps it nowhere else.
 func TestVoices_UnevaluatedFalseStaysTheModels(t *testing.T) {
 	t.Parallel()
-	doc, diags := parseFull(t, voicesDoc("{allOf: [{$ref: '#/components/schemas/Base'}, {unevaluatedProperties: false}]}"))
+	for name, branch := range map[string]string{
+		"alone":                       "{unevaluatedProperties: false}",
+		"beside what folds":           "{description: d, unevaluatedProperties: false}",
+		"beside its own catch-all":    "{description: d, additionalProperties: true, unevaluatedProperties: false}",
+		"beside a keyword of its kin": "{description: d, unevaluatedProperties: false, unevaluatedItems: true}",
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			doc, diags := parseFull(t, voicesDoc("{allOf: [{$ref: '#/components/schemas/Base'}, "+branch+"]}"))
+			openapitest.RequireNoErrorDiags(t, diags)
+			m, ok := typeByName(doc, "S").(*ir.Model)
+			require.True(t, ok)
+			assert.Contains(t, m.Unmodeled, "openapi:allOf/1")
+			assert.Empty(t, m.Additional, "a branch's closure is not the model's")
+			if e, kept := m.Unmodeled["openapi:unevaluated"]; kept {
+				assert.NotContains(t, string(e.Value), "unevaluatedProperties", "the position keeps no second copy")
+			}
+		})
+	}
+}
+
+// TestVoices_AnInertUnevaluatedKeywordFoldsBesideItsSibling pins the fold of an
+// unevaluated keyword a branch writes: it reaches the position with the keyword
+// that leaves it inert there, so it stays inert, and two branches writing it,
+// one inert and one live, disagree, so neither folds, in either order.
+func TestVoices_AnInertUnevaluatedKeywordFoldsBesideItsSibling(t *testing.T) {
+	t.Parallel()
+	doc, diags := parseFull(t, openapitest.ComponentSpecVer("3.1.0",
+		"    S: {type: array, allOf: [{items: true, unevaluatedItems: false}]}\n"))
 	openapitest.RequireNoErrorDiags(t, diags)
-	m, ok := typeByName(doc, "S").(*ir.Model)
-	require.True(t, ok)
-	assert.Contains(t, m.Unmodeled, "openapi:allOf/1")
+	list, ok := typeByName(doc, "S").(*ir.List)
+	require.True(t, ok, "got %T", typeByName(doc, "S"))
+	require.Contains(t, list.Unmodeled, "openapi:unevaluated")
+	assert.Equal(t, `{"items":true,"unevaluatedItems":false}`, string(list.Unmodeled["openapi:unevaluated"].Value))
+
+	const ref, inert, live = "{$ref: '#/components/schemas/Base'}", "{items: true, unevaluatedItems: false}", "{unevaluatedItems: false}"
+	forward, diags := parseFull(t, voicesDoc("{allOf: ["+ref+", "+inert+", "+live+"]}"))
+	openapitest.RequireNoErrorDiags(t, diags)
+	backward, diags := parseFull(t, voicesDoc("{allOf: ["+ref+", "+live+", "+inert+"]}"))
+	openapitest.RequireNoErrorDiags(t, diags)
+	for _, doc := range []*ir.Document{forward, backward} {
+		m, ok := typeByName(doc, "S").(*ir.Model)
+		require.True(t, ok)
+		assert.NotContains(t, m.Unmodeled, "openapi:unevaluated", "neither folds")
+		assert.Contains(t, m.Unmodeled, "openapi:allOf/1")
+		assert.Contains(t, m.Unmodeled, "openapi:allOf/2")
+	}
+	f, b := typeByName(forward, "S").Common().Unmodeled, typeByName(backward, "S").Common().Unmodeled
+	assert.Equal(t, f["openapi:allOf/1"].Value, b["openapi:allOf/2"].Value, "each branch kept as written")
+	assert.Equal(t, f["openapi:allOf/2"].Value, b["openapi:allOf/1"].Value, "each branch kept as written")
 }
 
 // TestVoices_AUseBindingKeywordReachesItsCarrierOrItsNode pins readOnly and default

@@ -5,6 +5,7 @@ package annotation
 
 import (
 	"encoding/json/jsontext"
+	"fmt"
 	"maps"
 	"slices"
 
@@ -117,24 +118,29 @@ func unpreservableDiag(key string, prov ir.Provenance, err error) ir.Diagnostic 
 
 // preserveValidationOnlyInto records a validation-only payload at entry and
 // returns the one diagnostic announcing it at note, the schema that wrote it,
-// naming it by label. An absent payload records nothing and announces nothing;
-// an unconvertible one never reaches here, because its caller reports it
-// through unpreservableDiag first.
+// saying message. An absent payload records nothing and announces nothing; an
+// unconvertible one never reaches here, because its caller reports it through
+// unpreservableDiag first.
 func preserveValidationOnlyInto(p *ir.Unmodeled, key string, raw ir.RawValue,
-	entry, note ir.Provenance, label string,
+	entry, note ir.Provenance, message string,
 ) []ir.Diagnostic {
 	if len(raw) == 0 {
 		return nil
 	}
 	PreserveInto(p, key, raw, ir.ReasonValidationOnly, entry)
-	return []ir.Diagnostic{validationOnlyNote(note, label)}
+	return []ir.Diagnostic{diag.Newf(ir.SeverityInfo, diag.ValidationOnlyKeyword, note, "%s", message)}
 }
 
 // validationOnlyNote announces the validation-only entry named label at note,
 // the schema that wrote it: one info per entry kept, whichever keeper kept it.
 func validationOnlyNote(note ir.Provenance, label string) ir.Diagnostic {
-	return diag.Newf(ir.SeverityInfo, diag.ValidationOnlyKeyword, note,
-		"validation-only keyword %q kept verbatim under Unmodeled", label)
+	return diag.Newf(ir.SeverityInfo, diag.ValidationOnlyKeyword, note, "%s", validationOnlyMessage(label))
+}
+
+// validationOnlyMessage is what the report of the validation-only entry named
+// label says.
+func validationOnlyMessage(label string) string {
+	return fmt.Sprintf("validation-only keyword %q kept verbatim under Unmodeled", label)
 }
 
 // CopyEntriesInto writes onto p a copy of each entry of src, its value cloned,

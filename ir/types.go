@@ -185,7 +185,7 @@ const (
 	// records).
 	AdditionalClosed AdditionalMode = "closed"
 	// AdditionalClosedAfterComposition closes the set once composition is resolved
-	// (unevaluatedProperties: false).
+	// (unevaluatedProperties: false with no additionalProperties beside it).
 	AdditionalClosedAfterComposition AdditionalMode = "closed_after_composition"
 )
 
