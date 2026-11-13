@@ -14,9 +14,9 @@ spelled as the target spells it ([Go](../targets/go/returns.md),
 - **A file** (`GET /file`, `application/octet-stream`, `format: binary`). **plan.** `Shape` `raw`,
   since the compiler marks the content a file (`Content.File`), as it is for a form or multipart
   content one of whose fields or parts no style arranges ([body
-  shapes](../plan/responses.md#body-shapes)). **refine.** The method returns the
-  runtime's `RawBody`, holding the response's bytes and the media type it arrived as. Nothing
-  decodes or buffers the body, so a large download streams.
+  shapes](../plan/responses.md#body-shapes)). **refine.** The method returns the runtime's
+  `RawBody`, holding the response's bytes and the media type it arrived as. Nothing decodes or
+  buffers the body, so a large download streams.
 - **No body** (`DELETE /pet/{id}` → `204`, or any `HEAD`). **plan.** `Shape` `void`, or for a `HEAD`
   its binding's `NoBody` ([bindings](../plan/bindings.md)). **refine.** The method returns no value.
 - **A lone default** (`POST /purge`, whose only response is `default`). **plan.** The IR lowers it

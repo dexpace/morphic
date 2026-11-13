@@ -100,8 +100,8 @@ walk only where `Stop` is empty and the page holds no items: no rule then says w
 and a page that brings nothing and asks for itself again would be fetched until the bound below.
 Where `Stop` lists a condition, the pager follows every repeat and waits for the condition. A server
 that repeats and never ends a walk so, as one handing back the cursor it was sent beside the same
-items does, meets the bound and fails the walk, unless `total` ends it: the items it hands back again
-count toward the total, so one stating a total of 6 beside the items 0 and 1 ends a walk under
+items does, meets the bound and fails the walk, unless `total` ends it: the items it hands back
+again count toward the total, so one stating a total of 6 beside the items 0 and 1 ends a walk under
 `[total]` after three pages holding `0 1 0 1 0 1`, which no rule here tells from a collection
 holding them so. T-45 holds this section.
 

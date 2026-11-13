@@ -342,13 +342,12 @@ on what the position carries:
   one it goes to, so the plan reports each such two once, as a warning
   `emitters/plan/name-owned-twice` at the location naming both and the one the names go to, and the
   other writes nothing there, a member's value or a map's entry under them left out as an entry
-  giving way to a header is. Failing
-  each call that sets such a member was weighed and refused: it fails for a fact fixed at
-  generation, every call where the member is required. A pair whose name its input does not own, an
-  empty one among them, fails the call before anything is sent: a caller's `filter` for the
-  `filters` of `DELETE /accounts/{account_id}/ai-gateway/gateways/{gateway_id}/logs` would send a
-  request the server reads as one with no filter. An input holding no pair is an empty list
-  ([above](#null-and-empty)).
+  giving way to a header is. Failing each call that sets such a member was weighed and refused: it
+  fails for a fact fixed at generation, every call where the member is required. A pair whose name
+  its input does not own, an empty one among them, fails the call before anything is sent: a
+  caller's `filter` for the `filters` of `DELETE
+  /accounts/{account_id}/ai-gateway/gateways/{gateway_id}/logs` would send a request the server
+  reads as one with no filter. An input holding no pair is an empty list ([above](#null-and-empty)).
 
 Whatever reads one reads what arrived, so a mock checks nothing of what it holds: the string, or, in
 the order they came, every pair whose name the input owns by that test. So each pair reaches one

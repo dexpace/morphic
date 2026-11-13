@@ -43,12 +43,11 @@ The body is what its content's `Type` lowers to, save for a form or multipart on
 or a string where `OpPlan.RequestText` marks that content itself ([values as
 text](text.md#a-value-no-style-arranges)), as an input `ParamBind.Text` marks is its caller's text,
 a string in a path, a host label or a header and a list of pairs of strings in a query or a cookie,
-unless that content is a file (`Content.File`): then it is a byte
-source among the request's inputs, as a `bytes` side a client writes is
-([streaming](../operations/streaming.md)), whatever its `Type`. `Type` holds what the source
-declares of the file ([payloads](../../ir/payloads.md)), which need not be bytes, as a type array
-lowers to a union, so a target reads `File` first here as `raw` does for a response ([body
-shapes](../plan/responses.md#body-shapes)).
+unless that content is a file (`Content.File`): then it is a byte source among the request's inputs,
+as a `bytes` side a client writes is ([streaming](../operations/streaming.md)), whatever its `Type`.
+`Type` holds what the source declares of the file ([payloads](../../ir/payloads.md)), which need not
+be bytes, as a type array lowers to a union, so a target reads `File` first here as `raw` does for a
+response ([body shapes](../plan/responses.md#body-shapes)).
 
 A form or multipart content whose type, read through `TypePlan.Alias` and its scalar chain, is a
 model or a map holds its fields and parts in the body's place, whether or not `RequestText` names
