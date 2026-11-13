@@ -70,8 +70,8 @@ components:
           properties:
             side: {type: number}
     # Bird writes allOf to Animal and a oneOf beside it. Animal's mapping routes
-    # to Bird, so the union is kept beside it rather than distributed, which
-    # would make Bird a union and no subtype, and Animal keeps its
+    # to Bird, so Bird composes the union as a mixin rather than distributing
+    # it, which would make Bird a union and no subtype, and Animal keeps its
     # discriminator.
     Animal:
       type: object
