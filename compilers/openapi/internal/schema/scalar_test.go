@@ -185,7 +185,8 @@ func TestScalar_ANumberAsTextIsItsNumberOnAString(t *testing.T) {
 // does: a length or a pattern bounds the text, and a numeric bound no string
 // instance. Each is kept verbatim on the Scalar under no_ir_home, with an info
 // at it, and neither the Scalar nor a property or parameter carrying it holds a
-// bound. A format the table pairs with string keeps its bounds.
+// bound. A format the table pairs with string keeps its bounds, and an alias an
+// allOf refinement lowers to loses none of its own.
 func TestScalar_ANumberAsTextKeepsItsBoundsVerbatim(t *testing.T) {
 	t.Parallel()
 	const bounds = `pattern: "^[0-9]+$", minLength: 1, maxLength: 20, minimum: 5, exclusiveMaximum: 100, multipleOf: 5`
@@ -201,6 +202,7 @@ paths:
 components:
   schemas:
     N: {type: string, format: decimal, `+bounds+`}
+    R: {allOf: [{$ref: '#/components/schemas/N'}], type: string, format: int64, minimum: 5}
     H:
       type: object
       properties:
@@ -235,6 +237,11 @@ components:
 	}
 	require.NotNil(t, props["d"].Constraints, "a date keeps the length bound of its text")
 	assert.Equal(t, new(int64(10)), props["d"].Constraints.MaxLength)
+
+	r, ok := typeByName(doc, "R").(*ir.Scalar)
+	require.True(t, ok, "the refinement owns an alias")
+	_, kept := r.Unmodeled["openapi:minimum"]
+	assert.True(t, kept || (r.Constraints != nil && r.Constraints.Min != nil), "the alias holds its bound somewhere")
 }
 
 // nodeAt returns the type node lowered at the source pointer at.

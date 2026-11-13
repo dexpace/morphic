@@ -34,7 +34,8 @@ bounds no `int64`, and a source's numeric bound written beside that text, which 
 to no string, bounds nothing it says. A compiler keeps such a bound verbatim
 ([boundaries](./boundaries.md)) rather than move it onto the value, as the OpenAPI compiler does for
 a number carried as text ([`string-formats`](../compilers/openapi.md#string-formats)); it still
-holds a length or pattern written beside `format: byte` as a bound of the bytes (#1851).
+holds a length or pattern written beside `format: byte` as a bound of the bytes, and one written
+beside a reference to a number carried as text as a bound of the number (#1851).
 
 ## Encodings
 

@@ -2944,10 +2944,10 @@ then that encoding's text and not a number's:
 ([`content-vocabulary`](#content-vocabulary)). A scalar hoisted for its format carries the bounds
 written beside it, but for a number carried as text, whose `Constraints` speak of the number
 ([constraints](../ir/constraints.md#constraints)): a length or a `pattern` bounds its text and a
-numeric bound no string instance, so each value bound it or an `allOf` branch beside it writes is
-kept verbatim, its own under `openapi:<keyword>` (`no_ir_home`) with an info
-`openapi/degraded-construct` at it, and neither the `Scalar` nor a property or parameter carrying it
-holds one. The table is the same at every minor, and a pairing of `format` with another `type` is
+numeric bound no string instance, so each value bound written beside it is kept verbatim under
+`openapi:<keyword>` (`no_ir_home`) with an info `openapi/degraded-construct` at it, one an inline
+`allOf` branch writes keeps its branch whole ([`allof-inline-residue`](#allof-inline-residue)), and
+neither the `Scalar` nor a property or parameter carrying it holds one. The table is the same at every minor, and a pairing of `format` with another `type` is
 [`numeric-formats`](#numeric-formats)'.
 
 - Cases: `encoding-byte`, `scalar-format`
@@ -2959,6 +2959,9 @@ holds one. The table is the same at every minor, and a pairing of `format` with 
   `merge.TestKindOf_ANumberAsTextIsAString`,
   `spelling.TestFormatTable_EveryRowDistinguishesTheBareType`,
   `spelling.TestFormatTable_EveryStringRowLowersToItsPrimitive`
+- Status: partly built: a value bound beside a `$ref` to a number carried as text, or beside an
+  `allOf` refining one, lands in the `Constraints` of the alias over it, and a length or `pattern`
+  beside `byte` in those of its `bytes` (#1851).
 
 ### `numeric-formats`
 

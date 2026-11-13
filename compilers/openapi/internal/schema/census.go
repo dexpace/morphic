@@ -14,7 +14,6 @@ import (
 	"github.com/dexpace/morphic/compilers/compile"
 	"github.com/dexpace/morphic/compilers/openapi/internal/annotation"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
-	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
 	"github.com/dexpace/morphic/compilers/openapi/internal/spelling"
 	"github.com/dexpace/morphic/ir"
@@ -390,9 +389,8 @@ func preserveUnhomedKeywords(c lowering.Ctx, ts *compile.Types, s *oas3.Schema, 
 	if owns == id && !constraintsHome(td) {
 		// No alias will be hoisted over a node the position already owns, so the
 		// bounds it wrote reach no Constraints field anywhere.
-		if carriesNumberAsText(s) {
-			diags = append(diags, keepTextBounds(c, &td.Common().Unmodeled, s, pointer)...)
-		} else {
+		// One carrying a number as text kept them itself (textBounds).
+		if !carriesNumberAsText(td) {
 			unhomed = append(unhomed, declaredConstraints(s)...)
 		}
 	}
@@ -407,24 +405,6 @@ func preserveUnhomedKeywords(c lowering.Ctx, ts *compile.Types, s *oas3.Schema, 
 	}
 	diags = append(diags, recordUnhomedKeywords(c, ts, owner, s, unhomed, positionShape(td, s), pointer)...)
 	return owner, append(diags, recordSkippedFamilies(c, ts, owner, s, d, pointer)...)
-}
-
-// keepTextBounds keeps each value bound s writes verbatim on p, under
-// openapi:<keyword> with no_ir_home, for a position carrying a number as text,
-// whose Constraints hold none (carriesNumberAsText), with an info at each.
-func keepTextBounds(c lowering.Ctx, p *ir.Unmodeled, s *oas3.Schema, pointer jsontext.Pointer) []ir.Diagnostic {
-	var diags []ir.Diagnostic
-	for _, keyword := range declaredConstraints(s) {
-		kept, keptDiags := annotation.PreserveSchemaKeyword(p, s, keyword, ir.ReasonNoIRHome, pointer, c.Place())
-		diags = append(diags, keptDiags...)
-		if kept {
-			diags = append(diags, c.DiagAt(ir.SeverityInfo, diag.DegradedConstruct, pointer+ids.Ptr(keyword),
-				"%s bounds no number written as text, whose Constraints speak of the number: a length or a "+
-					"pattern bounds the text, and any other bound no string instance; kept verbatim under Unmodeled",
-				keyword))
-		}
-	}
-	return diags
 }
 
 // refSiteShape describes what a $ref position's own declaration lowers to, for
