@@ -302,7 +302,9 @@ func TestGrafter_RefusesToWriteThroughAnAlias(t *testing.T) {
 		_, root, diags := applied(t, src, v11+action, false)
 
 		sameCodes(t, []string{"warning " + diag.OverlayAction, "error " + diag.OverlayFailed}, diags)
-		assert.Contains(t, diags[1].Message, "YAML alias", name)
+		require.Len(t, diags, 2, name)
+		assert.Contains(t, diags[1].Message, "YAML alias at line", name)
+		assert.Contains(t, diags[1].Message, "whose anchor shares its value with every use of it", name)
 		_, k := member(t, root, "x-a", "k")
 		assert.Equal(t, "v", k.Value, "%s: the anchor is as the source wrote it", name)
 	}
