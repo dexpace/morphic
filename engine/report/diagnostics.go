@@ -108,7 +108,7 @@ func WriteText(w io.Writer, r Report, opts TextOptions) error {
 			g = &group{groupKey: at}
 			byKey[at], groups = g, append(groups, g)
 		}
-		rank, ranked := triage.Rank(f.Severity)
+		rank, ranked := f.Severity.Rank()
 		if (ranked && rank < least) || (opts.PerCode > 0 && g.shown == opts.PerCode) {
 			g.withheld++
 			continue
@@ -128,7 +128,7 @@ func (o TextOptions) least() (int, error) {
 	if o.Least == "" {
 		return 0, nil
 	}
-	rank, ranked := triage.Rank(o.Least)
+	rank, ranked := o.Least.Rank()
 	if !ranked {
 		return 0, fmt.Errorf("report: %q is no severity to show from", string(o.Least))
 	}
@@ -161,7 +161,7 @@ func writeFooter(lw *lineWriter, r Report, groups []*group, accepted, perCode in
 		}
 	}
 	var tally strings.Builder
-	for _, sev := range slices.Backward(triage.Severities()) {
+	for _, sev := range slices.Backward(ir.Severities()) {
 		fmt.Fprintf(&tally, "%d %s, ", counts[sev], sev)
 	}
 	lw.printf("  %d of %d findings shown: %s%d accepted\n", len(r.Findings)-withheld, len(r.Findings), tally.String(), accepted)

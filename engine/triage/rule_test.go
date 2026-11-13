@@ -4,15 +4,12 @@
 package triage_test
 
 import (
-	"slices"
 	"testing"
 
-	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/dexpace/morphic/engine/triage"
-	"github.com/dexpace/morphic/internal/decls"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -102,37 +99,4 @@ func TestNewRuleset_CopiesTheRules(t *testing.T) {
 	findings, _ := s.Rate([]ir.Diagnostic{{Severity: ir.SeverityError, Code: "c"}})
 	require.Len(t, findings, 1)
 	assert.Equal(t, ir.SeverityInfo, findings[0].Severity)
-}
-
-// TestSeverities_AreTheOnesIRDeclares holds the ranked list to the severities
-// package ir declares. One added to ir and missing here would be refused as
-// unknown on every run reporting it, and a compiler's own tests, which run
-// without the engine, would not notice.
-func TestSeverities_AreTheOnesIRDeclares(t *testing.T) {
-	t.Parallel()
-	pkg, err := decls.Load("github.com/dexpace/morphic/ir")
-	require.NoError(t, err)
-	consts, err := pkg.StringConsts("Severity")
-	require.NoError(t, err)
-	require.NotEmpty(t, consts, "a pin over no declarations holds nothing")
-
-	declared := make([]ir.Severity, 0, len(consts))
-	for _, c := range consts {
-		declared = append(declared, ir.Severity(c.Value))
-	}
-	assert.Empty(t, cmp.Diff(slices.Sorted(slices.Values(declared)),
-		slices.Sorted(slices.Values(triage.Severities()))))
-}
-
-// TestRank_OrdersTheSeveritiesLeastFirst pins the order a threshold compares
-// by, and an undeclared severity ranking nowhere.
-func TestRank_OrdersTheSeveritiesLeastFirst(t *testing.T) {
-	t.Parallel()
-	for want, sev := range []ir.Severity{ir.SeverityInfo, ir.SeverityWarning, ir.SeverityError} {
-		got, ok := triage.Rank(sev)
-		require.True(t, ok, "%s", sev)
-		assert.Equal(t, want, got, "%s", sev)
-	}
-	_, ok := triage.Rank("fatal")
-	assert.False(t, ok)
 }

@@ -106,39 +106,11 @@ func check(r Rule) string {
 		return "accepts without naming a place, which an acceptance names"
 	case !r.Accept && r.Severity == "":
 		return "neither rates nor accepts"
-	case !r.Accept && !known(r.Severity):
-		return fmt.Sprintf("severity %q is not one of %s", string(r.Severity), severityNames())
+	case !r.Accept && !r.Severity.Valid():
+		return fmt.Sprintf("severity %q is not one of %s", string(r.Severity), strings.Join(ir.SeverityNames(), ", "))
 	case strings.TrimSpace(r.Reason) == "":
 		return "gives no reason"
 	default:
 		return ""
 	}
-}
-
-// known reports whether s is one of the IR's severities.
-func known(s ir.Severity) bool {
-	_, ok := Rank(s)
-	return ok
-}
-
-// Severities returns the IR's severities, least severe first, so a severity's
-// position is its rank.
-func Severities() []ir.Severity {
-	return []ir.Severity{ir.SeverityInfo, ir.SeverityWarning, ir.SeverityError}
-}
-
-// Rank returns s's position in Severities and true, or false for a severity
-// the IR does not declare, which no threshold can rank.
-func Rank(s ir.Severity) (int, bool) {
-	rank := slices.Index(Severities(), s)
-	return rank, rank >= 0
-}
-
-// severityNames spells the severities a rule may rate at, most severe first.
-func severityNames() string {
-	names := make([]string, 0, len(Severities()))
-	for _, s := range slices.Backward(Severities()) {
-		names = append(names, string(s))
-	}
-	return strings.Join(names, ", ")
 }

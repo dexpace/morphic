@@ -12,7 +12,6 @@ import (
 	"strings"
 
 	"github.com/dexpace/morphic/engine"
-	"github.com/dexpace/morphic/engine/triage"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -162,20 +161,11 @@ func (f *showFlag) Type() string { return "severity" }
 
 // Set records the severity raw names, refusing one the IR does not declare.
 func (f *showFlag) Set(raw string) error {
-	if _, ranked := triage.Rank(ir.Severity(raw)); !ranked {
-		return fmt.Errorf("%q is no severity (known: %s)", raw, severityNames())
+	if !ir.Severity(raw).Valid() {
+		return fmt.Errorf("%q is no severity (known: %s)", raw, strings.Join(ir.SeverityNames(), ", "))
 	}
 	*f = showFlag(raw)
 	return nil
-}
-
-// severityNames spells the IR's severities, most severe first.
-func severityNames() string {
-	names := make([]string, 0, len(triage.Severities()))
-	for _, sev := range slices.Backward(triage.Severities()) {
-		names = append(names, string(sev))
-	}
-	return strings.Join(names, ", ")
 }
 
 // limitFlag is --diag-limit's value: how many findings of one code and

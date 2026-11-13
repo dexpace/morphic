@@ -466,8 +466,8 @@ var rules = map[string][]string{
 	"engine/internal/atomicfile": {"github.com/google/renameio/v2"},
 	// The CLI. Beyond the pipeline it reaches its command framework: cobra
 	// dispatches the commands and renders help, on pflag's parse. What it prints
-	// it asks the engine's renderer and writer for, and it reads a severity it
-	// is handed by triage's ranking.
+	// it asks the engine's renderer and writer for, and it hands the run the
+	// triage rules a file holds.
 	"cmd/morphic": {module + "/ir", module + "/engine", module + "/engine/cache", module + "/engine/output",
 		module + "/engine/report", module + "/engine/triage", "github.com/spf13/cobra", "github.com/spf13/pflag"},
 	"cmd/morphic-harness": {module + "/internal/harness"},

@@ -6,7 +6,6 @@ package engine
 import (
 	"errors"
 	"fmt"
-	"slices"
 	"strings"
 
 	"github.com/dexpace/morphic/engine/triage"
@@ -75,9 +74,9 @@ func (f FailOn) resolve() (threshold, error) {
 		f = FailOnError
 	}
 	if f == FailOnNone {
-		return threshold(len(triage.Severities())), nil
+		return threshold(len(ir.Severities())), nil
 	}
-	if rank, known := triage.Rank(ir.Severity(f)); known {
+	if rank, known := ir.Severity(f).Rank(); known {
 		return threshold(rank), nil
 	}
 	return 0, unknownFailOn(string(f))
@@ -86,12 +85,7 @@ func (f FailOn) resolve() (threshold, error) {
 // unknownFailOn reports s as naming no threshold, and names every one that
 // exists, most severe first.
 func unknownFailOn(s string) error {
-	known := triage.Severities()
-	names := make([]string, 0, len(known)+1)
-	for _, sev := range slices.Backward(known) {
-		names = append(names, string(sev))
-	}
-	names = append(names, string(FailOnNone))
+	names := append(ir.SeverityNames(), string(FailOnNone))
 	return fmt.Errorf("engine: fail-on %q (known: %s): %w", s, strings.Join(names, ", "), ErrUnknownFailOn)
 }
 
@@ -105,11 +99,11 @@ func (t threshold) verdict(doc *ir.Document, findings []triage.Finding) (bool, e
 	failed := doc == nil
 	for _, f := range findings {
 		d := f.Diagnostic
-		if _, known := triage.Rank(d.Severity); !known {
+		if !d.Severity.Valid() {
 			return false, fmt.Errorf("engine: diagnostic %q has severity %q: %w",
 				d.Code, d.Severity, errUnknownSeverity)
 		}
-		rank, ranked := triage.Rank(f.Severity)
+		rank, ranked := f.Severity.Rank()
 		if !ranked {
 			return false, fmt.Errorf("engine: diagnostic %q is rated at severity %q: %w",
 				d.Code, f.Severity, errUnknownSeverity)

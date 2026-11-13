@@ -318,7 +318,7 @@ func TestEngine_RunDocumentIsJudgedAsRunIs(t *testing.T) {
 	eng, err := engine.New()
 	require.NoError(t, err)
 	for _, failOn := range thresholds {
-		for _, sev := range []ir.Severity{ir.SeverityInfo, ir.SeverityWarning, ir.SeverityError, "fatal"} {
+		for _, sev := range append(ir.Severities(), "fatal") {
 			t.Run(fmt.Sprintf("fail-on=%q/%s", failOn, sev), func(t *testing.T) {
 				t.Parallel()
 				doc := danglingDocument()
@@ -372,7 +372,7 @@ func TestEngine_RunVerdictReadsTheRatedSeverity(t *testing.T) {
 		engine.FailOnNone:    nil,
 	}
 	for _, failOn := range thresholds {
-		for _, rated := range []ir.Severity{ir.SeverityInfo, ir.SeverityWarning, ir.SeverityError} {
+		for _, rated := range ir.Severities() {
 			t.Run(fmt.Sprintf("fail-on=%q/rated %s", failOn, rated), func(t *testing.T) {
 				t.Parallel()
 				res := runTriaged(t, failOn, []triage.Rule{{Code: "x/finding", Severity: rated, Reason: "r"}},
