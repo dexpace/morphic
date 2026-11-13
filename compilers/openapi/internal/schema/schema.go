@@ -369,7 +369,7 @@ func lowerUntyped(c lowering.Ctx, ts *compile.Types, depth int, s *oas3.Schema, 
 	if props := s.GetProperties(); props != nil && props.Len() > 0 {
 		// The node asserts an object, but the source declares no type, so every
 		// bound is read as it would be at a position lowering to the top type.
-		return lowerModel(c, ts, depth, s, pointer, true /* discriminated */, declaredKinds(s))
+		return lowerModel(c, ts, depth, s, pointer, true /* discriminated */, declaredInstanceTypes(s))
 	}
 	return ts.PrimID(ir.PrimAny), nil
 }

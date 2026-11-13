@@ -277,7 +277,7 @@ func recordUnplacedContent(c lowering.Ctx, p *ir.Unmodeled, s *oas3.Schema, td i
 // carries one (lowerTypeVariant). A nil td is the property-carrier case — no
 // node, so no Encoding.
 func holdsContent(c lowering.Ctx, s *oas3.Schema, td ir.TypeDef, pointer jsontext.Pointer) bool {
-	if !takesContent(declaredKinds(s)) {
+	if !takesContent(declaredInstanceTypes(s)) {
 		return false
 	}
 	switch n := td.(type) {

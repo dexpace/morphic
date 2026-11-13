@@ -372,7 +372,7 @@ func keepsAtOutcome(c lowering.Ctx, ts *compile.Types, s *oas3.Schema, target ir
 func homesAt(c lowering.Ctx, ts *compile.Types, s *oas3.Schema, target ir.TypeRef, pointer jsontext.Pointer) boundHomes {
 	if !LoweredToOwnNode(c, ts, pointer, target) {
 		r, refined := refinementOf(c, s, pointer)
-		return boundHomes{value: declaredKinds(s), collection: refined && r.principal != nil}
+		return boundHomes{value: declaredInstanceTypes(s), collection: refined && r.principal != nil}
 	}
 	// A node still building holds nothing yet.
 	var homes boundHomes
@@ -382,7 +382,7 @@ func homesAt(c lowering.Ctx, ts *compile.Types, s *oas3.Schema, target ir.TypeRe
 			nodes = variantNodes(ts, u)
 		}
 		if slices.ContainsFunc(nodes, constraintsHome) {
-			homes.value = declaredKinds(s)
+			homes.value = declaredInstanceTypes(s)
 		}
 		homes.collection = slices.ContainsFunc(nodes, holdsCollectionBounds)
 	}

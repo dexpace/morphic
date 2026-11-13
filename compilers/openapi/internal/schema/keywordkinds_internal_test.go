@@ -44,22 +44,23 @@ func TestBoundsFor_ReadsEachBoundForTheKindsItAppliesTo(t *testing.T) {
 	}
 }
 
-// TestDeclaredKinds_ReadsTheTypesASchemaDeclares pins what a position reads
-// bounds for: the kinds of the types it declares, null aside, and every kind
-// but null where it declares none, writes null alone or a spelling no dialect
-// defines.
-func TestDeclaredKinds_ReadsTheTypesASchemaDeclares(t *testing.T) {
+// TestDeclaredInstanceTypes_ReadsTheTypesASchemaDeclares pins what a position
+// reads bounds for: the kinds of the types it declares, null aside, so none
+// where it declares null alone, and every kind but null where it declares none
+// or a spelling no dialect defines.
+func TestDeclaredInstanceTypes_ReadsTheTypesASchemaDeclares(t *testing.T) {
 	t.Parallel()
 	for body, want := range map[string]kindSet{
 		"description: d\n":                 anyInstance,
-		"type: 'null'\n":                   anyInstance,
+		"type: 'null'\n":                   0,
+		"type: ['null']\n":                 0,
 		"type: strin\n":                    anyInstance,
 		"type: [string, 'null']\n":         kindString,
 		"type: [integer, object]\n":        kindInteger | kindObject,
 		"type: [number, array, boolean]\n": kindNumber | kindArray | kindBoolean,
 	} {
 		s := openapitest.SchemaFromYAML(t.Context(), t, body).GetSchema()
-		assert.Equal(t, want, declaredKinds(s), body)
+		assert.Equal(t, want, declaredInstanceTypes(s), body)
 	}
 }
 

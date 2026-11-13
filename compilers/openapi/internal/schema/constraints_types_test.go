@@ -193,22 +193,41 @@ func TestConstraints_SeveralBoundsATypeCannotTakeDrawOneReport(t *testing.T) {
 	assert.Len(t, diags, 4)
 }
 
-// TestConstraints_APositionDeclaringNoTypeReadsEveryBound pins the schemas that
-// say no instance's type: one writing no type, and one writing null alone, which
-// lowers as one writing none. Every bound reaches the position's Constraints.
+// TestConstraints_APositionDeclaringNoTypeReadsEveryBound pins a schema that
+// says no instance's type: every bound reaches the position's Constraints.
 func TestConstraints_APositionDeclaringNoTypeReadsEveryBound(t *testing.T) {
 	t.Parallel()
-	for _, schema := range []string{"{minimum: 1, maxLength: 2, minProperties: 1}",
-		"{type: 'null', minimum: 1, maxLength: 2, minProperties: 1}"} {
+	doc, diags := parseFull(t, atEverySite("3.1.0", "{minimum: 1, maxLength: 2, minProperties: 1}"))
+	openapitest.RequireNoErrorDiags(t, diags)
+	for _, site := range sitesOf(t, doc) {
+		for _, keyword := range []string{"minimum", "maxLength", "minProperties"} {
+			assert.True(t, site.holds(keyword), "%s %s", site.pointer, keyword)
+			assert.Zero(t, site.keeps(keyword), "%s %s", site.pointer, keyword)
+		}
+	}
+	assert.Empty(t, diags)
+}
+
+// TestConstraints_APositionOfNullAloneReadsNoBound pins a schema whose type is
+// null alone, which no value bound applies to: no Constraints holds one, the
+// carrier's included, and the Enum with no member the position lowers to
+// keeps each once, with one info (docs/compilers/openapi.md#null-alone).
+func TestConstraints_APositionOfNullAloneReadsNoBound(t *testing.T) {
+	t.Parallel()
+	for _, schema := range []string{"{type: 'null', minimum: 1, maxLength: 2, minProperties: 1}",
+		"{type: ['null'], minimum: 1, maxLength: 2, minProperties: 1}"} {
 		doc, diags := parseFull(t, atEverySite("3.1.0", schema))
 		openapitest.RequireNoErrorDiags(t, diags)
 		for _, site := range sitesOf(t, doc) {
+			_, isEnum := site.node.(*ir.Enum)
+			assert.True(t, isEnum, "%s %s: got %T", schema, site.pointer, site.node)
 			for _, keyword := range []string{"minimum", "maxLength", "minProperties"} {
-				assert.True(t, site.holds(keyword), "%s %s %s", schema, site.pointer, keyword)
-				assert.Zero(t, site.keeps(keyword), "%s %s %s", schema, site.pointer, keyword)
+				assert.False(t, site.holds(keyword), "%s %s %s", schema, site.pointer, keyword)
+				assert.Equal(t, 1, site.keeps(keyword), "%s %s %s", schema, site.pointer, keyword)
 			}
+			assert.Len(t, degradedAt(diags, site.pointer), 1, "%s %s", schema, site.pointer)
 		}
-		assert.Empty(t, diags, schema)
+		assert.Len(t, diags, 4, schema)
 	}
 }
 

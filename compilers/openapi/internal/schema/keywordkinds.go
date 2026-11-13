@@ -35,19 +35,9 @@ var keywordKinds = map[string]kindSet{
 	"minProperties":    kindObject,
 }
 
-// declaredKinds returns the kinds the types s declares admit, null aside, and
-// every kind but null where it declares none: no `type`, a type of null alone,
-// or a spelling no dialect defines (declaredInstanceTypes), each lowered as a
-// schema writing no type.
-func declaredKinds(s *oas3.Schema) kindSet {
-	if kinds := declaredInstanceTypes(s); kinds != 0 {
-		return kinds
-	}
-	return anyInstance
-}
-
 // typeKinds returns the kinds st, one type a type array lists, admits, and every
-// kind but null for a spelling no dialect defines, as declaredKinds reads one.
+// kind but null for a spelling no dialect defines, as declaredInstanceTypes
+// reads one.
 func typeKinds(st oas3.SchemaType) kindSet {
 	if kinds := kindOfType(st) &^ kindNull; kinds != 0 {
 		return kinds
@@ -61,7 +51,7 @@ func typeKinds(st oas3.SchemaType) kindSet {
 // kind. A reader's kinds are those of a type its position declares, so the
 // position's own schema leaves them as they are.
 func writerTakes(takes kindSet, w *oas3.Schema) kindSet {
-	return takes & declaredKinds(w)
+	return takes & declaredInstanceTypes(w)
 }
 
 // taken reports whether a reader of values of the kinds takes reads keyword:

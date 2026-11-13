@@ -339,7 +339,7 @@ func unhomedAcross(s *oas3.Schema, nodes []ir.TypeDef, handled []string) []strin
 // read, those no type the position declares takes (untakenBounds): it reads the
 // position's own types and never its target's.
 func referenceUnhomed(s *oas3.Schema, handled []string) []string {
-	return append(unhomedKeywords(s, nil, handled), untakenBounds(s, declaredKinds(s))...)
+	return append(unhomedKeywords(s, nil, handled), untakenBounds(s, declaredInstanceTypes(s))...)
 }
 
 // refSiteUnhomedKeywords is referenceUnhomed for a $ref site, plus allOf.
@@ -412,12 +412,12 @@ func preserveUnhomedKeywords(c lowering.Ctx, ts *compile.Types, s *oas3.Schema, 
 	case owns != id:
 		// The alias hoisted over a shared node reads the bounds the declared types
 		// take, and only those.
-		unhomed = append(unhomed, untakenBounds(s, declaredKinds(s))...)
+		unhomed = append(unhomed, untakenBounds(s, declaredInstanceTypes(s))...)
 	case !carriesNumberAsText(td):
 		// No alias will be hoisted over a node the position already owns, so a
 		// bound it did not read reaches no Constraints field anywhere. One carrying
 		// a number as text kept every bound itself (textBounds).
-		unhomed = append(unhomed, unreadBounds(s, []ir.TypeDef{td}, declaredKinds(s))...)
+		unhomed = append(unhomed, unreadBounds(s, []ir.TypeDef{td}, declaredInstanceTypes(s))...)
 	}
 	if len(unhomed) == 0 && len(d.skipped) == 0 {
 		return id, diags
@@ -507,7 +507,7 @@ func preserveVariantsUnhomed(c lowering.Ctx, ts *compile.Types, s *oas3.Schema, 
 			nodes = append(nodes, node)
 		}
 	}
-	unhomed := append(unhomedAcross(s, nodes, handled), unreadBounds(s, nodes, declaredKinds(s))...)
+	unhomed := append(unhomedAcross(s, nodes, handled), unreadBounds(s, nodes, declaredInstanceTypes(s))...)
 	return append(diags, recordUnhomedKeywords(c, ts, id, s, unhomed, shape, pointer)...)
 }
 

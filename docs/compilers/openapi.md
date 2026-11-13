@@ -3576,9 +3576,10 @@ instances of one kind and lets any other through (JSON Schema Validation 2020-12
 §6.5): the numeric bounds, the exclusive ones among them, where it declares `integer` or `number`,
 `minLength`, `maxLength` and `pattern` where it declares `string`, and `minProperties` and
 `maxProperties` where it declares `object`; `boolean` and `null` take none. A schema declaring no
-type, or `null` alone, which lowers as one declaring none, reads every bound, and so does a position
-lowering to a reference whose schema declares none; one declaring a type beside its `$ref` or its
-`allOf` reads by that type, never by what the reference names. A bound no declared type takes
+type reads every bound, and so does a position lowering to a reference whose schema declares none;
+one declaring `null` alone reads none, its `Enum` with no member keeping them
+([`null-alone`](#null-alone)); one declaring a type beside its `$ref` or its `allOf` reads by that
+type, never by what the reference names. A bound no declared type takes
 reaches no `Constraints`, the carrier's included, and is kept verbatim under `openapi:<keyword>`
 (`degraded_lowering`) with an info `openapi/degraded-construct` naming what the position lowered
 to: on the node it owns, on an alias hoisted where it lowered to a shared node or a reference, or
@@ -3630,6 +3631,7 @@ no bound ([`string-formats`](#string-formats)).
 - Tests: `schema.TestConstraints_ABoundIsReadWhereItsTypeTakesIt`,
   `schema.TestConstraints_SeveralBoundsATypeCannotTakeDrawOneReport`,
   `schema.TestConstraints_APositionDeclaringNoTypeReadsEveryBound`,
+  `schema.TestConstraints_APositionOfNullAloneReadsNoBound`,
   `schema.TestConstraints_AReferenceOutcomeReadsByThePositionsOwnType`,
   `schema.TestConstraints_ABoundAListKeepsIsKeptOnce`,
   `schema.TestConstraints_ACarrierRestatesTheBoundsItsNodeTakes`,
@@ -3637,7 +3639,7 @@ no bound ([`string-formats`](#string-formats)).
   `schema.TestConstraints_AModifierATypeCannotTakeIsKeptByTheCensus`,
   `schema.TestKeywordKinds_ListsEveryValueBoundAndTheContentVocabulary`,
   `schema.TestBoundsFor_ReadsEachBoundForTheKindsItAppliesTo`,
-  `schema.TestDeclaredKinds_ReadsTheTypesASchemaDeclares`,
+  `schema.TestDeclaredInstanceTypes_ReadsTheTypesASchemaDeclares`,
   `e2e.TestOwnedShapes_AreReportedWhereverTheCheckReadsASchema`,
   `load.TestOwnedFinding_JudgesEachValueInItsSchemasDialect`,
   `load.TestOwnedFindings_ReportAnAliasedValueOnce`,

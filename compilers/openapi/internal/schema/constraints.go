@@ -316,7 +316,7 @@ func CarrierConstraintsOf(c lowering.Ctx, ts *compile.Types, p *ir.Unmodeled, s 
 	}
 	var takes kindSet
 	if s != nil && !lowersTypeArray(c, s, pointer) {
-		takes = declaredKinds(s)
+		takes = declaredInstanceTypes(s)
 	}
 	cons, diags := ConstraintsOf(c, p, s, voices, pointer, takes)
 	if td, built := ts.Node(t.Target); built && carriesNumberAsText(td) {
@@ -337,7 +337,7 @@ func referenceConstraintsOf(c lowering.Ctx, ts *compile.Types, p *ir.Unmodeled, 
 	if s == nil {
 		return nil, nil
 	}
-	cons, diags := ConstraintsOf(c, p, s, voices, pointer, declaredKinds(s))
+	cons, diags := ConstraintsOf(c, p, s, voices, pointer, declaredInstanceTypes(s))
 	cons = merge.Constraints(cons, heldCollectionBounds(s))
 	if len(voices) > 0 && homesAt(c, ts, s, target, pointer).collection {
 		cons = voicedCollectionBounds(cons, voices)
