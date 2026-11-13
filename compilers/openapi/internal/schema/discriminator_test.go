@@ -340,9 +340,9 @@ func TestDiscriminator_AnEmptyPropertyNameIsKeptVerbatim(t *testing.T) {
 				assert.Equal(t, ir.ReasonDegradedLowering, td.Common().Unmodeled["openapi:discriminator"].Reason, name)
 				assert.Empty(t, td.Common().Provenance.Inferred, "%s: nothing is inferred", name)
 				kept = append(kept, "info "+diag.DegradedConstruct+" /components/schemas/"+name+": this position "+
-					"lowered to a "+string(td.Kind())+" routed by no tag, as the IR's PropertyName cannot hold the empty "+
-					"name its discriminator gives the tag property, which has no home for discriminator declared beside "+
-					"it; kept verbatim under Unmodeled")
+					"lowered to a "+string(td.Kind())+" routed by no tag (the IR's PropertyName cannot hold the empty "+
+					"name its discriminator gives the tag property), which has no home for discriminator declared "+
+					"beside it; kept verbatim under Unmodeled")
 			}
 			slices.Sort(kept)
 			assert.Equal(t, kept, reported(withCode(diags, diag.DegradedConstruct)), "%s, reversed %t", version, reversed)

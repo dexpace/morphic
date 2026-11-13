@@ -419,8 +419,8 @@ func taglessShape(m *ir.Model, s *oas3.Schema, shape string) string {
 	if m != nil {
 		kind = ir.KindModel
 	}
-	return fmt.Sprintf("a %s routed by no tag, as the IR's PropertyName cannot hold the empty name its "+
-		"discriminator gives the tag property", kind)
+	return fmt.Sprintf("a %s routed by no tag (the IR's PropertyName cannot hold the empty name its "+
+		"discriminator gives the tag property)", kind)
 }
 
 // distributedShape describes the Union a body distributed across its variants
