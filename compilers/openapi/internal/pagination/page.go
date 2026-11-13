@@ -33,11 +33,13 @@ func newReader(types ir.TypeRegistry) *reader {
 // model is what a page reads of one model's members across its composition
 // (ir.FlattenedProperties), each as the declaration its flattening takes,
 // which is the type a page decodes it as: those that are lists, those that are
-// models, with the model, and those of a type a walk sends, by canonical name.
+// models, with the model, those of a type a walk sends, by canonical name, and
+// the booleans.
 type model struct {
 	lists   []*ir.Property
 	objects []object
 	scalars map[string][]scalar
+	flags   []*ir.Property
 }
 
 // object is a member whose type is the model id.
@@ -152,9 +154,13 @@ func (r *reader) modelPage(body *model, key pageKey) page {
 	}
 	pg := page{items: items}
 	if key.cursor != "" {
-		next, notNext := r.nextCursor(body, key)
+		next, holder, notNext := r.nextCursor(body, key)
 		if notNext != "" {
 			return page{why: notNext}
+		}
+		if flag := leastFlag(holder); flag != "" {
+			return page{why: fmt.Sprintf("holds %q beside its next cursor, a flag that can end the walk, "+
+				"which no stop condition reads", flag)}
 		}
 		pg.next = next
 	}
@@ -166,27 +172,43 @@ func (r *reader) modelPage(body *model, key pageKey) page {
 // nextCursor returns the path to the one member of members, or of a model one
 // of them holds, of the cursor's primitive and named as the cursor with next
 // before it, or, where none is, as the cursor itself: a page naming both
-// echoes the cursor it was sent beside the next one.
-func (r *reader) nextCursor(body *model, key pageKey) ([]ir.PropID, string) {
+// echoes the cursor it was sent beside the next one. It returns too the model
+// holding that member, and otherwise why there is none.
+func (r *reader) nextCursor(body *model, key pageKey) ([]ir.PropID, *model, string) {
 	names := [...]string{"next_" + key.cursor, key.cursor}
 	for _, name := range names {
-		path, found := r.find(body, name, func(prim ir.PrimKind) bool { return prim == key.prim })
+		path, holder, found := r.find(body, name, func(prim ir.PrimKind) bool { return prim == key.prim })
 		switch found {
 		case 0:
 			continue
 		case 1:
-			return path, ""
+			return path, holder, ""
 		default:
-			return nil, fmt.Sprintf("holds %d members %q of the cursor's type, each a next cursor", found, name)
+			return nil, nil, fmt.Sprintf("holds %d members %q of the cursor's type, each a next cursor", found, name)
 		}
 	}
-	return nil, fmt.Sprintf("holds no member %q or %q of the cursor's type", names[0], names[1])
+	return nil, nil, fmt.Sprintf("holds no member %q or %q of the cursor's type", names[0], names[1])
+}
+
+// leastFlag returns the least wire name of the booleans m holds, or "" for
+// none. A boolean beside a next cursor, such as has_more or is_truncated, says
+// whether another page follows, which no ir.PageStop states, so a walk
+// ending at it is left unsettled rather than given a stop it may not keep
+// (#1827).
+func leastFlag(m *model) string {
+	least := ""
+	for _, f := range m.flags {
+		if name := f.EffectiveWireName(); least == "" || name < least {
+			least = name
+		}
+	}
+	return least
 }
 
 // total returns the path to the one member named name, of a type a walk counts
 // with, or nil where the body holds none or several.
 func (r *reader) total(body *model, name string) []ir.PropID {
-	path, found := r.find(body, name, func(ir.PrimKind) bool { return true })
+	path, _, found := r.find(body, name, func(ir.PrimKind) bool { return true })
 	if found != 1 {
 		return nil
 	}
@@ -195,23 +217,26 @@ func (r *reader) total(body *model, name string) []ir.PropID {
 
 // find returns how many members named name, of body or of a model one of its
 // members holds, are of a primitive a walk sends that admit accepts, and the
-// path to one of them, which is the only one when that is one.
-func (r *reader) find(body *model, name string, admit func(ir.PrimKind) bool) ([]ir.PropID, int) {
+// path to one of them and the model holding it, which are the only ones when
+// that is one.
+func (r *reader) find(body *model, name string, admit func(ir.PrimKind) bool) ([]ir.PropID, *model, int) {
 	var path []ir.PropID
+	var holder *model
 	found := 0
 	for _, s := range body.scalars[name] {
 		if admit(s.prim) {
-			path, found = []ir.PropID{s.member.ID}, found+1
+			path, holder, found = []ir.PropID{s.member.ID}, body, found+1
 		}
 	}
 	for _, o := range body.objects {
-		for _, s := range r.model(o.id).scalars[name] {
+		held := r.model(o.id)
+		for _, s := range held.scalars[name] {
 			if admit(s.prim) {
-				path, found = []ir.PropID{o.member.ID, s.member.ID}, found+1
+				path, holder, found = []ir.PropID{o.member.ID, s.member.ID}, held, found+1
 			}
 		}
 	}
-	return path, found
+	return path, holder, found
 }
 
 // items returns the path to the list body holds a page's items in: the one
@@ -290,11 +315,19 @@ func (r *reader) model(id ir.TypeID) *model {
 		default:
 			if prim, ok := sendableAs(td); ok {
 				m.scalars[p.Name.Canonical] = append(m.scalars[p.Name.Canonical], scalar{member: p, prim: prim})
+			} else if isBool(td) {
+				m.flags = append(m.flags, p)
 			}
 		}
 	}
 	r.models[id] = m
 	return m
+}
+
+// isBool reports whether td is the boolean primitive.
+func isBool(td ir.TypeDef) bool {
+	p, ok := td.(*ir.Primitive)
+	return ok && p.Prim == ir.PrimBool
 }
 
 // resolve returns the type id stands for, read through at most maxAliasHops

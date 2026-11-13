@@ -62,6 +62,14 @@ func TestInfer_ReadsEachStrategy(t *testing.T) {
 			`{type: object, properties: {pageToken: {type: string}, items: `+stringList+`,
 			  nextPageToken: {type: string}}}`),
 			"token cursor=pageToken limit=pageSize items=/items next=/nextPageToken count=- pages=- stop=[no_next]"},
+		"a cursor beside no flag, one elsewhere in the page": {listing(cursorParams,
+			`{type: object, properties: {success: {type: boolean}, result: `+stringList+`,
+			  result_info: {type: object, properties: {cursor: {type: string}}}}}`),
+			"cursor cursor=cursor limit=per_page items=/result next=/result_info/cursor count=- pages=- stop=[no_next]"},
+		"a page number beside a flag, which a page walk reads no stop from": {listing(pageParams,
+			`{type: object, properties: {result: `+stringList+`,
+			  result_info: {type: object, properties: {has_more: {type: boolean}}}}}`),
+			"page cursor=page limit=per_page items=/result next=- count=- pages=- stop=[]"},
 		"items in the one list of an object named as holding them": {listing(pageParams,
 			`{type: object, properties: {result: {type: object, properties: {note: {type: string}, reports: `+
 				stringList+`}}, errors: `+stringList+`}}`),
@@ -155,6 +163,14 @@ func TestInfer_LeavesWhatItCannotSettle(t *testing.T) {
 			`the application/json response body holds no member "next_cursor" or "cursor" of the cursor's type`},
 		"a next cursor of another type": {listing(cursorParams, objectOf(`result: `+stringList+`, cursor: {type: integer}`)),
 			`the application/json response body holds no member "next_cursor" or "cursor" of the cursor's type`},
+		"a flag beside the next cursor": {listing(cursorParams,
+			objectOf(`result: `+stringList+`, next_cursor: {type: string}, has_more: {type: boolean}`)),
+			`the application/json response body holds "has_more" beside its next cursor, a flag that can end ` +
+				`the walk, which no stop condition reads`},
+		"flags beside a next cursor an object holds": {listing(cursorParams, objectOf(`result: `+stringList+
+			`, info: `+objectOf(`more: {type: boolean}, cursor: {type: string}, is_truncated: {type: boolean}`))),
+			`the application/json response body holds "is_truncated" beside its next cursor, a flag that can ` +
+				`end the walk, which no stop condition reads`},
 		"two next cursors": {
 			listing(cursorParams, objectOf(`result: `+stringList+`, cursor: {type: string}, info: `+objectOf(`cursor: {type: string}`))),
 			`the application/json response body holds 2 members "cursor" of the cursor's type, each a next cursor`},

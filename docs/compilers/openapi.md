@@ -4532,20 +4532,23 @@ its canonical words (`Naming.Canonical`), so `pageSize` and `page_size` are one 
    both echoes the cursor it was sent beside the next. Such a walk lists `no_next` in `Stop`, as an
    empty next cursor names no page; a walk under `page` or `offset` lists none, a page holding no
    items ending it whatever `Stop` lists
-   ([pagination](../emitters/operations/pagination.md#where-a-page-walk-ends)).
+   ([pagination](../emitters/operations/pagination.md#where-a-page-walk-ends)). A boolean beside the
+   next cursor, in the model holding it, such as `has_more` or `is_truncated`, says whether another
+   page follows, which no `PageStop` states, and a page may keep handing back a cursor past its
+   last, so such a walk is not settled.
 4. **The totals** are `TotalCount`, the one member named `total_count`, and `TotalPages`, the one
    named `total_pages`, each of a type a walk counts with, in the body or in a model a member of it
    holds. A page naming none or several states no total, and the field is unset.
 
 What the policy fills is marked twice: `Pagination.Inferred` is set, and the operation's
-`Provenance.Inferred` names `pagination-inference`. An operation whose query parameters name where
-a walk continues and that the policy cannot settle gets no `Pagination`, never a guess, reported as
-an info `openapi/undecided-pagination` at the operation's declaration naming what stops it: a
-method other than `GET` and `QUERY`, two parameters naming a continuation or a page size, one of a
-type a walk does not send, no success
-response or none with a body, a body that is neither an object nor a list, items or a next cursor
-it names none or several of, or bodies holding the page at different members. A path item mounted
-twice is reported once, at the declaration both mounts share.
+`Provenance.Inferred` names `pagination-inference`. An operation whose query parameters name where a
+walk continues and that the policy cannot settle gets no `Pagination`, never a guess, reported as an
+info `openapi/undecided-pagination` at the operation's declaration naming what stops it: a method
+other than `GET` and `QUERY`, two parameters naming a continuation or a page size, one of a type a
+walk does not send, no success response or none with a body, a body that is neither an object nor a
+list, items or a next cursor it names none or several of, a flag beside the next cursor, or bodies
+holding the page at different members. A path item mounted twice is reported once, at the
+declaration both mounts share.
 
 - Cases: `pagination-inferred`
 - Codes: `openapi/undecided-pagination`
@@ -4561,7 +4564,8 @@ twice is reported once, at the declaration both mounts share.
   `lowering.TestPaginationInference_TheZeroValueHonoursThePolicy`,
   `openapi.TestDecodeOptions_TextReachesEveryField`
 - Status: partly built: an input a request body or a parameter's members carry is not read (#1815),
-  nor a next link, a `Link` header or a continuation a response header carries (#1816).
+  nor a next link, a `Link` header or a continuation a response header carries (#1816), nor a flag
+  a page states where its walk ends (#1827).
 
 ## 16. Swagger 2.0
 
