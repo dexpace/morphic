@@ -6,6 +6,7 @@ package schema
 import (
 	"testing"
 
+	"github.com/speakeasy-api/openapi/jsonschema/oas3"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	yaml "go.yaml.in/yaml/v3"
@@ -150,4 +151,54 @@ func TestValueKey_GrowsByAFixedAmountPerLevel(t *testing.T) {
 	key, ok := valueKey(deep, 0)
 	require.True(t, ok)
 	assert.Less(t, len(key), 8*depth, "%d bytes", len(key))
+}
+
+// TestTypeAdmits_ReadsEachJSONType pins the type keyword's reading of a value,
+// a type no dialect defines judging nothing, and typesAdmit's empty set, which
+// declares no type.
+func TestTypeAdmits_ReadsEachJSONType(t *testing.T) {
+	t.Parallel()
+	str, one, half := ir.Value{Kind: ir.ValueString, Str: "1"}, ir.Value{Kind: ir.ValueNumber, Num: "1.0"},
+		ir.Value{Kind: ir.ValueNumber, Num: "0.5"}
+	null, yes := ir.Value{Kind: ir.ValueNull}, ir.Value{Kind: ir.ValueBool, Bool: true}
+	obj, list := ir.Value{Kind: ir.ValueObject}, ir.Value{Kind: ir.ValueList}
+	for _, tc := range []struct {
+		st     oas3.SchemaType
+		admits []ir.Value
+		not    []ir.Value
+	}{
+		{oas3.SchemaTypeString, []ir.Value{str}, []ir.Value{one, null}},
+		{oas3.SchemaTypeInteger, []ir.Value{one}, []ir.Value{half, str}},
+		{oas3.SchemaTypeNumber, []ir.Value{one, half}, []ir.Value{str}},
+		{oas3.SchemaTypeBoolean, []ir.Value{yes}, []ir.Value{str}},
+		{oas3.SchemaTypeObject, []ir.Value{obj}, []ir.Value{list}},
+		{oas3.SchemaTypeArray, []ir.Value{list}, []ir.Value{obj}},
+		{oas3.SchemaTypeNull, []ir.Value{null}, []ir.Value{str}},
+		{"file", []ir.Value{str, one, null}, nil},
+	} {
+		for _, v := range tc.admits {
+			assert.True(t, typeAdmits(tc.st, v), "%s admits %+v", tc.st, v)
+		}
+		for _, v := range tc.not {
+			assert.False(t, typeAdmits(tc.st, v), "%s admits no %+v", tc.st, v)
+		}
+	}
+	assert.True(t, typesAdmit(nil, str), "no type declared admits every value")
+	assert.False(t, typesAdmit([]oas3.SchemaType{oas3.SchemaTypeInteger, oas3.SchemaTypeBoolean}, str))
+}
+
+// TestDescribeValue_SpellsEachKind pins how a member is named in a message.
+func TestDescribeValue_SpellsEachKind(t *testing.T) {
+	t.Parallel()
+	for v, want := range map[*ir.Value]string{
+		{Kind: ir.ValueString, Str: "a"}:        `"a"`,
+		{Kind: ir.ValueSymbol, Str: "b"}:        `"b"`,
+		{Kind: ir.ValueNumber, Num: "1.5"}:      "1.5",
+		{Kind: ir.ValueBool}:                    "false",
+		{Kind: ir.ValueNull}:                    "null",
+		{Kind: ir.ValueBytes}:                   "of kind bytes",
+		{Kind: ir.ValueKind("a kind ir lacks")}: "of kind a kind ir lacks",
+	} {
+		assert.Equal(t, want, describeValue(*v))
+	}
 }
