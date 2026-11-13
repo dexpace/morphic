@@ -387,6 +387,14 @@
                         "contentTypes": [
                           "application/octet-stream"
                         ],
+                        "multi": false,
+                        "filename": true,
+                        "allowReserved": false
+                      },
+                      "p/openapi/paths/~1shared/post/requestBody/content/multipart~1form-data/schema/oneOf/1/properties/doc": {
+                        "contentTypes": [
+                          "application/octet-stream"
+                        ],
                         "multi": true,
                         "filename": true,
                         "allowReserved": false
@@ -1331,7 +1339,7 @@
     {
       "format": "openapi@3.1",
       "path": "encoding-union-branches.yaml",
-      "hash": "bfb0caa75da136804b8fd71af5a8914acc1e7e4346cfce4d13844ebf37f0fe9e"
+      "hash": "845405a41e6a47c128d4e81118631f94f3cd1f3c7685822c84afc1d7e0883181"
     }
   ]
 }

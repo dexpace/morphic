@@ -118,10 +118,11 @@ func assertMultipartDefaults32(t *testing.T, doc *ir.Document, diags []ir.Diagno
 }
 
 // assertEncodingUnionBranches pins a part only a union's branch declares to a
-// key on the first variant declaring it, in each spelling: a oneOf body, an
-// anyOf behind a $ref with a union nested in a branch, a union on an allOf
-// branch the composition is distributed across, and a multi-typed body. A name
-// two branches declare reads both declarations. No entry is kept whole.
+// key on the variant declaring it, in each spelling: a oneOf body, an anyOf
+// behind a $ref with a union nested in a branch, a union on an allOf branch
+// the composition is distributed across, and a multi-typed body. A name two
+// branches declare is keyed under each, as each declares it. No entry is kept
+// whole.
 func assertEncodingUnionBranches(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
 	png := ir.PartEncoding{ContentTypes: []string{"image/png"}, Filename: true}
 	for op, want := range map[string]map[string]ir.PartEncoding{
@@ -129,12 +130,18 @@ func assertEncodingUnionBranches(t *testing.T, doc *ir.Document, diags []ir.Diag
 		"anyOf":      {"file": png, "url": partOf(textPlain, ""), "id": partOf(textPlain, "")},
 		"composed":   {"targetUrl": partOf(textPlain, ""), "torrentfile": {ContentTypes: []string{"application/x-bittorrent"}, Filename: true}, "name": partOf(textPlain, "")},
 		"multiTyped": {"file": {ContentTypes: []string{"image/png"}, Filename: true, Inferred: "binary-media-type"}},
-		"shared":     {"doc": partOf(octetStream, "MF")},
 	} {
 		parts, content := partsOf(t, doc, op)
 		assert.Equal(t, want, parts, op)
 		assert.Empty(t, content.Unmodeled, "%s: nothing is kept whole", op)
 	}
+	shared, ok := opByName(doc, "shared")
+	require.True(t, ok)
+	const schema = "p/openapi/paths/~1shared/post/requestBody/content/multipart~1form-data/schema/"
+	assert.Equal(t, map[ir.PropID]ir.PartEncoding{
+		schema + "oneOf/0/properties/doc": partOf(octetStream, "F"),
+		schema + "oneOf/1/properties/doc": partOf(octetStream, "MF"),
+	}, requestContent(t, shared).Encoding)
 	for _, d := range diags {
 		assert.NotEqual(t, diag.DegradedConstruct, d.Code, "no entry draws an announcement: %s", d.Message)
 		assert.NotEqual(t, diag.UnknownEncodingKey, d.Code, "and no key names nothing: %s", d.Message)

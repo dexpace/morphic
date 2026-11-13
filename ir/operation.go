@@ -187,8 +187,8 @@ type Content struct {
 	// Encoding holds multipart/form per-property (part) wire config, keyed by the
 	// part property's PropID: of a part several declarations name, the one the
 	// flattening of Type takes (docs/ir/models.md#the-flattening), and of a union
-	// body, the first variant's declaring it, through nested unions. No key is
-	// empty.
+	// body, each variant's declaring it, through nested unions, each entry as
+	// that variant declares the part. No key is empty.
 	Encoding map[PropID]PartEncoding `json:"encoding,omitempty"`
 	// File marks the body as a file upload/download (TypeSpec file bodies, binary
 	// payloads): how it travels, while Type stays what the source declares of it.

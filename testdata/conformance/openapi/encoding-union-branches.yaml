@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info: {title: EncodingUnionBranches, version: "1.0.0"}
 paths:
-  # A part only a union's branch declares is keyed by the first variant
+  # A part only a union's branch declares is keyed under the variant
   # declaring it.
   /one-of:
     post:
@@ -58,7 +58,7 @@ paths:
             encoding:
               file: {contentType: image/png}
       responses: {"204": {description: ok}}
-  # A name two branches declare is one part, whose flags read each.
+  # A name two branches declare is keyed under each, as each declares it.
   /shared:
     post:
       operationId: shared

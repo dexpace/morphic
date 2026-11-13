@@ -1476,13 +1476,13 @@ components:
 }
 
 // TestPartEncodings_AUnionBranchsPartIsKeyed holds a part only a oneOf or an
-// anyOf branch declares to a Content.Encoding key naming the first variant
-// declaring it, with its entry's fields and its own flags, and no record or
-// finding for the entry, in each spelling: a union body, an anyOf, a $ref to
-// one and a $ref branch, a union on an allOf branch or beside properties, and
-// a union nested in a branch. A name two branches declare is one part, keyed
-// by the first: it repeats where one declaration does, and is a file only
-// where each is, whatever the other's kind.
+// anyOf branch declares to a Content.Encoding key naming the variant declaring
+// it, with its entry's fields and its own flags, and no record or finding for
+// the entry, in each spelling: a union body, an anyOf, a $ref to one and a
+// $ref branch, a union on an allOf branch or beside properties, and a union
+// nested in a branch. A name two branches declare is keyed under each, its
+// flags and default content type read off that declaration alone, whatever
+// the other's kind.
 func TestPartEncodings_AUnionBranchsPartIsKeyed(t *testing.T) {
 	t.Parallel()
 	mfd := requestMedia(multipartForm)
@@ -1490,6 +1490,13 @@ func TestPartEncodings_AUnionBranchsPartIsKeyed(t *testing.T) {
 	const comps = "components:\n  schemas:\n    F: " + fileForm + "\n    U: " + unionSource + "\n"
 	png := ir.PartEncoding{ContentTypes: []string{"image/png"}, Filename: true}
 	url := ir.PartEncoding{ContentTypes: []string{"text/plain"}}
+	json := ir.PartEncoding{ContentTypes: []string{"application/json"}}
+	octet := ir.PartEncoding{ContentTypes: []string{"application/octet-stream"}}
+	octetFile := ir.PartEncoding{ContentTypes: octet.ContentTypes, Filename: true}
+	xa := []ir.Header{{
+		ID: ir.PropID("p/openapi" + mfd + "/encoding/file/headers/X-A"), Name: ir.NamingFor("X-A"), WireName: "X-A",
+		Type: ir.TypeRef{Target: "t/prim/string"}, Provenance: ir.Provenance{Pointer: jsontext.Pointer(mfd + "/encoding/file/headers/X-A")},
+	}}
 	cases := []struct {
 		name, schema, encoding string
 		want                   map[ir.PropID]ir.PartEncoding
@@ -1522,21 +1529,39 @@ func TestPartEncodings_AUnionBranchsPartIsKeyed(t *testing.T) {
 			}},
 		{"a name two branches declare, a file in one and a list in the other",
 			"{oneOf: [" + fileForm + ", {type: object, properties: {file: {type: array, items: {type: string, format: binary}}}}]}", "{}",
-			map[ir.PropID]ir.PartEncoding{at("oneOf/0/properties/file"): {
+			map[ir.PropID]ir.PartEncoding{at("oneOf/0/properties/file"): octetFile, at("oneOf/1/properties/file"): {
 				ContentTypes: []string{"application/octet-stream"}, Multi: true, Filename: true,
 			}}},
 		{"a name two branches declare, a file in one and text in the other",
 			"{oneOf: [" + fileForm + ", {type: object, properties: {file: {type: string}}}]}", "{}",
-			map[ir.PropID]ir.PartEncoding{at("oneOf/0/properties/file"): {}}},
+			map[ir.PropID]ir.PartEncoding{at("oneOf/0/properties/file"): octetFile, at("oneOf/1/properties/file"): url}},
 		{"a name two branches declare, a file in one and an enum in the other",
 			"{oneOf: [" + fileForm + ", {type: object, properties: {file: {type: string, enum: [a]}}}]}", "{}",
-			map[ir.PropID]ir.PartEncoding{at("oneOf/0/properties/file"): {}}},
+			map[ir.PropID]ir.PartEncoding{at("oneOf/0/properties/file"): octetFile, at("oneOf/1/properties/file"): url}},
 		{"a name two branches declare, a file in one and an object in the other",
 			"{oneOf: [" + fileForm + ", {type: object, properties: {file: {type: object, properties: {a: {type: string}}}}}]}", "{}",
-			map[ir.PropID]ir.PartEncoding{at("oneOf/0/properties/file"): {}}},
+			map[ir.PropID]ir.PartEncoding{at("oneOf/0/properties/file"): octetFile, at("oneOf/1/properties/file"): json}},
 		{"a name two branches declare, a file in one and a map in the other",
 			"{oneOf: [" + fileForm + ", {type: object, properties: {file: {type: object, additionalProperties: {type: string}}}}]}", "{}",
-			map[ir.PropID]ir.PartEncoding{at("oneOf/0/properties/file"): {}}},
+			map[ir.PropID]ir.PartEncoding{at("oneOf/0/properties/file"): octetFile, at("oneOf/1/properties/file"): json}},
+		{"a name two branches declare, its entry applied to each",
+			"{oneOf: [" + fileForm + ", {type: object, properties: {file: {type: array, items: {type: string}}}}]}",
+			"{file: {contentType: image/png, headers: {X-A: {schema: {type: string}}}}}",
+			map[ir.PropID]ir.PartEncoding{
+				at("oneOf/0/properties/file"): {ContentTypes: []string{"image/png"}, Headers: xa, Filename: true},
+				at("oneOf/1/properties/file"): {
+					ContentTypes: []string{"image/png"}, Headers: xa, Multi: true, Filename: true, Inferred: "binary-media-type",
+				},
+			}},
+		{"a name two branches declare, untyped in one and a string in the other",
+			"{oneOf: [{type: object, properties: {file: {description: bytes}}}, {type: object, properties: {file: {type: string}}}]}", "{}",
+			map[ir.PropID]ir.PartEncoding{at("oneOf/0/properties/file"): octetFile, at("oneOf/1/properties/file"): url}},
+		{"a name two branches declare, encoded in one and not in the other",
+			"{oneOf: [{type: object, properties: {b: {type: string, contentEncoding: base64}}}, {type: object, properties: {b: {type: string}}}]}", "{}",
+			map[ir.PropID]ir.PartEncoding{at("oneOf/0/properties/b"): octet, at("oneOf/1/properties/b"): url}},
+		{"a name two branches declare, a constant list in one and a constant string in the other",
+			"{oneOf: [{type: object, properties: {t: {type: array, const: [a]}}}, {type: object, properties: {t: {type: string, const: x}}}]}", "{}",
+			map[ir.PropID]ir.PartEncoding{at("oneOf/0/properties/t"): {Multi: true}, at("oneOf/1/properties/t"): url}},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -1555,6 +1580,41 @@ func TestPartEncodings_AUnionBranchsPartIsKeyed(t *testing.T) {
 			assert.Empty(t, diagPointersUnder(diags, mfd+"/encoding/"), "and none draws a finding")
 		})
 	}
+}
+
+// TestPartEncodings_AUnionBodyKeysEachVariantInEitherOrder holds a part two
+// variants declare apart to an entry under each, read off its own declaration,
+// with the diagnostics, whichever order the union lists them in: keying one
+// variant's declaration alone would key whichever came first.
+func TestPartEncodings_AUnionBodyKeysEachVariantInEitherOrder(t *testing.T) {
+	t.Parallel()
+	const comps = "components:\n  schemas:\n" +
+		"    A: {type: object, properties: {file: {description: any bytes}, tags: {type: string}}}\n" +
+		"    B: {type: object, properties: {file: {type: string}, tags: {type: array, items: {type: string}}}}\n"
+	compile := func(t *testing.T, schema string) (ir.Content, []ir.Diagnostic) {
+		t.Helper()
+		_, svc, diags := compileService(t, formDoc("", multipartForm, schema, "{tags: {headers: {X-A: {schema: {type: string}}}}}", comps))
+		openapitest.RequireNoErrorDiags(t, diags)
+		return formContent(t, svc, false), diags
+	}
+	forward, forwardDiags := compile(t, "{oneOf: [{$ref: '#/components/schemas/A'}, {$ref: '#/components/schemas/B'}]}")
+	reversed, reversedDiags := compile(t, "{oneOf: [{$ref: '#/components/schemas/B'}, {$ref: '#/components/schemas/A'}]}")
+	encodings := func(c ir.Content) map[ir.PropID][3]any {
+		out := map[ir.PropID][3]any{}
+		for id, pe := range c.Encoding {
+			out[id] = [3]any{pe.ContentTypes, pe.Multi, pe.Filename}
+		}
+		return out
+	}
+	text, octet := []string{"text/plain"}, []string{"application/octet-stream"}
+	assert.Equal(t, map[ir.PropID][3]any{
+		"p/openapi/components/schemas/A/properties/file": {octet, false, true},
+		"p/openapi/components/schemas/A/properties/tags": {text, false, false},
+		"p/openapi/components/schemas/B/properties/file": {text, false, false},
+		"p/openapi/components/schemas/B/properties/tags": {text, true, false},
+	}, encodings(forward))
+	assert.Empty(t, cmp.Diff(forward.Encoding, reversed.Encoding), "the variants' order changes no entry (-forward +reversed)")
+	assert.Empty(t, cmp.Diff(forwardDiags, reversedDiags), "nor any diagnostic (-forward +reversed)")
 }
 
 // partEncodingIsEmpty reports whether pe states nothing, which the lowering
@@ -1883,7 +1943,7 @@ func TestPartEncodings_KeptEntriesDoNotDependOnDeclarationOrder(t *testing.T) {
 		forward := contents(t, head+paths+"components:\n  schemas:\n"+u+a+b+c)
 		reversed := contents(t, head+"components:\n  schemas:\n"+c+b+a+u+paths)
 		require.Len(t, forward, 2)
-		assert.Len(t, forward["op/openapi/paths/~1u/post"].Encoding, 2, "doc and meta are keyed")
+		assert.Len(t, forward["op/openapi/paths/~1u/post"].Encoding, 3, "doc is keyed under each variant, and meta")
 		assert.Equal(t, []string{"file"}, keptEncodingNames(forward["op/openapi/paths/~1v/post"].Unmodeled))
 		assert.Empty(t, cmp.Diff(forward, reversed),
 			"whether a component lowers before its use changes nothing it settles (-forward +reversed)")

@@ -60,8 +60,8 @@ func partEncodings(c lowering.Ctx, w walk, media *soa.MediaType, mt string, medi
 }
 
 // lowerPart lowers the entry of part, a part of a form body under mt, a
-// normalized media type, and reads what its declarations say of it being a file
-// and of its default content type (keyedPart).
+// normalized media type, and reads whether it takes its default content type
+// (keyedPart).
 func lowerPart(c lowering.Ctx, w walk, part bodyPart, encMap *sequencedmap.Map[string, *soa.Encoding], mediaPtr jsontext.Pointer, mt string) (keyedPart, []ir.Diagnostic) {
 	pe, partUnmodeled, diags := buildPartEncoding(c, w, part.name, encMap, mediaPtr, mt)
 	kp := keyedPart{
@@ -69,8 +69,6 @@ func lowerPart(c lowering.Ctx, w walk, part bodyPart, encMap *sequencedmap.Map[s
 		encoding:  pe,
 		unmodeled: partUnmodeled,
 		at:        mediaPtr + ids.Ptr("encoding", part.name),
-		file:      readPartFile(c, part, pe.ContentTypes, isMultipart(mt)),
-		encoded:   readContentEncoding(c, part.schemas),
 		defaulted: true,
 	}
 	if enc, ok := encMap.Get(part.name); ok && enc != nil {
@@ -189,8 +187,8 @@ func unknownEncodingKey(c lowering.Ctx, name, owner string, at jsontext.Pointer)
 
 // partKeys keys a form body's part encodings once the registry is whole
 // (compile.Settlement): Settle fills out, the map the body's Content holds,
-// with each part left carrying something, keyed by the first declaration the
-// body's type holds of its name (partMembers). kept is the content's
+// with an entry for each declaration the body's type holds of a part's name
+// (partMembers) that is left carrying something. kept is the content's
 // Unmodeled, which takes each entry's records where its part is keyed, and
 // the entry whole where it is not. c is the context the content lowered in,
 // schema where its schema is written, and mediaType its normalized media type.
@@ -205,18 +203,14 @@ type partKeys struct {
 }
 
 // keyedPart is one part: the encoding its entry declares and what that entry
-// keeps of its own, the entry as written and where, what its declarations and
-// that entry say of it being a file (readPartFile), whether its declarations
-// write contentEncoding (readContentEncoding), and whether it takes the
+// keeps of its own, the entry as written and where, and whether it takes the
 // default content type (takesDefault).
 type keyedPart struct {
-	file      partFile
 	unmodeled ir.Unmodeled
 	entry     *yaml.Node
 	at        jsontext.Pointer
 	part      bodyPart
 	encoding  ir.PartEncoding
-	encoded   contentEncoding
 	defaulted bool
 }
 
@@ -239,8 +233,6 @@ func (k partKeys) Settle(reg ir.TypeRegistry) []ir.Diagnostic {
 		diags = append(diags, k.c.DiagAt(ir.SeverityWarning, diag.DegradedConstruct, k.schema,
 			"form body's type nests past %d unions, so a part only a union below them declares has no Content.Encoding key", maxPartUnions))
 	}
-	multipart := isMultipart(k.mediaType)
-	rules := lowering.EncodingRules(k.c)
 	for _, p := range k.parts {
 		decls := members[p.part.name]
 		if len(decls) == 0 {
@@ -248,13 +240,68 @@ func (k partKeys) Settle(reg ir.TypeRegistry) []ir.Diagnostic {
 			continue
 		}
 		maps.Copy(k.kept, p.unmodeled)
-		pe := withDefaultContentType(node, rules, decls, p, p.file.apply(partFlags(node, k.c.Bindings(), decls, p, multipart)))
-		if partEncodingEmpty(pe) {
-			continue
+		for _, d := range decls {
+			if pe := k.declared(node, p, d, decls); !partEncodingEmpty(pe) {
+				k.out[d.ID] = pe
+			}
 		}
-		k.out[decls[0].ID] = pe
 	}
 	return diags
+}
+
+// declared returns the encoding of p as d, one of decls, the declarations the
+// body's type holds of its name, declares it: the entry written, with the
+// structural flags and the default content type read off d and the schemas
+// declaring it alone (declarationOf), so a part two variants declare apart
+// reads as each declares it.
+func (k partKeys) declared(node func(ir.TypeID) (ir.TypeDef, bool), p keyedPart, d *ir.Property, decls []*ir.Property) ir.PartEncoding {
+	part, one := declarationOf(k.c, p.part, d, decls), []*ir.Property{d}
+	multipart := isMultipart(k.mediaType)
+	pe := partFlags(node, k.c.Bindings(), one, part, p.encoding, multipart)
+	pe = readPartFile(k.c, part, p.encoding.ContentTypes, multipart).apply(pe)
+	if !p.defaulted {
+		return pe
+	}
+	return withDefaultContentType(node, lowering.EncodingRules(k.c), one, readContentEncoding(k.c, part.schemas), pe)
+}
+
+// declarationOf returns part with the schemas declaring d alone: every one but
+// those declaring another of decls, the declarations the body's type holds of
+// its name, so one variant's declaration is read apart from another's while a
+// declaration the merge folded into d, an allOf branch's, is read with it. A
+// schema is matched by the ID the schema lowering gives a property read where
+// it was read (declaredProp).
+func declarationOf(c lowering.Ctx, part bodyPart, d *ir.Property, decls []*ir.Property) bodyPart {
+	if len(decls) < 2 {
+		return part
+	}
+	others := make(map[ir.PropID]bool, len(decls))
+	for _, o := range decls {
+		others[o.ID] = o.ID != d.ID
+	}
+	out := bodyPart{name: part.name}
+	for _, js := range part.schemas {
+		if id, ok := declaredProp(c, js); ok && others[id] {
+			continue
+		}
+		out.schemas = append(out.schemas, js)
+	}
+	return out
+}
+
+// declaredProp returns the ID of the property whose schema is js, as the
+// schema lowering names one by where it is read, and false where the bindings
+// do not place js in a document the compile read.
+func declaredProp(c lowering.Ctx, js *oas3.JSONSchema[oas3.Referenceable]) (ir.PropID, bool) {
+	at, ok := c.Bindings().Site(js)
+	if !ok {
+		return "", false
+	}
+	dc, ok := lowering.InDocument(c, at.Doc)
+	if !ok {
+		return "", false
+	}
+	return dc.IDs().Prop(at.Pointer), true
 }
 
 // keepWhole keeps the entry of p, a part the body's type holds no property for,
@@ -513,11 +560,11 @@ func dedupeParts(parts []bodyPart) []bodyPart {
 
 // partMembers returns, by wire name, the declarations the flattening of the
 // type body denotes takes for each of its members
-// (docs/ir/models.md#the-flattening), the one an encoding key names first:
-// what a reader of the body's flattened shape looks up. A body standing for a
-// union, as one a composition is distributed across does, has its variants'
-// members, through the unions nested in them, the first variant declaring a
-// name naming it (docs/ir/payloads.md). A body standing for no model has none.
+// (docs/ir/models.md#the-flattening), each an encoding key: what a reader of
+// the body's flattened shape looks up. A body standing for a union, as one a
+// composition is distributed across does, has its variants' members, through
+// the unions nested in them, each variant's declaration of a name in variant
+// order (docs/ir/payloads.md). A body standing for no model has none.
 // complete is false where more than maxPartUnions unions were read, past
 // which a member no union before them declares is missing.
 func partMembers(reg ir.TypeRegistry, body ir.TypeID) (members map[string][]*ir.Property, complete bool) {
@@ -573,17 +620,16 @@ func memberHolders(node func(ir.TypeID) (ir.TypeDef, bool), body ir.TypeID) (hol
 	return holders, true
 }
 
-// partFlags returns p's encoding with the structural flags of the part decls
-// declare, read off the types the allOf merge settled on (declarationFlags),
-// multipart saying whether the body is multipart. Where a type is a kind
-// partTypeFlags cannot decide, Multi is read off every schema declaring the
-// part, as refs resolves them (declaredMulti), a reading left until then since
-// it walks a union's branches.
-func partFlags(node func(ir.TypeID) (ir.TypeDef, bool), refs *typed.Bindings, decls []*ir.Property, p keyedPart, multipart bool) ir.PartEncoding {
-	pe := p.encoding
+// partFlags returns pe, the encoding written for part, with the structural
+// flags of the part decls declare, read off the types the allOf merge settled
+// on (declarationFlags), multipart saying whether the body is multipart. Where
+// a type is a kind partTypeFlags cannot decide, Multi is read off every schema
+// of part, as refs resolves them (declaredMulti), a reading left until then
+// since it walks a union's branches.
+func partFlags(node func(ir.TypeID) (ir.TypeDef, bool), refs *typed.Bindings, decls []*ir.Property, part bodyPart, pe ir.PartEncoding, multipart bool) ir.PartEncoding {
 	multi, file, decided := declarationFlags(node, decls, multipart)
 	if !decided {
-		multi = declaredMulti(refs, p.part.schemas)
+		multi = declaredMulti(refs, part.schemas)
 	}
 	pe.Multi, pe.Filename = multi, file
 	return pe

@@ -208,7 +208,7 @@ lists that no member declares and the composition entries that name no model. It
   order: a `Positional` model's elements follow their `WireID`.
 - *Addressing a member.* A `PropID` naming a model's member, an encoding key in `Content.Encoding`
   ([payloads](./payloads.md)) or a discriminator's `Property`, names the declaration the flattening
-  of that model takes, the content's type for an encoding key, or the first variant declaring the
+  of that model takes, the content's type for an encoding key, or of each variant declaring the
   part where that type is a union, so a consumer finds it on the member itself. The OpenAPI compiler
   keys a part through the flattening, and tags a discriminator by an own property, which the
   flattening takes. `pass.Validate` holds each only to a property the model
