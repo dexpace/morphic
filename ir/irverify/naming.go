@@ -274,8 +274,8 @@ func straddlesLetterDigit(prev, r rune) bool {
 }
 
 // isWordSequence reports whether s is the shape a neutral name channel
-// promises: words joined by single underscores, each word made of letters,
-// digits and the combining marks that belong to them. The empty string
+// promises: words joined by single underscores, each word made of the runes
+// the grammar keeps in one (ir.IsWordRune). The empty string
 // qualifies — a Naming fills one channel or the other, and a source name with no
 // word rune in it has no words to report.
 //
@@ -291,7 +291,7 @@ func isWordSequence(s string) bool {
 			return false // a leading, trailing, or doubled separator
 		}
 		for _, r := range word {
-			if !unicode.IsLetter(r) && !unicode.IsDigit(r) && !unicode.IsMark(r) {
+			if !ir.IsWordRune(r) {
 				return false
 			}
 		}
@@ -300,7 +300,7 @@ func isWordSequence(s string) bool {
 }
 
 // isBlankName reports whether s holds no rune a name could be made of. It takes
-// as invisible only the runes isInvisible lists from Unicode's own properties,
+// as invisible only the runes isInvisible reads from Unicode's own properties,
 // needing no format's grammar.
 //
 // strings.TrimSpace is not that test: IsSpace misses the zero-width joiners,
@@ -320,43 +320,11 @@ func isBlankName(s string) bool {
 }
 
 // isInvisible reports whether r is white space, a control, or
-// Default_Ignorable_Code_Point, the set the blank rules take as carrying no
-// visible mark. U+1680 OGHAM SPACE MARK renders a line and stays in, as white
-// space (GitHub #832).
-//
-// Package unicode has no Default_Ignorable_Code_Point table, so it is built
-// from its terms as DerivedCoreProperties.txt defines it:
-// Other_Default_Ignorable_Code_Point, Cf and Variation_Selector, less
-// Prepended_Concatenation_Mark, the two ranges unicode lacks a table for (the
-// interlinear annotation characters and the Egyptian hieroglyph format
-// controls, which are Cf and render) and White_Space, which is in the set
-// anyway.
+// default-ignorable (ir.IsDefaultIgnorable), the set the blank rules take as
+// carrying no visible mark. U+1680 OGHAM SPACE MARK renders a line and stays
+// in, as white space (GitHub #832).
 func isInvisible(r rune) bool {
-	// The Cf ranges Unicode 17.0.0 takes out of Default_Ignorable_Code_Point that
-	// package unicode has no table for: U+FFF9..U+FFFB and U+13430..U+1343F.
-	// DerivedCoreProperties.txt's header writes the second as 13430..13440, but
-	// U+13440 is Mn and in no added term, so subtracting it changes nothing.
-	// TestIsInvisible_WasSweptAgainstThisUnicode fails when a Go release moves
-	// unicode.Version. Rechecking these two ranges is then not enough, as
-	// Unicode has changed the derivation itself between releases: rebuild
-	// isInvisible from that derivation and sweep every code point against it.
-	const (
-		interlinearFirst, interlinearLast       = '\uFFF9', '\uFFFB'
-		egyptianFormatFirst, egyptianFormatLast = '\U00013430', '\U0001343F'
-	)
-
-	interlinear := r >= interlinearFirst && r <= interlinearLast
-	egyptianFormat := r >= egyptianFormatFirst && r <= egyptianFormatLast
-
-	switch {
-	case unicode.IsSpace(r), unicode.IsControl(r):
-		return true
-	case interlinear, egyptianFormat, unicode.Is(unicode.Prepended_Concatenation_Mark, r):
-		return false
-	}
-
-	return unicode.Is(unicode.Cf, r) || unicode.Is(unicode.Other_Default_Ignorable_Code_Point, r) ||
-		unicode.Is(unicode.Variation_Selector, r)
+	return unicode.IsSpace(r) || unicode.IsControl(r) || ir.IsDefaultIgnorable(r)
 }
 
 // isCased reports whether s still carries casing an emitter should own. The test

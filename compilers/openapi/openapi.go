@@ -15,6 +15,7 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/annotation"
 	"github.com/dexpace/morphic/compilers/openapi/internal/auth"
 	"github.com/dexpace/morphic/compilers/openapi/internal/budget"
+	"github.com/dexpace/morphic/compilers/openapi/internal/convention"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/document"
 	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
@@ -222,24 +223,26 @@ func run(ctx context.Context, c lowering.Ctx, ts *compile.Types) (*ir.Document, 
 		return nil, acc.List(), err
 	}
 	out.Types = reg
-	// A link names operations and members anywhere in the service, so it is
-	// resolved once both are whole; a server it names registers then too, so
-	// the servers are read after it.
+	// What is read once the document is whole is read here, in the one order
+	// docs/compilers/openapi.md#policies gives: links, then promotions, then
+	// inferences, an inference filling only what no keyword or promotion
+	// states. A link names operations and members anywhere in the service, and
+	// a server it names registers then too, so the servers are read after it.
+	// A replacement may be declared after what it replaces, and what a name
+	// implies turns on the type a $ref names, built in any order.
 	srv := servers.Reopen(lowered.Servers)
 	acc.AppendAll(lowered.Links.Resolve(c, &out.Services[0], reg, srv))
 	out.Servers = srv.Servers()
-	// The promotions run, then the inference, and that order is the precedence
-	// docs/compilers/openapi.md#extension-pagination states: what an
-	// operation's extensions say of its pagination, even that it has none, wins
-	// over what the names it uses suggest. A pagination names members of
-	// response bodies, so both run once the registry is whole, and the
-	// inference passes over each operation stated holds.
+	// The operations whose extensions speak of a pagination are what the
+	// pagination inference passes over, by the precedence
+	// docs/compilers/openapi.md#policies gives: what they say of one, even that
+	// there is none, wins over what the names an operation uses suggest.
 	stated, pageDiags := operation.PromotePagination(c, &out.Services[0], reg)
 	acc.AppendAll(pageDiags)
-	// What a deprecation names as its replacement may be declared anywhere, so
-	// it is read once every node it can name is built.
 	acc.AppendAll(replacement.Resolve(c, out))
-	acc.AppendAll(pagination.Infer(c, out, stated))
+	acc.AppendAll(replacement.Infer(c, out))
+	acc.AppendAll(convention.Apply(c, out))
+	acc.AppendAll(pagination.InferWalks(c, out, stated))
 
 	m, metaDiags := document.Lower(c)
 	out.Name, out.Version = m.Name, m.Version
@@ -280,11 +283,12 @@ func optionsFrom(opts compilers.Options) (Options, error) {
 
 // loadOptions projects Options onto the subset the load phase reads, with the
 // caller's reader and the confinement Options.AllowExternalRefs sets for it:
-// the directory of src's path unless it is on. It exists so the mapping lives
-// in one place: load.Options is that package's own input, deliberately not this
-// public type, whose shape is a published contract (see Options) and most of
-// which describes lowering the loader cannot see. Each budget is read as
-// Limits spells one, its default beside it (budget.FromOption).
+// the directory src lies in (load.Location) unless it is on. It exists so the
+// mapping lives in one place: load.Options is that package's own input,
+// deliberately not this public type, whose shape is a published contract (see
+// Options) and most of which describes lowering the loader cannot see. Each
+// budget is read as Limits spells one, its default beside it
+// (budget.FromOption).
 func loadOptions(o Options, reader compilers.DocumentReader, src compilers.Source) load.Options {
 	out := load.Options{
 		Reader:               reader,
@@ -294,7 +298,7 @@ func loadOptions(o Options, reader compilers.DocumentReader, src compilers.Sourc
 		MaxExternalDocuments: budget.FromOption(o.Limits.MaxExternalDocuments, DefaultMaxExternalDocuments),
 	}
 	if !o.AllowExternalRefs {
-		out.Within = filepath.Dir(src.Path)
+		out.Within = filepath.Dir(load.Location(src))
 	}
 	if o.Overlay != nil {
 		out.Overlay = &overlay.Options{Path: o.Overlay.Path, Data: o.Overlay.Data, Lax: o.Overlay.Lax}
@@ -321,7 +325,12 @@ func loweringCtx(doc *load.Document, o Options) lowering.Ctx {
 		Promotions:             o.Promotions,
 		NullableWidening:       o.NullableWidening,
 		DiscriminatorInference: o.DiscriminatorInference,
+		IdempotencyInference:   o.IdempotencyInference,
+		SecretInference:        o.SecretInference,
+		HTTPDateInference:      o.HTTPDateInference,
+		ReplacementInference:   o.ReplacementInference,
 		PaginationInference:    o.PaginationInference,
+		TitleNames:             o.TitleNames,
 	})
 }
 

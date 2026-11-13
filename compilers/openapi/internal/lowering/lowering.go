@@ -82,12 +82,16 @@ type Ctx struct {
 	// shares it, and a resolve.Names lets none write to it.
 	schemas resolve.Names
 
-	// NullableWidening is the nullable-widening policy, DiscriminatorInference
-	// the discriminator-inference policy, and PaginationInference the
-	// pagination-inference policy. They sit before foreign so the four share a
-	// word.
+	// NullableWidening is the nullable-widening policy, and
+	// DiscriminatorInference the discriminator-inference policy, beside the
+	// policies of what a document's names and messages imply, read once it is
+	// whole. They sit before foreign so all of them share a word.
 	NullableWidening       NullableWidening
 	DiscriminatorInference DiscriminatorInference
+	IdempotencyInference   IdempotencyInference
+	SecretInference        SecretInference
+	HTTPDateInference      HTTPDateInference
+	ReplacementInference   ReplacementInference
 	PaginationInference    PaginationInference
 
 	// foreign marks a lowering of content another document holds, read in that
@@ -201,7 +205,12 @@ type Policy struct {
 	Promotions             ExtensionPromotions
 	NullableWidening       NullableWidening
 	DiscriminatorInference DiscriminatorInference
+	IdempotencyInference   IdempotencyInference
+	SecretInference        SecretInference
+	HTTPDateInference      HTTPDateInference
+	ReplacementInference   ReplacementInference
 	PaginationInference    PaginationInference
+	TitleNames             TitleNames
 }
 
 // New derives the context for doc, at srcIndex, under p. doc must not be nil:
@@ -226,13 +235,18 @@ func New(srcIndex int, doc *load.Document, p Policy) Ctx {
 		promoter:               newPromoter(p.Promotions),
 		NullableWidening:       p.NullableWidening,
 		DiscriminatorInference: p.DiscriminatorInference,
+		IdempotencyInference:   p.IdempotencyInference,
+		SecretInference:        p.SecretInference,
+		HTTPDateInference:      p.HTTPDateInference,
+		ReplacementInference:   p.ReplacementInference,
 		PaginationInference:    p.PaginationInference,
 		overlay:                doc.Overlay,
 
 		loaded: &loadResult{siblings: doc.Siblings, media: doc.MediaTypes, others: doc.Others, rows: doc.Rows,
-			dialects: doc.Dialects, names: naming.New(doc.Bindings.Table()),
-			reads: resolve.Scope{Holds: doc.Holds, Beside: doc.Siblings.Beside, Writes: doc.Siblings.Writes,
-				Bindings: doc.Bindings}, readings: map[any]any{}, settled: map[any]any{}},
+			dialects: doc.Dialects, names: naming.New(doc.Bindings.Table(), p.TitleNames.Honours()),
+			reads: resolve.Scope{SelfPath: doc.Location, Places: doc.Places, Holds: doc.Holds,
+				Beside: doc.Siblings.Beside, Writes: doc.Siblings.Writes, Bindings: doc.Bindings},
+			readings: map[any]any{}, settled: map[any]any{}},
 		reached:   resolve.NewReached(),
 		expansion: newExpansion(p.Limits.MaxReferenceExpansion),
 	}
@@ -510,9 +524,9 @@ func SchemaRulesIn(c Ctx, id bind.DocID) oas.SchemaRules {
 // there is one answer.
 func (c Ctx) RefScope() resolve.Scope {
 	r := c.loaded.reads
-	return resolve.Scope{Doc: c.Doc, SelfPath: c.Source.Path, Declares: c.schemas, Foreign: c.foreign,
-		Holder: c.holder, Ends: resolve.ReferenceEnd, Reached: c.reached, Holds: r.Holds, Beside: r.Beside,
-		Writes: r.Writes, Bindings: r.Bindings}
+	return resolve.Scope{Doc: c.Doc, SelfPath: r.SelfPath, Places: r.Places, Declares: c.schemas,
+		Foreign: c.foreign, Holder: c.holder, Ends: resolve.ReferenceEnd, Reached: c.reached, Holds: r.Holds,
+		Beside: r.Beside, Writes: r.Writes, Bindings: r.Bindings}
 }
 
 // DiagAt builds one diagnostic at pointer, stamped with this compile's source
@@ -566,6 +580,13 @@ func IDsAt(c Ctx, source int) ids.Document {
 // whichever lowering builds the node, read once for every copy of c.
 func NameAt(c Ctx, pointer jsontext.Pointer) string {
 	return c.loaded.names.At(bind.Position{Doc: c.homeDoc, Pointer: pointer})
+}
+
+// NameTitle returns the name the title of the schema at pointer in c's
+// document gives the node built there (naming.Namer.Title), and false where it
+// gives none.
+func NameTitle(c Ctx, pointer jsontext.Pointer) (string, bool) {
+	return c.loaded.names.Title(bind.Position{Doc: c.homeDoc, Pointer: pointer})
 }
 
 // NameThrough returns the name the $ref written at pointer in c's document

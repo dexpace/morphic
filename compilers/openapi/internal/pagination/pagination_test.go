@@ -36,11 +36,11 @@ const (
           page: {type: integer}, total_count: {type: integer}, total_pages: {type: integer}}}}}`
 )
 
-// TestInfer_ReadsEachStrategy pins what the policy reads off each spelling it
+// TestInferWalks_ReadsEachStrategy pins what the policy reads off each spelling it
 // settles: the strategy a query parameter names, the page size beside it, and
 // where the body holds the items, a cursor walk's next cursor and the totals
 // (docs/compilers/openapi.md#pagination-policy).
-func TestInfer_ReadsEachStrategy(t *testing.T) {
+func TestInferWalks_ReadsEachStrategy(t *testing.T) {
 	t.Parallel()
 	for name, tc := range map[string]struct{ src, want string }{
 		"a page number beside a page size, in an envelope": {listing(pageParams, envelope),
@@ -110,10 +110,10 @@ func TestInfer_ReadsEachStrategy(t *testing.T) {
 	}
 }
 
-// TestInfer_MarksWhatItFills pins the marks an inferred Pagination carries:
+// TestInferWalks_MarksWhatItFills pins the marks an inferred Pagination carries:
 // its own Inferred, and the heuristic's name in the operation's provenance,
 // beside any it already named.
-func TestInfer_MarksWhatItFills(t *testing.T) {
+func TestInferWalks_MarksWhatItFills(t *testing.T) {
 	t.Parallel()
 	op, _, _ := listOp(t, listing(pageParams, envelope), openapi.Options{Grouping: openapi.GroupByPathPrefix})
 	require.NotNil(t, op.Pagination)
@@ -121,10 +121,10 @@ func TestInfer_MarksWhatItFills(t *testing.T) {
 	assert.Equal(t, ir.JoinInferred("group-path-prefix", lowering.PaginationInferenceHeuristic), op.Provenance.Inferred)
 }
 
-// TestInfer_LeavesWhatItCannotSettle pins each reason an operation whose query
+// TestInferWalks_LeavesWhatItCannotSettle pins each reason an operation whose query
 // parameters name a walk keeps no Pagination, and the info finding saying so
 // at the operation.
-func TestInfer_LeavesWhatItCannotSettle(t *testing.T) {
+func TestInferWalks_LeavesWhatItCannotSettle(t *testing.T) {
 	t.Parallel()
 	const pageOnly = `[{name: page, in: query, schema: {type: integer}}]`
 	objectOf := func(members string) string { return `{type: object, properties: {` + members + `}}` }
@@ -199,12 +199,12 @@ func TestInfer_LeavesWhatItCannotSettle(t *testing.T) {
 	}
 }
 
-// TestInfer_ReadsEveryResponse holds a page to every content of every success
+// TestInferWalks_ReadsEveryResponse holds a page to every content of every success
 // response, a pager reading whichever arrives: two holding the page at
 // different members settle none, and no success response, or none with a body,
 // leaves nothing to read. One with no body ends a walk, and the default
 // response is no success, so neither is read.
-func TestInfer_ReadsEveryResponse(t *testing.T) {
+func TestInferWalks_ReadsEveryResponse(t *testing.T) {
 	t.Parallel()
 	head := `openapi: 3.1.0
 info: {title: t, version: "1"}
@@ -308,11 +308,11 @@ components:
 	})
 }
 
-// TestInfer_LeavesAnOperationNamingNoWalk pins what the policy neither fills
+// TestInferWalks_LeavesAnOperationNamingNoWalk pins what the policy neither fills
 // nor reports: an operation naming a page size and no continuation, a
 // continuation outside the query, an operation the API sends, and any under the
 // policy turned off.
-func TestInfer_LeavesAnOperationNamingNoWalk(t *testing.T) {
+func TestInferWalks_LeavesAnOperationNamingNoWalk(t *testing.T) {
 	t.Parallel()
 	webhook := `openapi: 3.1.0
 info: {title: t, version: "1"}
@@ -345,11 +345,11 @@ webhooks:
 	}
 }
 
-// TestInfer_ReadsOnlyAMethodSafeToSendAgain pins that a walk is read only off
+// TestInferWalks_ReadsOnlyAMethodSafeToSendAgain pins that a walk is read only off
 // a GET or a QUERY, which a pager can send again for each page: a POST taking
 // its path item's page parameters, as one creating a resource does, is
 // reported and left with none, whatever its body holds.
-func TestInfer_ReadsOnlyAMethodSafeToSendAgain(t *testing.T) {
+func TestInferWalks_ReadsOnlyAMethodSafeToSendAgain(t *testing.T) {
 	t.Parallel()
 	page := `{type: object, properties: {result: ` + stringList + `}}`
 	created := `{type: object, properties: {result: {type: object, properties: {tags: ` + stringList + `}}}}`
@@ -390,11 +390,11 @@ paths:
 	}, got)
 }
 
-// TestInfer_KeepsAPaginationTheOperationHolds pins that inference fills only an
+// TestInferWalks_KeepsAPaginationTheOperationHolds pins that inference fills only an
 // operation holding no Pagination and none its extensions speak of: one a step
 // before it filled is kept whole, one the stated set names is left with none,
 // and nothing is marked or reported for either.
-func TestInfer_KeepsAPaginationTheOperationHolds(t *testing.T) {
+func TestInferWalks_KeepsAPaginationTheOperationHolds(t *testing.T) {
 	t.Parallel()
 	declared := &ir.Pagination{Strategy: ir.PageStrategyNextLink}
 	doc := &ir.Document{
@@ -410,31 +410,31 @@ func TestInfer_KeepsAPaginationTheOperationHolds(t *testing.T) {
 		}}}}}},
 	}
 	c := lowering.New(0, &load.Document{Doc: &soa.OpenAPI{}}, lowering.Policy{})
-	assert.Empty(t, pagination.Infer(c, doc, nil))
+	assert.Empty(t, pagination.InferWalks(c, doc, nil))
 	op := doc.Services[0].Groups[0].Operations[0]
 	assert.Same(t, declared, op.Pagination)
 	assert.Equal(t, &ir.Pagination{Strategy: ir.PageStrategyNextLink}, op.Pagination)
 	assert.Empty(t, op.Provenance.Inferred)
 
 	doc.Services[0].Groups[0].Operations[0].Pagination = nil
-	assert.Empty(t, pagination.Infer(c, doc, map[ir.OpID]bool{"op/list": true}))
+	assert.Empty(t, pagination.InferWalks(c, doc, map[ir.OpID]bool{"op/list": true}))
 	assert.Nil(t, doc.Services[0].Groups[0].Operations[0].Pagination, "an operation its extensions speak of")
 	assert.Empty(t, doc.Services[0].Groups[0].Operations[0].Provenance.Inferred)
 
-	assert.Empty(t, pagination.Infer(c, doc, map[ir.OpID]bool{"op/other": true}))
+	assert.Empty(t, pagination.InferWalks(c, doc, map[ir.OpID]bool{"op/other": true}))
 	inferred := doc.Services[0].Groups[0].Operations[0].Pagination
 	require.NotNil(t, inferred, "the same operation holding none is inferred")
 	assert.Equal(t, ir.PageStrategyPage, inferred.Strategy)
 }
 
-// TestInfer_LeavesWhatAnExtensionSpeaksOf compiles GETs taking parameters the
+// TestInferWalks_LeavesWhatAnExtensionSpeaksOf compiles GETs taking parameters the
 // names read as a walk, beside extensions that speak of a pagination, filling
 // one, resolving to nothing, answering false, holding nothing a walk is read
 // from or marking a parameter, a member, a header or a shared type, and two
 // that speak of none. Inference fills and reports only where none speaks under
 // the options in force, in either declaration order, and false draws no report
 // (docs/compilers/openapi.md#extension-pagination).
-func TestInfer_LeavesWhatAnExtensionSpeaksOf(t *testing.T) {
+func TestInferWalks_LeavesWhatAnExtensionSpeaksOf(t *testing.T) {
 	t.Parallel()
 	const (
 		pages = `{name: page, in: query, schema: {type: integer}}, {name: per_page, in: query, schema: {type: integer}}`
@@ -578,11 +578,11 @@ func spoken(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) map[string]st
 	return out
 }
 
-// TestInfer_ReadsTheSameInEitherOrder compiles each document with its
+// TestInferWalks_ReadsTheSameInEitherOrder compiles each document with its
 // parameters and members declared in both orders: the walk read and every
 // finding are the same, as no choice turns on which was declared first. The
 // order oracle compares no operation, so it cannot see this.
-func TestInfer_ReadsTheSameInEitherOrder(t *testing.T) {
+func TestInferWalks_ReadsTheSameInEitherOrder(t *testing.T) {
 	t.Parallel()
 	member := map[string]string{
 		"result": `result: ` + stringList, "data": `data: ` + stringList, "tags": `tags: ` + stringList,
@@ -622,11 +622,11 @@ func TestInfer_ReadsTheSameInEitherOrder(t *testing.T) {
 	}
 }
 
-// TestInfer_ReportsTheSameWhateverTheResponseOrder compiles each document with
+// TestInferWalks_ReportsTheSameWhateverTheResponseOrder compiles each document with
 // its success responses, and each one's contents, declared in both orders: an
 // operation whose bodies stop a walk for several reasons is reported with the
 // same one, which turns on no declaration order.
-func TestInfer_ReportsTheSameWhateverTheResponseOrder(t *testing.T) {
+func TestInferWalks_ReportsTheSameWhateverTheResponseOrder(t *testing.T) {
 	t.Parallel()
 	const (
 		csv     = `text/csv: {schema: {type: string}}`
@@ -689,11 +689,11 @@ paths:
 	}
 }
 
-// TestInfer_ReadsAMountedDeclarationForEachMount pins a path item mounted at
+// TestInferWalks_ReadsAMountedDeclarationForEachMount pins a path item mounted at
 // two paths: each operation it mounts gets a Pagination of its own, which no
 // write to the other's reaches, and one it cannot settle is reported once, at
 // the declaration both mounts share.
-func TestInfer_ReadsAMountedDeclarationForEachMount(t *testing.T) {
+func TestInferWalks_ReadsAMountedDeclarationForEachMount(t *testing.T) {
 	t.Parallel()
 	mounted := func(param string) string { // param is a flow mapping's name and schema entries
 		return `openapi: 3.1.0

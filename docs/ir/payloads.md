@@ -30,8 +30,11 @@ type Content struct {
                                   // "" = source-native. The verbatim source schema is preserved in
                                   // Unmodeled (e.g. "asyncapi:schema") for schema-registry workflows
     Type      TypeRef
+    Stream    *ContentStream      // the body is a sequence of frames, not one document; nil = one
+                                  // document (below)
     Item      *TypeRef            // element shape of a sequential stream declared per media type
-                                  // (OpenAPI 3.2 itemSchema for SSE/JSONL/json-seq); nil = not sequential
+                                  // (OpenAPI 3.2 itemSchema for SSE/JSONL/json-seq); nil = none
+                                  // declared, Stream saying whether the content streams
     ItemEncoding *PartEncoding    // wire encoding of a sequential stream's item (3.2 itemEncoding),
                                   // or one saying only that each item is a file where a multipart
                                   // stream of files writes none; singular like Item, because it
@@ -90,4 +93,52 @@ type FileInfo struct {
                                   // stays what the schema says, so a consumer setting the guess
                                   // aside reads the body as declared
 }
+
+type ContentStream struct {
+    Inferred Inferred             // "" = the source declares the content a stream; else the
+                                  // heuristics that read it as one, as OpenAPI's streaming media
+                                  // types are
+}
 ```
+
+## A content that streams
+
+A body is one document or a sequence of frames, and which is a fact about one content: an OpenAPI
+response can offer `application/json` beside `text/event-stream`, one value and a stream of them,
+the request choosing by its `Accept` or by an input
+([streaming](./interaction-patterns.md#streaming)). `Content.Stream` is set on every content that
+streams, and on no other, wherever the content sits: a request, a response, an error case, the
+`Default` or a message. A content declaring an `Item` streams, so it sets `Stream` too
+(`ir/content-item-without-stream`), and a consumer asks `Stream` alone whether a content streams,
+and `Item` what each of its items is where the source says. An OpenAPI document below 3.2 states a
+stream only by naming a media type, so the compiler's streaming policy reads one in, and
+`Stream.Inferred` names the heuristic, as `FileInfo.Inferred` does for a file
+([provenance](./provenance.md)); a consumer taking only what was declared sets such a content's
+stream aside. `Operation.Streaming` and its `StreamDetail`s summarize the contents of a request and
+of the success responses that stream, so such a content has its side's `StreamDetail`
+(`ir/content-stream-without-detail`). The converse is not held: a side may stream with no content at
+all, as an RPC whose input folds into its parameters does, and an error's or the `Default`'s content
+is summarized by no `StreamDetail`, so whether it is read frame by frame is the plan's
+([streams](../emitters/plan/streams.md)).
+
+Four other homes were weighed:
+
+- **`Item` with `TypeRef.Inferred`.** Setting `Item` on every content the policy reads as a stream
+  would change what a declared `Item` means. A plan decodes each item into `Item` and reads an SSE
+  item as the event itself ([streams](../emitters/plan/streams.md)), while a schema of the whole
+  body only says what its frames hold, and may say no more than that the body is text: a
+  bare-string stream would gain an `Item` of `string` and decode each line as a JSON string. `TypeRef.Inferred`
+  speaks only of null, so it could not mark the difference either.
+- **A list on `StreamDetail` naming the contents that stream.** A media type does not name a
+  content once an operation has several responses, and neither an error nor the `Default` has a
+  `StreamDetail` to hold one.
+- **No field, the consumer reading the media type.** A consumer re-runs a heuristic the compiler
+  already ran, under a table of its own, and the two disagree wherever the tables do. With the
+  compiler told that `application/x-acme` streams, a response offering it beside `application/json`
+  has a `StreamDetail` and no content the plan's table names, so the plan elects among all its
+  contents and streams the JSON one. And a media type is read only beside a `StreamDetail`, so a
+  `Default` offering `text/event-stream` alone, which no `StreamDetail` summarizes, would reach the
+  plan as one document.
+- **A framing on the content.** How a stream divides into frames is the binding's
+  ([streaming](./interaction-patterns.md#streaming)): over HTTP the content's `MediaType` states it,
+  and another binding frames its own messages. `Stream` says only that the content streams.

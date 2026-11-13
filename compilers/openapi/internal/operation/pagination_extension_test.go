@@ -307,11 +307,24 @@ func twoResponses(body string) string {
           content: {application/json: {schema: ` + body + `}}`
 }
 
+// streamBeside is a success response whose body is body as JSON and a string
+// as an event stream, a content that streams and so is no page.
+func streamBeside(body string) string {
+	return `      responses:
+        "200":
+          description: ok
+          content:
+            application/json: {schema: ` + body + `}
+            text/event-stream: {schema: {type: string}}`
+}
+
 // TestPromotePagination_ReadsEverySuccessResponse pins a page value to the
 // success responses and their media types alike, whether an expression or a
 // mark names it: each must hold it at one member, a response with no body
-// holding none, and a header no one member of all of them. It also pins what sources of one target that state values on
-// one operation do: the policy's first decides, and a later one naming another
+// holding none, and a header no one member of all of them. A media type that
+// streams is no page, in either order, and a response that only streams holds
+// none. It also pins what sources of one target that state values on one
+// operation do: the policy's first decides, and a later one naming another
 // value is reported, while one naming the same is not.
 func TestPromotePagination_ReadsEverySuccessResponse(t *testing.T) {
 	t.Parallel()
@@ -375,6 +388,32 @@ func TestPromotePagination_ReadsEverySuccessResponse(t *testing.T) {
 			"        \"200\":\n          description: ok\n          content:\n            application/json:\n" +
 			"              schema: {type: object, properties: {a: {$ref: '#/components/schemas/Tokens'}, " +
 			"b: {$ref: '#/components/schemas/Tokens'}}}", "none", "marks more than one member of a body, as near its root"},
+		{"an expression beside a media type that streams", "      x-page: {link: $response.next}\n" +
+			streamBeside(`{$ref: '#/components/schemas/Page'}`), "next_link link=next", ""},
+		{"an expression after a media type that streams", "      x-page: {link: $response.next}\n      responses:\n" +
+			"        \"200\":\n          description: ok\n          content:\n" +
+			"            text/event-stream: {schema: {type: string}}\n" +
+			"            application/json: {schema: {$ref: '#/components/schemas/Page'}}", "next_link link=next", ""},
+		{"a mark beside a media type that streams", "      x-page: {cursor: $request.c}\n" + queryC +
+			streamBeside(`{$ref: '#/components/schemas/Tokens'}`), "cursor in=param:c next=token", ""},
+		{"an expression beside a response that only streams", "      x-page: {link: $response.next}\n" +
+			"      responses:\n" +
+			"        \"200\": {description: ok, content: {application/json: {schema: {$ref: '#/components/schemas/Page'}}}}\n" +
+			"        \"201\":\n          description: ok\n" +
+			"          content: {text/event-stream: {schema: {type: string}}}", "next_link link=next", ""},
+		{"a mark beside a response that only streams", "      x-page: {cursor: $request.c}\n" + queryC +
+			"      responses:\n" +
+			"        \"200\": {description: ok, content: {application/json: {schema: {$ref: '#/components/schemas/Tokens'}}}}\n" +
+			"        \"201\":\n          description: ok\n" +
+			"          content: {text/event-stream: {schema: {type: string}}}", "cursor in=param:c next=token", ""},
+		{"an expression whose only body streams", "      x-page: {link: $response.next}\n      responses:\n" +
+			"        \"200\":\n          description: ok\n" +
+			"          content: {text/event-stream: {schema: {$ref: '#/components/schemas/Page'}}}", "none",
+			"reads a page body, and no success response declares one"},
+		{"a mark whose only body streams", "      x-page: {cursor: $request.c}\n" + queryC + "      responses:\n" +
+			"        \"200\":\n          description: ok\n" +
+			"          content: {text/event-stream: {schema: {$ref: '#/components/schemas/Tokens'}}}", "none",
+			"sends a cursor and names no next cursor to send"},
 		{"two marked members of a request body", "      x-page: {next: $response.next}\n      requestBody:\n" +
 			"        content: {application/json: {schema: {type: object, properties: {a: {$ref: '#/components/schemas/Cursor'}, " +
 			"b: {$ref: '#/components/schemas/Cursor'}}}}}\n" + pageResponse, "none",

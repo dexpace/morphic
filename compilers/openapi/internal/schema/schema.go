@@ -293,7 +293,7 @@ func lowerElected(c lowering.Ctx, ts *compile.Types, depth int, s *oas3.Schema, 
 	}
 	switch d.won {
 	case "const":
-		return unhomed(hoistLiteral(c, ts, s, s.GetConst(), pointer))
+		return unhomed(lowerConst(c, ts, s, pointer))
 	case "enum":
 		return unhomed(lowerEnum(c, ts, s, pointer))
 	case "allOf":
@@ -311,6 +311,10 @@ func lowerElected(c lowering.Ctx, ts *compile.Types, depth int, s *oas3.Schema, 
 		return id, append(diags, preserveVariantsUnhomed(c, ts, s, id, nodeShape(ir.KindUnion), []string{"type"}, pointer)...)
 	case len(types) == 1:
 		return unhomed(lowerTyped(c, ts, depth, s, pointer, types[0]))
+	case writesType(s):
+		// Every type s names is null, so its value space is null and nothing
+		// else, which is no schemaless position's (docs/compilers/openapi.md#null-alone).
+		return unhomed(lowerNullAlone(c, ts, s, pointer), nil)
 	default:
 		return unhomed(lowerUntyped(c, ts, depth, s, pointer))
 	}

@@ -46,7 +46,8 @@ highlights, and the list moves to a specification of its own when the compiler l
 - Azure.Core `@pollingOperation`/`@finalOperation` → LongRunning
 - multipart w/ parts → Content.Encoding/PartEncoding, `Http.File` → FileInfo (content-type set,
   contents chain, filename location)
-- streams/SSE → StreamDetail + Variant.Event (contentType, terminal)
+- streams/SSE → StreamDetail + the streaming Content's Stream + Variant.Event (contentType,
+  terminal)
 - `@error` → the response becomes an `ErrorCase`, whose payload `irfacts.Index.Usage` marks
   `UsageError`
 - `@example`/`@opExample` → Examples (Input/Output pairs)
@@ -76,8 +77,10 @@ highlights, and the list moves to a specification of its own when the compiler l
   ([access](../ir/boundaries.md#access)), `@tags` →
   Tags, `@clientOptional`/`@input` → Property.ClientOptional (+InputOnly), `@addedDefault` →
   DefaultAdded, root-shape `@default` pushed down to properties w/ provenance
-- `@streaming` blob → StreamDetail (+`@requiresLength` → RequiresLength)
-- event streams → StreamDetail.Events union + Property.EventHeader/EventPayload + Initial messages
+- `@streaming` blob → StreamDetail + the payload Content's Stream (+`@requiresLength` →
+  RequiresLength)
+- event streams → StreamDetail.Events union + the payload Content's Stream +
+  Property.EventHeader/EventPayload + Initial messages
 - service-level errors → Service.CommonErrors
 - protocol traits → Service.Protocols
 - service `rename`/`version` → Service.Renames/Version
@@ -101,8 +104,9 @@ highlights, and the list moves to a specification of its own when the compiler l
   position's Encoding ([values as text](../emitters/refine/text.md#other-formats)), under the names
   the IR documents ([encodings](../ir/constraints.md#encodings)), which key an emitter's rows:
   `http-date` as written, `date-time` → `rfc3339`, and `epoch-seconds` → `unixTimestamp` with a
-  `float64` WireType, the number with a fraction Smithy writes; the `@mediaType` string waits on the
-  IR telling a string to encode from one already encoded (#1778, [a row keyed by an
+  `float64` WireType, the number with a fraction Smithy writes, and the `@mediaType` string in a
+  header → `base64` with a `string` WireType over the string shape, text to encode
+  ([encodings](../ir/constraints.md#encodings), [a row keyed by an
   encoding](../emitters/contract/type-table.md#a-row-keyed-by-an-encoding))
 - xml traits → XMLHints at type and property level
 - `@examples` → Examples (Input/Output/Error)
@@ -163,7 +167,7 @@ highlights, and the list moves to a specification of its own when the compiler l
 - custom options → namespaced Unmodeled (proto-JSON), file options keyed by path in
   Document.Unmodeled
 - services/rpcs → Service/Operation + RPCBinding
-- streaming modifiers → StreamingMode
+- streaming modifiers → StreamingMode + StreamDetail, and Stream on a streamed message's Content
 - gRPC transcoding (google.api.http) → additional HTTPBinding entries (slice), path patterns →
   PathPattern, nested bindings → ParamPath, response_body → ResponseBodyPath
 - reserved ranges → Unmodeled (guarded by validate pass)

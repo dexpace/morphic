@@ -15,7 +15,7 @@ import (
 	"github.com/dexpace/morphic/ir"
 )
 
-// Infer fills the Pagination of each GET or QUERY of doc the client sends that
+// InferWalks fills the Pagination of each GET or QUERY of doc the client sends that
 // holds none, where a query parameter names where its walk continues and its
 // success responses say where a page holds its items, and a cursor walk's next
 // cursor (docs/compilers/openapi.md#pagination-policy), marking it inferred on
@@ -24,7 +24,7 @@ import (
 // diagnostic. It neither reads nor reports an operation in stated, whose
 // extensions speak of a pagination. doc's registry must be whole; c is the
 // source's context.
-func Infer(c lowering.Ctx, doc *ir.Document, stated map[ir.OpID]bool) []ir.Diagnostic {
+func InferWalks(c lowering.Ctx, doc *ir.Document, stated map[ir.OpID]bool) []ir.Diagnostic {
 	if doc == nil || !c.PaginationInference.Honours() {
 		return nil
 	}

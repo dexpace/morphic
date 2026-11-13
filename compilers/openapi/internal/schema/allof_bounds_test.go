@@ -4,6 +4,10 @@
 package schema_test
 
 import (
+	"encoding/json/jsontext"
+	"fmt"
+	"slices"
+	"strings"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
@@ -222,4 +226,123 @@ func TestAllOf_AFoldedDeclarationLeavesNoRecordOfItself(t *testing.T) {
 	assert.Equal(t, onFirst, onSecond)
 	assert.Equal(t, "/components/schemas/T/allOf/0/properties/v", string(onSecond.Provenance.Pointer))
 	assert.Empty(t, onSecond.Unmodeled, "nothing was lost, so nothing is kept")
+}
+
+// TestAllOf_ACountNoFieldStatesIsKeptInEitherOrder pins GitHub #1050 under
+// allOf, in both orders: a count past int64 on a redeclared field, or on an
+// inline branch, states no bound, so the field and the schema take the counts
+// the other conjunct states, and it is kept verbatim with one info where it is
+// written.
+func TestAllOf_ACountNoFieldStatesIsKeptInEitherOrder(t *testing.T) {
+	t.Parallel()
+	const past, five = "{type: string, maxLength: 99999999999999999999}", "{type: string, maxLength: 5}"
+	for i, order := range [][2]string{{past, five}, {five, past}} {
+		p, _, diags := redeclared(t, order[0], order[1])
+		assert.Equal(t, &ir.Constraints{MaxLength: new(int64(5))}, p.Constraints, "%v", order)
+		assert.Equal(t, []string{"openapi:maxLength"}, unmodeledKeys(p.Unmodeled), "%v", order)
+		require.Len(t, diags, 1, "%v", order)
+		assert.Equal(t, jsontext.Pointer(fmt.Sprintf("/components/schemas/T/allOf/%d/properties/v", i)),
+			diags[0].Provenance.Pointer, "%v", order)
+	}
+
+	const branch, other = "{type: string, maxLength: 99999999999999999999}", "{type: string, minLength: 2}"
+	for i, order := range [][2]string{{branch, other}, {other, branch}} {
+		doc, diags := schema.LowerSpec(t, openapitest.ComponentSpec("    T: {allOf: ["+order[0]+", "+order[1]+"]}\n"))
+		openapitest.RequireNoErrorDiags(t, diags)
+		s, ok := doc.Types[componentID("T")].(*ir.Scalar)
+		require.True(t, ok, "%v", order)
+		assert.Equal(t, &ir.Constraints{MinLength: new(int64(2))}, s.Constraints, "%v", order)
+		assert.Equal(t, []string{"openapi:maxLength"}, unmodeledKeys(s.Unmodeled), "%v", order)
+		require.Len(t, diags, 1, "%v", order)
+		assert.Equal(t, jsontext.Pointer(fmt.Sprintf("/components/schemas/T/allOf/%d", i)), diags[0].Provenance.Pointer, "%v", order)
+	}
+}
+
+// TestAllOf_TheBindingCountIsKeptInEveryOrder pins counts no field states that
+// several writers of one position give, on its branches or beside its allOf:
+// the one binding the rest is kept, the smallest maximum and the largest
+// minimum compared exactly, with one info where it was written, in every order.
+// want is the kept entry's JSON.
+func TestAllOf_TheBindingCountIsKeptInEveryOrder(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name, keyword string
+		counts        []string
+		want          string
+	}{
+		{"two maxima", "maxLength", []string{"99999999999999999999", "88888888888888888888"}, "88888888888888888888"},
+		{"two minima", "minProperties", []string{"88888888888888888888", "99999999999999999999"}, "99999999999999999999"},
+		{"three minima", "minLength", []string{"99999999999999999999", "88888888888888888888", "77777777777777777777"},
+			"99999999999999999999"},
+	} {
+		for _, order := range permutations(len(tc.counts)) {
+			branches := make([]string, len(order))
+			for k, i := range order {
+				branches[k] = "{" + tc.keyword + ": " + tc.counts[i] + "}"
+			}
+			for _, beside := range []bool{false, true} {
+				spec := "    T: {type: string, allOf: [" + strings.Join(branches, ", ") + "]}\n"
+				if beside {
+					spec = "    T: {type: string, " + branches[0][1:len(branches[0])-1] + ", allOf: [" +
+						strings.Join(branches[1:], ", ") + "]}\n"
+				}
+				doc, diags := schema.LowerSpec(t, openapitest.ComponentSpec(spec))
+				openapitest.RequireNoErrorDiags(t, diags)
+				um := typeByName(doc, "T").Common().Unmodeled
+				require.Equal(t, []string{"openapi:" + tc.keyword}, unmodeledKeys(um), "%s %v %v", tc.name, order, beside)
+				assert.Equal(t, tc.want, string(um["openapi:"+tc.keyword].Value), "%s %v %v", tc.name, order, beside)
+				assert.Len(t, diags, 1, "%s %v %v: one report", tc.name, order, beside)
+			}
+		}
+	}
+}
+
+// TestAllOf_TheBindingCountPastTheDecimalRangeIsRefusedInEveryOrder pins two
+// maxima past what a BigVal holds, on branches or beside the allOf: the binding
+// one is refused as any number past that range kept verbatim is
+// (docs/compilers/openapi.md#verbatim-preservation), with one error where it is
+// written and no entry, in every order.
+func TestAllOf_TheBindingCountPastTheDecimalRangeIsRefusedInEveryOrder(t *testing.T) {
+	t.Parallel()
+	counts := []string{"2e1000000000000000000", "1e1000000000000000000"}
+	for _, order := range permutations(len(counts)) {
+		branches := make([]string, len(order))
+		for k, i := range order {
+			branches[k] = "{maxLength: " + counts[i] + "}"
+		}
+		binding := slices.Index(order, 1)
+		for _, beside := range []bool{false, true} {
+			spec := "    T: {type: string, allOf: [" + strings.Join(branches, ", ") + "]}\n"
+			at := fmt.Sprintf("/components/schemas/T/allOf/%d", binding)
+			if beside {
+				spec = "    T: {type: string, " + branches[0][1:len(branches[0])-1] + ", allOf: [" +
+					strings.Join(branches[1:], ", ") + "]}\n"
+				at = "/components/schemas/T"
+				if binding > 0 {
+					at = fmt.Sprintf("/components/schemas/T/allOf/%d", binding-1)
+				}
+			}
+			doc, diags := schema.LowerSpec(t, openapitest.ComponentSpec(spec))
+			assert.Empty(t, typeByName(doc, "T").Common().Unmodeled, "%v %v", order, beside)
+			require.Len(t, diags, 1, "%v %v: one report", order, beside)
+			assert.Equal(t, ir.SeverityError, diags[0].Severity, "%v %v", order, beside)
+			assert.Equal(t, diag.UnpreservableConstruct, diags[0].Code, "%v %v", order, beside)
+			assert.Equal(t, jsontext.Pointer(at), diags[0].Provenance.Pointer, "%v %v", order, beside)
+		}
+	}
+}
+
+// permutations returns every order of 0..n-1.
+func permutations(n int) [][]int {
+	if n == 1 {
+		return [][]int{{0}}
+	}
+	var out [][]int
+	for _, rest := range permutations(n - 1) {
+		for at := range n {
+			order := slices.Insert(slices.Clone(rest), at, n-1)
+			out = append(out, order)
+		}
+	}
+	return out
 }

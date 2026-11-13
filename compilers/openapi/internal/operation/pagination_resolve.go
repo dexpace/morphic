@@ -202,16 +202,17 @@ func (pg *pager) responseValue(op *ir.Operation, text string) (*ir.PropPath, str
 	return pg.bodyOutput(op, names)
 }
 
-// bodyOutput is the member tokens walk to in the body of every success
-// response of op declaring one, which must be the same member in each.
+// bodyOutput is the member tokens walk to in the page body of every success
+// response of op declaring one (pageBody), which must be the same member in
+// each.
 func (pg *pager) bodyOutput(op *ir.Operation, tokens []string) (*ir.PropPath, string) {
 	var out *ir.PropPath
 	for i := range op.Responses {
-		r := &op.Responses[i]
-		if r.Payload == nil {
+		body := pageBody(op.Responses[i].Payload)
+		if body == nil {
 			continue
 		}
-		segments, failed := bodyPath(pg.lk, r.Payload, tokens, "response")
+		segments, failed := bodyPath(pg.lk, body, tokens, "response")
 		switch {
 		case failed != nil:
 			return nil, failed.reason
@@ -246,4 +247,35 @@ func (pg *pager) headerOutput(op *ir.Operation, name string) (*ir.PropPath, stri
 		}
 	}
 	return out, ""
+}
+
+// pageBody is what of a response's body can be a page: its contents that do
+// not stream, a stream being a sequence of frames and no one document a pager
+// reads (docs/ir/payloads.md#a-content-that-streams). It is nil where body is
+// or every content streams, such a response holding no page, as one declaring
+// no body holds none.
+func pageBody(body *ir.Payload) *ir.Payload {
+	if body == nil {
+		return nil
+	}
+	streaming := 0
+	for i := range body.Contents {
+		if body.Contents[i].Stream != nil {
+			streaming++
+		}
+	}
+	switch streaming {
+	case 0:
+		return body
+	case len(body.Contents):
+		return nil
+	}
+	page := *body
+	page.Contents = make([]ir.Content, 0, len(body.Contents)-streaming)
+	for i := range body.Contents {
+		if body.Contents[i].Stream == nil {
+			page.Contents = append(page.Contents, body.Contents[i])
+		}
+	}
+	return &page
 }

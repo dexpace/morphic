@@ -27,6 +27,7 @@ const (
 	kBod = bind.KindRequestBody
 	kRes = bind.KindResponse
 	kMT  = bind.KindMediaType
+	kEnc = bind.KindEncoding
 )
 
 // TestKinds_ReadsEachPositionByTheGrammar pins the kind the source's own
@@ -47,6 +48,10 @@ func TestKinds_ReadsEachPositionByTheGrammar(t *testing.T) {
 			[]bind.Kind{kOth, kOth, kOth, kOp, kBod, kOth, kMT, kSch}},
 		{"/paths/~1a/get/parameters/0/schema", []bind.Kind{kOth, kOth, kOth, kOp, kOth, kPar, kSch}},
 		{"/paths/~1a/get/responses/200/headers/X/schema", []bind.Kind{kOth, kOth, kOth, kOp, kOth, kRes, kOth, kHdr, kSch}},
+		{"/paths/~1a/post/requestBody/content/multipart~1form-data/encoding/f/headers/X/schema",
+			[]bind.Kind{kOth, kOth, kOth, kOp, kBod, kOth, kMT, kOth, kEnc, kOth, kHdr, kSch}},
+		{"/paths/~1a/post/requestBody/content/multipart~1mixed/itemEncoding/encoding/g",
+			[]bind.Kind{kOth, kOth, kOth, kOp, kBod, kOth, kMT, kEnc, kRaw, kRaw}},
 		{"/info/title", []bind.Kind{kOth, kOth, kRaw}},
 		{"/x-ext/a", []bind.Kind{kOth, kRaw, kRaw}},
 	}

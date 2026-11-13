@@ -84,23 +84,24 @@ func (pg *pager) markedInput(op *ir.Operation, target lowering.ExtensionTarget, 
 	return r, "", m.diags
 }
 
-// markedOutput resolves where src marks a value of a page: a member of the body
-// of the success responses, or one of their headers, which must all mark the
-// same one. A member is held by every response declaring a body, and a header
-// by every response, as an expression's value is.
+// markedOutput resolves where src marks a value of a page: a member of the page
+// body of the success responses (pageBody), or one of their headers, which
+// must all mark the same one. A member is held by every response declaring a
+// page body, and a header by every response, as an expression's value is.
 func (pg *pager) markedOutput(op *ir.Operation, target lowering.ExtensionTarget, src lowering.ExtensionSource) (resolved[*ir.PropPath], string, []ir.Diagnostic) {
 	m := &marker{pg: pg, target: target, src: src}
 	r := resolved[*ir.PropPath]{at: op.Provenance}
 	var lacking, bodiedLacking bool // a response marks nothing, one declaring a body among them
 	for i := range op.Responses {
-		found, failure := m.inResponse(&op.Responses[i])
+		body := pageBody(op.Responses[i].Payload)
+		found, failure := m.inResponse(body, op.Responses[i].Headers)
 		switch {
 		case failure != "":
 			r.stated = true
 			return r, failure, m.diags
 		case found == nil:
 			lacking = true
-			bodiedLacking = bodiedLacking || op.Responses[i].Payload != nil
+			bodiedLacking = bodiedLacking || body != nil
 		case r.value == nil:
 			r.value, r.read, r.stated = found.path(), []*ir.Provenance{found.keeper}, true
 		case !sameOutput(r.value, found.path()):
@@ -116,15 +117,16 @@ func (pg *pager) markedOutput(op *ir.Operation, target lowering.ExtensionTarget,
 	return r, "", m.diags
 }
 
-// inResponse returns where m's source marks a value of r: a member of its body
-// or one of its headers, and why it marks none where it marks more than one.
-func (m *marker) inResponse(r *ir.Response) (*position, string) {
-	found, failure := m.within(r.Payload)
+// inResponse returns where m's source marks a value of a response whose page
+// body is body and whose headers are headers: a member of the one or one of
+// the other, and why it marks none where it marks more than one.
+func (m *marker) inResponse(body *ir.Payload, headers []ir.Header) (*position, string) {
+	found, failure := m.within(body)
 	if failure != "" {
 		return nil, failure
 	}
-	for i := range r.Headers {
-		h := &r.Headers[i].Property
+	for i := range headers {
+		h := &headers[i].Property
 		keeper, ok := m.marksUse(h.Unmodeled, &h.Provenance, h.Type.Target)
 		switch {
 		case !ok:
