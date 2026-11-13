@@ -192,6 +192,14 @@ components:
     Owner:
       type: object
       properties: {since: {type: string}}
+    Kennel:
+      type: object
+      properties: {kind: {type: string}}
+      discriminator:
+        propertyName: kind
+        mapping:
+          routed: '#/components/schemas/Positions/properties/routed'
+          routedBranch: '#/components/schemas/Positions/properties/routedBranch'
     Positions:
       type: object
       x-parameter: {name: foo, in: query, schema: {type: object, properties: {ck: {type: string}}}}
@@ -251,6 +259,17 @@ components:
           oneOf:
             - {$ref: '#/components/schemas/Pet'}
             - {$ref: '#/components/schemas/Owner'}
+        routed:
+          allOf: [{$ref: '#/components/schemas/Kennel'}]
+          oneOf:
+            - {$ref: '#/components/schemas/Pet'}
+            - {$ref: '#/components/schemas/Owner'}
+        routedBranch:
+          allOf:
+            - {$ref: '#/components/schemas/Kennel'}
+            - oneOf:
+                - {$ref: '#/components/schemas/Pet'}
+                - {$ref: '#/components/schemas/Owner'}
         multiTyped: {type: [string, integer]}
         multiTypedObject: {type: [object, string], properties: {w: {type: string}}}
         mixedEnum: {enum: [a, 1, true]}

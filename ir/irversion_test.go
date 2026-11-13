@@ -120,6 +120,9 @@ var generations = []generation{
 	{version: "0.47.0", format: 1, shape: "579d8cf68b18eb8fb9e58bc0baf0f89dd640a8f916a95f473a407d0513b2f81f",
 		names:   "5506159ecd463736fdbbad0c4cabfad3fd50b48509b46fbea55862e82eca9675",
 		meaning: "a union's Discriminator.Mapping holding an entry holds every route of the union, the routes its source implies written in; a policy reads a union's mapping, an undeclared discriminator and a subtype's tag off the sets of strings the variants and the subtype admit, read through unions of values and the unions they compose"},
+	{version: "0.48.0", format: 1, shape: "579d8cf68b18eb8fb9e58bc0baf0f89dd640a8f916a95f473a407d0513b2f81f",
+		names:   "d51e3870005daf41dd75e9824de8727071054271d9658aa46a64ae80bf542f0c",
+		meaning: "a union beside an allOf of the OpenAPI compiler is one of its conjuncts; a union on an allOf branch lowers with the discriminator on the branch or beside the allOf, and at a position no route names; a routed subtype names its union as a Mixin minted for it, no longer kept under openapi:oneOf, openapi:anyOf or openapi:allOf/<n>; Base is elected through a discriminator hierarchy"},
 }
 
 // shapeGolden holds the description the newest row's shape hashes, so a change

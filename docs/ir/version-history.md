@@ -485,3 +485,16 @@ it sees. Changes made together in one bump are listed together under it.
   type's name finds the route in the `Mapping`, reads unions it read as untagged, or as routed by
   component names, as routed by the strings their variants pin, and finds no `DiscriminatorValue` on
   a subtype whose composed union rules its name out.
+- **0.48.0** — no shape change. In the OpenAPI compiler, a `oneOf` or `anyOf` beside an `allOf` is
+  one of its conjuncts ([`allof-refinement`](../compilers/openapi.md#allof-refinement)), so an
+  `allOf` no conjunct makes an object refines with a union beside it, where it composed a `Model` or
+  a union of `Model`s. A union on an `allOf` branch lowers with the discriminator written on the
+  branch or beside the `allOf`, and below a discriminated base at a position no route names, where it
+  was kept whole under `openapi:allOf/<n>`. A subtype a discriminator routes to composes a union
+  written beside or on its `allOf` as a `Mixin` naming a `Union` minted for it, whose hint the
+  compiler composes ([models](./models.md#composition-beside-a-union)), where the union was kept
+  under `openapi:oneOf`, `openapi:anyOf` or `openapi:allOf/<n>`. A `$ref` entry to a schema composing
+  a discriminated one at any depth is the `Base`
+  ([`allof-classification`](../compilers/openapi.md#allof-classification)). A consumer pinned to
+  0.47.0 finds those keys gone at those positions, a refined node, a `Union` or a `Mixin` where it
+  read a `Model` keeping them, and a `Base` where it read a `Mixin`.

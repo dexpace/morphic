@@ -1055,6 +1055,8 @@ doc.Types[t/anon/components/schemas/Positions/properties/patterned].Name pattern
 doc.Types[t/anon/components/schemas/Positions/properties/refBesideAllOf/oneOf/0].Name pet
 doc.Types[t/anon/components/schemas/Positions/properties/refBesideAllOf].Name ref_beside_all_of
 doc.Types[t/anon/components/schemas/Positions/properties/refBesideAllOf].Variants[0].Name pet
+doc.Types[t/anon/components/schemas/Positions/properties/routedBranch].Name routed_branch
+doc.Types[t/anon/components/schemas/Positions/properties/routed].Name routed
 doc.Types[t/anon/components/schemas/Positions/properties/tuple/prefixItems/0].Name tuple_0
 doc.Types[t/anon/components/schemas/Positions/properties/tuple].Name tuple
 doc.Types[t/anon/components/schemas/Positions/properties/unionOfUnions/oneOf/0/oneOf/0].Name variant_0
@@ -1107,4 +1109,10 @@ doc.Types[t/anon/x-library/Shared].Name shared
 doc.Types[t/anon/x-library/items].Name x_library_item
 doc.Types[t/composed/components/schemas/Positions/properties/distributed/oneOf/0].Name distributed_pet
 doc.Types[t/composed/components/schemas/Positions/properties/distributed/oneOf/1].Name distributed_owner
+doc.Types[t/composed/components/schemas/Positions/properties/routed/oneOf].Name routed_one_of
+doc.Types[t/composed/components/schemas/Positions/properties/routed/oneOf].Variants[0].Name pet
+doc.Types[t/composed/components/schemas/Positions/properties/routed/oneOf].Variants[1].Name owner
+doc.Types[t/composed/components/schemas/Positions/properties/routedBranch/allOf/1/oneOf].Name routed_branch_one_of
+doc.Types[t/composed/components/schemas/Positions/properties/routedBranch/allOf/1/oneOf].Variants[0].Name pet
+doc.Types[t/composed/components/schemas/Positions/properties/routedBranch/allOf/1/oneOf].Variants[1].Name owner
 doc.Types[t/openapi/components/schemas/***].Properties[0].Name empty
