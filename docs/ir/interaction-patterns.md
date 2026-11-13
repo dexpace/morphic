@@ -60,8 +60,9 @@ another. The conditions are a closed set, each listed once and any one ending th
 
 An empty `Stop` states no rule, and a consumer reads none into the shape: where a pager then ends is
 the emitter's ([pagination](../emitters/operations/pagination.md#where-a-page-walk-ends)). A
-`Pagination` marked `Inferred` holds what a compiler's policy read off the names a source uses,
-`Stop` among them, where the source states no walk at all, as an OpenAPI document cannot
+`Pagination` marked `Inferred` holds a heuristic's reading, `Stop` among it: a promotion's of an
+extension ([promotion](./unmodeled.md#promotion)), or a compiler policy's of the names a source uses
+where it states no walk, as an OpenAPI document cannot
 ([`pagination-policy`](../compilers/openapi.md#pagination-policy)).
 
 ## Long-running operations
