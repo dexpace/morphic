@@ -1583,23 +1583,27 @@ func TestRefinement_FlattensAsItsFlatSpelling(t *testing.T) {
 	assert.Equal(t, "mine", typed.Docs.Description)
 }
 
-// TestRefinement_ANullOnlyBranchIsTheNull pins `type: "null"`: the top type a
-// null lowers to, nullable, not the empty object.
+// TestRefinement_ANullOnlyBranchIsTheNull pins `type: "null"` refining a
+// nullable string, in either order: the Enum with no member a schema of null
+// alone lowers to (docs/compilers/openapi.md#null-alone), nullable, not the
+// empty object nor the string.
 func TestRefinement_ANullOnlyBranchIsTheNull(t *testing.T) {
 	t.Parallel()
 	doc, diags := parseFull(t, openapitest.ComponentSpecVer("3.1.0", `    Holder:
       type: object
       properties:
         f: {allOf: [{type: 'null'}, {type: [string, 'null']}]}
+        g: {allOf: [{type: [string, 'null']}, {type: 'null'}]}
 `))
 	assert.Empty(t, diags)
-	p := propertyOf(t, doc, "Holder", "f")
-	assert.True(t, p.Type.Nullable)
-	_, ok := doc.Types[p.Type.Target].(*ir.Any)
-	if !ok {
-		_, ok = doc.Types[p.Type.Target].(*ir.Primitive)
+	for _, wire := range []string{"f", "g"} {
+		p := propertyOf(t, doc, "Holder", wire)
+		assert.True(t, p.Type.Nullable, wire)
+		e, ok := doc.Types[p.Type.Target].(*ir.Enum)
+		require.True(t, ok, "%s: got %T", wire, doc.Types[p.Type.Target])
+		assert.Empty(t, e.Members, wire)
+		assert.True(t, e.Closed, wire)
 	}
-	assert.True(t, ok, "got %T", doc.Types[p.Type.Target])
 }
 
 // TestRefinement_MissingItemsIsAskedOfTheBranchThatLowers pins
