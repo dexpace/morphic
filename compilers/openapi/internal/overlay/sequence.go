@@ -63,6 +63,13 @@ func runSequence(ctx context.Context, p plan, root *yaml.Node, lax bool, maxNode
 	if s.budgeted() {
 		s.measure(ctx)
 	}
+	found, read := readAliasing(ctx, root)
+	if found.any() {
+		s.diags = append(s.diags, aliasesNotRead(p.at))
+	}
+	if s.grafts.named = found.named; !read || len(found.named) > 0 && !s.grafts.indexParents(ctx) {
+		return nil, nil, false
+	}
 	for _, a := range p.actions {
 		targets, sources := s.selected(a)
 		if over, ok := s.charge(ctx, a, targets, sources); !ok {
@@ -76,8 +83,12 @@ func runSequence(ctx context.Context, p plan, root *yaml.Node, lax bool, maxNode
 		if (a.kind == kindRemove && !s.grafts.indexParents(ctx)) || ctx.Err() != nil {
 			return nil, nil, false
 		}
+		s.grafts.reached, s.grafts.mergeKey = nil, false
 		if err := s.step(a, targets, sources); err != nil {
 			return nil, append(s.diags, fail(a, err)), false
+		}
+		if !s.reportAliasing(ctx, a) {
+			return nil, nil, false
 		}
 	}
 	if s.missed {
@@ -180,6 +191,25 @@ func (s *sequence) miss(a action, reason string) {
 	s.missed = true
 	s.diags = append(s.diags, diag.Newf(ir.SeverityError, diag.OverlayFailed, a.overlay,
 		"%s changes nothing: %s, which strict application refuses as a likely typo", a.label(), reason))
+}
+
+// reportAliasing warns of what a's write made of the tree's aliases: that it
+// changed what a node an alias names holds, and that it wrote a merge key.
+// After a remove, which can take aliases with it, it counts the aliases left,
+// and reports whether ctx let it.
+func (s *sequence) reportAliasing(ctx context.Context, a action) bool {
+	if g := s.grafts; g.reached != nil {
+		s.diags = append(s.diags, writeReachesAliases(a, g.reached, g.named[g.reached]))
+	}
+	if s.grafts.mergeKey {
+		s.diags = append(s.diags, mergeKeyWritten(a))
+	}
+	if a.kind != kindRemove || len(s.grafts.named) == 0 {
+		return true
+	}
+	found, read := readAliasing(ctx, s.root)
+	s.grafts.named = found.named
+	return read
 }
 
 // fail builds the error ending a sequence on an action that cannot apply as

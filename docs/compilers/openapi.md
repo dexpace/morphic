@@ -279,6 +279,16 @@ strict such an action refuses the overlay as a likely typo, an `openapi/overlay-
 each, once every action has applied; under lax it is an `openapi/overlay-action` warning, and the
 rest of the overlay applies.
 
+The actions read the source's tree as written, not the JSON value the specification applies an
+overlay to: a selector does not read through a YAML alias or a `<<` merge key, and a write inside a
+node an alias names reaches every alias of it. So a source writing an alias or a merge key draws one
+`openapi/overlay-action` warning saying selectors do not read through them, and each action
+changing what a node an alias names holds, by a write into it or below it or a remove from it, draws
+one naming the anchor's line and column and how many aliases name it. A remove of the anchored node
+itself draws none, as each alias keeps the value it stood for. An update writing a `<<` merge key
+into an object the tree holds is warned of too: it merges as written, so the members it names
+replace none the object holds.
+
 Each action is charged the nodes it can build before it runs: one whose charge would carry the tree,
 counted afresh, past `MaxSourceNodes` is refused as an `openapi/budget-exceeded` error with nothing
 it would build built, so it is refused while the tree is past the budget whatever a later action
@@ -316,6 +326,8 @@ no overlay, reported as an `openapi/overlay-origin-incomplete` warning.
   `overlay.TestRepairAliases_KeepsTheWriterOfWhatItCopies`,
   `overlay.TestApplyWithin_RefusesARepairPastItsBound`,
   `overlay.TestApplyWithin_RefusesARepairPastTheNodeBudget`,
+  `overlay.TestApply_WarnsOfWhatTheSourcesAliasesMakeOfAnAction`,
+  `overlay.TestApply_CountsTheAliasesARemoveLeaves`, `overlay.TestApply_WarnsOfAMergeKeyAnUpdateWrites`,
   `load.TestLoad_ATaggedMappingLeftBehindARemovedAnchorIsRefused`,
   `load.TestLoad_ReadsANamedOverlayThroughTheReader`,
   `load.TestLoad_ANamedOverlayThatCannotBeReadIsAGoError`,
@@ -330,12 +342,11 @@ no overlay, reported as an `openapi/overlay-origin-incomplete` warning.
   `load.TestLoad_TheNodeBudgetReadsTheTreeTheOverlayLeaves`,
   `load.TestLoad_APointerAmplificationAnOverlayGraftedNamesTheOverlay`
 - Status: partly built: an overlay selects and writes the source's YAML aliases and `<<` merge keys
-  as the nodes they are, not as the values they stand for, so a selector does not reach through one
-  and a write into an anchored node reaches every alias of it (#1834). A filter comparing a plain
-  date, an integer written in another base or an object compares otherwise than RFC 9535, and the
-  selectors refused as the JSONPath implementation's are applied nowhere (#1835). An Overlay 1.2
-  document is refused (#1836). Rating `openapi/overlay-replaced-value` apart from other codes, to
-  fail a run on it alone, is #1812.
+  as the nodes they are, not as the values they stand for, which is warned of and not mended
+  (#1834). A filter comparing a plain date, an integer written in another base or an object compares
+  otherwise than RFC 9535, and the selectors refused as the JSONPath implementation's are applied
+  nowhere (#1835). An Overlay 1.2 document is refused (#1836). Rating
+  `openapi/overlay-replaced-value` apart from other codes, to fail a run on it alone, is #1812.
 
 ### `validation`
 

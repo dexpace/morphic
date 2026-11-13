@@ -123,11 +123,13 @@ const (
 	// JSONPath implementation refuses or misreads (overlay.readSelector). Nothing
 	// is applied, so the compile refuses.
 	OverlayUnsupported = "openapi/overlay-unsupported"
-	// OverlayAction reports a warning about a single action, naming the action and
-	// its target: that it changed nothing, because what it writes is there
-	// already, because it selects nothing under lax application, or because it
-	// sets no modifier, or that it sets a field with no effect beside another, as
-	// overlay.runSequence and overlay.read find.
+	// OverlayAction reports a warning about the overlay or a single action,
+	// naming the action and its target: that it changed nothing, because what it
+	// writes is there already, because it selects nothing under lax application,
+	// or because it sets no modifier; that it sets a field with no effect beside
+	// another; that it writes a merge key, or inside a node YAML aliases name;
+	// or that the source holds aliases or merge keys a selector does not read
+	// through, as overlay.runSequence and overlay.read find.
 	OverlayAction = "openapi/overlay-action"
 	// OverlayReplacedValue reports an action that replaced a primitive the source
 	// declares, as against adding one the source lacks, naming both values: an

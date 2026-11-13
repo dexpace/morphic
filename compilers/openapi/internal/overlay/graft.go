@@ -37,6 +37,14 @@ type grafter struct {
 	// removed reports that a remove detached a node, which may leave an alias
 	// naming it (repairAliases): nothing else the grafter does detaches one.
 	removed bool
+	// named holds each node an alias in the tree names, with how many do, and
+	// reached the first of them the action being written changed what it
+	// holds, nil before. With an alias in the tree, parents is indexed first.
+	named   map[*yaml.Node]int
+	reached *yaml.Node
+	// mergeKey reports that the action being written wrote a `<<` merge key
+	// into an object the tree holds.
+	mergeKey bool
 }
 
 // replacement is a primitive the source declares that an action replaced:
@@ -196,6 +204,7 @@ func (g *grafter) mergeObject(target, update *yaml.Node, depth int) (bool, error
 		key, value := update.Content[i], nodeview.Deref(update.Content[i+1])
 		name, own := nodeview.KeyOf(key)
 		current, found := held[name]
+		g.mergeKey = g.mergeKey || !own
 		if !own || !found {
 			added, err := g.attach(target, key, value, depth)
 			if err != nil {
@@ -251,6 +260,7 @@ func (g *grafter) replace(target, value *yaml.Node) bool {
 	if !g.written[target] {
 		g.replaced = append(g.replaced, replacement{was: target.Value, line: target.Line, column: target.Column, with: value})
 	}
+	g.change(target)
 	target.Tag, target.Value, target.Style = tag, value.Value, value.Style
 	g.written[target] = true
 	return true
@@ -273,6 +283,7 @@ func (g *grafter) appendTo(target, value *yaml.Node, depth int) (bool, error) {
 	if err != nil {
 		return false, err
 	}
+	g.change(target)
 	target.Content = append(target.Content, item)
 	g.adopt(target, item)
 	return true, nil
@@ -289,10 +300,27 @@ func (g *grafter) attach(target, key, value *yaml.Node, depth int) (*yaml.Node, 
 	if err != nil {
 		return nil, err
 	}
+	g.change(target)
 	target.Content = append(target.Content, k, v)
 	g.adopt(target, k)
 	g.adopt(target, v)
 	return v, nil
+}
+
+// change records that the action being written changes what n holds, which
+// reaches every alias of n and of each node holding it: the first such node
+// an alias names, the nearest to n, becomes reached. It reads the parents
+// index, built first wherever an alias names a node.
+func (g *grafter) change(n *yaml.Node) {
+	if g.reached != nil || len(g.named) == 0 {
+		return
+	}
+	for at := n; at != nil; at = g.parents[at] {
+		if g.named[at] > 0 {
+			g.reached = at
+			return
+		}
+	}
 }
 
 // clone returns a copy of n for the tree, depth levels below the selected
@@ -371,6 +399,7 @@ func (g *grafter) remove(targets []*yaml.Node) error {
 		doomed[t] = true
 	}
 	for _, holder := range holders {
+		g.change(holder)
 		if detach(holder, doomed) != len(held[holder]) {
 			return fmt.Errorf("it selects a node at %s that what holds it holds as no member or element", where(held[holder][0]))
 		}

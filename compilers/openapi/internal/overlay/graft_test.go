@@ -301,8 +301,8 @@ func TestGrafter_RefusesToWriteThroughAnAlias(t *testing.T) {
 	} {
 		_, root, diags := applied(t, src, v11+action, false)
 
-		sameCodes(t, []string{"error " + diag.OverlayFailed}, diags)
-		assert.Contains(t, diags[0].Message, "YAML alias", name)
+		sameCodes(t, []string{"warning " + diag.OverlayAction, "error " + diag.OverlayFailed}, diags)
+		assert.Contains(t, diags[1].Message, "YAML alias", name)
 		_, k := member(t, root, "x-a", "k")
 		assert.Equal(t, "v", k.Value, "%s: the anchor is as the source wrote it", name)
 	}
@@ -332,7 +332,8 @@ func TestGrafter_LeavesTheSourcesOwnAliasesAlone(t *testing.T) {
 	t.Parallel()
 	_, root, diags := applied(t, "x-t: &s {description: d}\nx-use: *s\ninfo: {title: T}\n",
 		v10+"  - target: $.info\n    update: {description: d}\n", false)
-	require.Empty(t, diags)
+	sameCodes(t, []string{"warning " + diag.OverlayAction}, diags)
+	assert.Contains(t, diags[0].Message, "do not read through", "the source's aliases are warned of, once")
 
 	_, use := member(t, root, "x-use")
 	assert.Equal(t, yaml.AliasNode, use.Kind, "the alias is still an alias, not the subtree it names expanded in place")
@@ -364,7 +365,7 @@ func TestRepairAliases_CopiesWhatARemoveLeftAnAliasNaming(t *testing.T) {
 	const src = "x-t: &s {description: d}\nx-use: *s\nx-merged: {<<: *s, k: 1}\nx-outer: &o {inner: *s}\nx-twice: *o\n" +
 		"x-gone: {a: &g {z: 1}, b: *g}\n"
 	_, root, diags := applied(t, src, v11+"  - target: $['x-t']\n    remove: true\n  - target: $['x-gone']\n    remove: true\n", false)
-	require.Empty(t, diags)
+	sameCodes(t, []string{"warning " + diag.OverlayAction}, diags)
 
 	sameValue(t, "{x-use: {description: d}, x-merged: {<<: {description: d}, k: 1}, x-outer: {inner: {description: d}}, "+
 		"x-twice: {inner: {description: d}}}", root)
@@ -386,7 +387,7 @@ func TestRepairAliases_KeepsTheWriterOfWhatItCopies(t *testing.T) {
 	t.Parallel()
 	origin, _, diags := applied(t, "x-r: &r {k: v}\nx-meta: *r\n",
 		v11+"  - target: $['x-r']\n    update: {k2: w}\n  - target: $['x-r']\n    remove: true\n", false)
-	require.Empty(t, diags)
+	sameCodes(t, []string{"warning " + diag.OverlayAction, "warning " + diag.OverlayAction}, diags)
 
 	assert.Equal(t, overlayIndex, origin.Attribution().WriterAt("/x-meta/k2"), "the overlay wrote k2")
 	assert.Equal(t, 0, origin.Attribution().WriterAt("/x-meta/k"), "the source declares k")

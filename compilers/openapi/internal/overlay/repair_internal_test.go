@@ -83,9 +83,9 @@ func TestApplyWithin_RefusesARepairPastTheNodeBudget(t *testing.T) {
 	origin, diags := applyWithin(t.Context(), 1, &root, Options{Data: []byte(ov), MaxNodes: budget.AtMost(8)}, budget.AtMost(maxNodes))
 
 	assert.False(t, origin.Applied())
-	require.Len(t, diags, 1)
-	assert.Equal(t, diag.BudgetExceeded, diags[0].Code)
-	assert.Contains(t, diags[0].Message, "past the 8-node budget")
+	require.Len(t, diags, 2, "the source's alias is warned of first: %+v", diags)
+	assert.Equal(t, diag.BudgetExceeded, diags[1].Code)
+	assert.Contains(t, diags[1].Message, "past the 8-node budget")
 
 	require.NoError(t, yaml.Unmarshal([]byte("x-t: &s {a: 1, b: 2, c: 3}\nx-use: *s\n"), &root))
 	origin, diags = applyWithin(t.Context(), 1, &root, Options{Data: []byte(ov), MaxNodes: budget.AtMost(9)}, budget.AtMost(maxNodes))
@@ -145,9 +145,9 @@ func TestApplyWithin_RefusesARepairPastItsBound(t *testing.T) {
 	origin, diags := applyWithin(t.Context(), 1, &root, Options{Data: []byte(ov)}, budget.AtMost(6))
 
 	assert.False(t, origin.Applied())
-	require.Len(t, diags, 1)
-	assert.Equal(t, diag.OverlayFailed, diags[0].Code)
-	assert.Contains(t, diags[0].Message, "aliases a remove left")
+	require.Len(t, diags, 2, "the source's alias is warned of first: %+v", diags)
+	assert.Equal(t, diag.OverlayFailed, diags[1].Code)
+	assert.Contains(t, diags[1].Message, "aliases a remove left")
 }
 
 // TestReachableNodes_TakesShapesAParseNeverProduces pins the walk's guards for

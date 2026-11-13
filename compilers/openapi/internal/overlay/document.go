@@ -68,6 +68,9 @@ func (k kind) String() string {
 // plan is an overlay document read for applying: the rules of the version it
 // declares, and its actions in order, each selector read.
 type plan struct {
+	// at is the overlay's place in Document.Sources, which a finding about it
+	// as a whole names.
+	at ir.Provenance
 	// declared is the version the document writes, as written.
 	declared string
 	version  version
@@ -118,7 +121,7 @@ func read(at ir.Provenance, data []byte) (plan, []ir.Diagnostic) {
 	if diag.HasError(diags) {
 		return plan{}, diags
 	}
-	p := plan{declared: doc.Version, version: v, actions: make([]action, 0, len(doc.Actions))}
+	p := plan{at: at, declared: doc.Version, version: v, actions: make([]action, 0, len(doc.Actions))}
 	doc.JSONPathVersion = soaoverlay.JSONPathRFC9535
 	for i, written := range doc.Actions {
 		a, found := readAction(at, doc, v, i, written)
