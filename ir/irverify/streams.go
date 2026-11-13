@@ -83,9 +83,10 @@ func appendUnsummarizedStreams(vs []Violation, op *ir.Operation, at ir.WalkPath)
 	return vs
 }
 
-// appendUnsummarized reports each of contents, the payload at op's path and
-// then payload, that streams, on a side of op that has no StreamDetail.
-func appendUnsummarized(vs []Violation, contents []ir.Content, op ir.WalkPath, payload, side string) []Violation {
+// appendUnsummarized reports each of contents, the payload at owner's path and
+// then payload, that streams, on a side of the operation at owner that has no
+// StreamDetail.
+func appendUnsummarized(vs []Violation, contents []ir.Content, owner ir.WalkPath, payload, side string) []Violation {
 	for i := range contents {
 		if contents[i].Stream == nil {
 			continue
@@ -93,7 +94,7 @@ func appendUnsummarized(vs []Violation, contents []ir.Content, op ir.WalkPath, p
 		vs = append(vs, Violation{
 			Code:    "ir/content-stream-without-detail",
 			Message: "a " + side + " content streams, and the operation carries no " + side + " stream",
-			Path:    op.String() + payload + ".Contents[" + strconv.Itoa(i) + "].Stream",
+			Path:    owner.String() + payload + ".Contents[" + strconv.Itoa(i) + "].Stream",
 		})
 	}
 	return vs
