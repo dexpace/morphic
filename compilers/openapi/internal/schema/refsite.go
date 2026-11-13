@@ -172,19 +172,42 @@ func resolveAt(c lowering.Ctx, ts *compile.Types, at bind.Position, decl *oas3.J
 // A $ref and a discriminator mapping target meet here once each has its
 // pointer, so they cannot drift apart.
 func resolvePointer(c lowering.Ctx, ts *compile.Types, pointer jsontext.Pointer, decl *oas3.JSONSchema[oas3.Referenceable]) (ir.TypeID, bool) {
-	// The source's components alone are lowered whole and named by name;
-	// another document's are hoisted where a reference reaches them, as any
-	// other position of it is.
+	id, promised, ok := pointerTarget(c, pointer, decl)
+	if promised {
+		ts.Promise(c.IDs().Coordinate(pointer), func() []ir.Diagnostic { return hoistSubSchema(c, ts, decl, pointer) })
+	}
+	return id, ok
+}
+
+// pointerTarget is resolvePointer's verdict, which promises nothing: the ID a
+// reference to pointer in c's document resolves to, whether that is a node
+// promised from decl rather than a source component's, and false where it
+// resolves to nothing. The source's components alone are lowered whole and
+// named by name; any other position, another document's components among
+// them, is hoisted where a reference reaches it.
+func pointerTarget(c lowering.Ctx, pointer jsontext.Pointer, decl *oas3.JSONSchema[oas3.Referenceable]) (
+	id ir.TypeID, promised, ok bool,
+) {
 	if c.IDs() == (ids.Document{}) {
 		if id, state := c.RefScope().ComponentRef(pointer); state.ByName() {
-			return id, state == ids.NamedComponent
+			return id, false, state == ids.NamedComponent
 		}
 	}
 	if !resolve.Hoistable(decl) {
-		return "", false
+		return "", false, false
 	}
-	ts.Promise(c.IDs().Coordinate(pointer), func() []ir.Diagnostic { return hoistSubSchema(c, ts, decl, pointer) })
-	return c.IDs().ForPointer(pointer), true
+	return c.IDs().ForPointer(pointer), true, true
+}
+
+// resolvesAt reports whether a reference to at, a position of the bindings'
+// table, resolves, as resolveAt resolves one, without promising its node.
+func resolvesAt(c lowering.Ctx, at bind.Position) bool {
+	there, read := lowering.InDocument(c, at.Doc)
+	if !read {
+		return false
+	}
+	_, _, ok := pointerTarget(there, at.Pointer, c.Bindings().At(at))
+	return ok
 }
 
 // hoistSubSchema builds the node at pointer from decl, the schema written there,

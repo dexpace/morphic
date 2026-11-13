@@ -1020,9 +1020,11 @@ func assertSchemaIdentifiers(t *testing.T, doc *ir.Document, diags []ir.Diagnost
 }
 
 // assertDynamicRef pins both halves of $dynamicRef lowering (GitHub #125). A name
-// declared exactly once on a component schema has one possible target whatever
-// path evaluation took, so it expands; anything else is irreducible and the
-// reference is kept verbatim beside whatever did lower.
+// declared exactly once in the reference's resource has one possible target
+// whatever path evaluation took, so it expands, under $defs or under an $id as
+// on a component, and so does 2019-09's $recursiveRef to its resource's root;
+// anything else is irreducible and the reference is kept verbatim beside
+// whatever did lower.
 //
 // The escaped spelling is here because the fragment is URI text: RFC 3986 §2.3
 // makes '%2D' and '-' one character, so it must reach the same anchor the plain
@@ -1054,6 +1056,26 @@ func assertDynamicRef(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
 	assert.JSONEq(t, `"#Missing"`, string(entry.Value))
 	assert.Equal(t, []ir.Severity{ir.SeverityInfo}, diagsAt(diags, "openapi/degraded-construct",
 		"/components/schemas/Tree/properties/ghost/$dynamicRef"))
+
+	deep, ok := propByWire(tree, "deep")
+	require.True(t, ok)
+	assert.Equal(t, ir.TypeID("t/anon/components/schemas/Holder/$defs/Deep"), deep.Type.Target,
+		"an anchor below a component expands to the type a $ref there names")
+
+	linked, ok := doc.Types[componentID("Linked")].(*ir.Model)
+	require.True(t, ok)
+	next, ok := propByWire(linked, "next")
+	require.True(t, ok)
+	assert.Equal(t, componentID("Linked"), next.Type.Target, "one resource holds both ends")
+
+	children, ok := doc.Types[ir.TypeID("t/anon/components/schemas/Recursive/properties/children")].(*ir.List)
+	require.True(t, ok)
+	elem, ok := doc.Types[children.Elem.Target].(*ir.Scalar)
+	require.True(t, ok)
+	require.NotNil(t, elem.Base)
+	assert.Equal(t, componentID("Recursive"), elem.Base.Target, "a $recursiveRef names its resource's root")
+	assert.Equal(t, []ir.Severity{ir.SeverityInfo}, diagsAt(diags, "openapi/dynamic-ref-expanded",
+		"/components/schemas/Recursive/properties/children/items/$recursiveRef"))
 
 	assertDynamicRefAcrossAnEmptyName(t, doc, diags)
 }

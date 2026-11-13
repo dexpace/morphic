@@ -231,14 +231,15 @@ func versionOf(table *bind.Table, others Others, d *dialects, id bind.DocID) (st
 // draft 4's `id` where the rows define it alone; one naming a fragment alone as
 // an anchor where they define no `$anchor`, by the plain-name grammar where
 // they give the identifier it; that grammar for `$anchor` where they give it;
-// `definitions`, and schemas in `dependencies`, where they define them; an
-// `items` list as a tuple where they take one; no identifier beside a `$ref`
-// where they ignore what is there; and whether dialect names one at all
-// (oas.NamesDialect).
+// `definitions`, `dependencies`'s schemas and `$recursiveAnchor` where they
+// define them; an `items` list as a tuple where they take one; no identifier
+// beside a `$ref` where they ignore what is there; and whether dialect names
+// one at all (oas.NamesDialect).
 func dialectRuleOf(rules oas.SchemaRules, dialect string) bind.DialectRule {
 	rule := bind.DialectRule{Keyword: rules.Identifier(), Definitions: rules.Takes("definitions", oas.Map),
 		Dependencies: rules.Defines("dependencies"), Tuples: rules.Takes("items", oas.List),
-		IgnoresRefFields: rules.IgnoresRefFields(), NamesNone: !oas.NamesDialect(dialect)}
+		Recursive: rules.Defines("$recursiveRef"), IgnoresRefFields: rules.IgnoresRefFields(),
+		NamesNone: !oas.NamesDialect(dialect)}
 	rule.Fragments = rule.Keyword != "" && !rules.Defines("$anchor")
 	rule.PlainFragments = rules.Formatted(rule.Keyword, oas.PlainNameURI)
 	rule.PlainNames = rules.Formatted("$anchor", oas.PlainName)

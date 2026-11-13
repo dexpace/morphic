@@ -470,3 +470,14 @@ it sees. Changes made together in one bump are listed together under it.
   headers](./responses.md#prefix-headers)). `irverify` holds such a header to a map type and no
   wire name, and `irfacts.CorrelationVersion` moved to 3, keying it by its prefix. No compiler
   fills it yet. A consumer pinned to 0.45.0 refuses a document with a prefix header.
+- **0.47.0** — no shape change. The OpenAPI compiler expands a `$dynamicRef` to an anchor at any
+  position of its schema resource, and JSON Schema 2019-09's `$recursiveRef` to the root of the
+  resource it is written in ([`dynamic-ref`](../compilers/openapi.md#dynamic-ref)): such a
+  reference's `TypeRef` names the type at that position where it named a node keeping
+  `openapi:$dynamicRef`, or, for `$recursiveRef`, `openapi:$recursiveRef` under `out_of_scope`; one
+  it cannot expand keeps `openapi:$recursiveRef` under `degraded_lowering`, and
+  `openapi:$recursiveAnchor` is no longer kept in a 2019-09 schema. A body schema writing `$schema`
+  or `$vocabulary` is a file where it was not ([`file-bodies`](../compilers/openapi.md#file-bodies)).
+  A `prefixItems` beside a JSON Schema draft's `items` list is kept under `openapi:prefixItems`,
+  where it was dropped ([`tuples`](../compilers/openapi.md#tuples)). A consumer pinned to 0.46.0
+  reads such a reference as the top type and such a body as a model.

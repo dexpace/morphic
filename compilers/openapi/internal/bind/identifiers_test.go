@@ -536,32 +536,32 @@ func TestDynamicAnchors_SaysWhenTheCountProvesNothing(t *testing.T) {
 	assert.True(t, whole)
 }
 
-// TestInOwnResource_ReadsTheResourceAPositionIsIn pins what stands in for a walk
+// TestResource_NamesTheRootOfAPositionsResource pins what stands in for a walk
 // of every key on the way down: only a schema's $id starts a resource, so a
 // property named $id does not, raw YAML above a position does not, and an $id
 // restating its document's does not, in the source and in a document of schemas
 // alike. The position's own $id counts wherever it is, as one a $ref lands on is
 // read as a schema.
-func TestInOwnResource_ReadsTheResourceAPositionIsIn(t *testing.T) {
+func TestResource_NamesTheRootOfAPositionsResource(t *testing.T) {
 	t.Parallel()
 	table := resourcesTable(t)
 	doc := docNamed(t, table, "o.yaml")
-	for p, want := range map[bind.Position]bool{
-		{Pointer: "/components/schemas/P/properties/q"}:    false,
-		{Pointer: "/components/schemas/I"}:                 true,
-		{Pointer: "/components/schemas/I/properties/q"}:    true,
-		{Pointer: "/components/schemas/Same/properties/q"}: false,
-		{Pointer: "/x-e/k"}:                                false,
-		{Pointer: "/x-e"}:                                  true,
-		{Doc: doc, Pointer: "/S/a/b"}:                      true,
-		{Doc: doc, Pointer: "/T"}:                          false,
+	for p, want := range map[bind.Position]bind.Position{
+		{Pointer: "/components/schemas/P/properties/q"}:    {},
+		{Pointer: "/components/schemas/I"}:                 {Pointer: "/components/schemas/I"},
+		{Pointer: "/components/schemas/I/properties/q"}:    {Pointer: "/components/schemas/I"},
+		{Pointer: "/components/schemas/Same/properties/q"}: {},
+		{Pointer: "/x-e/k"}:                                {},
+		{Pointer: "/x-e"}:                                  {Pointer: "/x-e"},
+		{Doc: doc, Pointer: "/S/a/b"}:                      {Doc: doc, Pointer: "/S"},
+		{Doc: doc, Pointer: "/T"}:                          {Doc: doc},
 	} {
-		own, known := table.InOwnResource(p)
+		root, known := table.Resource(p)
 		assert.True(t, known, p.Pointer)
-		assert.Equal(t, want, own, p.Pointer)
+		assert.Equal(t, want, root, p.Pointer)
 	}
-	own, known := (*bind.Table)(nil).InOwnResource(bind.Position{})
-	assert.False(t, own)
+	root, known := (*bind.Table)(nil).Resource(bind.Position{Doc: doc, Pointer: "/a"})
+	assert.Equal(t, bind.Position{Doc: doc}, root)
 	assert.True(t, known)
 }
 
@@ -625,4 +625,72 @@ func TestDynamicFragment_ReadsAPlainFragment(t *testing.T) {
 		assert.False(t, ok, ref)
 		assert.NotEmpty(t, why, ref)
 	}
+}
+
+// TestRecursiveAnchors_CountsWhatADocumentDeclares pins the index a
+// $recursiveRef's expansion reads: each schema declaring `$recursiveAnchor` as
+// the boolean true where its dialect defines the keyword
+// (DialectRule.Recursive), an alias re-declaring at its own position, and
+// neither false, a string, nor one in a dialect defining no such keyword. A
+// read past the merge bound proves nothing.
+func TestRecursiveAnchors_CountsWhatADocumentDeclares(t *testing.T) {
+	t.Parallel()
+	const d2019 = "'https://json-schema.org/draft/2019-09/schema'"
+	recursive := self
+	recursive.Dialect = func(_, dialect string) bind.DialectRule {
+		return bind.DialectRule{Recursive: dialect == strings.Trim(d2019, "'")}
+	}
+	table := bound(t, head+"components:\n  schemas:\n"+
+		"    T: &t {$schema: "+d2019+", $recursiveAnchor: true}\n    A: *t\n"+
+		"    F: {$schema: "+d2019+", $recursiveAnchor: false}\n"+
+		"    S: {$schema: "+d2019+", $recursiveAnchor: 'true'}\n"+
+		"    N: {$schema: "+d2019+", properties: {p: {$recursiveAnchor: true}}}\n"+
+		"    D7: {$schema: 'http://json-schema.org/draft-07/schema#', $recursiveAnchor: true}\n"+
+		"    Z: {$recursiveAnchor: true}\n", recursive)
+	sites, whole := table.RecursiveAnchors(bind.Source)
+	assert.True(t, whole)
+	var got []jsontext.Pointer
+	for _, p := range sites {
+		got = append(got, p.Pointer)
+	}
+	assert.Equal(t, []jsontext.Pointer{"/components/schemas/A", "/components/schemas/N/properties/p",
+		"/components/schemas/T"}, got)
+
+	past := strings.Replace(anchoredPastTheBound(), "    A: {$dynamicAnchor: t}\n",
+		"    A: {$schema: "+d2019+", $recursiveAnchor: true}\n", 1)
+	sites, whole = bound(t, past, recursive).RecursiveAnchors(bind.Source)
+	assert.Len(t, sites, 1)
+	assert.False(t, whole, "a schema past the bound may declare a second")
+
+	var none *bind.Table
+	sites, whole = none.RecursiveAnchors(bind.Source)
+	assert.Empty(t, sites)
+	assert.True(t, whole)
+}
+
+// TestLandDynamic_LandsWhereTheRefItSpellsWould pins what a dynamic reference
+// lands on, as the $ref it spells would: a draft's `definitions` entry
+// declaring a $dynamicRef's one anchor, which the model holds no schema for,
+// so the table builds one there; nothing for a name declared twice; and no
+// second schema where the model holds one already, as at the component a
+// $recursiveRef's "#" names under its `$id`.
+func TestLandDynamic_LandsWhereTheRefItSpellsWould(t *testing.T) {
+	t.Parallel()
+	const d7, d2019 = "http://json-schema.org/draft-07/schema#", "https://json-schema.org/draft/2019-09/schema"
+	cfg := self
+	cfg.Dialect = func(_, dialect string) bind.DialectRule {
+		return bind.DialectRule{Definitions: dialect == d7, Recursive: dialect == d2019}
+	}
+	landed := func(schemas string) []jsontext.Pointer {
+		var out []jsontext.Pointer
+		for _, l := range bound(t, head+"components:\n  schemas:\n"+schemas, cfg).Landings() {
+			out = append(out, l.At.Pointer)
+		}
+		return out
+	}
+	const outer = "    Outer: {$schema: '" + d7 + "', definitions: {Inner: {$dynamicAnchor: n}}}\n    D: {$dynamicRef: '#n'}\n"
+	assert.Equal(t, []jsontext.Pointer{"/components/schemas/Outer/definitions/Inner"}, landed(outer))
+	assert.Empty(t, landed(outer+"    Twin: {$dynamicAnchor: n}\n"), "a name declared twice names no one schema")
+	assert.Empty(t, landed("    T: {$schema: '"+d2019+"', $id: 'https://example.com/t', properties: {c: {$recursiveRef: '#'}}}\n"),
+		"the model holds the component already")
 }

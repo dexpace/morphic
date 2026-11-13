@@ -116,11 +116,11 @@ func keepPrefixItems(c lowering.Ctx, p *ir.Unmodeled, s *oas3.Schema, pointer js
 		return nil
 	}
 	kept, diags := annotation.PreserveSchemaKeyword(p, s, "prefixItems", ir.ReasonDegradedLowering, pointer, c.Place())
-	if !kept {
-		return diags
+	if kept {
+		diags = append(diags, c.DiagAt(ir.SeverityInfo, diag.DegradedConstruct, pointer+ids.Ptr("prefixItems"),
+			"prefixItems is kept verbatim: this schema's dialect reads its items list as the tuple"))
 	}
-	return append(diags, c.DiagAt(ir.SeverityInfo, diag.DegradedConstruct, pointer+ids.Ptr("prefixItems"),
-		"prefixItems is kept verbatim: this schema's dialect reads its items list as the tuple"))
+	return diags
 }
 
 // writtenAt returns where s, lowered at pointer, is written: where the

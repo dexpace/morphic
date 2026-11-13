@@ -3157,36 +3157,58 @@ info `openapi/validation-only-keyword` at the schema that wrote it.
 
 ### `dynamic-ref`
 
-`$dynamicRef` is resolved per reference site by compiler expansion, to a reference to the anchored
-type, reported as an info `openapi/dynamic-ref-expanded` at the `$dynamicRef`, since what the source
-wrote as dynamic is now a fixed target. What makes that possible is that a document's set of
-`$dynamicAnchor` declarations is fixed before evaluation: a name declared exactly once is the only
-match any dynamic scope containing a match can hold, so it *is* 2020-12 §8.2.3.2's outermost
-matching anchor whatever path evaluation took. That argument assumes the document declares no `$id`,
-which the compiler enforces rather than hopes for: `$id` starts a new schema resource, so an `$id`
-anywhere on the path between a reference and a candidate anchor makes the reference irreducible.
+A dynamic reference is resolved per reference site by compiler expansion, to a reference to the type
+it names, reported as an info `openapi/dynamic-ref-expanded` at the keyword, since what the source
+wrote as dynamic is now a fixed target. A `$dynamicRef` is first resolved against the base of the
+schema resource it is written in, as a `$ref` is (JSON Schema 2020-12 §8.2.3.2), so the anchor it
+names dynamically is one its own resource declares. What makes the expansion possible is that a
+document's set of `$dynamicAnchor` declarations is fixed before evaluation: a name declared exactly
+once, in the reference's own resource, is the only match any dynamic scope containing a match can
+hold, so it *is* the outermost matching anchor whatever path evaluation took. The anchor may stand at
+any position a `$ref` can name: a component, a `$defs` entry, a property, an `items` schema, a
+response's inline schema, the component keyed `""`, or a draft's `definitions` entry, which the
+reference lands on as a `$ref` naming the anchor would, so the schema there is built and validated
+as one a `$ref` reaches. An `$id` between the reference and the anchor puts the two in different
+resources, and the reference is irreducible.
 
-A reference is irreducible — and is then kept verbatim under `openapi:$dynamicRef`
-(`degraded_lowering`) with an info `openapi/degraded-construct` at it naming which case it was —
-when the name is declared more than once in its document (the target is back under the evaluation
-path's control), when it is unresolvable, names another document, or is not a plain fragment, when
-its value is not a string at all, when a resource boundary stands between it and the anchor as
-above, when expanding it would close a cycle of aliases (a `$ref` cycle is refused outright for the
-same reason, and expansion must not mint one the refusal cannot see), or when it is co-declared with
+JSON Schema 2019-09's `$recursiveRef` is read the same way in a schema whose dialect defines it
+([`dialect-keywords`](#dialect-keywords)), as the reference to the unnamed anchor of a resource.
+2019-09 defines it only for the value `#`, which resolves as a `$ref` of `#` does at its site: to
+the root of the resource it is written in. Where that root declares no `$recursiveAnchor` of `true`,
+`false` being the default, the reference reads as the `$ref` it spells and expands to the root. Where
+it declares one, the target is the outermost schema of the dynamic scope declaring one too, which is
+that root on every path where every schema of the document declaring `$recursiveAnchor: true` lies
+in the root's resource, and the reference expands to it then. A schema under no `$id` is in its
+document's resource, whose root in an OpenAPI document is the OpenAPI Object, which holds no
+schema, so its `$recursiveRef` is irreducible, as its `$ref: '#'` twin is unresolved, and the
+message says that an identifier on the schema would make it the root. `$recursiveAnchor` is consumed
+as a reference target, as `$dynamicAnchor` is. In a dialect defining neither keyword, each is an
+unknown keyword ([`unknown-keys`](#unknown-keys)).
+
+An expanded reference lowers to a `TypeRef` whose `Target` is the ID of the type at the position it
+names, the one a `$ref` to that position resolves to: a named source component's, or the type that
+position's pointer gives in its document's namespace ([identity](../ir/identity.md#across-documents)),
+built once, from the declaration there, whichever reference asks for it first. No node is minted or
+copied per use, so which reference or declaration lowers first decides nothing. Its `Nullable` is
+what the keywords beside the reference admit, as beside a `$ref`.
+
+A reference is irreducible — and is then kept verbatim under `openapi:$dynamicRef` or
+`openapi:$recursiveRef` (`degraded_lowering`) with an info `openapi/degraded-construct` at it naming
+which case it was — when a `$dynamicRef`'s name is declared more than once in its document (the
+target is back under the evaluation path's control), is declared nowhere, names another document, or
+is not a plain fragment; when a `$recursiveRef`'s value is not `#`, or `$recursiveAnchor: true` is
+declared in more than one resource of its document; when its value is not a string at all; when a
+resource boundary stands between it and its anchor as above; when no schema could be built where it
+names; when expanding it would close a cycle of aliases (a `$ref` cycle is refused outright for the
+same reason, and expansion must not mint one the refusal cannot see); or when it is co-declared with
 a `$ref`, a `oneOf`/`anyOf`, a shape of its own, or one of `items`/`prefixItems`/`required` — an
-expansion takes its target whole, so it has nowhere to put a sibling applicator. One further case is
-irreducible in the OpenAPI compiler specifically: in the source, an anchor declared anywhere but the
-top level of `components/schemas` has no ID that is stable without consulting the registry, and
-resolving it would make the reference depend on which position happened to lower first
-([models](../ir/models.md#composition-beside-a-union)), so it is preserved instead.
+expansion takes its target whole, so it has nowhere to put a sibling applicator.
 
-A `$dynamicRef` is read against the anchors of the document it is written in, by this same rule, so
-one in another document expands to the type lowered where that document declares its anchor, in that
-document's namespace ([identity](../ir/identity.md#across-documents)), never to a source anchor of
-that name. There any position may hold the anchor, since a reference hoists what it reaches
-([`references`](#references)), and the schema an expansion reaches is read and validated as one a
-`$ref` reaches. What a reference resolved to where no position of its document places it reads no
-anchors, so a `$dynamicRef` in it is kept.
+A dynamic reference is read against the declarations of the document it is written in, by this
+same rule, so one in another document expands to the type lowered where that document declares its
+target, in that document's namespace, never to a source anchor of that name. What a reference
+resolved to where no position of its document places it reads no anchors, so a dynamic reference in
+it is kept.
 
 Anchors are the identifiers [`references`](#references) reads, where it reads them, so one in an
 example or an extension declares nothing, and one read through a YAML alias or a merge key is a
@@ -3194,7 +3216,7 @@ declaration where it is placed, so an anchor reached only by an alias still make
 duplicate. A resource boundary is read the same way, so a property named `$id` is none. A document
 read short of the whole, by the budget or by a merge past
 [`references`](#references)' bound, may hide a second declaration, and a merge past it may hide an
-`$id`, so a `$dynamicRef` resting on either is kept, since an undercount is what would turn
+`$id`, so a reference resting on either is kept, since an undercount is what would turn
 "irreducible" into a confident expansion; the warning that reports the bound says so. A keyword
 written beside a reference that expands is read as one beside a `$ref` is
 ([`shape-applicator`](#shape-applicator)).
@@ -3203,9 +3225,22 @@ written beside a reference that expands is read as one beside a `$ref` is
 - Codes: `openapi/dynamic-ref-expanded`, `openapi/degraded-construct`
 - Tests: `schema.TestDynamicRef_IrreducibleIsKeptAndSaysWhy`,
   `schema.TestDynamicRef_ExpandsAgainstTheDocumentItIsWrittenIn`,
+  `schema.TestDynamicRef_ExpandsToAnyPositionARefNames`, `schema.TestDynamicRef_ExpandsWithinOneResource`,
+  `schema.TestDynamicRef_ExpandsToAnAnchorOnlyADraftPlaces`, `schema.TestResolvesAt_AnswersAsResolvePointerDoes`,
+  `schema.TestRecursiveRef_ExpandsWhereItsTargetIsStatic`,
+  `schema.TestRecursiveRef_IsAKeywordOnlyWhereItsDialectDefinesIt`,
+  `schema.TestRecursiveRef_LandsOnTheRootOfItsResource`, `schema.TestSameResource_SaysWhyTwoPositionsMayLieInTwo`,
+  `bind.TestLandDynamic_LandsWhereTheRefItSpellsWould`,
+  `lowering.TestRecursiveAnchorSites_ReadsTheBindingsOfItsDocument`,
+  `e2e.TestOlderDrafts_ARecursiveRefExpandsWhereItsTargetIsStatic`,
+  `e2e.TestOlderDrafts_ARecursiveRefReadsAsItsDynamicTwin`,
   `bind.TestDynamicAnchors_CountsWhatADocumentDeclares`,
   `bind.TestDynamicAnchors_SaysWhenTheCountProvesNothing`,
-  `bind.TestInOwnResource_ReadsTheResourceAPositionIsIn`
+  `bind.TestRecursiveAnchors_CountsWhatADocumentDeclares`,
+  `bind.TestResource_NamesTheRootOfAPositionsResource`
+- Status: partly built: a `$recursiveRef` is kept where two resources of its document each declare
+  `$recursiveAnchor: true`, even where neither can reach the other (#NNNN); and a `$dynamicRef` whose
+  value names no `$dynamicAnchor` is kept, though JSON Schema reads it as the `$ref` it spells (#1860).
 
 ### `content-vocabulary`
 
@@ -3284,8 +3319,8 @@ schema is read in, never from its version or its name alone:
    as an `openapi/later-version-construct` warning
    ([`later-version-construct`](#later-version-construct)), which names the three such keywords
    left unread.
-3. Only an earlier draft defines it, such as `definitions`, `dependencies`, `additionalItems` or
-   `id` outside the drafts defining them, or no dialect does: it is kept verbatim as
+3. Only an earlier draft defines it, such as `definitions`, `dependencies`, `additionalItems`, `id`,
+   `$recursiveRef` or `$recursiveAnchor` outside the drafts defining them, or no dialect does: it is kept verbatim as
    [`unknown-keys`](#unknown-keys) keeps any keyword the schema model does not name, with no native
    reading to apply. Guessing which draft an author meant would be a heuristic, where the document
    has a declared way to ask for it, naming the draft by `$schema` or `jsonSchemaDialect`, and JSON
@@ -3301,7 +3336,7 @@ can set a warned keyword aside but cannot rebuild a lowering from a verbatim cop
 `$comment` is dropped outright — 2020-12 §8.3 forbids presenting it to end users, so no emitter may
 see it. `$dynamicAnchor` is consumed as a reference target rather than carried as content — it is
 what lets a `$dynamicRef` expand ([`dynamic-ref`](#dynamic-ref)), and a `$ref` naming it reads it as
-an `$anchor`. `$anchor` is consumed the same way: a `$ref` naming one that
+an `$anchor` — and so is 2019-09's `$recursiveAnchor`, where the schema's dialect defines it. `$anchor` is consumed the same way: a `$ref` naming one that
 [`references`](#references) reads resolves to the schema declaring it.
 
 - Cases: `dialect-keywords`, `schema-dialects`
@@ -3319,9 +3354,8 @@ an `$anchor`. `$anchor` is consumed the same way: a `$ref` naming one that
   `bind.TestDialectRoots_ASchemaNoOtherHoldsNamesItsDialect`,
   `load.TestReadDialects_GovernsWhatEachRootHoldsAndWarnsOfWhatItCannotRead`,
   `load.TestReadDialects_GivesAnotherDocumentsOwnRowsToWhatNoRootHolds`
-- Status: partly built: 2019-09's `$recursiveRef` is kept verbatim, never expanded as its
-  `$dynamicRef` is (#1475); and an identifier naming its document by the 3.2 `$self` roots a
-  resource of its own, as the document is known by its location alone (#863).
+- Status: partly built: an identifier naming its document by the 3.2 `$self` roots a resource of its
+  own, as the document is known by its location alone (#863).
 
 ### `vocabulary-coverage`
 
@@ -4369,7 +4403,8 @@ a YAML anchor included. A schema keyword no field of the schema model names is k
 reported as an info `openapi/unknown-schema-keyword`, because JSON Schema obliges an implementation
 to ignore a keyword it does not know, and a position that lowers to a shared node and carries no
 property or parameter hoists an alias for it to land on; `$comment`, `$dynamicAnchor` and
-`$dynamicRef` are decided elsewhere and left out. A keyword the model names and the dialect the
+`$dynamicRef`, and 2019-09's `$recursiveAnchor` and `$recursiveRef` where the schema's dialect
+defines them, are decided elsewhere and left out. A keyword the model names and the dialect the
 schema is read in does not define, which only `nullable` is, with the nullable-widening policy off
 ([`nullable`](#nullable)), is kept the same way. One object contributes at most `annotation.MaxUnknownKeys` keys,
 taken in byte order after the keys another reader already kept at the same pointer are set aside,

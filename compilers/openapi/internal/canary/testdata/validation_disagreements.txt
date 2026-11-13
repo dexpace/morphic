@@ -176,7 +176,8 @@ testdata/conformance/openapi/content-several-entries.yaml	18:13	validation-allow
 testdata/conformance/openapi/content-several-entries.yaml	18:13	validation-entry-count	compiler	rule-name
 testdata/conformance/openapi/content-several-entries.yaml	26:17	validation-entry-count	compiler	library-silent
 testdata/conformance/openapi/discriminator-default-mapping.yaml	19:25	validation-invalid-schema	library	old-grammar
-testdata/conformance/openapi/dynamic-ref.yaml	33:7	validation-invalid-syntax	compiler	component-names
+testdata/conformance/openapi/dynamic-ref.yaml	45:7	validation-type-mismatch	library	declared-dialect
+testdata/conformance/openapi/dynamic-ref.yaml	58:7	validation-invalid-syntax	compiler	component-names
 testdata/conformance/openapi/empty-names.yaml	12:9	validation-invalid-syntax	compiler	component-names
 testdata/conformance/openapi/empty-names.yaml	16:9	validation-invalid-syntax	compiler	component-names
 testdata/conformance/openapi/empty-names.yaml	85:7	validation-type-mismatch	library	declared-dialect
