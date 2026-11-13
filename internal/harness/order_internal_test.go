@@ -837,11 +837,12 @@ func TestDiffOrderInvariants_ChangedObjectMemberIsAFinding(t *testing.T) {
 	assert.Contains(t, detail, "document depends on declaration order")
 }
 
-// TestDiffOrderInvariants_ExamplesCompareAsAMultiset pins what the comparison
-// forgives a collection whose elements carry no unique key, as unnamed
-// examples do: the order its elements come in, and nothing else. A repeated
-// element is counted.
-func TestDiffOrderInvariants_ExamplesCompareAsAMultiset(t *testing.T) {
+// TestDiffOrderInvariants_NamedExamplesCompareAsAMultiset pins what the
+// comparison forgives examples: the order of the named ones, an `examples`
+// mapping's entries, among the places they hold, and nothing else. An unnamed
+// one is a schema's `examples` element or the `example` keyword's value, whose
+// place no mapping decides. A repeated example is counted.
+func TestDiffOrderInvariants_NamedExamplesCompareAsAMultiset(t *testing.T) {
 	t.Parallel()
 	one, two := ir.Example{Name: "one"}, ir.Example{Name: "two"}
 	unnamedA, unnamedB := ir.Example{Summary: "a"}, ir.Example{Summary: "b"}
@@ -855,7 +856,10 @@ func TestDiffOrderInvariants_ExamplesCompareAsAMultiset(t *testing.T) {
 	}{
 		{"the other order", []ir.Example{one, two}, []ir.Example{two, one}, true},
 		{"a repeat in either order", []ir.Example{one, two, one}, []ir.Example{two, one, one}, true},
-		{"two unnamed, in the other order", []ir.Example{unnamedA, unnamedB}, []ir.Example{unnamedB, unnamedA}, true},
+		{"named ones around an unnamed one, in the other order",
+			[]ir.Example{one, unnamedA, two}, []ir.Example{two, unnamedA, one}, true},
+		{"two unnamed, in the other order", []ir.Example{unnamedA, unnamedB}, []ir.Example{unnamedB, unnamedA}, false},
+		{"an unnamed one moved past a named one", []ir.Example{unnamedA, one}, []ir.Example{one, unnamedA}, false},
 		{"another example", []ir.Example{one, one}, []ir.Example{one, two}, false},
 		{"another unnamed one", []ir.Example{unnamedA, unnamedA}, []ir.Example{unnamedA, unnamedB}, false},
 		{"a repeat counted once", []ir.Example{one, one, two}, []ir.Example{one, two, two}, false},

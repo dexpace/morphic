@@ -162,11 +162,11 @@ func canonicalJSON(doc *ir.Document) ([]byte, error) {
 
 // orderFree writes the collections a mapping's entry order decides, each one
 // the corpus's two orders tell apart by design, with their elements sorted by
-// their own canonical encodings. That needs no key, so a collection whose
-// elements carry none unique, as the singular `example` keyword gives no name,
-// is compared as the multiset it is: an element's encoding sorts its own
-// collections first, so two unnamed examples whose members the permutation
-// reversed still pair up (#683).
+// their own canonical encodings. That needs no key, so elements carrying none
+// unique compare as the multiset they are: an element's encoding sorts its own
+// collections first, so two whose members the permutation reversed still pair
+// up (#683). Examples alone hold both a mapping's entries and a sequence's
+// elements (sortedExamples).
 func orderFree() *json.Marshalers {
 	return json.JoinMarshalers(
 		sortedElements[ir.Property](),
@@ -174,16 +174,16 @@ func orderFree() *json.Marshalers {
 		// The service tree's elements are read by value, never through a generic
 		// of this module, whose writes the lint keeping them in ir cannot read.
 		json.MarshalToFunc(func(enc *jsontext.Encoder, v []ir.Operation) error {
-			return writeSorted(enc, len(v), func(i int) any { return v[i] })
+			return writeSorted(enc, len(v), func(i int) any { return v[i] }, everyElement)
 		}),
 		json.MarshalToFunc(func(enc *jsontext.Encoder, v []ir.OperationGroup) error {
-			return writeSorted(enc, len(v), func(i int) any { return v[i] })
+			return writeSorted(enc, len(v), func(i int) any { return v[i] }, everyElement)
 		}),
 		sortedElements[ir.PatternProps](),
 		sortedElements[ir.Field](),
 		sortedElements[ir.ServerVariable](),
 		sortedElements[ir.OAuthScope](),
-		sortedElements[ir.Example](),
+		json.MarshalToFunc(sortedExamples),
 		sortedElements[ir.Content](),
 		sortedElements[ir.Response](),
 		sortedElements[ir.ErrorCase](),
@@ -199,26 +199,51 @@ func orderFree() *json.Marshalers {
 // encodings (writeSorted).
 func sortedElements[T any]() *json.Marshalers {
 	return json.MarshalToFunc(func(enc *jsontext.Encoder, v []T) error {
-		return writeSorted(enc, len(v), func(i int) any { return &v[i] })
+		return writeSorted(enc, len(v), func(i int) any { return &v[i] }, everyElement)
 	})
 }
 
-// writeSorted writes the n elements at gives as an array, in the byte order of
-// their encodings, each encoded under the options writing the array, these
-// marshalers among them. An empty array is written as it would be otherwise.
-func writeSorted(enc *jsontext.Encoder, n int, at func(i int) any) error {
+// sortedExamples writes examples with the named ones, an `examples` mapping's
+// entries, sorted among the places they hold, and each unnamed one where it
+// stands. An unnamed example is the `example` keyword's value or an element of
+// a schema's `examples` array, which no mapping orders, so its place is the
+// source's and a permutation that moves it has found something.
+func sortedExamples(enc *jsontext.Encoder, v []ir.Example) error {
+	return writeSorted(enc, len(v), func(i int) any { return &v[i] }, func(i int) bool { return v[i].Name != "" })
+}
+
+// everyElement is the movable of a collection a mapping orders throughout.
+func everyElement(int) bool { return true }
+
+// writeSorted writes the n elements at gives as an array, each encoded under
+// the options writing the array, these marshalers among them: those movable
+// reports in the byte order of their encodings, among the places they hold,
+// and the rest where they stand. An empty array is written as it would be
+// otherwise.
+func writeSorted(enc *jsontext.Encoder, n int, at func(i int) any, movable func(i int) bool) error {
 	if n == 0 {
 		return errors.ErrUnsupported
 	}
 	elems := make([][]byte, n)
+	var places []int
 	for i := range n {
 		b, err := json.Marshal(at(i), enc.Options())
 		if err != nil {
 			return err
 		}
 		elems[i] = b
+		if movable(i) {
+			places = append(places, i)
+		}
 	}
-	slices.SortFunc(elems, bytes.Compare)
+	moved := make([][]byte, len(places))
+	for k, i := range places {
+		moved[k] = elems[i]
+	}
+	slices.SortFunc(moved, bytes.Compare)
+	for k, i := range places {
+		elems[i] = moved[k]
+	}
 	return enc.WriteValue(append(append([]byte{'['}, bytes.Join(elems, []byte{','})...), ']'))
 }
 
