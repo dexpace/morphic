@@ -72,10 +72,27 @@ func (r *Registry) requirement(c lowering.Ctx, req *soa.SecurityRequirement, poi
 			diags = append(diags, c.DiagAt(ir.SeverityError, diag.UnresolvedSecurityScheme, pointer,
 				"security requirement references unresolved scheme %q: the requirement is kept, and the scheme has no mechanism", name))
 		}
-		scopes, _ := nodeview.Strings(member.ValueNode)
+		written, _ := nodeview.Strings(member.ValueNode)
+		scopes, scopeDiags := requiredScopes(c, written, name, pointer)
+		diags = append(diags, scopeDiags...)
 		uses = append(uses, ir.SchemeUse{Scheme: id, Scopes: scopes})
 	}
 	return ir.AuthRequirement{Schemes: uses}, diags
+}
+
+// requiredScopes returns the scopes written, the list an option at pointer
+// writes for the name it keys, each kept once, at its first occurrence, beside a
+// warning at each repeat: the scopes a scheme is required to hold are a set.
+// Scopes compare as the text written, and one scheme's list folds apart from
+// another's.
+func requiredScopes(c lowering.Ctx, written []string, name string, pointer jsontext.Pointer) ([]string, []ir.Diagnostic) {
+	scopes, repeats := lowering.FirstOccurrences(written)
+	var diags []ir.Diagnostic
+	for _, r := range repeats {
+		diags = append(diags, c.DiagAt(ir.SeverityWarning, diag.RepeatedEntry, pointer+ids.Ptr(name, strconv.Itoa(r.At)),
+			"scope %q of scheme %q repeats the entry at index %d; it is kept once", written[r.At], name, r.First))
+	}
+	return scopes, diags
 }
 
 // namesAnOption reports whether req lowers to an option: an object naming a

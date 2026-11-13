@@ -295,6 +295,7 @@ func conformanceCases() []conformanceCase {
 		{"security-states", assertSecurityStatesCase},
 		{"security-root-absent", assertSecurityRootAbsent},
 		{"security-root-optional", assertSecurityRootOptional},
+		{"repeated-tags-and-scopes", assertRepeatedTagsAndScopes},
 		{"security-unresolved", assertSecurityUnresolved},
 	}
 }

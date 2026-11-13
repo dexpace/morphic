@@ -3458,13 +3458,19 @@ repeated name, at the repeat, naming the first. Group and sibling order stay fir
 operations, with a missing ancestor created immediately before its first descendant, so a document
 that declares no parents groups exactly as it would were parents never read.
 
-- Cases: `tags-grouping`, `tags-grouping-32`, `group-identity`
+An operation's `tags` are the groups it is a member of, so `Operation.Tags` keeps a tag the list
+writes again once, at its first occurrence, comparing tags as the text written, and the repeat is
+reported as an `openapi/repeated-entry` warning where it is written, naming the first. A blank tag
+is a tag like any other.
+
+- Cases: `tags-grouping`, `tags-grouping-32`, `group-identity`, `repeated-tags-and-scopes`
+- Codes: `openapi/repeated-entry`
 - Tests: `operation.TestGrouping_ParentCycleNestsNoMemberUnderAnother`,
   `operation.TestGrouping_DanglingParentStaysTopLevel`,
   `operation.TestGrouping_SameNameDeclaredTwiceIsDeterministic`,
   `operation.TestGrouping_BadgeOnlyOperationFallsToDefault`, `oas.TestCheck_TagParentsExist`,
-  `oas.TestCheck_DuplicatesAreFound`
-- Status: partly built: a tag an operation repeats passes into the IR undeduplicated (#738).
+  `oas.TestCheck_DuplicatesAreFound`, `operation.TestOperation_ARepeatedTagIsKeptOnce`,
+  `operation.TestOperation_ALongTagListFoldsAsAShortOne`
 
 ### `extension-groups`
 
@@ -4164,7 +4170,10 @@ what it means is missing ([`validation`](#validation)). A name stands whatever i
 or not it reaches a mechanism, since an option demands every scheme it names: a value that reads as
 no list of strings lists no scopes, a warning from the rule table for a `null` and an error for any
 other ([`requirement-scopes`](../parser-library.md#requirement-scopes)). A scope is the text an item
-writes, so a plain date is one ([`undecoded-scalar`](../parser-library.md#undecoded-scalar)).
+writes, so a plain date is one ([`undecoded-scalar`](../parser-library.md#undecoded-scalar)). The
+scopes an option lists for one scheme are a set: a scope written again is kept once, at its first
+occurrence, and reported as an `openapi/repeated-entry` warning at the repeat, naming the first.
+Scopes compare as the text written, and each scheme's list folds on its own.
 
 A name reaches no mechanism in three ways. No entry declares it, and the scheme records no pointer,
 since no position writes it. Or its entry omits the field naming the mechanism — `type`, or for
@@ -4196,9 +4205,10 @@ null or no mapping is the rule table's to report instead
 requirement naming no scheme and a scheme naming no mechanism, and leaves them to it.
 
 - Cases: `security-schemes`, `security-or-and`, `security-root-empty`, `security-unresolved`,
-  `oauth2-no-flow`, `security-states`, `security-root-absent`, `security-root-optional`
+  `oauth2-no-flow`, `security-states`, `security-root-absent`, `security-root-optional`,
+  `repeated-tags-and-scopes`
 - Codes: `openapi/oauth2-no-flow`, `openapi/incomplete-security-scheme`,
-  `openapi/unresolved-security-scheme`, `openapi/unresolved-ref`
+  `openapi/unresolved-security-scheme`, `openapi/unresolved-ref`, `openapi/repeated-entry`
 - Tests: `auth.TestLowerSecuritySchemes_AnAbsentFlowsIsReportedAtTheDeclaration`,
   `auth.TestLowerSecuritySchemes_AnEntryNamingNoMechanismLowersAsUnresolved`,
   `auth.TestLowerSecuritySchemes_AnEntryNamingNoMechanismKeepsWhatItWrote`,
@@ -4217,10 +4227,11 @@ requirement naming no scheme and a scheme naming no mechanism, and leaves them t
   `auth.TestSecurityRequirement_ASoleMergeNamingNoMappingCollapsesTheListToNil`,
   `auth.TestSecurityRequirement_AMergeChainIsReadToItsEnd`,
   `auth.TestSecurityRequirement_AJSONDocumentWritesNoMerge`,
+  `auth.TestSecurityRequirement_ARepeatedScopeIsKeptOnce`,
+  `lowering.TestFirstOccurrences_KeepsEachEntryOnceAtItsFirst`,
   `auth.TestAuth_RequirementsOrOfAnds`
 - Status: partly built: a 3.2 requirement naming a scheme by URI lowers as unresolved (#1212), an
-  unresolved scheme name gets no near-miss hint (#694), a scope a requirement repeats passes into
-  the IR undeduplicated (#738), and a field under a tag outside YAML's
+  unresolved scheme name gets no near-miss hint (#694), and a field under a tag outside YAML's
   JSON schema ruleset reads as left out, so `scheme: !local bearer` is reported as omitted and names
   no mechanism, and a `security` list under a local tag inherits with no finding (#1368), and a
   `$ref` written as null refuses the whole document (#1284).

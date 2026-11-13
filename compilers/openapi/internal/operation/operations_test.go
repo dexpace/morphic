@@ -810,3 +810,101 @@ components:
 	assert.Equal(t, []ir.AuthID{ids.Auth("key"), ids.UnresolvedAuth("ghost")}, slices.Sorted(maps.Keys(lowered.Auth)),
 		"the walk returns them with the scheme the requirement named")
 }
+
+// TestOperation_ARepeatedTagIsKeptOnce pins issue #738's fold of
+// Operation.Tags: a tag names a group the operation joins once, so a repeat is
+// kept at its first occurrence and reported where it is written, naming the
+// first. Tags compare as written, so another case or a blank is another tag. An
+// inline, a callback's and a webhook's operation read it alike, and a path item
+// mounted twice reports its declaration's repeat once.
+func TestOperation_ARepeatedTagIsKeptOnce(t *testing.T) {
+	t.Parallel()
+	const tags = `[a, a, "", b, a, A, " ", ""]`
+	doc, diags := parseFull(t, `openapi: 3.1.0
+info: {title: T, version: "1"}
+paths:
+  /x:
+    get:
+      operationId: inline
+      tags: `+tags+`
+      responses: {"200": {description: ok}}
+      callbacks:
+        onEvent:
+          '{$request.body#/url}':
+            post:
+              operationId: callback
+              tags: `+tags+`
+              responses: {"200": {description: ok}}
+  /once: {$ref: '#/components/pathItems/Shared'}
+  /twice: {$ref: '#/components/pathItems/Shared'}
+  /clean:
+    get:
+      operationId: clean
+      tags: [b, a, B]
+      responses: {"200": {description: ok}}
+webhooks:
+  hook:
+    post:
+      operationId: hook
+      tags: `+tags+`
+      responses: {"200": {description: ok}}
+components:
+  pathItems:
+    Shared:
+      get:
+        tags: `+tags+`
+        responses: {"200": {description: ok}}
+`)
+	want := []string{"a", "", "b", "A", " "}
+	for _, name := range []string{"inline", "callback", "hook"} {
+		assert.Equal(t, want, openapitest.FindOp(t, doc, name).Tags, name)
+	}
+	byID := map[ir.OpID]ir.Operation{}
+	ir.ForEachOperation(doc, func(op ir.Operation) { byID[op.ID] = op })
+	for _, mount := range []ir.OpID{"op/openapi/paths/~1once/get", "op/openapi/paths/~1twice/get"} {
+		op, ok := byID[mount]
+		require.True(t, ok, "a mount of the path item lowers: %s", mount)
+		assert.Equal(t, want, op.Tags, mount)
+	}
+	assert.Equal(t, []string{"b", "a", "B"}, openapitest.FindOp(t, doc, "clean").Tags, "a list repeating nothing")
+
+	var got []string
+	for _, d := range diags {
+		if d.Code == diag.RepeatedEntry {
+			assert.Equal(t, ir.SeverityWarning, d.Severity)
+			got = append(got, string(d.Provenance.Pointer)+": "+d.Message)
+		}
+	}
+	slices.Sort(got)
+	var wantDiags []string
+	for _, decl := range []string{"/components/pathItems/Shared/get",
+		"/paths/~1x/get", "/paths/~1x/get/callbacks/onEvent/{$request.body#~1url}/post", "/webhooks/hook/post"} {
+		wantDiags = append(wantDiags,
+			decl+`/tags/1: tag "a" repeats the entry at index 0; it is kept once`,
+			decl+`/tags/4: tag "a" repeats the entry at index 0; it is kept once`,
+			decl+`/tags/7: tag "" repeats the entry at index 2; it is kept once`)
+	}
+	slices.Sort(wantDiags)
+	assert.Equal(t, wantDiags, got)
+}
+
+// TestOperation_ALongTagListFoldsAsAShortOne pins the fold of a list longer
+// than lowering.FirstOccurrences compares pair by pair, through an operation.
+func TestOperation_ALongTagListFoldsAsAShortOne(t *testing.T) {
+	t.Parallel()
+	var written []string
+	for i := range 17 {
+		written = append(written, "t"+strconv.Itoa(i))
+	}
+	doc, diags := parseFull(t, `openapi: 3.1.0
+info: {title: T, version: "1"}
+paths:
+  /x:
+    get:
+      operationId: x
+      tags: [`+strings.Join(written, ", ")+`, t5]
+      responses: {"200": {description: ok}}
+`)
+	assert.Equal(t, written, openapitest.FindOp(t, doc, "x").Tags)
+	assert.Equal(t, []jsontext.Pointer{"/paths/~1x/get/tags/17"}, openapitest.PointersOf(diags, diag.RepeatedEntry))
+}

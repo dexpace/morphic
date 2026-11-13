@@ -9,6 +9,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -173,4 +174,21 @@ func assertTagsGrouping32(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 	assert.Equal(t, "listBooks", listBooks.Name.Source)
 	assert.Equal(t, []string{"beta", "books"}, listBooks.Tags,
 		"tag membership keeps every tag the operation named, badge included")
+}
+
+// assertRepeatedTagsAndScopes pins that a tag an operation lists twice and a
+// scope a requirement lists twice for one scheme are each kept once, at the
+// first occurrence, and reported once each, as a warning at the repeat.
+func assertRepeatedTagsAndScopes(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
+	op, ok := opByName(doc, "listPets")
+	require.True(t, ok)
+	assert.Equal(t, []string{"pets", "store"}, op.Tags)
+	require.Len(t, op.Auth, 1)
+	assert.Equal(t, []ir.SchemeUse{{Scheme: "auth/openapi/components/securitySchemes/oauth", Scopes: []string{"read", "write"}}},
+		op.Auth[0].Schemes)
+
+	for _, pointer := range []string{"/paths/~1pets/get/tags/2", "/paths/~1pets/get/security/0/oauth/2"} {
+		assert.Equal(t, []ir.Severity{ir.SeverityWarning}, diagsAt(diags, diag.RepeatedEntry, pointer), pointer)
+	}
+	assert.Len(t, diags, 2, "the two repeats and nothing else: %+v", diags)
 }

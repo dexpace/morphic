@@ -5,6 +5,7 @@ package auth_test
 
 import (
 	"encoding/json/jsontext"
+	"slices"
 	"strings"
 	"testing"
 
@@ -844,4 +845,53 @@ func TestRegistryRequirements_AnEntryWhoseRootIsNoMappingIsNoOption(t *testing.T
 	got, diags := reg.Requirements(c, []*soa.SecurityRequirement{req}, "")
 	assert.Nil(t, got, "no option, so the list collapses")
 	assert.Empty(t, diags)
+}
+
+// TestSecurityRequirement_ARepeatedScopeIsKeptOnce pins issue #738's fold of
+// SchemeUse.Scopes: the scopes a scheme must hold are a set, so a repeat is
+// kept at its first occurrence and reported where it is written, naming the
+// first, under the name as the pointer escapes it. Each scheme's list folds on
+// its own, at the document and on an operation alike, and scopes compare as
+// written.
+func TestSecurityRequirement_ARepeatedScopeIsKeptOnce(t *testing.T) {
+	t.Parallel()
+	const list = `[{o: [read, read, write, Read, read]}, {o: [read], "a/b": [read, read]}]`
+	_, svc, diags := serviceSpec(t, `openapi: 3.1.0
+info: {title: T, version: "1"}
+security: `+list+`
+paths:
+  /x:
+    get:
+      operationId: x
+      security: `+list+`
+      responses: {"200": {description: ok}}
+components:
+  securitySchemes:
+    o: {type: oauth2, flows: {clientCredentials: {tokenUrl: 'https://x/t', scopes: {read: r, write: w, Read: R}}}}
+    a/b: {type: oauth2, flows: {clientCredentials: {tokenUrl: 'https://x/t', scopes: {read: r}}}}
+`)
+	want := []ir.AuthRequirement{
+		{Schemes: []ir.SchemeUse{{Scheme: ids.Auth("o"), Scopes: []string{"read", "write", "Read"}}}},
+		{Schemes: []ir.SchemeUse{{Scheme: ids.Auth("o"), Scopes: []string{"read"}}, {Scheme: ids.Auth("a/b"), Scopes: []string{"read"}}}},
+	}
+	assert.Empty(t, cmp.Diff(want, svc.Auth), "the document")
+	assert.Empty(t, cmp.Diff(want, onlyOperation(t, svc).Auth), "the operation")
+
+	var got []string
+	for _, d := range diags {
+		if d.Code == diag.RepeatedEntry {
+			assert.Equal(t, ir.SeverityWarning, d.Severity)
+			got = append(got, string(d.Provenance.Pointer)+": "+d.Message)
+		}
+	}
+	slices.Sort(got)
+	var wantDiags []string
+	for _, base := range []string{"", "/paths/~1x/get"} {
+		wantDiags = append(wantDiags,
+			base+`/security/0/o/1: scope "read" of scheme "o" repeats the entry at index 0; it is kept once`,
+			base+`/security/0/o/4: scope "read" of scheme "o" repeats the entry at index 0; it is kept once`,
+			base+`/security/1/a~1b/1: scope "read" of scheme "a/b" repeats the entry at index 0; it is kept once`)
+	}
+	slices.Sort(wantDiags)
+	assert.Equal(t, wantDiags, got)
 }
