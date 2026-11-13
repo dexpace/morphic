@@ -8,7 +8,7 @@ type StreamPlan struct {
 }
 
 type StreamSide struct {              // one direction: its StreamDetail and streaming content
-    Content    *ir.Content            // the content that streams, elected as a body's is
+    Content    *ir.Content            // the content that streams, elected as a body's is; nil = none
     Framing    Framing                // how the wire divides into frames
     Element    *ir.TypeRef            // what a frame decodes into, any kind; nil = none is decoded
     FrameMembers bool                 // an SSE element's data, event, id, retry are frame fields
@@ -29,12 +29,13 @@ operation may offer `application/json` beside `application/x-ndjson`. A content 
 an `Item` is. The plan reads no media type for it, so a compiler's streaming policy, which a caller
 can turn off, is the one reading of a media type as a stream. `Send` elects among the request's
 contents that stream, and `Recv` among those of the operation's responses, a primary `Default`
-included; a direction with a `StreamDetail` and no content that streams elects among all its
-contents, and the content it elects then streams. Where `Recv` holds another content than `Return`,
-or `Send` another than `RequestContent`, the operation offers both, and a target generates a method
-for each ([streaming](../operations/streaming.md)). `Direction` is `Operation.Streaming`, a primary
-`Default` that streams, which `Streaming` does not summarize, counting as a server side: `server`,
-or `bidi` beside a `Send`. A `StreamSide` holds:
+included. A content whose `Stream` is nil is one document, so a direction with a `StreamDetail` and
+no content that streams elects none, and its `Content` is nil, as for an RPC whose input folds into
+its parameters. Where `Recv` holds another content than `Return`, or `Send` another than
+`RequestContent`, the operation offers both, and a target generates a method for each
+([streaming](../operations/streaming.md)). `Direction` is `Operation.Streaming`, a primary `Default`
+that streams, which `Streaming` does not summarize, counting as a server side: `server`, or `bidi`
+beside a `Send`. A `StreamSide` holds:
 
 - **`Framing`**, the first that applies: `protocol` for an operation with no HTTP binding, whose
   protocol frames its own messages; `bytes` for a file, which has no frames; what
