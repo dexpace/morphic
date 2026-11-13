@@ -40,7 +40,9 @@ func ExamplesRaw(s *oas3.Schema) (ir.RawValue, []string, error) {
 // ClosesAfterComposition reports whether s closes its model once composition
 // is resolved: it writes `unevaluatedProperties: false` and no
 // additionalProperties, which would evaluate every property the keyword could
-// apply to (JSON Schema 2020-12 §11.3).
+// apply to (JSON Schema 2020-12 §11.3). It reads the adjacent keyword alone, so
+// an applicator kept verbatim that evaluates a member leaves the closure typed
+// (GitHub #1904).
 func ClosesAfterComposition(s *oas3.Schema) bool {
 	return IsFalseSchema(s.GetUnevaluatedProperties()) && inertBeside(s, "unevaluatedProperties", Dialect{}) == ""
 }

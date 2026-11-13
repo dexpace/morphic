@@ -3088,8 +3088,11 @@ the patterns and no `Value` beside `Additional` closed after composition. That o
   `schema.TestModel_UnevaluatedPropertiesClosedAfterComposition`,
   `schema.TestAllOf_ACatchAllLeavesAClosureAfterCompositionInert`,
   `annotation.TestClosesAfterComposition_OnlyWhereNoAdditionalPropertiesStandsBeside`
-- Status: open: what a target does with a model closed after composition, which no emitter rule
-  reads yet (#1868).
+- Status: partly built: the closure is typed beside an applicator kept verbatim that evaluates a
+  member, an inline `allOf` branch's `additionalProperties` or `patternProperties`, `then`, `else`
+  or `dependentSchemas`, so the typed members refuse one the source admits (#1904); and what a
+  target does with a model closed after composition is open, as no emitter rule reads it yet
+  (#1868).
 
 ### `required-members`
 
