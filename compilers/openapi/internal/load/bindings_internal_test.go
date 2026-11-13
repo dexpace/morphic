@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -161,6 +162,72 @@ func TestBindingDiags_NamesALoopsMembersByTheirDocument(t *testing.T) {
 		"1/X: cyclic $ref: the chain of $refs through #/X, #/Y" + rest,
 	}, got), "in the order of where each is reported")
 }
+
+// TestBindSchemas_AChainEndsInTheDocumentItEndsIn pins where the bindings end a
+// schema $ref's chain: in the document its last hop lands in, not the one it
+// first leaves for, on a schema built for the landing where the model holds
+// none there, a boolean one included, which its use site is lent, whichever
+// documents the chain passes.
+func TestBindSchemas_AChainEndsInTheDocumentItEndsIn(t *testing.T) {
+	t.Parallel()
+	dir := externalDir(t, map[string]string{"other.yaml": reachedFixtureOther, "third.yaml": reachedFixtureThird})
+	got, _ := loadExternal(t, dir, reachedFixtureRoot, Options{})
+	doc, bindings := got.Doc, got.Bindings
+	table := bindings.Table()
+	for name, want := range map[string]struct {
+		doc     string
+		pointer jsontext.Pointer
+	}{
+		"S":       {filepath.Join(dir, "other.yaml"), "/components/schemas/Obj"},
+		"Bool":    {filepath.Join(dir, "other.yaml"), "/components/schemas/AnyBool"},
+		"Chained": {filepath.Join(dir, "third.yaml"), "/components/schemas/Leaf"},
+		"ToS":     {filepath.Join(dir, "other.yaml"), "/components/schemas/Obj"},
+		"ToLocal": {filepath.Join(dir, "root.yaml"), "/components/schemas/Local"},
+	} {
+		js, ok := doc.Components.Schemas.Get(name)
+		require.True(t, ok, name)
+		e, ok := bindings.Entry(js)
+		require.True(t, ok, name)
+		require.Equal(t, bind.Resolved, e.Chain.Status, name)
+		assert.Equal(t, want.doc, table.Document(e.Chain.End.Doc).Name, name)
+		assert.Equal(t, want.pointer, e.Chain.End.Pointer, name)
+		held := bindings.At(e.Chain.End)
+		assert.NotNil(t, held, "%s ends on a schema held for it", name)
+		assert.Same(t, held, bindings.End(js), name)
+	}
+}
+
+// reachedFixtureOther, reachedFixtureThird and reachedFixtureRoot hold schema
+// $refs across documents: one to an object, one to a boolean schema (nothing
+// but its value), a chain through two documents, and internal $refs that stay
+// in the source or leave it.
+const reachedFixtureOther = `openapi: 3.1.0
+info: {title: O, version: "1"}
+paths: {}
+components:
+  schemas:
+    Obj: {type: object, properties: {inner: {type: string}}}
+    AnyBool: true
+    Hop: {$ref: "./third.yaml#/components/schemas/Leaf"}
+`
+
+const reachedFixtureThird = `components:
+  schemas:
+    Leaf: {type: string}
+`
+
+const reachedFixtureRoot = `openapi: 3.1.0
+info: {title: T, version: "1"}
+paths: {}
+components:
+  schemas:
+    S: {$ref: "./other.yaml#/components/schemas/Obj"}
+    Bool: {$ref: "./other.yaml#/components/schemas/AnyBool"}
+    Chained: {$ref: "./other.yaml#/components/schemas/Hop"}
+    Local: {type: string}
+    ToLocal: {$ref: "#/components/schemas/Local"}
+    ToS: {$ref: "#/components/schemas/S"}
+`
 
 // TestBindAll_HoldsEveryEndPastOneAlreadyWalked pins that the ends of reference
 // objects are each held where the table places them, however many references
