@@ -742,21 +742,23 @@ components:
 
 A `null` written where a schema belongs decodes as the boolean `false` schema: `IsBool` reports
 true and `GetBool` false, at a keyword such as `additionalProperties` or `items` and at an entry
-such as a property or a component alike. Only the schema's node, a scalar tagged `!!null`, tells it
-from a written `false`. A `null` states nothing about the values there, where `false` admits none.
+such as a property or a component alike. So does any other value that is neither a mapping nor a
+boolean: a string, a number or a list. Only the schema's node tells it from a written `false`. Such
+a value states nothing about the values there, where `false` admits none.
 
 ```yaml
 components:
   schemas:
     A: {properties: {p: null}, additionalProperties: null}
     C: null
+    D: hello      # false as well
 ```
 
 - Verified at: v1.26.3
 - Pinned by: `TestLibraryBehaviour/null-schema-is-false`
 - Code:
-  - `annotation.IsNullLiteral` tells a `null` from `false` by its node.
-  - `annotation.IsFalseSchema` excludes a `null`, so no reader takes one for `false`.
+  - `annotation.IsNoSchema` tells such a value from `false` by its node.
+  - `annotation.IsFalseSchema` excludes it, so no reader takes one for `false`.
 
 ### `failure-beneath-itself`
 

@@ -235,11 +235,11 @@ func fillModelProperties(c lowering.Ctx, ts *compile.Types, depth int, fields mo
 // only when it has something to keep.
 //
 // A boolean schema has no node of its own to render, so its value is spelled
-// out; a `$ref` is rendered as the `$ref` the position wrote, not the target.
+// out, and a value written as no schema renders as written; a `$ref` is rendered as the `$ref` the position wrote, not the target.
 func redeclarationSource(js *oas3.JSONSchema[oas3.Referenceable]) merge.Source {
 	return func() (ir.RawValue, error) {
-		if annotation.IsNullLiteral(js) {
-			return ir.RawValue("null"), nil
+		if annotation.IsNoSchema(js) {
+			return annotation.RawFromNode(js.GetCore().GetRootNode())
 		}
 		if b := js.GetBool(); b != nil {
 			return ir.RawValue(strconv.FormatBool(*b)), nil

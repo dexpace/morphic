@@ -11,6 +11,7 @@ import (
 
 	"github.com/speakeasy-api/openapi/extensions"
 	"github.com/speakeasy-api/openapi/jsonschema/oas3"
+	yml "github.com/speakeasy-api/openapi/yml"
 	yaml "go.yaml.in/yaml/v3"
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
@@ -271,27 +272,36 @@ func SchemaOf(js *oas3.JSONSchema[oas3.Referenceable]) *oas3.Schema {
 	return js.GetSchema()
 }
 
-// IsFalseSchema reports whether js is the boolean `false` schema, which a
-// `null` written in its place is not, though the parser decodes one as `false`
+// IsFalseSchema reports whether js is the boolean `false` schema, which no
+// other value written in its place is, though the parser decodes a null, a
+// string, a number or a list as `false`
 // (docs/parser-library.md#null-schema-is-false).
 func IsFalseSchema(js *oas3.JSONSchema[oas3.Referenceable]) bool {
-	return js != nil && js.IsBool() && js.GetBool() != nil && !*js.GetBool() && !IsNullLiteral(js)
+	return js != nil && js.IsBool() && js.GetBool() != nil && !*js.GetBool() && !IsNoSchema(js)
 }
 
-// IsNullLiteral reports whether js is a `null` written where a schema belongs.
-// The parser reads one as the boolean `false` schema
-// (docs/parser-library.md#null-schema-is-false), so only its node tells the
-// two apart.
-func IsNullLiteral(js *oas3.JSONSchema[oas3.Referenceable]) bool {
-	return js != nil && js.IsBool() && IsNullNode(js.GetCore().GetRootNode())
+// IsNoSchema reports whether js is written as no schema: its node, its alias
+// followed, is neither a mapping nor a scalar tagged !!bool. The parser reads
+// such a value as the boolean `false` schema
+// (docs/parser-library.md#null-schema-is-false), so only the node tells them
+// apart, on every route a schema is reached by.
+func IsNoSchema(js *oas3.JSONSchema[oas3.Referenceable]) bool {
+	if js == nil {
+		return false
+	}
+	n := yml.ResolveAlias(js.GetCore().GetRootNode())
+	if n == nil || n.Kind == yaml.MappingNode {
+		return false
+	}
+	return n.Kind != yaml.ScalarNode || n.ShortTag() != "!!bool"
 }
 
 // Written reports whether js is a schema written at its position: present,
-// and no `null`, which states nothing about the values there (IsNullLiteral).
-// The load phase reports the null; every reader takes it as left out
-// (docs/compilers/openapi.md#null-schema).
+// and not written as no schema, which states nothing about the values there
+// (IsNoSchema). The load phase reports such a value; every reader takes it as
+// left out (docs/compilers/openapi.md#null-schema).
 func Written(js *oas3.JSONSchema[oas3.Referenceable]) bool {
-	return js != nil && !IsNullLiteral(js)
+	return js != nil && !IsNoSchema(js)
 }
 
 // Home names where the annotations a schema position declares are

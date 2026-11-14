@@ -3814,7 +3814,10 @@ emitter that wants the exact reading has everything it needs to produce it.
 
 A `null` written where a schema belongs states nothing about the values there, so it is read as no
 schema written, never as the `false` schema the parser decodes it as
-([`null-schema-is-false`](../parser-library.md#null-schema-is-false)), which admits no value. An
+([`null-schema-is-false`](../parser-library.md#null-schema-is-false)), which admits no value. So is
+any other value that is neither a mapping nor a boolean, a string, a number or a list, which the
+load phase reports as the wrong type, on every route a schema is reached by, a `$ref` included;
+only a written `true` or `false` is a boolean schema. An
 entry, which exists whatever its value — a property, a composition branch, a component, a
 `prefixItems` position, a parameter's, header's or media type's `schema` — lowers as the empty
 schema does: to the top type, or as an `allOf` branch to nothing composed, and a `$ref` naming it as
@@ -3834,7 +3837,8 @@ verbatim whole, a `dependentSchemas` entry, stays in that value, since nothing r
 
 - Tests: `e2e.TestCompile_ANullWhereASchemaBelongsIsNoSchema`,
   `schema.TestNullSchema_AnEntryIsTheEmptySchemaAndAKeywordIsLeftOut`,
-  `annotation.TestIsNullLiteral_TellsANullFromFalse`
+  `annotation.TestIsNoSchema_TellsNoSchemaFromFalse`,
+  `e2e.TestCompile_AValueWhereASchemaBelongsThatIsNoMappingIsNoSchema`
 
 ### `null-keywords`
 
