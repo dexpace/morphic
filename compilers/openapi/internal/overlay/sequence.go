@@ -178,7 +178,7 @@ func (s *sequence) unselectable(a action, err error) ir.Diagnostic {
 			a.label(), s.steps.Limit().Cap())
 	case errors.Is(err, jsonpath.ErrResults):
 		return diag.Newf(ir.SeverityError, diag.BudgetExceeded, a.overlay,
-			"%s: its selectors select more than the %d nodes one selection may hold; nothing more applies",
+			"%s: its selectors hold more than the %d nodes an evaluation's nodelists may hold at once; nothing more applies",
 			a.label(), jsonpath.MaxResults)
 	default:
 		return fail(a, err)

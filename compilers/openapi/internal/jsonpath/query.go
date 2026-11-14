@@ -14,17 +14,19 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/nodeview"
 )
 
-// MaxResults bounds the nodes one nodelist an evaluation builds may hold. Each
-// costs a step, so the steps bound them too, but a step is cheap and a node
-// held is not: this keeps the memory a query holds at a size a document's own
-// node budget allows, whatever its steps.
+// MaxResults bounds the nodes the nodelists of one evaluation hold at once:
+// the list a segment reads and the one it builds, and those of every query a
+// filter it is in evaluates. Each node costs a step, so the steps bound them
+// too, but a step is cheap and a node held is not: this keeps the memory a
+// query holds at a size a document's own node budget allows, whatever its
+// steps and however deep its filters nest.
 const MaxResults = 1 << 22
 
 var (
 	// ErrSteps reports an evaluation that spent its budget of steps.
 	ErrSteps = errors.New("jsonpath: the query spends more steps than its budget holds")
-	// ErrResults reports a nodelist past MaxResults nodes.
-	ErrResults = fmt.Errorf("jsonpath: the query selects more than %d nodes in one nodelist", MaxResults)
+	// ErrResults reports nodelists holding more than MaxResults nodes at once.
+	ErrResults = fmt.Errorf("jsonpath: the query holds more than %d nodes in its nodelists at once", MaxResults)
 	// ErrMergeBound reports a mapping whose `<<` merges run deeper than the view
 	// expands (nodeview.MergeDepthLimit), so its members are not all known.
 	ErrMergeBound = fmt.Errorf("jsonpath: a mapping merges through `<<` deeper than %d levels", nodeview.MergeDepthLimit)

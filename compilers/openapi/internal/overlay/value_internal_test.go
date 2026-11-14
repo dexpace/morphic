@@ -70,7 +70,7 @@ func TestSequence_RefusesASelectionPastTheNodelistsBound(t *testing.T) {
 
 	assert.Equal(t, diag.BudgetExceeded, d.Code)
 	assert.Equal(t, ir.SeverityError, d.Severity)
-	assert.Contains(t, d.Message, "nodes one selection may hold")
+	assert.Contains(t, d.Message, "nodes an evaluation's nodelists may hold at once")
 }
 
 // TestLocator_ChargesAnIndexBeforeBuildingIt pins the charge for locating a

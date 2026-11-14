@@ -21,8 +21,9 @@ type reader struct {
 	steps *budget.Budget
 	// asked counts the steps since the context was last asked.
 	asked int
-	// results bounds a nodelist: MaxResults.
-	results int
+	// held counts the nodes the evaluation's live nodelists hold, which
+	// results bounds: MaxResults.
+	held, results int
 	// scalars holds each scalar node of the document read so far, as read.
 	scalars map[*yaml.Node]scalar
 }
@@ -48,16 +49,31 @@ func (r *reader) spend(ctx context.Context, n int) error {
 	return nil
 }
 
-// emit appends l to the nodelist out, a step for the node returned.
+// emit appends l to the nodelist out, a step for the node returned, and one
+// more node the evaluation holds.
 func (r *reader) emit(ctx context.Context, out []Located, l Located) ([]Located, error) {
 	if err := r.spend(ctx, 1); err != nil {
 		return nil, err
 	}
-	if len(out) >= r.results {
-		return nil, ErrResults
+	if err := r.hold(1); err != nil {
+		return nil, err
 	}
 	return append(out, l), nil
 }
+
+// hold counts n more nodes the evaluation's nodelists hold, refusing them
+// past the bound on all of them together.
+func (r *reader) hold(n int) error {
+	if r.held+n > r.results {
+		return ErrResults
+	}
+	r.held += n
+	return nil
+}
+
+// release counts the n nodes of a nodelist the evaluation drops as no longer
+// held.
+func (r *reader) release(n int) { r.held -= n }
 
 // members returns the members of the mapping n as the view reads them, a
 // step for each, spent before any is walked: a mapping's `<<` merges make its
@@ -74,8 +90,13 @@ func (r *reader) members(ctx context.Context, n *yaml.Node) ([]nodeview.Pair, er
 	return pairs, nil
 }
 
-// run applies segments in order to the nodelist holding from.
+// run applies segments in order to the nodelist holding from, and returns
+// the last, which the caller holds and releases. Each list is held from its
+// first node to the end of the segment reading it.
 func (e *evaluator) run(ctx context.Context, segments []segment, from Located) ([]Located, error) {
+	if err := e.hold(1); err != nil {
+		return nil, err
+	}
 	list := []Located{from}
 	for _, s := range segments {
 		var next []Located
@@ -90,6 +111,7 @@ func (e *evaluator) run(ctx context.Context, segments []segment, from Located) (
 				return nil, err
 			}
 		}
+		e.release(len(list))
 		list = next
 	}
 	return list, nil

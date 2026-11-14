@@ -269,20 +269,49 @@ func TestSelect_AsksItsContext(t *testing.T) {
 	assert.ErrorIs(t, err, context.Canceled)
 }
 
-// TestSelect_HoldsANodelistToItsBound pins ErrResults: a nodelist one past its
-// bound is refused, and one at it is returned.
+// TestSelect_HoldsANodelistToItsBound pins ErrResults: the root's list and
+// the three nodes a wildcard selects under it are four held at once, which a
+// bound of four admits and one of three refuses.
 func TestSelect_HoldsANodelistToItsBound(t *testing.T) {
 	t.Parallel()
 	q, err := jsonpath.Parse("$[*]")
 	require.NoError(t, err)
 	root := jsonTree(t, []byte(`[1, 2, 3]`))
 
-	got, err := q.SelectHolding(t.Context(), root, 3)
+	got, err := q.SelectHolding(t.Context(), root, 4)
 	require.NoError(t, err)
 	assert.Len(t, got, 3)
 
-	_, err = q.SelectHolding(t.Context(), root, 2)
+	_, err = q.SelectHolding(t.Context(), root, 3)
 	assert.ErrorIs(t, err, jsonpath.ErrResults)
+}
+
+// TestSelect_HoldsEveryLiveNodelistToOneBound pins the bound as one on all
+// the nodelists an evaluation holds at once, not on each: under a filter
+// testing a query of n nodes, the last candidate's test holds the outer list
+// read and built, n-1 candidates selected, and the inner query's root and n
+// nodes, 2n+1 in all, though no list is longer than n. A list a test, a
+// function or a comparison reads is released once read, so each candidate
+// holds one inner list at a time.
+func TestSelect_HoldsEveryLiveNodelistToOneBound(t *testing.T) {
+	t.Parallel()
+	const n = 50
+	root := jsonTree(t, []byte("["+strings.Repeat("0, ", n-1)+"0]"))
+	for query, bound := range map[string]int{
+		"$[?$[*]]":            2*n + 1,
+		"$[?count($[*]) > 0]": 2*n + 1,
+		"$[?$[0] == 0]":       n + 2,
+	} {
+		q, err := jsonpath.Parse(query)
+		require.NoError(t, err)
+
+		got, err := q.SelectHolding(t.Context(), root, bound)
+		require.NoError(t, err, query)
+		assert.Len(t, got, n, query)
+
+		_, err = q.SelectHolding(t.Context(), root, bound-1)
+		assert.ErrorIs(t, err, jsonpath.ErrResults, query)
+	}
 }
 
 // TestSelect_ReadsAnAliasNamingNothingAsNoValue pins a tree no parse builds:

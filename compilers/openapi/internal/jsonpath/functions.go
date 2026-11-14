@@ -212,6 +212,7 @@ func (e *evaluator) callValue(ctx context.Context, c *call, at Located) (jsonVal
 		return e.length(ctx, v)
 	}
 	nodes, err := e.nodesOf(ctx, c.args[0].query, at)
+	e.release(len(nodes))
 	switch {
 	case err != nil:
 		return jsonValue{}, err

@@ -53,6 +53,7 @@ type exists struct{ query subquery }
 
 func (x exists) holds(ctx context.Context, e *evaluator, at Located) (bool, error) {
 	nodes, err := e.nodesOf(ctx, x.query, at)
+	e.release(len(nodes))
 	return len(nodes) > 0, err
 }
 
@@ -151,7 +152,8 @@ func (q subquery) singular() bool {
 	return true
 }
 
-// nodesOf evaluates q with at as the current node.
+// nodesOf evaluates q with at as the current node, returning a nodelist the
+// caller releases once it has read it.
 func (e *evaluator) nodesOf(ctx context.Context, q subquery, at Located) ([]Located, error) {
 	from := at
 	if !q.relative {
@@ -167,6 +169,7 @@ func (e *evaluator) valueOf(ctx context.Context, o operand, at Located) (jsonVal
 		return jsonValue{kind: valueScalar, lit: o.lit}, nil
 	case opQuery:
 		nodes, err := e.nodesOf(ctx, o.query, at)
+		e.release(len(nodes))
 		if err != nil || len(nodes) == 0 {
 			return jsonValue{}, err
 		}
