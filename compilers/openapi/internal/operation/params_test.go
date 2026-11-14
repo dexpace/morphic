@@ -421,9 +421,10 @@ func TestParams_ReservedHeaderNamesAreReported(t *testing.T) {
 }
 
 // TestParams_ExplodeLowersAsDeclared pins that a binding's Explode is what the
-// parameter writes and nil where it writes none, whatever the style: the style's
-// own default is not filled in, since it would read as a declared value and
-// erase whether the document asked for it.
+// parameter writes and nil where it writes none, under deepObject, form, simple
+// and 3.2's cookie style: the style's own default is not filled in, since it
+// would read as a declared value and erase whether the document asked for it.
+// The conformance case param-style-matrix holds every other location and style.
 func TestParams_ExplodeLowersAsDeclared(t *testing.T) {
 	t.Parallel()
 	yes, no := true, false
