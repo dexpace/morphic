@@ -35,7 +35,8 @@ type Use struct {
 	// Referents is what the position falls back to, nearest first
 	// (docs/compilers/openapi.md#ref-use-site).
 	Referents []*oas3.Schema
-	// places[i] is where Referents[i] is written, in whichever document.
+	// places[i] is where Referents[i] is written, in whichever document;
+	// lend and lendAll write the two together.
 	places []referentPlace
 	// Principal is a refinement's inline principal where it owns a node, and nil
 	// otherwise: it is also the first of Referents.
@@ -255,8 +256,7 @@ func throughRef(c lowering.Ctx, s *oas3.Schema) *oas3.JSONSchema[oas3.Referencea
 func (p passage) speakers(c lowering.Ctx) Use {
 	var u Use
 	u.lend(p.ref.GetSchema(), placeOf(c, p.ref))
-	lent := lentBy(c, c.Bindings().Declared(p.ref))
-	u.Referents, u.places = append(u.Referents, lent.Referents...), append(u.places, lent.places...)
+	u.lendAll(lentBy(c, c.Bindings().Declared(p.ref)))
 	return u
 }
 
@@ -291,8 +291,7 @@ func UseOf(c lowering.Ctx, ts *compile.Types, js *oas3.JSONSchema[oas3.Reference
 		return u
 	}
 	u.narrowedFrom = len(u.Referents)
-	speakers := p.speakers(c)
-	u.Referents, u.places = append(u.Referents, speakers.Referents...), append(u.places, speakers.places...)
+	u.lendAll(p.speakers(c))
 	if p.narrows {
 		u.narrowed = &p.admits
 	}
@@ -310,8 +309,7 @@ func nodeUse(c lowering.Ctx, ts *compile.Types, s *oas3.Schema, pointer jsontext
 	switch {
 	case !ok:
 	case p.lost:
-		speakers := p.speakers(c)
-		u.Referents, u.places = speakers.Referents, speakers.places
+		u.lendAll(p.speakers(c))
 	case p.ref != nil:
 		u.deprecatedBase = slices.ContainsFunc(p.speakers(c).Referents, func(r *oas3.Schema) bool {
 			return r.GetDeprecated() || keysOf(c, r).Deprecated
@@ -397,10 +395,19 @@ func (u *Use) narrowTo(c lowering.Ctx, s *oas3.Schema) {
 	}
 }
 
-// lend appends s, written at, to what u falls back to.
+// lend appends s, written at, to what u falls back to. It and lendAll are the
+// only writers of Referents and places, which keep each referent's place at
+// its index.
 func (u *Use) lend(s *oas3.Schema, at referentPlace) {
 	u.Referents = append(u.Referents, s)
 	u.places = append(u.places, at)
+}
+
+// lendAll appends what from falls back to, each referent with its place, to
+// what u falls back to.
+func (u *Use) lendAll(from Use) {
+	u.Referents = append(u.Referents, from.Referents...)
+	u.places = append(u.places, from.places...)
 }
 
 // lendBranches appends the lending branches of s, written at, each placed
