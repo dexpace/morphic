@@ -30,8 +30,8 @@ import (
 func TestBodyFile_ReadsTheSchemaAndTheMediaType(t *testing.T) {
 	t.Parallel()
 	const marker = "binary-inference"
-	disabled := openapi.Options{BinaryMedia: openapi.BinaryMedia{Disabled: true}}
-	acme := openapi.Options{BinaryMedia: openapi.BinaryMedia{MediaTypes: []string{"application/vnd.acme"}}}
+	disabled := openapi.Options{BinaryInference: openapi.BinaryInference{Disabled: true}}
+	acme := openapi.Options{BinaryInference: openapi.BinaryInference{MediaTypes: []string{"application/vnd.acme"}}}
 	for _, tc := range []struct {
 		name      string
 		mediaType string

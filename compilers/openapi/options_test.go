@@ -97,14 +97,14 @@ func TestDecodeOptions_TextReachesEveryField(t *testing.T) {
 	assert.True(t, opts.HTTPDateInference.Disabled, "http-date-inference=false turns the policy off")
 	assert.True(t, opts.ReplacementInference.Disabled, "replacement-inference=false turns the policy off")
 	assert.True(t, opts.TitleNames.Disabled, "title-names=false turns the policy off")
-	assert.Equal(t, openapi.StreamingMedia{
+	assert.Equal(t, openapi.StreamingInference{
 		Disabled:   true,
 		MediaTypes: []string{"application/vnd.acme.frames; charset=utf-8", "+frames"},
-	}, opts.StreamingMedia, "the list as the Go field reads it, one entry each, and streaming-inference=false turns it off")
-	assert.Equal(t, openapi.BinaryMedia{
+	}, opts.StreamingInference, "the list as the Go field reads it, one entry each, and streaming-inference=false turns it off")
+	assert.Equal(t, openapi.BinaryInference{
 		Disabled:   true,
 		MediaTypes: []string{"image/*", "application/vnd.acme.blob", "+zip"},
-	}, opts.BinaryMedia, "the list as the Go field reads it, and binary-inference=false turns it off")
+	}, opts.BinaryInference, "the list as the Go field reads it, and binary-inference=false turns it off")
 	assert.Equal(t, openapi.Limits{MaxSourceBytes: 11, MaxSourceNodes: -1, MaxAliasSurplus: 13, MaxExternalDocuments: 14,
 		MaxReferenceExpansion: 15}, opts.Limits, "each budget as the Go field reads it, 0 left for the default")
 	assert.Equal(t, openapi.ExtensionPromotions{

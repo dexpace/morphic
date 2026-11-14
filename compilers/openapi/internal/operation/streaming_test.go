@@ -359,7 +359,7 @@ func TestStreaming_AnItemSchemaOnOneDocumentIsReported(t *testing.T) {
 		{"application/problem+json", openapi.Options{}, 1},
 		{"application/xml", openapi.Options{}, 1},
 		{vendor, openapi.Options{}, 1},
-		{vendor, openapi.Options{StreamingMedia: openapi.StreamingMedia{MediaTypes: []string{"+json"}}}, 0},
+		{vendor, openapi.Options{StreamingInference: openapi.StreamingInference{MediaTypes: []string{"+json"}}}, 0},
 		{"application/jsonl", openapi.Options{}, 0},
 		{"application/json-seq", openapi.Options{}, 0},
 		{"text/event-stream", openapi.Options{}, 0},
@@ -564,9 +564,9 @@ func TestStreaming_EachContentSaysWhetherItStreams(t *testing.T) {
 	}{
 		{"the default policy", openapi.Options{}, "text/event-stream",
 			map[string]string{"text/event-stream": guess, "application/json": ""}, ir.StreamingBidi},
-		{"a policy naming JSON", openapi.Options{StreamingMedia: openapi.StreamingMedia{MediaTypes: []string{"application/json"}}},
+		{"a policy naming JSON", openapi.Options{StreamingInference: openapi.StreamingInference{MediaTypes: []string{"application/json"}}},
 			"text/event-stream", map[string]string{"text/event-stream": "", "application/json": guess}, ir.StreamingBidi},
-		{"a disabled policy", openapi.Options{StreamingMedia: openapi.StreamingMedia{Disabled: true}}, "text/event-stream",
+		{"a disabled policy", openapi.Options{StreamingInference: openapi.StreamingInference{Disabled: true}}, "text/event-stream",
 			map[string]string{"text/event-stream": "", "application/json": ""}, ir.StreamingNone},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -629,7 +629,7 @@ func TestStreaming_AnItemSchemaDeclaresItsContentAStream(t *testing.T) {
 		inferred ir.Inferred
 	}{
 		{"the default policy", openapi.Options{}, "streaming-inference", "streaming-inference"},
-		{"a disabled policy", openapi.Options{StreamingMedia: openapi.StreamingMedia{Disabled: true}}, "", ""},
+		{"a disabled policy", openapi.Options{StreamingInference: openapi.StreamingInference{Disabled: true}}, "", ""},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()

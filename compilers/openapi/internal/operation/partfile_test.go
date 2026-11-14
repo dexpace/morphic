@@ -64,7 +64,7 @@ func TestReadPartFile_ReadsDeclarationsEncodingAndVersion(t *testing.T) {
 		binary    = "{type: string, format: binary}"
 		strings   = "{oneOf: [{type: string}, {type: array, items: {type: string}}]}"
 	)
-	disabled := openapi.Options{BinaryMedia: openapi.BinaryMedia{Disabled: true}}
+	disabled := openapi.Options{BinaryInference: openapi.BinaryInference{Disabled: true}}
 	for _, tc := range []struct {
 		name, version, mediaType, part, encoding string
 		opts                                     openapi.Options

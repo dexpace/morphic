@@ -58,24 +58,24 @@ const (
 // the caller names none. It is exported so a caller can start from it.
 func DefaultGroupingExtension() GroupingExtension { return lowering.DefaultGroupingExtension() }
 
-// StreamingMedia is the media-type streaming policy: which media types imply
+// StreamingInference is the media-type streaming policy: which media types imply
 // that a body is a sequence of frames when the document declares nothing that
 // says so. It is another injectable-policy seam (architecture principle 6), and it is
 // named here rather than restated for the reason GroupingStrategy is.
-type StreamingMedia = lowering.StreamingMedia
+type StreamingInference = lowering.StreamingInference
 
-// DefaultStreamingMediaTypes returns the media types and suffixes StreamingMedia
+// DefaultStreamingMediaTypes returns the media types and suffixes StreamingInference
 // classifies as streams when the caller names none. It is exported so a caller
 // extending the list can start from it rather than transcribe it.
 func DefaultStreamingMediaTypes() []string { return lowering.DefaultStreamingMediaTypes() }
 
-// BinaryMedia is the binary media-type policy: which media types mean a body or
+// BinaryInference is the binary media-type policy: which media types mean a body or
 // part is a file when its schema says nothing more than that it is a string. It
 // is another injectable-policy seam (architecture principle 6), named here for
 // the reason GroupingStrategy is.
-type BinaryMedia = lowering.BinaryMedia
+type BinaryInference = lowering.BinaryInference
 
-// DefaultBinaryMediaTypes returns the media types BinaryMedia classifies as
+// DefaultBinaryMediaTypes returns the media types BinaryInference classifies as
 // binary when the caller names none, for the reason DefaultStreamingMediaTypes
 // is exported.
 func DefaultBinaryMediaTypes() []string { return lowering.DefaultBinaryMediaTypes() }
@@ -266,15 +266,15 @@ type Options struct {
 	// names one, and naming one without the other is refused, since conventions
 	// disagree on a list. Fallback defaults to GroupByTags.
 	GroupingExtension GroupingExtension `json:"groupingExtension,omitzero"`
-	// StreamingMedia selects which media types imply a stream. The zero value is
+	// StreamingInference selects which media types imply a stream. The zero value is
 	// the default list, on; a caller who wants only what a document declares
 	// disables it.
-	StreamingMedia StreamingMedia `json:"streamingMedia"`
-	// BinaryMedia selects which media types make a file of a body or part whose
+	StreamingInference StreamingInference `json:"streamingInference"`
+	// BinaryInference selects which media types make a file of a body or part whose
 	// schema says no more than that it is a string. The zero value is the
 	// default list, on; a caller who wants only what a document declares
 	// disables it.
-	BinaryMedia BinaryMedia `json:"binaryMedia"`
+	BinaryInference BinaryInference `json:"binaryInference"`
 
 	// Promotions selects which vendor extensions are read into typed IR fields.
 	// The zero value is the default mapping, on; a caller who wants extensions
@@ -586,8 +586,8 @@ func switchOptions(o *Options) map[string]*bool {
 		string(ReplacementInferenceHeuristic):        &o.ReplacementInference.Disabled,
 		string(PaginationInferenceHeuristic):         &o.PaginationInference.Disabled,
 		string(lowering.ExtensionPromotionHeuristic): &o.Promotions.Disabled,
-		string(lowering.StreamingInferenceHeuristic): &o.StreamingMedia.Disabled,
-		string(lowering.BinaryInferenceHeuristic):    &o.BinaryMedia.Disabled,
+		string(lowering.StreamingInferenceHeuristic): &o.StreamingInference.Disabled,
+		string(lowering.BinaryInferenceHeuristic):    &o.BinaryInference.Disabled,
 		"title-names": &o.TitleNames.Disabled,
 	}
 }
@@ -670,9 +670,9 @@ func (d *optionDecode) set(key, value string) error {
 		d.laxSet = true
 		return decodeBool(&d.lax, key, value)
 	case optStreamingMedia:
-		return decodeMediaList(&d.opts.StreamingMedia.MediaTypes, key, value)
+		return decodeMediaList(&d.opts.StreamingInference.MediaTypes, key, value)
 	case optBinaryMedia:
-		return decodeMediaList(&d.opts.BinaryMedia.MediaTypes, key, value)
+		return decodeMediaList(&d.opts.BinaryInference.MediaTypes, key, value)
 	case optPromotionTargets:
 		return decodePromotionTargets(&d.opts.Promotions.Targets, value)
 	case optPromotionPrefixes:

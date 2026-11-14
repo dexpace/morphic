@@ -188,8 +188,8 @@ type Policy struct {
 	Grouping               GroupingStrategy
 	GroupingExtension      GroupingExtension
 	Limits                 Limits
-	Streaming              StreamingMedia
-	Binary                 BinaryMedia
+	Streaming              StreamingInference
+	Binary                 BinaryInference
 	Promotions             ExtensionPromotions
 	NullableInference      NullableInference
 	DiscriminatorInference DiscriminatorInference

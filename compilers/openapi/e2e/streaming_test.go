@@ -43,7 +43,7 @@ paths:
 // declaration, not a guess — still populates the fields it always did.
 func TestStreaming_PolicyDisabledLeavesOnlyWhatIsDeclared(t *testing.T) {
 	t.Parallel()
-	off := openapi.Options{StreamingMedia: openapi.StreamingMedia{Disabled: true}}
+	off := openapi.Options{StreamingInference: openapi.StreamingInference{Disabled: true}}
 
 	doc := compileClean(t, eventStreamSpec("text/event-stream"), off)
 	op, ok := opByName(doc, "getEvents")
@@ -78,7 +78,7 @@ paths:
 // default and a standard.
 func TestStreaming_PolicyMediaTypesReplaceTheDefaults(t *testing.T) {
 	t.Parallel()
-	own := openapi.Options{StreamingMedia: openapi.StreamingMedia{
+	own := openapi.Options{StreamingInference: openapi.StreamingInference{
 		MediaTypes: []string{"application/vnd.acme.frames"},
 	}}
 	tests := []struct {

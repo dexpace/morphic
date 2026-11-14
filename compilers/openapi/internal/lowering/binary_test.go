@@ -14,7 +14,7 @@ import (
 )
 
 // binaryCtx builds a context carrying nothing but the binary policy.
-func binaryCtx(policy lowering.BinaryMedia) lowering.Ctx {
+func binaryCtx(policy lowering.BinaryInference) lowering.Ctx {
 	return lowering.New(0, &load.Document{Doc: &soa.OpenAPI{}}, lowering.Policy{Binary: policy})
 }
 
@@ -25,26 +25,26 @@ func binaryCtx(policy lowering.BinaryMedia) lowering.Ctx {
 // the policy's to answer for.
 func TestMediaTypeBinary_AnswersFromThePolicy(t *testing.T) {
 	t.Parallel()
-	acme := lowering.BinaryMedia{MediaTypes: []string{"Application/VND.acme.blob", "+Zip", "model/*"}}
+	acme := lowering.BinaryInference{MediaTypes: []string{"Application/VND.acme.blob", "+Zip", "model/*"}}
 	tests := []struct {
 		name      string
-		policy    lowering.BinaryMedia
+		policy    lowering.BinaryInference
 		mediaType string
 		want      bool
 	}{
-		{"default list", lowering.BinaryMedia{}, "application/pdf", true},
-		{"default type wildcard", lowering.BinaryMedia{}, "image/png", true},
-		{"a wildcard media type", lowering.BinaryMedia{}, "image/*", true},
-		{"a vendor subtype under a wildcard", lowering.BinaryMedia{}, "audio/vnd.acme.sound", true},
-		{"a suffix the wildcard leaves out", lowering.BinaryMedia{}, "image/svg+xml", false},
-		{"parameters, case and space ignored", lowering.BinaryMedia{}, "  Image/PNG; q=1 ", true},
-		{"an ordinary type", lowering.BinaryMedia{}, "application/json", false},
-		{"a text type", lowering.BinaryMedia{}, "text/plain", false},
-		{"octet-stream is no entry", lowering.BinaryMedia{}, "application/octet-stream", false},
-		{"no media type", lowering.BinaryMedia{}, "", false},
-		{"a type with no subtype", lowering.BinaryMedia{}, "image", false},
-		{"disabled", lowering.BinaryMedia{Disabled: true}, "application/pdf", false},
-		{"disabled, wildcard", lowering.BinaryMedia{Disabled: true}, "image/png", false},
+		{"default list", lowering.BinaryInference{}, "application/pdf", true},
+		{"default type wildcard", lowering.BinaryInference{}, "image/png", true},
+		{"a wildcard media type", lowering.BinaryInference{}, "image/*", true},
+		{"a vendor subtype under a wildcard", lowering.BinaryInference{}, "audio/vnd.acme.sound", true},
+		{"a suffix the wildcard leaves out", lowering.BinaryInference{}, "image/svg+xml", false},
+		{"parameters, case and space ignored", lowering.BinaryInference{}, "  Image/PNG; q=1 ", true},
+		{"an ordinary type", lowering.BinaryInference{}, "application/json", false},
+		{"a text type", lowering.BinaryInference{}, "text/plain", false},
+		{"octet-stream is no entry", lowering.BinaryInference{}, "application/octet-stream", false},
+		{"no media type", lowering.BinaryInference{}, "", false},
+		{"a type with no subtype", lowering.BinaryInference{}, "image", false},
+		{"disabled", lowering.BinaryInference{Disabled: true}, "application/pdf", false},
+		{"disabled, wildcard", lowering.BinaryInference{Disabled: true}, "image/png", false},
 		{"caller's type is honoured", acme, "application/vnd.acme.blob", true},
 		{"caller's suffix is honoured", acme, "application/vnd.acme+zip", true},
 		{"caller's wildcard is honoured", acme, "model/gltf-binary", true},
@@ -53,7 +53,7 @@ func TestMediaTypeBinary_AnswersFromThePolicy(t *testing.T) {
 		{"a suffix the caller does not name", acme, "model/gltf+json", false},
 		{
 			"a blank entry names no media type",
-			lowering.BinaryMedia{MediaTypes: []string{"  ", "application/pdf"}},
+			lowering.BinaryInference{MediaTypes: []string{"  ", "application/pdf"}},
 			"", false,
 		},
 	}
@@ -72,5 +72,5 @@ func TestDefaultBinaryMediaTypes_ReturnsAFreshList(t *testing.T) {
 	first := lowering.DefaultBinaryMediaTypes()
 	first[0] = "text/plain"
 	assert.NotEqual(t, first[0], lowering.DefaultBinaryMediaTypes()[0])
-	assert.True(t, binaryCtx(lowering.BinaryMedia{}).MediaTypeBinary("application/gzip"))
+	assert.True(t, binaryCtx(lowering.BinaryInference{}).MediaTypeBinary("application/gzip"))
 }

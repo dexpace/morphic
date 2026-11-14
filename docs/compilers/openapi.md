@@ -4910,7 +4910,7 @@ its `Inferred`. An entry `type/*` matches each media type of that type whose sub
 structured suffix, since a suffix names the syntax a body is written in: `image/*` matches
 `image/png`, not `image/svg+xml`. An entry starting with `+` names a structured suffix.
 `application/octet-stream` is no entry: a file it carries is declared, whatever the policy says. The
-policy is the Go option `Options.BinaryMedia`: `Disabled` turns the reading off, and `MediaTypes`
+policy is the Go option `Options.BinaryInference`: `Disabled` turns the reading off, and `MediaTypes`
 replaces the default list instead of extending it. The `binary-media` setting sets `MediaTypes`, its
 entries separated by commas, and refuses one that is neither a media type nor a suffix, and
 `binary-inference=false` sets `Disabled`.
@@ -4991,7 +4991,7 @@ unset on a direction that still streams, every Content kept, reported as an info
 one element elect it, a list of a type agreeing with that type. Error responses and the default set
 no `StreamDetail`, their Contents marked all the same: whether the default answers a success is the
 plan's to decide ([`response-conditions`](#response-conditions)). The policy is the Go option
-`Options.StreamingMedia`: `Disabled` turns the media-type reading off, on the Contents and the
+`Options.StreamingInference`: `Disabled` turns the media-type reading off, on the Contents and the
 operation alike, leaving only what an `itemSchema` declares, and `MediaTypes` replaces the default
 list instead of extending it, an entry starting with `+` naming a structured suffix. The
 `streaming-media` setting sets `MediaTypes`, its entries separated by commas, and refuses one that
