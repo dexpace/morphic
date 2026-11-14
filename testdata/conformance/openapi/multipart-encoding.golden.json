@@ -143,11 +143,17 @@
                         "allowReserved": false
                       },
                       "p/openapi/paths/~1upload/post/requestBody/content/multipart~1form-data/schema/properties/labels": {
+                        "contentTypes": [
+                          "text/plain"
+                        ],
                         "multi": true,
                         "filename": false,
                         "allowReserved": false
                       },
                       "p/openapi/paths/~1upload/post/requestBody/content/multipart~1form-data/schema/properties/tags": {
+                        "contentTypes": [
+                          "text/plain"
+                        ],
                         "multi": true,
                         "filename": false,
                         "allowReserved": false
@@ -220,6 +226,9 @@
                         "allowReserved": false
                       },
                       "p/openapi/components/schemas/UploadForm/properties/tags": {
+                        "contentTypes": [
+                          "text/plain"
+                        ],
                         "multi": true,
                         "filename": false,
                         "allowReserved": false
@@ -300,6 +309,9 @@
                         "allowReserved": false
                       },
                       "p/openapi/components/schemas/UploadForm/properties/tags": {
+                        "contentTypes": [
+                          "text/plain"
+                        ],
                         "multi": true,
                         "filename": false,
                         "allowReserved": false

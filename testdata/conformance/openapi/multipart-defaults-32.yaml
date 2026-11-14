@@ -1,0 +1,33 @@
+openapi: 3.2.0
+info: {title: MultipartDefaults32, version: "1.0.0"}
+paths:
+  /upload:
+    post:
+      operationId: upload
+      requestBody:
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                # 3.2 gives an array inside an array part a row of its own.
+                matrix: {type: array, items: {type: array, items: {type: integer}}}
+                meta: {type: object, properties: {a: {type: string}}}
+            encoding:
+              # A nested encoding's key names a property of the part's value.
+              meta:
+                contentType: multipart/mixed
+                encoding:
+                  a: {contentType: text/plain}
+                  ghost: {contentType: text/plain}
+      responses: {"204": {description: ok}}
+  # Each item of a multipart sequential body is a part, which takes its item's
+  # default where its itemEncoding names none.
+  /stream:
+    post:
+      operationId: stream
+      requestBody:
+        content:
+          multipart/mixed:
+            itemSchema: {type: object, properties: {id: {type: string}}}
+      responses: {"204": {description: ok}}

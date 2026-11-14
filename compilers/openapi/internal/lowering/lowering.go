@@ -552,16 +552,6 @@ func OtherIDs(c Ctx) []ids.Document {
 	return out
 }
 
-// IDsAt returns how the IDs of what the Document.Sources entry at source
-// declares name that document: ids.In its label for one a reference read
-// beside the source, and the source's own for the source and its overlay.
-func IDsAt(c Ctx, source int) ids.Document {
-	if o, ok := c.loaded.others.At(source); ok {
-		return ids.In(o.Label)
-	}
-	return ids.Document{}
-}
-
 // NameAt returns the hint the node built at pointer in c's document is named
 // by (naming.Namer.At): a function of the documents and the coordinate alone,
 // whichever lowering builds the node, read once for every copy of c.

@@ -96,7 +96,10 @@ paths:
 // none. A multipart body of files with no itemEncoding gets one saying so.
 func TestItemFile_ReadsTheItemAsAPartDeclarationIs(t *testing.T) {
 	t.Parallel()
-	const marker = "binary-media-type"
+	const (
+		marker = "binary-media-type"
+		octet  = "application/octet-stream"
+	)
 	disabled := openapi.Options{BinaryMedia: openapi.BinaryMedia{Disabled: true}}
 	for _, tc := range []struct {
 		name, media string
@@ -106,23 +109,29 @@ func TestItemFile_ReadsTheItemAsAPartDeclarationIs(t *testing.T) {
 		{"raw bytes", "multipart/mixed: {itemSchema: {type: string, format: binary}, itemEncoding: {contentType: image/png}}",
 			openapi.Options{}, &ir.PartEncoding{ContentTypes: []string{"image/png"}, Multi: true, Filename: true}},
 		{"raw bytes with no itemEncoding", "multipart/mixed: {itemSchema: {type: string, format: binary}}",
-			openapi.Options{}, &ir.PartEncoding{Multi: true, Filename: true}},
+			openapi.Options{}, &ir.PartEncoding{ContentTypes: []string{octet}, Multi: true, Filename: true}},
 		{"an item writing no type", "multipart/mixed: {itemSchema: {}}",
-			openapi.Options{}, &ir.PartEncoding{Multi: true, Filename: true}},
-		{"a true item", "multipart/mixed: {itemSchema: true}", openapi.Options{}, &ir.PartEncoding{Multi: true, Filename: true}},
+			openapi.Options{}, &ir.PartEncoding{ContentTypes: []string{octet}, Multi: true, Filename: true}},
+		{"a true item", "multipart/mixed: {itemSchema: true}", openapi.Options{},
+			&ir.PartEncoding{ContentTypes: []string{octet}, Multi: true, Filename: true}},
 		{"a string of a binary type", "multipart/mixed: {itemSchema: {type: string}, itemEncoding: {contentType: image/png}}",
 			openapi.Options{}, &ir.PartEncoding{ContentTypes: []string{"image/png"}, Multi: true, Filename: true,
 				Inferred: marker}},
 		{"a string of a binary type with the policy off",
 			"multipart/mixed: {itemSchema: {type: string}, itemEncoding: {contentType: image/png}}",
 			disabled, &ir.PartEncoding{ContentTypes: []string{"image/png"}, Multi: true}},
-		{"a string", "multipart/mixed: {itemSchema: {type: string}}", openapi.Options{}, nil},
+		{"a string", "multipart/mixed: {itemSchema: {type: string}}", openapi.Options{},
+			&ir.PartEncoding{ContentTypes: []string{"text/plain"}, Multi: true}},
 		{"an object", "multipart/mixed: {itemSchema: {type: object}, itemEncoding: {contentType: application/json}}",
 			openapi.Options{}, &ir.PartEncoding{ContentTypes: []string{"application/json"}, Multi: true}},
 		{"an item no schema describes", "multipart/mixed: {itemEncoding: {contentType: image/png}}",
 			openapi.Options{}, &ir.PartEncoding{ContentTypes: []string{"image/png"}, Multi: true}},
 		{"an array item", "multipart/mixed: {itemSchema: {type: array, items: {type: string, format: binary}}}",
-			openapi.Options{}, nil},
+			openapi.Options{}, &ir.PartEncoding{ContentTypes: []string{"application/json"}, Multi: true}},
+		{"an item arranged as a query parameter's value", "multipart/form-data: {itemSchema: {type: string}, itemEncoding: {style: form}}",
+			openapi.Options{}, &ir.PartEncoding{Style: "form", Multi: true}},
+		{"an item whose type takes no default", "multipart/mixed: {itemSchema: {oneOf: [{type: string}, {type: object}]}}",
+			openapi.Options{}, &ir.PartEncoding{Multi: true}},
 		{"raw bytes on a body that is not multipart", "application/jsonl: {itemSchema: {type: string, format: binary}}",
 			openapi.Options{}, nil},
 	} {
@@ -139,5 +148,42 @@ func TestItemFile_ReadsTheItemAsAPartDeclarationIs(t *testing.T) {
 `), tc.opts)
 			assert.Equal(t, tc.want, openapitest.FindOp(t, doc, "items").Responses[0].Payload.Contents[0].ItemEncoding)
 		})
+	}
+}
+
+// TestContent_AnItemEncodingOutsideMultipartIsKeptWhole holds an itemEncoding
+// under a media type that is not multipart, where OpenAPI gives it no effect,
+// to the content's Unmodeled, whole, with one info at it beside load's
+// warning: no ItemEncoding types it, and none of its headers lowers.
+func TestContent_AnItemEncodingOutsideMultipartIsKeptWhole(t *testing.T) {
+	t.Parallel()
+	doc, diags := parseFull(t, openapitest.PathsSpecVer("3.2.0", `  /lines:
+    post:
+      operationId: lines
+      requestBody:
+        content:
+          application/jsonl:
+            itemSchema: {type: object, properties: {a: {type: string}}}
+            itemEncoding: {contentType: text/plain, headers: {X-A: {schema: {type: string, enum: [a]}}}}
+      responses: {"204": {description: ok}}
+`))
+	openapitest.RequireNoErrorDiags(t, diags)
+	c := openapitest.FindOp(t, doc, "lines").Request.Contents[0]
+	assert.Nil(t, c.ItemEncoding)
+	item, ok := c.Unmodeled["openapi:itemEncoding"]
+	require.True(t, ok, "itemEncoding kept verbatim; got %v", c.Unmodeled)
+	assert.Equal(t, ir.ReasonNoIRHome, item.Reason)
+	assert.JSONEq(t, `{"contentType": "text/plain", "headers": {"X-A": {"schema": {"type": "string", "enum": ["a"]}}}}`,
+		string(item.Value))
+	assert.Len(t, c.Unmodeled, 1, "and nothing of it is kept apart")
+	at := "/paths/~1lines/post/requestBody/content/application~1jsonl/itemEncoding"
+	assert.Equal(t, 1, openapitest.CountDiagsAt(diags, diag.DegradedConstruct, ir.SeverityInfo))
+	for _, d := range diags {
+		if d.Code == diag.DegradedConstruct {
+			assert.Equal(t, at, string(d.Provenance.Pointer))
+		}
+	}
+	for id := range doc.Types {
+		assert.NotContains(t, string(id), "/itemEncoding/", "a kept header lowers no type")
 	}
 }

@@ -17,12 +17,26 @@ import (
 func TestFillSequential_EmptyItemEncoding(t *testing.T) {
 	t.Parallel()
 	l := newRawLowerer(&soa.OpenAPI{})
-	content := &ir.Content{}
+	content := &ir.Content{MediaType: "multipart/mixed"}
 	media := &soa.MediaType{ItemEncoding: &soa.Encoding{}}
 	diags := fillSequential(l.ctx, l.serviceWalk(), content, media, "/mp")
 	assert.Equal(t, &ir.PartEncoding{Multi: true}, content.ItemEncoding,
 		"a config-free itemEncoding still records that the tail repeats")
 	assert.Nil(t, content.Unmodeled, "nothing is preserved raw")
+	assert.Empty(t, diags)
+}
+
+// TestFillSequential_AnItemEncodingWithNoNodeOutsideMultipartKeepsNothing
+// holds an itemEncoding the model reads with no node, under a media type that
+// is not multipart, to nothing: no item encoding, nothing kept and no word,
+// as an encoding entry with no node is, load's finding being its one.
+func TestFillSequential_AnItemEncodingWithNoNodeOutsideMultipartKeepsNothing(t *testing.T) {
+	t.Parallel()
+	l := newRawLowerer(&soa.OpenAPI{})
+	content := &ir.Content{MediaType: "application/jsonl"}
+	diags := fillSequential(l.ctx, l.serviceWalk(), content, &soa.MediaType{ItemEncoding: &soa.Encoding{}}, "/mp")
+	assert.Nil(t, content.ItemEncoding)
+	assert.Nil(t, content.Unmodeled)
 	assert.Empty(t, diags)
 }
 

@@ -163,6 +163,9 @@ var generations = []generation{
 	{version: "0.62.0", format: 1, shape: "0b2f5e45e4be29c67a153976848af676bc99d9f21d9e41a91b7abfd167ae026b",
 		names:   "825b85ca996798c9051c78f69d22b7c1ad6d30e36341b320540fab82f21b6890",
 		meaning: "a value bound reaches Constraints only beside a type it applies to, and a type array's bounds, format and content vocabulary land on the variant whose type takes them"},
+	{version: "0.63.0", format: 1, shape: "0b2f5e45e4be29c67a153976848af676bc99d9f21d9e41a91b7abfd167ae026b",
+		names:   "825b85ca996798c9051c78f69d22b7c1ad6d30e36341b320540fab82f21b6890",
+		meaning: "a form part with no content type of its own carries the default its format gives, no part of a url-encoded body or of format byte carries a filename, a part only a union's branch declares is keyed, through nested unions, under each variant declaring it and through each shape of a model narrowing a union, and every entry of an encoding outside a form, and of a part no property holds, is kept whole, and a part's Style is set wherever its value is arranged, form by default, and nothing is lowered from an encoding field, or an itemEncoding, with no effect under its media type"},
 }
 
 // shapeGolden holds the description the newest row's shape hashes, so a change

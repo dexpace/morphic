@@ -425,6 +425,7 @@
                     },
                     "encoding": {
                       "p/openapi/paths/~1widgets/post/requestBody/content/multipart~1form-data/schema/properties/f": {
+                        "style": "form",
                         "contentTypes": [
                           "text/plain"
                         ],

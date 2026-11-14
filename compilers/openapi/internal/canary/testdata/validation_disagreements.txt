@@ -207,6 +207,10 @@ testdata/conformance/openapi/empty-required-values.yaml	38:30	validation-require
 testdata/conformance/openapi/empty-required-values.yaml	39:39	validation-required-field	library	empty-is-missing
 testdata/conformance/openapi/empty-required-values.yaml	40:47	validation-required-field	library	empty-is-missing
 testdata/conformance/openapi/empty-required-values.yaml	40:61	validation-required-field	library	empty-is-missing
+testdata/conformance/openapi/encoding-outside-form.yaml	14:15	validation-allowed-values	library	no-effect
+testdata/conformance/openapi/encoding-outside-form.yaml	14:15	validation-no-effect	compiler	no-effect
+testdata/conformance/openapi/encoding-outside-form.yaml	24:15	validation-allowed-values	library	no-effect
+testdata/conformance/openapi/encoding-outside-form.yaml	24:15	validation-no-effect	compiler	no-effect
 testdata/conformance/openapi/extension-promotion.yaml	136:19	later-version-construct	compiler	version-gate
 testdata/conformance/openapi/header-name-case.yaml	19:21	validation-duplicate-key	compiler	library-silent
 testdata/conformance/openapi/header-name-case.yaml	31:27	validation-duplicate-key	compiler	library-silent
