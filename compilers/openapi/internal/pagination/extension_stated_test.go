@@ -19,6 +19,7 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
 	"github.com/dexpace/morphic/compilers/openapi/internal/pagination"
+	"github.com/dexpace/morphic/compilers/openapi/internal/whole"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -287,7 +288,7 @@ func promoteStated(t *testing.T, spec string, policy lowering.ExtensionPromotion
 	require.NoError(t, err)
 	require.NotNil(t, doc)
 	c := lowering.New(0, &load.Document{Doc: &soa.OpenAPI{}}, lowering.Policy{Promotions: policy})
-	stated, diags := pagination.Promote(c, &doc.Services[0], doc.Types)
+	stated, diags := pagination.Promote(c, whole.New(doc))
 	reports := make([]string, 0, len(diags))
 	for _, d := range diags {
 		require.Equal(t, ir.SeverityInfo, d.Severity, "%+v", d)
@@ -297,7 +298,7 @@ func promoteStated(t *testing.T, spec string, policy lowering.ExtensionPromotion
 	slices.Sort(reports)
 	ops := map[string]*ir.Operation{}
 	var spoke []string
-	for _, op := range lowering.Operations(&doc.Services[0]) {
+	for _, op := range whole.New(doc).Ops {
 		ops[op.Name.Source] = op
 		if stated[op.ID] {
 			spoke = append(spoke, op.Name.Source)
@@ -354,7 +355,7 @@ func TestPromote_ReadsNoOperationHoldingOne(t *testing.T) {
 	require.NotNil(t, op.Pagination)
 	held := doc.Services[0].Groups[0].Operations[0].Pagination
 	c := lowering.New(0, &load.Document{Doc: &soa.OpenAPI{}}, lowering.Policy{Promotions: pagePolicy()})
-	stated, diags := pagination.Promote(c, &doc.Services[0], doc.Types)
+	stated, diags := pagination.Promote(c, whole.New(doc))
 	assert.Empty(t, stated)
 	assert.Empty(t, diags)
 	assert.Same(t, held, doc.Services[0].Groups[0].Operations[0].Pagination)
@@ -375,7 +376,7 @@ func TestPromote_StatesNothingOffPolicy(t *testing.T) {
 		assert.Empty(t, spoke, name)
 	}
 	stated, diags := pagination.Promote(lowering.New(0, &load.Document{Doc: &soa.OpenAPI{}}, lowering.Policy{}),
-		nil, ir.TypeRegistry{})
-	assert.Nil(t, stated, "no service, nothing read")
+		whole.New(&ir.Document{}))
+	assert.Empty(t, stated, "no operation, nothing read")
 	assert.Empty(t, diags)
 }

@@ -12,14 +12,14 @@ import (
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/load"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
-	"github.com/dexpace/morphic/compilers/openapi/internal/runtimeexpr"
+	"github.com/dexpace/morphic/compilers/openapi/internal/whole"
 	"github.com/dexpace/morphic/ir"
 )
 
 // pagerOver is a pager over reg, under the default policy.
 func pagerOver(reg ir.TypeRegistry) *pager {
 	c := lowering.New(0, &load.Document{Doc: &soa.OpenAPI{}}, lowering.Policy{})
-	return &pager{c: c, p: c.Promoter(), reg: reg, lk: runtimeexpr.NewLookups(reg), flat: map[ir.TypeID][]*ir.Property{}}
+	return &pager{c: c, p: c.Promoter(), w: whole.New(&ir.Document{Types: reg})}
 }
 
 // TestMarker_AUseOfATypeTheRegistryLacksMarksNothing drives the guard no
@@ -66,7 +66,7 @@ func TestMarker_DescendsOnlyIntoModelsReachingTheKey(t *testing.T) {
 
 	unkept := pagerOver(reg)
 	assert.Nil(t, (&marker{pg: unkept, target: lowering.TargetPaginationItems, src: src}).search("t/root"))
-	assert.Empty(t, unkept.flat, "no member keeps the key, so no model is read")
+	assert.Empty(t, unkept.reach[src.Key], "no member keeps the key, so no model reaches it")
 
 	reg["t/marked"].(*ir.Model).Properties[0].Unmodeled = ir.Unmodeled{
 		"openapi:x-k": {Reason: ir.ReasonVendorExtension, Value: ir.RawValue(`{"purpose":"items"}`)},

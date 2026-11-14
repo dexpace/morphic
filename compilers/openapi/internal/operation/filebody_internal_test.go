@@ -8,10 +8,9 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/speakeasy-api/openapi/jsonschema/oas3"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-
-	oas3 "github.com/speakeasy-api/openapi/jsonschema/oas3"
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering/loweringtest"

@@ -12,6 +12,7 @@ import (
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
+	"github.com/dexpace/morphic/compilers/openapi/internal/whole"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -22,22 +23,20 @@ import (
 // the Pagination and in the operation's Provenance. An operation whose
 // parameters name a walk it cannot settle keeps none, reported as an info
 // diagnostic. It neither reads nor reports an operation in stated, whose
-// extensions speak of a pagination. doc's registry must be whole; c is the
-// source's context.
-func InferWalks(c lowering.Ctx, doc *ir.Document, stated map[ir.OpID]bool) []ir.Diagnostic {
-	if doc == nil || !c.PaginationInference.Honours() {
+// extensions speak of a pagination. w is the document, which is whole; c is
+// the source's context.
+func InferWalks(c lowering.Ctx, w *whole.Document, stated map[ir.OpID]bool) []ir.Diagnostic {
+	if !c.PaginationInference.Honours() {
 		return nil
 	}
-	r := newReader(doc.Types)
+	r := newReader(w)
 	var diags []ir.Diagnostic
-	for i := range doc.Services {
-		for _, op := range lowering.Operations(&doc.Services[i]) {
-			if stated[op.ID] {
-				continue
-			}
-			if why, undecided := r.infer(op); undecided {
-				diags = append(diags, undecidedAt(op, why))
-			}
+	for _, op := range w.Ops {
+		if stated[op.ID] {
+			continue
+		}
+		if why, undecided := r.infer(op); undecided {
+			diags = append(diags, undecidedAt(op, why))
 		}
 	}
 	return diags
@@ -51,7 +50,7 @@ func (r *reader) infer(op *ir.Operation) (why string, undecided bool) {
 	if op.Pagination != nil || inbound(op) {
 		return "", false
 	}
-	in, why, named := requestInputs(r.types, op)
+	in, why, named := requestInputs(r.w, op)
 	if !named {
 		return "", false
 	}

@@ -4,52 +4,13 @@
 package pagination
 
 import (
-	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 
+	"github.com/dexpace/morphic/compilers/openapi/internal/whole"
 	"github.com/dexpace/morphic/ir"
 )
-
-// TestResolve_ReadsAtMostTheBound pins the alias scalars a type is read
-// through: a chain of maxAliasHops reaches what it stands over, and a longer
-// one, a loop or a typed nil stands for no type.
-func TestResolve_ReadsAtMostTheBound(t *testing.T) {
-	t.Parallel()
-	list := &ir.List{ID: "t/list"}
-	chain := func(hops int) ir.TypeRegistry {
-		reg := ir.TypeRegistry{"t/list": list}
-		next := ir.TypeID("t/list")
-		for i := range hops {
-			id := ir.TypeID(fmt.Sprintf("t/alias%d", i))
-			reg[id] = &ir.Scalar{ID: id, Base: &ir.TypeRef{Target: next}}
-			next = id
-		}
-		reg["t/x"] = reg[next]
-		return reg
-	}
-	var typedNil *ir.Model
-	for name, tc := range map[string]struct {
-		reg  ir.TypeRegistry
-		want ir.TypeDef
-	}{
-		"no alias":         {chain(0), list},
-		"within the bound": {chain(maxAliasHops), list},
-		"past the bound":   {chain(maxAliasHops + 1), nil},
-		"a loop": {ir.TypeRegistry{
-			"t/x": &ir.Scalar{ID: "t/x", Base: &ir.TypeRef{Target: "t/y"}},
-			"t/y": &ir.Scalar{ID: "t/y", Base: &ir.TypeRef{Target: "t/x"}},
-		}, nil},
-		"a typed nil":      {ir.TypeRegistry{"t/x": typedNil}, nil},
-		"a type not there": {ir.TypeRegistry{}, nil},
-	} {
-		t.Run(name, func(t *testing.T) {
-			t.Parallel()
-			assert.Equal(t, tc.want, resolve(tc.reg, "t/x"))
-		})
-	}
-}
 
 // TestReader_ReadsEachBodyAndModelOnce pins the reader's memo: operations
 // naming one body read its page once per walk they send, and a model several
@@ -68,10 +29,10 @@ func TestReader_ReadsEachBodyAndModelOnce(t *testing.T) {
 			{ID: ir.PropID(id + "/b"), Name: ir.Naming{Source: "b", Canonical: "b"}, Type: ir.TypeRef{Target: "t/info"}},
 		}}
 	}
-	r := newReader(ir.TypeRegistry{
+	r := newReader(whole.New(&ir.Document{Types: ir.TypeRegistry{
 		"t/list": &ir.List{ID: "t/list"}, "t/info": info, "t/one": body("t/one"), "t/two": body("t/two"),
 		"t/prim/integer": &ir.Primitive{ID: "t/prim/integer", Prim: ir.PrimInteger},
-	})
+	}}))
 	for range 3 {
 		for _, id := range []ir.TypeID{"t/one", "t/two"} {
 			pg := r.page(pageKey{body: id})
@@ -81,4 +42,38 @@ func TestReader_ReadsEachBodyAndModelOnce(t *testing.T) {
 	}
 	assert.Len(t, r.pages, 2, "a page per body")
 	assert.Len(t, r.models, 3, "a reading per model: the two bodies and the one their members hold")
+}
+
+// TestPageContents_ListsWhatCanBeAPage pins the contents a walk reads its page
+// from: those of each success response that do not stream, in response order,
+// none of a response with no body or whose every content streams, and none
+// after the reader stops asking.
+func TestPageContents_ListsWhatCanBeAPage(t *testing.T) {
+	t.Parallel()
+	content := func(mediaType string, streams bool) ir.Content {
+		ct := ir.Content{MediaType: mediaType}
+		if streams {
+			ct.Stream = &ir.ContentStream{}
+		}
+		return ct
+	}
+	op := &ir.Operation{Responses: []ir.Response{
+		{},
+		{Payload: &ir.Payload{Contents: []ir.Content{content("text/event-stream", true)}}},
+		{Payload: &ir.Payload{Contents: []ir.Content{content("application/json", false), content("text/event-stream", true),
+			content("application/xml", false)}}},
+		{Payload: &ir.Payload{Contents: []ir.Content{content("application/yaml", false)}}},
+	}}
+	var all []string
+	for ct := range pageContents(op) {
+		all = append(all, ct.MediaType)
+	}
+	assert.Equal(t, []string{"application/json", "application/xml", "application/yaml"}, all)
+
+	var first []string
+	for ct := range pageContents(op) {
+		first = append(first, ct.MediaType)
+		break
+	}
+	assert.Equal(t, []string{"application/json"}, first, "a reader stopping at the first reads no more")
 }

@@ -62,8 +62,10 @@ var callShapeBaseline = map[string]map[string]int{
 	},
 	"compilers/openapi/internal/lowering": {
 		// Promoter.Referent, Remembered and Settled each call the function they
-		// are handed before they return: immediate callbacks.
-		"compilers/openapi/internal/schema": 17,
+		// are handed before they return: immediate callbacks. operation's are a
+		// union's file reading and the store of what parts read of unions.
+		"compilers/openapi/internal/operation": 2,
+		"compilers/openapi/internal/schema":    17,
 	},
 	"compilers/openapi/internal/merge": {
 		// What a fold asks the walk that declared the field, through merge.Walk:

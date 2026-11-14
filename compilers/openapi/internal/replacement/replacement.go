@@ -11,6 +11,7 @@ import (
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
+	"github.com/dexpace/morphic/compilers/openapi/internal/whole"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -20,26 +21,24 @@ import (
 // operationId, a parameter by `<in>.<name>` or its name within its operation,
 // a header by name among the headers beside it, a property by name within its
 // model, a schema by its components name, and a security scheme by its key
-// (docs/compilers/openapi.md#extension-promotion). c is the source's context.
-func Resolve(c lowering.Ctx, doc *ir.Document) []ir.Diagnostic {
-	r := resolver{c: c, p: c.Promoter(), doc: doc}
+// (docs/compilers/openapi.md#extension-promotion). c is the source's context,
+// and w the document, which is whole.
+func Resolve(c lowering.Ctx, w *whole.Document) []ir.Diagnostic {
+	r := resolver{c: c, p: c.Promoter(), w: w}
 	if !r.p.Maps(lowering.TargetDeprecationReplacedBy) {
 		return nil
 	}
-	var diags []ir.Diagnostic
-	for i := range doc.Services {
-		diags = append(diags, r.service(&doc.Services[i])...)
-	}
-	for _, id := range slices.Sorted(maps.Keys(doc.Types)) {
-		if td := doc.Types[id]; !ir.IsNilTypeDef(td) {
+	diags := r.service()
+	for _, id := range slices.Sorted(maps.Keys(w.Types)) {
+		if td := w.Types[id]; !ir.IsNilTypeDef(td) {
 			diags = append(diags, r.typeDef(id, td)...)
 		}
 	}
-	for _, id := range slices.Sorted(maps.Keys(doc.Auth)) {
-		scheme := doc.Auth[id]
+	for _, id := range slices.Sorted(maps.Keys(w.Auth)) {
+		scheme := w.Auth[id]
 		diags = append(diags, r.fill(scheme.Unmodeled, scheme.Deprecation, &scheme.Provenance,
 			ir.EntityRef{Auth: id}, "security scheme", r.scheme)...)
-		doc.Auth[id] = scheme
+		w.Auth[id] = scheme
 	}
 	return diags
 }
@@ -49,12 +48,12 @@ func Resolve(c lowering.Ctx, doc *ir.Document) []ir.Diagnostic {
 // list whose every entry names another costs its length squared: only a
 // mapping reads their replacements, and 8,000 such headers add under half a
 // second to a compile, which an index per list would not repay. A model's
-// members, whose messages every compile reads, are indexed by name once
-// (memberFinder).
+// member, which messages every compile reads name, is read by its name alone
+// (whole.Document.Member), which indexes a model's own properties once.
 type resolver struct {
-	c   lowering.Ctx
-	p   lowering.Promoter
-	doc *ir.Document
+	c lowering.Ctx
+	p lowering.Promoter
+	w *whole.Document
 }
 
 // fill reads the names own gives the replacements of its node, self, into dep,
@@ -97,7 +96,7 @@ func (r *resolver) fill(own ir.Unmodeled, dep *ir.Deprecation, prov *ir.Provenan
 func (r *resolver) scheme(name string) (ir.EntityRef, int) {
 	var found ir.EntityRef
 	matched := 0
-	for id, s := range r.doc.Auth {
+	for id, s := range r.w.Auth {
 		if s.Name.Source == name {
 			found, matched = ir.EntityRef{Auth: id}, matched+1
 		}
@@ -108,7 +107,7 @@ func (r *resolver) scheme(name string) (ir.EntityRef, int) {
 // schema finds the schema components/schemas declares under name.
 func (r *resolver) schema(name string) (ir.EntityRef, int) {
 	id := r.c.IDs().NamedType(jsontext.Pointer("/components/schemas").AppendToken(name))
-	if _, declared := r.doc.Types[id]; !declared {
+	if _, declared := r.w.Types[id]; !declared {
 		return ir.EntityRef{}, 0
 	}
 	return ir.EntityRef{Type: id}, 1
@@ -122,7 +121,7 @@ func (r *resolver) typeDef(id ir.TypeID, td ir.TypeDef) []ir.Diagnostic {
 	if !ok {
 		return diags
 	}
-	member := memberFinder(r.doc.Types, m.ID)
+	member := r.memberFinder(m.ID)
 	for i := range m.Properties {
 		p := &m.Properties[i]
 		diags = append(diags, r.fill(p.Unmodeled, p.Deprecation, &p.Provenance, ir.EntityRef{Property: p.ID}, "property", member)...)
@@ -132,21 +131,11 @@ func (r *resolver) typeDef(id ir.TypeID, td ir.TypeDef) []ir.Diagnostic {
 
 // memberFinder returns what finds a member of the model id by name: one of
 // the members the model flattens to, by the name it travels under, which a
-// flattening holds one member of. They are indexed once, where a name is
-// first looked for.
-func memberFinder(types ir.TypeRegistry, id ir.TypeID) func(string) (ir.EntityRef, int) {
-	var byName map[string]ir.PropID
+// flattening holds one member of (whole.Document.Member).
+func (r *resolver) memberFinder(id ir.TypeID) func(string) (ir.EntityRef, int) {
 	return func(name string) (ir.EntityRef, int) {
-		if byName == nil {
-			flat := ir.FlattenedProperties(types, id)
-			byName = make(map[string]ir.PropID, len(flat.Properties))
-			for i := range flat.Properties {
-				p := flat.Properties[i].Property
-				byName[p.EffectiveWireName()] = p.ID
-			}
-		}
-		if p, found := byName[name]; found {
-			return ir.EntityRef{Property: p}, 1
+		if p, found := r.w.Member(id, name); found {
+			return ir.EntityRef{Property: p.ID}, 1
 		}
 		return ir.EntityRef{}, 0
 	}

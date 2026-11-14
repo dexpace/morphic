@@ -108,7 +108,7 @@ func TestDefaultContentType_ReadsEachValueByItsRow(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			for version, want := range map[string]string{"3.0.3": tc.v30, "3.1.0": tc.v31, "3.2.0": tc.v32} {
-				got := defaultContentType(node, oas.Table().EncodingRules(version), []ir.TypeRef{{Target: tc.value}}, tc.encodedBy)
+				got := defaultContentType(newPartUnions(), node, oas.Table().EncodingRules(version), []ir.TypeRef{{Target: tc.value}}, tc.encodedBy)
 				if want == "" {
 					assert.Nil(t, got, version)
 					continue
@@ -118,12 +118,12 @@ func TestDefaultContentType_ReadsEachValueByItsRow(t *testing.T) {
 		})
 	}
 	rules := oas.Table().EncodingRules("3.1.0")
-	assert.Equal(t, []string{"text/plain"}, defaultContentType(node, rules,
+	assert.Equal(t, []string{"text/plain"}, defaultContentType(newPartUnions(), node, rules,
 		[]ir.TypeRef{{Target: ir.PrimTypeID(ir.PrimString)}, {Target: ir.PrimTypeID(ir.PrimBool)}}, unencoded),
 		"values of one row take it")
-	assert.Nil(t, defaultContentType(node, rules,
+	assert.Nil(t, defaultContentType(newPartUnions(), node, rules,
 		[]ir.TypeRef{{Target: ir.PrimTypeID(ir.PrimString)}, {Target: "t/model"}}, unencoded), "values of two rows take none")
-	assert.Nil(t, defaultContentType(node, rules, nil, unencoded), "no value takes none")
+	assert.Nil(t, defaultContentType(newPartUnions(), node, rules, nil, unencoded), "no value takes none")
 }
 
 // TestDefaultContentType_ReadsUpToItsBound holds the values one part's
@@ -142,7 +142,7 @@ func TestDefaultContentType_ReadsUpToItsBound(t *testing.T) {
 	for n, want := range map[int][]string{maxDefaultValues - 1: {"text/plain"}, maxDefaultValues: nil} {
 		reg := union(n)
 		node := func(id ir.TypeID) (ir.TypeDef, bool) { td, ok := reg[id]; return td, ok }
-		assert.Equal(t, want, defaultContentType(node, rules, []ir.TypeRef{{Target: "t/u"}}, unencoded),
+		assert.Equal(t, want, defaultContentType(newPartUnions(), node, rules, []ir.TypeRef{{Target: "t/u"}}, unencoded),
 			"%d strings beside the union read", n)
 	}
 }
@@ -158,14 +158,14 @@ func TestPartValues_ReadsEachItemOfEachDeclaration(t *testing.T) {
 	node := func(id ir.TypeID) (ir.TypeDef, bool) { td, ok := reg[id]; return td, ok }
 	decl := func(id ir.TypeID) *ir.Property { return &ir.Property{Type: ir.TypeRef{Target: id}} }
 
-	values, ok := partValues(node, []*ir.Property{decl("t/tuple"), decl("t/u/lists"), decl("t/model")})
+	values, ok := partValues(newPartUnions(), node, []*ir.Property{decl("t/tuple"), decl("t/u/lists"), decl("t/model")})
 	require.True(t, ok)
 	assert.Equal(t, []ir.TypeRef{
 		{Target: ir.PrimTypeID(ir.PrimInt64)}, {Target: ir.PrimTypeID(ir.PrimBool)},
 		{Target: ir.PrimTypeID(ir.PrimString)}, {Target: "t/model"}, {Target: "t/model"},
 	}, values)
 
-	values, ok = partValues(node, []*ir.Property{decl("t/model"), decl("t/u/missing")})
+	values, ok = partValues(newPartUnions(), node, []*ir.Property{decl("t/model"), decl("t/u/missing")})
 	assert.False(t, ok, "a union whose members are not read")
 	assert.Nil(t, values)
 }

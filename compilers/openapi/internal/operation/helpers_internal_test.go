@@ -17,6 +17,7 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
 	"github.com/dexpace/morphic/compilers/openapi/internal/schema"
 	"github.com/dexpace/morphic/compilers/openapi/internal/servers"
+	"github.com/dexpace/morphic/compilers/openapi/internal/whole"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -86,7 +87,8 @@ func newRawLowerer(doc *soa.OpenAPI) *lowerer {
 func lowerServiceSpec(t *testing.T, src string) (ir.Service, []ir.Diagnostic) {
 	t.Helper()
 	l, lowered, reg, loadDiags := lowerBeforeLinks(t, src)
-	l.diags.AppendAll(lowered.Links.Resolve(l.ctx, &lowered.Service, reg, servers.Reopen(lowered.Servers)))
+	w := whole.New(&ir.Document{Types: reg, Services: []ir.Service{lowered.Service}})
+	l.diags.AppendAll(lowered.Links.Resolve(l.ctx, w, servers.Reopen(lowered.Servers)))
 	return lowered.Service, append(loadDiags, l.diags.List()...)
 }
 

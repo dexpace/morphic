@@ -11,6 +11,7 @@ import (
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
+	"github.com/dexpace/morphic/compilers/openapi/internal/whole"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -19,35 +20,32 @@ import (
 // where its own keys name none (message), and reports each message naming one
 // that it cannot settle. It runs after Resolve, as an inference reads after
 // every promotion (docs/compilers/openapi.md#policies). c is the source's
-// context.
-func Infer(c lowering.Ctx, doc *ir.Document) []ir.Diagnostic {
+// context, and w the document, which is whole.
+func Infer(c lowering.Ctx, w *whole.Document) []ir.Diagnostic {
 	if !c.ReplacementInference.Honours() {
 		return nil
 	}
-	r := resolver{c: c, p: c.Promoter(), doc: doc}
-	var diags []ir.Diagnostic
-	for i := range doc.Services {
-		diags = append(diags, r.inferService(&doc.Services[i])...)
-	}
-	for _, id := range slices.Sorted(maps.Keys(doc.Types)) {
-		if m, ok := doc.Types[id].(*ir.Model); ok && m != nil {
+	r := resolver{c: c, p: c.Promoter(), w: w}
+	diags := r.inferService()
+	for _, id := range slices.Sorted(maps.Keys(w.Types)) {
+		if m, ok := w.Types[id].(*ir.Model); ok && m != nil {
 			diags = r.inferMembers(diags, m)
 		}
 	}
 	return diags
 }
 
-// inferService reads the message of every operation svc holds, nested groups
-// included to ir.MaxGroupDepth, naming an operation by its route, and of each
-// of its parameters, naming a parameter beside it in code.
-func (r *resolver) inferService(svc *ir.Service) []ir.Diagnostic {
-	ops := lowering.Operations(svc)
+// inferService reads the message of every operation of the document, naming
+// an operation by its route, and of each of its parameters, naming a parameter
+// beside it in code.
+func (r *resolver) inferService() []ir.Diagnostic {
+	ops := r.w.Ops
 	routes := indexRoutes(ops)
 	var diags []ir.Diagnostic
 	for _, op := range ops {
 		diags = append(diags, r.message(deprecated{op.Unmodeled, op.Deprecation, &op.Provenance,
 			ir.EntityRef{Operation: op.ID}}, scope{"operation", routes.named, routes.find})...)
-		param := paramFinder(op)
+		param := r.paramFinder(op)
 		for i := range op.Params {
 			p := &op.Params[i]
 			diags = append(diags, r.message(deprecated{p.Unmodeled, p.Deprecation, &p.Provenance,
@@ -61,7 +59,7 @@ func (r *resolver) inferService(svc *ir.Service) []ir.Diagnostic {
 // m in code, and returns diags with what it reports appended, as every
 // model's are, so a model reporting nothing allocates nothing.
 func (r *resolver) inferMembers(diags []ir.Diagnostic, m *ir.Model) []ir.Diagnostic {
-	member := memberFinder(r.doc.Types, m.ID)
+	member := r.memberFinder(m.ID)
 	for i := range m.Properties {
 		p := &m.Properties[i]
 		diags = append(diags, r.message(deprecated{p.Unmodeled, p.Deprecation, &p.Provenance,

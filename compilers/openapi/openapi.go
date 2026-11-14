@@ -27,6 +27,7 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/replacement"
 	"github.com/dexpace/morphic/compilers/openapi/internal/schema"
 	"github.com/dexpace/morphic/compilers/openapi/internal/servers"
+	"github.com/dexpace/morphic/compilers/openapi/internal/whole"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -110,7 +111,7 @@ func (c *Compiler) Compile(ctx context.Context, sources []compilers.Source, opts
 	}
 	// components schemas → auth → service/operations → document metadata;
 	// assembles Document
-	out, lowerDiags, err := run(ctx, loweringCtx(loadedDoc, formatOpts), compile.NewTypes())
+	out, lowerDiags, err := run(ctx, loweringCtx(loadedDoc, formatOpts), compile.NewTypes(), whole.New)
 	// Load diagnostics precede lowering diagnostics.
 	all := slices.Concat(diags, withoutRereported(lowerDiags, diags))
 	if err != nil {
@@ -183,7 +184,7 @@ func (*Compiler) SourceTable(sources []compilers.Source, opts compilers.Options)
 // the phases honouring ctx stop mid-registry, leaving references to types never
 // interned or settled, but returns the diagnostics gathered before the stop.
 // It refuses a document past Limits.MaxReferenceExpansion without error.
-func run(ctx context.Context, c lowering.Ctx, ts *compile.Types) (*ir.Document, []ir.Diagnostic, error) {
+func run(ctx context.Context, c lowering.Ctx, ts *compile.Types, newWhole func(*ir.Document) *whole.Document) (*ir.Document, []ir.Diagnostic, error) {
 	// out is this function's, not a struct's: a document being built
 	// (micro-compiler-design §4.1). Nothing below allocates it.
 	out := &ir.Document{}
@@ -229,20 +230,23 @@ func run(ctx context.Context, c lowering.Ctx, ts *compile.Types) (*ir.Document, 
 	// states. A link names operations and members anywhere in the service, and
 	// a server it names registers then too, so the servers are read after it.
 	// A replacement may be declared after what it replaces, and what a name
-	// implies turns on the type a $ref names, built in any order.
+	// implies turns on the type a $ref names, built in any order. Each step
+	// reads the document through w, which lists and indexes it once for all;
+	// newWhole is whole.New, which a test counts.
+	w := newWhole(out)
 	srv := servers.Reopen(lowered.Servers)
-	acc.AppendAll(lowered.Links.Resolve(c, &out.Services[0], reg, srv))
+	acc.AppendAll(lowered.Links.Resolve(c, w, srv))
 	out.Servers = srv.Servers()
 	// The operations whose extensions speak of a pagination are what the
 	// pagination inference passes over, by the precedence
 	// docs/compilers/openapi.md#policies gives: what they say of one, even that
 	// there is none, wins over what the names an operation uses suggest.
-	stated, pageDiags := pagination.Promote(c, &out.Services[0], reg)
+	stated, pageDiags := pagination.Promote(c, w)
 	acc.AppendAll(pageDiags)
-	acc.AppendAll(replacement.Resolve(c, out))
-	acc.AppendAll(replacement.Infer(c, out))
-	acc.AppendAll(convention.Apply(c, out))
-	acc.AppendAll(pagination.InferWalks(c, out, stated))
+	acc.AppendAll(replacement.Resolve(c, w))
+	acc.AppendAll(replacement.Infer(c, w))
+	acc.AppendAll(convention.Apply(c, w))
+	acc.AppendAll(pagination.InferWalks(c, w, stated))
 
 	m, metaDiags := document.Lower(c)
 	out.Name, out.Version = m.Name, m.Version

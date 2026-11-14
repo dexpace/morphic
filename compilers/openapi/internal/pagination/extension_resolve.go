@@ -4,6 +4,7 @@
 package pagination
 
 import (
+	"iter"
 	"slices"
 	"strconv"
 	"strings"
@@ -11,6 +12,7 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
 	"github.com/dexpace/morphic/compilers/openapi/internal/runtimeexpr"
+	"github.com/dexpace/morphic/compilers/openapi/internal/whole"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -126,7 +128,7 @@ func (pg *pager) requestValue(op *ir.Operation, text string) (*ir.InputPath, str
 		if e.Part == runtimeexpr.PartBody {
 			return pg.bodyInput(op, e.Tokens)
 		}
-		found := pg.lk.ParamIndex(op).Bound(ir.HTTPLocation(e.Part), e.Name)
+		found := pg.w.Params(op).Bound(ir.HTTPLocation(e.Part), e.Name)
 		if len(found) != 1 {
 			return nil, "reads " + e.Part + " parameter " + strconv.Quote(e.Name) + ", which the operation does not declare once"
 		}
@@ -137,7 +139,7 @@ func (pg *pager) requestValue(op *ir.Operation, text string) (*ir.InputPath, str
 	if !ok || slices.Contains(names, "") {
 		return nil, "is no expression naming a value of the request"
 	}
-	switch found := pg.lk.ParamIndex(op).Bound("", names[0]); len(found) {
+	switch found := pg.w.Params(op).Bound("", names[0]); len(found) {
 	case 0:
 		return pg.bodyInput(op, names)
 	case 1:
@@ -150,7 +152,7 @@ func (pg *pager) requestValue(op *ir.Operation, text string) (*ir.InputPath, str
 // bodyInput is the member of op's request body tokens walk to, the body whole
 // for none.
 func (pg *pager) bodyInput(op *ir.Operation, tokens []string) (*ir.InputPath, string) {
-	segments, why, ok := runtimeexpr.BodyPath(pg.lk, op.Request, tokens, "request")
+	segments, why, ok := runtimeexpr.BodyPath(pg.w, op.Request, tokens, "request")
 	if !ok {
 		return nil, why
 	}
@@ -169,7 +171,7 @@ func (pg *pager) paramInput(op *ir.Operation, id ir.ParamID, names []string) (*i
 		// A binding names only a parameter its operation holds.
 		return nil, "names parameter " + string(id) + ", which a binding names and the operation does not hold"
 	}
-	segments, ok := pg.lk.Walk(op.Params[i].Type.Target, names)
+	segments, ok := pg.w.Walk(op.Params[i].Type.Target, names)
 	if !ok {
 		return nil, "reads " + strings.Join(names, ".") + " of parameter " + strconv.Quote(op.Params[i].Name.Source) +
 			", which holds no such chain of members"
@@ -213,7 +215,7 @@ func (pg *pager) bodyOutput(op *ir.Operation, tokens []string) (*ir.PropPath, st
 		if body == nil {
 			continue
 		}
-		segments, why, ok := runtimeexpr.BodyPath(pg.lk, body, tokens, "response")
+		segments, why, ok := runtimeexpr.BodyPath(pg.w, body, tokens, "response")
 		switch {
 		case !ok:
 			return nil, why
@@ -237,7 +239,7 @@ func (pg *pager) headerOutput(op *ir.Operation, name string) (*ir.PropPath, stri
 	}
 	var out *ir.PropPath
 	for i := range op.Responses {
-		found := pg.lk.Header(runtimeexpr.ResponseKey{Op: op.ID, List: runtimeexpr.ListResponses, Index: i}, op.Responses[i].Headers, name)
+		found := pg.w.Header(whole.ResponseKey{Op: op.ID, List: whole.ListResponses, Index: i}, op.Responses[i].Headers, name)
 		switch {
 		case len(found) != 1:
 			return nil, "reads response header " + strconv.Quote(name) + ", which a success response does not declare once"
@@ -248,6 +250,25 @@ func (pg *pager) headerOutput(op *ir.Operation, name string) (*ir.PropPath, stri
 		}
 	}
 	return out, ""
+}
+
+// pageContents returns the contents of op's success responses that can be a
+// page, response by response (pageBody): what a walk reads its page from,
+// whether a promotion states it or an inference reads it.
+func pageContents(op *ir.Operation) iter.Seq[*ir.Content] {
+	return func(yield func(*ir.Content) bool) {
+		for i := range op.Responses {
+			body := pageBody(op.Responses[i].Payload)
+			if body == nil {
+				continue
+			}
+			for j := range body.Contents {
+				if !yield(&body.Contents[j]) {
+					return
+				}
+			}
+		}
+	}
 }
 
 // pageBody is what of a response's body can be a page: its contents that do
