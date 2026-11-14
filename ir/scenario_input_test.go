@@ -5,7 +5,9 @@ package ir_test
 
 import (
 	"encoding/json/v2"
+	"fmt"
 	"slices"
+	"strings"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
@@ -159,4 +161,40 @@ func TestExample_ScenarioInput_TypeEdgesReadItInTheWalksOrder(t *testing.T) {
 
 	assert.Equal(t, []ir.TypeID{"t/x/A", "t/x/B", "t/x/C"}, got)
 	assert.Empty(t, edgeDiff(m), "TypeEdges must agree with the reflection walk")
+}
+
+// TestExample_ScenarioInput_ParamsEncodeInKeyOrder pins that a scenario's
+// parameters are written in the order their IDs sort, whatever order the map
+// ranges in, through an Example alone and through a whole Document. Eight keys,
+// each encoding repeated, leave a map's order little chance of matching.
+func TestExample_ScenarioInput_ParamsEncodeInKeyOrder(t *testing.T) {
+	t.Parallel()
+	const keys = 8
+	params := make(map[ir.ParamID]ir.Value, keys)
+	sorted := make([]string, 0, keys)
+	for i := range keys {
+		id := fmt.Sprintf("param/x/o/k%d", keys-1-i)
+		params[ir.ParamID(id)] = scenarioStr
+		sorted = append(sorted, id)
+	}
+	slices.Sort(sorted)
+	ex := ir.Example{Name: "ex", Input: &ir.ScenarioInput{Params: params}}
+	doc := ir.Document{IRVersion: ir.IRVersion, Types: ir.TypeRegistry{"t/x/S": &ir.Scalar{
+		ID: "t/x/S", Name: ir.Naming{Source: "s", Canonical: "s"}, Examples: []ir.Example{ex},
+	}}}
+
+	for range 10 {
+		alone, err := json.Marshal(ex, json.Deterministic(true))
+		require.NoError(t, err)
+		whole, err := json.Marshal(&doc)
+		require.NoError(t, err)
+		for _, raw := range [][]byte{alone, whole} {
+			at := make([]int, 0, keys)
+			for _, id := range sorted {
+				at = append(at, strings.Index(string(raw), `"`+id+`"`))
+			}
+			assert.NotContains(t, at, -1, "every key is written")
+			assert.True(t, slices.IsSorted(at), "the keys are written in sorted order: %s", raw)
+		}
+	}
 }

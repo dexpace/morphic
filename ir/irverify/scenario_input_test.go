@@ -214,6 +214,5 @@ func TestVerify_ScenarioKeyOfAnotherOperationIsNotIrverifys(t *testing.T) {
 
 	got := verifyDeclared(doc)
 
-	assert.Empty(t, violationPaths(got, "ir/dangling-param-ref"))
-	assert.Empty(t, violationPaths(got, "ir/empty-param-ref"))
+	assert.Empty(t, got, "irverify reports nothing of a key another operation declares")
 }
