@@ -7,6 +7,7 @@ import (
 	"fmt"
 
 	"github.com/dexpace/morphic/ir"
+	"github.com/dexpace/morphic/reuse"
 )
 
 // checkDuplicateWireNames reports wire-name collisions within a single model's
@@ -14,13 +15,13 @@ import (
 // of its own.
 func checkDuplicateWireNames(doc *ir.Document) []ir.Diagnostic {
 	var diags []ir.Diagnostic
-	var names reusedMap[string, bool]
+	var names reuse.Map[string, bool]
 	for _, id := range liveTypeIDs(doc) {
 		m, ok := doc.Types[id].(*ir.Model)
 		if !ok {
 			continue
 		}
-		seen := names.emptied()
+		seen := names.Emptied()
 		for _, p := range m.Properties {
 			name := p.EffectiveWireName()
 			if name == "" {
@@ -49,7 +50,7 @@ func checkDuplicateWireNames(doc *ir.Document) []ir.Diagnostic {
 // (ir/naming-alias-duplicate, ir/naming-alias-redundant).
 func checkAmbiguousAliases(doc *ir.Document) []ir.Diagnostic {
 	var diags []ir.Diagnostic
-	var claims reusedMap[string, int]
+	var claims reuse.Map[string, int]
 	for _, id := range liveTypeIDs(doc) {
 		if m, ok := doc.Types[id].(*ir.Model); ok {
 			diags = append(diags, ambiguousAliases(id, m.Properties, &claims)...)
@@ -64,8 +65,8 @@ func checkAmbiguousAliases(doc *ir.Document) []ir.Diagnostic {
 // reported at the later one. Either way the alias is reported, since it is the
 // name a fix renames or removes, and the message names the sibling. The names
 // are read through claims.
-func ambiguousAliases(id ir.TypeID, props []ir.Property, claims *reusedMap[string, int]) []ir.Diagnostic {
-	claimant := claims.emptied()
+func ambiguousAliases(id ir.TypeID, props []ir.Property, claims *reuse.Map[string, int]) []ir.Diagnostic {
+	claimant := claims.Emptied()
 	for i, p := range props {
 		if name := p.EffectiveWireName(); name != "" {
 			if _, taken := claimant[name]; !taken {

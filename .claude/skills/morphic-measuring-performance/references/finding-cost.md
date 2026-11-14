@@ -330,10 +330,10 @@ how to measure so the number means what the claim says.
 `clear-never-shrinks`
 
 - **Rule.** Clearing a non-empty map costs more the more it ever held. Clear a map reused across
-  collections until one fills it past a bound, then replace it, through a `reusedMap` and a source
-  test refusing any other `clear`, as `ir/irverify` and `pass` keep, each with its own copy
-  (#1155). `reusedMap`'s length check can miss a collection that deletes, and the source test
-  refuses no delete loop (#1152).
+  collections until one fills it past a bound, then replace it, through `reuse.Map`, which
+  `ir/irverify` and `pass` share, and a source test in each refusing any other `clear` and every
+  `delete`: the map's length check reads what the last collection left, which a collection that
+  deletes can hide (#1155, #1152).
 - **Why.** Reuse with no bound passed every cost test, while one model listing a million names
   beside 200,000 listing two took `checkRequires` from a median of 168 ms to 622 ms (#1147, #1153).
 - **Probe.** Time a million-entry collection, then many small ones, on both builds: put it first,

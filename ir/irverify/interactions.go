@@ -8,6 +8,7 @@ import (
 	"strconv"
 
 	"github.com/dexpace/morphic/ir"
+	"github.com/dexpace/morphic/reuse"
 )
 
 var (
@@ -54,7 +55,7 @@ func checkInteractions(*ir.Document) walkCheck {
 	var vs []Violation
 	// Every pagination's stops are read through this one, so a list costs no
 	// map of its own.
-	var stops reusedMap[ir.PageStop, int]
+	var stops reuse.Map[ir.PageStop, int]
 	bodyless := false // the operation the walk is in sends no request body
 	return walkCheck{
 		visit: func(v reflect.Value, at ir.WalkPath) bool {
@@ -166,12 +167,12 @@ func appendTerminatorViolation(vs []Violation, terminator *string, owner ir.Walk
 // owner, that ir does not declare, and each repeat of one at its later index, as
 // a set's repeat is (ir/set-entry-duplicate): it ends nothing more.
 func appendStopViolations(vs []Violation, stops []ir.PageStop, owner ir.WalkPath,
-	entries *reusedMap[ir.PageStop, int],
+	entries *reuse.Map[ir.PageStop, int],
 ) []Violation {
 	if len(stops) == 0 {
 		return vs // an empty Stop states no rule, and costs no map
 	}
-	first := entries.emptied()
+	first := entries.Emptied()
 	for i, stop := range stops {
 		where := owner.String() + ".Stop[" + strconv.Itoa(i) + "]"
 		switch earlier, repeated := first[stop]; {
