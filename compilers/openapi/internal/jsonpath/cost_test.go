@@ -120,3 +120,11 @@ func TestSelect_SpendsTheStepsEachSitePins(t *testing.T) {
 		assert.Equal(t, want, spentOn(t, query, doc), query)
 	}
 }
+
+// TestMaxResults_IsTheBoundOnWhatAnEvaluationHolds pins the constant the nodes
+// an evaluation's nodelists hold at once are bounded by; SelectHolding holds
+// the mechanism to a bound a test reaches.
+func TestMaxResults_IsTheBoundOnWhatAnEvaluationHolds(t *testing.T) {
+	t.Parallel()
+	assert.Equal(t, 1<<22, jsonpath.MaxResults)
+}
