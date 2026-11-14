@@ -219,6 +219,9 @@ func DefaultExtensionPromotions() map[ExtensionTarget][]ExtensionSource {
 		// and no convention names the input selecting a stream, so the condition
 		// has no default source.
 		TargetStreamTerminator: {{Key: "x-speakeasy-sse-sentinel"}},
+		// The one published convention naming alternatives among an
+		// operation's parameters, by name.
+		TargetParamChoices: {{Key: "x-mutually-exclusive-parameter-groups"}},
 	}
 }
 

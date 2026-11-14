@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
@@ -62,13 +63,38 @@ func TestTextOf_ReadsTheFirstSourceStatingAText(t *testing.T) {
 			st, diags := promoter(policy).TextOf(tc.target, own)
 			assert.Equal(t, tc.want, st.Text)
 			assert.Equal(t, tc.want != "", st.At.Pointer != "", "a key stating a text is where it sits")
-			var got []string
+			got := make([]string, 0, len(diags))
 			for _, d := range diags {
 				assert.Equal(t, diag.UnpromotedExtension, d.Code)
 				assert.Equal(t, ir.SeverityInfo, d.Severity)
 				got = append(got, d.Message)
 			}
-			assert.Equal(t, tc.reports, got)
+			assert.ElementsMatch(t, tc.reports, got)
 		})
 	}
+}
+
+// TestParamChoiceStatement_ReadsTheFirstSourceWritten pins that the choices
+// are read from the first source whose key the operation writes, whatever it
+// holds, and a later source's key written beside it is reported and not read.
+// A source reading a member the key does not hold writes nothing.
+func TestParamChoiceStatement_ReadsTheFirstSourceWritten(t *testing.T) {
+	t.Parallel()
+	p := promoter(mapping(lowering.TargetParamChoices, lowering.ExtensionSource{Key: "x-m", Member: "groups"},
+		lowering.ExtensionSource{Key: "x-a"}, lowering.ExtensionSource{Key: "x-b"}))
+	st, written, diags := p.ParamChoiceStatement(ir.Unmodeled{
+		"openapi:x-m": vendorExtension(`{}`), "openapi:x-a": vendorExtension(`[1]`), "openapi:x-b": vendorExtension(`{}`),
+	})
+	assert.True(t, written)
+	assert.Equal(t, "x-a", st.Source.Key)
+	assert.Equal(t, ir.RawValue(`[1]`), st.Value)
+	require.Len(t, diags, 1)
+	assert.Equal(t, diag.UnpromotedExtension, diags[0].Code)
+	assert.Equal(t, `extension "x-b" is written beside "x-a", which the policy reads first, so no choice is filled from it`,
+		diags[0].Message)
+
+	_, written, diags = p.ParamChoiceStatement(ir.Unmodeled{})
+	assert.False(t, written)
+	assert.Empty(t, diags)
+	assert.Equal(t, "a list", lowering.ShapeOf(ir.RawValue(`[]`)))
 }

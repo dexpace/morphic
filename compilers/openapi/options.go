@@ -149,6 +149,9 @@ const (
 	// TargetStreamCondition fills ir.StreamDetail.Condition, from a key on the
 	// operation naming an input of its request.
 	TargetStreamCondition = lowering.TargetStreamCondition
+	// TargetParamChoices fills ir.Operation.ParamChoices, from a key on the
+	// operation naming alternatives among its parameters.
+	TargetParamChoices = lowering.TargetParamChoices
 )
 
 // NullableInference is the nullable-inference policy: whether a null a schema

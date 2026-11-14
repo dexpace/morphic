@@ -462,7 +462,7 @@ func statingValue(target lowering.ExtensionTarget) string {
 func appliers() []func(lowering.Promoter, ir.Unmodeled) (bool, []ir.Diagnostic) {
 	return []func(lowering.Promoter, ir.Unmodeled) (bool, []ir.Diagnostic){
 		// A stream's terminator and condition are filled once the document is
-		// whole (stream.Promote), from the text their sources state: what is
+		// whole (stream.PromoteDetail), from the text their sources state: what is
 		// read here is that text.
 		func(p lowering.Promoter, unmodeled ir.Unmodeled) (bool, []ir.Diagnostic) {
 			var stated bool
@@ -472,6 +472,12 @@ func appliers() []func(lowering.Promoter, ir.Unmodeled) (bool, []ir.Diagnostic) 
 				stated, diags = stated || st.Text != "", append(diags, readDiags...)
 			}
 			return stated, diags
+		},
+		// The choices among an operation's parameters are read once the
+		// document is whole (paramchoice.PromoteChoices), from the value read here.
+		func(p lowering.Promoter, unmodeled ir.Unmodeled) (bool, []ir.Diagnostic) {
+			_, written, diags := p.ParamChoiceStatement(unmodeled)
+			return written, diags
 		},
 		func(p lowering.Promoter, unmodeled ir.Unmodeled) (bool, []ir.Diagnostic) {
 			var dep *ir.Deprecation
@@ -601,6 +607,7 @@ var targetFields = map[lowering.ExtensionTarget][]string{
 	lowering.TargetPaginationTotalPages:      {"Operation.Pagination"},
 	lowering.TargetStreamTerminator:          {"StreamDetail.Terminator"},
 	lowering.TargetStreamCondition:           {"StreamDetail.Condition"},
+	lowering.TargetParamChoices:              {"Operation.ParamChoices"},
 }
 
 // promotionDoc is the document whose table says what a promotion can fill.

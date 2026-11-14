@@ -126,6 +126,10 @@ witnessing it.
 
 - Witnesses: `param-identity`, `http-binding`, `path-item-operations`, `path-key-fragments`
 
+### `exclusive-parameters`
+
+- Witnesses: `param-choices`
+
 ### `param-styles`
 
 - Witnesses: `param-styles`, `param-style-matrix`

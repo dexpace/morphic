@@ -18,14 +18,13 @@ const (
 	noCondition  = "no stream condition is filled"
 )
 
-// Promote fills each operation's ResponseStream.Terminator and Condition from
+// PromoteDetail fills each operation's ResponseStream.Terminator and Condition from
 // the keys the policy's sources of lowering.TargetStreamTerminator and
 // lowering.TargetStreamCondition name, marking the node whose key filled it,
 // and reports each key that fills nothing as info
 // diag.UnpromotedExtension. Every key stays as written.
-func Promote(c lowering.Ctx, w *whole.Document) []ir.Diagnostic {
+func PromoteDetail(c lowering.Ctx, w *whole.Document) (diags []ir.Diagnostic) {
 	p := c.Promoter()
-	var diags []ir.Diagnostic
 	for _, op := range w.Ops {
 		diags = append(diags, terminator(p, op)...)
 		diags = append(diags, condition(p, w, op)...)
@@ -99,7 +98,7 @@ func fromOperation(op *ir.Operation, own lowering.TextStatement, contents []keye
 	if len(diags) > 0 {
 		return diags
 	}
-	fill(op, own.Text, contents)
+	fillTerminator(op, own.Text, contents)
 	op.Provenance.Inferred = ir.JoinInferred(op.Provenance.Inferred, lowering.ExtensionPromotionHeuristic)
 	return nil
 }
@@ -134,13 +133,13 @@ func fromContents(op *ir.Operation, contents []keyed) []ir.Diagnostic {
 			"states "+strconv.Quote(later.Text)+", but the streaming contents of operation "+
 				strconv.Quote(string(op.ID))+" do not all state one text", noTerminator)}
 	}
-	fill(op, text, contents)
+	fillTerminator(op, text, contents)
 	return nil
 }
 
-// fill sets op's terminator to text and marks each content whose key states
+// fillTerminator sets op's terminator to text and marks each content whose key states
 // it.
-func fill(op *ir.Operation, text string, contents []keyed) {
+func fillTerminator(op *ir.Operation, text string, contents []keyed) {
 	op.ResponseStream.Terminator = &text
 	for _, k := range contents {
 		if k.st.Text == text {
@@ -161,7 +160,7 @@ func condition(p lowering.Promoter, w *whole.Document, op *ir.Operation) []ir.Di
 	in, typ, why := runtimeexpr.RequestValue(w, op, st.Text)
 	switch {
 	case why != "":
-	case !isBool(w, typ):
+	case !namesBoolean(w, typ):
 		why = "names an input of operation " + strconv.Quote(string(op.ID)) + " that is no boolean"
 	case !choosesStream(op):
 		why = "names an input of operation " + strconv.Quote(string(op.ID)) +
@@ -174,8 +173,8 @@ func condition(p lowering.Promoter, w *whole.Document, op *ir.Operation) []ir.Di
 	return append(diags, lowering.Unpromoted(st.Source.String(), st.At, why, noCondition))
 }
 
-// isBool reports whether id stands for the boolean primitive.
-func isBool(w *whole.Document, id ir.TypeID) bool {
+// namesBoolean reports whether id stands for the boolean primitive.
+func namesBoolean(w *whole.Document, id ir.TypeID) bool {
 	prim, ok := w.Stands(id).(*ir.Primitive)
 	return ok && prim.Prim == ir.PrimBool
 }

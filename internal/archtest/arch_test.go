@@ -380,6 +380,13 @@ var rules = map[string][]string{
 		module + "/compilers/openapi/internal/lowering",
 		module + "/compilers/openapi/internal/runtimeexpr",
 		module + "/compilers/openapi/internal/whole"},
+	// The choices among an operation's parameters its key states, read once
+	// the document is whole. It reaches lowering for the policy and the
+	// reports it shares, and whole for the parameters a name resolves to, and
+	// nothing of the walks.
+	"compilers/openapi/internal/paramchoice": {module + "/ir",
+		module + "/compilers/openapi/internal/lowering",
+		module + "/compilers/openapi/internal/whole"},
 	// The servers a document declares, whichever object declares them, and the
 	// registry they are lowered into. It is its own package for the reason auth
 	// is: the service walk lowers the document's own list and the operation walk

@@ -5930,7 +5930,9 @@ other members, a replacement on a node that is not deprecated annotates nothing,
 the node's own keys alone, never lent by a `$ref`'s target, whose class is another.
 
 `stream.terminator` and `stream.condition` fill a stream's `Terminator` and `Condition`
-([`streaming-media`](#streaming-media)). A key either reads that states nothing it can fill, a value
+([`streaming-media`](#streaming-media)), and `operation.paramChoices` the choices among an
+operation's parameters ([`mutually-exclusive-parameters`](#mutually-exclusive-parameters)). A key
+any of them reads that states nothing it can fill, a value
 of another shape among them, is reported as an info `openapi/unpromoted-extension` at the key,
 saying why.
 
@@ -5997,12 +5999,49 @@ saying why.
 
 ### `mutually-exclusive-parameters`
 
-The groups an `x-mutually-exclusive-parameter-groups` extension declares are kept as any extension
-is ([`vendor-extensions`](#vendor-extensions)). Their promotion, which needs no node of its own, is
-to be a pass that synthesizes one logical `Parameter` typed by a `Union` of variant models, each
-field bound through `HTTPParamBinding.ParamPath`.
+The promotion target `operation.paramChoices` ([`extension-promotion`](#extension-promotion)),
+read by default from `x-mutually-exclusive-parameter-groups`, fills `Operation.ParamChoices`
+([choices among parameters](../ir/operations.md#choices-among-parameters)) once the document is
+whole. The key holds the convention's object, from a choice's name to
+`{optional: <boolean>, variants: {<variant's name>: [<parameter name>, …]}}`, read whole; `Required`
+is `!optional`. A parameter name is resolved as a link's `parameters` key is, `<in>.<name>` or a
+name one parameter carries, among the operation's parameters, a path item's included. Choices and
+variants come out sorted by name, whatever order the document writes them in, and a variant's
+parameters in its list's order. The operation's `Params`, its bindings and every reference to a
+parameter are untouched, and no parameter or type is made. The first source whose key the operation
+writes is read, and a later source's key written too is reported and not read. The key stays
+verbatim, `vendor_extension`, and the operation lists `extension-promotion` in its
+`Provenance.Inferred` where a choice is filled.
 
-- Status: not built: no pass promotes the groups yet (#988).
+Each choice is filled whole or not at all, and one written badly leaves the others standing. Each
+refusal is one info `openapi/unpromoted-extension`, at the most specific coordinate:
+
+| The document writes | Reported at |
+|---|---|
+| a key value that is no object, a list of lists among them | the key |
+| a choice that is no object | `<key>/<choice>` |
+| no `optional`, or one that is no boolean | `<key>/<choice>`, or `…/optional` |
+| no `variants`, one that is no object, or fewer than two variants | `<key>/<choice>`, or `…/variants` |
+| a variant that is no list of strings, or an empty one | `…/variants/<variant>` |
+| a name naming no parameter, or several | `…/variants/<variant>/<index>` |
+| a name twice in one variant | `…/variants/<variant>/<index>`, the later |
+| a parameter every request carries that some variant lacks | `<key>/<choice>` |
+
+The last is refused because the choice would be false: a request picking another variant carries
+the required parameter. Alternatives among a request body's members are out of scope: a schema
+states them with `oneOf`, and they lower as the body's type, so the convention's body key is not
+read.
+
+- Cases: `param-choices`
+- Codes: `openapi/unpromoted-extension`
+- Tests: `e2e.TestParamChoices_FillsChoices`, `e2e.TestParamChoices_ChangesNothingElse`,
+  `e2e.TestParamChoices_SourceOrderDecidesNothing`, `e2e.TestParamChoices_LeavesAChoiceItCannotRead`,
+  `e2e.TestParamChoices_ReadsNothingOfAKeyThatIsNoObject`, `e2e.TestParamChoices_FollowsThePolicy`,
+  `e2e.TestParamChoices_ResolvesAPathItemsParameter`, `e2e.TestParamChoices_ConformanceReadsTheSameInEitherOrder`,
+  `paramchoice.TestPromote_ReadsEachChoiceWholeOrNotAtAll`,
+  `paramchoice.TestPromote_FillsAChoiceEveryVariantOfWhichCarriesARequiredParameter`,
+  `paramchoice.TestPromote_ReadsNoKeyThatIsNoObject`, `paramchoice.TestPromote_ReadsNothingWhereNoKeyIsWritten`,
+  `lowering.TestParamChoiceStatement_ReadsTheFirstSourceWritten`
 
 ### `extension-pagination`
 
