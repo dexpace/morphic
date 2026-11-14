@@ -351,7 +351,9 @@ func TestCompile_ASharedNodeIsReadAsItsInlineSpellingIs(t *testing.T) {
 		require.Len(t, ops, 1, name)
 		require.Len(t, ops[0].Params, 1, name)
 		assert.False(t, ops[0].Params[0].Required, "%s: q is not required", name)
-		assert.False(t, containsJSON(t, doc, `"explode":`), "%s: its binding states no explode", name)
+		require.NotEmpty(t, ops[0].Bindings.HTTP, name)
+		require.Len(t, ops[0].Bindings.HTTP[0].ParamBindings, 1, name)
+		assert.Nil(t, ops[0].Bindings.HTTP[0].ParamBindings[0].Explode, "%s: its binding states no explode", name)
 	}
 	assert.Equal(t, []string{"/paths/~1a/get/parameters/0/explode", "/paths/~1a/get/parameters/0/required"}, pointersOf(inlineDiags))
 	assert.Equal(t, pointersOf(inlineDiags), pointersOf(aliasedDiags),
