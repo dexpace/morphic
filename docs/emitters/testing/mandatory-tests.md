@@ -661,44 +661,46 @@ throughout these documents.
     where every required input's set holds a value, one assembled, each value shown through the
     shape its operation sends it in, from its required parameters' sets, its optional parameters'
     declared ones, its body's, required or not, and its return content's, after those it declares,
-    always `Inferred`, its `Input` a `ScenarioInput` keyed by `ParamID` with the body in `Body`, and
-    none with `Assemble` off, a position whose type is a decorator its own examples, else the
-    nearest decorator's, else, adding no constraint, its `Alias`'s set, a message's, keyed by its
-    ID, its own declared examples, else those of its payload's contents paired with its headers'
-    set, that pairing `Inferred` and off with `Assemble`, and a content's or a variant's set, read
-    through its one plan function alone, which reports nothing since `Build` reports each refused
-    example once, is its own declared examples, else its type's, which the docs, the samples and the
-    mock read a body's examples from. A model narrowing a union is checked and shown as that union
-    over its `TypePlan.Composed` entries, a value no entry admits refused and one shown through each
-    entry admitting it, filled from what that entry requires in the shape, and a model adding
-    nothing to its union as that union. Where none applies, the value synthesized is valid against
-    its constraints and its type's validation-only constructs, as `browser-rendering`'s body holding
-    `url` or `html` and never both, a value failing them left out and reported and a declared one
-    refused, marked `Inferred`, identical across regenerations and in both declaration orders,
-    seeded from its ID where no correlation key identifies it, a choice on a recurrence or past
-    `ExamplePolicy.MaxDepth` taking the first variant or member from which a value ends, so a
-    required recursive union ends, and the same in the docs, the samples, an SDK's tests and the
-    mock. A synthesized model holds for each member the first value, of its own set and then of the
-    sets of the declarations its flattening overrides, that every declaration of it admits, else its
-    own set's first, so a member a later conjunct redeclares as a plain string keeps the value an
-    earlier one pins and a failure schema's `success: false` stands over the success shape's `true`,
-    a model narrowing a union a value of one of its entries, chosen as a variant is and the same in
-    both declaration orders, so `rulesets_ResponseRule` has one carrying the tag routing to its
-    variant, and a model adding nothing to its union its union's set where it adds no constraint to
-    it, else a value of one of the union's variants, and a list its set's values in turn, distinct
-    where `uniqueItems` or a map's keys require it, a `uniqueItems` list left below its minimum
-    unsynthesizable, a declared one whole and a synthesized one cut to the depth the bound leaves,
-    so an optional recursive member ends and a required `Nullable` one ends with `null`; the bounds
-    cut only optional members and the entries of a list or map past the larger of `MaxItems` and its
-    minimum, or past its minimum deeper than `ExamplePolicy.MaxDepth` or on a recurrence of its
-    type, so a model requiring a list of itself and a recursion through no model, as
-    `cws_JSONValue`'s, end, so a required member nested deeper than `ExamplePolicy.MaxDepth` and a
-    `minItems` or `minProps` above `MaxItems` are met; one the synthesizer cannot make valid, a
-    required cycle among them, or holding more than `plan.MaxExampleValues` values is
-    `emitters/plan/example-unsynthesized` and left out; with `Synthesize` and `Assemble` off, no
-    entry of `Plan.Examples` is `Inferred`, and with `Synthesize` off a response content left with
-    none is `emitters/mock/example-missing`, never a body it invents; and a negative bound is
-    `emitters/plan/policy-invalid` ([one set of examples](../docs-and-mock.md#one-set-of-examples)).
+    always `Inferred`, its `Input` a `ScenarioInput` keyed by `ParamID` with the body in `Body`,
+    save on an operation binding a parameter into its body, where those parameters state it and
+    `Body` is nil, and none with `Assemble` off, a position whose type is a decorator its own
+    examples, else the nearest decorator's, else, adding no constraint, its `Alias`'s set, a
+    message's, keyed by its ID, its own declared examples, else those of its payload's contents
+    paired with its headers' set, that pairing `Inferred` and off with `Assemble`, and a content's
+    or a variant's set, read through its one plan function alone, which reports nothing since
+    `Build` reports each refused example once, is its own declared examples, else its type's, which
+    the docs, the samples and the mock read a body's examples from. A model narrowing a union is
+    checked and shown as that union over its `TypePlan.Composed` entries, a value no entry admits
+    refused and one shown through each entry admitting it, filled from what that entry requires in
+    the shape, and a model adding nothing to its union as that union. Where none applies, the value
+    synthesized is valid against its constraints and its type's validation-only constructs, as
+    `browser-rendering`'s body holding `url` or `html` and never both, a value failing them left out
+    and reported and a declared one refused, marked `Inferred`, identical across regenerations and
+    in both declaration orders, seeded from its ID where no correlation key identifies it, a choice
+    on a recurrence or past `ExamplePolicy.MaxDepth` taking the first variant or member from which a
+    value ends, so a required recursive union ends, and the same in the docs, the samples, an SDK's
+    tests and the mock. A synthesized model holds for each member the first value, of its own set
+    and then of the sets of the declarations its flattening overrides, that every declaration of it
+    admits, else its own set's first, so a member a later conjunct redeclares as a plain string
+    keeps the value an earlier one pins and a failure schema's `success: false` stands over the
+    success shape's `true`, a model narrowing a union a value of one of its entries, chosen as a
+    variant is and the same in both declaration orders, so `rulesets_ResponseRule` has one carrying
+    the tag routing to its variant, and a model adding nothing to its union its union's set where it
+    adds no constraint to it, else a value of one of the union's variants, and a list its set's
+    values in turn, distinct where `uniqueItems` or a map's keys require it, a `uniqueItems` list
+    left below its minimum unsynthesizable, a declared one whole and a synthesized one cut to the
+    depth the bound leaves, so an optional recursive member ends and a required `Nullable` one ends
+    with `null`; the bounds cut only optional members and the entries of a list or map past the
+    larger of `MaxItems` and its minimum, or past its minimum deeper than `ExamplePolicy.MaxDepth`
+    or on a recurrence of its type, so a model requiring a list of itself and a recursion through no
+    model, as `cws_JSONValue`'s, end, so a required member nested deeper than
+    `ExamplePolicy.MaxDepth` and a `minItems` or `minProps` above `MaxItems` are met; one the
+    synthesizer cannot make valid, a required cycle among them, or holding more than
+    `plan.MaxExampleValues` values is `emitters/plan/example-unsynthesized` and left out; with
+    `Synthesize` and `Assemble` off, no entry of `Plan.Examples` is `Inferred`, and with
+    `Synthesize` off a response content left with none is `emitters/mock/example-missing`, never a
+    body it invents; and a negative bound is `emitters/plan/policy-invalid` ([one set of
+    examples](../docs-and-mock.md#one-set-of-examples)).
 43. **T-43 · Redaction** — on every target, a value redacted through `Property.Secret`, through
     `Parameter.Secret` and a response header's `Secret`, through a sensitive component and a type
     whose `Base` reaches one, through a list's sensitive element and a map's sensitive key and

@@ -485,9 +485,11 @@ member, operation and message:
   declared scenario's takes ([annotations](../ir/annotations.md#docs-deprecation-examples)): each
   parameter's value under its `ParamID`, and the body's in `Body`, which keying by name could not
   keep apart, since a parameter and a body member may share a name, as they do in 9 of the golden
-  spec's operations. The document never paired those values, so the scenario is `Inferred` and
-  labelled generated whatever values it takes, and `plan.Policy.Examples.Assemble` turns it off. On
-  the golden spec no operation declares a scenario.
+  spec's operations. On an operation binding a parameter into its body, whole or by property, those
+  parameters state the body, so the scenario holds their values as it holds any parameter's, reads
+  no body set and leaves `Body` nil, as a declared one does. The document never paired those values,
+  so the scenario is `Inferred` and labelled generated whatever values it takes, and
+  `plan.Policy.Examples.Assemble` turns it off. On the golden spec no operation declares a scenario.
 - **A message's, by its ID.** A message's ID opens with a kind prefix of its own
   ([IDs](../ir/identity.md#what-irverify-holds)), so its set is keyed by it as any entity's is: its
   declared examples, else those of its payload's contents, each paired with the first value of its
