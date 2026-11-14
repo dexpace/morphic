@@ -134,4 +134,9 @@ type TagDef struct {
 	// policy, not a property of the document, so no meaning is read into a
 	// value here (docs/ir/services.md).
 	Kind string `json:"kind,omitempty"`
+	// Unmodeled holds the tag's source constructs the IR does not model, kept
+	// verbatim on the tag whatever grouping forms from it: its own keys
+	// unscoped, its externalDocs object's under externalDocs/
+	// (docs/ir/unmodeled.md#carriers).
+	Unmodeled Unmodeled `json:"unmodeled,omitempty"`
 }

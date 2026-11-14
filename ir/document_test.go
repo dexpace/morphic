@@ -160,13 +160,15 @@ func TestDocument_AuthDeterministic(t *testing.T) {
 // TestTagDef_JSONContract pins TagDef's optional members: an OpenAPI 3.0/3.1
 // tag declares neither parent nor kind, so both stay absent keys and such a
 // tag's JSON is what it was, while a 3.2 tag's declared hierarchy and role
-// round-trip. Docs carries no omitempty, so a bare tag still writes it.
+// round-trip, as do the keys it keeps. Docs carries no omitempty, so a bare
+// tag still writes it.
 func TestTagDef_JSONContract(t *testing.T) {
 	t.Parallel()
 	assertJSONContract(t, ir.TagDef{}, `{"docs":{}}`, ir.TagDef{
-		Name:   "books",
-		Docs:   ir.Docs{Summary: "Books"},
-		Parent: "catalog",
-		Kind:   "nav",
+		Name:      "books",
+		Docs:      ir.Docs{Summary: "Books"},
+		Parent:    "catalog",
+		Kind:      "nav",
+		Unmodeled: populatedUnmodeled(),
 	})
 }

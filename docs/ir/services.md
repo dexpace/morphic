@@ -42,6 +42,8 @@ type OperationGroup struct {
     Stability  Stability          // the tier of every member stating none, nearest group first; read
                                   // through the group, never copied down (docs/ir/operations.md)
     Unmodeled  Unmodeled
+    Inferred   Inferred           // the heuristics that filled a field from a key the group keeps
+                                  // (docs/ir/unmodeled.md#promotion); "" = none
 }
 
 type ResourceInfo struct {

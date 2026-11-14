@@ -134,6 +134,7 @@ member 0 0 Operation.overloadOf
 member 0 0 Operation.parameterVisibility
 member 0 0 Operation.returnTypeVisibility
 member 0 0 OperationGroup.availability
+member 0 0 OperationGroup.inferred
 member 0 0 OperationGroup.resource
 member 0 0 OperationGroup.stability
 member 0 0 OperationGroup.unmodeled
@@ -192,6 +193,7 @@ member 0 0 StreamCondition.value
 member 0 0 StreamDetail.condition
 member 0 0 StreamDetail.initial
 member 0 0 StreamDetail.requiresLength
+member 0 0 TagDef.unmodeled
 member 0 0 TemplateArg.type
 member 0 0 TemplateArg.value
 member 0 0 TemplateInstantiation.args

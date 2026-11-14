@@ -536,6 +536,7 @@ type OperationGroup struct
 	"docs" Docs
 	"groups" []OperationGroup omitempty
 	"id" GroupID omitempty
+	"inferred" Inferred omitempty
 	"name" Naming
 	"operations" []Operation omitempty
 	"resource" *ResourceInfo omitzero
@@ -859,6 +860,7 @@ type TagDef struct
 	"kind" string omitempty
 	"name" string omitempty
 	"parent" string omitempty
+	"unmodeled" Unmodeled omitempty
 
 type TemplateArg struct
 	"type" *TypeRef omitzero

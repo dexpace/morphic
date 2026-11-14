@@ -168,6 +168,13 @@ field** — including `Response`, `ErrorCase`, `Payload`, `Content`, `Example`, 
 `OAuthFlow`, and every binding struct (new spec revisions land fields on exactly these objects).
 Per-file metadata (protobuf file options) is keyed by path in `Document.Unmodeled`.
 
+A tag is a carrier of its own though it has no ID: `TagDef.Unmodeled` keeps what a tag object
+writes, whatever grouping strategy forms groups from it, so a consumer finds a tag's keys on the
+tag and nowhere else it would have to search. A group a declared tag forms also keeps the tag's
+vendor extensions, as it takes the tag's docs, because the group is the node with an ID, the one a
+configuration names, and the node whose `Inferred` records a promotion from them
+([promotion](#promotion)).
+
 ## RawConfig
 
 `RawConfig` is the neighbouring map type, not a second escape hatch: it holds declared protocol
@@ -213,13 +220,11 @@ from `Unmodeled` and no two derive it differently:
 4. **A node that cannot record a promotion is not promoted from.** An extension on it could not
    satisfy rule 3, and a heuristic that cannot be audited is worse than an empty field. Giving such a
    node a marker is a change to the IR design, and the promotion follows it rather than preceding
-   it — which is the order `Parameter` went through, and `ErrorCase`, `OAuthFlow` and `Content`
-   after it.
+   it — which is the order `Parameter` went through, and `ErrorCase`, `OAuthFlow`, `Content` and
+   `OperationGroup` after it.
    `Variant` ([unions](./unions.md)) and `EnumMember` ([enums](./enums.md)) are the instances that
    carry a `Deprecation` today: each has neither marker, so no key written on either is read, though
-   a key on the enum holding a member may fill that member. `OperationGroup`
-   ([services](./services.md)) is a third, for its `Stability`, which only a format declaring one
-   fills.
+   a key on the enum holding a member may fill that member.
 
 ### What a promotion can fill
 
@@ -244,6 +249,7 @@ a row.
 | `StreamDetail.Terminator`, `StreamDetail.Condition` | `Operation` | `Provenance.Inferred` |
 | `StreamDetail.Terminator` | `Content` | `Inferred` |
 | `Operation.ParamChoices` | `Operation` | `Provenance.Inferred` |
+| `OperationGroup.Stability` | `OperationGroup` | `Inferred` |
 | `ErrorCase.Retryable`, `ErrorCase.Throttling` | `ErrorCase` | `Inferred` |
 | `OAuthFlow.TokenEndpointAuthMethods` | `OAuthFlow` | `Inferred` |
 

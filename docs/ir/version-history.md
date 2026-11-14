@@ -790,6 +790,9 @@ it sees. Changes made together in one bump are listed together under it.
   `ir/param-choice-single`, `ir/param-variant-empty` and `ir/param-choice-name-duplicate` are new
   verifier codes. Three markers are renamed, as each inference's marker is `<fact>-inference`:
   `streaming-media-type` is `streaming-inference`, `binary-media-type` is `binary-inference` and
-  `nullable-widening` is `nullable-inference`. A consumer pinned to 0.66.0 refuses the document; one
+  `nullable-widening` is `nullable-inference`. `TagDef.Unmodeled`, the keys a tag object writes, and
+  `OperationGroup.Inferred`, the marker a promotion from a key the group keeps records
+  ([carriers](./unmodeled.md#carriers), [promotion](./unmodeled.md#promotion)).
+  A consumer pinned to 0.66.0 refuses the document; one
   reading `Stop` with no arm for `no_more` would not end such a walk, and one matching a marker by
   its old name no longer finds it.
