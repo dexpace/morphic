@@ -147,9 +147,10 @@ coverage:
 # -covermode=atomic, whose counters can hide a race from the detector (#1271).
 # The nightly job runs it and the gate does not, as it is the suite's largest
 # cost. The planted race runs first, with the same flags, and must be reported:
-# a run that lost -race, or gained coverage, would otherwise pass. Under -race
-# the slowest package takes over half of coverage's 300s on the same runner, so
-# the race run allows twice that before it reads a test as hung.
+# a run that lost -race, or gained coverage, would otherwise pass. Under -race,
+# with coverage beside it as the gate once ran them, the slowest package took
+# over half of 300s on the same runner, so the race run allows twice that before
+# it reads a test as hung.
 RACE_FLAGS := -race -timeout 600s
 RACE_PLANT := ./internal/leakcheck/testdata/race
 race:
