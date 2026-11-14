@@ -363,6 +363,40 @@ func TestCompile_ASharedNodeIsReadAsItsInlineSpellingIs(t *testing.T) {
 	assert.True(t, containsJSON(t, aliasedDoc, `"explode":"false"`), "the extension shows what the source wrote")
 }
 
+// TestCompile_AScalarAValueSharesIsReadAsTheRefusingPlaceReadsIt holds a scalar
+// a parameter's required refuses, which an alias also mounts where a value
+// belongs, to the field left out, as with no second use: a value reads no type,
+// so it does not keep the node as written for the field, and still renders
+// what the source wrote.
+func TestCompile_AScalarAValueSharesIsReadAsTheRefusingPlaceReadsIt(t *testing.T) {
+	t.Parallel()
+	const required = "/paths/~1a/get/parameters/0/required"
+	for name, row := range map[string]struct{ use, at string }{
+		"schema default": {"schema: {type: string, default: *r}", required},
+		"schema example": {"schema: {type: string, example: *r}", required},
+		"schema const":   {"schema: {type: string, const: *r}", required},
+		"enum member":    {"schema: {type: string, enum: [*r]}", required},
+		// The finding sits at the least place that mounts the node.
+		"parameter example": {"schema: {type: string}, example: *r", "/paths/~1a/get/parameters/0/example"},
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			spec := head31 + "x-flag: &r \"yes\"\npaths:\n  /a:\n    get:\n      parameters:\n        - {name: a, in: query, required: *r, " +
+				row.use + "}\n      responses: {\"200\": {description: ok}}\n"
+
+			doc, diags := compileText(t, "spec.yaml", spec, openapi.Options{})
+
+			require.NotNil(t, doc)
+			assert.Equal(t, []string{row.at}, pointersOf(diags), "%+v", diags)
+			ops := allOperations(doc)
+			require.Len(t, ops, 1)
+			require.Len(t, ops[0].Params, 1)
+			assert.False(t, ops[0].Params[0].Required, "required is read as left out")
+			assert.True(t, containsJSON(t, doc, `"str":"yes"`), "the value renders what the source wrote")
+		})
+	}
+}
+
 // strippedTree is doc's encoding without what a comparison of two spellings of
 // one parameter must leave out: provenance, the extensions and the findings.
 func strippedTree(t *testing.T, doc *ir.Document) any {

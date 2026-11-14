@@ -564,7 +564,8 @@ naming the tag, and a value that is no mapping where an object belongs; a `null`
 already. A field that takes any value, a default or an example, takes a tagged value as written. A
 node an alias, an anchor or a `<<` merge key shares is read so only where every place the table
 reads it refuses it: one place that accepts it keeps it as written for all, and a place the table
-does not read, such as an `x-` key, has no say.
+does not read, such as an `x-` key, or one that takes any value, such as a default, an example, a
+`const` or an `enum` member, has no say.
 
 A rule another lowering reports is stated in the table and left to it, so a document draws one
 report: [`operation-ids`](#operation-ids), a repeated parameter ([`parameters`](#parameters)), a
@@ -611,6 +612,8 @@ gives it no effect is [`allow-reserved-locations`](#allow-reserved-locations)' a
   `e2e.TestCompile_AScalarOrSequenceTaggedOutsideTheRulesetIsReadAsLeftOut`,
   `e2e.TestCompile_ANodeASchemaAndAPropertiesMapReadStaysAsWritten`,
   `e2e.TestCompile_ASharedNodeIsReadAsItsInlineSpellingIs`,
+  `oas.TestCheck_AFieldOfAnyShapeAcceptsNothing`,
+  `e2e.TestCompile_AScalarAValueSharesIsReadAsTheRefusingPlaceReadsIt`,
   `oas.TestCheckFormat_PlacesEachKeyAtItsOwnLine`, `nodeview.TestKeyOf_AKeyThatIsNoScalarNamesNoKey`,
   `e2e.TestCompile_AKeyThatIsNoScalarIsReportedOnceAndLeftOut`,
   `e2e.TestCompile_TwoKeysThatAreNoScalarAreEachReportedInEitherOrder`,
