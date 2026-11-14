@@ -462,9 +462,9 @@ func TestDynamicRef_ChainEndsAtAnAnchorItCannotFollow(t *testing.T) {
 
 // TestDynamicRef_NonScalarValueIsKeptNotExpanded covers the one irreducible case
 // the sibling table cannot: a $dynamicRef whose value is not a string is a type
-// error the document validator also reports, so the case arrives with an error
-// diagnostic beside it. The lowering still has to keep the construct rather than
-// treat a malformed reference as absent.
+// error the rule table reports, and every reader then takes the field for left
+// out (docs/compilers/openapi.md#validation), so nothing is kept or expanded and
+// the table's error is the one report.
 func TestDynamicRef_NonScalarValueIsKeptNotExpanded(t *testing.T) {
 	t.Parallel()
 	cases := map[string]string{
@@ -478,11 +478,9 @@ func TestDynamicRef_NonScalarValueIsKeptNotExpanded(t *testing.T) {
 				"    M1: {$dynamicAnchor: ok, type: string}\n"+schemas))
 
 			td, ok := doc.Types[componentID("A")]
-			require.True(t, ok, "the position owns a node to keep the reference on")
-			entry, ok := td.Common().Unmodeled["openapi:$dynamicRef"]
-			require.True(t, ok, "a malformed $dynamicRef is kept verbatim, not dropped")
-			assert.Equal(t, ir.ReasonDegradedLowering, entry.Reason)
-			assertDiagContains(t, diags, string(entry.Provenance.Pointer), "not a reference string")
+			require.True(t, ok, "the position owns a node")
+			assert.NotContains(t, td.Common().Unmodeled, "openapi:$dynamicRef", "the malformed $dynamicRef is read as left out")
+			assertDiagContains(t, diags, "/components/schemas/A/$dynamicRef", "must be a string")
 		})
 	}
 }

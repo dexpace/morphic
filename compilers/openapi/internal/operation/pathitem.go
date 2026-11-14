@@ -413,7 +413,8 @@ var pathItemFields = []string{"summary", "description", "servers", "parameters",
 // pathItemDeclares reports whether key, read off a path item's raw mapping, is
 // one the object accounts for: held in the operations map (the first reading of
 // undeclaredPathItemKeys answers for it), naming a standard method, a field of
-// the model, or an x- extension.
+// the model, the item's own $ref, or an x- extension. A $ref the load phase
+// read as left out for the model is back in the mapping, and reported there.
 //
 // A method held nowhere in the map is still declared: naming a standard method
 // is enough. Where its anchor is left in place (see undeclaredPathItemKeys),
@@ -421,7 +422,7 @@ var pathItemFields = []string{"summary", "description", "servers", "parameters",
 // specification defines the key, so the census cannot truthfully call it one
 // the document may not write.
 func pathItemDeclares(pi *soa.PathItem, key string) bool {
-	return pi.Has(soa.HTTPMethod(key)) || soa.IsStandardMethod(key) ||
+	return pi.Has(soa.HTTPMethod(key)) || soa.IsStandardMethod(key) || key == "$ref" ||
 		strings.HasPrefix(key, "x-") || slices.Contains(pathItemFields, key)
 }
 

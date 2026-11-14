@@ -217,6 +217,8 @@ func build(ctx context.Context, srcIndex int, src compilers.Source, parsed *Pars
 	}
 	opts.Within = places.Directory(opts.Within)
 	l := &loading{srcIndex: srcIndex, src: src, opts: opts, read: parsed.doc, root: parsed.doc.Root, places: places}
+	// A load that ends before reach leaves the tree as the source wrote it.
+	defer l.aside.restore()
 	for _, s := range steps() {
 		if err := opts.enter(ctx, s.phase); err != nil {
 			return nil, nil, err

@@ -34,16 +34,18 @@ type objectKey struct {
 // name a dialect, which is judged under opts once the bindings say which
 // dialect each is read in (judgeSchemas). refused and accepted are the values
 // the check refused as the wrong type, and those it accepted where another
-// place may read them too (oas.Options.Judged), which settle reads.
+// place may read them too (oas.Options.Judged), and referenced each mapping it
+// read as a Reference Object (oas.Options.Referenced), which settle reads.
 type judgment struct {
-	checker  oas.Checker
-	diags    []ir.Diagnostic
-	seen     map[objectKey]bool
-	refused  map[*yaml.Node]bool
-	accepted map[*yaml.Node]bool
-	pending  []oas.Pending
-	version  string
-	opts     oas.Options
+	checker    oas.Checker
+	diags      []ir.Diagnostic
+	seen       map[objectKey]bool
+	refused    map[*yaml.Node]bool
+	accepted   map[*yaml.Node]bool
+	referenced []*yaml.Node
+	pending    []oas.Pending
+	version    string
+	opts       oas.Options
 }
 
 // declaredVersion returns the version the document at root writes under
@@ -102,6 +104,7 @@ func judgeSource(ctx context.Context, root *yaml.Node, tree provenance.Tree, wit
 		}
 		j.accepted[node] = true
 	}
+	opts.Referenced = func(_ oas.Kind, node *yaml.Node) { j.referenced = append(j.referenced, node) }
 	if namesDialect(ctx, root, j.version) {
 		opts.Later = func(p oas.Pending) { j.pending = append(j.pending, p) }
 	}

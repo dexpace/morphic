@@ -691,8 +691,9 @@ func TestResponses_SummaryIsReadAtEveryVersion(t *testing.T) {
 
 // TestResponses_SummaryNoReaderTakesIsStillReported pins the 3.2 summaries the
 // reader does not place in Docs.Summary, which must not vanish because the
-// census was told the key is the dialect's: one that is not a string is kept
-// verbatim with a warning, and one merged in from past
+// census was told the key is the dialect's: one that is not a string is read
+// as left out, the load phase's type error its one report, and one merged in
+// from past
 // nodeview.MergeDepthLimit keeps the census's report that it reached the IR in
 // no form. One merged in through `<<` is read as a written one is.
 func TestResponses_SummaryNoReaderTakesIsStillReported(t *testing.T) {
@@ -710,10 +711,8 @@ func TestResponses_SummaryNoReaderTakesIsStillReported(t *testing.T) {
 	responses := openapitest.FindOp(t, doc, "a").Responses
 	require.Len(t, responses, 3)
 	assert.Empty(t, responses[0].Docs.Summary)
-	kept, ok := responses[0].Unmodeled["openapi:summary"]
-	require.True(t, ok, "a summary that is not a string is kept verbatim")
-	assert.JSONEq(t, `["not","a","string"]`, string(kept.Value))
-	assert.True(t, openapitest.HasDiagCodeAt(diags, diag.DegradedConstruct, "/paths/~1a/get/responses/200/summary"))
+	assert.NotContains(t, responses[0].Unmodeled, "openapi:summary", "a summary that is not a string is read as left out")
+	assert.False(t, openapitest.HasDiagCodeAt(diags, diag.DegradedConstruct, "/paths/~1a/get/responses/200/summary"))
 	assert.Equal(t, "Merged", responses[1].Docs.Summary, "a merged-in summary is read")
 	assert.True(t, openapitest.HasDiagCodeAt(diags, diag.UnknownKeyUnreachable, "/paths/~1a/get/responses/202/summary"),
 		"one past the bound is still reported; got %v", diags)

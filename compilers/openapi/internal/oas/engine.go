@@ -42,6 +42,9 @@ type Options struct {
 	// each value it accepts inside a frame an alias, an anchor or a `<<` merge
 	// shares, with refused false. The node is the value, its alias followed.
 	Judged func(node *yaml.Node, refused bool)
+	// Referenced, when set, is told each mapping read as a Reference Object
+	// standing in the place of an object of kind, its aliases followed.
+	Referenced func(kind Kind, node *yaml.Node)
 	// Root is the pointer the root is read at in the document Locate answers
 	// in, empty for that document's own root.
 	Root jsontext.Pointer
@@ -132,7 +135,7 @@ func (c Checker) walker(ctx context.Context, declared string, opts Options) (*wa
 	w := &walker{ctx: ctx, spec: c.spec, minor: minor, view: nodeview.New(), work: budget.New(opts.Budget)}
 	w.locate, w.declared, w.seen, w.rows = opts.Locate, declared, opts.Seen, opts.Rows
 	w.readAt, w.rootAt, w.said = opts.ReadAt, opts.Root, map[ir.Diagnostic]bool{}
-	w.rootRows, w.later, w.judged = opts.RootRows, opts.Later, opts.Judged
+	w.rootRows, w.later, w.judged, w.referenced = opts.RootRows, opts.Later, opts.Judged, opts.Referenced
 	if w.rows.rows == nil {
 		w.rows, _ = c.spec.SchemaRules(declared, "")
 	}
@@ -147,15 +150,16 @@ func (c Checker) walker(ctx context.Context, declared string, opts Options) (*wa
 // once its context is done, as it stops at its budget, though silently, since
 // what stopped it is no finding about the document.
 type walker struct {
-	ctx     context.Context
-	spec    Spec
-	minor   Minor
-	view    *nodeview.View
-	root    *yaml.Node
-	work    budget.Budget
-	stopped bool
-	seen    func(Kind, *yaml.Node)
-	judged  func(*yaml.Node, bool)
+	ctx        context.Context
+	spec       Spec
+	minor      Minor
+	view       *nodeview.View
+	root       *yaml.Node
+	work       budget.Budget
+	stopped    bool
+	seen       func(Kind, *yaml.Node)
+	judged     func(*yaml.Node, bool)
+	referenced func(Kind, *yaml.Node)
 	// rows is the rows a Schema Object no schema holds is read with
 	// (Options.Rows), rootRows those of a dialect root (Options.RootRows),
 	// and later what is handed a schema left unread (Options.Later).
@@ -351,7 +355,7 @@ func (w *walker) notMapping(f frame, node *yaml.Node) {
 // later minor draws the later-version warning for the $ref, and one whose
 // $ref takes siblings only from a later minor (RefSiblings) draws it for each
 // key beside the $ref, which the declared minor ignores and the later one
-// applies.
+// applies. Options.Referenced is told of each it reads.
 func (w *walker) reference(f frame, depth int) bool {
 	if !f.refers() {
 		return false
@@ -380,6 +384,9 @@ func (w *walker) reference(f frame, depth int) bool {
 	rf := f
 	rf.obj = w.spec.must(Reference)
 	w.fields(rf, depth)
+	if w.referenced != nil {
+		w.referenced(f.at.kind, nodeview.Deref(f.at.node))
+	}
 	return true
 }
 

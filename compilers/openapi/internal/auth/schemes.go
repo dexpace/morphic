@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	soa "github.com/speakeasy-api/openapi/openapi"
+	yaml "go.yaml.in/yaml/v3"
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/annotation"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
@@ -32,6 +33,9 @@ func LowerSecuritySchemes(c lowering.Ctx) (map[ir.AuthID]ir.AuthScheme, []ir.Dia
 	declared := map[ir.AuthID]ir.AuthScheme{}
 	var diags []ir.Diagnostic
 	for name, rs := range c.Doc.Components.GetSecuritySchemes().All() {
+		if namesNothing(rs) {
+			continue
+		}
 		scheme, schemeDiags := lowerEntry(c, name, rs)
 		diags = append(diags, schemeDiags...)
 		// A summary or description beside a $ref of the entry's chain documents
@@ -40,6 +44,17 @@ func LowerSecuritySchemes(c lowering.Ctx) (map[ir.AuthID]ir.AuthScheme, []ir.Dia
 		declared[scheme.ID] = scheme
 	}
 	return declared, diags
+}
+
+// namesNothing reports whether rs writes a $ref that is no string, which names
+// nothing: the entry is read as left out, and the load phase's error at the
+// $ref is the one report of it (docs/compilers/openapi.md#references).
+func namesNothing(rs *soa.ReferencedSecurityScheme) bool {
+	if rs == nil {
+		return false
+	}
+	v := nodeview.Deref(rs.GetCore().Reference.ValueNode)
+	return v != nil && (v.Kind != yaml.ScalarNode || v.ShortTag() == "!!null")
 }
 
 // lowerEntry lowers the securitySchemes entry called name, as written in rs.

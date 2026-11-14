@@ -29,7 +29,9 @@ func retainedSections() []string {
 // they followed (lowering.Ctx.Reached), and a $ref string they never follow,
 // in an x- extension or an example's value, carries nothing of its target into
 // the IR. A section is read as the parser reads it, through `<<` merge keys,
-// so a merged-in entry is kept under its own name.
+// so a merged-in entry is kept under its own name. An entry whose $ref names
+// nothing is read as left out (nodeview.NamesNothing), but a path item's, whose
+// $ref is its own field.
 func retainUnreferencedComponents(c lowering.Ctx) (ir.Unmodeled, []ir.Diagnostic) {
 	view := nodeview.New()
 	components := view.ChildByToken(nodeview.DocumentRoot(c.Doc.GetRootNode()), "components")
@@ -38,7 +40,7 @@ func retainUnreferencedComponents(c lowering.Ctx) (ir.Unmodeled, []ir.Diagnostic
 	for _, section := range retainedSections() {
 		for _, entry := range view.MappingPairs(view.ChildByToken(nodeview.Deref(components), section)) {
 			pointer := ids.Ptr("components", section, entry.Key)
-			if c.Reached(pointer) {
+			if c.Reached(pointer) || section != "pathItems" && nodeview.NamesNothing(entry.Val) {
 				continue
 			}
 			_, keptDiags := annotation.PreserveNodeInto(&out, "openapi:"+ids.Scope("components", section, entry.Key),

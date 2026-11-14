@@ -91,8 +91,10 @@ type loading struct {
 	place  provenance.Doc
 	tree   provenance.Tree
 	judged judgment
-	doc    *soa.OpenAPI
-	minor  string
+	// aside holds what the load set aside for the model build (settle).
+	aside aside
+	doc   *soa.OpenAPI
+	minor string
 	// dialects reads the source and each document a reference reaches at its
 	// minor, off the table judged gives, so a compile builds that table once.
 	dialects *dialects
@@ -144,7 +146,7 @@ func (l *loading) judge(ctx context.Context) (bool, error) {
 
 // settle makes the tree read as the table judged it (settle).
 func (l *loading) settle(context.Context) (bool, error) {
-	settle(l.judged)
+	settle(l.judged, &l.aside)
 	return false, nil
 }
 
@@ -215,8 +217,10 @@ func (l *loading) bindRefs(ctx context.Context) (bool, error) {
 	return false, nil
 }
 
-// reach validates what the references reach (validateReached).
+// reach validates what the references reach (validateReached), once every
+// build of the model is done and what settle set aside for it is back.
 func (l *loading) reach(ctx context.Context) (bool, error) {
+	l.aside.restore()
 	l.resolved = append(l.resolved, validateReached(ctx, l.sites, l.bound, l.doc, l.opts, l.self, l.named)...)
 	return false, nil
 }

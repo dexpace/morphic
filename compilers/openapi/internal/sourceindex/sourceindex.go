@@ -227,7 +227,7 @@ func (x *Index) recordTag(n *yaml.Node) {
 
 // recordAlias keeps an alias whose target is on the current path.
 func (x *Index) recordAlias(alias *yaml.Node, ancestors map[*yaml.Node]bool) {
-	if alias.Alias != nil && ancestors[alias.Alias] {
+	if alias.Kind == yaml.AliasNode && alias.Alias != nil && ancestors[alias.Alias] {
 		x.anchorCycles = append(x.anchorCycles, alias)
 	}
 }

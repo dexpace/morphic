@@ -877,6 +877,15 @@ references that closes on itself is [`reference-cycles`](#reference-cycles)'.
 - Cases: `schema-identifiers`, `component-media-types-32`, `reference-object-chains`
 - Codes: `openapi/unresolved-ref`, `openapi/budget-exceeded`, `openapi/degraded-construct`,
   `openapi/validation`
+
+A Reference Object whose `$ref` is no string, a null, a list, a mapping or a scalar tagged outside
+YAML 1.2's JSON schema ruleset, names nothing: the entry it stands in is read as left out, its
+other keys with it, and the rule table's error at the `$ref` is the one report of it. The parser's
+model faults building such an object, and a 3.2 `additionalOperations` entry that is no mapping
+([`nil-populate-panic`](../parser-library.md#nil-populate-panic)), so the load phase sets each
+aside for the model's builds and puts it back before anything else reads the tree. A Path Item's
+`$ref` is the item's own field: one that is no string is read as left out, and the item as what
+else it writes.
 - Tests: `e2e.TestCompile_ExternalFileRefIsNotReadByDefault`,
   `e2e.TestOlderDrafts_AnIDNamesAResource`, `e2e.TestOlderDrafts_AnIdentifierBesideARefSetsNoBase`,
   `e2e.TestOlderDrafts_AnAnchorTakesItsDraftsGrammar`,
@@ -970,8 +979,16 @@ references that closes on itself is [`reference-cycles`](#reference-cycles)'.
   `e2e.TestReferenceObjects_AnObjectThatCannotBeBuiltIsReported`,
   `e2e.TestReferenceObjects_AChainCrossesDocuments`,
   `load.TestBindingDiags_SitesEachFailureAtItsReference`,
-  `load.TestBindingDiags_AChainIsReportedWhereItFails`
-- Status: partly built: a remote document can make the compiler request a private address (#937).
+  `load.TestBindingDiags_AChainIsReportedWhereItFails`,
+  `e2e.TestCompile_ANullRefOfAReferenceObjectLeavesTheEntryOut`,
+  `e2e.TestCompile_APathItemRefThatIsNoStringIsTheItemsOwnField`,
+  `e2e.TestCompile_AnAdditionalOperationThatIsNoMappingIsLeftOut`,
+  `e2e.TestCompile_AnAliasedNullRefIsReadWithoutAFault`, `load.TestAside_RestoreLeavesTheTreeAsWritten`,
+  `load.TestLoad_TheTreeIsAsWrittenOnceTheModelIsBuilt`,
+  `load.TestLoad_ANullRefOfAReferenceObjectIsReadWithoutAFaultAtEachModelBuild`
+- Status: partly built: a remote document can make the compiler request a private address (#937),
+  and a Reference Object whose `$ref` is null in another document, or in raw YAML only a reference
+  reaches, still faults the model build of what reaches it (#1928).
   A chain of documents each declaring the URI the one before it asked for costs a binding pass per
   link (#1372).
 
@@ -5599,8 +5616,9 @@ requirement names it, recording its pointer and keeping what it wrote: its `desc
 ([`reference-object-siblings`](#reference-object-siblings)), its `type` and each mechanism field
 verbatim in `Unmodeled` under `openapi:<field>` (`degraded_lowering`), each reported as an info
 `openapi/degraded-construct` at the field, and its extensions and undeclared keys as any scheme's are.
-A `$ref` that reached nothing is kept the same way, under `openapi:$ref`, with only its error. An
-entry written as no object holds no field to keep. A `security` entry written as no object names
+A `$ref` that reached nothing is kept the same way, under `openapi:$ref`, with only its error, but a
+`$ref` that is no string names nothing, and the entry is read as left out. An entry written as no
+object holds no field to keep. A `security` entry written as no object names
 nothing, and so does one with no member whose `<<`, or a `<<` of a mapping it merges at any depth,
 names no mapping, which merges nothing ([`merge-keys`](../parser-library.md#merge-keys)): each
 lowers to no option, never the empty one, which would grant access the document never wrote. A list
@@ -5629,7 +5647,7 @@ requirement naming no scheme and a scheme naming no mechanism, and leaves them t
   `auth.TestSecurityRequirement_AMemberWhoseScopesDoNotReadStaysInItsOption`,
   `auth.TestSecurityRequirement_AScalarTheModelDoesNotDecodeIsAScope`,
   `auth.TestLowerSecuritySchemes_ARefTheModelDoesNotDecodeIsReported`,
-  `e2e.TestSecurityUnresolved_AnUndecodedSchemeRefIsReportedByAFullCompile`,
+  `e2e.TestSecurityUnresolved_ATaggedSchemeRefIsRefusedAndTheEntryLeftOut`,
   `auth.TestLowerSecuritySchemes_ABrokenRefKeepsTheDocsBesideIt`,
   `auth.TestSecurityRequirement_ASecurityThatIsNoListReadsAsLeftOut`,
   `oas.TestCheck_ANullBesideARequirementsNameListsNoScopes`,
@@ -5656,10 +5674,7 @@ requirement naming no scheme and a scheme naming no mechanism, and leaves them t
   `auth.TestAuth_RequirementsOrOfAnds`
 - Status: partly built: a 3.2 requirement naming a scheme by a URI outside the source's
   `components/securitySchemes` lowers as unresolved (#1869), and so does one naming the source by
-  its `$self` (#863), a field under a tag outside YAML's JSON schema ruleset reads as left out, so
-  `scheme: !local bearer` is reported as omitted and names no mechanism, and a `security` list under
-  a local tag inherits with no finding (#1368), and a `$ref` written as null refuses the whole
-  document (#1284).
+  its `$self` (#863).
 
 ### `security-scheme-fields`
 

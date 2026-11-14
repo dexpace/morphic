@@ -209,7 +209,7 @@ func anchorCycle(ctx context.Context, tree provenance.Tree, idx sourceindex.Inde
 
 // anchorName is the anchor label an alias points at, for the diagnostic message.
 func anchorName(alias *yaml.Node) string {
-	if alias.Alias != nil && alias.Alias.Anchor != "" {
+	if alias.Kind == yaml.AliasNode && alias.Alias != nil && alias.Alias.Anchor != "" {
 		return alias.Alias.Anchor
 	}
 	return alias.Value

@@ -127,12 +127,29 @@ func (w *walker) mismatch(f frame, fld Field, node *yaml.Node, ptr jsontext.Poin
 			return
 		}
 	}
-	if outsideRuleset(node) {
+	if tagged := taggedOutside(node); tagged != nil {
 		null = fmt.Sprintf("; it is tagged %q, outside YAML 1.2's JSON schema ruleset, to which OpenAPI %s limits tags (Format)",
-			node.Tag, w.minor)
+			tagged.Tag, w.minor)
 	}
 	w.report(sev, classType, ptr, "%s field %q must be %s in %s (%s)%s",
 		f.obj.Name, fld.Name, describeShape(fld), f.in(w.minor), citeFor(fld.Cites, w.minor).Section, null)
+}
+
+// taggedOutside returns node, or for a list the first item, that is tagged
+// outside the ruleset (outsideRuleset), or nil for none.
+func taggedOutside(node *yaml.Node) *yaml.Node {
+	if outsideRuleset(node) {
+		return node
+	}
+	if node == nil || node.Kind != yaml.SequenceNode {
+		return nil
+	}
+	for _, item := range node.Content {
+		if item = nodeview.Deref(item); outsideRuleset(item) {
+			return item
+		}
+	}
+	return nil
 }
 
 // outsideRuleset reports whether node is a scalar or a sequence under a tag

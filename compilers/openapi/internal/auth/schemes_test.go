@@ -358,11 +358,15 @@ components:
 
 // TestLowerSecuritySchemes_ABrokenRefKeepsTheDocsBesideIt pins that the text a
 // Reference Object writes survives the $ref it stands beside (GitHub #610),
-// whichever way that $ref failed: where the model could not read it, the model
-// holds neither field (docs/parser-library.md#undecoded-scalar).
+// whichever way that string $ref failed: where the model could not read it,
+// the model holds neither field (docs/parser-library.md#undecoded-scalar). A
+// $ref that is no string names nothing, and the entry is read as left out.
 func TestLowerSecuritySchemes_ABrokenRefKeepsTheDocsBesideIt(t *testing.T) {
 	t.Parallel()
-	for _, ref := range []string{"'#/components/securitySchemes/Missing'", "2021-01-01", "!!binary aGk=", "[a]", "{a: b}"} {
+	for ref, kept := range map[string]bool{
+		"'#/components/securitySchemes/Missing'": true, "2021-01-01": true,
+		"!!binary aGk=": false, "[a]": false, "{a: b}": false,
+	} {
 		t.Run(ref, func(t *testing.T) {
 			t.Parallel()
 			doc, _, _ := serviceSpec(t, `openapi: 3.1.0
@@ -373,7 +377,10 @@ components:
     ghost: {$ref: `+ref+`, summary: Upload token, description: Issued by the upload endpoint.}
 `)
 			scheme, ok := doc.Auth[ids.UnresolvedAuth("ghost")]
-			require.True(t, ok, "%+v", doc.Auth)
+			require.Equal(t, kept, ok, "%+v", doc.Auth)
+			if !kept {
+				return
+			}
 			assert.Equal(t, "Upload token", scheme.Docs.Summary)
 			assert.Equal(t, "Issued by the upload endpoint.", scheme.Docs.Description)
 		})
@@ -425,20 +432,13 @@ components:
 	assert.Equal(t, jsontext.Pointer("/components/securitySchemes/ghost/$ref"), d.Provenance.Pointer)
 }
 
-// TestLowerSecuritySchemes_ARefTheModelDoesNotDecodeIsReported pins that no scheme
-// of kind unresolved goes unreported, with no requirement naming it to draw an
-// error instead. The model holds no reference for a $ref under a tag outside
-// YAML's JSON schema ruleset (docs/parser-library.md#undecoded-scalar), but the
-// load phase reads the scalar as the document's JSON spells it, so it reports
-// the $ref, here naming another document, which no compile without a reader
-// reads.
+// TestLowerSecuritySchemes_ARefTheModelDoesNotDecodeIsReported pins that a $ref
+// under a tag outside YAML's JSON schema ruleset, which the model holds no
+// reference for (docs/parser-library.md#undecoded-scalar), is the rule table's
+// one report, at the $ref, and names nothing: the entry is read as left out.
 func TestLowerSecuritySchemes_ARefTheModelDoesNotDecodeIsReported(t *testing.T) {
 	t.Parallel()
-	for written, text := range map[string]string{
-		"!!binary aGk=": "aGk=",
-		"!local tagged": "tagged",
-		"*tagged":       "tagged",
-	} {
+	for _, written := range []string{"!!binary aGk=", "!local tagged", "*tagged"} {
 		t.Run(written, func(t *testing.T) {
 			t.Parallel()
 			doc, _, diags := serviceSpec(t, `openapi: 3.1.0
@@ -449,28 +449,28 @@ components:
   securitySchemes:
     ghost: {$ref: `+written+`}
 `)
-			scheme, ok := doc.Auth[ids.UnresolvedAuth("ghost")]
-			require.True(t, ok, "%+v", doc.Auth)
-			assert.Contains(t, scheme.Unmodeled, "openapi:$ref")
-
-			got := messagesAtPointer(diags, "/components/securitySchemes/ghost")
-			require.Len(t, got, 1, "%+v", diags)
-			assert.Equal(t, `unresolved $ref "`+text+`": it names another document, and external references are not read`,
-				got[0])
-			assert.Equal(t, 1, openapitest.CountDiagsAt(diags, diag.UnresolvedRef, ir.SeverityError), "%+v", diags)
+			assert.NotContains(t, doc.Auth, ids.UnresolvedAuth("ghost"), "%+v", doc.Auth)
+			require.Len(t, diags, 1, "%+v", diags)
+			assert.Equal(t, "openapi/validation/validation-type-mismatch", diags[0].Code)
+			assert.Equal(t, jsontext.Pointer("/components/securitySchemes/ghost/$ref"), diags[0].Provenance.Pointer)
+			assert.Contains(t, diags[0].Message, "outside YAML 1.2's JSON schema ruleset")
 		})
 	}
 }
 
 // TestLowerSecuritySchemes_ARefHoldingNoTextDrawsOneReport pins the other side of
-// reading the node: a $ref written as no scalar is the rule table's to report, and
-// an empty one the load phase's, so this package adds neither a second one.
+// reading the node: a $ref written as no scalar is the rule table's to report,
+// and names nothing, so the entry is read as left out, and an empty one is the
+// load phase's, so this package adds neither a second report.
 func TestLowerSecuritySchemes_ARefHoldingNoTextDrawsOneReport(t *testing.T) {
 	t.Parallel()
-	for written, want := range map[string]string{
-		"{a: b}": "openapi/validation/validation-type-mismatch",
-		"[a]":    "openapi/validation/validation-type-mismatch",
-		`""`:     diag.UnresolvedRef,
+	for written, want := range map[string]struct {
+		code    string
+		lowered bool
+	}{
+		"{a: b}": {"openapi/validation/validation-type-mismatch", false},
+		"[a]":    {"openapi/validation/validation-type-mismatch", false},
+		`""`:     {diag.UnresolvedRef, true},
 	} {
 		t.Run(written, func(t *testing.T) {
 			t.Parallel()
@@ -481,9 +481,10 @@ components:
   securitySchemes:
     ghost: {$ref: `+written+`}
 `)
-			require.Contains(t, doc.Auth, ids.UnresolvedAuth("ghost"))
+			_, lowered := doc.Auth[ids.UnresolvedAuth("ghost")]
+			assert.Equal(t, want.lowered, lowered)
 			require.Len(t, diags, 1, "%+v", diags)
-			assert.Equal(t, want, diags[0].Code)
+			assert.Equal(t, want.code, diags[0].Code)
 		})
 	}
 }

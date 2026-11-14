@@ -442,6 +442,8 @@ paths:
 - Verified at: v1.26.3
 - Pinned by: `TestLibraryBehaviour/nil-populate-panic`
 - Code:
+  - `load.settle` sets each such shape the source writes aside for the model's builds.
+  - `load.aside` holds what it set aside, and puts it back.
   - `load.buildRecovered` turns the panic into an `ErrParse` error.
 
 ### `alias-field-on-scalar`
