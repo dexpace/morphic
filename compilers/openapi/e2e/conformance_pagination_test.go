@@ -61,9 +61,11 @@ func assertPaginationBody(t *testing.T, doc *ir.Document, diags []ir.Diagnostic)
 }
 
 // assertPaginationLinks is the matrix's pagination-links row: the links a page
-// states, typed as URLs, are read beside the walk the page number names.
+// states, typed as URLs, are read beside the walk the page number names, and a
+// list no input continues, answered with a Link header, is a link_header walk
+// whose items are the list whole.
 func assertPaginationLinks(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
-	assert.Empty(t, diags, "links beside a page number draw no finding")
+	assert.Empty(t, diags, "links beside a page number, and a Link header, draw no finding")
 	op := linkOp(t, doc, "listThings")
 	page := linkParam(t, op, "page")
 	info := pagedBody("things", "get", "result_info")
@@ -76,6 +78,15 @@ func assertPaginationLinks(t *testing.T, doc *ir.Document, diags []ir.Diagnostic
 		PrevLink:    &ir.PropPath{Segments: []ir.PropID{info, info + "/properties/previous"}},
 	}, op.Pagination)
 	assert.Equal(t, openapi.PaginationInferenceHeuristic, op.Provenance.Inferred)
+
+	events := linkOp(t, doc, "listEvents")
+	assert.Equal(t, &ir.Pagination{
+		Strategy: ir.PageStrategyLinkHeader,
+		Inferred: true,
+		Items:    &ir.PropPath{},
+		Stop:     []ir.PageStop{ir.PageStopNoNext},
+	}, events.Pagination)
+	assert.Equal(t, openapi.PaginationInferenceHeuristic, events.Provenance.Inferred)
 }
 
 // assertExtensionPaginationRoot is the matrix's extension-pagination-root

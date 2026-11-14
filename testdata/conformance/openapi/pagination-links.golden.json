@@ -164,6 +164,97 @@
                 "pointer": "/paths/~1things/get",
                 "inferred": "pagination-inference"
               }
+            },
+            {
+              "id": "op/openapi/paths/~1events/get",
+              "name": {
+                "source": "listEvents",
+                "canonical": "list_events"
+              },
+              "docs": {},
+              "responses": [
+                {
+                  "name": {
+                    "hint": "200"
+                  },
+                  "conditions": {
+                    "statusCodes": [
+                      {
+                        "from": 200,
+                        "to": 200
+                      }
+                    ]
+                  },
+                  "payload": {
+                    "contents": [
+                      {
+                        "mediaType": "application/json",
+                        "type": {
+                          "target": "t/anon/paths/~1events/get/responses/200/content/application~1json/schema",
+                          "nullable": false
+                        }
+                      }
+                    ]
+                  },
+                  "headers": [
+                    {
+                      "id": "p/openapi/paths/~1events/get/responses/200/headers/Link",
+                      "name": {
+                        "source": "Link",
+                        "canonical": "link"
+                      },
+                      "wireName": "Link",
+                      "type": {
+                        "target": "t/prim/string",
+                        "nullable": false
+                      },
+                      "required": false,
+                      "clientOptional": false,
+                      "defaultAdded": false,
+                      "visibility": {
+                        "none": false
+                      },
+                      "flatten": false,
+                      "eventHeader": false,
+                      "eventPayload": false,
+                      "secret": false,
+                      "docs": {},
+                      "provenance": {
+                        "source": 0,
+                        "pointer": "/paths/~1events/get/responses/200/headers/Link"
+                      }
+                    }
+                  ],
+                  "docs": {
+                    "description": "ok"
+                  }
+                }
+              ],
+              "oneWay": false,
+              "pagination": {
+                "strategy": "link_header",
+                "inferred": true,
+                "items": {},
+                "stop": [
+                  "no_next"
+                ]
+              },
+              "idempotency": {},
+              "bindings": {
+                "http": [
+                  {
+                    "method": "GET",
+                    "uriTemplate": "/events",
+                    "sharedRoute": false,
+                    "checksumRequired": false
+                  }
+                ]
+              },
+              "provenance": {
+                "source": 0,
+                "pointer": "/paths/~1events/get",
+                "inferred": "pagination-inference"
+              }
             }
           ]
         }
@@ -177,6 +268,24 @@
     }
   ],
   "types": {
+    "t/anon/paths/~1events/get/responses/200/content/application~1json/schema": {
+      "kind": "list",
+      "id": "t/anon/paths/~1events/get/responses/200/content/application~1json/schema",
+      "name": {
+        "hint": "response"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/paths/~1events/get/responses/200/content/application~1json/schema"
+      },
+      "elem": {
+        "target": "t/prim/string",
+        "nullable": false
+      }
+    },
     "t/anon/paths/~1things/get/responses/200/content/application~1json/schema": {
       "kind": "model",
       "id": "t/anon/paths/~1things/get/responses/200/content/application~1json/schema",
@@ -395,7 +504,7 @@
     {
       "format": "openapi@3.1",
       "path": "pagination-links.yaml",
-      "hash": "304af5b0419c6a190ff4de1b464a4038fb2ebf86e79cfdce0fab20f7191d4e27"
+      "hash": "2e9367a93808edf5416514b494c2e82ed82a1ac50dbf5fbeade781418186aa5f"
     }
   ]
 }
