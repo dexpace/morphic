@@ -43,8 +43,8 @@ type judgment struct {
 }
 
 // declaredVersion returns the version the document at root writes under
-// "openapi", or "" when it writes none as a scalar. It reads the tree rather
-// than the model, which is built from a respelled copy.
+// "openapi", or "" when it writes none as a scalar. It reads the tree as the
+// document writes it rather than the model.
 func declaredVersion(root *yaml.Node) string {
 	for _, p := range nodeview.Pairs(nodeview.DocumentRoot(root)) {
 		if v := nodeview.Deref(p.Val); p.Key == "openapi" && v != nil && v.Kind == yaml.ScalarNode && v.Tag != "!!null" {

@@ -12,24 +12,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/annotation"
-	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
-	"github.com/dexpace/morphic/compilers/openapi/internal/lowering/loweringtest"
-	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
-	"github.com/dexpace/morphic/compilers/openapi/internal/resolve"
 )
-
-// TestHeldAt_AContextPlacingNoPositionHoldsNothing pins what a tuple's entries
-// read where the context reads another document's content at the source's
-// positions, which the bindings place nowhere: no schema, rather than the
-// source's at the same pointer.
-func TestHeldAt_AContextPlacingNoPositionHoldsNothing(t *testing.T) {
-	t.Parallel()
-	loaded := loweringtest.Context(t, openapitest.EmptySpec, lowering.Policy{})
-	c := loaded.InScope(resolve.Scope{Foreign: true, Holder: "o.yaml"})
-	_, placed := c.Position("/items/0")
-	assert.False(t, placed, "sanity: the context places no position")
-	assert.Nil(t, heldAt(c, "/items/0"))
-}
 
 // TestWrittenAt_ReadsWhereTheBindingsPlaceTheSchema pins where a tuple's
 // entries are read: where the bindings place the schema writing them, as for a

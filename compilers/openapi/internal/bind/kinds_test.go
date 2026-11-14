@@ -75,14 +75,6 @@ func TestKinds_ReadsWhatAReferenceReads(t *testing.T) {
 		"/pet.yaml":    "type: object\n",
 	})
 	cfg.Self, cfg.Locate = resolving.Self, resolving.Locate
-	// A reference object is read where the parser resolved it, as the load
-	// phase hands the binder.
-	cfg.Through = func(name string, p jsontext.Pointer) (bind.ReferenceEnd, bool) {
-		if name != "/spec.yaml" || p != "/components/parameters/P" {
-			return bind.ReferenceEnd{}, false
-		}
-		return bind.ReferenceEnd{Name: "/params.yaml", Pointer: "/Size"}, true
-	}
 	table := bound(t, head+`x-lib: {Thing: {type: object}, Other: {type: object}}
 components:
   schemas:
@@ -104,17 +96,11 @@ components:
 
 // TestKinds_KeepsWhatTheSourceWrites pins that a position the source's own
 // grammar reads is that, whatever a reference landing on it expects: a
-// parameter's $ref to a schema, which the binder reads as a parameter, does
-// not make the schema a parameter.
+// parameter's $ref to a schema, which names no parameter, does not make the
+// schema one.
 func TestKinds_KeepsWhatTheSourceWrites(t *testing.T) {
 	t.Parallel()
 	cfg := self
-	cfg.Through = func(name string, p jsontext.Pointer) (bind.ReferenceEnd, bool) {
-		if p != "/components/parameters/P" {
-			return bind.ReferenceEnd{}, false
-		}
-		return bind.ReferenceEnd{Name: name, Pointer: "/components/schemas/S"}, true
-	}
 	table := bound(t, head+`components:
   schemas:
     S: {name: s, in: query}
@@ -132,12 +118,6 @@ func TestKinds_KeepsWhatTheSourceWrites(t *testing.T) {
 func TestKinds_ReadsTheLesserOfTwoReadings(t *testing.T) {
 	t.Parallel()
 	cfg := self
-	cfg.Through = func(name string, p jsontext.Pointer) (bind.ReferenceEnd, bool) {
-		if p != "/components/parameters/P" {
-			return bind.ReferenceEnd{}, false
-		}
-		return bind.ReferenceEnd{Name: name, Pointer: "/x-lib/T"}, true
-	}
 	lib := "x-lib: {T: {name: t, in: query}, U: {properties: {t: {$ref: '#/x-lib/T'}}}}\ncomponents:\n"
 	schema := "  schemas:\n    A: {$ref: '#/x-lib/T'}\n"
 	later := "  schemas:\n    A: {$ref: '#/x-lib/U'}\n"
@@ -170,10 +150,6 @@ func TestReadingAt_ReadsWhatKindsReadsLast(t *testing.T) {
 	t.Parallel()
 	cfg := withDocuments(map[string]string{"/params.yaml": "Size: {name: size, in: query}\n"})
 	cfg.Self, cfg.Locate = resolving.Self, resolving.Locate
-	cfg.Through = func(name string, p jsontext.Pointer) (bind.ReferenceEnd, bool) {
-		placed := name == "/spec.yaml" && p == "/components/parameters/P"
-		return bind.ReferenceEnd{Name: "/params.yaml", Pointer: "/Size"}, placed
-	}
 	table := bound(t, head+"components: {parameters: {P: {$ref: 'params.yaml#/Size'}}}\n", cfg)
 	params, ok := table.Find("/params.yaml")
 	require.True(t, ok)

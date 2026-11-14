@@ -23,6 +23,7 @@ import (
 	"github.com/dexpace/morphic/compilers"
 	"github.com/dexpace/morphic/compilers/openapi/internal/budget"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
+	"github.com/dexpace/morphic/compilers/openapi/internal/nodeview"
 	"github.com/dexpace/morphic/compilers/openapi/internal/provenance"
 	"github.com/dexpace/morphic/engine/reader"
 	"github.com/dexpace/morphic/ir"
@@ -63,11 +64,12 @@ func pathEntry(t *testing.T, doc *soa.OpenAPI, path string) *soa.ReferencedPathI
 	return rp
 }
 
-// TestModelSiblings_ModelsWhatTheLibraryReadsAsAReference pins which use sites
-// get a model: every $ref the library reads as one that writes fields beside
-// it, once per mapping however many aliases reach it, and one nested inside
-// another's model, located where the source writes it.
-func TestModelSiblings_ModelsWhatTheLibraryReadsAsAReference(t *testing.T) {
+// TestModelSiblings_ModelsWhatTheTableReadsAsAReference pins which use sites
+// get a model: every $ref the bindings' table reads as one, a merge key's
+// included, that writes fields beside it, once per mapping however many
+// aliases reach it, and one nested inside another's model, located where the
+// source writes it.
+func TestModelSiblings_ModelsWhatTheTableReadsAsAReference(t *testing.T) {
 	t.Parallel()
 	doc := modelOf(t, siblingSpec)
 	sibs, faults := modelSiblings(t.Context(), doc, provenance.Tree{})
@@ -87,8 +89,9 @@ func TestModelSiblings_ModelsWhatTheLibraryReadsAsAReference(t *testing.T) {
 	assert.False(t, ok, "a $ref with nothing beside it has no model")
 	_, ok = sibs.Of(pathEntry(t, doc, "/b"))
 	assert.False(t, ok, "an inline item is no reference")
-	_, ok = sibs.Of(pathEntry(t, doc, "/m"))
-	assert.False(t, ok, "a $ref only a merge key supplies is not one the library reads")
+	m, ok := sibs.Of(pathEntry(t, doc, "/m"))
+	require.True(t, ok, "a $ref a merge key supplies is a reference, as the table reads one")
+	assert.NotNil(t, m.Item.Post(), "the operation beside it is modelled")
 
 	cb, ok := a.Item.Put().GetCallbacks().Get("cb")
 	require.True(t, ok)
@@ -142,10 +145,12 @@ func TestSiblingsFrom_AParserFaultIsReportedOnce(t *testing.T) {
 		return nil, errors.New("parser panicked: boom")
 	}
 	sibs, faults := siblingsFrom(t.Context(), soa.Walk(t.Context(), doc), provenance.Tree{}, faulting)
-	require.Len(t, faults, 1, "/a and its alias /d are one mapping")
-	assert.Equal(t, diag.Validation, faults[0].Code)
-	assert.Equal(t, ir.SeverityError, faults[0].Severity)
-	assert.Contains(t, faults[0].Message, "parser panicked: boom")
+	require.Len(t, faults, 2, "/a and its alias /d are one mapping, and /m another")
+	for _, f := range faults {
+		assert.Equal(t, diag.Validation, f.Code)
+		assert.Equal(t, ir.SeverityError, f.Severity)
+		assert.Contains(t, f.Message, "parser panicked: boom")
+	}
 	assert.Equal(t, 5, faults[0].Provenance.Position.Line, "sited where the use site is written")
 
 	rp := pathEntry(t, doc, "/a")
@@ -210,7 +215,7 @@ func TestSiblings_UnreadIsFieldsNoModelHolds(t *testing.T) {
 // TestWithoutRef_KeepsThePositionAndTheDocumentsNodes pins the copy a model is
 // built from: every $ref pair, an alias key included, is gone, the position and
 // the document's own nodes stay, and a mapping holding nothing else has none.
-// Which keys spell $ref is TestWithoutRef_DropsTheRefAsTheLibraryReadsIt's.
+// Which keys spell $ref is TestWithoutRef_DropsTheRefTheTableReads's.
 func TestWithoutRef_KeepsThePositionAndTheDocumentsNodes(t *testing.T) {
 	t.Parallel()
 	var root yaml.Node
@@ -247,12 +252,13 @@ s: scalar
 	}
 }
 
-// TestWithoutRef_DropsTheRefAsTheLibraryReadsIt asks the library which key of a
-// mapping is its $ref: each row unmarshals into a reference exactly when the
-// library reads its first key so, and withoutRef must drop that pair and no
-// other. A key spelled through an alias, a quote or a tag is read by its value;
-// a merge key, a binary tag or another spelling is not.
-func TestWithoutRef_DropsTheRefAsTheLibraryReadsIt(t *testing.T) {
+// TestWithoutRef_DropsTheRefTheTableReads holds isReference and withoutRef to
+// the bindings' table's reading of a mapping's $ref, and pins the library's:
+// a key spelled through an alias, a quote or a tag is read by its value, by
+// both, and a $ref a `<<` merges in makes a reference to the table alone
+// (docs/compilers/openapi.md#references). The copy holds no $ref where the
+// table reads one, and every field beside it.
+func TestWithoutRef_DropsTheRefTheTableReads(t *testing.T) {
 	t.Parallel()
 	var root yaml.Node
 	require.NoError(t, yaml.Unmarshal([]byte(`anchor: &k $ref
@@ -266,28 +272,63 @@ rows:
   - {$REF: '#/x', summary: s}
   - {'$ref ': '#/x', summary: s}
   - {ref: '#/x', summary: s}
-  - {<<: {$ref: '#/x'}, summary: s}
   - {!!binary JHJlZg==: '#/x', summary: s}
+  - {<<: {$ref: '#/x'}, summary: s}
+  - {<<: [{o: 1}, {$ref: '#/x'}], summary: s}
 `), &root))
 	// The library's reading of each row today, so a bump that reads a key
-	// otherwise fails here even while withoutRef still agrees with it.
-	isRef := []bool{true, true, true, true, true, true, false, false, false, false, false}
+	// otherwise fails here; the merged rows are the table's alone.
+	library := []bool{true, true, true, true, true, true, false, false, false, false, false, false}
+	table := []bool{true, true, true, true, true, true, false, false, false, false, true, true}
 	rows := root.Content[0].Content[3].Content
-	require.Len(t, rows, len(isRef))
+	require.Len(t, rows, len(table))
 
 	for i, row := range rows {
 		var item soa.ReferencedPathItem
 		_, err := marshaller.UnmarshalNode(t.Context(), "", row, &item)
 		require.NoError(t, err, "row %d", i)
-		library := item.IsReference()
-		assert.Equal(t, isRef[i], library, "row %d: the library's reading of its key", i)
+		assert.Equal(t, library[i], item.IsReference(), "row %d: the library's reading", i)
+		assert.Equal(t, table[i], isReference(row), "row %d: the table's reading", i)
 
 		fields, ok := withoutRef(row)
 		require.True(t, ok, "row %d keeps its summary", i)
-		dropped := len(fields.Content) < len(row.Content)
-		assert.Equal(t, library, dropped, "row %d: withoutRef drops the pair the library reads as $ref", i)
-		assert.Equal(t, library, isRefKey(row.Content[0]), "row %d", i)
+		assert.NotNil(t, nodeview.Child(fields, "summary"), "row %d", i)
+		if table[i] {
+			assert.Nil(t, nodeview.Child(fields, refKey), "row %d: the copy drops the $ref the table reads", i)
+		} else {
+			assert.Len(t, fields.Content, len(row.Content), "row %d: the copy drops nothing", i)
+		}
 	}
+}
+
+// TestWithoutRef_CopiesEachMergeSourceLessItsRef pins the copy of a use site
+// whose $ref, or a field beside it, a `<<` supplies: each mapping it merges in,
+// alone or in a list, is copied less its $ref, what merges nothing is kept as
+// written, and the document's own nodes are left as they were.
+func TestWithoutRef_CopiesEachMergeSourceLessItsRef(t *testing.T) {
+	t.Parallel()
+	var root yaml.Node
+	require.NoError(t, yaml.Unmarshal([]byte(`x: &x {$ref: '#/a', o: 1}
+rows:
+  - {<<: [*x, 5], s: 1}
+  - {<<: *x}
+  - {<<: 5, $ref: '#/b', s: 1}
+  - {<<: {$ref: '#/c'}}
+`), &root))
+	rows := root.Content[0].Content[3].Content
+	for i, want := range [][]string{{"o", "s"}, {"o"}, {"s"}, nil} {
+		fields, ok := withoutRef(rows[i])
+		require.Equal(t, want != nil, ok, "row %d", i)
+		if !ok {
+			continue
+		}
+		var keys []string
+		for _, p := range nodeview.Pairs(fields) {
+			keys = append(keys, p.Key)
+		}
+		assert.ElementsMatch(t, want, keys, "row %d: what the copy holds, merges read", i)
+	}
+	assert.NotNil(t, nodeview.Child(root.Content[0].Content[1], refKey), "the merged mapping keeps its own $ref")
 }
 
 // walkSites returns the site of every item items yields.
@@ -469,95 +510,4 @@ func TestModelSiblings_DoesNotWalkADocumentWithNothingBesideARef(t *testing.T) {
 
 	allocs := testing.AllocsPerRun(10, func() { modelSiblings(t.Context(), doc, provenance.Tree{}) })
 	assert.Less(t, allocs, 50.0, "a scan, not a walk of 200 path items")
-}
-
-// TestSiblings_BesideNamesTheFieldAPointerPasses pins which pointers pass
-// through the fields beside a path item's $ref: one naming a key written there,
-// at any position the walk met the use site at, an alias's included, and at a
-// key a `<<` merge key supplies there. The first use site on the pointer is the
-// one named. A key nothing writes beside the $ref, the use site itself, and a
-// $ref only a merge key supplies, which the library reads as an inline item,
-// are not, and an empty registry passes none.
-func TestSiblings_BesideNamesTheFieldAPointerPasses(t *testing.T) {
-	t.Parallel()
-	doc := modelOf(t, siblingSpec+`  /e:
-    $ref: '#/paths/~1b'
-    <<: {patch: {responses: {"200": {description: ok}}}}
-`)
-	sibs, faults := modelSiblings(t.Context(), doc, provenance.Tree{})
-	require.Empty(t, faults)
-
-	cases := []struct {
-		pointer  jsontext.Pointer
-		use, key string
-	}{
-		{"/paths/~1a/put/responses", "/paths/~1a", "put"},
-		{"/paths/~1a/summary", "/paths/~1a", "summary"},
-		{"/paths/~1d/put", "/paths/~1d", "put"},
-		{"/paths/~1e/patch", "/paths/~1e", "patch"},
-		{"/paths/~1a/put/callbacks/cb/{$request.body#~1url}/delete", "/paths/~1a", "put"},
-		{"/paths/~1a/get", "", ""},
-		{"/paths/~1a", "", ""},
-		{"/paths/~1c/put", "", ""},
-		{"/paths/~1m/post", "", ""},
-		{"", "", ""},
-	}
-	for _, tc := range cases {
-		use, key, ok := sibs.Beside(tc.pointer)
-		assert.Equal(t, tc.use != "", ok, "%s", tc.pointer)
-		assert.Equal(t, jsontext.Pointer(tc.use), use, "%s", tc.pointer)
-		assert.Equal(t, tc.key, key, "%s", tc.pointer)
-	}
-	_, _, ok := Siblings{}.Beside("/paths/~1a/put")
-	assert.False(t, ok, "an empty registry holds no use site")
-}
-
-// TestSiblings_WritesReadsTheNodeAnAnswerIsWrittenAs pins Writes on the answers
-// a copy gives: one the resolver builds from the node the fields write, as for
-// a pointer through an alias's position, is that field, though it is not the
-// object their model holds. An answer with no node of its own is none.
-func TestSiblings_WritesReadsTheNodeAnAnswerIsWrittenAs(t *testing.T) {
-	t.Parallel()
-	spec := strings.Replace(besideChainSpec, "  /a:\n", "  /a: &a\n", 1)
-	spec = strings.Replace(spec, "components:\n", `  /z: *a
-  /d:
-    post:
-      requestBody: {$ref: 'spec.yaml#/paths/~1z/get/requestBody'}
-      responses: {"200": {description: ok}}
-components:
-`, 1)
-	got, diags, err := Load(t.Context(), 0, compilers.Source{Path: "spec.yaml", Data: []byte(spec)},
-		Options{Reader: reader.Disk{}})
-	require.NoError(t, err)
-	for _, d := range diags {
-		assert.NotEqual(t, jsontext.Pointer("/paths/~1d/post/requestBody"), d.Provenance.Pointer, "%s", d.Message)
-	}
-
-	d := pathEntry(t, got.Doc, "/d").GetObject().Post().GetRequestBody()
-	copied := d.GetReferenceResolutionInfo().Object
-	a, ok := got.Siblings.Of(pathEntry(t, got.Doc, "/a"))
-	require.True(t, ok)
-	require.NotSame(t, a.Item.Get().GetRequestBody(), copied, "the resolver built a copy")
-	assert.True(t, got.Siblings.Writes("/paths/~1z/get/requestBody", copied))
-
-	got.Siblings.write("/paths/~1a/get/requestBody", bareReference{})
-	assert.False(t, got.Siblings.Writes("/paths/~1a/get/requestBody", bareReference{}))
-}
-
-// TestSiblings_BesideReadsAPointerInBoundedWork pins Beside's cost, which every
-// hop of every reference pays in this phase and in the lowering: it reads a
-// pointer only as deep as some use site's position goes, so a long pointer costs
-// what a short one does. Building each prefix of the pointer instead made it
-// quadratic in the pointer's length. Allocations count the work, since they do
-// not depend on the machine.
-func TestSiblings_BesideReadsAPointerInBoundedWork(t *testing.T) {
-	sibs, _ := modelSiblings(t.Context(), modelOf(t, siblingSpec), provenance.Tree{})
-	long := func(head string, tokens int) jsontext.Pointer {
-		return jsontext.Pointer(head + strings.Repeat("/x", tokens))
-	}
-	for _, head := range []string{"/paths/~1a/put", "/paths/~1a/get", "/paths/~1c", "/components"} {
-		short := testing.AllocsPerRun(20, func() { sibs.Beside(long(head, 1_000)) })
-		longer := testing.AllocsPerRun(20, func() { sibs.Beside(long(head, 100_000)) })
-		assert.Equal(t, short, longer, "%s: a hundred times the tokens, the same work", head)
-	}
 }

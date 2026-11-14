@@ -1,0 +1,71 @@
+openapi: 3.1.0
+info: {title: ReferenceObjectChains, version: "1.0.0"}
+paths:
+  # Each reference below is declared before what it names, and reads through
+  # a reference object on the way.
+  /orders:
+    post:
+      operationId: createOrder
+      # A pointer through /drafts, a path item $ref: it reads on in /archive,
+      # where that $ref's chain ends, and names the body /archive declares.
+      requestBody: {$ref: '#/paths/~1drafts/post/requestBody'}
+      parameters:
+        # A chain of two aliases, ending on a component.
+        - {$ref: '#/components/parameters/Alias'}
+        # A $ref a `<<` merges in is a reference.
+        - {<<: {$ref: '#/components/parameters/Limit'}}
+        # A pointer through a `<<` naming a list of mappings, in raw YAML.
+        - {$ref: '#/x-params/cursor'}
+        # A token holding a character above U+FFFF.
+        - {$ref: '#/x-params/🔑'}
+      responses:
+        # A response in raw YAML, whose own header is a reference.
+        "200": {$ref: '#/x-shared/Created'}
+    put:
+      operationId: replaceOrder
+      # A pointer through /drafts naming an operation written beside its $ref
+      # reads that operation here, the layer a mount keeps.
+      requestBody: {$ref: '#/paths/~1drafts/put/requestBody'}
+      responses:
+        "204": {description: Replaced}
+  /drafts:
+    $ref: '#/paths/~1archive'
+    put:
+      requestBody:
+        content:
+          application/json:
+            schema: {type: object, properties: {draft: {type: string}}}
+      responses:
+        "204": {description: Drafted}
+  /archive:
+    post:
+      requestBody:
+        content:
+          application/json:
+            schema: {type: object, properties: {id: {type: string}}}
+      responses:
+        "204": {description: Archived}
+components:
+  schemas:
+    # A schema $ref through a parameter alias names the schema where the
+    # parameter declaring it lies: one node, not a second at the spelling.
+    PageSize: {$ref: '#/components/parameters/Alias/schema'}
+  parameters:
+    Alias: {$ref: '#/components/parameters/Middle'}
+    Middle: {$ref: '#/components/parameters/Page'}
+    Page:
+      name: page
+      in: query
+      schema: {type: object, properties: {size: {type: integer}}}
+    Limit: {name: limit, in: query, schema: {type: integer}}
+  headers:
+    Rate: {schema: {type: integer}}
+x-params:
+  # A merge list written inline, so no anchor orders the document.
+  <<: [{other: {name: other, in: query, schema: {type: string}}}, {cursor: {name: cursor, in: query, schema: {type: string}}}]
+  "🔑": {name: key, in: header, schema: {type: string}}
+x-shared:
+  Created:
+    description: Created
+    headers:
+      X-Rate: {$ref: '#/components/headers/Rate'}

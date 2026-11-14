@@ -175,15 +175,24 @@ var entries = map[state]state{
 // entries: those the specification gives patterned fields of their own.
 var extensible = map[state]bool{sPaths: true, sResponses: true, sCallback: true}
 
-// referenceKinds holds the states of the objects modelled as a reference object
-// when they write a $ref: the parser's own kinds, and a Media Type Object, which
-// the load phase models (GitHub #856). The parser's resolver, not this package,
-// resolves those, and a pointer read through one reads on in the object it
-// names.
-var referenceKinds = map[state]bool{
-	sPathItem: true, sParameter: true, sHeader: true, sRequestBody: true, sResponse: true, sCallback: true,
-	sExample: true, sLink: true, sSecurityScheme: true, sMediaType: true,
+// refKinds holds the states of the objects modelled as a Reference Object when
+// they write a $ref, each with the kind of object the reference stands for: the
+// parser's own kinds, and a Media Type Object, which the load phase models
+// (GitHub #856). A pointer read through one reads on in the object its chain
+// ends on (binder.through).
+var refKinds = map[state]RefKind{
+	sPathItem: RefPathItem, sParameter: RefParameter, sHeader: RefHeader, sRequestBody: RefRequestBody,
+	sResponse: RefResponse, sCallback: RefCallback, sExample: RefExample, sLink: RefLink,
+	sSecurityScheme: RefSecurityScheme, sMediaType: RefMediaType,
 }
+
+// kindStates is the state each RefKind reads its object at, refKinds turned
+// round, by the kind less one.
+var kindStates = []state{sPathItem, sParameter, sHeader, sRequestBody, sResponse, sCallback, sExample, sLink,
+	sSecurityScheme, sMediaType}
+
+// state is the state an object of kind k is read at.
+func (k RefKind) state() state { return kindStates[k-1] }
 
 // step is the state one token below s.
 func step(s state, token string) state {

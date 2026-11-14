@@ -6,11 +6,11 @@ package load
 import (
 	"errors"
 	"fmt"
+	"net/http"
 	"sync"
 	"sync/atomic"
 	"testing"
 
-	soa "github.com/speakeasy-api/openapi/openapi"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	yaml "go.yaml.in/yaml/v3"
@@ -143,7 +143,7 @@ func TestExternalReads_ExhaustedReportsOnceAtTheSource(t *testing.T) {
 }
 
 // TestExternalReads_IsSafeForConcurrentUse holds the record to what the readers
-// sharing it promise: the resolver's interfaces do not rule out concurrent
+// sharing it promise: a reader's interface does not rule out concurrent
 // calls, and a write racing another is a fatal map fault that no recover can
 // catch. Under -race, unsynchronized access fails here.
 func TestExternalReads_IsSafeForConcurrentUse(t *testing.T) {
@@ -154,18 +154,95 @@ func TestExternalReads_IsSafeForConcurrentUse(t *testing.T) {
 		t.Run(fmt.Sprintf("doc%d", i), func(t *testing.T) {
 			t.Parallel()
 			tree := &yaml.Node{Kind: yaml.ScalarNode, Value: key}
-			doc := &soa.OpenAPI{}
-			doc.InitCache()
 			for range 100 {
 				r.recordTree(key, tree, nil)
 				got, ok := r.preparedFor(key)
 				assert.True(t, ok)
 				assert.Same(t, tree, got)
-				assert.True(t, r.prepared(tree))
 				a := r.once(key, func() answer { return answer{body: []byte(key)} })
 				assert.Equal(t, key, string(a.body))
-				r.handOver(doc, nil)
+				r.adopt(key+"#again", key)
 			}
 		})
 	}
+}
+
+// TestPreparedFor covers externalReads.preparedFor's four outcomes: a file key
+// found directly, a URL key found by its request spelling, which is what
+// external.document records a fetched tree under, a key http.NewRequest itself
+// refuses, and a key nothing was ever recorded under.
+func TestPreparedFor(t *testing.T) {
+	t.Parallel()
+
+	t.Run("a file key", func(t *testing.T) {
+		t.Parallel()
+		r := newExternalReads(sourceDocument{}, budget.Unbounded())
+		tree := &yaml.Node{Kind: yaml.ScalarNode, Value: "x"}
+		r.recordTree("/tmp/doc.yaml", tree, nil)
+
+		got, ok := r.preparedFor("/tmp/doc.yaml")
+
+		require.True(t, ok)
+		assert.Same(t, tree, got)
+	})
+
+	t.Run("a file key http.NewRequest would respell", func(t *testing.T) {
+		t.Parallel()
+		r := newExternalReads(sourceDocument{}, budget.Unbounded())
+		tree := &yaml.Node{Kind: yaml.ScalarNode, Value: "x"}
+		r.recordTree("dir/with space/doc.yaml", tree, nil)
+
+		got, ok := r.preparedFor("dir/with space/doc.yaml")
+
+		require.True(t, ok, "the path is its own key; the request spelling %20 is not")
+		assert.Same(t, tree, got)
+	})
+
+	t.Run("a URL key found by its request spelling", func(t *testing.T) {
+		t.Parallel()
+		r := newExternalReads(sourceDocument{}, budget.Unbounded())
+		tree := &yaml.Node{Kind: yaml.ScalarNode, Value: "x"}
+		// The spelling external.document records under: the request's own URL.
+		req, err := http.NewRequest(http.MethodGet, "HTTP://host/doc.yaml", nil)
+		require.NoError(t, err)
+		r.recordTree(req.URL.String(), tree, nil)
+
+		// The binder's name for it, spelled as the reference writes it.
+		got, ok := r.preparedFor("HTTP://host/doc.yaml")
+
+		require.True(t, ok)
+		assert.Same(t, tree, got)
+	})
+
+	t.Run("a URL key spelled with an empty port", func(t *testing.T) {
+		t.Parallel()
+		r := newExternalReads(sourceDocument{}, budget.Unbounded())
+		tree := &yaml.Node{Kind: yaml.ScalarNode, Value: "x"}
+		// http.NewRequest drops the empty port, so external.document records it
+		// without one.
+		r.recordTree("http://host/doc.yaml", tree, nil)
+
+		got, ok := r.preparedFor("http://host:/doc.yaml")
+
+		require.True(t, ok)
+		assert.Same(t, tree, got)
+	})
+
+	t.Run("a key http.NewRequest rejects", func(t *testing.T) {
+		t.Parallel()
+		r := newExternalReads(sourceDocument{}, budget.Unbounded())
+
+		_, ok := r.preparedFor("http://host/\x00bad")
+
+		assert.False(t, ok)
+	})
+
+	t.Run("a missing key", func(t *testing.T) {
+		t.Parallel()
+		r := newExternalReads(sourceDocument{}, budget.Unbounded())
+
+		_, ok := r.preparedFor("/no/such/file.yaml")
+
+		assert.False(t, ok)
+	})
 }

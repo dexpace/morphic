@@ -232,9 +232,7 @@ func TestRefScope_CarriesTheBindingsItWasGiven(t *testing.T) {
 // target the load phase resolved reaches the scope through the context. The
 // target is an extension's value, a position the parsed model holds as raw
 // YAML, so the scope finds a schema there only through the bindings the load
-// phase built, which built one (GitHub #757). The scope asks the load phase's
-// index, too, what a mapping a walk leaves the model for holds
-// (resolve.Scope.Holds).
+// phase built, which built one (GitHub #757).
 func TestRefScope_ReadsAMappingTargetTheModelHoldsAsRawYAML(t *testing.T) {
 	t.Parallel()
 	const spec = `openapi: 3.1.0
@@ -259,11 +257,6 @@ x-lib:
 	assert.Equal(t, bind.Position{Pointer: "/x-lib/Cat"}, at)
 	require.NotNil(t, built, "the load phase built a schema there")
 	assert.Equal(t, oas3.SchemaTypeObject, built.GetSchema().GetType()[0])
-
-	holds := c.RefScope().Holds
-	require.NotNil(t, holds)
-	assert.True(t, holds(c.Doc.GetRootNode(), "x-lib"))
-	assert.False(t, holds(c.Doc.GetRootNode(), "x-none"))
 }
 
 // TestRemembered_IsReadOnceAcrossCopies pins that a reading is read once for every
@@ -369,39 +362,44 @@ components:
   securitySchemes: {P: {type: http, scheme: basic}, A: {$ref: '#/components/securitySchemes/P'}}
 `
 
-// TestRefScope_EndsReadsEachReferenceKind pins the dispatch a walk through the
-// document asks about each node it passes: every kind the library models as a
-// reference is read as one, so a pointer passing an alias of any kind is read
-// where that alias's chain ends. A kind left out would pass unread. An inline
-// entry, and a value of no reference kind, are no reference.
-func TestRefScope_EndsReadsEachReferenceKind(t *testing.T) {
+// TestDeclared_ReadsEachReferenceKind pins that a component alias of every
+// kind the library models as a reference is read as one, so it is declared
+// where its chain ends, as the bindings' table reads it. A kind the load phase
+// left out of its index would lower at the alias.
+func TestDeclared_ReadsEachReferenceKind(t *testing.T) {
 	t.Parallel()
 	path := filepath.Join(t.TempDir(), "root.yaml")
 	doc, _, err := load.Load(t.Context(), 0, compilers.Source{Path: path, Data: []byte(referenceKinds)}, load.Options{})
 	require.NoError(t, err)
-	ends := lowering.New(0, doc, lowering.Policy{}).RefScope().Ends
-	require.NotNil(t, ends)
+	c := lowering.New(0, doc, lowering.Policy{})
 	cs := doc.Doc.Components
-	for kind, entries := range map[string][2]any{
-		"pathItems":       {cs.PathItems.GetOrZero("A"), cs.PathItems.GetOrZero("P")},
-		"parameters":      {cs.Parameters.GetOrZero("A"), cs.Parameters.GetOrZero("P")},
-		"headers":         {cs.Headers.GetOrZero("A"), cs.Headers.GetOrZero("P")},
-		"requestBodies":   {cs.RequestBodies.GetOrZero("A"), cs.RequestBodies.GetOrZero("P")},
-		"responses":       {cs.Responses.GetOrZero("A"), cs.Responses.GetOrZero("P")},
-		"examples":        {cs.Examples.GetOrZero("A"), cs.Examples.GetOrZero("P")},
-		"links":           {cs.Links.GetOrZero("A"), cs.Links.GetOrZero("P")},
-		"callbacks":       {cs.Callbacks.GetOrZero("A"), cs.Callbacks.GetOrZero("P")},
-		"securitySchemes": {cs.SecuritySchemes.GetOrZero("A"), cs.SecuritySchemes.GetOrZero("P")},
+	for kind, decl := range map[string]jsontext.Pointer{
+		"pathItems":       declaredAt[soa.PathItem](c, cs.PathItems.GetOrZero("A")),
+		"parameters":      declaredAt[soa.Parameter](c, cs.Parameters.GetOrZero("A")),
+		"headers":         declaredAt[soa.Header](c, cs.Headers.GetOrZero("A")),
+		"requestBodies":   declaredAt[soa.RequestBody](c, cs.RequestBodies.GetOrZero("A")),
+		"responses":       declaredAt[soa.Response](c, cs.Responses.GetOrZero("A")),
+		"examples":        declaredAt[soa.Example](c, cs.Examples.GetOrZero("A")),
+		"links":           declaredAt[soa.Link](c, cs.Links.GetOrZero("A")),
+		"callbacks":       declaredAt[soa.Callback](c, cs.Callbacks.GetOrZero("A")),
+		"securitySchemes": declaredAt[soa.SecurityScheme](c, cs.SecuritySchemes.GetOrZero("A")),
 	} {
-		end, ok := ends(entries[0])
-		require.True(t, ok, "%s: the alias is read as a reference", kind)
-		assert.Equal(t, resolve.End{Document: any(doc.Doc), Path: path,
-			Pointer: jsontext.Pointer("/components/" + kind + "/P")}, end, kind)
-		_, ok = ends(entries[1])
-		assert.False(t, ok, "%s: an inline entry is no reference", kind)
+		assert.Equal(t, jsontext.Pointer("/components/"+kind+"/P"), decl, kind)
 	}
-	_, ok := ends(doc.Doc)
-	assert.False(t, ok, "a value of no reference kind is no reference")
+}
+
+// declaredAt is the pointer Declared declares what ref, written at /use,
+// names at.
+func declaredAt[T, S any, R interface {
+	*S
+	resolve.Referenced[T]
+	GetCoreAny() any
+}, P interface {
+	*T
+	GetRootNode() *yaml.Node
+}](c lowering.Ctx, ref R) jsontext.Pointer {
+	_, _, decl := lowering.Declared[T, S, R, P](c, ref, "/use")
+	return decl
 }
 
 // TestPlace_IsTheOnlyPlaceASourceIndexIsSpelled pins the guarantee
@@ -577,18 +575,12 @@ func TestDynamicAnchorSites_ReadsTheBindingsOfItsDocument(t *testing.T) {
 	assert.True(t, whole)
 }
 
-// TestPosition_PlacesWhatADocumentHolds pins that a context reading the source,
-// or a document at its own coordinates, places a pointer, and that one reading
-// another document's content at the source's places nothing.
-func TestPosition_PlacesWhatADocumentHolds(t *testing.T) {
+// TestPosition_PlacesAPointerInTheContextsDocument pins that a context reading
+// the source places a pointer in the source.
+func TestPosition_PlacesAPointerInTheContextsDocument(t *testing.T) {
 	t.Parallel()
 	c := loweringtest.Context(t, bindingsSpec, lowering.Policy{})
-	p, placed := c.Position("/a")
-	assert.True(t, placed)
-	assert.Equal(t, bind.Position{Pointer: "/a"}, p)
-
-	_, placed = c.InScope(resolve.Scope{Foreign: true, Holder: "other.yaml"}).Position("/a")
-	assert.False(t, placed)
+	assert.Equal(t, bind.Position{Pointer: "/a"}, c.Position("/a"))
 }
 
 // TestNew_CarriesTheLimits pins that the budgets reach the walk through the

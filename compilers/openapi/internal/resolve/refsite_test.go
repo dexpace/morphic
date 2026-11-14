@@ -43,7 +43,6 @@ func loadBound(t *testing.T, path, src string, opts load.Options, declared ...st
 	require.NotNil(t, doc.Bindings, "the source is bound")
 	return bound{doc: doc, scope: resolve.Scope{
 		SelfPath: path,
-		Doc:      doc.Doc,
 		Bindings: doc.Bindings,
 		Declares: resolve.NewNames(declared...),
 	}}

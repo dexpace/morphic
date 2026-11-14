@@ -29,7 +29,7 @@ Each row names the rule, and code holding it to copy.
 | code in `engine`, `compilers`, `compilers/compile`, `ir` or `pass` | `references/design-rules.md#second-user` | `Compiler` in `compilers/compilers.go` |
 | a wrapper, interface or option | `references/design-rules.md#no-forwarding-layer` | `DocumentReader` in `compilers/reader.go` |
 | a function another package calls back | `references/design-rules.md#function-crosses-for-a-reason` | `Config` in `compilers/openapi/internal/bind/table.go` |
-| a limit | `references/design-rules.md#bound-the-product` | `maxResumeWork` in `compilers/openapi/internal/load/resume.go` |
+| a limit | `references/design-rules.md#bound-the-product` | `MaxSteps` in `compilers/openapi/internal/bind/table.go` |
 | a call into code the package does not own | `references/design-rules.md#catch-reaches-one-goroutine` | `taggedMappingRefusal` in `compilers/openapi/internal/load/load.go` |
 | a shape a caller or another consumer will use | `.claude/skills/morphic-changing-the-ir/references/ir-lessons.md#measure-the-premise` | `Deprecation` in `ir/docs.go` |
 | a flattened member's reader | `.claude/skills/morphic-changing-the-ir/references/ir-lessons.md#flattened-member-declarations` | `member` in `compilers/openapi/internal/schema/tagreadings.go` |

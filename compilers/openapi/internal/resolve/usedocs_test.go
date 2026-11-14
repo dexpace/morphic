@@ -14,47 +14,40 @@ import (
 	"github.com/dexpace/morphic/ir"
 )
 
-// TestUseDocs_UseSiteSiblingsOverrideTheDeclaration pins the fold at one hop: a
-// summary or description written beside a $ref wins field by field over the
-// declaration's, and one the entry omits leaves the declaration's standing. A
-// hand-built Reference resolves nothing, so it is a chain of one; the parser's
-// longer chains are pinned where a document builds them.
+// TestUseDocs_UseSiteSiblingsOverrideTheDeclaration pins the fold along a
+// chain: a summary or description written beside a $ref wins field by field
+// over what it names, the use site's over an alias's and an alias's over the
+// declaration's, and one an entry omits, or writes empty or null, leaves the
+// one beneath it standing. One beside a $ref a `<<` merges in counts, as the
+// table reads that $ref, and an inline entry, a nil one and one the bindings
+// never read fold nothing.
 func TestUseDocs_UseSiteSiblingsOverrideTheDeclaration(t *testing.T) {
 	t.Parallel()
-	summary, description := "use-site summary", "use-site description"
+	doc := loaded(t, `openapi: 3.1.0
+info: {title: T, version: "1"}
+paths: {}
+components:
+  parameters:
+    P: {name: p, in: query}
+    Alias: {$ref: '#/components/parameters/P', summary: alias summary, description: alias description}
+    Both: {$ref: '#/components/parameters/Alias', summary: use summary, description: use description}
+    Described: {$ref: '#/components/parameters/Alias', description: use description, summary: ''}
+    Nulled: {$ref: '#/components/parameters/Alias', description: null, summary: ~}
+    Merged: {<<: {$ref: '#/components/parameters/P'}, description: merged description}
+`)
 	declared := ir.Docs{Summary: "declared summary", Description: "declared description"}
-
-	for _, tc := range []struct {
-		name string
-		ref  *soa.ReferencedParameter
-		want ir.Docs
-	}{
-		{
-			name: "both siblings win",
-			ref:  &soa.ReferencedParameter{Summary: &summary, Description: &description},
-			want: ir.Docs{Summary: "use-site summary", Description: "use-site description"},
-		},
-		{
-			// The parser fills these two only for an entry that really is a $ref
-			// (Reference.Populate), so an inline entry arrives with both nil.
-			name: "an inline entry writes neither",
-			ref:  &soa.ReferencedParameter{},
-			want: declared,
-		},
-		{
-			name: "a description alone leaves the declaration's summary standing",
-			ref:  &soa.ReferencedParameter{Description: &description},
-			want: ir.Docs{Summary: "declared summary", Description: "use-site description"},
-		},
-		{
-			name: "a nil wrapper reports nothing",
-			ref:  nil,
-			want: declared,
-		},
+	params := doc.Doc.Components.GetParameters()
+	for name, want := range map[string]ir.Docs{
+		"Both":      {Summary: "use summary", Description: "use description"},
+		"Described": {Summary: "alias summary", Description: "use description"},
+		"Nulled":    {Summary: "alias summary", Description: "alias description"},
+		"Alias":     {Summary: "alias summary", Description: "alias description"},
+		"Merged":    {Summary: "declared summary", Description: "merged description"},
+		"P":         declared,
 	} {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-			assert.Empty(t, cmp.Diff(tc.want, resolve.UseDocs[soa.Parameter](tc.ref, declared)))
-		})
+		got := resolve.UseDocs[soa.Parameter](doc.Bindings, params.GetOrZero(name), declared)
+		assert.Empty(t, cmp.Diff(want, got), name)
 	}
+	assert.Equal(t, declared, resolve.UseDocs[soa.Parameter](doc.Bindings, (*soa.ReferencedParameter)(nil), declared))
+	assert.Equal(t, declared, resolve.UseDocs[soa.Parameter](doc.Bindings, &soa.ReferencedParameter{}, declared))
 }

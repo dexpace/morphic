@@ -11,7 +11,7 @@ import (
 // ReferencedMediaType is a content entry OpenAPI 3.2 lets a document write as a
 // Reference Object, or a components/mediaTypes entry, as the library's own
 // Referenced* kinds model the others. The library names no such alias and
-// models neither, so the load phase builds one for each, and its resolver
-// follows the $ref as it follows every other kind's
+// models neither, so the load phase builds one for each, and the binder reads
+// its $ref as it reads every other kind's
 // (docs/parser-library.md#media-type-references).
 type ReferencedMediaType = soa.Reference[soa.MediaType, *soa.MediaType, *core.MediaType]

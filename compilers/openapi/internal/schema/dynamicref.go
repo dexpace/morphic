@@ -51,19 +51,14 @@ func dynamicRefOf(c lowering.Ctx, s *oas3.Schema, pointer jsontext.Pointer) (dyn
 // the target is what the reference names in its own schema resource
 // (dynamicTargetOf), read against the anchors of the document it is written
 // in, so one another document holds names its own (GitHub #762), and it is what
-// a $ref to that position resolves to (resolvesAt). One in content no position
-// of a document places is irreducible, as is one closing a cycle of expansions
-// (dynamicChainVerdict).
+// a $ref to that position resolves to (resolvesAt). One closing a cycle of
+// expansions is irreducible (dynamicChainVerdict).
 func dynamicExpansion(c lowering.Ctx, s *oas3.Schema, pointer jsontext.Pointer) (at bind.Position, why string, ok bool) {
 	ref, why, ok := expandableRef(c, s, pointer)
 	if !ok {
 		return bind.Position{}, why, false
 	}
-	from, placed := c.Position(pointer)
-	if !placed {
-		return bind.Position{}, "it is written in what a reference resolved to, which no position of its document " +
-			"places, so nothing says what it names", false
-	}
+	from := c.Position(pointer)
 	if at, why, ok = dynamicTargetOf(c, ref, from); !ok {
 		return bind.Position{}, why, false
 	}

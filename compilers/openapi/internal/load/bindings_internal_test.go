@@ -4,18 +4,15 @@
 package load
 
 import (
-	"context"
 	"encoding/json/jsontext"
 	"errors"
 	"fmt"
-	"iter"
 	"net/http"
 	"path/filepath"
 	"strings"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
-	"github.com/speakeasy-api/openapi/jsonschema/oas3"
 	soa "github.com/speakeasy-api/openapi/openapi"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -28,8 +25,8 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
 	"github.com/dexpace/morphic/compilers/openapi/internal/provenance"
+	refscope "github.com/dexpace/morphic/compilers/openapi/internal/resolve"
 	"github.com/dexpace/morphic/engine/reader"
-	"github.com/dexpace/morphic/internal/ctxtest"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -49,7 +46,7 @@ func TestBindSchemas_HoldsTheTableToMaxSteps(t *testing.T) {
 // left unread is not reported unresolved: it was not found wanting.
 func TestBindingDiags_ReportsTheBudgetOnce(t *testing.T) {
 	t.Parallel()
-	_, root := buildDoc(t, schemaRoot("#/components/schemas/B")+"    B: {type: string}\n")
+	root := buildTree(t, schemaRoot("#/components/schemas/B")+"    B: {type: string}\n")
 	table := bind.Bind(t.Context(), root, bind.Config{Self: "spec.yaml", Limit: budget.AtMost(2)})
 	require.True(t, table.Exhausted(), "sanity: two steps are not enough to bind the document")
 
@@ -62,12 +59,12 @@ func TestBindingDiags_ReportsTheBudgetOnce(t *testing.T) {
 	assert.Contains(t, diags[0].Message, "takes more than 2 steps", "the bound the table crossed")
 }
 
-// TestBindSchemas_RecordsWhatAnUnplacedEndHolds pins the models in an end the
-// table cannot place, here the first of a key written twice in raw YAML,
-// which the parser resolved to and the binder reads as its last: each schema
-// and discriminator is recorded as unplaced, under the least reference whose
-// end it is, /a's though /b's resolves to it too.
-func TestBindSchemas_RecordsWhatAnUnplacedEndHolds(t *testing.T) {
+// TestBindAll_ResolvesAKeyWrittenTwiceToItsLastCopy pins where a reference
+// object into raw YAML writing a key twice ends: at the key's last copy, as
+// the model reads one, wherever the reference is, so the objects the table
+// builds there, and every schema and discriminator in them, are held where it
+// places them (GitHub #1574).
+func TestBindAll_ResolvesAKeyWrittenTwiceToItsLastCopy(t *testing.T) {
 	t.Parallel()
 	doc, _, err := Load(t.Context(), 0, openapitest.SourceOf(`openapi: 3.1.0
 info: {title: t, version: '1'}
@@ -75,18 +72,19 @@ paths:
   /a: {get: {parameters: [{$ref: '#/x-params/q'}], responses: {'200': {description: ok}}}}
   /b: {get: {parameters: [{$ref: '#/x-params/q'}], responses: {'200': {description: ok}}}}
 x-params:
-  q: {name: q, in: query, schema: {oneOf: [{type: string}], discriminator: {propertyName: k}}}
-  q: {name: r, in: query}
+  q: {name: q, in: query}
+  q: {name: r, in: query, schema: {oneOf: [{type: string}], discriminator: {propertyName: k}}}
 `), Options{})
 	require.NoError(t, err)
-	op := doc.Doc.Paths.GetOrZero("/a").GetObject().Get()
-	require.NotNil(t, op)
-	js := op.GetParameters()[0].GetObject().GetSchema()
-	require.NotNil(t, js)
-	for _, model := range []any{js, js.GetSchema().GetDiscriminator()} {
-		site, ok := doc.Bindings.Unplaced(model)
-		assert.True(t, ok, "%T", model)
-		assert.Equal(t, "/paths/~1a/get/parameters/0", site, "%T", model)
+	for _, path := range []string{"/a", "/b"} {
+		op := doc.Doc.Paths.GetOrZero(path).GetObject().Get()
+		require.NotNil(t, op, path)
+		p := refscope.Object[soa.Parameter](doc.Bindings, op.GetParameters()[0])
+		require.NotNil(t, p, path)
+		assert.Equal(t, "r", p.GetName(), "%s ends at the last copy", path)
+		site, ok := doc.Bindings.Site(p.GetSchema())
+		require.True(t, ok, path)
+		assert.Equal(t, bind.Position{Pointer: "/x-params/q/schema"}, site, path)
 	}
 }
 
@@ -97,17 +95,20 @@ x-params:
 // table cut before the walk read it reports the budget instead.
 func TestBindingDiags_ReportsAFailedRefOnceWhereItIsWrittenAtEveryBudget(t *testing.T) {
 	t.Parallel()
-	_, root := buildDoc(t, schemaRoot("other.yaml#/X")+"    B: {$ref: 'other.yaml#/P'}\n")
+	root := buildTree(t, schemaRoot("other.yaml#/X")+"    B: {$ref: 'other.yaml#/P'}\n")
 	var other yaml.Node
 	require.NoError(t, yaml.Unmarshal([]byte("X: {$ref: '#/Y'}\nY: {$ref: '#/Missing'}\nP: {$ref: '#/X'}\n"), &other))
 	cfg := bind.Config{Self: "spec.yaml", Open: func(string) (*yaml.Node, error) { return &other, nil }}
-	full := bind.Bind(t.Context(), root, cfg)
 	want := []ir.Diagnostic{diag.Newf(ir.SeverityError, diag.UnresolvedRef, ir.Provenance{Source: 1, Pointer: "/Y"},
 		`unresolved $ref "#/Missing": it names nothing in the document it points into`)}
 	reported, silent := 0, 0
-	for limit := 1; limit <= full.Steps(); limit++ {
+	// Every limit up to the first the reading fits in, which a table so small
+	// reaches well within the cap.
+	for limit, exhausted := 1, true; exhausted; limit++ {
+		require.Less(t, limit, 1<<12, "the reading fits some limit")
 		cfg.Limit = budget.AtMost(limit)
 		table := bind.Bind(t.Context(), root, cfg)
+		exhausted = table.Exhausted()
 		var failed []ir.Diagnostic
 		crossed := false
 		for _, d := range bindingDiags(byDocument(table), table) {
@@ -137,7 +138,7 @@ func TestBindingDiags_ReportsAFailedRefOnceWhereItIsWrittenAtEveryBudget(t *test
 // loop is not reported for it.
 func TestBindingDiags_NamesALoopsMembersByTheirDocument(t *testing.T) {
 	t.Parallel()
-	_, root := buildDoc(t, schemaRoot("other.yaml#/X")+"    B: {$ref: '#/components/schemas/B'}\n"+
+	root := buildTree(t, schemaRoot("other.yaml#/X")+"    B: {$ref: '#/components/schemas/B'}\n"+
 		"    C: {$ref: 'other.yaml#/P'}\n    D: {$ref: 'other.yaml#/Q'}\n")
 	docs := map[string]string{
 		"other.yaml": "X: {$ref: '#/Y'}\nY: {$ref: '#/X'}\nP: {$ref: 'spec.yaml#/components/schemas/C'}\n" +
@@ -158,18 +159,84 @@ func TestBindingDiags_NamesALoopsMembersByTheirDocument(t *testing.T) {
 
 	const rest = " comes back to where it started and never reaches a schema"
 	assert.Empty(t, cmp.Diff([]string{
-		"1/X: cyclic $ref: the chain of $refs through #/X, #/Y" + rest,
 		"0/components/schemas/B: cyclic $ref: the chain of $refs through #/components/schemas/B" + rest,
 		"0/components/schemas/C: cyclic $ref: the chain of $refs through #/components/schemas/C, #/P in other.yaml" + rest,
 		"1/Q: cyclic $ref: the chain of $refs through #/Q, #/R in third.yaml" + rest,
-	}, got))
+		"1/X: cyclic $ref: the chain of $refs through #/X, #/Y" + rest,
+	}, got), "in the order of where each is reported")
 }
 
-// TestBindSchemas_HoldsEveryEndPastOneAlreadyWalked pins that the ends of
-// reference objects are each held where the table places them, however many
-// references before them resolved to one object already walked: R's schema,
-// after the second reference to Q, is held at R, not recorded as unplaced.
-func TestBindSchemas_HoldsEveryEndPastOneAlreadyWalked(t *testing.T) {
+// TestBindSchemas_AChainEndsInTheDocumentItEndsIn pins where the bindings end a
+// schema $ref's chain: in the document its last hop lands in, not the one it
+// first leaves for, on a schema built for the landing where the model holds
+// none there, a boolean one included, which its use site is lent, whichever
+// documents the chain passes.
+func TestBindSchemas_AChainEndsInTheDocumentItEndsIn(t *testing.T) {
+	t.Parallel()
+	dir := externalDir(t, map[string]string{"other.yaml": reachedFixtureOther, "third.yaml": reachedFixtureThird})
+	got, _ := loadExternal(t, dir, reachedFixtureRoot, Options{})
+	doc, bindings := got.Doc, got.Bindings
+	table := bindings.Table()
+	for name, want := range map[string]struct {
+		doc     string
+		pointer jsontext.Pointer
+	}{
+		"S":       {filepath.Join(dir, "other.yaml"), "/components/schemas/Obj"},
+		"Bool":    {filepath.Join(dir, "other.yaml"), "/components/schemas/AnyBool"},
+		"Chained": {filepath.Join(dir, "third.yaml"), "/components/schemas/Leaf"},
+		"ToS":     {filepath.Join(dir, "other.yaml"), "/components/schemas/Obj"},
+		"ToLocal": {filepath.Join(dir, "root.yaml"), "/components/schemas/Local"},
+	} {
+		js, ok := doc.Components.Schemas.Get(name)
+		require.True(t, ok, name)
+		e, ok := bindings.Entry(js)
+		require.True(t, ok, name)
+		require.Equal(t, bind.Resolved, e.Chain.Status, name)
+		assert.Equal(t, want.doc, table.Document(e.Chain.End.Doc).Name, name)
+		assert.Equal(t, want.pointer, e.Chain.End.Pointer, name)
+		held := bindings.At(e.Chain.End)
+		assert.NotNil(t, held, "%s ends on a schema held for it", name)
+		assert.Same(t, held, bindings.End(js), name)
+	}
+}
+
+// reachedFixtureOther, reachedFixtureThird and reachedFixtureRoot hold schema
+// $refs across documents: one to an object, one to a boolean schema (nothing
+// but its value), a chain through two documents, and internal $refs that stay
+// in the source or leave it.
+const reachedFixtureOther = `openapi: 3.1.0
+info: {title: O, version: "1"}
+paths: {}
+components:
+  schemas:
+    Obj: {type: object, properties: {inner: {type: string}}}
+    AnyBool: true
+    Hop: {$ref: "./third.yaml#/components/schemas/Leaf"}
+`
+
+const reachedFixtureThird = `components:
+  schemas:
+    Leaf: {type: string}
+`
+
+const reachedFixtureRoot = `openapi: 3.1.0
+info: {title: T, version: "1"}
+paths: {}
+components:
+  schemas:
+    S: {$ref: "./other.yaml#/components/schemas/Obj"}
+    Bool: {$ref: "./other.yaml#/components/schemas/AnyBool"}
+    Chained: {$ref: "./other.yaml#/components/schemas/Hop"}
+    Local: {type: string}
+    ToLocal: {$ref: "#/components/schemas/Local"}
+    ToS: {$ref: "#/components/schemas/S"}
+`
+
+// TestBindAll_HoldsEveryEndPastOneAlreadyWalked pins that the ends of reference
+// objects are each held where the table places them, however many references
+// before them resolved to one object already walked: R's schema, after the
+// second reference to Q, is held at R.
+func TestBindAll_HoldsEveryEndPastOneAlreadyWalked(t *testing.T) {
 	t.Parallel()
 	doc, _, err := Load(t.Context(), 0, openapitest.SourceOf(`openapi: 3.1.0
 info: {title: t, version: '1'}
@@ -189,8 +256,6 @@ components:
 	require.True(t, ok)
 	js := r.GetObject().GetSchema()
 	require.NotNil(t, js)
-	_, unplaced := doc.Bindings.Unplaced(js)
-	assert.False(t, unplaced)
 	site, ok := doc.Bindings.Site(js)
 	require.True(t, ok)
 	assert.Equal(t, bind.Position{Pointer: "/components/parameters/R/schema"}, site)
@@ -201,7 +266,7 @@ components:
 // reported for that failure: B's $ref is, where it is written.
 func TestBindingDiags_ReportsAChainBackIntoTheSourceWhereItFails(t *testing.T) {
 	t.Parallel()
-	_, root := buildDoc(t, schemaRoot("other.yaml#/S")+"    B: {$ref: '#/components/schemas/Gone'}\n")
+	root := buildTree(t, schemaRoot("other.yaml#/S")+"    B: {$ref: '#/components/schemas/Gone'}\n")
 	var other yaml.Node
 	require.NoError(t, yaml.Unmarshal([]byte("S: {$ref: 'spec.yaml#/components/schemas/B'}\n"), &other))
 	table := bind.Bind(t.Context(), root, bind.Config{Self: "spec.yaml",
@@ -218,7 +283,7 @@ func TestBindingDiags_ReportsAChainBackIntoTheSourceWhereItFails(t *testing.T) {
 // prepared for it, so one with none is the compiler's fault, said so.
 func TestExternal_DocumentReportsAReadWithNoTreeAsAFault(t *testing.T) {
 	t.Parallel()
-	ext := newExternal(t.Context(), &soa.OpenAPI{}, Options{Reader: &fakeReader{}}, newExternalReads(sourceDocument{}, budget.Unbounded()))
+	ext := newExternal(Options{Reader: &fakeReader{}}, newExternalReads(sourceDocument{}, budget.Unbounded()))
 	ext.read.once("doc.yaml", func() answer { return answer{body: []byte("a: 1\n")} })
 
 	tree, err := ext.document(t.Context(), "doc.yaml")
@@ -297,7 +362,7 @@ func TestBindingDiags_ReportsTheMergeBound(t *testing.T) {
 	var root yaml.Node
 	require.NoError(t, yaml.Unmarshal([]byte(b.String()), &root))
 	want := []ir.Diagnostic{diag.Newf(ir.SeverityWarning, diag.DegradedConstruct, ir.Provenance{},
-		"a mapping merges through `<<` deeper than 64 levels, which resolving the schema $refs does not "+
+		"a mapping merges through `<<` deeper than 64 levels, which resolving the $refs does not "+
 			"expand; a $ref past that, or one that reads a key past it, is left unresolved, and where that "+
 			"mapping is a schema, no $dynamicRef in its document is expanded")}
 	assert.Empty(t, cmp.Diff(want, bindingDiags(places{}, bind.Bind(t.Context(), &root, bind.Config{Self: "spec.yaml"}))))
@@ -324,13 +389,22 @@ func TestBuildFailures_ReportsALandingNoSchemaWasBuiltFor(t *testing.T) {
 		diag.Newf(ir.SeverityError, diag.Validation, ir.Provenance{Pointer: "/components/schemas/B"},
 			"the $ref here reaches #/S in other.yaml, where no schema could be built: it failed"),
 	}
-	assert.Empty(t, cmp.Diff(want, buildFailures(places{}, []typed.Built{built, failed, foreign, elsewhere})))
+	assert.Empty(t, cmp.Diff(want, buildFailures(places{}, []typed.Built{built, failed, foreign, elsewhere}, nil)))
+
+	object := builtObject{landing: bind.ObjectLanding{At: bind.Position{Pointer: "/x-params/q"}, Kind: bind.RefParameter,
+		Site: bind.Position{Pointer: "/paths/~1a/get/parameters/0"}, Reached: true}, err: errors.New("it failed")}
+	unreached := object
+	unreached.landing.Reached = false
+	assert.Empty(t, cmp.Diff([]ir.Diagnostic{diag.Newf(ir.SeverityError, diag.Validation,
+		ir.Provenance{Pointer: "/paths/~1a/get/parameters/0"},
+		"the $ref here reaches #/x-params/q, where no parameter could be built: it failed")},
+		buildFailures(places{}, nil, []builtObject{object, unreached})), "an object landing, as its kind")
 
 	doc, codes := loadReferencing(t, "./ext.yaml#/X")
 	require.Empty(t, codes)
 	away := typed.Built{Landing: bind.Landing{At: bind.Position{Doc: 1, Pointer: "/S"},
 		Site: bind.Position{Doc: 1, Pointer: "/X/y"}, Reached: true}, Err: errors.New("it failed")}
-	got := buildFailures(places{others: doc.Others, table: doc.Bindings.Table()}, []typed.Built{away})
+	got := buildFailures(places{others: doc.Others, table: doc.Bindings.Table()}, []typed.Built{away}, nil)
 	require.Len(t, got, 1)
 	assert.Equal(t, ir.Provenance{Source: 1, Pointer: "/X/y"}, got[0].Provenance)
 }
@@ -371,64 +445,6 @@ func byDocument(table *bind.Table) places {
 	return places{others: others, table: table}
 }
 
-// TestPositionOf_PlacesASiteInTheDocumentTheTableRead pins positionOf and
-// siteIn: a source site is the source's position, another document's is found
-// by the key a request reads a URL by (readKey), however the table or the site
-// spells it, and one in a document the table never read is placed nowhere.
-func TestPositionOf_PlacesASiteInTheDocumentTheTableRead(t *testing.T) {
-	t.Parallel()
-	_, root := buildDoc(t, "openapi: 3.1.0\ninfo: {title: T, version: \"1\"}\npaths: {}\ncomponents:\n  schemas:\n"+
-		"    A: {$ref: 'other.yaml#/T'}\n    B: {$ref: 'http://h/a%20b.yaml#/T'}\n    C: {$ref: 'http://h/c d.yaml#/T'}\n")
-	table := bind.Bind(t.Context(), root, bind.Config{Self: "spec.yaml", Open: func(string) (*yaml.Node, error) {
-		var n yaml.Node
-		return &n, yaml.Unmarshal([]byte("T: {type: string}\n"), &n)
-	}})
-	require.Equal(t, 4, table.Documents(), "the source, other.yaml and the two URLs")
-	other, remote, spaced := bind.DocID(1), bind.DocID(2), bind.DocID(3)
-	require.Equal(t, "other.yaml", table.Document(other).Name)
-	require.Equal(t, "http://h/a%20b.yaml", table.Document(remote).Name)
-	require.Equal(t, "http://h/c d.yaml", table.Document(spaced).Name)
-	self := sourceDocument{path: "spec.yaml"}
-
-	for site, want := range map[refSite]bind.Position{
-		{pointer: "/x"}:                             {Doc: bind.Source, Pointer: "/x"},
-		{doc: "other.yaml", pointer: "/y"}:          {Doc: other, Pointer: "/y"},
-		{doc: "http://h/a b.yaml", pointer: "/z"}:   {Doc: remote, Pointer: "/z"},
-		self.siteIn("spec.yaml", "/w"):              {Doc: bind.Source, Pointer: "/w"},
-		self.siteIn("http://h/a b.yaml", "/v"):      {Doc: remote, Pointer: "/v"},
-		{doc: "http://h/c%20d.yaml", pointer: "/u"}: {Doc: spaced, Pointer: "/u"},
-	} {
-		got, ok := self.positionOf(table, site)
-		require.True(t, ok, "%+v", site)
-		assert.Equal(t, want, got, "%+v", site)
-	}
-	_, ok := self.positionOf(table, refSite{doc: "gone.yaml", pointer: "/x"})
-	assert.False(t, ok, "a document the table never read")
-}
-
-// TestUnplaced_NamesTheDocumentOfASiteOutsideTheSource pins how unplaced
-// spells the reference each schema of an end the table could not place was
-// read under: by its pointer in the source, and by its pointer in its document
-// elsewhere.
-func TestUnplaced_NamesTheDocumentOfASiteOutsideTheSource(t *testing.T) {
-	t.Parallel()
-	inSource := oas3.NewJSONSchemaFromSchema[oas3.Referenceable](&oas3.Schema{})
-	inA := oas3.NewJSONSchemaFromSchema[oas3.Referenceable](&oas3.Schema{})
-	bd := typed.NewBuilder(nil)
-
-	unplaced(t.Context(), bd, referenceEnd{walk: walkOf(&soa.ReferencedParameter{Object: &soa.Parameter{Schema: inSource}})},
-		refSite{pointer: "/paths/~1x/get/parameters/0"})
-	unplaced(t.Context(), bd, referenceEnd{walk: walkOf(&soa.ReferencedParameter{Object: &soa.Parameter{Schema: inA}})},
-		refSite{doc: "a.yaml", pointer: "/components/parameters/P"})
-
-	site, ok := bd.Bindings().Unplaced(inSource)
-	require.True(t, ok)
-	assert.Equal(t, "/paths/~1x/get/parameters/0", site)
-	site, ok = bd.Bindings().Unplaced(inA)
-	require.True(t, ok)
-	assert.Equal(t, "/components/parameters/P in a.yaml", site)
-}
-
 // TestPlaces_PositionPlacesAFindingInTheDocumentThatHoldsIt pins where a
 // finding at a position of the bindings' table is placed: the source's where
 // the source places its pointer, another document's in that document's
@@ -448,69 +464,6 @@ func TestPlaces_PositionPlacesAFindingInTheDocumentThatHoldsIt(t *testing.T) {
 
 	unlisted := places{source: source, table: table}
 	assert.Equal(t, ir.Provenance{Source: 5}, unlisted.position(ext))
-}
-
-// TestBindSchemas_AChainEndsInTheDocumentItEndsIn is TestTargetOf for schema
-// $refs, which the bindings read: each chain ends in the document its last
-// hop lands in, not the one it first leaves for, and a schema the model does
-// not hold there is built for the landing, a boolean one included, and lends
-// its use site that schema, whichever documents the chain passes.
-func TestBindSchemas_AChainEndsInTheDocumentItEndsIn(t *testing.T) {
-	t.Parallel()
-	dir := externalDir(t, map[string]string{"other.yaml": reachedFixtureOther, "third.yaml": reachedFixtureThird})
-	got, _ := loadExternal(t, dir, reachedFixtureRoot, Options{})
-	doc, bindings := got.Doc, got.Bindings
-	table := bindings.Table()
-	for name, want := range map[string]struct {
-		doc     string
-		pointer jsontext.Pointer
-	}{
-		"S":       {filepath.Join(dir, "other.yaml"), "/components/schemas/Obj"},
-		"Bool":    {filepath.Join(dir, "other.yaml"), "/components/schemas/AnyBool"},
-		"Chained": {filepath.Join(dir, "third.yaml"), "/components/schemas/Leaf"},
-		"ToS":     {filepath.Join(dir, "other.yaml"), "/components/schemas/Obj"},
-		"ToLocal": {filepath.Join(dir, "root.yaml"), "/components/schemas/Local"},
-	} {
-		js, ok := doc.Components.Schemas.Get(name)
-		require.True(t, ok, name)
-		e, ok := bindings.Entry(js)
-		require.True(t, ok, name)
-		require.Equal(t, bind.Resolved, e.Chain.Status, name)
-		assert.Equal(t, want.doc, table.Document(e.Chain.End.Doc).Name, name)
-		assert.Equal(t, want.pointer, e.Chain.End.Pointer, name)
-		held := bindings.At(e.Chain.End)
-		assert.NotNil(t, held, "%s ends on a schema held for it", name)
-		assert.Same(t, held, bindings.End(js), name)
-	}
-}
-
-// TestIndexEnds_StopsBetweenEndsOnceTheContextIsDone pins indexEnds' context,
-// asked before each end it places and each it records as unplaced: cancelled
-// once the ends are placed, no unplaced end is walked.
-func TestIndexEnds_StopsBetweenEndsOnceTheContextIsDone(t *testing.T) {
-	t.Parallel()
-	root := openapitest.YAMLDocument(t, minimal31)
-	table := bind.Bind(t.Context(), root, bind.Config{Self: "spec.yaml"})
-	walks := 0
-	walk := func(context.Context) iter.Seq[soa.WalkItem] {
-		walks++
-		return func(func(soa.WalkItem) bool) {}
-	}
-	ends := map[refSite]referenceEnd{}
-	for i := range 4 {
-		ends[refSite{doc: "other.yaml", pointer: jsontext.Pointer(fmt.Sprintf("/x%d", i))}] = referenceEnd{
-			object: &soa.ReferencedResponse{}, walk: walk}
-	}
-	self := sourceDocument{path: "spec.yaml"}
-	indexEnds(t.Context(), typed.NewBuilder(table), table, ends, self)
-	require.Equal(t, len(ends), walks, "live, each unplaced end is walked")
-
-	walks = 0
-	// The placing loop asks once for each end, all live, then the next ask refuses.
-	ctx := &ctxtest.Countdown{Context: t.Context(), Left: len(ends)}
-	indexEnds(ctx, typed.NewBuilder(table), table, ends, self)
-
-	assert.Zero(t, walks, "no unplaced end is walked once the context refused")
 }
 
 // TestBindSchemas_ReadsTheComponentNamesTheModelReads pins the names a

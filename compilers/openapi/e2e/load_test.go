@@ -31,23 +31,24 @@ import (
 	"github.com/dexpace/morphic/ir"
 )
 
-// resolverPanicSpec is a document the parser accepts and the resolver faults on:
-// `B: {$ref}` is a mapping whose $ref key carries no value, so populating the
-// response reference that points at it nil-dereferences inside speakeasy.
+// parserPanicSpec is a document the parser accepts and faults on building:
+// `B: {$ref}` is a mapping whose $ref key carries no value, so building the
+// response the reference names from it nil-dereferences inside the parser.
 // FuzzCycleDetector found it; the same bytes are committed as a corpus entry.
-const resolverPanicSpec = "openapi: 3.0\ncomponents:\n responses:\n  000: {$ref: '#/B'}\nB: {$ref}"
+const parserPanicSpec = "openapi: 3.0\ncomponents:\n responses:\n  000: {$ref: '#/B'}\nB: {$ref}"
 
-// TestCompile_ResolverPanicIsADiagnostic is the end-to-end half: the panic
-// becomes an ordinary unresolved-ref diagnostic, so a malformed spec is refused
-// as a spec problem rather than reported as a Go error or crashing the process.
-func TestCompile_ResolverPanicIsADiagnostic(t *testing.T) {
+// TestCompile_AParserPanicIsADiagnostic is the end-to-end half: the panic
+// building what a reference reaches becomes an ordinary openapi/validation
+// error at the reference, so a malformed spec is refused as a spec problem
+// rather than reported as a Go error or crashing the process.
+func TestCompile_AParserPanicIsADiagnostic(t *testing.T) {
 	t.Parallel()
 	doc, diags, err := openapi.New().Compile(t.Context(),
-		[]compilers.Source{{Path: "resolver-panic.yaml", Data: []byte(resolverPanicSpec)}},
+		[]compilers.Source{{Path: "parser-panic.yaml", Data: []byte(parserPanicSpec)}},
 		compilers.Options{})
 	require.NoError(t, err, "a malformed spec is a spec problem, not a Go error")
-	assert.NotNil(t, doc, "resolution failure does not stop the document being lowered")
-	openapitest.AssertHasCode(t, diags, diag.UnresolvedRef, ir.SeverityError)
+	assert.NotNil(t, doc, "a failed build does not stop the document being lowered")
+	assert.Equal(t, 1, countCode(diags, diag.Validation, "/components/responses/000"), "%+v", diags)
 }
 
 // TestCompile_AResolutionFailureIsReportedOnceAtItsRef pins the once-per-site
@@ -132,12 +133,12 @@ func TestCompile_AResolutionFailureIsReportedOnceAtItsRef(t *testing.T) {
 
 // TestCompile_AReferenceObjectToANonObjectIsReportedOnce pins what a reference
 // object whose $ref names a position holding no object of its kind draws
-// (GitHub #1044): one unresolved-ref error at the $ref, naming the kind as a
-// schema $ref to a position holding no schema is worded, and, when the chain
-// went through another reference object first, the $ref written at the hop
-// before. No finding stands beside it at the target, and it does not depend on
-// which $ref reaches the target first. A target with findings of its own
-// still reports them.
+// (GitHub #1044): one unresolved-ref error at the $ref whose own hop lands
+// there, naming the kind as a schema $ref to a position holding no schema is
+// worded, in whichever document writes it, and none at a reference whose chain
+// passes that one. No finding stands beside it at the target, and it does not
+// depend on which $ref reaches the target first. A target with findings of its
+// own still reports them.
 func TestCompile_AReferenceObjectToANonObjectIsReportedOnce(t *testing.T) {
 	t.Parallel()
 	const (
@@ -208,9 +209,7 @@ func TestCompile_AReferenceObjectToANonObjectIsReportedOnce(t *testing.T) {
 			spec: openapitest.PathsSpec("  /x:\n    get:\n      parameters: [{$ref: '#/components/parameters/P'}]\n"+
 				"      responses: {\"200\": {description: ok}}\n") +
 				"components:\n  parameters:\n    P: {$ref: '#/x-lib/S'}\n" + stringLib,
-			pointer: "/paths/~1x/get/parameters/0",
-			message: `unresolved $ref "#/components/parameters/P", through "#/x-lib/S": ` +
-				"it names a position that holds no parameter",
+			pointer: "/components/parameters/P", message: notKind("parameter"),
 		},
 	}
 	for name, tc := range tests {
@@ -274,10 +273,9 @@ func TestCompile_AReferenceObjectToANonObjectIsReportedOnce(t *testing.T) {
 		require.NoError(t, err)
 
 		want := []ir.Diagnostic{{Severity: ir.SeverityError, Code: diag.UnresolvedRef,
-			Message: `unresolved $ref "mid.yaml#/P", through "#/S" in ` + filepath.Join(dir, "mid.yaml") +
-				": it names a position that holds no parameter",
-			Provenance: ir.Provenance{Pointer: "/paths/~1x/get/parameters/0"}}}
-		assert.Empty(t, cmp.Diff(want, diags), "the hop before names where it is written")
+			Message:    `unresolved $ref "#/S": it names a position that holds no parameter`,
+			Provenance: ir.Provenance{Source: 1, Pointer: "/P"}}}
+		assert.Empty(t, cmp.Diff(want, diags), "reported where the hop that fails is written, in mid.yaml")
 	})
 
 	t.Run("a target with findings of its own still reports them", func(t *testing.T) {
@@ -480,8 +478,8 @@ func TestCompile_ByDefaultOnlyARelativeReferenceIsFollowed(t *testing.T) {
 
 // TestCompile_AnUnusableDocumentIsReportedAlikeOnEitherRoute pins that a
 // document read and not usable, one that does not parse or one holding
-// nothing, fails a schema $ref, which the compiler binds, and a parameter's,
-// which the parser's resolver follows, with one wording, whether the $ref names
+// nothing, fails a schema $ref and a parameter's with one wording, whether the
+// $ref names
 // a node in it or the whole of it, in either mode, and draws no other finding.
 func TestCompile_AnUnusableDocumentIsReportedAlikeOnEitherRoute(t *testing.T) {
 	t.Parallel()
@@ -529,8 +527,8 @@ func TestCompile_AnUnusableDocumentIsReportedAlikeOnEitherRoute(t *testing.T) {
 // references allowed or not, and whatever the working directory: a reader
 // would read "foo:b.yaml" as a path against it. A file whose name holds a
 // colon, written "./foo:b.yaml", is read, the spec named relatively too,
-// where the resolver joins it to that same "foo:b.yaml". Both routes word the
-// refusal alike.
+// where the parser library's join would make it that same "foo:b.yaml"
+// (resolve.Locate keeps the "./"). Both routes word the refusal alike.
 func TestCompile_AURLNoReaderReadsIsRefusedUnread(t *testing.T) {
 	dir, err := filepath.EvalSymlinks(t.TempDir())
 	require.NoError(t, err)
@@ -560,7 +558,7 @@ func TestCompile_AURLNoReaderReadsIsRefusedUnread(t *testing.T) {
 			for _, d := range diags {
 				got = append(got, string(d.Provenance.Pointer)+": "+d.Message[strings.LastIndex(d.Message, ": ")+2:])
 				assert.Contains(t, d.Message, ": the document it names could not be read: external document foo:b.yaml refused: ",
-					"the binder and the parser's resolver word one refusal alike")
+					"a schema's $ref and a parameter's word one refusal alike")
 			}
 			slices.Sort(got)
 			assert.Equal(t, []string{"/components/schemas/URL: " + refused, "/paths/~1x/get/parameters/0: " + refused}, got,
@@ -707,9 +705,8 @@ func TestCompile_ByDefaultEachReferenceIsJudgedByItsOwnSpelling(t *testing.T) {
 // TestCompile_AnAbsolutePathInANetworkDocumentNamesItsHost pins that a $ref a
 // document fetched over the network writes as an absolute path, or as a
 // network-path reference, names what RFC 3986 §5.2 resolves it to on the
-// network, never a local file: it is read from the host, by a schema the
-// compiler binds and by a parameter the parser's resolver follows, and nothing
-// is refused.
+// network, never a local file: it is read from the host, by a schema's $ref
+// and by a parameter's, and nothing is refused.
 func TestCompile_AnAbsolutePathInANetworkDocumentNamesItsHost(t *testing.T) {
 	t.Parallel()
 	served := map[string]string{
@@ -813,9 +810,9 @@ func TestCompile_ANetworkDocumentReadsNoLocalFile(t *testing.T) {
 // TestCompile_ANetworkDocumentReadsNoLocalFileByAnyReference pins the same
 // boundary for each kind of reference the compiler follows, a file: URI in a
 // document fetched over the network, one and two network documents deep: a
-// schema's $ref, a reference object of every kind the parser's resolver reads,
-// and a discriminator's mapping value and defaultMapping, which the compiler
-// binds, are each refused where they are written, and nothing local is read;
+// schema's $ref, a reference object of every kind, and a discriminator's
+// mapping value and defaultMapping are each refused where they are written,
+// and nothing local is read;
 // a link's operationRef and an example's externalValue name nothing a compile
 // reads.
 func TestCompile_ANetworkDocumentReadsNoLocalFileByAnyReference(t *testing.T) {
@@ -858,9 +855,10 @@ func TestCompile_ANetworkDocumentReadsNoLocalFileByAnyReference(t *testing.T) {
 // TestCompile_ASourceReadOverTheNetworkReadsNoLocalFile pins the boundary for
 // a source itself read over the network, with external references allowed or
 // not: a file: URI in a schema's $ref, a parameter's, a mapping value, or
-// below an $id is refused, and so is the file a parameter's relative $ref
-// names under a 3.2 `$self` naming a file URI or a path, which the parser's
-// resolver reads it against. Nothing local is read.
+// below an $id is refused. A parameter's relative $ref under a 3.2 `$self`
+// naming a file URI or a path is read beside the source, on the network, as
+// no document's `$self` is a base (docs/compilers/openapi.md#self-uri).
+// Nothing local is read.
 func TestCompile_ASourceReadOverTheNetworkReadsNoLocalFile(t *testing.T) {
 	t.Parallel()
 	local := t.TempDir()
@@ -897,10 +895,67 @@ func TestCompile_ASourceReadOverTheNetworkReadsNoLocalFile(t *testing.T) {
 				require.NoError(t, err)
 				require.NotNil(t, got)
 
-				assertNoLocalRead(t, networkCompile{diags: diags, locations: rec.locations(),
-					host: strings.TrimPrefix(srv.URL, "http://")}, "", true)
+				compiled := networkCompile{diags: diags, locations: rec.locations(),
+					host: strings.TrimPrefix(srv.URL, "http://")}
+				if !strings.HasPrefix(tc.name, "a $self") {
+					assertNoLocalRead(t, compiled, "", true)
+					return
+				}
+				// A $self is no base, so its row names the document beside the
+				// source, on the network, read only where external references are.
+				if allow {
+					assertNoLocalRead(t, compiled, "", false)
+					return
+				}
+				for _, l := range rec.locations() {
+					assert.True(t, strings.HasPrefix(l, srv.URL+"/"), "nothing local is read: %s", l)
+				}
+				require.Len(t, diags, 1, "%+v", diags)
+				assert.Contains(t, diags[0].Message, "/v1/secret.yaml refused: it is on the network")
 			})
 		}
+	}
+}
+
+// TestCompile_ASourceReadOverTheNetworkIsNamedHoweverItsURLIsSpelled pins
+// that a $ref naming a source read over the network names the source itself,
+// though the two spell its URL apart in ways RFC 3986 reads as one: a host in
+// upper case, an unreserved character percent-encoded, a dot segment. Nothing
+// is fetched, and the parameter is the source's own. Only the binder's own
+// comparison of the URLs (bind.resources.names) matches these spellings: the
+// table of documents read, keyed by name, matches none of them.
+func TestCompile_ASourceReadOverTheNetworkIsNamedHoweverItsURLIsSpelled(t *testing.T) {
+	t.Parallel()
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		_, err := w.Write([]byte("openapi: 3.1.0\ninfo: {title: O, version: \"1\"}\npaths: {}\n" +
+			"components:\n  parameters:\n    P: {name: fetched, in: query}\n"))
+		assert.NoError(t, err)
+	}))
+	t.Cleanup(srv.Close)
+	port := srv.URL[strings.LastIndex(srv.URL, ":"):]
+	for _, c := range []struct{ name, source, ref string }{
+		{"a host in upper case", "http://LOCALHOST" + port + "/v1/api.yaml", "http://localhost" + port + "/v1/api.yaml"},
+		{"a $ref encoding a letter", "http://LOCALHOST" + port + "/v1/api.yaml", "%61pi.yaml"},
+		{"a source encoding a letter", "http://localhost" + port + "/v1/%61pi.yaml", "api.yaml"},
+		{"a source through a dot segment", "http://localhost" + port + "/v1/./api.yaml", "./api.yaml"},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			t.Parallel()
+			spec := "openapi: 3.1.0\ninfo: {title: T, version: \"1\"}\npaths:\n  /a: {get: {operationId: a, parameters: " +
+				"[{$ref: '" + c.ref + "#/components/parameters/P'}], responses: {'200': {description: ok}}}}\n" +
+				"components:\n  parameters:\n    P: {name: own, in: query}\n"
+			rec := &recordingReader{inner: reader.Disk{Client: srv.Client()}}
+			doc, _, err := openapi.New().Compile(t.Context(), []compilers.Source{{Path: c.source, Data: []byte(spec)}},
+				compilers.Options{Reader: rec, FormatOptions: openapi.Options{AllowExternalRefs: true}})
+			require.NoError(t, err)
+			require.NotNil(t, doc)
+
+			assert.Empty(t, rec.locations(), "the source is not fetched again")
+			op, ok := opByName(doc, "a")
+			require.True(t, ok)
+			require.Len(t, op.Params, 1)
+			assert.Equal(t, "own", op.Params[0].Name.Source, "the source's own parameter")
+		})
 	}
 }
 

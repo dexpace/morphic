@@ -60,7 +60,7 @@ func Hoistable(decl *oas3.JSONSchema[oas3.Referenceable]) bool {
 	return decl != nil && (decl.IsBool() || annotation.At(decl).Node != nil)
 }
 
-// IsRefSite reports whether a position is $ref-shaped: the resolver's own
+// IsRefSite reports whether a position is $ref-shaped: the library's own
 // IsReference (a non-empty $ref), or a schema body that carries a Ref field of
 // its own even when empty. That is deliberately broader than annotation.At's
 // classification: schemaRefHomed and TargetSchema both need "there is a

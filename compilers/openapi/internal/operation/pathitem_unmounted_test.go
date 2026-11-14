@@ -223,7 +223,7 @@ paths:
 
 // TestPathItem_WithNoOperationKeepsNoUnresolvedParameter pins that an entry
 // whose $ref resolves to nothing, which has no name and location to key it by,
-// is reported once, by the resolver, and kept nowhere, as on an operation.
+// is reported once, by the load phase, and kept nowhere, as on an operation.
 func TestPathItem_WithNoOperationKeepsNoUnresolvedParameter(t *testing.T) {
 	t.Parallel()
 	doc, diags := parseFull(t, openapitest.PathsSpec(`  /p:

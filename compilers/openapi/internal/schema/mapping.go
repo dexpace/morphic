@@ -169,8 +169,8 @@ func indexBranches(c lowering.Ctx, u unionAt, variants []ir.Variant) *branchInde
 		vptr := u.at + ids.Ptr(key, strconv.Itoa(n))
 		x.pointers = append(x.pointers, vptr)
 		keepFirst(x.is, variants[i].Type.Target, i)
-		own, placed := c.Position(vptr)
-		if id, ok := declaredAt(c, own, b); ok && placed {
+		own := c.Position(vptr)
+		if id, ok := declaredAt(c, own, b); ok {
 			keepFirst(x.is, id, i)
 		}
 		for _, l := range follow(c, link{at: own, decl: b}).links[1:] {
@@ -287,7 +287,7 @@ func routeEntry(c lowering.Ctx, ts *compile.Types, d *oas3.Discriminator, x *bra
 // meant as a component's name, which is read first, so its reason says both
 // readings failed.
 func mappingWhy(c lowering.Ctx, d *oas3.Discriminator, value string) string {
-	why := unreadWhy(c.Bindings(), d)
+	why := unreadWhy(c.Bindings())
 	if m, ok := c.Bindings().Mapping(d, value); ok {
 		why = hopWhy(m.Hop)
 	}

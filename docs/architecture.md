@@ -215,8 +215,9 @@ because what each owes is agreement with the OpenAPI parser library, not with YA
 alone. The view reads a mapping as the library's unmarshaller does, its `<<` merges and repeated
 keys included, which yaml.v3's own decoder reads differently. Sniffing reads the parse the compile
 lowers, through that view, and claims a broken document by OpenAPI's discriminating keys. Identity
-classifies a location as the library's resolver does, and where that resolver reads a reference
-otherwise than RFC 3986, the load phase respells what it is handed so the two agree. A compiler
+classifies a location as the library's join does, departing from it where RFC 3986 reads a
+reference otherwise; the compiler binds every reference itself, so nothing hands the library a
+spelling to agree with. A compiler
 parsing through the same library is the evidence that would move the view or identity, and one
 wanting the byte probe for a key of its own would move that probe; any other needs a reading that
 agrees with its own parser, since a shared reading would disagree with it as detection disagreed
@@ -589,14 +590,13 @@ morphic/
 │   │   └── internal/       #             Its own packages, each below that face:
 │   │       ├── diag/       #             diagnostic codes and the constructor
 │   │       ├── ids/        #             pointer construction; pointer → TypeID
-│   │       ├── fragment/   #             a $ref fragment read as a pointer, and spelled for the resolver
-│   │       ├── navigation/ #             a pointer read through the parsed model as the library reads it
+│   │       ├── fragment/   #             a $ref fragment read as a pointer
 │   │       ├── spelling/   #             the primitive kinds OpenAPI spells
 │   │       ├── nodeview/   #             the raw YAML as the parser reads it, and one bounded walk
 │   │       ├── value/      #             scalar and BigVal lowering
 │   │       ├── sourceindex/ #            what one walk of a decoded source tree answers
 │   │       ├── scan/       #             pre-parse refusals (alias cycles and fan-out, nesting, pointer bytes)
-│   │       ├── bind/       #             every schema $ref bound where it lands, loops found
+│   │       ├── bind/       #             every $ref bound where it lands, loops found
 │   │       ├── annotation/ #             what a schema says about itself, not its shape
 │   │       ├── oas/        #             the OpenAPI Specification's rules by minor, and their check
 │   │       ├── overlay/    #             an Overlay applied, and the positions it answers for

@@ -251,10 +251,6 @@ func keepContentDocs(d mediaDecl, u *ir.Unmodeled, scope, carrier, home string) 
 		if !ok {
 			continue
 		}
-		if !h.placed {
-			diags = append(diags, unplacedDoc(d, key))
-			continue
-		}
 		at := h.at + ids.Ptr(key)
 		kept, keptDiags := annotation.PreserveNodeInto(u, annotation.EntryKey(scope, key), node,
 			ir.ReasonNoIRHome, h.c.Place().At(at))
@@ -268,37 +264,30 @@ func keepContentDocs(d mediaDecl, u *ir.Unmodeled, scope, carrier, home string) 
 }
 
 // docHop is a position a content entry's docs may be written at: the mapping
-// there, and the context and pointer it is written at, unless placed is false.
-// summary reports whether a summary written there documents the entry: a
-// Media Type Object defines none, so one its declaration writes is an
-// undefined key, which the census keeps.
+// there, and the context and pointer it is written at. summary reports whether
+// a summary written there documents the entry: a Media Type Object defines
+// none, so one its declaration writes is an undefined key, which the census
+// keeps.
 type docHop struct {
 	root    *yaml.Node
 	c       lowering.Ctx
 	at      jsontext.Pointer
-	placed  bool
 	summary bool
 }
 
 // docHops returns the positions d's docs may be written at, nearest first:
-// the entry's own, each components/mediaTypes alias its chain passes, and the
-// declaration. An alias is placed only where the entry is written in the
-// source and the alias is too, as resolve.ObjectAt reads a chain.
+// the entry's own, each components/mediaTypes alias its chain passes, at the
+// position the bindings' table reads it at, in whichever document, and the
+// declaration.
 func docHops(d mediaDecl) []docHop {
-	decl := docHop{root: d.media.GetRootNode(), c: d.ctx, at: d.pointer, placed: true}
+	decl := docHop{root: d.media.GetRootNode(), c: d.ctx, at: d.pointer}
 	if d.use == nil {
 		return []docHop{decl}
 	}
-	hops := []docHop{{root: d.use.GetCore().GetRootNode(), c: d.entryCtx, at: d.entryPtr, placed: true,
-		summary: true}}
-	scope, placed := d.entryCtx.RefScope(), !d.entryCtx.RefScope().Foreign
-	last := d.use
-	for _, hop := range resolve.Hops[soa.MediaType](scope, d.use) {
-		target, inSource := scope.InternalPointer(last.GetReference().String())
-		placed = placed && inSource && !hop.Foreign
-		hops = append(hops, docHop{root: hop.Ref.GetCore().GetRootNode(), c: d.entryCtx.InScope(scope.InSource()),
-			at: target, placed: placed, summary: true})
-		scope, last = scope.InSource(), hop.Ref
+	hops := []docHop{{root: d.use.GetCore().GetRootNode(), c: d.entryCtx, at: d.entryPtr, summary: true}}
+	for _, hop := range resolve.Hops[soa.MediaType](d.entryCtx.Bindings(), d.use) {
+		in, _ := lowering.InDocument(d.entryCtx, hop.At.Doc)
+		hops = append(hops, docHop{root: hop.Ref.GetCore().GetRootNode(), c: in, at: hop.At.Pointer, summary: true})
 	}
 	return append(hops, decl)
 }
@@ -323,15 +312,6 @@ func nearestWriting(hops []docHop, key string) (docHop, *yaml.Node, bool) {
 func unset(node *yaml.Node) bool {
 	n := nodeview.Deref(node)
 	return n.Kind == yaml.ScalarNode && (n.Value == "" || n.ShortTag() == "!!null")
-}
-
-// unplacedDoc reports, at d's entry, the key the fold takes from an alias in
-// another document, which no position of this compile places, as the fields
-// beside a path item's $ref there are reported (GitHub #823).
-func unplacedDoc(d mediaDecl, key string) ir.Diagnostic {
-	return d.entryCtx.DiagAt(ir.SeverityWarning, diag.DegradedConstruct, d.entryPtr,
-		"the %s this media type takes is written beside a $ref in another document, which this compiler "+
-			"does not place; it is not kept", key)
 }
 
 // contentOnlyFields returns the Media Type Object fields the IR models at a

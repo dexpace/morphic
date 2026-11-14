@@ -5,7 +5,6 @@ package load
 
 import (
 	"context"
-	"path/filepath"
 
 	yaml "go.yaml.in/yaml/v3"
 
@@ -15,15 +14,15 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/scan"
 )
 
-// sourceDocument is the source as its references' resolution reads it: the
-// path they are relative to (Location), the one Document.Sources records, the
-// bytes and the tree its model was built from, what the table found in it, and
-// where a finding about a node of that tree is placed, at the $ref that
-// reached it where the tree holds no node.
+// sourceDocument is the source as its references' binding reads it: the path
+// they are relative to (Location), the one Document.Sources records, the bytes
+// and the tree its model was built from, what the table found in it, and where
+// a finding about a node of that tree is placed, at the $ref that reached it
+// where the tree holds no node.
 //
-// A $ref from another document back into the source is answered from here,
-// not from the file, so it reaches what the compile holds: the tree an overlay
-// patched, and nodes a finding is reported for once (GitHub #759).
+// A $ref from another document back into the source reads this tree, not the
+// file, so it reaches what the compile holds: the tree an overlay patched, and
+// nodes a finding is reported for once (GitHub #759).
 type sourceDocument struct {
 	path   string
 	places *refscope.Places
@@ -32,9 +31,6 @@ type sourceDocument struct {
 	root   *yaml.Node
 	judged judgment
 	tree   provenance.Tree
-	// escapes holds the $ref values rewritten in the source's tree and in the
-	// trees of the documents it reads, or is nil for none (GitHub #911).
-	escapes *escapes
 }
 
 // treeOf places the nodes of root in the document doc places, their pointers
@@ -56,12 +52,12 @@ func treeHolds(tree provenance.Tree, n *yaml.Node) bool {
 
 // newSourceDocument returns src, built from its data into root, which the
 // table judged as judged, and whose findings tree places, the files the
-// compile names lying in places. esc holds the $refs rewritten in root.
+// compile names lying in places.
 func newSourceDocument(src compilers.Source, places *refscope.Places, root *yaml.Node, judged judgment,
-	tree provenance.Tree, esc *escapes,
+	tree provenance.Tree,
 ) sourceDocument {
 	return sourceDocument{path: Location(src), places: places, handed: src.Path, data: src.Data, root: root,
-		judged: judged, tree: tree, escapes: esc}
+		judged: judged, tree: tree}
 }
 
 // Location is where src lies, as the references in it are read against: its
@@ -71,30 +67,4 @@ func Location(src compilers.Source) string {
 		return src.Location
 	}
 	return src.Path
-}
-
-// keys returns the keys the resolver looks the source up by: its path, as an
-// internal $ref resolves against it, and its path cleaned, as a relative $ref
-// from another document reaches it. A source with no path or no tree is held
-// under none, and one named by a URL is kept as spelled.
-func (s sourceDocument) keys() []string {
-	if s.path == "" || s.root == nil {
-		return nil
-	}
-	clean := filepath.Clean(s.path)
-	if clean == s.path || refscope.IsURL(s.path) {
-		return []string{s.path}
-	}
-	return []string{s.path, clean}
-}
-
-// names reports whether the resolver reading the document name reads the
-// source as held (see keys), as the lowering reads a document part naming it
-// (refscope.Places.SameDocument). A source named by a URL is held, and so
-// named, under its own spelling alone; one keys holds under none is never
-// named. The path is read where it lies, so one through a link to the
-// source's directory names the source, and one through a directory that does
-// not exist does as its dot segments name it.
-func (s sourceDocument) names(name string) bool {
-	return len(s.keys()) > 0 && s.places.SameDocument(s.path, name)
 }

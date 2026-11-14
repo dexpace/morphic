@@ -9,30 +9,27 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
 	"github.com/dexpace/morphic/ir"
 )
 
-// TestCompile_APointerTokenPastUFFFFIsRefusedUpstream pins GitHub #516. The
-// library caps its reference-token character class at U+FFFF
-// (jsonpointer/navigation.go, tokenRegex), though RFC 6901 admits up to
-// U+10FFFF, so a reference object through an emoji key is refused and one
-// through a Basic Multilingual Plane key resolves. A schema $ref, which the
-// compiler binds itself, resolves through either, in either declaration order.
-//
-// The twins differ only in that key. A refused path item mount is lost. When
-// the astral twin mounts like the other, the library is fixed: assert that and
-// close #516.
-func TestCompile_APointerTokenPastUFFFFIsRefusedUpstream(t *testing.T) {
+// TestCompile_APointerTokenPastUFFFFResolves pins GitHub #516: RFC 6901
+// admits a reference token of any character up to U+10FFFF, and the compiler
+// reads every pointer itself, so a reference object through an emoji key
+// resolves as one through a Basic Multilingual Plane key does, and a schema
+// $ref does too, in either declaration order. The twins differ only in that
+// key.
+func TestCompile_APointerTokenPastUFFFFResolves(t *testing.T) {
 	t.Parallel()
 	twin := func(key string) string {
 		return `openapi: 3.1.0
 info: {title: t, version: "1"}
 paths:
   "/` + key + `":
-    get: {operationId: getKey, responses: {"200": {description: ok}}}
+    get: {operationId: getKey, parameters: [{$ref: '#/x-params/` + key + `'}], responses: {"200": {description: ok}}}
   /mount: {$ref: '#/paths/~1` + key + `'}
+x-params:
+  "` + key + `": {name: p, in: query, schema: {type: string}}
 components:
   schemas:
     Early: {$ref: '#/components/schemas/Later/properties/` + key + `'}
@@ -45,20 +42,18 @@ components:
 		return ir.TypeID("t/anon/components/schemas/" + owner + "/properties/" + key)
 	}
 
-	basic, basicDiags := parseFull(t, twin("é"))
-	openapitest.RequireNoErrorDiags(t, basicDiags)
-	assert.Len(t, operationsNamed(basic, "getKey"), 2,
-		"a key inside the Basic Multilingual Plane resolves: the item is mounted at both paths")
-	assertAliases(t, basic, "Uses", property("Holder", "é"), "a resolved reference aliases its target")
-	assertAliases(t, basic, "Early", property("Later", "é"), "in either declaration order")
-
-	astral, astralDiags := parseFull(t, twin("😀"))
-	assert.True(t, openapitest.HasDiagCodeAt(astralDiags, diag.UnresolvedRef, "/paths/~1mount"),
-		"the resolver still refuses a token past U+FFFF; if it no longer does, see this test's comment")
-	assert.Len(t, operationsNamed(astral, "getKey"), 1,
-		"the refused reference mounts nothing, which is what the fix will change")
-	assertAliases(t, astral, "Uses", property("Holder", "😀"), "a schema $ref resolves past U+FFFF")
-	assertAliases(t, astral, "Early", property("Later", "😀"), "in either declaration order")
+	for _, key := range []string{"é", "😀"} {
+		doc, diags := parseFull(t, twin(key))
+		openapitest.RequireNoErrorDiags(t, diags)
+		ops := operationsNamed(doc, "getKey")
+		assert.Len(t, ops, 2, "%s: the item is mounted at both paths", key)
+		for _, op := range ops {
+			require.Len(t, op.Params, 1, key)
+			assert.Equal(t, "p", op.Params[0].Name.Source, "%s: the parameter resolves", key)
+		}
+		assertAliases(t, doc, "Uses", property("Holder", key), "a resolved reference aliases its target")
+		assertAliases(t, doc, "Early", property("Later", key), "in either declaration order")
+	}
 }
 
 // assertAliases asserts the component schema name lowered to an alias over

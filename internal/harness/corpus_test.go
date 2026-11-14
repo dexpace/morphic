@@ -60,9 +60,9 @@ func knownInvalid() map[string]bool {
 		filepath.FromSlash("../../testdata/openapi/cycle_duplicate_key.yaml"): true,
 		// Chains of reference objects that cycle, spelled by document position
 		// ('#/paths/~1a', '#/webhooks/onA') rather than through components, or
-		// whose pointer passes through a reference on the chain. The resolver
-		// follows each in a loop and reports it as an unresolved reference
-		// (docs/parser-library.md#reference-object-cycle, #574).
+		// whose pointer passes through a reference on the chain: a loop is
+		// reported once, at its least member, and a read needing itself as an
+		// unresolved reference (docs/compilers/openapi.md#reference-cycles).
 		filepath.FromSlash("../../testdata/openapi/cycle_path_item_mutual.yaml"):           true,
 		filepath.FromSlash("../../testdata/openapi/cycle_path_item_self.yaml"):             true,
 		filepath.FromSlash("../../testdata/openapi/cycle_webhook_mutual.yaml"):             true,
@@ -177,11 +177,6 @@ func knownInvalid() map[string]bool {
 // oracle on that fixture.
 func knownFindings() map[string][]harness.Outcome {
 	return map[string][]harness.Outcome{
-		// A $ref on a failing chain is reported only if the walk reaches it
-		// before a chain passing through it, so which ones are reported follows
-		// declaration order (#767).
-		filepath.FromSlash("../../testdata/openapi/cycle_path_item_mutual.yaml"): {harness.OutcomeOrderDependent},
-		filepath.FromSlash("../../testdata/openapi/cycle_webhook_mutual.yaml"):   {harness.OutcomeOrderDependent},
 		// A finding on a node that aliases share is located where its anchor is
 		// written, which declaration order decides: the library's validation of
 		// the node, and the alias-amplification refusal (#1796).

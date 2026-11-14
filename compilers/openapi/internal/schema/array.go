@@ -164,13 +164,9 @@ func ListedTuple(c lowering.Ctx, js *oas3.JSONSchema[oas3.Referenceable]) (
 
 // heldAt returns the schema the bindings hold at pointer of c's document, the
 // one the parser modelled or the load phase built there, and nil where they
-// hold none or c reads another document's content at the source's positions.
+// hold none.
 func heldAt(c lowering.Ctx, pointer jsontext.Pointer) *oas3.JSONSchema[oas3.Referenceable] {
-	at, ok := c.Position(pointer)
-	if !ok {
-		return nil
-	}
-	return c.Bindings().At(at)
+	return c.Bindings().At(c.Position(pointer))
 }
 
 // buildTuple lowers prefixItems into a Tuple's Elems, the items beside them

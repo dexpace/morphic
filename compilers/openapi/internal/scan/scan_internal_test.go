@@ -63,7 +63,7 @@ var refCycleReproducers = []struct{ name, file string }{
 
 // referenceObjectCycles are chains of reference objects outside any schema
 // that cycle, or whose pointer passes back through a reference on the chain.
-// The resolver follows such a chain in a loop and reports it
+// The binder reports such a loop once, at its least member
 // (docs/parser-library.md#reference-object-cycle), so the scan leaves every one
 // to it (GitHub #574).
 var referenceObjectCycles = []struct{ name, file string }{
@@ -140,9 +140,9 @@ func TestAliases_LeavesASchemaRefCycleToTheBinder(t *testing.T) {
 	}
 }
 
-// TestAliases_ReferenceObjectCyclesAreLeftToTheResolver pins that the scan
+// TestAliases_ReferenceObjectCyclesAreLeftToTheBinder pins that the scan
 // reports nothing on a chain of reference objects, however it fails.
-func TestAliases_ReferenceObjectCyclesAreLeftToTheResolver(t *testing.T) {
+func TestAliases_ReferenceObjectCyclesAreLeftToTheBinder(t *testing.T) {
 	t.Parallel()
 	for _, tc := range referenceObjectCycles {
 		t.Run(tc.name, func(t *testing.T) {
@@ -369,7 +369,7 @@ func resolverWalk(t *testing.T, src string) walkEnd {
 // a path item's pointer through the reference it is resolving, stopped there,
 // as it ends one below another item for want of a key, whether or not the last
 // token is UTF-8. The end column pins today's library; the scan refuses none of
-// them, and the resolver reports each.
+// them, and the binder reports each.
 func TestAliases_TheResolverEndsAWalkThroughAReferenceObject(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
@@ -387,7 +387,7 @@ func TestAliases_TheResolverEndsAWalkThroughAReferenceObject(t *testing.T) {
 			src := "openapi: 3.1.0\ninfo: {title: t, version: '1'}\npaths:\n  /a: {$ref: " + tc.ref + "}\n" +
 				"  /b: {get: {operationId: b, responses: {\"200\": {description: ok}}}}\n"
 			assert.Equal(t, tc.end, resolverWalk(t, src), "how the library's walk of this pointer ends")
-			assert.Empty(t, scanBytes(t, []byte(src)), "a chain of reference objects is the resolver's to report")
+			assert.Empty(t, scanBytes(t, []byte(src)), "a chain of reference objects is the binder's to report")
 		})
 	}
 }
@@ -435,8 +435,8 @@ func TestAliases_AnchorsThroughTheTree(t *testing.T) {
 // refuses and what it leaves. It refuses an anchor naming its own ancestor and
 // an alias expansion far past the document's size, because those are
 // properties of YAML and any document carries them, an overlay included. It
-// follows no $ref chain: the compiler's binder resolves a schema $ref, and the
-// parser's resolver reports a loop of reference objects.
+// follows no $ref chain: the compiler's binder resolves every $ref, and
+// reports a loop of schemas or of reference objects.
 func TestAliases_RefusesTheYAMLShapesAndNotTheOpenAPIOnes(t *testing.T) {
 	t.Parallel()
 	aliases := func(src string) []ir.Diagnostic {

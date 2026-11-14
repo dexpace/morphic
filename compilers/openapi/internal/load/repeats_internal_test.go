@@ -198,7 +198,7 @@ webhooks:
 func TestListRepeats_AWalkThatPanicsIsReported(t *testing.T) {
 	t.Parallel()
 	panics := func(func(soa.WalkItem) bool) { panic("walk fault") }
-	diags := listRepeats(provenance.Doc{}, Siblings{}, panics)
+	diags := listRepeats(provenance.Doc{}, Siblings{}, nil, panics)
 	require.Len(t, diags, 1)
 	assert.Equal(t, ir.SeverityError, diags[0].Severity)
 	assert.Equal(t, diag.Validation, diags[0].Code)

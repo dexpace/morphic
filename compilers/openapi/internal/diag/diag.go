@@ -20,10 +20,12 @@ const (
 	Validation = "openapi/validation"
 	// UnsupportedVersion reports an OpenAPI version the compiler cannot lower.
 	UnsupportedVersion = "openapi/unsupported-version"
-	// UnresolvedRef reports a $ref that could not be resolved, or a reference
-	// left unresolved because its pointer passes through the fields beside a path
-	// item $ref, which the resolver reads in the item that $ref names (GitHub
-	// #824).
+	// UnresolvedRef reports a $ref, a schema's or a reference object's, whose
+	// own hop resolves to nothing, at the $ref, in whichever document writes
+	// it, with why (bind.Hop.Why); a $ref whose chain ends on it reports nothing
+	// of its own (docs/compilers/openapi.md#references). The lowering reports a
+	// $ref it cannot follow at its position too, kept only where the load phase
+	// reported none there (openapi.withoutRereported).
 	UnresolvedRef = "openapi/unresolved-ref"
 	// UnresolvedSecurityScheme reports a security requirement naming a scheme
 	// the compiler resolved no mechanism for, at the requirement, from
@@ -54,10 +56,10 @@ const (
 	// (docs/parser-library.md#alias-cycle). A loop of schema $refs that never
 	// reaches a schema is reported once, at its least member the source writes,
 	// else at the least source $ref leading into it (GitHub #912), and the
-	// document still compiles: the compiler binds schema $refs itself
-	// (docs/parser-library.md#schema-cycle-overflow). The resolver reports a
-	// chain of reference objects itself, as UnresolvedRef
-	// (docs/parser-library.md#reference-object-cycle).
+	// document still compiles: the compiler binds every $ref itself
+	// (docs/parser-library.md#schema-cycle-overflow). A loop of reference
+	// objects is reported the same way, where the parser's resolver would
+	// answer by declaration order (docs/parser-library.md#reference-object-cycle).
 	CyclicRef = "openapi/cyclic-ref"
 	// CycleScanFailed reports that the pre-parse alias scan aborted on a fault
 	// of its own (scan.Aliases), leaving its protection against a recursive
@@ -312,13 +314,12 @@ const (
 	// (UnpreservableConstruct), what was not reached is unresolved, or what is
 	// past the bound is kept verbatim, unlowered.
 	BudgetExceeded = "openapi/budget-exceeded"
-	// InternalInvariant reports that one of the compiler's own invariants broke:
-	// a pointer named a type ID the registry does not hold, a second resolution
-	// read a document load never prepared, or the library faulted while load put
-	// the $refs it respelled back as written. It is a compiler bug, not a problem
-	// with the source, but it is reported rather than dropped in silence, since
-	// the alternative is losing constructs with no trace at all. An entry the
-	// registry refused is compile.RegistryRefused instead.
+	// InternalInvariant reports that one of the compiler's own invariants broke,
+	// such as a pointer naming a type ID the registry does not hold. It is a
+	// compiler bug, not a problem with the source, but it is reported rather
+	// than dropped in silence, since the alternative is losing constructs with
+	// no trace at all. An entry the registry refused is compile.RegistryRefused
+	// instead.
 	InternalInvariant = "openapi/internal-invariant"
 	// DuplicateOperationID reports an operationId that one declaration claims
 	// more than once because it is mounted more than once: a path item or an

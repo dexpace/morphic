@@ -17,3 +17,7 @@ func (t *Table) Find(name string) (DocID, bool) {
 // MaxPointerTokens is maxPointerTokens, for the external tests that read a
 // pointer to its cap.
 const MaxPointerTokens = maxPointerTokens
+
+// Steps reports the work the table cost, which only this package's external
+// tests read, to try every limit short of it.
+func (t *Table) Steps() int { return t.steps }

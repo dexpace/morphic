@@ -12,7 +12,9 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/dexpace/morphic/compilers"
 	"github.com/dexpace/morphic/compilers/openapi"
+	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
 	"github.com/dexpace/morphic/compilers/openapi/internal/operation"
 	"github.com/dexpace/morphic/ir"
@@ -174,6 +176,26 @@ components:
 			}
 		})
 	}
+}
+
+// TestBodyFile_AnUnresolvedRefDecidesNoFile pins a binary media type whose
+// schema is a $ref naming nothing: the $ref, reported where it is written, is
+// read as a schema saying nothing of bytes, so the body is no file.
+func TestBodyFile_AnUnresolvedRefDecidesNoFile(t *testing.T) {
+	t.Parallel()
+	doc, diags, err := openapi.New().Compile(t.Context(), []compilers.Source{openapitest.SourceOf(openapitest.PathsSpec(`  /f:
+    post:
+      operationId: f
+      requestBody:
+        content:
+          image/png: {schema: {$ref: "#/components/schemas/Missing"}}
+      responses: {"200": {description: ok}}
+`))}, compilers.Options{})
+	require.NoError(t, err)
+	assert.Equal(t, 1, openapitest.CountDiagsAt(diags, diag.UnresolvedRef, ir.SeverityError))
+	content := openapitest.FindOp(t, doc, "f").Request.Contents[0]
+	assert.Nil(t, content.File)
+	assert.Equal(t, ir.TypeID("t/prim/any"), content.Type.Target)
 }
 
 // TestBodyFile_ReadsAChainOfRefsUpToItsBound holds the reading of what a chain of

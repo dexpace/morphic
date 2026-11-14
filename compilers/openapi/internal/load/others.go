@@ -81,9 +81,8 @@ func (o Others) At(index int) (Other, bool) {
 	return o.list[i], true
 }
 
-// Named returns the document a reference reads by name, as the parser's
-// resolver or the binder spells it, and false for one the compile did not
-// read beside the source.
+// Named returns the document a reference reads by name, as the binder spells
+// it, and false for one the compile did not read beside the source.
 func (o Others) Named(name string) (Other, bool) {
 	i, ok := o.index(name)
 	if !ok {
@@ -102,13 +101,12 @@ func (o Others) index(name string) (int, bool) {
 }
 
 // unreachedKeys is the key of each document table read that nothing it holds is
-// in (bind.Document.Unreached), but those the parser's resolver read, whose
-// keys resolved holds: a reference object's chain reaches them, which the table
-// need not see. Such a document lowers nothing and is no input of the result.
-func unreachedKeys(table *bind.Table, resolved map[string]bool) map[string]bool {
+// in (bind.Document.Unreached). Such a document lowers nothing and is no input
+// of the result.
+func unreachedKeys(table *bind.Table) map[string]bool {
 	unused := map[string]bool{}
 	for id := range bind.DocID(table.Documents()) {
-		if d := table.Document(id); d.Unreached && !resolved[readKey(d.Name)] {
+		if d := table.Document(id); d.Unreached {
 			unused[readKey(d.Name)] = true
 		}
 	}
@@ -127,9 +125,7 @@ func newOthers(ctx context.Context, read *externalReads, first int, source *dial
 	defer read.mu.Unlock()
 	byLabel := map[string][]string{}
 	for key := range read.data {
-		// The source is held under each spelling the resolver reaches it by,
-		// with no bytes of its own; it is Document.Sources' first entry.
-		if read.self.names(key) || read.trees[key] == read.self.root || unused[key] {
+		if unused[key] {
 			continue
 		}
 		label, _ := read.self.labelOf(key)
@@ -180,8 +176,8 @@ func pointersIn(ctx context.Context, trees map[string]*yaml.Node, keys []string)
 // file's path, where it lies, relative to the source's directory, with '/'
 // between its segments whatever the system, or its cleaned path where no
 // relative path reaches it, as from a relative directory to an absolute path,
-// which nothing relates without the working directory; a URL as the resolver
-// spells it. A file URI names a file (resolve.Places.FileOf), so the file is
+// which nothing relates without the working directory; a URL as key spells
+// it. A file URI names a file (resolve.Places.FileOf), so the file is
 // one label however a reference spells it. relative reports the first.
 func (s sourceDocument) labelOf(key string) (label string, relative bool) {
 	file, ok := s.places.FileOf(key)

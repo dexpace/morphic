@@ -223,7 +223,7 @@ func mountPathItem(w walk, layers []layer, at mountSite, route opContext) ([]mou
 		opCtx := route
 		opCtx.method = po.method
 		opCtx.ptrs = opPointers{mount: mount + po.seg, decl: l.decl + po.seg}
-		opCtx.params = mergeParameters(params, po.src.GetParameters(), opCtx.ptrs.decl)
+		opCtx.params = mergeParameters(l.in.Bindings(), params, po.src.GetParameters(), opCtx.ptrs.decl)
 		var filed filing
 		if route.groups != nil {
 			filed = route.groups.filingFor(l.in, po.src, opCtx.ptrs.decl, route.template)
@@ -488,11 +488,11 @@ func keepItemParams(c lowering.Ctx, into carrier, pi *soa.PathItem, mountPtr, de
 	var diags []ir.Diagnostic
 	ledger := newParamLedger(mountPtr)
 	for i, rp := range pi.GetParameters() {
-		slot, ok := paramKey(rp)
+		slot, ok := paramKey(c.Bindings(), rp)
 		if !ok || cedes(paramConstruct(slot)) {
 			continue
 		}
-		p := resolve.Object[soa.Parameter](rp)
+		p := resolve.Object[soa.Parameter](c.Bindings(), rp)
 		entry := declPtr + ids.Ptr("parameters", strconv.Itoa(i))
 		occurrence, repeatDiags := ledger.count(c, p.GetName(), string(p.GetIn()), entry)
 		diags = append(diags, repeatDiags...)

@@ -57,7 +57,7 @@ whether the answer means anything.
 - **Rule.** Where two computations of positions must agree, assert the agreement for every object
   over the corpora, and keep the probe as a test.
 - **Why.** A corpus differential was identical on 2,460 runs while a join probe found a reference
-  end the binder could not place (#1016; `TestBindSchemas_PlacesEveryEndAndBindsEveryRefInTheCorpus`
+  end the binder could not place (#1016; `TestBindAll_BindsEveryRefInTheCorpus`
   is the kept probe).
 
 ## Use a transform differential for spelling and equivalence claims

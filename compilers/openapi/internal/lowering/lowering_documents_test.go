@@ -120,8 +120,6 @@ func TestSchemaRules_FollowTheDocumentTheScopeReads(t *testing.T) {
 	there, ok := lowering.InDocument(c, id)
 	require.True(t, ok)
 	assert.True(t, there.SchemaRules().Defines("nullable"), "ext.yaml declares 3.0.3")
-	assert.True(t, there.InScope(there.RefScope()).SchemaRules().Defines("nullable"),
-		"ext.yaml's content read at the source's coordinates")
 	back, ok := lowering.InDocument(there, bind.Source)
 	require.True(t, ok)
 	assert.False(t, back.SchemaRules().Defines("nullable"))
@@ -133,7 +131,6 @@ func TestSchemaRules_FollowTheDocumentTheScopeReads(t *testing.T) {
 	none.Others = load.Others{}
 	unread := lowering.New(0, &none, lowering.Policy{})
 	assert.False(t, lowering.SchemaRulesIn(unread, id).Defines("nullable"), "a document the compile did not list")
-	assert.False(t, unread.InScope(there.RefScope()).SchemaRules().Defines("nullable"))
 }
 
 // TestSchemaRulesOf_ReadsTheDialectTheSchemaHoldingItNames pins whose rows a
@@ -263,18 +260,15 @@ func TestNameThrough_NamesWhereAReferenceLands(t *testing.T) {
 
 // TestDeclared_LowersAReferencedObjectWhereItIsDeclared pins where a reference
 // object's declaration is lowered: in the document that declares it, at the
-// position the bindings' table places its end. Where the table places none, as
-// for the first of a key written twice, which the parser resolves to and the
-// binder does not, the use site is kept, in the source.
+// position the bindings' table places its end, a key written twice read as its
+// last copy, as the model reads one.
 func TestDeclared_LowersAReferencedObjectWhereItIsDeclared(t *testing.T) {
 	t.Parallel()
 	for name, tc := range map[string]struct {
-		ext  string
-		home ids.Document
-		at   string
+		ext, name string
 	}{
-		"declared once":       {"X: {type: string}\nP: {name: p, in: query}\n", ids.In("ext.yaml"), "/P"},
-		"a key written twice": {"X: {type: string}\nP: {name: p, in: query}\nP: {name: q, in: query}\n", ids.Document{}, "/paths/~1a/get/parameters/0"},
+		"declared once":       {"X: {type: string}\nP: {name: p, in: query}\n", "p"},
+		"a key written twice": {"X: {type: string}\nP: {name: p, in: query}\nP: {name: q, in: query}\n", "q"},
 	} {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
@@ -286,18 +280,40 @@ func TestDeclared_LowersAReferencedObjectWhereItIsDeclared(t *testing.T) {
 			p, there, at := lowering.Declared[soa.Parameter](c, ref, "/paths/~1a/get/parameters/0")
 
 			require.NotNil(t, p)
-			assert.Equal(t, tc.home, there.IDs())
-			assert.Equal(t, tc.at, string(at))
-			assert.True(t, there.RefScope().Foreign, "read in ext.yaml's scope either way")
+			assert.Equal(t, tc.name, p.GetName())
+			assert.Equal(t, ids.In("ext.yaml"), there.IDs())
+			assert.Equal(t, "/P", string(at))
+			assert.True(t, there.RefScope().Foreign, "read in ext.yaml's scope")
 		})
 	}
 }
 
+// TestDeclared_LowersNothingInADocumentTheContextDidNotList pins a reference
+// object whose chain ends in a document the context's compile did not list:
+// it lowers nothing, rather than read the declaration in the use site's
+// document.
+func TestDeclared_LowersNothingInADocumentTheContextDidNotList(t *testing.T) {
+	t.Parallel()
+	c, doc := loadSplit(t, "X: {type: string}\nP: {name: p, in: query}\n")
+	none := *doc
+	none.Others = load.Others{}
+	unread := lowering.New(0, &none, lowering.Policy{})
+	a, ok := c.Doc.Paths.Get("/a")
+	require.True(t, ok)
+	ref := a.GetObject().Get().GetParameters()[0]
+
+	p, at, ptr := lowering.Declared[soa.Parameter](unread, ref, "/paths/~1a/get/parameters/0")
+
+	assert.Nil(t, p)
+	assert.Equal(t, unread.IDs(), at.IDs())
+	assert.Equal(t, "/paths/~1a/get/parameters/0", string(ptr))
+}
+
 // TestDeclared_ReadsTheEndOfTheDocumentWritingTheReference pins that a
-// reference object's end is asked of by the document writing it (GitHub #751):
-// one pointer in two documents is two positions, so where ext.yaml writes
-// nothing at the pointer the source's reference is written at, the source's
-// end there is not read, and the use site is kept.
+// reference object's end is the one the bindings' table reads for the
+// position the wrapper was read at, in the document writing it (GitHub #751),
+// whichever context asks: ext.yaml writes nothing at the pointer the source's
+// reference is written at, and that pointer is no key.
 func TestDeclared_ReadsTheEndOfTheDocumentWritingTheReference(t *testing.T) {
 	t.Parallel()
 	c, _ := loadSplit(t, "X: {type: string}\nP: {name: p, in: query}\n")
@@ -309,7 +325,7 @@ func TestDeclared_ReadsTheEndOfTheDocumentWritingTheReference(t *testing.T) {
 
 	_, there, at := lowering.Declared[soa.Parameter](inExt, ref, "/paths/~1a/get/parameters/0")
 
-	assert.Equal(t, "/paths/~1a/get/parameters/0", string(at), "the source's end at that pointer is not read")
+	assert.Equal(t, "/P", string(at), "the source's reference ends at ext.yaml's P")
 	assert.Equal(t, ids.In("ext.yaml"), there.IDs())
 }
 

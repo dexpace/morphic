@@ -32,10 +32,8 @@ const (
 	phaseJudge    phase = "judge"    // the rule table's judgment of the tree
 	phaseModel    phase = "model"    // the parser's model built, and its version read
 	phaseSiblings phase = "siblings" // the fields beside path item $refs, and the media types, modelled
-	phaseResolve  phase = "resolve"  // reference objects through the parser's resolver
-	phaseBind     phase = "bind"     // schema $refs bound in the compiler
+	phaseBind     phase = "bind"     // every $ref bound in the compiler
 	phaseReach    phase = "reach"    // what references reach, validated
-	phaseRestore  phase = "restore"  // the models put back as the source writes them
 	phaseCheck    phase = "check"    // the source checks
 )
 
@@ -64,10 +62,8 @@ func steps() []step {
 		{phaseJudge, (*loading).judge},
 		{phaseModel, (*loading).buildModel},
 		{phaseSiblings, (*loading).findSiblings},
-		{phaseResolve, (*loading).resolveRefs},
 		{phaseBind, (*loading).bindRefs},
 		{phaseReach, (*loading).reach},
-		{phaseRestore, (*loading).restoreModels},
 		{phaseCheck, (*loading).checkSource},
 	}
 }
@@ -92,10 +88,8 @@ type loading struct {
 	place  provenance.Doc
 	tree   provenance.Tree
 	judged judgment
-	// esc is how the trees were respelled for the parser, nil before they are.
-	esc   *escapes
-	doc   *soa.OpenAPI
-	minor string
+	doc    *soa.OpenAPI
+	minor  string
 	// dialects reads the source and each document a reference reaches at its
 	// minor, off the table judged gives, so a compile builds that table once.
 	dialects *dialects
@@ -106,17 +100,15 @@ type loading struct {
 	sibFaults []ir.Diagnostic
 	self      sourceDocument
 	reader    *external
-	pass      *resolution
-	missed    []usedDocument
 	bound     bound
 	// named is the rows each schema resource root naming its dialect governs.
 	named Dialects
 	// sites places a finding at a reference site, or a position of the
 	// bindings, in whichever document writes it.
 	sites places
-	// resolved and reached are what resolution, binding and validating what
-	// references reach report, and checked what the source checks report.
-	resolved, reached, checked []ir.Diagnostic
+	// resolved is what binding and validating what references reach report,
+	// and checked what the source checks report.
+	resolved, checked []ir.Diagnostic
 }
 
 // preParse runs the pre-parse refusals, so the parser is never handed a tree
@@ -144,7 +136,7 @@ func (l *loading) patchOverlay(ctx context.Context) (bool, error) {
 // measure holds the tree to the node budget. It is measured after the overlay
 // for the reason patch re-runs the pre-parse refusals: the tree the model is
 // built from is no longer the bytes that were measured, and an overlay action
-// can graft nodes onto it. Building that model and resolving its references is
+// can graft nodes onto it. Building that model and binding its references is
 // what the budget bounds, and both are still ahead.
 func (l *loading) measure(ctx context.Context) (bool, error) {
 	nodes := nodeCount(ctx, l.root)
@@ -156,22 +148,17 @@ func (l *loading) measure(ctx context.Context) (bool, error) {
 	return true, nil
 }
 
-// judge holds the tree to the rule table as the source writes it, before
-// anything after it respells the tree for the parser.
+// judge holds the tree to the rule table as the source writes it.
 func (l *loading) judge(ctx context.Context) (bool, error) {
 	l.judged = judgeSource(ctx, l.root, l.tree, nodesAdmitted(l.opts))
 	return false, nil
 }
 
-// buildModel builds the parser's model of the tree, its anchors released and
-// its $refs respelled for the parser, and refuses a version the compiler does
-// not support. The trees are put back when build returns, and the models at
-// the end of resolution.
+// buildModel builds the parser's model of the tree, its anchors released, and
+// refuses a version the compiler does not support.
 func (l *loading) buildModel(ctx context.Context) (bool, error) {
 	readyForModel(ctx, l.root)
-	l.esc = newEscapes(refusedByName(l.opts, Location(l.src), l.places))
-	l.esc.escape(ctx, l.root, Location(l.src))
-	// The model build reads no context, so a cancel that cut the walks above
+	// The model build reads no context, so a cancel that cut the walk above
 	// short is seen before it starts, and never waited out on a tree half
 	// prepared for it.
 	if err := ctx.Err(); err != nil {
@@ -201,92 +188,53 @@ func (l *loading) findSiblings(ctx context.Context) (bool, error) {
 	var mediaFaults []ir.Diagnostic
 	l.media, mediaFaults = modelMediaTypes(ctx, l.doc, l.tree)
 	l.sibFaults = append(l.sibFaults, mediaFaults...)
-	l.self = newSourceDocument(l.src, l.places, l.root, l.judged, l.tree, l.esc)
+	l.self = newSourceDocument(l.src, l.places, l.root, l.judged, l.tree)
 	return false, nil
 }
 
-// resolveRefs resolves every reference object through the parser's resolver
-// (resolveWith), reading other documents through a preparing reader when the
-// caller supplied one (resolveExternal). That reader can rebuild the model.
-func (l *loading) resolveRefs(ctx context.Context) (bool, error) {
-	if l.opts.Reader == nil {
-		l.pass = resolveWith(ctx, l.doc, l.sibs, l.media, l.self, l.opts, nil)
-		return false, nil
-	}
-	doc, sibs, reader, pass, missed, err := resolveExternal(ctx, l.doc, l.sibs, l.media, l.self, l.opts,
-		l.opts.rebuilder(ctx, l.src.Data, l.root))
-	if err != nil {
-		return false, fmt.Errorf("openapi: rebuild source %d: %w", l.srcIndex, err)
-	}
-	l.doc, l.sibs, l.media, l.reader, l.pass, l.missed = doc, sibs, pass.media, reader, pass, missed
-	return false, nil
-}
-
-// bindRefs binds every schema $ref in the compiler (bindSchemas), once every
-// reference object is resolved, and reports what resolution found, placed
-// where the binding places each document. The parser reads the $refs as the
-// trees were rewritten for it here, and up to restoreModels.
+// bindRefs binds every $ref in the compiler (bindAll), reading other
+// documents through a preparing reader when the caller supplied one, and
+// places what it found where the binding places each document.
 func (l *loading) bindRefs(ctx context.Context) (bool, error) {
-	var resolved map[string]bool
-	if l.reader != nil {
-		resolved = l.reader.read.keys()
+	if l.opts.Reader != nil {
+		l.reader = newExternal(l.opts, newExternalReads(l.self, l.opts.MaxExternalDocuments))
 	}
-	l.bound = bindSchemas(ctx, l.doc, l.sibs, l.media, l.self, l.reader, l.pass.ends(), l.dialects)
+	l.bound = bindAll(ctx, l.doc, l.sibs, l.media, l.self, l.reader, refusedByName(l.opts, l.self.path, l.places), l.dialects)
+	table := l.bound.bindings.Table()
 	if l.reader != nil {
 		first := l.srcIndex + 1
 		if l.origin.Applied() {
 			first = l.opts.OverlaySrcIndex + 1
 		}
-		unused := unreachedKeys(l.bound.bindings.Table(), resolved)
-		l.bound.others = newOthers(ctx, l.reader.read, first, l.dialects, unused)
+		l.bound.others = newOthers(ctx, l.reader.read, first, l.dialects, unreachedKeys(table))
 	}
-	l.sites = places{source: l.place, others: l.bound.others, table: l.bound.bindings.Table()}
+	l.sites = places{source: l.place, others: l.bound.others, table: table}
 	var unread []ir.Diagnostic
-	l.named, unread = readDialects(l.bound.bindings.Table(), l.bound.others, l.dialects, l.sites)
+	l.named, unread = readDialects(table, l.bound.others, l.dialects, l.sites)
 	l.judged = judgeSchemas(ctx, l.judged, l.named)
 	l.self.judged = l.judged
-	l.resolved = slices.Concat(l.pass.diags(l.sites), stillUnprepared(l.sites, l.missed), unread)
-	return false, nil
-}
-
-// reach validates what the references reach (validateReached), over the
-// document resolved, since a rebuild discards a first resolution's objects.
-func (l *loading) reach(ctx context.Context) (bool, error) {
-	l.reached = validateReached(ctx, l.sites, l.bound, l.doc, l.sibs, l.media, l.opts, l.self,
-		l.pass.elsewhere(), l.named)
-	return false, nil
-}
-
-// restoreModels puts the models back as the source writes them, then reports
-// what binding found and the budgets the reads crossed.
-func (l *loading) restoreModels(ctx context.Context) (bool, error) {
-	site, err := l.self.escapes.restore(ctx, l.doc, l.sibs, l.media, l.bound.built)
-	l.resolved = append(l.resolved, restoreFault(l.place, site, err)...)
-	l.resolved = append(l.resolved, bindingDiags(l.sites, l.bound.bindings.Table())...)
-	l.resolved = append(l.resolved, buildFailures(l.sites, l.bound.built)...)
+	l.resolved = slices.Concat(unread, l.bound.faults.diags(l.sites, table), bindingDiags(l.sites, table),
+		buildFailures(l.sites, l.bound.built, l.bound.objects))
 	if l.reader != nil {
-		l.resolved = append(l.resolved, crossed(l.place, l.reader)...)
+		l.resolved = append(l.resolved, l.reader.read.exhausted(l.place)...)
 	}
-	l.resolved = append(l.resolved, l.reached...)
 	return false, nil
 }
 
-// checkSource runs the source checks over the resolved source (sourceChecks).
+// reach validates what the references reach (validateReached).
+func (l *loading) reach(ctx context.Context) (bool, error) {
+	l.resolved = append(l.resolved, validateReached(ctx, l.sites, l.bound, l.doc, l.opts, l.self, l.named)...)
+	return false, nil
+}
+
+// checkSource runs the source checks over the source (sourceChecks).
 func (l *loading) checkSource(ctx context.Context) (bool, error) {
-	l.checked = sourceChecks(ctx, l.place, l.doc, l.sibs, l.media, l.resolved)
+	l.checked = sourceChecks(ctx, l.place, l.doc, l.sibs, l.media, l.bound.bindings)
 	return false, nil
-}
-
-// restoreTrees puts the trees back as the source writes them, once they were
-// respelled.
-func (l *loading) restoreTrees() {
-	if l.esc != nil {
-		l.esc.restoreTrees()
-	}
 }
 
 // document assembles the loaded Document from the phases, and what they
-// reported in the order the load lists it, each $ref as the source writes it.
+// reported in the order the load lists it.
 func (l *loading) document(hash string) (*Document, []ir.Diagnostic) {
 	diags := slices.Concat(l.early, l.sibFaults, l.judged.diags, l.resolved, l.checked)
 	return &Document{
@@ -294,7 +242,6 @@ func (l *loading) document(hash string) (*Document, []ir.Diagnostic) {
 		Location: l.self.path,
 		Places:   l.places,
 		Bindings: l.bound.bindings,
-		Holds:    newTreeReads().holds,
 		Source: ir.SourceInfo{
 			Format:  "openapi@" + l.minor,
 			Path:    l.src.Path,
@@ -307,5 +254,5 @@ func (l *loading) document(hash string) (*Document, []ir.Diagnostic) {
 		Others:     l.bound.others,
 		Dialects:   l.named,
 		Rows:       l.dialects.own(),
-	}, l.esc.asWritten(diags)
+	}, diags
 }

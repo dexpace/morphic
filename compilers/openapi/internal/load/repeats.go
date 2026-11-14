@@ -10,6 +10,7 @@ import (
 
 	soa "github.com/speakeasy-api/openapi/openapi"
 
+	"github.com/dexpace/morphic/compilers/openapi/internal/bind/typed"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
 	"github.com/dexpace/morphic/compilers/openapi/internal/provenance"
@@ -26,7 +27,7 @@ import (
 // through a $ref, so a list only a $ref reaches is not checked (GitHub #880).
 // The lists beside a path item's $ref are sibs's model's (writtenItem). A
 // panic in the walk is reported at the model it reached.
-func listRepeats(place provenance.Doc, sibs Siblings, items iter.Seq[soa.WalkItem],
+func listRepeats(place provenance.Doc, sibs Siblings, b *typed.Bindings, items iter.Seq[soa.WalkItem],
 ) []ir.Diagnostic {
 	var diags []ir.Diagnostic
 	site, err := eachModel(items, "repeat check", func(site jsontext.Pointer, model any) error {
@@ -37,12 +38,12 @@ func listRepeats(place provenance.Doc, sibs Siblings, items iter.Seq[soa.WalkIte
 			// GetServers stands in a server the source never wrote.
 			diags = append(diags, serverRepeats(place, m.Servers, "")...)
 		case *soa.ReferencedPathItem:
-			if item, ok := writtenItem(m, sibs, site); ok {
-				diags = append(diags, paramRepeats(place, item.GetParameters(), site)...)
+			if item, ok := writtenItem(m, b, sibs, site); ok {
+				diags = append(diags, paramRepeats(place, b, item.GetParameters(), site)...)
 				diags = append(diags, serverRepeats(place, item.GetServers(), site)...)
 			}
 		case *soa.Operation:
-			diags = append(diags, paramRepeats(place, m.GetParameters(), site)...)
+			diags = append(diags, paramRepeats(place, b, m.GetParameters(), site)...)
 			diags = append(diags, serverRepeats(place, m.GetServers(), site)...)
 		default:
 			// No other model holds a parameter or a servers list.
@@ -56,13 +57,15 @@ func listRepeats(place provenance.Doc, sibs Siblings, items iter.Seq[soa.WalkIte
 }
 
 // writtenItem returns the path item whose lists rp writes at site: its own
-// object, or the model of the fields beside its $ref when site is the position
-// that model was found at. The model's operations are walked from there alone,
-// so its own lists are checked there alone too, wherever else an alias mounts
-// it. A $ref with nothing beside it writes no list.
-func writtenItem(rp *soa.ReferencedPathItem, sibs Siblings, site jsontext.Pointer) (*soa.PathItem, bool) {
-	if !rp.IsReference() {
-		return rp.GetObject(), true
+// object, or, where b reads a $ref there, the model of the fields beside it
+// when site is the position that model was found at. The model's operations
+// are walked from there alone, so its own lists are checked there alone too,
+// wherever else an alias mounts it. A $ref with nothing beside it writes no
+// list.
+func writtenItem(rp *soa.ReferencedPathItem, b *typed.Bindings, sibs Siblings, site jsontext.Pointer,
+) (*soa.PathItem, bool) {
+	if _, isRef := b.Reference(rp); !isRef {
+		return refscope.Object[soa.PathItem](b, rp), true
 	}
 	sib, ok := sibs.Of(rp)
 	return sib.Item, ok && sib.Pointer == site
@@ -77,7 +80,8 @@ func writtenItem(rp *soa.ReferencedPathItem, sibs Siblings, site jsontext.Pointe
 // An entry is read as the lowering reads it (refscope.Object), so a repeat
 // reported here is one the lowering finds; one whose $ref resolved to nothing
 // has no slot.
-func paramRepeats(place provenance.Doc, params []*soa.ReferencedParameter, owner jsontext.Pointer) []ir.Diagnostic {
+func paramRepeats(place provenance.Doc, b *typed.Bindings, params []*soa.ReferencedParameter, owner jsontext.Pointer,
+) []ir.Diagnostic {
 	type holder struct {
 		at   jsontext.Pointer
 		name string
@@ -85,7 +89,7 @@ func paramRepeats(place provenance.Doc, params []*soa.ReferencedParameter, owner
 	firstAt := make(map[ids.ParamSlot]holder, len(params))
 	var diags []ir.Diagnostic
 	for i, rp := range params {
-		p := refscope.Object[soa.Parameter](rp)
+		p := refscope.Object[soa.Parameter](b, rp)
 		if p == nil {
 			continue
 		}

@@ -4,7 +4,6 @@
 package bind
 
 import (
-	"encoding/json/jsontext"
 	"errors"
 	"fmt"
 	"net/url"
@@ -40,7 +39,6 @@ func (b *binder) resolve(site Position, path []*yaml.Node, ref string, schema bo
 		h.Reason, h.Detail = reason, detail
 		return h
 	}
-	h.Named = to.root.Doc == Source
 	r, reason := b.land(site, path, to, ref, schema, &h)
 	if reason != NoReason {
 		h.Reason = reason
@@ -188,56 +186,26 @@ func (b *binder) read(name string) (resource, Reason, string) {
 // land reads where the fragment of ref, written at site and reached along
 // path, names in the resource to: a JSON pointer from its root, a
 // "#/$defs/..." one in a document's own resource by the $defs rule
-// (definition), or the schema a plain name names (anchored). It notes in h the
-// pointer it spells when it names the source.
+// (definition), or the schema a plain name names (anchored). It notes in h
+// the URI of a resource it names nothing in.
 func (b *binder) land(site Position, path []*yaml.Node, to resource, ref string, schema bool, h *Hop,
 ) (reading, Reason) {
 	pointer := fragment.Pointer(ref)
 	switch {
 	case pointer != "" && !strings.HasPrefix(string(pointer), "/"):
-		return b.anchored(to, string(pointer), h)
+		return b.anchored(to, string(pointer))
 	case !pointer.IsValid() || !utf8.ValidString(string(pointer)):
 		return reading{}, BadPointer
 	}
 	if uri, _, _ := strings.Cut(ref, "#"); strings.TrimSpace(uri) == "" && !to.id && isDefs(pointer) {
-		return b.definition(site, path, pointer, schema, h)
+		r, reason := b.readPointer(site.Doc, pointer)
+		return b.defs.definition(site, path, pointer, schema, r, reason)
 	}
-	r, reason := b.pointed(to.root.Doc, to.root.Pointer+pointer, h)
+	r, reason := b.readPointer(to.root.Doc, to.root.Pointer+pointer)
 	if reason == NoTarget && to.id {
 		reason, h.Detail = NoResourceTarget, to.uri
 	}
 	return r, reason
-}
-
-// definition reads a "#/$defs/..." pointer written at site, reached along
-// path, in its document's own resource, by the $defs rule, noting in h the
-// position it spells. It is refused where site is in the fields beside a path
-// item's $ref, as any definition it can name is: the parser reads such a
-// pointer through that $ref instead (GitHub #824).
-func (b *binder) definition(site Position, path []*yaml.Node, pointer jsontext.Pointer, schema bool, h *Hop,
-) (reading, Reason) {
-	if site.Doc == Source && b.beside(site.Pointer, h) {
-		return reading{}, BesideDefs
-	}
-	r, reason := b.defs.definition(site, path, pointer, schema)
-	if reason == NoReason && h.Named {
-		h.Spelled = r.at.Pointer
-	}
-	return r, reason
-}
-
-// pointed reads pointer from the root of document doc, noting in h the
-// pointer it spells when it names the source. It is refused where it lands
-// in the fields beside a path item's $ref: the parser reads such a pointer
-// through that $ref instead (GitHub #824).
-func (b *binder) pointed(doc DocID, pointer jsontext.Pointer, h *Hop) (reading, Reason) {
-	if h.Named {
-		h.Spelled = pointer
-		if b.beside(pointer, h) {
-			return reading{}, BesideRef
-		}
-	}
-	return b.docs.read(doc, pointer)
 }
 
 // anchored reads the schema the resource to declares the plain name name in, as
@@ -247,30 +215,17 @@ func (b *binder) pointed(doc DocID, pointer jsontext.Pointer, h *Hop) (reading, 
 // admits, which only draft 4's `id` can declare, is BadPointer where no schema
 // declares it and none past a merge bound may: no other dialect could, so it
 // is likelier a pointer written wrong.
-func (b *binder) anchored(to resource, name string, h *Hop) (reading, Reason) {
+func (b *binder) anchored(to resource, name string) (reading, Reason) {
 	b.find.identify(to.root.Doc)
 	at, why := b.ids.lookupAnchor(to.root, name)
 	switch {
 	case why == NoReason:
-		return b.pointed(to.root.Doc, at.Pointer, h)
+		return b.readPointer(to.root.Doc, at.Pointer)
 	case why != NoAnchor || isAnchorName(name) || isPlainName(name):
 		return reading{}, why
 	default:
 		return reading{}, BadPointer
 	}
-}
-
-// beside reports whether pointer is in the fields beside a path item's $ref
-// (Config.Beside), noting in h which ones.
-func (b *binder) beside(pointer jsontext.Pointer, h *Hop) bool {
-	if b.cfg.Beside == nil {
-		return false
-	}
-	use, key, ok := b.cfg.Beside(pointer)
-	if ok {
-		h.Use, h.Key = use, key
-	}
-	return ok
 }
 
 // hop is the hop of the $ref written at p, read once and remembered. Only a

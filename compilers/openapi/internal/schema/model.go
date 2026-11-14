@@ -120,11 +120,9 @@ func (f modelFields) Interned(pointer jsontext.Pointer) bool {
 
 // place returns where p is in the bindings' table, read at f.c's position for
 // its pointer, as the model's own document holds it, and false for a site in
-// another document, such as a component a $ref there reached, or one c does not
-// place.
+// another document, such as a component a $ref there reached.
 func (f modelFields) place(p ir.Provenance) (bind.Position, bool) {
-	at, placed := f.c.Position(p.Pointer)
-	return at, placed && p.Source == f.c.Place().At(p.Pointer).Source
+	return f.c.Position(p.Pointer), p.Source == f.c.Place().At(p.Pointer).Source
 }
 
 // Alike is merge.Walk.Alike. A site place does not place, or one whose base the

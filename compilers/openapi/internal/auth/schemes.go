@@ -36,7 +36,7 @@ func LowerSecuritySchemes(c lowering.Ctx) (map[ir.AuthID]ir.AuthScheme, []ir.Dia
 		diags = append(diags, schemeDiags...)
 		// A summary or description beside a $ref of the entry's chain documents
 		// this entry rather than the scheme it names (GitHub #610).
-		scheme.Docs = resolve.UseDocs[soa.SecurityScheme](rs, scheme.Docs)
+		scheme.Docs = resolve.UseDocs[soa.SecurityScheme](c.Bindings(), rs, scheme.Docs)
 		declared[scheme.ID] = scheme
 	}
 	return declared, diags
@@ -54,10 +54,10 @@ func lowerEntry(c lowering.Ctx, name string, rs *soa.ReferencedSecurityScheme) (
 
 // unresolvableScheme lowers a securitySchemes entry that resolved to no object:
 // a scheme of no mechanism at the entry, keeping the $ref that reached nothing,
-// the one thing the source says of where its mechanism is. The $ref's own error
-// is the one report of it, so keeping it announces nothing. rs is the entry as
-// written; a nil rs is unreachable from a parsed document, so that guard is for a
-// hand-built node.
+// the one thing the source says of where its mechanism is. The load phase's
+// error at the $ref is the one report of it (docs/compilers/openapi.md#references),
+// so keeping it announces nothing. rs is the entry as written; a nil rs is
+// unreachable from a parsed document, so that guard is for a hand-built node.
 func unresolvableScheme(c lowering.Ctx, name string, rs *soa.ReferencedSecurityScheme, entry jsontext.Pointer,
 ) (ir.AuthScheme, []ir.Diagnostic) {
 	scheme := unresolvedScheme(name, c.Place().At(entry))
@@ -67,7 +67,7 @@ func unresolvableScheme(c lowering.Ctx, name string, rs *soa.ReferencedSecurityS
 	scheme.Docs = docsBeside(rs)
 	_, keptDiags := annotation.PreserveNodeInto(&scheme.Unmodeled, "openapi:$ref", rs.GetCore().Reference.ValueNode,
 		ir.ReasonDegradedLowering, c.Place().At(entry+ids.Ptr("$ref")))
-	return scheme, append(unresolvableSchemeDiags(c, name, rs, entry), keptDiags...)
+	return scheme, keptDiags
 }
 
 // docsBeside returns the summary and description rs writes beside its $ref, read
@@ -83,25 +83,6 @@ func docsBeside(rs *soa.ReferencedSecurityScheme) ir.Docs {
 		docs.Description = *description
 	}
 	return docs
-}
-
-// unresolvableSchemeDiags reports a securitySchemes entry that resolved to no
-// object, but only when it was written as a $ref naming something. The compiler
-// keeps the load phase's report at that pointer instead, which has the resolver's
-// reason (GitHub #385); this one stands where the load phase met no reference, as
-// when a resolver panic ends its walk or the model did not read the $ref, which
-// is why the $ref is read from its node (docs/parser-library.md#undecoded-scalar).
-//
-// An entry or a $ref of any other shape is the load phase's to report.
-func unresolvableSchemeDiags(c lowering.Ctx, name string, rs *soa.ReferencedSecurityScheme,
-	entry jsontext.Pointer,
-) []ir.Diagnostic {
-	ref := nodeview.Deref(rs.GetCore().Reference.ValueNode)
-	if ref == nil || ref.Value == "" {
-		return nil
-	}
-	return []ir.Diagnostic{c.DiagAt(ir.SeverityError, diag.UnresolvedRef, entry,
-		"security scheme %q has a $ref that resolves to nothing: %q", name, ref.Value)}
 }
 
 // lowerSecurityScheme lowers one named security scheme into its AuthScheme, of

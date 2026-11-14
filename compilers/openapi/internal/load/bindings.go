@@ -5,7 +5,6 @@ package load
 
 import (
 	"context"
-	"encoding/json/jsontext"
 	"fmt"
 	"iter"
 	"maps"
@@ -25,38 +24,37 @@ import (
 	"github.com/dexpace/morphic/ir"
 )
 
-// bound is what binding the source's schema references found: the bindings
-// the lowering reads, the schemas built for the table's landings, and every
-// document a reference read beside the source.
+// bound is what binding the source's references found: the bindings the
+// lowering reads, the objects built for the table's object landings, the
+// schemas built for its landings, and every document a reference read beside
+// the source.
 type bound struct {
 	bindings *typed.Bindings
+	objects  []builtObject
 	built    []typed.Built
+	faults   mediaFaults
 	others   Others
 }
 
-// bindSchemas resolves every schema $ref of doc, the source's model, in the
-// compiler (internal/bind), never through the parser's resolver, which
-// overflows the stack on a cycle (docs/parser-library.md#schema-cycle-overflow)
-// and answers by declaration order (docs/parser-library.md#defs-order), and
-// builds a schema for each landing from the trees as the parser was handed
-// them (see resolve). It runs once every reference object is resolved, since a
-// pointer through one reads on where the parser resolved it: ends says where
-// each one's chain ended, in whichever document writes it
-// (resolution.ends). reader reads other documents, or is nil; d reads each
-// dialect's rows (dialectRuleOf).
-func bindSchemas(ctx context.Context, doc *soa.OpenAPI, sibs Siblings, media MediaTypes, self sourceDocument,
-	reader *external, ends map[refSite]referenceEnd, d *dialects,
+// bindAll resolves every $ref of doc, the source's model, in the compiler
+// (internal/bind), never through the parser's resolver, which overflows the
+// stack on a cycle of schemas (docs/parser-library.md#schema-cycle-overflow)
+// and reads a Reference Object otherwise than RFC 6901 and the model do, by
+// declaration order (docs/parser-library.md#reference-object-cycle,
+// docs/parser-library.md#trailing-empty-token,
+// docs/parser-library.md#duplicate-key). It indexes the model's schemas and
+// wrappers where the table places them, then builds an object or a schema for
+// each landing. reader reads other documents, or is nil; d reads each
+// dialect's rows (dialectRuleOf); media yields the media types the parser does
+// not model.
+func bindAll(ctx context.Context, doc *soa.OpenAPI, sibs Siblings, media MediaTypes, self sourceDocument,
+	reader *external, refuse func(uri string) error, d *dialects,
 ) bound {
 	opened := map[string]*yaml.Node{}
-	cfg := bind.Config{Self: self.path, Locate: self.locate, Beside: sibs.Beside, Written: self.escapes.original,
-		Refuse: self.escapes.refusal(), Limit: budget.AtMost(bind.MaxSteps),
+	cfg := bind.Config{Self: self.path, Locate: self.locate, Refuse: refuse, Limit: budget.AtMost(bind.MaxSteps),
 		// Read off the model, as the lowering reads the names a mapping value
 		// may spell (lowering.Ctx.DeclaresSchema), so the two cannot disagree.
 		Components: slices.Collect(doc.Components.GetSchemas().Keys()),
-		Through: func(name string, p jsontext.Pointer) (bind.ReferenceEnd, bool) {
-			e, ok := ends[self.siteIn(name, p)]
-			return bind.ReferenceEnd{Name: e.name, Pointer: e.pointer, Node: e.node}, ok
-		},
 		Dialect: func(name, dialect string) bind.DialectRule {
 			declared := doc.GetOpenAPI()
 			if name != self.path {
@@ -74,110 +72,64 @@ func bindSchemas(ctx context.Context, doc *soa.OpenAPI, sibs Siblings, media Med
 	}
 	table := bind.Bind(ctx, self.root, cfg)
 	bd := typed.NewBuilder(table)
-	indexWalk(bd, walkSource(ctx, doc, sibs, media), bind.Position{})
-	indexEnds(ctx, bd, table, ends, self)
-	return bound{bindings: bd.Bindings(), built: bd.Build(ctx)}
+	faults := mediaFaults{}
+	indexWalk(bd, walkSource(ctx, doc, sibs, media), bind.Position{}, faults)
+	objects := buildObjects(ctx, bd, table, media, faults)
+	return bound{bindings: bd.Bindings(), objects: objects, built: bd.Build(ctx), faults: faults}
 }
 
-// siteIn is the site of the reference at pointer in the document bind names
-// name: the source's, or another's, keyed as refSite keys it.
-func (s sourceDocument) siteIn(name string, pointer jsontext.Pointer) refSite {
-	if name == s.path {
-		return refSite{pointer: pointer}
-	}
-	return refSite{doc: readKey(name), pointer: pointer}
-}
-
-// positionOf is the position of site in table, whose documents are matched as
-// refSite keys them, and false for a site in a document the table did not read.
-func (s sourceDocument) positionOf(table *bind.Table, site refSite) (bind.Position, bool) {
-	if site.inSource() {
-		return bind.Position{Doc: bind.Source, Pointer: site.pointer}, true
-	}
-	for id := range bind.DocID(table.Documents()) {
-		if readKey(table.Document(id).Name) == readKey(site.doc) {
-			return bind.Position{Doc: id, Pointer: site.pointer}, true
-		}
-	}
-	return bind.Position{}, false
-}
-
-// referenceEnd is where the chain of a reference object ended, as the parser
-// resolved it: the document, by the name bind reads it under, and the pointer
-// there, and the object built there, with its node and its walk.
-type referenceEnd struct {
-	name    string
-	pointer jsontext.Pointer
-	object  any
-	node    *yaml.Node
-	walk    func(context.Context) iter.Seq[soa.WalkItem]
-}
-
-// indexWalk tells bd where each schema and discriminator of items was read:
-// at base, where the walk starts, followed by the item's location.
-func indexWalk(bd *typed.Builder, items iter.Seq[soa.WalkItem], base bind.Position) {
+// indexWalk tells bd where each schema, discriminator and reference-or-inline
+// wrapper of items was read: at base, where the walk starts, followed by the
+// item's location. It notes in faults where it meets each content entry the
+// parser faulted building a reference from.
+func indexWalk(bd *typed.Builder, items iter.Seq[soa.WalkItem], base bind.Position, faults mediaFaults) {
 	for item := range items {
 		at := bind.Position{Doc: base.Doc, Pointer: base.Pointer + typed.PointerOf(item.Location)}
 		// Match returns only what its matcher does, and this one never fails.
 		_ = item.Match(soa.Matcher{
 			Schema:        func(js *schemaRef) error { bd.Schema(js, at); return nil },
 			Discriminator: func(d *oasDiscriminator) error { bd.Discriminator(d, at); return nil },
+			Any: func(model any) error {
+				if kind, ok := refKindOf(model); ok {
+					bd.Object(model, kind, at)
+				}
+				if f, ok := model.(mediaFault); ok {
+					faults.note(at, f)
+				}
+				return nil
+			},
 		})
 	}
 }
 
-// indexEnds tells bd where each schema and discriminator of what a reference
-// object resolved to was read: where the table reads its end (bind.Table.Through),
-// which the lowering reads through that reference, in whichever document
-// writes it. An object many references resolved to is walked once, at the
-// least of them the table places (compareSites), so that which it is held at
-// never follows the order of a map. One the table places at none is recorded
-// as unplaced, under the least of them.
-func indexEnds(ctx context.Context, bd *typed.Builder, table *bind.Table, ends map[refSite]referenceEnd,
-	self sourceDocument,
-) {
-	sites := slices.SortedFunc(maps.Keys(ends), compareSites)
-	walked := map[any]bool{}
-	for _, site := range sites {
-		if ctx.Err() != nil {
-			return
-		}
-		e := ends[site]
-		at, placed := self.positionOf(table, site)
-		end, ok := table.Through(at)
-		if !placed || !ok || walked[e.object] {
-			continue
-		}
-		walked[e.object] = true
-		indexWalk(bd, e.walk(ctx), end)
-	}
-	for _, site := range sites {
-		if ctx.Err() != nil {
-			return
-		}
-		if e := ends[site]; !walked[e.object] {
-			walked[e.object] = true
-			unplaced(ctx, bd, e, site)
-		}
+// mediaFaults is each content entry the parser faulted building a reference
+// from, by the mapping it is written as, with the first position a walk met it
+// at, where it is reported once.
+type mediaFaults map[*yaml.Node]placedFault
+
+// placedFault is a fault, and where it is reported.
+type placedFault struct {
+	at  bind.Position
+	err error
+}
+
+// note records f at at, unless a walk met its mapping before.
+func (m mediaFaults) note(at bind.Position, f mediaFault) {
+	if _, met := m[f.node]; !met {
+		m[f.node] = placedFault{at: at, err: f.err}
 	}
 }
 
-// unplaced records each schema and discriminator of e, the end of the
-// reference object at site, as unplaced: the table could not read where the
-// parser resolved it, so the lowering reports each $ref in it with why, naming
-// site, and its document when that is not the source.
-func unplaced(ctx context.Context, bd *typed.Builder, e referenceEnd, site refSite) {
-	spelled := string(site.pointer)
-	if !site.inSource() {
-		spelled += " in " + site.doc
+// diags reports each fault once, where it was first met, in order of position.
+func (m mediaFaults) diags(sites places, table *bind.Table) []ir.Diagnostic {
+	order := bind.PositionOrder(table)
+	faults := slices.SortedFunc(maps.Values(m), func(x, y placedFault) int { return order(x.at, y.at) })
+	diags := make([]ir.Diagnostic, 0, len(faults))
+	for _, f := range faults {
+		diags = append(diags, diag.Newf(ir.SeverityError, diag.Validation, sites.position(f.at),
+			"this media type's $ref could not be read: %s", f.err.Error()))
 	}
-	for item := range e.walk(ctx) {
-		// Match returns only what its matcher does, and this one never fails.
-		_ = item.Match(soa.Matcher{
-			Schema:        func(js *schemaRef) error { bd.Unplaced(js, spelled); return nil },
-			Discriminator: func(d *oasDiscriminator) error { bd.Unplaced(d, spelled); return nil },
-		})
-	}
+	return diags
 }
 
 // locate is bind.Config.Locate for the source: the document uri names when
@@ -206,11 +158,19 @@ func (s sourceDocument) nameOf(name string) string {
 	}
 }
 
-// bindingDiags reports what the table found: each $ref that fails, at the
-// $ref, in whichever document; each loop of $refs once, where the table
-// places it; and the budget or the merge bound, if either stopped the reading.
+// bindingDiags reports what the table found: each $ref whose own hop fails, a
+// Reference Object's and then a schema's, at the $ref, in whichever document,
+// so a chain failing past its first hop is reported once, where it fails; each loop
+// of $refs once, where the table places it; and the budget or the merge
+// bound, if either stopped the reading.
 func bindingDiags(sites places, table *bind.Table) []ir.Diagnostic {
 	var diags []ir.Diagnostic
+	for _, r := range table.References() {
+		if r.Hop.Status == bind.Unresolved {
+			diags = append(diags, diag.Newf(ir.SeverityError, diag.UnresolvedRef, sites.position(r.Site),
+				"unresolved $ref %q: %s", r.Hop.Ref, r.Hop.Why()))
+		}
+	}
 	for _, e := range table.Entries() {
 		if e.Hop.Status == bind.Unresolved {
 			diags = append(diags, diag.Newf(ir.SeverityError, diag.UnresolvedRef, sites.position(e.Site),
@@ -219,40 +179,61 @@ func bindingDiags(sites places, table *bind.Table) []ir.Diagnostic {
 	}
 	for _, l := range table.Loops() {
 		diags = append(diags, diag.Newf(ir.SeverityError, diag.CyclicRef, sites.position(l.Site),
-			"cyclic $ref: the chain of $refs through %s comes back to where it started and never reaches a schema",
-			spellLoop(l, table)))
+			"cyclic $ref: the chain of $refs through %s comes back to where it started and never reaches %s",
+			spellLoop(l, table), reachesNone(l.Kind)))
 	}
 	at := sites.position(bind.Position{})
 	if table.Exhausted() {
 		diags = append(diags, diag.Newf(ir.SeverityError, diag.BudgetExceeded, at,
-			"resolving the schema $refs takes more than %d steps; the $refs past them are left unresolved",
+			"resolving the $refs takes more than %d steps; the $refs past them are left unresolved",
 			table.Limit().Cap()))
 	}
 	if table.Truncated() {
 		diags = append(diags, diag.Newf(ir.SeverityWarning, diag.DegradedConstruct, at,
-			"a mapping merges through `<<` deeper than %d levels, which resolving the schema $refs does not "+
+			"a mapping merges through `<<` deeper than %d levels, which resolving the $refs does not "+
 				"expand; a $ref past that, or one that reads a key past it, is left unresolved, and where that "+
 				"mapping is a schema, no $dynamicRef in its document is expanded", nodeview.MergeDepthLimit))
 	}
 	return diags
 }
 
-// buildFailures reports each landing no schema could be built for, at the
-// least position whose chain reaches it, in whichever document, with why.
-func buildFailures(sites places, built []typed.Built) []ir.Diagnostic {
+// reachesNone names what a loop of $refs read as kind never reaches: a schema,
+// for a loop of schema $refs, or an object of that kind.
+func reachesNone(kind bind.RefKind) string {
+	if kind == 0 {
+		return "a schema"
+	}
+	return "a " + kind.String()
+}
+
+// buildFailures reports each landing no schema could be built for, and each
+// object landing no object could, at the least position whose chain reaches
+// it, in whichever document, with why.
+func buildFailures(sites places, built []typed.Built, objects []builtObject) []ir.Diagnostic {
 	var diags []ir.Diagnostic
 	for _, b := range built {
-		if b.Err == nil || !b.Landing.Reached {
-			continue
+		if b.Err != nil && b.Landing.Reached {
+			diags = append(diags, buildFailure(sites, b.Landing.At, b.Landing.Site, b.Landing.Name, "schema", b.Err))
 		}
-		where := "#" + string(b.Landing.At.Pointer)
-		if b.Landing.At.Doc != b.Landing.Site.Doc {
-			where += " in " + b.Landing.Name
+	}
+	for _, o := range objects {
+		if o.err != nil && o.landing.Reached {
+			diags = append(diags, buildFailure(sites, o.landing.At, o.landing.Site, o.landing.Name,
+				o.landing.Kind.String(), o.err))
 		}
-		diags = append(diags, diag.Newf(ir.SeverityError, diag.Validation, sites.position(b.Landing.Site),
-			"the $ref here reaches %s, where no schema could be built: %s", where, b.Err.Error()))
 	}
 	return diags
+}
+
+// buildFailure reports, at site, that no object of kind could be built at at,
+// in the document named name, with why.
+func buildFailure(sites places, at, site bind.Position, name, kind string, err error) ir.Diagnostic {
+	where := "#" + string(at.Pointer)
+	if at.Doc != site.Doc {
+		where += " in " + name
+	}
+	return diag.Newf(ir.SeverityError, diag.Validation, sites.position(site),
+		"the $ref here reaches %s, where no %s could be built: %s", where, kind, err.Error())
 }
 
 // spellLoop names l's members, in order: one in the document l is reported in
@@ -269,11 +250,11 @@ func spellLoop(l bind.Loop, table *bind.Table) string {
 	return strings.Join(parts, ", ")
 }
 
-// document is bind.Config.Open: the tree of the document named name, read as
-// the parser's resolver reads it, once in the compile, under its budgets (see
-// externalReads.once), and prepared as every document it reads is. A name the
-// resolver classifies as a URL is keyed as the resolver keys it and read at
-// that key; any other is read as the file it names (see fileNamed).
+// document is bind.Config.Open: the tree of the document named name, read
+// once in the compile, under its budgets (see externalReads.once), and
+// prepared as the source is. A name that is a URL (refscope.IsURL) is keyed as
+// a request spells it and read at that key; any other is read as the file it
+// names (see fileNamed).
 func (e external) document(ctx context.Context, name string) (*yaml.Node, error) {
 	var a answer
 	if req, err := http.NewRequestWithContext(ctx, http.MethodGet, name, nil); err == nil && refscope.IsURL(name) {

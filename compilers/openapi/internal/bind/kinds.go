@@ -115,7 +115,10 @@ func (r Reading) Schema() bool { return r.s == sSchema }
 
 // Referable reports whether r reads an object a reference object can stand
 // for, so a $ref written there names an object of that kind.
-func (r Reading) Referable() bool { return referenceKinds[r.s] }
+func (r Reading) Referable() bool {
+	_, ok := refKinds[r.s]
+	return ok
+}
 
 // statesTo hands visit how the grammar reads each position on the way to p,
 // the root's first, as Kinds documents, roots holding what the references a

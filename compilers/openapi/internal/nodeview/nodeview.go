@@ -76,7 +76,7 @@ type Pair struct {
 // View reads a raw yaml.Node tree as speakeasy's unmarshaller does,
 // dereferencing aliases and expanding `<<` merge keys (yml.ResolveAlias,
 // yml.ResolveMergeKeys). A cycle the scan misses because it reads a different
-// tree than the resolver faults the process (GitHub #26), so every mapping read
+// tree than the library faults the process (GitHub #26), so every mapping read
 // in this file goes through a View.
 //
 // It memoizes each mapping's expansion, since otherwise a merge chain goes

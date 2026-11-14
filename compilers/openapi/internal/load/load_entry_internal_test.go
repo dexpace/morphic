@@ -89,25 +89,27 @@ func TestLoad_A32KeywordIn32DocumentDrawsNoFinding(t *testing.T) {
 	assert.Empty(t, diags, "a 3.2 keyword in a 3.2 document is no finding")
 }
 
-// TestLoad_ResolverFaultBecomesADiagnostic pins the last refusal in the load
-// path: a document the parser accepts and the resolver faults on is reported as
-// an unresolved reference, so the fault never escapes as a Go error or a crash.
-// It is sited at the reference being resolved when the panic hit, the same way
-// an ordinary resolution failure is (TestEachReference_PanicIsReportedAtTheReference
-// covers the panic-handling mechanism itself).
-func TestLoad_ResolverFaultBecomesADiagnostic(t *testing.T) {
+// TestLoad_AnObjectTheParserFaultsOnIsReportedOnce pins the last refusal in
+// the load path: raw YAML a reference object lands on, which the parser
+// panics building an object from, is reported once, at the reference, as a
+// build failure, so the fault never escapes as a Go error or a crash, and the
+// document is lowered with nothing at that reference.
+func TestLoad_AnObjectTheParserFaultsOnIsReportedOnce(t *testing.T) {
 	t.Parallel()
-	doc, diags, err := Load(t.Context(), 0, openapitest.SourceOf(resolverPanicSpec), Options{})
+	doc, diags, err := Load(t.Context(), 0, openapitest.SourceOf(parserPanicSpec), Options{})
 
-	require.NoError(t, err, "a resolver fault is a spec problem, not a Go error")
-	assert.NotNil(t, doc, "resolution failure does not stop the document being lowered")
-	require.Equal(t, 1, countErrorsAt(diags, diag.UnresolvedRef), "and it is reported: %+v", diags)
+	require.NoError(t, err, "a parser fault is a spec problem, not a Go error")
+	assert.NotNil(t, doc, "a failed build does not stop the document being lowered")
+	assert.Zero(t, countErrorsAt(diags, diag.UnresolvedRef), "%+v", diags)
+	var built []ir.Diagnostic
 	for _, d := range diags {
-		if d.Code == diag.UnresolvedRef {
-			assert.Equal(t, jsontext.Pointer("/components/responses/000"), d.Provenance.Pointer,
-				"the reference being resolved when the panic hit")
+		if d.Code == diag.Validation {
+			built = append(built, d)
 		}
 	}
+	require.Len(t, built, 1, "reported once: %+v", diags)
+	assert.Equal(t, jsontext.Pointer("/components/responses/000"), built[0].Provenance.Pointer, "at the reference")
+	assert.Contains(t, built[0].Message, "the $ref here reaches #/B, where no response could be built: parser panicked: ")
 }
 
 // TestLoad_RecoverableLiteralIsNotAFinding pins that a numeric bound YAML writes
