@@ -552,3 +552,29 @@ components:
 		"/components/mediaTypes/A1/x-a", "/components/mediaTypes/A1/x-one", "/components/mediaTypes/A2/x-a",
 	}, reported)
 }
+
+// TestMediaTypeRef_ADocKeyNotKeptDrawsNoKeptInfo holds a summary beside a
+// parameter content entry's $ref that converts to no JSON, and so is kept
+// nowhere, to the finding saying so alone: the info saying the key is kept
+// verbatim is drawn only for a key that is.
+func TestMediaTypeRef_ADocKeyNotKeptDrawsNoKeptInfo(t *testing.T) {
+	t.Parallel()
+	_, diags := parseFull(t, openapitest.PathsSpecVer("3.2.0", `  /a:
+    get:
+      operationId: a
+      parameters:
+        - name: f
+          in: query
+          content:
+            application/json: {$ref: '#/components/mediaTypes/M', summary: .nan}
+      responses: {"204": {description: ok}}
+components:
+  mediaTypes:
+    M: {schema: {type: string}}
+`))
+	const key = "/paths/~1a/get/parameters/0/content/application~1json/summary"
+	assert.Equal(t, []string{
+		"openapi/unpreservable-construct error " + key,
+		"openapi/validation/validation-type-mismatch warning " + key,
+	}, findings(diags))
+}

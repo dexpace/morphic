@@ -1379,7 +1379,8 @@ to; and one flat `reference/` scope, which would make a use and an alias writing
   `operation.TestContentDocs_AKeyIsReadWhole`, `operation.TestCallbacks_AUseKeepsItsDocs`,
   `e2e.TestBeside_AnAliasInAnotherDocumentKeepsItsKeyThere`,
   `e2e.TestBeside_ASecuritySchemeKeepsTheKeysBesideItsRef`,
-  `operation.TestMediaTypeRef_ABodyKeepsTheKeysBesideEachRef`
+  `operation.TestMediaTypeRef_ABodyKeepsTheKeysBesideEachRef`,
+  `operation.TestMediaTypeRef_ADocKeyNotKeptDrawsNoKeptInfo`
 
 ### `use-bound-annotations`
 
