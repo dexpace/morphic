@@ -86,8 +86,9 @@ func TestValidate_ACycleThroughAMixinNamesTheMixin(t *testing.T) {
 // TestValidate_ATypeWithNoFiniteValueIsReportedAtEachTypeOfTheKnot holds a type
 // that needs itself, through a required property, an element a list must hold,
 // a value a map must hold, a position a tuple must fill, one of a union's
-// variants when it has no other, or a base, to a warning at each type of the knot; and
-// the nearest type that is founded to none: a property not required, a
+// variants when it has no other, or a base, to a warning at each type of the
+// knot, naming what leads on, never a base of a cycle told already; and the
+// nearest type that is founded to none: a property not required, a
 // reference that admits null, a list that may be empty, a union with another
 // variant, a type that only needs one with no finite value.
 func TestValidate_ATypeWithNoFiniteValueIsReportedAtEachTypeOfTheKnot(t *testing.T) {
@@ -169,6 +170,12 @@ func TestValidate_ATypeWithNoFiniteValueIsReportedAtEachTypeOfTheKnot(t *testing
 			{"t/a", "no finite value: each needs its base, t/b" + none},
 			{"t/b", "no finite value: each needs its required property 0, t/a" + none},
 		}},
+		{"a cycle of bases whose types each require the other", knotDoc(
+			composed("t/a", new(ref("t/b")), needs("p/a/0", ref("t/b"))), composed("t/b", new(ref("t/a")), needs("p/b/0", ref("t/a"))),
+		), []finding{
+			{"t/a", "no finite value: each needs its required property 0, t/b" + none},
+			{"t/b", "no finite value: each needs its required property 0, t/a" + none},
+		}},
 		{"a scalar alias of itself", knotDoc(
 			&ir.Scalar{ID: "t/s", Base: new(ref("t/s")), Provenance: provAt("t/s")},
 		), []finding{{"t/s", "no finite value: each needs its base, t/s" + none}}},
@@ -186,11 +193,11 @@ func TestValidate_ATypeWithNoFiniteValueIsReportedAtEachTypeOfTheKnot(t *testing
 	}
 }
 
-// TestValidate_ABaseThatNeedsItsDerivedTypeIsAFiniteValueAlone holds a base
-// whose target requires the type to be reported as a value that cannot be
+// TestValidate_ABaseThatNeedsItsDerivedTypeIsToldAsNoFiniteValueAlone holds a
+// base whose target requires the type to be reported as a value that cannot be
 // built, and not as a cycle of composition: the base is no cycle, and the
 // type of the one reads a base whatever the other needs.
-func TestValidate_ABaseThatNeedsItsDerivedTypeIsAFiniteValueAlone(t *testing.T) {
+func TestValidate_ABaseThatNeedsItsDerivedTypeIsToldAsNoFiniteValueAlone(t *testing.T) {
 	t.Parallel()
 	doc := knotDoc(composed("t/a", new(ref("t/b"))), composed("t/b", nil, needs("p/b/0", ref("t/a"))))
 
