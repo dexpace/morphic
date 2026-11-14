@@ -177,9 +177,9 @@ func (*Compiler) SourceTable(sources []compilers.Source, opts compilers.Options)
 
 // run drives the four-phase pipeline over one loaded document (architecture
 // §2.1) and assembles the Document. Order matters: named component schemas
-// first, so refs from operations find interned IDs; then security schemes, so
-// requirements reference registered IDs; then the service walk; then deferred
-// settlements; then document metadata.
+// first, so operations' refs find interned IDs; then security schemes, which
+// requirements reference; then the service walk and deferred settlements; then
+// the steps reading whole.Document.
 //
 // It reports cancellation as a Go error, not a diagnostic: nothing about the
 // document is wrong, the caller stopped asking. It drops the document, since

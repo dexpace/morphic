@@ -122,7 +122,9 @@ With S the parameters of a choice a request carries, S is a subset of one varian
 `Required` says S is not empty. The choice does not say a variant's parameters travel together: no
 source measured says so, and `Parameter.Required` cannot, as it speaks of every request. A
 parameter may sit in several variants of one choice, and in several choices; each holds on its own.
-Choices and variants are in source order (invariant 7). `Operation.Params`, every
+Choices and variants are in source order (invariant 7), and a source naming them as the members of
+an object, whose order JSON does not keep, gives them the order of their source names, sorted, so
+the document is the same however the object is written. `Operation.Params`, every
 `HTTPParamBinding`, every `Parameter.Required` and every reference to a `ParamID` are what they
 would be without the choices, so a consumer ignoring the field reads the document it read before.
 A compiler writes a `ParamChoice` only over parameters its source declares separately, never for a

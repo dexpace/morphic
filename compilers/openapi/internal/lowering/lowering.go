@@ -255,8 +255,8 @@ func (c Ctx) Promoter() Promoter {
 
 // Reached reports whether a lowering run under this context, or any copy of it,
 // resolved a reference to pointer in the source. It is meant to be asked once
-// every other lowering has returned: before that it answers for those that
-// have.
+// every lowering that follows a reference has returned: before that it answers
+// for those that have.
 func (c Ctx) Reached(pointer jsontext.Pointer) bool {
 	return c.reached.Has(pointer)
 }

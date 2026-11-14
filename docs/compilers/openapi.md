@@ -5792,12 +5792,15 @@ how operations are arranged rather than filling a fact a node holds.
    rule reads, is met where the document has not spoken, and which then declines to fill the fact,
    reports an info `openapi/undecided-<fact>` saying why.
 5. **Placement and order.** A fact read once the document is whole is read in a package named for
-   the fact or for the convention, which imports only `ir`, the compiler's `diag` and `lowering`,
-   and `runtimeexpr` where it reads an expression the document writes, and so nothing of the walks
-   that built the document. The compiler's run reads them in one block, in one order: links
-   ([`links`](#links)), then promotions, then inferences, so an inference sees what every promotion
-   filled. The audits of what the policies read come last, once the document's own keys are merged
-   in as well. A reading a node needs while it lowers, as nullable inference's
+   the fact or for the convention, which imports only `ir`, the compiler's `diag`, `lowering` and
+   `whole`, the one reading of the finished document every such step shares, and `runtimeexpr`
+   where it reads an expression the document writes, and so nothing of the walks that built the
+   document. The compiler's run reads them in one block, in one order: links
+   ([`links`](#links)), then the document's root, whose kept keys a promotion may read, then
+   promotions, then inferences, so an inference sees what every promotion filled. Nothing after the
+   root follows a reference, as which components the root keeps turns on what was reached. The
+   audits of what the policies read come last, once the document's own keys are merged in as
+   well. A reading a node needs while it lowers, as nullable inference's
    ([`nullable`](#nullable)), or while the registry settles, as discriminator inference's, is made
    there instead.
 
@@ -6265,7 +6268,9 @@ every operation. A name is compared by its canonical words (`Naming.Canonical`),
    alone the walk is undecided. Where the body names none, the next cursor is the response header
    every success response declares once whose canonical name, a leading `x_` aside, is the
    cursor's with `next` before it, or the cursor's own, a `NextCursor` whose `In` is `header`; a
-   next cursor the body and a header both name leaves the walk undecided. Such a walk lists
+   next cursor the body and a header both name leaves the walk undecided. A `POST` reads no header
+   next cursor, as its next cursor is the page's member named as the cursor with `next` before it
+   (point 1). Such a walk lists
    `no_next` in `Stop`, as an empty next cursor names no page; a walk under `page` or `offset` lists none, a page holding no
    items ending it whatever `Stop` lists
    ([pagination](../emitters/operations/pagination.md#where-a-page-walk-ends)).

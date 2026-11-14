@@ -20,7 +20,8 @@ import (
 // to its optional flag and its variants, each a list of parameter names. A
 // choice is filled whole or not at all, one written badly leaving the others,
 // and is reported as info diag.UnpromotedExtension at the most specific
-// coordinate. An operation holding a filled choice is marked; the key stays.
+// coordinate. Choices and variants are sorted by name, as an object's members
+// keep no order. An operation holding a filled choice is marked; the key stays.
 func PromoteChoices(c lowering.Ctx, w *whole.Document) []ir.Diagnostic {
 	p := c.Promoter()
 	var diags []ir.Diagnostic
