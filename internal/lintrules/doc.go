@@ -3,8 +3,8 @@
 
 // Package lintrules holds the lint rules this repository writes for itself:
 // go/analysis analyzers for what no off-the-shelf linter expresses, each about
-// which package may build or spell a part of the IR. cmd/morphic-vet runs them
-// under go vet.
+// which package may build or spell a part of the IR, or what state a pipeline
+// package may keep. cmd/morphic-vet runs them under go vet.
 //
 // Each rule reads types, not spellings, so an aliased import, a value held in a
 // local or a promoted method is still what it is. The tests plant every finding

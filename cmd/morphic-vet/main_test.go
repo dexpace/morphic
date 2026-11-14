@@ -44,7 +44,7 @@ func TestMain_HandsGoVetTheRules(t *testing.T) {
 		names = append(names, f.Name)
 	}
 	assert.Subset(t, names,
-		[]string{"fragmentreadings", "idderivations", "namechannels", "registrywrites", "servicetreewrites"})
+		[]string{"fragmentreadings", "globalwrites", "idderivations", "namechannels", "registrywrites", "servicetreewrites"})
 }
 
 // TestMain_RunsTheToolOnTheRules runs main in this process, with vet standing

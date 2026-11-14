@@ -14,3 +14,8 @@ func Outside() (ir.TypeRegistry, []ir.Operation, map[ir.AuthID]ir.AuthScheme, er
 	_, err := url.QueryUnescape("a+b")
 	return ir.TypeRegistry{}, []ir.Operation{}, map[ir.AuthID]ir.AuthScheme{}, err
 }
+
+var outsideCount int
+
+// Count writes a package-level variable, which draws nothing outside the tree.
+func Count() { outsideCount++ }

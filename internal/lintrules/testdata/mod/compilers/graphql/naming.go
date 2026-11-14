@@ -80,7 +80,7 @@ func plantMirrors(name string, p pointer, e embedsPointer) (ir.Naming, ir.Naming
 	near := short{Canonical: name}
 	near.Hint = name
 	_ = others{Canonical: name}
-	_, _ = near, &os.Args // a package's variable is no struct's field
+	_, _ = near, &os.Args // a package's variable is no struct's field // want "globalwrites: takes the address of the package-level variable os.Args; keep the state in a local or an argument"
 	var g genericMirror[string]
 	g.fill(name)
 	_, _ = hinted(name), ir.Naming(unkeyed)
