@@ -65,8 +65,9 @@ func readsGoldenNames(node ast.Node, funcs map[string]*ast.FuncDecl) bool {
 // first -update over a new case needs, which no run of the corpus shows by
 // passing: the specs run inside one t.Run group that returns once they have
 // written their goldens, and the corpus's specs are compared with its goldens
-// after it, in TestConformance. Run beside them, the comparison reads the
-// directory before they have written, and fails a correct update.
+// after it, in TestConformance, by a call no condition holds back, so a golden
+// with no spec fails under -update too. Run beside them, the comparison reads
+// the directory before they have written, and fails a correct update.
 func TestConformance_ComparesGoldensAfterTheSpecsThatWriteThem(t *testing.T) {
 	t.Parallel()
 	funcs := conformanceSource(t)
@@ -89,9 +90,14 @@ func TestConformance_ComparesGoldensAfterTheSpecsThatWriteThem(t *testing.T) {
 	}
 	require.GreaterOrEqual(t, specsAt, 0, `the specs run in a t.Run("specs", ...) group of TestConformance`)
 
-	after := &ast.BlockStmt{List: conformance.Body.List[specsAt+1:]}
-	assert.NotEmpty(t, after.List, "TestConformance does something after the group returns")
-	assert.True(t, readsGoldenNames(after, funcs), "what follows the group compares the corpus with its goldens")
+	after := conformance.Body.List[specsAt+1:]
+	assert.NotEmpty(t, after, "TestConformance does something after the group returns")
+	compares := false
+	for _, stmt := range after {
+		_, isCall := stmt.(*ast.ExprStmt)
+		compares = compares || isCall && readsGoldenNames(stmt, funcs)
+	}
+	assert.True(t, compares, "a call of its own after the group compares the corpus with its goldens, under -update too")
 }
 
 // TestConformance_TableNamesEveryCorpusSpecReadsNoGolden holds the other half
