@@ -17,8 +17,8 @@ const memberKindCode = "ir/enum-member-kind"
 
 // admittedMemberKinds is, for each value type, the kinds of value an enum of it
 // holds as a member: the table docs/ir/enums.md gives for what "matches
-// ValueType" means. A kind no enum holds (list, object, ref, ctor and the
-// non-finite numbers) is left to the member ID check and is not asked here.
+// ValueType" means. No row admits a list, an object, a reference or a
+// constructor, so a member of one is refused under every value type.
 var admittedMemberKinds = func() map[ir.PrimKind][]ir.ValueKind {
 	text := []ir.ValueKind{ir.ValueString, ir.ValueSymbol}
 	number := []ir.ValueKind{ir.ValueNumber}
@@ -54,6 +54,10 @@ var askedMemberKinds = []ir.Value{
 	{Kind: ir.ValueSymbol, Str: "a"},
 	{Kind: ir.ValueNumber, Num: "1"},
 	{Kind: ir.ValueBytes, Bytes: []byte("a")},
+	{Kind: ir.ValueList, List: []ir.Value{{Kind: ir.ValueNull}}},
+	{Kind: ir.ValueObject, Object: []ir.Field{{Name: "a", Value: ir.Value{Kind: ir.ValueNull}}}},
+	{Kind: ir.ValueRefKind, Ref: &ir.ValueRef{Type: "t/x/E", Member: "m"}},
+	{Kind: ir.ValueCtor, Ctor: &ir.CtorValue{Scalar: "t/x/E"}},
 }
 
 // enumHolding returns a document of one enum of value type vt with one member
