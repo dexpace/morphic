@@ -144,13 +144,15 @@ func TestTypeEdges_ACutIsTheWalksCut(t *testing.T) {
 // TestMaxWalkSteps_AStepIsEightValues holds the two limits to the exchange
 // that lets a typed walk's cut imply the reflection walk's: a node a step
 // counts holds at least seven fields, which the reflection walk shows a
-// visitor as at least eight values, and the steps' limit is no more than the
-// values' limit divided by eight.
+// visitor as at least eight values, and the steps' limit is the values' limit
+// divided by eight, so a typed walk cut at it has shown the values' limit. The
+// values' limit is held to the one its costs were measured at.
 func TestMaxWalkSteps_AStepIsEightValues(t *testing.T) {
 	t.Parallel()
 	for _, node := range []reflect.Type{reflect.TypeFor[ir.Value](), reflect.TypeFor[ir.OperationGroup](), reflect.TypeFor[ir.Operation]()} {
 		assert.GreaterOrEqual(t, node.NumField(), 7, "%s", node)
 	}
-	assert.LessOrEqual(t, 8*ir.MaxWalkSteps, ir.MaxWalkValues)
+	assert.Equal(t, ir.MaxWalkValues, 8*ir.MaxWalkSteps)
+	assert.LessOrEqual(t, ir.MaxWalkValues, 1<<27)
 	assert.Positive(t, ir.MaxWalkSteps)
 }
