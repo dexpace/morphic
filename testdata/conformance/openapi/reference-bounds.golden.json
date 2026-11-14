@@ -1,0 +1,975 @@
+{
+  "idSpaces": {
+    "auth": [
+      "openapi",
+      "unresolved"
+    ],
+    "e": [
+      "anon",
+      "composed",
+      "openapi"
+    ],
+    "g": [
+      "default",
+      "extension",
+      "path-prefix",
+      "tags",
+      "webhooks"
+    ],
+    "op": [
+      "openapi"
+    ],
+    "p": [
+      "composed",
+      "openapi"
+    ],
+    "param": [
+      "openapi"
+    ],
+    "s": [
+      "openapi"
+    ],
+    "server": [
+      "default",
+      "openapi"
+    ],
+    "t": [
+      "anon",
+      "composed",
+      "openapi"
+    ]
+  },
+  "name": "ReferenceBounds",
+  "version": "1.0.0",
+  "docs": {},
+  "services": [
+    {
+      "id": "s/openapi/0",
+      "name": {
+        "source": "ReferenceBounds",
+        "canonical": "reference_bounds"
+      },
+      "docs": {},
+      "groups": [
+        {
+          "id": "g/default",
+          "name": {
+            "hint": "default"
+          },
+          "docs": {},
+          "operations": [
+            {
+              "id": "op/openapi/paths/~1names~1{name}/get",
+              "name": {
+                "source": "getName",
+                "canonical": "get_name"
+              },
+              "docs": {},
+              "params": [
+                {
+                  "id": "param/openapi/paths/~1names~1{name}/get/parameters/name/path",
+                  "name": {
+                    "source": "name",
+                    "canonical": "name"
+                  },
+                  "type": {
+                    "target": "t/openapi/components/schemas/Name",
+                    "nullable": false
+                  },
+                  "required": true,
+                  "constraints": {
+                    "minLength": 2,
+                    "uniqueItems": false
+                  },
+                  "docs": {},
+                  "unmodeled": {
+                    "openapi:minimum": {
+                      "reason": "degraded_lowering",
+                      "value": 1,
+                      "provenance": {
+                        "source": 0,
+                        "pointer": "/paths/~1names~1{name}/get/parameters/0/schema/minimum"
+                      }
+                    }
+                  },
+                  "provenance": {
+                    "source": 0,
+                    "pointer": "/paths/~1names~1{name}/get/parameters/0"
+                  }
+                },
+                {
+                  "id": "param/openapi/paths/~1names~1{name}/get/parameters/tags/query",
+                  "name": {
+                    "source": "tags",
+                    "canonical": "tags"
+                  },
+                  "type": {
+                    "target": "t/openapi/components/schemas/Tags",
+                    "nullable": false
+                  },
+                  "required": false,
+                  "constraints": {
+                    "maxItems": 3,
+                    "uniqueItems": false
+                  },
+                  "docs": {},
+                  "unmodeled": {
+                    "openapi:maxLength": {
+                      "reason": "degraded_lowering",
+                      "value": 5,
+                      "provenance": {
+                        "source": 0,
+                        "pointer": "/paths/~1names~1{name}/get/parameters/1/schema/maxLength"
+                      }
+                    }
+                  },
+                  "provenance": {
+                    "source": 0,
+                    "pointer": "/paths/~1names~1{name}/get/parameters/1"
+                  }
+                }
+              ],
+              "responses": [
+                {
+                  "name": {
+                    "hint": "200"
+                  },
+                  "conditions": {
+                    "statusCodes": [
+                      {
+                        "from": 200,
+                        "to": 200
+                      }
+                    ]
+                  },
+                  "headers": [
+                    {
+                      "id": "p/openapi/paths/~1names~1{name}/get/responses/200/headers/X-Tags",
+                      "name": {
+                        "source": "X-Tags",
+                        "canonical": "x_tags"
+                      },
+                      "wireName": "X-Tags",
+                      "type": {
+                        "target": "t/openapi/components/schemas/Tags",
+                        "nullable": false
+                      },
+                      "required": false,
+                      "clientOptional": false,
+                      "defaultAdded": false,
+                      "visibility": {
+                        "none": false
+                      },
+                      "flatten": false,
+                      "eventHeader": false,
+                      "eventPayload": false,
+                      "secret": false,
+                      "docs": {},
+                      "unmodeled": {
+                        "openapi:pattern": {
+                          "reason": "degraded_lowering",
+                          "value": "^a",
+                          "provenance": {
+                            "source": 0,
+                            "pointer": "/paths/~1names~1{name}/get/responses/200/headers/X-Tags/schema/pattern"
+                          }
+                        }
+                      },
+                      "provenance": {
+                        "source": 0,
+                        "pointer": "/paths/~1names~1{name}/get/responses/200/headers/X-Tags"
+                      }
+                    }
+                  ],
+                  "docs": {
+                    "description": "ok"
+                  }
+                }
+              ],
+              "oneWay": false,
+              "idempotency": {},
+              "bindings": {
+                "http": [
+                  {
+                    "method": "GET",
+                    "uriTemplate": "/names/{name}",
+                    "paramBindings": [
+                      {
+                        "param": "param/openapi/paths/~1names~1{name}/get/parameters/name/path",
+                        "location": "path",
+                        "wireName": "name",
+                        "style": "simple",
+                        "allowReserved": false,
+                        "allowEmptyValue": false
+                      },
+                      {
+                        "param": "param/openapi/paths/~1names~1{name}/get/parameters/tags/query",
+                        "location": "query",
+                        "wireName": "tags",
+                        "style": "form",
+                        "allowReserved": false,
+                        "allowEmptyValue": false
+                      }
+                    ],
+                    "sharedRoute": false,
+                    "checksumRequired": false
+                  }
+                ]
+              },
+              "provenance": {
+                "source": 0,
+                "pointer": "/paths/~1names~1{name}/get"
+              }
+            }
+          ]
+        }
+      ],
+      "servers": [
+        "server/default"
+      ],
+      "provenance": {
+        "source": 0
+      }
+    }
+  ],
+  "types": {
+    "t/anon/components/schemas/Failure/properties/composed": {
+      "kind": "model",
+      "id": "t/anon/components/schemas/Failure/properties/composed",
+      "name": {
+        "hint": "composed"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "unmodeled": {
+        "openapi:minLength": {
+          "reason": "degraded_lowering",
+          "value": 1,
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Failure/properties/composed/minLength"
+          }
+        }
+      },
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Failure/properties/composed"
+      },
+      "base": {
+        "target": "t/openapi/components/schemas/Envelope",
+        "nullable": false
+      },
+      "constraints": {
+        "uniqueItems": false,
+        "minProps": 2
+      },
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/anon/components/schemas/Failure/properties/inline/allOf/0": {
+      "kind": "list",
+      "id": "t/anon/components/schemas/Failure/properties/inline/allOf/0",
+      "name": {
+        "hint": "inline"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Failure/properties/inline/allOf/0"
+      },
+      "elem": {
+        "target": "t/prim/string",
+        "nullable": false
+      }
+    },
+    "t/openapi/components/schemas/Aliased": {
+      "kind": "scalar",
+      "id": "t/openapi/components/schemas/Aliased",
+      "name": {
+        "source": "Aliased",
+        "canonical": "aliased"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "unmodeled": {
+        "openapi:minimum": {
+          "reason": "degraded_lowering",
+          "value": 1,
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Aliased/minimum"
+          }
+        }
+      },
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Aliased"
+      },
+      "base": {
+        "target": "t/openapi/components/schemas/Name",
+        "nullable": false
+      }
+    },
+    "t/openapi/components/schemas/Envelope": {
+      "kind": "model",
+      "id": "t/openapi/components/schemas/Envelope",
+      "name": {
+        "source": "Envelope",
+        "canonical": "envelope"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Envelope"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/Envelope/properties/id",
+          "name": {
+            "source": "id",
+            "canonical": "id"
+          },
+          "wireName": "id",
+          "type": {
+            "target": "t/prim/string",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Envelope/properties/id"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/openapi/components/schemas/Failure": {
+      "kind": "model",
+      "id": "t/openapi/components/schemas/Failure",
+      "name": {
+        "source": "Failure",
+        "canonical": "failure"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Failure"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/Failure/properties/refined",
+          "name": {
+            "source": "refined",
+            "canonical": "refined"
+          },
+          "wireName": "refined",
+          "type": {
+            "target": "t/openapi/components/schemas/Tags",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "unmodeled": {
+            "openapi:minLength": {
+              "reason": "degraded_lowering",
+              "value": 1,
+              "provenance": {
+                "source": 0,
+                "pointer": "/components/schemas/Failure/properties/refined/minLength"
+              }
+            }
+          },
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Failure/properties/refined"
+          }
+        },
+        {
+          "id": "p/openapi/components/schemas/Failure/properties/site",
+          "name": {
+            "source": "site",
+            "canonical": "site"
+          },
+          "wireName": "site",
+          "type": {
+            "target": "t/openapi/components/schemas/Tags",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "unmodeled": {
+            "openapi:minLength": {
+              "reason": "degraded_lowering",
+              "value": 1,
+              "provenance": {
+                "source": 0,
+                "pointer": "/components/schemas/Failure/properties/site/minLength"
+              }
+            }
+          },
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Failure/properties/site"
+          }
+        },
+        {
+          "id": "p/openapi/components/schemas/Failure/properties/nullable",
+          "name": {
+            "source": "nullable",
+            "canonical": "nullable"
+          },
+          "wireName": "nullable",
+          "type": {
+            "target": "t/openapi/components/schemas/Tags",
+            "nullable": true
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "unmodeled": {
+            "openapi:minLength": {
+              "reason": "degraded_lowering",
+              "value": 1,
+              "provenance": {
+                "source": 0,
+                "pointer": "/components/schemas/Failure/properties/nullable/minLength"
+              }
+            }
+          },
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Failure/properties/nullable"
+          }
+        },
+        {
+          "id": "p/openapi/components/schemas/Failure/properties/voiced",
+          "name": {
+            "source": "voiced",
+            "canonical": "voiced"
+          },
+          "wireName": "voiced",
+          "type": {
+            "target": "t/openapi/components/schemas/Tags",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "unmodeled": {
+            "openapi:allOf/1": {
+              "reason": "degraded_lowering",
+              "value": {
+                "minLength": 1
+              },
+              "provenance": {
+                "source": 0,
+                "pointer": "/components/schemas/Failure/properties/voiced/allOf/1"
+              }
+            }
+          },
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Failure/properties/voiced"
+          }
+        },
+        {
+          "id": "p/openapi/components/schemas/Failure/properties/chained",
+          "name": {
+            "source": "chained",
+            "canonical": "chained"
+          },
+          "wireName": "chained",
+          "type": {
+            "target": "t/openapi/components/schemas/TagsAlias",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "unmodeled": {
+            "openapi:minLength": {
+              "reason": "degraded_lowering",
+              "value": 1,
+              "provenance": {
+                "source": 0,
+                "pointer": "/components/schemas/Failure/properties/chained/minLength"
+              }
+            }
+          },
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Failure/properties/chained"
+          }
+        },
+        {
+          "id": "p/openapi/components/schemas/Failure/properties/inline",
+          "name": {
+            "source": "inline",
+            "canonical": "inline"
+          },
+          "wireName": "inline",
+          "type": {
+            "target": "t/anon/components/schemas/Failure/properties/inline/allOf/0",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "unmodeled": {
+            "openapi:minLength": {
+              "reason": "degraded_lowering",
+              "value": 1,
+              "provenance": {
+                "source": 0,
+                "pointer": "/components/schemas/Failure/properties/inline/minLength"
+              }
+            }
+          },
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Failure/properties/inline"
+          }
+        },
+        {
+          "id": "p/openapi/components/schemas/Failure/properties/composed",
+          "name": {
+            "source": "composed",
+            "canonical": "composed"
+          },
+          "wireName": "composed",
+          "type": {
+            "target": "t/anon/components/schemas/Failure/properties/composed",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "constraints": {
+            "uniqueItems": false,
+            "minProps": 2
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Failure/properties/composed"
+          }
+        },
+        {
+          "id": "p/openapi/components/schemas/Failure/properties/counted",
+          "name": {
+            "source": "counted",
+            "canonical": "counted"
+          },
+          "wireName": "counted",
+          "type": {
+            "target": "t/openapi/components/schemas/Name",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "unmodeled": {
+            "openapi:minItems": {
+              "reason": "degraded_lowering",
+              "value": 1,
+              "provenance": {
+                "source": 0,
+                "pointer": "/components/schemas/Failure/properties/counted/minItems"
+              }
+            }
+          },
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Failure/properties/counted"
+          }
+        },
+        {
+          "id": "p/openapi/components/schemas/Failure/properties/taken",
+          "name": {
+            "source": "taken",
+            "canonical": "taken"
+          },
+          "wireName": "taken",
+          "type": {
+            "target": "t/openapi/components/schemas/Name",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "constraints": {
+            "minLength": 1,
+            "uniqueItems": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Failure/properties/taken"
+          }
+        },
+        {
+          "id": "p/openapi/components/schemas/Failure/properties/open",
+          "name": {
+            "source": "open",
+            "canonical": "open"
+          },
+          "wireName": "open",
+          "type": {
+            "target": "t/openapi/components/schemas/Open",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "constraints": {
+            "min": "2",
+            "minLength": 1,
+            "uniqueItems": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {
+            "description": "A schema declaring no type."
+          },
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Failure/properties/open"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/openapi/components/schemas/Name": {
+      "kind": "scalar",
+      "id": "t/openapi/components/schemas/Name",
+      "name": {
+        "source": "Name",
+        "canonical": "name"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Name"
+      },
+      "base": {
+        "target": "t/prim/string",
+        "nullable": false
+      }
+    },
+    "t/openapi/components/schemas/Open": {
+      "kind": "scalar",
+      "id": "t/openapi/components/schemas/Open",
+      "name": {
+        "source": "Open",
+        "canonical": "open"
+      },
+      "anonymous": false,
+      "docs": {
+        "description": "A schema declaring no type."
+      },
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Open"
+      },
+      "base": {
+        "target": "t/prim/any",
+        "nullable": false
+      }
+    },
+    "t/openapi/components/schemas/Tags": {
+      "kind": "list",
+      "id": "t/openapi/components/schemas/Tags",
+      "name": {
+        "source": "Tags",
+        "canonical": "tags"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Tags"
+      },
+      "elem": {
+        "target": "t/prim/string",
+        "nullable": false
+      }
+    },
+    "t/openapi/components/schemas/TagsAlias": {
+      "kind": "scalar",
+      "id": "t/openapi/components/schemas/TagsAlias",
+      "name": {
+        "source": "TagsAlias",
+        "canonical": "tags_alias"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/TagsAlias"
+      },
+      "base": {
+        "target": "t/openapi/components/schemas/Tags",
+        "nullable": false
+      }
+    },
+    "t/prim/any": {
+      "kind": "primitive",
+      "id": "t/prim/any",
+      "name": {},
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": -1
+      },
+      "prim": "any"
+    },
+    "t/prim/string": {
+      "kind": "primitive",
+      "id": "t/prim/string",
+      "name": {},
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": -1
+      },
+      "prim": "string"
+    }
+  },
+  "servers": {
+    "server/default": {
+      "id": "server/default",
+      "name": {
+        "hint": "server"
+      },
+      "urlTemplate": "/",
+      "description": {},
+      "provenance": {
+        "source": 0
+      }
+    }
+  },
+  "diagnostics": [
+    {
+      "severity": "info",
+      "code": "openapi/degraded-construct",
+      "message": "this position lowered to a use of one of its allOf conjuncts, which has no home for minLength declared beside it; kept verbatim under Unmodeled",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Failure/properties/refined"
+      }
+    },
+    {
+      "severity": "info",
+      "code": "openapi/degraded-construct",
+      "message": "this position lowered to an alias over its $ref target, which has no home for minLength declared beside it; kept verbatim under Unmodeled",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Failure/properties/site"
+      }
+    },
+    {
+      "severity": "info",
+      "code": "openapi/degraded-construct",
+      "message": "this position lowered to a nullable reference to its one non-null branch, which has no home for minLength declared beside it; kept verbatim under Unmodeled",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Failure/properties/nullable"
+      }
+    },
+    {
+      "severity": "info",
+      "code": "openapi/degraded-construct",
+      "message": "this allOf lowered to a use of one of its conjuncts, which has no home for what this inline branch adds; the branch (minLength) is kept verbatim under Unmodeled",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Failure/properties/voiced/allOf/1"
+      }
+    },
+    {
+      "severity": "info",
+      "code": "openapi/degraded-construct",
+      "message": "this position lowered to a use of one of its allOf conjuncts, which has no home for minLength declared beside it; kept verbatim under Unmodeled",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Failure/properties/chained"
+      }
+    },
+    {
+      "severity": "info",
+      "code": "openapi/degraded-construct",
+      "message": "this position lowered to a use of one of its allOf conjuncts, which has no home for minLength declared beside it; kept verbatim under Unmodeled",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Failure/properties/inline"
+      }
+    },
+    {
+      "severity": "info",
+      "code": "openapi/degraded-construct",
+      "message": "this position lowered to a node of kind \"model\", which has no home for minLength declared beside it; kept verbatim under Unmodeled",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Failure/properties/composed"
+      }
+    },
+    {
+      "severity": "info",
+      "code": "openapi/degraded-construct",
+      "message": "this position lowered to an alias over its $ref target, which has no home for minItems declared beside it; kept verbatim under Unmodeled",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Failure/properties/counted"
+      }
+    },
+    {
+      "severity": "info",
+      "code": "openapi/degraded-construct",
+      "message": "this position lowered to a use of one of its allOf conjuncts, which has no home for minimum declared beside it; kept verbatim under Unmodeled",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Aliased"
+      }
+    },
+    {
+      "severity": "info",
+      "code": "openapi/degraded-construct",
+      "message": "this position lowered to a use of one of its allOf conjuncts, which has no home for minimum declared beside it; kept verbatim under Unmodeled",
+      "provenance": {
+        "source": 0,
+        "pointer": "/paths/~1names~1{name}/get/parameters/0/schema"
+      }
+    },
+    {
+      "severity": "info",
+      "code": "openapi/degraded-construct",
+      "message": "this position lowered to an alias over its $ref target, which has no home for maxLength declared beside it; kept verbatim under Unmodeled",
+      "provenance": {
+        "source": 0,
+        "pointer": "/paths/~1names~1{name}/get/parameters/1/schema"
+      }
+    },
+    {
+      "severity": "info",
+      "code": "openapi/degraded-construct",
+      "message": "this position lowered to a use of one of its allOf conjuncts, which has no home for pattern declared beside it; kept verbatim under Unmodeled",
+      "provenance": {
+        "source": 0,
+        "pointer": "/paths/~1names~1{name}/get/responses/200/headers/X-Tags/schema"
+      }
+    }
+  ],
+  "sources": [
+    {
+      "format": "openapi@3.1",
+      "path": "reference-bounds.yaml",
+      "hash": "d9a7d6ca208639f5fb077b299eff820b601d2d3248474bbe87dee16523e9ed5f"
+    }
+  ]
+}

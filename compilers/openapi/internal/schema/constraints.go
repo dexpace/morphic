@@ -316,7 +316,7 @@ func CarrierConstraintsOf(c lowering.Ctx, ts *compile.Types, p *ir.Unmodeled, s 
 	}
 	var takes kindSet
 	if s != nil && !lowersTypeArray(c, s, pointer) {
-		takes = declaredInstanceTypes(s)
+		takes = positionTypes(c, s, pointer)
 	}
 	cons, diags := ConstraintsOf(c, p, s, voices, pointer, takes)
 	if td, built := ts.Node(t.Target); built && carriesNumberAsText(td) {
@@ -330,15 +330,19 @@ func CarrierConstraintsOf(c lowering.Ctx, ts *compile.Types, p *ir.Unmodeled, s 
 // refinement: no node of its own holds the collection bounds it wrote, so they
 // join its value bounds on the alias or carrier it owns
 // (docs/compilers/openapi.md#constraints), with those its voices write where
-// the position holds them (homesAt). The value bounds are those the types the
-// position declares take, every one where it declares none, and never by what
-// target is, so one target's type cannot take is held where the position
-// declares no type (GitHub #1907).
+// the position holds them (homesAt). Every bound is read by the types the
+// position admits, those of the schemas it names among them (positionTypes),
+// so a collection bound is held only where they admit an array, and the census
+// keeps one they do not (referenceUnhomed).
 func referenceConstraintsOf(c lowering.Ctx, ts *compile.Types, p *ir.Unmodeled, s *oas3.Schema, voices []annotation.Voice, target ir.TypeRef, pointer jsontext.Pointer) (*ir.Constraints, []ir.Diagnostic) {
 	if s == nil {
 		return nil, nil
 	}
-	cons, diags := ConstraintsOf(c, p, s, voices, pointer, declaredInstanceTypes(s))
+	takes := positionTypes(c, s, pointer)
+	cons, diags := ConstraintsOf(c, p, s, voices, pointer, takes)
+	if takes&kindArray == 0 {
+		return cons, diags
+	}
 	cons = merge.Constraints(cons, heldCollectionBounds(s))
 	if len(voices) > 0 && homesAt(c, ts, s, target, pointer).collection {
 		cons = voicedCollectionBounds(cons, voices)

@@ -278,14 +278,14 @@ These all exist already — extend them rather than building a parallel mechanis
 - **Oracles**: `internal/harness` runs a spec through the engine as `morphic compile --verify` does,
   its passes included and every stage's document verified, and drives it through no-panic →
   `irverify` invariants → no error diagnostic → JSON round-trip → determinism → pass idempotence →
-  order-invariance. An error diagnostic stops none of them: each gives the `Result` a verdict, what
-  it found or why it declined, and a fault ending the run, such as a panic, leaves the ones after
-  it not reached. `harness.Check` is the list — read it there rather than trusting this sentence;
-  `go run ./cmd/morphic-harness <file|dir>` runs them over one spec or a whole tree and counts, per
-  oracle, what it asked and declined. `irverify` is the structural-invariant checker (stable IDs, no
-  dangling refs, neutral naming, routable `Unmodeled`, in-range provenance); its findings are
-  `Violation` values — *our* bugs — deliberately a channel separate from `ir.Diagnostic`, which
-  reports problems in the source spec.
+  order-invariance → sequence-order-invariance. An error diagnostic stops none of them: each gives
+  the `Result` a verdict, what it found or why it declined, and a fault ending the run, such as a
+  panic, leaves the ones after it not reached. `harness.Check` is the list — read it there rather
+  than trusting this sentence; `go run ./cmd/morphic-harness <file|dir>` runs them over one spec or
+  a whole tree and counts, per oracle, what it asked and declined. `irverify` is the
+  structural-invariant checker (stable IDs, no dangling refs, neutral naming, routable `Unmodeled`,
+  in-range provenance); its findings are `Violation` values — *our* bugs — deliberately a channel
+  separate from `ir.Diagnostic`, which reports problems in the source spec.
 - **Architecture test**: `internal/archtest`, per the layering section above. It also holds each
   production package's uses of the parser library's reference-resolution API, which it derives
   from the library's sources, to `resolutionBaseline`. The baseline only shrinks: removing a use
@@ -330,11 +330,13 @@ assertion shapes:
   the diff. The oracle compares the whole document but the compiled source's hash, forgiving only
   the order of what `orderFree` in `internal/harness/order.go` lists and of a verbatim JSON object's
   members, and the diagnostics without their message text or line and column. It permutes mappings
-  alone and compiles at the default limits, so an order dependence among a listed collection's
-  elements, in a sequence such as an `allOf`'s branches (#1666), or in a verdict at another limit
-  (#1519) needs its own two-order diff. A targeted case still earns its place when it pins one
-  lowering, because the oracle proves order-independence only for the constructs its inputs happen
-  to contain.
+  alone. The sequence-order oracle beside it reverses each `allOf` and `required` sequence that
+  `reverseSequences` in `internal/harness/sequence.go` may, and forgives what the order oracle does
+  and what `canonicalForm` in `canon.go` lists. Both compile at the default limits, so an order
+  dependence among a listed collection's elements, in any other sequence or another order of one,
+  or in a verdict at another limit (#1519) needs its own two-order diff. A targeted case still
+  earns its place when it pins one lowering, because the oracles prove order-independence only for
+  the constructs their inputs happen to contain.
   - A fixture's own declaration order is part of the test. A golden that happens to declare things
     in the order the *correct* lowering already produced cannot see the fix at all: reverting it
     leaves the golden green, and only the two-order oracle reddens. If a single-order case is meant

@@ -172,6 +172,9 @@ var generations = []generation{
 	{version: "0.65.0", format: 1, shape: "0b2f5e45e4be29c67a153976848af676bc99d9f21d9e41a91b7abfd167ae026b",
 		names:   "825b85ca996798c9051c78f69d22b7c1ad6d30e36341b320540fab82f21b6890",
 		meaning: "a parameter binding's Explode is as declared, nil where the parameter writes none, where it held its style's default"},
+	{version: "0.66.0", format: 1, shape: "0b2f5e45e4be29c67a153976848af676bc99d9f21d9e41a91b7abfd167ae026b",
+		names:   "825b85ca996798c9051c78f69d22b7c1ad6d30e36341b320540fab82f21b6890",
+		meaning: "a value or collection bound written beside a schema naming another, through a $ref, an allOf entry, a union or an expanded dynamic reference, reaches Constraints only where a type the named schemas admit takes it, and is kept under openapi:<keyword> otherwise"},
 	{version: "0.68.0", format: 1, shape: "cbe51ea045e784e944d9d6f36b72502f04778ff2612fb2c99f14a81be60fef9d",
 		names: "825b85ca996798c9051c78f69d22b7c1ad6d30e36341b320540fab82f21b6890"},
 }
