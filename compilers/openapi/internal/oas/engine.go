@@ -291,6 +291,7 @@ func (w *walker) unknown(f frame) {
 	if _, patterned := f.obj.patternAt(w.minor); patterned {
 		return
 	}
+	places := newKeyPlacer(w, f.at.node, f.at.ptr)
 	for _, p := range f.pairs {
 		if f.defines(p.Key) || (f.obj.Extensible && strings.HasPrefix(p.Key, "x-")) {
 			continue
@@ -301,47 +302,9 @@ func (w *walker) unknown(f frame) {
 			message = fmt.Sprintf("key %q is written beside a $ref, where the Reference Object defines only $ref, "+
 				"summary and description, so OpenAPI ignores it", p.Key)
 		}
-		w.add(diag.Newf(ir.SeverityWarning, diag.UnknownObjectKey, keyPlace(w, f, p.Key), "%s", message),
+		w.add(diag.Newf(ir.SeverityWarning, diag.UnknownObjectKey, places.place(p.Key), "%s", message),
 			f.at.ptr.AppendToken(p.Key))
 	}
-}
-
-// keyPlace places the key f's mapping reads, as the table places a field: at
-// its value, where it is written. The value of a key the mapping writes itself
-// as an alias is placed where its anchor is, another key's coordinate, so the
-// key is placed at its own instead, in the mapping f is written as, at the
-// alias.
-func keyPlace(w *walker, f frame, key string) ir.Provenance {
-	alias := ownAlias(nodeview.Deref(f.at.node), key)
-	at := f.at.ptr.AppendToken(key)
-	if alias != nil {
-		at = f.at.ptr
-	}
-	place := w.locate(at)
-	if alias == nil {
-		return place
-	}
-	if place.Pointer != "" || w.rootAt+f.at.ptr == "" {
-		place.Pointer = place.Pointer.AppendToken(key)
-	}
-	place.Position = ir.Position{Line: alias.Line, Column: alias.Column}
-	return place
-}
-
-// ownAlias returns the alias mapping writes as the value of key, its last copy
-// where it is written twice, or nil where mapping writes key with another
-// value or takes it from a merge.
-func ownAlias(mapping *yaml.Node, key string) *yaml.Node {
-	var value *yaml.Node
-	for i := 0; i+1 < len(mapping.Content); i += 2 {
-		if k, own := nodeview.KeyOf(mapping.Content[i]); own && k == key && !nodeview.IsMergeKey(mapping.Content[i]) {
-			value = mapping.Content[i+1]
-		}
-	}
-	if value == nil || value.Kind != yaml.AliasNode {
-		return nil
-	}
-	return value
 }
 
 // rowsAt returns the rows the Schema Object s names is read with: a dialect

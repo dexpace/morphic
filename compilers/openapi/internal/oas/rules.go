@@ -362,19 +362,22 @@ func reservedNames(r ruler, rule Rule) {
 	ptr := r.f.at.ptr.AppendToken(rule.Field)
 	if name, ok := textOf(node); ok {
 		if reserved, is := reservedName(name, rule.Names); is {
-			r.w.warn(diag.ReservedHeaderName, ptr, "header %s %q is reserved: OpenAPI says a definition for %s SHALL "+
-				"be ignored, so it is lowered as declared and left for the emitter to suppress", r.f.obj.noun(), name, reserved)
+			place := newKeyPlacer(r.w, r.f.at.node, r.f.at.ptr).place(rule.Field)
+			r.w.add(diag.Newf(ir.SeverityWarning, diag.ReservedHeaderName, place, "header %s %q is reserved: OpenAPI "+
+				"says a definition for %s SHALL be ignored, so it is lowered as declared and left for the emitter to "+
+				"suppress", r.f.obj.noun(), name, reserved), ptr)
 		}
 		return
 	}
 	if node.Kind != yaml.MappingNode {
 		return
 	}
+	places := newKeyPlacer(r.w, node, ptr)
 	for _, p := range r.w.view.MappingPairs(node) {
 		if reserved, is := reservedName(p.Key, rule.Names); is {
-			r.w.warn(diag.ReservedHeaderName, ptr.AppendToken(p.Key), "header %q is reserved: OpenAPI says a %s entry "+
-				"in a headers map SHALL be ignored, so it is lowered as declared and left for the emitter to suppress",
-				p.Key, reserved)
+			r.w.add(diag.Newf(ir.SeverityWarning, diag.ReservedHeaderName, places.place(p.Key), "header %q is "+
+				"reserved: OpenAPI says a %s entry in a headers map SHALL be ignored, so it is lowered as declared and "+
+				"left for the emitter to suppress", p.Key, reserved), ptr.AppendToken(p.Key))
 		}
 	}
 }

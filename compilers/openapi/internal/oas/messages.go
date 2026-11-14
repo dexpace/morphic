@@ -71,12 +71,6 @@ func (r *reporter) add(d ir.Diagnostic, ptr jsontext.Pointer) {
 	r.diags = append(r.diags, d)
 }
 
-// warn adds a warning of code at ptr, a finding under a code of its own rather
-// than a validation class (report).
-func (r *reporter) warn(code string, ptr jsontext.Pointer, format string, args ...any) {
-	r.add(diag.Newf(ir.SeverityWarning, code, r.locate(ptr), format, args...), ptr)
-}
-
 // readAtClause begins what Options.ReadAt adds to a message.
 const readAtClause = "; read at "
 
@@ -170,9 +164,15 @@ func (r *reporter) laterSibling(obj Object, key string, minor, since Minor, ptr 
 // model reads the last copy and drops the rest without a word. what names the
 // mapping in the message.
 func (w *walker) repeated(node *yaml.Node, ptr jsontext.Pointer, what string) {
-	for _, key := range nodeview.RepeatedKeys(node) {
-		w.report(ir.SeverityWarning, classDuplicate, ptr.AppendToken(key),
-			"%s writes the key %q more than once, and only the last copy is read in OpenAPI %s (Format)", what, key, w.minor)
+	keys := nodeview.RepeatedKeys(node)
+	if len(keys) == 0 {
+		return
+	}
+	places := newKeyPlacer(w, node, ptr)
+	for _, key := range keys {
+		w.add(diag.Newf(ir.SeverityWarning, diag.Validation+"/"+classDuplicate, places.place(key),
+			"%s writes the key %q more than once, and only the last copy is read in OpenAPI %s (Format)",
+			what, key, w.minor), ptr.AppendToken(key))
 	}
 }
 

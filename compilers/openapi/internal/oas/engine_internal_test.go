@@ -10,6 +10,7 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	yaml "go.yaml.in/yaml/v3"
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/budget"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
@@ -144,4 +145,26 @@ func TestCiteFor_PicksTheLatestCitationTheMinorHasReached(t *testing.T) {
 	assert.Equal(t, "c", citeFor(cites, V32).Sentence)
 	assert.Equal(t, "c", citeFor([]Cite{{Minor: V32, Sentence: "c"}}, V30).Sentence, "none reached: the first")
 	assert.Equal(t, Cite{}, citeFor(nil, V30))
+}
+
+// TestKeyPlacer_ReadsTheMappingOnce holds a placer to one scan of its mapping
+// for its aliases, however many keys it places, which is what keeps n findings
+// about the keys of one object at n: an alias added after the first key is
+// placed is not seen. A merge key is no key the mapping writes itself.
+func TestKeyPlacer_ReadsTheMappingOnce(t *testing.T) {
+	doc := openapitest.YAMLDocument(t, "x-m: &m 1\n<<: {c: 2}\na: *m\n")
+	located := func(p jsontext.Pointer) ir.Provenance {
+		return ir.Provenance{Pointer: p, Position: ir.Position{Line: 99}}
+	}
+	w := &walker{}
+	w.locate = located
+	places := newKeyPlacer(w, doc.Content[0], "")
+	assert.Equal(t, ir.Provenance{Pointer: "/a", Position: ir.Position{Line: 3, Column: 4}}, places.place("a"))
+	assert.Equal(t, ir.Provenance{Pointer: "/c", Position: ir.Position{Line: 99}}, places.place("c"))
+
+	mapping := places.mapping
+	alias := mapping.Content[len(mapping.Content)-1]
+	mapping.Content = append(mapping.Content, &yaml.Node{Kind: yaml.ScalarNode, Value: "b"}, alias)
+	assert.Equal(t, ir.Provenance{Pointer: "/b", Position: ir.Position{Line: 99}}, places.place("b"),
+		"the mapping was read for its aliases once, before b was written")
 }
