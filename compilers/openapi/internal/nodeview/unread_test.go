@@ -229,3 +229,47 @@ func TestMergeSources_NamesTheMappingsAMergeKeyNames(t *testing.T) {
 	assert.Equal(t, "a", got[0].Content[0].Value)
 	assert.Equal(t, "b", got[1].Content[0].Value)
 }
+
+// TestUnread_LeavesAnAbsentNodeAndATurnedNodeAsTheyAre holds Unread to nothing
+// for nil, and to the node as written for one it turned already: a second turn
+// must not make the null's own text the written node.
+func TestUnread_LeavesAnAbsentNodeAndATurnedNodeAsTheyAre(t *testing.T) {
+	t.Parallel()
+	root := readMapping(t, "a: !local t\n")
+	n := nodeview.Child(root, "a")
+	require.NotNil(t, n)
+
+	assert.NotPanics(t, func() { nodeview.Unread(nil) })
+	nodeview.Unread(n)
+	once := *n
+	nodeview.Unread(n)
+
+	assert.Equal(t, once, *n, "a second turn changes nothing")
+	assert.Equal(t, "t", nodeview.Written(n).Value, "and what was written is still the first")
+}
+
+// TestNoString_IsTrueForANodeThatIsAMappingAListOrANull holds a Reference
+// Object's $ref to naming something only as a string: an alias is followed, an
+// absent value is no node and so none of the three.
+func TestNoString_IsTrueForANodeThatIsAMappingAListOrANull(t *testing.T) {
+	t.Parallel()
+	root := readMapping(t, "s: x\nn: ~\nm: {a: 1}\nl: [a]\ni: 5\nanchored: &a ~\nalias: *a\n")
+	tests := []struct {
+		key  string
+		want bool
+	}{
+		{"s", false}, {"n", true}, {"m", true}, {"l", true}, {"i", false}, {"alias", true}, {"absent", false},
+	}
+	for _, tc := range tests {
+		t.Run(tc.key, func(t *testing.T) {
+			t.Parallel()
+			var v *yaml.Node
+			for i := 0; i+1 < len(root.Content); i += 2 {
+				if root.Content[i].Value == tc.key {
+					v = root.Content[i+1]
+				}
+			}
+			assert.Equal(t, tc.want, nodeview.NoString(v))
+		})
+	}
+}

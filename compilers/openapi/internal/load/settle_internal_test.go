@@ -143,5 +143,32 @@ func TestLoad_ANullRefOfAReferenceObjectIsReadWithoutAFaultAtEachModelBuild(t *t
 	}
 }
 
+// TestLoad_AnAdditionalOperationAMergeKeySuppliesIsReadWithoutAFault holds an
+// additionalOperations entry that is no mapping to the window the entries it
+// writes itself have, wherever a `<<` takes it from: a mapping written there,
+// an alias of one, and one among a list of sources. Each is read without a
+// fault, and the tree is as written once the model is built.
+func TestLoad_AnAdditionalOperationAMergeKeySuppliesIsReadWithoutAFault(t *testing.T) {
+	t.Parallel()
+	const head = "openapi: 3.2.0\ninfo: {title: t, version: \"1\"}\n"
+	const ok = "{responses: {\"200\": {description: ok}}}"
+	for name, spec := range map[string]string{
+		"a mapping":     head + "paths:\n  /a:\n    additionalOperations:\n      <<: {PURGE: ~}\n      LINK: " + ok + "\n",
+		"an alias":      head + "x-ops: &ops {PURGE: ~}\npaths:\n  /a:\n    additionalOperations:\n      <<: *ops\n      LINK: " + ok + "\n",
+		"one of a list": head + "paths:\n  /a:\n    additionalOperations:\n      <<: [{LINK: " + ok + "}, {PURGE: ~}]\n",
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			want := marshalled(t, readAside(t, spec))
+
+			got, diags, err := Load(t.Context(), 0, compilers.Source{Path: "spec.yaml", Data: []byte(spec)}, Options{})
+
+			require.NoError(t, err)
+			require.NotNil(t, got, "no panic reaches the load: %+v", diags)
+			assert.Equal(t, want, marshalled(t, got.Doc.GetRootNode()))
+		})
+	}
+}
+
 // head31L opens the documents above.
 const head31L = "openapi: 3.1.0\ninfo: {title: t, version: \"1\"}\n"
