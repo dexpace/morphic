@@ -10,6 +10,7 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	yaml "go.yaml.in/yaml/v3"
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/budget"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
@@ -138,4 +139,19 @@ func TestLessPointer_OrdersTokenByToken(t *testing.T) {
 	} {
 		assert.Equal(t, tc.less, lessPointer(tc.a, tc.b), "%s < %s", tc.a, tc.b)
 	}
+}
+
+// TestSharedNode_IsTrueForAnAliasAndForAnAnchoredNodeAlone holds the node
+// another place may read to the two ways it is shared, and an absent node to
+// none.
+func TestSharedNode_IsTrueForAnAliasAndForAnAnchoredNodeAlone(t *testing.T) {
+	t.Parallel()
+	var root yaml.Node
+	require.NoError(t, yaml.Unmarshal([]byte("a: &m {k: 1}\nb: *m\nc: {k: 1}\n"), &root))
+	pairs := root.Content[0].Content
+
+	assert.False(t, sharedNode(nil), "an absent node")
+	assert.True(t, sharedNode(pairs[1]), "an anchored mapping")
+	assert.True(t, sharedNode(pairs[3]), "an alias")
+	assert.False(t, sharedNode(pairs[5]), "a mapping written once")
 }
