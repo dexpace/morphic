@@ -82,6 +82,25 @@ func TestCompile_AFindingOnANodeAliasesShareIsPlacedAtItsLeastPointer(t *testing
 	}
 }
 
+// TestCompile_ANodeInsideTwoMountsIsPlacedByTheirTokens holds a node mounted
+// below A and below A- to the place under A: the two pointers part at a token
+// one of them ends, so A comes first, where the bytes of the whole strings
+// would put A- first, '-' sorting before '/'.
+func TestCompile_ANodeInsideTwoMountsIsPlacedByTheirTokens(t *testing.T) {
+	t.Parallel()
+	spec := head31 + "paths: {}\ncomponents:\n  schemas:\n" +
+		"    A: {type: object, properties: {x: &m {type: object, properties: {p: {type: 7}}}}}\n" +
+		"    A-: {type: object, properties: {x: *m}}\n"
+
+	_, diags := compileText(t, "spec.yaml", spec, openapi.Options{})
+
+	found := codedPointers(diags, typeMismatch, diag.Validation+"/validation-allowed-values")
+	require.Len(t, found, 2, "%+v", diags)
+	for _, pointer := range found {
+		assert.Equal(t, "/components/schemas/A/properties/x/properties/p/type", pointer)
+	}
+}
+
 // TestCompile_ASharedNodesFindingsDoNotDependOnWhichPlaceIsWrittenFirst holds
 // the two declaration orders of #1796's documents to equal findings, apart from
 // where the text of the node is, and to the node's own position in both.

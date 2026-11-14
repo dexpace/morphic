@@ -635,6 +635,7 @@ gives it no effect is [`allow-reserved-locations`](#allow-reserved-locations)' a
   `e2e.TestCompile_AFindingOnANodeAliasesShareIsPlacedAtItsLeastPointer`,
   `e2e.TestCompile_AnInnerSharedNodeIsPlacedAtItsLeastPointerInEveryDeclarationOrder`,
   `e2e.TestCompile_ATypeMismatchOnASharedMountIsPlacedAtTheLeastMount`,
+  `e2e.TestCompile_ANodeInsideTwoMountsIsPlacedByTheirTokens`,
   `scan.TestLeast_OrdersByThePointersTokens`, `scan.TestLeast_AgreesWithSortingEveryPointer`
 - Status: partly built: a value of what a `$ref` reaches outside the source's own reading, raw YAML
   under an `x-` key or another document, is read as the model reads it (#1928), a schema position
