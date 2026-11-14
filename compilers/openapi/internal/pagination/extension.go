@@ -31,16 +31,19 @@ func responseTargets() []lowering.ExtensionTarget {
 
 // Promote fills the pagination each operation of w, the document, declares
 // through the extensions the promotion policy maps to it, where the operation
-// holds none (docs/compilers/openapi.md#extension-pagination). A
-// pagination is filled whole or not at all: one whose values do not all
-// resolve, or which states no way to reach the next page, is reported at the
-// operation and leaves the field unset. c is the source's context.
+// holds none (docs/compilers/openapi.md#extension-pagination), whole or not
+// at all: one whose values do not all resolve, or which states no way to the
+// next page, is reported at the operation. c is the source's context.
 //
 // stated holds each operation it reads whose extensions speak of a pagination,
-// filled or not: those a step inferring one leaves alone, by that rule's
-// precedence, without reading an extension again.
-func Promote(c lowering.Ctx, w *whole.Document) (stated map[ir.OpID]bool, diags []ir.Diagnostic) {
-	pg := pager{c: c, p: c.Promoter(), w: w}
+// filled or not: those an inference leaves alone, by that rule's precedence.
+// root is the document root's Unmodeled, which an operation's key written
+// true reads (lowering.PageStatementOf).
+func Promote(c lowering.Ctx, w *whole.Document, root ir.Unmodeled) (stated map[ir.OpID]bool, diags []ir.Diagnostic) {
+	if root == nil {
+		root = ir.Unmodeled{} // the nodes read are operations, whose root states nothing
+	}
+	pg := pager{c: c, p: c.Promoter(), w: w, root: root}
 	if !pg.maps() {
 		return nil, nil
 	}
@@ -59,11 +62,13 @@ func Promote(c lowering.Ctx, w *whole.Document) (stated map[ir.OpID]bool, diags 
 }
 
 // pager is what one Promote reads its operations against: the document, w,
-// and reach, the models reaching each marking key (pager.reaching).
+// its root's Unmodeled, root, and reach, the models reaching each marking key
+// (pager.reaching).
 type pager struct {
 	c     lowering.Ctx
 	p     lowering.Promoter
 	w     *whole.Document
+	root  ir.Unmodeled
 	reach map[string]map[ir.TypeID]bool
 }
 

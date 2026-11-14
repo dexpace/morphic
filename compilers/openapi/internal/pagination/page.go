@@ -209,10 +209,9 @@ func (r *reader) modelPage(body *model, key pageKey) page {
 // its members holds, of the cursor's primitive and named as the cursor with
 // next before it; where none is and key is not strict, as the cursor itself,
 // or, for a cursor that is no string, next: a page naming both echoes the
-// cursor it was sent beside the next one, and a create answers with what it
-// was sent. It returns too the model holding that member, and otherwise why
-// there is none, none reporting that the body names no next cursor, which a
-// header may carry instead.
+// cursor it was sent, and a create answers with what it was sent. It returns
+// the model holding that member, and otherwise why there is none, none
+// reporting that the body names none, which a header may carry instead.
 func (r *reader) nextCursor(body *model, key pageKey) (path []ir.PropID, holder *model, why string, none bool) {
 	names := []string{"next_" + key.cursor, key.cursor, "next"}
 	switch {

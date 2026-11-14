@@ -569,12 +569,19 @@ const (
 	// deprecated node (docs/compilers/openapi.md#replacement-inference). Info:
 	// the message keeps its prose, so nothing it says is lost.
 	UndecidedReplacement = "openapi/undecided-replacement"
-	// UndecidedPagination reports an operation whose query parameters name a
-	// pagination input the pagination-inference policy cannot settle into an
+	// UndecidedPagination reports an operation whose request or response names a
+	// pagination the pagination-inference policy cannot settle into an
 	// ir.Pagination, saying why, at the operation: it is left with none
 	// (docs/compilers/openapi.md#pagination-policy). Info: the document
 	// declares no pagination, so nothing it says is lost.
 	UndecidedPagination = "openapi/undecided-pagination"
+	// UnpromotedExtension reports a promotion key whose value states nothing
+	// usable where it reads another node's statement, saying why, at the key:
+	// a pagination key written true where the document's root states no walk,
+	// or beside the statement its path item writes
+	// (docs/compilers/openapi.md#extension-pagination). Info: the key is kept
+	// verbatim, so nothing it says is lost.
+	UnpromotedExtension = "openapi/unpromoted-extension"
 )
 
 // Newf builds an ir.Diagnostic with a formatted message. It is the single

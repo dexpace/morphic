@@ -402,7 +402,7 @@ func TestDocument_APromotionNoMemberMarksFlattensNoModel(t *testing.T) {
 	}})
 	flattenings := whole.CountFlattenings(w)
 
-	stated, diags := pagination.Promote(c, w)
+	stated, diags := pagination.Promote(c, w, nil)
 	assert.Empty(t, stated, "no key is written")
 	assert.Empty(t, diags)
 	assert.Zero(t, *flattenings, "no member keeps the key, so no model is flattened")

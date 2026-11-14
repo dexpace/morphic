@@ -6005,14 +6005,27 @@ way, as an expression or as a mark, and is one of three things. It states part o
 an object holding a member a source reads, or, for a source reading the value whole, that value: an
 expression, written as a string, or a word a source lists, each read as above. `false` states that
 no walk, or no value of one, is there: nothing is read from it and nothing is reported. Any other
-value states nothing a source can read: `true`, null, a string, a number or a list where the sources
-read a member; an object holding none of the members they read, such as `{}`; an expression that is
-no string or is empty; and a word none of the sources of its member lists. Each is reported as an
-info `openapi/degraded-construct` at the key, or at the member read, once however many sources read
-it, saying that the key, being written, keeps an inferred pagination off where it is read. A word
-one source lists is reported by none of the others, even where only a source reading the other side
-of the walk lists it. A convention may read an operation's `true` as the walk the document's root
-states; no source reads the root, so that `true` is reported as the others are.
+value states nothing a source can read: `true` beyond the operation, null, a string, a number or a
+list where the sources read a member; an object holding none of the members they read, such as
+`{}`; an expression that is no string or is empty; and a word none of the sources of its member
+lists. Each is reported as an info `openapi/degraded-construct` at the key, or at the member read,
+once however many sources read it, saying that the key, being written, keeps an inferred pagination
+off where it is read. A word one source lists is reported by none of the others, even where only a
+source reading the other side of the walk lists it.
+
+An operation writing a key `true`, where its sources read a member, reads the walk the document's
+root states under the same key, as though the operation had written the root's object; the
+operation keeps its `true` and lists the marker where a pagination is filled, and the root's entry
+stays kept, no field of the `Document` being filled from it. This is the rule of every
+member-reading pagination source, not a field of the source. A root writing no such key, or a value
+that is no object, a root `true` being followed no further, states no walk, and the operation is
+stated all the same: the former is reported as an info `openapi/unpromoted-extension` at the
+operation's key, the latter at the root's key, so every operation writing `true` shares one finding.
+A `true` beside the same key its path item writes, which the operation keeps as
+`openapi:pathItem/<key>`, fills nothing and is reported at the operation's key as the same code: the
+nearer statement is the one a reader would expect to win, and no promotion reads it, so the root's
+is not taken in its place. An operation writing nothing beside a root that states a walk has not
+opted in, and its inference is unchanged.
 
 A pagination is read in the precedence [`policies`](#policies) gives, so no inference
 ([`pagination-policy`](#pagination-policy)) fills one the document spoke of. OpenAPI writes no
@@ -6026,8 +6039,8 @@ step inferring a pagination reads in place of their extensions, and marks no nod
 it does not fill. A key written anywhere else, such as on an error response, in a media type that
 streams, or as a mark on the operation itself, is read by no source, so it speaks of nothing.
 
-- Cases: `extension-pagination`, `body-alias`
-- Codes: `openapi/degraded-construct`
+- Cases: `extension-pagination`, `body-alias`, `extension-pagination-root`
+- Codes: `openapi/degraded-construct`, `openapi/unpromoted-extension`
 - Tests: `pagination.TestPromote_FillsWhatTheExtensionsDeclare`,
   `pagination.TestPromote_ReportsWhatFillsNone`,
   `pagination.TestPromote_ReadsEverySuccessResponse`,
@@ -6046,9 +6059,9 @@ streams, or as a mark on the operation itself, is read by no source, so it speak
   `pagination.TestMarker_AUseOfATypeTheRegistryLacksMarksNothing`,
   `lowering.TestPageStatementOf_ReadsAnExpressionOrAMark`,
   `lowering.TestPageStatementOf_ReportsWhatStatesNoValueOfAWalk`,
-  `pagination.TestInferWalks_LeavesWhatAnExtensionSpeaksOf`
-- Status: partly built: an operation's `true` that a convention reads as the walk the document's
-  root states is reported, not read (#1876).
+  `pagination.TestInferWalks_LeavesWhatAnExtensionSpeaksOf`, `pagination.TestPromote_FillsTheFlag`,
+  `pagination.TestPromote_ReadsTheRootForTrue`, `pagination.TestPromote_TrueWithNoRootStatement`
+- Status: open: a key a path item writes is read by no promotion (#1221).
 
 ### `pagination-policy`
 

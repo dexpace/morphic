@@ -166,7 +166,7 @@ witnessing it.
 
 ### `pagination`
 
-- Witnesses: `extension-pagination`, `pagination-inferred`, `body-alias`, `pagination-flag`, `pagination-body`, `pagination-links`
+- Witnesses: `extension-pagination`, `pagination-inferred`, `body-alias`, `pagination-flag`, `pagination-body`, `pagination-links`, `extension-pagination-root`
 
 ### `long-running-operations`
 

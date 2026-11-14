@@ -491,7 +491,7 @@ func TestInferWalks_LeavesWhatAnExtensionSpeaksOf(t *testing.T) {
 		{"answeredUnsettled", fern + `false`, pages + `, {name: cursor, in: query, schema: {type: string}}`, "", data,
 			"- - []", "- - [undecided-pagination]", "- - []"},
 		{"unreadable", fern + `true`, pages, "", data,
-			"- - [degraded-construct]", "page pagination-inference []", "- - [degraded-construct]"},
+			"- - [unpromoted-extension]", "page pagination-inference []", "- - [unpromoted-extension]"},
 		{"unreadableMembers", fern + `{}`, pages, "", data,
 			"- - [degraded-construct]", "page pagination-inference []", "- - [degraded-construct]"},
 		{"unreadableMark", "", pages + `, {name: after, in: query, schema: {type: string}, x-stainless-pagination-property: null}`,
@@ -514,7 +514,8 @@ func TestInferWalks_LeavesWhatAnExtensionSpeaksOf(t *testing.T) {
 	// key, being written, keeps an inferred pagination off.
 	const unread = ", so it states no value of a walk, and as the key is written, no pagination is inferred for "
 	unreadable := map[string]string{
-		"unreadable": `extension "x-fern-pagination" is true, not an object` + unread + "the operation",
+		"unreadable": `extension "x-fern-pagination" is true, which reads the walk the document's root states under ` +
+			`the same key, and the root writes none, so no pagination is inferred for the operation`,
 		"unreadableMembers": `extension "x-fern-pagination" holds none of the members the policy reads ` +
 			`(cursor, next_cursor, next_uri, results)` + unread + "the operation",
 		"unreadableMark": `extension "x-stainless-pagination-property" is null, not an object` + unread +

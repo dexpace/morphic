@@ -237,23 +237,25 @@ func run(ctx context.Context, c lowering.Ctx, ts *compile.Types, newWhole func(*
 	srv := servers.Reopen(lowered.Servers)
 	acc.AppendAll(lowered.Links.Resolve(c, w, srv))
 	out.Servers = srv.Servers()
+	// The document's root is lowered before the promotions, as a pagination key
+	// an operation writes true reads the root's; its findings keep their place.
+	m, metaDiags := document.Lower(c)
+	out.Unmodeled = annotation.MergeUnmodeled(out.Unmodeled, m.Unmodeled)
+	out.Unmodeled = annotation.MergeUnmodeled(out.Unmodeled, lowered.Kept)
 	// The operations whose extensions speak of a pagination are what the
 	// pagination inference passes over, by the precedence
 	// docs/compilers/openapi.md#policies gives: what they say of one, even that
 	// there is none, wins over what the names an operation uses suggest.
-	stated, pageDiags := pagination.Promote(c, w)
+	stated, pageDiags := pagination.Promote(c, w, out.Unmodeled)
 	acc.AppendAll(pageDiags)
 	acc.AppendAll(replacement.Resolve(c, w))
 	acc.AppendAll(replacement.Infer(c, w))
 	acc.AppendAll(convention.Apply(c, w))
 	acc.AppendAll(pagination.InferWalks(c, w, stated))
 
-	m, metaDiags := document.Lower(c)
 	out.Name, out.Version = m.Name, m.Version
 	out.TermsOfService, out.Docs = m.TermsOfService, m.Docs
 	out.Contact, out.License = m.Contact, m.License
-	out.Unmodeled = annotation.MergeUnmodeled(out.Unmodeled, m.Unmodeled)
-	out.Unmodeled = annotation.MergeUnmodeled(out.Unmodeled, lowered.Kept)
 	acc.AppendAll(metaDiags)
 	// An extension under a prefix the policy owns is judged once every node
 	// that could keep one is built, the document's own Unmodeled included.

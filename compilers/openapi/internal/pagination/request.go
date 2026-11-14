@@ -78,6 +78,8 @@ func requestInputs(w *whole.Document, op *ir.Operation) (in inputs, why string, 
 	case kind == methodOther:
 		return inputs{}, fmt.Sprintf("the operation is a %s, and only a GET or a QUERY is safe to send again for "+
 			"each page", name), true
+	case kind == methodPost && !slices.ContainsFunc(continuations, func(p place) bool { return p.kind == inBody }):
+		return inputs{}, postOutsideBody(continuations), true
 	case len(continuations) > 1:
 		return inputs{}, twoPlaces(continuations, "where a walk continues"), true
 	case len(limits) > 1:
@@ -372,16 +374,24 @@ func memberPlaces(w *whole.Document, p *ir.Parameter) (continuations, limits []p
 	return continuations, limits
 }
 
-// twoPlaces says that places, two or more, each name what. Query parameters
-// alone are listed by name; otherwise each place is named, in the order of
-// their kinds, so the finding reads the same in any declaration order.
+// twoPlaces says that places, two or more, each name what.
 func twoPlaces(places []place, what string) string {
+	return fmt.Sprintf("%s each name %s", placesNamed(places), what)
+}
+
+// placesNamed names places for a finding, so it reads the same in any
+// declaration order: query parameters alone by their names, sorted, and
+// otherwise each place, in the order of their kinds.
+func placesNamed(places []place) string {
+	if len(places) == 1 {
+		return places[0].String()
+	}
 	if !slices.ContainsFunc(places, func(p place) bool { return p.kind != inQuery }) {
 		names := make([]string, len(places))
 		for i, p := range places {
 			names[i] = strconv.Quote(p.param.Name.Source)
 		}
-		return fmt.Sprintf("query parameters %s each name %s", listed(names), what)
+		return "query parameters " + listed(names)
 	}
 	slices.SortFunc(places, func(a, b place) int {
 		return cmp.Or(cmp.Compare(a.kind, b.kind), cmp.Compare(a.String(), b.String()))
@@ -390,18 +400,26 @@ func twoPlaces(places []place, what string) string {
 	for i, p := range places {
 		names[i] = p.String()
 	}
-	return fmt.Sprintf("%s each name %s", joined(names), what)
+	return joined(names)
+}
+
+// postOutsideBody says why a POST whose continuations, none a member of its
+// request body, is no walk: a create taking its path item's page parameters
+// names them in the query, and would be sent once per page.
+func postOutsideBody(continuations []place) string {
+	verb := "names"
+	if len(continuations) > 1 {
+		verb = "each name"
+	}
+	return fmt.Sprintf("the operation is a POST, and %s %s where its walk continues: a POST is read as a walk "+
+		"only where its request body does, as one taking its path item's parameters may be a create",
+		placesNamed(continuations), verb)
 }
 
 // postRequest returns why the places of a POST's walk, in, do not tell it
-// from a create: where it continues is no member of its request body, as a
-// create taking its path item's page parameters names it in the query; or a
-// page walk names no page size in the body beside its page.
+// from a create: a page walk naming no page size in the body beside its page.
+// Where the walk continues is a member of the body (postOutsideBody).
 func postRequest(in inputs) string {
-	if in.cursor.kind != inBody {
-		return fmt.Sprintf("the operation is a POST, and %s names where its walk continues: a POST is read as a "+
-			"walk only where its request body does, as one taking its path item's parameters may be a create", in.cursor)
-	}
 	if in.strategy == ir.PageStrategyPage && (in.limit == nil || in.limit.kind != inBody) {
 		return "the operation is a POST whose request body names the page and not the page size, which a POST " +
 			"read as a walk names beside it"

@@ -41,7 +41,7 @@ func TestPageStatementOf_ReadsAnExpressionOrAMark(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			entries := ir.Unmodeled{"openapi:" + tc.src.Key: vendorExtension(tc.value)}
-			got, diags := lowering.PageStatementOf(p, lowering.TargetPaginationCursor, tc.src, entries)
+			got, diags := lowering.PageStatementOf(p, lowering.TargetPaginationCursor, tc.src, entries, nil)
 			assert.Equal(t, tc.want.Expression, got.Expression)
 			assert.Equal(t, tc.want.Stated, got.Stated)
 			assert.Equal(t, tc.want.Written, got.Written)
@@ -55,7 +55,7 @@ func TestPageStatementOf_ReadsAnExpressionOrAMark(t *testing.T) {
 	}
 	for _, src := range []lowering.ExtensionSource{expression, mark} {
 		got, diags := lowering.PageStatementOf(p, lowering.TargetPaginationCursor, src,
-			ir.Unmodeled{"openapi:x-other": vendorExtension(`{"cursor":"$request.c","purpose":"cursor"}`)})
+			ir.Unmodeled{"openapi:x-other": vendorExtension(`{"cursor":"$request.c","purpose":"cursor"}`)}, nil)
 		assert.Equal(t, lowering.PageStatement{}, got, "a node keeping another key: %s", src)
 		assert.Empty(t, diags)
 	}
@@ -170,7 +170,7 @@ func TestPageStatementOf_ReportsWhatStatesNoValueOfAWalk(t *testing.T) {
 				target = lowering.TargetPaginationNextLink
 			}
 			got, diags := lowering.PageStatementOf(p, target, tc.src,
-				ir.Unmodeled{"openapi:" + tc.src.Key: vendorExtension(tc.value)})
+				ir.Unmodeled{"openapi:" + tc.src.Key: vendorExtension(tc.value)}, nil)
 			assert.True(t, got.Written, "a key the node keeps is written, whatever it holds")
 			assert.Equal(t, tc.stated, got.Stated)
 			if tc.report == "" {
