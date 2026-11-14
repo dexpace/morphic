@@ -126,6 +126,8 @@ func TestLoad_ANullRefOfAReferenceObjectIsReadWithoutAFaultAtEachModelBuild(t *t
 			"      parameters:\n        - $ref:\n      responses: {\"200\": {description: ok}}\n",
 		"reached by a parameter's $ref": head31L + "paths:\n  /a:\n    get:\n      parameters:\n        - $ref: '#/x-lib/p'\n" +
 			"      responses: {\"200\": {description: ok}}\nx-lib:\n  p:\n    $ref:\n",
+		"merged in by a `<<`, read as left out": head31L + "x-b: &b {$ref: ~}\npaths:\n  /a:\n    get:\n" +
+			"      parameters:\n        - {<<: *b}\n      responses: {\"200\": {description: ok}}\n",
 		"in a callback": head31L + "paths:\n  /a:\n    post:\n      callbacks:\n        cb:\n          '{$request.body#/u}':\n" +
 			"            post:\n              parameters:\n                - $ref:\n              responses: {\"200\": {description: ok}}\n" +
 			"      responses: {\"200\": {description: ok}}\n",

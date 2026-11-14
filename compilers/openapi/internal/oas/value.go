@@ -37,7 +37,12 @@ func (w *walker) value(f frame, fld Field, val *yaml.Node, depth int) {
 		w.mismatch(f, fld, node, ptr)
 		return
 	}
-	w.accept(shared, node)
+	// A field of any shape reads no type: its value is the values' to render as
+	// written (nodeview.Written), so it has no say in a node another place
+	// refuses.
+	if fld.Shape != Any {
+		w.accept(shared, node)
+	}
 	if shape == String {
 		w.text(f, fmt.Sprintf("field %q", fld.Name), fld, node, ptr)
 	}

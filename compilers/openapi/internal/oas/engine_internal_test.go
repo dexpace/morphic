@@ -122,3 +122,20 @@ func TestCiteFor_PicksTheLatestCitationTheMinorHasReached(t *testing.T) {
 	assert.Equal(t, "c", citeFor([]Cite{{Minor: V32, Sentence: "c"}}, V30).Sentence, "none reached: the first")
 	assert.Equal(t, Cite{}, citeFor(nil, V30))
 }
+
+// TestLessPointer_OrdersTokenByToken holds the order a finding names the
+// position that read it by: token by token, each by its bytes, a prefix first.
+func TestLessPointer_OrdersTokenByToken(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		a, b jsontext.Pointer
+		less bool
+	}{
+		{"/A/x", "/A-/x", true},
+		{"/A-/x", "/A/x", false},
+		{"/A", "/A/x", true},
+		{"/A/x", "/A/x", false},
+	} {
+		assert.Equal(t, tc.less, lessPointer(tc.a, tc.b), "%s < %s", tc.a, tc.b)
+	}
+}

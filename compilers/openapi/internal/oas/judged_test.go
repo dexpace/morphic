@@ -136,6 +136,30 @@ func TestCheck_JudgedIsToldOfAValueRefusedInEveryPlaceOfASharedFrame(t *testing.
 	assert.Contains(t, values(j.accepted), "query", "a value accepted in a shared frame is told so")
 }
 
+// TestCheck_AFieldOfAnyShapeAcceptsNothing holds a shared scalar a parameter's
+// required refuses to being refused and never accepted when the other place
+// reads it as a value: a default, an example, a const or an enum member, which
+// read no type and so have no say.
+func TestCheck_AFieldOfAnyShapeAcceptsNothing(t *testing.T) {
+	t.Parallel()
+	for name, use := range map[string]string{
+		"schema default": "schema: {type: string, default: *r}",
+		"schema example": "schema: {type: string, example: *r}",
+		"schema const":   "schema: {type: string, const: *r}",
+		"enum member":    "schema: {type: string, enum: [*r]}",
+		"example":        "schema: {type: string}, example: *r",
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+
+			j := judge(t, oas.Components, "{x-r: &r \"yes\", parameters: {a: {name: n, in: query, required: *r, "+use+"}}}")
+
+			assert.Contains(t, values(j.refused), "yes")
+			assert.NotContains(t, values(j.accepted), "yes")
+		})
+	}
+}
+
 // TestCheck_ReferencedTellsEachMappingReadAsAReferenceObject holds the hook to
 // the mappings read as a Reference Object where an object of kind belongs, its
 // aliases followed, and to no inline object.
@@ -152,4 +176,28 @@ func TestCheck_ReferencedTellsEachMappingReadAsAReferenceObject(t *testing.T) {
 		assert.Equal(t, "$ref", n.Content[0].Value)
 	}
 	assert.Len(t, j.referenced, 1, "no other kind")
+}
+
+// TestCheck_AFindingNamesTheLeastPositionThatReadIt holds the position a
+// finding on a node two places mount names, where it is placed elsewhere than
+// either, to the least of them in both declaration orders.
+func TestCheck_AFindingNamesTheLeastPositionThatReadIt(t *testing.T) {
+	t.Parallel()
+	messages := make([]string, 0, 4)
+	for _, doc := range []string{"{schemas: {B: &m {type: 7}, A: *m}}", "{schemas: {A: &m {type: 7}, B: *m}}"} {
+		var n yaml.Node
+		require.NoError(t, yaml.Unmarshal([]byte(doc), &n))
+		diags := oas.NewChecker().Check(t.Context(), &n, "3.1.0", oas.Options{
+			Start:  oas.Components,
+			Locate: func(jsontext.Pointer) ir.Provenance { return ir.Provenance{Pointer: "/placed"} },
+			ReadAt: true,
+		})
+		for _, d := range diags {
+			messages = append(messages, d.Message)
+		}
+	}
+
+	require.Len(t, messages, 4, "two findings in each order")
+	assert.Equal(t, messages[:2], messages[2:])
+	assert.Contains(t, messages[0], "; read at /schemas/A/type")
 }

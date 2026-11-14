@@ -31,7 +31,7 @@ func CheckFormat(ctx context.Context, root *yaml.Node, declared string, opts Opt
 		return nil
 	}
 	f := formatCheck{minor: minor, at: map[*yaml.Node]jsontext.Pointer{}, merged: map[*yaml.Node]bool{},
-		locate: opts.Locate, declared: declared, readAt: opts.ReadAt, rootAt: opts.Root, said: map[ir.Diagnostic]bool{}}
+		locate: opts.Locate, declared: declared, readAt: opts.ReadAt, rootAt: opts.Root, said: map[ir.Diagnostic]saying{}}
 	if f.locate == nil {
 		f.locate = func(jsontext.Pointer) ir.Provenance { return ir.Provenance{} }
 	}

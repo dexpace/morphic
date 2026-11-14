@@ -280,10 +280,14 @@ A source past the pointer bound, as written or as an overlay patches it, is weig
 is refused, by what a compile names one by one: a value the grammar keeps raw, an example, a
 default, a `const`, an enum member, an Example Object's value, an `x-` key or a field its object
 leaves out, adds its root alone, and a raw value a `$ref` or a discriminator mapping of the
-document lands in is named node by node as the kind that reference expects. It is refused only
-when that total too is past the bound, or when it cannot be taken: a reference leaves the
-document, a fragment is no JSON pointer, or the weighing runs past the node bound. An overlay
-document and a document a reference reads keep the first total.
+document lands in, its fragment read as the binder reads one, percent escapes decoded, is named node
+by node as the kind that reference expects, once, where the walk has not named it already. It is
+refused only when that total too is past the bound, or when it cannot be taken: a reference leaves
+the document, names nothing its pointer finds, or is read under an `$id`, which moves where it
+lands; a fragment is no JSON pointer; the document may name a dialect, by `jsonSchemaDialect` or a
+`$schema` key anywhere, whose keywords hold schemas the minor's grammar keeps raw (draft 7's
+`definitions`, `dependencies`, an `items` list and `additionalItems`); or the weighing runs past the
+node bound. An overlay document and a document a reference reads keep the first total.
 - Tests: `openapi.TestCompile_SourceByteBudgetBindsOnlyPastTheLimit`,
   `openapi.TestCompiler_SourceLimitReadsTheCallersOptions`,
   `openapi.TestDetect_DeclinesASourceHoldingMoreNodesThanTheCallersBudget`,
@@ -328,7 +332,11 @@ document and a document a reference reads keep the first total.
   `e2e.TestCompile_ARawValueAReferenceLandsInIsNamedNodeByNode`,
   `e2e.TestCompile_APropertyNamedExampleHoldsASchemaAndIsNamedNodeByNode`,
   `bind.TestNamedPointerBytes_TheTotalDoesNotDependOnWhichMountIsWrittenFirst`,
-  `bind.TestNamedPointerBytes_AReferenceIntoARawValueNamesItNodeByNode`
+  `bind.TestNamedPointerBytes_AReferenceIntoARawValueNamesItNodeByNode`,
+  `bind.TestNamedPointerBytes_IsIncompleteWhereTheDocumentIsNotClosed`,
+  `bind.TestNamedPointerBytes_AFragmentLandsWhereItsDecodingNames`,
+  `bind.TestNamedPointerBytes_ALandingNamedInPlaceIsCountedOnce`,
+  `e2e.TestCompile_ARawValueAReferenceLandsInIsWeighedHoweverItIsSpelled`
 
 ### `overlays`
 
@@ -546,8 +554,8 @@ reports at the same place keeps that check's wording. Only this rule is read ove
 another document: a key that is no scalar there is reported only where a reference reaches it, so
 a shared file's unread content fails no compile. One about a node of a document no entry lists goes to the least `$ref` reaching it,
 its message naming where in that document it lies. Each finding is made once: a node an alias or a
-merge key mounts at several positions draws one, naming the position in that document that first
-read it where that is another place. A node aliases share is placed at the least pointer of the
+merge key mounts at several positions draws one, naming the least position in that document that
+read it, by the order below, where that is another place than the one it is placed at. A node aliases share is placed at the least pointer of the
 places that mount it, where its anchor is written and where each alias of it is, pointers compared
 token by token and each token by its bytes, so `/A/…` comes before `/A-/…`; its line and column
 stay where its text is written. Which place a document writes first decides nothing, and a document
@@ -556,7 +564,9 @@ cycle.
 
 A value the table refuses as the wrong type is read as the field left out by every reader of the
 source, wherever the table reads it, the parser's model among them; a construct kept verbatim shows
-it as the source wrote it. Such a value is one with none of the shapes its field admits, a boolean
+it as the source wrote it. It is read so once every judgment of the document is in: in a document
+that may name a dialect, once its Schema Objects are judged, when the model and the `$ref`s are read
+again, so such a document reads a refused value as the same document naming none does. Such a value is one with none of the shapes its field admits, a boolean
 written as a string among them, which the model reads as `true` or `false`
 ([`string-as-boolean`](../parser-library.md#string-as-boolean)), a scalar or a list under a tag
 outside YAML 1.2's JSON schema ruleset, which OpenAPI limits tags to and which the table reports
@@ -564,7 +574,8 @@ naming the tag, and a value that is no mapping where an object belongs; a `null`
 already. A field that takes any value, a default or an example, takes a tagged value as written. A
 node an alias, an anchor or a `<<` merge key shares is read so only where every place the table
 reads it refuses it: one place that accepts it keeps it as written for all, and a place the table
-does not read, such as an `x-` key, has no say.
+does not read, such as an `x-` key, or one that takes any value, such as a default, an example, a
+`const` or an `enum` member, has no say.
 
 A rule another lowering reports is stated in the table and left to it, so a document draws one
 report: [`operation-ids`](#operation-ids), a repeated parameter ([`parameters`](#parameters)), a
@@ -611,6 +622,10 @@ gives it no effect is [`allow-reserved-locations`](#allow-reserved-locations)' a
   `e2e.TestCompile_AScalarOrSequenceTaggedOutsideTheRulesetIsReadAsLeftOut`,
   `e2e.TestCompile_ANodeASchemaAndAPropertiesMapReadStaysAsWritten`,
   `e2e.TestCompile_ASharedNodeIsReadAsItsInlineSpellingIs`,
+  `oas.TestCheck_AFieldOfAnyShapeAcceptsNothing`,
+  `e2e.TestCompile_AScalarAValueSharesIsReadAsTheRefusingPlaceReadsIt`,
+  `e2e.TestCompile_ARefusedValueIsReadAlikeWhetherADocumentMayNameADialect`,
+  `e2e.TestCompile_ANodeASchemaAcceptsIsKeptInADocumentThatMayNameADialect`,
   `oas.TestCheckFormat_PlacesEachKeyAtItsOwnLine`, `nodeview.TestKeyOf_AKeyThatIsNoScalarNamesNoKey`,
   `e2e.TestCompile_AKeyThatIsNoScalarIsReportedOnceAndLeftOut`,
   `e2e.TestCompile_TwoKeysThatAreNoScalarAreEachReportedInEitherOrder`,
@@ -620,12 +635,17 @@ gives it no effect is [`allow-reserved-locations`](#allow-reserved-locations)' a
   `e2e.TestCompile_AFindingOnANodeAliasesShareIsPlacedAtItsLeastPointer`,
   `e2e.TestCompile_AnInnerSharedNodeIsPlacedAtItsLeastPointerInEveryDeclarationOrder`,
   `e2e.TestCompile_ATypeMismatchOnASharedMountIsPlacedAtTheLeastMount`,
+  `e2e.TestCompile_ANodeInsideTwoMountsIsPlacedByTheirTokens`,
+  `oas.TestCheck_AFindingNamesTheLeastPositionThatReadIt`, `oas.TestLessPointer_OrdersTokenByToken`,
   `scan.TestLeast_OrdersByThePointersTokens`, `scan.TestLeast_AgreesWithSortingEveryPointer`
-- Status: partly built: a Schema Object of a document that may name a dialect is judged once its
-  model is built, so a value it refuses is read as the model reads it, and so is a value of what a
-  `$ref` reaches outside the source's own reading, raw YAML under an `x-` key or another document
-  (#1928); a schema position there is read from its node all the same
-  ([`null-schema`](#null-schema)).
+- Status: partly built: a value of what a `$ref` reaches outside the source's own reading, raw YAML
+  under an `x-` key or another document, is read as the model reads it (#1928), a schema position
+  there read from its node all the same ([`null-schema`](#null-schema)); and an object there whose
+  own `$ref` is null, or a 3.2 `additionalOperations` entry there that is no mapping, still faults
+  the model build of what reaches it, so the path item a `$ref` reaches it from is lost whole, with
+  an `openapi/validation` error that no path item could be built (#1928). Where the table refuses an
+  `$id`'s value in a document that may name a dialect, a schema below it is judged in the dialect
+  that `$id` roots as written.
 
 ### `minor-required-fields`
 
@@ -932,8 +952,10 @@ references that closes on itself is [`reference-cycles`](#reference-cycles)'.
   `openapi/validation`
 
 A Reference Object whose `$ref` is no string, a null, a list, a mapping or a scalar tagged outside
-YAML 1.2's JSON schema ruleset, names nothing: the entry it stands in is read as left out, its
-other keys with it, and the rule table's error at the `$ref` is the one report of it. The parser's
+YAML 1.2's JSON schema ruleset, written by the mapping or merged into it by a `<<` key, names
+nothing: the entry it stands in is read as left out, its
+other keys with it, and the rule table's error at the `$ref` is the one report of it; a component
+kept verbatim shows it as written ([`unreferenced-components`](#unreferenced-components)). The parser's
 model faults building such an object, and a 3.2 `additionalOperations` entry that is no mapping
 ([`nil-populate-panic`](../parser-library.md#nil-populate-panic)), so the load phase sets each
 aside for the model's builds and puts it back before anything else reads the tree. A Path Item's
@@ -1038,10 +1060,14 @@ else it writes.
   `e2e.TestCompile_AnAdditionalOperationThatIsNoMappingIsLeftOut`,
   `e2e.TestCompile_AnAliasedNullRefIsReadWithoutAFault`, `load.TestAside_RestoreLeavesTheTreeAsWritten`,
   `load.TestLoad_TheTreeIsAsWrittenOnceTheModelIsBuilt`,
-  `load.TestLoad_ANullRefOfAReferenceObjectIsReadWithoutAFaultAtEachModelBuild`
+  `load.TestLoad_ANullRefOfAReferenceObjectIsReadWithoutAFaultAtEachModelBuild`,
+  `e2e.TestCompile_AReachedObjectTheModelFaultsOnLosesItsPathItem`,
+  `e2e.TestCompile_ARefAMergeKeyWritesThatIsNoStringLeavesTheEntryOut`,
+  `e2e.TestCompile_AComponentWhoseRefIsNoStringIsKeptAsWritten`
 - Status: partly built: a remote document can make the compiler request a private address (#937),
   and a Reference Object whose `$ref` is null in another document, or in raw YAML only a reference
-  reaches, still faults the model build of what reaches it (#1928).
+  reaches, still faults the model build of what reaches it, as does a 3.2 `additionalOperations`
+  entry there that is no mapping, so the path item reaching it is lost whole (#1928).
   A chain of documents each declaring the URI the one before it asked for costs a binding pass per
   link (#1372).
 
@@ -1184,7 +1210,8 @@ neither a section nor a reference, and the reference is followed as any other is
 - Tests: `operation.TestResponses_SummaryNoReaderTakesIsStillReported`,
   `annotation.TestRead_NodeTypeOnlyADefinedValueIsPlaced`,
   `operation.TestContent_MediaTypeDescriptionReachesItsDocs`,
-  `document.TestComponentMediaTypes_AnUnreferencedEntryIsKept`
+  `document.TestComponentMediaTypes_AnUnreferencedEntryIsKept`,
+  `e2e.TestCompile_AComponentWhoseRefIsNoStringIsKeptAsWritten`
 
 ### `unreferenced-components`
 
@@ -1198,8 +1225,10 @@ pointer, with no diagnostic. The sections are `responses`, `parameters`, `exampl
 at every version, as [`unmodeled-dialect-fields`](#unmodeled-dialect-fields) reads a field the
 parser does not model; `components/schemas` and `components/securitySchemes` are lowered
 unconditionally. A section is read as the parser reads it, through `<<` merge keys, so a merged-in
-entry is kept under its own name, and an entry whose key is no scalar under the empty name the
-parser reads it by ([`validation`](#validation) reports the key). Where the components merge
+entry is kept under its own name, and an entry whose key is no scalar is left out
+([`validation`](#validation) reports the key). An entry whose `$ref` is no string, which every
+reader takes for the entry left out ([`references`](#references)), is kept as the source wrote it,
+beside the rule table's error at the `$ref`. Where the components merge
 through `<<` deeper than the levels a mapping's merges are expanded to (`nodeview.MergeDepthLimit`),
 an `openapi/degraded-construct` warning at `components` says so, and an entry past that depth is not
 kept.
@@ -1228,7 +1257,8 @@ for an oversight.
   `document.TestUnreferencedComponents_ReadAsTheParserReadsThem`,
   `document.TestUnreferencedComponents_SelfReferenceByFileNameReaches`,
   `document.TestUnreferencedComponents_MergeDepthBoundIsReported`,
-  `document.TestComponentMediaTypes_AnUnreferencedEntryIsKept`
+  `document.TestComponentMediaTypes_AnUnreferencedEntryIsKept`,
+  `e2e.TestCompile_AComponentWhoseRefIsNoStringIsKeptAsWritten`
 
 ## 3. Names and values
 

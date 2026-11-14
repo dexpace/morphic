@@ -5,7 +5,6 @@ package bind
 
 import (
 	"context"
-	"encoding/json/jsontext"
 	"math"
 	"strconv"
 	"strings"
@@ -13,16 +12,18 @@ import (
 	yaml "go.yaml.in/yaml/v3"
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/budget"
+	"github.com/dexpace/morphic/compilers/openapi/internal/fragment"
 	"github.com/dexpace/morphic/compilers/openapi/internal/nodeview"
 )
 
 // NamedPointerBytes totals the JSON pointers of the nodes a compile of root
-// names one by one: every node but those inside a value the grammar keeps raw
-// (an example, a default, a const, an enum member, an Example Object's value,
-// an x- key, a field the object leaves out), which add their root alone, and
-// with them every raw value a reference of the document lands in or under,
-// read as the kind that reference expects. complete is false when a reference
-// leaves the document, when a fragment is no JSON pointer, or past maxSteps.
+// names one by one (docs/compilers/openapi.md#source-budgets): a value the
+// grammar keeps raw adds its root alone, and a raw value a reference of the
+// document lands in is named as the kind that reference expects, once. It
+// reads a schema by the minor's own grammar, so its caller answers for a
+// document naming a dialect. complete is false where the total cannot be
+// taken: a reference leaves the document, names nothing its pointer finds, or
+// is read under an `$id`; a fragment is no JSON pointer; or past maxSteps.
 func NamedPointerBytes(ctx context.Context, root *yaml.Node, maxSteps int) (bytes int, complete bool) {
 	w := named{memo: map[namedKey]namedShape{}, steps: budget.New(budget.AtMost(maxSteps)),
 		view: nodeview.New(), root: nodeview.DocumentRoot(root), complete: true}
@@ -30,14 +31,12 @@ func NamedPointerBytes(ctx context.Context, root *yaml.Node, maxSteps int) (byte
 		return 0, true
 	}
 	total := w.shapeOf(ctx, namedKey{n: w.root, s: sDocument}).pointers
-	added := map[namedKey]bool{}
 	for i := 0; i < len(w.refs) && w.complete; i++ {
 		target, base, ok := w.landing(w.refs[i].ref)
 		key := namedKey{n: target, s: w.refs[i].s}
-		if !ok || added[key] {
+		if _, named := w.memo[key]; !ok || named {
 			continue
 		}
-		added[key] = true
 		got := w.shapeOf(ctx, key)
 		total = sat(total, sat(got.pointers, satMul(got.nodes, base)))
 	}
@@ -187,6 +186,10 @@ func (w *named) noteRefs(k namedKey) {
 	if k.s != sSchema {
 		return
 	}
+	if w.view.ChildByToken(k.n, "$id") != nil {
+		w.complete = false
+		return
+	}
 	mapping := nodeview.Deref(w.view.ChildByToken(nodeview.Deref(w.view.ChildByToken(k.n, "discriminator")), "mapping"))
 	for _, p := range w.view.MappingPairs(mapping) {
 		if ref, ok := scalarText(p.Val); ok {
@@ -195,19 +198,20 @@ func (w *named) noteRefs(k namedKey) {
 	}
 }
 
-// landing returns the node ref names in the document, and the bytes of its
-// pointer. It is false, and the total incomplete, for a reference leaving the
-// document or whose fragment is no JSON pointer; false alone for one naming
-// nothing the document holds.
+// landing returns the node ref names in the document, its fragment read as the
+// binder reads one (fragment.Pointer), and the bytes of its pointer. It is
+// false, and the total incomplete, for a reference leaving the document,
+// whose fragment is no JSON pointer, or naming nothing the pointer finds,
+// which the binder may still answer by a rule of its own.
 func (w *named) landing(ref string) (*yaml.Node, int, bool) {
-	fragment, local := strings.CutPrefix(ref, "#")
-	if !local || fragment != "" && !strings.HasPrefix(fragment, "/") {
+	pointer := fragment.Pointer(ref)
+	if !strings.HasPrefix(ref, "#") || pointer != "" && !strings.HasPrefix(string(pointer), "/") || !pointer.IsValid() {
 		w.complete = false
 		return nil, 0, false
 	}
-	pointer := jsontext.Pointer(fragment)
 	path, found := w.view.DocumentPath(w.root, pointer)
 	if !found || len(path) == 0 {
+		w.complete = false
 		return nil, 0, false
 	}
 	base := 0

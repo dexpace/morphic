@@ -84,4 +84,7 @@ document's top-level mapping, whose pointer is the empty one, which beside a pos
 producer's, and nothing parses it. A verifier holds a `Pointer` to RFC 6901 and a `Position` to
 1-based values, and refuses either one on `NoSource`, where there is no file for it to be inside.
 Nothing requires exactly one locator: a finding may carry a `Node` beside a source location, and a
-node the lowering reached may carry both a pointer and a position.
+node the lowering reached may carry both a pointer and a position. The two need not name one place:
+a node YAML aliases share is one node at several pointers, so its `Pointer` is the least of the
+places that mount it, compared token by token, while its `Position` is where its text is written,
+which may be another of them.

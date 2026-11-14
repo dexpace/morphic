@@ -6,6 +6,7 @@ package oas
 import (
 	"encoding/json/jsontext"
 	"fmt"
+	"slices"
 	"strings"
 
 	yaml "go.yaml.in/yaml/v3"
@@ -48,7 +49,14 @@ type reporter struct {
 	readAt bool
 	rootAt jsontext.Pointer
 	// said holds each finding made, as placed, before readAt adds to it.
-	said map[ir.Diagnostic]bool
+	said map[ir.Diagnostic]saying
+}
+
+// saying is where a finding stands in reporter.diags, and the least position
+// that read it.
+type saying struct {
+	at   int
+	read jsontext.Pointer
 }
 
 // report adds a finding of class at ptr.
@@ -59,16 +67,42 @@ func (r *reporter) report(sev ir.Severity, class string, ptr jsontext.Pointer, f
 // add adds d, a finding about the node read at ptr, unless it was made already:
 // a node an alias mounts at two positions is read at each, and a defect in it
 // is one defect, at one node. Where readAt holds and that node is written
-// elsewhere, the message names the position it was first read at.
+// elsewhere, the message names the least position that read it, pointers
+// compared token by token, so the name is the document's and not the order a
+// walk met its mounts in.
 func (r *reporter) add(d ir.Diagnostic, ptr jsontext.Pointer) {
-	if r.said[d] {
-		return
+	read := r.rootAt + ptr
+	s, made := r.said[d]
+	switch {
+	case !made:
+		r.said[d] = saying{at: len(r.diags), read: read}
+		r.diags = append(r.diags, r.readAs(d, read))
+	case lessPointer(read, s.read):
+		r.said[d] = saying{at: s.at, read: read}
+		r.diags[s.at] = r.readAs(d, read)
+	default:
 	}
-	r.said[d] = true
-	if read := r.rootAt + ptr; r.readAt && d.Provenance.Pointer != "" && d.Provenance.Pointer != read {
+}
+
+// readAs returns d naming read, the position that read it, where readAt holds
+// and d is placed elsewhere.
+func (r *reporter) readAs(d ir.Diagnostic, read jsontext.Pointer) ir.Diagnostic {
+	if r.readAt && d.Provenance.Pointer != "" && d.Provenance.Pointer != read {
 		d.Message += readAtClause + string(read)
 	}
-	r.diags = append(r.diags, d)
+	return d
+}
+
+// lessPointer reports whether a comes before b, token by token, each token
+// compared by its bytes, and a pointer that is a prefix of another first.
+func lessPointer(a, b jsontext.Pointer) bool {
+	x, y := slices.Collect(a.Tokens()), slices.Collect(b.Tokens())
+	for i := range min(len(x), len(y)) {
+		if c := strings.Compare(x[i], y[i]); c != 0 {
+			return c < 0
+		}
+	}
+	return len(x) < len(y)
 }
 
 // readAtClause begins what Options.ReadAt adds to a message.

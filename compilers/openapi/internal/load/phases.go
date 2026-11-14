@@ -13,6 +13,7 @@ import (
 	yaml "go.yaml.in/yaml/v3"
 
 	"github.com/dexpace/morphic/compilers"
+	"github.com/dexpace/morphic/compilers/openapi/internal/bind"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/doctree"
 	"github.com/dexpace/morphic/compilers/openapi/internal/overlay"
@@ -92,10 +93,12 @@ type loading struct {
 	place  provenance.Doc
 	tree   provenance.Tree
 	judged judgment
-	// aside holds what the load set aside for the model build (settle).
-	aside aside
-	doc   *soa.OpenAPI
-	minor string
+	// aside holds what the load set aside for the model build (settle), and
+	// anchors each anchor the model build cleared (readyForModel).
+	aside   aside
+	anchors []anchor
+	doc     *soa.OpenAPI
+	minor   string
 	// dialects reads the source and each document a reference reaches at its
 	// minor, off the table judged gives, so a compile builds that table once.
 	dialects *dialects
@@ -154,16 +157,21 @@ func (l *loading) settle(context.Context) (bool, error) {
 // buildModel builds the parser's model of the tree, its anchors released, and
 // refuses a version the compiler does not support.
 func (l *loading) buildModel(ctx context.Context) (bool, error) {
-	readyForModel(ctx, l.root, &l.aside)
-	// The model build reads no context, so a cancel that cut the walk above
-	// short is seen before it starts, and never waited out on a tree half
-	// prepared for it.
-	if err := ctx.Err(); err != nil {
-		return false, err
+	l.anchors = readyForModel(ctx, l.root, &l.aside)
+	if refused, err := l.model(ctx); refused || err != nil {
+		return refused, err
 	}
-	doc, err := unmarshal(ctx, l.src.Data, l.root)
+	l.dialects = &dialects{spec: l.judged.checker.Spec(), version: l.doc.OpenAPI, minor: l.minor,
+		dialect: l.doc.GetJSONSchemaDialect()}
+	return false, nil
+}
+
+// model builds the parser's model of the tree (decode), and refuses a version
+// the compiler does not support.
+func (l *loading) model(ctx context.Context) (bool, error) {
+	doc, err := l.decode(ctx)
 	if err != nil {
-		return false, fmt.Errorf("openapi: unmarshal source %d: %w", l.srcIndex, err)
+		return false, err
 	}
 	minor, ok := supportedMinor(doc.OpenAPI)
 	if !ok {
@@ -173,31 +181,93 @@ func (l *loading) buildModel(ctx context.Context) (bool, error) {
 		return true, nil
 	}
 	l.doc, l.minor = doc, minor
-	l.dialects = &dialects{spec: l.judged.checker.Spec(), version: doc.OpenAPI, minor: minor,
-		dialect: doc.GetJSONSchemaDialect()}
 	return false, nil
+}
+
+// decode builds the parser's model of the tree as it now reads.
+func (l *loading) decode(ctx context.Context) (*soa.OpenAPI, error) {
+	// The model build reads no context, so a cancel that cut a walk before it
+	// short is seen before it starts, and never waited out on a tree half
+	// prepared for it.
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	doc, err := unmarshal(ctx, l.src.Data, l.root)
+	if err != nil {
+		return nil, fmt.Errorf("openapi: unmarshal source %d: %w", l.srcIndex, err)
+	}
+	return doc, nil
 }
 
 // findSiblings models the fields the source writes beside its path items'
 // $refs, and the components/mediaTypes entries it declares.
 func (l *loading) findSiblings(ctx context.Context) (bool, error) {
-	l.sibs, l.sibFaults = modelSiblings(ctx, l.doc, l.tree)
-	var mediaFaults []ir.Diagnostic
-	l.media, mediaFaults = modelMediaTypes(ctx, l.doc, l.tree)
-	l.sibFaults = append(l.sibFaults, mediaFaults...)
+	l.modelBeside(ctx)
 	l.self = newSourceDocument(l.src, l.places, l.root, l.judged, l.tree)
 	return false, nil
 }
 
-// bindRefs binds every $ref in the compiler (bindAll), reading other
-// documents through a preparing reader when the caller supplied one, and
-// places what it found where the binding places each document.
+// modelBeside models what the parser's model leaves out: the fields beside
+// path item $refs, and the components/mediaTypes entries.
+func (l *loading) modelBeside(ctx context.Context) {
+	l.sibs, l.sibFaults = modelSiblings(ctx, l.doc, l.tree)
+	var mediaFaults []ir.Diagnostic
+	l.media, mediaFaults = modelMediaTypes(ctx, l.doc, l.tree)
+	l.sibFaults = append(l.sibFaults, mediaFaults...)
+}
+
+// bindRefs binds every $ref in the compiler (bindTable), reading other
+// documents through a preparing reader when the caller supplied one, judges
+// the Schema Objects the table gives a dialect (judgeSchemas), and builds what
+// each landing names (bindAll), placing what it found where the binding places
+// each document. A value that judgment leaves refused is turned before any
+// landing is built, and what was read off the tree read again (reread).
 func (l *loading) bindRefs(ctx context.Context) (bool, error) {
 	if l.opts.Reader != nil {
 		l.reader = newExternal(l.opts, newExternalReads(l.self, l.opts.MaxExternalDocuments), &l.aside)
 	}
-	l.bound = bindAll(ctx, l.doc, l.sibs, l.media, l.self, l.reader, refusedByName(l.opts, l.self.path, l.places), l.dialects)
-	table := l.bound.bindings.Table()
+	table, unread := l.readTable(ctx)
+	if len(l.judged.pending) > 0 && l.judgeLate(ctx) {
+		if err := l.reread(ctx); err != nil {
+			return false, err
+		}
+		table, unread = l.readTable(ctx)
+	}
+	l.self.judged = l.judged
+	others := l.bound.others
+	l.bound = bindAll(ctx, table, l.doc, l.sibs, l.media)
+	l.bound.others = others
+	l.resolved = slices.Concat(l.bound.others.found, unread, l.bound.faults.diags(l.sites, table), bindingDiags(l.sites, table),
+		buildFailures(l.sites, l.bound.built, l.bound.objects))
+	if l.reader != nil {
+		l.resolved = append(l.resolved, l.reader.read.exhausted(l.place)...)
+	}
+	return false, nil
+}
+
+// judgeLate judges the Schema Objects the bindings give a dialect
+// (judgeSchemas) with the anchors readyForModel cleared named again, since
+// whether another place may read a node is read off them
+// (oas.Options.Judged), and turns what that leaves refused (turnRefused),
+// reporting whether it turned any.
+func (l *loading) judgeLate(ctx context.Context) bool {
+	for _, a := range l.anchors {
+		a.node.Anchor = a.name
+	}
+	l.judged = judgeSchemas(ctx, l.judged, l.named)
+	for _, a := range l.anchors {
+		a.node.Anchor = ""
+	}
+	return turnRefused(l.judged)
+}
+
+// readTable binds the source's references (bindTable) and reads off the table
+// what the load places and lowers by: the other documents a reference read,
+// where a finding is placed, and the dialect each schema is read in, with
+// what that reading could not read.
+func (l *loading) readTable(ctx context.Context) (*bind.Table, []ir.Diagnostic) {
+	table := bindTable(ctx, l.doc, l.self, l.reader, refusedByName(l.opts, l.self.path, l.places), l.dialects)
+	l.bound.others = Others{}
 	if l.reader != nil {
 		first := l.srcIndex + 1
 		if l.origin.Applied() {
@@ -208,14 +278,24 @@ func (l *loading) bindRefs(ctx context.Context) (bool, error) {
 	l.sites = places{source: l.place, others: l.bound.others, table: table}
 	var unread []ir.Diagnostic
 	l.named, unread = readDialects(table, l.bound.others, l.dialects, l.sites)
-	l.judged = judgeSchemas(ctx, l.judged, l.named)
-	l.self.judged = l.judged
-	l.resolved = slices.Concat(l.bound.others.found, unread, l.bound.faults.diags(l.sites, table), bindingDiags(l.sites, table),
-		buildFailures(l.sites, l.bound.built, l.bound.objects))
-	if l.reader != nil {
-		l.resolved = append(l.resolved, l.reader.read.exhausted(l.place)...)
+	return table, unread
+}
+
+// reread builds again, from the tree a late turn changed (bindRefs), what was
+// read off it before: the shapes set aside, the parser's model and what it
+// leaves out. The anchors are released already, and the version stands as the
+// first build read it: a value the table refuses there is one the model
+// decodes nothing from (docs/parser-library.md#undecoded-scalar), which that
+// build refused.
+func (l *loading) reread(ctx context.Context) error {
+	setAside(l.judged, &l.aside)
+	doc, err := l.decode(ctx)
+	if err != nil {
+		return err
 	}
-	return false, nil
+	l.doc = doc
+	l.modelBeside(ctx)
+	return nil
 }
 
 // reach validates what the references reach (validateReached), once every
