@@ -97,7 +97,7 @@ witnessing it.
 
 ### `redaction`
 
-- Witnesses: `secret-format`, `extension-redaction`, `secret-inference`
+- Witnesses: `secret-format`, `extension-redaction`, `secret-inference`, `carried-keys`
 
 ### `recursive-types`
 
@@ -208,7 +208,7 @@ witnessing it.
 
 ### `stability`
 
-- Witnesses: `extension-stability`
+- Witnesses: `extension-stability`, `carried-keys`
 
 ### `examples`
 
@@ -221,7 +221,7 @@ witnessing it.
 
 ### `vendor-extensions`
 
-- Witnesses: `extensions-x`, `inline-annotations`
+- Witnesses: `extensions-x`, `inline-annotations`, `carried-keys`
 
 ### `positional-encoding`
 

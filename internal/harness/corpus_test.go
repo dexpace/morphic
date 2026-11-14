@@ -31,6 +31,9 @@ import (
 // fixture that is missing or draws no error.
 func knownInvalid() map[string]bool {
 	return map[string]bool{
+		// Two tags of one name, which the load refuses as a repeated name and
+		// the lowering still reads, each tag keeping its own keys.
+		filepath.FromSlash("../../testdata/openapi/tag_repeated_name.yaml"): true,
 		// A response with no description and a header whose required is the
 		// string "notabool": two schema violations.
 		filepath.FromSlash("../../testdata/openapi/resolve_target_invalid.yaml"): true,

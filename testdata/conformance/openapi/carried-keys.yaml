@@ -1,0 +1,24 @@
+openapi: 3.1.0
+info: {title: T, version: "1"}
+tags:
+  - {name: T, x-stability: beta, x-note: n, externalDocs: {url: 'https://example.com', x-doc: 1}}
+  - {name: Lone, x-stability: alpha}
+paths:
+  /a:
+    x-stability: beta
+    get:
+      operationId: a
+      tags: [T]
+      parameters:
+        - {name: p, in: query, x-a: FROM_PARAMETER, schema: {type: string, x-a: FROM_SCHEMA, x-sensitive: true}}
+        - {name: c, in: query, content: {application/json: {x-a: FROM_MEDIA, x-sensitive: true, schema: {type: string, x-a: FROM_SCHEMA}}}}
+      responses:
+        "200":
+          description: ok
+          headers:
+            X-H: {x-a: FROM_HEADER, content: {text/plain: {x-sensitive: true, schema: {type: string}}}}
+    put:
+      operationId: own
+      tags: [T]
+      x-stability: stable
+      responses: {"204": {description: ok}}

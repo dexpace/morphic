@@ -1,0 +1,21 @@
+openapi: 3.0.3
+info: {title: T, version: "1"}
+paths:
+  /s/{schema_id}:
+    get:
+      operationId: g
+      parameters:
+        - name: schema_id
+          in: path
+          required: true
+          schema:
+            allOf:
+              - {$ref: '#/components/schemas/Id'}
+              - {type: string, format: uuid, readOnly: true}
+        - name: q
+          in: query
+          schema: {type: string, xml: {name: s, x-tag: 5}}
+      responses: {"204": {description: ok}}
+components:
+  schemas:
+    Id: {type: string, maxLength: 36}

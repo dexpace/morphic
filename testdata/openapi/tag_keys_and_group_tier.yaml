@@ -1,0 +1,10 @@
+openapi: 3.1.0
+info: {title: t, version: "1"}
+tags:
+  - {name: Billing, x-note: n, x-stability: beta}
+paths:
+  /a:
+    get:
+      operationId: a
+      tags: [Billing]
+      responses: {"200": {description: ok}}
