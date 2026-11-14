@@ -21,6 +21,7 @@ import (
 // one hop away, and a pagination an extension states reads it two hops away;
 // no step reports a member it cannot find, since the model holds each.
 func assertBodyAlias(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
+	t.Helper()
 	assert.Empty(t, diags, "a body read through an alias draws no finding")
 	nextCursor := &ir.PropPath{Segments: []ir.PropID{componentProp("Page/properties/next_cursor")}}
 

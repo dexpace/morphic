@@ -162,11 +162,11 @@ witnessing it.
 
 ### `operation-links`
 
-- Witnesses: `response-links`
+- Witnesses: `response-links`, `body-alias`
 
 ### `pagination`
 
-- Witnesses: `extension-pagination`, `pagination-inferred`
+- Witnesses: `extension-pagination`, `pagination-inferred`, `body-alias`
 
 ### `long-running-operations`
 

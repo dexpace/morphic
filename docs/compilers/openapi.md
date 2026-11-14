@@ -5327,7 +5327,8 @@ is not also kept on the document ([`unreferenced-components`](#unreferenced-comp
    parameter the operation answered binds there; `$response.header.<name>` to the one header the
    response declares under that name in any case; and a `body` reference to the body whole, or to
    the chain of members its pointer walks from the root of every content of that body, which every
-   content must walk alike.
+   content must walk alike. A root or a member typed as an alias of a model, as a schema that is a
+   `$ref` alone lowers, is read as that model, through any number of aliases.
 4. Its `server` registers as a server at the link's own pointer, and its extensions and undeclared
    keys stay on it.
 
@@ -5346,7 +5347,7 @@ A link that does not lower whole is kept verbatim on its response under `openapi
    the expression keeps the grammar or not and whether the string is the value or sits within a
    list or an object the value holds, or a constant the IR has no value for.
 
-- Cases: `response-links`
+- Cases: `response-links`, `body-alias`
 - Codes: `openapi/invalid-link`, `openapi/untyped-link`
 - Tests: `operation.TestLinks_AFindingKeepsTheLinkWhole`, `operation.TestLinks_ResolvedFormsLower`,
   `operation.TestLinks_EveryValueKindLowers`, `operation.TestLinks_ErrorsAndDefaultsCarryLinks`,
@@ -5355,17 +5356,21 @@ A link that does not lower whole is kept verbatim on its response under `openapi
   `operation.TestLinks_AHeaderTwoCasesDeclareIsNeither`,
   `operation.TestLinks_AHeaderIsReadOffItsOwnResponse`,
   `operation.TestLinks_LowerAlikeInEitherDeclarationOrder`,
+  `operation.TestLinks_ReadAMemberThroughAnAlias`,
   `operation.TestLinksResolve_AllocatesLinearInWhatItReads`,
   `runtimeexpr.TestParse_ReadsTheGrammar`,
   `runtimeexpr.TestEmbeds_FindsAnExpressionInBraces`,
   `runtimeexpr.TestEmbeds_AllocatesNothing`,
   `runtimeexpr.TestBodyPath_WalksEveryContentToTheSameMembers`,
-  `runtimeexpr.TestLookups_IndexEachListOnceWhenAValueFirstReadsIt`,
+  `lowering.TestWhole_MemberAgreesWithMembers`,
+  `lowering.TestWhole_WalkNamesEachMemberFromTheRoot`,
+  `lowering.TestWhole_HeaderMatchesTheNameWithoutCase`,
+  `lowering.TestWhole_ReadsOnceAndAllocatesNothingAfter`,
+  `lowering.TestWhole_ABodyReadFlattensNoModel`,
+  `e2e.TestBodyAlias_ReadsTheSameInEitherOrder`,
   `e2e.TestUnpreservable_AnnouncementNeverOutrunsTheEntry`
 - Status: partly built: a key beside a link's `$ref` other than `summary` and `description` is
-  dropped with no record, as beside any other reference (#1321). A body whose media types hold
-  distinct models composing one wide model costs a link reading it their number times that width
-  (#1723).
+  dropped with no record, as beside any other reference (#1321).
 
 ## 12. Webhooks and callbacks
 
@@ -5977,7 +5982,9 @@ reads whichever arrives. A media type that streams
 not read, and a response every media type of which streams declares no page body, as one declaring
 no body does not. A value that a response or a media type holds at another member, or not at all, as
 a header two success responses each declare does, resolves to nothing, as does a value a mark finds
-at two members as near the root, or at a header and a member of one response. The fields fill a
+at two members as near the root, or at a header and a member of one response. A body or a member
+typed as an alias of a model is read as that model, as a link reads one ([`links`](#links)). The
+fields fill a
 pagination whole or not at all: a value that resolves to nothing, two inputs continuing the walk, a
 cursor beside no next cursor or a next cursor beside no cursor, an offset or a page number beside no
 items, which a pager counts to advance an offset and to end either walk
@@ -6015,7 +6022,7 @@ step inferring a pagination reads in place of their extensions, and marks no nod
 it does not fill. A key written anywhere else, such as on an error response, in a media type that
 streams, or as a mark on the operation itself, is read by no source, so it speaks of nothing.
 
-- Cases: `extension-pagination`
+- Cases: `extension-pagination`, `body-alias`
 - Codes: `openapi/degraded-construct`
 - Tests: `pagination.TestPromote_FillsWhatTheExtensionsDeclare`,
   `pagination.TestPromote_ReportsWhatFillsNone`,
@@ -6029,7 +6036,8 @@ streams, or as a mark on the operation itself, is read by no source, so it speak
   `pagination.TestPromote_ReadsNoOperationHoldingOne`,
   `pagination.TestPromote_ReadsAHeaderOffItsOwnOperation`,
   `pagination.TestPromote_AllocatesLinearInWhatItReads`,
-  `lowering.TestOperations_ReadsEveryGroupToTheCap`,
+  `pagination.TestPromote_ReadsAPageThroughAnAlias`,
+  `lowering.TestWhole_ListsEveryOperationOnce`,
   `pagination.TestMarker_AUseOfATypeTheRegistryLacksMarksNothing`,
   `lowering.TestPageStatementOf_ReadsAnExpressionOrAMark`,
   `lowering.TestPageStatementOf_ReportsWhatStatesNoValueOfAWalk`,
@@ -6112,8 +6120,8 @@ declaration both mounts share.
   `pagination.TestInferWalks_ReadsTheSameInEitherOrder`,
   `pagination.TestInferWalks_ReportsTheSameWhateverTheResponseOrder`,
   `pagination.TestInferWalks_ReadsAMountedDeclarationForEachMount`,
-  `pagination.TestResolve_ReadsAtMostTheBound`,
-  `lowering.TestOperations_ReadsEveryGroupToTheCap`,
+  `lowering.TestWhole_StandsReadsThroughAliasScalarsToTheCap`,
+  `lowering.TestWhole_ListsEveryOperationOnce`,
   `lowering.TestPaginationInference_TheZeroValueHonoursThePolicy`,
   `openapi.TestDecodeOptions_TextReachesEveryField`
 - Status: partly built: an input a request body or a parameter's members carry is not read (#1815),

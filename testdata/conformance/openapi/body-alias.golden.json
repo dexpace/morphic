@@ -1,0 +1,480 @@
+{
+  "idSpaces": {
+    "auth": [
+      "openapi",
+      "unresolved"
+    ],
+    "e": [
+      "anon",
+      "composed",
+      "openapi"
+    ],
+    "g": [
+      "default",
+      "extension",
+      "path-prefix",
+      "tags",
+      "webhooks"
+    ],
+    "op": [
+      "openapi"
+    ],
+    "p": [
+      "composed",
+      "openapi"
+    ],
+    "param": [
+      "openapi"
+    ],
+    "s": [
+      "openapi"
+    ],
+    "server": [
+      "default",
+      "openapi"
+    ],
+    "t": [
+      "anon",
+      "composed",
+      "openapi"
+    ]
+  },
+  "name": "T",
+  "version": "1",
+  "docs": {},
+  "services": [
+    {
+      "id": "s/openapi/0",
+      "name": {
+        "source": "T",
+        "canonical": "t"
+      },
+      "docs": {},
+      "groups": [
+        {
+          "id": "g/default",
+          "name": {
+            "hint": "default"
+          },
+          "docs": {},
+          "operations": [
+            {
+              "id": "op/openapi/paths/~1pets/get",
+              "name": {
+                "source": "listPets",
+                "canonical": "list_pets"
+              },
+              "docs": {},
+              "params": [
+                {
+                  "id": "param/openapi/paths/~1pets/get/parameters/cursor/query",
+                  "name": {
+                    "source": "cursor",
+                    "canonical": "cursor"
+                  },
+                  "type": {
+                    "target": "t/prim/string",
+                    "nullable": false
+                  },
+                  "required": false,
+                  "docs": {},
+                  "provenance": {
+                    "source": 0,
+                    "pointer": "/paths/~1pets/get/parameters/0"
+                  }
+                }
+              ],
+              "responses": [
+                {
+                  "name": {
+                    "hint": "200"
+                  },
+                  "conditions": {
+                    "statusCodes": [
+                      {
+                        "from": 200,
+                        "to": 200
+                      }
+                    ]
+                  },
+                  "payload": {
+                    "contents": [
+                      {
+                        "mediaType": "application/json",
+                        "type": {
+                          "target": "t/openapi/components/schemas/Pets",
+                          "nullable": false
+                        }
+                      }
+                    ]
+                  },
+                  "links": [
+                    {
+                      "name": {
+                        "source": "next",
+                        "canonical": "next"
+                      },
+                      "operation": "op/openapi/paths/~1pets/get",
+                      "params": [
+                        {
+                          "param": "param/openapi/paths/~1pets/get/parameters/cursor/query",
+                          "value": {
+                            "kind": "response",
+                            "response": {
+                              "segments": [
+                                "p/openapi/components/schemas/Page/properties/next_cursor"
+                              ]
+                            }
+                          }
+                        }
+                      ],
+                      "docs": {},
+                      "provenance": {
+                        "source": 0,
+                        "pointer": "/paths/~1pets/get/responses/200/links/next"
+                      }
+                    }
+                  ],
+                  "docs": {
+                    "description": "ok"
+                  }
+                }
+              ],
+              "oneWay": false,
+              "pagination": {
+                "strategy": "cursor",
+                "inferred": true,
+                "inputCursor": {
+                  "param": "param/openapi/paths/~1pets/get/parameters/cursor/query"
+                },
+                "items": {
+                  "segments": [
+                    "p/openapi/components/schemas/Page/properties/result"
+                  ]
+                },
+                "nextCursor": {
+                  "segments": [
+                    "p/openapi/components/schemas/Page/properties/next_cursor"
+                  ]
+                },
+                "stop": [
+                  "no_next"
+                ]
+              },
+              "idempotency": {},
+              "bindings": {
+                "http": [
+                  {
+                    "method": "GET",
+                    "uriTemplate": "/pets",
+                    "paramBindings": [
+                      {
+                        "param": "param/openapi/paths/~1pets/get/parameters/cursor/query",
+                        "location": "query",
+                        "wireName": "cursor",
+                        "style": "form",
+                        "allowReserved": false,
+                        "allowEmptyValue": false
+                      }
+                    ],
+                    "sharedRoute": false,
+                    "checksumRequired": false
+                  }
+                ]
+              },
+              "provenance": {
+                "source": 0,
+                "pointer": "/paths/~1pets/get",
+                "inferred": "pagination-inference"
+              }
+            },
+            {
+              "id": "op/openapi/paths/~1dogs/get",
+              "name": {
+                "source": "listDogs",
+                "canonical": "list_dogs"
+              },
+              "docs": {},
+              "params": [
+                {
+                  "id": "param/openapi/paths/~1dogs/get/parameters/cursor/query",
+                  "name": {
+                    "source": "cursor",
+                    "canonical": "cursor"
+                  },
+                  "type": {
+                    "target": "t/prim/string",
+                    "nullable": false
+                  },
+                  "required": false,
+                  "docs": {},
+                  "provenance": {
+                    "source": 0,
+                    "pointer": "/paths/~1dogs/get/parameters/0"
+                  }
+                }
+              ],
+              "responses": [
+                {
+                  "name": {
+                    "hint": "200"
+                  },
+                  "conditions": {
+                    "statusCodes": [
+                      {
+                        "from": 200,
+                        "to": 200
+                      }
+                    ]
+                  },
+                  "payload": {
+                    "contents": [
+                      {
+                        "mediaType": "application/json",
+                        "type": {
+                          "target": "t/openapi/components/schemas/Dogs",
+                          "nullable": false
+                        }
+                      }
+                    ]
+                  },
+                  "docs": {
+                    "description": "ok"
+                  }
+                }
+              ],
+              "oneWay": false,
+              "pagination": {
+                "strategy": "cursor",
+                "inferred": true,
+                "inputCursor": {
+                  "param": "param/openapi/paths/~1dogs/get/parameters/cursor/query"
+                },
+                "items": {
+                  "segments": [
+                    "p/openapi/components/schemas/Page/properties/result"
+                  ]
+                },
+                "nextCursor": {
+                  "segments": [
+                    "p/openapi/components/schemas/Page/properties/next_cursor"
+                  ]
+                }
+              },
+              "idempotency": {},
+              "bindings": {
+                "http": [
+                  {
+                    "method": "GET",
+                    "uriTemplate": "/dogs",
+                    "paramBindings": [
+                      {
+                        "param": "param/openapi/paths/~1dogs/get/parameters/cursor/query",
+                        "location": "query",
+                        "wireName": "cursor",
+                        "style": "form",
+                        "allowReserved": false,
+                        "allowEmptyValue": false
+                      }
+                    ],
+                    "sharedRoute": false,
+                    "checksumRequired": false
+                  }
+                ]
+              },
+              "unmodeled": {
+                "openapi:x-fern-pagination": {
+                  "reason": "vendor_extension",
+                  "value": {
+                    "cursor": "$request.cursor",
+                    "next_cursor": "$response.next_cursor",
+                    "results": "$response.result"
+                  },
+                  "provenance": {
+                    "source": 0,
+                    "pointer": "/paths/~1dogs/get/x-fern-pagination"
+                  }
+                }
+              },
+              "provenance": {
+                "source": 0,
+                "pointer": "/paths/~1dogs/get",
+                "inferred": "extension-promotion"
+              }
+            }
+          ]
+        }
+      ],
+      "servers": [
+        "server/default"
+      ],
+      "provenance": {
+        "source": 0
+      }
+    }
+  ],
+  "types": {
+    "t/anon/components/schemas/Page/properties/result": {
+      "kind": "list",
+      "id": "t/anon/components/schemas/Page/properties/result",
+      "name": {
+        "hint": "result"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Page/properties/result"
+      },
+      "elem": {
+        "target": "t/prim/string",
+        "nullable": false
+      }
+    },
+    "t/openapi/components/schemas/Dogs": {
+      "kind": "scalar",
+      "id": "t/openapi/components/schemas/Dogs",
+      "name": {
+        "source": "Dogs",
+        "canonical": "dogs"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Dogs"
+      },
+      "base": {
+        "target": "t/openapi/components/schemas/Pets",
+        "nullable": false
+      }
+    },
+    "t/openapi/components/schemas/Page": {
+      "kind": "model",
+      "id": "t/openapi/components/schemas/Page",
+      "name": {
+        "source": "Page",
+        "canonical": "page"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Page"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/Page/properties/result",
+          "name": {
+            "source": "result",
+            "canonical": "result"
+          },
+          "wireName": "result",
+          "type": {
+            "target": "t/anon/components/schemas/Page/properties/result",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Page/properties/result"
+          }
+        },
+        {
+          "id": "p/openapi/components/schemas/Page/properties/next_cursor",
+          "name": {
+            "source": "next_cursor",
+            "canonical": "next_cursor"
+          },
+          "wireName": "next_cursor",
+          "type": {
+            "target": "t/prim/string",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Page/properties/next_cursor"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/openapi/components/schemas/Pets": {
+      "kind": "scalar",
+      "id": "t/openapi/components/schemas/Pets",
+      "name": {
+        "source": "Pets",
+        "canonical": "pets"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Pets"
+      },
+      "base": {
+        "target": "t/openapi/components/schemas/Page",
+        "nullable": false
+      }
+    },
+    "t/prim/string": {
+      "kind": "primitive",
+      "id": "t/prim/string",
+      "name": {},
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": -1
+      },
+      "prim": "string"
+    }
+  },
+  "servers": {
+    "server/default": {
+      "id": "server/default",
+      "name": {
+        "hint": "server"
+      },
+      "urlTemplate": "/",
+      "description": {},
+      "provenance": {
+        "source": 0
+      }
+    }
+  },
+  "sources": [
+    {
+      "format": "openapi@3.1",
+      "path": "body-alias.yaml",
+      "hash": "1947e2b1b5bdd2cef67488b249d9ce7a40c10d9e1ab75855c7feb0aea856f40b"
+    }
+  ]
+}
