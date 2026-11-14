@@ -126,6 +126,9 @@ func lowerContent(d mediaDecl, w walk, mt string) (ir.Content, []ir.Diagnostic) 
 	case file != nil:
 		content.File = file
 		content.Type = fileBodyType(w.types, file, content.Type)
+		kept, keptDiags := keepFileBodyEncodings(c, media, mediaPtr, mt)
+		diags = append(diags, keptDiags...)
+		content.Unmodeled = annotation.MergeUnmodeled(content.Unmodeled, kept)
 	case isFormContent(mt):
 		enc, encUnmodeled, encDiags := partEncodings(c, w, media, mt, mediaPtr, content.Type.Target)
 		diags = append(diags, encDiags...)
@@ -146,6 +149,17 @@ func lowerContent(d mediaDecl, w walk, mt string) (ir.Content, []ir.Diagnostic) 
 	diags = append(diags, docDiags...)
 	return content, append(diags,
 		annotation.UnknownKeysIn(&content.Unmodeled, media, c.Place(), mediaPtr, taken...)...)
+}
+
+// keepFileBodyEncodings keeps whole the encoding entries of a file body written
+// under a form media type, which declares no part for any of them to name
+// (docs/compilers/openapi.md#multipart-encoding). Under any other media type it
+// keeps nothing.
+func keepFileBodyEncodings(c lowering.Ctx, media *soa.MediaType, mediaPtr jsontext.Pointer, mt string) (ir.Unmodeled, []ir.Diagnostic) {
+	if !isFormContent(mt) {
+		return nil, nil
+	}
+	return keepUnkeyedEncodings(c, media, mediaPtr, nil, unkeyedFileEntry)
 }
 
 // fileBodyType is the type of the file body file whose schema lowered to

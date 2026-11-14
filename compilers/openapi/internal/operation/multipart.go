@@ -22,23 +22,22 @@ import (
 )
 
 // partEncodings builds a form body's per-part wire config, keyed by each
-// body-model property's PropID. A part is included when it carries an explicit
-// encoding entry or is itself a repeated or file part. body is the TypeID the
-// content's schema, under mt, lowered to.
+// body-model property's PropID. A part is included when it carries an encoding
+// entry or is a repeated or file part; keepUnkeyedEncodings keeps whole an
+// entry naming none. body is the TypeID the content's schema lowered to.
 //
 // It returns the map with no keys yet: keys and structural flags read the model
-// behind body, which may be a node a $ref promised and nothing has built yet
+// behind body, which a $ref may have promised and nothing built yet
 // (compile.Types.Promise), so partKeys settles both once every node exists. It
 // is nil where the body declares no part; one left with no key reads alike.
 func partEncodings(c lowering.Ctx, w walk, media *soa.MediaType, mt string, mediaPtr jsontext.Pointer, body ir.TypeID) (map[ir.PropID]ir.PartEncoding, ir.Unmodeled, []ir.Diagnostic) {
 	bodyWalk := walkBodyParts(c.Bindings(), media.GetSchema())
 	parts := bodyWalk.parts
-	cutDiags := diagPartWalkCut(c, bodyWalk, mediaPtr+ids.Ptr("schema"))
+	unmodeled, keptDiags := keepUnkeyedEncodings(c, media, mediaPtr, parts, unkeyedFormEntry)
+	diags := append(diagPartWalkCut(c, bodyWalk, mediaPtr+ids.Ptr("schema")), keptDiags...)
 	if len(parts) == 0 {
-		return nil, nil, cutDiags
+		return nil, unmodeled, diags
 	}
-	diags := cutDiags
-	var unmodeled ir.Unmodeled
 	encMap := media.GetEncoding()
 	fallbackDoc, fallback := bodySchemaPointer(c, media.GetSchema(), mediaPtr+ids.Ptr("schema"))
 	multipart := isMultipart(mt)
@@ -56,6 +55,50 @@ func partEncodings(c lowering.Ctx, w walk, media *soa.MediaType, mt string, medi
 	keys.out = make(map[ir.PropID]ir.PartEncoding, len(keys.parts))
 	w.types.Defer(keys)
 	return keys.out, unmodeled, diags
+}
+
+// unkeyedFormEntry and unkeyedFileEntry say why an encoding entry keys
+// nothing, in its info: the first on a form body, where the walk cannot tell a
+// misspelt key from a catch-all's or a union branch's, the second on a file body.
+const (
+	unkeyedFormEntry = "matches no property read from the form body's schema or its allOf branches"
+	unkeyedFileEntry = "belongs to a body that is file content, which has no parts"
+)
+
+// keepUnkeyedEncodings keeps whole each entry of media's encoding map whose key
+// names none of parts, under Unmodeled at annotation.EntryKey("encoding", key),
+// with one info each, which why completes
+// (docs/compilers/openapi.md#multipart-encoding). Nothing it declares is lowered
+// or judged: its unknown keys and reserved header names go unreported, as in the
+// other objects kept whole GitHub #1662 lists. An entry that is no object is
+// skipped, since load reports it. A union branch's part is not keyed (GitHub
+// #1771), nor a catch-all's entry (GitHub #1770).
+func keepUnkeyedEncodings(c lowering.Ctx, media *soa.MediaType, mediaPtr jsontext.Pointer, parts []bodyPart, why string) (ir.Unmodeled, []ir.Diagnostic) {
+	walked := make(map[string]struct{}, len(parts))
+	for _, part := range parts {
+		walked[part.name] = struct{}{}
+	}
+	var kept ir.Unmodeled
+	var diags []ir.Diagnostic
+	for name, enc := range media.GetEncoding().All() {
+		if _, isPart := walked[name]; isPart {
+			continue
+		}
+		at := mediaPtr + ids.Ptr("encoding", name)
+		// The model reads an entry that is no mapping as one with no node, so
+		// PreserveNodeInto keeps nothing for it and load's error is its one finding.
+		// An entry OpenAPI gives no effect, a key naming no property or a file
+		// body's, takes no_ir_home too until GitHub #1791 decides its reason.
+		written, keepDiags := annotation.PreserveNodeInto(&kept, annotation.EntryKey("encoding", name),
+			enc.GetRootNode(), ir.ReasonNoIRHome, c.Place().At(at))
+		diags = append(diags, keepDiags...)
+		if !written {
+			continue
+		}
+		diags = append(diags, c.DiagAt(ir.SeverityInfo, diag.DegradedConstruct, at,
+			"encoding entry %q %s, so Content.Encoding has no key for it; kept verbatim under Unmodeled", name, why))
+	}
+	return kept, diags
 }
 
 // partKeys keys a form body's part encodings by the PropID of the property each
@@ -230,18 +273,20 @@ func propertyParts(s *oas3.Schema) []bodyPart {
 	return out
 }
 
-// diagPartWalkCut reports the bounds that cut a body's part walk short, so an
-// encoding entry for a part past one is not dropped without a word.
+// diagPartWalkCut reports the bounds that cut a body's part walk short, so a
+// part past one, which gets no Content.Encoding key and no structural flags,
+// is not lost without a word; an entry written for it is kept whole
+// (keepUnkeyedEncodings).
 func diagPartWalkCut(c lowering.Ctx, w partWalk, at jsontext.Pointer) []ir.Diagnostic {
 	var out []ir.Diagnostic
 	if w.capped {
 		out = append(out, c.DiagAt(ir.SeverityWarning, diag.DegradedConstruct, at,
-			"form body composition is nested past the flattening depth of %d, so a part reached only below it has no encoding entry",
+			"form body composition is nested past the flattening depth of %d, so a part reached only below it has no Content.Encoding key",
 			schema.MaxAllOfFlattenDepth))
 	}
 	if w.hopsSpent {
 		out = append(out, c.DiagAt(ir.SeverityWarning, diag.DegradedConstruct, at,
-			"form body composition follows $refs past %d hops, so a part reached only beyond them has no encoding entry",
+			"form body composition follows $refs past %d hops, so a part reached only beyond them has no Content.Encoding key",
 			maxPartRefHops))
 	}
 	return out
@@ -422,7 +467,7 @@ func memberFlags(node func(ir.TypeID) (ir.TypeDef, bool), ref ir.TypeRef, multip
 		case *ir.Primitive:
 			return false, t.Prim == ir.PrimBytes, true
 		case *ir.Scalar:
-			if t.Base == nil {
+			if t.Base == nil || encodedAsText(t) {
 				return false, false, true
 			}
 			id = t.Base.Target
@@ -431,6 +476,15 @@ func memberFlags(node func(ir.TypeID) (ir.TypeDef, bool), ref ir.TypeRef, multip
 		}
 	}
 	return false, false, true
+}
+
+// encodedAsText reports whether s is a value a format writes as the text its
+// Encoding's WireType names, as `format: base64url` writes bytes, which a part
+// sends as a text field and no file. `format: byte`'s base64 is the one such
+// text a part still reads as a file (GitHub #1214), as it did before any other
+// format lowered so.
+func encodedAsText(s *ir.Scalar) bool {
+	return s.Encoding != nil && s.Encoding.WireType != nil && s.Encoding.Name != "base64"
 }
 
 // buildPartEncoding assembles the explicit encoding config of the part named

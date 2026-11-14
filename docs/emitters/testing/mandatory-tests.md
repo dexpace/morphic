@@ -960,8 +960,9 @@ throughout these documents.
     encoding no row names whose `WireType` is `string`, and a `datetime_offset` under one with no
     `WireType`, are each a string in the SDK that is sent as given, with a warning
     `emitters/<target>/unmapped-encoding`; a `datetime_offset` under `unixTimestamp` whose
-    `WireType` is `int64` is an `int64`; and a `string` under `email` stays a string with an info
-    ([the type table](../contract/type-table.md#a-row-keyed-by-an-encoding)).
+    `WireType` is `int64`, `integer`, `number` or `string` is that type; and a `string` under
+    `email` stays a string with an info ([the type
+    table](../contract/type-table.md#a-row-keyed-by-an-encoding)).
 52. **T-52 · The path fold** — the fold joins each pair of a table holding what APFS makes one path,
     `Setup` and `SetUp`, `ſetup` and `setup`, a Kelvin sign and `K`, `σς` and `σσ`, `Straße` and
     `Strasse`, an `é` composed and decomposed, `q` with U+0323 then U+0307 and with the two

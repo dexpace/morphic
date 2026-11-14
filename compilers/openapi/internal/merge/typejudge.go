@@ -768,9 +768,9 @@ func (j typeJudge) nodeAgainstBare(ref ir.TypeRef, td ir.TypeDef, bare ir.TypeRe
 
 // literalAgainst compares a literal's value with a kind: the literal is
 // narrower when the kind admits it. When it does not, the pair is disjoint
-// where the kind has a judge, and an overlap where it has none, as bytes has
-// none. A null is judged against the kind's side's nullability, not its kind:
-// narrower where the side admits null, disjoint where it does not.
+// where the kind has a judge, and an overlap where it has none (judged), as
+// bytes has none. A null is judged against the kind's side's nullability, not
+// its kind: narrower where the side admits null, disjoint where it does not.
 func literalAgainst(v ir.Value, kind valueKind, nullable bool) relation {
 	switch {
 	case v.Kind == ir.ValueNull && nullable:
@@ -779,7 +779,7 @@ func literalAgainst(v ir.Value, kind valueKind, nullable bool) relation {
 		return relDisjoint
 	case kind.admits(v):
 		return relANarrower
-	case kind.prim == ir.PrimBytes:
+	case !kind.judged():
 		return relOverlap
 	default:
 		return relDisjoint
@@ -987,17 +987,30 @@ const maxTypeResolveDepth = 64
 type valueKind struct {
 	prim   ir.PrimKind
 	format string
+	// unjudged marks a string format whose values an Encoding writes in a text
+	// of its own, as http-date writes a datetime_offset, so prim's grammar,
+	// which reads prim's own text, judges none of them (rewritesText).
+	unjudged bool
 }
 
 // admits reports whether v is a value of k: of its held format where it has
-// one, which narrows string (kindOf), and otherwise of its primitive kind.
+// one, which narrows string (kindOf), of nothing where k is unjudged, and
+// otherwise of its primitive kind.
 func (k valueKind) admits(v ir.Value) bool {
-	if k.format == "" {
+	switch {
+	case k.unjudged:
+		return false
+	case k.format == "":
 		return Admits(k.prim, v)
+	default:
+		inFormat, _ := admitsFormat(k.format, v)
+		return inFormat
 	}
-	inFormat, _ := admitsFormat(k.format, v)
-	return inFormat
 }
+
+// judged reports whether k has a judge that can refuse a value: bytes has
+// none, and neither has a kind an encoding leaves unjudged.
+func (k valueKind) judged() bool { return k.prim != ir.PrimBytes && !k.unjudged }
 
 // heldFormat returns the format enc names where the compiler holds its grammar
 // (admitsFormat) and enc says nothing else. An Encoding that also gives a wire
@@ -1048,12 +1061,13 @@ func formatAgainst(f string, k valueKind) relation {
 // kindOf follows ref through the registry to the kind its values are read as
 // (valueKind), reporting false when the target does not end in a single
 // primitive kind (a model, union, list, tuple, literal, external, or a
-// base-less opaque scalar). The first Encoding met on the way decides the held
-// format, read by heldFormat over a chain ending in string, and a Scalar leads
-// to what its values travel as (travelsAs). The chain is bounded.
+// base-less opaque scalar). A Scalar leads to the type its values travel as
+// (travelsAs), and the first Encoding met decides how the kind reached is read
+// (kindUnder). The chain is bounded against a malformed registry.
 //
 // An Enum resolves via its ValueType (docs/ir/enums.md). A Literal is left
-// unresolved: a ValueNumber literal spans integer, number, float and decimal.
+// unresolved: a ValueNumber literal spans integer, number, float and decimal,
+// so no one kind stands for it.
 func (r registry) kindOf(ref ir.TypeRef) (valueKind, bool) {
 	id := ref.Target
 	var first *ir.Encoding
@@ -1064,11 +1078,7 @@ func (r registry) kindOf(ref ir.TypeRef) (valueKind, bool) {
 		}
 		switch t := td.(type) {
 		case *ir.Primitive:
-			k := valueKind{prim: t.Prim}
-			if format, held := heldFormat(first); held && t.Prim == ir.PrimString {
-				k.format = format
-			}
-			return k, true
+			return kindUnder(first, t.Prim), true
 		case *ir.Enum:
 			return valueKind{prim: t.ValueType}, true
 		case *ir.Scalar:
@@ -1087,27 +1097,49 @@ func (r registry) kindOf(ref ir.TypeRef) (valueKind, bool) {
 }
 
 // travelsAs returns the type the values of s are instances of: its Base, but
-// for a Base whose values JSON writes as no string, which an Encoding naming a
-// WireType carries as that type, as a number written as its text is a string.
-// A Base JSON spells as a string, bytes among them, stays a string's kind
-// however it is encoded.
+// for a Base its Encoding's WireType does not spell, whose values then travel
+// as that type, as an instant written as its seconds is a number. A Base the
+// WireType spells keeps its own kind, as bytes written as a base64 string do.
 func (r registry) travelsAs(s *ir.Scalar) ir.TypeID {
 	if s.Encoding == nil || s.Encoding.WireType == nil {
 		return s.Base.Target
 	}
-	base, ok := r.resolve(s.Base.Target)
-	prim, isPrim := base.(*ir.Primitive)
-	if !ok || !isPrim || spelledAsString(prim.Prim) {
+	base, baseOK := r.resolve(s.Base.Target)
+	wire, wireOK := r.resolve(s.Encoding.WireType.Target)
+	bp, baseIsPrim := base.(*ir.Primitive)
+	wp, wireIsPrim := wire.(*ir.Primitive)
+	if !baseOK || !wireOK || !baseIsPrim || !wireIsPrim || spelledIn(bp.Prim, wp.Prim) {
 		return s.Base.Target
 	}
 	return s.Encoding.WireType.Target
 }
 
-// spelledAsString reports whether JSON writes a value of k as a string: k is
-// string or a format of it.
-func spelledAsString(k ir.PrimKind) bool {
-	rel := spelling.Relate(k, ir.PrimString)
+// spelledIn reports whether JSON writes a value of k as an instance of wire:
+// k is wire or narrows it, as bytes and datetime_offset narrow string.
+func spelledIn(k, wire ir.PrimKind) bool {
+	rel := spelling.Relate(k, wire)
 	return rel == spelling.Same || rel == spelling.ANarrower
+}
+
+// kindUnder is the valueKind of the primitive k, reached under enc, the first
+// Encoding on the chain: a held format over string narrows it (heldFormat),
+// and a text enc names over a string format leaves it unjudged
+// (rewritesText).
+func kindUnder(enc *ir.Encoding, k ir.PrimKind) valueKind {
+	if format, held := heldFormat(enc); held && k == ir.PrimString {
+		return valueKind{prim: k, format: format}
+	}
+	return valueKind{prim: k, unjudged: rewritesText(enc, k)}
+}
+
+// rewritesText reports whether enc names a text for k, a string format: k's
+// grammar reads k's own text, as datetime_offset's reads RFC 3339, so it
+// cannot judge a value enc writes otherwise, even under a name whose grammar
+// the compiler holds, as time's is another text. A kind JSON spells otherwise,
+// string itself included, is judged by its JSON type, which no encoding name
+// changes.
+func rewritesText(enc *ir.Encoding, k ir.PrimKind) bool {
+	return enc != nil && enc.Name != "" && spelling.Relate(k, ir.PrimString) == spelling.ANarrower
 }
 
 // admits reports whether v is a value of the type ref names. A null is judged
