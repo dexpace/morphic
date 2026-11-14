@@ -20,7 +20,7 @@ const (
 )
 
 // exampleFindings returns each violation of the two example codes doc draws, as
-// "code path: message", in report order.
+// "code path: message", in the order Verify sorts them: by code, then path.
 func exampleFindings(doc *ir.Document) []string {
 	var out []string
 	for _, v := range verifyDeclared(doc) {
@@ -55,16 +55,16 @@ func TestVerify_ExampleArms(t *testing.T) {
 		{"a model's example with a scenario's three arms", modelExamples, ir.Example{
 			Name: "ex", Input: &ir.ScenarioInput{}, Output: &scenarioValue, Error: scenarioErrorExample(),
 		}, []string{
+			armMisplaced + " " + model + ".Error: example holds a scenario's error, and only an operation's example may",
 			armMisplaced + " " + model + ".Input: example holds a scenario's input, and only an operation's example may",
 			armMisplaced + " " + model + ".Output: example holds a scenario's output, and only an operation's example may",
-			armMisplaced + " " + model + ".Error: example holds a scenario's error, and only an operation's example may",
 			outcomeTwice + " " + model + ".Error: example ends in both an output and an error",
 		}},
 		{"an operation's example with a value and headers", operationExamples, ir.Example{
 			Value: &scenarioValue, Headers: &scenarioValue, Output: &scenarioValue,
 		}, []string{
-			armMisplaced + " " + op + ".Value: operation's example holds a value, and a scenario states its input and its outcome",
 			armMisplaced + " " + op + ".Headers: operation's example holds headers, and a scenario states its input and its outcome",
+			armMisplaced + " " + op + ".Value: operation's example holds a value, and a scenario states its input and its outcome",
 		}},
 		{"an operation's example ending in both", operationExamples, ir.Example{
 			Input: &ir.ScenarioInput{}, Output: &scenarioValue, Error: scenarioErrorExample(),

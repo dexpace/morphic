@@ -776,6 +776,8 @@ it sees. Changes made together in one bump are listed together under it.
   `IdempotencyKind`, `MsgDirection`, `PageStrategy`, `PresenceKind` or `Severity`, a version label
   `Document.Versions` does not declare or lists twice, an `Added` and `Removed` that do not
   alternate ([availability](./availability.md#version-labels)), a primitive credited to a source,
-  and an enum member whose kind its `ValueType` does not admit
-  ([enums](./enums.md#member-values)). No compiler in this repository wrote any of them, and none
+  an enum member whose kind its `ValueType` does not admit
+  ([enums](./enums.md#member-values)), and an example filling the arm its carrier does not take,
+  or ending in both an output and an error
+  ([annotations](./annotations.md#docs-deprecation-examples)). No compiler in this repository wrote any of them, and none
   writes `Input` or mints either ID, so a document it compiled changes only its stamp. A consumer pinned to the prior version refuses the document.

@@ -75,8 +75,9 @@ type Deprecation struct {
 
 // Example is a documentation example. Field legality is contextual:
 // Value/Headers apply to types, properties, parameters, contents, and messages;
-// Input/Output/Error apply to operations. An Example is not meant to mix the
-// two arms, though no pass currently checks that.
+// Input/Output/Error apply to operations. An Example never mixes the two arms,
+// and never ends in both an Output and an Error: irverify reports the first as
+// ir/example-arm-misplaced and the second as ir/example-outcome-twice.
 type Example struct {
 	// Name identifies the example.
 	Name string `json:"name,omitempty"`

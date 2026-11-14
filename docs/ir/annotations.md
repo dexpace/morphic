@@ -56,8 +56,10 @@ type ScenarioInput struct {
     Body   *Value             // the value of the request content; nil = the scenario sends none
 }
 type ErrorExample struct { Type TypeRef; Content Value }
-// Field legality is contextual (validated): Value/Headers on types, properties, parameters,
-// contents, and messages; Input/Output/Error on operations. An Example never mixes the two arms.
+// Field legality is contextual, and `irverify` holds it (`ir/example-arm-misplaced`): Value/Headers
+// on types, properties, parameters, contents, and messages; Input/Output/Error on operations. An
+// Example never mixes the two arms, and never ends in both an Output and an Error
+// (`ir/example-outcome-twice`).
 ```
 
 A scenario's input states each value once. A parameter's value sits under its ID whatever its
