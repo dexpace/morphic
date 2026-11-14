@@ -22,12 +22,13 @@ import (
 //
 // Agreement is asked only of entities that record a pointer. A primitive
 // derives from no source position, so checkPrimIDs holds it to the ID its kind
-// derives.
+// derives. An entry whose key is empty or not its node's own ID is
+// checkRegistryKeys' one report, so its key is not read here as an ID.
 func checkIDs(doc *ir.Document) []Violation {
 	var vs []Violation
 	for id, td := range doc.Types {
-		if ir.IsNilTypeDef(td) {
-			continue // checkRegistryKeys reports the nil entry itself
+		if ir.IsNilTypeDef(td) || !keyedByOwnID(string(id), string(td.Common().ID)) {
+			continue // checkRegistryKeys reports the entry itself
 		}
 		if v, bad := idDefect(ir.IDKindType, string(id), td.Common().Provenance); bad {
 			v.Path = typePath(id)
@@ -35,12 +36,18 @@ func checkIDs(doc *ir.Document) []Violation {
 		}
 	}
 	for id, scheme := range doc.Auth {
+		if !keyedByOwnID(string(id), string(scheme.ID)) {
+			continue
+		}
 		if v, bad := idDefect(ir.IDKindAuth, string(id), scheme.Provenance); bad {
 			v.Path = "auth[" + string(id) + "]"
 			vs = append(vs, v)
 		}
 	}
 	for id, server := range doc.Servers {
+		if !keyedByOwnID(string(id), string(server.ID)) {
+			continue
+		}
 		if v, bad := idDefect(ir.IDKindServer, string(id), server.Provenance); bad {
 			v.Path = "servers[" + string(id) + "]"
 			vs = append(vs, v)
@@ -49,19 +56,31 @@ func checkIDs(doc *ir.Document) []Violation {
 	// A channel and a message are held to shape alone, as an operation is: one
 	// may be mounted at one pointer and declared at another through a $ref, so
 	// its ID's path need not be the pointer its provenance records (GitHub #107).
-	for id := range doc.Channels {
+	for id, ch := range doc.Channels {
+		if !keyedByOwnID(string(id), string(ch.ID)) {
+			continue
+		}
 		if v, bad := idDefect(ir.IDKindChannel, string(id), ir.Provenance{}); bad {
 			v.Path = "channels[" + string(id) + "]"
 			vs = append(vs, v)
 		}
 	}
-	for id := range doc.Messages {
+	for id, msg := range doc.Messages {
+		if !keyedByOwnID(string(id), string(msg.ID)) {
+			continue
+		}
 		if v, bad := idDefect(ir.IDKindMessage, string(id), ir.Provenance{}); bad {
 			v.Path = "messages[" + string(id) + "]"
 			vs = append(vs, v)
 		}
 	}
 	return append(vs, checkMemberIDs(doc)...)
+}
+
+// keyedByOwnID reports whether a registry entry's key is set and is its node's
+// own ID, which checkRegistryKeys requires and reports otherwise.
+func keyedByOwnID(key, nodeID string) bool {
+	return key != "" && key == nodeID
 }
 
 // kindPrefixes maps every class of ID to the kind prefix it opens with, so a

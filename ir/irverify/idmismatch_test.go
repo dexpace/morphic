@@ -4,19 +4,24 @@
 package irverify_test
 
 import (
+	"encoding/json/jsontext"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/dexpace/morphic/ir"
+	"github.com/dexpace/morphic/ir/irverify"
 )
 
 // TestVerify_AKeyAndIDThatDifferDrawOneCode holds each registry a document keys
 // by an ID to one finding for a node filed under a key other than its own ID:
 // the mismatch, at the entry. The node's own ID is its declaration and no
-// reference, so no dangling-reference code names it too. Each case is paired
-// with the same node keyed by its own ID, which draws neither.
+// reference, so no dangling-reference code names it too, and the key is no ID
+// to hold to the grammar or to the pointer the node records, however it is
+// spelt, empty included. Each case is paired with the same node keyed by its
+// own ID, which draws nothing.
 func TestVerify_AKeyAndIDThatDifferDrawOneCode(t *testing.T) {
 	t.Parallel()
 	cases := []struct {
@@ -24,22 +29,22 @@ func TestVerify_AKeyAndIDThatDifferDrawOneCode(t *testing.T) {
 		keyed                                  func(key, id string) *ir.Document
 	}{
 		{"type", "t", "ir/type-id-mismatch", "ir/dangling-type-ref", "types[t/x/A]", func(key, id string) *ir.Document {
-			return &ir.Document{Types: ir.TypeRegistry{ir.TypeID(key): &ir.Model{ID: ir.TypeID(id), Name: named("m")}}}
+			return &ir.Document{Types: ir.TypeRegistry{ir.TypeID(key): &ir.Model{ID: ir.TypeID(id), Name: named("m"), Provenance: pointerOf(id)}}}
 		}},
 		{"channel", "chan", "ir/channel-id-mismatch", "ir/dangling-channel-ref", "channels[chan/x/A]", func(key, id string) *ir.Document {
-			return &ir.Document{Channels: map[ir.ChannelID]ir.Channel{ir.ChannelID(key): {ID: ir.ChannelID(id)}}}
+			return &ir.Document{Channels: map[ir.ChannelID]ir.Channel{ir.ChannelID(key): {ID: ir.ChannelID(id), Name: named("c")}}}
 		}},
 		{"message", "msg", "ir/message-id-mismatch", "ir/dangling-message-ref", "messages[msg/x/A]", func(key, id string) *ir.Document {
-			return &ir.Document{Messages: map[ir.MessageID]ir.Message{ir.MessageID(key): {ID: ir.MessageID(id)}}}
+			return &ir.Document{Messages: map[ir.MessageID]ir.Message{ir.MessageID(key): {ID: ir.MessageID(id), Name: named("m")}}}
 		}},
 		{"auth", "auth", "ir/auth-id-mismatch", "ir/dangling-auth-ref", "auth[auth/x/A]", func(key, id string) *ir.Document {
 			return &ir.Document{Auth: map[ir.AuthID]ir.AuthScheme{
-				ir.AuthID(key): {ID: ir.AuthID(id), Name: named("a"), Kind: ir.AuthKindAPIKey},
+				ir.AuthID(key): {ID: ir.AuthID(id), Name: named("a"), Kind: ir.AuthKindAPIKey, Provenance: pointerOf(id)},
 			}}
 		}},
 		{"server", "server", "ir/server-id-mismatch", "ir/dangling-server-ref", "servers[server/x/A]", func(key, id string) *ir.Document {
 			return &ir.Document{Servers: map[ir.ServerID]ir.Server{
-				ir.ServerID(key): {ID: ir.ServerID(id), Name: named("a"), URLTemplate: "https://a.example"},
+				ir.ServerID(key): {ID: ir.ServerID(id), Name: named("a"), URLTemplate: "https://a.example", Provenance: pointerOf(id)},
 			}}
 		}},
 	}
@@ -48,15 +53,34 @@ func TestVerify_AKeyAndIDThatDifferDrawOneCode(t *testing.T) {
 			t.Parallel()
 			key, other := tc.prefix+"/x/A", tc.prefix+"/x/B"
 
-			got := verifyDeclared(tc.keyed(key, other))
-			assert.Equal(t, []string{tc.path}, violationPaths(got, tc.mismatch))
+			got := verifyDeclared(stamped(tc.keyed(key, other)))
+			assert.Equal(t, []string{tc.mismatch + " @ " + tc.path}, violationList(got))
 			assert.Empty(t, violationPaths(got, tc.dangling), "a node's own ID is no reference")
 
-			twin := verifyDeclared(tc.keyed(key, key))
-			assert.Empty(t, violationPaths(twin, tc.mismatch))
-			assert.Empty(t, violationPaths(twin, tc.dangling))
+			malformed := strings.Replace(tc.path, key, "garbage", 1)
+			assert.Equal(t, []string{tc.mismatch + " @ " + malformed}, violationList(verifyDeclared(stamped(tc.keyed("garbage", other)))))
+			empty := strings.Replace(tc.path, key, `""`, 1)
+			assert.Equal(t, []string{"ir/empty-" + tc.name + "-id @ " + empty}, violationList(verifyDeclared(stamped(tc.keyed("", other)))))
+
+			assert.Empty(t, violationList(verifyDeclared(stamped(tc.keyed(key, key)))))
 		})
 	}
+}
+
+// pointerOf returns the provenance of a node declared at the pointer id's path
+// derives from, so its own ID agrees with what it records.
+func pointerOf(id string) ir.Provenance {
+	_, path, _ := strings.Cut(id[strings.Index(id, "/")+1:], "/")
+	return ir.Provenance{Pointer: jsontext.Pointer("/" + path)}
+}
+
+// violationList spells each violation as its code and path.
+func violationList(vs []irverify.Violation) []string {
+	var out []string
+	for _, v := range vs {
+		out = append(out, v.Code+" @ "+v.Path)
+	}
+	return out
 }
 
 // TestVerify_AReferenceInsideAMismatchedNodeStillDangles is the witness that
