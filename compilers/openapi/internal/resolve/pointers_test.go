@@ -163,7 +163,8 @@ func TestInternalPointer_InTheSourcesOwnContent(t *testing.T) {
 		{"https://example.com/api/m.yaml", "m.yaml", true},
 		{"https://example.com/api/m.yaml", "./m.yaml", true},
 		{"https://example.com/api/m.yaml", "https://example.com/api/m.yaml", true},
-		{"https://example.com/api/m.yaml", "https://example.com/api/./m.yaml", false},
+		{"https://example.com/api/m.yaml", "https://example.com/api/./m.yaml", true},
+		{"https://example.com/api/m.yaml", "HTTPS://example.com:443/api/m.yaml", true},
 		{"https://example.com/api/m.yaml", "other.yaml", false},
 		{"", "m.yaml", false},
 		// A source path the resolver cannot place as a base (an invalid percent

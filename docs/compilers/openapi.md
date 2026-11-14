@@ -784,7 +784,13 @@ it, nor on how the spec was named, and a relative path names the file an absolut
 where the source lies at an absolute path. A file's part is percent-decoded,
 so `my%20file.yaml` names the file `my file.yaml`, unless decoding would read it otherwise, as an
 escaped separator or `#` would, where it is read as written; and a `file:` URI names the file at its
-path, as a reader reads it. Against a document fetched over http(s), a part naming no scheme, an
+path, as a reader reads it. A URL of any other scheme is spelled as RFC 3986 §6.2.2 normalizes it,
+and an `http` or `https` one as §6.2.3 does too, where it is located and where an identifier declares
+it: its scheme and host in lower case, each escape of an unreserved character decoded and the hex of
+every other in upper case before its dot segments are removed, and for `http` and `https` an empty
+path made `/` and an empty or default port dropped, while an empty query's `?` and a host's final dot
+stay. So every spelling of one URL is one request, one document and one `Document.Sources` entry,
+labelled the one way. Against a document fetched over http(s), a part naming no scheme, an
 absolute path and a network-path reference among them, names what the document's URL makes of it, on
 the network. A reference written in a document read over http(s), the source included, is read
 only from an http(s) URL: one naming another location, by a `file:` URI, a drive path, or a base an
@@ -882,7 +888,7 @@ dialect embedding it spells one, as 2020-12 has an embedded resource do (§9.3.1
 its own `$schema` names does, unless it writes a `$ref` whose siblings the dialect embedding it
 ignores. An `$id` names the URI its part before the `#` resolves to against the base above it, by
 RFC 3986 where that base is a URI and as a `$ref`'s document is placed where it is a file's path,
-and identifiers match as RFC 3986 §6.2.2 normalizes them. One with
+and identifiers match as a located URL is spelled (above). One with
 a fragment that is not empty names none, as 2020-12 admits none, one naming the URI of the resource
 holding it starts no resource, and one naming the source, however spelled, returns to the
 document's. A URI no schema declares names the document at that URI, read as any other is: one read
@@ -974,6 +980,11 @@ and in what a reference reaches outside its model alike. A Path Item's
 `$ref` is the item's own field: one that is no string is read as left out, and the item as what
 else it writes.
 - Tests: `e2e.TestCompile_ExternalFileRefIsNotReadByDefault`,
+  `e2e.TestCompile_OneURLSpelledSixWaysIsOneRequestOneKeyAndOneType`,
+  `e2e.TestCompile_AnIdentifierAndAReferenceMeetInOneSpelling`,
+  `resolve.TestLocate_AnAbsoluteURLIsSpelledByRFC3986Normalization`,
+  `resolve.TestLocate_NormalizingTwiceChangesNothing`, `bind.TestNormalURI_IsIdempotentOverGeneratedURLs`,
+  `bind.TestNormalURI_SpellsEachEqualURLOneWay`, `bind.TestNormalURI_KeepsWhatEachSchemeWrites`,
   `e2e.TestOlderDrafts_AnIDNamesAResource`, `e2e.TestOlderDrafts_AnIdentifierBesideARefSetsNoBase`,
   `e2e.TestOlderDrafts_AnAnchorTakesItsDraftsGrammar`,
   `bind.TestDialectRule_AFragmentIdentifierDeclaresByItsDialectsGrammar`,

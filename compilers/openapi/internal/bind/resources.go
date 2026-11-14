@@ -4,6 +4,7 @@
 package bind
 
 import (
+	"cmp"
 	"encoding/json/jsontext"
 	"fmt"
 	"maps"
@@ -398,13 +399,72 @@ func (r resources) resolveURI(ref, base string) (string, bool) {
 	return NormalURI(b.ResolveReference(u)), true
 }
 
-// NormalURI is the absolute URI u spelled as RFC 3986 §6.2.2 normalizes it:
-// its scheme and host in lower case, its dot segments removed, a character it
-// may not hold percent-encoded, and its percent-encodings normalized
-// (normalEscapes).
+// NormalURI is the absolute URI u spelled as RFC 3986 §6.2.2 normalizes it,
+// and an http or https one as §6.2.3 does too: its scheme and host in lower
+// case; each escape of an unreserved character decoded and every other one's
+// hex in upper case (normalEscapes), before its dot segments are removed, so
+// an escaped dot segment is removed and a second pass changes nothing; and
+// for http and https an empty path made "/", and an empty or default port
+// dropped. An empty query's "?" and a host's final dot stay.
 func NormalURI(u *url.URL) string {
-	u.Host = strings.ToLower(u.Host)
-	return normalEscapes(u.ResolveReference(&url.URL{}).String())
+	n := *u
+	n.Host = strings.ToLower(n.Host)
+	if n.Opaque != "" {
+		return normalEscapes(n.String())
+	}
+	path := removeDots(normalEscapes(n.EscapedPath()))
+	if n.Scheme == "http" || n.Scheme == "https" {
+		n.Host = strings.TrimSuffix(strings.TrimSuffix(n.Host, ":"), defaultPort(n.Scheme))
+		path = cmp.Or(path, "/")
+	}
+	hasQuery, hasFragment := n.ForceQuery || n.RawQuery != "", n.Fragment != ""
+	rawQuery, rawFragment := n.RawQuery, n.EscapedFragment()
+	// A path of "/" has String write the authority's "//" wherever the URL
+	// wrote one, an empty host's included, which is then trimmed to the "/".
+	n.Path, n.RawPath, n.RawQuery, n.ForceQuery, n.Fragment, n.RawFragment = "/", "", "", false, "", ""
+	var b strings.Builder
+	b.WriteString(strings.TrimSuffix(n.String(), "/") + path)
+	if hasQuery {
+		b.WriteString("?" + normalEscapes(rawQuery))
+	}
+	if hasFragment {
+		b.WriteString("#" + normalEscapes(rawFragment))
+	}
+	return b.String()
+}
+
+// defaultPort is the port RFC 3986 §6.2.3 has an http or https URL default
+// to, scheme naming which, as a host's suffix.
+func defaultPort(scheme string) string {
+	if scheme == "https" {
+		return ":443"
+	}
+	return ":80"
+}
+
+// removeDots is the path p, escaped and holding no escape of a dot, with its
+// dot segments removed as RFC 3986 §5.2.4 removes them: "." is no segment,
+// ".." takes the one before it away, and either ending p leaves p ending in
+// "/".
+func removeDots(p string) string {
+	if !strings.Contains(p, ".") {
+		return p
+	}
+	segments := strings.Split(p, "/")
+	out := make([]string, 0, len(segments))
+	for i, s := range segments {
+		switch {
+		case s == "..":
+			out = out[:max(len(out)-1, min(len(out), 1))]
+		case s != ".":
+			out = append(out, s)
+			continue
+		}
+		if i == len(segments)-1 {
+			out = append(out, "")
+		}
+	}
+	return strings.Join(out, "/")
 }
 
 // normalEscapes is s with each percent-encoding of an unreserved character

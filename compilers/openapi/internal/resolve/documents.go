@@ -33,12 +33,13 @@ func documentOf(ref references.Reference, base string) (string, bool) {
 // none. It is the one reading of a document part, departing from the
 // library's join thrice: against an http(s) URL, an absolute path resolves by
 // RFC 3986 §5.2; a file path is read decoded (FilePart); and a relative path
-// whose first segment holds a colon keeps a leading "./" (RFC 3986 §4.2).
+// whose first segment holds a colon keeps a leading "./" (RFC 3986 §4.2). A
+// URL of any scheme but file is spelled one way (normalURL).
 func Locate(uri, base string) (string, bool) {
 	uri = strings.TrimSpace(uri)
 	if b, ok := networkURL(base); ok && uri != "" {
 		if u, err := url.Parse(uri); err == nil && u.Scheme == "" {
-			return b.ResolveReference(u).String(), true
+			return bind.NormalURI(b.ResolveReference(u)), true
 		}
 	}
 	part := FilePart(uri)
@@ -50,7 +51,18 @@ func Locate(uri, base string) (string, bool) {
 	if !IsURL(part) && !IsURL(base) && IsURL(located) {
 		located = "./" + located
 	}
-	return located, true
+	return normalURL(located), true
+}
+
+// normalURL is located spelled as RFC 3986 normalizes it (bind.NormalURI)
+// where it is an absolute URL of a scheme other than file, which names a path,
+// so every spelling of one URL locates one document, and as it is otherwise.
+func normalURL(located string) string {
+	u, err := url.Parse(located)
+	if err != nil || !IsURL(located) || strings.EqualFold(u.Scheme, "file") {
+		return located
+	}
+	return bind.NormalURI(u)
 }
 
 // networkURL returns base parsed as an http or https URL (bind.OverNetwork),

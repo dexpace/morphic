@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"iter"
 	"maps"
-	"net/http"
 	"slices"
 	"strings"
 
@@ -256,14 +255,13 @@ func spellLoop(l bind.Loop, table *bind.Table) string {
 
 // document is bind.Config.Open: the tree of the document named name, read
 // once in the compile, under its budgets (see externalReads.once), and
-// prepared as the source is. A name that is a URL (refscope.IsURL) is keyed as
-// a request spells it and read at that key; any other is read as the file it
-// names (see fileNamed).
+// prepared as the source is. A name that is a URL (refscope.IsURL), spelled
+// as it is located (resolve.Locate), is read at that name; any other is read
+// as the file it names (see fileNamed).
 func (e external) document(ctx context.Context, name string) (*yaml.Node, error) {
 	var a answer
-	if req, err := http.NewRequestWithContext(ctx, http.MethodGet, name, nil); err == nil && refscope.IsURL(name) {
-		key := req.URL.String()
-		a = e.readAs(ctx, e.documentID(key), key, key)
+	if refscope.IsURL(name) {
+		a = e.readAs(ctx, e.documentID(name), name, name)
 	} else {
 		a = e.readAs(ctx, e.documentID(name), name, fileNamed(name))
 	}

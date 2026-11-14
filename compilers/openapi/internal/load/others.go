@@ -7,7 +7,6 @@ import (
 	"context"
 	"encoding/json/jsontext"
 	"maps"
-	"net/url"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -101,10 +100,7 @@ func (o Others) Named(name string) (Other, bool) {
 
 // index returns where in list the document a reference reads by name is.
 func (o Others) index(name string) (int, bool) {
-	if i, ok := o.byName[name]; ok {
-		return i, true
-	}
-	i, ok := o.byName[readKey(name)]
+	i, ok := o.byName[name]
 	return i, ok
 }
 
@@ -115,7 +111,7 @@ func unreachedKeys(table *bind.Table) map[string]bool {
 	unused := map[string]bool{}
 	for id := range bind.DocID(table.Documents()) {
 		if d := table.Document(id); d.Unreached {
-			unused[readKey(d.Name)] = true
+			unused[d.Name] = true
 		}
 	}
 	return unused
@@ -232,15 +228,4 @@ func (s sourceDocument) shownPathOf(key string) string {
 	default:
 		return fileNamed(filepath.Join(dir, local))
 	}
-}
-
-// readKey is the key a document a reference names by name is read under: a
-// URL's as the request built from it spells it (see external.document), any
-// other name itself.
-func readKey(name string) string {
-	u, err := url.Parse(name)
-	if err != nil || !refscope.IsURL(name) {
-		return name
-	}
-	return u.String()
 }

@@ -73,3 +73,23 @@ func TestNormalURI_SpellsEachEqualURLOneWay(t *testing.T) {
 	assert.NotEqual(t, normal(t, "http://h/b"), normal(t, "http://h/b?"), "an empty query is kept")
 	assert.NotEqual(t, normal(t, "http://h/a/%2Fb"), normal(t, "http://h/a/b"), "an escaped separator is no separator")
 }
+
+// TestNormalURI_KeepsWhatEachSchemeWrites holds the spelling to what it does
+// not change: a file URI's empty authority or its absence, another scheme's
+// empty path, a fragment, an opaque URI's text, and a path with no dot.
+func TestNormalURI_KeepsWhatEachSchemeWrites(t *testing.T) {
+	t.Parallel()
+	for u, want := range map[string]string{
+		"file:///x/./y.yaml":  "file:///x/y.yaml",
+		"file:/x/y.yaml":      "file:/x/y.yaml",
+		"foo://h":             "foo://h",
+		"http://h/a#%7efrag":  "http://h/a#~frag",
+		"https://h/a/b/..":    "https://h/a/",
+		"https://h/a/.":       "https://h/a/",
+		"http://h/../../a":    "http://h/a",
+		"urn:x:%7e":           "urn:x:~",
+		"http://u@H:8080/a?b": "http://u@h:8080/a?b",
+	} {
+		assert.Equal(t, want, normal(t, u), u)
+	}
+}
