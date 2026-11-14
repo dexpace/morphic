@@ -4560,10 +4560,14 @@ vendor extensions of the tag's first declaration in its own `Unmodeled`, as it t
 stability tier they state fills the group's `Stability`, recorded in its `Inferred`
 ([`extension-promotion`](#extension-promotion)). The tier is read through the group and nowhere
 else: an operation the tag files states none, and a mapped key on a tag that forms no group fills
-nothing and is reported as an info `openapi/unpromoted-extension` at the key.
+nothing and is reported as an info `openapi/unpromoted-extension` at the key. A deprecation a tag's
+keys state, and each member they write, fill nothing either, a group holding no `Deprecation`, so
+each key read into one is reported the same way, once, whether the tag forms a group or not.
+
 - Cases: `tags-grouping`, `tags-grouping-32`, `group-identity`, `repeated-tags-and-scopes`
 - Codes: `openapi/repeated-entry`, `openapi/unpromoted-extension`
-- Tests: `operation.TestGrouping_ACallbackGoesWithItsParentWhateverItsTags`, `operation.TestGroups_ARepeatedTagNameTakesItsFirstDeclaration`, `e2e.TestCarriedKeys_ATagKeepsItsKeysAndItsGroupTakesTheTier`, `e2e.TestTags_KeysOnTheTagAndTierOnItsGroupEndToEnd`,
+- Tests: `operation.TestGrouping_ACallbackGoesWithItsParentWhateverItsTags`, `operation.TestGroups_ARepeatedTagNameTakesItsFirstDeclaration`,
+  `operation.TestGroups_ADeprecationOnATagIsReported`, `lowering.TestUnheldDeprecation_ReportsEachKeyStatingOne`, `e2e.TestCarriedKeys_ATagKeepsItsKeysAndItsGroupTakesTheTier`, `e2e.TestTags_KeysOnTheTagAndTierOnItsGroupEndToEnd`,
   `operation.TestGrouping_ParentCycleNestsNoMemberUnderAnother`,
   `operation.TestGrouping_DanglingParentStaysTopLevel`,
   `operation.TestGrouping_SameNameDeclaredTwiceIsDeterministic`,

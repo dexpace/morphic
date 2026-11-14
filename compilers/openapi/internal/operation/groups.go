@@ -64,8 +64,8 @@ func tagKeys(c lowering.Ctx, t *soa.Tag, ptr jsontext.Pointer) (ir.Unmodeled, []
 
 // tagGroups gives each group a declared tag forms the vendor extensions of the
 // tag's first declaration and the tier they state, recorded in its Inferred,
-// and reports a tier stated on a tag that forms no group, which fills nothing
-// (docs/compilers/openapi.md#tag-groups).
+// and reports a tier stated on a tag that forms no group, and a deprecation
+// stated on any, which fill nothing (docs/compilers/openapi.md#tag-groups).
 func tagGroups(p lowering.Promoter, groups []ir.OperationGroup, defs []ir.TagDef) []ir.Diagnostic {
 	first := map[ir.GroupID]int{}
 	for i := range slices.Backward(defs) {
@@ -95,6 +95,7 @@ func tagGroups(p lowering.Promoter, groups []ir.OperationGroup, defs []ir.TagDef
 		if !formed[def.Name] {
 			diags = append(diags, lowering.UnformedTier(p, def.Name, def.Unmodeled)...)
 		}
+		diags = append(diags, lowering.UnheldDeprecation(p, def.Name, formed[def.Name], def.Unmodeled)...)
 	}
 	return diags
 }

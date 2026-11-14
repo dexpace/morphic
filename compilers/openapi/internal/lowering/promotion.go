@@ -502,6 +502,39 @@ func UnformedTier(p Promoter, tag string, unmodeled ir.Unmodeled) []ir.Diagnosti
 	return diags
 }
 
+// UnheldDeprecation reports each key p reads a deprecation or its members from
+// that the tag named tag keeps in unmodeled, where those keys state one: a tag
+// and the group it forms hold no deprecation, so it fills nothing. A source
+// listing values is reported where its value is one of them, as a tier the
+// same key states is the group's, and a key UnformedTier reports, where the
+// tag forms no group, is not reported again.
+func UnheldDeprecation(p Promoter, tag string, formed bool, unmodeled ir.Unmodeled) []ir.Diagnostic {
+	var dep *ir.Deprecation
+	var marked ir.Provenance
+	if p.Deprecation(unmodeled, Referent{}, &dep, &marked); dep == nil {
+		return nil
+	}
+	var diags []ir.Diagnostic
+	for _, target := range []ExtensionTarget{TargetDeprecation, TargetDeprecationMessage, TargetDeprecationSince,
+		TargetDeprecationRemovalVersion, TargetDeprecationRemovalDate} {
+		for _, src := range p.Sources(target) {
+			entry, kept := unmodeled[extensionKeyPrefix+src.Key]
+			if !kept || (len(src.Values) > 0 && !listsWord(src, entry.Value)) || (!formed && readsTier(p, src.Key)) {
+				continue
+			}
+			diags = append(diags, diag.Newf(ir.SeverityInfo, diag.UnpromotedExtension, entry.Provenance,
+				"extension %q on tag %q is read into a deprecation, which neither a tag nor an operation group holds, so it fills nothing",
+				src.Key, tag))
+		}
+	}
+	return diags
+}
+
+// readsTier reports whether key is a source p reads a tier from.
+func readsTier(p Promoter, key string) bool {
+	return slices.ContainsFunc(p.Sources(TargetStability), func(src ExtensionSource) bool { return src.Key == key })
+}
+
 // Redaction sets redact from the vendor extensions kept in own, or what from
 // lends, and marks prov with the heuristic when that writes it. A redaction
 // already asked for by `format: password` needs no guess, so it stays unmarked.

@@ -289,3 +289,30 @@ paths:
 		"openapi/degraded-construct info /paths/~1a/x-stability",
 	}, findings(diags))
 }
+
+// TestGroups_ADeprecationOnATagIsReported holds a deprecation a tag states to
+// one info at each key stating it, whether the tag forms a group or not, as
+// neither holds a deprecation; a tier key of a tag forming none keeps its own
+// finding alone, and a tier on a group-forming tag fills the group.
+func TestGroups_ADeprecationOnATagIsReported(t *testing.T) {
+	t.Parallel()
+	doc, diags := parseFull(t, `openapi: 3.1.0
+info: {title: T, version: "1"}
+tags:
+  - {name: W, x-stability: deprecated, x-deprecated-reason: old}
+  - {name: B, x-stability: beta, x-deprecated-reason: unused}
+  - {name: Lone, x-fern-availability: deprecated, x-sunset: "2027-01-01"}
+paths:
+  /a:
+    get: {operationId: a, tags: [W], responses: {"204": {description: ok}}}
+  /b:
+    get: {operationId: b, tags: [B], responses: {"204": {description: ok}}}
+`)
+	assert.Equal(t, []string{
+		"openapi/unpromoted-extension info /tags/0/x-deprecated-reason",
+		"openapi/unpromoted-extension info /tags/0/x-stability",
+		"openapi/unpromoted-extension info /tags/2/x-fern-availability",
+		"openapi/unpromoted-extension info /tags/2/x-sunset",
+	}, findings(diags))
+	assert.Equal(t, ir.StabilityBeta, doc.Services[0].Groups[1].Stability)
+}

@@ -1363,3 +1363,33 @@ func TestPromoter_ACallersValuesAreCopied(t *testing.T) {
 	p.Deprecation(ir.Unmodeled{"openapi:x-k": vendorExtension(`"deprecated"`)}, lowering.Referent{}, &dep, &prov)
 	assert.NotNil(t, dep)
 }
+
+// TestUnheldDeprecation_ReportsEachKeyStatingOne holds a tag's deprecation keys
+// to one finding each where they state a deprecation: none where nothing
+// states one, none for a listed source whose value is another, and none for a
+// tier key of a tag forming no group, which UnformedTier reports.
+func TestUnheldDeprecation_ReportsEachKeyStatingOne(t *testing.T) {
+	t.Parallel()
+	p := promoter(lowering.ExtensionPromotions{})
+	at := func(u ir.Unmodeled, formed bool) []string {
+		diags := lowering.UnheldDeprecation(p, "T", formed, u)
+		out := make([]string, 0, len(diags))
+		for _, d := range diags {
+			out = append(out, string(d.Provenance.Pointer))
+		}
+		return out
+	}
+	entry := func(key, raw string) ir.UnmodeledEntry {
+		return ir.UnmodeledEntry{Reason: ir.ReasonVendorExtension, Value: ir.RawValue(raw),
+			Provenance: ir.Provenance{Pointer: jsontext.Pointer("/tags/0/" + key)}}
+	}
+	deprecated := ir.Unmodeled{
+		"openapi:x-stability":         entry("x-stability", `"deprecated"`),
+		"openapi:x-fern-availability": entry("x-fern-availability", `"beta"`),
+		"openapi:x-deprecated-reason": entry("x-deprecated-reason", `"old"`),
+	}
+	assert.Equal(t, []string{"/tags/0/x-stability", "/tags/0/x-deprecated-reason"}, at(deprecated, true))
+	assert.Equal(t, []string{"/tags/0/x-deprecated-reason"}, at(deprecated, false), "the tier keys are UnformedTier's")
+	assert.Empty(t, at(ir.Unmodeled{"openapi:x-deprecated-reason": entry("x-deprecated-reason", `"old"`)}, true),
+		"a member beside no deprecation states none")
+}
