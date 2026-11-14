@@ -806,12 +806,12 @@ something a caller asks for with `none`, never a default.
   An error diagnostic stops none of the oracles, and an oracle with nothing to compare declines,
   saying why, so a sweep's summary counts what each asked and what it could not. The order oracle
   leaves sequences as written. A second, **sequence-order independence**, reverses each `allOf`
-  and `required` sequence, which JSON Schema defines without position, unless it sits beneath an
-  anchor, a reference points into it or the source writes its path twice, and leaves every other
-  sequence, whose order the IR keeps as fact or presentation. It declines a spec read from more
-  than one file, since another file can name a reversed sequence's element by its index, and one
-  whose nodes beneath a reversed sequence name each other in a cycle, which no digest tells apart
-  whatever order it meets them in. It forgives which element of a reversed sequence a pointer
+  and `required` sequence, which JSON Schema defines without position, unless it or an ancestor
+  is anchored, a reference points into it or the source writes its path twice, and leaves every
+  other sequence, whose order the IR keeps as fact or presentation. It declines a spec read from
+  more than one file, since another file can name a reversed sequence's element by its index, and
+  one whose nodes beneath a reversed sequence name each other in a cycle, which no digest tells
+  apart whatever order it meets them in. It forgives which element of a reversed sequence a pointer
   names, an ID naming a node beneath one being told apart by a digest of that node, and an index
   after `allOf` or `required` in an `Unmodeled` name, reversed or not, since the name is relative
   to its holder; it compares each model's flattened shape too, and a report that moves with the
