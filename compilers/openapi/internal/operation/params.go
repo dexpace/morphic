@@ -123,7 +123,7 @@ func fillParamType(c lowering.Ctx, w walk, param *ir.Parameter, binding *ir.HTTP
 
 // fillParamSchema reads a parameter schema's default value and scalar
 // constraints through the readers a property's go through
-// (annotation.EffectiveDefault, schema.CarrierConstraintsOf), so the two carriers
+// (schema.Use.Default, schema.CarrierConstraintsOf), so the two carriers
 // cannot read one schema apart. What no field of the parameter holds goes to
 // written, for the caller to key beneath the schema's scope.
 //
@@ -147,7 +147,7 @@ func fillParamSchema(c lowering.Ctx, ts *compile.Types, param *ir.Parameter, wri
 	// default and description off an intermediate reference instead of the
 	// schema that declares them.
 	use := schema.UseOf(c, ts, js, param.Type, pointer)
-	def, diags := annotation.EffectiveDefault(use.DefaultChain(s), pointer, c.Place())
+	def, diags := use.Default(c, s, pointer)
 	param.Default = def
 
 	cons, consDiags := schema.CarrierConstraintsOf(c, ts, written, s, use.Voices, param.Type, pointer)

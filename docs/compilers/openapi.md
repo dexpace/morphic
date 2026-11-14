@@ -1220,9 +1220,8 @@ what the document got wrong. The number reader is the numeric bounds' as well
   `value.TestClassify_RefusesAPlainNumberPastTheExponentRange`,
   `annotation.TestSchemaExamplesAt_UnconvertibleValueIsReportedNotDropped`,
   `schema.TestUseDefault_ReportsAtTheDefault`, `schema.TestUseDefault_ReportsAHeadersDefaultAtTheDefault`,
-  `schema.TestUseDefault_AChainReportsAtTheHopThatSupplied`
-- Status: partly built: a parameter's unconvertible default is still reported at the schema reading
-  it, with `openapi/degraded-construct` (#1101).
+  `schema.TestUseDefault_AChainReportsAtTheHopThatSupplied`,
+  `operation.TestParams_AnUnconvertibleDefaultIsReportedWhereItIsWritten`
 
 ## 4. Schemas: identity, references and annotations
 

@@ -6,6 +6,7 @@ package operation_test
 import (
 	"encoding/json/jsontext"
 	"strconv"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -896,4 +897,26 @@ func TestParams_ABoundBesideAReferenceIsReadByItsNamedType(t *testing.T) {
 			entry.Provenance.Pointer)
 		assert.NotContains(t, header.Unmodeled, "openapi:schema/maxItems")
 	})
+}
+
+// TestParams_AnUnconvertibleDefaultIsReportedWhereItIsWritten holds a
+// parameter's default to the reading a property's takes (schema.Use.Default):
+// one the IR holds no value for leaves the parameter none and is reported once,
+// as a construct left unlowered, at the default itself rather than its schema.
+func TestParams_AnUnconvertibleDefaultIsReportedWhereItIsWritten(t *testing.T) {
+	t.Parallel()
+	_, svc, diags := compileService(t, openapitest.PathsSpec(`  /x:
+    get:
+      parameters:
+        - {name: n, in: query, schema: {type: number, default: .inf}}
+      responses: {"200": {description: ok}}
+`))
+	assert.Nil(t, paramsOf(t, svc)["n"].Default)
+	var found []string
+	for _, d := range diags {
+		if strings.Contains(d.Message, "default") {
+			found = append(found, d.Code+" "+string(d.Provenance.Pointer))
+		}
+	}
+	assert.Equal(t, []string{"openapi/unlowered-construct /paths/~1x/get/parameters/0/schema/default"}, found)
 }

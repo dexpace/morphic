@@ -58,24 +58,6 @@ func EffectiveVisibility(chain []*oas3.Schema) (ir.Visibility, bool) {
 	}
 }
 
-// EffectiveDefault returns the default the nearest schema of chain writes, for
-// the property or parameter at pointer to keep. A chain writing none yields
-// nothing; an unconvertible node yields a warning at pointer and no value,
-// rather than a warning at the default's own position as
-// docs/compilers/openapi.md#values asks (GitHub #1101).
-func EffectiveDefault(chain []*oas3.Schema, pointer jsontext.Pointer, doc provenance.Doc) (*ir.Value, []ir.Diagnostic) {
-	i := slices.IndexFunc(chain, func(s *oas3.Schema) bool { return s.GetDefault() != nil })
-	if i < 0 {
-		return nil, nil
-	}
-	v, err := value.FromNode(chain[i].GetDefault())
-	if err != nil {
-		return nil, []ir.Diagnostic{diag.Newf(ir.SeverityWarning, diag.DegradedConstruct, doc.At(pointer),
-			"default: %s", err.Error())}
-	}
-	return &v, nil
-}
-
 // anyFlag reports whether a schema of chain sets the bool field accessor
 // extracts. It is the one reading of the boolean annotations JSON Schema
 // defines (deprecated, readOnly, writeOnly): each in force where any

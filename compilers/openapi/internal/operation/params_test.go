@@ -162,7 +162,7 @@ func TestParams_AllLocationsAndStyles(t *testing.T) {
 	assert.NotEmpty(t, logical["filter"].Unmodeled)
 	require.NotNil(t, logical["q"].Constraints)
 
-	assert.Positive(t, openapitest.CountDiagsAt(diags, diag.DegradedConstruct, ir.SeverityWarning), "malformed param default warns")
+	assert.Positive(t, openapitest.CountDiagsAt(diags, diag.UnloweredConstruct, ir.SeverityWarning), "malformed param default warns")
 	assert.Nil(t, logical["bad"].Default, "and is dropped with its warning, not kept as a zero value")
 	assert.True(t, openapitest.HasDiag(diags, diag.NumericPrecision), "malformed param constraint warns")
 }

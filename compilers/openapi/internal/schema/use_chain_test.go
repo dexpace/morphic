@@ -272,7 +272,8 @@ components:
 	assert.Equal(t, []string{
 		"warning openapi/unlowered-construct /components/schemas/H/properties/own/default",
 		"warning openapi/unlowered-construct /components/schemas/N/default",
-	}, findingsOf(diags, unloweredConstruct), "one finding per default, at the default")
+		"warning openapi/unlowered-construct /paths/~1a/get/parameters/0/schema/default",
+	}, findingsOf(diags, unloweredConstruct), "one finding per default, at the default, a parameter's too")
 	assert.Equal(t, []string{"error openapi/unpreservable-construct /components/schemas/N/default"},
 		findingsOf(diags, diag.UnpreservableConstruct), "the verbatim copy N cannot keep is another loss")
 	assert.Equal(t, 1, countCode(diags, diag.DegradedConstruct, "/components/schemas/H/properties/ex/examples/0"),

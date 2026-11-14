@@ -87,21 +87,6 @@ func writesRef(s *oas3.Schema) bool {
 	return n != nil && n.Kind == yaml.ScalarNode
 }
 
-// DefaultChain is u.Site(s)'s chain less each referent past the narrowing whose
-// default the position does not admit: a default is a value, so unlike a
-// description it binds only where the narrowed type takes it. An example never
-// does: a target's stay on its node (docs/compilers/openapi.md#schema-examples).
-func (u Use) DefaultChain(s *oas3.Schema) []*oas3.Schema {
-	chain := u.Site(s).Chain()
-	if u.narrowed == nil {
-		return chain
-	}
-	own := len(chain) - len(u.Referents) + u.narrowedFrom
-	return slices.Concat(chain[:own], slices.DeleteFunc(slices.Clone(chain[own:]), func(r *oas3.Schema) bool {
-		return !u.takes(r.GetDefault())
-	}))
-}
-
 // Default returns the default the nearest schema of u's chain writes for the
 // carrier at pointer holding s, as DefaultChain reads the chain, and a warning
 // at that default's own position where no ir.Value holds it. The carrier then

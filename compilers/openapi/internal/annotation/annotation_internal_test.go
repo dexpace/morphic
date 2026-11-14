@@ -579,63 +579,6 @@ func TestEffectiveVisibility_MapsTheFlagsToLifecycles(t *testing.T) {
 	}
 }
 
-// TestEffectiveDefault_UseSiteOverridesReferent pins the precedence the carriers
-// read a default by: the site's own default wins, and a site writing none falls
-// through to its referent rather than reading its own absence as no default.
-func TestEffectiveDefault_UseSiteOverridesReferent(t *testing.T) {
-	t.Parallel()
-	tests := []struct {
-		name     string
-		ref, tgt string
-		want     string // "" when no default is returned
-	}{
-		{name: "the site writes one", ref: "default: site\n", want: "site"},
-		{name: "the site's wins over the referent's", ref: "default: site\n", tgt: "default: referent\n", want: "site"},
-		{name: "an absent default falls through", ref: "type: string\n", tgt: "default: referent\n", want: "referent"},
-		{name: "neither writes one", ref: "type: string\n", tgt: "type: string\n"},
-		{name: "no referent", ref: "type: string\n"},
-		{name: "no schemas at all"},
-	}
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-			var ref, tgt *oas3.Schema
-			if tc.ref != "" {
-				ref = schemaFromYAML(t, tc.ref)
-			}
-			if tc.tgt != "" {
-				tgt = schemaFromYAML(t, tc.tgt)
-			}
-			got, diags := EffectiveDefault([]*oas3.Schema{ref, tgt}, "/p", sourced(0))
-			assert.Empty(t, diags)
-			if tc.want == "" {
-				assert.Nil(t, got)
-				return
-			}
-			require.NotNil(t, got)
-			assert.Equal(t, tc.want, got.Str)
-		})
-	}
-}
-
-// TestEffectiveDefault_UnconvertibleIsReportedAtTheSchema pins the failure
-// half: a default no value can hold yields no value and one warning rather
-// than being dropped silently. The warning is located at the schema the
-// default was read at, not at the default, which departs from the values rule
-// (GitHub #1101), so a fix moves this assertion with it.
-func TestEffectiveDefault_UnconvertibleIsReportedAtTheSchema(t *testing.T) {
-	t.Parallel()
-	ref := schemaFromYAML(t, "type: number\ndefault: .nan\n")
-
-	got, diags := EffectiveDefault([]*oas3.Schema{ref}, "/p", sourced(2))
-
-	assert.Nil(t, got)
-	require.Len(t, diags, 1)
-	assert.Equal(t, ir.SeverityWarning, diags[0].Severity)
-	assert.Equal(t, diag.DegradedConstruct, diags[0].Code)
-	assert.Equal(t, ir.Provenance{Source: 2, Pointer: "/p"}, diags[0].Provenance)
-}
-
 // TestEffectiveDeprecated_AnySchemaDeprecates pins the reading JSON Schema
 // gives the deprecated flag: a location is deprecated where any occurrence
 // applying to it is true, and a false is as absent, so neither the site nor a
