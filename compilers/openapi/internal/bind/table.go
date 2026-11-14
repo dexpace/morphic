@@ -161,6 +161,9 @@ type binder struct {
 	loops     []Loop
 	committed bool
 	stale     bool
+	// grew says the pass's last drain reached a document no drain before it
+	// had.
+	grew bool
 }
 
 // Bind reads every reference the source tree src holds, a schema's or a
@@ -220,19 +223,29 @@ func run(b *binder) *Table {
 }
 
 // goOn reports whether the pass b, its walks done, goes on. It does while
-// what the documents it reached declare changes no URI it asked for (settled):
-// to read the documents it held and the hops that waited for them, which the
-// next drain holds to the same test, or, once nothing is held, to settle what
-// waited. A change ends it, to be read again.
+// what the documents it reached declare changes no URI whose answer it kept
+// (settled): to read the documents it held (readHeld), to ask again the hops
+// that wait for a declaration of a document read and not yet reached, or,
+// once nothing is held or waits so, to settle what waited. A change ends it,
+// to be read again.
 func goOn(b *binder) bool {
 	if !settled(b) {
 		b.stale = true
 		return false
 	}
-	if len(b.reads.held) == 0 {
+	switch {
+	case len(b.reads.held) > 0:
+		readHeld(b)
+	case len(b.wait.held) > 0 || len(b.wait.heldObjects) > 0 || len(b.wait.heldMappings) > 0:
+		// What waits, waits for a declaration of a document read and not yet
+		// reached: while a drain reaches one, ask again. Once one reaches none,
+		// the documents declaring what waits are reached, as a read reaches the
+		// document it reads; once that reaches none either, what still waits is
+		// read as a location.
+		b.wait.unwaited = b.wait.unwaited || !b.grew && !reachDeclaring(b)
+	default:
 		return b.wait.release(b.find)
 	}
-	readHeld(b)
 	b.wait.requeue(b.find, b.hops, b.objs.hops)
 	return true
 }
@@ -246,6 +259,7 @@ func goOn(b *binder) bool {
 func settled(b *binder) bool {
 	b.find.identifyAll()
 	fresh := b.docs.takeFresh()
+	b.grew = len(fresh) > 0
 	b.work.spend(len(fresh))
 	if b.committed && !b.ids.grow(fresh) {
 		return true
@@ -259,19 +273,43 @@ func settled(b *binder) bool {
 // documents it reached declare changed a URI it asked for, so an answer it gave
 // is not theirs (goOn). A document only an earlier pass reached declares
 // nothing. The pass the budget runs out in, wherever in it, is the last, and
-// its answers stand, so no pass begins with nothing to spend. A chain of
-// documents each declaring the URI the one before it asked for, held or not,
-// so costs a pass per link (GitHub #1372).
+// its answers stand, so no pass begins with nothing to spend. Only a location
+// whose own content leads to a declaration of its URI reads a pass again: a
+// reference a declaration may answer waits for it (goOn).
 func reread(b *binder) bool {
 	return b.stale && !b.work.over()
 }
 
 // readHeld reads the documents the pass b held back, as no document it read
-// answers for their URIs (OAS 3.1 §4.3.1). They are read together, a round for
-// all rather than one each, so one may declare another's URI, read then for
-// nothing: the next drain sees the change, and the next pass reads against it.
+// answers for their names (OAS 3.1 §4.3.1), in a drain's two tiers
+// (reads.drain): a URL a document open declares to its asker is not read
+// while what waits for that declaration may wait.
 func readHeld(b *binder) {
-	b.reads.drain(b.docs)
+	b.reads.drain(b.docs, b.find.identifyAll, func(uri string, from DocID) bool {
+		return !b.wait.unwaited && declaredFor(b, uri, from)
+	})
+}
+
+// reachDeclaring reaches each document whose declaration a hop waits for, and
+// reports whether one was not reached before.
+func reachDeclaring(b *binder) bool {
+	reached := false
+	for _, id := range b.wait.declaring {
+		reached = reached || !b.docs.reached[id]
+		b.docs.reach(id)
+	}
+	return reached
+}
+
+// declaredFor reports whether a document open declares uri to the document
+// asker (admitted, reads.admits).
+func declaredFor(b *binder, uri string, asker DocID) bool {
+	for _, p := range b.ids.declared[uri] {
+		if admitted(b.docs, p.Doc, asker, uri) && b.reads.admits(b.docs, p.Doc, asker) {
+			return true
+		}
+	}
+	return false
 }
 
 // rootOf is the root at the root of document id, read at s.

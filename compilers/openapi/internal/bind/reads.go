@@ -32,21 +32,21 @@ type ask struct{ name, from string }
 // (docs.failed), so whether a document is read turns on the set of documents
 // naming it and never on which asked first.
 type reads struct {
-	held   map[string]map[string]bool
+	held   map[string]map[DocID]bool
 	barred map[ask]error
 	judged map[ask]bool
 }
 
 // newReads returns a record of nothing asked.
 func newReads() *reads {
-	return &reads{held: map[string]map[string]bool{}, barred: map[ask]error{}, judged: map[ask]bool{}}
+	return &reads{held: map[string]map[DocID]bool{}, barred: map[ask]error{}, judged: map[ask]bool{}}
 }
 
 // hold notes that the document from asked for name, held back for the
 // pass's drain.
-func (r *reads) hold(name, from string) {
+func (r *reads) hold(name string, from DocID) {
 	if r.held[name] == nil {
-		r.held[name] = map[string]bool{}
+		r.held[name] = map[DocID]bool{}
 	}
 	r.held[name][from] = true
 }
@@ -95,14 +95,35 @@ func (r *reads) admits(d *docs, decl, from DocID) bool {
 	return err == nil
 }
 
-// drain reads every name the pass held, for each document that asked, in
-// one order, and forgets them. A failure is kept for the hop that asks again
-// (docs.open, reads.open).
-func (r *reads) drain(d *docs) {
+// drain reads the names the pass held, in two tiers, and forgets them: first
+// every file, a path or a file URI, which costs no request, then, once what
+// every document open declares is read (identifyAll), every URL no document
+// open declares to the document that asked for it, as an identifier is not a
+// location to request. Each is read for each document that asked, in one
+// order. A failure is kept for the hop that asks again (docs.open,
+// reads.open).
+func (r *reads) drain(d *docs, identifyAll func(), declares func(uri string, from DocID) bool) {
+	var urls []string
 	for _, name := range slices.Sorted(maps.Keys(r.held)) {
-		for _, from := range slices.Sorted(maps.Keys(r.held[name])) {
-			_, _ = r.open(d, name, from)
+		if OverNetwork(name) {
+			urls = append(urls, name)
+			continue
+		}
+		r.readFor(d, name, func(DocID) bool { return true })
+	}
+	identifyAll()
+	for _, name := range urls {
+		r.readFor(d, name, func(from DocID) bool { return !declares(name, from) })
+	}
+	identifyAll()
+	clear(r.held)
+}
+
+// readFor reads name for each document that held it and wants says reads it.
+func (r *reads) readFor(d *docs, name string, wants func(from DocID) bool) {
+	for _, from := range slices.Sorted(maps.Keys(r.held[name])) {
+		if wants(from) {
+			_, _ = r.open(d, name, d.name(from))
 		}
 	}
-	clear(r.held)
 }

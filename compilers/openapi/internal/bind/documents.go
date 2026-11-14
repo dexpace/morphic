@@ -135,9 +135,11 @@ func (d *docs) refusal(uri string) string {
 // open returns the document named name, reading it through Config.Open the
 // first time it is asked for, by from, and the same answer every later time.
 // A read refused to from alone (BarredError) is no answer of the document's.
+// Opening reaches nothing: a hop that resolves into the document does
+// (binder.read), so a document read for a reference that a declaration then
+// answers declares nothing.
 func (d *docs) open(name, from string) (DocID, error) {
 	if id, ok := d.byName[name]; ok {
-		d.reach(id)
 		return id, nil
 	}
 	if err, ok := d.failed[name]; ok {
@@ -165,7 +167,6 @@ func (d *docs) open(name, from string) (DocID, error) {
 	opened.self, opened.absolute = d.selfOf(opened)
 	d.list = append(d.list, opened)
 	d.byName[name] = id
-	d.reach(id)
 	return id, nil
 }
 

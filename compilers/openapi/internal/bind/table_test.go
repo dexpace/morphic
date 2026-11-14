@@ -7,6 +7,7 @@ import (
 	"encoding/json/jsontext"
 	"errors"
 	"net/url"
+	"slices"
 	"strings"
 	"testing"
 
@@ -458,7 +459,9 @@ func TestBind_RefuseJudgesEachReferenceByItsSpelling(t *testing.T) {
 	assert.Equal(t, bind.Unreadable, abs.Hop.Reason)
 	assert.Equal(t, "the document it names could not be read: named by its spelling", abs.Hop.Why())
 	assert.Equal(t, 1, opened["/other.yaml"], "read for the relative $ref alone")
-	assert.ElementsMatch(t, []string{"other.yaml", "/other.yaml"}, refused)
+	slices.Sort(refused)
+	assert.Equal(t, []string{"/other.yaml", "other.yaml"}, slices.Compact(refused),
+		"each spelling is judged, once for each time its hop is read")
 	assert.Contains(t, located, "/elsewhere/b", "the $id is placed")
 	id := entryAt(t, table, "/components/schemas/Id")
 	assert.Equal(t, bind.Position{Pointer: "/components/schemas/Res"}, id.Hop.Target, id.Hop.Why())

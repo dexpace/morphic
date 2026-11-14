@@ -87,6 +87,11 @@ type waits struct {
 	heldObjects  []Position
 	heldMappings []mappingKey
 	released     bool
+	// declaring is each document read and not yet reached whose declaration
+	// a hop waits for, and unwaited says what waits so is read as a location
+	// instead, for the rest of the pass (goOn).
+	declaring []DocID
+	unwaited  bool
 }
 
 // newWaits returns a pass's deferrals, holding none.
@@ -123,7 +128,7 @@ func (w *waits) requeue(f *finder, hops map[Position]Hop, objHops map[Position]o
 		delete(w.mappings, k)
 		f.freshMappings = append(f.freshMappings, k)
 	}
-	w.held, w.heldObjects, w.heldMappings, w.released = nil, nil, nil, false
+	w.held, w.heldObjects, w.heldMappings, w.released, w.declaring = nil, nil, nil, false, nil
 }
 
 // release notes in f every site, mapping value and reference object that

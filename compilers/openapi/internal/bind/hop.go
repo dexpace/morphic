@@ -79,16 +79,36 @@ func (b *binder) named(in resource, uri string) (resource, Reason, string) {
 	}
 	// A miss the merge bound may explain is read as a location all the same:
 	// the table says it is truncated.
-	root, found, why := b.ids.lookupURI(key, func(decl DocID) bool {
+	root, found, why, waitOn := b.ids.lookupURI(key, func(decl DocID) bool {
 		return admitted(b.docs, decl, in.root.Doc, key) && b.reads.admits(b.docs, decl, in.root.Doc)
-	})
+	}, !b.wait.unwaited)
 	switch {
 	case found:
+		b.ids.keep(key)
 		b.docs.reach(root.Doc)
 		return resource{root: root, uri: key, id: true}, NoReason, ""
 	case why == DuplicateID:
+		b.ids.keep(key)
 		return resource{}, why, key
-	case (in.id || in.based) && !fragment.Absolute(uri):
+	case len(waitOn) > 0:
+		// A document read and not yet reached declares it: the hop waits for
+		// that document as a held one waits for its read (goOn).
+		b.wait.declaring = append(b.wait.declaring, waitOn...)
+		return resource{}, Held, ""
+	}
+	located, reason, detail := locatedAt(b, in, uri, key)
+	if reason != Held {
+		b.ids.keep(key)
+	}
+	return located, reason, detail
+}
+
+// locatedAt is the resource of the document uri, written in the resource in,
+// names as a location, key being the URI it resolves to: read against an
+// $id's or a $self's base where only those name it (readAt), else where it
+// is written (opened).
+func locatedAt(b *binder, in resource, uri, key string) (resource, Reason, string) {
+	if (in.id || in.based) && !fragment.Absolute(uri) {
 		return b.readAt(in, uri, key)
 	}
 	return b.opened(in, uri, key)
@@ -180,14 +200,14 @@ func OverNetwork(location string) bool {
 }
 
 // read is the resource of the document named name, read through Config.Open
-// as a reference written in the resource in reads it, or why the read failed.
-// The first read of a document an absolute URI names waits until the pass's
-// walks are done (Held), since a document read meanwhile may declare that
-// URI, and an identifier is not a location to fetch (goOn).
+// as a reference written in the resource in reads it, which the hop then
+// reaches, or why the read failed. The first read of a document waits until
+// the pass's walks are done (Held), since a document read meanwhile may
+// declare its name, and an identifier is not a location to read (goOn).
 func (b *binder) read(name string, in resource) (resource, Reason, string) {
 	from := b.docs.name(in.root.Doc)
-	if fragment.Absolute(name) && b.reads.unread(b.docs, name, from) {
-		b.reads.hold(name, from)
+	if b.reads.unread(b.docs, name, from) {
+		b.reads.hold(name, in.root.Doc)
 		return resource{}, Held, ""
 	}
 	id, err := b.reads.open(b.docs, name, from)
@@ -202,6 +222,7 @@ func (b *binder) read(name string, in resource) (resource, Reason, string) {
 	case err != nil:
 		return resource{}, Unreadable, err.Error()
 	}
+	b.docs.reach(id)
 	return b.resources.document(id), NoReason, ""
 }
 

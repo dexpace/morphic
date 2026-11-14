@@ -995,14 +995,18 @@ last pass's answers stand, so no declaration order reaches an answer. A document
 location before another declared that URI is reached by no later pass, so it declares nothing,
 lowers nothing and is no `Document.Sources` entry. Where what a pass reaches turns on what those
 documents declare, so that no pass agrees with the one before it, every document read declares what
-it does from the pass that would read against what an earlier one read. A pass reads the documents
-absolute URIs name once its walks are done, together, and goes on, reading again only the references
-that waited for them, while what the documents it reached declare changes no URI it asked for, one a
-waiting reference asked for included. So a chain of documents each named by an absolute URI, none
-declaring a URI a reference asked for, is read in one pass, its cost growing with its length. Where
-one does, the pass is read again: a document held beside one declaring its URI is then read for
-nothing, and a chain in which each document declares the URI the one before it asked for costs a
-pass per link. A pointer passing a reference object, with tokens left to read, reads on where that
+it does from the pass that would read against what an earlier one read. A pass reads every
+document a reference names for the first time once its walks are done, in two tiers: the files,
+which cost no request, then, once what every document open declares is read, each URL no document
+open declares to the document that asked for it. A document is reached by the reference that
+resolves into it, not by its read, and a reference whose URI a document read and not yet reached
+declares waits for that document to be reached; where nothing more is reached, the documents
+declaring what waits are reached, and what still waits is read as a location. The pass goes on,
+reading again only the references that waited, while what the documents it reached declare changes
+no URI whose answer it kept. So a chain of documents, each declaring the URI the one before it asked
+for, is read in one pass, its cost growing with its length, and a file declaring a URL answers it
+with no request. A pass is read again only where a location's own content leads to a declaration of
+its URI; a URL held beside the URL-named document declaring it is read for nothing. A pointer passing a reference object, with tokens left to read, reads on where that
 reference's chain ends, in whichever document, save at a path item, where a token naming a field
 written beside its `$ref` reads that field ([`path-item-ref-fields`](#path-item-ref-fields)); a
 pointer whose read needs a chain that needs that read is unresolved. A `$ref` written in another
@@ -1080,6 +1084,9 @@ else it writes.
   `e2e.TestCompile_ASourceLocatedAtAURLIsBoundedAsAPublicDocument`,
   `e2e.TestCompile_AFetchedDocumentWhoseReaderSaidNothingIsRefusedToABoundedAsker`,
   `e2e.TestCompile_ADeclarationOfAFileAnswersNoFetchedDocument`,
+  `bind.TestBind_AChainOfDeclaringDocumentsCostsWorkLinearInItsLength`,
+  `bind.TestBind_AChainOfDeclaringURLsCostsWorkLinearAndEachIsRequestedOnce`,
+  `bind.TestBind_RequestsWhatMainRequests`,
   `e2e.TestCompile_OneURLSpelledSixWaysIsOneRequestOneKeyAndOneType`,
   `e2e.TestCompile_ADocumentAnotherOriginServesDeclaresNothingForTheSource`,
   `e2e.TestCompile_AFilesDeclarationAnswersTheSourceAndNoRead`,
@@ -1204,9 +1211,7 @@ else it writes.
   `e2e.TestCompile_AReachedObjectTheModelFaultsOnLowersAsUnderPaths`,
   `e2e.TestCompile_ARefAMergeKeyWritesThatIsNoStringLeavesTheEntryOut`,
   `e2e.TestCompile_AComponentWhoseRefIsNoStringIsKeptAsWritten`
-- Status: partly built: a chain of documents each declaring the URI the one before it asked for
-  costs a binding pass per link (#1372). A redirected document is based at the URL requested
-  (#1943). Through a proxy, the address the proxy gives a name is judged by nobody (#1947).
+- Status: partly built: a redirected document is based at the URL requested (#1943). Through a proxy, the address the proxy gives a name is judged by nobody (#1947).
 
 ### `reference-cycles`
 
