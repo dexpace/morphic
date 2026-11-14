@@ -37,8 +37,9 @@ goes to the type that owns the broken state
 - Read every result line: a mutant that did not compile, a test that never ran and another
   test's panic look like verdicts.
 - Iterate with `go test` on the packages you touched, and before calling it done take `make gate`
-  or CI's run of it on the final head: `go test` passing is not the coverage gate
-  (`references/toolchain.md#coverage-per-package`).
+  or CI's run on the final head: `go test` passing is not the coverage gate
+  (`references/toolchain.md#coverage-per-package`), and the gate races nothing
+  (`references/toolchain.md#race-before-done`).
 
 ## Script
 

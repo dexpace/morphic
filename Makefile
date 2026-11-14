@@ -126,8 +126,8 @@ build:
 #
 # -timeout is explicit so that a test that never returns, as one would if the
 # third-party resolver hung on a document the compiler no longer refuses, ends
-# in a stack dump naming the stuck goroutine. 300s clears the slowest package
-# under -race by more than an order of magnitude.
+# in a stack dump naming the stuck goroutine. 300s is several times the slowest
+# package's time on the gate's runner.
 #
 # The profile path is minted per run: go test truncates it at the start and
 # appends each package as it finishes, so two runs sharing one would each judge
@@ -147,8 +147,10 @@ coverage:
 # -covermode=atomic, whose counters can hide a race from the detector (#1271).
 # The nightly job runs it and the gate does not, as it is the suite's largest
 # cost. The planted race runs first, with the same flags, and must be reported:
-# a run that lost -race, or gained coverage, would otherwise pass.
-RACE_FLAGS := -race -timeout 300s
+# a run that lost -race, or gained coverage, would otherwise pass. Under -race
+# the slowest package takes over half of coverage's 300s on the same runner, so
+# the race run allows twice that before it reads a test as hung.
+RACE_FLAGS := -race -timeout 600s
 RACE_PLANT := ./internal/leakcheck/testdata/race
 race:
 	@if $(GO) test -count=1 $(RACE_FLAGS) $(RACE_PLANT) 2>&1 | grep -q 'WARNING: DATA RACE'; then \

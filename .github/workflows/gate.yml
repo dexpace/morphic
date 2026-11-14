@@ -120,7 +120,9 @@ jobs:
   #
   # This job alone may write to issues, and it runs only main's code or a
   # writer's dispatch, never a pull request's. The checkout leaves no credential
-  # in .git/config, and only the two steps that call the API hold GH_TOKEN.
+  # in .git/config, and the race step's environment holds no token, but checkout
+  # and setup-go are handed one as an input's default, and the two steps that
+  # call the API as GH_TOKEN.
   race:
     name: race detector
     if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
@@ -161,6 +163,11 @@ jobs:
       - name: toolchain pin
         if: steps.moved.outputs.run == 'true'
         run: echo "GOTOOLCHAIN=go$(env -u GOTOOLCHAIN make -s print-go-version)" >>"$GITHUB_ENV"
+      # Built first for the suite job's reason (#1010), which this job's empty
+      # cache makes stronger: every package compiles here.
+      - name: build
+        if: steps.moved.outputs.run == 'true'
+        run: make build
       # A step's timeout fails the step, which the report below sees; the job's
       # would cancel it, which it does not.
       - name: race
@@ -181,13 +188,17 @@ jobs:
               echo
               echo "The last scheduled run finished at $LAST: $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/compare/$LAST...$GITHUB_SHA"
             fi
-            if [ -s race.log ]; then
+            failures="$(grep -E '^(race:|--- FAIL|FAIL|WARNING: DATA RACE|panic:)' race.log 2>/dev/null | head -n 100)"
+            if [ -n "$failures" ]; then
               echo
               echo "Its failures, at most 100 lines; the run's log holds the rest:"
               echo
               echo '```'
-              grep -E '^(race:|--- FAIL|FAIL|WARNING: DATA RACE|panic:)' race.log | head -n 100
+              echo "$failures"
               echo '```'
+            elif [ -s race.log ]; then
+              echo
+              echo "Its output names no failure, as when the step times out: read the run's log."
             else
               echo
               echo "It failed before the suite ran: read the run's log."

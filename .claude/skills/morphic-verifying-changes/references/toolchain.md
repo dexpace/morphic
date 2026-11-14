@@ -20,6 +20,17 @@
 - **Why.** End-to-end tests exercised every branch of a schema helper and the gate still found 13
   uncovered statements (#1065).
 
+## Race-check a change to concurrent code before calling it done
+`race-before-done`
+
+- **Rule.** A change to code more than one goroutine runs, or to a test starting goroutines, runs
+  under `-race` over each package it touches before it is called done, and again in its review:
+  the gate runs no race detector, and the nightly `make race` meets a merged race only after the
+  merge. Run it without coverage flags, which can hide a race.
+- **Why.** `-race` left the gate for its cost, and `-race` beside atomic coverage hid a planted race
+  in every run (#1271).
+- **Probe.** `go test -race -count=1 ./<pkg>` per touched package, or `make race` for the suite.
+
 ## A re-exec'd child writes coverage only when it exits through os.Exit
 `child-coverage`
 
