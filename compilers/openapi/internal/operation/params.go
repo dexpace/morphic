@@ -55,6 +55,10 @@ func lowerParameters(c lowering.Ctx, w walk, mount jsontext.Pointer, params []so
 		// A summary or description beside a $ref of the entry's chain documents
 		// this use of the parameter, over what its declaration says (GitHub #610).
 		param.Docs = resolve.UseDocs[soa.Parameter](c.Bindings(), sp.ref, param.Docs)
+		// What the chain writes beside its $ref rides on the parameter it lowers to.
+		beside, besideDiags := lowering.Beside[soa.Parameter](pc, sp.ref, sp.pointer, true)
+		param.Unmodeled = annotation.MergeUnmodeled(param.Unmodeled, beside)
+		diags = append(diags, besideDiags...)
 		logical = append(logical, param)
 		bindings = append(bindings, binding)
 	}

@@ -294,8 +294,10 @@ var rules = map[string][]string{
 	// it holds, and provenance for where a position of its document is placed.
 	// It reaches nodeview and yaml to weigh the declaration a $ref names, which a
 	// reference's lowering copies, and yaml for the node a schema's rows are
-	// found by.
+	// found by. It reaches annotation to keep what a reference writes beside its
+	// $ref, as every keeper does.
 	"compilers/openapi/internal/lowering": {module + "/ir",
+		module + "/compilers/openapi/internal/annotation",
 		module + "/compilers/openapi/internal/bind",
 		module + "/compilers/openapi/internal/bind/typed",
 		module + "/compilers/openapi/internal/budget",

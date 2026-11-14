@@ -1331,9 +1331,7 @@ parameter, a response or error case, a header, an example, a request body, a sec
 body's media type, a link — both are read off the entry and folded over the declaration's docs field
 by field, a sibling the entry writes winning and one it omits leaving the declaration's value
 standing.
-A parameter's or header's content entry has no docs field of its own, so what the fold takes there
-is kept verbatim under `no_ir_home`, each from the position writing it, in whichever document, with
-an info `openapi/degraded-construct`. A component that is itself
+A component that is itself
 a `$ref` (an alias) is a use of what it names, so the fold runs along the whole chain from the
 declaration outward: an alias's siblings override the declaration's, and a use site's override the
 alias's. The fold applies at every version whose parser presents the siblings, which is all of them:
@@ -1345,17 +1343,42 @@ permitted. OpenAPI 3.0 goes further, admitting no key beside a `$ref` and saying
 ignored; there the fold is the 3.1 reading, and each sibling it reads is reported with an
 `openapi/later-version-construct` warning ([`later-version-construct`](#later-version-construct)).
 
-- Cases: `ref-site-docs`, `later-version-constructs`, `component-media-types-32`
-- Codes: `openapi/later-version-construct`, `openapi/degraded-construct`
+Every other key a Reference Object of the chain writes beside its `$ref`, read as the model reads the
+mapping, a `<<` included, rides on the node the use lowers to, under
+`openapi:reference/<i>/<key>`: `i` is 0 for the use, then counts the aliases the chain passes,
+nearest first, so a use and an alias writing one key are two entries. Each is kept `out_of_scope`,
+OpenAPI giving it no effect, with its own key's provenance in the document writing it; the rule
+table reports it ([`unknown-keys`](#unknown-keys)), and keeping it reports nothing more. Where the
+position has no docs field, a callback's and a parameter's or header's content entry's, the use folds
+nothing, so the `summary` and `description` each Reference Object writes are kept the same way,
+`no_ir_home`, each reported as an info `openapi/unhomed-construct` at its key, and the entry leaves
+when a docs field arrives. The Media Type Object's own keys keep `openapi:content/<mt>/<key>`, which
+a key of the chain's never shares: a key is read whole, never by its prefix.
+
+| Use | Node the entries ride on | Scope before `reference/<i>/` | Folds docs |
+|---|---|---|---|
+| parameter, header | the `ir.Parameter`, the header's `ir.Property` | none | yes |
+| request body, response, example | the operation's `Request`, the `ir.Response` or `ir.ErrorCase`, the `ir.Example` | none | yes |
+| link | the response's link | none | yes |
+| callback | the operation's HTTP binding | `callbacks/<name>/` | no |
+| media type of a parameter's or header's content | the parameter or the header's property | `content/<mt>/` | no |
+| security scheme | the `ir.AuthScheme` | none | yes |
+
+A path item's fields beside its `$ref` are its own ([`path-item-ref-fields`](#path-item-ref-fields)).
+Rejected: keeping the keys on the Document by the use's coordinate, which nothing on the node leads
+to; and one flat `reference/` scope, which would make a use and an alias writing one key one entry.
+
+- Cases: `ref-site-docs`, `later-version-constructs`, `component-media-types-32`, `ref-beside-keys`
+- Codes: `openapi/later-version-construct`, `openapi/unhomed-construct`
 - Tests: `operation.TestMediaTypeRef_UseSiteDocsFoldAlongTheChain`,
   `operation.TestMediaTypeRef_DocsAnotherDocumentsAliasWritesArePlacedThere`,
   `operation.TestContent_MediaTypeRefIsFollowed`,
-  `operation.TestMediaTypeRef_ABodyAndAParameterFoldAlike`,
-  `operation.TestLinks_UseSiteDocsFoldOverTheDeclaration`
-- Status: partly built: a key beside a `$ref` other than `summary` and `description` is dropped with
-  no record (#1321). At a parameter's or header's content entry, a `summary` the media type's
-  declaration writes, which a Media Type Object does not define, loses its entry to the one the fold
-  takes, and is reported as represented in no form (#396).
+  `operation.TestMediaTypeRef_ABodyFoldsAndAParameterKeepsEachPosition`,
+  `operation.TestLinks_UseSiteDocsFoldOverTheDeclaration`, `lowering.TestBeside_KeysTheUseAndEachAlias`,
+  `lowering.TestBeside_ABareReferenceCostsNothing`, `operation.TestContentDocs_ChainAndDeclarationKeepApart`,
+  `operation.TestContentDocs_AKeyIsReadWhole`, `operation.TestCallbacks_AUseKeepsItsDocs`,
+  `e2e.TestBeside_AnAliasInAnotherDocumentKeepsItsKeyThere`,
+  `e2e.TestBeside_ASecuritySchemeKeepsTheKeysBesideItsRef`
 
 ### `use-bound-annotations`
 
@@ -6071,7 +6094,7 @@ any of them reads that states nothing it can fill, a value
 of another shape among them, is reported as an info `openapi/unpromoted-extension` at the key,
 saying why.
 
-- Cases: `extension-promotion`, `extension-stability`, `extension-redaction`, `extension-server-name`
+- Cases: `extension-promotion`, `extension-stability`, `extension-redaction`, `extension-server-name`, `carried-keys`
 - Codes: `openapi/degraded-construct`, `openapi/unread-extension`, `openapi/unpromoted-extension`
 - Tests: `lowering.TestPromoterDeprecation_ValueThatIsNotTextIsReported`,
   `lowering.TestPromoter_ValuesNameWhatStatesTheFact`,

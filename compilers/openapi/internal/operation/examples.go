@@ -56,12 +56,16 @@ func appendPluralExample(c lowering.Ctx, out []ir.Example, re *soa.ReferencedExa
 	// keywords are written: a $ref entry holds none of them. ir.Example carries an
 	// Unmodeled map, so neither the object's x-* nor its undeclared keys need a
 	// scope.
-	ex, dc, decl := lowering.Declared[soa.Example](c, re, pointer+ids.Ptr("examples", name))
+	use := pointer + ids.Ptr("examples", name)
+	ex, dc, decl := lowering.Declared[soa.Example](c, re, use)
 	if ex == nil {
 		return out, nil
 	}
 	ext, diags := annotation.ExtensionsFrom(ex.GetExtensions(), dc.Place(), decl)
 	diags = append(diags, annotation.UnknownKeysIn(&ext, ex, dc.Place(), decl)...)
+	beside, besideDiags := lowering.Beside[soa.Example](c, re, use, true)
+	ext = annotation.MergeUnmodeled(ext, beside)
+	diags = append(diags, besideDiags...)
 	// A summary or description beside a $ref of the entry's chain documents this
 	// use of the example (GitHub #610).
 	docs := resolve.UseDocs[soa.Example](c.Bindings(), re, ir.Docs{Summary: ex.GetSummary(), Description: ex.GetDescription()})

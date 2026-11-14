@@ -19,7 +19,6 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
 	"github.com/dexpace/morphic/compilers/openapi/internal/nodeview"
-	"github.com/dexpace/morphic/compilers/openapi/internal/resolve"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -103,7 +102,15 @@ func contentSpelling(c lowering.Ctx, media *soa.MediaType, mt string, mediaPtr j
 	if !found {
 		return elected, nil
 	}
-	examples, residue, diags := contentEntryFields(d, ids.Scope("content", mt), carrier, home)
+	scope := ids.Scope("content", mt)
+	examples, residue, diags := contentEntryFields(d, scope, carrier, home)
+	if d.use != nil {
+		// The carrier has no docs for what the entry's chain writes beside its
+		// $ref, so its summary and description are kept with its other keys.
+		beside, besideDiags := lowering.Beside[soa.MediaType](d.entryCtx, d.use, d.entryPtr, false)
+		residue = annotation.MergeUnmodeled(residue, annotation.Under(scope, beside))
+		diags = append(diags, besideDiags...)
+	}
 	elected.ctx, elected.js, elected.pointer = d.ctx, d.media.GetSchema(), d.pointer+ids.Ptr("schema")
 	elected.unmodeled, elected.examples = residue, examples
 	return elected, diags
@@ -204,9 +211,9 @@ func byKey(a, b nodeview.Pair) int { return strings.Compare(a.Key, b.Key) }
 
 // contentEntryFields returns everything the Media Type Object d declares at a
 // parameter's or header's elected `content` position beyond the one type that
-// position lowers: its example/examples, its x-* and undeclared keys, the
-// fields contentOnlyFields names, and what keepContentDocs keeps, none of which
-// may vanish without a diagnostic (GitHub #611).
+// position lowers: its example/examples, its x-* and undeclared keys, and the
+// fields contentOnlyFields names, none of which may vanish without a
+// diagnostic (GitHub #611).
 //
 // scope is the content entry's own path, so several media types and the
 // enclosing object cannot collide on one key. carrier and home name the
@@ -230,101 +237,16 @@ func contentEntryFields(d mediaDecl, scope, carrier, home string) ([]ir.Example,
 			"%s content media type %s has no %s home; kept verbatim under Unmodeled",
 			carrier, field.keyword, home))
 	}
-	taken, docDiags := keepContentDocs(d, &unmodeled, scope, carrier, home)
-	diags = append(diags, docDiags...)
 	// Last, so the keys the readers above kept are already recorded and the census
 	// leaves them alone: it answers only for what nothing read.
 	return examples, unmodeled,
-		append(diags, annotation.UnknownKeysUnder(&unmodeled, media, c.Place(), mediaPtr, scope, taken...)...)
-}
-
-// keepContentDocs keeps verbatim what documents a parameter's or header's
-// content entry, which the carrier has no home for: the summary and the
-// description the fold over the entry's chain takes, each from the nearest
-// position writing it, as a body's Content.Docs takes them
-// (docs/compilers/openapi.md#reference-object-siblings), at the census's own
-// entry, with an info. It returns the keys of the declaration it read, kept or
-// overridden, for the census to leave alone. A summary its declaration writes,
-// which a Media Type Object does not define, is the census's, and loses that
-// entry to one the fold takes (GitHub #396).
-func keepContentDocs(d mediaDecl, u *ir.Unmodeled, scope, carrier, home string) ([]string, []ir.Diagnostic) {
-	hops := docHops(d)
-	var taken []string
-	if nodeview.Child(d.media.GetRootNode(), "description") != nil {
-		taken = []string{"description"}
-	}
-	var diags []ir.Diagnostic
-	for _, key := range []string{"summary", "description"} {
-		h, node, ok := nearestWriting(hops, key)
-		if !ok {
-			continue
-		}
-		at := h.at + ids.Ptr(key)
-		kept, keptDiags := annotation.PreserveNodeInto(u, annotation.EntryKey(scope, key), node,
-			ir.ReasonNoIRHome, h.c.Place().At(at))
-		diags = append(diags, keptDiags...)
-		if kept {
-			diags = append(diags, h.c.DiagAt(ir.SeverityInfo, diag.DegradedConstruct, at,
-				"%s content media type %s has no %s home; kept verbatim under Unmodeled", carrier, key, home))
-		}
-	}
-	return taken, diags
-}
-
-// docHop is a position a content entry's docs may be written at: the mapping
-// there, and the context and pointer it is written at. summary reports whether
-// a summary written there documents the entry: a Media Type Object defines
-// none, so one its declaration writes is an undefined key, which the census
-// keeps.
-type docHop struct {
-	root    *yaml.Node
-	c       lowering.Ctx
-	at      jsontext.Pointer
-	summary bool
-}
-
-// docHops returns the positions d's docs may be written at, nearest first:
-// the entry's own, each components/mediaTypes alias its chain passes, at the
-// position the bindings' table reads it at, in whichever document, and the
-// declaration.
-func docHops(d mediaDecl) []docHop {
-	decl := docHop{root: d.media.GetRootNode(), c: d.ctx, at: d.pointer}
-	if d.use == nil {
-		return []docHop{decl}
-	}
-	hops := []docHop{{root: d.use.GetCore().GetRootNode(), c: d.entryCtx, at: d.entryPtr, summary: true}}
-	for _, hop := range resolve.Hops[soa.MediaType](d.entryCtx.Bindings(), d.use) {
-		in, _ := lowering.InDocument(d.entryCtx, hop.At.Doc)
-		hops = append(hops, docHop{root: hop.Ref.GetCore().GetRootNode(), c: in, at: hop.At.Pointer, summary: true})
-	}
-	return append(hops, decl)
-}
-
-// nearestWriting returns the first of hops writing key, and the node written.
-// A key written empty or null is read as unset, as resolve.UseDocs reads it,
-// so it leaves the one beneath it standing.
-func nearestWriting(hops []docHop, key string) (docHop, *yaml.Node, bool) {
-	for _, h := range hops {
-		if key == "summary" && !h.summary {
-			continue
-		}
-		if node := nodeview.Child(h.root, key); node != nil && !unset(node) {
-			return h, node, true
-		}
-	}
-	return docHop{}, nil, false
-}
-
-// unset reports whether node, a docs field's value, reads as no value: a null,
-// or an empty scalar.
-func unset(node *yaml.Node) bool {
-	n := nodeview.Deref(node)
-	return n.Kind == yaml.ScalarNode && (n.Value == "" || n.ShortTag() == "!!null")
+		append(diags, annotation.UnknownKeysUnder(&unmodeled, media, c.Place(), mediaPtr, scope)...)
 }
 
 // contentOnlyFields returns the Media Type Object fields the IR models at a
 // body's content position and gives a parameter or header no home for: the 3.2
-// sequential-media fields and the multipart per-part encodings. Such a position
+// sequential-media fields, the multipart per-part encodings and the entry's
+// description, which the parser's model names no field for. Such a position
 // lowers to one ir.Parameter or ir.Property holding one type, so each is kept
 // verbatim instead (GitHub #611).
 func contentOnlyFields(media *soa.MediaType) []writtenField {
@@ -334,6 +256,7 @@ func contentOnlyFields(media *soa.MediaType) []writtenField {
 		{"itemEncoding", core.ItemEncoding.ValueNode},
 		{"prefixEncoding", core.PrefixEncoding.ValueNode},
 		{"encoding", core.Encoding.ValueNode},
+		{"description", nodeview.Child(media.GetRootNode(), "description")},
 	}
 }
 

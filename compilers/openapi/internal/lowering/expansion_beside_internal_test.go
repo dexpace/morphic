@@ -57,3 +57,14 @@ func TestExpansion_AHopNoMappingHoldsIsWeighedWhole(t *testing.T) {
 	hop := ynode.Map(ynode.Scalar("$ref"), ynode.Scalar("x"))
 	assert.Equal(t, 1, weightBeside(hop, schema, budget.Unbounded()), "a schema weighs one, as weightOf weighs it")
 }
+
+// TestBeside_ReadsNothingOffNoMapping holds the readers of what a reference
+// writes beside its $ref to nothing where there is no mapping to read: no
+// node, a scalar, and a core holding no node.
+func TestBeside_ReadsNothingOffNoMapping(t *testing.T) {
+	t.Parallel()
+	assert.False(t, writesBeside(nil))
+	assert.False(t, writesBeside(ynode.Scalar("x")))
+	assert.Nil(t, writtenRoot(struct{}{}))
+	assert.Empty(t, appendRoot(nil, struct{}{}))
+}

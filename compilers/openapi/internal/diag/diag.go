@@ -444,11 +444,16 @@ const (
 	// to fill, as a stream's terminator or the input selecting it (stream) and
 	// a choice among parameters (paramchoice)
 	// (docs/compilers/openapi.md#extension-promotion), and a pagination key
-	// written true where the document's root states no walk, or beside the
-	// statement its path item writes
-	// (docs/compilers/openapi.md#extension-pagination). Info: the key is kept
-	// verbatim, so nothing it says is lost.
+	// written true where neither its path item nor the document's root states
+	// a walk (docs/compilers/openapi.md#extension-pagination). Info: the key is
+	// kept verbatim, so nothing it says is lost.
 	UnpromotedExtension = "openapi/unpromoted-extension"
+	// UnhomedConstruct reports documentation a use writes beside a $ref where
+	// the position has no docs to hold it, a callback's or a parameter's
+	// content entry's, kept verbatim on the node the use lowers to
+	// (docs/compilers/openapi.md#reference-object-siblings). Info: nothing is
+	// lost, and the entry leaves when the field arrives.
+	UnhomedConstruct = "openapi/unhomed-construct"
 	// UnknownKeyBudget reports an object declaring more keys the model does not
 	// name than the compiler keeps, so the ones past the bound reached the IR in no
 	// form at all.

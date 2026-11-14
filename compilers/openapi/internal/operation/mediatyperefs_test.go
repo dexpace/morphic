@@ -187,12 +187,12 @@ components:
 	assert.Equal(t, ir.Docs{Summary: "Use.", Description: "From the alias."}, op.Responses[0].Payload.Contents[0].Docs)
 	require.Len(t, op.Params, 1)
 	kept := op.Params[0].Unmodeled
-	assert.JSONEq(t, `"From the alias."`, string(kept["openapi:content/application~1json/description"].Value))
+	assert.JSONEq(t, `"From the alias."`, string(kept["openapi:content/application~1json/reference/1/description"].Value))
 	assert.Equal(t, "/components/mediaTypes/Alias/description",
-		string(kept["openapi:content/application~1json/description"].Provenance.Pointer))
-	assert.JSONEq(t, `"Use."`, string(kept["openapi:content/application~1json/summary"].Value))
+		string(kept["openapi:content/application~1json/reference/1/description"].Provenance.Pointer))
+	assert.JSONEq(t, `"Use."`, string(kept["openapi:content/application~1json/reference/0/summary"].Value))
 	assert.Equal(t, "/paths/~1a/get/parameters/0/content/application~1json/summary",
-		string(kept["openapi:content/application~1json/summary"].Provenance.Pointer))
+		string(kept["openapi:content/application~1json/reference/0/summary"].Provenance.Pointer))
 	assert.False(t, openapitest.HasDiag(diags, diag.UnknownObjectKey))
 	assert.False(t, openapitest.HasDiag(diags, diag.UnknownKeyEntryTaken))
 }
@@ -305,7 +305,7 @@ components:
 	get := openapitest.FindOp(t, doc, "getB")
 	assert.Equal(t, ir.Docs{Description: "From the alias."}, get.Responses[0].Payload.Contents[0].Docs)
 	require.Len(t, get.Params, 1)
-	kept, ok := get.Params[0].Unmodeled["openapi:content/application~1json/description"]
+	kept, ok := get.Params[0].Unmodeled["openapi:content/application~1json/reference/1/description"]
 	require.True(t, ok, "the alias's description is kept")
 	assert.Equal(t, ir.Provenance{Source: 1, Pointer: "/components/mediaTypes/Alias/description"}, kept.Provenance,
 		"where the alias writes it")
@@ -350,13 +350,14 @@ components:
 	}
 }
 
-// TestMediaTypeRef_ABodyAndAParameterFoldAlike holds the two readers of a
-// content entry's docs to one answer over every way the use site, the alias it
+// TestMediaTypeRef_ABodyFoldsAndAParameterKeepsEachPosition holds the two
+// readers of a content entry's docs over every way the use site, the alias it
 // names and the declaration write a key: left out, empty, null or text. A
-// body's Content.Docs and what a parameter keeps verbatim each take the nearest
-// text, and a declaration's summary, which a Media Type Object does not define,
-// is no docs (docs/compilers/openapi.md#reference-object-siblings).
-func TestMediaTypeRef_ABodyAndAParameterFoldAlike(t *testing.T) {
+// body's Content.Docs takes the nearest text, a declaration's summary, which a
+// Media Type Object does not define, being no docs; a parameter keeps each
+// position's text at that position's entry
+// (docs/compilers/openapi.md#reference-object-siblings).
+func TestMediaTypeRef_ABodyFoldsAndAParameterKeepsEachPosition(t *testing.T) {
 	t.Parallel()
 	spellings := []string{"absent", "empty", "null", "text"}
 	for _, key := range []string{"summary", "description"} {
@@ -371,9 +372,9 @@ func TestMediaTypeRef_ABodyAndAParameterFoldAlike(t *testing.T) {
 }
 
 // assertFoldsAlike compiles a body and a parameter naming one chain whose use
-// site, alias and declaration write key as writes spells it, and asserts both
-// take the text of the nearest position writing one that documents the entry,
-// from where it is written.
+// site, alias and declaration write key as writes spells it, and asserts the
+// body takes the text of the nearest position writing one that documents the
+// entry, and the parameter keeps each, from where it is written.
 func assertFoldsAlike(t *testing.T, key string, writes [3]string) {
 	t.Helper()
 	positions := [3]string{"use", "alias", "declaration"}
@@ -405,27 +406,36 @@ components:
 		"/components/mediaTypes/Alias/",
 		"/components/mediaTypes/M/",
 	}
-	want, wantAt := "", ""
-	for i, at := range written {
-		documents := key == "description" || positions[i] != "declaration"
-		if writes[i] == "text" && documents {
-			want, wantAt = "From the "+positions[i]+".", at+key
+	want := ""
+	for i := range written {
+		if writes[i] == "text" && (key == "description" || positions[i] != "declaration") {
+			want = "From the " + positions[i] + "."
 			break
 		}
 	}
 	op := openapitest.FirstOp(t, svc)
 	docs := op.Responses[0].Payload.Contents[0].Docs
 	assert.Equal(t, want, map[string]string{"summary": docs.Summary, "description": docs.Description}[key])
+
+	// A parameter has no docs, so it folds nothing: each position's text is kept
+	// at that position's own entry, the use's and the alias's as what the chain
+	// writes beside its $ref, and the declaration's as the Media Type Object's.
 	require.Len(t, op.Params, 1)
-	kept, ok := op.Params[0].Unmodeled["openapi:content/application~1json/"+key]
-	if want == "" {
-		assert.False(t, ok && kept.Reason == ir.ReasonNoIRHome, "kept %s as docs: %s", key, kept.Value)
-		return
+	entries := [3]string{"reference/0/", "reference/1/", ""}
+	for i, at := range written {
+		kept, ok := op.Params[0].Unmodeled["openapi:content/application~1json/"+entries[i]+key]
+		if writes[i] != "text" {
+			continue
+		}
+		require.True(t, ok, "%s's %s not kept", positions[i], key)
+		assert.JSONEq(t, strconv.Quote("From the "+positions[i]+"."), string(kept.Value))
+		assert.Equal(t, at+key, string(kept.Provenance.Pointer))
+		reason := ir.ReasonNoIRHome
+		if positions[i] == "declaration" && key == "summary" {
+			reason = ir.ReasonOutOfScope // a key the Media Type Object does not define
+		}
+		assert.Equal(t, reason, kept.Reason, positions[i])
 	}
-	require.True(t, ok, "%s not kept", key)
-	assert.Equal(t, ir.ReasonNoIRHome, kept.Reason)
-	assert.JSONEq(t, strconv.Quote(want), string(kept.Value))
-	assert.Equal(t, wantAt, string(kept.Provenance.Pointer))
 }
 
 // TestMediaTypeRef_ACarrierReadsTheDeclarationInItsDocument pins that a

@@ -52,7 +52,10 @@ func lowerRequestBody(c lowering.Ctx, w walk, op *ir.Operation, hb *ir.HTTPBindi
 	payload.Unmodeled = annotation.MergeUnmodeled(payload.Unmodeled, bodyExt)
 	diags = append(diags, bodyExtDiags...)
 	diags = append(diags, annotation.UnknownKeysIn(&payload.Unmodeled, rb, dc.Place(), bodyPtr)...)
+	beside, besideDiags := lowering.Beside[soa.RequestBody](c, src.GetRequestBody(), usePtr, true)
+	payload.Unmodeled = annotation.MergeUnmodeled(payload.Unmodeled, beside)
 	op.Request = payload
+	diags = append(diags, besideDiags...)
 	hb.RequestContentTypes = contentTypeKeys(rb.GetContent())
 	return diags
 }

@@ -795,7 +795,11 @@ it sees. Changes made together in one bump are listed together under it.
   ([carriers](./unmodeled.md#carriers), [promotion](./unmodeled.md#promotion)). What a parameter's or a
   header's schema writes is keyed beneath the schema's scope, `openapi:schema/<key>`, or
   `openapi:content/<mt>/schema/<key>` under an elected content entry, where it was unscoped beside the
-  object's own keys ([keys](./unmodeled.md#keys)).
+  object's own keys ([keys](./unmodeled.md#keys)). What a Reference Object writes beside its `$ref`,
+  dropped before, is kept on the node its use lowers to under `openapi:reference/<i>/<key>`; the
+  `summary` and `description` a content entry's chain writes, kept under
+  `openapi:content/<mt>/summary` and `…/description` as the nearest position's, move to
+  `openapi:content/<mt>/reference/<i>/…`, every position's.
   A consumer pinned to 0.66.0 refuses the document; one
   reading `Stop` with no arm for `no_more` would not end such a walk, and one matching a marker by
   its old name no longer finds it.
