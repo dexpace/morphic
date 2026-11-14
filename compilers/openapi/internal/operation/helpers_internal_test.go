@@ -86,7 +86,8 @@ func newRawLowerer(doc *soa.OpenAPI) *lowerer {
 func lowerServiceSpec(t *testing.T, src string) (ir.Service, []ir.Diagnostic) {
 	t.Helper()
 	l, lowered, reg, loadDiags := lowerBeforeLinks(t, src)
-	l.diags.AppendAll(lowered.Links.Resolve(l.ctx, &lowered.Service, reg, servers.Reopen(lowered.Servers)))
+	w := lowering.NewWhole(&ir.Document{Types: reg, Services: []ir.Service{lowered.Service}})
+	l.diags.AppendAll(lowered.Links.Resolve(l.ctx, w, servers.Reopen(lowered.Servers)))
 	return lowered.Service, append(loadDiags, l.diags.List()...)
 }
 

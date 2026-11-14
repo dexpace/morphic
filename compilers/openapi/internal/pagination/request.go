@@ -8,6 +8,7 @@ import (
 	"slices"
 	"strconv"
 
+	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -60,7 +61,7 @@ func (in inputs) readsNextCursor() bool {
 // walk, why says what stops it: two naming a continuation or a page size, one
 // of a type a walk cannot send, or a page sent as a string no number shows it
 // counts.
-func requestInputs(types ir.TypeRegistry, op *ir.Operation) (in inputs, why string, named bool) {
+func requestInputs(w *lowering.Whole, op *ir.Operation) (in inputs, why string, named bool) {
 	var continuations, limits []*ir.Parameter
 	var query map[ir.ParamID]bool // read at the first parameter giving a role
 	for i := range op.Params {
@@ -89,7 +90,7 @@ func requestInputs(types ir.TypeRegistry, op *ir.Operation) (in inputs, why stri
 		return inputs{}, fmt.Sprintf("query parameters %s each name the page size", quoted(limits)), true
 	}
 	cursor := continuations[0]
-	prim, ok := sendable(types, cursor.Type.Target)
+	prim, ok := sendable(w, cursor.Type.Target)
 	if !ok {
 		return inputs{}, notSendable(cursor, "where a walk continues"), true
 	}
@@ -99,7 +100,7 @@ func requestInputs(types ir.TypeRegistry, op *ir.Operation) (in inputs, why stri
 			"its default or an example, so it may be a token", cursor.Name.Source), true
 	}
 	if len(limits) == 1 {
-		if _, ok := sendable(types, limits[0].Type.Target); !ok {
+		if _, ok := sendable(w, limits[0].Type.Target); !ok {
 			return inputs{}, notSendable(limits[0], "the page size"), true
 		}
 		in.limit = limits[0]
@@ -124,8 +125,8 @@ func queryBound(op *ir.Operation) map[ir.ParamID]bool {
 
 // sendable returns the primitive the type id stands for, read through alias
 // scalars, when a walk can send it or count with it (sendableAs).
-func sendable(types ir.TypeRegistry, id ir.TypeID) (ir.PrimKind, bool) {
-	return sendableAs(resolve(types, id))
+func sendable(w *lowering.Whole, id ir.TypeID) (ir.PrimKind, bool) {
+	return sendableAs(w.Stands(id))
 }
 
 // sendableAs returns td's primitive when a walk can send it or count with it:

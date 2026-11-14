@@ -72,7 +72,7 @@ func TestHTTPDate_AFieldItsRFCDefinesAsADate(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			doc := responding(tc.h, reg)
-			diags := convention.Apply(under(lowering.Policy{}), doc)
+			diags := convention.Apply(under(lowering.Policy{}), lowering.NewWhole(doc))
 			h := operationOf(doc).Responses[0].Headers[0]
 			if !tc.encoded {
 				assert.Empty(t, diags)
@@ -124,10 +124,10 @@ func TestHTTPDate_ReadsEveryResponseAndNoPart(t *testing.T) {
 	}
 
 	on := build()
-	assert.Len(t, convention.Apply(under(lowering.Policy{}), on), 3)
+	assert.Len(t, convention.Apply(under(lowering.Policy{}), lowering.NewWhole(on)), 3)
 	assert.Equal(t, []ir.PropID{"p/response", "p/error", "p/default"}, encoded(on))
 
 	off := build()
-	assert.Empty(t, convention.Apply(under(lowering.Policy{HTTPDateInference: lowering.HTTPDateInference{Disabled: true}}), off))
+	assert.Empty(t, convention.Apply(under(lowering.Policy{HTTPDateInference: lowering.HTTPDateInference{Disabled: true}}), lowering.NewWhole(off)))
 	assert.Empty(t, encoded(off))
 }

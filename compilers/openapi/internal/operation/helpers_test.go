@@ -116,7 +116,8 @@ func walkService(t *testing.T, src string, policy lowering.Policy, report func([
 	report(svcDiags)
 	reg, finished := types.Finish(t.Context())
 	report(finished)
-	report(lowered.Links.Resolve(c, &lowered.Service, reg, servers.Reopen(lowered.Servers)))
+	w := lowering.NewWhole(&ir.Document{Types: reg, Services: []ir.Service{lowered.Service}})
+	report(lowered.Links.Resolve(c, w, servers.Reopen(lowered.Servers)))
 	return lowered.Service, loadDiags
 }
 

@@ -8,26 +8,22 @@ import (
 	"slices"
 	"strconv"
 
+	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
 	"github.com/dexpace/morphic/ir"
 )
 
-// maxAliasHops bounds how many alias scalars a member's or a body's type is
-// read through (styleguide bounded-everything rule), as the schema walk bounds
-// a tag's. A longer chain, or a loop, stands for no type a walk reads.
-const maxAliasHops = 64
-
-// reader reads what a walk needs off a document's registry, which must be
-// whole: what a model's members are, and where a body holds a page, each read
-// once however many operations or members name it.
+// reader reads what a walk needs off a document, w, which must be whole: what
+// a model's members are, and where a body holds a page, each read once however
+// many operations or members name it.
 type reader struct {
-	types  ir.TypeRegistry
+	w      *lowering.Whole
 	models map[ir.TypeID]*model
 	pages  map[pageKey]page
 }
 
-// newReader returns a reader over types that has read nothing yet.
-func newReader(types ir.TypeRegistry) *reader {
-	return &reader{types: types, models: map[ir.TypeID]*model{}, pages: map[pageKey]page{}}
+// newReader returns a reader over w that has read nothing yet.
+func newReader(w *lowering.Whole) *reader {
+	return &reader{w: w, models: map[ir.TypeID]*model{}, pages: map[pageKey]page{}}
 }
 
 // model is what a page reads of one model's members across its composition
@@ -98,22 +94,12 @@ func (r *reader) responsePage(op *ir.Operation, in inputs) (page, string) {
 	}
 	var pages []page
 	var whys []string
-	for i := range op.Responses {
-		p := op.Responses[i].Payload
-		if p == nil {
-			continue
-		}
-		for j := range p.Contents {
-			ct := &p.Contents[j]
-			if ct.Stream != nil {
-				continue
-			}
-			key.body = ct.Type.Target
-			if pg := r.page(key); pg.why != "" {
-				whys = append(whys, fmt.Sprintf("the %s response body %s", ct.MediaType, pg.why))
-			} else {
-				pages = append(pages, pg)
-			}
+	for ct := range pageContents(op) {
+		key.body = ct.Type.Target
+		if pg := r.page(key); pg.why != "" {
+			whys = append(whys, fmt.Sprintf("the %s response body %s", ct.MediaType, pg.why))
+		} else {
+			pages = append(pages, pg)
 		}
 	}
 	switch {
@@ -140,7 +126,7 @@ func (r *reader) page(key pageKey) page {
 // readPage reads where the body key names holds a page: a list holds its items
 // whole and nothing more, and a model holds them at a member.
 func (r *reader) readPage(key pageKey) page {
-	switch td := resolve(r.types, key.body).(type) {
+	switch td := r.w.Stands(key.body).(type) {
 	case *ir.List:
 		if key.cursor != "" {
 			return page{why: "is a list, which holds no next cursor"}
@@ -313,9 +299,8 @@ func (r *reader) model(id ir.TypeID) *model {
 		return m
 	}
 	m := &model{scalars: map[string][]scalar{}}
-	for _, fp := range ir.FlattenedProperties(r.types, id).Properties {
-		p := fp.Property
-		switch td := resolve(r.types, p.Type.Target).(type) {
+	for _, p := range r.w.Members(id) {
+		switch td := r.w.Stands(p.Type.Target).(type) {
 		case *ir.List:
 			m.lists = append(m.lists, p)
 		case *ir.Model:
@@ -336,24 +321,6 @@ func (r *reader) model(id ir.TypeID) *model {
 func isBool(td ir.TypeDef) bool {
 	p, ok := td.(*ir.Primitive)
 	return ok && p.Prim == ir.PrimBool
-}
-
-// resolve returns the type id stands for, read through at most maxAliasHops
-// alias scalars, and nil past them or where types holds none, a typed nil
-// included, so a caller's comma-ok assertion holds a node.
-func resolve(types ir.TypeRegistry, id ir.TypeID) ir.TypeDef {
-	for range maxAliasHops {
-		base, alias := ir.AliasBase(types, id)
-		if !alias {
-			break
-		}
-		id = base
-	}
-	td := types[id]
-	if _, alias := ir.AliasBase(types, id); alias || ir.IsNilTypeDef(td) {
-		return nil
-	}
-	return td
 }
 
 // wireNames lists the members' wire names, two or more, as listed does.

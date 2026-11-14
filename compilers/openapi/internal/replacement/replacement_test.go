@@ -105,7 +105,7 @@ func TestResolve_NamesEachReplacementInItsNodesScope(t *testing.T) {
 	t.Parallel()
 	c := mapped()
 	doc := replacementDoc(c, `"v2"`)
-	assert.Empty(t, replacement.Resolve(c, doc))
+	assert.Empty(t, replacement.Resolve(c, lowering.NewWhole(doc)))
 
 	op := doc.Services[0].Groups[0].Operations[0]
 	v2 := c.IDs().NamedType("/components/schemas/v2")
@@ -150,7 +150,7 @@ func TestResolve_ANameNamingNothingFillsNothing(t *testing.T) {
 	for _, value := range []string{`["v2","gone"]`, `"old"`, `["getOld"]`, `"X-Old"`} {
 		c := mapped()
 		doc := replacementDoc(c, value)
-		diags := replacement.Resolve(c, doc)
+		diags := replacement.Resolve(c, lowering.NewWhole(doc))
 		require.NotEmpty(t, diags, value)
 		for _, d := range diags {
 			assert.Equal(t, diag.DegradedConstruct, d.Code, value)
@@ -197,7 +197,7 @@ func TestResolve_ANameNamingSeveralFillsNothing(t *testing.T) {
 		c := mapped()
 		doc := replacementDoc(c, `"v2"`)
 		severalV2(doc, first)
-		diags := replacement.Resolve(c, doc)
+		diags := replacement.Resolve(c, lowering.NewWhole(doc))
 
 		messages := make([]string, 0, len(diags))
 		for _, d := range diags {
@@ -233,14 +233,14 @@ func TestResolve_AnUnmappedOrUndeprecatedNodeTakesNone(t *testing.T) {
 	t.Parallel()
 	unmapped := lowering.New(0, &load.Document{Doc: &soa.OpenAPI{}}, lowering.Policy{})
 	doc := replacementDoc(unmapped, `"v2"`)
-	assert.Empty(t, replacement.Resolve(unmapped, doc))
+	assert.Empty(t, replacement.Resolve(unmapped, lowering.NewWhole(doc)))
 	assert.Empty(t, doc.Services[0].Groups[0].Operations[0].Deprecation.ReplacedBy)
 
 	c := mapped()
 	doc = replacementDoc(c, `"v2"`)
 	doc.Services[0].Groups[0].Operations[0].Deprecation = nil
 	doc.Types[c.IDs().NamedType("/components/schemas/v2")] = (*ir.Model)(nil)
-	assert.Empty(t, replacement.Resolve(c, doc))
+	assert.Empty(t, replacement.Resolve(c, lowering.NewWhole(doc)))
 	assert.Nil(t, doc.Services[0].Groups[0].Operations[0].Deprecation)
 }
 
@@ -256,7 +256,7 @@ func TestResolve_StopsAtTheGroupDepthBound(t *testing.T) {
 		deep = ir.OperationGroup{Groups: []ir.OperationGroup{deep}}
 	}
 	doc := &ir.Document{Services: []ir.Service{{Groups: []ir.OperationGroup{deep}}}}
-	assert.Empty(t, replacement.Resolve(c, doc))
+	assert.Empty(t, replacement.Resolve(c, lowering.NewWhole(doc)))
 	for range ir.MaxGroupDepth + 1 {
 		deep = deep.Groups[0]
 	}

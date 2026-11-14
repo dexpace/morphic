@@ -38,10 +38,11 @@ func keyOf(location ir.HTTPLocation, name string) paramKey {
 	return paramKey{location: location, name: name}
 }
 
-// IndexParams indexes op's HTTP bindings. A binding naming no wire name places
+// indexParams indexes op's HTTP bindings. A binding naming no wire name places
 // its parameter under the parameter's own name, and a parameter bound twice
-// at one place is indexed there once.
-func IndexParams(op *ir.Operation) ParamIndex {
+// at one place is indexed there once. Whole.Params is its one caller, so an
+// operation's parameters are indexed once a run.
+func indexParams(op *ir.Operation) ParamIndex {
 	names := make(map[ir.ParamID]string, len(op.Params))
 	for i := range op.Params {
 		names[op.Params[i].ID] = op.Params[i].Name.Source

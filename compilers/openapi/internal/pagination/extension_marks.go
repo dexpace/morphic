@@ -47,7 +47,7 @@ func (m *marker) marksUse(own ir.Unmodeled, keeper *ir.Provenance, of ir.TypeID)
 	if at, ok := m.marks(own, keeper); ok {
 		return at, true
 	}
-	td := m.pg.reg[of]
+	td := m.pg.w.Types[of]
 	if ir.IsNilTypeDef(td) {
 		return nil, false
 	}
@@ -184,7 +184,7 @@ func (m *marker) within(body *ir.Payload) (*position, string) {
 // operation pays for the walk only where the document writes the key below
 // its body.
 func (m *marker) search(root ir.TypeID) []position {
-	if td := m.pg.reg[root]; !ir.IsNilTypeDef(td) {
+	if td := m.pg.w.Types[root]; !ir.IsNilTypeDef(td) {
 		if keeper, ok := m.marks(td.Common().Unmodeled, &td.Common().Provenance); ok {
 			return []position{{keeper: keeper}}
 		}
@@ -253,7 +253,7 @@ func (m *marker) descend(level []step, seen, reach map[ir.TypeID]bool) ([]positi
 	var next []step
 	at := map[ir.TypeID]int{}
 	for _, s := range level {
-		for _, p := range m.pg.members(s.model) {
+		for _, p := range m.pg.w.Members(s.model) {
 			if keeper, ok := m.marksUse(p.Unmodeled, &p.Provenance, p.Type.Target); ok {
 				found = append(found, position{segments: s.trail.segments(p.ID), keeper: keeper, shared: s.shared})
 			}
@@ -312,7 +312,7 @@ func (pg *pager) keeping(entry string) func(*ir.Property) bool {
 		if _, ok := p.Unmodeled[entry]; ok {
 			return true
 		}
-		td := pg.reg[p.Type.Target]
+		td := pg.w.Types[p.Type.Target]
 		if ir.IsNilTypeDef(td) {
 			return false
 		}
@@ -327,8 +327,8 @@ func (pg *pager) keeping(entry string) func(*ir.Property) bool {
 func (pg *pager) keepers(keeps func(*ir.Property) bool, set map[ir.TypeID]bool) (map[ir.TypeID][]ir.TypeID, []ir.TypeID) {
 	namers := map[ir.TypeID][]ir.TypeID{}
 	var found []ir.TypeID
-	for id := range pg.reg {
-		for _, p := range pg.members(id) {
+	for id := range pg.w.Types {
+		for _, p := range pg.w.Members(id) {
 			if keeps(p) && !set[id] {
 				set[id] = true
 				found = append(found, id)
@@ -345,7 +345,7 @@ func (pg *pager) keepers(keeps func(*ir.Property) bool, set map[ir.TypeID]bool) 
 // satisfies keeps. Every member a flattening reads is one, so this answers for
 // every model's members without flattening any.
 func (pg *pager) anyMember(keeps func(*ir.Property) bool) bool {
-	for _, td := range pg.reg {
+	for _, td := range pg.w.Types {
 		if model, ok := td.(*ir.Model); ok {
 			for i := range model.Properties {
 				if keeps(&model.Properties[i]) {
@@ -357,25 +357,9 @@ func (pg *pager) anyMember(keeps func(*ir.Property) bool) bool {
 	return false
 }
 
-// members returns the members of the model at id in layout order, read once.
-func (pg *pager) members(id ir.TypeID) []*ir.Property {
-	if props, read := pg.flat[id]; read {
-		return props
-	}
-	var props []*ir.Property
-	if pg.isModel(id) {
-		flat := ir.FlattenedProperties(pg.reg, id)
-		props = make([]*ir.Property, len(flat.Properties))
-		for i := range flat.Properties {
-			props[i] = flat.Properties[i].Property
-		}
-	}
-	pg.flat[id] = props
-	return props
-}
-
-// isModel reports whether the registry holds a model at id.
+// isModel reports whether id stands for a model, read through alias scalars
+// as a model's members are (lowering.Whole.Members).
 func (pg *pager) isModel(id ir.TypeID) bool {
-	_, ok := pg.reg[id].(*ir.Model)
+	_, ok := pg.w.Stands(id).(*ir.Model)
 	return ok
 }

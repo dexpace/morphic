@@ -5,10 +5,11 @@ package lowering
 
 import "github.com/dexpace/morphic/ir"
 
-// Operations returns every operation svc holds, those of nested groups
+// operations returns every operation svc holds, those of nested groups
 // included to ir.MaxGroupDepth, as pointers into the groups holding them: what
 // a step reading the document once it is whole writes an operation through.
-func Operations(svc *ir.Service) []*ir.Operation {
+// NewWhole is its one caller, so no step lists the operations for itself.
+func operations(svc *ir.Service) []*ir.Operation {
 	type level struct {
 		groups []ir.OperationGroup
 		depth  int

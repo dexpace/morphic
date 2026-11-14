@@ -9,7 +9,6 @@ import (
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
-	"github.com/dexpace/morphic/compilers/openapi/internal/runtimeexpr"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -29,9 +28,9 @@ func responseTargets() []lowering.ExtensionTarget {
 	}
 }
 
-// Promote fills the pagination each operation of svc declares through
-// the extensions the promotion policy maps to it, reg being whole, where the
-// operation holds none (docs/compilers/openapi.md#extension-pagination). A
+// Promote fills the pagination each operation of w, the document, declares
+// through the extensions the promotion policy maps to it, where the operation
+// holds none (docs/compilers/openapi.md#extension-pagination). A
 // pagination is filled whole or not at all: one whose values do not all
 // resolve, or which states no way to reach the next page, is reported at the
 // operation and leaves the field unset. c is the source's context.
@@ -39,16 +38,16 @@ func responseTargets() []lowering.ExtensionTarget {
 // stated holds each operation it reads whose extensions speak of a pagination,
 // filled or not: those a step inferring one leaves alone, by that rule's
 // precedence, without reading an extension again.
-func Promote(c lowering.Ctx, svc *ir.Service, reg ir.TypeRegistry) (stated map[ir.OpID]bool, diags []ir.Diagnostic) {
-	if svc == nil {
+func Promote(c lowering.Ctx, w *lowering.Whole) (stated map[ir.OpID]bool, diags []ir.Diagnostic) {
+	if w == nil {
 		return nil, nil
 	}
-	pg := pager{c: c, p: c.Promoter(), reg: reg, lk: runtimeexpr.NewLookups(reg), flat: map[ir.TypeID][]*ir.Property{}}
+	pg := pager{c: c, p: c.Promoter(), w: w}
 	if !pg.maps() {
 		return nil, nil
 	}
 	stated = map[ir.OpID]bool{}
-	for _, op := range lowering.Operations(svc) {
+	for _, op := range w.Ops {
 		if op.Pagination != nil {
 			continue
 		}
@@ -61,16 +60,12 @@ func Promote(c lowering.Ctx, svc *ir.Service, reg ir.TypeRegistry) (stated map[i
 	return stated, diags
 }
 
-// pager is what one Promote reads its operations against. flat holds
-// each model's members in layout order, read once for every operation that
-// walks through it, and reach the models reaching each marking key
-// (pager.reaching).
+// pager is what one Promote reads its operations against: the document, w,
+// and reach, the models reaching each marking key (pager.reaching).
 type pager struct {
 	c     lowering.Ctx
 	p     lowering.Promoter
-	reg   ir.TypeRegistry
-	lk    *runtimeexpr.Lookups
-	flat  map[ir.TypeID][]*ir.Property
+	w     *lowering.Whole
 	reach map[string]map[ir.TypeID]bool
 }
 

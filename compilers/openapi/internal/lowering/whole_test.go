@@ -258,7 +258,8 @@ func TestWhole_WalkNamesEachMemberFromTheRoot(t *testing.T) {
 // TestWhole_StandsReadsThroughAliasScalarsToTheCap pins Stands to the type an
 // alias scalar stands for: the same type for one that is none, the model at the
 // end of as many as lowering.MaxAliasHops alias scalars, and nothing past that,
-// for a cycle of them, or for an alias of a type the registry lacks.
+// for a cycle of them, or for an alias of a type the registry lacks or holds as
+// a typed nil.
 func TestWhole_StandsReadsThroughAliasScalarsToTheCap(t *testing.T) {
 	t.Parallel()
 	chain := func(name string, length int) []ir.TypeDef {
@@ -273,18 +274,20 @@ func TestWhole_StandsReadsThroughAliasScalarsToTheCap(t *testing.T) {
 		[]ir.TypeDef{
 			model("m", nil, prop("m.a", "a", "string")),
 			irtest.ScalarOf("loop1", "loop2"), irtest.ScalarOf("loop2", "loop1"),
-			irtest.ScalarOf("dangling", "gone"),
+			irtest.ScalarOf("dangling", "gone"), irtest.ScalarOf("toNil", "nil"),
 		},
 		chain("ok", lowering.MaxAliasHops),
 		chain("long", lowering.MaxAliasHops+1),
 	)
 	w := lowering.NewWhole(&ir.Document{Types: irtest.DocOf(defs...).Types})
+	w.Types["nil"] = (*ir.Model)(nil)
 
 	assert.Equal(t, w.Types["m"], w.Stands("m"), "a model stands for itself")
 	assert.Equal(t, w.Types["m"], w.Stands("ok000"), "the head of as many alias scalars as the cap allows")
 	assert.Nil(t, w.Stands("long000"), "the head of one more")
 	assert.Nil(t, w.Stands("loop1"), "a cycle of aliases")
 	assert.Nil(t, w.Stands("dangling"), "an alias of no type")
+	assert.Nil(t, w.Stands("toNil"), "an alias of a typed nil")
 	assert.Nil(t, w.Stands("gone"), "a type the registry lacks")
 }
 
@@ -346,7 +349,8 @@ func TestWhole_ABodyReadFlattensNoModel(t *testing.T) {
 	for _, k := range []int{4, 16} {
 		t.Run(fmt.Sprint(k), func(t *testing.T) {
 			t.Parallel()
-			defs := []ir.TypeDef{model("a", nil, prop("a.a", "a", "string"))}
+			defs := make([]ir.TypeDef, 0, 1+k)
+			defs = append(defs, model("a", nil, prop("a.a", "a", "string")))
 			payload := &ir.Payload{}
 			for i := range k {
 				id := ir.TypeID(fmt.Sprintf("b%02d", i))

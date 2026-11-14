@@ -347,17 +347,16 @@ var rules = map[string][]string{
 		module + "/compilers/openapi/internal/diag",
 		module + "/compilers/openapi/internal/lowering"},
 	// What a runtime expression names in a compiled service: its grammar, and
-	// the members, parameters and headers it resolves through. It is its own
-	// package because the link resolution in operation and the pagination
-	// promotion read an expression alike, and the promotion may reach nothing
-	// of the walks operation holds. It reaches lowering for the parameter
-	// index, and nothing of the walks: it reads the registry and the
-	// operations they built.
+	// the body members it resolves to. It is its own package because the link
+	// resolution in operation and the pagination promotion read an expression
+	// alike, and the promotion may reach nothing of the walks operation holds.
+	// It reaches lowering for the one reading of the finished document every
+	// such step shares (lowering.Whole), and nothing of the walks.
 	"compilers/openapi/internal/runtimeexpr": {module + "/ir",
 		module + "/compilers/openapi/internal/lowering"},
 	// The pagination an operation's extensions declare, and the pagination the
 	// names it uses say, read once the document is whole. It reaches lowering
-	// for the policy and the walk over a service's operations, and runtimeexpr
+	// for the policy and the reading of the finished document, and runtimeexpr
 	// for the expressions an extension writes, and nothing of the walks: it
 	// reads the operations and the registry they built.
 	"compilers/openapi/internal/pagination": {module + "/ir",

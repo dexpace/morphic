@@ -86,11 +86,11 @@ func promoteBytes(t *testing.T, src string, operations int) float64 {
 	for range 3 {
 		var before, after runtime.MemStats
 		runtime.ReadMemStats(&before)
-		_, diags := pagination.Promote(c, &doc.Services[0], doc.Types)
+		_, diags := pagination.Promote(c, lowering.NewWhole(doc))
 		runtime.ReadMemStats(&after)
 		require.Empty(t, diags, "every size fills its paginations alike")
 		filled := 0
-		for _, op := range lowering.Operations(&doc.Services[0]) {
+		for _, op := range lowering.NewWhole(doc).Ops {
 			if op.Pagination != nil {
 				filled++
 			}

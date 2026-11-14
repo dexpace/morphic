@@ -19,7 +19,6 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
 	"github.com/dexpace/morphic/compilers/openapi/internal/resolve"
-	"github.com/dexpace/morphic/compilers/openapi/internal/runtimeexpr"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -77,12 +76,12 @@ func lowerResponses(c lowering.Ctx, w walk, op *ir.Operation, src *soa.Operation
 		if isErrorRange(rng) {
 			ec, drafts, ecDiags := lowerErrorCase(rc, w, r, code, rng, rptr, rr)
 			diags = append(diags, ecDiags...)
-			w.links.add(op.ID, responseSlot{list: runtimeexpr.ListErrors, index: len(op.Errors)}, drafts)
+			w.links.add(op.ID, responseSlot{list: lowering.ListErrors, index: len(op.Errors)}, drafts)
 			op.Errors = append(op.Errors, ec)
 		} else {
 			resp, drafts, respDiags := lowerResponse(rc, w, r, code, statusConditions(rng, named), rptr, rr)
 			diags = append(diags, respDiags...)
-			w.links.add(op.ID, responseSlot{list: runtimeexpr.ListResponses, index: len(op.Responses)}, drafts)
+			w.links.add(op.ID, responseSlot{list: lowering.ListResponses, index: len(op.Responses)}, drafts)
 			op.Responses = append(op.Responses, resp)
 		}
 	}
@@ -106,7 +105,7 @@ func lowerDefaultResponse(c lowering.Ctx, w walk, op *ir.Operation,
 	resp, drafts, diags := lowerResponse(dc, w, def, defaultResponseKey,
 		statusConditions(statusRange(defaultResponseKey)), dptr, resps.GetDefault())
 	op.Default = &resp
-	w.links.add(op.ID, responseSlot{list: runtimeexpr.ListDefault}, drafts)
+	w.links.add(op.ID, responseSlot{list: lowering.ListDefault}, drafts)
 	return diags
 }
 

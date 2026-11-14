@@ -25,9 +25,9 @@ const methodQuery = "QUERY"
 // parameter under idempotencyKeyHeader, compared without case. A safe method
 // states op's idempotency itself, so the header is not read there; a method
 // whose safety the compiler does not know, and the header bound twice, are
-// reported as undecided. The rule is
+// reported as undecided. w is the document holding op. The rule is
 // docs/compilers/openapi.md#idempotency-inference.
-func idempotency(c lowering.Ctx, op *ir.Operation) []ir.Diagnostic {
+func idempotency(c lowering.Ctx, w *lowering.Whole, op *ir.Operation) []ir.Diagnostic {
 	if !c.IdempotencyInference.Honours() || op.Idempotency.Kind != ir.IdempotencyUnknown ||
 		len(op.Bindings.HTTP) != 1 {
 		return nil
@@ -36,7 +36,7 @@ func idempotency(c lowering.Ctx, op *ir.Operation) []ir.Diagnostic {
 	if safeMethod(method) {
 		return nil
 	}
-	keys := lowering.IndexParams(op).Bound(ir.HTTPLocationHeader, idempotencyKeyHeader)
+	keys := w.Params(op).Bound(ir.HTTPLocationHeader, idempotencyKeyHeader)
 	switch {
 	case len(keys) == 0:
 		return nil
