@@ -4,6 +4,10 @@
 package schema_test
 
 import (
+	"fmt"
+	"slices"
+	"strconv"
+	"strings"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
@@ -14,7 +18,7 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
 	"github.com/dexpace/morphic/compilers/openapi/internal/schema"
 	"github.com/dexpace/morphic/ir"
-	"github.com/dexpace/morphic/ir/irtest"
+	"github.com/dexpace/morphic/ir/irverify"
 )
 
 func TestModelDiscriminator_UndeclaredPropertyAndBadMapping(t *testing.T) {
@@ -194,34 +198,85 @@ components:
 	assert.Equal(t, pet.Variants[0].Type.Target, pet.Discriminator.Default)
 }
 
-// TestDiscriminatorMapping_TwoVariantsAliasingATypeRouteToNeither pins the rule
-// for a target that two branches alias, each with its own keyword beside its
-// $ref: nothing in the mapping says which variant it means, so it stays on the
-// type, in either branch order, and validation reports it.
-func TestDiscriminatorMapping_TwoVariantsAliasingATypeRouteToNeither(t *testing.T) {
+// TestDiscriminatorMapping_ATypeSeveralVariantsAliasRoutesToTheFirst pins a
+// value naming a type two branches alias, each with its own keyword beside its
+// $ref (docs/compilers/openapi.md#discriminator): nothing in the value tells
+// the variants apart, so it routes to the first in branch order, with an info
+// at its entry naming both branches, for a oneOf and an anyOf, whichever
+// branch comes first, past null branches written in any spelling, whichever
+// key the mapping writes first and in either declaration order, and the
+// document validates.
+func TestDiscriminatorMapping_ATypeSeveralVariantsAliasRoutesToTheFirst(t *testing.T) {
 	t.Parallel()
-	spec := func(first, second string) string {
-		return `openapi: 3.1.0
-info: {title: t, version: "1"}
-paths: {}
-components:
-  schemas:
-    Cat: {type: object, properties: {kind: {type: string}}}
-    Pet:
-      oneOf:
-        - {$ref: '#/components/schemas/Cat', description: ` + first + `}
-        - {$ref: '#/components/schemas/Cat', description: ` + second + `}
-      discriminator: {propertyName: kind, mapping: {cat: '#/components/schemas/Cat'}}
-`
+	const (
+		green      = "{$ref: '#/components/schemas/Apple', description: green}"
+		red        = "{$ref: '#/components/schemas/Apple', description: red}"
+		banana     = "{$ref: '#/components/schemas/Banana'}"
+		greenFirst = "{green_apple: '#/components/schemas/Apple', red_apple: '#/components/schemas/Apple', banana: Banana}"
+		redFirst   = "{red_apple: '#/components/schemas/Apple', banana: Banana, green_apple: '#/components/schemas/Apple'}"
+	)
+	for _, c := range []struct {
+		name, key, branches, mapping string
+		first, second                int // the branches aliasing Apple
+	}{
+		{"oneOf", "oneOf", green + ", " + red + ", " + banana, greenFirst, 0, 1},
+		{"anyOf", "anyOf", green + ", " + red + ", " + banana, greenFirst, 0, 1},
+		{"red written first in the mapping", "oneOf", green + ", " + red + ", " + banana, redFirst, 0, 1},
+		{"the red branch first", "oneOf", red + ", " + green + ", " + banana, greenFirst, 0, 1},
+		{"another branch first", "oneOf", banana + ", " + green + ", " + red, greenFirst, 1, 2},
+		{"null branches between", "oneOf", "{const: null}, " + green + ", {enum: [null]}, " + red + ", " + banana,
+			greenFirst, 1, 3},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			t.Parallel()
+			fruit := "    Fruit:\n      " + c.key + ": [" + c.branches + "]\n" +
+				"      discriminator: {propertyName: kind, mapping: " + c.mapping + "}\n"
+			const rest = "    Apple: {type: object, properties: {kind: {type: string}}}\n" +
+				"    Banana: {type: object, properties: {kind: {type: string}}}\n"
+			branch := func(i int) string { return "/components/schemas/Fruit/" + c.key + "/" + strconv.Itoa(i) }
+			info := func(tag string) string {
+				return fmt.Sprintf("info %s /components/schemas/Fruit/discriminator/mapping/%s: discriminator mapping %q "+
+					"names a schema 2 branches of this union reach through a $ref (%q, %q), and a tag routes to one "+
+					"variant; routed to the first", diag.DegradedConstruct, tag, tag, branch(c.first), branch(c.second))
+			}
+			var docs []*ir.Document
+			for _, src := range []string{fruit + rest, rest + fruit} {
+				doc, diags := parseFull(t, openapitest.ComponentSpec(src))
+				assert.Equal(t, []string{info("green_apple"), info("red_apple")}, reported(withCode(diags, diag.DegradedConstruct)))
+				openapitest.RequireNoErrorDiags(t, diags)
+				assert.Empty(t, validated(t, doc), "every tag routes to a variant")
+				u, ok := typeByName(doc, "Fruit").(*ir.Union)
+				require.True(t, ok)
+				first := ir.TypeID("t/anon" + branch(c.first))
+				assert.Equal(t, map[string]ir.TypeID{"green_apple": first, "red_apple": first, "banana": componentID("Banana")},
+					u.Discriminator.Mapping)
+				docs = append(docs, doc)
+			}
+			assert.Empty(t, cmp.Diff(docs[0].Types, docs[1].Types))
+		})
 	}
-	for _, src := range []string{spec("one", "two"), spec("two", "one")} {
-		doc, diags := parseFull(t, src)
-		openapitest.RequireNoErrorDiags(t, diags)
-		u, ok := typeByName(doc, "Pet").(*ir.Union)
-		require.True(t, ok)
-		assert.Equal(t, ir.TypeID("t/openapi/components/schemas/Cat"), u.Discriminator.Mapping["cat"])
-		assert.Contains(t, irtest.DiagCodes(validated(t, doc)), "pass/discriminator-missing-variant")
+}
+
+// TestDiscriminatorMapping_ATypeManyVariantsAliasNamesAFew pins the info a
+// value routed to the first of more aliasing branches than a report lists
+// gives: it names the first three and counts the rest, which it spells for no
+// entry, so a union whose every branch aliases one type costs each entry no
+// more.
+func TestDiscriminatorMapping_ATypeManyVariantsAliasNamesAFew(t *testing.T) {
+	t.Parallel()
+	branches := make([]string, 0, 5)
+	for i := range 5 {
+		branches = append(branches, fmt.Sprintf("{$ref: '#/components/schemas/Apple', description: d%d}", i))
 	}
+	doc, diags := parseFull(t, openapitest.ComponentSpec("    Apple: {type: object, properties: {kind: {type: string}}}\n"+
+		"    Fruit: {oneOf: ["+strings.Join(branches, ", ")+"], discriminator: {propertyName: kind, mapping: {a: Apple}}}\n"))
+	openapitest.RequireNoErrorDiags(t, diags)
+	const branch = "/components/schemas/Fruit/oneOf/"
+	assert.Equal(t, []string{"info " + diag.DegradedConstruct + " /components/schemas/Fruit/discriminator/mapping/a: " +
+		`discriminator mapping "a" names a schema 5 branches of this union reach through a $ref ("` + branch + `0", "` +
+		branch + `1", "` + branch + `2" and 2 more), and a tag routes to one variant; routed to the first`},
+		reported(withCode(diags, diag.DegradedConstruct)))
+	assert.Equal(t, ir.TypeID("t/anon"+branch+"0"), discriminatorOf(t, doc, componentID("Fruit")).Mapping["a"])
 }
 
 // TestDiscriminatorMapping_ReadsThroughWhateverIsBesideAPositionsRef pins that a
@@ -272,5 +327,105 @@ components:
 			require.True(t, ok)
 			assert.Equal(t, "s", sub.DiscriminatorValue)
 		})
+	}
+}
+
+// TestDiscriminator_AnEmptyPropertyNameIsKeptVerbatim pins a discriminator
+// naming the empty string, a legal member name the IR's PropertyName cannot
+// hold, its empty value meaning none: on a model declaring no property of
+// that name, one inheriting it, a union, plain or distributed, and a routed
+// subtype's, the node holds no discriminator, the census keeps it verbatim and
+// says why, once, and a union is untagged, nothing inferred though its
+// variants pin a tag. A model
+// declaring the property locates the tag by its PropID. Each holds at every
+// minor, in either declaration order, the document valid and the IR whole.
+func TestDiscriminator_AnEmptyPropertyNameIsKeptVerbatim(t *testing.T) {
+	t.Parallel()
+	blocks := []string{
+		"    A: {type: object, required: [kind], properties: {'': {type: string}, kind: {type: string, enum: [a]}}}\n",
+		"    B: {type: object, required: [kind], properties: {kind: {type: string, enum: [b]}}}\n",
+		"    Plain: {type: object, discriminator: {propertyName: ''}}\n",
+		"    Inherits: {allOf: [{$ref: '#/components/schemas/A'}], discriminator: {propertyName: ''}}\n",
+		"    Mapped: {oneOf: [{$ref: '#/components/schemas/A'}, {$ref: '#/components/schemas/B'}], " +
+			"discriminator: {propertyName: '', mapping: {a: A}}}\n",
+		"    Union: {oneOf: [{$ref: '#/components/schemas/A'}, {$ref: '#/components/schemas/B'}], discriminator: {propertyName: ''}}\n",
+		"    Beside: {type: object, properties: {kind: {type: string}}, oneOf: [{type: object, properties: {x: {type: string}}}, " +
+			"{type: object, properties: {y: {type: string}}}], discriminator: {propertyName: ''}}\n",
+		"    Own: {type: object, properties: {'': {type: string}}, discriminator: {propertyName: ''}}\n",
+		"    Base: {type: object, properties: {kind: {type: string}}, " +
+			"discriminator: {propertyName: kind, mapping: {r: '#/components/schemas/Routed'}}}\n",
+		"    Routed: {allOf: [{$ref: '#/components/schemas/Base'}], oneOf: [{$ref: '#/components/schemas/A'}, " +
+			"{$ref: '#/components/schemas/B'}], discriminator: {propertyName: ''}}\n",
+	}
+	for _, version := range []string{"3.0.3", "3.1.1", "3.2.0"} {
+		for _, reversed := range []bool{false, true} {
+			doc, diags := parseFull(t, rawSpec(version, blocks, "", reversed))
+			openapitest.RequireNoErrorDiags(t, diags)
+			assert.Empty(t, irverify.Verify(doc), "%s, reversed %t", version, reversed)
+			assert.Empty(t, validated(t, doc))
+			names := []string{"Plain", "Inherits", "Mapped", "Union", "Beside", "Routed"}
+			kept := make([]string, 0, len(names))
+			for _, name := range names {
+				td := typeByName(doc, name)
+				assert.Nil(t, discriminatorIn(td), "%s holds none", name)
+				assert.Equal(t, ir.ReasonDegradedLowering, td.Common().Unmodeled["openapi:discriminator"].Reason, name)
+				assert.Empty(t, td.Common().Provenance.Inferred, "%s: nothing is inferred", name)
+				kept = append(kept, "info "+diag.DegradedConstruct+" /components/schemas/"+name+": this position "+
+					"lowered to a "+string(td.Kind())+" routed by no tag (the IR's PropertyName cannot hold the empty "+
+					"name its discriminator gives the tag property), which has no home for discriminator declared "+
+					"beside it; kept verbatim under Unmodeled")
+			}
+			slices.Sort(kept)
+			assert.Equal(t, kept, reported(withCode(diags, diag.DegradedConstruct)), "%s, reversed %t", version, reversed)
+			for _, name := range []string{"Mapped", "Union", "Beside"} {
+				u, ok := typeByName(doc, name).(*ir.Union)
+				require.True(t, ok)
+				assert.False(t, u.WireTagged, "%s is untagged", name)
+			}
+			minted, ok := doc.Types["t/composed/components/schemas/Routed/oneOf"].(*ir.Union)
+			require.True(t, ok, "Routed composes its union as a mixin")
+			assert.Nil(t, minted.Discriminator, "the union Routed mints holds none")
+			own, ok := typeByName(doc, "Own").(*ir.Model)
+			require.True(t, ok)
+			require.NotNil(t, own.Discriminator)
+			assert.Equal(t, own.Properties[0].ID, own.Discriminator.Property, "the tag is the property Own declares")
+		}
+	}
+}
+
+// TestDiscriminator_AnEmptyPropertyNameBesideAnUntaggedUnionIsKeptForItsNode
+// pins the report of a discriminator naming the empty tag beside a Union no
+// discriminator routes, an enum's or a type array's, listing object or not: it
+// is kept and reported as one naming any other tag is, by what the node is, as
+// the empty name is not why the node holds none.
+func TestDiscriminator_AnEmptyPropertyNameBesideAnUntaggedUnionIsKeptForItsNode(t *testing.T) {
+	t.Parallel()
+	names := []string{"Mixed", "Multi", "Obj"}
+	for _, tag := range []string{"''", "kind"} {
+		doc, diags := parseFull(t, openapitest.ComponentSpec(
+			"    Mixed: {enum: [1, a], discriminator: {propertyName: "+tag+"}}\n"+
+				"    Multi: {type: [string, integer], discriminator: {propertyName: "+tag+"}}\n"+
+				"    Obj: {type: [object, string], properties: {kind: {type: string}}, discriminator: {propertyName: "+tag+"}}\n"))
+		openapitest.RequireNoErrorDiags(t, diags)
+		got := reported(withCode(diags, diag.DegradedConstruct))
+		for _, name := range names {
+			assert.Contains(t, got, "info "+diag.DegradedConstruct+" /components/schemas/"+name+`: this position lowered `+
+				`to a node of kind "union", which has no home for discriminator declared beside it; kept verbatim under `+
+				"Unmodeled", "%s, tag %s", name, tag)
+			assert.Equal(t, ir.ReasonDegradedLowering, typeByName(doc, name).Common().Unmodeled["openapi:discriminator"].Reason)
+		}
+	}
+}
+
+// discriminatorIn returns the discriminator the model or union td holds, or
+// nil for none or another kind.
+func discriminatorIn(td ir.TypeDef) *ir.Discriminator {
+	switch n := td.(type) {
+	case *ir.Model:
+		return n.Discriminator
+	case *ir.Union:
+		return n.Discriminator
+	default:
+		return nil
 	}
 }

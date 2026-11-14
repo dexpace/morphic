@@ -20,10 +20,12 @@ import (
 	"github.com/dexpace/morphic/ir"
 )
 
-// EffectiveDeprecated reports the deprecated flag, the nearest schema of chain
-// writing one deciding (Site.Chain).
+// EffectiveDeprecated reports whether a schema of chain (Site.Chain) is
+// deprecated. JSON Schema reads a location deprecated where any occurrence of
+// the keyword applying to it is true, and an occurrence false as one omitted,
+// so no schema of a chain withdraws another's.
 func EffectiveDeprecated(chain []*oas3.Schema) bool {
-	return pickFlag(chain, func(s *oas3.Schema) *bool { return s.Deprecated })
+	return anyFlag(chain, func(s *oas3.Schema) *bool { return s.Deprecated })
 }
 
 // EffectiveVisibility maps readOnly/writeOnly to a lifecycle visibility set
@@ -32,16 +34,16 @@ func EffectiveDeprecated(chain []*oas3.Schema) bool {
 // reports both flags in force, which no lifecycle satisfies. It is not a
 // diagnostic because this reader has no provenance of its own.
 //
-// Each flag resolves on its own, by the nearest schema of chain writing it
-// (docs/compilers/openapi.md#ref-use-site).
+// Each flag is in force where any schema of chain sets it, as JSON Schema
+// reads both (docs/compilers/openapi.md#ref-use-site).
 //
-// Both in force is contradictory but legal: JSON Schema forbids neither beside
-// the other. Read as sets they leave nothing, which Visibility{None: true}
-// states, as merge.mergeVisibility answers for the pair spread over two allOf
-// branches (GitHub #276).
+// Both in force is contradictory but legal: JSON Schema forbids neither. Read
+// as sets they leave nothing, which Visibility{None: true} states, as
+// merge.mergeVisibility answers for the pair spread over two allOf branches
+// (GitHub #276).
 func EffectiveVisibility(chain []*oas3.Schema) (ir.Visibility, bool) {
-	readOnly := pickFlag(chain, func(s *oas3.Schema) *bool { return s.ReadOnly })
-	writeOnly := pickFlag(chain, func(s *oas3.Schema) *bool { return s.WriteOnly })
+	readOnly := anyFlag(chain, func(s *oas3.Schema) *bool { return s.ReadOnly })
+	writeOnly := anyFlag(chain, func(s *oas3.Schema) *bool { return s.WriteOnly })
 
 	switch {
 	case readOnly && writeOnly:
@@ -73,19 +75,18 @@ func EffectiveDefault(chain []*oas3.Schema, pointer jsontext.Pointer, doc proven
 	return &v, nil
 }
 
-// pickFlag returns the bool field accessor extracts from the nearest schema of
-// chain writing it, else false. It is the single "nearer overrides farther"
-// primitive for boolean schema flags (readOnly, writeOnly, deprecated).
-func pickFlag(chain []*oas3.Schema, accessor func(*oas3.Schema) *bool) bool {
-	for _, s := range chain {
-		if s == nil {
-			continue
+// anyFlag reports whether a schema of chain sets the bool field accessor
+// extracts. It is the one reading of the boolean annotations JSON Schema
+// defines (deprecated, readOnly, writeOnly): each in force where any
+// occurrence is true, and false the same as absent.
+func anyFlag(chain []*oas3.Schema, accessor func(*oas3.Schema) *bool) bool {
+	return slices.ContainsFunc(chain, func(s *oas3.Schema) bool {
+		v := (*bool)(nil)
+		if s != nil {
+			v = accessor(s)
 		}
-		if v := accessor(s); v != nil {
-			return *v
-		}
-	}
-	return false
+		return v != nil && *v
+	})
 }
 
 // FillTypeDocs maps a schema's title, description, and externalDocs onto Docs.
@@ -197,18 +198,24 @@ type Site struct {
 	Referents []*oas3.Schema
 	// Dialect is what the dialect Node is read in spells otherwise than 2020-12.
 	Dialect Dialect
+	// Closure says the node Node lowered to holds its `unevaluatedProperties:
+	// false` as its openness, so no entry keeps it. The zero value keeps it.
+	Closure bool
 }
 
 // Dialect is what a schema's dialect spells otherwise than JSON Schema
 // 2020-12, as the readers here need it: the Identifier keyword
 // (oas.SchemaRules.Identifier), "" for `$id`, whether the identifier is
 // IdentifierIgnored, as the drafts before 2019-09 ignore every keyword beside
-// a `$ref` (oas.SchemaRules.IgnoresRefFields), and whether it defines
-// Dependencies, the drafts' validation-only keyword 2019-09 split in two.
+// a `$ref` (oas.SchemaRules.IgnoresRefFields), whether it defines
+// Dependencies, the drafts' validation-only keyword 2019-09 split in two, and
+// whether it reads a ListedTuple, an `items` list whose rest is the
+// `additionalItems` beside it, as the drafts before 2020-12 spell a tuple.
 type Dialect struct {
 	Identifier        string
 	IdentifierIgnored bool
 	Dependencies      bool
+	ListedTuple       bool
 }
 
 // Voice is an inline allOf branch and where it is written, so what it declares
@@ -332,15 +339,17 @@ func DeclaresRedaction(s *oas3.Schema) bool {
 // Read reads every site-local annotation at st: what its schema writes at
 // pointer, then what each voice writes at its own. A voice agrees with what
 // spoke before it wherever both write a keyword (schema.voicesAmong), so a
-// keyword is taken once and nothing here chooses between two.
+// keyword is taken once and nothing here chooses between two. A voice's
+// unevaluated keywords fold nowhere (schema.foldEntry), so the position keeps
+// none: its branch, kept whole, is their one record.
 //
 // This is the one place the site-versus-referent choice is made, rather than
 // at each position that attaches annotations: three attachment points used to
 // make it separately and disagreed.
 func Read(st Site, pointer jsontext.Pointer, doc provenance.Doc) (Set, []ir.Diagnostic) {
-	out, diags := readLocal(st.Node, pointer, doc, true, st.Dialect)
+	out, diags := readLocal(st.Node, pointer, doc, true, st.Dialect, st.Closure)
 	for _, v := range st.Voices {
-		voice, voiceDiags := readLocal(v.Node, v.At, doc, false, Dialect{Dependencies: st.Dialect.Dependencies})
+		voice, voiceDiags := readLocal(v.Node, v.At, doc, false, Dialect{Dependencies: st.Dialect.Dependencies}, false)
 		diags = append(diags, voiceDiags...)
 		if out.XML == nil {
 			out.XML = voice.XML
@@ -359,10 +368,10 @@ func Read(st Site, pointer jsontext.Pointer, doc provenance.Doc) (Set, []ir.Diag
 
 // readLocal reads what s, written at pointer, says of the position alone: the
 // annotations no use inherits. own says s is the schema written at the position,
-// rather than a voice, whose dialect keywords and discriminator no fold reads
-// and whose residue keeps them, and dialect is what its dialect spells
-// otherwise (Site.Dialect).
-func readLocal(s *oas3.Schema, pointer jsontext.Pointer, doc provenance.Doc, own bool, dialect Dialect) (Set, []ir.Diagnostic) {
+// rather than a voice, whose dialect keywords, discriminator and unevaluated
+// keywords no fold reads and whose residue keeps them, dialect is what its
+// dialect spells otherwise (Site.Dialect), and closure is Site.Closure.
+func readLocal(s *oas3.Schema, pointer jsontext.Pointer, doc provenance.Doc, own bool, dialect Dialect, closure bool) (Set, []ir.Diagnostic) {
 	var out Set
 	out.XML = XMLHints(s.GetXML())
 
@@ -371,7 +380,7 @@ func readLocal(s *oas3.Schema, pointer jsontext.Pointer, doc provenance.Doc, own
 
 	ext, extDiags := ExtensionsFrom(s.GetExtensions(), doc, pointer)
 	sub, subDiags := subObjectKeys(s, out.XML, pointer, doc, own)
-	kept, keptDiags := unmodeledAt(s, pointer, doc, own, dialect)
+	kept, keptDiags := unmodeledAt(s, pointer, doc, own, dialect, closure)
 
 	diags := make([]ir.Diagnostic, 0, len(exDiags)+len(extDiags)+len(subDiags)+len(keptDiags))
 	diags = append(diags, exDiags...)
@@ -459,20 +468,22 @@ func definedNodeType(v string) bool {
 }
 
 // unmodeledAt collects every keyword a site declares that the IR keeps verbatim
-// instead of modelling, each under the reason that says which of those it is
+// instead of modelling, each under the reason saying which it is
 // (docs/ir/unmodeled.md#reasons): validation logic the IR draws a boundary
 // against (docs/ir/boundaries.md#validation-only-constructs), and JSON Schema
-// resource/dialect metadata the IR excludes on purpose.
+// resource/dialect metadata the IR excludes on purpose. own and closure are
+// readLocal's.
 //
 // The content vocabulary is not read here even though it is data with an IR
 // home: whether contentEncoding, contentMediaType and contentSchema reached
 // ir.Encoding depends on what the position lowered to, which only the schema
 // package can answer — schema.recordUnplacedContent asks the node that was
 // built rather than the keyword that was written.
-func unmodeledAt(s *oas3.Schema, pointer jsontext.Pointer, doc provenance.Doc, withDialect bool, dialect Dialect,
+func unmodeledAt(s *oas3.Schema, pointer jsontext.Pointer, doc provenance.Doc, own bool, dialect Dialect,
+	closure bool,
 ) (ir.Unmodeled, []ir.Diagnostic) {
-	vOnly, diags := validationOnlyAt(s, pointer, doc, dialect.Dependencies)
-	if !withDialect {
+	vOnly, diags := validationOnlyAt(s, pointer, doc, dialect, own, closure)
+	if !own {
 		return vOnly, diags
 	}
 	kept, dDiags := dialectAt(s, pointer, doc, dialect)

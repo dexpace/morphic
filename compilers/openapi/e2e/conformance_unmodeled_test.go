@@ -1062,9 +1062,11 @@ func assertSchemaIdentifiers(t *testing.T, doc *ir.Document, diags []ir.Diagnost
 }
 
 // assertDynamicRef pins both halves of $dynamicRef lowering (GitHub #125). A name
-// declared exactly once on a component schema has one possible target whatever
-// path evaluation took, so it expands; anything else is irreducible and the
-// reference is kept verbatim beside whatever did lower.
+// declared exactly once in the reference's resource has one possible target
+// whatever path evaluation took, so it expands, under $defs or under an $id as
+// on a component, and so does 2019-09's $recursiveRef to its resource's root;
+// anything else is irreducible and the reference is kept verbatim beside
+// whatever did lower.
 //
 // The escaped spelling is here because the fragment is URI text: RFC 3986 §2.3
 // makes '%2D' and '-' one character, so it must reach the same anchor the plain
@@ -1096,6 +1098,26 @@ func assertDynamicRef(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
 	assert.JSONEq(t, `"#Missing"`, string(entry.Value))
 	assert.Equal(t, []ir.Severity{ir.SeverityInfo}, diagsAt(diags, "openapi/degraded-construct",
 		"/components/schemas/Tree/properties/ghost/$dynamicRef"))
+
+	deep, ok := propByWire(tree, "deep")
+	require.True(t, ok)
+	assert.Equal(t, ir.TypeID("t/anon/components/schemas/Holder/$defs/Deep"), deep.Type.Target,
+		"an anchor below a component expands to the type a $ref there names")
+
+	linked, ok := doc.Types[componentID("Linked")].(*ir.Model)
+	require.True(t, ok)
+	next, ok := propByWire(linked, "next")
+	require.True(t, ok)
+	assert.Equal(t, componentID("Linked"), next.Type.Target, "one resource holds both ends")
+
+	children, ok := doc.Types[ir.TypeID("t/anon/components/schemas/Recursive/properties/children")].(*ir.List)
+	require.True(t, ok)
+	elem, ok := doc.Types[children.Elem.Target].(*ir.Scalar)
+	require.True(t, ok)
+	require.NotNil(t, elem.Base)
+	assert.Equal(t, componentID("Recursive"), elem.Base.Target, "a $recursiveRef names its resource's root")
+	assert.Equal(t, []ir.Severity{ir.SeverityInfo}, diagsAt(diags, "openapi/dynamic-ref-expanded",
+		"/components/schemas/Recursive/properties/children/items/$recursiveRef"))
 
 	assertDynamicRefAcrossAnEmptyName(t, doc, diags)
 }
@@ -1645,6 +1667,47 @@ func assertKeywordsAtEveryOutcome(t *testing.T, doc *ir.Document, diags []ir.Dia
 	assert.Empty(t, diagsAt(diags, "openapi/degraded-construct", "/components/schemas/Homed"))
 }
 
+// assertUnevaluatedAtEveryOutcome pins where `unevaluatedProperties: false`
+// reaches the IR: a model's openness where the position built one closed after
+// composition, itself or as a variant of a union it built, and otherwise
+// verbatim under openapi:unevaluated, once, on the node or carrier the position
+// owns, at a component, a property, an items schema and a parameter's schema.
+// No matrix row: the case is a preservation claim.
+func assertUnevaluatedAtEveryOutcome(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
+	for _, name := range []string{"Closed", "ObjectVariant", "Distributed"} {
+		assert.NotContains(t, typeByName(doc, name).Common().Unmodeled, "openapi:unevaluated", "%s holds it as a closure", name)
+	}
+	kept := map[string]ir.Unmodeled{}
+	for _, name := range []string{"Scalar", "Enumerated", "Constant", "Listed", "Paired", "Alias", "PlainUnion",
+		"NoObjectVariant", "Anything", "ClosedByABranch"} {
+		kept["/components/schemas/"+name] = typeByName(doc, name).Common().Unmodeled
+	}
+	holder, ok := typeByName(doc, "Holder").(*ir.Model)
+	require.True(t, ok)
+	for _, wire := range []string{"scalar", "ref"} {
+		p, found := propByWire(holder, wire)
+		require.True(t, found, wire)
+		kept["/components/schemas/Holder/properties/"+wire] = p.Unmodeled
+	}
+	items, ok := doc.Types["t/anon/components/schemas/Holder/properties/list/items"]
+	require.True(t, ok, "an items schema keeping it owns a node")
+	kept["/components/schemas/Holder/properties/list/items"] = items.Common().Unmodeled
+	op, ok := opByName(doc, "getThings")
+	require.True(t, ok)
+	require.Len(t, op.Params, 1)
+	kept["/paths/~1things/get/parameters/0/schema"] = op.Params[0].Unmodeled
+	for at, unmodeled := range kept {
+		entry := unmodeledEntry(t, unmodeled, "openapi:unevaluated")
+		assert.Equal(t, `{"unevaluatedProperties":false}`, string(entry.Value), at)
+		assert.Equal(t, ir.ReasonValidationOnly, entry.Reason, at)
+		assert.Equal(t, jsontext.Pointer(at), entry.Provenance.Pointer, at)
+		assert.Equal(t, []ir.Severity{ir.SeverityInfo}, diagsAt(diags, "openapi/validation-only-keyword", at), at)
+	}
+	closed, ok := typeByName(doc, "ClosedByABranch").(*ir.Model)
+	require.True(t, ok)
+	assert.Equal(t, ir.AdditionalClosed, closed.Additional, "the false branch closes it outright")
+}
+
 // assertUnknownKeywordsAtSharedNodes pins that a keyword no field of the model
 // names reaches the IR at a position that lowers to a shared node and has no
 // carrier, on an alias hoisted for it, and that a position writing only a
@@ -1702,7 +1765,8 @@ func assertNullKeywords(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
 // branch's $ref and by a mapping spelled as a reference or a bare name, and that
 // a target naming a variant itself stays on it. A mapping leaving a variant out
 // holds the route OpenAPI implies to it, and so does one the source does not
-// write where a variant's alias carries no name to route by.
+// write where a variant's alias carries no name to route by. A type two
+// variants alias routes to the first of them.
 func assertDiscriminatorAliasedBranch(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 	for name, key := range map[string]string{"Pet": "cat", "Unknown": "cat", "Implied": "Cat"} {
 		u, ok := typeByName(doc, name).(*ir.Union)
@@ -1717,4 +1781,10 @@ func assertDiscriminatorAliasedBranch(t *testing.T, doc *ir.Document, _ []ir.Dia
 		assert.Len(t, u.Discriminator.Mapping, 2, name)
 		assert.Equal(t, componentID("Dog"), u.Discriminator.Mapping[key], name)
 	}
+	twins, ok := typeByName(doc, "Twins").(*ir.Union)
+	require.True(t, ok)
+	require.NotNil(t, twins.Discriminator)
+	first := twins.Variants[0].Type.Target
+	assert.NotEqual(t, componentID("Cat"), first, "the branch keeps its alias")
+	assert.Equal(t, map[string]ir.TypeID{"tom": first, "cat": first, "dog": componentID("Dog")}, twins.Discriminator.Mapping)
 }

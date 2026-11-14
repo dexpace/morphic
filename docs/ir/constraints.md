@@ -45,6 +45,16 @@ it reaches no field and is kept verbatim under `Unmodeled` with `ReasonDegradedL
 ([degraded constructs](./boundaries.md#degraded-constructs)), so an absent count beside such an
 entry bounds nothing less than the entry does.
 
+Each bound applies to values of one kind and admits every value of another, as JSON Schema's do:
+`Min`, `Max`, `ExclusiveMin`, `ExclusiveMax`, `MultipleOf`, `Precision` and `Scale` to numbers,
+`MinLength`, `MaxLength` and `Pattern` to strings and bytes, `MinItems`, `MaxItems` and
+`UniqueItems` to lists and tuples, and `MinProps` and `MaxProps` to objects. A compiler writes one
+only where the source declares a type it applies to, or declares no type at all, and keeps one
+written beside another type verbatim under `Unmodeled` with `ReasonDegradedLowering`: beside a
+declared type, it bounds nothing that type admits. An encoded value holds those its source type
+takes, where the paragraph above places them: a length or pattern beside a `string` written as
+bytes or an instant, and a numeric bound beside a number written as an instant.
+
 ## Encodings
 
 ```go

@@ -170,15 +170,24 @@ const (
 	// Warning: the document is well-formed, and JSON Schema's own uniqueness
 	// requirement on enum is a SHOULD.
 	DuplicateEnumValue = "openapi/duplicate-enum-value"
+	// RepeatedEntry reports an entry of a list of names written again, at the
+	// repeat's own position, naming the index of its first occurrence: a tag an
+	// operation lists twice, from operation.lowerOperation, and a scope a
+	// requirement lists twice for one scheme, from auth.Registry. Each list names
+	// a set, so the entry is kept once, at its first occurrence.
+	//
+	// Warning, as DuplicateEnumValue is: no rule of the specification is broken,
+	// and the repeat adds nothing.
+	RepeatedEntry = "openapi/repeated-entry"
 	// NumericPrecision reports a numeric bound literal that is not a finite
-	// number, at every schema the load phase's check reads (error severity:
-	// Morphic owns these keywords, so this is the sole diagnostic for the
-	// defect — see load.ownedFinding).
+	// number, at every schema the rule table's check reads, in its dialect
+	// (error severity: Morphic owns these keywords, so this is the sole
+	// diagnostic for the defect — see oas's decimalBound).
 	NumericPrecision = "openapi/invalid-numeric-literal"
 	// ExclusiveBoundForm reports an exclusiveMinimum/exclusiveMaximum whose value
 	// form is wrong for the schema's dialect (a boolean under 2020-12, or a
-	// number under 3.0's or draft 4's), at every schema the load phase's check
-	// reads — see load.ownedFinding.
+	// number under 3.0's or draft 4's), at every schema the rule table's check
+	// reads — see oas's decimalBound.
 	ExclusiveBoundForm = "openapi/invalid-exclusive-bound"
 	// InvalidStatusKey reports a responses-map key that names no status: not a
 	// 100–599 code, not one of the 1XX–5XX wildcard ranges, not "default". The
@@ -364,6 +373,17 @@ const (
 	// A warning, as OAuth2NoFlow is: the document lowers whole, but states no
 	// way to send the body.
 	EmptyRequestContent = "openapi/empty-request-content"
+	// UnknownEncodingKey reports an encoding entry of a form body whose key
+	// names no property the body's schema declares, through $ref, allOf, oneOf
+	// and anyOf, where no catch-all admits a member it names no property for and
+	// the part walk read every position declaring one, at the entry, beside the
+	// info keeping it whole; and a key of the nested encoding a 3.2 Encoding
+	// Object writes naming none of its part's
+	// (docs/compilers/openapi.md#multipart-encoding).
+	//
+	// A warning, as InvalidStatusKey is: OpenAPI gives such an entry no effect,
+	// and the entry is kept.
+	UnknownEncodingKey = "openapi/unknown-encoding-key"
 	// ReservedHeaderName reports a header declaration OpenAPI says SHALL be
 	// ignored, because the protocol layer already owns the name. Three positions:
 	//
@@ -404,6 +424,12 @@ const (
 	// beside it. Not an error, for the reason ReservedHeaderName is not: the
 	// document still lowers.
 	UnknownObjectKey = "openapi/unknown-object-key"
+	// UnreadExtension reports a vendor extension under a prefix the promotion
+	// policy owns that the compiler reads no key of, by its mapping or by
+	// grouping, naming the nearest key it reads (lowering.UnreadExtensions).
+	// Warning for UnknownObjectKey's reason: a key under a prefix a policy owns
+	// is most likely one it reads, misspelt.
+	UnreadExtension = "openapi/unread-extension"
 	// UnknownKeyBudget reports an object declaring more keys the model does not
 	// name than the compiler keeps, so the ones past the bound reached the IR in no
 	// form at all.
@@ -460,13 +486,13 @@ const (
 	// declared is dropped. A code of its own rather than DegradedConstruct,
 	// because nothing is kept in a weaker shape.
 	MissingArrayItems = "openapi/missing-array-items"
-	// LaterVersionConstruct reports a field, or a value of one, that a later
-	// OpenAPI minor than the document declares added to the object it is written
-	// on, lowered as in a document declaring that minor, or a keyword beside a
-	// $ref that its schema's 3.0 minor or dialect ignores, applied as later
-	// versions apply one and read in its schema's minor and dialect. Either
-	// reading loses least: a consumer can set the construct aside, and could not
-	// recover the lowering from a verbatim copy
+	// LaterVersionConstruct reports, from the rule table's check, a field or a
+	// value a later OpenAPI minor added to its object, lowered as that minor
+	// does; a keyword JSON Schema 2020-12 added, in a 3.0 schema or a draft's,
+	// read as 2020-12 reads it; or a keyword beside a $ref its schema's minor or
+	// dialect ignores, applied as later versions apply it. Each reading loses
+	// least: a consumer can set the construct aside, and could not recover the
+	// lowering from a verbatim copy
 	// (docs/compilers/openapi.md#later-version-construct).
 	//
 	// A warning: the construct lowers, though the version or dialect it is
@@ -507,10 +533,9 @@ const (
 	UnreadDialect = "openapi/unread-dialect"
 	// InvalidItemsList reports `items` written as a list, a tuple as JSON
 	// Schema's drafts before 2020-12 spell one, in a schema whose dialect takes
-	// no list there, at it. The rule table's check leaves such a list to the
-	// load phase, which knows the schema's dialect once its references are
-	// bound (docs/compilers/openapi.md#tuples). Error, as the table's mismatch
-	// is.
+	// no list there, at it. The rule table's check reports it, reading the
+	// schema with the rows of its dialect (docs/compilers/openapi.md#tuples).
+	// Error, as the table's mismatch is.
 	InvalidItemsList = "openapi/invalid-items-list"
 	// InferredDiscriminator reports a mapping the discriminator-inference
 	// policy reads off the strings a union's variants pin their tag to, where
@@ -542,6 +567,12 @@ const (
 	// deprecated node (docs/compilers/openapi.md#replacement-inference). Info:
 	// the message keeps its prose, so nothing it says is lost.
 	UndecidedReplacement = "openapi/undecided-replacement"
+	// UndecidedPagination reports an operation whose query parameters name a
+	// pagination input the pagination-inference policy cannot settle into an
+	// ir.Pagination, saying why, at the operation: it is left with none
+	// (docs/compilers/openapi.md#pagination-policy). Info: the document
+	// declares no pagination, so nothing it says is lost.
+	UndecidedPagination = "openapi/undecided-pagination"
 )
 
 // Newf builds an ir.Diagnostic with a formatted message. It is the single

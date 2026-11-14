@@ -89,7 +89,7 @@ func lookForBreak(n *yaml.Node, _ int) nodeview.Step {
 	for i := 0; n.Kind == yaml.MappingNode && i+1 < len(n.Content); i += 2 {
 		key, val := n.Content[i], n.Content[i+1]
 		if nodeview.IsMergeKey(key) {
-			if slices.ContainsFunc(mergeSources(val), notMapping) {
+			if slices.ContainsFunc(nodeview.MergeSources(val), nodeview.NotMapping) {
 				return nodeview.Stop
 			}
 		} else if !scalarKey(key) {
@@ -104,22 +104,6 @@ func lookForBreak(n *yaml.Node, _ int) nodeview.Step {
 func scalarKey(key *yaml.Node) bool {
 	k := nodeview.Deref(key)
 	return k == nil || k.Kind == yaml.ScalarNode
-}
-
-// mergeSources returns what the `<<` value val names: each element of a list
-// written or aliased there, or val itself.
-func mergeSources(val *yaml.Node) []*yaml.Node {
-	if v := nodeview.Deref(val); v != nil && v.Kind == yaml.SequenceNode {
-		return v.Content
-	}
-	return []*yaml.Node{val}
-}
-
-// notMapping reports whether src, followed through its alias, is no mapping,
-// so a `<<` naming it merges nothing.
-func notMapping(src *yaml.Node) bool {
-	s := nodeview.Deref(src)
-	return s == nil || s.Kind != yaml.MappingNode
 }
 
 // mapping checks the pairs mapping n, at ptr, writes itself.
@@ -145,8 +129,8 @@ func (f *formatCheck) mapping(n *yaml.Node, ptr jsontext.Pointer) {
 // them. A list written in place is noted, so visit places its elements at ptr.
 func (f *formatCheck) merge(val *yaml.Node, ptr jsontext.Pointer) {
 	f.at[val] = ptr
-	for _, src := range mergeSources(val) {
-		if notMapping(src) {
+	for _, src := range nodeview.MergeSources(val) {
+		if nodeview.NotMapping(src) {
 			f.report(ir.SeverityError, classType, ptr,
 				"a `<<` merge key must name a mapping or a list of mappings, and this one names %s; it merges nothing",
 				kindName(nodeview.Deref(src)))

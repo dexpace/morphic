@@ -208,10 +208,11 @@ func TestScalar_AnEncodedFormatKeepsTheBoundsWrittenBesideIt(t *testing.T) {
 }
 
 // TestScalar_AnEncodedFormatBesideContentEncodingKeepsItsPrimitive pins a
-// contentEncoding naming another encoding beside an encoded pairing: it takes
-// Encoding.Name, as beside byte, while the primitive and the wire type the
+// contentEncoding naming another encoding beside an encoded pairing: on a
+// string it takes Encoding.Name, as beside byte, and on an integer, which it
+// does not apply to, takes nothing, while the primitive and the wire type the
 // format selects stay (docs/compilers/openapi.md#string-formats).
-// TestContentVocabulary_KeptWhereNoEncodingHolds holds the format it displaces.
+// TestContentVocabulary_KeptWhereNoEncodingHolds holds what each keeps.
 func TestScalar_AnEncodedFormatBesideContentEncodingKeepsItsPrimitive(t *testing.T) {
 	t.Parallel()
 	for _, tc := range []struct {
@@ -223,8 +224,10 @@ func TestScalar_AnEncodedFormatBesideContentEncodingKeepsItsPrimitive(t *testing
 			ir.Encoding{Name: "base64url", WireType: &ir.TypeRef{Target: ir.PrimTypeID(ir.PrimString)}}},
 		{"{type: string, format: http-date, contentEncoding: base64}", ir.PrimDatetimeOffset,
 			ir.Encoding{Name: "base64"}},
+		{"{type: string, format: unixtime, contentEncoding: base64}", ir.PrimDatetimeOffset,
+			ir.Encoding{Name: "base64", WireType: &ir.TypeRef{Target: ir.PrimTypeID(ir.PrimString)}}},
 		{"{type: integer, format: unixtime, contentEncoding: base64}", ir.PrimDatetimeOffset,
-			ir.Encoding{Name: "base64", WireType: &ir.TypeRef{Target: ir.PrimTypeID(ir.PrimInteger)}}},
+			ir.Encoding{Name: "unixTimestamp", WireType: &ir.TypeRef{Target: ir.PrimTypeID(ir.PrimInteger)}}},
 	} {
 		t.Run(tc.schema, func(t *testing.T) {
 			t.Parallel()
@@ -597,14 +600,24 @@ func TestContentVocabulary_KeptWhereNoEncodingHolds(t *testing.T) {
 			key:     "openapi:format", wantJSON: `"iban"`, at: componentID("A"),
 		},
 		{
+			name:    "an integer takes no content vocabulary",
+			schemas: "    A: {type: integer, contentEncoding: base64}\n",
+			key:     "openapi:contentEncoding", wantJSON: `"base64"`, at: componentID("A"),
+		},
+		{
+			name:    "an integer's format keeps Encoding.Name",
+			schemas: "    A: {type: integer, format: x-mine, contentMediaType: application/zip}\n",
+			key:     "openapi:contentMediaType", wantJSON: `"application/zip"`, at: componentID("A"),
+		},
+		{
 			name:    "an encoded format loses Encoding.Name to contentEncoding",
 			schemas: "    A: {type: string, format: http-date, contentEncoding: base64}\n",
 			key:     "openapi:format", wantJSON: `"http-date"`, at: componentID("A"),
 		},
 		{
-			name:    "an encoded format with a wire type loses Encoding.Name to contentEncoding",
+			name:    "an integer's encoded format keeps Encoding.Name",
 			schemas: "    A: {type: integer, format: unixtime, contentEncoding: base64}\n",
-			key:     "openapi:format", wantJSON: `"unixtime"`, at: componentID("A"),
+			key:     "openapi:contentEncoding", wantJSON: `"base64"`, at: componentID("A"),
 		},
 	}
 	for _, tc := range cases {
@@ -622,6 +635,24 @@ func TestContentVocabulary_KeptWhereNoEncodingHolds(t *testing.T) {
 			openapitest.AssertInfoDiagAt(t, diags, string(entry.Provenance.Pointer))
 		})
 	}
+}
+
+// TestContentVocabulary_ANumberTakesNone pins the content vocabulary beside a
+// type it does not apply to, at every site: a number's Scalar hoisted for its
+// format keeps the format as its encoding name and reads no content keyword,
+// which is kept verbatim with one info, as one beside a bare number is.
+func TestContentVocabulary_ANumberTakesNone(t *testing.T) {
+	t.Parallel()
+	doc, diags := parseFull(t, atEverySite("3.1.0", "{type: number, format: x-mine, contentEncoding: base64}"))
+	openapitest.RequireNoErrorDiags(t, diags)
+	for _, site := range sitesOf(t, doc) {
+		sc, ok := site.node.(*ir.Scalar)
+		require.True(t, ok, "%s: got %T", site.pointer, site.node)
+		assert.Equal(t, &ir.Encoding{Name: "x-mine"}, sc.Encoding, site.pointer)
+		assert.Equal(t, []string{"openapi:contentEncoding"}, unmodeledKeys(sc.Unmodeled), site.pointer)
+		openapitest.AssertInfoDiagAt(t, diags, site.pointer+"/contentEncoding")
+	}
+	assert.Len(t, diags, 4)
 }
 
 // TestContentVocabulary_KeptOnACarrierWithNoNode covers the position whose

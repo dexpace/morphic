@@ -52,6 +52,9 @@ func bindAll(ctx context.Context, doc *soa.OpenAPI, sibs Siblings, media MediaTy
 ) bound {
 	opened := map[string]*yaml.Node{}
 	cfg := bind.Config{Self: self.path, Locate: self.locate, Refuse: refuse, Limit: budget.AtMost(bind.MaxSteps),
+		// Read off the model, as the lowering reads the names a mapping value
+		// may spell (lowering.Ctx.DeclaresSchema), so the two cannot disagree.
+		Components: slices.Collect(doc.Components.GetSchemas().Keys()),
 		Dialect: func(name, dialect string) bind.DialectRule {
 			declared := doc.GetOpenAPI()
 			if name != self.path {

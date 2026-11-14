@@ -99,13 +99,16 @@ func TestBindingDiags_ReportsAFailedRefOnceWhereItIsWrittenAtEveryBudget(t *test
 	var other yaml.Node
 	require.NoError(t, yaml.Unmarshal([]byte("X: {$ref: '#/Y'}\nY: {$ref: '#/Missing'}\nP: {$ref: '#/X'}\n"), &other))
 	cfg := bind.Config{Self: "spec.yaml", Open: func(string) (*yaml.Node, error) { return &other, nil }}
-	full := bind.Bind(t.Context(), root, cfg)
 	want := []ir.Diagnostic{diag.Newf(ir.SeverityError, diag.UnresolvedRef, ir.Provenance{Source: 1, Pointer: "/Y"},
 		`unresolved $ref "#/Missing": it names nothing in the document it points into`)}
 	reported, silent := 0, 0
-	for limit := 1; limit <= full.Steps(); limit++ {
+	// Every limit up to the first the reading fits in, which a table so small
+	// reaches well within the cap.
+	for limit, exhausted := 1, true; exhausted; limit++ {
+		require.Less(t, limit, 1<<12, "the reading fits some limit")
 		cfg.Limit = budget.AtMost(limit)
 		table := bind.Bind(t.Context(), root, cfg)
+		exhausted = table.Exhausted()
 		var failed []ir.Diagnostic
 		crossed := false
 		for _, d := range bindingDiags(byDocument(table), table) {
@@ -461,4 +464,33 @@ func TestPlaces_PositionPlacesAFindingInTheDocumentThatHoldsIt(t *testing.T) {
 
 	unlisted := places{source: source, table: table}
 	assert.Equal(t, ir.Provenance{Source: 5}, unlisted.position(ext))
+}
+
+// TestBindSchemas_ReadsTheComponentNamesTheModelReads pins the names a
+// mapping value is read by rather than bound: the source's schema components
+// as the model reads them, so the table binds no value the lowering reads as a
+// name. Cat is merged in through `<<`, which a read of the keys the tree
+// writes would miss, and the table would then read Cat as a document beside
+// the source. A value naming no component is bound, with no '#' as with one.
+func TestBindSchemas_ReadsTheComponentNamesTheModelReads(t *testing.T) {
+	t.Parallel()
+	got, diags, err := Load(t.Context(), 0, openapitest.SourceOf(`openapi: 3.1.0
+info: {title: t, version: '1'}
+paths: {}
+x-cats: &cats
+  Cat: {type: object}
+components:
+  schemas:
+    <<: *cats
+    Pet:
+      oneOf: [{$ref: '#/components/schemas/Cat'}]
+      discriminator: {propertyName: kind, mapping: {c: Cat, n: Pet, f: cat.yaml}}
+`), Options{})
+	require.NoError(t, err)
+	require.NotNil(t, got, "%+v", diags)
+	disc := bind.Position{Pointer: "/components/schemas/Pet/discriminator"}
+	for value, bound := range map[string]bool{"Cat": false, "Pet": false, "cat.yaml": true} {
+		_, ok := got.Bindings.Table().Mapping(disc, value)
+		assert.Equal(t, bound, ok, value)
+	}
 }

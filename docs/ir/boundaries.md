@@ -15,17 +15,23 @@ The IR deliberately does not model them structurally. Compilers keep them verbat
 emit an `info` diagnostic, so the information is never silently lost and a future
 validation-oriented emitter (request validators, mock servers) can still consume them — selecting
 on the reason rather than sifting vendor metadata out of the same bag
-([unmodeled](./unmodeled.md#reasons)). The one structural carve-back: `unevaluatedProperties: false`
-is *shape* (a closed model after composition) and lowers to
-`Model.Additional = closed_after_composition`. Every other `unevaluated*` form stays verbatim,
-`unevaluatedProperties` with a schema value included. `propertyNames` is not a second carve-back
-onto `AdditionalProps.Key`: it constrains *every* key of the object, including the ones `properties`
-declares — where there is no `AdditionalProps` to hold a key type at all — and it is a whole schema
-rather than a type, so only its degenerate `{type: string}` form names one.
+([unmodeled](./unmodeled.md#reasons)). The one structural carve-back: a live
+`unevaluatedProperties: false` is *shape* (a closed model after composition) and lowers to
+`Model.Additional = closed_after_composition` where a model holds it. Every other `unevaluated*`
+form stays verbatim: `unevaluatedProperties` with a schema value, a `false` no model holds, and one
+a keyword beside it leaves inert, as `additionalProperties` leaves `unevaluatedProperties` and
+`items` leaves `unevaluatedItems`, each evaluating every location the other could apply to. An
+inert one is kept with that keyword, so the entry, read beside what its position states, means what
+the source means: nothing. Read as a schema of its own an `unevaluated*` entry means something
+else, as what it applies to depends on the keywords beside it. `propertyNames` is not a second
+carve-back onto `AdditionalProps.Key`: it constrains *every* key of the object, including the ones
+`properties` declares — where there is no `AdditionalProps` to hold a key type at all — and it is a
+whole schema rather than a type, so only its degenerate `{type: string}` form names one.
 
 Two neighbouring keyword groups are *not* part of this boundary — the content vocabulary
 (`contentEncoding`, `contentMediaType`, `contentSchema`) and the keywords that identify a schema
-resource (`$id`, draft 4's `id`, `$schema`, `$vocabulary`) — and neither is `$dynamicRef`. How the
+resource (`$id`, draft 4's `id`, `$schema`, `$vocabulary`) — and neither is `$dynamicRef`, nor
+JSON Schema 2019-09's `$recursiveRef`. How the
 OpenAPI compiler lowers each is stated with its rules:
 [`content-vocabulary`](../compilers/openapi.md#content-vocabulary),
 [`dialect-keywords`](../compilers/openapi.md#dialect-keywords) and

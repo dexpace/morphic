@@ -1,0 +1,40 @@
+openapi: 3.0.3
+info: {title: MultipartDefaults30, version: "1.0.0"}
+paths:
+  # 3.0's table of defaults keys a string on its format, and has no row for a
+  # schema writing no type.
+  /upload:
+    post:
+      operationId: upload
+      requestBody:
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                file: {type: string, format: binary}
+                # Base64 text: no file, but octet-stream by 3.0's row.
+                token: {type: string, format: byte}
+                # 3.0's table has no contentEncoding column: a string.
+                blob: {type: string, contentEncoding: base64}
+                raw: {description: anything}
+                matrix: {type: array, items: {type: array, items: {type: integer}}}
+                # 3.0 gives a style no effect in a multipart body.
+                styled: {type: string}
+            encoding:
+              styled: {style: form}
+      responses: {"204": {description: ok}}
+  /form:
+    post:
+      operationId: form
+      requestBody:
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+              properties:
+                token: {type: string, format: byte}
+                tags: {type: array, items: {type: string}}
+            encoding:
+              tags: {explode: false}
+      responses: {"204": {description: ok}}

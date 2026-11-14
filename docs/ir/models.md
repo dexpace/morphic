@@ -36,7 +36,8 @@ type AdditionalMode string
 // ""                         — unspecified (open by JSON Schema default)
 // "closed"                   — no properties beyond the declared set and the catch-all's patterns
 //                              (additionalProperties: false, closed-by-construction records)
-// "closed_after_composition" — closed once composition is resolved (unevaluatedProperties: false)
+// "closed_after_composition" — closed once composition is resolved (unevaluatedProperties: false
+//                              with no additionalProperties beside it, which would leave it inert)
 
 type WireIDRange struct { From, To int }
 
@@ -167,7 +168,9 @@ no pattern matches:
 - **Patterns and no value.** No such key is allowed, as `Tuple.Rest` is nil when no element may
   follow: an object writing `patternProperties` beside `additionalProperties: false`. The model is
   `Additional` closed as well, which says the same of every member beyond its declared ones and
-  the patterns.
+  the patterns. Beside `closed_after_composition` instead, from `patternProperties` and
+  `unevaluatedProperties: false` with no `additionalProperties`, such a key is allowed only where
+  composition evaluates it, and the source types it nowhere else, so nothing is supplied for it.
 - **Patterns and a value.** Both hold: an object writing `patternProperties` and neither
   `additionalProperties` nor `unevaluatedProperties: false`, whose other keys JSON Schema admits
   whatever they hold, types the value as the top type.
@@ -242,12 +245,14 @@ lists that no member declares and the composition entries that name no model. It
   order: a `Positional` model's elements follow their `WireID`.
 - *Addressing a member.* A `PropID` naming a model's member, an encoding key in `Content.Encoding`
   ([payloads](./payloads.md)) or a discriminator's `Property`, names the declaration the flattening
-  of that model takes, the content's type for an encoding key, or the first variant declaring the
-  part where that type is a union, so a consumer finds it on the member itself. The OpenAPI compiler
-  keys a part through the flattening, and tags a discriminator by an own property, which the
-  flattening takes. `pass.Validate` holds each only to a property the model
-  exposes, not yet to the one it takes, since a flattening per model it asks about grows
-  quadratically down a deep hierarchy, which its cost tests refuse.
+  of that model takes, the content's type for an encoding key, or of each variant declaring the
+  part where that type is a union, or of each shape declaring it where that type, or a variant, is
+  a model narrowing a union ([below](#the-shapes-of-a-model-narrowing-a-union)), so a consumer finds
+  it on the member itself. The OpenAPI compiler keys a part through the flattening, and tags a
+  discriminator by an own property, which the flattening takes. `pass.Validate` holds each only to
+  a property the model exposes, or a shape of it holds, not yet to the one it takes, since a
+  flattening per model it asks about grows quadratically down a deep hierarchy, which its cost
+  tests refuse.
 - *Cycles and cost.* Each model and alias scalar is read once, so a cyclic composition is read to
   its fixpoint, each model of a cycle holding the members of all of them, and nothing is cut short:
   the walk needs no step budget and no recursion. Each type a redaction is read through is read once

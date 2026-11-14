@@ -1,0 +1,36 @@
+openapi: 3.1.0
+info: {title: TypeArrayBounds, version: "1.0.0"}
+paths: {}
+components:
+  schemas:
+    # Each value bound lands on the variant whose type it applies to, a Scalar
+    # of its own where the variant would be the shared primitive: the minimum on
+    # both numbers, the maxLength on the string, and a bound no listed type
+    # takes stays on the union.
+    Measure:
+      minimum: 1
+      type: [number, integer]
+    Mixed:
+      maxLength: 3
+      minimum: 2
+      type: [integer, string]
+    Untaken:
+      minProperties: 1
+      type: [integer, string]
+    # A format paired with one listed type is that variant's alone.
+    Dated:
+      format: date
+      minLength: 10
+      type: [integer, string]
+    # The property carrying a type array holds no bound: each is its variant's.
+    Holder:
+      type: object
+      properties:
+        either:
+          maxLength: 3
+          type: [integer, string]
+    # A branch's bound folds onto the variant it applies to.
+    OnBranch:
+      type: [integer, string]
+      allOf:
+        - maxLength: 2

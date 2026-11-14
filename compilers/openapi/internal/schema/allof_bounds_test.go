@@ -266,13 +266,13 @@ func TestAllOf_ACountNoFieldStatesIsKeptInEitherOrder(t *testing.T) {
 func TestAllOf_TheBindingCountIsKeptInEveryOrder(t *testing.T) {
 	t.Parallel()
 	for _, tc := range []struct {
-		name, keyword string
-		counts        []string
-		want          string
+		name, typ, keyword string
+		counts             []string
+		want               string
 	}{
-		{"two maxima", "maxLength", []string{"99999999999999999999", "88888888888888888888"}, "88888888888888888888"},
-		{"two minima", "minProperties", []string{"88888888888888888888", "99999999999999999999"}, "99999999999999999999"},
-		{"three minima", "minLength", []string{"99999999999999999999", "88888888888888888888", "77777777777777777777"},
+		{"two maxima", "string", "maxLength", []string{"99999999999999999999", "88888888888888888888"}, "88888888888888888888"},
+		{"two minima", "object", "minProperties", []string{"88888888888888888888", "99999999999999999999"}, "99999999999999999999"},
+		{"three minima", "string", "minLength", []string{"99999999999999999999", "88888888888888888888", "77777777777777777777"},
 			"99999999999999999999"},
 	} {
 		for _, order := range permutations(len(tc.counts)) {
@@ -281,9 +281,9 @@ func TestAllOf_TheBindingCountIsKeptInEveryOrder(t *testing.T) {
 				branches[k] = "{" + tc.keyword + ": " + tc.counts[i] + "}"
 			}
 			for _, beside := range []bool{false, true} {
-				spec := "    T: {type: string, allOf: [" + strings.Join(branches, ", ") + "]}\n"
+				spec := "    T: {type: " + tc.typ + ", allOf: [" + strings.Join(branches, ", ") + "]}\n"
 				if beside {
-					spec = "    T: {type: string, " + branches[0][1:len(branches[0])-1] + ", allOf: [" +
+					spec = "    T: {type: " + tc.typ + ", " + branches[0][1:len(branches[0])-1] + ", allOf: [" +
 						strings.Join(branches[1:], ", ") + "]}\n"
 				}
 				doc, diags := schema.LowerSpec(t, openapitest.ComponentSpec(spec))
@@ -345,4 +345,55 @@ func permutations(n int) [][]int {
 		}
 	}
 	return out
+}
+
+// TestAllOf_ABranchBoundTheTypeCannotTakeStaysWithIt pins a value bound on an
+// inline branch of a composition whose schema declares a type the bound does
+// not apply to: the composed Model reads none of it, so the branch is kept
+// whole, reported, as the same bound beside the allOf is kept, and one the type
+// takes folds onto the Model.
+func TestAllOf_ABranchBoundTheTypeCannotTakeStaysWithIt(t *testing.T) {
+	t.Parallel()
+	doc, diags := parseFull(t, openapitest.ComponentSpec(
+		"    M: {type: object, properties: {a: {type: string}}, allOf: [{minLength: 1}, {minProperties: 1}]}\n"))
+	openapitest.RequireNoErrorDiags(t, diags)
+	m, ok := typeByName(doc, "M").(*ir.Model)
+	require.True(t, ok, "got %T", typeByName(doc, "M"))
+	assert.Equal(t, &ir.Constraints{MinProps: new(int64(1))}, m.Constraints)
+	assert.Equal(t, []string{"openapi:allOf/0"}, unmodeledKeys(m.Unmodeled))
+	assert.Contains(t, openapitest.DiagMessageAt(t, diags, diag.DegradedConstruct, ir.SeverityInfo,
+		"/components/schemas/M/allOf/0"), "minLength")
+	assert.Len(t, diags, 1, "%+v", diags)
+}
+
+// TestAllOf_ABoundBesideACompositionIsReadByItsType pins a value bound beside
+// an allOf that composes, and beside a union distributed over its branches,
+// whose schema declares a type the bound does not apply to: neither the Model
+// nor a variant reads it, and the position's own node keeps it, reported, while
+// one the type takes lands on each.
+func TestAllOf_ABoundBesideACompositionIsReadByItsType(t *testing.T) {
+	t.Parallel()
+	doc, diags := parseFull(t, openapitest.ComponentSpec(
+		"    A: {type: object, properties: {a: {type: string}}}\n"+
+			"    B: {type: object, properties: {b: {type: string}}}\n"+
+			"    Comp: {type: object, allOf: [{$ref: '#/components/schemas/A'}], minLength: 1, minProperties: 1}\n"+
+			"    Dist: {type: object, properties: {k: {type: string}}, minLength: 1, minProperties: 1,\n"+
+			"      oneOf: [{$ref: '#/components/schemas/A'}, {$ref: '#/components/schemas/B'}]}\n"))
+	openapitest.RequireNoErrorDiags(t, diags)
+	held := &ir.Constraints{MinProps: new(int64(1))}
+	comp, ok := typeByName(doc, "Comp").(*ir.Model)
+	require.True(t, ok, "got %T", typeByName(doc, "Comp"))
+	assert.Equal(t, held, comp.Constraints)
+	dist, ok := typeByName(doc, "Dist").(*ir.Union)
+	require.True(t, ok, "got %T", typeByName(doc, "Dist"))
+	for _, v := range dist.Variants {
+		m, isModel := doc.Types[v.Type.Target].(*ir.Model)
+		require.True(t, isModel, "got %T", doc.Types[v.Type.Target])
+		assert.Equal(t, held, m.Constraints)
+	}
+	for name, td := range map[string]ir.TypeDef{"Comp": comp, "Dist": dist} {
+		assert.Equal(t, []string{"openapi:minLength"}, unmodeledKeys(td.Common().Unmodeled), name)
+		assert.Contains(t, openapitest.DiagMessageAt(t, diags, diag.DegradedConstruct, ir.SeverityInfo,
+			"/components/schemas/"+name), "no home for minLength", name)
+	}
 }

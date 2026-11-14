@@ -5,7 +5,6 @@ package lowering_test
 
 import (
 	"encoding/json/jsontext"
-	"os"
 	"path/filepath"
 	"reflect"
 	"testing"
@@ -27,7 +26,6 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
 	"github.com/dexpace/morphic/compilers/openapi/internal/overlay"
 	"github.com/dexpace/morphic/compilers/openapi/internal/resolve"
-	"github.com/dexpace/morphic/engine/reader"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -345,36 +343,6 @@ func TestSettled_BuildsOneStorePerRun(t *testing.T) {
 	other := lowering.Settled(loweringtest.Context(t, bindingsSpec, lowering.Policy{}), build)
 	assert.NotSame(t, first, other, "another context builds its own")
 	assert.Equal(t, 2, builds, "one store of a type per run")
-}
-
-// TestScoped_KeysAPositionByTheScopeItIsReadIn pins the key a position is
-// remembered under: one for every copy of a context in its scope, and another
-// for another position and for another document's scope.
-func TestScoped_KeysAPositionByTheScopeItIsReadIn(t *testing.T) {
-	t.Parallel()
-	dir := t.TempDir()
-	require.NoError(t, os.WriteFile(filepath.Join(dir, "ext.yaml"),
-		[]byte("paths:\n  /x: {get: {responses: {\"200\": {description: ok}}}}\n"), 0o600))
-	const root = "openapi: 3.1.0\ninfo: {title: T, version: \"1\"}\npaths:\n  /ext: {$ref: './ext.yaml#/paths/~1x'}\n"
-	doc, _, err := load.Load(t.Context(), 0, compilers.Source{Path: filepath.Join(dir, "root.yaml"),
-		Data: []byte(root)}, load.Options{Reader: reader.Disk{}})
-	require.NoError(t, err)
-	c := lowering.New(0, doc, lowering.Policy{})
-	at := bind.Position{Pointer: "/x"}
-
-	if lowering.Scoped(c, at) != lowering.Scoped(c.InScope(c.RefScope()), at) {
-		t.Error("a copy in c's scope keys the position apart from c")
-	}
-	if lowering.Scoped(c, at) == lowering.Scoped(c, bind.Position{Pointer: "/y"}) {
-		t.Error("another position shares the key")
-	}
-	require.Equal(t, 2, doc.Bindings.Table().Documents(), "the source and ext.yaml")
-	foreign, ok := lowering.InDocument(c, 1)
-	require.True(t, ok)
-	require.True(t, foreign.RefScope().Foreign)
-	if lowering.Scoped(c, at) == lowering.Scoped(foreign, at) {
-		t.Error("another document's scope shares the key")
-	}
 }
 
 // referenceKinds is a source declaring one component of each kind the library

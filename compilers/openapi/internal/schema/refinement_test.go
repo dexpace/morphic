@@ -4,6 +4,7 @@
 package schema_test
 
 import (
+	"encoding/json/jsontext"
 	"encoding/json/v2"
 	"fmt"
 	"regexp"
@@ -1898,40 +1899,97 @@ func TestRefinement_ANullKeywordRestatesNothingMore(t *testing.T) {
 }
 
 // TestRefinement_ATypeArrayPrincipalKeepsWhatNoVariantHolds pins an inline
-// principal that lowers as a type array: what none of its variants holds is kept
-// on the union it lowers to, as a type array written alone keeps it, whether the
-// keyword sits on the branch or beside the allOf.
+// principal that lowers as a type array: what none of its variants holds, a
+// bound no listed type takes, is kept on the union it lowers to, as a type array
+// written alone keeps it, whether the keyword sits on the branch or beside the
+// allOf, and a bound one takes lands on that variant.
 func TestRefinement_ATypeArrayPrincipalKeepsWhatNoVariantHolds(t *testing.T) {
 	t.Parallel()
 	doc, diags := parseFull(t, openapitest.ComponentSpecVer("3.1.0",
-		"    OnBranch: {allOf: [{type: [string, integer], minLength: 1}]}\n"+
-			"    Beside: {type: [string, integer], minLength: 1, allOf: [{description: d}]}\n"))
+		"    OnBranch: {allOf: [{type: [string, integer], minProperties: 1, minLength: 1}]}\n"+
+			"    Beside: {type: [string, integer], minProperties: 1, minLength: 1, allOf: [{description: d}]}\n"))
 	openapitest.RequireNoErrorDiags(t, diags)
 	branch, ok := doc.Types["t/anon/components/schemas/OnBranch/allOf/0"].(*ir.Union)
 	require.True(t, ok, "got %T", doc.Types["t/anon/components/schemas/OnBranch/allOf/0"])
-	assert.Contains(t, branch.Unmodeled, "openapi:minLength")
+	assert.Equal(t, []string{"openapi:minProperties"}, unmodeledKeys(branch.Unmodeled))
 	beside, ok := typeByName(doc, "Beside").(*ir.Union)
 	require.True(t, ok, "got %T", typeByName(doc, "Beside"))
-	assert.Contains(t, beside.Unmodeled, "openapi:minLength")
+	assert.Equal(t, []string{"openapi:minProperties"}, unmodeledKeys(beside.Unmodeled))
 	assert.Equal(t, "d", beside.Docs.Description)
+	for _, u := range []*ir.Union{branch, beside} {
+		str, isScalar := doc.Types[u.Variants[0].Type.Target].(*ir.Scalar)
+		require.True(t, isScalar, "got %T", doc.Types[u.Variants[0].Type.Target])
+		assert.Equal(t, &ir.Constraints{MinLength: new(int64(1))}, str.Constraints)
+		assert.Equal(t, ir.TypeID("t/prim/integer"), u.Variants[1].Type.Target)
+	}
 }
 
-// TestRefinement_AValueBoundOnABranchBesideATypeListStaysWithIt pins a value
-// bound on a branch of an allOf beside a type list: it stays with its branch,
-// reported, as the variants the same bound beside the allOf reaches, the integer
-// one among them here, need not be ones it constrains (GitHub #1310). A
-// collection bound there lands on the list variant
+// TestRefinement_AValueBoundOnABranchBesideATypeListLandsOnItsVariant pins a
+// value bound on a branch of an allOf beside a type list: it folds onto the
+// variant whose type takes it, as the same bound beside the allOf does, and the
+// branch is consumed, in either branch order and with branches writing bounds of
+// different groups. A bound no listed type takes stays with its branch, reported.
+// A collection bound there lands on the list variant
 // (TestCollectionBound_OnABranchLandsAsItsFlatSpelling).
-func TestRefinement_AValueBoundOnABranchBesideATypeListStaysWithIt(t *testing.T) {
+func TestRefinement_AValueBoundOnABranchBesideATypeListLandsOnItsVariant(t *testing.T) {
+	t.Parallel()
+	str := &ir.Constraints{MaxLength: new(int64(2))}
+	num := &ir.Constraints{Min: new(ir.BigVal("1"))}
+	for _, tc := range []struct {
+		name, allOf string
+		held        [2]*ir.Constraints
+		kept        []string
+	}{
+		{"one branch", "[{maxLength: 2}]", [2]*ir.Constraints{str, nil}, nil},
+		{"after another", "[{description: d}, {maxLength: 2}]", [2]*ir.Constraints{str, nil}, nil},
+		{"two groups", "[{maxLength: 2}, {minimum: 1}]", [2]*ir.Constraints{str, num}, nil},
+		{"two groups reversed", "[{minimum: 1}, {maxLength: 2}]", [2]*ir.Constraints{str, num}, nil},
+		{"no listed type takes it", "[{maxLength: 2}, {minProperties: 1}]", [2]*ir.Constraints{str, nil},
+			[]string{"openapi:allOf/1"}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			doc, diags := parseFull(t, openapitest.ComponentSpecVer("3.1.0",
+				"    OnBranch: {type: [string, integer], format: x-mine, allOf: "+tc.allOf+"}\n"))
+			openapitest.RequireNoErrorDiags(t, diags)
+			u, ok := typeByName(doc, "OnBranch").(*ir.Union)
+			require.True(t, ok, "got %T", typeByName(doc, "OnBranch"))
+			assert.Equal(t, tc.kept, unmodeledKeys(u.Unmodeled))
+			for i, want := range tc.held {
+				v, isScalar := doc.Types[u.Variants[i].Type.Target].(*ir.Scalar)
+				require.True(t, isScalar, "got %T", doc.Types[u.Variants[i].Type.Target])
+				assert.Equal(t, want, v.Constraints, "variant %d", i)
+			}
+			if tc.kept != nil {
+				assert.Contains(t, openapitest.DiagMessageAt(t, diags, diag.DegradedConstruct, ir.SeverityInfo,
+					"/components/schemas/OnBranch/allOf/1"), "the branch (minProperties)")
+				return
+			}
+			assert.Empty(t, diags)
+		})
+	}
+}
+
+// TestRefinement_ABranchBoundBesideATypeListIsReadAtTheBranch pins where a type
+// array's variant reads what a folding branch writes: at the branch's own
+// pointer, so a count past 64 bits the variant keeps is kept and reported where
+// the branch writes it, beside the count it states.
+func TestRefinement_ABranchBoundBesideATypeListIsReadAtTheBranch(t *testing.T) {
 	t.Parallel()
 	doc, diags := parseFull(t, openapitest.ComponentSpecVer("3.1.0",
-		"    OnBranch: {type: [string, integer], format: x-mine, allOf: [{maxLength: 2}]}\n"))
+		"    OnBranch: {type: [string, integer], allOf: [{maxLength: 99999999999999999999, minLength: 1}]}\n"))
 	openapitest.RequireNoErrorDiags(t, diags)
 	u, ok := typeByName(doc, "OnBranch").(*ir.Union)
 	require.True(t, ok, "got %T", typeByName(doc, "OnBranch"))
-	assert.Contains(t, u.Unmodeled, "openapi:allOf/0")
-	assert.Contains(t, openapitest.DiagMessageAt(t, diags, diag.DegradedConstruct, ir.SeverityInfo,
-		"/components/schemas/OnBranch/allOf/0"), "the branch (maxLength)")
+	assert.Empty(t, u.Unmodeled, "the branch folded")
+	str, ok := doc.Types[u.Variants[0].Type.Target].(*ir.Scalar)
+	require.True(t, ok, "got %T", doc.Types[u.Variants[0].Type.Target])
+	assert.Equal(t, &ir.Constraints{MinLength: new(int64(1))}, str.Constraints)
+	kept, ok := str.Unmodeled["openapi:maxLength"]
+	require.True(t, ok)
+	assert.Equal(t, jsontext.Pointer("/components/schemas/OnBranch/allOf/0/maxLength"), kept.Provenance.Pointer)
+	require.Len(t, diags, 1, "%+v", diags)
+	assert.Equal(t, jsontext.Pointer("/components/schemas/OnBranch/allOf/0"), diags[0].Provenance.Pointer)
 }
 
 // TestRefinement_AnEmptyAllOfOnABranchIsKept pins a branch writing `allOf: []`:

@@ -741,6 +741,9 @@
                     },
                     "encoding": {
                       "p/openapi/paths/~1forms/post/requestBody/content/multipart~1form-data/schema/properties/part": {
+                        "contentTypes": [
+                          "text/plain"
+                        ],
                         "headers": [
                           {
                             "id": "p/openapi/paths/~1forms/post/requestBody/content/multipart~1form-data/encoding/part/headers/X-Part",
@@ -7756,6 +7759,15 @@
       "provenance": {
         "source": 0,
         "pointer": "/paths/~1forms/post/requestBody/content/multipart~1form-data/encoding/part/encoding"
+      }
+    },
+    {
+      "severity": "warning",
+      "code": "openapi/unknown-encoding-key",
+      "message": "encoding entry \"inner\" names no property the part's schema declares, which OpenAPI requires of an encoding key, so the entry has no effect",
+      "provenance": {
+        "source": 0,
+        "pointer": "/paths/~1forms/post/requestBody/content/multipart~1form-data/encoding/part/encoding/inner"
       }
     }
   ],

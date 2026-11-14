@@ -36,7 +36,7 @@ import (
 func lowerAllOf(c lowering.Ctx, ts *compile.Types, depth int, s *oas3.Schema, pointer jsontext.Pointer, discriminated bool) (ir.TypeID, []ir.Diagnostic) {
 	var diags []ir.Diagnostic
 	id := internNode(c, ts, pointer, func(common ir.TypeCommon) ir.TypeDef {
-		cons, consDiags := ConstraintsOf(c, &common.Unmodeled, s, positionVoices(c, ts, s, pointer, ir.TypeRef{}), pointer)
+		cons, consDiags := ConstraintsOf(c, &common.Unmodeled, s, positionVoices(c, ts, s, pointer, ir.TypeRef{}), pointer, declaredInstanceTypes(s))
 		diags = append(diags, consDiags...)
 		m := &ir.Model{TypeCommon: common, Constraints: cons}
 		comp := readAllOf(c, s, pointer) // the one flattened list; the readers below take it, not s
@@ -48,7 +48,7 @@ func lowerAllOf(c lowering.Ctx, ts *compile.Types, depth int, s *oas3.Schema, po
 		diags = append(diags, fillAdditional(c, ts, depth, m, s, pointer)...)
 		diags = append(diags, applyFalseBranches(c, m, s, comp)...)
 		if discriminated {
-			d, discDiags := lowerDiscriminator(c, ts, s.GetDiscriminator(), pointer, m, mappingRoute{})
+			d, discDiags := lowerDiscriminator(c, ts, s.GetDiscriminator(), pointer, m, nil)
 			diags = append(diags, discDiags...)
 			m.Discriminator = d
 		}
@@ -172,6 +172,10 @@ type allOfComposition struct {
 	// distributing it across its variants (branchUnion), whose merge consumes it,
 	// and empty where no branch's is.
 	conjoins jsontext.Pointer
+	// bounds is the kinds whose value bounds the node composing the branches
+	// reads, those of the types the schema declares (readAllOf), so a branch's
+	// bound folds where they take it.
+	bounds kindSet
 }
 
 // branchSpeaks reports whether the branch at index i folds at the position.
@@ -202,6 +206,7 @@ func allOfBranches(s *oas3.Schema, pointer jsontext.Pointer) allOfComposition {
 func readAllOf(c lowering.Ctx, s *oas3.Schema, pointer jsontext.Pointer) allOfComposition {
 	comp := allOfBranches(s, pointer)
 	comp.disjoint = disjointConjuncts(c, s, comp)
+	comp.bounds = declaredInstanceTypes(s)
 	if allOfDecides(c, s) {
 		v := voicingOf(c, s)
 		comp.speaks, comp.rebased = v.speaks, v.rebased
@@ -413,7 +418,7 @@ func preserveUnmergedBranch(c lowering.Ctx, m *ir.Model, comp allOfComposition, 
 	speaks := comp.branchSpeaks(i)
 	conjoined := comp.conjoins != "" && e.pointer == comp.conjoins
 	residue := unmergedBranchKeys(bs, func(keyword string) bool {
-		return mergeConsumes(bs, keyword, e.wrapper) || (speaks && folds(c, bs, keyword, boundHomes{value: true})) ||
+		return mergeConsumes(bs, keyword, e.wrapper) || (speaks && folds(c, bs, keyword, boundHomes{value: comp.bounds})) ||
 			(conjoined && conjoinedKeyword(keyword))
 	})
 	if len(residue) == 0 {

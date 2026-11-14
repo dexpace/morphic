@@ -4,6 +4,7 @@
 package openapi
 
 import (
+	"encoding/json/v2"
 	"fmt"
 	"maps"
 	"mime"
@@ -116,6 +117,32 @@ const (
 	TargetStability = lowering.TargetStability
 	// TargetRedaction asks for a value to be redacted.
 	TargetRedaction = lowering.TargetRedaction
+	// TargetAllowReserved sets ir.HTTPParamBinding.AllowReserved on a parameter
+	// writing no allowReserved.
+	TargetAllowReserved = lowering.TargetAllowReserved
+	// TargetServerName names an ir.Server the document names in no other way.
+	TargetServerName = lowering.TargetServerName
+	// TargetTokenEndpointAuthMethods fills
+	// ir.OAuthFlow.TokenEndpointAuthMethods.
+	TargetTokenEndpointAuthMethods = lowering.TargetTokenEndpointAuthMethods
+	// TargetPaginationCursor fills the InputCursor of a cursor ir.Pagination.
+	TargetPaginationCursor = lowering.TargetPaginationCursor
+	// TargetPaginationOffset fills the InputCursor of an offset ir.Pagination.
+	TargetPaginationOffset = lowering.TargetPaginationOffset
+	// TargetPaginationPage fills the InputCursor of a page ir.Pagination.
+	TargetPaginationPage = lowering.TargetPaginationPage
+	// TargetPaginationLimit fills ir.Pagination.InputLimit.
+	TargetPaginationLimit = lowering.TargetPaginationLimit
+	// TargetPaginationItems fills ir.Pagination.Items.
+	TargetPaginationItems = lowering.TargetPaginationItems
+	// TargetPaginationNextCursor fills ir.Pagination.NextCursor.
+	TargetPaginationNextCursor = lowering.TargetPaginationNextCursor
+	// TargetPaginationNextLink fills ir.Pagination.NextLink.
+	TargetPaginationNextLink = lowering.TargetPaginationNextLink
+	// TargetPaginationTotalCount fills ir.Pagination.TotalCount.
+	TargetPaginationTotalCount = lowering.TargetPaginationTotalCount
+	// TargetPaginationTotalPages fills ir.Pagination.TotalPages.
+	TargetPaginationTotalPages = lowering.TargetPaginationTotalPages
 )
 
 // NullableWidening is the nullable-widening policy: whether a null a schema
@@ -191,6 +218,17 @@ const ReplacementInferenceHeuristic = lowering.ReplacementInferenceHeuristic
 // named here rather than restated for the reason GroupingStrategy is.
 type TitleNames = lowering.TitleNames
 
+// PaginationInference is the pagination-inference policy: whether an
+// operation's pagination is read off the names of its query parameters and of
+// its success responses' members. It is another injectable-policy seam
+// (architecture principle 6), and is named here rather than restated for the
+// reason GroupingStrategy is.
+type PaginationInference = lowering.PaginationInference
+
+// PaginationInferenceHeuristic is the name an operation's Provenance.Inferred
+// carries where the pagination-inference policy filled its Pagination.
+const PaginationInferenceHeuristic = lowering.PaginationInferenceHeuristic
+
 // DefaultExtensionPromotions returns the extension-to-field mapping applied
 // when the caller names none. It is exported so a caller changing the mapping
 // can start from it rather than transcribe it.
@@ -260,6 +298,11 @@ type Options struct {
 	// zero value is on; a caller who wants the replacement left in the message
 	// disables it.
 	ReplacementInference ReplacementInference `json:"replacementInference"`
+	// PaginationInference selects whether an operation's pagination is read off
+	// the names of its query parameters and of its success responses' members,
+	// what it reads marked as inferred. The zero value is on; a caller who wants
+	// only what the document declares disables it.
+	PaginationInference PaginationInference `json:"paginationInference"`
 	// TitleNames selects whether a schema's title names the anonymous node
 	// built from it, its title its summary either way. The zero value is on; a
 	// caller who wants every such node named by its position disables it.
@@ -512,6 +555,8 @@ const (
 	optOverlayLax        = "overlay-lax"
 	optStreamingMedia    = "streaming-media"
 	optBinaryMedia       = "binary-media"
+	optPromotionTargets  = "promotion-targets"
+	optPromotionPrefixes = "promotion-prefixes"
 )
 
 // switchOptions maps the name of each policy in o that text turns on or off to
@@ -522,15 +567,17 @@ const (
 // (#1847), and the title-names policy's, which leaves none.
 func switchOptions(o *Options) map[string]*bool {
 	return map[string]*bool{
-		string(NullableWideningHeuristic):       &o.NullableWidening.Disabled,
-		string(DiscriminatorInferenceHeuristic): &o.DiscriminatorInference.Disabled,
-		string(IdempotencyInferenceHeuristic):   &o.IdempotencyInference.Disabled,
-		string(SecretInferenceHeuristic):        &o.SecretInference.Disabled,
-		string(HTTPDateInferenceHeuristic):      &o.HTTPDateInference.Disabled,
-		string(ReplacementInferenceHeuristic):   &o.ReplacementInference.Disabled,
-		"streaming-inference":                   &o.StreamingMedia.Disabled,
-		"binary-inference":                      &o.BinaryMedia.Disabled,
-		"title-names":                           &o.TitleNames.Disabled,
+		string(NullableWideningHeuristic):            &o.NullableWidening.Disabled,
+		string(DiscriminatorInferenceHeuristic):      &o.DiscriminatorInference.Disabled,
+		string(IdempotencyInferenceHeuristic):        &o.IdempotencyInference.Disabled,
+		string(SecretInferenceHeuristic):             &o.SecretInference.Disabled,
+		string(HTTPDateInferenceHeuristic):           &o.HTTPDateInference.Disabled,
+		string(ReplacementInferenceHeuristic):        &o.ReplacementInference.Disabled,
+		string(PaginationInferenceHeuristic):         &o.PaginationInference.Disabled,
+		string(lowering.ExtensionPromotionHeuristic): &o.Promotions.Disabled,
+		"streaming-inference":                        &o.StreamingMedia.Disabled,
+		"binary-inference":                           &o.BinaryMedia.Disabled,
+		"title-names":                                &o.TitleNames.Disabled,
 	}
 }
 
@@ -553,7 +600,7 @@ func limitOptions(l *Limits) map[string]*int {
 func optionNames() []string {
 	names := []string{
 		optGrouping, optGroupingKey, optGroupingLists, optGroupingAliases, optGroupingFallback, optAllowExternalRefs,
-		optOverlay, optOverlayLax, optStreamingMedia, optBinaryMedia,
+		optOverlay, optOverlayLax, optStreamingMedia, optBinaryMedia, optPromotionTargets, optPromotionPrefixes,
 	}
 	names = slices.AppendSeq(names, maps.Keys(switchOptions(&Options{})))
 	names = slices.AppendSeq(names, maps.Keys(limitOptions(&Limits{})))
@@ -615,6 +662,11 @@ func (d *optionDecode) set(key, value string) error {
 		return decodeMediaList(&d.opts.StreamingMedia.MediaTypes, key, value)
 	case optBinaryMedia:
 		return decodeMediaList(&d.opts.BinaryMedia.MediaTypes, key, value)
+	case optPromotionTargets:
+		return decodePromotionTargets(&d.opts.Promotions.Targets, value)
+	case optPromotionPrefixes:
+		d.opts.Promotions.Prefixes = strings.Split(value, ",")
+		return nil
 	}
 	if disabled, ok := switchOptions(&d.opts)[key]; ok {
 		on := true
@@ -657,6 +709,10 @@ func (d *optionDecode) finish() (Options, error) {
 	if err := d.opts.withDefaults().checkGrouping(); err != nil {
 		return Options{}, err
 	}
+	if err := d.opts.Promotions.Check(); err != nil {
+		return Options{}, fmt.Errorf("openapi: options %q, %q and %q: %w",
+			lowering.ExtensionPromotionHeuristic, optPromotionTargets, optPromotionPrefixes, err)
+	}
 	if d.overlayPath == "" {
 		if d.laxSet {
 			return Options{}, fmt.Errorf("openapi: option %q applies only with %q",
@@ -692,11 +748,30 @@ func checkStrategy(strategy GroupingStrategy) error {
 	}
 }
 
+// decodePromotionTargets reads the promotion mapping's text: the JSON object
+// ExtensionPromotions.Targets encodes as, from each target to its sources in
+// order of precedence. A member no source declares is refused rather than
+// dropped, as a misspelt one would read less than the caller asked; what the
+// mapping names is checked once the set is whole (ExtensionPromotions.Check).
+func decodePromotionTargets(out *map[ExtensionTarget][]ExtensionSource, value string) error {
+	var targets map[ExtensionTarget][]ExtensionSource
+	if err := json.Unmarshal([]byte(value), &targets, json.RejectUnknownMembers(true)); err != nil {
+		return fmt.Errorf("openapi: option %q: want a JSON object from each target to its sources: %w",
+			optPromotionTargets, err)
+	}
+	if len(targets) == 0 {
+		return fmt.Errorf("openapi: option %q: want a target, got none; %q turns promotion off",
+			optPromotionTargets, lowering.ExtensionPromotionHeuristic)
+	}
+	*out = targets
+	return nil
+}
+
 // decodeMediaList reads the media list of the setting key, streaming's or
 // binary's: entries separated by commas, which no media type holds outside a
 // parameter's quotes. An entry that is neither a media type nor a suffix is
 // refused rather than kept: it could match nothing, and the list it sits in
-// replaces the default. The promotion mapping has no setting yet (GitHub #658).
+// replaces the default.
 func decodeMediaList(out *[]string, key, value string) error {
 	entries := strings.Split(value, ",")
 	for i, entry := range entries {

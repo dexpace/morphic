@@ -49,12 +49,25 @@ type Options struct {
 	// pointer it was read at, through an alias or a merge key, name that
 	// pointer, under Root.
 	ReadAt bool
-	// Owned, when set, is handed each value of a Schema Object field whose
-	// shape the table leaves to another package (Field.ShapeOwner,
-	// Field.ListOwner), which the check does not judge: a shape a schema's
-	// dialect decides, known only once its references are bound, or a bound's
-	// decimal. Unset, no check judges it.
-	Owned func(Owned)
+	// Rows is the rows a Schema Object no schema holds is read with, its
+	// document's; one a schema holds reads the rows of the schema holding
+	// it. The zero Rows are the declared minor's own.
+	Rows SchemaRules
+	// RootRows, when set, returns the rows the schema at a pointer, Root
+	// included, is read with where it roots a dialect of its own, which
+	// stand over Rows and the rows of a schema holding it.
+	RootRows func(at jsontext.Pointer) (SchemaRules, bool)
+	// Later, when set, is handed each Schema Object no schema holds, which
+	// the check then does not read: the rows it is read with are not known
+	// yet. CheckPending reads them once they are.
+	Later func(Pending)
+}
+
+// Pending is a Schema Object a check handed back unread (Options.Later): where
+// it is read and how deep, so CheckPending reads it as the check would have.
+type Pending struct {
+	at    site
+	depth int
 }
 
 // Checker judges documents against the table.
@@ -74,15 +87,9 @@ func (c Checker) Spec() Spec { return c.spec }
 // object after another, its fields as the table lists them, then its patterned
 // keys, then its rules.
 func (c Checker) Check(ctx context.Context, root *yaml.Node, declared string, opts Options) []ir.Diagnostic {
-	minor, ok := ParseMinor(declared)
+	w, ok := c.walker(ctx, declared, opts)
 	if !ok {
 		return nil
-	}
-	w := &walker{ctx: ctx, spec: c.spec, minor: minor, view: nodeview.New(), work: budget.New(opts.Budget)}
-	w.locate, w.declared, w.seen = opts.Locate, declared, opts.Seen
-	w.readAt, w.rootAt, w.said, w.owned = opts.ReadAt, opts.Root, map[ir.Diagnostic]bool{}, opts.Owned
-	if w.locate == nil {
-		w.locate = func(jsontext.Pointer) ir.Provenance { return ir.Provenance{} }
 	}
 	start := opts.Start
 	if start == 0 {
@@ -91,6 +98,42 @@ func (c Checker) Check(ctx context.Context, root *yaml.Node, declared string, op
 	w.root = nodeview.DocumentRoot(root)
 	w.object(site{kind: start, node: w.root}, 0)
 	return w.diags
+}
+
+// CheckPending judges each Schema Object a check handed back unread
+// (Options.Later), in the order given, as that check would have read it, with
+// opts' rows. One walk reads them all, so a node two of them mount draws one
+// finding and one budget bounds them.
+func (c Checker) CheckPending(ctx context.Context, pending []Pending, declared string, opts Options) []ir.Diagnostic {
+	opts.Later = nil
+	w, ok := c.walker(ctx, declared, opts)
+	if !ok {
+		return nil
+	}
+	for _, p := range pending {
+		w.object(p.at, p.depth)
+	}
+	return w.diags
+}
+
+// walker starts a check of a document declaring declared under opts, and is
+// false for a version the table does not cover.
+func (c Checker) walker(ctx context.Context, declared string, opts Options) (*walker, bool) {
+	minor, ok := ParseMinor(declared)
+	if !ok {
+		return nil, false
+	}
+	w := &walker{ctx: ctx, spec: c.spec, minor: minor, view: nodeview.New(), work: budget.New(opts.Budget)}
+	w.locate, w.declared, w.seen, w.rows = opts.Locate, declared, opts.Seen, opts.Rows
+	w.readAt, w.rootAt, w.said = opts.ReadAt, opts.Root, map[ir.Diagnostic]bool{}
+	w.rootRows, w.later = opts.RootRows, opts.Later
+	if w.rows.rows == nil {
+		w.rows, _ = c.spec.SchemaRules(declared, "")
+	}
+	if w.locate == nil {
+		w.locate = func(jsontext.Pointer) ir.Provenance { return ir.Provenance{} }
+	}
+	return w, true
 }
 
 // walker is one check in progress. It holds the context the check runs under
@@ -106,26 +149,52 @@ type walker struct {
 	work    budget.Budget
 	stopped bool
 	seen    func(Kind, *yaml.Node)
-	owned   func(Owned)
+	// rows is the rows a Schema Object no schema holds is read with
+	// (Options.Rows), rootRows those of a dialect root (Options.RootRows),
+	// and later what is handed a schema left unread (Options.Later).
+	rows     SchemaRules
+	rootRows func(jsontext.Pointer) (SchemaRules, bool)
+	later    func(Pending)
 	reporter
 }
 
 // site is an object to read: its kind, node, pointer, the key its parent
-// holds it under, and the kind of that parent, zero at the root.
+// holds it under, and the kind of that parent, zero at the root. rows is the
+// rows of the schema holding it, where one does.
 type site struct {
 	node *yaml.Node
 	ptr  jsontext.Pointer
 	held string
+	rows SchemaRules
 	kind Kind
 	in   Kind
 }
 
-// frame is a mapping read as an object.
+// frame is a mapping read as an object, how deep it is, and for a Schema
+// Object the rows it is read with, which its object is. booleans reports that
+// true and false stand as the schemas its fields hold: by its rows for a
+// Schema Object, which decides for those it holds, else by its minor, where
+// the rows a schema is read with have the last word (walker.shapeOf). where,
+// unless empty, names what a finding about it holds it to in place of its
+// minor.
 type frame struct {
-	obj   Object
-	at    site
-	pairs []nodeview.Pair
-	byKey map[string]*yaml.Node
+	obj      Object
+	at       site
+	pairs    []nodeview.Pair
+	byKey    map[string]*yaml.Node
+	rows     SchemaRules
+	where    string
+	depth    int
+	booleans bool
+}
+
+// in names what a finding about f holds it to: the dialect a JSON Schema
+// draft's rows read, else the minor m, or what where names.
+func (f frame) in(m Minor) string {
+	if f.where != "" {
+		return f.where
+	}
+	return "OpenAPI " + m.String()
 }
 
 // spend charges one unit of work and reports whether the walk may go on. The
@@ -153,14 +222,29 @@ func (w *walker) spend(depth int, ptr jsontext.Pointer) bool {
 func (w *walker) object(s site, depth int) {
 	obj, ok := w.spec.Object(s.kind)
 	node := nodeview.Deref(s.node)
-	if !ok || node == nil || !w.spend(depth, s.ptr) {
+	if !ok || node == nil {
 		return
+	}
+	if s.kind == Schema && s.in != Schema && w.later != nil {
+		w.later(Pending{at: s, depth: depth})
+		return
+	}
+	if !w.spend(depth, s.ptr) {
+		return
+	}
+	f := frame{obj: obj, at: s, depth: depth, booleans: w.spec.booleanHeld(Schema, w.minor)}
+	if s.kind == Schema {
+		f.rows = w.rowsAt(s)
+		f.obj, f.booleans = f.rows.rows.object, f.rows.Booleans()
+		if f.rows.rows.draft {
+			f.where = "this schema's dialect"
+		}
 	}
 	if node.Kind != yaml.MappingNode {
-		w.notMapping(obj, node, s.ptr)
+		w.notMapping(f, node)
 		return
 	}
-	f := w.frameOf(obj, s, node)
+	f = w.frameOf(f, node)
 	w.repeated(node, s.ptr, obj.Name)
 	if w.reference(f, depth) {
 		return
@@ -173,23 +257,38 @@ func (w *walker) object(s site, depth int) {
 	w.rules(f)
 }
 
-// frameOf reads node, a mapping, as an object.
-func (w *walker) frameOf(obj Object, s site, node *yaml.Node) frame {
-	pairs := w.view.MappingPairs(node)
-	byKey := make(map[string]*yaml.Node, len(pairs))
-	for _, p := range pairs {
-		byKey[p.Key] = p.Val
+// rowsAt returns the rows the Schema Object s names is read with: a dialect
+// root's own (Options.RootRows), else those of the schema holding it, else its
+// document's (Options.Rows).
+func (w *walker) rowsAt(s site) SchemaRules {
+	if w.rootRows != nil {
+		if rows, root := w.rootRows(w.rootAt + s.ptr); root && rows.rows != nil {
+			return rows
+		}
 	}
-	return frame{obj: obj, at: s, pairs: pairs, byKey: byKey}
+	if s.in == Schema && s.rows.rows != nil {
+		return s.rows
+	}
+	return w.rows
 }
 
-// notMapping reports a node that is no mapping where the object's kind needs
-// one, unless the kind admits a boolean there.
-func (w *walker) notMapping(obj Object, node *yaml.Node, ptr jsontext.Pointer) {
-	if obj.Boolean.Holds(w.minor) && matches(Boolean, node) {
+// frameOf reads node, a mapping, as the object f is.
+func (w *walker) frameOf(f frame, node *yaml.Node) frame {
+	f.pairs = w.view.MappingPairs(node)
+	f.byKey = make(map[string]*yaml.Node, len(f.pairs))
+	for _, p := range f.pairs {
+		f.byKey[p.Key] = p.Val
+	}
+	return f
+}
+
+// notMapping reports a node that is no mapping where f's kind needs one,
+// unless the kind admits a boolean there.
+func (w *walker) notMapping(f frame, node *yaml.Node) {
+	if f.obj.Boolean.Holds(w.minor) && matches(Boolean, node) {
 		return
 	}
-	w.report(ir.SeverityError, classType, ptr, "%s must be an object in OpenAPI %s (%s)", obj.Name, w.minor, obj.Name)
+	w.report(ir.SeverityError, classType, f.at.ptr, "%s must be an object in %s (%s)", f.obj.Name, f.in(w.minor), f.obj.Name)
 }
 
 // reference reads a mapping that writes $ref as a Reference Object where the
@@ -200,17 +299,24 @@ func (w *walker) notMapping(obj Object, node *yaml.Node, ptr jsontext.Pointer) {
 // key beside the $ref, which the declared minor ignores and the later one
 // applies.
 func (w *walker) reference(f frame, depth int) bool {
-	if ref, ok := f.byKey["$ref"]; !ok || f.obj.Kind == Schema && isNull(nodeview.Deref(ref)) {
+	if !f.refers() {
 		return false
 	}
 	switch {
 	case f.obj.Referenceable.Holds(w.minor):
 	case f.obj.Referenceable.Later(w.minor):
-		w.later(f.obj, "$ref", "", f.obj.Referenceable.Since, f.at.ptr.AppendToken("$ref"))
+		w.laterField(f.obj, "$ref", "", f.obj.Referenceable.Since, f.at.ptr.AppendToken("$ref"))
 	case f.obj.RefSiblings.Later(w.minor):
 		for _, p := range f.pairs {
 			if p.Key != "$ref" {
 				w.laterSibling(f.obj, p.Key, w.minor, f.obj.RefSiblings.Since, f.at.ptr.AppendToken(p.Key))
+			}
+		}
+		return false
+	case f.rows.IgnoresRefFields():
+		for _, p := range f.pairs {
+			if readsBesideRef(f.rows, p.Key) {
+				w.ignoredBesideRef(p.Key, f.at.ptr.AppendToken(p.Key))
 			}
 		}
 		return false
@@ -223,7 +329,17 @@ func (w *walker) reference(f frame, depth int) bool {
 	return true
 }
 
-// fields checks each field the object defines, and each a later minor added.
+// refers reports whether f writes a $ref, one a Schema Object writes null
+// aside, which is read as left out.
+func (f frame) refers() bool {
+	ref, ok := f.byKey["$ref"]
+	return ok && (f.obj.Kind != Schema || !isNull(nodeview.Deref(ref)))
+}
+
+// fields checks each field the object defines, and each a later minor, or for
+// a Schema Object the dialect the compiler reads natively, added: warned of
+// once, bar a key beside a 3.0 schema's $ref, which reference warned of, and
+// read as that minor or dialect reads it.
 func (w *walker) fields(f frame, depth int) {
 	for _, fld := range f.obj.Fields {
 		if !fld.Defined.Holds(w.minor) {
@@ -237,26 +353,65 @@ func (w *walker) fields(f frame, depth int) {
 		w.value(f, fld, val, depth)
 	}
 	for _, p := range f.pairs {
-		if fld, ok := w.addedLater(f.obj, p.Key); ok {
-			w.later(f.obj, p.Key, "", fld.Defined.Since, f.at.ptr.AppendToken(p.Key))
-			w.value(f, fld, p.Val, depth)
+		fld, ok := f.addedLater(p.Key, w.minor)
+		if !ok {
+			continue
 		}
+		ptr := f.at.ptr.AppendToken(p.Key)
+		if f.rows.rows == nil {
+			w.laterField(f.obj, p.Key, "", fld.Defined.Since, ptr)
+			w.value(f, fld, p.Val, depth)
+			continue
+		}
+		if !f.refers() || !f.obj.RefSiblings.Later(w.minor) {
+			w.laterKeyword(f.rows, p.Key, f.writesTuple(), ptr)
+		}
+		w.value(f.asLater(fld, w.minor), fld, p.Val, depth)
 	}
 }
 
-// addedLater finds the field of obj named key that only a later minor than the
-// declared one defines, unless a JSON Schema keyword, which the schema
-// lowering reads as it finds it.
-func (w *walker) addedLater(obj Object, key string) (Field, bool) {
+// addedLater finds the field named key that f's object does not define and a
+// later minor's does, or for a Schema Object, the dialect the compiler reads
+// natively (SchemaRules.Later).
+func (f frame) addedLater(key string, m Minor) (Field, bool) {
+	if f.rows.rows == nil {
+		return f.obj.addedLater(key, m)
+	}
+	fld, ok := f.rows.rows.later[key]
+	return fld, ok
+}
+
+// asLater returns f as it reads fld, a field the dialect the compiler reads
+// natively added: true and false stand as schemas there, as from 3.1, and a
+// finding holds it to that dialect's minor. Only fld's row is that dialect's:
+// the rules run at the declared minor, so at 3.0 none 3.1 states over the
+// field holds, such as prefixItems holding an entry.
+func (f frame) asLater(fld Field, m Minor) frame {
+	f.booleans, f.where = true, "OpenAPI "+max(fld.Defined.Since, m).String()
+	return f
+}
+
+// writesTuple reports whether the Schema Object f writes its dialect's own
+// tuple, an `items` list its rows read as one, beside which a `prefixItems`
+// is kept verbatim.
+func (f frame) writesTuple() bool {
+	items := nodeview.Deref(f.byKey["items"])
+	return items != nil && items.Kind == yaml.SequenceNode && f.rows.Takes("items", List)
+}
+
+// addedLater finds the field of o named key that only a later minor than m
+// defines, unless a JSON Schema keyword, which the schema lowering reads as it
+// finds it.
+func (o Object) addedLater(key string, m Minor) (Field, bool) {
 	var found Field
-	for _, fld := range obj.Fields {
+	for _, fld := range o.Fields {
 		if fld.Name != key {
 			continue
 		}
-		if fld.Defined.Holds(w.minor) {
+		if fld.Defined.Holds(m) {
 			return Field{}, false
 		}
-		if fld.Defined.Later(w.minor) && found.Name == "" {
+		if fld.Defined.Later(m) && found.Name == "" {
 			found = fld
 		}
 	}
@@ -269,14 +424,14 @@ func (w *walker) missing(f frame, fld Field) {
 		return
 	}
 	c := citeFor(fld.Cites, w.minor)
-	w.report(ir.SeverityError, classRequired, f.at.ptr, "%s field %q is REQUIRED in OpenAPI %s (%s)",
-		f.obj.Name, fld.Name, w.minor, c.Section)
+	w.report(ir.SeverityError, classRequired, f.at.ptr, "%s field %q is REQUIRED in %s (%s)",
+		f.obj.Name, fld.Name, f.in(w.minor), c.Section)
 }
 
 // patterned checks the keys the object admits beside its fixed fields: every
 // key that is neither a field nor, where the object takes them, an extension.
 func (w *walker) patterned(f frame, depth int) {
-	pat, ok := w.patternHeld(f.obj)
+	pat, ok := f.obj.patternAt(w.minor)
 	if !ok {
 		return
 	}
@@ -286,18 +441,18 @@ func (w *walker) patterned(f frame, depth int) {
 		}
 		if pat.Keys != FormatNone && !validFormat(pat.Keys, p.Key) {
 			w.report(ir.SeverityError, classFormat, f.at.ptr.AppendToken(p.Key),
-				"%s has the key %q, which must be %s in OpenAPI %s (%s)",
-				f.obj.Name, p.Key, describeFormat(pat.Keys), w.minor, citeFor(pat.Cites, w.minor).Section)
+				"%s has the key %q, which must be %s in %s (%s)",
+				f.obj.Name, p.Key, describeFormat(pat.Keys), f.in(w.minor), citeFor(pat.Cites, w.minor).Section)
 		}
 		fld := Field{Name: p.Key, Shape: pat.Shape, Of: pat.Of, Defined: Always(), Cites: pat.Cites}
 		w.value(f, fld, p.Val, depth)
 	}
 }
 
-// patternHeld returns the pattern of obj that holds at the declared minor.
-func (w *walker) patternHeld(obj Object) (Pattern, bool) {
-	for _, p := range obj.Patterned {
-		if p.Span.Holds(w.minor) {
+// patternAt returns the pattern of o that holds at minor m.
+func (o Object) patternAt(m Minor) (Pattern, bool) {
+	for _, p := range o.Patterned {
+		if p.Span.Holds(m) {
 			return p, true
 		}
 	}
