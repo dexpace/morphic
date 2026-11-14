@@ -183,6 +183,9 @@ var integerFields = map[string]string{
 
 	// The ir package's reading of its own types, which is not IR data either.
 	"idField.index":       "the field through which a struct type declares its identity, read off the type",
+	"refField.index":      "the field of a struct type that holds IDs an empty-reference reading reads, read off the type",
+	"refField.shape":      "how a field holds its IDs, an enumeration rather than a position",
+	"refField.rule":       "what an empty ID means at a field, an enumeration rather than a position",
 	"keyedRegistry.index": "the Document field that keys a registry map, read off Document's type",
 
 	"DocRef.StartByte":      "byte offset into Docs.Description; bounds-checked by checkDocRefs",

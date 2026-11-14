@@ -1,0 +1,207 @@
+// Copyright (c) 2026 dexpace.
+// Licensed under the MIT License. See LICENSE in the repository root for details.
+
+package ir
+
+import "reflect"
+
+// idTypes are the IR's classes of identity. TestIDTypes_AreTheDeclaredClasses
+// holds this set to the classes the IR's nodes declare.
+var idTypes = map[reflect.Type]bool{
+	reflect.TypeFor[TypeID]():       true,
+	reflect.TypeFor[OpID]():         true,
+	reflect.TypeFor[ChannelID]():    true,
+	reflect.TypeFor[MessageID]():    true,
+	reflect.TypeFor[AuthID]():       true,
+	reflect.TypeFor[ServiceID]():    true,
+	reflect.TypeFor[GroupID]():      true,
+	reflect.TypeFor[PropID]():       true,
+	reflect.TypeFor[ParamID]():      true,
+	reflect.TypeFor[EnumMemberID](): true,
+	reflect.TypeFor[ServerID]():     true,
+}
+
+// idRule is what an empty value means at one ID-typed position.
+type idRule int
+
+const (
+	// idRequired is the rule for a reference: it names an entity, so an empty
+	// one names nothing and was left by a lowering that dropped what it meant
+	// to add. It is the zero value, so a position idPositions does not list is
+	// held to it rather than let through.
+	idRequired idRule = iota
+	// idOptional is a position whose comment documents an empty value as its
+	// own spelling of "none".
+	idOptional
+	// idLocator is Discriminator.Property: empty is legitimate when
+	// PropertyName or Index locates the tag instead.
+	idLocator
+	// idElsewhere is a position another check holds: an entity's own ID and a
+	// registry's keys, which irverify holds to the grammar and to being set,
+	// and TypeRef.Target, which irverify holds to naming a type.
+	idElsewhere
+)
+
+// idPositions records the decision for every ID-typed field the ir sources
+// declare, keyed "Type.Field". TestIDPositions_AreAllClassified fails when a
+// field is added without one, and the rule a field's comment states is the one
+// listed here.
+var idPositions = map[string]idRule{
+	"AuthScheme.ID":     idElsewhere,
+	"Channel.ID":        idElsewhere,
+	"Message.ID":        idElsewhere,
+	"Operation.ID":      idElsewhere,
+	"Parameter.ID":      idElsewhere,
+	"EnumMember.ID":     idElsewhere,
+	"OperationGroup.ID": idElsewhere,
+	"Property.ID":       idElsewhere,
+	"Service.ID":        idElsewhere,
+	"TypeCommon.ID":     idElsewhere,
+	"Document.Types":    idElsewhere,
+	"Document.Channels": idElsewhere,
+	"Document.Messages": idElsewhere,
+	"Document.Auth":     idElsewhere,
+	"Document.Servers":  idElsewhere,
+	"Server.ID":         idElsewhere,
+	"TypeRef.Target":    idElsewhere,
+
+	"Idempotency.TokenParam": idOptional,
+	"Discriminator.Default":  idOptional,
+	// Every field of an EntityRef but the one of its entity's class is empty:
+	// irverify holds a ref to exactly one.
+	"EntityRef.Type":         idOptional,
+	"EntityRef.Operation":    idOptional,
+	"EntityRef.Channel":      idOptional,
+	"EntityRef.Message":      idOptional,
+	"EntityRef.Auth":         idOptional,
+	"EntityRef.Service":      idOptional,
+	"EntityRef.Group":        idOptional,
+	"EntityRef.Property":     idOptional,
+	"EntityRef.Param":        idOptional,
+	"EntityRef.Member":       idOptional,
+	"EntityRef.Server":       idOptional,
+	"Discriminator.Property": idLocator,
+
+	"Callback.Operations":          idRequired,
+	"Channel.Messages":             idRequired,
+	"Channel.Servers":              idRequired,
+	"Content.Encoding":             idRequired,
+	"CtorValue.Scalar":             idRequired,
+	"Discriminator.Mapping":        idRequired,
+	"DocRef.Type":                  idRequired,
+	"HTTPParamBinding.BodyPath":    idRequired,
+	"HTTPParamBinding.Param":       idRequired,
+	"HTTPParamBinding.ParamPath":   idRequired,
+	"LongRunning.FinalOperation":   idRequired,
+	"LongRunning.PollingOperation": idRequired,
+	"LinkParam.Param":              idRequired,
+	"OperationLink.Operation":      idRequired,
+	"OperationLink.Server":         idRequired,
+	"MessageBinding.Channel":       idRequired,
+	"MessageBinding.Messages":      idRequired,
+	"OTPBinding.Process":           idRequired,
+	"Operation.OverloadOf":         idRequired,
+	"Operation.Servers":            idRequired,
+	"InputPath.Param":              idRequired,
+	"InputPath.Segments":           idRequired,
+	"PropPath.Segments":            idRequired,
+	"Reply.Channel":                idRequired,
+	"Reply.Messages":               idRequired,
+	"ResourceInfo.CollectionOps":   idRequired,
+	"ResourceInfo.InstanceOps":     idRequired,
+	"ResourceInfo.Lifecycle":       idRequired,
+	"ScenarioInput.Params":         idRequired,
+	"SchemeUse.Scheme":             idRequired,
+	"Service.Extends":              idRequired,
+	"Service.Renames":              idRequired,
+	"Service.Servers":              idRequired,
+	"ValueRef.Type":                idRequired,
+
+	// FlattenedProperties' result and its walk's own state, which no Document
+	// holds, so no walk of one meets them. Beside the registry it reads, each
+	// holds an ID the flattening read, a model's, an entry's target or a type a
+	// redaction is read through, never an empty one: an unset entry is skipped,
+	// not recorded.
+	"Flattening.Unflattened": idRequired,
+	"PropertyDecl.Owner":     idRequired,
+	"flattener.types":        idElsewhere,
+	"flattener.met":          idRequired,
+	"flattener.unflattened":  idRequired,
+	"flattener.aliasOf":      idRequired,
+	"flattener.aliasEnds":    idRequired,
+	"flattener.sensitivity":  idRequired,
+	"frame.id":               idRequired,
+
+	// NarrowedShapes' result and its walks' own state, which no Document holds
+	// either. Narrowing.Union is "" where the composition narrows no one union,
+	// as its comment says, narrowState.root before the walk meets its root
+	// model, and a variantEnd until the walk reads its chain; every other holds
+	// an ID a walk read, a set variant's among them, an unset one being skipped.
+	"Narrowing.Union":      idOptional,
+	"NarrowedShape.Over":   idRequired,
+	"metUnion.id":          idRequired,
+	"narrowState.root":     idOptional,
+	"narrowState.at":       idRequired,
+	"narrowState.seen":     idRequired,
+	"narrowState.placed":   idRequired,
+	"substitution.union":   idRequired,
+	"substitution.variant": idRequired,
+	"variantEnd.target":    idOptional,
+	"variantEnd.id":        idOptional,
+}
+
+// idShape is how a field holds its IDs.
+type idShape int
+
+const (
+	idScalar   idShape = iota // an ID held directly
+	idPointer                 // *ID: nil is the absent reference
+	idSlice                   // []ID: every element a reference
+	idMapKey                  // map[ID]V: every key a reference
+	idMapValue                // map[K]ID: every value a reference
+)
+
+// refField is one ID-typed field of a struct type: where it sits, how it holds
+// its IDs, their class, and its rule.
+type refField struct {
+	index int
+	name  string
+	shape idShape
+	class reflect.Type
+	rule  idRule
+}
+
+// idFieldsOf returns t's ID-typed fields that some rule here holds, leaving out
+// those another check holds.
+func idFieldsOf(t reflect.Type) []refField {
+	var out []refField
+	for i := range t.NumField() {
+		sf := t.Field(i)
+		shape, class, isID := idShapeOf(sf.Type)
+		rule := idPositions[t.Name()+"."+sf.Name]
+		if !isID || rule == idElsewhere {
+			continue
+		}
+		out = append(out, refField{index: i, name: sf.Name, shape: shape, class: class, rule: rule})
+	}
+	return out
+}
+
+// idShapeOf classifies a field type as one of the shapes that hold IDs, and
+// returns the class of ID it holds.
+func idShapeOf(t reflect.Type) (idShape, reflect.Type, bool) {
+	switch {
+	case idTypes[t]:
+		return idScalar, t, true
+	case t.Kind() == reflect.Pointer && idTypes[t.Elem()]:
+		return idPointer, t.Elem(), true
+	case t.Kind() == reflect.Slice && idTypes[t.Elem()]:
+		return idSlice, t.Elem(), true
+	case t.Kind() == reflect.Map && idTypes[t.Key()]:
+		return idMapKey, t.Key(), true
+	case t.Kind() == reflect.Map && idTypes[t.Elem()]:
+		return idMapValue, t.Elem(), true
+	default:
+		return 0, nil, false
+	}
+}

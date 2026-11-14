@@ -4,6 +4,7 @@
 package ir
 
 import (
+	"maps"
 	"reflect"
 	"slices"
 )
@@ -43,6 +44,31 @@ func JSONSpelling(s string) (spelling string, spelled, ok bool) {
 
 // IDClasses is idClasses, for the external tests.
 var IDClasses = idClasses
+
+// IDTypes returns the classes of identity idTypes lists.
+func IDTypes() []reflect.Type {
+	return slices.Collect(maps.Keys(idTypes))
+}
+
+// IsIDType reports whether idTypes lists t.
+func IsIDType(t reflect.Type) bool { return idTypes[t] }
+
+// IDPositions returns the "Type.Field" keys idPositions classifies.
+func IDPositions() []string {
+	return slices.Sorted(maps.Keys(idPositions))
+}
+
+// RequiredIDFields returns the names of the fields of struct type t that the
+// empty-reference reading holds as references, an empty one being reported.
+func RequiredIDFields(t reflect.Type) []string {
+	var names []string
+	for _, f := range idFieldsOf(t) {
+		if f.rule == idRequired {
+			names = append(names, f.name)
+		}
+	}
+	return names
+}
 
 // DeclaredIDField returns where struct type t declares its identity, the field's
 // index and class, read by the rule an IDReader remembers per type.
