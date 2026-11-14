@@ -33,6 +33,11 @@ func TestMap_EmptiesInPlaceUpToTheLimit(t *testing.T) {
 	first := r.Emptied()
 	require.NotNil(t, first, "the zero Map hands a map to write to")
 
+	for _, n := range []int{1, 2} {
+		fill(r.Emptied(), n)
+		assert.Empty(t, r.Emptied(), "a map left with %d entries is emptied", n)
+	}
+
 	fill(first, reuse.Limit)
 	atLimit := r.Emptied()
 	assert.Empty(t, atLimit)
