@@ -154,6 +154,36 @@ func TestRewriterText_OnlyACycleOfTwoOrMoreFails(t *testing.T) {
 	}
 }
 
+// TestRewriterIndex_RecordsOwnersInNameOrder pins that an ID's owners are
+// rewritten in one order on every run. Eight objects hold one ID, the first
+// in name order naming a chain at its head and the others at its middle: met
+// head first, the chain's digests nest past the bound, and middle first they
+// do not, so owners recorded in a map's order would decline the form on some
+// runs alone.
+func TestRewriterIndex_RecordsOwnersInNameOrder(t *testing.T) {
+	t.Parallel()
+	const prefix, shared = "t/anon/components/schemas/AB/allOf/0/", "t/anon/components/schemas/AB/allOf/0/shared"
+	link := func(i int) string { return prefix + strconv.Itoa(i) }
+	n := maxCanonicalDepth / 2
+	chain := make([]any, 0, n+1)
+	for i := range n {
+		chain = append(chain, map[string]any{"id": link(i), "next": link(i + 1)})
+	}
+	chain = append(chain, map[string]any{"id": link(n)})
+	owners := map[string]any{"head": map[string]any{"id": shared, "next": link(0)}}
+	for i := range 7 {
+		owners["middle"+strconv.Itoa(i)] = map[string]any{"id": shared, "next": link(n / 2)}
+	}
+	tree := map[string]any{"chain": chain, "owners": owners}
+
+	for range 20 {
+		r := rewriter{seqs: abOrder.written, owners: map[string][]map[string]any{}, digests: map[string]string{}, visiting: map[string]bool{}}
+		r.index(tree, 0)
+		r.text(shared, 0)
+		assert.ErrorIs(t, r.err, errTooDeep, "the head comes first in name order")
+	}
+}
+
 // TestDiffSequenceInvariants_ADocumentItCannotWriteIsReported pins that a
 // document the comparison cannot encode is a finding naming the order it came
 // from, rather than two empty forms that compare equal, and that one nesting
