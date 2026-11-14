@@ -157,26 +157,33 @@ func TestApply_WritesOnlyThePositionAnUpdateTargets(t *testing.T) {
 // TestApply_GivesTheSharedValueTheSameTreeAsItsExpansion holds each overlay
 // above to the value it must have: the overlay applied to the source with
 // every alias and merge written out by hand leaves the same tree, so no
-// position holds more or less than the one an overlay selected.
+// position holds more or less than the one an overlay selected. The expanded
+// twin writes C's type itself, so replacing it draws the info a replaced
+// declared value does; the shared source writes it under A alone.
 func TestApply_GivesTheSharedValueTheSameTreeAsItsExpansion(t *testing.T) {
 	t.Parallel()
-	for name, action := range map[string]string{
-		"an update of the anchor":    updateOf(v11, "$.components.schemas.A", "{description: only A}"),
-		"an update of an alias":      updateOf(v11, "$.components.schemas.B", "{description: only B}"),
-		"an update inside a merge":   updateOf(v11, "$.components.schemas.C.properties", "{y: {type: string}}"),
-		"a replaced merged member":   updateOf(v11, "$.components.schemas.C", "{type: string, x-n: 1}"),
-		"an update of every schema":  updateOf(v11, "$.components.schemas.*", "{x-all: 1}"),
-		"a remove inside the anchor": v11 + "  - target: $.components.schemas.A.properties.x\n    remove: true\n",
-		"a remove of a merged one":   v11 + "  - target: $.components.schemas.C.properties\n    remove: true\n",
-		"a remove of the anchor":     v11 + "  - target: $.components.schemas.A\n    remove: true\n",
-	} {
-		t.Run(name, func(t *testing.T) {
+	replacedInfo := []string{"info " + diag.OverlayReplacedValue}
+	tests := []struct {
+		name, action string
+		twinCodes    []string
+	}{
+		{"an update of the anchor", updateOf(v11, "$.components.schemas.A", "{description: only A}"), nil},
+		{"an update of an alias", updateOf(v11, "$.components.schemas.B", "{description: only B}"), nil},
+		{"an update inside a merge", updateOf(v11, "$.components.schemas.C.properties", "{y: {type: string}}"), nil},
+		{"a replaced merged member", updateOf(v11, "$.components.schemas.C", "{type: string, x-n: 1}"), replacedInfo},
+		{"an update of every schema", updateOf(v11, "$.components.schemas.*", "{x-all: 1}"), nil},
+		{"a remove inside the anchor", v11 + "  - target: $.components.schemas.A.properties.x\n    remove: true\n", nil},
+		{"a remove of a merged one", v11 + "  - target: $.components.schemas.C.properties\n    remove: true\n", nil},
+		{"a remove of the anchor", v11 + "  - target: $.components.schemas.A\n    remove: true\n", nil},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			_, shared, sharedDiags := applied(t, aliasedSource, action, false)
-			_, written, writtenDiags := applied(t, expandedSource, action, false)
+			_, shared, sharedDiags := applied(t, aliasedSource, tc.action, false)
+			_, written, writtenDiags := applied(t, expandedSource, tc.action, false)
 
 			sameCodes(t, nil, sharedDiags)
-			sameCodes(t, nil, writtenDiags)
+			sameCodes(t, tc.twinCodes, writtenDiags)
 			assert.Equal(t, valueOf(t, written), valueOf(t, shared))
 		})
 	}
