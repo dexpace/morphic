@@ -16,7 +16,7 @@ import (
 // allOf branch writes where its carrier keeps the branch whole: a parameter, a
 // content parameter, a header and a property, the $ref first and the branch
 // first, are each redacted and deprecated, and keep the branch beside each key
-// read from it. A cursor and a next cursor marked the same way page their
+// a promotion reads from it, and a key no promotion reads only inside it. A cursor and a next cursor marked the same way page their
 // operation.
 func TestPromotion_ReadsAKeyInABranchKeptWhole(t *testing.T) {
 	t.Parallel()
@@ -50,10 +50,16 @@ func TestPromotion_ReadsAKeyInABranchKeptWhole(t *testing.T) {
 			kept = append(kept, key)
 		}
 		slices.Sort(kept)
-		assert.Equal(t, []string{
+		want := []string{
 			"openapi:" + c.scope + c.branch, "openapi:" + c.scope + "x-deprecated-reason",
 			"openapi:" + c.scope + "x-sensitive", "openapi:" + c.scope + "x-stability",
-		}, kept, c.name)
+		}
+		if c.scope == "" {
+			// A model's property is its schema, and keeps no entry whole.
+			want = append(want, "openapi:x-k")
+			slices.Sort(want)
+		}
+		assert.Equal(t, want, kept, c.name)
 	}
 
 	for _, name := range []string{"pagesRefFirst", "pagesBranchFirst", "pagesContentRefFirst", "pagesContentBranchFirst"} {

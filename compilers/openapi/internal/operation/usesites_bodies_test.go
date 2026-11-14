@@ -114,18 +114,32 @@ func TestRequestBody_OnAMethodWithoutSemantics(t *testing.T) {
 
 // TestRequestBody_OnAMethodThatForbidsOne holds a request body on TRACE, and on
 // a 3.2 CONNECT written as an additional operation, to a warning under its own
-// code at the body, and not to the info a GET draws.
+// code at the body, citing each method's section, and not to the info a GET
+// draws.
 func TestRequestBody_OnAMethodThatForbidsOne(t *testing.T) {
 	t.Parallel()
+	section := func(diags []ir.Diagnostic) []string {
+		var out []string
+		for _, d := range diags {
+			if d.Code == "openapi/body-forbidden-by-method" {
+				out = append(out, d.Message)
+			}
+		}
+		return out
+	}
 	doc, diags := parseFull(t, specFrom(t, specsDir, "body_on_trace"))
 	assert.Equal(t, []string{"openapi/body-forbidden-by-method warning /paths/~1a/trace/requestBody"},
 		byCode(diags, "openapi/body-forbidden-by-method"))
+	assert.Equal(t, []string{"TRACE request declares a body, which HTTP forbids (RFC 9110 §9.3.8); lowered as declared"},
+		section(diags))
 	assert.Empty(t, byCode(diags, "openapi/body-without-semantics"))
 	assert.NotNil(t, at(opTree(t, doc, "a"), "request"))
 
 	doc, diags = parseFull(t, specFrom(t, specsDir, "body_on_additional_operations"))
 	assert.Equal(t, []string{"openapi/body-forbidden-by-method warning /paths/~1a/additionalOperations/CONNECT/requestBody"},
 		byCode(diags, "openapi/body-forbidden-by-method"))
+	assert.Equal(t, []string{"CONNECT request declares a body, which HTTP forbids (RFC 9110 §9.3.6); lowered as declared"},
+		section(diags))
 	assert.Empty(t, byCode(diags, "openapi/body-without-semantics"))
 	assert.NotNil(t, at(opTree(t, doc, "c"), "request"))
 }

@@ -316,3 +316,30 @@ paths:
 	}, findings(diags))
 	assert.Equal(t, ir.StabilityBeta, doc.Services[0].Groups[1].Stability)
 }
+
+// TestHeader_LentAndCarriedReadApart holds a header's two readings of what
+// its schema states to the case only each reads: a header's own x-sensitive:
+// false withdraws nothing its schema's true states, which the single-sided
+// reading takes; and a schema's misfit, behind no key of the header's own, is
+// reported at the schema's key, which the nearest reading does.
+func TestHeader_LentAndCarriedReadApart(t *testing.T) {
+	t.Parallel()
+	doc, diags := parseFull(t, `openapi: 3.1.0
+info: {title: T, version: "1"}
+paths:
+  /a:
+    get:
+      operationId: a
+      responses:
+        "200":
+          description: ok
+          headers:
+            Lent: {x-sensitive: false, schema: {type: string, x-sensitive: true}}
+            Carried: {schema: {type: string, x-sensitive: 5}}
+`)
+	headers := at(opTree(t, doc, "a"), "responses", "0", "headers")
+	assert.Equal(t, true, at(namedItem(t, headers, "Lent"), "secret"))
+	assert.Equal(t, []string{
+		"openapi/degraded-construct info /paths/~1a/get/responses/200/headers/Carried/schema/x-sensitive",
+	}, findings(diags))
+}
