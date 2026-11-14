@@ -137,6 +137,9 @@ const (
 	TargetPaginationItems = lowering.TargetPaginationItems
 	// TargetPaginationNextCursor fills ir.Pagination.NextCursor.
 	TargetPaginationNextCursor = lowering.TargetPaginationNextCursor
+	// TargetPaginationHasMore fills ir.Pagination.HasMore, and the stop
+	// ir.PageStopNoMore beside it.
+	TargetPaginationHasMore = lowering.TargetPaginationHasMore
 	// TargetPaginationNextLink fills ir.Pagination.NextLink.
 	TargetPaginationNextLink = lowering.TargetPaginationNextLink
 	// TargetPaginationTotalCount fills ir.Pagination.TotalCount.

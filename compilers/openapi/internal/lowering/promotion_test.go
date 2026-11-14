@@ -585,6 +585,7 @@ var targetFields = map[lowering.ExtensionTarget][]string{
 	lowering.TargetPaginationItems:           {"Operation.Pagination"},
 	lowering.TargetPaginationNextCursor:      {"Operation.Pagination"},
 	lowering.TargetPaginationNextLink:        {"Operation.Pagination"},
+	lowering.TargetPaginationHasMore:         {"Operation.Pagination"},
 	lowering.TargetPaginationTotalCount:      {"Operation.Pagination"},
 	lowering.TargetPaginationTotalPages:      {"Operation.Pagination"},
 }

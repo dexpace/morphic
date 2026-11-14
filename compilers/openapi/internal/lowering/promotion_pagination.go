@@ -31,6 +31,9 @@ const (
 	TargetPaginationItems ExtensionTarget = "pagination.items"
 	// TargetPaginationNextCursor is the next cursor in a page, NextCursor.
 	TargetPaginationNextCursor ExtensionTarget = "pagination.nextCursor"
+	// TargetPaginationHasMore is the flag in a page saying another page
+	// follows, HasMore, which ends the walk where it is false, null or absent.
+	TargetPaginationHasMore ExtensionTarget = "pagination.hasMore"
 	// TargetPaginationNextLink is the next page's link in a page, NextLink, a
 	// walk of strategy next_link where no input continues it.
 	TargetPaginationNextLink ExtensionTarget = "pagination.nextLink"

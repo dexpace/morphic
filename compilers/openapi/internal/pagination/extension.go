@@ -25,7 +25,7 @@ func requestTargets() []lowering.ExtensionTarget {
 func responseTargets() []lowering.ExtensionTarget {
 	return []lowering.ExtensionTarget{
 		lowering.TargetPaginationItems, lowering.TargetPaginationNextCursor, lowering.TargetPaginationNextLink,
-		lowering.TargetPaginationTotalCount, lowering.TargetPaginationTotalPages,
+		lowering.TargetPaginationTotalCount, lowering.TargetPaginationTotalPages, lowering.TargetPaginationHasMore,
 	}
 }
 
@@ -138,7 +138,7 @@ func (pg *pager) report(op *ir.Operation, format string, args ...any) ir.Diagnos
 // next cursor beside no cursor, an offset or a page number beside no items,
 // which a pager counts to advance an offset and to end either walk
 // (docs/emitters/operations/pagination.md), or nothing reaching the next page
-// at all.
+// at all. A walk naming its flag ends by it alone (ir.PageStopNoMore).
 func assemble(f pageFields) (*ir.Pagination, string) {
 	var continues []lowering.ExtensionTarget
 	for _, t := range []lowering.ExtensionTarget{lowering.TargetPaginationCursor, lowering.TargetPaginationOffset,
@@ -172,6 +172,11 @@ func assemble(f pageFields) (*ir.Pagination, string) {
 		NextLink:   f.outputs[lowering.TargetPaginationNextLink],
 		TotalCount: f.outputs[lowering.TargetPaginationTotalCount],
 		TotalPages: f.outputs[lowering.TargetPaginationTotalPages],
+		HasMore:    f.outputs[lowering.TargetPaginationHasMore],
+	}
+	if walk.HasMore != nil {
+		// The source states the flag, which is where the walk ends.
+		walk.Stop = []ir.PageStop{ir.PageStopNoMore}
 	}
 	if len(continues) == 1 {
 		walk.Strategy, walk.InputCursor = strategyOf(continues[0]), f.inputs[continues[0]]

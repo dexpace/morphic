@@ -5964,7 +5964,8 @@ members of response bodies. Each field is a target of the policy: `pagination.cu
 `pagination.offset` and `pagination.page` the input continuing a walk of strategy `cursor`, `offset`
 or `page`, `pagination.limit` the page size, and `pagination.items`, `pagination.nextCursor`,
 `pagination.nextLink`, `pagination.totalCount` and `pagination.totalPages` the page values of the
-same names. A source listing no values holds, on the operation, an expression naming the value: an
+same names, and `pagination.hasMore` the flag a page states that another follows, which fills
+`HasMore` and ends the walk by it alone, `Stop: [no_more]`, and which no default source reads. A source listing no values holds, on the operation, an expression naming the value: an
 OpenAPI runtime expression, `$request.query.<name>`, `$request.path.<name>`,
 `$request.header.<name>` or `$request.body` and a pointer for an input, and `$response.body` and a
 pointer or `$response.header.<name>` for a page value, or the shorthand `$request.` or `$response.`
