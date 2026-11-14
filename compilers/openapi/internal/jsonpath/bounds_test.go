@@ -52,6 +52,9 @@ func readTree(t testing.TB, text string) *yaml.Node {
 
 // paths returns the normalized path of each located node.
 func paths(got []jsonpath.Located) []string {
+	if len(got) == 0 {
+		return nil
+	}
 	out := make([]string, len(got))
 	for i, l := range got {
 		out[i] = l.Path.String()
