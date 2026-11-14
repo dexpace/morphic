@@ -86,7 +86,7 @@ var callShapeBaseline = map[string]map[string]int{
 		// which #1488 keeps under #1477's rule: the checker places its own
 		// findings to drop the repeat an alias makes, a policy, and the others
 		// observe or steer the walk: traversal callbacks.
-		"compilers/openapi/internal/load": 25,
+		"compilers/openapi/internal/load": 26,
 	},
 	"compilers/openapi/internal/provenance": {
 		// provenance.Tree's Pointers, a node's pointer in the tree it places, read

@@ -112,8 +112,9 @@ components:
 
 // TestLowerSecuritySchemes_ABrokenRefIsReportedOnceThoughTheParserFaults pins
 // that the load phase reports a broken $ref however the rest of the document
-// fares: the parser panics building what /components/responses/000 names, and
-// the entry is reported all the same, once, so the scheme the document
+// fares: what /components/responses/000 names is the shape the parser faults
+// building, which the load sets aside and reports at its $ref (GitHub #1928),
+// and the entry is reported all the same, once, so the scheme the document
 // declares is never dropped with no diagnostic that sites it.
 func TestLowerSecuritySchemes_ABrokenRefIsReportedOnceThoughTheParserFaults(t *testing.T) {
 	t.Parallel()
@@ -127,8 +128,9 @@ components:
     ghost: {$ref: '#/components/securitySchemes/Missing'}
 B: {$ref}
 `)
-	require.NotEmpty(t, messagesAtPointer(diags, "/components/responses/000"),
-		"the fixture reaches the parser panic it exists for: %+v", diags)
+	require.Equal(t, []string{"openapi/validation/validation-type-mismatch"}, codesAtPointer(diags, "/B/$ref"),
+		"the fixture reaches the shape the parser faults on: %+v", diags)
+	assert.Empty(t, messagesAtPointer(diags, "/components/responses/000"), "no build fails: %+v", diags)
 
 	assert.NotContains(t, doc.Auth, ids.Auth("ghost"))
 	got := messagesAtPointer(diags, "/components/securitySchemes/ghost")

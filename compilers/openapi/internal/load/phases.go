@@ -115,9 +115,10 @@ type loading struct {
 	// sites places a finding at a reference site, or a position of the
 	// bindings, in whichever document writes it.
 	sites places
-	// resolved is what binding and validating what references reach report,
-	// and checked what the source checks report.
-	resolved, checked []ir.Diagnostic
+	// resolved is what binding and judging what references reach report,
+	// reached what that judging found, and checked what the source checks
+	// report.
+	resolved, reached, checked []ir.Diagnostic
 }
 
 // preParse runs the pre-parse refusals, so the parser is never handed a tree
@@ -218,10 +219,11 @@ func (l *loading) modelBeside(ctx context.Context) {
 
 // bindRefs binds every $ref in the compiler (bindTable), reading other
 // documents through a preparing reader when the caller supplied one, judges
-// the Schema Objects the table gives a dialect (judgeSchemas), and builds what
-// each landing names (bindAll), placing what it found where the binding places
-// each document. A value that judgment leaves refused is turned before any
-// landing is built, and what was read off the tree read again (reread).
+// the Schema Objects the table gives a dialect (judgeSchemas) and what each
+// landing names (judgeReached), and builds it (bindAll), placing what it found
+// where the binding places each document. A value a judgment leaves refused is
+// turned before any landing is built, and what was read off the tree read
+// again (reread).
 func (l *loading) bindRefs(ctx context.Context) (bool, error) {
 	if l.opts.Reader != nil {
 		l.reader = newExternal(l.opts, newExternalReads(l.self, l.opts.MaxExternalDocuments), &l.aside)
@@ -234,6 +236,10 @@ func (l *loading) bindRefs(ctx context.Context) (bool, error) {
 		table, unread = l.readTable(ctx)
 	}
 	l.self.judged = l.judged
+	// A cancel that cut the judging short builds nothing on what it left.
+	if err := l.judgeLandings(ctx, table); err != nil {
+		return false, err
+	}
 	others := l.bound.others
 	l.bound = bindAll(ctx, table, l.doc, l.sibs, l.media)
 	l.bound.others = others
@@ -298,12 +304,30 @@ func (l *loading) reread(ctx context.Context) error {
 	return nil
 }
 
-// reach validates what the references reach (validateReached), once every
-// build of the model is done and what settle set aside for it is back.
-func (l *loading) reach(ctx context.Context) (bool, error) {
+// judgeLandings judges what the references reach before any of it is built
+// (judgeReached), over the tree as written, and makes the tree read as those
+// judgments and the source's left it (settle): what they refuse and no reading
+// accepts is turned, and the shapes the model faults on are set aside. It
+// returns the context's error where that cut the judging short.
+func (l *loading) judgeLandings(ctx context.Context, table *bind.Table) error {
+	var (
+		j   judgment
+		cut error
+	)
+	l.aside.whileWritten(func() {
+		l.reached, j, cut = judgeReached(ctx, l.sites, table, l.doc, l.opts, l.self, l.bound.others, l.named)
+		turnRefused(j)
+	})
+	setAside(j, &l.aside)
+	return cut
+}
+
+// reach reports what judging what the references reach found (judgeReached),
+// once every build of the model is done and what settle set aside for it is
+// back, so every later reader sees the source as written.
+func (l *loading) reach(context.Context) (bool, error) {
 	l.aside.restore()
-	reached := validateReached(ctx, l.sites, l.bound, l.doc, l.opts, l.self, l.named)
-	l.resolved = slices.Concat(l.resolved, reached, unreportedRepeats(l.bound.others.repeats, reached))
+	l.resolved = slices.Concat(l.resolved, l.reached, unreportedRepeats(l.bound.others.repeats, l.reached))
 	return false, nil
 }
 

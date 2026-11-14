@@ -4,6 +4,7 @@
 package load
 
 import (
+	"encoding/json/jsontext"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -11,6 +12,10 @@ import (
 	yaml "go.yaml.in/yaml/v3"
 
 	"github.com/dexpace/morphic/compilers"
+	"github.com/dexpace/morphic/compilers/openapi/internal/bind"
+	"github.com/dexpace/morphic/compilers/openapi/internal/bind/typed"
+	"github.com/dexpace/morphic/compilers/openapi/internal/nodeview"
+	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
 )
 
 // readAside parses text into its first document's mapping.
@@ -145,3 +150,78 @@ func TestLoad_ANullRefOfAReferenceObjectIsReadWithoutAFaultAtEachModelBuild(t *t
 
 // head31L opens the documents above.
 const head31L = "openapi: 3.1.0\ninfo: {title: t, version: \"1\"}\n"
+
+// TestAside_WhileWrittenReadsTheTreeAsWrittenThenSetsItAsideAgain holds the
+// window a judgement of what references reach reads in: inside it the tree is
+// as written, and after it every change is made again, but to a node the
+// reading turned, which a change to the node as it was would undo: a turned
+// mapping stays turned for good, and restore leaves it so.
+func TestAside_WhileWrittenReadsTheTreeAsWrittenThenSetsItAsideAgain(t *testing.T) {
+	t.Parallel()
+	root := readAside(t, "a: {x: 1, y: 2}\nb: {$ref: ~}\nc: {p: 1, q: 2}\n")
+	before := marshalled(t, root)
+	a := aside{}
+	dropX := func(key, _ *yaml.Node) bool { return key.Value == "x" }
+	a.hide(root.Content[1], dropX)
+	a.spoil(root.Content[3].Content[1])
+	a.hide(root.Content[5], func(key, _ *yaml.Node) bool { return key.Value == "p" })
+	aside := marshalled(t, root)
+
+	var read string
+	a.whileWritten(func() {
+		read = marshalled(t, root)
+		nodeview.Unread(root.Content[5])
+	})
+
+	assert.Equal(t, before, read, "the reading sees the tree as written")
+	assert.Equal(t, "a: {y: 2}\nb: {$ref: []}\nc: null\n", marshalled(t, root), "set aside again, c turned")
+	assert.NotEqual(t, aside, marshalled(t, root))
+	a.restore()
+	assert.Equal(t, "a: {x: 1, y: 2}\nb: {$ref: ~}\nc: null\n", marshalled(t, root), "the turn is for good")
+}
+
+// TestBuildObjects_AShapeTheModelFaultsOnIsAFailedBuild holds the object
+// build's guard: a landing the parser faults on, built without the load
+// setting it aside, is a failed build with the fault as why, never a panic.
+func TestBuildObjects_AShapeTheModelFaultsOnIsAFailedBuild(t *testing.T) {
+	t.Parallel()
+	root := readAside(t, "openapi: 3.1.0\npaths:\n  /a:\n    get:\n      parameters: [{$ref: '#/x-p'}]\nx-p: {$ref: ~}\n")
+	table := bind.Bind(t.Context(), &yaml.Node{Kind: yaml.DocumentNode, Content: []*yaml.Node{root}},
+		bind.Config{Self: "spec.yaml"})
+	require.NotEmpty(t, table.ObjectLandings())
+
+	failed := buildObjects(t.Context(), typed.NewBuilder(table), table, MediaTypes{}, mediaFaults{})
+
+	require.Len(t, failed, 1)
+	assert.Equal(t, jsontext.Pointer("/x-p"), failed[0].landing.At.Pointer)
+	assert.ErrorContains(t, failed[0].err, "parser panicked")
+}
+
+// TestLoad_AReachedPathItemsAdditionalOperationsAreSetAside holds a 3.2 path
+// item only a $ref reaches, under an extension, whose additionalOperations
+// merges in an entry that is no mapping: the entry is set aside in the mapping
+// the merge names, so nothing faults and the table's one error stands; a path
+// item reached whose own $ref resolves nowhere holds no lists to read; and one
+// whose operation repeats a parameter is reported where it is written.
+func TestLoad_AReachedPathItemsAdditionalOperationsAreSetAside(t *testing.T) {
+	t.Parallel()
+	const spec = "openapi: 3.2.0\ninfo: {title: t, version: \"1\"}\npaths:\n  /a: {$ref: '#/x-lib/item'}\n" +
+		"  /b: {$ref: '#/x-lib/via'}\n  /c: {$ref: '#/x-lib/dup'}\nx-lib:\n  item:\n    additionalOperations:\n      <<: {PURGE: ~}\n" +
+		"      LINK: {responses: {\"200\": {description: ok}}}\n  via: {$ref: '#/x-lib/none'}\n" +
+		"  dup:\n    get:\n      parameters: [{$ref: '#/x-lib/q'}, {$ref: '#/x-lib/q'}]\n" +
+		"      responses: {\"200\": {description: ok}}\n  q: {name: q, in: query, schema: {type: string}}\n"
+
+	doc, diags, err := Load(t.Context(), 0, openapitest.SourceOf(spec), Options{})
+
+	require.NoError(t, err)
+	require.NotNil(t, doc)
+	got := make([]string, 0, len(diags))
+	for _, d := range diags {
+		got = append(got, d.Code+" "+string(d.Provenance.Pointer))
+	}
+	assert.ElementsMatch(t, []string{
+		"openapi/validation/validation-type-mismatch /paths/~1a",
+		"openapi/unresolved-ref /x-lib/via",
+		"openapi/duplicate-parameter /x-lib/dup/get/parameters/1",
+	}, got, "%+v", diags)
+}

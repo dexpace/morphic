@@ -37,18 +37,20 @@ import (
 // FuzzCycleDetector found it; the same bytes are committed as a corpus entry.
 const parserPanicSpec = "openapi: 3.0\ncomponents:\n responses:\n  000: {$ref: '#/B'}\nB: {$ref}"
 
-// TestCompile_AParserPanicIsADiagnostic is the end-to-end half: the panic
-// building what a reference reaches becomes an ordinary openapi/validation
-// error at the reference, so a malformed spec is refused as a spec problem
-// rather than reported as a Go error or crashing the process.
+// TestCompile_AParserPanicIsADiagnostic is the end-to-end half: what a
+// reference reaches that the parser would fault building, a Reference Object
+// whose $ref is null, is judged before it is built and set aside for the
+// build (GitHub #1928), so it draws the rule table's one error at its $ref and
+// no fault, Go error or crash, and the document is lowered.
 func TestCompile_AParserPanicIsADiagnostic(t *testing.T) {
 	t.Parallel()
 	doc, diags, err := openapi.New().Compile(t.Context(),
 		[]compilers.Source{{Path: "parser-panic.yaml", Data: []byte(parserPanicSpec)}},
 		compilers.Options{})
 	require.NoError(t, err, "a malformed spec is a spec problem, not a Go error")
-	assert.NotNil(t, doc, "a failed build does not stop the document being lowered")
-	assert.Equal(t, 1, countCode(diags, diag.Validation, "/components/responses/000"), "%+v", diags)
+	assert.NotNil(t, doc)
+	assert.Zero(t, countCode(diags, diag.Validation, "/components/responses/000"), "no build failed: %+v", diags)
+	assert.Equal(t, 1, countCode(diags, diag.Validation+"/validation-type-mismatch", "/B/$ref"), "%+v", diags)
 }
 
 // TestCompile_AResolutionFailureIsReportedOnceAtItsRef pins the once-per-site

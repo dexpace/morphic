@@ -563,7 +563,9 @@ whose aliases lead back into what holds them keeps every written place: it is re
 cycle.
 
 A value the table refuses as the wrong type is read as the field left out by every reader of the
-source, wherever the table reads it, the parser's model among them; a construct kept verbatim shows
+source, wherever the table reads it, the parser's model among them, and so is one of what a `$ref`
+reaches outside the source's own reading, raw YAML under an `x-` key or another document, which is
+judged before anything is built for it ([`references`](#references)); a construct kept verbatim shows
 it as the source wrote it. It is read so once every judgment of the document is in: in a document
 that may name a dialect, once its Schema Objects are judged, when the model and the `$ref`s are read
 again, so such a document reads a refused value as the same document naming none does. Such a value is one with none of the shapes its field admits, a boolean
@@ -637,15 +639,14 @@ gives it no effect is [`allow-reserved-locations`](#allow-reserved-locations)' a
   `e2e.TestCompile_ATypeMismatchOnASharedMountIsPlacedAtTheLeastMount`,
   `e2e.TestCompile_ANodeInsideTwoMountsIsPlacedByTheirTokens`,
   `oas.TestCheck_AFindingNamesTheLeastPositionThatReadIt`, `oas.TestLessPointer_OrdersTokenByToken`,
-  `scan.TestLeast_OrdersByThePointersTokens`, `scan.TestLeast_AgreesWithSortingEveryPointer`
-- Status: partly built: a value of what a `$ref` reaches outside the source's own reading, raw YAML
-  under an `x-` key or another document, is read as the model reads it (#1928), a schema position
-  there read from its node all the same ([`null-schema`](#null-schema)); and an object there whose
-  own `$ref` is null, or a 3.2 `additionalOperations` entry there that is no mapping, still faults
-  the model build of what reaches it, so the path item a `$ref` reaches it from is lost whole, with
-  an `openapi/validation` error that no path item could be built (#1928). Where the table refuses an
-  `$id`'s value in a document that may name a dialect, a schema below it is judged in the dialect
-  that `$id` roots as written.
+  `scan.TestLeast_OrdersByThePointersTokens`, `scan.TestLeast_AgreesWithSortingEveryPointer`,
+  `e2e.TestCompile_AValueARefLandsOnIsJudgedBeforeItIsBuilt`,
+  `e2e.TestCompile_AValueAnotherDocumentsRefLandsOnIsJudgedBeforeItIsBuilt`,
+  `e2e.TestCompile_ANullableARefLandsOnWritesWrongIsNotAdmitted`,
+  `e2e.TestCompile_AValueOneReadingRefusesAndAnotherAcceptsIsKeptForTheOther`,
+  `load.TestLoad_WhatAReferenceReachesIsJudgedOnceBeforeItIsBuilt`
+- Status: partly built: where the table refuses an `$id`'s value in a document that may name a
+  dialect, a schema below it is judged in the dialect that `$id` roots as written (#1958).
 
 ### `minor-required-fields`
 
@@ -827,10 +828,12 @@ path item's fields aside ([`path-item-ref-fields`](#path-item-ref-fields)), as O
 properties added SHALL be ignored": a `$ref` there is no reference and draws no finding. It lands on
 an object of its own kind: a position the source's grammar reads as another kind, a schema, a map of
 objects or a value holds none, and raw YAML, as an extension's value or any position of another
-document, is read as the kind it is reached as where it is a mapping. An object is built there, and
-the references inside it are bound where it lies, as the source's are; one no object can be built
-from, which the parser faults on, is reported as an `openapi/validation` error at the reference, and
-lowers nothing.
+document, is read as the kind it is reached as where it is a mapping. It is held to the table
+before anything is built for it, by the one judgement whose findings are reported, so a value that
+judgement refuses reads as left out there too, and a shape the model faults on is set aside there
+as in the source. An object is built there, and the references inside it are bound where it lies,
+as the source's are; one no object can be built from is reported as an `openapi/validation` error
+at the reference, and lowers nothing.
 
 A schema `$ref`, and a discriminator mapping value naming no schema component of the entry document
 ([`discriminator`](#discriminator)), is bound by the compiler itself, never by the parser's resolver
@@ -958,7 +961,8 @@ other keys with it, and the rule table's error at the `$ref` is the one report o
 kept verbatim shows it as written ([`unreferenced-components`](#unreferenced-components)). The parser's
 model faults building such an object, and a 3.2 `additionalOperations` entry that is no mapping
 ([`nil-populate-panic`](../parser-library.md#nil-populate-panic)), so the load phase sets each
-aside for the model's builds and puts it back before anything else reads the tree. A Path Item's
+aside for the model's builds and puts it back before anything else reads the tree, in the source
+and in what a reference reaches outside its model alike. A Path Item's
 `$ref` is the item's own field: one that is no string is read as left out, and the item as what
 else it writes.
 - Tests: `e2e.TestCompile_ExternalFileRefIsNotReadByDefault`,
@@ -1061,13 +1065,10 @@ else it writes.
   `e2e.TestCompile_AnAliasedNullRefIsReadWithoutAFault`, `load.TestAside_RestoreLeavesTheTreeAsWritten`,
   `load.TestLoad_TheTreeIsAsWrittenOnceTheModelIsBuilt`,
   `load.TestLoad_ANullRefOfAReferenceObjectIsReadWithoutAFaultAtEachModelBuild`,
-  `e2e.TestCompile_AReachedObjectTheModelFaultsOnLosesItsPathItem`,
+  `e2e.TestCompile_AReachedObjectTheModelFaultsOnLowersAsUnderPaths`,
   `e2e.TestCompile_ARefAMergeKeyWritesThatIsNoStringLeavesTheEntryOut`,
   `e2e.TestCompile_AComponentWhoseRefIsNoStringIsKeptAsWritten`
-- Status: partly built: a remote document can make the compiler request a private address (#937),
-  and a Reference Object whose `$ref` is null in another document, or in raw YAML only a reference
-  reaches, still faults the model build of what reaches it, as does a 3.2 `additionalOperations`
-  entry there that is no mapping, so the path item reaching it is lost whole (#1928).
+- Status: partly built: a remote document can make the compiler request a private address (#937).
   A chain of documents each declaring the URI the one before it asked for costs a binding pass per
   link (#1372).
 
@@ -3682,7 +3683,7 @@ saying what a document of its version writes instead, and the lowering reads `it
   `e2e.TestOlderDrafts_AMalformedTupleIsReportedAsItsTwinIs`,
   `e2e.TestOlderDrafts_ATypeListsArrayVariantIsTheTupleWritten`,
   `schema.TestPreserveUnknownKeywords_ReadsWhatADraftSpellsOtherwise`,
-  `bind.TestTuples_AListOfItemsHoldsSchemas`, `load.TestBuiltTargets`,
+  `bind.TestTuples_AListOfItemsHoldsSchemas`, `load.TestLandingTargets`,
   `oas.TestCheck_AnItemsListFollowsTheSchemasRows`, `schema.TestLower_PrefixItemsBesideAListedTupleIsKept`
 - Status: open: whether a `Rest` or an `Elem` beside a live `unevaluatedItems: false` is typed
   rather than left to the entry (#1883).

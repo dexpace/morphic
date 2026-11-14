@@ -442,8 +442,10 @@ paths:
 - Verified at: v1.26.3
 - Pinned by: `TestLibraryBehaviour/nil-populate-panic`
 - Code:
-  - `load.setAside` sets each such shape the source writes aside for the model's builds.
-  - `load.aside` holds what it set aside, and puts it back.
+  - `load.setAside` sets each such shape the source writes aside for the model's builds, and each
+    one a reference reaches outside the source's model once `load.judgeReached` has judged it.
+  - `load.aside` holds what it set aside, puts it back while what a reference reaches is judged as
+    written, and puts it back for good.
   - `load.buildRecovered` turns the panic into an `ErrParse` error.
 
 ### `alias-field-on-scalar`

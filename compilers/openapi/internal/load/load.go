@@ -80,6 +80,10 @@ type Options struct {
 	// cancels at the start of a phase through it, and lists the phases a load
 	// enters.
 	entered func(phase)
+	// judging is told each object a check of what the references reach reads
+	// as a kind, or is nil. It is this package's test seam: a test counts how
+	// often each is read, and in which phase.
+	judging func(oas.Kind, *yaml.Node)
 }
 
 // readyForModel clears the name of each anchor in the model's source tree, in
