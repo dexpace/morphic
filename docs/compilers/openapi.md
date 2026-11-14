@@ -4215,14 +4215,22 @@ route mounting it, and `Operation.Tags` keeps its tags. Filing a callback by its
 weighed and rejected: one stating none, as callback operations commonly do, would land in the
 untagged group, apart from the operation whose exchange supplies its URL.
 
-- Cases: `tags-grouping`, `tags-grouping-32`, `group-identity`
+An operation's `tags` are the groups it is a member of, so `Operation.Tags` keeps a tag the list
+writes again once, at its first occurrence, comparing tags as the text written, and the repeat is
+reported as an `openapi/repeated-entry` warning where it is written, naming the first. A blank tag
+is a tag like any other.
+
+- Cases: `tags-grouping`, `tags-grouping-32`, `group-identity`, `repeated-tags-and-scopes`
+- Codes: `openapi/repeated-entry`
 - Tests: `operation.TestGrouping_ACallbackGoesWithItsParentWhateverItsTags`,
   `operation.TestGrouping_ParentCycleNestsNoMemberUnderAnother`,
   `operation.TestGrouping_DanglingParentStaysTopLevel`,
   `operation.TestGrouping_SameNameDeclaredTwiceIsDeterministic`,
   `operation.TestGrouping_BadgeOnlyOperationFallsToDefault`, `oas.TestCheck_TagParentsExist`,
-  `oas.TestCheck_DuplicatesAreFound`
-- Status: partly built: a tag an operation repeats passes into the IR undeduplicated (#738).
+  `oas.TestCheck_DuplicatesAreFound`, `operation.TestOperation_ARepeatedTagIsKeptOnce`,
+  `operation.TestOperation_ALongTagListFoldsAsAShortOne`
+- Status: partly built: a tag written under a YAML tag outside the JSON schema ruleset reads as the
+  empty string, so two such tags fold to one, reported as a repeat of `""` (#1368).
 
 ### `path-prefix-groups`
 
@@ -5098,19 +5106,33 @@ inherits the document's, save a webhook or a callback, which inherits none
 against empty ([operations](../ir/operations.md)). The document's list keeps the same two
 spellings apart in `Service.Auth`.
 
-A requirement names a scheme by its key under the source's `securitySchemes`, whichever document
-holds the requirement, matched exactly. A name that reaches no mechanism lowers to a scheme of kind
-`unresolved` ([auth](../ir/auth.md#unresolved-schemes)), one per name, and is reported as an
-`openapi/unresolved-security-scheme` error at each requirement.
-Nothing else about the requirement changes: the option keeps its other schemes, its scopes and its
-place in the list, so an operation stating its own requirement does not read as inheriting, and an
-option whose name reaches no mechanism does not vanish from the options beside it. The error stands
-however the rest lowers, since the specification requires the name to correspond to a scheme and
-what it means is missing ([`validation`](#validation)). A name stands whatever is beside it, whether
-or not it reaches a mechanism, since an option demands every scheme it names: a value that reads as
-no list of strings lists no scopes, a warning from the rule table for a `null` and an error for any
-other ([`requirement-scopes`](../parser-library.md#requirement-scopes)). A scope is the text an item
-writes, so a plain date is one ([`undecoded-scalar`](../parser-library.md#undecoded-scalar)).
+A requirement's key names an entry of the source's `securitySchemes`, whichever document holds the
+requirement, matched exactly, in the specification's order. A key that is the name of an entry is
+that name, at every minor. From 3.2, which lets a key be the URI of a Security Scheme Object, any
+other key is read as a reference is, against the document holding the requirement
+([`references`](#references)), and one naming the position of an entry of the source's
+`securitySchemes` names that entry, as its name would. Any other key is the name it spells; 3.0 and
+3.1 define no URI form, so there a key is a name alone. A name that reaches no mechanism lowers to a
+scheme of kind `unresolved` ([auth](../ir/auth.md#unresolved-schemes)), one per name, and is
+reported as an `openapi/unresolved-security-scheme` error at each requirement, quoting the key as
+written. Where a declared scheme that reaches a mechanism is a near miss of the name, the error
+names it, resolution staying exact: the first that holds of the same neutral name, the same letters
+and digits in any case, and, for a name of 4 to 64 bytes where at most 64 declared schemes reach a
+mechanism, a name one edit apart, an insertion, a deletion, a substitution or two adjacent runes
+swapped, the least in byte order where several do. In a 3.2 document the error then adds that a URI
+naming a Security Scheme Object outside the source's `securitySchemes` is not read. Nothing else
+about the requirement changes: the option keeps its other schemes, its scopes and its place in the
+list, so an operation stating its own requirement does not read as inheriting, and an option whose
+name reaches no mechanism does not vanish from the options beside it. The error stands however the
+rest lowers, since the specification requires the name to correspond to a scheme and what it means
+is missing ([`validation`](#validation)). A name stands whatever is beside it, whether or not it
+reaches a mechanism, since an option demands every scheme it names: a value that reads as no list of
+strings lists no scopes, a warning from the rule table for a `null` and an error for any other
+([`requirement-scopes`](../parser-library.md#requirement-scopes)). A scope is the text an item
+writes, so a plain date is one ([`undecoded-scalar`](../parser-library.md#undecoded-scalar)). The
+scopes an option lists for one scheme are a set: a scope written again is kept once, at its first
+occurrence, and reported as an `openapi/repeated-entry` warning at the repeat, naming the first.
+Scopes compare as the text written, and each scheme's list folds on its own.
 
 A name reaches no mechanism in three ways. No entry declares it, and the scheme records no pointer,
 since no position writes it. Or its entry omits the field naming the mechanism — `type`, or for
@@ -5125,10 +5147,12 @@ verbatim in `Unmodeled` under `openapi:<field>` (`degraded_lowering`), each repo
 `openapi/degraded-construct` at the field, and its extensions and undeclared keys as any scheme's are.
 A `$ref` that reached nothing is kept the same way, under `openapi:$ref`, with only its error. An
 entry written as no object holds no field to keep. A `security` entry written as no object names
-nothing, so a list holding nothing else, though it writes entries, lowers to no option: it collapses
-to nil, beside the rule table's error, since `[]` would read as public. A `security` that is no list
-lowers as one left out, beside the rule table's finding, a warning for a `null` and otherwise an
-error.
+nothing, and so does one with no member whose `<<`, or a `<<` of a mapping it merges at any depth,
+names no mapping, which merges nothing ([`merge-keys`](../parser-library.md#merge-keys)): each
+lowers to no option, never the empty one, which would grant access the document never wrote. A list
+holding nothing else, though it writes entries, collapses to nil, beside the rule table's error,
+since `[]` would read as public. A `security` that is no list lowers as one left out, beside the
+rule table's finding, a warning for a `null` and otherwise an error.
 
 3.2's device flow lowers to `Flows` beside the other flows, and `oauth2MetadataUrl` to
 `OAuth2MetadataURL`. An `oauth2` scheme whose `flows` declares no flow — `flows: {}`, only `x-*` and
@@ -5139,9 +5163,10 @@ null or no mapping is the rule table's to report instead
 requirement naming no scheme and a scheme naming no mechanism, and leaves them to it.
 
 - Cases: `security-schemes`, `security-or-and`, `security-root-empty`, `security-unresolved`,
-  `oauth2-no-flow`
+  `oauth2-no-flow`, `security-states`, `security-root-absent`, `security-root-optional`,
+  `repeated-tags-and-scopes`
 - Codes: `openapi/oauth2-no-flow`, `openapi/incomplete-security-scheme`,
-  `openapi/unresolved-security-scheme`, `openapi/unresolved-ref`
+  `openapi/unresolved-security-scheme`, `openapi/unresolved-ref`, `openapi/repeated-entry`
 - Tests: `auth.TestLowerSecuritySchemes_AnAbsentFlowsIsReportedAtTheDeclaration`,
   `auth.TestLowerSecuritySchemes_AnEntryNamingNoMechanismLowersAsUnresolved`,
   `auth.TestLowerSecuritySchemes_AnEntryNamingNoMechanismKeepsWhatItWrote`,
@@ -5150,20 +5175,37 @@ requirement naming no scheme and a scheme naming no mechanism, and leaves them t
   `auth.TestSecurityRequirement_AMemberWhoseScopesDoNotReadStaysInItsOption`,
   `auth.TestSecurityRequirement_AScalarTheModelDoesNotDecodeIsAScope`,
   `auth.TestLowerSecuritySchemes_ARefTheModelDoesNotDecodeIsReported`,
+  `e2e.TestSecurityUnresolved_AnUndecodedSchemeRefIsReportedByAFullCompile`,
   `auth.TestLowerSecuritySchemes_ABrokenRefKeepsTheDocsBesideIt`,
   `auth.TestSecurityRequirement_ASecurityThatIsNoListReadsAsLeftOut`,
   `oas.TestCheck_ANullBesideARequirementsNameListsNoScopes`,
   `e2e.TestSecurityUnresolved_ANameTwoDocumentsUseIsOneSchemeOfTheSource`,
   `auth.TestSecurityRequirement_AnOperationsOwnUnresolvedListDoesNotInherit`,
   `auth.TestSecurityRequirement_ASoleNonObjectEntryCollapsesTheListToNil`,
+  `auth.TestSecurityRequirement_AMergeNamingNoMappingIsNoOption`,
+  `auth.TestSecurityRequirement_ASoleMergeNamingNoMappingCollapsesTheListToNil`,
+  `auth.TestSecurityRequirement_AMergeChainIsReadToItsEnd`,
+  `auth.TestSecurityRequirement_AJSONDocumentWritesNoMerge`,
+  `auth.TestSecurityRequirement_ARepeatedScopeIsKeptOnce`,
+  `auth.TestSecurityRequirement_A32KeyMayNameItsSchemeByURI`,
+  `auth.TestSecurityRequirement_A31KeyIsAName`,
+  `auth.TestSecurityRequirement_A32UnresolvedNameSaysWhatIsNotRead`,
+  `auth.TestSecurityRequirement_AURIIsReadInTheDocumentHoldingIt`,
+  `auth.TestSecurityRequirement_ANameAndItsURIAreOneSchemeInEitherOrder`,
+  `auth.TestSecurityRequirement_AKeyAnotherDocumentMintsStillNamesTheSourcesEntry`,
+  `oas.TestSecurityRules_AnswerAsTheTableDoes`,
+  `auth.TestSecurityRequirement_AnUnresolvedNameNamesADeclaredNearMiss`,
+  `auth.TestSecurityRequirement_EveryErrorForANameNamesItsNearMiss`,
+  `auth.TestNearest_TakesTheFirstReadingThatMatches`,
+  `auth.TestNearest_ReadsOneEditWithinItsBounds`, `auth.TestOneEditApart_CountsOneEdit`,
+  `lowering.TestFirstOccurrences_KeepsEachEntryOnceAtItsFirst`,
   `auth.TestAuth_RequirementsOrOfAnds`
-- Status: partly built: a 3.2 requirement naming a scheme by URI lowers as unresolved (#1212), an
-  unresolved scheme name gets no near-miss hint (#694), a scope a requirement repeats passes into
-  the IR undeduplicated (#738), a requirement whose only key is a `<<` naming no mapping lowers to
-  the empty option, beside the rule table's error (#1244), and a field under a tag outside YAML's
-  JSON schema ruleset reads as left out, so `scheme: !local bearer` is reported as omitted and names
-  no mechanism, and a `security` list under a local tag inherits with no finding (#1368), and a
-  `$ref` written as null refuses the whole document (#1284).
+- Status: partly built: a 3.2 requirement naming a scheme by a URI outside the source's
+  `components/securitySchemes` lowers as unresolved (#1869), and so does one naming the source by
+  its `$self` (#863), a field under a tag outside YAML's JSON schema ruleset reads as left out, so
+  `scheme: !local bearer` is reported as omitted and names no mechanism, and a `security` list under
+  a local tag inherits with no finding (#1368), and a `$ref` written as null refuses the whole
+  document (#1284).
 
 ### `security-scheme-fields`
 

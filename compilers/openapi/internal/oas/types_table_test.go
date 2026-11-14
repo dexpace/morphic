@@ -125,8 +125,11 @@ func TestTable_SpansAreWellFormed(t *testing.T) {
 			}
 		}
 		defaultsAreWellFormed(t, o)
-		for _, p := range o.Patterned {
+		for i, p := range o.Patterned {
 			assert.True(t, validSpan(p.Span), o.Name+"."+p.Name)
+			for _, q := range o.Patterned[i+1:] {
+				assert.False(t, overlaps(p.Span, q.Span), "%s admits two patterns at one minor", o.Name)
+			}
 		}
 		for i, r := range o.Rules {
 			assert.True(t, validSpan(r.Span), o.Name+" rule "+itoa(i))

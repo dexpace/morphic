@@ -122,13 +122,19 @@ func oauthFlowObject() Object {
 }
 
 // securityRequirementObject is the Security Requirement Object. It is all
-// pattern: each key names a scheme, each value lists scopes.
+// pattern: each key names a scheme, each value lists scopes. From 3.2 a key
+// that is no component name may be a scheme's URI (SecurityRules).
 func securityRequirementObject() Object {
 	c := sectioned("Security Requirement Object")
 	return Object{
 		Kind: SecurityRequirement, Name: "Security Requirement Object",
 		Patterned: []Pattern{
-			pattern("{name}", StringList, 0, c(V30, "Each name MUST correspond to a security scheme which is declared in the")),
+			pattern("{name}", StringList, 0,
+				c(V30, "Each name MUST correspond to a security scheme which is declared in the")).during(Through(V31)),
+			pattern("{name}", StringList, 0,
+				c(V32, "Each name or URI MUST correspond to a security scheme as described above."),
+				c(V32, "Property names that are identical to a component name under the Components Object MUST be treated as a component name.")).
+				during(From(V32)).byURI(),
 		},
 	}
 }

@@ -6,6 +6,7 @@ package operation
 import (
 	"context"
 	"encoding/json/jsontext"
+	"strconv"
 
 	soa "github.com/speakeasy-api/openapi/openapi"
 
@@ -172,10 +173,12 @@ func lowerOperation(c lowering.Ctx, w walk, src *soa.Operation, opCtx opContext)
 	// not known until the payloads are lowered.
 	opProv := c.Place().At(decl)
 	opAuth, diags := w.schemes.Requirements(c, src.Security, decl)
+	tags, tagDiags := operationTags(c, src.GetTags(), decl)
+	diags = append(diags, tagDiags...)
 	op := ir.Operation{
 		ID:   ids.Op(mount),
 		Name: operationName(src, opCtx.method, opCtx.key),
-		Tags: src.GetTags(),
+		Tags: tags,
 		Auth: opAuth,
 		// The ID is the mount — two mounts of one $ref'd path item are two
 		// operations — but provenance is where the operation is written, which
@@ -226,6 +229,20 @@ func lowerOperation(c lowering.Ctx, w walk, src *soa.Operation, opCtx opContext)
 	diags = append(diags, serverDiags...)
 	w.claims.add(src, opCtx.ptrs)
 	return op, extra, diags
+}
+
+// operationTags returns the tags written, the list an operation declared at decl
+// writes, each kept once, at its first occurrence, beside a warning at each
+// repeat: a tag names a group the operation is a member of, which it joins once
+// however often the list names it. Tags compare as the text written.
+func operationTags(c lowering.Ctx, written []string, decl jsontext.Pointer) ([]string, []ir.Diagnostic) {
+	tags, repeats := lowering.FirstOccurrences(written)
+	diags := make([]ir.Diagnostic, 0, len(repeats))
+	for _, r := range repeats {
+		diags = append(diags, c.DiagAt(ir.SeverityWarning, diag.RepeatedEntry, decl+ids.Ptr("tags", strconv.Itoa(r.At)),
+			"tag %q repeats the entry at index %d; it is kept once", written[r.At], r.First))
+	}
+	return tags, diags
 }
 
 // applyOperationAnnotations keeps the operation's own x-* and undeclared keys,

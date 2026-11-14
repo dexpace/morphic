@@ -168,6 +168,15 @@ const (
 	// Warning: the document is well-formed, and JSON Schema's own uniqueness
 	// requirement on enum is a SHOULD.
 	DuplicateEnumValue = "openapi/duplicate-enum-value"
+	// RepeatedEntry reports an entry of a list of names written again, at the
+	// repeat's own position, naming the index of its first occurrence: a tag an
+	// operation lists twice, from operation.lowerOperation, and a scope a
+	// requirement lists twice for one scheme, from auth.Registry. Each list names
+	// a set, so the entry is kept once, at its first occurrence.
+	//
+	// Warning, as DuplicateEnumValue is: no rule of the specification is broken,
+	// and the repeat adds nothing.
+	RepeatedEntry = "openapi/repeated-entry"
 	// NumericPrecision reports a numeric bound literal that is not a finite
 	// number, at every schema the load phase's check reads (error severity:
 	// Morphic owns these keywords, so this is the sole diagnostic for the

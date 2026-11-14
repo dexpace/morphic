@@ -186,7 +186,8 @@ witnessing it.
 
 ### `per-op-auth`
 
-- Witnesses: `security-or-and`, `security-root-empty`, `security-unresolved`
+- Witnesses: `security-or-and`, `security-root-empty`, `security-unresolved`, `security-states`,
+  `security-root-absent`, `security-root-optional`
 
 ### `servers`
 
