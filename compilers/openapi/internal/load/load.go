@@ -88,13 +88,29 @@ type Options struct {
 // a map, and drops it silently (docs/parser-library.md#anchored-entry-dropped,
 // GitHub #459). That skip is the only read of a name; an alias reaches its
 // target by a kept pointer. Run it after the pre-parse refusals, which read
-// names. A document read through external is readied too (GitHub #501).
-func readyForModel(ctx context.Context, root *yaml.Node) {
+// names, and after the source is judged, which reads them to tell what another
+// place may read. A document read through external is readied too (GitHub
+// #501).
+//
+// In the same walk it sets aside in a each pair whose key is no scalar, which
+// the parser reads as "" and every reader of the compiler leaves out
+// (docs/parser-library.md#non-scalar-key), so the model leaves it out too.
+func readyForModel(ctx context.Context, root *yaml.Node, a *aside) {
 	// An alias is a leaf of the walk: a recursive anchor cannot loop it.
 	nodeview.Walk{Nodes: maxTreeNodes, Visit: func(n *yaml.Node, _ int) nodeview.Step {
 		n.Anchor = ""
+		if n.Kind == yaml.MappingNode {
+			a.hide(n, noKey)
+		}
 		return nodeview.Descend
 	}}.Run(ctx, root)
+}
+
+// noKey reports whether the pair key names no key of its mapping and is no
+// `<<` merge key: its key is no scalar (nodeview.KeyOf).
+func noKey(key, _ *yaml.Node) bool {
+	_, own := nodeview.KeyOf(key)
+	return !own && !nodeview.IsMergeKey(key)
 }
 
 // ErrParse marks a hard failure to read a source document: bytes that are not

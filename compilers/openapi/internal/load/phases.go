@@ -153,7 +153,7 @@ func (l *loading) settle(context.Context) (bool, error) {
 // buildModel builds the parser's model of the tree, its anchors released, and
 // refuses a version the compiler does not support.
 func (l *loading) buildModel(ctx context.Context) (bool, error) {
-	readyForModel(ctx, l.root)
+	readyForModel(ctx, l.root, &l.aside)
 	// The model build reads no context, so a cancel that cut the walk above
 	// short is seen before it starts, and never waited out on a tree half
 	// prepared for it.
@@ -193,7 +193,7 @@ func (l *loading) findSiblings(ctx context.Context) (bool, error) {
 // places what it found where the binding places each document.
 func (l *loading) bindRefs(ctx context.Context) (bool, error) {
 	if l.opts.Reader != nil {
-		l.reader = newExternal(l.opts, newExternalReads(l.self, l.opts.MaxExternalDocuments))
+		l.reader = newExternal(l.opts, newExternalReads(l.self, l.opts.MaxExternalDocuments), &l.aside)
 	}
 	l.bound = bindAll(ctx, l.doc, l.sibs, l.media, l.self, l.reader, refusedByName(l.opts, l.self.path, l.places), l.dialects)
 	table := l.bound.bindings.Table()

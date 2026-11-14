@@ -476,6 +476,8 @@ refuses, such as a token or an anchor's name, a headers map's key, which is a he
 them ([`header-style`](#header-style)). Every mapping, values and extensions included, is held
 to the Format section's rule that a key is a string, so a key that is no scalar, which the parser
 reads as the empty string ([`non-scalar-key`](../parser-library.md#non-scalar-key)), is an error,
+reported at the mapping's pointer and the key's own line and column, and its entry is read as left
+out by every reader, the model among them, since `""` would be one pointer for every such key,
 and so is a `<<` merge key naming neither a mapping nor a list of mappings, from which the parser
 merges nothing ([`merge-keys`](../parser-library.md#merge-keys)). It is a warning where the document
 breaks a rule of its version and still says what it means: a key outside the pattern the
@@ -567,7 +569,10 @@ gives it no effect is [`allow-reserved-locations`](#allow-reserved-locations)' a
   `e2e.TestCompile_ABooleanWrittenAsAStringIsReadAsTheFieldLeftOut`,
   `e2e.TestCompile_AScalarOrSequenceTaggedOutsideTheRulesetIsReadAsLeftOut`,
   `e2e.TestCompile_ANodeASchemaAndAPropertiesMapReadStaysAsWritten`,
-  `e2e.TestCompile_ASharedNodeIsReadAsItsInlineSpellingIs`
+  `e2e.TestCompile_ASharedNodeIsReadAsItsInlineSpellingIs`,
+  `oas.TestCheckFormat_PlacesEachKeyAtItsOwnLine`, `nodeview.TestKeyOf_AKeyThatIsNoScalarNamesNoKey`,
+  `e2e.TestCompile_AKeyThatIsNoScalarIsReportedOnceAndLeftOut`,
+  `e2e.TestCompile_TwoKeysThatAreNoScalarAreEachReportedInEitherOrder`
 - Status: partly built: a Schema Object of a document that may name a dialect is judged once its
   model is built, so a value it refuses is read as the model reads it, and so is a value of what a
   `$ref` reaches outside the source's own reading, raw YAML under an `x-` key or another document

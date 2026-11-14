@@ -297,7 +297,7 @@ func (v *View) expandContent(n *yaml.Node, depth int) expansion {
 		}
 		key, own := KeyOf(raw)
 		if !own {
-			continue // a nil key, which no parse produces
+			continue // a key that is no scalar, or a nil one, which no parse produces
 		}
 		explicit = append(explicit, Pair{Key: key, Val: val})
 	}
@@ -404,16 +404,20 @@ func IsMergeKey(raw *yaml.Node) bool { return yml.IsMergeKey(raw) }
 
 // KeyOf returns the key the parser gives the mapping pair whose raw key node is
 // raw, and whether the pair is one of the mapping's own: a `<<` merge key
-// names none. A key that is no scalar once its alias is followed is read as
-// the empty string, as the parser reads it
-// (docs/parser-library.md#non-scalar-key), and oas.CheckFormat reports it. The
-// view and every reader of a mapping's raw pairs ask KeyOf, so none can
-// disagree with the parser about a pair's key.
+// names none, and nor does a key that is no scalar once its alias is followed,
+// which the parser reads as the empty string
+// (docs/parser-library.md#non-scalar-key). Such an entry is left out by every
+// reader, since "" would be one pointer for every such key of a mapping, and
+// oas.CheckFormat reports it. The view and every reader of a mapping's raw
+// pairs ask KeyOf, so none can disagree about a pair's key.
 func KeyOf(raw *yaml.Node) (string, bool) {
 	if raw == nil || IsMergeKey(raw) {
 		return "", false
 	}
 	if key := Deref(raw); key != nil {
+		if key.Kind != yaml.ScalarNode {
+			return "", false
+		}
 		return key.Value, true
 	}
 	// An alias naming nothing, which no parse produces, reads as its own text,

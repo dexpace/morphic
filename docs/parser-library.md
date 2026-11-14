@@ -591,7 +591,8 @@ components:
 - Verified at: v1.26.3
 - Pinned by: `TestLibraryBehaviour/non-scalar-key`
 - Code:
-  - `nodeview.KeyOf` reads such a key as the empty string.
+  - `nodeview.KeyOf` names no key for it, so every reader of the compiler leaves the entry out.
+  - `load.readyForModel` sets the entry aside for the model's build.
   - `oas.CheckFormat` reports it.
 
 ### `scalar-resolution`

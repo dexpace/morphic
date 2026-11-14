@@ -100,7 +100,7 @@ func TestLoad_AStreamOfEmptyDocumentsPastTheBoundIsReported(t *testing.T) {
 // read words.
 func TestExternal_AJSONDocumentPastTheNodeBudgetIsRefusedAsItIsRead(t *testing.T) {
 	t.Parallel()
-	e := newExternal(Options{MaxSourceNodes: budget.AtMost(2)}, newExternalReads(sourceDocument{}, budget.Unbounded()))
+	e := newExternal(Options{MaxSourceNodes: budget.AtMost(2)}, newExternalReads(sourceDocument{}, budget.Unbounded()), &aside{})
 
 	_, err := e.prepare(t.Context(), "doc.json", "doc.json", []byte(`{"a":[1,2,3]}`))
 

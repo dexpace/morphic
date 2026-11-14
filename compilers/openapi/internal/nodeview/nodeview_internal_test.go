@@ -988,7 +988,7 @@ func TestRepeatedKeys_NamesEachRepeatedKeyOnce(t *testing.T) {
 		{"two keys repeated", "{a: 1, b: 1, b: 2, a: 2}", []string{"b", "a"}},
 		{"a key shared with a merge is no repeat", "{<<: {a: 1}, a: 2}", nil},
 		{"a merge key twice is no repeat", "{<<: {a: 1}, <<: {b: 1}}", nil},
-		{"two keys that are no scalar both read as the empty string", "{? [x] : 1, ? [y] : 2}", []string{""}},
+		{"two keys that are no scalar name no key, so no repeat", "{? [x] : 1, ? [y] : 2}", nil},
 		{"a sequence repeats nothing", "[a, a]", nil},
 		{"a scalar repeats nothing", "a", nil},
 	}

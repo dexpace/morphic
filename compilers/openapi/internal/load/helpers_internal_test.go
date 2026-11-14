@@ -34,7 +34,7 @@ func buildTree(t *testing.T, spec string) *yaml.Node {
 	t.Helper()
 	parsed, err := parsedFor(t.Context(), compilers.Source{Path: "spec.yaml", Data: []byte(spec)}, budget.Unbounded())
 	require.NoError(t, err)
-	readyForModel(t.Context(), parsed.Root())
+	readyForModel(t.Context(), parsed.Root(), &aside{})
 	doc, err := unmarshal(t.Context(), []byte(spec), parsed.Root())
 	require.NoError(t, err)
 	require.NotNil(t, doc)
@@ -129,7 +129,7 @@ func modelOf(t *testing.T, spec string) *soa.OpenAPI {
 	data := []byte(spec)
 	root, _, err := decodeStream(t.Context(), data)
 	require.NoError(t, err)
-	readyForModel(t.Context(), root)
+	readyForModel(t.Context(), root, &aside{})
 	doc, err := unmarshal(t.Context(), data, root)
 	require.NoError(t, err)
 	return doc

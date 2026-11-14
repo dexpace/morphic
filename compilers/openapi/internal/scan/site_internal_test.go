@@ -133,8 +133,8 @@ func TestLeast_AgreesWithSortingEveryPointer(t *testing.T) {
 }
 
 // TestLeast_RanksANodeNoPointerReachesLast pins the nodes Pointers gives no
-// pointer: those under a `<<` merge key, and a key that is no scalar, whose
-// value is held at the empty key. Any node with a pointer is less than one
+// pointer: those under a `<<` merge key, and an entry whose key is no scalar,
+// which every reader leaves out. Any node with a pointer is less than one
 // without, and among those without the first given is taken, the one place
 // left where the caller's order shows.
 func TestLeast_RanksANodeNoPointerReachesLast(t *testing.T) {
@@ -148,8 +148,8 @@ func TestLeast_RanksANodeNoPointerReachesLast(t *testing.T) {
 	assert.Same(t, z, Least(t.Context(), root, []*yaml.Node{merged, z, complexKey}))
 	assert.Same(t, merged, Least(t.Context(), root, []*yaml.Node{merged, complexKey}))
 	assert.Same(t, complexKey, Least(t.Context(), root, []*yaml.Node{complexKey, merged}))
-	assert.Same(t, complexValue, Least(t.Context(), root, []*yaml.Node{z, complexValue}),
-		"the value is held at /m/, which sorts before /z")
+	assert.Same(t, z, Least(t.Context(), root, []*yaml.Node{complexValue, z}),
+		"the value of an entry whose key is no scalar has no pointer")
 }
 
 // TestLeast_EdgeCases pins the answers that need no ordering and the node a

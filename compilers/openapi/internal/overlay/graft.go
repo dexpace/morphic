@@ -204,7 +204,7 @@ func (g *grafter) mergeObject(target, update *yaml.Node, depth int) (bool, error
 		key, value := update.Content[i], nodeview.Deref(update.Content[i+1])
 		name, own := nodeview.KeyOf(key)
 		current, found := held[name]
-		g.mergeKey = g.mergeKey || !own
+		g.mergeKey = g.mergeKey || nodeview.IsMergeKey(key)
 		if !own || !found {
 			added, err := g.attach(target, key, value, depth)
 			if err != nil {

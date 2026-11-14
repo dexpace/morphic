@@ -107,17 +107,16 @@ func reachChildren(n *yaml.Node, reach func(*yaml.Node, step)) {
 
 // eachChild hands visit each child of a mapping or sequence n, with the token
 // naming it and whether a pointer reaches it there: a pair under a `<<` merge
-// key is n's but has no pointer of its own, and a key that is no scalar has
-// none either, though its value is read under the empty key the parser gives
-// it. A scalar holds nothing, and an alias's target is written elsewhere.
+// key is n's but has no pointer of its own, and an entry whose key is no
+// scalar, which every reader leaves out, has none either. A scalar holds
+// nothing, and an alias's target is written elsewhere.
 func eachChild(n *yaml.Node, visit func(c *yaml.Node, token string, held bool)) {
 	switch n.Kind {
 	case yaml.MappingNode:
 		for i := 0; i+1 < len(n.Content); i += 2 {
 			key, value := n.Content[i], n.Content[i+1]
 			token, own := nodeview.KeyOf(key)
-			k := nodeview.Deref(key)
-			visit(key, token, own && k != nil && k.Kind == yaml.ScalarNode)
+			visit(key, token, own)
 			visit(value, token, own)
 		}
 	case yaml.SequenceNode:

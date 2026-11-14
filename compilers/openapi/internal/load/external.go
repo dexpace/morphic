@@ -31,13 +31,16 @@ type external struct {
 	// read holds every document prepared and the answer each document's one
 	// read got.
 	read *externalReads
+	// aside holds what readying a document set aside for its model's build,
+	// put back with the source's.
+	aside *aside
 }
 
 // newExternal returns the reader of the documents a source's references name,
 // recording in read what it prepares and how each document's read was
-// answered.
-func newExternal(opts Options, read *externalReads) *external {
-	return &external{opts: opts, read: read}
+// answered, and in aside what readying each set aside for its model.
+func newExternal(opts Options, read *externalReads, aside *aside) *external {
+	return &external{opts: opts, read: read, aside: aside}
 }
 
 // readAs answers the read of the document id names, asked for by the spelling
@@ -222,7 +225,7 @@ func (e external) prepare(ctx context.Context, id, key string, data []byte) ([]b
 	if err := e.admit(ctx, id, doc); err != nil {
 		return nil, err
 	}
-	readyForModel(ctx, doc.Root)
+	readyForModel(ctx, doc.Root, e.aside)
 	e.read.recordTree(key, doc, data)
 	// A screen or walk above that a cancel cut short has admitted nothing.
 	if err := ctx.Err(); err != nil {

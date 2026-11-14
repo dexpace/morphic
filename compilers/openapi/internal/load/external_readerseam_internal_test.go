@@ -61,7 +61,7 @@ func (f *fakeReader) contexts() []any {
 // externalOver returns an external reading through r under opts.
 func externalOver(opts Options, r compilers.DocumentReader) *external {
 	opts.Reader = r
-	return newExternal(opts, newExternalReads(sourceDocument{}, budget.Unbounded()))
+	return newExternal(opts, newExternalReads(sourceDocument{}, budget.Unbounded()), &aside{})
 }
 
 // TestExternal_FetchWithNoReaderIsRefusedUnread pins that a compile handed no

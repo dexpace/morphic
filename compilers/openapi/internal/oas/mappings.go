@@ -18,10 +18,10 @@ import (
 
 // CheckFormat holds every mapping of the tree root to the Format section's
 // rule that a key is a string, at the minor declared names, as Check holds
-// objects. It reports each key that is no scalar, which the parser reads as
-// "" (docs/parser-library.md#non-scalar-key), and each `<<` naming no
-// mapping, which merges nothing (docs/parser-library.md#merge-keys). A rule
-// judging a key's spelling still judges that "" (GitHub #1108).
+// objects. It reports each key that is no scalar, whose entry every reader
+// leaves out (docs/parser-library.md#non-scalar-key), at the mapping's pointer
+// and the key's own line and column, and each `<<` naming no mapping, which
+// merges nothing (docs/parser-library.md#merge-keys).
 //
 // It reads the tree as written, values and extensions included, so a node an
 // alias mounts twice draws one finding, placed at its pointer as the parser
@@ -114,13 +114,19 @@ func (f *formatCheck) mapping(n *yaml.Node, ptr jsontext.Pointer) {
 			f.merge(val, ptr)
 			continue
 		}
-		name, _ := nodeview.KeyOf(key)
-		f.at[key], f.at[val] = ptr.AppendToken(name), ptr.AppendToken(name)
-		if !scalarKey(key) {
-			f.report(ir.SeverityError, classType, ptr.AppendToken(name),
-				"a mapping key must be a string in OpenAPI %s (Format), and this one is %s; it is read as the empty string",
-				f.minor, kindName(nodeview.Deref(key)))
+		name, own := nodeview.KeyOf(key)
+		if own {
+			f.at[key], f.at[val] = ptr.AppendToken(name), ptr.AppendToken(name)
+			continue
 		}
+		// The entry is left out, so it has no pointer of its own: two such keys of
+		// one mapping are told apart by where each is written.
+		f.at[key], f.at[val] = ptr, ptr
+		d := diag.Newf(ir.SeverityError, diag.Validation+"/"+classType, f.locate(ptr),
+			"a mapping key must be a string in OpenAPI %s (Format), and this one is %s; the entry is read as left out",
+			f.minor, kindName(nodeview.Deref(key)))
+		d.Provenance.Position = ir.Position{Line: key.Line, Column: key.Column}
+		f.add(d, ptr)
 	}
 }
 

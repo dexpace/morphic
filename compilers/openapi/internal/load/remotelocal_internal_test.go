@@ -28,7 +28,7 @@ func remoteDoc(ref string) string {
 func remoteReader(t *testing.T) *external {
 	t.Helper()
 	self := sourceDocument{judged: judgment{checker: oas.NewChecker()}}
-	return newExternal(Options{Reader: reader.Disk{}}, newExternalReads(self, budget.Unbounded()))
+	return newExternal(Options{Reader: reader.Disk{}}, newExternalReads(self, budget.Unbounded()), &aside{})
 }
 
 // TestExternal_ASourceReadOverTheNetworkReadsNoFile pins the read every
@@ -39,7 +39,7 @@ func TestExternal_ASourceReadOverTheNetworkReadsNoFile(t *testing.T) {
 	t.Parallel()
 	fake := &fakeReader{data: []byte("X: {type: integer}\n")}
 	self := sourceDocument{path: "http://host/v1/root.yaml", judged: judgment{checker: oas.NewChecker()}}
-	e := newExternal(Options{Reader: fake}, newExternalReads(self, budget.Unbounded()))
+	e := newExternal(Options{Reader: fake}, newExternalReads(self, budget.Unbounded()), &aside{})
 
 	for _, name := range []string{"/etc/secret.yaml", "file:///etc/secret.yaml"} {
 		_, err := e.document(t.Context(), name)

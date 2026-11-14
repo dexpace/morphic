@@ -90,7 +90,7 @@ func TestExternal_AdmitRefusesPointersPastTheAllowance(t *testing.T) {
 	root, err := parseTree(t.Context(), []byte("a: "+longKeysDeep(60, 10000)+"\n"))
 	require.NoError(t, err)
 
-	err = newExternal(Options{}, newExternalReads(sourceDocument{}, budget.Unbounded())).admit(t.Context(), "k", doctree.Document{Root: root})
+	err = newExternal(Options{}, newExternalReads(sourceDocument{}, budget.Unbounded()), &aside{}).admit(t.Context(), "k", doctree.Document{Root: root})
 
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "refused")
