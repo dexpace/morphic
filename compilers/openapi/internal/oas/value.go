@@ -31,7 +31,7 @@ func (w *walker) value(f frame, fld Field, val *yaml.Node, depth int) {
 		w.accept(shared, node)
 		return
 	}
-	shape, ok := w.shapeOf(f, fld, node)
+	shape, ok := shapeOf(f, fld, node, w.minor)
 	if !ok {
 		w.refuse(node)
 		w.mismatch(f, fld, node, ptr)
@@ -257,7 +257,7 @@ func isNull(node *yaml.Node) bool {
 // shapeOf finds the shape, among the field's own and the alternatives that hold
 // at the declared minor, that the node has. A node tagged outside the ruleset
 // has none, but where the field takes any value (outsideRuleset).
-func (w *walker) shapeOf(f frame, fld Field, node *yaml.Node) (Shape, bool) {
+func shapeOf(f frame, fld Field, node *yaml.Node, minor Minor) (Shape, bool) {
 	if fld.Shape != Any && outsideRuleset(node) {
 		return fld.Shape, false
 	}
@@ -265,7 +265,7 @@ func (w *walker) shapeOf(f frame, fld Field, node *yaml.Node) (Shape, bool) {
 		return fld.Shape, true
 	}
 	for _, alt := range fld.Alts {
-		if alt.Span.Holds(w.minor) && matches(alt.Shape, node) {
+		if alt.Span.Holds(minor) && matches(alt.Shape, node) {
 			return alt.Shape, true
 		}
 	}

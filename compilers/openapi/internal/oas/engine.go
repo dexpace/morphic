@@ -193,7 +193,7 @@ type site struct {
 // Object the rows it is read with, which its object is. booleans reports that
 // true and false stand as the schemas its fields hold: by its rows for a
 // Schema Object, which decides for those it holds, else by its minor, where
-// the rows a schema is read with have the last word (walker.shapeOf). where,
+// the rows a schema is read with have the last word (shapeOf). where,
 // unless empty, names what a finding about it holds it to in place of its
 // minor.
 type frame struct {
@@ -308,7 +308,7 @@ func (w *walker) object(s site, depth int) {
 		w.notMapping(f, node)
 		return
 	}
-	f = w.frameOf(f, node)
+	f = frameOf(f, node, w.view)
 	f.shared = f.shared || writesMerge(node)
 	w.accept(f.shared, node)
 	w.repeated(node, s.ptr, obj.Name)
@@ -339,8 +339,8 @@ func (w *walker) rowsAt(s site) SchemaRules {
 }
 
 // frameOf reads node, a mapping, as the object f is.
-func (w *walker) frameOf(f frame, node *yaml.Node) frame {
-	f.pairs = w.view.MappingPairs(node)
+func frameOf(f frame, node *yaml.Node, view *nodeview.View) frame {
+	f.pairs = view.MappingPairs(node)
 	f.byKey = make(map[string]*yaml.Node, len(f.pairs))
 	for _, p := range f.pairs {
 		f.byKey[p.Key] = p.Val
