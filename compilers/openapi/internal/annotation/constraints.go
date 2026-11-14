@@ -48,10 +48,10 @@ const (
 // writes, nil when none is, and nothing of a group not taken. Numeric bounds
 // come from the raw YAML nodes, never the *float64 model fields. A literal no
 // BigVal holds, an exclusive bound in the other form than exclusiveBoolean
-// selects, or a count the model misreads (ExactCount) is skipped, for the load
-// phase to report or the caller to keep. The second return holds a 3.0
-// exclusive modifier with no bound beside it (applyExclusiveFlag), placed by
-// pointer and doc.
+// selects, or a count the model misreads (ExactCount) is skipped, for the rule
+// table's check to report (docs/compilers/openapi.md#constraints) or the caller
+// to keep. The second return holds a 3.0 exclusive modifier with no bound
+// beside it (applyExclusiveFlag), placed by pointer and doc.
 func Constraints(s *oas3.Schema, take Bounds, exclusiveBoolean bool, pointer jsontext.Pointer, doc provenance.Doc) (*ir.Constraints, ir.Unmodeled, []ir.Diagnostic) {
 	if s == nil {
 		return nil, nil, nil
@@ -165,7 +165,7 @@ func numericBounds(c *ir.Constraints, s *oas3.Schema) {
 // exclusive field beside any minimum/maximum rather than in place of it.
 // exclusiveBoolean is true for 3.0's dialect and draft 4's. A value in the
 // wrong form for the dialect, or a literal no decimal spells, is dropped, and
-// the load phase reports it (Constraints).
+// the rule table's check reports it (Constraints).
 func applyExclusive(c *ir.Constraints, s *oas3.Schema, side boundSide, residue *boundResidue, exclusiveBoolean bool) []ir.Diagnostic {
 	ev := s.GetExclusiveMaximum()
 	if side == minBound {

@@ -61,10 +61,10 @@ func (a *agreement) write(conjunct *oas3.Schema) []string {
 		}
 		if !read {
 			// A bound no decimal spells, or in the other form than the dialect's,
-			// is the load phase's to report (load.ownedFinding). What else it
-			// warns of and keeps, the lowering does where it reads a branch that
-			// folds; a branch kept apart is kept whole instead. Nothing this
-			// reading places is kept, so it places at the zero Doc.
+			// is the rule table's to report (docs/compilers/openapi.md#constraints).
+			// What else it warns of and keeps, the lowering does where it reads a
+			// branch that folds; a branch kept apart is kept whole instead.
+			// Nothing this reading places is kept, so it places at the zero Doc.
 			cons, _, _ = annotation.Constraints(conjunct, annotation.AllBounds, exclusiveIsBoolean(a.c, conjunct), "", provenance.Doc{})
 			cons = merge.Constraints(cons, heldCollectionBounds(conjunct))
 			read = true

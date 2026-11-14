@@ -115,8 +115,8 @@ func (r ruler) apply(rule Rule) {
 // fail reports a finding of the rule at ptr, graded by the rule's level and
 // naming the object, the minor and the section the rule cites.
 func (r ruler) fail(rule Rule, class string, ptr jsontext.Pointer, detail string) {
-	r.w.report(severity(rule.Level), class, ptr, "%s %s in OpenAPI %s (%s)",
-		r.f.obj.Name, detail, r.w.minor, citeFor(rule.Cites, r.w.minor).Section)
+	r.w.report(severity(rule.Level), class, ptr, "%s %s in %s (%s)",
+		r.f.obj.Name, detail, r.f.in(r.w.minor), citeFor(rule.Cites, r.w.minor).Section)
 }
 
 // present returns those of names the object writes, in the order given.
@@ -206,7 +206,7 @@ func (r ruler) entryCount(field string) (int, jsontext.Pointer, bool) {
 	if node == nil {
 		return 0, ptr, false
 	}
-	if _, ok := r.w.shapeOf(r.f.obj.fieldAt(field, r.w.minor), node); !ok {
+	if _, ok := r.w.shapeOf(r.f, r.f.fieldAt(field, r.w.minor), node); !ok {
 		return 0, ptr, false
 	}
 	switch node.Kind {

@@ -740,3 +740,14 @@ it sees. Changes made together in one bump are listed together under it.
   part's media type, which is kept verbatim instead, as an `itemEncoding` under a media type that is
   not multipart now is, whole, where it lowered to an `ItemEncoding`. A consumer pinned to 0.62.0
   refuses the document.
+- **0.64.0** — no shape change. The OpenAPI compiler expands a `$dynamicRef` to an anchor at any
+  position of its schema resource, and JSON Schema 2019-09's `$recursiveRef` to the root of the
+  resource it is written in ([`dynamic-ref`](../compilers/openapi.md#dynamic-ref)): such a
+  reference's `TypeRef` names the type at that position where it named a node keeping
+  `openapi:$dynamicRef`, or, for `$recursiveRef`, `openapi:$recursiveRef` under `out_of_scope`; one
+  it cannot expand keeps `openapi:$recursiveRef` under `degraded_lowering`, and
+  `openapi:$recursiveAnchor` is no longer kept in a 2019-09 schema. A body schema writing `$schema`
+  or `$vocabulary` is a file where it was not ([`file-bodies`](../compilers/openapi.md#file-bodies)).
+  A `prefixItems` beside a JSON Schema draft's `items` list is kept under `openapi:prefixItems`,
+  where it was dropped ([`tuples`](../compilers/openapi.md#tuples)). A consumer pinned to 0.63.0
+  reads such a reference as the top type and such a body as a model.

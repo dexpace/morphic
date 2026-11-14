@@ -401,7 +401,9 @@ func assertAllOfRefinement(t *testing.T, doc *ir.Document, diags []ir.Diagnostic
 	assertRefinedNodes(t, doc)
 	assert.Equal(t, 1, openapitest.CountDiagsAt(diags, diag.DegradedConstruct, ir.SeverityWarning),
 		"only Disjoint is contradicted, and its conjuncts are reported once")
-	assert.Equal(t, []jsontext.Pointer{"/components/schemas/Disjoint"}, warningPointers(diags))
+	assert.Equal(t, []jsontext.Pointer{"/components/schemas/Disjoint", "/components/schemas/Port80/allOf/1/const",
+		"/components/schemas/Zone/properties/owner/allOf/1/nullable"}, warningPointers(diags),
+		"and a const, which 3.1 added, and a nullable on a branch writing no type, which 3.0 gives no effect")
 }
 
 // assertRefinedOperation covers the positions an operation holds.

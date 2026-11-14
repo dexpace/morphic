@@ -284,16 +284,17 @@ func TestCheck_SeenReportsTheObjectsReadAsTheirKind(t *testing.T) {
 }
 
 // TestCheck_AnAnchorIsANameJSONSchemaAdmits pins what the check says of the
-// names $anchor and $dynamicAnchor declare: an empty one is refused, and the
-// grammar, which a schema's dialect gives, is its caller's to judge
-// (Options.Owned, SchemaRules.FormatFinding). 3.0's dialect has neither.
+// names $anchor and $dynamicAnchor declare, read with the rows of the schema's
+// dialect: an empty one is refused, and so is one 2020-12's grammar refuses.
+// 3.0's dialect has neither, so one there is a later minor's keyword, judged
+// as 3.1 judges it.
 func TestCheck_AnAnchorIsANameJSONSchemaAdmits(t *testing.T) {
 	verify(t, []scenario{
 		{"a name", "3.1.0", oas.Schema, `{$anchor: _a1.b-c, $dynamicAnchor: Node}`, nil},
-		{"a leading digit, its dialect's to judge", "3.1.0", oas.Schema, `{$anchor: 1a}`, nil},
-		{"a colon, its dialect's to judge", "3.2.0", oas.Schema, `{$dynamicAnchor: "a:b"}`, nil},
+		{"a leading digit", "3.1.0", oas.Schema, `{$anchor: 1a}`, []finding{at(badFormat, "/$anchor")}},
+		{"a colon", "3.2.0", oas.Schema, `{$dynamicAnchor: "a:b"}`, []finding{at(badFormat, "/$dynamicAnchor")}},
 		{"empty", "3.1.0", oas.Schema, `{$anchor: "", $dynamicAnchor: ""}`,
 			[]finding{at(empty, "/$anchor"), at(empty, "/$dynamicAnchor")}},
-		{"3.0 has no anchors", "3.0.3", oas.Schema, `{$anchor: 1a}`, nil},
+		{"3.0 has no anchors", "3.0.3", oas.Schema, `{$anchor: 1a}`, []finding{at(later, "/$anchor"), at(badFormat, "/$anchor")}},
 	})
 }

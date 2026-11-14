@@ -10,6 +10,7 @@ import (
 	"errors"
 	"fmt"
 	"maps"
+	"net/url"
 	"slices"
 
 	yaml "go.yaml.in/yaml/v3"
@@ -73,12 +74,12 @@ type Config struct {
 // DialectRule is what the table reads otherwise in a dialect than in 2020-12.
 // Keyword is the identifier's keyword, `$id` where empty, or draft 4's `id`.
 // With Fragments one naming a fragment alone declares that name: any no JSON
-// pointer spells, as in draft 4, or with PlainFragments one of the plain-name
-// grammar, as in drafts 6 and 7. With Definitions `definitions` holds schemas,
-// with Dependencies a schema in `dependencies` is one, as before 2019-09, with
+// pointer spells, as in draft 4, or with PlainFragments a plain name, as in
+// drafts 6 and 7. With Definitions `definitions` holds schemas, with
+// Dependencies a schema in `dependencies` is one, as before 2019-09, with
 // PlainNames `$anchor` takes that grammar, as in 2019-09, and with Tuples an
-// `items` list is a tuple, as before 2020-12. With NamesNone the value names no
-// dialect, so its `$schema` chooses none.
+// `items` list is a tuple, as before 2020-12. With NamesNone the value names
+// no dialect, so its `$schema` chooses none.
 type DialectRule struct {
 	Keyword        string
 	Fragments      bool
@@ -87,6 +88,9 @@ type DialectRule struct {
 	Dependencies   bool
 	PlainNames     bool
 	Tuples         bool
+	// Recursive has a `$recursiveAnchor` of true mark its resource for a
+	// `$recursiveRef`, as in 2019-09.
+	Recursive bool
 	// IgnoresRefFields has a schema writing a `$ref` write no identifier, as
 	// the drafts before 2019-09 ignore every keyword beside one.
 	IgnoresRefFields bool
@@ -322,7 +326,36 @@ func (b *binder) settle(t *Table) {
 			t.mappings[k] = m
 		}
 	}
-	b.find.landOnAnchors()
+	landDynamic(b)
+}
+
+// landDynamic lands on what each dynamic reference noted since the table last
+// settled names, as the $ref it spells would, for the schema an expansion takes
+// to be built and read where the model holds none: the one schema declaring a
+// $dynamicRef's anchor, reached as a $ref naming that anchor in its resource
+// is, and the root of a $recursiveRef's resource, which a $ref of "#" written
+// there resolves to. A hop the resolution leaves unresolved lands nowhere. A
+// name is only asked of a document open, whose identifiers are read whole.
+func landDynamic(b *binder) {
+	dynamic, recursive := b.find.freshDynamic, b.find.freshRecursive
+	b.find.freshDynamic, b.find.freshRecursive = nil, nil
+	for _, d := range dynamic {
+		b.find.identify(d.key.doc)
+		at := b.ids.dynamic[d.key]
+		if len(at) != 1 {
+			continue
+		}
+		path, _ := b.docs.path(d.at)
+		if h := b.resolve(d.at, path, "#"+url.PathEscape(d.key.name), true); h.Status == Resolved && h.Target == at[0] {
+			b.find.landOn(d.at, h)
+		}
+	}
+	for _, site := range recursive {
+		path, _ := b.docs.path(site)
+		if h := b.resolve(site, path, "#", true); h.Status == Resolved {
+			b.find.landOn(site, h)
+		}
+	}
 }
 
 // mappingOrder orders mapping values by their discriminator's position in d,
@@ -347,6 +380,7 @@ func (b *binder) table(t *Table) *Table {
 	}
 	t.loops, t.steps, t.limit, t.exhausted = b.loops, b.work.steps.Spent(), b.work.steps.Limit(), b.work.steps.Exhausted()
 	t.ends, t.roots, t.bases, t.ids = b.find.ends, b.find.roots, newBases(b.resources, b.ids), b.ids
+	t.recursive = recursiveAnchorsOf(b.ids, t.bases)
 	dialects := dialectsByDocument(b.ids.dialects)
 	for id, d := range b.docs.list {
 		reached := b.docs.reached[DocID(id)]
@@ -442,11 +476,12 @@ type Table struct {
 	limit     budget.Limit
 	exhausted bool
 	truncated bool
-	// bases remembers each walk Base and InOwnResource make, filled as they
+	// bases remembers each walk Base and Resource make, filled as they
 	// ask. It changes no answer, each being what a walk from the root gives,
 	// and nothing guards it, as only the lowering asks, on one goroutine.
-	bases *bases
-	ids   *identifiers
+	bases     *bases
+	ids       *identifiers
+	recursive map[DocID]recursiveAnchors
 }
 
 // Entry returns the entry of the $ref written at site, and false for a
@@ -484,14 +519,11 @@ func (t *Table) Document(id DocID) Document { return t.docs[id] }
 // compare orders positions as the table reads them: the source's first,
 // another document's by its name, then by pointer (comparePositions).
 func (t *Table) compare(p, q Position) int {
-	if c, ok := byName(p, q, t.name); ok {
+	if c, ok := byName(p, q, func(id DocID) string { return t.docs[id].Name }); ok {
 		return c
 	}
 	return comparePositions(p, q)
 }
-
-// name returns the name of the document id names.
-func (t *Table) name(id DocID) string { return t.docs[id].Name }
 
 // Documents reports how many documents the table read, the source included.
 func (t *Table) Documents() int { return len(t.docs) }
@@ -518,16 +550,60 @@ func (t *Table) DynamicAnchors(id DocID, name string) ([]Position, bool) {
 	return sites, !t.exhausted && !t.ids.truncated[id]
 }
 
-// InOwnResource reports whether the schema at p, its own identifier counted,
-// lies in a resource an identifier names rather than in its document's, and
-// whether that is known: false where a schema on the way may hide one past the
-// merge bound.
-func (t *Table) InOwnResource(p Position) (own, known bool) {
+// RecursiveAnchor reports what the schemas of root's document declaring
+// `$recursiveAnchor` true, where their dialect defines the keyword
+// (DialectRule.Recursive), say of a $recursiveRef reaching root: whether root
+// declares it, how many schema resources hold a declaration, and whether both
+// are known, as DynamicAnchors says, each declaration's resource included. A
+// nil table knows of none.
+func (t *Table) RecursiveAnchor(root Position) (declared bool, resources int, known bool) {
 	if t == nil {
-		return false, true
+		return false, 0, true
+	}
+	r := t.recursive[root.Doc]
+	return r.sites[root], r.resources, !t.exhausted && !t.ids.truncated[root.Doc] && !r.unplaced
+}
+
+// recursiveAnchors is what the `$recursiveAnchor: true` declarations of one
+// document say (Table.RecursiveAnchor): where they are, how many schema
+// resources hold them, and whether one lies where a merge past the bound may
+// hide the resource it is in.
+type recursiveAnchors struct {
+	sites     map[Position]bool
+	resources int
+	unplaced  bool
+}
+
+// recursiveAnchorsOf returns what the declarations ids holds say, by document,
+// the resource of each read from b once, so a $recursiveRef asks a lookup
+// rather than a read of every declaration its document makes.
+func recursiveAnchorsOf(ids *identifiers, b *bases) map[DocID]recursiveAnchors {
+	out := make(map[DocID]recursiveAnchors, len(ids.recursive))
+	for id, sites := range ids.recursive {
+		r := recursiveAnchors{sites: make(map[Position]bool, len(sites))}
+		roots := map[Position]bool{}
+		for _, site := range sites {
+			res, known := b.holding(site)
+			r.sites[site], roots[res.root] = true, true
+			r.unplaced = r.unplaced || !known
+		}
+		r.resources = len(roots)
+		out[id] = r
+	}
+	return out
+}
+
+// Resource returns the root of the schema resource the schema at p lies in,
+// its own identifier counted: the schema whose identifier starts it, or its
+// document's root where none on the way does. It is false where a schema on
+// the way may hide one past the merge bound. A nil table reads every position
+// as its document's.
+func (t *Table) Resource(p Position) (root Position, known bool) {
+	if t == nil {
+		return Position{Doc: p.Doc}, true
 	}
 	res, known := t.bases.holding(p)
-	return res.id, known
+	return res.root, known
 }
 
 // Base returns the URI a reference written in the schema at p resolves

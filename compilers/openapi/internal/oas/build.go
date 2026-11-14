@@ -92,21 +92,9 @@ func (f Field) ownedBy(pkg string) Field {
 	return f
 }
 
-// shapeOwnedBy names the package that reports a value of the wrong shape.
-func (f Field) shapeOwnedBy(pkg string) Field {
-	f.ShapeOwner = pkg
-	return f
-}
-
-// formatOwnedBy names the package that judges the field's format.
-func (f Field) formatOwnedBy(pkg string) Field {
-	f.FormatOwner = pkg
-	return f
-}
-
-// listOwnedBy names the package that judges a list written for the field.
-func (f Field) listOwnedBy(pkg string) Field {
-	f.ListOwner = pkg
+// decimal marks the field a numeric bound read as the decimal it spells.
+func (f Field) decimal() Field {
+	f.Decimal = true
 	return f
 }
 

@@ -19,9 +19,13 @@ func schemaObjects() []Object {
 // as a later minor's construct (RefSiblings, GitHub #871).
 func schemaObject() Object {
 	c := sectioned("Schema Object")
+	nullable := c(V30, "This keyword only takes effect if `type` is explicitly defined within the same Schema Object.")
+	// A nullable the specification gives no effect is written to no purpose,
+	// which its version still reads, so a finding is a warning.
+	applies := code(Only(V30), "nullable-applies", "", nullable)
+	applies.Level = Should
 	own := []Field{
-		field("nullable", Boolean, c(V30, "This keyword only takes effect if `type` is explicitly defined within the same Schema Object.")).
-			during(Only(V30)),
+		field("nullable", Boolean, nullable).during(Only(V30)),
 		objectOf("discriminator", Discriminator, c(V30, "Adds support for polymorphism.")),
 		objectOf("xml", XML, c(V30, "This MAY be used only on property schemas.")),
 		objectOf("externalDocs", ExternalDocs, c(V30, "Additional external documentation for this schema.")),
@@ -35,6 +39,7 @@ func schemaObject() Object {
 				c(V30, "A property MUST NOT be marked as both `readOnly` and `writeOnly` being `true`.")),
 			requiredWhen(Only(V30), "items", when(term("type", "array")),
 				c(V30, "`items` MUST be present if `type` is `\"array\"`.")).owned(ownerSchema),
+			applies,
 		}, keywordRules()...),
 	}
 }

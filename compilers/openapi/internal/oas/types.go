@@ -243,17 +243,6 @@ type Field struct {
 	Name string
 	// Owner is the package that reports the field's missing-field finding.
 	Owner string
-	// ShapeOwner is the package that reports a value of the wrong shape.
-	ShapeOwner string
-	// ListOwner is the package that judges a list written where the field
-	// holds one schema: a tuple, as a JSON Schema draft a schema names spells
-	// one, which the check, run before any schema's dialect is known, cannot
-	// tell from a mistake.
-	ListOwner string
-	// FormatOwner is the package that judges the value's format, which the
-	// dialect a schema is read in decides, as draft 7's `$id` may name a
-	// fragment that 2020-12's may not, and 2019-09's `$anchor` a colon.
-	FormatOwner string
 	// Values is the values admitted, if the field is enumerated.
 	Values []Value
 	// Alts are the other shapes the field admits.
@@ -275,9 +264,14 @@ type Field struct {
 	// Format is the syntax of a string value; Keys that of a map's keys.
 	Format Format
 	Keys   Format
-	// Keyword marks a JSON Schema keyword: one a later minor adds is read
-	// as the schema lowering reads it, not reported here.
+	// Keyword marks a JSON Schema keyword, which the dialect a schema is
+	// read in defines rather than the minor (SchemaRules).
 	Keyword bool
+	// Decimal marks a numeric bound the schema lowering reads as the decimal
+	// its text spells, quoted or not, so the check judges it as read rather
+	// than by its shape: a literal no decimal spells, and an exclusive bound
+	// in the other form than its row gives.
+	Decimal bool
 	// Within is the media types under which a field of an object a media
 	// type holds takes effect; empty means under every one.
 	Within []Within

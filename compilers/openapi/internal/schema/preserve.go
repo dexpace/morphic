@@ -28,9 +28,9 @@ import (
 // (undefinedKeywords), and no reader above it already kept (GitHub #297).
 //
 // It is the last thing an attachment does, as annotation.UnknownKeywordsIn
-// requires, so it is called here rather than inside annotation.Read:
-// $dynamicRef has no field in the schema model either and is decided by
-// recordUnexpandedDynamicRef, which runs after Read; a draft's `dependencies`
+// requires, so it is called here rather than inside annotation.Read: a
+// dynamic reference, which the model names no field for, is decided by
+// recordUnexpandedDynamicRef, run after Read; a draft's `dependencies`
 // is Read's (annotation.Dialect), and `additionalItems` beside a list the
 // census's (keywordHome). td is the node the position lowered to, nil for none
 // of its own.
@@ -39,9 +39,19 @@ func PreserveUnknownKeywords(c lowering.Ctx, p *ir.Unmodeled, s *oas3.Schema, po
 	if _, listed := listedItems(s); listed {
 		taken = append(taken, "additionalItems")
 	}
-	if lowering.SchemaRulesAt(c, pointer).Takes("definitions", oas.Map) {
+	rules := lowering.SchemaRulesAt(c, pointer)
+	if rules.Takes("definitions", oas.Map) {
 		// The drafts' spelling of $defs, whose entries lower where a $ref names one.
 		taken = append(taken, "definitions")
+	}
+	if rules.Defines("$recursiveRef") {
+		// 2019-09's dynamic reference, which recordUnexpandedDynamicRef decides
+		// where no $dynamicRef stands beside it, and the anchor it reads, which
+		// the binder consumes as a $dynamicAnchor.
+		taken = append(taken, "$recursiveAnchor")
+		if annotation.RawPropertyNode(s, "$dynamicRef") == nil {
+			taken = append(taken, "$recursiveRef")
+		}
 	}
 	diags := annotation.UnknownKeywordsIn(p, s, pointer, c.Place(), taken...)
 	return append(diags, annotation.UndefinedKeywordsIn(p, s, undefinedKeywords(c, s), pointer, c.Place())...)

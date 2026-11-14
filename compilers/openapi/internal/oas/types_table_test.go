@@ -276,10 +276,8 @@ func TestTable_OwnedRulesNameTheirOwners(t *testing.T) {
 			}
 		}
 		for _, f := range o.Fields {
-			for _, owner := range []string{f.Owner, f.ShapeOwner, f.ListOwner, f.FormatOwner} {
-				if owner != "" {
-					owners[owner] = true
-				}
+			if f.Owner != "" {
+				owners[f.Owner] = true
 			}
 		}
 	}

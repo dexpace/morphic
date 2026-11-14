@@ -178,14 +178,14 @@ const (
 	// and the repeat adds nothing.
 	RepeatedEntry = "openapi/repeated-entry"
 	// NumericPrecision reports a numeric bound literal that is not a finite
-	// number, at every schema the load phase's check reads (error severity:
-	// Morphic owns these keywords, so this is the sole diagnostic for the
-	// defect — see load.ownedFinding).
+	// number, at every schema the rule table's check reads, in its dialect
+	// (error severity: Morphic owns these keywords, so this is the sole
+	// diagnostic for the defect — see oas's decimalBound).
 	NumericPrecision = "openapi/invalid-numeric-literal"
 	// ExclusiveBoundForm reports an exclusiveMinimum/exclusiveMaximum whose value
 	// form is wrong for the schema's dialect (a boolean under 2020-12, or a
-	// number under 3.0's or draft 4's), at every schema the load phase's check
-	// reads — see load.ownedFinding.
+	// number under 3.0's or draft 4's), at every schema the rule table's check
+	// reads — see oas's decimalBound.
 	ExclusiveBoundForm = "openapi/invalid-exclusive-bound"
 	// InvalidStatusKey reports a responses-map key that names no status: not a
 	// 100–599 code, not one of the 1XX–5XX wildcard ranges, not "default". The
@@ -485,13 +485,13 @@ const (
 	// declared is dropped. A code of its own rather than DegradedConstruct,
 	// because nothing is kept in a weaker shape.
 	MissingArrayItems = "openapi/missing-array-items"
-	// LaterVersionConstruct reports a field, or a value of one, that a later
-	// OpenAPI minor than the document declares added to the object it is written
-	// on, lowered as in a document declaring that minor, or a keyword beside a
-	// $ref that its schema's 3.0 minor or dialect ignores, applied as later
-	// versions apply one and read in its schema's minor and dialect. Either
-	// reading loses least: a consumer can set the construct aside, and could not
-	// recover the lowering from a verbatim copy
+	// LaterVersionConstruct reports, from the rule table's check, a field or a
+	// value a later OpenAPI minor added to its object, lowered as that minor
+	// does; a keyword JSON Schema 2020-12 added, in a 3.0 schema or a draft's,
+	// read as 2020-12 reads it; or a keyword beside a $ref its schema's minor or
+	// dialect ignores, applied as later versions apply it. Each reading loses
+	// least: a consumer can set the construct aside, and could not recover the
+	// lowering from a verbatim copy
 	// (docs/compilers/openapi.md#later-version-construct).
 	//
 	// A warning: the construct lowers, though the version or dialect it is
@@ -532,10 +532,9 @@ const (
 	UnreadDialect = "openapi/unread-dialect"
 	// InvalidItemsList reports `items` written as a list, a tuple as JSON
 	// Schema's drafts before 2020-12 spell one, in a schema whose dialect takes
-	// no list there, at it. The rule table's check leaves such a list to the
-	// load phase, which knows the schema's dialect once its references are
-	// bound (docs/compilers/openapi.md#tuples). Error, as the table's mismatch
-	// is.
+	// no list there, at it. The rule table's check reports it, reading the
+	// schema with the rows of its dialect (docs/compilers/openapi.md#tuples).
+	// Error, as the table's mismatch is.
 	InvalidItemsList = "openapi/invalid-items-list"
 	// InferredDiscriminator reports a mapping the discriminator-inference
 	// policy reads off the strings a union's variants pin their tag to, where

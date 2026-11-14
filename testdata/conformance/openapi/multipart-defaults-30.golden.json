@@ -699,6 +699,19 @@
   "diagnostics": [
     {
       "severity": "warning",
+      "code": "openapi/later-version-construct",
+      "message": "field \"contentEncoding\" of the Schema Object was added in OpenAPI 3.1, and this document declares 3.0.3; it is lowered as in an OpenAPI 3.1 document",
+      "provenance": {
+        "source": 0,
+        "pointer": "/paths/~1upload/post/requestBody/content/multipart~1form-data/schema/properties/blob/contentEncoding",
+        "position": {
+          "line": 19,
+          "column": 55
+        }
+      }
+    },
+    {
+      "severity": "warning",
       "code": "openapi/validation/validation-no-effect",
       "message": "Encoding Object field \"style\" has no effect under \"multipart/form-data\", where the specification ignores it; kept verbatim under Unmodeled",
       "provenance": {

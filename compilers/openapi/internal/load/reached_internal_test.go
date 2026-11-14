@@ -531,3 +531,23 @@ func TestChainEnds_AsksTheReferencePastItsBound(t *testing.T) {
 	assert.Zero(t, read, "no cut chain past the reference's own is read")
 	assert.Empty(t, ends.ends, "an answer asked of the reference is not remembered")
 }
+
+// TestReached_ASchemaTheSourceWritesUnmodelledIsJudgedInItsRows pins a value
+// of a schema the source writes where the parser models none, an extension's
+// content, which a $ref reaches: the source's own check reads no schema there,
+// so the check of what references reach judges it, in the source's rows.
+func TestReached_ASchemaTheSourceWritesUnmodelledIsJudgedInItsRows(t *testing.T) {
+	t.Parallel()
+	src := "openapi: 3.1.0\ninfo: {title: T, version: '1'}\npaths: {}\n" +
+		"x-defs: {A: {type: integer, exclusiveMinimum: true}}\n" +
+		"components:\n  schemas:\n    S: {$ref: '#/x-defs/A'}\n"
+	_, diags, err := Load(t.Context(), 0, compilers.Source{Path: "s.yaml", Data: []byte(src)}, Options{})
+	require.NoError(t, err)
+	var at []jsontext.Pointer
+	for _, d := range diags {
+		if d.Code == diag.ExclusiveBoundForm {
+			at = append(at, d.Provenance.Pointer)
+		}
+	}
+	assert.Equal(t, []jsontext.Pointer{"/x-defs/A/exclusiveMinimum"}, at)
+}

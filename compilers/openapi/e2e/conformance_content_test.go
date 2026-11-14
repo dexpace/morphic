@@ -135,7 +135,9 @@ func assertFormPartStyle(t *testing.T, doc *ir.Document) {
 // assertFileBody pins a binary body: the payload's type degrades to bytes and the
 // media types it is carried as move onto Content.File, which is what tells an
 // emitter to generate a stream rather than a model. Both routes to that lowering
-// are covered — a media type with no schema at all, and a string+binary schema.
+// are covered — a media type with no schema at all, and a string+binary schema —
+// and a string schema naming its dialect on octet-stream, which leaves the media
+// type to say.
 func assertFileBody(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 	op, ok := opByName(doc, "putBlob")
 	require.True(t, ok)
@@ -164,6 +166,14 @@ func assertFileBody(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 	node, ok := doc.Types[stored.Type.Target]
 	require.True(t, ok)
 	assert.Equal(t, "The stored object.", node.Common().Docs.Description, "and keeps its docs")
+
+	dialect, ok := opByName(doc, "putDialect")
+	require.True(t, ok)
+	require.NotNil(t, dialect.Request)
+	require.Len(t, dialect.Request.Contents, 1)
+	named := dialect.Request.Contents[0]
+	require.NotNil(t, named.File, "a string naming its dialect on octet-stream is a file body")
+	assert.Equal(t, []string{"application/octet-stream"}, named.File.ContentTypes)
 }
 
 // assertFileMedia pins the file idioms beyond a binary string: a schema saying

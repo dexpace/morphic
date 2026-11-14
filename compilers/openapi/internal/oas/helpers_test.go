@@ -39,6 +39,12 @@ const (
 	noEffect  = diag.InapplicableLocationKeyword
 	// misplacedField is a field written at a location that bars it.
 	misplacedField = diag.InvalidLocationKeyword
+	// literal is a bound no decimal spells, form an exclusive bound in the
+	// other form than its dialect gives, and itemsList an items list where
+	// its dialect reads no tuple.
+	literal   = diag.NumericPrecision
+	form      = diag.ExclusiveBoundForm
+	itemsList = diag.InvalidItemsList
 )
 
 // finding is what a test compares of a diagnostic: its code and where it sits.
