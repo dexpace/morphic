@@ -218,6 +218,17 @@ const ReplacementInferenceHeuristic = lowering.ReplacementInferenceHeuristic
 // named here rather than restated for the reason GroupingStrategy is.
 type TitleNames = lowering.TitleNames
 
+// PaginationInference is the pagination-inference policy: whether an
+// operation's pagination is read off the names of its query parameters and of
+// its success responses' members. It is another injectable-policy seam
+// (architecture principle 6), and is named here rather than restated for the
+// reason GroupingStrategy is.
+type PaginationInference = lowering.PaginationInference
+
+// PaginationInferenceHeuristic is the name an operation's Provenance.Inferred
+// carries where the pagination-inference policy filled its Pagination.
+const PaginationInferenceHeuristic = lowering.PaginationInferenceHeuristic
+
 // DefaultExtensionPromotions returns the extension-to-field mapping applied
 // when the caller names none. It is exported so a caller changing the mapping
 // can start from it rather than transcribe it.
@@ -287,6 +298,11 @@ type Options struct {
 	// zero value is on; a caller who wants the replacement left in the message
 	// disables it.
 	ReplacementInference ReplacementInference `json:"replacementInference"`
+	// PaginationInference selects whether an operation's pagination is read off
+	// the names of its query parameters and of its success responses' members,
+	// what it reads marked as inferred. The zero value is on; a caller who wants
+	// only what the document declares disables it.
+	PaginationInference PaginationInference `json:"paginationInference"`
 	// TitleNames selects whether a schema's title names the anonymous node
 	// built from it, its title its summary either way. The zero value is on; a
 	// caller who wants every such node named by its position disables it.
@@ -557,6 +573,7 @@ func switchOptions(o *Options) map[string]*bool {
 		string(SecretInferenceHeuristic):             &o.SecretInference.Disabled,
 		string(HTTPDateInferenceHeuristic):           &o.HTTPDateInference.Disabled,
 		string(ReplacementInferenceHeuristic):        &o.ReplacementInference.Disabled,
+		string(PaginationInferenceHeuristic):         &o.PaginationInference.Disabled,
 		string(lowering.ExtensionPromotionHeuristic): &o.Promotions.Disabled,
 		"streaming-inference":                        &o.StreamingMedia.Disabled,
 		"binary-inference":                           &o.BinaryMedia.Disabled,

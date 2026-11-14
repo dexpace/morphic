@@ -172,6 +172,7 @@ func codes() []string {
 		diag.InvalidPathKey, diag.InferredNullable, diag.UnreadDialect, diag.InvalidItemsList,
 		diag.InferredDiscriminator,
 		diag.InferredHTTPDate, diag.UndecidedIdempotency, diag.UndecidedReplacement,
+		diag.UndecidedPagination,
 	}
 }
 

@@ -23,6 +23,7 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
 	"github.com/dexpace/morphic/compilers/openapi/internal/operation"
 	"github.com/dexpace/morphic/compilers/openapi/internal/overlay"
+	"github.com/dexpace/morphic/compilers/openapi/internal/pagination"
 	"github.com/dexpace/morphic/compilers/openapi/internal/replacement"
 	"github.com/dexpace/morphic/compilers/openapi/internal/schema"
 	"github.com/dexpace/morphic/compilers/openapi/internal/servers"
@@ -232,13 +233,16 @@ func run(ctx context.Context, c lowering.Ctx, ts *compile.Types) (*ir.Document, 
 	srv := servers.Reopen(lowered.Servers)
 	acc.AppendAll(lowered.Links.Resolve(c, &out.Services[0], reg, srv))
 	out.Servers = srv.Servers()
-	// The operations whose extensions speak of a pagination are what a policy
-	// inferring one leaves alone; none runs, so nothing reads them yet.
-	_, pageDiags := operation.PromotePagination(c, &out.Services[0], reg)
+	// The operations whose extensions speak of a pagination are what the
+	// pagination inference passes over, by the precedence
+	// docs/compilers/openapi.md#policies gives: what they say of one, even that
+	// there is none, wins over what the names an operation uses suggest.
+	stated, pageDiags := operation.PromotePagination(c, &out.Services[0], reg)
 	acc.AppendAll(pageDiags)
 	acc.AppendAll(replacement.Resolve(c, out))
 	acc.AppendAll(replacement.Infer(c, out))
 	acc.AppendAll(convention.Apply(c, out))
+	acc.AppendAll(pagination.InferWalks(c, out, stated))
 
 	m, metaDiags := document.Lower(c)
 	out.Name, out.Version = m.Name, m.Version
@@ -325,6 +329,7 @@ func loweringCtx(doc *load.Document, o Options) lowering.Ctx {
 		SecretInference:        o.SecretInference,
 		HTTPDateInference:      o.HTTPDateInference,
 		ReplacementInference:   o.ReplacementInference,
+		PaginationInference:    o.PaginationInference,
 		TitleNames:             o.TitleNames,
 	})
 }

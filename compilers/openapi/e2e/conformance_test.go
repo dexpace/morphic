@@ -265,6 +265,7 @@ func conformanceCases() []conformanceCase {
 		{"default-response", assertDefaultResponse},
 		{"http-date-inference", assertHTTPDateInference},
 		{"response-links", assertResponseLinks},
+		{"pagination-inferred", assertPaginationInferred},
 		{"webhooks", assertWebhooks},
 		{"callbacks", assertCallbacks},
 		{"inline-hoist-positions", assertInlineHoistPositions},

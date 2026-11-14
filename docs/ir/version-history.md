@@ -696,3 +696,12 @@ it sees. Changes made together in one bump are listed together under it.
     members state, which they were kept beside in silence.
   - The default mapping reads only the word `deprecated` of `x-stability` and
     `x-fern-availability` as a deprecation, so a boolean on either deprecates nothing.
+- **0.61.0** — the OpenAPI compiler fills `Operation.Pagination` where the document speaks of none,
+  and with it `PageStop` `no_next`, which it had never set: its pagination-inference policy reads a
+  walk off the names an operation's query parameters and success responses use
+  ([`pagination-policy`](../compilers/openapi.md#pagination-policy)), each such `Pagination` marked
+  `Inferred` and its operation's `Provenance.Inferred` naming `pagination-inference`. An operation
+  whose extensions speak of a pagination gets none from it
+  ([`extension-pagination`](../compilers/openapi.md#extension-pagination)). The shape is 0.60.0's. A
+  consumer pinned to 0.60.0 met a `Pagination` only where an extension stated one, and now meets one
+  on each operation the policy settles, which it reads as declared unless it reads `Inferred`.

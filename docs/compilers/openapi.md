@@ -5391,15 +5391,15 @@ how operations are arranged rather than filling a fact a node holds.
 - Tests: `openapi.TestSwitchOptions_NameEveryPolicy`, `openapi.TestDecodeOptions_TextReachesEveryField`,
   `lowering.TestPromoter_WritesSeesAKeyWhateverItSays`, `lowering.TestPromoter_WritesKnowsEveryTarget`,
   `lowering.TestPromoter_WritesSeesEveryDefaultKey`,
+  `pagination.TestInferWalks_LeavesWhatAnExtensionSpeaksOf`,
   `replacement.TestMessage_YieldsToWhatTheDocumentSays`, `convention.TestRedact_LeavesWhatTheDocumentSays`,
   `convention.TestIdempotency_ReportsWhatItCannotSettle`, `e2e.TestConventions_DisabledFillsNothing`
-- Status: partly built: `Pagination` is filled by a promotion alone
-  ([`extension-pagination`](#extension-pagination)), as no inference reads one (#989), and that
-  promotion is read in `operation`, whose reader of runtime expressions it shares with the links,
-  rather than in a package of its own (#1905); and the streaming and binary policies mark
-  `streaming-media-type` and `binary-media-type`, which their options `streaming-inference` and
-  `binary-inference` do not spell, while nullable widening marks `nullable-widening`, a name for the
-  reading rather than the fact (#1847).
+- Status: partly built: the pagination promotion ([`extension-pagination`](#extension-pagination))
+  is read in `operation`, whose reader of runtime expressions it shares with the links, rather than
+  in a package of its own (#1905); and the streaming and binary policies mark `streaming-media-type`
+  and `binary-media-type`, which their options `streaming-inference` and `binary-inference` do not
+  spell, while nullable widening marks `nullable-widening`, a name for the reading rather than the
+  fact (#1847).
 
 ### `extension-promotion`
 
@@ -5716,21 +5716,93 @@ streams, or as a mark on the operation itself, is read by no source, so it speak
   `lowering.TestOperations_ReadsEveryGroupToTheCap`,
   `operation.TestMarker_AUseOfATypeTheRegistryLacksMarksNothing`,
   `lowering.TestPageStatementOf_ReadsAnExpressionOrAMark`,
-  `lowering.TestPageStatementOf_ReportsWhatStatesNoValueOfAWalk`
+  `lowering.TestPageStatementOf_ReportsWhatStatesNoValueOfAWalk`,
+  `pagination.TestInferWalks_LeavesWhatAnExtensionSpeaksOf`
 - Status: partly built: an operation's `true` that a convention reads as the walk the document's
   root states is reported, not read (#1876).
 
 ### `pagination-policy`
 
-Pagination is set only by an injectable policy, and what it sets is marked `Inferred` (invariant 6):
-the compiler reads no pagination out of a document's parameter or response names by itself. A
-pagination an extension declares is the document's own statement of the walk, so a policy inferring
-one reads no operation holding one, nor one whose extensions speak of one without filling it, by the
-precedence [`policies`](#policies) gives, the extensions speaking where
-[`extension-pagination`](#extension-pagination) says.
+OpenAPI has no keyword for pagination, so where no extension speaks of an operation's walk, the
+operation states it only by the names it uses, which the pagination-inference policy,
+`Options.PaginationInference` and the text option `pagination-inference` ([`policies`](#policies)),
+reads. It reads each operation the client sends, a webhook or a callback being one it receives, once
+the registry is whole, and yields as [`policies`](#policies) orders every inference: an operation
+holding a `Pagination`, or one whose extensions speak of a pagination where
+[`extension-pagination`](#extension-pagination) reads them, is neither read nor reported, as the
+document has answered for it. Under a promotion policy mapping no pagination target,
+`extension-promotion=false` among them, no key is read, so no extension speaks and the policy reads
+every operation. A walk sends its operation again for each page, so it settles one only for a `GET`
+or a `QUERY`, the methods asking for no change on the server: a `POST` taking its path item's page
+parameters, as one creating a resource does, would create it once per page. A name is compared by
+its canonical words (`Naming.Canonical`), so `pageSize` and `page_size` are one name:
 
-- Status: not built: no policy infers pagination yet, so the compiler sets a `Pagination` only
-  where an extension declares one ([`extension-pagination`](#extension-pagination)) (#989).
+1. **Where a walk continues** is a query parameter named `page` or `page_number`, under the `page`
+   strategy; `offset`, under `offset`; `cursor`, under `cursor`; or `page_token`, `next_token` or
+   `continuation_token`, under `token`. It is `InputCursor`, and a query parameter named `per_page`,
+   `page_size` or `limit` beside it is `InputLimit`. Each is a value a walk sends or counts with:
+   its type, read through alias scalars, is a plain number of any kind or a plain string, the text a
+   number is sent as, and not an enum, a constant or an encoded string, whatever values it holds. A
+   `page` sent as a string is read only where its default or an example is a whole number, as some
+   APIs name an opaque page token `page` too. A name such as `after`, `marker` or `starting_after`,
+   which names a cursor in one API and a filter or an ID in another, is not read.
+2. **A page** is the body of each content of each success response, the `Default` aside, and each
+   must hold what the walk reads at the same members, as a pager reads whichever arrives. One with
+   no body, such as a `204` or a `304`, holds none and is not read, as a pager ends at it as at an
+   empty page ([other responses](../emitters/plan/responses.md#other-responses)), and a content that
+   streams ([payloads](../ir/payloads.md#a-content-that-streams)) is a sequence of frames and no
+   page, so it is not read either. A path starts at
+   the body whole. A list body holds the items whole, an `Items` with no segment, and no next
+   cursor. A model's members are read across its composition (`ir.FlattenedProperties`), each
+   as the declaration the flattening takes, which is the type a page decodes it as, and its items
+   are the one list member named `result`, `results`, `data`, `items`, `records`, `entries` or
+   `values`; where no list is so named, the one list the one model member so named holds; else the
+   body's one list.
+3. **The next cursor** of a `cursor` or a `token` walk is `NextCursor`: the one member of the body,
+   or of a model a member of it holds, of the cursor's own primitive, named as the cursor with
+   `next` before it, or, where no member is so named, as the cursor itself, since a page naming
+   both echoes the cursor it was sent beside the next. Such a walk lists `no_next` in `Stop`, as an
+   empty next cursor names no page; a walk under `page` or `offset` lists none, a page holding no
+   items ending it whatever `Stop` lists
+   ([pagination](../emitters/operations/pagination.md#where-a-page-walk-ends)). A boolean beside the
+   next cursor, in the model holding it, such as `has_more` or `is_truncated`, says whether another
+   page follows, which no `PageStop` states, and a page may keep handing back a cursor past its
+   last, so such a walk is not settled.
+4. **The totals** are `TotalCount`, the one member named `total_count`, and `TotalPages`, the one
+   named `total_pages`, each of a type a walk counts with, in the body or in a model a member of it
+   holds. A page naming none or several states no total, and the field is unset.
+
+What the policy fills is marked as [`policies`](#policies) marks an inference: `Pagination.Inferred`
+is set, and the operation's `Provenance.Inferred` names `pagination-inference`. An operation whose
+query parameters name where a walk continues and that the policy cannot settle gets no `Pagination`,
+never a guess, reported as an info `openapi/undecided-pagination` at the operation's declaration
+naming what stops it: a method other than `GET` and `QUERY`, two parameters naming a continuation or
+a page size, one of a type a walk does not send, a `page` string with no whole number for its
+default or an example, no success response or none with a body, a body that is neither an object nor
+a list, items or a next cursor it names none or several of, a flag beside the next cursor, or bodies
+holding the page at different members. A path item mounted twice is reported once, at the
+declaration both mounts share.
+
+- Cases: `pagination-inferred`
+- Codes: `openapi/undecided-pagination`
+- Tests: `pagination.TestInferWalks_ReadsEachStrategy`,
+  `pagination.TestInferWalks_MarksWhatItFills`,
+  `pagination.TestInferWalks_LeavesWhatItCannotSettle`,
+  `pagination.TestInferWalks_ReadsEveryResponse`,
+  `pagination.TestInferWalks_LeavesAnOperationNamingNoWalk`,
+  `pagination.TestInferWalks_ReadsOnlyAMethodSafeToSendAgain`,
+  `pagination.TestInferWalks_KeepsAPaginationTheOperationHolds`,
+  `pagination.TestInferWalks_LeavesWhatAnExtensionSpeaksOf`,
+  `pagination.TestInferWalks_ReadsTheSameInEitherOrder`,
+  `pagination.TestInferWalks_ReportsTheSameWhateverTheResponseOrder`,
+  `pagination.TestInferWalks_ReadsAMountedDeclarationForEachMount`,
+  `pagination.TestResolve_ReadsAtMostTheBound`,
+  `lowering.TestOperations_ReadsEveryGroupToTheCap`,
+  `lowering.TestPaginationInference_TheZeroValueHonoursThePolicy`,
+  `openapi.TestDecodeOptions_TextReachesEveryField`
+- Status: partly built: an input a request body or a parameter's members carry is not read (#1815),
+  nor a next link, a `Link` header or a continuation a response header carries (#1816), nor a flag
+  a page states where its walk ends (#1827).
 
 ## 16. Swagger 2.0
 

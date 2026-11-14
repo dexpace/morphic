@@ -351,6 +351,13 @@ var rules = map[string][]string{
 	"compilers/openapi/internal/convention": {module + "/ir",
 		module + "/compilers/openapi/internal/diag",
 		module + "/compilers/openapi/internal/lowering"},
+	// The pagination the names an operation uses say, read once the document
+	// is whole. It reaches lowering for the policy and the walk over a
+	// service's operations, and nothing of the walks: it reads the operations
+	// and the registry they built.
+	"compilers/openapi/internal/pagination": {module + "/ir",
+		module + "/compilers/openapi/internal/diag",
+		module + "/compilers/openapi/internal/lowering"},
 	// The servers a document declares, whichever object declares them, and the
 	// registry they are lowered into. It is its own package for the reason auth
 	// is: the service walk lowers the document's own list and the operation walk

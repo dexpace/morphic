@@ -92,6 +92,7 @@ type Ctx struct {
 	SecretInference        SecretInference
 	HTTPDateInference      HTTPDateInference
 	ReplacementInference   ReplacementInference
+	PaginationInference    PaginationInference
 
 	// foreign marks a lowering of content another document holds, read in that
 	// document's scope, and holder is the path the resolver read it by (see
@@ -197,6 +198,7 @@ type Policy struct {
 	SecretInference        SecretInference
 	HTTPDateInference      HTTPDateInference
 	ReplacementInference   ReplacementInference
+	PaginationInference    PaginationInference
 	TitleNames             TitleNames
 }
 
@@ -226,6 +228,7 @@ func New(srcIndex int, doc *load.Document, p Policy) Ctx {
 		SecretInference:        p.SecretInference,
 		HTTPDateInference:      p.HTTPDateInference,
 		ReplacementInference:   p.ReplacementInference,
+		PaginationInference:    p.PaginationInference,
 		overlay:                doc.Overlay,
 
 		loaded: &loadResult{siblings: doc.Siblings, media: doc.MediaTypes, others: doc.Others, rows: doc.Rows,
