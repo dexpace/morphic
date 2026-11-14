@@ -107,7 +107,7 @@ func WalkAllocs(tb testing.TB, doc *ir.Document) float64 {
 func PropIDRefs(tb testing.TB, doc *ir.Document) func() []ir.Diagnostic {
 	tb.Helper()
 	w := walkedFor(tb, doc)
-	return func() []ir.Diagnostic { return checkPropIDRefs(w.props, w.refs) }
+	return func() []ir.Diagnostic { return checkPropIDRefs(w.props, w.refs, w.truncated) }
 }
 
 // UnionReads is how many unions pass.ConstUnions reads in doc, as it reads

@@ -67,7 +67,7 @@ func NewIDReferences(doc *Document) *IDReferences {
 		r.labels[reg.class] = reg.label
 		r.keyed[reg.class] = registryKeys(doc, reg.index)
 	}
-	for class := range idClasses() {
+	for class := range idClasses {
 		if _, keyed := r.keyed[class]; keyed || class == propIDType {
 			continue
 		}

@@ -180,33 +180,37 @@ func checkPlanted(t *testing.T, base *decls.Package, planted, src string) *decls
 
 // optionalInterfaces are the interfaces a walk tests a value it holds for,
 // rather than requiring: a type meant to be one that loses a method still
-// compiles, and the walk stops calling it. So every type implementing one,
-// exported or not, asserts it (departures.md#optional-interface-converted).
+// compiles, and the walk stops calling it. So every type the package declares
+// implementing one, exported or not, generic or not, asserts it
+// (departures.md#optional-interface-converted). A type declared inside a
+// function, or an unnamed struct embedding two types, is not seen: no
+// package-level var can name it.
 var optionalInterfaces = []string{"ir.CycleVisitor"}
 
 // missingAssertions returns a line for each type p declares that implements an
 // exported interface p or a package p imports declares in the module, with no
 // var in p asserting it, sorted, and how many such pairs it found: every pair
-// of an exported type, and an unexported type's with an optional interface. An
-// interface elsewhere is left out, as p could not assert it without a new
-// import, and so is a generic type or interface, as only an instantiation of
-// one implements anything.
+// of an exported type that is not generic, and any type's with an optional
+// interface, a generic one read as instantiated with its own type parameters.
+// An interface elsewhere is left out, as p could not assert it without a new
+// import, and so is a generic interface.
 func missingAssertions(p *decls.Package, root string) ([]string, int) {
 	ifaces := moduleInterfaces(p)
 	asserted := assertedInterfaces(p)
 	var violations []string
 	var pairs int
 	for tn := range p.Objects[*types.TypeName]() {
-		if tn.IsAlias() || isGeneric(tn) {
+		if tn.IsAlias() {
 			continue
 		}
 		for _, iface := range ifaces {
-			if !tn.Exported() && !slices.Contains(optionalInterfaces, qualified(iface.decl)) {
+			optional := slices.Contains(optionalInterfaces, qualified(iface.decl))
+			if !optional && (!tn.Exported() || isGeneric(tn)) {
 				continue
 			}
 			// *T's method set holds T's, so this covers both receivers, and a
 			// pointer to an interface has no methods, so no interface is held.
-			if !types.Implements(types.NewPointer(tn.Type()), iface.methods) {
+			if !types.Implements(types.NewPointer(asInstance(tn)), iface.methods) {
 				continue
 			}
 			pairs++
@@ -331,6 +335,25 @@ func typeName(t types.Type) (*types.TypeName, bool) {
 		return nil, false
 	}
 	return named.Obj(), true
+}
+
+// asInstance returns tn's type, a generic one instantiated with its own type
+// parameters, which is what its methods' receivers name, since what an
+// uninstantiated generic type implements is unspecified.
+func asInstance(tn *types.TypeName) types.Type {
+	named, ok := tn.Type().(*types.Named)
+	if !ok || named.TypeParams().Len() == 0 {
+		return tn.Type()
+	}
+	args := make([]types.Type, named.TypeParams().Len())
+	for i := range args {
+		args[i] = named.TypeParams().At(i)
+	}
+	instance, err := types.Instantiate(nil, named, args, false)
+	if err != nil {
+		return tn.Type()
+	}
+	return instance
 }
 
 // isGeneric reports whether tn declares type parameters.
