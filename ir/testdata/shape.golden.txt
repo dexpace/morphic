@@ -552,6 +552,7 @@ type OperationLink struct
 
 type PageStop string
 	const "empty"
+	const "no_more"
 	const "no_next"
 	const "short"
 	const "total"
@@ -566,6 +567,7 @@ type PageStrategy string
 
 type Pagination struct
 	"firstLink" *PropPath omitzero
+	"hasMore" *PropPath omitzero
 	"inferred" bool
 	"inputCursor" *InputPath omitzero
 	"inputLimit" *InputPath omitzero

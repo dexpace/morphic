@@ -568,13 +568,14 @@ func TestPagination_JSONContract(t *testing.T) {
 		InputLimit:  &ir.InputPath{Param: new(ir.ParamID("param/x/limit"))},
 		Items:       &ir.PropPath{Segments: []ir.PropID{"p/items"}},
 		NextCursor:  &ir.PropPath{Segments: []ir.PropID{"p/nextCursor"}},
+		HasMore:     &ir.PropPath{Segments: []ir.PropID{"p/hasMore"}},
 		NextLink:    &ir.PropPath{Segments: []ir.PropID{"p/nextLink"}},
 		PrevLink:    &ir.PropPath{Segments: []ir.PropID{"p/prevLink"}},
 		FirstLink:   &ir.PropPath{Segments: []ir.PropID{"p/firstLink"}},
 		LastLink:    &ir.PropPath{Segments: []ir.PropID{"p/lastLink"}},
 		TotalCount:  &ir.PropPath{Segments: []ir.PropID{"p/totalCount"}},
 		TotalPages:  &ir.PropPath{Segments: []ir.PropID{"p/totalPages"}},
-		Stop:        []ir.PageStop{ir.PageStopNoNext, ir.PageStopShort},
+		Stop:        []ir.PageStop{ir.PageStopNoNext, ir.PageStopShort, ir.PageStopNoMore},
 	})
 }
 
