@@ -11,6 +11,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
+	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -479,4 +481,79 @@ func assertYAMLIntegerBases(t *testing.T, doc *ir.Document, m *ir.Model) {
 	require.True(t, ok)
 	require.NotNil(t, loose.Default)
 	assert.Equal(t, ir.BigVal("9"), loose.Default.Num)
+}
+
+// assertReferenceBounds pins that a bound written beside a schema that names
+// another is read by the types the position admits: held where the named type
+// takes it, and kept verbatim with one report where it does not. Failure's
+// positions each keep what their named type cannot take, and `taken` and
+// `open` are the controls that hold theirs.
+func assertReferenceBounds(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
+	const failure = "/components/schemas/Failure/properties/"
+	reported := []string{
+		failure + "refined", failure + "site", failure + "nullable", failure + "voiced/allOf/1",
+		failure + "chained", failure + "inline", failure + "composed", failure + "counted",
+		"/components/schemas/Aliased",
+		"/paths/~1names~1{name}/get/parameters/0/schema", "/paths/~1names~1{name}/get/parameters/1/schema",
+		"/paths/~1names~1{name}/get/responses/200/headers/X-Tags/schema",
+	}
+	got := make([]string, 0, len(diags))
+	for _, d := range diags {
+		assert.Equal(t, diag.DegradedConstruct, d.Code, "%+v", d)
+		assert.Equal(t, ir.SeverityInfo, d.Severity, "%+v", d)
+		got = append(got, string(d.Provenance.Pointer))
+	}
+	assert.ElementsMatch(t, reported, got)
+
+	holder, ok := doc.Types[componentID("Failure")].(*ir.Model)
+	require.True(t, ok)
+	for wire, key := range map[string]string{
+		"refined": "openapi:minLength", "site": "openapi:minLength", "nullable": "openapi:minLength",
+		"voiced": "openapi:allOf/1", "chained": "openapi:minLength", "inline": "openapi:minLength",
+		"counted": "openapi:minItems",
+	} {
+		p, found := propByWire(holder, wire)
+		require.True(t, found, wire)
+		assert.Nil(t, p.Constraints, wire)
+		assert.Equal(t, ir.ReasonDegradedLowering, unmodeledEntry(t, p.Unmodeled, key).Reason, wire)
+	}
+
+	composed, found := propByWire(holder, "composed")
+	require.True(t, found)
+	minProps := &ir.Constraints{MinProps: new(int64(2))}
+	assert.Equal(t, minProps, composed.Constraints)
+	model, ok := doc.Types[composed.Type.Target].(*ir.Model)
+	require.True(t, ok, "%T", doc.Types[composed.Type.Target])
+	assert.Equal(t, minProps, model.Constraints)
+	assert.Contains(t, model.Unmodeled, "openapi:minLength")
+
+	taken, found := propByWire(holder, "taken")
+	require.True(t, found)
+	assert.Equal(t, &ir.Constraints{MinLength: new(int64(1))}, taken.Constraints)
+	assert.Empty(t, taken.Unmodeled)
+	open, found := propByWire(holder, "open")
+	require.True(t, found)
+	assert.Equal(t, &ir.Constraints{Min: new(ir.BigVal("2")), MinLength: new(int64(1))}, open.Constraints)
+	assert.Empty(t, open.Unmodeled)
+
+	aliased, ok := doc.Types[componentID("Aliased")].(*ir.Scalar)
+	require.True(t, ok)
+	assert.Nil(t, aliased.Constraints)
+	assert.Contains(t, aliased.Unmodeled, "openapi:minimum")
+
+	op, found := opByName(doc, "getName")
+	require.True(t, found)
+	name, found := openapitest.ParamBySource(op, "name")
+	require.True(t, found)
+	assert.Equal(t, &ir.Constraints{MinLength: new(int64(2))}, name.Constraints)
+	assert.Contains(t, name.Unmodeled, "openapi:minimum")
+	tags, found := openapitest.ParamBySource(op, "tags")
+	require.True(t, found)
+	assert.Equal(t, &ir.Constraints{MaxItems: new(int64(3))}, tags.Constraints)
+	assert.Contains(t, tags.Unmodeled, "openapi:maxLength")
+	require.Len(t, op.Responses, 1)
+	header, found := headerByWire(op.Responses[0].Headers, "X-Tags")
+	require.True(t, found)
+	assert.Nil(t, header.Constraints)
+	assert.Contains(t, header.Unmodeled, "openapi:pattern")
 }

@@ -334,15 +334,28 @@ func unhomedAcross(s *oas3.Schema, nodes []ir.TypeDef, handled []string) []strin
 	return out
 }
 
-// referenceUnhomed is unhomedKeywords for a position lowered to a reference
-// (keywordHome's nil td), with the value bounds its alias or carrier does not
-// read, those no type the position declares takes (untakenBounds): it reads the
-// position's own types and never its target's.
-func referenceUnhomed(s *oas3.Schema, handled []string) []string {
-	return append(unhomedKeywords(s, nil, handled), untakenBounds(s, declaredInstanceTypes(s))...)
+// referenceUnhomed is unhomedKeywords for a position s, written at pointer,
+// lowered to a reference (keywordHome's nil td), with the bounds its alias or
+// carrier does not read: those no type the position admits takes
+// (positionTypes), and the collection bounds it would have held where those
+// admit no array (referenceConstraintsOf). The census keywords stay in
+// censusKeywords order, which is alphabetical.
+func referenceUnhomed(c lowering.Ctx, s *oas3.Schema, pointer jsontext.Pointer, handled []string) []string {
+	takes := positionTypes(c, s, pointer)
+	unhomed := unhomedKeywords(s, nil, handled)
+	if takes&kindArray == 0 {
+		for _, keyword := range collectionBoundKeywords {
+			if referenceHolds(s, keyword) && !slices.Contains(handled, keyword) {
+				unhomed = append(unhomed, keyword)
+			}
+		}
+		slices.Sort(unhomed)
+	}
+	return append(unhomed, untakenBounds(s, takes)...)
 }
 
-// refSiteUnhomedKeywords is referenceUnhomed for a $ref site, plus allOf.
+// refSiteUnhomedKeywords is referenceUnhomed for a $ref site s, written at
+// pointer, plus allOf.
 // handled passes through so an allOf branch spelled as a $ref still routes its
 // own `required` to requireMembers.
 //
@@ -354,8 +367,8 @@ func referenceUnhomed(s *oas3.Schema, handled []string) []string {
 //
 // oneOf/anyOf stay out: callers check declaresUnion and call the union keepers
 // directly (GitHub #406).
-func refSiteUnhomedKeywords(s *oas3.Schema, handled []string) []string {
-	unhomed := referenceUnhomed(s, handled)
+func refSiteUnhomedKeywords(c lowering.Ctx, s *oas3.Schema, pointer jsontext.Pointer, handled []string) []string {
+	unhomed := referenceUnhomed(c, s, pointer, handled)
 	if len(s.GetAllOf()) > 0 {
 		unhomed = append(unhomed, "allOf")
 	}
@@ -369,6 +382,16 @@ const (
 	expandedShape  = "a reference to the type its $dynamicRef expands to"
 )
 
+// expandedShapeOf is what s, written as a dynamic reference that expanded,
+// lowered to, naming the keyword it expanded through: a $dynamicRef wherever s
+// writes one, as dynamicRefOf reads it, else its $recursiveRef.
+func expandedShapeOf(s *oas3.Schema) string {
+	if annotation.RawPropertyNode(s, "$dynamicRef") != nil {
+		return expandedShape
+	}
+	return "a reference to the type its $recursiveRef expands to"
+}
+
 // referenceOutcomeKeywords returns the census keywords s writes when it lowers
 // to a reference to a node that is not its own, and what it lowered to: a
 // collapsed union (lowerOneOfAnyOf), or an expanded $dynamicRef, which a
@@ -378,7 +401,7 @@ const (
 // Those two write few: neither expands or collapses beside a shape (GitHub #595).
 func referenceOutcomeKeywords(c lowering.Ctx, s *oas3.Schema, pointer jsontext.Pointer) ([]string, string) {
 	if _, _, expanded := dynamicExpansion(c, s, pointer); expanded {
-		return referenceUnhomed(s, nil), expandedShape
+		return referenceUnhomed(c, s, pointer, nil), expandedShapeOf(s)
 	}
 	if hasUnionSiblings(c, s) {
 		return nil, ""
@@ -386,7 +409,7 @@ func referenceOutcomeKeywords(c lowering.Ctx, s *oas3.Schema, pointer jsontext.P
 	if _, _, collapses := nullUnionCollapse(c, s, ""); !collapses {
 		return nil, ""
 	}
-	return referenceUnhomed(s, branchesSay(c, s)), collapsedShape
+	return referenceUnhomed(c, s, pointer, branchesSay(c, s)), collapsedShape
 }
 
 // preserveUnhomedKeywords keeps verbatim the census keywords and value
@@ -410,14 +433,14 @@ func preserveUnhomedKeywords(c lowering.Ctx, ts *compile.Types, s *oas3.Schema, 
 	unhomed := unhomedKeywords(s, td, slices.Concat(d.skipped, d.said))
 	switch {
 	case owns != id:
-		// The alias hoisted over a shared node reads the bounds the declared types
-		// take, and only those.
-		unhomed = append(unhomed, untakenBounds(s, declaredInstanceTypes(s))...)
+		// The alias hoisted over a shared node reads the bounds the types the
+		// position admits take, and only those.
+		unhomed = append(unhomed, untakenBounds(s, positionTypes(c, s, pointer))...)
 	case !carriesNumberAsText(td):
 		// No alias will be hoisted over a node the position already owns, so a
 		// bound it did not read reaches no Constraints field anywhere. One carrying
 		// a number as text kept every bound itself (textBounds).
-		unhomed = append(unhomed, unreadBounds(s, []ir.TypeDef{td}, declaredInstanceTypes(s))...)
+		unhomed = append(unhomed, unreadBounds(s, []ir.TypeDef{td}, positionTypes(c, s, pointer))...)
 	}
 	if len(unhomed) == 0 && len(d.skipped) == 0 {
 		return id, diags
@@ -534,7 +557,7 @@ func preserveVariantsUnhomed(c lowering.Ctx, ts *compile.Types, s *oas3.Schema, 
 			nodes = append(nodes, node)
 		}
 	}
-	unhomed := append(unhomedAcross(s, nodes, handled), unreadBounds(s, nodes, declaredInstanceTypes(s))...)
+	unhomed := append(unhomedAcross(s, nodes, handled), unreadBounds(s, nodes, positionTypes(c, s, pointer))...)
 	return append(diags, recordUnhomedKeywords(c, ts, id, s, unhomed, shape, pointer)...)
 }
 

@@ -242,9 +242,10 @@ func TestCollapsedUnion_KeepsItsDiscriminatorAtEveryPosition(t *testing.T) {
 
 // TestCollapsedUnion_KeepsEveryCensusKeywordItCannotHold pins that the collapse
 // takes the whole census a $ref site takes, not a discriminator rule: a format
-// is no more at home on a nullable reference, while a collection bound and a
-// null type, which the alias's Constraints and the reference's Nullable bit
-// carry, are, so the alias keeps nothing for either.
+// is no more at home on a nullable reference, nor is a collection bound beside
+// a reference to an object, which no array bound reads, while a null type,
+// which the reference's Nullable bit carries, is, so the alias keeps nothing
+// for it.
 func TestCollapsedUnion_KeepsEveryCensusKeywordItCannotHold(t *testing.T) {
 	t.Parallel()
 	spec := openapitest.ComponentSpec(`    Cat: {type: object, properties: {kind: {type: string}}}
@@ -256,10 +257,10 @@ func TestCollapsedUnion_KeepsEveryCensusKeywordItCannotHold(t *testing.T) {
 
 	bounded, ok := typeByName(doc, "Bounded").(*ir.Scalar)
 	require.True(t, ok)
-	assert.Equal(t, []string{"openapi:format"}, slices.Sorted(maps.Keys(bounded.Unmodeled)))
-	assert.Equal(t, &ir.Constraints{MaxItems: new(int64(2))}, bounded.Constraints)
-	assert.Contains(t, openapitest.DiagMessageAt(t, diags, diag.DegradedConstruct, ir.SeverityInfo,
-		"/components/schemas/Bounded"), "no home for format declared")
+	assert.Equal(t, []string{"openapi:format", "openapi:maxItems"}, slices.Sorted(maps.Keys(bounded.Unmodeled)))
+	assert.Nil(t, bounded.Constraints)
+	assert.Regexp(t, "no home for format, maxItems declared", openapitest.DiagMessageAt(t, diags, diag.DegradedConstruct,
+		ir.SeverityInfo, "/components/schemas/Bounded"))
 
 	assert.Empty(t, typeByName(doc, "NullTyped").Common().Unmodeled)
 	assert.False(t, openapitest.HasDiagCodeAt(diags, diag.DegradedConstruct, "/components/schemas/NullTyped"))
