@@ -144,21 +144,61 @@ func TestCompile_ASecurityRequirementURIThatLandsNowhereIsUnresolved(t *testing.
 	assert.Equal(t, sharedScheme, schemeOf(t, doc, "mountedOwn"))
 }
 
-// TestCompile_ASecurityRequirementURIOfAnUnreadDocumentIsUnresolved pins the
-// same requirements where external documents are not read: the two that name
-// one are reported unresolved, each with the scheme of its own, and the two
-// documents' requirements share none.
+// TestCompile_ASecurityRequirementURIOfAnUnreadDocumentIsUnresolved pins keys
+// naming a scheme in a file outside the entry's directory, which a compile
+// reads only where external references are allowed: the entry's own key, and
+// one in a path item it mounts from a file beside it. Without the option the
+// two are reported unresolved, each with a scheme of its own, as two
+// documents' keys share none, both named by the key; with it both name the one
+// scheme there.
 func TestCompile_ASecurityRequirementURIOfAnUnreadDocumentIsUnresolved(t *testing.T) {
 	t.Parallel()
-	doc, diags := compileRequirements(t, requirementEntry, requirementSchemes, false)
+	const shared = `"../schemes.yaml#/components/securitySchemes/shared"`
+	dir := t.TempDir()
+	layout(t, dir, map[string]string{
+		"schemes.yaml": requirementSchemes,
+		"sub/mounted.yaml": `openapi: 3.2.0
+info: {title: M, version: "1"}
+paths: {}
+components:
+  pathItems:
+    Mounted:
+      get:
+        operationId: mountedOwn
+        security: [{` + shared + `: []}]
+        responses: {"200": {description: ok}}
+`,
+	})
+	entry := `openapi: 3.2.0
+info: {title: T, version: "1"}
+paths:
+  /otherDocument:
+    get:
+      operationId: otherDocument
+      security: [{` + shared + `: []}]
+      responses: {"200": {description: ok}}
+  /mounted: {$ref: 'mounted.yaml#/components/pathItems/Mounted'}
+`
+	src := compilers.Source{Path: filepath.Join(dir, "sub", "entry.yaml"), Data: []byte(entry)}
 
-	for _, pointer := range []string{"/paths/~1otherDocument/get/security/0"} {
-		assert.Contains(t, findingsAt(diags), "error "+diag.UnresolvedSecurityScheme+" "+pointer)
-	}
+	doc, diags := compileVerified(t, src, openapi.Options{})
+	require.NotNil(t, doc)
+	assert.Equal(t, []string{
+		"error openapi/unresolved-security-scheme /components/pathItems/Mounted/get/security/0",
+		"error openapi/unresolved-security-scheme /paths/~1otherDocument/get/security/0",
+		"warning pass/name-collision ",
+	}, findingsAt(diags), "the two schemes take the key they are named by, so their names are shared")
 	other, mounted := schemeOf(t, doc, "otherDocument"), schemeOf(t, doc, "mountedOwn")
 	assert.NotEqual(t, other, mounted, "two documents' keys are two schemes")
 	assert.Equal(t, ir.AuthKindUnresolved, doc.Auth[other].Kind)
 	assert.Equal(t, ir.AuthKindUnresolved, doc.Auth[mounted].Kind)
+
+	doc, diags = compileVerified(t, src, openapi.Options{AllowExternalRefs: true})
+	require.NotNil(t, doc)
+	assert.Empty(t, findingsAt(diags), "the same keys, the file read")
+	read := ir.AuthID("auth/openapi@..~1schemes.yaml/components/securitySchemes/shared")
+	assert.Equal(t, read, schemeOf(t, doc, "otherDocument"))
+	assert.Equal(t, read, schemeOf(t, doc, "mountedOwn"))
 }
 
 // TestCompile_TheSameUnresolvedKeyInTwoDocumentsIsTwoSchemes pins that a key
