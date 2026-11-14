@@ -18,7 +18,7 @@ busy machine measures the machine.
 | a stage after the compile is cheap | a throwaway program over a saved document, less a run that only decodes (`references/finding-cost.md#cost-of-a-later-stage`) |
 | no cost on the common path | the same on a spec of the old shape small enough to hold uncollected, the golden spec only for a large effect (`.claude/skills/morphic-reviewing-prs/references/performance.md#price-common-path`) |
 | linear in the input | count steps through a budget (`references/cost-tests.md#count-work-not-wall-clock`) at n, 2n and 4n and assert the marginal growth (`references/cost-tests.md#marginal-growth-on-one-path`) |
-| allocation-free | `testing.AllocsPerRun` under `-race -covermode=atomic`, the fewest of single runs (`references/cost-tests.md#count-in-the-gates-build`); a map reused to get there, timed on one huge collection before many small ones (`references/finding-cost.md#clear-never-shrinks`) |
+| allocation-free | `testing.AllocsPerRun` under `-covermode=atomic` and under `-race`, the fewest of single runs (`references/cost-tests.md#count-in-the-gates-build`); a map reused to get there, timed on one huge collection before many small ones (`references/finding-cost.md#clear-never-shrinks`) |
 | an optimization holds | a counting seam the test reads, since an optimization changes no output (`references/cost-tests.md#counting-seam-for-optimizations`) |
 | bounded on any input | generated shapes, deep and wide, on both builds (`references/finding-cost.md#deep-generated-shapes`), each dimension a nested loop iterates grown alone (`references/finding-cost.md#grow-each-dimension-alone`) |
 | a cost weighed, or claimed absent | an input where it can occur (`references/finding-cost.md#cost-measured-where-it-occurs`) |

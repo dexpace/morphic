@@ -6,15 +6,12 @@
 # then a step that calls it to one of the jobs.
 #
 #   make            the whole gate, one check at a time
-#   make coverage   the suite once, under -race, at exactly 100% coverage
-#   make coverage RACE=   the same without -race, as a pull request's run does
+#   make coverage   the suite once, at exactly 100% coverage
+#   make race       the suite under the race detector, as the nightly job runs it
 #   make bench      benchmark timings (the gate only smoke-runs them)
 #   make fuzz FUZZTIME=5m    a longer search than the gate's
 
 GO ?= go
-
-# The race detector's flag for `make coverage`; see that target.
-RACE ?= -race
 
 # The Go toolchain the gate runs on, read from go.mod so the pin has one
 # definition and no copy — the same discipline GOLANGCI_LINT_VERSION gets below,
@@ -80,7 +77,7 @@ FUZZTIME ?= 5s
 # `go test ./...` over the same tree. CI runs them on two machines instead.
 .NOTPARALLEL:
 
-.PHONY: gate fmt vet lint lint-planted check-lint-version build coverage \
+.PHONY: gate fmt vet lint lint-planted check-lint-version build coverage race \
 	fuzz bench bench-smoke print-lint-version print-go-version
 
 gate: fmt vet lint lint-planted build coverage fuzz bench-smoke
@@ -123,16 +120,9 @@ check-lint-version:
 build:
 	$(GO) build ./...
 
-# The suite runs once, under the race detector, and cmd/morphic-covergate judges
-# its profile statement by statement; its doc says why go test's percentage is
-# not enough. -race rides along rather than taking a run of its own: both want
-# the same execution of the same tests, and the profile is identical either way.
-#
-# RACE is -race unless the caller empties it. CI empties it on pull requests,
-# where the detector is the largest cost of the run, and keeps it on main, so a
-# race a pull request merges is reported there rather than not at all. -race
-# also forces -covermode=atomic, which stays either way so the two runs differ
-# in the detector alone.
+# The suite runs once, and cmd/morphic-covergate judges its profile statement by
+# statement; its doc says why go test's percentage is not enough. The race
+# detector has a run of its own, `make race`.
 #
 # -timeout is explicit so that a test that never returns, as one would if the
 # third-party resolver hung on a document the compiler no longer refuses, ends
@@ -150,8 +140,24 @@ coverage:
 		profile="$$(mktemp "$${TMPDIR:-/tmp}/morphic-cover.XXXXXX")" || exit 1; \
 		trap 'rm -f "$$profile"' EXIT; \
 	fi; \
-	$(GO) test ./... $(RACE) -timeout 300s -covermode=atomic -coverprofile="$$profile" && \
+	$(GO) test ./... -timeout 300s -covermode=atomic -coverprofile="$$profile" && \
 	$(GO) run ./cmd/morphic-covergate "$$profile"
+
+# The suite under the race detector, with no coverage: -race allows only
+# -covermode=atomic, whose counters can hide a race from the detector (#1271).
+# The nightly job runs it and the gate does not, as it is the suite's largest
+# cost. The planted race runs first, with the same flags, and must be reported:
+# a run that lost -race, or gained coverage, would otherwise pass.
+RACE_FLAGS := -race -timeout 300s
+RACE_PLANT := ./internal/leakcheck/testdata/race
+race:
+	@if $(GO) test -count=1 $(RACE_FLAGS) $(RACE_PLANT) 2>&1 | grep -q 'WARNING: DATA RACE'; then \
+		echo "race: the detector reports the race planted in $(RACE_PLANT)"; \
+	else \
+		echo "race: the race planted in $(RACE_PLANT) went unreported" >&2; \
+		exit 1; \
+	fi
+	$(GO) test ./... $(RACE_FLAGS)
 
 fuzz:
 	./scripts/fuzz.sh $(FUZZTIME)

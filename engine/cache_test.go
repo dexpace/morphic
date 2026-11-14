@@ -1058,7 +1058,7 @@ func TestWithCache_ADirectoryServesARun(t *testing.T) {
 	assertSameRun(t, want, got)
 }
 
-// TestWithCache_OverlappingRunsAgree is for the race detector, which the gate
+// TestWithCache_OverlappingRunsAgree is for the race detector, which make race
 // runs over this package: an entry is shared by runs starting and storing at
 // once.
 func TestWithCache_OverlappingRunsAgree(t *testing.T) {
