@@ -123,6 +123,7 @@ func TestValidate_ParamBinding_EachBindingIsJudgedAlone(t *testing.T) {
 	own := ir.HTTPParamBinding{Param: "param/x/op/id/query", Location: ir.HTTPLocationQuery}
 	foreign := ir.HTTPParamBinding{Param: "param/x/other/id/query", Location: ir.HTTPLocationQuery}
 	type report struct {
+		code     string
 		severity ir.Severity
 		message  string
 	}
@@ -131,12 +132,12 @@ func TestValidate_ParamBinding_EachBindingIsJudgedAlone(t *testing.T) {
 		second []ir.HTTPParamBinding
 		want   []report
 	}{
-		{"placing nothing", nil, []report{{ir.SeverityWarning,
+		{"placing nothing", nil, []report{{"pass/param-unbound", ir.SeverityWarning,
 			`parameter "id" on op/bindings/http/1 is not bound to any HTTP location`}}},
 		{"placing it once", []ir.HTTPParamBinding{own}, []report{}},
-		{"placing it twice", []ir.HTTPParamBinding{own, own}, []report{{ir.SeverityError,
+		{"placing it twice", []ir.HTTPParamBinding{own, own}, []report{{"pass/param-binding-mismatch", ir.SeverityError,
 			`parameter "id" is bound more than once in location "query" on op/bindings/http/1`}}},
-		{"placing another operation's parameter", []ir.HTTPParamBinding{own, foreign}, []report{{ir.SeverityError,
+		{"placing another operation's parameter", []ir.HTTPParamBinding{own, foreign}, []report{{"pass/param-binding-mismatch", ir.SeverityError,
 			`binding on op/bindings/http/1 names parameter "param/x/other/id/query", which this operation does not declare`}}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -146,11 +147,12 @@ func TestValidate_ParamBinding_EachBindingIsJudgedAlone(t *testing.T) {
 				ir.HTTPBinding{Method: "POST", URITemplate: "/x", ParamBindings: tc.second})
 			other := paramBindingOp("other", ir.Parameter{ID: foreign.Param, Name: ir.Naming{Source: "id"}})
 
-			found := withCode(validated(t, docWithOperations(op, other)), "pass/param-binding-mismatch")
+			diags := validated(t, docWithOperations(op, other))
+			found := append(withCode(diags, "pass/param-unbound"), withCode(diags, "pass/param-binding-mismatch")...)
 			got := make([]report, 0, len(found))
 			for _, d := range found {
 				assert.Equal(t, "op/bindings/http/1", d.Provenance.Node, d.Message)
-				got = append(got, report{d.Severity, d.Message})
+				got = append(got, report{d.Code, d.Severity, d.Message})
 			}
 			assert.Equal(t, tc.want, got)
 		})

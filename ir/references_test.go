@@ -341,7 +341,6 @@ func TestNewIDReferences_NilDocumentKeysNothing(t *testing.T) {
 	ir.WalkValues(docWithRef("t/x/Holder"), ir.DocumentPath, refs)
 	assert.Equal(t, []string{
 		"doc.Types[t/x/Holder].key=t/x/Holder",
-		"doc.Types[t/x/Holder].ID=t/x/Holder",
 		"doc.Types[t/x/Holder].Properties[0].Type.Target=t/x/Holder",
 	}, spelled(refs.Kept()), "a map a nil document keys holds nothing a reference resolves to")
 }

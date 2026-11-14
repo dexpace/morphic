@@ -31,7 +31,7 @@ func BenchmarkValidate_Petstore(b *testing.B) {
 	var diags []ir.Diagnostic
 	b.ReportAllocs()
 	for b.Loop() {
-		diags = validated(b, doc)
+		diags = validatedOnce(b, doc)
 	}
 
 	// Measure the clean path, and say so: a document Validate rejects would take
@@ -78,7 +78,7 @@ func BenchmarkValidate_Large(b *testing.B) {
 	var diags []ir.Diagnostic
 	b.ReportAllocs()
 	for b.Loop() {
-		diags = validated(b, doc)
+		diags = validatedOnce(b, doc)
 	}
 
 	for _, d := range diags {
@@ -209,7 +209,7 @@ func BenchmarkValidate_GraphQLReachability(b *testing.B) {
 	var diags []ir.Diagnostic
 	b.ReportAllocs()
 	for b.Loop() {
-		diags = validated(b, doc)
+		diags = validatedOnce(b, doc)
 	}
 
 	for _, d := range diags {
@@ -261,7 +261,7 @@ func buildGraphQLDoc(b *testing.B) *ir.Document {
 	}
 	addGraphQLOperations(doc, ids)
 
-	for _, d := range validated(b, doc) {
+	for _, d := range validatedOnce(b, doc) {
 		require.NotEqual(b, ir.SeverityError, d.Severity, "fixture rejected by validate: %+v", d)
 	}
 	return doc

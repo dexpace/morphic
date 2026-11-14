@@ -154,7 +154,7 @@ func jsonPayload(target ir.TypeID) *ir.Payload {
 func TestValidate_ASoundValueCostsNothing(t *testing.T) {
 	const entities = 50
 	few, many := soundDocument(entities), soundDocument(2*entities)
-	require.Empty(t, validated(t, many), "the document is sound, or what is measured is a report")
+	require.Empty(t, validatedOnce(t, many), "the document is sound, or what is measured is a report")
 
 	pair := soundDocument(2) // every kind of value the walk meets
 	require.NotEmpty(t, pass.KeptPropIDs(t, pair), "an item property is kept for its model to settle")

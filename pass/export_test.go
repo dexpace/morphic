@@ -95,6 +95,16 @@ func FamilyAllocs(tb testing.TB, doc *ir.Document) []float64 {
 	return costs
 }
 
+// FamilyFindings returns what family i of the rule families Validate runs, in
+// the order it runs them, reports over doc, taken from one walk of doc and the
+// index it asks, so a test reads one family apart from the others.
+func FamilyFindings(tb testing.TB, doc *ir.Document, i int) []ir.Diagnostic {
+	tb.Helper()
+	run := families(doc, walkedFor(tb, doc), irfacts.New(doc))
+	require.Less(tb, i, len(run), "family %d of %d", i, len(run))
+	return run[i]()
+}
+
 // WalkAllocs returns the allocations the one walk Validate takes of doc makes,
 // as testing.AllocsPerRun counts.
 func WalkAllocs(tb testing.TB, doc *ir.Document) float64 {

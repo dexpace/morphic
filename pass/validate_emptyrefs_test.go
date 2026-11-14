@@ -184,28 +184,21 @@ func TestValidate_AnEmptyReferenceDrawsNoSecondCode(t *testing.T) {
 // error reports the empty ID under the binding's own code.
 func TestValidate_AnEmptiedBindingLeavesItsParameterUnbound(t *testing.T) {
 	t.Parallel()
-	mismatches := func(diags []ir.Diagnostic) []ir.Diagnostic {
-		var out []ir.Diagnostic
-		for _, d := range diags {
-			if d.Code == "pass/param-binding-mismatch" {
-				out = append(out, d)
-			}
-		}
-		return out
-	}
+	unbound := func(diags []ir.Diagnostic) []ir.Diagnostic { return withCode(diags, "pass/param-unbound") }
 	op := paramBindingOp("op/x/o", ir.Parameter{ID: "param/x/o/q", Name: ir.Naming{Source: "q"}})
 	op.Bindings.HTTP[0].ParamBindings[0].Param = ""
 	diags := validated(t, docWithOperation(op))
 
 	assert.Equal(t, []string{scenarioOpPath + ".Bindings.HTTP[0].ParamBindings[0].Param"},
 		nodesOfCode(diags, "ir/empty-param-ref"))
-	got := mismatches(diags)
+	got := unbound(diags)
 	require.Len(t, got, 1)
 	assert.Equal(t, ir.SeverityWarning, got[0].Severity)
+	assert.Empty(t, withCode(diags, "pass/param-binding-mismatch"), "an unplaced parameter is no binding mismatch")
 
-	unbound := paramBindingOp("op/x/o", ir.Parameter{ID: "param/x/o/q", Name: ir.Naming{Source: "q"}})
-	unbound.Bindings.HTTP[0].ParamBindings = nil
-	assert.Equal(t, mismatches(validated(t, docWithOperation(unbound))), got,
+	left := paramBindingOp("op/x/o", ir.Parameter{ID: "param/x/o/q", Name: ir.Naming{Source: "q"}})
+	left.Bindings.HTTP[0].ParamBindings = nil
+	assert.Equal(t, unbound(validated(t, docWithOperation(left))), got,
 		"the warning is the one a binding left out draws")
 }
 

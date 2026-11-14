@@ -46,8 +46,9 @@ func TestVerify_NilDocIsAViolation(t *testing.T) {
 
 func TestVerify_RegistryKeyMismatchIsAViolation(t *testing.T) {
 	doc := validDoc()
-	// Re-key the model under an ID that disagrees with its Common().ID. This also
-	// dangles the model's own self-reference, so both codes are expected.
+	// Re-key the model under an ID that disagrees with its Common().ID. The
+	// model's own ID is its declaration and no reference, so the mismatch is
+	// the one code drawn.
 	m := doc.Types["t/x/Model"]
 	delete(doc.Types, "t/x/Model")
 	doc.Types["t/x/WrongKey"] = m
@@ -55,6 +56,7 @@ func TestVerify_RegistryKeyMismatchIsAViolation(t *testing.T) {
 	got := verifyDeclared(doc)
 	require.NotEmpty(t, got)
 	assert.Contains(t, codesOf(got), "ir/type-id-mismatch")
+	assert.NotContains(t, codesOf(got), "ir/dangling-type-ref")
 }
 
 func TestVerify_SortsSameCodeByPath(t *testing.T) {
@@ -145,14 +147,15 @@ func TestVerify_EmptyAuthIDIsAViolation(t *testing.T) {
 }
 
 func TestVerify_ChannelIDMismatchIsAViolation(t *testing.T) {
-	// Key the channel under an ID that disagrees with its node ID. This also
-	// dangles the channel's own self-reference, so both codes are expected.
+	// Key the channel under an ID that disagrees with its node ID. The node's
+	// own ID is no reference, so the mismatch is the one code drawn.
 	doc := &ir.Document{Channels: map[ir.ChannelID]ir.Channel{
 		"c/x/WrongKey": {ID: "c/x/Ch"},
 	}}
 	got := verifyDeclared(doc)
 	require.NotEmpty(t, got)
 	assert.Contains(t, codesOf(got), "ir/channel-id-mismatch")
+	assert.NotContains(t, codesOf(got), "ir/dangling-channel-ref")
 }
 
 // malformedFindings is a finding breaking each invariant Verify holds a
