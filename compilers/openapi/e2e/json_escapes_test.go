@@ -292,7 +292,7 @@ func TestCompile_ALoneSurrogateIsRefusedWhereItIsWritten(t *testing.T) {
 
 		require.True(t, openapitest.HasDiag(diags, diag.UnresolvedRef), "%+v", diags)
 		d, _ := openapitest.FirstDiag(diags, diag.UnresolvedRef)
-		assert.Contains(t, d.Message, "does not parse as YAML: line 8, column "+columnOf(t, ext, halfEscape)+": "+want)
+		assert.Contains(t, d.Message, "the document it names does not parse: line 8, column "+columnOf(t, ext, halfEscape)+": "+want)
 	})
 	t.Run("in an overlay", func(t *testing.T) {
 		t.Parallel()

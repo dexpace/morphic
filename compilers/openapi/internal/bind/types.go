@@ -366,7 +366,7 @@ func (h Hop) Why() string {
 	case Unreadable:
 		return "the document it names could not be read: " + h.Detail
 	case Unparsable:
-		return "the document it names does not parse as YAML: " + h.Detail
+		return "the document it names does not parse: " + h.Detail
 	case Empty:
 		return "the document it names is empty"
 	case Unpassable:

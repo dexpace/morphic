@@ -103,7 +103,7 @@ type UnparsableError struct {
 }
 
 // Error says the document does not parse, and the parser's reason.
-func (e *UnparsableError) Error() string { return "it does not parse as YAML: " + e.Err.Error() }
+func (e *UnparsableError) Error() string { return "it does not parse: " + e.Err.Error() }
 
 // Unwrap returns the parser's reason.
 func (e *UnparsableError) Unwrap() error { return e.Err }
