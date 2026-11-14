@@ -243,6 +243,11 @@ var (
 	// fixtureY: both branches declare p, the same way.
 	fixtureY = schemas("AB: {allOf: [{type: object, properties: {p: {type: string}, alpha: {type: string}}}, " +
 		"{type: object, properties: {p: {type: string}, beta: {type: integer}}}]}")
+	// fixtureMixins: two named conjuncts, which the model composes as mixins.
+	fixtureMixins = schemas("AB: {allOf: [{$ref: '#/components/schemas/alpha'}, {$ref: '#/components/schemas/beta'}]}",
+		"alpha: {type: object, properties: {x: {type: string}}}", "beta: {type: object, properties: {y: {type: string}}}")
+	// fixtureKept: an allOf the model keeps verbatim, under not.
+	fixtureKept = schemas("AB: {type: object, not: {allOf: [{required: [alpha]}, {required: [beta]}]}}")
 	// fixtureZ: both branches declare p, as an object of their own.
 	fixtureZ = schemas("AB: {allOf: [{type: object, properties: {p: {type: object, properties: {x: {type: string}}}, alpha: {type: string}}}, " +
 		"{type: object, properties: {p: {type: object, properties: {y: {type: string}}}, beta: {type: string}}}]}")
@@ -368,6 +373,55 @@ func TestSequenceOrderInvariant_FindsWhatDiffers(t *testing.T) {
 			contains: []string{"diagnostics depend on sequence order", "x/node"},
 		},
 		{
+			// The mixins compare as a multiset, not as a set.
+			name: "a mixin listed twice in one order",
+			src:  fixtureMixins,
+			edit: func(t *testing.T, reversed bool, doc *ir.Document, diags []ir.Diagnostic) (*ir.Document, []ir.Diagnostic, error) {
+				m, ok := doc.Types[abID].(*ir.Model)
+				require.True(t, ok, "the fixture must lower AB to a model")
+				require.Len(t, m.Mixins, 2, "the fixture must compose two mixins")
+				if reversed {
+					m.Mixins = append(m.Mixins, m.Mixins[0])
+				}
+				return doc, diags, nil
+			},
+			found:    true,
+			contains: []string{"document depends on sequence order"},
+		},
+		{
+			// A kept allOf compares as a multiset of its branches.
+			name: "a branch of a kept allOf listed twice in one order",
+			src:  fixtureKept,
+			edit: func(t *testing.T, reversed bool, doc *ir.Document, diags []ir.Diagnostic) (*ir.Document, []ir.Diagnostic, error) {
+				m, ok := doc.Types[abID].(*ir.Model)
+				require.True(t, ok, "the fixture must lower AB to a model")
+				entry, kept := m.Unmodeled["openapi:not"]
+				require.True(t, kept, "the fixture must keep not verbatim")
+				if reversed {
+					entry.Value = ir.RawValue(`{"allOf":[{"required":["beta"]},{"required":["alpha"]},{"required":["alpha"]}]}`)
+					m.Unmodeled = ir.Unmodeled{"openapi:not": entry}
+				}
+				return doc, diags, nil
+			},
+			found:    true,
+			contains: []string{"document depends on sequence order"},
+		},
+		{
+			// The two reports differ in which member they name, not only in
+			// which branch, so they are no tie.
+			name: "a report moving to another member",
+			src:  fixtureY,
+			edit: func(_ *testing.T, reversed bool, doc *ir.Document, diags []ir.Diagnostic) (*ir.Document, []ir.Diagnostic, error) {
+				at := tie
+				if reversed {
+					at = "/components/schemas/AB/allOf/1/properties/beta"
+				}
+				return doc, append(diags[:len(diags):len(diags)], diagnostic(ir.SeverityWarning, "x/tie", at, "")), nil
+			},
+			found:    true,
+			contains: []string{"diagnostics depend on sequence order", "x/tie"},
+		},
+		{
 			name: "a permuted source compiling to no document",
 			src:  fixtureX,
 			edit: func(_ *testing.T, reversed bool, doc *ir.Document, diags []ir.Diagnostic) (*ir.Document, []ir.Diagnostic, error) {
@@ -407,7 +461,8 @@ func TestSequenceOrderInvariant_FindsWhatDiffers(t *testing.T) {
 // detection rows: each fixture, compiled by the real compiler in both orders,
 // passes, so a finding above is the plant's.
 func TestSequenceOrderInvariant_UnplantedFixturesPass(t *testing.T) {
-	for name, src := range map[string]string{"X": fixtureX, "Y": fixtureY, "Z": fixtureZ} {
+	for name, src := range map[string]string{"X": fixtureX, "Y": fixtureY, "Z": fixtureZ,
+		"mixins": fixtureMixins, "kept": fixtureKept} {
 		t.Run(name, func(t *testing.T) {
 			got := sequenceOrderInvariant(context.Background(), "spec.yaml", []byte(src), true)
 
