@@ -60,6 +60,7 @@ var walkCallers = map[string]walkCaller{
 	"ir/irfacts.document":           {answer: "Index.Partial says the facts read from operations answer for part"},
 	"ir/irfacts.callbackOperations": {answer: "Index.Partial says the facts read from operations answer for part"},
 	"ir/irfacts.seedGroups":         {answer: "Index.Partial says the facts read from operations answer for part"},
+	"ir/irfacts.Partial":            {answer: "returns the stop, for the callers above and for Validate's group check"},
 
 	"ir/irtest.SpacesUsed":        {answer: "returns the stop beside the spaces"},
 	"ir/irtest.AllocatingVisits":  {answer: "lists a stopped walk as a path"},

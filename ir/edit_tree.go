@@ -63,7 +63,7 @@ func (e *Editor) RemoveService(id ServiceID) {
 // next: the read builds the slices in the group a write reached since the last
 // one. It is shared, so it is read and never changed; UpdateGroup changes a
 // copy. An ID the edit holds several groups at holds none, and nor does one
-// nested past MaxGroupDepth.
+// ForEachGroup does not reach.
 func (e *Editor) Group(id GroupID) (OperationGroup, bool) {
 	if n, held := e.indexed().find(groupNode, string(id)); held == 1 {
 		return e.tree.groupOf(n), true
@@ -121,8 +121,8 @@ func (e *Editor) RemoveGroup(id GroupID) {
 
 // Operation returns the operation the edit holds at id. It is shared, so it is
 // read and never changed; UpdateOperation changes a copy. An ID the edit holds
-// several operations at holds none, and nor does one in a group nested past
-// MaxGroupDepth.
+// several operations at holds none, and nor does one ForEachOperation does not
+// reach.
 func (e *Editor) Operation(id OpID) (Operation, bool) {
 	if n, held := e.indexed().find(operationNode, string(id)); held == 1 {
 		return *n.operation, true
@@ -179,7 +179,8 @@ func (e *Editor) nodeAt(verb string, class treeClass, id string) (*treeNode, boo
 		e.refuse("%s rejected: %d %ss have the ID %s, so the edit cannot tell which to %s", verb, held, noun, at, verb)
 	case e.tree.cut:
 		e.refuse("%s rejected: no %s %s to %s; an edit adds no %s, and reaches none in groups nested deeper "+
-			"than %d levels", verb, noun, at, verb, noun, MaxGroupDepth)
+			"than %d levels or past the first %d groups and operations", verb, noun, at, verb, noun,
+			MaxGroupDepth, MaxWalkSteps)
 	default:
 		e.refuse("%s rejected: no %s %s to %s; an edit adds no %s", verb, noun, at, verb, noun)
 	}
@@ -190,7 +191,7 @@ func (e *Editor) nodeAt(verb string, class treeClass, id string) (*treeNode, boo
 // time.
 func (e *Editor) indexed() *serviceTree {
 	if !e.tree.read {
-		e.tree.index(e.out.Services)
+		e.tree.index(e.out.Services, MaxWalkSteps)
 	}
 	return &e.tree
 }

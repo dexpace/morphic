@@ -72,19 +72,17 @@ type CycleVisitor interface {
 	Cycle(at, entered WalkPath, ref reflect.Type)
 }
 
-// WalkValues walks root by reflection, showing every value to each visitor, and
-// reports whether it left any unread. It reads what root's encoding writes: a
-// pointer, slice or map from every holder, cut where it closes a cycle, and at
-// most MaxWalkDepth deep.
+// WalkValues walks root by reflection, showing every value to each visitor. It
+// reads what root's encoding writes: a pointer, slice or map from every holder,
+// cut where it closes a cycle, at most MaxWalkDepth deep.
 //
-// Visitors share one traversal, or one per 64, called in the order given, a nil
-// one skipped; each sees the walk it would see alone, its own pruning and its
-// own limit of MaxWalkValues included. The result is whether any was shown less
+// Visitors share one traversal, or one per 64, called in order, a nil one
+// skipped; each sees the walk it would see alone, its own pruning and its own
+// limit of MaxWalkValues included. The result is whether any was shown less
 // than the whole.
 //
-// Map keys are reached, some being references; entries come in rendered-key
-// order, and byte elements are skipped. Visitors read fields: Interface()
-// panics behind an unexported one.
+// Map keys are reached, some being references, in rendered-key order; bytes
+// are skipped. Interface() panics behind an unexported field: read fields.
 func WalkValues(root any, path string, visitors ...Visitor) bool {
 	return walkValues(nil, MaxWalkValues, root, path, visitors).truncated
 }

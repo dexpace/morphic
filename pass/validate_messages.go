@@ -20,8 +20,7 @@ import (
 // channel forbids. The code keeps the pass/ namespace: this is a containment
 // judgement the pass owns outright, not a broken reference.
 //
-// It enters through ir.ForEachOperation, so it inherits the group-depth bound that
-// checkGroupWalkTruncated reports.
+// It inherits ir.ForEachOperation's bounds, whose stop Validate reports.
 func checkMessageBindings(doc *ir.Document) []ir.Diagnostic {
 	var diags []ir.Diagnostic
 	var carried reuse.Map[ir.MessageID, bool]

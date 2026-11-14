@@ -54,7 +54,8 @@ func named(kind string, n ir.Naming) string {
 
 // seedGroups offers each group's key, its ID, which a rule mints from a name
 // and never from a position, and returns the operations the groups hold, each
-// once, in declaration order. It walks the groups ir.ForEachGroup reaches.
+// once, in declaration order. It walks the groups ir.ForEachGroup reaches, and
+// Index.Partial says when that is not all of them.
 func (c *correlator) seedGroups() []*ir.Operation {
 	var ops []*ir.Operation
 	ir.ForEachGroup(c.doc, func(g ir.OperationGroup) {

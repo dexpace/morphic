@@ -47,7 +47,7 @@ func Validate(ctx context.Context, doc *ir.Document) ([]ir.Diagnostic, error) {
 }
 
 // walkFunc is how validate walks the document: ir.WalkValuesContext, unless a
-// test is counting the walks.
+// test is counting the walks or cutting one short.
 type walkFunc func(ctx context.Context, root any, path string, visitors ...ir.Visitor) (bool, error)
 
 // validate is Validate walking the document with walk.
@@ -96,7 +96,7 @@ func families(doc *ir.Document, read walked, facts *irfacts.Index) []func() []ir
 		func() []ir.Diagnostic { return checkNilTypes(doc) },
 		func() []ir.Diagnostic { return checkDanglingRefs(read.refs, read.truncated) },
 		func() []ir.Diagnostic { return checkEmptyRefs(read.empty) },
-		func() []ir.Diagnostic { return checkGroupWalkTruncated(doc) },
+		func() []ir.Diagnostic { return checkGroupWalkTruncated(facts, read.truncated) },
 		func() []ir.Diagnostic { return checkResponseIndices(doc) },
 		func() []ir.Diagnostic { return checkEncodingKeys(doc, facts) },
 		func() []ir.Diagnostic { return checkPayloadRequired(doc) },

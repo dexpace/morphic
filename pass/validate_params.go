@@ -33,8 +33,8 @@ func checkParams(doc *ir.Document, refs *ir.IDReferences) []ir.Diagnostic {
 // own operation is reported here: one the document declares, another
 // operation's or a field argument's (Property.Args). The dangling walk reports
 // one the document declares nowhere, and checkEmptyRefs an empty one, each
-// once. Past the walk's depth bound none reports it, and ir/walk-truncated
-// says why.
+// once. Past the walk's bounds none reports it, and ir/walk-truncated says
+// why.
 func reportedHere(id ir.ParamID, refs *ir.IDReferences) bool {
 	return id != "" && refs.Declares(paramIDType, string(id))
 }

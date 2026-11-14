@@ -16,9 +16,8 @@ import (
 // [DocRef] or [EntityRef]. A nil or typed-nil td yields nothing.
 //
 // A pointer two fields share is followed from each, as in WalkValues, and a
-// cycle is cut. A value is entered no deeper than [MaxWalkDepth] levels, and
-// past [MaxWalkSteps] values none is: either cut leaves edges unyielded only
-// where the reflection walk is cut too, which pass.Validate reports.
+// cycle is cut. It enters values no deeper than [MaxWalkDepth] and no more than
+// [MaxWalkSteps], so it is cut only where the reflection walk is.
 func TypeEdges(td TypeDef) iter.Seq[TypeID] {
 	return typeEdges(MaxWalkSteps, td)
 }

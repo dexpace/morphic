@@ -18,9 +18,8 @@ import (
 //
 // Keys and values are copied into storage kept per map type and reused by the
 // next map of that type, where reflect.MapIter.Key and Value allocate a copy of
-// each, so copying a map's entries allocates nothing once that storage fits; an
-// integer key is held as its value, so only a key fmt spells costs its label.
-// The zero entryStack is ready to use.
+// each, so copying entries allocates nothing once that storage fits, and only a
+// key fmt spells costs its label. The zero entryStack is ready to use.
 type entryStack struct {
 	entries []mapEntry
 	stores  map[reflect.Type]*entryStore

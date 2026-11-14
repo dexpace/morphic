@@ -131,3 +131,11 @@ func ForEachOperationWithin(limit int, doc *Document, fn func(Operation)) bool {
 func TypeEdgesWithin(limit int, td TypeDef) iter.Seq[TypeID] {
 	return typeEdges(limit, td)
 }
+
+// NewEditorWithin is NewEditor with its service tree read within limit steps,
+// where an edit's own read takes MaxWalkSteps.
+func NewEditorWithin(limit int, doc *Document) *Editor {
+	e := NewEditor(doc)
+	e.tree.index(e.out.Services, limit)
+	return e
+}

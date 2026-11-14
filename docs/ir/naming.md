@@ -249,5 +249,5 @@ Left out, each for its reason:
 - **An operation overloading another** (`OverloadOf`), which no compiler sets yet, is compared like
   any other operation, by its own name: no emitter design says yet how a target presents an
   overload beside its base.
-- **Groups nested past `ir.MaxGroupDepth`**, which `ir.ForEachGroup` does not enter, and which
-  `validate` reports (`ir/walk-truncated`).
+- **Groups nested past `ir.MaxGroupDepth` or past `ir.MaxWalkSteps` groups**, which
+  `ir.ForEachGroup` does not enter, and which `validate` reports (`ir/walk-truncated`).

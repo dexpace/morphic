@@ -44,7 +44,7 @@ const multipartPrefix = "multipart/"
 // scheme name a type. A request is written and a response read, and an
 // operation the API itself starts, a webhook or a callback, swaps the two. A
 // flag spreads along the type graph, and a field argument makes the type it
-// names Input. Operations nested past ir.MaxGroupDepth are not read.
+// names Input. Partial says when operations went unread.
 func (x *Index) Usage(id ir.TypeID) UsageFlags {
 	return x.usageIndex()[id]
 }
