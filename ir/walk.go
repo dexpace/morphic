@@ -21,6 +21,13 @@ var _ Visitor = VisitFunc(nil)
 // silence.
 const MaxWalkDepth = 4096
 
+// MaxWalkValues bounds what a [WalkValues] traversal shows each visitor, so a
+// document whose references unfold far past its own size, a slice or pointer
+// held twice a level, costs at most this much to walk. It is many times what
+// the largest compiled document shows a visitor. A visitor reaching it is shown
+// nothing more, and the walk reports truncation, as at the depth cap.
+const MaxWalkValues = 1 << 27
+
 // MapKeySuffix ends the path of a value reached as a map key rather than as a
 // field or an element, so a caller that treats the two differently can tell
 // them apart.
@@ -65,27 +72,29 @@ type CycleVisitor interface {
 	Cycle(at, entered WalkPath, ref reflect.Type)
 }
 
-// WalkValues walks root by reflection, bounded and cycle-guarded, showing every
-// value to each visitor, and reports whether the depth cap truncated the walk.
+// WalkValues walks root by reflection, showing every value to each visitor, and
+// reports whether it left any unread. It reads what root's encoding writes: a
+// pointer, slice or map from every holder, cut where it closes a cycle, and at
+// most MaxWalkDepth deep.
 //
-// Visitors share one traversal, or one per 64, yet each sees the walk it would
-// see alone, its own pruning and where it first meets a shared pointer included.
-// They are called in the order given; a nil one is skipped.
+// Visitors share one traversal, or one per 64, called in the order given, a nil
+// one skipped; each sees the walk it would see alone, its own pruning and its
+// own limit of MaxWalkValues included. The result is whether any was shown less
+// than the whole.
 //
-// Reflection covers a new IR field at once. Map keys are reached too, since
-// some are references; entries come in rendered-key order, and byte elements
-// are skipped. Interface() panics behind an unexported field, so visitors read
-// fields.
+// Map keys are reached, some being references; entries come in rendered-key
+// order, and byte elements are skipped. Visitors read fields: Interface()
+// panics behind an unexported one.
 func WalkValues(root any, path string, visitors ...Visitor) bool {
-	return walkValues(nil, root, path, visitors).truncated
+	return walkValues(nil, MaxWalkValues, root, path, visitors).truncated
 }
 
 // WalkValuesContext is [WalkValues] stopped once ctx is done. It asks ctx before
 // the first value and every askEvery values after, and once refused shows no
 // visitor another value, in any traversal. A walk it stopped has answered in
-// part, so ctx's error comes back beside whether the depth cap truncated it.
+// part, so ctx's error comes back beside whether a bound truncated it.
 func WalkValuesContext(ctx context.Context, root any, path string, visitors ...Visitor) (bool, error) {
-	out := walkValues(ctx.Err, root, path, visitors)
+	out := walkValues(ctx.Err, MaxWalkValues, root, path, visitors)
 	return out.truncated, out.err
 }
 
@@ -94,22 +103,22 @@ func WalkValuesContext(ctx context.Context, root any, path string, visitors ...V
 // visits, and a stretch this long still ends within microseconds.
 const askEvery = 256
 
-// walkEnd is how a walk ended: whether the depth cap truncated a traversal, and
-// the error of the ask that stopped one, which ends the walk.
+// walkEnd is how a walk ended: whether a bound truncated a traversal, and the
+// error of the ask that stopped one, which ends the walk.
 type walkEnd struct {
 	truncated bool
 	err       error
 }
 
 // walkValues walks root for visitors, one traversal per maxSharedVisitors of
-// them, asking ask whether to stop as WalkValuesContext says, or never for a
-// nil ask.
-func walkValues(ask func() error, root any, path string, visitors []Visitor) walkEnd {
+// them, showing each at most limit values, and asking ask whether to stop as
+// WalkValuesContext says, or never for a nil ask.
+func walkValues(ask func() error, limit int, root any, path string, visitors []Visitor) walkEnd {
 	v := reflect.ValueOf(root)
 	var out walkEnd
 	for group := range slices.Chunk(visitors, maxSharedVisitors) {
 		w := newValueWalk(path, group)
-		w.ask = ask
+		w.ask, w.limit = ask, limit
 		w.walk(v, 0, w.all)
 		out.truncated = out.truncated || w.truncated
 		if w.refusal != nil {
@@ -263,20 +272,22 @@ type insideRef struct {
 	depth int
 }
 
-// valueWalk is one traversal's state: its visitors, which pointers each has
-// entered, the references and steps the walk is inside right now, the map
-// entries it is ranging over, and whether the depth cap or its ask cut it
-// short.
+// valueWalk is one traversal's state: its visitors, how many values each has
+// been shown, the references and steps the walk is inside right now, the map
+// entries it is ranging over, and whether a bound or its ask cut it short.
 //
 // It is a value being walked rather than a walker being configured, so it is
 // built at the entry point and discarded with it. Nothing here is reentrant,
 // and outside this file only a WalkPath holds one, for the call it is handed to.
 type valueWalk struct {
-	root      string
-	visitors  []Visitor
-	cycles    []CycleVisitor
-	all       visitorSet
-	seen      map[refKey]visitorSet
+	root     string
+	visitors []Visitor
+	cycles   []CycleVisitor
+	all      visitorSet
+	// limit is how many values a visitor may be shown, and spent how many each
+	// has been, by position.
+	limit     int
+	spent     [maxSharedVisitors]int
 	inside    []insideRef
 	steps     []pathStep
 	ranging   entryStack
@@ -297,7 +308,6 @@ func newValueWalk(root string, visitors []Visitor) *valueWalk {
 		root:     root,
 		visitors: visitors,
 		cycles:   make([]CycleVisitor, len(visitors)),
-		seen:     map[refKey]visitorSet{},
 		steps:    make([]pathStep, 0, 32),
 	}
 	for i, v := range visitors {
@@ -316,9 +326,10 @@ func (w *valueWalk) here() WalkPath {
 }
 
 // walk shows v to the visitors in active and descends into what it holds for
-// those that ask. The invalid zero Value — a nil root, a nil interface's dynamic
-// value — is not shown, so no visitor has to guard against calling Type() on
-// one.
+// those that ask. A visitor shown its limit is shown nothing more, which cuts
+// the walk short. The invalid zero Value — a nil root, a nil interface's
+// dynamic value — is not shown, so no visitor has to guard against calling
+// Type() on one.
 func (w *valueWalk) walk(v reflect.Value, depth int, active visitorSet) {
 	if !v.IsValid() || w.refused() {
 		return
@@ -327,6 +338,11 @@ func (w *valueWalk) walk(v reflect.Value, depth int, active visitorSet) {
 	var asking visitorSet
 	for set := active; set != 0; set &= set - 1 {
 		i := bits.TrailingZeros64(uint64(set))
+		if w.spent[i] >= w.limit {
+			w.truncated = true
+			continue
+		}
+		w.spent[i]++
 		if w.visitors[i].Visit(v, at) {
 			asking |= 1 << i
 		}
@@ -359,8 +375,9 @@ func (w *valueWalk) step(s pathStep, child reflect.Value, depth int, active visi
 }
 
 // descend continues into a child unless that would pass the depth cap, which it
-// records rather than reports: the caller decides whether a truncated walk is a
-// finding, and it is the only one that knows what was being checked.
+// records rather than reports, as walk records a visitor's limit: the caller
+// decides whether a truncated walk is a finding, and it is the only one that
+// knows what was being checked.
 func (w *valueWalk) descend(child reflect.Value, depth int, active visitorSet) {
 	if depth > MaxWalkDepth {
 		w.truncated = true
@@ -395,29 +412,20 @@ func (w *valueWalk) children(v reflect.Value, depth int, active visitorSet) {
 	}
 }
 
-// pointer descends through a non-nil pointer once per visitor, so a value
-// reached through a shared pointer is shown to each visitor once, at the first
-// path that visitor reaches it by. One met again while the walk is still inside
-// it closes a cycle, which closesCycle reports.
-//
-// Which visitors have entered a pointer is recorded per pointer, so one
-// visitor's pruning never decides where another meets a shared value. Which
-// referrer wins is decided by traversal order, so the walk's order has to be
-// fixed rather than incidental; entryStack.push is where that is arranged.
+// pointer descends through a non-nil pointer, as sequence and mapping descend
+// into a slice and a map: a value two holders share is read from each, as
+// root's encoding writes it at each. One met again while the walk is still
+// inside it closes a cycle, which closesCycle reports.
 func (w *valueWalk) pointer(v reflect.Value, depth int, active visitorSet) {
 	if v.IsNil() {
 		return
 	}
 	key := refKey{typ: v.Type(), ptr: v.Pointer()}
-	entered := w.seen[key]
-	fresh := active &^ entered
-	if fresh == 0 {
-		w.closesCycle(key, active)
+	if w.closesCycle(key, active) {
 		return
 	}
-	w.seen[key] = entered | fresh
 	w.enter(key)
-	w.descend(v.Elem(), depth+1, fresh)
+	w.descend(v.Elem(), depth+1, active)
 	w.leave()
 }
 
@@ -436,8 +444,8 @@ func (w *valueWalk) leave() {
 // The scan is as long as the references enclosing the walk — a handful in a
 // compiled document and at most [MaxWalkDepth] in any.
 //
-// Every visitor in active entered key where the walk did, since the walk went on
-// into key only for those that had not entered it before.
+// Every visitor in active entered key where the walk did, since a visitor
+// leaves the walk's active set below a value only by pruning it.
 func (w *valueWalk) closesCycle(key refKey, active visitorSet) bool {
 	for _, ref := range w.inside {
 		if ref.key != key {

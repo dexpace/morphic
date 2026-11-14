@@ -15,31 +15,38 @@ import (
 // discriminator targets and a value's ref and constructor types, but no
 // [DocRef] or [EntityRef]. A nil or typed-nil td yields nothing.
 //
-// A value nested past [MaxWalkDepth] levels is not entered; the reflection
-// walk is cut sooner, and pass.Validate reports that. A pointer two fields
-// share is followed from each, unlike in WalkValues, so aliasing costs the
-// unfolded size (#859); a cycle is cut.
+// A pointer two fields share is followed from each, as in WalkValues, and a
+// cycle is cut. A value is entered no deeper than [MaxWalkDepth] levels, and
+// past [MaxWalkSteps] values none is: either cut leaves edges unyielded only
+// where the reflection walk is cut too, which pass.Validate reports.
 func TypeEdges(td TypeDef) iter.Seq[TypeID] {
+	return typeEdges(MaxWalkSteps, td)
+}
+
+// typeEdges is TypeEdges entering at most limit values.
+func typeEdges(limit int, td TypeDef) iter.Seq[TypeID] {
 	return func(yield func(TypeID) bool) {
 		if IsNilTypeDef(td) {
 			return
 		}
-		w := edgeWalk{yield: yield}
+		w := edgeWalk{yield: yield, steps: stepLimit{left: limit}}
 		w.def(td)
 	}
 }
 
 // edgeWalk is one TypeEdges call: the consumer's yield, whether it has
-// declined more, and the values it is inside. Every edge leaves through id, so the rule that yield is never
-// called again after it returns false is kept in one place. Once stopped, the
-// walk finishes its pass over the type definition without yielding.
+// declined more, the values it is inside and the steps it may still take.
+// Every edge leaves through id, so the rule that yield is never called again
+// after it returns false is kept in one place. Once stopped, the walk finishes
+// its pass over the type definition without yielding.
 //
 // Its methods follow field declaration order, which is the order [WalkValues]
 // reaches the same fields in.
 type edgeWalk struct {
 	yield   func(TypeID) bool
-	stopped bool
 	path    descent
+	steps   stepLimit
+	stopped bool
 }
 
 // id yields id unless it is empty or the consumer has stopped.
@@ -103,12 +110,12 @@ func (w *edgeWalk) common(c *TypeCommon) {
 }
 
 // value yields the types v refers to, through every nested list, object member
-// and constructor argument. depth counts one level per step down; the
-// reflection walk charges each of those steps at least twice, so it is cut
-// first. A list, object or constructor met again from inside itself is not
-// entered again.
+// and constructor argument, taking a step for v. depth counts one level per
+// step down; the reflection walk charges each of those steps at least twice,
+// so it is cut first. A list, object or constructor met again from inside
+// itself is not entered again.
 func (w *edgeWalk) value(v *Value, depth int) {
-	if v == nil || depth > MaxWalkDepth {
+	if v == nil || depth > MaxWalkDepth || !w.steps.take() {
 		return
 	}
 	w.values(v.List, depth+1)

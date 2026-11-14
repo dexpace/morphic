@@ -4,6 +4,7 @@
 package ir
 
 import (
+	"iter"
 	"maps"
 	"reflect"
 	"slices"
@@ -110,3 +111,23 @@ func IDListsSorted(e *Editor) int { return e.declared.sorted }
 // StoredSteps returns how many steps l stores for the paths it holds, so ir's
 // external tests can hold it to keeping each step a run of paths shares once.
 func (l *PathLog) StoredSteps() int { return len(l.tails) }
+
+// WalkValuesWithin is WalkValues showing each visitor at most limit values.
+func WalkValuesWithin(limit int, root any, path string, visitors ...Visitor) bool {
+	return walkValues(nil, limit, root, path, visitors).truncated
+}
+
+// ForEachGroupWithin is ForEachGroup within limit steps.
+func ForEachGroupWithin(limit int, doc *Document, fn func(OperationGroup)) bool {
+	return forEachGroup(limit, doc, fn)
+}
+
+// ForEachOperationWithin is ForEachOperation within limit steps.
+func ForEachOperationWithin(limit int, doc *Document, fn func(Operation)) bool {
+	return forEachOperation(limit, doc, fn)
+}
+
+// TypeEdgesWithin is TypeEdges entering at most limit values.
+func TypeEdgesWithin(limit int, td TypeDef) iter.Seq[TypeID] {
+	return typeEdges(limit, td)
+}

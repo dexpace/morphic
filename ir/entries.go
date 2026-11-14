@@ -87,12 +87,12 @@ type entryFrame struct {
 // push stacks the entries of map v and returns where they sit, valid until the
 // frame is popped; a map pushed above holds its own, even one of v's type.
 //
-// They are ordered by rendered key, not Go's randomized map order: a pointer two
-// entries reach is entered at whichever comes first, so a random order would
-// change the result set, which no later sort repairs (invariant 7). The path
-// spells keys alike, and distinct keys of every type the IR declares render
-// distinctly. A map behind an unexported field is copied entry by entry, as
-// SetIterKey refuses to read one.
+// They are ordered by rendered key, not Go's randomized map order: a visitor is
+// shown values, and keeps what it finds, in walk order, which a random order
+// would change from run to run (invariant 7). The path spells keys alike, and
+// distinct keys of every type the IR declares render distinctly. A map behind
+// an unexported field is copied entry by entry, as SetIterKey refuses to read
+// one.
 func (s *entryStack) push(v reflect.Value) entryFrame {
 	f := entryFrame{base: len(s.entries)}
 	n := v.Len()
