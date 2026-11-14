@@ -6,6 +6,7 @@ package annotation
 import (
 	"encoding/json/jsontext"
 	"fmt"
+	"iter"
 	"slices"
 	"strconv"
 
@@ -490,7 +491,7 @@ func unmodeledAt(s *oas3.Schema, pointer jsontext.Pointer, doc provenance.Doc, o
 	return MergeUnmodeled(vOnly, kept), append(diags, dDiags...)
 }
 
-// DialectKeywords are the JSON Schema resource and dialect keywords the IR
+// dialectKeywords are the JSON Schema resource and dialect keywords the IR
 // excludes on purpose. It identifies every type by a synthetic ID derived from
 // its source pointer rather than by `$id` (docs/ir/identity.md), and describes
 // one API surface rather than a JSON Schema resource graph, so it has no
@@ -500,7 +501,15 @@ func unmodeledAt(s *oas3.Schema, pointer jsontext.Pointer, doc provenance.Doc, o
 // `$id` is kept and read besides, where docs/compilers/openapi.md#references
 // reads one, as the identifier and base URI a $ref resolves against, and
 // `$schema` as the dialect a schema it roots is read in.
-var DialectKeywords = []string{"$id", "$schema", "$vocabulary"}
+var dialectKeywords = [...]string{"$id", "$schema", "$vocabulary"}
+
+// DialectKeywords yields the JSON Schema resource and dialect keywords the IR
+// keeps out of scope (dialectKeywords). Each reader ranges over its own
+// sequence, so none can change what another reads.
+func DialectKeywords() iter.Seq[string] { return slices.Values(dialectKeywords[:]) }
+
+// DialectKeyword reports whether keyword is one of DialectKeywords.
+func DialectKeyword(keyword string) bool { return slices.Contains(dialectKeywords[:], keyword) }
 
 // dialectRead is what keyword, one of DialectKeywords or draft 4's `id`, is
 // read for beyond being kept, its schema's dialect reading its identifier as
@@ -547,7 +556,7 @@ func dialectAt(s *oas3.Schema, pointer jsontext.Pointer, doc provenance.Doc, dia
 	if dialect.Identifier == "id" {
 		keep("id")
 	}
-	for _, keyword := range DialectKeywords {
+	for _, keyword := range dialectKeywords {
 		keep(keyword)
 	}
 	return p, diags

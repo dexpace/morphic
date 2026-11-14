@@ -222,7 +222,7 @@ func writesOnly(s *oas3.Schema, allowed func(string) bool) bool {
 
 // openKeyword reports whether a schema writing key can still leave its media
 // type to say how its value travels: an annotation, an anchor, a resource or
-// dialect keyword (annotation.DialectKeywords) or a store of schemas, which say
+// dialect keyword (annotation.DialectKeyword) or a store of schemas, which say
 // nothing of the value, a length bound, which OpenAPI applies to a binary
 // payload's octets, contentMediaType, which a media type set by the content's
 // key or an encoding entry overrides, its own extensions, type, which readOpen
@@ -236,7 +236,7 @@ func openKeyword(key string, unions bool) bool {
 	case "anyOf", "oneOf":
 		return unions
 	default:
-		return slices.Contains(annotation.DialectKeywords, key) || strings.HasPrefix(key, "x-")
+		return annotation.DialectKeyword(key) || strings.HasPrefix(key, "x-")
 	}
 }
 

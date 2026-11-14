@@ -15,7 +15,7 @@ import (
 // keepJSONSchemaDialect keeps the document's jsonSchemaDialect verbatim on the
 // document, with an info. It is the default `$schema` of the document's Schema
 // Objects, and the IR models no dialect, so it is kept as a schema's own
-// `$schema` is (annotation.DialectKeywords): ReasonOutOfScope, read only for
+// `$schema` is (annotation.DialectKeywords()): ReasonOutOfScope, read only for
 // the dialect a schema naming none of its own is read in.
 func keepJSONSchemaDialect(c lowering.Ctx, p *ir.Unmodeled) []ir.Diagnostic {
 	at := ids.Ptr("jsonSchemaDialect")

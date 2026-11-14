@@ -661,7 +661,7 @@ components:
 - Pinned by: `TestLibraryBehaviour/unmodeled-keywords`
 - Code:
   - `bind.identifiers` holds every `$dynamicAnchor`, read from the raw tree.
-  - `annotation.DecidedKeywords` names `$comment`, `$dynamicAnchor` and `$dynamicRef`, which the
+  - `annotation.decidedKeywords` names `$comment`, `$dynamicAnchor` and `$dynamicRef`, which the
     unknown-key census leaves to other readers.
   - `annotation.UnknownKeywordsIn` reads every other unknown keyword's value from the raw node.
   - `schema.bodyReading.keysRestate` judges every key a union branch writes, and every key of a

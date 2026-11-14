@@ -63,7 +63,7 @@ func occupiedEntryDiag(entry string, at ir.Provenance, held jsontext.Pointer) ir
 // Diagnostics are one per key plus the budget's own.
 const MaxUnknownKeys = 64
 
-// DecidedKeywords are the JSON Schema keywords the schema model names no field
+// decidedKeywords are the JSON Schema keywords the schema model names no field
 // for (docs/parser-library.md#unmodeled-keywords) and this compiler has already
 // decided about, so the census must not claim them as unread. The schema walk's
 // 2020-12 vocabulary test fails if one starts being carried:
@@ -75,7 +75,11 @@ const MaxUnknownKeys = 64
 //   - $dynamicRef: carried by the dynamic-reference lowering, which expands it
 //     or keeps it under its own reason. A census entry beside an expanded one
 //     would say a resolved reference was ignored.
-var DecidedKeywords = []string{"$comment", "$dynamicAnchor", "$dynamicRef"}
+var decidedKeywords = [...]string{"$comment", "$dynamicAnchor", "$dynamicRef"}
+
+// DecidedKeyword reports whether keyword is one the census leaves alone because
+// this compiler has already decided about it (decidedKeywords).
+func DecidedKeyword(keyword string) bool { return slices.Contains(decidedKeywords[:], keyword) }
 
 // modellessKeywords are the keywords of the dialect the schema model names no
 // field for that a reader keeps, so the census meets them with the rest.
@@ -89,7 +93,7 @@ var modellessKeywords = []string{"$vocabulary", "dependentRequired"}
 //
 // It runs after every other reader and keeps what none kept: `$vocabulary`
 // and `dependentRequired` have readers of their own. A keyword no reader
-// leaves a trace of is named in DecidedKeywords, or in taken where only the
+// leaves a trace of is named in decidedKeywords, or in taken where only the
 // caller knows a reader took it.
 func UnknownKeywordsIn(p *ir.Unmodeled, s *oas3.Schema, pointer jsontext.Pointer, doc provenance.Doc, taken ...string) []ir.Diagnostic {
 	keys, root := unknownSchemaKeys(s)
@@ -124,13 +128,13 @@ func WritesKeywordLeftOut(s *oas3.Schema, key string) bool {
 
 // unknownSchemaKeys returns the keys s writes that UnknownKeywordsIn answers
 // for, and the mapping holding them: those the model names no field for, but
-// the ones decided about (DecidedKeywords) and a null for a keyword the dialect
+// the ones decided about (DecidedKeyword) and a null for a keyword the dialect
 // defines, which reads as left out (RawPropertyNode). A key of no vocabulary
 // has no type a null could break, so it is kept with the null it wrote.
 func unknownSchemaKeys(s *oas3.Schema) ([]string, *yaml.Node) {
 	keys, root := undeclaredKeys(s)
 	return slices.DeleteFunc(slices.Clone(keys), func(key string) bool {
-		return slices.Contains(DecidedKeywords, key) ||
+		return DecidedKeyword(key) ||
 			slices.Contains(modellessKeywords, key) && IsNullNode(nodeview.Child(root, key))
 	}), root
 }

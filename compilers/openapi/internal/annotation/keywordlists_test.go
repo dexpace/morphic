@@ -93,6 +93,19 @@ func TestDialectKeywords_EachReaderGetsItsOwnCopy(t *testing.T) {
 	assert.NotEqual(t, first, slices.Collect(annotation.DialectKeywords()))
 }
 
+// TestDialectKeyword_IsMembership holds the predicate a reader outside the
+// package asks in place of searching the list: the dialect's keywords are
+// members, and another keyword is not.
+func TestDialectKeyword_IsMembership(t *testing.T) {
+	t.Parallel()
+	for keyword, want := range map[string]bool{
+		"$id": true, "$schema": true, "$vocabulary": true,
+		"$comment": false, "id": false, "": false,
+	} {
+		assert.Equal(t, want, annotation.DialectKeyword(keyword), "%q", keyword)
+	}
+}
+
 // TestDecidedKeyword_IsMembership holds the predicate that replaced the
 // exported list: the keywords another reader decides are members, and the
 // dialect's own and an unknown keyword are not.

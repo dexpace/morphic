@@ -80,8 +80,19 @@ func declaresPositionScoped(c lowering.Ctx, s *oas3.Schema) bool {
 		annotation.DeclaresAny(s, collectionBoundKeywords) ||
 		declaresValidationOnly(s) || annotation.DeclaresAny(s, residueKeywords) ||
 		declaresContentVocabulary(s) || declaresDynamicRef(s) ||
-		annotation.DeclaresAny(s, annotation.DialectKeywords) ||
+		declaresDialectKeyword(s) ||
 		annotation.WritesUnknownKeyword(s) || len(undefinedKeywords(c, s)) > 0
+}
+
+// declaresDialectKeyword reports whether s writes one of the dialect keywords
+// annotation keeps out of scope, read from the raw node as DeclaresAny reads.
+func declaresDialectKeyword(s *oas3.Schema) bool {
+	for keyword := range annotation.DialectKeywords() {
+		if annotation.RawPropertyNode(s, keyword) != nil {
+			return true
+		}
+	}
+	return false
 }
 
 // declaresAnnotations reports whether s carries documentation, deprecation, a
