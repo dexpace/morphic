@@ -1,7 +1,7 @@
 // Copyright (c) 2026 dexpace.
 // Licensed under the MIT License. See LICENSE in the repository root for details.
 
-package operation
+package pagination
 
 import (
 	"slices"
@@ -47,7 +47,7 @@ func (m *marker) marksUse(own ir.Unmodeled, keeper *ir.Provenance, of ir.TypeID)
 	if at, ok := m.marks(own, keeper); ok {
 		return at, true
 	}
-	td := m.pg.lk.reg[of]
+	td := m.pg.reg[of]
 	if ir.IsNilTypeDef(td) {
 		return nil, false
 	}
@@ -184,7 +184,7 @@ func (m *marker) within(body *ir.Payload) (*position, string) {
 // operation pays for the walk only where the document writes the key below
 // its body.
 func (m *marker) search(root ir.TypeID) []position {
-	if td := m.pg.lk.reg[root]; !ir.IsNilTypeDef(td) {
+	if td := m.pg.reg[root]; !ir.IsNilTypeDef(td) {
 		if keeper, ok := m.marks(td.Common().Unmodeled, &td.Common().Provenance); ok {
 			return []position{{keeper: keeper}}
 		}
@@ -312,7 +312,7 @@ func (pg *pager) keeping(entry string) func(*ir.Property) bool {
 		if _, ok := p.Unmodeled[entry]; ok {
 			return true
 		}
-		td := pg.lk.reg[p.Type.Target]
+		td := pg.reg[p.Type.Target]
 		if ir.IsNilTypeDef(td) {
 			return false
 		}
@@ -327,7 +327,7 @@ func (pg *pager) keeping(entry string) func(*ir.Property) bool {
 func (pg *pager) keepers(keeps func(*ir.Property) bool, set map[ir.TypeID]bool) (map[ir.TypeID][]ir.TypeID, []ir.TypeID) {
 	namers := map[ir.TypeID][]ir.TypeID{}
 	var found []ir.TypeID
-	for id := range pg.lk.reg {
+	for id := range pg.reg {
 		for _, p := range pg.members(id) {
 			if keeps(p) && !set[id] {
 				set[id] = true
@@ -345,7 +345,7 @@ func (pg *pager) keepers(keeps func(*ir.Property) bool, set map[ir.TypeID]bool) 
 // satisfies keeps. Every member a flattening reads is one, so this answers for
 // every model's members without flattening any.
 func (pg *pager) anyMember(keeps func(*ir.Property) bool) bool {
-	for _, td := range pg.lk.reg {
+	for _, td := range pg.reg {
 		if model, ok := td.(*ir.Model); ok {
 			for i := range model.Properties {
 				if keeps(&model.Properties[i]) {
@@ -364,7 +364,7 @@ func (pg *pager) members(id ir.TypeID) []*ir.Property {
 	}
 	var props []*ir.Property
 	if pg.isModel(id) {
-		flat := ir.FlattenedProperties(pg.lk.reg, id)
+		flat := ir.FlattenedProperties(pg.reg, id)
 		props = make([]*ir.Property, len(flat.Properties))
 		for i := range flat.Properties {
 			props[i] = flat.Properties[i].Property
@@ -376,6 +376,6 @@ func (pg *pager) members(id ir.TypeID) []*ir.Property {
 
 // isModel reports whether the registry holds a model at id.
 func (pg *pager) isModel(id ir.TypeID) bool {
-	_, ok := pg.lk.reg[id].(*ir.Model)
+	_, ok := pg.reg[id].(*ir.Model)
 	return ok
 }

@@ -11,6 +11,7 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
 	"github.com/dexpace/morphic/compilers/openapi/internal/resolve"
+	"github.com/dexpace/morphic/compilers/openapi/internal/runtimeexpr"
 	"github.com/dexpace/morphic/compilers/openapi/internal/servers"
 	"github.com/dexpace/morphic/ir"
 )
@@ -25,12 +26,7 @@ func (l *Links) Resolve(c lowering.Ctx, svc *ir.Service, reg ir.TypeRegistry, sr
 	if len(l.pending) == 0 {
 		return nil
 	}
-	return l.resolve(c, svc, newLookups(reg), srv)
-}
-
-// resolve is Resolve reading the registry through lk, which a test reads after
-// it to see each list indexed once.
-func (l *Links) resolve(c lowering.Ctx, svc *ir.Service, lk *lookups, srv *servers.Registry) []ir.Diagnostic {
+	lk := runtimeexpr.NewLookups(reg)
 	ix := indexOperations(c, svc)
 	var diags []ir.Diagnostic
 	for i := range l.pending {
@@ -48,7 +44,7 @@ func (l *Links) resolve(c lowering.Ctx, svc *ir.Service, lk *lookups, srv *serve
 
 // place lowers p onto the response of from it sits on, or keeps it verbatim
 // there.
-func place(ix opIndex, lk *lookups, srv *servers.Registry, from *ir.Operation, p *pendingLink) []ir.Diagnostic {
+func place(ix opIndex, lk *runtimeexpr.Lookups, srv *servers.Registry, from *ir.Operation, p *pendingLink) []ir.Diagnostic {
 	d := &p.draft
 	at := p.slot.in(from)
 	link, failed := resolveLink(ix, lk, from, at, d)
@@ -71,32 +67,25 @@ func place(ix opIndex, lk *lookups, srv *servers.Registry, from *ir.Operation, p
 }
 
 // responseView is what resolving a link reads of the response carrying it, and
-// where the link is written. key names the response, which lookups index its
-// headers under.
+// where the link is written. key names the response, which the lookups index
+// its headers under.
 type responseView struct {
-	key       responseKey
+	key       runtimeexpr.ResponseKey
 	links     *[]ir.OperationLink
 	unmodeled *ir.Unmodeled
 	payload   *ir.Payload
 	headers   []ir.Header
 }
 
-// responseKey names one response of a service: the operation carrying it and
-// its slot there.
-type responseKey struct {
-	op   ir.OpID
-	slot responseSlot
-}
-
 // in returns the response s names on op. add took s as the response was
 // appended, so the response is there.
 func (s responseSlot) in(op *ir.Operation) responseView {
-	key := responseKey{op: op.ID, slot: s}
+	key := runtimeexpr.ResponseKey{Op: op.ID, List: s.list, Index: s.index}
 	switch s.list {
-	case slotErrors:
+	case runtimeexpr.ListErrors:
 		e := &op.Errors[s.index]
 		return responseView{key: key, links: &e.Links, unmodeled: &e.Unmodeled, payload: e.Payload, headers: e.Headers}
-	case slotDefault:
+	case runtimeexpr.ListDefault:
 		r := op.Default
 		return responseView{key: key, links: &r.Links, unmodeled: &r.Unmodeled, payload: r.Payload, headers: r.Headers}
 	default:
@@ -125,7 +114,7 @@ func untyped(format string, args ...any) *linkFailure {
 }
 
 // resolveLink resolves d, which a response of from carries, at.
-func resolveLink(ix opIndex, lk *lookups, from *ir.Operation, at responseView, d *linkDraft) (ir.OperationLink, *linkFailure) {
+func resolveLink(ix opIndex, lk *runtimeexpr.Lookups, from *ir.Operation, at responseView, d *linkDraft) (ir.OperationLink, *linkFailure) {
 	target, failed := ix.target(d)
 	if failed != nil {
 		return ir.OperationLink{}, failed

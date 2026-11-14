@@ -1,7 +1,7 @@
 // Copyright (c) 2026 dexpace.
 // Licensed under the MIT License. See LICENSE in the repository root for details.
 
-package operation
+package pagination
 
 import (
 	"slices"
@@ -9,6 +9,7 @@ import (
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
+	"github.com/dexpace/morphic/compilers/openapi/internal/runtimeexpr"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -28,7 +29,7 @@ func responseTargets() []lowering.ExtensionTarget {
 	}
 }
 
-// PromotePagination fills the pagination each operation of svc declares through
+// Promote fills the pagination each operation of svc declares through
 // the extensions the promotion policy maps to it, reg being whole, where the
 // operation holds none (docs/compilers/openapi.md#extension-pagination). A
 // pagination is filled whole or not at all: one whose values do not all
@@ -38,11 +39,11 @@ func responseTargets() []lowering.ExtensionTarget {
 // stated holds each operation it reads whose extensions speak of a pagination,
 // filled or not: those a step inferring one leaves alone, by that rule's
 // precedence, without reading an extension again.
-func PromotePagination(c lowering.Ctx, svc *ir.Service, reg ir.TypeRegistry) (stated map[ir.OpID]bool, diags []ir.Diagnostic) {
+func Promote(c lowering.Ctx, svc *ir.Service, reg ir.TypeRegistry) (stated map[ir.OpID]bool, diags []ir.Diagnostic) {
 	if svc == nil {
 		return nil, nil
 	}
-	pg := pager{c: c, p: c.Promoter(), lk: newLookups(reg), flat: map[ir.TypeID][]*ir.Property{}}
+	pg := pager{c: c, p: c.Promoter(), reg: reg, lk: runtimeexpr.NewLookups(reg), flat: map[ir.TypeID][]*ir.Property{}}
 	if !pg.maps() {
 		return nil, nil
 	}
@@ -60,14 +61,15 @@ func PromotePagination(c lowering.Ctx, svc *ir.Service, reg ir.TypeRegistry) (st
 	return stated, diags
 }
 
-// pager is what one PromotePagination reads its operations against. flat holds
+// pager is what one Promote reads its operations against. flat holds
 // each model's members in layout order, read once for every operation that
 // walks through it, and reach the models reaching each marking key
 // (pager.reaching).
 type pager struct {
 	c     lowering.Ctx
 	p     lowering.Promoter
-	lk    *lookups
+	reg   ir.TypeRegistry
+	lk    *runtimeexpr.Lookups
 	flat  map[ir.TypeID][]*ir.Property
 	reach map[string]map[ir.TypeID]bool
 }
@@ -120,12 +122,12 @@ func (pg *pager) operation(op *ir.Operation) (bool, []ir.Diagnostic) {
 	if len(fields.inputs) == 0 && len(fields.outputs) == 0 {
 		return fields.written, diags
 	}
-	page, reason := assemble(fields)
-	if page == nil {
+	walk, reason := assemble(fields)
+	if walk == nil {
 		diags = append(diags, pg.report(op, "the pagination the policy reads from its extensions %s, so it fills none", reason))
 		return fields.written, diags
 	}
-	op.Pagination = page
+	op.Pagination = walk
 	for _, prov := range fields.read {
 		prov.Inferred = ir.JoinInferred(prov.Inferred, lowering.ExtensionPromotionHeuristic)
 	}
@@ -168,7 +170,7 @@ func assemble(f pageFields) (*ir.Pagination, string) {
 	case len(continues) == 0 && !link:
 		return nil, "names neither an input continuing it nor a next link"
 	}
-	page := &ir.Pagination{
+	walk := &ir.Pagination{
 		Strategy:   ir.PageStrategyNextLink,
 		Inferred:   true,
 		InputLimit: f.inputs[lowering.TargetPaginationLimit],
@@ -179,9 +181,9 @@ func assemble(f pageFields) (*ir.Pagination, string) {
 		TotalPages: f.outputs[lowering.TargetPaginationTotalPages],
 	}
 	if len(continues) == 1 {
-		page.Strategy, page.InputCursor = strategyOf(continues[0]), f.inputs[continues[0]]
+		walk.Strategy, walk.InputCursor = strategyOf(continues[0]), f.inputs[continues[0]]
 	}
-	return page, ""
+	return walk, ""
 }
 
 // strategyOf is the strategy of a walk an input of target continues.

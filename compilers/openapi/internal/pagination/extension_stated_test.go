@@ -1,7 +1,7 @@
 // Copyright (c) 2026 dexpace.
 // Licensed under the MIT License. See LICENSE in the repository root for details.
 
-package operation_test
+package pagination_test
 
 import (
 	"fmt"
@@ -18,7 +18,7 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/load"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
-	"github.com/dexpace/morphic/compilers/openapi/internal/operation"
+	"github.com/dexpace/morphic/compilers/openapi/internal/pagination"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -121,14 +121,14 @@ paths:
 `
 }
 
-// TestPromotePagination_SaysWhichOperationsSpeakOfAPagination pins the
-// operations PromotePagination returns as stated: each whose extensions write
+// TestPromote_SaysWhichOperationsSpeakOfAPagination pins the
+// operations Promote returns as stated: each whose extensions write
 // a key the policy maps to a pagination target where that key is read, filled,
 // failing to resolve, refused or stating nothing, on the operation or by a mark
 // on a parameter, a member, a header or a type, a shared one marking each
 // operation reaching it. An operation writing no such key, or one only where
 // it is not read, is not stated, and nothing it did not fill is marked.
-func TestPromotePagination_SaysWhichOperationsSpeakOfAPagination(t *testing.T) {
+func TestPromote_SaysWhichOperationsSpeakOfAPagination(t *testing.T) {
 	t.Parallel()
 	spoke, ops, _ := promoteStated(t, statedSpec(t, statedPaths), pagePolicy())
 	assert.Equal(t, []string{
@@ -199,7 +199,7 @@ type keyValue struct {
 	atMember                      bool
 }
 
-// TestPromotePagination_ReportsEachValueAKeyHolds pins what each value a
+// TestPromote_ReportsEachValueAKeyHolds pins what each value a
 // pagination key may hold states, at each position a key is read, through the
 // step: false, and a mark's word another source lists, report nothing; true,
 // null, a scalar, a list, an object holding no member a source reads, an
@@ -207,7 +207,7 @@ type keyValue struct {
 // once, at the key or its member, saying the key, being written, keeps an
 // inferred pagination off. Each speaks, so the operation is stated, and none is
 // filled or marked.
-func TestPromotePagination_ReportsEachValueAKeyHolds(t *testing.T) {
+func TestPromote_ReportsEachValueAKeyHolds(t *testing.T) {
 	t.Parallel()
 	const noWalk = ", so it states no value of a walk"
 	var (
@@ -277,7 +277,7 @@ paths:
 
 // promoteStated compiles spec with promotion off, so each extension is kept and
 // no pagination is filled, then promotes its pagination under policy. It
-// returns the operationIds PromotePagination says spoke, the operations by
+// returns the operationIds Promote says spoke, the operations by
 // operationId, and its reports, each once, as its pointer and its message,
 // since a compile drops the repeats of one report the sources of a key make.
 func promoteStated(t *testing.T, spec string, policy lowering.ExtensionPromotions) ([]string, map[string]*ir.Operation, []string) {
@@ -287,7 +287,7 @@ func promoteStated(t *testing.T, spec string, policy lowering.ExtensionPromotion
 	require.NoError(t, err)
 	require.NotNil(t, doc)
 	c := lowering.New(0, &load.Document{Doc: &soa.OpenAPI{}}, lowering.Policy{Promotions: policy})
-	stated, diags := operation.PromotePagination(c, &doc.Services[0], doc.Types)
+	stated, diags := pagination.Promote(c, &doc.Services[0], doc.Types)
 	reports := make([]string, 0, len(diags))
 	for _, d := range diags {
 		require.Equal(t, ir.SeverityInfo, d.Severity, "%+v", d)
@@ -307,10 +307,10 @@ func promoteStated(t *testing.T, spec string, policy lowering.ExtensionPromotion
 	return spoke, ops, slices.Compact(reports)
 }
 
-// TestPromotePagination_StatedIsIndependentOfDeclarationOrder pins the stated
+// TestPromote_StatedIsIndependentOfDeclarationOrder pins the stated
 // operations to the document, not the order it declares them in: a shared
 // type's reach is read once, by whichever operation comes first.
-func TestPromotePagination_StatedIsIndependentOfDeclarationOrder(t *testing.T) {
+func TestPromote_StatedIsIndependentOfDeclarationOrder(t *testing.T) {
 	t.Parallel()
 	backward := slices.Clone(statedPaths)
 	slices.Reverse(backward)
@@ -320,10 +320,10 @@ func TestPromotePagination_StatedIsIndependentOfDeclarationOrder(t *testing.T) {
 	assert.Equal(t, forward, reversed)
 }
 
-// TestPromotePagination_StatedReadsEitherSidesKey pins a key a policy reads for
+// TestPromote_StatedReadsEitherSidesKey pins a key a policy reads for
 // a request target alone, and one it reads for a page value alone, each to an
 // operation it states though it states nothing.
-func TestPromotePagination_StatedReadsEitherSidesKey(t *testing.T) {
+func TestPromote_StatedReadsEitherSidesKey(t *testing.T) {
 	t.Parallel()
 	policy := lowering.ExtensionPromotions{Targets: map[lowering.ExtensionTarget][]lowering.ExtensionSource{
 		lowering.TargetPaginationCursor:   {{Key: "x-in", Member: "cursor"}},
@@ -345,25 +345,25 @@ func TestPromotePagination_StatedReadsEitherSidesKey(t *testing.T) {
 	assert.Equal(t, []string{"pageSide", "requestSide"}, spoke)
 }
 
-// TestPromotePagination_ReadsNoOperationHoldingOne pins an operation holding a
+// TestPromote_ReadsNoOperationHoldingOne pins an operation holding a
 // pagination when the promotion runs to one it neither reads nor states: its
 // pagination is left as it is, and a consumer reads that field instead.
-func TestPromotePagination_ReadsNoOperationHoldingOne(t *testing.T) {
+func TestPromote_ReadsNoOperationHoldingOne(t *testing.T) {
 	t.Parallel()
 	doc, op, _ := compilePaged(t, "      x-page: {link: $response.next}\n"+pageResponse, pagePolicy())
 	require.NotNil(t, op.Pagination)
 	held := doc.Services[0].Groups[0].Operations[0].Pagination
 	c := lowering.New(0, &load.Document{Doc: &soa.OpenAPI{}}, lowering.Policy{Promotions: pagePolicy()})
-	stated, diags := operation.PromotePagination(c, &doc.Services[0], doc.Types)
+	stated, diags := pagination.Promote(c, &doc.Services[0], doc.Types)
 	assert.Empty(t, stated)
 	assert.Empty(t, diags)
 	assert.Same(t, held, doc.Services[0].Groups[0].Operations[0].Pagination)
 }
 
-// TestPromotePagination_StatesNothingOffPolicy pins the stated operations to a
+// TestPromote_StatesNothingOffPolicy pins the stated operations to a
 // policy mapping a pagination target: one mapping none, or the policy off,
 // reads no key, so no operation is stated, whatever its keys.
-func TestPromotePagination_StatesNothingOffPolicy(t *testing.T) {
+func TestPromote_StatesNothingOffPolicy(t *testing.T) {
 	t.Parallel()
 	for name, policy := range map[string]lowering.ExtensionPromotions{
 		"no pagination target": {Targets: map[lowering.ExtensionTarget][]lowering.ExtensionSource{
@@ -374,7 +374,7 @@ func TestPromotePagination_StatesNothingOffPolicy(t *testing.T) {
 		spoke, _, _ := promoteStated(t, statedSpec(t, statedPaths), policy)
 		assert.Empty(t, spoke, name)
 	}
-	stated, diags := operation.PromotePagination(lowering.New(0, &load.Document{Doc: &soa.OpenAPI{}}, lowering.Policy{}),
+	stated, diags := pagination.Promote(lowering.New(0, &load.Document{Doc: &soa.OpenAPI{}}, lowering.Policy{}),
 		nil, ir.TypeRegistry{})
 	assert.Nil(t, stated, "no service, nothing read")
 	assert.Empty(t, diags)

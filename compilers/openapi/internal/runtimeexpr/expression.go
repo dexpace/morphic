@@ -1,7 +1,7 @@
 // Copyright (c) 2026 dexpace.
 // Licensed under the MIT License. See LICENSE in the repository root for details.
 
-package operation
+package runtimeexpr
 
 import (
 	"errors"
@@ -10,52 +10,53 @@ import (
 
 // The sources a runtime expression reads, as OpenAPI's grammar spells them.
 const (
-	exprURL        = "url"
-	exprMethod     = "method"
-	exprStatusCode = "statusCode"
-	exprRequest    = "request"
-	exprResponse   = "response"
+	SourceURL        = "url"
+	SourceMethod     = "method"
+	SourceStatusCode = "statusCode"
+	SourceRequest    = "request"
+	SourceResponse   = "response"
 )
 
 // The parts of a request or a response an expression reads.
 const (
-	exprHeader = "header"
-	exprQuery  = "query"
-	exprPath   = "path"
-	exprBody   = "body"
+	PartHeader = "header"
+	PartQuery  = "query"
+	PartPath   = "path"
+	PartBody   = "body"
 )
 
-// errMalformedExpression reports a string that starts as a runtime expression
-// and breaks its grammar.
-var errMalformedExpression = errors.New("malformed runtime expression")
+// errMalformed reports a string that starts as a runtime expression and breaks
+// its grammar.
+var errMalformed = errors.New("malformed runtime expression")
 
-// expression is one runtime expression, as the Runtime Expressions section of
+// Expression is one runtime expression, as the Runtime Expressions section of
 // the OpenAPI Specification defines it: a value of the exchange a response
 // ends.
-type expression struct {
-	// source is exprURL, exprMethod, exprStatusCode, exprRequest or exprResponse.
-	source string
-	// part is what of the request or response it reads, "" for the other
+type Expression struct {
+	// Source is SourceURL, SourceMethod, SourceStatusCode, SourceRequest or
+	// SourceResponse.
+	Source string
+	// Part is what of the request or response it reads, "" for the other
 	// sources.
-	part string
-	// name is the header, query or path parameter it reads.
-	name string
-	// tokens are the decoded tokens of the pointer into the body, none for the
+	Part string
+	// Name is the header, query or path parameter it reads.
+	Name string
+	// Tokens are the decoded tokens of the pointer into the body, none for the
 	// body whole.
-	tokens []string
+	Tokens []string
 }
 
-// parseExpression reads s as a runtime expression. It returns false for a
-// string that is not one, which a link passes as a constant, and
-// errMalformedExpression for one that starts as an expression and breaks the
-// grammar: `$request.` or `$response.` followed by no part it names.
-func parseExpression(s string) (expression, bool, error) {
+// Parse reads s as a runtime expression. It returns false for a string that is
+// not one, which a link passes as a constant, and an error for one that starts
+// as an expression and breaks the grammar: `$request.` or `$response.`
+// followed by no part it names.
+func Parse(s string) (Expression, bool, error) {
 	if !startsExpression(s) {
-		return expression{}, false, nil
+		return Expression{}, false, nil
 	}
 	switch s {
-	case "$" + exprURL, "$" + exprMethod, "$" + exprStatusCode:
-		return expression{source: s[1:]}, true, nil
+	case "$" + SourceURL, "$" + SourceMethod, "$" + SourceStatusCode:
+		return Expression{Source: s[1:]}, true, nil
 	}
 	source, rest, _ := strings.Cut(s[1:], ".")
 	e, err := parseSource(source, rest)
@@ -67,59 +68,59 @@ func parseExpression(s string) (expression, bool, error) {
 // or `$response.` and whatever follows.
 func startsExpression(s string) bool {
 	switch s {
-	case "$" + exprURL, "$" + exprMethod, "$" + exprStatusCode:
+	case "$" + SourceURL, "$" + SourceMethod, "$" + SourceStatusCode:
 		return true
 	}
-	return strings.HasPrefix(s, "$"+exprRequest+".") || strings.HasPrefix(s, "$"+exprResponse+".")
+	return strings.HasPrefix(s, "$"+SourceRequest+".") || strings.HasPrefix(s, "$"+SourceResponse+".")
 }
 
 // parseSource reads rest, what follows `$request.` or `$response.`.
-func parseSource(source, rest string) (expression, error) {
-	e := expression{source: source}
-	if pointer, ok := strings.CutPrefix(rest, exprBody); ok {
-		e.part = exprBody
+func parseSource(source, rest string) (Expression, error) {
+	e := Expression{Source: source}
+	if pointer, ok := strings.CutPrefix(rest, PartBody); ok {
+		e.Part = PartBody
 		return e.withPointer(pointer)
 	}
 	part, name, ok := strings.Cut(rest, ".")
 	if !ok || name == "" {
-		return e, errMalformedExpression
+		return e, errMalformed
 	}
 	switch part {
-	case exprHeader:
+	case PartHeader:
 		if !isToken(name) {
-			return e, errMalformedExpression
+			return e, errMalformed
 		}
-	case exprQuery, exprPath:
+	case PartQuery, PartPath:
 	default:
-		return e, errMalformedExpression
+		return e, errMalformed
 	}
-	e.part, e.name = part, name
+	e.Part, e.Name = part, name
 	return e, nil
 }
 
 // withPointer reads what follows `body`: nothing, or `#` and an RFC 6901
 // pointer, whose tokens it decodes.
-func (e expression) withPointer(rest string) (expression, error) {
+func (e Expression) withPointer(rest string) (Expression, error) {
 	if rest == "" {
 		return e, nil
 	}
 	pointer, ok := strings.CutPrefix(rest, "#")
 	if !ok {
-		return e, errMalformedExpression
+		return e, errMalformed
 	}
 	if pointer == "" {
 		return e, nil
 	}
 	raw, ok := strings.CutPrefix(pointer, "/")
 	if !ok {
-		return e, errMalformedExpression
+		return e, errMalformed
 	}
 	for token := range strings.SplitSeq(raw, "/") {
 		decoded, ok := decodeToken(token)
 		if !ok {
-			return e, errMalformedExpression
+			return e, errMalformed
 		}
-		e.tokens = append(e.tokens, decoded)
+		e.Tokens = append(e.Tokens, decoded)
 	}
 	return e, nil
 }
@@ -159,14 +160,14 @@ func isToken(s string) bool {
 	return s != ""
 }
 
-// embedsExpression reports whether s holds a runtime expression in braces, as
+// Embeds reports whether s holds a runtime expression in braces, as
 // a template such as `item-{$response.body#/id}` does: a string an expression
 // is substituted into, which no link value spells, even when the braces hold
 // the whole string. Braces count when what they hold starts as an expression,
-// whether or not the rest keeps the grammar, as parseExpression tells an
+// whether or not the rest keeps the grammar, as Parse tells an
 // expression from a constant by its start. So no candidate is parsed, and
 // braces opened many times before one close cost a look at each opening.
-func embedsExpression(s string) bool {
+func Embeds(s string) bool {
 	closing := -1
 	for i := 0; i+1 < len(s); i++ {
 		if s[i] != '{' || s[i+1] != '$' {
