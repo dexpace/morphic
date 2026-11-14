@@ -92,8 +92,8 @@ whatever produced it.
 
 Having no source position, a primitive names no source either: its `Provenance.Source` is
 `NoSource` ([provenance](./provenance.md)). An index beside the empty pointer would say that file's
-whole document declared a node every source reaches by kind. `irverify` holds no producer to this so
-far (#590).
+whole document declared a node every source reaches by kind. `irverify` holds every document to it
+(`ir/prim-names-source`).
 
 ## Unresolved schemes
 
