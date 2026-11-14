@@ -804,8 +804,13 @@ something a caller asks for with `none`, never a default.
   there first. Both pointer collisions the compiler has had were invisible to a single-order suite.
   An error diagnostic stops none of the oracles, and an oracle with nothing to compare declines,
   saying why, so a sweep's summary counts what each asked and what it could not. The order oracle
-  leaves sequences as written, an `allOf`'s branches among them (#1666), and compiles at the
-  default limits alone (#1519).
+  leaves sequences as written. A second, **sequence-order independence**, reverses each `allOf`
+  and `required` sequence, which JSON Schema defines without position, unless it sits beneath an
+  anchor or a reference points into it, and leaves every other sequence, whose order the IR keeps
+  as fact or presentation. It forgives which element of a reversed sequence a pointer names, an ID
+  naming a node beneath one being told apart by a digest of that node, and compares each model's
+  flattened shape too; a report that moves with the order marks a tie it does not compare. Both
+  compile at the default limits alone (#1519).
 - **Architecture test** (`internal/archtest`): import-graph assertions for the layering rules
   above, plus the rules the graph cannot express — which lowerings are mutually recursive (so a
   set that grows is noticed rather than measured), the method-per-type cap, that no function is
