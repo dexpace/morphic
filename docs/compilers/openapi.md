@@ -3857,14 +3857,14 @@ declaration. A count literal that is no non-negative integer is the rule table's
 ([`validation`](#validation)) and reaches no field, nor is it kept. A number carried as text holds
 no bound ([`string-formats`](#string-formats)).
 
-- Cases: `constraints`, `numeric-precision`, `ref-collection-bounds`
+- Cases: `constraints`, `numeric-precision`, `ref-collection-bounds`, `reference-bounds`
 - Codes: `openapi/invalid-numeric-literal`, `openapi/invalid-exclusive-bound`,
   `openapi/degraded-construct`
 - Tests: `schema.TestConstraints_ABoundIsReadWhereItsTypeTakesIt`,
   `schema.TestConstraints_SeveralBoundsATypeCannotTakeDrawOneReport`,
   `schema.TestConstraints_APositionDeclaringNoTypeReadsEveryBound`,
   `schema.TestConstraints_APositionOfNullAloneReadsNoBound`,
-  `schema.TestConstraints_AReferenceOutcomeReadsByThePositionsOwnType`,
+  `schema.TestConstraints_AReferenceOutcomeReadsByTheTypesItNames`,
   `schema.TestConstraints_ABoundAListKeepsIsKeptOnce`,
   `schema.TestConstraints_ACarrierRestatesTheBoundsItsNodeTakes`,
   `schema.TestConstraints_ACountATypeCannotTakeIsKeptByTheCensus`,
@@ -3883,7 +3883,7 @@ no bound ([`string-formats`](#string-formats)).
   `schema.TestCollectionBound_AReferenceKeepsWhatConstraintsCannotState`,
   `schema.TestCollectionBound_ACarrierLeavesItToTheNodeItsPositionOwns`,
   `schema.TestCollectionBound_ANodeOfAnotherShapeKeepsItVerbatim`,
-  `schema.TestCollectionBound_ReadsThePositionNotItsTarget`,
+  `schema.TestCollectionBound_IsReadByTheTypesItsSchemaNames`,
   `schema.TestCollectionBound_BesideAnExpandedDynamicRefReachesWhatThePositionOwns`,
   `operation.TestParams_CollectionBoundBesideARefReachesTheCarrier`,
   `schema.TestCollectionBound_ARefinementReachesWhatThePositionOwns`,
