@@ -260,6 +260,12 @@ lists that no member declares and the composition entries that name no model. It
   repeats. It costs the declarations it returns plus the models, entries, aliases and types it
   passes, so an `irfacts` index could answer no faster, and it stays a function of `ir`, where a
   compiler reads it too.
+- *One member.* `ir.MemberReader` answers, for a root and a wire name, the declaration this
+  flattening takes, by the same walk, reading each model's own declaration of the name rather than
+  every member. A read costs the root's composition, and each model's properties once per reader,
+  so a consumer asking several roots composing one wide model for one name each does not pay that
+  width for each. Both take a declaration by one rule, so a change to which one is taken changes
+  both.
 
 Why the later conjunct wins: JSON Schema conjoins every `allOf` entry, so neither of two unrelated
 declarations is wrong on the wire, and the later conjunct is where a spec writes the specialization.
