@@ -11,9 +11,11 @@ import (
 	"io"
 	"net"
 	"net/http"
+	"net/http/httptest"
 	"net/netip"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -23,13 +25,13 @@ import (
 	"github.com/dexpace/morphic/compilers"
 )
 
-// fakeDNS answers each A query for a name from answers, the next address of
-// the name's list each time it is asked, the last repeating; every other
-// query is answered with no address. It is a resolver no test can leave the
-// machine through.
+// fakeDNS answers each A query for a name from answers, the next set of the
+// name's list each time it is asked, the last repeating; every other query is
+// answered with no address, and a name it does not hold as none. It is a
+// resolver no test can leave the machine through.
 type fakeDNS struct {
 	mu      sync.Mutex
-	answers map[string][]netip.Addr
+	answers map[string][][]netip.Addr
 }
 
 // resolver is a resolver asking d.
@@ -70,7 +72,7 @@ func (d *fakeDNS) answer(query []byte) []byte {
 	question := query[12 : end+5]
 	qtype := binary.BigEndian.Uint16(query[end+1:])
 	reply := append([]byte{query[0], query[1], 0x81, 0x80, 0, 1, 0, 0, 0, 0, 0, 0}, question...)
-	addr, ok := d.next(strings.Join(labels, "."), qtype == 1)
+	addrs, ok := d.next(strings.Join(labels, "."), qtype == 1)
 	switch {
 	case !ok:
 		reply[3] = 0x83 // no such name
@@ -78,19 +80,22 @@ func (d *fakeDNS) answer(query []byte) []byte {
 	case qtype != 1:
 		return reply
 	}
-	reply[7] = 1
-	ip := addr.As4()
-	return append(reply, 0xc0, 0x0c, 0, 1, 0, 1, 0, 0, 0, 0, 0, 4, ip[0], ip[1], ip[2], ip[3])
+	reply[7] = byte(len(addrs))
+	for _, addr := range addrs {
+		ip := addr.As4()
+		reply = append(reply, 0xc0, 0x0c, 0, 1, 0, 1, 0, 0, 0, 0, 0, 4, ip[0], ip[1], ip[2], ip[3])
+	}
+	return reply
 }
 
-// next is the address name answers this time, taken from its list where
+// next is the addresses name answers this time, taken from its list where
 // take is set.
-func (d *fakeDNS) next(name string, take bool) (netip.Addr, bool) {
+func (d *fakeDNS) next(name string, take bool) ([]netip.Addr, bool) {
 	d.mu.Lock()
 	defer d.mu.Unlock()
 	list, ok := d.answers[strings.ToLower(name)]
 	if !ok || len(list) == 0 {
-		return netip.Addr{}, false
+		return nil, false
 	}
 	if take && len(list) > 1 {
 		d.answers[strings.ToLower(name)] = list[1:]
@@ -109,10 +114,12 @@ func TestDisk_ANameIsJudgedByTheAddressEachDialResolvesItTo(t *testing.T) {
 	srv := newProbeServer(t, false, nil)
 	port := srv.port(t)
 	loop := netip.MustParseAddr("127.0.0.1")
-	dns := &fakeDNS{answers: map[string][]netip.Addr{
-		"rebind.example":   {loop, netip.MustParseAddr("127.0.0.2")},
-		"intranet.example": {netip.MustParseAddr("10.0.0.5")},
-		"0x7f.1":           {netip.MustParseAddr("127.0.0.3")}, "localhost": {netip.MustParseAddr("127.0.0.4")},
+	a := netip.MustParseAddr
+	dns := &fakeDNS{answers: map[string][][]netip.Addr{
+		"rebind.example":   {{loop}, {a("127.0.0.2")}},
+		"intranet.example": {{a("10.0.0.5")}},
+		"0x7f.1":           {{a("127.0.0.3")}},
+		"localhost":        {{a("127.0.0.4")}},
 	}}
 	served := netip.AddrPortFrom(loop, port)
 	d := Disk{resolver: dns.resolver(), classify: func(ap netip.AddrPort) compilers.AddressSpace {
@@ -271,4 +278,104 @@ func TestGuard_AnAddressItCannotReadIsRefusedToABoundedRead(t *testing.T) {
 	require.ErrorIs(t, g.control(t.Context(), "tcp", "not-an-address", nil), compilers.ErrAddressSpace)
 	g.reach = compilers.SpaceUnstated
 	assert.NoError(t, g.control(t.Context(), "tcp", "not-an-address", nil))
+}
+
+// unicodeHosts are hosts net/http maps by IDNA before it uses them, each to
+// a loopback name or address, which a ranking of their text alone would read
+// as public names; and spellings of localhost's text a ranking must fold.
+var unicodeHosts = []string{
+	"\uff4docalhost", "127\u30020\u30020\u30021", "\u2460\u2461\u2466.0.0.1", "local\u200dhost",
+	"localhost..", "LOCALHOST.",
+}
+
+// TestDisk_AReadThroughAProxyRanksWhatTheProxyWouldDial pins what a read
+// through a proxy is judged by, bounded to public addresses: a name by every
+// address the reader's resolver gives it, a host that is not ASCII, which
+// net/http maps by IDNA, as not public, and a literal private address by
+// itself, dialled directly rather than through the proxy. Only the name
+// resolving to public addresses alone reaches the proxy.
+func TestDisk_AReadThroughAProxyRanksWhatTheProxyWouldDial(t *testing.T) {
+	t.Parallel()
+	d, proxy := proxied(t)
+	a := netip.MustParseAddr
+	d.resolver = (&fakeDNS{answers: map[string][][]netip.Addr{
+		"private.example": {{a("10.0.0.5")}},
+		"mixed.example":   {{a("93.184.216.34"), a("10.0.0.5")}},
+		"public.example":  {{a("93.184.216.34"), a("8.8.8.8")}},
+	}}).resolver()
+	read := func(host string) (compilers.DocumentRead, error) {
+		return d.ReadDocument(t.Context(), compilers.DocumentRequest{Location: "http://" + host + "/x", Reach: compilers.SpacePublic})
+	}
+	for _, host := range append([]string{"private.example", "mixed.example", "10.0.0.5"}, unicodeHosts...) {
+		_, err := read(host)
+		require.ErrorIs(t, err, compilers.ErrAddressSpace, host)
+	}
+	_, err := read("gone.example")
+	require.ErrorIs(t, err, compilers.ErrUnboundedRead, "a name resolving to nothing cannot be judged")
+	assert.Zero(t, proxy.requests.Load(), "the proxy saw nothing")
+
+	got, err := read("public.example")
+	require.NoError(t, err)
+	assert.Equal(t, "proxied", string(got.Data))
+	assert.EqualValues(t, 1, proxy.requests.Load())
+
+	got, err = d.ReadDocument(t.Context(), compilers.DocumentRequest{Location: "http://gone.example/x"})
+	require.NoError(t, err, "an unbounded read needs no answer of the resolver")
+	assert.Equal(t, compilers.SpacePublic, got.Space)
+}
+
+// TestDisk_AHostNetHTTPMapsIsJudgedWhereItIsDialled pins the direct path for
+// the hosts net/http maps by IDNA: whatever it dials them as is judged at the
+// dial, so none reaches a loopback server.
+func TestDisk_AHostNetHTTPMapsIsJudgedWhereItIsDialled(t *testing.T) {
+	t.Parallel()
+	srv := newProbeServer(t, false, nil)
+	dns := &fakeDNS{answers: map[string][][]netip.Addr{"localhost": {{netip.MustParseAddr("127.0.0.1")}}}}
+	d := Disk{resolver: dns.resolver()}
+	for _, host := range unicodeHosts {
+		_, err := d.ReadDocument(t.Context(), compilers.DocumentRequest{
+			Location: "http://" + net.JoinHostPort(host, srv.portString(t)) + "/x", Reach: compilers.SpacePublic,
+		})
+		require.Error(t, err, host)
+	}
+	assert.Zero(t, srv.conns.Load(), "nothing was connected to")
+}
+
+// TestDisk_AHostRankedNotPublicIsNeverSentThroughAProxy pins that a read of a
+// host ranked not public, bounded or not, goes to the host directly, where
+// its dial is judged, and never through a proxy that would dial it unseen.
+func TestDisk_AHostRankedNotPublicIsNeverSentThroughAProxy(t *testing.T) {
+	t.Parallel()
+	d, proxy := proxied(t)
+	srv := newProbeServer(t, false, nil)
+
+	got, err := d.ReadDocument(t.Context(), compilers.DocumentRequest{Location: srv.URL + "/x"})
+
+	require.NoError(t, err)
+	assert.Equal(t, "document", string(got.Data), "read from the host itself")
+	assert.Equal(t, compilers.SpaceLocal, got.Space)
+	assert.Zero(t, proxy.requests.Load())
+}
+
+// TestDisk_AReadLeavesNoConnectionOpen pins that the connection a read
+// dialled is closed once the read ends, rather than left idle on a transport
+// no later read uses.
+func TestDisk_AReadLeavesNoConnectionOpen(t *testing.T) {
+	t.Parallel()
+	var closed atomic.Int64
+	srv := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = w.Write([]byte("document"))
+	}))
+	srv.Config.ConnState = func(_ net.Conn, s http.ConnState) {
+		if s == http.StateClosed {
+			closed.Add(1)
+		}
+	}
+	srv.Start()
+	t.Cleanup(srv.Close)
+
+	_, err := Disk{}.ReadDocument(t.Context(), compilers.DocumentRequest{Location: srv.URL})
+
+	require.NoError(t, err)
+	assert.Eventually(t, func() bool { return closed.Load() == 1 }, 5*time.Second, 5*time.Millisecond)
 }

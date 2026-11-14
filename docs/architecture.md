@@ -70,7 +70,9 @@ every read inside the spec's directory, following relative references alone, unl
 dial (`compilers.DocumentRequest.Reach`), and the reader states where the address that answered lies
 (`compilers.DocumentRead.Space`), refusing a dial past the reach with `compilers.ErrAddressSpace`,
 and a bounded read it cannot judge with `compilers.ErrUnboundedRead`, so a document read from the
-network makes the compile dial no address more private than its own. A reader of files may also
+network makes the compile dial no address more private than its own. Through a proxy the reader
+judges the host the URL writes and every address its own resolver gives a name; the proxy resolves
+the name again and may get another answer, which the compile cannot see. A reader of files may also
 say where a directory lies, its links resolved (`compilers.DirectoryLocator`), so a compile names
 one file reached through two spellings of its directory as one document.
 

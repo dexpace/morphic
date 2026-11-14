@@ -15,6 +15,7 @@ import (
 	"sync/atomic"
 	"syscall"
 	"time"
+	"unicode/utf8"
 
 	"github.com/dexpace/morphic/compilers"
 )
@@ -92,8 +93,12 @@ func (g *guard) dial(ctx context.Context, network, address string) (net.Conn, er
 	return conn, nil
 }
 
-// proxy wraps a transport's proxy choice: a request it sends through a proxy
-// has the host its URL writes judged, before anything is dialled, and noted.
+// proxy wraps a transport's proxy choice. A host the proxy would dial for the
+// read is ranked first (hostSpace), and a name bounded by a reach by every
+// address the guard's resolver gives it (resolvedSpace), since the proxy's
+// dial is out of the guard's sight: one past the reach is refused before
+// anything is dialled. A host ranked not public never goes through the proxy:
+// it is dialled directly, where the dial itself is judged.
 func (g *guard) proxy(choose func(*http.Request) (*url.URL, error)) func(*http.Request) (*url.URL, error) {
 	return func(req *http.Request) (*url.URL, error) {
 		via, err := choose(req)
@@ -103,6 +108,15 @@ func (g *guard) proxy(choose func(*http.Request) (*url.URL, error)) func(*http.R
 		}
 		host := req.URL.Hostname()
 		space := hostSpace(host)
+		if space != compilers.SpacePublic {
+			g.proxied.Store(false)
+			return nil, g.admits(host, space)
+		}
+		if _, err := netip.ParseAddr(host); err != nil && g.reach != compilers.SpaceUnstated {
+			if space, err = g.resolvedSpace(req.Context(), host); err != nil {
+				return nil, err
+			}
+		}
 		if err := g.admits(host, space); err != nil {
 			return nil, err
 		}
@@ -110,6 +124,23 @@ func (g *guard) proxy(choose func(*http.Request) (*url.URL, error)) func(*http.R
 		g.space.Store(uint32(space))
 		return via, nil
 	}
+}
+
+// resolvedSpace is the most private space among the addresses the guard's
+// resolver gives the name host, which a read through a proxy is judged by. A
+// name that resolves to none cannot be judged, so a bounded read of it fails
+// with ErrUnboundedRead. The proxy resolves the name again, and may be given
+// another answer, which the guard cannot see.
+func (g *guard) resolvedSpace(ctx context.Context, host string) (compilers.AddressSpace, error) {
+	addrs, err := g.resolver.LookupNetIP(ctx, "ip", host)
+	if err != nil || len(addrs) == 0 {
+		return compilers.SpaceUnstated, fmt.Errorf("%s resolves to no address to judge: %w", host, compilers.ErrUnboundedRead)
+	}
+	space := compilers.SpacePublic
+	for _, a := range addrs {
+		space = max(space, g.classify(netip.AddrPortFrom(a, 0)))
+	}
+	return space, nil
 }
 
 // guardedClient returns the client a read bounded by reach goes through, and
@@ -234,14 +265,19 @@ var (
 	sixToFour  = netip.MustParsePrefix("2002::/16")
 )
 
-// hostSpace ranks the host a URL writes, as a read through a proxy judges it:
-// an address netip reads, by spaceOf; a host ending in a number, read as a
-// URL parser reads an IPv4 address (decimal, 0x hexadecimal, leading-zero
+// hostSpace ranks the host a URL writes, as a read through a proxy judges
+// it: an address netip reads, by spaceOf; a host ending in a number, read as
+// a URL parser reads an IPv4 address (decimal, 0x hexadecimal, leading-zero
 // octal, one to four parts), and local where those rules read none;
-// localhost and a name under it, local; any other name public, its address
-// being the proxy's to restrict.
+// localhost and a name under it, local; any other name public. net/http maps
+// a host that is not ASCII by IDNA before it uses it, which this reader cannot
+// repeat, so such a host, and one with an empty label, is ranked local: what
+// it would be dialled as is not known.
 func hostSpace(host string) compilers.AddressSpace {
-	host = strings.ToLower(strings.TrimSuffix(host, "."))
+	host = strings.ToLower(strings.TrimRight(host, "."))
+	if !isASCII(host) || host == "" || strings.Contains(host, "..") {
+		return compilers.SpaceLocal
+	}
 	if addr, err := netip.ParseAddr(host); err == nil {
 		return spaceOf(addr)
 	}
@@ -256,6 +292,16 @@ func hostSpace(host string) compilers.AddressSpace {
 		return compilers.SpaceLocal
 	}
 	return compilers.SpacePublic
+}
+
+// isASCII reports whether s holds ASCII alone.
+func isASCII(s string) bool {
+	for i := range len(s) {
+		if s[i] >= utf8.RuneSelf {
+			return false
+		}
+	}
+	return true
 }
 
 // endsInNumber reports whether host's last label is a number a URL parser

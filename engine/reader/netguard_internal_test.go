@@ -191,7 +191,7 @@ func TestSpaceOf_RanksAnAddressByHowPrivateItIs(t *testing.T) {
 }
 
 // proxied is a Disk reading through a proxy that answers every request with
-// "proxied" and counts them.
+// "proxied" and counts them, resolving name.example to a public address.
 func proxied(t *testing.T) (Disk, *probeServer) {
 	t.Helper()
 	proxy := newProbeServer(t, false, func(w http.ResponseWriter, _ *http.Request) { _, _ = w.Write([]byte("proxied")) })
@@ -199,13 +199,14 @@ func proxied(t *testing.T) (Disk, *probeServer) {
 	require.NoError(t, err)
 	tr := &http.Transport{Proxy: http.ProxyURL(proxyURL)}
 	t.Cleanup(tr.CloseIdleConnections)
-	return Disk{Client: &http.Client{Transport: tr}}, proxy
+	dns := &fakeDNS{answers: map[string][][]netip.Addr{"name.example": {{netip.MustParseAddr("93.184.216.34")}}}}
+	return Disk{Client: &http.Client{Transport: tr}, resolver: dns.resolver()}, proxy
 }
 
-// TestDisk_AReadThroughAProxyIsJudgedByTheHostTheURLWrites pins the stated
-// limit: the dial is the proxy's, so the host is judged, in every spelling of
-// an address a URL parser takes, and a name is public. A refused host is
-// never sent to the proxy.
+// TestDisk_AReadThroughAProxyIsJudgedByTheHostTheURLWrites pins that the
+// dial being the proxy's, the host is judged, in every spelling of an address
+// a URL parser takes, and a name by the addresses it resolves to. A refused
+// host is never sent to the proxy.
 func TestDisk_AReadThroughAProxyIsJudgedByTheHostTheURLWrites(t *testing.T) {
 	t.Parallel()
 	d, proxy := proxied(t)
@@ -221,7 +222,7 @@ func TestDisk_AReadThroughAProxyIsJudgedByTheHostTheURLWrites(t *testing.T) {
 	got, err := d.ReadDocument(t.Context(), compilers.DocumentRequest{Location: "http://name.example/x", Reach: compilers.SpacePublic})
 	require.NoError(t, err)
 	assert.Equal(t, "proxied", string(got.Data))
-	assert.Equal(t, compilers.SpacePublic, got.Space, "a name is public: its address is the proxy's to restrict")
+	assert.Equal(t, compilers.SpacePublic, got.Space, "a name resolving to public addresses alone is public")
 }
 
 // TestHostSpace_ReadsEverySpellingOfAnAddressAURLParserTakes pins the table the
