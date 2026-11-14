@@ -27,60 +27,43 @@ import (
 func checkIDs(doc *ir.Document) []Violation {
 	var vs []Violation
 	for id, td := range doc.Types {
-		if ir.IsNilTypeDef(td) || !keyedByOwnID(string(id), string(td.Common().ID)) {
-			continue // checkRegistryKeys reports the entry itself
+		if ir.IsNilTypeDef(td) {
+			continue // checkRegistryKeys reports the nil entry itself
 		}
-		if v, bad := idDefect(ir.IDKindType, string(id), td.Common().Provenance); bad {
-			v.Path = typePath(id)
-			vs = append(vs, v)
-		}
+		vs = appendRegistryIDDefect(vs, ir.IDKindType, "types", string(id), string(td.Common().ID), td.Common().Provenance)
 	}
 	for id, scheme := range doc.Auth {
-		if !keyedByOwnID(string(id), string(scheme.ID)) {
-			continue
-		}
-		if v, bad := idDefect(ir.IDKindAuth, string(id), scheme.Provenance); bad {
-			v.Path = "auth[" + string(id) + "]"
-			vs = append(vs, v)
-		}
+		vs = appendRegistryIDDefect(vs, ir.IDKindAuth, "auth", string(id), string(scheme.ID), scheme.Provenance)
 	}
 	for id, server := range doc.Servers {
-		if !keyedByOwnID(string(id), string(server.ID)) {
-			continue
-		}
-		if v, bad := idDefect(ir.IDKindServer, string(id), server.Provenance); bad {
-			v.Path = "servers[" + string(id) + "]"
-			vs = append(vs, v)
-		}
+		vs = appendRegistryIDDefect(vs, ir.IDKindServer, "servers", string(id), string(server.ID), server.Provenance)
 	}
 	// A channel and a message are held to shape alone, as an operation is: one
 	// may be mounted at one pointer and declared at another through a $ref, so
 	// its ID's path need not be the pointer its provenance records (GitHub #107).
 	for id, ch := range doc.Channels {
-		if !keyedByOwnID(string(id), string(ch.ID)) {
-			continue
-		}
-		if v, bad := idDefect(ir.IDKindChannel, string(id), ir.Provenance{}); bad {
-			v.Path = "channels[" + string(id) + "]"
-			vs = append(vs, v)
-		}
+		vs = appendRegistryIDDefect(vs, ir.IDKindChannel, "channels", string(id), string(ch.ID), ir.Provenance{})
 	}
 	for id, msg := range doc.Messages {
-		if !keyedByOwnID(string(id), string(msg.ID)) {
-			continue
-		}
-		if v, bad := idDefect(ir.IDKindMessage, string(id), ir.Provenance{}); bad {
-			v.Path = "messages[" + string(id) + "]"
-			vs = append(vs, v)
-		}
+		vs = appendRegistryIDDefect(vs, ir.IDKindMessage, "messages", string(id), string(msg.ID), ir.Provenance{})
 	}
 	return append(vs, checkMemberIDs(doc)...)
 }
 
-// keyedByOwnID reports whether a registry entry's key is set and is its node's
-// own ID, which checkRegistryKeys requires and reports otherwise.
-func keyedByOwnID(key, nodeID string) bool {
-	return key != "" && key == nodeID
+// appendRegistryIDDefect holds the ID of one entry of registry reg to the
+// grammar and to the pointer prov records, where the entry is keyed by its
+// node's own ID: an empty key, or another node's, is checkRegistryKeys' one
+// report. The path is spelled only for a violation.
+func appendRegistryIDDefect(vs []Violation, kind, reg, key, nodeID string, prov ir.Provenance) []Violation {
+	if key == "" || key != nodeID {
+		return vs
+	}
+	v, bad := idDefect(kind, key, prov)
+	if !bad {
+		return vs
+	}
+	v.Path = reg + "[" + key + "]"
+	return append(vs, v)
 }
 
 // kindPrefixes maps every class of ID to the kind prefix it opens with, so a
