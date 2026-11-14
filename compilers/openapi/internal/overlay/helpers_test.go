@@ -10,6 +10,8 @@ import (
 	"github.com/stretchr/testify/require"
 	yaml "go.yaml.in/yaml/v3"
 
+	"github.com/dexpace/morphic/compilers/openapi/internal/budget"
+	"github.com/dexpace/morphic/compilers/openapi/internal/doctree"
 	"github.com/dexpace/morphic/compilers/openapi/internal/overlay"
 	"github.com/dexpace/morphic/ir"
 )
@@ -40,7 +42,7 @@ func decoded(t *testing.T, src string) *yaml.Node {
 func applied(t *testing.T, src, ov string, lax bool) (overlay.Origin, *yaml.Node, []ir.Diagnostic) {
 	t.Helper()
 	root := decoded(t, src)
-	origin, diags := overlay.Apply(t.Context(), overlayIndex, root, overlay.Options{Path: "o.yaml", Data: []byte(ov), Lax: lax})
+	origin, diags := overlay.Apply(t.Context(), overlayIndex, root, overlayDoc(t, ov), overlay.Options{Path: "o.yaml", Data: []byte(ov), Lax: lax})
 	return origin, root, diags
 }
 
@@ -98,4 +100,13 @@ func member(t *testing.T, root *yaml.Node, keys ...string) (key, value *yaml.Nod
 		n = value
 	}
 	return key, value
+}
+
+// overlayDoc reads ov as the compile reads an overlay document, into the tree
+// overlay.Apply is handed.
+func overlayDoc(t testing.TB, ov string) *yaml.Node {
+	t.Helper()
+	doc, err := doctree.Read(t.Context(), []byte(ov), budget.Unbounded())
+	require.NoError(t, err)
+	return doc.Root
 }

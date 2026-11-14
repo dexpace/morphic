@@ -1,7 +1,7 @@
 // Copyright (c) 2026 dexpace.
 // Licensed under the MIT License. See LICENSE in the repository root for details.
 
-package jsontree_test
+package doctree
 
 import (
 	"context"
@@ -20,7 +20,7 @@ import (
 	"github.com/stretchr/testify/require"
 	yaml "go.yaml.in/yaml/v3"
 
-	"github.com/dexpace/morphic/compilers/openapi/internal/jsontree"
+	"github.com/dexpace/morphic/compilers/openapi/internal/budget"
 	"github.com/dexpace/morphic/compilers/openapi/internal/nodeview"
 	"github.com/dexpace/morphic/internal/ctxtest"
 )
@@ -42,10 +42,17 @@ func yamlTree(t testing.TB, text string) *yaml.Node {
 	return &doc
 }
 
-// readTree is the tree Read builds for text, which it must read.
+// jsonRead is the tree readJSON builds for data with no node budget, or its
+// error.
+func jsonRead(ctx context.Context, data []byte) (*yaml.Node, error) {
+	root, _, err := readJSON(ctx, data, budget.Unbounded())
+	return root, err
+}
+
+// readTree is the tree readJSON builds for text, which it must read.
 func readTree(t testing.TB, text string) *yaml.Node {
 	t.Helper()
-	doc, err := jsontree.Read(t.Context(), []byte(text))
+	doc, err := jsonRead(t.Context(), []byte(text))
 	require.NoError(t, err, "Read reads %q", text)
 	return doc
 }
@@ -91,13 +98,13 @@ func firstDifference(a, b *yaml.Node) string {
 	return ""
 }
 
-// TestRead_BuildsTheTreeYAMLBuilds holds Read to the tree yaml.v3 builds for
+// TestReadJSON_BuildsTheTreeYAMLBuilds holds Read to the tree yaml.v3 builds for
 // texts both read, in every field a node has: kind, tag, style, value, line and
 // column among them. A row is a spelling of the JSON text a field of the tree
 // depends on: a line break, a byte order mark, indentation, characters wider
 // than a byte, a number yaml.v3 tags apart from another, a name written twice,
 // an escape both read, a root that is no object.
-func TestRead_BuildsTheTreeYAMLBuilds(t *testing.T) {
+func TestReadJSON_BuildsTheTreeYAMLBuilds(t *testing.T) {
 	t.Parallel()
 	const object = "{\n  \"a\": 1,\n  \"b\": [true, null, \"s\"]\n}\n"
 	cases := map[string]string{
@@ -148,12 +155,12 @@ func TestRead_BuildsTheTreeYAMLBuilds(t *testing.T) {
 	}
 }
 
-// TestRead_ReadsWhatYAMLRefusesOrMisreads pins the texts Read exists for: each
+// TestReadJSON_ReadsWhatYAMLRefusesOrMisreads pins the texts Read exists for: each
 // row is one JSON text that yaml.v3 refuses or reads as another, with the
 // scalars Read gives it and where it writes them. The test holds each row to
 // what it claims of yaml.v3 as well, so a row yaml.v3 comes to read alike has
 // no reason left.
-func TestRead_ReadsWhatYAMLRefusesOrMisreads(t *testing.T) {
+func TestReadJSON_ReadsWhatYAMLRefusesOrMisreads(t *testing.T) {
 	t.Parallel()
 	const refuses, misreads = true, false
 	cases := []struct {
@@ -208,12 +215,12 @@ func TestRead_ReadsWhatYAMLRefusesOrMisreads(t *testing.T) {
 	}
 }
 
-// TestRead_ReportsALoneSurrogateWhereItIsWritten holds a text with an escape
+// TestReadJSON_ReportsALoneSurrogateWhereItIsWritten holds a text with an escape
 // that names half of a surrogate pair to a *LoneSurrogateError that quotes the
 // escape as written and the line and column it begins at, in characters. The
 // halves of a pair that is whole are not reported: only a half beside no
 // other, or beside a half out of its order.
-func TestRead_ReportsALoneSurrogateWhereItIsWritten(t *testing.T) {
+func TestReadJSON_ReportsALoneSurrogateWhereItIsWritten(t *testing.T) {
 	t.Parallel()
 	cases := []struct {
 		name         string
@@ -245,34 +252,34 @@ func TestRead_ReportsALoneSurrogateWhereItIsWritten(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			doc, err := jsontree.Read(t.Context(), []byte(tc.text))
+			doc, err := jsonRead(t.Context(), []byte(tc.text))
 
-			var lone *jsontree.LoneSurrogateError
+			var lone *LoneSurrogateError
 			require.ErrorAs(t, err, &lone)
 			assert.Nil(t, doc)
-			assert.NotErrorIs(t, err, jsontree.ErrNotJSON, "a refusal, not a decline")
-			assert.Equal(t, jsontree.LoneSurrogateError{Escape: tc.escape, Line: tc.line, Column: tc.column}, *lone)
+			assert.NotErrorIs(t, err, errNotJSON, "a refusal, not a decline")
+			assert.Equal(t, LoneSurrogateError{Escape: tc.escape, Line: tc.line, Column: tc.column}, *lone)
 			assert.Equal(t, fmt.Sprintf("line %d, column %d: the escape %s is half of a UTF-16 surrogate pair, "+
 				"written without its other half, so it names no character", tc.line, tc.column, tc.escape), err.Error())
 		})
 	}
 }
 
-// TestRead_ReportsExactlyTheSurrogateEscapesAsHalves holds every code unit a
+// TestReadJSON_ReportsExactlyTheSurrogateEscapesAsHalves holds every code unit a
 // \uXXXX escape can name, in either case of its hex, to what Read makes of a
 // string that holds it alone: the character it names for a unit outside D800 to
 // DFFF, and a *LoneSurrogateError quoting the escape for one inside. It pins the
 // range of a half at both ends: the decoder decides which escapes it refuses,
 // and Read's own check must report every one of them.
-func TestRead_ReportsExactlyTheSurrogateEscapesAsHalves(t *testing.T) {
+func TestReadJSON_ReportsExactlyTheSurrogateEscapesAsHalves(t *testing.T) {
 	t.Parallel()
 	for unit := range 0x10000 {
 		for _, escape := range []string{fmt.Sprintf(`\u%04x`, unit), fmt.Sprintf(`\u%04X`, unit)} {
-			doc, err := jsontree.Read(t.Context(), []byte(`["`+escape+`"]`))
+			doc, err := jsonRead(t.Context(), []byte(`["`+escape+`"]`))
 
 			if utf16.IsSurrogate(rune(unit)) {
-				var lone *jsontree.LoneSurrogateError
-				if !errors.As(err, &lone) || *lone != (jsontree.LoneSurrogateError{Escape: escape, Line: 1, Column: 3}) {
+				var lone *LoneSurrogateError
+				if !errors.As(err, &lone) || *lone != (LoneSurrogateError{Escape: escape, Line: 1, Column: 3}) {
 					t.Fatalf("%s: want its escape reported at 1:3, got %v", escape, err)
 				}
 				continue
@@ -284,26 +291,26 @@ func TestRead_ReportsExactlyTheSurrogateEscapesAsHalves(t *testing.T) {
 	}
 }
 
-// TestRead_ReadsAFaultAfterAnEscapeAsTheFaultAlone holds a string that holds an
+// TestReadJSON_ReadsAFaultAfterAnEscapeAsTheFaultAlone holds a string that holds an
 // escape of a code unit outside D800 to DFFF, then a fault the decoder gives up
 // at, to the verdict of the same string with the escape written as one
 // character: the escape is never the reason, so it is never what Read quotes.
-func TestRead_ReadsAFaultAfterAnEscapeAsTheFaultAlone(t *testing.T) {
+func TestReadJSON_ReadsAFaultAfterAnEscapeAsTheFaultAlone(t *testing.T) {
 	t.Parallel()
 	faults := []string{`\q"]`, esc("d83d") + `"]`, "\t\"]", esc("ZZZZ") + `"]`, esc("d83d") + esc("0041") + `"]`, `\`}
 	for _, fault := range faults {
-		want, wantErr := jsontree.Read(t.Context(), []byte(`["a`+fault))
+		want, wantErr := jsonRead(t.Context(), []byte(`["a`+fault))
 		require.Nil(t, want)
-		var wantLone *jsontree.LoneSurrogateError
+		var wantLone *LoneSurrogateError
 		wantIsLone := errors.As(wantErr, &wantLone)
 
 		for unit := range 0x10000 {
 			if utf16.IsSurrogate(rune(unit)) {
 				continue
 			}
-			_, err := jsontree.Read(t.Context(), []byte(fmt.Sprintf(`["\u%04x`, unit)+fault))
+			_, err := jsonRead(t.Context(), []byte(fmt.Sprintf(`["\u%04x`, unit)+fault))
 
-			var lone *jsontree.LoneSurrogateError
+			var lone *LoneSurrogateError
 			if errors.As(err, &lone) != wantIsLone || (wantIsLone && lone.Escape != wantLone.Escape) {
 				t.Fatalf(`%04x before %q: want %v, got %v`, unit, fault, wantErr, err)
 			}
@@ -311,14 +318,14 @@ func TestRead_ReadsAFaultAfterAnEscapeAsTheFaultAlone(t *testing.T) {
 	}
 }
 
-// TestRead_DeclinesWhatIsNotOneJSONText holds the texts Read leaves to the
+// TestReadJSON_DeclinesWhatIsNotOneJSONText holds the texts Read leaves to the
 // caller, as ErrNotJSON and no document: no value, YAML that is no JSON, a
 // JSON value beside another or beside text, and JSON that stops short, that
 // the decoder refuses, or that nests past the decoder's bound. The surrogate
 // escapes that stay declined are the ones that are no half: a bad digit, a
 // cut one, one outside a string, and a fault that only has the digits of one
 // beside it.
-func TestRead_DeclinesWhatIsNotOneJSONText(t *testing.T) {
+func TestReadJSON_DeclinesWhatIsNotOneJSONText(t *testing.T) {
 	t.Parallel()
 	cases := map[string]string{
 		"empty":                        "",
@@ -373,19 +380,19 @@ func TestRead_DeclinesWhatIsNotOneJSONText(t *testing.T) {
 	for name, text := range cases {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
-			doc, err := jsontree.Read(t.Context(), []byte(text))
+			doc, err := jsonRead(t.Context(), []byte(text))
 
-			require.ErrorIs(t, err, jsontree.ErrNotJSON)
+			require.ErrorIs(t, err, errNotJSON)
 			assert.Nil(t, doc)
-			var lone *jsontree.LoneSurrogateError
+			var lone *LoneSurrogateError
 			assert.NotErrorAs(t, err, &lone, "declined, not refused")
 		})
 	}
 }
 
-// TestRead_ReadsNestingAtTheDecoderBound pins the depth Read reads: the
+// TestReadJSON_ReadsNestingAtTheDecoderBound pins the depth Read reads: the
 // decoder's bound itself, 10000 levels, whose tree is read whole.
-func TestRead_ReadsNestingAtTheDecoderBound(t *testing.T) {
+func TestReadJSON_ReadsNestingAtTheDecoderBound(t *testing.T) {
 	t.Parallel()
 	const depth = 10000
 	doc := readTree(t, strings.Repeat("[", depth)+strings.Repeat("]", depth))
@@ -397,19 +404,19 @@ func TestRead_ReadsNestingAtTheDecoderBound(t *testing.T) {
 	assert.Equal(t, depth, levels, "one step from the document to the outer array, and one into each inner")
 }
 
-// TestRead_StopsOnceTheContextIsDone pins the asks of ctx: before the first
+// TestReadJSON_StopsOnceTheContextIsDone pins the asks of ctx: before the first
 // token, even of a text that holds none, and every nodeview.AskEvery tokens
 // after, and ctx's own error, not a decline, once it is done.
-func TestRead_StopsOnceTheContextIsDone(t *testing.T) {
+func TestReadJSON_StopsOnceTheContextIsDone(t *testing.T) {
 	t.Parallel()
 	array := func(items int) []byte { return []byte("[" + strings.Repeat("1,", items-1) + "1]") }
 
 	cancelled, cancel := context.WithCancel(t.Context())
 	cancel()
 	for name, text := range map[string][]byte{"an array": array(10), "no text": nil} {
-		doc, err := jsontree.Read(cancelled, text)
+		doc, err := jsonRead(cancelled, text)
 		require.ErrorIs(t, err, context.Canceled, name)
-		assert.NotErrorIs(t, err, jsontree.ErrNotJSON, name)
+		assert.NotErrorIs(t, err, errNotJSON, name)
 		assert.Nil(t, doc, name)
 	}
 
@@ -423,41 +430,41 @@ func TestRead_StopsOnceTheContextIsDone(t *testing.T) {
 		"four times the interval":           {4 * nodeview.AskEvery, 5},
 	} {
 		live := &ctxtest.Countdown{Context: t.Context(), Left: math.MaxInt}
-		_, err := jsontree.Read(live, array(tc.items))
+		_, err := jsonRead(live, array(tc.items))
 		require.NoError(t, err, name)
 		assert.Equal(t, tc.asks, live.Calls, name)
 	}
 
 	cut := &ctxtest.Countdown{Context: t.Context(), Left: 2}
-	doc, err := jsontree.Read(cut, array(4*nodeview.AskEvery))
+	doc, err := jsonRead(cut, array(4*nodeview.AskEvery))
 	require.ErrorIs(t, err, context.Canceled)
 	assert.Nil(t, doc)
 	assert.Equal(t, 3, cut.Calls, "two asks passed, the third refused, and none after")
 }
 
-// TestRead_KeepsTheDecodersReasonWhenItDeclines holds the error of a text that
+// TestReadJSON_KeepsTheDecodersReasonWhenItDeclines holds the error of a text that
 // is not JSON to the reason the decoder gave, so a caller who logs it learns why
 // the text was read as YAML: the decoder's error is wrapped, not replaced.
-func TestRead_KeepsTheDecodersReasonWhenItDeclines(t *testing.T) {
+func TestReadJSON_KeepsTheDecodersReasonWhenItDeclines(t *testing.T) {
 	t.Parallel()
-	_, err := jsontree.Read(t.Context(), []byte("[1,]"))
-	require.ErrorIs(t, err, jsontree.ErrNotJSON)
+	_, err := jsonRead(t.Context(), []byte("[1,]"))
+	require.ErrorIs(t, err, errNotJSON)
 	var syntax *jsontext.SyntacticError
 	require.ErrorAs(t, err, &syntax)
 	assert.Equal(t, int64(2), syntax.ByteOffset, "the comma the decoder stopped at")
 
-	_, err = jsontree.Read(t.Context(), []byte(`{"a": 1`))
-	require.ErrorIs(t, err, jsontree.ErrNotJSON)
+	_, err = jsonRead(t.Context(), []byte(`{"a": 1`))
+	require.ErrorIs(t, err, errNotJSON)
 	assert.ErrorIs(t, err, io.ErrUnexpectedEOF, "the text ended inside its object")
 }
 
-// FuzzRead_BuildsTheTreeYAMLBuilds holds Read to yaml.v3 over arbitrary text:
+// FuzzReadJSON_BuildsTheTreeYAMLBuilds holds Read to yaml.v3 over arbitrary text:
 // whenever Read reads a text and yaml.v3 reads it too, the trees match in every
 // field. A text only one of them reads says nothing, and neither does one with
 // a raw U+0085, U+2028 or U+2029, which yaml.v3 counts as line breaks and Read
 // does not (docs/compilers/openapi.md#yaml-decoding). A library release that
 // reads a JSON text differently reddens it.
-func FuzzRead_BuildsTheTreeYAMLBuilds(f *testing.F) {
+func FuzzReadJSON_BuildsTheTreeYAMLBuilds(f *testing.F) {
 	for _, seed := range []string{
 		"{\n  \"a\": 1,\n  \"b\": [true, null, \"s\"]\n}\n",
 		"\xef\xbb\xbf\r\n{\"é日\": [1e2, -0, 1e400, \"😀\"]}",
@@ -476,7 +483,7 @@ func FuzzRead_BuildsTheTreeYAMLBuilds(f *testing.F) {
 		if err := yaml.NewDecoder(strings.NewReader(string(data))).Decode(&want); err != nil {
 			t.Skip("yaml.v3 refuses it")
 		}
-		got, err := jsontree.Read(t.Context(), data)
+		got, err := jsonRead(t.Context(), data)
 		if err != nil {
 			t.Skip("Read declines it")
 		}

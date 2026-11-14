@@ -12,6 +12,7 @@ import (
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/budget"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
+	"github.com/dexpace/morphic/compilers/openapi/internal/doctree"
 	"github.com/dexpace/morphic/compilers/openapi/internal/provenance"
 	"github.com/dexpace/morphic/ir"
 )
@@ -25,6 +26,8 @@ type externalReads struct {
 	self  sourceDocument
 	trees map[string]*yaml.Node
 	data  map[string][]byte
+	// read is what reading each prepared document found beside its tree.
+	read map[string]doctree.Document
 	// answers holds each document's read by the key it was read under, and
 	// documents charges each read to the document budget.
 	answers   map[string]*reading
@@ -35,6 +38,7 @@ type externalReads struct {
 // reads are held to documents, the document budget.
 func newExternalReads(self sourceDocument, documents budget.Limit) *externalReads {
 	return &externalReads{self: self, trees: map[string]*yaml.Node{}, data: map[string][]byte{},
+		read:    map[string]doctree.Document{},
 		answers: map[string]*reading{}, documents: budget.New(documents)}
 }
 
@@ -87,7 +91,7 @@ func (r *externalReads) adopt(key, prepared string) {
 		return
 	}
 	if tree, ok := r.trees[prepared]; ok {
-		r.trees[key], r.data[key] = tree, r.data[prepared]
+		r.trees[key], r.data[key], r.read[key] = tree, r.data[prepared], r.read[prepared]
 	}
 }
 
@@ -115,10 +119,10 @@ func (r *externalReads) exhausted(place provenance.Doc) []ir.Diagnostic {
 }
 
 // recordTree notes a document prepared under key from data.
-func (r *externalReads) recordTree(key string, tree *yaml.Node, data []byte) {
+func (r *externalReads) recordTree(key string, doc doctree.Document, data []byte) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	r.trees[key] = tree
+	r.trees[key], r.read[key] = doc.Root, doc
 	r.data[key] = data
 }
 

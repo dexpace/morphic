@@ -14,7 +14,9 @@ import (
 	yaml "go.yaml.in/yaml/v3"
 
 	"github.com/dexpace/morphic/compilers"
+	"github.com/dexpace/morphic/compilers/openapi/internal/budget"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
+	"github.com/dexpace/morphic/compilers/openapi/internal/doctree"
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
 	"github.com/dexpace/morphic/ir"
 )
@@ -177,29 +179,6 @@ func TestLoad_AStreamIsReportedEvenWhenTheFirstDocumentIsRefused(t *testing.T) {
 	assert.Len(t, streamDiags(diags), 1, "and the drop is still reported: %+v", diags)
 }
 
-// TestHoldsContent_ReadsOnlyAWellFormedDocument pins the predicate the tail
-// count turns on. yaml.v3 wraps exactly one root in every document it parses,
-// so the shapes that fail the guard are built rather than decoded — the same
-// reason TestUnmarshal_RejectsADocumentNodeHoldingMoreThanOneRoot builds its
-// node — and a document that holds nothing is the null its separator decodes
-// to, whatever the spelling.
-func TestHoldsContent_ReadsOnlyAWellFormedDocument(t *testing.T) {
-	t.Parallel()
-	wrap := func(root *yaml.Node) *yaml.Node {
-		return &yaml.Node{Kind: yaml.DocumentNode, Content: []*yaml.Node{root}}
-	}
-	mapping := &yaml.Node{Kind: yaml.MappingNode, Tag: "!!map"}
-
-	assert.True(t, holdsContent(wrap(mapping)))
-	assert.True(t, holdsContent(wrap(&yaml.Node{Kind: yaml.ScalarNode, Tag: "!!str", Value: "text"})))
-	assert.False(t, holdsContent(wrap(&yaml.Node{Kind: yaml.ScalarNode, Tag: "!!null"})), "an explicit null")
-	assert.False(t, holdsContent(wrap(&yaml.Node{Kind: yaml.ScalarNode})),
-		"an untagged empty scalar resolves to null, which is what a bare separator decodes to")
-	assert.False(t, holdsContent(mapping), "not a document node")
-	assert.False(t, holdsContent(&yaml.Node{Kind: yaml.DocumentNode, Content: []*yaml.Node{mapping, mapping}}),
-		"a document node yaml.v3 never produces")
-}
-
 // TestDecode_TakesTheFirstDocumentHoldingContent pins the fix for GitHub #481:
 // the document the compile lowers is the first in the stream that holds
 // content, not the first the stream opens. A leading document that decodes to
@@ -225,7 +204,7 @@ func TestDecode_TakesTheFirstDocumentHoldingContent(t *testing.T) {
 			require.True(t, holdsContent(root), "the document taken is the one with content")
 			assert.Equal(t, yaml.MappingNode, root.Content[0].Kind)
 			assert.Equal(t, strings.Count(lead, "\n")+1, root.Content[0].Line, "taken from where it was written")
-			assert.Equal(t, tail{}, rest, "and nothing after it was dropped")
+			assert.Equal(t, doctree.Tail{}, rest, "and nothing after it was dropped")
 		})
 	}
 }
@@ -242,7 +221,7 @@ func TestDecode_AStreamOfEmptyDocumentsIsItsFirst(t *testing.T) {
 	require.Equal(t, yaml.DocumentNode, root.Kind)
 	assert.False(t, holdsContent(root))
 	assert.Equal(t, 2, root.Content[0].Line, "the first of them, where the old decode stopped")
-	assert.Equal(t, tail{}, rest, "the empties after it drop nothing")
+	assert.Equal(t, doctree.Tail{}, rest, "the empties after it drop nothing")
 
 	empty, _, err := decodeStream(t.Context(), []byte(" "))
 	require.NoError(t, err)
@@ -263,7 +242,7 @@ func TestLoad_AnErrorBeforeContentIsAParseError(t *testing.T) {
 	_, rest, err := decodeStream(t.Context(), []byte("---\n...\n"+minimal31))
 	require.Error(t, err, "the reader reports the parser's own error")
 	assert.NotErrorIs(t, err, ErrParse, "unwrapped, for detection to quote")
-	assert.Equal(t, tail{}, rest)
+	assert.Equal(t, doctree.Tail{}, rest)
 
 	doc, diags, err := Load(t.Context(), 0, openapitest.SourceOf("---\n...\n"+minimal31), Options{})
 	require.Error(t, err, "and the compile makes it the sentinel it converts into a diagnostic")
@@ -280,12 +259,12 @@ func TestDecode_IsWhatTheCompileTakes(t *testing.T) {
 	src := []byte("--- null\n---\n" + minimal31)
 	fromDecode, _, err := decodeStream(t.Context(), src)
 	require.NoError(t, err)
-	fromDetect, err := Decode(t.Context(), src)
+	fromDetect, err := Decode(t.Context(), src, budget.Unbounded())
 	require.NoError(t, err)
 	assert.Equal(t, fromDecode.Content[0].Line, fromDetect.Root().Content[0].Line)
 	assert.Equal(t, yaml.MappingNode, fromDetect.Root().Content[0].Kind)
 
-	_, err = Decode(t.Context(), []byte("\tnot: yaml\n"))
+	_, err = Decode(t.Context(), []byte("\tnot: yaml\n"), budget.Unbounded())
 	require.Error(t, err)
 	assert.NotErrorIs(t, err, ErrParse, "the parser's own error, unwrapped, for detection to quote")
 }
@@ -321,7 +300,7 @@ func TestLoad_LeadingEmptyDocumentsAreSkipped(t *testing.T) {
 func TestLoad_ReusesTheParseDetectionLeftBehind(t *testing.T) {
 	t.Parallel()
 	data := []byte(minimal31)
-	parsed, err := Decode(t.Context(), data)
+	parsed, err := Decode(t.Context(), data, budget.Unbounded())
 	require.NoError(t, err)
 	titleOf(t, parsed).Value = "FromTheTree"
 	require.NotContains(t, string(data), "FromTheTree", "the planted title is nowhere in the bytes")
@@ -373,7 +352,7 @@ func titleOf(t *testing.T, p *Parsed) *yaml.Node {
 func TestLoad_IgnoresAParseItCannotUse(t *testing.T) {
 	t.Parallel()
 	data := []byte(minimal31)
-	other, err := Decode(t.Context(), []byte("openapi: 3.1.0\ninfo: {title: Other, version: \"1\"}\npaths: {}\n"))
+	other, err := Decode(t.Context(), []byte("openapi: 3.1.0\ninfo: {title: Other, version: \"1\"}\npaths: {}\n"), budget.Unbounded())
 	require.NoError(t, err)
 
 	for name, parsed := range map[string]any{
@@ -407,7 +386,7 @@ func TestLoad_IgnoresAParseItCannotUse(t *testing.T) {
 func TestLoad_AParseIsCheckedAgainstTheBytesBesideIt(t *testing.T) {
 	t.Parallel()
 	data := []byte(minimal31)
-	parsed, err := Decode(t.Context(), data)
+	parsed, err := Decode(t.Context(), data, budget.Unbounded())
 	require.NoError(t, err)
 
 	// The same backing array, refilled — the pooled-buffer shape.
@@ -438,7 +417,7 @@ func TestLoad_AParseOfEqualBytesIsTheSameParse(t *testing.T) {
 	t.Parallel()
 	data := []byte(minimal31)
 	equal := slices.Clone(data)
-	parsed, err := Decode(t.Context(), equal)
+	parsed, err := Decode(t.Context(), equal, budget.Unbounded())
 	require.NoError(t, err)
 	titleOf(t, parsed).Value = "FromAnEqualButOtherBuffer"
 
@@ -462,7 +441,7 @@ func TestLoad_AParseOfEqualBytesIsTheSameParse(t *testing.T) {
 func TestLoad_AReusedParseCarriesTheStreamTail(t *testing.T) {
 	t.Parallel()
 	data := []byte(minimal31 + "---\nopenapi: 3.1.0\ninfo: {title: N, version: \"1\"}\npaths: {}\n")
-	parsed, err := Decode(t.Context(), data)
+	parsed, err := Decode(t.Context(), data, budget.Unbounded())
 	require.NoError(t, err)
 
 	fresh, freshDiags, err := Load(t.Context(), 0, compilers.Source{Path: "s.yaml", Data: data}, Options{})

@@ -32,6 +32,7 @@ import (
 
 	"github.com/dexpace/morphic/compilers"
 	"github.com/dexpace/morphic/compilers/openapi/internal/bind"
+	"github.com/dexpace/morphic/compilers/openapi/internal/budget"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/load"
 	"github.com/dexpace/morphic/compilers/openapi/internal/nodeview"
@@ -115,11 +116,6 @@ var validationReasons = map[string]string{
 		"$schema, else the document's jsonSchemaDialect, choose the dialect (3.1.2 §Schema Object: 'if present " +
 		"MUST be used to determine which dialect should be used when processing the schema'), and the compiler " +
 		"reads each in it (docs/compilers/openapi.md#dialect-keywords)",
-	"plain-date": "the library reads a date written with no tag at a string field as a timestamp, the type the " +
-		"YAML parser gives it, and refuses it as the wrong type; YAML 1.2, which OpenAPI recommends, has no timestamp " +
-		"and reads a plain date as a string, and OpenAPI limits its tags to the JSON schema ruleset's (3.1.2 §Format: " +
-		"'Tags MUST be limited to those allowed by YAML's JSON schema ruleset'), of which only !!str holds one, so " +
-		"the table reads it as the string it spells (docs/compilers/openapi.md#yaml-decoding)",
 	"over-strict": "the library warns of a field written beside a type it does not apply to; the specification's " +
 		"'Applies To' column says where a field has meaning and bars it nowhere (3.2.0 §Security Scheme Object: " +
 		"bearerFormat applies to http), so the table accepts it, and the security scheme lowering keeps the field " +
@@ -279,7 +275,7 @@ func repoPath(t *testing.T, path string) string {
 // It reads pairs raw, so a version written through an alias is skipped (#1201).
 func declaredVersion(t testing.TB, data []byte) (string, *yaml.Node, bool) {
 	t.Helper()
-	parsed, err := load.Decode(t.Context(), data)
+	parsed, err := load.Decode(t.Context(), data, budget.Unbounded())
 	if err != nil {
 		return "", nil, false
 	}

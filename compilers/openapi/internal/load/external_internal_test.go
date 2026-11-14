@@ -23,6 +23,7 @@ import (
 	"github.com/dexpace/morphic/compilers"
 	"github.com/dexpace/morphic/compilers/openapi/internal/bind"
 	"github.com/dexpace/morphic/compilers/openapi/internal/budget"
+	"github.com/dexpace/morphic/compilers/openapi/internal/doctree"
 	refscope "github.com/dexpace/morphic/compilers/openapi/internal/resolve"
 	"github.com/dexpace/morphic/engine/reader"
 )
@@ -174,7 +175,7 @@ func TestExternal_AdmitRefusesARecursiveAnchor(t *testing.T) {
 	root, err := parseTree(t.Context(), []byte("p: &a [*a]\n"))
 	require.NoError(t, err)
 
-	err = newExternal(Options{}, newExternalReads(sourceDocument{}, budget.Unbounded())).admit(t.Context(), "k", root)
+	err = newExternal(Options{}, newExternalReads(sourceDocument{}, budget.Unbounded())).admit(t.Context(), "k", doctree.Document{Root: root})
 
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "refused")
@@ -191,7 +192,7 @@ func TestExternal_AdmitJoinsTwoFindings(t *testing.T) {
 	root, err := parseTree(t.Context(), []byte("p: &a [*a]\nq: !x {b: 1}\n"))
 	require.NoError(t, err)
 
-	err = newExternal(Options{}, newExternalReads(sourceDocument{}, budget.Unbounded())).admit(t.Context(), "k", root)
+	err = newExternal(Options{}, newExternalReads(sourceDocument{}, budget.Unbounded())).admit(t.Context(), "k", doctree.Document{Root: root})
 
 	require.Error(t, err)
 	assert.Contains(t, err.Error(),
@@ -210,7 +211,7 @@ func TestExternal_AdmitOverTheNodeBudgetIsRefused(t *testing.T) {
 	nodes := nodeCount(t.Context(), root)
 	admit := func(limit int) error {
 		return newExternal(Options{MaxSourceNodes: budget.AtMost(limit)},
-			newExternalReads(sourceDocument{}, budget.Unbounded())).admit(t.Context(), "k", root)
+			newExternalReads(sourceDocument{}, budget.Unbounded())).admit(t.Context(), "k", doctree.Document{Root: root, Nodes: nodes})
 	}
 
 	require.NoError(t, admit(nodes), "a document of the budget's nodes is within it")
@@ -228,7 +229,7 @@ func TestExternal_AdmitHoldsTheAliasBudget(t *testing.T) {
 	root, err := parseTree(t.Context(), []byte("a: &x {b: 1}\nc: *x\n"))
 	require.NoError(t, err)
 
-	err = newExternal(Options{MaxAliasSurplus: budget.AtMost(1)}, newExternalReads(sourceDocument{}, budget.Unbounded())).admit(t.Context(), "k", root)
+	err = newExternal(Options{MaxAliasSurplus: budget.AtMost(1)}, newExternalReads(sourceDocument{}, budget.Unbounded())).admit(t.Context(), "k", doctree.Document{Root: root})
 
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "refused")

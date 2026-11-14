@@ -1,7 +1,7 @@
 // Copyright (c) 2026 dexpace.
 // Licensed under the MIT License. See LICENSE in the repository root for details.
 
-package jsontree
+package doctree
 
 import (
 	"bytes"
@@ -15,6 +15,7 @@ import (
 
 	yaml "go.yaml.in/yaml/v3"
 
+	"github.com/dexpace/morphic/compilers/openapi/internal/budget"
 	"github.com/dexpace/morphic/compilers/openapi/internal/nodeview"
 )
 
@@ -25,9 +26,9 @@ const bom = "\xef\xbb\xbf"
 // escapeLen is the length of a \uXXXX escape.
 const escapeLen = 6
 
-// ErrNotJSON reports data that is not one JSON text: nothing but whitespace,
-// text that is not JSON, or more than one value. The caller reads it as YAML.
-var ErrNotJSON = errors.New("data is not one JSON text")
+// errNotJSON reports data that is not one JSON text: nothing but whitespace,
+// text that is not JSON, or more than one value. Read reads it as YAML.
+var errNotJSON = errors.New("data is not one JSON text")
 
 // LoneSurrogateError reports a \uXXXX escape naming half of a UTF-16
 // surrogate pair, not paired with the other half it needs: beside no other
@@ -47,28 +48,29 @@ func (e *LoneSurrogateError) Error() string {
 		"written without its other half, so it names no character", e.Line, e.Column, e.Escape)
 }
 
-// Read returns the document node of data, when data is one JSON text, shaped as
-// the YAML parser shapes it (docs/parser-library.md#json-as-yaml): objects and
-// arrays in flow style, strings double-quoted, and numbers, true, false and null
-// plain, tagged as the parser resolves them
+// readJSON returns the document node of data, when data is one JSON text,
+// shaped as the YAML parser shapes it (docs/parser-library.md#json-as-yaml):
+// objects and arrays in flow style, strings double-quoted, and numbers, true,
+// false and null plain, tagged as the parser resolves them
 // (docs/parser-library.md#scalar-resolution), a name written twice kept
 // (docs/parser-library.md#duplicate-key). Each node holds the line and column
-// the text writes it at.
+// the text writes it at, and the nodes counted.
 //
-// Any other data is ErrNotJSON. An escape naming half of a surrogate pair is a
-// *LoneSurrogateError. A done ctx ends Read, within nodeview.AskEvery tokens,
-// with its error. Each token consumes input and the decoder bounds depth.
-func Read(ctx context.Context, data []byte) (*yaml.Node, error) {
+// Any other data is errNotJSON. An escape naming half of a surrogate pair is a
+// *LoneSurrogateError, and the first node past maxNodes a *PastNodesError. A
+// done ctx ends it, within nodeview.AskEvery tokens.
+func readJSON(ctx context.Context, data []byte, maxNodes budget.Limit) (*yaml.Node, int, error) {
 	data = bytes.TrimPrefix(data, []byte(bom))
 	dec := jsontext.NewDecoder(bytes.NewReader(data), jsontext.AllowDuplicateNames(true))
 	pos := cursor{data: data, line: 1, column: 1}
 	doc := &yaml.Node{Kind: yaml.DocumentNode}
 	stack := []*yaml.Node{doc}
+	nodes := 1
 
 	for tokens := 0; ; tokens++ {
 		if tokens%nodeview.AskEvery == 0 {
 			if err := ctx.Err(); err != nil {
-				return nil, err
+				return nil, 0, err
 			}
 		}
 		start := skipSeparators(data, int(dec.InputOffset()))
@@ -77,13 +79,16 @@ func Read(ctx context.Context, data []byte) (*yaml.Node, error) {
 			break
 		}
 		if err != nil {
-			return nil, refusal(err, data, start, &pos)
+			return nil, 0, refusal(err, data, start, &pos)
 		}
 		if kind := tok.Kind(); kind == '}' || kind == ']' {
 			stack = stack[:len(stack)-1]
 			continue
 		}
 
+		if nodes++; !maxNodes.Admits(nodes) {
+			return nil, 0, &PastNodesError{Nodes: nodes, Limit: maxNodes}
+		}
 		n := newNode(tok)
 		n.Line, n.Column = pos.at(start)
 		top := stack[len(stack)-1]
@@ -97,9 +102,9 @@ func Read(ctx context.Context, data []byte) (*yaml.Node, error) {
 	}
 
 	if len(doc.Content) != 1 {
-		return nil, ErrNotJSON
+		return nil, 0, errNotJSON
 	}
-	return doc, nil
+	return doc, nodes, nil
 }
 
 // newNode returns the node for an opening or a scalar token, with the shape
@@ -138,7 +143,7 @@ func skipSeparators(data []byte, i int) int {
 
 // refusal classifies err, which the decoder gave on the token beginning at
 // start: a *LoneSurrogateError when the token is a string and the decoder
-// stopped at a surrogate escape in it, ErrNotJSON wrapping err otherwise. It
+// stopped at a surrogate escape in it, errNotJSON wrapping err otherwise. It
 // reads the bytes at the decoder's offset, never the decoder's message.
 func refusal(err error, data []byte, start int, pos *cursor) error {
 	var syntax *jsontext.SyntacticError
@@ -148,7 +153,7 @@ func refusal(err error, data []byte, start int, pos *cursor) error {
 			return &LoneSurrogateError{Escape: string(data[off : off+escapeLen]), Line: line, Column: column}
 		}
 	}
-	return fmt.Errorf("%w: %w", ErrNotJSON, err)
+	return fmt.Errorf("%w: %w", errNotJSON, err)
 }
 
 // surrogateEscapeAt reports whether data holds, at off, a backslash, a u and
@@ -166,9 +171,8 @@ func surrogateEscapeAt(data []byte, off int) bool {
 // asked for in increasing order cost one pass over the data and never a scan
 // back to the start of a line, since a minified spec is a single line.
 //
-// A line ends at LF, at CR, or at CR LF taken as one. A YAML 1.1 parser also
-// ends one at U+0085, U+2028 and U+2029, which JSON tools and editors do not
-// (docs/compilers/openapi.md#yaml-decoding).
+// A line ends at LF, at CR, or at CR LF taken as one, as JSON tools and YAML
+// 1.2 end one (docs/compilers/openapi.md#yaml-decoding).
 type cursor struct {
 	data         []byte
 	off          int

@@ -6,6 +6,7 @@ package value
 import (
 	"errors"
 	"fmt"
+	"math/big"
 	"strconv"
 	"strings"
 	"time"
@@ -139,22 +140,24 @@ func decodes(n *yaml.Node, target any, what string) error {
 }
 
 // NumericLiteral converts a numeric-tagged YAML scalar into the BigVal of the
-// value YAML resolved it to, which is not what its source text means in base
-// 10. YAML takes an !!int's base from its prefix and drops "_" separators, so
-// 0644 is 420 and 0x1f is 31 (docs/parser-library.md#scalar-resolution); passing
-// that spelling to NewBigVal — a base-10 decimal literal — reads 0644 back as
-// 644.
+// value YAML 1.2's core schema reads it as (docs/parser-library.md#scalar-resolution):
+// an !!int spelling a core integer, [-+]?[0-9]+, 0o[0-7]+ or 0x[0-9a-fA-F]+, is
+// read exactly in the base its prefix names, so 0644 is 644 and 0x1f is 31,
+// whatever tagged it. Any other !!int, which only a tag the document writes
+// makes one, keeps the parser's decode.
 //
-// Only !!int is decoded, and every !!int yaml.v3 resolves fits int64 or uint64,
-// so that decode is exact. A !!float keeps its text, because decoding one would
-// round it through float64 and lose the arbitrary precision BigVal exists to
-// preserve; only its separators are dropped.
+// A !!float keeps its text, because decoding one would round it through
+// float64 and lose the arbitrary precision BigVal exists to preserve; only its
+// separators are dropped.
 func NumericLiteral(node *yaml.Node) (ir.BigVal, error) {
 	if node == nil {
 		return "", errors.New("openapi: nil numeric node")
 	}
 	switch node.ShortTag() {
 	case "!!int":
+		if v, ok := coreInteger(node.Value); ok {
+			return ir.NewBigVal(v.String())
+		}
 		return decodeIntLiteral(node)
 	case "!!float":
 		return ir.NewBigVal(strings.ReplaceAll(node.Value, "_", ""))
@@ -163,6 +166,26 @@ func NumericLiteral(node *yaml.Node) (ir.BigVal, error) {
 		// base, so its text reads as the decimal literal it looks like.
 		return ir.NewBigVal(node.Value)
 	}
+}
+
+// coreInteger reads text as an integer of YAML 1.2's core schema, and false for
+// text that spells none.
+func coreInteger(text string) (*big.Int, bool) {
+	sign, unsigned, digits, base := "", text, "0123456789", 10
+	switch {
+	case strings.HasPrefix(text, "0o"):
+		unsigned, digits, base = text[2:], "01234567", 8
+	case strings.HasPrefix(text, "0x"):
+		unsigned, digits, base = text[2:], "0123456789abcdefABCDEF", 16
+	case strings.HasPrefix(text, "-"):
+		sign, unsigned = "-", text[1:]
+	case strings.HasPrefix(text, "+"):
+		unsigned = text[1:]
+	}
+	if unsigned == "" || strings.Trim(unsigned, digits) != "" {
+		return nil, false
+	}
+	return new(big.Int).SetString(sign+unsigned, base)
 }
 
 // decodeIntLiteral renders an !!int node as its exact decimal literal. The

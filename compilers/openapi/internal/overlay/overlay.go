@@ -28,7 +28,8 @@ type Options struct {
 	// Path names the overlay document. It is recorded as the overlay's SourceInfo
 	// path and never opened.
 	Path string
-	// Data is the overlay document's bytes. The caller reads them; nothing here
+	// Data is the overlay document's bytes, whose digest names it. The caller
+	// reads them and reads them into the tree Apply is handed; nothing here
 	// performs I/O, so the compiler stays pure (compilers.Source's contract).
 	Data []byte
 	// Lax turns off strict application.
@@ -81,15 +82,17 @@ func (o Origin) Source() ir.SourceInfo { return o.source }
 // provenance.Tree).
 func (o Origin) Attribution() provenance.Attribution { return o.attribution }
 
-// Apply applies opts to root in place and returns the attribution of what it
-// changed, with index as the overlay's place in Document.Sources.
+// Apply applies the overlay document doc, read from opts.Data, to root in place
+// and returns the attribution of what it changed, with index as the overlay's
+// place in Document.Sources. doc is a document node, or a node of no kind for a
+// stream holding none.
 //
 // An error-severity diagnostic means root was not usefully overlaid and the
 // caller must refuse to lower: actions apply in order and the ones that landed
 // are not undone, so a tree left behind by a failed application is neither the
 // source nor what the overlay asked for.
-func Apply(ctx context.Context, index int, root *yaml.Node, opts Options) (Origin, []ir.Diagnostic) {
-	return applyWithin(ctx, index, root, opts, budget.AtMost(maxNodes))
+func Apply(ctx context.Context, index int, root, doc *yaml.Node, opts Options) (Origin, []ir.Diagnostic) {
+	return applyWithin(ctx, index, root, doc, opts, budget.AtMost(maxNodes))
 }
 
 // applyWithin is Apply with the attribution walk's node bound as a parameter.
@@ -98,15 +101,11 @@ func Apply(ctx context.Context, index int, root *yaml.Node, opts Options) (Origi
 // entry and always passes maxNodes, so nothing outside this package can weaken
 // it. It is a parameter so the degradation at the bound is reachable from a
 // test with a small tree.
-func applyWithin(ctx context.Context, index int, root *yaml.Node, opts Options, walks budget.Limit) (Origin, []ir.Diagnostic) {
+func applyWithin(ctx context.Context, index int, root, doc *yaml.Node, opts Options, walks budget.Limit,
+) (Origin, []ir.Diagnostic) {
 	at := ir.Provenance{Source: index}
-	p, diags := read(ctx, at, opts.Data)
+	p, diags := read(at, doc)
 	if diag.HasError(diags) {
-		// A parse a cancel cut short refuses as a cancelled sequence does, with
-		// nothing reported, since the caller reads its context next.
-		if ctx.Err() != nil {
-			return Origin{}, nil
-		}
 		return Origin{}, diags
 	}
 

@@ -812,7 +812,7 @@ func TestCollectionBound_BesideAValueBoundReachesOneConstraints(t *testing.T) {
 func TestCollectionBound_ALiteralReadExactlyReachesConstraints(t *testing.T) {
 	t.Parallel()
 	for literal, want := range map[string]int64{
-		"0": 0, "1.0": 1, "1e3": 1000, "1e18": 1e18, "0x10": 16, "0o17": 15, "1_000": 1000,
+		"0": 0, "1.0": 1, "1e3": 1000, "1e18": 1e18, "0x10": 16, "0o17": 15,
 		"9223372036854775807": 9223372036854775807,
 	} {
 		t.Run(literal, func(t *testing.T) {

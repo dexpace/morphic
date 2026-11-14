@@ -75,6 +75,7 @@ var callShapeBaseline = map[string]map[string]int{
 	"compilers/openapi/internal/nodeview": {
 		// What nodeview.Walk calls as it visits and leaves a node: traversal
 		// callbacks.
+		"compilers/openapi/internal/doctree":     1,
 		"compilers/openapi/internal/load":        3,
 		"compilers/openapi/internal/oas":         2,
 		"compilers/openapi/internal/overlay":     4,

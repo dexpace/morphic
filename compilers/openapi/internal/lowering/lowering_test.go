@@ -19,6 +19,7 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/bind"
 	"github.com/dexpace/morphic/compilers/openapi/internal/budget"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
+	"github.com/dexpace/morphic/compilers/openapi/internal/doctree"
 	"github.com/dexpace/morphic/compilers/openapi/internal/load"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering/loweringtest"
@@ -441,7 +442,7 @@ func appliedOverlay(t *testing.T, index int, doc, ov string) overlay.Origin {
 	var root yaml.Node
 	require.NoError(t, yaml.Unmarshal([]byte(doc), &root))
 
-	origin, diags := overlay.Apply(t.Context(), index, &root, overlay.Options{Path: "patch.yaml", Data: []byte(ov)})
+	origin, diags := overlay.Apply(t.Context(), index, &root, overlayDoc(t, ov), overlay.Options{Path: "patch.yaml", Data: []byte(ov)})
 	require.False(t, diag.HasError(diags), "%+v", diags)
 	require.True(t, origin.Applied())
 	return origin
@@ -592,4 +593,13 @@ func TestNew_CarriesTheLimits(t *testing.T) {
 	c := loweringtest.Context(t, bindingsSpec, lowering.Policy{Grouping: lowering.GroupByTags, Limits: limits})
 
 	assert.Equal(t, limits, c.Limits)
+}
+
+// overlayDoc reads ov as the compile reads an overlay document, into the tree
+// overlay.Apply is handed.
+func overlayDoc(t testing.TB, ov string) *yaml.Node {
+	t.Helper()
+	doc, err := doctree.Read(t.Context(), []byte(ov), budget.Unbounded())
+	require.NoError(t, err)
+	return doc.Root
 }

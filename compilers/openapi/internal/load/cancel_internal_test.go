@@ -5,13 +5,13 @@ package load
 
 import (
 	"context"
-	"io"
 	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/dexpace/morphic/compilers/openapi/internal/budget"
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
 	"github.com/dexpace/morphic/internal/ctxtest"
 )
@@ -20,25 +20,6 @@ import (
 func liveFor(t *testing.T, left int) *ctxtest.Countdown {
 	t.Helper()
 	return &ctxtest.Countdown{Context: t.Context(), Left: left}
-}
-
-// TestContextReader_FailsOnceTheContextIsDone pins the reader every decode goes
-// through: it reads while its context is live, and once it is done fails with
-// the context's error without reading.
-func TestContextReader_FailsOnceTheContextIsDone(t *testing.T) {
-	t.Parallel()
-	under := strings.NewReader("abcdef")
-	r := contextReader{ctx: liveFor(t, 1), r: under}
-	buf := make([]byte, 3)
-
-	n, err := r.Read(buf)
-	require.NoError(t, err)
-	assert.Equal(t, "abc", string(buf[:n]))
-
-	n, err = r.Read(buf)
-	require.ErrorIs(t, err, context.Canceled)
-	assert.Zero(t, n)
-	assert.Equal(t, 3, under.Len(), "nothing more was read")
 }
 
 // bigSpec is a source the parser reads in many chunks, so a decode stopped by
@@ -55,12 +36,12 @@ func TestDecode_StopsWithinAReadOnceTheContextIsDone(t *testing.T) {
 	t.Parallel()
 	data := []byte(bigSpec())
 	full := liveFor(t, 1<<30)
-	_, err := Decode(full, data)
+	_, err := Decode(full, data, budget.Unbounded())
 	require.NoError(t, err)
 	require.Greater(t, full.Calls, 100, "the whole parse asks many times")
 
 	ctx := liveFor(t, 3)
-	parsed, err := Decode(ctx, data)
+	parsed, err := Decode(ctx, data, budget.Unbounded())
 
 	require.ErrorIs(t, err, context.Canceled)
 	assert.Nil(t, parsed)
@@ -75,30 +56,17 @@ func TestDecode_ACancelInTheTailIsTheContexts(t *testing.T) {
 	t.Parallel()
 	data := []byte(minimal31 + "---\n" + bigSpec())
 	full := liveFor(t, 1<<30)
-	parsed, err := Decode(full, data)
+	parsed, err := Decode(full, data, budget.Unbounded())
 	require.NoError(t, err)
-	require.Equal(t, 1, parsed.rest.dropped, "the stream holds a document past the one lowered")
+	require.Equal(t, 1, parsed.doc.Rest.Dropped, "the stream holds a document past the one lowered")
 
 	// The last ask is the check after the tail; the one before it is the
 	// tail's last read.
 	ctx := liveFor(t, full.Calls-2)
-	parsed, err = Decode(ctx, data)
+	parsed, err = Decode(ctx, data, budget.Unbounded())
 
 	require.ErrorIs(t, err, context.Canceled)
 	assert.Nil(t, parsed)
-}
-
-// TestDecode_ReadsAStreamWholeThroughALiveContext pins that reading through the
-// context changes nothing a live one parses: the reader ends the stream as the
-// bytes do.
-func TestDecode_ReadsAStreamWholeThroughALiveContext(t *testing.T) {
-	t.Parallel()
-	r := contextReader{ctx: t.Context(), r: strings.NewReader(minimal31)}
-
-	got, err := io.ReadAll(r)
-
-	require.NoError(t, err)
-	assert.Equal(t, minimal31, string(got))
 }
 
 // TestLoad_StopsOnceTheContextIsDoneAtTheParse pins the first place a load
@@ -109,7 +77,7 @@ func TestLoad_StopsOnceTheContextIsDoneAtTheParse(t *testing.T) {
 	t.Parallel()
 	ctx, cancel := context.WithCancel(t.Context())
 	cancel()
-	parsed, err := Decode(t.Context(), []byte(minimal31))
+	parsed, err := Decode(t.Context(), []byte(minimal31), budget.Unbounded())
 	require.NoError(t, err)
 	for name, parse := range map[string]any{"parsed by the load": nil, "parsed by detection": parsed} {
 		t.Run(name, func(t *testing.T) {
