@@ -6096,9 +6096,9 @@ every operation. A name is compared by its canonical words (`Naming.Canonical`),
    and every success response declaring a body is a `200`, as a `201` says a resource was created
    (RFC 9110 §15.3.2). Any other method, whose body states what to store, change or remove, is read
    as no walk, and one whose query parameters name a continuation is reported. Which declaration a
-   body member takes where two `allOf` entries declare it follows their order (#1920), so a body
-   composing `page` as an integer in one entry and a string in another is a walk in one order and
-   undecided in the other; the order oracle does not swap `allOf` entries (#1666).
+   body member takes where two `allOf` entries declare it follows their order, so a body composing
+   `page` as an integer in one entry and a string in another is a walk in one order and undecided
+   in the other.
 2. **A page** is the body of each content of each success response, the `Default` aside, and each
    must hold what the walk reads at the same members, as a pager reads whichever arrives. One with
    no body, such as a `204` or a `304`, holds none and is not read, as a pager ends at it as at an
@@ -6143,6 +6143,19 @@ every operation. A name is compared by its canonical words (`Naming.Canonical`),
    page, which change neither its strategy nor what is reported; a link the contents hold at
    different members, or none or several of, is left unset, and the walk stands. `FirstLink`,
    `LastLink` and a flag for a link walk are not read.
+7. **A link walk** is read where no place names a continuation, on a `GET` or a `QUERY`, and the
+   response is the only evidence, so it must look like a page and nothing else: the root of each
+   content holds one list named as items or `value`, the name the next-link convention pairs with
+   `nextLink`; the links of point 6, at the root; and beyond those only whole-number counts named
+   `count`, `total`, `total_count` or `total_pages`. Any other member, a `title` or an `id`, makes
+   it a resource that links to its neighbour, and no walk; a link below the root, or a count that is
+   no whole number, the same. Such a page stating a next link is a `next_link` walk: `NextLink`,
+   `PrevLink` where stated, `Items`, the totals of point 5 and `Stop: [no_next]`. Such a page, or a
+   list, stating none, where every success response declaring a body declares a `Link` header of a
+   plain string type (RFC 8288), is a `link_header` walk, with `Items`, the totals and `Stop:
+   [no_next]`, the strategy reading the header's `next` link. A response that states a link and is
+   no page triggers nothing and draws no finding; beside an input that continues the walk, a `Link`
+   header changes nothing.
 
 What the policy fills is marked as [`policies`](#policies) marks an inference: `Pagination.Inferred`
 is set, and the operation's `Provenance.Inferred` names `pagination-inference`. An operation whose
@@ -6152,7 +6165,9 @@ naming what stops it: a method other than `GET`, `QUERY` and `POST`, a condition
 two places naming a continuation or a page size, one of a type a walk does not send, a `page` string with no whole number for its
 default or an example, no success response or none with a body, a body that is neither an object nor
 a list, items or a next cursor it names none or several of, two flags, a boolean beside the next cursor
-named as none, or bodies holding the page at different members. A path item mounted twice is reported once, at the
+named as none, a next cursor the body and a header both name, a plain string `next` beside a string
+cursor, a link walk's page stating a next link and a `Link` header, or bodies holding the page at
+different members. A path item mounted twice is reported once, at the
 declaration both mounts share.
 
 - Cases: `pagination-inferred`, `pagination-flag`, `pagination-body`, `pagination-links`
@@ -6177,13 +6192,13 @@ declaration both mounts share.
   `pagination.TestInferWalks_ReadsAnObjectParameterNamedForARole`,
   `pagination.TestInferWalks_TwoPlacesAreUndecided`, `pagination.TestInferWalks_ReadsLinks`,
   `pagination.TestInferWalks_ALinkHeldApartIsLeftUnset`, `pagination.TestInferWalks_NextNames`,
-  `pagination.TestInferWalks_ReadsAHeaderCursor`,
+  `pagination.TestInferWalks_ReadsAHeaderCursor`, `pagination.TestInferWalks_LinkWalks`,
   `whole.TestDocument_StandsReadsThroughAliasScalarsToTheCap`,
   `whole.TestDocument_ListsEveryOperationOnce`,
   `lowering.TestPaginationInference_TheZeroValueHonoursThePolicy`,
   `openapi.TestDecodeOptions_TextReachesEveryField`
-- Status: partly built: a walk a next link or a `Link` header continues, where no input does, is not
-  inferred (#1816).
+- Status: open: which declaration a request body member takes where two `allOf` entries declare it
+  follows their order (#1920), and the order oracle swaps no `allOf` entries (#1666).
 
 ## 16. Swagger 2.0
 

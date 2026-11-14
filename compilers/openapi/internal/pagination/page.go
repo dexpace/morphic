@@ -61,6 +61,8 @@ type pageKey struct {
 	cursor string
 	prim   ir.PrimKind
 	strict bool
+	// link reads the body as a link walk's page (reader.linkPage).
+	link bool
 }
 
 // page is where a body holds what a walk reads, each a path of members from
@@ -170,6 +172,9 @@ func (r *reader) readPage(key pageKey) page {
 		}
 		return page{}
 	case *ir.Model:
+		if key.link {
+			return r.linkPage(td.ID)
+		}
 		return r.modelPage(r.model(td.ID), key)
 	default:
 		return page{why: "is neither an object nor a list"}

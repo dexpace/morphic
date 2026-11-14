@@ -41,27 +41,37 @@ func InferWalks(c lowering.Ctx, w *whole.Document, stated map[ir.OpID]bool) []ir
 }
 
 // infer fills op's Pagination where the names it uses settle one. It reports
-// undecided, with why, where its query parameters name an input and the names
-// settle none; an operation holding a Pagination, or one the API sends, is left
-// alone.
+// undecided, with why, where its request names an input, or its response a
+// continuation, and the names settle none; an operation holding a Pagination,
+// or one the API sends, is left alone.
 func (r *reader) infer(op *ir.Operation) (why string, undecided bool) {
 	if op.Pagination != nil || inbound(op) {
 		return "", false
 	}
-	in, why, named := requestInputs(r.w, op)
-	if !named {
-		return "", false
+	walk, why := r.walk(op)
+	if walk != nil {
+		op.Pagination = walk
+		op.Provenance.Inferred = ir.JoinInferred(op.Provenance.Inferred, lowering.PaginationInferenceHeuristic)
 	}
-	if why != "" {
-		return why, true
+	return why, why != ""
+}
+
+// walk returns the walk op's places and pages name, or, where no place names
+// where a walk continues, the link walk its response alone continues
+// (reader.linkWalk), and why it settles none where they name one.
+func (r *reader) walk(op *ir.Operation) (*ir.Pagination, string) {
+	in, why, named := requestInputs(r.w, op)
+	switch {
+	case !named:
+		return r.linkWalk(op)
+	case why != "":
+		return nil, why
 	}
 	pg, why := r.responsePage(op, in)
 	if why != "" {
-		return why, true
+		return nil, why
 	}
-	op.Pagination = build(in, pg)
-	op.Provenance.Inferred = ir.JoinInferred(op.Provenance.Inferred, lowering.PaginationInferenceHeuristic)
-	return "", false
+	return build(in, pg), ""
 }
 
 // inbound reports whether the API sends op rather than the client: a webhook
