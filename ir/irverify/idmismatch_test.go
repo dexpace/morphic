@@ -104,3 +104,34 @@ func TestVerify_AReferenceInsideAMismatchedNodeStillDangles(t *testing.T) {
 	assert.Equal(t, []string{"types[t/x/A]"}, violationPaths(twin, "ir/type-id-mismatch"))
 	assert.Empty(t, violationPaths(twin, "ir/dangling-type-ref"), "a Base naming a declared type draws none")
 }
+
+// TestVerify_NoCheckReadsAKeyThatIsNotItsNodesIDAsTheID holds the checks that
+// read a type's ID to the mismatch alone where the key differs from it: an enum
+// whose members sit beneath its own ID, a primitive at the ID its kind derives,
+// and a model whose own ID lies outside the primitive space, each filed under
+// another key, draw nothing but ir/type-id-mismatch at the entry.
+func TestVerify_NoCheckReadsAKeyThatIsNotItsNodesIDAsTheID(t *testing.T) {
+	t.Parallel()
+	shared := ir.Provenance{Source: ir.NoSource}
+	for _, tc := range []struct {
+		name, key string
+		node      ir.TypeDef
+	}{
+		{"an enum", "t/x/Other", &ir.Enum{ID: "t/x/Color", Name: named("color"), Provenance: pointerOf("t/x/Color"),
+			ValueType: ir.PrimString, Members: []ir.EnumMember{
+				{ID: "e/x/Color/red", Name: named("red"), Value: ir.Value{Kind: ir.ValueString, Str: "red"}},
+			}}},
+		{"a primitive under another kind's ID", "t/prim/string", &ir.Primitive{ID: "t/prim/int32", Prim: ir.PrimInt32, Provenance: shared}},
+		{"a primitive under a declared type's ID", "t/x/Foo", &ir.Primitive{ID: "t/prim/int32", Prim: ir.PrimInt32, Provenance: shared}},
+		{"a model under a primitive's ID", "t/prim/foo", &ir.Model{ID: "t/x/Foo", Name: named("foo"), Provenance: pointerOf("t/x/Foo")}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			got := verifyDeclared(stamped(&ir.Document{Types: ir.TypeRegistry{ir.TypeID(tc.key): tc.node}}))
+			assert.Equal(t, []string{"ir/type-id-mismatch @ types[" + tc.key + "]"}, violationList(got))
+
+			own := verifyDeclared(stamped(&ir.Document{Types: ir.TypeRegistry{tc.node.Common().ID: tc.node}}))
+			assert.Empty(t, violationList(own), "the control: the node keyed by its own ID draws nothing")
+		})
+	}
+}

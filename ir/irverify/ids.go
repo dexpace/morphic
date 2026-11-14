@@ -54,7 +54,7 @@ func checkIDs(doc *ir.Document) []Violation {
 // node's own ID: an empty key, or another node's, is checkRegistryKeys' one
 // report. The path is spelled only for a violation.
 func appendRegistryIDDefect(vs []Violation, kind, reg, key, nodeID string, prov ir.Provenance) []Violation {
-	if key == "" || key != nodeID {
+	if !keyedByOwnID(key, nodeID) {
 		return vs
 	}
 	v, bad := idDefect(kind, key, prov)
@@ -63,6 +63,13 @@ func appendRegistryIDDefect(vs []Violation, kind, reg, key, nodeID string, prov 
 	}
 	v.Path = reg + "[" + key + "]"
 	return append(vs, v)
+}
+
+// keyedByOwnID reports whether a registry entry's key is set and is its node's
+// own ID. An entry where it is not is checkRegistryKeys' one report, so no other
+// check reads its key as the node's ID.
+func keyedByOwnID(key, nodeID string) bool {
+	return key != "" && key == nodeID
 }
 
 // kindPrefixes maps every class of ID to the kind prefix it opens with, so a
@@ -156,8 +163,8 @@ func recordedPointer(node reflect.Value) jsontext.Pointer {
 func checkPrimIDs(doc *ir.Document) []Violation {
 	var vs []Violation
 	for id, td := range doc.Types {
-		if ir.IsNilTypeDef(td) {
-			continue // checkRegistryKeys reports the nil entry itself
+		if ir.IsNilTypeDef(td) || !keyedByOwnID(string(id), string(td.Common().ID)) {
+			continue // checkRegistryKeys reports the entry itself
 		}
 		prim, isPrim := td.(*ir.Primitive)
 		if !isPrim {
