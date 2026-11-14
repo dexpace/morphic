@@ -182,17 +182,6 @@ type loadResult struct {
 	settled map[any]any
 }
 
-// ScopedPosition is a position as a context reads it: with the scope it is read
-// in (see Within) and the document the context places positions in. It keys a
-// reading that turns on where a position is read (Remembered), and only Scoped
-// builds one, as the scope is the context's own and unexported.
-type ScopedPosition struct {
-	foreign bool
-	holder  string
-	home    int
-	at      bind.Position
-}
-
 // Policy is the caller's choice of how a source is lowered, as the compiler's
 // Options resolve it.
 type Policy struct {
@@ -294,12 +283,6 @@ func (c Ctx) Sources() []ir.SourceInfo {
 // resolved them.
 func (c Ctx) Bindings() *typed.Bindings {
 	return c.loaded.reads.Bindings
-}
-
-// Scoped returns at as c reads it: in c's scope, and in the coordinates of the
-// document c places its positions in.
-func Scoped(c Ctx, at bind.Position) ScopedPosition {
-	return ScopedPosition{foreign: c.foreign, holder: c.holder, home: c.home, at: at}
 }
 
 // Remembered returns read's answer for key, read once and remembered for every

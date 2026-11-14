@@ -435,7 +435,9 @@ func nodeShape(kind ir.TypeKind) string { return fmt.Sprintf("a node of kind %q"
 // positionShape is nodeShape for the node td, the position's declaration s
 // lowered to. An Enum's ValueType is the home of its type and of any format the
 // table pairs, so an enum that left one verbatim says its members are why: its
-// kind alone would deny the home.
+// kind alone would deny the home. So does a node that reads s's discriminator
+// and holds none (taglessShape): a Model, or a Union s's oneOf or anyOf builds,
+// as the Union an enum lowers to reads none, whatever its tag.
 func positionShape(td ir.TypeDef, s *oas3.Schema) string {
 	if e, ok := td.(*ir.Enum); ok {
 		if !membersTyped(e.Members, s) {
@@ -445,7 +447,32 @@ func positionShape(td ir.TypeDef, s *oas3.Schema) string {
 			return fmt.Sprintf("an enum whose members are not all values of %s", prim)
 		}
 	}
-	return nodeShape(td.Kind())
+	shape := nodeShape(td.Kind())
+	if m, ok := td.(*ir.Model); ok {
+		return taglessShape(m, s, shape)
+	}
+	if isKind(td, ir.KindUnion) && declaresUnion(s) {
+		return taglessShape(nil, s, shape)
+	}
+	return shape
+}
+
+// taglessShape is shape, what s lowered to as a node reading s's
+// discriminator, m where that is a Model and nil for a Union, unless the IR
+// cannot locate the tag it names on the node (tagLocated), the reason the node
+// holds none: then it says so, as shape alone would deny a node of that kind
+// the field.
+func taglessShape(m *ir.Model, s *oas3.Schema, shape string) string {
+	d := s.GetDiscriminator()
+	if d == nil || tagLocated(d, m) {
+		return shape
+	}
+	kind := ir.KindUnion
+	if m != nil {
+		kind = ir.KindModel
+	}
+	return fmt.Sprintf("a %s routed by no tag (the IR's PropertyName cannot hold the empty name its "+
+		"discriminator gives the tag property)", kind)
 }
 
 // distributedShape describes the Union a body distributed across its variants
@@ -499,7 +526,7 @@ func recordUnhomedKeywords(c lowering.Ctx, ts *compile.Types, owner ir.TypeID, s
 	if !ok {
 		return diags
 	}
-	return append(diags, recordUnhomedAt(c, &td.Common().Unmodeled, s, unhomed, shape, pointer)...)
+	return append(diags, recordUnhomedAt(c, ts, &td.Common().Unmodeled, s, unhomed, shape, pointer)...)
 }
 
 // recordUnhomedAt keeps each unhomed keyword verbatim in p and reports them once,
@@ -508,9 +535,15 @@ func recordUnhomedKeywords(c lowering.Ctx, ts *compile.Types, owner ir.TypeID, s
 //
 // It names the keywords it actually stored, never the ones it was handed, so the
 // message cannot claim one that failed to convert and was reported unpreservable
-// instead (GitHub #144).
-func recordUnhomedAt(c lowering.Ctx, p *ir.Unmodeled, s *oas3.Schema, unhomed []string, shape string, pointer jsontext.Pointer) []ir.Diagnostic {
+// instead (GitHub #144). A discriminator it is handed is no node's, so its
+// mapping values are resolved here, as references (resolveDiscriminatorRoutes):
+// every census keep of a discriminator comes through here, so each is resolved
+// once.
+func recordUnhomedAt(c lowering.Ctx, ts *compile.Types, p *ir.Unmodeled, s *oas3.Schema, unhomed []string, shape string, pointer jsontext.Pointer) []ir.Diagnostic {
 	var diags []ir.Diagnostic
+	if slices.Contains(unhomed, "discriminator") {
+		diags = resolveDiscriminatorRoutes(c, ts, s, pointer)
+	}
 	kept := make([]string, 0, len(unhomed))
 	for _, keyword := range unhomed {
 		ok, keptDiags := annotation.PreserveSchemaKeyword(p, s, keyword,
