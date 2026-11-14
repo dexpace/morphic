@@ -5966,7 +5966,7 @@ a source of a pagination target names, where this rule reads that source: on the
 expression, and for a mark on a parameter, a member of the request's body or of a page's, a success
 response's header or the type one of them names, however many operations reach it. A value filling a
 pagination, one resolving to nothing or refused, `false`, and one stating nothing a source can read
-speak alike. `Promote` returns the operations it reads that so speak, by ID, as the set a
+speak alike. `pagination.Promote` returns the operations it reads that so speak, by ID, as the set a
 step inferring a pagination reads in place of their extensions, and marks no node for a pagination
 it does not fill. A key written anywhere else, such as on an error response, in a media type that
 streams, or as a mark on the operation itself, is read by no source, so it speaks of nothing.

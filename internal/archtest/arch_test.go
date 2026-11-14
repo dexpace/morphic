@@ -340,8 +340,8 @@ var rules = map[string][]string{
 	// What a runtime expression names in a compiled service: its grammar, and
 	// the members, parameters and headers it resolves through. It is its own
 	// package because the link resolution in operation and the pagination
-	// promotion read an expression alike, and the second may reach nothing of
-	// the walks the first sits beside. It reaches lowering for the parameter
+	// promotion read an expression alike, and the promotion may reach nothing
+	// of the walks operation holds. It reaches lowering for the parameter
 	// index, and nothing of the walks: it reads the registry and the
 	// operations they built.
 	"compilers/openapi/internal/runtimeexpr": {module + "/ir",
@@ -393,9 +393,8 @@ var rules = map[string][]string{
 	// requirements it reads, nodeview for the raw nodes behind the model, oas
 	// for the cases the Encoding Object's defaults are keyed by, value for
 	// the constants a link passes, and runtimeexpr for the expressions a link
-	// reads, and nothing above itself — the
-	// compiler assembles the document from what this returns rather than the
-	// other way round.
+	// reads, and nothing above itself — the compiler assembles the document
+	// from what this returns rather than the other way round.
 	"compilers/openapi/internal/operation": {module + "/ir", module + "/compilers/compile",
 		module + "/compilers/openapi/internal/annotation",
 		module + "/compilers/openapi/internal/auth",
