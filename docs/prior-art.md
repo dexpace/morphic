@@ -94,10 +94,11 @@ and a self-correcting overlay loop. Three structural lessons:
   model even has a dual-key design (`id` + name) intended for rename detection — but `id` is
   derived from the name, so the rename branch is dead. Cross-language change rollup finally
   reinvents a spec-level identity (`conceptualChangeId`). Morphic's pointer-derived IDs make
-  detecting a rename that keeps the pointer a lookup; the compat experience adds one refinement —
-  when both pointer *and* name churn, a third *structural* correlation tier (content-hash /
-  field-set similarity, shared with the `dedup` pass) is the fallback (see [open question
-  5](./ir/open-questions.md)).
+  detecting a rename that keeps the pointer a lookup, and the correlation key carries an entity
+  through most of the rest. The compat experience suggests a third *structural* tier for when both
+  pointer *and* name churn (content-hash / field-set similarity); it is decided against (see [open
+  question 5](./ir/open-questions.md)), since resemblance relates two documents rather than
+  describing one and, measured, cannot name an entity's successor.
 - **Breaking-ness is per-language policy, not a property of a change.** The same spec change
   is breaking in PHP (param names are public API), soft-risk in Kotlin, invisible in Node.
   oagen's two-stage split — neutral change records, then `(change × language) → severity`

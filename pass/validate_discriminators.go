@@ -9,15 +9,16 @@ import (
 
 	"github.com/dexpace/morphic/ir"
 	"github.com/dexpace/morphic/ir/irfacts"
+	"github.com/dexpace/morphic/reuse"
 )
 
 // checkDiscriminators reports discriminator mappings whose target either does
 // not exist or is not a legal variant/subtype, and a model discriminator whose
 // tag property the model does not expose. facts indexes doc.
-func checkDiscriminators(doc *ir.Document, facts *irfacts.Index) []ir.Diagnostic {
+func checkDiscriminators(doc *ir.Document, live []ir.TypeID, facts *irfacts.Index) []ir.Diagnostic {
 	var diags []ir.Diagnostic
 	var read mappingReads
-	for _, id := range liveTypeIDs(doc) {
+	for _, id := range live {
 		switch t := doc.Types[id].(type) {
 		case *ir.Union:
 			diags = append(diags, checkUnionDiscriminator(doc, t, &read)...)
@@ -36,7 +37,7 @@ func checkDiscriminators(doc *ir.Document, facts *irfacts.Index) []ir.Diagnostic
 // so none costs a collection of its own: a union's variant targets, and a
 // mapping's keys, sorted.
 type mappingReads struct {
-	variants reusedMap[ir.TypeID, bool]
+	variants reuse.Map[ir.TypeID, bool]
 	keys     []string
 }
 
@@ -48,7 +49,7 @@ func checkUnionDiscriminator(doc *ir.Document, u *ir.Union, read *mappingReads) 
 	if u.Discriminator == nil {
 		return nil
 	}
-	variants := read.variants.emptied()
+	variants := read.variants.Emptied()
 	for _, v := range u.Variants {
 		variants[v.Type.Target] = true
 	}
@@ -117,6 +118,9 @@ func checkMapping(doc *ir.Document, d *ir.Discriminator, where string, read *map
 	slices.Sort(read.keys)
 	for _, key := range read.keys {
 		target := d.Mapping[key]
+		if target == "" {
+			continue // it names nothing to route to, which checkEmptyRefs reports alone
+		}
 		if legal, why := mappingTarget(doc, target, member); !legal {
 			diags = append(diags, missingVariant(fmt.Sprintf("mapping %q", key), where, target, why))
 		}

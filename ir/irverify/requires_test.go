@@ -17,7 +17,7 @@ import (
 // requiresDoc is a document whose one model, t/x/M, declares the property "a"
 // and requires the names in requires.
 func requiresDoc(requires []string) *ir.Document {
-	str := &ir.Primitive{ID: ir.PrimTypeID(ir.PrimString), Prim: ir.PrimString}
+	str := &ir.Primitive{ID: ir.PrimTypeID(ir.PrimString), Prim: ir.PrimString, Provenance: ir.Provenance{Source: ir.NoSource}}
 	m := &ir.Model{
 		ID:   "t/x/M",
 		Name: named("m"),
@@ -159,7 +159,7 @@ func TestVerify_RequiresReadsTheEffectiveWireName(t *testing.T) {
 // it read of that model must not linger into the other.
 func TestVerify_RequiresIsHeldModelByModel(t *testing.T) {
 	t.Parallel()
-	str := &ir.Primitive{ID: ir.PrimTypeID(ir.PrimString), Prim: ir.PrimString}
+	str := &ir.Primitive{ID: ir.PrimTypeID(ir.PrimString), Prim: ir.PrimString, Provenance: ir.Provenance{Source: ir.NoSource}}
 	model := func(id ir.TypeID, own string, requires ...string) *ir.Model {
 		return &ir.Model{ID: id, Name: named(own), Requires: requires, Properties: []ir.Property{{
 			ID: ir.PropID("p" + string(id[1:]) + "/" + own), Name: named(own), WireName: own,

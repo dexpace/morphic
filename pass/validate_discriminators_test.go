@@ -74,7 +74,7 @@ func TestValidate_ModelDiscriminatorRoutesToItsConcreteBase(t *testing.T) {
 	for _, abstract := range []bool{false, true} {
 		doc := validDoc()
 		base := &ir.Model{ID: "t/base", Abstract: abstract, Discriminator: &ir.Discriminator{
-			Mapping: map[string]ir.TypeID{"base": "t/base", "sub": "t/sub"}, Default: "t/base",
+			PropertyName: "kind", Mapping: map[string]ir.TypeID{"base": "t/base", "sub": "t/sub"}, Default: "t/base",
 		}}
 		doc.Types["t/base"] = base
 		doc.Types["t/sub"] = &ir.Model{ID: "t/sub", Base: &ir.TypeRef{Target: "t/base"}, DiscriminatorValue: "sub"}

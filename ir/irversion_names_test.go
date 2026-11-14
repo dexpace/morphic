@@ -7,7 +7,6 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
-	"os"
 	"reflect"
 	"slices"
 	"strconv"
@@ -16,7 +15,6 @@ import (
 	"testing"
 	"unicode"
 
-	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -49,15 +47,7 @@ func TestIRVersion_PinsTheNames(t *testing.T) {
 	witnesses, _ := runeScan()
 	desc := describeNames(witnesses, hintsOf(doc))
 
-	if irtest.Update() {
-		require.NoError(t, os.WriteFile(namesGolden, []byte(desc), 0o644))
-	}
-	want, err := os.ReadFile(namesGolden)
-	require.NoError(t, err, "go test ./ir -run TestIRVersion -update writes it")
-	if diff := cmp.Diff(string(want), desc); diff != "" {
-		t.Errorf("%s is stale: go test ./ir -run TestIRVersion -update rewrites it, then review its diff (-golden +got):\n%s",
-			namesGolden, diff)
-	}
+	irtest.CompareBytes(t, namesGolden, []byte(desc))
 
 	sum := sha256.Sum256([]byte(desc))
 	for _, finding := range namesFindings(generations, ir.IRVersion, hex.EncodeToString(sum[:])) {

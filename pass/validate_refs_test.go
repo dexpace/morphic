@@ -214,12 +214,6 @@ func TestValidate_DanglingRefInPreviouslyUnwalkedField(t *testing.T) {
 	}
 }
 
-// aliasRuns is how many times TestValidate_AliasedPointerIsDeterministic repeats
-// the same call. Go randomizes map iteration per range statement, so a two-entry
-// registry disagrees with itself within a few runs; the flaw this pins split
-// 443/57 across two outputs over this many.
-const aliasRuns = 500
-
 // aliasedDoc returns a document whose two registry entries share one *TypeRef.
 // That is the shape the reference walk prunes: the shared pointer is descended
 // into at whichever entry the walk reaches first, so the surviving diagnostic
@@ -245,16 +239,14 @@ func diagJSON(t *testing.T, diags []ir.Diagnostic) string {
 // aliasing: repeated runs over one document must produce byte-identical
 // diagnostics. Sorting cannot deliver that on its own — a randomized walk of an
 // aliased graph varies which sites exist, not merely their order — so this fails
-// on any walk whose map iteration is left to Go.
+// on any walk whose map iteration is left to Go. validated reads the document
+// until it has said so determinismRuns times.
 func TestValidate_AliasedPointerIsDeterministic(t *testing.T) {
 	t.Parallel()
 	doc := aliasedDoc()
-	want := diagJSON(t, validated(t, doc))
-	require.Contains(t, want, "t/ghost/aliased", "the shared target must dangle, or nothing is being compared")
+	got := diagJSON(t, validated(t, doc))
 
-	for i := range aliasRuns {
-		require.Equal(t, want, diagJSON(t, validated(t, doc)), "run %d disagrees with the first", i)
-	}
+	require.Contains(t, got, "t/ghost/aliased", "the shared target must dangle, or nothing is being compared")
 }
 
 // pointers returns each diagnostic's IR-space location, in order.
@@ -296,8 +288,8 @@ var sortedRefPointers = []string{
 // TestValidate_DiagnosticOrderIsDeterministic pins invariant 7 for the
 // reflection walk: it reaches references through maps, whose iteration order Go
 // randomizes per range, so the sites must be sorted by location before any
-// diagnostic is built. Both halves are asserted — the order is the pinned one,
-// and every further run repeats it.
+// diagnostic is built. The order is the pinned one, and validated holds
+// every further run to it.
 func TestValidate_DiagnosticOrderIsDeterministic(t *testing.T) {
 	t.Parallel()
 	doc := validDoc()
@@ -305,9 +297,6 @@ func TestValidate_DiagnosticOrderIsDeterministic(t *testing.T) {
 		tc.plant(doc, ir.TypeID(fmt.Sprintf("t/ghost/%02d", i)))
 	}
 	require.Equal(t, sortedRefPointers, pointers(danglingDiags(validated(t, doc))))
-	for range 8 {
-		assert.Equal(t, sortedRefPointers, pointers(danglingDiags(validated(t, doc))))
-	}
 }
 
 // TestValidate_ResolvedRefsInEveryFieldAreClean is the other half of the
@@ -787,8 +776,8 @@ var sortedIDRefPointers = []string{
 // TestValidate_TypedIDDiagnosticOrderIsDeterministic pins invariant 7 across
 // reference classes: the walk reaches channels and messages through maps, whose
 // iteration order Go randomizes, so sites are sorted by location before any
-// diagnostic is built. Both halves are asserted — the order is the pinned one,
-// and every further run repeats it.
+// diagnostic is built. The order is the pinned one, and validated holds
+// every further run to it.
 func TestValidate_TypedIDDiagnosticOrderIsDeterministic(t *testing.T) {
 	t.Parallel()
 	doc := registryDoc()
@@ -797,55 +786,78 @@ func TestValidate_TypedIDDiagnosticOrderIsDeterministic(t *testing.T) {
 	}
 	require.Len(t, sortedIDRefPointers, len(idRefSites()), "one pinned location per planted site")
 	require.Equal(t, sortedIDRefPointers, pointers(validated(t, doc)))
-	for range 8 {
-		assert.Equal(t, sortedIDRefPointers, pointers(validated(t, doc)))
-	}
 }
 
-// TestValidate_RegistryOwnIDsResolveAndMismatchesDangle pins the other side of
-// deriving registries from Document's shape: a node's own ID is typed like any
-// cross-reference, so it must resolve against its own entry rather than dangle.
-//
-// Each registry is driven from both ends, since the silent half would pass on a
-// walk that never reached these nodes: an entry filed under a key that
-// disagrees with its own ID leaves that ID resolving to nothing, which must be
-// reported. Keys cannot be driven so, as a key resolves to its own entry by
-// construction; the Service.Renames case in payloadAndVersioningSites pins
-// that keys are reached.
-func TestValidate_RegistryOwnIDsResolveAndMismatchesDangle(t *testing.T) {
+// TestValidate_ARegistryNodesOwnIDIsNoReference pins that a registry node's own
+// ID is its declaration and no reference: a node filed under a key other than
+// its ID is irverify's finding alone (ir/<noun>-id-mismatch), and Validate says
+// nothing at that ID. Each registry is driven from both ends, since the silence
+// would pass on a walk that never reached these nodes: a reference held inside
+// the same mismatched node to something undeclared must still dangle, at the
+// reference. A server holds none, so its row is the silence alone.
+func TestValidate_ARegistryNodesOwnIDIsNoReference(t *testing.T) {
 	t.Parallel()
 	cases := []struct {
-		name     string
-		code     string
-		orphanID string
-		mismatch func(doc *ir.Document)
+		name, key string
+		mismatch  func(doc *ir.Document, key, id string)
+		code, at  string // the dangling reference inside the node, "" for none
 	}{
-		{"channel", "ir/dangling-channel-ref", "chan/b", func(d *ir.Document) {
-			d.Channels["chan/a"] = ir.Channel{ID: "chan/b"}
-		}},
-		{"message", "ir/dangling-message-ref", "msg/b", func(d *ir.Document) {
-			d.Messages["msg/a"] = ir.Message{ID: "msg/b"}
-		}},
-		{"auth", "ir/dangling-auth-ref", "auth/b", func(d *ir.Document) {
-			d.Auth["auth/a"] = ir.AuthScheme{ID: "auth/b", Kind: ir.AuthKindAPIKey}
-		}},
-		{"server", "ir/dangling-server-ref", "server/b", func(d *ir.Document) {
-			d.Servers["server/a"] = ir.Server{ID: "server/b", URLTemplate: "https://a.example"}
-		}},
+		{"channel", "chan/a", func(d *ir.Document, key, id string) {
+			d.Channels[ir.ChannelID(key)] = ir.Channel{ID: ir.ChannelID(id), Servers: []ir.ServerID{"server/none"}}
+		}, "ir/dangling-server-ref", "doc.Channels[chan/a].Servers[0]"},
+		{"message", "msg/a", func(d *ir.Document, key, id string) {
+			d.Messages[ir.MessageID(key)] = ir.Message{ID: ir.MessageID(id), Headers: &ir.TypeRef{Target: "t/none"}}
+		}, "ir/dangling-type-ref", "doc.Messages[msg/a].Headers.Target"},
+		{"auth", "auth/a", func(d *ir.Document, key, id string) {
+			d.Auth[ir.AuthID(key)] = ir.AuthScheme{ID: ir.AuthID(id), Kind: ir.AuthKindAPIKey, Credentials: &ir.TypeRef{Target: "t/none"}}
+		}, "ir/dangling-type-ref", "doc.Auth[auth/a].Credentials.Target"},
+		{"server", "server/a", func(d *ir.Document, key, id string) {
+			d.Servers[ir.ServerID(key)] = ir.Server{ID: ir.ServerID(id), URLTemplate: "https://a.example"}
+		}, "", ""},
+		{"type", "t/a", func(d *ir.Document, key, id string) {
+			d.Types[ir.TypeID(key)] = &ir.Model{ID: ir.TypeID(id), Base: &ir.TypeRef{Target: "t/none"}}
+		}, "ir/dangling-type-ref", "doc.Types[t/a].Base.Target"},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			require.Empty(t, validated(t, registryDoc()), "a consistent registry reports nothing")
+			want := []string{}
+			if tc.code != "" {
+				want = []string{tc.at}
+			}
+			mismatched := registryDoc()
+			tc.mismatch(mismatched, tc.key, tc.key[:len(tc.key)-1]+"b")
+			got := validated(t, mismatched)
+			assert.Equal(t, want, pointers(got), "nothing is said at the node's own ID")
+			for _, d := range got {
+				assert.Equal(t, tc.code, d.Code)
+				assert.Equal(t, ir.SeverityError, d.Severity)
+			}
 
-			doc := registryDoc()
-			tc.mismatch(doc)
-			found := withCode(validated(t, doc), tc.code)
-			require.Len(t, found, 1, "the orphaned own ID must be the only dangling reference")
-			assert.Equal(t, ir.SeverityError, found[0].Severity)
-			assert.Contains(t, found[0].Message, tc.orphanID)
+			keyed := registryDoc()
+			tc.mismatch(keyed, tc.key, tc.key)
+			assert.Equal(t, want, pointers(validated(t, keyed)), "keyed by its ID, the node draws the same")
 		})
 	}
+}
+
+// TestValidate_AMismatchedTypeDrawsOneDanglingReference is the document of a
+// model filed under t/x/A whose ID is t/x/B and whose Base names t/x/C: the
+// dangling Base is the one finding, and neither the key nor the ID is reported.
+func TestValidate_AMismatchedTypeDrawsOneDanglingReference(t *testing.T) {
+	t.Parallel()
+	build := func(base ir.TypeID) *ir.Document {
+		return &ir.Document{Types: ir.TypeRegistry{
+			"t/x/A": &ir.Model{ID: "t/x/B", Base: &ir.TypeRef{Target: base}},
+			"t/x/C": &ir.Model{ID: "t/x/C"},
+		}}
+	}
+	got := validated(t, build("t/x/D"))
+	require.Len(t, got, 1)
+	assert.Equal(t, "ir/dangling-type-ref", got[0].Code)
+	assert.Equal(t, "doc.Types[t/x/A].Base.Target", got[0].Provenance.Node)
+
+	assert.Empty(t, validated(t, build("t/x/C")), "a Base naming a declared type draws none")
 }
 
 func TestValidate_DanglingAuthRef(t *testing.T) {

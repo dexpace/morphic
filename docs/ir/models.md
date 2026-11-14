@@ -141,6 +141,21 @@ Kiota lose: the difference between "inherits from", "conforms to", "mixes in", a
 distinction matters because GraphQL allows multiple interfaces while every class-based target
 language allows at most one base class.
 
+**Knots.** The IR permits a composition cycle, and the flattening reads it to its fixpoint, so no
+target is refused one. JSON Schema says a schema SHOULD NOT be one, and `pass.Validate` reports each
+type of a cycle of bases and mixins, `pass/composition-cycle`, a warning (`Implements` is not read:
+it is GraphQL's). It reports as well each type with no finite value, `pass/no-finite-value`, a
+warning: a type whose every way to a value needs a type that needs it in turn, a model requiring
+itself through required properties that are not nullable, a list that must hold an element of itself,
+a tuple that must hold itself, a union all of whose variants are such. Each is told at every type
+of the knot, naming the base, mixin, property, element or variant that leads on, and a cycle of composition
+is told once, as that, and not again as lacking a value. A base or mixin that is a union is no need
+of the model composing it: a union that lists a model composing it, `Shape` over `Circle` whose
+`allOf` names `Shape`, narrows nothing ([a union a composition names](#a-union-a-composition-names)),
+and each instance is one variant. Not read, each of which can only leave a
+knot unreported: a member only `Requires` makes required, a bound on the position of a reference to a
+list, and `Implements`.
+
 ## Required members
 
 Whether an own property must be present is its
@@ -159,7 +174,8 @@ a map requires no key and a decorator says nothing its `Base` does not.
 ## Catch-alls
 
 `AdditionalProps` types the members a model does not declare, and `Additional` says whether any are
-allowed. `Value` types a key no pattern matches, each pattern's `Value` a key it matches, and `Key`
+allowed: `""`, `closed` or `closed_after_composition`, and `irverify` reports any other value
+(`ir/unknown-additional-mode`). `Value` types a key no pattern matches, each pattern's `Value` a key it matches, and `Key`
 every key the catch-all governs. Three combinations arise, and each says one thing about the keys
 no pattern matches:
 

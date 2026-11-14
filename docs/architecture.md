@@ -376,14 +376,20 @@ Built, and in the default list:
   and `PropID` addresses a declared entry. Well-formedness is what the IR asks of a node beyond
   that, such as discriminator mappings that point at actual variants, wire names and aliases unique
   within a model, a one-way operation that declares no response, and binding completeness: a
-  parameter an HTTP binding places twice at one non-host location is an error, one it places nowhere
-  is a warning, and a `host` binding is additive ([http-binding](./ir/http-binding.md)).
+  parameter an HTTP binding places twice at one non-host location is an error
+  (`pass/param-binding-mismatch`), one it places nowhere is the warning `pass/param-unbound`, and a
+  `host` binding is additive ([http-binding](./ir/http-binding.md)). It also reports what a source
+  wrote that no value can meet, each a warning: bounds that admit no value
+  ([constraints](./ir/constraints.md)), a default or an example its type does not admit
+  ([values](./ir/values.md)), and a composition cycle or a type with no finite value
+  ([models](./ir/models.md)).
   Structural problems are errors, which fail the run at the default threshold (§4); style issues are
   warnings.
 - **names** — what a document's names leave to its targets, which no IR rule forbids: two entities
   of one scope whose names a target may render alike, which it can then tell apart only by ID, as
   a warning, and a name with no word character, which a target names from its characters,
-  as an info ([naming](./ir/naming.md#names-one-scope-shares)). An analysis, it renames nothing, and
+  as an info ([naming](./ir/naming.md#names-one-scope-shares)), among them the headers of one
+  response and the properties a model exposes. An analysis, it renames nothing, and
   it runs after every transform, before `validate`, which stays last.
 
 Designed, not yet built:
@@ -577,6 +583,7 @@ limit by that eighth between prunes, and a ledger it cannot read prunes at once.
 ```
 morphic/
 ├── barrier/                # Layer 0 — turns a panic in code the caller does not own into an error.
+├── reuse/                  # Layer 0 — scratch state both checkers read collection after collection.
 ├── ir/                     # Layer 0 — IR node types, IDs, shared traversals, editing, JSON round-trip.
 │   ├── irfacts/            #           Derived facts of a document, never stored (docs/ir/derived-facts.md).
 │   ├── irtest/             #           Golden-snapshot and fixture helpers for IR documents.
@@ -662,9 +669,11 @@ Dependency rules, enforced by an architecture test as in oagen:
   compiler's `diag`, behind which that compiler runs its parser, the JSONPath evaluator it applies
   an overlay with and its own alias scan. No other package recovers a panic outside its tests, as
   `.golangci.yml` enforces.
+- `reuse` imports only the standard library: the map `ir/irverify` and `pass` each empty between
+  collections, one type rather than a copy in each, and no morphic concept, so it sits below `ir`.
 - `compilers/compile` imports only `ir`: it is below every compiler, not beside them.
 - `compilers/*` and `pass` import `ir` (and their own format libraries), and `pass` also
-  `ir/irfacts` — never each other, never `emitters` or `engine`. A compiler also names the
+  `ir/irfacts` and `reuse` — never each other, never `emitters` or `engine`. A compiler also names the
   contract package and `compilers/compile`; each is allowed in its own right, so no sibling
   compiler rides in beside them.
 - A compiler's own `internal/` packages each carry their own allowlist rather than inheriting the

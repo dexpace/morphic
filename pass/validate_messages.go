@@ -7,6 +7,7 @@ import (
 	"fmt"
 
 	"github.com/dexpace/morphic/ir"
+	"github.com/dexpace/morphic/reuse"
 )
 
 // checkMessageBindings reports operations whose message binding uses a message
@@ -19,11 +20,10 @@ import (
 // channel forbids. The code keeps the pass/ namespace: this is a containment
 // judgement the pass owns outright, not a broken reference.
 //
-// It enters through ir.ForEachOperation, so it inherits the group-depth bound that
-// checkGroupWalkTruncated reports.
+// It inherits ir.ForEachOperation's bounds, whose stop Validate reports.
 func checkMessageBindings(doc *ir.Document) []ir.Diagnostic {
 	var diags []ir.Diagnostic
-	var carried reusedMap[ir.MessageID, bool]
+	var carried reuse.Map[ir.MessageID, bool]
 	ir.ForEachOperation(doc, func(op ir.Operation) {
 		diags = append(diags, checkBoundMessages(doc, op, &carried)...)
 	})
@@ -39,7 +39,7 @@ func checkMessageBindings(doc *ir.Document) []ir.Diagnostic {
 // A reply with no channel of its own is left alone: its address is dynamic, so
 // there is no declared message set to hold it to (docs/ir/messaging.md). Each
 // channel's messages are read through carried.
-func checkBoundMessages(doc *ir.Document, op ir.Operation, carried *reusedMap[ir.MessageID, bool]) []ir.Diagnostic {
+func checkBoundMessages(doc *ir.Document, op ir.Operation, carried *reuse.Map[ir.MessageID, bool]) []ir.Diagnostic {
 	b := op.Bindings.Message
 	if b == nil {
 		return nil
@@ -66,21 +66,20 @@ type messagesAt struct {
 // A channel that resolves nowhere is left alone: there is no set to compare
 // against. One that names no declared channel is ir/dangling-channel-ref
 // already (checkDanglingRefs), so a second diagnostic here would restate a
-// defect rather than add a claim. One that names none at all is reported by
-// irverify alone, as ir/empty-channel-ref: this pass does not report an empty
-// channel yet (GitHub #575).
+// defect rather than add a claim. An empty channel or message names none at
+// all, which checkEmptyRefs reports.
 func appendUncarriedMessageDiags(dst []ir.Diagnostic, doc *ir.Document,
-	channel ir.ChannelID, used []ir.MessageID, at messagesAt, carried *reusedMap[ir.MessageID, bool]) []ir.Diagnostic {
+	channel ir.ChannelID, used []ir.MessageID, at messagesAt, carried *reuse.Map[ir.MessageID, bool]) []ir.Diagnostic {
 	ch, declared := doc.Channels[channel]
 	if !declared {
 		return dst
 	}
-	carries := carried.emptied()
+	carries := carried.Emptied()
 	for _, id := range ch.Messages {
 		carries[id] = true
 	}
 	for i, id := range used {
-		if carries[id] {
+		if id == "" || carries[id] {
 			continue
 		}
 		site := fmt.Sprintf("%s/bindings/message/%s/%d", at.op, at.field, i)
