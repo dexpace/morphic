@@ -85,14 +85,12 @@ func appendPluralExample(c lowering.Ctx, out []ir.Example, re *soa.ReferencedExa
 
 // keepEmptyName keeps the empty key of the examples entry at use, which
 // ir.Example.Name reads as no name, on the example's own Unmodeled as
-// openapi:name (docs/compilers/openapi.md#example-values), with an info there.
-// An undeclared name key the Example Object writes holds that entry already,
-// and keeps it: the info still says what the key was.
+// openapi:examples/key (docs/compilers/openapi.md#example-values), with an info
+// there. No key of the Example Object can spell it, as one holding a "/" is
+// escaped, so an undeclared name key the object writes stays its own entry.
 func keepEmptyName(c lowering.Ctx, ext *ir.Unmodeled, use jsontext.Pointer) []ir.Diagnostic {
-	key := annotation.EntryKey("", "name")
-	if _, taken := (*ext)[key]; !taken {
-		annotation.PreserveInto(ext, key, ir.RawValue(`""`), ir.ReasonDegradedLowering, c.Place().At(use))
-	}
+	annotation.PreserveInto(ext, annotation.EntryKey("examples", "key"), ir.RawValue(`""`),
+		ir.ReasonDegradedLowering, c.Place().At(use))
 	return []ir.Diagnostic{c.DiagAt(ir.SeverityInfo, diag.DegradedConstruct, use,
 		"examples entry is keyed by the empty string, which ir.Example.Name reads as no name; the key is kept under Unmodeled")}
 }

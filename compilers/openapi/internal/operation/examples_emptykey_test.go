@@ -6,14 +6,16 @@ package operation_test
 import (
 	"testing"
 
+	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/assert"
 )
 
-// TestExamples_AnEmptyKeyLeavesAWrittenNameKey holds an examples entry keyed by
-// the empty string whose Example Object writes an undeclared name key to that
-// key's own entry: the empty key does not take its place, and the info still
-// says the key was empty.
-func TestExamples_AnEmptyKeyLeavesAWrittenNameKey(t *testing.T) {
+// TestExamples_AnEmptyKeyAndAWrittenNameAreKeptApart holds an examples entry
+// keyed by the empty string whose Example Object writes an undeclared name to
+// keeping both, the key under its own entry and the name under the object's;
+// an entry with a key whose object writes an empty name keeps the name alone,
+// so the two read apart by key and not only by reason.
+func TestExamples_AnEmptyKeyAndAWrittenNameAreKeptApart(t *testing.T) {
 	t.Parallel()
 	doc, diags := parseFull(t, `openapi: 3.1.0
 info: {title: t, version: "1"}
@@ -27,17 +29,22 @@ paths:
           content:
             application/json:
               schema: {type: integer}
-              examples: {"": {value: 1, name: x}}
+              examples: {"": {value: 1, name: x}, named: {value: 2, name: ""}}
 `)
 	const entry = "/paths/~1a/get/responses/200/content/application~1json/examples/"
 	assert.Equal(t, []string{"openapi/degraded-construct info " + entry}, byCode(diags, "openapi/degraded-construct"))
-	got := at(opTree(t, doc, "a"), "responses", "0", "payload", "contents", "0", "examples", "0", "unmodeled", "openapi:name")
-	assert.JSONEq(t, `{"reason":"out_of_scope","value":"x","provenance":{"source":0,"pointer":"`+entry+`/name"}}`,
-		toJSON(t, got))
+	examples := at(opTree(t, doc, "a"), "responses", "0", "payload", "contents", "0", "examples")
+	assert.Empty(t, cmp.Diff(map[string]string{
+		"openapi:examples/key": `degraded_lowering "" ` + entry,
+		"openapi:name":         `out_of_scope "x" ` + entry + `/name`,
+	}, entries(t, at(examples, "0", "unmodeled"))))
+	assert.Empty(t, cmp.Diff(map[string]string{
+		"openapi:name": `out_of_scope "" ` + entry + `named/name`,
+	}, entries(t, at(examples, "1", "unmodeled"))))
 }
 
 // TestExamples_ANamedEntryKeepsNoNameKey holds an examples entry with a name
-// to keeping no openapi:name entry: only the empty key, which Example.Name
+// to keeping no entry for its key: only the empty key, which Example.Name
 // cannot tell from none, is kept.
 func TestExamples_ANamedEntryKeepsNoNameKey(t *testing.T) {
 	t.Parallel()

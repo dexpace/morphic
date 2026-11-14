@@ -138,7 +138,7 @@ func TestExamples_EmptyKeyIsKept(t *testing.T) {
 	named, diags := parseFull(t, specFrom(t, specsDir, "example_key_empty"))
 	assert.Equal(t, []string{"openapi/degraded-construct info " + entry}, findings(diags))
 	got := at(tree(t, named.Services[0].Groups[0].Operations[0]), "responses", "0", "payload", "contents", "0", "examples")
-	assert.JSONEq(t, `[{"value":{"kind":"number","num":"1"},"unmodeled":{"openapi:name":{"reason":"degraded_lowering",`+
+	assert.JSONEq(t, `[{"value":{"kind":"number","num":"1"},"unmodeled":{"openapi:examples/key":{"reason":"degraded_lowering",`+
 		`"value":"","provenance":{"source":0,"pointer":"`+entry+`"}}}}]`, toJSON(t, got))
 
 	single, diags := parseFull(t, specFrom(t, specsDir, "example_key_single"))

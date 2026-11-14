@@ -828,7 +828,7 @@ it sees. Changes made together in one bump are listed together under it.
   ([`multipart-encoding`](../compilers/openapi.md#multipart-encoding));
   `ir/catch-all-encoding-empty` is a new verifier code and `ir/encoding-key-unknown-catch-all` a new
   `pass.Validate` error. An examples entry keyed by the empty string, which lowers unnamed, keeps
-  the key on its `Example` under `openapi:name`, and a parameter serialized through its content
+  the key on its `Example` under `openapi:examples/key`, and a parameter serialized through its content
   states no `HTTPParamBinding.Style` it does not write, where it took its location's default
   ([HTTP binding](./http-binding.md)). A consumer pinned to 0.67.0 refuses the document;
   one reading `Stop` with no arm for `no_more` would not end such a walk, and one matching a marker
