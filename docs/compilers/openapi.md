@@ -5464,7 +5464,9 @@ A link that does not lower whole is kept verbatim on its response under `openapi
   `openapi.TestRun_ReadsTheFinishedDocumentOnce`, `openapi.TestRun_AppendsNothingAfterAFirstAsk`,
   `e2e.TestUnpreservable_AnnouncementNeverOutrunsTheEntry`
 - Status: partly built: a key beside a link's `$ref` other than `summary` and `description` is
-  dropped with no record, as beside any other reference (#1321).
+  dropped with no record, as beside any other reference (#1321). A body whose model composes `m`
+  models, read for `n` distinct members, costs `n` walks of the composition where a flattening
+  would cost one (#1955).
 
 ## 12. Webhooks and callbacks
 
