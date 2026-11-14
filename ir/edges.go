@@ -15,31 +15,37 @@ import (
 // discriminator targets and a value's ref and constructor types, but no
 // [DocRef] or [EntityRef]. A nil or typed-nil td yields nothing.
 //
-// A value nested past [MaxWalkDepth] levels is not entered; the reflection
-// walk is cut sooner, and pass.Validate reports that. A pointer two fields
-// share is followed from each, unlike in WalkValues, so aliasing costs the
-// unfolded size (#859); a cycle is cut.
+// A pointer two fields share is followed from each, as in WalkValues, and a
+// cycle is cut. It enters values no deeper than [MaxWalkDepth] and no more than
+// [MaxWalkSteps], so it is cut only where the reflection walk is.
 func TypeEdges(td TypeDef) iter.Seq[TypeID] {
+	return typeEdges(MaxWalkSteps, td)
+}
+
+// typeEdges is TypeEdges entering at most limit values.
+func typeEdges(limit int, td TypeDef) iter.Seq[TypeID] {
 	return func(yield func(TypeID) bool) {
 		if IsNilTypeDef(td) {
 			return
 		}
-		w := edgeWalk{yield: yield}
+		w := edgeWalk{yield: yield, steps: stepLimit{left: limit}}
 		w.def(td)
 	}
 }
 
 // edgeWalk is one TypeEdges call: the consumer's yield, whether it has
-// declined more, and the values it is inside. Every edge leaves through id, so the rule that yield is never
-// called again after it returns false is kept in one place. Once stopped, the
-// walk finishes its pass over the type definition without yielding.
+// declined more, the values it is inside and the steps it may still take.
+// Every edge leaves through id, so the rule that yield is never called again
+// after it returns false is kept in one place. Once stopped, the walk finishes
+// its pass over the type definition without yielding.
 //
 // Its methods follow field declaration order, which is the order [WalkValues]
 // reaches the same fields in.
 type edgeWalk struct {
 	yield   func(TypeID) bool
-	stopped bool
 	path    descent
+	steps   stepLimit
+	stopped bool
 }
 
 // id yields id unless it is empty or the consumer has stopped.
@@ -103,12 +109,12 @@ func (w *edgeWalk) common(c *TypeCommon) {
 }
 
 // value yields the types v refers to, through every nested list, object member
-// and constructor argument. depth counts one level per step down; the
-// reflection walk charges each of those steps at least twice, so it is cut
-// first. A list, object or constructor met again from inside itself is not
-// entered again.
+// and constructor argument, taking a step for v. depth counts one level per
+// step down; the reflection walk charges each of those steps at least twice,
+// so it is cut first. A list, object or constructor met again from inside
+// itself is not entered again.
 func (w *edgeWalk) value(v *Value, depth int) {
-	if v == nil || depth > MaxWalkDepth {
+	if v == nil || depth > MaxWalkDepth || !w.steps.take() {
 		return
 	}
 	w.values(v.List, depth+1)
@@ -151,13 +157,27 @@ func (w *edgeWalk) examples(exs []Example) {
 		ex := &exs[i]
 		w.value(ex.Value, 0)
 		w.value(ex.Headers, 0)
-		w.value(ex.Input, 0)
+		w.input(ex.Input)
 		w.value(ex.Output, 0)
 		if e := ex.Error; e != nil {
 			w.ref(&e.Type)
 			w.value(&e.Content, 0)
 		}
 	}
+}
+
+// input yields the types a scenario's input refers to: each parameter's value
+// in key order, which is the order the reflection walk ranges the map in, then
+// the body's.
+func (w *edgeWalk) input(in *ScenarioInput) {
+	if in == nil {
+		return
+	}
+	for _, id := range slices.Sorted(maps.Keys(in.Params)) {
+		v := in.Params[id]
+		w.value(&v, 0)
+	}
+	w.value(in.Body, 0)
 }
 
 // availability yields the prior types a versioning timeline records.

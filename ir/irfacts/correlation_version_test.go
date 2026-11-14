@@ -7,14 +7,11 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"maps"
-	"os"
 	"slices"
 	"strings"
 	"testing"
 
-	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 
 	"github.com/dexpace/morphic/ir"
 	"github.com/dexpace/morphic/ir/irfacts"
@@ -44,12 +41,7 @@ const derivationGolden = "testdata/correlation.golden.txt"
 func TestCorrelationVersion_PinsTheDerivation(t *testing.T) {
 	t.Parallel()
 	desc := describeDerivation()
-	if irtest.Update() {
-		require.NoError(t, os.WriteFile(derivationGolden, []byte(desc), 0o644))
-	}
-	want, err := os.ReadFile(derivationGolden)
-	require.NoError(t, err, "go test ./ir/irfacts -run TestCorrelationVersion -update writes it")
-	assert.Empty(t, cmp.Diff(string(want), desc), "%s is stale: -update rewrites it, then review its diff", derivationGolden)
+	irtest.CompareBytes(t, derivationGolden, []byte(desc))
 
 	sum := sha256.Sum256([]byte(desc))
 	assert.Equal(t, derivations[irfacts.CorrelationVersion], hex.EncodeToString(sum[:]),

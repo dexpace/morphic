@@ -259,3 +259,46 @@ func TestIDKinds_ListsEveryKindConstant(t *testing.T) {
 	slices.Sort(listed)
 	assert.Equal(t, declared, listed, "IDKinds must name every IDKind constant, once each")
 }
+
+// TestIDKinds_NoKindOpensAnother holds the kind list to the property that lets
+// an ID's kind be read off its prefix: no kind followed by the separator opens
+// another kind's prefix, and an ID of one kind is no well-formed ID of another.
+// The pairs are of positions in the list, so two kinds spelled alike are a pair
+// and fail it.
+func TestIDKinds_NoKindOpensAnother(t *testing.T) {
+	t.Parallel()
+	kinds := ir.IDKinds()
+	require.NotEmpty(t, kinds)
+	for i := range kinds {
+		for j := range kinds {
+			if i == j {
+				continue
+			}
+			assert.False(t, strings.HasPrefix(kinds[i]+ir.IDSeparator, kinds[j]+ir.IDSeparator),
+				"kind %q (position %d) opens with kind %q (position %d)", kinds[i], i, kinds[j], j)
+			assert.False(t, ir.WellFormedID(kinds[j], kinds[i]+ir.IDSeparator+"x"),
+				"an ID of kind %q (position %d) must not be well-formed as kind %q (position %d)",
+				kinds[i], i, kinds[j], j)
+		}
+	}
+}
+
+// TestIDKinds_ChannelAndMessageKindsAreListedInOrder pins the spelling of the
+// two kinds that name the messaging registries and their place at the end of
+// the list, after every kind that existed before them.
+func TestIDKinds_ChannelAndMessageKindsAreListedInOrder(t *testing.T) {
+	t.Parallel()
+	assert.Equal(t, "chan", ir.IDKindChannel)
+	assert.Equal(t, "msg", ir.IDKindMessage)
+
+	kinds := ir.IDKinds()
+	require.GreaterOrEqual(t, len(kinds), 2)
+	assert.Equal(t, []string{ir.IDKindChannel, ir.IDKindMessage}, kinds[len(kinds)-2:])
+	assert.True(t, ir.WellFormedID(ir.IDKindChannel, "chan/x/c"))
+	assert.True(t, ir.WellFormedID(ir.IDKindMessage, "msg/x/evt"))
+	assert.False(t, ir.WellFormedID(ir.IDKindChannel, "msg/x/evt"))
+	assert.False(t, ir.WellFormedID(ir.IDKindMessage, "chan/x/c"))
+	space, ok := ir.IDSpace(ir.IDKindMessage, "msg/x/evt")
+	assert.True(t, ok)
+	assert.Equal(t, "x", space)
+}

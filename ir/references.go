@@ -15,6 +15,13 @@ var _ Visitor = (*IDReferences)(nil)
 // resolves; see [IDReferences] for why.
 var propIDType = reflect.TypeFor[PropID]()
 
+// ownIDField names the field of a struct that holds the identity the struct
+// declares. A string of a map-keyed class at such a field is its node's
+// declaration, which irverify holds to the node's key, and no reference.
+// TestIDReferences_AKeyedClassIsNamedIDOnlyWhereDeclared holds that no struct
+// names a field so unless it declares.
+const ownIDField = "ID"
+
 // IDReference is one typed-ID reference a walk reached: its class, the ID it
 // names, and where it sits.
 type IDReference struct {
@@ -29,8 +36,8 @@ type IDReference struct {
 // IDReferences gathers, as a [Visitor], the typed-ID references a walk reaches
 // and what they resolve against, so both checkers report a dangling reference
 // alike. A value's Go type is what makes it a reference: a [ChannelID]
-// references Document.Channels wherever it sits, a node's own ID included, so
-// no field is listed and none can be forgotten.
+// references Document.Channels wherever it sits, bar a registry node's own ID,
+// so no field is listed and none can be forgotten.
 //
 // Integer indices have nothing to key on, and a [PropID] names a position inside
 // a model, so neither is kept; each is resolved by hand where checked. Only
@@ -67,7 +74,7 @@ func NewIDReferences(doc *Document) *IDReferences {
 		r.labels[reg.class] = reg.label
 		r.keyed[reg.class] = registryKeys(doc, reg.index)
 	}
-	for class := range idClasses() {
+	for class := range idClasses {
 		if _, keyed := r.keyed[class]; keyed || class == propIDType {
 			continue
 		}
@@ -80,11 +87,11 @@ func NewIDReferences(doc *Document) *IDReferences {
 // reference that may not resolve, asking for v's children either way.
 //
 // A reference resolving as the walk reaches it, in a map-keyed registry or to
-// an identity already declared, is not kept: declarations only accumulate. Any
-// other is kept for [IDReferences.Unresolved], with its path unspelled, since a
-// declared class's registry is complete only once the walk is over. A node's own ID is
-// reached just after the node declares it. An empty ID is no reference: some
-// positions spell "none" with one (Discriminator.Default).
+// an identity already declared, is not kept. A map-keyed node's own ID is its
+// declaration, never kept. Any other is kept for [IDReferences.Unresolved], its
+// path unspelled, since a declared class's registry is complete only once the
+// walk is over. An empty ID is no reference: some positions spell "none" with
+// one (Discriminator.Default).
 func (r *IDReferences) Visit(v reflect.Value, at WalkPath) bool {
 	switch v.Kind() {
 	case reflect.Struct:
@@ -131,6 +138,9 @@ func (r *IDReferences) refer(v reflect.Value, at WalkPath) {
 		ids = r.declared[t]
 	}
 	if ids[id] {
+		return
+	}
+	if _, name, ok := at.Field(); keyed && ok && name == ownIDField {
 		return
 	}
 	r.sites = append(r.sites, IDReference{Class: t, ID: id})

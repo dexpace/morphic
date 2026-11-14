@@ -24,6 +24,18 @@ const (
 	PresenceRequired PresenceKind = "required"
 )
 
+// Valid reports whether k is one of the disciplines declared above, the empty
+// default included. PresenceKind is a bare string enum, so nothing rejects an
+// invented value on the wire; irverify calls this so that one is reported.
+func (k PresenceKind) Valid() bool {
+	switch k {
+	case PresenceDefault, PresenceImplicit, PresenceExplicit, PresenceRequired:
+		return true
+	default:
+		return false
+	}
+}
+
 // Lifecycle names a visibility lifecycle class. It is an OPEN set; canonical
 // values are "create", "read", "update", "delete", and "query". TypeSpec custom
 // visibility classes lower as "<class>:<member>" strings so nothing is dropped

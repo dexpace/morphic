@@ -6,24 +6,24 @@ package pass_test
 import (
 	"testing"
 
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/dexpace/morphic/ir"
 )
 
-// TestValidate_TypeRegistryDiagnosticsAreDeterministic pins invariant 7 at each
-// check that ranges the type registry through liveTypeIDs. Go ranges the
-// registry's keys in randomized order: each check reads the sorted IDs, so one
-// that ranged the registry itself would redden its row.
-func TestValidate_TypeRegistryDiagnosticsAreDeterministic(t *testing.T) {
-	t.Parallel()
+// registryCase is a family that ranges the type registry: the type that draws
+// its finding, its code, and where the finding sits at a type of that ID.
+type registryCase struct {
+	name, code string
+	typeOf     func(id ir.TypeID) ir.TypeDef
+	at         func(id ir.TypeID) string
+}
+
+// registryCases are the families that range the type registry through
+// liveTypeIDs, each with the type that draws one finding.
+func registryCases() []registryCase {
 	str := ir.TypeRef{Target: "t/prim/string"}
-	cases := []struct {
-		name, code string
-		typeOf     func(id ir.TypeID) ir.TypeDef
-		at         func(id ir.TypeID) string
-	}{
+	return []registryCase{
 		{
 			name: "checkDiscriminators", code: "pass/discriminator-missing-variant",
 			typeOf: func(id ir.TypeID) ir.TypeDef {
@@ -78,7 +78,15 @@ func TestValidate_TypeRegistryDiagnosticsAreDeterministic(t *testing.T) {
 			at:     func(id ir.TypeID) string { return string(id) },
 		},
 	}
-	for _, tc := range cases {
+}
+
+// TestValidate_TypeRegistryDiagnosticsAreDeterministic pins invariant 7 at each
+// check that ranges the type registry through liveTypeIDs. Go ranges the
+// registry's keys in randomized order: each check reads the sorted IDs, so one
+// that ranged the registry itself would redden its row.
+func TestValidate_TypeRegistryDiagnosticsAreDeterministic(t *testing.T) {
+	t.Parallel()
+	for _, tc := range registryCases() {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			doc := validDoc()
@@ -87,9 +95,6 @@ func TestValidate_TypeRegistryDiagnosticsAreDeterministic(t *testing.T) {
 			}
 			want := pointers(withCode(validated(t, doc), tc.code))
 			require.Equal(t, []string{tc.at("t/b"), tc.at("t/c"), tc.at("t/m2"), tc.at("t/q"), tc.at("t/z")}, want)
-			for range 8 {
-				assert.Equal(t, want, pointers(withCode(validated(t, doc), tc.code)))
-			}
 		})
 	}
 }

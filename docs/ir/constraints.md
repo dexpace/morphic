@@ -58,6 +58,17 @@ the reference names. An encoded value holds those its source type
 takes, where the paragraph above places them: a length or pattern beside a `string` written as
 bytes or an instant, and a numeric bound beside a number written as an instant.
 
+**Bounds that admit no value.** `pass.Validate` reports a position or a type whose bounds, joined
+with those of the alias scalars its reference reaches, admit no value of the kind they apply to,
+`pass/bounds-admit-no-value`, a warning: a `Min` above a `Max`, an exclusive bound that meets the
+other end exactly, a `MinLength` above a `MaxLength`, and the same for items and members. It is told
+once, at the type or position where the contradiction completes. A nullable position is still
+reported: the message names the kind of value that has none, and null stays admitted. Not judged: an
+exclusive pair with no integer between its ends, and a `MultipleOf` with no multiple in range,
+since `ir.Decimal` compares and does no arithmetic. A bound a schema's type does not apply to never
+reaches the IR, so `{type: integer, minLength: 6, maxLength: 5}` keeps neither and draws
+`openapi/degraded-construct` instead.
+
 ## Encodings
 
 ```go

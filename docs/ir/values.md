@@ -49,3 +49,22 @@ meets them as kinds it must handle, never as a `number` whose `Num` is empty; a 
 bits, which no source format states. Keeping the decimal channel finite is still the rule:
 `BigVal` stays a JSON number, and `ir.Decimal` never reads one of these. No JSON instance is
 non-finite, so no OpenAPI or AsyncAPI document lowers to them.
+
+## Values held to their type
+
+`pass.Validate` reports a default a position's type does not admit, `pass/default-outside-type`, and
+an example it does not admit, `pass/example-outside-type`, each a warning. They are two codes because
+a default is written into the code an emitter generates and an example reaches its documentation. The
+reading is shallow: the value's kind against the shape of the type, an enum's members, a literal's
+value, null where the position is not nullable, whole numbers for an integer, and the bounds the
+position declares with those of the alias scalars it reaches. A value that is a reference or a
+constructor, a type holding anything, a union, an external type, an unknown type and a position written
+in an encoding are not judged. The sites are a property's, a parameter's and a header's default and
+examples, a type's own examples (a null one says the example is absent and is not judged), and in an
+operation's examples each input parameter against the parameter it names, and the error content
+against the error's type.
+
+Not judged: a content's and a message's examples, which are in a media type's format, not the type's
+value (whether a JSON content's are held is #1949); a scenario's `Body` and `Output`, which are one
+content and one response, so no single type; a variant's and an enum member's examples; the elements
+of a list and the members of an object; and `Pattern`, `MultipleOf`, `Precision` and `Scale`.

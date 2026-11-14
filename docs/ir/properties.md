@@ -58,6 +58,8 @@ type PresenceKind string
 // "required" — must be present on the wire (proto2 required, editions LEGACY_REQUIRED)
 ```
 
+`irverify` reports any other `Presence` (`ir/unknown-presence-kind`).
+
 **Scope rule for `Args`:** parameterized properties are only legal on models reachable from a
 GraphQL binding (the only format with per-field arguments); the validate pass rejects them
 elsewhere. This keeps ordinary models pure data shapes — a model without `Args` anywhere in its

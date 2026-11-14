@@ -37,7 +37,9 @@ type Operation struct {
     Idempotency Idempotency       // unknown | safe | idempotent | idempotency_token(param)
                                   // safe = no side effects (Smithy @readonly, HTTP GET semantics)
                                   // TokenParam is set exactly for idempotency_token; validate
-                                  // rejects either half alone (pass/idempotency-token-mismatch)
+                                  // rejects either half alone (pass/idempotency-token-mismatch);
+                                  // irverify reports another kind, "" being unknown
+                                  // (ir/unknown-idempotency-kind)
     Servers    []ServerID         // the servers it is sent to, most preferred first, in place
                                   // of its service's; empty = its service's, save on an inbound
                                   // operation, which inherits none (docs/ir/servers.md)

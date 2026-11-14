@@ -15,14 +15,15 @@ import (
 // The kind and ir.IDSpaceUnresolved go together both ways: outside the space a
 // pointer could reach the scheme, which is invariant 3's corollary, and inside
 // it a mechanism squats the space ir reserves for the kind. A scheme with no
-// space to compare is checkIDs' to report. A field saying how to authenticate
-// would contradict the kind, while a name and text about the scheme do not.
+// space to compare is checkIDs' to report, and one filed under a key that is
+// not its ID checkRegistryKeys'. A field saying how to authenticate would
+// contradict the kind, while a name and text about the scheme do not.
 func checkUnresolvedSchemes(doc *ir.Document) []Violation {
 	var vs []Violation
 	for id, scheme := range doc.Auth {
 		unresolved := scheme.Kind == ir.AuthKindUnresolved
 		space, wellFormed := ir.IDSpace(ir.IDKindAuth, string(id))
-		if wellFormed && unresolved != (space == ir.IDSpaceUnresolved) {
+		if wellFormed && keyedByOwnID(string(id), string(scheme.ID)) && unresolved != (space == ir.IDSpaceUnresolved) {
 			vs = append(vs, Violation{
 				Code: "ir/unresolved-auth-space",
 				Message: "auth scheme of kind " + strconv.Quote(string(scheme.Kind)) + " is addressed in space " +

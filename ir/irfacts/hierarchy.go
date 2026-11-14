@@ -14,21 +14,28 @@ import (
 // ir.Supertypes: a type reaches each of its supertypes, so the intervals of its
 // reach answer whether one type is below another.
 type hierarchy struct {
-	vertex   map[ir.TypeID]int         // declared types in sorted order, then supertypes the registry lacks
-	reach    *intervals                // what each vertex is a subtype of
-	children map[ir.TypeID][]ir.TypeID // the declared models naming each type among their supertypes
-	aliases  aliasTargets              // what each alias scalar stands for
+	vertex   map[ir.TypeID]int // declared types in sorted order, then supertypes the registry lacks
+	reach    *intervals        // what each vertex is a subtype of
+	children [][]ir.TypeID     // by vertex, the declared models naming it among their supertypes
+	aliases  aliasTargets      // what each alias scalar stands for
 }
 
 // newHierarchy indexes the subtype relation of the models in types.
 func newHierarchy(types ir.TypeRegistry) *hierarchy {
 	h := &hierarchy{
-		vertex:   make(map[ir.TypeID]int, len(types)),
-		children: map[ir.TypeID][]ir.TypeID{},
-		aliases:  newAliasTargets(types),
+		vertex:  make(map[ir.TypeID]int, len(types)),
+		aliases: newAliasTargets(types),
 	}
 	h.reach = newIntervals(h.supertypeEdges(types))
 	return h
+}
+
+// childrenOf returns the declared models naming id among their supertypes.
+func (h *hierarchy) childrenOf(id ir.TypeID) []ir.TypeID {
+	if v, named := h.vertex[id]; named {
+		return h.children[v]
+	}
+	return nil
 }
 
 // supertypes appends the supertypes of m to dst as ir.Supertypes returns them:
@@ -46,13 +53,15 @@ func (h *hierarchy) supertypes(dst []ir.TypeID, m *ir.Model) []ir.TypeID {
 
 // supertypeEdges gives every declared type a vertex, in sorted ID order, and
 // each supertype the registry lacks one as it is first named. It returns each
-// vertex's edges to its supertypes, and records the reverse as children.
+// vertex's edges to its supertypes, and records the reverse as children. A
+// supertype the registry lacks declares nothing, so its vertex has no edges.
 func (h *hierarchy) supertypeEdges(types ir.TypeRegistry) [][]int {
 	ids := slices.Sorted(maps.Keys(types))
 	for i, id := range ids {
 		h.vertex[id] = i
 	}
-	edges := make([][]int, len(ids))
+	most := mostSupertypes(types)
+	edges, children := pairsOf[int](most), pairsOf[ir.TypeID](most)
 	var supers []ir.TypeID
 	for i, id := range ids {
 		m, ok := types[id].(*ir.Model)
@@ -66,13 +75,27 @@ func (h *hierarchy) supertypeEdges(types ir.TypeRegistry) [][]int {
 				v = len(h.vertex)
 				h.vertex[super] = v
 			}
-			edges[i] = append(edges[i], v)
-			h.children[super] = append(h.children[super], id)
+			edges.add(i, v)
+			children.add(v, id)
 		}
 	}
-	// A supertype the registry lacks declares nothing, so its vertex has no
-	// edges.
-	return slices.Concat(edges, make([][]int, len(h.vertex)-len(edges)))
+	h.children = children.grouped(len(h.vertex))
+	return edges.grouped(len(h.vertex))
+}
+
+// mostSupertypes returns how many supertypes the models of types name at most:
+// a Base and each Implements entry, before any is read through its aliases.
+func mostSupertypes(types ir.TypeRegistry) int {
+	most := 0
+	for _, td := range types {
+		if m, ok := td.(*ir.Model); ok && m != nil {
+			most += len(m.Implements)
+			if m.Base != nil {
+				most++
+			}
+		}
+	}
+	return most
 }
 
 // subtype answers [Index.IsSubtype] from the intervals, with settled false where
@@ -94,7 +117,7 @@ func (h *hierarchy) descendants(base ir.TypeID) []ir.TypeID {
 	for len(pending) > 0 {
 		id := pending[len(pending)-1]
 		pending = pending[:len(pending)-1]
-		for _, child := range h.children[id] {
+		for _, child := range h.childrenOf(id) {
 			if !found[child] {
 				found[child] = true
 				pending = append(pending, child)

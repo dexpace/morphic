@@ -53,18 +53,37 @@ func newExposure(types ir.TypeRegistry) *exposure {
 	for i, id := range ids {
 		e.vertex[id] = i
 	}
-	edges := make([][]int, len(ids))
+	edges := pairsOf[int](mostSources(types))
 	var sources []ir.TypeID
 	for i, id := range ids {
 		sources = e.read(sources[:0], i, types[id])
 		for _, source := range sources {
 			if v, declared := e.vertex[source]; declared {
-				edges[i] = append(edges[i], v)
+				edges.add(i, v)
 			}
 		}
 	}
-	e.reach = newIntervals(edges)
+	e.reach = newIntervals(edges.grouped(len(ids)))
 	return e
+}
+
+// mostSources returns how many part sources the types of types name at most:
+// a model's Base, Implements and Mixins entries and an alias scalar's Base.
+func mostSources(types ir.TypeRegistry) int {
+	most := 0
+	for _, td := range types {
+		switch t := td.(type) {
+		case *ir.Model:
+			if t != nil {
+				most += 1 + len(t.Implements) + len(t.Mixins)
+			}
+		case *ir.Scalar:
+			most++
+		default:
+			// No other kind names a part source.
+		}
+	}
+	return most
 }
 
 // read records the properties td declares as vertex i's, and appends to dst the

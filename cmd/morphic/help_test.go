@@ -299,25 +299,6 @@ func TestRootHelp_ListsEveryCommand(t *testing.T) {
 	}
 }
 
-// compareHelpGolden compares got against the golden file at path, or rewrites
-// it when -update is passed to go test.
-//
-// The -update flag comes from irtest rather than being declared here: a second
-// flag.Bool("update", ...) on the same command-line FlagSet panics at init.
-func compareHelpGolden(t *testing.T, path, got string) {
-	t.Helper()
-
-	if irtest.Update() {
-		require.NoError(t, os.MkdirAll(filepath.Dir(path), 0o755))
-		require.NoError(t, os.WriteFile(path, []byte(got), 0o644))
-		return
-	}
-
-	want, err := os.ReadFile(path)
-	require.NoError(t, err, "read golden %s (run with -update to create)", path)
-	assert.Empty(t, cmp.Diff(string(want), got), "golden mismatch for %s", path)
-}
-
 // helpGoldenCase is one rendering with a committed golden: the args that produce
 // it, the file it is compared against, and which stream it must arrive on.
 type helpGoldenCase struct {
@@ -393,7 +374,7 @@ func TestHelp_MatchesGolden(t *testing.T) {
 			}
 			require.Empty(t, quiet, "nothing may reach the stream this text does not use")
 
-			compareHelpGolden(t, filepath.Join("testdata", tt.golden), got)
+			irtest.CompareBytes(t, filepath.Join("testdata", tt.golden), []byte(got))
 		})
 	}
 }

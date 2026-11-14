@@ -170,8 +170,8 @@ func appendUnknownPartDiags(dst []ir.Diagnostic, types ir.TypeRegistry, facts *i
 	}
 	slices.Sort(*keys)
 	for _, key := range *keys {
-		if partNamed(types, facts, c.Type.Target, key) {
-			continue
+		if key == "" || partNamed(types, facts, c.Type.Target, key) {
+			continue // an empty key names no part, which checkEmptyRefs reports
 		}
 		at := site.where() + "/contents/" + strconv.Itoa(i) + "/encoding/" + string(key)
 		dst = append(dst, diag(ir.SeverityError, "ir/encoding-key-unknown-property",
