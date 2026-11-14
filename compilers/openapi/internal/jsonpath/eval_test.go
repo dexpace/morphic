@@ -271,7 +271,8 @@ func TestSelect_AsksItsContext(t *testing.T) {
 
 // TestSelect_HoldsANodelistToItsBound pins ErrResults: the root's list and
 // the three nodes a wildcard selects under it are four held at once, which a
-// bound of four admits and one of three refuses.
+// bound of four admits and one of three refuses. A bound of none refuses the
+// root's list itself.
 func TestSelect_HoldsANodelistToItsBound(t *testing.T) {
 	t.Parallel()
 	q, err := jsonpath.Parse("$[*]")
@@ -283,6 +284,9 @@ func TestSelect_HoldsANodelistToItsBound(t *testing.T) {
 	assert.Len(t, got, 3)
 
 	_, err = q.SelectHolding(t.Context(), root, 3)
+	assert.ErrorIs(t, err, jsonpath.ErrResults)
+
+	_, err = q.SelectHolding(t.Context(), root, 0)
 	assert.ErrorIs(t, err, jsonpath.ErrResults)
 }
 
