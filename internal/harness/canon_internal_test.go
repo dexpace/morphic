@@ -122,6 +122,38 @@ func TestDiffSequenceInvariants_ASelfReferenceEndsTheWalk(t *testing.T) {
 	assert.True(t, ok, detail)
 }
 
+// TestRewriterText_OnlyACycleOfTwoOrMoreFails pins which IDs met while a
+// digest is computed fail the form: one naming the node whose digest is
+// innermost ends a self-reference, even after a digest of another node
+// computed within it, while one naming an outer node closes a cycle, whichever
+// node of it is met first.
+func TestRewriterText_OnlyACycleOfTwoOrMoreFails(t *testing.T) {
+	t.Parallel()
+	const a, n = "t/anon/components/schemas/AB/allOf/0", "t/anon/components/schemas/AB/allOf/1"
+	owner := func(id string, names ...any) []map[string]any {
+		return []map[string]any{{"id": id, "names": names}}
+	}
+	for _, tc := range []struct {
+		name   string
+		owners map[string][]map[string]any
+		start  string
+		want   error
+	}{
+		{"a node naming itself after another", map[string][]map[string]any{a: owner(a, n, a), n: owner(n)}, a, nil},
+		{"two nodes naming each other, met at the first", map[string][]map[string]any{a: owner(a, n), n: owner(n, a)}, a, errCycle},
+		{"two nodes naming each other, met at the second", map[string][]map[string]any{a: owner(a, n), n: owner(n, a)}, n, errCycle},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			r := rewriter{seqs: abOrder.written, owners: tc.owners, digests: map[string]string{}, visiting: map[string]bool{}}
+
+			r.text(tc.start, 0)
+
+			assert.ErrorIs(t, r.err, tc.want)
+		})
+	}
+}
+
 // TestDiffSequenceInvariants_ADocumentItCannotWriteIsReported pins that a
 // document the comparison cannot encode is a finding naming the order it came
 // from, rather than two empty forms that compare equal, and that one nesting

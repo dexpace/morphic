@@ -143,7 +143,7 @@ func TestCheck_SequenceOrderOracleHoldsOnTheRealCompiler(t *testing.T) {
 		},
 		{
 			// The deepest chain the permutation admits: its canonical form
-			// nests past one source bound.
+			// nests within two source bounds whichever link is met first.
 			name: "a chain of 255 schemas, each a property under an allOf",
 			src:  propertyChain(255),
 			want: passed(OracleSequenceOrder),
@@ -156,6 +156,19 @@ func TestCheck_SequenceOrderOracleHoldsOnTheRealCompiler(t *testing.T) {
 				"B: {type: object, properties: {p: {type: string}}}",
 				"AB: {allOf: [{$ref: '#/components/schemas/A'}, {$ref: '#/components/schemas/B'}]}"),
 			want: passed(OracleSequenceOrder),
+		},
+		{
+			// The branch and its property name each other through their $id,
+			// which no pointer spells, so the allOf is reversed. Which of the
+			// two the comparison met first decided their digests, and a run
+			// meeting them one way in each order found a difference.
+			name: "two nodes beneath an allOf naming each other",
+			src: schemas("X: {allOf: [{$id: 'https://example.test/a', type: object, properties: " +
+				"{b: {$id: 'https://example.test/b', type: object, properties: {back: {$ref: 'https://example.test/a'}}}}}, " +
+				"{type: object, properties: {q: {type: string}}}]}"),
+			kept: []string{`"target":"t/anon/components/schemas/X/allOf/0/properties/b"`,
+				`"target":"t/anon/components/schemas/X/allOf/0"`},
+			want: declined(OracleSequenceOrder, DeclineReferenceCycle),
 		},
 	}
 	for _, tc := range tests {

@@ -112,6 +112,11 @@ const (
 	// oracle reverses the source alone and reads no other file's references,
 	// so reversing would change what such a reference names.
 	DeclineReadsAnotherFile Decline = "reads another file"
+	// DeclineReferenceCycle: nodes beneath the sequences the sequence-order
+	// oracle reverses name each other in a cycle of two or more. What tells
+	// such nodes apart would follow which of them the comparison met first,
+	// not what they say.
+	DeclineReferenceCycle Decline = "reference cycle"
 )
 
 // Verdict is one oracle's answer for one spec: it asked and found nothing

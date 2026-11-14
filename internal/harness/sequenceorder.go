@@ -53,7 +53,7 @@ func sequenceOrderInvariant(ctx context.Context, spec string, data []byte, compi
 // report that moves with the order, a tie the lowering states, so nothing the
 // documents hold at or beneath its pointer is compared. Every difference is
 // reported, one after another. It declines a document read from more than one
-// file, and one whose canonical form nests past its bound.
+// file, and what compareForms declines.
 func diffSequenceInvariants(first *ir.Document, firstDiags []ir.Diagnostic, second *ir.Document, secondDiags []ir.Diagnostic, perm permutation) (string, bool, Decline) {
 	if first != nil && len(first.Sources) > 1 {
 		return "", false, DeclineReadsAnotherFile
@@ -78,18 +78,19 @@ func diffSequenceInvariants(first *ir.Document, firstDiags []ir.Diagnostic, seco
 
 // compareForms compares two documents' canonical forms (canonicalForm), each
 // in its own source's coordinates, line by line, and their flattened shapes,
-// or declines where either form nests past its bound.
+// or declines where either form nests past its bound or meets a cycle of
+// digests.
 func compareForms(first, second *ir.Document, perm permutation, ties []string) ([]string, Decline) {
 	a, err := canonicalForm(first, perm.written, ties)
-	if errors.Is(err, errTooDeep) {
-		return nil, DeclineTooDeep
+	if why := formDecline(err); why != "" {
+		return nil, why
 	}
 	if err != nil {
 		return []string{"encode as written: " + err.Error()}, ""
 	}
 	b, err := canonicalForm(second, perm.moved, ties)
-	if errors.Is(err, errTooDeep) {
-		return nil, DeclineTooDeep
+	if why := formDecline(err); why != "" {
+		return nil, why
 	}
 	if err != nil {
 		return []string{"encode permuted: " + err.Error()}, ""
@@ -102,6 +103,18 @@ func compareForms(first, second *ir.Document, perm permutation, ties []string) (
 		found = append(found, "flattened shape depends on sequence order (-as-written +reversed):\n"+cmp.Diff(a.shape, b.shape))
 	}
 	return found, ""
+}
+
+// formDecline is the decline a canonical form's error stands for, if any.
+func formDecline(err error) Decline {
+	switch {
+	case errors.Is(err, errTooDeep):
+		return DeclineTooDeep
+	case errors.Is(err, errCycle):
+		return DeclineReferenceCycle
+	default:
+		return ""
+	}
 }
 
 // report is one diagnostic as the comparison reads it, in the coordinates of

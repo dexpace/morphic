@@ -20,16 +20,22 @@ import (
 
 // maxCanonicalDepth bounds the canonical form's descent: through the encoded
 // document, and through the owners of each digest computed on the way, whose
-// rewrite continues the descent that met the ID. A chain of 255 schemas, each
-// a property under an allOf, the deepest the permutation admits, nests past
-// one source bound and within two, each link's digest reaching through the
-// next (TestCheck_SequenceOrderOracleHoldsOnTheRealCompiler). A form nesting
-// deeper is declined.
+// rewrite continues the descent that met the ID. How deep that goes follows
+// the order the rewrite meets IDs in, which is a map's, so it varies between
+// runs, and a form near the bound is declined on some runs alone. A chain of
+// 255 schemas, each a property under an allOf, the deepest the permutation
+// admits, nests within two source bounds in any order, each link's digest
+// reaching through the next (TestCheck_SequenceOrderOracleHoldsOnTheRealCompiler).
 const maxCanonicalDepth = 2 * maxReverseDepth
 
 // errTooDeep says a canonical form would nest past maxCanonicalDepth, which
 // the oracle declines as DeclineTooDeep.
 var errTooDeep = errors.New("canonical form nests too deep")
+
+// errCycle says two or more IDs with owners name each other, whose digests
+// would follow the order the rewrite meets them in, which the oracle declines
+// as DeclineReferenceCycle.
+var errCycle = errors.New("canonical form meets a cycle of digests")
 
 // unorderedMark names the one member of the object markedArray writes.
 const unorderedMark = "\x00unordered"
@@ -107,14 +113,16 @@ type place struct {
 
 // rewriter is the state of one canonicalForm: the sequences and tie sites it
 // reads, the owners of each ID erasing changes, the digests computed so far,
-// the IDs whose digest is being computed, and the first error met.
+// the IDs whose digest is being computed and the innermost of them, and the
+// first error met.
 type rewriter struct {
-	seqs     sequences
-	ties     []string
-	owners   map[string][]map[string]any
-	digests  map[string]string
-	visiting map[string]bool
-	err      error
+	seqs      sequences
+	ties      []string
+	owners    map[string][]map[string]any
+	digests   map[string]string
+	visiting  map[string]bool
+	computing string
+	err       error
 }
 
 // fail records err, unless an earlier error is recorded.
@@ -257,7 +265,13 @@ func (r *rewriter) array(elems []any, p place, depth int) []byte {
 // text is s erased, followed, where s is an ID with owners, by their digest.
 func (r *rewriter) text(s string, depth int) string {
 	erased := erase(s, r.seqs)
-	if len(r.owners[s]) == 0 || r.visiting[s] {
+	if len(r.owners[s]) == 0 {
+		return erased
+	}
+	if r.visiting[s] {
+		if s != r.computing {
+			r.fail(errCycle)
+		}
 		return erased
 	}
 	return erased + "#" + r.digest(s, depth)
@@ -265,16 +279,22 @@ func (r *rewriter) text(s string, depth int) string {
 
 // digest is the first six bytes, in hex, of the SHA-256 of the canonical
 // encodings of id's owners, sorted and joined by newlines. An ID met while its
-// own digest is computed is written erased alone, which ends a cycle.
+// own digest is computed is written erased alone, which ends a self-reference.
+// One met while a digest it leads to is computed closes a cycle of two or
+// more, whose digests would follow which of them the rewrite met first, so it
+// fails the form with errCycle.
 func (r *rewriter) digest(id string, depth int) string {
 	if d, ok := r.digests[id]; ok {
 		return d
 	}
 	r.visiting[id] = true
+	outer := r.computing
+	r.computing = id
 	encodings := make([]string, 0, len(r.owners[id]))
 	for _, o := range r.owners[id] {
 		encodings = append(encodings, string(r.rewrite(o, place{}, depth+1)))
 	}
+	r.computing = outer
 	delete(r.visiting, id)
 	slices.Sort(encodings)
 	sum := sha256.Sum256([]byte(strings.Join(encodings, "\n")))
