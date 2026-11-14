@@ -363,3 +363,12 @@ func TestNameTitle_IsTheNameATitleGivesInTheContextsDocument(t *testing.T) {
 	assert.False(t, titled)
 	assert.Empty(t, title)
 }
+
+// TestNameOfDocument_NamesWhatADocumentsRootDeclares pins the name of what is
+// declared at another document's root, which no key names: the document's,
+// what follows the last '/' of its name.
+func TestNameOfDocument_NamesWhatADocumentsRootDeclares(t *testing.T) {
+	t.Parallel()
+	c, _ := loadSplit(t, "X: {type: string}\n")
+	assert.Equal(t, "ext.yaml", lowering.NameOfDocument(c, extDoc(t, c)))
+}

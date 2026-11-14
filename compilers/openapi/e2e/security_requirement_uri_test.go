@@ -66,14 +66,14 @@ const (
 )
 
 // compileRequirements compiles entry beside schemes, reading the one from the
-// other from disk, with external references allowed or not, verified as
+// other from disk with external references allowed, verified as
 // `morphic compile --verify` verifies a run (compileVerified).
-func compileRequirements(t *testing.T, entry, schemes string, allow bool) (*ir.Document, []ir.Diagnostic) {
+func compileRequirements(t *testing.T, entry, schemes string) (*ir.Document, []ir.Diagnostic) {
 	t.Helper()
 	dir := t.TempDir()
 	layout(t, dir, map[string]string{"schemes.yaml": schemes})
 	doc, diags := compileVerified(t, compilers.Source{Path: filepath.Join(dir, "entry.yaml"), Data: []byte(entry)},
-		openapi.Options{AllowExternalRefs: allow})
+		openapi.Options{AllowExternalRefs: true})
 	require.NotNil(t, doc)
 	return doc, diags
 }
@@ -97,7 +97,7 @@ func schemeOf(t *testing.T, doc *ir.Document, op string) ir.AuthID {
 // scheme no kind names.
 func TestCompile_ASecurityRequirementKeyThatIsAURIIsBoundToItsScheme(t *testing.T) {
 	t.Parallel()
-	doc, diags := compileRequirements(t, requirementEntry, requirementSchemes, true)
+	doc, diags := compileRequirements(t, requirementEntry, requirementSchemes)
 
 	assert.Empty(t, diags)
 	require.Len(t, doc.Auth, 2, "the two schemes, and no scheme standing for a key")
@@ -133,7 +133,7 @@ func TestCompile_ASecurityRequirementURIThatLandsNowhereIsUnresolved(t *testing.
       security: [{"./nowhere.yaml#/x": []}]
       responses: {"200": {description: ok}}
 `
-	doc, diags := compileRequirements(t, entry, requirementSchemes, true)
+	doc, diags := compileRequirements(t, entry, requirementSchemes)
 
 	assert.Equal(t, []string{"error openapi/unresolved-security-scheme /paths/~1nowhere/get/security/0"}, findingsAt(diags))
 	missing := schemeOf(t, doc, "nowhere")
@@ -219,7 +219,7 @@ func TestCompile_TheSameUnresolvedKeyInTwoDocumentsIsTwoSchemes(t *testing.T) {
         responses: {"200": {description: ok}}
   securitySchemes:
 `, 1)
-	doc, diags := compileRequirements(t, entry, schemes, true)
+	doc, diags := compileRequirements(t, entry, schemes)
 
 	assert.Equal(t, 1, countCode(diags, diag.UnresolvedSecurityScheme, "/paths/~1sameKey/get/security/0"))
 	assert.NotEqual(t, schemeOf(t, doc, "sameKey"), schemeOf(t, doc, "mountedSameKey"),
@@ -236,9 +236,9 @@ func TestCompile_TheSameUnresolvedKeyInTwoDocumentsIsTwoSchemes(t *testing.T) {
 // this pins, so they compare in any order.
 func TestCompile_ASecurityRequirementURILowersTheSameInEitherOrder(t *testing.T) {
 	t.Parallel()
-	forward, forwardDiags := compileRequirements(t, requirementEntry, requirementSchemes, true)
+	forward, forwardDiags := compileRequirements(t, requirementEntry, requirementSchemes)
 	backward, backwardDiags := compileRequirements(t,
-		string(reversed(t, requirementEntry)), string(reversed(t, requirementSchemes)), true)
+		string(reversed(t, requirementEntry)), string(reversed(t, requirementSchemes)))
 
 	assert.Empty(t, cmp.Diff(forward, backward,
 		cmpopts.IgnoreFields(ir.Document{}, "Sources", "Diagnostics"),
@@ -257,7 +257,7 @@ func TestCompile_ARequirementKeyLandingOnNoMechanismIsUnresolved(t *testing.T) {
 	t.Parallel()
 	entry := strings.Replace(requirementEntry, "{type: http, scheme: bearer}", "{type: http}", 1)
 	schemes := strings.Replace(requirementSchemes, "{type: http, scheme: basic}", "{type: http}", 1)
-	doc, diags := compileRequirements(t, entry, schemes, true)
+	doc, diags := compileRequirements(t, entry, schemes)
 
 	assert.Equal(t, []string{
 		"error openapi/incomplete-security-scheme /components/securitySchemes/shared",

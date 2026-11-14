@@ -40,3 +40,39 @@ x-schemes:
 		`requirement is kept, and the scheme has no mechanism; the chain of references it starts ends on no ` +
 		`Security Scheme Object`}, messagesAt(diags, diag.UnresolvedSecurityScheme))
 }
+
+// TestSecurityRequirement_A32URILandingThatNamesNoMechanismIsUnresolved pins a
+// key landing on a Security Scheme Object that names no mechanism: its scheme
+// is minted where that kind is, at its position in its document, and the
+// object, not the key, is reported.
+func TestSecurityRequirement_A32URILandingThatNamesNoMechanismIsUnresolved(t *testing.T) {
+	t.Parallel()
+	doc, svc, diags := serviceSpec(t, `openapi: 3.2.0
+info: {title: T, version: "1"}
+security: [{"#/x-schemes/bare": []}]
+paths: {}
+x-schemes:
+  bare: {type: http}
+`)
+	require.Len(t, svc.Auth, 1)
+	minted := ids.In("").UnresolvedAuth("/x-schemes/bare")
+	assert.Equal(t, []ir.AuthID{minted}, schemeUses(svc.Auth[0]))
+	assert.Equal(t, ir.AuthKindUnresolved, doc.Auth[minted].Kind)
+	assert.NotContains(t, doc.Auth, ids.In("").Auth("/x-schemes/bare"), "no scheme of a mechanism's ID")
+	assert.Empty(t, messagesAt(diags, diag.UnresolvedSecurityScheme))
+}
+
+// TestSecurityRequirement_A32URILandingOnAWholeDocumentIsNamedForIt pins a key
+// naming another document whose root is a Security Scheme Object: no key names
+// it there, so it is named for its document.
+func TestSecurityRequirement_A32URILandingOnAWholeDocumentIsNamedForIt(t *testing.T) {
+	t.Parallel()
+	doc, _ := compileBeside(t, `openapi: 3.2.0
+info: {title: T, version: "1"}
+security: [{"other.yaml": []}]
+paths: {}
+`, "type: http\nscheme: bearer\n")
+	scheme := doc.Auth[ids.In("other.yaml").Auth("")]
+	assert.Equal(t, ir.AuthKindHTTPBearer, scheme.Kind)
+	assert.Equal(t, ir.NamingFor("other.yaml"), scheme.Name)
+}
