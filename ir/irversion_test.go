@@ -153,6 +153,9 @@ var generations = []generation{
 		meaning: "the OpenAPI compiler lowers format http-date to a Scalar over datetime_offset under http-date, unixtime to one under unixTimestamp with its JSON type as WireType, and base64url to one over bytes, as byte"},
 	{version: "0.59.0", format: 1, shape: "0b2f5e45e4be29c67a153976848af676bc99d9f21d9e41a91b7abfd167ae026b",
 		names:   "825b85ca996798c9051c78f69d22b7c1ad6d30e36341b320540fab82f21b6890",
+		meaning: "the OpenAPI compiler writes closed_after_composition only for an unevaluatedProperties: false no additionalProperties leaves inert, supplies no catch-all value beside it, and keeps every other unevaluated form under openapi:unevaluated, with the keyword that leaves an inert one inert, but one an allOf branch writes, which stays with the branch"},
+	{version: "0.60.0", format: 1, shape: "0b2f5e45e4be29c67a153976848af676bc99d9f21d9e41a91b7abfd167ae026b",
+		names:   "825b85ca996798c9051c78f69d22b7c1ad6d30e36341b320540fab82f21b6890",
 		meaning: "the OpenAPI compiler expands a $dynamicRef to an anchor at any position of its schema resource, and 2019-09's $recursiveRef to its resource's root, where it kept each verbatim; a body schema writing $schema or $vocabulary is a file, and a prefixItems beside a draft's items list is kept under openapi:prefixItems"},
 }
 

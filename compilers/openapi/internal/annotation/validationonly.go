@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/speakeasy-api/openapi/jsonschema/oas3"
+	yaml "go.yaml.in/yaml/v3"
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
 	"github.com/dexpace/morphic/compilers/openapi/internal/provenance"
@@ -36,19 +37,123 @@ func ExamplesRaw(s *oas3.Schema) (ir.RawValue, []string, error) {
 	return combine(s, "example", "examples")
 }
 
-// UnevaluatedRaw combines a non-false unevaluatedProperties and any
-// unevaluatedItems into one raw JSON object (a false unevaluatedProperties is a
-// structural mode, handled in fillAdditional), and names the keywords it
-// combines.
-func UnevaluatedRaw(s *oas3.Schema) (ir.RawValue, []string, error) {
-	var want []string
-	if up := s.GetUnevaluatedProperties(); up != nil && !IsFalseSchema(up) {
-		want = append(want, "unevaluatedProperties")
+// ClosesAfterComposition reports whether s closes its model once composition
+// is resolved: it writes `unevaluatedProperties: false` and no
+// additionalProperties, which would evaluate every property the keyword could
+// apply to (JSON Schema 2020-12 §11.3). It reads the adjacent keyword alone, so
+// an applicator kept verbatim that evaluates a member leaves the closure typed
+// (GitHub #1904).
+func ClosesAfterComposition(s *oas3.Schema) bool {
+	return IsFalseSchema(s.GetUnevaluatedProperties()) && inertBeside(s, "unevaluatedProperties", Dialect{}) == ""
+}
+
+// unevaluatedRaw renders the entry holding kept, each inert keyword beside the
+// keyword written next to it that leaves it nothing to apply to (inertBeside),
+// and names its unevaluated keywords alone, which are what its provenance is
+// asked about: the keyword beside an inert one is context the entry holds
+// whoever wrote it.
+func unevaluatedRaw(s *oas3.Schema, kept []keptUnevaluated) (ir.RawValue, []string, error) {
+	if len(kept) == 0 {
+		return nil, nil, nil
 	}
-	if s.GetUnevaluatedItems() != nil {
-		want = append(want, "unevaluatedItems")
+	raw, _, err := combine(s, unevaluatedMembers(kept)...)
+	names := make([]string, 0, len(kept))
+	for _, k := range kept {
+		names = append(names, k.keyword)
 	}
-	return combine(s, want...)
+	return raw, names, err
+}
+
+// keptUnevaluated is one unevaluated keyword an entry keeps, and the keyword
+// written beside it that leaves it inert, "" for a live one.
+type keptUnevaluated struct {
+	keyword string
+	inertBy string
+}
+
+// unevaluatedKept returns the unevaluated keywords s writes that an entry
+// keeps, in keyword order. closure says the node took `unevaluatedProperties:
+// false` as its openness, so that form is left out, and dialect says where s's
+// dialect reads the elements past a prefix. It asks the model first, so a
+// schema writing neither, nearly every one, costs no read of its node.
+func unevaluatedKept(s *oas3.Schema, closure bool, dialect Dialect) []keptUnevaluated {
+	var out []keptUnevaluated
+	keep := func(keyword string) {
+		out = append(out, keptUnevaluated{keyword: keyword, inertBy: inertBeside(s, keyword, dialect)})
+	}
+	if up := s.GetUnevaluatedProperties(); Written(up) && (!closure || !IsFalseSchema(up)) {
+		keep("unevaluatedProperties")
+	}
+	if Written(s.GetUnevaluatedItems()) {
+		keep("unevaluatedItems")
+	}
+	return out
+}
+
+// unevaluatedMembers returns the members an entry holding kept writes, each
+// inert keyword after the keyword that leaves it so, which a consumer reading
+// the entry beside what its position types then reads as the source does.
+func unevaluatedMembers(kept []keptUnevaluated) []string {
+	out := make([]string, 0, 2*len(kept))
+	for _, k := range kept {
+		if k.inertBy != "" {
+			out = append(out, k.inertBy)
+		}
+		out = append(out, k.keyword)
+	}
+	return out
+}
+
+// inertBeside returns the keyword s writes beside keyword, an unevaluated one,
+// that evaluates every location keyword could apply to, and "" where s writes
+// none. Beside unevaluatedProperties that is an additionalProperties of any
+// value (JSON Schema 2020-12 §10.3.2.3). Beside unevaluatedItems it is an
+// `items` schema (§10.3.1.2), or, where dialect reads an `items` list as a
+// tuple, the additionalItems written beside it (2019-09 §9.3.1.2). An `items`
+// list any other dialect reads is no schema, and evaluates nothing.
+func inertBeside(s *oas3.Schema, keyword string, dialect Dialect) string {
+	if keyword == "unevaluatedProperties" {
+		if Written(s.GetAdditionalProperties()) {
+			return "additionalProperties"
+		}
+		return ""
+	}
+	if items := RawPropertyNode(s, "items"); items != nil && items.Kind == yaml.SequenceNode {
+		if dialect.ListedTuple && RawPropertyNode(s, "additionalItems") != nil {
+			return "additionalItems"
+		}
+		return ""
+	}
+	if Written(s.GetItems()) {
+		return "items"
+	}
+	return ""
+}
+
+// unevaluatedNote words the report of an unevaluated entry holding kept: as
+// any validation-only entry's, but naming each inert keyword and the keyword
+// that leaves it so, which the entry holds beside it.
+func unevaluatedNote(kept []keptUnevaluated) string {
+	var clauses []string
+	for _, k := range kept {
+		if k.inertBy == "" {
+			continue
+		}
+		unit := "property"
+		if k.keyword == "unevaluatedItems" {
+			unit = "element"
+		}
+		clauses = append(clauses, fmt.Sprintf("%s beside %s applies to no %s, since %s evaluates each one it would",
+			k.keyword, k.inertBy, unit, k.inertBy))
+	}
+	switch {
+	case len(clauses) == 0:
+		return validationOnlyMessage("unevaluated")
+	case len(kept) == 1:
+		return clauses[0] + "; both kept verbatim under Unmodeled"
+	default:
+		return strings.Join(clauses, "; ") + "; " + validationOnlyMessage("unevaluated")
+	}
 }
 
 // combine renders the keys s writes, of those given, as one raw JSON object,
@@ -131,10 +236,12 @@ func jsonObject(members []rawMember) (ir.RawValue, error) {
 // validationOnlyAt collects the validation-only keywords
 // (docs/ir/boundaries.md#validation-only-constructs) a schema declares that the
 // IR does not model, keeping each verbatim and announcing it, `dependencies`
-// among them where dependencies says the schema's dialect defines it.
+// among them where dialect defines it. own says s is the schema written at the
+// position rather than a voice, whose unevaluated keywords stay with its branch
+// (schema.foldEntry), and closure is unevaluatedKept's.
 //
 // Site-only: these constrain the value at the position that wrote them.
-func validationOnlyAt(s *oas3.Schema, pointer jsontext.Pointer, doc provenance.Doc, dependencies bool) (ir.Unmodeled, []ir.Diagnostic) {
+func validationOnlyAt(s *oas3.Schema, pointer jsontext.Pointer, doc provenance.Doc, dialect Dialect, own, closure bool) (ir.Unmodeled, []ir.Diagnostic) {
 	var p ir.Unmodeled
 	var diags []ir.Diagnostic
 
@@ -151,8 +258,8 @@ func validationOnlyAt(s *oas3.Schema, pointer jsontext.Pointer, doc provenance.D
 	//
 	// The entry is located at the schema and attributed by combined, the keywords
 	// it folds together, and so is the report that stands in for it when it
-	// cannot be kept.
-	keep := func(key string, raw ir.RawValue, err error, label string, combined ...string) {
+	// cannot be kept. note is what the report of one kept says.
+	keep := func(key string, raw ir.RawValue, err error, note string, combined ...string) {
 		from := make([]jsontext.Pointer, 0, len(combined))
 		for _, keyword := range combined {
 			from = append(from, pointer+ids.Ptr(keyword))
@@ -162,7 +269,7 @@ func validationOnlyAt(s *oas3.Schema, pointer jsontext.Pointer, doc provenance.D
 			diags = append(diags, unpreservableDiag(key, entry, err))
 			return
 		}
-		diags = append(diags, preserveValidationOnlyInto(&p, key, raw, entry, doc.At(pointer), label)...)
+		diags = append(diags, preserveValidationOnlyInto(&p, key, raw, entry, doc.At(pointer), note)...)
 	}
 
 	if Written(s.GetNot()) {
@@ -170,7 +277,7 @@ func validationOnlyAt(s *oas3.Schema, pointer jsontext.Pointer, doc provenance.D
 	}
 	ite, iteKeys, iteErr := IfThenElseRaw(s)
 	if ite != nil || iteErr != nil {
-		keep("openapi:if-then-else", ite, iteErr, "if/then/else", iteKeys...)
+		keep("openapi:if-then-else", ite, iteErr, validationOnlyMessage("if/then/else"), iteKeys...)
 	}
 	if ds := s.GetDependentSchemas(); ds != nil && ds.Len() > 0 {
 		keepKeyword("dependentSchemas")
@@ -180,7 +287,7 @@ func validationOnlyAt(s *oas3.Schema, pointer jsontext.Pointer, doc provenance.D
 	// silently dropped where its sibling dependentSchemas was kept. Its raw node
 	// is the only reading, and an absent one keeps nothing.
 	keepKeyword("dependentRequired")
-	if dependencies {
+	if dialect.Dependencies {
 		// The drafts before 2019-09 spell dependentSchemas and dependentRequired
 		// as one keyword, kept as they are (docs/compilers/openapi.md#validation-only).
 		keepKeyword("dependencies")
@@ -190,11 +297,15 @@ func validationOnlyAt(s *oas3.Schema, pointer jsontext.Pointer, doc provenance.D
 	}
 	craw, cKeys, cErr := ContainsRaw(s)
 	if craw != nil || cErr != nil {
-		keep("openapi:contains", craw, cErr, "contains", cKeys...)
+		keep("openapi:contains", craw, cErr, validationOnlyMessage("contains"), cKeys...)
 	}
-	u, uKeys, uErr := UnevaluatedRaw(s)
+	if !own {
+		return p, diags
+	}
+	kept := unevaluatedKept(s, closure, dialect)
+	u, uKeys, uErr := unevaluatedRaw(s, kept)
 	if u != nil || uErr != nil {
-		keep("openapi:unevaluated", u, uErr, "unevaluated", uKeys...)
+		keep("openapi:unevaluated", u, uErr, unevaluatedNote(kept), uKeys...)
 	}
 	return p, diags
 }

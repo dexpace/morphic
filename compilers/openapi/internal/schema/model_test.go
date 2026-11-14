@@ -15,6 +15,7 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
 	"github.com/dexpace/morphic/compilers/openapi/internal/schema"
 	"github.com/dexpace/morphic/ir"
+	"github.com/dexpace/morphic/ir/irverify"
 )
 
 // TestModel_PlainRequiredUndeclaredPropertyLandsInRequires pins the plain,
@@ -185,9 +186,6 @@ func TestObject_CatchAllBesideAnotherFactStaysModel(t *testing.T) {
 		// A closed object admits no key the patterns miss, so nothing types one (#987).
 		{"patterns beside a closure", `{type: object, patternProperties: {"^x-": {type: string}}, additionalProperties: false}`,
 			&ir.AdditionalProps{Patterns: []ir.PatternProps{{Pattern: "^x-", Value: strRef}}}},
-		// Inert beside a catch-all in JSON Schema, but still read as a closure (#862).
-		{"closed after composition", `{type: object, additionalProperties: {type: string}, unevaluatedProperties: false}`,
-			&ir.AdditionalProps{Value: &strRef}},
 		{"discriminator", `{type: object, additionalProperties: {type: string}, discriminator: {propertyName: kind}}`,
 			&ir.AdditionalProps{Value: &strRef}},
 		{"base", `{allOf: [{$ref: '#/components/schemas/B'}], additionalProperties: {type: string}}`,
@@ -223,15 +221,75 @@ func TestModel_PatternPropertiesOrder(t *testing.T) {
 	assert.Equal(t, "^y-", m.AdditionalProps.Patterns[1].Pattern)
 }
 
+// TestModel_UnevaluatedPropertiesClosedAfterComposition pins where
+// `unevaluatedProperties: false` is a model's openness: only where no
+// additionalProperties stands beside it, which would evaluate every property it
+// could apply to (docs/compilers/openapi.md#additional-properties). Beside one,
+// the openness is additionalProperties' alone and the keyword is kept with it;
+// beside patterns alone, nothing types a key no pattern matches.
 func TestModel_UnevaluatedPropertiesClosedAfterComposition(t *testing.T) {
 	t.Parallel()
-	spec := openapitest.ComponentSpec(`    S:
-      type: object
-      properties: {a: {type: string}}
-      unevaluatedProperties: false
-`)
-	doc, diags := schema.LowerSpec(t, spec)
+	str, top := ir.TypeRef{Target: "t/prim/string"}, ir.TypeRef{Target: "t/prim/any"}
+	patterns := []ir.PatternProps{{Pattern: "^x-", Value: str}}
+	const props, pattern = "properties: {a: {type: string}}", `patternProperties: {"^x-": {type: string}}`
+	for _, tc := range []struct {
+		name, schema string
+		mode         ir.AdditionalMode
+		catchAll     *ir.AdditionalProps
+		kept         string
+	}{
+		{"live", "{type: object, " + props + ", unevaluatedProperties: false}",
+			ir.AdditionalClosedAfterComposition, nil, ""},
+		{"live, untyped", "{" + props + ", unevaluatedProperties: false}",
+			ir.AdditionalClosedAfterComposition, nil, ""},
+		{"a null additionalProperties is none", "{type: object, " + props + ", additionalProperties: null, unevaluatedProperties: false}",
+			ir.AdditionalClosedAfterComposition, nil, ""},
+		{"beside true", "{type: object, " + props + ", additionalProperties: true, unevaluatedProperties: false}",
+			"", &ir.AdditionalProps{Value: &top}, `{"additionalProperties":true,"unevaluatedProperties":false}`},
+		{"beside the empty schema", "{type: object, " + props + ", additionalProperties: {}, unevaluatedProperties: false}",
+			"", &ir.AdditionalProps{Value: &top}, `{"additionalProperties":{},"unevaluatedProperties":false}`},
+		{"beside false", "{type: object, " + props + ", additionalProperties: false, unevaluatedProperties: false}",
+			ir.AdditionalClosed, nil, `{"additionalProperties":false,"unevaluatedProperties":false}`},
+		{"patterns beside a live closure", "{type: object, " + pattern + ", unevaluatedProperties: false}",
+			ir.AdditionalClosedAfterComposition, &ir.AdditionalProps{Patterns: patterns}, ""},
+		{"patterns beside both closures", "{type: object, " + pattern + ", additionalProperties: false, unevaluatedProperties: false}",
+			ir.AdditionalClosed, &ir.AdditionalProps{Patterns: patterns},
+			`{"additionalProperties":false,"unevaluatedProperties":false}`},
+		{"patterns beside a catch-all", "{type: object, " + pattern + ", additionalProperties: {type: string}, unevaluatedProperties: false}",
+			"", &ir.AdditionalProps{Value: &str, Patterns: patterns},
+			`{"additionalProperties":{"type":"string"},"unevaluatedProperties":false}`},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			doc, diags := parseFull(t, openapitest.ComponentSpec("    S: "+tc.schema+"\n"))
+			openapitest.RequireNoErrorDiags(t, diags)
+			assert.Empty(t, irverify.Verify(doc), "the IR holds its invariants")
+			m, ok := doc.Types[componentID("S")].(*ir.Model)
+			require.True(t, ok, "got %T", doc.Types[componentID("S")])
+			assert.Equal(t, tc.mode, m.Additional)
+			assert.Empty(t, cmp.Diff(tc.catchAll, m.AdditionalProps))
+			if tc.kept == "" {
+				assert.NotContains(t, m.Unmodeled, "openapi:unevaluated", "a closure the model holds is kept nowhere else")
+				return
+			}
+			require.Contains(t, m.Unmodeled, "openapi:unevaluated")
+			assert.Equal(t, tc.kept, string(m.Unmodeled["openapi:unevaluated"].Value))
+		})
+	}
+}
+
+// TestObject_AnInertClosureLeavesAMap pins that an inert closure leaves a map a
+// map: an object whose one member fact is its catch-all is a MapT, which holds
+// the keyword beside the catch-all that leaves it inert.
+func TestObject_AnInertClosureLeavesAMap(t *testing.T) {
+	t.Parallel()
+	doc, diags := parseFull(t, openapitest.ComponentSpec(
+		"    S: {type: object, additionalProperties: {type: integer}, unevaluatedProperties: false}\n"))
 	openapitest.RequireNoErrorDiags(t, diags)
-	m := doc.Types[componentID("S")].(*ir.Model)
-	assert.Equal(t, ir.AdditionalClosedAfterComposition, m.Additional)
+	mt, ok := doc.Types[componentID("S")].(*ir.MapT)
+	require.True(t, ok, "got %T", doc.Types[componentID("S")])
+	assert.Equal(t, ir.TypeRef{Target: "t/prim/integer"}, mt.Value)
+	require.Contains(t, mt.Unmodeled, "openapi:unevaluated")
+	assert.Equal(t, `{"additionalProperties":{"type":"integer"},"unevaluatedProperties":false}`,
+		string(mt.Unmodeled["openapi:unevaluated"].Value))
 }

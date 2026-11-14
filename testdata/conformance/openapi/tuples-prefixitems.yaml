@@ -45,3 +45,24 @@ components:
       minItems: 1
       maxItems: 2
       uniqueItems: true
+    # unevaluatedItems is inert beside items, which evaluates every element
+    # past the head, and kept with it; beside the head alone it is live.
+    InertPair:
+      type: array
+      prefixItems:
+        - {type: string}
+      items: true
+      unevaluatedItems: false
+    LivePair:
+      type: array
+      prefixItems:
+        - {type: string}
+      unevaluatedItems: false
+    InertList:
+      type: array
+      items: {type: string}
+      unevaluatedItems: {type: integer}
+    LiveList:
+      type: array
+      contains: {type: string}
+      unevaluatedItems: false

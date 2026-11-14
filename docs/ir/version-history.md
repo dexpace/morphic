@@ -656,7 +656,28 @@ it sees. Changes made together in one bump are listed together under it.
   credential's name on text or bytes, no longer marks a use declared `http-date`, or `unixtime` on a
   string, `Secret`. A consumer pinned to 0.57.0 refuses the document; read regardless, it would find
   an instant or bytes where it read text or a number, and `unixTimestamp` where it read `unixtime`.
-- **0.59.0** — no shape change. The OpenAPI compiler expands a `$dynamicRef` to an anchor at any
+- **0.59.0** — what the OpenAPI compiler writes for `unevaluatedProperties` and `unevaluatedItems`
+  changed, the shape unchanged
+  ([`additional-properties`](../compilers/openapi.md#additional-properties),
+  [`validation-only`](../compilers/openapi.md#validation-only),
+  [`allof-inline-residue`](../compilers/openapi.md#allof-inline-residue)):
+  - `Model.Additional` is `closed_after_composition` only where no `additionalProperties` is written
+    beside the `unevaluatedProperties: false`, which would leave it inert. Beside one the model is
+    `closed` for `false`, and otherwise open with its catch-all, so `{type: object,
+    additionalProperties: {…}, unevaluatedProperties: false}` is a `MapT`. A consumer pinned to
+    0.58.0 read such a model as closed.
+  - A catch-all beside `closed_after_composition` holds its patterns and no `Value`, where it held
+    the top type: a key no pattern matches is allowed only where composition evaluates it.
+  - `openapi:unevaluated` holds an `unevaluatedProperties: false` wherever no model holds it as its
+    closure, where it was dropped, and holds an inert keyword together with the
+    `additionalProperties`, `items` or `additionalItems` beside it that leaves it inert. A consumer
+    pinned to 0.58.0 applying the entry read every keyword in it as live.
+  - Neither keyword an inline `allOf` branch writes folds into the position's `openapi:unevaluated`
+    any more: the branch is kept whole under `openapi:allOf/<n>`, as a branch writing
+    `unevaluatedProperties: false` already was. At the position the keyword exempted what the other
+    conjuncts evaluate, where on its branch it exempts only what the branch evaluates. A consumer
+    pinned to 0.58.0 finds the keyword at the position.
+- **0.60.0** — no shape change. The OpenAPI compiler expands a `$dynamicRef` to an anchor at any
   position of its schema resource, and JSON Schema 2019-09's `$recursiveRef` to the root of the
   resource it is written in ([`dynamic-ref`](../compilers/openapi.md#dynamic-ref)): such a
   reference's `TypeRef` names the type at that position where it named a node keeping
@@ -665,5 +686,5 @@ it sees. Changes made together in one bump are listed together under it.
   `openapi:$recursiveAnchor` is no longer kept in a 2019-09 schema. A body schema writing `$schema`
   or `$vocabulary` is a file where it was not ([`file-bodies`](../compilers/openapi.md#file-bodies)).
   A `prefixItems` beside a JSON Schema draft's `items` list is kept under `openapi:prefixItems`,
-  where it was dropped ([`tuples`](../compilers/openapi.md#tuples)). A consumer pinned to 0.58.0
+  where it was dropped ([`tuples`](../compilers/openapi.md#tuples)). A consumer pinned to 0.59.0
   reads such a reference as the top type and such a body as a model.

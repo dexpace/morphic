@@ -1750,16 +1750,19 @@ collection bounds, `format: password` ([`password`](#password)), vendor extensio
 validation-only keywords ([`validation-only`](#validation-only)) land where the same keyword beside
 the `allOf` lands, each read at the branch's own pointer and reported as that keyword is there,
 which for most is not at all. A `nullable` folds only from a branch writing no `properties`, under
-the nullable-widening policy ([`nullable`](#nullable)). A `unevaluatedProperties: false` does not
-fold, being a composing model's openness; a bound does not where the position has no field for it,
-as one beside the `allOf` reaches none ([`constraints`](#constraints)): a value bound on a node with
-no `Constraints` for one, and a collection bound on any node but a `List` or a `Tuple`, the `Union`
-of a type list holding one where such a variant does; a collection bound `Constraints` cannot state,
-a `uniqueItems` of `false` or a count past 64 bits, never folds. A `$dynamicRef` beside the
-`allOf` keeps it from refining ([`allof-refinement`](#allof-refinement)), where a union beside it is
-one more conjunct, and neither changes anything else here: where the `allOf` composes, its branches
-fold into the composition as they do with neither there, beside a `$dynamicRef` it keeps from
-expanding ([`dynamic-ref`](#dynamic-ref)) or a union kept verbatim
+the nullable-widening policy ([`nullable`](#nullable)). Neither `unevaluatedProperties` nor
+`unevaluatedItems` folds, in any form: each applies to what no keyword beside it evaluates (JSON
+Schema 2020-12 §11.2, §11.3), so on a branch it holds the instance to what that branch alone
+evaluates, where beside the `allOf` it would exempt what the position and the other branches
+evaluate, and the branch kept whole is its record. A bound does not fold where the position has no
+field for it, as one beside the `allOf` reaches none ([`constraints`](#constraints)): a value bound
+on a node with no `Constraints` for one, and a collection bound on any node but a `List` or a
+`Tuple`, the `Union` of a type list holding one where such a variant does; a collection bound
+`Constraints` cannot state, a `uniqueItems` of `false` or a count past 64 bits, never folds. A
+`$dynamicRef` beside the `allOf` keeps it from refining ([`allof-refinement`](#allof-refinement)),
+where a union beside it is one more conjunct, and neither changes anything else here: where the
+`allOf` composes, its branches fold into the composition as they do with neither there, beside a
+`$dynamicRef` it keeps from expanding ([`dynamic-ref`](#dynamic-ref)) or a union kept verbatim
 ([`union-beside-structure`](#union-beside-structure)). Where a union beside the `allOf` or on one of
 its branches distributes, a branch's annotations and what a use binds reach the `Union` and its
 carriers, and a value bound each variant, as the same keyword beside the `allOf` does, and a branch
@@ -1828,7 +1831,7 @@ every entry reads that one twice.
   `schema.TestVoices_ARefusedBoundPartsNoWriter`,
   `schema.TestAgreement_ReadsABoundInTheDialectOfItsSchemas`,
   `schema.TestVoices_KeywordsOneEntryHoldsDisagreeAsOne`,
-  `schema.TestVoices_UnevaluatedFalseStaysTheModels`,
+  `schema.TestVoices_AnUnevaluatedKeywordStaysWithItsBranch`,
   `schema.TestVoices_AUseBindingKeywordReachesItsCarrierOrItsNode`,
   `schema.TestVoices_KeptAndMetBranchesHoldAtEveryOutcome`,
   `schema.TestAllOf_BranchResidueRidesEveryDistributedVariant`,
@@ -3263,9 +3266,15 @@ lowered first.
 or a schema to `Model.AdditionalProps`, whose `Value` types every key no property names. An object
 whose one member fact is that catch-all lowers to a `MapT` instead
 ([containers](../ir/containers.md)). `unevaluatedProperties: false` lowers to `Additional`
-closed after composition. `minProperties` and `maxProperties` lower to the `Model`'s `Constraints`,
-which bound the property set's cardinality as against `Additional`'s openness, or to a `MapT`'s,
-which bound its entry count.
+closed after composition where no `additionalProperties` is written beside it. An
+`additionalProperties` of any value evaluates every property that `properties` and
+`patternProperties` leave (JSON Schema 2020-12 §10.3.2.3), which leaves `unevaluatedProperties`
+nothing to apply to (§11.3), so beside one the object's openness is `additionalProperties`' alone,
+closed for `false` and a catch-all for anything else, and the inert keyword is kept verbatim with it
+([`validation-only`](#validation-only)); `{type: object, additionalProperties: {…},
+unevaluatedProperties: false}` is a `MapT`. `minProperties` and `maxProperties` lower to the
+`Model`'s `Constraints`, which bound the property set's cardinality as against `Additional`'s
+openness, or to a `MapT`'s, which bound its entry count.
 
 `true` writes a catch-all; an absent keyword does not. In JSON Schema, `additionalProperties: true`
 is the empty schema, so it types the catch-all as the top type exactly as `{}` does: alone it is a
@@ -3275,18 +3284,24 @@ is the empty schema, so it types the catch-all as the top type exactly as `{}` d
 the source declared. Beside `patternProperties` the catch-all's `Value` types a key no pattern
 matches ([catch-alls](../ir/models.md#catch-alls)): absent, such a key is unconstrained, so it is
 the top type, and the IR does not tell an absent `additionalProperties` from `true`; `false` admits
-no such key, so the catch-all holds the patterns and no `Value` beside `Additional` closed. That
-object stays a `Model`, since a `MapT` has no field for a pattern-scoped value.
+no such key, so the catch-all holds the patterns and no `Value` beside `Additional` closed. Beside
+a live `unevaluatedProperties: false`, with no `additionalProperties`, such a key is admitted only
+where composition evaluates it, and the source writes no schema for it, so the catch-all holds the
+patterns and no `Value` beside `Additional` closed after composition. That object stays a
+`Model`, since a `MapT` has no field for a pattern-scoped value.
 
 - Cases: `maps`, `constraints`, `allof-position-constraints`
 - Tests: `schema.TestObject_CatchAllBesideAnotherFactStaysModel`,
   `schema.TestObject_MapAndNothingElseLowersToMapT`,
+  `schema.TestObject_AnInertClosureLeavesAMap`,
   `schema.TestModel_UnevaluatedPropertiesClosedAfterComposition`,
-  `schema.TestAllOf_AClosureAfterCompositionKeepsTheCatchAll`
-- Status: partly built: an `unevaluatedProperties: false` that a catch-all beside it makes inert
-  in JSON Schema still lowers to a closure, which keeps the object a `Model`, and one beside
-  `patternProperties` alone leaves the catch-all typing a key no pattern matches as the top type,
-  where JSON Schema admits such a key only if composition evaluates it (#862).
+  `schema.TestAllOf_ACatchAllLeavesAClosureAfterCompositionInert`,
+  `annotation.TestClosesAfterComposition_OnlyWhereNoAdditionalPropertiesStandsBeside`
+- Status: partly built: the closure is typed beside an applicator kept verbatim that evaluates a
+  member, an inline `allOf` branch's `additionalProperties` or `patternProperties`, `then`, `else`
+  or `dependentSchemas`, so the typed members refuse one the source admits (#1904); and what a
+  target does with a model closed after composition is open, as no emitter rule reads it yet
+  (#1868).
 
 ### `required-members`
 
@@ -3356,13 +3371,18 @@ one under `not`; the branch a refinement lowers from is reported as the position
 absent `items` reads as `true`, the top type, and either of those or a schema lowers exactly as a
 `List`'s `items` would, at the same pointer and under the same hint. An `unevaluatedItems` beside
 them stays the verbatim entry [`validation-only`](#validation-only) keeps, as it does beside a
-`List`, reported as an info `openapi/validation-only-keyword`.
+`List`, reported as an info `openapi/validation-only-keyword`: beside an `items` it is inert and
+kept with that `items`, and beside `prefixItems` alone it is live, so `Rest`, the top type an
+absent `items` reads as, admits elements the entry refuses unless composition evaluates them, and
+the entry is what closes the tuple. The same holds of a `List`'s `Elem`.
 
 JSON Schema drafts 4, 6 and 7 and 2019-09 write a tuple as `items` holding a list, its rest as the
 `additionalItems` beside it. In a schema read in one of them
 ([`dialect-keywords`](#dialect-keywords)) the list lowers to a `Tuple`'s `Elems`, one per entry,
 each a schema whose `$ref` is bound, and `additionalItems` to its `Rest` as 2020-12's `items` does
-beside `prefixItems`: `false` leaves none, and an absent one reads as `true`. Each entry is named as
+beside `prefixItems`: `false` leaves none, and an absent one reads as `true`. A written
+`additionalItems` leaves an `unevaluatedItems` beside the list inert, as that `items` does, and an
+absent one leaves it live. Each entry is named as
 a `prefixItems` entry is, and the rest as an `items` schema is. Each is judged as its 2020-12 twin
 is ([`validation`](#validation)), whether or not a `$ref` reaches it: an entry no schema spells,
 such as `5` or `null`, is an `openapi/validation` error at it, and a rest no schema spells an error
@@ -3396,8 +3416,8 @@ saying what a document of its version writes instead, and the lowering reads `it
   `schema.TestPreserveUnknownKeywords_ReadsWhatADraftSpellsOtherwise`,
   `bind.TestTuples_AListOfItemsHoldsSchemas`, `load.TestBuiltTargets`,
   `oas.TestCheck_AnItemsListFollowsTheSchemasRows`, `schema.TestLower_PrefixItemsBesideAListedTupleIsKept`
-- Status: partly built: `items: true` and an absent `items` lower alike, though only the first makes
-  an `unevaluatedItems` beside them inert, and that one is still kept as live (#862).
+- Status: open: whether a `Rest` or an `Elem` beside a live `unevaluatedItems: false` is typed
+  rather than left to the entry (#1883).
 
 ### `shape-applicator`
 
@@ -3646,13 +3666,14 @@ entry, which exists whatever its value — a property, a composition branch, a c
 `prefixItems` position, a parameter's, header's or media type's `schema` — lowers as the empty
 schema does: to the top type, or as an `allOf` branch to nothing composed, and a `$ref` naming it as
 one naming `{}` does. A keyword whose value is a schema, whose absence states something its empty
-schema may not, is read as left out: `additionalProperties: null` writes no catch-all,
-`contentSchema: null` no `Encoding.Schema`, and a `null` `not`, `if`, `then`, `else`, `contains`,
-`propertyNames`, `unevaluatedItems` or `unevaluatedProperties` is kept nowhere. `items: null` lowers
-as an absent `items` does, and a `null` `items` or `additionalProperties` a node has no home for is
-not kept for want of one ([`shape-applicator`](#shape-applicator)). Nothing is kept verbatim, since
-a `null` means nothing a consumer could recover, and the lowering reports nothing of its own, since
-reading it so loses nothing: the load phase reports each such `null` at the node
+schema may not, is read as left out: `additionalProperties: null` writes no catch-all and leaves
+an `unevaluatedProperties` beside it live, `contentSchema: null` writes no `Encoding.Schema`, and a
+`null` `not`, `if`, `then`, `else`, `contains`, `propertyNames`, `unevaluatedItems` or
+`unevaluatedProperties` is kept nowhere. `items: null` lowers as an absent `items` does, leaving an
+`unevaluatedItems` beside it live, and a `null` `items` or `additionalProperties` a node has no home
+for is not kept for want of one ([`shape-applicator`](#shape-applicator)). Nothing is kept verbatim,
+since a `null` means nothing a consumer could recover, and the lowering reports nothing of its own,
+since reading it so loses nothing: the load phase reports each such `null` at the node
 ([`validation`](#validation)), an entry's as an error and a keyword's as the warning a field left
 out draws, but for `items` beside a 3.0 `type: array`, whose absence
 [`missing-array-items`](#missing-array-items) reports instead. One inside a value the IR keeps
@@ -3811,20 +3832,57 @@ JSON Schema's validation-only keywords are kept verbatim under `validation_only`
 position owns, one entry per family: `not`, `dependentSchemas`, `dependentRequired` and
 `propertyNames` each under `openapi:<keyword>`, at the keyword; and three families each folded into
 one object, at the schema — `if`, `then` and `else` under `openapi:if-then-else`, `contains` with
-`minContains` and `maxContains` under `openapi:contains`, and `unevaluatedItems` with an
-`unevaluatedProperties` that is not `false` under `openapi:unevaluated`, the `false` one being a
-closure ([`additional-properties`](#additional-properties)). In a schema read in JSON Schema draft
+`minContains` and `maxContains` under `openapi:contains`, and `unevaluatedProperties` with
+`unevaluatedItems` under `openapi:unevaluated`, every form of each but an `unevaluatedProperties:
+false` the node the position lowered to holds as a model's closure
+([`additional-properties`](#additional-properties)): a `Model` closed after composition, or a
+`Union` whose variants the schema builds itself, a type list's or a distributed union's
+([`union-beside-structure`](#union-beside-structure)), one of them such a `Model`. Anywhere else,
+on a scalar, an enum, a list, a `$ref` site's alias or carrier, a plain union, a model a `false`
+`allOf` branch closed or the top type, that form is kept with the others, so a consumer finds the
+family under one key whatever the position lowered to. In JSON Schema these two keywords apply
+only to what no keyword beside them evaluates (2020-12 §11.2, §11.3), so one is inert beside the
+keyword that evaluates every location it could apply to: an `additionalProperties` of any value
+beside `unevaluatedProperties`, and beside `unevaluatedItems` an `items` schema or, where the
+dialect reads a list of `items` as a tuple ([`tuples`](#tuples)), the `additionalItems` written
+beside the list. An inert keyword is kept with that keyword, written just before it in the entry's
+object: `{"additionalProperties": true, "unevaluatedProperties": false}`. The entry's keywords are
+read as written in the schema at its position, beside the keywords the IR states there, as what an
+unevaluated keyword applies to depends on what stands beside it; read so, the entry means what the
+source means, nothing where the keyword is inert, and needs no marker or reason of another kind to
+tell the two apart. Read as a schema of its own it means something else:
+`{"additionalProperties": false, "unevaluatedProperties": false}` alone refuses a property the
+position's `properties` declare, and a live `{"unevaluatedProperties": false}` alone refuses every
+property. The keyword the entry repeats beside an inert one is context: the IR holds it already,
+typed where the node has a home for it and kept verbatim where it has none
+([`shape-applicator`](#shape-applicator)), and read where it was written it repeats a keyword
+already there.
+`prefixItems`, `contains`, `properties` and `patternProperties` evaluate only what they match and
+leave the keyword live, and an entry holding only unevaluated keywords holds live ones. One an
+`allOf` branch writes stays with the branch kept whole, whatever its form
+([`allof-inline-residue`](#allof-inline-residue)), since at the position it would exempt what the
+other conjuncts evaluate.
+Every dialect reads both keywords as 2020-12 does. In a schema read in JSON Schema draft
 4, 6 or 7 ([`dialect-keywords`](#dialect-keywords)), `dependencies`, which 2019-09 split into
 `dependentSchemas` and `dependentRequired`, is kept the same way under `openapi:dependencies`, and
 elsewhere is an unknown keyword ([`unknown-keys`](#unknown-keys)). Each entry is reported as an
-info `openapi/validation-only-keyword` at the schema that wrote it.
+info `openapi/validation-only-keyword` at the schema that wrote it, an `openapi:unevaluated` one
+holding an inert keyword naming it and the keyword that leaves it inert.
 
-- Cases: `negation-not`, `dependent-required`, `schema-drafts`
+- Cases: `negation-not`, `dependent-required`, `schema-drafts`, `maps`, `tuples-prefixitems`,
+  `unevaluated-at-every-outcome`
 - Codes: `openapi/validation-only-keyword`
 - Tests: `annotation.TestValidationOnlyAt_KeepsEveryKeywordItClaims`,
   `e2e.TestOlderDrafts_DependenciesAreValidationOnly`,
   `schema.TestLower_ValidationOnlyKeywords`,
-  `annotation.TestValidationOnlyAt_AnUnconvertibleKeywordIsReportedNotKept`
+  `annotation.TestValidationOnlyAt_AnUnconvertibleKeywordIsReportedNotKept`,
+  `annotation.TestUnevaluatedRaw_KeepsAnInertKeywordBesideWhatLeavesItInert`,
+  `annotation.TestValidationOnlyAt_AnInertUnevaluatedKeywordNamesWhatLeavesItInert`,
+  `annotation.TestValidationOnlyAt_AttributesAnInertEntryByItsUnevaluatedKeyword`,
+  `schema.TestClosureTyped_EveryOutcomeKeepsWhatItDoesNotType`,
+  `schema.TestClosureTyped_ReadsAlikeInEitherBranchOrder`,
+  `schema.TestVoices_AnUnevaluatedKeywordStaysWithItsBranch`,
+  `schema.TestUse_ADraftsTupleRestLeavesUnevaluatedItemsInert`
 
 ### `dynamic-ref`
 

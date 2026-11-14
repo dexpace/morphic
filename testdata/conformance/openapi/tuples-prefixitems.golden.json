@@ -189,6 +189,160 @@
         "uniqueItems": false
       }
     },
+    "t/openapi/components/schemas/InertList": {
+      "kind": "list",
+      "id": "t/openapi/components/schemas/InertList",
+      "name": {
+        "source": "InertList",
+        "canonical": "inert_list"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "unmodeled": {
+        "openapi:unevaluated": {
+          "reason": "validation_only",
+          "value": {
+            "items": {
+              "type": "string"
+            },
+            "unevaluatedItems": {
+              "type": "integer"
+            }
+          },
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/InertList"
+          }
+        }
+      },
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/InertList"
+      },
+      "elem": {
+        "target": "t/prim/string",
+        "nullable": false
+      }
+    },
+    "t/openapi/components/schemas/InertPair": {
+      "kind": "tuple",
+      "id": "t/openapi/components/schemas/InertPair",
+      "name": {
+        "source": "InertPair",
+        "canonical": "inert_pair"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "unmodeled": {
+        "openapi:unevaluated": {
+          "reason": "validation_only",
+          "value": {
+            "items": true,
+            "unevaluatedItems": false
+          },
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/InertPair"
+          }
+        }
+      },
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/InertPair"
+      },
+      "elems": [
+        {
+          "target": "t/prim/string",
+          "nullable": false
+        }
+      ],
+      "rest": {
+        "target": "t/prim/any",
+        "nullable": false
+      }
+    },
+    "t/openapi/components/schemas/LiveList": {
+      "kind": "list",
+      "id": "t/openapi/components/schemas/LiveList",
+      "name": {
+        "source": "LiveList",
+        "canonical": "live_list"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "unmodeled": {
+        "openapi:contains": {
+          "reason": "validation_only",
+          "value": {
+            "contains": {
+              "type": "string"
+            }
+          },
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/LiveList"
+          }
+        },
+        "openapi:unevaluated": {
+          "reason": "validation_only",
+          "value": {
+            "unevaluatedItems": false
+          },
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/LiveList"
+          }
+        }
+      },
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/LiveList"
+      },
+      "elem": {
+        "target": "t/prim/any",
+        "nullable": false
+      }
+    },
+    "t/openapi/components/schemas/LivePair": {
+      "kind": "tuple",
+      "id": "t/openapi/components/schemas/LivePair",
+      "name": {
+        "source": "LivePair",
+        "canonical": "live_pair"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "unmodeled": {
+        "openapi:unevaluated": {
+          "reason": "validation_only",
+          "value": {
+            "unevaluatedItems": false
+          },
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/LivePair"
+          }
+        }
+      },
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/LivePair"
+      },
+      "elems": [
+        {
+          "target": "t/prim/string",
+          "nullable": false
+        }
+      ],
+      "rest": {
+        "target": "t/prim/any",
+        "nullable": false
+      }
+    },
     "t/openapi/components/schemas/Pair": {
       "kind": "tuple",
       "id": "t/openapi/components/schemas/Pair",
@@ -305,11 +459,58 @@
       }
     }
   },
+  "diagnostics": [
+    {
+      "severity": "info",
+      "code": "openapi/validation-only-keyword",
+      "message": "unevaluatedItems beside items applies to no element, since items evaluates each one it would; both kept verbatim under Unmodeled",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/InertPair"
+      }
+    },
+    {
+      "severity": "info",
+      "code": "openapi/validation-only-keyword",
+      "message": "validation-only keyword \"unevaluated\" kept verbatim under Unmodeled",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/LivePair"
+      }
+    },
+    {
+      "severity": "info",
+      "code": "openapi/validation-only-keyword",
+      "message": "unevaluatedItems beside items applies to no element, since items evaluates each one it would; both kept verbatim under Unmodeled",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/InertList"
+      }
+    },
+    {
+      "severity": "info",
+      "code": "openapi/validation-only-keyword",
+      "message": "validation-only keyword \"contains\" kept verbatim under Unmodeled",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/LiveList"
+      }
+    },
+    {
+      "severity": "info",
+      "code": "openapi/validation-only-keyword",
+      "message": "validation-only keyword \"unevaluated\" kept verbatim under Unmodeled",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/LiveList"
+      }
+    }
+  ],
   "sources": [
     {
       "format": "openapi@3.1",
       "path": "tuples-prefixitems.yaml",
-      "hash": "2f307b45f7d2da9336f587c1a9d054cb3818ee6a69bb778d6b33ba4762c99db8"
+      "hash": "3a3aba4cdea159d2d417da192017607dede71251a38ec4422cdc19ecb01b2879"
     }
   ]
 }

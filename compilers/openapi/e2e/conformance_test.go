@@ -194,6 +194,7 @@ func conformanceCases() []conformanceCase {
 		{"schema-drafts", assertSchemaDrafts},
 		{"dynamic-ref", assertDynamicRef},
 		{"keywords-at-every-outcome", assertKeywordsAtEveryOutcome},
+		{"unevaluated-at-every-outcome", assertUnevaluatedAtEveryOutcome},
 		{"unknown-keywords-at-shared-nodes", assertUnknownKeywordsAtSharedNodes},
 		{"null-keywords", assertNullKeywords},
 		{"discriminator-aliased-branch", assertDiscriminatorAliasedBranch},

@@ -180,8 +180,8 @@ func heldAt(c lowering.Ctx, pointer jsontext.Pointer) *oas3.JSONSchema[oas3.Refe
 // leaves no Rest. Any other lowers as a List's items does, under the same name,
 // since /items is named alike whichever node holds it (lowering.NameAt). An absent one
 // lowers to the top type as `items: true` does, though only the latter makes an
-// unevaluatedItems beside it inert (#862). No field is derived from another:
-// Elems is never trimmed to maxItems, and a closed tuple gains no maxItems.
+// unevaluatedItems beside it inert. No field is derived from another: Elems is
+// never trimmed to maxItems, and a closed tuple gains no maxItems.
 func buildTuple(c lowering.Ctx, ts *compile.Types, depth int, s *oas3.Schema, common ir.TypeCommon, pointer jsontext.Pointer, prefix []*oas3.JSONSchema[oas3.Referenceable]) (ir.TypeDef, []ir.Diagnostic) {
 	var diags []ir.Diagnostic
 	elems := make([]ir.TypeRef, 0, len(prefix))
