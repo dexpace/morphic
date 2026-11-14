@@ -9,6 +9,7 @@ import (
 	"encoding/json/jsontext"
 	"encoding/json/v2"
 	"errors"
+	"slices"
 	"strings"
 	"testing"
 
@@ -291,7 +292,7 @@ func TestSequenceOrderInvariant_FindsWhatDiffers(t *testing.T) {
 	}
 	tied := func(inner planted) planted {
 		return func(t *testing.T, reversed bool, doc *ir.Document, diags []ir.Diagnostic) (*ir.Document, []ir.Diagnostic, error) {
-			diags = append(diags[:len(diags):len(diags)], diagnostic(ir.SeverityWarning, "x/tie", tie, ""))
+			diags = append(slices.Clip(diags), diagnostic(ir.SeverityWarning, "x/tie", tie, ""))
 			return inner(t, reversed, doc, diags)
 		}
 	}
@@ -318,7 +319,7 @@ func TestSequenceOrderInvariant_FindsWhatDiffers(t *testing.T) {
 			src:  fixtureX,
 			edit: func(_ *testing.T, reversed bool, doc *ir.Document, diags []ir.Diagnostic) (*ir.Document, []ir.Diagnostic, error) {
 				if reversed {
-					diags = append(diags[:len(diags):len(diags)],
+					diags = append(slices.Clip(diags),
 						diagnostic(ir.SeverityInfo, "x/planted", "/components/schemas/AB", ""))
 				}
 				return doc, diags, nil
@@ -365,7 +366,7 @@ func TestSequenceOrderInvariant_FindsWhatDiffers(t *testing.T) {
 			name: "two reports differing only in their node",
 			src:  fixtureX,
 			edit: func(_ *testing.T, _ bool, doc *ir.Document, diags []ir.Diagnostic) (*ir.Document, []ir.Diagnostic, error) {
-				diags = append(diags[:len(diags):len(diags)],
+				diags = append(slices.Clip(diags),
 					diagnostic(ir.SeverityInfo, "x/node", "", "t/anon/components/schemas/AB/allOf/0"))
 				return doc, diags, nil
 			},
@@ -416,7 +417,7 @@ func TestSequenceOrderInvariant_FindsWhatDiffers(t *testing.T) {
 				if reversed {
 					at = "/components/schemas/AB/allOf/1/properties/beta"
 				}
-				return doc, append(diags[:len(diags):len(diags)], diagnostic(ir.SeverityWarning, "x/tie", at, "")), nil
+				return doc, append(slices.Clip(diags), diagnostic(ir.SeverityWarning, "x/tie", at, "")), nil
 			},
 			found:    true,
 			contains: []string{"diagnostics depend on sequence order", "x/tie"},

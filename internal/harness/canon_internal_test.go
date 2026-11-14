@@ -27,10 +27,8 @@ var abOrder = permutation{
 // kept it would tell two declarations apart.
 func declaring(name string, p ir.TypeID) *ir.Model {
 	return &ir.Model{
-		TypeCommon: ir.TypeCommon{
-			ID:   ir.TypeID("t/openapi/components/schemas/" + name),
-			Name: ir.Naming{Source: name, Canonical: strings.ToLower(name)},
-		},
+		ID:   ir.TypeID("t/openapi/components/schemas/" + name),
+		Name: ir.Naming{Source: name, Canonical: strings.ToLower(name)},
 		Properties: []ir.Property{{
 			ID:       ir.PropID("p/openapi/components/schemas/" + name + "/properties/p"),
 			Name:     ir.Naming{Source: "p", Canonical: "p"},
@@ -46,19 +44,17 @@ func declaring(name string, p ir.TypeID) *ir.Model {
 // composing is the model AB composing A and B in the order given.
 func composing(first, second ir.TypeID) *ir.Model {
 	return &ir.Model{
-		TypeCommon: ir.TypeCommon{
-			ID:   "t/openapi/components/schemas/AB",
-			Name: ir.Naming{Source: "AB", Canonical: "ab"},
-		},
+		ID:     "t/openapi/components/schemas/AB",
+		Name:   ir.Naming{Source: "AB", Canonical: "ab"},
 		Mixins: []ir.TypeRef{{Target: first}, {Target: second}},
 	}
 }
 
-// composedOf is a document holding A and B declaring p as given and AB
-// composing them in the order given.
-func composedOf(aType, bType ir.TypeID, first, second ir.TypeID) *ir.Document {
+// composedOf is a document holding A declaring p as a string, B declaring it
+// as given, and AB composing them in the order given.
+func composedOf(bType, first, second ir.TypeID) *ir.Document {
 	return &ir.Document{Types: ir.TypeRegistry{
-		"t/openapi/components/schemas/A":  declaring("A", aType),
+		"t/openapi/components/schemas/A":  declaring("A", "t/prim/string"),
 		"t/openapi/components/schemas/B":  declaring("B", bType),
 		"t/openapi/components/schemas/AB": composing(first, second),
 	}}
@@ -78,8 +74,8 @@ func TestDiffSequenceInvariants_ComparesTheFlattenedShape(t *testing.T) {
 
 	t.Run("a member taking the other declaration", func(t *testing.T) {
 		t.Parallel()
-		asWritten := composedOf("t/prim/string", "t/prim/integer", typeA, typeB)
-		reversed := composedOf("t/prim/string", "t/prim/integer", typeB, typeA)
+		asWritten := composedOf("t/prim/integer", typeA, typeB)
+		reversed := composedOf("t/prim/integer", typeB, typeA)
 
 		detail, ok, why := diffSequenceInvariants(asWritten, nil, reversed, nil, abOrder)
 
@@ -94,8 +90,8 @@ func TestDiffSequenceInvariants_ComparesTheFlattenedShape(t *testing.T) {
 		t.Parallel()
 		// The two declarations differ in their IDs and provenance, which a
 		// shape line does not keep.
-		asWritten := composedOf("t/prim/string", "t/prim/string", typeA, typeB)
-		reversed := composedOf("t/prim/string", "t/prim/string", typeB, typeA)
+		asWritten := composedOf("t/prim/string", typeA, typeB)
+		reversed := composedOf("t/prim/string", typeB, typeA)
 
 		detail, ok, why := diffSequenceInvariants(asWritten, nil, reversed, nil, abOrder)
 
@@ -134,17 +130,17 @@ func TestDiffSequenceInvariants_ASelfReferenceEndsTheWalk(t *testing.T) {
 func TestDiffSequenceInvariants_ADocumentItCannotWriteIsReported(t *testing.T) {
 	t.Parallel()
 	unencodable := func() *ir.Document {
-		doc := composedOf("t/prim/string", "t/prim/string", typeA, typeB)
+		doc := composedOf("t/prim/string", typeA, typeB)
 		doc.Types[typeA].(*ir.Model).Docs.Description = "\xff"
 		return doc
 	}
 	deep := func() *ir.Document {
-		doc := composedOf("t/prim/string", "t/prim/string", typeA, typeB)
+		doc := composedOf("t/prim/string", typeA, typeB)
 		value := strings.Repeat("[", maxCanonicalDepth+1) + strings.Repeat("]", maxCanonicalDepth+1)
 		doc.Types[typeA].(*ir.Model).Unmodeled = ir.Unmodeled{"openapi:x": {Reason: ir.ReasonValidationOnly, Value: ir.RawValue(value)}}
 		return doc
 	}
-	plain := func() *ir.Document { return composedOf("t/prim/string", "t/prim/string", typeA, typeB) }
+	plain := func() *ir.Document { return composedOf("t/prim/string", typeA, typeB) }
 	for _, tc := range []struct {
 		name          string
 		first, second *ir.Document
@@ -241,8 +237,8 @@ func TestDiffSequenceInvariants_ForgivesOnlyWhatTheReversalMoves(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			first := composedOf("t/prim/string", "t/prim/string", typeA, typeB)
-			second := composedOf("t/prim/string", "t/prim/string", typeA, typeB)
+			first := composedOf("t/prim/string", typeA, typeB)
+			second := composedOf("t/prim/string", typeA, typeB)
 			firstDiags, secondDiags := tc.edit(first, 0), tc.edit(second, 1)
 
 			detail, ok, why := diffSequenceInvariants(first, firstDiags, second, secondDiags, abOrder)
