@@ -225,3 +225,24 @@ func TestGroups_ARepeatedTagNameTakesItsFirstDeclaration(t *testing.T) {
 		"openapi:x-stability": `vendor_extension "beta" /tags/0/x-stability`,
 	}, entries(t, at(g, "unmodeled"))))
 }
+
+// TestParameter_AContentEntrysRedactionIsSingleSided holds a content
+// parameter's own x-sensitive: false to withdrawing nothing its content entry
+// states, as its schema's statement stands beside the same key.
+func TestParameter_AContentEntrysRedactionIsSingleSided(t *testing.T) {
+	t.Parallel()
+	doc, diags := parseFull(t, `openapi: 3.1.0
+info: {title: T, version: "1"}
+paths:
+  /a:
+    get:
+      operationId: a
+      parameters:
+        - {name: c, in: query, x-sensitive: false, content: {application/json: {x-sensitive: true, schema: {type: string}}}}
+      responses: {"204": {description: ok}}
+`)
+	assert.Empty(t, diags)
+	c := namedItem(t, at(opTree(t, doc, "a"), "params"), "c")
+	assert.Equal(t, true, at(c, "secret"))
+	assert.Equal(t, "extension-promotion", at(c, "provenance", "inferred"))
+}

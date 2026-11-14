@@ -499,3 +499,18 @@ func petModel(t *testing.T, doc *ir.Document) *ir.Model {
 	assert.Contains(t, pet.Unmodeled, "openapi:oneOf", "the union is kept beside it")
 	return pet
 }
+
+// TestDiscriminatorBesideUnion_ASettledDiscriminatorHoldsItsExtensions holds
+// a discriminator settled verbatim onto its model's Unmodeled to that one
+// entry: an extension written inside it is within the entry, so the model
+// keeps it no second time under openapi:discriminator/<key>.
+func TestDiscriminatorBesideUnion_ASettledDiscriminatorHoldsItsExtensions(t *testing.T) {
+	t.Parallel()
+	pet := "    Pet:\n      allOf: [{$ref: '#/components/schemas/Base'}]\n" +
+		"      discriminator: {propertyName: kind, mapping: {cat: '#/components/schemas/Cat'}, x-tag: 5}\n" + petBranches
+	for _, doc := range discriminatedOrders(t, "3.1.0", pet, cat+subDog+"    Base: {type: object}\n") {
+		kept := petModel(t, doc).Unmodeled
+		assert.Contains(t, string(kept["openapi:discriminator"].Value), `"x-tag":5`)
+		assert.NotContains(t, kept, "openapi:discriminator/x-tag")
+	}
+}
