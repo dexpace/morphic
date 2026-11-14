@@ -574,19 +574,6 @@ func TestRead_ATextHoldingEveryPlaceholderIsTheParsersOwn(t *testing.T) {
 	assert.Equal(t, every.String(), at(t, doc.Root, "b").Value)
 }
 
-// TestRead_ASurrogatePairEscapeInYAMLIsTheLexersToRefuse pins a stated limit: a
-// pair of surrogate escapes in YAML text is refused by the lexer, as YAML 1.2
-// defines \u as one character and joins no pair.
-func TestRead_ASurrogatePairEscapeInYAMLIsTheLexersToRefuse(t *testing.T) {
-	t.Parallel()
-
-	_, err := doctree.Read(t.Context(),
-		[]byte("openapi: 3.1.0\ninfo: {title: \"a"+bs+"uD83D"+bs+"uDE00b\", version: \"1\"}\npaths: {}\n"), budget.Unbounded())
-
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "found invalid Unicode character escape code")
-}
-
 // TestRead_StopsAtADoneContextWithNoPartialTree puts a cancel at each check of
 // the context Read makes, over a JSON and a YAML text that need many: the answer
 // is the context's error and no tree, or the tree an uncancelled read gives.

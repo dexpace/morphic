@@ -326,6 +326,9 @@ func FuzzRespell_PlaceholdersAreInvisible(f *testing.F) {
 		"title: \"x" + e0 + "y\"\ndescription: 'a" + nel + "b'\n",
 		"x-t: !e%EE%80%80 v\ndescription: 'a" + nel + "b'\n",
 		"a: \"" + bs + "/" + bs + "/\"\n",
+		"a: \"x" + bs + "uD83D" + bs + "uDE00\"\nb: 'x" + bs + "uD83D" + bs + "uDE00'\nc: x" + bs + "uD83D" + bs + "uDE00\nd: 1 # " + bs + "ud83d" + bs + "ude00\n",
+		"a: \"" + bs + bs + "uD83D" + bs + "uDE00\"\nb: \"" + bs + "uD83D\"\nc: \"" + bs + "uDE00" + bs + "uD83D\"\n",
+		"a: \"p" + nel + "q" + bs + "/" + bs + "uD83D" + bs + "uDE00\"\nb: |\n  " + bs + "uD83D" + bs + "uDE00\n",
 		"a: " + bs + "/\n# " + bs + "/\n",
 		"\xfe\xff\xe0\x30",
 	} {
