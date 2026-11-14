@@ -25,8 +25,9 @@ const (
 	kindBool
 	kindNumber
 	kindString
-	// kindOpaque is a scalar value.Classify refuses or reads as no JSON value,
-	// a !!binary or a document's own tag among them: equal to itself alone.
+	// kindOpaque is a scalar value.Classify refuses, such as `.inf` or a
+	// !!binary that is no base64, which the lowering keeps no value of: equal
+	// to itself alone.
 	kindOpaque
 )
 
@@ -115,9 +116,11 @@ func (r *reader) scalarOf(ctx context.Context, n *yaml.Node) (scalar, error) {
 	return s, nil
 }
 
-// readScalar reads the scalar node n as the compiler reads it
-// (value.Classify): null, a boolean, a number, a string, a timestamp as the
-// string it spells, and anything else opaque.
+// readScalar reads the scalar node n as the JSON value the compiler reads it
+// as (value.Scalar.JSONKind), the reading an extension's payload is lowered
+// by: null, a boolean, a number or a string, a timestamp, a !!binary and a
+// scalar under a document's own tag the string the source wrote. A scalar
+// value.Classify refuses is opaque.
 func readScalar(n *yaml.Node) scalar {
 	s, err := value.Classify(n)
 	if err != nil {
@@ -126,7 +129,7 @@ func readScalar(n *yaml.Node) scalar {
 		}
 		return scalar{kind: kindOpaque, node: n}
 	}
-	switch s.Kind {
+	switch s.JSONKind() {
 	case value.ScalarNull:
 		return scalar{kind: kindNull}
 	case value.ScalarBool:
@@ -134,10 +137,8 @@ func readScalar(n *yaml.Node) scalar {
 	case value.ScalarNumber:
 		num, _ := newNumber(string(s.Num)) // a BigVal is a decimal in range
 		return scalar{kind: kindNumber, num: num, size: len(n.Value)}
-	case value.ScalarString, value.ScalarTimestamp:
-		return scalar{kind: kindString, text: s.Text, size: len(s.Text)}
 	default:
-		return scalar{kind: kindOpaque, node: n}
+		return scalar{kind: kindString, text: s.Text, size: len(s.Text)}
 	}
 }
 

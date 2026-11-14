@@ -267,3 +267,19 @@ func TestReadSelector_WarnsOfAPatternThatMatchesNoString(t *testing.T) {
 		assert.Contains(t, diags[1].Message, "selects nothing", pattern)
 	}
 }
+
+// TestApply_SelectsAScalarAsTheCompilerLowersIt pins a filter's reading of a
+// scalar to the value the compile keeps of it: a scalar under the document's
+// own tag and a !!binary are the strings the source wrote, as an extension
+// keeps them, so a filter comparing the text the compiled document shows
+// selects them.
+func TestApply_SelectsAScalarAsTheCompilerLowersIt(t *testing.T) {
+	t.Parallel()
+	const src = head + "x-a: {x: !foo 1}\nx-b: {x: !!binary aGk=}\nx-c: {x: 1}\n"
+	ov := v11 + "  - target: \"$[?@.x == '1' || @.x == 'aGk=']\"\n    update: {x-hit: true}\n"
+
+	origin, root, diags := applied(t, src, ov, false)
+
+	require.True(t, origin.Applied(), "%+v", diags)
+	assert.Equal(t, 2, hits(root), "x-a and x-b, not the number of x-c")
+}

@@ -100,12 +100,14 @@ func TestSelect_ReadsAnAliasAndAMergedMemberAsTheValueTheyStandFor(t *testing.T)
 }
 
 // TestSelect_ComparesValuesNotTagsOrSpellings pins the comparison of
-// scalars the compiler reads: 0x10 is the number 16, a plain date a string,
-// and a scalar the JSON schema has no reading of equals itself and nothing
-// else, even a twin written the same.
+// scalars as the compiler lowers them: 0x10 is the number 16, a plain date a
+// string, a !!binary and a scalar under the document's own tag the string the
+// source wrote, and a scalar the compiler has no value of, such as `.inf`,
+// equals itself and nothing else, even a twin written the same.
 func TestSelect_ComparesValuesNotTagsOrSpellings(t *testing.T) {
 	t.Parallel()
-	root := readTree(t, "x: 0x10\ny: 16\nd: 2021-01-01\ne: !!binary aGk=\nf: !!binary aGk=\n")
+	root := readTree(t, "x: 0x10\ny: 16\nd: 2021-01-01\ne: !!binary aGk=\nf: !!binary aGk=\ng: !foo 1\n"+
+		"h: .inf\ni: .inf\n")
 
 	tests := []struct {
 		query string
@@ -113,9 +115,12 @@ func TestSelect_ComparesValuesNotTagsOrSpellings(t *testing.T) {
 	}{
 		{"$[?@ == 16]", []string{"$['x']", "$['y']"}},
 		{"$[?@ == '2021-01-01']", []string{"$['d']"}},
-		{"$[?@ == $.f]", []string{"$['f']"}},
-		{"$[?@ == $.e]", []string{"$['e']"}},
-		{"$[?@ != $.e]", []string{"$['x']", "$['y']", "$['d']", "$['f']"}},
+		{"$[?@ == 'aGk=']", []string{"$['e']", "$['f']"}},
+		{"$[?@ == $.f]", []string{"$['e']", "$['f']"}},
+		{"$[?@ == '1']", []string{"$['g']"}},
+		{"$[?@ == 1]", nil},
+		{"$[?@ == $.h]", []string{"$['h']"}},
+		{"$[?@ != $.h]", []string{"$['x']", "$['y']", "$['d']", "$['e']", "$['f']", "$['g']", "$['i']"}},
 	}
 	for _, tc := range tests {
 		t.Run(tc.query, func(t *testing.T) {

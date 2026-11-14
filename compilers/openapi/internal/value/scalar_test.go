@@ -4,6 +4,7 @@
 package value_test
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -253,5 +254,27 @@ func TestNumericLiteral_NonNumericTagReadsAsDecimal(t *testing.T) {
 			require.NoError(t, err)
 			assert.Equal(t, tc.want, got)
 		})
+	}
+}
+
+// TestScalar_JSONKindReadsWhatJSONHasNoKindForAsItsText pins the JSON kind
+// each kind of scalar reads as, which an extension's payload is kept as and
+// a selector compares: null, a boolean and a number as themselves, and a
+// string, a timestamp, a !!binary and a scalar under a document's own tag as
+// the string the source wrote.
+func TestScalar_JSONKindReadsWhatJSONHasNoKindForAsItsText(t *testing.T) {
+	t.Parallel()
+	for text, want := range map[string]value.ScalarKind{
+		"~": value.ScalarNull, "true": value.ScalarBool, "1.0": value.ScalarNumber, "0x10": value.ScalarNumber,
+		"yes": value.ScalarString, "2021-01-01": value.ScalarString, "!!timestamp 2021-01-01": value.ScalarString,
+		"!!binary aGk=": value.ScalarString, "!foo 1": value.ScalarString,
+	} {
+		var doc yaml.Node
+		require.NoError(t, yaml.Unmarshal([]byte(text), &doc), text)
+		s, err := value.Classify(doc.Content[0])
+		require.NoError(t, err, text)
+
+		assert.Equal(t, want, s.JSONKind(), text)
+		assert.Equal(t, strings.TrimSpace(text[strings.LastIndexByte(text, ' ')+1:]), s.Text, text)
 	}
 }

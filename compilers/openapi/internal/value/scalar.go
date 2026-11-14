@@ -93,6 +93,21 @@ func Classify(n *yaml.Node) (Scalar, error) {
 	}
 }
 
+// JSONKind returns the kind of JSON value s reads as wherever only JSON's
+// kinds are read, as an extension's payload is kept and a selector compares
+// one: null, a boolean and a number as they are, and every other kind a string
+// of the text the source wrote, a timestamp, a !!binary and a scalar under a
+// document's own tag among them, since the spelling is not derivable from
+// what they resolve to (GitHub #242).
+func (s Scalar) JSONKind() ScalarKind {
+	switch s.Kind {
+	case ScalarNull, ScalarBool, ScalarNumber:
+		return s.Kind
+	default:
+		return ScalarString
+	}
+}
+
 // text classifies a scalar YAML resolved to a string. A plain one that spells
 // a decimal is a number all the same: yaml.v3 resolves a number past float64's
 // range to a string, and the source wrote a number (GitHub #16). One whose
