@@ -42,7 +42,7 @@ func TestValidate_ATypeWithAWayOutOfItsKnotHasAFiniteValue(t *testing.T) {
 // pattern docs/ir/models.md names, a union of Circle and Square each of which
 // composes the union, to no finding: the model is a conjunct of the union and
 // narrows nothing, each instance of the union being one variant, so a base or a
-// mixin that is a union is no need of the model.
+// mixin that is a union, or an alias of one, is no need of the model.
 func TestValidate_AModelComposingTheUnionThatListsItHasAFiniteValue(t *testing.T) {
 	t.Parallel()
 	extending := func(id, union string, asMixin bool) *ir.Model {
@@ -61,9 +61,13 @@ func TestValidate_AModelComposingTheUnionThatListsItHasAFiniteValue(t *testing.T
 		}
 		return u
 	}
+	alias := func(id, base string) *ir.Scalar {
+		return &ir.Scalar{ID: ir.TypeID(id), Base: new(ref(base)), Provenance: provAt(id)}
+	}
 	doc := knotDoc(
 		extending("t/circle", "t/shape", false), extending("t/square", "t/shape", false), listing("t/shape", "t/circle", "t/square"),
 		extending("t/log", "t/rule", true), extending("t/block", "t/rule", true), listing("t/rule", "t/log", "t/block"),
+		extending("t/oval", "t/figure", false), alias("t/figure", "t/rounded"), alias("t/rounded", "t/round"), listing("t/round", "t/oval"),
 	)
 
 	assert.Empty(t, found(t, doc, finiteCode))

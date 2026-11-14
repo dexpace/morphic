@@ -44,10 +44,13 @@ type edge struct {
 }
 
 // typeIndex numbers the live types, which liveTypeIDs sorts, so a reference
-// finds its vertex by search and no map is built. union marks the unions.
+// finds its vertex by search and no map is built. union marks the unions, and
+// composed those and the alias scalars leading to one, which a composition
+// entry naming them composes.
 type typeIndex struct {
-	ids   []ir.TypeID
-	union []bool
+	ids      []ir.TypeID
+	union    []bool
+	composed []bool
 }
 
 // of returns the vertex a reference to a live type that is not nullable names.
@@ -59,10 +62,29 @@ func (x typeIndex) of(ref *ir.TypeRef) (int32, bool) {
 	return int32(i), ok
 }
 
-// isUnion reports whether ref names a live union.
+// isUnion reports whether ref names a live union, or an alias scalar of one.
 func (x typeIndex) isUnion(ref *ir.TypeRef) bool {
 	i, ok := slices.BinarySearch(x.ids, ref.Target)
-	return ok && x.union[i]
+	return ok && x.composed[i]
+}
+
+// leadsToUnion reports whether td is a union, or an alias scalar whose bases
+// reach one within maxAliasHops.
+func leadsToUnion(doc *ir.Document, td ir.TypeDef) bool {
+	for range maxAliasHops {
+		switch t := td.(type) {
+		case *ir.Union:
+			return true
+		case *ir.Scalar:
+			if t == nil || t.Base == nil {
+				return false
+			}
+			td = doc.Types[t.Base.Target]
+		default:
+			return false
+		}
+	}
+	return false
 }
 
 // edgeSink takes the edges eachEdge reads: it counts them, then fills a list
@@ -172,7 +194,8 @@ func (s *edgeSink) tuple(ix typeIndex, t *ir.Tuple) {
 // its conjunct and no construction of it: Shape's oneOf of Circle beside
 // Circle's allOf of Shape narrows nothing, each instance of the union being a
 // variant (docs/ir/models.md), so for the needs of a value, which forNeeds
-// says the edges are for, an entry that names a union is not one.
+// says the edges are for, an entry that names a union, or an alias of one, is
+// not one.
 func (s *edgeSink) composition(ix typeIndex, m *ir.Model, forNeeds bool) {
 	if m.Base != nil {
 		s.compose(ix, m.Base, forNeeds, edgeBase, 0)
@@ -358,10 +381,11 @@ func checkKnots(doc *ir.Document) []ir.Diagnostic {
 	if len(ids) == 0 {
 		return nil
 	}
-	ix := typeIndex{ids: ids, union: make([]bool, len(ids))}
+	ix := typeIndex{ids: ids, union: make([]bool, len(ids)), composed: make([]bool, len(ids))}
 	every := make([]bool, len(ids))
 	for i, id := range ids {
 		_, ix.union[i] = doc.Types[id].(*ir.Union)
+		ix.composed[i] = leadsToUnion(doc, doc.Types[id])
 		every[i] = !ix.union[i]
 	}
 	comp := buildGraph(doc, ix, true, nil)
