@@ -189,8 +189,11 @@ func TestCompile_TheSameUnresolvedKeyInTwoDocumentsIsTwoSchemes(t *testing.T) {
 // TestCompile_ASecurityRequirementURILowersTheSameInEitherOrder pins that a
 // scheme a requirement lands on is lowered once, whichever requirement of
 // whichever document reaches it first: the entry and the file written with
-// every mapping reversed, the extension key before the paths among them,
-// compile to one document, with the same findings.
+// every mapping reversed, the extension key before the paths and the paths
+// themselves among them, so the other file's requirement reaches the shared
+// scheme first, compile to one document, with the same findings. Operations
+// are listed in the order the source writes their paths, which is not what
+// this pins, so they compare in any order.
 func TestCompile_ASecurityRequirementURILowersTheSameInEitherOrder(t *testing.T) {
 	t.Parallel()
 	forward, forwardDiags := compileRequirements(t, requirementEntry, requirementSchemes, true)
@@ -199,7 +202,8 @@ func TestCompile_ASecurityRequirementURILowersTheSameInEitherOrder(t *testing.T)
 
 	assert.Empty(t, cmp.Diff(forward, backward,
 		cmpopts.IgnoreFields(ir.Document{}, "Sources", "Diagnostics"),
-		cmpopts.IgnoreFields(ir.Provenance{}, "Position")))
+		cmpopts.IgnoreFields(ir.Provenance{}, "Position"),
+		cmpopts.SortSlices(func(a, b ir.Operation) bool { return a.ID < b.ID })))
 	assert.True(t, slices.Equal(findingsAt(forwardDiags), findingsAt(backwardDiags)))
 	assert.Empty(t, findingsAt(backwardDiags))
 }
