@@ -397,6 +397,78 @@ func TestCompile_AScalarAValueSharesIsReadAsTheRefusingPlaceReadsIt(t *testing.T
 	}
 }
 
+// dialectNamers are lines that make a document one that may name a dialect,
+// whose Schema Objects are judged once the bindings give each its dialect,
+// while every schema is still read in the minor's own: the base dialect named
+// by jsonSchemaDialect, and a $schema key written as data in an extension.
+var dialectNamers = map[string]string{
+	"jsonSchemaDialect":          "jsonSchemaDialect: https://spec.openapis.org/oas/3.1/dialect/base\n",
+	"a $schema in an x- example": "x-note: {example: {$schema: \"https://json-schema.org/draft/2020-12/schema\"}}\n",
+}
+
+// sharedPattern writes one scalar a parameter's required refuses and its
+// schema's title and pattern accept.
+const sharedPattern = head31 + "x-r: &r \"yes\"\npaths:\n  /a:\n    get:\n      parameters:\n" +
+	"        - {name: a, in: query, required: *r, schema: {type: string, title: *r, pattern: *r}}\n" +
+	"      responses: {\"200\": {description: ok}}\n"
+
+// TestCompile_ARefusedValueIsReadAlikeWhetherADocumentMayNameADialect holds a
+// document and the same document that may name a dialect, the line written
+// last so no position moves, to one IR and one diagnostic list but for what
+// the line adds: a value its schemas refuse is read as left out in both, and
+// a node one place refuses and a schema accepts is kept as written in both.
+func TestCompile_ARefusedValueIsReadAlikeWhetherADocumentMayNameADialect(t *testing.T) {
+	t.Parallel()
+	for name, plain := range map[string]string{
+		"readOnly, uniqueItems and deprecated": head31 + "paths: {}\ncomponents:\n  schemas:\n    S:\n      type: object\n" +
+			"      properties:\n        p: {type: string, readOnly: \"yes\"}\n" +
+			"        q: {type: array, items: {type: string}, uniqueItems: \"true\"}\n        r: {type: string, deprecated: \"on\"}\n",
+		"#1793's sites":             strings.ReplaceAll(boolSites, "%", `"yes"`),
+		"a scalar a pattern shares": sharedPattern,
+		"a $ref the binder reads": head31 + "paths: {}\ncomponents:\n  schemas:\n    B: {type: string}\n" +
+			"    A: {type: object, properties: {b: {$ref: !local '#/components/schemas/Missing'}}}\n",
+	} {
+		for namer, line := range dialectNamers {
+			t.Run(name+" beside "+namer, func(t *testing.T) {
+				t.Parallel()
+
+				doc, diags := compileText(t, "spec.yaml", plain, openapi.Options{})
+				named, namedDiags := compileText(t, "spec.yaml", plain+line, openapi.Options{})
+
+				require.NotNil(t, doc, "%+v", diags)
+				require.NotNil(t, named, "%+v", namedDiags)
+				assert.Empty(t, cmp.Diff(strippedTree(t, doc), strippedTree(t, named)))
+				namedDiags = slices.DeleteFunc(namedDiags, func(d ir.Diagnostic) bool { return d.Provenance.Pointer == "/jsonSchemaDialect" })
+				assert.Empty(t, cmp.Diff(diags, namedDiags))
+			})
+		}
+	}
+}
+
+// TestCompile_ANodeASchemaAcceptsIsKeptInADocumentThatMayNameADialect holds a
+// scalar a parameter's required refuses and its schema's title and pattern
+// accept, in a document whose schemas are judged once the bindings are read,
+// to being kept as written: the pattern and title stand, and the one finding
+// is the required's error.
+func TestCompile_ANodeASchemaAcceptsIsKeptInADocumentThatMayNameADialect(t *testing.T) {
+	t.Parallel()
+	for namer, line := range dialectNamers {
+		t.Run(namer, func(t *testing.T) {
+			t.Parallel()
+
+			doc, diags := compileText(t, "spec.yaml", sharedPattern+line, openapi.Options{})
+
+			require.NotNil(t, doc, "%+v", diags)
+			assert.True(t, containsJSON(t, doc, `"pattern":"yes"`), "the pattern a schema accepts is kept")
+			assert.True(t, containsJSON(t, doc, `"summary":"yes"`), "and so is the title")
+			errs := slices.DeleteFunc(slices.Clone(diags), func(d ir.Diagnostic) bool { return d.Provenance.Pointer == "/jsonSchemaDialect" })
+			require.Len(t, errs, 1, "%+v", diags)
+			assert.Equal(t, "/paths/~1a/get/parameters/0/required", string(errs[0].Provenance.Pointer))
+			assert.Equal(t, ir.SeverityError, errs[0].Severity)
+		})
+	}
+}
+
 // strippedTree is doc's encoding without what a comparison of two spellings of
 // one parameter must leave out: provenance, the extensions and the findings.
 func strippedTree(t *testing.T, doc *ir.Document) any {

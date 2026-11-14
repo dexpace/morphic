@@ -36,20 +36,18 @@ type bound struct {
 	others   Others
 }
 
-// bindAll resolves every $ref of doc, the source's model, in the compiler
-// (internal/bind), never through the parser's resolver, which overflows the
-// stack on a cycle of schemas (docs/parser-library.md#schema-cycle-overflow)
-// and reads a Reference Object otherwise than RFC 6901 and the model do, by
-// declaration order (docs/parser-library.md#reference-object-cycle,
+// bindTable resolves every $ref of the source in the compiler (internal/bind),
+// never through the parser's resolver, which overflows the stack on a cycle of
+// schemas (docs/parser-library.md#schema-cycle-overflow) and reads a Reference
+// Object otherwise than RFC 6901 and the model do, by declaration order
+// (docs/parser-library.md#reference-object-cycle,
 // docs/parser-library.md#trailing-empty-token,
-// docs/parser-library.md#duplicate-key). It indexes the model's schemas and
-// wrappers where the table places them, then builds an object or a schema for
-// each landing. reader reads other documents, or is nil; d reads each
-// dialect's rows (dialectRuleOf); media yields the media types the parser does
-// not model.
-func bindAll(ctx context.Context, doc *soa.OpenAPI, sibs Siblings, media MediaTypes, self sourceDocument,
-	reader *external, refuse func(uri string) error, d *dialects,
-) bound {
+// docs/parser-library.md#duplicate-key). doc is the source's model, reader
+// reads other documents, or is nil, and d reads each dialect's rows
+// (dialectRuleOf).
+func bindTable(ctx context.Context, doc *soa.OpenAPI, self sourceDocument, reader *external, refuse func(uri string) error,
+	d *dialects,
+) *bind.Table {
 	opened := map[string]*yaml.Node{}
 	cfg := bind.Config{Self: self.path, Locate: self.locate, Refuse: refuse, Limit: budget.AtMost(bind.MaxSteps),
 		// Read off the model, as the lowering reads the names a mapping value
@@ -70,7 +68,13 @@ func bindAll(ctx context.Context, doc *soa.OpenAPI, sibs Siblings, media MediaTy
 			return tree, err
 		}
 	}
-	table := bind.Bind(ctx, self.root, cfg)
+	return bind.Bind(ctx, self.root, cfg)
+}
+
+// bindAll indexes the model's schemas and wrappers where table places them,
+// then builds an object or a schema for each landing. doc is the source's
+// model, and media yields the media types the parser does not model.
+func bindAll(ctx context.Context, table *bind.Table, doc *soa.OpenAPI, sibs Siblings, media MediaTypes) bound {
 	bd := typed.NewBuilder(table)
 	faults := mediaFaults{}
 	indexWalk(bd, walkSource(ctx, doc, sibs, media), bind.Position{}, faults)

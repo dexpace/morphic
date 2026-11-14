@@ -564,7 +564,9 @@ cycle.
 
 A value the table refuses as the wrong type is read as the field left out by every reader of the
 source, wherever the table reads it, the parser's model among them; a construct kept verbatim shows
-it as the source wrote it. Such a value is one with none of the shapes its field admits, a boolean
+it as the source wrote it. It is read so once every judgment of the document is in: in a document
+that may name a dialect, once its Schema Objects are judged, when the model and the `$ref`s are read
+again, so such a document reads a refused value as the same document naming none does. Such a value is one with none of the shapes its field admits, a boolean
 written as a string among them, which the model reads as `true` or `false`
 ([`string-as-boolean`](../parser-library.md#string-as-boolean)), a scalar or a list under a tag
 outside YAML 1.2's JSON schema ruleset, which OpenAPI limits tags to and which the table reports
@@ -622,6 +624,8 @@ gives it no effect is [`allow-reserved-locations`](#allow-reserved-locations)' a
   `e2e.TestCompile_ASharedNodeIsReadAsItsInlineSpellingIs`,
   `oas.TestCheck_AFieldOfAnyShapeAcceptsNothing`,
   `e2e.TestCompile_AScalarAValueSharesIsReadAsTheRefusingPlaceReadsIt`,
+  `e2e.TestCompile_ARefusedValueIsReadAlikeWhetherADocumentMayNameADialect`,
+  `e2e.TestCompile_ANodeASchemaAcceptsIsKeptInADocumentThatMayNameADialect`,
   `oas.TestCheckFormat_PlacesEachKeyAtItsOwnLine`, `nodeview.TestKeyOf_AKeyThatIsNoScalarNamesNoKey`,
   `e2e.TestCompile_AKeyThatIsNoScalarIsReportedOnceAndLeftOut`,
   `e2e.TestCompile_TwoKeysThatAreNoScalarAreEachReportedInEitherOrder`,
@@ -632,11 +636,14 @@ gives it no effect is [`allow-reserved-locations`](#allow-reserved-locations)' a
   `e2e.TestCompile_AnInnerSharedNodeIsPlacedAtItsLeastPointerInEveryDeclarationOrder`,
   `e2e.TestCompile_ATypeMismatchOnASharedMountIsPlacedAtTheLeastMount`,
   `scan.TestLeast_OrdersByThePointersTokens`, `scan.TestLeast_AgreesWithSortingEveryPointer`
-- Status: partly built: a Schema Object of a document that may name a dialect is judged once its
-  model is built, so a value it refuses is read as the model reads it, and so is a value of what a
-  `$ref` reaches outside the source's own reading, raw YAML under an `x-` key or another document
-  (#1928); a schema position there is read from its node all the same
-  ([`null-schema`](#null-schema)).
+- Status: partly built: a value of what a `$ref` reaches outside the source's own reading, raw YAML
+  under an `x-` key or another document, is read as the model reads it (#1928), a schema position
+  there read from its node all the same ([`null-schema`](#null-schema)); and an object there whose
+  own `$ref` is null, or a 3.2 `additionalOperations` entry there that is no mapping, still faults
+  the model build of what reaches it, so the path item a `$ref` reaches it from is lost whole, with
+  an `openapi/validation` error that no path item could be built (#1928). Where the table refuses an
+  `$id`'s value in a document that may name a dialect, a schema below it is judged in the dialect
+  that `$id` roots as written.
 
 ### `minor-required-fields`
 

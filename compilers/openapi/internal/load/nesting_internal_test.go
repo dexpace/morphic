@@ -244,3 +244,39 @@ func TestRefusals_PlaceAWholeDocumentFindingAtWhole(t *testing.T) {
 		assert.Equal(t, whole, diags[0].Provenance, name)
 	}
 }
+
+// TestNamedWithin_ADocumentThatMayNameADialectIsNotWithin holds the second
+// weighing of a source past the pointer bound to documents whose schemas the
+// minor's own grammar reads: the same closed document is within its bound
+// until it names a dialect, whose keywords may hold schemas that grammar keeps
+// raw.
+func TestNamedWithin_ADocumentThatMayNameADialectIsNotWithin(t *testing.T) {
+	t.Parallel()
+	const plain = "openapi: 3.1.0\ninfo: {title: t, version: \"1\"}\npaths: {}\n"
+	for text, within := range map[string]bool{
+		plain: true,
+		plain + "jsonSchemaDialect: https://spec.openapis.org/oas/3.1/dialect/base\n": false,
+	} {
+		var root yaml.Node
+		require.NoError(t, yaml.Unmarshal([]byte(text), &root))
+
+		assert.Equal(t, within, namedWithin(t.Context(), defaultIndex(t.Context(), &root)), "%s", text)
+	}
+}
+
+// TestUnreportedRepeats_KeepsARepeatNoReachedCheckReported holds the repeats of
+// another document to those no reached object's check reported under the same
+// code at the same place: that check's wording stands, and every other repeat
+// is kept.
+func TestUnreportedRepeats_KeepsARepeatNoReachedCheckReported(t *testing.T) {
+	t.Parallel()
+	at := func(code, pointer string) ir.Diagnostic {
+		return ir.Diagnostic{Code: code, Provenance: ir.Provenance{Source: 1, Pointer: jsontext.Pointer(pointer)}}
+	}
+	said := at("openapi/validation/validation-duplicate-key", "/a/b")
+	kept := at("openapi/validation/validation-duplicate-key", "/a/c")
+
+	got := unreportedRepeats([]ir.Diagnostic{said, kept}, []ir.Diagnostic{said})
+
+	assert.Equal(t, []ir.Diagnostic{kept}, got)
+}

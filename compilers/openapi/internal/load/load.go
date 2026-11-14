@@ -89,18 +89,29 @@ type Options struct {
 // a map, and drops it silently (docs/parser-library.md#anchored-entry-dropped,
 // GitHub #459). That skip is the only read of a name; an alias reaches its
 // target by a kept pointer. Run it after the refusals and the judgment, which
-// read names. A document read through external is readied too (GitHub #501).
-// It sets aside in a each pair whose key is no scalar, which every reader
-// leaves out (docs/parser-library.md#non-scalar-key).
-func readyForModel(ctx context.Context, root *yaml.Node, a *aside) {
+// read names; it returns the anchors it cleared (loading.judgeLate). A
+// document read through external is readied too (GitHub #501). It sets aside
+// in a each pair whose key is no scalar (docs/parser-library.md#non-scalar-key).
+func readyForModel(ctx context.Context, root *yaml.Node, a *aside) []anchor {
+	var cleared []anchor
 	// An alias is a leaf of the walk: a recursive anchor cannot loop it.
 	nodeview.Walk{Nodes: maxTreeNodes, Visit: func(n *yaml.Node, _ int) nodeview.Step {
-		n.Anchor = ""
+		if n.Anchor != "" {
+			cleared = append(cleared, anchor{node: n, name: n.Anchor})
+			n.Anchor = ""
+		}
 		if n.Kind == yaml.MappingNode {
 			a.hide(n, noKey)
 		}
 		return nodeview.Descend
 	}}.Run(ctx, root)
+	return cleared
+}
+
+// anchor is a node readyForModel cleared the anchor of, and its name.
+type anchor struct {
+	node *yaml.Node
+	name string
 }
 
 // noKey reports whether the pair key names no key of its mapping and is no

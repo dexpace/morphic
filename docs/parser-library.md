@@ -81,7 +81,7 @@ components:
 - Verified at: v1.26.3
 - Pinned by: `TestLibraryBehaviour/schema-cycle-overflow`
 - Code:
-  - `load.bindAll` binds every `$ref` in the compiler, never through the resolver.
+  - `load.bindTable` binds every `$ref` in the compiler, never through the resolver.
 
 ### `defs-order`
 
@@ -148,7 +148,7 @@ components:
 - Verified at: v1.26.3
 - Pinned by: `TestLibraryBehaviour/reference-object-cycle`
 - Code:
-  - `load.bindAll` binds every reference object in the compiler, never through the resolver.
+  - `load.bindTable` binds every reference object in the compiler, never through the resolver.
   - `bind.objects.closeLoop` records a loop of reference objects, to be reported once.
 
 ### `trailing-empty-token`
@@ -172,7 +172,7 @@ x-params:
 - Verified at: v1.26.3
 - Pinned by: `TestLibraryBehaviour/trailing-empty-token`
 - Code:
-  - `load.bindAll` binds every reference object in the compiler, never through the resolver.
+  - `load.bindTable` binds every reference object in the compiler, never through the resolver.
   - `bind.objects.readRef` reads a reference object's pointer as RFC 6901 does.
 
 ### `merge-list-pointer`
@@ -442,7 +442,7 @@ paths:
 - Verified at: v1.26.3
 - Pinned by: `TestLibraryBehaviour/nil-populate-panic`
 - Code:
-  - `load.settle` sets each such shape the source writes aside for the model's builds.
+  - `load.setAside` sets each such shape the source writes aside for the model's builds.
   - `load.aside` holds what it set aside, and puts it back.
   - `load.buildRecovered` turns the panic into an `ErrParse` error.
 
@@ -545,7 +545,7 @@ components:
 - Code:
   - `nodeview.flatten` reads a mapping's repeated key as the model does.
   - `nodeview.Child` reads one at the copy the model does, a merge source's at its first.
-  - `load.bindAll` binds every reference object in the compiler, never through the resolver.
+  - `load.bindTable` binds every reference object in the compiler, never through the resolver.
 
 ### `merge-keys`
 
