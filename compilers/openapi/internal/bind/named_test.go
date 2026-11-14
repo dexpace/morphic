@@ -50,8 +50,8 @@ func TestNamedPointerBytes_AValueKeptRawAddsItsRootAlone(t *testing.T) {
 	require.True(t, complete)
 	asSchemaBase, _ := namedTotal(t, base+"    E: {type: object, properties: {}}\n")
 
-	assert.Equal(t, len("/components/schemas/E/example"), asExample-without,
-		"only the root of the mount is named, as the pointer it is mounted at")
+	assert.Equal(t, 2*len("/components/schemas/E/example"), asExample-without,
+		"only the root of the mount is named, with its key, each at the pointer it is mounted at")
 	assert.Greater(t, asSchema-asSchemaBase, 5*(asExample-without), "mounted as a schema, every node of it is named")
 }
 
