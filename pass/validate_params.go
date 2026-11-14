@@ -6,6 +6,9 @@ package pass
 import (
 	"fmt"
 	"reflect"
+	"slices"
+	"strconv"
+	"strings"
 
 	"github.com/dexpace/morphic/ir"
 )
@@ -128,19 +131,29 @@ func unboundParamWarnings(op ir.Operation, idx int, bound map[ir.ParamID]int) []
 }
 
 // paramRef is one reference an operation makes to a parameter outside its HTTP
-// bindings, with the field of the operation it sits in, which spells where it
-// is reported.
+// bindings, with where it sits: the field of the operation it is in, or, for a
+// key of a scenario's input, no field and the index of the example holding it.
 type paramRef struct {
-	id    ir.ParamID
-	field string
+	id      ir.ParamID
+	field   string
+	example int
+}
+
+// where spells where r sits in operation op, for a report.
+func (r paramRef) where(op ir.OpID) string {
+	if r.field == "" {
+		return string(op) + "/examples/" + strconv.Itoa(r.example) + "/input"
+	}
+	return string(op) + "/" + r.field
 }
 
 // appendParamRefs appends to dst the parameter references op carries besides
 // its bindings: the pagination inputs, the inputs that select a stream, the
-// idempotency token and the request values its links read. An absent input is
-// no reference, and neither is one into the request body, nor an empty token,
-// which is how an operation that is not token-keyed spells having none. An
-// input with an empty ID is one.
+// idempotency token, the request values its links read and the keys of each
+// scenario's input, each input's in sorted order so no map order reaches a
+// report. An absent input is no reference, and neither is one into the request
+// body, nor an empty token, which is how an operation that is not token-keyed
+// spells having none. An input with an empty ID is one.
 func appendParamRefs(dst []paramRef, op ir.Operation) []paramRef {
 	if pg := op.Pagination; pg != nil {
 		dst = appendInputRef(dst, pg.InputCursor, "pagination/inputCursor")
@@ -153,9 +166,21 @@ func appendParamRefs(dst []paramRef, op ir.Operation) []paramRef {
 		dst = appendInputRef(dst, &s.Condition.Input, "responseStream/condition")
 	}
 	if token := op.Idempotency.TokenParam; token != "" {
-		dst = append(dst, paramRef{token, "idempotency/tokenParam"})
+		dst = append(dst, paramRef{id: token, field: "idempotency/tokenParam"})
 	}
-	return appendLinkInputRefs(dst, &op)
+	dst = appendLinkInputRefs(dst, &op)
+	for i := range op.Examples {
+		in := op.Examples[i].Input
+		if in == nil {
+			continue
+		}
+		first := len(dst)
+		for id := range in.Params {
+			dst = append(dst, paramRef{id: id, example: i})
+		}
+		slices.SortFunc(dst[first:], func(a, b paramRef) int { return strings.Compare(string(a.id), string(b.id)) })
+	}
+	return dst
 }
 
 // appendInputRef appends the parameter in names, under field, when in roots in
@@ -164,7 +189,7 @@ func appendInputRef(dst []paramRef, in *ir.InputPath, field string) []paramRef {
 	if in == nil || in.Param == nil {
 		return dst
 	}
-	return append(dst, paramRef{*in.Param, field})
+	return append(dst, paramRef{id: *in.Param, field: field})
 }
 
 // checkParamReferences holds the references appendParamRefs lists to the
@@ -189,7 +214,7 @@ func checkParamReferences(doc *ir.Document, refs *ir.IDReferences) []ir.Diagnost
 			if own[ref.id] || !reportedHere(ref.id, refs) {
 				continue
 			}
-			where := string(op.ID) + "/" + ref.field
+			where := ref.where(op.ID)
 			diags = append(diags, diag(ir.SeverityError, "pass/param-binding-mismatch",
 				fmt.Sprintf("%s names parameter %q, which this operation does not declare", where, ref.id),
 				where))
