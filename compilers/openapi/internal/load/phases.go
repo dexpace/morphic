@@ -5,6 +5,7 @@ package load
 
 import (
 	"context"
+	"encoding/json/jsontext"
 	"fmt"
 	"slices"
 
@@ -221,8 +222,31 @@ func (l *loading) bindRefs(ctx context.Context) (bool, error) {
 // build of the model is done and what settle set aside for it is back.
 func (l *loading) reach(ctx context.Context) (bool, error) {
 	l.aside.restore()
-	l.resolved = append(l.resolved, validateReached(ctx, l.sites, l.bound, l.doc, l.opts, l.self, l.named)...)
+	reached := validateReached(ctx, l.sites, l.bound, l.doc, l.opts, l.self, l.named)
+	l.resolved = slices.Concat(l.resolved, reached, unreportedRepeats(l.bound.others.repeats, reached))
 	return false, nil
+}
+
+// unreportedRepeats returns each key another document writes twice that no
+// check of an object a reference reached in it reports at the same place,
+// under the same code: the object's wording stands (GitHub #1033).
+func unreportedRepeats(repeats, reached []ir.Diagnostic) []ir.Diagnostic {
+	type place struct {
+		code    string
+		source  int
+		pointer jsontext.Pointer
+	}
+	said := make(map[place]bool, len(reached))
+	for _, d := range reached {
+		said[place{d.Code, d.Provenance.Source, d.Provenance.Pointer}] = true
+	}
+	var out []ir.Diagnostic
+	for _, d := range repeats {
+		if !said[place{d.Code, d.Provenance.Source, d.Provenance.Pointer}] {
+			out = append(out, d)
+		}
+	}
+	return out
 }
 
 // checkSource runs the source checks over the source (sourceChecks).

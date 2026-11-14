@@ -15,6 +15,8 @@ import (
 	yaml "go.yaml.in/yaml/v3"
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/bind"
+	"github.com/dexpace/morphic/compilers/openapi/internal/budget"
+	"github.com/dexpace/morphic/compilers/openapi/internal/oas"
 	"github.com/dexpace/morphic/compilers/openapi/internal/provenance"
 	refscope "github.com/dexpace/morphic/compilers/openapi/internal/resolve"
 	"github.com/dexpace/morphic/compilers/openapi/internal/scan"
@@ -52,8 +54,10 @@ type Others struct {
 	trees  []provenance.Tree
 	// found is what reading each document found in its own entry: a stream
 	// past its first document, and a YAML version it declares and is not read
-	// as.
-	found []ir.Diagnostic
+	// as. repeats is each key one of its mappings writes twice
+	// (oas.CheckRepeatedKeys), reported unless a reached object's check reports
+	// it first (unreportedRepeats).
+	found, repeats []ir.Diagnostic
 }
 
 // tree returns where a node of the document a reference reads by name is
@@ -148,6 +152,9 @@ func newOthers(ctx context.Context, read *externalReads, first int, source *dial
 		o.trees = append(o.trees, tree)
 		doc := read.read[keys[0]]
 		o.found = slices.Concat(o.found, streamDiagnostics(first+i, externalStream, doc.Rest), versionDiagnostics(tree, doc))
+		root := read.trees[keys[0]]
+		o.repeats = append(o.repeats, oas.CheckRepeatedKeys(ctx, root, version, oas.Options{
+			Locate: walkedFrom(root, tree.Node), Budget: budget.AtMost(maxTreeNodes)})...)
 		for _, key := range keys {
 			o.byName[key] = i
 		}

@@ -159,3 +159,63 @@ func kindName(n *yaml.Node) string {
 		return "a scalar"
 	}
 }
+
+// CheckRepeatedKeys holds every mapping of the tree root, as written, values
+// and extensions included, to the Format section's rule that a key is written
+// once, at the minor declared names: each key a mapping writes again is a
+// warning at the repeat, its pointer and the key's line and column, since only
+// the last copy is read. It reads Locate and Budget of opts; a walk its budget
+// cuts says nothing of what lies past it.
+func CheckRepeatedKeys(ctx context.Context, root *yaml.Node, declared string, opts Options) []ir.Diagnostic {
+	minor, ok := ParseMinor(declared)
+	if !ok {
+		return nil
+	}
+	locate := opts.Locate
+	if locate == nil {
+		locate = func(jsontext.Pointer) ir.Provenance { return ir.Provenance{} }
+	}
+	at := map[*yaml.Node]jsontext.Pointer{}
+	var diags []ir.Diagnostic
+	nodeview.Walk{Nodes: opts.Budget.Cap(), Visit: func(n *yaml.Node, _ int) nodeview.Step {
+		ptr := at[n]
+		delete(at, n)
+		switch n.Kind {
+		case yaml.MappingNode:
+			diags = append(diags, repeatedIn(n, ptr, at, locate, minor)...)
+		case yaml.SequenceNode:
+			for i, item := range n.Content {
+				at[item] = itemPointer(ptr, i)
+			}
+		default:
+		}
+		return nodeview.Descend
+	}}.Run(ctx, nodeview.DocumentRoot(root))
+	if ctx.Err() != nil {
+		return nil
+	}
+	return diags
+}
+
+// repeatedIn notes where each child of the mapping n at ptr is, and reports
+// each key n writes a second time, at that copy.
+func repeatedIn(n *yaml.Node, ptr jsontext.Pointer, at map[*yaml.Node]jsontext.Pointer, locate Locator, minor Minor,
+) []ir.Diagnostic {
+	copies := map[string]int{}
+	var diags []ir.Diagnostic
+	for i := 0; i+1 < len(n.Content); i += 2 {
+		key, own := nodeview.KeyOf(n.Content[i])
+		if !own {
+			continue
+		}
+		at[n.Content[i+1]] = ptr.AppendToken(key)
+		if copies[key]++; copies[key] != 2 {
+			continue
+		}
+		d := diag.Newf(ir.SeverityWarning, diag.Validation+"/"+classDuplicate, locate(ptr.AppendToken(key)),
+			"a mapping writes the key %q more than once, and only the last copy is read in OpenAPI %s (Format)", key, minor)
+		d.Provenance.Position = ir.Position{Line: n.Content[i].Line, Column: n.Content[i].Column}
+		diags = append(diags, d)
+	}
+	return diags
+}

@@ -539,7 +539,12 @@ an `x-` key or in another document, is read as the kind the reference expects an
 of the document that writes it
 ([`openapi-versions`](#openapi-versions)). A finding about it is placed at its node, in the entry of
 `Document.Sources` for the document that writes that node, a file the source spells two ways being
-one document. One about a node of a document no entry lists goes to the least `$ref` reaching it,
+one document. A key a mapping of such a document writes twice, anywhere in it, values
+included, is a warning at the repeat, in its entry, read over the whole document once: the
+compiler reads only the last copy, whichever copy a reference names. One a reached object's check
+reports at the same place keeps that check's wording. Only this rule is read over the whole of
+another document: a key that is no scalar there is reported only where a reference reaches it, so
+a shared file's unread content fails no compile. One about a node of a document no entry lists goes to the least `$ref` reaching it,
 its message naming where in that document it lies. Each finding is made once: a node an alias or a
 merge key mounts at several positions draws one, naming the position in that document that first
 read it where that is another place. A node aliases share is placed at the least pointer of the
@@ -609,6 +614,9 @@ gives it no effect is [`allow-reserved-locations`](#allow-reserved-locations)' a
   `oas.TestCheckFormat_PlacesEachKeyAtItsOwnLine`, `nodeview.TestKeyOf_AKeyThatIsNoScalarNamesNoKey`,
   `e2e.TestCompile_AKeyThatIsNoScalarIsReportedOnceAndLeftOut`,
   `e2e.TestCompile_TwoKeysThatAreNoScalarAreEachReportedInEitherOrder`,
+  `e2e.TestCompile_AKeyWrittenTwiceInAnotherDocumentIsReported`,
+  `e2e.TestCompile_AKeyWrittenTwiceInsideAReachedObjectIsReportedOnce`,
+  `e2e.TestCompile_AKeyThatIsNoScalarInContentNoReferenceReachesIsNotReported`,
   `e2e.TestCompile_AFindingOnANodeAliasesShareIsPlacedAtItsLeastPointer`,
   `e2e.TestCompile_AnInnerSharedNodeIsPlacedAtItsLeastPointerInEveryDeclarationOrder`,
   `e2e.TestCompile_ATypeMismatchOnASharedMountIsPlacedAtTheLeastMount`,
