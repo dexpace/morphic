@@ -485,7 +485,7 @@ func TestCompile_AnUnusableDocumentIsReportedAlikeOnEitherRoute(t *testing.T) {
 	t.Parallel()
 	for _, tc := range []struct{ name, body, says string }{
 		{"one that does not parse", "a: [unclosed\n",
-			"the document it names does not parse as YAML: yaml: line 1: did not find expected ',' or ']'"},
+			"the document it names does not parse: yaml: line 1: did not find expected ',' or ']'"},
 		{"one holding nothing", "", "the document it names is empty"},
 		{"one holding only a comment", "# nothing yet\n", "the document it names is empty"},
 	} {

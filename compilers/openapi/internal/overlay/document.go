@@ -5,7 +5,9 @@ package overlay
 
 import (
 	"bytes"
+	"context"
 	"encoding/json/jsontext"
+	"errors"
 	"fmt"
 	"net/url"
 	"strconv"
@@ -15,6 +17,7 @@ import (
 	yaml "go.yaml.in/yaml/v3"
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
+	"github.com/dexpace/morphic/compilers/openapi/internal/jsontree"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -101,18 +104,18 @@ func (a action) label() string {
 	return fmt.Sprintf("overlay action %d of %d (%s %q)", a.index+1, a.of, a.kind, a.target)
 }
 
-// read parses data as an overlay document and reads it for applying, at, the
-// overlay's place in Document.Sources. A document that is no overlay this
-// compiler applies is refused, each reason an openapi/invalid-overlay error,
-// and so is one writing a selector the compiler cannot apply as RFC 9535 reads
-// it; what reads but has no effect is a warning.
+// read parses data as an overlay document (parseDocument) and reads it for
+// applying, at, the overlay's place in Document.Sources. A document that is
+// no overlay this compiler applies is refused, each reason an
+// openapi/invalid-overlay error, and so is one writing a selector the compiler
+// cannot apply as RFC 9535 reads it; what reads but has no effect is a warning.
 //
 // Every selector is read as RFC 9535, which both versions of the
 // specification name, so the document is set to that dialect before any is
 // read: the library picks one by version otherwise
 // (docs/parser-library.md#overlay-jsonpath-dialect).
-func read(at ir.Provenance, data []byte) (plan, []ir.Diagnostic) {
-	doc, err := soaoverlay.ParseReader(bytes.NewReader(data))
+func read(ctx context.Context, at ir.Provenance, data []byte) (plan, []ir.Diagnostic) {
+	doc, err := parseDocument(ctx, data)
 	if err != nil {
 		return plan{}, []ir.Diagnostic{diag.Newf(ir.SeverityError, diag.OverlayInvalid, at,
 			"cannot parse overlay: %s", diag.OneLine(err))}
@@ -129,6 +132,28 @@ func read(at ir.Provenance, data []byte) (plan, []ir.Diagnostic) {
 		p.actions = append(p.actions, a)
 	}
 	return p, diags
+}
+
+// parseDocument parses data as the library parses an overlay document, except
+// that bytes that are one JSON text are read as JSON, into the tree the YAML
+// parser builds for them (docs/parser-library.md#json-as-yaml), and decoded
+// from that as the library decodes the tree it parses. Anything else is the
+// library's to parse, as is every error but a done ctx and a lone surrogate
+// escape.
+func parseDocument(ctx context.Context, data []byte) (*soaoverlay.Overlay, error) {
+	root, err := jsontree.Read(ctx, data)
+	if errors.Is(err, jsontree.ErrNotJSON) {
+		return soaoverlay.ParseReader(bytes.NewReader(data))
+	}
+	if err != nil {
+		return nil, err
+	}
+
+	var doc soaoverlay.Overlay
+	if err := root.Decode(&doc); err != nil {
+		return nil, err
+	}
+	return &doc, nil
 }
 
 // readHead holds doc's fixed fields to the specification and returns the

@@ -43,7 +43,7 @@ components:
 // planOf reads ov as an overlay to apply, requiring that it reads.
 func planOf(t *testing.T, ov string) plan {
 	t.Helper()
-	p, diags := read(ir.Provenance{Source: 1}, []byte(ov))
+	p, diags := read(t.Context(), ir.Provenance{Source: 1}, []byte(ov))
 	require.False(t, diag.HasError(diags), "%+v", diags)
 	return p
 }

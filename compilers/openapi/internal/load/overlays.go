@@ -76,9 +76,9 @@ func patch(ctx context.Context, srcIndex int, root *yaml.Node, opts Options) (ov
 		return overlay.Origin{}, nil, nil
 	}
 	pre := overlayRefusals(ctx, opts)
-	// The library parses the overlay reading no context, and refusals a cancel
-	// cut short have screened none of it, so the cancel is seen before it is
-	// handed over.
+	// The library parses a YAML overlay reading no context, and refusals a
+	// cancel cut short have screened none of it, so the cancel is seen before
+	// it is handed over.
 	if err := ctx.Err(); err != nil {
 		return overlay.Origin{}, nil, err
 	}
