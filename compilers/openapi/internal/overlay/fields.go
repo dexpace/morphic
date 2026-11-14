@@ -317,7 +317,7 @@ func (r *reader) selectors(a *action, fields map[string]*yaml.Node) {
 // reference reads a Reusable Action Reference: its $ref names an entry of
 // components.actions by a JSON pointer in the document's own fragment, and
 // the action it stands for is that entry's fields at the reference's own
-// target, with the reference's description where it writes one.
+// target. A description, the reference's or the entry's, has no effect.
 func (r *reader) reference(n *yaml.Node, at jsontext.Pointer, what string, reusable map[string]map[string]*yaml.Node,
 ) map[string]*yaml.Node {
 	ref := r.object(n, at, objReference, what)
@@ -334,9 +334,6 @@ func (r *reader) reference(n *yaml.Node, at jsontext.Pointer, what string, reusa
 	}
 	out := maps.Clone(fields)
 	out["target"] = ref["target"]
-	if d := ref["description"]; d != nil {
-		out["description"] = d
-	}
 	return out
 }
 

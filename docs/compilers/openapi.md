@@ -326,8 +326,8 @@ parse, including one writing half of a surrogate pair, and at 1.2 an `extends` o
 fragment; one that is no URI reference is refused at any version. An Overlay 1.2 action writing
 `$ref` is a reference to a reusable action of `components.actions`, named by a JSON pointer in the
 document's own fragment, its key escaped as RFC 6901 escapes a token: it applies as the action the
-reusable one's `fields` write, at the reference's own `target`, with its own `description` where it
-writes one, and a reference naming no entry, or writing `update`, `remove` or `copy`, is refused, as
+reusable one's `fields` write, at the reference's own `target`, a `description` of either having no
+effect, as an action's has none, and a reference naming no entry, or writing `update`, `remove` or `copy`, is refused, as
 are `fields` writing a `target`. A reusable action nothing references has no effect. The overlay's
 `$self` is recorded as its `SelfURI` in `Document.Sources`; nothing the compiler applies reads it,
 and `extends` is checked as a URI reference and compared with nothing.
