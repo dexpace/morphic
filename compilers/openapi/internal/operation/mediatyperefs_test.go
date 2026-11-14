@@ -487,3 +487,68 @@ components:
 	assert.Equal(t, int64(3), *list.Constraints.MaxItems, "the list node holds the bound")
 	assert.Nil(t, header.Constraints, "so the header holds no copy of it")
 }
+
+// TestMediaTypeRef_ABodyKeepsTheKeysBesideEachRef holds a request body's, a
+// response's and the default's content entry, each a $ref through two aliases,
+// to keeping on its Content what the use and each alias write beside the $ref,
+// keyed by the position along the chain, beside the declaration's own key and
+// apart from the summary the use folds into Docs; the rule table reports each.
+func TestMediaTypeRef_ABodyKeepsTheKeysBesideEachRef(t *testing.T) {
+	t.Parallel()
+	doc, diags := parseFull(t, openapitest.PathsSpecVer("3.2.0", `  /a:
+    post:
+      operationId: a
+      requestBody:
+        content:
+          application/json: {$ref: '#/components/mediaTypes/A1', summary: s, x-a: request, x-use: 0}
+      responses:
+        "200":
+          description: ok
+          content:
+            application/json: {$ref: '#/components/mediaTypes/A1', summary: s, x-a: ok, x-use: 0}
+        default:
+          description: error
+          content:
+            application/json: {$ref: '#/components/mediaTypes/A1', summary: s, x-a: default, x-use: 0}
+components:
+  mediaTypes:
+    A1: {$ref: '#/components/mediaTypes/A2', x-a: a1, x-one: 1}
+    A2: {$ref: '#/components/mediaTypes/M', x-a: a2}
+    M: {schema: {type: string}, x-a: own}
+`))
+	a := opTree(t, doc, "a")
+	for _, payload := range []struct{ name, at string }{
+		{"request", "/paths/~1a/post/requestBody/content/application~1json"},
+		{"ok", "/paths/~1a/post/responses/200/content/application~1json"},
+		{"default", "/paths/~1a/post/responses/default/content/application~1json"},
+	} {
+		content := map[string]any{
+			"request": at(a, "request", "contents", "0"),
+			"ok":      at(a, "responses", "0", "payload", "contents", "0"),
+			"default": at(a, "default", "payload", "contents", "0"),
+		}[payload.name]
+		assert.Equal(t, "s", at(content, "docs", "summary"), payload.name)
+		assert.Empty(t, cmp.Diff(map[string]string{
+			"openapi:x-a":               `vendor_extension "own" /components/mediaTypes/M/x-a`,
+			"openapi:reference/0/x-a":   `out_of_scope "` + payload.name + `" ` + payload.at + `/x-a`,
+			"openapi:reference/0/x-use": `out_of_scope 0 ` + payload.at + `/x-use`,
+			"openapi:reference/1/x-a":   `out_of_scope "a1" /components/mediaTypes/A1/x-a`,
+			"openapi:reference/1/x-one": `out_of_scope 1 /components/mediaTypes/A1/x-one`,
+			"openapi:reference/2/x-a":   `out_of_scope "a2" /components/mediaTypes/A2/x-a`,
+		}, entries(t, at(content, "unmodeled"))), payload.name)
+	}
+	reported := make([]string, 0, len(diags))
+	for _, d := range diags {
+		require.Equal(t, diag.UnknownObjectKey, d.Code, d.Message)
+		reported = append(reported, string(d.Provenance.Pointer))
+	}
+	assert.ElementsMatch(t, []string{
+		"/paths/~1a/post/requestBody/content/application~1json/x-a",
+		"/paths/~1a/post/requestBody/content/application~1json/x-use",
+		"/paths/~1a/post/responses/200/content/application~1json/x-a",
+		"/paths/~1a/post/responses/200/content/application~1json/x-use",
+		"/paths/~1a/post/responses/default/content/application~1json/x-a",
+		"/paths/~1a/post/responses/default/content/application~1json/x-use",
+		"/components/mediaTypes/A1/x-a", "/components/mediaTypes/A1/x-one", "/components/mediaTypes/A2/x-a",
+	}, reported)
+}

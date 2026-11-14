@@ -1360,6 +1360,7 @@ a key of the chain's never shares: a key is read whole, never by its prefix.
 | request body, response, example | the operation's `Request`, the `ir.Response` or `ir.ErrorCase`, the `ir.Example` | none | yes |
 | link | the response's link | none | yes |
 | callback | the operation's HTTP binding | `callbacks/<name>/` | no |
+| media type of a body | the `ir.Content` | none | yes |
 | media type of a parameter's or header's content | the parameter or the header's property | `content/<mt>/` | no |
 | security scheme | the `ir.AuthScheme` | none | yes |
 
@@ -1377,7 +1378,8 @@ to; and one flat `reference/` scope, which would make a use and an alias writing
   `lowering.TestBeside_ABareReferenceCostsNothing`, `operation.TestContentDocs_ChainAndDeclarationKeepApart`,
   `operation.TestContentDocs_AKeyIsReadWhole`, `operation.TestCallbacks_AUseKeepsItsDocs`,
   `e2e.TestBeside_AnAliasInAnotherDocumentKeepsItsKeyThere`,
-  `e2e.TestBeside_ASecuritySchemeKeepsTheKeysBesideItsRef`
+  `e2e.TestBeside_ASecuritySchemeKeepsTheKeysBesideItsRef`,
+  `operation.TestMediaTypeRef_ABodyKeepsTheKeysBesideEachRef`
 
 ### `use-bound-annotations`
 
