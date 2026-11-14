@@ -976,8 +976,8 @@ func carrierAuth(t *testing.T, doc *ir.Document) map[string][]ir.AuthRequirement
 // access the document never wrote. It names no scheme either, so it lowers to no
 // option, at every carrier and in every spelling of the merge, while a merge of
 // a mapping, an empty one included, is what it merges. The loader's error at
-// the fault is the one report of a dropped entry: at the entry, or where an
-// alias it merges is written.
+// the fault is the one report of a dropped entry: at the entry, an aliased one
+// at the least place that mounts it, or where an alias it merges is written.
 func TestSecurityRequirement_AMergeNamingNoMappingIsNoOption(t *testing.T) {
 	t.Parallel()
 	key := ir.AuthRequirement{Schemes: []ir.SchemeUse{{Scheme: ids.Auth("key")}}}
@@ -993,7 +993,7 @@ func TestSecurityRequirement_AMergeNamingNoMappingIsNoOption(t *testing.T) {
 		{`{<<: [5]}`, none, "/security/1"}, {`{<<: [{}, 5]}`, none, "/security/1"},
 		{`{<<: {<<: 5}}`, none, "/security/1"}, {`{!!merge <<: 5}`, none, "/security/1"},
 		{`{!!merge "<<": 5}`, none, "/security/1"}, {`{<<: *s}`, none, "/security/1"},
-		{`{<<: [*e, *s]}`, none, "/security/1"}, {`*bad`, none, "/x-defs/bad"}, {`{<<: *bad}`, none, "/x-defs/bad"},
+		{`{<<: [*e, *s]}`, none, "/security/1"}, {`*bad`, none, "/components/pathItems/Mounted/get/security/1"}, {`{<<: *bad}`, none, "/x-defs/bad"},
 		{`{<<: {}}`, empty, ""}, {`{<<: &empty {}}`, empty, ""}, {`{<<: *e}`, empty, ""}, {`{<<: []}`, empty, ""},
 		{`{<<: 5, key: []}`, []ir.AuthRequirement{key, key}, ""},
 		// JSON has no merge key: the quoted key is a name, which reaches no

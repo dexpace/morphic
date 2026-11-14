@@ -21,8 +21,8 @@ import (
 
 // Pointers returns a node's JSON pointer in root's tree, its pairs keyed as
 // the parser keys them (nodeview.KeyOf), and whether the tree holds it. A
-// scalar key shares its member's pointer, and an alias's target is placed
-// where it is written. A nil node or root is held by none, nor is a node under
+// scalar key shares its member's pointer, and an alias's target is placed at
+// the least of the places that mount it (rehome). A nil node or root is held by none, nor is a node under
 // a `<<` merge key, whose pair the merge's document holds elsewhere, nor a key
 // that is no scalar, which no pointer reads inside.
 //
@@ -37,13 +37,21 @@ func Pointers(ctx context.Context, root *yaml.Node) func(*yaml.Node) (jsontext.P
 		if steps == nil {
 			// Never cut short by the bound for a tree the loader reads: each
 			// passed a sourceindex walk under the same bound first.
-			steps, _ = stepsIn(ctx, root, sourceindex.MaxIndexedNodes)
+			steps = placesIn(ctx, root)
 		}
 		if _, held := steps[n]; !held {
 			return "", false
 		}
 		return pointerOf(steps, n), true
 	}
+}
+
+// placesIn indexes root's tree by stepsIn under the compiler's node bound,
+// each node aliases share placed at the least of its places (rehome).
+func placesIn(ctx context.Context, root *yaml.Node) map[*yaml.Node]step {
+	steps, _ := stepsIn(ctx, root, sourceindex.MaxIndexedNodes)
+	rehome(steps)
+	return steps
 }
 
 // step is how a node of a tree is reached from the node holding it: that node,

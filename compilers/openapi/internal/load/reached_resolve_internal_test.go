@@ -1345,8 +1345,8 @@ paths:
 			}
 			slices.Sort(placed)
 			assert.Equal(t, []string{
-				"1 /components/parameters/Base 3:11",
-				"1 /components/parameters/Base/in 3:31",
+				"1 /components/parameters/Bad 3:11",
+				"1 /components/parameters/Bad/in 3:31",
 			}, placed, "%+v", diags)
 			require.Len(t, doc.Others.List(), 1, "one file, one entry")
 			assert.Equal(t, "ext.yaml", doc.Others.List()[0].Label)
@@ -1399,9 +1399,9 @@ components:
 				}
 			}
 			assert.Equal(t, map[jsontext.Pointer]string{
-				"/x-param/in":                   "/paths/~1x/get/parameters/0/in",
-				"/x-schema/type":                "/components/schemas/S/properties/s/type",
-				"/components/parameters/Bad/in": "",
+				"/paths/~1x/get/parameters/0/in":          "",
+				"/components/schemas/S/properties/s/type": "",
+				"/components/parameters/Bad/in":           "",
 			}, read, "%+v", diags)
 			assert.Equal(t, 3, found, "each node once: %+v", diags)
 		})

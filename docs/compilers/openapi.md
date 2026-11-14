@@ -510,8 +510,13 @@ of the document that writes it
 `Document.Sources` for the document that writes that node, a file the source spells two ways being
 one document. One about a node of a document no entry lists goes to the least `$ref` reaching it,
 its message naming where in that document it lies. Each finding is made once: a node an alias or a
-merge key mounts at several positions draws one, placed where the node is written and naming the
-position in that document that first read it.
+merge key mounts at several positions draws one, naming the position in that document that first
+read it where that is another place. A node aliases share is placed at the least pointer of the
+places that mount it, where its anchor is written and where each alias of it is, pointers compared
+token by token and each token by its bytes, so `/A/…` comes before `/A-/…`; its line and column
+stay where its text is written. Which place a document writes first decides nothing, and a document
+whose aliases lead back into what holds them keeps every written place: it is refused, at the
+cycle.
 
 A value the table refuses as the wrong type is read as the field left out by every reader of the
 source, wherever the table reads it, the parser's model among them; a construct kept verbatim shows
@@ -572,7 +577,11 @@ gives it no effect is [`allow-reserved-locations`](#allow-reserved-locations)' a
   `e2e.TestCompile_ASharedNodeIsReadAsItsInlineSpellingIs`,
   `oas.TestCheckFormat_PlacesEachKeyAtItsOwnLine`, `nodeview.TestKeyOf_AKeyThatIsNoScalarNamesNoKey`,
   `e2e.TestCompile_AKeyThatIsNoScalarIsReportedOnceAndLeftOut`,
-  `e2e.TestCompile_TwoKeysThatAreNoScalarAreEachReportedInEitherOrder`
+  `e2e.TestCompile_TwoKeysThatAreNoScalarAreEachReportedInEitherOrder`,
+  `e2e.TestCompile_AFindingOnANodeAliasesShareIsPlacedAtItsLeastPointer`,
+  `e2e.TestCompile_AnInnerSharedNodeIsPlacedAtItsLeastPointerInEveryDeclarationOrder`,
+  `e2e.TestCompile_ATypeMismatchOnASharedMountIsPlacedAtTheLeastMount`,
+  `scan.TestLeast_OrdersByThePointersTokens`, `scan.TestLeast_AgreesWithSortingEveryPointer`
 - Status: partly built: a Schema Object of a document that may name a dialect is judged once its
   model is built, so a value it refuses is read as the model reads it, and so is a value of what a
   `$ref` reaches outside the source's own reading, raw YAML under an `x-` key or another document

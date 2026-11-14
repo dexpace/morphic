@@ -35,11 +35,12 @@ func nodesAt(t *testing.T, root *yaml.Node, pointers []jsontext.Pointer) []*yaml
 	return nodes
 }
 
-// TestLeast_OrdersByThePointersBytes pins the order as that of the pointers
-// spelled out, not of their tokens one by one, in the places the two part: a
-// key that another extends with a character sorting below the separator, the
-// escapes of `~` and `/`, and sequence indexes, which compare as text.
-func TestLeast_OrdersByThePointersBytes(t *testing.T) {
+// TestLeast_OrdersByThePointersTokens pins the order as that of the pointers'
+// tokens one by one, each by its bytes as written, not of the pointers spelled
+// out, in the places the two part: a key that another extends with a character
+// sorting below the separator, the escapes of `~` and `/`, which a token holds
+// unescaped, and sequence indexes, which compare as text.
+func TestLeast_OrdersByThePointersTokens(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
 		name  string
@@ -49,11 +50,11 @@ func TestLeast_OrdersByThePointersBytes(t *testing.T) {
 	}{
 		{"siblings", "b: {}\na: {}\n", []jsontext.Pointer{"/b", "/a"}, "/a"},
 		{"a shallower one sorting after", "b: {}\na: {x: {y: {}}}\n", []jsontext.Pointer{"/b", "/a/x/y"}, "/a/x/y"},
-		{"a key extended past a lower byte", "a: {x: {}}\na-b: {}\n", []jsontext.Pointer{"/a/x", "/a-b"}, "/a-b"},
+		{"a key extended past a lower byte", "a: {x: {}}\na-b: {}\n", []jsontext.Pointer{"/a/x", "/a-b"}, "/a/x"},
 		{"the shorter key itself", "a: {x: {}}\na-b: {}\n", []jsontext.Pointer{"/a", "/a-b"}, "/a"},
 		{"a node and what it holds", "a: {x: {}}\n", []jsontext.Pointer{"/a/x", "/a"}, "/a"},
-		{"escaped tilde and slash", "'a/': {}\n'a~': {}\na0: {}\n", []jsontext.Pointer{"/a~0", "/a~1", "/a0"}, "/a0"},
-		{"escaped slash before tilde", "'a/': {}\n'a~': {}\n", []jsontext.Pointer{"/a~0", "/a~1"}, "/a~0"},
+		{"escaped tilde and slash", "'a/': {}\n'a~': {}\na0: {}\n", []jsontext.Pointer{"/a~0", "/a~1", "/a0"}, "/a~1"},
+		{"a slash before a tilde", "'a/': {}\n'a~': {}\n", []jsontext.Pointer{"/a~0", "/a~1"}, "/a~1"},
 		{"indexes as text", "s: [{}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}]\n", []jsontext.Pointer{"/s/2", "/s/10"}, "/s/10"},
 	}
 	for _, tc := range tests {
@@ -100,7 +101,7 @@ func randomTree(r *rand.Rand, depth int) string {
 
 // TestLeast_AgreesWithSortingEveryPointer holds Least to the plain reading of
 // its contract: spell every candidate's pointer, as a diagnostic carries it,
-// and take the least string. Thousands of generated trees and candidate sets
+// and take the least, token by token. Thousands of generated trees and candidate sets
 // are compared.
 func TestLeast_AgreesWithSortingEveryPointer(t *testing.T) {
 	t.Parallel()
@@ -123,7 +124,7 @@ func TestLeast_AgreesWithSortingEveryPointer(t *testing.T) {
 		want := slices.MinFunc(candidates, func(a, b *yaml.Node) int {
 			pa, _ := pointers(a)
 			pb, _ := pointers(b)
-			return strings.Compare(string(pa), string(pb))
+			return slices.Compare(slices.Collect(pa.Tokens()), slices.Collect(pb.Tokens()))
 		})
 		got := Least(t.Context(), root, candidates)
 		gotPointer, _ := pointers(got)
