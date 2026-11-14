@@ -20,6 +20,7 @@ import (
 // the caller what to use and what not to, filling the first alone. None is
 // reported. The policy switched off leaves every message and fills nothing.
 func assertReplacementPhrases(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
+	t.Helper()
 	for _, name := range []string{"listZonesOld", "createZoneOld"} {
 		op, ok := opByName(doc, name)
 		require.True(t, ok, name)

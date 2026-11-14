@@ -94,10 +94,14 @@
                     "nullable": false
                   },
                   "required": false,
+                  "encoding": {
+                    "name": "http-date"
+                  },
                   "docs": {},
                   "provenance": {
                     "source": 0,
-                    "pointer": "/paths/~1files~1{name}/put/parameters/1"
+                    "pointer": "/paths/~1files~1{name}/put/parameters/1",
+                    "inferred": "http-date-inference"
                   }
                 }
               ],
@@ -465,6 +469,15 @@
     {
       "severity": "info",
       "code": "openapi/inferred-http-date",
+      "message": "header parameter \"If-Unmodified-Since\" is a field its RFC defines as an HTTP-date, so its date-time is written as one (http-date) rather than in RFC 3339's text, which its format names",
+      "provenance": {
+        "source": 0,
+        "pointer": "/paths/~1files~1{name}/put/parameters/1"
+      }
+    },
+    {
+      "severity": "info",
+      "code": "openapi/inferred-http-date",
       "message": "header \"Last-Modified\" is a field its RFC defines as an HTTP-date, so its date-time is written and read as one (http-date) rather than in RFC 3339's text, which its format names",
       "provenance": {
         "source": 0,
@@ -485,7 +498,7 @@
     {
       "format": "openapi@3.0",
       "path": "http-date-inference.yaml",
-      "hash": "c97e100fd6baeb7c02e893a68ffa0d1c08d4757d1894cd07e27b9caecfaa84cc"
+      "hash": "948a16a337b8551510206637a18b98ee1c82c9026d92180b7994829b06487ff9"
     }
   ]
 }

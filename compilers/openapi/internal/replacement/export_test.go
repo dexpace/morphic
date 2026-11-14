@@ -6,8 +6,12 @@ package replacement
 // CodeSpans is the content of each span codeSpans finds, for the external
 // tests.
 func CodeSpans(text string) []string {
-	var out []string
-	for _, n := range codeSpans(text) {
+	spans := codeSpans(text)
+	if len(spans) == 0 {
+		return nil
+	}
+	out := make([]string, 0, len(spans))
+	for _, n := range spans {
 		out = append(out, n.text)
 	}
 	return out
