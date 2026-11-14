@@ -52,6 +52,9 @@ type Content struct {
                                   // declares the part; and a body that is a model narrowing a
                                   // union, or a variant that is one, each shape's parts
                                   // (docs/ir/models.md)
+    CatchAllEncoding map[TypeID]CatchAllParts // multipart/form: the encoding of the parts a
+                                  // catch-all admits, keyed by the map or model holding it (below);
+                                  // no key = the source states none
     File      *FileInfo           // body is a file upload/download (TypeSpec file bodies, binary
                                   // payloads): how it travels, while Type stays what the source
                                   // declares of it, so nothing that declaration says is lost
@@ -93,6 +96,11 @@ type PartEncoding struct {
 }
 // TypeSpec tuple-form multipart lowers to a synthesized model whose properties are the parts.
 
+type CatchAllParts struct {
+    Value    *PartEncoding           // a part no pattern matches; nil = none stated
+    Patterns map[string]PartEncoding // a part a pattern matches, keyed by PatternProps.Pattern
+}                                    // at least one is set (ir/catch-all-encoding-empty)
+
 type FileInfo struct {
     IsText   bool                 // textual vs binary contents
     Contents *TypeRef             // declared contents scalar chain (string/bytes extensions); nil = bytes.
@@ -116,6 +124,28 @@ type ContentStream struct {
                                   // types are
 }
 ```
+
+## A catch-all's parts
+
+A form or multipart body whose type admits members it names no property for, a map or a model
+holding `AdditionalProps`, sends each such member as a part, and `Content.CatchAllEncoding` says how
+those parts travel. It is keyed by the `TypeID` of the type holding the catch-all, a `MapT` or a
+`Model`, since a catch-all is not flattened and a consumer reads the model's own ([the
+flattening](./models.md#the-flattening)). The holders a key may name are the body's shapes: the
+content's type and, through its unions, each variant, as `Encoding` keys each variant's parts, read
+each by `ir.CatchAllHolders`: a map itself, or each model its flattening reads that holds
+`AdditionalProps`. `Value` is the encoding of a part no pattern matches, `MapT.Value`'s or
+`AdditionalProps.Value`'s, and `Patterns` a part's a pattern matches, keyed by the pattern's text,
+which its holder lists once. An entry states one of them (`ir/catch-all-encoding-empty`), and a key
+naming no holder among the body's shapes, a `Value` for a holder with none, or a pattern its holder
+does not list is `ir/encoding-key-unknown-catch-all`. No key means the source states nothing of
+those parts, and a consumer applies its own rule, as for a property with no `Encoding` entry.
+
+Three shapes lost. One `*PartEncoding` for the content, as `ItemEncoding` is, is wrong for a union
+body whose variants' catch-alls differ and for a model whose value and patterns differ in type.
+Keying by the value's type joins two catch-alls of one type, which differ once a source names one
+of them in an encoding key. A field on the catch-all itself puts one content's encoding on a type a
+JSON content shares.
 
 ## A content that streams
 

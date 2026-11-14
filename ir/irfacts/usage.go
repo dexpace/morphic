@@ -283,9 +283,10 @@ func (r usageRoots) payload(p *ir.Payload, flags UsageFlags) {
 	}
 }
 
-// content records a content's type, its stream item, its file contents and the
-// headers of its parts. A multipart media type also marks the content's own
-// type, and only that one.
+// content records a content's type, its stream item, its file contents, the
+// holders of its catch-alls, which are among its type's shapes, and the headers
+// of its parts. A multipart media type also marks the content's own type, and
+// only that one.
 func (r usageRoots) content(c *ir.Content, flags UsageFlags) {
 	r.ref(&c.Type, flags)
 	if strings.HasPrefix(strings.ToLower(c.MediaType), multipartPrefix) {
@@ -300,6 +301,15 @@ func (r usageRoots) content(c *ir.Content, flags UsageFlags) {
 	}
 	for _, part := range c.Encoding {
 		r.headers(part.Headers, flags)
+	}
+	for holder, parts := range c.CatchAllEncoding {
+		r.ref(&ir.TypeRef{Target: holder}, flags)
+		if parts.Value != nil {
+			r.headers(parts.Value.Headers, flags)
+		}
+		for _, part := range parts.Patterns {
+			r.headers(part.Headers, flags)
+		}
 	}
 }
 

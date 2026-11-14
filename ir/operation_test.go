@@ -334,7 +334,8 @@ func TestPayload_DocsIsOmittedWhenEmpty(t *testing.T) {
 
 // TestContent_JSONContract pins Content's omitempty contract — Type carries
 // no omitempty, every other field is optional — and that a fully populated
-// Content — a stream and its item schema, per-part encodings, and file info —
+// Content — a stream and its item schema, per-part and catch-all encodings, and
+// file info —
 // round-trips.
 func TestContent_JSONContract(t *testing.T) {
 	t.Parallel()
@@ -348,6 +349,9 @@ func TestContent_JSONContract(t *testing.T) {
 		Encoding: map[ir.PropID]ir.PartEncoding{
 			"p/file": {Filename: true, Multi: true},
 			"p/name": {Style: "form"},
+		},
+		CatchAllEncoding: map[ir.TypeID]ir.CatchAllParts{
+			"t/open": {Value: &ir.PartEncoding{Multi: true}, Patterns: map[string]ir.PartEncoding{"^f_": {Filename: true}}},
 		},
 		File: &ir.FileInfo{IsText: true, ContentTypes: []string{"text/plain"}},
 		Examples: []ir.Example{

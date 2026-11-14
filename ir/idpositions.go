@@ -69,6 +69,7 @@ var idPositions = map[string]idRule{
 	"Callback.Operations":          idRequired,
 	"Channel.Messages":             idRequired,
 	"Channel.Servers":              idRequired,
+	"Content.CatchAllEncoding":     idRequired,
 	"Content.Encoding":             idRequired,
 	"CtorValue.Scalar":             idRequired,
 	"Discriminator.Mapping":        idRequired,

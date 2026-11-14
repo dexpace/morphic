@@ -99,6 +99,14 @@ var twoFindings = []twoFinding{
 			requestContent(doc).Encoding = map[ir.PropID]ir.PartEncoding{"p/m/z": {}, "p/m/b": {}}
 			return doc
 		}},
+	{family: "checkCatchAllEncodingKeys", code: "ir/encoding-key-unknown-catch-all",
+		want: []string{"op/request/contents/0/catchAllEncoding/t/b", "op/request/contents/0/catchAllEncoding/t/z"},
+		doc: func() *ir.Document {
+			doc := validDoc()
+			value := &ir.PartEncoding{Filename: true}
+			requestContent(doc).CatchAllEncoding = map[ir.TypeID]ir.CatchAllParts{"t/z": {Value: value}, "t/b": {Value: value}}
+			return doc
+		}},
 	{family: "checkPayloadRequired", code: "ir/payload-required-outside-request",
 		want: []string{"op/z/responses/0", "op/b/responses/0"},
 		doc: func() *ir.Document {

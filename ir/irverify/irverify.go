@@ -194,6 +194,7 @@ func walkChecks() []func(*ir.Document) walkCheck {
 		checkExampleArms,
 		checkParamChoices,
 		checkContentStreams,
+		checkCatchAllEncodings,
 		checkLinkValues,
 		checkPrefixHeaders,
 		checkPrefixBindings,

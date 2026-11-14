@@ -70,6 +70,10 @@ type Callback struct
 	"name" string omitempty
 	"operations" []OpID omitempty
 
+type CatchAllParts struct
+	"patterns" map[string]PartEncoding omitempty
+	"value" *PartEncoding omitzero
+
 type Channel struct
 	"address" *string omitzero
 	"bindings" map[string]RawConfig omitempty
@@ -109,6 +113,7 @@ type Contact struct
 	"url" string omitempty
 
 type Content struct
+	"catchAllEncoding" map[TypeID]CatchAllParts omitempty
 	"docs" Docs omitzero
 	"encoding" map[PropID]PartEncoding omitempty
 	"examples" []Example omitempty

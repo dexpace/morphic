@@ -207,6 +207,12 @@ type Content struct {
 	// that variant declares the part, as of each shape a model narrowing a union
 	// takes. No key is empty.
 	Encoding map[PropID]PartEncoding `json:"encoding,omitempty"`
+	// CatchAllEncoding is the part encoding of the parts a catch-all admits,
+	// keyed by the map or model holding the catch-all: the body's type, each
+	// variant through its unions, and each model a model's flattening reads
+	// (docs/ir/payloads.md#a-catch-alls-parts). No key means the source states
+	// none.
+	CatchAllEncoding map[TypeID]CatchAllParts `json:"catchAllEncoding,omitempty"`
 	// File marks the body as a file upload/download (TypeSpec file bodies, binary
 	// payloads): how it travels, while Type stays what the source declares of it.
 	File *FileInfo `json:"file,omitzero"`
@@ -264,6 +270,17 @@ type PartEncoding struct {
 	// writes a parameter's: reserved characters and percent-encoded triples pass
 	// unescaped (OpenAPI Encoding allowReserved). It is set only beside Style.
 	AllowReserved bool `json:"allowReserved"`
+}
+
+// CatchAllParts is the part encoding of the parts one catch-all admits
+// (docs/ir/payloads.md#a-catch-alls-parts). At least one member is set.
+type CatchAllParts struct {
+	// Value is the encoding of a part no pattern matches: MapT.Value's, or
+	// AdditionalProps.Value's; nil = the source states none.
+	Value *PartEncoding `json:"value,omitzero"`
+	// Patterns is the encoding of a part a pattern matches, keyed by
+	// PatternProps.Pattern as the holder lists it.
+	Patterns map[string]PartEncoding `json:"patterns,omitempty"`
 }
 
 // FileInfo describes a file-upload/download body (docs/ir/payloads.md).

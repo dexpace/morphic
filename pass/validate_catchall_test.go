@@ -57,6 +57,9 @@ func TestValidate_CatchAllEncodingKeys(t *testing.T) {
 		{"a pattern alone, where the model lists it", "t/patterns", map[ir.TypeID]ir.CatchAllParts{
 			"t/patterns": {Patterns: map[string]ir.PartEncoding{"^f_": file}},
 		}, false},
+		{"an empty key, which the empty-reference check reports", "t/map", map[ir.TypeID]ir.CatchAllParts{
+			"": {Value: value},
+		}, false},
 		{"a model with no catch-all", "t/m", map[ir.TypeID]ir.CatchAllParts{"t/m": {Value: value}}, true},
 		{"a type outside the body's shapes", "t/m", map[ir.TypeID]ir.CatchAllParts{"t/open": {Value: value}}, true},
 		{"a value where the holder has none", "t/patterns", map[ir.TypeID]ir.CatchAllParts{

@@ -36,7 +36,8 @@ func TestOperationPath_ListsEveryCarrier(t *testing.T) {
 		"StreamDetail":    2,
 		"StreamCondition": 1,
 		"Header":          3,
-		"PartEncoding":    2,
+		"PartEncoding":    4,
+		"CatchAllParts":   1,
 		"Content":         1,
 		"Payload":         4,
 		"Response":        2,
@@ -60,15 +61,16 @@ func TestOperationPathChecks_SeeOnlyThePathToTheField(t *testing.T) {
 		}}}}}
 	}
 	for name, check := range map[string]func(*ir.Document) walkCheck{
-		"checkStreamingModes": checkStreamingModes,
-		"checkStability":      checkStability,
-		"checkInteractions":   checkInteractions,
-		"checkPrefixHeaders":  checkPrefixHeaders,
-		"checkPrefixBindings": checkPrefixBindings,
-		"checkContentStreams": checkContentStreams,
-		"checkIdempotency":    checkIdempotency,
-		"checkWebhookRoutes":  checkWebhookRoutes,
-		"checkEnums":          checkEnums,
+		"checkStreamingModes":    checkStreamingModes,
+		"checkStability":         checkStability,
+		"checkInteractions":      checkInteractions,
+		"checkPrefixHeaders":     checkPrefixHeaders,
+		"checkPrefixBindings":    checkPrefixBindings,
+		"checkContentStreams":    checkContentStreams,
+		"checkCatchAllEncodings": checkCatchAllEncodings,
+		"checkIdempotency":       checkIdempotency,
+		"checkWebhookRoutes":     checkWebhookRoutes,
+		"checkEnums":             checkEnums,
 	} {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()

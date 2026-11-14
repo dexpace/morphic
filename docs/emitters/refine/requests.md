@@ -61,7 +61,10 @@ A form or multipart content whose type, read through `TypePlan.Alias` and its sc
 model or a map holds its fields and parts in the body's place, whether or not `RequestText` names
 one: the request type has a field for each member the body's shape holds and one for its catch-all,
 or one for a map's entries, each declared as that shape declares it ([the declaration a shape
-takes](../plan/types.md#the-declaration-a-shape-takes)), save that each `RequestText` names, its
+takes](../plan/types.md#the-declaration-a-shape-takes)), a part that field or those entries send
+taking the encoding `Content.CatchAllEncoding` keys under the type holding the catch-all, its
+pattern's where one matches the part's name and its `Value` where none does ([a catch-all's
+parts](../../ir/payloads.md#a-catch-alls-parts)), save that each `RequestText` names, its
 `Rest` among them, is a list of pairs, each pair sent as a field or a part of the body. Where
 `Payload.Required` is not true, each field is optional, none set sends no body, and a member the
 shape requires left unset beside one that is set fails the call before anything is sent. So a member

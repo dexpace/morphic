@@ -176,7 +176,7 @@ var generations = []generation{
 		meaning: "a value or collection bound written beside a schema naming another, through a $ref, an allOf entry, a union or an expanded dynamic reference, reaches Constraints only where a type the named schemas admit takes it, and is kept under openapi:<keyword> otherwise"},
 	{version: "0.67.0", format: 1, shape: "70fb63281dbb10880528536556e0481c65ceaa9ac2d7a90a75e6f0139181286e",
 		names: "825b85ca996798c9051c78f69d22b7c1ad6d30e36341b320540fab82f21b6890"},
-	{version: "0.68.0", format: 1, shape: "b6dbf8cd98ac143a1b965b06286cb62b770e83e8da4bf74b57fc8bf11a24939d",
+	{version: "0.68.0", format: 1, shape: "1f911c73e872e59e79ead51d9ce25ed4cc9e7bb0667f97469f27bc9cdb65ff3a",
 		names: "825b85ca996798c9051c78f69d22b7c1ad6d30e36341b320540fab82f21b6890"},
 }
 

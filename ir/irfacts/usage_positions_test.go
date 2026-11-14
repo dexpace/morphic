@@ -92,6 +92,11 @@ func usageRootPositions() map[string]irfacts.UsageFlags {
 			"Content.ItemEncoding/PartEncoding.Headers/Property.Encoding/Encoding.Schema",
 			"Content.Encoding/PartEncoding.Headers/Property.Type",
 			"Content.Encoding/PartEncoding.Headers/Property.Encoding/Encoding.Schema",
+			"Content.CatchAllEncoding",
+			"Content.CatchAllEncoding/CatchAllParts.Value/PartEncoding.Headers/Property.Type",
+			"Content.CatchAllEncoding/CatchAllParts.Value/PartEncoding.Headers/Property.Encoding/Encoding.Schema",
+			"Content.CatchAllEncoding/CatchAllParts.Patterns/PartEncoding.Headers/Property.Type",
+			"Content.CatchAllEncoding/CatchAllParts.Patterns/PartEncoding.Headers/Property.Encoding/Encoding.Schema",
 		} {
 			positions[payload+"/Payload.Contents/"+content] = flags
 		}
