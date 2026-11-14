@@ -35,6 +35,7 @@ func lowerRequestBody(c lowering.Ctx, w walk, op *ir.Operation, hb *ir.HTTPBindi
 		return nil
 	}
 	payload, diags := lowerPayload(dc, w, rb.GetContent(), bodyPtr)
+	diags = append(diags, bodyMethodDiags(c, hb.Method, usePtr)...)
 	if payload == nil {
 		// A body lowering no media type is still the body: whether it must be
 		// sent, its description and its x-* stay on a Payload with no Contents.
@@ -58,6 +59,25 @@ func lowerRequestBody(c lowering.Ctx, w walk, op *ir.Operation, hb *ir.HTTPBindi
 	diags = append(diags, besideDiags...)
 	hb.RequestContentTypes = contentTypeKeys(rb.GetContent())
 	return diags
+}
+
+// bodyMethodDiags reports a request body, written at at, on method, as sent on
+// the wire, where HTTP defines a body no semantics, an info, or forbids one, a
+// warning (docs/compilers/openapi.md#request-body). A method is compared as
+// written, as HTTP compares one (RFC 9110 §9.1). The body lowers as declared.
+func bodyMethodDiags(c lowering.Ctx, method string, at jsontext.Pointer) []ir.Diagnostic {
+	switch method {
+	case "GET", "HEAD", "DELETE":
+		return []ir.Diagnostic{c.DiagAt(ir.SeverityInfo, diag.BodyWithoutSemantics, at,
+			"%s request declares a body, which HTTP defines no semantics for (RFC 9110 §9.3); OpenAPI 3.0 has a "+
+				"consumer ignore it and later versions advise against it; lowered as declared", method)}
+	case "TRACE", "CONNECT":
+		section := map[string]string{"TRACE": "§9.3.8", "CONNECT": "§9.3.6"}[method]
+		return []ir.Diagnostic{c.DiagAt(ir.SeverityWarning, diag.BodyForbiddenByMethod, at,
+			"%s request declares a body, which HTTP forbids (RFC 9110 %s); lowered as declared", method, section)}
+	default:
+		return nil
+	}
 }
 
 // emptyContentDiags reports rb's content map written empty, at the map, or

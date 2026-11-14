@@ -5,6 +5,7 @@ package pagination_test
 
 import (
 	"fmt"
+	"slices"
 	"strings"
 	"testing"
 
@@ -172,7 +173,8 @@ func TestInferWalks_LeavesAPostItCannotTellFromACreate(t *testing.T) {
 // TestInferWalks_ReadsNoBodyOfAMethodThatIsNoSearch holds a PUT, a PATCH and a
 // DELETE, whose bodies state what to store, change or remove, to never being
 // read as a walk, whatever members the body names: no walk, and no finding,
-// as a body read as the walk's places would draw one for the method.
+// as a body read as the walk's places would draw one for the method, but the
+// info a DELETE's body draws, which HTTP gives no semantics.
 func TestInferWalks_ReadsNoBodyOfAMethodThatIsNoSearch(t *testing.T) {
 	t.Parallel()
 	for _, method := range []string{"put", "patch", "delete"} {
@@ -180,7 +182,9 @@ func TestInferWalks_ReadsNoBodyOfAMethodThatIsNoSearch(t *testing.T) {
 			t.Parallel()
 			doc, diags := compile(t, searchDoc(method, "", searchPage, okResult), openapi.Options{})
 			assert.Nil(t, openapitest.FindOp(t, doc, "search").Pagination)
-			assert.Empty(t, diags)
+			assert.Empty(t, slices.DeleteFunc(diags, func(d ir.Diagnostic) bool {
+				return method == "delete" && d.Code == "openapi/body-without-semantics"
+			}))
 		})
 	}
 }

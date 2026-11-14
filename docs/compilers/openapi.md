@@ -4924,8 +4924,6 @@ written.
   `lowering.TestNormalizeMediaType_CollapsesTheSpellingsOneMediaTypeHas`,
   `operation.TestContent_AMediaTypeRefHoldingNoStringLowersNothing`,
   `naming.TestAt_NamesASchemaAfterItsOwner`
-- Status: partly built: a multipart body that is not an object, and a body on a GET, pass in silence
-  (#649).
 
 ### `request-body`
 
@@ -4937,10 +4935,25 @@ schema admits and 3.2 says SHOULD hold an entry, lowers to a `Payload` with no C
 all three and its `x-*`, reported as an `openapi/empty-request-content` warning at the map; a
 `content` left out is [`minor-required-fields`](#minor-required-fields)'.
 
+A request body lowers on every method, the method compared as written, as HTTP compares one (RFC
+9110 §9.1). On `GET`, `HEAD` or `DELETE`, for which HTTP defines a body no semantics (RFC 9110
+§9.3.1, §9.3.2, §9.3.5), it is reported as an info `openapi/body-without-semantics` at the
+operation's `requestBody`: OpenAPI 3.0 has a consumer ignore it and later versions advise against
+it, but APIs do take one, the golden spec declaring `DELETE` bodies its API reads, so a warning
+would rate a working operation a likely mistake. On `TRACE` or `CONNECT`, the latter reachable only
+as a 3.2 `additionalOperations` key, HTTP has a client send no body (§9.3.8: "A client MUST NOT
+send content in a TRACE request"; §9.3.6: a CONNECT request "does not have content"), so the
+document likely says other than its author means: a warning `openapi/body-forbidden-by-method` at
+the `requestBody`. `OPTIONS` draws neither, as RFC 9110 leaves its content to the resource.
+
 - Cases: `empty-request-content`, `request-body-docs`
-- Codes: `openapi/empty-request-content`
+- Codes: `openapi/empty-request-content`, `openapi/body-without-semantics`,
+  `openapi/body-forbidden-by-method`
 - Tests: `operation.TestContent_NonRequiredRequestBody`,
-  `operation.TestLowerRequestBody_AnEmptyContentKeepsTheBody`
+  `operation.TestLowerRequestBody_AnEmptyContentKeepsTheBody`,
+  `operation.TestRequestBody_OnAMethodWithoutSemantics`,
+  `operation.TestRequestBody_OnAMethodThatForbidsOne`, `e2e.TestBodies_ThreeFindingsOfOneDocument`,
+  `e2e.TestBodies_AMethodThatForbidsOne`
 
 ### `file-bodies`
 
@@ -5208,6 +5221,12 @@ every catch-all value schema the part walk meets. An encoding that says nothing 
 a holder whose parts say nothing gets no key. A body that is a map declares no part, so every form
 body stating a schema is settled, though the walk finds no part.
 
+A `multipart/form-data` or `application/x-www-form-urlencoded` body stating a schema that is no
+file body, and whose type, read through its unions, stands for no model, no map and not the top
+type, names no part to send, as an array of strings does: it is reported as a warning
+`openapi/partless-form-body` at the schema and lowers as declared. A union read past its bound is
+not judged, and nor is a type reaching no node, which load reports.
+
 `contentType` lowers to `ContentTypes`, split on `,` and trimmed with empty items dropped, and one
 naming no media type is an `openapi/validation` error ([`validation`](#validation)); and `headers`
 to `Headers`, lowered as a response's are, under a multipart media type, the only kind OpenAPI
@@ -5298,7 +5317,8 @@ in any case.
 - Cases: `multipart-encoding`, `file-media`, `encoding-unkeyed`, `multipart-defaults-30`,
   `multipart-defaults-31`, `multipart-defaults-32`, `encoding-union-branches`, `encoding-outside-form`,
   `catch-all-encoding`
-- Codes: `openapi/degraded-construct`, `openapi/unknown-encoding-key`, `openapi/validation`
+- Codes: `openapi/degraded-construct`, `openapi/unknown-encoding-key`, `openapi/validation`,
+  `openapi/partless-form-body`
 - Tests: `operation.TestContent_MultipartPartEncoding`,
   `oas.TestCheck_EncodingsApplyWhereTheSpecificationSays`, `oas.TestEncodingRules_AnswerAsTheTableDoes`,
   `operation.TestContent_ArrayMultipartPartMulti`,
@@ -5350,7 +5370,8 @@ in any case.
   `operation.TestPartMembers_AModelNarrowingAUnionHasItsShapesMembers`,
   `operation.TestShapeFlattenings_ReadsShapesWithinItsLimit`,
   `operation.TestPartEncodings_AKeptEntryIsPlacedInTheDocumentDeclaringIt`,
-  `operation.TestPartKeys_KeysACatchAll`, `e2e.TestCatchAllEncoding_IsKeptAndVerifies`
+  `operation.TestPartKeys_KeysACatchAll`, `e2e.TestCatchAllEncoding_IsKeptAndVerifies`,
+  `operation.TestPartless_FormBodyWithNoObject`
 
 ### `encoding-allow-reserved`
 

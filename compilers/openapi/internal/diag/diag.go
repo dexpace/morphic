@@ -454,6 +454,19 @@ const (
 	// (docs/compilers/openapi.md#reference-object-siblings). Info: nothing is
 	// lost, and the entry leaves when the field arrives.
 	UnhomedConstruct = "openapi/unhomed-construct"
+	// PartlessFormBody reports a multipart/form-data or url-encoded body whose
+	// schema stands for no object, so it names no part to send
+	// (docs/compilers/openapi.md#multipart-encoding). A warning: the body
+	// lowers as declared, and the document likely says other than it means.
+	PartlessFormBody = "openapi/partless-form-body"
+	// BodyWithoutSemantics reports a request body on a GET, HEAD or DELETE, for
+	// which HTTP defines no semantics (docs/compilers/openapi.md#request-body).
+	// An info: the body lowers as declared, and APIs do take one.
+	BodyWithoutSemantics = "openapi/body-without-semantics"
+	// BodyForbiddenByMethod reports a request body on a TRACE or CONNECT, which
+	// HTTP has a client send none with (docs/compilers/openapi.md#request-body).
+	// A warning: the body lowers as declared, and none can be sent.
+	BodyForbiddenByMethod = "openapi/body-forbidden-by-method"
 	// UnknownKeyBudget reports an object declaring more keys the model does not
 	// name than the compiler keeps, so the ones past the bound reached the IR in no
 	// form at all.

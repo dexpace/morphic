@@ -744,6 +744,15 @@
         "source": 0,
         "pointer": "/paths/~1literal/post/requestBody/content/multipart~1form-data/encoding/file"
       }
+    },
+    {
+      "severity": "warning",
+      "code": "openapi/partless-form-body",
+      "message": "form body's schema declares no object, so it names no part to send; lowered as declared",
+      "provenance": {
+        "source": 0,
+        "pointer": "/paths/~1literal/post/requestBody/content/multipart~1form-data/schema"
+      }
     }
   ],
   "sources": [
