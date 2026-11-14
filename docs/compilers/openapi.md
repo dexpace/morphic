@@ -5309,12 +5309,14 @@ A link that does not lower whole is kept verbatim on its response under `openapi
   `operation.TestLinks_ASharedResponseResolvesPerOperation`,
   `operation.TestLinks_MediaTypesDisagreeingOnAMember`,
   `operation.TestLinks_AHeaderTwoCasesDeclareIsNeither`,
+  `operation.TestLinks_AHeaderIsReadOffItsOwnResponse`,
   `operation.TestLinks_LowerAlikeInEitherDeclarationOrder`,
-  `operation.TestLinksResolve_IndexesEachListOnce`,
   `operation.TestLinksResolve_AllocatesLinearInWhatItReads`,
-  `operation.TestParseExpression_ReadsTheGrammar`,
-  `operation.TestEmbedsExpression_FindsAnExpressionInBraces`,
-  `operation.TestEmbedsExpression_AllocatesNothing`,
+  `runtimeexpr.TestParse_ReadsTheGrammar`,
+  `runtimeexpr.TestEmbeds_FindsAnExpressionInBraces`,
+  `runtimeexpr.TestEmbeds_AllocatesNothing`,
+  `runtimeexpr.TestBodyPath_WalksEveryContentToTheSameMembers`,
+  `runtimeexpr.TestLookups_IndexEachListOnceWhenAValueFirstReadsIt`,
   `e2e.TestUnpreservable_AnnouncementNeverOutrunsTheEntry`
 - Status: partly built: a key beside a link's `$ref` other than `summary` and `description` is
   dropped with no record, as beside any other reference (#1321). A body whose media types hold
@@ -5649,8 +5651,9 @@ how operations are arranged rather than filling a fact a node holds.
    rule reads, is met where the document has not spoken, and which then declines to fill the fact,
    reports an info `openapi/undecided-<fact>` saying why.
 5. **Placement and order.** A fact read once the document is whole is read in a package named for
-   the fact or for the convention, which imports only `ir` and the compiler's `diag` and
-   `lowering`, and so nothing of the walks that built the document. The compiler's run reads them
+   the fact or for the convention, which imports only `ir`, the compiler's `diag` and `lowering`,
+   and `runtimeexpr` where it reads an expression the document writes, and so nothing of the walks
+   that built the document. The compiler's run reads them
    in one block, in one order: links ([`links`](#links)), then promotions, then inferences, so an
    inference sees what every promotion filled. The audits of what the policies read come last, once
    the document's own keys are merged in as well. A reading a node needs while it lowers, as
@@ -5663,10 +5666,8 @@ how operations are arranged rather than filling a fact a node holds.
   `pagination.TestInferWalks_LeavesWhatAnExtensionSpeaksOf`,
   `replacement.TestMessage_YieldsToWhatTheDocumentSays`, `convention.TestRedact_LeavesWhatTheDocumentSays`,
   `convention.TestIdempotency_ReportsWhatItCannotSettle`, `e2e.TestConventions_DisabledFillsNothing`
-- Status: partly built: the pagination promotion ([`extension-pagination`](#extension-pagination))
-  is read in `operation`, whose reader of runtime expressions it shares with the links, rather than
-  in a package of its own (#1905); and the streaming and binary policies mark `streaming-media-type`
-  and `binary-media-type`, which their options `streaming-inference` and `binary-inference` do not
+- Status: partly built: the streaming and binary policies mark `streaming-media-type` and
+  `binary-media-type`, which their options `streaming-inference` and `binary-inference` do not
   spell, while nullable widening marks `nullable-widening`, a name for the reading rather than the
   fact (#1847).
 
@@ -5965,25 +5966,27 @@ a source of a pagination target names, where this rule reads that source: on the
 expression, and for a mark on a parameter, a member of the request's body or of a page's, a success
 response's header or the type one of them names, however many operations reach it. A value filling a
 pagination, one resolving to nothing or refused, `false`, and one stating nothing a source can read
-speak alike. `PromotePagination` returns the operations it reads that so speak, by ID, as the set a
+speak alike. `Promote` returns the operations it reads that so speak, by ID, as the set a
 step inferring a pagination reads in place of their extensions, and marks no node for a pagination
 it does not fill. A key written anywhere else, such as on an error response, in a media type that
 streams, or as a mark on the operation itself, is read by no source, so it speaks of nothing.
 
 - Cases: `extension-pagination`
 - Codes: `openapi/degraded-construct`
-- Tests: `operation.TestPromotePagination_FillsWhatTheExtensionsDeclare`,
-  `operation.TestPromotePagination_ReportsWhatFillsNone`,
-  `operation.TestPromotePagination_ReadsEverySuccessResponse`,
-  `operation.TestPromotePagination_ReadsNothingOffPolicy`,
-  `operation.TestPromotePagination_SaysWhichOperationsSpeakOfAPagination`,
-  `operation.TestPromotePagination_ReportsEachValueAKeyHolds`,
-  `operation.TestPromotePagination_StatedReadsEitherSidesKey`,
-  `operation.TestPromotePagination_StatedIsIndependentOfDeclarationOrder`,
-  `operation.TestPromotePagination_StatesNothingOffPolicy`,
-  `operation.TestPromotePagination_ReadsNoOperationHoldingOne`,
+- Tests: `pagination.TestPromote_FillsWhatTheExtensionsDeclare`,
+  `pagination.TestPromote_ReportsWhatFillsNone`,
+  `pagination.TestPromote_ReadsEverySuccessResponse`,
+  `pagination.TestPromote_ReadsNothingOffPolicy`,
+  `pagination.TestPromote_SaysWhichOperationsSpeakOfAPagination`,
+  `pagination.TestPromote_ReportsEachValueAKeyHolds`,
+  `pagination.TestPromote_StatedReadsEitherSidesKey`,
+  `pagination.TestPromote_StatedIsIndependentOfDeclarationOrder`,
+  `pagination.TestPromote_StatesNothingOffPolicy`,
+  `pagination.TestPromote_ReadsNoOperationHoldingOne`,
+  `pagination.TestPromote_ReadsAHeaderOffItsOwnOperation`,
+  `pagination.TestPromote_AllocatesLinearInWhatItReads`,
   `lowering.TestOperations_ReadsEveryGroupToTheCap`,
-  `operation.TestMarker_AUseOfATypeTheRegistryLacksMarksNothing`,
+  `pagination.TestMarker_AUseOfATypeTheRegistryLacksMarksNothing`,
   `lowering.TestPageStatementOf_ReadsAnExpressionOrAMark`,
   `lowering.TestPageStatementOf_ReportsWhatStatesNoValueOfAWalk`,
   `pagination.TestInferWalks_LeavesWhatAnExtensionSpeaksOf`

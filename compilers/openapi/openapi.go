@@ -237,7 +237,7 @@ func run(ctx context.Context, c lowering.Ctx, ts *compile.Types) (*ir.Document, 
 	// pagination inference passes over, by the precedence
 	// docs/compilers/openapi.md#policies gives: what they say of one, even that
 	// there is none, wins over what the names an operation uses suggest.
-	stated, pageDiags := operation.PromotePagination(c, &out.Services[0], reg)
+	stated, pageDiags := pagination.Promote(c, &out.Services[0], reg)
 	acc.AppendAll(pageDiags)
 	acc.AppendAll(replacement.Resolve(c, out))
 	acc.AppendAll(replacement.Infer(c, out))

@@ -4,10 +4,9 @@
 package operation
 
 import (
-	"strings"
-
 	yaml "go.yaml.in/yaml/v3"
 
+	"github.com/dexpace/morphic/compilers/openapi/internal/runtimeexpr"
 	"github.com/dexpace/morphic/compilers/openapi/internal/value"
 	"github.com/dexpace/morphic/ir"
 )
@@ -15,7 +14,7 @@ import (
 // exchange is the request and response a link reads values from: a response
 // of from, at. lk indexes what the reads name.
 type exchange struct {
-	lk   *lookups
+	lk   *runtimeexpr.Lookups
 	from *ir.Operation
 	at   responseView
 }
@@ -36,13 +35,13 @@ func (ex exchange) value(node *yaml.Node) (ir.LinkValue, *linkFailure) {
 		}
 		return ir.LinkValue{Kind: ir.LinkConstant, Constant: &v}, nil
 	}
-	e, isExpression, err := parseExpression(v.Str)
+	e, isExpression, err := runtimeexpr.Parse(v.Str)
 	switch {
 	case err != nil:
 		return ir.LinkValue{}, invalid("passes %q, which breaks the runtime expression grammar", v.Str)
 	case isExpression:
 		return ex.read(e)
-	case embedsExpression(v.Str):
+	case runtimeexpr.Embeds(v.Str):
 		return ir.LinkValue{}, untyped("passes %q, a string an expression is substituted into", v.Str)
 	default:
 		return ir.LinkValue{Kind: ir.LinkConstant, Constant: &v}, nil
@@ -60,7 +59,7 @@ func substitutedString(v *ir.Value) (string, bool) {
 		stack = stack[:len(stack)-1]
 		switch top.Kind {
 		case ir.ValueString:
-			if embedsExpression(top.Str) {
+			if runtimeexpr.Embeds(top.Str) {
 				return top.Str, true
 			}
 		case ir.ValueList:
@@ -82,15 +81,15 @@ func substitutedString(v *ir.Value) (string, bool) {
 }
 
 // read lowers the value e reads of the exchange.
-func (ex exchange) read(e expression) (ir.LinkValue, *linkFailure) {
-	switch e.source {
-	case exprURL:
+func (ex exchange) read(e runtimeexpr.Expression) (ir.LinkValue, *linkFailure) {
+	switch e.Source {
+	case runtimeexpr.SourceURL:
 		return ir.LinkValue{Kind: ir.LinkURL}, nil
-	case exprMethod:
+	case runtimeexpr.SourceMethod:
 		return ir.LinkValue{Kind: ir.LinkMethod}, nil
-	case exprStatusCode:
+	case runtimeexpr.SourceStatusCode:
 		return ir.LinkValue{Kind: ir.LinkStatus}, nil
-	case exprRequest:
+	case runtimeexpr.SourceRequest:
 		return ex.request(e)
 	default:
 		return ex.response(e)
@@ -99,18 +98,18 @@ func (ex exchange) read(e expression) (ir.LinkValue, *linkFailure) {
 
 // request lowers what e reads of the request: its body or a member of it, or
 // a parameter of from.
-func (ex exchange) request(e expression) (ir.LinkValue, *linkFailure) {
-	if e.part == exprBody {
-		segments, failed := bodyPath(ex.lk, ex.from.Request, e.tokens, "request")
-		if failed != nil {
-			return ir.LinkValue{}, failed
+func (ex exchange) request(e runtimeexpr.Expression) (ir.LinkValue, *linkFailure) {
+	if e.Part == runtimeexpr.PartBody {
+		segments, why, ok := runtimeexpr.BodyPath(ex.lk, ex.from.Request, e.Tokens, "request")
+		if !ok {
+			return ir.LinkValue{}, untyped("%s", why)
 		}
 		return ir.LinkValue{Kind: ir.LinkRequest, Request: &ir.InputPath{Segments: segments}}, nil
 	}
-	found := ex.lk.paramIndex(ex.from).Bound(ir.HTTPLocation(e.part), e.name)
+	found := ex.lk.ParamIndex(ex.from).Bound(ir.HTTPLocation(e.Part), e.Name)
 	if len(found) != 1 {
 		return ir.LinkValue{}, untyped("reads %s parameter %q, which operation %q does not declare once",
-			e.part, e.name, ex.from.ID)
+			e.Part, e.Name, ex.from.ID)
 	}
 	return ir.LinkValue{Kind: ir.LinkRequest, Request: &ir.InputPath{Param: &found[0]}}, nil
 }
@@ -118,70 +117,29 @@ func (ex exchange) request(e expression) (ir.LinkValue, *linkFailure) {
 // response lowers what e reads of the response: its body or a member of it, or
 // one of its headers. A header the response declares twice, in two cases, is
 // no one header: either would be a choice the source does not make.
-func (ex exchange) response(e expression) (ir.LinkValue, *linkFailure) {
-	switch e.part {
-	case exprBody:
-		segments, failed := bodyPath(ex.lk, ex.at.payload, e.tokens, "response")
-		if failed != nil {
-			return ir.LinkValue{}, failed
+func (ex exchange) response(e runtimeexpr.Expression) (ir.LinkValue, *linkFailure) {
+	switch e.Part {
+	case runtimeexpr.PartBody:
+		segments, why, ok := runtimeexpr.BodyPath(ex.lk, ex.at.payload, e.Tokens, "response")
+		if !ok {
+			return ir.LinkValue{}, untyped("%s", why)
 		}
 		return ir.LinkValue{Kind: ir.LinkResponse, Response: &ir.PropPath{Segments: segments}}, nil
-	case exprHeader:
-		found := ex.lk.header(ex.at, e.name)
+	case runtimeexpr.PartHeader:
+		found := ex.lk.Header(ex.at.key, ex.at.headers, e.Name)
 		if len(found) != 1 {
-			return ir.LinkValue{}, untyped("reads response header %q, which the response does not declare once", e.name)
+			return ir.LinkValue{}, untyped("reads response header %q, which the response does not declare once", e.Name)
 		}
 		return ir.LinkValue{Kind: ir.LinkResponse, Response: &ir.PropPath{In: "header", Segments: found}}, nil
 	default:
-		return ir.LinkValue{}, invalid("reads the response's %s parameter %q, which no response carries", e.part, e.name)
+		return ir.LinkValue{}, invalid("reads the response's %s parameter %q, which no response carries", e.Part, e.Name)
 	}
-}
-
-// bodyPath returns the members tokens walk to from the root of every content
-// of p, the body of side, and none for the body whole. Each content must walk
-// to the same members: the link reads one value whichever media type arrives.
-// A member is one declaration, so two contents that reach the same one first
-// walk the same chain from there, and only the first step can tell them apart.
-// Each other content's model is flattened for that step, once per Resolve:
-// several media types holding distinct models that compose one wide model cost
-// that model's width each (#1723).
-func bodyPath(lk *lookups, p *ir.Payload, tokens []string, side string) ([]ir.PropID, *linkFailure) {
-	if p == nil || len(p.Contents) == 0 {
-		return nil, untyped("reads a %s body the document does not describe", side)
-	}
-	if len(tokens) == 0 {
-		return nil, nil
-	}
-	first := &p.Contents[0]
-	segments, ok := lk.walk(first.Type.Target, tokens)
-	if !ok {
-		return nil, noChain(tokens, side, first.MediaType)
-	}
-	for i := 1; i < len(p.Contents); i++ {
-		ct := &p.Contents[i]
-		member, ok := lk.member(ct.Type.Target, tokens[0])
-		if !ok {
-			return nil, noChain(tokens, side, ct.MediaType)
-		}
-		if member.ID != segments[0] {
-			return nil, untyped("reads /%s, which the %s body's media types hold as different members",
-				strings.Join(tokens, "/"), side)
-		}
-	}
-	return segments, nil
-}
-
-// noChain is a body read whose tokens walk no chain of members from the root of
-// the content of side's body of mediaType.
-func noChain(tokens []string, side, mediaType string) *linkFailure {
-	return untyped("reads /%s, which the %s body's %s content holds as no chain of members",
-		strings.Join(tokens, "/"), side, mediaType)
 }
 
 // targetParam returns the parameter of op that a link's parameters key names
 // (lowering.ParamIndex.Named), which must name one parameter only.
-func targetParam(lk *lookups, op *ir.Operation, key string) (ir.ParamID, *linkFailure) {
-	id, matched := lk.paramIndex(op).Named(key)
+func targetParam(lk *runtimeexpr.Lookups, op *ir.Operation, key string) (ir.ParamID, *linkFailure) {
+	id, matched := lk.ParamIndex(op).Named(key)
 	switch matched {
 	case 1:
 		return id, nil

@@ -1,7 +1,7 @@
 // Copyright (c) 2026 dexpace.
 // Licensed under the MIT License. See LICENSE in the repository root for details.
 
-package operation_test
+package pagination_test
 
 import (
 	"strings"
@@ -137,12 +137,12 @@ func renderPage(doc *ir.Document, op ir.Operation, p *ir.Pagination) string {
 		out("next", p.NextCursor) + out("link", p.NextLink) + out("total", p.TotalCount) + out("pages", p.TotalPages)
 }
 
-// TestPromotePagination_FillsWhatTheExtensionsDeclare pins each way a policy's
+// TestPromote_FillsWhatTheExtensionsDeclare pins each way a policy's
 // sources state a pagination that fills the field: an expression on the
 // operation, as a runtime expression or as the dotted shorthand, and a key
 // marking a parameter, a member or the type a member names. Each walk's
 // strategy is the input that continues it, or its next link.
-func TestPromotePagination_FillsWhatTheExtensionsDeclare(t *testing.T) {
+func TestPromote_FillsWhatTheExtensionsDeclare(t *testing.T) {
 	t.Parallel()
 	for _, tc := range []struct {
 		name, op, want string
@@ -219,12 +219,12 @@ func TestPromotePagination_FillsWhatTheExtensionsDeclare(t *testing.T) {
 	}
 }
 
-// TestPromotePagination_ReportsWhatFillsNone pins each pagination the
+// TestPromote_ReportsWhatFillsNone pins each pagination the
 // extensions state that fills nothing, reported at what stated it: a value
 // that resolves to nothing, a mark several nodes answer, a walk no pager can
 // advance or end, and a walk with no way to its next page. A pagination is
 // filled whole or not at all.
-func TestPromotePagination_ReportsWhatFillsNone(t *testing.T) {
+func TestPromote_ReportsWhatFillsNone(t *testing.T) {
 	t.Parallel()
 	query := func(names ...string) string {
 		out := "      parameters:\n"
@@ -318,7 +318,7 @@ func streamBeside(body string) string {
             text/event-stream: {schema: {type: string}}`
 }
 
-// TestPromotePagination_ReadsEverySuccessResponse pins a page value to the
+// TestPromote_ReadsEverySuccessResponse pins a page value to the
 // success responses and their media types alike, whether an expression or a
 // mark names it: each must hold it at one member, a response with no body
 // holding none, and a header no one member of all of them. A media type that
@@ -326,7 +326,7 @@ func streamBeside(body string) string {
 // none. It also pins what sources of one target that state values on one
 // operation do: the policy's first decides, and a later one naming another
 // value is reported, while one naming the same is not.
-func TestPromotePagination_ReadsEverySuccessResponse(t *testing.T) {
+func TestPromote_ReadsEverySuccessResponse(t *testing.T) {
 	t.Parallel()
 	for _, tc := range []struct {
 		name, op, want, report string
@@ -453,10 +453,10 @@ func TestPromotePagination_ReadsEverySuccessResponse(t *testing.T) {
 // queryC declares one string query parameter, c.
 const queryC = "      parameters:\n        - {name: c, in: query, schema: {type: string}}\n"
 
-// TestPromotePagination_ReadsNothingOffPolicy pins the walk to a policy that
+// TestPromote_ReadsNothingOffPolicy pins the walk to a policy that
 // maps a pagination target: under one mapping none, and under the policy off,
 // a document declaring one fills nothing and reports nothing.
-func TestPromotePagination_ReadsNothingOffPolicy(t *testing.T) {
+func TestPromote_ReadsNothingOffPolicy(t *testing.T) {
 	t.Parallel()
 	op := "      x-page: {link: $response.next}\n" + pageResponse
 	for name, policy := range map[string]openapi.ExtensionPromotions{
@@ -469,4 +469,33 @@ func TestPromotePagination_ReadsNothingOffPolicy(t *testing.T) {
 		assert.Nil(t, got.Pagination, name)
 		assert.Empty(t, diags, name)
 	}
+}
+
+// TestPromote_ReadsAHeaderOffItsOwnOperation pins that a page value read from a
+// header is the one its own operation's response declares, as two operations
+// each declare a header of the name: each response keeps its own index.
+func TestPromote_ReadsAHeaderOffItsOwnOperation(t *testing.T) {
+	t.Parallel()
+	operation := func(id string) string {
+		return `  /` + id + `:
+    get:
+      operationId: ` + id + `
+      x-page: {link: $response.header.Next}
+      responses:
+        "200": {description: ok, headers: {Next: {schema: {type: string}}}}
+`
+	}
+	doc, _ := compile(t, openapitest.PathsSpec(operation("a")+operation("b")), openapi.Options{Promotions: pagePolicy()})
+	next := map[ir.PropID]string{}
+	for _, name := range []string{"a", "b"} {
+		op := openapitest.FindOp(t, doc, name)
+		require.Len(t, op.Responses, 1, name)
+		require.Len(t, op.Responses[0].Headers, 1, name)
+		require.NotNil(t, op.Pagination, name)
+		require.NotNil(t, op.Pagination.NextLink, name)
+		own := op.Responses[0].Headers[0].ID
+		assert.Equal(t, &ir.PropPath{In: "header", Segments: []ir.PropID{own}}, op.Pagination.NextLink, name)
+		next[own] = name
+	}
+	assert.Len(t, next, 2, "the two operations declare two headers")
 }

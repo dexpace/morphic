@@ -1,7 +1,7 @@
 // Copyright (c) 2026 dexpace.
 // Licensed under the MIT License. See LICENSE in the repository root for details.
 
-package operation
+package pagination
 
 import (
 	"slices"
@@ -10,14 +10,15 @@ import (
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
+	"github.com/dexpace/morphic/compilers/openapi/internal/runtimeexpr"
 	"github.com/dexpace/morphic/ir"
 )
 
 // The shorthand a pagination expression may take instead of a runtime
 // expression: a dotted chain of names after the side it reads.
 const (
-	shorthandRequest  = "$" + exprRequest + "."
-	shorthandResponse = "$" + exprResponse + "."
+	shorthandRequest  = "$" + runtimeexpr.SourceRequest + "."
+	shorthandResponse = "$" + runtimeexpr.SourceResponse + "."
 )
 
 // resolved is what one source of a pagination target names on an operation:
@@ -38,14 +39,14 @@ type resolved[T any] struct {
 // pagination. A later source naming another value is reported and loses, as it
 // does for every target.
 func firstResolved[T any](pg *pager, op *ir.Operation, target lowering.ExtensionTarget,
-	resolve func(lowering.ExtensionSource) (resolved[T], string, []ir.Diagnostic), same func(T, T) bool,
+	read func(lowering.ExtensionSource) (resolved[T], string, []ir.Diagnostic), same func(T, T) bool,
 ) (resolved[T], bool, []ir.Diagnostic) {
 	var kept resolved[T]
 	var first lowering.ExtensionSource
 	var diags []ir.Diagnostic
 	written := false
 	for _, src := range pg.p.Sources(target) {
-		r, failure, readDiags := resolve(src)
+		r, failure, readDiags := read(src)
 		diags = append(diags, readDiags...)
 		written = written || r.written
 		switch {
@@ -118,16 +119,16 @@ func sameOutput(a, b *ir.PropPath) bool {
 // where no parameter carries it, a member of the body. It returns why it
 // resolves nothing.
 func (pg *pager) requestValue(op *ir.Operation, text string) (*ir.InputPath, string) {
-	if e, isExpression, err := parseExpression(text); isExpression && err == nil {
-		if e.source != exprRequest {
+	if e, isExpression, err := runtimeexpr.Parse(text); isExpression && err == nil {
+		if e.Source != runtimeexpr.SourceRequest {
 			return nil, "names no value of the request"
 		}
-		if e.part == exprBody {
-			return pg.bodyInput(op, e.tokens)
+		if e.Part == runtimeexpr.PartBody {
+			return pg.bodyInput(op, e.Tokens)
 		}
-		found := pg.lk.paramIndex(op).Bound(ir.HTTPLocation(e.part), e.name)
+		found := pg.lk.ParamIndex(op).Bound(ir.HTTPLocation(e.Part), e.Name)
 		if len(found) != 1 {
-			return nil, "reads " + e.part + " parameter " + strconv.Quote(e.name) + ", which the operation does not declare once"
+			return nil, "reads " + e.Part + " parameter " + strconv.Quote(e.Name) + ", which the operation does not declare once"
 		}
 		return &ir.InputPath{Param: &found[0]}, ""
 	}
@@ -136,7 +137,7 @@ func (pg *pager) requestValue(op *ir.Operation, text string) (*ir.InputPath, str
 	if !ok || slices.Contains(names, "") {
 		return nil, "is no expression naming a value of the request"
 	}
-	switch found := pg.lk.paramIndex(op).Bound("", names[0]); len(found) {
+	switch found := pg.lk.ParamIndex(op).Bound("", names[0]); len(found) {
 	case 0:
 		return pg.bodyInput(op, names)
 	case 1:
@@ -149,9 +150,9 @@ func (pg *pager) requestValue(op *ir.Operation, text string) (*ir.InputPath, str
 // bodyInput is the member of op's request body tokens walk to, the body whole
 // for none.
 func (pg *pager) bodyInput(op *ir.Operation, tokens []string) (*ir.InputPath, string) {
-	segments, failed := bodyPath(pg.lk, op.Request, tokens, "request")
-	if failed != nil {
-		return nil, failed.reason
+	segments, why, ok := runtimeexpr.BodyPath(pg.lk, op.Request, tokens, "request")
+	if !ok {
+		return nil, why
 	}
 	return &ir.InputPath{Segments: segments}, ""
 }
@@ -168,7 +169,7 @@ func (pg *pager) paramInput(op *ir.Operation, id ir.ParamID, names []string) (*i
 		// A binding names only a parameter its operation holds.
 		return nil, "names parameter " + string(id) + ", which a binding names and the operation does not hold"
 	}
-	segments, ok := pg.lk.walk(op.Params[i].Type.Target, names)
+	segments, ok := pg.lk.Walk(op.Params[i].Type.Target, names)
 	if !ok {
 		return nil, "reads " + strings.Join(names, ".") + " of parameter " + strconv.Quote(op.Params[i].Name.Source) +
 			", which holds no such chain of members"
@@ -182,16 +183,16 @@ func (pg *pager) paramInput(op *ir.Operation, id ir.ParamID, names []string) (*i
 // or the shorthand `$response.` and a dotted chain of the body's members. It
 // returns why it resolves nothing.
 func (pg *pager) responseValue(op *ir.Operation, text string) (*ir.PropPath, string) {
-	if e, isExpression, err := parseExpression(text); isExpression && err == nil {
+	if e, isExpression, err := runtimeexpr.Parse(text); isExpression && err == nil {
 		switch {
-		case e.source != exprResponse:
+		case e.Source != runtimeexpr.SourceResponse:
 			return nil, "names no value of a page"
-		case e.part == exprBody:
-			return pg.bodyOutput(op, e.tokens)
-		case e.part == exprHeader:
-			return pg.headerOutput(op, e.name)
+		case e.Part == runtimeexpr.PartBody:
+			return pg.bodyOutput(op, e.Tokens)
+		case e.Part == runtimeexpr.PartHeader:
+			return pg.headerOutput(op, e.Name)
 		default:
-			return nil, "reads a response's " + e.part + " parameter, which no response carries"
+			return nil, "reads a response's " + e.Part + " parameter, which no response carries"
 		}
 	}
 	rest, ok := strings.CutPrefix(text, shorthandResponse)
@@ -212,10 +213,10 @@ func (pg *pager) bodyOutput(op *ir.Operation, tokens []string) (*ir.PropPath, st
 		if body == nil {
 			continue
 		}
-		segments, failed := bodyPath(pg.lk, body, tokens, "response")
+		segments, why, ok := runtimeexpr.BodyPath(pg.lk, body, tokens, "response")
 		switch {
-		case failed != nil:
-			return nil, failed.reason
+		case !ok:
+			return nil, why
 		case out == nil:
 			out = &ir.PropPath{Segments: segments}
 		case !slices.Equal(out.Segments, segments):
@@ -236,7 +237,7 @@ func (pg *pager) headerOutput(op *ir.Operation, name string) (*ir.PropPath, stri
 	}
 	var out *ir.PropPath
 	for i := range op.Responses {
-		found := pg.lk.header(responseSlot{list: slotResponses, index: i}.in(op), name)
+		found := pg.lk.Header(runtimeexpr.ResponseKey{Op: op.ID, Index: i}, op.Responses[i].Headers, name)
 		switch {
 		case len(found) != 1:
 			return nil, "reads response header " + strconv.Quote(name) + ", which a success response does not declare once"
@@ -270,12 +271,12 @@ func pageBody(body *ir.Payload) *ir.Payload {
 	case len(body.Contents):
 		return nil
 	}
-	page := *body
-	page.Contents = make([]ir.Content, 0, len(body.Contents)-streaming)
+	kept := *body
+	kept.Contents = make([]ir.Content, 0, len(body.Contents)-streaming)
 	for i := range body.Contents {
 		if body.Contents[i].Stream == nil {
-			page.Contents = append(page.Contents, body.Contents[i])
+			kept.Contents = append(kept.Contents, body.Contents[i])
 		}
 	}
-	return &page
+	return &kept
 }

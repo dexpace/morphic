@@ -514,7 +514,7 @@ func appliers() []func(lowering.Promoter, ir.Unmodeled) (bool, []ir.Diagnostic) 
 			return len(methods) > 0, diags
 		},
 		// A pagination is filled once its document is whole, from what each of
-		// its targets' sources says (operation.PromotePagination): what is read
+		// its targets' sources says (pagination.Promote): what is read
 		// here is that statement.
 		func(p lowering.Promoter, unmodeled ir.Unmodeled) (bool, []ir.Diagnostic) {
 			var stated bool
