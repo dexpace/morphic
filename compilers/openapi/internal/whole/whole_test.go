@@ -125,13 +125,28 @@ type bodyShape struct {
 	// taken is the declaration the root takes for a wire name where more than
 	// one model declares it.
 	taken map[string]ir.PropID
-	// union is set where the root is a union, which has no member of its own.
-	union bool
+	// none is set where the root stands for no model: a union, which has no
+	// member of its own, or the head of more alias scalars than Stands reads.
+	none bool
 }
 
-// bodyShapes are the roots a body names: through an alias, composed, redeclared
-// and as a union.
+// aliasChain is length alias scalars, named name and a number from 000, each
+// standing for the next and the last for to.
+func aliasChain(name string, length int, to ir.TypeID) []ir.TypeDef {
+	at := func(i int) ir.TypeID { return ir.TypeID(fmt.Sprintf("%s%03d", name, i)) }
+	defs := make([]ir.TypeDef, 0, length)
+	for i := range length - 1 {
+		defs = append(defs, irtest.ScalarOf(at(i), at(i+1)))
+	}
+	return append(defs, irtest.ScalarOf(at(length-1), to))
+}
+
+// bodyShapes are the roots a body names: through an alias, composed, redeclared,
+// as a union and through alias chains to the cap and past it.
 func bodyShapes() map[string]bodyShape {
+	chained := func(length int) ir.TypeRegistry {
+		return irtest.DocOf(append(aliasChain("body", length, "m"), model("m", nil, prop("m.a", "a", "string")))...).Types
+	}
 	nullable := func(id ir.PropID, wire string, target ir.TypeID) ir.Property {
 		p := prop(id, wire, target)
 		p.Type.Nullable = true
@@ -172,20 +187,25 @@ func bodyShapes() map[string]bodyShape {
 		"a oneOf body": {
 			types: irtest.DocOf(&ir.Union{ID: "u", Exclusive: true, Variants: []ir.Variant{{Type: ir.TypeRef{Target: "m"}}}},
 				model("m", nil, prop("m.n", "n", "string"))).Types,
-			root: "u", union: true,
+			root: "u", none: true,
 		},
 		"an anyOf body": {
 			types: irtest.DocOf(&ir.Union{ID: "u", Variants: []ir.Variant{{Type: ir.TypeRef{Target: "m"}}}},
 				model("m", nil, prop("m.n", "n", "string"))).Types,
-			root: "u", union: true,
+			root: "u", none: true,
+		},
+		"an alias chain to the cap": {types: chained(whole.MaxAliasHops), root: "body000"},
+		"an alias chain past the cap": {
+			types: chained(whole.MaxAliasHops + 1), root: "body000", none: true,
 		},
 	}
 }
 
 // TestDocument_MemberAgreesWithMembers holds Member to the flattening Members
 // reads, for each shape of body: every wire name of the flattening names the
-// property Members lists, a name outside it names none, and a union body has no
-// member whatever its variants declare.
+// property Members lists, a name outside it names none, and a body standing
+// for no model, a union or a chain of aliases past the cap, has no member
+// whatever the types it names declare.
 func TestDocument_MemberAgreesWithMembers(t *testing.T) {
 	t.Parallel()
 	for name, shape := range bodyShapes() {
@@ -193,11 +213,11 @@ func TestDocument_MemberAgreesWithMembers(t *testing.T) {
 			t.Parallel()
 			w := whole.New(&ir.Document{Types: shape.types})
 			members := w.Members(shape.root)
-			if shape.union {
+			if shape.none {
 				assert.Empty(t, members)
 				for _, wire := range []string{"n", "a", "absent"} {
 					_, ok := w.Member(shape.root, wire)
-					assert.False(t, ok, "a union has no member %q", wire)
+					assert.False(t, ok, "a body standing for no model has no member %q", wire)
 				}
 				return
 			}
@@ -266,22 +286,14 @@ func TestDocument_WalkNamesEachMemberFromTheRoot(t *testing.T) {
 // a typed nil.
 func TestDocument_StandsReadsThroughAliasScalarsToTheCap(t *testing.T) {
 	t.Parallel()
-	chain := func(name string, length int) []ir.TypeDef {
-		at := func(i int) ir.TypeID { return ir.TypeID(fmt.Sprintf("%s%03d", name, i)) }
-		defs := make([]ir.TypeDef, 0, length)
-		for i := range length - 1 {
-			defs = append(defs, irtest.ScalarOf(at(i), at(i+1)))
-		}
-		return append(defs, irtest.ScalarOf(at(length-1), "m"))
-	}
 	defs := slices.Concat(
 		[]ir.TypeDef{
 			model("m", nil, prop("m.a", "a", "string")),
 			irtest.ScalarOf("loop1", "loop2"), irtest.ScalarOf("loop2", "loop1"),
 			irtest.ScalarOf("dangling", "gone"), irtest.ScalarOf("toNil", "nil"),
 		},
-		chain("ok", whole.MaxAliasHops),
-		chain("long", whole.MaxAliasHops+1),
+		aliasChain("ok", whole.MaxAliasHops, "m"),
+		aliasChain("long", whole.MaxAliasHops+1, "m"),
 	)
 	w := whole.New(&ir.Document{Types: irtest.DocOf(defs...).Types})
 	w.Types["nil"] = (*ir.Model)(nil)

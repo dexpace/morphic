@@ -104,17 +104,20 @@ func (w *Document) Stands(id ir.TypeID) ir.TypeDef {
 	return td
 }
 
-// Member returns the declaration the flattening of id takes for the wire name
-// wire (ir.MemberReader), id read through alias scalars, and false where id
-// names no model or the model holds no such member. Each answer is read once.
+// Member returns the declaration the flattening of the model id stands for
+// (Stands) takes for the wire name wire (ir.MemberReader), and false where id
+// stands for no model or the model holds no such member, so it reads a chain
+// of alias scalars as Members does. Each answer is read once.
 func (w *Document) Member(id ir.TypeID, wire string) (*ir.Property, bool) {
 	key := memberKey{id: id, wire: wire}
 	if p, read := w.taken[key]; read {
 		return p, p != nil
 	}
 	var p *ir.Property
-	if decl, ok := w.names.Member(id, wire); ok {
-		p = decl.Property
+	if m, ok := w.Stands(id).(*ir.Model); ok {
+		if decl, held := w.names.Member(m.ID, wire); held {
+			p = decl.Property
+		}
 	}
 	w.taken[key] = p
 	return p, p != nil

@@ -5328,7 +5328,8 @@ is not also kept on the document ([`unreferenced-components`](#unreferenced-comp
    response declares under that name in any case; and a `body` reference to the body whole, or to
    the chain of members its pointer walks from the root of every content of that body, which every
    content must walk alike. A root or a member typed as an alias of a model, as a schema that is a
-   `$ref` alone lowers, is read as that model, through any number of aliases.
+   `$ref` alone lowers, is read as that model, through a chain of at most 64 aliases, as every step
+   reading the finished document reads one.
 4. Its `server` registers as a server at the link's own pointer, and its extensions and undeclared
    keys stay on it.
 
