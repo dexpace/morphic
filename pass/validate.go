@@ -89,7 +89,9 @@ func validate(ctx context.Context, doc *ir.Document, walk walkFunc) ([]ir.Diagno
 // list and a map it keeps for the run, so a value with nothing wrong costs it
 // nothing but a step those or a log may grow by. The index it asks, facts,
 // allocates per index it builds and not per type it indexes (GitHub #1150).
+// The live types are sorted once for the run, and no family writes the list.
 func families(doc *ir.Document, read walked, facts *irfacts.Index) []func() []ir.Diagnostic {
+	live := liveTypeIDs(doc)
 	// A family that ranges a map sorts its keys first. A new family takes a row of
 	// twoFindings in validate_determinism_test.go, which holds it to one order.
 	return []func() []ir.Diagnostic{
@@ -101,20 +103,20 @@ func families(doc *ir.Document, read walked, facts *irfacts.Index) []func() []ir
 		func() []ir.Diagnostic { return checkEncodingKeys(doc, facts) },
 		func() []ir.Diagnostic { return checkPayloadRequired(doc) },
 		func() []ir.Diagnostic { return checkPropIDRefs(read.props, read.refs, read.truncated) },
-		func() []ir.Diagnostic { return checkDiscriminators(doc, facts) },
-		func() []ir.Diagnostic { return checkRepeatedVariants(doc) },
-		func() []ir.Diagnostic { return checkDuplicateWireNames(doc) },
-		func() []ir.Diagnostic { return checkAmbiguousAliases(doc) },
-		func() []ir.Diagnostic { return checkDuplicateMemberIDs(doc) },
+		func() []ir.Diagnostic { return checkDiscriminators(doc, live, facts) },
+		func() []ir.Diagnostic { return checkRepeatedVariants(doc, live) },
+		func() []ir.Diagnostic { return checkDuplicateWireNames(doc, live) },
+		func() []ir.Diagnostic { return checkAmbiguousAliases(doc, live) },
+		func() []ir.Diagnostic { return checkDuplicateMemberIDs(doc, live) },
 		func() []ir.Diagnostic { return checkParams(doc, read.refs) },
 		func() []ir.Diagnostic { return checkIdempotency(doc) },
 		func() []ir.Diagnostic { return checkMessageBindings(doc) },
 		func() []ir.Diagnostic { return checkOneWay(doc) },
 		func() []ir.Diagnostic { return checkDefaultResponses(doc) },
-		func() []ir.Diagnostic { return checkArgsOutsideGraphQL(doc) },
-		func() []ir.Diagnostic { return checkBounds(doc) },
-		func() []ir.Diagnostic { return checkValues(doc) },
-		func() []ir.Diagnostic { return checkKnots(doc) },
+		func() []ir.Diagnostic { return checkArgsOutsideGraphQL(doc, live) },
+		func() []ir.Diagnostic { return checkBounds(doc, live) },
+		func() []ir.Diagnostic { return checkValues(doc, live) },
+		func() []ir.Diagnostic { return checkKnots(doc, live) },
 	}
 }
 

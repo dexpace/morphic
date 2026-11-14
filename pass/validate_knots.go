@@ -376,8 +376,7 @@ func buildGraph(doc *ir.Document, ix typeIndex, composition bool, cyclic []bool)
 // warnings: the IR permits a composition cycle and a target reads it to its
 // fixpoint, so no target is refused (docs/ir/models.md). Each is told at every
 // type of the knot, naming the entry that leads on, the composition ones first.
-func checkKnots(doc *ir.Document) []ir.Diagnostic {
-	ids := liveTypeIDs(doc)
+func checkKnots(doc *ir.Document, ids []ir.TypeID) []ir.Diagnostic {
 	if len(ids) == 0 {
 		return nil
 	}

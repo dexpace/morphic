@@ -15,10 +15,10 @@ import (
 // checkDiscriminators reports discriminator mappings whose target either does
 // not exist or is not a legal variant/subtype, and a model discriminator whose
 // tag property the model does not expose. facts indexes doc.
-func checkDiscriminators(doc *ir.Document, facts *irfacts.Index) []ir.Diagnostic {
+func checkDiscriminators(doc *ir.Document, live []ir.TypeID, facts *irfacts.Index) []ir.Diagnostic {
 	var diags []ir.Diagnostic
 	var read mappingReads
-	for _, id := range liveTypeIDs(doc) {
+	for _, id := range live {
 		switch t := doc.Types[id].(type) {
 		case *ir.Union:
 			diags = append(diags, checkUnionDiscriminator(doc, t, &read)...)

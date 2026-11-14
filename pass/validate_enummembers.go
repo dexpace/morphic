@@ -18,10 +18,10 @@ import (
 // apart, which is what keying collision resolution by ID
 // (docs/emitters/refine/naming.md) rests on not happening. Every enum is read
 // through the same map, so none costs one of its own.
-func checkDuplicateMemberIDs(doc *ir.Document) []ir.Diagnostic {
+func checkDuplicateMemberIDs(doc *ir.Document, live []ir.TypeID) []ir.Diagnostic {
 	var diags []ir.Diagnostic
 	var members reuse.Map[ir.EnumMemberID, bool]
-	for _, id := range liveTypeIDs(doc) {
+	for _, id := range live {
 		enum, ok := doc.Types[id].(*ir.Enum)
 		if !ok {
 			continue

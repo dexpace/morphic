@@ -36,9 +36,9 @@ type position struct {
 // Not read: Property.Args, which is GraphQL's, and a resource's properties,
 // which no compiler writes (#1413). A stop of ir.ForEachOperation is the one
 // Validate reports for each check that visits operations.
-func eachPosition(doc *ir.Document, keys *[]ir.PropID, visit func(*position)) {
+func eachPosition(doc *ir.Document, live []ir.TypeID, keys *[]ir.PropID, visit func(*position)) {
 	var p position
-	for _, id := range liveTypeIDs(doc) {
+	for _, id := range live {
 		m, ok := doc.Types[id].(*ir.Model)
 		if !ok {
 			continue

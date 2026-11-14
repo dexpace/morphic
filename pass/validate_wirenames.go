@@ -13,10 +13,10 @@ import (
 // checkDuplicateWireNames reports wire-name collisions within a single model's
 // own properties. Every model is read through the same map, so none costs one
 // of its own.
-func checkDuplicateWireNames(doc *ir.Document) []ir.Diagnostic {
+func checkDuplicateWireNames(doc *ir.Document, live []ir.TypeID) []ir.Diagnostic {
 	var diags []ir.Diagnostic
 	var names reuse.Map[string, bool]
-	for _, id := range liveTypeIDs(doc) {
+	for _, id := range live {
 		m, ok := doc.Types[id].(*ir.Model)
 		if !ok {
 			continue
@@ -48,10 +48,10 @@ func checkDuplicateWireNames(doc *ir.Document) []ir.Diagnostic {
 // A source can write one, so it is a problem in the spec rather than an
 // irverify violation. A repeat within one property's own names is irverify's
 // (ir/naming-alias-duplicate, ir/naming-alias-redundant).
-func checkAmbiguousAliases(doc *ir.Document) []ir.Diagnostic {
+func checkAmbiguousAliases(doc *ir.Document, live []ir.TypeID) []ir.Diagnostic {
 	var diags []ir.Diagnostic
 	var claims reuse.Map[string, int]
-	for _, id := range liveTypeIDs(doc) {
+	for _, id := range live {
 		if m, ok := doc.Types[id].(*ir.Model); ok {
 			diags = append(diags, ambiguousAliases(id, m.Properties, &claims)...)
 		}

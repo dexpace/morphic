@@ -35,15 +35,15 @@ type valueSite struct {
 // writes and an example the docs. The judgement is shallow, of kind, enum
 // members, a literal, null, whole numbers and declared bounds. What it leaves
 // alone, such as a content's examples (#1949), is listed in docs/ir/values.md.
-func checkValues(doc *ir.Document) []ir.Diagnostic {
+func checkValues(doc *ir.Document, live []ir.TypeID) []ir.Diagnostic {
 	var diags []ir.Diagnostic
-	for _, id := range liveTypeIDs(doc) {
+	for _, id := range live {
 		c := doc.Types[id].Common()
 		site := valueSite{doc: doc, node: string(id), from: c.Provenance, ref: ir.TypeRef{Target: id}, typeLevel: true}
 		diags = site.appendExamples(diags, c.Examples)
 	}
 	var keys []ir.PropID
-	eachPosition(doc, &keys, func(p *position) {
+	eachPosition(doc, live, &keys, func(p *position) {
 		site := valueSite{doc: doc, node: p.node, from: p.from, ref: p.typ, own: p.own, encoded: p.encoded}
 		if why := site.fits(p.def); why != "" {
 			diags = append(diags, site.finding("pass/default-outside-type", "default "+why))

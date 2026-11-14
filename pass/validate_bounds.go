@@ -253,9 +253,9 @@ func unsatisfiable(doc *ir.Document, own *ir.Constraints, target ir.TypeID, self
 // apply to (pass/bounds-admit-no-value, docs/ir/constraints.md). It does not
 // judge an exclusive pair with no integer between, nor a multiple none of the
 // range holds: ir.Decimal compares and does no arithmetic.
-func checkBounds(doc *ir.Document) []ir.Diagnostic {
+func checkBounds(doc *ir.Document, live []ir.TypeID) []ir.Diagnostic {
 	var diags []ir.Diagnostic
-	for _, id := range liveTypeIDs(doc) {
+	for _, id := range live {
 		td := doc.Types[id]
 		own, target, self := typeBounds(td)
 		if why := unsatisfiable(doc, own, target, self); why != "" {
@@ -264,7 +264,7 @@ func checkBounds(doc *ir.Document) []ir.Diagnostic {
 		}
 	}
 	var keys []ir.PropID
-	eachPosition(doc, &keys, func(p *position) {
+	eachPosition(doc, live, &keys, func(p *position) {
 		if why := unsatisfiable(doc, p.own, p.typ.Target, shapeUnjudged); why != "" {
 			diags = append(diags, diagAt("pass/bounds-admit-no-value", why, p.node, p.from))
 		}

@@ -65,7 +65,7 @@ var ValidateWith = validate
 
 // Families is how many rule families Validate runs, each after an ask of its
 // context.
-func Families() int { return len(families(nil, walked{}, nil)) }
+func Families() int { return len(families(&ir.Document{}, walked{}, nil)) }
 
 // NameFamilies is how many families of scopes Names reads, each after a check
 // of its context.
