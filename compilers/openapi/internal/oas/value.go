@@ -215,22 +215,24 @@ func (w *walker) shapeOf(f frame, fld Field, node *yaml.Node) (Shape, bool) {
 			return alt.Shape, true
 		}
 	}
-	// Only the Schema Object stands as a boolean. A schema no schema holds
-	// is read as the object it is, so the rows it is read with decide
-	// (walker.notMapping), where the minor admits one at all.
-	switch {
-	case f.holdsBoolean(fld, node):
-		return Boolean, true
-	case fld.Shape == Nested && fld.Of == Schema && f.booleans && matches(Boolean, node):
+	// Only the Schema Object stands as a boolean, where a field holds one: a
+	// schema decides for the schemas it holds, as for an entry of a list or a
+	// map of them (frame.holdsBoolean), and one no schema holds is read as the
+	// object it is, so the rows it is read with decide (walker.notMapping),
+	// where the minor admits one at all.
+	if fld.Shape == Nested && fld.Of == Schema && f.booleans && matches(Boolean, node) {
+		if f.rows.rows != nil {
+			return Boolean, true
+		}
 		return Nested, true
 	}
 	return fld.Shape, false
 }
 
-// holdsBoolean reports whether node, a value of fld, is true or false that f, a
-// Schema Object, admits as the schema fld holds there: by its rows, or as
-// 2020-12 reads a keyword it added (frame.asLater). A schema decides for the
-// schemas it holds, as they are read in its dialect.
+// holdsBoolean reports whether node, an entry of the list or map of schemas fld
+// holds, is true or false that f, a Schema Object, admits as a schema there:
+// by its rows, or as 2020-12 reads a keyword it added (frame.asLater). A schema
+// decides for the schemas it holds, as they are read in its dialect.
 func (f frame) holdsBoolean(fld Field, node *yaml.Node) bool {
 	return fld.Of == Schema && f.rows.rows != nil && f.booleans && matches(Boolean, nodeview.Deref(node))
 }
