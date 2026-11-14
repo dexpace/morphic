@@ -59,6 +59,15 @@ import (
 			"type planted struct{}\n\nfunc (planted) " + visit, nil},
 		{"an unexported type whose cycle method has another signature",
 			"type planted struct{}\n\nfunc (planted) " + visit + "\nfunc (planted) Cycle() {}\n", nil},
+		{"a generic type, unasserted",
+			"type planted[T any] struct{}\n\nfunc (planted[T]) " + visit + "\nfunc (planted[T]) " + cycle,
+			[]string{"pass.planted implements ir.CycleVisitor"}},
+		{"a generic type asserted through an instance",
+			"type planted[T any] struct{}\n\nfunc (planted[T]) " + visit + "\nfunc (planted[T]) " + cycle +
+				"\nvar _ ir.CycleVisitor = planted[int]{}\n", nil},
+		{"a generic type of pointer receivers, unasserted",
+			"type planted[T any] struct{}\n\nfunc (*planted[T]) " + visit + "\nfunc (*planted[T]) " + cycle,
+			[]string{"pass.planted implements ir.CycleVisitor"}},
 	}
 	root := irtest.RepoRoot(t)
 	base, err := decls.Load(module + "/pass")

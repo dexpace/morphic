@@ -176,9 +176,9 @@ the rule here rather than reading it across.
 - **Rule.** An optional interface, found by a run-time assertion such as the one `ir.WalkValues`
   makes for `ir.CycleVisitor`, is held by no build, so
   `references/departures.md#interface-assertions-stay-narrow` exempts nothing there: every type
-  satisfying one, exported or not, carries a `var _` of it, as `walkCheck` does; a test's own type
-  may convert itself where it is passed, as `ir.CycleVisitor(deepListCycles{l})` does. It stays
-  optional, not a second parameter: the walk keeps a visitor's pruning by its place in the one list
+  satisfying one, exported or not, generic or not, carries a `var _` of it, as `walkCheck` does; a
+  test's own type may convert itself where it is passed, as `ir.CycleVisitor(deepListCycles{l})`
+  does. One declared inside a function goes unseen. It stays optional, not a second parameter
   (#1523).
 - **Why.** Renaming `walkCheck.Cycle` built and vetted clean, caught only by tests reading cycles,
   and a visitor whose tests read none passed a planted defect until its call converted it (#1266,
