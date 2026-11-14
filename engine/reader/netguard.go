@@ -93,12 +93,12 @@ func (g *guard) dial(ctx context.Context, network, address string) (net.Conn, er
 	return conn, nil
 }
 
-// proxy wraps a transport's proxy choice. A host the proxy would dial for the
-// read is ranked first (hostSpace), and a name bounded by a reach by every
-// address the guard's resolver gives it (resolvedSpace), since the proxy's
-// dial is out of the guard's sight: one past the reach is refused before
-// anything is dialled. A host ranked not public never goes through the proxy:
-// it is dialled directly, where the dial itself is judged.
+// proxy wraps a transport's proxy choice, which it never changes: a request
+// keeps the route the caller's transport chose. Through a proxy the dial is
+// the proxy's, out of the guard's sight, so a read bounded by a reach has the
+// host ranked instead (hostRank), a name by every address the guard's own
+// resolver gives it (resolvedSpace), and one past the reach is refused before
+// anything is dialled.
 func (g *guard) proxy(choose func(*http.Request) (*url.URL, error)) func(*http.Request) (*url.URL, error) {
 	return func(req *http.Request) (*url.URL, error) {
 		via, err := choose(req)
@@ -107,12 +107,8 @@ func (g *guard) proxy(choose func(*http.Request) (*url.URL, error)) func(*http.R
 			return via, err
 		}
 		host := req.URL.Hostname()
-		space := hostSpace(host)
-		if space != compilers.SpacePublic {
-			g.proxied.Store(false)
-			return nil, g.admits(host, space)
-		}
-		if _, err := netip.ParseAddr(host); err != nil && g.reach != compilers.SpaceUnstated {
+		space, name := hostRank(host)
+		if name && g.reach != compilers.SpaceUnstated {
 			if space, err = g.resolvedSpace(req.Context(), host); err != nil {
 				return nil, err
 			}
@@ -266,32 +262,40 @@ var (
 )
 
 // hostSpace ranks the host a URL writes, as a read through a proxy judges
-// it: an address netip reads, by spaceOf; a host ending in a number, read as
-// a URL parser reads an IPv4 address (decimal, 0x hexadecimal, leading-zero
-// octal, one to four parts), and local where those rules read none;
-// localhost and a name under it, local; any other name public. net/http maps
-// a host that is not ASCII by IDNA before it uses it, which this reader cannot
-// repeat, so such a host, and one with an empty label, is ranked local: what
-// it would be dialled as is not known.
+// it (hostRank).
 func hostSpace(host string) compilers.AddressSpace {
+	space, _ := hostRank(host)
+	return space
+}
+
+// hostRank ranks the host a URL writes, and reports whether it is a name its
+// text cannot rank, which resolving ranks: an
+// address netip reads, by spaceOf; a host ending in a number, read as a URL
+// parser reads an IPv4 address (decimal, 0x hexadecimal, leading-zero octal,
+// one to four parts), and local where those rules read none; localhost and a
+// name under it, local; any other name public. net/http maps a host that is
+// not ASCII by IDNA before it uses it, which this reader cannot repeat, so
+// such a host, and one with an empty label, ranks local: what it would be
+// dialled as is not known.
+func hostRank(host string) (compilers.AddressSpace, bool) {
 	host = strings.ToLower(strings.TrimRight(host, "."))
 	if !isASCII(host) || host == "" || strings.Contains(host, "..") {
-		return compilers.SpaceLocal
+		return compilers.SpaceLocal, false
 	}
 	if addr, err := netip.ParseAddr(host); err == nil {
-		return spaceOf(addr)
+		return spaceOf(addr), false
 	}
 	if endsInNumber(host) {
 		addr, ok := parseIPv4Host(host)
 		if !ok {
-			return compilers.SpaceLocal
+			return compilers.SpaceLocal, false
 		}
-		return spaceOf(addr)
+		return spaceOf(addr), false
 	}
 	if host == "localhost" || strings.HasSuffix(host, ".localhost") {
-		return compilers.SpaceLocal
+		return compilers.SpaceLocal, false
 	}
-	return compilers.SpacePublic
+	return compilers.SpacePublic, true
 }
 
 // isASCII reports whether s holds ASCII alone.

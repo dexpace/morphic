@@ -341,20 +341,30 @@ func TestDisk_AHostNetHTTPMapsIsJudgedWhereItIsDialled(t *testing.T) {
 	assert.Zero(t, srv.conns.Load(), "nothing was connected to")
 }
 
-// TestDisk_AHostRankedNotPublicIsNeverSentThroughAProxy pins that a read of a
-// host ranked not public, bounded or not, goes to the host directly, where
-// its dial is judged, and never through a proxy that would dial it unseen.
-func TestDisk_AHostRankedNotPublicIsNeverSentThroughAProxy(t *testing.T) {
+// TestDisk_AReadKeepsTheRouteItsTransportChose pins that the guard never
+// changes a request's route: an unbounded read of a private address with a
+// proxy set goes to the proxy, and nowhere else, ranked by the host it names;
+// the same read bounded to public addresses is refused, asking nothing of
+// anyone; and with no proxy set the read dials the host, judged there.
+func TestDisk_AReadKeepsTheRouteItsTransportChose(t *testing.T) {
 	t.Parallel()
 	d, proxy := proxied(t)
-	srv := newProbeServer(t, false, nil)
 
-	got, err := d.ReadDocument(t.Context(), compilers.DocumentRequest{Location: srv.URL + "/x"})
-
+	got, err := d.ReadDocument(t.Context(), compilers.DocumentRequest{Location: "http://10.0.0.5/x"})
 	require.NoError(t, err)
-	assert.Equal(t, "document", string(got.Data), "read from the host itself")
-	assert.Equal(t, compilers.SpaceLocal, got.Space)
-	assert.Zero(t, proxy.requests.Load())
+	assert.Equal(t, "proxied", string(got.Data), "the proxy the transport chose was asked")
+	assert.Equal(t, compilers.SpacePrivate, got.Space)
+	assert.EqualValues(t, 1, proxy.requests.Load())
+
+	_, err = d.ReadDocument(t.Context(), compilers.DocumentRequest{Location: "http://10.0.0.5/x", Reach: compilers.SpacePublic})
+	require.ErrorIs(t, err, compilers.ErrAddressSpace)
+	assert.EqualValues(t, 1, proxy.requests.Load(), "the bounded read asked nothing")
+
+	srv := newProbeServer(t, false, nil)
+	got, err = Disk{}.ReadDocument(t.Context(), compilers.DocumentRequest{Location: srv.URL})
+	require.NoError(t, err)
+	assert.Equal(t, compilers.SpaceLocal, got.Space, "judged where it was dialled")
+	assert.EqualValues(t, 1, srv.requests.Load())
 }
 
 // TestDisk_AReadLeavesNoConnectionOpen pins that the connection a read
