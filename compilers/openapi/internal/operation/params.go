@@ -108,24 +108,28 @@ func fillParamType(c lowering.Ctx, w walk, param *ir.Parameter, binding *ir.HTTP
 	paramType, typeDiags := schema.CarriedRef(elected.ctx, w.types, schema.TopLevelDepth, elected.js, elected.pointer)
 	diags = append(diags, typeDiags...)
 	param.Type = paramType
-	param.Unmodeled = annotation.MergeUnmodeled(param.Unmodeled, elected.unmodeled)
 	binding.ContentType = elected.mediaType
-	return elected, append(diags, fillParamSchema(elected.ctx, w.types, param, elected.js, elected.pointer)...)
+	var written ir.Unmodeled
+	diags = append(diags, fillParamSchema(elected.ctx, w.types, param, &written, elected.js, elected.pointer)...)
+	param.Unmodeled = annotation.MergeUnmodeled(annotation.Under(elected.schemaScope(), written), elected.unmodeled)
+	return elected, diags
 }
 
 // fillParamSchema reads a parameter schema's default value and scalar
 // constraints through the readers a property's go through
 // (annotation.EffectiveDefault, schema.CarrierConstraintsOf), so the two carriers
-// cannot read one schema apart.
+// cannot read one schema apart. What no field of the parameter holds goes to
+// written, for the caller to key beneath the schema's scope.
 //
 // A schema spelled {$ref: …} resolves its target so the annotations that
 // inherit from it still reach the parameter
 // (docs/compilers/openapi.md#ref-use-site, GitHub #131). Constraints stay
-// use-site-only, as fillPropertyConstraints keeps them: the referent's bounds
-// are left where declared, since bounds conjoin rather than override and
-// copying one down under use-site precedence would publish the wider bound as
-// the whole truth (docs/ir/annotations.md#what-a-reference-carries-down).
-func fillParamSchema(c lowering.Ctx, ts *compile.Types, param *ir.Parameter, js *oas3.JSONSchema[oas3.Referenceable], pointer jsontext.Pointer) []ir.Diagnostic {
+// use-site-only, as fillPropertyConstraints keeps them: bounds conjoin rather
+// than override, so copying the referent's down would publish the wider bound
+// as the whole truth (docs/ir/annotations.md#what-a-reference-carries-down).
+func fillParamSchema(c lowering.Ctx, ts *compile.Types, param *ir.Parameter, written *ir.Unmodeled,
+	js *oas3.JSONSchema[oas3.Referenceable], pointer jsontext.Pointer,
+) []ir.Diagnostic {
 	if js == nil || !js.IsSchema() {
 		return nil
 	}
@@ -140,14 +144,14 @@ func fillParamSchema(c lowering.Ctx, ts *compile.Types, param *ir.Parameter, js 
 	def, diags := annotation.EffectiveDefault(use.DefaultChain(s), pointer, c.Place())
 	param.Default = def
 
-	cons, consDiags := schema.CarrierConstraintsOf(c, ts, &param.Unmodeled, s, use.Voices, param.Type, pointer)
+	cons, consDiags := schema.CarrierConstraintsOf(c, ts, written, s, use.Voices, param.Type, pointer)
 	param.Constraints = cons
 	diags = append(diags, consDiags...)
-	diags = append(diags, fillParamSchemaAnnotations(c, ts, param, s, use, pointer)...)
+	diags = append(diags, fillParamSchemaAnnotations(c, ts, param, written, s, use, pointer)...)
 	// A parameter is the third annotation.HomeCarrier, so the keywords beside a
 	// $ref that the alias it resolves to cannot hold are kept here, exactly as a
 	// property and a header keep them (schema.FillPropertyDetail).
-	return append(diags, schema.PreserveRefSiteKeywords(c, ts, &param.Unmodeled, js, param.Type, pointer)...)
+	return append(diags, schema.PreserveRefSiteKeywords(c, ts, written, js, param.Type, pointer)...)
 }
 
 // fillParamSchemaAnnotations records what a parameter's schema declares on the
@@ -160,8 +164,10 @@ func fillParamSchema(c lowering.Ctx, ts *compile.Types, param *ir.Parameter, js 
 // win where both are set. Docs, deprecation and redaction read what use falls
 // back to (docs/compilers/openapi.md#ref-use-site); examples, xml and the
 // visibility keywords stay with the position, which they describe, and its
-// voices.
-func fillParamSchemaAnnotations(c lowering.Ctx, ts *compile.Types, param *ir.Parameter, s *oas3.Schema, use schema.Use, pointer jsontext.Pointer) []ir.Diagnostic {
+// voices. What has no field of the parameter goes to written.
+func fillParamSchemaAnnotations(c lowering.Ctx, ts *compile.Types, param *ir.Parameter, written *ir.Unmodeled,
+	s *oas3.Schema, use schema.Use, pointer jsontext.Pointer,
+) []ir.Diagnostic {
 	// Visibility is kept before the own-node guard, not after it. The guard exists
 	// so an annotation with a home on the node is not also copied to the carrier,
 	// but readOnly/writeOnly have no home on either: recordDeclarationResidue
@@ -171,9 +177,9 @@ func fillParamSchemaAnnotations(c lowering.Ctx, ts *compile.Types, param *ir.Par
 	// an enum, an array.
 	var diags []ir.Diagnostic
 	for _, v := range slices.Backward(use.Written()) {
-		diags = append(diags, preserveParamVisibility(c, param, v.Node, v.At)...)
+		diags = append(diags, preserveParamVisibility(c, written, v.Node, v.At)...)
 	}
-	diags = append(diags, preserveParamVisibility(c, param, s, pointer)...)
+	diags = append(diags, preserveParamVisibility(c, written, s, pointer)...)
 	if schema.LoweredToOwnNode(c, ts, pointer, param.Type) {
 		return diags
 	}
@@ -191,13 +197,13 @@ func fillParamSchemaAnnotations(c lowering.Ctx, ts *compile.Types, param *ir.Par
 		param.Examples = a.Examples
 	}
 	for _, v := range slices.Backward(use.Voices) {
-		diags = append(diags, preserveParamXML(c, param, v.Node, v.At)...)
+		diags = append(diags, preserveParamXML(c, written, v.Node, v.At)...)
 	}
-	diags = append(diags, preserveParamXML(c, param, s, pointer)...)
-	param.Unmodeled = annotation.MergeUnmodeled(param.Unmodeled, a.Unmodeled)
+	diags = append(diags, preserveParamXML(c, written, s, pointer)...)
+	*written = annotation.MergeUnmodeled(*written, a.Unmodeled)
 	// Last, as it keeps only the keywords no reader above it kept, and everything
-	// annotation.Read recorded is already on the parameter by this line.
-	return append(diags, schema.PreserveCarriedKeywords(c, &param.Unmodeled, s, pointer)...)
+	// annotation.Read recorded is already in written by this line.
+	return append(diags, schema.PreserveCarriedKeywords(c, written, s, pointer)...)
 }
 
 // preserveParamXML keeps a parameter schema's xml hints instead of dropping
@@ -206,9 +212,9 @@ func fillParamSchemaAnnotations(c lowering.Ctx, ts *compile.Types, param *ir.Par
 // application/xml, the media type OpenAPI §4.8.26 conditions xml on, and the
 // binding records that content type. ReasonNoIRHome, since the IR can close the
 // gap by adding the field (GitHub #124).
-func preserveParamXML(c lowering.Ctx, param *ir.Parameter, s *oas3.Schema, pointer jsontext.Pointer) []ir.Diagnostic {
+func preserveParamXML(c lowering.Ctx, written *ir.Unmodeled, s *oas3.Schema, pointer jsontext.Pointer) []ir.Diagnostic {
 	at := pointer + ids.Ptr("xml")
-	kept, diags := annotation.PreserveSchemaKeyword(&param.Unmodeled, s, "xml", ir.ReasonNoIRHome, pointer, c.Place())
+	kept, diags := annotation.PreserveSchemaKeyword(written, s, "xml", ir.ReasonNoIRHome, pointer, c.Place())
 	if kept {
 		diags = append(diags, c.DiagAt(ir.SeverityInfo, diag.DegradedConstruct, at,
 			"parameter schema xml hints have no ir.Parameter home; kept verbatim under Unmodeled"))
@@ -227,14 +233,14 @@ func preserveParamXML(c lowering.Ctx, param *ir.Parameter, s *oas3.Schema, point
 // The list is asked of the schema package rather than restated here, so a
 // keyword added there is preserved here too instead of being dropped at this one
 // carrier.
-func preserveParamVisibility(c lowering.Ctx, param *ir.Parameter, s *oas3.Schema, pointer jsontext.Pointer) []ir.Diagnostic {
+func preserveParamVisibility(c lowering.Ctx, written *ir.Unmodeled, s *oas3.Schema, pointer jsontext.Pointer) []ir.Diagnostic {
 	var diags []ir.Diagnostic
 	for _, keyword := range schema.ResidueKeywords() {
 		if paramHoldsResidue(keyword) {
 			continue
 		}
 		at := pointer + ids.Ptr(keyword)
-		kept, keptDiags := annotation.PreserveSchemaKeyword(&param.Unmodeled, s, keyword, ir.ReasonNoIRHome, pointer, c.Place())
+		kept, keptDiags := annotation.PreserveSchemaKeyword(written, s, keyword, ir.ReasonNoIRHome, pointer, c.Place())
 		diags = append(diags, keptDiags...)
 		if !kept {
 			continue

@@ -101,8 +101,8 @@ func TestHeaders_SchemaDetailReachesTheProperty(t *testing.T) {
 	openapitest.AssertProbeExample(t, h.Examples)
 	require.NotNil(t, h.XML)
 	assert.Equal(t, "X", h.XML.Name)
-	assert.Contains(t, h.Unmodeled, "openapi:x-vendor")
-	assert.Contains(t, h.Unmodeled, "openapi:not")
+	assert.Contains(t, h.Unmodeled, "openapi:schema/x-vendor")
+	assert.Contains(t, h.Unmodeled, "openapi:schema/not")
 	require.NotNil(t, h.Constraints)
 	require.NotNil(t, h.Constraints.MaxLength)
 	assert.Equal(t, int64(3), *h.Constraints.MaxLength)
@@ -368,7 +368,7 @@ func TestHeaders_RefSiteKeywordsAreKeptOnTheHeader(t *testing.T) {
 	openapitest.RequireNoErrorDiags(t, diags)
 
 	h := headerAt(t, openapitest.FirstOp(t, svc))
-	entry, ok := h.Unmodeled["openapi:enum"]
+	entry, ok := h.Unmodeled["openapi:schema/enum"]
 	require.True(t, ok, "an alias over the target has no member set, so the enum is kept")
 	assert.Equal(t, ir.ReasonDegradedLowering, entry.Reason)
 	assert.JSONEq(t, `["a","b"]`, string(entry.Value))

@@ -463,7 +463,7 @@ components:
 	get := openapitest.FindOp(t, doc, "getB")
 
 	require.Len(t, get.Params, 1)
-	kept, ok := get.Params[0].Unmodeled["openapi:readOnly"]
+	kept, ok := get.Params[0].Unmodeled["openapi:content/application~1json/schema/readOnly"]
 	require.True(t, ok, "kept: %v", get.Params[0].Unmodeled)
 	require.Less(t, kept.Provenance.Source, len(doc.Sources))
 	assert.Equal(t, "other.yaml", filepath.Base(doc.Sources[kept.Provenance.Source].Path), "placed where declared")

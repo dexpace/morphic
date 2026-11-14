@@ -4833,7 +4833,12 @@ broken, once, where the parameter is written, whether anything lowers it or not.
 
 A parameter schema's `xml`, and its `readOnly` and `writeOnly`, are kept verbatim in the parameter's
 `Unmodeled` (`no_ir_home`), reported as an info `openapi/degraded-construct` at the keyword, since
-`ir.Parameter` has no field for either. The `xml` of a schema that owns a node of its own stays on
+`ir.Parameter` has no field for either. Everything a parameter's or a header's schema writes that the
+carrier keeps is keyed beneath the schema's scope, `openapi:schema/<key>`, or
+`openapi:content/<mt>/schema/<key>` for the schema of an elected content entry, and the object's own
+keys stay unscoped, so a parameter and its schema can each write one key and both are kept
+([unmodeled](../ir/unmodeled.md#keys)). A model's property is its schema, and keeps its keys
+unscoped. The `xml` of a schema that owns a node of its own stays on
 that node's `XMLHints` instead. A schema with no node of its own keeps there too what any carrier
 keeps: the content vocabulary ([`content-vocabulary`](#content-vocabulary)), a `$dynamicRef` that
 did not expand ([`dynamic-ref`](#dynamic-ref)) and a keyword nothing reads
@@ -4844,7 +4849,9 @@ did not expand ([`dynamic-ref`](#dynamic-ref)) and a keyword nothing reads
 - Tests: `operation.TestParams_SchemaVisibilityKeptUnderUnmodeled`,
   `operation.TestParams_KeepWhatAnyCarrierKeeps`,
   `operation.TestParams_SchemaVisibilityKeptWhenTheSchemaOwnsANode`,
-  `operation.TestParams_SchemaXMLHintsStayOnAnOwnedNode`
+  `operation.TestParams_SchemaXMLHintsStayOnAnOwnedNode`,
+  `operation.TestParameter_SchemaAndObjectSpellOneKey`, `e2e.TestUnknownKeys_ACarrierAndItsSchemaKeepOneKeyApart`,
+  `annotation.TestUnder_KeysEachEntryBeneathTheScope`
 
 ## 10. Request bodies and content
 
@@ -6121,8 +6128,7 @@ saying why.
 - Status: partly built: a redaction key beside an `allOf` over an
   object lands on the decorator the `allOf` lowers to, whose `Sensitive` keeps it a type of its own,
   where beside a `$ref` it lands on the carrier (#1220); a key on a tag, kept under a scope on the
-  document, reaches no field (#1221); a key both a parameter or a header and
-  its schema write shares one entry, so the object's is all that is read (#396); a schema a use names
+  document, reaches no field (#1221); a schema a use names
   between it and the end of its chain lends no key, as it lends no keyword (#1029); and a key inside
   a `oneOf` kept verbatim beside a body, as the base of a hierarchy keeps the union of its subtypes
   ([`union-beside-structure`](#union-beside-structure)), reaches no field.

@@ -340,7 +340,7 @@ func unrecorded(p *ir.Unmodeled, keys []string, owner jsontext.Pointer, scope st
 // at scope beneath its carrier. A reader that keeps a key itself spells it with
 // this, so the census finds the entry and leaves the key alone.
 func EntryKey(scope, key string) string {
-	return "openapi:" + scoped(scope, key)
+	return entryPrefix + scoped(scope, key)
 }
 
 // scoped spells one entry's key on the carrier holding it.

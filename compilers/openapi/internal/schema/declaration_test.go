@@ -804,7 +804,7 @@ func unevaluatedEntries(doc *ir.Document) map[jsontext.Pointer][]string {
 	}
 	ir.ForEachOperation(doc, func(op ir.Operation) {
 		for _, p := range op.Params {
-			add(p.Unmodeled)
+			add(schemaKept(p.Unmodeled))
 		}
 	})
 	return out

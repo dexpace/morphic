@@ -20,8 +20,9 @@ type Target struct {
     Path  []string             // the member path inside that tree's JSON form
                                // (runtime-policy.md#delivery, shaping-hints.md),
                                // such as ["retry", "maxAttempts"] or ["rename"]
-    Outer bool                 // the key is an enclosing object's, held on the node for it,
-                               // such as "openapi:pathItem/x-sdk-retries" (below)
+    Outer bool                 // the key is another object's, held on the node for it, enclosing
+                               // or enclosed: "openapi:pathItem/x-sdk-retries", a path item's on
+                               // an operation, or "openapi:schema/x-a", a schema's on a parameter
 }
 
 type Layer struct {
@@ -43,8 +44,9 @@ A key configures the node holding it. An object that lowers to no node has its k
 nearest node that does, under a spelling of their own ([keys](../../ir/unmodeled.md#keys)): an
 OpenAPI path item's `x-sdk-retries` reaches each of its operations as
 `openapi:pathItem/x-sdk-retries`, beside an operation's own `openapi:x-sdk-retries`, and so
-configures each of them. A mapping names each spelling it reads, the enclosing object's with `Outer`
-set. The reader derives no spelling from another: where a scope ends in a key is each compiler's
+configures each of them. A mapping names each spelling it reads, another object's with `Outer` set,
+whether that object encloses the node's (a path item's) or is enclosed by it (a parameter's schema,
+under `openapi:schema/x-a`, or its content entry's). The reader derives no spelling from another: where a scope ends in a key is each compiler's
 ([`vendor-extensions`](../../compilers/openapi.md#vendor-extensions)), an operation's own `x-a/b`
 being `openapi:x-a/b`, so stripping a scope would make the reader know the format (INV1), and
 stripping any would read an operation's `openapi:responses/x-…` key, its responses object's, as the

@@ -59,7 +59,8 @@ whoever wrote it, so it is not among the keywords `WrittenBy` asks after.
 A key names the origin format, then the construct — and, where one carrier holds constructs from
 more than one source object, the path between them. `openapi:x-rate-limit` is the extension on the
 node's own object; `openapi:info/contact/x-id` is the contact block's, kept on the document;
-`openapi:encoding/<part>/x-vendor` is one form part's, kept on the content. The scope is
+`openapi:encoding/<part>/x-vendor` is one form part's, kept on the content; `openapi:schema/x-a` is a
+parameter's or a header's schema's, kept on the carrier beside the object's own `openapi:x-a`. The scope is
 load-bearing, not decoration. Most objects lower to a node carrying an `Unmodeled` map of their own
 and take no scope, but the rest ride on the nearest node that does — an info block's on the
 document, a path item's on each of its operations, an encoding's on the owning content — and

@@ -136,8 +136,8 @@ func TestParams_SchemaAnnotationsReachTheParameter(t *testing.T) {
 	openapitest.AssertProbeDocsKept(t, p.Docs)
 	assert.NotNil(t, p.Deprecation)
 	openapitest.AssertProbeExample(t, p.Examples)
-	assert.Contains(t, p.Unmodeled, "openapi:x-vendor")
-	assert.Contains(t, p.Unmodeled, "openapi:not")
+	assert.Contains(t, p.Unmodeled, "openapi:schema/x-vendor")
+	assert.Contains(t, p.Unmodeled, "openapi:schema/not")
 	require.NotNil(t, p.Constraints)
 	require.NotNil(t, p.Constraints.MaxLength)
 	assert.Equal(t, int64(3), *p.Constraints.MaxLength)
@@ -165,8 +165,8 @@ func TestParams_SchemaAnnotationsSurviveARefNamingTheSchema(t *testing.T) {
 		"the parameter's own type is unchanged by the outside reference")
 	openapitest.AssertProbeDocsKept(t, p.Docs)
 	assert.NotNil(t, p.Deprecation)
-	assert.Contains(t, p.Unmodeled, "openapi:x-vendor")
-	assert.Contains(t, p.Unmodeled, "openapi:not")
+	assert.Contains(t, p.Unmodeled, "openapi:schema/x-vendor")
+	assert.Contains(t, p.Unmodeled, "openapi:schema/not")
 
 	sc, ok := doc.Types["t/anon/paths/~1x/get/parameters/0/schema"].(*ir.Scalar)
 	require.True(t, ok, "and the referenced pointer still names the schema written there")
@@ -283,15 +283,16 @@ func TestParams_SchemaXMLHintsKeptUnderUnmodeled(t *testing.T) {
 	params := paramsOf(t, svc)
 
 	cases := []struct {
-		param, schemaPtr, want string
+		param, schemaPtr, scope, want string
 	}{
-		{"q", "/paths/~1x/get/parameters/0/schema", `{"name":"XQ"}`},
-		{"c", "/paths/~1x/get/parameters/1/content/application~1xml/schema", `{"name":"XCS"}`},
+		{"q", "/paths/~1x/get/parameters/0/schema", "schema", `{"name":"XQ"}`},
+		{"c", "/paths/~1x/get/parameters/1/content/application~1xml/schema", "content/application~1xml/schema",
+			`{"name":"XCS"}`},
 	}
 	for _, tc := range cases {
 		t.Run(tc.param, func(t *testing.T) {
 			t.Parallel()
-			entry, ok := params[tc.param].Unmodeled["openapi:xml"]
+			entry, ok := params[tc.param].Unmodeled["openapi:"+tc.scope+"/xml"]
 			require.True(t, ok, "an xml hint with no Parameter field is kept raw, not dropped")
 			assert.Equal(t, ir.ReasonNoIRHome, entry.Reason)
 			assert.JSONEq(t, tc.want, string(entry.Value), "kept verbatim")
@@ -321,7 +322,7 @@ func TestParams_SchemaXMLHintsStayOnAnOwnedNode(t *testing.T) {
 	require.True(t, ok, "the object schema owns a node of its own")
 	require.NotNil(t, node.Common().XML)
 	assert.Equal(t, "XOBJ", node.Common().XML.Name)
-	assert.NotContains(t, p.Unmodeled, "openapi:xml", "so the parameter keeps no second copy")
+	assert.NotContains(t, p.Unmodeled, "openapi:schema/xml", "so the parameter keeps no second copy")
 	assert.Equal(t, 0, openapitest.CountDiagsAt(diags, diag.DegradedConstruct, ir.SeverityInfo),
 		"and nothing is announced as homeless")
 }
@@ -367,7 +368,7 @@ func TestParams_SchemaRedactionReachesTheParameter(t *testing.T) {
 			p, ok := params[name]
 			require.True(t, ok)
 			assert.True(t, p.Secret, "the parameter is the carrier")
-			assert.NotContains(t, p.Unmodeled, "openapi:format", "the field holds it, so nothing is kept beside it")
+			assert.NotContains(t, p.Unmodeled, "openapi:schema/format", "the field holds it, so nothing is kept beside it")
 		})
 	}
 	assert.Zero(t, openapitest.CountDiagsAt(diags, diag.DegradedConstruct, ir.SeverityInfo),
@@ -385,7 +386,7 @@ func TestParams_SchemaRedactionStaysOnANode(t *testing.T) {
 
 	id, ok := params["id"]
 	require.True(t, ok)
-	assert.NotContains(t, id.Unmodeled, "openapi:format", "a format naming a shape is no redaction")
+	assert.NotContains(t, id.Unmodeled, "openapi:schema/format", "a format naming a shape is no redaction")
 	assert.False(t, id.Secret, "a format naming a shape is no redaction")
 
 	pick, ok := params["pick"]
@@ -394,7 +395,7 @@ func TestParams_SchemaRedactionStaysOnANode(t *testing.T) {
 	require.True(t, ok, "its type is a node")
 	assert.True(t, node.Common().Sensitive, "the node holds the redaction")
 	assert.False(t, pick.Secret, "so the parameter takes no copy")
-	assert.NotContains(t, pick.Unmodeled, "openapi:format", "and keeps none")
+	assert.NotContains(t, pick.Unmodeled, "openapi:schema/format", "and keeps none")
 }
 
 const paramVisibilitySpec = `openapi: 3.1.0
@@ -426,16 +427,16 @@ func TestParams_SchemaVisibilityKeptUnderUnmodeled(t *testing.T) {
 	openapitest.RequireNoErrorDiags(t, diags)
 	params := paramsOf(t, svc)
 
-	cases := []struct{ param, keyword, schemaPtr string }{
-		{"ro", "readOnly", "/paths/~1x/get/parameters/0/schema"},
-		{"wo", "writeOnly", "/paths/~1x/get/parameters/1/schema"},
-		{"c", "readOnly", "/paths/~1x/get/parameters/2/content/application~1xml/schema"},
+	cases := []struct{ param, keyword, schemaPtr, scope string }{
+		{"ro", "readOnly", "/paths/~1x/get/parameters/0/schema", "schema"},
+		{"wo", "writeOnly", "/paths/~1x/get/parameters/1/schema", "schema"},
+		{"c", "readOnly", "/paths/~1x/get/parameters/2/content/application~1xml/schema", "content/application~1xml/schema"},
 	}
 	for _, tc := range cases {
 		t.Run(tc.param, func(t *testing.T) {
 			t.Parallel()
 			at := tc.schemaPtr + "/" + tc.keyword
-			entry, ok := params[tc.param].Unmodeled["openapi:"+tc.keyword]
+			entry, ok := params[tc.param].Unmodeled["openapi:"+tc.scope+"/"+tc.keyword]
 			require.True(t, ok, "%s has no ir.Parameter field, so it is kept raw, not dropped", tc.keyword)
 			assert.Equal(t, ir.ReasonNoIRHome, entry.Reason)
 			assert.JSONEq(t, `true`, string(entry.Value), "kept verbatim")
@@ -466,13 +467,13 @@ paths:
 	openapitest.RequireNoErrorDiags(t, diags)
 	params := paramsOf(t, svc)
 
-	require.Contains(t, params["enc"].Unmodeled, "openapi:contentEncoding")
-	assert.Equal(t, ir.ReasonNoIRHome, params["enc"].Unmodeled["openapi:contentEncoding"].Reason)
+	require.Contains(t, params["enc"].Unmodeled, "openapi:schema/contentEncoding")
+	assert.Equal(t, ir.ReasonNoIRHome, params["enc"].Unmodeled["openapi:schema/contentEncoding"].Reason)
 	assert.Contains(t, openapitest.DiagMessageAt(t, diags, diag.DegradedConstruct, ir.SeverityInfo,
 		"/paths/~1x/get/parameters/0/schema/contentEncoding"), "content-vocabulary")
 
-	require.Contains(t, params["dyn"].Unmodeled, "openapi:$dynamicRef")
-	assert.Equal(t, ir.ReasonDegradedLowering, params["dyn"].Unmodeled["openapi:$dynamicRef"].Reason)
+	require.Contains(t, params["dyn"].Unmodeled, "openapi:schema/$dynamicRef")
+	assert.Equal(t, ir.ReasonDegradedLowering, params["dyn"].Unmodeled["openapi:schema/$dynamicRef"].Reason)
 	assert.Contains(t, openapitest.DiagMessageAt(t, diags, diag.DegradedConstruct, ir.SeverityInfo,
 		"/paths/~1x/get/parameters/1/schema/$dynamicRef"), "was not expanded")
 }
@@ -488,7 +489,7 @@ func TestParams_SchemaDefaultIsNotAlsoKeptVerbatim(t *testing.T) {
 	p := paramsOf(t, svc)["ro"]
 	require.NotNil(t, p.Default, "the default lands in its own field")
 	assert.Equal(t, "dq", p.Default.Str)
-	assert.NotContains(t, p.Unmodeled, "openapi:default", "and is not restated verbatim beside it")
+	assert.NotContains(t, p.Unmodeled, "openapi:schema/default", "and is not restated verbatim beside it")
 	for _, d := range diags {
 		assert.NotEqual(t, jsontext.Pointer("/paths/~1x/get/parameters/0/schema/default"), d.Provenance.Pointer,
 			"nor announced as homeless; got %+v", d)
@@ -534,7 +535,7 @@ func TestParams_SchemaVisibilityKeptWhenTheSchemaOwnsANode(t *testing.T) {
 	op := openapitest.FindOp(t, doc, "")
 	require.Len(t, op.Params, 3)
 
-	for i, want := range []string{"openapi:readOnly", "openapi:writeOnly", "openapi:readOnly"} {
+	for i, want := range []string{"openapi:schema/readOnly", "openapi:schema/writeOnly", "openapi:schema/readOnly"} {
 		param := op.Params[i]
 		entry, ok := param.Unmodeled[want]
 		require.True(t, ok, "%s: %s kept on the carrier that has no field for it", param.Name.Source, want)
@@ -565,7 +566,7 @@ func TestParams_RefSiteKeywordsAreKeptOnTheParameter(t *testing.T) {
 	params := openapitest.IndexBy(openapitest.FirstOp(t, svc).Params, func(p ir.Parameter) string { return p.Name.Source })
 	q, ok := params["q"]
 	require.True(t, ok)
-	entry, ok := q.Unmodeled["openapi:format"]
+	entry, ok := q.Unmodeled["openapi:schema/format"]
 	require.True(t, ok, "an alias over the target has no Encoding field, so the format is kept")
 	assert.Equal(t, ir.ReasonDegradedLowering, entry.Reason)
 	assert.JSONEq(t, `"email"`, string(entry.Value))
@@ -635,7 +636,7 @@ func TestParams_ExclusiveModifierWithNoBoundIsKeptOnTheParameter(t *testing.T) {
 			"      responses: {\"204\": {description: ok}}\n"))
 	params := paramsOf(t, svc)
 
-	entry, ok := params["bare"].Unmodeled["openapi:exclusiveMinimum"]
+	entry, ok := params["bare"].Unmodeled["openapi:schema/exclusiveMinimum"]
 	require.True(t, ok, "kept beside the constraints it did not reach; got %v", params["bare"].Unmodeled)
 	assert.Equal(t, ir.ReasonDegradedLowering, entry.Reason)
 	assert.JSONEq(t, "true", string(entry.Value))
@@ -717,8 +718,8 @@ components:
 	require.NotNil(t, param.Constraints)
 	assert.Equal(t, new(int64(3)), param.Constraints.MaxLength)
 	assert.True(t, param.Secret, "a branch's format: password redacts the parameter")
-	assert.NotContains(t, param.Unmodeled, "openapi:format", "which then needs no verbatim copy")
-	for _, key := range []string{"openapi:readOnly", "openapi:xml"} {
+	assert.NotContains(t, param.Unmodeled, "openapi:schema/format", "which then needs no verbatim copy")
+	for _, key := range []string{"openapi:schema/readOnly", "openapi:schema/xml"} {
 		entry, kept := param.Unmodeled[key]
 		if assert.True(t, kept, "%s: got %v", key, param.Unmodeled) {
 			assert.Equal(t, ir.ReasonNoIRHome, entry.Reason, key)
@@ -748,7 +749,7 @@ components:
     Mode: {type: string, enum: [a, b]}
 `))
 	openapitest.RequireNoErrorDiags(t, diags)
-	for source, key := range map[string]string{"list": "openapi:readOnly", "narrowed": "openapi:writeOnly"} {
+	for source, key := range map[string]string{"list": "openapi:schema/readOnly", "narrowed": "openapi:schema/writeOnly"} {
 		param, ok := openapitest.ParamBySource(openapitest.FindOp(t, doc, "get"), source)
 		require.True(t, ok, source)
 		entry, kept := param.Unmodeled[key]
@@ -789,10 +790,10 @@ components:
 		source, key string
 		at          string
 	}{
-		{"beside", "openapi:readOnly", base(0) + "/readOnly"},
-		{"beside", "openapi:xml", base(0) + "/xml"},
-		{"branches", "openapi:writeOnly", base(1) + "/allOf/1/writeOnly"},
-		{"branches", "openapi:xml", base(1) + "/allOf/1/xml"},
+		{"beside", "openapi:schema/readOnly", base(0) + "/readOnly"},
+		{"beside", "openapi:schema/xml", base(0) + "/xml"},
+		{"branches", "openapi:schema/writeOnly", base(1) + "/allOf/1/writeOnly"},
+		{"branches", "openapi:schema/xml", base(1) + "/allOf/1/xml"},
 	} {
 		param, ok := openapitest.ParamBySource(openapitest.FindOp(t, doc, "get"), tc.source)
 		require.True(t, ok, tc.source)
@@ -867,7 +868,7 @@ func TestParams_ABoundBesideAReferenceIsReadByItsNamedType(t *testing.T) {
 			require.True(t, ok, name)
 			assert.Equal(t, ir.ParamID("param/openapi/paths/~1a/get/parameters/"+name+"/query"), p.ID, name)
 			assert.Nil(t, p.Constraints, name)
-			entry, ok := p.Unmodeled["openapi:minimum"]
+			entry, ok := p.Unmodeled["openapi:schema/minimum"]
 			require.True(t, ok, "%s: got %v", name, p.Unmodeled)
 			assert.Equal(t, ir.ReasonDegradedLowering, entry.Reason, name)
 			at := "/paths/~1a/get/parameters/" + strconv.Itoa(i) + "/schema"
@@ -881,18 +882,18 @@ func TestParams_ABoundBesideAReferenceIsReadByItsNamedType(t *testing.T) {
 		h, ok := openapitest.ParamBySource(op, "h")
 		require.True(t, ok)
 		assert.Equal(t, &ir.Constraints{MinLength: new(int64(2))}, h.Constraints)
-		assert.Contains(t, h.Unmodeled, "openapi:minimum")
-		assert.NotContains(t, h.Unmodeled, "openapi:minLength")
+		assert.Contains(t, h.Unmodeled, "openapi:schema/minimum")
+		assert.NotContains(t, h.Unmodeled, "openapi:schema/minLength")
 
 		require.Len(t, op.Responses, 1)
 		require.Len(t, op.Responses[0].Headers, 1)
 		header := op.Responses[0].Headers[0]
 		assert.Equal(t, ir.PropID("p/openapi/paths/~1a/get/responses/200/headers/X-Names"), header.ID)
 		assert.Equal(t, &ir.Constraints{MaxItems: new(int64(3))}, header.Constraints)
-		entry, ok := header.Unmodeled["openapi:maxLength"]
+		entry, ok := header.Unmodeled["openapi:schema/maxLength"]
 		require.True(t, ok, "got %v", header.Unmodeled)
 		assert.Equal(t, jsontext.Pointer("/paths/~1a/get/responses/200/headers/X-Names/schema/maxLength"),
 			entry.Provenance.Pointer)
-		assert.NotContains(t, header.Unmodeled, "openapi:maxItems")
+		assert.NotContains(t, header.Unmodeled, "openapi:schema/maxItems")
 	})
 }

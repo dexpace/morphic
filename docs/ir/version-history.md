@@ -792,7 +792,10 @@ it sees. Changes made together in one bump are listed together under it.
   `streaming-media-type` is `streaming-inference`, `binary-media-type` is `binary-inference` and
   `nullable-widening` is `nullable-inference`. `TagDef.Unmodeled`, the keys a tag object writes, and
   `OperationGroup.Inferred`, the marker a promotion from a key the group keeps records
-  ([carriers](./unmodeled.md#carriers), [promotion](./unmodeled.md#promotion)).
+  ([carriers](./unmodeled.md#carriers), [promotion](./unmodeled.md#promotion)). What a parameter's or a
+  header's schema writes is keyed beneath the schema's scope, `openapi:schema/<key>`, or
+  `openapi:content/<mt>/schema/<key>` under an elected content entry, where it was unscoped beside the
+  object's own keys ([keys](./unmodeled.md#keys)).
   A consumer pinned to 0.66.0 refuses the document; one
   reading `Stop` with no arm for `no_more` would not end such a walk, and one matching a marker by
   its old name no longer finds it.

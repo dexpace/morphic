@@ -832,13 +832,13 @@ func assertParamXMLResidue(t *testing.T, doc *ir.Document, diags []ir.Diagnostic
 
 	tag, ok := openapitest.ParamBySource(op, "tag")
 	require.True(t, ok)
-	entry := unmodeledEntry(t, tag.Unmodeled, "openapi:xml")
+	entry := unmodeledEntry(t, tag.Unmodeled, "openapi:schema/xml")
 	assert.Equal(t, ir.ReasonNoIRHome, entry.Reason)
 	assert.JSONEq(t, `{"name":"Tag","namespace":"urn:example:docs"}`, string(entry.Value))
 
 	body, ok := openapitest.ParamBySource(op, "body")
 	require.True(t, ok)
-	entry = unmodeledEntry(t, body.Unmodeled, "openapi:xml")
+	entry = unmodeledEntry(t, body.Unmodeled, "openapi:content/application~1xml/schema/xml")
 	assert.Equal(t, ir.ReasonNoIRHome, entry.Reason)
 	assert.JSONEq(t, `{"name":"Body","attribute":true}`, string(entry.Value))
 	assert.Equal(t, "application/xml", op.Bindings.HTTP[0].ParamBindings[1].ContentType,
@@ -1714,7 +1714,7 @@ func assertUnevaluatedAtEveryOutcome(t *testing.T, doc *ir.Document, diags []ir.
 	op, ok := opByName(doc, "getThings")
 	require.True(t, ok)
 	require.Len(t, op.Params, 1)
-	kept["/paths/~1things/get/parameters/0/schema"] = op.Params[0].Unmodeled
+	kept["/paths/~1things/get/parameters/0/schema"] = underSchema(op.Params[0].Unmodeled)
 	for at, unmodeled := range kept {
 		entry := unmodeledEntry(t, unmodeled, "openapi:unevaluated")
 		assert.Equal(t, `{"unevaluatedProperties":false}`, string(entry.Value), at)

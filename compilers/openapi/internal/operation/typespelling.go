@@ -42,6 +42,10 @@ type typeSpelling struct {
 	examples  []ir.Example
 }
 
+// schemaScope is the scope the carrier keeps what the spelling's schema
+// writes under, the last of carries.
+func (s typeSpelling) schemaScope() string { return s.carries[len(s.carries)-1] }
+
 // electTypeSpelling picks the spelling a parameter or header states its type
 // with, keeping the other verbatim where the document writes both.
 //

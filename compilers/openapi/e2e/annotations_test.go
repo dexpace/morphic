@@ -985,7 +985,7 @@ func TestValidationOnly_BesideARefAtABodyPosition(t *testing.T) {
 		minLength int
 		preserved ir.Unmodeled
 	}{
-		{"parameter", 1, paramUnmodeled(t, op)},
+		{"parameter", 1, underSchema(paramUnmodeled(t, op))},
 		{"request body", 2, refSiteAlias(t, doc, requestContent(t, op)).Common().Unmodeled},
 		{"response content", 3, refSiteAlias(t, doc, firstContent(t, op)).Common().Unmodeled},
 	} {
@@ -1275,4 +1275,16 @@ components:
 	}
 	assert.Equal(t, "Reads {t:t/anon/pet} and `{t:1}` and \\{t:x} as written.", docs.Description)
 	assert.Empty(t, docs.Refs)
+}
+
+// underSchema returns what a parameter or a header keeps of what its schema
+// writes, beneath openapi:schema/, keyed as a node of the schema's own keeps it.
+func underSchema(u ir.Unmodeled) ir.Unmodeled {
+	out := ir.Unmodeled{}
+	for key, entry := range u {
+		if rest, ok := strings.CutPrefix(key, "openapi:schema/"); ok {
+			out["openapi:"+rest] = entry
+		}
+	}
+	return out
 }

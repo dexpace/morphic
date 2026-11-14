@@ -67,7 +67,6 @@ func lowerHeader(c, dc lowering.Ctx, w walk, h *soa.Header, name string, hptr, h
 		Type:       headerType,
 		Required:   h.GetRequired(),
 		Provenance: c.Place().At(hptr),
-		Unmodeled:  elected.unmodeled,
 	}
 	if elected.mediaType != "" {
 		// The media type a content-style header serializes its value in, which is
@@ -76,7 +75,11 @@ func lowerHeader(c, dc lowering.Ctx, w walk, h *soa.Header, name string, hptr, h
 		// spelling keeps.
 		p.Encoding = &ir.Encoding{MediaType: elected.mediaType}
 	}
+	// The property holds what the schema writes beside what the header object
+	// writes, so the schema's entries are kept beneath its scope: the two can
+	// spell one key.
 	diags = append(diags, schema.FillPropertyDetail(elected.ctx, w.types, &p, elected.js, elected.pointer)...)
+	p.Unmodeled = annotation.MergeUnmodeled(annotation.Under(elected.schemaScope(), p.Unmodeled), elected.unmodeled)
 	diags = append(diags, applyHeaderAnnotations(dc, &p, h, hdecl, elected.examples)...)
 	lent := dc.Promoter().Lent(schema.KeysLentTo(dc, w.types, elected.js, p.Type, elected.pointer), p.Unmodeled,
 		elected.carries...)
