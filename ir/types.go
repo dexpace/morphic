@@ -189,6 +189,18 @@ const (
 	AdditionalClosedAfterComposition AdditionalMode = "closed_after_composition"
 )
 
+// Valid reports whether m is one of the modes declared above. AdditionalMode is
+// a bare string enum, so nothing rejects an invented value on the wire;
+// irverify calls this so that one is reported rather than read as open.
+func (m AdditionalMode) Valid() bool {
+	switch m {
+	case AdditionalUnspecified, AdditionalClosed, AdditionalClosedAfterComposition:
+		return true
+	default:
+		return false
+	}
+}
+
 // Primitive is a built-in scalar leaf type (docs/ir/primitives.md).
 type Primitive struct {
 	TypeCommon
