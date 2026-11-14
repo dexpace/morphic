@@ -300,3 +300,22 @@ func TestLoad_AMappedURLNamingNoLocationIsRefusedUnread(t *testing.T) {
 		assert.Empty(t, fake.reqs, "%s: the reader is never asked", path)
 	}
 }
+
+// TestLoad_AReachedPathItemsAdditionalOperationIsHeldToItsRepeats holds a 3.2
+// path item only a $ref reaches, under an extension, to the check of repeated
+// parameters each of its operations gets where the source writes it, an
+// additionalOperations entry's among them.
+func TestLoad_AReachedPathItemsAdditionalOperationIsHeldToItsRepeats(t *testing.T) {
+	t.Parallel()
+	const spec = "openapi: 3.2.0\ninfo: {title: t, version: \"1\"}\npaths:\n  /a: {$ref: '#/x-lib/item'}\n" +
+		"x-lib:\n  item:\n    additionalOperations:\n      LINK:\n" +
+		"        parameters: [{name: q, in: query, schema: {type: string}}, {name: q, in: query, schema: {type: string}}]\n" +
+		"        responses: {\"200\": {description: ok}}\n"
+
+	_, diags, err := Load(t.Context(), 0, openapitest.SourceOf(spec), Options{})
+
+	require.NoError(t, err)
+	require.Len(t, diags, 1, "%+v", diags)
+	assert.Equal(t, "openapi/duplicate-parameter", diags[0].Code)
+	assert.Equal(t, jsontext.Pointer("/x-lib/item/additionalOperations/LINK/parameters/1"), diags[0].Provenance.Pointer)
+}

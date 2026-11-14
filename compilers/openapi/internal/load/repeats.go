@@ -59,7 +59,8 @@ func listRepeats(sites places, sibs Siblings, b *typed.Bindings, items iter.Seq[
 }
 
 // landedRepeats reads the lists of each path item the bindings built for a
-// landing, and of its operations, each list once: a landing is a position the
+// landing, and of its operations, its additionalOperations among them, each
+// list once: a landing is a position the
 // source's grammar reads as raw YAML, so no list of the source's own walk is
 // one of them, and each lies at one position read as a path item.
 func landedRepeats(sites places, b *typed.Bindings) []ir.Diagnostic {
@@ -82,6 +83,10 @@ func landedRepeats(sites places, b *typed.Bindings) []ir.Diagnostic {
 		owners := map[jsontext.Pointer]lists{l.At.Pointer: {item.GetParameters(), item.GetServers()}}
 		for method, op := range item.All() {
 			owners[l.At.Pointer.AppendToken(string(method))] = lists{op.GetParameters(), op.GetServers()}
+		}
+		additional := l.At.Pointer.AppendToken("additionalOperations")
+		for method, op := range item.GetAdditionalOperations().All() {
+			owners[additional.AppendToken(method)] = lists{op.GetParameters(), op.GetServers()}
 		}
 		for _, owner := range slices.Sorted(maps.Keys(owners)) {
 			diags = append(diags, paramRepeats(at, b, owners[owner].params, owner)...)
