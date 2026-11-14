@@ -496,7 +496,7 @@ func assertReferenceBounds(t *testing.T, doc *ir.Document, diags []ir.Diagnostic
 		"/paths/~1names~1{name}/get/parameters/0/schema", "/paths/~1names~1{name}/get/parameters/1/schema",
 		"/paths/~1names~1{name}/get/responses/200/headers/X-Tags/schema",
 	}
-	var got []string
+	got := make([]string, 0, len(diags))
 	for _, d := range diags {
 		assert.Equal(t, diag.DegradedConstruct, d.Code, "%+v", d)
 		assert.Equal(t, ir.SeverityInfo, d.Severity, "%+v", d)
