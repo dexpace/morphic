@@ -27,3 +27,16 @@ interpret availability themselves. Formats without versioning semantics simply l
 member or union variant must disappear from pre-`Added` snapshots. Smithy `@since` (free-form,
 no version registry) lowers to `Added` only when the compiler synthesizes labels; otherwise it
 is kept verbatim under `Unmodeled`.
+
+## Version labels
+
+`Document.Versions` lists the labels once each, none blank, and its order is the timeline's.
+`irverify` reports a blank entry (`ir/version-label-blank`) and an entry repeating an earlier one
+(`ir/version-label-repeated`). Every label an `Availability` writes, in `Added`, `Removed`, a
+non-empty `Deprecated`, and the `Version` of a rename, a type change or an optionality change, is
+one `Versions` declares (`ir/version-label-undeclared`).
+
+With every label of `Added` and `Removed` declared, each ascends strictly in `Versions` order, and
+the two merged alternate (`ir/availability-out-of-order`). Either may come first: a `Removed`
+first says the entity is there from the first version. A label both lists write is out of order,
+since the entity cannot be added and removed at one version.
