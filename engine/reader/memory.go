@@ -79,8 +79,18 @@ func (m *Memory) holds(location string) bool {
 }
 
 // ReadDocument implements compilers.DocumentReader. A document no source holds
-// fails as a file that does not exist does, with fs.ErrNotExist.
-func (m *Memory) ReadDocument(ctx context.Context, req compilers.DocumentRequest) ([]byte, error) {
+// fails as a file that does not exist does, with fs.ErrNotExist. A held
+// document dialled no address, so its read states no space.
+func (m *Memory) ReadDocument(ctx context.Context, req compilers.DocumentRequest) (compilers.DocumentRead, error) {
+	data, err := m.read(ctx, req)
+	if err != nil {
+		return compilers.DocumentRead{}, err
+	}
+	return compilers.DocumentRead{Data: data}, nil
+}
+
+// read returns the bytes of the document req names.
+func (m *Memory) read(ctx context.Context, req compilers.DocumentRequest) ([]byte, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}

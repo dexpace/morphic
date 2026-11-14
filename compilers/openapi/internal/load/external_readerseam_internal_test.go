@@ -36,12 +36,12 @@ type fakeReader struct {
 type ctxKey struct{}
 
 // ReadDocument records req and answers it.
-func (f *fakeReader) ReadDocument(ctx context.Context, req compilers.DocumentRequest) ([]byte, error) {
+func (f *fakeReader) ReadDocument(ctx context.Context, req compilers.DocumentRequest) (compilers.DocumentRead, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.reqs = append(f.reqs, req)
 	f.ctxs = append(f.ctxs, ctx.Value(ctxKey{}))
-	return f.data, f.err
+	return compilers.DocumentRead{Data: f.data}, f.err
 }
 
 // seen returns the requests the reader has answered, in order.

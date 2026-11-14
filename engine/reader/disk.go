@@ -44,22 +44,27 @@ var ErrNotRegular = errors.New("not a regular file")
 func (Disk) LocateDirectory(dir string) string { return locateDirectory(dir) }
 
 // ReadDocument implements compilers.DocumentReader.
-func (d Disk) ReadDocument(ctx context.Context, req compilers.DocumentRequest) ([]byte, error) {
+func (d Disk) ReadDocument(ctx context.Context, req compilers.DocumentRequest) (compilers.DocumentRead, error) {
 	if err := ctx.Err(); err != nil {
-		return nil, err
+		return compilers.DocumentRead{}, err
 	}
 	loc, err := locate(req, runtime.GOOS == "windows")
 	if err != nil {
-		return nil, err
+		return compilers.DocumentRead{}, err
 	}
+	var data []byte
 	switch {
 	case loc.url != "":
-		return d.fetch(ctx, loc.url, req.Limit)
+		data, err = d.fetch(ctx, loc.url, req.Limit)
 	case req.Within != "":
-		return readWithin(ctx, req.Within, loc.path, req.Limit)
+		data, err = readWithin(ctx, req.Within, loc.path, req.Limit)
 	default:
-		return readFile(ctx, osFiles{}, loc.path, req.Limit)
+		data, err = readFile(ctx, osFiles{}, loc.path, req.Limit)
 	}
+	if err != nil {
+		return compilers.DocumentRead{}, err
+	}
+	return compilers.DocumentRead{Data: data}, nil
 }
 
 // fetch reads the document at the http(s) URL u, failing on any status but a

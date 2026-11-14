@@ -96,13 +96,13 @@ func (e external) documentID(key string) string {
 // under key, the spelling that asked for it. A refusal names the document by
 // id, which no spelling asking first changes.
 func (e external) fetch(ctx context.Context, id, key, location string) answer {
-	data, err := e.opts.Reader.ReadDocument(ctx, compilers.DocumentRequest{
+	got, err := e.opts.Reader.ReadDocument(ctx, compilers.DocumentRequest{
 		Location: location, Within: e.opts.Within, Limit: ReadLimit(e.opts.MaxSourceBytes),
 	})
 	if err != nil {
 		return answer{err: readFailure(e.opts, id, err)}
 	}
-	data, err = e.prepare(ctx, id, key, data)
+	data, err := e.prepare(ctx, id, key, got.Data)
 	if err != nil {
 		return answer{err: err}
 	}

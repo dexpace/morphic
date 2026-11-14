@@ -17,14 +17,44 @@ import (
 // A compiler does no I/O of its own, so the caller supplies the reader and
 // every read is the caller's. Which document a reference names, and whether
 // the compile may leave the source's directory to read it, are the compiler's
-// to decide; the reader enforces the confinement a request asks for and the
-// size it allows. One reader may serve overlapping reads.
+// to decide; the reader enforces the confinement a request asks for, the size
+// it allows and the addresses it may dial. One reader may serve overlapping
+// reads.
 type DocumentReader interface {
-	// ReadDocument returns the bytes of the document req names. A document
-	// outside req.Within fails with ErrOutsideWithin, one larger than
-	// req.Limit with ErrDocumentTooLarge; any other failure is the reader's to
-	// describe. ctx bounds the read.
-	ReadDocument(ctx context.Context, req DocumentRequest) ([]byte, error)
+	// ReadDocument returns the document req names and where it was read from.
+	// A document outside req.Within fails with ErrOutsideWithin, one larger
+	// than req.Limit with ErrDocumentTooLarge, one whose read would dial an
+	// address more private than req.Reach with ErrAddressSpace, and a bounded
+	// read the reader cannot judge with ErrUnboundedRead; any other failure is
+	// the reader's to describe. ctx bounds the read.
+	ReadDocument(ctx context.Context, req DocumentRequest) (DocumentRead, error)
+}
+
+// AddressSpace ranks how private a network address is, least private first,
+// as Private Network Access ranks them: a reference in a document read from
+// one space may dial that space and any below it.
+type AddressSpace uint8
+
+const (
+	// SpaceUnstated is no space: a read that dialled no address, as a file's,
+	// or one whose reader did not say. As a request's Reach it bounds nothing.
+	SpaceUnstated AddressSpace = iota
+	// SpacePublic is an address on the public internet.
+	SpacePublic
+	// SpacePrivate is a private, link-local, shared, reserved or multicast
+	// address.
+	SpacePrivate
+	// SpaceLocal is a loopback or unspecified address.
+	SpaceLocal
+)
+
+// DocumentRead is one document as a reader read it.
+type DocumentRead struct {
+	// Data is the document's bytes.
+	Data []byte
+	// Space is where the address that answered lies, or SpaceUnstated where
+	// the read dialled none, as a file's, or the reader cannot say.
+	Space AddressSpace
 }
 
 // DirectoryLocator is what a DocumentReader that reads files may also offer:
@@ -50,6 +80,9 @@ type DocumentRequest struct {
 	// Limit is the most bytes the document may hold. Zero or less allows any
 	// size.
 	Limit int
+	// Reach is the most private address the read may dial, each redirect's
+	// included. SpaceUnstated bounds none.
+	Reach AddressSpace
 }
 
 // ErrOutsideWithin reports a document a request confined to a directory that
@@ -58,6 +91,14 @@ var ErrOutsideWithin = errors.New("outside the directory the read is confined to
 
 // ErrDocumentTooLarge reports a document larger than a request allows.
 var ErrDocumentTooLarge = errors.New("larger than the read allows")
+
+// ErrAddressSpace reports a read that would dial an address more private than
+// its request's Reach.
+var ErrAddressSpace = errors.New("at an address more private than the read may reach")
+
+// ErrUnboundedRead reports a request stating a Reach to a reader that cannot
+// judge the addresses the read would dial.
+var ErrUnboundedRead = errors.New("the reader cannot bound the addresses this read dials")
 
 // FilePath returns the path of the local file the file URI u names (RFC
 // 8089), as readers and compiles read it: percent-decoded,

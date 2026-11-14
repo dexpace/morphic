@@ -75,11 +75,11 @@ func TestDeclaredDialect_ReadsAnOpenAPIDocumentsOwn(t *testing.T) {
 type documentsReader map[string]string
 
 // ReadDocument answers req.
-func (r documentsReader) ReadDocument(_ context.Context, req compilers.DocumentRequest) ([]byte, error) {
+func (r documentsReader) ReadDocument(_ context.Context, req compilers.DocumentRequest) (compilers.DocumentRead, error) {
 	if d, ok := r[req.Location]; ok {
-		return []byte(d), nil
+		return compilers.DocumentRead{Data: []byte(d)}, nil
 	}
-	return nil, fs.ErrNotExist
+	return compilers.DocumentRead{}, fs.ErrNotExist
 }
 
 // TestReadDialects_GovernsWhatEachRootHoldsAndWarnsOfWhatItCannotRead pins
@@ -217,8 +217,8 @@ func TestReadDialects_GivesAnotherDocumentsOwnRowsToWhatNoRootHolds(t *testing.T
 type customServed struct{}
 
 // ReadDocument answers every request alike.
-func (customServed) ReadDocument(context.Context, compilers.DocumentRequest) ([]byte, error) {
-	return []byte("{$schema: 'https://example.com/custom', X: {type: string}}\n"), nil
+func (customServed) ReadDocument(context.Context, compilers.DocumentRequest) (compilers.DocumentRead, error) {
+	return compilers.DocumentRead{Data: []byte("{$schema: 'https://example.com/custom', X: {type: string}}\n")}, nil
 }
 
 // TestReadDialects_WarnsOfADocumentReadUnderTwoNamesOnce pins that a document

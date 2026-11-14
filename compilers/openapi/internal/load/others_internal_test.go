@@ -25,8 +25,8 @@ import (
 type servedReader struct{}
 
 // ReadDocument answers req.
-func (servedReader) ReadDocument(context.Context, compilers.DocumentRequest) ([]byte, error) {
-	return []byte("X: {type: string}\n"), nil
+func (servedReader) ReadDocument(context.Context, compilers.DocumentRequest) (compilers.DocumentRead, error) {
+	return compilers.DocumentRead{Data: []byte("X: {type: string}\n")}, nil
 }
 
 // loadReferencing loads a source at /r/root.yaml whose component A is a $ref
