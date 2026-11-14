@@ -115,6 +115,8 @@ func fillParamType(c lowering.Ctx, w walk, param *ir.Parameter, binding *ir.HTTP
 	binding.ContentType = elected.mediaType
 	var written ir.Unmodeled
 	diags = append(diags, fillParamSchema(elected.ctx, w.types, param, &written, elected.js, elected.pointer)...)
+	// What the schema keeps whole it keeps once, its inner keys not again.
+	annotation.DropContained(&written)
 	param.Unmodeled = annotation.MergeUnmodeled(annotation.Under(elected.schemaScope(), written), elected.unmodeled)
 	return elected, diags
 }

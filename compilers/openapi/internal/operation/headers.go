@@ -82,6 +82,7 @@ func lowerHeader(c, dc lowering.Ctx, w walk, h *soa.Header, name string, hptr, h
 	// writes, so the schema's entries are kept beneath its scope: the two can
 	// spell one key.
 	diags = append(diags, schema.FillPropertyDetail(elected.ctx, w.types, &p, elected.js, elected.pointer)...)
+	annotation.DropContained(&p.Unmodeled)
 	p.Unmodeled = annotation.MergeUnmodeled(annotation.Under(elected.schemaScope(), p.Unmodeled), elected.unmodeled)
 	diags = append(diags, applyHeaderAnnotations(dc, &p, h, hdecl, elected.examples)...)
 	lent := dc.Promoter().Lent(schema.KeysLentTo(dc, w.types, elected.js, p.Type, elected.pointer), p.Unmodeled,

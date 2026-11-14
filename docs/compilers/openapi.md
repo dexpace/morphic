@@ -4861,7 +4861,10 @@ carrier keeps is keyed beneath the schema's scope, `openapi:schema/<key>`, or
 `openapi:content/<mt>/schema/<key>` for the schema of an elected content entry, and the object's own
 keys stay unscoped, so a parameter and its schema can each write one key and both are kept
 ([unmodeled](../ir/unmodeled.md#keys)). A model's property is its schema, and keeps its keys
-unscoped. The `xml` of a schema that owns a node of its own stays on
+unscoped. An entry another entry of the carrier holds whole is kept once: an `xml` object kept whole
+holds its own extensions, and an `allOf` branch kept whole holds a `readOnly` read out of it, so
+neither inner key is kept again, compared by provenance and value, never by the key's spelling;
+a discriminator kept whole on a type holds its extensions the same way. The `xml` of a schema that owns a node of its own stays on
 that node's `XMLHints` instead. A schema with no node of its own keeps there too what any carrier
 keeps: the content vocabulary ([`content-vocabulary`](#content-vocabulary)), a `$dynamicRef` that
 did not expand ([`dynamic-ref`](#dynamic-ref)) and a keyword nothing reads
@@ -4874,7 +4877,9 @@ did not expand ([`dynamic-ref`](#dynamic-ref)) and a keyword nothing reads
   `operation.TestParams_SchemaVisibilityKeptWhenTheSchemaOwnsANode`,
   `operation.TestParams_SchemaXMLHintsStayOnAnOwnedNode`,
   `operation.TestParameter_SchemaAndObjectSpellOneKey`, `e2e.TestUnknownKeys_ACarrierAndItsSchemaKeepOneKeyApart`,
-  `annotation.TestUnder_KeysEachEntryBeneathTheScope`
+  `annotation.TestUnder_KeysEachEntryBeneathTheScope`, `annotation.TestDropContained_KeepsWhatIsNotInside`,
+  `operation.TestParameter_XMLKeptOnce`, `operation.TestParameter_BranchKeptWholeOnce`,
+  `schema.TestDiscriminator_KeptWholeOnce`
 
 ## 10. Request bodies and content
 
