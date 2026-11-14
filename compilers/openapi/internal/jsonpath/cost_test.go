@@ -10,9 +10,11 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	yaml "go.yaml.in/yaml/v3"
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/budget"
 	"github.com/dexpace/morphic/compilers/openapi/internal/jsonpath"
+	"github.com/dexpace/morphic/compilers/openapi/internal/nodeview"
 )
 
 // spentOn returns the steps query spends over the value text writes, which
@@ -127,4 +129,31 @@ func TestSelect_SpendsTheStepsEachSitePins(t *testing.T) {
 func TestMaxResults_IsTheBoundOnWhatAnEvaluationHolds(t *testing.T) {
 	t.Parallel()
 	assert.Equal(t, 1<<22, jsonpath.MaxResults)
+}
+
+// TestSelect_HoldsANodelistToMaxResults holds Select, the entry every caller
+// evaluates by, to the bound itself: a sequence of MaxResults-1 members selected
+// by a wildcard is MaxResults nodes held with the root's list, which is
+// admitted, and one member more is refused. The members are one node listed
+// again and again, so the tree costs a pointer a member.
+func TestSelect_HoldsANodelistToMaxResults(t *testing.T) {
+	t.Parallel()
+	q, err := jsonpath.Parse("$[*]")
+	require.NoError(t, err)
+	member := &yaml.Node{Kind: yaml.ScalarNode, Tag: "!!int", Value: "0"}
+	sequence := func(members int) *yaml.Node {
+		content := make([]*yaml.Node, members)
+		for i := range content {
+			content[i] = member
+		}
+		return &yaml.Node{Kind: yaml.SequenceNode, Tag: "!!seq", Content: content}
+	}
+	b := budget.New(budget.Unbounded())
+
+	got, err := q.Select(t.Context(), nodeview.New(), sequence(jsonpath.MaxResults-1), &b)
+	require.NoError(t, err)
+	assert.Len(t, got, jsonpath.MaxResults-1)
+
+	_, err = q.Select(t.Context(), nodeview.New(), sequence(jsonpath.MaxResults), &b)
+	assert.ErrorIs(t, err, jsonpath.ErrResults)
 }
