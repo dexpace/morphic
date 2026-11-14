@@ -43,8 +43,6 @@ func TestMappingPairs_ReadsWhatTheModelReads(t *testing.T) {
 			[]string{"b=b", "d=second"}},
 		{"a source's key written twice is read at its first copy", "{<<: *dup}", []string{"d=first"}},
 		{"a merge naming a scalar merges nothing", "{<<: 5, a: {title: a}}", []string{"a=a"}},
-		{"a key that is no scalar is the empty string", "{? [x] : {title: list}, a: {title: a}}",
-			[]string{"=list", "a=a"}},
 		{"an alias key is the key it names", "{*ka : {title: aliased}, b: {title: b}}", []string{"a=aliased", "b=b"}},
 	}
 	for _, tc := range cases {

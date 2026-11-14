@@ -68,13 +68,12 @@ paths:
 	}
 }
 
-// TestSecurityUnresolved_AnUndecodedSchemeRefIsReportedByAFullCompile pins that
-// the error for a securitySchemes $ref naming nothing reaches the caller when
-// the parser's model did not decode the $ref. The load phase then meets no
-// reference and reports nothing, so the lowering's report is the only one, and
-// a compile dropping the lowering's reports the load phase made already must
-// keep it.
-func TestSecurityUnresolved_AnUndecodedSchemeRefIsReportedByAFullCompile(t *testing.T) {
+// TestSecurityUnresolved_ATaggedSchemeRefIsRefusedAndTheEntryLeftOut pins that
+// a securitySchemes $ref written under a tag outside YAML 1.2's JSON schema
+// ruleset is a $ref that is no string: the table reports it once, at the $ref,
+// and the entry is read as left out, so no reference is followed or reported
+// unresolved and no scheme lowers for it.
+func TestSecurityUnresolved_ATaggedSchemeRefIsRefusedAndTheEntryLeftOut(t *testing.T) {
 	t.Parallel()
 	doc, diags := parseFull(t, `openapi: 3.1.0
 info: {title: t, version: '1'}
@@ -83,14 +82,10 @@ components:
   securitySchemes:
     S: {$ref: !local '#/components/securitySchemes/Ghost'}
 `)
-	var refs []string
-	for _, d := range diags {
-		if d.Code == diag.UnresolvedRef {
-			refs = append(refs, string(d.Provenance.Pointer))
-		}
-	}
-	assert.Equal(t, []string{"/components/securitySchemes/S"}, refs, "one report, at the entry: %+v", diags)
-	assert.Equal(t, []ir.Severity{ir.SeverityError}, diagsAt(diags, diag.UnresolvedRef, "/components/securitySchemes/S"))
-	assert.Equal(t, ir.AuthKindUnresolved, doc.Auth["auth/unresolved/components/securitySchemes/S"].Kind,
-		"the entry lowers to a scheme of no mechanism: %+v", doc.Auth)
+	assert.Empty(t, byCode(diags, diag.UnresolvedRef), "the $ref names nothing, so none is followed: %+v", diags)
+	require.Len(t, diags, 1, "%+v", diags)
+	assert.Equal(t, typeMismatch, diags[0].Code)
+	assert.Equal(t, ir.SeverityError, diags[0].Severity)
+	assert.Equal(t, "/components/securitySchemes/S/$ref", string(diags[0].Provenance.Pointer))
+	assert.NotContains(t, doc.Auth, ir.AuthID("auth/unresolved/components/securitySchemes/S"), "the entry is left out: %+v", doc.Auth)
 }
