@@ -129,6 +129,8 @@ func (d declarations) pathsAt(at map[int]bool) map[int]string {
 	return paths
 }
 
+var _ ir.CycleVisitor = walkCheck{}
+
 // walkCheck is one check's part in the walk every check shares: visit is shown
 // each value the walk reaches, as an ir.Visitor's Visit is, and report returns
 // what the check found once the walk is over, given the declarations the same

@@ -64,7 +64,9 @@ func (f VisitFunc) Visit(v reflect.Value, at WalkPath) bool {
 
 // CycleVisitor is a [Visitor] that is also told where its walk meets a pointer,
 // slice or map it is already inside: a value that contains itself, which has no
-// finite encoding.
+// finite encoding. The walk asks each visitor whether it is one, so a type
+// meant to be one carries var _ CycleVisitor, which fails the build when a
+// method goes, and internal/archtest requires it.
 type CycleVisitor interface {
 	Visitor
 	// Cycle is called at at, where the walk meets again a reference of type ref

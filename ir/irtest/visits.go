@@ -38,6 +38,8 @@ func AllocatingVisits(doc *ir.Document, visitors ...ir.Visitor) []string {
 // that stopped at a bound.
 const cutSuffix = ": the walk stopped at a bound, so part of the document went unmeasured"
 
+var _ ir.CycleVisitor = measuredVisitor{}
+
 // measuredVisitor shows visitor what the walk shows it and appends the path of
 // each visit that allocates to paths.
 type measuredVisitor struct {
