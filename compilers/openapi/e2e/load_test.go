@@ -917,6 +917,48 @@ func TestCompile_ASourceReadOverTheNetworkReadsNoLocalFile(t *testing.T) {
 	}
 }
 
+// TestCompile_ASourceReadOverTheNetworkIsNamedHoweverItsURLIsSpelled pins
+// that a $ref naming a source read over the network names the source itself,
+// though the two spell its URL apart in ways RFC 3986 reads as one: a host in
+// upper case, an unreserved character percent-encoded, a dot segment. Nothing
+// is fetched, and the parameter is the source's own. Only the binder's own
+// comparison of the URLs (bind.resources.names) matches these spellings: the
+// table of documents read, keyed by name, matches none of them.
+func TestCompile_ASourceReadOverTheNetworkIsNamedHoweverItsURLIsSpelled(t *testing.T) {
+	t.Parallel()
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		_, err := w.Write([]byte("openapi: 3.1.0\ninfo: {title: O, version: \"1\"}\npaths: {}\n" +
+			"components:\n  parameters:\n    P: {name: fetched, in: query}\n"))
+		assert.NoError(t, err)
+	}))
+	t.Cleanup(srv.Close)
+	port := srv.URL[strings.LastIndex(srv.URL, ":"):]
+	for _, c := range []struct{ name, source, ref string }{
+		{"a host in upper case", "http://LOCALHOST" + port + "/v1/api.yaml", "http://localhost" + port + "/v1/api.yaml"},
+		{"a $ref encoding a letter", "http://LOCALHOST" + port + "/v1/api.yaml", "%61pi.yaml"},
+		{"a source encoding a letter", "http://localhost" + port + "/v1/%61pi.yaml", "api.yaml"},
+		{"a source through a dot segment", "http://localhost" + port + "/v1/./api.yaml", "./api.yaml"},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			t.Parallel()
+			spec := "openapi: 3.1.0\ninfo: {title: T, version: \"1\"}\npaths:\n  /a: {get: {operationId: a, parameters: " +
+				"[{$ref: '" + c.ref + "#/components/parameters/P'}], responses: {'200': {description: ok}}}}\n" +
+				"components:\n  parameters:\n    P: {name: own, in: query}\n"
+			rec := &recordingReader{inner: reader.Disk{Client: srv.Client()}}
+			doc, _, err := openapi.New().Compile(t.Context(), []compilers.Source{{Path: c.source, Data: []byte(spec)}},
+				compilers.Options{Reader: rec, FormatOptions: openapi.Options{AllowExternalRefs: true}})
+			require.NoError(t, err)
+			require.NotNil(t, doc)
+
+			assert.Empty(t, rec.locations(), "the source is not fetched again")
+			op, ok := opByName(doc, "a")
+			require.True(t, ok)
+			require.Len(t, op.Params, 1)
+			assert.Equal(t, "own", op.Params[0].Name.Source, "the source's own parameter")
+		})
+	}
+}
+
 // secretDoc is the document the references of
 // TestCompile_ANetworkDocumentReadsNoLocalFile and its kin name, on disk and
 // on each host: an object of each kind a reference may name.
