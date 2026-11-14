@@ -4,6 +4,7 @@
 package jsonpath_test
 
 import (
+	"fmt"
 	"strings"
 	"testing"
 
@@ -82,4 +83,40 @@ func TestSelect_ChargesAPatternsProgramForAnEmptyInput(t *testing.T) {
 	two := spentOn(t, query, `["", ""]`)
 
 	assert.Greater(t, two-one, 250, "one more call of the program")
+}
+
+// pinnedDocument is the document the step pins below are taken over: arrays
+// to select, compare and search, a pattern, six copies of one, and 65
+// distinct ones, each twice, which pass the patterns an evaluation caches.
+func pinnedDocument() string {
+	var distinct strings.Builder
+	for range 2 {
+		for i := range 65 {
+			fmt.Fprintf(&distinct, "{s: x, p: 'q%02d'}, ", i)
+		}
+	}
+	return "{a: [1, 2, {x: 3}], b: [1, 2, {x: 3}], s: abc, r: 'b.', p: [b., b., b., b., b., b.], q: [" +
+		distinct.String() + "]}"
+}
+
+// TestSelect_SpendsTheStepsEachSitePins pins the steps fixed queries spend
+// over one fixed document, a query for each place a step is spent: each node
+// returned, visited by a descent, tested by a filter, compared equal, ordered
+// or deep-compared, a pattern's bytes and program, and a pattern compiled
+// once an evaluation where it repeats, past 64 distinct ones each time.
+func TestSelect_SpendsTheStepsEachSitePins(t *testing.T) {
+	t.Parallel()
+	doc := pinnedDocument()
+	for query, want := range map[string]int{
+		"$.a[*]":                 10,
+		"$..x":                   949,
+		"$.a[?@ == 1]":           14,
+		"$.a[?@ < 2]":            14,
+		"$[?@ == $.b]":           84,
+		"$[?search(@, $.r)]":     39,
+		"$.p[?match(@, $.p[0])]": 89,
+		"$.q[?match(@.s, @.p)]":  1573,
+	} {
+		assert.Equal(t, want, spentOn(t, query, doc), query)
+	}
 }

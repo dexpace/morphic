@@ -386,3 +386,41 @@ func TestSelect_IsRepeatableAndLeavesTheTreeAlone(t *testing.T) {
 	assert.Equal(t, firstSpent, secondSpent)
 	assert.Equal(t, before, fmt.Sprintf("%v", root))
 }
+
+// TestSelect_ComparesByEachRuleOfRFC9535 pins RFC 9535 section 2.3.5.2.2, a
+// row a rule, each comparing two values the document spells: scalars by the
+// value the compiler reads, not their tag or spelling, numbers as decimals,
+// strings by code point and case, and objects and arrays member by member.
+func TestSelect_ComparesByEachRuleOfRFC9535(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name, a, op, b string
+		holds          bool
+	}{
+		{"a date and its quoted twin", "2021-01-01", "==", "'2021-01-01'", true},
+		{"a hexadecimal and a decimal", "0x10", "==", "16", true},
+		{"a fraction's spelling", "1.0", "==", "1", true},
+		{"integers past a float's precision", "9007199254740993", "==", "9007199254740992", false},
+		{"integers past a float's precision, ordered", "9007199254740992", "<", "9007199254740993", true},
+		{"strings by code point, not UTF-16 unit", `""`, "<", `"\U00010000"`, true},
+		{"strings by case", "A", "==", "a", false},
+		{"null and its tilde", "null", "==", "~", true},
+		{"booleans by value", "true", "==", "false", false},
+		{"an object with a member more", "{x: 1}", "==", "{x: 1, y: 2}", false},
+		{"objects whatever their order", "{x: 1, y: 2}", "==", "{y: 2, x: 1}", true},
+		{"arrays in order", "[1, 2]", "==", "[2, 1]", false},
+		{"a number and a string", "1", "==", "'1'", false},
+		{"a string and a number ordered", "'1'", "<", "2", false},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			root := readTree(t, "[{a: "+tc.a+", b: "+tc.b+"}]")
+
+			got, _, err := selectWithin(t, "$[?@.a "+tc.op+" @.b]", root, budget.Unbounded())
+
+			require.NoError(t, err)
+			assert.Equal(t, tc.holds, len(got) == 1)
+		})
+	}
+}
