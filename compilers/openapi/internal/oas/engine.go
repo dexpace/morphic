@@ -138,7 +138,7 @@ func (c Checker) walker(ctx context.Context, declared string, opts Options) (*wa
 	}
 	w := &walker{ctx: ctx, spec: c.spec, minor: minor, view: nodeview.New(), work: budget.New(opts.Budget)}
 	w.locate, w.declared, w.seen, w.rows = opts.Locate, declared, opts.Seen, opts.Rows
-	w.readAt, w.rootAt, w.said = opts.ReadAt, opts.Root, map[ir.Diagnostic]bool{}
+	w.readAt, w.rootAt, w.said = opts.ReadAt, opts.Root, map[ir.Diagnostic]saying{}
 	w.rootRows, w.later, w.judged, w.referenced = opts.RootRows, opts.Later, opts.Judged, opts.Referenced
 	w.skip = opts.Skip
 	if w.rows.rows == nil {

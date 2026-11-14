@@ -554,8 +554,8 @@ reports at the same place keeps that check's wording. Only this rule is read ove
 another document: a key that is no scalar there is reported only where a reference reaches it, so
 a shared file's unread content fails no compile. One about a node of a document no entry lists goes to the least `$ref` reaching it,
 its message naming where in that document it lies. Each finding is made once: a node an alias or a
-merge key mounts at several positions draws one, naming the position in that document that first
-read it where that is another place. A node aliases share is placed at the least pointer of the
+merge key mounts at several positions draws one, naming the least position in that document that
+read it, by the order below, where that is another place than the one it is placed at. A node aliases share is placed at the least pointer of the
 places that mount it, where its anchor is written and where each alias of it is, pointers compared
 token by token and each token by its bytes, so `/A/…` comes before `/A-/…`; its line and column
 stay where its text is written. Which place a document writes first decides nothing, and a document
@@ -636,6 +636,7 @@ gives it no effect is [`allow-reserved-locations`](#allow-reserved-locations)' a
   `e2e.TestCompile_AnInnerSharedNodeIsPlacedAtItsLeastPointerInEveryDeclarationOrder`,
   `e2e.TestCompile_ATypeMismatchOnASharedMountIsPlacedAtTheLeastMount`,
   `e2e.TestCompile_ANodeInsideTwoMountsIsPlacedByTheirTokens`,
+  `oas.TestCheck_AFindingNamesTheLeastPositionThatReadIt`, `oas.TestLessPointer_OrdersTokenByToken`,
   `scan.TestLeast_OrdersByThePointersTokens`, `scan.TestLeast_AgreesWithSortingEveryPointer`
 - Status: partly built: a value of what a `$ref` reaches outside the source's own reading, raw YAML
   under an `x-` key or another document, is read as the model reads it (#1928), a schema position
