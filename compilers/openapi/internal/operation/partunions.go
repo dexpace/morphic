@@ -7,21 +7,42 @@ import (
 	"slices"
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
+	"github.com/dexpace/morphic/compilers/openapi/internal/oas"
 	"github.com/dexpace/morphic/ir"
 )
 
-// partUnions remembers what a run's parts read of the unions they name
-// (lowering.Settled), so a union many parts name is read once a run (GitHub
+// partUnions remembers what a run's parts and items read of the types they
+// name (lowering.Settled), so a union many name is read once a run (GitHub
 // #1460): its members (unionMembers), the flags they give a part
-// (partTypeFlags) and the values an encoding applies to (partValues). Part
-// keying, a deferred settlement (partKeys.Settle), alone fills it. It reads a
-// union's variants and the alias scalars, lists and tuples they name, which no
-// settlement rewrites: a fold, a completion, rewrites a model's members and
-// runs before every deferred settlement (compile.Types.Complete).
+// (partTypeFlags), the values an encoding applies to (partValues) and the
+// default content type (defaultContentType). The deferred settlements of part
+// keys and item defaults (partKeys.Settle, itemDefault.Settle) alone fill it.
+// It reads a type's alias chain and its kind, a union's variants and a list's
+// or tuple's elements, which no settlement rewrites: a fold, a completion,
+// rewrites a model's members before every deferred one (compile.Types.Complete).
 type partUnions struct {
-	members map[ir.TypeID]unionRead
-	flags   map[unionFlagsKey]unionFlags
-	values  map[ir.TypeID]unionRead
+	members  map[ir.TypeID]unionRead
+	flags    map[unionFlagsKey]unionFlags
+	values   map[ir.TypeID]unionRead
+	defaults map[defaultKey]defaultRead
+}
+
+// defaultKey is a default content type the store keeps: for a part declared
+// of type of, or, where item is set, for the items of type of a sequential
+// body holds, under rules, encodedBy saying what the declarations write of
+// contentEncoding.
+type defaultKey struct {
+	rules     oas.EncodingRules
+	of        ir.TypeID
+	encodedBy contentEncoding
+	item      bool
+}
+
+// defaultRead is a default content type the store keeps, and whether the
+// values it applies to were read.
+type defaultRead struct {
+	types []string
+	ok    bool
 }
 
 // unionRead is a list of types read off a union, and whether it was read.
@@ -45,10 +66,41 @@ type unionFlags struct {
 // newPartUnions returns a partUnions that has read nothing.
 func newPartUnions() *partUnions {
 	return &partUnions{
-		members: map[ir.TypeID]unionRead{},
-		flags:   map[unionFlagsKey]unionFlags{},
-		values:  map[ir.TypeID]unionRead{},
+		members:  map[ir.TypeID]unionRead{},
+		flags:    map[unionFlagsKey]unionFlags{},
+		values:   map[ir.TypeID]unionRead{},
+		defaults: map[defaultKey]defaultRead{},
 	}
+}
+
+// partDefault returns the default content type of a part decl declares
+// (defaultContentType over partValues), read once for each type, rules and
+// encodedBy, and false where the values it applies to are not read. The list
+// is shared, so a caller copies it before keeping it.
+func (u *partUnions) partDefault(node func(ir.TypeID) (ir.TypeDef, bool), rules oas.EncodingRules, decl *ir.Property, encodedBy contentEncoding) ([]string, bool) {
+	key := defaultKey{rules: rules, of: decl.Type.Target, encodedBy: encodedBy}
+	if r, read := u.defaults[key]; read {
+		return r.types, r.ok
+	}
+	var r defaultRead
+	if values, ok := partValues(u, node, []*ir.Property{decl}); ok {
+		r = defaultRead{types: defaultContentType(u, node, rules, values, encodedBy), ok: true}
+	}
+	u.defaults[key] = r
+	return r.types, r.ok
+}
+
+// itemDefault returns the default content type of the items of type item a
+// sequential body holds, read once for each type, rules and encodedBy. The
+// list is shared, so a caller copies it before keeping it.
+func (u *partUnions) itemDefault(node func(ir.TypeID) (ir.TypeDef, bool), rules oas.EncodingRules, item ir.TypeRef, encodedBy contentEncoding) []string {
+	key := defaultKey{rules: rules, of: item.Target, encodedBy: encodedBy, item: true}
+	if r, read := u.defaults[key]; read {
+		return r.types
+	}
+	types := defaultContentType(u, node, rules, []ir.TypeRef{item}, encodedBy)
+	u.defaults[key] = defaultRead{types: types, ok: true}
+	return types
 }
 
 // partUnionsOf returns the run's partUnions, which every copy of c shares.

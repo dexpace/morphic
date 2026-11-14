@@ -10,6 +10,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/dexpace/morphic/compilers/openapi/internal/oas"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -79,4 +80,56 @@ func TestPartUnions_ReadAUnionOncePerRun(t *testing.T) {
 			assert.Equal(t, reads[1], reads[8], "lookups of the union's models for 1 part and for 8")
 		})
 	}
+}
+
+// TestPartUnions_ReadADefaultContentTypeOncePerRun holds the default content
+// type of a part or an item naming a union to one reading of the union a run:
+// the lookups of its models made for one part are all that are made for
+// eight, and a second type reaching the union reads its members' values again
+// and not its variants.
+func TestPartUnions_ReadADefaultContentTypeOncePerRun(t *testing.T) {
+	t.Parallel()
+	reg, models := unionRegistry()
+	reg["t/list"] = &ir.List{ID: "t/list", Elem: ir.TypeRef{Target: "t/u"}}
+	rules := oas.Table().EncodingRules("3.1.0")
+	partOf := func(id ir.TypeID) func(*partUnions, func(ir.TypeID) (ir.TypeDef, bool)) {
+		return func(unions *partUnions, node func(ir.TypeID) (ir.TypeDef, bool)) {
+			pe := withDefaultContentType(unions, node, rules, &ir.Property{Type: ir.TypeRef{Target: id}}, unencoded, ir.PartEncoding{})
+			assert.Equal(t, []string{"application/json"}, pe.ContentTypes, "a part of objects takes JSON")
+		}
+	}
+	item := func(unions *partUnions, node func(ir.TypeID) (ir.TypeDef, bool)) {
+		got := unions.itemDefault(node, rules, ir.TypeRef{Target: "t/u"}, unencoded)
+		assert.Equal(t, []string{"application/json"}, got, "an item of objects takes JSON")
+	}
+	readers := map[string]func(*partUnions, func(ir.TypeID) (ir.TypeDef, bool)){
+		"a part of the union":      partOf("t/u"),
+		"a part listing the union": partOf("t/list"),
+		"an item of the union":     item,
+	}
+	for name, read := range readers {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			reads := map[int]int{}
+			for _, parts := range []int{1, 8} {
+				n := 0
+				unions := newPartUnions()
+				node := countingNode(reg, models, &n)
+				for range parts {
+					read(unions, node)
+				}
+				reads[parts] = n
+			}
+			require.Positive(t, reads[1], "the union is read")
+			assert.Equal(t, reads[1], reads[8], "lookups of the union's models for 1 part and for 8")
+		})
+	}
+
+	n := 0
+	unions := newPartUnions()
+	node := countingNode(reg, models, &n)
+	partOf("t/list")(unions, node)
+	first := n
+	item(unions, node)
+	assert.LessOrEqual(t, n-first, unionWidth, "an item of the union reads its members' values, not its variants again")
 }

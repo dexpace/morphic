@@ -272,7 +272,7 @@ func (k partKeys) declared(node func(ir.TypeID) (ir.TypeDef, bool), p keyedPart,
 	if !p.defaulted {
 		return pe
 	}
-	return withDefaultContentType(unions, node, lowering.EncodingRules(k.c), one, readContentEncoding(k.c, part.schemas), pe)
+	return withDefaultContentType(unions, node, lowering.EncodingRules(k.c), d, readContentEncoding(k.c, part.schemas), pe)
 }
 
 // declarationSchemas returns, for each of decls, the declarations the body's
