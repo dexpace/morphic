@@ -89,8 +89,8 @@ func validate(ctx context.Context, doc *ir.Document, walk walkFunc) ([]ir.Diagno
 // list and a map it keeps for the run, so a value with nothing wrong costs it
 // nothing but a step those or a log may grow by. The index it asks, facts,
 // allocates per index it builds and not per type it indexes (GitHub #1150).
-// The live types are sorted once for the run, and no family writes the list.
 func families(doc *ir.Document, read walked, facts *irfacts.Index) []func() []ir.Diagnostic {
+	// Sorted once for the run, and written by no family.
 	live := liveTypeIDs(doc)
 	// A family that ranges a map sorts its keys first. A new family takes a row of
 	// twoFindings in validate_determinism_test.go, which holds it to one order.

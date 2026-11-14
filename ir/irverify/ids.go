@@ -22,8 +22,7 @@ import (
 //
 // Agreement is asked only of entities that record a pointer. A primitive
 // derives from no source position, so checkPrimIDs holds it to the ID its kind
-// derives. An entry whose key is empty or not its node's own ID is
-// checkRegistryKeys' one report, so its key is not read here as an ID.
+// derives.
 func checkIDs(doc *ir.Document) []Violation {
 	var vs []Violation
 	for id, td := range doc.Types {
