@@ -49,6 +49,10 @@ type Options struct {
 	// Referenced, when set, is told each mapping read as a Reference Object
 	// standing in the place of an object of kind, its aliases followed.
 	Referenced func(kind Kind, node *yaml.Node)
+	// Shared, when set, reads the root as an object other places may read as
+	// other kinds, so Judged is told every value the check accepts, not only
+	// those an alias, an anchor or a `<<` merge shares.
+	Shared bool
 	// Root is the pointer the root is read at in the document Locate answers
 	// in, empty for that document's own root.
 	Root jsontext.Pointer
@@ -109,7 +113,7 @@ func (c Checker) Check(ctx context.Context, root *yaml.Node, declared string, op
 		start = Document
 	}
 	w.root = nodeview.DocumentRoot(root)
-	w.object(site{kind: start, node: w.root}, 0)
+	w.object(site{kind: start, node: w.root, shared: opts.Shared}, 0)
 	return w.diags
 }
 

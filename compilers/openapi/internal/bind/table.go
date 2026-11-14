@@ -367,7 +367,8 @@ func (b *binder) table(t *Table) *Table {
 	dialects := dialectsByDocument(b.ids.dialects)
 	for id, d := range b.docs.list {
 		reached := b.docs.reached[DocID(id)]
-		t.docs = append(t.docs, Document{Name: d.name, Root: d.root, Unreached: !reached, Dialects: dialects[DocID(id)]})
+		t.docs = append(t.docs, Document{Name: d.name, Self: d.self, Root: d.root, Unreached: !reached,
+			Dialects: dialects[DocID(id)]})
 		t.truncated = t.truncated || reached && d.view.Exhausted()
 	}
 	reach := b.attribute(t)
@@ -442,7 +443,10 @@ func (b *binder) attribute(t *Table) map[Position]Position {
 // document declared that URI. Dialects is each schema resource root in it
 // that names its dialect, in pointer order.
 type Document struct {
-	Name      string
+	Name string
+	// Self is the URI the document's $self names, resolved against Name, or
+	// empty for none: a second name of the document, and its base.
+	Self      string
 	Root      *yaml.Node
 	Dialects  []DialectRoot
 	Unreached bool

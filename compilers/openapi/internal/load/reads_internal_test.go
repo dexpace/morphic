@@ -6,7 +6,6 @@ package load
 import (
 	"errors"
 	"fmt"
-	"net/http"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -168,10 +167,10 @@ func TestExternalReads_IsSafeForConcurrentUse(t *testing.T) {
 	}
 }
 
-// TestPreparedFor covers externalReads.preparedFor's four outcomes: a file key
-// found directly, a URL key found by its request spelling, which is what
-// external.document records a fetched tree under, a key http.NewRequest itself
-// refuses, and a key nothing was ever recorded under.
+// TestPreparedFor covers externalReads.preparedFor's outcomes: a file key
+// found as written, a URL key found under the one spelling resolve.Locate
+// gives it, which is what external.document records a fetched tree under, and
+// a key nothing was ever recorded under.
 func TestPreparedFor(t *testing.T) {
 	t.Parallel()
 
@@ -199,37 +198,21 @@ func TestPreparedFor(t *testing.T) {
 		assert.Same(t, tree, got)
 	})
 
-	t.Run("a URL key found by its request spelling", func(t *testing.T) {
+	t.Run("a URL key found under the one spelling it is located by", func(t *testing.T) {
 		t.Parallel()
 		r := newExternalReads(sourceDocument{}, budget.Unbounded())
 		tree := &yaml.Node{Kind: yaml.ScalarNode, Value: "x"}
-		// The spelling external.document records under: the request's own URL.
-		req, err := http.NewRequest(http.MethodGet, "HTTP://host/doc.yaml", nil)
-		require.NoError(t, err)
-		r.recordTree(req.URL.String(), doctree.Document{Root: tree}, nil)
-
-		// The binder's name for it, spelled as the reference writes it.
-		got, ok := r.preparedFor("HTTP://host/doc.yaml")
-
-		require.True(t, ok)
-		assert.Same(t, tree, got)
-	})
-
-	t.Run("a URL key spelled with an empty port", func(t *testing.T) {
-		t.Parallel()
-		r := newExternalReads(sourceDocument{}, budget.Unbounded())
-		tree := &yaml.Node{Kind: yaml.ScalarNode, Value: "x"}
-		// http.NewRequest drops the empty port, so external.document records it
-		// without one.
 		r.recordTree("http://host/doc.yaml", doctree.Document{Root: tree}, nil)
 
-		got, ok := r.preparedFor("http://host:/doc.yaml")
+		got, ok := r.preparedFor("http://host/doc.yaml")
+		_, other := r.preparedFor("HTTP://host:/doc.yaml")
 
 		require.True(t, ok)
 		assert.Same(t, tree, got)
+		assert.False(t, other, "a spelling resolve.Locate never gives names nothing")
 	})
 
-	t.Run("a key http.NewRequest rejects", func(t *testing.T) {
+	t.Run("a key no read recorded", func(t *testing.T) {
 		t.Parallel()
 		r := newExternalReads(sourceDocument{}, budget.Unbounded())
 

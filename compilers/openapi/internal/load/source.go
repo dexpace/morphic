@@ -31,6 +31,9 @@ type sourceDocument struct {
 	root   *yaml.Node
 	judged judgment
 	tree   provenance.Tree
+	// mappings is where the caller put the documents under a URI prefix
+	// (Options.Mappings).
+	mappings []Mapping
 }
 
 // treeOf places the nodes of root in the document doc places, their pointers

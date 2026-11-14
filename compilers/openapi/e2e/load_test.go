@@ -37,18 +37,20 @@ import (
 // FuzzCycleDetector found it; the same bytes are committed as a corpus entry.
 const parserPanicSpec = "openapi: 3.0\ncomponents:\n responses:\n  000: {$ref: '#/B'}\nB: {$ref}"
 
-// TestCompile_AParserPanicIsADiagnostic is the end-to-end half: the panic
-// building what a reference reaches becomes an ordinary openapi/validation
-// error at the reference, so a malformed spec is refused as a spec problem
-// rather than reported as a Go error or crashing the process.
+// TestCompile_AParserPanicIsADiagnostic is the end-to-end half: what a
+// reference reaches that the parser would fault building, a Reference Object
+// whose $ref is null, is judged before it is built and set aside for the
+// build (GitHub #1928), so it draws the rule table's one error at its $ref and
+// no fault, Go error or crash, and the document is lowered.
 func TestCompile_AParserPanicIsADiagnostic(t *testing.T) {
 	t.Parallel()
 	doc, diags, err := openapi.New().Compile(t.Context(),
 		[]compilers.Source{{Path: "parser-panic.yaml", Data: []byte(parserPanicSpec)}},
 		compilers.Options{})
 	require.NoError(t, err, "a malformed spec is a spec problem, not a Go error")
-	assert.NotNil(t, doc, "a failed build does not stop the document being lowered")
-	assert.Equal(t, 1, countCode(diags, diag.Validation, "/components/responses/000"), "%+v", diags)
+	assert.NotNil(t, doc)
+	assert.Zero(t, countCode(diags, diag.Validation, "/components/responses/000"), "no build failed: %+v", diags)
+	assert.Equal(t, 1, countCode(diags, diag.Validation+"/validation-type-mismatch", "/B/$ref"), "%+v", diags)
 }
 
 // TestCompile_AResolutionFailureIsReportedOnceAtItsRef pins the once-per-site
@@ -855,10 +857,12 @@ func TestCompile_ANetworkDocumentReadsNoLocalFileByAnyReference(t *testing.T) {
 // TestCompile_ASourceReadOverTheNetworkReadsNoLocalFile pins the boundary for
 // a source itself read over the network, with external references allowed or
 // not: a file: URI in a schema's $ref, a parameter's, a mapping value, or
-// below an $id is refused. A parameter's relative $ref under a 3.2 `$self`
-// naming a file URI or a path is read beside the source, on the network, as
-// no document's `$self` is a base (docs/compilers/openapi.md#self-uri).
-// Nothing local is read.
+// below an $id is refused. A 3.2 `$self` is the base
+// (docs/compilers/openapi.md#self-uri), resolved against where it was read:
+// naming a file URI it moves a relative $ref onto a file, which a document
+// read over the network never reaches, so it is refused; naming a path it
+// names that path on the source's host, read only where external references
+// are. Nothing local is read.
 func TestCompile_ASourceReadOverTheNetworkReadsNoLocalFile(t *testing.T) {
 	t.Parallel()
 	local := t.TempDir()
@@ -901,17 +905,21 @@ func TestCompile_ASourceReadOverTheNetworkReadsNoLocalFile(t *testing.T) {
 					assertNoLocalRead(t, compiled, "", true)
 					return
 				}
-				// A $self is no base, so its row names the document beside the
-				// source, on the network, read only where external references are.
+				for _, l := range rec.locations() {
+					assert.True(t, strings.HasPrefix(l, srv.URL+"/"), "nothing local is read: %s", l)
+				}
+				if strings.Contains(tc.name, "file URI") {
+					require.Len(t, diags, 1, "%+v", diags)
+					assert.Contains(t, diags[0].Message, bind.OffNetwork, "a $self moves no fetched read onto a file")
+					return
+				}
+				// The path the $self names is on the source's host.
 				if allow {
 					assertNoLocalRead(t, compiled, "", false)
 					return
 				}
-				for _, l := range rec.locations() {
-					assert.True(t, strings.HasPrefix(l, srv.URL+"/"), "nothing local is read: %s", l)
-				}
 				require.Len(t, diags, 1, "%+v", diags)
-				assert.Contains(t, diags[0].Message, "/v1/secret.yaml refused: it is on the network")
+				assert.Contains(t, diags[0].Message, srv.URL+dir+"secret.yaml refused: it is on the network")
 			})
 		}
 	}

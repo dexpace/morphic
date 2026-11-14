@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"iter"
 	"maps"
-	"net/http"
 	"slices"
 	"strings"
 
@@ -137,29 +136,35 @@ func (m mediaFaults) diags(sites places, table *bind.Table) []ir.Diagnostic {
 }
 
 // locate is bind.Config.Locate for the source: the document uri names when
-// written in the one named base (resolve.Locate), named as bind names the
-// source when it is the source.
+// written in the one named base (resolve.Locate), put where the caller mapped
+// its URL (mapped), before anything judges or reads it, and named as bind
+// names the source when it is the source. A URL a mapping puts at no location
+// is kept, and its read refused (external.unnamed).
 func (s sourceDocument) locate(uri, base string) (string, bool) {
 	named, ok := refscope.Locate(uri, base)
 	if !ok {
 		return "", false
+	}
+	if at, mapped, err := s.mapped(named); mapped && err == nil {
+		named = at
 	}
 	return s.nameOf(named), true
 }
 
 // nameOf is the name bind reads the document name names under: the source's
 // path for the source, however it is spelled (refscope.Places.SameDocument),
-// a path where it lies (refscope.Places.File), so a file reached through a
-// link to its directory is one document, and any other name itself.
+// for a file the path where it lies, whether a path or a file URI names it
+// (refscope.Places.FileOf), so a file is one document however a reference
+// spells it, through a link to its directory included, and any other name
+// itself.
 func (s sourceDocument) nameOf(name string) string {
-	switch {
-	case s.places.SameDocument(s.path, name):
+	if s.places.SameDocument(s.path, name) {
 		return s.path
-	case refscope.IsURL(name):
-		return name
-	default:
-		return s.places.File(name)
 	}
+	if path, ok := s.places.FileOf(name); ok {
+		return path
+	}
+	return name
 }
 
 // bindingDiags reports what the table found: each $ref whose own hop fails, a
@@ -256,14 +261,13 @@ func spellLoop(l bind.Loop, table *bind.Table) string {
 
 // document is bind.Config.Open: the tree of the document named name, read
 // once in the compile, under its budgets (see externalReads.once), and
-// prepared as the source is. A name that is a URL (refscope.IsURL) is keyed as
-// a request spells it and read at that key; any other is read as the file it
-// names (see fileNamed).
+// prepared as the source is. A name that is a URL (refscope.IsURL), spelled
+// as it is located (resolve.Locate), is read at that name; any other is read
+// as the file it names (see fileNamed).
 func (e external) document(ctx context.Context, name string) (*yaml.Node, error) {
 	var a answer
-	if req, err := http.NewRequestWithContext(ctx, http.MethodGet, name, nil); err == nil && refscope.IsURL(name) {
-		key := req.URL.String()
-		a = e.readAs(ctx, e.documentID(key), key, key)
+	if refscope.IsURL(name) {
+		a = e.readAs(ctx, e.documentID(name), name, name)
 	} else {
 		a = e.readAs(ctx, e.documentID(name), name, fileNamed(name))
 	}

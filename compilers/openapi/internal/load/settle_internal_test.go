@@ -4,6 +4,7 @@
 package load
 
 import (
+	"encoding/json/jsontext"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -11,6 +12,10 @@ import (
 	yaml "go.yaml.in/yaml/v3"
 
 	"github.com/dexpace/morphic/compilers"
+	"github.com/dexpace/morphic/compilers/openapi/internal/bind"
+	"github.com/dexpace/morphic/compilers/openapi/internal/bind/typed"
+	"github.com/dexpace/morphic/compilers/openapi/internal/nodeview"
+	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
 )
 
 // readAside parses text into its first document's mapping.
@@ -172,3 +177,172 @@ func TestLoad_AnAdditionalOperationAMergeKeySuppliesIsReadWithoutAFault(t *testi
 
 // head31L opens the documents above.
 const head31L = "openapi: 3.1.0\ninfo: {title: t, version: \"1\"}\n"
+
+// TestAside_WhileWrittenReadsTheTreeAsWrittenThenSetsItAsideAgain holds the
+// window a judgement of what references reach reads in: inside it the tree is
+// as written, and after it every change is made again, but to a node the
+// reading turned, which a change to the node as it was would undo: a turned
+// mapping stays turned for good, and restore leaves it so.
+func TestAside_WhileWrittenReadsTheTreeAsWrittenThenSetsItAsideAgain(t *testing.T) {
+	t.Parallel()
+	root := readAside(t, "a: {x: 1, y: 2}\nb: {$ref: ~}\nc: {p: 1, q: 2}\n")
+	before := marshalled(t, root)
+	a := aside{}
+	dropX := func(key, _ *yaml.Node) bool { return key.Value == "x" }
+	a.hide(root.Content[1], dropX)
+	a.spoil(root.Content[3].Content[1])
+	a.hide(root.Content[5], func(key, _ *yaml.Node) bool { return key.Value == "p" })
+	aside := marshalled(t, root)
+
+	var read string
+	a.whileWritten(func() {
+		read = marshalled(t, root)
+		nodeview.Unread(root.Content[5])
+	})
+
+	assert.Equal(t, before, read, "the reading sees the tree as written")
+	assert.Equal(t, "a: {y: 2}\nb: {$ref: []}\nc: null\n", marshalled(t, root), "set aside again, c turned")
+	assert.NotEqual(t, aside, marshalled(t, root))
+	a.restore()
+	assert.Equal(t, "a: {x: 1, y: 2}\nb: {$ref: ~}\nc: null\n", marshalled(t, root), "the turn is for good")
+}
+
+// TestBuildObjects_AShapeTheModelFaultsOnIsAFailedBuild holds the object
+// build's guard: a landing the parser faults on, built without the load
+// setting it aside, is a failed build with the fault as why, never a panic.
+func TestBuildObjects_AShapeTheModelFaultsOnIsAFailedBuild(t *testing.T) {
+	t.Parallel()
+	root := readAside(t, "openapi: 3.1.0\npaths:\n  /a:\n    get:\n      parameters: [{$ref: '#/x-p'}]\nx-p: {$ref: ~}\n")
+	table := bind.Bind(t.Context(), &yaml.Node{Kind: yaml.DocumentNode, Content: []*yaml.Node{root}},
+		bind.Config{Self: "spec.yaml"})
+	require.NotEmpty(t, table.ObjectLandings())
+
+	failed := buildObjects(t.Context(), typed.NewBuilder(table), table, MediaTypes{}, mediaFaults{})
+
+	require.Len(t, failed, 1)
+	assert.Equal(t, jsontext.Pointer("/x-p"), failed[0].landing.At.Pointer)
+	assert.ErrorContains(t, failed[0].err, "parser panicked")
+}
+
+// TestLoad_AReachedPathItemsAdditionalOperationsAreSetAside holds a 3.2 path
+// item only a $ref reaches, under an extension, whose additionalOperations
+// merges in an entry that is no mapping: the entry is set aside in the mapping
+// the merge names, so nothing faults and the table's one error stands; a path
+// item reached whose own $ref resolves nowhere holds no lists to read; and one
+// whose operation repeats a parameter is reported where it is written.
+func TestLoad_AReachedPathItemsAdditionalOperationsAreSetAside(t *testing.T) {
+	t.Parallel()
+	const spec = "openapi: 3.2.0\ninfo: {title: t, version: \"1\"}\npaths:\n  /a: {$ref: '#/x-lib/item'}\n" +
+		"  /b: {$ref: '#/x-lib/via'}\n  /c: {$ref: '#/x-lib/dup'}\nx-lib:\n  item:\n    additionalOperations:\n      <<: {PURGE: ~}\n" +
+		"      LINK: {responses: {\"200\": {description: ok}}}\n  via: {$ref: '#/x-lib/none'}\n" +
+		"  dup:\n    get:\n      parameters: [{$ref: '#/x-lib/q'}, {$ref: '#/x-lib/q'}]\n" +
+		"      responses: {\"200\": {description: ok}}\n  q: {name: q, in: query, schema: {type: string}}\n"
+
+	doc, diags, err := Load(t.Context(), 0, openapitest.SourceOf(spec), Options{})
+
+	require.NoError(t, err)
+	require.NotNil(t, doc)
+	got := make([]string, 0, len(diags))
+	for _, d := range diags {
+		got = append(got, d.Code+" "+string(d.Provenance.Pointer))
+	}
+	assert.ElementsMatch(t, []string{
+		"openapi/validation/validation-type-mismatch /paths/~1a",
+		"openapi/unresolved-ref /x-lib/via",
+		"openapi/duplicate-parameter /x-lib/dup/get/parameters/1",
+	}, got, "%+v", diags)
+}
+
+// TestMapped_PutsAURLUnderTheLongestPrefix holds the caller's mapping of a URL
+// to a location: the longest prefix starting it wins, a URL location takes the
+// rest as written, a directory one, relative to the source's, takes it
+// segment by segment, decoded, and a segment decoding to a separator, or
+// holding an escape that is none, names no location; a URL no prefix starts
+// is not mapped.
+func TestMapped_PutsAURLUnderTheLongestPrefix(t *testing.T) {
+	t.Parallel()
+	s := sourceDocument{path: "/r/spec.yaml", mappings: []Mapping{
+		{Prefix: "https://e.test/x/", Location: "lib"},
+		{Prefix: "https://e.test/x/y/", Location: "https://mirror.test/m/"},
+		{Prefix: "https://e.test/abs/", Location: "/srv/abs"},
+	}}
+	for named, want := range map[string]string{
+		"https://e.test/x/a%20b.yaml":  "/r/lib/a b.yaml",
+		"https://e.test/x/y/c%2F.yaml": "https://mirror.test/m/c%2F.yaml",
+		"https://e.test/abs/d/e.yaml":  "/srv/abs/d/e.yaml",
+	} {
+		got, mapped, err := s.mapped(named)
+		require.NoError(t, err, named)
+		assert.True(t, mapped, named)
+		assert.Equal(t, want, got, named)
+	}
+	for named, segment := range map[string]string{
+		"https://e.test/x/a%2F..%2Fb.yaml": `"a/../b.yaml"`,
+		"https://e.test/x/a%zz.yaml":       `"a%zz.yaml"`,
+	} {
+		_, mapped, err := s.mapped(named)
+		assert.True(t, mapped, named)
+		assert.ErrorContains(t, err, "the segment "+segment+" holds an escaped separator")
+	}
+	_, mapped, err := s.mapped("https://e.test/z/b.yaml")
+	assert.False(t, mapped)
+	assert.NoError(t, err)
+}
+
+// TestLoad_AMappedURLNamingNoLocationIsRefusedUnread holds a reference whose
+// URL a mapping puts at no location, a segment decoding to a separator, to
+// the refusal naming the segment, the reader never asked; and a reference a
+// source at a path no reference can be read against writes to its own
+// failure; a URL the mapping puts at a file is read there.
+func TestLoad_AMappedURLNamingNoLocationIsRefusedUnread(t *testing.T) {
+	t.Parallel()
+	const head = "openapi: 3.1.0\ninfo: {title: t, version: \"1\"}\npaths: {}\ncomponents:\n  schemas:\n"
+	maps := []Mapping{{Prefix: "https://e.test/x/", Location: "lib"}}
+	for path, tc := range map[string]struct{ ref, want string }{
+		"/r/spec.yaml": {"https://e.test/x/a%2F..%2Fb.yaml#/B",
+			`its URL maps to no location: the segment "a/../b.yaml" holds an escaped separator`},
+		"/r/a%zz/spec.yaml": {"b.yaml#/B", "it names no document a reference can"},
+		"/r/x/spec.yaml":    {"https://e.test/x/b.yaml#/B", ""},
+	} {
+		fake := &fakeReader{data: []byte("B: {type: string}\n")}
+
+		_, diags, err := Load(t.Context(), 0, compilers.Source{Path: path, Data: []byte(head + "    P: {$ref: '" + tc.ref + "'}\n")},
+			Options{Reader: fake, Mappings: maps})
+
+		require.NoError(t, err)
+		var got []string
+		for _, d := range diags {
+			if d.Code == "openapi/unresolved-ref" {
+				got = append(got, d.Message)
+			}
+		}
+		if tc.want == "" {
+			assert.Empty(t, got, path)
+			require.Len(t, fake.reqs, 1, path)
+			assert.Equal(t, "/r/x/lib/b.yaml", fake.reqs[0].Location, "%s: read where the mapping puts it", path)
+			continue
+		}
+		require.Len(t, got, 1, "%s: %+v", path, diags)
+		assert.Contains(t, got[0], tc.want, path)
+		assert.Empty(t, fake.reqs, "%s: the reader is never asked", path)
+	}
+}
+
+// TestLoad_AReachedPathItemsAdditionalOperationIsHeldToItsRepeats holds a 3.2
+// path item only a $ref reaches, under an extension, to the check of repeated
+// parameters each of its operations gets where the source writes it, an
+// additionalOperations entry's among them.
+func TestLoad_AReachedPathItemsAdditionalOperationIsHeldToItsRepeats(t *testing.T) {
+	t.Parallel()
+	const spec = "openapi: 3.2.0\ninfo: {title: t, version: \"1\"}\npaths:\n  /a: {$ref: '#/x-lib/item'}\n" +
+		"x-lib:\n  item:\n    additionalOperations:\n      LINK:\n" +
+		"        parameters: [{name: q, in: query, schema: {type: string}}, {name: q, in: query, schema: {type: string}}]\n" +
+		"        responses: {\"200\": {description: ok}}\n"
+
+	_, diags, err := Load(t.Context(), 0, openapitest.SourceOf(spec), Options{})
+
+	require.NoError(t, err)
+	require.Len(t, diags, 1, "%+v", diags)
+	assert.Equal(t, "openapi/duplicate-parameter", diags[0].Code)
+	assert.Equal(t, jsontext.Pointer("/x-lib/item/additionalOperations/LINK/parameters/1"), diags[0].Provenance.Pointer)
+}

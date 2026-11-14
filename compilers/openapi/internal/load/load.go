@@ -67,6 +67,10 @@ type Options struct {
 	// MaxExternalDocuments bounds the documents external references read in one
 	// compile, each counted once however often it is asked for.
 	MaxExternalDocuments budget.Limit
+	// Mappings is where the caller put the documents under a URI prefix,
+	// applied where a document is located, before any refusal or read judges
+	// it; none is applied by inference.
+	Mappings []Mapping
 	// buildIndex builds the pre-parse index over a decoded tree, or nil for the
 	// compiler's own node bound. It is unexported because it is this package's
 	// test seam: it drives the truncated-index refusal without materializing a
@@ -80,6 +84,10 @@ type Options struct {
 	// cancels at the start of a phase through it, and lists the phases a load
 	// enters.
 	entered func(phase)
+	// judging is told each object a check of what the references reach reads
+	// as a kind, or is nil. It is this package's test seam: a test counts how
+	// often each is read, and in which phase.
+	judging func(oas.Kind, *yaml.Node)
 }
 
 // readyForModel clears the name of each anchor in the model's source tree, in

@@ -109,7 +109,7 @@ func TestExternal_ReadFailureMapsTheReadersSentinels(t *testing.T) {
 		outside  = `external document %s refused: it lies outside the source's directory "/srv/specs", ` +
 			"which a read leaves only when external references are allowed"
 		network = "external document %s refused: it is on the network, " +
-			"which a read reaches only when external references are allowed"
+			"which a read reaches only when external references are allowed; a locate option maps its URL to a location"
 	)
 	const url = "http://host/a.yaml"
 	tests := []struct {
@@ -260,21 +260,20 @@ func TestExternal_DocumentServesWhatTheReaderReturned(t *testing.T) {
 	assert.Same(t, tree, recorded)
 }
 
-// TestExternal_AReadRefusesByHowItIsNamed pins what a read confined to the
-// source's directory refuses unread, with its reason: a file URI, in any case
-// of its scheme. Any other key is read, a path that reads like a URL among
-// them, and so is a file URI unconfined. A refusal by how the $ref spells its
-// document part is the binder's (bind.Config.Refuse), made before it asks.
+// TestExternal_AReadRefusesByHowItIsNamed pins that a read refuses no key by
+// its spelling: a file URI, confined or not, a path that reads like a URL and
+// a relative path are each read. A refusal by how the $ref spells its document
+// part is the binder's (bind.Config.Refuse, refusedByName), made before it
+// asks, so it depends on no order of reading (GitHub #1886).
 func TestExternal_AReadRefusesByHowItIsNamed(t *testing.T) {
 	t.Parallel()
-	const allowed = ", which a read follows only when external references are allowed"
-	for _, tc := range []struct{ name, key, within, want string }{
-		{"a file URI", "file:///r/a.yaml", "/r", "external document file:///r/a.yaml refused: it is named by a file URI" + allowed},
-		{"a file URI in capitals", "FILE:///r/a.yaml", "/r", "external document FILE:///r/a.yaml refused: it is named by a file URI" + allowed},
-		{"a joined path that reads like a URL", "foo:b.yaml", "/r", ""},
-		{"an absolute key", "/r/a.yaml", "/r", ""},
-		{"a relative path", "a.yaml", "/r", ""},
-		{"a file URI, unconfined", "file:///r/a.yaml", "", ""},
+	for _, tc := range []struct{ name, key, within string }{
+		{"a file URI", "file:///r/a.yaml", "/r"},
+		{"a file URI in capitals", "FILE:///r/a.yaml", "/r"},
+		{"a joined path that reads like a URL", "foo:b.yaml", "/r"},
+		{"an absolute key", "/r/a.yaml", "/r"},
+		{"a relative path", "a.yaml", "/r"},
+		{"a file URI, unconfined", "file:///r/a.yaml", ""},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
@@ -283,13 +282,8 @@ func TestExternal_AReadRefusesByHowItIsNamed(t *testing.T) {
 
 			a := ext.readAs(t.Context(), tc.key, tc.key, tc.key)
 
-			if tc.want == "" {
-				require.NoError(t, a.err)
-				assert.Equal(t, "X: {}\n", string(a.body))
-				return
-			}
-			require.EqualError(t, a.err, tc.want)
-			assert.Empty(t, fake.reqs, "the reader is never asked")
+			require.NoError(t, a.err)
+			assert.Equal(t, "X: {}\n", string(a.body))
 		})
 	}
 }
@@ -305,13 +299,15 @@ func TestDirectoryNamed_SaysTheWorkingDirectory(t *testing.T) {
 }
 
 // TestRefusedByName_JudgesADocumentPartByItsSpelling pins what a read refuses
-// by a $ref's spelling alone. Confined, an absolute file path is refused
-// wherever it points, unless it names the source. In either mode, a URL whose
+// by a $ref's spelling alone. Confined, an absolute file path and a file URI
+// are refused wherever they point, unless they name the source. In either
+// mode, a URL whose
 // scheme is none of http, https and file is. A relative path, a colon past a
 // dot segment among them, is not, and with no reader nothing is.
 func TestRefusedByName_JudgesADocumentPartByItsSpelling(t *testing.T) {
 	t.Parallel()
 	const absolute, scheme = "the $ref names it by an absolute path", "it is named by a URL with the scheme"
+	const fileURI = "it is named by a file URI, which a read follows only when external references are allowed"
 	for _, tc := range []struct {
 		uri                string
 		confined, anywhere string
@@ -321,7 +317,9 @@ func TestRefusedByName_JudgesADocumentPartByItsSpelling(t *testing.T) {
 		{"foo:b.yaml", scheme + ` "foo"`, scheme + ` "foo"`},
 		{"X-Morphic-Refused:%2Fr%2Fa.yaml", scheme + ` "x-morphic-refused"`, scheme + ` "x-morphic-refused"`},
 		{"a.yaml", "", ""}, {"../a.yaml", "", ""}, {"./foo:b.yaml", "", ""},
-		{"https://h.test/a.yaml", "", ""}, {"http://h.test/a.yaml", "", ""}, {"file:///r/a.yaml", "", ""},
+		{"https://h.test/a.yaml", "", ""}, {"http://h.test/a.yaml", "", ""},
+		{"file:///r/a.yaml", fileURI, ""}, {"FILE:///elsewhere/a.yaml", fileURI, ""},
+		{"file:///r/root.yaml", "", ""}, {"file:///r/./root.yaml", "", ""},
 	} {
 		for _, run := range []struct {
 			within, want string

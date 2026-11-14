@@ -31,7 +31,6 @@ func listRepeats(sites places, sibs Siblings, b *typed.Bindings, items iter.Seq[
 ) []ir.Diagnostic {
 	place := sites.source
 	at := func(p jsontext.Pointer) ir.Provenance { return place.At(p) }
-	checked := map[ir.Provenance]bool{}
 	var diags []ir.Diagnostic
 	site, err := eachModel(items, "repeat check", func(site jsontext.Pointer, model any) error {
 		switch m := model.(type) {
@@ -42,12 +41,10 @@ func listRepeats(sites places, sibs Siblings, b *typed.Bindings, items iter.Seq[
 			diags = append(diags, serverRepeats(at, m.Servers, "")...)
 		case *soa.ReferencedPathItem:
 			if item, ok := writtenItem(m, b, sibs, site); ok {
-				checked[place.At(site)] = true
 				diags = append(diags, paramRepeats(at, b, item.GetParameters(), site)...)
 				diags = append(diags, serverRepeats(at, item.GetServers(), site)...)
 			}
 		case *soa.Operation:
-			checked[place.At(site)] = true
 			diags = append(diags, paramRepeats(at, b, m.GetParameters(), site)...)
 			diags = append(diags, serverRepeats(at, m.GetServers(), site)...)
 		default:
@@ -58,13 +55,15 @@ func listRepeats(sites places, sibs Siblings, b *typed.Bindings, items iter.Seq[
 	if err != nil {
 		diags = append(diags, diag.Newf(ir.SeverityError, diag.Validation, place.At(site), "%s", err.Error()))
 	}
-	return append(diags, landedRepeats(sites, b, checked)...)
+	return append(diags, landedRepeats(sites, b)...)
 }
 
 // landedRepeats reads the lists of each path item the bindings built for a
-// landing, and of its operations, each list once: one whose holder checked
-// holds is not read again, and each read is added to it.
-func landedRepeats(sites places, b *typed.Bindings, checked map[ir.Provenance]bool) []ir.Diagnostic {
+// landing, and of its operations, its additionalOperations among them, each
+// list once: a landing is a position the
+// source's grammar reads as raw YAML, so no list of the source's own walk is
+// one of them, and each lies at one position read as a path item.
+func landedRepeats(sites places, b *typed.Bindings) []ir.Diagnostic {
 	if b == nil {
 		return nil
 	}
@@ -83,13 +82,13 @@ func landedRepeats(sites places, b *typed.Bindings, checked map[ir.Provenance]bo
 		}
 		owners := map[jsontext.Pointer]lists{l.At.Pointer: {item.GetParameters(), item.GetServers()}}
 		for method, op := range item.All() {
-			owners[operationPointer(l.At.Pointer, string(method))] = lists{op.GetParameters(), op.GetServers()}
+			owners[l.At.Pointer.AppendToken(string(method))] = lists{op.GetParameters(), op.GetServers()}
+		}
+		additional := l.At.Pointer.AppendToken("additionalOperations")
+		for method, op := range item.GetAdditionalOperations().All() {
+			owners[additional.AppendToken(method)] = lists{op.GetParameters(), op.GetServers()}
 		}
 		for _, owner := range slices.Sorted(maps.Keys(owners)) {
-			if checked[at(owner)] {
-				continue
-			}
-			checked[at(owner)] = true
 			diags = append(diags, paramRepeats(at, b, owners[owner].params, owner)...)
 			diags = append(diags, serverRepeats(at, owners[owner].servers, owner)...)
 		}
@@ -101,16 +100,6 @@ func landedRepeats(sites places, b *typed.Bindings, checked map[ir.Provenance]bo
 type lists struct {
 	params  []*soa.ReferencedParameter
 	servers []*soa.Server
-}
-
-// operationPointer is where a path item at item writes its operation for
-// method: under the method's own key, or under additionalOperations for one
-// the specification does not name.
-func operationPointer(item jsontext.Pointer, method string) jsontext.Pointer {
-	if soa.IsStandardMethod(method) {
-		return item.AppendToken(method)
-	}
-	return item.AppendToken("additionalOperations").AppendToken(method)
 }
 
 // writtenItem returns the path item whose lists rp writes at site: its own

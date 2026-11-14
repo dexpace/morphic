@@ -4,6 +4,7 @@
 package e2e_test
 
 import (
+	"path/filepath"
 	"regexp"
 	"strings"
 	"testing"
@@ -386,27 +387,28 @@ func TestCompile_AComponentWhoseRefIsNoStringIsKeptAsWritten(t *testing.T) {
 const reachedItem = "item:\n  get:\n    parameters:\n      - {$ref: ~}\n      - {name: ok, in: query, schema: {type: string}}\n" +
 	"    responses: {\"200\": {description: ok}}\n"
 
-// TestCompile_AReachedObjectTheModelFaultsOnLosesItsPathItem pins what a
-// shape the model faults on does where only a $ref reaches it, raw YAML under
-// an x- key or another document, until #1928 judges what a reference lands
-// on outside the source's model before that is built: the table's one error at
-// the shape stands, and the path item reaching it is lost whole, with an error
-// that no path item could be built. Fixing #1928 turns each row into the
-// lowering the same item gets under paths.
-func TestCompile_AReachedObjectTheModelFaultsOnLosesItsPathItem(t *testing.T) {
+// TestCompile_AReachedObjectTheModelFaultsOnLowersAsUnderPaths holds a shape
+// the model faults on where only a $ref reaches it, raw YAML under an x- key or
+// another document, to the lowering the same item gets under paths (GitHub
+// #1928): what the reference lands on is judged before it is built, so the
+// table's one error at the shape stands, the shape is read as left out, and
+// the path item reaching it lowers what else it writes.
+func TestCompile_AReachedObjectTheModelFaultsOnLowersAsUnderPaths(t *testing.T) {
 	t.Parallel()
-	const noItem = "no path item could be built"
-	for name, tc := range map[string]struct{ spec, at string }{
+	for name, tc := range map[string]struct {
+		spec, at string
+		ops      []string
+	}{
 		"a null $ref under an x- key": {
 			"openapi: 3.1.0\ninfo: {title: t, version: \"1\"}\npaths:\n  /a: {$ref: \"#/x-lib/item\"}\nx-lib:\n" +
 				strings.ReplaceAll("  "+reachedItem, "\n  ", "\n    "),
-			"/x-lib/item/get/parameters/0/$ref",
+			"/x-lib/item/get/parameters/0/$ref", []string{"GET"},
 		},
 		"an additionalOperations entry that is no mapping under an x- key": {
 			"openapi: 3.2.0\ninfo: {title: t, version: \"1\"}\npaths:\n  /a: {$ref: \"#/x-lib/item\"}\nx-lib:\n  item:\n" +
 				"    get: {responses: {\"200\": {description: ok}}}\n" +
 				"    additionalOperations: {PURGE: ~, LINK: {responses: {\"200\": {description: ok}}}}\n",
-			"/x-lib/item/additionalOperations/PURGE",
+			"/x-lib/item/additionalOperations/PURGE", []string{"GET", "LINK"},
 		},
 	} {
 		t.Run(name, func(t *testing.T) {
@@ -415,27 +417,37 @@ func TestCompile_AReachedObjectTheModelFaultsOnLosesItsPathItem(t *testing.T) {
 			doc, diags := compileText(t, "spec.yaml", tc.spec, openapi.Options{})
 
 			require.NotNil(t, doc, "%+v", diags)
-			require.Len(t, diags, 2, "%+v", diags)
-			assert.Equal(t, tc.at, string(byCode(diags, typeMismatch)[0].Provenance.Pointer))
-			lost := byCode(diags, diag.Validation)
-			require.Len(t, lost, 1, "%+v", diags)
-			assert.Equal(t, "/paths/~1a", string(lost[0].Provenance.Pointer))
-			assert.Contains(t, lost[0].Message, noItem)
-			assert.Empty(t, allOperations(doc), "the path item is lost whole")
+			require.Len(t, diags, 1, "%+v", diags)
+			assert.Equal(t, typeMismatch, diags[0].Code)
+			assert.Equal(t, tc.at, string(diags[0].Provenance.Pointer))
+			var methods []string
+			for _, op := range allOperations(doc) {
+				methods = append(methods, op.Bindings.HTTP[0].Method)
+			}
+			assert.ElementsMatch(t, tc.ops, methods, "the path item lowers what it writes")
+			if len(tc.ops) == 1 {
+				params := allOperations(doc)[0].Params
+				require.Len(t, params, 1, "the entry is left out")
+				assert.Equal(t, "ok", params[0].Name.Source)
+			}
 		})
 	}
 	t.Run("a null $ref in another document", func(t *testing.T) {
 		t.Parallel()
+		dir := t.TempDir()
+		layout(t, dir, map[string]string{"other.yaml": reachedItem})
 
-		diags := compileBesideExpectingErrors(t, reachedItem,
-			"openapi: 3.1.0\ninfo: {title: t, version: \"1\"}\npaths:\n  /a: {$ref: \"other.yaml#/item\"}\n")
+		doc, diags := compileOnDisk(t, filepath.Join(dir, "spec.yaml"),
+			"openapi: 3.1.0\ninfo: {title: t, version: \"1\"}\npaths:\n  /a: {$ref: \"other.yaml#/item\"}\n", true)
 
-		require.Len(t, diags, 2, "%+v", diags)
-		assert.Equal(t, "/item/get/parameters/0/$ref", string(byCode(diags, typeMismatch)[0].Provenance.Pointer))
-		lost := byCode(diags, diag.Validation)
-		require.Len(t, lost, 1, "%+v", diags)
-		assert.Equal(t, "/paths/~1a", string(lost[0].Provenance.Pointer))
-		assert.Contains(t, lost[0].Message, noItem)
+		require.Len(t, diags, 1, "%+v", diags)
+		assert.Equal(t, typeMismatch, diags[0].Code)
+		assert.Equal(t, 1, diags[0].Provenance.Source, "in the other document's entry")
+		assert.Equal(t, "/item/get/parameters/0/$ref", string(diags[0].Provenance.Pointer))
+		ops := allOperations(doc)
+		require.Len(t, ops, 1, "the path item lowers")
+		require.Len(t, ops[0].Params, 1, "the entry is left out")
+		assert.Equal(t, "ok", ops[0].Params[0].Name.Source)
 	})
 }
 

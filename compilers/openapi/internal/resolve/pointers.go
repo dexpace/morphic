@@ -4,12 +4,14 @@
 package resolve
 
 import (
+	"cmp"
 	"encoding/json/jsontext"
 	"strings"
 	"unicode/utf8"
 
 	"github.com/speakeasy-api/openapi/references"
 
+	"github.com/dexpace/morphic/compilers/openapi/internal/bind"
 	"github.com/dexpace/morphic/compilers/openapi/internal/fragment"
 )
 
@@ -58,12 +60,23 @@ func (s Scope) InternalPointer(ref string) (jsontext.Pointer, bool) {
 // own content and a Foreign scope differ in that base only: SelfPath, or
 // Holder.
 func (s Scope) namesSelf(ref references.Reference) bool {
-	base := s.SelfPath
+	self := s.selfURI()
+	base := cmp.Or(self, s.SelfPath)
 	if s.Foreign {
 		base = s.Holder
 	} else if ref.GetURI() == "" {
 		return true
 	}
 	doc, ok := documentOf(ref, base)
-	return ok && s.Places.SameDocument(s.SelfPath, doc)
+	return ok && (s.Places.SameDocument(s.SelfPath, doc) || self != "" && doc == self)
+}
+
+// selfURI is the URI the source's $self names, resolved against where it lies,
+// which is its base and a second name of it (bind.Document.Self), or empty
+// for none.
+func (s Scope) selfURI() string {
+	if s.Bindings == nil {
+		return ""
+	}
+	return s.Bindings.Table().Document(bind.Source).Self
 }

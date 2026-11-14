@@ -105,8 +105,11 @@ JSON text, YAML or JSON followed by anything else, is read as YAML, as before, i
 
 Every YAML text is read as YAML 1.2, as YAML 1.2 asks of a processor whatever a `%YAML` directive
 declares ([`yaml11-lexing`](../parser-library.md#yaml11-lexing)): a `\/` escape is a slash in a
-double-quoted scalar and the two characters it writes anywhere else, a raw U+0085, U+2028 or U+2029
-is a character and ends no line, and a `%YAML 1.2` directive is read. A document declaring a later
+double-quoted scalar and the two characters it writes anywhere else, as a pair of `\u` escapes
+naming the two halves of a surrogate pair is the one character it names there, as JSON spells one,
+and the twelve characters as written anywhere else, while a half alone is refused as in JSON text
+above; a raw U+0085, U+2028 or U+2029 is a character and ends no line, and a `%YAML 1.2`
+directive is read. A document declaring a later
 minor is read as 1.2 with an `openapi/yaml-version-reading` warning at the directive, by position
 alone, and one declaring another major is refused as the parser refuses it. A document declaring
 1.1 draws the same warning at each plain scalar YAML 1.1's types read as another JSON value than
@@ -186,14 +189,19 @@ scalar under any other tag keeps it.
   `e2e.TestCompile_AJSONSourceWithAKeyPastTheYAMLLimitCompiles`,
   `e2e.TestCompile_AJSONExternalDocumentCompilesAsItsLiteralTwin`,
   `e2e.TestCompile_ALoneSurrogateIsRefusedWhereItIsWritten`,
-  `e2e.TestCompile_APositionAfterAnEscapeCountsItAsWritten`
+  `e2e.TestCompile_APositionAfterAnEscapeCountsItAsWritten`,
+  `e2e.TestCompile_ASurrogatePairOfEscapesInYAMLIsTheCharacterItNames`,
+  `e2e.TestCompile_ALoneHalfOfASurrogatePairIsStillRefused`,
+  `e2e.TestCompile_ASurrogatePairInAKeyAndBesideOtherRespellingsReadsEachAsItsOwn`,
+  `doctree.TestRead_ASurrogatePairIsTheCharacterOnlyInADoubleQuotedScalar`,
+  `doctree.TestRead_ASurrogatePairAfterAnEvenRunOfBackslashesIsNotOne`,
+  `doctree.TestRead_AnUnpairedHalfIsRefusedAsItIsToday`, `doctree.TestRead_ASurrogatePairInAKeyIsTheCharacter`
 - Status: partly built: both order oracles in `internal/harness` parse a source as YAML to permute
   it as YAML 1.1 lexes it, and decline one only the compiler's reader reads as not YAML: a JSON
-  text writing a surrogate pair, and a YAML text writing an escaped slash or a `%YAML 1.2`
-  directive (#1768). A pair of surrogate escapes in YAML text is refused, as YAML 1.2 joins no pair
-  (#1934). A text writing every one of the 64 characters from U+E000 that the reader stands in for
-  what it reads as YAML 1.2, and a UTF-16 or UTF-32 text encoding no text, are read as the parser
-  reads them. A scalar or a sequence under
+  text writing a surrogate pair, and a YAML text writing an escaped slash, a pair of surrogate
+  escapes or a `%YAML 1.2` directive (#1768). A text writing every one of the 64 characters from
+  U+E000 that the reader stands in for what it reads as YAML 1.2, and a UTF-16 or UTF-32 text
+  encoding no text, are read as the parser reads them. A scalar or a sequence under
   a tag outside YAML's JSON schema ruleset is not reported, and where the model reads a string or a
   list it reads as left out (#1368).
 
@@ -634,7 +642,9 @@ whose aliases lead back into what holds them keeps every written place: it is re
 cycle.
 
 A value the table refuses as the wrong type is read as the field left out by every reader of the
-source, wherever the table reads it, the parser's model among them; a construct kept verbatim shows
+source, wherever the table reads it, the parser's model among them, and so is one of what a `$ref`
+reaches outside the source's own reading, raw YAML under an `x-` key or another document, which is
+judged before anything is built for it ([`references`](#references)); a construct kept verbatim shows
 it as the source wrote it. It is read so once every judgment of the document is in: in a document
 that may name a dialect, once its Schema Objects are judged, when the model and the `$ref`s are read
 again, so such a document reads a refused value as the same document naming none does. Such a value is one with none of the shapes its field admits, a boolean
@@ -708,15 +718,14 @@ gives it no effect is [`allow-reserved-locations`](#allow-reserved-locations)' a
   `e2e.TestCompile_ATypeMismatchOnASharedMountIsPlacedAtTheLeastMount`,
   `e2e.TestCompile_ANodeInsideTwoMountsIsPlacedByTheirTokens`,
   `oas.TestCheck_AFindingNamesTheLeastPositionThatReadIt`, `oas.TestLessPointer_OrdersTokenByToken`,
-  `scan.TestLeast_OrdersByThePointersTokens`, `scan.TestLeast_AgreesWithSortingEveryPointer`
-- Status: partly built: a value of what a `$ref` reaches outside the source's own reading, raw YAML
-  under an `x-` key or another document, is read as the model reads it (#1928), a schema position
-  there read from its node all the same ([`null-schema`](#null-schema)); and an object there whose
-  own `$ref` is null, or a 3.2 `additionalOperations` entry there that is no mapping, still faults
-  the model build of what reaches it, so the path item a `$ref` reaches it from is lost whole, with
-  an `openapi/validation` error that no path item could be built (#1928). Where the table refuses an
-  `$id`'s value in a document that may name a dialect, a schema below it is judged in the dialect
-  that `$id` roots as written.
+  `scan.TestLeast_OrdersByThePointersTokens`, `scan.TestLeast_AgreesWithSortingEveryPointer`,
+  `e2e.TestCompile_AValueARefLandsOnIsJudgedBeforeItIsBuilt`,
+  `e2e.TestCompile_AValueAnotherDocumentsRefLandsOnIsJudgedBeforeItIsBuilt`,
+  `e2e.TestCompile_ANullableARefLandsOnWritesWrongIsNotAdmitted`,
+  `e2e.TestCompile_AValueOneReadingRefusesAndAnotherAcceptsIsKeptForTheOther`,
+  `load.TestLoad_WhatAReferenceReachesIsJudgedOnceBeforeItIsBuilt`
+- Status: partly built: where the table refuses an `$id`'s value in a document that may name a
+  dialect, a schema below it is judged in the dialect that `$id` roots as written (#1958).
 
 ### `minor-required-fields`
 
@@ -846,7 +855,15 @@ it, nor on how the spec was named, and a relative path names the file an absolut
 where the source lies at an absolute path. A file's part is percent-decoded,
 so `my%20file.yaml` names the file `my file.yaml`, unless decoding would read it otherwise, as an
 escaped separator or `#` would, where it is read as written; and a `file:` URI names the file at its
-path, as a reader reads it. Against a document fetched over http(s), a part naming no scheme, an
+path, as a reader reads it, so a file is one document however a reference spells it. A document's
+label is its location from the directory its source lies in, whatever spelling names it; an absolute
+reference changes no label. A URL of any other scheme is spelled as RFC 3986 §6.2.2 normalizes it,
+and an `http` or `https` one as §6.2.3 does too, where it is located and where an identifier declares
+it: its scheme and host in lower case, each escape of an unreserved character decoded and the hex of
+every other in upper case before its dot segments are removed, and for `http` and `https` an empty
+path made `/` and an empty or default port dropped, while an empty query's `?` and a host's final dot
+stay. So every spelling of one URL is one request, one document and one `Document.Sources` entry,
+labelled the one way. Against a document fetched over http(s), a part naming no scheme, an
 absolute path and a network-path reference among them, names what the document's URL makes of it, on
 the network. A reference written in a document read over http(s), the source included, is read
 only from an http(s) URL: one naming another location, by a `file:` URI, a drive path, or a base an
@@ -858,7 +875,15 @@ or by an absolute path fails unread, whatever another `$ref` names that document
 by its own spelling, so what the default reads depends on no order references are read in. In either
 mode a `$ref` naming a URL whose scheme is none of `http`, `https` and `file` fails unread, where a
 reader would take it for a path; a file whose name holds a colon is written `./a:b.yaml`, and is
-read as that file. A document outside fails each reference naming it, and with no reader no document
+read as that file. The caller may map a URI prefix to a location, a directory or an http(s) URL
+(`Options.Locations`, `--opt locate=<uri-prefix>=<location>`); nothing is mapped by inference. The
+mapping is applied where a URL is located, once spelled one way, before any refusal or read judges
+it, the longest prefix winning: the rest of the URL is joined to a directory segment by segment,
+each decoded, and one decoding to a separator names no location, so the reference fails unread and
+no spelling leaves the location; a URL location takes the rest as written. The document is then
+read, confined, named and labelled where its bytes are, so a file reached by its path and by a
+mapped URL is one document, and a mapped location a document read over http(s) may not reach is
+refused as any other. A URL refused as on the network says a mapping would place it. A document outside fails each reference naming it, and with no reader no document
 is read.
 
 Each document a reference reaches is a `Document.Sources` entry after the source and its overlay,
@@ -898,10 +923,12 @@ path item's fields aside ([`path-item-ref-fields`](#path-item-ref-fields)), as O
 properties added SHALL be ignored": a `$ref` there is no reference and draws no finding. It lands on
 an object of its own kind: a position the source's grammar reads as another kind, a schema, a map of
 objects or a value holds none, and raw YAML, as an extension's value or any position of another
-document, is read as the kind it is reached as where it is a mapping. An object is built there, and
-the references inside it are bound where it lies, as the source's are; one no object can be built
-from, which the parser faults on, is reported as an `openapi/validation` error at the reference, and
-lowers nothing.
+document, is read as the kind it is reached as where it is a mapping. It is held to the table
+before anything is built for it, by the one judgement whose findings are reported, so a value that
+judgement refuses reads as left out there too, and a shape the model faults on is set aside there
+as in the source. An object is built there, and the references inside it are bound where it lies,
+as the source's are; one no object can be built from is reported as an `openapi/validation` error
+at the reference, and lowers nothing.
 
 A schema `$ref`, and a discriminator mapping value naming no schema component of the entry document
 ([`discriminator`](#discriminator)), is bound by the compiler itself, never by the parser's resolver
@@ -942,10 +969,14 @@ dialect embedding it spells one, as 2020-12 has an embedded resource do (§9.3.1
 its own `$schema` names does, unless it writes a `$ref` whose siblings the dialect embedding it
 ignores. An `$id` names the URI its part before the `#` resolves to against the base above it, by
 RFC 3986 where that base is a URI and as a `$ref`'s document is placed where it is a file's path,
-and identifiers match as RFC 3986 §6.2.2 normalizes them. One with
+and identifiers match as a located URL is spelled (above). One with
 a fragment that is not empty names none, as 2020-12 admits none, one naming the URI of the resource
 holding it starts no resource, and one naming the source, however spelled, returns to the
-document's. A URI no schema declares names the document at that URI, read as any other is: one read
+document's. A declaration answers a reference only where the referring document could read the
+declaring one: a document answers itself, a document read over http(s) answers another only for a
+URI of its own origin (scheme, host and port), and a document read over http(s) is answered by no
+file, the source among them; for any other asker it declares nothing, and the URI is a location to
+it. A URI no schema declares names the document at that URI, read as any other is: one read
 against an `$id` is the URI the `$id` makes of it, never the file of that name beside the source,
 and is judged for refusal as written while only relative paths moved its base, and as that URI once
 an absolute `$id` did. Every document a reached reference names is parsed before any reference is
@@ -1029,10 +1060,33 @@ other keys with it, and the rule table's error at the `$ref` is the one report o
 kept verbatim shows it as written ([`unreferenced-components`](#unreferenced-components)). The parser's
 model faults building such an object, and a 3.2 `additionalOperations` entry that is no mapping
 ([`nil-populate-panic`](../parser-library.md#nil-populate-panic)), so the load phase sets each
-aside for the model's builds and puts it back before anything else reads the tree. A Path Item's
+aside for the model's builds and puts it back before anything else reads the tree, in the source
+and in what a reference reaches outside its model alike. A Path Item's
 `$ref` is the item's own field: one that is no string is read as left out, and the item as what
 else it writes.
 - Tests: `e2e.TestCompile_ExternalFileRefIsNotReadByDefault`,
+  `e2e.TestCompile_OneURLSpelledSixWaysIsOneRequestOneKeyAndOneType`,
+  `e2e.TestCompile_ADocumentAnotherOriginServesDeclaresNothingForTheSource`,
+  `e2e.TestCompile_AFilesDeclarationAnswersTheSourceAndNoRead`,
+  `e2e.TestCompile_AFetchedDocumentReadsAURLAFileDeclares`,
+  `e2e.TestCompile_ATwoDocumentsDeclaringOneSelfAnswerNoReference`,
+  `e2e.TestCompile_AFileDeclaringAURLIsNotRequestedWhereReadsAreAllowed`,
+  `bind.TestBind_ADeclarationAnswersOnlyWhoCouldReadItsDocument`, `bind.TestBind_ASelfIsADocumentsBaseAndName`,
+  `bind.TestBind_AMappedLocationIsJudgedWhereAFetchedDocumentReadsIt`,
+  `e2e.TestCompile_AFileIsOneDocumentWhateverItsReferenceSpellsIt`,
+  `e2e.TestCompile_AMappedURLIsTheDocumentItsLocationHolds`,
+  `e2e.TestCompile_AMappedURLThatNormalizesOutOfItsPrefixIsRefused`,
+  `e2e.TestCompile_AMappedSegmentThatDecodesToASeparatorNamesNothing`,
+  `e2e.TestCompile_ALocationWithNoFinalSeparatorIsTheDirectoryItNames`,
+  `e2e.TestCompile_AFetchedDocumentsReferenceToAMappedURLIsNotAFile`,
+  `load.TestMapped_PutsAURLUnderTheLongestPrefix`, `load.TestLoad_AMappedURLNamingNoLocationIsRefusedUnread`,
+  `openapi.TestDecodeOptions_LocateMapsEachPrefixToItsLocation`,
+  `openapi.TestDecodeOptions_LocateRefusesAPrefixThatIsNoURIPrefix`,
+  `e2e.TestCompile_AFileURIIsRefusedByItsSpellingWhereReadsAreConfined`,
+  `e2e.TestCompile_AnIdentifierAndAReferenceMeetInOneSpelling`,
+  `resolve.TestLocate_AnAbsoluteURLIsSpelledByRFC3986Normalization`,
+  `resolve.TestLocate_NormalizingTwiceChangesNothing`, `bind.TestNormalURI_IsIdempotentOverGeneratedURLs`,
+  `bind.TestNormalURI_SpellsEachEqualURLOneWay`, `bind.TestNormalURI_KeepsWhatEachSchemeWrites`,
   `e2e.TestOlderDrafts_AnIDNamesAResource`, `e2e.TestOlderDrafts_AnIdentifierBesideARefSetsNoBase`,
   `e2e.TestOlderDrafts_AnAnchorTakesItsDraftsGrammar`,
   `bind.TestDialectRule_AFragmentIdentifierDeclaresByItsDialectsGrammar`,
@@ -1132,13 +1186,10 @@ else it writes.
   `e2e.TestCompile_AnAliasedNullRefIsReadWithoutAFault`, `load.TestAside_RestoreLeavesTheTreeAsWritten`,
   `load.TestLoad_TheTreeIsAsWrittenOnceTheModelIsBuilt`,
   `load.TestLoad_ANullRefOfAReferenceObjectIsReadWithoutAFaultAtEachModelBuild`,
-  `e2e.TestCompile_AReachedObjectTheModelFaultsOnLosesItsPathItem`,
+  `e2e.TestCompile_AReachedObjectTheModelFaultsOnLowersAsUnderPaths`,
   `e2e.TestCompile_ARefAMergeKeyWritesThatIsNoStringLeavesTheEntryOut`,
   `e2e.TestCompile_AComponentWhoseRefIsNoStringIsKeptAsWritten`
-- Status: partly built: a remote document can make the compiler request a private address (#937),
-  and a Reference Object whose `$ref` is null in another document, or in raw YAML only a reference
-  reaches, still faults the model build of what reaches it, as does a 3.2 `additionalOperations`
-  entry there that is no mapping, so the path item reaching it is lost whole (#1928).
+- Status: partly built: a remote document can make the compiler request a private address (#937).
   A chain of documents each declaring the URI the one before it asked for costs a binding pass per
   link (#1372).
 
@@ -1200,14 +1251,33 @@ left unresolved. It is read at every minor: a 3.0 or 3.1 document writing one lo
 and is reported, as for every construct a later minor added, with an
 `openapi/later-version-construct` warning ([`later-version-construct`](#later-version-construct)).
 
+A document's `$self`, resolved against where the document was read, is its base and a name of it,
+as OpenAPI 3.2 has it, in the source and in every document a reference reads. Every relative
+reference in it, a schema's, a mapping value or a reference object's, is read against it, as under
+an `$id`: judged for refusal as written while only a relative `$self` moved the base, and as the URI
+it resolves to once an absolute one did. A reference naming the document by its `$self` lands in
+it with no read, a security requirement key among them, and a schema whose `$id` names it roots no
+resource, so its `$schema` chooses no dialect. Another document's `$self` is declared at its root as
+an `$id` is. The location the document was read from still decides what it may reach: a `$self`
+never moves a fetched document's reference onto a file, which is an `openapi/unresolved-ref`
+error where the reference is written. A `$self` holding a `#` is the rule table's format error at
+`#/$self`, and names nothing. So a 3.2 document whose `$self` is an http(s) URL
+reads the documents its relative references name from that URL, not from the files beside it; a
+`locate` option ([`references`](#references)) maps the URL to them.
+
 - Cases: `self-uri`
-- Codes: `openapi/later-version-construct`
+- Codes: `openapi/later-version-construct`, `openapi/unresolved-ref`
 - Tests: `openapi.TestCompile_RecordsSelfURI`,
-  `e2e.TestReferenceObjects_ADocumentPartIsReadWhereTheSourceLies`
-- Status: partly built: OpenAPI 3.2 makes `$self`, resolved against the retrieval URI, the base of
-  every relative reference in every document. No document's `$self` is read as a base: every
-  reference, a schema's, a mapping value or a reference object's, is read against the location the
-  document was read from (#863).
+  `e2e.TestReferenceObjects_ADocumentPartIsReadWhereTheSourceLies`,
+  `e2e.TestCompile_ASelfURIIsTheNameOfTheDocumentAndItsBase`,
+  `e2e.TestCompile_ARelativeReferenceUnderAnHTTPSelfNamesAURL`,
+  `e2e.TestCompile_ASelfURIMovesNoFetchedDocumentOntoAFile`,
+  `e2e.TestCompile_ARelativeSelfIsResolvedAgainstWhereTheDocumentWasRead`,
+  `e2e.TestCompile_ASelfNamingTheIdentifierOfASchemaRootsNothing`,
+  `e2e.TestCompile_ARequirementKeyNamingTheSelfNamesTheSchemeOfTheSource`,
+  `e2e.TestCompile_ASelfHoldingAFragmentIsAnErrorAndNamesNothing`,
+  `e2e.TestCompile_NothingIsMappedByInference`,
+  `e2e.TestCompile_ASourceReadOverTheNetworkReadsNoLocalFile`
 
 ### `verbatim-preservation`
 
@@ -3753,7 +3823,7 @@ saying what a document of its version writes instead, and the lowering reads `it
   `e2e.TestOlderDrafts_AMalformedTupleIsReportedAsItsTwinIs`,
   `e2e.TestOlderDrafts_ATypeListsArrayVariantIsTheTupleWritten`,
   `schema.TestPreserveUnknownKeywords_ReadsWhatADraftSpellsOtherwise`,
-  `bind.TestTuples_AListOfItemsHoldsSchemas`, `load.TestBuiltTargets`,
+  `bind.TestTuples_AListOfItemsHoldsSchemas`, `load.TestLandingTargets`,
   `oas.TestCheck_AnItemsListFollowsTheSchemasRows`, `schema.TestLower_PrefixItemsBesideAListedTupleIsKept`
 - Status: open: whether a `Rest` or an `Elem` beside a live `unevaluatedItems: false` is typed
   rather than left to the entry (#1883).

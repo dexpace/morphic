@@ -228,6 +228,7 @@ func describeFormat(format Format) string {
 		PlainName:         "a name of a letter, then letters, digits, '-', '_', ':' and '.'",
 		PlainNameURI:      "a URI reference whose fragment, where written alone and no JSON pointer, is a name of a letter, then letters, digits, '-', '_', ':' and '.'",
 		ResourceURI:       "a URI reference whose fragment, if any, is empty",
+		SelfURI:           "a URI reference holding no fragment",
 	}[format]
 }
 

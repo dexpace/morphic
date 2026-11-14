@@ -158,19 +158,10 @@ func (d Dialects) govern(root *yaml.Node, rules oas.SchemaRules) {
 // jsonSchemaDialect, the source's among them. A value no absolute URI names
 // chooses nothing and draws none: validation reports it where it judges it,
 // which in a document a reference reaches is only what the reference reaches.
-// A document two names read is warned of once.
+// Each document is read under one name (resolve.Locate), so warned of once.
 func readDialects(table *bind.Table, others Others, d *dialects, sites places) (Dialects, []ir.Diagnostic) {
 	var diags []ir.Diagnostic
-	type spot struct {
-		source  int
-		pointer jsontext.Pointer
-	}
-	warned := map[spot]bool{}
 	unread := func(at ir.Provenance, keyword, dialect string) {
-		if warned[spot{at.Source, at.Pointer}] {
-			return
-		}
-		warned[spot{at.Source, at.Pointer}] = true
 		diags = append(diags, diag.Newf(ir.SeverityWarning, diag.UnreadDialect, at,
 			"%s names %q, a JSON Schema dialect the compiler has no rows for, so the schemas it governs are "+
 				"read in the dialect their OpenAPI version names", keyword, dialect))

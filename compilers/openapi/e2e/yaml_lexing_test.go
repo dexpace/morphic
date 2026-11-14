@@ -14,7 +14,6 @@ import (
 
 	"github.com/dexpace/morphic/compilers"
 	"github.com/dexpace/morphic/compilers/openapi"
-	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/engine/reader"
 	"github.com/dexpace/morphic/ir"
 )
@@ -124,22 +123,6 @@ func TestCompile_ATextSpellingEveryPlaceholderIsTheParsersOwn(t *testing.T) {
 	require.NotNil(t, doc)
 	assert.Empty(t, diags)
 	assert.Equal(t, "a b", doc.Name, "the raw U+0085 in a double-quoted scalar reads as the parser reads it")
-}
-
-// TestCompile_ASurrogatePairEscapeInYAMLIsRefused pins a stated limit: the
-// lexer refuses a pair of surrogate escapes in YAML text, which YAML 1.2 does
-// not join.
-func TestCompile_ASurrogatePairEscapeInYAMLIsRefused(t *testing.T) {
-	t.Parallel()
-	src := "openapi: 3.1.0\ninfo: {title: \"a" + srBS + "uD83D" + srBS + "uDE00b\", version: \"1\"}\npaths: {}\n"
-
-	doc, diags := compileText(t, "spec.yaml", src, openapi.Options{})
-
-	assert.Nil(t, doc)
-	require.Len(t, diags, 1, "%+v", diags)
-	assert.Equal(t, diag.UndecodableSource, diags[0].Code)
-	assert.Equal(t, ir.SeverityError, diags[0].Severity)
-	assert.Contains(t, diags[0].Message, "found invalid Unicode character escape code")
 }
 
 // TestCompile_AJSONDocumentReadsAlikeBehindEverySpelling holds a document a

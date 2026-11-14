@@ -442,8 +442,10 @@ paths:
 - Verified at: v1.26.3
 - Pinned by: `TestLibraryBehaviour/nil-populate-panic`
 - Code:
-  - `load.setAside` sets each such shape the source writes aside for the model's builds.
-  - `load.aside` holds what it set aside, and puts it back.
+  - `load.setAside` sets each such shape the source writes aside for the model's builds, and each
+    one a reference reaches outside the source's model once `load.judgeReached` has judged it.
+  - `load.aside` holds what it set aside, puts it back while what a reference reaches is judged as
+    written, and puts it back for good.
   - `load.buildRecovered` turns the panic into an `ErrParse` error.
 
 ### `alias-field-on-scalar`
@@ -659,7 +661,9 @@ text to the parser.
 ### `yaml11-lexing`
 
 The parser lexes YAML as YAML 1.1 where YAML 1.2 lexes otherwise. It refuses a `\/` escape, which
-YAML 1.2 adds, and reads `\a` as the bell in a double-quoted scalar. It refuses a `%YAML 1.2`
+YAML 1.2 adds, and a pair of `\u` escapes naming the two halves of a surrogate pair, which YAML 1.2
+reads as the one character it names, as JSON writes one, and reads `\a` as the bell in a
+double-quoted scalar. It refuses a `%YAML 1.2`
 directive as an incompatible document, and reads `%YAML 1.1`, also after a byte order mark, padded
 with a space, and for a later document after `...`. It ends a line at a raw U+0085, U+2028 and
 U+2029, which YAML 1.2 reads as characters: U+0085 in a double-quoted scalar reads as a space, and
@@ -669,11 +673,12 @@ tag decodes to its characters. A bare `!` tags a string with no `TaggedStyle`; a
 `!!timestamp` without one.
 
 ```yaml
-a: "x\/y"     # refused: found unknown escape character
+a: "x\/y"            # refused: found unknown escape character
+b: "\uD83D\uDE00"   # refused: found invalid Unicode character escape code
 ```
 
-The compiler writes each line-break character and each escaped slash as a private-use character the
-text spells nowhere, one character for one, writes a later minor's directive as `1.1` padded to its
+The compiler writes each line-break character, each escaped slash and each pair of escapes naming a
+surrogate pair as private-use characters the text spells nowhere, one character for one, writes a later minor's directive as `1.1` padded to its
 width, and reads back what it wrote by each scalar's style, so the tree is YAML 1.2's.
 
 - Verified at: v1.26.3
