@@ -9,6 +9,7 @@ import (
 	"encoding/json/jsontext"
 	"encoding/json/v2"
 	"errors"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -127,6 +128,24 @@ func TestCheck_SequenceOrderOracleHoldsOnTheRealCompiler(t *testing.T) {
 			want: declined(OracleSequenceOrder, DeclineNothingToPermute),
 		},
 		{
+			// The second document writes AB's allOf too, which the compiler
+			// drops: reversing either would let the oracle read one as the
+			// other.
+			name: "a path two documents of the stream write",
+			src: schemas("AB: {allOf: [{type: object, properties: {p: {type: string}}}, {type: object, properties: {p: {type: integer}}}]}") +
+				"---\n" + schemas("AB: {allOf: [{type: object, properties: {a: {type: string}}}, "+
+				"{type: object, properties: {b: {type: string}}}, {type: object, properties: {c: {type: string}}}]}"),
+			codes: map[string]string{"openapi/stream-documents-dropped": ""},
+			want:  declined(OracleSequenceOrder, DeclineNothingToPermute),
+		},
+		{
+			// The deepest chain the permutation admits: its canonical form
+			// nests past one source bound.
+			name: "a chain of 255 schemas, each a property under an allOf",
+			src:  propertyChain(255),
+			want: passed(OracleSequenceOrder),
+		},
+		{
 			// Both declare the same member, so which one the model takes is no
 			// difference a consumer can see.
 			name: "two declarations saying the same",
@@ -155,6 +174,18 @@ func TestCheck_SequenceOrderOracleHoldsOnTheRealCompiler(t *testing.T) {
 			assert.Equal(t, tc.want, got)
 		})
 	}
+}
+
+// propertyChain is a document whose one schema nests n levels, each an allOf
+// of an object with a property p holding the next and a sibling with q.
+func propertyChain(n int) string {
+	schema := `{"type": "string"}`
+	for range n {
+		schema = `{"allOf": [{"type": "object", "properties": {"p": ` + schema +
+			`}}, {"type": "object", "properties": {"q": {"type": "string"}}}]}`
+	}
+	return `{"openapi": "3.1.0", "info": {"title": "t", "version": "1"}, "paths": {}, ` +
+		`"components": {"schemas": {"X": ` + schema + `}}}`
 }
 
 // diagnosticsAt is the pointers of the diagnostics of one code.
@@ -432,4 +463,21 @@ func TestSequenceOrderInvariant_DeclinesWhatItCannotPermute(t *testing.T) {
 			assert.Equal(t, declined(OracleSequenceOrder, tc.why), got)
 		})
 	}
+}
+
+// TestSequenceOrderInvariant_AFormPastTheBoundIsDeclined pins that a document
+// whose canonical form nests past the harness's bound is declined, not reported
+// as the compiler's finding.
+func TestSequenceOrderInvariant_AFormPastTheBoundIsDeclined(t *testing.T) {
+	deep := ir.RawValue(strings.Repeat("[", maxCanonicalDepth+1) + strings.Repeat("]", maxCanonicalDepth+1))
+	plant(t, func(t *testing.T, _ bool, doc *ir.Document, diags []ir.Diagnostic) (*ir.Document, []ir.Diagnostic, error) {
+		m, ok := doc.Types[abID].(*ir.Model)
+		require.True(t, ok, "the fixture must lower AB to a model")
+		m.Unmodeled = ir.Unmodeled{"openapi:x": {Reason: ir.ReasonValidationOnly, Value: deep}}
+		return doc, diags, nil
+	})
+
+	got := sequenceOrderInvariant(context.Background(), "spec.yaml", []byte(fixtureX), true)
+
+	assert.Equal(t, declined(OracleSequenceOrder, DeclineTooDeep), got)
 }

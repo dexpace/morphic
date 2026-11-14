@@ -7,6 +7,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json/jsontext"
+	"errors"
 	"slices"
 	"strconv"
 	"strings"
@@ -36,8 +37,12 @@ func sequenceOrderInvariant(ctx context.Context, spec string, data []byte, compi
 		return declined(OracleSequenceOrder, DeclineNothingToPermute)
 	}
 	return comparePermuted(ctx, OracleSequenceOrder, spec, baseline, reversed, compiled,
-		func(first *ir.Document, firstDiags []ir.Diagnostic, second *ir.Document, secondDiags []ir.Diagnostic) (string, bool) {
-			return diffSequenceInvariants(first, firstDiags, second, secondDiags, perm)
+		func(first *ir.Document, firstDiags []ir.Diagnostic, second *ir.Document, secondDiags []ir.Diagnostic) Verdict {
+			detail, ok, why := diffSequenceInvariants(first, firstDiags, second, secondDiags, perm)
+			if why != "" {
+				return declined(OracleSequenceOrder, why)
+			}
+			return OracleSequenceOrder.judge(detail, ok)
 		})
 }
 
@@ -47,8 +52,9 @@ func sequenceOrderInvariant(ctx context.Context, spec string, data []byte, compi
 // equal but for which element of a reversed sequence their pointers name is a
 // report that moves with the order, a tie the lowering states, so nothing the
 // documents hold at or beneath its pointer is compared. Every difference is
-// reported, one after another.
-func diffSequenceInvariants(first *ir.Document, firstDiags []ir.Diagnostic, second *ir.Document, secondDiags []ir.Diagnostic, perm permutation) (string, bool) {
+// reported, one after another. It declines a document whose canonical form
+// nests past its bound, since then nothing was compared.
+func diffSequenceInvariants(first *ir.Document, firstDiags []ir.Diagnostic, second *ir.Document, secondDiags []ir.Diagnostic, perm permutation) (string, bool, Decline) {
 	var found []string
 	ties, unpaired := movedReports(firstDiags, secondDiags, perm)
 	if unpaired != "" {
@@ -58,21 +64,32 @@ func diffSequenceInvariants(first *ir.Document, firstDiags []ir.Diagnostic, seco
 	case refused != "":
 		found = append(found, refused)
 	case first != nil:
-		found = append(found, compareForms(first, second, perm, ties)...)
+		forms, why := compareForms(first, second, perm, ties)
+		if why != "" {
+			return "", false, why
+		}
+		found = append(found, forms...)
 	}
-	return strings.Join(found, "\n"), len(found) == 0
+	return strings.Join(found, "\n"), len(found) == 0, ""
 }
 
 // compareForms compares two documents' canonical forms (canonicalForm), each
-// in its own source's coordinates, line by line, and their flattened shapes.
-func compareForms(first, second *ir.Document, perm permutation, ties []string) []string {
+// in its own source's coordinates, line by line, and their flattened shapes,
+// or declines where either form nests past its bound.
+func compareForms(first, second *ir.Document, perm permutation, ties []string) ([]string, Decline) {
 	a, err := canonicalForm(first, perm.written, ties)
+	if errors.Is(err, errTooDeep) {
+		return nil, DeclineTooDeep
+	}
 	if err != nil {
-		return []string{"encode as written: " + err.Error()}
+		return []string{"encode as written: " + err.Error()}, ""
 	}
 	b, err := canonicalForm(second, perm.moved, ties)
+	if errors.Is(err, errTooDeep) {
+		return nil, DeclineTooDeep
+	}
 	if err != nil {
-		return []string{"encode permuted: " + err.Error()}
+		return []string{"encode permuted: " + err.Error()}, ""
 	}
 	var found []string
 	if !slices.Equal(a.document, b.document) {
@@ -81,7 +98,7 @@ func compareForms(first, second *ir.Document, perm permutation, ties []string) [
 	if !slices.Equal(a.shape, b.shape) {
 		found = append(found, "flattened shape depends on sequence order (-as-written +reversed):\n"+cmp.Diff(a.shape, b.shape))
 	}
-	return found
+	return found, ""
 }
 
 // report is one diagnostic as the comparison reads it, in the coordinates of
@@ -89,16 +106,20 @@ func compareForms(first, second *ir.Document, perm permutation, ties []string) [
 // index of a reversed sequence erased, and its pointer.
 type report struct{ key, erased, pointer string }
 
-// reportsOf reads diags, rebasing each pointer and node from the coordinates
-// of from, when given, to those of the source as written, where written lists
-// the reversed sequences.
+// reportsOf reads diags, rebasing each pointer of the compiled source and
+// each node from the coordinates of from, when given, to those of the source
+// as written, where written lists the reversed sequences.
 func reportsOf(diags []ir.Diagnostic, from, written sequences) []report {
 	out := make([]report, 0, len(diags))
 	for _, d := range diags {
-		d.Provenance.Pointer = jsontext.Pointer(rebase(string(d.Provenance.Pointer), from))
+		if d.Provenance.Source == 0 {
+			d.Provenance.Pointer = jsontext.Pointer(rebase(string(d.Provenance.Pointer), from))
+		}
 		d.Provenance.Node = rebase(d.Provenance.Node, from)
 		e := d
-		e.Provenance.Pointer = jsontext.Pointer(erase(string(d.Provenance.Pointer), written))
+		if d.Provenance.Source == 0 {
+			e.Provenance.Pointer = jsontext.Pointer(erase(string(d.Provenance.Pointer), written))
+		}
 		e.Provenance.Node = erase(d.Provenance.Node, written)
 		out = append(out, report{key: diagnosticKey(d), erased: diagnosticKey(e), pointer: string(d.Provenance.Pointer)})
 	}

@@ -85,11 +85,17 @@ type sequenceWalk struct {
 
 // reverse reverses each candidate no scalar points into and returns where the
 // reversed sequences sit. Element i of a reversed sequence of length n is
-// element n-1-i of the permuted source, which moves a nested one.
+// element n-1-i of the permuted source, which moves a nested one. A pointer two
+// candidates share, a key written twice or a path two documents of the stream
+// both write, is held: what the IR says at it names one of them, not which.
 func (w *sequenceWalk) reverse() permutation {
+	met := make(map[string]int, len(w.candidates))
+	for _, c := range w.candidates {
+		met[c.pointer]++
+	}
 	perm := permutation{written: sequences{}, moved: sequences{}}
 	for _, c := range w.candidates {
-		if !w.held(c.pointer) {
+		if met[c.pointer] == 1 && !w.held(c.pointer) {
 			perm.written[c.pointer] = len(c.node.Content)
 		}
 	}
@@ -143,7 +149,7 @@ func (w *sequenceWalk) mapping(n *yaml.Node, mode reading, depth int) Decline {
 		k := keyText(key)
 		mark := len(w.pointer)
 		w.pointer = appendToken(w.pointer, k)
-		if mode == asKeywords && (k == "allOf" || k == "required") &&
+		if mode == asKeywords && orderFreeKeyword(k) &&
 			v.Kind == yaml.SequenceNode && len(v.Content) >= 2 && v.Anchor == "" {
 			w.candidates = append(w.candidates, candidate{node: v, pointer: string(w.pointer)})
 		}
@@ -252,6 +258,12 @@ func appendToken(pointer []byte, token string) []byte {
 	return pointer
 }
 
+// orderFreeKeyword reports whether keyword's sequence is one JSON Schema
+// defines without position, the ones the walk reverses: allOf, which
+// "validates successfully against all schemas", and required, an array of
+// unique names.
+func orderFreeKeyword(keyword string) bool { return keyword == "allOf" || keyword == "required" }
+
 // data reports whether a keyword's value is data rather than keywords: an
 // example, a default, a constant, an enumeration or an extension's value.
 func data(keyword string) bool {
@@ -279,17 +291,32 @@ func nameMap(keyword string) bool {
 	}
 }
 
+// erase writes every index of a reversed sequence that s names as "-".
+func erase(s string, seqs sequences) string {
+	return rewriteIndices(s, seqs, func(int, int) string { return "-" })
+}
+
+// rebase writes every index i of a reversed sequence of length n that s names
+// as n-1-i, which moves a string from the permuted source's coordinates to
+// those of the source as written.
+func rebase(s string, seqs sequences) string {
+	return rewriteIndices(s, seqs, func(n, i int) string { return strconv.Itoa(n - 1 - i) })
+}
+
 // rewriteIndices rewrites each index s names in a sequence of seqs as write
 // does. From the first '/' at which one applies, it walks the '/'-separated
 // tokens, keeping the pointer walked so far; where that pointer is one of
 // seqs and the next token is a decimal index below its length, the index is
-// rewritten. Every sequence's pointer ends in an allOf or required token, so
-// a string naming no index after one is returned at once.
+// rewritten. It stops at an '@', after which an ID names a node of another
+// file, whose pointers no sequence of seqs is in.
 func rewriteIndices(s string, seqs sequences, write func(n, i int) string) string {
-	if len(seqs) == 0 || !strings.Contains(s, "/allOf/") && !strings.Contains(s, "/required/") {
+	if len(seqs) == 0 || !mayNameAnIndex(s) {
 		return s
 	}
 	for start := range len(s) {
+		if s[start] == '@' {
+			return s
+		}
 		if s[start] != '/' {
 			continue
 		}
@@ -298,6 +325,23 @@ func rewriteIndices(s string, seqs sequences, write func(n, i int) string) strin
 		}
 	}
 	return s
+}
+
+// mayNameAnIndex reports whether s holds an order-free keyword as a token with
+// another after it: every sequence's pointer ends in one, so a string naming
+// an index of a reversed sequence does.
+func mayNameAnIndex(s string) bool {
+	for start := 0; ; {
+		end := strings.IndexByte(s[start:], '/')
+		if end < 0 {
+			return false
+		}
+		end += start
+		if start > 0 && orderFreeKeyword(s[start:end]) {
+			return true
+		}
+		start = end + 1
+	}
 }
 
 // rewriteFrom is rewriteIndices' walk from the '/' at start, and whether it

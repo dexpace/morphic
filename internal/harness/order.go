@@ -51,15 +51,18 @@ func orderInvariant(ctx context.Context, spec string, data []byte, compiled bool
 	if bytes.Equal(reversed, baseline) {
 		return declined(OracleOrder, DeclineNothingToPermute)
 	}
-	return comparePermuted(ctx, OracleOrder, spec, baseline, reversed, compiled, diffOrderInvariants)
+	return comparePermuted(ctx, OracleOrder, spec, baseline, reversed, compiled,
+		func(first *ir.Document, firstDiags []ir.Diagnostic, second *ir.Document, secondDiags []ir.Diagnostic) Verdict {
+			return OracleOrder.judge(diffOrderInvariants(first, firstDiags, second, secondDiags))
+		})
 }
 
 // comparePermuted is o's verdict on a source whose re-encoding is baseline and
-// whose permutation is permuted: it compiles both and holds them to diff. It
-// declines a baseline no compiler takes, or one refused where the source
-// compiled.
+// whose permutation is permuted: it compiles both and judge gives the verdict
+// on the two. It declines a baseline no compiler takes, or one refused where
+// the source compiled.
 func comparePermuted(ctx context.Context, o Oracle, spec string, baseline, permuted []byte, compiled bool,
-	diff func(first *ir.Document, firstDiags []ir.Diagnostic, second *ir.Document, secondDiags []ir.Diagnostic) (string, bool),
+	judge func(first *ir.Document, firstDiags []ir.Diagnostic, second *ir.Document, secondDiags []ir.Diagnostic) Verdict,
 ) Verdict {
 	doc, diags, err := compile(ctx, spec, baseline, passes())
 	if errors.Is(err, errUnrecognized) {
@@ -76,7 +79,7 @@ func comparePermuted(ctx context.Context, o Oracle, spec string, baseline, permu
 	if err != nil {
 		return found(o, "recompile permuted: "+err.Error())
 	}
-	return o.judge(diff(doc, diags, other, otherDiags))
+	return judge(doc, diags, other, otherDiags)
 }
 
 // diffOrderInvariants compares what a declaration-order permutation must leave
@@ -194,8 +197,15 @@ func encodeComparable(doc *ir.Document, arrange func(elems [][]byte) []byte, opt
 		own.Sources = slices.Clone(own.Sources)
 		own.Sources[0].Hash = ""
 	}
-	return json.Marshal(&own, append([]json.Options{json.Deterministic(true),
-		json.WithMarshalers(orderFree(arrange)), jsontext.ReorderRawObjects(true)}, opts...)...)
+	return json.Marshal(&own, append([]json.Options{comparableOptions(arrange)}, opts...)...)
+}
+
+// comparableOptions are the options encodeComparable writes under: maps and a
+// verbatim value's members sorted, and each collection orderFree lists written
+// by arrange.
+func comparableOptions(arrange func(elems [][]byte) []byte) json.Options {
+	return json.JoinOptions(json.Deterministic(true), json.WithMarshalers(orderFree(arrange)),
+		jsontext.ReorderRawObjects(true))
 }
 
 // orderFree writes the collections a mapping's entry order decides, each one

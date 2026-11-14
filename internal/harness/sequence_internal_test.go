@@ -226,6 +226,23 @@ paths:
 			},
 		},
 		{
+			// Each document writes AB's allOf, so a pointer into it names one of
+			// two sequences, and only the compiler knows which.
+			name: "a path two documents of the stream write is held",
+			src: schemas("AB: {allOf: [{title: a}, {title: b}]}") + "---\n" +
+				schemas("AB: {allOf: [{title: c}, {title: d}, {title: e}]}", "CD: {allOf: [{title: f}, {title: g}]}"),
+			want: schemas("AB: {allOf: [{title: a}, {title: b}]}") + "---\n" +
+				schemas("AB: {allOf: [{title: c}, {title: d}, {title: e}]}", "CD: {allOf: [{title: g}, {title: f}]}"),
+			written: sequences{s + "/CD/allOf": 2},
+		},
+		{
+			// The parser keeps one copy of a key written twice, which the walk
+			// cannot tell.
+			name:     "a key written twice is held",
+			src:      schemas("AB: {allOf: [{title: a}, {title: b}], allOf: [{title: c}, {title: d}, {title: e}]}"),
+			declines: DeclineNothingToPermute,
+		},
+		{
 			// A security requirement's keys are scheme names, so a scheme called
 			// required is a name and its scopes are no list of names.
 			name:     "a security requirement's keys are names",

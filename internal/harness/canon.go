@@ -20,12 +20,14 @@ import (
 
 // maxCanonicalDepth bounds the canonical form's descent: through the encoded
 // document, and through the owners of each digest computed on the way, whose
-// rewrite continues the descent that met the ID. A document nests its source's
-// values a few levels below its own, and a digest follows owned IDs downward
-// through that source, so the bound is a multiple of the source's.
-const maxCanonicalDepth = 4 * maxReverseDepth
+// rewrite continues the descent that met the ID. The IR nests what it keeps
+// verbatim below levels of its own: a chain of 255 schemas, each a property
+// under an allOf, the deepest the permutation admits, needs 1,106 levels, past
+// one source bound and within two. A form nesting deeper is declined.
+const maxCanonicalDepth = 2 * maxReverseDepth
 
-// errTooDeep says a canonical form would nest past maxCanonicalDepth.
+// errTooDeep says a canonical form would nest past maxCanonicalDepth, which
+// the oracle declines as DeclineTooDeep.
 var errTooDeep = errors.New("canonical form nests too deep")
 
 // unorderedMark names the one member of the object markedArray writes.
@@ -43,11 +45,12 @@ type canonical struct{ document, shape []string }
 
 // canonicalForm is doc as the sequence-order oracle compares it, where seqs
 // are the sequences reversed, in doc's source's coordinates, and ties the
-// erased pointers of the reports that moved. Every string an index of a
-// reversed sequence reaches is erased, and an ID a node owns is told apart by
-// that node's digest. A node at or beneath a tie is written as the tie, and a
-// collection orderFree lists, mixins, requires and a kept allOf or required
-// array are sorted.
+// erased pointers of the reports that moved. It forgives an index of a
+// reversed sequence a string names, an ID beneath one being told apart by its
+// owners' digest; the order of what orderFree lists, mixins, requires and an
+// array kept verbatim at a reversed sequence's pointer; and every node at or
+// beneath a tie. A string of another file is not erased; one naming a
+// sequence another document of the stream reverses is.
 func canonicalForm(doc *ir.Document, seqs sequences, ties []string) (canonical, error) {
 	encoded, err := encodeComparable(doc, markedArray)
 	if err != nil {
@@ -57,7 +60,7 @@ func canonicalForm(doc *ir.Document, seqs sequences, ties []string) (canonical, 
 		digests: map[string]string{}, visiting: map[string]bool{}}
 	tree := r.decode(encoded)
 	r.index(tree, 0)
-	out := jsontext.Value(r.rewrite(tree, 0, 0))
+	out := jsontext.Value(r.rewrite(tree, place{}, 0))
 	r.fail(out.Indent(jsontext.WithIndent("  ")))
 	shape := r.shape(doc)
 	return canonical{document: lines(out), shape: shape}, r.err
@@ -89,7 +92,17 @@ const (
 	// noIdentity: a node to write without its id and provenance members,
 	// whatever its depth beneath the node first so placed.
 	noIdentity
+	// verbatim: a node of a value the IR keeps as the source wrote it, at the
+	// pointer its place holds.
+	verbatim
 )
+
+// place is where a node sits: what its place tells the rewrite, and, within
+// a verbatim value, the node's pointer in the source the sequences are in.
+type place struct {
+	at  string
+	how placement
+}
 
 // rewriter is the state of one canonicalForm: the sequences and tie sites it
 // reads, the owners of each ID erasing changes, the digests computed so far,
@@ -139,16 +152,16 @@ func (r *rewriter) index(v any, depth int) {
 }
 
 // rewrite returns v's canonical encoding, compact, as its place says.
-func (r *rewriter) rewrite(v any, as placement, depth int) []byte {
+func (r *rewriter) rewrite(v any, p place, depth int) []byte {
 	if depth > maxCanonicalDepth {
 		r.fail(errTooDeep)
 		return []byte("null")
 	}
 	switch v := v.(type) {
 	case map[string]any:
-		return r.object(v, as, depth)
+		return r.object(v, p, depth)
 	case []any:
-		return r.array(v, as, depth)
+		return r.array(v, p, depth)
 	case string:
 		return r.quote(r.text(v, depth))
 	case number:
@@ -161,27 +174,39 @@ func (r *rewriter) rewrite(v any, as placement, depth int) []byte {
 }
 
 // object rewrites an object: a marked collection as a sorted array, one at or
-// beneath a tie site as the tie, and any other member by member, an id erased
-// alone, sorted by name and then by value, since erased names can collide.
-func (r *rewriter) object(o map[string]any, as placement, depth int) []byte {
+// beneath a tie site as the tie, and any other member by member, sorted by
+// name and then by value, since erased names can collide. An id is erased
+// alone, and the pointer of a provenance in another source is kept as written.
+func (r *rewriter) object(o map[string]any, p place, depth int) []byte {
 	if elems, ok := o[unorderedMark].([]any); ok && len(o) == 1 {
-		return r.array(elems, as|sortElements, depth)
+		return r.array(elems, place{how: p.how&noIdentity | sortElements}, depth)
 	}
-	pointer := provenancePointer(o)
-	if erased := erase(pointer, r.seqs); as&noIdentity == 0 && r.tied(erased) {
+	own := originOf(o)
+	if erased, tied := r.tiedAt(own); tied && p.how&noIdentity == 0 {
 		return slices.Concat([]byte(`{"reportedTie":`), r.quote(erased), []byte("}"))
 	}
+	_, isPointer := o["pointer"].(string)
+	foreign := isPointer && !compiledSource(o)
 	type member struct{ name, value []byte }
 	members := make([]member, 0, len(o))
 	for name, v := range o {
-		if as&noIdentity != 0 && (name == "id" || name == "provenance") {
+		if p.how&noIdentity != 0 && (name == "id" || name == "provenance") {
 			continue
 		}
 		key := r.text(name, depth)
-		if as&relativeNames != 0 {
-			key = eraseDecimals(key)
+		if p.how&relativeNames != 0 {
+			key = eraseRelative(key)
 		}
-		members = append(members, member{r.quote(key), r.member(name, v, as&noIdentity, r.seqs[pointer] > 0, depth)})
+		var value []byte
+		switch text, isText := v.(string); {
+		case isText && name == "id":
+			value = r.quote(erase(text, r.seqs))
+		case isText && name == "pointer" && foreign:
+			value = r.quote(text)
+		default:
+			value = r.rewrite(v, childPlace(name, p, own), depth+1)
+		}
+		members = append(members, member{r.quote(key), value})
 	}
 	slices.SortFunc(members, func(a, b member) int {
 		return cmp.Or(bytes.Compare(a.name, b.name), bytes.Compare(a.value, b.value))
@@ -196,30 +221,38 @@ func (r *rewriter) object(o map[string]any, as placement, depth int) []byte {
 	return append(out, '}')
 }
 
-// member rewrites the value of an object's member, as inherits from the
-// object, where valueIsSequence says the object keeps a reversed sequence
-// verbatim in its value member.
-func (r *rewriter) member(name string, v any, as placement, valueIsSequence bool, depth int) []byte {
-	if id, ok := v.(string); ok && name == "id" {
-		return r.quote(erase(id, r.seqs))
-	}
+// childPlace is the place of the member name of an object at p, whose
+// provenance is own: within a verbatim value, or the verbatim value an object
+// of the compiled source keeps beside its provenance; mixins and requires,
+// which mirror allOf and required whatever the source's order; or the
+// unmodeled map.
+func childPlace(name string, p place, own origin) place {
+	child := place{how: p.how & noIdentity}
 	switch {
-	case name == "mixins", name == "requires", name == "allOf", name == "required",
-		name == "value" && valueIsSequence:
-		as |= sortElements
+	case p.how&verbatim != 0:
+		return place{how: child.how | verbatim, at: string(appendToken([]byte(p.at), name))}
+	case name == "value" && own.compiled && own.pointer != "":
+		return place{how: child.how | verbatim, at: own.pointer}
+	case name == "mixins", name == "requires":
+		child.how |= sortElements
 	case name == "unmodeled":
-		as |= relativeNames
+		child.how |= relativeNames
 	}
-	return r.rewrite(v, as, depth+1)
+	return child
 }
 
-// array rewrites an array's elements, sorted when its place says so.
-func (r *rewriter) array(elems []any, as placement, depth int) []byte {
+// array rewrites an array's elements, sorted when its place says so or when,
+// within a verbatim value, it is a sequence the permutation reversed.
+func (r *rewriter) array(elems []any, p place, depth int) []byte {
 	out := make([][]byte, len(elems))
 	for i, e := range elems {
-		out[i] = r.rewrite(e, as&noIdentity, depth+1)
+		child := place{how: p.how & noIdentity}
+		if p.how&verbatim != 0 {
+			child = place{how: child.how | verbatim, at: p.at + "/" + strconv.Itoa(i)}
+		}
+		out[i] = r.rewrite(e, child, depth+1)
 	}
-	if as&sortElements != 0 {
+	if p.how&sortElements != 0 || p.how&verbatim != 0 && r.seqs[p.at] > 0 {
 		return sortedArray(out)
 	}
 	return array(out)
@@ -244,7 +277,7 @@ func (r *rewriter) digest(id string, depth int) string {
 	r.visiting[id] = true
 	encodings := make([]string, 0, len(r.owners[id]))
 	for _, o := range r.owners[id] {
-		encodings = append(encodings, string(r.rewrite(o, 0, depth+1)))
+		encodings = append(encodings, string(r.rewrite(o, place{}, depth+1)))
 	}
 	delete(r.visiting, id)
 	slices.Sort(encodings)
@@ -261,26 +294,44 @@ func (r *rewriter) quote(s string) []byte {
 	return b
 }
 
-// tied reports whether an erased pointer is at or beneath a tie site.
-func (r *rewriter) tied(erased string) bool {
-	return slices.ContainsFunc(r.ties, func(site string) bool {
+// tiedAt returns a provenance's pointer erased, and whether it is a pointer
+// of the compiled source at or beneath a tie site.
+func (r *rewriter) tiedAt(o origin) (string, bool) {
+	erased := erase(o.pointer, r.seqs)
+	return erased, o.compiled && slices.ContainsFunc(r.ties, func(site string) bool {
 		return erased == site || strings.HasPrefix(erased, site) && strings.HasPrefix(erased[len(site):], "/")
 	})
 }
 
-// provenancePointer is the pointer an object's provenance member holds, or
-// empty where it holds none.
-func provenancePointer(o map[string]any) string {
-	p, _ := o["provenance"].(map[string]any)
-	pointer, _ := p["pointer"].(string)
-	return pointer
+// origin is what an object's provenance says: its pointer, and whether that
+// is a pointer of the compiled source, the one the sequences are in.
+type origin struct {
+	pointer  string
+	compiled bool
 }
 
-// eraseDecimals writes every all-decimal token of a relative pointer as "-".
-func eraseDecimals(name string) string {
+// originOf reads an object's provenance member.
+func originOf(o map[string]any) origin {
+	prov, _ := o["provenance"].(map[string]any)
+	pointer, _ := prov["pointer"].(string)
+	return origin{pointer: pointer, compiled: compiledSource(prov)}
+}
+
+// compiledSource reports whether a provenance names the compiled source, the
+// first of the document's table, which an absent index names too.
+func compiledSource(prov map[string]any) bool {
+	source, ok := prov["source"].(number)
+	return !ok || source == "0"
+}
+
+// eraseRelative writes as "-" each decimal token of a relative pointer that
+// follows an order-free keyword: openapi:allOf/1 names a branch by its index,
+// and openapi:oneOf/1 a variant whose order the IR keeps.
+func eraseRelative(name string) string {
 	tokens := strings.Split(name, "/")
-	for i, t := range tokens {
-		if decimal(t) {
+	for i := 1; i < len(tokens); i++ {
+		previous := tokens[i-1]
+		if decimal(tokens[i]) && orderFreeKeyword(previous[strings.LastIndexByte(previous, ':')+1:]) {
 			tokens[i] = "-"
 		}
 	}
@@ -320,7 +371,8 @@ func (r *rewriter) shape(doc *ir.Document) []string {
 // secret and deprecated, and its declaration, rewritten without its identity,
 // so two declarations saying the same are one.
 func (r *rewriter) memberShape(p ir.FlatProperty) string {
-	if erased := erase(string(p.Property.Provenance.Pointer), r.seqs); r.tied(erased) {
+	prov := p.Property.Provenance
+	if erased, tied := r.tiedAt(origin{pointer: string(prov.Pointer), compiled: prov.Source == 0}); tied {
 		return "reported tie at " + erased
 	}
 	encoded, err := json.Marshal(struct {
@@ -328,20 +380,7 @@ func (r *rewriter) memberShape(p ir.FlatProperty) string {
 		Deprecation *ir.Deprecation `json:"deprecation"`
 		Required    bool            `json:"required"`
 		Secret      bool            `json:"secret"`
-	}{p.Property, p.Deprecation, p.Required, p.Secret},
-		json.Deterministic(true), json.WithMarshalers(orderFree(markedArray)), jsontext.ReorderRawObjects(true))
+	}{p.Property, p.Deprecation, p.Required, p.Secret}, comparableOptions(markedArray))
 	r.fail(err)
-	return string(r.rewrite(r.decode(encoded), noIdentity, 0))
-}
-
-// erase writes every index of a reversed sequence that s names as "-".
-func erase(s string, seqs sequences) string {
-	return rewriteIndices(s, seqs, func(int, int) string { return "-" })
-}
-
-// rebase writes every index i of a reversed sequence of length n that s names
-// as n-1-i, which moves a string from the permuted source's coordinates to
-// those of the source as written.
-func rebase(s string, seqs sequences) string {
-	return rewriteIndices(s, seqs, func(n, i int) string { return strconv.Itoa(n - 1 - i) })
+	return string(r.rewrite(r.decode(encoded), place{how: noIdentity}, 0))
 }
