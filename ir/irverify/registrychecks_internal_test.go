@@ -104,7 +104,9 @@ func cleanRegistry(n int) *ir.Document {
 		Services:  []ir.Service{{ID: "s/x"}},
 	}
 	for _, kind := range []ir.PrimKind{ir.PrimString, ir.PrimInt32, ir.PrimBool} {
-		doc.Types[ir.PrimTypeID(kind)] = &ir.Primitive{ID: ir.PrimTypeID(kind), Prim: kind}
+		doc.Types[ir.PrimTypeID(kind)] = &ir.Primitive{
+			ID: ir.PrimTypeID(kind), Prim: kind, Provenance: ir.Provenance{Source: ir.NoSource},
+		}
 	}
 	for i := range n {
 		suffix := fmt.Sprintf("%04d", i)

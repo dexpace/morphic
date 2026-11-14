@@ -166,8 +166,27 @@ func checkPrimIDs(doc *ir.Document) []Violation {
 		if want := ir.PrimTypeID(prim.Prim); id != want {
 			vs = append(vs, primIDViolation(id, prim.Prim, want))
 		}
+		if namesSource(doc, prim) {
+			vs = append(vs, Violation{
+				Code: "ir/prim-names-source",
+				Message: "primitive is credited to source " + strconv.Itoa(prim.Provenance.Source) +
+					", and a primitive shared by every source names none",
+				Path: typePath(id),
+			})
+		}
 	}
 	return vs
+}
+
+// namesSource reports whether prim is credited to a source. A primitive is one
+// node every source shares, so it is on ir.NoSource; the zero Provenance is
+// admitted only where the document declares no sources, as a node built without
+// one carries it.
+func namesSource(doc *ir.Document, prim *ir.Primitive) bool {
+	if prim.Provenance.Source == ir.NoSource {
+		return false
+	}
+	return len(doc.Sources) > 0 || prim.Provenance != (ir.Provenance{})
 }
 
 // primIDViolation names what is wrong with one primitive's ID.
