@@ -198,7 +198,7 @@ func (p WalkPath) Field() (owner reflect.Type, name string, ok bool) {
 	for i := last - 1; i >= 0 && steps[i].embedded(); i-- {
 		owner = steps[i].owner
 	}
-	return owner, steps[last].owner.Field(steps[last].index).Name, true
+	return owner, steps[last].owner.Field(int(steps[last].n)).Name, true
 }
 
 // IsMapKey reports whether the path ends in a map entry's key, which String
@@ -224,8 +224,9 @@ const (
 // entry holds it, a label or an integer.
 type pathStep struct {
 	owner reflect.Type
-	index int
-	num   uint64
+	// n is the field's or the element's index, or an integer key as form holds
+	// it, whichever kind of step this is.
+	n     uint64
 	label string
 	kind  stepKind
 	form  keyForm
@@ -237,15 +238,15 @@ type pathStep struct {
 func (s pathStep) appendTo(b []byte) []byte {
 	switch s.kind {
 	case stepField:
-		if f := s.owner.Field(s.index); !f.Anonymous {
+		if f := s.owner.Field(int(s.n)); !f.Anonymous {
 			b = append(append(b, '.'), f.Name...)
 		}
 	case stepElement:
-		b = append(strconv.AppendInt(append(b, '['), int64(s.index), 10), ']')
+		b = append(strconv.AppendUint(append(b, '['), s.n, 10), ']')
 	case stepMapKey:
-		b = append(append(appendKey(append(b, '['), s.form, s.num, s.label), ']'), MapKeySuffix...)
+		b = append(append(appendKey(append(b, '['), s.form, s.n, s.label), ']'), MapKeySuffix...)
 	case stepMapValue:
-		b = append(appendKey(append(b, '['), s.form, s.num, s.label), ']')
+		b = append(appendKey(append(b, '['), s.form, s.n, s.label), ']')
 	}
 	return b
 }
@@ -253,7 +254,7 @@ func (s pathStep) appendTo(b []byte) []byte {
 // embedded reports whether s is a step into an embedded struct, which a path
 // does not spell.
 func (s pathStep) embedded() bool {
-	return s.kind == stepField && s.owner.Field(s.index).Anonymous
+	return s.kind == stepField && s.owner.Field(int(s.n)).Anonymous
 }
 
 // refKey identifies a reference the way the JSON encoder does, so that what a
@@ -284,10 +285,14 @@ type valueWalk struct {
 	visitors []Visitor
 	cycles   []CycleVisitor
 	all      visitorSet
-	// limit is how many values a visitor may be shown, and spent how many each
-	// has been, by position.
+	// limit is how many values a visitor may be shown, and cut the visitors that
+	// reached it. The traversal counts the values it shows any visitor, and each
+	// visitor's pruned the ones it showed inside a subtree that visitor pruned,
+	// so a visitor has been shown count less its pruned (counted).
 	limit     int
-	spent     [maxSharedVisitors]int
+	count     int
+	pruned    [maxSharedVisitors]int
+	cut       visitorSet
 	inside    []insideRef
 	steps     []pathStep
 	ranging   entryStack
@@ -334,21 +339,50 @@ func (w *valueWalk) walk(v reflect.Value, depth int, active visitorSet) {
 	if !v.IsValid() || w.refused() {
 		return
 	}
+	if active &^= w.cut; active != 0 && w.count >= w.limit {
+		active = w.cutAt(active)
+	}
+	if active == 0 {
+		return
+	}
+	w.count++
 	at := w.here()
 	var asking visitorSet
 	for set := active; set != 0; set &= set - 1 {
 		i := bits.TrailingZeros64(uint64(set))
-		if w.spent[i] >= w.limit {
-			w.truncated = true
-			continue
-		}
-		w.spent[i]++
 		if w.visitors[i].Visit(v, at) {
 			asking |= 1 << i
 		}
 	}
-	if asking != 0 {
-		w.children(v, depth, asking)
+	if asking == 0 {
+		return
+	}
+	before := w.count
+	w.children(v, depth, asking)
+	if pruning := active &^ asking; pruning != 0 && w.count > before {
+		w.prune(pruning, w.count-before)
+	}
+}
+
+// cutAt returns active less each visitor in it that has been shown its limit,
+// which it records as cut. A visitor in active is inside no subtree it pruned,
+// whose counts are all added to its pruned, so count less pruned is exact.
+func (w *valueWalk) cutAt(active visitorSet) visitorSet {
+	for set := active; set != 0; set &= set - 1 {
+		i := bits.TrailingZeros64(uint64(set))
+		if w.count-w.pruned[i] >= w.limit {
+			w.cut |= 1 << i
+			w.truncated = true
+		}
+	}
+	return active &^ w.cut
+}
+
+// prune adds n, the values shown beneath a value the visitors in pruning were
+// shown and pruned, to what each of them was not shown.
+func (w *valueWalk) prune(pruning visitorSet, n int) {
+	for set := pruning; set != 0; set &= set - 1 {
+		w.pruned[bits.TrailingZeros64(uint64(set))] += n
 	}
 }
 
@@ -403,7 +437,7 @@ func (w *valueWalk) children(v reflect.Value, depth int, active visitorSet) {
 		// every struct the walk enters.
 		t := v.Type()
 		for i := range v.NumField() {
-			w.step(pathStep{kind: stepField, owner: t, index: i}, v.Field(i), depth+1, active)
+			w.step(pathStep{kind: stepField, owner: t, n: uint64(i)}, v.Field(i), depth+1, active)
 		}
 	case reflect.Slice, reflect.Array:
 		w.sequence(v, depth, active)
@@ -445,7 +479,8 @@ func (w *valueWalk) leave() {
 // compiled document and at most [MaxWalkDepth] in any.
 //
 // Every visitor in active entered key where the walk did, since a visitor
-// leaves the walk's active set below a value only by pruning it.
+// leaves the walk's active set below a value only by pruning it. None is cut:
+// walk drops a cut visitor from the set it hands the value's children.
 func (w *valueWalk) closesCycle(key refKey, active visitorSet) bool {
 	for _, ref := range w.inside {
 		if ref.key != key {
@@ -490,7 +525,7 @@ func (w *valueWalk) sequence(v reflect.Value, depth int, active visitorSet) {
 // elements descends into each element of a slice or array.
 func (w *valueWalk) elements(v reflect.Value, depth int, active visitorSet) {
 	for i := range v.Len() {
-		w.step(pathStep{kind: stepElement, index: i}, v.Index(i), depth+1, active)
+		w.step(pathStep{kind: stepElement, n: uint64(i)}, v.Index(i), depth+1, active)
 	}
 }
 
@@ -516,8 +551,8 @@ func (w *valueWalk) entries(v reflect.Value, depth int, active visitorSet) {
 	for i := f.base; i < f.end; i++ {
 		// Indexed afresh: a nested map can move the stack while stacking its own.
 		e := w.ranging.entries[i]
-		w.step(pathStep{kind: stepMapKey, form: e.form, num: e.num, label: e.label}, e.key, depth+1, active)
-		w.step(pathStep{kind: stepMapValue, form: e.form, num: e.num, label: e.label}, e.value, depth+1, active)
+		w.step(pathStep{kind: stepMapKey, form: e.form, n: e.num, label: e.label}, e.key, depth+1, active)
+		w.step(pathStep{kind: stepMapValue, form: e.form, n: e.num, label: e.label}, e.value, depth+1, active)
 	}
 	w.ranging.pop(f)
 }
