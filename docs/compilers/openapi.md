@@ -6345,7 +6345,7 @@ declaration both mounts share.
   `lowering.TestPaginationInference_TheZeroValueHonoursThePolicy`,
   `openapi.TestDecodeOptions_TextReachesEveryField`
 - Status: open: which declaration a request body member takes where two `allOf` entries declare it
-  follows their order (#1920), and the order oracle swaps no `allOf` entries (#1666).
+  follows their order (#1920).
 
 ## 16. Swagger 2.0
 
