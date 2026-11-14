@@ -120,7 +120,7 @@ type Parameter struct {
 	// Encoding is this use's encoding, overriding its type's field by field, as
 	// Property.Encoding does (docs/ir/constraints.md#encodings); nil = the
 	// type's. It is the parameter's own because a $ref'd or shared type cannot
-	// carry what one use writes (docs/ir/operations.md#parameters).
+	// carry what one use writes.
 	Encoding *Encoding `json:"encoding,omitzero"`
 	// ValueFrom derives the parameter's value from a location in the
 	// outgoing/incoming message (AsyncAPI parameter location runtime
