@@ -92,13 +92,17 @@ func build(in inputs, pg page) *ir.Pagination {
 	if in.limit != nil {
 		out.InputLimit = in.limit.input()
 	}
-	switch {
-	case pg.hasMore != nil:
-		out.NextCursor, out.HasMore = pathTo(pg.next), pathTo(pg.hasMore)
-		out.Stop = []ir.PageStop{ir.PageStopNoMore}
-	case pg.next != nil:
+	out.NextLink, out.PrevLink = pathTo(pg.nextLink), pathTo(pg.prevLink)
+	if pg.next != nil {
 		out.NextCursor = pathTo(pg.next)
+		if pg.nextHeader {
+			out.NextCursor.In = "header"
+		}
 		out.Stop = []ir.PageStop{ir.PageStopNoNext}
+	}
+	if pg.hasMore != nil {
+		out.HasMore = pathTo(pg.hasMore)
+		out.Stop = []ir.PageStop{ir.PageStopNoMore}
 	}
 	return out
 }

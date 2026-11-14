@@ -6114,8 +6114,13 @@ every operation. A name is compared by its canonical words (`Naming.Canonical`),
 3. **The next cursor** of a `cursor` or a `token` walk is `NextCursor`: the one member of the body,
    or of a model a member of it holds, of the cursor's own primitive, named as the cursor with
    `next` before it, or, where no member is so named, as the cursor itself, since a page naming
-   both echoes the cursor it was sent beside the next. Such a walk lists `no_next` in `Stop`, as an
-   empty next cursor names no page; a walk under `page` or `offset` lists none, a page holding no
+   both echoes the cursor it was sent beside the next, or, for a cursor that is no string, `next`.
+   A plain string `next` beside a string cursor may be the cursor or a link, so where it stands
+   alone the walk is undecided. Where the body names none, the next cursor is the response header
+   every success response declares once whose canonical name, a leading `x_` aside, is the
+   cursor's with `next` before it, or the cursor's own, a `NextCursor` whose `In` is `header`; a
+   next cursor the body and a header both name leaves the walk undecided. Such a walk lists
+   `no_next` in `Stop`, as an empty next cursor names no page; a walk under `page` or `offset` lists none, a page holding no
    items ending it whatever `Stop` lists
    ([pagination](../emitters/operations/pagination.md#where-a-page-walk-ends)).
 4. **The flag** of a `cursor` or a `token` walk is `HasMore`: the one boolean member of the body, or
@@ -6131,6 +6136,13 @@ every operation. A name is compared by its canonical words (`Naming.Canonical`),
 5. **The totals** are `TotalCount`, the one member named `total_count`, and `TotalPages`, the one
    named `total_pages`, each of a type a walk counts with, in the body or in a model a member of it
    holds. A page naming none or several states no total, and the field is unset.
+6. **The links** are `NextLink`, the one member named `next_link` typed as a string or a `url`,
+   else the one named `next` typed as a `url`, and `PrevLink`, the one named `prev_link` or
+   `previous_link` typed as either, else the one named `prev` or `previous` typed as a `url`, in the
+   body or in a model a member of it holds. Beside a walk an input continues they are facts of the
+   page, which change neither its strategy nor what is reported; a link the contents hold at
+   different members, or none or several of, is left unset, and the walk stands. `FirstLink`,
+   `LastLink` and a flag for a link walk are not read.
 
 What the policy fills is marked as [`policies`](#policies) marks an inference: `Pagination.Inferred`
 is set, and the operation's `Provenance.Inferred` names `pagination-inference`. An operation whose
@@ -6143,7 +6155,7 @@ a list, items or a next cursor it names none or several of, two flags, a boolean
 named as none, or bodies holding the page at different members. A path item mounted twice is reported once, at the
 declaration both mounts share.
 
-- Cases: `pagination-inferred`, `pagination-flag`, `pagination-body`
+- Cases: `pagination-inferred`, `pagination-flag`, `pagination-body`, `pagination-links`
 - Codes: `openapi/undecided-pagination`
 - Tests: `pagination.TestInferWalks_ReadsEachStrategy`,
   `pagination.TestInferWalks_MarksWhatItFills`,
@@ -6163,12 +6175,15 @@ declaration both mounts share.
   `pagination.TestInferWalks_ReadsNoBodyOfAMethodThatIsNoSearch`,
   `pagination.TestInferWalks_ReadsAnObjectParameter`,
   `pagination.TestInferWalks_ReadsAnObjectParameterNamedForARole`,
-  `pagination.TestInferWalks_TwoPlacesAreUndecided`,
+  `pagination.TestInferWalks_TwoPlacesAreUndecided`, `pagination.TestInferWalks_ReadsLinks`,
+  `pagination.TestInferWalks_ALinkHeldApartIsLeftUnset`, `pagination.TestInferWalks_NextNames`,
+  `pagination.TestInferWalks_ReadsAHeaderCursor`,
   `whole.TestDocument_StandsReadsThroughAliasScalarsToTheCap`,
   `whole.TestDocument_ListsEveryOperationOnce`,
   `lowering.TestPaginationInference_TheZeroValueHonoursThePolicy`,
   `openapi.TestDecodeOptions_TextReachesEveryField`
-- Status: partly built: a next link, a `Link` header or a continuation a response header carries (#1816).
+- Status: partly built: a walk a next link or a `Link` header continues, where no input does, is not
+  inferred (#1816).
 
 ## 16. Swagger 2.0
 
