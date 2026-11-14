@@ -21,7 +21,7 @@ concurrency:
 jobs:
   checks:
     name: lint, fuzz, bench
-    runs-on: blacksmith-8vcpu-ubuntu-2404
+    runs-on: blacksmith-4vcpu-ubuntu-2404-arm
     timeout-minutes: 30
     steps:
       - &checkout
@@ -89,7 +89,7 @@ jobs:
 
   suite:
     name: build, test (race detector, exactly 100% coverage)
-    runs-on: blacksmith-8vcpu-ubuntu-2404
+    runs-on: blacksmith-4vcpu-ubuntu-2404-arm
     timeout-minutes: 30
     steps:
       - *checkout
