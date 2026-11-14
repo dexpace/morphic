@@ -1,0 +1,42 @@
+// Copyright (c) 2026 dexpace.
+// Licensed under the MIT License. See LICENSE in the repository root for details.
+
+package lowering
+
+import (
+	"testing"
+
+	"github.com/stretchr/testify/assert"
+	yaml "go.yaml.in/yaml/v3"
+
+	"github.com/dexpace/morphic/compilers/openapi/internal/bind"
+	"github.com/dexpace/morphic/compilers/openapi/internal/budget"
+	"github.com/dexpace/morphic/compilers/openapi/internal/ynode"
+)
+
+// TestExpansion_AHopWeighsWhatItWritesBesideItsRef pins the weight of a hop of a
+// chain, of which a use copies the fields beside its $ref and not the $ref: a
+// mapping, and each key and value written beside the $ref, wherever in the
+// mapping the $ref is written. The end of the chain is weighed whole.
+func TestExpansion_AHopWeighsWhatItWritesBesideItsRef(t *testing.T) {
+	t.Parallel()
+	at := bind.Reading{}
+	ref := func() []*yaml.Node { return []*yaml.Node{ynode.Scalar("$ref"), ynode.Scalar("x")} }
+	summary := func() []*yaml.Node { return []*yaml.Node{ynode.Scalar("summary"), ynode.Scalar("abc")} }
+
+	for name, tc := range map[string]struct {
+		hop  *yaml.Node
+		want int
+	}{
+		"a bare $ref":                     {ynode.Map(ref()...), 1},
+		"a $ref and a summary":            {ynode.Map(append(ref(), summary()...)...), 13},
+		"a summary and then the $ref":     {ynode.Map(append(summary(), ref()...)...), 13},
+		"a summary alone":                 {ynode.Map(summary()...), 1 + 8 + 4},
+		"a longer target changes nothing": {ynode.Map(ynode.Scalar("$ref"), ynode.Scalar("#/components/parameters/Q")), 1},
+	} {
+		assert.Equal(t, tc.want, weightBeside(tc.hop, at, budget.Unbounded()), name)
+	}
+
+	end := ynode.Map(ref()...)
+	assert.Equal(t, 1+5+2, weightOf(end, at, budget.Unbounded()), "the end is weighed whole, its $ref among it")
+}

@@ -269,7 +269,8 @@ func TestCompile_ASchemaIsChargedAsOneNode(t *testing.T) {
 // TestCompile_AnAliasIsChargedBesideItsEnd pins the charge of a $ref whose
 // chain passes through an alias: what the alias writes beside its own $ref
 // lowers at every use, a parameter's description and a path item's every
-// field, so the alias is charged its weight beside its end's.
+// field, so the alias is charged what it writes beside its $ref, its own $ref
+// aside, and its end whole. A use may be charged one more for its own mapping.
 func TestCompile_AnAliasIsChargedBesideItsEnd(t *testing.T) {
 	t.Parallel()
 	param := pathsWith(getWith("/p", "      parameters: [{$ref: '#/components/parameters/A'}]\n"+okResponses),
@@ -292,9 +293,11 @@ func TestCompile_AnAliasIsChargedBesideItsEnd(t *testing.T) {
 			require.NotNil(t, doc, "with the budget off: %+v", diags)
 			openapitest.RequireNoErrorDiags(t, diags)
 
-			weight := weightAt(t, tc.src, tc.alias) + weightAt(t, tc.src, tc.end)
-			doc, diags = compileExpanding(t, tc.src, weight)
-			require.NotNil(t, doc, "at the chain's weight, %d: %+v", weight, diags)
+			// The alias's $ref pair: the key (5) and its value, '#' and the end's pointer.
+			refPair := 1 + len("$ref") + 1 + len("#"+tc.end)
+			weight := weightAt(t, tc.src, tc.alias) - refPair + weightAt(t, tc.src, tc.end)
+			doc, diags = compileExpanding(t, tc.src, weight+1)
+			require.NotNil(t, doc, "at the chain's weight, %d, and one for the use: %+v", weight, diags)
 			assert.False(t, openapitest.HasDiag(diags, diag.BudgetExceeded))
 			doc, diags = compileExpanding(t, tc.src, weight-1)
 			assertRefused(t, doc, diags, weight-1)

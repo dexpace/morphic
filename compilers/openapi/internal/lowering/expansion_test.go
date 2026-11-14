@@ -155,13 +155,14 @@ func TestExpansion_ChargesEveryCopy(t *testing.T) {
 
 // TestExpansion_ChargesEachDeclarationOfAChain pins a copy lowered from
 // several declarations, a chain's end and each alias it passes through: it is
-// charged their sum, and one crossing the budget part way admits none of it.
+// charged their sum, the end whole and each alias for what it writes beside its
+// $ref, and one crossing the budget part way admits none of it.
 func TestExpansion_ChargesEachDeclarationOfAChain(t *testing.T) {
 	t.Parallel()
 	alias := ynode.Map(ynode.Scalar("$ref"), ynode.Scalar("#/x"))
-	e := lowering.NewExpansion(budget.AtMost(2 * (14 + 10)))
+	e := lowering.NewExpansion(budget.AtMost(2 * (14 + 1)))
 	assert.True(t, e.Admit(raw, declaration(), alias))
-	assert.Equal(t, 14+10, e.Spent(), "the end (14) and the alias, a mapping (1), $ref (5) and #/x (4)")
+	assert.Equal(t, 14+1, e.Spent(), "the end (14) and the alias, a mapping (1) and nothing beside its $ref")
 	assert.True(t, e.Admit(raw, declaration(), alias))
 
 	assert.False(t, e.Admit(raw, ynode.Scalar(""), declaration()), "a chain crossing at its second declaration")
@@ -273,13 +274,13 @@ components:
 }
 
 // TestDeclared_ChargesEachDeclarationOfAChain pins what a $ref through two
-// aliases is charged: each alias, whose description a use lowers, and the
-// end, whose schema counts as one node, read as the parameter the use site
-// writes.
+// aliases is charged: each alias for its mapping and what it writes beside its
+// $ref, which a use lowers, and the end, whose schema counts as one node, read
+// as the parameter the use site writes.
 func TestDeclared_ChargesEachDeclarationOfAChain(t *testing.T) {
 	t.Parallel()
-	// A and C weigh 47 each: a mapping (1), $ref (5), its 25-byte value (26),
-	// description (12) and dd (3). B weighs 25: a mapping (1), name (5), q (2),
+	// A and C weigh 16 each: a mapping (1), description (12) and dd (3), the $ref
+	// beside which they write them charged nothing. B weighs 25: a mapping (1), name (5), q (2),
 	// in (3), query (6), schema (7) and the schema (1).
 	const src = `openapi: 3.1.0
 info: {title: T, version: "1"}
@@ -295,7 +296,8 @@ components:
     B: {name: q, in: query, schema: {type: string, maxLength: 3}}
 `
 	const usePtr = "/paths/~1a/get/parameters/0"
-	for limit, admitted := range map[int]bool{2*47 + 25: true, 2*47 + 25 - 1: false} {
+	// The use's own mapping may be charged one more, so 2*16 + 25 + 1 admits it.
+	for limit, admitted := range map[int]bool{2*16 + 25 + 1: true, 2*16 + 25 - 1: false} {
 		c := loaded(t, src, budget.AtMost(limit))
 		a, ok := c.Doc.Paths.Get("/a")
 		require.True(t, ok)

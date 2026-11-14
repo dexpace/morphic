@@ -1287,7 +1287,7 @@ it composes as `Base` and `Mixins`, which lends a carrier nothing, where a conju
 the `$ref` would lend written alone, since the visibility and `default` of the use have no other home.
 
 - Cases: `param-ref-inheritance`, `allof-ref-branch-siblings`, `readonly-writeonly`,
-  `schema-ref-siblings-30`, `allof-refinement`
+  `schema-ref-siblings-30`, `allof-refinement`, `ref-chain-annotations`
 - Tests: `e2e.TestAnnotationRetention`, `schema.TestModel_RefSiblingDescriptionWins`,
   `schema.TestSchemaExamples_ComponentRefSiblingKeepsThem`,
   `schema.TestRefinement_ACarrierReadsThroughARefinement`,
@@ -3990,7 +3990,7 @@ info `openapi/validation-only-keyword` at the schema that wrote it, an `openapi:
 holding an inert keyword naming it and the keyword that leaves it inert.
 
 - Cases: `negation-not`, `dependent-required`, `schema-drafts`, `maps`, `tuples-prefixitems`,
-  `unevaluated-at-every-outcome`
+  `unevaluated-at-every-outcome`, `kept-ref-landings`
 - Codes: `openapi/validation-only-keyword`
 - Tests: `annotation.TestValidationOnlyAt_KeepsEveryKeywordItClaims`,
   `e2e.TestOlderDrafts_DependenciesAreValidationOnly`,
@@ -4395,7 +4395,8 @@ reference that reaches them.
   `operation.TestPathItemRefSiblings_APointerBesideTheRefReadsTheFieldsInEitherOrder`,
   `operation.TestPathItemRefSiblings_ADefsPointerBesideARefReadsItsOwnDefinitions`,
   `e2e.TestReferenceObjects_AFieldBesideAPathItemRefIsReadWhereItIsWritten`,
-  `operation.TestPathItemRefSiblings_FieldsAnotherDocumentWritesAreReported`,
+  `operation.TestPathItemRefSiblings_FieldsAnotherDocumentWritesAreModelled`,
+  `operation.TestPathItemRefSiblings_FieldsAtAnyLandingAreModelled`,
   `operation.TestPathItemRefSiblings_AForeignReferentKeepsItsOwnPositions`
 - Status: partly built: the fields beside a `$ref` the load phase's walk does not reach are not
   lowered (#823).
