@@ -47,10 +47,10 @@ var bigValAdversarialSeeds = []string{
 // the rows TestNewBigVal_CanonicalizesToJSONForm's table lists (#45).
 //
 // A rejected input carries no claim: NewBigVal need only never accept what
-// json.Valid would refuse. The seeds carry most of the weight, since an
-// ordinary `go test` runs them without searching and the gate's search is
-// bounded to seconds (scripts/fuzz.sh). They are chosen adversarially, not
-// drawn from real specs, for the reason bigValAdversarialSeeds gives.
+// json.Valid would refuse. An ordinary `go test` runs the seeds without
+// searching, and scripts/fuzz.sh runs the search. They are chosen
+// adversarially, not drawn from real specs, for the reason
+// bigValAdversarialSeeds gives.
 func FuzzNewBigVal_AcceptedFormsAreJSONValid(f *testing.F) {
 	for _, seed := range bigValAdversarialSeeds {
 		f.Add(seed)
