@@ -82,6 +82,23 @@ func TestCompile_AFindingOnANodeAliasesShareIsPlacedAtItsLeastPointer(t *testing
 	}
 }
 
+// TestCompile_AMountThatIsAPrefixOfAnotherIsPlacedFirst holds a node mounted at
+// a key and, by a key written twice, at a place inside the key's other copy to
+// the first of them: a pointer that is a prefix of another comes before it.
+func TestCompile_AMountThatIsAPrefixOfAnotherIsPlacedFirst(t *testing.T) {
+	t.Parallel()
+	spec := head31 + "paths: {}\ncomponents:\n  schemas:\n" +
+		"    S: {x: &m {type: object, properties: {p: {type: 7}}}}\n    S: *m\n"
+
+	_, diags := compileText(t, "spec.yaml", spec, openapi.Options{})
+
+	found := codedPointers(diags, typeMismatch, diag.Validation+"/validation-allowed-values")
+	require.Len(t, found, 2, "%+v", diags)
+	for _, pointer := range found {
+		assert.Equal(t, "/components/schemas/S/properties/p/type", pointer)
+	}
+}
+
 // TestCompile_ANodeInsideTwoMountsIsPlacedByTheirTokens holds a node mounted
 // below A and below A- to the place under A: the two pointers part at a token
 // one of them ends, so A comes first, where the bytes of the whole strings
