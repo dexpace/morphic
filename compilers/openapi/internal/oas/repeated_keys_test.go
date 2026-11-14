@@ -27,8 +27,12 @@ func repeatsAt(t *testing.T, version, text string, opts oas.Options) []string {
 	t.Helper()
 	var root yaml.Node
 	require.NoError(t, yaml.Unmarshal([]byte(text), &root))
+	found := oas.CheckRepeatedKeys(t.Context(), &root, version, opts)
 	var out []string
-	for _, d := range oas.CheckRepeatedKeys(t.Context(), &root, version, opts) {
+	if len(found) > 0 {
+		out = make([]string, 0, len(found))
+	}
+	for _, d := range found {
 		assert.Equal(t, ir.SeverityWarning, d.Severity)
 		assert.Equal(t, diag.Validation+"/validation-duplicate-key", d.Code)
 		out = append(out, fmt.Sprintf("%s@%d:%d", d.Provenance.Pointer, d.Provenance.Position.Line, d.Provenance.Position.Column))
