@@ -45,6 +45,10 @@ func JSONSpelling(s string) (spelling string, spelled, ok bool) {
 // IDClasses is idClasses, for the external tests.
 var IDClasses = idClasses
 
+// Locator reports whether r is a discriminator's tag property that nothing
+// locates, so ir's external tests can tell it apart.
+func (r EmptyReference) Locator() bool { return r.locator }
+
 // IDPositions returns the "Type.Field" keys idPositions classifies.
 func IDPositions() []string {
 	return slices.Sorted(maps.Keys(idPositions))

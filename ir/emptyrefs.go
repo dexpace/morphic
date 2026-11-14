@@ -17,10 +17,10 @@ type EmptyReference struct {
 	Class reflect.Type
 	// Path locates the position, as [WalkValues] spells it.
 	Path string
-	// Locator is set for a Discriminator.Property that is empty while nothing
+	// locator is set for a Discriminator.Property that is empty while nothing
 	// else locates the tag: what it lacks is a way to find the tag rather than
-	// a property in particular.
-	Locator bool
+	// a property in particular, which Message says.
+	locator bool
 }
 
 // Code is the diagnostic code of r: ir/empty-<noun>-ref, the noun naming its
@@ -31,7 +31,7 @@ func (r EmptyReference) Code() string {
 
 // Message says what is wrong at r, in the one wording every checker reports.
 func (r EmptyReference) Message() string {
-	if r.Locator {
+	if r.locator {
 		return "discriminator names no tag property, and neither PropertyName nor Index locates the tag instead"
 	}
 	return RefNoun(r.Class) + " reference is empty, and this position has no empty form"
@@ -125,7 +125,7 @@ func (e *EmptyReferences) appendEmptyValues(m reflect.Value, f refField, at Walk
 
 // record keeps one empty reference of f's class at path.
 func (e *EmptyReferences) record(f refField, path string, locator bool) {
-	e.found = append(e.found, EmptyReference{Class: f.class, Path: path, Locator: locator})
+	e.found = append(e.found, EmptyReference{Class: f.class, Path: path, locator: locator})
 }
 
 // fieldPath spells the field f of the struct at at, as the walk spells it.

@@ -202,7 +202,11 @@ func TestEmptyReference_CodeAndMessageNameTheClass(t *testing.T) {
 	assert.Equal(t, "ir/empty-server-ref", server.Code())
 	assert.Equal(t, "server reference is empty, and this position has no empty form", server.Message())
 
-	tag := ir.EmptyReference{Class: reflect.TypeFor[ir.PropID](), Locator: true}
+	untagged := emptyReferencesOf(&ir.Document{Types: ir.TypeRegistry{
+		"t/x/Base": &ir.Model{ID: "t/x/Base", Discriminator: &ir.Discriminator{}},
+	}})
+	require.Len(t, untagged, 1)
+	tag := untagged[0]
 	assert.Equal(t, "ir/empty-prop-ref", tag.Code())
 	assert.Equal(t, "discriminator names no tag property, and neither PropertyName nor Index locates the tag instead",
 		tag.Message())

@@ -84,7 +84,7 @@ func TestEmptyReferences_ReadsEachShapeAnIDIsHeldIn(t *testing.T) {
 			require.Len(t, got, 1)
 			assert.Equal(t, tc.class, got[0].Class)
 			assert.Equal(t, tc.path, got[0].Path)
-			assert.False(t, got[0].Locator, "only a discriminator's tag property is a locator")
+			assert.False(t, got[0].Locator(), "only a discriminator's tag property is a locator")
 		})
 	}
 }
@@ -101,7 +101,7 @@ func TestEmptyReferences_ADiscriminatorLocatingNothingIsALocator(t *testing.T) {
 	require.Len(t, got, 1)
 	assert.Equal(t, reflect.TypeFor[ir.PropID](), got[0].Class)
 	assert.Equal(t, "doc.Types[t/x/Base].Discriminator.Property", got[0].Path)
-	assert.True(t, got[0].Locator)
+	assert.True(t, got[0].Locator())
 }
 
 // TestEmptyReferences_ADocumentedEmptyIsNone holds the positions whose comments
