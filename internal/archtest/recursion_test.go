@@ -57,6 +57,11 @@ var loweringRecursions = [][]string{
 	// lowering reaches itself through them. Bounded by maxCallbackNesting, the
 	// callbacks an operation whose own lower may be nested in.
 	{"lowerCallbackOps", "lowerCallbacks", "lowerOperation", "mountPathItem", "operationCallbacks"},
+	// The instance types a bound beside a named schema is read by. An allOf's
+	// entries, a union's branches and what a $ref lands on are schemas read the
+	// same way, and one may name its own schema. Bounded by the budget
+	// maxBoundTypeReads, which a cycle exhausts.
+	{"boundTypes.branch", "boundTypes.conjuncts", "boundTypes.schema", "boundTypes.unions"},
 	// Whether one conjunct restates another. Two lists compare by their elements,
 	// each read the same way, down what `items` nests. Each step reads a schema,
 	// which spends the budget maxAdmissionReads holds it to.
