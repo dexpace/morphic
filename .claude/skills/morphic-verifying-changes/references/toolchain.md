@@ -39,8 +39,7 @@
 
 - **Rule.** The test cache keys a result on every environment variable the test reads, so the runs
   a cache probe compares share one `PATH`, `GODEBUG`, `GOFLAGS` and `TMPDIR`. A logging wrapper put
-  on `PATH` for one run alone reruns every test that starts a child. On btrfs, committing in place
-  moves `.git`'s size: clone it to the path. When the measurement needs
+  on `PATH` for one run alone reruns every test that starts a child. When the measurement needs
   `GODEBUG`, run it twice with `go clean -testcache` between and cite the second. For a cold cache,
   point `GOCACHE` at a fresh `mktemp -d`.
 - **Why.** A trace cited as a reproduction worked only because the command had run before (#381),
@@ -52,9 +51,9 @@
 `btrfs-directory-size`
 
 - **Rule.** On btrfs a directory's size moves with its entries, and go test hashes the size of each
-  entry a test lists. So a file added to a directory reruns a test listing only that directory's
-  parent, through clones at one path too. Confirm a directory's own listing by its `open` in
-  `-test.testlogfile`, not by the rerun.
+  entry a test lists. So a file added to a directory reruns a test listing only its parent, through
+  clones at one path too; a commit in place moves `.git`'s size: clone it to the path. Confirm a
+  directory's own listing by its `open` in `-test.testlogfile`, not by the rerun.
 - **Why.** A test listing only the module root reran on a file added under `ir/`, with no `open` of
   `ir` in its log, and stayed `(cached)` on one added under `compilers/openapi/` (#1373).
 - **Probe.** `stat -c %s ir` before and after a commit adding a file there, and
@@ -95,15 +94,15 @@
 
 - **Rule.** A test whose verdict rests on a file outside the module, or one only a child
   (`go list`, `git`) reads, opens in its own process the in-module files the child reads,
-  or one that changes with them. For a dependency, call `irtest.ReadModuleFiles`;
-  for a child's list, list each directory above it, and those under a pattern's root.
-  `irtest.RequireOpens` holds either through the test log.
+  or one changing with them: `irtest.ReadModuleFiles` for a dependency, and for a child's list,
+  each directory above it or under a pattern's root. `irtest.RequireOpens` holds either through
+  the test log.
 - **Why.** `readDeclarers` read library sources from the module cache, never rechecked
   by go test (#1272). Sweeping `exec(test)?\.Command`, `packages.Load` and `decls.Load` found
   `git ls-files` tests, `decls.Load`'s fixtures and a package `lintrules` names.
 - **Probe.** `touch` that file and rerun: the last `ok` lacks `(cached)`. For a list, commit a new
   listed file, or package under a pattern, in a copy; clone to the primed path, `make filetimes`,
-  rerun without `-count=1`.
+  rerun without `-count=1`; on btrfs, `references/toolchain.md#btrfs-directory-size`.
 
 ## A test hands its child the PWD it compares paths by
 `child-path-spelling`
