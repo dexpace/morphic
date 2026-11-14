@@ -149,7 +149,10 @@ warning: a type whose every way to a value needs a type that needs it in turn, a
 itself through required properties that are not nullable, a list that must hold an element of itself,
 a tuple holding itself, a union all of whose variants are such. Each is told at every type of the
 knot, naming the base, mixin, property, element or variant that leads on, and a cycle of composition
-is told once, as that, and not again as lacking a value. Not read, each of which can only leave a
+is told once, as that, and not again as lacking a value. A base or mixin that is a union is no need
+of the model composing it: a union that lists a model composing it, `Shape` over `Circle` whose
+`allOf` names `Shape`, narrows nothing ([a union a composition names](#a-union-a-composition-names)),
+and each instance is one variant. Not read, each of which can only leave a
 knot unreported: a member only `Requires` makes required, a bound on the position of a reference to a
 list, and `Implements`.
 

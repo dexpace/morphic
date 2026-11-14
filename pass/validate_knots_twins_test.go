@@ -37,3 +37,35 @@ func TestValidate_ATypeWithAWayOutOfItsKnotHasAFiniteValue(t *testing.T) {
 	assert.Equal(t, []finding{{"t/k", "no finite value: each needs its value, t/k, which has none either"}},
 		found(t, knotDoc(forced), finiteCode), "a map that must hold an entry")
 }
+
+// TestValidate_AModelComposingTheUnionThatListsItHasAFiniteValue holds the
+// pattern docs/ir/models.md names, a union of Circle and Square each of which
+// composes the union, to no finding: the model is a conjunct of the union and
+// narrows nothing, each instance of the union being one variant, so a base or a
+// mixin that is a union is no need of the model.
+func TestValidate_AModelComposingTheUnionThatListsItHasAFiniteValue(t *testing.T) {
+	t.Parallel()
+	extending := func(id, union string, asMixin bool) *ir.Model {
+		m := composed(id, nil)
+		if asMixin {
+			m.Mixins = []ir.TypeRef{ref(union)}
+		} else {
+			m.Base = new(ref(union))
+		}
+		return m
+	}
+	listing := func(id string, variants ...string) *ir.Union {
+		u := &ir.Union{ID: ir.TypeID(id), Provenance: provAt(id)}
+		for _, v := range variants {
+			u.Variants = append(u.Variants, ir.Variant{Type: ref(v)})
+		}
+		return u
+	}
+	doc := knotDoc(
+		extending("t/circle", "t/shape", false), extending("t/square", "t/shape", false), listing("t/shape", "t/circle", "t/square"),
+		extending("t/log", "t/rule", true), extending("t/block", "t/rule", true), listing("t/rule", "t/log", "t/block"),
+	)
+
+	assert.Empty(t, found(t, doc, finiteCode))
+	assert.Empty(t, found(t, doc, cycleCode), "a union has no composition to loop")
+}

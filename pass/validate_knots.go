@@ -44,8 +44,11 @@ type edge struct {
 }
 
 // typeIndex numbers the live types, which liveTypeIDs sorts, so a reference
-// finds its vertex by search and no map is built.
-type typeIndex struct{ ids []ir.TypeID }
+// finds its vertex by search and no map is built. union marks the unions.
+type typeIndex struct {
+	ids   []ir.TypeID
+	union []bool
+}
 
 // of returns the vertex a reference to a live type that is not nullable names.
 func (x typeIndex) of(ref *ir.TypeRef) (int32, bool) {
@@ -54,6 +57,12 @@ func (x typeIndex) of(ref *ir.TypeRef) (int32, bool) {
 	}
 	i, ok := slices.BinarySearch(x.ids, ref.Target)
 	return int32(i), ok
+}
+
+// isUnion reports whether ref names a live union.
+func (x typeIndex) isUnion(ref *ir.TypeRef) bool {
+	i, ok := slices.BinarySearch(x.ids, ref.Target)
+	return ok && x.union[i]
 }
 
 // edgeSink takes the edges eachEdge reads: it counts them, then fills a list
@@ -98,7 +107,7 @@ func eachEdge(td ir.TypeDef, ix typeIndex, set edgeSet, sink *edgeSink) {
 	switch t := td.(type) {
 	case *ir.Model:
 		if set != needsAlone {
-			sink.composition(ix, t)
+			sink.composition(ix, t, set == needsWithComposition)
 		}
 		if set != compositionOnly {
 			for j := range t.Properties {
@@ -136,13 +145,19 @@ func eachEdge(td ir.TypeDef, ix typeIndex, set edgeSet, sink *edgeSink) {
 	}
 }
 
-// composition adds the base and the mixins of m.
-func (s *edgeSink) composition(ix typeIndex, m *ir.Model) {
-	if m.Base != nil {
+// composition adds the base and the mixins of m. A model composing a union is
+// its conjunct and no construction of it: Shape's oneOf of Circle beside
+// Circle's allOf of Shape narrows nothing, each instance of the union being a
+// variant (docs/ir/models.md), so for the needs of a value, which forNeeds
+// says the edges are for, an entry that names a union is not one.
+func (s *edgeSink) composition(ix typeIndex, m *ir.Model, forNeeds bool) {
+	if m.Base != nil && !(forNeeds && ix.isUnion(m.Base)) {
 		s.emit(ix, m.Base, edgeBase, 0)
 	}
 	for j := range m.Mixins {
-		s.emit(ix, &m.Mixins[j], edgeMixin, j)
+		if !(forNeeds && ix.isUnion(&m.Mixins[j])) {
+			s.emit(ix, &m.Mixins[j], edgeMixin, j)
+		}
 	}
 }
 
@@ -305,11 +320,11 @@ func checkKnots(doc *ir.Document) []ir.Diagnostic {
 	if len(ids) == 0 {
 		return nil
 	}
-	ix := typeIndex{ids: ids}
+	ix := typeIndex{ids: ids, union: make([]bool, len(ids))}
 	every := make([]bool, len(ids))
 	for i, id := range ids {
-		_, isUnion := doc.Types[id].(*ir.Union)
-		every[i] = !isUnion
+		_, ix.union[i] = doc.Types[id].(*ir.Union)
+		every[i] = !ix.union[i]
 	}
 	comp := buildGraph(doc, ix, true, nil)
 	cyclic := knot(len(ids), comp.starts, comp.targets, every)
