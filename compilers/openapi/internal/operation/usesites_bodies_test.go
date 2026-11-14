@@ -4,11 +4,13 @@
 package operation_test
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -174,4 +176,32 @@ func TestParameter_ContentStatesNoDefaultStyle(t *testing.T) {
 	assert.NotContains(t, binding, "style", "the media type serializes the value: no style is stated for it")
 
 	assert.Equal(t, "form", at(namedItem(t, a, "s"), "style"), "a schema parameter keeps its location's default")
+}
+
+// TestPartless_JudgesWhatTheBodyNames holds the warning to a body naming no
+// part: an object const and an enum of objects name theirs, and draw none, as
+// does an enum with one object among scalars; a scalar const draws one under
+// either form media type; a body union read past its bound is not judged.
+func TestPartless_JudgesWhatTheBodyNames(t *testing.T) {
+	t.Parallel()
+	body := func(path, mt, schema string) string {
+		return "  /" + path + ":\n    post:\n      operationId: " + path + "\n      requestBody:\n        content:\n          " +
+			mt + ":\n            schema: " + schema + "\n      responses: {\"204\": {description: ok}}\n"
+	}
+	unions := "components:\n  schemas:\n"
+	for i := range 70 {
+		unions += fmt.Sprintf("    U%d: {oneOf: [{type: string}, {$ref: '#/components/schemas/U%d'}]}\n", i, i+1)
+	}
+	unions += "    U70: {oneOf: [{type: string}, {type: integer}]}\n"
+	_, diags := parseFull(t, openapitest.PathsSpecVer("3.1.0",
+		body("a", "multipart/form-data", "{const: {a: 1, b: x}}")+
+			body("b", "application/x-www-form-urlencoded", "{enum: [{a: 1}, {a: 2}]}")+
+			body("c", "multipart/form-data", "{const: 5}")+
+			body("d", "multipart/form-data", "{enum: [1, {a: 2}]}")+
+			body("e", "application/x-www-form-urlencoded", "{const: 5}")+
+			body("f", "multipart/form-data", "{$ref: '#/components/schemas/U0'}")+unions))
+	assert.Equal(t, []string{
+		"openapi/partless-form-body warning /paths/~1c/post/requestBody/content/multipart~1form-data/schema",
+		"openapi/partless-form-body warning /paths/~1e/post/requestBody/content/application~1x-www-form-urlencoded/schema",
+	}, byCode(diags, "openapi/partless-form-body"))
 }

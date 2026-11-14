@@ -278,8 +278,8 @@ func (k partKeys) Settle(reg ir.TypeRegistry) []ir.Diagnostic {
 }
 
 // partless reports a multipart/form-data or url-encoded body whose type, read
-// through its unions, stands for no model, no map and not the top type, so it
-// names no part to send (docs/compilers/openapi.md#multipart-encoding). A
+// through its unions, stands for no model, no map, no object value and not the
+// top type, so it names no part to send (docs/compilers/openapi.md#multipart-encoding). A
 // union read past its bound, or a type reaching no node, which load reports,
 // is not judged.
 func (k partKeys) partless(node func(ir.TypeID) (ir.TypeDef, bool)) []ir.Diagnostic {
@@ -295,12 +295,14 @@ func (k partKeys) partless(node func(ir.TypeID) (ir.TypeDef, bool)) []ir.Diagnos
 }
 
 // mayHoldParts reports whether td, a form body's type or a variant of it, may
-// hold a part: a model, a map or the top type, or no node, which another
-// finding reports.
+// hold a part: a model, a map, an object value, whose members name its parts,
+// or the top type, or no node, which another finding reports.
 func mayHoldParts(td ir.TypeDef) bool {
 	switch t := td.(type) {
 	case *ir.Model, *ir.MapT, nil:
 		return true
+	case *ir.Literal:
+		return t.Value.Kind == ir.ValueObject
 	case *ir.Primitive:
 		return t.Prim == ir.PrimAny
 	default:

@@ -5250,8 +5250,9 @@ a holder whose parts say nothing gets no key. A body that is a map declares no p
 body stating a schema is settled, though the walk finds no part.
 
 A `multipart/form-data` or `application/x-www-form-urlencoded` body stating a schema that is no
-file body, and whose type, read through its unions, stands for no model, no map and not the top
-type, names no part to send, as an array of strings does: it is reported as a warning
+file body, and whose type, read through its unions, stands for no model, no map, no object value and
+not the top type, names no part to send, as an array of strings does, where an object `const` names
+its parts by its members: it is reported as a warning
 `openapi/partless-form-body` at the schema and lowers as declared. A union read past its bound is
 not judged, and nor is a type reaching no node, which load reports.
 
@@ -5399,7 +5400,7 @@ in any case.
   `operation.TestShapeFlattenings_ReadsShapesWithinItsLimit`,
   `operation.TestPartEncodings_AKeptEntryIsPlacedInTheDocumentDeclaringIt`,
   `operation.TestPartKeys_KeysACatchAll`, `e2e.TestCatchAllEncoding_IsKeptAndVerifies`,
-  `operation.TestPartless_FormBodyWithNoObject`
+  `operation.TestPartless_FormBodyWithNoObject`, `operation.TestPartless_JudgesWhatTheBodyNames`
 
 ### `encoding-allow-reserved`
 
