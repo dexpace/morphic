@@ -131,7 +131,6 @@ member 0 0 Operation.examples
 member 0 0 Operation.longRunning
 member 0 0 Operation.oneWay
 member 0 0 Operation.overloadOf
-member 0 0 Operation.pagination
 member 0 0 Operation.parameterVisibility
 member 0 0 Operation.returnTypeVisibility
 member 0 0 OperationGroup.availability
@@ -139,18 +138,8 @@ member 0 0 OperationGroup.resource
 member 0 0 OperationGroup.stability
 member 0 0 OperationGroup.unmodeled
 member 0 0 Pagination.firstLink
-member 0 0 Pagination.inferred
-member 0 0 Pagination.inputCursor
-member 0 0 Pagination.inputLimit
-member 0 0 Pagination.items
 member 0 0 Pagination.lastLink
-member 0 0 Pagination.nextCursor
-member 0 0 Pagination.nextLink
 member 0 0 Pagination.prevLink
-member 0 0 Pagination.stop
-member 0 0 Pagination.strategy
-member 0 0 Pagination.totalCount
-member 0 0 Pagination.totalPages
 member 0 0 Parameter.availability
 member 0 0 Parameter.valueFrom
 member 0 0 PropPath.root
@@ -254,15 +243,9 @@ value 0 0 IdempotencyKind "safe"
 value 0 0 MsgDirection "receive"
 value 0 0 MsgDirection "send"
 value 0 0 PageStop "empty"
-value 0 0 PageStop "no_next"
 value 0 0 PageStop "short"
 value 0 0 PageStop "total"
-value 0 0 PageStrategy "cursor"
 value 0 0 PageStrategy "link_header"
-value 0 0 PageStrategy "next_link"
-value 0 0 PageStrategy "offset"
-value 0 0 PageStrategy "page"
-value 0 0 PageStrategy "token"
 value 0 0 PresenceKind "explicit"
 value 0 0 PresenceKind "implicit"
 value 0 0 PresenceKind "required"

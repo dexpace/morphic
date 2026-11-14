@@ -151,7 +151,7 @@ func codes() []string {
 		diag.UndecodableSource,
 		diag.OverlayInvalid, diag.OverlayFailed, diag.OverlayUnsupported,
 		diag.OverlayAction, diag.OverlayReplacedValue, diag.OverlayOriginIncomplete,
-		diag.ValidationOnlyKeyword, diag.FalseSchema, diag.EmptyEnum, diag.DuplicateEnumValue,
+		diag.ValidationOnlyKeyword, diag.FalseSchema, diag.EmptyEnum, diag.DuplicateEnumValue, diag.RepeatedEntry,
 		diag.NumericPrecision, diag.ExclusiveBoundForm, diag.InvalidStatusKey,
 		diag.DuplicateStatusKey, diag.DuplicateParameter, diag.DuplicateServerName,
 		diag.InvalidMethodKey, diag.DegradedConstruct,
@@ -165,13 +165,14 @@ func codes() []string {
 		diag.InvalidLink,
 		diag.UntypedLink,
 		diag.ReservedHeaderName, diag.UnpreservableConstruct,
-		diag.UnknownSchemaKeyword, diag.UnknownObjectKey, diag.UnknownKeyBudget,
+		diag.UnknownSchemaKeyword, diag.UnknownObjectKey, diag.UnreadExtension, diag.UnknownKeyBudget,
 		diag.UnknownKeyUnreachable, diag.UnknownKeyEntryTaken,
 		diag.InvalidLocationKeyword, diag.InapplicableLocationKeyword,
 		diag.MissingArrayItems, diag.LaterVersionConstruct, diag.ItemSchemaOnDocument,
 		diag.InvalidPathKey, diag.InferredNullable, diag.UnreadDialect, diag.InvalidItemsList,
 		diag.InferredDiscriminator,
 		diag.InferredHTTPDate, diag.UndecidedIdempotency, diag.UndecidedReplacement,
+		diag.UndecidedPagination,
 	}
 }
 

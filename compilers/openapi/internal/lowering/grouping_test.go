@@ -176,3 +176,32 @@ func TestDefaultGroupingExtension_ReadsAListAsOnePath(t *testing.T) {
 	assert.Equal(t, "x-forge-aliases", ext.Aliases, "the aliases its key's convention restates it in")
 	assert.Empty(t, ext.Fallback, "the fallback is the caller's, defaulted by the compiler's options")
 }
+
+// TestGroupingExtension_KeysAreWhatGroupingReads pins the keys grouping reads
+// to the strategy: its key and its aliases key by extension, either alone where
+// the other is unnamed, and none under any other strategy, whatever the
+// extension names.
+func TestGroupingExtension_KeysAreWhatGroupingReads(t *testing.T) {
+	t.Parallel()
+	both := lowering.DefaultGroupingExtension()
+	keyAlone := lowering.GroupingExtension{Key: "x-k", Lists: lowering.ListsAreGroups}
+	aliasesAlone := lowering.GroupingExtension{Aliases: "x-a"}
+	for _, tc := range []struct {
+		name     string
+		ext      lowering.GroupingExtension
+		strategy lowering.GroupingStrategy
+		want     []string
+	}{
+		{"the key and its aliases", both, lowering.GroupByExtension, []string{"x-fern-sdk-group-name", "x-forge-aliases"}},
+		{"a key with no aliases", keyAlone, lowering.GroupByExtension, []string{"x-k"}},
+		{"aliases with no key", aliasesAlone, lowering.GroupByExtension, []string{"x-a"}},
+		{"nothing named", lowering.GroupingExtension{}, lowering.GroupByExtension, nil},
+		{"by tags", both, lowering.GroupByTags, nil},
+		{"by path prefix", both, lowering.GroupByPathPrefix, nil},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			assert.Equal(t, tc.want, tc.ext.Keys(tc.strategy))
+		})
+	}
+}

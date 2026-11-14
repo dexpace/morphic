@@ -72,6 +72,12 @@ paths:
       operationId: notText
       x-stability: 3
       responses: {"200": {description: ok}}
+    # A boolean on a key of tiers names no tier, and is no word the default
+    # lists as stating a deprecation.
+    patch:
+      operationId: notAWord
+      x-stability: true
+      responses: {"200": {description: ok}}
     delete:
       operationId: unstated
       responses: {"200": {description: ok}}

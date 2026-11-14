@@ -771,14 +771,16 @@ test running beside it would move the count, and a request's page would turn on 
   mock did not mint a refusal. A limit, an offset or a number its input's constraints refuse is
   refused as any invalid input is.
 
-On the golden spec (spec @bc6fad24, morphic @fa253fe19) no operation has `Pagination`, since no
-compiler infers it yet (#989). By the names of their query parameters, its `GET`s take `page` in
-254, `cursor` in 92, `offset` beside `limit` in 37, and a token in 15, `page_token` in 13 and
-`continuation_token` and `continuationToken` in one each, 13 of them taking two of those; two
-`POST`s take `page`. None declares a `Link` header, and 15 return an optional, nullable `next`
-string in `result_info`, 12 of them `format: uri`. Of the 92, 12 require the `cursor` that
-`result_info` returns, 8 as a string that is not nullable, whose walks the empty cursor ends cleanly
-under `no_next` and the end position under `empty`. T-67 holds this section.
+The golden spec declares no `Pagination`: the OpenAPI compiler's policy reads each walk off the
+names an operation uses ([`pagination-policy`](../compilers/openapi.md#pagination-policy)), `Stop`
+listing `no_next` under `cursor` and `token`. By the names of their query parameters (spec
+@bc6fad24, morphic @fa253fe19), its `GET`s take `page` in 254, `cursor` in 92, `offset` beside
+`limit` in 37, and a token in 15, `page_token` in 13 and `continuation_token` and
+`continuationToken` in one each, 13 of them taking two of those; two `POST`s take `page`. None
+declares a `Link` header, and 15 return an optional, nullable `next` string in `result_info`, 12 of
+them `format: uri`. Of the 92, 12 require the `cursor` that `result_info` returns, 8 as a string
+that is not nullable, whose walks the empty cursor ends cleanly under `no_next` and the end position
+under `empty`. T-67 holds this section.
 
 ## The mock's options
 

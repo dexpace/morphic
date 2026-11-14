@@ -20,8 +20,8 @@ import (
 // external tests.
 const MaxDiscriminatorAncestorDepth = maxDiscriminatorAncestorDepth
 
-// MaxTypePositionHops is maxTypePositionHops, for the external tests.
-const MaxTypePositionHops = maxTypePositionHops
+// MaxChainHops is maxChainHops, for the external tests.
+const MaxChainHops = maxChainHops
 
 // MaxAdmissionReads is maxAdmissionReads, for the external tests.
 const MaxAdmissionReads = maxAdmissionReads

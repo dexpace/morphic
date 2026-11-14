@@ -147,7 +147,7 @@ func KeysLentTo(c lowering.Ctx, ts *compile.Types, js *oas3.JSONSchema[oas3.Refe
 	if s == nil || LoweredToOwnNode(c, ts, pointer, t) {
 		return lowering.Referent{}
 	}
-	return UseOf(c, ts, js, t, pointer).lentKeys(c, s)
+	return UseOf(c, ts, js, t, pointer).lentKeys(c)
 }
 
 // LoweredToOwnNode reports whether the declaration at pointer, in c's

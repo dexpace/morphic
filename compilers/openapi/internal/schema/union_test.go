@@ -788,11 +788,10 @@ func TestLower_ATypeArrayKeepsItsDiscriminatorOnTheUnion(t *testing.T) {
 }
 
 // TestLower_ATypeArrayResolvesItsDiscriminatorRoutes pins that a type array
-// admitting an object resolves its discriminator's routes though its union
-// keeps the discriminator verbatim: a position only a mapping names is
-// lowered, in either order, and a target naming nothing is reported once, at
-// its entry. One admitting no object resolves nothing, as no node keeping a
-// discriminator verbatim does (GitHub #1662, #1708).
+// resolves its discriminator's routes though its union keeps the
+// discriminator verbatim, as every node keeping one does: a position only a
+// mapping names is lowered, in either order, and a target naming nothing is
+// reported once, at its entry, whether the array admits an object or not.
 func TestLower_ATypeArrayResolvesItsDiscriminatorRoutes(t *testing.T) {
 	t.Parallel()
 	const reached = "    Pet:\n      type: [object, string]\n      properties: {kind: {type: string}}\n" +
@@ -817,6 +816,7 @@ func TestLower_ATypeArrayResolvesItsDiscriminatorRoutes(t *testing.T) {
 	}
 	assert.ElementsMatch(t, []jsontext.Pointer{
 		"/components/schemas/Obj/discriminator/mapping/a", "/components/schemas/Def/discriminator/defaultMapping",
+		"/components/schemas/NoObj/discriminator/mapping/a",
 	}, at)
 }
 

@@ -1,0 +1,110 @@
+openapi: 3.1.0
+info: {title: SecurityStates, version: "1.0.0"}
+# The four states a security list is written in, each meaning something else to
+# a caller: left out, an operation inherits this list; written empty, it is
+# public; holding only the empty requirement, authentication is optional; and
+# holding it beside a scheme, a caller may send that scheme or nothing.
+security:
+  - apiKey: []
+paths:
+  /absent:
+    get:
+      operationId: absent
+      responses:
+        "200":
+          description: ok
+  /public:
+    get:
+      operationId: public
+      security: []
+      responses:
+        "200":
+          description: ok
+  /optional:
+    get:
+      operationId: optional
+      security:
+        - {}
+      responses:
+        "200":
+          description: ok
+  /optionalOrKey:
+    get:
+      operationId: optionalOrKey
+      security:
+        - {}
+        - apiKey: []
+      responses:
+        "200":
+          description: ok
+  /required:
+    get:
+      operationId: required
+      security:
+        - apiKey: []
+      responses:
+        "200":
+          description: ok
+  # OpenAPI gives a path item no security of its own, so the states reach a
+  # mounted path item through the operations it declares, each read where it is
+  # written.
+  /mounted:
+    $ref: '#/components/pathItems/Shared'
+webhooks:
+  # A webhook inherits no list from the document, whatever the document writes,
+  # so one writing none lowers as left out all the same.
+  hookAbsent:
+    post:
+      operationId: hookAbsent
+      responses:
+        "200":
+          description: ok
+  hookRequired:
+    post:
+      operationId: hookRequired
+      security:
+        - apiKey: []
+      responses:
+        "200":
+          description: ok
+components:
+  pathItems:
+    Shared:
+      get:
+        operationId: mountedAbsent
+        responses:
+          "200":
+            description: ok
+      put:
+        operationId: mountedPublic
+        security: []
+        responses:
+          "200":
+            description: ok
+      post:
+        operationId: mountedOptional
+        security:
+          - {}
+        responses:
+          "200":
+            description: ok
+      patch:
+        operationId: mountedOptionalOrKey
+        security:
+          - {}
+          - apiKey: []
+        responses:
+          "200":
+            description: ok
+      delete:
+        operationId: mountedRequired
+        security:
+          - apiKey: []
+        responses:
+          "200":
+            description: ok
+  securitySchemes:
+    apiKey:
+      type: apiKey
+      in: header
+      name: X-API-Key

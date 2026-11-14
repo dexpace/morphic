@@ -46,6 +46,11 @@ func (a *agreement) write(conjunct *oas3.Schema) []string {
 		}
 		entries = append(entries, entry)
 		rendered := foldValue(conjunct, entry)
+		if writesFalseFlag(entry, rendered) {
+			// A false states nothing a true elsewhere disagrees with
+			// (annotation.EffectiveDeprecated), so it is compared with nothing.
+			continue
+		}
 		if held, ok := a.first[entry]; !ok {
 			a.first[entry] = rendered
 		} else if !held.agrees(rendered) {
@@ -60,7 +65,7 @@ func (a *agreement) write(conjunct *oas3.Schema) []string {
 			// warns of and keeps, the lowering does where it reads a branch that
 			// folds; a branch kept apart is kept whole instead. Nothing this
 			// reading places is kept, so it places at the zero Doc.
-			cons, _, _ = annotation.Constraints(conjunct, exclusiveIsBoolean(a.c, conjunct), "", provenance.Doc{})
+			cons, _, _ = annotation.Constraints(conjunct, annotation.AllBounds, exclusiveIsBoolean(a.c, conjunct), "", provenance.Doc{})
 			cons = merge.Constraints(cons, heldCollectionBounds(conjunct))
 			read = true
 		}
@@ -84,6 +89,18 @@ func (a *agreement) bound(entry string) *boundReading {
 		a.bounds[entry] = b
 	}
 	return b
+}
+
+// writesFalseFlag reports whether rendered is a false of a boolean annotation
+// JSON Schema reads in force where any occurrence is true: deprecated, readOnly
+// or writeOnly.
+func writesFalseFlag(entry string, rendered foldRendering) bool {
+	switch entry {
+	case "deprecated", "readOnly", "writeOnly":
+		return rendered.err == nil && string(rendered.raw) == "false"
+	default:
+		return false
+	}
 }
 
 // apart reports whether the writers of entry disagree, so none of them folds: a

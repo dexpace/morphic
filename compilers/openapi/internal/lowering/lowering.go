@@ -92,6 +92,7 @@ type Ctx struct {
 	SecretInference        SecretInference
 	HTTPDateInference      HTTPDateInference
 	ReplacementInference   ReplacementInference
+	PaginationInference    PaginationInference
 
 	// foreign marks a lowering of content another document holds, read in that
 	// document's scope, and holder is the path the resolver read it by (see
@@ -182,17 +183,6 @@ type loadResult struct {
 	settled map[any]any
 }
 
-// ScopedPosition is a position as a context reads it: with the scope it is read
-// in (see Within) and the document the context places positions in. It keys a
-// reading that turns on where a position is read (Remembered), and only Scoped
-// builds one, as the scope is the context's own and unexported.
-type ScopedPosition struct {
-	foreign bool
-	holder  string
-	home    int
-	at      bind.Position
-}
-
 // Policy is the caller's choice of how a source is lowered, as the compiler's
 // Options resolve it.
 type Policy struct {
@@ -208,6 +198,7 @@ type Policy struct {
 	SecretInference        SecretInference
 	HTTPDateInference      HTTPDateInference
 	ReplacementInference   ReplacementInference
+	PaginationInference    PaginationInference
 	TitleNames             TitleNames
 }
 
@@ -237,6 +228,7 @@ func New(srcIndex int, doc *load.Document, p Policy) Ctx {
 		SecretInference:        p.SecretInference,
 		HTTPDateInference:      p.HTTPDateInference,
 		ReplacementInference:   p.ReplacementInference,
+		PaginationInference:    p.PaginationInference,
 		overlay:                doc.Overlay,
 
 		loaded: &loadResult{siblings: doc.Siblings, media: doc.MediaTypes, others: doc.Others, rows: doc.Rows,
@@ -294,12 +286,6 @@ func (c Ctx) Sources() []ir.SourceInfo {
 // resolved them.
 func (c Ctx) Bindings() *typed.Bindings {
 	return c.loaded.reads.Bindings
-}
-
-// Scoped returns at as c reads it: in c's scope, and in the coordinates of the
-// document c places its positions in.
-func Scoped(c Ctx, at bind.Position) ScopedPosition {
-	return ScopedPosition{foreign: c.foreign, holder: c.holder, home: c.home, at: at}
 }
 
 // Remembered returns read's answer for key, read once and remembered for every
@@ -460,6 +446,10 @@ func (c Ctx) SchemaRules() oas.SchemaRules { return rowsOf(c).Schema }
 // with (rowsOf), as SchemaRules returns the Schema Object's: what a part takes
 // where its encoding leaves a field unwritten.
 func EncodingRules(c Ctx) oas.EncodingRules { return rowsOf(c).Encoding }
+
+// SecurityRules returns the Security Requirement Object's rows a requirement c
+// lowers is read with (rowsOf): whether its key may name a scheme by URI.
+func SecurityRules(c Ctx) oas.SecurityRules { return rowsOf(c).Security }
 
 // rowsOf returns what the table says at the minor of the document whose
 // content c reads, in the dialect its jsonSchemaDialect names, which its scope

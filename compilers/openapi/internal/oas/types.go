@@ -304,6 +304,9 @@ type Pattern struct {
 	// Keys is the syntax of the key itself.
 	Keys  Format
 	Cites []Cite
+	// ByURI marks a key that may name its object by URI where it is no
+	// component name, as a Security Requirement Object's may from 3.2.
+	ByURI bool
 }
 
 // RuleKind names what a Rule demands.

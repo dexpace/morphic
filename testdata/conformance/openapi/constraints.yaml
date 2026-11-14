@@ -30,6 +30,13 @@ components:
           maximum: 100
           exclusiveMaximum: 10
         label: {type: string, minLength: 2, maxLength: 8}
+        # A value bound applies to values of one kind and lets any other through,
+        # so beside a type it does not apply to it bounds nothing: it reaches no
+        # Constraints, the property's included, and is kept verbatim, on an alias
+        # where the position lowered to a shared primitive.
+        id: {minimum: 1, maximum: 9, type: string, pattern: '^a'}
+        meta: {minLength: 2, type: object, properties: {a: {type: string}}}
+        list: {maxLength: 5, type: array, items: {type: string}}
         # An array hoists a List, which is where a collection bound belongs.
         tags:
           type: array
@@ -50,3 +57,5 @@ components:
       type: string
       minLength: 1
       maxLength: 99999999999999999999
+    # A number takes no length: a component owns its alias, which keeps it.
+    Port: {maxLength: 65535, type: number}

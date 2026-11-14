@@ -247,6 +247,12 @@ func vocabularyApplicator() []vocabCase {
 			keyword: "unevaluatedProperties", schemas: objectSchema,
 			write: "unevaluatedProperties: false", alt: "unevaluatedProperties: {type: string}",
 		},
+		// Its false form again, where no model holds it as a closure: kept
+		// verbatim, as every other form is (docs/compilers/openapi.md#validation-only).
+		{
+			keyword: "unevaluatedProperties", schemas: stringSchema,
+			write: "unevaluatedProperties: false", alt: "unevaluatedProperties: true",
+		},
 	}
 }
 

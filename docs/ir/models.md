@@ -36,7 +36,8 @@ type AdditionalMode string
 // ""                         — unspecified (open by JSON Schema default)
 // "closed"                   — no properties beyond the declared set and the catch-all's patterns
 //                              (additionalProperties: false, closed-by-construction records)
-// "closed_after_composition" — closed once composition is resolved (unevaluatedProperties: false)
+// "closed_after_composition" — closed once composition is resolved (unevaluatedProperties: false
+//                              with no additionalProperties beside it, which would leave it inert)
 
 type WireIDRange struct { From, To int }
 
@@ -167,7 +168,9 @@ no pattern matches:
 - **Patterns and no value.** No such key is allowed, as `Tuple.Rest` is nil when no element may
   follow: an object writing `patternProperties` beside `additionalProperties: false`. The model is
   `Additional` closed as well, which says the same of every member beyond its declared ones and
-  the patterns.
+  the patterns. Beside `closed_after_composition` instead, from `patternProperties` and
+  `unevaluatedProperties: false` with no `additionalProperties`, such a key is allowed only where
+  composition evaluates it, and the source types it nowhere else, so nothing is supplied for it.
 - **Patterns and a value.** Both hold: an object writing `patternProperties` and neither
   `additionalProperties` nor `unevaluatedProperties: false`, whose other keys JSON Schema admits
   whatever they hold, types the value as the top type.

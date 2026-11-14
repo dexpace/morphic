@@ -102,8 +102,8 @@ func declaresAnnotations(s *oas3.Schema) bool {
 
 // declaresValidationOnly reports whether s writes a validation-only keyword
 // that annotation.Read keeps verbatim under Unmodeled. A `false`
-// unevaluatedProperties is excluded on purpose: fillAdditional lowers it into
-// the model's openness, so it is structure rather than a preserved keyword.
+// unevaluatedProperties counts: only a Model, which owns its pointer and so
+// needs no node hoisted, holds it as its openness (closureTyped).
 func declaresValidationOnly(s *oas3.Schema) bool {
 	if annotation.Written(s.GetNot()) || annotation.Written(s.GetContains()) ||
 		annotation.Written(s.GetPropertyNames()) {
@@ -121,8 +121,34 @@ func declaresValidationOnly(s *oas3.Schema) bool {
 	if annotation.RawPropertyNode(s, "dependentRequired") != nil {
 		return true
 	}
-	up := s.GetUnevaluatedProperties()
-	return annotation.Written(s.GetUnevaluatedItems()) || (annotation.Written(up) && !annotation.IsFalseSchema(up))
+	return annotation.Written(s.GetUnevaluatedItems()) || annotation.Written(s.GetUnevaluatedProperties())
+}
+
+// closureTyped reports whether td, the node s lowered to, holds s's
+// `unevaluatedProperties: false` as a model's openness, so no entry keeps it:
+// the keyword is live (annotation.ClosesAfterComposition), and td is a Model
+// closed after composition, or a Union whose variants s builds itself
+// (buildsVariants), one of them such a Model. A `false` allOf branch that
+// closed the model outright leaves it holding the keyword no longer.
+func closureTyped(c lowering.Ctx, ts *compile.Types, s *oas3.Schema, td ir.TypeDef) bool {
+	if !annotation.ClosesAfterComposition(s) {
+		return false
+	}
+	switch n := td.(type) {
+	case *ir.Model:
+		return closedAfterComposition(n)
+	case *ir.Union:
+		return buildsVariants(c, s) && slices.ContainsFunc(variantNodes(ts, n), closedAfterComposition)
+	default:
+		return false
+	}
+}
+
+// closedAfterComposition reports whether td is a Model closed once composition
+// is resolved.
+func closedAfterComposition(td ir.TypeDef) bool {
+	m, ok := td.(*ir.Model)
+	return ok && m.Additional == ir.AdditionalClosedAfterComposition
 }
 
 // attachDeclaredAnnotations records every annotation s declares on the type
@@ -146,7 +172,9 @@ func attachDeclaredAnnotations(c lowering.Ctx, ts *compile.Types, s *oas3.Schema
 		return nil
 	}
 	use := nodeUse(c, ts, s, pointer, target)
-	a, diags := annotation.Read(use.SiteAt(c, s, pointer), pointer, c.Place())
+	site := use.SiteAt(c, s, pointer)
+	site.Closure = closureTyped(c, ts, s, td)
+	a, diags := annotation.Read(site, pointer, c.Place())
 
 	common := td.Common()
 	common.Docs = a.Docs
@@ -160,7 +188,7 @@ func attachDeclaredAnnotations(c lowering.Ctx, ts *compile.Types, s *oas3.Schema
 		common.XML = a.XML
 	}
 	common.Unmodeled = annotation.MergeUnmodeled(common.Unmodeled, a.Unmodeled)
-	from := use.lentKeys(c, s)
+	from := use.lentKeys(c)
 	diags = append(diags, c.Promoter().Deprecation(common.Unmodeled, from, &common.Deprecation, &common.Provenance)...)
 	diags = append(diags, c.Promoter().Redaction(common.Unmodeled, from, &common.Sensitive, &common.Provenance)...)
 	// The openness promotions are applied here rather than where the Enum or
@@ -169,16 +197,16 @@ func attachDeclaredAnnotations(c lowering.Ctx, ts *compile.Types, s *oas3.Schema
 	// declaration's extensions have reached the node's map.
 	switch n := td.(type) {
 	case *ir.Enum:
-		diags = append(diags, c.Promoter().EnumOpenness(common.Unmodeled, &n.Closed, &common.Provenance)...)
+		diags = append(diags, lowering.EnumOpenness(c.Promoter(), common.Unmodeled, &n.Closed, &common.Provenance)...)
 	case *ir.Union:
 		// A target names what the document writes, so the union a mixed enum
 		// lowers to reads the enum's, as the enum would, and only that one: one
 		// fact read through two targets would let either override the other.
-		openness := c.Promoter().UnionOpenness
+		openness := lowering.UnionOpenness
 		if dispatchOf(s).won == "enum" {
-			openness = c.Promoter().EnumOpenness
+			openness = lowering.EnumOpenness
 		}
-		diags = append(diags, openness(common.Unmodeled, &n.Closed, &common.Provenance)...)
+		diags = append(diags, openness(c.Promoter(), common.Unmodeled, &n.Closed, &common.Provenance)...)
 	default:
 		// Openness is a fact of an enum's or a union's value space alone.
 	}

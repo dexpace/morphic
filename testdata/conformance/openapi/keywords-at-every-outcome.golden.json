@@ -77,6 +77,28 @@
         "nullable": false
       }
     },
+    "t/anon/components/schemas/Homed/type/0": {
+      "kind": "scalar",
+      "id": "t/anon/components/schemas/Homed/type/0",
+      "name": {
+        "hint": "homed"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Homed/type/0"
+      },
+      "base": {
+        "target": "t/prim/string",
+        "nullable": false
+      },
+      "constraints": {
+        "minLength": 2,
+        "uniqueItems": false
+      }
+    },
     "t/anon/components/schemas/Homed/type/1": {
       "kind": "model",
       "id": "t/anon/components/schemas/Homed/type/1",
@@ -119,10 +141,6 @@
           }
         }
       ],
-      "constraints": {
-        "minLength": 2,
-        "uniqueItems": false
-      },
       "abstract": false,
       "positional": false,
       "inputOnly": false
@@ -671,7 +689,7 @@
             "hint": "string"
           },
           "type": {
-            "target": "t/prim/string",
+            "target": "t/anon/components/schemas/Homed/type/0",
             "nullable": false
           },
           "docs": {}

@@ -50,6 +50,9 @@ func bindSchemas(ctx context.Context, doc *soa.OpenAPI, sibs Siblings, media Med
 	opened := map[string]*yaml.Node{}
 	cfg := bind.Config{Self: self.path, Locate: self.locate, Beside: sibs.Beside, Written: self.escapes.original,
 		Refuse: self.escapes.refusal(), Limit: budget.AtMost(bind.MaxSteps),
+		// Read off the model, as the lowering reads the names a mapping value
+		// may spell (lowering.Ctx.DeclaresSchema), so the two cannot disagree.
+		Components: slices.Collect(doc.Components.GetSchemas().Keys()),
 		Through: func(name string, p jsontext.Pointer) (bind.ReferenceEnd, bool) {
 			e, ok := ends[self.siteIn(name, p)]
 			return bind.ReferenceEnd{Name: e.name, Pointer: e.pointer, Node: e.node}, ok
