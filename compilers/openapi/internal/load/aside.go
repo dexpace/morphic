@@ -52,6 +52,16 @@ func (a *aside) spoil(n *yaml.Node) {
 	*n = yaml.Node{Kind: yaml.SequenceNode, Tag: "!!seq", Style: yaml.FlowStyle, Line: n.Line, Column: n.Column}
 }
 
+// standIn has the mapping m read as a Reference Object whose $ref is an empty
+// sequence, as spoil leaves one, until restore.
+func (a *aside) standIn(m *yaml.Node) {
+	a.keep(m)
+	m.Content = []*yaml.Node{
+		{Kind: yaml.ScalarNode, Tag: "!!str", Value: "$ref", Line: m.Line, Column: m.Column},
+		{Kind: yaml.SequenceNode, Tag: "!!seq", Style: yaml.FlowStyle, Line: m.Line, Column: m.Column},
+	}
+}
+
 // keep records n as it is now, so restore puts it back.
 func (a *aside) keep(n *yaml.Node) {
 	a.mu.Lock()

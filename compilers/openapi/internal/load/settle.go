@@ -47,8 +47,15 @@ func turnRefused(j judgment) bool {
 // turn left so.
 func setAside(j judgment, a *aside) {
 	for _, ref := range j.referenced {
-		if v := nodeview.Deref(nodeview.Child(ref, "$ref")); v != nil && isNullNode(v) {
+		v := nodeview.Deref(nodeview.Child(ref, "$ref"))
+		switch {
+		case v == nil || !isNullNode(v):
+		case writesRef(ref):
 			a.spoil(v)
+		default:
+			// The model reads a Reference Object by the keys the mapping writes
+			// itself, so one whose $ref a `<<` merges in stands in its place.
+			a.standIn(ref)
 		}
 	}
 	for key := range j.seen {
@@ -86,4 +93,15 @@ func asidePathItem(item *yaml.Node, a *aside) {
 // isNullNode reports whether n is a null scalar.
 func isNullNode(n *yaml.Node) bool {
 	return n.Kind == yaml.ScalarNode && n.ShortTag() == "!!null"
+}
+
+// writesRef reports whether the mapping m writes the key $ref itself, rather
+// than through a `<<` merge.
+func writesRef(m *yaml.Node) bool {
+	for i := 0; i+1 < len(m.Content); i += 2 {
+		if key, own := nodeview.KeyOf(m.Content[i]); own && key == "$ref" {
+			return true
+		}
+	}
+	return false
 }

@@ -950,7 +950,8 @@ references that closes on itself is [`reference-cycles`](#reference-cycles)'.
   `openapi/validation`
 
 A Reference Object whose `$ref` is no string, a null, a list, a mapping or a scalar tagged outside
-YAML 1.2's JSON schema ruleset, names nothing: the entry it stands in is read as left out, its
+YAML 1.2's JSON schema ruleset, written by the mapping or merged into it by a `<<` key, names
+nothing: the entry it stands in is read as left out, its
 other keys with it, and the rule table's error at the `$ref` is the one report of it; a component
 kept verbatim shows it as written ([`unreferenced-components`](#unreferenced-components)). The parser's
 model faults building such an object, and a 3.2 `additionalOperations` entry that is no mapping
@@ -1059,6 +1060,7 @@ else it writes.
   `load.TestLoad_TheTreeIsAsWrittenOnceTheModelIsBuilt`,
   `load.TestLoad_ANullRefOfAReferenceObjectIsReadWithoutAFaultAtEachModelBuild`,
   `e2e.TestCompile_AReachedObjectTheModelFaultsOnLosesItsPathItem`,
+  `e2e.TestCompile_ARefAMergeKeyWritesThatIsNoStringLeavesTheEntryOut`,
   `e2e.TestCompile_AComponentWhoseRefIsNoStringIsKeptAsWritten`
 - Status: partly built: a remote document can make the compiler request a private address (#937),
   and a Reference Object whose `$ref` is null in another document, or in raw YAML only a reference

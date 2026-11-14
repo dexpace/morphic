@@ -438,3 +438,31 @@ func TestCompile_AReachedObjectTheModelFaultsOnLosesItsPathItem(t *testing.T) {
 		assert.Contains(t, lost[0].Message, noItem)
 	})
 }
+
+// TestCompile_ARefAMergeKeyWritesThatIsNoStringLeavesTheEntryOut holds a
+// Reference Object whose $ref a `<<` merge key writes, null, a list or a
+// mapping, to the entry left out with the one error at the $ref, as the same
+// $ref written in the mapping itself is: the model reads a reference by the
+// keys a mapping writes itself, so the merged one stands in for it.
+func TestCompile_ARefAMergeKeyWritesThatIsNoStringLeavesTheEntryOut(t *testing.T) {
+	t.Parallel()
+	for _, spelling := range []string{"~", "[a]", "{}"} {
+		t.Run(spelling, func(t *testing.T) {
+			t.Parallel()
+			spec := "openapi: 3.1.0\ninfo: {title: t, version: \"1\"}\nx-b: &b {$ref: " + spelling + "}\npaths:\n  /a:\n    get:\n" +
+				"      parameters:\n        - {<<: *b}\n        - {name: ok, in: query, schema: {type: string}}\n" +
+				"      responses: {\"200\": {description: ok}}\n"
+
+			doc, diags := compileText(t, "spec.yaml", spec, openapi.Options{})
+
+			require.NotNil(t, doc, "%+v", diags)
+			require.Len(t, diags, 1, "one finding, at the $ref: %+v", diags)
+			assert.Equal(t, typeMismatch, diags[0].Code)
+			assert.Equal(t, "/x-b/$ref", string(diags[0].Provenance.Pointer))
+			ops := allOperations(doc)
+			require.Len(t, ops, 1)
+			require.Len(t, ops[0].Params, 1, "the entry is left out")
+			assert.Equal(t, "ok", ops[0].Params[0].Name.Source)
+		})
+	}
+}
