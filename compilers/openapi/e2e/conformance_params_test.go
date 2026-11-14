@@ -249,9 +249,9 @@ func assertParamStyleMatrix(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 // sharing one, or its path item, with any `in: query` parameter; the test
 // asserts the operation binds exactly one.
 //
-// It carries neither style nor explode: 3.2 gives the location no style, and
-// explode qualifies a style there is none of (GitHub #334). Both are pinned so a
-// stamped form/true default cannot return.
+// It carries neither style nor explode: 3.2 gives the location no style (GitHub
+// #334), and the parameter writes no explode. Both are pinned so a stamped
+// form/true default cannot return.
 func assertQuerystringParam(t *testing.T, doc *ir.Document) {
 	t.Helper()
 	op, ok := opByName(doc, "querystringOnly")
@@ -266,7 +266,7 @@ func assertQuerystringParam(t *testing.T, doc *ir.Document) {
 	assert.Equal(t, "application/x-www-form-urlencoded", binding.ContentType,
 		"its media type is where its serialization is actually stated")
 	assert.Empty(t, binding.Style, "style is not a legal keyword at in: querystring")
-	assert.Nil(t, binding.Explode, "and explode qualifies a style there is none of")
+	assert.Nil(t, binding.Explode, "and no explode, which it does not write")
 }
 
 // assertParamQuerystring pins the 3.2 querystring location, where the whole
@@ -274,10 +274,10 @@ func assertQuerystringParam(t *testing.T, doc *ir.Document) {
 // media type and neither style nor explode, which the location forbids (GitHub
 // #334).
 //
-// The third operation holds what param-style-matrix does not: only the default
-// is suppressed, so a declared explode survives at a location that takes no
-// style. param-style-matrix declares neither keyword there, so reverting the
-// early return that dropped a declared explode leaves it green. This case also
+// The third operation holds what param-style-matrix does not: a declared explode
+// survives at a location that takes no style. param-style-matrix declares
+// neither keyword there, so a lowering that dropped every explode on a binding
+// with no style would leave it green. This case also
 // pins the one diag.InvalidLocationKeyword this fixture raises; see that code's
 // GoDoc for why it is a warning.
 func assertParamQuerystring(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
@@ -290,7 +290,7 @@ func assertParamQuerystring(t *testing.T, doc *ir.Document, diags []ir.Diagnosti
 	assert.Equal(t, "application/x-www-form-urlencoded", qs.ContentType,
 		"the media type is the whole of a querystring binding's declared serialization")
 	assert.Empty(t, qs.Style, "style is not a legal keyword at in: querystring")
-	assert.Nil(t, qs.Explode, "and explode qualifies a style there is none of")
+	assert.Nil(t, qs.Explode, "and no explode, which it does not write")
 
 	summary, ok := opByName(doc, "summarize")
 	require.True(t, ok)

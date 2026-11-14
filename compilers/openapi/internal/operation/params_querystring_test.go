@@ -17,7 +17,8 @@ import (
 // TestParams_QueryStringLocation pins the whole of a querystring binding's
 // declared serialization: the 3.2 location, and the media type from content
 // carrying it alone. Style and explode are not legal keywords there, so the
-// binding takes neither rather than the query defaults (GitHub #334).
+// binding takes no style rather than the query default (GitHub #334), and no
+// explode, as the parameter writes none.
 func TestParams_QueryStringLocation(t *testing.T) {
 	t.Parallel()
 	spec := openapitest.PathsSpecVer("3.2.0", `  /q:
@@ -42,7 +43,7 @@ func TestParams_QueryStringLocation(t *testing.T) {
 	assert.Equal(t, ir.HTTPLocationQuerystring, qs.Location)
 	assert.Equal(t, "application/x-www-form-urlencoded", qs.ContentType)
 	assert.Empty(t, qs.Style, "3.2 binds the query string from content and forbids style there")
-	assert.Nil(t, qs.Explode, "and explode with it: it qualifies a style, and there is none")
+	assert.Nil(t, qs.Explode, "and no explode, which it does not write")
 }
 
 // TestParams_QueryStringDeclaredStyleIsKeptAndReported pins the other half of
