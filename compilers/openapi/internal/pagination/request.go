@@ -329,8 +329,8 @@ func places(w *whole.Document, op *ir.Operation, kind methodKind) (continuations
 // paramPlaces returns the places op's query parameters name. An object
 // parameter, bound in the query or as the query string and standing for a
 // model, is read through its members, one level down, where one of them
-// names a continuation, its own name then giving it no role; otherwise a
-// parameter bound in the query is read by its own name.
+// names a role, a continuation or a page size, its own name then giving it
+// none; otherwise a parameter bound in the query is read by its own name.
 func paramPlaces(w *whole.Document, op *ir.Operation) (continuations, limits []place) {
 	var bound map[ir.ParamID]ir.HTTPLocation // read at the first parameter it is asked of
 	for i := range op.Params {
@@ -343,7 +343,7 @@ func paramPlaces(w *whole.Document, op *ir.Operation) (continuations, limits []p
 			continue
 		}
 		mc, ml := memberPlaces(w, p)
-		if len(mc) > 0 {
+		if len(mc)+len(ml) > 0 {
 			continuations, limits = append(continuations, mc...), append(limits, ml...)
 			continue
 		}

@@ -6215,9 +6215,11 @@ every operation. A name is compared by its canonical words (`Naming.Canonical`),
    object query parameter, one bound in the query or as the query string whose type stands for a
    model, one level down, an `InputPath` naming the parameter and the member; or a member of the
    request body's root that every content holds, an `InputPath` naming the member alone. An object
-   parameter is read through its members: where one of them names a continuation, its own name
-   gives it no role, so a JSON:API `page` holding `offset` and `limit` is one `offset` walk; where
-   none does, its name is read as any parameter's. Each place is a value a walk sends or counts
+   parameter is read through its members: where one of them names a continuation or the page size,
+   its own name gives it no role, so a JSON:API `page` holding `offset` and `limit` is one `offset`
+   walk, and a `page` or a `filter` holding only `limit` beside a `cursor` parameter is that
+   cursor's walk with the member its page size; where none does, its name is read as any
+   parameter's. Each place is a value a walk sends or counts
    with: its type, read through alias scalars, is a plain number of any kind or a plain string, the
    text a number is sent as, and not an enum, a constant or an encoded string, whatever values it
    holds. A `page` sent as a string is read only where the default or an example of its parameter or
@@ -6334,6 +6336,7 @@ declaration both mounts share.
   `pagination.TestInferWalks_ReadsNoBodyOfAMethodThatIsNoSearch`,
   `pagination.TestInferWalks_ReadsAnObjectParameter`,
   `pagination.TestInferWalks_ReadsAnObjectParameterNamedForARole`,
+  `pagination.TestInferWalks_ReadsAPageSizeAnObjectParameterHolds`,
   `pagination.TestInferWalks_TwoPlacesAreUndecided`, `pagination.TestInferWalks_ReadsLinks`,
   `pagination.TestInferWalks_ALinkHeldApartIsLeftUnset`, `pagination.TestInferWalks_NextNames`,
   `pagination.TestInferWalks_ReadsAHeaderCursor`, `pagination.TestInferWalks_LinkWalks`,

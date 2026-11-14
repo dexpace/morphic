@@ -292,6 +292,45 @@ paths:
 		`its type is no plain number or string`}, undecided(diags))
 }
 
+// TestInferWalks_ReadsAPageSizeAnObjectParameterHolds holds an object
+// parameter whose one member names the page size, beside a query parameter
+// naming where the walk continues, to being read through that member, whether
+// its own name gives no role or names a page: the page size is the walk's
+// limit, and the object is no second continuation.
+func TestInferWalks_ReadsAPageSizeAnObjectParameterHolds(t *testing.T) {
+	t.Parallel()
+	list := `{type: object, properties: {items: ` + stringList + `, next_cursor: {type: string}}}`
+	cursor := `{name: cursor, in: query, schema: {type: string}}`
+	r := bodyProps("things", "get")
+	for _, object := range []string{"filter", "page"} {
+		for name, tc := range map[string]struct {
+			params string
+			index  int
+		}{
+			"the cursor declared first": {cursor + `, ` + objectParam(object, `limit: {type: integer}`), 1},
+			"the object declared first": {objectParam(object, `limit: {type: integer}`) + `, ` + cursor, 0},
+		} {
+			t.Run(object+", "+name, func(t *testing.T) {
+				t.Parallel()
+				for _, src := range inEitherOrder(t, listing(`[`+tc.params+`]`, list)) {
+					op, _, diags := listOp(t, src, openapi.Options{})
+					assert.Empty(t, diags)
+					assert.Equal(t, &ir.Pagination{
+						Strategy:    ir.PageStrategyCursor,
+						Inferred:    true,
+						InputCursor: inputPath("param/openapi/paths/~1things/get/parameters/cursor/query"),
+						InputLimit: inputPath("param/openapi/paths/~1things/get/parameters/"+object+"/query",
+							fmt.Sprintf("p/openapi/paths/~1things/get/parameters/%d/schema/properties/limit", tc.index)),
+						Items:      propPath(r + "/items"),
+						NextCursor: propPath(r + "/next_cursor"),
+						Stop:       []ir.PageStop{ir.PageStopNoNext},
+					}, op.Pagination)
+				}
+			})
+		}
+	}
+}
+
 // TestInferWalks_TwoPlacesAreUndecided holds two places naming where a walk
 // continues, or the page size, to leaving the operation with no pagination
 // and one finding naming each, however the two are declared and wherever each
