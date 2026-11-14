@@ -100,8 +100,13 @@ func Apply(ctx context.Context, index int, root *yaml.Node, opts Options) (Origi
 // test with a small tree.
 func applyWithin(ctx context.Context, index int, root *yaml.Node, opts Options, walks budget.Limit) (Origin, []ir.Diagnostic) {
 	at := ir.Provenance{Source: index}
-	p, diags := read(at, opts.Data)
+	p, diags := read(ctx, at, opts.Data)
 	if diag.HasError(diags) {
+		// A parse a cancel cut short refuses as a cancelled sequence does, with
+		// nothing reported, since the caller reads its context next.
+		if ctx.Err() != nil {
+			return Origin{}, nil
+		}
 		return Origin{}, diags
 	}
 

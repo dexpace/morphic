@@ -230,11 +230,15 @@ func (e external) prepare(ctx context.Context, id, key string, data []byte) ([]b
 }
 
 // parseTree parses data as the parser parses a document, its first document,
-// and returns the parser's error for bytes that do not parse, or
-// ctx's once it is done: the parse reads the bytes through ctx
-// (contextReader). Bytes holding no document parse to an empty tree, as
-// yaml.Unmarshal parses them.
+// and returns the parser's error for bytes that do not parse, or ctx's once
+// it is done: the YAML parse reads the bytes through ctx (contextReader).
+// Bytes that are one JSON text are read by readJSON. Bytes holding no
+// document parse to an empty tree, as yaml.Unmarshal parses them.
 func parseTree(ctx context.Context, data []byte) (*yaml.Node, error) {
+	if root, read, err := readJSON(ctx, data); read || err != nil {
+		return root, err
+	}
+
 	var root yaml.Node
 	err := yaml.NewDecoder(contextReader{ctx: ctx, r: bytes.NewReader(data)}).Decode(&root)
 	if errors.Is(err, io.EOF) {
