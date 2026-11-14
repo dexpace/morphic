@@ -9,6 +9,7 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+	"unicode/utf16"
 	"unicode/utf8"
 
 	"github.com/google/go-cmp/cmp"
@@ -98,23 +99,67 @@ func TestRespell_EachTriggerGetsAPlaceholderOfItsOwn(t *testing.T) {
 	}
 }
 
-// TestRespell_AUTF16TextIsLeftUntouched states a limit: a text opening with a
-// UTF-16 byte order mark is handed back as it is, whatever it holds.
-func TestRespell_AUTF16TextIsLeftUntouched(t *testing.T) {
+// TestRespell_AUTF16OrUTF32TextIsReadAsTheUTF8ItEncodes holds a text opening
+// with a UTF-16 or UTF-32 byte order mark to the UTF-8 it encodes, respelled as
+// that UTF-8 is, and one that encodes no text, a truncated unit or half a
+// surrogate pair, to the parser, handed back as it is.
+func TestRespell_AUTF16OrUTF32TextIsReadAsTheUTF8ItEncodes(t *testing.T) {
 	t.Parallel()
-	text := "a: \"x" + bs + "/y\"\n%YAML 1.3\n"
-	in := make([]byte, 2, 2+2*len(text))
-	in[0], in[1] = 0xff, 0xfe
-	for _, c := range text {
-		in = append(in, byte(c), 0)
+	const text = "a: \"x" + bs + "/y\"\n%YAML 1.3\nb: \U0001F600\n"
+	encode := func(mark string, width int, bigEndian bool) []byte {
+		out := []byte(mark)
+		for _, r := range text {
+			units := []rune{r}
+			if width == 2 {
+				units = units[:0]
+				for _, u := range utf16.Encode([]rune{r}) {
+					units = append(units, rune(u))
+				}
+			}
+			for _, u := range units {
+				out = append(out, unitBytes(u, width, bigEndian)...)
+			}
+		}
+		return out
+	}
+	want, wantR, _ := respell([]byte(text))
+	for name, in := range map[string][]byte{
+		"UTF-16LE": encode("\xff\xfe", 2, false), "UTF-16BE": encode("\xfe\xff", 2, true),
+		"UTF-32LE": encode("\xff\xfe\x00\x00", 4, false), "UTF-32BE": encode("\x00\x00\xfe\xff", 4, true),
+	} {
+		out, r, dirs := respell(in)
+
+		assert.Equal(t, string(want), string(out), name)
+		assert.Equal(t, wantR, r, name)
+		assert.Empty(t, dirs, "%s: %%YAML after content is no directive", name)
 	}
 
-	out, r, dirs := respell(in)
+	for name, in := range map[string][]byte{
+		"a truncated unit":           []byte("\xff\xfea\x00b"),
+		"half a surrogate pair":      []byte("\xff\xfe\x3d\xd8a\x00"),
+		"a code point past U+10FFFF": []byte("\xff\xfe\x00\x00\x00\x00\x11\x00"),
+	} {
+		out, r, dirs := respell(in)
 
-	require.Len(t, out, len(in))
-	assert.Same(t, &in[0], &out[0], "the input slice itself")
-	assert.Equal(t, respelling{}, r)
-	assert.Empty(t, dirs)
+		assert.Same(t, &in[0], &out[0], "%s: the input slice itself", name)
+		assert.Equal(t, respelling{}, r, name)
+		assert.Empty(t, dirs, name)
+	}
+}
+
+// unitBytes is the code unit u in width bytes, in the byte order bigEndian
+// names.
+func unitBytes(u rune, width int, bigEndian bool) []byte {
+	out := make([]byte, width)
+	for i := range width {
+		b := byte(u >> (8 * (width - 1 - i)))
+		if bigEndian {
+			out[i] = b
+		} else {
+			out[width-1-i] = b
+		}
+	}
+	return out
 }
 
 // TestRespell_ATextSpellingEveryCandidateLeavesItsTriggerAsWritten states the
@@ -278,11 +323,17 @@ func FuzzRespell_PlaceholdersAreInvisible(f *testing.F) {
 		"x-t: !e%EE%80%80 v\ndescription: 'a" + nel + "b'\n",
 		"a: \"" + bs + "/" + bs + "/\"\n",
 		"a: " + bs + "/\n# " + bs + "/\n",
+		"\xfe\xff\xe0\x30",
 	} {
 		f.Add(seed)
 	}
 	f.Fuzz(func(t *testing.T, text string) {
 		out, r, _ := respell([]byte(text))
+		// A UTF-16 or UTF-32 text spells what the UTF-8 it encodes spells.
+		written := text
+		if utf8Text, ok := transcoded([]byte(text)); ok {
+			written = string(utf8Text)
+		}
 		placeholders := slicesOf(r)
 		first, firstErr := restored(out, r)
 
@@ -291,7 +342,7 @@ func FuzzRespell_PlaceholdersAreInvisible(f *testing.F) {
 			for _, s := range strs(first) {
 				for _, c := range s {
 					if c >= 0xE000 && c < 0xE040 {
-						assert.True(t, spells(text, c), "%U shows in the tree of %q and the text cannot spell it", c, text)
+						assert.True(t, spells(written, c), "%U shows in the tree of %q and the text cannot spell it", c, text)
 					}
 				}
 			}
@@ -303,7 +354,7 @@ func FuzzRespell_PlaceholdersAreInvisible(f *testing.F) {
 		moved := r
 		next := rune(base)
 		for _, p := range placeholders {
-			if spells(text, next) {
+			if spells(written, next) {
 				t.Skip("the alternative range is spelled by the text")
 			}
 			swapped = bytes.ReplaceAll(swapped, []byte(string(p)), []byte(string(next)))

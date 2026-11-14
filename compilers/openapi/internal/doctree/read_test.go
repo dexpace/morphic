@@ -346,7 +346,7 @@ func TestRead_ACoreScalarIsRetaggedAndNeverRewritten(t *testing.T) {
 		{[]string{"default"}, "!!int", "001"},
 		{[]string{"minimum"}, "!!int", "0o17"},
 		{[]string{"maximum"}, "!!str", "+0x1F"},
-		{[]string{"multipleOf"}, "!!int", "089"},
+		{[]string{"multipleOf"}, "!!float", "089"},
 		{[]string{"example"}, "!!str", "2021-01-01"},
 		{[]string{"enum", "0"}, "!!float", "1e3"},
 		{[]string{"enum", "1"}, "!!float", ".5"},

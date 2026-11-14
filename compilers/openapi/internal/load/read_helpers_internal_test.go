@@ -12,6 +12,7 @@ import (
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/budget"
 	"github.com/dexpace/morphic/compilers/openapi/internal/doctree"
+	"github.com/dexpace/morphic/compilers/openapi/internal/nodeview"
 )
 
 // decodeStream reads data as the compile reads a source, with no node budget:
@@ -44,4 +45,10 @@ func overlayTree(t testing.TB, opts Options) *yaml.Node {
 func holdsContent(doc *yaml.Node) bool {
 	return doc.Kind == yaml.DocumentNode && len(doc.Content) == 1 &&
 		(doc.Content[0].Kind != yaml.ScalarNode || doc.Content[0].ShortTag() != "!!null")
+}
+
+// nodeCount counts the nodes of the tree under root as a read counts them:
+// each once, an alias as itself, the document node included.
+func nodeCount(ctx context.Context, root *yaml.Node) int {
+	return nodeview.Walk{Nodes: maxTreeNodes}.Run(ctx, root).Visited
 }

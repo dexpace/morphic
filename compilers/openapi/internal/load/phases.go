@@ -12,7 +12,6 @@ import (
 	yaml "go.yaml.in/yaml/v3"
 
 	"github.com/dexpace/morphic/compilers"
-	"github.com/dexpace/morphic/compilers/openapi/internal/budget"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/doctree"
 	"github.com/dexpace/morphic/compilers/openapi/internal/overlay"
@@ -30,7 +29,6 @@ const (
 	phaseParse    phase = "parse"    // the source decoded, or detection's parse taken
 	phaseRefuse   phase = "refuse"   // the pre-parse refusals
 	phasePatch    phase = "patch"    // the overlay read and applied
-	phaseMeasure  phase = "measure"  // the node budget
 	phaseJudge    phase = "judge"    // the rule table's judgment of the tree
 	phaseModel    phase = "model"    // the parser's model built, and its version read
 	phaseSiblings phase = "siblings" // the fields beside path item $refs, and the media types, modelled
@@ -60,7 +58,6 @@ func steps() []step {
 	return []step{
 		{phaseRefuse, (*loading).preParse},
 		{phasePatch, (*loading).patchOverlay},
-		{phaseMeasure, (*loading).measure},
 		{phaseJudge, (*loading).judge},
 		{phaseModel, (*loading).buildModel},
 		{phaseSiblings, (*loading).findSiblings},
@@ -135,32 +132,6 @@ func (l *loading) patchOverlay(ctx context.Context) (bool, error) {
 	l.place = provenance.Doc{Source: l.srcIndex, Overlay: origin.Attribution()}
 	l.tree = treeOf(ctx, l.place, l.root)
 	return diag.HasError(l.early), nil
-}
-
-// measure holds the tree an overlay leaves to the node budget, which the source
-// was held to as it was read (doctree.Read). It counts again after an overlay
-// applies, for the reason patch re-runs the pre-parse refusals: an overlay
-// action can graft nodes onto the tree, and building the model and binding its
-// references is what the budget bounds. With no overlay applied the count is
-// the read's.
-func (l *loading) measure(ctx context.Context) (bool, error) {
-	nodes := l.read.Nodes
-	if l.origin.Applied() {
-		nodes = nodeCount(ctx, l.root)
-	}
-	past := pastTheBudget(l.srcIndex, nodes, l.opts.MaxSourceNodes)
-	l.early = append(l.early, past...)
-	return len(past) > 0, nil
-}
-
-// pastTheBudget refuses the source at srcIndex for a tree of nodes past limit,
-// or returns nothing for one within it. An overlay builds within the same
-// budget, so it is the guard behind the overlay's own check.
-func pastTheBudget(srcIndex, nodes int, limit budget.Limit) []ir.Diagnostic {
-	if limit.Admits(nodes) {
-		return nil
-	}
-	return []ir.Diagnostic{budgetRefusal(srcIndex, "source document parses to %d nodes, past the %d-node budget", nodes, limit)}
 }
 
 // judge holds the tree to the rule table as the source writes it.

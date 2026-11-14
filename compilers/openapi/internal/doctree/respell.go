@@ -7,6 +7,7 @@ import (
 	"bytes"
 	"strconv"
 	"strings"
+	"unicode/utf16"
 	"unicode/utf8"
 
 	yaml "go.yaml.in/yaml/v3"
@@ -36,14 +37,17 @@ type respelling struct {
 // respell returns text as the parser reads it as YAML 1.2, one character for
 // one (docs/parser-library.md#yaml11-lexing), what it put in place of each
 // trigger, and every %YAML 1.x directive the stream writes. A text with no
-// trigger is returned as it is, and a UTF-16 or UTF-32 one is the parser's.
+// trigger is returned as it is; a UTF-16 or UTF-32 one is read as its UTF-8
+// (transcoded).
 //
 // Each line-break character, and each escaped slash, is written as a
 // placeholder: a private-use character no spelling of the text can produce
 // (spelled), so restore reads back exactly what was put. A trigger left with no
 // placeholder free is left as written.
 func respell(text []byte) ([]byte, respelling, []Directive) {
-	if wide(text) {
+	if utf8Text, ok := transcoded(text); ok {
+		text = utf8Text
+	} else if wide(text) {
 		return text, respelling{}, nil
 	}
 	dirs, out := directives(text)
@@ -73,12 +77,89 @@ func respell(text []byte) ([]byte, respelling, []Directive) {
 
 // wide reports whether text opens with a UTF-16 or UTF-32 byte order mark.
 func wide(text []byte) bool {
-	for _, mark := range []string{"\xff\xfe", "\xfe\xff", "\x00\x00\xfe\xff"} {
-		if bytes.HasPrefix(text, []byte(mark)) {
-			return true
-		}
+	_, _, ok := encodingOf(text)
+	return ok
+}
+
+// encodingOf returns the width in bytes of a code unit of the encoding text's
+// byte order mark names, UTF-32's before UTF-16's whose mark opens it, and
+// whether it is big-endian; false for a text opening with no such mark.
+func encodingOf(text []byte) (width int, bigEndian, ok bool) {
+	switch {
+	case bytes.HasPrefix(text, []byte("\x00\x00\xfe\xff")):
+		return 4, true, true
+	case bytes.HasPrefix(text, []byte("\xff\xfe\x00\x00")):
+		return 4, false, true
+	case bytes.HasPrefix(text, []byte("\xfe\xff")):
+		return 2, true, true
+	case bytes.HasPrefix(text, []byte("\xff\xfe")):
+		return 2, false, true
+	default:
+		return 0, false, false
 	}
-	return false
+}
+
+// transcoded returns text, a UTF-16 or UTF-32 text opening with its byte order
+// mark, as the UTF-8 it encodes, without the mark, which YAML reads as no
+// character, and true; false for any other text, or one holding a unit that
+// encodes no character, half a surrogate pair or a truncated unit, which is
+// left for the parser to refuse. YAML 1.2 reads all three encodings alike.
+func transcoded(text []byte) ([]byte, bool) {
+	width, bigEndian, ok := encodingOf(text)
+	if !ok || len(text)%width != 0 {
+		return nil, false
+	}
+	units := make([]rune, 0, len(text)/width)
+	for i := width; i < len(text); i += width {
+		units = append(units, unitAt(text[i:i+width], bigEndian))
+	}
+	if width == 2 {
+		units = utf16Runes(units)
+	}
+	out := make([]byte, 0, len(units))
+	for _, r := range units {
+		if !utf8.ValidRune(r) {
+			return nil, false
+		}
+		out = utf8.AppendRune(out, r)
+	}
+	return out, true
+}
+
+// unitAt reads the code unit unit holds, in the byte order bigEndian names.
+func unitAt(unit []byte, bigEndian bool) rune {
+	var v rune
+	for i := range unit {
+		b := unit[i]
+		if !bigEndian {
+			b = unit[len(unit)-1-i]
+		}
+		v = v<<8 | rune(b)
+	}
+	return v
+}
+
+// utf16Runes joins each surrogate pair of units into the character it encodes,
+// and leaves half a pair as itself, which is no valid rune.
+func utf16Runes(units []rune) []rune {
+	out := units[:0]
+	for i := 0; i < len(units); i++ {
+		if r := utf16.DecodeRune(units[i], pairOf(units, i)); r != utf8.RuneError {
+			out = append(out, r)
+			i++
+			continue
+		}
+		out = append(out, units[i])
+	}
+	return out
+}
+
+// pairOf is the unit after units[i], or none past the last.
+func pairOf(units []rune, i int) rune {
+	if i+1 < len(units) {
+		return units[i+1]
+	}
+	return 0
 }
 
 // take returns the lowest placeholder free holds and removes it, or 0 when it

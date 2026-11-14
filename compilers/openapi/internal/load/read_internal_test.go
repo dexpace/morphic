@@ -44,6 +44,13 @@ func TestLoad_ADocumentDeclaringAnotherYAMLVersionIsWarnedInItsEntry(t *testing.
 			"YAML 1.1, which the document declares, reads the integer 420",
 	}, got)
 
+	long := "1_" + strings.Repeat("0", 200)
+	_, diags, err = Load(t.Context(), 0, openapitest.SourceOf("%YAML 1.1\n---\n"+minimal31+"x-l: "+long+"\n"), Options{})
+	require.NoError(t, err)
+	require.Len(t, diags, 1)
+	assert.Equal(t, "a plain scalar of 202 characters is a string in YAML 1.2, which the compiler reads; "+
+		"YAML 1.1, which the document declares, reads an integer", diags[0].Message, "worded by kind, unquoted")
+
 	_, diags, err = Load(t.Context(), 0, openapitest.SourceOf("%YAML 1.4\n---\n"+minimal31), Options{})
 	require.NoError(t, err)
 	require.Len(t, diags, 1)
@@ -97,14 +104,4 @@ func TestExternal_AJSONDocumentPastTheNodeBudgetIsRefusedAsItIsRead(t *testing.T
 
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "it holds more than 2 nodes, the node budget")
-}
-
-// TestPastTheBudget_RefusesOnlyATreePastIt holds the guard measure keeps behind
-// an overlay's own check to the budget.
-func TestPastTheBudget_RefusesOnlyATreePastIt(t *testing.T) {
-	t.Parallel()
-	assert.Empty(t, pastTheBudget(0, 10, budget.AtMost(10)))
-	past := pastTheBudget(0, 11, budget.AtMost(10))
-	require.Len(t, past, 1)
-	assert.Equal(t, "source document parses to 11 nodes, past the 10-node budget", past[0].Message)
 }

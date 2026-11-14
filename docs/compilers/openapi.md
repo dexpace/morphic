@@ -110,11 +110,17 @@ is a character and ends no line, and a `%YAML 1.2` directive is read. A document
 minor is read as 1.2 with an `openapi/yaml-version-reading` warning at the directive, by position
 alone, and one declaring another major is refused as the parser refuses it. A document declaring
 1.1 draws the same warning at each plain scalar YAML 1.1's types read as another JSON value than
-1.2's core schema, `0644`, `yes` or `1:30`, and at each raw line-break character in its text or in
-a comment; a document declaring nothing or 1.2 draws none. A plain scalar is resolved by YAML 1.2's
-core schema in every document: `0644` is the integer 644, `0o17` is 15, and `0b11`, `0X1F`, `1_000`
-and `+0x1F` are strings; its text is what the source wrote, and a mapping key keeps the parser's
-tag. A `<<` key still merges.
+1.2's core schema, `0644`, `yes` or `1:30`, a scalar past 128 characters compared and worded by
+kind alone and its text not quoted, and at each line-break character written raw in its text or in
+a comment; an escaped `\N`, which YAML 1.1 reads alike, draws none, and a document declaring
+nothing or 1.2 draws none. A UTF-16 or UTF-32 text opening with its byte order mark is read as the
+UTF-8 it encodes, so all three read alike. A plain scalar is resolved by YAML 1.2's core schema in
+every document: `0644` is the integer 644, `0o17` is 15, and `0b11`, `0X1F`, `1_000` and `+0x1F`
+are strings; its text is what the source wrote. A mapping key keeps the parser's tag, a date's
+aside, which is a string as a value's is, and a `<<` key still merges. A core integer the parser
+tags a float, `089` or one past 64 bits, keeps that tag, since the parser's model refuses to decode
+an `!!int` it cannot hold: its integrality is read from its text, by `value.NumericLiteral` and the
+rule table alike, and no reader may take it from the tag.
 
 A date such as `2021-01-01`, and a `<<` anywhere but as a mapping's key, written with no tag or
 under YAML's non-specific `!`, are the strings they spell, in the source and in each document read
@@ -179,12 +185,12 @@ scalar under any other tag keeps it.
   `e2e.TestCompile_ALoneSurrogateIsRefusedWhereItIsWritten`,
   `e2e.TestCompile_APositionAfterAnEscapeCountsItAsWritten`
 - Status: partly built: the order oracle in `internal/harness` parses a source as YAML to permute
-  it, and declines one only the JSON reader reads as not YAML (#1768). A pair of surrogate escapes in
-  YAML text is refused, as YAML 1.2 joins no pair (#1934); a UTF-16 or UTF-32 source, and a text
-  writing every one of the 64 characters from U+E000 that the reader stands in for what it reads
-  as YAML 1.2, are read as the parser reads them. A core integer the parser reads as a float, `089`
-  or one past 64 bits, keeps the float's tag, which the model decodes, and reads as the same
-  number. A scalar or a sequence under
+  it as YAML 1.1 lexes it, and declines one only the compiler's reader reads as not YAML: a JSON
+  text writing a surrogate pair, and a YAML text writing an escaped slash or a `%YAML 1.2`
+  directive (#1768). A pair of surrogate escapes in YAML text is refused, as YAML 1.2 joins no pair
+  (#1934). A text writing every one of the 64 characters from U+E000 that the reader stands in for
+  what it reads as YAML 1.2, and a UTF-16 or UTF-32 text encoding no text, are read as the parser
+  reads them. A scalar or a sequence under
   a tag outside YAML's JSON schema ruleset is not reported, and where the model reads a string or a
   list it reads as left out (#1368).
 
@@ -196,8 +202,10 @@ refused before it is parsed, as one past the budget rather than one of a size: `
 the compiler's `SourceLimit`, so a caller may hand detection only its first bytes, one past the
 budget. A document holding more than `MaxSourceNodes` nodes is refused as it is read: a JSON text
 at the first node past the budget, which bounds what reading it costs, a YAML text once it is
-parsed; the source, the overlay and each document a reference reads alike, and the source again as
-an overlay leaves it, so an overlay that would shrink a source past the budget does not lift it. A
+parsed; the source, the overlay and each document a reference reads alike, so an overlay that would
+shrink a source past the budget does not lift it. What an overlay adds is bound by `overlay.Apply`,
+which checks each action against the same budget before it builds anything, so the tree it leaves
+is within the budget too. A
 source whose aliases add more than `MaxAliasSurplus` nodes to it is refused before its model is
 built. Each is an `openapi/budget-exceeded` error, compiling to no
 Document. Past `MaxExternalDocuments`, a document an external reference names is not read, each

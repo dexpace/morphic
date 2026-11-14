@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"unicode/utf8"
 
 	yaml "go.yaml.in/yaml/v3"
 
@@ -183,6 +184,9 @@ func versionDiagnostics(tree provenance.Tree, doc doctree.Document) []ir.Diagnos
 func legacyMessage(l doctree.Legacy) string {
 	const declared = ", which the compiler reads; YAML 1.1, which the document declares, "
 	switch {
+	case l.Kinds:
+		return fmt.Sprintf("a plain scalar of %d characters is %s in YAML 1.2%sreads %s",
+			utf8.RuneCountInString(l.Node.Value), l.Is, declared, l.Was)
 	case l.Break == 0:
 		return fmt.Sprintf("plain scalar %q is %s in YAML 1.2%sreads %s", l.Node.Value, l.Is, declared, l.Was)
 	case l.InComment:

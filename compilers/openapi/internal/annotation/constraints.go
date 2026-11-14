@@ -5,7 +5,9 @@ package annotation
 
 import (
 	"encoding/json/jsontext"
-	"math/big"
+	"math"
+	"strconv"
+	"strings"
 
 	"github.com/speakeasy-api/openapi/jsonschema/oas3"
 
@@ -95,14 +97,21 @@ func ExactCount(s *oas3.Schema, keyword string, count *int64) *int64 {
 	if err != nil {
 		return nil
 	}
-	stated, ok := new(big.Rat).SetString(string(literal))
-	if !ok || !stated.IsInt() || stated.Sign() < 0 || !stated.Num().IsInt64() {
+	stated, err := literal.Decimal()
+	most, mostErr := ir.ParseDecimal(strconv.FormatInt(math.MaxInt64, 10))
+	if err != nil || mostErr != nil || !stated.IsInt() || stated.Sign() < 0 || stated.Cmp(most) > 0 {
 		return nil
 	}
-	if v := stated.Num().Int64(); v != *count {
-		return &v
+	// Within int64, the digits and the zeros the exponent adds are at most 19.
+	var v int64
+	zeros := max(int(stated.Exponent())+1-len(stated.Digits()), 0)
+	for _, d := range stated.Digits() + strings.Repeat("0", zeros) {
+		v = v*10 + int64(d-'0')
 	}
-	return count
+	if v == *count {
+		return count
+	}
+	return &v
 }
 
 // CountIsExact reports whether the integer keyword s writes states a count,

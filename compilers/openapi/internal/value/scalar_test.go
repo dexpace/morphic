@@ -179,6 +179,11 @@ func TestNumericLiteral_ExplicitIntBeyondUint64(t *testing.T) {
 		{"negative", "!!int -99999999999999999999999", "-99999999999999999999999"},
 		{"separators", "!!int 99_999_999_999_999_999_999_999", "99999999999999999999999"},
 		{"plus sign", "!!int +99999999999999999999999", "99999999999999999999999"},
+		// A leading zero is no base prefix, and 0x reads exactly at any width
+		// within the digits read: no base is guessed.
+		{"leading zero", "!!int 077777777777777777777777", "77777777777777777777777"},
+		{"negative leading zero", "!!int -077777777777777777777777", "-77777777777777777777777"},
+		{"hex past uint64", "!!int 0x1FFFFFFFFFFFFFFFFFFFF", "2417851639229258349412351"},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -197,18 +202,19 @@ func TestNumericLiteral_NilNode(t *testing.T) {
 	require.Error(t, err)
 }
 
-// TestNumericLiteral_UndecodableInt covers !!int spellings no base-10 reading
-// can recover: a non-numeric run, and a prefixed magnitude past uint64 whose
-// base would have to be guessed. Neither may fall back to its source text.
+// TestNumericLiteral_UndecodableInt covers !!int spellings no reading
+// recovers: a non-numeric run, and a base prefix behind a sign, which the core
+// schema does not spell, past what the parser decodes. Neither may fall back
+// to its source text.
 func TestNumericLiteral_UndecodableInt(t *testing.T) {
 	t.Parallel()
 	for _, src := range []string{
-		"12abc", "077777777777777777777777", "0x1FFFFFFFFFFFFFFFFFFFF", "",
+		"12abc", "",
 		// Valid decimal literals, and no integer: an !!int spelling must be a
 		// digit run, whatever a decimal grammar would accept.
 		"1e30", "1.5", "+-5",
 		// A base prefix behind a sign.
-		"-0x1FFFFFFFFFFFFFFFFFFFF", "-077777777777777777777777",
+		"-0x1FFFFFFFFFFFFFFFFFFFF",
 	} {
 		t.Run(src, func(t *testing.T) {
 			t.Parallel()

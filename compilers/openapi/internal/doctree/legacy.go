@@ -4,11 +4,14 @@
 package doctree
 
 import (
+	"math"
 	"math/big"
 	"strconv"
 	"strings"
 
 	yaml "go.yaml.in/yaml/v3"
+
+	"github.com/dexpace/morphic/compilers/openapi/internal/nodeview"
 )
 
 // legacy appends to found what YAML 1.1 reads otherwise in n, a node of a
@@ -19,8 +22,12 @@ import (
 func (s *settler) legacy(found []Legacy, n *yaml.Node) []Legacy {
 	if n.Kind == yaml.ScalarNode && n.Style == 0 && !s.keys[n] {
 		was, is := yaml11Reading(n.Value), coreReading(n)
+		long := len(n.Value) > maxReadText
+		if long {
+			was, is = was.kindOnly(), is.kindOnly()
+		}
 		if !was.same(is) {
-			found = append(found, Legacy{Node: n, Was: was.String(), Is: is.String()})
+			found = append(found, Legacy{Node: n, Was: was.String(), Is: is.String(), Kinds: long})
 		}
 	}
 	if c := s.respelling.breakIn(n.Value); c != 0 {
@@ -31,6 +38,12 @@ func (s *settler) legacy(found []Legacy, n *yaml.Node) []Legacy {
 	}
 	return found
 }
+
+// maxReadText bounds the text of a plain scalar whose two readings are
+// computed and compared as values. A longer one is read and compared by kind
+// alone, in time linear in its text: rendering a based or base-60 number in
+// base ten costs time quadratic in its digits, and its wording would quote it.
+const maxReadText = 128
 
 // reading is the JSON value a plain scalar is read as, comparable: a string, a
 // null, a boolean or a number, the number as a decimal (decimalOf).
@@ -53,6 +66,14 @@ const (
 	asOther // an infinity, NaN, or a number past what the reading spells
 )
 
+// kindOnly is r with its value dropped, as a scalar past maxReadText compares.
+func (r reading) kindOnly() reading {
+	if r.kind == asString {
+		return r
+	}
+	return reading{kind: asNumber, integer: r.integer && r.kind == asNumber, exp: valueless}
+}
+
 // same reports whether r and o are one JSON value, however each was read.
 func (r reading) same(o reading) bool {
 	r.integer, o.integer = false, false
@@ -67,16 +88,33 @@ func (r reading) String() string {
 	case asBool:
 		return "the boolean " + r.text
 	case asNumber:
-		if r.integer {
-			return "the integer " + r.decimal()
-		}
-		return "the number " + r.decimal()
+		return r.numberString()
 	case asOther:
 		return r.text
 	default:
 		return "a string"
 	}
 }
+
+// numberString words the number r is, or its kind alone for a reading of no
+// value (kindOnly).
+func (r reading) numberString() string {
+	switch {
+	case r.valueless():
+		return map[bool]string{true: "an integer", false: "a number"}[r.integer]
+	case r.integer:
+		return "the integer " + r.decimal()
+	default:
+		return "the number " + r.decimal()
+	}
+}
+
+// valueless reports whether r is a number read by kind alone: zero is spelled
+// "0" with no digits, so a valueless reading is one marked so.
+func (r reading) valueless() bool { return r.exp == valueless }
+
+// valueless marks a number's exponent in a reading of its kind alone.
+const valueless = math.MinInt
 
 // decimal spells the number r is in plain decimal, or with an exponent when
 // that would be long.
@@ -127,13 +165,13 @@ func coreReading(n *yaml.Node) reading {
 
 // coreInteger reads text, an integer of the core schema (coreInt).
 func coreInteger(text string) reading {
-	if octal, ok := strings.CutPrefix(text, "0o"); ok {
-		return integerOf(false, octal, 8)
+	c, _ := nodeview.ParseCoreInteger(text)
+	if c.Base == 10 {
+		r, _ := decimalOf(c.Negative, c.Digits)
+		r.integer = true
+		return r
 	}
-	if hex, ok := strings.CutPrefix(text, "0x"); ok {
-		return integerOf(false, hex, 16)
-	}
-	return integerOf(strings.HasPrefix(text, "-"), unsigned(text), 10)
+	return integerOf(false, c.Digits, c.Base)
 }
 
 // yaml11Reading reads text, a plain scalar, by YAML 1.1's types: null, bool,
@@ -246,11 +284,16 @@ func sexagesimal(neg bool, whole, fraction string, float bool) (reading, bool) {
 	if !separatedDigits(parts[0], 10) {
 		return reading{}, false
 	}
-	v, _ := new(big.Int).SetString(strings.ReplaceAll(parts[0], "_", ""), 10)
 	for _, p := range parts[1:] {
 		if p == "" || len(p) > 2 || !digits(p, 10) || (len(p) == 2 && p[0] > '5') {
 			return reading{}, false
 		}
+	}
+	if len(whole)+len(fraction) > maxReadText {
+		return reading{kind: asNumber, integer: !float, exp: valueless}, true
+	}
+	v, _ := new(big.Int).SetString(strings.ReplaceAll(parts[0], "_", ""), 10)
+	for _, p := range parts[1:] {
 		n, _ := strconv.Atoi(p)
 		v.Mul(v, big.NewInt(60)).Add(v, big.NewInt(int64(n)))
 	}
@@ -275,8 +318,12 @@ func separatedDigits(text string, base int) bool {
 	return plain == "" || digits(plain, base)
 }
 
-// integerOf reads text, digits of base or none, as an integer.
+// integerOf reads text, digits of base or none, as an integer, by kind alone
+// past maxReadText.
 func integerOf(neg bool, text string, base int) reading {
+	if len(text) > maxReadText {
+		return reading{kind: asNumber, integer: true, exp: valueless}
+	}
 	v, ok := new(big.Int).SetString(text, base)
 	if !ok {
 		v = new(big.Int)

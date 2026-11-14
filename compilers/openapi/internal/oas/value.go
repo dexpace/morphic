@@ -7,7 +7,6 @@ import (
 	"encoding/json/jsontext"
 	"errors"
 	"fmt"
-	"math/big"
 	"slices"
 	"strconv"
 	"strings"
@@ -495,26 +494,10 @@ func parseNumber(text string) (sign int, integral, ok bool) {
 	if past, isPast := errors.AsType[*ir.ExponentRangeError](err); isPast {
 		return past.Sign(), past.IsInt(), true
 	}
-	if octal, isOctal := strings.CutPrefix(text, "0o"); isOctal {
-		return basedSign(octal, 8)
-	}
-	if hex, isHex := strings.CutPrefix(text, "0x"); isHex {
-		return basedSign(hex, 16)
+	if c, isCore := nodeview.ParseCoreInteger(text); isCore {
+		return c.Sign(), true, true
 	}
 	return 0, false, false
-}
-
-// basedSign reads digits, which must be of base and unsigned, as the core
-// schema reads the digits after 0o or 0x: an integer, of the sign it has.
-func basedSign(digits string, base int) (sign int, integral, ok bool) {
-	if digits == "" || digits[0] == '+' || digits[0] == '-' || strings.Contains(digits, "_") {
-		return 0, false, false
-	}
-	i, isBased := new(big.Int).SetString(digits, base)
-	if !isBased {
-		return 0, false, false
-	}
-	return i.Sign(), true, true
 }
 
 // describeShape says what a field's value must be.

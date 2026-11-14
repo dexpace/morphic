@@ -22,3 +22,20 @@ func TestExactCount_TakesTheCountFromItsLiteral(t *testing.T) {
 	assert.Nil(t, ExactCount(schemaFromYAMLUnvalidated(t, "minLength: .inf"), "minLength", new(int64(0))),
 		"an infinity, which reads as no number, states no count")
 }
+
+// TestExactCount_AFractionCostsNoMoreForAWiderExponent counts the allocations
+// of judging a count written as a fraction at two exponents a hundred times
+// apart: they are equal, as the literal's decimal is read and never built,
+// where math/big would build the power of ten.
+func TestExactCount_AFractionCostsNoMoreForAWiderExponent(t *testing.T) {
+	// AllocsPerRun counts the whole process, so the test runs alone.
+	allocs := func(exp string) float64 {
+		s := schemaFromYAMLUnvalidated(t, "minItems: 1e-"+exp)
+		count := new(int64(0))
+		return testing.AllocsPerRun(3, func() {
+			assert.Nil(t, ExactCount(s, "minItems", count))
+		})
+	}
+
+	assert.Equal(t, allocs("1000"), allocs("100000"))
+}

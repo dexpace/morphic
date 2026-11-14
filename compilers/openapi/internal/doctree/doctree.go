@@ -47,6 +47,9 @@ type Legacy struct {
 	Break rune
 	// InComment says the character is in a comment, not the node's text.
 	InComment bool
+	// Kinds says Was and Is name kinds alone, "an integer", for a scalar too
+	// long to read as a value, whose text a finding does not quote.
+	Kinds bool
 }
 
 // Tail is what a stream holds past the document taken. Its zero value is the

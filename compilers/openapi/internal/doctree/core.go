@@ -65,8 +65,8 @@ func (s *settler) visit(n *yaml.Node, _ int) nodeview.Step {
 // tag but a date's. Its text is never changed.
 //
 // A core integer the parser tags a float, 089 or one past 64 bits, keeps its
-// tag: the model decodes no field from an !!int it cannot hold, and every
-// reader of a number reads both tags in base ten.
+// tag: the model decodes no field from an !!int it cannot hold. Its
+// integrality is its text's, and no reader may take it from the tag.
 func resolve(n *yaml.Node, key bool) {
 	if n == nil || n.Kind != yaml.ScalarNode || n.Style != 0 {
 		return
@@ -89,16 +89,11 @@ func resolve(n *yaml.Node, key bool) {
 	}
 }
 
-// coreInt reports whether text is an integer of the core schema:
-// [-+]?[0-9]+, 0o[0-7]+ or 0x[0-9a-fA-F]+.
+// coreInt reports whether text is an integer of the core schema
+// (nodeview.ParseCoreInteger).
 func coreInt(text string) bool {
-	if octal, ok := strings.CutPrefix(text, "0o"); ok {
-		return digits(octal, 8)
-	}
-	if hex, ok := strings.CutPrefix(text, "0x"); ok {
-		return digits(hex, 16)
-	}
-	return digits(unsigned(text), 10)
+	_, ok := nodeview.ParseCoreInteger(text)
+	return ok
 }
 
 // coreFloat reports whether text is a float of the core schema:

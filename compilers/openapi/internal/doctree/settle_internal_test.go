@@ -4,6 +4,7 @@
 package doctree
 
 import (
+	"context"
 	"strings"
 	"testing"
 
@@ -140,4 +141,78 @@ func TestRead_AStreamOfEmptyDocumentsIsItsFirst(t *testing.T) {
 	require.Equal(t, yaml.DocumentNode, doc.Root.Kind)
 	assert.Equal(t, "!!null", doc.Root.Content[0].ShortTag())
 	assert.Equal(t, 2, doc.Root.Content[0].Line)
+}
+
+// TestLegacy_ALongScalarIsReadByKindAlone holds the two readings of a plain
+// scalar past maxReadText to their kinds, in allocations that do not grow with
+// its text, for each form whose value a base change would build: octal, hex,
+// binary and base 60 under YAML 1.1, and a core hex integer.
+func TestLegacy_ALongScalarIsReadByKindAlone(t *testing.T) {
+	// AllocsPerRun counts the whole process, so the test runs alone.
+	forms := map[string]func(n int) string{
+		"octal":   func(n int) string { return "0" + strings.Repeat("7", n) },
+		"hex":     func(n int) string { return "0x" + strings.Repeat("f", n) },
+		"binary":  func(n int) string { return "0b" + strings.Repeat("1", n) },
+		"base 60": func(n int) string { return "1" + strings.Repeat(":59", n/3) },
+	}
+	for name, form := range forms {
+		allocs := func(n int) float64 {
+			text := form(n)
+			return testing.AllocsPerRun(3, func() {
+				yaml11Reading(text)
+				coreInteger("0x" + strings.Repeat("a", n))
+			})
+		}
+		assert.Equal(t, allocs(2*maxReadText), allocs(200*maxReadText), name)
+	}
+
+	doc := read(t, "%YAML 1.1\n---\na: 1_"+strings.Repeat("0", maxReadText)+"\n")
+	require.Len(t, doc.Legacy, 1)
+	assert.Equal(t, Legacy{Node: doc.Legacy[0].Node, Was: "an integer", Is: "a string", Kinds: true}, doc.Legacy[0])
+	assert.Equal(t, "a string", reading{kind: asString}.kindOnly().String())
+	assert.Equal(t, "a number", reading{kind: asOther, text: "NaN"}.kindOnly().String())
+}
+
+// read reads text with no node budget, which it must read.
+func read(t *testing.T, text string) Document {
+	t.Helper()
+	doc, err := Read(t.Context(), []byte(text), budget.Unbounded())
+	require.NoError(t, err)
+	return doc
+}
+
+// TestSettle_StopsOnceTheContextIsDone holds the walk after the parse to its
+// context: a done one ends it with the context's error and sets nothing.
+func TestSettle_StopsOnceTheContextIsDone(t *testing.T) {
+	t.Parallel()
+	var root yaml.Node
+	require.NoError(t, yaml.Unmarshal([]byte("a: [1, 2, 3]\n"), &root))
+	ctx, cancel := context.WithCancel(t.Context())
+	cancel()
+	doc := Document{Root: &root}
+
+	err := settle(ctx, &doc, respelling{})
+
+	require.ErrorIs(t, err, context.Canceled)
+	assert.Zero(t, doc.Nodes, "nothing counted is reported")
+}
+
+// TestRead_ANumberLikeKeyKeepsTheParsersTagAndText holds every mapping key,
+// those the core schema reads as numbers and those it reads as strings, to the
+// text written and the tag the parser gave it: no key is resolved.
+func TestRead_ANumberLikeKeyKeepsTheParsersTagAndText(t *testing.T) {
+	t.Parallel()
+	const text = "k: {007: a, 1: b, 01: c, 0x10: d, 1e3: e, 0b11: f, 1_000: g, 0X1F: h, +0x10: i}\n"
+	var own yaml.Node
+	require.NoError(t, yaml.Unmarshal([]byte(text), &own))
+
+	doc := read(t, text)
+
+	got, want := doc.Root.Content[0].Content[1].Content, own.Content[0].Content[1].Content
+	require.Len(t, got, len(want))
+	for i := 0; i < len(got); i += 2 {
+		assert.Equal(t, want[i].Value, got[i].Value, "the key's text")
+		assert.Equal(t, want[i].Tag, got[i].Tag, "%s keeps the parser's tag", want[i].Value)
+	}
+	assert.Equal(t, "!!int", got[10].Tag, "0b11, a string to the core schema, is the parser's integer as a key")
 }

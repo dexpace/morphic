@@ -4,6 +4,7 @@
 package value
 
 import (
+	"cmp"
 	"errors"
 	"fmt"
 	"math/big"
@@ -13,6 +14,7 @@ import (
 
 	yaml "go.yaml.in/yaml/v3"
 
+	"github.com/dexpace/morphic/compilers/openapi/internal/nodeview"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -142,8 +144,8 @@ func decodes(n *yaml.Node, target any, what string) error {
 // NumericLiteral converts a numeric-tagged YAML scalar into the BigVal of the
 // value YAML 1.2's core schema reads it as (docs/parser-library.md#scalar-resolution):
 // an !!int spelling a core integer, [-+]?[0-9]+, 0o[0-7]+ or 0x[0-9a-fA-F]+, is
-// read exactly in the base its prefix names, so 0644 is 644 and 0x1f is 31,
-// whatever tagged it. Any other !!int, which only a tag the document writes
+// read exactly in the base its prefix names (coreLiteral), so 0644 is 644 and
+// 0x1f is 31, whatever tagged it. Any other !!int, which only a tag the document writes
 // makes one, keeps the parser's decode.
 //
 // A !!float keeps its text, because decoding one would round it through
@@ -155,8 +157,8 @@ func NumericLiteral(node *yaml.Node) (ir.BigVal, error) {
 	}
 	switch node.ShortTag() {
 	case "!!int":
-		if v, ok := coreInteger(node.Value); ok {
-			return ir.NewBigVal(v.String())
+		if c, ok := nodeview.ParseCoreInteger(node.Value); ok {
+			return coreLiteral(c)
 		}
 		return decodeIntLiteral(node)
 	case "!!float":
@@ -168,24 +170,28 @@ func NumericLiteral(node *yaml.Node) (ir.BigVal, error) {
 	}
 }
 
-// coreInteger reads text as an integer of YAML 1.2's core schema, and false for
-// text that spells none.
-func coreInteger(text string) (*big.Int, bool) {
-	sign, unsigned, digits, base := "", text, "0123456789", 10
-	switch {
-	case strings.HasPrefix(text, "0o"):
-		unsigned, digits, base = text[2:], "01234567", 8
-	case strings.HasPrefix(text, "0x"):
-		unsigned, digits, base = text[2:], "0123456789abcdefABCDEF", 16
-	case strings.HasPrefix(text, "-"):
-		sign, unsigned = "-", text[1:]
-	case strings.HasPrefix(text, "+"):
-		unsigned = text[1:]
+// maxBasedDigits bounds the digits of an 0o or 0x integer NumericLiteral
+// reads: rendering one in base ten costs time quadratic in its digits. A
+// base-ten integer is copied, at any length.
+const maxBasedDigits = 256
+
+// coreLiteral renders c, an integer the core schema spells, as its decimal
+// literal: a base-ten one as written, its leading zeros dropped, and an 0o or
+// 0x one converted, up to maxBasedDigits digits.
+func coreLiteral(c nodeview.CoreInteger) (ir.BigVal, error) {
+	if c.Base == 10 {
+		digits := strings.TrimLeft(c.Digits, "0")
+		if digits != "" && c.Negative {
+			digits = "-" + digits
+		}
+		return ir.NewBigVal(cmp.Or(digits, "0"))
 	}
-	if unsigned == "" || strings.Trim(unsigned, digits) != "" {
-		return nil, false
+	if len(c.Digits) > maxBasedDigits {
+		return "", fmt.Errorf("openapi: a base-%d integer of %d digits is past the %d digits read",
+			c.Base, len(c.Digits), maxBasedDigits)
 	}
-	return new(big.Int).SetString(sign+unsigned, base)
+	v, _ := new(big.Int).SetString(c.Digits, c.Base) // the grammar admits digits of the base alone
+	return ir.NewBigVal(v.String())
 }
 
 // decodeIntLiteral renders an !!int node as its exact decimal literal. The
