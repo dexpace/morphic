@@ -168,6 +168,9 @@ func (r *recordingT) Errorf(format string, args ...any) {
 	r.errorf = fmt.Sprintf(format, args...)
 }
 
+// Failed reports whether the recorder has seen a failure, as *testing.T does.
+func (r *recordingT) Failed() bool { return r.fatalf != "" || r.errorf != "" }
+
 // runCompare drives compareGolden in a goroutine so a Goexit from Fatalf unwinds
 // only that goroutine, then returns the populated recorder.
 func runCompare(goldenPath string, doc *ir.Document) *recordingT {
@@ -214,15 +217,21 @@ func TestCompareGolden_UpdateWritesAndReturns(t *testing.T) {
 	assert.NotEmpty(t, written)
 }
 
-func TestCompareGolden_UpdateWriteErrorFatals(t *testing.T) {
+// TestCompareGolden_UpdateMarshalErrorFatals pins that a document that cannot be
+// encoded aborts under -update as it does without it, with the one message: the
+// encoding precedes the byte compare, so an update cannot write what was never
+// encoded. A write that fails is held on CompareBytes.
+func TestCompareGolden_UpdateMarshalErrorFatals(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "doc.golden.json")
 
 	withUpdate(t, true, func() {
 		rec := runCompare(path, badExtDoc())
-		require.True(t, rec.aborted, "write failure must abort via Fatalf")
-		assert.Contains(t, rec.fatalf, "update golden:")
+		require.True(t, rec.aborted, "an encoding failure must abort via Fatalf")
+		assert.Contains(t, rec.fatalf, "marshal document:")
 	})
+	_, err := os.Stat(path)
+	assert.ErrorIs(t, err, os.ErrNotExist, "nothing is written for a document that was not encoded")
 }
 
 func TestCompareGolden_MissingGoldenFatals(t *testing.T) {

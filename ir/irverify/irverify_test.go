@@ -46,8 +46,9 @@ func TestVerify_NilDocIsAViolation(t *testing.T) {
 
 func TestVerify_RegistryKeyMismatchIsAViolation(t *testing.T) {
 	doc := validDoc()
-	// Re-key the model under an ID that disagrees with its Common().ID. This also
-	// dangles the model's own self-reference, so both codes are expected.
+	// Re-key the model under an ID that disagrees with its Common().ID. The
+	// model's own ID is its declaration and no reference, so the mismatch is
+	// the one code drawn.
 	m := doc.Types["t/x/Model"]
 	delete(doc.Types, "t/x/Model")
 	doc.Types["t/x/WrongKey"] = m
@@ -55,6 +56,7 @@ func TestVerify_RegistryKeyMismatchIsAViolation(t *testing.T) {
 	got := verifyDeclared(doc)
 	require.NotEmpty(t, got)
 	assert.Contains(t, codesOf(got), "ir/type-id-mismatch")
+	assert.NotContains(t, codesOf(got), "ir/dangling-type-ref")
 }
 
 func TestVerify_SortsSameCodeByPath(t *testing.T) {
@@ -107,13 +109,21 @@ func TestVerify_NilTypeDefIsAViolation(t *testing.T) {
 	assert.Contains(t, codesOf(got), "ir/nil-type")
 }
 
+// TestVerify_TypedNilTypeDefIsAViolation holds a typed nil of every kind, a
+// non-nil interface whose Common() and fields still panic, to ir/nil-type
+// rather than a crash: a check that asserts one kind and reads it needs the
+// guard as much as one reading Common().
 func TestVerify_TypedNilTypeDefIsAViolation(t *testing.T) {
-	// A typed nil pointer is a non-nil interface whose Common() still panics, so
-	// it must be reported as ir/nil-type rather than crashing the walk.
-	doc := &ir.Document{Types: ir.TypeRegistry{"t/x/typednil": (*ir.Model)(nil)}}
-	got := verifyDeclared(doc)
-	require.NotEmpty(t, got)
-	assert.Contains(t, codesOf(got), "ir/nil-type")
+	t.Parallel()
+	for _, td := range []ir.TypeDef{
+		(*ir.Primitive)(nil), (*ir.Scalar)(nil), (*ir.Model)(nil), (*ir.Union)(nil), (*ir.Enum)(nil), (*ir.List)(nil),
+		(*ir.MapT)(nil), (*ir.Tuple)(nil), (*ir.Literal)(nil), (*ir.External)(nil), (*ir.Any)(nil),
+	} {
+		doc := &ir.Document{Types: ir.TypeRegistry{"t/x/typednil": td}}
+		var got []irverify.Violation
+		require.NotPanics(t, func() { got = verifyDeclared(doc) }, "%T", td)
+		assert.Contains(t, codesOf(got), "ir/nil-type", "%T", td)
+	}
 }
 
 func TestVerify_EmptyTypeIDIsAViolation(t *testing.T) {
@@ -145,14 +155,15 @@ func TestVerify_EmptyAuthIDIsAViolation(t *testing.T) {
 }
 
 func TestVerify_ChannelIDMismatchIsAViolation(t *testing.T) {
-	// Key the channel under an ID that disagrees with its node ID. This also
-	// dangles the channel's own self-reference, so both codes are expected.
+	// Key the channel under an ID that disagrees with its node ID. The node's
+	// own ID is no reference, so the mismatch is the one code drawn.
 	doc := &ir.Document{Channels: map[ir.ChannelID]ir.Channel{
 		"c/x/WrongKey": {ID: "c/x/Ch"},
 	}}
 	got := verifyDeclared(doc)
 	require.NotEmpty(t, got)
 	assert.Contains(t, codesOf(got), "ir/channel-id-mismatch")
+	assert.NotContains(t, codesOf(got), "ir/dangling-channel-ref")
 }
 
 // malformedFindings is a finding breaking each invariant Verify holds a

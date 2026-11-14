@@ -17,6 +17,7 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
 	"github.com/dexpace/morphic/ir"
+	"github.com/dexpace/morphic/ir/irtest"
 )
 
 // TestDiscriminatorBesideUnion_MovesWhenARouteIsNoSubtype pins that a model
@@ -322,7 +323,8 @@ func TestDiscriminatorBesideUnion_CyclicRouteMoves(t *testing.T) {
 	rest := subtypes +
 		"    Loop: {allOf: [{$ref: '#/components/schemas/LoopB'}]}\n" +
 		"    LoopB: {allOf: [{$ref: '#/components/schemas/Loop'}]}\n"
-	for _, doc := range discriminatedOrders(t, "3.1.0", pet, rest) {
+	loop := []string{"pass/composition-cycle", "pass/composition-cycle"}
+	for _, doc := range discriminatedOrdersTold(t, "3.1.0", pet, rest, loop) {
 		assertMoved(t, doc, `"loop"`)
 	}
 }
@@ -404,11 +406,19 @@ func petWith(discriminator string) string {
 // lowers sees no subtype declared after it.
 func discriminatedOrders(t *testing.T, version, pet, rest string) []*ir.Document {
 	t.Helper()
+	return discriminatedOrdersTold(t, version, pet, rest, nil)
+}
+
+// discriminatedOrdersTold is discriminatedOrders for a source whose
+// validation reports the codes in told, a warning at each of the types that
+// the source writes as a loop.
+func discriminatedOrdersTold(t *testing.T, version, pet, rest string, told []string) []*ir.Document {
+	t.Helper()
 	docs := make([]*ir.Document, 0, 2)
 	for _, src := range []string{pet + rest, rest + pet} {
 		doc, diags := parseFull(t, openapitest.ComponentSpecVer(version, src))
 		openapitest.RequireNoErrorDiags(t, diags)
-		assert.Empty(t, validated(t, doc), "the document must validate")
+		assert.ElementsMatch(t, told, irtest.DiagCodes(validated(t, doc)), "the document must validate")
 		docs = append(docs, doc)
 	}
 	assert.Empty(t, cmp.Diff(docs[0].Types, docs[1].Types, orderInvariantIR()...),

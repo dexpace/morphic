@@ -14,7 +14,7 @@ import (
 // checkArgsOutsideGraphQL reports field arguments on models that are not
 // reachable from a GraphQL binding (the only scope in which Property.Args is
 // legal). With no GraphQL compiler yet, any Args is a violation.
-func checkArgsOutsideGraphQL(doc *ir.Document) []ir.Diagnostic {
+func checkArgsOutsideGraphQL(doc *ir.Document, live []ir.TypeID) []ir.Diagnostic {
 	reachable, truncated := graphqlReachableTypes(doc)
 	if truncated {
 		// The walk that built the reachability set saw a subset of the document,
@@ -24,7 +24,7 @@ func checkArgsOutsideGraphQL(doc *ir.Document) []ir.Diagnostic {
 		return nil
 	}
 	var diags []ir.Diagnostic
-	for _, id := range liveTypeIDs(doc) {
+	for _, id := range live {
 		m, ok := doc.Types[id].(*ir.Model)
 		if !ok || reachable[id] {
 			continue

@@ -59,7 +59,11 @@ func verifyDeclared(doc *ir.Document) []irverify.Violation {
 		declared.IDSpaces = declaringService(declared.IDSpaces, space)
 	}
 	if declared.IDSpaces == nil {
-		declared.IDSpaces = irtest.SpacesUsed(&declared)
+		// A walk cut short found some of the spaces, and Verify, which reads the
+		// same document, reports the cut, so what it found is not declared.
+		if spaces, cut := irtest.SpacesUsed(&declared); !cut {
+			declared.IDSpaces = spaces
+		}
 	}
 	return irverify.Verify(&declared)
 }

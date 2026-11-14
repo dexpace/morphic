@@ -52,7 +52,9 @@ func TestNamespaces_DeclaredAreExactlyWhatTheCorpusUses(t *testing.T) {
 				declared = doc.IDSpaces
 			}
 			assert.Equal(t, declared, doc.IDSpaces, "%s declares a vocabulary of its own", spec)
-			for kind, spaces := range irtest.SpacesUsed(doc) {
+			spacesUsed, cut := irtest.SpacesUsed(doc)
+			require.False(t, cut, "%s: the walk read the whole document", spec)
+			for kind, spaces := range spacesUsed {
 				used[kind] = append(used[kind], spaces...)
 			}
 		}

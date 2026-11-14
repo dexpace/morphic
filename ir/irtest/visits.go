@@ -12,15 +12,14 @@ import (
 )
 
 // AllocatingVisits walks doc with visitors and returns the path of each visit
-// that must allocate, once per visitor allocating there, in walk order, a walk
-// per 64 visitors as ir.WalkValues makes. Each visitor is shown the walk it
-// would be shown alone, with the walk's own path: the zero ir.WalkPath renders
-// empty without allocating.
+// that must allocate, once per visitor allocating there, in walk order, and
+// last the root's path with cutSuffix if the walk stopped at a bound: doc read
+// in part is not doc measured. Each visitor is shown the walk it would be shown
+// alone, with the walk's own path.
 //
 // Only a repeat of a visit is measured (fewestAllocs), so what a visitor builds
-// on first meeting a value goes uncounted, whatever it keeps per value, which
-// a test growing the document finds. AllocsPerRun measures the process, so a
-// caller is not run in parallel.
+// on first meeting a value goes uncounted, which a test growing the document
+// finds. AllocsPerRun measures the process: a caller runs alone.
 func AllocatingVisits(doc *ir.Document, visitors ...ir.Visitor) []string {
 	var paths []string
 	measured := make([]ir.Visitor, len(visitors))
@@ -29,9 +28,17 @@ func AllocatingVisits(doc *ir.Document, visitors ...ir.Visitor) []string {
 			measured[i] = measuredVisitor{visitor: visitor, paths: &paths}
 		}
 	}
-	ir.WalkValues(doc, ir.DocumentPath, measured...)
+	if ir.WalkValues(doc, ir.DocumentPath, measured...) {
+		paths = append(paths, ir.DocumentPath+cutSuffix)
+	}
 	return paths
 }
+
+// cutSuffix follows the root's path in what AllocatingVisits returns for a walk
+// that stopped at a bound.
+const cutSuffix = ": the walk stopped at a bound, so part of the document went unmeasured"
+
+var _ ir.CycleVisitor = measuredVisitor{}
 
 // measuredVisitor shows visitor what the walk shows it and appends the path of
 // each visit that allocates to paths.

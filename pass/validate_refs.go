@@ -27,7 +27,7 @@ func checkDanglingRefs(refs *ir.IDReferences, truncated bool) []ir.Diagnostic {
 	var diags []ir.Diagnostic
 	if truncated {
 		diags = append(diags, diag(ir.SeverityError, "ir/walk-truncated",
-			"document nests deeper than the bounded reference walk; some references went unchecked",
+			"document nests deeper or unfolds larger than the bounded reference walk reads; some references went unchecked",
 			ir.DocumentPath))
 	}
 	for _, ref := range byLocation(refs.Unresolved(truncated)) {
@@ -39,8 +39,28 @@ func checkDanglingRefs(refs *ir.IDReferences, truncated bool) []ir.Diagnostic {
 	return diags
 }
 
+// checkEmptyRefs reports every reference the walk found empty where its position
+// requires one, as ir/empty-<noun>-ref, in the words irverify reports it in.
+// Which positions admit an empty ID is ir's table, read by both checkers, so a
+// check here that reads a required ID leaves an empty one to this family and
+// the defect draws one code (GitHub #575). An entity's own empty ID and an
+// empty TypeRef.Target are out of its scope, held by irverify alone.
+func checkEmptyRefs(empty *ir.EmptyReferences) []ir.Diagnostic {
+	found := empty.List()
+	if len(found) == 0 {
+		return nil
+	}
+	slices.SortStableFunc(found, func(a, b ir.EmptyReference) int { return strings.Compare(a.Path, b.Path) })
+	diags := make([]ir.Diagnostic, 0, len(found))
+	for _, ref := range found {
+		diags = append(diags, diag(ir.SeverityError, ref.Code(), ref.Message(), ref.Path))
+	}
+	return diags
+}
+
 // checkPropIDRefs reports every PropID a document carries that names no property
-// it declares.
+// it declares, unless the walk reading both was cut short: it then read part of
+// the declarations, so it claims nothing, and checkDanglingRefs reports the cut.
 //
 // A property is a position inside its model and addresses no registry, so
 // checkDanglingRefs cannot see a PropID. The claim is membership: the ID names
@@ -48,7 +68,10 @@ func checkDanglingRefs(refs *ir.IDReferences, truncated bool) []ir.Diagnostic {
 // path's root, which only a hand-kept list of fields could add;
 // checkDiscriminators makes the model-scoped claim for Discriminator.Property,
 // whose root is the model declaring it.
-func checkPropIDRefs(props *propIDSites, refs *ir.IDReferences) []ir.Diagnostic {
+func checkPropIDRefs(props *propIDSites, refs *ir.IDReferences, truncated bool) []ir.Diagnostic {
+	if truncated {
+		return nil
+	}
 	dangling := byLocation(props.dangling(refs))
 	diags := make([]ir.Diagnostic, 0, len(dangling))
 	for _, ref := range dangling {

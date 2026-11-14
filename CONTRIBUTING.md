@@ -225,7 +225,11 @@ needless; a verified run catches one.
    `Document.Diagnostics` aside. It asks its context as it goes, as `validate` does in its walk and
    between its rule families, and stops soon once it is done: the engine then fails the run, reading
    nothing it returned. `ir.ForEachOperation` walks the operations and `ir.ForEachGroup` the groups,
-   and the package's `diag` helper in `pass/diag.go` builds a diagnostic on a node. Each function
+   and the package's `diag` helper in `pass/diag.go` builds a diagnostic on a node. Each of `ir`'s
+   walks stops at a bound, of depth, of values a visitor is shown or of steps, and returns whether it
+   did: a function calling one reports the stop, or names the report that covers it, in
+   `walkCallers` of `internal/archtest/walkcallers_test.go`, whose
+   `TestWalks_EveryCallerAnswersForAStop` fails on a caller the table does not list. Each function
    the pass hands `ir`'s walks, and each method a walk calls on a visitor it is handed, `Visit` and,
    for a `CycleVisitor`, `Cycle`, is a call from `ir` into `pass`, which `callShapeBaseline` in
    `internal/archtest/callshape_test.go` counts as a traversal callback: raise each count
@@ -247,8 +251,12 @@ needless; a verified run catches one.
 2. **Test it** beside it in `pass/`, table-driven, against documents built in the test: a file's
    cases in the `_test.go` named after it, and a scenario that several files decide in one named for
    the scenario, as `validate_propids_test.go` is. `pass/validate_test.go` has builders (`validDoc`,
-   `docWithOperation`) and readers (`codes`, `countCode`) to reuse.
-   *Fails if missed:* `make coverage`. Nothing fails for a case in another file's `_test.go`.
+   `docWithOperation`) and readers (`codes`, `countCode`) to reuse. A rule family added to
+   `Validate` also takes a row of `twoFindings` in `pass/validate_determinism_test.go`: a document
+   drawing two of its findings at two nodes, in the order they must come out, which the test reads
+   through `validated` 128 times, so a map ranged unsorted shows as one document reported two ways.
+   *Fails if missed:* `make coverage`, and `TestValidate_EveryFamilyDrawsTwoFindingsInOneOrder`
+   for the row. Nothing fails for a case in another file's `_test.go`.
 3. **Add it to the default list**, `engine.Passes` in `engine/passes.go`, after any pass whose
    output it acts on and before `validate`, which stays last. No test restates the list:
    `TestPasses_ValidateRunsLast` holds `validate` to the end, `engine.New` refuses a name two passes

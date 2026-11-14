@@ -99,6 +99,12 @@ func TestVerify_ParamChoicesAreHeldToTheirMeaning(t *testing.T) {
 		{"an empty parameter ID", []ir.ParamChoice{
 			choiceOf("x", []ir.ParamID{a}, []ir.ParamID{""}),
 		}, []string{"ir/empty-param-ref " + choiceOp + ".ParamChoices[0].Variants[1].Params[0]"}},
+		{"an empty parameter ID listed twice", []ir.ParamChoice{
+			choiceOf("x", []ir.ParamID{a}, []ir.ParamID{"", ""}),
+		}, []string{
+			"ir/empty-param-ref " + choiceOp + ".ParamChoices[0].Variants[1].Params[0]",
+			"ir/empty-param-ref " + choiceOp + ".ParamChoices[0].Variants[1].Params[1]",
+		}},
 		{"a choice with no name", []ir.ParamChoice{
 			{Variants: choiceOf("x", []ir.ParamID{a}, []ir.ParamID{b}).Variants},
 		}, []string{"ir/naming-absent " + choiceOp + ".ParamChoices[0].Name"}},
