@@ -125,7 +125,7 @@ func TestCompile_AChainOfReferencesIsCheckedInTheDocumentItEndsIn(t *testing.T) 
 		}
 	}
 	require.NotEqual(t, -1, end, "the last file of the chain is one of the sources: %+v", doc.Sources)
-	var found []string
+	found := make([]string, 0, len(diags))
 	for _, d := range diags {
 		found = append(found, fmt.Sprintf("%d%s %s", d.Provenance.Source, d.Provenance.Pointer, d.Code))
 	}
