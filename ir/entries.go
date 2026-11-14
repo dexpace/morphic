@@ -4,6 +4,7 @@
 package ir
 
 import (
+	"bytes"
 	"fmt"
 	"reflect"
 	"slices"
@@ -17,20 +18,61 @@ import (
 //
 // Keys and values are copied into storage kept per map type and reused by the
 // next map of that type, where reflect.MapIter.Key and Value allocate a copy of
-// each, so copying a map's entries allocates nothing once that storage fits;
-// only a key that is not a string may cost its label. The zero entryStack is
-// ready to use.
+// each, so copying a map's entries allocates nothing once that storage fits; an
+// integer key is held as its value, so only a key fmt spells costs its label.
+// The zero entryStack is ready to use.
 type entryStack struct {
 	entries []mapEntry
 	stores  map[reflect.Type]*entryStore
 }
 
-// mapEntry is one map entry paired with its rendered key, which both spells the
-// entry's path and orders the walk.
+// mapEntry is one map entry paired with its key as a path spells it, which also
+// orders the walk: label for a labelled key, num for an integer one.
 type mapEntry struct {
-	label string
 	key   reflect.Value
 	value reflect.Value
+	label string
+	num   uint64
+	form  keyForm
+}
+
+// keyForm is how an entry or a path step holds a map key: as its label, or as
+// an integer rendered in decimal only when a path is spelled or two keys are
+// ordered.
+type keyForm uint8
+
+const (
+	labelledKey keyForm = iota // label holds the key as fmt's %v spells it
+	signedKey                  // num holds a signed key's bits
+	unsignedKey                // num holds an unsigned key
+)
+
+// appendKey renders a key held in form onto b, as fmt's %v spells it.
+func appendKey(b []byte, form keyForm, num uint64, label string) []byte {
+	switch form {
+	case signedKey:
+		return strconv.AppendInt(b, int64(num), 10)
+	case unsignedKey:
+		return strconv.AppendUint(b, num, 10)
+	default:
+		return append(b, label...)
+	}
+}
+
+// appendLabel renders e's key onto b, as a path spells it.
+func (e mapEntry) appendLabel(b []byte) []byte {
+	return appendKey(b, e.form, e.num, e.label)
+}
+
+// compareEntries orders two entries of one map by their keys' spellings, byte
+// by byte: "10" before "9", and "-1" first. An integer key is rendered for the
+// comparison into a buffer on the stack, which holds the longest, 20 bytes.
+func compareEntries(a, b mapEntry) int {
+	if a.form == labelledKey {
+		return strings.Compare(a.label, b.label)
+	}
+	var x, y [20]byte
+	return bytes.Compare(a.appendLabel(x[:0]), b.appendLabel(y[:0]))
 }
 
 // entryFrame is one map's entries on an entryStack, entries[base:end], copied
@@ -58,15 +100,29 @@ func (s *entryStack) push(v reflect.Value) entryFrame {
 		f.store = s.storeFor(v.Type())
 		f.slot = f.store.reserve(n)
 	}
-	plain := rendersPlainly(v.Type().Key())
+	form := formOf(v.Type().Key())
 	// MapRange rather than v.Seq2(), which puts the loop body on the heap.
 	for iter := v.MapRange(); iter.Next(); {
 		k, val := f.copyEntry(iter, len(s.entries)-f.base)
-		s.entries = append(s.entries, mapEntry{label: keyLabel(k, plain), key: k, value: val})
+		s.entries = append(s.entries, entryOf(k, val, form))
 	}
 	f.end = len(s.entries)
-	slices.SortFunc(s.entries[f.base:], func(a, b mapEntry) int { return strings.Compare(a.label, b.label) })
+	slices.SortFunc(s.entries[f.base:], compareEntries)
 	return f
+}
+
+// entryOf pairs the key k and value val of a map whose keys are held in form.
+func entryOf(k, val reflect.Value, form keyForm) mapEntry {
+	e := mapEntry{key: k, value: val, form: form}
+	switch form {
+	case signedKey:
+		e.num = uint64(k.Int())
+	case unsignedKey:
+		e.num = k.Uint()
+	default:
+		e.label = keyLabel(k)
+	}
+	return e
 }
 
 // pop takes f's entries off the stack, which must hold no frame above f, and
@@ -139,6 +195,23 @@ var (
 	errorType     = reflect.TypeFor[error]()
 )
 
+// formOf returns how the keys of a map keyed by t are held: an integer that
+// fmt's %v spells as its plain decimal is held as its value, and every other
+// key by its label.
+func formOf(t reflect.Type) keyForm {
+	if !rendersPlainly(t) {
+		return labelledKey
+	}
+	switch t.Kind() {
+	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
+		return signedKey
+	case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64, reflect.Uintptr:
+		return unsignedKey
+	default:
+		return labelledKey
+	}
+}
+
 // rendersPlainly reports whether fmt's %v spells a key of type t as its plain
 // string or decimal integer: a string or integer kind with none of the methods
 // through which fmt lets a type spell itself.
@@ -152,19 +225,12 @@ func rendersPlainly(t reflect.Type) bool {
 	}
 }
 
-// keyLabel renders a map key as fmt's %v does, which is how a path spells it,
-// without fmt's two allocations for a key that renders plainly: a string key is
-// its own label.
-func keyLabel(k reflect.Value, plain bool) string {
-	if !plain {
-		return fmt.Sprintf("%v", k)
-	}
-	switch k.Kind() {
-	case reflect.String:
+// keyLabel renders a map key held by its label as fmt's %v does, which is how
+// a path spells it, without fmt's two allocations for a string key that
+// renders plainly: such a key is its own label.
+func keyLabel(k reflect.Value) string {
+	if k.Kind() == reflect.String && rendersPlainly(k.Type()) {
 		return k.String()
-	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
-		return strconv.FormatInt(k.Int(), 10)
-	default:
-		return strconv.FormatUint(k.Uint(), 10)
 	}
+	return fmt.Sprintf("%v", k)
 }

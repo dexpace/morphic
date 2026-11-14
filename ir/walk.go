@@ -211,12 +211,15 @@ const (
 
 // pathStep is one step of a walk's path, held as what it was taken through
 // rather than as text, so taking it costs no string: a struct field by its
-// owner and index, an element by its index, an entry by its rendered key.
+// owner and index, an element by its index, an entry by its key as the map's
+// entry holds it, a label or an integer.
 type pathStep struct {
-	kind  stepKind
 	owner reflect.Type
 	index int
+	num   uint64
 	label string
+	kind  stepKind
+	form  keyForm
 }
 
 // appendTo renders the step onto b. A field read through an embedded struct is
@@ -231,9 +234,9 @@ func (s pathStep) appendTo(b []byte) []byte {
 	case stepElement:
 		b = append(strconv.AppendInt(append(b, '['), int64(s.index), 10), ']')
 	case stepMapKey:
-		b = append(append(append(append(b, '['), s.label...), ']'), MapKeySuffix...)
+		b = append(append(appendKey(append(b, '['), s.form, s.num, s.label), ']'), MapKeySuffix...)
 	case stepMapValue:
-		b = append(append(append(b, '['), s.label...), ']')
+		b = append(appendKey(append(b, '['), s.form, s.num, s.label), ']')
 	}
 	return b
 }
@@ -505,8 +508,8 @@ func (w *valueWalk) entries(v reflect.Value, depth int, active visitorSet) {
 	for i := f.base; i < f.end; i++ {
 		// Indexed afresh: a nested map can move the stack while stacking its own.
 		e := w.ranging.entries[i]
-		w.step(pathStep{kind: stepMapKey, label: e.label}, e.key, depth+1, active)
-		w.step(pathStep{kind: stepMapValue, label: e.label}, e.value, depth+1, active)
+		w.step(pathStep{kind: stepMapKey, form: e.form, num: e.num, label: e.label}, e.key, depth+1, active)
+		w.step(pathStep{kind: stepMapValue, form: e.form, num: e.num, label: e.label}, e.value, depth+1, active)
 	}
 	w.ranging.pop(f)
 }

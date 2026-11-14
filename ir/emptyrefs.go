@@ -117,7 +117,7 @@ func (e *EmptyReferences) appendEmptyValues(m reflect.Value, f refField, at Walk
 	frame := e.ranging.push(m)
 	for _, entry := range e.ranging.entries[frame.base:frame.end] {
 		if entry.value.String() == "" {
-			e.record(f, fieldPath(at, f)+"["+entry.label+"]", false)
+			e.record(f, fieldPath(at, f)+"["+string(entry.appendLabel(nil))+"]", false)
 		}
 	}
 	e.ranging.pop(frame)
