@@ -327,7 +327,7 @@ func loweringCtx(doc *load.Document, o Options) lowering.Ctx {
 		Streaming:              o.StreamingMedia,
 		Binary:                 o.BinaryMedia,
 		Promotions:             o.Promotions,
-		NullableWidening:       o.NullableWidening,
+		NullableInference:      o.NullableInference,
 		DiscriminatorInference: o.DiscriminatorInference,
 		IdempotencyInference:   o.IdempotencyInference,
 		SecretInference:        o.SecretInference,

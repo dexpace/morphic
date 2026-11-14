@@ -408,7 +408,7 @@ const (
 	UnpreservableConstruct = "openapi/unpreservable-construct"
 	// UnknownSchemaKeyword reports a JSON Schema keyword the schema model does
 	// not name, or names but the schema's dialect does not define (`nullable`
-	// with the nullable-widening policy off), kept verbatim under Unmodeled.
+	// with the nullable-inference policy off), kept verbatim under Unmodeled.
 	//
 	// Info, because the document did nothing wrong: JSON Schema requires an
 	// implementation to ignore a keyword it does not recognize, and says such a
@@ -517,7 +517,7 @@ const (
 	// fragment, which the URI template leaves out and each operation's binding
 	// keeps. Matching the expressions to path parameters is #640's.
 	InvalidPathKey = "openapi/invalid-path-key"
-	// InferredNullable reports a null the nullable-widening policy reads in
+	// InferredNullable reports a null the nullable-inference policy reads in
 	// where the document's version does not: a `nullable: true` in a 3.1 or 3.2
 	// schema, beside a $ref, in a 3.0 schema with no type beside it or a keyword
 	// that excludes null, or on an allOf branch another conjunct contradicts, at

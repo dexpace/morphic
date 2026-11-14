@@ -1478,7 +1478,7 @@ OpenAPI 3.0's `nullable: true` adds `null` to the `type` written in the same Sch
 clarification of every 3.0 release. With no `type` beside it, it has no effect, and 3.1 removed the
 keyword. Documents written to 3.0.0's looser wording, or carried to 3.1, still
 use it to say that a schema admits null, and write `{$ref: T, type: [object, "null"]}` for the
-nullable reference that `{$ref: T, nullable: true}` was meant to be. So the nullable-widening
+nullable reference that `{$ref: T, nullable: true}` was meant to be. So the nullable-inference
 policy, on by default, reads such a null as widening what it is written on rather than conjoining
 with it: `nullable: true` admits null for the whole schema it is written on, whatever else that
 schema says, and keywords beside a `$ref` that admit null by themselves admit it for the whole
@@ -1486,13 +1486,13 @@ reference, and a `nullable: true` on an inline `allOf` branch writing no `proper
 the whole schema holding the `allOf`, a `type` beside the `allOf` included, as beside the `allOf` it
 does ([`allof-inline-residue`](#allof-inline-residue)). A `type` without `null` beside a `$ref` still
 narrows what it lands on, and a `type: [T, "null"]` on a conjunct of an `allOf` conjoins with the
-rest. A reference whose null only that reading admits names `nullable-widening` in
+rest. A reference whose null only that reading admits names `nullable-inference` in
 `TypeRef.Inferred` (invariant 6), so `Nullable` with no marker is the declared reading, and each
 such null is reported once as an info `openapi/inferred-nullable`, at the `nullable` keyword or, for
 keywords beside a `$ref`, at the schema that writes them, saying why its version does not admit it,
-whatever references its schema. The policy is the Go option `Options.NullableWidening`, whose
+whatever references its schema. The policy is the Go option `Options.NullableInference`, whose
 `Disabled` reads the keywords only as their version defines them, and the text option
-`nullable-widening`, which `false` turns off. A `nullable` in a 3.1 or 3.2 schema is then a keyword
+`nullable-inference`, which `false` turns off. A `nullable` in a 3.1 or 3.2 schema is then a keyword
 its dialect does not define, kept verbatim under `openapi:nullable` (`out_of_scope`) with an info
 `openapi/unknown-schema-keyword`, where [`unknown-keys`](#unknown-keys) keeps a keyword the schema
 model does not name.
@@ -1510,15 +1510,15 @@ With the policy on, its info sits at the same pointer. With the policy off nothi
   `nullability-conjunction`, `nullable-keyword-30`, `nullable-keyword-31`
 - Codes: `openapi/inferred-nullable`, `openapi/unknown-schema-keyword`, `openapi/validation`
 - Tests: `schema.TestSchemaRef_NullableNormalization`,
-  `schema.TestNullableWidening_EachShapeReadsByItsVersion`,
-  `e2e.TestNullableWidening_AKeywordIsReportedOnceAtItself`,
-  `e2e.TestNullableWidening_DisabledKeepsWhatTheDialectDoesNotDefine`,
+  `schema.TestNullableInference_EachShapeReadsByItsVersion`,
+  `e2e.TestNullableInference_AKeywordIsReportedOnceAtItself`,
+  `e2e.TestNullableInference_DisabledKeepsWhatTheDialectDoesNotDefine`,
   `e2e.TestSchemaRefSiblings_ReadInTheDeclaredDialect`,
-  `e2e.TestNullableWidening_ACompositionKeepsTheMarker`,
+  `e2e.TestNullableInference_ACompositionKeepsTheMarker`,
   `merge.TestIntersectNull_TheMarkerFollowsTheBit`,
-  `schema.TestNullableWidening_ABranchWidensTheAllOfHoldingIt`,
+  `schema.TestNullableInference_ABranchWidensTheAllOfHoldingIt`,
   `oas.TestCheck_NullableAppliesBesideAType`,
-  `e2e.TestNullableWidening_ANullableWithNoTypeIsWarnedOfUnderEitherPolicy`
+  `e2e.TestNullableInference_ANullableWithNoTypeIsWarnedOfUnderEitherPolicy`
 
 ### `schema-examples`
 
@@ -1729,7 +1729,7 @@ union of a `uuid` and an `integer`. A use reads past such a refinement as past a
 Over a target that admits no object, `{allOf: [{$ref: T}], K}` lowers as 3.1's `{$ref: T, K}` where
 `K` is annotations and value bounds. The two part on a structural keyword, which a `$ref` site keeps
 verbatim reading no target ([`shape-applicator`](#shape-applicator)), and on `type: [T, "null"]`,
-which the nullable-widening policy reads as widening beside a `$ref` and which conjoins here, as JSON
+which the nullable-inference policy reads as widening beside a `$ref` and which conjoins here, as JSON
 Schema says ([`nullable`](#nullable)). A `$ref` naming either parts as well: it reads what `K` says
 here, and past it there, as a chain of `$ref`s is read to its end ([`ref-use-site`](#ref-use-site)).
 
@@ -1809,7 +1809,7 @@ collection bounds, `format: password` ([`password`](#password)), vendor extensio
 validation-only keywords ([`validation-only`](#validation-only)) land where the same keyword beside
 the `allOf` lands, each read at the branch's own pointer and reported as that keyword is there,
 which for most is not at all. A `nullable` folds only from a branch writing no `properties`, under
-the nullable-widening policy ([`nullable`](#nullable)). Neither `unevaluatedProperties` nor
+the nullable-inference policy ([`nullable`](#nullable)). Neither `unevaluatedProperties` nor
 `unevaluatedItems` folds, in any form: each applies to what no keyword beside it evaluates (JSON
 Schema 2020-12 §11.2, §11.3), so on a branch it holds the instance to what that branch alone
 evaluates, where beside the `allOf` it would exempt what the position and the other branches
@@ -2490,7 +2490,7 @@ states a set of JSON instance types, an `integer` within a `number` and named as
 beside the `allOf`; an inline entry's `type`, conjoined with
 what its own `allOf` states; and for a `$ref` entry, what the schema it lands on states. The schema
 is reported where those sets share no member and the schema admits no null as
-[`nullable`](#nullable) reads it, under the nullable-widening policy where that is on: a null every
+[`nullable`](#nullable) reads it, under the nullable-inference policy where that is on: a null every
 conjunct admits is a shared value, as
 [`allof-redeclared-property`](#allof-redeclared-property) reads a pair of declarations. A read of
 null that runs out of its budget is undecided and reports nothing. Where only one conjunct narrows
@@ -2636,13 +2636,13 @@ document contradicts itself, and this rule does not read it otherwise. A `$ref` 
 schema of `null` alone stays a variant, a nullable reference to that schema's `Enum`, which an
 emitter reads as the union's `null` ([unions](../emitters/refine/unions.md#a-null-a-variant-admits)):
 it names a node the source declares, which lifting it would drop, and reading it would take a
-distant declaration. A branch whose `null` only the nullable-widening policy admits is a null branch
+distant declaration. A branch whose `null` only the nullable-inference policy admits is a null branch
 while the policy is on, and the reference's `null` then names it in `Inferred`, with its
 `openapi/inferred-nullable` info at the branch ([`nullable`](#nullable)); with the policy off, the
 branch admits nothing and is a variant.
 
 A null branch writing a key beside `type`, `enum`, `const`, and a `nullable` its dialect or the
-nullable-widening policy reads, such as a `description`, is kept whole under
+nullable-inference policy reads, such as a `description`, is kept whole under
 `openapi:<combinator>/<index>`, the branch's path from the schema, with the reason `no_ir_home`,
 since the `null` is typed exactly and only what the branch says of it has no field: on the `Union`
 the branches leave, or, where they collapse, where the position keeps what else the collapse cannot
@@ -2675,7 +2675,7 @@ carrier of a property, parameter or header, and on an alias hoisted at any other
   `schema.TestNullBranch_AKeptBranchTheKeeperCannotConvertIsReportedByIt`,
   `schema.TestNullBranch_KeepsANullableNothingReads`,
   `schema.TestNullBranch_ARepeatedNullIsReportedAtTheBranch`,
-  `schema.TestNullableWidening_EachShapeReadsByItsVersion`
+  `schema.TestNullableInference_EachShapeReadsByItsVersion`
 
 ### `union-null-only`
 
@@ -3336,7 +3336,7 @@ lowered first.
   `schema.TestEnum_NarrowsARedeclaredPrimitiveInEitherOrder`,
   `schema.TestEnumAsUnion_UnconvertibleMemberBecomesAny`,
   `schema.TestEnumAsUnion_ExclusiveWhereNoInstanceMatchesTwoEntries`,
-  `schema.TestNullableWidening_AnEnumsNullMemberFollowsTheReadingInForce`,
+  `schema.TestNullableInference_AnEnumsNullMemberFollowsTheReadingInForce`,
   `e2e.TestCompile_AReferenceLeavesItsTargetToItsOwnerInEitherOrder`
 
 ## 6. Schemas: objects, arrays and scalars
@@ -4813,7 +4813,7 @@ keyword holds with what the `$ref` names, beside a 3.0 `$ref` too as the schema 
 own, and one longer says the body is something else. Such a body is a declared file on
 `application/octet-stream`, matched on the normalized key ([`media-types`](#media-types)), since RFC
 2046 defines that type as arbitrary octets, and a file the binary policy reads on a media type it
-names ([`binary-media`](#binary-media)), where `FileInfo.Inferred` is `binary-media-type`. Any other
+names ([`binary-media`](#binary-media)), where `FileInfo.Inferred` is `binary-inference`. Any other
 keyword, such as a `format` naming a text form, `contentEncoding`, `enum`, `allOf` or an object's,
 or a `false` schema, makes the content an ordinary Content whatever its media type, as is a body
 leaving its media type to say under one neither names. `Content.Type` stays what the schema lowered
@@ -4842,7 +4842,7 @@ its media type to say is a file ([`file-bodies`](#file-bodies),
 `application/vnd.tcpdump.pcap`, `application/wasm`, `application/zip`, `audio/*`, `font/*`,
 `image/*` and `video/*`, matched on the normalized key ([`media-types`](#media-types)) at every
 minor. OpenAPI says any binary media type marks binary content, but no registry says which media
-types are binary, so the reading is a guess and each file it makes carries `binary-media-type` in
+types are binary, so the reading is a guess and each file it makes carries `binary-inference` in
 its `Inferred`. An entry `type/*` matches each media type of that type whose subtype has no
 structured suffix, since a suffix names the syntax a body is written in: `image/*` matches
 `image/png`, not `image/svg+xml`. An entry starting with `+` names a structured suffix.
@@ -4907,7 +4907,7 @@ repeat a structure is no closed set, so nothing else draws one.
 A Content whose media type the streaming policy names — `application/json-seq`,
 `application/jsonl`, `application/x-ndjson`, `text/event-stream` and the `+json-seq` structured
 suffix by default, matched on the normalized key ([`media-types`](#media-types)) at every minor —
-sets `Content.Stream`, its `Inferred` the marker `streaming-media-type`, wherever it is written: a
+sets `Content.Stream`, its `Inferred` the marker `streaming-inference`, wherever it is written: a
 request body, a response, an error response, the default, a callback's or a webhook's. A Content
 declaring an `itemSchema` sets it with no marker ([`item-schema`](#item-schema)), and any other
 Content leaves it unset, so a response offering `application/json` beside `text/event-stream` marks
@@ -5087,7 +5087,7 @@ after them ([`tuples`](#tuples)), a rest of `false` admitting none, as is an arr
 it writes, whose other branches are read as a body's union branches are: one declaring raw bytes;
 one leaving its media type to say, where its encoding entry's `contentType` names only
 `application/octet-stream` or media types the binary policy names ([`binary-media`](#binary-media)),
-`PartEncoding.Inferred` being `binary-media-type` where it names one of the latter; and, from
+`PartEncoding.Inferred` being `binary-inference` where it names one of the latter; and, from
 OpenAPI 3.1 and with no `contentType`, one writing no `type`, whose default content type OpenAPI
 makes `application/octet-stream`, a union being read so only where each of its branches, an array's
 through its elements, writes no `type` or declares raw bytes, so that
@@ -5641,7 +5641,7 @@ to ignore a keyword it does not know, and a position that lowers to a shared nod
 property or parameter hoists an alias for it to land on; `$comment`, `$dynamicAnchor` and
 `$dynamicRef`, and 2019-09's `$recursiveAnchor` and `$recursiveRef` where the schema's dialect
 defines them, are decided elsewhere and left out. A keyword the model names and the dialect the
-schema is read in does not define, which only `nullable` is, with the nullable-widening policy off
+schema is read in does not define, which only `nullable` is, with the nullable-inference policy off
 ([`nullable`](#nullable)), is kept the same way. One object contributes at most `annotation.MaxUnknownKeys` keys,
 taken in byte order after the keys another reader already kept at the same pointer are set aside,
 and the rest reach the IR in no form, reported as one `openapi/unknown-key-budget` warning at the
@@ -5663,7 +5663,7 @@ unknown keys ride inside its entry, unreported.
   `annotation.TestUnknownKeysIn_BudgetBoundsWhatOneObjectContributes`,
   `annotation.TestUndefinedKeywordsIn_KeepsWhatTheCallerNames`,
   `annotation.TestWritesUnknownKeyword_AsksWhatTheCensusWouldKeep`,
-  `e2e.TestNullableWidening_DisabledKeepsItAtASharedNode`
+  `e2e.TestNullableInference_DisabledKeepsItAtASharedNode`
 - Status: partly built: a parameter's key and its schema's keyword of one spelling share an entry
   (#396); an object kept whole without being read reports none of its unknown keys (#1662).
 
@@ -5708,7 +5708,7 @@ how operations are arranged rather than filling a fact a node holds.
    that built the document. The compiler's run reads them in one block, in one order: links
    ([`links`](#links)), then promotions, then inferences, so an inference sees what every promotion
    filled. The audits of what the policies read come last, once the document's own keys are merged
-   in as well. A reading a node needs while it lowers, as nullable widening's
+   in as well. A reading a node needs while it lowers, as nullable inference's
    ([`nullable`](#nullable)), or while the registry settles, as discriminator inference's, is made
    there instead.
 
@@ -5717,11 +5717,9 @@ how operations are arranged rather than filling a fact a node holds.
   `lowering.TestPromoter_WritesSeesEveryDefaultKey`,
   `pagination.TestInferWalks_LeavesWhatAnExtensionSpeaksOf`,
   `replacement.TestMessage_YieldsToWhatTheDocumentSays`, `convention.TestRedact_LeavesWhatTheDocumentSays`,
-  `convention.TestIdempotency_ReportsWhatItCannotSettle`, `e2e.TestConventions_DisabledFillsNothing`
-- Status: partly built: the streaming and binary policies mark `streaming-media-type` and
-  `binary-media-type`, which their options `streaming-inference` and `binary-inference` do not
-  spell, while nullable widening marks `nullable-widening`, a name for the reading rather than the
-  fact (#1847).
+  `convention.TestIdempotency_ReportsWhatItCannotSettle`, `e2e.TestConventions_DisabledFillsNothing`,
+  `openapi.TestSwitchOptions_EveryNameIsAMarker`, `openapi.TestDecodeOptions_RefusesARetiredName`,
+  `e2e.TestMarkers_NameTheirOptions`
 
 ### `extension-promotion`
 

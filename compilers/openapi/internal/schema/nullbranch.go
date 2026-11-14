@@ -60,14 +60,14 @@ func liftedNulls(c lowering.Ctx, s *oas3.Schema, pointer jsontext.Pointer) []lif
 // saysTheNull reports whether key, written on the null branch at, says only
 // the null the reference to its union holds: a type, an enum or a const, and a
 // nullable where it is read, by the dialect defining it or by the
-// nullable-widening policy (docs/compilers/openapi.md#nullable). A nullable
+// nullable-inference policy (docs/compilers/openapi.md#nullable). A nullable
 // neither reads is a keyword its dialect does not define, kept as one is.
 func saysTheNull(c lowering.Ctx, at jsontext.Pointer, key string) bool {
 	switch key {
 	case "type", "enum", "const":
 		return true
 	case "nullable":
-		return c.NullableWidening.Honours() || lowering.SchemaRulesAt(c, at).Defines(key)
+		return c.NullableInference.Honours() || lowering.SchemaRulesAt(c, at).Defines(key)
 	default:
 		return false
 	}
@@ -121,7 +121,7 @@ func recordNullBranches(c lowering.Ctx, p *ir.Unmodeled, kept []keptNullBranch) 
 
 // liftedNullFindings returns what reading each null branch of s's union,
 // written at pointer, reports at the branch, as its own lowering reports it
-// where it is a variant: a null the nullable-widening policy reads in
+// where it is a variant: a null the nullable-inference policy reads in
 // (nulls.findings), and an enum entry repeating an earlier one (enumRepeats),
 // which the document writes whichever path takes the branch.
 func liftedNullFindings(c lowering.Ctx, s *oas3.Schema, pointer jsontext.Pointer) []ir.Diagnostic {

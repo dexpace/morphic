@@ -316,7 +316,7 @@
                     },
                     "encoding": {
                       "p/openapi/paths/~1multi-typed/post/requestBody/content/multipart~1form-data/schema/type/1/properties/file": {
-                        "inferred": "binary-media-type",
+                        "inferred": "binary-inference",
                         "contentTypes": [
                           "image/png"
                         ],

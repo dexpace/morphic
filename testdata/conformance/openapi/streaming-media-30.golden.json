@@ -87,7 +87,7 @@
                           "nullable": false
                         },
                         "stream": {
-                          "inferred": "streaming-media-type"
+                          "inferred": "streaming-inference"
                         }
                       }
                     ]
@@ -120,7 +120,7 @@
               "provenance": {
                 "source": 0,
                 "pointer": "/paths/~1events/get",
-                "inferred": "streaming-media-type"
+                "inferred": "streaming-inference"
               }
             }
           ]

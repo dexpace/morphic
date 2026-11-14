@@ -129,7 +129,7 @@ func assertEncodingUnionBranches(t *testing.T, doc *ir.Document, diags []ir.Diag
 		"oneOf":      {"file": png, "url": partOf(textPlain, "")},
 		"anyOf":      {"file": png, "url": partOf(textPlain, ""), "id": partOf(textPlain, "")},
 		"composed":   {"targetUrl": partOf(textPlain, ""), "torrentfile": {ContentTypes: []string{"application/x-bittorrent"}, Filename: true}, "name": partOf(textPlain, "")},
-		"multiTyped": {"file": {ContentTypes: []string{"image/png"}, Filename: true, Inferred: "binary-media-type"}},
+		"multiTyped": {"file": {ContentTypes: []string{"image/png"}, Filename: true, Inferred: "binary-inference"}},
 		"narrowed":   {"file": png, "link": partOf(textPlain, ""), "note": partOf(textPlain, "")},
 	} {
 		parts, content := partsOf(t, doc, op)

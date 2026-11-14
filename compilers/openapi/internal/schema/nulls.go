@@ -50,7 +50,7 @@ const maxNullConjuncts = 256
 
 // nullReading is what a schema says about null under each reading
 // (docs/compilers/openapi.md#nullable): declared, as the document's version
-// defines its keywords, and lenient, as the nullable-widening policy reads
+// defines its keywords, and lenient, as the nullable-inference policy reads
 // them, a null spelled by `nullable` or beside a $ref widening what it is
 // written on. The two differ only there, so lenient admits wherever declared
 // does.
@@ -72,7 +72,7 @@ func foldNullReadings(a, b nullReading) nullReading {
 // admits reports whether the reading c's policy selects admits null: lenient
 // while the policy is on, declared once it is off.
 func (r nullReading) admits(c lowering.Ctx) bool {
-	if c.NullableWidening.Honours() {
+	if c.NullableInference.Honours() {
 		return r.lenient == nullAdmitted
 	}
 	return r.declared == nullAdmitted
@@ -89,12 +89,12 @@ func (r nullReading) ref(c lowering.Ctx, target ir.TypeID) ir.TypeRef {
 // only lenient admits null, the reference names the policy's heuristic in
 // Inferred, so the declared bit is still Nullable with Inferred empty.
 func nullRef(c lowering.Ctx, target ir.TypeID, declared, lenient bool) ir.TypeRef {
-	if !c.NullableWidening.Honours() {
+	if !c.NullableInference.Honours() {
 		return ir.TypeRef{Target: target, Nullable: declared}
 	}
 	out := ir.TypeRef{Target: target, Nullable: lenient}
 	if lenient && !declared {
-		out.Inferred = lowering.NullableWideningHeuristic
+		out.Inferred = lowering.NullableInferenceHeuristic
 	}
 	return out
 }
@@ -180,7 +180,7 @@ func newNulls(c lowering.Ctx) nulls {
 // off: a null then admits only what its version says it does, and nothing is
 // read in for a report to say so.
 func (n *nulls) findings(c lowering.Ctx) []ir.Diagnostic {
-	if !c.NullableWidening.Honours() || len(n.found) == 0 {
+	if !c.NullableInference.Honours() || len(n.found) == 0 {
 		return nil
 	}
 	out := make([]ir.Diagnostic, 0, len(n.found))
@@ -277,7 +277,7 @@ func (n *nulls) widenRef(own, r nullReading, site nullSite) nullReading {
 	// does not here, so the usage admits it only so.
 	if site.ok {
 		n.found = append(n.found, nullFinding{at: site.at, message: "the keywords beside this $ref admit null " +
-			"and what it lands on does not, which JSON Schema conjoins to no null, but the nullable-widening " +
+			"and what it lands on does not, which JSON Schema conjoins to no null, but the nullable-inference " +
 			"policy reads them as admitting null for the whole reference; a reference whose null rests on " +
 			"them is marked inferred"})
 	}
@@ -337,7 +337,7 @@ func (n *nulls) widen(s *oas3.Schema, own, r nullReading, site nullSite) nullRea
 	}
 	if r.declared != nullAdmitted && site.ok {
 		n.found = append(n.found, nullFinding{at: site.at + ids.Ptr("nullable"), message: "nullable: true is " +
-			"read as admitting null under the nullable-widening policy, though " + n.why(s, own) +
+			"read as admitting null under the nullable-inference policy, though " + n.why(s, own) +
 			"; a reference whose null rests on it is marked inferred"})
 	}
 	r.lenient = nullAdmitted
@@ -568,7 +568,7 @@ func (n *nulls) widenByBranch(s *oas3.Schema, r nullReading, site nullSite) null
 		}
 		if r.declared != nullAdmitted && n.keywords(e.schema.GetSchema(), nullSite{}).declared == nullAdmitted {
 			n.found = append(n.found, nullFinding{at: site.at + e.pointer + ids.Ptr("nullable"), message: "nullable: true " +
-				"is read as admitting null under the nullable-widening policy, though another conjunct of this allOf " +
+				"is read as admitting null under the nullable-inference policy, though another conjunct of this allOf " +
 				"excludes null, and OpenAPI 3.0's nullable does not override it; a reference whose null rests on it " +
 				"is marked inferred"})
 		}

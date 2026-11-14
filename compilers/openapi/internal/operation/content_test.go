@@ -190,7 +190,7 @@ func TestContent_AFileBodyKeepsTheSchemaItWrites(t *testing.T) {
 		},
 		{
 			"a nullable empty schema", "schema: {nullable: true}",
-			ir.TypeRef{Target: "t/prim/bytes", Nullable: true, Inferred: "nullable-widening"}, "",
+			ir.TypeRef{Target: "t/prim/bytes", Nullable: true, Inferred: "nullable-inference"}, "",
 		},
 		{"a type array", "schema: {type: [string, object], format: binary}", ir.TypeRef{}, ""},
 	}

@@ -9,12 +9,12 @@ import (
 	"github.com/dexpace/morphic/ir"
 )
 
-// BinaryMediaTypeHeuristic is the name FileInfo.Inferred and
+// BinaryInferenceHeuristic is the name FileInfo.Inferred and
 // PartEncoding.Inferred carry on a body or part read as a file because its
 // media type is binary, rather than because its schema or
 // application/octet-stream says so. It is a constant for the reason
-// StreamingMediaTypeHeuristic is.
-const BinaryMediaTypeHeuristic ir.Inferred = "binary-media-type"
+// StreamingInferenceHeuristic is.
+const BinaryInferenceHeuristic ir.Inferred = "binary-inference"
 
 // BinaryMedia is the binary media-type policy: which media types mean "this body
 // is a file" where its schema says no more than that it is a string.

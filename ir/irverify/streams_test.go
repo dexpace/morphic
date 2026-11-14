@@ -14,7 +14,7 @@ import (
 
 // streamingContent is a content that streams, the media type alone saying so.
 func streamingContent() ir.Content {
-	return ir.Content{MediaType: "text/event-stream", Stream: &ir.ContentStream{Inferred: "streaming-media-type"}}
+	return ir.Content{MediaType: "text/event-stream", Stream: &ir.ContentStream{Inferred: "streaming-inference"}}
 }
 
 // TestVerify_AContentDeclaringAnItemStreams pins ir/content-item-without-stream

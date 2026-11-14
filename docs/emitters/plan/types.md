@@ -366,7 +366,7 @@ outside what the shape offers: the schema typing the body admits no `null` there
 that means removal admits it. The two merge patches of the golden spec that say `null` removes an
 entry, a Worker script's bulk secrets, hold the secrets in a map whose `Value` is `Nullable`, which
 the compiler read from a `nullable: true` beside an `allOf` and marked `Inferred` as
-`nullable-widening` (spec @bc6fad24, morphic @fa253fe19).
+`nullable-inference` (spec @bc6fad24, morphic @fa253fe19).
 
 No compiler sets the field today, and nil states nothing ([patch
 optionality](../../ir/http-binding.md#patch-optionality)), as the plan needs: an emitter sees a

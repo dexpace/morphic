@@ -251,17 +251,17 @@ func TestVerify_AnInferredMarkerOnANonNullableReferenceIsAViolation(t *testing.T
 	}{
 		{
 			name: "a property's marked reference that admits no null",
-			doc:  model(ir.TypeRef{Target: "t/x/Leaf", Inferred: "nullable-widening"}),
+			doc:  model(ir.TypeRef{Target: "t/x/Leaf", Inferred: "nullable-inference"}),
 			path: "doc.Types[t/x/M].Properties[0].Type.Inferred",
 		},
 		{
 			name: "a parameter's marked reference that admits no null",
-			doc:  param(ir.TypeRef{Target: "t/x/Leaf", Inferred: "nullable-widening"}),
+			doc:  param(ir.TypeRef{Target: "t/x/Leaf", Inferred: "nullable-inference"}),
 			path: "doc.Services[0].Groups[0].Operations[0].Params[0].Type.Inferred",
 		},
 		{
 			name: "a property's marked reference that admits null",
-			doc:  model(ir.TypeRef{Target: "t/x/Leaf", Nullable: true, Inferred: "nullable-widening"}),
+			doc:  model(ir.TypeRef{Target: "t/x/Leaf", Nullable: true, Inferred: "nullable-inference"}),
 		},
 		{
 			name: "a parameter's unmarked reference that admits no null",
@@ -277,7 +277,7 @@ func TestVerify_AnInferredMarkerOnANonNullableReferenceIsAViolation(t *testing.T
 			}
 			require.Len(t, got, 1, "the marker is reported exactly once")
 			assert.Equal(t, tc.path, got[0].Path)
-			assert.Contains(t, got[0].Message, "nullable-widening")
+			assert.Contains(t, got[0].Message, "nullable-inference")
 			assert.Empty(t, typeRefViolations(t, tc.doc), "a marked reference names its target")
 		})
 	}

@@ -297,7 +297,7 @@ func TestNullBranch_BesideABodyIsNotLifted(t *testing.T) {
 
 // TestNullBranch_KeepsANullableNothingReads pins a null branch's `nullable`:
 // it says the null where it is read, by the 3.0 dialect defining it or by the
-// nullable-widening policy, and keeps nothing; under 3.1 with the policy off it
+// nullable-inference policy, and keeps nothing; under 3.1 with the policy off it
 // is a keyword the dialect does not define, which the branch is kept whole for,
 // as a schema writing it alone keeps it (docs/compilers/openapi.md#nullable).
 func TestNullBranch_KeepsANullableNothingReads(t *testing.T) {

@@ -53,7 +53,7 @@ func TestDecodeOptions_TextReachesEveryField(t *testing.T) {
 			"allow-external-refs":     "true",
 			"overlay":                 "patch.yaml",
 			"overlay-lax":             "true",
-			"nullable-widening":       "false",
+			"nullable-inference":      "false",
 			"discriminator-inference": "false",
 			"pagination-inference":    "false",
 			"idempotency-inference":   "false",
@@ -89,7 +89,7 @@ func TestDecodeOptions_TextReachesEveryField(t *testing.T) {
 	assert.Equal(t, "patch.yaml", opts.Overlay.Path)
 	assert.Nil(t, opts.Overlay.Data, "named for the compile to read, not read")
 	assert.True(t, opts.Overlay.Lax)
-	assert.True(t, opts.NullableWidening.Disabled, "nullable-widening=false turns the policy off")
+	assert.True(t, opts.NullableInference.Disabled, "nullable-inference=false turns the policy off")
 	assert.True(t, opts.DiscriminatorInference.Disabled, "discriminator-inference=false turns the policy off")
 	assert.True(t, opts.PaginationInference.Disabled, "pagination-inference=false turns the policy off")
 	assert.True(t, opts.IdempotencyInference.Disabled, "idempotency-inference=false turns the policy off")
@@ -276,8 +276,8 @@ func TestDecodeOptions_Refusals(t *testing.T) {
 			`"streaming-media": want media types or +suffixes separated by commas, got "+a+json-seq"`},
 		{"a suffix of a plus", map[string]string{"streaming-media": "++"},
 			`"streaming-media": want media types or +suffixes separated by commas, got "++"`},
-		{"non-boolean policy", map[string]string{"nullable-widening": "maybe"},
-			`option "nullable-widening": want a boolean, got "maybe"`},
+		{"non-boolean policy", map[string]string{"nullable-inference": "maybe"},
+			`option "nullable-inference": want a boolean, got "maybe"`},
 		{"non-boolean inference", map[string]string{"streaming-inference": "maybe"},
 			`option "streaming-inference": want a boolean, got "maybe"`},
 		{"entry naming no binary media type", map[string]string{"binary-media": "image/png,pdf"},
