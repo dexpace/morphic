@@ -324,6 +324,7 @@ var rules = map[string][]string{
 	// member for off the raw node, through nodeview.
 	"compilers/openapi/internal/auth": {module + "/ir",
 		module + "/compilers/openapi/internal/annotation",
+		module + "/compilers/openapi/internal/bind",
 		module + "/compilers/openapi/internal/diag",
 		module + "/compilers/openapi/internal/ids",
 		module + "/compilers/openapi/internal/lowering",

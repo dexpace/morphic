@@ -52,7 +52,7 @@ func (o *objects) hopAt(p Position) (objectHop, objectKey) {
 		o.hops[p] = objectHop{hop: Hop{Status: OverBudget}}
 		return o.hops[p], objectKey{}
 	}
-	ref, _ := o.b.docs.refOf(p.Doc, o.b.docs.node(p))
+	ref := o.refAt(p)
 	h, need := o.readRef(p.Doc, ref)
 	if need.kind != 0 {
 		return objectHop{}, need
@@ -159,8 +159,12 @@ func (o *objects) settle(key objectKey) {
 	}
 }
 
-// refAt is the $ref the reference object at p writes.
+// refAt is the $ref the reference object at p writes, or the key a
+// requirement key at p is read by (finder.requirementKeys).
 func (o *objects) refAt(p Position) string {
+	if key, ok := o.b.docs.keyRefs[p]; ok {
+		return key
+	}
 	ref, _ := o.b.docs.refOf(p.Doc, o.b.docs.node(p))
 	return ref
 }

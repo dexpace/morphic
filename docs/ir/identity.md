@@ -107,6 +107,13 @@ declares records none: no position writes it, and a pointer under `components` w
 the document does not hold, so `irverify` has no pointer to compare its path with, as it has none
 for `server/default`.
 
+An OpenAPI 3.2 requirement key that is a URI names a scheme by position. One declared outside the
+source's `components/securitySchemes` takes the ID its pointer derives in its own document, the
+document's qualified space for another document's:
+`auth/openapi/x-schemes/extra`, `auth/openapi@schemes.yaml/components/securitySchemes/shared`. One
+landing on nothing is minted from the key in the unresolved space of the document writing it,
+`unresolved@schemes.yaml` for another document's, so one key two documents write is two schemes.
+
 `unresolved` is `ir.IDSpaceUnresolved`, one spelling for every format, since `irverify` holds the
 kind to it whichever format minted the scheme. A consumer reads the kind, an ID being opaque to it.
 The namespace is reserved, like `prim`: `irverify` reports a scheme of that kind outside it, and one

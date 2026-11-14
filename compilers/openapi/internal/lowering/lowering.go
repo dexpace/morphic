@@ -413,10 +413,6 @@ func (c Ctx) SchemaRules() oas.SchemaRules { return rowsOf(c).Schema }
 // where its encoding leaves a field unwritten.
 func EncodingRules(c Ctx) oas.EncodingRules { return rowsOf(c).Encoding }
 
-// SecurityRules returns the Security Requirement Object's rows a requirement c
-// lowers is read with (rowsOf): whether its key may name a scheme by URI.
-func SecurityRules(c Ctx) oas.SecurityRules { return rowsOf(c).Security }
-
 // rowsOf returns what the table says at the minor of the document whose
 // content c reads, in the dialect its jsonSchemaDialect names
 // (load.Other.Rows), the source's for its own (load.Document.Rows).

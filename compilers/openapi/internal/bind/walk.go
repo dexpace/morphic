@@ -163,6 +163,10 @@ func (w *finder) declared(n *yaml.Node, f frame) frame {
 
 // visit notes what the position f, holding n, gives the table.
 func (w *finder) visit(n *yaml.Node, f frame) {
+	if f.state == sSecurityRequirement {
+		w.requirementKeys(n, f)
+		return
+	}
 	if f.state != sSchema {
 		w.objectOf(n, f)
 		return
@@ -188,6 +192,27 @@ func (w *finder) objectOf(n *yaml.Node, f frame) {
 	if k := (objectKey{at: f.at, kind: kind}); !w.objects[k] {
 		w.objects[k] = true
 		w.freshObjects = append(w.freshObjects, k)
+	}
+}
+
+// requirementKeys notes each key of the Security Requirement Object n, at f,
+// that names no securitySchemes component of the source, as a reference to a
+// Security Scheme Object written where the key is, the key its URI, where the
+// document holding it reads a key as a URI (Config.KeysByURI).
+func (w *finder) requirementKeys(n *yaml.Node, f frame) {
+	if n.Kind != yaml.MappingNode || !w.docs.keysByURI(f.at.Doc) {
+		return
+	}
+	for _, p := range nodeview.Pairs(n) {
+		if w.docs.schemes[p.Key] {
+			continue
+		}
+		at := f.at.below(p.Key)
+		w.docs.keyRefs[at] = p.Key
+		if k := (objectKey{at: at, kind: RefSecurityScheme}); !w.objects[k] {
+			w.objects[k] = true
+			w.freshObjects = append(w.freshObjects, k)
+		}
 	}
 }
 

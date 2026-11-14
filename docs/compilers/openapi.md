@@ -5549,18 +5549,22 @@ spellings apart in `Service.Auth`.
 A requirement's key names an entry of the source's `securitySchemes`, whichever document holds the
 requirement, matched exactly, in the specification's order. A key that is the name of an entry is
 that name, at every minor. From 3.2, which lets a key be the URI of a Security Scheme Object, any
-other key is read as a reference is, against the document holding the requirement
-([`references`](#references)), and one naming the position of an entry of the source's
-`securitySchemes` names that entry, as its name would. Any other key is the name it spells; 3.0 and
-3.1 define no URI form, so there a key is a name alone. A name that reaches no mechanism lowers to a
+other key is a reference, read against the document holding the requirement
+([`references`](#references)), a bare word as a relative URI: one landing on an entry of the source's
+`securitySchemes`, or naming one that resolves to nothing, names that entry, as its name would, and
+one landing on a Security Scheme Object anywhere else, in the source or another document, names that
+object, lowered once where it is declared, under the ID its position there derives
+([identity](../ir/identity.md)), whichever requirement reaches it first. 3.0 and 3.1 define no URI
+form, so there a key is a name alone. A name that reaches no mechanism lowers to a
 scheme of kind `unresolved` ([auth](../ir/auth.md#unresolved-schemes)), one per name, and is
 reported as an `openapi/unresolved-security-scheme` error at each requirement, quoting the key as
 written. Where a declared scheme that reaches a mechanism is a near miss of the name, the error
 names it, resolution staying exact: the first that holds of the same neutral name, the same letters
 and digits in any case, and, for a name of 4 to 64 bytes where at most 64 declared schemes reach a
 mechanism, a name one edit apart, an insertion, a deletion, a substitution or two adjacent runes
-swapped, the least in byte order where several do. In a 3.2 document the error then adds that a URI
-naming a Security Scheme Object outside the source's `securitySchemes` is not read. Nothing else
+swapped, the least in byte order where several do. A key read as a reference that lands on nothing adds why,
+in the words the reference's own report would use, and lowers to a scheme minted from the key and the
+document writing it, so one key in two documents is two schemes. Nothing else
 about the requirement changes: the option keeps its other schemes, its scopes and its place in the
 list, so an operation stating its own requirement does not read as inheriting, and an option whose
 name reaches no mechanism does not vanish from the options beside it. The error stands however the
@@ -5629,7 +5633,7 @@ requirement naming no scheme and a scheme naming no mechanism, and leaves them t
   `auth.TestSecurityRequirement_ARepeatedScopeIsKeptOnce`,
   `auth.TestSecurityRequirement_A32KeyMayNameItsSchemeByURI`,
   `auth.TestSecurityRequirement_A31KeyIsAName`,
-  `auth.TestSecurityRequirement_A32UnresolvedNameSaysWhatIsNotRead`,
+  `auth.TestSecurityRequirement_A32URIIsReadWhereverItLands`,
   `auth.TestSecurityRequirement_AURIIsReadInTheDocumentHoldingIt`,
   `auth.TestSecurityRequirement_ANameAndItsURIAreOneSchemeInEitherOrder`,
   `auth.TestSecurityRequirement_AKeyAnotherDocumentMintsStillNamesTheSourcesEntry`,
@@ -5640,9 +5644,8 @@ requirement naming no scheme and a scheme naming no mechanism, and leaves them t
   `auth.TestNearest_ReadsOneEditWithinItsBounds`, `auth.TestOneEditApart_CountsOneEdit`,
   `lowering.TestFirstOccurrences_KeepsEachEntryOnceAtItsFirst`,
   `auth.TestAuth_RequirementsOrOfAnds`
-- Status: partly built: a 3.2 requirement naming a scheme by a URI outside the source's
-  `components/securitySchemes` lowers as unresolved (#1869), and so does one naming the source by
-  its `$self` (#863), a field under a tag outside YAML's JSON schema ruleset reads as left out, so
+- Status: partly built: a 3.2 requirement naming the source by its `$self` lowers as unresolved
+  (#863), a field under a tag outside YAML's JSON schema ruleset reads as left out, so
   `scheme: !local bearer` is reported as omitted and names no mechanism, and a `security` list under
   a local tag inherits with no finding (#1368), and a `$ref` written as null refuses the whole
   document (#1284).
