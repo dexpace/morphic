@@ -64,6 +64,11 @@ type Config struct {
 	// resource and holds its subschemas (DialectRule). Nil, or the zero rule,
 	// reads it as JSON Schema 2020-12 does.
 	Dialect func(name, dialect string) DialectRule
+	// Components is the keys of the source's schema components. A
+	// discriminator mapping value spelling one names that component, in
+	// whichever document it is written, so the table reads every other value,
+	// and none of these, as a reference (Table.Mapping).
+	Components []string
 }
 
 // DialectRule is what the table reads otherwise in a dialect than in 2020-12.
@@ -495,8 +500,8 @@ func (t *Table) Entries() []Entry {
 }
 
 // Mapping returns where the mapping value written by the discriminator at at
-// lands, and false for one the table did not read: a value with no '#', which
-// names a component by name.
+// lands, and false for one the table did not read: a value naming a schema
+// component of the source (Config.Components), or one it left unread (Unread).
 func (t *Table) Mapping(at Position, value string) (Mapping, bool) {
 	m, ok := t.mappings[mappingKey{at: at, value: value}]
 	return m, ok

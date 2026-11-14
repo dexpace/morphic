@@ -148,7 +148,7 @@ x-lib:
 - Verified at: v1.26.3
 - Pinned by: `TestLibraryBehaviour/mapping-unresolved`
 - Code:
-  - `bind.finder.mappingsOf` notes each mapping value that can name a position, to be bound.
+  - `bind.finder.mappingsOf` notes each mapping value naming no schema component, to be bound.
 
 ### `reference-object-cycle`
 

@@ -220,10 +220,10 @@ type variantTypeFunc func(b *oas3.JSONSchema[oas3.Referenceable], vptr jsontext.
 // (spellImplicitRoutes). common is already built by the caller (internNode), so
 // buildUnion needs no hint of its own to build one, and it places the union.
 //
-// The variants are lowered before the discriminator, so its mapping resolves
-// knowing what each variant names (readsThrough). A union the discriminator
-// routes is WireTagged, an anyOf as much as a oneOf: the tag property's value
-// names its variant (docs/ir/unions.md).
+// The variants are lowered before the discriminator, so its mapping routes to
+// them (indexBranches). A union the discriminator routes is WireTagged, an
+// anyOf as much as a oneOf: the tag property's value names its variant
+// (docs/ir/unions.md).
 func buildUnion(c lowering.Ctx, ts *compile.Types, u unionAt, common ir.TypeCommon, variantType variantTypeFunc,
 ) (*ir.Union, []ir.Diagnostic) {
 	branches, key, exclusive := unionBranches(u.holder)
@@ -247,14 +247,17 @@ func buildUnion(c lowering.Ctx, ts *compile.Types, u unionAt, common ir.TypeComm
 		Exclusive:  exclusive,
 		Closed:     true,
 	}
-	route := mappingRoute{variants: variantTargets(variants), referents: referencedVariants(c, ts, u.holder, variants)}
-	disc, discDiags := lowerDiscriminator(c, ts, u.disc, u.discAt, nil, route)
+	var x *branchIndex
+	if u.disc != nil {
+		x = indexBranches(c, u, variants)
+	}
+	disc, discDiags := lowerDiscriminator(c, ts, u.disc, u.discAt, nil, x)
 	node.Discriminator = disc
 	node.WireTagged = disc != nil
 	diags = append(diags, discDiags...)
 	diags = append(diags, keepBranchDiscriminatorKeys(c, node, u)...)
 	diags = append(diags, spellImplicitRoutes(c, u.holder, node, common.Provenance.Pointer)...)
-	deferUnionTags(c, ts, u, common.ID, common.Provenance.Pointer)
+	deferUnionTags(c, ts, u, node, common.Provenance.Pointer)
 	return node, diags
 }
 
@@ -433,11 +436,6 @@ func lowerUnion(c lowering.Ctx, ts *compile.Types, depth int, s *oas3.Schema, po
 				Name: compile.NamingHint(string(st)),
 				Type: ir.TypeRef{Target: vid},
 			})
-		}
-		// A type array listing no object routes no instance and resolves nothing,
-		// as no node keeping a discriminator verbatim does (GitHub #1662, #1708).
-		if slices.Contains(types, oas3.SchemaTypeObject) {
-			diags = append(diags, resolveDiscriminatorRoutes(c, ts, s, pointer)...)
 		}
 		return &ir.Union{
 			TypeCommon: common,
@@ -632,7 +630,7 @@ func classifyUnionSiblings(c lowering.Ctx, s *oas3.Schema, pointer jsontext.Poin
 // with u routes to branches composing s (composedByBranch), composed as a mixin
 // where one on an ancestor routes to s (routedSubtype, lowerSubtypeUnion); else
 // distributed, the discriminator routing the composed variants
-// (referencedVariants).
+// (indexBranches).
 func classifyConjoined(c lowering.Ctx, s *oas3.Schema, u unionAt, pointer jsontext.Pointer) unionLowering {
 	if composedByBranch(c, s, u) {
 		return unionHierarchyBase
@@ -870,7 +868,8 @@ func lowerDistributedUnion(c lowering.Ctx, ts *compile.Types, depth int, s *oas3
 		diags = append(diags, unionDiags...)
 		return def
 	})
-	diags = append(diags, preserveVariantsUnhomed(c, ts, s, id, distributedShape, nil, pointer)...)
+	// The union read s's discriminator, so one it cannot hold says why.
+	diags = append(diags, preserveVariantsUnhomed(c, ts, s, id, taglessShape(nil, s, distributedShape), nil, pointer)...)
 	where := "co-declared with structural keywords"
 	if u.holder != s {
 		where = "written on an allOf branch conjoins with the rest of the composition"
@@ -885,12 +884,13 @@ func lowerDistributedUnion(c lowering.Ctx, ts *compile.Types, depth int, s *oas3
 // last Mixin a Union minted for u (mintUnion), as an allOf naming a component
 // holding u composes it (docs/ir/models.md#a-union-a-composition-names). A
 // discriminator written beside u is the Union's, routing its variants, so the
-// Model neither lowers nor keeps it. The first lowering of the position composes
-// the union, and any later one finds it.
+// Model neither lowers nor keeps it, unless the Union cannot hold it
+// (tagLocated). The position's first lowering composes the union; a later one
+// finds it.
 func lowerSubtypeUnion(c lowering.Ctx, ts *compile.Types, depth int, s *oas3.Schema, u unionAt, pointer jsontext.Pointer) (ir.TypeID, []ir.Diagnostic) {
 	_, lowered := ts.Lookup(c.IDs().Coordinate(pointer))
 	d := dispatchOf(s)
-	if u.disc != nil && u.discAt == pointer {
+	if u.disc != nil && u.discAt == pointer && tagLocated(u.disc, nil) {
 		d.said = append(d.said, "discriminator")
 	}
 	id, diags := lowerElected(c, ts, depth, s, pointer, d)

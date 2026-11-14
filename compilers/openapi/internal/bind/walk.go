@@ -245,9 +245,10 @@ func (w *finder) landOn(from Position, h Hop) {
 }
 
 // mappingsOf notes each value of the discriminator the schema at at, holding
-// n, writes that can name a position: one holding a '#', which a component's
-// bare name cannot (lowering reads any other as a name). The parser reads none
-// (docs/parser-library.md#mapping-unresolved), so each is bound here.
+// n, writes that names no schema component of the source (Config.Components):
+// a URI reference, with a fragment or without, as OpenAPI reads a value naming
+// no schema. The parser reads none (docs/parser-library.md#mapping-unresolved),
+// so each is bound here.
 func (w *finder) mappingsOf(n *yaml.Node, at Position) {
 	view := w.docs.list[at.Doc].view
 	d := nodeview.Deref(view.ChildByToken(n, "discriminator"))
@@ -263,7 +264,7 @@ func (w *finder) mappingsOf(n *yaml.Node, at Position) {
 	}
 	values = append(values, view.ChildByToken(d, "defaultMapping"))
 	for _, v := range values {
-		if v = nodeview.Deref(v); v == nil || v.Kind != yaml.ScalarNode || !containsHash(v.Value) {
+		if v = nodeview.Deref(v); v == nil || v.Kind != yaml.ScalarNode || w.docs.components[v.Value] {
 			continue
 		}
 		if k := (mappingKey{at: disc, value: v.Value}); !w.mappingSites[k] {
@@ -271,11 +272,6 @@ func (w *finder) mappingsOf(n *yaml.Node, at Position) {
 			w.freshMappings = append(w.freshMappings, k)
 		}
 	}
-}
-
-// containsHash reports whether value holds a '#'.
-func containsHash(value string) bool {
-	return slices.Contains([]byte(value), '#')
 }
 
 // pushChildren returns stack with the positions directly below f, whose node is
