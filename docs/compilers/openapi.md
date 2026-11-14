@@ -1169,14 +1169,33 @@ left unresolved. It is read at every minor: a 3.0 or 3.1 document writing one lo
 and is reported, as for every construct a later minor added, with an
 `openapi/later-version-construct` warning ([`later-version-construct`](#later-version-construct)).
 
+A document's `$self`, resolved against where the document was read, is its base and a name of it,
+as OpenAPI 3.2 has it, in the source and in every document a reference reads. Every relative
+reference in it, a schema's, a mapping value or a reference object's, is read against it, as under
+an `$id`: judged for refusal as written while only a relative `$self` moved the base, and as the URI
+it resolves to once an absolute one did. A reference naming the document by its `$self` lands in
+it with no read, a security requirement key among them, and a schema whose `$id` names it roots no
+resource, so its `$schema` chooses no dialect. Another document's `$self` is declared at its root as
+an `$id` is. The location the document was read from still decides what it may reach: a `$self`
+never moves a fetched document's reference onto a file, which is an `openapi/unresolved-ref`
+error where the reference is written. A `$self` holding a `#` is the rule table's format error at
+`#/$self`, and names nothing. So a 3.2 document whose `$self` is an http(s) URL
+reads the documents its relative references name from that URL, not from the files beside it; a
+`locate` option ([`references`](#references)) maps the URL to them.
+
 - Cases: `self-uri`
-- Codes: `openapi/later-version-construct`
+- Codes: `openapi/later-version-construct`, `openapi/unresolved-ref`
 - Tests: `openapi.TestCompile_RecordsSelfURI`,
-  `e2e.TestReferenceObjects_ADocumentPartIsReadWhereTheSourceLies`
-- Status: partly built: OpenAPI 3.2 makes `$self`, resolved against the retrieval URI, the base of
-  every relative reference in every document. No document's `$self` is read as a base: every
-  reference, a schema's, a mapping value or a reference object's, is read against the location the
-  document was read from (#863).
+  `e2e.TestReferenceObjects_ADocumentPartIsReadWhereTheSourceLies`,
+  `e2e.TestCompile_ASelfURIIsTheNameOfTheDocumentAndItsBase`,
+  `e2e.TestCompile_ARelativeReferenceUnderAnHTTPSelfNamesAURL`,
+  `e2e.TestCompile_ASelfURIMovesNoFetchedDocumentOntoAFile`,
+  `e2e.TestCompile_ARelativeSelfIsResolvedAgainstWhereTheDocumentWasRead`,
+  `e2e.TestCompile_ASelfNamingTheIdentifierOfASchemaRootsNothing`,
+  `e2e.TestCompile_ARequirementKeyNamingTheSelfNamesTheSchemeOfTheSource`,
+  `e2e.TestCompile_ASelfHoldingAFragmentIsAnErrorAndNamesNothing`,
+  `e2e.TestCompile_NothingIsMappedByInference`,
+  `e2e.TestCompile_ASourceReadOverTheNetworkReadsNoLocalFile`
 
 ### `verbatim-preservation`
 

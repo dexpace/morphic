@@ -82,7 +82,7 @@ func (b *binder) named(in resource, uri string) (resource, Reason, string) {
 		return resource{root: root, uri: key, id: true}, NoReason, ""
 	case why == DuplicateID:
 		return resource{}, why, key
-	case in.id && !fragment.Absolute(uri):
+	case (in.id || in.based) && !fragment.Absolute(uri):
 		return b.readAt(in, uri, key)
 	}
 	return b.opened(in, uri, key)

@@ -10,7 +10,10 @@ import (
 	"github.com/speakeasy-api/openapi/references"
 	"github.com/stretchr/testify/assert"
 
+	"github.com/dexpace/morphic/compilers/openapi/internal/bind"
+	"github.com/dexpace/morphic/compilers/openapi/internal/bind/typed"
 	"github.com/dexpace/morphic/compilers/openapi/internal/fragment"
+	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
 	"github.com/dexpace/morphic/compilers/openapi/internal/resolve"
 )
 
@@ -231,5 +234,26 @@ func TestInternalPointer_InAForeignScope(t *testing.T) {
 		if c.internal {
 			assert.Equal(t, "/components/schemas/A", string(pointer))
 		}
+	}
+}
+
+// TestInternalPointer_ASelfNamesTheSource holds a reference naming the source
+// by its $self, as the bindings read it, to a pointer into the source, and a
+// relative one to be read against the $self, not against where the source
+// lies: under it, the source's file name names a URL beside the $self.
+func TestInternalPointer_ASelfNamesTheSource(t *testing.T) {
+	t.Parallel()
+	table := bind.Bind(t.Context(), openapitest.YAMLDocument(t, "openapi: 3.2.0\n$self: https://e.test/api/a.yaml\n"),
+		bind.Config{Self: "dir/m.yaml"})
+	sc := resolve.Scope{SelfPath: "dir/m.yaml", Bindings: typed.NewBuilder(table).Bindings()}
+
+	for ref, want := range map[string]bool{
+		"https://e.test/api/a.yaml#/components/securitySchemes/k": true,
+		"a.yaml#/components/securitySchemes/k":                    true,
+		"m.yaml#/components/securitySchemes/k":                    false,
+		"https://e.test/api/b.yaml#/components/securitySchemes/k": false,
+	} {
+		_, ok := sc.InternalPointer(ref)
+		assert.Equal(t, want, ok, ref)
 	}
 }

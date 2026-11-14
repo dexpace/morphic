@@ -857,10 +857,12 @@ func TestCompile_ANetworkDocumentReadsNoLocalFileByAnyReference(t *testing.T) {
 // TestCompile_ASourceReadOverTheNetworkReadsNoLocalFile pins the boundary for
 // a source itself read over the network, with external references allowed or
 // not: a file: URI in a schema's $ref, a parameter's, a mapping value, or
-// below an $id is refused. A parameter's relative $ref under a 3.2 `$self`
-// naming a file URI or a path is read beside the source, on the network, as
-// no document's `$self` is a base (docs/compilers/openapi.md#self-uri).
-// Nothing local is read.
+// below an $id is refused. A 3.2 `$self` is the base
+// (docs/compilers/openapi.md#self-uri), resolved against where it was read:
+// naming a file URI it moves a relative $ref onto a file, which a document
+// read over the network never reaches, so it is refused; naming a path it
+// names that path on the source's host, read only where external references
+// are. Nothing local is read.
 func TestCompile_ASourceReadOverTheNetworkReadsNoLocalFile(t *testing.T) {
 	t.Parallel()
 	local := t.TempDir()
@@ -903,17 +905,21 @@ func TestCompile_ASourceReadOverTheNetworkReadsNoLocalFile(t *testing.T) {
 					assertNoLocalRead(t, compiled, "", true)
 					return
 				}
-				// A $self is no base, so its row names the document beside the
-				// source, on the network, read only where external references are.
+				for _, l := range rec.locations() {
+					assert.True(t, strings.HasPrefix(l, srv.URL+"/"), "nothing local is read: %s", l)
+				}
+				if strings.Contains(tc.name, "file URI") {
+					require.Len(t, diags, 1, "%+v", diags)
+					assert.Contains(t, diags[0].Message, bind.OffNetwork, "a $self moves no fetched read onto a file")
+					return
+				}
+				// The path the $self names is on the source's host.
 				if allow {
 					assertNoLocalRead(t, compiled, "", false)
 					return
 				}
-				for _, l := range rec.locations() {
-					assert.True(t, strings.HasPrefix(l, srv.URL+"/"), "nothing local is read: %s", l)
-				}
 				require.Len(t, diags, 1, "%+v", diags)
-				assert.Contains(t, diags[0].Message, "/v1/secret.yaml refused: it is on the network")
+				assert.Contains(t, diags[0].Message, srv.URL+dir+"secret.yaml refused: it is on the network")
 			})
 		}
 	}

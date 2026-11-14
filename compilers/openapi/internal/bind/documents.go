@@ -33,6 +33,9 @@ type document struct {
 	view    *nodeview.View
 	grammar bool
 	openapi bool
+	// self is the URI the document's $self names, resolved against its name,
+	// its base and a second name of it, or empty for none (selfOf).
+	self string
 }
 
 // docs is every document a table has read, and the work reading them costs.
@@ -75,9 +78,28 @@ func newDocs(root *yaml.Node, cfg Config, w *work) *docs {
 	for _, name := range cfg.Components {
 		components[name] = true
 	}
-	return &docs{cfg: cfg, list: []*document{src}, byName: map[string]DocID{cfg.Self: Source},
+	d := &docs{cfg: cfg, list: []*document{src}, byName: map[string]DocID{cfg.Self: Source},
 		failed: map[string]error{}, work: w, reached: map[DocID]bool{Source: true}, rules: map[ruleKey]DialectRule{},
 		components: components}
+	src.self = d.selfOf(src)
+	return d
+}
+
+// selfOf is the URI the $self doc's OpenAPI Object writes names, resolved
+// against where doc was read (resources.resolveURI), or empty: for a document
+// no OpenAPI Object roots, one writing no string $self, one whose $self holds
+// a `#`, which OpenAPI 3.2 forbids and the rule table reports, and one that
+// resolves to nothing.
+func (d *docs) selfOf(doc *document) string {
+	written, ok := scalarOf(doc.view.ChildByToken(doc.root, "$self"))
+	if !doc.openapi || !ok || strings.Contains(written, "#") {
+		return ""
+	}
+	uri, ok := resources{d}.resolveURI(strings.TrimSpace(written), doc.name)
+	if !ok {
+		return ""
+	}
+	return uri
 }
 
 // locate is the name of the document uri names, written in the document
@@ -125,7 +147,9 @@ func (d *docs) open(name string) (DocID, error) {
 	id := DocID(len(d.list))
 	root := nodeview.DocumentRoot(tree)
 	view := nodeview.New()
-	d.list = append(d.list, &document{name: name, root: root, view: view, openapi: writesOpenAPI(view, root)})
+	opened := &document{name: name, root: root, view: view, openapi: writesOpenAPI(view, root)}
+	opened.self = d.selfOf(opened)
+	d.list = append(d.list, opened)
 	d.byName[name] = id
 	d.reach(id)
 	return id, nil

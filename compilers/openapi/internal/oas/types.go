@@ -121,6 +121,9 @@ const (
 	// (RFC 9110 §5.1), so two keys of a map keyed by one that differ in case
 	// alone name one field.
 	FieldName
+	// SelfURI is a URI reference holding no fragment, not even an empty one,
+	// as OpenAPI 3.2 has a document's $self be.
+	SelfURI
 )
 
 // Level is how firmly the specification states a rule.

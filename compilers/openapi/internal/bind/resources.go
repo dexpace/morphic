@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"maps"
 	"net/url"
+	"path/filepath"
 	"slices"
 	"strings"
 	"unicode/utf8"
@@ -29,10 +30,14 @@ type resource struct {
 	// id reports whether an $id names it, so that its name is an identifier
 	// rather than a document's location.
 	id bool
-	// detached reports that an $id on the way to it from its document's own
-	// names an absolute URI or path, so a read against its base is judged by
-	// the URI it resolves to rather than by its own relative spelling.
+	// detached reports that an $id on the way to it from its document's own,
+	// or the document's $self, names an absolute URI or path, so a read
+	// against its base is judged by the URI it resolves to rather than by its
+	// own relative spelling.
 	detached bool
+	// based reports that a document's $self names it, so a relative
+	// reference written in it is read against that URI, as under an $id.
+	based bool
 }
 
 // resources reads the schema resources of the documents a table reads: where
@@ -43,8 +48,21 @@ type resources struct {
 }
 
 // document is the resource of document id's own content.
+// A document whose $self names a URI is named and based by it (D14 of
+// docs/compilers/openapi.md#self-uri).
 func (r resources) document(id DocID) resource {
-	return resource{root: Position{Doc: id}, uri: r.docs.list[id].name}
+	d := r.docs.list[id]
+	if d.self == "" {
+		return resource{root: Position{Doc: id}, uri: d.name}
+	}
+	return resource{root: Position{Doc: id}, uri: d.self, based: true, detached: absoluteRef(d.self)}
+}
+
+// absoluteRef reports whether uri names a location wherever it is written: a
+// URI with a scheme, or an absolute path.
+func absoluteRef(uri string) bool {
+	u, err := url.Parse(uri)
+	return err == nil && u.Scheme != "" || filepath.IsAbs(uri)
 }
 
 // identifiers is every identifier the documents' schemas declare: each URI an
@@ -129,11 +147,17 @@ func (ix *identifiers) readsDialects(id DocID) bool {
 	return ix.named[id] || !ix.read[id]
 }
 
-// document adds r, doc's own resource, and returns its index.
+// document adds r, doc's own resource, and returns its index. Another
+// document than the source declares the URI its $self names at its root, as
+// an $id declares one; the source is named by its $self directly (names).
 func (ix *identifiers) document(doc DocID, r resource) int32 {
 	i := int32(len(ix.resources))
 	ix.resources = append(ix.resources, r)
 	ix.own[doc] = i
+	if r.based && doc != Source {
+		ix.declared[r.uri] = append(ix.declared[r.uri], r.root)
+		ix.byDoc[doc] = append(ix.byDoc[doc], r.uri)
+	}
 	return i
 }
 
@@ -351,10 +375,11 @@ func (r resources) enter(in resource, n *yaml.Node, rule DialectRule) (res resou
 }
 
 // names reports whether uri, as resolveURI spells one, names document id: its
-// name, or the name normalized where it is an absolute URI.
+// name, the URI its $self names, or the name normalized where it is an
+// absolute URI.
 func (r resources) names(id DocID, uri string) bool {
 	name := r.docs.list[id].name
-	if uri == name {
+	if uri == name || uri == r.docs.list[id].self {
 		return true
 	}
 	u, err := url.Parse(name)
