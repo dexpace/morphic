@@ -139,7 +139,6 @@ member 0 0 OperationGroup.stability
 member 0 0 OperationGroup.unmodeled
 member 0 0 Pagination.firstLink
 member 0 0 Pagination.lastLink
-member 0 0 Pagination.prevLink
 member 0 0 Parameter.availability
 member 0 0 Parameter.valueFrom
 member 0 0 PropPath.root
@@ -193,7 +192,6 @@ member 0 0 StreamCondition.value
 member 0 0 StreamDetail.condition
 member 0 0 StreamDetail.initial
 member 0 0 StreamDetail.requiresLength
-member 0 0 StreamDetail.terminator
 member 0 0 TemplateArg.type
 member 0 0 TemplateArg.value
 member 0 0 TemplateInstantiation.args

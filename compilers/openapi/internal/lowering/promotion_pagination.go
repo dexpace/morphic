@@ -31,6 +31,9 @@ const (
 	TargetPaginationItems ExtensionTarget = "pagination.items"
 	// TargetPaginationNextCursor is the next cursor in a page, NextCursor.
 	TargetPaginationNextCursor ExtensionTarget = "pagination.nextCursor"
+	// TargetPaginationHasMore is the flag in a page saying another page
+	// follows, HasMore, which ends the walk where it is false, null or absent.
+	TargetPaginationHasMore ExtensionTarget = "pagination.hasMore"
 	// TargetPaginationNextLink is the next page's link in a page, NextLink, a
 	// walk of strategy next_link where no input continues it.
 	TargetPaginationNextLink ExtensionTarget = "pagination.nextLink"
@@ -76,12 +79,55 @@ func (p Promoter) Sources(target ExtensionTarget) []ExtensionSource {
 // spells where it lists no Values, and whether its value is one of them where
 // it does. The key written false says nothing is there to read. Any other
 // value stating nothing to every pagination source of the key is reported,
-// worded alike for each of them, so one report stands per node.
-func PageStatementOf(p Promoter, target ExtensionTarget, src ExtensionSource, unmodeled ir.Unmodeled) (PageStatement, []ir.Diagnostic) {
+// worded alike for each, so one report stands per node. root is the document
+// root's Unmodeled where the node is an operation, and nil otherwise, as an
+// operation's true reads the root's (rootStatement).
+func PageStatementOf(p Promoter, target ExtensionTarget, src ExtensionSource, unmodeled, root ir.Unmodeled) (PageStatement, []ir.Diagnostic) {
 	entry, written := unmodeled[extensionKeyPrefix+src.Key]
 	if !written {
 		return PageStatement{}, nil
 	}
+	if root != nil && src.Member != "" && len(src.Values) == 0 && entry.Value.Kind() == 't' {
+		return rootStatement(p, target, src, entry, unmodeled, root)
+	}
+	return pageStatement(p, target, src, entry)
+}
+
+// pathItemKeyPrefix starts the key an operation keeps a vendor extension its
+// path item writes under, as the operation lowering spells it.
+const pathItemKeyPrefix = extensionKeyPrefix + "pathItem/"
+
+// rootStatement reads what src says on an operation writing its key true,
+// entry, beside the operation's own entries, own: the walk the document's
+// root, root, states under the same key, as if the operation wrote it, and
+// written either way. A root writing none, or no object, a true among them,
+// states nothing and is reported, the latter at the root's key, so every
+// operation writing true shares one finding. A statement its path item writes
+// is the nearer one, which no promotion reads (#1221), so the root's is not
+// taken in its place.
+func rootStatement(p Promoter, target ExtensionTarget, src ExtensionSource, entry ir.UnmodeledEntry, own, root ir.Unmodeled) (PageStatement, []ir.Diagnostic) {
+	st := PageStatement{At: entry.Provenance, Written: true}
+	if _, beside := own[pathItemKeyPrefix+src.Key]; beside {
+		return st, []ir.Diagnostic{diag.Newf(ir.SeverityInfo, diag.UnpromotedExtension, entry.Provenance,
+			"extension %q is true beside a statement its path item writes, which no promotion reads, so no "+
+				"pagination is filled for the operation", src.Key)}
+	}
+	stated, ok := root[extensionKeyPrefix+src.Key]
+	switch {
+	case !ok:
+		return st, []ir.Diagnostic{diag.Newf(ir.SeverityInfo, diag.UnpromotedExtension, entry.Provenance,
+			"extension %q is true, which reads the walk the document's root states under the same key, and the "+
+				"root writes none, so no pagination is inferred for the operation", src.Key)}
+	case stated.Value.Kind() != '{':
+		return st, []ir.Diagnostic{diag.Newf(ir.SeverityInfo, diag.UnpromotedExtension, stated.Provenance,
+			"extension %q is %s, not an object, so it states no walk for the operations that write true",
+			src.Key, shapeOf(stated.Value))}
+	}
+	return pageStatement(p, target, src, stated)
+}
+
+// pageStatement reads what src says in entry, a node's value of its key.
+func pageStatement(p Promoter, target ExtensionTarget, src ExtensionSource, entry ir.UnmodeledEntry) (PageStatement, []ir.Diagnostic) {
 	st := PageStatement{At: entry.Provenance, Written: true}
 	raw, at, held, located := src.value(entry)
 	switch {

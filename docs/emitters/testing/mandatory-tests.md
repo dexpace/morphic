@@ -727,8 +727,9 @@ throughout these documents.
     it has one, on each method the operation lowers to, its `WithResponse` method among them
     ([stability](../operations/stability.md)).
 45. **T-45 · Page walks** — on every target, a pager ends at the first page meeting each condition
-    `PagePlan.Stop` lists, alone and together, `short` against the limit the call sent and `total`
-    against both totals; a condition the page gives nothing to read for ends nothing; and whatever
+    `PagePlan.Stop` lists, alone and together, `short` against the limit the call sent, `total`
+    against both totals and `no_more` at a page whose flag is false, null or absent though it hands
+    back a cursor; a condition the page gives nothing to read for ends nothing; and whatever
     `Stop` lists, the walk ends at a page giving no continuation under each strategy reading one,
     `link_header` among them, and at a page holding no items under `offset` or `page`; under an
     empty `Stop` a repeat on a page holding no items ends it too, a link resolving to its own page's
@@ -1496,3 +1497,7 @@ throughout these documents.
     them, and none on a first generation; and no generated file states an SDK's version, a Kotlin
     build whose `version` is set publishing every module and its platform at it
     ([surface verification](../surface-verification.md#the-level-a-regeneration-reports)).
+76. **T-76 · A choice among parameters** — on every target, a request setting one variant's
+    parameters validates, one setting two variants' fails naming the choice, and one setting none
+    fails only where the choice is required ([choices among
+    parameters](../../ir/operations.md#choices-among-parameters)).

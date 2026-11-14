@@ -41,7 +41,7 @@ func TestPageStatementOf_ReadsAnExpressionOrAMark(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			entries := ir.Unmodeled{"openapi:" + tc.src.Key: vendorExtension(tc.value)}
-			got, diags := lowering.PageStatementOf(p, lowering.TargetPaginationCursor, tc.src, entries)
+			got, diags := lowering.PageStatementOf(p, lowering.TargetPaginationCursor, tc.src, entries, nil)
 			assert.Equal(t, tc.want.Expression, got.Expression)
 			assert.Equal(t, tc.want.Stated, got.Stated)
 			assert.Equal(t, tc.want.Written, got.Written)
@@ -55,7 +55,7 @@ func TestPageStatementOf_ReadsAnExpressionOrAMark(t *testing.T) {
 	}
 	for _, src := range []lowering.ExtensionSource{expression, mark} {
 		got, diags := lowering.PageStatementOf(p, lowering.TargetPaginationCursor, src,
-			ir.Unmodeled{"openapi:x-other": vendorExtension(`{"cursor":"$request.c","purpose":"cursor"}`)})
+			ir.Unmodeled{"openapi:x-other": vendorExtension(`{"cursor":"$request.c","purpose":"cursor"}`)}, nil)
 		assert.Equal(t, lowering.PageStatement{}, got, "a node keeping another key: %s", src)
 		assert.Empty(t, diags)
 	}
@@ -170,7 +170,7 @@ func TestPageStatementOf_ReportsWhatStatesNoValueOfAWalk(t *testing.T) {
 				target = lowering.TargetPaginationNextLink
 			}
 			got, diags := lowering.PageStatementOf(p, target, tc.src,
-				ir.Unmodeled{"openapi:" + tc.src.Key: vendorExtension(tc.value)})
+				ir.Unmodeled{"openapi:" + tc.src.Key: vendorExtension(tc.value)}, nil)
 			assert.True(t, got.Written, "a key the node keeps is written, whatever it holds")
 			assert.Equal(t, tc.stated, got.Stated)
 			if tc.report == "" {
@@ -188,4 +188,63 @@ func TestPageStatementOf_ReportsWhatStatesNoValueOfAWalk(t *testing.T) {
 			assert.Equal(t, want, string(diags[0].Provenance.Pointer), "the report sits at what it is about")
 		})
 	}
+}
+
+// TestPageStatementOf_ReadsTheRootForTrue holds an operation's key written true,
+// where its source reads a member, to the statement the document's root
+// writes under the key: read as if the operation wrote it, and written either
+// way. A root writing none, or no object, a true among them, and a path
+// item's statement beside the true each state nothing and are reported, the
+// root's value at the root's key; a node that is no operation, given no root,
+// reads its true as before.
+func TestPageStatementOf_ReadsTheRootForTrue(t *testing.T) {
+	t.Parallel()
+	src := lowering.ExtensionSource{Key: "x-page", Member: "cursor"}
+	p := promoter(mapping(lowering.TargetPaginationCursor, src))
+	onTrue := ir.Unmodeled{"openapi:x-page": opKey(`true`)}
+	rootKey := func(value string) ir.Unmodeled {
+		return ir.Unmodeled{"openapi:x-page": {Reason: ir.ReasonVendorExtension, Value: ir.RawValue(value),
+			Provenance: ir.Provenance{Pointer: "/x-page"}}}
+	}
+	for _, tc := range []struct {
+		name          string
+		own, root     ir.Unmodeled
+		want          lowering.PageStatement
+		code, pointer string
+	}{
+		{"a root stating the walk", onTrue, rootKey(`{"cursor":"$request.c"}`),
+			lowering.PageStatement{Expression: "$request.c", At: ir.Provenance{Pointer: "/x-page/cursor"}, Stated: true,
+				Written: true}, "", ""},
+		{"a root writing none", onTrue, ir.Unmodeled{},
+			lowering.PageStatement{At: opAt(), Written: true}, "openapi/unpromoted-extension", "/paths/~1x/get/x-page"},
+		{"a root writing true", onTrue, rootKey(`true`),
+			lowering.PageStatement{At: opAt(), Written: true}, "openapi/unpromoted-extension", "/x-page"},
+		{"a path item's statement beside the true", ir.Unmodeled{"openapi:x-page": opKey(`true`),
+			"openapi:pathItem/x-page": opKey(`{"cursor":"$request.d"}`)}, rootKey(`{"cursor":"$request.c"}`),
+			lowering.PageStatement{At: opAt(), Written: true}, "openapi/unpromoted-extension", "/paths/~1x/get/x-page"},
+		{"no root, as for a node that is no operation", onTrue, nil,
+			lowering.PageStatement{At: opAt(), Written: true}, "openapi/degraded-construct", "/paths/~1x/get/x-page"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			got, diags := lowering.PageStatementOf(p, lowering.TargetPaginationCursor, src, tc.own, tc.root)
+			assert.Equal(t, tc.want, got)
+			if tc.code == "" {
+				assert.Empty(t, diags)
+				return
+			}
+			require.Len(t, diags, 1)
+			assert.Equal(t, tc.code, diags[0].Code)
+			assert.Equal(t, ir.SeverityInfo, diags[0].Severity)
+			assert.Equal(t, tc.pointer, string(diags[0].Provenance.Pointer))
+		})
+	}
+}
+
+// opAt is where opKey writes its value.
+func opAt() ir.Provenance { return ir.Provenance{Pointer: "/paths/~1x/get/x-page"} }
+
+// opKey is an operation's key holding rawJSON.
+func opKey(rawJSON string) ir.UnmodeledEntry {
+	return ir.UnmodeledEntry{Reason: ir.ReasonVendorExtension, Value: ir.RawValue(rawJSON), Provenance: opAt()}
 }

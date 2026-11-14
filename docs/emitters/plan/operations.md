@@ -42,6 +42,7 @@ type PagePlan struct {                // item-type unwrap is a PLAN decision
                                       // (policy.md); nil under any other strategy
     TotalCount *ir.PropPath           // the items in all, which "total" reads
     TotalPages *ir.PropPath           // the pages in all, which "total" reads
+    HasMore    *ir.PropPath           // the page's flag that another follows, which "no_more" reads
     Stop       []ir.PageStop          // the IR's stop rules; empty = none stated, none guessed
     Inferred   bool                   // heuristic pagination (may be disabled by policy)
 }
@@ -82,6 +83,8 @@ reads them there, `Operation.Request` and `Operation.OneWay`, as it reads the id
 parameter `Operation.Idempotency` names. Whether the operation is safe or idempotent is `Effects`,
 since the IR states it for few operations and a binding, an HTTP method or a GraphQL operation's
 kind, states it for most ([plan policy](policy.md#an-operations-effects-come-from-its-binding)).
+A choice among parameters is read from the IR, `Operation.ParamChoices`, as the idempotency-token
+parameter is: the IR states it and the plan classifies nothing.
 And whether an operation's inputs are passed positionally or inside an options object differs by
 language, so it is each target's ([request shaping](../refine/requests.md)); the neutral facts it is
 decided from are already here — `BindingView` says where each input binds, and `Parameter.Required`

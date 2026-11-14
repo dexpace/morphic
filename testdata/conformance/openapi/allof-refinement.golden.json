@@ -954,7 +954,7 @@
           "type": {
             "target": "t/anon/components/schemas/Zone/properties/owner",
             "nullable": true,
-            "inferred": "nullable-widening"
+            "inferred": "nullable-inference"
           },
           "required": false,
           "clientOptional": false,
@@ -1357,7 +1357,7 @@
     {
       "severity": "info",
       "code": "openapi/inferred-nullable",
-      "message": "nullable: true is read as admitting null under the nullable-widening policy, though OpenAPI 3.0 applies nullable only to a type written in the same Schema Object, and this schema writes none; a reference whose null rests on it is marked inferred",
+      "message": "nullable: true is read as admitting null under the nullable-inference policy, though OpenAPI 3.0 applies nullable only to a type written in the same Schema Object, and this schema writes none; a reference whose null rests on it is marked inferred",
       "provenance": {
         "source": 0,
         "pointer": "/components/schemas/Zone/properties/owner/allOf/1/nullable"

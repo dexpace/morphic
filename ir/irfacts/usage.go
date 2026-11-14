@@ -250,10 +250,14 @@ func (r usageRoots) stream(s *ir.StreamDetail, flags UsageFlags) {
 	r.ref(s.Initial, flags)
 }
 
-// params records the type of each parameter in ps.
+// params records the type of each parameter in ps, and the type its encoding
+// says its value holds once decoded.
 func (r usageRoots) params(ps []ir.Parameter, flags UsageFlags) {
 	for i := range ps {
 		r.ref(&ps[i].Type, flags)
+		if e := ps[i].Encoding; e != nil {
+			r.ref(e.Schema, flags)
+		}
 	}
 }
 

@@ -9,6 +9,7 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/runtimeexpr"
+	"github.com/dexpace/morphic/compilers/openapi/internal/whole"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -27,6 +28,18 @@ func TestBodyPath_WalksEveryContentToTheSameMembers(t *testing.T) {
 	}{
 		"a body the document does not describe": {
 			body: nil, tokens: []string{"info"}, why: "reads a request body the document does not describe",
+		},
+		"a body that is an alias of the model": {
+			body: body(content("application/json", "t/pagealias2")), tokens: []string{"info", "next"},
+			want: []ir.PropID{"p/info", "p/next"},
+		},
+		"the same member through an alias in a later content": {
+			body: body(json, content("application/xml", "t/pagealias")), tokens: []string{"info", "next"},
+			want: []ir.PropID{"p/info", "p/next"},
+		},
+		"another declaration through an alias in a later content": {
+			body: body(json, content("application/xml", "t/rivalalias")), tokens: []string{"info", "next"},
+			why: "reads /info/next, which the request body's media types hold as different members",
 		},
 		"a body of no content": {
 			body: body(), tokens: []string{"info"}, why: "reads a request body the document does not describe",
@@ -53,7 +66,7 @@ func TestBodyPath_WalksEveryContentToTheSameMembers(t *testing.T) {
 	} {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
-			got, why, ok := runtimeexpr.BodyPath(runtimeexpr.NewLookups(registry()), tc.body, tc.tokens, "request")
+			got, why, ok := runtimeexpr.BodyPath(whole.New(&ir.Document{Types: registry()}), tc.body, tc.tokens, "request")
 			assert.Equal(t, tc.why == "", ok)
 			assert.Equal(t, tc.why, why)
 			assert.Equal(t, tc.want, got)

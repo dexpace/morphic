@@ -1,14 +1,13 @@
 // Copyright (c) 2026 dexpace.
 // Licensed under the MIT License. See LICENSE in the repository root for details.
 
-package lowering_test
+package whole_test
 
 import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 
-	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -60,7 +59,8 @@ func TestParamIndex_NamedReadsALocationQualifiedName(t *testing.T) {
 		{"region", "", 0},
 		{"nope", "", 0},
 	} {
-		id, matched := lowering.IndexParams(paramsOp()).Named(tc.key)
+		w, op := wholeOf(*paramsOp())
+		id, matched := w.Params(op).Named(tc.key)
 		assert.Equal(t, tc.want, id, tc.key)
 		assert.Equal(t, tc.matched, matched, tc.key)
 	}
@@ -76,7 +76,8 @@ func TestParamIndex_LeavesTheHostOut(t *testing.T) {
 		{Param: "param/x/host", Location: ir.HTTPLocationHost, WireName: "id"},
 		{Param: "param/x/id", Location: ir.HTTPLocationQuery, WireName: "id"},
 	}}}}}
-	ix := lowering.IndexParams(op)
+	w, held := wholeOf(*op)
+	ix := w.Params(held)
 	assert.Equal(t, []ir.ParamID{"param/x/id"}, ix.Bound("", "id"))
 	assert.Empty(t, ix.Bound(ir.HTTPLocationHost, "id"))
 }

@@ -1,7 +1,7 @@
 openapi: 3.0.3
 # OpenAPI 3.0's `nullable: true` adds null to the type written in the same
 # Schema Object, which every other keyword of that schema conjoins with. Each
-# property but `typed` and `listed` admits null only as the nullable-widening
+# property but `typed` and `listed` admits null only as the nullable-inference
 # policy reads the keyword, admitting null for the whole schema it is on: no
 # type beside it, an enum listing no null, an allOf whose branch excludes null.
 info: {title: NullableKeyword30, version: "1.0.0"}

@@ -75,3 +75,8 @@ func IDListsSorted(e *Editor) int { return e.declared.sorted }
 // StoredSteps returns how many steps l stores for the paths it holds, so ir's
 // external tests can hold it to keeping each step a run of paths shares once.
 func (l *PathLog) StoredSteps() int { return len(l.tails) }
+
+// Steps returns how many steps the walks of r's Member calls have taken in all,
+// counted as FlattenSteps counts a flattening's, so ir's external tests can
+// hold the cost of one call to the composition it reads.
+func (r *MemberReader) Steps() int { return r.steps }

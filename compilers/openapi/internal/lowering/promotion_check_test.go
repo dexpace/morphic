@@ -96,7 +96,8 @@ func TestListsValues_NamesTheTargetsStatingAFact(t *testing.T) {
 	}
 	assert.Equal(t, []lowering.ExtensionTarget{
 		lowering.TargetDeprecation, lowering.TargetEnumOpen,
-		lowering.TargetPaginationCursor, lowering.TargetPaginationItems, lowering.TargetPaginationLimit,
+		lowering.TargetPaginationCursor, lowering.TargetPaginationHasMore, lowering.TargetPaginationItems,
+		lowering.TargetPaginationLimit,
 		lowering.TargetPaginationNextCursor, lowering.TargetPaginationNextLink, lowering.TargetPaginationOffset,
 		lowering.TargetPaginationPage, lowering.TargetPaginationTotalCount, lowering.TargetPaginationTotalPages,
 		lowering.TargetAllowReserved, lowering.TargetRedaction, lowering.TargetUnionOpen,

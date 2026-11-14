@@ -12,6 +12,7 @@ import (
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/convention"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
+	"github.com/dexpace/morphic/compilers/openapi/internal/whole"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -75,7 +76,7 @@ func TestRedact_ReadsTheNamesTail(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
 			doc := memberOf(ir.Property{ID: "p/a", Name: ir.NamingFor(name), Type: prim(ir.PrimString)}, nil)
-			assert.Empty(t, convention.Apply(under(lowering.Policy{}), doc))
+			assert.Empty(t, convention.Apply(under(lowering.Policy{}), whole.New(doc)))
 			p := propertyOf(t, doc)
 			assert.Equal(t, secret, p.Secret)
 			assert.Equal(t, secret, p.Provenance.Inferred == lowering.SecretInferenceHeuristic, "marked where set")
@@ -117,7 +118,7 @@ func TestRedact_ReadsTheValuesType(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			doc := memberOf(ir.Property{ID: "p/a", Name: ir.NamingFor("password"), Type: ir.TypeRef{Target: tc.typ}}, tc.reg)
-			assert.Empty(t, convention.Apply(under(lowering.Policy{}), doc))
+			assert.Empty(t, convention.Apply(under(lowering.Policy{}), whole.New(doc)))
 			assert.Equal(t, tc.secret, propertyOf(t, doc).Secret)
 		})
 	}
@@ -155,7 +156,7 @@ func TestRedact_LeavesWhatTheDocumentSays(t *testing.T) {
 			t.Parallel()
 			tc.p.ID, tc.p.Name = "p/a", ir.NamingFor("password")
 			doc := memberOf(tc.p, tc.reg)
-			assert.Empty(t, convention.Apply(under(lowering.Policy{}), doc))
+			assert.Empty(t, convention.Apply(under(lowering.Policy{}), whole.New(doc)))
 			p := propertyOf(t, doc)
 			assert.Equal(t, tc.secret, p.Secret)
 			assert.Equal(t, tc.marker, p.Provenance.Inferred)
@@ -195,14 +196,14 @@ func TestRedact_ReachesEveryUse(t *testing.T) {
 	}
 
 	on := build()
-	assert.Empty(t, convention.Apply(under(lowering.Policy{}), on))
+	assert.Empty(t, convention.Apply(under(lowering.Policy{}), whole.New(on)))
 	got := redacted(on)
 	assert.ElementsMatch(t, []string{"param/a", "p/request/item", "p/request/part", "p/response",
 		"p/response-body/item", "p/response-body/part", "p/error", "p/error-body/item", "p/error-body/part",
 		"p/default", "p/default-body/item", "p/default-body/part", "p/member"}, got)
 
 	off := build()
-	assert.Empty(t, convention.Apply(under(lowering.Policy{SecretInference: lowering.SecretInference{Disabled: true}}), off))
+	assert.Empty(t, convention.Apply(under(lowering.Policy{SecretInference: lowering.SecretInference{Disabled: true}}), whole.New(off)))
 	assert.Empty(t, redacted(off))
 }
 

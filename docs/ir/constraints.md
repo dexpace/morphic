@@ -98,6 +98,8 @@ at the scalar definition and overrides at the property field by field: a field t
 replaces the scalar's, and one it leaves unset, an empty string or a nil reference, takes the
 scalar's, so a property renaming the encoding keeps the scalar's `Schema` and `MediaType`. A
 compiler writes only what the position declared, as JSON Schema applies the keywords at both places;
+a parameter carries one the same way (`Parameter.Encoding`), as its type may be a `$ref`'d or shared
+one that cannot carry what one use writes;
 the alternative, the property's `Encoding` replacing the scalar's whole, would make a compiler copy
 every field it did not mean to change, and lose them where it forgot one. Protobuf editions features
 lower here per element after the compiler resolves the feature cascade (descriptors expose

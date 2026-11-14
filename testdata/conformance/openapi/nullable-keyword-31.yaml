@@ -1,6 +1,6 @@
 openapi: 3.1.0
 # OpenAPI 3.1 removed `nullable`, so its schemas, JSON Schema 2020-12, give the
-# keyword no effect. The nullable-widening policy reads `nullable: true` as
+# keyword no effect. The nullable-inference policy reads `nullable: true` as
 # admitting null all the same, and marks each reference whose null only that
 # reading admits. `declared` admits null by its type array, so its reference is
 # not marked, and `nullable: false` reads as nothing.

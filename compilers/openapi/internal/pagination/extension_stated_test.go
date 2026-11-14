@@ -19,6 +19,7 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
 	"github.com/dexpace/morphic/compilers/openapi/internal/pagination"
+	"github.com/dexpace/morphic/compilers/openapi/internal/whole"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -205,8 +206,8 @@ type keyValue struct {
 // null, a scalar, a list, an object holding no member a source reads, an
 // expression that is no string and a word no source lists are each reported
 // once, at the key or its member, saying the key, being written, keeps an
-// inferred pagination off. Each speaks, so the operation is stated, and none is
-// filled or marked.
+// inferred pagination off, or, for true on the operation, that the root states
+// no walk. Each speaks, so none is filled or marked.
 func TestPromote_ReportsEachValueAKeyHolds(t *testing.T) {
 	t.Parallel()
 	const noWalk = ", so it states no value of a walk"
@@ -264,6 +265,9 @@ paths:
 				case want == "":
 					assert.Empty(t, reports)
 					return
+				case v.value == "true" && !at.mark:
+					want, reach = `extension "x-page" is true, which reads the walk the document's root states under `+
+						`the same key, and the root writes none`, ", so no pagination is inferred for the operation"
 				case v.atMember && at.mark:
 					pointer += "/purpose"
 				case v.atMember:
@@ -287,17 +291,21 @@ func promoteStated(t *testing.T, spec string, policy lowering.ExtensionPromotion
 	require.NoError(t, err)
 	require.NotNil(t, doc)
 	c := lowering.New(0, &load.Document{Doc: &soa.OpenAPI{}}, lowering.Policy{Promotions: policy})
-	stated, diags := pagination.Promote(c, &doc.Services[0], doc.Types)
+	stated, diags := pagination.Promote(c, whole.New(doc), nil)
 	reports := make([]string, 0, len(diags))
 	for _, d := range diags {
 		require.Equal(t, ir.SeverityInfo, d.Severity, "%+v", d)
-		require.Equal(t, "openapi/degraded-construct", d.Code, "%+v", d)
+		code := "openapi/degraded-construct"
+		if strings.Contains(d.Message, "the document's root states") {
+			code = "openapi/unpromoted-extension"
+		}
+		require.Equal(t, code, d.Code, "%+v", d)
 		reports = append(reports, string(d.Provenance.Pointer)+": "+d.Message)
 	}
 	slices.Sort(reports)
 	ops := map[string]*ir.Operation{}
 	var spoke []string
-	for _, op := range lowering.Operations(&doc.Services[0]) {
+	for _, op := range whole.New(doc).Ops {
 		ops[op.Name.Source] = op
 		if stated[op.ID] {
 			spoke = append(spoke, op.Name.Source)
@@ -354,7 +362,7 @@ func TestPromote_ReadsNoOperationHoldingOne(t *testing.T) {
 	require.NotNil(t, op.Pagination)
 	held := doc.Services[0].Groups[0].Operations[0].Pagination
 	c := lowering.New(0, &load.Document{Doc: &soa.OpenAPI{}}, lowering.Policy{Promotions: pagePolicy()})
-	stated, diags := pagination.Promote(c, &doc.Services[0], doc.Types)
+	stated, diags := pagination.Promote(c, whole.New(doc), nil)
 	assert.Empty(t, stated)
 	assert.Empty(t, diags)
 	assert.Same(t, held, doc.Services[0].Groups[0].Operations[0].Pagination)
@@ -375,7 +383,7 @@ func TestPromote_StatesNothingOffPolicy(t *testing.T) {
 		assert.Empty(t, spoke, name)
 	}
 	stated, diags := pagination.Promote(lowering.New(0, &load.Document{Doc: &soa.OpenAPI{}}, lowering.Policy{}),
-		nil, ir.TypeRegistry{})
-	assert.Nil(t, stated, "no service, nothing read")
+		whole.New(&ir.Document{}), nil)
+	assert.Empty(t, stated, "no operation, nothing read")
 	assert.Empty(t, diags)
 }

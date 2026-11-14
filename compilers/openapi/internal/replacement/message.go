@@ -8,9 +8,11 @@ import (
 	"maps"
 	"slices"
 	"strings"
+	"unicode"
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
+	"github.com/dexpace/morphic/compilers/openapi/internal/whole"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -19,35 +21,32 @@ import (
 // where its own keys name none (message), and reports each message naming one
 // that it cannot settle. It runs after Resolve, as an inference reads after
 // every promotion (docs/compilers/openapi.md#policies). c is the source's
-// context.
-func Infer(c lowering.Ctx, doc *ir.Document) []ir.Diagnostic {
+// context, and w the document, which is whole.
+func Infer(c lowering.Ctx, w *whole.Document) []ir.Diagnostic {
 	if !c.ReplacementInference.Honours() {
 		return nil
 	}
-	r := resolver{c: c, p: c.Promoter(), doc: doc}
-	var diags []ir.Diagnostic
-	for i := range doc.Services {
-		diags = append(diags, r.inferService(&doc.Services[i])...)
-	}
-	for _, id := range slices.Sorted(maps.Keys(doc.Types)) {
-		if m, ok := doc.Types[id].(*ir.Model); ok && m != nil {
+	r := resolver{c: c, p: c.Promoter(), w: w}
+	diags := r.inferService()
+	for _, id := range slices.Sorted(maps.Keys(w.Types)) {
+		if m, ok := w.Types[id].(*ir.Model); ok && m != nil {
 			diags = r.inferMembers(diags, m)
 		}
 	}
 	return diags
 }
 
-// inferService reads the message of every operation svc holds, nested groups
-// included to ir.MaxGroupDepth, naming an operation by its route, and of each
-// of its parameters, naming a parameter beside it in code.
-func (r *resolver) inferService(svc *ir.Service) []ir.Diagnostic {
-	ops := lowering.Operations(svc)
+// inferService reads the message of every operation of the document, naming
+// an operation by its route, and of each of its parameters, naming a parameter
+// beside it in code.
+func (r *resolver) inferService() []ir.Diagnostic {
+	ops := r.w.Ops
 	routes := indexRoutes(ops)
 	var diags []ir.Diagnostic
 	for _, op := range ops {
 		diags = append(diags, r.message(deprecated{op.Unmodeled, op.Deprecation, &op.Provenance,
 			ir.EntityRef{Operation: op.ID}}, scope{"operation", routes.named, routes.find})...)
-		param := paramFinder(op)
+		param := r.paramFinder(op)
 		for i := range op.Params {
 			p := &op.Params[i]
 			diags = append(diags, r.message(deprecated{p.Unmodeled, p.Deprecation, &p.Provenance,
@@ -61,7 +60,7 @@ func (r *resolver) inferService(svc *ir.Service) []ir.Diagnostic {
 // m in code, and returns diags with what it reports appended, as every
 // model's are, so a model reporting nothing allocates nothing.
 func (r *resolver) inferMembers(diags []ir.Diagnostic, m *ir.Model) []ir.Diagnostic {
-	member := memberFinder(r.doc.Types, m.ID)
+	member := r.memberFinder(m.ID)
 	for i := range m.Properties {
 		p := &m.Properties[i]
 		diags = append(diags, r.message(deprecated{p.Unmodeled, p.Deprecation, &p.Provenance,
@@ -81,18 +80,20 @@ type deprecated struct {
 }
 
 // scope is how a message names an entity of one class: the class, as a report
-// names it, the names a message gives, and what finds the entity a name names,
-// returning how many it matches and the entity, read only where that is one.
+// names it, the names a message gives, each with where it is written, and what
+// finds the entity a name names, returning how many it matches and the entity,
+// read only where that is one.
 type scope struct {
 	class string
-	named func(string) []string
+	named func(string) []named
 	find  func(string) (ir.EntityRef, int)
 }
 
 // message fills, under the replacement policy, the replacements n's message
 // names, where n is deprecated and its own keys write none, so that nothing
-// the promotion fills is read over. A message naming no entity of n's class,
-// or n alone, names no replacement. One naming another fills the field all or
+// the promotion fills is read over. Only a name a phrase introduces is read
+// (introducedNames). A message naming no entity of n's class, or n alone,
+// names no replacement. One naming another fills the field all or
 // none, n passed over and a repeat kept once: a name naming nothing, or
 // several entities, leaves it unset, reported, the prose keeping it. n is
 // marked where they fill it. The rule is
@@ -101,7 +102,7 @@ func (r *resolver) message(n deprecated, s scope) []ir.Diagnostic {
 	if n.dep == nil || r.p.Writes(n.own, lowering.TargetDeprecationReplacedBy) {
 		return nil
 	}
-	names := s.named(n.dep.Message)
+	names := introducedNames(n.dep.Message, s.named(n.dep.Message))
 	refs := make([]ir.EntityRef, 0, len(names))
 	named, why := false, ""
 	for _, name := range names {
@@ -138,20 +139,21 @@ func (r *resolver) message(n deprecated, s scope) []ir.Diagnostic {
 	return nil
 }
 
-// codeSpans returns the content of each code span in text, in order, as
-// CommonMark reads one (§6.1): a run of backticks opens a span that the next
+// codeSpans returns the content of each code span in text, in order, and
+// where the span is written, its backticks included, as CommonMark reads one
+// (§6.1): a run of backticks opens a span that the next
 // run of as many closes, a line ending in it reads as a space, and a space at
 // each end is stripped once from content that is not all spaces. A run nothing
 // closes is literal text. The runs are found in one pass, and the next run of
 // each length by a cursor that only moves forward.
-func codeSpans(text string) []string {
+func codeSpans(text string) []named {
 	runs := backtickRuns(text)
 	byLength := map[int][]int{}
 	for i, r := range runs {
 		byLength[r.length] = append(byLength[r.length], i)
 	}
 	cursor := map[int]int{}
-	var spans []string
+	var spans []named
 	for i := 0; i < len(runs); {
 		open := runs[i]
 		same := byLength[open.length]
@@ -165,7 +167,8 @@ func codeSpans(text string) []string {
 			continue
 		}
 		closing := runs[same[k]]
-		spans = append(spans, spanContent(text[open.start+open.length:closing.start]))
+		spans = append(spans, named{text: spanContent(text[open.start+open.length : closing.start]),
+			start: open.start, end: closing.start + closing.length})
 		i = same[k] + 1
 	}
 	return spans
@@ -235,21 +238,51 @@ func indexRoutes(ops []*ir.Operation) routeIndex {
 // named returns each route text names: a word that is a method ix holds, a
 // backtick or a parenthesis before it aside, and after white space a path,
 // inside a code span or out of one, up to the next white space or backtick.
-// Each is `<method> <path>`, the path as written, punctuation after it kept.
-func (ix routeIndex) named(text string) []string {
-	words := strings.Fields(text)
-	var routes []string
+// Each is `<method> <path>`, the path as written, punctuation after it kept,
+// written from its method, a backtick before it included, to its path's end,
+// a backtick closing it included.
+func (ix routeIndex) named(text string) []named {
+	words := fields(text)
+	var routes []named
 	for i := 0; i+1 < len(words); i++ {
-		method := strings.TrimLeft(words[i], "`(")
+		method := strings.TrimLeft(words[i].text, "`(")
 		if !ix.methods[method] {
 			continue
 		}
-		path, _, _ := strings.Cut(strings.TrimLeft(words[i+1], "`"), "`")
-		if strings.HasPrefix(path, "/") {
-			routes = append(routes, method+" "+path)
+		next := words[i+1]
+		rest := strings.TrimLeft(next.text, "`")
+		path, _, closed := strings.Cut(rest, "`")
+		if !strings.HasPrefix(path, "/") {
+			continue
 		}
+		end := next.start + len(next.text) - len(rest) + len(path)
+		if closed {
+			end++
+		}
+		start := words[i].start + len(words[i].text) - len(strings.TrimLeft(words[i].text, "("))
+		routes = append(routes, named{text: method + " " + path, start: start, end: end})
 	}
 	return routes
+}
+
+// fields returns the runs of text between white space, each with where it
+// starts, as strings.Fields splits text.
+func fields(text string) []named {
+	var out []named
+	start := -1
+	for i, c := range text {
+		switch {
+		case !unicode.IsSpace(c) && start < 0:
+			start = i
+		case unicode.IsSpace(c) && start >= 0:
+			out = append(out, named{text: text[start:i], start: start, end: i})
+			start = -1
+		}
+	}
+	if start >= 0 {
+		out = append(out, named{text: text[start:], start: start, end: len(text)})
+	}
+	return out
 }
 
 // find returns the operation route names, and how many it names: the route as

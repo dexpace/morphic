@@ -82,11 +82,11 @@ type Ctx struct {
 	// shares it, and a resolve.Names lets none write to it.
 	schemas resolve.Names
 
-	// NullableWidening is the nullable-widening policy, and
+	// NullableInference is the nullable-inference policy, and
 	// DiscriminatorInference the discriminator-inference policy, beside the
 	// policies of what a document's names and messages imply, read once it is
 	// whole. They sit before foreign so all of them share a word.
-	NullableWidening       NullableWidening
+	NullableInference      NullableInference
 	DiscriminatorInference DiscriminatorInference
 	IdempotencyInference   IdempotencyInference
 	SecretInference        SecretInference
@@ -191,7 +191,7 @@ type Policy struct {
 	Streaming              StreamingMedia
 	Binary                 BinaryMedia
 	Promotions             ExtensionPromotions
-	NullableWidening       NullableWidening
+	NullableInference      NullableInference
 	DiscriminatorInference DiscriminatorInference
 	IdempotencyInference   IdempotencyInference
 	SecretInference        SecretInference
@@ -221,7 +221,7 @@ func New(srcIndex int, doc *load.Document, p Policy) Ctx {
 		streaming:              streamingSet(p.Streaming),
 		binary:                 binarySet(p.Binary),
 		promoter:               newPromoter(p.Promotions),
-		NullableWidening:       p.NullableWidening,
+		NullableInference:      p.NullableInference,
 		DiscriminatorInference: p.DiscriminatorInference,
 		IdempotencyInference:   p.IdempotencyInference,
 		SecretInference:        p.SecretInference,

@@ -1,0 +1,21 @@
+# A search POST carries its walk in the request body: the page number and the
+# page size are members of the body, and the response states the items at its
+# root, so the operation reads as a page walk whose inputs address the body.
+openapi: 3.1.0
+info: {title: PaginationBody, version: "1.0.0"}
+paths:
+  /search:
+    post:
+      operationId: search
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties: {query: {type: string}, page: {type: integer}, per_page: {type: integer}}
+      responses:
+        "200":
+          description: ok
+          content:
+            application/json:
+              schema: {type: object, properties: {result: {type: array, items: {type: string}}}}

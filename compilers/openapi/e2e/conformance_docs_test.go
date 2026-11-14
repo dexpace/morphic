@@ -354,4 +354,5 @@ func assertReplacementInference(t *testing.T, doc *ir.Document, diags []ir.Diagn
 	assert.Equal(t, ir.Inferred("extension-promotion"), created.Provenance.Inferred, "marked for its message alone")
 	assert.Equal(t, []jsontext.Pointer{"/components/schemas/Zone/properties/created"},
 		openapitest.PointersOf(diags, "openapi/undecided-replacement"))
+	assertReplacementPhrases(t, doc, diags)
 }

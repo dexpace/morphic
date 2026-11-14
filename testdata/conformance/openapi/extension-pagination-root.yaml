@@ -1,0 +1,26 @@
+# The convention that defines x-fern-pagination lets a document state one walk
+# at its root and opt an operation into it by writing the key true on the
+# operation: the operation then takes the root's walk, as though it had
+# written the root's object itself, and the root's entry stays kept.
+openapi: 3.1.0
+info: {title: ExtensionPaginationRoot, version: "1.0.0"}
+x-fern-pagination:
+  cursor: $request.page_token
+  next_cursor: $response.next_page_token
+  results: $response.data
+paths:
+  /things:
+    get:
+      operationId: listThings
+      x-fern-pagination: true
+      parameters: [{name: page_token, in: query, schema: {type: string}}]
+      responses:
+        "200":
+          description: ok
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: {type: array, items: {type: string}}
+                  next_page_token: {type: string}

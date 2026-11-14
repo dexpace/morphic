@@ -113,6 +113,7 @@ type Content struct
 	"encoding" map[PropID]PartEncoding omitempty
 	"examples" []Example omitempty
 	"file" *FileInfo omitzero
+	"inferred" Inferred omitempty
 	"item" *TypeRef omitzero
 	"itemEncoding" *PartEncoding omitzero
 	"mediaType" string omitempty
@@ -515,6 +516,7 @@ type Operation struct
 	"oneWay" bool
 	"overloadOf" *OpID omitzero
 	"pagination" *Pagination omitzero
+	"paramChoices" []ParamChoice omitempty
 	"parameterVisibility" []string omitempty
 	"params" []Parameter omitempty
 	"provenance" Provenance
@@ -552,6 +554,7 @@ type OperationLink struct
 
 type PageStop string
 	const "empty"
+	const "no_more"
 	const "no_next"
 	const "short"
 	const "total"
@@ -566,6 +569,7 @@ type PageStrategy string
 
 type Pagination struct
 	"firstLink" *PropPath omitzero
+	"hasMore" *PropPath omitzero
 	"inferred" bool
 	"inputCursor" *InputPath omitzero
 	"inputLimit" *InputPath omitzero
@@ -579,7 +583,16 @@ type Pagination struct
 	"totalCount" *PropPath omitzero
 	"totalPages" *PropPath omitzero
 
+type ParamChoice struct
+	"name" Naming
+	"required" bool
+	"variants" []ParamVariant omitempty
+
 type ParamID string
+
+type ParamVariant struct
+	"name" Naming
+	"params" []ParamID omitempty
 
 type Parameter struct
 	"availability" *Availability omitzero
@@ -587,6 +600,7 @@ type Parameter struct
 	"default" *Value omitzero
 	"deprecation" *Deprecation omitzero
 	"docs" Docs
+	"encoding" *Encoding omitzero
 	"examples" []Example omitempty
 	"id" ParamID
 	"name" Naming

@@ -277,7 +277,7 @@ func TestAllOf_DisjointInlineBranchReportsItsResidueAsInfo(t *testing.T) {
 }
 
 // TestAllOf_DisjointConjunctsFollowTheNullableReading holds the report to the
-// reading of null the nullable-widening policy selects: a schema written
+// reading of null the nullable-inference policy selects: a schema written
 // `nullable: true` beside conjuncts that share no other value admits null while
 // the policy is on, and does not once it is off.
 func TestAllOf_DisjointConjunctsFollowTheNullableReading(t *testing.T) {

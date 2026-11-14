@@ -9,7 +9,7 @@ import (
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
-	"github.com/dexpace/morphic/compilers/openapi/internal/runtimeexpr"
+	"github.com/dexpace/morphic/compilers/openapi/internal/whole"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -25,30 +25,30 @@ func requestTargets() []lowering.ExtensionTarget {
 func responseTargets() []lowering.ExtensionTarget {
 	return []lowering.ExtensionTarget{
 		lowering.TargetPaginationItems, lowering.TargetPaginationNextCursor, lowering.TargetPaginationNextLink,
-		lowering.TargetPaginationTotalCount, lowering.TargetPaginationTotalPages,
+		lowering.TargetPaginationTotalCount, lowering.TargetPaginationTotalPages, lowering.TargetPaginationHasMore,
 	}
 }
 
-// Promote fills the pagination each operation of svc declares through
-// the extensions the promotion policy maps to it, reg being whole, where the
-// operation holds none (docs/compilers/openapi.md#extension-pagination). A
-// pagination is filled whole or not at all: one whose values do not all
-// resolve, or which states no way to reach the next page, is reported at the
-// operation and leaves the field unset. c is the source's context.
+// Promote fills the pagination each operation of w, the document, declares
+// through the extensions the promotion policy maps to it, where the operation
+// holds none (docs/compilers/openapi.md#extension-pagination), whole or not
+// at all: one whose values do not all resolve, or which states no way to the
+// next page, is reported at the operation. c is the source's context.
 //
 // stated holds each operation it reads whose extensions speak of a pagination,
-// filled or not: those a step inferring one leaves alone, by that rule's
-// precedence, without reading an extension again.
-func Promote(c lowering.Ctx, svc *ir.Service, reg ir.TypeRegistry) (stated map[ir.OpID]bool, diags []ir.Diagnostic) {
-	if svc == nil {
-		return nil, nil
+// filled or not: those an inference leaves alone, by that rule's precedence.
+// root is the document root's Unmodeled, which an operation's key written
+// true reads (lowering.PageStatementOf).
+func Promote(c lowering.Ctx, w *whole.Document, root ir.Unmodeled) (stated map[ir.OpID]bool, diags []ir.Diagnostic) {
+	if root == nil {
+		root = ir.Unmodeled{} // the nodes read are operations, whose root states nothing
 	}
-	pg := pager{c: c, p: c.Promoter(), reg: reg, lk: runtimeexpr.NewLookups(reg), flat: map[ir.TypeID][]*ir.Property{}}
+	pg := pager{c: c, p: c.Promoter(), w: w, root: root}
 	if !pg.maps() {
 		return nil, nil
 	}
 	stated = map[ir.OpID]bool{}
-	for _, op := range lowering.Operations(svc) {
+	for _, op := range w.Ops {
 		if op.Pagination != nil {
 			continue
 		}
@@ -61,16 +61,14 @@ func Promote(c lowering.Ctx, svc *ir.Service, reg ir.TypeRegistry) (stated map[i
 	return stated, diags
 }
 
-// pager is what one Promote reads its operations against. flat holds
-// each model's members in layout order, read once for every operation that
-// walks through it, and reach the models reaching each marking key
+// pager is what one Promote reads its operations against: the document, w,
+// its root's Unmodeled, root, and reach, the models reaching each marking key
 // (pager.reaching).
 type pager struct {
 	c     lowering.Ctx
 	p     lowering.Promoter
-	reg   ir.TypeRegistry
-	lk    *runtimeexpr.Lookups
-	flat  map[ir.TypeID][]*ir.Property
+	w     *whole.Document
+	root  ir.Unmodeled
 	reach map[string]map[ir.TypeID]bool
 }
 
@@ -145,7 +143,7 @@ func (pg *pager) report(op *ir.Operation, format string, args ...any) ir.Diagnos
 // next cursor beside no cursor, an offset or a page number beside no items,
 // which a pager counts to advance an offset and to end either walk
 // (docs/emitters/operations/pagination.md), or nothing reaching the next page
-// at all.
+// at all. A walk naming its flag ends by it alone (ir.PageStopNoMore).
 func assemble(f pageFields) (*ir.Pagination, string) {
 	var continues []lowering.ExtensionTarget
 	for _, t := range []lowering.ExtensionTarget{lowering.TargetPaginationCursor, lowering.TargetPaginationOffset,
@@ -179,6 +177,11 @@ func assemble(f pageFields) (*ir.Pagination, string) {
 		NextLink:   f.outputs[lowering.TargetPaginationNextLink],
 		TotalCount: f.outputs[lowering.TargetPaginationTotalCount],
 		TotalPages: f.outputs[lowering.TargetPaginationTotalPages],
+		HasMore:    f.outputs[lowering.TargetPaginationHasMore],
+	}
+	if walk.HasMore != nil {
+		// The source states the flag, which is where the walk ends.
+		walk.Stop = []ir.PageStop{ir.PageStopNoMore}
 	}
 	if len(continues) == 1 {
 		walk.Strategy, walk.InputCursor = strategyOf(continues[0]), f.inputs[continues[0]]

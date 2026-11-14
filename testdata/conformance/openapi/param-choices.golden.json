@@ -1,0 +1,369 @@
+{
+  "idSpaces": {
+    "auth": [
+      "openapi",
+      "unresolved"
+    ],
+    "e": [
+      "anon",
+      "composed",
+      "openapi"
+    ],
+    "g": [
+      "default",
+      "extension",
+      "path-prefix",
+      "tags",
+      "webhooks"
+    ],
+    "op": [
+      "openapi"
+    ],
+    "p": [
+      "composed",
+      "openapi"
+    ],
+    "param": [
+      "openapi"
+    ],
+    "s": [
+      "openapi"
+    ],
+    "server": [
+      "default",
+      "openapi"
+    ],
+    "t": [
+      "anon",
+      "composed",
+      "openapi"
+    ]
+  },
+  "name": "t",
+  "version": "1",
+  "docs": {},
+  "services": [
+    {
+      "id": "s/openapi/0",
+      "name": {
+        "source": "t",
+        "canonical": "t"
+      },
+      "docs": {},
+      "groups": [
+        {
+          "id": "g/default",
+          "name": {
+            "hint": "default"
+          },
+          "docs": {},
+          "operations": [
+            {
+              "id": "op/openapi/paths/~1resources/get",
+              "name": {
+                "source": "listResources",
+                "canonical": "list_resources"
+              },
+              "docs": {},
+              "params": [
+                {
+                  "id": "param/openapi/paths/~1resources/get/parameters/parent_id/query",
+                  "name": {
+                    "source": "parent_id",
+                    "canonical": "parent_id"
+                  },
+                  "type": {
+                    "target": "t/prim/string",
+                    "nullable": false
+                  },
+                  "required": false,
+                  "docs": {},
+                  "provenance": {
+                    "source": 0,
+                    "pointer": "/paths/~1resources/get/parameters/0"
+                  }
+                },
+                {
+                  "id": "param/openapi/paths/~1resources/get/parameters/parent_slug/query",
+                  "name": {
+                    "source": "parent_slug",
+                    "canonical": "parent_slug"
+                  },
+                  "type": {
+                    "target": "t/prim/string",
+                    "nullable": false
+                  },
+                  "required": false,
+                  "docs": {},
+                  "provenance": {
+                    "source": 0,
+                    "pointer": "/paths/~1resources/get/parameters/1"
+                  }
+                },
+                {
+                  "id": "param/openapi/paths/~1resources/get/parameters/parent_external_id/query",
+                  "name": {
+                    "source": "parent_external_id",
+                    "canonical": "parent_external_id"
+                  },
+                  "type": {
+                    "target": "t/prim/string",
+                    "nullable": false
+                  },
+                  "required": false,
+                  "docs": {},
+                  "provenance": {
+                    "source": 0,
+                    "pointer": "/paths/~1resources/get/parameters/2"
+                  }
+                },
+                {
+                  "id": "param/openapi/paths/~1resources/get/parameters/before/query",
+                  "name": {
+                    "source": "before",
+                    "canonical": "before"
+                  },
+                  "type": {
+                    "target": "t/prim/string",
+                    "nullable": false
+                  },
+                  "required": false,
+                  "docs": {},
+                  "provenance": {
+                    "source": 0,
+                    "pointer": "/paths/~1resources/get/parameters/3"
+                  }
+                },
+                {
+                  "id": "param/openapi/paths/~1resources/get/parameters/after/query",
+                  "name": {
+                    "source": "after",
+                    "canonical": "after"
+                  },
+                  "type": {
+                    "target": "t/prim/string",
+                    "nullable": false
+                  },
+                  "required": false,
+                  "docs": {},
+                  "provenance": {
+                    "source": 0,
+                    "pointer": "/paths/~1resources/get/parameters/4"
+                  }
+                }
+              ],
+              "paramChoices": [
+                {
+                  "name": {
+                    "source": "cursor",
+                    "canonical": "cursor"
+                  },
+                  "required": false,
+                  "variants": [
+                    {
+                      "name": {
+                        "source": "backward",
+                        "canonical": "backward"
+                      },
+                      "params": [
+                        "param/openapi/paths/~1resources/get/parameters/before/query"
+                      ]
+                    },
+                    {
+                      "name": {
+                        "source": "forward",
+                        "canonical": "forward"
+                      },
+                      "params": [
+                        "param/openapi/paths/~1resources/get/parameters/after/query"
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "name": {
+                    "source": "parent",
+                    "canonical": "parent"
+                  },
+                  "required": true,
+                  "variants": [
+                    {
+                      "name": {
+                        "source": "by_external_id",
+                        "canonical": "by_external_id"
+                      },
+                      "params": [
+                        "param/openapi/paths/~1resources/get/parameters/parent_slug/query",
+                        "param/openapi/paths/~1resources/get/parameters/parent_external_id/query"
+                      ]
+                    },
+                    {
+                      "name": {
+                        "source": "by_id",
+                        "canonical": "by_id"
+                      },
+                      "params": [
+                        "param/openapi/paths/~1resources/get/parameters/parent_id/query"
+                      ]
+                    }
+                  ]
+                }
+              ],
+              "responses": [
+                {
+                  "name": {
+                    "hint": "200"
+                  },
+                  "conditions": {
+                    "statusCodes": [
+                      {
+                        "from": 200,
+                        "to": 200
+                      }
+                    ]
+                  },
+                  "docs": {
+                    "description": "ok"
+                  }
+                }
+              ],
+              "oneWay": false,
+              "idempotency": {},
+              "bindings": {
+                "http": [
+                  {
+                    "method": "GET",
+                    "uriTemplate": "/resources",
+                    "paramBindings": [
+                      {
+                        "param": "param/openapi/paths/~1resources/get/parameters/parent_id/query",
+                        "location": "query",
+                        "wireName": "parent_id",
+                        "style": "form",
+                        "allowReserved": false,
+                        "allowEmptyValue": false
+                      },
+                      {
+                        "param": "param/openapi/paths/~1resources/get/parameters/parent_slug/query",
+                        "location": "query",
+                        "wireName": "parent_slug",
+                        "style": "form",
+                        "allowReserved": false,
+                        "allowEmptyValue": false
+                      },
+                      {
+                        "param": "param/openapi/paths/~1resources/get/parameters/parent_external_id/query",
+                        "location": "query",
+                        "wireName": "parent_external_id",
+                        "style": "form",
+                        "allowReserved": false,
+                        "allowEmptyValue": false
+                      },
+                      {
+                        "param": "param/openapi/paths/~1resources/get/parameters/before/query",
+                        "location": "query",
+                        "wireName": "before",
+                        "style": "form",
+                        "allowReserved": false,
+                        "allowEmptyValue": false
+                      },
+                      {
+                        "param": "param/openapi/paths/~1resources/get/parameters/after/query",
+                        "location": "query",
+                        "wireName": "after",
+                        "style": "form",
+                        "allowReserved": false,
+                        "allowEmptyValue": false
+                      }
+                    ],
+                    "sharedRoute": false,
+                    "checksumRequired": false
+                  }
+                ]
+              },
+              "unmodeled": {
+                "openapi:x-mutually-exclusive-parameter-groups": {
+                  "reason": "vendor_extension",
+                  "value": {
+                    "cursor": {
+                      "optional": true,
+                      "variants": {
+                        "backward": [
+                          "before"
+                        ],
+                        "forward": [
+                          "after"
+                        ]
+                      }
+                    },
+                    "parent": {
+                      "optional": false,
+                      "variants": {
+                        "by_external_id": [
+                          "parent_slug",
+                          "parent_external_id"
+                        ],
+                        "by_id": [
+                          "parent_id"
+                        ]
+                      }
+                    }
+                  },
+                  "provenance": {
+                    "source": 0,
+                    "pointer": "/paths/~1resources/get/x-mutually-exclusive-parameter-groups"
+                  }
+                }
+              },
+              "provenance": {
+                "source": 0,
+                "pointer": "/paths/~1resources/get",
+                "inferred": "extension-promotion"
+              }
+            }
+          ]
+        }
+      ],
+      "servers": [
+        "server/default"
+      ],
+      "provenance": {
+        "source": 0
+      }
+    }
+  ],
+  "types": {
+    "t/prim/string": {
+      "kind": "primitive",
+      "id": "t/prim/string",
+      "name": {},
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": -1
+      },
+      "prim": "string"
+    }
+  },
+  "servers": {
+    "server/default": {
+      "id": "server/default",
+      "name": {
+        "hint": "server"
+      },
+      "urlTemplate": "/",
+      "description": {},
+      "provenance": {
+        "source": 0
+      }
+    }
+  },
+  "sources": [
+    {
+      "format": "openapi@3.1",
+      "path": "param-choices.yaml",
+      "hash": "847289faeaa725c1a78ca4a037530c12a294a9262852e6a3eec9f886e620566f"
+    }
+  ]
+}

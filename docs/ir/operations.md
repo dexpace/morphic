@@ -15,6 +15,8 @@ type Operation struct {
                                   // (see "Stability" below)
 
     Params     []Parameter        // all logical inputs, protocol-unbound
+    ParamChoices []ParamChoice    // the choices the source states among Params; empty = none
+                                  // (#choices-among-parameters)
     Request    *Payload           // body/message content, nil = none
     Responses  []Response         // ordered; success + alternative successes
     Errors     []ErrorCase        // declared failure shapes
@@ -66,6 +68,10 @@ type Parameter struct {
     Required   bool
     Default    *Value
     Constraints *Constraints
+    Encoding   *Encoding           // this use's encoding, overriding its type's field by field as
+                                   // Property.Encoding does; nil = the type's. The parameter's own,
+                                   // since a $ref'd or shared type cannot carry one use's text
+                                   // (invariant 3) (constraints.md#encodings)
     ValueFrom  *PropPath           // the parameter's value is derived from a location in the
                                    // outgoing/incoming message (AsyncAPI parameter `location`
                                    // runtime expressions) — SDKs may auto-fill it; nil = caller-supplied
@@ -88,6 +94,54 @@ type Parameter struct {
     // with an ID of that operation's own.
 }
 ```
+
+## Choices among parameters
+
+"Of these inputs, a request sends one alternative" is a fact of an API, and a source states it in
+one of two ways. As a sum it declares, a protobuf `oneof`, a GraphQL `@oneOf` input, a Smithy or
+TypeSpec union, it is a `Union` ([unions](./unions.md)), flattened by `Property.Flatten` where its
+members are top-level wire fields, and so where a binding places those members in a query, the
+parameter being the message and `ParamPath` reaching into it. As a statement over inputs it
+declares one by one, OpenAPI parameters and an extension naming alternatives among them, it is a
+`ParamChoice`:
+
+```go
+type ParamChoice struct {
+    Name     Naming
+    Required bool             // a request carries a parameter of the choice; false = it may carry none
+    Variants []ParamVariant   // the alternatives, two or more
+}
+
+type ParamVariant struct {
+    Name   Naming
+    Params []ParamID          // parameters of the operation, one or more, each once
+}
+```
+
+With S the parameters of a choice a request carries, S is a subset of one variant's `Params`, and
+`Required` says S is not empty. The choice does not say a variant's parameters travel together: no
+source measured says so, and `Parameter.Required` cannot, as it speaks of every request. A
+parameter may sit in several variants of one choice, and in several choices; each holds on its own.
+Choices and variants are in source order (invariant 7). `Operation.Params`, every
+`HTTPParamBinding`, every `Parameter.Required` and every reference to a `ParamID` are what they
+would be without the choices, so a consumer ignoring the field reads the document it read before.
+A compiler writes a `ParamChoice` only over parameters its source declares separately, never for a
+sum its source declares, which is a `Union`: that is the rule that keeps the two from being two
+spellings of one thing. `irverify` reports a choice of fewer than two variants
+(`ir/param-choice-single`), a variant naming no parameter (`ir/param-variant-empty`) and a parameter
+listed twice in one (`ir/set-entry-duplicate`); a consumer keys a choice and a variant by name, so
+two choices of an operation, or two variants of a choice, sharing a source name are
+`ir/param-choice-name-duplicate`. `pass.Validate` reports a choice naming another operation's
+parameter (`pass/param-binding-mismatch`).
+
+Weighed and not taken: one logical `Parameter` typed by a `Union` of variant models, bound through
+`ParamPath`, which removes the declared parameters that `LinkParam.Param` and
+`Idempotency.TokenParam` name, mints nodes each needing a namespace of its own (invariant 3), and
+lowers in the IR what a target decides (invariant 2); a `Union` minted beside the metadata, for the
+same reasons; pairwise conflicts on `Parameter`, which lose the variant as a set, its name and
+whether one is required, and grow with the square of a choice's width; a constraint language on
+the operation, which every emitter would need an evaluator for; and keeping the source's key
+verbatim with no home, which leaves each emitter to read it its own way (invariant 9).
 
 ## Stability
 

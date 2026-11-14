@@ -1569,7 +1569,7 @@ func TestPartEncodings_AUnionBranchsPartIsKeyed(t *testing.T) {
 			map[ir.PropID]ir.PartEncoding{
 				at("oneOf/0/properties/file"): {ContentTypes: []string{"image/png"}, Headers: xa, Filename: true},
 				at("oneOf/1/properties/file"): {
-					ContentTypes: []string{"image/png"}, Headers: xa, Multi: true, Filename: true, Inferred: "binary-media-type",
+					ContentTypes: []string{"image/png"}, Headers: xa, Multi: true, Filename: true, Inferred: "binary-inference",
 				},
 			}},
 		{"a name two branches declare, untyped in one and a string in the other",

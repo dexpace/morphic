@@ -45,6 +45,9 @@ whose name the input does not own throws an exception naming the input, nothing 
 multipart body gives the class a property for each of its members in place of one holding the body
 ([the body](../../refine/requests.md#the-body)).
 
+A choice among parameters adds no field and no type; `Validate` checks it ([request
+shaping](../../refine/requests.md)).
+
 ## The client
 
 The client's settings ([the client](../../operations/client.md)) are setters on the client's

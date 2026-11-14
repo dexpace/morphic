@@ -19,6 +19,7 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
 	"github.com/dexpace/morphic/compilers/openapi/internal/pagination"
+	"github.com/dexpace/morphic/compilers/openapi/internal/whole"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -174,14 +175,6 @@ func TestInferWalks_LeavesWhatItCannotSettle(t *testing.T) {
 			`the application/json response body holds no member "next_cursor" or "cursor" of the cursor's type`},
 		"a next cursor of another type": {listing(cursorParams, objectOf(`result: `+stringList+`, cursor: {type: integer}`)),
 			`the application/json response body holds no member "next_cursor" or "cursor" of the cursor's type`},
-		"a flag beside the next cursor": {listing(cursorParams,
-			objectOf(`result: `+stringList+`, next_cursor: {type: string}, has_more: {type: boolean}`)),
-			`the application/json response body holds "has_more" beside its next cursor, a flag that can end ` +
-				`the walk, which no stop condition reads`},
-		"flags beside a next cursor an object holds": {listing(cursorParams, objectOf(`result: `+stringList+
-			`, info: `+objectOf(`more: {type: boolean}, cursor: {type: string}, is_truncated: {type: boolean}`))),
-			`the application/json response body holds "is_truncated" beside its next cursor, a flag that can ` +
-				`end the walk, which no stop condition reads`},
 		"two next cursors": {
 			listing(cursorParams, objectOf(`result: `+stringList+`, cursor: {type: string}, info: `+objectOf(`cursor: {type: string}`))),
 			`the application/json response body holds 2 members "cursor" of the cursor's type, each a next cursor`},
@@ -382,10 +375,11 @@ webhooks:
 	}
 }
 
-// TestInferWalks_ReadsOnlyAMethodSafeToSendAgain pins that a walk is read only off
-// a GET or a QUERY, which a pager can send again for each page: a POST taking
-// its path item's page parameters, as one creating a resource does, is
-// reported and left with none, whatever its body holds.
+// TestInferWalks_ReadsOnlyAMethodSafeToSendAgain pins that a walk is read off a
+// GET or a QUERY, which a pager can send again for each page, and never off a
+// method that is no POST: a POST taking its path item's page parameters, as
+// one creating a resource does, is reported for a walk its request body does
+// not continue and left with none, and any other method for its method.
 func TestInferWalks_ReadsOnlyAMethodSafeToSendAgain(t *testing.T) {
 	t.Parallel()
 	page := `{type: object, properties: {result: ` + stringList + `}}`
@@ -422,7 +416,9 @@ paths:
 	got := undecided(diags)
 	slices.Sort(got)
 	assert.Equal(t, []string{
-		"no pagination is inferred: the operation is a POST, and only a GET or a QUERY is safe to send again for each page",
+		`no pagination is inferred: the operation is a POST, and query parameter "page" names where its walk ` +
+			`continues: a POST is read as a walk only where its request body does, as one taking its path item's ` +
+			`parameters may be a create`,
 		"no pagination is inferred: the operation is a SEARCH, and only a GET or a QUERY is safe to send again for each page",
 	}, got)
 }
@@ -447,18 +443,18 @@ func TestInferWalks_KeepsAPaginationTheOperationHolds(t *testing.T) {
 		}}}}}},
 	}
 	c := lowering.New(0, &load.Document{Doc: &soa.OpenAPI{}}, lowering.Policy{})
-	assert.Empty(t, pagination.InferWalks(c, doc, nil))
+	assert.Empty(t, pagination.InferWalks(c, whole.New(doc), nil))
 	op := doc.Services[0].Groups[0].Operations[0]
 	assert.Same(t, declared, op.Pagination)
 	assert.Equal(t, &ir.Pagination{Strategy: ir.PageStrategyNextLink}, op.Pagination)
 	assert.Empty(t, op.Provenance.Inferred)
 
 	doc.Services[0].Groups[0].Operations[0].Pagination = nil
-	assert.Empty(t, pagination.InferWalks(c, doc, map[ir.OpID]bool{"op/list": true}))
+	assert.Empty(t, pagination.InferWalks(c, whole.New(doc), map[ir.OpID]bool{"op/list": true}))
 	assert.Nil(t, doc.Services[0].Groups[0].Operations[0].Pagination, "an operation its extensions speak of")
 	assert.Empty(t, doc.Services[0].Groups[0].Operations[0].Provenance.Inferred)
 
-	assert.Empty(t, pagination.InferWalks(c, doc, map[ir.OpID]bool{"op/other": true}))
+	assert.Empty(t, pagination.InferWalks(c, whole.New(doc), map[ir.OpID]bool{"op/other": true}))
 	inferred := doc.Services[0].Groups[0].Operations[0].Pagination
 	require.NotNil(t, inferred, "the same operation holding none is inferred")
 	assert.Equal(t, ir.PageStrategyPage, inferred.Strategy)
@@ -495,7 +491,7 @@ func TestInferWalks_LeavesWhatAnExtensionSpeaksOf(t *testing.T) {
 		{"answeredUnsettled", fern + `false`, pages + `, {name: cursor, in: query, schema: {type: string}}`, "", data,
 			"- - []", "- - [undecided-pagination]", "- - []"},
 		{"unreadable", fern + `true`, pages, "", data,
-			"- - [degraded-construct]", "page pagination-inference []", "- - [degraded-construct]"},
+			"- - [unpromoted-extension]", "page pagination-inference []", "- - [unpromoted-extension]"},
 		{"unreadableMembers", fern + `{}`, pages, "", data,
 			"- - [degraded-construct]", "page pagination-inference []", "- - [degraded-construct]"},
 		{"unreadableMark", "", pages + `, {name: after, in: query, schema: {type: string}, x-stainless-pagination-property: null}`,
@@ -518,7 +514,8 @@ func TestInferWalks_LeavesWhatAnExtensionSpeaksOf(t *testing.T) {
 	// key, being written, keeps an inferred pagination off.
 	const unread = ", so it states no value of a walk, and as the key is written, no pagination is inferred for "
 	unreadable := map[string]string{
-		"unreadable": `extension "x-fern-pagination" is true, not an object` + unread + "the operation",
+		"unreadable": `extension "x-fern-pagination" is true, which reads the walk the document's root states under ` +
+			`the same key, and the root writes none, so no pagination is inferred for the operation`,
 		"unreadableMembers": `extension "x-fern-pagination" holds none of the members the policy reads ` +
 			`(cursor, next_cursor, next_uri, results)` + unread + "the operation",
 		"unreadableMark": `extension "x-stainless-pagination-property" is null, not an object` + unread +

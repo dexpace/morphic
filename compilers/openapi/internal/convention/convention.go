@@ -8,28 +8,26 @@ import (
 	"slices"
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
+	"github.com/dexpace/morphic/compilers/openapi/internal/whole"
 	"github.com/dexpace/morphic/ir"
 )
 
-// Apply fills what doc's names imply, under each policy c honours, and returns
-// what the readings report. c is the source's context, and doc the document
-// its lowerings built, whose service tree and registry are whole.
-func Apply(c lowering.Ctx, doc *ir.Document) []ir.Diagnostic {
-	var diags []ir.Diagnostic
-	for i := range doc.Services {
-		for _, op := range lowering.Operations(&doc.Services[i]) {
-			diags = append(diags, operation(c, doc.Types, op)...)
-		}
+// Apply fills what w's names imply, under each policy c honours, and returns
+// what the readings report. c is the source's context, and w the document its
+// lowerings built, whose service tree and registry are whole.
+func Apply(c lowering.Ctx, w *whole.Document) (diags []ir.Diagnostic) {
+	for _, op := range w.Ops {
+		diags = append(diags, operation(c, w, op)...)
 	}
 	// Each member is read alone and none is reported, so the registry's order,
 	// which no sort fixes here, decides nothing.
-	for _, td := range doc.Types {
+	for _, td := range w.Types {
 		m, ok := td.(*ir.Model)
 		if !ok || m == nil {
 			continue
 		}
 		for i := range m.Properties {
-			redact(c, doc.Types, &m.Properties[i])
+			redact(c, w.Types, &m.Properties[i])
 		}
 	}
 	return diags
@@ -37,13 +35,15 @@ func Apply(c lowering.Ctx, doc *ir.Document) []ir.Diagnostic {
 
 // operation fills what op's names imply: its idempotency token, the redaction
 // of its parameters and of every header it declares, and the text of each of
-// its responses' headers.
-func operation(c lowering.Ctx, reg ir.TypeRegistry, op *ir.Operation) []ir.Diagnostic {
-	diags := idempotency(c, op)
+// its header parameters and its responses' headers.
+func operation(c lowering.Ctx, w *whole.Document, op *ir.Operation) []ir.Diagnostic {
+	reg := w.Types
+	diags := idempotency(c, w, op)
 	for i := range op.Params {
 		p := &op.Params[i]
 		redactUse(c, reg, p.Name, p.Type, p.Unmodeled, &p.Secret, &p.Provenance)
 	}
+	diags = append(diags, httpDateParam(c, reg, op)...)
 	for _, hs := range responseHeaders(op) {
 		for i := range hs {
 			redact(c, reg, &hs[i].Property)

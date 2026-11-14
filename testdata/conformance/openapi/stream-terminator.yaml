@@ -1,0 +1,26 @@
+# A stream's terminator is read from the key a streaming content states it
+# under, and the input selecting the stream from the key the operation states
+# it under, once a promotion maps each. The terminator is kept on the content
+# beside the marker saying how it was filled, since the content, not the
+# operation, is what the key sat on; the condition is kept on the operation.
+# A key naming no usable value fills nothing and is reported.
+openapi: 3.1.0
+info: {title: StreamTerminator, version: "1.0.0"}
+paths:
+  /chat:
+    post:
+      operationId: chat
+      x-stream-when: $request.stream
+      requestBody:
+        content:
+          application/json:
+            schema: {type: object, properties: {stream: {type: boolean}, prompt: {type: string}}}
+      responses:
+        "200":
+          description: ok
+          content:
+            application/json:
+              schema: {type: object, properties: {text: {type: string}}}
+            text/event-stream:
+              x-speakeasy-sse-sentinel: "[DONE]"
+              schema: {type: object, properties: {delta: {type: string}}}

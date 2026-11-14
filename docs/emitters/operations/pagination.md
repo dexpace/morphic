@@ -78,8 +78,9 @@ starts at the caller's or 0 and grows, so no declared minimum is read. T-45 hold
 A pager fetches no page after one meeting a condition `Page.Stop` lists, each read as the IR states
 it ([pagination](../../ir/interaction-patterns.md#pagination)): `empty` and `short` count the items
 `ItemPath` reads, `short` against the limit the call sent through `LimitIn`, `no_next` reads the
-page's continuation, and `total` compares the items or pages read so far with what `TotalCount` or
-`TotalPages` reads. A condition a page gives nothing to read for, `short` on a call sending no limit
+page's continuation, `total` compares the items or pages read so far with what `TotalCount` or
+`TotalPages` reads, and `no_more` ends at a page whose flag at `HasMore` is false, null or absent,
+though it still hands back a continuation. A condition a page gives nothing to read for, `short` on a call sending no limit
 or `total` on a page stating no total, ends nothing there.
 
 Whatever `Stop` lists, the walk also ends at the last page any condition could end it at. Under a

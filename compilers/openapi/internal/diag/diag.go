@@ -408,7 +408,7 @@ const (
 	UnpreservableConstruct = "openapi/unpreservable-construct"
 	// UnknownSchemaKeyword reports a JSON Schema keyword the schema model does
 	// not name, or names but the schema's dialect does not define (`nullable`
-	// with the nullable-widening policy off), kept verbatim under Unmodeled.
+	// with the nullable-inference policy off), kept verbatim under Unmodeled.
 	//
 	// Info, because the document did nothing wrong: JSON Schema requires an
 	// implementation to ignore a keyword it does not recognize, and says such a
@@ -432,6 +432,17 @@ const (
 	// Warning for UnknownObjectKey's reason: a key under a prefix a policy owns
 	// is most likely one it reads, misspelt.
 	UnreadExtension = "openapi/unread-extension"
+	// UnpromotedExtension reports a promotion key whose value states nothing
+	// usable, saying why, at the key: a key a target reads that states nothing
+	// the target can fill on its node, or states it where the node has nothing
+	// to fill, as a stream's terminator or the input selecting it (stream) and
+	// a choice among parameters (paramchoice)
+	// (docs/compilers/openapi.md#extension-promotion), and a pagination key
+	// written true where the document's root states no walk, or beside the
+	// statement its path item writes
+	// (docs/compilers/openapi.md#extension-pagination). Info: the key is kept
+	// verbatim, so nothing it says is lost.
+	UnpromotedExtension = "openapi/unpromoted-extension"
 	// UnknownKeyBudget reports an object declaring more keys the model does not
 	// name than the compiler keeps, so the ones past the bound reached the IR in no
 	// form at all.
@@ -517,7 +528,7 @@ const (
 	// fragment, which the URI template leaves out and each operation's binding
 	// keeps. Matching the expressions to path parameters is #640's.
 	InvalidPathKey = "openapi/invalid-path-key"
-	// InferredNullable reports a null the nullable-widening policy reads in
+	// InferredNullable reports a null the nullable-inference policy reads in
 	// where the document's version does not: a `nullable: true` in a 3.1 or 3.2
 	// schema, beside a $ref, in a 3.0 schema with no type beside it or a keyword
 	// that excludes null, or on an allOf branch another conjunct contradicts, at
@@ -549,10 +560,11 @@ const (
 	// Info, as InferredNullable is: the reading is the document's evident
 	// intent, and the mark keeps the declared one.
 	InferredDiscriminator = "openapi/inferred-discriminator"
-	// InferredHTTPDate reports a response header the HTTP-date policy writes and
-	// reads as an HTTP-date, a field an RFC defines so whose schema declares a
-	// date-time, whose text format spells as RFC 3339's, at the header. The
-	// header is marked Inferred (docs/compilers/openapi.md#http-date-inference).
+	// InferredHTTPDate reports a response header or a header parameter the
+	// HTTP-date policy writes and reads as an HTTP-date, a field an RFC defines
+	// so whose schema declares a date-time, whose text format spells as RFC
+	// 3339's, at the header or the parameter (convention). The node is marked
+	// Inferred (docs/compilers/openapi.md#http-date-inference).
 	// Info, as InferredDiscriminator is: the reading departs from what the
 	// format says, and the mark keeps what the document declared.
 	InferredHTTPDate = "openapi/inferred-http-date"
@@ -569,8 +581,8 @@ const (
 	// deprecated node (docs/compilers/openapi.md#replacement-inference). Info:
 	// the message keeps its prose, so nothing it says is lost.
 	UndecidedReplacement = "openapi/undecided-replacement"
-	// UndecidedPagination reports an operation whose query parameters name a
-	// pagination input the pagination-inference policy cannot settle into an
+	// UndecidedPagination reports an operation whose request or response names a
+	// pagination the pagination-inference policy cannot settle into an
 	// ir.Pagination, saying why, at the operation: it is left with none
 	// (docs/compilers/openapi.md#pagination-policy). Info: the document
 	// declares no pagination, so nothing it says is lost.
