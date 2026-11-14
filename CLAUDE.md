@@ -331,10 +331,8 @@ assertion shapes:
   the order of what `orderFree` in `internal/harness/order.go` lists and of a verbatim JSON object's
   members, and the diagnostics without their message text or line and column. It permutes mappings
   alone. The sequence-order oracle beside it reverses each `allOf` and `required` sequence that
-  `reverseSequences` in `internal/harness/sequence.go` may, and forgives which element of a
-  reversed sequence a pointer names, the order of `mixins`, `requires` and a kept `allOf` or
-  `required` array, and what sits at a report that moves with the order (`canonicalForm` in
-  `canon.go`). Both compile at the default limits, so an order dependence among a listed
+  `reverseSequences` in `internal/harness/sequence.go` may, and forgives what `canonicalForm` in
+  `canon.go` lists. Both compile at the default limits, so an order dependence among a listed
   collection's elements, in any other sequence or another order of one, or in a verdict at another
   limit (#1519) needs its own two-order diff. A targeted case still earns its place when it pins
   one lowering, because the oracles prove order-independence only for the constructs their inputs
