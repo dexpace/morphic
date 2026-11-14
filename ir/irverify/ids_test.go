@@ -100,7 +100,7 @@ func TestVerify_WrongPointerIsAViolation(t *testing.T) {
 // have would make every document violate.
 func TestVerify_PointerlessIDIsClean(t *testing.T) {
 	t.Parallel()
-	p := &ir.Primitive{ID: "t/prim/string", Prim: ir.PrimString}
+	p := &ir.Primitive{ID: "t/prim/string", Prim: ir.PrimString, Provenance: ir.Provenance{Source: ir.NoSource}}
 	doc := &ir.Document{IRVersion: ir.IRVersion, Types: ir.TypeRegistry{p.ID: p}}
 	assert.Empty(t, verifyDeclared(doc))
 }
@@ -131,7 +131,7 @@ func TestVerify_PrimitiveAwayFromItsSharedIDIsAViolation(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			p := &ir.Primitive{ID: tc.id, Prim: tc.kind}
+			p := &ir.Primitive{ID: tc.id, Prim: tc.kind, Provenance: ir.Provenance{Source: ir.NoSource}}
 			doc := &ir.Document{IRVersion: ir.IRVersion, Types: ir.TypeRegistry{tc.id: p}}
 
 			got := verifyDeclared(doc)
@@ -155,7 +155,7 @@ func TestVerify_KindlessPrimitiveIsReportedOnItsOwnTerms(t *testing.T) {
 	t.Parallel()
 	const id ir.TypeID = "t/openapi/components/schemas/Name"
 	doc := &ir.Document{IRVersion: ir.IRVersion, Types: ir.TypeRegistry{
-		id: &ir.Primitive{ID: id},
+		id: &ir.Primitive{ID: id, Provenance: ir.Provenance{Source: ir.NoSource}},
 	}}
 
 	got := verifyDeclared(doc)
@@ -208,7 +208,7 @@ func TestVerify_PrimIDChecksAreScopedToTheSpaceAndTheKind(t *testing.T) {
 	doc := &ir.Document{IRVersion: ir.IRVersion, Types: ir.TypeRegistry{}}
 	for _, kind := range []ir.PrimKind{ir.PrimString, ir.PrimInt32, ir.PrimDatetimeOffset, ir.PrimAny} {
 		id := ir.PrimTypeID(kind)
-		doc.Types[id] = &ir.Primitive{ID: id, Prim: kind}
+		doc.Types[id] = &ir.Primitive{ID: id, Prim: kind, Provenance: ir.Provenance{Source: ir.NoSource}}
 	}
 	for _, m := range []struct {
 		id      ir.TypeID
@@ -477,4 +477,81 @@ func TestVerify_ParameterIDMayDifferFromItsPointer(t *testing.T) {
 
 	mounted := parameter.doc("param/openapi/paths/~1widgets/get/parameters/id/query", "/components/pathItems/Listing/parameters/0")
 	assert.Empty(t, violationPaths(verifyDeclared(mounted), "ir/id-provenance-disagreement"))
+}
+
+// TestVerify_ChannelAndMessageIDsAreHeldToTheGrammar pins that the two
+// registries of the messaging layer are held to the ID grammar as every other
+// registry is: a message cannot take a type's ID and a channel cannot take an
+// operation's, each reported at its registry entry, and the same entry under
+// its own kind and a declared namespace draws nothing.
+func TestVerify_ChannelAndMessageIDsAreHeldToTheGrammar(t *testing.T) {
+	t.Parallel()
+	const code = "ir/id-malformed"
+	message := scenarioBase()
+	message.Messages = map[ir.MessageID]ir.Message{"t/prim/string": {ID: "t/prim/string", Name: named("evt")}}
+	assert.Equal(t, []string{"messages[t/prim/string]"}, violationPaths(verifyDeclared(message), code))
+
+	channel := scenarioBase()
+	channel.Channels = map[ir.ChannelID]ir.Channel{"op/x/o": {ID: "op/x/o", Name: named("c")}}
+	assert.Equal(t, []string{"channels[op/x/o]"}, violationPaths(verifyDeclared(channel), code))
+
+	valid := scenarioBase()
+	valid.Messages = map[ir.MessageID]ir.Message{"msg/x/evt": {ID: "msg/x/evt", Name: named("evt")}}
+	valid.Channels = map[ir.ChannelID]ir.Channel{"chan/x/c": {ID: "chan/x/c", Name: named("c")}}
+	valid.IDSpaces["msg"] = []string{"x"}
+	valid.IDSpaces["chan"] = []string{"x"}
+	assert.Empty(t, violationPaths(verifyDeclared(valid), code))
+}
+
+// TestVerify_MessageNamespaceIsDeclared pins that a message's namespace is held
+// to the declaration as any entity's is: one outside the declared set is
+// reported at the message's node, and the declared one is clean.
+func TestVerify_MessageNamespaceIsDeclared(t *testing.T) {
+	t.Parallel()
+	const code = "ir/id-space-undeclared"
+	doc := scenarioBase()
+	doc.Messages = map[ir.MessageID]ir.Message{"msg/y/evt": {ID: "msg/y/evt", Name: named("evt")}}
+	doc.IDSpaces["msg"] = []string{"x"}
+	assert.Equal(t, []string{"doc.Messages[msg/y/evt]"}, violationPaths(verifyDeclared(doc), code))
+
+	valid := scenarioBase()
+	valid.Messages = map[ir.MessageID]ir.Message{"msg/x/evt": {ID: "msg/x/evt", Name: named("evt")}}
+	valid.IDSpaces["msg"] = []string{"x"}
+	assert.Empty(t, violationPaths(verifyDeclared(valid), code))
+}
+
+// TestVerify_ChannelNamespaceIsDeclared is the channel's half of the namespace
+// check, and shows an undeclared kind is no unknown one: "chan" and "msg" are
+// kinds a declaration may key.
+func TestVerify_ChannelNamespaceIsDeclared(t *testing.T) {
+	t.Parallel()
+	doc := scenarioBase()
+	doc.Channels = map[ir.ChannelID]ir.Channel{"chan/y/c": {ID: "chan/y/c", Name: named("c")}}
+	doc.IDSpaces["chan"] = []string{"x"}
+	doc.IDSpaces["msg"] = []string{"x"}
+
+	got := verifyDeclared(doc)
+
+	assert.Equal(t, []string{"doc.Channels[chan/y/c]"}, violationPaths(got, "ir/id-space-undeclared"))
+	assert.Empty(t, violationPaths(got, "ir/id-spaces-unknown-kind"), "chan and msg are kinds a declaration may key")
+}
+
+// TestVerify_ChannelAndMessageAreNotHeldToTheirPointer pins that no pointer
+// agreement is asked of a channel or a message, for the reason an operation is
+// exempt: the ID is not derived from a single pointer, so a recorded pointer
+// that differs from the ID's path is no disagreement.
+func TestVerify_ChannelAndMessageAreNotHeldToTheirPointer(t *testing.T) {
+	t.Parallel()
+	doc := scenarioBase()
+	doc.Sources = oneSource()
+	prov := ir.Provenance{Source: 0, Pointer: "/channels/other"}
+	doc.Channels = map[ir.ChannelID]ir.Channel{"chan/x/c": {ID: "chan/x/c", Name: named("c"), Provenance: prov}}
+	doc.Messages = map[ir.MessageID]ir.Message{"msg/x/evt": {ID: "msg/x/evt", Name: named("evt"), Provenance: prov}}
+	doc.IDSpaces["chan"] = []string{"x"}
+	doc.IDSpaces["msg"] = []string{"x"}
+
+	got := verifyDeclared(doc)
+
+	assert.Empty(t, violationPaths(got, "ir/id-provenance-disagreement"))
+	assert.Empty(t, violationPaths(got, "ir/id-malformed"))
 }

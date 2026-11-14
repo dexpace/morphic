@@ -56,6 +56,22 @@ to a `Union`. Which repeat holds the bare ID follows source order, so a reorder 
 and may move that one. `pass.Validate` reports an ID repeated within one enum as
 `pass/duplicate-enum-member-id`.
 
+## Member values
+
+A member's `Value` matches `ValueType` when its kind is one the value type's row lists, and
+`irverify` reports any other (`ir/enum-member-kind`). The kind is held, never the spelling of the
+value.
+
+| `ValueType` | Member kinds admitted |
+|---|---|
+| `bool` | `bool` |
+| `string`, `date`, `time`, `datetime`, `datetime_offset`, `duration`, `url`, `uuid` | `string`, `symbol` |
+| `bytes` | `bytes` |
+| `int8` to `int64`, `uint8` to `uint64`, `integer`, `float32`, `float64`, `float`, `number`, `decimal`, `decimal128` | `number` |
+| `any` | `bool`, `string`, `symbol`, `number`, `bytes`, `null` |
+
+A value type no `PrimKind` declares has no row, and is reported as `ir/unknown-prim-kind` alone.
+
 ## The empty enum
 
 A **closed** Enum with **no members** is the empty value space — it admits its members and has

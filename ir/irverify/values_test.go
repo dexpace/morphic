@@ -181,8 +181,13 @@ func valueCarrierCases() []valueCarrierCase {
 		{carrier: "Example.Headers", path: example + ".Headers", doc: func(v ir.Value) *ir.Document {
 			return exampleDoc(ir.Example{Name: "ex", Headers: &v})
 		}},
-		{carrier: "Example.Input", path: example + ".Input", doc: func(v ir.Value) *ir.Document {
-			return exampleDoc(ir.Example{Name: "ex", Input: &v})
+		{carrier: "ScenarioInput.Params", path: example + ".Input.Params[param/x/q]", doc: func(v ir.Value) *ir.Document {
+			return exampleDoc(ir.Example{Name: "ex", Input: &ir.ScenarioInput{
+				Params: map[ir.ParamID]ir.Value{"param/x/q": v},
+			}})
+		}},
+		{carrier: "ScenarioInput.Body", path: example + ".Input.Body", doc: func(v ir.Value) *ir.Document {
+			return exampleDoc(ir.Example{Name: "ex", Input: &ir.ScenarioInput{Body: &v}})
 		}},
 		{carrier: "Example.Output", path: example + ".Output", doc: func(v ir.Value) *ir.Document {
 			return exampleDoc(ir.Example{Name: "ex", Output: &v})

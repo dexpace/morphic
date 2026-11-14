@@ -5,7 +5,9 @@ package irverify
 
 import (
 	"go/types"
+	"maps"
 	"reflect"
+	"slices"
 	"strconv"
 	"testing"
 
@@ -22,21 +24,26 @@ import (
 // listPath, so a list whose blank entry is legal would report one as a defect.
 func TestStringLists_AreAllClassified(t *testing.T) {
 	t.Parallel()
+	found := stringListFieldKeys(t)
+	require.NotEmpty(t, found, "the ir package must declare []string fields")
+	for _, problem := range classificationProblems(slices.Collect(maps.Keys(stringLists)), found,
+		"ir.%s is a []string field stringLists does not classify: say what its entries are held to") {
+		t.Error(problem)
+	}
+}
+
+// stringListFieldKeys returns the "Type.Field" key of every []string field the
+// ir package declares.
+func stringListFieldKeys(t *testing.T) map[string]bool {
+	t.Helper()
 	stringList := types.NewSlice(types.Typ[types.String])
-	var found []string
+	found := map[string]bool{}
 	for _, f := range declaredFields(t) {
 		if types.Identical(f.field.Type(), stringList) {
-			found = append(found, f.key())
+			found[f.key()] = true
 		}
 	}
-	require.NotEmpty(t, found, "the ir package must declare []string fields")
-	for _, name := range found {
-		assert.Contains(t, stringLists, name,
-			"ir.%s is a []string field stringLists does not classify: "+
-				"say what its entries are held to", name)
-	}
-	assert.Len(t, stringLists, len(found),
-		"stringLists classifies a field the ir package no longer declares")
+	return found
 }
 
 // TestHeldListsOf_HoldsAnUnlistedFieldAsAPath pins what listPath being the zero

@@ -11,6 +11,7 @@ import (
 	"strings"
 
 	"github.com/dexpace/morphic/ir"
+	"github.com/dexpace/morphic/reuse"
 )
 
 // nameReader reads one scope after another through the same buffers, which
@@ -23,7 +24,7 @@ type nameReader struct {
 	// the last set read whose name has that hash. A hash is its key rather
 	// than the name, since a name compared joined is not a string the scope
 	// holds.
-	seen reusedMap[uint64, int]
+	seen reuse.Map[uint64, int]
 	// hash makes the keys of seen, under one seed for the whole run, and
 	// joined holds the words it hashes with their separators left out.
 	hash   maphash.Hash
@@ -145,7 +146,7 @@ func (r *nameReader) readScope(by comparison, n int, name func(i int) ir.Naming)
 // nothing, which irverify reports as ir/naming-absent, so it is passed over
 // here.
 func (r *nameReader) read(by comparison) bool {
-	seen, n := r.seen.emptied(), len(r.parties)
+	seen, n := r.seen.Emptied(), len(r.parties)
 	r.later, r.last, r.other = sized(r.later, n), sized(r.last, n), sized(r.other, n)
 	r.shared, r.bare = r.shared[:0], r.bare[:0]
 	for i, p := range r.parties {

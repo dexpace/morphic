@@ -8,6 +8,7 @@ import (
 	"strconv"
 
 	"github.com/dexpace/morphic/ir"
+	"github.com/dexpace/morphic/reuse"
 )
 
 var (
@@ -42,9 +43,10 @@ var interactionPath = map[reflect.Type]bool{
 
 // checkInteractions asserts what starts and ends a page walk or a stream
 // (docs/ir/interaction-patterns.md): every ir.InputPath names a value its
-// operation's request carries, every pagination stop is one ir declares, listed
-// once, and no stream ends on empty data. An emitter switches on a stop to end
-// its loop, so one it has no arm for is ir/unknown-page-stop.
+// operation's request carries, as does every scenario's Body, every pagination
+// stop is one ir declares, listed once, and no stream ends on empty data. An
+// emitter switches on a stop to end its loop, so one it has no arm for is
+// ir/unknown-page-stop.
 //
 // It prunes all but operationPath and interactionPath, for
 // checkStreamingModes's reason. Operations never nest, so the one the walk last
@@ -53,7 +55,7 @@ func checkInteractions(*ir.Document) walkCheck {
 	var vs []Violation
 	// Every pagination's stops are read through this one, so a list costs no
 	// map of its own.
-	var stops reusedMap[ir.PageStop, int]
+	var stops reuse.Map[ir.PageStop, int]
 	bodyless := false // the operation the walk is in sends no request body
 	return walkCheck{
 		visit: func(v reflect.Value, at ir.WalkPath) bool {
@@ -61,6 +63,9 @@ func checkInteractions(*ir.Document) walkCheck {
 			case operationType:
 				op, ok := reflect.TypeAssert[ir.Operation](v)
 				bodyless = ok && op.Request == nil
+				if ok {
+					vs = appendScenarioViolations(vs, &op, at)
+				}
 				return true
 			case inputPathType:
 				if in, ok := reflect.TypeAssert[ir.InputPath](v); ok {
@@ -100,6 +105,50 @@ func appendInputViolation(vs []Violation, in ir.InputPath, bodyless bool, at ir.
 	})
 }
 
+// appendScenarioViolations reports each scenario of op, the operation at at,
+// whose Body op cannot take: one on an operation that sends no request, which
+// has no content for it to be the value of (ir/input-body-absent), and one on
+// an operation binding a parameter into its body, whole or by property, where
+// the parameters state the body, so a Body states part of it twice
+// (ir/input-body-twice). A path is spelled only for a report.
+func appendScenarioViolations(vs []Violation, op *ir.Operation, at ir.WalkPath) []Violation {
+	twice := bindsIntoBody(op)
+	for i, ex := range op.Examples {
+		if ex.Input == nil || ex.Input.Body == nil || (op.Request != nil && !twice) {
+			continue
+		}
+		where := at.String() + ".Examples[" + strconv.Itoa(i) + "].Input.Body"
+		if op.Request == nil {
+			vs = append(vs, Violation{
+				Code:    "ir/input-body-absent",
+				Message: "scenario sends a request body, and the operation sends none",
+				Path:    where,
+			})
+		}
+		if twice {
+			vs = append(vs, Violation{
+				Code:    "ir/input-body-twice",
+				Message: "scenario states a request body beside a parameter bound into it, which states it already",
+				Path:    where,
+			})
+		}
+	}
+	return vs
+}
+
+// bindsIntoBody reports whether any HTTP binding of op binds a parameter into
+// the request body, whole or by property.
+func bindsIntoBody(op *ir.Operation) bool {
+	for _, b := range op.Bindings.HTTP {
+		for _, pb := range b.ParamBindings {
+			if pb.Location == ir.HTTPLocationBody || pb.Location == ir.HTTPLocationBodyProperty {
+				return true
+			}
+		}
+	}
+	return false
+}
+
 // appendTerminatorViolation reports an empty terminator of the stream at owner:
 // compared with each frame's data, it would end the stream at any frame holding
 // none, a keep-alive among them (ir/stream-terminator-empty).
@@ -118,12 +167,12 @@ func appendTerminatorViolation(vs []Violation, terminator *string, owner ir.Walk
 // owner, that ir does not declare, and each repeat of one at its later index, as
 // a set's repeat is (ir/set-entry-duplicate): it ends nothing more.
 func appendStopViolations(vs []Violation, stops []ir.PageStop, owner ir.WalkPath,
-	entries *reusedMap[ir.PageStop, int],
+	entries *reuse.Map[ir.PageStop, int],
 ) []Violation {
 	if len(stops) == 0 {
 		return vs // an empty Stop states no rule, and costs no map
 	}
-	first := entries.emptied()
+	first := entries.Emptied()
 	for i, stop := range stops {
 		where := owner.String() + ".Stop[" + strconv.Itoa(i) + "]"
 		switch earlier, repeated := first[stop]; {

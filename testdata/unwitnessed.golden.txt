@@ -175,6 +175,8 @@ member 0 0 ResourceInfo.lifecycle
 member 0 0 ResourceInfo.noReplace
 member 0 0 ResourceInfo.properties
 member 0 0 Response.statusCodeProp
+member 0 0 ScenarioInput.body
+member 0 0 ScenarioInput.params
 member 0 0 Server.auth
 empty 0 0 Server.auth
 member 0 0 Server.bindings

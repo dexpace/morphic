@@ -46,22 +46,27 @@ const witnessDoc = "matrix.md"
 // format writes.
 func TestConformance(t *testing.T) {
 	t.Parallel()
-	for _, tc := range conformanceCases() {
-		t.Run(tc.file, func(t *testing.T) {
-			t.Parallel()
-			doc, diags := parseCorpus(t, tc.file)
-			assertOnlyErrorDiags(t, diags, invalidCases()[tc.file])
-			// A subtest returns once its own parallel subtests have finished, so
-			// the check below sees a failure in any an assertion starts.
-			t.Run("assert", func(t *testing.T) { tc.assert(t, doc, diags) })
-			assertJSONRoundTrip(t, doc)
-			// A failed assertion must not reach the golden: under -update it would
-			// rewrite the snapshot with the regressed document, leaving a loud run
-			// behind a file that now agrees with the regression.
-			require.False(t, t.Failed(), "an assertion failed; not comparing or rewriting the golden")
-			irtest.CompareGolden(t, filepath.Join(conformanceDir, tc.file+".golden.json"), doc)
-		})
-	}
+	// The specs write their goldens under -update, so what holds the corpus's
+	// specs to its goldens waits for the group, which returns once its parallel
+	// subtests have finished: beside them it would read the directory before a
+	// new case's golden is written.
+	t.Run("specs", func(t *testing.T) {
+		for _, tc := range conformanceCases() {
+			t.Run(tc.file, func(t *testing.T) {
+				t.Parallel()
+				doc, diags := parseCorpus(t, tc.file)
+				assertOnlyErrorDiags(t, diags, invalidCases()[tc.file])
+				// A subtest returns once its own parallel subtests have finished, so
+				// a failure in any an assertion starts is seen by the golden compare,
+				// which under -update refuses a failed test rather than rewrite the
+				// snapshot with the regressed document.
+				t.Run("assert", func(t *testing.T) { tc.assert(t, doc, diags) })
+				assertJSONRoundTrip(t, doc)
+				irtest.CompareGolden(t, filepath.Join(conformanceDir, tc.file+".golden.json"), doc)
+			})
+		}
+	})
+	requireSpecsHaveGoldens(t)
 }
 
 // TestConformance_TableNamesEveryCorpusSpec requires the table and the corpus
@@ -70,7 +75,8 @@ func TestConformance(t *testing.T) {
 // (dangling references, the fuzz seed, the census of unwitnessed facts) still
 // read it, so it looks covered; a row naming a deleted spec fails the other
 // way. Comparing sorted lists rather than sets also catches a spec named by two
-// rows.
+// rows. It reads no golden's name: TestConformance's goldens are written while
+// it runs.
 func TestConformance_TableNamesEveryCorpusSpec(t *testing.T) {
 	t.Parallel()
 	onDisk := corpusSpecNames(t)
@@ -86,43 +92,64 @@ func TestConformance_TableNamesEveryCorpusSpec(t *testing.T) {
 	}
 }
 
-// corpusSpecNames returns the base name of every spec in the corpus directory,
-// failing on any file that is neither a .yaml spec, a golden beside one nor the
-// witness document.
-//
-// The .yaml-only restriction is asserted rather than left to a narrower glob.
-// parseCorpus reads only "<name>.yaml", so a spec committed as .yml or .json
-// could not be named by a table row, yet the census of the corpus that
-// cmd/morphic-census holds to its golden reads all three extensions and would
-// count its facts as witnessed, leaving it with neither assertion nor golden.
-func corpusSpecNames(t *testing.T) []string {
+// corpusEntries returns the files of the corpus directory, failing on a
+// subdirectory, which no sweep descends into.
+func corpusEntries(t *testing.T) []os.DirEntry {
 	t.Helper()
 	entries, err := os.ReadDir(conformanceDir)
 	require.NoError(t, err)
-
-	specs := make([]string, 0, len(entries))
-	goldens := make([]string, 0, len(entries))
 	for _, e := range entries {
+		require.False(t, e.IsDir(), "corpus directory holds a subdirectory %q; no sweep descends into one", e.Name())
+	}
+	return entries
+}
+
+// corpusSpecNames returns the sorted base name of every .yaml spec in the corpus
+// directory.
+//
+// The .yaml-only reading is what parseCorpus does: it reads only "<name>.yaml",
+// so a spec committed as .yml or .json could not be named by a table row.
+// requireSpecsHaveGoldens refuses a file of any other extension.
+func corpusSpecNames(t *testing.T) []string {
+	t.Helper()
+	var specs []string
+	for _, e := range corpusEntries(t) {
+		if name, isSpec := strings.CutSuffix(e.Name(), ".yaml"); isSpec {
+			specs = append(specs, name)
+		}
+	}
+	require.NotEmpty(t, specs, "the corpus directory must hold specs")
+	slices.Sort(specs)
+	return specs
+}
+
+// requireSpecsHaveGoldens requires the corpus's specs and goldens to name the
+// same cases, and every file to be a .yaml spec, a golden beside one or the
+// witness document.
+//
+// The census of the corpus that cmd/morphic-census holds to its golden reads all
+// three extensions and would count a .yml or .json spec's facts as witnessed,
+// leaving it with neither assertion nor golden, so the extension is asserted
+// here rather than left to a narrower glob.
+func requireSpecsHaveGoldens(t *testing.T) {
+	t.Helper()
+	var goldens []string
+	for _, e := range corpusEntries(t) {
 		name := e.Name()
-		require.False(t, e.IsDir(), "corpus directory holds a subdirectory %q; no sweep descends into one", name)
 		switch {
 		case name == witnessDoc: // names rows, not a spec
 		case strings.HasSuffix(name, ".golden.json"):
 			goldens = append(goldens, strings.TrimSuffix(name, ".golden.json"))
 		case strings.HasSuffix(name, ".yaml"):
-			specs = append(specs, strings.TrimSuffix(name, ".yaml"))
 		default:
 			t.Errorf("corpus file %q is neither a .yaml spec nor a golden; "+
 				"parseCorpus reads only .yaml, so a spec in any other extension gets no table row", name)
 		}
 	}
-	require.NotEmpty(t, specs, "the corpus directory must hold specs")
-	slices.Sort(specs)
 	slices.Sort(goldens)
-	if diff := cmp.Diff(specs, goldens); diff != "" {
+	if diff := cmp.Diff(corpusSpecNames(t), goldens); diff != "" {
 		t.Errorf("corpus specs and goldens disagree (-specs +goldens):\n%s", diff)
 	}
-	return specs
 }
 
 // conformanceCase pairs one corpus spec with the assertion that its capability

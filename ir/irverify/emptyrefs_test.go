@@ -399,3 +399,42 @@ func TestVerify_ParamIDClassIsReached(t *testing.T) {
 		})
 	}
 }
+
+// TestVerify_DocumentedEmptyPositionsStayLegal pins the positions whose
+// comments spell "none" as an empty ID: a discriminator's default, an
+// idempotency token parameter an operation not keyed by a token leaves empty,
+// and a discriminator's tag property when PropertyName locates the tag. No
+// empty-reference report may be drawn at any of them, whatever else the
+// fixture draws.
+func TestVerify_DocumentedEmptyPositionsStayLegal(t *testing.T) {
+	t.Parallel()
+	doc := scenarioBase()
+	doc.Types["t/x/Base"] = &ir.Model{
+		ID: "t/x/Base", Name: named("base"),
+		Discriminator: &ir.Discriminator{PropertyName: "k", Property: "", Default: "", Mapping: map[string]ir.TypeID{"a": "t/x/M"}},
+	}
+	scenarioOperation(doc).Idempotency = ir.Idempotency{Kind: ir.IdempotencySafe, TokenParam: ""}
+
+	assert.Empty(t, emptyRefViolations(doc))
+}
+
+// TestVerify_EmptyChannelOfAMessageBindingIsReportedOnce pins the empty channel
+// of a message binding as one ir/empty-channel-ref at the channel, and the same
+// binding naming a declared channel as clean.
+func TestVerify_EmptyChannelOfAMessageBindingIsReportedOnce(t *testing.T) {
+	t.Parallel()
+	doc := scenarioBase()
+	scenarioOperation(doc).Bindings.Message = &ir.MessageBinding{Channel: "", Direction: ir.MsgDirectionSend}
+
+	got := emptyRefViolations(doc)
+
+	require.Len(t, got, 1)
+	assert.Equal(t, "ir/empty-channel-ref", got[0].Code)
+	assert.Equal(t, scenarioOp+".Bindings.Message.Channel", got[0].Path)
+
+	valid := scenarioBase()
+	valid.Channels = map[ir.ChannelID]ir.Channel{"chan/x/c": {ID: "chan/x/c", Name: named("c")}}
+	valid.IDSpaces["chan"] = []string{"x"}
+	scenarioOperation(valid).Bindings.Message = &ir.MessageBinding{Channel: "chan/x/c", Direction: ir.MsgDirectionSend}
+	assert.Empty(t, emptyRefViolations(valid))
+}

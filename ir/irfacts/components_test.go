@@ -5,9 +5,11 @@ package irfacts_test
 
 import (
 	"fmt"
+	"maps"
 	"math/rand/v2"
 	"reflect"
 	"slices"
+	"sync"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
@@ -63,43 +65,96 @@ var notPartFields = map[string]string{
 	"Encoding.WireType": "a wire type says how a value is written, not a value it holds",
 }
 
+// partWalk is what filling a value of one kind shows of its parts.
+type partWalk struct {
+	td        ir.TypeDef
+	want      map[string][]ir.TypeID // the parts of the value by role, as the tables read them
+	undecided []string               // positions naming a type that no table decides
+	roles     map[string]bool        // the keys of roles the walk read
+	steps     map[string]bool        // the keys of notFields the walk met
+}
+
+// walkParts fills a value of kind k and reads the positions in it that name a
+// type, by roles and notFields.
+func walkParts(t *testing.T, k ir.TypeKind, roles, notFields map[string]string) partWalk {
+	t.Helper()
+	td, ok := ir.NewTypeDef(k)
+	require.True(t, ok, "no concrete type for kind %q", k)
+	irtest.Fill(t, td)
+	w := &positionWalk{types: notParts, fields: notFields, out: map[ir.TypeID]position{}}
+	w.walk(reflect.ValueOf(td).Elem(), nil, "")
+	delete(w.out, td.Common().ID)
+
+	out := partWalk{td: td, want: map[string][]ir.TypeID{}, roles: map[string]bool{}, steps: w.read}
+	for id, at := range w.out {
+		if at.excluded != "" {
+			continue
+		}
+		role, decided := roles[at.path]
+		if !decided {
+			out.undecided = append(out.undecided, at.path)
+			continue
+		}
+		out.roles[at.path] = true
+		out.want[role] = append(out.want[role], id)
+	}
+	return out
+}
+
+// readKeys collects the table keys the parallel subtests of a test read.
+type readKeys struct {
+	mu    sync.Mutex
+	roles map[string]bool
+	steps map[string]bool
+}
+
+// add records what one walk read.
+func (r *readKeys) add(p partWalk) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if r.roles == nil {
+		r.roles, r.steps = map[string]bool{}, map[string]bool{}
+	}
+	maps.Copy(r.roles, p.roles)
+	maps.Copy(r.steps, p.steps)
+}
+
 // TestIndex_EveryKindNamesItsPartsByRole fills every field of each kind and
 // holds what the type graph reads of it to partRoles: every position a role
-// names is read in that role, and nothing else is read.
+// names is read in that role, and nothing else is read. Each entry of partRoles
+// and notPartFields must also be read by some kind, so a stale one is named.
 func TestIndex_EveryKindNamesItsPartsByRole(t *testing.T) {
 	t.Parallel()
-	for _, k := range declaredKinds(t) {
-		t.Run(string(k), func(t *testing.T) {
-			t.Parallel()
-			td, ok := ir.NewTypeDef(k)
-			require.True(t, ok, "no concrete type for kind %q", k)
-			irtest.Fill(t, td)
-			w := &positionWalk{types: notParts, fields: notPartFields, out: map[ir.TypeID]position{}}
-			w.walk(reflect.ValueOf(td).Elem(), nil, "")
-			delete(w.out, td.Common().ID)
-
-			want := map[string][]ir.TypeID{}
-			for id, at := range w.out {
-				if at.excluded != "" {
-					continue
+	var read readKeys
+	// The subtests run in parallel inside the group, which returns once all
+	// have, so the staleness checks below see what every kind read.
+	t.Run("kinds", func(t *testing.T) {
+		for _, k := range declaredKinds(t) {
+			t.Run(string(k), func(t *testing.T) {
+				t.Parallel()
+				p := walkParts(t, k, partRoles, notPartFields)
+				assert.Empty(t, p.undecided, "these name a type: give each a role in partRoles or say why it is none")
+				read.add(p)
+				held, composed, alias, args := irfacts.Parts(p.td)
+				got := map[string][]ir.TypeID{"held": held, "composed": composed, "args": args}
+				if alias != "" {
+					got["alias"] = []ir.TypeID{alias}
 				}
-				role, decided := partRoles[at.path]
-				require.True(t, decided, "%s names a type: give it a role in partRoles or say why it is none", at.path)
-				want[role] = append(want[role], id)
-			}
-			held, composed, alias, args := irfacts.Parts(td)
-			got := map[string][]ir.TypeID{"held": held, "composed": composed, "args": args}
-			if alias != "" {
-				got["alias"] = []ir.TypeID{alias}
-			}
-			for role, ids := range got {
-				if len(ids) == 0 {
-					delete(got, role)
+				for role, ids := range got {
+					if len(ids) == 0 {
+						delete(got, role)
+					}
 				}
-			}
-			sorted := cmp.Transformer("sort", func(ids []ir.TypeID) []ir.TypeID { return slices.Sorted(slices.Values(ids)) })
-			assert.Empty(t, cmp.Diff(want, got, sorted))
-		})
+				sorted := cmp.Transformer("sort", func(ids []ir.TypeID) []ir.TypeID { return slices.Sorted(slices.Values(ids)) })
+				assert.Empty(t, cmp.Diff(p.want, got, sorted))
+			})
+		}
+	})
+	for _, problem := range staleEntries("partRoles", slices.Collect(maps.Keys(partRoles)), read.roles) {
+		t.Error(problem)
+	}
+	for _, problem := range staleEntries("notPartFields", slices.Collect(maps.Keys(notPartFields)), read.steps) {
+		t.Error(problem)
 	}
 }
 

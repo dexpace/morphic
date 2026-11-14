@@ -577,6 +577,7 @@ limit by that eighth between prunes, and a ledger it cannot read prunes at once.
 ```
 morphic/
 ├── barrier/                # Layer 0 — turns a panic in code the caller does not own into an error.
+├── reuse/                  # Layer 0 — scratch state both checkers read collection after collection.
 ├── ir/                     # Layer 0 — IR node types, IDs, shared traversals, editing, JSON round-trip.
 │   ├── irfacts/            #           Derived facts of a document, never stored (docs/ir/derived-facts.md).
 │   ├── irtest/             #           Golden-snapshot and fixture helpers for IR documents.
@@ -662,9 +663,11 @@ Dependency rules, enforced by an architecture test as in oagen:
   compiler's `diag`, behind which that compiler runs its parser, the JSONPath evaluator it applies
   an overlay with and its own alias scan. No other package recovers a panic outside its tests, as
   `.golangci.yml` enforces.
+- `reuse` imports only the standard library: the map `ir/irverify` and `pass` each empty between
+  collections, one type rather than a copy in each, and no morphic concept, so it sits below `ir`.
 - `compilers/compile` imports only `ir`: it is below every compiler, not beside them.
 - `compilers/*` and `pass` import `ir` (and their own format libraries), and `pass` also
-  `ir/irfacts` — never each other, never `emitters` or `engine`. A compiler also names the
+  `ir/irfacts` and `reuse` — never each other, never `emitters` or `engine`. A compiler also names the
   contract package and `compilers/compile`; each is allowed in its own right, so no sibling
   compiler rides in beside them.
 - A compiler's own `internal/` packages each carry their own allowlist rather than inheriting the

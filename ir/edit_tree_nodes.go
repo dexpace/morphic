@@ -16,7 +16,8 @@ import "slices"
 // stays the edited document's.
 type serviceTree struct {
 	read bool
-	// cut records that groups nested past the cap went unread.
+	// cut records that groups nested past the cap, or groups and operations
+	// past the steps the read may take, went unread.
 	cut bool
 	// services lists the document's services.
 	services treeList
@@ -69,40 +70,59 @@ type treeList struct {
 	stale bool
 }
 
-// index reads the tree out of services.
-func (t *serviceTree) index(services []Service) {
+// index reads the tree out of services, taking at most limit steps.
+func (t *serviceTree) index(services []Service, limit int) {
 	t.read, t.byID = true, map[treeKey][]*treeNode{}
-	var path descent
+	r := treeRead{steps: stepLimit{left: limit}}
 	for i := range services {
 		n := t.add(nil, &t.services, serviceNode, string(services[i].ID))
 		n.service = &services[i]
-		t.indexGroups(n, services[i].Groups, 0, &path)
+		t.indexGroups(n, services[i].Groups, 0, &r)
 	}
+	t.cut = r.steps.cut
+}
+
+// treeRead is one read of the tree: the group slices it is inside, and the
+// steps it may still take.
+type treeRead struct {
+	path  descent
+	steps stepLimit
 }
 
 // indexGroups reads groups, held by parent at depth levels below a service,
-// with what they hold, as forEachGroupOperation walks them.
-func (t *serviceTree) indexGroups(parent *treeNode, groups []OperationGroup, depth int, path *descent) {
+// with what they hold, as ForEachOperation walks them: a step per group and
+// per operation, in its order.
+func (t *serviceTree) indexGroups(parent *treeNode, groups []OperationGroup, depth int, r *treeRead) {
 	if len(groups) == 0 {
 		return
 	}
 	if depth > MaxGroupDepth {
-		t.cut = true
+		r.steps.cut = true
 		return
 	}
-	if !path.enter(&groups[0], len(groups)) {
+	if !r.path.enter(&groups[0], len(groups)) {
 		return
 	}
 	for i := range groups {
+		if !r.steps.take() {
+			break
+		}
 		g := t.add(parent, &parent.groups, groupNode, string(groups[i].ID))
 		g.group = &groups[i]
-		for j := range groups[i].Operations {
-			op := &groups[i].Operations[j]
-			t.add(g, &g.operations, operationNode, string(op.ID)).operation = op
-		}
-		t.indexGroups(g, groups[i].Groups, depth+1, path)
+		t.indexOperations(g, groups[i].Operations, r)
+		t.indexGroups(g, groups[i].Groups, depth+1, r)
 	}
-	path.leave()
+	r.path.leave()
+}
+
+// indexOperations reads the operations of the group g, a step each.
+func (t *serviceTree) indexOperations(g *treeNode, ops []Operation, r *treeRead) {
+	for j := range ops {
+		if !r.steps.take() {
+			return
+		}
+		t.add(g, &g.operations, operationNode, string(ops[j].ID)).operation = &ops[j]
+	}
 }
 
 // add records a node of class with id, held by parent in the list in.

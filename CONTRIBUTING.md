@@ -225,7 +225,11 @@ needless; a verified run catches one.
    `Document.Diagnostics` aside. It asks its context as it goes, as `validate` does in its walk and
    between its rule families, and stops soon once it is done: the engine then fails the run, reading
    nothing it returned. `ir.ForEachOperation` walks the operations and `ir.ForEachGroup` the groups,
-   and the package's `diag` helper in `pass/diag.go` builds a diagnostic on a node. Each function
+   and the package's `diag` helper in `pass/diag.go` builds a diagnostic on a node. Each of `ir`'s
+   walks stops at a bound, of depth, of values a visitor is shown or of steps, and returns whether it
+   did: a function calling one reports the stop, or names the report that covers it, in
+   `walkCallers` of `internal/archtest/walkcallers_test.go`, whose
+   `TestWalks_EveryCallerAnswersForAStop` fails on a caller the table does not list. Each function
    the pass hands `ir`'s walks, and each method a walk calls on a visitor it is handed, `Visit` and,
    for a `CycleVisitor`, `Cycle`, is a call from `ir` into `pass`, which `callShapeBaseline` in
    `internal/archtest/callshape_test.go` counts as a traversal callback: raise each count

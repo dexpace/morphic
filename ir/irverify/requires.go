@@ -7,6 +7,7 @@ import (
 	"strconv"
 
 	"github.com/dexpace/morphic/ir"
+	"github.com/dexpace/morphic/reuse"
 )
 
 // checkRequires asserts each model's Requires names a member once and names
@@ -18,18 +19,18 @@ func checkRequires(doc *ir.Document) []Violation {
 	var vs []Violation
 	// Every model is read through these two, so a model costs no map of its
 	// own however many properties and entries it has.
-	var owned reusedMap[string, bool]
-	var listed reusedMap[string, int]
+	var owned reuse.Map[string, bool]
+	var listed reuse.Map[string, int]
 	for id, td := range doc.Types {
 		m, isModel := td.(*ir.Model)
 		if !isModel || m == nil || len(m.Requires) == 0 {
 			continue // a nil entry is checkRegistryKeys's to report
 		}
-		own := owned.emptied()
+		own := owned.Emptied()
 		for _, p := range m.Properties {
 			own[p.EffectiveWireName()] = true
 		}
-		first := listed.emptied()
+		first := listed.Emptied()
 		for i, name := range m.Requires {
 			if own[name] {
 				vs = append(vs, Violation{

@@ -159,7 +159,8 @@ a map requires no key and a decorator says nothing its `Base` does not.
 ## Catch-alls
 
 `AdditionalProps` types the members a model does not declare, and `Additional` says whether any are
-allowed. `Value` types a key no pattern matches, each pattern's `Value` a key it matches, and `Key`
+allowed: `""`, `closed` or `closed_after_composition`, and `irverify` reports any other value
+(`ir/unknown-additional-mode`). `Value` types a key no pattern matches, each pattern's `Value` a key it matches, and `Key`
 every key the catch-all governs. Three combinations arise, and each says one thing about the keys
 no pattern matches:
 

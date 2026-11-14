@@ -7,7 +7,6 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json/v2"
-	"os"
 	"strings"
 	"testing"
 
@@ -52,13 +51,7 @@ func TestSchemaVersion_PinsTheEncodedShape(t *testing.T) {
 	require.NoError(t, err)
 	desc, err := jsonshape.Describe(p, "versioned")
 	require.NoError(t, err)
-	if irtest.Update() {
-		require.NoError(t, os.WriteFile(schemaGolden, []byte(desc), 0o644))
-	}
-	want, err := os.ReadFile(schemaGolden)
-	require.NoError(t, err, "go test ./engine/report -run TestSchemaVersion -update writes it")
-	assert.Empty(t, cmp.Diff(string(want), desc),
-		"%s is stale: go test ./engine/report -run TestSchemaVersion -update rewrites it, then review its diff", schemaGolden)
+	irtest.CompareBytes(t, schemaGolden, []byte(desc))
 
 	sum := sha256.Sum256([]byte(desc))
 	last := schemas[len(schemas)-1]

@@ -7,7 +7,8 @@ operation that takes more than one request and one response.
 
 ```go
 type Pagination struct {
-    Strategy   PageStrategy   // cursor | offset | page | link_header | next_link | token
+    Strategy   PageStrategy   // cursor | offset | page | link_header | next_link | token; never
+                              // empty: irverify reports another (ir/unknown-page-strategy)
     Inferred   bool           // heuristic (OpenAPI name-matching policy) vs declared (Smithy/TypeSpec)
     InputCursor  *InputPath   // which input continues iteration: a parameter, the body, or a member
     InputLimit   *InputPath

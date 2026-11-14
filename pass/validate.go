@@ -47,7 +47,7 @@ func Validate(ctx context.Context, doc *ir.Document) ([]ir.Diagnostic, error) {
 }
 
 // walkFunc is how validate walks the document: ir.WalkValuesContext, unless a
-// test is counting the walks.
+// test is counting the walks or cutting one short.
 type walkFunc func(ctx context.Context, root any, path string, visitors ...ir.Visitor) (bool, error)
 
 // validate is Validate walking the document with walk.
@@ -86,20 +86,20 @@ func validate(ctx context.Context, doc *ir.Document, walk walkFunc) ([]ir.Diagno
 //
 // A family allocates only for a diagnostic. It sorts and keys collections in a
 // list and a map it keeps for the run, so a value with nothing wrong costs it
-// nothing but a step those or a log may grow by. The index it asks, facts, is
-// not yet held to that: it allocates per type it indexes and per question it
-// walks (GitHub #1150).
+// nothing but a step those or a log may grow by. The index it asks, facts,
+// allocates per index it builds and not per type it indexes (GitHub #1150).
 func families(doc *ir.Document, read walked, facts *irfacts.Index) []func() []ir.Diagnostic {
 	// A family that ranges a map sorts its keys first and needs a determinism test
 	// of its own: a range added without one can go unnoticed (GitHub #1546).
 	return []func() []ir.Diagnostic{
 		func() []ir.Diagnostic { return checkNilTypes(doc) },
 		func() []ir.Diagnostic { return checkDanglingRefs(read.refs, read.truncated) },
-		func() []ir.Diagnostic { return checkGroupWalkTruncated(doc) },
+		func() []ir.Diagnostic { return checkEmptyRefs(read.empty) },
+		func() []ir.Diagnostic { return checkGroupWalkTruncated(facts, read.truncated) },
 		func() []ir.Diagnostic { return checkResponseIndices(doc) },
 		func() []ir.Diagnostic { return checkEncodingKeys(doc, facts) },
 		func() []ir.Diagnostic { return checkPayloadRequired(doc) },
-		func() []ir.Diagnostic { return checkPropIDRefs(read.props, read.refs) },
+		func() []ir.Diagnostic { return checkPropIDRefs(read.props, read.refs, read.truncated) },
 		func() []ir.Diagnostic { return checkDiscriminators(doc, facts) },
 		func() []ir.Diagnostic { return checkRepeatedVariants(doc) },
 		func() []ir.Diagnostic { return checkDuplicateWireNames(doc) },
@@ -116,10 +116,11 @@ func families(doc *ir.Document, read walked, facts *irfacts.Index) []func() []ir
 
 // walked is what one walk of a document reads for the checks that need it: the
 // references that may dangle with the identities they resolve against, its
-// PropIDs, and whether the walk was cut short.
+// PropIDs, the references it holds empty, and whether the walk was cut short.
 type walked struct {
 	refs      *ir.IDReferences
 	props     *propIDSites
+	empty     *ir.EmptyReferences
 	truncated bool
 }
 
@@ -127,8 +128,8 @@ type walked struct {
 // ctx's error alone if the walk stopped at it.
 func walkDocument(ctx context.Context, doc *ir.Document, walk walkFunc) (walked, error) {
 	refs := ir.NewIDReferences(doc)
-	w := walked{refs: refs, props: &propIDSites{refs: refs}}
-	truncated, err := walk(ctx, doc, ir.DocumentPath, w.refs, w.props)
+	w := walked{refs: refs, props: &propIDSites{refs: refs}, empty: &ir.EmptyReferences{}}
+	truncated, err := walk(ctx, doc, ir.DocumentPath, w.refs, w.props, w.empty)
 	if err != nil {
 		return walked{}, err
 	}

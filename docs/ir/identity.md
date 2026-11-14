@@ -20,13 +20,13 @@ structurally identical anonymous types; aliases are recorded so both IDs stay re
 ## The ID grammar
 
 The shape around the pointer is one grammar every compiler shares: a kind prefix (`t`, `op`, `p`,
-`s`, `g`, `auth`, `param`, `e`, `server`), then the namespace, then the path. Only the path is the
-format's, because a JSON Pointer, a GraphQL structural path and a protobuf fully-qualified name are
-different things and nothing outside the format can compute one. Whatever the format,
-`Provenance.Pointer` records the path as an RFC 6901 pointer, and the ID's path is that pointer
-without its leading `/`: a protobuf full name is one segment, so `acme.v1.UserId` is recorded as
-`/acme.v1.UserId`. A node a lowering *mints* rather than finds takes a namespace of its own, so no
-pointer a reference can spell ever reaches it — the general form of the rule
+`s`, `g`, `auth`, `param`, `e`, `server`, `chan`, `msg`), then the namespace, then the path. Only
+the path is the format's, because a JSON Pointer, a GraphQL structural path and a protobuf
+fully-qualified name are different things and nothing outside the format can compute one. Whatever
+the format, `Provenance.Pointer` records the path as an RFC 6901 pointer, and the ID's path is that
+pointer without its leading `/`: a protobuf full name is one segment, so `acme.v1.UserId` is
+recorded as `/acme.v1.UserId`. A node a lowering *mints* rather than finds takes a namespace of its
+own, so no pointer a reference can spell ever reaches it — the general form of the rule
 [models](./models.md#composition-beside-a-union) states for distributed unions and for the union a
 routed subtype composes.
 
@@ -92,8 +92,8 @@ whatever produced it.
 
 Having no source position, a primitive names no source either: its `Provenance.Source` is
 `NoSource` ([provenance](./provenance.md)). An index beside the empty pointer would say that file's
-whole document declared a node every source reaches by kind. `irverify` holds no producer to this so
-far (#590).
+whole document declared a node every source reaches by kind. `irverify` holds every document to it
+(`ir/prim-names-source`).
 
 ## Unresolved schemes
 
@@ -184,8 +184,9 @@ namespace named `anonaddr`. Agreement does, but only where a node records its po
 security scheme, a server and a property are held to it. An operation is not, because its provenance
 records where its body is declared and its ID where it is mounted, and the two differ for an
 operation reached through a `$ref`'d path item or callback (#107); a parameter is not, for the same
-reason. A service records no pointer, and a group, formed by a rule from every operation sharing a
-key, has no single position to record.
+reason, and neither is a channel or a message, which a format can mount at one pointer and declare
+at another through a `$ref`. A service records no pointer, and a group, formed by a rule from every
+operation sharing a key, has no single position to record.
 
 The declaration is what sees them all. A producer states the namespaces it mints IDs in as
 `Document.IDSpaces`, keyed by kind prefix and built from the constants it derives IDs with, as it
@@ -199,21 +200,27 @@ no empty namespace and none carrying the separator (`ir/id-spaces-unknown-kind`,
 a namespace no ID uses is not an error here; a compiler's own test holds its vocabulary to what its
 corpus uses, in both directions. In this repository a lint rule also holds a compiler to building a
 namespace only from a literal, which is where a path gets glued on, or through the framework's
-qualifier for another document (`compile.Space.Qualified`). Channels and messages
-have no prefix yet and are held to none of this.
+qualifier for another document (`compile.Space.Qualified`). Every class of ID has a kind prefix, a
+channel's `chan` and a message's `msg` among them, so every ID is held to its shape and to the
+declaration.
 
 ## IDs as references
 
 An ID held as a reference — a field, a slice element, a map key or value, anywhere but the
 declaring entity's own `ID` — names an entity, so it is never empty. A reference a position may
 omit is a nil pointer (`Operation.OverloadOf`, `Reply.Channel`), as an optional type is a nil
-`*TypeRef` ([type-graph](./type-graph.md#type-references)). Two positions document an empty value as
-meaningful, and they are the only ones: `Discriminator.Default`, whose zero value means no default,
-and `Discriminator.Property`, empty when `PropertyName` or `Index` locates the tag instead
-([models](./models.md#discriminator)). `irverify` reports an empty reference anywhere else as
-`ir/empty-<noun>-ref`, except an empty `TypeRef.Target`, which is `ir/type-ref-no-target`
-([type-graph](./type-graph.md#type-references)). `pass.Validate` reports an empty reference only in
-a discriminator mapping, as a missing variant, so far (#575).
+`*TypeRef` ([type-graph](./type-graph.md#type-references)). A few positions document an empty value
+as meaningful: `Discriminator.Default`, whose zero value means no default; `Discriminator.Property`,
+empty when `PropertyName` or `Index` locates the tag instead ([models](./models.md#discriminator));
+`Idempotency.TokenParam`, empty on an operation that is not token-keyed; and every field of an
+`EntityRef` but the one of its entity's class. Which positions those are is one table in `ir`, read
+by both checkers through `ir.EmptyReferences`.
+
+An empty reference anywhere else is `ir/empty-<noun>-ref`, from `irverify` and, as an error, from
+`pass.Validate` alike, and a `pass` check that reads a required ID leaves an empty one to that
+report, so the defect draws one code (#575). Two empties are outside it, each reported by
+`irverify` alone: an entity's own empty `ID`, which is `ir/empty-<noun>-id`, and an empty
+`TypeRef.Target`, which is `ir/type-ref-no-target` ([type-graph](./type-graph.md#type-references)).
 
 ## Why IDs
 

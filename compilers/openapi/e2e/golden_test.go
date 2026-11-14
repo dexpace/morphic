@@ -112,9 +112,8 @@ func TestGolden_SplitSpec(t *testing.T) {
 			assert.Equal(t, []ir.ServerID{item + "/get/servers/0"}, op.Servers, "showPet is sent to its own")
 		}
 	}
-	// Last, and only if they held: under -update a failed assertion would
-	// otherwise leave a golden that agrees with the regression.
-	require.False(t, t.Failed(), "an assertion failed; not comparing or rewriting the golden")
+	// Last: under -update the compare refuses a test whose assertions failed,
+	// which would otherwise leave a golden that agrees with the regression.
 	irtest.CompareGolden(t, "../../../testdata/golden/openapi/split/split.golden.json", doc)
 }
 

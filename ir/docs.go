@@ -90,8 +90,9 @@ type Example struct {
 	// Headers holds the correlated header values for message examples (AsyncAPI
 	// message examples are header+payload pairs — never split them).
 	Headers *Value `json:"headers,omitzero"`
-	// Input is the operation-scenario input, paired with Output or Error.
-	Input *Value `json:"input,omitzero"`
+	// Input is what the operation scenario sends, paired with Output or Error;
+	// nil = the example is no operation scenario.
+	Input *ScenarioInput `json:"input,omitzero"`
 	// Output is the operation-scenario success result paired with Input.
 	Output *Value `json:"output,omitzero"`
 	// Error ends the scenario in this error instead of Output.
@@ -100,6 +101,19 @@ type Example struct {
 	ExternalURL string `json:"externalURL,omitempty"`
 	// Unmodeled holds source constructs the IR does not model, kept verbatim.
 	Unmodeled Unmodeled `json:"unmodeled,omitempty"`
+}
+
+// ScenarioInput is what one operation scenario sends: each parameter's value
+// under the parameter's ID, whatever its binding, and the request body's value.
+// An empty one sends nothing.
+type ScenarioInput struct {
+	// Params holds each parameter's value, keyed by the ID of a parameter of
+	// the operation carrying the example.
+	Params map[ParamID]Value `json:"params,omitempty"`
+	// Body is the value of the request content; nil = the scenario sends none.
+	// It is nil on an operation that binds any parameter into its body, whole
+	// or by property, where the parameters state the body.
+	Body *Value `json:"body,omitzero"`
 }
 
 // ErrorExample is the error arm of an operation-scenario Example.

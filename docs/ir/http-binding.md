@@ -48,6 +48,8 @@ type HTTPParamBinding struct {
                                   // host = param fills a HostPrefix label (Smithy @hostLabel)
                                   // querystring = the whole query string serialized from one schema
                                   //   (OpenAPI 3.2 in: querystring, combined with ContentType)
+                                  // never empty: irverify reports one outside the eight
+                                  // (ir/unknown-http-location)
     WireName   string
     Style      string             // simple | form | label | matrix | deepObject | pipe/space-delimited |
                                   // cookie (OpenAPI 3.2's, at in: cookie)

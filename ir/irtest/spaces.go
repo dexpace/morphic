@@ -12,16 +12,17 @@ import (
 
 // SpacesUsed returns the namespaces the IDs of doc live in, by kind prefix, in
 // the form of [ir.Document.IDSpaces]: sorted, without repeats, a kind with none
-// left out. It returns nil when no ID needs one, a nil doc included.
+// left out, and whether the walk reading them stopped at a bound, which leaves
+// them the spaces of part of doc. The map is nil when no ID needs one, a nil doc
+// included.
 //
 // An ID of no known kind or too malformed to have a namespace adds none, and
-// neither does a type in the primitive namespace, which ir owns. A walk cut short
-// yields what it found; irverify reports the truncation itself.
-func SpacesUsed(doc *ir.Document) map[string][]string {
+// neither does a type in the primitive namespace, which ir owns.
+func SpacesUsed(doc *ir.Document) (map[string][]string, bool) {
 	kinds := ir.IDKinds()
 	var out map[string][]string
 	var decls ir.IDDeclarations
-	ir.WalkValues(doc, ir.DocumentPath, &decls)
+	cut := ir.WalkValues(doc, ir.DocumentPath, &decls)
 	for _, d := range decls.List() {
 		kind, _, found := strings.Cut(d.ID, ir.IDSeparator)
 		if !found || !slices.Contains(kinds, kind) {
@@ -40,5 +41,5 @@ func SpacesUsed(doc *ir.Document) map[string][]string {
 		slices.Sort(spaces)
 		out[kind] = slices.Compact(spaces)
 	}
-	return out
+	return out, cut
 }

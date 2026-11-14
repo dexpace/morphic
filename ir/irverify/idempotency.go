@@ -16,16 +16,18 @@ var idempotencyType = reflect.TypeFor[ir.Idempotency]()
 // TokenParam set exactly when Kind is ir.IdempotencyToken, as ir.Idempotency
 // documents. pass.Validate reports the same disagreement in a document from any
 // producer; this holds a compiler's own output to it.
+//
+// It prunes all but operationPath, for checkStreamingModes's reason.
 func checkIdempotency(*ir.Document) walkCheck {
 	var vs []Violation
 	return walkCheck{
 		visit: func(v reflect.Value, at ir.WalkPath) bool {
 			if v.Type() != idempotencyType {
-				return true
+				return operationPath[v.Type()]
 			}
 			idem, ok := reflect.TypeAssert[ir.Idempotency](v)
 			if !ok || (idem.TokenParam != "") == (idem.Kind == ir.IdempotencyToken) {
-				return true
+				return false
 			}
 			vs = append(vs, Violation{
 				Code: "ir/idempotency-token",
@@ -34,7 +36,7 @@ func checkIdempotency(*ir.Document) walkCheck {
 					strconv.Quote(string(ir.IdempotencyToken)),
 				Path: at.String(),
 			})
-			return true
+			return false
 		},
 		report: reporting(&vs),
 	}

@@ -302,12 +302,13 @@ func TestWalkValuesContext_AStopEndsEveryTraversal(t *testing.T) {
 	}
 }
 
-// TestWalkValues_SharedPointerIsDescendedIntoOnce holds the cycle guard. Nothing
-// in a compiled document reaches it — a Document is a flat registry of values
-// referenced by ID, so no two fields point at one struct — which is exactly why
-// it needs planting: the guard is what keeps the walk terminating on a document
-// that does share a pointer, and without one, removing it changes nothing.
-func TestWalkValues_SharedPointerIsDescendedIntoOnce(t *testing.T) {
+// TestWalkValues_SharedPointerIsDescendedIntoFromEachHolder holds the walk to
+// the document its encoding writes: a pointer two fields hold is written at
+// each, so the walk reads it from each, as it reads a slice or a map. Nothing
+// in a compiled document reaches this, since a Document is a flat registry of
+// values referenced by ID, so no two fields point at one struct; it is a
+// hand-built shape the walk must still read as the decoded copy is read.
+func TestWalkValues_SharedPointerIsDescendedIntoFromEachHolder(t *testing.T) {
 	t.Parallel()
 	shared := &ir.TypeRef{Target: "t/x/Shared"}
 	doc := &ir.Document{Types: ir.TypeRegistry{"t/m": &ir.Model{
@@ -318,13 +319,13 @@ func TestWalkValues_SharedPointerIsDescendedIntoOnce(t *testing.T) {
 
 	paths, truncated := walkPaths(doc)
 	require.False(t, truncated, "two template arguments are not deep")
-	var reached int
+	var reached []string
 	for _, p := range paths {
 		if strings.HasSuffix(p, ".Target") {
-			reached++
+			reached = append(reached, p)
 		}
 	}
-	assert.Equal(t, 1, reached, "the second argument finds the pointer already seen and stops there")
+	assert.Len(t, reached, 2, "each argument holds the pointer, and the walk reads it from both: %v", reached)
 }
 
 // TestWalkValues_CyclicPointerGraphTerminates states the same guard as a

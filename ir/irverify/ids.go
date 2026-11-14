@@ -46,12 +46,26 @@ func checkIDs(doc *ir.Document) []Violation {
 			vs = append(vs, v)
 		}
 	}
+	// A channel and a message are held to shape alone, as an operation is: one
+	// may be mounted at one pointer and declared at another through a $ref, so
+	// its ID's path need not be the pointer its provenance records (GitHub #107).
+	for id := range doc.Channels {
+		if v, bad := idDefect(ir.IDKindChannel, string(id), ir.Provenance{}); bad {
+			v.Path = "channels[" + string(id) + "]"
+			vs = append(vs, v)
+		}
+	}
+	for id := range doc.Messages {
+		if v, bad := idDefect(ir.IDKindMessage, string(id), ir.Provenance{}); bad {
+			v.Path = "messages[" + string(id) + "]"
+			vs = append(vs, v)
+		}
+	}
 	return append(vs, checkMemberIDs(doc)...)
 }
 
-// kindPrefixes maps every class of ID that opens with a kind prefix to it, so a
-// check that needs the prefix of a class asks one table. Channels and messages
-// are absent: no compiler mints either, so ir defines no prefix for them yet.
+// kindPrefixes maps every class of ID to the kind prefix it opens with, so a
+// check that needs the prefix of a class asks one table.
 var kindPrefixes = map[reflect.Type]string{
 	reflect.TypeFor[ir.TypeID]():       ir.IDKindType,
 	reflect.TypeFor[ir.AuthID]():       ir.IDKindAuth,
@@ -62,6 +76,8 @@ var kindPrefixes = map[reflect.Type]string{
 	reflect.TypeFor[ir.ParamID]():      ir.IDKindParam,
 	reflect.TypeFor[ir.EnumMemberID](): ir.IDKindEnumMember,
 	reflect.TypeFor[ir.ServerID]():     ir.IDKindServer,
+	reflect.TypeFor[ir.ChannelID]():    ir.IDKindChannel,
+	reflect.TypeFor[ir.MessageID]():    ir.IDKindMessage,
 }
 
 // pointerDerived is the classes whose ID path is the pointer the declaring
@@ -78,9 +94,9 @@ var pointerDerived = map[reflect.Type]bool{
 }
 
 // appendDeclaredIDViolations reports what is wrong with the ID a node declares
-// for itself: nothing at all, or, for a class with a kind prefix, a spelling the
-// grammar could not have produced or, where the class is pointer-derived, a path
-// that is not the pointer the node records.
+// for itself: nothing at all, a spelling the grammar could not have produced,
+// any spelling of a class kindPrefixes does not name, or, where the class is
+// pointer-derived, a path that is not the pointer the node records.
 //
 // It is the grammar checkIDs holds a type's, a scheme's or a server's to, for the
 // classes that have no registry for checkIDs to read.
@@ -95,7 +111,11 @@ func appendDeclaredIDViolations(vs []Violation, node reflect.Value, class reflec
 	}
 	prefix, held := kindPrefixes[class]
 	if !held {
-		return vs
+		return append(vs, Violation{
+			Code:    "ir/id-malformed",
+			Message: "id " + strconv.Quote(id) + " is of class " + class.Name() + ", which opens with no kind prefix",
+			Path:    at.String(),
+		})
 	}
 	var prov ir.Provenance
 	if pointerDerived[class] {
@@ -146,8 +166,27 @@ func checkPrimIDs(doc *ir.Document) []Violation {
 		if want := ir.PrimTypeID(prim.Prim); id != want {
 			vs = append(vs, primIDViolation(id, prim.Prim, want))
 		}
+		if namesSource(doc, prim) {
+			vs = append(vs, Violation{
+				Code: "ir/prim-names-source",
+				Message: "primitive is credited to source " + strconv.Itoa(prim.Provenance.Source) +
+					", and a primitive shared by every source names none",
+				Path: typePath(id),
+			})
+		}
 	}
 	return vs
+}
+
+// namesSource reports whether prim is credited to a source. A primitive is one
+// node every source shares, so it is on ir.NoSource; the zero Provenance is
+// admitted only where the document declares no sources, as a node built without
+// one carries it.
+func namesSource(doc *ir.Document, prim *ir.Primitive) bool {
+	if prim.Provenance.Source == ir.NoSource {
+		return false
+	}
+	return len(doc.Sources) > 0 || prim.Provenance != (ir.Provenance{})
 }
 
 // primIDViolation names what is wrong with one primitive's ID.

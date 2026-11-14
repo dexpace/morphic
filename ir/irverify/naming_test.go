@@ -313,8 +313,9 @@ func TestVerify_AnyOneChannelIsAName(t *testing.T) {
 func primitiveDoc() *ir.Document {
 	doc := validDoc()
 	doc.Types[ir.PrimTypeID(ir.PrimString)] = &ir.Primitive{
-		ID:   ir.PrimTypeID(ir.PrimString),
-		Prim: ir.PrimString,
+		ID:         ir.PrimTypeID(ir.PrimString),
+		Prim:       ir.PrimString,
+		Provenance: ir.Provenance{Source: ir.NoSource},
 	}
 	return doc
 }

@@ -4,6 +4,8 @@
 package ir
 
 import (
+	"iter"
+	"maps"
 	"reflect"
 	"slices"
 )
@@ -41,8 +43,42 @@ func JSONSpelling(s string) (spelling string, spelled, ok bool) {
 	return jsonSpelling(l), l.spelledForJSON(s), true
 }
 
-// IDClasses is idClasses, for the external tests.
-var IDClasses = idClasses
+// IDClasses returns idClasses, for the external tests.
+func IDClasses() map[reflect.Type]bool { return idClasses }
+
+// Locator reports whether r is a discriminator's tag property that nothing
+// locates, so ir's external tests can tell it apart.
+func (r EmptyReference) Locator() bool { return r.locator }
+
+// IDPositions returns the "Type.Field" keys idPositions classifies.
+func IDPositions() []string {
+	return slices.Sorted(maps.Keys(idPositions))
+}
+
+// EmptyFormPositions returns the "Type.Field" keys idPositions gives an empty
+// form of their own: optional ones and the discriminator's locator.
+func EmptyFormPositions() []string {
+	var keys []string
+	for key, rule := range idPositions {
+		if rule == idOptional || rule == idLocator {
+			keys = append(keys, key)
+		}
+	}
+	slices.Sort(keys)
+	return keys
+}
+
+// RequiredIDFields returns the names of the fields of struct type t that the
+// empty-reference reading holds as references, an empty one being reported.
+func RequiredIDFields(t reflect.Type) []string {
+	var names []string
+	for _, f := range idFieldsOf(t, idClasses) {
+		if f.rule == idRequired {
+			names = append(names, f.name)
+		}
+	}
+	return names
+}
 
 // DeclaredIDField returns where struct type t declares its identity, the field's
 // index and class, read by the rule an IDReader remembers per type.
@@ -75,3 +111,31 @@ func IDListsSorted(e *Editor) int { return e.declared.sorted }
 // StoredSteps returns how many steps l stores for the paths it holds, so ir's
 // external tests can hold it to keeping each step a run of paths shares once.
 func (l *PathLog) StoredSteps() int { return len(l.tails) }
+
+// WalkValuesWithin is WalkValues showing each visitor at most limit values.
+func WalkValuesWithin(limit int, root any, path string, visitors ...Visitor) bool {
+	return walkValues(nil, limit, root, path, visitors).truncated
+}
+
+// ForEachGroupWithin is ForEachGroup within limit steps.
+func ForEachGroupWithin(limit int, doc *Document, fn func(OperationGroup)) bool {
+	return forEachGroup(limit, doc, fn)
+}
+
+// ForEachOperationWithin is ForEachOperation within limit steps.
+func ForEachOperationWithin(limit int, doc *Document, fn func(Operation)) bool {
+	return forEachOperation(limit, doc, fn)
+}
+
+// TypeEdgesWithin is TypeEdges entering at most limit values.
+func TypeEdgesWithin(limit int, td TypeDef) iter.Seq[TypeID] {
+	return typeEdges(limit, td)
+}
+
+// NewEditorWithin is NewEditor with its service tree read within limit steps,
+// where an edit's own read takes MaxWalkSteps.
+func NewEditorWithin(limit int, doc *Document) *Editor {
+	e := NewEditor(doc)
+	e.tree.index(e.out.Services, limit)
+	return e
+}

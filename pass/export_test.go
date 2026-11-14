@@ -102,21 +102,12 @@ func WalkAllocs(tb testing.TB, doc *ir.Document) float64 {
 	return testing.AllocsPerRun(5, func() { _ = walkedFor(tb, doc) })
 }
 
-// ReusedMap is reusedMap, for the external tests.
-type ReusedMap[K comparable, V any] = reusedMap[K, V]
-
-// Emptied is r.emptied, for the external tests.
-func Emptied[K comparable, V any](r *ReusedMap[K, V]) map[K]V { return r.emptied() }
-
-// ReuseLimit is reuseLimit, for the external tests.
-const ReuseLimit = reuseLimit
-
 // PropIDRefs returns checkPropIDRefs over what one walk of doc reads, as
 // validate runs it, for the external tests to measure.
 func PropIDRefs(tb testing.TB, doc *ir.Document) func() []ir.Diagnostic {
 	tb.Helper()
 	w := walkedFor(tb, doc)
-	return func() []ir.Diagnostic { return checkPropIDRefs(w.props, w.refs) }
+	return func() []ir.Diagnostic { return checkPropIDRefs(w.props, w.refs, w.truncated) }
 }
 
 // UnionReads is how many unions pass.ConstUnions reads in doc, as it reads

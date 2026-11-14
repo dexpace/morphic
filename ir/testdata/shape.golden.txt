@@ -254,7 +254,7 @@ type Example struct
 	"error" *ErrorExample omitzero
 	"externalURL" string omitempty
 	"headers" *Value omitzero
-	"input" *Value omitzero
+	"input" *ScenarioInput omitzero
 	"name" string omitempty
 	"output" *Value omitzero
 	"summary" string omitempty
@@ -756,6 +756,10 @@ type Scalar struct
 	"encoding" *Encoding omitzero
 	method (*Scalar) MarshalJSONTo(*encoding/json/jsontext.Encoder) error
 	method (*Scalar) UnmarshalJSONFrom(*encoding/json/jsontext.Decoder) error
+
+type ScenarioInput struct
+	"body" *Value omitzero
+	"params" map[ParamID]Value omitempty
 
 type SchemeUse struct
 	"scheme" AuthID omitempty
