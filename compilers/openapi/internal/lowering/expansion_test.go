@@ -234,7 +234,7 @@ func loaded(t *testing.T, src string, limit budget.Limit) lowering.Ctx {
 func TestDeclared_ResolvesNoReferencePastTheExpansionBudget(t *testing.T) {
 	t.Parallel()
 	// P weighs 17: a mapping (1), the keys name (5) and in (3), and q (2) and
-	// query (6).
+	// query (6); the $ref's own mapping, writing nothing beside it, weighs 1.
 	const src = `openapi: 3.1.0
 info: {title: T, version: "1"}
 paths:
@@ -246,7 +246,7 @@ components:
   parameters:
     P: {name: q, in: query}
 `
-	c := loaded(t, src, budget.AtMost(17))
+	c := loaded(t, src, budget.AtMost(17+1))
 	a, ok := c.Doc.Paths.Get("/a")
 	require.True(t, ok)
 	params := a.GetObject().Get().GetParameters()
@@ -296,8 +296,8 @@ components:
     B: {name: q, in: query, schema: {type: string, maxLength: 3}}
 `
 	const usePtr = "/paths/~1a/get/parameters/0"
-	// The use's own mapping may be charged one more, so 2*16 + 25 + 1 admits it.
-	for limit, admitted := range map[int]bool{2*16 + 25 + 1: true, 2*16 + 25 - 1: false} {
+	// The use's own mapping, writing nothing beside its $ref, is charged 1.
+	for limit, admitted := range map[int]bool{2*16 + 25 + 1: true, 2*16 + 25: false} {
 		c := loaded(t, src, budget.AtMost(limit))
 		a, ok := c.Doc.Paths.Get("/a")
 		require.True(t, ok)

@@ -86,7 +86,7 @@ func TestDeclared_ChargesEachAliasWhatItWritesBesideItsRef(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
 			none := leastLimit(t, chainedParameter(0, hop.beside))
-			assert.Contains(t, []int{25, 26}, none, "the end alone, weighing 25, and at most one for the use's own mapping")
+			assert.Equal(t, 25+1, none, "the end alone, weighing 25, and one for the use's own mapping")
 			for _, aliases := range []int{1, 2, 10} {
 				assert.Equal(t, none+aliases*hop.weight, leastLimit(t, chainedParameter(aliases, hop.beside)),
 					"%d aliases", aliases)

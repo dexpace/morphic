@@ -108,27 +108,31 @@ const okResponses = "      responses: {'200': {description: ok}}\n"
 // in (3) and schema (7), and their values q (2), query (6) and a schema (1).
 const paramP = "  parameters:\n    P: {name: q, in: query, schema: {type: string}}\n"
 
+// bareUse is what a $ref writing nothing beside it is charged for its own
+// mapping: one node, as an alias writing nothing is.
+const bareUse = 1
+
 // TestCompile_ReferenceExpansionBindsOnlyPastTheLimit pins the charge at its
-// boundary: two $refs to one parameter cost twice what it weighs, the first
-// copy among them.
+// boundary: two $refs to one parameter cost twice what it weighs and their own
+// mappings, the first copy among them.
 func TestCompile_ReferenceExpansionBindsOnlyPastTheLimit(t *testing.T) {
 	t.Parallel()
 	use := "      parameters: [{$ref: '#/components/parameters/P'}]\n" + okResponses
 	src := pathsWith(getWith("/a", "      operationId: a\n"+use)+getWith("/b", "      operationId: b\n"+use), paramP)
 
-	doc, diags := compileExpanding(t, src, 2*25)
+	doc, diags := compileExpanding(t, src, 2*(25+bareUse))
 	require.NotNil(t, doc, "copies weighing the budget are within it")
 	openapitest.RequireNoErrorDiags(t, diags)
 	assert.Len(t, openapitest.FindOp(t, doc, "b").Params, 1, "the second copy is lowered")
 
-	doc, diags = compileExpanding(t, src, 2*25-1)
-	assertRefused(t, doc, diags, 49)
+	doc, diags = compileExpanding(t, src, 2*(25+bareUse)-1)
+	assertRefused(t, doc, diags, 2*(25+bareUse)-1)
 }
 
 // TestCompile_EveryCopiedDeclarationIsCharged runs a $ref at each position
 // the lowering copies what one names: each is admitted at the weight of the
 // declaration at its target, as weightAt weighs it apart from the compiler,
-// and refused one below, so a position charged twice or not at all fails. A
+// and the $ref's own mapping, and refused one below, so a position charged twice or not at all fails. A
 // schema's $ref names one registry entry, so it is not charged, and is
 // admitted under a budget of one.
 func TestCompile_EveryCopiedDeclarationIsCharged(t *testing.T) {
@@ -181,7 +185,7 @@ func TestCompile_EveryCopiedDeclarationIsCharged(t *testing.T) {
 				assert.False(t, openapitest.HasDiag(diags, diag.BudgetExceeded))
 				return
 			}
-			weight := weightAt(t, tc.src, tc.target)
+			weight := weightAt(t, tc.src, tc.target) + bareUse
 			doc, diags = compileExpanding(t, tc.src, weight)
 			require.NotNil(t, doc, "at the declaration's weight, %d: %+v", weight, diags)
 			assert.False(t, openapitest.HasDiag(diags, diag.BudgetExceeded))
@@ -206,7 +210,7 @@ func TestCompile_ACallbackNamingItselfIsChargedAtEachLevel(t *testing.T) {
 	require.Len(t, doc.Services[0].Groups, 1)
 	levels := len(doc.Services[0].Groups[0].Operations) - 1
 	require.Greater(t, levels, 1, "the callback lowers below itself")
-	charged := levels * weightAt(t, src, "/components/callbacks/C")
+	charged := levels * (weightAt(t, src, "/components/callbacks/C") + bareUse)
 	doc, diags = compileExpanding(t, src, charged)
 	require.NotNil(t, doc, "at %d, a copy for each level: %+v", charged, diags)
 	assert.False(t, openapitest.HasDiag(diags, diag.BudgetExceeded))
@@ -217,14 +221,16 @@ func TestCompile_ACallbackNamingItselfIsChargedAtEachLevel(t *testing.T) {
 // TestCompile_AReferenceIntoAnotherDeclarationIsChargedInFull pins the charge
 // of a $ref naming a declaration nested in another one a $ref names: the IR
 // holds the inner one twice, once inside each copy, so each $ref is charged
-// its own declaration's weight, though the outer copy already weighed the inner.
+// its own declaration's weight and its own mapping, though the outer copy
+// already weighed the inner.
 func TestCompile_AReferenceIntoAnotherDeclarationIsChargedInFull(t *testing.T) {
 	t.Parallel()
 	src := pathsWith(getWith("/a", "      responses: {'200': {$ref: '#/components/responses/R'}}\n")+
 		getWith("/b", "      responses:\n        '200':\n          description: ok\n"+
 			"          headers: {H: {$ref: '#/components/responses/R/headers/H'}}\n"),
 		"  responses:\n    R:\n      description: ok\n      headers: {H: {schema: {type: string}}}\n")
-	both := weightAt(t, src, "/components/responses/R") + weightAt(t, src, "/components/responses/R/headers/H")
+	both := weightAt(t, src, "/components/responses/R") + weightAt(t, src, "/components/responses/R/headers/H") +
+		2*bareUse
 
 	doc, diags := compileExpanding(t, src, both)
 	require.NotNil(t, doc, "%+v", diags)
@@ -248,7 +254,7 @@ func TestCompile_ASchemaIsChargedAsOneNode(t *testing.T) {
 	src := pathsWith(getWith("/a", "      operationId: a\n"+use)+getWith("/b", "      operationId: b\n"+use),
 		"  responses:\n    R: {description: ok, content: {application/json: {schema: {type: object, properties: {"+
 			strings.Join(props, ", ")+"}}}}}\n")
-	weight := weightAt(t, src, "/components/responses/R")
+	weight := weightAt(t, src, "/components/responses/R") + bareUse
 
 	doc, diags := compileExpanding(t, src, 2*weight)
 	require.NotNil(t, doc, "%+v", diags)
@@ -270,7 +276,7 @@ func TestCompile_ASchemaIsChargedAsOneNode(t *testing.T) {
 // chain passes through an alias: what the alias writes beside its own $ref
 // lowers at every use, a parameter's description and a path item's every
 // field, so the alias is charged what it writes beside its $ref, its own $ref
-// aside, and its end whole. A use may be charged one more for its own mapping.
+// aside, its end whole, and the use one node for its own mapping.
 func TestCompile_AnAliasIsChargedBesideItsEnd(t *testing.T) {
 	t.Parallel()
 	param := pathsWith(getWith("/p", "      parameters: [{$ref: '#/components/parameters/A'}]\n"+okResponses),
@@ -295,9 +301,9 @@ func TestCompile_AnAliasIsChargedBesideItsEnd(t *testing.T) {
 
 			// The alias's $ref pair: the key (5) and its value, '#' and the end's pointer.
 			refPair := 1 + len("$ref") + 1 + len("#"+tc.end)
-			weight := weightAt(t, tc.src, tc.alias) - refPair + weightAt(t, tc.src, tc.end)
-			doc, diags = compileExpanding(t, tc.src, weight+1)
-			require.NotNil(t, doc, "at the chain's weight, %d, and one for the use: %+v", weight, diags)
+			weight := weightAt(t, tc.src, tc.alias) - refPair + weightAt(t, tc.src, tc.end) + bareUse
+			doc, diags = compileExpanding(t, tc.src, weight)
+			require.NotNil(t, doc, "at the chain's weight, %d, one for the use among it: %+v", weight, diags)
 			assert.False(t, openapitest.HasDiag(diags, diag.BudgetExceeded))
 			doc, diags = compileExpanding(t, tc.src, weight-1)
 			assertRefused(t, doc, diags, weight-1)
@@ -390,7 +396,7 @@ func itemWith(item string, ops [3]string, components string) string {
 // keyword and its text with a byte between, 7+1+1; its kept extension, the
 // keyword and its raw value with a byte between, 3+1+3; and its server's ID,
 // unless the entry names its own. A $ref'd parameter is charged at every
-// operation, the first among them.
+// operation, the first among them, with the $ref's own mapping.
 func TestCompile_APathItemsAdditionalOperationsAreChargedWhatTheyCopy(t *testing.T) {
 	t.Parallel()
 	const kept = 7 + 1 + 1 + 3 + 1 + 3
@@ -405,7 +411,7 @@ func TestCompile_APathItemsAdditionalOperationsAreChargedWhatTheyCopy(t *testing
 		"overridden": {itemWith(fields+"    parameters: [{name: q, in: query, schema: {type: string}}]\n",
 			[3]string{"", "", own}, "  schemas: {}\n"), func(server int) int { return 25 + kept + server + kept }},
 		"referenced": {itemWith(fields+"    parameters: [{$ref: '#/components/parameters/P'}]\n",
-			[3]string{}, paramP), func(server int) int { return 3*25 + 2*(kept+server) }},
+			[3]string{}, paramP), func(server int) int { return 3*(25+bareUse) + 2*(kept+server) }},
 	} {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
@@ -485,7 +491,8 @@ func TestCompile_AnItemsAdditionalOperationsAreChargedInAnyOrder(t *testing.T) {
 // written beside a path item $ref is weighed where it is written when an
 // operation of the item it names, in another document, takes it: as the
 // source's grammar reads it, its schema one node, 25 as paramP weighs. The $ref
-// is charged what the item weighs, and LINK the parameter.
+// is charged what the item weighs and what its mapping writes beside it, and
+// LINK the parameter.
 func TestCompile_AnItemsParameterIsWeighedInItsOwnDocument(t *testing.T) {
 	t.Parallel()
 	const item = "I:\n  get: {operationId: g, responses: {'200': {description: ok}}}\n" +
@@ -502,7 +509,9 @@ func TestCompile_AnItemsParameterIsWeighedInItsOwnDocument(t *testing.T) {
 		require.NoError(t, err)
 		return doc, diags
 	}
-	want := weightAt(t, item, "/I") + 25
+	// The use's mapping less its $ref pair: the key (5) and './other.yaml#/I' (15).
+	beside := weightAt(t, src, "/paths/~1p") - (1 + len("$ref")) - (1 + len("./other.yaml#/I"))
+	want := weightAt(t, item, "/I") + beside + 25
 
 	doc, diags := compile(want)
 	require.NotNil(t, doc, "copies weighing the budget are within it: %v", diags)

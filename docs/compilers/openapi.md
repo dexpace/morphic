@@ -184,9 +184,10 @@ and size the budgets above leave free. A declaration a `$ref` names, a schema as
 each `$ref` naming it, so each such `$ref` is charged what the declarations its chain names weigh:
 the one it ends at, and each component alias it passes through, whose fields beside its own `$ref`
 lower at every use too ([`reference-object-siblings`](#reference-object-siblings),
-[`path-item-ref-fields`](#path-item-ref-fields)). An alias weighs one node for its mapping and what
-it writes beside its `$ref`, weighed as a declaration is: its `$ref` is read, not copied, so a chain
-of bare aliases weighs one node a hop, and a `$ref` merged in through `<<` is weighed as written. A
+[`path-item-ref-fields`](#path-item-ref-fields)), and the use itself. An alias, and the mapping
+that writes the use's `$ref`, each weigh one node for the mapping and what it writes beside its
+`$ref`, weighed as a declaration is: the `$ref` is read, not copied, so a bare use and each bare
+alias of its chain weigh one node, and a `$ref` merged in through `<<` is weighed as written. A
 declaration weighs a node for each YAML node, a
 YAML alias as a copy of what it names, and a byte for each byte of scalar text, but a schema it
 holds weighs one node whatever the schema holds: it lowers once, to the type every copy refers to. A

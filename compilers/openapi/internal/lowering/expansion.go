@@ -132,17 +132,26 @@ func readingOf(c Ctx, usePtr jsontext.Pointer) bind.Reading {
 }
 
 // copied returns the hops a copy of what ref names is lowered from, beside the
-// declaration its chain ends at: each component alias the chain passes through,
-// whose fields beside its own $ref lower at every use too (resolve.UseDocs, and
-// a path item's every field). What ref writes beside its own $ref is lowered at
-// that one use, which no copy repeats, so it is none. A hop whose core holds no
-// node, as the library's own GetRootNode reads one, adds none.
+// declaration its chain ends at: ref's own mapping, then each component alias
+// the chain passes through, whose fields beside its own $ref lower at every use
+// too (resolve.UseDocs, and a path item's every field). What ref writes beside
+// its $ref is kept on each node the use lowers to, so it is charged as a hop's
+// is, and a bare ref one node. A hop whose core holds no node, as the library's
+// own GetRootNode reads one, adds none.
 func copied[T, S any, R chainable[T, S]](c Ctx, ref R) []*yaml.Node {
-	var nodes []*yaml.Node
-	for _, hop := range resolve.Hops[T, S](c.Bindings(), ref) {
-		if core, ok := hop.Ref.GetCoreAny().(interface{ GetRootNode() *yaml.Node }); ok {
-			nodes = append(nodes, core.GetRootNode())
-		}
+	hops := resolve.Hops[T, S](c.Bindings(), ref)
+	nodes := appendRoot(make([]*yaml.Node, 0, 1+len(hops)), ref.GetCoreAny())
+	for _, hop := range hops {
+		nodes = appendRoot(nodes, hop.Ref.GetCoreAny())
+	}
+	return nodes
+}
+
+// appendRoot appends the node core holds, as the library's own GetRootNode
+// reads it, to nodes, and nothing for a core holding none.
+func appendRoot(nodes []*yaml.Node, core any) []*yaml.Node {
+	if c, ok := core.(interface{ GetRootNode() *yaml.Node }); ok {
+		return append(nodes, c.GetRootNode())
 	}
 	return nodes
 }
