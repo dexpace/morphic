@@ -18,9 +18,9 @@ import (
 func TestAliasText_IsTheTextAliasesAdd(t *testing.T) {
 	t.Parallel()
 	for text, want := range map[string]int{
-		"a: &t abc\nb: *t\n":           3,
+		"a: &t abc\nb: *t\n":            3,
 		"a: &m {k: vv}\nb: *m\nc: *m\n": 6,
-		"a: abc\nb: abc\n":             0,
+		"a: abc\nb: abc\n":              0,
 	} {
 		var doc yaml.Node
 		require.NoError(t, yaml.Unmarshal([]byte(text), &doc))
