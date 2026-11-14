@@ -467,9 +467,10 @@ though both are post-milestone scope:
   neutral API-surface model; the same projection of generated output is diffed against it.
   Change records are *neutral*; breaking/additive severity is an injectable per-language
   policy function (parameter names are public API in PHP, arity in Go, almost nothing in
-  JS), consistent with principle 6. Behavioral changes (defaults) are a separate channel
-  from structural ones. Emitters propagate IR IDs into manifests and reports so findings
-  correlate across languages without name-matching heuristics.
+  JS), consistent with principle 6. Behavioral changes (what an SDK already deployed meets,
+  as a changed default or binding) are a separate channel from structural ones. Emitters
+  propagate IR IDs into manifests and reports so findings correlate across languages without
+  name-matching heuristics.
 
 ### 2.4 Runtime/SDK policy is a separate input
 

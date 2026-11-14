@@ -215,7 +215,7 @@ The Kotlin targets' extractors ([surface verification](../../surface-verificatio
 dumps the Kotlin Gradle plugin's ABI validation writes, what generated code alone calls left out of
 them ([above](#what-a-caller-reaches-of-the-runtime)): the JVM's class-file signatures, and for
 Multiplatform the KLib ABI plus the generated Objective-C header, since a change Swift sees can
-break callers the Kotlin ABI does not show. Kotlin's severity differs from Go's in three places. A
+break callers the Kotlin ABI does not show. Kotlin's severity differs from Go's in four places. A
 caller of a JVM library may be compiled against the last generation, so the structural channel
 ([surface verification](../../surface-verification.md#what-a-change-record-carries)) asks of
 Kotlin whether that binary still links as well as whether its source compiles: a parameter added
@@ -223,5 +223,7 @@ with a default leaves Kotlin callers compiling but changes the JVM signature, wh
 binary-breaking. On Multiplatform a rename only the Swift header shows still breaks Swift callers.
 And a sum a `when` must exhaust gains a member as a break: a union declared as a sealed interface,
 whichever way the union travels, and a closed enum's `enum class`, while an open enum's final class
-([types](types.md)) is exhausted by no `when`. The ABI dumps are the oracle for the binary half;
-the source half has none, and is held by the fixtures of T-75.
+([types](types.md)) is exhausted by no `when`. And a parameter renamed breaks a caller that names
+the argument, and on Multiplatform a Swift caller's label. The ABI dumps show what changed for a
+compiled caller and say of no change whether it breaks, so Kotlin has no outside oracle as Go has
+`apidiff`: each verdict is its severity's, held by the fixtures of T-75.

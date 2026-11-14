@@ -19,10 +19,11 @@ that emit performs.
 - **An extractor per target.** Each first target's extractor and where its severity differs are in
   its document ([Go](targets/go/overview.md#merging-and-surface-extraction),
   [Kotlin](targets/kotlin/overview.md#merging-and-surface-extraction)).
-- **Behavioral channel separate from structural.** A default-value change is behavioral,
-  tracked in a distinct channel from a signature change — detectable without re-parsing because the
-  plan already carries defaults as typed `Value`s. Every finding carries drift provenance (which
-  stage caused it).
+- **Behavioral channel separate from structural.** A change of the API that an SDK already
+  deployed meets, a changed default among them, is behavioral, tracked in a distinct channel from a
+  signature change ([below](#what-a-change-record-carries)) — detectable without re-parsing because
+  the document and the plan already carry it as typed facts. Every finding carries drift provenance
+  (which stage caused it).
 
 ## What a change record carries
 
@@ -37,7 +38,12 @@ Two channels answer two questions, and a record belongs to the channel whose que
   generation still links ([Kotlin](targets/kotlin/overview.md#merging-and-surface-extraction)).
 - **Behavioral: does an SDK already deployed, generated from the old document, still work against
   the API the new one describes?** A behavioral record is a change of the API, whatever it does to
-  the surface, and carries the facts its verdict turns on:
+  the surface, so this channel reads two documents and no surface. The old one is the prior
+  revision of the spec, which the run names and this build compiles beside the new: a manifest
+  holds its document's digest alone, and an IR an older build stored could be one this build
+  refuses, or carry keys of another derivation ([correlation
+  keys](../ir/derived-facts.md#correlation-keys)). A run naming no prior revision reports nothing in
+  this channel and says so. A record carries the facts its verdict turns on:
   - **Direction.** For an enum or a union, the usages `Facts.Usage` gives its type
     ([derived facts](../ir/derived-facts.md#usage)): a member gained matters to a deployed SDK
     reading the type and not to one only sending it. For a model's member, its lifecycles too
@@ -48,6 +54,10 @@ Two channels answer two questions, and a record belongs to the channel whose que
   - **Bindings.** A changed method, path, parameter location, serialization style or wire name
     breaks a call without changing a type, so it is a record of this channel, beside a changed
     default.
+
+  Its rules speak of what an SDK sends and reads, so for an operation the API sends, a webhook or
+  a callback, the request is what the SDK reads and the response what it sends
+  ([inbound](operations/inbound.md)).
 
 One change of the API can leave a record in each channel, and the two need not agree. A member
 added to an enum a response carries is a constant added on Go, additive for a caller's code, while
@@ -71,10 +81,12 @@ its first input beyond the path gains a request argument ([request shaping](refi
 |---|---|
 | A declaration, a member, a method or a constant removed; a rename is a removal unless the entity's correlation key carries the symbol it shipped ([naming](refine/naming.md#collisions-and-the-names-a-generation-shipped)) | breaking |
 | The declared type of a member, a parameter or a result changed | breaking |
+| A declaration's own kind or underlying type changed, an alias made a type of its own among them | breaking |
 | A parameter added to a method or removed from one, or an argument a constructor requires added | breaking |
+| A parameter renamed | the target's: breaking where a caller can name an argument |
 | A member added to a sum a caller's match must exhaust | breaking |
-| A declaration added; a member added to a type; a member added to a sum no match need exhaust | additive |
-| Documentation or a deprecation mark changed | none |
+| A declaration added; a member added to a type; a member added to a sum no match need exhaust; a deprecation mark added | additive |
+| Documentation changed | none |
 
 **Behavioral**, by what changed in the API:
 
@@ -83,8 +95,9 @@ its first input beyond the path gains a request argument ([request shaping](refi
 | An operation removed, or a media type the SDK sends or reads | breaking |
 | A binding changed: method, path, a parameter's location, style or wire name | breaking |
 | A request member or parameter added, or made required | breaking if required, none if optional |
-| A response member added | breaking where its model is closed, which decodes strictly ([unknown members](refine/models.md#unknown-members)); none otherwise |
-| A response member made optional | the target's: breaking where its decoder refuses a body lacking a member its type requires |
+| A response member added | breaking where its model is closed, which decodes strictly ([unknown members](refine/models.md#unknown-members)), or holds a typed catch-all the member's value does not fit; none otherwise |
+| A response member's type changed | breaking |
+| A response member removed, or made optional or nullable | the target's: breaking where the deployed declaration cannot hold the member's absence or its null, which follows from how the target declares a required member ([Go](targets/go/models.md#optionality), [Kotlin](targets/kotlin/models.md#optionality)) |
 | An enum or a union gaining a member, read in a response | breaking where the type is closed and, for an enum, declares no `FallbackMember`; none where it is `Open`, as the default policy makes each one it can ([plan policy](plan/policy.md)) |
 | An enum or a union gaining a member, only sent | none |
 | A success status added | none where it carries the body the operation returns, since a 2xx the document does not list is read as the return ([return shapes](operations/returns.md)); breaking where it carries another |
@@ -98,11 +111,14 @@ question 6](open-questions.md), decided against real cross-revision diffs.
 
 A regeneration's version level follows from what changed, never from a digest of the spec's text.
 The structural channel sets it, since an SDK's version is a promise to its callers' code: a
-breaking record makes it major, else an additive one minor, else a file whose digest moved
-([what the manifest records](write-integrate.md#what-the-manifest-records)) a patch, and a
-regeneration that changed no file has none. A behavioral record never raises it. It says what the
-SDKs already deployed will meet, which no version of the new one changes, so those records lead
-the report and leave the level alone.
+breaking record makes it major, else an additive one minor, else a file written, pruned or whose
+digest moved ([what the manifest records](write-integrate.md#what-the-manifest-records)) a patch,
+and a regeneration that changed no file has none. A deprecation is additive, and so a minor, as
+semantic versioning asks. Where the surface was not compared, a target with no extractor
+(`Capabilities.SurfaceVerify` unset), there is no level to report and the engine says so: a patch
+read off the digests alone could be a break. A behavioral record never raises the level. It says
+what the SDKs already deployed will meet, which no version of the new one changes, so those records
+lead the report and leave the level alone.
 
 The engine reports the level and does not apply it, because an SDK's version is no input of a
 generation. Its owner chooses it after reading the level, so a generation that wrote the version
