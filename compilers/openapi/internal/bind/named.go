@@ -24,12 +24,12 @@ import (
 // read as the kind that reference expects. complete is false when a reference
 // leaves the document, when a fragment is no JSON pointer, or past maxSteps.
 func NamedPointerBytes(ctx context.Context, root *yaml.Node, maxSteps int) (bytes int, complete bool) {
-	w := named{ctx: ctx, memo: map[namedKey]namedShape{}, steps: budget.New(budget.AtMost(maxSteps)),
+	w := named{memo: map[namedKey]namedShape{}, steps: budget.New(budget.AtMost(maxSteps)),
 		view: nodeview.New(), root: nodeview.DocumentRoot(root), complete: true}
 	if w.root == nil {
 		return 0, true
 	}
-	total := w.shapeOf(namedKey{n: w.root, s: sDocument}).pointers
+	total := w.shapeOf(ctx, namedKey{n: w.root, s: sDocument}).pointers
 	added := map[namedKey]bool{}
 	for i := 0; i < len(w.refs) && w.complete; i++ {
 		target, base, ok := w.landing(w.refs[i].ref)
@@ -38,7 +38,7 @@ func NamedPointerBytes(ctx context.Context, root *yaml.Node, maxSteps int) (byte
 			continue
 		}
 		added[key] = true
-		got := w.shapeOf(key)
+		got := w.shapeOf(ctx, key)
 		total = sat(total, sat(got.pointers, satMul(got.nodes, base)))
 	}
 	return total, w.complete
@@ -63,7 +63,6 @@ type namedRef struct {
 // named is one NamedPointerBytes in progress: each (node, state) measured,
 // and the references met on the way, read once each.
 type named struct {
-	ctx      context.Context
 	memo     map[namedKey]namedShape
 	steps    budget.Budget
 	view     *nodeview.View
@@ -81,7 +80,7 @@ type namedFrame struct {
 
 // shapeOf measures what top names, over an explicit stack: each (node, state)
 // once, an alias as what it names, a raw value as its root alone.
-func (w *named) shapeOf(top namedKey) namedShape {
+func (w *named) shapeOf(ctx context.Context, top namedKey) namedShape {
 	stack := []namedFrame{{key: top}}
 	for len(stack) > 0 && w.complete {
 		f := &stack[len(stack)-1]
@@ -89,7 +88,7 @@ func (w *named) shapeOf(top namedKey) namedShape {
 			stack = stack[:len(stack)-1]
 			continue
 		}
-		if !w.steps.Spend(1) || w.steps.Spent()%nodeview.AskEvery == 0 && w.ctx.Err() != nil {
+		if !w.steps.Spend(1) || w.steps.Spent()%nodeview.AskEvery == 0 && ctx.Err() != nil {
 			w.complete = false
 			break
 		}

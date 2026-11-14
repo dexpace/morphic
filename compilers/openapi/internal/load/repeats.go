@@ -23,13 +23,10 @@ import (
 // listRepeats reports each entry of a list that repeats what an earlier entry
 // of the same list is identified by: a parameter's name and location
 // (paramRepeats), or a server's name (serverRepeats). Each list is read once,
-// keyed by where it is written, and placed there, in whichever document.
-//
-// items is walkSource's walk, which visits each list where the source writes
-// it, and again wherever a YAML alias mounts it. The lists beside a path
-// item's $ref are sibs's model's (writtenItem). Then each path item the
-// bindings built for a landing, raw YAML of the source or a node of another
-// document, is read with its operations (landedRepeats) (GitHub #880).
+// where it is written, in whichever document. items is walkSource's walk of
+// the source's lists, those beside a path item's $ref sibs's model's
+// (writtenItem); then each path item the bindings built for a landing is read
+// with its operations (landedRepeats, GitHub #880).
 func listRepeats(sites places, sibs Siblings, b *typed.Bindings, items iter.Seq[soa.WalkItem],
 ) []ir.Diagnostic {
 	place := sites.source

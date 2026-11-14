@@ -140,6 +140,7 @@ func newOthers(ctx context.Context, read *externalReads, first int, source *dial
 		byLabel[label] = append(byLabel[label], key)
 	}
 	o := Others{byName: map[string]int{}}
+	cancelled := false
 	for i, label := range slices.Sorted(maps.Keys(byLabel)) {
 		keys := slices.Sorted(slices.Values(byLabel[label]))
 		data := read.data[keys[0]]
@@ -152,9 +153,13 @@ func newOthers(ctx context.Context, read *externalReads, first int, source *dial
 		o.trees = append(o.trees, tree)
 		doc := read.read[keys[0]]
 		o.found = slices.Concat(o.found, streamDiagnostics(first+i, externalStream, doc.Rest), versionDiagnostics(tree, doc))
-		root := read.trees[keys[0]]
-		o.repeats = append(o.repeats, oas.CheckRepeatedKeys(ctx, root, version, oas.Options{
-			Locate: walkedFrom(root, tree.Node), Budget: budget.AtMost(maxTreeNodes)})...)
+		// Once ctx is done no document is read on, so a cancel costs one ask.
+		if root := read.trees[keys[0]]; !cancelled && ctx.Err() == nil {
+			o.repeats = append(o.repeats, oas.CheckRepeatedKeys(ctx, root, version, oas.Options{
+				Locate: walkedFrom(root, tree.Node), Budget: budget.AtMost(maxTreeNodes)})...)
+		} else {
+			cancelled = true
+		}
 		for _, key := range keys {
 			o.byName[key] = i
 		}
