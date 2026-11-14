@@ -1,0 +1,76 @@
+openapi: 3.1.0
+info: {title: EncodingUnkeyed, version: "1.0.0"}
+paths:
+  /assets:
+    post:
+      operationId: assets
+      requestBody:
+        content:
+          multipart/form-data:
+            # A body of arbitrary named files: its encoding key names a part the
+            # schema declares nowhere, so it keys nothing and is kept whole.
+            schema:
+              type: object
+              additionalProperties: {type: string, description: Base-64 encoded contents of a file.}
+            encoding:
+              "*": {contentType: "*/*"}
+      responses: {"200": {description: ok}}
+  /union:
+    post:
+      operationId: union
+      requestBody:
+        content:
+          multipart/form-data:
+            # `file` is declared by one branch of a union, which Content.Encoding
+            # does not key.
+            schema:
+              oneOf:
+                - {type: object, properties: {file: {type: string, format: binary}}}
+                - {type: object, properties: {url: {type: string}}}
+            encoding:
+              file: {contentType: image/png}
+      responses: {"200": {description: ok}}
+  /ghost:
+    post:
+      operationId: ghost
+      requestBody:
+        content:
+          multipart/form-data:
+            # `meta` is a part and is keyed. `ghost` is no part, so everything it
+            # declares, a header included, stays inside its one record.
+            schema:
+              type: object
+              properties:
+                meta: {type: string}
+            encoding:
+              meta: {contentType: text/plain}
+              ghost:
+                contentType: image/png
+                headers:
+                  X-Part-Id: {schema: {type: integer}}
+      responses: {"200": {description: ok}}
+  /file:
+    post:
+      operationId: file
+      requestBody:
+        content:
+          multipart/form-data:
+            # A binary body declares no part, so its encoding entry names none and
+            # is kept whole beside the file body.
+            schema: {type: string, format: binary}
+            encoding:
+              file: {contentType: image/png}
+      responses: {"200": {description: ok}}
+  /form:
+    post:
+      operationId: form
+      requestBody:
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+              properties:
+                a: {type: string}
+            encoding:
+              ghost: {style: form, explode: false}
+      responses: {"200": {description: ok}}

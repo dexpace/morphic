@@ -1,0 +1,1288 @@
+{
+  "idSpaces": {
+    "auth": [
+      "openapi",
+      "unresolved"
+    ],
+    "e": [
+      "anon",
+      "composed",
+      "openapi"
+    ],
+    "g": [
+      "default",
+      "extension",
+      "path-prefix",
+      "tags",
+      "webhooks"
+    ],
+    "op": [
+      "openapi"
+    ],
+    "p": [
+      "composed",
+      "openapi"
+    ],
+    "param": [
+      "openapi"
+    ],
+    "s": [
+      "openapi"
+    ],
+    "server": [
+      "default",
+      "openapi"
+    ],
+    "t": [
+      "anon",
+      "composed",
+      "openapi"
+    ]
+  },
+  "name": "UnevaluatedAtEveryOutcome",
+  "version": "1.0.0",
+  "docs": {},
+  "services": [
+    {
+      "id": "s/openapi/0",
+      "name": {
+        "source": "UnevaluatedAtEveryOutcome",
+        "canonical": "unevaluated_at_every_outcome"
+      },
+      "docs": {},
+      "groups": [
+        {
+          "id": "g/default",
+          "name": {
+            "hint": "default"
+          },
+          "docs": {},
+          "operations": [
+            {
+              "id": "op/openapi/paths/~1things/get",
+              "name": {
+                "source": "getThings",
+                "canonical": "get_things"
+              },
+              "docs": {},
+              "params": [
+                {
+                  "id": "param/openapi/paths/~1things/get/parameters/q/query",
+                  "name": {
+                    "source": "q",
+                    "canonical": "q"
+                  },
+                  "type": {
+                    "target": "t/prim/string",
+                    "nullable": false
+                  },
+                  "required": false,
+                  "docs": {},
+                  "unmodeled": {
+                    "openapi:unevaluated": {
+                      "reason": "validation_only",
+                      "value": {
+                        "unevaluatedProperties": false
+                      },
+                      "provenance": {
+                        "source": 0,
+                        "pointer": "/paths/~1things/get/parameters/0/schema"
+                      }
+                    }
+                  },
+                  "provenance": {
+                    "source": 0,
+                    "pointer": "/paths/~1things/get/parameters/0"
+                  }
+                }
+              ],
+              "responses": [
+                {
+                  "name": {
+                    "hint": "200"
+                  },
+                  "conditions": {
+                    "statusCodes": [
+                      {
+                        "from": 200,
+                        "to": 200
+                      }
+                    ]
+                  },
+                  "docs": {
+                    "description": "ok"
+                  }
+                }
+              ],
+              "oneWay": false,
+              "idempotency": {},
+              "bindings": {
+                "http": [
+                  {
+                    "method": "GET",
+                    "uriTemplate": "/things",
+                    "paramBindings": [
+                      {
+                        "param": "param/openapi/paths/~1things/get/parameters/q/query",
+                        "location": "query",
+                        "wireName": "q",
+                        "style": "form",
+                        "explode": true,
+                        "allowReserved": false,
+                        "allowEmptyValue": false
+                      }
+                    ],
+                    "sharedRoute": false,
+                    "checksumRequired": false
+                  }
+                ]
+              },
+              "provenance": {
+                "source": 0,
+                "pointer": "/paths/~1things/get"
+              }
+            }
+          ]
+        }
+      ],
+      "servers": [
+        "server/default"
+      ],
+      "provenance": {
+        "source": 0
+      }
+    }
+  ],
+  "types": {
+    "t/anon/components/schemas/Distributed/oneOf/1": {
+      "kind": "model",
+      "id": "t/anon/components/schemas/Distributed/oneOf/1",
+      "name": {
+        "hint": "variant_1"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Distributed/oneOf/1"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/Distributed/oneOf/1/properties/b",
+          "name": {
+            "source": "b",
+            "canonical": "b"
+          },
+          "wireName": "b",
+          "type": {
+            "target": "t/prim/string",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Distributed/oneOf/1/properties/b"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/anon/components/schemas/Holder/properties/list": {
+      "kind": "list",
+      "id": "t/anon/components/schemas/Holder/properties/list",
+      "name": {
+        "hint": "list"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Holder/properties/list"
+      },
+      "elem": {
+        "target": "t/anon/components/schemas/Holder/properties/list/items",
+        "nullable": false
+      }
+    },
+    "t/anon/components/schemas/Holder/properties/list/items": {
+      "kind": "scalar",
+      "id": "t/anon/components/schemas/Holder/properties/list/items",
+      "name": {
+        "hint": "list_item"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "unmodeled": {
+        "openapi:unevaluated": {
+          "reason": "validation_only",
+          "value": {
+            "unevaluatedProperties": false
+          },
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Holder/properties/list/items"
+          }
+        }
+      },
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Holder/properties/list/items"
+      },
+      "base": {
+        "target": "t/prim/string",
+        "nullable": false
+      }
+    },
+    "t/anon/components/schemas/ObjectVariant/type/0": {
+      "kind": "model",
+      "id": "t/anon/components/schemas/ObjectVariant/type/0",
+      "name": {
+        "hint": "object_variant"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/ObjectVariant/type/0"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/ObjectVariant/type/0/properties/a",
+          "name": {
+            "source": "a",
+            "canonical": "a"
+          },
+          "wireName": "a",
+          "type": {
+            "target": "t/prim/string",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/ObjectVariant/type/0/properties/a"
+          }
+        }
+      ],
+      "additional": "closed_after_composition",
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/composed/components/schemas/Distributed/oneOf/0": {
+      "kind": "model",
+      "id": "t/composed/components/schemas/Distributed/oneOf/0",
+      "name": {
+        "hint": "distributed_closed"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Distributed/oneOf/0"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/Distributed/properties/k",
+          "name": {
+            "source": "k",
+            "canonical": "k"
+          },
+          "wireName": "k",
+          "type": {
+            "target": "t/prim/string",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Distributed/properties/k"
+          }
+        }
+      ],
+      "base": {
+        "target": "t/openapi/components/schemas/Closed",
+        "nullable": false
+      },
+      "additional": "closed_after_composition",
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/composed/components/schemas/Distributed/oneOf/1": {
+      "kind": "model",
+      "id": "t/composed/components/schemas/Distributed/oneOf/1",
+      "name": {
+        "hint": "distributed_variant_1"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Distributed/oneOf/1"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/Distributed/properties/k",
+          "name": {
+            "source": "k",
+            "canonical": "k"
+          },
+          "wireName": "k",
+          "type": {
+            "target": "t/prim/string",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Distributed/properties/k"
+          }
+        }
+      ],
+      "base": {
+        "target": "t/anon/components/schemas/Distributed/oneOf/1",
+        "nullable": false
+      },
+      "additional": "closed_after_composition",
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/openapi/components/schemas/Alias": {
+      "kind": "scalar",
+      "id": "t/openapi/components/schemas/Alias",
+      "name": {
+        "source": "Alias",
+        "canonical": "alias"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "unmodeled": {
+        "openapi:unevaluated": {
+          "reason": "validation_only",
+          "value": {
+            "unevaluatedProperties": false
+          },
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Alias"
+          }
+        }
+      },
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Alias"
+      },
+      "base": {
+        "target": "t/openapi/components/schemas/Name",
+        "nullable": false
+      }
+    },
+    "t/openapi/components/schemas/Anything": {
+      "kind": "scalar",
+      "id": "t/openapi/components/schemas/Anything",
+      "name": {
+        "source": "Anything",
+        "canonical": "anything"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "unmodeled": {
+        "openapi:unevaluated": {
+          "reason": "validation_only",
+          "value": {
+            "unevaluatedProperties": false
+          },
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Anything"
+          }
+        }
+      },
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Anything"
+      },
+      "base": {
+        "target": "t/prim/any",
+        "nullable": false
+      }
+    },
+    "t/openapi/components/schemas/Closed": {
+      "kind": "model",
+      "id": "t/openapi/components/schemas/Closed",
+      "name": {
+        "source": "Closed",
+        "canonical": "closed"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Closed"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/Closed/properties/a",
+          "name": {
+            "source": "a",
+            "canonical": "a"
+          },
+          "wireName": "a",
+          "type": {
+            "target": "t/prim/string",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Closed/properties/a"
+          }
+        }
+      ],
+      "additional": "closed_after_composition",
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/openapi/components/schemas/ClosedByABranch": {
+      "kind": "model",
+      "id": "t/openapi/components/schemas/ClosedByABranch",
+      "name": {
+        "source": "ClosedByABranch",
+        "canonical": "closed_by_a_branch"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "unmodeled": {
+        "openapi:allOf/0": {
+          "reason": "degraded_lowering",
+          "value": false,
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/ClosedByABranch/allOf/0"
+          }
+        },
+        "openapi:unevaluated": {
+          "reason": "validation_only",
+          "value": {
+            "unevaluatedProperties": false
+          },
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/ClosedByABranch"
+          }
+        }
+      },
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/ClosedByABranch"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/ClosedByABranch/properties/k",
+          "name": {
+            "source": "k",
+            "canonical": "k"
+          },
+          "wireName": "k",
+          "type": {
+            "target": "t/prim/string",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/ClosedByABranch/properties/k"
+          }
+        }
+      ],
+      "additional": "closed",
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/openapi/components/schemas/Constant": {
+      "kind": "literal",
+      "id": "t/openapi/components/schemas/Constant",
+      "name": {
+        "source": "Constant",
+        "canonical": "constant"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "unmodeled": {
+        "openapi:unevaluated": {
+          "reason": "validation_only",
+          "value": {
+            "unevaluatedProperties": false
+          },
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Constant"
+          }
+        }
+      },
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Constant"
+      },
+      "value": {
+        "kind": "string",
+        "str": "a"
+      },
+      "valueType": "string"
+    },
+    "t/openapi/components/schemas/Distributed": {
+      "kind": "union",
+      "id": "t/openapi/components/schemas/Distributed",
+      "name": {
+        "source": "Distributed",
+        "canonical": "distributed"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Distributed"
+      },
+      "variants": [
+        {
+          "name": {
+            "hint": "closed"
+          },
+          "type": {
+            "target": "t/composed/components/schemas/Distributed/oneOf/0",
+            "nullable": false
+          },
+          "docs": {}
+        },
+        {
+          "name": {
+            "hint": "variant_1"
+          },
+          "type": {
+            "target": "t/composed/components/schemas/Distributed/oneOf/1",
+            "nullable": false
+          },
+          "docs": {}
+        }
+      ],
+      "exclusive": true,
+      "wireTagged": false,
+      "closed": true,
+      "inputOnly": false
+    },
+    "t/openapi/components/schemas/Enumerated": {
+      "kind": "enum",
+      "id": "t/openapi/components/schemas/Enumerated",
+      "name": {
+        "source": "Enumerated",
+        "canonical": "enumerated"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "unmodeled": {
+        "openapi:unevaluated": {
+          "reason": "validation_only",
+          "value": {
+            "unevaluatedProperties": false
+          },
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Enumerated"
+          }
+        }
+      },
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Enumerated"
+      },
+      "valueType": "string",
+      "members": [
+        {
+          "id": "e/openapi/components/schemas/Enumerated/s:a",
+          "name": {
+            "source": "a",
+            "canonical": "a"
+          },
+          "value": {
+            "kind": "string",
+            "str": "a"
+          },
+          "docs": {}
+        }
+      ],
+      "closed": true,
+      "flags": false
+    },
+    "t/openapi/components/schemas/Holder": {
+      "kind": "model",
+      "id": "t/openapi/components/schemas/Holder",
+      "name": {
+        "source": "Holder",
+        "canonical": "holder"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Holder"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/Holder/properties/scalar",
+          "name": {
+            "source": "scalar",
+            "canonical": "scalar"
+          },
+          "wireName": "scalar",
+          "type": {
+            "target": "t/prim/string",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "unmodeled": {
+            "openapi:unevaluated": {
+              "reason": "validation_only",
+              "value": {
+                "unevaluatedProperties": false
+              },
+              "provenance": {
+                "source": 0,
+                "pointer": "/components/schemas/Holder/properties/scalar"
+              }
+            }
+          },
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Holder/properties/scalar"
+          }
+        },
+        {
+          "id": "p/openapi/components/schemas/Holder/properties/ref",
+          "name": {
+            "source": "ref",
+            "canonical": "ref"
+          },
+          "wireName": "ref",
+          "type": {
+            "target": "t/openapi/components/schemas/Name",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "unmodeled": {
+            "openapi:unevaluated": {
+              "reason": "validation_only",
+              "value": {
+                "unevaluatedProperties": false
+              },
+              "provenance": {
+                "source": 0,
+                "pointer": "/components/schemas/Holder/properties/ref"
+              }
+            }
+          },
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Holder/properties/ref"
+          }
+        },
+        {
+          "id": "p/openapi/components/schemas/Holder/properties/list",
+          "name": {
+            "source": "list",
+            "canonical": "list"
+          },
+          "wireName": "list",
+          "type": {
+            "target": "t/anon/components/schemas/Holder/properties/list",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Holder/properties/list"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/openapi/components/schemas/Listed": {
+      "kind": "list",
+      "id": "t/openapi/components/schemas/Listed",
+      "name": {
+        "source": "Listed",
+        "canonical": "listed"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "unmodeled": {
+        "openapi:unevaluated": {
+          "reason": "validation_only",
+          "value": {
+            "unevaluatedProperties": false
+          },
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Listed"
+          }
+        }
+      },
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Listed"
+      },
+      "elem": {
+        "target": "t/prim/string",
+        "nullable": false
+      }
+    },
+    "t/openapi/components/schemas/Name": {
+      "kind": "scalar",
+      "id": "t/openapi/components/schemas/Name",
+      "name": {
+        "source": "Name",
+        "canonical": "name"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Name"
+      },
+      "base": {
+        "target": "t/prim/string",
+        "nullable": false
+      }
+    },
+    "t/openapi/components/schemas/NoObjectVariant": {
+      "kind": "union",
+      "id": "t/openapi/components/schemas/NoObjectVariant",
+      "name": {
+        "source": "NoObjectVariant",
+        "canonical": "no_object_variant"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "unmodeled": {
+        "openapi:unevaluated": {
+          "reason": "validation_only",
+          "value": {
+            "unevaluatedProperties": false
+          },
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/NoObjectVariant"
+          }
+        }
+      },
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/NoObjectVariant"
+      },
+      "variants": [
+        {
+          "name": {
+            "hint": "string"
+          },
+          "type": {
+            "target": "t/prim/string",
+            "nullable": false
+          },
+          "docs": {}
+        },
+        {
+          "name": {
+            "hint": "integer"
+          },
+          "type": {
+            "target": "t/prim/integer",
+            "nullable": false
+          },
+          "docs": {}
+        }
+      ],
+      "exclusive": true,
+      "wireTagged": false,
+      "closed": true,
+      "inputOnly": false
+    },
+    "t/openapi/components/schemas/ObjectVariant": {
+      "kind": "union",
+      "id": "t/openapi/components/schemas/ObjectVariant",
+      "name": {
+        "source": "ObjectVariant",
+        "canonical": "object_variant"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/ObjectVariant"
+      },
+      "variants": [
+        {
+          "name": {
+            "hint": "object"
+          },
+          "type": {
+            "target": "t/anon/components/schemas/ObjectVariant/type/0",
+            "nullable": false
+          },
+          "docs": {}
+        },
+        {
+          "name": {
+            "hint": "string"
+          },
+          "type": {
+            "target": "t/prim/string",
+            "nullable": false
+          },
+          "docs": {}
+        }
+      ],
+      "exclusive": true,
+      "wireTagged": false,
+      "closed": true,
+      "inputOnly": false
+    },
+    "t/openapi/components/schemas/Paired": {
+      "kind": "tuple",
+      "id": "t/openapi/components/schemas/Paired",
+      "name": {
+        "source": "Paired",
+        "canonical": "paired"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "unmodeled": {
+        "openapi:unevaluated": {
+          "reason": "validation_only",
+          "value": {
+            "unevaluatedProperties": false
+          },
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Paired"
+          }
+        }
+      },
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Paired"
+      },
+      "elems": [
+        {
+          "target": "t/prim/string",
+          "nullable": false
+        }
+      ],
+      "rest": {
+        "target": "t/prim/any",
+        "nullable": false
+      }
+    },
+    "t/openapi/components/schemas/PlainUnion": {
+      "kind": "union",
+      "id": "t/openapi/components/schemas/PlainUnion",
+      "name": {
+        "source": "PlainUnion",
+        "canonical": "plain_union"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "unmodeled": {
+        "openapi:unevaluated": {
+          "reason": "validation_only",
+          "value": {
+            "unevaluatedProperties": false
+          },
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/PlainUnion"
+          }
+        }
+      },
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/PlainUnion"
+      },
+      "variants": [
+        {
+          "name": {
+            "hint": "closed"
+          },
+          "type": {
+            "target": "t/openapi/components/schemas/Closed",
+            "nullable": false
+          },
+          "docs": {}
+        },
+        {
+          "name": {
+            "hint": "variant_1"
+          },
+          "type": {
+            "target": "t/prim/string",
+            "nullable": false
+          },
+          "docs": {}
+        }
+      ],
+      "exclusive": true,
+      "wireTagged": false,
+      "closed": true,
+      "inputOnly": false
+    },
+    "t/openapi/components/schemas/Scalar": {
+      "kind": "scalar",
+      "id": "t/openapi/components/schemas/Scalar",
+      "name": {
+        "source": "Scalar",
+        "canonical": "scalar"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "unmodeled": {
+        "openapi:unevaluated": {
+          "reason": "validation_only",
+          "value": {
+            "unevaluatedProperties": false
+          },
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Scalar"
+          }
+        }
+      },
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Scalar"
+      },
+      "base": {
+        "target": "t/prim/string",
+        "nullable": false
+      }
+    },
+    "t/prim/any": {
+      "kind": "primitive",
+      "id": "t/prim/any",
+      "name": {},
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": -1
+      },
+      "prim": "any"
+    },
+    "t/prim/integer": {
+      "kind": "primitive",
+      "id": "t/prim/integer",
+      "name": {},
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": -1
+      },
+      "prim": "integer"
+    },
+    "t/prim/string": {
+      "kind": "primitive",
+      "id": "t/prim/string",
+      "name": {},
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": -1
+      },
+      "prim": "string"
+    }
+  },
+  "servers": {
+    "server/default": {
+      "id": "server/default",
+      "name": {
+        "hint": "server"
+      },
+      "urlTemplate": "/",
+      "description": {},
+      "provenance": {
+        "source": 0
+      }
+    }
+  },
+  "diagnostics": [
+    {
+      "severity": "info",
+      "code": "openapi/composition-lowering",
+      "message": "oneOf/anyOf co-declared with structural keywords; the composition is distributed across the union variants",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Distributed"
+      }
+    },
+    {
+      "severity": "info",
+      "code": "openapi/validation-only-keyword",
+      "message": "validation-only keyword \"unevaluated\" kept verbatim under Unmodeled",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Scalar"
+      }
+    },
+    {
+      "severity": "info",
+      "code": "openapi/validation-only-keyword",
+      "message": "validation-only keyword \"unevaluated\" kept verbatim under Unmodeled",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Enumerated"
+      }
+    },
+    {
+      "severity": "info",
+      "code": "openapi/validation-only-keyword",
+      "message": "validation-only keyword \"unevaluated\" kept verbatim under Unmodeled",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Constant"
+      }
+    },
+    {
+      "severity": "info",
+      "code": "openapi/validation-only-keyword",
+      "message": "validation-only keyword \"unevaluated\" kept verbatim under Unmodeled",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Listed"
+      }
+    },
+    {
+      "severity": "info",
+      "code": "openapi/validation-only-keyword",
+      "message": "validation-only keyword \"unevaluated\" kept verbatim under Unmodeled",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Paired"
+      }
+    },
+    {
+      "severity": "info",
+      "code": "openapi/validation-only-keyword",
+      "message": "validation-only keyword \"unevaluated\" kept verbatim under Unmodeled",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Alias"
+      }
+    },
+    {
+      "severity": "info",
+      "code": "openapi/validation-only-keyword",
+      "message": "validation-only keyword \"unevaluated\" kept verbatim under Unmodeled",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/PlainUnion"
+      }
+    },
+    {
+      "severity": "info",
+      "code": "openapi/validation-only-keyword",
+      "message": "validation-only keyword \"unevaluated\" kept verbatim under Unmodeled",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/NoObjectVariant"
+      }
+    },
+    {
+      "severity": "info",
+      "code": "openapi/validation-only-keyword",
+      "message": "validation-only keyword \"unevaluated\" kept verbatim under Unmodeled",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Anything"
+      }
+    },
+    {
+      "severity": "info",
+      "code": "openapi/false-schema",
+      "message": "boolean false allOf branch matches nothing, so the composition matches nothing; composed model closed and the branch kept verbatim under Unmodeled",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/ClosedByABranch/allOf/0"
+      }
+    },
+    {
+      "severity": "info",
+      "code": "openapi/validation-only-keyword",
+      "message": "validation-only keyword \"unevaluated\" kept verbatim under Unmodeled",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/ClosedByABranch"
+      }
+    },
+    {
+      "severity": "info",
+      "code": "openapi/validation-only-keyword",
+      "message": "validation-only keyword \"unevaluated\" kept verbatim under Unmodeled",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Holder/properties/scalar"
+      }
+    },
+    {
+      "severity": "info",
+      "code": "openapi/validation-only-keyword",
+      "message": "validation-only keyword \"unevaluated\" kept verbatim under Unmodeled",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Holder/properties/ref"
+      }
+    },
+    {
+      "severity": "info",
+      "code": "openapi/validation-only-keyword",
+      "message": "validation-only keyword \"unevaluated\" kept verbatim under Unmodeled",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Holder/properties/list/items"
+      }
+    },
+    {
+      "severity": "info",
+      "code": "openapi/validation-only-keyword",
+      "message": "validation-only keyword \"unevaluated\" kept verbatim under Unmodeled",
+      "provenance": {
+        "source": 0,
+        "pointer": "/paths/~1things/get/parameters/0/schema"
+      }
+    }
+  ],
+  "sources": [
+    {
+      "format": "openapi@3.1",
+      "path": "unevaluated-at-every-outcome.yaml",
+      "hash": "a7ced50437b8da5c41ae8dc5b746d498644966c2a63b70bb4f19e7b8fd1080f6"
+    }
+  ]
+}

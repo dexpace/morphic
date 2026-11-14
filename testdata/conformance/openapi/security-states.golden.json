@@ -1,0 +1,688 @@
+{
+  "idSpaces": {
+    "auth": [
+      "openapi",
+      "unresolved"
+    ],
+    "e": [
+      "anon",
+      "composed",
+      "openapi"
+    ],
+    "g": [
+      "default",
+      "extension",
+      "path-prefix",
+      "tags",
+      "webhooks"
+    ],
+    "op": [
+      "openapi"
+    ],
+    "p": [
+      "composed",
+      "openapi"
+    ],
+    "param": [
+      "openapi"
+    ],
+    "s": [
+      "openapi"
+    ],
+    "server": [
+      "default",
+      "openapi"
+    ],
+    "t": [
+      "anon",
+      "composed",
+      "openapi"
+    ]
+  },
+  "name": "SecurityStates",
+  "version": "1.0.0",
+  "docs": {},
+  "services": [
+    {
+      "id": "s/openapi/0",
+      "name": {
+        "source": "SecurityStates",
+        "canonical": "security_states"
+      },
+      "docs": {},
+      "groups": [
+        {
+          "id": "g/default",
+          "name": {
+            "hint": "default"
+          },
+          "docs": {},
+          "operations": [
+            {
+              "id": "op/openapi/paths/~1absent/get",
+              "name": {
+                "source": "absent",
+                "canonical": "absent"
+              },
+              "docs": {},
+              "responses": [
+                {
+                  "name": {
+                    "hint": "200"
+                  },
+                  "conditions": {
+                    "statusCodes": [
+                      {
+                        "from": 200,
+                        "to": 200
+                      }
+                    ]
+                  },
+                  "docs": {
+                    "description": "ok"
+                  }
+                }
+              ],
+              "oneWay": false,
+              "idempotency": {},
+              "bindings": {
+                "http": [
+                  {
+                    "method": "GET",
+                    "uriTemplate": "/absent",
+                    "sharedRoute": false,
+                    "checksumRequired": false
+                  }
+                ]
+              },
+              "provenance": {
+                "source": 0,
+                "pointer": "/paths/~1absent/get"
+              }
+            },
+            {
+              "id": "op/openapi/paths/~1public/get",
+              "name": {
+                "source": "public",
+                "canonical": "public"
+              },
+              "docs": {},
+              "responses": [
+                {
+                  "name": {
+                    "hint": "200"
+                  },
+                  "conditions": {
+                    "statusCodes": [
+                      {
+                        "from": 200,
+                        "to": 200
+                      }
+                    ]
+                  },
+                  "docs": {
+                    "description": "ok"
+                  }
+                }
+              ],
+              "oneWay": false,
+              "idempotency": {},
+              "auth": [],
+              "bindings": {
+                "http": [
+                  {
+                    "method": "GET",
+                    "uriTemplate": "/public",
+                    "sharedRoute": false,
+                    "checksumRequired": false
+                  }
+                ]
+              },
+              "provenance": {
+                "source": 0,
+                "pointer": "/paths/~1public/get"
+              }
+            },
+            {
+              "id": "op/openapi/paths/~1optional/get",
+              "name": {
+                "source": "optional",
+                "canonical": "optional"
+              },
+              "docs": {},
+              "responses": [
+                {
+                  "name": {
+                    "hint": "200"
+                  },
+                  "conditions": {
+                    "statusCodes": [
+                      {
+                        "from": 200,
+                        "to": 200
+                      }
+                    ]
+                  },
+                  "docs": {
+                    "description": "ok"
+                  }
+                }
+              ],
+              "oneWay": false,
+              "idempotency": {},
+              "auth": [
+                {}
+              ],
+              "bindings": {
+                "http": [
+                  {
+                    "method": "GET",
+                    "uriTemplate": "/optional",
+                    "sharedRoute": false,
+                    "checksumRequired": false
+                  }
+                ]
+              },
+              "provenance": {
+                "source": 0,
+                "pointer": "/paths/~1optional/get"
+              }
+            },
+            {
+              "id": "op/openapi/paths/~1optionalOrKey/get",
+              "name": {
+                "source": "optionalOrKey",
+                "canonical": "optional_or_key"
+              },
+              "docs": {},
+              "responses": [
+                {
+                  "name": {
+                    "hint": "200"
+                  },
+                  "conditions": {
+                    "statusCodes": [
+                      {
+                        "from": 200,
+                        "to": 200
+                      }
+                    ]
+                  },
+                  "docs": {
+                    "description": "ok"
+                  }
+                }
+              ],
+              "oneWay": false,
+              "idempotency": {},
+              "auth": [
+                {},
+                {
+                  "schemes": [
+                    {
+                      "scheme": "auth/openapi/components/securitySchemes/apiKey"
+                    }
+                  ]
+                }
+              ],
+              "bindings": {
+                "http": [
+                  {
+                    "method": "GET",
+                    "uriTemplate": "/optionalOrKey",
+                    "sharedRoute": false,
+                    "checksumRequired": false
+                  }
+                ]
+              },
+              "provenance": {
+                "source": 0,
+                "pointer": "/paths/~1optionalOrKey/get"
+              }
+            },
+            {
+              "id": "op/openapi/paths/~1required/get",
+              "name": {
+                "source": "required",
+                "canonical": "required"
+              },
+              "docs": {},
+              "responses": [
+                {
+                  "name": {
+                    "hint": "200"
+                  },
+                  "conditions": {
+                    "statusCodes": [
+                      {
+                        "from": 200,
+                        "to": 200
+                      }
+                    ]
+                  },
+                  "docs": {
+                    "description": "ok"
+                  }
+                }
+              ],
+              "oneWay": false,
+              "idempotency": {},
+              "auth": [
+                {
+                  "schemes": [
+                    {
+                      "scheme": "auth/openapi/components/securitySchemes/apiKey"
+                    }
+                  ]
+                }
+              ],
+              "bindings": {
+                "http": [
+                  {
+                    "method": "GET",
+                    "uriTemplate": "/required",
+                    "sharedRoute": false,
+                    "checksumRequired": false
+                  }
+                ]
+              },
+              "provenance": {
+                "source": 0,
+                "pointer": "/paths/~1required/get"
+              }
+            },
+            {
+              "id": "op/openapi/paths/~1mounted/get",
+              "name": {
+                "source": "mountedAbsent",
+                "canonical": "mounted_absent"
+              },
+              "docs": {},
+              "responses": [
+                {
+                  "name": {
+                    "hint": "200"
+                  },
+                  "conditions": {
+                    "statusCodes": [
+                      {
+                        "from": 200,
+                        "to": 200
+                      }
+                    ]
+                  },
+                  "docs": {
+                    "description": "ok"
+                  }
+                }
+              ],
+              "oneWay": false,
+              "idempotency": {},
+              "bindings": {
+                "http": [
+                  {
+                    "method": "GET",
+                    "uriTemplate": "/mounted",
+                    "sharedRoute": false,
+                    "checksumRequired": false
+                  }
+                ]
+              },
+              "provenance": {
+                "source": 0,
+                "pointer": "/components/pathItems/Shared/get"
+              }
+            },
+            {
+              "id": "op/openapi/paths/~1mounted/put",
+              "name": {
+                "source": "mountedPublic",
+                "canonical": "mounted_public"
+              },
+              "docs": {},
+              "responses": [
+                {
+                  "name": {
+                    "hint": "200"
+                  },
+                  "conditions": {
+                    "statusCodes": [
+                      {
+                        "from": 200,
+                        "to": 200
+                      }
+                    ]
+                  },
+                  "docs": {
+                    "description": "ok"
+                  }
+                }
+              ],
+              "oneWay": false,
+              "idempotency": {},
+              "auth": [],
+              "bindings": {
+                "http": [
+                  {
+                    "method": "PUT",
+                    "uriTemplate": "/mounted",
+                    "sharedRoute": false,
+                    "checksumRequired": false
+                  }
+                ]
+              },
+              "provenance": {
+                "source": 0,
+                "pointer": "/components/pathItems/Shared/put"
+              }
+            },
+            {
+              "id": "op/openapi/paths/~1mounted/post",
+              "name": {
+                "source": "mountedOptional",
+                "canonical": "mounted_optional"
+              },
+              "docs": {},
+              "responses": [
+                {
+                  "name": {
+                    "hint": "200"
+                  },
+                  "conditions": {
+                    "statusCodes": [
+                      {
+                        "from": 200,
+                        "to": 200
+                      }
+                    ]
+                  },
+                  "docs": {
+                    "description": "ok"
+                  }
+                }
+              ],
+              "oneWay": false,
+              "idempotency": {},
+              "auth": [
+                {}
+              ],
+              "bindings": {
+                "http": [
+                  {
+                    "method": "POST",
+                    "uriTemplate": "/mounted",
+                    "sharedRoute": false,
+                    "checksumRequired": false
+                  }
+                ]
+              },
+              "provenance": {
+                "source": 0,
+                "pointer": "/components/pathItems/Shared/post"
+              }
+            },
+            {
+              "id": "op/openapi/paths/~1mounted/delete",
+              "name": {
+                "source": "mountedRequired",
+                "canonical": "mounted_required"
+              },
+              "docs": {},
+              "responses": [
+                {
+                  "name": {
+                    "hint": "200"
+                  },
+                  "conditions": {
+                    "statusCodes": [
+                      {
+                        "from": 200,
+                        "to": 200
+                      }
+                    ]
+                  },
+                  "docs": {
+                    "description": "ok"
+                  }
+                }
+              ],
+              "oneWay": false,
+              "idempotency": {},
+              "auth": [
+                {
+                  "schemes": [
+                    {
+                      "scheme": "auth/openapi/components/securitySchemes/apiKey"
+                    }
+                  ]
+                }
+              ],
+              "bindings": {
+                "http": [
+                  {
+                    "method": "DELETE",
+                    "uriTemplate": "/mounted",
+                    "sharedRoute": false,
+                    "checksumRequired": false
+                  }
+                ]
+              },
+              "provenance": {
+                "source": 0,
+                "pointer": "/components/pathItems/Shared/delete"
+              }
+            },
+            {
+              "id": "op/openapi/paths/~1mounted/patch",
+              "name": {
+                "source": "mountedOptionalOrKey",
+                "canonical": "mounted_optional_or_key"
+              },
+              "docs": {},
+              "responses": [
+                {
+                  "name": {
+                    "hint": "200"
+                  },
+                  "conditions": {
+                    "statusCodes": [
+                      {
+                        "from": 200,
+                        "to": 200
+                      }
+                    ]
+                  },
+                  "docs": {
+                    "description": "ok"
+                  }
+                }
+              ],
+              "oneWay": false,
+              "idempotency": {},
+              "auth": [
+                {},
+                {
+                  "schemes": [
+                    {
+                      "scheme": "auth/openapi/components/securitySchemes/apiKey"
+                    }
+                  ]
+                }
+              ],
+              "bindings": {
+                "http": [
+                  {
+                    "method": "PATCH",
+                    "uriTemplate": "/mounted",
+                    "sharedRoute": false,
+                    "checksumRequired": false
+                  }
+                ]
+              },
+              "provenance": {
+                "source": 0,
+                "pointer": "/components/pathItems/Shared/patch"
+              }
+            }
+          ]
+        },
+        {
+          "id": "g/webhooks",
+          "name": {
+            "hint": "webhooks"
+          },
+          "docs": {},
+          "operations": [
+            {
+              "id": "op/openapi/webhooks/hookAbsent/post",
+              "name": {
+                "source": "hookAbsent",
+                "canonical": "hook_absent"
+              },
+              "docs": {},
+              "responses": [
+                {
+                  "name": {
+                    "hint": "200"
+                  },
+                  "conditions": {
+                    "statusCodes": [
+                      {
+                        "from": 200,
+                        "to": 200
+                      }
+                    ]
+                  },
+                  "docs": {
+                    "description": "ok"
+                  }
+                }
+              ],
+              "oneWay": false,
+              "idempotency": {},
+              "bindings": {
+                "http": [
+                  {
+                    "method": "POST",
+                    "inbound": "webhook",
+                    "webhookName": "hookAbsent",
+                    "sharedRoute": false,
+                    "checksumRequired": false
+                  }
+                ]
+              },
+              "provenance": {
+                "source": 0,
+                "pointer": "/webhooks/hookAbsent/post"
+              }
+            },
+            {
+              "id": "op/openapi/webhooks/hookRequired/post",
+              "name": {
+                "source": "hookRequired",
+                "canonical": "hook_required"
+              },
+              "docs": {},
+              "responses": [
+                {
+                  "name": {
+                    "hint": "200"
+                  },
+                  "conditions": {
+                    "statusCodes": [
+                      {
+                        "from": 200,
+                        "to": 200
+                      }
+                    ]
+                  },
+                  "docs": {
+                    "description": "ok"
+                  }
+                }
+              ],
+              "oneWay": false,
+              "idempotency": {},
+              "auth": [
+                {
+                  "schemes": [
+                    {
+                      "scheme": "auth/openapi/components/securitySchemes/apiKey"
+                    }
+                  ]
+                }
+              ],
+              "bindings": {
+                "http": [
+                  {
+                    "method": "POST",
+                    "inbound": "webhook",
+                    "webhookName": "hookRequired",
+                    "sharedRoute": false,
+                    "checksumRequired": false
+                  }
+                ]
+              },
+              "provenance": {
+                "source": 0,
+                "pointer": "/webhooks/hookRequired/post"
+              }
+            }
+          ]
+        }
+      ],
+      "auth": [
+        {
+          "schemes": [
+            {
+              "scheme": "auth/openapi/components/securitySchemes/apiKey"
+            }
+          ]
+        }
+      ],
+      "servers": [
+        "server/default"
+      ],
+      "provenance": {
+        "source": 0
+      }
+    }
+  ],
+  "auth": {
+    "auth/openapi/components/securitySchemes/apiKey": {
+      "id": "auth/openapi/components/securitySchemes/apiKey",
+      "name": {
+        "source": "apiKey",
+        "canonical": "api_key"
+      },
+      "kind": "apiKey",
+      "docs": {},
+      "in": "header",
+      "keyName": "X-API-Key",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/securitySchemes/apiKey"
+      }
+    }
+  },
+  "servers": {
+    "server/default": {
+      "id": "server/default",
+      "name": {
+        "hint": "server"
+      },
+      "urlTemplate": "/",
+      "description": {},
+      "provenance": {
+        "source": 0
+      }
+    }
+  },
+  "sources": [
+    {
+      "format": "openapi@3.1",
+      "path": "security-states.yaml",
+      "hash": "cf6eefb96ebd087f45d31069cda8bafafbc3f6eb20f14736d8cddb61601bf791"
+    }
+  ]
+}

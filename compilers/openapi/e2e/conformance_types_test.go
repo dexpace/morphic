@@ -471,7 +471,9 @@ func assertRecursive(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 // object whose one member fact is its catch-all is a MapT, carrying its value
 // type and entry bounds, and a catch-all beside anything else is a Model's
 // AdditionalProps. An explicit `true` types the catch-all as the top type in
-// either.
+// either. `unevaluatedProperties: false` closes the object once composition is
+// resolved only where no additionalProperties leaves it inert, and beside
+// patterns alone nothing types a key they miss.
 func assertMaps(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 	i64 := func(v int64) *int64 { return &v }
 	for name, want := range map[string]*ir.MapT{
@@ -508,13 +510,50 @@ func assertMaps(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 	ca, ok := doc.Types[componentID("ClosedAfter")].(*ir.Model)
 	require.True(t, ok)
 	assert.Equal(t, ir.AdditionalClosedAfterComposition, ca.Additional)
+	assert.Empty(t, ca.Unmodeled, "the model holds the closure, so nothing keeps it")
+	cp, ok := doc.Types[componentID("ClosedAfterPatterns")].(*ir.Model)
+	require.True(t, ok)
+	assert.Equal(t, ir.AdditionalClosedAfterComposition, cp.Additional)
+	require.NotNil(t, cp.AdditionalProps)
+	assert.Nil(t, cp.AdditionalProps.Value, "the source types no key the patterns miss")
+	assert.Len(t, cp.AdditionalProps.Patterns, 1)
+	assertInertClosures(t, doc)
+}
+
+// assertInertClosures pins the maps' objects writing an unevaluatedProperties
+// that additionalProperties beside it leaves inert: additionalProperties alone
+// says what each admits, and the keyword is kept with it.
+func assertInertClosures(t *testing.T, doc *ir.Document) {
+	t.Helper()
+	inert := map[string]string{
+		"InertBesideAMap":    `{"additionalProperties":{"type":"integer"},"unevaluatedProperties":false}`,
+		"InertBesideARecord": `{"additionalProperties":true,"unevaluatedProperties":{"type":"string"}}`,
+		"ClosedTwice":        `{"additionalProperties":false,"unevaluatedProperties":false}`,
+	}
+	for name, want := range inert {
+		entry := unmodeledEntry(t, typeByName(doc, name).Common().Unmodeled, "openapi:unevaluated")
+		assert.Equal(t, ir.ReasonValidationOnly, entry.Reason, name)
+		assert.Equal(t, want, string(entry.Value), name)
+	}
+	mt, ok := typeByName(doc, "InertBesideAMap").(*ir.MapT)
+	require.True(t, ok, "an inert closure leaves a map a map; got %T", typeByName(doc, "InertBesideAMap"))
+	assert.Equal(t, ir.TypeRef{Target: "t/prim/integer"}, mt.Value)
+	rec, ok := typeByName(doc, "InertBesideARecord").(*ir.Model)
+	require.True(t, ok)
+	assert.Empty(t, rec.Additional, "open: its catch-all evaluates every other key")
+	require.NotNil(t, rec.AdditionalProps)
+	assert.Equal(t, &ir.TypeRef{Target: "t/prim/any"}, rec.AdditionalProps.Value)
+	twice, ok := typeByName(doc, "ClosedTwice").(*ir.Model)
+	require.True(t, ok)
+	assert.Equal(t, ir.AdditionalClosed, twice.Additional, "the stronger closure stands")
 }
 
 // assertTuples pins what each prefixItems tuple admits past its elements and
 // the bounds beside them (GitHub #597). Only `items: false` closes a tuple, and
 // a typed rest is lowered into the type graph as a List's items is, at the same
 // pointer and under the same hint. All of it is modeled, so no tuple keeps
-// anything beside itself or reports a degradation.
+// anything beside itself or reports a degradation. An unevaluatedItems beside
+// them is kept, with the items that leaves it inert.
 func assertTuples(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
 	i64 := func(v int64) *int64 { return &v }
 	pair := []ir.TypeRef{{Target: "t/prim/string"}, {Target: "t/prim/integer"}}
@@ -549,6 +588,26 @@ func assertTuples(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
 	assert.Equal(t, "pair_with_rest_item", rest.Name.Hint, "named as a List's items would be")
 	_, ok = propByWire(rest, "flag")
 	assert.True(t, ok, "the rest's own properties reach the IR")
+
+	for name, want := range map[string]string{
+		"InertPair": `{"items":true,"unevaluatedItems":false}`,
+		"LivePair":  `{"unevaluatedItems":false}`,
+		"InertList": `{"items":{"type":"string"},"unevaluatedItems":{"type":"integer"}}`,
+		"LiveList":  `{"unevaluatedItems":false}`,
+	} {
+		entry := unmodeledEntry(t, typeByName(doc, name).Common().Unmodeled, "openapi:unevaluated")
+		assert.Equal(t, ir.ReasonValidationOnly, entry.Reason, name)
+		assert.Equal(t, want, string(entry.Value), name)
+		assert.Contains(t, diagsAt(diags, "openapi/validation-only-keyword", "/components/schemas/"+name),
+			ir.SeverityInfo, name)
+	}
+	for _, name := range []string{"InertPair", "LivePair"} {
+		tup, ok := typeByName(doc, name).(*ir.Tuple)
+		require.True(t, ok, name)
+		if assert.NotNil(t, tup.Rest, name) {
+			assert.Equal(t, ir.TypeID("t/prim/any"), tup.Rest.Target, "%s: the entry, not Rest, says what may follow", name)
+		}
+	}
 }
 
 func assertLiteralConst(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {

@@ -488,13 +488,13 @@ func (k outcomeKeeps) recordOn(c lowering.Ctx, ts *compile.Types, owner ir.TypeI
 	if !ok {
 		return diags
 	}
-	return append(diags, k.record(c, &td.Common().Unmodeled, s, pointer)...)
+	return append(diags, k.record(c, ts, &td.Common().Unmodeled, s, pointer)...)
 }
 
 // record keeps k on p and reports it. A branch the IR cannot hold is reported by
 // the keeper, and nothing here claims it was kept.
-func (k outcomeKeeps) record(c lowering.Ctx, p *ir.Unmodeled, s *oas3.Schema, pointer jsontext.Pointer) []ir.Diagnostic {
-	diags := recordUnhomedAt(c, p, s, k.keywords, k.shape, pointer)
+func (k outcomeKeeps) record(c lowering.Ctx, ts *compile.Types, p *ir.Unmodeled, s *oas3.Schema, pointer jsontext.Pointer) []ir.Diagnostic {
+	diags := recordUnhomedAt(c, ts, p, s, k.keywords, k.shape, pointer)
 	for _, key := range k.validation {
 		diags = append(diags, annotation.PreserveValidationOnlyKeyword(p, s, key, pointer, c.Place())...)
 	}
