@@ -9,6 +9,7 @@ import (
 	"encoding/json/jsontext"
 	"encoding/json/v2"
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"slices"
@@ -158,15 +159,15 @@ func TestCheck_SequenceOrderOracleHoldsOnTheRealCompiler(t *testing.T) {
 			want: passed(OracleSequenceOrder),
 		},
 		{
-			// The branch and its property name each other through their $id,
-			// which no pointer spells, so the allOf is reversed. Which of the
-			// two the comparison met first decided their digests, and a run
-			// meeting them one way in each order found a difference.
+			// The two branches name each other through their $id, which no
+			// pointer spells, so the allOf is reversed. Which of the two the
+			// comparison meets first decides their digests, and reversing the
+			// branches changes which, so each order found the other different.
 			name: "two nodes beneath an allOf naming each other",
 			src: schemas("X: {allOf: [{$id: 'https://example.test/a', type: object, properties: " +
-				"{b: {$id: 'https://example.test/b', type: object, properties: {back: {$ref: 'https://example.test/a'}}}}}, " +
-				"{type: object, properties: {q: {type: string}}}]}"),
-			kept: []string{`"target":"t/anon/components/schemas/X/allOf/0/properties/b"`,
+				"{toB: {$ref: 'https://example.test/b'}, x: {type: string}}}, " +
+				"{$id: 'https://example.test/b', type: object, properties: {toA: {$ref: 'https://example.test/a'}, y: {type: integer}}}]}"),
+			kept: []string{`"target":"t/anon/components/schemas/X/allOf/1"`,
 				`"target":"t/anon/components/schemas/X/allOf/0"`},
 			want: declined(OracleSequenceOrder, DeclineReferenceCycle),
 		},
@@ -221,6 +222,35 @@ func propertyChain(n int) string {
 	}
 	return `{"openapi": "3.1.0", "info": {"title": "t", "version": "1"}, "paths": {}, ` +
 		`"components": {"schemas": {"X": ` + schema + `}}}`
+}
+
+// TestSequenceOrderInvariant_GivesOneVerdictOnEveryRun pins that the depth
+// the canonical form reaches is a function of the document. The chain's links
+// sit side by side, so the permutation's bound does not cap their number, and
+// each link's digest nests through the next: a rewrite meeting them in a map's
+// order passed the spec on some runs and declined it as too deep on others.
+func TestSequenceOrderInvariant_GivesOneVerdictOnEveryRun(t *testing.T) {
+	t.Parallel()
+	src := []byte(anchorChain(500))
+
+	first := sequenceOrderInvariant(context.Background(), "spec.json", src, true)
+	for range 19 {
+		assert.Equal(t, first, sequenceOrderInvariant(context.Background(), "spec.json", src, true))
+	}
+}
+
+// anchorChain is a spec whose allOf's first branch names the first of n+1
+// schemas it defines, each but the last an object whose property names the
+// next by its $anchor.
+func anchorChain(n int) string {
+	defs := make([]string, 0, n+1)
+	for i := range n {
+		defs = append(defs, fmt.Sprintf(`"d%d": {"$anchor": "a%d", "type": "object", "properties": {"n": {"$ref": "#a%d"}}}`, i, i, i+1))
+	}
+	defs = append(defs, fmt.Sprintf(`"d%d": {"$anchor": "a%d", "type": "string"}`, n, n))
+	return `{"openapi": "3.1.0", "info": {"title": "t", "version": "1"}, "paths": {}, "components": {"schemas": {"X": ` +
+		`{"allOf": [{"type": "object", "properties": {"start": {"$ref": "#a0"}}, "$defs": {` + strings.Join(defs, ", ") + `}}, ` +
+		`{"type": "object", "properties": {"q": {"type": "string"}}}]}}}}`
 }
 
 // diagnosticsAt is the pointers of the diagnostics of one code.

@@ -11,6 +11,7 @@ import (
 	"encoding/json/v2"
 	"errors"
 	"fmt"
+	"maps"
 	"slices"
 	"strconv"
 	"strings"
@@ -21,11 +22,12 @@ import (
 // maxCanonicalDepth bounds the canonical form's descent: through the encoded
 // document, and through the owners of each digest computed on the way, whose
 // rewrite continues the descent that met the ID. How deep that goes follows
-// the order the rewrite meets IDs in, which is a map's, so it varies between
-// runs, and a form near the bound is declined on some runs alone. A chain of
-// 255 schemas, each a property under an allOf, the deepest the permutation
-// admits, nests within two source bounds in any order, each link's digest
-// reaching through the next (TestCheck_SequenceOrderOracleHoldsOnTheRealCompiler).
+// the order the rewrite meets IDs in, which is why it reads an object's
+// members in name order: a form is declined on every run or on none
+// (TestSequenceOrderInvariant_GivesOneVerdictOnEveryRun). A chain of 255
+// schemas, each a property under an allOf, the deepest the permutation admits,
+// nests within two source bounds in any order, each link's digest reaching
+// through the next (TestCheck_SequenceOrderOracleHoldsOnTheRealCompiler).
 const maxCanonicalDepth = 2 * maxReverseDepth
 
 // errTooDeep says a canonical form would nest past maxCanonicalDepth, which
@@ -148,8 +150,8 @@ func (r *rewriter) index(v any, depth int) {
 		if id, ok := v["id"].(string); ok && erase(id, r.seqs) != id {
 			r.owners[id] = append(r.owners[id], v)
 		}
-		for _, member := range v {
-			r.index(member, depth+1)
+		for _, name := range slices.Sorted(maps.Keys(v)) {
+			r.index(v[name], depth+1)
 		}
 	case []any:
 		for _, element := range v {
@@ -196,7 +198,8 @@ func (r *rewriter) object(o map[string]any, p place, depth int) []byte {
 	}
 	type member struct{ name, value []byte }
 	members := make([]member, 0, len(o))
-	for name, v := range o {
+	for _, name := range slices.Sorted(maps.Keys(o)) {
+		v := o[name]
 		if p.how&noIdentity != 0 && (name == "id" || name == "provenance") {
 			continue
 		}
