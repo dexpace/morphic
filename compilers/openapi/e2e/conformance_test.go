@@ -270,6 +270,8 @@ func conformanceCases() []conformanceCase {
 		{"per-status-errors", assertPerStatusErrors},
 		{"default-response", assertDefaultResponse},
 		{"http-date-inference", assertHTTPDateInference},
+		{"stream-terminator", assertStreamTerminator},
+		{"path-prefix-query", assertPathPrefixQuery},
 		{"response-links", assertResponseLinks},
 		{"body-alias", assertBodyAlias},
 		{"pagination-inferred", assertPaginationInferred},

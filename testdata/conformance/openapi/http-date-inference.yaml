@@ -1,10 +1,10 @@
-# A response header whose field an RFC defines as an HTTP-date, declared
-# date-time with no encoding, is written and read as an HTTP-date under the
-# HTTP-date policy, marked as inferred and reported: Last-Modified inline,
-# Expires through a $ref to a named date-time. A field of another name, one
-# declared as plain text, one declaring its text by a format of its own, and a
-# header parameter, which has no encoding of its own to hold the reading, keep
-# what they declare.
+# A header whose field an RFC defines as an HTTP-date, declared date-time with
+# no encoding, is written and read as an HTTP-date under the HTTP-date policy,
+# marked as inferred and reported: a response header's Last-Modified inline and
+# its Expires through a $ref to a named date-time, and the If-Unmodified-Since
+# a request sends as a header parameter, whose encoding is its own. A field of
+# another name, one declared as plain text, and one declaring its text by a
+# format of its own keep what they declare.
 openapi: 3.0.3
 info: {title: HTTPDateInference, version: "1.0.0"}
 paths:

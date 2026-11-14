@@ -346,6 +346,7 @@ func TestContent_JSONContract(t *testing.T) {
 		},
 		Docs:      ir.Docs{Summary: "One form.", Description: "The body as a form."},
 		Unmodeled: populatedUnmodeled(),
+		Inferred:  "extension-promotion",
 	})
 }
 

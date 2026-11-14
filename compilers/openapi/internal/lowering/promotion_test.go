@@ -587,6 +587,8 @@ var targetFields = map[lowering.ExtensionTarget][]string{
 	lowering.TargetPaginationNextLink:        {"Operation.Pagination"},
 	lowering.TargetPaginationTotalCount:      {"Operation.Pagination"},
 	lowering.TargetPaginationTotalPages:      {"Operation.Pagination"},
+	lowering.TargetStreamTerminator:          {"StreamDetail.Terminator"},
+	lowering.TargetStreamCondition:           {"StreamDetail.Condition"},
 }
 
 // promotionDoc is the document whose table says what a promotion can fill.

@@ -61,6 +61,12 @@ func usageRootPositions() map[string]irfacts.UsageFlags {
 		"Document.Channels/Channel.Params/Parameter.Type":        in,
 		"Document.Auth/AuthScheme.Credentials":                   in,
 	}
+	for parameters, flags := range map[string]irfacts.UsageFlags{
+		"Operation.Params":                 in,
+		"Document.Channels/Channel.Params": in,
+	} {
+		positions[parameters+"/Parameter.Encoding/Encoding.Schema"] = flags
+	}
 	for header, flags := range map[string]irfacts.UsageFlags{
 		"Operation.Responses/Response.Headers":   out,
 		"Operation.Default/Response.Headers":     out,

@@ -193,7 +193,7 @@ func TestDecodeOptions_Refusals(t *testing.T) {
 				`discriminator-inference, extension-promotion, grouping, grouping-aliases, grouping-fallback, ` +
 				`grouping-key, grouping-lists, http-date-inference, idempotency-inference, max-alias-surplus, ` +
 				`max-enum-members, max-external-documents, max-reference-expansion, max-source-bytes, ` +
-				`max-source-nodes, nullable-widening, overlay, overlay-lax, pagination-inference, promotion-prefixes, ` +
+				`max-source-nodes, nullable-inference, overlay, overlay-lax, pagination-inference, promotion-prefixes, ` +
 				`promotion-targets, replacement-inference, secret-inference, streaming-inference, streaming-media, ` +
 				`title-names)`},
 		{"non-integer budget", map[string]string{"max-source-bytes": "64MiB"},
