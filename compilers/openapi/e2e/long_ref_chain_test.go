@@ -17,7 +17,6 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
-	"github.com/dexpace/morphic/engine/reader"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -62,7 +61,7 @@ func TestCompile_ALongRefChainCompiles(t *testing.T) {
 	for _, n := range []int{1, 2, 1500, 2000} {
 		t.Run(fmt.Sprintf("path items, %d hops", n), func(t *testing.T) {
 			t.Parallel()
-			doc, diags := parseFull(t, pathItemChain(n))
+			doc, diags := parseVerified(t, pathItemChain(n))
 			assert.Empty(t, diags)
 			ids := operationIDs(doc)
 			assert.Len(t, ids, n+1, "each path mounts the end's operation")
@@ -72,7 +71,7 @@ func TestCompile_ALongRefChainCompiles(t *testing.T) {
 	for _, n := range []int{1, 2, 1000} {
 		t.Run(fmt.Sprintf("parameters, %d hops", n), func(t *testing.T) {
 			t.Parallel()
-			doc, diags := parseFull(t, parameterChain(n))
+			doc, diags := parseVerified(t, parameterChain(n))
 			assert.Empty(t, diags)
 			ops := allOperations(doc)
 			require.Len(t, ops, n+1)
@@ -95,9 +94,7 @@ func TestCompile_AChainFarPastTheExpansionBudgetIsRefused(t *testing.T) {
 	} {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
-			doc, diags, err := openapi.New().Compile(t.Context(),
-				[]compilers.Source{openapitest.SourceOf(src)}, compilers.Options{})
-			require.NoError(t, err)
+			doc, diags := parseVerified(t, src)
 			assert.Nil(t, doc)
 			require.Len(t, diags, 1)
 			assert.Equal(t, diag.BudgetExceeded, diags[0].Code)
@@ -132,10 +129,9 @@ func TestCompile_ALongRefChainAcrossTwoDocumentsCompiles(t *testing.T) {
 
 			dir := t.TempDir()
 			layout(t, dir, map[string]string{"other.yaml": other.String()})
-			doc, diags, err := openapi.New().Compile(t.Context(),
-				[]compilers.Source{{Path: filepath.Join(dir, "root.yaml"), Data: []byte(root.String())}},
-				compilers.Options{Reader: reader.Disk{}, FormatOptions: openapi.Options{AllowExternalRefs: true}})
-			require.NoError(t, err)
+			doc, diags := compileVerified(t,
+				compilers.Source{Path: filepath.Join(dir, "root.yaml"), Data: []byte(root.String())},
+				openapi.Options{AllowExternalRefs: true})
 			require.NotNil(t, doc)
 			openapitest.RequireNoErrorDiags(t, diags)
 			assert.Len(t, operationIDs(doc), n+1)

@@ -17,7 +17,6 @@ import (
 	"github.com/dexpace/morphic/compilers"
 	"github.com/dexpace/morphic/compilers/openapi"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
-	"github.com/dexpace/morphic/engine/reader"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -67,15 +66,14 @@ const (
 )
 
 // compileRequirements compiles entry beside schemes, reading the one from the
-// other from disk, with external references allowed or not.
+// other from disk, with external references allowed or not, verified as
+// `morphic compile --verify` verifies a run (compileVerified).
 func compileRequirements(t *testing.T, entry, schemes string, allow bool) (*ir.Document, []ir.Diagnostic) {
 	t.Helper()
 	dir := t.TempDir()
 	layout(t, dir, map[string]string{"schemes.yaml": schemes})
-	doc, diags, err := openapi.New().Compile(t.Context(),
-		[]compilers.Source{{Path: filepath.Join(dir, "entry.yaml"), Data: []byte(entry)}},
-		compilers.Options{Reader: reader.Disk{}, FormatOptions: openapi.Options{AllowExternalRefs: allow}})
-	require.NoError(t, err)
+	doc, diags := compileVerified(t, compilers.Source{Path: filepath.Join(dir, "entry.yaml"), Data: []byte(entry)},
+		openapi.Options{AllowExternalRefs: allow})
 	require.NotNil(t, doc)
 	return doc, diags
 }
@@ -195,4 +193,32 @@ func TestCompile_ASecurityRequirementURILowersTheSameInEitherOrder(t *testing.T)
 		cmpopts.IgnoreFields(ir.Provenance{}, "Position")))
 	assert.True(t, slices.Equal(findingsAt(forwardDiags), findingsAt(backwardDiags)))
 	assert.Empty(t, findingsAt(backwardDiags))
+}
+
+// TestCompile_ARequirementKeyLandingOnNoMechanismIsUnresolved pins a key that
+// lands on a Security Scheme Object naming no mechanism, in the source and in
+// another document: each is a scheme of the kind that says so, in the one space
+// that kind takes, one per object whichever document's key reaches it, and the
+// document verifies.
+func TestCompile_ARequirementKeyLandingOnNoMechanismIsUnresolved(t *testing.T) {
+	t.Parallel()
+	entry := strings.Replace(requirementEntry, "{type: http, scheme: bearer}", "{type: http}", 1)
+	schemes := strings.Replace(requirementSchemes, "{type: http, scheme: basic}", "{type: http}", 1)
+	doc, diags := compileRequirements(t, entry, schemes, true)
+
+	assert.Equal(t, []string{
+		"error openapi/incomplete-security-scheme /components/securitySchemes/shared",
+		"error openapi/incomplete-security-scheme /x-schemes/extra",
+		"info openapi/degraded-construct /components/securitySchemes/shared/type",
+		"info openapi/degraded-construct /x-schemes/extra/type",
+	}, findingsAt(diags), "each object reported once, where it is written")
+	inSource, other := schemeOf(t, doc, "elsewhereInSource"), schemeOf(t, doc, "otherDocument")
+	for _, id := range []ir.AuthID{inSource, other} {
+		require.Contains(t, doc.Auth, id)
+		assert.Equal(t, ir.AuthKindUnresolved, doc.Auth[id].Kind, id)
+		space, _ := ir.IDSpace(ir.IDKindAuth, string(id))
+		assert.Equal(t, ir.IDSpaceUnresolved, space, id)
+	}
+	assert.NotEqual(t, inSource, other)
+	assert.Equal(t, other, schemeOf(t, doc, "mountedOwn"), "one object is one scheme")
 }

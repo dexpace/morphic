@@ -144,7 +144,7 @@ func Namespaces(others ...Document) compile.Namespaces {
 		ns[ir.IDKindEnumMember] = append(ns[ir.IDKindEnumMember], d.space(OpenAPISpace), d.space(AnonSpace),
 			d.space(ComposedSpace))
 		ns[ir.IDKindServer] = append(ns[ir.IDKindServer], d.space(OpenAPISpace))
-		ns[ir.IDKindAuth] = append(ns[ir.IDKindAuth], d.space(OpenAPISpace), d.space(compile.UnresolvedSpace))
+		ns[ir.IDKindAuth] = append(ns[ir.IDKindAuth], d.space(OpenAPISpace))
 	}
 	return ns
 }
@@ -299,10 +299,11 @@ func (d Document) Auth(pointer jsontext.Pointer) ir.AuthID {
 }
 
 // UnresolvedAuth returns the stable ID of the scheme a requirement key written
-// in d that reaches no mechanism lowers to, in d's unresolved namespace, so one
-// key in two documents is two schemes.
+// in d that reaches no mechanism lowers to: in the one space ir reserves for
+// that kind, at the pointer a declaration of key has, behind d's qualifier for
+// another document (Coordinate), so one key in two documents is two schemes.
 func (d Document) UnresolvedAuth(key string) ir.AuthID {
-	return compile.AuthID(d.space(compile.UnresolvedSpace), string(schemePointer(key)))
+	return compile.AuthID(compile.UnresolvedSpace, d.Coordinate(schemePointer(key)))
 }
 
 // UnresolvedAuth returns the stable ID of the scheme a name that reaches no

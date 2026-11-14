@@ -151,7 +151,9 @@ func whyNot(ref bind.Reference) string {
 // landed returns the ID of the Security Scheme Object at end, a position the
 // bindings hold one at outside the source's securitySchemes, lowering it in its
 // own document the first time a requirement reaches it, so which reaches it
-// first decides nothing.
+// first decides nothing. One naming no mechanism, or that nothing could be
+// built for, is minted in the space ir reserves for that kind, at its position
+// in its document, as a key naming nothing is (ids.Document.UnresolvedAuth).
 func (r *Registry) landed(c lowering.Ctx, end bind.Position) (ir.AuthID, []ir.Diagnostic) {
 	dc, read := lowering.InDocument(c, end.Doc)
 	id := dc.IDs().Auth(end.Pointer)
@@ -160,12 +162,18 @@ func (r *Registry) landed(c lowering.Ctx, end bind.Position) (ir.AuthID, []ir.Di
 	}
 	rs, _ := c.Bindings().ObjectAt(end, bind.RefSecurityScheme).(*soa.ReferencedSecurityScheme)
 	ss := resolve.Object[soa.SecurityScheme](c.Bindings(), rs)
+	missing := dc.IDs().UnresolvedAuth(string(end.Pointer))
 	if !read || ss == nil {
 		// The load phase reports a landing it could build nothing at.
-		minted, _ := r.unresolved(c.IDs().UnresolvedAuth(string(end.Pointer)), string(end.Pointer))
+		minted, _ := r.unresolved(missing, string(end.Pointer))
 		return minted, nil
 	}
 	scheme, diags := lowerSecurityScheme(dc, dc, end.Pointer.LastToken(), ss, end.Pointer, end.Pointer)
+	if scheme.Kind == ir.AuthKindUnresolved {
+		// lowerSecurityScheme reported what the object lacks, at the object.
+		minted, _ := r.unresolved(missing, string(end.Pointer))
+		return minted, diags
+	}
 	scheme.ID = id
 	r.byID[id] = scheme
 	return id, diags

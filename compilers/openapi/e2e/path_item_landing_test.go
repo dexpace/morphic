@@ -19,7 +19,6 @@ import (
 	"github.com/dexpace/morphic/compilers"
 	"github.com/dexpace/morphic/compilers/openapi"
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
-	"github.com/dexpace/morphic/engine/reader"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -91,7 +90,7 @@ func TestCompile_FieldsBesideAPathItemRefAtAnyLandingAreMounted(t *testing.T) {
 	docs := map[bool]*ir.Document{}
 	findings := map[bool][]string{}
 	for _, itemFirst := range []bool{true, false} {
-		doc, diags := parseFull(t, sharedItemSpec(itemFirst))
+		doc, diags := parseVerified(t, sharedItemSpec(itemFirst))
 		docs[itemFirst], findings[itemFirst] = doc, findingsAt(diags)
 
 		put := opWithID(t, doc, "op/openapi/paths/~1a/put")
@@ -134,7 +133,7 @@ func TestCompile_ALongChainOfLandingsMountsEachOnesFields(t *testing.T) {
 			b.WriteString("paths:\n  /a: {$ref: '#/x-chain/i0'}\n" +
 				"  /b: {get: {operationId: getB, responses: {\"200\": {description: ok}}}}\n")
 
-			doc, diags := parseFull(t, b.String())
+			doc, diags := parseVerified(t, b.String())
 			openapitest.RequireNoErrorDiags(t, diags)
 			assert.Len(t, operationIDs(doc), n+2, "one for each landing, /a's get and /b's")
 			for i := range n {
@@ -176,10 +175,8 @@ func TestCompile_FieldsBesideAForeignPathItemRefAreMounted(t *testing.T) {
 	docs := make([]*ir.Document, 0, 2)
 	for _, second := range []bool{false, true} {
 		layout(t, dir, map[string]string{"other.yaml": foreignLandings(second)})
-		doc, diags, err := openapi.New().Compile(t.Context(),
-			[]compilers.Source{{Path: filepath.Join(dir, "root.yaml"), Data: []byte(root)}},
-			compilers.Options{Reader: reader.Disk{}, FormatOptions: openapi.Options{AllowExternalRefs: true}})
-		require.NoError(t, err)
+		doc, diags := compileVerified(t, compilers.Source{Path: filepath.Join(dir, "root.yaml"), Data: []byte(root)},
+			openapi.Options{AllowExternalRefs: true})
 		require.NotNil(t, doc)
 		openapitest.RequireNoErrorDiags(t, diags)
 		docs = append(docs, doc)

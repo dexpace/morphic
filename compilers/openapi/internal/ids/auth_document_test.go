@@ -13,13 +13,17 @@ import (
 )
 
 // TestDocument_NamesASchemeByItsDocument pins the IDs of a scheme a requirement
-// key reaches by position, and of one it mints for a key reaching none: each in
-// the space of its document, the source's bare, so one key or pointer in two
-// documents is two schemes.
+// key reaches by position, in the space of its document, the source's bare, and
+// of one it mints for a key reaching none, in the one space the kind takes
+// (docs/ir/identity.md#unresolved-schemes), its document in the path: so one
+// key or pointer in two documents is two schemes.
 func TestDocument_NamesASchemeByItsDocument(t *testing.T) {
 	t.Parallel()
 	assert.Equal(t, ir.AuthID("auth/openapi/x/s"), ids.In("").Auth("/x/s"))
 	assert.Equal(t, ir.AuthID("auth/openapi@a.yaml/x/s"), ids.In("a.yaml").Auth("/x/s"))
 	assert.Equal(t, ids.UnresolvedAuth("#/x"), ids.In("").UnresolvedAuth("#/x"), "the source's is a name's")
-	assert.Equal(t, ir.AuthID("auth/unresolved@a.yaml/components/securitySchemes/#~1x"), ids.In("a.yaml").UnresolvedAuth("#/x"))
+	other := ids.In("b/c.yaml").UnresolvedAuth("#/x")
+	assert.Equal(t, ir.AuthID("auth/unresolved/@b~1c.yaml/components/securitySchemes/#~1x"), other)
+	space, _ := ir.IDSpace(ir.IDKindAuth, string(other))
+	assert.Equal(t, ir.IDSpaceUnresolved, space)
 }

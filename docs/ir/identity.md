@@ -111,8 +111,12 @@ An OpenAPI 3.2 requirement key that is a URI names a scheme by position. One dec
 source's `components/securitySchemes` takes the ID its pointer derives in its own document, the
 document's qualified space for another document's:
 `auth/openapi/x-schemes/extra`, `auth/openapi@schemes.yaml/components/securitySchemes/shared`. One
-landing on nothing is minted from the key in the unresolved space of the document writing it,
-`unresolved@schemes.yaml` for another document's, so one key two documents write is two schemes.
+landing on nothing, or on an object that names no mechanism, is minted in `unresolved` like any
+scheme of that kind, from the key and the document writing it: the path a declaration of that name
+has, behind the document's qualifier for another document's,
+`auth/unresolved/@schemes.yaml/components/securitySchemes/#~1x-missing`, which no pointer spells. So
+one key two documents write is two schemes, and the space stays the one below. Such a scheme is
+placed at the source's root, as one nothing declares is, so its path has no pointer to agree with.
 
 `unresolved` is `ir.IDSpaceUnresolved`, one spelling for every format, since `irverify` holds the
 kind to it whichever format minted the scheme. A consumer reads the kind, an ID being opaque to it.

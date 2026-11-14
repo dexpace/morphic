@@ -22,6 +22,7 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
+	"github.com/dexpace/morphic/engine"
 	"github.com/dexpace/morphic/engine/reader"
 	"github.com/dexpace/morphic/internal/harness"
 	"github.com/dexpace/morphic/ir"
@@ -57,6 +58,28 @@ func parseFull(t *testing.T, src string) (*ir.Document, []ir.Diagnostic) {
 	require.NoError(t, err)
 	require.NotNil(t, doc)
 	return doc, diags
+}
+
+// compileVerified runs src through the engine as `morphic compile --verify`
+// runs a spec, with opts and the default passes: each stage's document and
+// findings are held to irverify's invariants, and a violation fails the test.
+// What src's references name is read from disk beside it. It returns the
+// document, nil for a refusal, and every finding of the run, the passes'
+// included.
+func compileVerified(t *testing.T, src compilers.Source, opts openapi.Options) (*ir.Document, []ir.Diagnostic) {
+	t.Helper()
+	e, err := engine.New()
+	require.NoError(t, err)
+	res, err := e.RunSpec(t.Context(), src, engine.RunOptions{FormatOptions: opts, Verify: true})
+	require.NoError(t, err, "a compiled document breaks no invariant")
+	return res.Document, res.Diagnostics
+}
+
+// parseVerified is compileVerified over src, held as spec.yaml, with the
+// default options.
+func parseVerified(t *testing.T, src string) (*ir.Document, []ir.Diagnostic) {
+	t.Helper()
+	return compileVerified(t, openapitest.SourceOf(src), openapi.Options{})
 }
 
 // compileAnnotationSpec compiles one in-memory annotation-retention spec.

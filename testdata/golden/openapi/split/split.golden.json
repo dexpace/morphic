@@ -5,10 +5,7 @@
       "openapi@common.yaml",
       "openapi@paths.yaml",
       "openapi@schemas~1pet.yaml",
-      "unresolved",
-      "unresolved@common.yaml",
-      "unresolved@paths.yaml",
-      "unresolved@schemas~1pet.yaml"
+      "unresolved"
     ],
     "e": [
       "anon",

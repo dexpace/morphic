@@ -37,13 +37,11 @@ func landingsSpec(t *testing.T) string {
 `
 }
 
-// compileLandings compiles src, a document of no other file, and requires a
-// document.
+// compileLandings compiles src, a document of no other file, verified
+// (compileVerified), and requires a document.
 func compileLandings(t *testing.T, name string, src []byte) (*ir.Document, []ir.Diagnostic) {
 	t.Helper()
-	doc, diags, err := openapi.New().Compile(t.Context(),
-		[]compilers.Source{{Path: name, Data: src}}, compilers.Options{})
-	require.NoError(t, err)
+	doc, diags := compileVerified(t, compilers.Source{Path: name, Data: src}, openapi.Options{})
 	require.NotNil(t, doc)
 	return doc, diags
 }

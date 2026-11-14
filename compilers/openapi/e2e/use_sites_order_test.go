@@ -20,12 +20,12 @@ import (
 
 // compileAtLimit compiles src under a reference-expansion budget of limit, -1
 // for none, and returns the document, nil where it was refused, and the
-// findings, each as "severity code pointer", sorted.
+// findings, each as "severity code pointer", sorted, verified
+// (compileVerified).
 func compileAtLimit(t *testing.T, src []byte, limit int) (*ir.Document, []string) {
 	t.Helper()
-	doc, diags, err := openapi.New().Compile(t.Context(), []compilers.Source{{Path: "spec.yaml", Data: src}},
-		compilers.Options{FormatOptions: openapi.Options{Limits: openapi.Limits{MaxReferenceExpansion: limit}}})
-	require.NoError(t, err)
+	doc, diags := compileVerified(t, compilers.Source{Path: "spec.yaml", Data: src},
+		openapi.Options{Limits: openapi.Limits{MaxReferenceExpansion: limit}})
 	return doc, findingsAt(diags)
 }
 
@@ -126,8 +126,10 @@ func TestUseSites_APathItemLandingMountsAlikeInEitherOrder(t *testing.T) {
 				[]string{landings, paths}, -1)
 			assert.Equal(t, []string{"warning openapi/duplicate-operation-id /paths/~1a/get",
 				"warning openapi/duplicate-operation-id /paths/~1c/get",
-				"warning openapi/duplicate-operation-id /paths/~1c/post"}, found,
-				"two paths mounting one item repeat its operation IDs, and nothing else is reported")
+				"warning openapi/duplicate-operation-id /paths/~1c/post",
+				"warning pass/name-collision ", "warning pass/name-collision "}, found,
+				"two paths mounting one item repeat its operation IDs, whose names the names pass finds "+
+					"shared, and nothing else is reported")
 			assert.Len(t, operationIDs(doc), 6, "/a's put, post and get, /c's post and get, and /b's get")
 		}
 	}
