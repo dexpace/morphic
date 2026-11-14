@@ -182,6 +182,17 @@ func TestValidate_AnExampleItsTypeDoesNotAdmitIsReported(t *testing.T) {
 		{"a scenario's parameter, a string for an integer", scenario(params(text("x"))),
 			[]finding{{"op/x", `scenario "s" parameter "param/x/q" is a string, and t/prim/integer holds an integer`}}},
 		{"a scenario's parameter, an integer", scenario(params(num("1"))), nil},
+		{"a scenario's two parameters, each a string, in ID order", func() *ir.Document {
+			doc := scenario(ir.Example{Name: "s", Input: &ir.ScenarioInput{Params: map[ir.ParamID]ir.Value{
+				"param/x/q": *text("x"), "param/x/a": *text("y"),
+			}}})
+			op := &doc.Services[0].Groups[0].Operations[0]
+			op.Params = append(op.Params, ir.Parameter{ID: "param/x/a", Type: intT})
+			return doc
+		}(), []finding{
+			{"op/x", `scenario "s" parameter "param/x/a" is a string, and t/prim/integer holds an integer`},
+			{"op/x", `scenario "s" parameter "param/x/q" is a string, and t/prim/integer holds an integer`},
+		}},
 		{"a scenario's parameter naming none the operation declares", scenario(ir.Example{Name: "s", Input: &ir.ScenarioInput{
 			Params: map[ir.ParamID]ir.Value{"param/x/none": *text("x")},
 		}}), nil},
