@@ -18,6 +18,13 @@ set -euo pipefail
 
 cd "$(git -C "$(dirname "${BASH_SOURCE[0]}")" rev-parse --show-toplevel)"
 
+# One argument at most: a second, such as a target's name, would be ignored
+# while every target ran for the budget.
+if [ "$#" -gt 1 ]; then
+	echo "fuzz.sh: takes one argument, a mode or a budget; got $#" >&2
+	exit 2
+fi
+
 mode="${1:-${FUZZTIME:-5s}}"
 
 # A search's budget is a duration or a count above zero, with an optional
