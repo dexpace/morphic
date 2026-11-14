@@ -29,10 +29,18 @@ const (
 )
 
 // test reports whether every term holds on the object's siblings. One term
-// that fails settles it; a term that cannot be read leaves it unknown.
+// that fails settles it; a term that cannot be read leaves it unknown. A
+// Written term fails where the object does not write its field, and holds
+// where it does, a mapping included, which no text reads.
 func (f frame) test(terms []Term) tri {
 	answer := yes
 	for _, t := range terms {
+		if t.Written {
+			if _, ok := f.byKey[t.Field]; !ok {
+				return no
+			}
+			continue
+		}
 		got, ok := f.text(t.Field)
 		switch {
 		case !ok:
@@ -415,6 +423,10 @@ func (o Object) noun() string { return strings.ToLower(strings.TrimSuffix(o.Name
 func (r ruler) place(terms []Term) string {
 	parts := make([]string, len(terms))
 	for i, t := range terms {
+		if t.Written {
+			parts[i] = "a " + r.f.obj.noun() + " that writes " + t.Field
+			continue
+		}
 		got, _ := r.f.text(t.Field)
 		parts[i] = describeTerm(t.Field, got)
 	}

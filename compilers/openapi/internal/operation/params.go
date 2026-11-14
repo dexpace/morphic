@@ -89,6 +89,10 @@ func lowerParameter(c lowering.Ctx, w walk, id ir.ParamID, p *soa.Parameter, ppt
 		AllowEmptyValue: p.GetAllowEmptyValue(),
 	}
 	elected, diags := fillParamType(c, w, &param, &binding, p, pptr)
+	if elected.mediaType != "" && p.Style == nil {
+		// The media type serializes the value, so no style is stated for it.
+		binding.Style = ""
+	}
 	diags = append(diags, fillParamDetail(c, w.types, &param, p, pptr, elected)...)
 	if p.AllowReserved != nil {
 		return param, binding, diags
@@ -300,7 +304,8 @@ func fillParamDetail(c lowering.Ctx, ts *compile.Types, param *ir.Parameter, p *
 
 // styleAndExplode returns a parameter's serialization style and its explode
 // flag. The style is the written one, else the location's default, which a
-// binding states because the location fixes it. Explode is only what the
+// binding states because the location fixes it, unless the parameter's content
+// is elected, whose media type serializes the value (lowerParameter). Explode is only what the
 // parameter writes and nil otherwise: its default depends on the style, so filling
 // it in would present the default as a declaration, and a deepObject that writes
 // none would read as one that wrote false (GitHub #627).

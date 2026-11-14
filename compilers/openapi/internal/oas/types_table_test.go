@@ -245,7 +245,9 @@ func TestTable_RulesNameFieldsTheObjectHas(t *testing.T) {
 			}
 			for _, term := range r.When {
 				assert.True(t, has(term.Field), "%s tests the field %q, which the object lacks", where, term.Field)
-				assert.NotEmpty(t, term.In, where)
+				if !term.Written {
+					assert.NotEmpty(t, term.In, where)
+				}
 			}
 			if r.Kind == oas.RuleCode {
 				assert.NotEmpty(t, r.Name, where)

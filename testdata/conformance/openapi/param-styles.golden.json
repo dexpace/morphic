@@ -232,7 +232,6 @@
                         "param": "param/openapi/paths/~1search/get/parameters/payload/query",
                         "location": "query",
                         "wireName": "payload",
-                        "style": "form",
                         "allowReserved": false,
                         "allowEmptyValue": false,
                         "contentType": "application/json"

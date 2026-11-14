@@ -169,6 +169,10 @@ var validationReasons = map[string]string{
 		"types or media type ranges (3.1.2 §Request Body Object: 'The key is a media type or media type range'); " +
 		"the table warns of one that is neither as validation-invalid-syntax where it is written " +
 		"(docs/compilers/openapi.md#media-types)",
+	"content-serialization": "the library does not check a style, explode or allowReserved written beside a " +
+		"parameter's or header's content, which the specification applies to a value serialized through its " +
+		"schema; the table warns of each as inapplicable-location-keyword, and the value lowers as declared " +
+		"(docs/compilers/openapi.md#content-parameters)",
 	"media-type-components": "the library models no Components Object mediaTypes " +
 		"(docs/parser-library.md#media-type-references), so it reads a schema's $ref into an entry as naming " +
 		"nothing, where the load phase models each entry and resolves the $ref",

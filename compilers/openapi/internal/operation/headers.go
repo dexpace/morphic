@@ -53,7 +53,7 @@ func lowerHeaders(c lowering.Ctx, w walk, headers *sequencedmap.Map[string, *soa
 // them (GitHub #116). Its style and explode are what Header.Style and Explode
 // hold, as declared: undeclared, each stays unset rather than being written as
 // the default. Written beside content, where they have no effect, they lower
-// unreported, as a parameter's do (GitHub #887).
+// as declared, and load's rule table reports them, as a parameter's.
 func lowerHeader(c, dc lowering.Ctx, w walk, h *soa.Header, name string, hptr, hdecl jsontext.Pointer) (ir.Header, []ir.Diagnostic) {
 	elected, diags := electTypeSpelling(dc, w, h.GetSchema(), h.GetContent(), h.GetRootNode(), hdecl,
 		"header", "ir.Property")

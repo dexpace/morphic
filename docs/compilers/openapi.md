@@ -4737,7 +4737,16 @@ a document's qualifier where it is not the source (`degraded_lowering`), once ho
 reach it: such an entry belongs to the declaration, which no node stands for, and a parameter or
 header lowers once per reference. Each is reported in one `openapi/degraded-construct` warning at the
 `content` map, beside the `openapi/validation` error ([`validation`](#validation)) such a map draws,
-which names the lowest `annotation.MaxUnknownKeys` and counts the rest.
+which names the lowest `annotation.MaxUnknownKeys` and counts the rest. The media type serializes
+the value, so a parameter whose content entry is elected states no style: its binding's `Style` is
+the one it writes, and empty where it writes none, where the `schema` spelling takes its
+location's default. A `style`, `explode` or `allowReserved` written beside `content`, which OpenAPI
+applies to a value serialized through its schema (3.0.4: "For simpler scenarios, a `schema` and
+`style` can describe the structure and syntax of the parameter"), has no effect there: it lowers as
+declared and is an `openapi/inapplicable-location-keyword` warning at the key, a header's `style`
+and `explode` alike ([`header-style`](#header-style)), and `in: querystring`'s are
+[`querystring`](#querystring)'s alone, as 3.2 bars the three there. Where a location's own row also
+holds, as for `allowReserved` at `in: path`, both are reported, each a different statement.
 What else the elected entry writes is kept: its `example` and `examples` follow the parameter's or
 header's own in `Examples`, and the rest goes verbatim under `openapi:content/<key>/<field>`, the
 key escaped as a pointer segment — its `x-*` extensions under `vendor_extension`; an undeclared
@@ -4750,15 +4759,17 @@ beside it stands, and the empty map is kept under `degraded_lowering` with an
 [`competing-keywords`](#competing-keywords)'.
 
 - Cases: `param-content-fields`, `header-content-schema`, `content-several-entries`
-- Codes: `openapi/degraded-construct`
-- Tests: `operation.TestParams_ContentStyleParameter`,
+- Codes: `openapi/degraded-construct`, `openapi/inapplicable-location-keyword`
+- Tests: `oas.TestCheck_SerializationKeywordsBesideContent`,
+  `operation.TestParameter_ContentStatesNoDefaultStyle`,
+  `e2e.TestContentParameters_SerializationKeywordsAreReported`,
+  `operation.TestParams_ContentStyleParameter`,
   `operation.TestPassedOverEntries_ReportsExtraMediaTypes`,
   `operation.TestPassedOverEntries_KeepsEveryEntryAndNamesTheLowest`,
   `operation.TestPassedOverEntries_KeepsOneCopyPerDeclaration`,
   `operation.TestElectContentEntry_DoesNotFollowDeclarationOrder`,
   `operation.TestParamContent_OwnAndMediaExamplesAreBothKept`
-- Status: partly built: a `style`, `explode` or `allowReserved` beside a parameter's `content` lowers
-  in silence (#887), and what a referenced parameter or header keeps is copied per reference (#1240).
+- Status: partly built: what a referenced parameter or header keeps is copied per reference (#1240).
 
 ### `allow-empty-value`
 
@@ -5043,7 +5054,8 @@ entry instead ([`unknown-keys`](#unknown-keys)). A schema's examples are
 - Cases: `examples-32`
 - Codes: `openapi/degraded-construct`
 - Tests: `operation.TestExamples_EmptyKeyIsKept`,
-  `operation.TestExamples_AnEmptyKeyLeavesAWrittenNameKey`, `e2e.TestExamples_AnEmptyKeyChangesTheDocument`
+  `operation.TestExamples_AnEmptyKeyLeavesAWrittenNameKey`,
+  `e2e.TestExamples_AnEmptyKeyChangesTheDocument`
 
 ### `item-schema`
 
@@ -5465,7 +5477,10 @@ A header of a response or an encoding lowers to a `Header` of its headers, and i
 `explode` to that header's `Style` and `Explode` ([responses](../ir/responses.md)), read from
 its declaration and each left unset where the header writes none. A `style` other than `simple`, the
 one OpenAPI allows a header, is an `openapi/validation` error of the class
-`validation-allowed-values` ([`validation`](#validation)). A `Content-Type` entry in either headers
+`validation-allowed-values` ([`validation`](#validation)). A `style` or `explode` beside the
+header's `content`, where neither has an effect, lowers as declared and is an
+`openapi/inapplicable-location-keyword` warning at the key
+([`content-parameters`](#content-parameters)). A `Content-Type` entry in either headers
 map, which OpenAPI says SHALL be ignored, lowers as declared and is reported as an
 `openapi/reserved-header-name` warning at the entry, as a parameter is
 ([`reserved-header-names`](#reserved-header-names)).
@@ -5479,15 +5494,14 @@ compares in any case, both lower, and each but the one lowest in byte order is a
 reported follows the spellings and not the order the map writes them in.
 
 - Cases: `header-content-schema`, `header-name-case`, `header-name-syntax`
-- Codes: `openapi/reserved-header-name`, `openapi/validation`
+- Codes: `openapi/reserved-header-name`, `openapi/validation`,
+  `openapi/inapplicable-location-keyword`
 - Tests: `operation.TestHeaders_SerializationKeywordsLower`,
   `operation.TestHeaders_SerializationKeywordsAbsentRecordNothing`,
   `operation.TestHeaders_SerializationKeywordsFollowTheDeclaration`,
   `operation.TestHeaders_ReservedContentTypeEntryIsReported`,
   `operation.TestHeaders_ReservedContentTypeInEncodingIsReported`,
   `oas.TestCheck_HeaderNamesAreFieldNames`
-- Status: partly built: a `style` or `explode` beside a header's `content`, where they have no
-  effect, lowers in silence, as a parameter's does (#887).
 
 ### `http-date-inference`
 

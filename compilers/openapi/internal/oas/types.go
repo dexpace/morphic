@@ -183,11 +183,12 @@ const (
 )
 
 // Term is one condition on the object a rule judges: the sibling field Field
-// holds one of In. The field "$key" is the key the parent holds the object
-// under.
+// holds one of In, or, where Written, the object writes Field, whatever its
+// value. The field "$key" is the key the parent holds the object under.
 type Term struct {
-	Field string
-	In    []string
+	Field   string
+	In      []string
+	Written bool
 }
 
 // Value is one value a field admits, from the minors in Span, and only where

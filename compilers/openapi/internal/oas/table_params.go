@@ -60,6 +60,7 @@ func parameterFields() []Field {
 func parameterRules() []Rule {
 	c := sectioned("Parameter Object")
 	path := when(term("in", "path"))
+	writes := when(writing("content"), term("in", "query", "header", "path", "cookie"))
 	return []Rule{
 		exactlyOne(Always(), fields("schema", "content"),
 			c(V30, "Parameter Objects MUST include either a `content` field or a `schema` field, but not both.")),
@@ -95,7 +96,20 @@ func parameterRules() []Rule {
 			c(V32, "These fields MUST NOT be used with `in: \"querystring\"`.")),
 		misplaced(From(V32), fields("style", "explode", "allowReserved"), when(term("in", "querystring")),
 			c(V32, "These fields MUST NOT be used with `in: \"querystring\"`.")),
+		// in: querystring is the misplaced row's: 3.2 bars the three there.
+		besideContent(c, "style", writes), besideContent(c, "explode", writes),
+		besideContent(c, "allowReserved", writes),
 	}
+}
+
+// besideContent returns a rule: name, a field a Parameter or Header Object
+// serializes its value with through its schema, has no effect where cond,
+// which has the object write content, whose media type serializes it, holds,
+// c citing the object's section.
+func besideContent(c func(Minor, string) Cite, name string, cond []Term) Rule {
+	return inapplicable(Always(), name, cond, "to a parameter serialized through its schema",
+		c(V30, "For simpler scenarios, a [`schema`](#parameter-schema) and [`style`](#parameter-style) can describe the structure and syntax of the parameter."),
+		c(V31, "Fixed Fields for use with `schema`"))
 }
 
 // headerObject is the Header Object.
@@ -130,6 +144,7 @@ func headerObject() Object {
 				c(V30, "This means that `allowEmptyValue` and `allowReserved` MUST NOT be used")).owned(ownerAnnotation),
 			forbiddenWhen(From(V32), fields("allowEmptyValue"), nil,
 				c(V32, "This means that `allowEmptyValue` MUST NOT be used")).owned(ownerAnnotation),
+			besideContent(c, "style", when(writing("content"))), besideContent(c, "explode", when(writing("content"))),
 		},
 	}
 }

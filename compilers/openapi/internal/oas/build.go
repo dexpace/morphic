@@ -134,6 +134,9 @@ func valWhen(name string, s Span, cond ...Term) Value {
 // term returns the condition that sibling field name holds one of in.
 func term(name string, in ...string) Term { return Term{Field: name, In: in} }
 
+// writing returns a term: the object writes name, as a mapping or any value.
+func writing(name string) Term { return Term{Field: name, Written: true} }
+
 // pattern returns a family of keys every minor admits.
 func pattern(name string, shape Shape, k Kind, cites ...Cite) Pattern {
 	return Pattern{Name: name, Shape: shape, Of: k, Span: Always(), Cites: cites}

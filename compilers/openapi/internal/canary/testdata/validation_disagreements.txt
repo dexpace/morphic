@@ -342,6 +342,9 @@ testdata/openapi/cycle_schema_empty_key.yaml	11:9	validation-invalid-syntax	comp
 testdata/openapi/defs_at_root.yaml	8:3	unknown-object-key	compiler	undefined-key
 testdata/openapi/discriminator_maps_its_own_base.yaml	20:25	validation-invalid-schema	library	old-grammar
 testdata/openapi/media_key_and_form_bodies.yaml	7:51	validation-invalid-syntax	compiler	media-type-keys
+testdata/openapi/param_content_serialization.yaml	10:18	inapplicable-location-keyword	compiler	content-serialization
+testdata/openapi/param_content_serialization.yaml	11:20	inapplicable-location-keyword	compiler	content-serialization
+testdata/openapi/param_content_serialization.yaml	12:26	inapplicable-location-keyword	compiler	content-serialization
 testdata/openapi/path_item_unmounted.yaml	43:15	unknown-object-key	compiler	undefined-key
 testdata/openapi/path_item_unmounted.yaml	47:15	unknown-object-key	compiler	undefined-key
 testdata/openapi/path_item_unmounted.yaml	58:30	unknown-object-key	compiler	undefined-key

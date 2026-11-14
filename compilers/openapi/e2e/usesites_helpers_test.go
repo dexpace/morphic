@@ -135,12 +135,13 @@ func keptPointers(u any) map[string]any {
 	return out
 }
 
-// namedItem returns the element of list whose name.source is name.
+// namedItem returns the element of list whose name.source, or a binding's
+// wireName, is name.
 func namedItem(t *testing.T, list any, name string) any {
 	t.Helper()
 	items, _ := list.([]any)
 	for _, item := range items {
-		if at(item, "name", "source") == name {
+		if at(item, "name", "source") == name || at(item, "wireName") == name {
 			return item
 		}
 	}
