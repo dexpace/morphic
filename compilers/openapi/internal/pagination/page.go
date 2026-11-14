@@ -60,18 +60,18 @@ type pageKey struct {
 }
 
 // page is where a body holds what a walk reads, each a path of members from
-// the body's root: its items, none for the body whole, and its next cursor and
-// totals, nil where it states none. why says, where it is set, what the body
-// is or holds that leaves it no page, and the paths are then unset.
+// the body's root: its items, none for the body whole, and its next cursor,
+// flag and totals, nil where it states none. why says, where it is set, what
+// the body is or holds that leaves it no page, and the paths are then unset.
 type page struct {
-	items, next, totalCount, totalPages []ir.PropID
-	why                                 string
+	items, next, hasMore, totalCount, totalPages []ir.PropID
+	why                                          string
 }
 
 // equal reports whether p and q, two pages a body holds, hold them at the same
 // members.
 func (p page) equal(q page) bool {
-	return slices.Equal(p.items, q.items) && slices.Equal(p.next, q.next) &&
+	return slices.Equal(p.items, q.items) && slices.Equal(p.next, q.next) && slices.Equal(p.hasMore, q.hasMore) &&
 		slices.Equal(p.totalCount, q.totalCount) && slices.Equal(p.totalPages, q.totalPages)
 }
 
@@ -152,11 +152,11 @@ func (r *reader) modelPage(body *model, key pageKey) page {
 		if notNext != "" {
 			return page{why: notNext}
 		}
-		if flag := leastFlag(holder); flag != "" {
-			return page{why: fmt.Sprintf("holds %q beside its next cursor, a flag that can end the walk, "+
-				"which no stop condition reads", flag)}
+		flag, notFlag := r.flag(body, holder)
+		if notFlag != "" {
+			return page{why: notFlag}
 		}
-		pg.next = next
+		pg.next, pg.hasMore = next, flag
 	}
 	pg.totalCount = r.total(body, "total_count")
 	pg.totalPages = r.total(body, "total_pages")
@@ -184,13 +184,60 @@ func (r *reader) nextCursor(body *model, key pageKey) ([]ir.PropID, *model, stri
 	return nil, nil, fmt.Sprintf("holds no member %q or %q of the cursor's type", names[0], names[1])
 }
 
+// flag returns the path to the one boolean member of body, or of a model one
+// of its members holds, named as a flag (flagName), which ends a cursor walk
+// (ir.PageStopNoMore), and nil where none is. Flags are counted by member, so
+// one name at two places is two, and why then says the page is undecided, as
+// it does where holder, the model holding the next cursor, holds a boolean
+// under another name: `truncated` may say more follows or that a result was cut
+// short for good, and a pager ending there would drop pages.
+func (r *reader) flag(body, holder *model) ([]ir.PropID, string) {
+	var paths [][]ir.PropID
+	var names []string
+	for _, f := range body.flags {
+		if flagName(f.Name.Canonical) {
+			paths, names = append(paths, []ir.PropID{f.ID}), append(names, strconv.Quote(f.EffectiveWireName()))
+		}
+	}
+	for _, o := range body.objects {
+		for _, f := range r.model(o.id).flags {
+			if flagName(f.Name.Canonical) {
+				paths = append(paths, []ir.PropID{o.member.ID, f.ID})
+				names = append(names, strconv.Quote(o.member.EffectiveWireName()+"."+f.EffectiveWireName()))
+			}
+		}
+	}
+	switch {
+	case len(paths) == 1:
+		return paths[0], ""
+	case len(paths) > 1:
+		return nil, fmt.Sprintf("holds flags %s, each able to end the walk", listed(names))
+	}
+	if least := leastFlag(holder); least != "" {
+		return nil, fmt.Sprintf("holds %q beside its next cursor, a boolean that may end the walk under a name "+
+			"the policy does not read", least)
+	}
+	return nil, ""
+}
+
+// flagName reports whether a member's canonical name names a page's flag that
+// another page follows, as docs/compilers/openapi.md#pagination-policy lists.
+func flagName(canonical string) bool {
+	switch canonical {
+	case "has_more", "has_next", "has_next_page", "is_truncated":
+		return true
+	default:
+		return false
+	}
+}
+
 // leastFlag returns the least wire name of the booleans m holds, or "" for
-// none. A boolean beside a next cursor, such as has_more or is_truncated, says
-// whether another page follows, which no ir.PageStop states, so a walk
-// ending at it is left unsettled rather than given a stop it may not keep
-// (#1827).
+// none or a nil m, so a finding naming one reads the same in any order.
 func leastFlag(m *model) string {
 	least := ""
+	if m == nil {
+		return least
+	}
 	for _, f := range m.flags {
 		if name := f.EffectiveWireName(); least == "" || name < least {
 			least = name

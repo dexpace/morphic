@@ -94,9 +94,11 @@ func unsafeMethod(op *ir.Operation) (string, bool) {
 }
 
 // build is the Pagination a walk sending in reads off pg. A walk following a
-// next cursor ends where it is empty, null or absent (ir.PageStopNoNext), as an
-// empty cursor names no page; one counting pages or items lists no stop, a page
-// holding none ending it whatever Stop lists.
+// next cursor ends at the flag its page states (ir.PageStopNoMore), the page's
+// own statement of where it ends, and otherwise where the cursor is empty, null
+// or absent (ir.PageStopNoNext), as an empty cursor names no page; one counting
+// pages or items lists no stop, a page holding none ending it whatever Stop
+// lists.
 func build(in inputs, pg page) *ir.Pagination {
 	cursor := in.cursor.ID
 	out := &ir.Pagination{
@@ -111,7 +113,11 @@ func build(in inputs, pg page) *ir.Pagination {
 		limit := in.limit.ID
 		out.InputLimit = &ir.InputPath{Param: &limit}
 	}
-	if pg.next != nil {
+	switch {
+	case pg.hasMore != nil:
+		out.NextCursor, out.HasMore = pathTo(pg.next), pathTo(pg.hasMore)
+		out.Stop = []ir.PageStop{ir.PageStopNoMore}
+	case pg.next != nil:
 		out.NextCursor = pathTo(pg.next)
 		out.Stop = []ir.PageStop{ir.PageStopNoNext}
 	}

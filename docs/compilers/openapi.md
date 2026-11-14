@@ -6093,11 +6093,18 @@ its canonical words (`Naming.Canonical`), so `pageSize` and `page_size` are one 
    both echoes the cursor it was sent beside the next. Such a walk lists `no_next` in `Stop`, as an
    empty next cursor names no page; a walk under `page` or `offset` lists none, a page holding no
    items ending it whatever `Stop` lists
-   ([pagination](../emitters/operations/pagination.md#where-a-page-walk-ends)). A boolean beside the
-   next cursor, in the model holding it, such as `has_more` or `is_truncated`, says whether another
-   page follows, which no `PageStop` states, and a page may keep handing back a cursor past its
-   last, so such a walk is not settled.
-4. **The totals** are `TotalCount`, the one member named `total_count`, and `TotalPages`, the one
+   ([pagination](../emitters/operations/pagination.md#where-a-page-walk-ends)).
+4. **The flag** of a `cursor` or a `token` walk is `HasMore`: the one boolean member of the body, or
+   of a model a member of it holds, named `has_more`, `has_next`, `has_next_page` or
+   `is_truncated`. The walk then ends by it and lists `no_more` alone, the page's own statement of
+   where the walk ends, since a page may keep handing back a cursor past its last. Flags are counted
+   by member, so one name at two places is two, and two flags leave the walk undecided, as taking
+   the first met would end it at the wrong one and turn on declaration order. A boolean beside the
+   next cursor under another name, a bare `truncated` among them, leaves it undecided too: it may
+   say more follows or that a result was cut short for good, and a pager ending there would drop
+   pages. A flag further down, or in a header, is not read, and a walk under `page` or `offset`
+   reads none.
+5. **The totals** are `TotalCount`, the one member named `total_count`, and `TotalPages`, the one
    named `total_pages`, each of a type a walk counts with, in the body or in a model a member of it
    holds. A page naming none or several states no total, and the field is unset.
 
@@ -6108,11 +6115,11 @@ never a guess, reported as an info `openapi/undecided-pagination` at the operati
 naming what stops it: a method other than `GET` and `QUERY`, two parameters naming a continuation or
 a page size, one of a type a walk does not send, a `page` string with no whole number for its
 default or an example, no success response or none with a body, a body that is neither an object nor
-a list, items or a next cursor it names none or several of, a flag beside the next cursor, or bodies
-holding the page at different members. A path item mounted twice is reported once, at the
+a list, items or a next cursor it names none or several of, two flags, a boolean beside the next cursor
+named as none, or bodies holding the page at different members. A path item mounted twice is reported once, at the
 declaration both mounts share.
 
-- Cases: `pagination-inferred`
+- Cases: `pagination-inferred`, `pagination-flag`
 - Codes: `openapi/undecided-pagination`
 - Tests: `pagination.TestInferWalks_ReadsEachStrategy`,
   `pagination.TestInferWalks_MarksWhatItFills`,
@@ -6125,13 +6132,14 @@ declaration both mounts share.
   `pagination.TestInferWalks_ReadsTheSameInEitherOrder`,
   `pagination.TestInferWalks_ReportsTheSameWhateverTheResponseOrder`,
   `pagination.TestInferWalks_ReadsAMountedDeclarationForEachMount`,
+  `pagination.TestInferWalks_EndsACursorWalkAtItsFlag`, `pagination.TestInferWalks_FlagNames`,
+  `pagination.TestInferWalks_ReadsNoFlagForAPageWalk`,
   `whole.TestDocument_StandsReadsThroughAliasScalarsToTheCap`,
   `whole.TestDocument_ListsEveryOperationOnce`,
   `lowering.TestPaginationInference_TheZeroValueHonoursThePolicy`,
   `openapi.TestDecodeOptions_TextReachesEveryField`
 - Status: partly built: an input a request body or a parameter's members carry is not read (#1815),
-  nor a next link, a `Link` header or a continuation a response header carries (#1816), nor a flag
-  a page states where its walk ends (#1827).
+  nor a next link, a `Link` header or a continuation a response header carries (#1816).
 
 ## 16. Swagger 2.0
 
