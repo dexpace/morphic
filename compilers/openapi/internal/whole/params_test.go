@@ -8,6 +8,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
+	"github.com/dexpace/morphic/compilers/openapi/internal/whole"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -80,4 +81,26 @@ func TestParamIndex_LeavesTheHostOut(t *testing.T) {
 	ix := w.Params(held)
 	assert.Equal(t, []ir.ParamID{"param/x/id"}, ix.Bound("", "id"))
 	assert.Empty(t, ix.Bound(ir.HTTPLocationHost, "id"))
+}
+
+// TestParamIndex_PlacementsReadsWhereEachParameterIsBound pins where an index
+// says each parameter is bound: every place in binding order, each once, under
+// its wire name or else its own name as written, so a header keeps its case;
+// a host binding and an unbound parameter place nothing.
+func TestParamIndex_PlacementsReadsWhereEachParameterIsBound(t *testing.T) {
+	t.Parallel()
+	w, op := wholeOf(*paramsOp())
+	ix := w.Params(op)
+	for _, tc := range []struct {
+		id   ir.ParamID
+		want []whole.Placement
+	}{
+		{"query-id", []whole.Placement{{Location: ir.HTTPLocationQuery, Name: "id"}}},
+		{"up", []whole.Placement{{Location: ir.HTTPLocationHeader, Name: "X-Up"}}},
+		{"both", []whole.Placement{{Location: ir.HTTPLocationQuery, Name: "b"}, {Location: ir.HTTPLocationHeader, Name: "b"}}},
+		{"region", nil},
+		{"nope", nil},
+	} {
+		assert.Equal(t, tc.want, ix.Placements(tc.id), tc.id)
+	}
 }

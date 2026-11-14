@@ -43,7 +43,7 @@ func operation(c lowering.Ctx, w *whole.Document, op *ir.Operation) []ir.Diagnos
 		p := &op.Params[i]
 		redactUse(c, reg, p.Name, p.Type, p.Unmodeled, &p.Secret, &p.Provenance)
 	}
-	diags = append(diags, httpDateParam(c, reg, op)...)
+	diags = append(diags, httpDateParam(c, w, op)...)
 	for _, hs := range responseHeaders(op) {
 		for i := range hs {
 			redact(c, reg, &hs[i].Property)

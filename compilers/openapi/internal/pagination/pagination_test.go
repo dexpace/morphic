@@ -340,8 +340,8 @@ components:
 
 // TestInferWalks_LeavesAnOperationNamingNoWalk pins what the policy neither fills
 // nor reports: an operation naming a page size and no continuation, a
-// continuation outside the query, an operation the API sends, and any under the
-// policy turned off.
+// continuation outside the query, by its own name or a member's, an operation
+// the API sends, and any under the policy turned off.
 func TestInferWalks_LeavesAnOperationNamingNoWalk(t *testing.T) {
 	t.Parallel()
 	webhook := `openapi: 3.1.0
@@ -361,6 +361,8 @@ webhooks:
 		"a page size alone": {listing(`[{name: limit, in: query, schema: {type: integer}}]`, envelope), openapi.Options{}},
 		"a page number in a header": {listing(`[{name: page, in: header, schema: {type: integer}}]`, envelope),
 			openapi.Options{}},
+		"an object parameter in a header": {listing(`[{name: paging, in: header, schema: {type: object, `+
+			`properties: {page: {type: integer}, per_page: {type: integer}}}}]`, envelope), openapi.Options{}},
 		"an operation the API sends": {webhook, openapi.Options{}},
 		"the policy turned off": {listing(pageParams, envelope),
 			openapi.Options{PaginationInference: openapi.PaginationInference{Disabled: true}}},

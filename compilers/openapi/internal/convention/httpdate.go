@@ -4,11 +4,11 @@
 package convention
 
 import (
-	"cmp"
 	"strings"
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
+	"github.com/dexpace/morphic/compilers/openapi/internal/whole"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -45,15 +45,16 @@ func httpDate(c lowering.Ctx, reg ir.TypeRegistry, h *ir.Header) []ir.Diagnostic
 // and its type reads as an instant: on the parameter itself, as its type may be
 // one a $ref shares. A parameter in any other location is not read, whatever
 // its name. The rule is docs/compilers/openapi.md#http-date-inference.
-func httpDateParam(c lowering.Ctx, reg ir.TypeRegistry, op *ir.Operation) []ir.Diagnostic {
-	if !c.HTTPDateInference.Honours() {
+func httpDateParam(c lowering.Ctx, w *whole.Document, op *ir.Operation) []ir.Diagnostic {
+	if !c.HTTPDateInference.Honours() || len(op.Params) == 0 {
 		return nil
 	}
+	ix := w.Params(op)
 	var diags []ir.Diagnostic
 	for i := range op.Params {
 		p := &op.Params[i]
-		name, bound := headerName(op, p)
-		if !bound || p.Encoding != nil || !httpDateField(name) || !instant(c, reg, p.Type.Target) {
+		name, bound := headerName(ix, p)
+		if !bound || p.Encoding != nil || !httpDateField(name) || !instant(c, w.Types, p.Type.Target) {
 			continue
 		}
 		p.Encoding = &ir.Encoding{Name: httpDateEncoding}
@@ -67,14 +68,12 @@ func httpDateParam(c lowering.Ctx, reg ir.TypeRegistry, op *ir.Operation) []ir.D
 	return diags
 }
 
-// headerName returns the name the first of op's bindings placing p in a
-// header gives it, its wire name or else p's own, and false where none does.
-func headerName(op *ir.Operation, p *ir.Parameter) (string, bool) {
-	for _, b := range op.Bindings.HTTP {
-		for _, pb := range b.ParamBindings {
-			if pb.Param == p.ID && pb.Location == ir.HTTPLocationHeader {
-				return cmp.Or(pb.WireName, p.Name.Source), true
-			}
+// headerName returns the name the first of the placements ix holds for p puts
+// it in a header under, and false where none does.
+func headerName(ix whole.ParamIndex, p *ir.Parameter) (string, bool) {
+	for _, at := range ix.Placements(p.ID) {
+		if at.Location == ir.HTTPLocationHeader {
+			return at.Name, true
 		}
 	}
 	return "", false

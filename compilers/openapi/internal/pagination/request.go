@@ -127,20 +127,16 @@ func sendsItsInputs(w *whole.Document, in *inputs) string {
 	return ""
 }
 
-// queryBound returns where op's HTTP bindings place each parameter they put
-// in the query, as one parameter or as the query string whole, read in one
-// pass, so an operation naming many walk inputs costs its parameters and
-// bindings once each rather than their product.
-func queryBound(op *ir.Operation) map[ir.ParamID]ir.HTTPLocation {
-	query := map[ir.ParamID]ir.HTTPLocation{}
-	for _, b := range op.Bindings.HTTP {
-		for _, pb := range b.ParamBindings {
-			if pb.Location == ir.HTTPLocationQuery || pb.Location == ir.HTTPLocationQuerystring {
-				query[pb.Param] = pb.Location
-			}
+// queryPlaced returns where placements put a parameter in the query, as one
+// parameter or as the query string whole, the first that does, and false
+// where none does.
+func queryPlaced(placements []whole.Placement) (ir.HTTPLocation, bool) {
+	for _, at := range placements {
+		if at.Location == ir.HTTPLocationQuery || at.Location == ir.HTTPLocationQuerystring {
+			return at.Location, true
 		}
 	}
-	return query
+	return "", false
 }
 
 // sendable returns the primitive the type id stands for, read through alias
@@ -332,13 +328,13 @@ func places(w *whole.Document, op *ir.Operation, kind methodKind) (continuations
 // names a role, a continuation or a page size, its own name then giving it
 // none; otherwise a parameter bound in the query is read by its own name.
 func paramPlaces(w *whole.Document, op *ir.Operation) (continuations, limits []place) {
-	var bound map[ir.ParamID]ir.HTTPLocation // read at the first parameter it is asked of
+	if len(op.Params) == 0 {
+		return nil, nil
+	}
+	ix := w.Params(op)
 	for i := range op.Params {
 		p := &op.Params[i]
-		if bound == nil {
-			bound = queryBound(op)
-		}
-		location, ok := bound[p.ID]
+		location, ok := queryPlaced(ix.Placements(p.ID))
 		if !ok {
 			continue
 		}

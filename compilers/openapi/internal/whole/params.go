@@ -13,14 +13,25 @@ import (
 
 // ParamIndex is an operation's parameters by the location and the wire name
 // its HTTP bindings place each at, in binding order: what a link's values and
-// parameters keys and a replacement name read. The host's bindings, which no
-// such name reaches, are left out. Indexed once, a name costs a map read
-// however many names an operation's links or replacements hold.
+// parameters keys and a replacement name read. It also holds where each
+// parameter is placed, which a step reading a parameter's location reads. The
+// host's bindings, which no such name reaches, are left out. Indexed once, a
+// name or a parameter costs a map read however many an operation holds.
 type ParamIndex struct {
 	at map[paramKey][]ir.ParamID
 	// locations are those a binding names, in the order bindings first name
 	// them, which a lookup at no location reads each of.
 	locations []ir.HTTPLocation
+	// placed is where the bindings place each parameter, in binding order.
+	placed map[ir.ParamID][]Placement
+}
+
+// Placement is where a binding places a parameter: its location, and the name
+// it is sent under there, its wire name or else the parameter's own, as
+// written.
+type Placement struct {
+	Location ir.HTTPLocation
+	Name     string
 }
 
 // paramKey is where a binding places a parameter: its location, and its wire
@@ -47,7 +58,7 @@ func indexParams(op *ir.Operation) ParamIndex {
 	for i := range op.Params {
 		names[op.Params[i].ID] = op.Params[i].Name.Source
 	}
-	ix := ParamIndex{at: map[paramKey][]ir.ParamID{}}
+	ix := ParamIndex{at: map[paramKey][]ir.ParamID{}, placed: map[ir.ParamID][]Placement{}}
 	for _, b := range op.Bindings.HTTP {
 		for _, pb := range b.ParamBindings {
 			if pb.Location == ir.HTTPLocationHost {
@@ -56,13 +67,24 @@ func indexParams(op *ir.Operation) ParamIndex {
 			if !slices.Contains(ix.locations, pb.Location) {
 				ix.locations = append(ix.locations, pb.Location)
 			}
-			key := keyOf(pb.Location, cmp.Or(pb.WireName, names[pb.Param]))
+			name := cmp.Or(pb.WireName, names[pb.Param])
+			key := keyOf(pb.Location, name)
 			if !slices.Contains(ix.at[key], pb.Param) {
 				ix.at[key] = append(ix.at[key], pb.Param)
+			}
+			if at := (Placement{Location: pb.Location, Name: name}); !slices.Contains(ix.placed[pb.Param], at) {
+				ix.placed[pb.Param] = append(ix.placed[pb.Param], at)
 			}
 		}
 	}
 	return ix
+}
+
+// Placements returns where the operation's bindings place the parameter id,
+// in binding order, each place once; none for a parameter no binding places
+// but at the host.
+func (ix ParamIndex) Placements(id ir.ParamID) []Placement {
+	return ix.placed[id]
 }
 
 // Bound returns the parameters bound at location under name, or at any
