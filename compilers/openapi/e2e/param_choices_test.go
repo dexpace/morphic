@@ -245,7 +245,7 @@ func TestParamChoices_LeavesAChoiceItCannotRead(t *testing.T) {
 }
 
 // TestParamChoices_ReadsNothingOfAKeyThatIsNoObject holds the whole-key rows:
-// a key whose value is a list of lists, which is how the issue wrote it and no
+// a key whose value is a list of lists, which is how #988 wrote it and no
 // convention does, fills nothing and is reported at the key; an empty object
 // states no choice, fills nothing and is reported nowhere. Neither marks the
 // operation, and both keep the key.
@@ -276,7 +276,7 @@ func TestParamChoices_ReadsNothingOfAKeyThatIsNoObject(t *testing.T) {
 			}
 			assert.Equal(t, ir.SeverityInfo, found[0].Severity)
 			assert.Equal(t, choicesPointer, string(found[0].Provenance.Pointer))
-			assert.Contains(t, found[0].Message, "is a list, not an object of named choices")
+			assert.Contains(t, found[0].Message, `is a list, not an object from each choice's name to a boolean "optional"`)
 			assert.Contains(t, found[0].Message, "no choice is filled")
 		})
 	}
