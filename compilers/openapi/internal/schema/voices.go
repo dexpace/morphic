@@ -21,7 +21,10 @@ import (
 // foldKeywords are the keywords an inline allOf branch writes for the position
 // holding it, each read as if written beside the allOf
 // (docs/compilers/openapi.md#allof-inline-residue). foldEntry adds the bounds,
-// the extensions and the keywords that fold together.
+// the extensions and the keywords that fold together. No unevaluated keyword
+// folds: each applies to what its own schema evaluates, so on a branch it holds
+// the instance to what that branch alone evaluates, and the branch kept whole
+// is its record.
 var foldKeywords = []string{
 	"title", "description", "externalDocs", "deprecated", "xml", "default", "readOnly", "writeOnly",
 	"nullable", "not", "dependentSchemas", "dependentRequired", "propertyNames",
@@ -39,12 +42,6 @@ func foldEntry(c lowering.Ctx, s *oas3.Schema, keyword string) (string, bool) {
 		return "if", true
 	case "contains", "minContains", "maxContains":
 		return "contains", true
-	case "unevaluatedItems":
-		return "unevaluated", true
-	case "unevaluatedProperties":
-		// `false` is the model's openness, which no annotation reader keeps
-		// (fillAdditional).
-		return "unevaluated", !annotation.IsFalseSchema(s.GetUnevaluatedProperties())
 	case "format":
 		return keyword, annotation.DeclaresRedaction(s)
 	case "minItems", "maxItems", "uniqueItems":
@@ -80,8 +77,6 @@ func foldValue(s *oas3.Schema, entry string) foldRendering {
 		r.raw, _, r.err = annotation.IfThenElseRaw(s)
 	case "contains":
 		r.raw, _, r.err = annotation.ContainsRaw(s)
-	case "unevaluated":
-		r.raw, _, r.err = annotation.UnevaluatedRaw(s)
 	default:
 		r.raw, r.err = annotation.RawFromNode(annotation.RawPropertyNode(s, entry))
 	}

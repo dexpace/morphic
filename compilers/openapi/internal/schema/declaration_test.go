@@ -5,6 +5,7 @@ package schema_test
 
 import (
 	"encoding/json/jsontext"
+	"maps"
 	"slices"
 	"strings"
 	"testing"
@@ -464,6 +465,7 @@ func TestInlinePosition_HoistGateFollowsWhatIsKept(t *testing.T) {
 		{"propertyNames", "propertyNames: {maxLength: 4}"},
 		{"unevaluatedItems", "unevaluatedItems: {type: string}"},
 		{"unevaluatedProperties", "unevaluatedProperties: {type: string}"},
+		{"unevaluatedProperties false", "unevaluatedProperties: false"},
 		{"default", "default: a"},
 		{"readOnly", "readOnly: true"},
 		{"writeOnly", "writeOnly: true"},
@@ -489,14 +491,13 @@ func TestInlinePosition_HoistGateFollowsWhatIsKept(t *testing.T) {
 }
 
 // TestInlinePosition_NothingToHoldHoistsNoNode is the negative half of that
-// gate: a schema that declares nothing position-scoped, and one whose only
-// extra keyword is a `false` unevaluatedProperties — model openness rather than
-// a preserved keyword. Hoisting for either would produce a node holding nothing.
+// gate: a schema that declares nothing position-scoped. Hoisting for one would
+// produce a node holding nothing.
 func TestInlinePosition_NothingToHoldHoistsNoNode(t *testing.T) {
 	t.Parallel()
 	cases := []struct{ name, keyword string }{
 		{"none", "type: string"},
-		{"unevaluatedProperties-false", "type: string, unevaluatedProperties: false"},
+		{"a null unevaluatedProperties", "type: string, unevaluatedProperties: null"},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -714,4 +715,132 @@ type inlinePosition struct {
 	id ir.TypeID
 	// target is what a bare {type: string} at the position resolves to instead.
 	target ir.TypeID
+}
+
+// TestClosureTyped_EveryOutcomeKeepsWhatItDoesNotType pins where a live
+// `unevaluatedProperties: false` goes, at a component, a property, an items
+// schema and a parameter's schema alike: into a Model's openness where the
+// position built one closed after composition, itself or as a variant of a
+// union it built, and verbatim under openapi:unevaluated, once, wherever it
+// built anything else (docs/compilers/openapi.md#validation-only).
+func TestClosureTyped_EveryOutcomeKeepsWhatItDoesNotType(t *testing.T) {
+	t.Parallel()
+	const live, base = "'#/components/schemas/Live'", "'#/components/schemas/Base'"
+	for _, tc := range []struct {
+		name, schema string
+		typed        bool
+	}{
+		{"a scalar", "{type: string, unevaluatedProperties: false}", false},
+		{"an enum", "{enum: [a], unevaluatedProperties: false}", false},
+		{"a const", "{const: a, unevaluatedProperties: false}", false},
+		{"a list", "{type: array, items: {type: string}, unevaluatedProperties: false}", false},
+		{"a tuple", "{type: array, prefixItems: [{type: string}], unevaluatedProperties: false}", false},
+		{"a $ref site", "{$ref: '#/components/schemas/S', unevaluatedProperties: false}", false},
+		{"a plain union", "{oneOf: [{type: string}, {type: integer}], unevaluatedProperties: false}", false},
+		{"a plain union of a model closed on its own", "{oneOf: [{$ref: " + live + "}], unevaluatedProperties: false}", false},
+		{"a type array with no object", "{type: [string, integer], unevaluatedProperties: false}", false},
+		{"the top type", "{unevaluatedProperties: false}", false},
+		{"a model a false branch closed", "{type: object, properties: {k: {type: string}}, allOf: [false], unevaluatedProperties: false}", false},
+		{"a model", "{type: object, properties: {k: {type: string}}, unevaluatedProperties: false}", true},
+		{"a composition", "{allOf: [{$ref: " + live + "}, {type: object, properties: {k: {type: string}}}], unevaluatedProperties: false}", true},
+		{"a type array with an object", "{type: [object, string], properties: {k: {type: string}}, unevaluatedProperties: false}", true},
+		{"a distributed union", "{type: object, properties: {k: {type: string}}, oneOf: [{$ref: " + live + "}, {$ref: " + base + "}], " +
+			"unevaluatedProperties: false}", true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			doc, diags := parseFull(t, outcomeSpec(tc.schema))
+			openapitest.RequireNoErrorDiags(t, diags)
+			want := map[jsontext.Pointer][]string{}
+			if !tc.typed {
+				for _, at := range []jsontext.Pointer{"/components/schemas/C", "/components/schemas/H/properties/p",
+					"/components/schemas/L/items", "/paths/~1p/get/parameters/0/schema"} {
+					want[at] = []string{`{"unevaluatedProperties":false}`}
+				}
+			}
+			assert.Empty(t, cmp.Diff(want, unevaluatedEntries(doc)), "kept once at each position that does not type it")
+		})
+	}
+}
+
+// outcomeSpec writes written at a component, a property, an items schema and
+// a parameter's schema, beside the components the cases name.
+func outcomeSpec(written string) string {
+	return `openapi: 3.1.0
+info: {title: t, version: "1"}
+paths:
+  /p:
+    get:
+      parameters: [{name: q, in: query, schema: ` + written + `}]
+      responses: {'200': {description: ok}}
+components:
+  schemas:
+    S: {type: string}
+    Live: {type: object, properties: {a: {type: string}}, unevaluatedProperties: false}
+    Base: {type: object, properties: {b: {type: string}}}
+    C: ` + written + `
+    H: {type: object, properties: {p: ` + written + `}}
+    L: {type: array, items: ` + written + `}
+`
+}
+
+// unevaluatedEntries returns the openapi:unevaluated entries doc holds on a
+// type node, a model's property or an operation's parameter, by where each was
+// written, so one kept twice is listed twice.
+func unevaluatedEntries(doc *ir.Document) map[jsontext.Pointer][]string {
+	out := map[jsontext.Pointer][]string{}
+	add := func(u ir.Unmodeled) {
+		if e, ok := u["openapi:unevaluated"]; ok {
+			out[e.Provenance.Pointer] = append(out[e.Provenance.Pointer], string(e.Value))
+		}
+	}
+	for _, td := range doc.Types {
+		add(td.Common().Unmodeled)
+		if m, ok := td.(*ir.Model); ok {
+			for _, p := range m.Properties {
+				add(p.Unmodeled)
+			}
+		}
+	}
+	ir.ForEachOperation(doc, func(op ir.Operation) {
+		for _, p := range op.Params {
+			add(p.Unmodeled)
+		}
+	})
+	return out
+}
+
+// TestClosureTyped_ReadsAlikeInEitherBranchOrder pins that where an allOf's
+// branches stand changes nothing of where its `unevaluatedProperties: false`
+// goes: a composition holds it as its closure, a false branch closes the model
+// and leaves it kept, and a branch's own stays with that branch, in either
+// order, but for the index in the kept branch's key.
+func TestClosureTyped_ReadsAlikeInEitherBranchOrder(t *testing.T) {
+	t.Parallel()
+	const live, closes = "{$ref: '#/components/schemas/Live'}", ", unevaluatedProperties: false"
+	for name, tc := range map[string]struct{ other, beside string }{
+		"a composition":        {"{type: object, properties: {k: {type: string}}}", closes},
+		"a false branch":       {"false", closes},
+		"a branch's own false": {"{type: object, properties: {k: {type: string}}" + closes + "}", ""},
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			read := func(first, second string) (ir.AdditionalMode, map[jsontext.Pointer][]string, []string) {
+				doc, diags := parseFull(t, outcomeSpec("{allOf: ["+first+", "+second+"]"+tc.beside+"}"))
+				openapitest.RequireNoErrorDiags(t, diags)
+				m, ok := doc.Types[componentID("C")].(*ir.Model)
+				require.True(t, ok, "got %T", doc.Types[componentID("C")])
+				return m.Additional, unevaluatedEntries(doc), slices.Sorted(maps.Keys(m.Unmodeled))
+			}
+			mode, kept, keys := read(live, tc.other)
+			swappedMode, swappedKept, swappedKeys := read(tc.other, live)
+			assert.Equal(t, mode, swappedMode)
+			assert.Empty(t, cmp.Diff(kept, swappedKept))
+			for i, key := range swappedKeys {
+				swappedKeys[i] = strings.NewReplacer("allOf/0", "allOf/1", "allOf/1", "allOf/0").Replace(key)
+			}
+			slices.Sort(swappedKeys)
+			assert.Equal(t, keys, swappedKeys, "the same entries, a branch's under its own index")
+		})
+	}
 }
