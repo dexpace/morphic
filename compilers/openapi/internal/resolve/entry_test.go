@@ -297,13 +297,12 @@ func loaded(t *testing.T, src string) *load.Document {
 
 // TestObject_ReadsTheTableNotTheWrapper pins what Object answers: the object
 // the bindings' table ends the chain of the Reference Object written where the
-// wrapper was read on, and nothing where that chain does not resolve, though a
-// wrapper written as a $ref holds no object of its own. A $ref a `<<` merges
-// in makes the parser decode an inline wrapper holding an empty object, and the
-// table reads it as the reference the document's JSON spells all the same
-// (docs/compilers/openapi.md#references). An inline entry answers its own
-// object, and a wrapper the bindings never read its own, which for a $ref is
-// none.
+// wrapper was read on, and nothing where that chain does not resolve. A $ref a
+// `<<` merges in makes the parser decode an inline wrapper holding an empty
+// object, and the table reads it as the reference the document's JSON spells
+// (docs/compilers/openapi.md#references): one resolving nowhere answers
+// nothing, not that object. An inline entry answers its own object, and a
+// wrapper the bindings never read its own, which for a $ref is none.
 func TestObject_ReadsTheTableNotTheWrapper(t *testing.T) {
 	t.Parallel()
 	doc := loaded(t, `openapi: 3.1.0
@@ -315,6 +314,7 @@ components:
     Alias: {$ref: '#/components/parameters/P'}
     Merged: {<<: {$ref: '#/components/parameters/P'}}
     Missing: {$ref: '#/components/parameters/Nope'}
+    MergedMissing: {<<: {$ref: '#/components/parameters/Nope'}}
 `)
 	params := doc.Doc.Components.GetParameters()
 	p := params.GetOrZero("P").GetObject()
@@ -327,6 +327,9 @@ components:
 	assert.Same(t, p, resolve.Object[soa.Parameter](doc.Bindings, merged), "the table reads the merged $ref")
 	assert.Same(t, p, resolve.Object[soa.Parameter](doc.Bindings, params.GetOrZero("P")), "an inline entry is itself")
 	assert.Nil(t, resolve.Object[soa.Parameter](doc.Bindings, params.GetOrZero("Missing")))
+	mergedMissing := params.GetOrZero("MergedMissing")
+	require.NotNil(t, mergedMissing.GetObject(), "the parser decodes an object for it, which the document never wrote")
+	assert.Nil(t, resolve.Object[soa.Parameter](doc.Bindings, mergedMissing), "an unresolved merged $ref names nothing")
 
 	ref := &soa.ReferencedParameter{}
 	valErrs, err := marshaller.Unmarshal(t.Context(), strings.NewReader("$ref: '#/components/parameters/P'"), ref)
