@@ -59,7 +59,9 @@ func checkEmptyRefs(empty *ir.EmptyReferences) []ir.Diagnostic {
 }
 
 // checkPropIDRefs reports every PropID a document carries that names no property
-// it declares.
+// it declares, unless the walk reading both was cut short: the declarations it
+// read are then part of the document's, so it claims nothing, and
+// checkDanglingRefs reports the cut.
 //
 // A property is a position inside its model and addresses no registry, so
 // checkDanglingRefs cannot see a PropID. The claim is membership: the ID names
@@ -67,7 +69,10 @@ func checkEmptyRefs(empty *ir.EmptyReferences) []ir.Diagnostic {
 // path's root, which only a hand-kept list of fields could add;
 // checkDiscriminators makes the model-scoped claim for Discriminator.Property,
 // whose root is the model declaring it.
-func checkPropIDRefs(props *propIDSites, refs *ir.IDReferences) []ir.Diagnostic {
+func checkPropIDRefs(props *propIDSites, refs *ir.IDReferences, truncated bool) []ir.Diagnostic {
+	if truncated {
+		return nil
+	}
 	dangling := byLocation(props.dangling(refs))
 	diags := make([]ir.Diagnostic, 0, len(dangling))
 	for _, ref := range dangling {

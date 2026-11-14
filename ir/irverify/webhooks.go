@@ -114,8 +114,12 @@ func noteCallbacks(op *ir.Operation, path ir.WalkPath, marked, listed map[ir.OpI
 
 // callbackDisagreements reports each operation marked a callback that no
 // binding lists, then each listed operation the walk declared that is not
-// marked, each in byte order of its ID.
+// marked, each in byte order of its ID. A walk cut short read part of the
+// bindings, so it claims neither, and the cut is reported.
 func callbackDisagreements(d declarations, marked, listed map[ir.OpID]string) []Violation {
+	if d.truncated {
+		return nil
+	}
 	var vs []Violation
 	for _, id := range slices.Sorted(maps.Keys(marked)) {
 		if _, ok := listed[id]; !ok {
