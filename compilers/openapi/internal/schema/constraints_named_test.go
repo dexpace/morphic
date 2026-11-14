@@ -788,3 +788,115 @@ func TestAllOf_ABoundBesideABranchsOwnRefIsReadByItsTarget(t *testing.T) {
 		})
 	}
 }
+
+// TestConstraints_ATypeListReadsWhatThePositionAdmits pins a bound written
+// beside a type list an allOf narrows: the Union's variants and the census
+// beside them both read the kinds the position admits, so a bound only an
+// excluded variant would take is held by none and kept once, whether it is
+// written on a branch or beside the allOf, while the variant the position
+// admits holds its own.
+func TestConstraints_ATypeListReadsWhatThePositionAdmits(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct{ name, schema, key, value, reportAt string }{
+		{name: "a bound on a branch", key: "allOf/1", value: `{"minimum":1}`, reportAt: "/allOf/1",
+			schema: "{type: [string, integer], allOf: [{type: [string, boolean]}, {minimum: 1}], minLength: 2}"},
+		{name: "a bound beside the allOf", key: "minimum", value: "1",
+			schema: "{type: [string, integer], allOf: [{type: [string, boolean]}], minimum: 1, minLength: 2}"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			doc, diags := parseFull(t, namedSpec("3.1.0", tc.schema, "", false))
+			openapitest.RequireNoErrorDiags(t, diags)
+
+			assert.Nil(t, propertyOf(t, doc, "Holder", "p").Constraints)
+			for at, id := range map[string]ir.TypeID{namedS: componentID("S"), namedP: "t/anon" + namedP} {
+				u, ok := doc.Types[id].(*ir.Union)
+				require.True(t, ok, "%s: got %T", at, doc.Types[id])
+				var held []*ir.Constraints
+				for _, v := range u.Variants {
+					if cons := heldBounds(doc.Types[v.Type.Target]); cons != nil {
+						held = append(held, cons)
+					}
+				}
+				assert.Equal(t, []*ir.Constraints{{MinLength: new(int64(2))}}, held, at)
+				entry, kept := u.Unmodeled["openapi:"+tc.key]
+				require.True(t, kept, "%s: got %v", at, unmodeledKeys(u.Unmodeled))
+				assert.JSONEq(t, tc.value, string(entry.Value), at)
+				assert.Contains(t, openapitest.DiagMessageAt(t, diags, diag.DegradedConstruct, ir.SeverityInfo, at+tc.reportAt),
+					"minimum", at)
+			}
+		})
+	}
+}
+
+// TestConstraints_ANamedSchemasDynamicReferenceIsReadThrough pins a schema a
+// position names that writes a dynamic reference of its own: the bound is read
+// by what that reference expands to, an array here, so it is kept, and one the
+// expansion takes is held.
+func TestConstraints_ANamedSchemasDynamicReferenceIsReadThrough(t *testing.T) {
+	t.Parallel()
+	const extra = `    DL: {$dynamicRef: '#list'}
+    DS: {$dynamicRef: '#node'}
+    List: {$dynamicAnchor: list, type: array, items: {type: string}}
+`
+	t.Run("beside a $ref", func(t *testing.T) {
+		t.Parallel()
+		assertNamedRow(t, namedRow{
+			name: "beside a $ref", schema: "{$ref: '#/components/schemas/DL', minLength: 1}", extra: extra,
+			kept: []keptAt{{key: "minLength"}}, msgs: []string{"an alias over its $ref target"},
+		})
+	})
+	for _, tc := range []struct {
+		name, target string
+		held         *ir.Constraints
+	}{
+		{name: "beside an allOf naming an array", target: "DL"},
+		{name: "beside an allOf naming a string", target: "DS", held: &ir.Constraints{MinLength: new(int64(1))}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			doc, diags := parseFull(t, namedSpec("3.1.0", "{allOf: ["+refTo(tc.target)+"], minLength: 1}", extra, false))
+			openapitest.RequireNoErrorDiags(t, diags)
+			for at, id := range map[string]ir.TypeID{namedS: componentID("S"), namedP: "t/anon" + namedP} {
+				m, ok := doc.Types[id].(*ir.Model)
+				require.True(t, ok, "%s: got %T", at, doc.Types[id])
+				assert.Equal(t, tc.held, m.Constraints, at)
+				if tc.held != nil {
+					assert.Empty(t, m.Unmodeled, at)
+					continue
+				}
+				assert.Contains(t, m.Unmodeled, "openapi:minLength", at)
+				assert.Contains(t, openapitest.DiagMessageAt(t, diags, diag.DegradedConstruct, ir.SeverityInfo, at),
+					"no home for minLength", at)
+			}
+		})
+	}
+}
+
+// TestConstraints_AnInlineBranchIsReadAtItsOwnPointer pins that an inline
+// branch is read where it is written: its dynamic reference expands in its own
+// schema resource, so one under an identifier of its own names no anchor of the
+// document's and excludes nothing, while one beside it expands to the array.
+func TestConstraints_AnInlineBranchIsReadAtItsOwnPointer(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name, branch string
+		held         *ir.Constraints
+	}{
+		{name: "in the document's resource", branch: "{$dynamicRef: '#list'}"},
+		{name: "in a resource of its own", branch: "{$id: 'https://example.com/inner', $dynamicRef: '#list'}",
+			held: &ir.Constraints{MinLength: new(int64(1))}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			doc, diags := parseFull(t, openapitest.ComponentSpecVer("3.1.0", "    S: {allOf: ["+tc.branch+"], minLength: 1}\n"+
+				"    List: {$dynamicAnchor: list, type: array, items: {type: string}}\n"))
+			openapitest.RequireNoErrorDiags(t, diags)
+			m, ok := typeByName(doc, "S").(*ir.Model)
+			require.True(t, ok, "got %T", typeByName(doc, "S"))
+			assert.Equal(t, tc.held, m.Constraints)
+			_, kept := m.Unmodeled["openapi:minLength"]
+			assert.Equal(t, tc.held == nil, kept, "got %v", unmodeledKeys(m.Unmodeled))
+		})
+	}
+}

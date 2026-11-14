@@ -4,13 +4,19 @@
 package schema
 
 import (
+	"encoding/json/jsontext"
 	"maps"
 	"slices"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/annotation"
+	"github.com/dexpace/morphic/compilers/openapi/internal/budget"
+	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
+	"github.com/dexpace/morphic/compilers/openapi/internal/lowering/loweringtest"
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
 	"github.com/dexpace/morphic/compilers/openapi/internal/provenance"
 )
@@ -108,4 +114,41 @@ func TestWritesBound_FindsABoundOnTheSchemaOrAnInlineBranch(t *testing.T) {
 			assert.Equal(t, tc.want, writesBound(s))
 		})
 	}
+}
+
+// TestBoundTypes_ReadsNoSiblingPastItsBudget pins the cost of a read past
+// maxBoundTypeReads, by the reads it spends: an allOf or a union wider than the
+// budget is read up to the read that exhausts it and no further, as each
+// sibling past it would answer anyInstance and change nothing.
+func TestBoundTypes_ReadsNoSiblingPastItsBudget(t *testing.T) {
+	t.Parallel()
+	refs := strings.Repeat("{$ref: '#/components/schemas/Str'}, ", 4*maxBoundTypeReads)
+	c := loweringtest.Context(t, openapitest.ComponentSpecVer("3.1.0",
+		"    AllOf: {allOf: ["+refs+"]}\n    AnyOf: {anyOf: ["+refs+"]}\n    Str: {type: string}\n"), lowering.Policy{})
+	for _, name := range []string{"AllOf", "AnyOf"} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			pointer := jsontext.Pointer("/components/schemas/" + name)
+			s := heldAt(c, pointer).GetSchema()
+			require.NotNil(t, s)
+			r := boundTypes{steps: budget.New(budget.AtMost(maxBoundTypeReads))}
+			assert.Equal(t, anyInstance, r.schema(c, s, pointer))
+			assert.Equal(t, maxBoundTypeReads+1, r.steps.Spent())
+		})
+	}
+}
+
+// TestBoundTypes_AReferenceLandingOnNoSchemaExcludesNothing pins the read of a
+// $ref whose chain ends on no schema: it admits every kind and spends no read,
+// so a bound beside it is read as beside a schema writing no type.
+func TestBoundTypes_AReferenceLandingOnNoSchemaExcludesNothing(t *testing.T) {
+	t.Parallel()
+	c := loweringtest.Context(t, openapitest.ComponentSpecVer("3.1.0",
+		"    Dangling: {allOf: [{$ref: '#/components/schemas/Nowhere'}]}\n"), lowering.Policy{})
+	const pointer = jsontext.Pointer("/components/schemas/Dangling")
+	s := heldAt(c, pointer).GetSchema()
+	require.NotNil(t, s)
+	r := boundTypes{steps: budget.New(budget.AtMost(maxBoundTypeReads))}
+	assert.Equal(t, anyInstance, r.schema(c, s, pointer))
+	assert.Equal(t, 1, r.steps.Spent())
 }

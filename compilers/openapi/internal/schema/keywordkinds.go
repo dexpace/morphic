@@ -6,12 +6,14 @@ package schema
 import (
 	"encoding/json/jsontext"
 	"slices"
+	"strconv"
 
 	"github.com/speakeasy-api/openapi/jsonschema/oas3"
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/annotation"
-	"github.com/dexpace/morphic/compilers/openapi/internal/bind/typed"
+	"github.com/dexpace/morphic/compilers/openapi/internal/bind"
 	"github.com/dexpace/morphic/compilers/openapi/internal/budget"
+	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
 )
 
@@ -65,8 +67,9 @@ func positionTypes(c lowering.Ctx, s *oas3.Schema, pointer jsontext.Pointer) kin
 	return own & namedTypes(c, s, pointer)
 }
 
-// namesSchema reports whether s names a schema whose types conjoin with its own:
-// through a $ref, an allOf entry, a union branch or a dynamic reference.
+// namesSchema reports whether s names a schema whose types conjoin with its own,
+// in one of the four ways boundTypes.names reads: an allOf entry, a $ref, a
+// union branch or a dynamic reference.
 func namesSchema(s *oas3.Schema) bool {
 	return len(s.GetAllOf()) > 0 || s.Ref != nil || declaresUnion(s) || declaresDynamicRef(s)
 }
@@ -91,25 +94,12 @@ func declaresBound(s *oas3.Schema) bool {
 	return declaresValueConstraints(s) || annotation.DeclaresAny(s, collectionBoundKeywords)
 }
 
-// namedTypes reads what the schemas s, written at pointer, names admit: its
-// allOf entries, the end of its $ref chain, the target its dynamic reference
-// expands to, and its union's branches, the one non-null branch where the
-// union collapses onto it. A read past its budget answers anyInstance, as a cut
+// namedTypes reads what the schemas s, written at pointer, names admit
+// (boundTypes.names), and anyInstance where the read runs out of budget: a cut
 // read's answer would turn on the order it read in.
 func namedTypes(c lowering.Ctx, s *oas3.Schema, pointer jsontext.Pointer) kindSet {
-	r := boundTypes{refs: c.Bindings(), steps: budget.New(budget.AtMost(maxBoundTypeReads))}
-	out := r.conjuncts(s)
-	if s.Ref != nil {
-		out &= r.schema(c.Bindings().End(heldAt(c, pointer)).GetSchema())
-	}
-	if at, _, expanded := dynamicExpansion(c, s, pointer); expanded {
-		out &= r.schema(c.Bindings().At(at).GetSchema())
-	}
-	if nonNull, _, collapses := nullUnionCollapse(c, s, pointer); collapses {
-		out &= r.branch(nonNull) // its null branch may write no type, which would admit every kind
-	} else {
-		out &= r.unions(s)
-	}
+	r := boundTypes{steps: budget.New(budget.AtMost(maxBoundTypeReads))}
+	out := r.names(c, s, pointer)
 	if r.steps.Exhausted() {
 		return anyInstance
 	}
@@ -123,58 +113,118 @@ const maxBoundTypeReads = 256
 
 // boundTypes reads the instance types schemas declare, for the bounds written
 // beside them: an allOf conjoins its entries, a union admits what any branch
-// does, and a $ref is what its chain ends on. Unlike conjunctTypes, an empty
-// answer stays empty at any depth, and the walk never stops early, so whether
-// it runs past its budget does not turn on the order schemas are listed in.
+// does, and a $ref or a dynamic reference is what it lands on. Unlike
+// conjunctTypes, an empty answer stays empty at any depth. Each schema is read
+// in its own document, at its own pointer. Every walk returns anyInstance once
+// the budget is exhausted, which no read short of it can be, so whether a read
+// runs past it does not turn on the order schemas are listed in.
 type boundTypes struct {
-	refs  *typed.Bindings
 	steps budget.Budget
 }
 
-// schema is what s admits: its own type, conjoined with its allOf's entries and
-// its union's branches. A schema it cannot read, or one past the budget,
-// excludes nothing; namedTypes discards a read that ran past it.
-func (r *boundTypes) schema(s *oas3.Schema) kindSet {
+// schema is what s, written at pointer of c's document, admits: its own type,
+// conjoined with what the schemas it names admit. A schema it cannot read, or
+// one past the budget, excludes nothing; namedTypes discards a read past it.
+func (r *boundTypes) schema(c lowering.Ctx, s *oas3.Schema, pointer jsontext.Pointer) kindSet {
 	if s == nil || !r.steps.Spend(1) {
 		return anyInstance
 	}
-	return declaredInstanceTypes(s) & r.conjuncts(s) & r.unions(s)
+	return declaredInstanceTypes(s) & r.names(c, s, pointer)
 }
 
-// conjuncts is what every entry of s's allOf admits.
-func (r *boundTypes) conjuncts(s *oas3.Schema) kindSet {
+// names is what every schema s, written at pointer of c's document, names
+// admits, in the four ways namesSchema tests for: its allOf entries, the end of
+// its $ref chain, the target its dynamic reference expands to, and its union's
+// branches, or the one non-null branch where the union collapses onto it, since
+// a null branch may write no type, which would admit every kind.
+func (r *boundTypes) names(c lowering.Ctx, s *oas3.Schema, pointer jsontext.Pointer) kindSet {
+	out := r.conjuncts(c, s, pointer)
+	if s.Ref != nil {
+		out &= r.ref(c, heldAt(c, pointer))
+	}
+	if at, _, expanded := dynamicExpansion(c, s, pointer); expanded {
+		out &= r.at(c, at)
+	}
+	if nonNull, at, collapses := nullUnionCollapse(c, s, pointer); collapses {
+		return out & r.branch(c, nonNull, at)
+	}
+	return out & r.unions(c, s, pointer)
+}
+
+// conjuncts is what every entry of s's allOf admits, and anyInstance once the
+// budget is exhausted, reading no entry past it.
+func (r *boundTypes) conjuncts(c lowering.Ctx, s *oas3.Schema, pointer jsontext.Pointer) kindSet {
 	out := anyInstance
-	for _, b := range s.GetAllOf() {
-		out &= r.branch(b)
+	for i, b := range s.GetAllOf() {
+		out &= r.entry(c, b, pointer, "allOf", i)
+		if r.steps.Exhausted() {
+			return anyInstance
+		}
 	}
 	return out
 }
 
 // unions is what s's oneOf and anyOf each admit, conjoined: what any branch of
-// one admits.
-func (r *boundTypes) unions(s *oas3.Schema) kindSet {
+// one admits. It is anyInstance once the budget is exhausted, reading no branch
+// past it.
+func (r *boundTypes) unions(c lowering.Ctx, s *oas3.Schema, pointer jsontext.Pointer) kindSet {
 	out := anyInstance
-	for _, branches := range [][]*oas3.JSONSchema[oas3.Referenceable]{s.GetOneOf(), s.GetAnyOf()} {
-		if len(branches) == 0 {
+	for _, union := range [...]struct {
+		key      string
+		branches []*oas3.JSONSchema[oas3.Referenceable]
+	}{{"oneOf", s.GetOneOf()}, {"anyOf", s.GetAnyOf()}} {
+		if len(union.branches) == 0 {
 			continue
 		}
 		var some kindSet
-		for _, b := range branches {
-			some |= r.branch(b)
+		for i, b := range union.branches {
+			some |= r.entry(c, b, pointer, union.key, i)
+			if r.steps.Exhausted() {
+				return anyInstance
+			}
 		}
 		out &= some
 	}
 	return out
 }
 
-// branch is what one entry or branch admits: an inline one's own schema, a
-// $ref's the schema its chain ends on. A keyword beside the $ref is not read
-// (GitHub #1390).
-func (r *boundTypes) branch(b *oas3.JSONSchema[oas3.Referenceable]) kindSet {
-	if isRefBranch(b) {
-		return r.schema(refBranchTarget(r.refs, b))
+// entry is branch for b, written at index i of the keyword key of the schema
+// at pointer. Only an inline b reads where it is written, so only its pointer
+// is joined.
+func (r *boundTypes) entry(c lowering.Ctx, b *oas3.JSONSchema[oas3.Referenceable], pointer jsontext.Pointer, key string, i int) kindSet {
+	at := pointer
+	if isInlineBranch(b) {
+		at += ids.Ptr(key, strconv.Itoa(i))
 	}
-	return r.schema(b.GetSchema())
+	return r.branch(c, b, at)
+}
+
+// branch is what b, an entry or branch written at pointer, admits: an inline
+// one's own schema, a $ref's the schema its chain ends on. A keyword beside the
+// $ref is not read (GitHub #1390).
+func (r *boundTypes) branch(c lowering.Ctx, b *oas3.JSONSchema[oas3.Referenceable], pointer jsontext.Pointer) kindSet {
+	if isRefBranch(b) {
+		return r.ref(c, b)
+	}
+	return r.schema(c, b.GetSchema(), pointer)
+}
+
+// ref is what the schema js's $ref chain ends on admits, and anyInstance where
+// it ends on none.
+func (r *boundTypes) ref(c lowering.Ctx, js *oas3.JSONSchema[oas3.Referenceable]) kindSet {
+	e, ok := c.Bindings().Entry(js)
+	if !ok || e.Chain.Status != bind.Resolved {
+		return anyInstance
+	}
+	return r.at(c, e.Chain.End)
+}
+
+// at is what the schema the bindings hold at p admits, read in p's document.
+// The bindings hold none in a document the compile did not read, where
+// InDocument leaves c as it is, so that schema reads as nil.
+func (r *boundTypes) at(c lowering.Ctx, p bind.Position) kindSet {
+	in, _ := lowering.InDocument(c, p.Doc)
+	return r.schema(in, in.Bindings().At(p).GetSchema(), p.Pointer)
 }
 
 // writerTakes returns the kinds whose value bounds a reader of the kinds takes

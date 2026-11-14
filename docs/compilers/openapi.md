@@ -2575,9 +2575,10 @@ does ([`null-alone`](#null-alone)). The union is exclusive unless two listed typ
 type listed twice, which [`validation`](#validation) reports. Two variants the types resolve to one
 primitive, as a width does ([`numeric-formats`](#numeric-formats)), stay two.
 
-Each variant takes the value bounds its own type takes ([`constraints`](#constraints)), so
-`[string, integer]` with `maxLength` and `minimum` lowers to a `string` holding the one and an
-`integer` holding the other, and the content vocabulary is the `string` variant's
+Each variant takes the value bounds its own type takes ([`constraints`](#constraints)), where the
+position admits that type, so `[string, integer]` with `maxLength` and `minimum` lowers to a
+`string` holding the one and an `integer` holding the other, and beside an `allOf` entry of
+`[string, boolean]` the `integer` variant holds no `minimum`, which is kept on the union, and the content vocabulary is the `string` variant's
 ([`content-vocabulary`](#content-vocabulary)). The property or parameter carrying the union holds no
 value bound, each being the variant's it applies to, which a bound on the whole value would not say.
 A `format` the table pairs with a listed type is that variant's alone: with `date` the list lowers
@@ -3866,7 +3867,9 @@ type the position admits takes reaches no `Constraints`, the carrier's included,
 verbatim under `openapi:<keyword>` (`degraded_lowering`) with an info `openapi/degraded-construct`
 naming what the position lowered to: on the node it owns, on an alias hoisted where it lowered to a
 shared node or a reference, or on the carrier of a reference. A type array's variants each take
-their own type's ([`type-arrays`](#type-arrays)). A bound is read off the raw node, never the parser's `float64`, so
+their own type's, where the position admits it ([`type-arrays`](#type-arrays)). Each named schema
+is read in its own document, an inline one at its own pointer, so a dynamic reference expands as it
+does where that schema is lowered. A bound is read off the raw node, never the parser's `float64`, so
 its `BigVal` keeps every digit the literal wrote ([`values`](#values)), a quoted one as the decimal
 it spells; one that is no decimal literal a `BigVal` holds is dropped with an
 `openapi/invalid-numeric-literal` error at the keyword.
@@ -3930,6 +3933,11 @@ no bound ([`string-formats`](#string-formats)).
   `schema.TestWritesBound_FindsABoundOnTheSchemaOrAnInlineBranch`,
   `schema.TestConstraints_ABoundBesideAUnionItsTypeExcludesIsKept`,
   `schema.TestAllOf_ABoundBesideABranchsOwnRefIsReadByItsTarget`,
+  `schema.TestConstraints_ATypeListReadsWhatThePositionAdmits`,
+  `schema.TestConstraints_ANamedSchemasDynamicReferenceIsReadThrough`,
+  `schema.TestConstraints_AnInlineBranchIsReadAtItsOwnPointer`,
+  `schema.TestBoundTypes_ReadsNoSiblingPastItsBudget`,
+  `schema.TestBoundTypes_AReferenceLandingOnNoSchemaExcludesNothing`,
   `operation.TestParams_ABoundBesideAReferenceIsReadByItsNamedType`,
   `e2e.TestConstraints_ANamedTypeIsReadInItsOwnDocument`,
   `schema.TestConstraints_ABoundAListKeepsIsKeptOnce`,
