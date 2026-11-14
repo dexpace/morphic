@@ -18,6 +18,7 @@ import (
 
 	"github.com/dexpace/morphic/compilers"
 	"github.com/dexpace/morphic/compilers/openapi"
+	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
 	"github.com/dexpace/morphic/ir"
 )
@@ -198,4 +199,125 @@ func TestCompile_FieldsBesideAForeignPathItemRefAreMounted(t *testing.T) {
 	assert.Empty(t, cmp.Diff(docs[0], docs[1],
 		cmpopts.IgnoreFields(ir.SourceInfo{}, "Hash"), cmpopts.IgnoreFields(ir.Provenance{}, "Position")),
 		"the two orders of the items lower to one document")
+}
+
+// repeatedLists is a document whose path items under an x- key list a
+// parameter twice: one beside its $ref, one with no $ref, mounted by two
+// paths, an operation of it, and a callback's path item of that operation,
+// which a path mounts as well; a path item under paths repeats one beside its
+// $ref too.
+const repeatedLists = `openapi: 3.1.0
+info: {title: T, version: "1"}
+x-shared:
+  item:
+    $ref: '#/paths/~1b'
+    parameters:
+      - {name: d, in: query, schema: {type: string}}
+      - {name: d, in: query, schema: {type: string}}
+  plain:
+    parameters:
+      - {name: e, in: query, schema: {type: string}}
+      - {name: e, in: query, schema: {type: string}}
+    put:
+      operationId: putPlain
+      parameters:
+        - {name: f, in: query, schema: {type: string}}
+        - {name: f, in: query, schema: {type: string}}
+      callbacks:
+        cb:
+          next:
+            parameters:
+              - {name: g, in: query, schema: {type: string}}
+              - {name: g, in: query, schema: {type: string}}
+      responses: {"200": {description: ok}}
+paths:
+  /direct:
+    $ref: '#/paths/~1b'
+    parameters:
+      - {name: d, in: query, schema: {type: string}}
+      - {name: d, in: query, schema: {type: string}}
+  /a: {$ref: '#/x-shared/item'}
+  /w: {$ref: '#/x-shared/plain'}
+  /v: {$ref: '#/x-shared/plain'}
+  /n: {$ref: '#/x-shared/plain/put/callbacks/cb/next'}
+  /b: {get: {operationId: getB, responses: {"200": {description: ok}}}}
+`
+
+// TestCompile_AListAtAPathItemLandingIsCheckedForRepeats pins the repeat check
+// over each path item a reference lands on in the source where its grammar
+// reads none: the list beside its $ref, its own, an operation's and that of a
+// landing inside another, each reported once where it is written, as the same
+// list under paths is, however many paths mount it.
+func TestCompile_AListAtAPathItemLandingIsCheckedForRepeats(t *testing.T) {
+	t.Parallel()
+	_, diags := parseVerified(t, repeatedLists)
+
+	for _, pointer := range []string{"/paths/~1direct/parameters/1", "/x-shared/item/parameters/1",
+		"/x-shared/plain/parameters/1", "/x-shared/plain/put/parameters/1",
+		"/x-shared/plain/put/callbacks/cb/next/parameters/1"} {
+		assert.Equal(t, 1, countCode(diags, diag.DuplicateParameter, pointer), pointer)
+	}
+	var repeats int
+	for _, d := range diags {
+		if d.Code == diag.DuplicateParameter {
+			repeats++
+		}
+	}
+	assert.Equal(t, 5, repeats, "no list is reported twice")
+}
+
+// TestCompile_AListAtAPathItemLandingInAnotherDocumentIsCheckedForRepeats pins
+// the same in another document: the list beside a $ref there and the list of
+// the item it names, which two more paths mount, are each reported once, in
+// that document.
+func TestCompile_AListAtAPathItemLandingInAnotherDocumentIsCheckedForRepeats(t *testing.T) {
+	t.Parallel()
+	const root = "openapi: 3.1.0\ninfo: {title: T, version: \"1\"}\npaths:\n" +
+		"  /a: {$ref: 'other.yaml#/items/I'}\n  /b: {$ref: 'other.yaml#/items/J'}\n  /c: {$ref: 'other.yaml#/items/J'}\n"
+	const other = `items:
+  I:
+    $ref: '#/items/J'
+    parameters:
+      - {name: d, in: query, schema: {type: string}}
+      - {name: d, in: query, schema: {type: string}}
+  J:
+    parameters:
+      - {name: e, in: query, schema: {type: string}}
+      - {name: e, in: query, schema: {type: string}}
+    get: {operationId: getJ, responses: {"200": {description: ok}}}
+`
+	dir := t.TempDir()
+	layout(t, dir, map[string]string{"other.yaml": other})
+	doc, diags := compileVerified(t, compilers.Source{Path: filepath.Join(dir, "root.yaml"), Data: []byte(root)},
+		openapi.Options{AllowExternalRefs: true})
+	require.NotNil(t, doc)
+
+	var at []string
+	for _, d := range diags {
+		if d.Code == diag.DuplicateParameter {
+			require.Less(t, d.Provenance.Source, len(doc.Sources))
+			at = append(at, filepath.Base(doc.Sources[d.Provenance.Source].Path)+"#"+string(d.Provenance.Pointer))
+		}
+	}
+	slices.Sort(at)
+	assert.Equal(t, []string{"other.yaml#/items/I/parameters/1", "other.yaml#/items/J/parameters/1"}, at)
+}
+
+// TestCompile_AServersListAtAPathItemLandingIsCheckedForRepeats pins the same
+// check over a servers list of a path item under an x- key: a repeated name is
+// reported once, at the repeat's name, as one under paths is.
+func TestCompile_AServersListAtAPathItemLandingIsCheckedForRepeats(t *testing.T) {
+	t.Parallel()
+	_, diags := parseVerified(t, `openapi: 3.2.0
+info: {title: T, version: "1"}
+x-shared:
+  plain:
+    servers: [{url: 'https://a.example', name: s}, {url: 'https://b.example', name: s}]
+    get: {operationId: getPlain, responses: {"200": {description: ok}}}
+paths:
+  /w: {$ref: '#/x-shared/plain'}
+  /v: {$ref: '#/x-shared/plain'}
+`)
+	assert.Equal(t, []string{"warning openapi/duplicate-server-name /x-shared/plain/servers/1/name"},
+		findingsAt(slices.DeleteFunc(diags, func(d ir.Diagnostic) bool { return d.Code != diag.DuplicateServerName })))
 }

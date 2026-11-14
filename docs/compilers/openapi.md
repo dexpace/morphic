@@ -4652,8 +4652,10 @@ in any case, which OpenAPI forbids, keeps every occurrence, the ID of each repea
 ending in its occurrence number, so `x-trace` beside `X-Trace` keeps the ID each has alone, and is
 reported as an `openapi/duplicate-parameter` error at the repeat, naming the first entry's spelling
 where it differs. Every list the source writes is
-checked, whether or not it lowers, and a list another document writes where it lowers or where a
-path item that mounts no operation keeps it; the rule table
+checked, whether or not it lowers, a path item's a reference lands on where the source's grammar
+reads none, such as under an `x-` key, among them, beside its `$ref` or not, once however many paths
+mount it, and a list another document writes where it lowers or where a path item that mounts no
+operation keeps it; the rule table
 ([`validation`](#validation)) states this rule and leaves it to this one. A path item that mounts
 no operation has none to merge its parameters into, so it keeps each entry as written, a `$ref`
 included, where it keeps what else it writes ([`path-item-servers`](#path-item-servers)), under
@@ -4670,8 +4672,9 @@ repeat's ending in its occurrence number (`no_ir_home`).
   `operation.TestPathItem_WithNoOperationReportsARepeatInAnotherDocument`,
   `operation.TestParams_AHeaderIsOneParameterInAnyCase`,
   `operation.TestPathItem_WithNoOperationKeysAHeaderRepeatedInAnyCase`,
-  `ids.TestSlotOf_ComparesAHeadersNameInAnyCase`
-- Status: partly built: a list only a `$ref` reaches is never checked for repeats (#880).
+  `ids.TestSlotOf_ComparesAHeadersNameInAnyCase`,
+  `e2e.TestCompile_AListAtAPathItemLandingIsCheckedForRepeats`,
+  `e2e.TestCompile_AListAtAPathItemLandingInAnotherDocumentIsCheckedForRepeats`
 
 ### `content-parameters`
 
@@ -5699,9 +5702,10 @@ the first.
   `servers.TestRegistry_RootNamesTheDeclaredServersInSourceOrder`,
   `load.TestServerRepeats_ReportsEveryListTheSourceWrites`,
   `load.TestServerRepeats_ReportsOnlyANameOneListRepeatsExactly`,
-  `servers.TestServerVariables_AnEmptyDefaultIsNotNone`
-- Status: partly built: a servers list only a `$ref` reaches is never checked for a repeated name
-  (#880).
+  `servers.TestServerVariables_AnEmptyDefaultIsNotNone`,
+  `e2e.TestCompile_AServersListAtAPathItemLandingIsCheckedForRepeats`
+- Status: partly built: a servers list another document writes is never checked for a repeated
+  name (#880).
 
 ## 15. Vendor extensions and policy
 
