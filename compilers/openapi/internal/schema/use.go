@@ -88,7 +88,7 @@ func writesRef(s *oas3.Schema) bool {
 }
 
 // Default returns the default the nearest schema of u's chain writes for the
-// carrier at pointer holding s, as DefaultChain reads the chain, and a warning
+// carrier at pointer holding s, reading the chain hop by hop, and a warning
 // at that default's own position where no ir.Value holds it. The carrier then
 // takes none: a later hop's default is not what the nearest writes.
 func (u Use) Default(c lowering.Ctx, s *oas3.Schema, pointer jsontext.Pointer) (*ir.Value, []ir.Diagnostic) {
