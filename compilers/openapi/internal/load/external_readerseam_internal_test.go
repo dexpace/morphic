@@ -109,7 +109,7 @@ func TestExternal_ReadFailureMapsTheReadersSentinels(t *testing.T) {
 		outside  = `external document %s refused: it lies outside the source's directory "/srv/specs", ` +
 			"which a read leaves only when external references are allowed"
 		network = "external document %s refused: it is on the network, " +
-			"which a read reaches only when external references are allowed"
+			"which a read reaches only when external references are allowed; a locate option maps its URL to a location"
 	)
 	const url = "http://host/a.yaml"
 	tests := []struct {

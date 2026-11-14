@@ -105,6 +105,11 @@ func (b *binder) opened(in resource, uri, key string) (resource, Reason, string)
 	if !ok {
 		return resource{}, Unreadable, "it names no document a reference can"
 	}
+	// Where the URL is read from, a location the caller mapped it to among
+	// them, is judged too: a mapping never lands a fetched document on a file.
+	if !reachable(b.docs, in, name) {
+		return resource{}, Unreadable, OffNetwork
+	}
 	return b.read(name)
 }
 

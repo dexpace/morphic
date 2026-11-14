@@ -225,3 +225,78 @@ func TestLoad_AReachedPathItemsAdditionalOperationsAreSetAside(t *testing.T) {
 		"openapi/duplicate-parameter /x-lib/dup/get/parameters/1",
 	}, got, "%+v", diags)
 }
+
+// TestMapped_PutsAURLUnderTheLongestPrefix holds the caller's mapping of a URL
+// to a location: the longest prefix starting it wins, a URL location takes the
+// rest as written, a directory one, relative to the source's, takes it
+// segment by segment, decoded, and a segment decoding to a separator, or
+// holding an escape that is none, names no location; a URL no prefix starts
+// is not mapped.
+func TestMapped_PutsAURLUnderTheLongestPrefix(t *testing.T) {
+	t.Parallel()
+	s := sourceDocument{path: "/r/spec.yaml", mappings: []Mapping{
+		{Prefix: "https://e.test/x/", Location: "lib"},
+		{Prefix: "https://e.test/x/y/", Location: "https://mirror.test/m/"},
+		{Prefix: "https://e.test/abs/", Location: "/srv/abs"},
+	}}
+	for named, want := range map[string]string{
+		"https://e.test/x/a%20b.yaml":  "/r/lib/a b.yaml",
+		"https://e.test/x/y/c%2F.yaml": "https://mirror.test/m/c%2F.yaml",
+		"https://e.test/abs/d/e.yaml":  "/srv/abs/d/e.yaml",
+	} {
+		got, mapped, err := s.mapped(named)
+		require.NoError(t, err, named)
+		assert.True(t, mapped, named)
+		assert.Equal(t, want, got, named)
+	}
+	for named, segment := range map[string]string{
+		"https://e.test/x/a%2F..%2Fb.yaml": `"a/../b.yaml"`,
+		"https://e.test/x/a%zz.yaml":       `"a%zz.yaml"`,
+	} {
+		_, mapped, err := s.mapped(named)
+		assert.True(t, mapped, named)
+		assert.ErrorContains(t, err, "the segment "+segment+" holds an escaped separator")
+	}
+	_, mapped, err := s.mapped("https://e.test/z/b.yaml")
+	assert.False(t, mapped)
+	assert.NoError(t, err)
+}
+
+// TestLoad_AMappedURLNamingNoLocationIsRefusedUnread holds a reference whose
+// URL a mapping puts at no location, a segment decoding to a separator, to
+// the refusal naming the segment, the reader never asked; and a reference a
+// source at a path no reference can be read against writes to its own
+// failure; a URL the mapping puts at a file is read there.
+func TestLoad_AMappedURLNamingNoLocationIsRefusedUnread(t *testing.T) {
+	t.Parallel()
+	const head = "openapi: 3.1.0\ninfo: {title: t, version: \"1\"}\npaths: {}\ncomponents:\n  schemas:\n"
+	maps := []Mapping{{Prefix: "https://e.test/x/", Location: "lib"}}
+	for path, tc := range map[string]struct{ ref, want string }{
+		"/r/spec.yaml": {"https://e.test/x/a%2F..%2Fb.yaml#/B",
+			`its URL maps to no location: the segment "a/../b.yaml" holds an escaped separator`},
+		"/r/a%zz/spec.yaml": {"b.yaml#/B", "it names no document a reference can"},
+		"/r/x/spec.yaml":    {"https://e.test/x/b.yaml#/B", ""},
+	} {
+		fake := &fakeReader{data: []byte("B: {type: string}\n")}
+
+		_, diags, err := Load(t.Context(), 0, compilers.Source{Path: path, Data: []byte(head + "    P: {$ref: '" + tc.ref + "'}\n")},
+			Options{Reader: fake, Mappings: maps})
+
+		require.NoError(t, err)
+		var got []string
+		for _, d := range diags {
+			if d.Code == "openapi/unresolved-ref" {
+				got = append(got, d.Message)
+			}
+		}
+		if tc.want == "" {
+			assert.Empty(t, got, path)
+			require.Len(t, fake.reqs, 1, path)
+			assert.Equal(t, "/r/x/lib/b.yaml", fake.reqs[0].Location, "%s: read where the mapping puts it", path)
+			continue
+		}
+		require.Len(t, got, 1, "%s: %+v", path, diags)
+		assert.Contains(t, got[0], tc.want, path)
+		assert.Empty(t, fake.reqs, "%s: the reader is never asked", path)
+	}
+}

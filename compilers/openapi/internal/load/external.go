@@ -118,6 +118,9 @@ func (e external) unnamed(key, location string) error {
 	if !bind.Reachable(e.read.self.path, location) {
 		return refused(key, bind.OffNetwork)
 	}
+	if _, mapped, err := e.read.self.mapped(location); mapped && err != nil {
+		return err
+	}
 	return nil
 }
 
@@ -180,7 +183,8 @@ func readFailure(opts Options, key string, err error) error {
 	case errors.Is(err, compilers.ErrDocumentTooLarge):
 		return refused(key, fmt.Sprintf("it is past the %d-byte budget", opts.MaxSourceBytes.Cap()))
 	case errors.Is(err, compilers.ErrOutsideWithin) && bind.OverNetwork(key):
-		return refused(key, "it is on the network, which a read reaches only when external references are allowed")
+		return refused(key, "it is on the network, which a read reaches only when external references are allowed; "+
+			"a locate option maps its URL to a location")
 	case errors.Is(err, compilers.ErrOutsideWithin):
 		return refused(key, fmt.Sprintf("it lies outside the source's directory %s, "+
 			"which a read leaves only when external references are allowed", directoryNamed(opts.Within)))

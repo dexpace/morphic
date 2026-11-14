@@ -8,11 +8,14 @@ import (
 	"fmt"
 	"maps"
 	"mime"
+	"net/url"
 	"slices"
 	"strconv"
 	"strings"
 
 	"github.com/dexpace/morphic/compilers"
+	"github.com/dexpace/morphic/compilers/openapi/internal/bind"
+	"github.com/dexpace/morphic/compilers/openapi/internal/load"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
 )
 
@@ -566,6 +569,7 @@ const (
 	optGroupingAliases   = "grouping-aliases"
 	optGroupingFallback  = "grouping-fallback"
 	optAllowExternalRefs = "allow-external-refs"
+	optLocate            = "locate"
 	optOverlay           = "overlay"
 	optOverlayLax        = "overlay-lax"
 	optStreamingMedia    = "streaming-media"
@@ -615,7 +619,7 @@ func limitOptions(l *Limits) map[string]*int {
 func optionNames() []string {
 	names := []string{
 		optGrouping, optGroupingKey, optGroupingLists, optGroupingAliases, optGroupingFallback, optAllowExternalRefs,
-		optOverlay, optOverlayLax, optStreamingMedia, optBinaryMedia, optPromotionTargets, optPromotionPrefixes,
+		optLocate, optOverlay, optOverlayLax, optStreamingMedia, optBinaryMedia, optPromotionTargets, optPromotionPrefixes,
 	}
 	names = slices.AppendSeq(names, maps.Keys(switchOptions(&Options{})))
 	names = slices.AppendSeq(names, maps.Keys(limitOptions(&Limits{})))
@@ -660,6 +664,8 @@ func (d *optionDecode) set(key, value string) error {
 		return d.groupingExtension(key, value)
 	case optAllowExternalRefs:
 		return decodeBool(&d.opts.AllowExternalRefs, key, value)
+	case optLocate:
+		return decodeLocations(&d.opts.Locations, value)
 	case optOverlay:
 		// An empty path is refused rather than read as "no overlay". Taking it
 		// would apply none while the caller believes one was applied, and would
@@ -780,6 +786,55 @@ func decodePromotionTargets(out *map[ExtensionTarget][]ExtensionSource, value st
 	}
 	*out = targets
 	return nil
+}
+
+// decodeLocations reads value as mappings separated by commas, each split at
+// the first "=" that follows a "/", so a prefix with no "=" in its path and a
+// location naming a URL both read; each is held to mappingsOf.
+func decodeLocations(out *[]Location, value string) error {
+	var ls []Location
+	for pair := range strings.SplitSeq(value, ",") {
+		slash := strings.Index(pair, "/")
+		eq := strings.Index(pair[max(slash, 0):], "=")
+		if slash < 0 || eq < 0 {
+			return fmt.Errorf("openapi: option %q: want prefix=location pairs separated by commas, got %q",
+				optLocate, pair)
+		}
+		ls = append(ls, Location{Prefix: pair[:slash+eq], Location: pair[slash+eq+1:]})
+	}
+	if _, err := mappingsOf(ls); err != nil {
+		return err
+	}
+	*out = ls
+	return nil
+}
+
+// mappingsOf is ls as the load phase reads it, each prefix spelled as a
+// located URL is (bind.NormalURI), or why a prefix match could mistake one: a
+// prefix that is no absolute URI, holds a query or a fragment, or ends in no
+// "/" (else "https://e.com/x" would match "https://e.com/xy/b.yaml"), one
+// prefix written twice however it is spelled, and an empty location.
+func mappingsOf(ls []Location) ([]load.Mapping, error) {
+	out := make([]load.Mapping, 0, len(ls))
+	seen := map[string]bool{}
+	for _, l := range ls {
+		u, err := url.Parse(l.Prefix)
+		switch {
+		case err != nil || !u.IsAbs() || u.Opaque != "":
+			return nil, fmt.Errorf("openapi: option %q: the prefix %q is no absolute URI", optLocate, l.Prefix)
+		case u.RawQuery != "" || u.ForceQuery || strings.Contains(l.Prefix, "#"):
+			return nil, fmt.Errorf("openapi: option %q: the prefix %q holds a query or a fragment", optLocate, l.Prefix)
+		case !strings.HasSuffix(l.Prefix, "/"):
+			return nil, fmt.Errorf("openapi: option %q: the prefix %q ends in no \"/\"", optLocate, l.Prefix)
+		case l.Location == "":
+			return nil, fmt.Errorf("openapi: option %q: the prefix %q maps to no location", optLocate, l.Prefix)
+		case seen[bind.NormalURI(u)]:
+			return nil, fmt.Errorf("openapi: option %q: the prefix %q is mapped twice", optLocate, l.Prefix)
+		}
+		seen[bind.NormalURI(u)] = true
+		out = append(out, load.Mapping{Prefix: bind.NormalURI(u), Location: l.Location})
+	}
+	return out, nil
 }
 
 // decodeMediaList reads the media list of the setting key, streaming's or

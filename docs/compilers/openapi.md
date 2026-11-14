@@ -804,7 +804,15 @@ or by an absolute path fails unread, whatever another `$ref` names that document
 by its own spelling, so what the default reads depends on no order references are read in. In either
 mode a `$ref` naming a URL whose scheme is none of `http`, `https` and `file` fails unread, where a
 reader would take it for a path; a file whose name holds a colon is written `./a:b.yaml`, and is
-read as that file. A document outside fails each reference naming it, and with no reader no document
+read as that file. The caller may map a URI prefix to a location, a directory or an http(s) URL
+(`Options.Locations`, `--opt locate=<uri-prefix>=<location>`); nothing is mapped by inference. The
+mapping is applied where a URL is located, once spelled one way, before any refusal or read judges
+it, the longest prefix winning: the rest of the URL is joined to a directory segment by segment,
+each decoded, and one decoding to a separator names no location, so the reference fails unread and
+no spelling leaves the location; a URL location takes the rest as written. The document is then
+read, confined, named and labelled where its bytes are, so a file reached by its path and by a
+mapped URL is one document, and a mapped location a document read over http(s) may not reach is
+refused as any other. A URL refused as on the network says a mapping would place it. A document outside fails each reference naming it, and with no reader no document
 is read.
 
 Each document a reference reaches is a `Document.Sources` entry after the source and its overlay,
@@ -984,6 +992,14 @@ else it writes.
 - Tests: `e2e.TestCompile_ExternalFileRefIsNotReadByDefault`,
   `e2e.TestCompile_OneURLSpelledSixWaysIsOneRequestOneKeyAndOneType`,
   `e2e.TestCompile_AFileIsOneDocumentWhateverItsReferenceSpellsIt`,
+  `e2e.TestCompile_AMappedURLIsTheDocumentItsLocationHolds`,
+  `e2e.TestCompile_AMappedURLThatNormalizesOutOfItsPrefixIsRefused`,
+  `e2e.TestCompile_AMappedSegmentThatDecodesToASeparatorNamesNothing`,
+  `e2e.TestCompile_ALocationWithNoFinalSeparatorIsTheDirectoryItNames`,
+  `e2e.TestCompile_AFetchedDocumentsReferenceToAMappedURLIsNotAFile`,
+  `load.TestMapped_PutsAURLUnderTheLongestPrefix`, `load.TestLoad_AMappedURLNamingNoLocationIsRefusedUnread`,
+  `openapi.TestDecodeOptions_LocateMapsEachPrefixToItsLocation`,
+  `openapi.TestDecodeOptions_LocateRefusesAPrefixThatIsNoURIPrefix`,
   `e2e.TestCompile_AFileURIIsRefusedByItsSpellingWhereReadsAreConfined`,
   `e2e.TestCompile_AnIdentifierAndAReferenceMeetInOneSpelling`,
   `resolve.TestLocate_AnAbsoluteURLIsSpelledByRFC3986Normalization`,

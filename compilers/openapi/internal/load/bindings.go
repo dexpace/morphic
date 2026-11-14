@@ -136,12 +136,17 @@ func (m mediaFaults) diags(sites places, table *bind.Table) []ir.Diagnostic {
 }
 
 // locate is bind.Config.Locate for the source: the document uri names when
-// written in the one named base (resolve.Locate), named as bind names the
-// source when it is the source.
+// written in the one named base (resolve.Locate), put where the caller mapped
+// its URL (mapped), before anything judges or reads it, and named as bind
+// names the source when it is the source. A URL a mapping puts at no location
+// is kept, and its read refused (external.unnamed).
 func (s sourceDocument) locate(uri, base string) (string, bool) {
 	named, ok := refscope.Locate(uri, base)
 	if !ok {
 		return "", false
+	}
+	if at, mapped, err := s.mapped(named); mapped && err == nil {
+		named = at
 	}
 	return s.nameOf(named), true
 }

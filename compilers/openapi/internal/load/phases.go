@@ -205,6 +205,7 @@ func (l *loading) decode(ctx context.Context) (*soa.OpenAPI, error) {
 func (l *loading) findSiblings(ctx context.Context) (bool, error) {
 	l.modelBeside(ctx)
 	l.self = newSourceDocument(l.src, l.places, l.root, l.judged, l.tree)
+	l.self.mappings = l.opts.Mappings
 	return false, nil
 }
 

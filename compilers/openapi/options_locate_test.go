@@ -64,6 +64,7 @@ func TestDecodeOptions_LocateRefusesAPrefixThatIsNoURIPrefix(t *testing.T) {
 		"twice":                        "https://e.com/x/=.,https://e.com/x/=b",
 		"twice, one spelt differently": "https://e.com/x/=.,HTTPS://E.com:443/x/=b",
 		"no location":                  "https://e.com/x/",
+		"an empty location":            "https://e.com/x/=",
 	} {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()

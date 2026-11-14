@@ -67,6 +67,10 @@ type Options struct {
 	// MaxExternalDocuments bounds the documents external references read in one
 	// compile, each counted once however often it is asked for.
 	MaxExternalDocuments budget.Limit
+	// Mappings is where the caller put the documents under a URI prefix,
+	// applied where a document is located, before any refusal or read judges
+	// it; none is applied by inference.
+	Mappings []Mapping
 	// buildIndex builds the pre-parse index over a decoded tree, or nil for the
 	// compiler's own node bound. It is unexported because it is this package's
 	// test seam: it drives the truncated-index refusal without materializing a
