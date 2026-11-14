@@ -192,7 +192,7 @@
           "type": {
             "target": "t/openapi/components/schemas/Person",
             "nullable": true,
-            "inferred": "nullable-widening"
+            "inferred": "nullable-inference"
           },
           "required": false,
           "clientOptional": false,
@@ -344,7 +344,7 @@
     {
       "severity": "info",
       "code": "openapi/inferred-nullable",
-      "message": "nullable: true is read as admitting null under the nullable-widening policy, though OpenAPI 3.0 applies nullable only to a type written in the same Schema Object, and this schema writes none; a reference whose null rests on it is marked inferred",
+      "message": "nullable: true is read as admitting null under the nullable-inference policy, though OpenAPI 3.0 applies nullable only to a type written in the same Schema Object, and this schema writes none; a reference whose null rests on it is marked inferred",
       "provenance": {
         "source": 0,
         "pointer": "/components/schemas/Pet/properties/owner/nullable"
@@ -355,7 +355,7 @@
     {
       "format": "openapi@3.0",
       "path": "schema-ref-siblings-30.yaml",
-      "hash": "c9372287d87bc507dd76ab240276d54e79d1a88409ecd0068b1d69bf86d9953f"
+      "hash": "d739511db576c5e0e71de9f6168dc63aa92820173615b68d4c8d3d04c8afff0e"
     }
   ]
 }

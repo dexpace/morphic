@@ -49,9 +49,12 @@ Each bound applies to values of one kind and admits every value of another, as J
 `Min`, `Max`, `ExclusiveMin`, `ExclusiveMax`, `MultipleOf`, `Precision` and `Scale` to numbers,
 `MinLength`, `MaxLength` and `Pattern` to strings and bytes, `MinItems`, `MaxItems` and
 `UniqueItems` to lists and tuples, and `MinProps` and `MaxProps` to objects. A compiler writes one
-only where the source declares a type it applies to, or declares no type at all, and keeps one
-written beside another type verbatim under `Unmodeled` with `ReasonDegradedLowering`: beside a
-declared type, it bounds nothing that type admits. An encoded value holds those its source type
+only where a type the source admits at that use applies to it: the type the use declares, narrowed
+by what every schema it names admits, a reference's target, each part of a composition, and a union,
+which admits what any of its branches does, and every type where none of them declares one. It keeps
+one written beside other types verbatim under `Unmodeled` with `ReasonDegradedLowering`: beside
+them, it bounds nothing they admit, so a length written beside a reference to a list bounds nothing
+the reference names. An encoded value holds those its source type
 takes, where the paragraph above places them: a length or pattern beside a `string` written as
 bytes or an instant, and a numeric bound beside a number written as an instant.
 
@@ -95,6 +98,8 @@ at the scalar definition and overrides at the property field by field: a field t
 replaces the scalar's, and one it leaves unset, an empty string or a nil reference, takes the
 scalar's, so a property renaming the encoding keeps the scalar's `Schema` and `MediaType`. A
 compiler writes only what the position declared, as JSON Schema applies the keywords at both places;
+a parameter carries one the same way (`Parameter.Encoding`), as its type may be a `$ref`'d or shared
+one that cannot carry what one use writes;
 the alternative, the property's `Encoding` replacing the scalar's whole, would make a compiler copy
 every field it did not mean to change, and lose them where it forgot one. Protobuf editions features
 lower here per element after the compiler resolves the feature cascade (descriptors expose

@@ -221,6 +221,7 @@ func (w *edgeWalk) property(p *Property) {
 func (w *edgeWalk) parameter(p *Parameter) {
 	w.ref(&p.Type)
 	w.value(p.Default, 0)
+	w.encoding(p.Encoding)
 	if p.ValueFrom != nil {
 		w.ref(p.ValueFrom.Root)
 	}

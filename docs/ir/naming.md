@@ -155,8 +155,8 @@ case, the pass also reports names whose words join alike (below).
   separator, so two such groups meet, which the pass reports (below).
 - **The scopes** are the siblings a target renders into one namespace: the document's
   services, its declared types and its auth schemes; a service's groups; a group's groups and its
-  operations; an operation's parameters; a model's own properties; an enum's members; a union's
-  variants. One name in two scopes is no collision.
+  operations; an operation's parameters, and its parameter choices; a choice's variants; a model's
+  own properties; an enum's members; a union's variants. One name in two scopes is no collision.
 - **Words joined, where a target joins them.** Two names whose words differ only where they break,
   `set_up` and `setup`, meet where a target joins the words or ignores their letter case, and a
   first target does so in some scopes. Go and Kotlin name a group's package by its words in
@@ -191,7 +191,9 @@ case, the pass also reports names whose words join alike (below).
   ID holds a source key or value verbatim, control characters included: a key is unique in its
   mapping, and two members of one spelling are one value written twice. Any other ID can carry
   one from a tag, path, parameter or component name, which a message holds as written and a
-  renderer escapes (#816).
+  renderer escapes (#816). A parameter choice and a choice's variant hold no ID and nothing else
+  that does, so each is named by its index, and the finding says a target tells two named alike
+  apart only by position.
 - **An exact repeat is reported** like any other collision: two documents each declaring a
   component `Pet` give two types that render alike, which nothing else reports. A repeat may also
   draw a finding of the compiler's, such as `openapi/duplicate-enum-value`, which says what the

@@ -109,7 +109,7 @@
                           "contentTypes": [
                             "application/pdf"
                           ],
-                          "inferred": "binary-media-type"
+                          "inferred": "binary-inference"
                         }
                       },
                       {
@@ -123,7 +123,7 @@
                           "contentTypes": [
                             "image/png"
                           ],
-                          "inferred": "binary-media-type"
+                          "inferred": "binary-inference"
                         }
                       },
                       {
@@ -280,7 +280,7 @@
                         "allowReserved": false
                       },
                       "p/openapi/paths/~1upload/post/requestBody/content/multipart~1form-data/schema/properties/profileImage": {
-                        "inferred": "binary-media-type",
+                        "inferred": "binary-inference",
                         "contentTypes": [
                           "image/png",
                           "image/jpeg"

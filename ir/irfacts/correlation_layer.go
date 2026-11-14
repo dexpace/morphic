@@ -205,6 +205,7 @@ func (c *correlator) params(key string, op *ir.Operation) {
 		p := &op.Params[i]
 		c.offer(paramKey(key, op, p), string(p.ID), func(c *correlator, key string) {
 			c.ref(part(key, "schema"), &p.Type)
+			c.decoded(key, p.Encoding)
 		})
 	}
 }

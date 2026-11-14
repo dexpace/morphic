@@ -9,14 +9,14 @@ import (
 	"github.com/dexpace/morphic/ir"
 )
 
-// BinaryMediaTypeHeuristic is the name FileInfo.Inferred and
+// BinaryInferenceHeuristic is the name FileInfo.Inferred and
 // PartEncoding.Inferred carry on a body or part read as a file because its
 // media type is binary, rather than because its schema or
 // application/octet-stream says so. It is a constant for the reason
-// StreamingMediaTypeHeuristic is.
-const BinaryMediaTypeHeuristic ir.Inferred = "binary-media-type"
+// StreamingInferenceHeuristic is.
+const BinaryInferenceHeuristic ir.Inferred = "binary-inference"
 
-// BinaryMedia is the binary media-type policy: which media types mean "this body
+// BinaryInference is the binary media-type policy: which media types mean "this body
 // is a file" where its schema says no more than that it is a string.
 //
 // It is a policy rather than a table in the lowering because the reading is a
@@ -25,11 +25,11 @@ const BinaryMediaTypeHeuristic ir.Inferred = "binary-media-type"
 // judgment a caller may not share. application/octet-stream is not on it: RFC
 // 2046 defines that type as arbitrary octets, so the lowering reads it as
 // declared, whatever this says.
-type BinaryMedia struct {
+type BinaryInference struct {
 	// MediaTypes replaces the default list rather than extending it. Empty
 	// means the default.
 	//
-	// Entries are matched as StreamingMedia's are, case-insensitively and
+	// Entries are matched as StreamingInference's are, case-insensitively and
 	// without parameters, an entry starting with `+` naming a structured
 	// suffix. An entry `type/*` matches each media type of that type whose
 	// subtype has no structured suffix, since a suffix names the syntax the
@@ -69,7 +69,7 @@ func (c Ctx) MediaTypeBinary(mediaType string) bool {
 
 // binarySet normalizes a policy into the set MediaTypeBinary answers from, or
 // nil when the inference is off, as streamingSet does.
-func binarySet(p BinaryMedia) map[string]bool {
+func binarySet(p BinaryInference) map[string]bool {
 	if p.Disabled {
 		return nil
 	}

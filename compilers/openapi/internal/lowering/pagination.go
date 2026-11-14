@@ -7,7 +7,7 @@ import "github.com/dexpace/morphic/ir"
 
 // PaginationInferenceHeuristic is the name an operation's Provenance.Inferred
 // carries where the pagination-inference policy filled its Pagination. It is a
-// constant for the reason StreamingMediaTypeHeuristic is: an auditor greps for
+// constant for the reason StreamingInferenceHeuristic is: an auditor greps for
 // it.
 const PaginationInferenceHeuristic ir.Inferred = "pagination-inference"
 

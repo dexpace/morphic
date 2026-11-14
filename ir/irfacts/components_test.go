@@ -27,6 +27,7 @@ var partRoles = map[string]string{
 	"Model.Properties/Property.Type":                                    "held",
 	"Model.Properties/Property.Encoding/Encoding.Schema":                "held",
 	"Model.Properties/Property.Args/Parameter.Type":                     "args",
+	"Model.Properties/Property.Args/Parameter.Encoding/Encoding.Schema": "args",
 	"Model.AdditionalProps/AdditionalProps.Value":                       "held",
 	"Model.AdditionalProps/AdditionalProps.Key":                         "held",
 	"Model.AdditionalProps/AdditionalProps.Patterns/PatternProps.Value": "held",

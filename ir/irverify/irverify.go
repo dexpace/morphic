@@ -185,6 +185,7 @@ func walkChecks() []func(*ir.Document) walkCheck {
 		checkWebhookRoutes,
 		checkCallbacks,
 		checkInteractions,
+		checkParamChoices,
 		checkContentStreams,
 		checkLinkValues,
 		checkPrefixHeaders,

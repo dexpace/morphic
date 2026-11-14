@@ -29,9 +29,9 @@ import (
 // anything but raw bytes is no file whatever its media type.
 func TestBodyFile_ReadsTheSchemaAndTheMediaType(t *testing.T) {
 	t.Parallel()
-	const marker = "binary-media-type"
-	disabled := openapi.Options{BinaryMedia: openapi.BinaryMedia{Disabled: true}}
-	acme := openapi.Options{BinaryMedia: openapi.BinaryMedia{MediaTypes: []string{"application/vnd.acme"}}}
+	const marker = "binary-inference"
+	disabled := openapi.Options{BinaryInference: openapi.BinaryInference{Disabled: true}}
+	acme := openapi.Options{BinaryInference: openapi.BinaryInference{MediaTypes: []string{"application/vnd.acme"}}}
 	for _, tc := range []struct {
 		name      string
 		mediaType string

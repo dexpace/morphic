@@ -45,6 +45,6 @@ The matrix is each construct and fact by order and limit, with the diff each pro
 - **Why.** #1656 builds the enum two meeting enums share, in the order the winner lists its
   members. Its two-order checks met `[a, b]` beside `[b, c]`, which give `[b]` either way, so
   `[a, b, c]` beside `[c, b, d]` giving `[b, c]` or `[c, b]` by branch order passed those checks
-  and the order oracle, which reverses mappings only (#1666, #1674).
+  and the order oracle, which then reversed mappings only (#1666, #1674).
 - **Probe.** Plant a result taking the first input's order: the fixture's two declaration orders
   give two results.

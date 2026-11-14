@@ -309,7 +309,7 @@ func bodyFile(c lowering.Ctx, mt string, r fileReading) *ir.FileInfo {
 	case lowering.NormalizeMediaType(mt) == octetStream:
 		return file
 	case c.MediaTypeBinary(mt):
-		file.Inferred = lowering.BinaryMediaTypeHeuristic
+		file.Inferred = lowering.BinaryInferenceHeuristic
 		return file
 	default:
 		return nil

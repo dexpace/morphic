@@ -13,6 +13,7 @@ type Pagination struct {
     InputLimit   *InputPath
     Items        *PropPath    // where result items live in the response — a PATH, not a name
     NextCursor   *PropPath    // continuation source in the response
+    HasMore      *PropPath    // the flag saying another page follows: true continues
     NextLink     *PropPath
     PrevLink     *PropPath    // server-driven navigation links beyond next
     FirstLink    *PropPath    // (TypeSpec @prevLink/@firstLink/@lastLink, OpenAPI links)
@@ -22,7 +23,7 @@ type Pagination struct {
     Stop         []PageStop   // when iteration ends, any one ending it; empty = none stated
 }
 
-type PageStop string // "empty" | "no_next" | "short" | "total"
+type PageStop string // "empty" | "no_next" | "short" | "total" | "no_more"
 
 type PropPath struct {
     Root     *TypeRef  // the type the path roots in; nil = determined by context
@@ -44,7 +45,9 @@ it, or, with no parameter, a path into the request body, since a search endpoint
 or page size as body fields is as common as one taking them as query parameters. With no segment
 either, it is the request body whole, as a [link](./responses.md#links) can pass it on. Either reads
 the body its operation sends, which an operation with no `Request` cannot (`ir/input-body-absent`).
-`TotalCount` counts items and `TotalPages` pages, the two totals an API returns.
+`TotalCount` counts items and `TotalPages` pages, the two totals an API returns. `HasMore` is the
+page's flag saying another page follows, `true` continuing, as `has_more` or `is_truncated` says it
+and a GraphQL connection's `pageInfo.hasNextPage`; nil states none.
 
 `Stop` is when iteration ends, which the source states and no consumer can recover from the other
 fields: the same cursor shape ends at an empty page on one API and at an empty next cursor on
@@ -57,6 +60,13 @@ another. The conditions are a closed set, each listed once and any one ending th
 | `no_next` | whose next cursor or next link is empty, null or absent |
 | `short` | holding fewer items than the limit asked for |
 | `total` | after which the items read reach `TotalCount`, or the pages read reach `TotalPages` |
+| `no_more` | whose `HasMore` is false, null or absent |
+
+`no_more` reads the flag, so it is listed only beside a `HasMore` (`ir/page-stop-without-flag`).
+`HasMore` may be set with no `no_more`, as `TotalCount` may with no `total`. A flag whose `true`
+ends the walk is not this field: no measured page states one, and it can land later as a path and a
+stop of its own without reshaping this one. `no_next` is no substitute where a page states the
+flag, since such a page may hand back a cursor on its last page as well.
 
 An empty `Stop` states no rule, and a consumer reads none into the shape: where a pager then ends is
 the emitter's ([pagination](../emitters/operations/pagination.md#where-a-page-walk-ends)). A

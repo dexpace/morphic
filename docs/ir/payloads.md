@@ -61,6 +61,10 @@ type Content struct {
                                   // or description written beside a $ref to one, which documents
                                   // that use of it. Omitted when empty, as Payload.Docs is
     Unmodeled  Unmodeled
+    Inferred   Inferred           // the heuristics that filled a field from a key the content
+                                  // keeps (unmodeled.md#promotion), as Provenance.Inferred on a
+                                  // node with one; empty = none did. Stream.Inferred says how the
+                                  // content is known to stream
 }
 
 type PartEncoding struct {

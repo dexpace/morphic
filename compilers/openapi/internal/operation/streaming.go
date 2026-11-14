@@ -63,7 +63,7 @@ func contentStream(c lowering.Ctx, mediaType string, item *ir.TypeRef) *ir.Conte
 	case item != nil:
 		return &ir.ContentStream{}
 	case c.MediaTypeStreams(mediaType):
-		return &ir.ContentStream{Inferred: lowering.StreamingMediaTypeHeuristic}
+		return &ir.ContentStream{Inferred: lowering.StreamingInferenceHeuristic}
 	default:
 		return nil
 	}

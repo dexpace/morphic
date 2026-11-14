@@ -101,6 +101,7 @@ var idPositions = map[string]idRule{
 	"LongRunning.FinalOperation":   idRequired,
 	"LongRunning.PollingOperation": idRequired,
 	"LinkParam.Param":              idRequired,
+	"ParamVariant.Params":          idRequired,
 	"OperationLink.Operation":      idRequired,
 	"OperationLink.Server":         idRequired,
 	"MessageBinding.Channel":       idRequired,

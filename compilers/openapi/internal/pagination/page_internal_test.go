@@ -41,7 +41,7 @@ func TestReader_ReadsEachBodyAndModelOnce(t *testing.T) {
 		}
 	}
 	assert.Len(t, r.pages, 2, "a page per body")
-	assert.Len(t, r.models, 3, "a reading per model: the two bodies and the one their members hold")
+	assert.Len(t, r.models.read, 3, "a reading per model: the two bodies and the one their members hold")
 }
 
 // TestPageContents_ListsWhatCanBeAPage pins the contents a walk reads its page

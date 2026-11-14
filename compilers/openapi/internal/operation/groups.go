@@ -99,7 +99,7 @@ func (g *serviceGroups) filingFor(c lowering.Ctx, src *soa.Operation, decl jsont
 // this one.
 func (g *serviceGroups) filingBy(strategy lowering.GroupingStrategy, src *soa.Operation, path string) filing {
 	if strategy == lowering.GroupByPathPrefix {
-		seg := firstPathSegment(path)
+		seg := firstPathSegment(pathOnly(path))
 		levels := []groupLevel{{id: ids.PathPrefixGroup(seg), name: ir.NamingFor(seg)}}
 		return filing{levels: levels, inferred: lowering.GroupPathPrefixHeuristic}
 	}

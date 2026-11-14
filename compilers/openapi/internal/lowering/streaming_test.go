@@ -15,7 +15,7 @@ import (
 )
 
 // streamingCtx builds a context carrying nothing but the streaming policy.
-func streamingCtx(policy lowering.StreamingMedia) lowering.Ctx {
+func streamingCtx(policy lowering.StreamingInference) lowering.Ctx {
 	return lowering.New(0, &load.Document{Doc: &soa.OpenAPI{}}, lowering.Policy{Streaming: policy})
 }
 
@@ -27,47 +27,47 @@ func TestMediaTypeStreams_AnswersFromThePolicy(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
 		name      string
-		policy    lowering.StreamingMedia
+		policy    lowering.StreamingInference
 		mediaType string
 		want      bool
 	}{
-		{"default list", lowering.StreamingMedia{}, "text/event-stream", true},
-		{"default list, ordinary type", lowering.StreamingMedia{}, "application/json", false},
-		{"parameters ignored", lowering.StreamingMedia{}, "text/event-stream; charset=utf-8", true},
-		{"case ignored", lowering.StreamingMedia{}, "TEXT/Event-Stream", true},
-		{"surrounding space ignored", lowering.StreamingMedia{}, "  text/event-stream  ", true},
-		{"default list, json-seq", lowering.StreamingMedia{}, "application/json-seq", true},
-		{"default suffix", lowering.StreamingMedia{}, "application/geo+json-seq", true},
-		{"default suffix, parameters and case ignored", lowering.StreamingMedia{}, "Application/GEO+JSON-SEQ; charset=utf-8", true},
-		{"the last suffix decides", lowering.StreamingMedia{}, "application/a+json-seq+zip", false},
-		{"and an earlier one does not hide it", lowering.StreamingMedia{}, "application/a+b+json-seq", true},
-		{"a suffix is not a substring", lowering.StreamingMedia{}, "application/x+json-sequence", false},
-		{"another suffix", lowering.StreamingMedia{}, "application/problem+json", false},
-		{"disabled", lowering.StreamingMedia{Disabled: true}, "text/event-stream", false},
-		{"disabled, suffix", lowering.StreamingMedia{Disabled: true}, "application/geo+json-seq", false},
+		{"default list", lowering.StreamingInference{}, "text/event-stream", true},
+		{"default list, ordinary type", lowering.StreamingInference{}, "application/json", false},
+		{"parameters ignored", lowering.StreamingInference{}, "text/event-stream; charset=utf-8", true},
+		{"case ignored", lowering.StreamingInference{}, "TEXT/Event-Stream", true},
+		{"surrounding space ignored", lowering.StreamingInference{}, "  text/event-stream  ", true},
+		{"default list, json-seq", lowering.StreamingInference{}, "application/json-seq", true},
+		{"default suffix", lowering.StreamingInference{}, "application/geo+json-seq", true},
+		{"default suffix, parameters and case ignored", lowering.StreamingInference{}, "Application/GEO+JSON-SEQ; charset=utf-8", true},
+		{"the last suffix decides", lowering.StreamingInference{}, "application/a+json-seq+zip", false},
+		{"and an earlier one does not hide it", lowering.StreamingInference{}, "application/a+b+json-seq", true},
+		{"a suffix is not a substring", lowering.StreamingInference{}, "application/x+json-sequence", false},
+		{"another suffix", lowering.StreamingInference{}, "application/problem+json", false},
+		{"disabled", lowering.StreamingInference{Disabled: true}, "text/event-stream", false},
+		{"disabled, suffix", lowering.StreamingInference{Disabled: true}, "application/geo+json-seq", false},
 		{
 			"caller's suffix is honoured",
-			lowering.StreamingMedia{MediaTypes: []string{"+Frames"}},
+			lowering.StreamingInference{MediaTypes: []string{"+Frames"}},
 			"application/vnd.acme+frames", true,
 		},
 		{
 			"caller's list replaces the default suffix",
-			lowering.StreamingMedia{MediaTypes: []string{"+frames"}},
+			lowering.StreamingInference{MediaTypes: []string{"+frames"}},
 			"application/geo+json-seq", false,
 		},
 		{
 			"caller's list replaces the default",
-			lowering.StreamingMedia{MediaTypes: []string{"application/vnd.acme.frames"}},
+			lowering.StreamingInference{MediaTypes: []string{"application/vnd.acme.frames"}},
 			"text/event-stream", false,
 		},
 		{
 			"caller's list is honoured",
-			lowering.StreamingMedia{MediaTypes: []string{"Application/VND.acme.frames"}},
+			lowering.StreamingInference{MediaTypes: []string{"Application/VND.acme.frames"}},
 			"application/vnd.acme.frames", true,
 		},
 		{
 			"a blank entry names no media type",
-			lowering.StreamingMedia{MediaTypes: []string{"  ", "text/event-stream"}},
+			lowering.StreamingInference{MediaTypes: []string{"  ", "text/event-stream"}},
 			"", false,
 		},
 	}
@@ -87,7 +87,7 @@ func TestDefaultStreamingMediaTypes_AreAllRecognized(t *testing.T) {
 	t.Parallel()
 	defaults := lowering.DefaultStreamingMediaTypes()
 	require.NotEmpty(t, defaults, "an empty default list would make every case below vacuous")
-	c := streamingCtx(lowering.StreamingMedia{})
+	c := streamingCtx(lowering.StreamingInference{})
 	for _, mediaType := range defaults {
 		assert.True(t, c.MediaTypeStreams(mediaType), "default media type %q is not recognized", mediaType)
 	}

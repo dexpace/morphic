@@ -84,6 +84,9 @@ anchored by its model's anchor alone and shown through no shape, which `Shown` t
 `ModelShape`, as an SDK declares it ([a shape reaches what it
 holds](plan/types.md#a-shape-reaches-what-it-holds)).
 
+Each choice among an operation's parameters is rendered with them: its name, whether one variant is
+required, and each variant's parameters.
+
 A table lists every member its model's flattening holds, each name `TypePlan.Undeclared` lists among
 them as a row typed as the catch-all types it, required save in a patch shape's table, which relaxes
 it as it relaxes any member, with no anchor since it has no `PropID`, and anchors a member only
@@ -228,6 +231,9 @@ spec's `realtimekit_StorageConfig` redeclares `access_key` with no bound over a 
 it to one character at least, and a handler reading the taken one alone accepts `""` (spec
 @bc6fad24, morphic @fa253fe19). So an example the plan keeps for a request is a body the mock
 accepts, and a body the mock refuses is one the plan would refuse as an example.
+
+A request carrying parameters of two variants of a choice, or none of a required one, is answered
+as one failing validation is.
 
 - **A union** is read by its `TypePlan.Union`: a discriminated one by the variant its tag routes to,
   a tag naming none taking the order [unions](refine/unions.md#a-value-no-variant-recognizes) gives,
@@ -727,8 +733,9 @@ test running beside it would move the count, and a request's page would turn on 
 - **What a page says.** Each page but the last carries the continuation of the position after its
   last item, where the strategy reads one, at the place `CursorOut` reads it or in the `Link`
   header; every page states the walk's items where `TotalCount` reads them and its pages at the
-  request's size where `TotalPages` does; and the rest of each is the response's example, shown as
-  any is. The last carries no continuation: its member absent where optional, else null where
+  request's size where `TotalPages` does; each states the flag `HasMore` reads, true on every page
+  but the last and false on the last; and the rest of each is the response's example, shown as any
+  is. The last carries no continuation: its member absent where optional, else null where
   nullable; else the empty value where `no_next` is listed and its type admits one. Where the
   continuation is required and not nullable and neither of those ends the walk, the mock mints one
   more position, the walk's end, `total` with a total to read listed or not, since `total` counts

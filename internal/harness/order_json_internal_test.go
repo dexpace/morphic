@@ -31,3 +31,20 @@ func TestOrderInvariant_DeclinesASourceOnlyTheJSONReaderReads(t *testing.T) {
 	v := orderInvariant(t.Context(), "pair.json", []byte(head+pair+tail), true)
 	assert.Equal(t, DeclineNotYAML, v.Declined, "the oracle asks the source nothing")
 }
+
+// TestSequenceOrderInvariant_DeclinesASourceOnlyTheJSONReaderReads pins the
+// same limit for the sequence-order oracle, which permutes through the same
+// parser: a source writing a surrogate pair is declined as not YAML, where the
+// same source written with the character has its sequence swapped.
+func TestSequenceOrderInvariant_DeclinesASourceOnlyTheJSONReaderReads(t *testing.T) {
+	t.Parallel()
+	const head = `{"openapi":"3.0.3","info":{"title":"t","version":"1"},"paths":{},` +
+		`"components":{"schemas":{"P":{"allOf":[{"title":"t"},{"type":"string","enum":["`
+	const tail = `"]}]}}}}`
+	pair := `\u` + "d83d" + `\u` + "de00"
+
+	asked := sequenceOrderInvariant(t.Context(), "char.json", []byte(head+"\U0001F600"+tail), true)
+	assert.True(t, asked.Asked(), "the oracle asks the source written with the character: %+v", asked)
+	v := sequenceOrderInvariant(t.Context(), "pair.json", []byte(head+pair+tail), true)
+	assert.Equal(t, declined(OracleSequenceOrder, DeclineNotYAML), v, "and nothing of the source written with the pair")
+}

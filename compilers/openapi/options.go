@@ -58,24 +58,24 @@ const (
 // the caller names none. It is exported so a caller can start from it.
 func DefaultGroupingExtension() GroupingExtension { return lowering.DefaultGroupingExtension() }
 
-// StreamingMedia is the media-type streaming policy: which media types imply
+// StreamingInference is the media-type streaming policy: which media types imply
 // that a body is a sequence of frames when the document declares nothing that
 // says so. It is another injectable-policy seam (architecture principle 6), and it is
 // named here rather than restated for the reason GroupingStrategy is.
-type StreamingMedia = lowering.StreamingMedia
+type StreamingInference = lowering.StreamingInference
 
-// DefaultStreamingMediaTypes returns the media types and suffixes StreamingMedia
+// DefaultStreamingMediaTypes returns the media types and suffixes StreamingInference
 // classifies as streams when the caller names none. It is exported so a caller
 // extending the list can start from it rather than transcribe it.
 func DefaultStreamingMediaTypes() []string { return lowering.DefaultStreamingMediaTypes() }
 
-// BinaryMedia is the binary media-type policy: which media types mean a body or
+// BinaryInference is the binary media-type policy: which media types mean a body or
 // part is a file when its schema says nothing more than that it is a string. It
 // is another injectable-policy seam (architecture principle 6), named here for
 // the reason GroupingStrategy is.
-type BinaryMedia = lowering.BinaryMedia
+type BinaryInference = lowering.BinaryInference
 
-// DefaultBinaryMediaTypes returns the media types BinaryMedia classifies as
+// DefaultBinaryMediaTypes returns the media types BinaryInference classifies as
 // binary when the caller names none, for the reason DefaultStreamingMediaTypes
 // is exported.
 func DefaultBinaryMediaTypes() []string { return lowering.DefaultBinaryMediaTypes() }
@@ -137,23 +137,35 @@ const (
 	TargetPaginationItems = lowering.TargetPaginationItems
 	// TargetPaginationNextCursor fills ir.Pagination.NextCursor.
 	TargetPaginationNextCursor = lowering.TargetPaginationNextCursor
+	// TargetPaginationHasMore fills ir.Pagination.HasMore, and the stop
+	// ir.PageStopNoMore beside it.
+	TargetPaginationHasMore = lowering.TargetPaginationHasMore
 	// TargetPaginationNextLink fills ir.Pagination.NextLink.
 	TargetPaginationNextLink = lowering.TargetPaginationNextLink
 	// TargetPaginationTotalCount fills ir.Pagination.TotalCount.
 	TargetPaginationTotalCount = lowering.TargetPaginationTotalCount
 	// TargetPaginationTotalPages fills ir.Pagination.TotalPages.
 	TargetPaginationTotalPages = lowering.TargetPaginationTotalPages
+	// TargetStreamTerminator fills ir.StreamDetail.Terminator, from a key on a
+	// streaming content of a success response or on the operation.
+	TargetStreamTerminator = lowering.TargetStreamTerminator
+	// TargetStreamCondition fills ir.StreamDetail.Condition, from a key on the
+	// operation naming an input of its request.
+	TargetStreamCondition = lowering.TargetStreamCondition
+	// TargetParamChoices fills ir.Operation.ParamChoices, from a key on the
+	// operation naming alternatives among its parameters.
+	TargetParamChoices = lowering.TargetParamChoices
 )
 
-// NullableWidening is the nullable-widening policy: whether a null a schema
+// NullableInference is the nullable-inference policy: whether a null a schema
 // spells, by `nullable: true` or beside a $ref, widens what it is written on. It
 // is another injectable-policy seam (architecture principle 6), and is named
 // here rather than restated for the reason GroupingStrategy is.
-type NullableWidening = lowering.NullableWidening
+type NullableInference = lowering.NullableInference
 
-// NullableWideningHeuristic is the name ir.TypeRef.Inferred carries on a
-// reference whose null the nullable-widening policy read in.
-const NullableWideningHeuristic = lowering.NullableWideningHeuristic
+// NullableInferenceHeuristic is the name ir.TypeRef.Inferred carries on a
+// reference whose null the nullable-inference policy read in.
+const NullableInferenceHeuristic = lowering.NullableInferenceHeuristic
 
 // DiscriminatorInference is the discriminator-inference policy: whether a
 // union's tags are read off the strings each variant pins its tag property
@@ -254,24 +266,24 @@ type Options struct {
 	// names one, and naming one without the other is refused, since conventions
 	// disagree on a list. Fallback defaults to GroupByTags.
 	GroupingExtension GroupingExtension `json:"groupingExtension,omitzero"`
-	// StreamingMedia selects which media types imply a stream. The zero value is
+	// StreamingInference selects which media types imply a stream. The zero value is
 	// the default list, on; a caller who wants only what a document declares
 	// disables it.
-	StreamingMedia StreamingMedia `json:"streamingMedia"`
-	// BinaryMedia selects which media types make a file of a body or part whose
+	StreamingInference StreamingInference `json:"streamingInference"`
+	// BinaryInference selects which media types make a file of a body or part whose
 	// schema says no more than that it is a string. The zero value is the
 	// default list, on; a caller who wants only what a document declares
 	// disables it.
-	BinaryMedia BinaryMedia `json:"binaryMedia"`
+	BinaryInference BinaryInference `json:"binaryInference"`
 
 	// Promotions selects which vendor extensions are read into typed IR fields.
 	// The zero value is the default mapping, on; a caller who wants extensions
 	// kept verbatim and nothing more disables it.
 	Promotions ExtensionPromotions `json:"promotions"`
-	// NullableWidening selects whether a null a schema spells widens what it is
+	// NullableInference selects whether a null a schema spells widens what it is
 	// written on, a reference it decides marked as inferred. The zero value is
 	// on; a caller who wants only what the document's version says disables it.
-	NullableWidening NullableWidening `json:"nullableWidening"`
+	NullableInference NullableInference `json:"nullableInference"`
 	// DiscriminatorInference selects whether a union's tags are read off the
 	// strings each variant pins its tag property to, where the document
 	// declares no mapping or no discriminator, and a subtype's routed by name
@@ -563,11 +575,10 @@ const (
 // the field saying it is off: the text names a policy as on or off, and the Go
 // field its being off, as each policy's Disabled does. A name is the marker
 // the policy leaves on what it fills (docs/compilers/openapi.md#policies), but
-// for the streaming and binary policies', whose markers predate the rule
-// (#1847), and the title-names policy's, which leaves none.
+// for the title-names policy's, which leaves none.
 func switchOptions(o *Options) map[string]*bool {
 	return map[string]*bool{
-		string(NullableWideningHeuristic):            &o.NullableWidening.Disabled,
+		string(NullableInferenceHeuristic):           &o.NullableInference.Disabled,
 		string(DiscriminatorInferenceHeuristic):      &o.DiscriminatorInference.Disabled,
 		string(IdempotencyInferenceHeuristic):        &o.IdempotencyInference.Disabled,
 		string(SecretInferenceHeuristic):             &o.SecretInference.Disabled,
@@ -575,9 +586,9 @@ func switchOptions(o *Options) map[string]*bool {
 		string(ReplacementInferenceHeuristic):        &o.ReplacementInference.Disabled,
 		string(PaginationInferenceHeuristic):         &o.PaginationInference.Disabled,
 		string(lowering.ExtensionPromotionHeuristic): &o.Promotions.Disabled,
-		"streaming-inference":                        &o.StreamingMedia.Disabled,
-		"binary-inference":                           &o.BinaryMedia.Disabled,
-		"title-names":                                &o.TitleNames.Disabled,
+		string(lowering.StreamingInferenceHeuristic): &o.StreamingInference.Disabled,
+		string(lowering.BinaryInferenceHeuristic):    &o.BinaryInference.Disabled,
+		"title-names": &o.TitleNames.Disabled,
 	}
 }
 
@@ -659,9 +670,9 @@ func (d *optionDecode) set(key, value string) error {
 		d.laxSet = true
 		return decodeBool(&d.lax, key, value)
 	case optStreamingMedia:
-		return decodeMediaList(&d.opts.StreamingMedia.MediaTypes, key, value)
+		return decodeMediaList(&d.opts.StreamingInference.MediaTypes, key, value)
 	case optBinaryMedia:
-		return decodeMediaList(&d.opts.BinaryMedia.MediaTypes, key, value)
+		return decodeMediaList(&d.opts.BinaryInference.MediaTypes, key, value)
 	case optPromotionTargets:
 		return decodePromotionTargets(&d.opts.Promotions.Targets, value)
 	case optPromotionPrefixes:

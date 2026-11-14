@@ -22,9 +22,9 @@ import (
 	"github.com/dexpace/morphic/ir"
 )
 
-// inferred is a reference whose null only the nullable-widening policy admits.
+// inferred is a reference whose null only the nullable-inference policy admits.
 func inferred(target ir.TypeID) ir.TypeRef {
-	return ir.TypeRef{Target: target, Nullable: true, Inferred: openapi.NullableWideningHeuristic}
+	return ir.TypeRef{Target: target, Nullable: true, Inferred: openapi.NullableInferenceHeuristic}
 }
 
 // prim is the shared primitive of kind k.
@@ -82,7 +82,7 @@ func assertNullableKeyword30(t *testing.T, doc *ir.Document, diags []ir.Diagnost
 		"nullable beside a type is the document's own null")
 	assert.Equal(t, inferred(prim(ir.PrimAny)), props["untyped"].Type)
 	for _, name := range []string{"composed", "unlisted", "typedComposed"} {
-		assert.Equal(t, openapi.NullableWideningHeuristic, props[name].Type.Inferred, name)
+		assert.Equal(t, openapi.NullableInferenceHeuristic, props[name].Type.Inferred, name)
 		assert.True(t, props[name].Type.Nullable, name)
 	}
 	assert.True(t, props["listed"].Type.Nullable)
@@ -225,12 +225,12 @@ func TestSchemaRefSiblings_ReadInTheDeclaredDialect(t *testing.T) {
 	})
 }
 
-// compileNullable compiles src, a whole document, with the nullable-widening
+// compileNullable compiles src, a whole document, with the nullable-inference
 // policy on or off. That reach through openapi is why openapitest cannot hold
 // it — see that package's doc comment.
 func compileNullable(t *testing.T, src string, off bool) (*ir.Document, []ir.Diagnostic) {
 	t.Helper()
-	opts := compilers.Options{FormatOptions: openapi.Options{NullableWidening: openapi.NullableWidening{Disabled: off}}}
+	opts := compilers.Options{FormatOptions: openapi.Options{NullableInference: openapi.NullableInference{Disabled: off}}}
 	doc, diags, err := openapi.New().Compile(t.Context(),
 		[]compilers.Source{{Path: "spec.yaml", Data: []byte(src)}}, opts)
 	require.NoError(t, err)
@@ -272,12 +272,12 @@ components:
 ` + schemas
 }
 
-// TestNullableWidening_AKeywordIsReportedOnceAtItself pins where the policy's
+// TestNullableInference_AKeywordIsReportedOnceAtItself pins where the policy's
 // report lands: at the keyword, once, however many references read it and in
 // whichever order the document declares them, while every reference whose
 // null rests on it carries the marker. A report made at each use would grow
 // with the uses and move with the order.
-func TestNullableWidening_AKeywordIsReportedOnceAtItself(t *testing.T) {
+func TestNullableInference_AKeywordIsReportedOnceAtItself(t *testing.T) {
 	t.Parallel()
 	n := inferred(componentID("N"))
 	for _, swapped := range []bool{false, true} {
@@ -304,13 +304,13 @@ func TestNullableWidening_AKeywordIsReportedOnceAtItself(t *testing.T) {
 	}
 }
 
-// TestNullableWidening_DisabledKeepsWhatTheDialectDoesNotDefine pins the policy
+// TestNullableInference_DisabledKeepsWhatTheDialectDoesNotDefine pins the policy
 // off: a `nullable` in a 3.1 schema is a keyword that dialect does not define,
 // kept verbatim where any unknown keyword is and reported as one. A 3.0
 // schema's nullable, one beside its $ref included, is read by its declared
 // effect instead, and the policy on reads every one, so neither keeps anything.
 // The one beside a 3.0 $ref is still a later minor's construct.
-func TestNullableWidening_DisabledKeepsWhatTheDialectDoesNotDefine(t *testing.T) {
+func TestNullableInference_DisabledKeepsWhatTheDialectDoesNotDefine(t *testing.T) {
 	t.Parallel()
 	const rest = "    N: {type: string, nullable: false}\n"
 	for _, tc := range []struct {
@@ -354,13 +354,13 @@ func TestNullableWidening_DisabledKeepsWhatTheDialectDoesNotDefine(t *testing.T)
 	}
 }
 
-// TestNullableWidening_ANullableWithNoTypeIsWarnedOfUnderEitherPolicy pins
+// TestNullableInference_ANullableWithNoTypeIsWarnedOfUnderEitherPolicy pins
 // that whether a 3.0 `nullable: true` has an effect is a fact of the
 // specification, not of the policy: with no `type` beside it, it draws one
 // no-effect warning at the keyword either way. With the policy on, the
 // policy's info sits at the same pointer and the reference admits null, marked
 // inferred; with it off, the reference admits none.
-func TestNullableWidening_ANullableWithNoTypeIsWarnedOfUnderEitherPolicy(t *testing.T) {
+func TestNullableInference_ANullableWithNoTypeIsWarnedOfUnderEitherPolicy(t *testing.T) {
 	t.Parallel()
 	const at = jsontext.Pointer("/components/schemas/Holder/properties/p/nullable")
 	for _, tc := range []struct {
@@ -414,13 +414,13 @@ components:
       oneOf: [{$ref: '#/components/schemas/D'}, {$ref: '#/components/schemas/M'}]
 `
 
-// TestNullableWidening_ACompositionKeepsTheMarker pins the two lowerings that
+// TestNullableInference_ACompositionKeepsTheMarker pins the two lowerings that
 // build a reference out of others. An allOf redeclaration admits null where
 // both branches do, so it rests on the policy where either branch's null did,
 // and a distributed variant admits it where its branch does and the body
 // does not exclude it, so it keeps the branch's marker. With the policy off
 // neither admits null, and a body excluding null takes even a declared one out.
-func TestNullableWidening_ACompositionKeepsTheMarker(t *testing.T) {
+func TestNullableInference_ACompositionKeepsTheMarker(t *testing.T) {
 	t.Parallel()
 	for _, off := range []bool{false, true} {
 		doc, _ := compileNullable(t, compositionSpec, off)
@@ -448,11 +448,11 @@ func TestNullableWidening_ACompositionKeepsTheMarker(t *testing.T) {
 	}
 }
 
-// TestNullableWidening_DisabledKeepsItAtASharedNode pins that a nullable the
+// TestNullableInference_DisabledKeepsItAtASharedNode pins that a nullable the
 // dialect does not define reaches the IR where the position lowers to a shared
 // node and has no carrier, on an alias hoisted for it, as a keyword the model
 // does not name does.
-func TestNullableWidening_DisabledKeepsItAtASharedNode(t *testing.T) {
+func TestNullableInference_DisabledKeepsItAtASharedNode(t *testing.T) {
 	t.Parallel()
 	doc, diags := compileNullable(t, `openapi: 3.1.0
 info: {title: t, version: "1"}

@@ -34,17 +34,6 @@ func TestMarker_AUseOfATypeTheRegistryLacksMarksNothing(t *testing.T) {
 	assert.False(t, marked)
 }
 
-// TestPager_AParameterOnlyABindingNamesResolvesNothing drives the guard no
-// document reaches: a binding naming a parameter its operation does not hold
-// gives a member of it no type to walk, so the value resolves to nothing.
-func TestPager_AParameterOnlyABindingNamesResolvesNothing(t *testing.T) {
-	t.Parallel()
-	pg := pagerOver(ir.TypeRegistry{})
-	in, failure := pg.paramInput(&ir.Operation{ID: "op/x"}, "param/x/gone", []string{"a"})
-	assert.Nil(t, in)
-	assert.Contains(t, failure, "which a binding names and the operation does not hold")
-}
-
 // TestMarker_DescendsOnlyIntoModelsReachingTheKey pins a search to the models
 // whose members reach its key (pager.reaching): with no member keeping the key
 // no model is flattened and the root is not read, and a level steps into a

@@ -97,10 +97,10 @@ paths:
 func TestItemFile_ReadsTheItemAsAPartDeclarationIs(t *testing.T) {
 	t.Parallel()
 	const (
-		marker = "binary-media-type"
+		marker = "binary-inference"
 		octet  = "application/octet-stream"
 	)
-	disabled := openapi.Options{BinaryMedia: openapi.BinaryMedia{Disabled: true}}
+	disabled := openapi.Options{BinaryInference: openapi.BinaryInference{Disabled: true}}
 	for _, tc := range []struct {
 		name, media string
 		opts        openapi.Options

@@ -21,9 +21,9 @@ func TestCheckInferred_VisitingCostsNoAllocation(t *testing.T) {
 	doc := &ir.Document{Types: ir.TypeRegistry{
 		"t/pet": &ir.Model{
 			ID:         "t/pet",
-			Provenance: ir.Provenance{Inferred: "group-path-prefix,streaming-media-type,extension-promotion"},
+			Provenance: ir.Provenance{Inferred: "group-path-prefix,streaming-inference,extension-promotion"},
 			Properties: []ir.Property{
-				{ID: "p/pet/a", Type: ir.TypeRef{Target: "t/pet", Nullable: true, Inferred: "nullable-widening"}},
+				{ID: "p/pet/a", Type: ir.TypeRef{Target: "t/pet", Nullable: true, Inferred: "nullable-inference"}},
 				{ID: "p/pet/b", Provenance: ir.Provenance{Inferred: "extension-promotion"}},
 			},
 		},

@@ -826,3 +826,73 @@ components:
 	require.True(t, ok)
 	assert.Nil(t, dropped.Default)
 }
+
+// paramBoundsSpec writes a bound beside a reference at each carrier a schema
+// can sit at: three parameters and a response header.
+const paramBoundsSpec = `openapi: 3.1.0
+info: {title: t, version: "1"}
+paths:
+  /a:
+    get:
+      operationId: getA
+      parameters:
+        - {name: q, in: query, schema: {allOf: [{$ref: '#/components/schemas/Name'}], minimum: 1}}
+        - {name: r, in: query, schema: {$ref: '#/components/schemas/Name', minimum: 1}}
+        - {name: h, in: header, schema: {allOf: [{$ref: '#/components/schemas/Name'}], minimum: 1, minLength: 2}}
+      responses:
+        "200":
+          description: ok
+          headers:
+            X-Names: {schema: {$ref: '#/components/schemas/Names', maxLength: 5, maxItems: 3}}
+components:
+  schemas:
+    Name: {type: string}
+    Names: {type: array, items: {type: string}}
+`
+
+// TestParams_ABoundBesideAReferenceIsReadByItsNamedType pins a bound beside a
+// reference at a parameter and at a response header: it is held by the carrier
+// only where the type the schema names takes it, and kept verbatim, with its
+// report, where it does not.
+func TestParams_ABoundBesideAReferenceIsReadByItsNamedType(t *testing.T) {
+	t.Parallel()
+	_, svc, diags := compileService(t, paramBoundsSpec)
+	openapitest.RequireNoErrorDiags(t, diags)
+	op := openapitest.FirstOp(t, svc)
+
+	t.Run("row 38: a bound a string cannot take is kept", func(t *testing.T) {
+		t.Parallel()
+		for i, name := range []string{"q", "r"} {
+			p, ok := openapitest.ParamBySource(op, name)
+			require.True(t, ok, name)
+			assert.Equal(t, ir.ParamID("param/openapi/paths/~1a/get/parameters/"+name+"/query"), p.ID, name)
+			assert.Nil(t, p.Constraints, name)
+			entry, ok := p.Unmodeled["openapi:minimum"]
+			require.True(t, ok, "%s: got %v", name, p.Unmodeled)
+			assert.Equal(t, ir.ReasonDegradedLowering, entry.Reason, name)
+			at := "/paths/~1a/get/parameters/" + strconv.Itoa(i) + "/schema"
+			assert.Equal(t, jsontext.Pointer(at+"/minimum"), entry.Provenance.Pointer, name)
+			assert.Contains(t, openapitest.DiagMessageAt(t, diags, diag.DegradedConstruct, ir.SeverityInfo, at),
+				"minimum", name)
+		}
+	})
+	t.Run("row 39: the bounds a type takes are held beside the kept one", func(t *testing.T) {
+		t.Parallel()
+		h, ok := openapitest.ParamBySource(op, "h")
+		require.True(t, ok)
+		assert.Equal(t, &ir.Constraints{MinLength: new(int64(2))}, h.Constraints)
+		assert.Contains(t, h.Unmodeled, "openapi:minimum")
+		assert.NotContains(t, h.Unmodeled, "openapi:minLength")
+
+		require.Len(t, op.Responses, 1)
+		require.Len(t, op.Responses[0].Headers, 1)
+		header := op.Responses[0].Headers[0]
+		assert.Equal(t, ir.PropID("p/openapi/paths/~1a/get/responses/200/headers/X-Names"), header.ID)
+		assert.Equal(t, &ir.Constraints{MaxItems: new(int64(3))}, header.Constraints)
+		entry, ok := header.Unmodeled["openapi:maxLength"]
+		require.True(t, ok, "got %v", header.Unmodeled)
+		assert.Equal(t, jsontext.Pointer("/paths/~1a/get/responses/200/headers/X-Names/schema/maxLength"),
+			entry.Provenance.Pointer)
+		assert.NotContains(t, header.Unmodeled, "openapi:maxItems")
+	})
+}

@@ -27,6 +27,7 @@ literal-types	Literal types
 operation-grouping	Operations grouped by service/interface
 resource-hierarchy	Resource hierarchy (CRUDL)
 http-binding	HTTP binding (method/path/status)
+exclusive-parameters	Alternatives among an operation's separately declared parameters
 param-styles	Param styles (explode, matrix…)
 prefix-headers	Headers bound to a map by a name prefix
 multi-content	Multiple content types per body

@@ -30,8 +30,9 @@ type Meta struct {
 // service graph: info, and what the document writes that lowers to no node of
 // its own, kept verbatim (docs/ir/unmodeled.md).
 //
-// It must run after every other lowering: which components it keeps depends on
-// what they reached (lowering.Ctx.Reached).
+// It must run after every lowering that follows a reference, as which
+// components it keeps depends on what they reached (lowering.Ctx.Reached). The
+// promotions run after it, reading the root's kept keys, and follow none.
 func Lower(c lowering.Ctx) (Meta, []ir.Diagnostic) {
 	m := lowerInfo(c)
 

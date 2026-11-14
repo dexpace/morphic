@@ -37,6 +37,14 @@ differ reports ([surface verification](../surface-verification.md)). A dynamic t
 differ — Python's keyword arguments are additive as they stand — which is why the shape is
 per-target rather than a plan fact.
 
+A choice among parameters (`Operation.ParamChoices`) changes no field of the request type: each
+parameter it names stays the optional field it is, since a sum in their place would break every
+caller the day a document states the choice (property 2). The request type's `Validate()` checks it
+([constraints](constraints.md)). An emitter that does not read the field degrades to independent
+optional parameters, the request type it makes without it: nothing wrong is sent for a caller
+following the API's documentation, and a request setting two variants is refused by the API rather
+than by the SDK.
+
 ## The body
 
 The body is what its content's `Type` lowers to, save for a form or multipart one's fields, below,

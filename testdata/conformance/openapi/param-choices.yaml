@@ -1,0 +1,24 @@
+openapi: 3.1.0
+info: {title: t, version: "1"}
+paths:
+  /resources:
+    get:
+      operationId: listResources
+      parameters:
+        - {name: parent_id, in: query, schema: {type: string}}
+        - {name: parent_slug, in: query, schema: {type: string}}
+        - {name: parent_external_id, in: query, schema: {type: string}}
+        - {name: before, in: query, schema: {type: string}}
+        - {name: after, in: query, schema: {type: string}}
+      x-mutually-exclusive-parameter-groups:
+        parent:
+          optional: false
+          variants:
+            by_id: [parent_id]
+            by_external_id: [parent_slug, parent_external_id]
+        cursor:
+          optional: true
+          variants:
+            forward: [after]
+            backward: [before]
+      responses: {"200": {description: ok}}

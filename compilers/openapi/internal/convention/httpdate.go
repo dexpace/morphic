@@ -8,6 +8,7 @@ import (
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
+	"github.com/dexpace/morphic/compilers/openapi/internal/whole"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -26,8 +27,7 @@ func httpDate(c lowering.Ctx, reg ir.TypeRegistry, h *ir.Header) []ir.Diagnostic
 		!httpDateField(h.EffectiveWireName()) {
 		return nil
 	}
-	ch, ok := readChain(c.Promoter(), reg, h.Type.Target)
-	if !ok || ch.encoded || ch.prim != ir.PrimDatetimeOffset {
+	if !instant(c, reg, h.Type.Target) {
 		return nil
 	}
 	h.Encoding = &ir.Encoding{Name: httpDateEncoding}
@@ -37,6 +37,53 @@ func httpDate(c lowering.Ctx, reg ir.TypeRegistry, h *ir.Header) []ir.Diagnostic
 	return []ir.Diagnostic{diag.Newf(ir.SeverityInfo, diag.InferredHTTPDate, at,
 		"header %q is a field its RFC defines as an HTTP-date, so its date-time is written and read as one (%s) "+
 			"rather than in RFC 3339's text, which its format names", h.EffectiveWireName(), httpDateEncoding)}
+}
+
+// httpDateParam gives each header parameter of op the text httpDate gives a
+// response header, under the HTTP-date policy, where the name its binding
+// places it under is one httpDateField names, it writes no encoding of its own,
+// and its type reads as an instant: on the parameter itself, as its type may be
+// one a $ref shares. A parameter in any other location is not read, whatever
+// its name. The rule is docs/compilers/openapi.md#http-date-inference.
+func httpDateParam(c lowering.Ctx, w *whole.Document, op *ir.Operation) []ir.Diagnostic {
+	if !c.HTTPDateInference.Honours() || len(op.Params) == 0 {
+		return nil
+	}
+	ix := w.Params(op)
+	var diags []ir.Diagnostic
+	for i := range op.Params {
+		p := &op.Params[i]
+		name, bound := headerName(ix, p)
+		if !bound || p.Encoding != nil || !httpDateField(name) || !instant(c, w.Types, p.Type.Target) {
+			continue
+		}
+		p.Encoding = &ir.Encoding{Name: httpDateEncoding}
+		at := p.Provenance
+		at.Inferred = ""
+		p.Provenance.Inferred = ir.JoinInferred(p.Provenance.Inferred, lowering.HTTPDateInferenceHeuristic)
+		diags = append(diags, diag.Newf(ir.SeverityInfo, diag.InferredHTTPDate, at,
+			"header parameter %q is a field its RFC defines as an HTTP-date, so its date-time is written as one (%s) "+
+				"rather than in RFC 3339's text, which its format names", name, httpDateEncoding))
+	}
+	return diags
+}
+
+// headerName returns the name the first of the placements ix holds for p puts
+// it in a header under, and false where none does.
+func headerName(ix whole.ParamIndex, p *ir.Parameter) (string, bool) {
+	for _, at := range ix.Placements(p.ID) {
+		if at.Location == ir.HTTPLocationHeader {
+			return at.Name, true
+		}
+	}
+	return "", false
+}
+
+// instant reports whether id reads, through its scalars, as a datetime_offset
+// none of them names an encoding for.
+func instant(c lowering.Ctx, reg ir.TypeRegistry, id ir.TypeID) bool {
+	ch, ok := readChain(c.Promoter(), reg, id)
+	return ok && !ch.encoded && ch.prim == ir.PrimDatetimeOffset
 }
 
 // httpDateField reports whether name, compared without case as HTTP compares a
