@@ -172,14 +172,16 @@ func TestInferWalks_LeavesAPostItCannotTellFromACreate(t *testing.T) {
 
 // TestInferWalks_ReadsNoBodyOfAMethodThatIsNoSearch holds a PUT, a PATCH and a
 // DELETE, whose bodies state what to store, change or remove, to never being
-// read as a walk, whatever members the body names.
+// read as a walk, whatever members the body names: no walk, and no finding,
+// as a body read as the walk's places would draw one for the method.
 func TestInferWalks_ReadsNoBodyOfAMethodThatIsNoSearch(t *testing.T) {
 	t.Parallel()
 	for _, method := range []string{"put", "patch", "delete"} {
 		t.Run(method, func(t *testing.T) {
 			t.Parallel()
-			doc, _ := compile(t, searchDoc(method, "", searchPage, okResult), openapi.Options{})
+			doc, diags := compile(t, searchDoc(method, "", searchPage, okResult), openapi.Options{})
 			assert.Nil(t, openapitest.FindOp(t, doc, "search").Pagination)
+			assert.Empty(t, diags)
 		})
 	}
 }
