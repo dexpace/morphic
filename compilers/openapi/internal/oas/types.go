@@ -121,6 +121,10 @@ const (
 	// (RFC 9110 §5.1), so two keys of a map keyed by one that differ in case
 	// alone name one field.
 	FieldName
+	// MediaTypeKey is a media type or a media type range, as a content map's
+	// key must be: type "/" subtype, each a token, so "*/*" and "type/*", then
+	// any parameters (RFC 9110 §8.3.1, §12.5.1).
+	MediaTypeKey
 )
 
 // Level is how firmly the specification states a rule.

@@ -331,6 +331,7 @@ testdata/dangling/openapi/f32-ref-noncanonical-escape.yaml	7:7	validation-invali
 testdata/golden/openapi/hint_positions.yaml	336:7	validation-invalid-syntax	compiler	component-names
 testdata/golden/openapi/hint_positions.yaml	340:7	validation-invalid-syntax	compiler	component-names
 testdata/golden/openapi/hint_positions.yaml	390:7	validation-invalid-syntax	compiler	component-names
+testdata/openapi/body_on_trace.yaml	7:51	validation-invalid-syntax	compiler	media-type-keys
 testdata/openapi/cycle_alias_dual_position.yaml	5:16	validation-type-mismatch	library	duplicate-report
 testdata/openapi/cycle_alias_dual_position.yaml	5:16	validation-type-mismatch	library	duplicate-report
 testdata/openapi/cycle_duplicate_key.yaml	12:5	validation-duplicate-key	library	position
@@ -340,6 +341,7 @@ testdata/openapi/cycle_schema_empty_key.yaml	10:9	validation-invalid-reference	l
 testdata/openapi/cycle_schema_empty_key.yaml	11:9	validation-invalid-syntax	compiler	component-names
 testdata/openapi/defs_at_root.yaml	8:3	unknown-object-key	compiler	undefined-key
 testdata/openapi/discriminator_maps_its_own_base.yaml	20:25	validation-invalid-schema	library	old-grammar
+testdata/openapi/media_key_and_form_bodies.yaml	7:51	validation-invalid-syntax	compiler	media-type-keys
 testdata/openapi/path_item_unmounted.yaml	43:15	unknown-object-key	compiler	undefined-key
 testdata/openapi/path_item_unmounted.yaml	47:15	unknown-object-key	compiler	undefined-key
 testdata/openapi/path_item_unmounted.yaml	58:30	unknown-object-key	compiler	undefined-key

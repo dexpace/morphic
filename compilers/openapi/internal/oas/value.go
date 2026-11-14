@@ -377,12 +377,15 @@ type keyFinding struct {
 }
 
 // keyFindings checks the keys of the map field fld of obj holds, pairs,
-// against the syntax the table gives them at minor: a component
-// name, which the specification writes as a pattern every key must match, is
-// held to it by a warning, and an HTTP field name by an error, as a header
-// parameter's name is, beside what fieldNames finds.
+// against the syntax the table gives them at minor: a component name, which
+// the specification writes as a pattern every key must match, and a media
+// type, which a content map's key is, are held to it by a warning, and an HTTP
+// field name by an error, as a header parameter's name is, beside what
+// fieldNames finds.
 func keyFindings(obj Object, fld Field, pairs []nodeview.Pair, minor Minor) []keyFinding {
-	if fld.Keys != ComponentName && fld.Keys != FieldName {
+	switch fld.Keys {
+	case ComponentName, MediaTypeKey, FieldName:
+	default:
 		return nil
 	}
 	var found []keyFinding

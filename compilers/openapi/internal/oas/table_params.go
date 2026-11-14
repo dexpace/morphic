@@ -51,7 +51,8 @@ func parameterFields() []Field {
 		objectOf("schema", Schema, c(V30, "The schema defining the type used for the parameter.")),
 		field("example", Any, c(V30, "Example of the parameter's potential value; see")),
 		mapOf("examples", Example, c(V30, "Examples of the parameter's potential value; see")),
-		mapOf("content", MediaType, c(V30, "A map containing the representations for the parameter.")),
+		mapOf("content", MediaType, c(V30, "A map containing the representations for the parameter.")).
+			keyed(MediaTypeKey, c(V30, "The key is the media type and the value describes it.")),
 	}
 }
 
@@ -111,7 +112,8 @@ func headerObject() Object {
 			objectOf("schema", Schema, c(V30, "The schema defining the type used for the header.")),
 			field("example", Any, c(V30, "Example of the header's potential value; see")),
 			mapOf("examples", Example, c(V30, "Examples of the header's potential value; see")),
-			mapOf("content", MediaType, c(V30, "A map containing the representations for the header.")),
+			mapOf("content", MediaType, c(V30, "A map containing the representations for the header.")).
+				keyed(MediaTypeKey, c(V30, "The key is the media type and the value describes it.")),
 		},
 		Rules: []Rule{
 			exclusive(Always(), fields("schema", "content"),
@@ -139,7 +141,8 @@ func requestBodyObject() Object {
 		Kind: RequestBody, Name: "Request Body Object", Extensible: true, Referenceable: Always(),
 		Fields: []Field{
 			field("description", String, c(V30, "A brief description of the request body.")),
-			mapOf("content", MediaType, c(V30, "**REQUIRED**. The content of the request body.")).required(Always()),
+			mapOf("content", MediaType, c(V30, "**REQUIRED**. The content of the request body.")).required(Always()).
+				keyed(MediaTypeKey, c(V30, "The key is a media type or media type range")),
 			field("required", Boolean, c(V30, "Determines if the request body is required in the request.")),
 		},
 		Rules: []Rule{

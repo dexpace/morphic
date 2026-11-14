@@ -196,6 +196,7 @@ func describeFormat(format Format) string {
 		VersionNumber:     "a version number of the form major.minor.patch",
 		ServerURL:         "a URL reference, its variables aside",
 		MediaRanges:       "a comma-separated list of media types and media type ranges",
+		MediaTypeKey:      "a media type or a media type range",
 		AnchorName:        "a name of a letter or '_', then letters, digits, '-', '_' and '.'",
 		PlainName:         "a name of a letter, then letters, digits, '-', '_', ':' and '.'",
 		PlainNameURI:      "a URI reference whose fragment, where written alone and no JSON pointer, is a name of a letter, then letters, digits, '-', '_', ':' and '.'",

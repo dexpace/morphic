@@ -165,6 +165,10 @@ var validationReasons = map[string]string{
 		"an empty component; the specification requires them to match ^[a-zA-Z0-9\\.\\-_]+$ (3.1.2 §Components " +
 		"Object: 'All the fixed fields declared above are objects that MUST use keys that match the regular " +
 		"expression'), which the table reports where the key is written",
+	"media-type-keys": "the library does not check a content map's keys, which the specification makes media " +
+		"types or media type ranges (3.1.2 §Request Body Object: 'The key is a media type or media type range'); " +
+		"the table warns of one that is neither as validation-invalid-syntax where it is written " +
+		"(docs/compilers/openapi.md#media-types)",
 	"media-type-components": "the library models no Components Object mediaTypes " +
 		"(docs/parser-library.md#media-type-references), so it reads a schema's $ref into an entry as naming " +
 		"nothing, where the load phase models each entry and resolves the $ref",

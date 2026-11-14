@@ -39,7 +39,8 @@ func responseObject() Object {
 			mapOf("headers", Header, c(V30, "Maps a header name to its definition.")).
 				keyed(FieldName, c(V30, "[RFC7230](https://tools.ietf.org/html/rfc7230#page-22) states header names are case insensitive."),
 					c(V32, "[RFC9110](https://www.rfc-editor.org/rfc/rfc9110.html#section-5.1) states header names are case-insensitive.")),
-			mapOf("content", MediaType, c(V30, "A map containing descriptions of potential response payloads.")),
+			mapOf("content", MediaType, c(V30, "A map containing descriptions of potential response payloads.")).
+				keyed(MediaTypeKey, c(V30, "The key is a media type or media type range")),
 			mapOf("links", Link, c(V30, "A map of operations links that can be followed from the response.")).
 				keyed(ComponentName, c(V30, "following the naming constraints of the names for")),
 		},

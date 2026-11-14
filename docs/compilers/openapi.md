@@ -4910,16 +4910,22 @@ classified on a copy that is lowercased, since a media type's names are case-ins
 ([`multipart-encoding`](#multipart-encoding)), and a binary body is a file
 ([`file-bodies`](#file-bodies)); the streaming policy reads the same copy
 ([`streaming-media`](#streaming-media)). No other key is classified, so `application/*+json`,
-`text/*` and `*/*` are Contents like any other.
+`text/*` and `*/*` are Contents like any other. A key of the `content` map of a Request Body,
+Response, Parameter or Header Object is a media type or a media type range (RFC 9110 §8.3.1,
+§12.5.1): a type and a subtype, each a token, a wildcard either side and parameters after a `;`
+admitted. Load's rule table reports a key that is neither as an `openapi/validation` warning of the
+class `validation-invalid-syntax` at the key ([`validation`](#validation)), and the entry lowers as
+written.
 
 - Cases: `media-type-spelling`, `multi-content`, `component-media-types-32`
-- Tests: `operation.TestContent_AllMediaTypesKeptInOrder`,
+- Codes: `openapi/validation`
+- Tests: `oas.TestCheck_ContentKeyIsAMediaType`, `operation.TestContent_AllMediaTypesKeptInOrder`,
   `operation.TestContent_MixedCaseFormContentKeepsEncoding`,
   `lowering.TestNormalizeMediaType_CollapsesTheSpellingsOneMediaTypeHas`,
   `operation.TestContent_AMediaTypeRefHoldingNoStringLowersNothing`,
   `naming.TestAt_NamesASchemaAfterItsOwner`
-- Status: partly built: a malformed media-type key, a multipart body that is not an object, and a
-  body on a GET pass in silence (#649).
+- Status: partly built: a multipart body that is not an object, and a body on a GET, pass in silence
+  (#649).
 
 ### `request-body`
 
