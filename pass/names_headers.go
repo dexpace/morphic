@@ -17,8 +17,7 @@ import (
 // they are written (GitHub #1786). Operations past ir.ForEachOperation's bounds
 // go unread, which validate reports as ir/walk-truncated.
 func (r *nameReader) headers(doc *ir.Document) {
-	for i := range doc.Services {
-		svc := &doc.Services[i]
+	for _, svc := range doc.Services {
 		for j := range svc.CommonErrors {
 			e := &svc.CommonErrors[j]
 			r.headerScope("service", string(svc.ID), e.Headers, func() string { return "common error " + nameLabel(e.Name) })
