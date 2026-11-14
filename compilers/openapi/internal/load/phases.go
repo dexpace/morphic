@@ -227,7 +227,7 @@ func (l *loading) reach(ctx context.Context) (bool, error) {
 
 // checkSource runs the source checks over the source (sourceChecks).
 func (l *loading) checkSource(ctx context.Context) (bool, error) {
-	l.checked = sourceChecks(ctx, l.place, l.doc, l.sibs, l.media, l.bound.bindings)
+	l.checked = sourceChecks(ctx, l.sites, l.doc, l.sibs, l.media, l.bound.bindings)
 	return false, nil
 }
 

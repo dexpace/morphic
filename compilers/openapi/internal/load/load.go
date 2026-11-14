@@ -256,10 +256,10 @@ func build(ctx context.Context, srcIndex int, src compilers.Source, parsed *Pars
 // sourceChecks runs the rules the compiler checks over the source: the
 // repeats of a parameter or servers list, each entry read through the
 // bindings, as the lowering reads it.
-func sourceChecks(ctx context.Context, place provenance.Doc, doc *soa.OpenAPI, sibs Siblings,
+func sourceChecks(ctx context.Context, sites places, doc *soa.OpenAPI, sibs Siblings,
 	media MediaTypes, bindings *typed.Bindings,
 ) []ir.Diagnostic {
-	return listRepeats(place, sibs, bindings, walkSource(ctx, doc, sibs, media))
+	return listRepeats(sites, sibs, bindings, walkSource(ctx, doc, sibs, media))
 }
 
 // defaultIndex indexes a decoded tree under the compiler's node bound. It is

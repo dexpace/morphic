@@ -4771,6 +4771,11 @@ included, where it keeps what else it writes ([`path-item-servers`](#path-item-s
 `openapi:pathItem/<item pointer>/parameters/<name>/<in>`, the path its ID would be derived from, a
 repeat's ending in its occurrence number (`no_ir_home`).
 
+Each parameter list and servers list is checked once, where it is written, in whichever document:
+the source's, and those of each path item and its operations a `$ref` reaches, raw YAML of the
+source or a node of another document, each placed in that document's own entry however many
+references reach it.
+
 - Cases: `param-styles`, `param-style-matrix`, `param-identity`, `header-name-case`,
   `header-name-syntax`
 - Codes: `openapi/duplicate-parameter`
@@ -4781,8 +4786,9 @@ repeat's ending in its occurrence number (`no_ir_home`).
   `operation.TestPathItem_WithNoOperationReportsARepeatInAnotherDocument`,
   `operation.TestParams_AHeaderIsOneParameterInAnyCase`,
   `operation.TestPathItem_WithNoOperationKeysAHeaderRepeatedInAnyCase`,
-  `ids.TestSlotOf_ComparesAHeadersNameInAnyCase`
-- Status: partly built: a list only a `$ref` reaches is never checked for repeats (#880).
+  `ids.TestSlotOf_ComparesAHeadersNameInAnyCase`,
+  `e2e.TestCompile_AParameterListRepeatingAnEntryIsReportedWhereverItIsWritten`,
+  `e2e.TestCompile_ARepeatInAListTwoReferencesReachIsReportedOnce`
 
 ### `content-parameters`
 
@@ -5770,9 +5776,8 @@ the first.
   `servers.TestRegistry_RootNamesTheDeclaredServersInSourceOrder`,
   `load.TestServerRepeats_ReportsEveryListTheSourceWrites`,
   `load.TestServerRepeats_ReportsOnlyANameOneListRepeatsExactly`,
-  `servers.TestServerVariables_AnEmptyDefaultIsNotNone`
-- Status: partly built: a servers list only a `$ref` reaches is never checked for a repeated name
-  (#880).
+  `servers.TestServerVariables_AnEmptyDefaultIsNotNone`,
+  `e2e.TestCompile_AListInAnotherDocumentIsCheckedWhereItIsWritten`
 
 ## 15. Vendor extensions and policy
 

@@ -494,8 +494,7 @@ func keepItemParams(c lowering.Ctx, into carrier, pi *soa.PathItem, mountPtr, de
 		}
 		p := resolve.Object[soa.Parameter](c.Bindings(), rp)
 		entry := declPtr + ids.Ptr("parameters", strconv.Itoa(i))
-		occurrence, repeatDiags := ledger.count(c, p.GetName(), string(p.GetIn()), entry)
-		diags = append(diags, repeatDiags...)
+		occurrence := ledger.count(p.GetName(), string(p.GetIn()))
 		key := "openapi:" + into.scope + string(ids.ParamPath(p.GetName(), string(p.GetIn()), occurrence))
 		_, keepDiags := annotation.PreserveNodeInto(into.unmodeled, key, rp.GetCore().GetRootNode(),
 			ir.ReasonNoIRHome, c.Place().At(entry))
