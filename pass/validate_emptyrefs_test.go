@@ -176,3 +176,58 @@ func TestValidate_AnEmptyReferenceDrawsNoSecondCode(t *testing.T) {
 		})
 	}
 }
+
+// TestValidate_AnEmptiedBindingLeavesItsParameterUnbound pins what blanking the
+// parameter of a binding that bound one draws: its empty reference, an error,
+// once, and the warning that the parameter it bound is bound nowhere, a fact
+// about another entity that leaving the binding out altogether states too. No
+// error reports the empty ID under the binding's own code.
+func TestValidate_AnEmptiedBindingLeavesItsParameterUnbound(t *testing.T) {
+	t.Parallel()
+	mismatches := func(diags []ir.Diagnostic) []ir.Diagnostic {
+		var out []ir.Diagnostic
+		for _, d := range diags {
+			if d.Code == "pass/param-binding-mismatch" {
+				out = append(out, d)
+			}
+		}
+		return out
+	}
+	op := paramBindingOp("op/x/o", ir.Parameter{ID: "param/x/o/q", Name: ir.Naming{Source: "q"}})
+	op.Bindings.HTTP[0].ParamBindings[0].Param = ""
+	diags := validated(t, docWithOperation(op))
+
+	assert.Equal(t, []string{scenarioOpPath + ".Bindings.HTTP[0].ParamBindings[0].Param"},
+		nodesOfCode(diags, "ir/empty-param-ref"))
+	got := mismatches(diags)
+	require.Len(t, got, 1)
+	assert.Equal(t, ir.SeverityWarning, got[0].Severity)
+
+	unbound := paramBindingOp("op/x/o", ir.Parameter{ID: "param/x/o/q", Name: ir.Naming{Source: "q"}})
+	unbound.Bindings.HTTP[0].ParamBindings = nil
+	assert.Equal(t, mismatches(validated(t, docWithOperation(unbound))), got,
+		"the warning is the one a binding left out draws")
+}
+
+// TestValidate_ADiscriminatorLocatingNoTagIsAnEmptyReference pins that a
+// discriminator whose Property is empty while neither PropertyName nor Index
+// locates the tag is reported as an empty PropID reference, an error, at the
+// property, in the wording that says what it lacks, and as nothing else; one
+// PropertyName locates is clean.
+func TestValidate_ADiscriminatorLocatingNoTagIsAnEmptyReference(t *testing.T) {
+	t.Parallel()
+	doc := validDoc()
+	doc.Types["t/m"].(*ir.Model).Discriminator = &ir.Discriminator{}
+
+	diags := validated(t, doc)
+
+	require.Len(t, diags, 1, "the empty reference alone")
+	assert.Equal(t, "ir/empty-prop-ref", diags[0].Code)
+	assert.Equal(t, ir.SeverityError, diags[0].Severity)
+	assert.Equal(t, "doc.Types[t/m].Discriminator.Property", diags[0].Provenance.Node)
+	assert.Contains(t, diags[0].Message, "neither PropertyName nor Index locates the tag")
+
+	located := validDoc()
+	located.Types["t/m"].(*ir.Model).Discriminator = &ir.Discriminator{PropertyName: "a"}
+	assert.Empty(t, validated(t, located))
+}
