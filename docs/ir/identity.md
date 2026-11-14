@@ -209,13 +209,18 @@ declaration.
 An ID held as a reference — a field, a slice element, a map key or value, anywhere but the
 declaring entity's own `ID` — names an entity, so it is never empty. A reference a position may
 omit is a nil pointer (`Operation.OverloadOf`, `Reply.Channel`), as an optional type is a nil
-`*TypeRef` ([type-graph](./type-graph.md#type-references)). Two positions document an empty value as
-meaningful, and they are the only ones: `Discriminator.Default`, whose zero value means no default,
-and `Discriminator.Property`, empty when `PropertyName` or `Index` locates the tag instead
-([models](./models.md#discriminator)). `irverify` reports an empty reference anywhere else as
-`ir/empty-<noun>-ref`, except an empty `TypeRef.Target`, which is `ir/type-ref-no-target`
-([type-graph](./type-graph.md#type-references)). `pass.Validate` reports an empty reference only in
-a discriminator mapping, as a missing variant, so far (#575).
+`*TypeRef` ([type-graph](./type-graph.md#type-references)). A few positions document an empty value
+as meaningful: `Discriminator.Default`, whose zero value means no default; `Discriminator.Property`,
+empty when `PropertyName` or `Index` locates the tag instead ([models](./models.md#discriminator));
+`Idempotency.TokenParam`, empty on an operation that is not token-keyed; and every field of an
+`EntityRef` but the one of its entity's class. Which positions those are is one table in `ir`, read
+by both checkers through `ir.EmptyReferences`.
+
+An empty reference anywhere else is `ir/empty-<noun>-ref`, from `irverify` and, as an error, from
+`pass.Validate` alike, and a `pass` check that reads a required ID leaves an empty one to that
+report, so the defect draws one code (#575). Two empties are outside it, each reported by
+`irverify` alone: an entity's own empty `ID`, which is `ir/empty-<noun>-id`, and an empty
+`TypeRef.Target`, which is `ir/type-ref-no-target` ([type-graph](./type-graph.md#type-references)).
 
 ## Why IDs
 
