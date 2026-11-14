@@ -80,7 +80,7 @@ func buildObjects(ctx context.Context, bd *typed.Builder, table *bind.Table, med
 	}
 	for _, r := range table.References() {
 		var at []bind.Position
-		if !keySite(o.view, table, r) {
+		if !r.Key {
 			at = append(at, r.Site)
 		}
 		if r.Chain.Status == bind.Resolved {

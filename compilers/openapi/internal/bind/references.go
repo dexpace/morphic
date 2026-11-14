@@ -268,7 +268,8 @@ func (o *objects) reference(k objectKey) (Reference, bool) {
 	if o.b.wait.onObjects[k] {
 		return Reference{}, true
 	}
-	r := Reference{Site: k.at, Kind: k.kind, Hop: Hop{Status: OverBudget}, Chain: Chain{Status: OverBudget}}
+	_, key := o.b.docs.keyRefs[k.at]
+	r := Reference{Site: k.at, Kind: k.kind, Hop: Hop{Status: OverBudget}, Chain: Chain{Status: OverBudget}, Key: key}
 	if c, done := o.chains[k]; done {
 		r.Chain = c
 	}

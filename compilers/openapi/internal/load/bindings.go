@@ -88,17 +88,6 @@ func declaredIn(doc *soa.OpenAPI, opened map[string]*yaml.Node, self sourceDocum
 	return doc.GetOpenAPI()
 }
 
-// keySite reports whether r is a requirement key the table reads as a
-// reference (bind.Config.KeysByURI): a Security Scheme reference whose site
-// holds the key's scopes, where a Reference Object's holds a mapping.
-func keySite(view *nodeview.View, table *bind.Table, r bind.Reference) bool {
-	if r.Kind != bind.RefSecurityScheme {
-		return false
-	}
-	n := nodeview.Deref(writtenIn(view, table, r.Site))
-	return n == nil || n.Kind != yaml.MappingNode
-}
-
 // indexWalk tells bd where each schema, discriminator and reference-or-inline
 // wrapper of items was read: at base, where the walk starts, followed by the
 // item's location. It notes in faults where it meets each content entry the
@@ -186,11 +175,10 @@ func (s sourceDocument) nameOf(name string) string {
 // bound, if either stopped the reading.
 func bindingDiags(sites places, table *bind.Table) []ir.Diagnostic {
 	var diags []ir.Diagnostic
-	view := nodeview.New()
 	for _, r := range table.References() {
 		// A requirement key that resolves to nothing is the security
 		// lowering's to report (auth.Registry.Requirements).
-		if r.Hop.Status == bind.Unresolved && !keySite(view, table, r) {
+		if r.Hop.Status == bind.Unresolved && !r.Key {
 			diags = append(diags, diag.Newf(ir.SeverityError, diag.UnresolvedRef, sites.position(r.Site),
 				"unresolved $ref %q: %s", r.Hop.Ref, r.Hop.Why()))
 		}

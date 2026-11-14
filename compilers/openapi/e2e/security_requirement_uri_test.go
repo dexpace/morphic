@@ -303,3 +303,27 @@ func TestCompile_ASchemeAtADocumentsRootIsNamedForItsDocument(t *testing.T) {
 		}
 	}
 }
+
+// TestCompile_ARequirementKeyIsReportedOnceWhateverItsValue pins that a 3.2
+// requirement key naming nothing is reported once, by the security lowering,
+// whether its value is the list of scopes the key holds or a mapping, which
+// the rule table reports apart: the key is no $ref, so nothing reports an
+// unresolved one, and no object is built at it.
+func TestCompile_ARequirementKeyIsReportedOnceWhateverItsValue(t *testing.T) {
+	t.Parallel()
+	for value, want := range map[string][]string{
+		"[]": {"error openapi/unresolved-security-scheme /paths/~1a/get/security/0"},
+		"{}": {"error openapi/unresolved-security-scheme /paths/~1a/get/security/0",
+			"error openapi/validation/validation-type-mismatch /paths/~1a/get/security/0/#~1x-missing"},
+	} {
+		_, diags := parseVerified(t, `openapi: 3.2.0
+info: {title: T, version: "1"}
+paths:
+  /a:
+    get:
+      security: [{"#/x-missing": `+value+`}]
+      responses: {"200": {description: ok}}
+`)
+		assert.Equal(t, want, findingsAt(diags), value)
+	}
+}

@@ -288,11 +288,14 @@ func (k RefKind) String() string {
 
 // Reference is one position writing a Reference Object's $ref, read as Kind:
 // its hop, which lands on an object of Kind or fails NotObject, and its chain.
+// Key is set where the site is no Reference Object but a requirement key the
+// table reads as one (Config.KeysByURI), whose value is the key's scopes.
 type Reference struct {
 	Site  Position
 	Kind  RefKind
 	Hop   Hop
 	Chain Chain
+	Key   bool
 }
 
 // ObjectLanding is a position a Reference Object's chain lands on that the
