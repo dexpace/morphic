@@ -66,6 +66,9 @@ func TestOperationPathChecks_SeeOnlyThePathToTheField(t *testing.T) {
 		"checkPrefixHeaders":  checkPrefixHeaders,
 		"checkPrefixBindings": checkPrefixBindings,
 		"checkContentStreams": checkContentStreams,
+		"checkIdempotency":    checkIdempotency,
+		"checkWebhookRoutes":  checkWebhookRoutes,
+		"checkEnums":          checkEnums,
 	} {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()

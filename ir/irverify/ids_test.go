@@ -100,7 +100,7 @@ func TestVerify_WrongPointerIsAViolation(t *testing.T) {
 // have would make every document violate.
 func TestVerify_PointerlessIDIsClean(t *testing.T) {
 	t.Parallel()
-	p := &ir.Primitive{ID: "t/prim/string", Prim: ir.PrimString}
+	p := &ir.Primitive{ID: "t/prim/string", Prim: ir.PrimString, Provenance: ir.Provenance{Source: ir.NoSource}}
 	doc := &ir.Document{IRVersion: ir.IRVersion, Types: ir.TypeRegistry{p.ID: p}}
 	assert.Empty(t, verifyDeclared(doc))
 }
@@ -131,7 +131,7 @@ func TestVerify_PrimitiveAwayFromItsSharedIDIsAViolation(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			p := &ir.Primitive{ID: tc.id, Prim: tc.kind}
+			p := &ir.Primitive{ID: tc.id, Prim: tc.kind, Provenance: ir.Provenance{Source: ir.NoSource}}
 			doc := &ir.Document{IRVersion: ir.IRVersion, Types: ir.TypeRegistry{tc.id: p}}
 
 			got := verifyDeclared(doc)
@@ -155,7 +155,7 @@ func TestVerify_KindlessPrimitiveIsReportedOnItsOwnTerms(t *testing.T) {
 	t.Parallel()
 	const id ir.TypeID = "t/openapi/components/schemas/Name"
 	doc := &ir.Document{IRVersion: ir.IRVersion, Types: ir.TypeRegistry{
-		id: &ir.Primitive{ID: id},
+		id: &ir.Primitive{ID: id, Provenance: ir.Provenance{Source: ir.NoSource}},
 	}}
 
 	got := verifyDeclared(doc)
@@ -208,7 +208,7 @@ func TestVerify_PrimIDChecksAreScopedToTheSpaceAndTheKind(t *testing.T) {
 	doc := &ir.Document{IRVersion: ir.IRVersion, Types: ir.TypeRegistry{}}
 	for _, kind := range []ir.PrimKind{ir.PrimString, ir.PrimInt32, ir.PrimDatetimeOffset, ir.PrimAny} {
 		id := ir.PrimTypeID(kind)
-		doc.Types[id] = &ir.Primitive{ID: id, Prim: kind}
+		doc.Types[id] = &ir.Primitive{ID: id, Prim: kind, Provenance: ir.Provenance{Source: ir.NoSource}}
 	}
 	for _, m := range []struct {
 		id      ir.TypeID
