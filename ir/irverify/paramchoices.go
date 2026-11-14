@@ -68,6 +68,9 @@ func appendChoiceViolations(vs []Violation, choice ir.ParamChoice, where string,
 		}
 		first := seen.Emptied()
 		for k, id := range variant.Params {
+			if id == "" {
+				continue // checkEmptyRefs reports each empty one, a repeat among them
+			}
 			if earlier, repeated := first[id]; repeated {
 				vs = append(vs, Violation{
 					Code:    "ir/set-entry-duplicate",
