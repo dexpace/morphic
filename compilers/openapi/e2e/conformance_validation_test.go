@@ -135,7 +135,13 @@ func assertReachedOutsideModel(t *testing.T, _ *ir.Document, diags []ir.Diagnost
 // path item $ref, a character above U+FFFF or a merged $ref, and what it names
 // lowers where it is declared, once (docs/compilers/openapi.md#references).
 func assertReferenceObjectChains(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
-	assert.Empty(t, diags, "every reference resolves")
+	var findings []ir.Diagnostic
+	for _, d := range diags {
+		if d.Severity != ir.SeverityInfo {
+			findings = append(findings, d)
+		}
+	}
+	assert.Empty(t, findings, "every reference resolves; what an inference notes is no finding")
 	op, ok := opByName(doc, "createOrder")
 	require.True(t, ok)
 	names := make([]string, 0, len(op.Params))

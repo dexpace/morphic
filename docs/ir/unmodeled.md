@@ -49,7 +49,10 @@ the declaring position only where the entry combines several keywords into one s
 and no single node addresses it (`openapi:if-then-else`, `openapi:contains`, `openapi:unevaluated`).
 Such an entry's `WrittenBy` names an overlay that wrote every keyword it combines: one that wrote
 the whole construct is its writer, and one that only added to it leaves it with the document that
-declares it ([provenance](./provenance.md)).
+declares it ([provenance](./provenance.md)). An `openapi:unevaluated` entry may also hold the
+keyword that leaves an unevaluated one inert, written just before it
+([boundaries](./boundaries.md#validation-only-constructs)): that is context the entry holds
+whoever wrote it, so it is not among the keywords `WrittenBy` asks after.
 
 ## Keys
 
@@ -225,7 +228,8 @@ a row.
 | `Deprecation.ReplacedBy` | `Operation`, `Parameter`, `Property`, `AuthScheme`, `TypeCommon` | `Provenance.Inferred` |
 | `Enum.Closed`, `Enum.Flags`, `EnumMember.Name` | `Enum` | `Provenance.Inferred` |
 | `Union.Closed` | `Union` | `Provenance.Inferred` |
-| `Operation.Stability`, `Operation.Pagination`, `Operation.LongRunning`, `Operation.Idempotency` | `Operation` | `Provenance.Inferred` |
+| `Operation.Stability`, `Operation.LongRunning`, `Operation.Idempotency` | `Operation` | `Provenance.Inferred` |
+| `Operation.Pagination` | `Operation`, `Parameter`, `Property`, `TypeCommon` | `Provenance.Inferred` |
 | `TypeCommon.Sensitive` | `TypeCommon` | `Provenance.Inferred` |
 | `Property.Secret`, `Parameter.Secret` | `Property`, `Parameter`, `TypeCommon` | `Provenance.Inferred` |
 | `Server.Name` | `Server` | `Provenance.Inferred` |
@@ -239,8 +243,10 @@ binding is reached from its parameter by `HTTPParamBinding.Param`, so a consumer
 `AllowReserved` was inferred reads the parameter it names. The rows of a deprecation and of `Secret`
 also name `TypeCommon`, the node of a `$ref`'s target, which lends a use what its keys state (rule
 3); a replacement is never lent, since it names an entity of its own node's class, which a use and
-its target are not. A promoted `Pagination` also sets its own `Inferred`, which says the value as a whole is a
-heuristic's ([plan policy](../emitters/plan/policy.md)).
+its target are not. A pagination is read off the operation's keys and off keys marking a value
+where it sits, its parameter, its member or the type either names, so each node whose key it read
+records it. A promoted `Pagination` also sets its own `Inferred`, which says the value as a whole is
+a heuristic's ([plan policy](../emitters/plan/policy.md)).
 
 Three other places for the record were weighed:
 

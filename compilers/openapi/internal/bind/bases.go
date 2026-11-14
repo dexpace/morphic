@@ -10,7 +10,7 @@ import (
 )
 
 // bases answers the resource a position read as a schema is in (Table.Base,
-// Table.InOwnResource) as resources.holding does, remembering the walk at each
+// Table.Resource) as resources.holding does, remembering the walk at each
 // position it passes. A position below one walked before starts there rather
 // than at its document's root, so asking at every level of a deep schema walks
 // its depth once rather than once a level. Where ids says a document is read

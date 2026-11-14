@@ -180,13 +180,13 @@ func TestLoad_ReadsTheRowsOfTheVersionTheSourceDeclares(t *testing.T) {
 	assert.True(t, r30.Schema.Defines("nullable"))
 	assert.False(t, r31.Schema.Defines("nullable"))
 	assert.True(t, r31.Schema.Defines("prefixItems"))
-	_, untyped30 := r30.Encoding.UntypedContentType()
-	_, untyped31 := r31.Encoding.UntypedContentType()
+	_, untyped30 := r30.Encoding.ContentType(oas.DefaultUntyped)
+	_, untyped31 := r31.Encoding.ContentType(oas.DefaultUntyped)
 	assert.False(t, untyped30)
 	assert.True(t, untyped31)
 	r04 := rowsOf("3.1.0", "jsonSchemaDialect: '"+draft04+"'\n")
 	assert.True(t, r04.Schema.Takes("exclusiveMinimum", oas.Boolean))
-	_, untyped04 := r04.Encoding.UntypedContentType()
+	_, untyped04 := r04.Encoding.ContentType(oas.DefaultUntyped)
 	assert.True(t, untyped04, "a dialect leaves the Encoding Object's rows the minor's")
 }
 

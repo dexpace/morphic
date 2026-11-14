@@ -119,7 +119,7 @@ func TestAllOf_BranchWrittenByReferenceStillDerivesResidue(t *testing.T) {
 	}{
 		{"Aliased", "additionalProperties, type", ir.SeverityWarning},
 		{"Merged", "additionalProperties, type", ir.SeverityWarning},
-		{"Overridden", "additionalProperties", ir.SeverityInfo},
+		{"Overridden", "additionalProperties, maxLength", ir.SeverityInfo},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {

@@ -1,0 +1,84 @@
+# A page walk an extension declares reaches Operation.Pagination under the
+# default mapping, in both of its conventions: an object on the operation
+# whose members name each value by an expression, and a key on each value's
+# parameter, member or type naming its part. A walk the extensions state
+# without a way to its next page fills nothing and is reported.
+openapi: 3.0.3
+info: {title: ExtensionPagination, version: "1.0.0"}
+paths:
+  /apps:
+    get:
+      operationId: byExpression
+      x-fern-pagination:
+        cursor: $request.page_token
+        next_cursor: $response.result_info.next_page_token
+        results: $response.result
+      parameters:
+        - {name: page_token, in: query, schema: {type: string}}
+        - {name: per_page, in: query, schema: {type: integer}}
+      responses:
+        "200":
+          description: ok
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Envelope'
+                  - type: object
+                    properties:
+                      result: {type: array, items: {type: string}}
+                      result_info: {$ref: '#/components/schemas/PageInfo'}
+  /keys:
+    get:
+      operationId: byMarks
+      parameters:
+        - name: cursor
+          in: query
+          schema: {type: string, x-stainless-pagination-property: {purpose: next_cursor_param}}
+      responses:
+        "200":
+          description: ok
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Envelope'
+                  - type: object
+                    properties:
+                      result:
+                        type: array
+                        items: {type: string}
+                        x-stainless-pagination-property: {purpose: items}
+                      result_info: {$ref: '#/components/schemas/CursorInfo'}
+  /links:
+    get:
+      operationId: byNextLink
+      x-fern-pagination: {next_uri: $response.next, results: $response.data}
+      responses:
+        "200":
+          description: ok
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: {type: array, items: {type: string}}
+                  next: {type: string}
+  /offsets:
+    get:
+      operationId: noNextPage
+      x-fern-pagination: {offset: $request.page, results: $response.data}
+      parameters:
+        - {name: page, in: query, schema: {type: integer}}
+      responses:
+        "200":
+          description: ok
+          content:
+            application/json:
+              schema: {type: object, properties: {data: {type: array, items: {type: string}}}}
+components:
+  schemas:
+    Envelope: {type: object, properties: {success: {type: boolean}}}
+    PageInfo: {type: object, properties: {next_page_token: {type: string}, per_page: {type: integer}}}
+    Cursor: {type: string, x-stainless-pagination-property: {purpose: next_cursor_field}}
+    CursorInfo: {type: object, properties: {count: {type: number}, cursor: {$ref: '#/components/schemas/Cursor'}}}

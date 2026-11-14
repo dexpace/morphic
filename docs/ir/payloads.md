@@ -36,9 +36,9 @@ type Content struct {
                                   // (OpenAPI 3.2 itemSchema for SSE/JSONL/json-seq); nil = none
                                   // declared, Stream saying whether the content streams
     ItemEncoding *PartEncoding    // wire encoding of a sequential stream's item (3.2 itemEncoding),
-                                  // or one saying only that each item is a file where a multipart
-                                  // stream of files writes none; singular like Item, because it
-                                  // governs every item alike.
+                                  // or, where a multipart stream writes none, one for its items,
+                                  // each a part: whether it is a file, and its default content
+                                  // type; singular like Item, because it governs every item alike.
                                   // Positional per-item encoding (3.2 prefixEncoding) has no form
                                   // here and stays in Unmodeled — see docs/ir/unmodeled.md
     Encoding  map[PropID]PartEncoding // multipart/form: per-property (part) wire config, keyed by the
@@ -47,7 +47,11 @@ type Content struct {
                                   // registry; of a part several declarations name, the one the
                                   // model's flattening takes (docs/ir/models.md). A body that is a
                                   // union, as one a composition is distributed across is, has its
-                                  // variants' parts, a part keyed by the first variant declaring it
+                                  // variants' parts, through the unions nested in them, a part keyed
+                                  // under each variant declaring it, each entry as that variant
+                                  // declares the part; and a body that is a model narrowing a
+                                  // union, or a variant that is one, each shape's parts
+                                  // (docs/ir/models.md)
     File      *FileInfo           // body is a file upload/download (TypeSpec file bodies, binary
                                   // payloads): how it travels, while Type stays what the source
                                   // declares of it, so nothing that declaration says is lost
@@ -60,20 +64,28 @@ type Content struct {
 }
 
 type PartEncoding struct {
-    ContentTypes []string          // media type(s) of this part
+    ContentTypes []string          // media type(s) of this part: as the source declares them, or,
+                                   // where it declares none, the default its format gives the value
+                                   // the encoding applies to, each item of a repeated part. Empty
+                                   // where the format gives none. Not read where Style is set,
+                                   // whose arrangement replaces it, and given no default there
     Headers      []Header          // per-part headers
     Multi        bool              // part repeats, or may: an array member, or a union with a
                                    // list among its variants → repeated parts
-    Filename     bool              // part carries a filename (file part)
+    Filename     bool              // part carries a filename (file part); a part of a url-encoded
+                                   // body, which names no file, never does
     Inferred     Inferred          // "" = the source declares the part a file; else the heuristics
                                    // that read Filename in (OpenAPI's binary media types), so a
                                    // consumer taking only what was declared can set it aside. Set
                                    // only where Filename is (ir/part-encoding-inferred-not-filename)
-    Style        string            // form-style serialization for non-file parts
-    Explode      *bool
+    Style        string            // set wherever the source arranges the part's value as a query
+                                   // parameter's is (HTTPParamBinding.Style), the style it names or
+                                   // the one its format defaults to, so ContentTypes is not read;
+                                   // "" = the value travels as ContentTypes says
+    Explode      *bool             // as declared beside Style; nil reads as Style's default
     AllowReserved bool             // the part's value is written as HTTPParamBinding.AllowReserved
                                    // writes a parameter's: reserved characters and percent-encoded
-                                   // triples pass unescaped
+                                   // triples pass unescaped. Set only beside Style
 }
 // TypeSpec tuple-form multipart lowers to a synthesized model whose properties are the parts.
 

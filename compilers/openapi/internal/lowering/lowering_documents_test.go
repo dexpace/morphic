@@ -106,47 +106,6 @@ func TestInDocument_PlacesWhatAnotherDocumentDeclares(t *testing.T) {
 	assert.Equal(t, ids.Document{}, same.IDs(), "and the context is left as it was")
 }
 
-// TestScoped_KeysAPositionByTheDocumentItIsRead pins that a position makes a
-// key for each document it is read in: in another document's coordinates and
-// in that document's scope at the source's, which differ only in where
-// positions are placed, and in the scopes of two other documents, which differ
-// only in which document holds them.
-func TestScoped_KeysAPositionByTheDocumentItIsRead(t *testing.T) {
-	t.Parallel()
-	dir := t.TempDir()
-	for name, body := range map[string]string{"ext.yaml": "X: {type: string}\n", "other.yaml": "Y: {type: string}\n"} {
-		require.NoError(t, os.WriteFile(filepath.Join(dir, name), []byte(body), 0o600))
-	}
-	const root = "openapi: 3.1.0\ninfo: {title: T, version: \"1\"}\npaths: {}\ncomponents:\n  schemas:\n" +
-		"    A: {$ref: './ext.yaml#/X'}\n    B: {$ref: './other.yaml#/Y'}\n"
-	doc, _, err := load.Load(t.Context(), 0, compilers.Source{Path: filepath.Join(dir, "root.yaml"),
-		Data: []byte(root)}, load.Options{Reader: reader.Disk{}})
-	require.NoError(t, err)
-	c := lowering.New(0, doc, lowering.Policy{})
-	in := func(component string) lowering.Ctx {
-		t.Helper()
-		s, ok := c.Doc.Components.Schemas.Get(component)
-		require.True(t, ok)
-		e, ok := c.Bindings().Entry(s)
-		require.True(t, ok)
-		there, ok := lowering.InDocument(c, e.Hop.Target.Doc)
-		require.True(t, ok)
-		return there
-	}
-	there, elsewhere := in("A"), in("B")
-	atSource, elsewhereAtSource := there.InScope(there.RefScope()), elsewhere.InScope(elsewhere.RefScope())
-	require.Equal(t, there.RefScope().Holder, atSource.RefScope().Holder, "one scope")
-	require.True(t, atSource.RefScope().Foreign && elsewhereAtSource.RefScope().Foreign, "two documents' scopes")
-	at := bind.Position{Pointer: "/X"}
-
-	if lowering.Scoped(there, at) == lowering.Scoped(atSource, at) {
-		t.Error("placed in ext.yaml and in the source, the position shares one key")
-	}
-	if lowering.Scoped(atSource, at) == lowering.Scoped(elsewhereAtSource, at) {
-		t.Error("read in ext.yaml's scope and in other.yaml's, the position shares one key")
-	}
-}
-
 // TestSchemaRules_FollowTheDocumentTheScopeReads pins which document's rows a
 // context reads a schema with: that of the document its scope reads, through
 // InDocument and InScope alike, and back to the source's. SchemaRulesIn answers
@@ -252,7 +211,8 @@ func TestSchemaRulesIn_AsksTheSourcesRowsAtNoCost(t *testing.T) {
 // allocation counts are the process's.
 func TestNew_ReadsTheSourcesRowsFromTheLoad(t *testing.T) {
 	c, doc := loadSplit(t, "X: {type: string}\nP: {name: p, in: query}\n")
-	if c.SchemaRules() != doc.Rows.Schema || lowering.EncodingRules(c) != doc.Rows.Encoding {
+	if c.SchemaRules() != doc.Rows.Schema || lowering.EncodingRules(c) != doc.Rows.Encoding ||
+		lowering.SecurityRules(c) != doc.Rows.Security {
 		t.Error("the context read rows of its own, not the load phase's")
 	}
 	table := testing.AllocsPerRun(10, func() { _ = oas.Table() })
@@ -262,17 +222,13 @@ func TestNew_ReadsTheSourcesRowsFromTheLoad(t *testing.T) {
 	assert.Less(t, built, table, "building the context built a rule table")
 }
 
-// TestIDsAt_NamesEachSourceEntrysDocument pins how the IDs of what each
-// Document.Sources entry declares are qualified: the source's and its
-// overlay's bare, and another document's by its label, which OtherIDs lists
-// in Sources order.
-func TestIDsAt_NamesEachSourceEntrysDocument(t *testing.T) {
+// TestOtherIDs_NamesEachDocumentReadBesideTheSource pins how the IDs of what
+// a document a reference read beside the source declares are qualified: by
+// its label, in Sources order.
+func TestOtherIDs_NamesEachDocumentReadBesideTheSource(t *testing.T) {
 	t.Parallel()
 	c, _ := loadSplit(t, "X: {type: string}\nP: {name: p, in: query}\n")
 
-	assert.Equal(t, ids.Document{}, lowering.IDsAt(c, 0))
-	assert.Equal(t, ids.In("ext.yaml"), lowering.IDsAt(c, 1))
-	assert.Equal(t, ids.Document{}, lowering.IDsAt(c, 2), "an index no document is at")
 	assert.Equal(t, []ids.Document{ids.In("ext.yaml")}, lowering.OtherIDs(c))
 }
 

@@ -136,20 +136,33 @@ func TestBind_ReadsTheSourcesIdentifiersFromAnotherDocument(t *testing.T) {
 	assert.Equal(t, bind.Position{Doc: 1, Pointer: "/T"}, entryAt(t, table, "/components/schemas/C").Hop.Target)
 }
 
-// TestBind_ReadsAMappingValueByIdentifier pins that a discriminator's mapping
-// value names a schema by an identifier as a $ref does, read against the
-// resource the discriminator is in.
-func TestBind_ReadsAMappingValueByIdentifier(t *testing.T) {
+// TestBind_ReadsAMappingValueNamingNoComponentAsAReference pins which
+// discriminator mapping values the table reads: each naming no schema
+// component of the source (Config.Components), as a $ref written at the
+// discriminator, with a fragment or without, against the resource the
+// discriminator is in, and the defaultMapping alike. A value naming a
+// component is the lowering's to read by name.
+func TestBind_ReadsAMappingValueNamingNoComponentAsAReference(t *testing.T) {
 	t.Parallel()
+	cfg := resolving
+	cfg.Components = []string{"D", "X", "Y"}
 	table := bound(t, head+"components:\n  schemas:\n"+
-		"    D: {$id: 'https://x.test/d', discriminator: {propertyName: k, mapping: {x: '#x', y: 'y'}}}\n"+
-		"    X: {$anchor: x}\n    Y: {$id: 'https://x.test/y'}\n", resolving)
+		"    D:\n      $id: 'https://x.test/d'\n"+
+		"      discriminator: {propertyName: k, mapping: {x: '#x', y: 'y', n: 'Y'}, defaultMapping: 'y#'}\n"+
+		"    X: {$anchor: x}\n    Y: {$id: 'https://x.test/y'}\n", cfg)
 	disc := bind.Position{Pointer: "/components/schemas/D/discriminator"}
+
 	x, ok := table.Mapping(disc, "#x")
 	require.True(t, ok)
 	assert.Equal(t, bind.NoAnchor, x.Hop.Reason, "an anchor of the document's resource, read in d's")
-	_, ok = table.Mapping(disc, "y")
-	assert.False(t, ok, "a value with no '#' names a component, which the table does not read")
+	for _, value := range []string{"y", "y#"} {
+		y, ok := table.Mapping(disc, value)
+		require.True(t, ok, "%q names no component, so it is a URI reference", value)
+		require.Equal(t, bind.Resolved, y.Hop.Status, value)
+		assert.Equal(t, at("/components/schemas/Y"), y.Hop.Target, "%q is read against d's resource", value)
+	}
+	_, ok = table.Mapping(disc, "Y")
+	assert.False(t, ok, "a value naming a component is read by name, not by the table")
 }
 
 // TestBind_LocatesAnAbsoluteURIUnderAnID pins that an absolute URI written

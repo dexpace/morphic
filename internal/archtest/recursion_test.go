@@ -81,26 +81,29 @@ var loweringRecursions = [][]string{
 }
 
 // schemaRecursion is the largest of them, named because the design refers to it
-// directly and because #176's package split is sized by it. The two exported
-// names are the walk's entry points, which is how the operation lowering
-// reaches it; the rest is unexported because nothing outside the schema package
-// has any business entering mid-walk. The scalar hoisters and the encoding
-// reader are members because contentSchema's value is a schema, so lowering it
-// re-enters the walk from a scalar position. Discriminator lowering is one
-// because resolving a mapping target can hoist the position it names.
+// directly and because #176's package split is sized by it. Its exported names
+// are how the operation lowering reaches it; the rest is unexported because
+// nothing outside the schema package has any business entering mid-walk. The
+// scalar hoisters and the encoding reader are members because contentSchema's
+// value is a schema, so lowering it re-enters the walk from a scalar position.
+// Discriminator lowering is one because resolving a mapping target can hoist
+// the position it names, and so is the census, which resolves a kept one's.
 var schemaRecursion = []string{
-	"CarriedRef", "Ref", "buildComposedVariant", "buildListedTuple", "buildTuple", "buildUnion",
+	"CarriedRef", "FillPropertyDetail", "PreserveRefSiteKeywords", "Ref", "buildComposedVariant",
+	"buildListedTuple", "buildTuple", "buildUnion",
 	"composedVariant", "contentSchemaRef", "discriminatorDefault",
 	"discriminatorMapping", "fillAdditional", "fillAllOf",
-	"fillModelProperties", "fillRefBranch", "hoistScalar", "hoistSubSchema", "lower",
+	"fillModelProperties", "fillRefBranch", "hierarchyRoute", "hoistScalar", "hoistSubSchema", "lower",
 	"lowerAllOf",
 	"lowerArray", "lowerBesideUnmodeledUnion", "lowerCoDeclaredUnion",
-	"lowerDiscriminator", "lowerDistributedUnion", "lowerElected", "lowerModel",
+	"lowerDiscriminator", "lowerDistributedUnion", "lowerElected", "lowerModel", "lowerNullOnlyUnion",
 	"lowerOneOfAnyOf", "lowerPrincipal", "lowerSchemaBody", "lowerSubtypeUnion", "lowerTypeVariant",
 	"lowerTyped", "lowerUnion",
-	"lowerUntyped", "mintUnion", "patternProps", "refSiteRef", "refTypeRef", "referencedVariants",
-	"resolveAt", "resolveBeaten", "resolveDiscriminatorRoutes", "resolveMappingTarget",
-	"resolvePointer", "resolveSchemaRef",
+	"lowerUntyped", "mintUnion", "outcomeKeeps.record", "outcomeKeeps.recordOn", "patternProps",
+	"preserveUnhomedKeywords", "preserveVariantsUnhomed",
+	"recordUnhomedAt", "recordUnhomedKeywords", "refSiteRef", "refTypeRef",
+	"resolveAt", "resolveBeaten", "resolveDiscriminatorRoutes",
+	"resolvePointer", "resolveSchemaRef", "routeEntry",
 	"scalarEncoding", "scalarTypeID", "schemaBody", "schemaRefHomed",
 }
 
@@ -115,6 +118,7 @@ var loweringPackages = []string{
 	"compilers/openapi/internal/convention",
 	"compilers/openapi/internal/document",
 	"compilers/openapi/internal/operation",
+	"compilers/openapi/internal/pagination",
 	"compilers/openapi/internal/replacement",
 	"compilers/openapi/internal/schema",
 	"compilers/openapi/internal/servers",
@@ -453,9 +457,9 @@ func TestLoweringCallGraph_RecordsAHandoffAsAnEdge(t *testing.T) {
 	graph := loweringCallGraph(t)
 
 	handoffs := map[string]string{
-		"enumNullVerdict":         "isNullValue",
-		"setsDeclareShape":        "branchDeclaresShape",
-		"preserveVariantsUnhomed": "constraintsHome",
+		"enumNullVerdict":  "isNullValue",
+		"setsDeclareShape": "branchDeclaresShape",
+		"unreadBounds":     "constraintsHome",
 	}
 	for from, to := range handoffs {
 		require.Contains(t, graph, from, "the graph no longer holds %q", from)

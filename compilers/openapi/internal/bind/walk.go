@@ -6,6 +6,7 @@ package bind
 import (
 	"slices"
 	"strconv"
+	"strings"
 
 	yaml "go.yaml.in/yaml/v3"
 
@@ -48,8 +49,11 @@ type finder struct {
 	freshMappings []mappingKey
 	freshObjects  []objectKey
 	freshDynamic  []dynamicSite
-	expansions    []expansion
-	landings      map[Position]bool
+	// freshRecursive is each $recursiveRef found since the table last settled
+	// (dynamicOf).
+	freshRecursive []Position
+	expansions     []expansion
+	landings       map[Position]bool
 	// objLandings is each position a reference object's chain lands on that
 	// the grammar reads as no object of its kind (ObjectLanding).
 	objLandings map[objectKey]bool
@@ -104,6 +108,9 @@ func (w *finder) walk(r root, mark bool) {
 			f = w.declared(n, f)
 		} else if len(w.ids.dialects) > 0 {
 			f.dialect = rootDialect(w.ids, f.at, f.dialect)
+		}
+		if f.state == sSchema {
+			w.dynamicOf(n, f)
 		}
 		w.tupleOf(n, f)
 		stack = w.pushChildren(stack, n, f)
@@ -165,7 +172,6 @@ func (w *finder) visit(n *yaml.Node, f frame) {
 		w.fresh = append(w.fresh, f.at)
 	}
 	w.mappingsOf(n, f.at)
-	w.dynamicOf(n, f.at)
 }
 
 // objectOf notes the position f, holding n, as a reference object of the kind
@@ -211,49 +217,45 @@ type dynamicSite struct {
 	key dynamicKey
 }
 
-// expansion is a $dynamicRef written at from and the schema at to declaring the
-// one anchor of its name, which it reaches as a $ref reaches what it names.
+// expansion is a dynamic reference written at from and the schema at to it
+// names, which it reaches as a $ref reaches what it names: the one anchor of a
+// $dynamicRef's name, or the root of a $recursiveRef's resource.
 type expansion struct {
 	from, to Position
 }
 
-// dynamicOf notes the anchor the $dynamicRef the schema at at, holding n, names,
-// where another document holds it. Nothing but a reference builds a schema of
-// another document (landed), and an expansion is one, so settle lands on the
-// anchor. The source's are the model's own.
-func (w *finder) dynamicOf(n *yaml.Node, at Position) {
-	if at.Doc == Source {
+// dynamicOf notes the dynamic reference the schema at f, holding n and read in
+// f's dialect, writes: a $dynamicRef naming an anchor, and a $recursiveRef of
+// "#" where the dialect defines one (DialectRule.Recursive). Nothing but a
+// reference builds a schema the model does not hold, another document's or
+// raw YAML's (landed), and an expansion is one, so settle lands on what each
+// names (landDynamic).
+func (w *finder) dynamicOf(n *yaml.Node, f frame) {
+	view := w.docs.list[f.at.Doc].view
+	if ref, ok := scalarOf(view.ChildByToken(n, "$dynamicRef")); ok {
+		if name, _, ok := DynamicFragment(ref); ok {
+			w.freshDynamic = append(w.freshDynamic, dynamicSite{at: f.at, key: dynamicKey{doc: f.at.Doc, name: name}})
+		}
 		return
 	}
-	ref, ok := scalarOf(w.docs.list[at.Doc].view.ChildByToken(n, "$dynamicRef"))
-	if !ok {
-		return
-	}
-	if name, _, ok := DynamicFragment(ref); ok {
-		w.freshDynamic = append(w.freshDynamic, dynamicSite{at: at, key: dynamicKey{doc: at.Doc, name: name}})
+	ref, ok := scalarOf(view.ChildByToken(n, "$recursiveRef"))
+	if ok && strings.TrimSpace(ref) == "#" && dialectRule(w.docs, f.at.Doc, f.dialect).Recursive {
+		w.freshRecursive = append(w.freshRecursive, f.at)
 	}
 }
 
-// landOnAnchors lands on the one schema declaring each anchor a $dynamicRef in
-// another document names, as a reference would, for the schema an expansion
-// takes to be built and read. It waits for no later pass: a name is only asked
-// of a document open, whose identifiers it reads whole.
-func (w *finder) landOnAnchors() {
-	dynamic := w.freshDynamic
-	w.freshDynamic = nil
-	for _, d := range dynamic {
-		w.identify(d.key.doc)
-		if at := w.ids.dynamic[d.key]; len(at) == 1 {
-			w.landed(Hop{Target: at[0], Role: Raw})
-			w.expansions = append(w.expansions, expansion{from: d.at, to: at[0]})
-		}
-	}
+// landOn notes h, the hop the dynamic reference written at from takes to what
+// it names, as a $ref's would be (landed).
+func (w *finder) landOn(from Position, h Hop) {
+	w.landed(h)
+	w.expansions = append(w.expansions, expansion{from: from, to: h.Target})
 }
 
 // mappingsOf notes each value of the discriminator the schema at at, holding
-// n, writes that can name a position: one holding a '#', which a component's
-// bare name cannot (lowering reads any other as a name). The parser reads none
-// (docs/parser-library.md#mapping-unresolved), so each is bound here.
+// n, writes that names no schema component of the source (Config.Components):
+// a URI reference, with a fragment or without, as OpenAPI reads a value naming
+// no schema. The parser reads none (docs/parser-library.md#mapping-unresolved),
+// so each is bound here.
 func (w *finder) mappingsOf(n *yaml.Node, at Position) {
 	view := w.docs.list[at.Doc].view
 	d := nodeview.Deref(view.ChildByToken(n, "discriminator"))
@@ -269,7 +271,7 @@ func (w *finder) mappingsOf(n *yaml.Node, at Position) {
 	}
 	values = append(values, view.ChildByToken(d, "defaultMapping"))
 	for _, v := range values {
-		if v = nodeview.Deref(v); v == nil || v.Kind != yaml.ScalarNode || !containsHash(v.Value) {
+		if v = nodeview.Deref(v); v == nil || v.Kind != yaml.ScalarNode || w.docs.components[v.Value] {
 			continue
 		}
 		if k := (mappingKey{at: disc, value: v.Value}); !w.mappingSites[k] {
@@ -277,11 +279,6 @@ func (w *finder) mappingsOf(n *yaml.Node, at Position) {
 			w.freshMappings = append(w.freshMappings, k)
 		}
 	}
-}
-
-// containsHash reports whether value holds a '#'.
-func containsHash(value string) bool {
-	return slices.Contains([]byte(value), '#')
 }
 
 // pushChildren returns stack with the positions directly below f, whose node is

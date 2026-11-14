@@ -42,8 +42,7 @@ type reached struct {
 	// and others one about another document's (see locatorFor).
 	tree   provenance.Tree
 	others Others
-	// dialects gives the rows each schema checked is read with, which judge
-	// the values the check leaves to the load phase (ownedFindings).
+	// dialects gives the rows each schema checked is read with.
 	dialects Dialects
 	// seen holds the objects the source's own check read as their kind.
 	seen map[objectKey]bool
@@ -115,12 +114,12 @@ var objectKinds = map[bind.RefKind]oas.Kind{
 
 // builtTargets returns the targets the schemas built for landings make, each
 // placed at the least position whose chain reaches it, in whichever document,
-// as name names it. One no position reaches, which only a budget
-// cutting the reading leaves, is no target, and nor is a boolean schema, which
-// holds nothing to check. A tuple's entry the parser read as false though what
-// is written there, which written returns, is no schema, such as a number, is
-// one, so the check reports it as it does a prefixItems entry; its rest is
-// judged beside its `items` instead (oas.SchemaRules.TupleRestFinding).
+// as name names it. One no position reaches, which only a budget cutting the
+// reading leaves, is no target, nor is a boolean schema, which holds nothing to
+// check. A tuple's entry the parser read as false though what written returns
+// there is no schema, such as a number, is one, so the check reports it as a
+// prefixItems entry; its rest is judged by its own row where the check reads
+// the schema writing it.
 func builtTargets(built []typed.Built, name func(bind.DocID) string, written func(bind.Position) *yaml.Node,
 ) []reachedTarget {
 	var out []reachedTarget
@@ -244,15 +243,12 @@ func (v *reached) check(ctx context.Context, site ir.Provenance, t reachedTarget
 	if d, over := v.charge(ctx, site, t.doc, t.node); over {
 		return d
 	}
-	var owned []oas.Owned
 	opts := oas.Options{Start: t.kind, Budget: v.limit, Locate: v.locatorFor(t), ReadAt: true, Root: t.at.Pointer,
-		Owned: func(o oas.Owned) { owned = append(owned, o) }}
+		Rows:     v.dialects.rowsAt(v.positionOf(t, t.at.Pointer)),
+		RootRows: func(at jsontext.Pointer) (oas.SchemaRules, bool) { return v.dialects.root(v.positionOf(t, at)) }}
 	version := v.versionOf(t)
 	found := append(v.checker.Check(ctx, t.node, version, opts),
 		oas.CheckFormat(ctx, t.node, version, formatOptions(opts))...)
-	found = append(found, ownedFindings(owned, func(o oas.Owned) oas.SchemaRules {
-		return v.dialects.rowsAt(v.positionOf(t, o.Schema))
-	})...)
 	var diags []ir.Diagnostic
 	for _, d := range found {
 		if key := identity(d, t.doc); !v.reported[key] {

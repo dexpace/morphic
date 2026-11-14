@@ -124,7 +124,7 @@ x-lib:
 - Verified at: v1.26.3
 - Pinned by: `TestLibraryBehaviour/mapping-unresolved`
 - Code:
-  - `bind.finder.mappingsOf` notes each mapping value that can name a position, to be bound.
+  - `bind.finder.mappingsOf` notes each mapping value naming no schema component, to be bound.
 
 ### `reference-object-cycle`
 
@@ -531,6 +531,8 @@ components:
   - `nodeview.View.mergeSource` reads each source's pairs as a merge reads them.
   - `nodeview.Child` looks one key up through the merges by the same order and copies.
   - `oas.CheckFormat` reports a `<<` naming no mapping.
+  - `nodeview.MergesNothing` finds a `<<` naming no mapping wherever a mapping's merges reach.
+  - `auth.namesAnOption` reads a requirement merging nothing as no option, not the empty one.
 
 ### `non-scalar-key`
 

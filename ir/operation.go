@@ -184,15 +184,18 @@ type Content struct {
 	// (OpenAPI 3.2 itemSchema for SSE/JSONL/json-seq); nil = none declared,
 	// Stream saying whether the content streams all the same.
 	Item *TypeRef `json:"item,omitzero"`
-	// ItemEncoding is the wire encoding of a sequential stream's item
-	// (3.2 itemEncoding); nil = none declared. It is singular like Item because
-	// it governs every item alike; positional per-item encoding has no form here
-	// and stays in Unmodeled.
+	// ItemEncoding is the wire encoding of a sequential stream's item (3.2
+	// itemEncoding), or, where a multipart stream declares none, its items' as
+	// parts; nil = none. It is singular like Item because it governs every item
+	// alike; positional per-item encoding has no form here and stays in
+	// Unmodeled.
 	ItemEncoding *PartEncoding `json:"itemEncoding,omitzero"`
 	// Encoding holds multipart/form per-property (part) wire config, keyed by the
 	// part property's PropID: of a part several declarations name, the one the
-	// flattening of Type takes (docs/ir/models.md#the-flattening). No key is
-	// empty.
+	// flattening of Type takes (docs/ir/models.md#the-flattening), and of a union
+	// body, each variant's declaring it, through nested unions, each entry as
+	// that variant declares the part, as of each shape a model narrowing a union
+	// takes. No key is empty.
 	Encoding map[PropID]PartEncoding `json:"encoding,omitempty"`
 	// File marks the body as a file upload/download (TypeSpec file bodies, binary
 	// payloads): how it travels, while Type stays what the source declares of it.
@@ -221,25 +224,30 @@ type ContentStream struct {
 // item (docs/ir/payloads.md). TypeSpec tuple-form multipart lowers to a
 // synthesized model whose properties are the parts.
 type PartEncoding struct {
-	// Explode overrides the default explode behavior; nil = default.
+	// Explode is the explode Style's arrangement takes, as declared; nil reads
+	// as Style's default.
 	Explode *bool `json:"explode,omitzero"`
-	// Style is the form-style serialization for non-file parts.
+	// Style, where set, arranges the part's value as a query parameter's is
+	// (HTTPParamBinding.Style), so ContentTypes is not read; "" means the value
+	// travels as ContentTypes says (docs/ir/payloads.md).
 	Style string `json:"style,omitempty"`
 	// Inferred lists the heuristics that read Filename in, as
 	// [Provenance].Inferred does on a node that has one; empty means the
 	// source declares the part a file. It is set only where Filename is.
 	Inferred Inferred `json:"inferred,omitempty"`
-	// ContentTypes are the media type(s) of this part.
+	// ContentTypes are the media type(s) of this part, as declared or, where the
+	// source declares none, the default its format gives (docs/ir/payloads.md).
 	ContentTypes []string `json:"contentTypes,omitempty"`
 	// Headers are the per-part headers.
 	Headers []Header `json:"headers,omitempty"`
 	// Multi reports that the part repeats (array member → repeated parts).
 	Multi bool `json:"multi"`
-	// Filename reports that the part carries a filename (file part).
+	// Filename reports that the part carries a filename (file part), which no
+	// part of a url-encoded body does.
 	Filename bool `json:"filename"`
 	// AllowReserved writes the part's value as HTTPParamBinding.AllowReserved
 	// writes a parameter's: reserved characters and percent-encoded triples pass
-	// unescaped (OpenAPI Encoding allowReserved).
+	// unescaped (OpenAPI Encoding allowReserved). It is set only beside Style.
 	AllowReserved bool `json:"allowReserved"`
 }
 

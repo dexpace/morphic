@@ -83,10 +83,10 @@ func AsPlaced(d ir.Diagnostic) ir.Diagnostic {
 	return d
 }
 
-// later adds the warning for a construct a later minor than the declared one
-// added to obj: the field key, or the value of it. since is the minor that
+// laterField adds the warning for a construct a later minor than the declared
+// one added to obj: the field key, or the value of it. since is the minor that
 // added it.
-func (r *reporter) later(obj Object, key, value string, since Minor, ptr jsontext.Pointer) {
+func (r *reporter) laterField(obj Object, key, value string, since Minor, ptr jsontext.Pointer) {
 	what := fmt.Sprintf("field %q", key)
 	if value != "" {
 		what = fmt.Sprintf("value %q of field %q", value, key)
@@ -94,6 +94,59 @@ func (r *reporter) later(obj Object, key, value string, since Minor, ptr jsontex
 	r.add(diag.Newf(ir.SeverityWarning, diag.LaterVersionConstruct, r.locate(ptr),
 		"%s of the %s was added in OpenAPI %s, and this document declares %s; it is lowered as in an OpenAPI %s document",
 		what, obj.Name, since, r.declared, since), ptr)
+}
+
+// laterKeyword adds the warning for key, a keyword the dialect the compiler
+// reads natively defines and rows, a Schema Object's, do not: at 3.0, as
+// laterField words a construct 3.1 added, bar a `$schema`, which chooses no
+// dialect there (docs/compilers/openapi.md#dialect-keywords); in a JSON Schema
+// draft, as a keyword of 2020-12, bar a `prefixItems` beside the draft's own
+// tuple, which tuple says the schema writes, and which is kept verbatim.
+func (r *reporter) laterKeyword(rows SchemaRules, key string, tuple bool, ptr jsontext.Pointer) {
+	if !rows.rows.draft {
+		if key != "$schema" {
+			r.laterField(rows.rows.object, key, "", V31, ptr)
+			return
+		}
+		r.add(diag.Newf(ir.SeverityWarning, diag.LaterVersionConstruct, r.locate(ptr),
+			"field %q of the %s was added in OpenAPI %s, and this document declares %s; a 3.0 schema is read in "+
+				"3.0's own dialect whatever it names, so it is kept verbatim and chooses nothing",
+			key, rows.rows.object.Name, V31, r.declared), ptr)
+		return
+	}
+	beside := ""
+	if key == "prefixItems" && tuple {
+		beside = "; this schema writes its dialect's own tuple, an items list, so prefixItems is kept verbatim beside it"
+	}
+	r.add(diag.Newf(ir.SeverityWarning, diag.LaterVersionConstruct, r.locate(ptr),
+		"keyword %q is not defined by this schema's dialect; it is read as JSON Schema 2020-12 defines it%s",
+		key, beside), ptr)
+}
+
+// ignoredBesideRef adds the warning for key, written beside a $ref in a
+// schema whose dialect ignores the keywords there, as the JSON Schema drafts
+// before 2019-09 do, and applied as 2020-12 applies it, the reading that loses
+// least (docs/compilers/openapi.md#later-version-construct).
+func (r *reporter) ignoredBesideRef(key string, ptr jsontext.Pointer) {
+	r.add(diag.Newf(ir.SeverityWarning, diag.LaterVersionConstruct, r.locate(ptr),
+		"keyword %q beside a $ref is ignored by this schema's dialect, as by the JSON Schema drafts "+
+			"before 2019-09; it is applied as in 2020-12", key), ptr)
+}
+
+// readsBesideRef reports whether applying key, written beside a $ref in a
+// schema read with rules, reads otherwise than ignoring it: a field the rows
+// define, OpenAPI's own among them, bar the $ref, the `$schema` naming the
+// dialect, `definitions`, whose schemas only a $ref reads, `$comment`, which
+// nothing reads, and the identifier, which the binder ignores there as the
+// dialect does (bind.DialectRule.IgnoresRefFields). A key they define none for,
+// an extension or an unknown keyword, is kept as written either way.
+func readsBesideRef(rules SchemaRules, key string) bool {
+	switch key {
+	case "$ref", "$schema", "definitions", "$comment", rules.Identifier():
+		return false
+	default:
+		return rules.Defines(key)
+	}
 }
 
 // laterSibling adds the warning for key, written beside the $ref of obj in a

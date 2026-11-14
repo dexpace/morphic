@@ -154,14 +154,14 @@ func TestCompile_HoistedSubSchemaConstraintsPreserved(t *testing.T) {
 	assert.Equal(t, ir.BigVal("10"), *sc.Constraints.Max)
 }
 
-// TestOwnedShapes_AreReportedWhereverTheCheckReadsASchema pins where a bound's
-// shape and an items list are judged: at every schema the rule table's check
-// reads, in that schema's dialect, so one the lowering never reads, under
+// TestDialectShapes_AreReportedWhereverTheCheckReadsASchema pins where a
+// bound's shape and an items list are judged: at every schema the rule table's
+// check reads, in that schema's dialect, so one the lowering never reads, under
 // `not`, `if`, `propertyNames` or `contains`, beside an `enum`, or in a schema
 // with no type, is reported as one it does, at the keyword, and an aliased
 // value once. A draft 4 schema's numeric exclusive bound is refused under `not`
 // as beside it.
-func TestOwnedShapes_AreReportedWhereverTheCheckReadsASchema(t *testing.T) {
+func TestDialectShapes_AreReportedWhereverTheCheckReadsASchema(t *testing.T) {
 	t.Parallel()
 	_, diags := parseFull(t, openapitest.ComponentSpec(
 		"    N: {not: {type: integer, minimum: 1, exclusiveMinimum: true}}\n"+

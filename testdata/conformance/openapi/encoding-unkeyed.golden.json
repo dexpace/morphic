@@ -128,10 +128,10 @@
               }
             },
             {
-              "id": "op/openapi/paths/~1union/post",
+              "id": "op/openapi/paths/~1literal/post",
               "name": {
-                "source": "union",
-                "canonical": "union"
+                "source": "literal",
+                "canonical": "literal"
               },
               "docs": {},
               "request": {
@@ -139,7 +139,7 @@
                   {
                     "mediaType": "multipart/form-data",
                     "type": {
-                      "target": "t/anon/paths/~1union/post/requestBody/content/multipart~1form-data/schema",
+                      "target": "t/anon/paths/~1literal/post/requestBody/content/multipart~1form-data/schema",
                       "nullable": false
                     },
                     "unmodeled": {
@@ -150,7 +150,7 @@
                         },
                         "provenance": {
                           "source": 0,
-                          "pointer": "/paths/~1union/post/requestBody/content/multipart~1form-data/encoding/file"
+                          "pointer": "/paths/~1literal/post/requestBody/content/multipart~1form-data/encoding/file"
                         }
                       }
                     }
@@ -182,7 +182,7 @@
                 "http": [
                   {
                     "method": "POST",
-                    "uriTemplate": "/union",
+                    "uriTemplate": "/literal",
                     "requestContentTypes": [
                       "multipart/form-data"
                     ],
@@ -193,7 +193,7 @@
               },
               "provenance": {
                 "source": 0,
-                "pointer": "/paths/~1union/post"
+                "pointer": "/paths/~1literal/post"
               }
             },
             {
@@ -371,6 +371,16 @@
                     "type": {
                       "target": "t/anon/paths/~1form/post/requestBody/content/application~1x-www-form-urlencoded/schema",
                       "nullable": false
+                    },
+                    "encoding": {
+                      "p/openapi/paths/~1form/post/requestBody/content/application~1x-www-form-urlencoded/schema/properties/a": {
+                        "contentTypes": [
+                          "text/plain"
+                        ],
+                        "multi": false,
+                        "filename": false,
+                        "allowReserved": false
+                      }
                     },
                     "unmodeled": {
                       "openapi:encoding/ghost": {
@@ -569,137 +579,39 @@
       "positional": false,
       "inputOnly": false
     },
-    "t/anon/paths/~1union/post/requestBody/content/multipart~1form-data/schema": {
-      "kind": "union",
-      "id": "t/anon/paths/~1union/post/requestBody/content/multipart~1form-data/schema",
+    "t/anon/paths/~1literal/post/requestBody/content/multipart~1form-data/schema": {
+      "kind": "literal",
+      "id": "t/anon/paths/~1literal/post/requestBody/content/multipart~1form-data/schema",
       "name": {
-        "hint": "union_request"
+        "hint": "literal_request"
       },
       "anonymous": true,
       "docs": {},
       "sensitive": false,
-      "provenance": {
-        "source": 0,
-        "pointer": "/paths/~1union/post/requestBody/content/multipart~1form-data/schema"
-      },
-      "variants": [
-        {
-          "name": {
-            "hint": "variant_0"
+      "unmodeled": {
+        "openapi:properties": {
+          "reason": "degraded_lowering",
+          "value": {
+            "file": {
+              "format": "binary",
+              "type": "string"
+            }
           },
-          "type": {
-            "target": "t/anon/paths/~1union/post/requestBody/content/multipart~1form-data/schema/oneOf/0",
-            "nullable": false
-          },
-          "docs": {}
-        },
-        {
-          "name": {
-            "hint": "variant_1"
-          },
-          "type": {
-            "target": "t/anon/paths/~1union/post/requestBody/content/multipart~1form-data/schema/oneOf/1",
-            "nullable": false
-          },
-          "docs": {}
-        }
-      ],
-      "exclusive": true,
-      "wireTagged": false,
-      "closed": true,
-      "inputOnly": false
-    },
-    "t/anon/paths/~1union/post/requestBody/content/multipart~1form-data/schema/oneOf/0": {
-      "kind": "model",
-      "id": "t/anon/paths/~1union/post/requestBody/content/multipart~1form-data/schema/oneOf/0",
-      "name": {
-        "hint": "variant_0"
-      },
-      "anonymous": true,
-      "docs": {},
-      "sensitive": false,
-      "provenance": {
-        "source": 0,
-        "pointer": "/paths/~1union/post/requestBody/content/multipart~1form-data/schema/oneOf/0"
-      },
-      "properties": [
-        {
-          "id": "p/openapi/paths/~1union/post/requestBody/content/multipart~1form-data/schema/oneOf/0/properties/file",
-          "name": {
-            "source": "file",
-            "canonical": "file"
-          },
-          "wireName": "file",
-          "type": {
-            "target": "t/prim/bytes",
-            "nullable": false
-          },
-          "required": false,
-          "clientOptional": false,
-          "defaultAdded": false,
-          "visibility": {
-            "none": false
-          },
-          "flatten": false,
-          "eventHeader": false,
-          "eventPayload": false,
-          "secret": false,
-          "docs": {},
           "provenance": {
             "source": 0,
-            "pointer": "/paths/~1union/post/requestBody/content/multipart~1form-data/schema/oneOf/0/properties/file"
+            "pointer": "/paths/~1literal/post/requestBody/content/multipart~1form-data/schema/properties"
           }
         }
-      ],
-      "abstract": false,
-      "positional": false,
-      "inputOnly": false
-    },
-    "t/anon/paths/~1union/post/requestBody/content/multipart~1form-data/schema/oneOf/1": {
-      "kind": "model",
-      "id": "t/anon/paths/~1union/post/requestBody/content/multipart~1form-data/schema/oneOf/1",
-      "name": {
-        "hint": "variant_1"
       },
-      "anonymous": true,
-      "docs": {},
-      "sensitive": false,
       "provenance": {
         "source": 0,
-        "pointer": "/paths/~1union/post/requestBody/content/multipart~1form-data/schema/oneOf/1"
+        "pointer": "/paths/~1literal/post/requestBody/content/multipart~1form-data/schema"
       },
-      "properties": [
-        {
-          "id": "p/openapi/paths/~1union/post/requestBody/content/multipart~1form-data/schema/oneOf/1/properties/url",
-          "name": {
-            "source": "url",
-            "canonical": "url"
-          },
-          "wireName": "url",
-          "type": {
-            "target": "t/prim/string",
-            "nullable": false
-          },
-          "required": false,
-          "clientOptional": false,
-          "defaultAdded": false,
-          "visibility": {
-            "none": false
-          },
-          "flatten": false,
-          "eventHeader": false,
-          "eventPayload": false,
-          "secret": false,
-          "docs": {},
-          "provenance": {
-            "source": 0,
-            "pointer": "/paths/~1union/post/requestBody/content/multipart~1form-data/schema/oneOf/1/properties/url"
-          }
-        }
-      ],
-      "abstract": false,
-      "positional": false,
-      "inputOnly": false
+      "value": {
+        "kind": "string",
+        "str": "x"
+      },
+      "valueType": "string"
     },
     "t/prim/bytes": {
       "kind": "primitive",
@@ -743,7 +655,7 @@
     {
       "severity": "info",
       "code": "openapi/degraded-construct",
-      "message": "encoding entry \"*\" matches no property read from the form body's schema or its allOf branches, so Content.Encoding has no key for it; kept verbatim under Unmodeled",
+      "message": "encoding entry \"*\" matches no property read from the form body's schema, so Content.Encoding has no key for it; kept verbatim under Unmodeled",
       "provenance": {
         "source": 0,
         "pointer": "/paths/~1assets/post/requestBody/content/multipart~1form-data/encoding/*"
@@ -752,16 +664,25 @@
     {
       "severity": "info",
       "code": "openapi/degraded-construct",
-      "message": "encoding entry \"file\" matches no property read from the form body's schema or its allOf branches, so Content.Encoding has no key for it; kept verbatim under Unmodeled",
+      "message": "this position lowered to a node of kind \"literal\", which has no home for properties declared beside it; kept verbatim under Unmodeled",
       "provenance": {
         "source": 0,
-        "pointer": "/paths/~1union/post/requestBody/content/multipart~1form-data/encoding/file"
+        "pointer": "/paths/~1literal/post/requestBody/content/multipart~1form-data/schema"
       }
     },
     {
       "severity": "info",
       "code": "openapi/degraded-construct",
-      "message": "encoding entry \"ghost\" matches no property read from the form body's schema or its allOf branches, so Content.Encoding has no key for it; kept verbatim under Unmodeled",
+      "message": "encoding entry \"ghost\" matches no property read from the form body's schema, so Content.Encoding has no key for it; kept verbatim under Unmodeled",
+      "provenance": {
+        "source": 0,
+        "pointer": "/paths/~1ghost/post/requestBody/content/multipart~1form-data/encoding/ghost"
+      }
+    },
+    {
+      "severity": "warning",
+      "code": "openapi/unknown-encoding-key",
+      "message": "encoding entry \"ghost\" names no property the body's schema declares, which OpenAPI requires of an encoding key, so the entry has no effect",
       "provenance": {
         "source": 0,
         "pointer": "/paths/~1ghost/post/requestBody/content/multipart~1form-data/encoding/ghost"
@@ -777,12 +698,39 @@
       }
     },
     {
+      "severity": "warning",
+      "code": "openapi/unknown-encoding-key",
+      "message": "encoding entry \"file\" names no property the body's schema declares, which OpenAPI requires of an encoding key, so the entry has no effect",
+      "provenance": {
+        "source": 0,
+        "pointer": "/paths/~1file/post/requestBody/content/multipart~1form-data/encoding/file"
+      }
+    },
+    {
       "severity": "info",
       "code": "openapi/degraded-construct",
-      "message": "encoding entry \"ghost\" matches no property read from the form body's schema or its allOf branches, so Content.Encoding has no key for it; kept verbatim under Unmodeled",
+      "message": "encoding entry \"ghost\" matches no property read from the form body's schema, so Content.Encoding has no key for it; kept verbatim under Unmodeled",
       "provenance": {
         "source": 0,
         "pointer": "/paths/~1form/post/requestBody/content/application~1x-www-form-urlencoded/encoding/ghost"
+      }
+    },
+    {
+      "severity": "warning",
+      "code": "openapi/unknown-encoding-key",
+      "message": "encoding entry \"ghost\" names no property the body's schema declares, which OpenAPI requires of an encoding key, so the entry has no effect",
+      "provenance": {
+        "source": 0,
+        "pointer": "/paths/~1form/post/requestBody/content/application~1x-www-form-urlencoded/encoding/ghost"
+      }
+    },
+    {
+      "severity": "info",
+      "code": "openapi/degraded-construct",
+      "message": "encoding entry \"file\" names a part the form body's schema declares, but the type its schema lowered to holds no property of that name, so Content.Encoding has no key for it; kept verbatim under Unmodeled",
+      "provenance": {
+        "source": 0,
+        "pointer": "/paths/~1literal/post/requestBody/content/multipart~1form-data/encoding/file"
       }
     }
   ],
@@ -790,7 +738,7 @@
     {
       "format": "openapi@3.1",
       "path": "encoding-unkeyed.yaml",
-      "hash": "73553681bbeafef67bd3d9a8819a83702d15168281dce78b2c8d47bde912d32d"
+      "hash": "93a4549a0fce8851ce2676be11c23edf3e379a7ee36a0b155f985df47ce01e6d"
     }
   ]
 }

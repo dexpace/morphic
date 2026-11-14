@@ -224,8 +224,9 @@ func TestOlderDrafts_DependenciesAreValidationOnly(t *testing.T) {
 // TestOlderDrafts_RefSiblingsAreWarnedOf pins the keywords beside a $ref in
 // each draft that ignores them, 4, 6 and 7: each is applied as 2020-12 applies
 // it and warned of at its key as a later version's construct, bar the
-// `$schema` naming the draft and an extension. 2019-09 and 2020-12 apply them
-// and warn of none.
+// `$schema` naming the draft and an extension, in a schema the lowering keeps
+// verbatim, under `not`, as well. 2019-09 and 2020-12 apply them and warn of
+// none.
 func TestOlderDrafts_RefSiblingsAreWarnedOf(t *testing.T) {
 	t.Parallel()
 	for draft, warned := range map[string]bool{
@@ -234,11 +235,12 @@ func TestOlderDrafts_RefSiblingsAreWarnedOf(t *testing.T) {
 		t.Run(draft, func(t *testing.T) {
 			t.Parallel()
 			doc, diags := parseFull(t, openapitest.ComponentSpec("    B: {type: string}\n"+
-				"    V: {$schema: "+draft+", $ref: '#/components/schemas/B', description: d, x-note: n}\n"))
+				"    V: {$schema: "+draft+", $ref: '#/components/schemas/B', description: d, x-note: n}\n"+
+				"    N: {$schema: "+draft+", not: {$ref: '#/components/schemas/B', description: d}}\n"))
 			openapitest.RequireNoErrorDiags(t, diags)
 			var want []jsontext.Pointer
 			if warned {
-				want = []jsontext.Pointer{"/components/schemas/V/description"}
+				want = []jsontext.Pointer{"/components/schemas/N/not/description", "/components/schemas/V/description"}
 			}
 			assert.Equal(t, want, openapitest.PointersOf(diags, diag.LaterVersionConstruct))
 			v := doc.Types[componentID("V")]
@@ -375,7 +377,7 @@ func TestOlderDrafts_AnAliasedNodeIsReadInTheDialectOfEachPosition(t *testing.T)
 // is: an allOf branch's `dependencies` folds as validation-only under the
 // draft and stays in its branch at the other, a body schema writing `id` is a
 // file under the draft alone, and a boolean exclusive bound bounds under the
-// draft and is dropped, reported, at the other. The roots' names, which order
+// draft and is dropped, reported by the rule table's check, at the other. The roots' names, which order
 // them, decide none of it.
 func TestOlderDrafts_AnAliasedNodeIsReadInTheDialectOfEachPlaceByEveryReader(t *testing.T) {
 	t.Parallel()
@@ -396,6 +398,15 @@ func TestOlderDrafts_AnAliasedNodeIsReadInTheDialectOfEachPlaceByEveryReader(t *
 				"    Now:\n      type: object\n      properties:\n"+
 				"        dep: {allOf: [{$ref: '#/components/schemas/B'}, *br]}\n        f: *f\n        lo: *lo\n")
 			assertOnlyErrorDiags(t, diags, []string{diag.ExclusiveBoundForm})
+			var bounds []string
+			for _, d := range diags {
+				if d.Code == diag.ExclusiveBoundForm {
+					bounds = append(bounds, string(d.Provenance.Pointer)+": "+d.Message)
+				}
+			}
+			assert.Equal(t, []string{"/components/schemas/" + root + "/properties/lo/exclusiveMinimum: exclusiveMinimum must " +
+				"be a number in this schema's dialect; read at /components/schemas/Now/properties/lo/exclusiveMinimum"}, bounds,
+				"the rule table's check judges the node once in each place, sound under the draft")
 			unmodeled := func(at string) ir.Unmodeled {
 				td := doc.Types[ir.TypeID("t/anon/components/schemas/"+at+"/properties/dep")]
 				require.NotNil(t, td, at)
@@ -458,4 +469,62 @@ func TestOlderDrafts_AnAnchorTakesItsDraftsGrammar(t *testing.T) {
 	}
 	assert.ElementsMatch(t, []jsontext.Pointer{"/components/schemas/N/properties/a", "/components/schemas/U/properties/a",
 		"/components/schemas/X/properties/a"}, unresolved)
+}
+
+// validationFindings returns the openapi/validation findings of diags, each as
+// its severity and its class, keyed by its pointer.
+func validationFindings(diags []ir.Diagnostic) map[jsontext.Pointer]string {
+	out := map[jsontext.Pointer]string{}
+	for _, d := range diags {
+		if class, ok := strings.CutPrefix(d.Code, diag.Validation+"/"); ok {
+			out[d.Provenance.Pointer] = string(d.Severity) + " " + class
+		}
+	}
+	return out
+}
+
+// TestOlderDrafts_ASchemaIsHeldToItsDialectsRows pins a schema read in JSON
+// Schema draft 4 held to that draft's rows by the rule table's check, whether
+// its `$schema` names the draft, its document's jsonSchemaDialect does, or a
+// resource embedded below another schema names it: a keyword the draft
+// constrains otherwise, a schema only the draft places, which no $ref
+// reaches, and a keyword only the draft defines are each judged as the draft
+// says, and a schema in 2020-12 beside them is not.
+func TestOlderDrafts_ASchemaIsHeldToItsDialectsRows(t *testing.T) {
+	t.Parallel()
+	const issue = "      type: object\n      required: []\n      definitions:\n        Unused: {type: string, minLength: abc}\n"
+	want := map[jsontext.Pointer]string{
+		"/components/schemas/T/required":                     "error validation-entry-count",
+		"/components/schemas/T/definitions/Unused/minLength": "error validation-type-mismatch",
+		"/components/schemas/Only/id":                        "warning validation-type-mismatch",
+		"/components/schemas/Only/definitions":               "error validation-type-mismatch",
+		"/components/schemas/Only/dependencies":              "error validation-type-mismatch",
+		"/components/schemas/Bools/properties/a":             "error validation-type-mismatch",
+	}
+	only := "    Only: {$schema: " + draft04 + ", id: 5, definitions: 5, dependencies: 5}\n"
+	bools := "    Bools: {$schema: " + draft04 + ", properties: {a: true}}\n"
+	sevens := "    Sevens: {$schema: " + draft07 + ", dependencies: {a: {minLength: abc}}}\n"
+	for name, tc := range map[string]struct{ head, t string }{
+		"by $schema":           {"", "    T:\n      $schema: " + draft04 + "\n" + issue},
+		"by jsonSchemaDialect": {"jsonSchemaDialect: " + draft04 + "\n", "    T:\n" + issue},
+		"by an embedded resource": {"", "    Outer:\n      type: object\n      properties:\n        t:\n" +
+			"          $id: 'https://example.com/t'\n          $schema: " + draft04 + "\n" +
+			strings.ReplaceAll(issue, "      ", "          ")},
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			_, diags := parseFull(t, strings.Replace(openapitest.ComponentSpec(tc.t+only+bools+sevens+
+				"    Now: {$schema: "+draft2020+", type: object, required: []}\n"), "paths: {}\n", "paths: {}\n"+tc.head, 1))
+			got := validationFindings(diags)
+			for at, finding := range want {
+				at = jsontext.Pointer(strings.Replace(string(at), "/components/schemas/T/", map[bool]string{
+					true: "/components/schemas/Outer/properties/t/", false: "/components/schemas/T/"}[name == "by an embedded resource"], 1))
+				assert.Equal(t, finding, got[at], at)
+				delete(got, at)
+			}
+			assert.Equal(t, "error validation-type-mismatch", got["/components/schemas/Sevens/dependencies/a/minLength"])
+			delete(got, "/components/schemas/Sevens/dependencies/a/minLength")
+			assert.Empty(t, got, "and nothing else: 2020-12 admits an empty required")
+		})
+	}
 }

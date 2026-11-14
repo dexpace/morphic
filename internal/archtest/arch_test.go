@@ -94,12 +94,14 @@ var rules = map[string][]string{
 	"compilers/openapi/internal/ynode": {"go.yaml.in/yaml/v3"},
 	// The OpenAPI Specification's rules as data, and the engine that checks a
 	// source tree against them at the minor it declares. It reads the tree
-	// through nodeview, reports through diag, counts its work through budget and
+	// through nodeview, reports through diag, counts its work through budget,
+	// judges a bound's decimal as the lowering reads it through value, and
 	// reaches nothing that loads or lowers: the table is the compiler's own
 	// authority on the specification, so it depends on no parser library.
 	"compilers/openapi/internal/oas": {module + "/ir", module + "/compilers/openapi/internal/budget",
 		module + "/compilers/openapi/internal/diag",
-		module + "/compilers/openapi/internal/nodeview", "go.yaml.in/yaml/v3"},
+		module + "/compilers/openapi/internal/nodeview",
+		module + "/compilers/openapi/internal/value", "go.yaml.in/yaml/v3"},
 	// The one reading of a $ref fragment, and the spelling the resolver is handed
 	// for it (GitHub #911). It reaches the library's reference type for the
 	// resolver's own reading and nothing of the compiler, so the scans, the loader
@@ -200,10 +202,8 @@ var rules = map[string][]string{
 	// which mapping values name a position in the source as the lowering will,
 	// the library's marshaller to build the object a reference lands on in raw
 	// YAML, and the library's core models to tell its marshaller of the media
-	// type reference it builds (load.MediaTypes). It reaches value to judge a bound's
-	// decimal as the lowering reads it, for the values oas leaves to it
-	// (load.ownedFinding). It reaches nothing that lowers — at this point there
-	// is no document to lower.
+	// type reference it builds (load.MediaTypes). It reaches nothing that lowers
+	// — at this point there is no document to lower.
 	"compilers/openapi/internal/load": {module + "/ir", module + "/compilers",
 		module + "/compilers/openapi/internal/bind",
 		module + "/compilers/openapi/internal/bind/typed",
@@ -217,7 +217,6 @@ var rules = map[string][]string{
 		module + "/compilers/openapi/internal/resolve",
 		module + "/compilers/openapi/internal/scan",
 		module + "/compilers/openapi/internal/sourceindex",
-		module + "/compilers/openapi/internal/value",
 		"github.com/speakeasy-api/openapi/jsonschema/oas3",
 		"github.com/speakeasy-api/openapi/marshaller",
 		"github.com/speakeasy-api/openapi/openapi",
@@ -338,6 +337,13 @@ var rules = map[string][]string{
 	"compilers/openapi/internal/convention": {module + "/ir",
 		module + "/compilers/openapi/internal/diag",
 		module + "/compilers/openapi/internal/lowering"},
+	// The pagination the names an operation uses say, read once the document
+	// is whole. It reaches lowering for the policy and the walk over a
+	// service's operations, and nothing of the walks: it reads the operations
+	// and the registry they built.
+	"compilers/openapi/internal/pagination": {module + "/ir",
+		module + "/compilers/openapi/internal/diag",
+		module + "/compilers/openapi/internal/lowering"},
 	// The servers a document declares, whichever object declares them, and the
 	// registry they are lowered into. It is its own package for the reason auth
 	// is: the service walk lowers the document's own list and the operation walk
@@ -373,8 +379,9 @@ var rules = map[string][]string{
 	// The operation walk: path items, webhooks and callbacks, the parameters
 	// merged onto them, and the content of every body, response and header. It
 	// reaches the schema walk for the positions it hoists, auth for the
-	// requirements it reads, nodeview for the raw nodes behind the model and
-	// value for the constants a link passes, and nothing above itself — the
+	// requirements it reads, nodeview for the raw nodes behind the model, oas
+	// for the cases the Encoding Object's defaults are keyed by, and value for
+	// the constants a link passes, and nothing above itself — the
 	// compiler assembles the document from what this returns rather than the
 	// other way round.
 	"compilers/openapi/internal/operation": {module + "/ir", module + "/compilers/compile",
@@ -385,6 +392,7 @@ var rules = map[string][]string{
 		module + "/compilers/openapi/internal/ids",
 		module + "/compilers/openapi/internal/lowering",
 		module + "/compilers/openapi/internal/nodeview",
+		module + "/compilers/openapi/internal/oas",
 		module + "/compilers/openapi/internal/resolve",
 		module + "/compilers/openapi/internal/schema",
 		module + "/compilers/openapi/internal/servers",

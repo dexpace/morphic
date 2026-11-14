@@ -401,3 +401,15 @@ func TestLoad_TheSourcesRowsAreThoseOfItsJSONSchemaDialect(t *testing.T) {
 		t.Error("a document naming no dialect shares the rows of the source's")
 	}
 }
+
+// TestDialects_RowsAtFallBackToTheSource pins the rows a schema no root
+// governs is read with: its document's, and the source's for a document the
+// compile did not read beside it.
+func TestDialects_RowsAtFallBackToTheSource(t *testing.T) {
+	t.Parallel()
+	own, _ := oas.Table().SchemaRules("3.1.0", "")
+	d4, _ := oas.Table().SchemaRules("3.1.0", "http://json-schema.org/draft-04/schema#")
+	d := Dialects{byDoc: map[bind.DocID]oas.SchemaRules{bind.Source: own, 1: d4}}
+	assert.True(t, d.rowsAt(bind.Position{Doc: 1}).Takes("exclusiveMinimum", oas.Boolean), "its document's")
+	assert.False(t, d.rowsAt(bind.Position{Doc: 2}).Takes("exclusiveMinimum", oas.Boolean), "the source's")
+}

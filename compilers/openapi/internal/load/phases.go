@@ -211,7 +211,7 @@ func (l *loading) bindRefs(ctx context.Context) (bool, error) {
 	l.sites = places{source: l.place, others: l.bound.others, table: table}
 	var unread []ir.Diagnostic
 	l.named, unread = readDialects(table, l.bound.others, l.dialects, l.sites)
-	l.judged = judgeOwned(l.judged, l.named)
+	l.judged = judgeSchemas(ctx, l.judged, l.named)
 	l.self.judged = l.judged
 	l.resolved = slices.Concat(unread, l.bound.faults.diags(l.sites, table), bindingDiags(l.sites, table),
 		buildFailures(l.sites, l.bound.built, l.bound.objects))

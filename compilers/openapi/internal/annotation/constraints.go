@@ -27,29 +27,52 @@ const (
 	maxBound                  // maximum / exclusiveMaximum
 )
 
-// Constraints reads a schema's scalar value constraints (string, number and
-// object-count) into an ir.Constraints, nil when none is present; collection
-// bounds are read where lists are lowered. Numeric bounds come from the raw
-// YAML nodes, never the *float64 model fields, to keep full decimal precision.
-// A literal no BigVal holds, an exclusive bound in the other form than
-// exclusiveBoolean selects, or a count the model misreads (ExactCount) is
-// skipped, for the load phase to report or the caller to keep. The second
-// return holds a 3.0 exclusive modifier with no bound beside it
-// (applyExclusiveFlag), placed by pointer and doc.
-func Constraints(s *oas3.Schema, exclusiveBoolean bool, pointer jsontext.Pointer, doc provenance.Doc) (*ir.Constraints, ir.Unmodeled, []ir.Diagnostic) {
+// Bounds names the groups of value bounds a reader takes, each the keywords JSON
+// Schema applies to one kind of instance alone.
+type Bounds uint8
+
+// The groups of Bounds.
+const (
+	// NumberBounds are minimum, maximum, their exclusive forms and multipleOf.
+	NumberBounds Bounds = 1 << iota
+	// StringBounds are minLength, maxLength and pattern.
+	StringBounds
+	// ObjectBounds are minProperties and maxProperties.
+	ObjectBounds
+
+	// AllBounds is every group, for a reader of a value of any kind.
+	AllBounds = NumberBounds | StringBounds | ObjectBounds
+)
+
+// Constraints reads the value constraints of the groups take names that s
+// writes, nil when none is, and nothing of a group not taken. Numeric bounds
+// come from the raw YAML nodes, never the *float64 model fields. A literal no
+// BigVal holds, an exclusive bound in the other form than exclusiveBoolean
+// selects, or a count the model misreads (ExactCount) is skipped, for the rule
+// table's check to report (docs/compilers/openapi.md#constraints) or the caller
+// to keep. The second return holds a 3.0 exclusive modifier with no bound
+// beside it (applyExclusiveFlag), placed by pointer and doc.
+func Constraints(s *oas3.Schema, take Bounds, exclusiveBoolean bool, pointer jsontext.Pointer, doc provenance.Doc) (*ir.Constraints, ir.Unmodeled, []ir.Diagnostic) {
 	if s == nil {
 		return nil, nil, nil
 	}
 	c := &ir.Constraints{}
 	residue := boundResidue{pointer: pointer, doc: doc}
-	numericBounds(c, s)
-	diags := applyExclusive(c, s, minBound, &residue, exclusiveBoolean)
-	diags = append(diags, applyExclusive(c, s, maxBound, &residue, exclusiveBoolean)...)
-	c.MinLength = ExactCount(s, "minLength", s.MinLength)
-	c.MaxLength = ExactCount(s, "maxLength", s.MaxLength)
-	c.Pattern = s.GetPattern()
-	c.MinProps = ExactCount(s, "minProperties", s.MinProperties)
-	c.MaxProps = ExactCount(s, "maxProperties", s.MaxProperties)
+	var diags []ir.Diagnostic
+	if take&NumberBounds != 0 {
+		numericBounds(c, s)
+		diags = applyExclusive(c, s, minBound, &residue, exclusiveBoolean)
+		diags = append(diags, applyExclusive(c, s, maxBound, &residue, exclusiveBoolean)...)
+	}
+	if take&StringBounds != 0 {
+		c.MinLength = ExactCount(s, "minLength", s.MinLength)
+		c.MaxLength = ExactCount(s, "maxLength", s.MaxLength)
+		c.Pattern = s.GetPattern()
+	}
+	if take&ObjectBounds != 0 {
+		c.MinProps = ExactCount(s, "minProperties", s.MinProperties)
+		c.MaxProps = ExactCount(s, "maxProperties", s.MaxProperties)
+	}
 	if emptyConstraints(c) {
 		return nil, residue.kept, diags
 	}
@@ -142,7 +165,7 @@ func numericBounds(c *ir.Constraints, s *oas3.Schema) {
 // exclusive field beside any minimum/maximum rather than in place of it.
 // exclusiveBoolean is true for 3.0's dialect and draft 4's. A value in the
 // wrong form for the dialect, or a literal no decimal spells, is dropped, and
-// the load phase reports it (Constraints).
+// the rule table's check reports it (Constraints).
 func applyExclusive(c *ir.Constraints, s *oas3.Schema, side boundSide, residue *boundResidue, exclusiveBoolean bool) []ir.Diagnostic {
 	ev := s.GetExclusiveMaximum()
 	if side == minBound {

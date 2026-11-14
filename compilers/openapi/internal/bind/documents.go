@@ -56,6 +56,9 @@ type docs struct {
 		rule  DialectRule
 		asked bool
 	}
+	// components is Config.Components as a set, which a mapping value spelling
+	// one names (finder.mappingsOf).
+	components map[string]bool
 }
 
 // ruleKey is a document and a dialect its schemas name.
@@ -68,8 +71,13 @@ type ruleKey struct {
 func newDocs(root *yaml.Node, cfg Config, w *work) *docs {
 	src := &document{name: cfg.Self, root: nodeview.DocumentRoot(root), view: nodeview.New(), grammar: true,
 		openapi: true}
+	components := make(map[string]bool, len(cfg.Components))
+	for _, name := range cfg.Components {
+		components[name] = true
+	}
 	return &docs{cfg: cfg, list: []*document{src}, byName: map[string]DocID{cfg.Self: Source},
-		failed: map[string]error{}, work: w, reached: map[DocID]bool{Source: true}, rules: map[ruleKey]DialectRule{}}
+		failed: map[string]error{}, work: w, reached: map[DocID]bool{Source: true}, rules: map[ruleKey]DialectRule{},
+		components: components}
 }
 
 // locate is the name of the document uri names, written in the document

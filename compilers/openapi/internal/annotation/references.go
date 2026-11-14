@@ -15,8 +15,9 @@ import (
 )
 
 // referenceKeywords are the keywords whose value a schema resolves against its
-// base URI.
-var referenceKeywords = []string{"$ref", "$dynamicRef"}
+// base URI, 2019-09's $recursiveRef among them whatever the dialect, as asking
+// more often errs safely.
+var referenceKeywords = []string{"$ref", "$dynamicRef", "$recursiveRef"}
 
 // WritesReference reports whether raw, a schema or keyword value rendered as
 // JSON, names a member referenceKeywords lists at any depth whose value is no

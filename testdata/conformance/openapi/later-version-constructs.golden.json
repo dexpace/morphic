@@ -538,6 +538,33 @@
     }
   ],
   "types": {
+    "t/anon/components/schemas/Edition/properties/number": {
+      "kind": "literal",
+      "id": "t/anon/components/schemas/Edition/properties/number",
+      "name": {
+        "hint": "number"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "examples": [
+        {
+          "value": {
+            "kind": "number",
+            "num": "1"
+          }
+        }
+      ],
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Edition/properties/number"
+      },
+      "value": {
+        "kind": "number",
+        "num": "1"
+      },
+      "valueType": "integer"
+    },
     "t/anon/paths/~1books/get/parameters/0/content/application~1x-www-form-urlencoded/schema": {
       "kind": "model",
       "id": "t/anon/paths/~1books/get/parameters/0/content/application~1x-www-form-urlencoded/schema",
@@ -670,6 +697,121 @@
           "provenance": {
             "source": 0,
             "pointer": "/components/schemas/Book/properties/title"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/openapi/components/schemas/Edition": {
+      "kind": "model",
+      "id": "t/openapi/components/schemas/Edition",
+      "name": {
+        "source": "Edition",
+        "canonical": "edition"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "unmodeled": {
+        "openapi:dependentRequired": {
+          "reason": "validation_only",
+          "value": {
+            "isbn": [
+              "publisher"
+            ]
+          },
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Edition/dependentRequired"
+          }
+        }
+      },
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Edition"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/Edition/properties/number",
+          "name": {
+            "source": "number",
+            "canonical": "number"
+          },
+          "wireName": "number",
+          "type": {
+            "target": "t/anon/components/schemas/Edition/properties/number",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Edition/properties/number"
+          }
+        },
+        {
+          "id": "p/openapi/components/schemas/Edition/properties/isbn",
+          "name": {
+            "source": "isbn",
+            "canonical": "isbn"
+          },
+          "wireName": "isbn",
+          "type": {
+            "target": "t/prim/string",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Edition/properties/isbn"
+          }
+        },
+        {
+          "id": "p/openapi/components/schemas/Edition/properties/publisher",
+          "name": {
+            "source": "publisher",
+            "canonical": "publisher"
+          },
+          "wireName": "publisher",
+          "type": {
+            "target": "t/prim/string",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Edition/properties/publisher"
           }
         }
       ],
@@ -882,7 +1024,7 @@
         "source": 0,
         "pointer": "/info/license/identifier",
         "position": {
-          "line": 13,
+          "line": 14,
           "column": 36
         }
       }
@@ -895,7 +1037,7 @@
         "source": 0,
         "pointer": "/info/summary",
         "position": {
-          "line": 12,
+          "line": 13,
           "column": 12
         }
       }
@@ -908,7 +1050,7 @@
         "source": 0,
         "pointer": "/servers/0/name",
         "position": {
-          "line": 15,
+          "line": 16,
           "column": 44
         }
       }
@@ -921,7 +1063,7 @@
         "source": 0,
         "pointer": "/paths/~1books/get/parameters/0/in",
         "position": {
-          "line": 34,
+          "line": 35,
           "column": 15
         }
       }
@@ -934,7 +1076,7 @@
         "source": 0,
         "pointer": "/paths/~1books/get/responses/200/content/application~1jsonl/examples/one/dataValue",
         "position": {
-          "line": 47,
+          "line": 48,
           "column": 34
         }
       }
@@ -947,7 +1089,7 @@
         "source": 0,
         "pointer": "/paths/~1books/get/responses/200/content/application~1jsonl/examples/one/serializedValue",
         "position": {
-          "line": 47,
+          "line": 48,
           "column": 66
         }
       }
@@ -960,7 +1102,7 @@
         "source": 0,
         "pointer": "/paths/~1books/get/responses/200/content/application~1jsonl/description",
         "position": {
-          "line": 44,
+          "line": 45,
           "column": 28
         }
       }
@@ -973,7 +1115,7 @@
         "source": 0,
         "pointer": "/paths/~1books/get/responses/200/content/application~1jsonl/itemSchema",
         "position": {
-          "line": 45,
+          "line": 46,
           "column": 27
         }
       }
@@ -986,7 +1128,7 @@
         "source": 0,
         "pointer": "/paths/~1books/get/responses/200/summary",
         "position": {
-          "line": 41,
+          "line": 42,
           "column": 20
         }
       }
@@ -999,7 +1141,7 @@
         "source": 0,
         "pointer": "/paths/~1books/get/responses/404/summary",
         "position": {
-          "line": 48,
+          "line": 49,
           "column": 67
         }
       }
@@ -1012,7 +1154,7 @@
         "source": 0,
         "pointer": "/paths/~1books/post/requestBody/content/multipart~1mixed/itemEncoding",
         "position": {
-          "line": 54,
+          "line": 55,
           "column": 27
         }
       }
@@ -1025,7 +1167,7 @@
         "source": 0,
         "pointer": "/paths/~1books/post/requestBody/content/multipart~1related/prefixEncoding",
         "position": {
-          "line": 56,
+          "line": 57,
           "column": 29
         }
       }
@@ -1038,7 +1180,7 @@
         "source": 0,
         "pointer": "/paths/~1books/post/requestBody/content/multipart~1form-data/encoding/cover/encoding",
         "position": {
-          "line": 62,
+          "line": 63,
           "column": 27
         }
       }
@@ -1051,7 +1193,7 @@
         "source": 0,
         "pointer": "/paths/~1books/post/requestBody/content/multipart~1form-data/encoding/cover/prefixEncoding",
         "position": {
-          "line": 63,
+          "line": 64,
           "column": 33
         }
       }
@@ -1064,7 +1206,7 @@
         "source": 0,
         "pointer": "/paths/~1books/post/requestBody/content/multipart~1form-data/encoding/cover/itemEncoding",
         "position": {
-          "line": 64,
+          "line": 65,
           "column": 31
         }
       }
@@ -1077,7 +1219,7 @@
         "source": 0,
         "pointer": "/paths/~1books/post/requestBody/content/application~1json/$ref",
         "position": {
-          "line": 66,
+          "line": 67,
           "column": 19
         }
       }
@@ -1090,7 +1232,7 @@
         "source": 0,
         "pointer": "/paths/~1books/post/requestBody/content/application~1json/description",
         "position": {
-          "line": 67,
+          "line": 68,
           "column": 26
         }
       }
@@ -1103,7 +1245,7 @@
         "source": 0,
         "pointer": "/paths/~1books/query",
         "position": {
-          "line": 22,
+          "line": 23,
           "column": 7
         }
       }
@@ -1116,7 +1258,7 @@
         "source": 0,
         "pointer": "/paths/~1books/additionalOperations",
         "position": {
-          "line": 26,
+          "line": 27,
           "column": 7
         }
       }
@@ -1129,7 +1271,7 @@
         "source": 0,
         "pointer": "/components/schemas/Item/discriminator/defaultMapping",
         "position": {
-          "line": 98,
+          "line": 99,
           "column": 25
         }
       }
@@ -1142,8 +1284,60 @@
         "source": 0,
         "pointer": "/components/schemas/Item/xml/nodeType",
         "position": {
-          "line": 95,
+          "line": 96,
           "column": 23
+        }
+      }
+    },
+    {
+      "severity": "warning",
+      "code": "openapi/later-version-construct",
+      "message": "field \"const\" of the Schema Object was added in OpenAPI 3.1, and this document declares 3.0.3; it is lowered as in an OpenAPI 3.1 document",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Edition/properties/number/const",
+        "position": {
+          "line": 106,
+          "column": 40
+        }
+      }
+    },
+    {
+      "severity": "warning",
+      "code": "openapi/later-version-construct",
+      "message": "field \"examples\" of the Schema Object was added in OpenAPI 3.1, and this document declares 3.0.3; it is lowered as in an OpenAPI 3.1 document",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Edition/properties/number/examples",
+        "position": {
+          "line": 106,
+          "column": 53
+        }
+      }
+    },
+    {
+      "severity": "warning",
+      "code": "openapi/later-version-construct",
+      "message": "field \"$comment\" of the Schema Object was added in OpenAPI 3.1, and this document declares 3.0.3; it is lowered as in an OpenAPI 3.1 document",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Edition/properties/isbn/$comment",
+        "position": {
+          "line": 107,
+          "column": 40
+        }
+      }
+    },
+    {
+      "severity": "warning",
+      "code": "openapi/later-version-construct",
+      "message": "field \"dependentRequired\" of the Schema Object was added in OpenAPI 3.1, and this document declares 3.0.3; it is lowered as in an OpenAPI 3.1 document",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Edition/dependentRequired",
+        "position": {
+          "line": 104,
+          "column": 26
         }
       }
     },
@@ -1155,7 +1349,7 @@
         "source": 0,
         "pointer": "/components/securitySchemes/clientCert/type",
         "position": {
-          "line": 102,
+          "line": 110,
           "column": 24
         }
       }
@@ -1168,7 +1362,7 @@
         "source": 0,
         "pointer": "/components/securitySchemes/device/flows/deviceAuthorization",
         "position": {
-          "line": 109,
+          "line": 117,
           "column": 11
         }
       }
@@ -1181,7 +1375,7 @@
         "source": 0,
         "pointer": "/components/securitySchemes/device/flows/deviceAuthorization/deviceAuthorizationUrl",
         "position": {
-          "line": 109,
+          "line": 117,
           "column": 35
         }
       }
@@ -1194,7 +1388,7 @@
         "source": 0,
         "pointer": "/components/securitySchemes/device/oauth2MetadataUrl",
         "position": {
-          "line": 105,
+          "line": 113,
           "column": 26
         }
       }
@@ -1207,7 +1401,7 @@
         "source": 0,
         "pointer": "/components/securitySchemes/device/deprecated",
         "position": {
-          "line": 106,
+          "line": 114,
           "column": 19
         }
       }
@@ -1220,7 +1414,7 @@
         "source": 0,
         "pointer": "/components/pathItems",
         "position": {
-          "line": 76,
+          "line": 77,
           "column": 5
         }
       }
@@ -1233,7 +1427,7 @@
         "source": 0,
         "pointer": "/components/mediaTypes",
         "position": {
-          "line": 83,
+          "line": 84,
           "column": 5
         }
       }
@@ -1246,7 +1440,7 @@
         "source": 0,
         "pointer": "/tags/0/summary",
         "position": {
-          "line": 17,
+          "line": 18,
           "column": 28
         }
       }
@@ -1259,7 +1453,7 @@
         "source": 0,
         "pointer": "/tags/0/parent",
         "position": {
-          "line": 17,
+          "line": 18,
           "column": 43
         }
       }
@@ -1272,7 +1466,7 @@
         "source": 0,
         "pointer": "/tags/0/kind",
         "position": {
-          "line": 17,
+          "line": 18,
           "column": 58
         }
       }
@@ -1285,7 +1479,7 @@
         "source": 0,
         "pointer": "/$self",
         "position": {
-          "line": 7,
+          "line": 8,
           "column": 8
         }
       }
@@ -1298,7 +1492,7 @@
         "source": 0,
         "pointer": "/jsonSchemaDialect",
         "position": {
-          "line": 8,
+          "line": 9,
           "column": 20
         }
       }
@@ -1311,9 +1505,18 @@
         "source": 0,
         "pointer": "/webhooks",
         "position": {
-          "line": 70,
+          "line": 71,
           "column": 3
         }
+      }
+    },
+    {
+      "severity": "info",
+      "code": "openapi/validation-only-keyword",
+      "message": "validation-only keyword \"dependentRequired\" kept verbatim under Unmodeled",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Edition"
       }
     },
     {
@@ -1362,6 +1565,15 @@
       }
     },
     {
+      "severity": "warning",
+      "code": "openapi/unknown-encoding-key",
+      "message": "encoding entry \"page\" names no property the part's schema declares, which OpenAPI requires of an encoding key, so the entry has no effect",
+      "provenance": {
+        "source": 0,
+        "pointer": "/paths/~1books/post/requestBody/content/multipart~1form-data/encoding/cover/encoding/page"
+      }
+    },
+    {
       "severity": "info",
       "code": "openapi/degraded-construct",
       "message": "jsonSchemaDialect names the JSON Schema dialect of the document's schemas; the IR models no dialect, so it is kept verbatim under Unmodeled and read only to choose the dialect of each schema of a 3.1 or 3.2 document that names none of its own",
@@ -1375,7 +1587,7 @@
     {
       "format": "openapi@3.0",
       "path": "later-version-constructs.yaml",
-      "hash": "909692498bfb054ffb0ab0f6d45b219439a2a55bce31b9371eb847d77deb318c",
+      "hash": "8f35095bc45bc0a4ad74722361d49b8efc1e650d6d22e16614453c40255f3d10",
       "selfURI": "https://example.com/api/openapi.yaml"
     }
   ]

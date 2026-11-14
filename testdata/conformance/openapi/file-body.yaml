@@ -28,6 +28,16 @@ paths:
           content:
             application/octet-stream:
               schema: {type: string, format: binary, description: The stored object.}
+  /dialect:
+    put:
+      operationId: putDialect
+      requestBody:
+        content:
+          # Naming the schema's dialect says nothing of the value, so the media type does.
+          application/octet-stream:
+            schema: {$schema: 'https://spec.openapis.org/oas/3.1/dialect/base', type: string}
+      responses:
+        "204": {description: ok}
 components:
   schemas:
     Blob: {type: string, format: binary, maxLength: 99, description: Raw bytes}
