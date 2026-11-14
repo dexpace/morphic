@@ -221,7 +221,7 @@ witnessing it.
 
 ### `vendor-extensions`
 
-- Witnesses: `extensions-x`, `inline-annotations`, `carried-keys`
+- Witnesses: `extensions-x`, `inline-annotations`, `carried-keys`, `ref-beside-keys`
 
 ### `positional-encoding`
 
