@@ -150,8 +150,8 @@ func TestPromotion_AUseReadsItsReferentsKeys(t *testing.T) {
 		{"a false beside the $ref clears no redaction", `{$ref: '#/components/schemas/Tok', x-sensitive: false}`,
 			nil, true, true},
 		{"a target stating nothing", `{$ref: '#/components/schemas/Plain'}`, nil, false, false},
-		{"a schema between the two lends nothing", `{$ref: '#/components/schemas/Mid'}`,
-			&ir.Deprecation{RemovalDate: "2031-01-01"}, false, true},
+		{"a schema between the two lends its keys too", `{$ref: '#/components/schemas/Mid'}`,
+			&ir.Deprecation{RemovalDate: "2031-01-01"}, true, true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()

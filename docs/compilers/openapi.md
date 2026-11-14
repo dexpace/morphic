@@ -1250,8 +1250,9 @@ lowers first, with no diagnostic. A chain of `$ref`s that never reaches a node w
 
 The keywords written beside a schema's `$ref`, which 3.1 admits and which are applied the same way in
 a 3.0 document, each read in its own document's dialect
-([`later-version-construct`](#later-version-construct)), and the annotations its target
-declares — documentation, deprecation, redaction, visibility and `default` — merge onto the property,
+([`later-version-construct`](#later-version-construct)), and the annotations each hop of its `$ref`
+chain declares, nearest first — documentation, deprecation, redaction, visibility and `default` — merge
+onto the property,
 parameter or header that references the target, field by field, a keyword the use site writes
 winning over the target's ([annotations](../ir/annotations.md#what-a-reference-carries-down)), and by
 the same rule at every carrier. Redaction has nothing to win with: `format: password` on either side
@@ -1270,7 +1271,7 @@ than override, so each position keeps the ones it declared and none is copied to
 
 A refinement ([`allof-refinement`](#allof-refinement)) is a use of what it names, so a carrier holding
 one reads its target by this rule, and one holding a `$ref` to a refinement reads through it, up to 64
-`$ref`s: what the target declares, what its inline branches lend it
+refinements, an alias between two spending none of them: what the target declares, what its inline branches lend it
 ([`allof-inline-residue`](#allof-inline-residue)), then what its own `$ref` declares, nearest first. A
 `$ref` that loses the type to a value set narrowing it still speaks, for documentation, deprecation,
 visibility and redaction, on the carrier or else on the alias keeping it, and so does one an `enum`
@@ -1296,8 +1297,9 @@ the `$ref` would lend written alone, since the visibility and `default` of the u
   `schema.TestUse_ACarrierReadsThroughADecorator`,
   `schema.TestUse_ALoopOfNarrowingEnumsEnds`, `annotation.TestEffectiveDeprecated_AnySchemaDeprecates`,
   `annotation.TestEffectiveVisibility_MapsTheFlagsToLifecycles`,
-  `operation.TestParams_RefSchemaUseSiteWinsOverItsReferent`
-- Status: partly built: a use reads the end of its chain and not the schema it names (#1029).
+  `operation.TestParams_RefSchemaUseSiteWinsOverItsReferent`, `schema.TestUseOf_LendsEachHopOfTheChain`,
+  `schema.TestUseOf_LendsEachHopAcrossTwoDocuments`, `schema.TestUseOf_AnAliasHopIsNoPassage`,
+  `schema.TestUseOf_PassagesAreBoundedAndAliasesSpendNone`
 
 ### `reference-object-siblings`
 

@@ -908,6 +908,8 @@ func TestAllOf_AnAliasIsJudgedByWhatItAdds(t *testing.T) {
 		docs ir.Docs
 		// kept is whether the second declaration is reported and kept.
 		kept bool
+		// reports counts the findings past the one a kept declaration draws.
+		reports int
 	}{
 		{alias: "Deep", other: "E2", docs: ir.Docs{Summary: "outer", Description: "inner"}},
 		{alias: "KeepO", other: "OE2", kept: true},
@@ -916,7 +918,8 @@ func TestAllOf_AnAliasIsJudgedByWhatItAdds(t *testing.T) {
 		{alias: "MN", other: "M", want: componentID("M")},
 		{alias: "LN", other: "L", want: componentID("L")},
 		{alias: "NAny", other: "E3", kept: true},
-		{alias: "DN", other: "E1", kept: true},
+		// DN and E1 each lend their own description, which the field reports too.
+		{alias: "DN", other: "E1", kept: true, reports: 1},
 	} {
 		for _, order := range [][2]string{{ref(tc.alias), ref(tc.other)}, {ref(tc.other), ref(tc.alias)}} {
 			doc, diags := settledSpec(t, components, order[0], order[1])
@@ -924,7 +927,7 @@ func TestAllOf_AnAliasIsJudgedByWhatItAdds(t *testing.T) {
 			p := propertyOf(t, doc, "T", "v")
 			first := componentID(strings.TrimSuffix(strings.TrimPrefix(order[0], "{$ref: '#/components/schemas/"), "'}"))
 			if tc.kept {
-				assert.Len(t, diags, 1, "%v: the declaration the field refuses is reported", order)
+				assert.Len(t, diags, 1+tc.reports, "%v: the declaration the field refuses is reported", order)
 				assert.Len(t, p.Unmodeled, 1, "%v: and kept", order)
 				assert.Equal(t, first, p.Type.Target, "%v: the field keeps the first", order)
 				continue

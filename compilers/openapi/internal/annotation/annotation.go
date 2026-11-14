@@ -302,8 +302,7 @@ type Home int
 
 // The readers below consume a Site the caller supplies rather than resolving
 // one themselves, since obtaining a referent is reference resolution — walk
-// work. Site.Referents starts at the end of the $ref's chain, so a schema
-// between it and the use site lends nothing (GitHub #1029).
+// work. Site.Referents holds each hop of the $ref's chain, nearest first.
 
 // Set is everything a site's annotations yield, before any of it is
 // attached to a carrier.
