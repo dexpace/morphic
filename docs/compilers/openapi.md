@@ -1406,15 +1406,28 @@ naming a replacement it cannot settle as an info `openapi/undecided-replacement`
 3. A model member's message names, in each code span, a member of its model by name, a member the
    model's composition flattens in among them, as a replacement key names one.
 
-A code span is read as CommonMark reads one. The policy's trigger is a message naming an entity of
-the node's class other than the node: one naming none, or the node alone, fills nothing and is not
-reported, since prose naming something else is no defect. Where it names one, the names fill the
-field all or none, the node itself passed over and a repeat kept once: a name naming no entity, or
-several, leaves the field unset, reported at the node, quoting the first such name. The message
-keeps its prose either way. The words around a name are not read, so a message naming a declared
-entity for another reason, as ``Unlike `GET /v0/zones`, this pages.`` or ``Formerly `b`.`` does,
-fills the field with it, and a document whose messages write so is compiled with the policy off. The
-reading runs once the document is whole, as a replacement may be declared after what it replaces. A
+A code span is read as CommonMark reads one. A name is read only where a phrase introduces it as a
+replacement, within one sentence, its words compared in lower case, in one forward pass over the
+message:
+
+| Part | Rule |
+|---|---|
+| cue | `use`, with nothing before it in its sentence but words ending in `please`, `should`, `must` or `instead` (a comma after one aside); or `renamed to`, `replaced by`, `replaced with`, `superseded by`, `in favor of`, `in favour of`, anywhere in the sentence |
+| negation | none of `not`, `never`, `no`, `cannot`, or a word ending `n't`, before the cue in its sentence |
+| filler | then at most `the`, `a`, `an`, `new`, and an opening `(` or quote; a route's method word outside its code span belongs to the name |
+| name | a route for an operation, a code span for a parameter or a member |
+| more names | each joined to the one before by `,`, `and` or `or` alone |
+| sentence end | `.`, `!`, `?` or `;` followed by white space or the end, or a blank line, none inside a name |
+
+So ``Use `a`, `b` or `c`.`` names three, ``Do not use `b`; use `a`.`` and ``Use `a` instead of `b`.``
+name `a` alone, and ``Unlike `GET /v0/zones`, this pages.``, ``Formerly `b`.``,
+``If you use `c`, set `d`.`` and ``This was not replaced by `c`.`` name none. A name no phrase
+introduces is neither read nor reported. The policy's trigger is a message introducing an entity of
+the node's class other than the node: one introducing none, or the node alone, fills nothing and is
+not reported, since prose naming something else is no defect. Where it introduces one, the names
+fill the field all or none, the node itself passed over and a repeat kept once: a name naming no
+entity, or several, leaves the field unset, reported at the node, quoting the first such name. The
+message keeps its prose either way. The reading runs once the document is whole, as a replacement may be declared after what it replaces. A
 Markdown link's title is display text and its URL a page of documentation, neither naming an entity
 the document holds, so a link is never read; nor is a header's, a schema's or a security scheme's
 message, where no measured document names a replacement such a scope resolves. On the golden spec
@@ -1432,6 +1445,8 @@ replacement its message tells a caller to use, and no message is reported.
   `replacement.TestMessage_ANameTwoParametersCarryIsReported`,
   `replacement.TestMessage_YieldsToWhatTheDocumentSays`,
   `replacement.TestCodeSpans_ReadsCommonMarksSpans`,
+  `replacement.TestMessage_ReadsOnlyIntroducedNames`, `replacement.TestMessage_ReadsEachCueAndNoNearMiss`,
+  `replacement.TestMessage_CostsItsLength`,
   `e2e.TestConventions_DeclarationOrderChangesNothing`, `e2e.TestConventions_DisabledFillsNothing`
 
 ### `disjoint-visibility`

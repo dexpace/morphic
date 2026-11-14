@@ -3,5 +3,12 @@
 
 package replacement
 
-// CodeSpans is codeSpans, for the external tests.
-var CodeSpans = codeSpans
+// CodeSpans is the content of each span codeSpans finds, for the external
+// tests.
+func CodeSpans(text string) []string {
+	var out []string
+	for _, n := range codeSpans(text) {
+		out = append(out, n.text)
+	}
+	return out
+}
