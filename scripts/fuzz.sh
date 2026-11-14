@@ -187,8 +187,10 @@ search() {
 
 	# go test handles an interrupt and exits, which reads as a failed target, so
 	# without this the loop would carry on to the next one. The shell runs it once
-	# go test has gone.
+	# go test has gone. A termination, as from kill, ends the loop the same way
+	# rather than leaving the log behind.
 	trap 'rm -f "$log"; echo "fuzz.sh: interrupted" >&2; exit 130' INT
+	trap 'rm -f "$log"; echo "fuzz.sh: terminated" >&2; exit 143' TERM
 
 	while read -r import target _dir; do
 		if is_quarantined "$target"; then
