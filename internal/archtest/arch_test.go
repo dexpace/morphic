@@ -409,8 +409,9 @@ var rules = map[string][]string{
 	// requirements it reads, nodeview for the raw nodes behind the model, oas
 	// for the cases the Encoding Object's defaults are keyed by, value for
 	// the constants a link passes, runtimeexpr for the expressions a link
-	// reads and whole for the document it reads them in, and nothing above itself — the compiler assembles the document
-	// from what this returns rather than the other way round.
+	// reads and whole for the document it reads them in, and nothing above
+	// itself — the compiler assembles the document from what this returns
+	// rather than the other way round.
 	"compilers/openapi/internal/operation": {module + "/ir", module + "/compilers/compile",
 		module + "/compilers/openapi/internal/annotation",
 		module + "/compilers/openapi/internal/auth",

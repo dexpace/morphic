@@ -5988,10 +5988,9 @@ no body does not. A value that a response or a media type holds at another membe
 a header two success responses each declare does, resolves to nothing, as does a value a mark finds
 at two members as near the root, or at a header and a member of one response. A body or a member
 typed as an alias of a model is read as that model, as a link reads one ([`links`](#links)). The
-fields fill a
-pagination whole or not at all: a value that resolves to nothing, two inputs continuing the walk, a
-cursor beside no next cursor or a next cursor beside no cursor, an offset or a page number beside no
-items, which a pager counts to advance an offset and to end either walk
+fields fill a pagination whole or not at all: a value that resolves to nothing, two inputs
+continuing the walk, a cursor beside no next cursor or a next cursor beside no cursor, an offset or
+a page number beside no items, which a pager counts to advance an offset and to end either walk
 ([pagination](../emitters/operations/pagination.md#what-a-pager-sends-next)), and a walk with
 neither an input nor a next link are each reported as an info `openapi/degraded-construct`, at the
 value or at the operation, and leave the field unset. The pagination sets its own `Inferred` and
