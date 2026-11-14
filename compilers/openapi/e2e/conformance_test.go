@@ -302,6 +302,7 @@ func conformanceCases() []conformanceCase {
 		{"ref-site-docs", assertRefSiteDocs},
 		{"param-content-fields", assertParamContentFields},
 		{"carried-keys", assertCarriedKeys},
+		{"catch-all-encoding", assertCatchAllEncoding},
 		{"examples-32", assertExamples32},
 		{"tags-grouping-32", assertTagsGrouping32},
 		{"response-summary-32", assertResponseSummary32},

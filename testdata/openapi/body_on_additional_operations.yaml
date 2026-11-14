@@ -1,0 +1,9 @@
+openapi: 3.2.0
+info: {title: T, version: "1"}
+paths:
+  /a:
+    additionalOperations:
+      CONNECT:
+        operationId: c
+        requestBody: {content: {application/json: {schema: {type: string}}}}
+        responses: {"200": {description: ok}}

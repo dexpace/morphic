@@ -143,7 +143,7 @@ witnessing it.
 
 - Witnesses: `multipart-encoding`, `media-type-spelling`, `nested-encoding-32`, `file-media`,
   `file-items-32`, `encoding-unkeyed`, `encoding-union-branches`, `encoding-outside-form`,
-  `multipart-defaults-30`, `multipart-defaults-31`, `multipart-defaults-32`
+  `multipart-defaults-30`, `multipart-defaults-31`, `multipart-defaults-32`, `catch-all-encoding`
 
 ### `per-status-errors`
 

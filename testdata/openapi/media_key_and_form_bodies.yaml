@@ -1,0 +1,25 @@
+openapi: 3.1.0
+info: {title: T, version: "1"}
+paths:
+  /a:
+    get:
+      operationId: a
+      requestBody: {content: {"application json": {schema: {type: string}}, "text/*": {schema: {type: string}}, "application/json; charset=utf-8": {schema: {type: string}}}}
+      responses: {"200": {description: ok}}
+    post:
+      operationId: p
+      requestBody: {content: {application/json: {schema: {type: string}}}}
+      responses: {"200": {description: ok}}
+  /mp:
+    post:
+      operationId: mp
+      requestBody:
+        content:
+          multipart/form-data: {schema: {type: array, items: {type: string}}}
+          application/x-www-form-urlencoded: {schema: {}}
+      responses: {"204": {description: ok}}
+  /file:
+    post:
+      operationId: file
+      requestBody: {content: {multipart/form-data: {schema: {type: string, format: binary}}}}
+      responses: {"204": {description: ok}}
