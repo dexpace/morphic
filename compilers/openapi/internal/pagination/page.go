@@ -259,7 +259,7 @@ func noNextCursor(ms *models, body *model, key pageKey, next string) string {
 	return fmt.Sprintf("holds no member %q or %q of the cursor's type", next, key.cursor)
 }
 
-// flag returns the path to the one boolean member of body, or of a model one
+// pageFlag returns the path to the one boolean member of body, or of a model one
 // of its members holds, named as a flag (flagName), which ends a cursor walk
 // (ir.PageStopNoMore), and nil where none is. Flags are counted by member, so
 // one name at two places is two, and why then says the page is undecided, as
@@ -321,7 +321,7 @@ func leastFlag(m *model) string {
 	return least
 }
 
-// total returns the path to the one member named name, of a type a walk counts
+// pageTotal returns the path to the one member named name, of a type a walk counts
 // with, or nil where the body holds none or several.
 func pageTotal(ms *models, body *model, name string) []ir.PropID {
 	path, _, found := find(ms, body, name, func(ir.PrimKind) bool { return true })
@@ -355,7 +355,7 @@ func find(ms *models, body *model, name string, admit func(ir.PrimKind) bool) ([
 	return path, holder, found
 }
 
-// items returns the path to the list body holds a page's items in: the one
+// pageItems returns the path to the list body holds a page's items in: the one
 // list named as items; else, where strict is not set, the one list the one
 // model named so holds, or the body's one list. why says otherwise what stops
 // it.
@@ -418,7 +418,7 @@ func itemsName(canonical string) bool {
 	}
 }
 
-// model returns what a page reads of the members of the model id, read once
+// of returns what a page reads of the members of the model id, read once
 // per model.
 func (ms *models) of(id ir.TypeID) *model {
 	if m, read := ms.read[id]; read {
