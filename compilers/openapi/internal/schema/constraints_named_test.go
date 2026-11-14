@@ -342,6 +342,8 @@ func TestConstraints_AUnionIsReadByWhatItsBranchesAdmit(t *testing.T) {
 	for _, tc := range []struct{ name, schema string }{
 		{"row 19: an array or an object", "{anyOf: [" + refTo("Arr") + ", " + refTo("Obj") + "], minLength: 1}"},
 		{"row 20: an array or null alone", "{anyOf: [" + refTo("Arr") + ", " + refTo("Nil") + "], minLength: 1}"},
+		{"an array, an object or a null writing no type",
+			"{anyOf: [" + refTo("Arr") + ", " + refTo("Obj") + ", {enum: [null]}], minLength: 1}"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()

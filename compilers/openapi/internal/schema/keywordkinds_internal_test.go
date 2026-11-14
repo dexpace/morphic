@@ -119,13 +119,17 @@ func TestWritesBound_FindsABoundOnTheSchemaOrAnInlineBranch(t *testing.T) {
 // TestBoundTypes_ReadsNoSiblingPastItsBudget pins the cost of a read past
 // maxBoundTypeReads, by the reads it spends: an allOf or a union wider than the
 // budget is read up to the read that exhausts it and no further, as each
-// sibling past it would answer anyInstance and change nothing.
+// sibling past it would answer anyInstance and change nothing. A union's null
+// branches are read at a step each, so a union collapsing onto one branch beside
+// many costs no more than the budget either.
 func TestBoundTypes_ReadsNoSiblingPastItsBudget(t *testing.T) {
 	t.Parallel()
 	refs := strings.Repeat("{$ref: '#/components/schemas/Str'}, ", 4*maxBoundTypeReads)
+	nulls := strings.Repeat("{type: 'null'}, ", 4*maxBoundTypeReads)
 	c := loweringtest.Context(t, openapitest.ComponentSpecVer("3.1.0",
-		"    AllOf: {allOf: ["+refs+"]}\n    AnyOf: {anyOf: ["+refs+"]}\n    Str: {type: string}\n"), lowering.Policy{})
-	for _, name := range []string{"AllOf", "AnyOf"} {
+		"    AllOf: {allOf: ["+refs+"]}\n    AnyOf: {anyOf: ["+refs+"]}\n"+
+			"    Nulls: {anyOf: [{$ref: '#/components/schemas/Str'}, "+nulls+"]}\n    Str: {type: string}\n"), lowering.Policy{})
+	for _, name := range []string{"AllOf", "AnyOf", "Nulls"} {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
 			pointer := jsontext.Pointer("/components/schemas/" + name)
@@ -136,6 +140,22 @@ func TestBoundTypes_ReadsNoSiblingPastItsBudget(t *testing.T) {
 			assert.Equal(t, maxBoundTypeReads+1, r.steps.Spent())
 		})
 	}
+}
+
+// TestBoundTypes_ADynamicCycleEndsOnTheBudget pins the read of dynamic
+// references whose expansions close a cycle: each hop is one schema read at one
+// step, so the budget ends the cycle, as it ends one of $refs, and no hop walks
+// the chain of expansions again.
+func TestBoundTypes_ADynamicCycleEndsOnTheBudget(t *testing.T) {
+	t.Parallel()
+	c := loweringtest.Context(t, openapitest.ComponentSpecVer("3.1.0",
+		"    A: {$dynamicAnchor: a, $dynamicRef: '#b'}\n    B: {$dynamicAnchor: b, $dynamicRef: '#a'}\n"), lowering.Policy{})
+	const pointer = jsontext.Pointer("/components/schemas/A")
+	s := heldAt(c, pointer).GetSchema()
+	require.NotNil(t, s)
+	r := boundTypes{steps: budget.New(budget.AtMost(maxBoundTypeReads))}
+	assert.Equal(t, anyInstance, r.schema(c, s, pointer))
+	assert.Equal(t, maxBoundTypeReads+1, r.steps.Spent())
 }
 
 // TestBoundTypes_AReferenceLandingOnNoSchemaExcludesNothing pins the read of a

@@ -134,19 +134,15 @@ func (r *boundTypes) schema(c lowering.Ctx, s *oas3.Schema, pointer jsontext.Poi
 
 // names is what every schema s, written at pointer of c's document, names
 // admits, in the four ways namesSchema tests for: its allOf entries, the end of
-// its $ref chain, the target its dynamic reference expands to, and its union's
-// branches, or the one non-null branch where the union collapses onto it, since
-// a null branch may write no type, which would admit every kind.
+// its $ref chain, the target its dynamic reference names (dynamicTarget), and
+// its union's branches.
 func (r *boundTypes) names(c lowering.Ctx, s *oas3.Schema, pointer jsontext.Pointer) kindSet {
 	out := r.conjuncts(c, s, pointer)
 	if s.Ref != nil {
 		out &= r.ref(c, heldAt(c, pointer))
 	}
-	if at, _, expanded := dynamicExpansion(c, s, pointer); expanded {
+	if at, ok := dynamicTarget(c, s, pointer); ok {
 		out &= r.at(c, at)
-	}
-	if nonNull, at, collapses := nullUnionCollapse(c, s, pointer); collapses {
-		return out & r.branch(c, nonNull, at)
 	}
 	return out & r.unions(c, s, pointer)
 }
@@ -165,8 +161,10 @@ func (r *boundTypes) conjuncts(c lowering.Ctx, s *oas3.Schema, pointer jsontext.
 }
 
 // unions is what s's oneOf and anyOf each admit, conjoined: what any branch of
-// one admits. It is anyInstance once the budget is exhausted, reading no branch
-// past it.
+// one admits. A branch admitting null alone (nullBranch), as the null of a union
+// collapsing onto its other branch does, admits no kind a bound applies to,
+// though it may write no type, and is read at a step like any other branch. It
+// is anyInstance once the budget is exhausted, reading no branch past it.
 func (r *boundTypes) unions(c lowering.Ctx, s *oas3.Schema, pointer jsontext.Pointer) kindSet {
 	out := anyInstance
 	for _, union := range [...]struct {
@@ -178,7 +176,11 @@ func (r *boundTypes) unions(c lowering.Ctx, s *oas3.Schema, pointer jsontext.Poi
 		}
 		var some kindSet
 		for i, b := range union.branches {
-			some |= r.entry(c, b, pointer, union.key, i)
+			if nullBranch(c, b) {
+				r.steps.Spend(1)
+			} else {
+				some |= r.entry(c, b, pointer, union.key, i)
+			}
 			if r.steps.Exhausted() {
 				return anyInstance
 			}

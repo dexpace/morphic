@@ -2577,10 +2577,11 @@ primitive, as a width does ([`numeric-formats`](#numeric-formats)), stay two.
 
 Each variant takes the value bounds its own type takes ([`constraints`](#constraints)), where the
 position admits that type, so `[string, integer]` with `maxLength` and `minimum` lowers to a
-`string` holding the one and an `integer` holding the other, and beside an `allOf` entry of
-`[string, boolean]` the `integer` variant holds no `minimum`, which is kept on the union, and the content vocabulary is the `string` variant's
-([`content-vocabulary`](#content-vocabulary)). The property or parameter carrying the union holds no
-value bound, each being the variant's it applies to, which a bound on the whole value would not say.
+`string` holding the one and an `integer` holding the other, and the content vocabulary is the
+`string` variant's ([`content-vocabulary`](#content-vocabulary)). Beside an `allOf` entry of
+`[string, boolean]`, the same list's `integer` variant holds no `minimum`, which is kept on the
+union. The property or parameter carrying the union holds no value bound, each being the variant's
+it applies to, which a bound on the whole value would not say.
 A `format` the table pairs with a listed type is that variant's alone: with `date` the list lowers
 to `date | integer`, and with `int32` to `string | int32`. One the table pairs with no listed type
 is every scalar variant's encoding name, since nothing says which type it describes and a format
@@ -3856,12 +3857,13 @@ the numeric bounds, the exclusive ones among them, where it admits `integer` or 
 admits `array`, and `minProperties` and `maxProperties` where it admits `object`; `boolean` and
 `null` take none. The types a position admits are those its own `type` declares that every schema
 it names admits too: the one its `$ref` chain ends on, each `allOf` entry, a `oneOf` or `anyOf`,
-which admits what any of its branches does, or its one non-null branch where it collapses
-([`union-null-variant`](#union-null-variant)), and the target an expanded `$dynamicRef` or
-`$recursiveRef` lands on ([`dynamic-ref`](#dynamic-ref)), read through as many of those as the named
-schemas write, from the source and never from what has been lowered, so no answer turns on the
-order schemas are declared in. A schema declaring no `type` and naming none excludes nothing, so it
-reads every bound; one declaring `null` alone reads none, its `Enum` with no member keeping them
+which admits what any of its branches does, a branch of null alone, written with a `type` or not,
+admitting none a bound applies to ([`union-null-variant`](#union-null-variant)), and the target an
+expanded `$dynamicRef` or `$recursiveRef` lands on ([`dynamic-ref`](#dynamic-ref)), read through as
+many of those as the named schemas write, from the source and never from what has been lowered, so
+no answer turns on the order schemas are declared in. A schema declaring no `type` and naming none
+excludes nothing, so it reads every bound; one declaring `null` alone reads none, its `Enum` with no
+member keeping them
 ([`null-alone`](#null-alone)), and so does one whose own and named types share no kind. A bound no
 type the position admits takes reaches no `Constraints`, the carrier's included, and is kept
 verbatim under `openapi:<keyword>` (`degraded_lowering`) with an info `openapi/degraded-construct`
@@ -3937,6 +3939,7 @@ no bound ([`string-formats`](#string-formats)).
   `schema.TestConstraints_ANamedSchemasDynamicReferenceIsReadThrough`,
   `schema.TestConstraints_AnInlineBranchIsReadAtItsOwnPointer`,
   `schema.TestBoundTypes_ReadsNoSiblingPastItsBudget`,
+  `schema.TestBoundTypes_ADynamicCycleEndsOnTheBudget`,
   `schema.TestBoundTypes_AReferenceLandingOnNoSchemaExcludesNothing`,
   `operation.TestParams_ABoundBesideAReferenceIsReadByItsNamedType`,
   `e2e.TestConstraints_ANamedTypeIsReadInItsOwnDocument`,
@@ -3972,10 +3975,10 @@ no bound ([`string-formats`](#string-formats)).
   `schema.TestCompareCounts_OrdersLiteralsExactly`,
   `annotation.TestExactCount_StatesOnlyAnExactCount`,
   `oas.TestShape_Admits`
-- Status: partly built: the types a schema admits are read off `type` alone, so a value set
-  declaring none (an `enum` or a `const`) reads every bound (#1919); a `type` written beside a `$ref`
-  inside a named schema is not read (#1390); and a read of more than 256 named schemas reads every
-  bound. A bound beside an `enum`, a `const` or a union at a property that a type the position admits
+- Status: partly built: the types a schema admits are read off `type` alone, a union's branch of
+  null alone aside, so a value set declaring none (an `enum` or a `const`) reads every bound (#1919);
+  a `type` written beside a `$ref` inside a named schema is not read (#1390); and a read of more than
+  256 named schemas, as a cycle of references is, reads every bound. A bound beside an `enum`, a `const` or a union at a property that a type the position admits
   takes is held by the property and also kept on its node (#1924). Two declarations of one field that
   each keep a bound meet the fold of [`allof-redeclared-property`](#allof-redeclared-property)
   (#1889). A bound left unread is reported at its position, with the census's other keywords, not at
