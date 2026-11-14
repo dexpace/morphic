@@ -44,6 +44,47 @@ func Carried(p Promoter, own ir.Unmodeled, scopes ...string) ir.Unmodeled {
 	return out
 }
 
+// Shadowed returns, for each of scopes holding one, the entries own holds
+// beneath it for a key p reads that the carrier's own key or a nearer scope
+// states too, keyed unscoped: the statements Carried passes over. A carrier
+// reads each for its findings alone, so a misfit behind a nearer statement of
+// its key is reported once, at its own key. It returns nil where Carried
+// passes over nothing.
+func Shadowed(p Promoter, own ir.Unmodeled, scopes ...string) []ir.Unmodeled {
+	var out []ir.Unmodeled
+	for i, scope := range scopes {
+		var layer ir.Unmodeled
+		for key, entry := range scopedEntries(p.keys, own, scope) {
+			if !statedNearer(own, key, scopes[:i]) {
+				continue
+			}
+			if layer == nil {
+				layer = ir.Unmodeled{}
+			}
+			layer[key] = entry
+		}
+		if layer != nil {
+			out = append(out, layer)
+		}
+	}
+	return out
+}
+
+// statedNearer reports whether own holds key, "openapi:<name>", unscoped or
+// beneath one of nearer.
+func statedNearer(own ir.Unmodeled, key string, nearer []string) bool {
+	if _, held := own[key]; held {
+		return true
+	}
+	name := strings.TrimPrefix(key, extensionKeyPrefix)
+	for _, scope := range nearer {
+		if _, held := own[extensionKeyPrefix+scope+"/"+name]; held {
+			return true
+		}
+	}
+	return false
+}
+
 // CarrierScopes returns the scopes a parameter or a header keeps the keys of
 // the objects it carries under, the nearest first: the content entry
 // mediaType names and then that entry's schema, or the schema alone where

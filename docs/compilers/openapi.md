@@ -6013,7 +6013,10 @@ states it, so a carrier's `x-sensitive: false` withdraws nothing its schema stat
 nothing a `$ref` target states, and a deprecation's members fill from the nearest object stating
 them. A valued fact, an operation's tier, a parameter's `allowReserved` or its pagination mark, is
 the nearest statement's, the carrier's own first. The entry keeps its own provenance, so a finding
-about a carried key sits at that key, and the carrier keeping it is the node marked.
+about a carried key sits at that key, and the carrier keeping it is the node marked. A misfit behind
+a nearer statement of its key, which no reading takes, is still reported once at its own key, for a
+redaction, a deprecation and an operation's tier; a parameter's `allowReserved` and its pagination
+mark report only the nearest.
 
 A source of a target stating that something is so, a deprecation, an open enum or union, a redaction
 or a part of a page walk, may list the values that state it. Each is compared with a string's text,
@@ -6174,6 +6177,8 @@ saying why.
 - Cases: `extension-promotion`, `extension-stability`, `extension-redaction`, `extension-server-name`, `carried-keys`
 - Codes: `openapi/degraded-construct`, `openapi/unread-extension`, `openapi/unpromoted-extension`
 - Tests: `lowering.TestPromoterDeprecation_ValueThatIsNotTextIsReported`,
+  `lowering.TestShadowed_ReturnsWhatCarriedPassesOver`,
+  `operation.TestPromotion_AMisfitBehindANearerKeyIsReported`,
   `lowering.TestPromoter_ValuesNameWhatStatesTheFact`,
   `lowering.TestPromoter_AValueAnotherTargetReadsIsItsToReport`,
   `lowering.TestPromoter_ACallersValuesAreCopied`,

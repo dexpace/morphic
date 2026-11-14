@@ -295,11 +295,28 @@ func fillParamDetail(c lowering.Ctx, ts *compile.Types, param *ir.Parameter, p *
 	diags = append(diags, annotation.UnknownKeysIn(&param.Unmodeled, p, c.Place(), pptr)...)
 	// Redaction and deprecation hold where the parameter or an object it carries
 	// states them, as they hold where its schema's $ref target does; a value is
-	// read, and a misfit reported, at the nearest key writing one.
+	// read at the nearest key writing one, and a misfit reported at each.
 	lent := c.Promoter().Lent(schema.KeysLentTo(c, ts, elected.js, param.Type, elected.pointer), param.Unmodeled,
 		elected.carries...)
 	carried := lowering.Carried(c.Promoter(), param.Unmodeled, elected.carries...)
-	return append(diags, schema.PromoteUse(c, lent, carried, &param.Deprecation, &param.Secret, &param.Provenance)...)
+	diags = append(diags, schema.PromoteUse(c, lent, carried, &param.Deprecation, &param.Secret, &param.Provenance)...)
+	return append(diags, promoteShadowed(c, param.Unmodeled, elected.carries...)...)
+}
+
+// promoteShadowed reads, for its findings alone, the deprecation and redaction
+// each statement Carried passes over beneath scopes states (lowering.Shadowed),
+// so a misfit behind a nearer statement of its key is reported once, at its own
+// key, as the nearest statement's is by schema.PromoteUse.
+func promoteShadowed(c lowering.Ctx, own ir.Unmodeled, scopes ...string) []ir.Diagnostic {
+	layers := lowering.Shadowed(c.Promoter(), own, scopes...)
+	diags := make([]ir.Diagnostic, 0, len(layers))
+	for _, layer := range layers {
+		var dep *ir.Deprecation
+		var redact bool
+		var prov ir.Provenance
+		diags = append(diags, schema.PromoteUse(c, lowering.Referent{}, layer, &dep, &redact, &prov)...)
+	}
+	return diags
 }
 
 // styleAndExplode returns a parameter's serialization style and its explode

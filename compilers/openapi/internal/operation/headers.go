@@ -89,6 +89,7 @@ func lowerHeader(c, dc lowering.Ctx, w walk, h *soa.Header, name string, hptr, h
 		elected.carries...)
 	own := lowering.Carried(dc.Promoter(), p.Unmodeled, elected.carries...)
 	diags = append(diags, schema.PromoteUse(dc, lent, own, &p.Deprecation, &p.Secret, &p.Provenance)...)
+	diags = append(diags, promoteShadowed(dc, p.Unmodeled, elected.carries...)...)
 	lowered := ir.Header{Property: p, Explode: h.Explode}
 	if h.Style != nil {
 		lowered.Style = string(*h.Style)

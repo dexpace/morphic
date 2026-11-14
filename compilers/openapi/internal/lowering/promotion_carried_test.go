@@ -142,3 +142,30 @@ func TestUnformedTier_ReportsATierOnATagFormingNoGroup(t *testing.T) {
 	}
 	assert.Empty(t, lowering.UnformedTier(p, "Lone", ir.Unmodeled{}))
 }
+
+// TestShadowed_ReturnsWhatCarriedPassesOver holds Shadowed to the scoped
+// statements of a read key that the carrier's own key or a nearer scope also
+// writes, one layer per scope keyed unscoped, nearest first: a key no nearer
+// position writes is Carried's and stays out, and so does a key the policy
+// does not read.
+func TestShadowed_ReturnsWhatCarriedPassesOver(t *testing.T) {
+	t.Parallel()
+	p := stabilityPolicy()
+	own := ir.Unmodeled{
+		"openapi:x-stability":                  vendorExtension(`"stable"`),
+		"openapi:content/m/x-stability":        vendorExtension(`5`),
+		"openapi:content/m/schema/x-stability": vendorExtension(`6`),
+		"openapi:schema/x-stability":           vendorExtension(`7`),
+		"openapi:content/m/schema/x-other":     vendorExtension(`8`),
+	}
+	got := lowering.Shadowed(p, own, "content/m", "content/m/schema")
+	assert.Empty(t, cmp.Diff([]ir.Unmodeled{
+		{"openapi:x-stability": vendorExtension(`5`)},
+		{"openapi:x-stability": vendorExtension(`6`)},
+	}, got))
+
+	delete(own, "openapi:x-stability")
+	assert.Empty(t, cmp.Diff([]ir.Unmodeled{{"openapi:x-stability": vendorExtension(`6`)}},
+		lowering.Shadowed(p, own, "content/m", "content/m/schema")), "the nearest scope is Carried's")
+	assert.Nil(t, lowering.Shadowed(p, own, "schema"), "nothing nearer writes the key")
+}

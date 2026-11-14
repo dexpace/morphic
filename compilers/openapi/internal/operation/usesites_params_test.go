@@ -246,3 +246,46 @@ paths:
 	assert.Equal(t, true, at(c, "secret"))
 	assert.Equal(t, "extension-promotion", at(c, "provenance", "inferred"))
 }
+
+// TestPromotion_AMisfitBehindANearerKeyIsReported holds each statement of a
+// promoted key that is no value of its kind to one finding at its own key,
+// whether it is the nearest statement or one behind it: a parameter's own key,
+// its content entry's and their schemas', a header's and its schema's, and a
+// path item's behind each of two operations, reported once.
+func TestPromotion_AMisfitBehindANearerKeyIsReported(t *testing.T) {
+	t.Parallel()
+	_, diags := parseFull(t, `openapi: 3.1.0
+info: {title: T, version: "1"}
+paths:
+  /a:
+    x-stability: 13
+    get:
+      operationId: a
+      x-stability: 12
+      parameters:
+        - {name: m2, in: query, content: {application/json: {x-sensitive: 5, schema: {type: string, x-sensitive: 6}}}}
+        - {name: m3, in: query, x-sensitive: 4, schema: {type: string, x-sensitive: 5}}
+        - {name: m4, in: query, x-sensitive: true, schema: {type: string, x-sensitive: 7}}
+      responses:
+        "200":
+          description: ok
+          headers:
+            H: {x-sensitive: 4, schema: {type: string, x-sensitive: 5}}
+    post:
+      operationId: b
+      x-stability: beta
+      responses: {"204": {description: ok}}
+`)
+	const op = "/paths/~1a/get/"
+	assert.Equal(t, []string{
+		"openapi/degraded-construct info " + op + "parameters/0/content/application~1json/schema/x-sensitive",
+		"openapi/degraded-construct info " + op + "parameters/0/content/application~1json/x-sensitive",
+		"openapi/degraded-construct info " + op + "parameters/1/schema/x-sensitive",
+		"openapi/degraded-construct info " + op + "parameters/1/x-sensitive",
+		"openapi/degraded-construct info " + op + "parameters/2/schema/x-sensitive",
+		"openapi/degraded-construct info " + op + "responses/200/headers/H/schema/x-sensitive",
+		"openapi/degraded-construct info " + op + "responses/200/headers/H/x-sensitive",
+		"openapi/degraded-construct info " + op + "x-stability",
+		"openapi/degraded-construct info /paths/~1a/x-stability",
+	}, findings(diags))
+}

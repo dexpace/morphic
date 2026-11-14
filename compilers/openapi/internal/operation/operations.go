@@ -296,5 +296,15 @@ func promoteOperation(p lowering.Promoter, op *ir.Operation) []ir.Diagnostic {
 	own := lowering.Carried(p, op.Unmodeled, pathItemScope)
 	diags := p.Deprecation(own, p.Lent(lowering.Referent{}, op.Unmodeled, pathItemScope), &op.Deprecation,
 		&op.Provenance)
-	return append(diags, lowering.Stability(p, own, &op.Stability, &op.Provenance)...)
+	diags = append(diags, lowering.Stability(p, own, &op.Stability, &op.Provenance)...)
+	// What the path item states behind the operation's own key is read for its
+	// misfits alone, reported once at the path item's key.
+	for _, layer := range lowering.Shadowed(p, op.Unmodeled, pathItemScope) {
+		var dep *ir.Deprecation
+		var tier ir.Stability
+		var prov ir.Provenance
+		diags = append(diags, p.Deprecation(layer, lowering.Referent{}, &dep, &prov)...)
+		diags = append(diags, lowering.Stability(p, layer, &tier, &prov)...)
+	}
+	return diags
 }
