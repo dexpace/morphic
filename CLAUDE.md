@@ -331,12 +331,12 @@ assertion shapes:
   the order of what `orderFree` in `internal/harness/order.go` lists and of a verbatim JSON object's
   members, and the diagnostics without their message text or line and column. It permutes mappings
   alone. The sequence-order oracle beside it reverses each `allOf` and `required` sequence that
-  `reverseSequences` in `internal/harness/sequence.go` may, and forgives what `canonicalForm` in
-  `canon.go` lists. Both compile at the default limits, so an order dependence among a listed
-  collection's elements, in any other sequence or another order of one, or in a verdict at another
-  limit (#1519) needs its own two-order diff. A targeted case still earns its place when it pins
-  one lowering, because the oracles prove order-independence only for the constructs their inputs
-  happen to contain.
+  `reverseSequences` in `internal/harness/sequence.go` may, and forgives what the order oracle does
+  and what `canonicalForm` in `canon.go` lists. Both compile at the default limits, so an order
+  dependence among a listed collection's elements, in any other sequence or another order of one,
+  or in a verdict at another limit (#1519) needs its own two-order diff. A targeted case still
+  earns its place when it pins one lowering, because the oracles prove order-independence only for
+  the constructs their inputs happen to contain.
   - A fixture's own declaration order is part of the test. A golden that happens to declare things
     in the order the *correct* lowering already produced cannot see the fix at all: reverting it
     leaves the golden green, and only the two-order oracle reddens. If a single-order case is meant
