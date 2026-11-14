@@ -3,8 +3,6 @@
 
 package irfacts
 
-import "slices"
-
 // tarjan finds the strongly connected components of a directed graph given as
 // adjacency lists, with Tarjan's algorithm run on an explicit stack: a chain of
 // types as long as a registry must not exhaust the goroutine stack. Both the
@@ -17,7 +15,10 @@ type tarjan struct {
 	stack   []int   // vertices of components not yet closed
 	frames  []frame // the depth-first path, innermost last
 	found   int     // vertices discovered so far
-	out     [][]int // the components found, each a list of vertices
+	// members holds the vertices of the components found, back to back, and
+	// ends where each component's end in it.
+	members []int
+	ends    []int
 }
 
 // frame is one vertex on the depth-first path and the next edge to follow.
@@ -36,6 +37,8 @@ func newTarjan(adj [][]int) *tarjan {
 		order:   make([]int, len(adj)),
 		low:     make([]int, len(adj)),
 		onStack: make([]bool, len(adj)),
+		members: make([]int, 0, len(adj)),
+		ends:    make([]int, 0, len(adj)),
 	}
 	for v := range t.order {
 		t.order[v] = unvisited
@@ -45,14 +48,22 @@ func newTarjan(adj [][]int) *tarjan {
 
 // run searches from each vertex in turn and returns the components in the
 // order they close, which puts a component after every one its edges reach.
-// Every vertex is opened once and every edge followed once.
+// Every vertex is opened once and every edge followed once. Each component is
+// a slice of one backing array, so the search allocates per index and not per
+// component.
 func (t *tarjan) run() [][]int {
 	for root := range t.adj {
 		if t.order[root] == unvisited {
 			t.search(root)
 		}
 	}
-	return t.out
+	out := make([][]int, len(t.ends))
+	start := 0
+	for c, end := range t.ends {
+		out[c] = t.members[start:end:end]
+		start = end
+	}
+	return out
 }
 
 // search explores everything reachable from root that is not yet visited.
@@ -92,7 +103,7 @@ func (t *tarjan) finish() {
 	v := t.frames[len(t.frames)-1].vertex
 	t.frames = t.frames[:len(t.frames)-1]
 	if t.low[v] == t.order[v] {
-		t.out = append(t.out, t.pop(v))
+		t.pop(v)
 	}
 	if len(t.frames) > 0 {
 		parent := t.frames[len(t.frames)-1].vertex
@@ -100,16 +111,16 @@ func (t *tarjan) finish() {
 	}
 }
 
-// pop removes the component rooted at v from the component stack.
-func (t *tarjan) pop(v int) []int {
+// pop moves the component rooted at v from the component stack to members.
+func (t *tarjan) pop(v int) {
 	i := len(t.stack) - 1
 	for t.stack[i] != v {
 		i--
 	}
-	members := slices.Clone(t.stack[i:])
-	for _, w := range members {
+	for _, w := range t.stack[i:] {
 		t.onStack[w] = false
 	}
+	t.members = append(t.members, t.stack[i:]...)
+	t.ends = append(t.ends, len(t.members))
 	t.stack = t.stack[:i]
-	return members
 }

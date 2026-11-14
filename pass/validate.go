@@ -86,9 +86,8 @@ func validate(ctx context.Context, doc *ir.Document, walk walkFunc) ([]ir.Diagno
 //
 // A family allocates only for a diagnostic. It sorts and keys collections in a
 // list and a map it keeps for the run, so a value with nothing wrong costs it
-// nothing but a step those or a log may grow by. The index it asks, facts, is
-// not yet held to that: it allocates per type it indexes and per question it
-// walks (GitHub #1150).
+// nothing but a step those or a log may grow by. The index it asks, facts,
+// allocates per index it builds and not per type it indexes (GitHub #1150).
 func families(doc *ir.Document, read walked, facts *irfacts.Index) []func() []ir.Diagnostic {
 	// A family that ranges a map sorts its keys first and needs a determinism test
 	// of its own: a range added without one can go unnoticed (GitHub #1546).
