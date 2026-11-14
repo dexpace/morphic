@@ -42,7 +42,7 @@ func TestValidate_TheChecksOfWhatASourceSaysSkipAReferenceWithNoDeclaration(t *t
 				&ir.Scalar{ID: "t/s", Base: &missing},
 			)
 			doc.Types["t/a"].(*ir.Model).Mixins = []ir.TypeRef{missing}
-			doc.Types["t/l"].Common().Examples = []ir.Example{{Value: text("x")}}
+			doc.Types["t/l"].Common().Examples = []ir.Example{{Value: &ir.Value{Kind: ir.ValueList, List: []ir.Value{*text("x")}}}}
 			doc.Services = []ir.Service{{ID: "s/x", Groups: []ir.OperationGroup{{ID: "g/x", Operations: []ir.Operation{{
 				ID: "op/x", Params: []ir.Parameter{{ID: "param/x/q", Type: missing, Default: text("x"), Constraints: numeric("10", "", "5", "")}},
 				Examples: []ir.Example{

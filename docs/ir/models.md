@@ -141,6 +141,18 @@ Kiota lose: the difference between "inherits from", "conforms to", "mixes in", a
 distinction matters because GraphQL allows multiple interfaces while every class-based target
 language allows at most one base class.
 
+**Knots.** The IR permits a composition cycle, and the flattening reads it to its fixpoint, so no
+target is refused one. JSON Schema says a schema SHOULD NOT be one, and `pass.Validate` reports each
+type of a cycle of bases and mixins, `pass/composition-cycle`, a warning (`Implements` is not read:
+it is GraphQL's). It reports as well each type with no finite value, `pass/no-finite-value`, a
+warning: a type whose every way to a value needs a type that needs it in turn, a model requiring
+itself through required properties that are not nullable, a list that must hold an element of itself,
+a tuple holding itself, a union all of whose variants are such. Each is told at every type of the
+knot, naming the base, mixin, property, element or variant that leads on, and a cycle of composition
+is told once, as that, and not again as lacking a value. Not read, each of which can only leave a
+knot unreported: a member only `Requires` makes required, a bound on the position of a reference to a
+list, and `Implements`.
+
 ## Required members
 
 Whether an own property must be present is its
