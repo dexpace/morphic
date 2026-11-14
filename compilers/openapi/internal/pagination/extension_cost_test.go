@@ -22,14 +22,30 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/pagination"
 )
 
-// sharedPageSpec is a document of n operations, each reading its cursor, the
-// next cursor and the items of its page by expressions through one model of n
-// members, as the walk of each states.
-func sharedPageSpec(n int) string {
+// pageSpec is a document of n operations, each reading its cursor, the next
+// cursor and the items of its page by expressions through one model of n
+// members, as the walk of each states: operation is one operation's text, its
+// %[1]d the operation's number.
+func pageSpec(n int, operation string) string {
 	var paths, props strings.Builder
 	for i := range n {
 		fmt.Fprintf(&props, "        m%d: {type: string}\n", i)
-		fmt.Fprintf(&paths, `  /o%[1]d:
+		fmt.Fprintf(&paths, operation, i)
+	}
+	return openapitest.PathsSpec(paths.String()) + `components:
+  schemas:
+    M:
+      type: object
+      properties:
+        items: {type: array, items: {type: string}}
+` + props.String()
+}
+
+// pageSpecs are the shapes whose operations read the one model: the cursor from
+// the request's body, and the cursor from a member of a parameter holding it.
+var pageSpecs = map[string]func(n int) string{
+	"body": func(n int) string {
+		return pageSpec(n, `  /o%[1]d:
     post:
       operationId: o%[1]d
       x-page: {cursor: '$request.body#/m%[1]d', next: '$response.body#/m%[1]d', items: '$response.body#/items'}
@@ -39,15 +55,20 @@ func sharedPageSpec(n int) string {
         "200":
           description: ok
           content: {application/json: {schema: {$ref: '#/components/schemas/M'}}}
-`, i)
-	}
-	return openapitest.PathsSpec(paths.String()) + `components:
-  schemas:
-    M:
-      type: object
-      properties:
-        items: {type: array, items: {type: string}}
-` + props.String()
+`)
+	},
+	"parameter": func(n int) string {
+		return pageSpec(n, `  /o%[1]d:
+    get:
+      operationId: o%[1]d
+      x-page: {cursor: '$request.c.m%[1]d', next: '$response.body#/m%[1]d', items: '$response.body#/items'}
+      parameters: [{name: c, in: query, schema: {$ref: '#/components/schemas/M'}}]
+      responses:
+        "200":
+          description: ok
+          content: {application/json: {schema: {$ref: '#/components/schemas/M'}}}
+`)
+	},
 }
 
 // promoteBytes returns the fewest bytes Promote allocates in three runs over the
@@ -82,20 +103,22 @@ func promoteBytes(t *testing.T, src string, operations int) float64 {
 }
 
 // TestPromote_AllocatesLinearInWhatItReads holds what promoting allocates to
-// linear growth in the operations reading one model: from 2n operations to 4n
-// it grows at most 2.5 times what it grows from n to 2n. An index of the
-// model's members built again for each expression that reads it grows four
-// times. Each size is averaged over four spread across its doubling, so a map
-// growing in steps reads as the growth it averages to. It does not run in
-// parallel, since the count is process-wide.
+// linear growth in the operations reading one model, through a request body or
+// through a parameter: from 2n operations to 4n it grows at most 2.5 times what
+// it grows from n to 2n. An index of the model's members built again for each
+// expression that reads it grows four times. Each size is averaged over four
+// spread across its doubling, so a map growing in steps reads as the growth it
+// averages to. It does not run in parallel, since the count is process-wide.
 func TestPromote_AllocatesLinearInWhatItReads(t *testing.T) {
-	var bytes [3]float64
-	for k, n := range []int{50, 100, 200} {
-		for j := range 4 {
-			size := int(math.Round(float64(n) * math.Exp2(float64(j)/4)))
-			bytes[k] += promoteBytes(t, sharedPageSpec(size), size) / 4
+	for name, spec := range pageSpecs {
+		var bytes [3]float64
+		for k, n := range []int{50, 100, 200} {
+			for j := range 4 {
+				size := int(math.Round(float64(n) * math.Exp2(float64(j)/4)))
+				bytes[k] += promoteBytes(t, spec(size), size) / 4
+			}
 		}
+		assert.LessOrEqual(t, bytes[2]-bytes[1], 2.5*(bytes[1]-bytes[0]),
+			"%s: bytes around 50, 100 and 200 operations: %v", name, bytes)
 	}
-	assert.LessOrEqual(t, bytes[2]-bytes[1], 2.5*(bytes[1]-bytes[0]),
-		"bytes around 50, 100 and 200 operations: %v", bytes)
 }
