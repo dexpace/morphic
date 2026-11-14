@@ -17,13 +17,21 @@ import (
 // many operations or members name it.
 type reader struct {
 	w      *whole.Document
-	models map[ir.TypeID]*model
+	models *models
 	pages  map[pageKey]page
 }
 
 // newReader returns a reader over w that has read nothing yet.
 func newReader(w *whole.Document) *reader {
-	return &reader{w: w, models: map[ir.TypeID]*model{}, pages: map[pageKey]page{}}
+	return &reader{w: w, models: &models{w: w, read: map[ir.TypeID]*model{}}, pages: map[pageKey]page{}}
+}
+
+// models is what a page reads of each model of w, read once per model (of),
+// which the readers of a page's items, next cursor, flag, totals and links
+// take.
+type models struct {
+	w    *whole.Document
+	read map[ir.TypeID]*model
 }
 
 // model is what a page reads of one model's members across its composition
@@ -175,7 +183,7 @@ func (r *reader) readPage(key pageKey) page {
 		if key.link {
 			return r.linkPage(td.ID)
 		}
-		return r.modelPage(r.model(td.ID), key)
+		return modelPage(r.models, r.models.of(td.ID), key)
 	default:
 		return page{why: "is neither an object nor a list"}
 	}
@@ -183,25 +191,26 @@ func (r *reader) readPage(key pageKey) page {
 
 // modelPage reads where the model body holds a page: its items, its next
 // cursor where key names one, and its totals.
-func (r *reader) modelPage(body *model, key pageKey) page {
-	items, why := r.items(body, key.strict)
+func modelPage(ms *models, body *model, key pageKey) page {
+	items, why := pageItems(ms, body, key.strict)
 	if why != "" {
 		return page{why: why}
 	}
-	pg := page{items: items, nextLink: r.link(body, true, nextLinkNames()), prevLink: r.link(body, true, prevLinkNames())}
+	pg := page{items: items, nextLink: pageLink(ms, body, true, nextLinkNames()),
+		prevLink: pageLink(ms, body, true, prevLinkNames())}
 	if key.cursor != "" {
-		next, holder, notNext, none := r.nextCursor(body, key)
+		next, holder, notNext, none := nextCursor(ms, body, key)
 		if notNext != "" && !none {
 			return page{why: notNext}
 		}
-		flag, notFlag := r.flag(body, holder)
+		flag, notFlag := pageFlag(ms, body, holder)
 		if notFlag != "" {
 			return page{why: notFlag}
 		}
 		pg.next, pg.nextWhy, pg.hasMore = next, notNext, flag
 	}
-	pg.totalCount = r.total(body, "total_count")
-	pg.totalPages = r.total(body, "total_pages")
+	pg.totalCount = pageTotal(ms, body, "total_count")
+	pg.totalPages = pageTotal(ms, body, "total_pages")
 	return pg
 }
 
@@ -212,7 +221,7 @@ func (r *reader) modelPage(body *model, key pageKey) page {
 // cursor it was sent, and a create answers with what it was sent. It returns
 // the model holding that member, and otherwise why there is none, none
 // reporting that the body names none, which a header may carry instead.
-func (r *reader) nextCursor(body *model, key pageKey) (path []ir.PropID, holder *model, why string, none bool) {
+func nextCursor(ms *models, body *model, key pageKey) (path []ir.PropID, holder *model, why string, none bool) {
 	names := []string{"next_" + key.cursor, key.cursor, "next"}
 	switch {
 	case key.strict:
@@ -221,7 +230,7 @@ func (r *reader) nextCursor(body *model, key pageKey) (path []ir.PropID, holder 
 		names = names[:2]
 	}
 	for _, name := range names {
-		path, holder, found := r.find(body, name, func(prim ir.PrimKind) bool { return prim == key.prim })
+		path, holder, found := find(ms, body, name, func(prim ir.PrimKind) bool { return prim == key.prim })
 		switch found {
 		case 0:
 			continue
@@ -231,19 +240,19 @@ func (r *reader) nextCursor(body *model, key pageKey) (path []ir.PropID, holder 
 			return nil, nil, fmt.Sprintf("holds %d members %q of the cursor's type, each a next cursor", found, name), false
 		}
 	}
-	return nil, nil, r.noNextCursor(body, key, names[0]), true
+	return nil, nil, noNextCursor(ms, body, key, names[0]), true
 }
 
 // noNextCursor says why body holds no next cursor for key, next being the name
 // it is first read under: a plain string next beside a string cursor may be
 // that cursor or a link, which leaves the walk undecided.
-func (r *reader) noNextCursor(body *model, key pageKey, next string) string {
+func noNextCursor(ms *models, body *model, key pageKey, next string) string {
 	switch {
 	case key.strict:
 		return fmt.Sprintf("holds no member %q of the cursor's type, which a POST read as a walk names its next "+
 			"cursor, never the cursor it was sent, as a create answers with what it was sent", next)
 	case key.prim == ir.PrimString:
-		if _, _, found := r.find(body, "next", func(prim ir.PrimKind) bool { return prim == ir.PrimString }); found > 0 {
+		if _, _, found := find(ms, body, "next", func(prim ir.PrimKind) bool { return prim == ir.PrimString }); found > 0 {
 			return `holds "next", a plain string that may be its next cursor or a link`
 		}
 	}
@@ -257,7 +266,7 @@ func (r *reader) noNextCursor(body *model, key pageKey, next string) string {
 // it does where holder, the model holding the next cursor, holds a boolean
 // under another name: `truncated` may say more follows or that a result was cut
 // short for good, and a pager ending there would drop pages.
-func (r *reader) flag(body, holder *model) ([]ir.PropID, string) {
+func pageFlag(ms *models, body, holder *model) ([]ir.PropID, string) {
 	var paths [][]ir.PropID
 	var names []string
 	for _, f := range body.flags {
@@ -266,7 +275,7 @@ func (r *reader) flag(body, holder *model) ([]ir.PropID, string) {
 		}
 	}
 	for _, o := range body.objects {
-		for _, f := range r.model(o.id).flags {
+		for _, f := range ms.of(o.id).flags {
 			if flagName(f.Name.Canonical) {
 				paths = append(paths, []ir.PropID{o.member.ID, f.ID})
 				names = append(names, strconv.Quote(o.member.EffectiveWireName()+"."+f.EffectiveWireName()))
@@ -314,8 +323,8 @@ func leastFlag(m *model) string {
 
 // total returns the path to the one member named name, of a type a walk counts
 // with, or nil where the body holds none or several.
-func (r *reader) total(body *model, name string) []ir.PropID {
-	path, _, found := r.find(body, name, func(ir.PrimKind) bool { return true })
+func pageTotal(ms *models, body *model, name string) []ir.PropID {
+	path, _, found := find(ms, body, name, func(ir.PrimKind) bool { return true })
 	if found != 1 {
 		return nil
 	}
@@ -326,7 +335,7 @@ func (r *reader) total(body *model, name string) []ir.PropID {
 // members holds, are of a primitive a walk sends that admit accepts, and the
 // path to one of them and the model holding it, which are the only ones when
 // that is one.
-func (r *reader) find(body *model, name string, admit func(ir.PrimKind) bool) ([]ir.PropID, *model, int) {
+func find(ms *models, body *model, name string, admit func(ir.PrimKind) bool) ([]ir.PropID, *model, int) {
 	var path []ir.PropID
 	var holder *model
 	found := 0
@@ -336,7 +345,7 @@ func (r *reader) find(body *model, name string, admit func(ir.PrimKind) bool) ([
 		}
 	}
 	for _, o := range body.objects {
-		held := r.model(o.id)
+		held := ms.of(o.id)
 		for _, s := range held.scalars[name] {
 			if admit(s.prim) {
 				path, holder, found = []ir.PropID{o.member.ID, s.member.ID}, held, found+1
@@ -350,7 +359,7 @@ func (r *reader) find(body *model, name string, admit func(ir.PrimKind) bool) ([
 // list named as items; else, where strict is not set, the one list the one
 // model named so holds, or the body's one list. why says otherwise what stops
 // it.
-func (r *reader) items(body *model, strict bool) ([]ir.PropID, string) {
+func pageItems(ms *models, body *model, strict bool) ([]ir.PropID, string) {
 	var named, holders []*ir.Property
 	var held ir.TypeID
 	for _, l := range body.lists {
@@ -372,7 +381,7 @@ func (r *reader) items(body *model, strict bool) ([]ir.PropID, string) {
 		return nil, "holds no list named as its items at its root, where a POST read as a walk holds them, as a " +
 			"create's answer may hold a list of another kind"
 	case len(holders) == 1:
-		return heldItems(holders[0], r.model(held))
+		return heldItems(holders[0], ms.of(held))
 	case len(holders) > 1:
 		return nil, fmt.Sprintf("holds objects %s, each named as holding its items", wireNames(holders))
 	case len(body.lists) == 1:
@@ -411,13 +420,13 @@ func itemsName(canonical string) bool {
 
 // model returns what a page reads of the members of the model id, read once
 // per model.
-func (r *reader) model(id ir.TypeID) *model {
-	if m, read := r.models[id]; read {
+func (ms *models) of(id ir.TypeID) *model {
+	if m, read := ms.read[id]; read {
 		return m
 	}
 	m := &model{scalars: map[string][]scalar{}, urls: map[string][]*ir.Property{}}
-	for _, p := range r.w.Members(id) {
-		switch td := r.w.Stands(p.Type.Target).(type) {
+	for _, p := range ms.w.Members(id) {
+		switch td := ms.w.Stands(p.Type.Target).(type) {
 		case *ir.List:
 			m.lists = append(m.lists, p)
 		case *ir.Model:
@@ -432,7 +441,7 @@ func (r *reader) model(id ir.TypeID) *model {
 			}
 		}
 	}
-	r.models[id] = m
+	ms.read[id] = m
 	return m
 }
 

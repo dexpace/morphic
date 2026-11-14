@@ -32,10 +32,10 @@ func prevLinkNames() linkNames {
 // link returns the path to the one member of body, or, where deep is set, of a
 // model one of its members holds, that names is a link under, and nil where
 // none or several are.
-func (r *reader) link(body *model, deep bool, names linkNames) []ir.PropID {
-	path, found := r.findLink(body, deep, names.named, true)
+func pageLink(ms *models, body *model, deep bool, names linkNames) []ir.PropID {
+	path, found := findLink(ms, body, deep, names.named, true)
 	if found == 0 {
-		path, found = r.findLink(body, deep, names.bare, false)
+		path, found = findLink(ms, body, deep, names.bare, false)
 	}
 	if found != 1 {
 		return nil
@@ -46,7 +46,7 @@ func (r *reader) link(body *model, deep bool, names linkNames) []ir.PropID {
 // findLink returns how many members of body, and, where deep is set, of a
 // model one of its members holds, are named one of names and typed as a url,
 // or as a plain string where plain is set, and the path to one of them.
-func (r *reader) findLink(body *model, deep bool, names []string, plain bool) ([]ir.PropID, int) {
+func findLink(ms *models, body *model, deep bool, names []string, plain bool) ([]ir.PropID, int) {
 	var path []ir.PropID
 	found := 0
 	at := func(m *model, through []ir.PropID) {
@@ -64,7 +64,7 @@ func (r *reader) findLink(body *model, deep bool, names []string, plain bool) ([
 	at(body, nil)
 	if deep {
 		for _, o := range body.objects {
-			at(r.model(o.id), []ir.PropID{o.member.ID})
+			at(ms.of(o.id), []ir.PropID{o.member.ID})
 		}
 	}
 	return path, found
@@ -242,10 +242,10 @@ func (r *reader) linkPage(id ir.TypeID) page {
 	if len(parts[partItems]) != 1 {
 		return page{why: "is no page"}
 	}
-	body := r.model(id)
-	return page{items: []ir.PropID{parts[partItems][0].ID}, nextLink: r.link(body, false, nextLinkNames()),
-		prevLink: r.link(body, false, prevLinkNames()), totalCount: r.total(body, "total_count"),
-		totalPages: r.total(body, "total_pages")}
+	body := r.models.of(id)
+	return page{items: []ir.PropID{parts[partItems][0].ID}, nextLink: pageLink(r.models, body, false, nextLinkNames()),
+		prevLink: pageLink(r.models, body, false, prevLinkNames()), totalCount: pageTotal(r.models, body, "total_count"),
+		totalPages: pageTotal(r.models, body, "total_pages")}
 }
 
 // linkHeader reports whether every success response of op declaring a page
