@@ -183,8 +183,10 @@ func scanRecovered(whole ir.Provenance, scan func() []ir.Diagnostic) []ir.Diagno
 // The index must cover the whole tree that will reach the parser: an alias to
 // an ancestor is visible only from the root. surplus is the alias budget;
 // yaml.v3's own alias guard never fires on a yaml.Node decode (GitHub #479).
+// maxBytes is the byte budget, which the scalar text aliases add to the tree
+// is held to (GitHub #1429): a node budget weighs no text.
 func Aliases(ctx context.Context, tree provenance.Tree, whole ir.Provenance, idx sourceindex.Index,
-	surplus budget.Limit,
+	surplus, maxBytes budget.Limit,
 ) []ir.Diagnostic {
 	return scanRecovered(whole, func() []ir.Diagnostic {
 		if d, ok := anchorCycle(ctx, tree, idx); ok {
@@ -192,6 +194,10 @@ func Aliases(ctx context.Context, tree provenance.Tree, whole ir.Provenance, idx
 		}
 		if d, ok := aliasAmplification(ctx, tree, idx.Root(), idx.Nodes(), surplus); ok {
 			return []ir.Diagnostic{d}
+		}
+		if added := idx.AliasText(); !maxBytes.Admits(added) {
+			return []ir.Diagnostic{diag.Newf(ir.SeverityError, diag.BudgetExceeded, whole,
+				"YAML aliases add %d bytes of scalar text to the document, past the %d-byte budget", added, maxBytes.Cap())}
 		}
 		return nil
 	})

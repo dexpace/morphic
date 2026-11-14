@@ -121,7 +121,7 @@ func (m *Measure) measured(n *yaml.Node) shape {
 	if n.Kind == yaml.AliasNode {
 		return m.memo[n.Alias]
 	}
-	out := shape{nodes: 1}
+	out := shape{nodes: 1, text: scalarText(n)}
 	for i, c := range n.Content {
 		out = out.holding(m.memo[c], edge(n, i))
 	}
@@ -132,9 +132,10 @@ func (m *Measure) measured(n *yaml.Node) shape {
 // shape is what a subtree, its aliases expanded, is to a compile reading it:
 // how deeply it nests, how many nodes it holds, and how many bytes the JSON
 // pointers naming them from the subtree's root total, each a key or an index
-// and a '/' per level, escapes not counted. The counts saturate at math.MaxInt.
+// and a '/' per level, escapes not counted, and how many bytes of scalar text
+// it holds (scalarText). The counts saturate at math.MaxInt.
 type shape struct {
-	nesting, nodes, pointers int
+	nesting, nodes, pointers, text int
 }
 
 // holding is s having taken child as one more child, under a pointer edge
@@ -144,6 +145,7 @@ func (s shape) holding(child shape, edge int) shape {
 	s.nesting = max(s.nesting, child.nesting)
 	s.nodes = sum(s.nodes, child.nodes)
 	s.pointers = sum(s.pointers, sum(product(child.nodes, edge), child.pointers))
+	s.text = sum(s.text, child.text)
 	return s
 }
 
@@ -196,4 +198,13 @@ func Level(n *yaml.Node) int {
 		return 1
 	}
 	return 0
+}
+
+// scalarText is the bytes of text a scalar n holds, and nothing for any other
+// node: an alias adds what it names, which the shape it stands for holds.
+func scalarText(n *yaml.Node) int {
+	if n.Kind != yaml.ScalarNode {
+		return 0
+	}
+	return len(n.Value)
 }

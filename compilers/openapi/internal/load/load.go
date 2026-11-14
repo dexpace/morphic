@@ -315,7 +315,7 @@ func shapeRefusals(ctx context.Context, tree provenance.Tree, whole ir.Provenanc
 	if d, deep := scan.Nesting(ctx, tree, idx); deep {
 		diags = append(diags, d)
 	}
-	diags = append(diags, scan.Aliases(ctx, tree, whole, idx, opts.MaxAliasSurplus)...)
+	diags = append(diags, scan.Aliases(ctx, tree, whole, idx, opts.MaxAliasSurplus, opts.MaxSourceBytes)...)
 	if diag.HasError(diags) {
 		return diags
 	}

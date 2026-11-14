@@ -260,6 +260,14 @@ is left out too.
 
 - Codes: `openapi/budget-exceeded`, `openapi/source-too-deep`, `openapi/source-too-large`,
   `openapi/alias-amplification`, `openapi/pointer-amplification`
+
+The scalar text a document's aliases add to it, its text with every alias substituted less the text
+it writes, is held to the byte budget: a document whose aliases add past it is refused,
+`openapi/budget-exceeded` at the document, `YAML aliases add <n> bytes of scalar text to the
+document, past the <budget>-byte budget`, the source, an overlay document, the tree an overlay
+patches and each document a reference reads alike. The node budgets weigh no text, so a few
+aliases of a long scalar could otherwise expand into gigabytes within every one. A document with
+no alias adds nothing, however its escapes decode.
 - Tests: `openapi.TestCompile_SourceByteBudgetBindsOnlyPastTheLimit`,
   `openapi.TestCompiler_SourceLimitReadsTheCallersOptions`,
   `openapi.TestDetect_DeclinesASourceHoldingMoreNodesThanTheCallersBudget`,
@@ -292,10 +300,13 @@ is left out too.
   `openapi.TestCompile_APathItemsFixedMethodsAreNotCharged`,
   `openapi.TestCompile_AnItemsAdditionalOperationsAreChargedInAnyOrder`,
   `openapi.TestCompile_AnItemsParameterIsWeighedInItsOwnDocument`,
-  `operation.TestLowerService_NoAdditionalOperationLowersPastTheBudget`
+  `operation.TestLowerService_NoAdditionalOperationLowersPastTheBudget`,
+  `e2e.TestCompile_ScalarTextAliasesAddIsHeldToTheByteBudget`,
+  `e2e.TestCompile_ScalarTextAliasesAddIsHeldToTheBudgetAtItsEdge`,
+  `e2e.TestCompile_AnOverlayDocumentIsHeldToTheAliasTextBudget`,
+  `e2e.TestCompile_AnExternalDocumentIsHeldToTheAliasTextBudget`
 - Status: partly built: an external object reached after its contents is charged against the
-  document budget twice (#571), aliases of a long scalar (#1429) cost gigabytes within every
-  bound, and the pointer bound counts the values a compile keeps verbatim, an example or an
+  document budget twice (#571), and the pointer bound counts the values a compile keeps verbatim, an example or an
   extension, whose nodes it never names one by one, so a document whose values nest long keys deep
   is refused though it would compile cheaply (#1499).
 
