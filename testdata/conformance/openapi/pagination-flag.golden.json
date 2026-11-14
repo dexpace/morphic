@@ -1,0 +1,396 @@
+{
+  "idSpaces": {
+    "auth": [
+      "openapi",
+      "unresolved"
+    ],
+    "e": [
+      "anon",
+      "composed",
+      "openapi"
+    ],
+    "g": [
+      "default",
+      "extension",
+      "path-prefix",
+      "tags",
+      "webhooks"
+    ],
+    "op": [
+      "openapi"
+    ],
+    "p": [
+      "composed",
+      "openapi"
+    ],
+    "param": [
+      "openapi"
+    ],
+    "s": [
+      "openapi"
+    ],
+    "server": [
+      "default",
+      "openapi"
+    ],
+    "t": [
+      "anon",
+      "composed",
+      "openapi"
+    ]
+  },
+  "name": "PaginationFlag",
+  "version": "1.0.0",
+  "docs": {},
+  "services": [
+    {
+      "id": "s/openapi/0",
+      "name": {
+        "source": "PaginationFlag",
+        "canonical": "pagination_flag"
+      },
+      "docs": {},
+      "groups": [
+        {
+          "id": "g/default",
+          "name": {
+            "hint": "default"
+          },
+          "docs": {},
+          "operations": [
+            {
+              "id": "op/openapi/paths/~1changes/get",
+              "name": {
+                "source": "listChanges",
+                "canonical": "list_changes"
+              },
+              "docs": {},
+              "params": [
+                {
+                  "id": "param/openapi/paths/~1changes/get/parameters/cursor/query",
+                  "name": {
+                    "source": "cursor",
+                    "canonical": "cursor"
+                  },
+                  "type": {
+                    "target": "t/prim/string",
+                    "nullable": false
+                  },
+                  "required": false,
+                  "docs": {},
+                  "provenance": {
+                    "source": 0,
+                    "pointer": "/paths/~1changes/get/parameters/0"
+                  }
+                }
+              ],
+              "responses": [
+                {
+                  "name": {
+                    "hint": "200"
+                  },
+                  "conditions": {
+                    "statusCodes": [
+                      {
+                        "from": 200,
+                        "to": 200
+                      }
+                    ]
+                  },
+                  "payload": {
+                    "contents": [
+                      {
+                        "mediaType": "application/json",
+                        "type": {
+                          "target": "t/anon/paths/~1changes/get/responses/200/content/application~1json/schema",
+                          "nullable": false
+                        }
+                      }
+                    ]
+                  },
+                  "docs": {
+                    "description": "ok"
+                  }
+                }
+              ],
+              "oneWay": false,
+              "pagination": {
+                "strategy": "cursor",
+                "inferred": true,
+                "inputCursor": {
+                  "param": "param/openapi/paths/~1changes/get/parameters/cursor/query"
+                },
+                "items": {
+                  "segments": [
+                    "p/openapi/paths/~1changes/get/responses/200/content/application~1json/schema/properties/result"
+                  ]
+                },
+                "nextCursor": {
+                  "segments": [
+                    "p/openapi/paths/~1changes/get/responses/200/content/application~1json/schema/properties/result_info",
+                    "p/openapi/paths/~1changes/get/responses/200/content/application~1json/schema/properties/result_info/properties/next_cursor"
+                  ]
+                },
+                "hasMore": {
+                  "segments": [
+                    "p/openapi/paths/~1changes/get/responses/200/content/application~1json/schema/properties/result_info",
+                    "p/openapi/paths/~1changes/get/responses/200/content/application~1json/schema/properties/result_info/properties/has_more"
+                  ]
+                },
+                "stop": [
+                  "no_more"
+                ]
+              },
+              "idempotency": {},
+              "bindings": {
+                "http": [
+                  {
+                    "method": "GET",
+                    "uriTemplate": "/changes",
+                    "paramBindings": [
+                      {
+                        "param": "param/openapi/paths/~1changes/get/parameters/cursor/query",
+                        "location": "query",
+                        "wireName": "cursor",
+                        "style": "form",
+                        "allowReserved": false,
+                        "allowEmptyValue": false
+                      }
+                    ],
+                    "sharedRoute": false,
+                    "checksumRequired": false
+                  }
+                ]
+              },
+              "provenance": {
+                "source": 0,
+                "pointer": "/paths/~1changes/get",
+                "inferred": "pagination-inference"
+              }
+            }
+          ]
+        }
+      ],
+      "servers": [
+        "server/default"
+      ],
+      "provenance": {
+        "source": 0
+      }
+    }
+  ],
+  "types": {
+    "t/anon/paths/~1changes/get/responses/200/content/application~1json/schema": {
+      "kind": "model",
+      "id": "t/anon/paths/~1changes/get/responses/200/content/application~1json/schema",
+      "name": {
+        "hint": "response"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/paths/~1changes/get/responses/200/content/application~1json/schema"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/paths/~1changes/get/responses/200/content/application~1json/schema/properties/result",
+          "name": {
+            "source": "result",
+            "canonical": "result"
+          },
+          "wireName": "result",
+          "type": {
+            "target": "t/anon/paths/~1changes/get/responses/200/content/application~1json/schema/properties/result",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/paths/~1changes/get/responses/200/content/application~1json/schema/properties/result"
+          }
+        },
+        {
+          "id": "p/openapi/paths/~1changes/get/responses/200/content/application~1json/schema/properties/result_info",
+          "name": {
+            "source": "result_info",
+            "canonical": "result_info"
+          },
+          "wireName": "result_info",
+          "type": {
+            "target": "t/anon/paths/~1changes/get/responses/200/content/application~1json/schema/properties/result_info",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/paths/~1changes/get/responses/200/content/application~1json/schema/properties/result_info"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/anon/paths/~1changes/get/responses/200/content/application~1json/schema/properties/result": {
+      "kind": "list",
+      "id": "t/anon/paths/~1changes/get/responses/200/content/application~1json/schema/properties/result",
+      "name": {
+        "hint": "result"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/paths/~1changes/get/responses/200/content/application~1json/schema/properties/result"
+      },
+      "elem": {
+        "target": "t/prim/string",
+        "nullable": false
+      }
+    },
+    "t/anon/paths/~1changes/get/responses/200/content/application~1json/schema/properties/result_info": {
+      "kind": "model",
+      "id": "t/anon/paths/~1changes/get/responses/200/content/application~1json/schema/properties/result_info",
+      "name": {
+        "hint": "result_info"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/paths/~1changes/get/responses/200/content/application~1json/schema/properties/result_info"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/paths/~1changes/get/responses/200/content/application~1json/schema/properties/result_info/properties/next_cursor",
+          "name": {
+            "source": "next_cursor",
+            "canonical": "next_cursor"
+          },
+          "wireName": "next_cursor",
+          "type": {
+            "target": "t/prim/string",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {
+            "description": "Where the next page or a later poll resumes."
+          },
+          "provenance": {
+            "source": 0,
+            "pointer": "/paths/~1changes/get/responses/200/content/application~1json/schema/properties/result_info/properties/next_cursor"
+          }
+        },
+        {
+          "id": "p/openapi/paths/~1changes/get/responses/200/content/application~1json/schema/properties/result_info/properties/has_more",
+          "name": {
+            "source": "has_more",
+            "canonical": "has_more"
+          },
+          "wireName": "has_more",
+          "type": {
+            "target": "t/prim/bool",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {
+            "description": "True when another page follows."
+          },
+          "provenance": {
+            "source": 0,
+            "pointer": "/paths/~1changes/get/responses/200/content/application~1json/schema/properties/result_info/properties/has_more"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/prim/bool": {
+      "kind": "primitive",
+      "id": "t/prim/bool",
+      "name": {},
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": -1
+      },
+      "prim": "bool"
+    },
+    "t/prim/string": {
+      "kind": "primitive",
+      "id": "t/prim/string",
+      "name": {},
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": -1
+      },
+      "prim": "string"
+    }
+  },
+  "servers": {
+    "server/default": {
+      "id": "server/default",
+      "name": {
+        "hint": "server"
+      },
+      "urlTemplate": "/",
+      "description": {},
+      "provenance": {
+        "source": 0
+      }
+    }
+  },
+  "sources": [
+    {
+      "format": "openapi@3.1",
+      "path": "pagination-flag.yaml",
+      "hash": "921d5205aba84ab06d1e88ef6c7b058628d9a02a7ccbd9200e322c247cfd5907"
+    }
+  ]
+}

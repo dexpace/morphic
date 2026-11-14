@@ -727,8 +727,9 @@ test running beside it would move the count, and a request's page would turn on 
 - **What a page says.** Each page but the last carries the continuation of the position after its
   last item, where the strategy reads one, at the place `CursorOut` reads it or in the `Link`
   header; every page states the walk's items where `TotalCount` reads them and its pages at the
-  request's size where `TotalPages` does; and the rest of each is the response's example, shown as
-  any is. The last carries no continuation: its member absent where optional, else null where
+  request's size where `TotalPages` does; each states the flag `HasMore` reads, true on every page
+  but the last and false on the last; and the rest of each is the response's example, shown as any
+  is. The last carries no continuation: its member absent where optional, else null where
   nullable; else the empty value where `no_next` is listed and its type admits one. Where the
   continuation is required and not nullable and neither of those ends the walk, the mock mints one
   more position, the walk's end, `total` with a total to read listed or not, since `total` counts

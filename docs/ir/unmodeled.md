@@ -245,7 +245,9 @@ also name `TypeCommon`, the node of a `$ref`'s target, which lends a use what it
 3); a replacement is never lent, since it names an entity of its own node's class, which a use and
 its target are not. A pagination is read off the operation's keys and off keys marking a value
 where it sits, its parameter, its member or the type either names, so each node whose key it read
-records it. A promoted `Pagination` also sets its own `Inferred`, which says the value as a whole is
+records it. An operation writing a pagination key `true` reads the walk the document's root states
+under it: the key read is the operation's own `true`, which the operation keeps and marks, and no
+field of the `Document`, which has no marker, is filled from the root's entry. A promoted `Pagination` also sets its own `Inferred`, which says the value as a whole is
 a heuristic's ([plan policy](../emitters/plan/policy.md)).
 
 Three other places for the record were weighed:

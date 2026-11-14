@@ -74,7 +74,7 @@ func (pg *pager) input(op *ir.Operation, target lowering.ExtensionTarget) (resol
 		if len(src.Values) > 0 {
 			return pg.markedInput(op, target, src)
 		}
-		st, diags := lowering.PageStatementOf(pg.p, target, src, op.Unmodeled)
+		st, diags := lowering.PageStatementOf(pg.p, target, src, op.Unmodeled, pg.root)
 		r := resolved[*ir.InputPath]{at: st.At, stated: st.Stated, written: st.Written,
 			read: []*ir.Provenance{&op.Provenance}}
 		if !st.Stated {
@@ -92,7 +92,7 @@ func (pg *pager) output(op *ir.Operation, target lowering.ExtensionTarget) (reso
 		if len(src.Values) > 0 {
 			return pg.markedOutput(op, target, src)
 		}
-		st, diags := lowering.PageStatementOf(pg.p, target, src, op.Unmodeled)
+		st, diags := lowering.PageStatementOf(pg.p, target, src, op.Unmodeled, pg.root)
 		r := resolved[*ir.PropPath]{at: st.At, stated: st.Stated, written: st.Written,
 			read: []*ir.Provenance{&op.Provenance}}
 		if !st.Stated {
@@ -192,7 +192,7 @@ func (pg *pager) responseValue(op *ir.Operation, text string) (*ir.PropPath, str
 		case e.Part == runtimeexpr.PartBody:
 			return pg.bodyOutput(op, e.Tokens)
 		case e.Part == runtimeexpr.PartHeader:
-			return pg.headerOutput(op, e.Name)
+			return headerOutput(pg.w, op, e.Name)
 		default:
 			return nil, "reads a response's " + e.Part + " parameter, which no response carries"
 		}
@@ -232,14 +232,15 @@ func (pg *pager) bodyOutput(op *ir.Operation, tokens []string) (*ir.PropPath, st
 }
 
 // headerOutput is the header name, which every success response of op must
-// declare once.
-func (pg *pager) headerOutput(op *ir.Operation, name string) (*ir.PropPath, string) {
+// declare once: what an extension's expression reads, and what the inference
+// reads a next cursor from (headerCursor). w is the document.
+func headerOutput(w *whole.Document, op *ir.Operation, name string) (*ir.PropPath, string) {
 	if len(op.Responses) == 0 {
 		return nil, "reads response header " + strconv.Quote(name) + ", and the operation declares no success response"
 	}
 	var out *ir.PropPath
 	for i := range op.Responses {
-		found := pg.w.Header(whole.ResponseKey{Op: op.ID, List: whole.ListResponses, Index: i}, op.Responses[i].Headers, name)
+		found := w.Header(whole.ResponseKey{Op: op.ID, List: whole.ListResponses, Index: i}, op.Responses[i].Headers, name)
 		switch {
 		case len(found) != 1:
 			return nil, "reads response header " + strconv.Quote(name) + ", which a success response does not declare once"

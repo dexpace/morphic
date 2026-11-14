@@ -758,3 +758,13 @@ it sees. Changes made together in one bump are listed together under it.
   consumer pinned to 0.64.0 that read `Explode` as always present no longer finds the key on such a
   binding, and must read its absence as the style's default, as it already does for a response
   header's. Read as false, the absence sends a `form` parameter unexploded.
+- **0.68.0** — `Pagination.HasMore`, the page's flag saying another page follows, and the stop
+  `no_more`, ending a walk at a page whose flag is false, null or absent
+  ([pagination](./interaction-patterns.md#pagination)); `no_more` with no `HasMore` is
+  `ir/page-stop-without-flag`. The OpenAPI compiler fills them from a promotion target
+  `pagination.hasMore` and from a cursor walk's page stating one flag, and writes for the first time
+  a walk whose inputs are members of the request body or of an object query parameter, `NextLink`
+  and `PrevLink` beside a walk an input continues, a header `NextCursor`, and the strategies
+  `next_link` and `link_header` where no input continues a page
+  ([`pagination-policy`](../compilers/openapi.md#pagination-policy)). A consumer pinned to 0.65.0
+  refuses the document; one reading `Stop` with no arm for `no_more` would not end such a walk.

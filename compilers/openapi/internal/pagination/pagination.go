@@ -4,8 +4,6 @@
 package pagination
 
 import (
-	"fmt"
-	"net/http"
 	"slices"
 	"strconv"
 	"strings"
@@ -43,30 +41,37 @@ func InferWalks(c lowering.Ctx, w *whole.Document, stated map[ir.OpID]bool) []ir
 }
 
 // infer fills op's Pagination where the names it uses settle one. It reports
-// undecided, with why, where its query parameters name an input and the names
-// settle none; an operation holding a Pagination, or one the API sends, is left
-// alone.
+// undecided, with why, where its request names an input, or its response a
+// continuation, and the names settle none; an operation holding a Pagination,
+// or one the API sends, is left alone.
 func (r *reader) infer(op *ir.Operation) (why string, undecided bool) {
 	if op.Pagination != nil || inbound(op) {
 		return "", false
 	}
+	walk, why := r.walk(op)
+	if walk != nil {
+		op.Pagination = walk
+		op.Provenance.Inferred = ir.JoinInferred(op.Provenance.Inferred, lowering.PaginationInferenceHeuristic)
+	}
+	return why, why != ""
+}
+
+// walk returns the walk op's places and pages name, or, where no place names
+// where a walk continues, the link walk its response alone continues
+// (reader.linkWalk), and why it settles none where they name one.
+func (r *reader) walk(op *ir.Operation) (*ir.Pagination, string) {
 	in, why, named := requestInputs(r.w, op)
-	if !named {
-		return "", false
-	}
-	if m, ok := unsafeMethod(op); ok {
-		return fmt.Sprintf("the operation is a %s, and only a GET or a QUERY is safe to send again for each page", m), true
-	}
-	if why != "" {
-		return why, true
+	switch {
+	case !named:
+		return r.linkWalk(op)
+	case why != "":
+		return nil, why
 	}
 	pg, why := r.responsePage(op, in)
 	if why != "" {
-		return why, true
+		return nil, why
 	}
-	op.Pagination = build(in, pg)
-	op.Provenance.Inferred = ir.JoinInferred(op.Provenance.Inferred, lowering.PaginationInferenceHeuristic)
-	return "", false
+	return build(in, pg), ""
 }
 
 // inbound reports whether the API sends op rather than the client: a webhook
@@ -79,41 +84,35 @@ func inbound(op *ir.Operation) bool {
 // which net/http names no constant for.
 const methodQuery = "QUERY"
 
-// unsafeMethod returns the method of op's first HTTP binding that a walk
-// cannot send again for each page: any but GET and QUERY, the methods asking
-// for no change on the server. A walk resends its operation, so a POST taking a
-// path item's page parameters, as one creating a resource can, would create it
-// once per page.
-func unsafeMethod(op *ir.Operation) (string, bool) {
-	for _, b := range op.Bindings.HTTP {
-		if b.Method != http.MethodGet && b.Method != methodQuery {
-			return b.Method, true
-		}
-	}
-	return "", false
-}
-
 // build is the Pagination a walk sending in reads off pg. A walk following a
-// next cursor ends where it is empty, null or absent (ir.PageStopNoNext), as an
-// empty cursor names no page; one counting pages or items lists no stop, a page
-// holding none ending it whatever Stop lists.
+// next cursor ends at the flag its page states (ir.PageStopNoMore), the page's
+// own statement of where it ends, and otherwise where the cursor is empty, null
+// or absent (ir.PageStopNoNext), as an empty cursor names no page; one counting
+// pages or items lists no stop, a page holding none ending it whatever Stop
+// lists.
 func build(in inputs, pg page) *ir.Pagination {
-	cursor := in.cursor.ID
 	out := &ir.Pagination{
 		Strategy:    in.strategy,
 		Inferred:    true,
-		InputCursor: &ir.InputPath{Param: &cursor},
+		InputCursor: in.cursor.input(),
 		Items:       &ir.PropPath{Segments: slices.Clone(pg.items)},
 		TotalCount:  pathTo(pg.totalCount),
 		TotalPages:  pathTo(pg.totalPages),
 	}
 	if in.limit != nil {
-		limit := in.limit.ID
-		out.InputLimit = &ir.InputPath{Param: &limit}
+		out.InputLimit = in.limit.input()
 	}
+	out.NextLink, out.PrevLink = pathTo(pg.nextLink), pathTo(pg.prevLink)
 	if pg.next != nil {
 		out.NextCursor = pathTo(pg.next)
+		if pg.nextHeader {
+			out.NextCursor.In = "header"
+		}
 		out.Stop = []ir.PageStop{ir.PageStopNoNext}
+	}
+	if pg.hasMore != nil {
+		out.HasMore = pathTo(pg.hasMore)
+		out.Stop = []ir.PageStop{ir.PageStopNoMore}
 	}
 	return out
 }
@@ -140,10 +139,15 @@ func undecidedAt(op *ir.Operation, why string) ir.Diagnostic {
 const maxListed = 3
 
 // listed joins names, two or more, into a list sorted so it reads the same
-// whatever order the document declares them in, naming the first maxListed
-// and how many more there are.
+// whatever order the document declares them in (joined).
 func listed(names []string) string {
 	slices.Sort(names)
+	return joined(names)
+}
+
+// joined joins names, two or more, in their order, naming the first maxListed
+// and how many more there are.
+func joined(names []string) string {
 	if more := len(names) - maxListed; more > 0 {
 		names = append(names[:maxListed:maxListed], strconv.Itoa(more)+" more")
 	}

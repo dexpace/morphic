@@ -527,6 +527,9 @@ type Pagination struct {
 	Items *PropPath `json:"items,omitzero"`
 	// NextCursor is the continuation source in the response.
 	NextCursor *PropPath `json:"nextCursor,omitzero"`
+	// HasMore is the response's flag saying another page follows: true
+	// continues. nil = the source states none.
+	HasMore *PropPath `json:"hasMore,omitzero"`
 	// NextLink is the next-page link in the response.
 	NextLink *PropPath `json:"nextLink,omitzero"`
 	// PrevLink is the previous-page navigation link.
@@ -561,6 +564,9 @@ const (
 	// PageStopTotal ends it once the items read reach TotalCount, or the pages
 	// read reach TotalPages.
 	PageStopTotal PageStop = "total"
+	// PageStopNoMore ends iteration at a page whose HasMore is false, null or
+	// absent.
+	PageStopNoMore PageStop = "no_more"
 )
 
 // Valid reports whether s is one of the conditions declared above. PageStop is
@@ -569,7 +575,7 @@ const (
 // value is reported rather than ignored.
 func (s PageStop) Valid() bool {
 	switch s {
-	case PageStopEmpty, PageStopNoNext, PageStopShort, PageStopTotal:
+	case PageStopEmpty, PageStopNoNext, PageStopShort, PageStopTotal, PageStopNoMore:
 		return true
 	default:
 		return false

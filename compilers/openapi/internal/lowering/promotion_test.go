@@ -524,7 +524,7 @@ func appliers() []func(lowering.Promoter, ir.Unmodeled) (bool, []ir.Diagnostic) 
 					continue
 				}
 				for _, src := range p.Sources(target) {
-					st, readDiags := lowering.PageStatementOf(p, target, src, unmodeled)
+					st, readDiags := lowering.PageStatementOf(p, target, src, unmodeled, nil)
 					stated, diags = stated || st.Stated, append(diags, readDiags...)
 				}
 			}
@@ -585,6 +585,7 @@ var targetFields = map[lowering.ExtensionTarget][]string{
 	lowering.TargetPaginationItems:           {"Operation.Pagination"},
 	lowering.TargetPaginationNextCursor:      {"Operation.Pagination"},
 	lowering.TargetPaginationNextLink:        {"Operation.Pagination"},
+	lowering.TargetPaginationHasMore:         {"Operation.Pagination"},
 	lowering.TargetPaginationTotalCount:      {"Operation.Pagination"},
 	lowering.TargetPaginationTotalPages:      {"Operation.Pagination"},
 }

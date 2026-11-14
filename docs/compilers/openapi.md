@@ -5965,7 +5965,8 @@ members of response bodies. Each field is a target of the policy: `pagination.cu
 `pagination.offset` and `pagination.page` the input continuing a walk of strategy `cursor`, `offset`
 or `page`, `pagination.limit` the page size, and `pagination.items`, `pagination.nextCursor`,
 `pagination.nextLink`, `pagination.totalCount` and `pagination.totalPages` the page values of the
-same names. A source listing no values holds, on the operation, an expression naming the value: an
+same names, and `pagination.hasMore` the flag a page states that another follows, which fills
+`HasMore` and ends the walk by it alone, `Stop: [no_more]`, and which no default source reads. A source listing no values holds, on the operation, an expression naming the value: an
 OpenAPI runtime expression, `$request.query.<name>`, `$request.path.<name>`,
 `$request.header.<name>` or `$request.body` and a pointer for an input, and `$response.body` and a
 pointer or `$response.header.<name>` for a page value, or the shorthand `$request.` or `$response.`
@@ -6004,14 +6005,27 @@ way, as an expression or as a mark, and is one of three things. It states part o
 an object holding a member a source reads, or, for a source reading the value whole, that value: an
 expression, written as a string, or a word a source lists, each read as above. `false` states that
 no walk, or no value of one, is there: nothing is read from it and nothing is reported. Any other
-value states nothing a source can read: `true`, null, a string, a number or a list where the sources
-read a member; an object holding none of the members they read, such as `{}`; an expression that is
-no string or is empty; and a word none of the sources of its member lists. Each is reported as an
-info `openapi/degraded-construct` at the key, or at the member read, once however many sources read
-it, saying that the key, being written, keeps an inferred pagination off where it is read. A word
-one source lists is reported by none of the others, even where only a source reading the other side
-of the walk lists it. A convention may read an operation's `true` as the walk the document's root
-states; no source reads the root, so that `true` is reported as the others are.
+value states nothing a source can read: `true` beyond the operation, null, a string, a number or a
+list where the sources read a member; an object holding none of the members they read, such as
+`{}`; an expression that is no string or is empty; and a word none of the sources of its member
+lists. Each is reported as an info `openapi/degraded-construct` at the key, or at the member read,
+once however many sources read it, saying that the key, being written, keeps an inferred pagination
+off where it is read. A word one source lists is reported by none of the others, even where only a
+source reading the other side of the walk lists it.
+
+An operation writing a key `true`, where its sources read a member, reads the walk the document's
+root states under the same key, as though the operation had written the root's object; the
+operation keeps its `true` and lists the marker where a pagination is filled, and the root's entry
+stays kept, no field of the `Document` being filled from it. This is the rule of every
+member-reading pagination source, not a field of the source. A root writing no such key, or a value
+that is no object, a root `true` being followed no further, states no walk, and the operation is
+stated all the same: the former is reported as an info `openapi/unpromoted-extension` at the
+operation's key, the latter at the root's key, so every operation writing `true` shares one finding.
+A `true` beside the same key its path item writes, which the operation keeps as
+`openapi:pathItem/<key>`, fills nothing and is reported at the operation's key as the same code: the
+nearer statement is the one a reader would expect to win, and no promotion reads it, so the root's
+is not taken in its place. An operation writing nothing beside a root that states a walk has not
+opted in, and its inference is unchanged.
 
 A pagination is read in the precedence [`policies`](#policies) gives, so no inference
 ([`pagination-policy`](#pagination-policy)) fills one the document spoke of. OpenAPI writes no
@@ -6025,8 +6039,8 @@ step inferring a pagination reads in place of their extensions, and marks no nod
 it does not fill. A key written anywhere else, such as on an error response, in a media type that
 streams, or as a mark on the operation itself, is read by no source, so it speaks of nothing.
 
-- Cases: `extension-pagination`, `body-alias`
-- Codes: `openapi/degraded-construct`
+- Cases: `extension-pagination`, `body-alias`, `extension-pagination-root`
+- Codes: `openapi/degraded-construct`, `openapi/unpromoted-extension`
 - Tests: `pagination.TestPromote_FillsWhatTheExtensionsDeclare`,
   `pagination.TestPromote_ReportsWhatFillsNone`,
   `pagination.TestPromote_ReadsEverySuccessResponse`,
@@ -6045,9 +6059,10 @@ streams, or as a mark on the operation itself, is read by no source, so it speak
   `pagination.TestMarker_AUseOfATypeTheRegistryLacksMarksNothing`,
   `lowering.TestPageStatementOf_ReadsAnExpressionOrAMark`,
   `lowering.TestPageStatementOf_ReportsWhatStatesNoValueOfAWalk`,
-  `pagination.TestInferWalks_LeavesWhatAnExtensionSpeaksOf`
-- Status: partly built: an operation's `true` that a convention reads as the walk the document's
-  root states is reported, not read (#1876).
+  `pagination.TestInferWalks_LeavesWhatAnExtensionSpeaksOf`, `pagination.TestPromote_FillsTheFlag`,
+  `pagination.TestPromote_ReadsTheRootForTrue`, `pagination.TestPromote_TrueWithNoRootStatement`,
+  `lowering.TestPageStatementOf_ReadsTheRootForTrue`
+- Status: open: a key a path item writes is read by no promotion (#1221).
 
 ### `pagination-policy`
 
@@ -6060,20 +6075,44 @@ holding a `Pagination`, or one whose extensions speak of a pagination where
 [`extension-pagination`](#extension-pagination) reads them, is neither read nor reported, as the
 document has answered for it. Under a promotion policy mapping no pagination target,
 `extension-promotion=false` among them, no key is read, so no extension speaks and the policy reads
-every operation. A walk sends its operation again for each page, so it settles one only for a `GET`
-or a `QUERY`, the methods asking for no change on the server: a `POST` taking its path item's page
-parameters, as one creating a resource does, would create it once per page. A name is compared by
-its canonical words (`Naming.Canonical`), so `pageSize` and `page_size` are one name:
+every operation. A name is compared by its canonical words (`Naming.Canonical`), so `pageSize` and
+`page_size` are one name:
 
-1. **Where a walk continues** is a query parameter named `page` or `page_number`, under the `page`
-   strategy; `offset`, under `offset`; `cursor`, under `cursor`; or `page_token`, `next_token` or
-   `continuation_token`, under `token`. It is `InputCursor`, and a query parameter named `per_page`,
-   `page_size` or `limit` beside it is `InputLimit`. Each is a value a walk sends or counts with:
-   its type, read through alias scalars, is a plain number of any kind or a plain string, the text a
-   number is sent as, and not an enum, a constant or an encoded string, whatever values it holds. A
-   `page` sent as a string is read only where its default or an example is a whole number, as some
-   APIs name an opaque page token `page` too. A name such as `after`, `marker` or `starting_after`,
-   which names a cursor in one API and a filter or an ID in another, is not read.
+1. **Where a walk continues** is a place named `page` or `page_number`, under the `page` strategy;
+   `offset`, under `offset`; `cursor`, under `cursor`; or `page_token`, `next_token` or
+   `continuation_token`, under `token`. It is `InputCursor`, and a place named `per_page`,
+   `page_size` or `limit` beside it is `InputLimit`. A place is a query parameter; a member of an
+   object query parameter, one bound in the query or as the query string whose type stands for a
+   model, one level down, an `InputPath` naming the parameter and the member; or a member of the
+   request body's root that every content holds, an `InputPath` naming the member alone. An object
+   parameter is read through its members: where one of them names a continuation, its own name
+   gives it no role, so a JSON:API `page` holding `offset` and `limit` is one `offset` walk; where
+   none does, its name is read as any parameter's. Each place is a value a walk sends or counts
+   with: its type, read through alias scalars, is a plain number of any kind or a plain string, the
+   text a number is sent as, and not an enum, a constant or an encoded string, whatever values it
+   holds. A `page` sent as a string is read only where the default or an example of its parameter or
+   member is a whole number, as some APIs name an opaque page token `page` too. A name such as
+   `after`, `marker` or `starting_after`, which names a cursor in one API and a filter or an ID in
+   another, is not read. Two places naming a continuation, or two naming the page size, leave the
+   walk undecided, each named.
+
+   A walk sends its operation again for each page, so the method decides what is read. A `GET` or a
+   `QUERY`, which asks for no change on the server, is read from any place. A `POST` is read where a
+   member of its body names a `page`, `cursor` or `token` continuation, or a query parameter names
+   any, and settles only where all of these hold, each failing one reported with its own reason:
+   where the walk continues is a member of the request body, since a `POST` taking its path item's
+   page parameters, as one creating a resource does, would create it once per page; the strategy
+   is `page`, `cursor` or `token`, a body `offset` being no trigger and drawing nothing, as it is
+   often an identifier; a `page` walk names its page size in the body too; a `cursor` or `token`
+   walk's next cursor is named as the cursor with `next` before it, never as the cursor itself, as
+   a create answers with what it was sent; the items are the list named as items at the page's root,
+   or the page is a list, the fallbacks of a model holding them or of the one list being left out;
+   and every success response declaring a body is a `200`, as a `201` says a resource was created
+   (RFC 9110 §15.3.2). Any other method, whose body states what to store, change or remove, is read
+   as no walk, and one whose query parameters name a continuation is reported. Which declaration a
+   body member takes where two `allOf` entries declare it follows their order, so a body composing
+   `page` as an integer in one entry and a string in another is a walk in one order and undecided
+   in the other.
 2. **A page** is the body of each content of each success response, the `Default` aside, and each
    must hold what the walk reads at the same members, as a pager reads whichever arrives. One with
    no body, such as a `204` or a `304`, holds none and is not read, as a pager ends at it as at an
@@ -6089,29 +6128,63 @@ its canonical words (`Naming.Canonical`), so `pageSize` and `page_size` are one 
 3. **The next cursor** of a `cursor` or a `token` walk is `NextCursor`: the one member of the body,
    or of a model a member of it holds, of the cursor's own primitive, named as the cursor with
    `next` before it, or, where no member is so named, as the cursor itself, since a page naming
-   both echoes the cursor it was sent beside the next. Such a walk lists `no_next` in `Stop`, as an
-   empty next cursor names no page; a walk under `page` or `offset` lists none, a page holding no
+   both echoes the cursor it was sent beside the next, or, for a cursor that is no string, `next`.
+   A plain string `next` beside a string cursor may be the cursor or a link, so where it stands
+   alone the walk is undecided. Where the body names none, the next cursor is the response header
+   every success response declares once whose canonical name, a leading `x_` aside, is the
+   cursor's with `next` before it, or the cursor's own, a `NextCursor` whose `In` is `header`; a
+   next cursor the body and a header both name leaves the walk undecided. Such a walk lists
+   `no_next` in `Stop`, as an empty next cursor names no page; a walk under `page` or `offset` lists none, a page holding no
    items ending it whatever `Stop` lists
-   ([pagination](../emitters/operations/pagination.md#where-a-page-walk-ends)). A boolean beside the
-   next cursor, in the model holding it, such as `has_more` or `is_truncated`, says whether another
-   page follows, which no `PageStop` states, and a page may keep handing back a cursor past its
-   last, so such a walk is not settled.
-4. **The totals** are `TotalCount`, the one member named `total_count`, and `TotalPages`, the one
+   ([pagination](../emitters/operations/pagination.md#where-a-page-walk-ends)).
+4. **The flag** of a `cursor` or a `token` walk is `HasMore`: the one boolean member of the body, or
+   of a model a member of it holds, named `has_more`, `has_next`, `has_next_page` or
+   `is_truncated`. The walk then ends by it and lists `no_more` alone, the page's own statement of
+   where the walk ends, since a page may keep handing back a cursor past its last. Flags are counted
+   by member, so one name at two places is two, and two flags leave the walk undecided, as taking
+   the first met would end it at the wrong one and turn on declaration order. A boolean beside the
+   next cursor under another name, a bare `truncated` among them, leaves it undecided too: it may
+   say more follows or that a result was cut short for good, and a pager ending there would drop
+   pages. A flag further down, or in a header, is not read, and a walk under `page` or `offset`
+   reads none.
+5. **The totals** are `TotalCount`, the one member named `total_count`, and `TotalPages`, the one
    named `total_pages`, each of a type a walk counts with, in the body or in a model a member of it
    holds. A page naming none or several states no total, and the field is unset.
+6. **The links** are `NextLink`, the one member named `next_link` typed as a string or a `url`,
+   else the one named `next` typed as a `url`, and `PrevLink`, the one named `prev_link` or
+   `previous_link` typed as either, else the one named `prev` or `previous` typed as a `url`, in the
+   body or in a model a member of it holds. Beside a walk an input continues they are facts of the
+   page, which change neither its strategy nor what is reported; a link the contents hold at
+   different members, or none or several of, is left unset, and the walk stands. `FirstLink`,
+   `LastLink` and a flag for a link walk are not read.
+7. **A link walk** is read where no place names a continuation, on a `GET` or a `QUERY`, and the
+   response is the only evidence, so it must look like a page and nothing else: the root of each
+   content holds one list named as items or `value`, the name the next-link convention pairs with
+   `nextLink`; the links of point 6, at the root; and beyond those only whole-number counts named
+   `count`, `total`, `total_count` or `total_pages`. Any other member, a `title` or an `id`, makes
+   it a resource that links to its neighbour, and no walk; a link below the root, or a count that is
+   no whole number, the same. Such a page stating a next link is a `next_link` walk: `NextLink`,
+   `PrevLink` where stated, `Items`, the totals of point 5 and `Stop: [no_next]`. Such a page, or a
+   list, stating none, where every success response declaring a body declares a `Link` header of a
+   plain string type (RFC 8288), is a `link_header` walk, with `Items`, the totals and `Stop:
+   [no_next]`, the strategy reading the header's `next` link. A response that states a link and is
+   no page triggers nothing and draws no finding; beside an input that continues the walk, a `Link`
+   header changes nothing.
 
 What the policy fills is marked as [`policies`](#policies) marks an inference: `Pagination.Inferred`
 is set, and the operation's `Provenance.Inferred` names `pagination-inference`. An operation whose
 query parameters name where a walk continues and that the policy cannot settle gets no `Pagination`,
 never a guess, reported as an info `openapi/undecided-pagination` at the operation's declaration
-naming what stops it: a method other than `GET` and `QUERY`, two parameters naming a continuation or
-a page size, one of a type a walk does not send, a `page` string with no whole number for its
+naming what stops it: a method other than `GET`, `QUERY` and `POST`, a condition a `POST` fails,
+two places naming a continuation or a page size, one of a type a walk does not send, a `page` string with no whole number for its
 default or an example, no success response or none with a body, a body that is neither an object nor
-a list, items or a next cursor it names none or several of, a flag beside the next cursor, or bodies
-holding the page at different members. A path item mounted twice is reported once, at the
+a list, items or a next cursor it names none or several of, two flags, a boolean beside the next cursor
+named as none, a next cursor the body and a header both name, a plain string `next` beside a string
+cursor, a link walk's page stating a next link and a `Link` header, or bodies holding the page at
+different members. A path item mounted twice is reported once, at the
 declaration both mounts share.
 
-- Cases: `pagination-inferred`
+- Cases: `pagination-inferred`, `pagination-flag`, `pagination-body`, `pagination-links`
 - Codes: `openapi/undecided-pagination`
 - Tests: `pagination.TestInferWalks_ReadsEachStrategy`,
   `pagination.TestInferWalks_MarksWhatItFills`,
@@ -6124,13 +6197,25 @@ declaration both mounts share.
   `pagination.TestInferWalks_ReadsTheSameInEitherOrder`,
   `pagination.TestInferWalks_ReportsTheSameWhateverTheResponseOrder`,
   `pagination.TestInferWalks_ReadsAMountedDeclarationForEachMount`,
+  `pagination.TestInferWalks_EndsACursorWalkAtItsFlag`, `pagination.TestInferWalks_FlagNames`,
+  `pagination.TestInferWalks_ReadsNoFlagForAPageWalk`,
+  `pagination.TestInferWalks_ReadsAPostThatSearches`,
+  `pagination.TestInferWalks_LeavesAPostItCannotTellFromACreate`,
+  `pagination.TestInferWalks_ReadsNoBodyOfAMethodThatIsNoSearch`,
+  `pagination.TestInferWalks_ReadsAnObjectParameter`,
+  `pagination.TestInferWalks_ReadsAnObjectParameterNamedForARole`,
+  `pagination.TestInferWalks_TwoPlacesAreUndecided`, `pagination.TestInferWalks_ReadsLinks`,
+  `pagination.TestInferWalks_ALinkHeldApartIsLeftUnset`, `pagination.TestInferWalks_NextNames`,
+  `pagination.TestInferWalks_ReadsAHeaderCursor`, `pagination.TestInferWalks_LinkWalks`,
+  `pagination.TestInferWalks_ReadsTheBodyMembersEveryContentHolds`,
+  `pagination.TestInferWalks_SaysWhyAPostIsNoWalk`, `pagination.TestInferWalks_ReadsALinkWalkOnlyOffAPage`,
+  `pagination.TestInferWalks_AllocatesLinearInTheBodiesItReads`,
   `whole.TestDocument_StandsReadsThroughAliasScalarsToTheCap`,
   `whole.TestDocument_ListsEveryOperationOnce`,
   `lowering.TestPaginationInference_TheZeroValueHonoursThePolicy`,
   `openapi.TestDecodeOptions_TextReachesEveryField`
-- Status: partly built: an input a request body or a parameter's members carry is not read (#1815),
-  nor a next link, a `Link` header or a continuation a response header carries (#1816), nor a flag
-  a page states where its walk ends (#1827).
+- Status: open: which declaration a request body member takes where two `allOf` entries declare it
+  follows their order (#1920), and the order oracle swaps no `allOf` entries (#1666).
 
 ## 16. Swagger 2.0
 

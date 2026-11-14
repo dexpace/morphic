@@ -20,7 +20,7 @@ func Targets() []ExtensionTarget {
 		TargetDeprecation, TargetDeprecationMessage, TargetDeprecationRemovalDate,
 		TargetDeprecationRemovalVersion, TargetDeprecationReplacedBy, TargetDeprecationSince,
 		TargetEnumOpen, TargetTokenEndpointAuthMethods,
-		TargetPaginationCursor, TargetPaginationItems, TargetPaginationLimit, TargetPaginationNextCursor,
+		TargetPaginationCursor, TargetPaginationHasMore, TargetPaginationItems, TargetPaginationLimit, TargetPaginationNextCursor,
 		TargetPaginationNextLink, TargetPaginationOffset, TargetPaginationPage,
 		TargetPaginationTotalCount, TargetPaginationTotalPages, TargetAllowReserved,
 		TargetRedaction, TargetServerName, TargetStability, TargetUnionOpen,
