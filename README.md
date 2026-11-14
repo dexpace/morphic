@@ -10,7 +10,7 @@
 <p align="center">Idiomatic SDKs and docs from any API spec. One spec-agnostic IR, many targets.</p>
 
 <p align="center">
-  <a href="https://github.com/dexpace/morphic/actions/workflows/gate.yml"><img alt="gate" src="https://github.com/dexpace/morphic/actions/workflows/gate.yml/badge.svg"></a>
+  <a href="https://github.com/dexpace/morphic/actions/workflows/gate.yml"><img alt="gate" src="https://github.com/dexpace/morphic/actions/workflows/gate.yml/badge.svg?event=push"></a>
   <a href="LICENSE"><img alt="License" src="https://img.shields.io/badge/license-MIT-blue.svg"></a>
   <a href="go.mod"><img alt="Go" src="https://img.shields.io/github/go-mod/go-version/dexpace/morphic?logo=go&logoColor=white"></a>
 </p>
@@ -498,10 +498,11 @@ make gate
 That is not a summary of CI; it is what CI runs. Every check in `.github/workflows/gate.yml` runs
 a `Makefile` target bar `lint`, which the golangci-lint action runs at the version the `Makefile`
 pins, so the local command and CI run the same steps; CI splits them across two jobs that run side
-by side. The `Makefile` holds the step list, and each target (`make coverage`, `make fuzz`,
-`make bench` and the rest) runs on its own while iterating. Coverage is gated at exactly 100% of
-statements, counted from the profile rather than from `go test`'s rounded percentage, so one
-uncovered statement fails the build.
+by side. The race detector is outside it: a nightly job runs `make race` on `main`. The `Makefile`
+holds the step list, and each target (`make coverage`, `make race`, `make fuzz`, `make bench` and
+the rest) runs on its own while iterating. Coverage is gated at exactly 100% of statements, counted
+from the profile rather than from `go test`'s rounded percentage, so one uncovered statement fails
+the build.
 
 Run a single test with `go test ./ir -run TestName`. Beyond that:
 

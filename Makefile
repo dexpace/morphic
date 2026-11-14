@@ -6,7 +6,8 @@
 # then a step that calls it to one of the jobs.
 #
 #   make            the whole gate, one check at a time
-#   make coverage   the suite once, under -race, at exactly 100% coverage
+#   make coverage   the suite once, at exactly 100% coverage
+#   make race       the suite under the race detector, as the nightly job runs it
 #   make bench      benchmark timings (the gate only smoke-runs them)
 #   make fuzz FUZZTIME=5m    a longer search than the gate's
 
@@ -76,7 +77,7 @@ FUZZTIME ?= 5s
 # `go test ./...` over the same tree. CI runs them on two machines instead.
 .NOTPARALLEL:
 
-.PHONY: gate fmt vet lint lint-planted check-lint-version build coverage \
+.PHONY: gate fmt vet lint lint-planted check-lint-version build coverage race \
 	fuzz bench bench-smoke print-lint-version print-go-version
 
 gate: fmt vet lint lint-planted build coverage fuzz bench-smoke
@@ -119,15 +120,14 @@ check-lint-version:
 build:
 	$(GO) build ./...
 
-# The suite runs once, under the race detector, and cmd/morphic-covergate judges
-# its profile statement by statement; its doc says why go test's percentage is
-# not enough. -race rides along rather than taking a run of its own: both want
-# the same execution of the same tests, and the profile is identical either way.
+# The suite runs once, and cmd/morphic-covergate judges its profile statement by
+# statement; its doc says why go test's percentage is not enough. The race
+# detector has a run of its own, `make race`.
 #
 # -timeout is explicit so that a test that never returns, as one would if the
 # third-party resolver hung on a document the compiler no longer refuses, ends
-# in a stack dump naming the stuck goroutine. 300s clears the slowest package
-# under -race by more than an order of magnitude.
+# in a stack dump naming the stuck goroutine. 300s is several times the slowest
+# package's time on the gate's runner.
 #
 # The profile path is minted per run: go test truncates it at the start and
 # appends each package as it finishes, so two runs sharing one would each judge
@@ -140,8 +140,27 @@ coverage:
 		profile="$$(mktemp "$${TMPDIR:-/tmp}/morphic-cover.XXXXXX")" || exit 1; \
 		trap 'rm -f "$$profile"' EXIT; \
 	fi; \
-	$(GO) test ./... -race -timeout 300s -covermode=atomic -coverprofile="$$profile" && \
+	$(GO) test ./... -timeout 300s -covermode=atomic -coverprofile="$$profile" && \
 	$(GO) run ./cmd/morphic-covergate "$$profile"
+
+# The suite under the race detector, with no coverage: -race allows only
+# -covermode=atomic, whose counters can hide a race from the detector (#1271).
+# The nightly job runs it and the gate does not, as it is the suite's largest
+# cost. The planted race runs first, with the same flags, and must be reported:
+# a run that lost -race, or gained coverage, would otherwise pass. Under -race,
+# with coverage beside it as the gate once ran them, the slowest package took
+# over half of 300s on the same runner, so the race run allows twice that before
+# it reads a test as hung.
+RACE_FLAGS := -race -timeout 600s
+RACE_PLANT := ./internal/leakcheck/testdata/race
+race:
+	@if $(GO) test -count=1 $(RACE_FLAGS) $(RACE_PLANT) 2>&1 | grep -q 'WARNING: DATA RACE'; then \
+		echo "race: the detector reports the race planted in $(RACE_PLANT)"; \
+	else \
+		echo "race: the race planted in $(RACE_PLANT) went unreported" >&2; \
+		exit 1; \
+	fi
+	$(GO) test ./... $(RACE_FLAGS)
 
 fuzz:
 	./scripts/fuzz.sh $(FUZZTIME)

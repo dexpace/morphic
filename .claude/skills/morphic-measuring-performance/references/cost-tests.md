@@ -41,18 +41,20 @@ gives. A clock does none of that reliably; a counter does.
   cost failed its ratio test (#1125).
 - **Probe.** Plant a quadratic, such as a walk per question, and see the averaged test redden.
 
-## Count allocations in the build the gate runs, and take the fewest
+## Count allocations in each build that runs the test, and take the fewest
 `count-in-the-gates-build`
 
-- **Rule.** Run an allocation or byte-count test with `-race -covermode=atomic` before claiming it,
-  as `make coverage` runs it. Under `-race`, `sync.Pool` drops one `Put` in four, so anything
-  touching a pool allocates at random: build every input before the measured call, take the
-  fewest of single measurements, and where one visit makes many pool round trips, take the pool
-  off the hot path instead.
+- **Rule.** Run an allocation or byte-count test in both of its builds before claiming it:
+  `-covermode=atomic`, as the gate's `make coverage` runs it, and `-race`, as the nightly
+  `make race` does. Under `-race`, `sync.Pool` drops one `Put` in four, so anything touching a pool
+  allocates at random: build every input before the measured call, take the fewest of single
+  measurements, and where one visit makes many pool round trips, take the pool off the hot path
+  instead.
 - **Why.** Allocation tests that passed `go test` failed the coverage step (#1137); a byte count
   flaked under `-race` until its inputs were formatted outside it (#1006); fewest-of-twenty failed
   for a visit with a pool round trip per entry (#1147).
-- **Probe.** `go test ./<pkg> -race -covermode=atomic -coverprofile=/dev/null -count=50 -run '<Test>'`.
+- **Probe.** `go test ./<pkg> -covermode=atomic -coverprofile=/dev/null -count=50 -run '<Test>'`,
+  then under `-race` alone.
 
 ## Expect instrumentation to move what escapes
 `what-allocates-when-instrumented`
