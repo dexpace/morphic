@@ -1,0 +1,24 @@
+# A page that states the links to its neighbours beside a page number: the
+# next and previous links are read as the walk's extra facts, the strategy
+# stays the page number's, and the links are typed as URLs.
+openapi: 3.1.0
+info: {title: PaginationLinks, version: "1.0.0"}
+paths:
+  /things:
+    get:
+      operationId: listThings
+      parameters: [{name: page, in: query, schema: {type: integer}}]
+      responses:
+        "200":
+          description: ok
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  result: {type: array, items: {type: string}}
+                  result_info:
+                    type: object
+                    properties:
+                      next: {type: string, format: uri}
+                      previous: {type: string, format: uri}
