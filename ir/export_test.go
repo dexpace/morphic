@@ -43,8 +43,8 @@ func JSONSpelling(s string) (spelling string, spelled, ok bool) {
 	return jsonSpelling(l), l.spelledForJSON(s), true
 }
 
-// IDClasses is idClasses, for the external tests.
-var IDClasses = idClasses
+// IDClasses returns idClasses, for the external tests.
+func IDClasses() map[reflect.Type]bool { return idClasses }
 
 // Locator reports whether r is a discriminator's tag property that nothing
 // locates, so ir's external tests can tell it apart.
@@ -72,7 +72,7 @@ func EmptyFormPositions() []string {
 // empty-reference reading holds as references, an empty one being reported.
 func RequiredIDFields(t reflect.Type) []string {
 	var names []string
-	for _, f := range idFieldsOf(t, idClasses()) {
+	for _, f := range idFieldsOf(t, idClasses) {
 		if f.rule == idRequired {
 			names = append(names, f.name)
 		}

@@ -59,9 +59,8 @@ func checkEmptyRefs(empty *ir.EmptyReferences) []ir.Diagnostic {
 }
 
 // checkPropIDRefs reports every PropID a document carries that names no property
-// it declares, unless the walk reading both was cut short: the declarations it
-// read are then part of the document's, so it claims nothing, and
-// checkDanglingRefs reports the cut.
+// it declares, unless the walk reading both was cut short: it then read part of
+// the declarations, so it claims nothing, and checkDanglingRefs reports the cut.
 //
 // A property is a position inside its model and addresses no registry, so
 // checkDanglingRefs cannot see a PropID. The claim is membership: the ID names
