@@ -4518,9 +4518,9 @@ same `name` and `in`, a header's `name` compared in any case, as HTTP compares a
 `querystring`, `header` or `cookie`) under its wire name, with its `style`, `explode` and
 `allowReserved` ([http-binding](../ir/http-binding.md)). The `style` is the location's where the
 parameter writes none, and the `explode` is as declared, left unset where the parameter writes none,
-since its default turns on the style and filling it in would present the default as a declaration. A
-parameter's ID is derived from the
-operation's mount pointer, its name and its location ([identity](../ir/identity.md)). A list
+since its default depends on the style and filling it in would present the default as a
+declaration. A parameter's ID is derived from the operation's mount pointer, its name and its
+location ([identity](../ir/identity.md)). A list
 repeating an earlier entry's `name` and `in`, its `$ref`s resolved and a header's `name` compared
 in any case, which OpenAPI forbids, keeps every occurrence, the ID of each repeat of one spelling
 ending in its occurrence number, so `x-trace` beside `X-Trace` keeps the ID each has alone, and is
