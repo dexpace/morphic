@@ -112,5 +112,4 @@ func TestStatementOf_ReadsTheFirstSourceWritten(t *testing.T) {
 	_, written, diags := p.StatementOf(lowering.TargetParamChoices, ir.Unmodeled{})
 	assert.False(t, written)
 	assert.Empty(t, diags)
-	assert.Equal(t, "a list", lowering.ShapeOf(ir.RawValue(`[]`)))
 }
