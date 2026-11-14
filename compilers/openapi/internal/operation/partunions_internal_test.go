@@ -133,3 +133,53 @@ func TestPartUnions_ReadADefaultContentTypeOncePerRun(t *testing.T) {
 	item(unions, node)
 	assert.LessOrEqual(t, n-first, unionWidth, "an item of the union reads its members' values, not its variants again")
 }
+
+// TestPartUnions_KeepsADefaultContentTypeByAllItTurnsOn holds the store of
+// default content types to every input the reading turns on. Each pair of
+// readings differs in one of them, a part's or an item's, the minor's rules,
+// or whether the declarations write contentEncoding, and gives two answers;
+// asked of one store in turn, the second takes its own answer, not the
+// first's.
+func TestPartUnions_KeepsADefaultContentTypeByAllItTurnsOn(t *testing.T) {
+	t.Parallel()
+	reg := ir.TypeRegistry{
+		"t/text":   &ir.Primitive{ID: "t/text", Prim: ir.PrimString},
+		"t/tags":   &ir.List{ID: "t/tags", Elem: ir.TypeRef{Target: "t/text"}},
+		"t/nested": &ir.List{ID: "t/nested", Elem: ir.TypeRef{Target: "t/tags"}},
+	}
+	node := func(id ir.TypeID) (ir.TypeDef, bool) {
+		td, ok := reg[id]
+		return td, ok
+	}
+	v31, v32 := oas.Table().EncodingRules("3.1.0"), oas.Table().EncodingRules("3.2.0")
+	part := func(of ir.TypeID, rules oas.EncodingRules, by contentEncoding) func(*testing.T, *partUnions) []string {
+		return func(t *testing.T, u *partUnions) []string {
+			t.Helper()
+			types, ok := u.partDefault(node, rules, &ir.Property{Type: ir.TypeRef{Target: of}}, by)
+			require.True(t, ok, "the values of a part of %s are read", of)
+			return types
+		}
+	}
+	item := func(of ir.TypeID, rules oas.EncodingRules, by contentEncoding) func(*testing.T, *partUnions) []string {
+		return func(_ *testing.T, u *partUnions) []string {
+			return u.itemDefault(node, rules, ir.TypeRef{Target: of}, by)
+		}
+	}
+	for name, pair := range map[string][2]func(*testing.T, *partUnions) []string{
+		"a part and an item of one list":   {part("t/tags", v32, unencoded), item("t/tags", v32, unencoded)},
+		"an item under two minors' rules":  {item("t/tags", v31, unencoded), item("t/tags", v32, unencoded)},
+		"an item encoded and not":          {item("t/text", v31, unencoded), item("t/text", v31, encoded)},
+		"one type under two minors' rules": {part("t/nested", v31, unencoded), part("t/nested", v32, unencoded)},
+		"one type encoded and not":         {part("t/text", v31, unencoded), part("t/text", v31, encoded)},
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			alone := pair[1](t, newPartUnions())
+			require.NotEqual(t, pair[0](t, newPartUnions()), alone, "the two readings differ")
+
+			shared := newPartUnions()
+			pair[0](t, shared)
+			assert.Equal(t, alone, pair[1](t, shared), "the second reading takes its own answer")
+		})
+	}
+}
