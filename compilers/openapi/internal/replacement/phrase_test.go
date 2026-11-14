@@ -173,7 +173,8 @@ func TestMessage_ReadsEachCueAndNoNearMiss(t *testing.T) {
 // message of n names, each introduced, draws allocations that grow as n at n,
 // 2n and 4n, where a scan that began its sentence again at each name would
 // grow as n squared. The measure is allocations, which the public face gives
-// without a seam into the finder, and the document's own growth is linear.
+// without a seam into the finder: the names are joined by a capitalised
+// `And`, which the scan lowers by a copy, so they count the words it reads.
 func TestMessage_CostsItsLength(t *testing.T) {
 	cost := func(n int) float64 {
 		names := make([]string, n)
@@ -182,7 +183,7 @@ func TestMessage_CostsItsLength(t *testing.T) {
 			names[i] = fmt.Sprintf("`m%d`", i)
 			props = append(props, ir.Property{ID: ir.PropID(fmt.Sprintf("p/m%d", i)), WireName: fmt.Sprintf("m%d", i)})
 		}
-		message := "Use " + strings.Join(names, ", ") + "."
+		message := "Use " + strings.Join(names, " And ") + "."
 		return testing.AllocsPerRun(5, func() {
 			own := append([]ir.Property{{ID: "p/old", WireName: "old", Deprecation: says(message)}}, props...)
 			doc := routes()
