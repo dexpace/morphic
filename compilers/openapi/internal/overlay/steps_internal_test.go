@@ -34,9 +34,11 @@ func applyWithinSteps(t testing.TB, root *yaml.Node, ov string, steps int) (Orig
 }
 
 // chainSource is a source whose x-deep member is a chain of n mappings, each
-// the value of the member a of the one before.
+// the value of the member a of the one before, the last an empty mapping: so
+// every a holds an object, and an update selecting several is of one kind, as
+// Overlay 1.1 requires of the nodes an update selects.
 func chainSource(n int) string {
-	return stepsHead + "x-deep: " + strings.Repeat("{a: ", n) + "0" + strings.Repeat("}", n) + "\n"
+	return stepsHead + "x-deep: " + strings.Repeat("{a: ", n) + "{}" + strings.Repeat("}", n) + "\n"
 }
 
 // needOf returns the steps the query costs over the value src stands for,
@@ -87,13 +89,15 @@ func TestApply_RefusesATargetThatCostsMoreThanTheStepsAnOverlayMaySpend(t *testi
 // is the application's and not each action's: two actions of one cost, and a
 // bound of one and a half of them, apply the first and refuse the second, at
 // it, where a bound per action would admit both. A bound with the measured
-// need and a margin applies one.
+// need and a margin applies one. The target walks the whole chain and selects
+// its top alone, so the member the first action writes there leaves the
+// second's cost all but the first's.
 func TestApply_SpendsOneBudgetOnEverySelectorOfAnApplication(t *testing.T) {
 	t.Parallel()
 	src := chainSource(40)
-	action := "  - target: $..a..a\n    update: {t: 1}\n"
+	action := "  - target: $[?@..a..a]\n    update: {t: 1}\n"
 	head := "overlay: 1.1.0\ninfo: {title: o, version: \"1\"}\nactions:\n"
-	need := needOf(t, src, "$..a..a")
+	need := needOf(t, src, "$[?@..a..a]")
 	require.Greater(t, need, 100, "the selector costs something")
 
 	origin, diags := applyWithinSteps(t, docOf(t, src), head+action, need+need/4+1000)
