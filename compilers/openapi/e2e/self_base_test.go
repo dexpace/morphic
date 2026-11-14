@@ -255,3 +255,26 @@ func TestCompile_NothingIsMappedByInference(t *testing.T) {
 		assert.True(t, strings.HasPrefix(loc, "https://"), "%s is no file: the source's directory is not a mapping", loc)
 	}
 }
+
+// TestCompile_ASelfMovesARelativeReadAsWrittenOrAsResolved holds the judgement
+// of a read a $self moves, confined to the source's directory: under a
+// relative $self the reference is judged as written, so the read is refused
+// where it lands, outside the directory; under a $self written as an absolute
+// path the URI it resolves to is judged, an absolute path refused unread.
+func TestCompile_ASelfMovesARelativeReadAsWrittenOrAsResolved(t *testing.T) {
+	t.Parallel()
+	dir := realDir(t)
+	layout(t, dir, map[string]string{"outside/s.yaml": "S: {type: string}\n"})
+	for self, want := range map[string]string{
+		"../outside/api.yaml":                     "it lies outside the source's directory",
+		filepath.Join(dir, "outside", "api.yaml"): "the $ref names it by an absolute path",
+	} {
+		src := head32 + "$self: '" + self + "'\npaths: {}\ncomponents:\n  schemas:\n    A: {$ref: 's.yaml#/S'}\n"
+
+		_, diags := compileWithReader(t, filepath.Join(dir, "spec", "api.yaml"), src, openapi.Options{}, loopbackDisk{})
+
+		bad := unresolvedRefs(diags)
+		require.Len(t, bad, 1, "%s: %+v", self, diags)
+		assert.Contains(t, bad[0].Message, want, self)
+	}
+}

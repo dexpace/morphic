@@ -118,12 +118,13 @@ func (b *binder) opened(in resource, uri, key string) (resource, Reason, string)
 }
 
 // readAt is the resource of the document a relative URI uri names, written in
-// the resource in, whose base an $id gives: key, the URI that base makes of it
-// by RFC 3986, normalized as an identifier is (NormalURI), read as such rather
-// than placed again by Config.Locate, which spells it as written. Config.Refuse
-// judges uri as written where only relative paths moved the base, and key once
-// an absolute $id detached it, so an $id cannot make a refused read pass as
-// relative.
+// the resource in, whose base an $id or a $self gives: key, the URI that base
+// makes of it by RFC 3986, normalized as an identifier is (NormalURI), read as
+// such rather than placed again from uri. Config.Refuse judges uri as written
+// where only relative paths moved the base, and key once an absolute one
+// detached it, so a base cannot make a refused read pass as relative. A key
+// that is a URL is located as one (Config.Locate), so a mapping the caller
+// wrote puts it where its bytes are, and where it lands is judged too.
 func (b *binder) readAt(in resource, uri, key string) (resource, Reason, string) {
 	spelled := uri
 	if in.detached {
@@ -135,7 +136,16 @@ func (b *binder) readAt(in resource, uri, key string) (resource, Reason, string)
 	if why := b.docs.refusal(spelled); why != "" {
 		return resource{}, Unreadable, why
 	}
-	return b.read(key)
+	name := key
+	if u, err := url.Parse(key); err == nil && len(u.Scheme) > 1 {
+		if located, ok := b.docs.locate(key, key); ok {
+			name = located
+		}
+	}
+	if !reachable(b.docs, in, name) {
+		return resource{}, Unreadable, OffNetwork
+	}
+	return b.read(name)
 }
 
 // OffNetwork is why a reference written in a document read over the network

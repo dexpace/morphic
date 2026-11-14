@@ -49,6 +49,9 @@ func TestBind_ASelfIsADocumentsBaseAndName(t *testing.T) {
 	require.Equal(t, bind.Resolved, y.Chain.Status, "another document's $self is declared at its root")
 	assert.Equal(t, w.Chain.End, y.Chain.End)
 
+	relative := bound(t, "openapi: 3.2.0\n$self: sub/x.yaml\n", bind.Config{Self: "/r/spec.yaml", Locate: resolving.Locate})
+	assert.Equal(t, "/r/sub/x.yaml", relative.Document(bind.Source).Self, "a relative $self is read against the document")
+
 	for name, written := range map[string]string{"a fragment": "https://e.test/a.yaml#f", "placed nowhere": "nowhere"} {
 		nameless := bound(t, "openapi: 3.2.0\n$self: '"+written+"'\n", bind.Config{Self: "spec.yaml",
 			Locate: func(uri, _ string) (string, bool) { return uri, uri != "nowhere" }})
@@ -123,4 +126,37 @@ func TestBind_ADeclarationAnswersOnlyWhoCouldReadItsDocument(t *testing.T) {
 		"a fetched document is answered by no file")
 	assert.Contains(t, opened, "https://t.test/q.yaml")
 	assert.Contains(t, opened, "https://t.test/p.yaml")
+}
+
+// TestBind_AMappedURLUnderABaseIsJudgedWhereItLands holds a relative reference
+// under a $self to the location a mapping puts its URL at: the source's reads
+// it there, and a fetched document's, which a mapping would put on a file, is
+// refused, the file never read.
+func TestBind_AMappedURLUnderABaseIsJudgedWhereItLands(t *testing.T) {
+	t.Parallel()
+	var opened []string
+	cfg := bind.Config{Self: "/r/spec.yaml",
+		Locate: func(uri, base string) (string, bool) {
+			if uri == "https://m.test/b.yaml" {
+				return "/files/b.yaml", true
+			}
+			return resolving.Locate(uri, base)
+		},
+		Open: func(name string) (*yaml.Node, error) {
+			opened = append(opened, name)
+			if name == "/files/b.yaml" {
+				return openapitest.YAMLDocument(t, "B: {type: string}\n"), nil
+			}
+			return openapitest.YAMLDocument(t, "openapi: 3.2.0\n$self: https://m.test/net.yaml\n"+
+				"components:\n  schemas:\n    X: {$ref: 'b.yaml#/B'}\n"), nil
+		}}
+	table := bound(t, "openapi: 3.2.0\n$self: https://m.test/spec.yaml\ncomponents:\n  schemas:\n"+
+		"    S: {$ref: 'b.yaml#/B'}\n    F: {$ref: 'https://n.test/net.yaml#/components/schemas/X'}\n", cfg)
+
+	s := entryAt(t, table, "/components/schemas/S")
+	require.Equal(t, bind.Resolved, s.Chain.Status)
+	assert.Equal(t, "/files/b.yaml", table.Document(s.Chain.End.Doc).Name, "read where the mapping puts it")
+	f := entryAt(t, table, "/components/schemas/F")
+	assert.Equal(t, bind.Unresolved, f.Chain.Status, "a fetched document is mapped onto no file")
+	assert.Equal(t, []string{"/files/b.yaml", "https://n.test/net.yaml"}, opened)
 }

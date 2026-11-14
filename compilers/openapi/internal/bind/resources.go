@@ -9,7 +9,6 @@ import (
 	"fmt"
 	"maps"
 	"net/url"
-	"path/filepath"
 	"slices"
 	"strings"
 	"unicode/utf8"
@@ -55,14 +54,7 @@ func (r resources) document(id DocID) resource {
 	if d.self == "" {
 		return resource{root: Position{Doc: id}, uri: d.name}
 	}
-	return resource{root: Position{Doc: id}, uri: d.self, based: true, detached: absoluteRef(d.self)}
-}
-
-// absoluteRef reports whether uri names a location wherever it is written: a
-// URI with a scheme, or an absolute path.
-func absoluteRef(uri string) bool {
-	u, err := url.Parse(uri)
-	return err == nil && u.Scheme != "" || filepath.IsAbs(uri)
+	return resource{root: Position{Doc: id}, uri: d.self, based: true, detached: d.absolute}
 }
 
 // identifiers is every identifier the documents' schemas declare: each URI an

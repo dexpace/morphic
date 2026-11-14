@@ -176,3 +176,29 @@ func TestCompile_AFetchedDocumentsReferenceToAMappedURLIsNotAFile(t *testing.T) 
 	assert.Contains(t, bad[0].Message, bind.OffNetwork)
 	assert.Equal(t, []string{srv.URL + "/net.yaml"}, rec.locations(), "b.yaml is not read")
 }
+
+// TestCompile_ALocateOptionMapsTheURLsASelfPutsReadsAt holds the remedy for a
+// 3.2 document whose $self is an http(s) URL: its relative references name
+// URLs beside the $self, and a mapping of that URL's prefix to the source's
+// directory reads them from the files there, labelled as the files are,
+// external references refused; without it they are refused as on the network.
+func TestCompile_ALocateOptionMapsTheURLsASelfPutsReadsAt(t *testing.T) {
+	t.Parallel()
+	dir := realDir(t)
+	layout(t, dir, map[string]string{"b.yaml": "B: {type: string}\n"})
+	src := "openapi: 3.2.0\n$self: " + mapped + "api.yaml\ninfo: {title: t, version: \"1\"}\npaths: {}\n" +
+		"components:\n  schemas:\n    p: {$ref: 'b.yaml#/B'}\n"
+	rec := &recordingReader{inner: loopbackDisk{}}
+
+	doc, diags := compileWithReader(t, filepath.Join(dir, "spec.yaml"), src,
+		openapi.Options{Locations: []openapi.Location{{Prefix: mapped, Location: "."}}}, rec)
+
+	assertNoErrorDiags(t, diags)
+	assert.Equal(t, ids.In("b.yaml").ForPointer("/B"), aliasTarget(t, doc, "p"))
+	assert.Equal(t, []string{filepath.Join(dir, "b.yaml")}, rec.locations())
+
+	_, diags = compileWithReader(t, filepath.Join(dir, "spec.yaml"), src, openapi.Options{}, &recordingReader{inner: loopbackDisk{}})
+	bad := unresolvedRefs(diags)
+	require.Len(t, bad, 1, "%+v", diags)
+	assert.Contains(t, bad[0].Message, onNetwork)
+}
