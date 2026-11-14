@@ -56,6 +56,7 @@ func verify(doc *ir.Document, walk walkFunc) []Violation {
 	vs = append(vs, checkAuthKinds(doc)...)
 	vs = append(vs, checkModelEnums(doc)...)
 	vs = append(vs, checkVersions(doc)...)
+	vs = append(vs, checkEnumMemberKinds(doc)...)
 	vs = append(vs, checkUnresolvedSchemes(doc)...)
 	vs = append(vs, checkOAuthScopes(doc)...)
 	vs = append(vs, checkUnions(doc)...)

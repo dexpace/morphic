@@ -771,6 +771,11 @@ it sees. Changes made together in one bump are listed together under it.
   `params`, and the request body's in `body`, where it was one `Value` of no stated shape
   ([annotations](./annotations.md#docs-deprecation-examples)). A channel's ID opens with `chan/`
   and a message's with `msg/`, and `Document.IDSpaces` may key both; a document minting either
-  without the prefix no longer verifies ([IDs](./identity.md#the-id-grammar)). No compiler in this
-  repository writes `Input` or mints either ID, so a document it compiled changes only its stamp. A
-  consumer pinned to the prior version refuses the document.
+  without the prefix no longer verifies ([IDs](./identity.md#the-id-grammar)). No shape moves
+  for these: `irverify` now refuses an undeclared `AdditionalMode`, `HTTPLocation`,
+  `IdempotencyKind`, `MsgDirection`, `PageStrategy`, `PresenceKind` or `Severity`, a version label
+  `Document.Versions` does not declare or lists twice, an `Added` and `Removed` that do not
+  alternate ([availability](./availability.md#version-labels)), a primitive credited to a source,
+  and an enum member whose kind its `ValueType` does not admit
+  ([enums](./enums.md#member-values)). No compiler in this repository wrote any of them, and none
+  writes `Input` or mints either ID, so a document it compiled changes only its stamp. A consumer pinned to the prior version refuses the document.

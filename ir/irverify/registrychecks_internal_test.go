@@ -20,7 +20,7 @@ import (
 // registryChecks are the checks that range over a document's registries and
 // tables themselves rather than through the walk.
 var registryChecks = []func(*ir.Document) []Violation{
-	checkRegistryKeys, checkIDs, checkMemberIDs, checkPrimIDs, checkPrimKinds, checkAuthKinds, checkModelEnums, checkVersions,
+	checkRegistryKeys, checkIDs, checkMemberIDs, checkPrimIDs, checkPrimKinds, checkAuthKinds, checkModelEnums, checkVersions, checkEnumMemberKinds,
 	checkUnresolvedSchemes, checkOAuthScopes, checkUnions, checkMaps, checkMapKeys, checkCatchAlls,
 	checkRequires, checkVersion, checkDocument,
 }
@@ -117,7 +117,8 @@ func cleanRegistry(n int) *ir.Document {
 		}
 		enumPath := "components/schemas/Enumeration" + suffix
 		enum := &ir.Enum{ID: ir.TypeID("t/x/" + enumPath), ValueType: ir.PrimString, Members: []ir.EnumMember{
-			{ID: ir.EnumMemberID("e/x/" + enumPath + "/a")}, {ID: ir.EnumMemberID("e/x/" + enumPath + "/b")},
+			{ID: ir.EnumMemberID("e/x/" + enumPath + "/a"), Value: ir.Value{Kind: ir.ValueString, Str: "a"}},
+			{ID: ir.EnumMemberID("e/x/" + enumPath + "/b"), Value: ir.Value{Kind: ir.ValueString, Str: "b"}},
 		}}
 		for _, td := range []ir.TypeDef{
 			model, enum,
