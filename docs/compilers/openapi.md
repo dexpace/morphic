@@ -6060,7 +6060,8 @@ streams, or as a mark on the operation itself, is read by no source, so it speak
   `lowering.TestPageStatementOf_ReadsAnExpressionOrAMark`,
   `lowering.TestPageStatementOf_ReportsWhatStatesNoValueOfAWalk`,
   `pagination.TestInferWalks_LeavesWhatAnExtensionSpeaksOf`, `pagination.TestPromote_FillsTheFlag`,
-  `pagination.TestPromote_ReadsTheRootForTrue`, `pagination.TestPromote_TrueWithNoRootStatement`
+  `pagination.TestPromote_ReadsTheRootForTrue`, `pagination.TestPromote_TrueWithNoRootStatement`,
+  `lowering.TestPageStatementOf_ReadsTheRootForTrue`
 - Status: open: a key a path item writes is read by no promotion (#1221).
 
 ### `pagination-policy`
@@ -6206,6 +6207,9 @@ declaration both mounts share.
   `pagination.TestInferWalks_TwoPlacesAreUndecided`, `pagination.TestInferWalks_ReadsLinks`,
   `pagination.TestInferWalks_ALinkHeldApartIsLeftUnset`, `pagination.TestInferWalks_NextNames`,
   `pagination.TestInferWalks_ReadsAHeaderCursor`, `pagination.TestInferWalks_LinkWalks`,
+  `pagination.TestInferWalks_ReadsTheBodyMembersEveryContentHolds`,
+  `pagination.TestInferWalks_SaysWhyAPostIsNoWalk`, `pagination.TestInferWalks_ReadsALinkWalkOnlyOffAPage`,
+  `pagination.TestInferWalks_AllocatesLinearInTheBodiesItReads`,
   `whole.TestDocument_StandsReadsThroughAliasScalarsToTheCap`,
   `whole.TestDocument_ListsEveryOperationOnce`,
   `lowering.TestPaginationInference_TheZeroValueHonoursThePolicy`,

@@ -86,25 +86,28 @@ func agreed(pages []page, of func(page) []ir.PropID) []ir.PropID {
 // headerCursor returns the response header carrying the next cursor of a walk
 // sending cursor, a canonical name, and its wire name: the one header every
 // success response of op declares once (headerOutput) whose canonical name, a
-// leading x_ aside, is next_<cursor>, else the cursor's own. It returns nil
-// where none is.
+// leading x_ aside, is next_<cursor>, else the cursor's own, and the least of
+// its spellings. It returns nil where none is, or where two headers, as HTTP
+// compares their names, are so named.
 func headerCursor(w *whole.Document, op *ir.Operation, cursor string) (*ir.PropPath, string) {
-	if len(op.Responses) == 0 {
-		return nil, ""
-	}
 	for _, name := range [...]string{"next_" + cursor, cursor} {
-		var wire []string
-		for i := range op.Responses[0].Headers {
-			h := &op.Responses[0].Headers[i].Property
-			if strings.TrimPrefix(h.Name.Canonical, "x_") == name {
-				wire = append(wire, h.EffectiveWireName())
+		spellings := map[string][]string{} // by the name as HTTP compares it
+		for i := range op.Responses {
+			for j := range op.Responses[i].Headers {
+				h := &op.Responses[i].Headers[j].Property
+				if wire := h.EffectiveWireName(); strings.TrimPrefix(h.Name.Canonical, "x_") == name {
+					spellings[strings.ToLower(wire)] = append(spellings[strings.ToLower(wire)], wire)
+				}
 			}
 		}
-		if len(wire) != 1 {
+		if len(spellings) != 1 {
 			continue
 		}
-		if out, failure := headerOutput(w, op, wire[0]); failure == "" {
-			return out, wire[0]
+		for _, spelled := range spellings {
+			least := slices.Min(spelled)
+			if out, failure := headerOutput(w, op, least); failure == "" {
+				return out, least
+			}
 		}
 	}
 	return nil, ""
