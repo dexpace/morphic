@@ -3884,6 +3884,8 @@ no bound ([`string-formats`](#string-formats)).
   `schema.TestConstraints_AnExpandedReferenceIsNamedByItsKeyword`,
   `schema.TestConstraints_ABoundIsReadTheSameInEitherDeclarationOrder`,
   `schema.TestWritesBound_FindsABoundOnTheSchemaOrAnInlineBranch`,
+  `schema.TestConstraints_ABoundBesideAUnionItsTypeExcludesIsKept`,
+  `schema.TestAllOf_ABoundBesideABranchsOwnRefIsReadByItsTarget`,
   `operation.TestParams_ABoundBesideAReferenceIsReadByItsNamedType`,
   `e2e.TestConstraints_ANamedTypeIsReadInItsOwnDocument`,
   `schema.TestConstraints_ABoundAListKeepsIsKeptOnce`,

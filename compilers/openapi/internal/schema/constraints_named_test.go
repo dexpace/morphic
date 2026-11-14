@@ -711,3 +711,80 @@ func TestConstraints_ABoundIsReadTheSameInEitherDeclarationOrder(t *testing.T) {
 		})
 	}
 }
+
+// TestConstraints_ABoundBesideAUnionItsTypeExcludesIsKept pins a type written
+// beside a union whose branches admit none of it: the body lowers to a shared
+// primitive and the census hoists an alias over it, which holds no bound, since
+// the position admits no kind, and keeps the bound with a report, as the union
+// beside it is kept.
+func TestConstraints_ABoundBesideAUnionItsTypeExcludesIsKept(t *testing.T) {
+	t.Parallel()
+	schema := "{type: string, oneOf: [" + refTo("Arr") + ", " + refTo("Obj") + "], minLength: 1}"
+	doc, diags := parseFull(t, namedSpec("3.1.0", schema, "", false))
+	openapitest.RequireNoErrorDiags(t, diags)
+
+	p := propertyOf(t, doc, "Holder", "p")
+	assert.Nil(t, p.Constraints)
+	for at, id := range map[string]ir.TypeID{namedS: componentID("S"), namedP: "t/anon" + namedP} {
+		alias, ok := doc.Types[id].(*ir.Scalar)
+		require.True(t, ok, "%s: got %T", at, doc.Types[id])
+		assert.Equal(t, ir.TypeID("t/prim/string"), alias.Base.Target, at)
+		assert.Nil(t, alias.Constraints, at)
+		entry, kept := alias.Unmodeled["openapi:minLength"]
+		require.True(t, kept, "%s: got %v", at, unmodeledKeys(alias.Unmodeled))
+		assert.Equal(t, ir.ReasonDegradedLowering, entry.Reason, at)
+		assert.Equal(t, at+"/minLength", string(entry.Provenance.Pointer), at)
+		assert.Contains(t, alias.Unmodeled, "openapi:oneOf", at)
+		var bound []string
+		for _, d := range diagsAtPointer(diags, diag.DegradedConstruct, at) {
+			if strings.Contains(d.Message, "minLength") {
+				bound = append(bound, d.Message)
+			}
+		}
+		require.Len(t, bound, 1, at)
+		assert.Contains(t, bound[0], `a node of kind "primitive"`, at)
+	}
+}
+
+// TestAllOf_ABoundBesideABranchsOwnRefIsReadByItsTarget pins a bound written
+// beside the $ref of a composed branch: it is that branch's, read by what its
+// reference names, so the alias the branch owns keeps one the target cannot
+// take, with a report at the branch, and holds one it can.
+func TestAllOf_ABoundBesideABranchsOwnRefIsReadByItsTarget(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name, schema, branch, keyword string
+		held                          *ir.Constraints
+	}{
+		{name: "a value bound beside an array", branch: "allOf/0", keyword: "minLength",
+			schema: "{allOf: [{$ref: '#/components/schemas/Arr', minLength: 1}, " + refTo("Open") + "]}"},
+		{name: "a collection bound beside a string", branch: "allOf/1", keyword: "minItems",
+			schema: "{allOf: [" + refTo("Open") + ", {$ref: '#/components/schemas/Str', minItems: 2}]}"},
+		{name: "a value bound the target takes", branch: "allOf/0", held: &ir.Constraints{MinLength: new(int64(1))},
+			schema: "{allOf: [{$ref: '#/components/schemas/Str', minLength: 1}, " + refTo("Open") + "]}"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			doc, diags := parseFull(t, namedSpec("3.1.0", tc.schema, "", false))
+			openapitest.RequireNoErrorDiags(t, diags)
+
+			_, composed := typeByName(doc, "S").(*ir.Model)
+			require.True(t, composed, "got %T", typeByName(doc, "S"))
+			at := namedS + "/" + tc.branch
+			alias, ok := doc.Types["t/anon"+ir.TypeID(at)].(*ir.Scalar)
+			require.True(t, ok, "got %T", doc.Types["t/anon"+ir.TypeID(at)])
+			assert.Equal(t, tc.held, alias.Constraints)
+			if tc.held != nil {
+				assert.Empty(t, alias.Unmodeled)
+				assert.Empty(t, diags)
+				return
+			}
+			entry, kept := alias.Unmodeled["openapi:"+tc.keyword]
+			require.True(t, kept, "got %v", unmodeledKeys(alias.Unmodeled))
+			assert.Equal(t, at+"/"+tc.keyword, string(entry.Provenance.Pointer))
+			msg := openapitest.DiagMessageAt(t, diags, diag.DegradedConstruct, ir.SeverityInfo, at)
+			assert.Contains(t, msg, "an alias over its $ref target")
+			assert.Contains(t, msg, "no home for "+tc.keyword)
+		})
+	}
+}
