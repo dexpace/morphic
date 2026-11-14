@@ -42,3 +42,30 @@ func TestEditor_RefusesAGroupItsReadDidNotReach(t *testing.T) {
 		`no group, and reaches none in groups nested deeper than %d levels or past the first %d groups and operations`,
 		past, ir.MaxGroupDepth, ir.MaxWalkSteps)}, refusals(t, diags))
 }
+
+// TestEditor_HoldsTheOperationsForEachOperationReachesWithinItsSteps holds the
+// read's step for each operation to ForEachOperation's: within a limit that
+// ends among one group's operations, the edit holds exactly the operations the
+// walk reaches within the same limit.
+func TestEditor_HoldsTheOperationsForEachOperationReachesWithinItsSteps(t *testing.T) {
+	t.Parallel()
+	ops := make([]ir.Operation, 10)
+	for i := range ops {
+		ops[i] = ir.Operation{ID: ir.OpID(fmt.Sprintf("op/x/o%d", i))}
+	}
+	doc := &ir.Document{Services: []ir.Service{{ID: "s/x", Groups: []ir.OperationGroup{{ID: "g/x/a", Operations: ops}}}}}
+	const limit = 6
+	var walked []ir.OpID
+	require.True(t, ir.ForEachOperationWithin(limit, doc, func(op ir.Operation) { walked = append(walked, op.ID) }))
+
+	e := ir.NewEditorWithin(limit, doc)
+	var held []ir.OpID
+	for _, op := range ops {
+		if _, ok := e.Operation(op.ID); ok {
+			held = append(held, op.ID)
+		}
+	}
+
+	assert.Equal(t, walked, held)
+	assert.Len(t, held, limit-1, "the group takes a step, and each operation one")
+}
