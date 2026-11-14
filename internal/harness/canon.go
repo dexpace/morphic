@@ -20,10 +20,11 @@ import (
 
 // maxCanonicalDepth bounds the canonical form's descent: through the encoded
 // document, and through the owners of each digest computed on the way, whose
-// rewrite continues the descent that met the ID. The IR nests what it keeps
-// verbatim below levels of its own: a chain of 255 schemas, each a property
-// under an allOf, the deepest the permutation admits, needs 1,106 levels, past
-// one source bound and within two. A form nesting deeper is declined.
+// rewrite continues the descent that met the ID. A chain of 255 schemas, each
+// a property under an allOf, the deepest the permutation admits, nests past
+// one source bound and within two, each link's digest reaching through the
+// next (TestCheck_SequenceOrderOracleHoldsOnTheRealCompiler). A form nesting
+// deeper is declined.
 const maxCanonicalDepth = 2 * maxReverseDepth
 
 // errTooDeep says a canonical form would nest past maxCanonicalDepth, which
@@ -49,7 +50,8 @@ type canonical struct{ document, shape []string }
 // reversed sequence a string names, an ID beneath one being told apart by its
 // owners' digest; the order of what orderFree lists, mixins, requires and an
 // array kept verbatim at a reversed sequence's pointer; and every node at or
-// beneath a tie.
+// beneath a tie. An unmodeled member's name is relative, so an index after
+// allOf or required in it is erased, reversed or not.
 func canonicalForm(doc *ir.Document, seqs sequences, ties []string) (canonical, error) {
 	encoded, err := encodeComparable(doc, markedArray)
 	if err != nil {
