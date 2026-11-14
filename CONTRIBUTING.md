@@ -251,8 +251,12 @@ needless; a verified run catches one.
 2. **Test it** beside it in `pass/`, table-driven, against documents built in the test: a file's
    cases in the `_test.go` named after it, and a scenario that several files decide in one named for
    the scenario, as `validate_propids_test.go` is. `pass/validate_test.go` has builders (`validDoc`,
-   `docWithOperation`) and readers (`codes`, `countCode`) to reuse.
-   *Fails if missed:* `make coverage`. Nothing fails for a case in another file's `_test.go`.
+   `docWithOperation`) and readers (`codes`, `countCode`) to reuse. A rule family added to
+   `Validate` also takes a row of `twoFindings` in `pass/validate_determinism_test.go`: a document
+   drawing two of its findings at two nodes, in the order they must come out, which the test reads
+   through `validated` 128 times, so a map ranged unsorted shows as one document reported two ways.
+   *Fails if missed:* `make coverage`, and `TestValidate_EveryFamilyDrawsTwoFindingsInOneOrder`
+   for the row. Nothing fails for a case in another file's `_test.go`.
 3. **Add it to the default list**, `engine.Passes` in `engine/passes.go`, after any pass whose
    output it acts on and before `validate`, which stays last. No test restates the list:
    `TestPasses_ValidateRunsLast` holds `validate` to the end, `engine.New` refuses a name two passes
