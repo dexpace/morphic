@@ -350,10 +350,10 @@ func (r ruler) inapplicable(rule Rule) {
 		r.f.obj.noun(), rule.Field, r.place(rule.When), r.w.minor, rule.Scope), ptr)
 }
 
-// reservedNames warns of a name the rule reserves, where the conditions hold:
-// the value of a string field, at the field, or a key of a map field, at the
-// key. OpenAPI says a definition under it SHALL be ignored; it lowers as
-// declared, for the emitter to suppress.
+// reservedNames reports a name the rule reserves, where the conditions hold,
+// graded by the rule's level: the value of a string field, at the field, or a
+// key of a map field, at the key. OpenAPI says a definition under it SHALL be
+// ignored; it lowers as declared, for the emitter to suppress.
 func reservedNames(r ruler, rule Rule) {
 	node := nodeview.Deref(r.f.byKey[rule.Field])
 	if node == nil || r.f.test(rule.When) != yes {
@@ -363,7 +363,7 @@ func reservedNames(r ruler, rule Rule) {
 	if name, ok := textOf(node); ok {
 		if reserved, is := reservedName(name, rule.Names); is {
 			place := newKeyPlacer(r.w, r.f.at.node, r.f.at.ptr).place(rule.Field)
-			r.w.add(diag.Newf(ir.SeverityWarning, diag.ReservedHeaderName, place, "header %s %q is reserved: OpenAPI "+
+			r.w.add(diag.Newf(severity(rule.Level), diag.ReservedHeaderName, place, "header %s %q is reserved: OpenAPI "+
 				"says a definition for %s SHALL be ignored, so it is lowered as declared and left for the emitter to "+
 				"suppress", r.f.obj.noun(), name, reserved), ptr)
 		}
@@ -375,7 +375,7 @@ func reservedNames(r ruler, rule Rule) {
 	places := newKeyPlacer(r.w, node, ptr)
 	for _, p := range r.w.view.MappingPairs(node) {
 		if reserved, is := reservedName(p.Key, rule.Names); is {
-			r.w.add(diag.Newf(ir.SeverityWarning, diag.ReservedHeaderName, places.place(p.Key), "header %q is "+
+			r.w.add(diag.Newf(severity(rule.Level), diag.ReservedHeaderName, places.place(p.Key), "header %q is "+
 				"reserved: OpenAPI says a %s entry in a headers map SHALL be ignored, so it is lowered as declared and "+
 				"left for the emitter to suppress", p.Key, reserved), ptr.AppendToken(p.Key))
 		}

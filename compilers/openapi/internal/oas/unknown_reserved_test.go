@@ -7,8 +7,12 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/oas"
+	"github.com/dexpace/morphic/ir"
 )
 
 // The codes the table draws for a key no object defines and for a name
@@ -197,4 +201,20 @@ func TestCheck_UnknownKeysAreReportedAtEveryObject(t *testing.T) {
 			doc: `{summary: s, description: ok}`},
 	)
 	verify(t, scenarios)
+}
+
+// TestCheck_TheTableWordsAndGradesWhatItReports holds two things no position
+// test reads: a key beside a $ref is worded as the Reference Object's, which
+// defines only $ref, summary and description, and a reserved name is graded by
+// its rule's level, a SHOULD, so a warning.
+func TestCheck_TheTableWordsAndGradesWhatItReports(t *testing.T) {
+	beside := run(t, "3.1.0", oas.Parameter, `{$ref: '#/components/parameters/P', bogus: 1}`)
+	require.Len(t, beside, 1)
+	assert.Contains(t, beside[0].Message, `key "bogus" is written beside a $ref, where the Reference Object `+
+		`defines only $ref, summary and description`)
+
+	reserved := run(t, "3.1.0", oas.Parameter, `{name: Content-Type, in: header, schema: {type: string}}`)
+	require.Len(t, reserved, 1)
+	assert.Equal(t, diag.ReservedHeaderName, reserved[0].Code)
+	assert.Equal(t, ir.SeverityWarning, reserved[0].Severity)
 }
