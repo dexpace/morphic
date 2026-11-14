@@ -58,7 +58,7 @@ func (r *nameReader) meetings(doc *ir.Document, ids []ir.TypeID) []ir.TypeID {
 		candidate = true
 		for i := first; i >= 0; i = r.later[i] {
 			id := ids[r.owners[i]]
-			if entries(doc.Types[id].(*ir.Model)) > 0 {
+			if m, ok := doc.Types[id].(*ir.Model); ok && entries(m) > 0 {
 				models = append(models, id)
 			}
 		}
@@ -134,8 +134,8 @@ func (r *nameReader) first(doc *ir.Document, facts *irfacts.Index, id ir.TypeID,
 	if owned > 0 {
 		return true
 	}
-	m := doc.Types[id].(*ir.Model)
-	return !slices.ContainsFunc(entryTargets(m), func(target ir.TypeID) bool {
+	m, ok := doc.Types[id].(*ir.Model)
+	return !ok || !slices.ContainsFunc(entryTargets(m), func(target ir.TypeID) bool {
 		exposing := 0
 		for i := first; i >= 0; i = r.later[i] {
 			if facts.Exposes(target, members[i].Property.ID) {

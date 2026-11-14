@@ -193,7 +193,7 @@ func TestValidate_ATypeOnlyAKnotNeedsHasNoFiniteValueOfItsOwn(t *testing.T) {
 	doc := knotDoc(
 		composed("t/n", nil, needs("p/n/0", ref("t/n"))),
 		composed("t/m", nil, needs("p/m/0", ref("t/n"))),
-		composed("t/h", nil, needs("p/h/0", ref("t/m"))),
+		composed("t/h", nil, needs("p/h/0", ref("t/m")), needs("p/h/1", strT)),
 	)
 
 	assert.Equal(t, []finding{{"t/n", "no finite value: each needs its required property 0, t/n, which has none either"}},

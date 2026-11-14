@@ -29,3 +29,21 @@ func TestPrimShapes_EveryPrimKindHasARow(t *testing.T) {
 	}
 	assert.Equal(t, shapeUnjudged, primShape("no-such-kind"))
 }
+
+// TestKindWords_NamesEveryKind holds the words a value is described in to
+// the kinds ir declares, those the checks judge before they are asked
+// included.
+func TestKindWords_NamesEveryKind(t *testing.T) {
+	t.Parallel()
+	p, err := decls.Load("github.com/dexpace/morphic/ir")
+	require.NoError(t, err)
+	kinds, err := p.StringConsts("ValueKind")
+	require.NoError(t, err)
+	require.NotEmpty(t, kinds)
+
+	for _, k := range kinds {
+		assert.NotEmpty(t, kindWords(ir.ValueKind(k.Value)), k.Value)
+	}
+	assert.Equal(t, "a null", kindWords(ir.ValueNull))
+	assert.Equal(t, "an infinity", kindWords(ir.ValueNegInf))
+}

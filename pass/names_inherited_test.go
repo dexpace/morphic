@@ -31,9 +31,9 @@ func extending(id string, base string, props ...ir.Property) *ir.Model {
 }
 
 // exposed is the warning at the model id about the exposed properties it
-// reports, in the words of the scope.
-func exposed(id, parties, name string) ir.Diagnostic {
-	return collision(id, fmt.Sprintf(`in model %s, exposed properties %s share the neutral name %q`, id, parties, name))
+// reports, in the words of the scope: every row of them shares user_id.
+func exposed(id, parties string) ir.Diagnostic {
+	return collision(id, fmt.Sprintf(`in model %s, exposed properties %s share the neutral name "user_id"`, id, parties))
 }
 
 // TestNames_ReadsAPropertyMeetingOneItsModelInherits holds a model that exposes
@@ -54,7 +54,7 @@ func TestNames_ReadsAPropertyMeetingOneItsModelInherits(t *testing.T) {
 			extending("Base", "", spelled("p/base/0", "userId", "userId")),
 			extending("Child", "Base", spelled("p/child/0", "user_id", "user_id")),
 			extending("GrandChild", "Child"),
-		), []ir.Diagnostic{exposed("Child", baseUser, "user_id")}},
+		), []ir.Diagnostic{exposed("Child", baseUser)}},
 		{"the same, the derived property an override", withTypes(
 			extending("Base", "", spelled("p/base/0", "userId", "userId")),
 			extending("Child", "Base", spelled("p/child/0", "userId", "userId")),
@@ -65,7 +65,7 @@ func TestNames_ReadsAPropertyMeetingOneItsModelInherits(t *testing.T) {
 			extending("B", "", spelled("p/b/0", "user_id", "user_id")),
 			&ir.Model{ID: "Both", Name: named("Both"), Mixins: []ir.TypeRef{{Target: "A"}, {Target: "B"}}},
 			extending("Below", "Both"),
-		), []ir.Diagnostic{exposed("Both", `0 of model A ("userId") and 0 of model B ("user_id")`, "user_id")}},
+		), []ir.Diagnostic{exposed("Both", `0 of model A ("userId") and 0 of model B ("user_id")`)}},
 		{"the same mixins, the second's property wired as the first's", withTypes(
 			extending("A", "", spelled("p/a/0", "userId", "userId")),
 			extending("B", "", spelled("p/b/0", "user_id", "userId")),

@@ -59,7 +59,7 @@ func checkValues(doc *ir.Document) []ir.Diagnostic {
 
 // finding is the warning a value of the site draws.
 func (s *valueSite) finding(code, message string) ir.Diagnostic {
-	return diagAt(ir.SeverityWarning, code, message, s.node, s.from)
+	return diagAt(code, message, s.node, s.from)
 }
 
 // appendExamples reports each of examples whose value the site's type does not
@@ -85,29 +85,12 @@ func exampleLabel(ex *ir.Example, i int) string {
 // appendScenarioValues reports the values of op's scenarios the type of what
 // they stand for does not admit: each input parameter, against the parameter
 // of its ID, and the content of the error a scenario ends in, against the
-// error's type. An input naming a parameter op does not declare is skipped:
-// pass/param-binding-mismatch has it. params holds the sorted IDs of one input.
+// error's type. params holds the sorted IDs of one input.
 func appendScenarioValues(diags []ir.Diagnostic, doc *ir.Document, op *ir.Operation, params *[]ir.ParamID) []ir.Diagnostic {
 	for i := range op.Examples {
 		ex := &op.Examples[i]
 		if ex.Input != nil {
-			*params = (*params)[:0]
-			for id := range ex.Input.Params {
-				*params = append(*params, id)
-			}
-			slices.Sort(*params)
-			for _, id := range *params {
-				pm := parameterOf(op, id)
-				if pm == nil {
-					continue
-				}
-				site := valueSite{doc: doc, node: string(op.ID), from: op.Provenance, ref: pm.Type, own: pm.Constraints}
-				v := ex.Input.Params[id]
-				if why := site.fits(&v); why != "" {
-					diags = append(diags, site.finding("pass/example-outside-type",
-						"scenario "+exampleLabel(ex, i)+" parameter "+strconv.Quote(string(id))+" "+why))
-				}
-			}
+			diags = appendInputValues(diags, doc, op, ex, i, params)
 		}
 		if ex.Error != nil {
 			site := valueSite{doc: doc, node: string(op.ID), from: op.Provenance, ref: ex.Error.Type}
@@ -115,6 +98,33 @@ func appendScenarioValues(diags []ir.Diagnostic, doc *ir.Document, op *ir.Operat
 				diags = append(diags, site.finding("pass/example-outside-type",
 					"scenario "+exampleLabel(ex, i)+" error "+why))
 			}
+		}
+	}
+	return diags
+}
+
+// appendInputValues reports each parameter of scenario ex, the ith of op, whose
+// value the parameter's type does not admit, in the order of their IDs. An input
+// naming a parameter op does not declare is skipped: pass/param-binding-mismatch
+// has it.
+func appendInputValues(diags []ir.Diagnostic, doc *ir.Document, op *ir.Operation, ex *ir.Example, i int,
+	params *[]ir.ParamID,
+) []ir.Diagnostic {
+	*params = (*params)[:0]
+	for id := range ex.Input.Params {
+		*params = append(*params, id)
+	}
+	slices.Sort(*params)
+	for _, id := range *params {
+		pm := parameterOf(op, id)
+		if pm == nil {
+			continue
+		}
+		site := valueSite{doc: doc, node: string(op.ID), from: op.Provenance, ref: pm.Type, own: pm.Constraints}
+		v := ex.Input.Params[id]
+		if why := site.fits(&v); why != "" {
+			diags = append(diags, site.finding("pass/example-outside-type",
+				"scenario "+exampleLabel(ex, i)+" parameter "+strconv.Quote(string(id))+" "+why))
 		}
 	}
 	return diags
@@ -232,7 +242,8 @@ func shapeWords(sh shape) string {
 	}
 }
 
-// kindWords says what a value of kind k is.
+// kindWords says what a value of kind k is. Null and the two kinds that stand
+// for another value are judged before it is asked, and are named by their kind.
 func kindWords(k ir.ValueKind) string {
 	switch k {
 	case ir.ValueBool:
@@ -253,6 +264,8 @@ func kindWords(k ir.ValueKind) string {
 		return "an infinity"
 	case ir.ValueNaN:
 		return "a NaN"
+	case ir.ValueNull, ir.ValueRefKind, ir.ValueCtor:
+		return "a " + string(k)
 	default:
 		return "a " + string(k)
 	}

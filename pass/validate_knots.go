@@ -106,16 +106,7 @@ func (s *edgeSink) emit(ix typeIndex, ref *ir.TypeRef, kind edgeKind, index int)
 func eachEdge(td ir.TypeDef, ix typeIndex, set edgeSet, sink *edgeSink) {
 	switch t := td.(type) {
 	case *ir.Model:
-		if set != needsAlone {
-			sink.composition(ix, t, set == needsWithComposition)
-		}
-		if set != compositionOnly {
-			for j := range t.Properties {
-				if t.Properties[j].Required {
-					sink.emit(ix, &t.Properties[j].Type, edgeRequired, j)
-				}
-			}
-		}
+		sink.model(ix, t, set)
 	case *ir.Scalar:
 		if t.Base != nil {
 			sink.emit(ix, t.Base, edgeBase, 0)
@@ -130,9 +121,7 @@ func eachEdge(td ir.TypeDef, ix typeIndex, set edgeSet, sink *edgeSink) {
 		}
 	case *ir.Tuple:
 		if set != compositionOnly {
-			for j := range t.Elems {
-				sink.emit(ix, &t.Elems[j], edgeElementOf, j)
-			}
+			sink.each(ix, t.Elems, edgeElementOf)
 		}
 	case *ir.Union:
 		if set != compositionOnly && everyVariantNeeded(t, ix) {
@@ -145,20 +134,49 @@ func eachEdge(td ir.TypeDef, ix typeIndex, set edgeSet, sink *edgeSink) {
 	}
 }
 
+// model adds the edges of m that set picks.
+func (s *edgeSink) model(ix typeIndex, m *ir.Model, set edgeSet) {
+	if set != needsAlone {
+		s.composition(ix, m, set == needsWithComposition)
+	}
+	if set == compositionOnly {
+		return
+	}
+	for j := range m.Properties {
+		if m.Properties[j].Required {
+			s.emit(ix, &m.Properties[j].Type, edgeRequired, j)
+		}
+	}
+}
+
+// each adds an edge of kind to each of refs.
+func (s *edgeSink) each(ix typeIndex, refs []ir.TypeRef, kind edgeKind) {
+	for j := range refs {
+		s.emit(ix, &refs[j], kind, j)
+	}
+}
+
 // composition adds the base and the mixins of m. A model composing a union is
 // its conjunct and no construction of it: Shape's oneOf of Circle beside
 // Circle's allOf of Shape narrows nothing, each instance of the union being a
 // variant (docs/ir/models.md), so for the needs of a value, which forNeeds
 // says the edges are for, an entry that names a union is not one.
 func (s *edgeSink) composition(ix typeIndex, m *ir.Model, forNeeds bool) {
-	if m.Base != nil && !(forNeeds && ix.isUnion(m.Base)) {
-		s.emit(ix, m.Base, edgeBase, 0)
+	if m.Base != nil {
+		s.compose(ix, m.Base, forNeeds, edgeBase, 0)
 	}
 	for j := range m.Mixins {
-		if !(forNeeds && ix.isUnion(&m.Mixins[j])) {
-			s.emit(ix, &m.Mixins[j], edgeMixin, j)
-		}
+		s.compose(ix, &m.Mixins[j], forNeeds, edgeMixin, j)
 	}
+}
+
+// compose adds the edge to a composition entry, unless it is a union and the
+// edges are for needs.
+func (s *edgeSink) compose(ix typeIndex, ref *ir.TypeRef, forNeeds bool, kind edgeKind, index int) {
+	if forNeeds && ix.isUnion(ref) {
+		return
+	}
+	s.emit(ix, ref, kind, index)
 }
 
 // atLeastOne reports whether the bound pick reads from c is set and at least 1.
@@ -264,15 +282,23 @@ func peel(n int, starts, targets []int32, founded []bool, work []int32) []bool {
 		i := work[len(work)-1]
 		work = work[:len(work)-1]
 		remains[i] = false
-		for _, t := range targets[starts[i]:starts[i+1]] {
-			if !founded[t] {
-				if needed[t]--; needed[t] == 0 {
-					work = append(work, t)
-				}
-			}
-		}
+		work = release(work, targets[starts[i]:starts[i+1]], founded, needed)
 	}
 	return remains
+}
+
+// release counts a dropped vertex's needs out of the vertices that are
+// unfounded, and adds to work each that nothing needs then.
+func release(work, needs []int32, founded []bool, needed []int32) []int32 {
+	for _, t := range needs {
+		if founded[t] {
+			continue
+		}
+		if needed[t]--; needed[t] == 0 {
+			work = append(work, t)
+		}
+	}
+	return work
 }
 
 // graph is the edges the types of a document hold, in the form knot reads.
@@ -354,7 +380,7 @@ func appendKnot(diags []ir.Diagnostic, doc *ir.Document, ix typeIndex, knotOf []
 			message = "no finite value: each needs its " + entryWords(sink.first) + ", " + string(ix.ids[sink.first.target]) +
 				", which has none either"
 		}
-		diags = append(diags, diagAt(ir.SeverityWarning, code, message, string(id), td.Common().Provenance))
+		diags = append(diags, diagAt(code, message, string(id), td.Common().Provenance))
 	}
 	return diags
 }

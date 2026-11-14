@@ -259,14 +259,14 @@ func checkBounds(doc *ir.Document) []ir.Diagnostic {
 		td := doc.Types[id]
 		own, target, self := typeBounds(td)
 		if why := unsatisfiable(doc, own, target, self); why != "" {
-			diags = append(diags, diagAt(ir.SeverityWarning, "pass/bounds-admit-no-value", why,
+			diags = append(diags, diagAt("pass/bounds-admit-no-value", why,
 				string(id), td.Common().Provenance))
 		}
 	}
 	var keys []ir.PropID
 	eachPosition(doc, &keys, func(p *position) {
 		if why := unsatisfiable(doc, p.own, p.typ.Target, shapeUnjudged); why != "" {
-			diags = append(diags, diagAt(ir.SeverityWarning, "pass/bounds-admit-no-value", why, p.node, p.from))
+			diags = append(diags, diagAt("pass/bounds-admit-no-value", why, p.node, p.from))
 		}
 	})
 	return diags

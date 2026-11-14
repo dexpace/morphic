@@ -27,7 +27,7 @@ func TestNames_ReadsAnExposedPairAtTheModelThatMetItAlone(t *testing.T) {
 		&ir.Model{ID: "Diamond", Name: named("Diamond"), Mixins: []ir.TypeRef{{Target: "Both"}, {Target: "C"}}},
 		extending("C", "", spelled("p/c/0", "other", "other")),
 	)
-	want := []ir.Diagnostic{exposed("Both", `0 of model A ("userId") and 0 of model B ("user_id")`, "user_id")}
+	want := []ir.Diagnostic{exposed("Both", `0 of model A ("userId") and 0 of model B ("user_id")`)}
 
 	for range 16 {
 		if !assert.Empty(t, cmp.Diff(want, namesOf(t, doc))) {
@@ -61,7 +61,7 @@ func TestNames_ReadsAModelsOwnPropertiesOnceWhateverItExtends(t *testing.T) {
 		}},
 		{"a third spelling beside a pair of its base", third, []ir.Diagnostic{
 			collision("Base", `in model Base, properties 0 ("userId") and 1 ("user_id") share the neutral name "user_id"`),
-			exposed("Child", `0 of model Base ("userId"), 1 of model Base ("user_id") and 0 ("UserId")`, "user_id"),
+			exposed("Child", `0 of model Base ("userId"), 1 of model Base ("user_id") and 0 ("UserId")`),
 		}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -83,6 +83,6 @@ func TestNames_ReadsAPairAModelsBaseAndInterfaceBringAtTheModel(t *testing.T) {
 		&ir.Model{ID: "X", Name: named("X"), Base: &ir.TypeRef{Target: "A"}, Implements: []ir.TypeRef{{Target: "B"}}},
 	)
 
-	assert.Empty(t, cmp.Diff([]ir.Diagnostic{exposed("X", `0 of model A ("userId") and 0 of model B ("user_id")`, "user_id")},
+	assert.Empty(t, cmp.Diff([]ir.Diagnostic{exposed("X", `0 of model A ("userId") and 0 of model B ("user_id")`)},
 		namesOf(t, doc)))
 }
