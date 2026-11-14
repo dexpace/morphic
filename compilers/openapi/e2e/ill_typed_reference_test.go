@@ -36,7 +36,10 @@ type refPosition struct {
 	// emptyItem is set where an item writing nothing is kept, as a callback's
 	// expression or a component is, so its control writes the item as {}.
 	emptyItem bool
-	body      string
+	// kept names the entry a component section with no registry keeps
+	// verbatim under Unmodeled, as the source wrote it, whatever it is read as.
+	kept string
+	body string
 }
 
 const refOp = "paths:\n  /a:\n    get:\n      operationId: getA\n      responses: {\"200\": {description: ok}}\n"
@@ -70,7 +73,7 @@ var refPositions = []refPosition{
 			"        - {name: ok, in: query, schema: {type: string}}\n@@        - $ref:\n      responses: {\"200\": {description: ok}}\n",
 	},
 	{
-		name: "a component parameter", pointer: "/components/parameters/P/$ref",
+		name: "a component parameter", pointer: "/components/parameters/P/$ref", kept: "openapi:components/parameters/P",
 		body: "paths: {}\ncomponents:\n  parameters:\n    Ok: {name: ok, in: query, schema: {type: string}}\n@@    P:\n@@      $ref:\n",
 	},
 	{
@@ -79,7 +82,7 @@ var refPositions = []refPosition{
 			"      responses: {\"200\": {description: ok}}\n",
 	},
 	{
-		name: "a component request body", pointer: "/components/requestBodies/P/$ref",
+		name: "a component request body", pointer: "/components/requestBodies/P/$ref", kept: "openapi:components/requestBodies/P",
 		body: "paths: {}\ncomponents:\n  requestBodies:\n    Ok: {content: {application/json: {schema: {type: string}}}}\n" +
 			"@@    P:\n@@      $ref:\n",
 	},
@@ -89,7 +92,7 @@ var refPositions = []refPosition{
 			"@@        \"404\":\n@@          $ref:\n",
 	},
 	{
-		name: "a component response", pointer: "/components/responses/P/$ref",
+		name: "a component response", pointer: "/components/responses/P/$ref", kept: "openapi:components/responses/P",
 		body: "paths: {}\ncomponents:\n  responses:\n    Ok: {description: ok}\n@@    P:\n@@      $ref:\n",
 	},
 	{
@@ -98,7 +101,7 @@ var refPositions = []refPosition{
 			"          headers:\n            Ok: {schema: {type: string}}\n@@            H:\n@@              $ref:\n",
 	},
 	{
-		name: "a component header", pointer: "/components/headers/P/$ref",
+		name: "a component header", pointer: "/components/headers/P/$ref", kept: "openapi:components/headers/P",
 		body: "paths: {}\ncomponents:\n  headers:\n    Ok: {schema: {type: string}}\n@@    P:\n@@      $ref:\n",
 	},
 	{
@@ -108,7 +111,7 @@ var refPositions = []refPosition{
 			"                Ok: {value: x}\n@@                E:\n@@                  $ref:\n",
 	},
 	{
-		name: "a component example", pointer: "/components/examples/P/$ref",
+		name: "a component example", pointer: "/components/examples/P/$ref", kept: "openapi:components/examples/P",
 		body: "paths: {}\ncomponents:\n  examples:\n    Ok: {value: x}\n@@    P:\n@@      $ref:\n",
 	},
 	{
@@ -117,7 +120,7 @@ var refPositions = []refPosition{
 			"          links:\n            Ok: {operationId: getA}\n@@            L:\n@@              $ref:\n",
 	},
 	{
-		name: "a component link", pointer: "/components/links/P/$ref",
+		name: "a component link", pointer: "/components/links/P/$ref", kept: "openapi:components/links/P",
 		body: refOp + "components:\n  links:\n    Ok: {operationId: getA}\n@@    P:\n@@      $ref:\n",
 	},
 	{
@@ -127,7 +130,7 @@ var refPositions = []refPosition{
 			"@@        cb2:\n@@          $ref:\n",
 	},
 	{
-		name: "a component callback", pointer: "/components/callbacks/P/$ref",
+		name: "a component callback", pointer: "/components/callbacks/P/$ref", kept: "openapi:components/callbacks/P",
 		body: "paths: {}\ncomponents:\n  callbacks:\n    Ok:\n      '{$request.body#/u}':\n        post: {responses: {\"200\": {description: ok}}}\n" +
 			"@@    P:\n@@      $ref:\n",
 	},
@@ -210,6 +213,10 @@ func TestCompile_ANullRefOfAReferenceObjectLeavesTheEntryOut(t *testing.T) {
 					}
 					if !p.pathItem {
 						assert.Equal(t, ir.SeverityError, diags[0].Severity)
+					}
+					if p.kept != "" {
+						assert.JSONEq(t, `{"$ref":null}`, string(doc.Unmodeled[p.kept].Value), "a verbatim copy shows the source")
+						delete(doc.Unmodeled, p.kept)
 					}
 					assert.Equal(t, want, jsonOf(t, doc), "the entry is left out, or for an item kept, read as {}")
 				})
@@ -352,4 +359,24 @@ func TestCompile_AnAliasedNullRefIsReadWithoutAFault(t *testing.T) {
 		require.Len(t, ops, 1)
 		require.Len(t, ops[0].Params, 1, "the entry is left out, the neighbour lowers")
 	}
+}
+
+// TestCompile_AComponentWhoseRefIsNoStringIsKeptAsWritten holds an entry of a
+// section with no registry, whose $ref is a list, to the one error at its $ref
+// and to its verbatim copy, which shows every key the source wrote: the entry
+// is read as left out, and the lossless channel still shows it.
+func TestCompile_AComponentWhoseRefIsNoStringIsKeptAsWritten(t *testing.T) {
+	t.Parallel()
+	spec := "openapi: 3.1.0\ninfo: {title: t, version: \"1\"}\npaths: {}\n" +
+		"components:\n  parameters:\n    Unused: {$ref: [x], name: u, in: query}\n"
+
+	doc, diags := compileText(t, "spec.yaml", spec, openapi.Options{})
+
+	require.NotNil(t, doc, "%+v", diags)
+	require.Len(t, diags, 1, "%+v", diags)
+	assert.Equal(t, typeMismatch, diags[0].Code)
+	assert.Equal(t, "/components/parameters/Unused/$ref", string(diags[0].Provenance.Pointer))
+	kept, ok := doc.Unmodeled["openapi:components/parameters/Unused"]
+	require.True(t, ok, "the entry is kept verbatim: %v", doc.Unmodeled)
+	assert.JSONEq(t, `{"$ref":["x"],"name":"u","in":"query"}`, string(kept.Value))
 }

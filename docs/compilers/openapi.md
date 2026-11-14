@@ -936,7 +936,8 @@ references that closes on itself is [`reference-cycles`](#reference-cycles)'.
 
 A Reference Object whose `$ref` is no string, a null, a list, a mapping or a scalar tagged outside
 YAML 1.2's JSON schema ruleset, names nothing: the entry it stands in is read as left out, its
-other keys with it, and the rule table's error at the `$ref` is the one report of it. The parser's
+other keys with it, and the rule table's error at the `$ref` is the one report of it; a component
+kept verbatim shows it as written ([`unreferenced-components`](#unreferenced-components)). The parser's
 model faults building such an object, and a 3.2 `additionalOperations` entry that is no mapping
 ([`nil-populate-panic`](../parser-library.md#nil-populate-panic)), so the load phase sets each
 aside for the model's builds and puts it back before anything else reads the tree. A Path Item's
@@ -1187,7 +1188,8 @@ neither a section nor a reference, and the reference is followed as any other is
 - Tests: `operation.TestResponses_SummaryNoReaderTakesIsStillReported`,
   `annotation.TestRead_NodeTypeOnlyADefinedValueIsPlaced`,
   `operation.TestContent_MediaTypeDescriptionReachesItsDocs`,
-  `document.TestComponentMediaTypes_AnUnreferencedEntryIsKept`
+  `document.TestComponentMediaTypes_AnUnreferencedEntryIsKept`,
+  `e2e.TestCompile_AComponentWhoseRefIsNoStringIsKeptAsWritten`
 
 ### `unreferenced-components`
 
@@ -1201,8 +1203,10 @@ pointer, with no diagnostic. The sections are `responses`, `parameters`, `exampl
 at every version, as [`unmodeled-dialect-fields`](#unmodeled-dialect-fields) reads a field the
 parser does not model; `components/schemas` and `components/securitySchemes` are lowered
 unconditionally. A section is read as the parser reads it, through `<<` merge keys, so a merged-in
-entry is kept under its own name, and an entry whose key is no scalar under the empty name the
-parser reads it by ([`validation`](#validation) reports the key). Where the components merge
+entry is kept under its own name, and an entry whose key is no scalar is left out
+([`validation`](#validation) reports the key). An entry whose `$ref` is no string, which every
+reader takes for the entry left out ([`references`](#references)), is kept as the source wrote it,
+beside the rule table's error at the `$ref`. Where the components merge
 through `<<` deeper than the levels a mapping's merges are expanded to (`nodeview.MergeDepthLimit`),
 an `openapi/degraded-construct` warning at `components` says so, and an entry past that depth is not
 kept.
@@ -1231,7 +1235,8 @@ for an oversight.
   `document.TestUnreferencedComponents_ReadAsTheParserReadsThem`,
   `document.TestUnreferencedComponents_SelfReferenceByFileNameReaches`,
   `document.TestUnreferencedComponents_MergeDepthBoundIsReported`,
-  `document.TestComponentMediaTypes_AnUnreferencedEntryIsKept`
+  `document.TestComponentMediaTypes_AnUnreferencedEntryIsKept`,
+  `e2e.TestCompile_AComponentWhoseRefIsNoStringIsKeptAsWritten`
 
 ## 3. Names and values
 
