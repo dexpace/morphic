@@ -22,7 +22,9 @@ const maxPatternBytes = 4096
 // a pattern past the bound matches nothing, as one that is no I-Regexp does.
 const maxProgram = 1 << 14
 
-// maxRepeat is the most a repetition may count: Go's engine refuses more.
+// maxRepeat is the most a repetition may count, which Go's engine holds by
+// refusing more. A count is read no further than one past it, so the size of
+// the program is reckoned with no overflow, and the engine then refuses it.
 const maxRepeat = 1000
 
 // translator rewrites an I-Regexp (RFC 9485) as the Go regexp that matches
@@ -261,7 +263,7 @@ func (t *translator) rangeQuantifier() bool {
 			copies = high
 		}
 	}
-	if t.pos >= len(t.src) || t.src[t.pos] != '}' || copies > maxRepeat+1 {
+	if t.pos >= len(t.src) || t.src[t.pos] != '}' {
 		return false
 	}
 	if low == 0 && len(t.frames) == 1 {
