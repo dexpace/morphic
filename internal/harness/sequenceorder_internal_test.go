@@ -444,6 +444,25 @@ func TestSequenceOrderInvariant_FindsWhatDiffers(t *testing.T) {
 			contains: []string{"diagnostics depend on sequence order", "x/tie"},
 		},
 		{
+			// The second document reverses X's allOf, which the first, the one
+			// compiled, writes with one entry. A report there in both orders
+			// moves nothing, so it marks no tie over what differs beneath it.
+			name: "a difference beneath a path another document of the stream writes",
+			src: fixtureX + "    X: {allOf: [{type: object, properties: {p: {type: string}}}]}\n---\n" +
+				schemas("X: {allOf: [{title: a}, {title: b}]}"),
+			edit: func(t *testing.T, reversed bool, doc *ir.Document, diags []ir.Diagnostic) (*ir.Document, []ir.Diagnostic, error) {
+				m, ok := doc.Types["t/openapi/components/schemas/X"].(*ir.Model)
+				require.True(t, ok, "the fixture must lower X to a model")
+				require.Len(t, m.Properties, 1, "the fixture must fold X's one branch into it")
+				if reversed {
+					m.Properties[0].Type.Target = "t/prim/integer"
+				}
+				return doc, append(slices.Clip(diags), diagnostic(ir.SeverityWarning, "x/at", "/components/schemas/X/allOf/0", "")), nil
+			},
+			found:    true,
+			contains: []string{"document depends on sequence order"},
+		},
+		{
 			name: "a permuted source compiling to no document",
 			src:  fixtureX,
 			edit: func(_ *testing.T, reversed bool, doc *ir.Document, diags []ir.Diagnostic) (*ir.Document, []ir.Diagnostic, error) {

@@ -236,6 +236,17 @@ paths:
 			written: sequences{s + "/CD/allOf": 2},
 		},
 		{
+			// The first document writes AB's allOf as one entry, which a report
+			// of the compile can name at index 0: reversing the second's would
+			// read that report as moved.
+			name: "a path another document writes with one entry is held",
+			src: schemas("AB: {allOf: [{title: a}]}") + "---\n" +
+				schemas("AB: {allOf: [{title: c}, {title: d}]}", "CD: {allOf: [{title: f}, {title: g}]}"),
+			want: schemas("AB: {allOf: [{title: a}]}") + "---\n" +
+				schemas("AB: {allOf: [{title: c}, {title: d}]}", "CD: {allOf: [{title: g}, {title: f}]}"),
+			written: sequences{s + "/CD/allOf": 2},
+		},
+		{
 			// The parser keeps one copy of a key written twice, which the walk
 			// cannot tell.
 			name:     "a key written twice is held",

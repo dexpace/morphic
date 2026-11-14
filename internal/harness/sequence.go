@@ -33,7 +33,7 @@ func reverseSequences(src []byte) ([]byte, permutation, Decline) {
 	if why != "" {
 		return nil, permutation{}, why
 	}
-	w := sequenceWalk{pointed: map[string]bool{}}
+	w := sequenceWalk{pointed: map[string]bool{}, written: map[string]int{}}
 	for _, doc := range docs {
 		if why := w.walk(doc, asKeywords, 0); why != "" {
 			return nil, permutation{}, why
@@ -75,27 +75,26 @@ type candidate struct {
 }
 
 // sequenceWalk is the state of one reverseSequences walk: the pointer prefixes
-// the stream's scalars name an element through, the candidates met, and the
-// pointer of the node being visited.
+// the stream's scalars name an element through, how often the stream writes an
+// allOf or required key at each pointer, the candidates met, and the pointer of
+// the node being visited.
 type sequenceWalk struct {
 	pointed    map[string]bool
+	written    map[string]int
 	candidates []candidate
 	pointer    []byte
 }
 
 // reverse reverses each candidate no scalar points into and returns where the
 // reversed sequences sit. Element i of a reversed sequence of length n is
-// element n-1-i of the permuted source, which moves a nested one. A pointer two
-// candidates share, a key written twice or a path two documents of the stream
-// both write, is held: what the IR says at it names one of them, not which.
+// element n-1-i of the permuted source, which moves a nested one. A pointer
+// the stream writes an allOf or required key at more than once, a key written
+// twice or a path two documents both write, is held whatever the other writes
+// there: what the IR says at it names one of them, not which.
 func (w *sequenceWalk) reverse() permutation {
-	met := make(map[string]int, len(w.candidates))
-	for _, c := range w.candidates {
-		met[c.pointer]++
-	}
 	perm := permutation{written: sequences{}, moved: sequences{}}
 	for _, c := range w.candidates {
-		if met[c.pointer] == 1 && !w.held(c.pointer) {
+		if w.written[c.pointer] == 1 && !w.held(c.pointer) {
 			perm.written[c.pointer] = len(c.node.Content)
 		}
 	}
@@ -149,6 +148,9 @@ func (w *sequenceWalk) mapping(n *yaml.Node, mode reading, depth int) Decline {
 		k := keyText(key)
 		mark := len(w.pointer)
 		w.pointer = appendToken(w.pointer, k)
+		if orderFreeKeyword(k) {
+			w.written[string(w.pointer)]++
+		}
 		if mode == asKeywords && orderFreeKeyword(k) &&
 			v.Kind == yaml.SequenceNode && len(v.Content) >= 2 && v.Anchor == "" {
 			w.candidates = append(w.candidates, candidate{node: v, pointer: string(w.pointer)})

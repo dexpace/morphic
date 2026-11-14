@@ -49,8 +49,7 @@ type canonical struct{ document, shape []string }
 // reversed sequence a string names, an ID beneath one being told apart by its
 // owners' digest; the order of what orderFree lists, mixins, requires and an
 // array kept verbatim at a reversed sequence's pointer; and every node at or
-// beneath a tie. A string naming a sequence another document of the stream
-// reverses is erased too.
+// beneath a tie.
 func canonicalForm(doc *ir.Document, seqs sequences, ties []string) (canonical, error) {
 	encoded, err := encodeComparable(doc, markedArray)
 	if err != nil {
