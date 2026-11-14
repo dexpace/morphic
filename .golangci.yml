@@ -314,7 +314,7 @@ linters:
       # contextReader is the io.Reader a YAML parse reads its bytes through,
       # and Read takes no context, so the context the parse runs under is held
       # for the reads that one decode makes.
-      - path: compilers/openapi/internal/load/cancel\.go
+      - path: compilers/openapi/internal/doctree/stream\.go
         linters:
           - containedctx
         source: ^\s*ctx\s+context\.Context$

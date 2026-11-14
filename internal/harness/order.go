@@ -363,8 +363,10 @@ func reverseMappings(src []byte) ([]byte, Decline) {
 
 // parseStream parses src as a YAML stream, a node per document, or says why
 // it cannot: it does not parse, or holds more documents than the rewrite reads.
-// It reads YAML alone, so a JSON source only the compiler's JSON reader reads,
-// such as one writing a surrogate pair, is declined as not YAML (#1768).
+// It parses with the YAML library alone, which lexes YAML 1.1, so a source only
+// the compiler's reader reads is declined as not YAML (#1768): a JSON one
+// writing a surrogate pair, and a YAML one writing an escaped slash or opening
+// with a %YAML 1.2 directive.
 func parseStream(src []byte) ([]*yaml.Node, Decline) {
 	dec := yaml.NewDecoder(bytes.NewReader(src))
 	var docs []*yaml.Node

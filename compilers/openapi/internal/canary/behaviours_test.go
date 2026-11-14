@@ -36,6 +36,7 @@ func canaries() map[string]func(t *testing.T) {
 		"scalar-resolution":        scalarResolution,
 		"json-as-yaml":             jsonAsYAML,
 		"undecoded-scalar":         undecodedScalar,
+		"yaml11-lexing":            yaml11Lexing,
 		"unmodeled-keywords":       unmodeledKeywords,
 		"null-schema-is-false":     nullSchemaIsFalse,
 		"failure-beneath-itself":   failureBeneathItself,

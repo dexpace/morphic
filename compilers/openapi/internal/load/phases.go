@@ -13,6 +13,7 @@ import (
 
 	"github.com/dexpace/morphic/compilers"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
+	"github.com/dexpace/morphic/compilers/openapi/internal/doctree"
 	"github.com/dexpace/morphic/compilers/openapi/internal/overlay"
 	"github.com/dexpace/morphic/compilers/openapi/internal/provenance"
 	refscope "github.com/dexpace/morphic/compilers/openapi/internal/resolve"
@@ -28,7 +29,6 @@ const (
 	phaseParse    phase = "parse"    // the source decoded, or detection's parse taken
 	phaseRefuse   phase = "refuse"   // the pre-parse refusals
 	phasePatch    phase = "patch"    // the overlay read and applied
-	phaseMeasure  phase = "measure"  // the node budget
 	phaseJudge    phase = "judge"    // the rule table's judgment of the tree
 	phaseModel    phase = "model"    // the parser's model built, and its version read
 	phaseSiblings phase = "siblings" // the fields beside path item $refs, and the media types, modelled
@@ -58,7 +58,6 @@ func steps() []step {
 	return []step{
 		{phaseRefuse, (*loading).preParse},
 		{phasePatch, (*loading).patchOverlay},
-		{phaseMeasure, (*loading).measure},
 		{phaseJudge, (*loading).judge},
 		{phaseModel, (*loading).buildModel},
 		{phaseSiblings, (*loading).findSiblings},
@@ -74,7 +73,9 @@ type loading struct {
 	srcIndex int
 	src      compilers.Source
 	opts     Options
-	root     *yaml.Node
+	// read is the source as doctree read it, and root its tree.
+	read doctree.Document
+	root *yaml.Node
 	// places is where the files the compile names lie, one answer for each
 	// directory however often a read asks.
 	places *refscope.Places
@@ -116,7 +117,7 @@ type loading struct {
 // finish, is carried forward.
 func (l *loading) preParse(ctx context.Context) (bool, error) {
 	tree := treeOf(ctx, provenance.Doc{Source: l.srcIndex}, l.root)
-	l.early = refusals(ctx, tree, tree.Node(nil), l.root, l.opts)
+	l.early = append(versionDiagnostics(tree, l.read), refusals(ctx, tree, tree.Node(nil), l.root, l.opts)...)
 	return diag.HasError(l.early), nil
 }
 
@@ -131,21 +132,6 @@ func (l *loading) patchOverlay(ctx context.Context) (bool, error) {
 	l.place = provenance.Doc{Source: l.srcIndex, Overlay: origin.Attribution()}
 	l.tree = treeOf(ctx, l.place, l.root)
 	return diag.HasError(l.early), nil
-}
-
-// measure holds the tree to the node budget. It is measured after the overlay
-// for the reason patch re-runs the pre-parse refusals: the tree the model is
-// built from is no longer the bytes that were measured, and an overlay action
-// can graft nodes onto it. Building that model and binding its references is
-// what the budget bounds, and both are still ahead.
-func (l *loading) measure(ctx context.Context) (bool, error) {
-	nodes := nodeCount(ctx, l.root)
-	if l.opts.MaxSourceNodes.Admits(nodes) {
-		return false, nil
-	}
-	l.early = append(l.early, budgetRefusal(l.srcIndex,
-		"source document parses to %d nodes, past the %d-node budget", nodes, l.opts.MaxSourceNodes))
-	return true, nil
 }
 
 // judge holds the tree to the rule table as the source writes it.
@@ -213,7 +199,7 @@ func (l *loading) bindRefs(ctx context.Context) (bool, error) {
 	l.named, unread = readDialects(table, l.bound.others, l.dialects, l.sites)
 	l.judged = judgeSchemas(ctx, l.judged, l.named)
 	l.self.judged = l.judged
-	l.resolved = slices.Concat(unread, l.bound.faults.diags(l.sites, table), bindingDiags(l.sites, table),
+	l.resolved = slices.Concat(l.bound.others.found, unread, l.bound.faults.diags(l.sites, table), bindingDiags(l.sites, table),
 		buildFailures(l.sites, l.bound.built, l.bound.objects))
 	if l.reader != nil {
 		l.resolved = append(l.resolved, l.reader.read.exhausted(l.place)...)

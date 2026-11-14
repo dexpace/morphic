@@ -50,6 +50,10 @@ type Others struct {
 	list   []Other
 	byName map[string]int
 	trees  []provenance.Tree
+	// found is what reading each document found in its own entry: a stream
+	// past its first document, and a YAML version it declares and is not read
+	// as.
+	found []ir.Diagnostic
 }
 
 // tree returns where a node of the document a reference reads by name is
@@ -140,8 +144,10 @@ func newOthers(ctx context.Context, read *externalReads, first int, source *dial
 		o.list = append(o.list, Other{Index: first + i, Label: label, Info: ir.SourceInfo{
 			Format: "openapi@" + minor, Path: read.self.shownPathOf(keys[0]), Hash: ir.SourceHash(data),
 		}, Rows: rows, version: version, dialect: dialect})
-		o.trees = append(o.trees, provenance.Tree{Doc: provenance.Doc{Source: first + i},
-			Pointers: pointersIn(ctx, read.trees, keys)})
+		tree := provenance.Tree{Doc: provenance.Doc{Source: first + i}, Pointers: pointersIn(ctx, read.trees, keys)}
+		o.trees = append(o.trees, tree)
+		doc := read.read[keys[0]]
+		o.found = slices.Concat(o.found, streamDiagnostics(first+i, externalStream, doc.Rest), versionDiagnostics(tree, doc))
 		for _, key := range keys {
 			o.byName[key] = i
 		}

@@ -43,7 +43,7 @@ components:
 // planOf reads ov as an overlay to apply, requiring that it reads.
 func planOf(t *testing.T, ov string) plan {
 	t.Helper()
-	p, diags := read(t.Context(), ir.Provenance{Source: 1}, []byte(ov))
+	p, diags := read(ir.Provenance{Source: 1}, docOf(t, ov))
 	require.False(t, diag.HasError(diags), "%+v", diags)
 	return p
 }
@@ -327,7 +327,7 @@ func TestSequence_NeverChargesLessThanItBuilds(t *testing.T) {
 			charged := s.cost(p.actions[0], targets, sources)
 			before := countNodes(t.Context(), &root, budget.AtMost(maxNodes))
 
-			_, diags := Apply(t.Context(), 1, &root, Options{Data: []byte(head + action)})
+			_, diags := Apply(t.Context(), 1, &root, docOf(t, head+action), Options{Data: []byte(head + action)})
 			require.False(t, diag.HasError(diags), "%+v", diags)
 
 			built := countNodes(t.Context(), &root, budget.AtMost(maxNodes)) - before

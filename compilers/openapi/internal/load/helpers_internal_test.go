@@ -19,6 +19,7 @@ import (
 	yaml "go.yaml.in/yaml/v3"
 
 	"github.com/dexpace/morphic/compilers"
+	"github.com/dexpace/morphic/compilers/openapi/internal/budget"
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
 	refscope "github.com/dexpace/morphic/compilers/openapi/internal/resolve"
 	"github.com/dexpace/morphic/engine/reader"
@@ -31,13 +32,13 @@ import (
 // Load pipeline.
 func buildTree(t *testing.T, spec string) *yaml.Node {
 	t.Helper()
-	parsed, err := parsedFor(t.Context(), compilers.Source{Path: "spec.yaml", Data: []byte(spec)})
+	parsed, err := parsedFor(t.Context(), compilers.Source{Path: "spec.yaml", Data: []byte(spec)}, budget.Unbounded())
 	require.NoError(t, err)
-	readyForModel(t.Context(), parsed.root)
-	doc, err := unmarshal(t.Context(), []byte(spec), parsed.root)
+	readyForModel(t.Context(), parsed.Root())
+	doc, err := unmarshal(t.Context(), []byte(spec), parsed.Root())
 	require.NoError(t, err)
 	require.NotNil(t, doc)
-	return parsed.root
+	return parsed.Root()
 }
 
 // mappingSpec is a source whose component schemas are schemas, and whose
@@ -137,7 +138,7 @@ func modelOf(t *testing.T, spec string) *soa.OpenAPI {
 // decodeRoot decodes src, which must decode.
 func decodeRoot(t *testing.T, src string) *yaml.Node {
 	t.Helper()
-	parsed, err := Decode(t.Context(), []byte(src))
+	parsed, err := Decode(t.Context(), []byte(src), budget.Unbounded())
 	require.NoError(t, err)
 	return parsed.Root()
 }

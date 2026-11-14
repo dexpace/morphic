@@ -17,6 +17,7 @@ import (
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/budget"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
+	"github.com/dexpace/morphic/compilers/openapi/internal/doctree"
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
 	"github.com/dexpace/morphic/compilers/openapi/internal/provenance"
 	"github.com/dexpace/morphic/compilers/openapi/internal/scan"
@@ -160,7 +161,7 @@ func TestExternal_AdmitRefusesANestingPastTheBound(t *testing.T) {
 	root, err := parseTree(t.Context(), []byte("a: "+itemsDeep(scan.MaxNesting)+"\n"))
 	require.NoError(t, err)
 
-	err = newExternal(Options{}, newExternalReads(sourceDocument{}, budget.Unbounded())).admit(t.Context(), "k", root)
+	err = newExternal(Options{}, newExternalReads(sourceDocument{}, budget.Unbounded())).admit(t.Context(), "k", doctree.Document{Root: root})
 
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "refused")

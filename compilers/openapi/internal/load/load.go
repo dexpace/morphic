@@ -48,13 +48,16 @@ type Options struct {
 	// OverlaySrcIndex is the index the overlay document takes in Document.Sources.
 	// It is read only when Overlay is set.
 	OverlaySrcIndex int
-	// MaxSourceBytes bounds the source document's size in bytes. The compiler's
-	// public Limits resolves its defaults and its spelling of "unbounded" before
-	// projecting onto this (budget.FromOption), so the zero Limit, unbounded,
-	// is a budget no caller set, as in each budget below.
+	// MaxSourceBytes bounds the size in bytes of the source, of the overlay and
+	// of each document a reference reads, each checked before anything reads
+	// it. The compiler's public Limits resolves its defaults and its spelling of
+	// "unbounded" before projecting onto this (budget.FromOption), so the zero
+	// Limit, unbounded, is a budget no caller set, as in each budget below.
 	MaxSourceBytes budget.Limit
-	// MaxSourceNodes bounds the YAML nodes the source parses to, counted after any
-	// overlay is applied.
+	// MaxSourceNodes bounds the nodes a document holds as it is read: the
+	// source, the overlay and each document a reference reads, and the source
+	// again as the overlay leaves it. A JSON text is held to it as it is read,
+	// and a YAML text once it is parsed (doctree.Read).
 	MaxSourceNodes budget.Limit
 	// MaxAliasSurplus bounds the nodes YAML aliases may add to the source, and to
 	// the overlay, beyond their own. The ratio refusal scan makes beside it holds
@@ -78,9 +81,8 @@ type Options struct {
 	entered func(phase)
 }
 
-// readyForModel readies every node of the model's source tree, in one walk: it
-// clears each anchor's name, and tags each mistagged scalar a string. root
-// must not be nil.
+// readyForModel clears the name of each anchor in the model's source tree, in
+// one walk. root must not be nil.
 //
 // The parser skips an anchored mapping entry where the model folds entries into
 // a map, and drops it silently (docs/parser-library.md#anchored-entry-dropped,
@@ -88,44 +90,11 @@ type Options struct {
 // target by a kept pointer. Run it after the pre-parse refusals, which read
 // names. A document read through external is readied too (GitHub #501).
 func readyForModel(ctx context.Context, root *yaml.Node) {
-	// An alias is a leaf of the walk: a recursive anchor cannot loop it. A scalar
-	// is judged from its parent, which knows whether it is a key.
+	// An alias is a leaf of the walk: a recursive anchor cannot loop it.
 	nodeview.Walk{Nodes: maxTreeNodes, Visit: func(n *yaml.Node, _ int) nodeview.Step {
 		n.Anchor = ""
-		for i, c := range n.Content {
-			if mistagged(n, i) {
-				c.Tag = "!!str"
-			}
-		}
 		return nodeview.Descend
 	}}.Run(ctx, root)
-}
-
-// mistagged reports whether the i-th of n's Content is a scalar the parser tags
-// as no string where YAML 1.2, which OpenAPI recommends, reads the string it
-// spells: a date, a timestamp to the parser
-// (docs/parser-library.md#scalar-resolution), or a `<<` anywhere but a
-// mapping's key, the one place it merges, written with no tag or YAML's
-// non-specific `!`. The model decodes no string from either, so a field so
-// written reads as left out (docs/parser-library.md#undecoded-scalar, GitHub
-// #1280).
-//
-// A scalar under any other tag keeps it, and reads as
-// docs/compilers/openapi.md#values says; whether one outside YAML's JSON
-// schema ruleset is reported is GitHub #1368's to settle.
-func mistagged(n *yaml.Node, i int) bool {
-	c := n.Content[i]
-	if c == nil || c.Kind != yaml.ScalarNode || c.Style&yaml.TaggedStyle != 0 {
-		return false
-	}
-	switch c.ShortTag() {
-	case "!!timestamp":
-		return true
-	case "!!merge":
-		return n.Kind != yaml.MappingNode || i%2 == 1
-	default:
-		return false
-	}
 }
 
 // ErrParse marks a hard failure to read a source document: bytes that are not
@@ -215,7 +184,10 @@ func Load(ctx context.Context, srcIndex int, src compilers.Source, opts Options)
 	if err := opts.enter(ctx, phaseParse); err != nil {
 		return nil, nil, err
 	}
-	parsed, err := parsedFor(ctx, src)
+	parsed, err := parsedFor(ctx, src, opts.MaxSourceNodes)
+	if d, past := pastNodes(ir.Provenance{Source: srcIndex}, "source", err); past {
+		return nil, []ir.Diagnostic{d}, nil
+	}
 	if err != nil {
 		// A parse its context stopped is no source that will not parse.
 		return nil, nil, stopped(ctx, fmt.Errorf("openapi: decode source %d: %w: %w", srcIndex, err, ErrParse))
@@ -224,7 +196,7 @@ func Load(ctx context.Context, srcIndex int, src compilers.Source, opts Options)
 	if err != nil {
 		return nil, nil, err
 	}
-	return doc, append(parsed.rest.diagnostics(srcIndex), diags...), nil
+	return doc, append(streamDiagnostics(srcIndex, sourceStream, parsed.doc.Rest), diags...), nil
 }
 
 // build turns the decoded tree of a source's first document into a Document,
@@ -244,7 +216,7 @@ func build(ctx context.Context, srcIndex int, src compilers.Source, parsed *Pars
 		src.Location = places.File(location)
 	}
 	opts.Within = places.Directory(opts.Within)
-	l := &loading{srcIndex: srcIndex, src: src, opts: opts, root: parsed.root, places: places}
+	l := &loading{srcIndex: srcIndex, src: src, opts: opts, read: parsed.doc, root: parsed.doc.Root, places: places}
 	for _, s := range steps() {
 		if err := opts.enter(ctx, s.phase); err != nil {
 			return nil, nil, err

@@ -168,18 +168,17 @@ func TestApplyOverlay_CarriesAWarningFromItsRefusals(t *testing.T) {
 		"cycle pre-scan aborted; reference-cycle protection is incomplete for this source")
 	opts := overlayOptions("  - target: $.info\n    update: {description: d}\n")
 
-	origin, diags := applyOverlay(t.Context(), 0, &root, opts, []ir.Diagnostic{incomplete})
+	origin, diags := applyOverlay(t.Context(), 0, &root, overlayTree(t, opts), opts, []ir.Diagnostic{incomplete})
 
 	assert.True(t, origin.Applied(), "a warning is not a refusal; the overlay applies")
 	assert.Contains(t, diags, incomplete, "and the caller is told the protection was incomplete")
 }
 
 // TestLoad_AnOverlayThatWillNotDecodeIsTheLibrarysToRefuse pins the edge of
-// what the pre-apply refusals answer for. They read the overlay as YAML to find
-// its aliases, and bytes that are not YAML have none to find; the library parses
-// the same bytes a moment later and refuses them with a reason about the
-// overlay. Reporting a second, vaguer finding about the same bytes would only
-// bury that one.
+// what the pre-apply refusals answer for. Bytes that are not YAML are refused
+// once, as the overlay the compile reads once, with the parser's reason about
+// them; reporting a second, vaguer finding about the same bytes would only bury
+// that one.
 func TestLoad_AnOverlayThatWillNotDecodeIsTheLibrarysToRefuse(t *testing.T) {
 	t.Parallel()
 	doc, diags, err := Load(t.Context(), 0, openapitest.SourceOf(minimal31), overlayOf("\tnot: yaml\n"))
@@ -191,19 +190,21 @@ func TestLoad_AnOverlayThatWillNotDecodeIsTheLibrarysToRefuse(t *testing.T) {
 }
 
 // TestLoad_AnOverlayBuildsWithinTheNodeBudget pins the loader's half of GitHub
-// #491: the node budget the patched tree is checked against afterwards is the
-// one the overlay builds within, so an action that would build past it is
-// refused before it builds anything rather than after a tree the check then
-// turns down. The package that applies overlays holds the mechanism; this holds
-// that the compile hands it the caller's budget.
+// #491: the overlay builds within the node budget the source was read within,
+// which nothing checks the patched tree against afterwards, so an action that
+// would build past it is refused before it builds anything. The package that
+// applies overlays holds the mechanism; this holds that the compile hands it
+// the caller's budget.
 func TestLoad_AnOverlayBuildsWithinTheNodeBudget(t *testing.T) {
 	t.Parallel()
-	keys := make([]string, 200)
+	keys := make([]string, 30)
 	for i := range keys {
 		keys[i] = fmt.Sprintf("k%d: v", i)
 	}
-	ov := "overlay: 1.0.0\ninfo: {title: o, version: \"1\"}\nactions:\n" +
-		"  - target: $.info\n    update: {x-bulk: {" + strings.Join(keys, ", ") + "}}\n"
+	// The update copies what its aliases name, so the overlay document is
+	// within the budget and the tree its action would build is not.
+	ov := "overlay: 1.0.0\ninfo: {title: o, version: \"1\"}\nx-a: &a {" + strings.Join(keys, ", ") + "}\n" +
+		"actions:\n  - target: $.info\n    update: {x-bulk: [*a, *a, *a, *a, *a]}\n"
 
 	opts := overlayOf(ov)
 	opts.MaxSourceNodes = budget.AtMost(100)
@@ -221,11 +222,10 @@ func TestLoad_AnOverlayBuildsWithinTheNodeBudget(t *testing.T) {
 	require.NotNil(t, doc, "the same overlay fits a budget with room for it: %+v", diags)
 }
 
-// TestLoad_TheNodeBudgetReadsTheTreeTheOverlayLeaves pins that a source past
-// the node budget compiles when its overlay removes what crosses it: the
-// budget counts the patched tree, and an action that builds nothing is not
-// refused on the way there.
-func TestLoad_TheNodeBudgetReadsTheTreeTheOverlayLeaves(t *testing.T) {
+// TestLoad_AnOverlayDoesNotLiftTheNodeBudgetOfTheSource pins that a source past
+// the node budget is refused although its overlay would remove what crosses
+// it: the budget holds the document as it is read, before any overlay applies.
+func TestLoad_AnOverlayDoesNotLiftTheNodeBudgetOfTheSource(t *testing.T) {
 	t.Parallel()
 	src := minimal31 + "x-junk: [" + strings.Repeat("j, ", 200) + "j]\n"
 	ov := "overlay: 1.0.0\ninfo: {title: o, version: \"1\"}\nactions:\n" +
@@ -241,8 +241,9 @@ func TestLoad_TheNodeBudgetReadsTheTreeTheOverlayLeaves(t *testing.T) {
 	opts.MaxSourceNodes = bare.MaxSourceNodes
 	doc, diags, err = Load(t.Context(), 0, openapitest.SourceOf(src), opts)
 	require.NoError(t, err)
-	assert.NotNil(t, doc, "the overlay brings it within the budget: %+v", diags)
-	assert.Zero(t, countErrorsAt(diags, diag.BudgetExceeded), "diagnostics: %+v", diags)
+	assert.Nil(t, doc, "the overlay applies to no tree past the budget: %+v", diags)
+	require.Equal(t, 1, countErrorsAt(diags, diag.BudgetExceeded), "diagnostics: %+v", diags)
+	assert.Equal(t, 0, diags[0].Provenance.Source, "the source's, as read")
 }
 
 // TestLoad_AnOverlayIsHeldToTheByteBudget pins the budget the overlay document

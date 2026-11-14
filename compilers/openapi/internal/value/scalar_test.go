@@ -34,7 +34,7 @@ var classifyRows = []struct {
 	{name: "plain true", src: "true", kind: value.ScalarBool, text: "true"},
 	{name: "bool tag over text", src: "!!bool maybe", refused: true},
 	{name: "plain int", src: "42", kind: value.ScalarNumber, num: "42", text: "42"},
-	{name: "octal int", src: "0644", kind: value.ScalarNumber, num: "420", text: "0644"},
+	{name: "leading-zero int", src: "0644", kind: value.ScalarNumber, num: "644", text: "0644"},
 	{name: "hex int", src: "0x1f", kind: value.ScalarNumber, num: "31", text: "0x1f"},
 	{name: "separated int", src: "1_000", kind: value.ScalarNumber, num: "1000", text: "1_000"},
 	{name: "plain float", src: "1.5", kind: value.ScalarNumber, num: "1.5", text: "1.5"},
@@ -129,17 +129,19 @@ func TestClassify_ResolvesAnUntaggedNodeByItsText(t *testing.T) {
 }
 
 // TestNumericLiteral_YAMLBases pins the rule that a numeric scalar is captured
-// as the value YAML resolved, not as the base-10 reading of its source text. The
-// two differ for every prefixed spelling, and reading the text as decimal stores
-// a different number with nothing to report it.
+// as the value YAML 1.2's core schema resolves, not as the base-10 reading of
+// its source text. The two differ for every prefixed spelling, and a leading
+// zero is no prefix: 0644 is 644.
 func TestNumericLiteral_YAMLBases(t *testing.T) {
 	t.Parallel()
 	cases := []struct {
 		name, src string
 		want      ir.BigVal
 	}{
-		{"octal 1.1 spelling", "0644", "420"},
-		{"octal negative", "-017", "-15"},
+		{"leading zero is base ten", "0644", "644"},
+		{"leading zero negative is base ten", "-017", "-17"},
+		{"negative zero is zero", "-0", "0"},
+		{"negative zeros are zero", "-000", "0"},
 		{"octal 1.2 spelling", "0o17", "15"},
 		{"hex", "0x1f", "31"},
 		{"hex negative", "-0x1f", "-31"},
@@ -179,6 +181,11 @@ func TestNumericLiteral_ExplicitIntBeyondUint64(t *testing.T) {
 		{"negative", "!!int -99999999999999999999999", "-99999999999999999999999"},
 		{"separators", "!!int 99_999_999_999_999_999_999_999", "99999999999999999999999"},
 		{"plus sign", "!!int +99999999999999999999999", "99999999999999999999999"},
+		// A leading zero is no base prefix, and 0x reads exactly at any width
+		// within the digits read: no base is guessed.
+		{"leading zero", "!!int 077777777777777777777777", "77777777777777777777777"},
+		{"negative leading zero", "!!int -077777777777777777777777", "-77777777777777777777777"},
+		{"hex past uint64", "!!int 0x1FFFFFFFFFFFFFFFFFFFF", "2417851639229258349412351"},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -197,18 +204,19 @@ func TestNumericLiteral_NilNode(t *testing.T) {
 	require.Error(t, err)
 }
 
-// TestNumericLiteral_UndecodableInt covers !!int spellings no base-10 reading
-// can recover: a non-numeric run, and a prefixed magnitude past uint64 whose
-// base would have to be guessed. Neither may fall back to its source text.
+// TestNumericLiteral_UndecodableInt covers !!int spellings no reading
+// recovers: a non-numeric run, and a base prefix behind a sign, which the core
+// schema does not spell, past what the parser decodes. Neither may fall back
+// to its source text.
 func TestNumericLiteral_UndecodableInt(t *testing.T) {
 	t.Parallel()
 	for _, src := range []string{
-		"12abc", "077777777777777777777777", "0x1FFFFFFFFFFFFFFFFFFFF", "",
+		"12abc", "",
 		// Valid decimal literals, and no integer: an !!int spelling must be a
 		// digit run, whatever a decimal grammar would accept.
 		"1e30", "1.5", "+-5",
 		// A base prefix behind a sign.
-		"-0x1FFFFFFFFFFFFFFFFFFFF", "-077777777777777777777777",
+		"-0x1FFFFFFFFFFFFFFFFFFFF",
 	} {
 		t.Run(src, func(t *testing.T) {
 			t.Parallel()
@@ -234,8 +242,7 @@ func TestNumericLiteral_NonNumericTagReadsAsDecimal(t *testing.T) {
 		{name: "a quoted decimal", tag: "!!str", val: "1.5", want: "1.5"},
 		// The leading zero is not an octal prefix at this tag, and BigVal is a
 		// canonical decimal, so it is dropped rather than reinterpreted — 0644 is
-		// 644 here and 420 under !!int, which is the whole reason the two paths
-		// are separate.
+		// 644 here, as it is under !!int.
 		{name: "a leading zero is dropped, not read as octal", tag: "!!str", val: "0644", want: "644"},
 		{name: "a signed value", tag: "!!str", val: "-7", want: "-7"},
 	}

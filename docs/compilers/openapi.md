@@ -66,10 +66,15 @@ an `openapi/unsupported-version` error and compiles to no Document.
 
 A source is one YAML document, a JSON one included. A source that declares an `openapi` or `swagger`
 version and does not parse is reported, when the engine asks the compiler whether the source is its,
-as an `openapi/undecodable-source` error, and nothing compiles. A YAML stream lowers the first of
-its documents that holds content; the documents after it that hold content reach the IR in no form,
-reported once as an `openapi/stream-documents-dropped` error at the first of them, and the first
-still lowers. A document holding nothing, a bare separator or an explicit null, is not counted.
+as an `openapi/undecodable-source` error, and nothing compiles. Every input is read as a stream: the
+source, an [overlay](#overlays) and a document a reference reads. Each takes the first of its
+documents that holds content; the documents after it that hold content reach the IR in no form,
+reported once as an `openapi/stream-documents-dropped` error in that input's own
+`Document.Sources` entry at the first of them. The source still lowers, the overlay is not applied,
+and a reference into the external document's first document is read. A document holding nothing, a
+bare separator or an explicit null, is not counted. A read counts 1,024 documents past the one it
+takes and then reads one more, so a stream that continues past them is reported, with the count as
+a floor, whether or not the documents it counted hold content.
 Detection reads the version off the root mapping as the parser does, through aliases, `<<` merges
 and a repeated key's last value, so the compile reads the version the source is routed by. A root
 that merges deeper than that reading expands is declined as an `openapi/budget-exceeded` error,
@@ -98,6 +103,26 @@ refuses the source as an `openapi/undecodable-source` error, the document a refe
 message that names the escape as written and the line and column it begins at. Text that is not one
 JSON text, YAML or JSON followed by anything else, is read as YAML, as before, its errors included.
 
+Every YAML text is read as YAML 1.2, as YAML 1.2 asks of a processor whatever a `%YAML` directive
+declares ([`yaml11-lexing`](../parser-library.md#yaml11-lexing)): a `\/` escape is a slash in a
+double-quoted scalar and the two characters it writes anywhere else, a raw U+0085, U+2028 or U+2029
+is a character and ends no line, and a `%YAML 1.2` directive is read. A document declaring a later
+minor is read as 1.2 with an `openapi/yaml-version-reading` warning at the directive, by position
+alone, and one declaring another major is refused as the parser refuses it. A document declaring
+1.1 draws the same warning at each plain scalar YAML 1.1's types read as another JSON value than
+1.2's core schema, `0644`, `yes` or `1:30`, and at each scalar tagged `!!int` the two read as two
+integers, `!!int 0644`, a scalar past 128 characters compared and worded by
+kind alone and its text not quoted, and at each line-break character written raw in its text or in
+a comment; an escaped `\N`, which YAML 1.1 reads alike, draws none, and a document declaring
+nothing or 1.2 draws none. A UTF-16 or UTF-32 text opening with its byte order mark, JSON or YAML,
+is read as the UTF-8 it encodes, so all three read alike. A plain scalar is resolved by YAML 1.2's core schema in
+every document: `0644` is the integer 644, `0o17` is 15, and `0b11`, `0X1F`, `1_000` and `+0x1F`
+are strings; its text is what the source wrote. A mapping key keeps the parser's tag, a date's
+aside, which is a string as a value's is, and a `<<` key still merges. A core integer the parser
+tags a float, `089` or one past 64 bits, keeps that tag, since the parser's model refuses to decode
+an `!!int` it cannot hold: its integrality is read from its text, by `value.NumericLiteral` and the
+rule table alike, and no reader may take it from the tag.
+
 A date such as `2021-01-01`, and a `<<` anywhere but as a mapping's key, written with no tag or
 under YAML's non-specific `!`, are the strings they spell, in the source and in each document read
 beside it. YAML 1.2, which OpenAPI recommends, has no timestamp or merge type: its core schema reads
@@ -109,9 +134,10 @@ before the model is built: a field so written holds its text, and a `$ref` so wr
 like any other. A `<<` key still merges ([`merge-keys`](../parser-library.md#merge-keys)), and a
 scalar under any other tag keeps it.
 
-- Cases: `yaml-timestamp-scalars`
+- Cases: `yaml-timestamp-scalars`, `numeric-precision`
 - Codes: `openapi/undecodable-source`, `openapi/stream-documents-dropped`, `openapi/tagged-mapping`,
-  `openapi/budget-exceeded`, `openapi/unresolved-ref`, `openapi/invalid-overlay`
+  `openapi/budget-exceeded`, `openapi/unresolved-ref`, `openapi/invalid-overlay`,
+  `openapi/yaml-version-reading`
 - Tests: `detect.TestRecognize_ABrokenDocumentIsReportedAtAnySize`,
   `openapi.TestDetect_ReadsTheVersionTheCompileReads`,
   `detect.TestRecognize_AReadCutShortIsReported`,
@@ -125,13 +151,29 @@ scalar under any other tag keeps it.
   `e2e.TestCompile_APlainDateAnOverlayWritesCompilesAsItsTwin`,
   `e2e.TestCompile_ADateTaggedOutrightKeepsItsTag`,
   `load.TestExternal_DocumentPreparesTheFile`,
-  `jsontree.TestRead_BuildsTheTreeYAMLBuilds`, `jsontree.TestRead_ReadsWhatYAMLRefusesOrMisreads`,
-  `jsontree.TestRead_ReportsALoneSurrogateWhereItIsWritten`,
-  `jsontree.TestRead_DeclinesWhatIsNotOneJSONText`,
-  `jsontree.TestRead_ReadsNestingAtTheDecoderBound`, `jsontree.TestRead_StopsOnceTheContextIsDone`,
-  `jsontree.TestRead_ReportsExactlyTheSurrogateEscapesAsHalves`,
-  `jsontree.TestRead_ReadsAFaultAfterAnEscapeAsTheFaultAlone`,
-  `jsontree.TestRead_KeepsTheDecodersReasonWhenItDeclines`,
+  `doctree.TestReadJSON_BuildsTheTreeYAMLBuilds`, `doctree.TestReadJSON_ReadsWhatYAMLRefusesOrMisreads`,
+  `doctree.TestReadJSON_ReportsALoneSurrogateWhereItIsWritten`,
+  `doctree.TestReadJSON_DeclinesWhatIsNotOneJSONText`,
+  `doctree.TestReadJSON_ReadsNestingAtTheDecoderBound`, `doctree.TestReadJSON_StopsOnceTheContextIsDone`,
+  `doctree.TestReadJSON_ReportsExactlyTheSurrogateEscapesAsHalves`,
+  `doctree.TestReadJSON_ReadsAFaultAfterAnEscapeAsTheFaultAlone`,
+  `doctree.TestReadJSON_KeepsTheDecodersReasonWhenItDeclines`,
+  `doctree.TestRead_AJSONTextReadsAlikeInEveryEncoding`,
+  `doctree.TestRead_ATailIsWhatTheStreamHoldsPastItsFirstDocument`,
+  `doctree.TestRead_AnEscapedSlashReadsAsASlashOnlyWhereTheStyleSaysSo`,
+  `doctree.TestRead_ALineBreakYAML11EndsALineAtIsACharacter`,
+  `doctree.TestRead_ADirectiveIsTheOneGoverningTheDocumentTaken`,
+  `doctree.TestRead_AYAML11DocumentRecordsWhatItReadsOtherwise`,
+  `doctree.TestRead_AYAML11DocumentRecordsAnIntegerTaggedOutrightThatReadsApart`,
+  `doctree.TestRead_ACoreScalarIsRetaggedAndNeverRewritten`,
+  `e2e.TestCompile_AnOverlayStreamWithASecondDocumentIsRefused`,
+  `e2e.TestCompile_AnExternalDocumentStreamIsReportedInItsOwnEntry`,
+  `e2e.TestCompile_AStreamPastTheBoundIsAlwaysReported`,
+  `e2e.TestCompile_AnEscapedSlashReadsAsASlash`, `e2e.TestCompile_ALineBreakInACommentEndsNoLine`,
+  `e2e.TestCompile_ALaterYAMLMinorIsReadAsYAML12WithAWarning`,
+  `e2e.TestCompile_ADocumentDeclaringYAML11IsWarnedAtWhatItReadsOtherwise`,
+  `e2e.TestCompile_ABaseTenIntegerIsReadInBaseTen`,
+  `e2e.TestCompile_NoScalarTextOrKeyIsRewrittenByTheCoreSchema`,
   `load.TestDecode_ReadsAJSONSourceAsJSON`, `load.TestDecode_ReturnsALoneSurrogateAsItIs`,
   `load.TestDecode_AJSONTextBesideAStreamIsReadAsYAML`, `load.TestParseTree_ReadsJSONAsJSON`,
   `load.TestReadJSON_ADoneContextEndsTheReadWithoutAYAMLParse`,
@@ -146,7 +188,12 @@ scalar under any other tag keeps it.
   `e2e.TestCompile_ALoneSurrogateIsRefusedWhereItIsWritten`,
   `e2e.TestCompile_APositionAfterAnEscapeCountsItAsWritten`
 - Status: partly built: both order oracles in `internal/harness` parse a source as YAML to permute
-  it, and decline one only the JSON reader reads as not YAML (#1768). A scalar or a sequence under
+  it as YAML 1.1 lexes it, and decline one only the compiler's reader reads as not YAML: a JSON
+  text writing a surrogate pair, and a YAML text writing an escaped slash or a `%YAML 1.2`
+  directive (#1768). A pair of surrogate escapes in YAML text is refused, as YAML 1.2 joins no pair
+  (#1934). A text writing every one of the 64 characters from U+E000 that the reader stands in for
+  what it reads as YAML 1.2, and a UTF-16 or UTF-32 text encoding no text, are read as the parser
+  reads them. A scalar or a sequence under
   a tag outside YAML's JSON schema ruleset is not reported, and where the model reads a string or a
   list it reads as left out (#1368).
 
@@ -156,9 +203,14 @@ scalar under any other tag keeps it.
 each budget taking its default when unset and none when negative. A source past `MaxSourceBytes` is
 refused before it is parsed, as one past the budget rather than one of a size: `MaxSourceBytes` is
 the compiler's `SourceLimit`, so a caller may hand detection only its first bytes, one past the
-budget. A source whose YAML parses to
-more than `MaxSourceNodes` nodes, or whose aliases add more than `MaxAliasSurplus` nodes to it, is
-refused before its model is built. Each is an `openapi/budget-exceeded` error, compiling to no
+budget. A document holding more than `MaxSourceNodes` nodes is refused as it is read: a JSON text
+at the first node past the budget, which bounds what reading it costs, a YAML text once it is
+parsed; the source, the overlay and each document a reference reads alike, so an overlay that would
+shrink a source past the budget does not lift it. What an overlay adds is bound by `overlay.Apply`,
+which checks each action against the same budget before it builds anything, so the tree it leaves
+is within the budget too. A
+source whose aliases add more than `MaxAliasSurplus` nodes to it is refused before its model is
+built. Each is an `openapi/budget-exceeded` error, compiling to no
 Document. Past `MaxExternalDocuments`, a document an external reference names is not read, each
 reference into it is unresolved ([`references`](#references)), and the compile reports
 `openapi/budget-exceeded` once. The rule table ([`validation`](#validation)) reads no more objects
@@ -210,6 +262,13 @@ is left out too.
   `openapi/alias-amplification`, `openapi/pointer-amplification`
 - Tests: `openapi.TestCompile_SourceByteBudgetBindsOnlyPastTheLimit`,
   `openapi.TestCompiler_SourceLimitReadsTheCallersOptions`,
+  `openapi.TestDetect_DeclinesASourceHoldingMoreNodesThanTheCallersBudget`,
+  `e2e.TestCompile_ASourceIsHeldToTheNodeBudgetAsItIsRead`,
+  `e2e.TestCompile_AnOverlayDoesNotLiftTheNodeBudgetOfTheSource`,
+  `e2e.TestCompile_AnOverlayIsHeldToTheNodeBudgetAsItIsRead`,
+  `e2e.TestCompile_AnExternalDocumentIsHeldToTheNodeBudgetAsItIsRead`,
+  `doctree.TestRead_AJSONTextPastTheNodeBudgetStopsWhereItCrosses`,
+  `doctree.TestRead_AYAMLTextPastTheNodeBudgetIsCountedWhole`,
   `load.TestLoad_ANamedOverlayPastTheBudgetIsRefused`,
   `openapi.TestCompile_AnUnboundedAliasBudgetStillRefusesABomb`,
   `load.TestLoad_RefusesANestingPastTheBoundBeforeBuildingTheModel`,
@@ -380,10 +439,10 @@ no overlay, reported as an `openapi/overlay-origin-incomplete` warning.
   `e2e.TestCompile_OverlayIsRecordedAsASource`, `load.TestLoad_AnOverlayBuildsWithinTheNodeBudget`,
   `overlay.TestSequence_ChargesAnActionToTheBudgetsEdge`,
   `overlay.TestSequence_ChargesAnActionAfterARemoveOnTheTreeItLeft`,
-  `load.TestLoad_TheNodeBudgetReadsTheTreeTheOverlayLeaves`,
+  `load.TestLoad_AnOverlayDoesNotLiftTheNodeBudgetOfTheSource`,
   `load.TestLoad_APointerAmplificationAnOverlayGraftedNamesTheOverlay`,
-  `overlay.TestParseDocument_ReadsWhatTheLibraryReads`,
-  `overlay.TestParseDocument_ReadsWhatTheLibraryRefuses`,
+  `overlay.TestDecodeFromTree_ReadsWhatTheLibraryReads`,
+  `overlay.TestDecodeFromTree_ReadsWhatTheLibraryRefuses`,
   `e2e.TestCompile_AJSONOverlayAppliesAsItsLiteralTwin`
 - Status: partly built: an overlay selects and writes the source's YAML aliases and `<<` merge keys
   as the nodes they are, not as the values they stand for, which is warned of and not mended

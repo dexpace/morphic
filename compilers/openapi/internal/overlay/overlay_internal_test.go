@@ -38,7 +38,7 @@ func TestApplyWithin_DegradesToTheSourceAtTheNodeBudget(t *testing.T) {
 	var root yaml.Node
 	require.NoError(t, yaml.Unmarshal([]byte(budgetSpec), &root))
 
-	origin, diags := applyWithin(t.Context(), 1, &root, Options{Data: []byte(budgetOverlay)}, budget.AtMost(2))
+	origin, diags := applyWithin(t.Context(), 1, &root, docOf(t, budgetOverlay), Options{Data: []byte(budgetOverlay)}, budget.AtMost(2))
 
 	assert.True(t, origin.Applied(), "the overlay applied, so it stays an input of the document")
 	assert.Equal(t, "overlay@1.0.0", origin.Source().Format, "and keeps its identity for Document.Sources")
@@ -83,7 +83,7 @@ func TestApplyWithin_RefusesARootTheDocumentDoesNotHold(t *testing.T) {
 		root := &yaml.Node{Kind: yaml.DocumentNode}
 		ov := "overlay: 1.1.0\ninfo: {title: O, version: \"1\"}\nactions:\n  - target: $\n    " + action + "\n"
 
-		origin, diags := applyWithin(t.Context(), 1, root, Options{Data: []byte(ov)}, budget.AtMost(maxNodes))
+		origin, diags := applyWithin(t.Context(), 1, root, docOf(t, ov), Options{Data: []byte(ov)}, budget.AtMost(maxNodes))
 
 		assert.False(t, origin.Applied(), action)
 		require.Len(t, diags, 1, action)

@@ -4,20 +4,17 @@
 package load
 
 import (
-	"bytes"
 	"context"
 	"errors"
 	"fmt"
-	"io"
 	"net/url"
 	"path/filepath"
 	"strconv"
 	"strings"
 
-	yaml "go.yaml.in/yaml/v3"
-
 	"github.com/dexpace/morphic/compilers"
 	"github.com/dexpace/morphic/compilers/openapi/internal/bind"
+	"github.com/dexpace/morphic/compilers/openapi/internal/doctree"
 	"github.com/dexpace/morphic/compilers/openapi/internal/provenance"
 	refscope "github.com/dexpace/morphic/compilers/openapi/internal/resolve"
 	"github.com/dexpace/morphic/ir"
@@ -197,31 +194,36 @@ func directoryNamed(dir string) string {
 	return strconv.Quote(dir)
 }
 
-// prepare records the tree the bytes of the document id names parse to under
-// key, once the source's refusals pass it, readied as the source's is, and
-// returns the bytes. It runs once per document read (see externalReads.once).
+// prepare records the document the bytes of the document id names read to
+// under key, once the source's refusals pass it, readied as the source's is,
+// and returns the bytes. It runs once per document read (see
+// externalReads.once).
 //
 // The byte budget is checked again, though the reader held the read to it:
-// admitting bytes past it would let a reader lift a budget the compile set.
-// Unparsable or empty bytes are refused as such, the parser's reason kept
-// (bind.UnparsableError, bind.ErrEmptyDocument).
+// admitting bytes past it would let a reader lift a budget the compile set. The
+// node budget holds the read as it holds the source's. Unparsable or empty
+// bytes are refused as such, the parser's reason kept (bind.UnparsableError,
+// bind.ErrEmptyDocument).
 func (e external) prepare(ctx context.Context, id, key string, data []byte) ([]byte, error) {
 	if !e.opts.MaxSourceBytes.Admits(len(data)) {
 		return nil, refused(id, fmt.Sprintf("it is past the %d-byte budget", e.opts.MaxSourceBytes.Cap()))
 	}
 
-	root, err := parseTree(ctx, data)
-	if err != nil {
+	doc, err := doctree.Read(ctx, data, e.opts.MaxSourceNodes)
+	var past *doctree.PastNodesError
+	switch {
+	case errors.As(err, &past):
+		return nil, refused(id, "it "+pastNodesReason(past))
+	case err != nil:
 		return nil, stopped(ctx, &bind.UnparsableError{Err: err})
-	}
-	if bind.IsEmpty(root) {
+	case bind.IsEmpty(doc.Root):
 		return nil, bind.ErrEmptyDocument
 	}
-	if err := e.admit(ctx, id, root); err != nil {
+	if err := e.admit(ctx, id, doc); err != nil {
 		return nil, err
 	}
-	readyForModel(ctx, root)
-	e.read.recordTree(key, root, data)
+	readyForModel(ctx, doc.Root)
+	e.read.recordTree(key, doc, data)
 	// A screen or walk above that a cancel cut short has admitted nothing.
 	if err := ctx.Err(); err != nil {
 		return nil, err
@@ -229,35 +231,18 @@ func (e external) prepare(ctx context.Context, id, key string, data []byte) ([]b
 	return data, nil
 }
 
-// parseTree parses data as the parser parses a document, its first document,
-// and returns the parser's error for bytes that do not parse, or ctx's once
-// it is done: the YAML parse reads the bytes through ctx (contextReader).
-// Bytes that are one JSON text are read by readJSON. Bytes holding no
-// document parse to an empty tree, as yaml.Unmarshal parses them.
-func parseTree(ctx context.Context, data []byte) (*yaml.Node, error) {
-	if root, read, err := readJSON(ctx, data); read || err != nil {
-		return root, err
-	}
-
-	var root yaml.Node
-	err := yaml.NewDecoder(contextReader{ctx: ctx, r: bytes.NewReader(data)}).Decode(&root)
-	if errors.Is(err, io.EOF) {
-		return &root, nil
-	}
-	return &root, stopped(ctx, err)
-}
-
-// admit holds an external document's tree to what Load holds the source's to:
-// the pre-parse refusals, then the node budget.
+// admit holds an external document, as read, to what Load holds the source to:
+// the pre-parse refusals, then the node budget, which the read already held it
+// to (prepare).
 //
 // Any finding refuses it, the scan's report that it could not finish included,
 // where the source carries that one forward as a warning. A refused document
 // is not read into the compile, so it has no Document.Sources entry a finding
 // could name: the reference that named the document is what fails, with the
 // findings as its reason.
-func (e external) admit(ctx context.Context, key string, root *yaml.Node) error {
+func (e external) admit(ctx context.Context, key string, doc doctree.Document) error {
 	place := nowhere()
-	findings := refusals(ctx, place, place.Node(nil), root, e.opts)
+	findings := refusals(ctx, place, place.Node(nil), doc.Root, e.opts)
 	if len(findings) > 0 {
 		reasons := make([]string, len(findings))
 		for i, d := range findings {
@@ -265,9 +250,8 @@ func (e external) admit(ctx context.Context, key string, root *yaml.Node) error 
 		}
 		return refused(key, strings.Join(reasons, "; "))
 	}
-	if nodes := nodeCount(ctx, root); !e.opts.MaxSourceNodes.Admits(nodes) {
-		return refused(key, fmt.Sprintf("it parses to %d nodes, past the %d-node budget",
-			nodes, e.opts.MaxSourceNodes.Cap()))
+	if !e.opts.MaxSourceNodes.Admits(doc.Nodes) {
+		return refused(key, "it "+pastNodesReason(&doctree.PastNodesError{Nodes: doc.Nodes, Limit: e.opts.MaxSourceNodes, Whole: true}))
 	}
 	return nil
 }

@@ -102,7 +102,7 @@ func TestRawFromNode_ResolvesYAMLIntegerBases(t *testing.T) {
 		{"octal", "0o17", "15"},
 		{"hex", "0x1f", "31"},
 		{"binary", "0b101", "5"},
-		{"bare leading zero is octal", "0644", "420"},
+		{"bare leading zero is base ten", "0644", "644"},
 		{"digit separators are dropped", "1_000", "1000"},
 		{"leading plus is dropped", "+5", "5"},
 		{"trailing dot is JSON-invalid", "5.", "5"},

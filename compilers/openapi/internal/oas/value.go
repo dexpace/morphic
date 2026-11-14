@@ -7,7 +7,6 @@ import (
 	"encoding/json/jsontext"
 	"errors"
 	"fmt"
-	"math/big"
 	"slices"
 	"strconv"
 	"strings"
@@ -484,21 +483,19 @@ func inRange(shape Shape, sign int, integral bool) bool {
 // parseNumber reads the sign and integrality of a YAML number without
 // materializing it. The decimal grammar is ir's, so 1e1000001 reads as the
 // integer it is, and so does a literal past the range a BigVal holds: the spec's
-// validity does not hang on that range. A based integer (0x10, 0b1010, 0o17) is
-// YAML's. A literal with a leading zero reads as decimal or as octal to one sign
-// and integrality, so trying the decimal grammar first is safe. A fraction such
-// as 4/2 or a binary exponent is text, not a number, in YAML and JSON alike.
+// validity does not hang on that range. A based integer is YAML 1.2's core
+// schema's, 0o17 or 0x10 (docs/parser-library.md#scalar-resolution): 0b1010,
+// 1_000 and +0x10 are text, as a fraction such as 4/2 or a binary exponent is.
 func parseNumber(text string) (sign int, integral, ok bool) {
-	plain := strings.ReplaceAll(text, "_", "")
-	d, err := ir.ParseDecimal(plain)
+	d, err := ir.ParseDecimal(text)
 	if err == nil {
 		return d.Sign(), d.IsInt(), true
 	}
 	if past, isPast := errors.AsType[*ir.ExponentRangeError](err); isPast {
 		return past.Sign(), past.IsInt(), true
 	}
-	if i, isBased := new(big.Int).SetString(plain, 0); isBased {
-		return i.Sign(), true, true
+	if c, isCore := nodeview.ParseCoreInteger(text); isCore {
+		return c.Sign(), true, true
 	}
 	return 0, false, false
 }

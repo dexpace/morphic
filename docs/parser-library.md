@@ -554,31 +554,33 @@ components:
 
 ### `scalar-resolution`
 
-The YAML parser tags a plain scalar by neither YAML version alone, and the compiler keeps the tag it
-gives ([`values`](compilers/openapi.md#values)) but a plain date's and a plain `<<` value's, which
-it tags a string ([`undecoded-scalar`](#undecoded-scalar)). As in YAML 1.1, a leading `0` is octal,
-`0b` is binary, `_` separates digits and a date is a `!!timestamp`. As in YAML 1.2, `0o` is octal
-and `yes`, `on` and the base-60 `1:30` are strings. So `0644` is 420, where 1.2's core schema reads
-644, and `on` under `type: boolean` stays a string, where 1.1 reads true. OpenAPI recommends 1.2,
-and the compiler reports no scalar the two versions read apart.
+The YAML parser tags a plain scalar by neither YAML version alone. As in YAML 1.1, a leading `0` is
+octal, `0b` is binary, `_` separates digits and a date is a `!!timestamp`. As in YAML 1.2, `0o` is
+octal and `yes`, `on` and the base-60 `1:30` are strings. A digit run with a leading zero that is no
+octal, `089`, and an integer past 64 bits are `!!float`. So `0644` is 420 to the parser, where YAML
+1.2's core schema, which OpenAPI recommends, reads 644. The compiler resolves every plain value
+scalar by the core schema ([`yaml-decoding`](compilers/openapi.md#yaml-decoding)): a number the core
+schema does not spell is a string, and a number it does is read in the base its prefix names, never
+through the parser's decode.
 
 ```yaml
 components:
   schemas:
     S:
       properties:
-        a: {type: integer, default: 0644}        # 420
+        a: {type: integer, default: 0644}        # 420 to the parser, 644 to the compiler
         b: {type: integer, default: 0o17}        # 15
-        c: {type: integer, default: 1_000}       # 1000
+        c: {type: integer, default: 1_000}       # 1000 to the parser, "1_000" to the compiler
         d: {type: boolean, default: on}          # "on"
-        e: {type: string, default: 2021-01-01}   # a timestamp, read as written
+        e: {type: string, default: 2021-01-01}   # a timestamp to the parser, a string to the compiler
 ```
 
 - Verified at: v1.26.3
 - Pinned by: `TestLibraryBehaviour/scalar-resolution`
 - Code:
-  - `value.Classify` reads a scalar by the tag the parser gave it.
-  - `value.NumericLiteral` gives an `!!int` the number its prefix means.
+  - `doctree.resolve` tags a plain scalar as the core schema reads it.
+  - `value.NumericLiteral` reads an integer the core schema spells in the base its prefix names.
+  - `annotation.ExactCount` takes a count from its literal, not from the parser's decode.
 
 ### `json-as-yaml`
 
@@ -606,11 +608,36 @@ text to the parser.
 - Verified at: v1.26.3
 - Pinned by: `TestLibraryBehaviour/json-as-yaml`
 - Code:
-  - `jsontree.Read` reads a JSON text into the parser's tree, and refuses half of a pair with the
+  - `doctree.readJSON` reads a JSON text into the parser's tree, and refuses half of a pair with the
     escape and its position.
-  - `load.readJSON` reads a source, and an external document, as JSON first.
-  - `overlay.parseDocument` reads an overlay as JSON first and decodes the tree the library's
-    overlay type decodes.
+  - `doctree.Read` reads every input, the source, an overlay and a document a reference names, as
+    JSON first.
+
+### `yaml11-lexing`
+
+The parser lexes YAML as YAML 1.1 where YAML 1.2 lexes otherwise. It refuses a `\/` escape, which
+YAML 1.2 adds, and reads `\a` as the bell in a double-quoted scalar. It refuses a `%YAML 1.2`
+directive as an incompatible document, and reads `%YAML 1.1`, also after a byte order mark, padded
+with a space, and for a later document after `...`. It ends a line at a raw U+0085, U+2028 and
+U+2029, which YAML 1.2 reads as characters: U+0085 in a double-quoted scalar reads as a space, and
+every node after it is placed a line low. A private-use character such as U+E000 is an ordinary
+one in every style, a key and a comment, with every position after it exact, and a `%HH` run in a
+tag decodes to its characters. A bare `!` tags a string with no `TaggedStyle`; a plain date is a
+`!!timestamp` without one.
+
+```yaml
+a: "x\/y"     # refused: found unknown escape character
+```
+
+The compiler writes each line-break character and each escaped slash as a private-use character the
+text spells nowhere, one character for one, writes a later minor's directive as `1.1` padded to its
+width, and reads back what it wrote by each scalar's style, so the tree is YAML 1.2's.
+
+- Verified at: v1.26.3
+- Pinned by: `TestLibraryBehaviour/yaml11-lexing`
+- Code:
+  - `doctree.respell` writes what the parser lexes as YAML 1.1 as text it lexes alike.
+  - `doctree.directives` writes a later minor's `%YAML` directive as one the parser reads.
 
 ### `undecoded-scalar`
 
@@ -640,7 +667,7 @@ components:
 - Verified at: v1.26.3
 - Pinned by: `TestLibraryBehaviour/undecoded-scalar`
 - Code:
-  - `load.mistagged` finds a plain date or `<<` value, which `load.readyForModel` tags a string.
+  - `doctree.resolve` tags a plain date or `<<` value a string.
   - `nodeview.Strings` reads a list's items by their text.
   - `auth.docsBeside` reads what is written beside it from the core.
 

@@ -17,6 +17,7 @@ import (
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/budget"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
+	"github.com/dexpace/morphic/compilers/openapi/internal/doctree"
 	"github.com/dexpace/morphic/compilers/openapi/internal/provenance"
 	"github.com/dexpace/morphic/ir"
 )
@@ -155,7 +156,7 @@ func TestExternalReads_IsSafeForConcurrentUse(t *testing.T) {
 			t.Parallel()
 			tree := &yaml.Node{Kind: yaml.ScalarNode, Value: key}
 			for range 100 {
-				r.recordTree(key, tree, nil)
+				r.recordTree(key, doctree.Document{Root: tree}, nil)
 				got, ok := r.preparedFor(key)
 				assert.True(t, ok)
 				assert.Same(t, tree, got)
@@ -178,7 +179,7 @@ func TestPreparedFor(t *testing.T) {
 		t.Parallel()
 		r := newExternalReads(sourceDocument{}, budget.Unbounded())
 		tree := &yaml.Node{Kind: yaml.ScalarNode, Value: "x"}
-		r.recordTree("/tmp/doc.yaml", tree, nil)
+		r.recordTree("/tmp/doc.yaml", doctree.Document{Root: tree}, nil)
 
 		got, ok := r.preparedFor("/tmp/doc.yaml")
 
@@ -190,7 +191,7 @@ func TestPreparedFor(t *testing.T) {
 		t.Parallel()
 		r := newExternalReads(sourceDocument{}, budget.Unbounded())
 		tree := &yaml.Node{Kind: yaml.ScalarNode, Value: "x"}
-		r.recordTree("dir/with space/doc.yaml", tree, nil)
+		r.recordTree("dir/with space/doc.yaml", doctree.Document{Root: tree}, nil)
 
 		got, ok := r.preparedFor("dir/with space/doc.yaml")
 
@@ -205,7 +206,7 @@ func TestPreparedFor(t *testing.T) {
 		// The spelling external.document records under: the request's own URL.
 		req, err := http.NewRequest(http.MethodGet, "HTTP://host/doc.yaml", nil)
 		require.NoError(t, err)
-		r.recordTree(req.URL.String(), tree, nil)
+		r.recordTree(req.URL.String(), doctree.Document{Root: tree}, nil)
 
 		// The binder's name for it, spelled as the reference writes it.
 		got, ok := r.preparedFor("HTTP://host/doc.yaml")
@@ -220,7 +221,7 @@ func TestPreparedFor(t *testing.T) {
 		tree := &yaml.Node{Kind: yaml.ScalarNode, Value: "x"}
 		// http.NewRequest drops the empty port, so external.document records it
 		// without one.
-		r.recordTree("http://host/doc.yaml", tree, nil)
+		r.recordTree("http://host/doc.yaml", doctree.Document{Root: tree}, nil)
 
 		got, ok := r.preparedFor("http://host:/doc.yaml")
 

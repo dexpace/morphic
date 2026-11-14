@@ -4,14 +4,17 @@
 package value
 
 import (
+	"cmp"
 	"errors"
 	"fmt"
+	"math/big"
 	"strconv"
 	"strings"
 	"time"
 
 	yaml "go.yaml.in/yaml/v3"
 
+	"github.com/dexpace/morphic/compilers/openapi/internal/nodeview"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -139,22 +142,24 @@ func decodes(n *yaml.Node, target any, what string) error {
 }
 
 // NumericLiteral converts a numeric-tagged YAML scalar into the BigVal of the
-// value YAML resolved it to, which is not what its source text means in base
-// 10. YAML takes an !!int's base from its prefix and drops "_" separators, so
-// 0644 is 420 and 0x1f is 31 (docs/parser-library.md#scalar-resolution); passing
-// that spelling to NewBigVal — a base-10 decimal literal — reads 0644 back as
-// 644.
+// value YAML 1.2's core schema reads it as (docs/parser-library.md#scalar-resolution):
+// an !!int spelling a core integer, [-+]?[0-9]+, 0o[0-7]+ or 0x[0-9a-fA-F]+, is
+// read exactly in the base its prefix names (coreLiteral), so 0644 is 644 and
+// 0x1f is 31, whatever tagged it. Any other !!int, which only a tag the document writes
+// makes one, keeps the parser's decode.
 //
-// Only !!int is decoded, and every !!int yaml.v3 resolves fits int64 or uint64,
-// so that decode is exact. A !!float keeps its text, because decoding one would
-// round it through float64 and lose the arbitrary precision BigVal exists to
-// preserve; only its separators are dropped.
+// A !!float keeps its text, because decoding one would round it through
+// float64 and lose the arbitrary precision BigVal exists to preserve; only its
+// separators are dropped.
 func NumericLiteral(node *yaml.Node) (ir.BigVal, error) {
 	if node == nil {
 		return "", errors.New("openapi: nil numeric node")
 	}
 	switch node.ShortTag() {
 	case "!!int":
+		if c, ok := nodeview.ParseCoreInteger(node.Value); ok {
+			return coreLiteral(c)
+		}
 		return decodeIntLiteral(node)
 	case "!!float":
 		return ir.NewBigVal(strings.ReplaceAll(node.Value, "_", ""))
@@ -163,6 +168,30 @@ func NumericLiteral(node *yaml.Node) (ir.BigVal, error) {
 		// base, so its text reads as the decimal literal it looks like.
 		return ir.NewBigVal(node.Value)
 	}
+}
+
+// maxBasedDigits bounds the digits of an 0o or 0x integer NumericLiteral
+// reads: rendering one in base ten costs time quadratic in its digits. A
+// base-ten integer is copied, at any length.
+const maxBasedDigits = 256
+
+// coreLiteral renders c, an integer the core schema spells, as its decimal
+// literal: a base-ten one as written, its leading zeros dropped, and an 0o or
+// 0x one converted, up to maxBasedDigits digits.
+func coreLiteral(c nodeview.CoreInteger) (ir.BigVal, error) {
+	if c.Base == 10 {
+		digits := strings.TrimLeft(c.Digits, "0")
+		if digits != "" && c.Negative {
+			digits = "-" + digits
+		}
+		return ir.NewBigVal(cmp.Or(digits, "0"))
+	}
+	if len(c.Digits) > maxBasedDigits {
+		return "", fmt.Errorf("openapi: a base-%d integer of %d digits is past the %d digits read",
+			c.Base, len(c.Digits), maxBasedDigits)
+	}
+	v, _ := new(big.Int).SetString(c.Digits, c.Base) // the grammar admits digits of the base alone
+	return ir.NewBigVal(v.String())
 }
 
 // decodeIntLiteral renders an !!int node as its exact decimal literal. The
