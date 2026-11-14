@@ -389,3 +389,40 @@ func TestDisk_AReadLeavesNoConnectionOpen(t *testing.T) {
 	require.NoError(t, err)
 	assert.Eventually(t, func() bool { return closed.Load() == 1 }, 5*time.Second, 5*time.Millisecond)
 }
+
+// numericHosts spell an IPv4 address in a form netip does not read as a
+// literal, which a proxy may read otherwise than the guard: the first four
+// loopback, the last two public.
+var numericHosts = []string{"0177.0.0.1", "0x7f.1", "2130706433", "127.1", "134744072", "8.8.2056"}
+
+// TestDisk_ABoundedReadThroughAProxyAdmitsALiteralOrADNSNameAlone pins that a
+// read bounded to public addresses and sent through a proxy is judged only
+// where the guard and the proxy read one address: a canonical literal, as
+// itself, and a DNS name, by what it resolves to. A number spelled any other
+// way is refused, whatever address it would read as, and asks the proxy
+// nothing; with no proxy, the same spellings are judged at the dial, and the
+// resolver here reads none of them as an address.
+func TestDisk_ABoundedReadThroughAProxyAdmitsALiteralOrADNSNameAlone(t *testing.T) {
+	t.Parallel()
+	d, proxy := proxied(t)
+	bounded := func(d Disk, host string) (compilers.DocumentRead, error) {
+		return d.ReadDocument(t.Context(), compilers.DocumentRequest{Location: "http://" + host + "/x", Reach: compilers.SpacePublic})
+	}
+	for _, host := range append(numericHosts, "10.0.0.5", "a_b.example", "-a.example", ".", strings.Repeat("a.", 127)+"aa") {
+		_, err := bounded(d, host)
+		require.ErrorIs(t, err, compilers.ErrAddressSpace, host)
+	}
+	assert.Zero(t, proxy.requests.Load(), "the proxy saw nothing")
+	got, err := bounded(d, "93.184.216.34")
+	require.NoError(t, err)
+	assert.Equal(t, "proxied", string(got.Data))
+	assert.EqualValues(t, 1, proxy.requests.Load())
+
+	srv := newProbeServer(t, false, nil)
+	direct := Disk{resolver: (&fakeDNS{}).resolver()}
+	for _, host := range numericHosts {
+		_, err := bounded(direct, net.JoinHostPort(host, srv.portString(t)))
+		require.ErrorContains(t, err, "no such host", host)
+	}
+	assert.Zero(t, srv.conns.Load())
+}
