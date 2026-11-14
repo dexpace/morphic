@@ -1481,5 +1481,6 @@ throughout these documents.
     apidiff reports an incompatible change, the divergences Go's overview lists aside; and a
     regeneration's level follows the rule: major, minor, a patch where only a file's digest moved
     and none where no file changed, a behavioral record raising none of them, and none on a first
-    generation
+    generation; and no generated file states an SDK's version, a Kotlin build whose `version` is
+    set publishing every module and its platform at it
     ([surface verification](../surface-verification.md#the-level-a-regeneration-reports)).

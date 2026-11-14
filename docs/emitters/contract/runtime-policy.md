@@ -384,9 +384,11 @@ apply](#a-setting-that-cannot-apply)).
   variables' names, so the header reads no order of the list.
 - `UserAgent.Template` is printable ASCII in which `{sdk}` and `{target}` are the placeholders, each
   written any number of times or not at all, so `acme/1.4` is a template. Any other `{` or `}` is
-  invalid, there being no escape for one, and a placeholder for the SDK's version waits for the
-  options that name a version. The caller's application name and version are each an RFC 9110 token,
-  refused when the client is built otherwise, so neither can add a header.
+  invalid, there being no escape for one. There is no placeholder for the SDK's version, which is
+  its owner's and no input of a generation ([surface
+  verification](../surface-verification.md#the-level-a-regeneration-reports)): an owner who wants it
+  in the header writes it into the template. The caller's application name and version are each an
+  RFC 9110 token, refused when the client is built otherwise, so neither can add a header.
 - `Idempotency.Generate` `declared` gives a call a key, where its operation's `Idempotency` names a
   token parameter and the caller gave none, in that parameter; `unsafe` also sends one in `Header`
   on each operation whose `Effects` are neither safe nor idempotent, which makes none of them
