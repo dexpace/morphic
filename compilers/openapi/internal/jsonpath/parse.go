@@ -54,9 +54,11 @@ type scanner struct {
 }
 
 // parser reads one query's grammar over its scanner. open counts the nestings
-// of each kind the parse is inside.
+// of each kind the parse is inside, and dead holds the literal patterns read
+// that match no string.
 type parser struct {
 	scanner
+	dead []DeadPattern
 	open [nestCall + 1]int
 }
 
@@ -80,7 +82,7 @@ func Parse(text string) (Query, error) {
 	if p.pos < len(text) {
 		return Query{}, p.fail(fmt.Sprintf("%q cannot follow the query before it", p.rest()))
 	}
-	return Query{segments: segments}, nil
+	return Query{segments: segments, dead: p.dead}, nil
 }
 
 // firstInvalid returns the offset of the first byte of text that is no part

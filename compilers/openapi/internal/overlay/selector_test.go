@@ -173,22 +173,24 @@ func TestReadSelector_RefusesWhatRFC9535DoesNotRead(t *testing.T) {
 // TestReadSelector_SelectsWhatTheCompilerOnceRefused pins the targets that were
 // refused as unsupported and are queries like any other: a member named for a
 // literal, an escape in a name, and the functions match and search, whose
-// selections are the operations their patterns match.
+// selections are the operations their patterns match. A pattern that is no
+// I-Regexp matches nothing, and says so.
 func TestReadSelector_SelectsWhatTheCompilerOnceRefused(t *testing.T) {
 	t.Parallel()
 	tests := map[string]struct {
 		target string
 		hits   int
+		dead   bool
 	}{
-		"a member named true":  {"$.paths.true", 0},
-		"a member named null":  {"$..null", 0},
-		"a \\u escape":         {`$['caf\` + `u00e9']`, 0},
-		"a \\r escape":         {`$['a\rb']`, 0},
-		"match()":              {"$.paths.*[?match(@.operationId, 'put.*')]", 1},
-		"match() is anchored":  {"$.paths.*[?match(@.operationId, 'Blob')]", 0},
-		"search()":             {"$.paths.*[?search(@.operationId, 'Blob')]", 2},
-		"a failing pattern":    {"$.paths.*[?search(@.operationId, '[')]", 0},
-		"a function's absence": {"$.paths.*[?!match(@.operationId, 'put.*')]", 2},
+		"a member named true":  {"$.paths.true", 0, false},
+		"a member named null":  {"$..null", 0, false},
+		"a \\u escape":         {`$['caf\` + `u00e9']`, 0, false},
+		"a \\r escape":         {`$['a\rb']`, 0, false},
+		"match()":              {"$.paths.*[?match(@.operationId, 'put.*')]", 1, false},
+		"match() is anchored":  {"$.paths.*[?match(@.operationId, 'Blob')]", 0, false},
+		"search()":             {"$.paths.*[?search(@.operationId, 'Blob')]", 2, false},
+		"a failing pattern":    {"$.paths.*[?search(@.operationId, '[')]", 0, true},
+		"a function's absence": {"$.paths.*[?!match(@.operationId, 'put.*')]", 2, false},
 	}
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
@@ -198,6 +200,10 @@ func TestReadSelector_SelectsWhatTheCompilerOnceRefused(t *testing.T) {
 
 			assert.True(t, origin.Applied(), "%+v", diags)
 			assert.Equal(t, tc.hits, hits(root))
+			if tc.dead {
+				sameCodes(t, []string{"warning " + diag.OverlayAction, "warning " + diag.OverlayAction}, diags)
+				return
+			}
 			if tc.hits == 0 {
 				sameCodes(t, []string{"warning " + diag.OverlayAction}, diags)
 				return
@@ -232,4 +238,32 @@ func hits(root *yaml.Node) int {
 		stack = append(stack, n.Content...)
 	}
 	return count
+}
+
+// TestReadSelector_WarnsOfAPatternThatMatchesNoString pins the warning for a
+// pattern written to match no string: `$` before a character, which RFC
+// 9485's mapping to Go's engine leaves an anchor, and `\$`, which I-Regexp has
+// no escape for. Each is an openapi/overlay-action warning naming the class
+// that writes the character, and the action then selects nothing, which lax
+// application warns of too. A pattern that writes the class draws neither.
+func TestReadSelector_WarnsOfAPatternThatMatchesNoString(t *testing.T) {
+	t.Parallel()
+	const src = head + "x-r: [\"$ref\", \"a$refb\"]\n"
+	for pattern, want := range map[string]string{
+		"$ref":   "write [$] to match the character",
+		`\\$ref`: "no I-Regexp",
+		"[$]ref": "",
+	} {
+		ov := v11 + "  - target: \"$['x-r'][?search(@, '" + escapeQuotes(pattern) + "')]\"\n    update: hit\n"
+		origin, _, diags := applied(t, src, ov, true)
+
+		require.True(t, origin.Applied(), "%+v", diags)
+		if want == "" {
+			assert.NotContains(t, codes(diags), "warning "+diag.OverlayAction, pattern)
+			continue
+		}
+		sameCodes(t, []string{"warning " + diag.OverlayAction, "warning " + diag.OverlayAction}, diags)
+		assert.Contains(t, diags[0].Message, want, pattern)
+		assert.Contains(t, diags[1].Message, "selects nothing", pattern)
+	}
 }

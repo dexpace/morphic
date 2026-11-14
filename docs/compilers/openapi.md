@@ -343,10 +343,23 @@ which holds only letters, digits, underscores and characters past ASCII and star
 says what to write, `['x-internal']` for `.x-internal`. `match` and `search` read I-Regexp (RFC
 9485) and run on Go's regexp engine, whose time is linear in its input times its program; a pattern
 past 4,096 bytes or 16,384 instructions, or that is no I-Regexp, matches nothing, as RFC 9535
-section 2.4.6 has it, and `^` and `$` anchor, as RFC 9485 maps a pattern to RE2. The selectors of
-one application spend one budget of `overlay.MaxSteps` steps, a step for each node a selector
-visits, compares or returns, and for each member a mapping's merges expand to; an action whose
-selectors pass it is an `openapi/budget-exceeded` error and nothing more applies.
+section 2.4.6 has it. RFC 9485's grammar admits `^` and `$` as ordinary characters (section 3,
+`NormalChar = ( %x00-27 / ... / %x5E-7A ; '^'-'z' / ... )`), and its section 4 has an
+implementation "yield Boolean results as specified in [XSD-2]"; its mapping to RE2, Go's dialect,
+leaves both as written (section 5.4), where RE2 reads them as anchors, and of that mapping section 5
+says "The material in this section is not normative". The compiler follows the mapping, as the
+JSONPath compliance suite it is held to does: its cases `functions, match, explicit caret` and
+`functions, match, explicit dollar` pass only so. So `^` and `$` anchor, `[\^]` and `[$]` write
+the characters, and `\$` is no I-Regexp escape. A pattern written as a literal that matches no
+string, one with `$` before a character it must match, or `^` after one, in each top-level branch,
+or one that is no I-Regexp, is an `openapi/overlay-action` warning naming why. The selectors of one
+application spend one budget of `overlay.MaxSteps` steps: a step for each node a selector visits,
+compares or returns, each member a mapping's merges expand to and each element two compared arrays
+pair; a step per 8 bytes of a scalar read, once an evaluation, and per 64 bytes two scalars compare;
+a match or search its input's length and one more, times its program's weight; and a step for each
+link of a target's path the action locates and each member of a mapping it indexes to find one. An
+action whose selectors pass the budget, or whose evaluation holds more than `jsonpath.MaxResults`
+nodes in its nodelists at once, is an `openapi/budget-exceeded` error and nothing more applies.
 
 The actions apply in order, each to the tree the ones before it left. An action takes the first of
 `remove`, `update` and `copy` it sets, and a field the specification gives no effect beside a
@@ -439,6 +452,17 @@ no overlay, reported as an `openapi/overlay-origin-incomplete` warning.
   `overlay.TestApply_ReadsAMemberNamedByAnEscapeOrALiteral`,
   `overlay.TestApply_RefusesATargetRFC9535DoesNotReadAndSaysWhere`,
   `jsonpath.TestCompliance`, `jsonpath.TestSelect_WeighsAPatternByItsProgram`,
+  `jsonpath.TestParse_NamesThePatternsThatMatchNoString`,
+  `overlay.TestReadSelector_WarnsOfAPatternThatMatchesNoString`,
+  `jsonpath.TestSelect_ChargesEachElementTwoArraysCompare`,
+  `jsonpath.TestSelect_ReadsAScalarOnceAndChargesTheBytesItCompares`,
+  `jsonpath.TestSelect_ChargesAPatternsProgramForAnEmptyInput`,
+  `jsonpath.TestSelect_HoldsEveryLiveNodelistToOneBound`,
+  `overlay.TestApply_LocatesEachMemberOfAWideMappingAtAStep`,
+  `overlay.TestApply_LocatesDeepTargetsAtAStepAPrefix`,
+  `overlay.TestApply_GivesEveryGeneratedSharedValueTheTreeOfItsExpansion`,
+  `overlay.TestApply_RemovesANodeAndItsDescendantsAtAnAnchorAsItsExpansionDoes`,
+  `overlay.TestApply_RefusesARemoveWhoseHolderWouldCopyPastTheBudget`,
   `overlay.TestApply_RefusesATargetThatCostsMoreThanTheStepsAnOverlayMaySpend`,
   `overlay.TestApply_SpendsOneBudgetOnEverySelectorOfAnApplication`,
   `overlay.TestApply_SpendsStepsInProportionToTheActions`,
@@ -488,7 +512,8 @@ no overlay, reported as an `openapi/overlay-origin-incomplete` warning.
   `e2e.TestOverlaySuite_TheReusableActionExampleOfOverlay12`
 - Status: built. Limits: a target the Overlay test suite's schema accepts and RFC 9535 does not, such
   as a member name holding `-` after a dot, is refused; an `extends` is compared with nothing; a
-  pattern Go's engine cannot compile, such as a repetition past 1,000, matches nothing. Rating
+  pattern Go's engine cannot compile, such as a repetition past 1,000, matches nothing; `^` and `$`
+  in a pattern anchor, where RFC 9485's grammar reads them as characters. Rating
   `openapi/overlay-replaced-value` apart from other codes, to fail a run on it alone, is #1812.
 
 ### `validation`

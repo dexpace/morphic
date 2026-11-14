@@ -100,7 +100,9 @@ func (p *parser) call(name string, start int) (operand, error) {
 	if len(c.args) != len(fn.params) {
 		return operand{}, &SyntaxError{Offset: start, Reason: fmt.Sprintf("%s() takes %d arguments", name, len(fn.params))}
 	}
-	c.compileLiteral()
+	if dead, found := c.compileLiteral(); found {
+		p.dead = append(p.dead, dead)
+	}
 	return operand{kind: opCall, call: c}, nil
 }
 
@@ -164,42 +166,53 @@ func fits(arg operand, want paramType) bool {
 }
 
 // compileLiteral compiles the pattern of a match or search written as a
-// literal. A literal that is no string is no pattern.
-func (c *call) compileLiteral() {
+// literal, and returns it as one that matches no string, with why, where it
+// is: no I-Regexp the compiler reads, or one whose anchors leave no string to
+// match. A literal that is no string is no pattern.
+func (c *call) compileLiteral() (DeadPattern, bool) {
 	if c.fn.result != typeLogical || c.args[1].kind != opLiteral {
-		return
+		return DeadPattern{}, false
 	}
 	c.literal = true
-	if lit := c.args[1].lit; lit.kind == kindString {
-		if source, size, ok := patternSource(lit.text, c.fn.name == "match"); ok {
-			c.pattern = compileSource(source, size)
-		}
+	lit := c.args[1].lit
+	if lit.kind != kindString {
+		return DeadPattern{}, false
+	}
+	tr, ok := patternSource(lit.text, c.fn.name == "match")
+	if ok {
+		c.pattern = compileSource(tr)
+	}
+	switch {
+	case c.pattern.re == nil:
+		return DeadPattern{Pattern: lit.text, Reason: fmt.Sprintf(
+			"it reads as no I-Regexp (RFC 9485) within the %d bytes and %d instructions the compiler reads one in",
+			maxPatternBytes, maxProgram)}, true
+	case tr.empty != "":
+		return DeadPattern{Pattern: lit.text, Reason: tr.empty}, true
+	default:
+		return DeadPattern{}, false
 	}
 }
 
-// patternSource returns the Go source of an I-Regexp pattern, anchored at
-// both ends for match, and the instructions its program holds, and false for
-// a pattern that is no I-Regexp or is past maxPatternBytes or maxProgram.
-func patternSource(text string, anchored bool) (string, int, bool) {
-	body, size, ok := translate(text)
-	if !ok {
-		return "", 0, false
+// patternSource returns what an I-Regexp pattern reads as in Go's syntax,
+// anchored at both ends for match, and false for a pattern that is no
+// I-Regexp or is past maxPatternBytes or maxProgram.
+func patternSource(text string, anchored bool) (translation, bool) {
+	tr, ok := translate(text)
+	if ok && anchored {
+		tr.source = `\A(?:` + tr.source + `)\z`
 	}
-	if anchored {
-		body = `\A(?:` + body + `)\z`
-	}
-	return body, size, true
+	return tr, ok
 }
 
-// compileSource compiles source, whose program holds size instructions. A
-// source Go's engine cannot compile, such as a repetition past its count, is
-// no pattern.
-func compileSource(source string, size int) pattern {
-	re, err := regexp.Compile(source)
+// compileSource compiles tr. A source Go's engine cannot compile, such as a
+// repetition past its count, is no pattern.
+func compileSource(tr translation) pattern {
+	re, err := regexp.Compile(tr.source)
 	if err != nil {
 		return pattern{}
 	}
-	return pattern{re: re, weight: 1 + size/stepBytes}
+	return pattern{re: re, weight: 1 + tr.size/stepBytes}
 }
 
 // callValue evaluates a call whose result is a value.
@@ -307,11 +320,11 @@ func (e *evaluator) compiled(ctx context.Context, text string, anchored bool) (p
 		return pattern{}, err
 	}
 	var p pattern
-	if source, size, ok := patternSource(text, anchored); ok {
-		if err := e.spend(ctx, size); err != nil {
+	if tr, ok := patternSource(text, anchored); ok {
+		if err := e.spend(ctx, tr.size); err != nil {
 			return pattern{}, err
 		}
-		p = compileSource(source, size)
+		p = compileSource(tr)
 	}
 	if len(e.patterns) < maxPatterns {
 		if e.patterns == nil {

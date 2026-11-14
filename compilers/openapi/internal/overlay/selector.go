@@ -18,15 +18,17 @@ import (
 // read is an openapi/invalid-overlay error naming the offset at which it stops
 // being a query and why, with a hint for the two spellings other dialects
 // read: `~`, and a member name after a dot that the shorthand does not admit.
+// A pattern the query writes that matches no string is an
+// openapi/overlay-action warning saying why.
 func readSelector(a action, field, selector string) (jsonpath.Query, []ir.Diagnostic) {
-	q, err := jsonpath.Parse(selector)
-	syntax, failed := errors.AsType[*jsonpath.SyntaxError](err)
-	if !failed {
-		return q, nil
-	}
 	subject := "its target"
 	if field != "target" {
 		subject = fmt.Sprintf("its %s %q", field, selector)
+	}
+	q, err := jsonpath.Parse(selector)
+	syntax, failed := errors.AsType[*jsonpath.SyntaxError](err)
+	if !failed {
+		return q, deadPatterns(a, subject, q)
 	}
 	reason := syntax.Reason
 	if hint := hintFor(selector); hint != "" {
@@ -34,6 +36,21 @@ func readSelector(a action, field, selector string) (jsonpath.Query, []ir.Diagno
 	}
 	return jsonpath.Query{}, []ir.Diagnostic{diag.Newf(ir.SeverityError, diag.OverlayInvalid, a.overlay,
 		"%s: %s does not read as an RFC 9535 query at offset %d: %s", a.label(), subject, syntax.Offset, reason)}
+}
+
+// deadPatterns warns of each pattern q hands match or search that matches no
+// string, so the call never holds and the selector selects nothing by it.
+func deadPatterns(a action, subject string, q jsonpath.Query) []ir.Diagnostic {
+	dead := q.DeadPatterns()
+	if len(dead) == 0 {
+		return nil
+	}
+	out := make([]ir.Diagnostic, 0, len(dead))
+	for _, d := range dead {
+		out = append(out, diag.Newf(ir.SeverityWarning, diag.OverlayAction, a.overlay,
+			"%s: %s writes the pattern %q, which matches no string: %s", a.label(), subject, d.Pattern, d.Reason))
+	}
+	return out
 }
 
 // hintFor reads a selector's text, telling its string literals from the rest

@@ -28,7 +28,7 @@ func IsNumber(text string) bool {
 
 // Translate is translate, reporting whether the pattern reads.
 func Translate(pattern string) bool {
-	_, _, ok := translate(pattern)
+	_, ok := translate(pattern)
 	return ok
 }
 

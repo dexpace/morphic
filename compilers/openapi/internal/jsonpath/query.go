@@ -7,6 +7,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"slices"
 
 	yaml "go.yaml.in/yaml/v3"
 
@@ -34,7 +35,18 @@ var (
 
 // Query is one RFC 9535 query, parsed. It holds no state of an evaluation, so
 // one Query may be evaluated any number of times, at once.
-type Query struct{ segments []segment }
+type Query struct {
+	segments []segment
+	dead     []DeadPattern
+}
+
+// DeadPattern is a pattern a query hands match or search as a literal that
+// matches no string, so the call is false wherever it is evaluated, and why.
+type DeadPattern struct{ Pattern, Reason string }
+
+// DeadPatterns returns the patterns q writes as literals that match no
+// string, in the order written.
+func (q Query) DeadPatterns() []DeadPattern { return slices.Clone(q.dead) }
 
 // segment is one child or descendant segment and its selectors. singular
 // reports a segment a singular query may hold: one name or index selector,

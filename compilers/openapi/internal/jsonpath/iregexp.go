@@ -30,13 +30,94 @@ const maxRepeat = 1000
 // pass with no recursion: a group is counted, not descended into. It counts
 // the instructions the program will hold, a frame per open group.
 type translator struct {
-	out    strings.Builder
-	src    string
-	frames []frame
-	pos    int
+	out     strings.Builder
+	src     string
+	frames  []frame
+	anchors anchors
+	pos     int
 	// atom reports that a quantifier may follow: the last thing read is an
 	// atom with no quantifier yet.
 	atom bool
+}
+
+// translation is a pattern rewritten for Go's engine: its source, the
+// instructions its program holds, and why no string matches it, "" where one
+// may.
+type translation struct {
+	source, empty string
+	size          int
+}
+
+// Why no string matches a branch in which an anchor stands where Go's engine
+// reads it, and the class a writer meaning the character writes instead.
+const (
+	endAnchored   = "$ anchors the end of the string, and a character must follow it; write [$] to match the character"
+	startAnchored = `^ anchors the start of the string, and a character must precede it; write [\^] to match the character`
+)
+
+// anchors reads the top level of a pattern for a branch no string matches:
+// one in which `$` comes before a character it must consume, or `^` after
+// one. A group is read as a character it need not consume, and a pattern
+// matches nothing only where each of its top-level branches does, so what it
+// reports holds.
+type anchors struct {
+	// none is why a branch read matches nothing, "" before one did; alive
+	// reports a branch read that may match.
+	none  string
+	alive bool
+	// why is why the branch being read matches nothing, "" while it may.
+	why string
+	// must reports that the last atom read must consume a character unless
+	// a quantifier admitting none follows it; consumed, that one before it
+	// must; ended, that `$` was read.
+	must, consumed, ended bool
+}
+
+// read takes the top-level token r, before it is translated.
+func (a *anchors) read(r rune) {
+	switch r {
+	case '*', '?':
+		a.must = false
+		return
+	case '+', '{':
+		return // a range admitting none is read by rangeQuantifier
+	}
+	a.commit()
+	switch r {
+	case '^':
+		if a.consumed && a.why == "" {
+			a.why = startAnchored
+		}
+	case '$':
+		a.ended = true
+	case '|':
+		a.settle()
+	case '(':
+	default:
+		a.must = true // a character, an escape, a class or a dot
+	}
+}
+
+// commit settles the last atom: a character the branch must consume.
+func (a *anchors) commit() {
+	if !a.must {
+		return
+	}
+	if a.ended && a.why == "" {
+		a.why = endAnchored
+	}
+	a.consumed, a.must = true, false
+}
+
+// settle ends a top-level branch and starts the next.
+func (a *anchors) settle() {
+	a.commit()
+	if a.why == "" {
+		a.alive = true
+	} else if a.none == "" {
+		a.none = a.why
+	}
+	*a = anchors{none: a.none, alive: a.alive}
 }
 
 // frame counts the instructions of one group: its finished branches, the
@@ -65,23 +146,28 @@ func (t *translator) repeat(copies int) bool {
 	return f.branch <= maxProgram
 }
 
-// translate returns the Go regexp pattern reads as and the instructions its
-// program holds, and false for a pattern that is no I-Regexp, is past
-// maxPatternBytes, or compiles past maxProgram.
-func translate(pattern string) (string, int, bool) {
+// translate returns what pattern reads as in Go's syntax, and false for a
+// pattern that is no I-Regexp, is past maxPatternBytes, or compiles past
+// maxProgram.
+func translate(pattern string) (translation, bool) {
 	if len(pattern) > maxPatternBytes || !utf8.ValidString(pattern) {
-		return "", 0, false
+		return translation{}, false
 	}
 	t := &translator{src: pattern, frames: []frame{{}}}
 	for t.pos < len(t.src) {
 		if !t.next() {
-			return "", 0, false
+			return translation{}, false
 		}
 	}
 	if len(t.frames) != 1 {
-		return "", 0, false
+		return translation{}, false
 	}
-	return t.out.String(), t.top().done + t.top().branch, true
+	t.anchors.settle()
+	tr := translation{source: t.out.String(), size: t.top().done + t.top().branch}
+	if !t.anchors.alive {
+		tr.empty = t.anchors.none
+	}
+	return tr, true
 }
 
 // take returns the next character of the pattern and moves past it.
@@ -93,7 +179,11 @@ func (t *translator) take() rune {
 
 // next reads one token of the pattern outside a character class.
 func (t *translator) next() bool {
-	switch r := t.take(); r {
+	r := t.take()
+	if len(t.frames) == 1 {
+		t.anchors.read(r)
+	}
+	switch r {
 	case '(':
 		t.frames = append(t.frames, frame{})
 		t.out.WriteString("(?:")
@@ -121,7 +211,7 @@ func (t *translator) next() bool {
 	case '^', '$':
 		// RFC 9485 section 5.4 maps a pattern to RE2, Go's dialect, leaving
 		// these as written, where they anchor; the compliance suite reads
-		// them so.
+		// them so (docs/compilers/openapi.md#overlays).
 		t.out.WriteRune(r)
 		return t.atomOf(1)
 	default:
@@ -162,6 +252,7 @@ func (t *translator) rangeQuantifier() bool {
 	if !read {
 		return false
 	}
+	low := copies
 	if t.pos < len(t.src) && t.src[t.pos] == ',' {
 		t.pos++
 		high, bounded := t.count()
@@ -172,6 +263,9 @@ func (t *translator) rangeQuantifier() bool {
 	}
 	if t.pos >= len(t.src) || t.src[t.pos] != '}' || copies > maxRepeat+1 {
 		return false
+	}
+	if low == 0 && len(t.frames) == 1 {
+		t.anchors.must = false // a range from zero admits none
 	}
 	t.pos++
 	return t.quantify("{"+t.src[start:t.pos], max(copies, 1))

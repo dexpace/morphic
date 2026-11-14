@@ -441,3 +441,30 @@ func TestSelect_WeighsAPatternByItsProgram(t *testing.T) {
 		assert.Equal(t, want, paths(got), "an atom taking the program to %d instructions", 8*1999+tail)
 	}
 }
+
+// TestParse_NamesThePatternsThatMatchNoString pins what a query says of the
+// patterns it hands match and search as literals: one in which `$` comes
+// before a character it must consume, or `^` after one, in every top-level
+// branch, matches no string, as does one that is no I-Regexp. A branch that
+// may still match, a quantifier admitting none and a group keep a pattern
+// unnamed, so a pattern named matches nothing.
+func TestParse_NamesThePatternsThatMatchNoString(t *testing.T) {
+	t.Parallel()
+	const end, start, none = "$ anchors the end", "^ anchors the start", "no I-Regexp"
+	for pattern, want := range map[string]string{
+		"$ref": end, ".*$ref.*": end, "$r+": end, "$r{01}": end, "a^b": start, "$a|b^": end, `\\$ref`: none,
+		"^ab.*": "", ".*bc$": "", "[$]ref": "", `[\\^]x`: "", "x$|$ref": "", "$r?": "", "$r*": "",
+		"$r{0,2}": "", "$(r)": "", "(a)^b": "", "$^": "", "a|^b": "",
+	} {
+		q, err := jsonpath.Parse("$[?search(@, '" + pattern + "') || match(@, 'x')]")
+		require.NoError(t, err, pattern)
+
+		dead := q.DeadPatterns()
+		if want == "" {
+			assert.Empty(t, dead, pattern)
+			continue
+		}
+		require.Len(t, dead, 1, pattern)
+		assert.Contains(t, dead[0].Reason, want, pattern)
+	}
+}
