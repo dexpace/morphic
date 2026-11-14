@@ -85,7 +85,7 @@ func (r *resolver) params(op *ir.Operation) []ir.Diagnostic {
 }
 
 // paramFinder returns what finds a parameter of op by name, as a link's key
-// names one (lowering.ParamIndex.Named).
+// names one (whole.ParamIndex.Named).
 func (r *resolver) paramFinder(op *ir.Operation) func(string) (ir.EntityRef, int) {
 	return func(name string) (ir.EntityRef, int) {
 		id, matched := r.w.Params(op).Named(name)

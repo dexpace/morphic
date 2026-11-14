@@ -1,14 +1,14 @@
 // Copyright (c) 2026 dexpace.
 // Licensed under the MIT License. See LICENSE in the repository root for details.
 
-package lowering
+package whole
 
 import "github.com/dexpace/morphic/ir"
 
 // operations returns every operation svc holds, those of nested groups
 // included to ir.MaxGroupDepth, as pointers into the groups holding them: what
 // a step reading the document once it is whole writes an operation through.
-// NewWhole is its one caller, so no step lists the operations for itself.
+// New is its one caller, so no step lists the operations for itself.
 func operations(svc *ir.Service) []*ir.Operation {
 	type level struct {
 		groups []ir.OperationGroup

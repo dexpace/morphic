@@ -12,6 +12,7 @@ import (
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
+	"github.com/dexpace/morphic/compilers/openapi/internal/whole"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -24,7 +25,7 @@ import (
 // diagnostic. It neither reads nor reports an operation in stated, whose
 // extensions speak of a pagination. w is the document, which is whole; c is
 // the source's context.
-func InferWalks(c lowering.Ctx, w *lowering.Whole, stated map[ir.OpID]bool) []ir.Diagnostic {
+func InferWalks(c lowering.Ctx, w *whole.Document, stated map[ir.OpID]bool) []ir.Diagnostic {
 	if !c.PaginationInference.Honours() {
 		return nil
 	}

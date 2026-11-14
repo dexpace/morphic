@@ -13,6 +13,7 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
 	"github.com/dexpace/morphic/compilers/openapi/internal/resolve"
+	"github.com/dexpace/morphic/compilers/openapi/internal/whole"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -36,7 +37,7 @@ type pendingLink struct {
 // never reordered, so an index taken as a response is appended still names it
 // once the service is whole.
 type responseSlot struct {
-	list  lowering.ResponseList
+	list  whole.ResponseList
 	index int
 }
 

@@ -8,7 +8,7 @@ import (
 	"slices"
 	"strconv"
 
-	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
+	"github.com/dexpace/morphic/compilers/openapi/internal/whole"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -61,7 +61,7 @@ func (in inputs) readsNextCursor() bool {
 // walk, why says what stops it: two naming a continuation or a page size, one
 // of a type a walk cannot send, or a page sent as a string no number shows it
 // counts.
-func requestInputs(w *lowering.Whole, op *ir.Operation) (in inputs, why string, named bool) {
+func requestInputs(w *whole.Document, op *ir.Operation) (in inputs, why string, named bool) {
 	var continuations, limits []*ir.Parameter
 	var query map[ir.ParamID]bool // read at the first parameter giving a role
 	for i := range op.Params {
@@ -125,7 +125,7 @@ func queryBound(op *ir.Operation) map[ir.ParamID]bool {
 
 // sendable returns the primitive the type id stands for, read through alias
 // scalars, when a walk can send it or count with it (sendableAs).
-func sendable(w *lowering.Whole, id ir.TypeID) (ir.PrimKind, bool) {
+func sendable(w *whole.Document, id ir.TypeID) (ir.PrimKind, bool) {
 	return sendableAs(w.Stands(id))
 }
 
@@ -148,14 +148,14 @@ func sendableAs(td ir.TypeDef) (ir.PrimKind, bool) {
 // its value or its text. A page sent as a string is counted only so, since
 // some APIs name an opaque page token `page` too.
 func numbered(p *ir.Parameter) bool {
-	if p.Default != nil && whole(*p.Default) {
+	if p.Default != nil && wholeNumber(*p.Default) {
 		return true
 	}
-	return slices.ContainsFunc(p.Examples, func(e ir.Example) bool { return e.Value != nil && whole(*e.Value) })
+	return slices.ContainsFunc(p.Examples, func(e ir.Example) bool { return e.Value != nil && wholeNumber(*e.Value) })
 }
 
-// whole reports whether v is a whole number, or a string holding one.
-func whole(v ir.Value) bool {
+// wholeNumber reports whether v is a whole number, or a string holding one.
+func wholeNumber(v ir.Value) bool {
 	text := v.Str
 	if v.Kind == ir.ValueNumber {
 		text = string(v.Num)

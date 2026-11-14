@@ -164,8 +164,8 @@ var integerFields = map[string]string{
 	"flattener.aliasOf": "where an alias scalar's chain end sits in a flattening's own aliasEnds, " +
 		"not a position in any IR slice",
 	"flattener.steps": "how much a flattening has read, not a position",
-	"MemberReader.own": "where a wire name's last declaration sits in a model's own Properties, read off that " +
-		"slice by the reader, not IR data",
+	"MemberReader.own": "where each declaration of a wire name sits in a model's own Properties, read off " +
+		"that slice by the reader, not IR data",
 	"MemberReader.steps": "how much a member reader's walks have read, not a position",
 	"frame.next":         "the next composition entry a flattening follows, counted across Base, Implements and Mixins",
 	"frame.num":          "the order a flattening met a model in, not a position in any IR slice",

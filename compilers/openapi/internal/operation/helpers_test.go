@@ -18,6 +18,7 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/operation"
 	"github.com/dexpace/morphic/compilers/openapi/internal/schema"
 	"github.com/dexpace/morphic/compilers/openapi/internal/servers"
+	"github.com/dexpace/morphic/compilers/openapi/internal/whole"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -116,7 +117,7 @@ func walkService(t *testing.T, src string, policy lowering.Policy, report func([
 	report(svcDiags)
 	reg, finished := types.Finish(t.Context())
 	report(finished)
-	w := lowering.NewWhole(&ir.Document{Types: reg, Services: []ir.Service{lowered.Service}})
+	w := whole.New(&ir.Document{Types: reg, Services: []ir.Service{lowered.Service}})
 	report(lowered.Links.Resolve(c, w, servers.Reopen(lowered.Servers)))
 	return lowered.Service, loadDiags
 }

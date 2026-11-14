@@ -358,7 +358,7 @@ func (pg *pager) anyMember(keeps func(*ir.Property) bool) bool {
 }
 
 // isModel reports whether id stands for a model, read through alias scalars
-// as a model's members are (lowering.Whole.Members).
+// as a model's members are (whole.Document.Members).
 func (pg *pager) isModel(id ir.TypeID) bool {
 	_, ok := pg.w.Stands(id).(*ir.Model)
 	return ok

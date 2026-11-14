@@ -12,6 +12,7 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
 	"github.com/dexpace/morphic/compilers/openapi/internal/runtimeexpr"
+	"github.com/dexpace/morphic/compilers/openapi/internal/whole"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -238,7 +239,7 @@ func (pg *pager) headerOutput(op *ir.Operation, name string) (*ir.PropPath, stri
 	}
 	var out *ir.PropPath
 	for i := range op.Responses {
-		found := pg.w.Header(lowering.ResponseKey{Op: op.ID, List: lowering.ListResponses, Index: i}, op.Responses[i].Headers, name)
+		found := pg.w.Header(whole.ResponseKey{Op: op.ID, List: whole.ListResponses, Index: i}, op.Responses[i].Headers, name)
 		switch {
 		case len(found) != 1:
 			return nil, "reads response header " + strconv.Quote(name) + ", which a success response does not declare once"

@@ -11,6 +11,7 @@ import (
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
+	"github.com/dexpace/morphic/compilers/openapi/internal/whole"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -20,7 +21,7 @@ import (
 // that it cannot settle. It runs after Resolve, as an inference reads after
 // every promotion (docs/compilers/openapi.md#policies). c is the source's
 // context, and w the document, which is whole.
-func Infer(c lowering.Ctx, w *lowering.Whole) []ir.Diagnostic {
+func Infer(c lowering.Ctx, w *whole.Document) []ir.Diagnostic {
 	if !c.ReplacementInference.Honours() {
 		return nil
 	}

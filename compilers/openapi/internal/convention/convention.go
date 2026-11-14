@@ -8,13 +8,14 @@ import (
 	"slices"
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
+	"github.com/dexpace/morphic/compilers/openapi/internal/whole"
 	"github.com/dexpace/morphic/ir"
 )
 
 // Apply fills what w's names imply, under each policy c honours, and returns
 // what the readings report. c is the source's context, and w the document its
 // lowerings built, whose service tree and registry are whole.
-func Apply(c lowering.Ctx, w *lowering.Whole) (diags []ir.Diagnostic) {
+func Apply(c lowering.Ctx, w *whole.Document) (diags []ir.Diagnostic) {
 	for _, op := range w.Ops {
 		diags = append(diags, operation(c, w, op)...)
 	}
@@ -35,7 +36,7 @@ func Apply(c lowering.Ctx, w *lowering.Whole) (diags []ir.Diagnostic) {
 // operation fills what op's names imply: its idempotency token, the redaction
 // of its parameters and of every header it declares, and the text of each of
 // its responses' headers.
-func operation(c lowering.Ctx, w *lowering.Whole, op *ir.Operation) []ir.Diagnostic {
+func operation(c lowering.Ctx, w *whole.Document, op *ir.Operation) []ir.Diagnostic {
 	reg := w.Types
 	diags := idempotency(c, w, op)
 	for i := range op.Params {

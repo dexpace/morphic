@@ -7,7 +7,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
+	"github.com/dexpace/morphic/compilers/openapi/internal/whole"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -17,9 +17,9 @@ import (
 // type arrives. A member is one declaration, so contents reaching the same one
 // first walk the same chain from there, and only the first step tells them
 // apart: each other content is asked for that member alone
-// (lowering.Whole.Member). It returns why, and false, where p holds no body or
+// (whole.Document.Member). It returns why, and false, where p holds no body or
 // the tokens name no such members.
-func BodyPath(w *lowering.Whole, p *ir.Payload, tokens []string, side string) (segments []ir.PropID, why string, ok bool) {
+func BodyPath(w *whole.Document, p *ir.Payload, tokens []string, side string) (segments []ir.PropID, why string, ok bool) {
 	if p == nil || len(p.Contents) == 0 {
 		return nil, fmt.Sprintf("reads a %s body the document does not describe", side), false
 	}

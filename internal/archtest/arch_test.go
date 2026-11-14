@@ -331,38 +331,46 @@ var rules = map[string][]string{
 		module + "/compilers/openapi/internal/resolve",
 		"github.com/speakeasy-api/openapi/openapi"},
 	// What a deprecation names as its replacement, by a key or in its message,
-	// read once the document is whole. It reaches lowering for the policies,
-	// the promotion that reads the names and the parameter lookup links share,
-	// and diag for what it reports, and nothing of the walks: it reads the
-	// document they built (docs/compilers/openapi.md#policies).
+	// read once the document is whole. It reaches lowering for the policies
+	// and the promotion that reads the names, whole for the document they
+	// name, and diag for what it reports, and nothing of the walks
+	// (docs/compilers/openapi.md#policies).
 	"compilers/openapi/internal/replacement": {module + "/ir",
 		module + "/compilers/openapi/internal/diag",
-		module + "/compilers/openapi/internal/lowering"},
+		module + "/compilers/openapi/internal/lowering",
+		module + "/compilers/openapi/internal/whole"},
 	// What a document's names imply, read once the document is whole: an
 	// operation's idempotency token, a credential's redaction and a header's
-	// HTTP-date text. It reaches lowering for the policies, the promotion whose
-	// keys it defers to and the parameter lookup links share, and diag for what
-	// it reports, and nothing of the walks: it reads the document they built.
+	// HTTP-date text. It reaches lowering for the policies and the promotion
+	// whose keys it defers to, whole for the document it reads, and diag for
+	// what it reports, and nothing of the walks.
 	"compilers/openapi/internal/convention": {module + "/ir",
 		module + "/compilers/openapi/internal/diag",
-		module + "/compilers/openapi/internal/lowering"},
+		module + "/compilers/openapi/internal/lowering",
+		module + "/compilers/openapi/internal/whole"},
+	// A compiled document as the steps after the walks read it: its
+	// operations listed, and its members, parameters and headers indexed. It
+	// reaches ir alone, so it holds only what the document states, behind an
+	// IR ID: never a step's verdict, a policy, a source's context or the
+	// document itself.
+	"compilers/openapi/internal/whole": {module + "/ir"},
 	// What a runtime expression names in a compiled service: its grammar, and
 	// the body members it resolves to. It is its own package because the link
 	// resolution in operation and the pagination promotion read an expression
 	// alike, and the promotion may reach nothing of the walks operation holds.
-	// It reaches lowering for the one reading of the finished document every
-	// such step shares (lowering.Whole), and nothing of the walks.
+	// It reaches whole for the one reading of the finished document every
+	// such step shares, and nothing of the walks.
 	"compilers/openapi/internal/runtimeexpr": {module + "/ir",
-		module + "/compilers/openapi/internal/lowering"},
+		module + "/compilers/openapi/internal/whole"},
 	// The pagination an operation's extensions declare, and the pagination the
 	// names it uses say, read once the document is whole. It reaches lowering
-	// for the policy and the reading of the finished document, and runtimeexpr
-	// for the expressions an extension writes, and nothing of the walks: it
-	// reads the operations and the registry they built.
+	// for the policy, whole for the document it reads, and runtimeexpr for the
+	// expressions an extension writes, and nothing of the walks.
 	"compilers/openapi/internal/pagination": {module + "/ir",
 		module + "/compilers/openapi/internal/diag",
 		module + "/compilers/openapi/internal/lowering",
-		module + "/compilers/openapi/internal/runtimeexpr"},
+		module + "/compilers/openapi/internal/runtimeexpr",
+		module + "/compilers/openapi/internal/whole"},
 	// The servers a document declares, whichever object declares them, and the
 	// registry they are lowered into. It is its own package for the reason auth
 	// is: the service walk lowers the document's own list and the operation walk
@@ -400,8 +408,8 @@ var rules = map[string][]string{
 	// reaches the schema walk for the positions it hoists, auth for the
 	// requirements it reads, nodeview for the raw nodes behind the model, oas
 	// for the cases the Encoding Object's defaults are keyed by, value for
-	// the constants a link passes, and runtimeexpr for the expressions a link
-	// reads, and nothing above itself — the compiler assembles the document
+	// the constants a link passes, runtimeexpr for the expressions a link
+	// reads and whole for the document it reads them in, and nothing above itself — the compiler assembles the document
 	// from what this returns rather than the other way round.
 	"compilers/openapi/internal/operation": {module + "/ir", module + "/compilers/compile",
 		module + "/compilers/openapi/internal/annotation",
@@ -417,6 +425,7 @@ var rules = map[string][]string{
 		module + "/compilers/openapi/internal/schema",
 		module + "/compilers/openapi/internal/servers",
 		module + "/compilers/openapi/internal/value",
+		module + "/compilers/openapi/internal/whole",
 		"github.com/speakeasy-api/openapi" + subtreeSuffix, "go.yaml.in/yaml/v3"},
 	// What a document says about itself: its info, and what the objects around
 	// it write that lowers to no node of its own. It runs after both walks and

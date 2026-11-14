@@ -12,13 +12,14 @@ import (
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/load"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
+	"github.com/dexpace/morphic/compilers/openapi/internal/whole"
 	"github.com/dexpace/morphic/ir"
 )
 
 // pagerOver is a pager over reg, under the default policy.
 func pagerOver(reg ir.TypeRegistry) *pager {
 	c := lowering.New(0, &load.Document{Doc: &soa.OpenAPI{}}, lowering.Policy{})
-	return &pager{c: c, p: c.Promoter(), w: lowering.NewWhole(&ir.Document{Types: reg})}
+	return &pager{c: c, p: c.Promoter(), w: whole.New(&ir.Document{Types: reg})}
 }
 
 // TestMarker_AUseOfATypeTheRegistryLacksMarksNothing drives the guard no
