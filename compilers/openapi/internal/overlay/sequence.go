@@ -5,12 +5,14 @@ package overlay
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	yaml "go.yaml.in/yaml/v3"
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/budget"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
+	"github.com/dexpace/morphic/compilers/openapi/internal/jsonpath"
 	"github.com/dexpace/morphic/compilers/openapi/internal/nodeview"
 	"github.com/dexpace/morphic/ir"
 )
@@ -22,9 +24,16 @@ import (
 // that reaches it answers "past any budget", and a copy refuses the action.
 const maxPayloadDepth = 1 << 14
 
+// MaxSteps bounds the steps the selectors of one application of an overlay
+// spend between them (jsonpath.Query.Select), about 264 scans of every node
+// of a document of a million. A selector costs what it visits, which a
+// document can make far more than its text; past the bound the action is
+// refused, and nothing more applies.
+const MaxSteps = 1 << 28
+
 // sequence applies a plan's actions in order, each to the tree the ones before
 // it left, as the specification requires, and charges each to the node budget
-// before it builds anything.
+// before it builds anything, and its selectors to one budget of steps.
 //
 // An action whose update cannot be applied as the specification says ends the
 // sequence with an error, since the actions that landed are not undone. One
@@ -36,13 +45,14 @@ type sequence struct {
 	root *yaml.Node
 	lax  bool
 
+	// steps is what the application's selectors may yet spend.
+	steps budget.Budget
+
 	// size counts the tree's nodes against the node budget: a count that
-	// stops one node past the budget, then raised by each action's cost,
-	// which is what the action can add and no less. Within the budget it is
-	// an upper bound on the tree; past it, it says only that the tree may be
-	// past too. So it is recounted before a refusal, and an action that merges
-	// into keys already there, adding less than it is charged, or that follows
-	// a remove is never refused on the charge alone.
+	// stops one node past the budget, then raised by each action's cost and
+	// each copy it makes. Within the budget it is an upper bound on the tree;
+	// past it, it says only that the tree may be past too, so it is recounted
+	// before a refusal (grafter.admit).
 	size budget.Budget
 
 	// grafts writes each action's update into the tree.
@@ -56,39 +66,23 @@ type sequence struct {
 // runSequence applies p to root and returns the grafter that wrote it, which
 // holds what the actions did, what it reported, and whether the tree is the
 // overlay applied: false once an action cannot apply, or one would build past
-// maxNodes.
-func runSequence(ctx context.Context, p plan, root *yaml.Node, lax bool, maxNodes budget.Limit,
+// maxNodes or select past steps.
+func runSequence(ctx context.Context, p plan, root *yaml.Node, lax bool, maxNodes, steps budget.Limit,
 ) (*grafter, []ir.Diagnostic, bool) {
-	s := &sequence{plan: p, root: root, lax: lax, size: budget.New(maxNodes), grafts: newGrafter(p.version, root)}
-	if s.budgeted() {
-		s.measure(ctx)
+	s := &sequence{plan: p, root: root, lax: lax, steps: budget.New(steps), grafts: newGrafter(p.version, root)}
+	s.size = budget.New(maxNodes)
+	if _, bounded := maxNodes.Max(); bounded {
+		s.grafts.size = &s.size
+		s.grafts.measure(ctx)
 	}
-	found, read := readAliasing(ctx, root)
-	if found.any() {
-		s.diags = append(s.diags, aliasesNotRead(p.at))
-	}
-	if s.grafts.named = found.named; !read || len(found.named) > 0 && !s.grafts.indexParents(ctx) {
+	named, read := aliasCounts(ctx, root)
+	if !read {
 		return nil, nil, false
 	}
+	s.grafts.named = named
 	for _, a := range p.actions {
-		targets, sources := s.selected(a)
-		if over, ok := s.charge(ctx, a, targets, sources); !ok {
-			return nil, append(s.diags, s.overBudget(a, over)), false
-		}
-		// A remove reads the tree's index of what holds each node, built under
-		// ctx the first time. The library's evaluator reads no context, and a
-		// charge or an index a cancel cut short may be partial, so the cancel
-		// is seen before the action is applied. The tree is left half applied,
-		// which no caller builds on.
-		if (a.kind == kindRemove && !s.grafts.indexParents(ctx)) || ctx.Err() != nil {
-			return nil, nil, false
-		}
-		s.grafts.reached, s.grafts.mergeKey = nil, false
-		if err := s.step(a, targets, sources); err != nil {
-			return nil, append(s.diags, fail(a, err)), false
-		}
-		if !s.reportAliasing(ctx, a) {
-			return nil, nil, false
+		if refused, ok := s.apply(ctx, a); !ok {
+			return nil, refused, false
 		}
 	}
 	if s.missed {
@@ -97,30 +91,90 @@ func runSequence(ctx context.Context, p plan, root *yaml.Node, lax bool, maxNode
 	return s.grafts, s.diags, true
 }
 
-// selected returns the nodes a's target selects in the tree as it now stands,
-// each once, and for a copy the nodes its copy selector selects. A query may
-// select a node twice, and an action writes a node it selects once.
-func (s *sequence) selected(a action) (targets, sources []*yaml.Node) {
-	if a.kind == kindNone {
-		return nil, nil
+// apply applies one action, and returns what refuses the sequence where it
+// cannot: nothing where a cancel cut it short, since the caller reads its
+// context next.
+func (s *sequence) apply(ctx context.Context, a action) ([]ir.Diagnostic, bool) {
+	targets, sources, err := s.selected(ctx, a)
+	switch {
+	case ctx.Err() != nil:
+		return nil, false
+	case err != nil:
+		return append(s.diags, s.unselectable(a, err)), false
 	}
-	seen := map[*yaml.Node]bool{}
-	for _, t := range a.targets.Query(s.root) {
-		if !seen[t] {
-			seen[t] = true
+	if cost := s.cost(a, nodesOf(targets), nodesOf(sources)); cost > 0 && !s.grafts.admit(ctx, cost) {
+		return append(s.diags, s.overBudget(a)), false
+	}
+	// A charge a cancel cut short may be partial, so the cancel is seen
+	// before the action writes. The tree is left as the actions before left
+	// it, which no caller builds on.
+	if ctx.Err() != nil {
+		return nil, false
+	}
+	err = s.step(ctx, a, targets, sources)
+	switch {
+	case ctx.Err() != nil:
+		return nil, false
+	case errors.Is(err, errPastNodeBudget):
+		return append(s.diags, s.overBudget(a)), false
+	case err != nil:
+		return append(s.diags, fail(a, err)), false
+	default:
+		return nil, true
+	}
+}
+
+// selected returns the targets a's target selects in the value the tree now
+// stands for, each location once, and for a copy the nodes its copy selector
+// selects, all read before anything is written. A view is made for the
+// action, since each write changes the tree.
+func (s *sequence) selected(ctx context.Context, a action) (targets, sources []jsonpath.Located, err error) {
+	if a.kind == kindNone {
+		return nil, nil, nil
+	}
+	if nodeview.DocumentRoot(s.root) == nil {
+		return nil, nil, errors.New("it selects no value: the document holds none")
+	}
+	view := nodeview.New()
+	found, err := a.targets.Select(ctx, view, s.root, &s.steps)
+	if err != nil {
+		return nil, nil, err
+	}
+	seen := make(map[string]bool, len(found))
+	for _, t := range found {
+		if at := t.Path.String(); !seen[at] {
+			seen[at] = true
 			targets = append(targets, t)
 		}
 	}
 	if a.kind == kindCopy {
-		sources = a.sources.Query(s.root)
+		sources, err = a.sources.Select(ctx, view, s.root, &s.steps)
 	}
-	return targets, sources
+	return targets, sources, err
+}
+
+// unselectable builds the refusal of an action whose selectors could not be
+// read to the end: past the steps or the nodelist an overlay's selectors may
+// spend, or through a mapping whose merges pass the depth the compiler reads.
+func (s *sequence) unselectable(a action, err error) ir.Diagnostic {
+	switch {
+	case errors.Is(err, jsonpath.ErrSteps):
+		return diag.Newf(ir.SeverityError, diag.BudgetExceeded, a.overlay,
+			"%s: its selectors cost more than the %d steps an overlay's selectors may spend; nothing more applies",
+			a.label(), s.steps.Limit().Cap())
+	case errors.Is(err, jsonpath.ErrResults):
+		return diag.Newf(ir.SeverityError, diag.BudgetExceeded, a.overlay,
+			"%s: its selectors select more than the %d nodes one selection may hold; nothing more applies",
+			a.label(), jsonpath.MaxResults)
+	default:
+		return fail(a, err)
+	}
 }
 
 // step applies a to the nodes it selects, and returns why it cannot, which
 // ends the sequence. A copy selecting more than the one node a copy copies is
 // refused whatever its target selects.
-func (s *sequence) step(a action, targets, sources []*yaml.Node) error {
+func (s *sequence) step(ctx context.Context, a action, targets, sources []jsonpath.Located) error {
 	switch {
 	case a.kind == kindNone:
 		return nil
@@ -129,31 +183,45 @@ func (s *sequence) step(a action, targets, sources []*yaml.Node) error {
 	case len(targets) == 0:
 		s.miss(a, "its target selects nothing")
 		return nil
-	case a.kind == kindRemove:
-		return s.grafts.remove(targets)
-	case a.kind == kindUpdate:
-		return s.write(a, targets, a.payload)
-	case len(sources) == 0:
+	case a.kind == kindCopy && len(sources) == 0:
 		s.miss(a, "its copy selector selects nothing")
 		return nil
-	default:
+	}
+	payload := a.payload
+	if a.kind == kindCopy {
 		// A template is taken of the source first, so each target receives
 		// it as it stood when the action began, though the source may hold a
 		// target, or a target the source.
-		template, err := copyOf(sources[0], nil, 0, nil)
+		template, err := copyOf(sources[0].Node, nil, 0, nil)
 		if err != nil {
 			return err
 		}
-		return s.write(a, targets, template)
+		payload = template
 	}
+	positions := make([]position, 0, len(targets))
+	for _, t := range targets {
+		p, err := s.grafts.own(ctx, t.Path.Steps(), a.kind != kindRemove)
+		if err != nil {
+			return err
+		}
+		positions = append(positions, p)
+	}
+	if a.kind == kindRemove {
+		return s.grafts.remove(positions)
+	}
+	return s.write(ctx, a, positions, payload)
 }
 
 // write writes payload into each of targets and reports what that did: each
 // value the source declares that it replaced, as an info naming both values,
 // and a write that changed nothing, as a warning.
-func (s *sequence) write(a action, targets []*yaml.Node, payload *yaml.Node) error {
+func (s *sequence) write(ctx context.Context, a action, positions []position, payload *yaml.Node) error {
+	targets := make([]*yaml.Node, len(positions))
+	for i, p := range positions {
+		targets[i] = p.node
+	}
 	s.grafts.replaced = s.grafts.replaced[:0]
-	changed, err := s.grafts.write(targets, payload)
+	changed, err := s.grafts.write(ctx, targets, payload)
 	if err != nil {
 		return err
 	}
@@ -193,65 +261,10 @@ func (s *sequence) miss(a action, reason string) {
 		"%s changes nothing: %s, which strict application refuses as a likely typo", a.label(), reason))
 }
 
-// reportAliasing warns of what a's write made of the tree's aliases: that it
-// changed what a node an alias names holds, and that it wrote a merge key.
-// After a remove, which can take aliases with it, it counts the aliases left,
-// and reports whether ctx let it.
-func (s *sequence) reportAliasing(ctx context.Context, a action) bool {
-	if g := s.grafts; g.reached != nil {
-		s.diags = append(s.diags, writeReachesAliases(a, g.reached, g.named[g.reached]))
-	}
-	if s.grafts.mergeKey {
-		s.diags = append(s.diags, mergeKeyWritten(a))
-	}
-	if a.kind != kindRemove || len(s.grafts.named) == 0 {
-		return true
-	}
-	found, read := readAliasing(ctx, s.root)
-	s.grafts.named = found.named
-	return read
-}
-
 // fail builds the error ending a sequence on an action that cannot apply as
 // written, for the reason err gives.
 func fail(a action, err error) ir.Diagnostic {
 	return diag.Newf(ir.SeverityError, diag.OverlayFailed, a.overlay, "%s: %s", a.label(), err)
-}
-
-// budgeted reports whether the application has a budget to keep to.
-func (s *sequence) budgeted() bool {
-	_, bounded := s.size.Limit().Max()
-	return bounded
-}
-
-// measure takes the tree's node count afresh as the running size.
-func (s *sequence) measure(ctx context.Context) {
-	s.size = budget.New(s.size.Limit())
-	s.size.Spend(countNodes(ctx, s.root, s.size.Limit()))
-}
-
-// charge adds what a can build to the running size and reports whether it
-// still fits, and if not, the size it would reach. An action that builds
-// nothing, a remove among them, fits however large the tree: the source may be
-// past the budget until an action shrinks it, and the node budget is read of
-// the tree the overlay leaves. One that builds is charged against the tree as
-// it stands, so it is refused while the tree is past the budget, whatever a
-// later action would remove.
-func (s *sequence) charge(ctx context.Context, a action, targets, sources []*yaml.Node) (int, bool) {
-	if !s.budgeted() {
-		return 0, true
-	}
-	cost := s.cost(a, targets, sources)
-	if cost == 0 || s.size.Spend(cost) {
-		return 0, true
-	}
-	// The running size only ever overstates, so take the real count before
-	// refusing on it.
-	s.measure(ctx)
-	if s.size.Spend(cost) {
-		return 0, true
-	}
-	return s.size.Spent(), false
 }
 
 // cost is the most nodes a can add to the tree: what it copies, times how many
@@ -282,12 +295,21 @@ func (s *sequence) cost(a action, targets, sources []*yaml.Node) int {
 	return per * matches
 }
 
-// overBudget builds the refusal for the action that would have built past the
-// budget, before it built anything.
-func (s *sequence) overBudget(a action, reached int) ir.Diagnostic {
+// overBudget builds the refusal for the action that would have built, or
+// copied, past the budget, before it built that.
+func (s *sequence) overBudget(a action) ir.Diagnostic {
 	return diag.Newf(ir.SeverityError, diag.BudgetExceeded, a.overlay,
-		"%s would grow the document to at least %d nodes, past the %d-node budget; nothing it would build was built",
-		a.label(), reached, s.size.Limit().Cap())
+		"%s would grow the document to at least %d nodes, past the %d-node budget; it was refused before building past it",
+		a.label(), s.size.Spent(), s.size.Limit().Cap())
+}
+
+// nodesOf returns the nodes of a selection.
+func nodesOf(located []jsonpath.Located) []*yaml.Node {
+	nodes := make([]*yaml.Node, len(located))
+	for i, l := range located {
+		nodes[i] = l.Node
+	}
+	return nodes
 }
 
 // countNodes counts the nodes a Content walk from root reaches, no further than

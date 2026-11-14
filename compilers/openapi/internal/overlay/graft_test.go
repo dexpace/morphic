@@ -367,7 +367,7 @@ func TestRepairAliases_CopiesWhatARemoveLeftAnAliasNaming(t *testing.T) {
 	const src = "x-t: &s {description: d}\nx-use: *s\nx-merged: {<<: *s, k: 1}\nx-outer: &o {inner: *s}\nx-twice: *o\n" +
 		"x-gone: {a: &g {z: 1}, b: *g}\n"
 	_, root, diags := applied(t, src, v11+"  - target: $['x-t']\n    remove: true\n  - target: $['x-gone']\n    remove: true\n", false)
-	sameCodes(t, []string{"warning " + diag.OverlayAction}, diags)
+	sameCodes(t, nil, diags)
 
 	sameValue(t, "{x-use: {description: d}, x-merged: {<<: {description: d}, k: 1}, x-outer: {inner: {description: d}}, "+
 		"x-twice: {inner: {description: d}}}", root)
@@ -381,19 +381,18 @@ func TestRepairAliases_CopiesWhatARemoveLeftAnAliasNaming(t *testing.T) {
 }
 
 // TestRepairAliases_KeepsTheWriterOfWhatItCopies pins the attribution of a
-// copy a remove's repair makes: a node the overlay wrote into the anchor
-// before removing it is the overlay's at the alias's position, and one the
-// source declares stays the source's, as the value the alias stands for is the
-// source's.
+// copy a remove's repair makes: an update of the anchor writes a copy of it,
+// so the alias goes on standing for what the source declares, and the copy
+// the remove's repair leaves there is the source's.
 func TestRepairAliases_KeepsTheWriterOfWhatItCopies(t *testing.T) {
 	t.Parallel()
-	origin, _, diags := applied(t, "x-r: &r {k: v}\nx-meta: *r\n",
+	origin, root, diags := applied(t, "x-r: &r {k: v}\nx-meta: *r\n",
 		v11+"  - target: $['x-r']\n    update: {k2: w}\n  - target: $['x-r']\n    remove: true\n", false)
-	sameCodes(t, []string{"warning " + diag.OverlayAction, "warning " + diag.OverlayAction}, diags)
+	sameCodes(t, nil, diags)
 
-	assert.Equal(t, overlayIndex, origin.Attribution().WriterAt("/x-meta/k2"), "the overlay wrote k2")
+	sameValue(t, "x-meta: {k: v}\n", root)
 	assert.Equal(t, 0, origin.Attribution().WriterAt("/x-meta/k"), "the source declares k")
-	assert.Equal(t, 0, origin.Attribution().WriterAt("/x-meta"), "and the mapping holding both")
+	assert.Equal(t, 0, origin.Attribution().WriterAt("/x-meta"), "and the mapping holding it")
 }
 
 // aliasNodesNaming counts the alias nodes a Content walk from root reaches

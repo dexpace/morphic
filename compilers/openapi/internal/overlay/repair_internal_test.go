@@ -25,7 +25,7 @@ func detached() (*yaml.Node, *grafter) {
 	gone := ynode.Map(ynode.Scalar("a"), ynode.Scalar("1"), ynode.Scalar("b"), ynode.Scalar("2"), ynode.Scalar("c"), ynode.Scalar("3"))
 	root := &yaml.Node{Kind: yaml.DocumentNode, Content: []*yaml.Node{ynode.Map(ynode.Scalar("x"), ynode.Alias(gone))}}
 	g := newGrafter(v11, root)
-	g.removed = true
+	g.detached = true
 	return root, g
 }
 
@@ -80,15 +80,15 @@ func TestApplyWithin_RefusesARepairPastTheNodeBudget(t *testing.T) {
 	require.NoError(t, yaml.Unmarshal([]byte("x-t: &s {a: 1, b: 2, c: 3}\nx-use: *s\n"), &root))
 	const ov = "overlay: 1.1.0\ninfo: {title: o, version: \"1\"}\nactions:\n  - target: $['x-t']\n    remove: true\n"
 
-	origin, diags := applyWithin(t.Context(), 1, &root, docOf(t, ov), Options{Data: []byte(ov), MaxNodes: budget.AtMost(8)}, budget.AtMost(maxNodes))
+	origin, diags := applyWithin(t.Context(), &root, docOf(t, ov), Options{Data: []byte(ov), MaxNodes: budget.AtMost(8)}, budget.AtMost(maxNodes))
 
 	assert.False(t, origin.Applied())
-	require.Len(t, diags, 2, "the source's alias is warned of first: %+v", diags)
-	assert.Equal(t, diag.BudgetExceeded, diags[1].Code)
-	assert.Contains(t, diags[1].Message, "past the 8-node budget")
+	require.Len(t, diags, 1, "%+v", diags)
+	assert.Equal(t, diag.BudgetExceeded, diags[0].Code)
+	assert.Contains(t, diags[0].Message, "past the 8-node budget")
 
 	require.NoError(t, yaml.Unmarshal([]byte("x-t: &s {a: 1, b: 2, c: 3}\nx-use: *s\n"), &root))
-	origin, diags = applyWithin(t.Context(), 1, &root, docOf(t, ov), Options{Data: []byte(ov), MaxNodes: budget.AtMost(9)}, budget.AtMost(maxNodes))
+	origin, diags = applyWithin(t.Context(), &root, docOf(t, ov), Options{Data: []byte(ov), MaxNodes: budget.AtMost(9)}, budget.AtMost(maxNodes))
 	assert.True(t, origin.Applied(), "a budget of nine holds the mapping, x-use and its seven-node copy: %+v", diags)
 }
 
@@ -106,7 +106,7 @@ func TestRepairAliases_IsRefusedOnceTheContextIsDone(t *testing.T) {
 	reachable, walked := reachableNodes(t.Context(), root.Content[0])
 	require.True(t, walked)
 	work := budget.New(budget.AtMost(maxNodes))
-	done, _ = substituteDetached(cancelled, root.Content[0], reachable, g.written, &work)
+	done, _ = substituteDetached(cancelled, root.Content[0], reachable, &work)
 	assert.False(t, done, "the substitution's walk asks it too")
 }
 
@@ -117,13 +117,13 @@ func TestRepairAliases_IsRefusedOnceTheContextIsDone(t *testing.T) {
 func TestRepairAliases_RunsOnlyOnceARemoveApplied(t *testing.T) {
 	t.Parallel()
 	root, g := detached()
-	g.removed = false
+	g.detached = false
 	done, safe, _ := repairAliases(t.Context(), root, g, budget.AtMost(maxNodes), budget.Unbounded())
 	assert.True(t, done && safe)
 	assert.Equal(t, yaml.AliasNode, root.Content[0].Content[1].Kind, "no remove, no repair")
 
 	nowhere := &yaml.Node{Kind: yaml.DocumentNode, Content: []*yaml.Node{ynode.Map(ynode.Scalar("x"), &yaml.Node{Kind: yaml.AliasNode})}}
-	g.removed = true
+	g.detached = true
 	done, safe, _ = repairAliases(t.Context(), nowhere, g, budget.AtMost(maxNodes), budget.Unbounded())
 	assert.True(t, done)
 	assert.False(t, safe)
@@ -142,12 +142,12 @@ func TestApplyWithin_RefusesARepairPastItsBound(t *testing.T) {
 	require.NoError(t, yaml.Unmarshal([]byte("x-t: &s {a: 1, b: 2, c: 3}\nx-use: *s\n"), &root))
 	const ov = "overlay: 1.1.0\ninfo: {title: o, version: \"1\"}\nactions:\n  - target: $['x-t']\n    remove: true\n"
 
-	origin, diags := applyWithin(t.Context(), 1, &root, docOf(t, ov), Options{Data: []byte(ov)}, budget.AtMost(6))
+	origin, diags := applyWithin(t.Context(), &root, docOf(t, ov), Options{Data: []byte(ov)}, budget.AtMost(6))
 
 	assert.False(t, origin.Applied())
-	require.Len(t, diags, 2, "the source's alias is warned of first: %+v", diags)
-	assert.Equal(t, diag.OverlayFailed, diags[1].Code)
-	assert.Contains(t, diags[1].Message, "aliases a remove left")
+	require.Len(t, diags, 1, "%+v", diags)
+	assert.Equal(t, diag.OverlayFailed, diags[0].Code)
+	assert.Contains(t, diags[0].Message, "aliases a remove left")
 }
 
 // TestReachableNodes_TakesShapesAParseNeverProduces pins the walk's guards for
@@ -177,12 +177,12 @@ func TestApplyWithin_NeverAppliesAnUnrepairedTreeOnceItsContextRefused(t *testin
 		return &root
 	}
 	whole := &ctxtest.Countdown{Context: t.Context(), Left: math.MaxInt}
-	origin, _ := applyWithin(whole, 1, tree(), docOf(t, ov), Options{Data: []byte(ov)}, budget.AtMost(maxNodes))
+	origin, _ := applyWithin(whole, tree(), docOf(t, ov), Options{Data: []byte(ov)}, budget.AtMost(maxNodes))
 	require.True(t, origin.Applied())
 
 	for left := range whole.Calls {
 		root := tree()
-		origin, diags := applyWithin(&ctxtest.Countdown{Context: t.Context(), Left: left}, 1, root, docOf(t, ov),
+		origin, diags := applyWithin(&ctxtest.Countdown{Context: t.Context(), Left: left}, root, docOf(t, ov),
 			Options{Data: []byte(ov)}, budget.AtMost(maxNodes))
 
 		assert.False(t, diag.HasError(diags), "check %d: %+v", left+1, diags)

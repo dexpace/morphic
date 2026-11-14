@@ -7,11 +7,11 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"math"
 	"strings"
 
 	yaml "go.yaml.in/yaml/v3"
 
+	"github.com/dexpace/morphic/compilers/openapi/internal/budget"
 	"github.com/dexpace/morphic/compilers/openapi/internal/nodeview"
 )
 
@@ -19,32 +19,30 @@ import (
 // Specification's Action Object says, recording each node it builds or
 // rewrites, which is what the attribution later places.
 //
-// It never writes through an alias: a YAML alias shares its anchor's node, so
-// writing into it would change every place the anchor is used, and an action
-// selecting one is refused instead. What it builds holds no alias either: a
-// copy is taken of what each alias names.
+// It writes one position of the value at a time (value.go): a node the tree
+// shares between positions, through an alias, an anchor an alias names or a
+// `<<` merge, is copied where it is written, and the copy is charged to the
+// node budget before it is built.
 type grafter struct {
 	version version
 	root    *yaml.Node
 	// written holds every node the overlay built or rewrote.
 	written map[*yaml.Node]bool
-	// parents holds the node holding each node of the tree, built the first
-	// time a remove needs it and kept as the grafter builds, nil before.
-	parents map[*yaml.Node]*yaml.Node
 	// replaced holds the values the source declares that the action being
 	// written replaced, for the sequence to report.
 	replaced []replacement
-	// removed reports that a remove detached a node, which may leave an alias
-	// naming it (repairAliases): nothing else the grafter does detaches one.
-	removed bool
-	// named holds each node an alias in the tree names, with how many do, and
-	// reached the first of them the action being written changed what it
-	// holds, nil before. With an alias in the tree, parents is indexed first.
-	named   map[*yaml.Node]int
-	reached *yaml.Node
-	// mergeKey reports that the action being written wrote a `<<` merge key
-	// into an object the tree holds.
-	mergeKey bool
+	// named counts the aliases naming each node, read once per application
+	// and raised as a copy keeps an alias.
+	named map[*yaml.Node]int
+	// size is the sequence's count of the tree's nodes against the node
+	// budget, nil for no budget.
+	size *budget.Budget
+	// copies holds the nodes a copy of a shared value built, which stand at
+	// a position the source does not write them at.
+	copies map[*yaml.Node]bool
+	// detached reports that a node an alias may name left the tree, by a
+	// remove or a copy taking its place, which repairAliases then mends.
+	detached bool
 }
 
 // replacement is a primitive the source declares that an action replaced:
@@ -55,9 +53,11 @@ type replacement struct {
 	with         *yaml.Node
 }
 
-// newGrafter returns a grafter of the rules of version v over root.
+// newGrafter returns a grafter of the rules of version v over root, its node
+// budget unbounded until the sequence sets it.
 func newGrafter(v version, root *yaml.Node) *grafter {
-	return &grafter{version: v, root: root, written: map[*yaml.Node]bool{}}
+	return &grafter{version: v, root: root, written: map[*yaml.Node]bool{}, named: map[*yaml.Node]int{},
+		copies: map[*yaml.Node]bool{}}
 }
 
 // shape is the kind of JSON value a node is, as the specification's rules
@@ -132,20 +132,21 @@ func where(n *yaml.Node) string {
 }
 
 // write writes payload into each of targets, and reports whether that changed
-// the tree. Under Overlay 1.1 the targets must be of one shape. An update the
-// rules refuse is an error naming why, and ends the action where it stands.
-func (g *grafter) write(targets []*yaml.Node, payload *yaml.Node) (bool, error) {
+// the tree. Under Overlay 1.1 and 1.2 the targets must be of one shape. An
+// update the rules refuse is an error naming why, and ends the action where
+// it stands.
+func (g *grafter) write(ctx context.Context, targets []*yaml.Node, payload *yaml.Node) (bool, error) {
 	payload = nodeview.Deref(payload)
 	if payload == nil || payload.Kind == yaml.AliasNode {
 		return false, errors.New("it writes an alias that names nothing")
 	}
-	if kinds := shapesOf(targets); g.version == v11 && len(kinds) > 1 {
+	if kinds := shapesOf(targets); g.version != v10 && len(kinds) > 1 {
 		return false, fmt.Errorf("it selects %s, and an Overlay 1.1 update or copy selects nodes of one kind",
 			strings.Join(kinds, " and "))
 	}
 	changed := false
 	for _, t := range targets {
-		c, err := g.writeInto(t, payload)
+		c, err := g.writeInto(ctx, t, payload)
 		if err != nil {
 			return false, err
 		}
@@ -157,13 +158,13 @@ func (g *grafter) write(targets []*yaml.Node, payload *yaml.Node) (bool, error) 
 // writeInto writes payload into target by the rules for a selected node:
 // merged into an object, concatenated with or appended to an array, or
 // replacing a primitive.
-func (g *grafter) writeInto(target, payload *yaml.Node) (bool, error) {
+func (g *grafter) writeInto(ctx context.Context, target, payload *yaml.Node) (bool, error) {
 	switch shapeOf(target) {
 	case shapeObject:
 		if shapeOf(payload) != shapeObject {
 			return false, fmt.Errorf("it writes %s into the object at %s, which only an object merges into", shapeOf(payload), where(target))
 		}
-		return g.mergeObject(target, payload, 0)
+		return g.mergeObject(ctx, target, payload, 0)
 	case shapeArray:
 		if shapeOf(payload) == shapeArray {
 			return g.concat(target, payload, 0)
@@ -178,45 +179,52 @@ func (g *grafter) writeInto(target, payload *yaml.Node) (bool, error) {
 			return false, fmt.Errorf("it writes %s over the primitive at %s, which only a primitive replaces", shapeOf(payload), where(target))
 		}
 		return g.replace(target, payload), nil
-	case shapeAlias:
-		return false, fmt.Errorf("it selects the YAML alias at %s, whose anchor shares its value with every use of it", where(target))
 	default:
-		return false, errors.New("it selects no value")
+		// A target is made the action's own before it is written, so no
+		// parse leaves an alias or a document node here.
+		return false, fmt.Errorf("it selects %s at %s, which no update writes", shapeOf(target), where(target))
 	}
 }
 
 // mergeObject merges the members of update into the object target, depth
 // levels below the node the action selected: a member target lacks is added,
-// and one it holds is merged as mergeMember says. A member is matched by the
-// key the parser reads, at the last of its copies, the one the parser keeps.
-func (g *grafter) mergeObject(target, update *yaml.Node, depth int) (bool, error) {
+// and one it holds is merged as mergeMember says. The object is first made
+// one whose members are all its own (flatten), so a member is matched by the
+// key the parser reads, at the last of its copies, and a member it holds is
+// made its own to write before it is written.
+func (g *grafter) mergeObject(ctx context.Context, target, update *yaml.Node, depth int) (bool, error) {
 	if depth > maxPayloadDepth {
 		return false, fmt.Errorf("it writes an update nested past %d levels", maxPayloadDepth)
 	}
-	held := map[string]*yaml.Node{}
+	if err := g.flatten(ctx, target); err != nil {
+		return false, err
+	}
+	held := map[string]int{}
 	for i := 0; i+1 < len(target.Content); i += 2 {
 		if name, own := nodeview.KeyOf(target.Content[i]); own {
-			held[name] = target.Content[i+1]
+			held[name] = i + 1
 		}
 	}
 	changed := false
 	for i := 0; i+1 < len(update.Content); i += 2 {
 		key, value := update.Content[i], nodeview.Deref(update.Content[i+1])
 		name, own := nodeview.KeyOf(key)
-		current, found := held[name]
-		g.mergeKey = g.mergeKey || !own
+		slot, found := held[name]
 		if !own || !found {
-			added, err := g.attach(target, key, value, depth)
-			if err != nil {
+			if err := g.attach(target, key, value, depth); err != nil {
 				return false, err
 			}
 			if own {
-				held[name] = added
+				held[name] = len(target.Content) - 1
 			}
 			changed = true
 			continue
 		}
-		c, err := g.mergeMember(name, current, value, depth+1)
+		current, err := g.ownSlot(ctx, target, slot)
+		if err != nil {
+			return false, err
+		}
+		c, err := g.mergeMember(ctx, name, current, value, depth+1)
 		if err != nil {
 			return false, err
 		}
@@ -227,17 +235,13 @@ func (g *grafter) mergeObject(target, update *yaml.Node, depth int) (bool, error
 
 // mergeMember merges value into current, the member name of an object both
 // write: a primitive replaces a primitive, an array is concatenated with an
-// array, an object is merged into an object, and any other pair is refused,
-// as is a member the source writes as an alias.
-func (g *grafter) mergeMember(name string, current, value *yaml.Node, depth int) (bool, error) {
+// array, an object is merged into an object, and any other pair is refused.
+func (g *grafter) mergeMember(ctx context.Context, name string, current, value *yaml.Node, depth int) (bool, error) {
 	if value == nil || value.Kind == yaml.AliasNode {
 		return false, fmt.Errorf("it writes, under %q, an alias that names nothing", name)
 	}
 	was, with := shapeOf(current), shapeOf(value)
 	switch {
-	case was == shapeAlias:
-		return false, fmt.Errorf("it writes into %q, the YAML alias at %s, whose anchor shares its value with every use of it",
-			name, where(current))
 	case was != with:
 		return false, fmt.Errorf("it writes %s under %q, where the target holds %s at %s", with, name, was, where(current))
 	case was == shapePrimitive:
@@ -245,22 +249,22 @@ func (g *grafter) mergeMember(name string, current, value *yaml.Node, depth int)
 	case was == shapeArray:
 		return g.concat(current, value, depth)
 	default:
-		return g.mergeObject(current, value, depth)
+		return g.mergeObject(ctx, current, value, depth)
 	}
 }
 
 // replace writes the primitive value over the primitive target in place,
 // keeping its node, and reports whether that changed it. A value the source
-// declares, one no earlier action wrote, is recorded as replaced.
+// declares where it stands, one no earlier action wrote and no copy moved, is
+// recorded as replaced.
 func (g *grafter) replace(target, value *yaml.Node) bool {
 	tag := value.ShortTag()
 	if target.ShortTag() == tag && target.Value == value.Value {
 		return false
 	}
-	if !g.written[target] {
+	if !g.written[target] && !g.copies[target] {
 		g.replaced = append(g.replaced, replacement{was: target.Value, line: target.Line, column: target.Column, with: value})
 	}
-	g.change(target)
 	target.Tag, target.Value, target.Style = tag, value.Value, value.Style
 	g.written[target] = true
 	return true
@@ -283,63 +287,31 @@ func (g *grafter) appendTo(target, value *yaml.Node, depth int) (bool, error) {
 	if err != nil {
 		return false, err
 	}
-	g.change(target)
 	target.Content = append(target.Content, item)
-	g.adopt(target, item)
 	return true, nil
 }
 
-// attach adds a copy of the member key: value to the object target and
-// returns the copy of value.
-func (g *grafter) attach(target, key, value *yaml.Node, depth int) (*yaml.Node, error) {
+// attach adds a copy of the member key: value to the object target.
+func (g *grafter) attach(target, key, value *yaml.Node, depth int) error {
 	k, err := g.clone(key, depth+1)
 	if err != nil {
-		return nil, err
+		return err
 	}
 	v, err := g.clone(value, depth+1)
 	if err != nil {
-		return nil, err
+		return err
 	}
-	g.change(target)
 	target.Content = append(target.Content, k, v)
-	g.adopt(target, k)
-	g.adopt(target, v)
-	return v, nil
-}
-
-// change records that the action being written changes what n holds, which
-// reaches every alias of n and of each node holding it: the first such node
-// an alias names, the nearest to n, becomes reached. It reads the parents
-// index, built first wherever an alias names a node.
-func (g *grafter) change(n *yaml.Node) {
-	if g.reached != nil || len(g.named) == 0 {
-		return
-	}
-	for at := n; at != nil; at = g.parents[at] {
-		if g.named[at] > 0 {
-			g.reached = at
-			return
-		}
-	}
+	return nil
 }
 
 // clone returns a copy of n for the tree, depth levels below the selected
-// node, recording each node it builds as written. The caller adopts the copy.
+// node, recording each node it builds as written.
 func (g *grafter) clone(n *yaml.Node, depth int) (*yaml.Node, error) {
-	return copyOf(n, nil, depth, func(_, holder, built *yaml.Node) bool {
+	return copyOf(n, nil, depth, func(_, _, built *yaml.Node) bool {
 		g.written[built] = true
-		if holder != nil {
-			g.adopt(holder, built)
-		}
 		return true
 	})
-}
-
-// adopt records holder as what holds n, once the parents are indexed.
-func (g *grafter) adopt(holder, n *yaml.Node) {
-	if g.parents != nil {
-		g.parents[n] = holder
-	}
 }
 
 // copyOf returns a copy of n, which holder is to hold, depth levels below the
@@ -378,40 +350,35 @@ func copyOf(n, holder *yaml.Node, depth int, built func(from, holder, n *yaml.No
 // errCopyPastBound reports a copy its caller stopped at the bound it keeps.
 var errCopyPastBound = errors.New("it copies past the bound on what one copy builds")
 
-// remove deletes each target from the object or array holding it, which the
-// parents index names, in one pass over each holder, so removing many members
-// of one wide object reads it once, not once a member. A target nothing holds,
-// the document's root, is refused: the specification removes a node from the
-// map or array it is contained in.
-func (g *grafter) remove(targets []*yaml.Node) error {
-	doomed := make(map[*yaml.Node]bool, len(targets))
-	held := map[*yaml.Node][]*yaml.Node{} // each holder's targets, in the order selected
+// remove deletes each position from the object or array holding it, in one
+// pass over each holder, so removing many members of one wide object reads it
+// once, not once a member. A position nothing holds, the document's root, is
+// refused: the specification removes a node from the map or array it is
+// contained in.
+func (g *grafter) remove(positions []position) error {
+	doomed := make(map[*yaml.Node]bool, len(positions))
 	var holders []*yaml.Node
-	for _, t := range targets {
-		holder := g.parents[t]
-		if holder == nil || holder.Kind == yaml.DocumentNode {
+	seen := map[*yaml.Node]bool{}
+	for _, p := range positions {
+		if p.holder == nil {
 			return errors.New("it selects the document's root, which no object or array holds")
 		}
-		if held[holder] == nil {
-			holders = append(holders, holder)
+		if !seen[p.holder] {
+			seen[p.holder] = true
+			holders = append(holders, p.holder)
 		}
-		held[holder] = append(held[holder], t)
-		doomed[t] = true
+		doomed[p.raw] = true
 	}
 	for _, holder := range holders {
-		g.change(holder)
-		if detach(holder, doomed) != len(held[holder]) {
-			return fmt.Errorf("it selects a node at %s that what holds it holds as no member or element", where(held[holder][0]))
-		}
-		g.removed = true
+		detach(holder, doomed)
 	}
+	g.detached = true
 	return nil
 }
 
 // detach removes from holder's Content each member whose value, and each
 // element, doomed holds, a member with its key, and returns how many it
-// removed. A query selects no key, so a key doomed holds stays, and the count
-// falls short of what the index says holder holds.
+// removed. A key doomed holds is no member's value, and stays.
 func detach(holder *yaml.Node, doomed map[*yaml.Node]bool) int {
 	kept := holder.Content[:0]
 	switch holder.Kind {
@@ -438,25 +405,4 @@ func detach(holder *yaml.Node, doomed map[*yaml.Node]bool) int {
 		removed /= 2
 	}
 	return removed
-}
-
-// indexParents indexes the node holding each node of the tree, once, and
-// reports whether ctx let it finish. The index covers the whole tree, whose
-// size the node budget and the loader's refusals bound.
-func (g *grafter) indexParents(ctx context.Context) bool {
-	if g.parents != nil {
-		return true
-	}
-	parents := map[*yaml.Node]*yaml.Node{}
-	out := nodeview.Walk{Nodes: math.MaxInt, Visit: func(n *yaml.Node, _ int) nodeview.Step {
-		for _, child := range n.Content {
-			parents[child] = n
-		}
-		return nodeview.Descend
-	}}.Run(ctx, g.root)
-	if out.Cut {
-		return false
-	}
-	g.parents = parents
-	return true
 }

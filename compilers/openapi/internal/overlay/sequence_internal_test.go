@@ -15,6 +15,7 @@ import (
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/budget"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
+	"github.com/dexpace/morphic/compilers/openapi/internal/nodeview"
 	"github.com/dexpace/morphic/compilers/openapi/internal/ynode"
 	"github.com/dexpace/morphic/internal/ctxtest"
 	"github.com/dexpace/morphic/ir"
@@ -53,7 +54,7 @@ func budgetedOverlay(t *testing.T, ov string, limit budget.Limit) (*yaml.Node, [
 	t.Helper()
 	var root yaml.Node
 	require.NoError(t, yaml.Unmarshal([]byte(sequenceSpec), &root))
-	_, diags, ok := runSequence(t.Context(), planOf(t, ov), &root, false, limit)
+	_, diags, ok := runSequence(t.Context(), planOf(t, ov), &root, false, limit, budget.AtMost(MaxSteps))
 	return &root, diags, ok
 }
 
@@ -104,7 +105,10 @@ func TestSequence_CountsEachActionOnTheTreeItRunsAgainst(t *testing.T) {
 
 	var fresh yaml.Node
 	require.NoError(t, yaml.Unmarshal([]byte(sequenceSpec), &fresh))
-	require.Empty(t, planOf(t, head+later).actions[0].targets.Query(&fresh), "on the source, the later filter matches nothing")
+	steps := budget.New(budget.Unbounded())
+	matched, err := planOf(t, head+later).actions[0].targets.Select(t.Context(), nodeview.New(), &fresh, &steps)
+	require.NoError(t, err)
+	require.Empty(t, matched, "on the source, the later filter matches nothing")
 
 	_, diags, ok := budgetedOverlay(t, head+flag+later, budget.AtMost(countNodes(t.Context(), &fresh, budget.AtMost(maxNodes))+300))
 
@@ -233,7 +237,7 @@ func TestSequence_AppliesNoActionOnceItsContextRefused(t *testing.T) {
 	}
 	limit := budget.AtMost(countNodes(t.Context(), tree(), budget.AtMost(maxNodes)) + 10)
 	whole := &ctxtest.Countdown{Context: t.Context(), Left: math.MaxInt}
-	_, _, ok := runSequence(whole, p, tree(), false, limit)
+	_, _, ok := runSequence(whole, p, tree(), false, limit, budget.AtMost(MaxSteps))
 	require.True(t, ok)
 	require.Greater(t, whole.Calls, 1+len(p.actions),
 		"beside the first count and the check after each charge, a recount asks too")
@@ -247,7 +251,7 @@ func TestSequence_AppliesNoActionOnceItsContextRefused(t *testing.T) {
 		ctx := &ctxtest.Countdown{Context: t.Context(), Left: left}
 		ctx.OnRefuse = func() { refusedOn, err = yaml.Marshal(root) }
 
-		_, diags, ok := runSequence(ctx, p, root, false, limit)
+		_, diags, ok := runSequence(ctx, p, root, false, limit, budget.AtMost(MaxSteps))
 
 		require.NoError(t, err)
 		require.False(t, ok, "check %d", left+1)
@@ -323,8 +327,9 @@ func TestSequence_NeverChargesLessThanItBuilds(t *testing.T) {
 			p := planOf(t, head+action)
 
 			s := &sequence{plan: p, root: &root, size: budget.New(budget.AtMost(1 << 20))}
-			targets, sources := s.selected(p.actions[0])
-			charged := s.cost(p.actions[0], targets, sources)
+			targets, sources, err := s.selected(t.Context(), p.actions[0])
+			require.NoError(t, err)
+			charged := s.cost(p.actions[0], nodesOf(targets), nodesOf(sources))
 			before := countNodes(t.Context(), &root, budget.AtMost(maxNodes))
 
 			_, diags := Apply(t.Context(), 1, &root, docOf(t, head+action), Options{Data: []byte(head + action)})
@@ -366,7 +371,7 @@ func TestSequence_RefusesACopyItCannotTakeATemplateOf(t *testing.T) {
 		ynode.Map(ynode.Scalar("a"), a, ynode.Scalar("b"), nested(maxPayloadDepth+1)),
 	}}
 
-	_, diags, ok := runSequence(t.Context(), p, root, false, budget.Unbounded())
+	_, diags, ok := runSequence(t.Context(), p, root, false, budget.Unbounded(), budget.AtMost(MaxSteps))
 
 	assert.False(t, ok)
 	require.Len(t, diags, 1)

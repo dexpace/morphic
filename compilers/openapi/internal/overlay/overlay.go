@@ -92,16 +92,17 @@ func (o Origin) Attribution() provenance.Attribution { return o.attribution }
 // are not undone, so a tree left behind by a failed application is neither the
 // source nor what the overlay asked for.
 func Apply(ctx context.Context, index int, root, doc *yaml.Node, opts Options) (Origin, []ir.Diagnostic) {
-	return applyWithin(ctx, index, root, doc, opts, budget.AtMost(maxNodes))
+	return applyWithLimits(ctx, index, root, doc, opts, budget.AtMost(maxNodes), budget.AtMost(MaxSteps))
 }
 
-// applyWithin is Apply with the attribution walk's node bound as a parameter.
+// applyWithLimits is Apply with the attribution walk's node bound and the
+// selectors' steps as parameters.
 //
-// The bound is the walk's, not the caller's: Apply is the only production
-// entry and always passes maxNodes, so nothing outside this package can weaken
-// it. It is a parameter so the degradation at the bound is reachable from a
-// test with a small tree.
-func applyWithin(ctx context.Context, index int, root, doc *yaml.Node, opts Options, walks budget.Limit,
+// The bounds are the package's, not the caller's: Apply is the only
+// production entry and always passes maxNodes and MaxSteps, so nothing
+// outside this package can weaken them. They are parameters so what happens
+// at each is reachable from a test with a small tree.
+func applyWithLimits(ctx context.Context, index int, root, doc *yaml.Node, opts Options, walks, steps budget.Limit,
 ) (Origin, []ir.Diagnostic) {
 	at := ir.Provenance{Source: index}
 	p, diags := read(at, doc)
@@ -115,7 +116,7 @@ func applyWithin(ctx context.Context, index int, root, doc *yaml.Node, opts Opti
 			out []ir.Diagnostic
 			ok  bool
 		)
-		g, out, ok = runSequence(ctx, p, root, opts.Lax, opts.MaxNodes)
+		g, out, ok = runSequence(ctx, p, root, opts.Lax, opts.MaxNodes, steps)
 		return out, ok
 	})
 	diags = append(diags, reported...)
@@ -136,7 +137,8 @@ func applyWithin(ctx context.Context, index int, root, doc *yaml.Node, opts Opti
 		return Origin{}, append(diags, diag.Newf(ir.SeverityError, diag.OverlayFailed, at,
 			"overlay applied, but the aliases a remove left naming what it removed expand past %d nodes", walks.Cap()))
 	}
-	source := ir.SourceInfo{Format: ir.OverlayFormat + "@" + p.declared, Path: opts.Path, Hash: ir.SourceHash(opts.Data)}
+	source := ir.SourceInfo{Format: ir.OverlayFormat + "@" + p.declared, Path: opts.Path, Hash: ir.SourceHash(opts.Data),
+		SelfURI: p.selfURI}
 	positions, attributed := attribute(ctx, root, g.written, walks)
 	if !attributed {
 		// Applied without attribution: the source keeps every position, but the
@@ -149,8 +151,7 @@ func applyWithin(ctx context.Context, index int, root, doc *yaml.Node, opts Opti
 
 // applyRecovered runs apply, the overlay's application, behind diag.Catch and
 // turns a panic in it into a refusal quoting what it panicked with, so the
-// no-panics-escape invariant holds. The application runs the parser library's
-// JSONPath evaluator, whose faults are not this package's to bound. A
+// no-panics-escape invariant holds over a tree no parse builds. A
 // half-applied tree is never reported as applied.
 func applyRecovered(at ir.Provenance, apply func() ([]ir.Diagnostic, bool)) ([]ir.Diagnostic, bool) {
 	var (
