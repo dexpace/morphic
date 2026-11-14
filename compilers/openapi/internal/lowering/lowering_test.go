@@ -561,9 +561,9 @@ components:
 	assert.False(t, isUse, "an entry written inline is no use")
 }
 
-// TestDynamicAnchorSites_ReadsTheBindingsOfItsDocument pins that the sites are
-// the table's for the document c reads, every one of them counted.
-func TestDynamicAnchorSites_ReadsTheBindingsOfItsDocument(t *testing.T) {
+// TestDynamicAnchor_ReadsTheBindingsOfItsDocument pins that the declarations
+// are the table's for the document c reads, every one of them counted.
+func TestDynamicAnchor_ReadsTheBindingsOfItsDocument(t *testing.T) {
 	t.Parallel()
 	src := openapitest.ComponentSpec("    A: {$dynamicAnchor: m, type: string}\n    B: {$dynamicAnchor: m}\n")
 	doc, diags, err := load.Load(t.Context(), 0, compilers.Source{Path: "spec.yaml", Data: []byte(src)}, load.Options{})
@@ -571,9 +571,8 @@ func TestDynamicAnchorSites_ReadsTheBindingsOfItsDocument(t *testing.T) {
 	openapitest.RequireNoErrorDiags(t, diags)
 	c := lowering.New(0, doc, lowering.Policy{})
 
-	sites, whole := c.DynamicAnchorSites("m")
-	assert.Equal(t, []bind.Position{{Pointer: "/components/schemas/A"}, {Pointer: "/components/schemas/B"}}, sites)
-	assert.True(t, whole)
+	assert.Equal(t, bind.DynamicAnchor{Site: bind.Position{Pointer: "/components/schemas/A"}, Count: 2, Complete: true},
+		c.DynamicAnchor("m"))
 }
 
 // TestPosition_PlacesAPointerInTheContextsDocument pins that a context reading

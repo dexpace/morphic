@@ -122,8 +122,8 @@ func TestDynamicHop_HopsOnlyWhenExactlyOneAnchorSiteIsNamed(t *testing.T) {
 			l, diags := LoweredFor(t, openapitest.ComponentSpec(tc.schemas))
 			openapitest.RequireNoErrorDiags(t, diags)
 			if tc.anchor != "" {
-				sites, _ := l.Ctx.DynamicAnchorSites(tc.anchor)
-				require.Len(t, sites, tc.wantSites, "the fixture must set up the case it is named for")
+				require.Equal(t, tc.wantSites, l.Ctx.DynamicAnchor(tc.anchor).Count,
+					"the fixture must set up the case it is named for")
 			}
 
 			next, hops := dynamicHop(l.Ctx, bind.Position{Pointer: tc.at})

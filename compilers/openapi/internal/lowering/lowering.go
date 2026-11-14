@@ -587,8 +587,8 @@ func (c Ctx) Position(pointer jsontext.Pointer) bind.Position {
 	return bind.Position{Doc: c.homeDoc, Pointer: pointer}
 }
 
-// DynamicAnchorSites returns the positions of c's document declaring the
-// $dynamicAnchor name, and whether that is every one (bind.Table.DynamicAnchors).
-func (c Ctx) DynamicAnchorSites(name string) ([]bind.Position, bool) {
-	return c.Bindings().Table().DynamicAnchors(c.homeDoc, name)
+// DynamicAnchor returns what c's document's declarations of the
+// $dynamicAnchor name say (bind.Table.DynamicAnchor).
+func (c Ctx) DynamicAnchor(name string) bind.DynamicAnchor {
+	return c.Bindings().Table().DynamicAnchor(c.homeDoc, name)
 }

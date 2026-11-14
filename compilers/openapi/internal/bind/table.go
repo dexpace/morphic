@@ -408,6 +408,7 @@ func (b *binder) table(t *Table) *Table {
 	t.loops, t.steps, t.limit, t.exhausted = b.loops, b.work.steps.Spent(), b.work.steps.Limit(), b.work.steps.Exhausted()
 	t.roots, t.bases, t.ids = b.find.roots, newBases(b.resources, b.ids), b.ids
 	t.recursive = recursiveAnchorsOf(b.ids, t.bases)
+	t.dynamic = dynamicAnchorsOf(b.ids, t.exhausted)
 	dialects := dialectsByDocument(b.ids.dialects)
 	for id, d := range b.docs.list {
 		reached := b.docs.reached[DocID(id)]
@@ -524,6 +525,7 @@ type Table struct {
 	bases     *bases
 	ids       *identifiers
 	recursive map[DocID]recursiveAnchors
+	dynamic   map[dynamicKey]DynamicAnchor
 }
 
 // Entry returns the entry of the $ref written at site, and false for a
@@ -574,23 +576,46 @@ func (t *Table) References() []Reference { return slices.Clone(t.refList) }
 // kind.
 func (t *Table) ObjectLandings() []ObjectLanding { return slices.Clone(t.objLandings) }
 
-// DynamicAnchors returns the positions of document id declaring the
-// $dynamicAnchor name, and whether that is every one: false where the budget or
-// a merge past the bound may have hidden one, so a count of one proves nothing.
-// A nil table knows of none.
-func (t *Table) DynamicAnchors(id DocID, name string) ([]Position, bool) {
+// DynamicAnchor is what the $dynamicAnchor declarations of one name in one
+// document say: the first in pointer order, how many there are, whether a
+// resource of another document declaring the name reaches that one, and
+// whether that is all known: false where the budget or a merge past the bound
+// may have hidden a declaration or a path, so a count of one proves nothing.
+type DynamicAnchor struct {
+	Site     Position
+	Count    int
+	Reached  bool
+	Complete bool
+}
+
+// DynamicAnchor returns what document id's declarations of the $dynamicAnchor
+// name say, sorted once as the table was built. A nil table knows of none.
+func (t *Table) DynamicAnchor(id DocID, name string) DynamicAnchor {
 	if t == nil {
-		return nil, true
+		return DynamicAnchor{Complete: true}
 	}
-	sites := slices.SortedFunc(slices.Values(t.ids.dynamic[dynamicKey{doc: id, name: name}]), comparePositions)
-	return sites, !t.exhausted && !t.ids.truncated[id]
+	if a, ok := t.dynamic[dynamicKey{doc: id, name: name}]; ok {
+		return a
+	}
+	return DynamicAnchor{Complete: !t.exhausted && !t.ids.truncated[id]}
+}
+
+// dynamicAnchorsOf returns what each name's declarations in each document say
+// (Table.DynamicAnchor), each name's sorted once.
+func dynamicAnchorsOf(ids *identifiers, exhausted bool) map[dynamicKey]DynamicAnchor {
+	out := make(map[dynamicKey]DynamicAnchor, len(ids.dynamic))
+	for k, sites := range ids.dynamic {
+		out[k] = DynamicAnchor{Site: slices.MinFunc(sites, comparePositions), Count: len(sites),
+			Complete: !exhausted && !ids.truncated[k.doc]}
+	}
+	return out
 }
 
 // RecursiveAnchor reports what the schemas of root's document declaring
 // `$recursiveAnchor` true, where their dialect defines the keyword
 // (DialectRule.Recursive), say of a $recursiveRef reaching root: whether root
 // declares it, how many schema resources hold a declaration, and whether both
-// are known, as DynamicAnchors says, each declaration's resource included. A
+// are known, as DynamicAnchor says, each declaration's resource included. A
 // nil table knows of none.
 func (t *Table) RecursiveAnchor(root Position) (declared bool, resources int, known bool) {
 	if t == nil {

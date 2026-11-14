@@ -207,18 +207,18 @@ func dynamicRefSiblings(s *oas3.Schema) bool {
 // static lowering can resolve, and an incomplete read may hide a second, which an
 // expansion would then rest on unverified (docs/compilers/openapi.md#dynamic-ref).
 func soleAnchorSite(c lowering.Ctx, name string) (bind.Position, string, bool) {
-	sites, complete := c.DynamicAnchorSites(name)
+	anchor := c.DynamicAnchor(name)
 	switch {
-	case len(sites) > 1:
+	case anchor.Count > 1:
 		return bind.Position{}, fmt.Sprintf("$dynamicAnchor %q is declared %d times, so the target depends on the "+
-			"evaluation path", name, len(sites)), false
-	case !complete:
+			"evaluation path", name, anchor.Count), false
+	case !anchor.Complete:
 		return bind.Position{}, fmt.Sprintf("this document's identifiers were not read whole, so $dynamicAnchor %q "+
 			"is not known to be declared once", name), false
-	case len(sites) == 0:
+	case anchor.Count == 0:
 		return bind.Position{}, fmt.Sprintf("no $dynamicAnchor %q is declared in this document", name), false
 	default:
-		return sites[0], "", true
+		return anchor.Site, "", true
 	}
 }
 

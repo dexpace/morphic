@@ -436,13 +436,13 @@ func TestBind_LandsOnTheAnchorAnotherDocumentsDynamicRefNames(t *testing.T) {
 	}
 }
 
-// TestDynamicAnchors_CountsWhatADocumentDeclares pins the count an expansion
+// TestDynamicAnchor_CountsWhatADocumentDeclares pins the count an expansion
 // rests on. An alias and a `<<` merge key each hand a position the anchor another
 // wrote, and the parser reads both as declaring it, so a count of what is spelled
 // would report one where the document has two; a key written twice declares its
 // last. A $dynamicAnchor in an example or an extension declares nothing, and one
 // under an $id counts, since dynamic scope can reach it.
-func TestDynamicAnchors_CountsWhatADocumentDeclares(t *testing.T) {
+func TestDynamicAnchor_CountsWhatADocumentDeclares(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
 		name, schemas string
@@ -464,30 +464,29 @@ func TestDynamicAnchors_CountsWhatADocumentDeclares(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			sites, whole := bound(t, head+"components:\n  schemas:\n"+tc.schemas, self).DynamicAnchors(bind.Source, "t")
-			assert.True(t, whole)
-			var got []jsontext.Pointer
-			for _, p := range sites {
-				got = append(got, p.Pointer)
+			anchor := bound(t, head+"components:\n  schemas:\n"+tc.schemas, self).DynamicAnchor(bind.Source, "t")
+			assert.True(t, anchor.Complete)
+			assert.Equal(t, len(tc.want), anchor.Count)
+			if len(tc.want) > 0 {
+				assert.Equal(t, slices.Min(tc.want), anchor.Site.Pointer, "the first in pointer order")
 			}
-			slices.Sort(got)
-			assert.Equal(t, tc.want, got)
 		})
 	}
 }
 
-// TestDynamicAnchors_ANullAnchorNamesNothing pins that a null $dynamicAnchor, in
+// TestDynamicAnchor_ANullAnchorNamesNothing pins that a null $dynamicAnchor, in
 // each of its spellings, is the keyword left out, where its text would be a name
 // a $dynamicRef could spell. A quoted one is that name.
-func TestDynamicAnchors_ANullAnchorNamesNothing(t *testing.T) {
+func TestDynamicAnchor_ANullAnchorNamesNothing(t *testing.T) {
 	t.Parallel()
 	table := bound(t, head+"components:\n  schemas:\n    A: {$dynamicAnchor: null}\n    B: {$dynamicAnchor: ~}\n"+
 		"    C: {$dynamicAnchor: Null}\n    D: {$dynamicAnchor: }\n    E: {$dynamicAnchor: \"null\"}\n", self)
-	want := map[string][]bind.Position{"null": {{Doc: bind.Source, Pointer: "/components/schemas/E"}}, "Null": nil}
-	for name, at := range want {
-		sites, whole := table.DynamicAnchors(bind.Source, name)
-		assert.True(t, whole)
-		assert.Equal(t, at, sites, "$dynamicAnchor %q", name)
+	want := map[string]bind.DynamicAnchor{
+		"null": {Site: bind.Position{Doc: bind.Source, Pointer: "/components/schemas/E"}, Count: 1, Complete: true},
+		"Null": {Complete: true},
+	}
+	for name, anchor := range want {
+		assert.Equal(t, anchor, table.DynamicAnchor(bind.Source, name), "$dynamicAnchor %q", name)
 	}
 }
 
@@ -503,37 +502,33 @@ func anchoredPastTheBound() string {
 	return b.String()
 }
 
-// TestDynamicAnchors_SaysWhenTheCountProvesNothing pins that a read a merge past
+// TestDynamicAnchor_SaysWhenTheCountProvesNothing pins that a read a merge past
 // the bound stopped, or the budget, does not pass for whole, since an undercount
 // reads as the one declaration an expansion needs. A merge past the bound outside
 // a schema hides none, and a nil table knows of none.
-func TestDynamicAnchors_SaysWhenTheCountProvesNothing(t *testing.T) {
+func TestDynamicAnchor_SaysWhenTheCountProvesNothing(t *testing.T) {
 	t.Parallel()
 	const anchored = "components:\n  schemas:\n    A: {$dynamicAnchor: t}\n"
 	shallow := head + "x-m: &m {description: d}\n" + anchored + "    B: {<<: *m}\n"
-	_, whole := bound(t, shallow, self).DynamicAnchors(bind.Source, "t")
-	assert.True(t, whole, "a merge within the bound hides nothing")
+	assert.True(t, bound(t, shallow, self).DynamicAnchor(bind.Source, "t").Complete, "a merge within the bound hides nothing")
 
-	sites, whole := bound(t, anchoredPastTheBound(), self).DynamicAnchors(bind.Source, "t")
-	assert.Len(t, sites, 1)
-	assert.False(t, whole, "a schema past the bound may declare a second")
+	past := bound(t, anchoredPastTheBound(), self).DynamicAnchor(bind.Source, "t")
+	assert.Equal(t, 1, past.Count)
+	assert.False(t, past.Complete, "a schema past the bound may declare a second")
 
 	outside := bound(t, strings.Replace(anchoredPastTheBound(), "    B: {<<: *c70}\n", "  responses:\n    R: {<<: *c70}\n", 1),
 		self)
 	require.True(t, outside.Truncated(), "the response merges past the bound")
-	_, whole = outside.DynamicAnchors(bind.Source, "t")
-	assert.True(t, whole, "a response past the bound declares no anchor")
+	assert.True(t, outside.DynamicAnchor(bind.Source, "t").Complete, "a response past the bound declares no anchor")
 
-	_, whole = bound(t, head+anchored, budgetConfig(budget.AtMost(4))).DynamicAnchors(bind.Source, "t")
-	assert.False(t, whole, "nor does a read the budget stopped")
+	assert.False(t, bound(t, head+anchored, budgetConfig(budget.AtMost(4))).DynamicAnchor(bind.Source, "t").Complete,
+		"nor does a read the budget stopped")
 
 	e := entryAt(t, bound(t, anchoredPastTheBound()+"    C: {$ref: '#ghost'}\n", self), "/components/schemas/C")
 	assert.Equal(t, bind.MergeBound, e.Hop.Reason, "a name none declares may be past the bound")
 
 	var none *bind.Table
-	sites, whole = none.DynamicAnchors(bind.Source, "t")
-	assert.Empty(t, sites)
-	assert.True(t, whole)
+	assert.Equal(t, bind.DynamicAnchor{Complete: true}, none.DynamicAnchor(bind.Source, "t"))
 }
 
 // TestResource_NamesTheRootOfAPositionsResource pins what stands in for a walk

@@ -4145,7 +4145,7 @@ of its own, since reading it so loses nothing.
 - Tests: `e2e.TestCompile_ANullKeywordLowersAsTheKeywordLeftOut`,
   `e2e.TestCompile_ANullIdentifierLowersAsTheKeywordLeftOut`,
   `annotation.TestRawPropertyNode_ReadsANullKeywordAsLeftOut`,
-  `bind.TestDynamicAnchors_ANullAnchorNamesNothing`,
+  `bind.TestDynamicAnchor_ANullAnchorNamesNothing`,
   `oas.TestCheck_NullIsReadAsAbsentWhereTheFieldIsOptional`,
   `e2e.TestCompile_ANullBeneathItsOwnNameLowersAsTheKeywordLeftOut`
 
@@ -4475,8 +4475,8 @@ written beside a reference that expands is read as one beside a `$ref` is
   `e2e.TestOlderDrafts_ARecursiveRefExpandsWhereItsTargetIsStatic`,
   `e2e.TestOlderDrafts_ARecursiveRefReadsAsItsDynamicTwin`,
   `e2e.TestOlderDrafts_ARecursiveRefReadsItsDocumentsAnchorsOnce`,
-  `bind.TestDynamicAnchors_CountsWhatADocumentDeclares`,
-  `bind.TestDynamicAnchors_SaysWhenTheCountProvesNothing`,
+  `bind.TestDynamicAnchor_CountsWhatADocumentDeclares`,
+  `bind.TestDynamicAnchor_SaysWhenTheCountProvesNothing`,
   `bind.TestRecursiveAnchor_CountsWhatADocumentDeclares`,
   `bind.TestResource_NamesTheRootOfAPositionsResource`
 - Status: partly built: a `$recursiveRef` is kept where two resources of its document each declare
