@@ -53,9 +53,9 @@ func appendKey(b []byte, form keyForm, num uint64, label string) []byte {
 		return strconv.AppendInt(b, int64(num), 10)
 	case unsignedKey:
 		return strconv.AppendUint(b, num, 10)
-	default:
-		return append(b, label...)
+	case labelledKey:
 	}
+	return append(b, label...)
 }
 
 // appendLabel renders e's key onto b, as a path spells it.
@@ -118,7 +118,7 @@ func entryOf(k, val reflect.Value, form keyForm) mapEntry {
 		e.num = uint64(k.Int())
 	case unsignedKey:
 		e.num = k.Uint()
-	default:
+	case labelledKey:
 		e.label = keyLabel(k)
 	}
 	return e
