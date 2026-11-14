@@ -6,8 +6,8 @@ case of `cts.json` through the evaluator.
 
 ## Revision
 
-`cts.json` and `LICENSE` are byte-identical to upstream at
-`20ebdcce5008c8a777ee9c80ad853ecf606950b5`. The file holds 715 cases, 249 of them invalid selectors.
+`cts.json` is byte-identical to upstream at `20ebdcce5008c8a777ee9c80ad853ecf606950b5`, and
+`LICENSE` is upstream's with its line endings LF, as every file here is (`.gitattributes`). The file holds 715 cases, 249 of them invalid selectors.
 
 ## Refreshing
 
