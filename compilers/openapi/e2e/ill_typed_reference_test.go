@@ -253,10 +253,12 @@ func TestCompile_APathItemRefThatIsNoStringIsTheItemsOwnField(t *testing.T) {
 	assert.Empty(t, byCode(diags, diag.UnknownObjectKey), "$ref is a declared key of the item")
 }
 
-// additionalOps is a 3.2 document whose path item writes an additionalOperations
-// entry entry, beside LINK, which is well formed.
-func additionalOps(entry string) string {
-	return "openapi: 3.2.0\ninfo: {title: T, version: \"1\"}\npaths:\n  /a:\n    get: {responses: {\"200\": {description: ok}}}\n" +
+// additionalOps is a 3.2 document writing extra at its root, before its paths,
+// whose path item writes an additionalOperations entry entry, beside LINK,
+// which is well formed.
+func additionalOps(extra, entry string) string {
+	return "openapi: 3.2.0\ninfo: {title: T, version: \"1\"}\n" + extra +
+		"paths:\n  /a:\n    get: {responses: {\"200\": {description: ok}}}\n" +
 		"    additionalOperations:\n" + entry +
 		"      LINK: {responses: {\"200\": {description: ok}}}\n"
 }
@@ -264,35 +266,42 @@ func additionalOps(entry string) string {
 // TestCompile_AnAdditionalOperationThatIsNoMappingIsLeftOut holds an entry of
 // additionalOperations that is no Operation Object, whatever it is written as,
 // directly or supplied by a merge key, to one error at the entry, no such
-// operation, and the entries beside it lowered.
+// operation, and the entries beside it lowered. A value a mapping written in
+// place under `<<` holds has no pointer of its own, so its finding carries the
+// position alone; one an anchored mapping holds is at the anchor's place.
 func TestCompile_AnAdditionalOperationThatIsNoMappingIsLeftOut(t *testing.T) {
 	t.Parallel()
-	control, controlDiags := compileText(t, "spec.yaml", additionalOps(""), openapi.Options{})
-	require.NotNil(t, control)
-	require.Empty(t, controlDiags)
-	assert.Len(t, allOperations(control), 2, "get and LINK")
-
 	for name, tc := range map[string]struct {
-		entry   string
-		pointer string
+		extra, entry string
+		pointer      string
+		at           ir.Position
 	}{
-		"null":      {"      PURGE: ~\n", "/paths/~1a/additionalOperations/PURGE"},
-		"x":         {"      PURGE: x\n", "/paths/~1a/additionalOperations/PURGE"},
-		"7":         {"      PURGE: 7\n", "/paths/~1a/additionalOperations/PURGE"},
-		"true":      {"      PURGE: true\n", "/paths/~1a/additionalOperations/PURGE"},
-		"a list":    {"      PURGE: [a]\n", "/paths/~1a/additionalOperations/PURGE"},
-		"a merge":   {"      <<: {PURGE: ~}\n", "/paths/~1a/additionalOperations/PURGE"},
-		"a merge x": {"      <<: {PURGE: x}\n", "/paths/~1a/additionalOperations/PURGE"},
+		"null":      {"", "      PURGE: ~\n", "/paths/~1a/additionalOperations/PURGE", ir.Position{}},
+		"x":         {"", "      PURGE: x\n", "/paths/~1a/additionalOperations/PURGE", ir.Position{}},
+		"7":         {"", "      PURGE: 7\n", "/paths/~1a/additionalOperations/PURGE", ir.Position{}},
+		"true":      {"", "      PURGE: true\n", "/paths/~1a/additionalOperations/PURGE", ir.Position{}},
+		"a list":    {"", "      PURGE: [a]\n", "/paths/~1a/additionalOperations/PURGE", ir.Position{}},
+		"a merge":   {"", "      <<: {PURGE: ~}\n", "", ir.Position{Line: 7, Column: 19}},
+		"a merge x": {"", "      <<: {PURGE: x}\n", "", ir.Position{Line: 7, Column: 19}},
+		"a merge of an anchored mapping": {"x-ops: &o {PURGE: ~}\n", "      <<: *o\n", "/x-ops/PURGE",
+			ir.Position{Line: 3, Column: 19}},
 	} {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
-			doc, diags := compileText(t, "spec.yaml", additionalOps(tc.entry), openapi.Options{})
+			control, controlDiags := compileText(t, "control.yaml", additionalOps(tc.extra, ""), openapi.Options{})
+			require.NotNil(t, control)
+			require.Empty(t, controlDiags)
+			assert.Len(t, allOperations(control), 2, "get and LINK")
+			doc, diags := compileText(t, "spec.yaml", additionalOps(tc.extra, tc.entry), openapi.Options{})
 
 			require.NotNil(t, doc, "the source is read, not refused: %+v", diags)
 			require.Len(t, diags, 1, "%+v", diags)
 			assert.Equal(t, typeMismatch, diags[0].Code)
 			assert.Equal(t, ir.SeverityError, diags[0].Severity)
 			assert.Equal(t, tc.pointer, string(diags[0].Provenance.Pointer))
+			if tc.at != (ir.Position{}) {
+				assert.Equal(t, tc.at, diags[0].Provenance.Position)
+			}
 			assert.Equal(t, jsonOf(t, control), jsonOf(t, doc), "no such operation: the entry is left out")
 		})
 	}
