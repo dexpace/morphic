@@ -158,13 +158,14 @@ func resolveAt(c lowering.Ctx, ts *compile.Types, at bind.Position, decl *oas3.J
 // PromiseLandings promises a node at each position a schema $ref of the
 // bindings' table lands on, hop by hop, so a position only a keyword kept
 // verbatim names, a `not` or an `if`, or only an alias a chain passes, is
-// lowered as one a lowered keyword names is. A position a lowering already
+// lowered as one a lowered keyword names is, where resolve.Scope.Target places
+// it: a member of a loop of $refs lands nowhere. A position a lowering already
 // reached keeps the node built there (compile.Types.Promise). It returns no
 // finding of its own: a promise reports when it is kept.
 func PromiseLandings(c lowering.Ctx, ts *compile.Types) []ir.Diagnostic {
 	b := c.Bindings()
 	for _, e := range b.Table().Entries() {
-		if e.Hop.Status != bind.Resolved {
+		if !e.Lands() {
 			continue
 		}
 		resolveAt(c, ts, e.Hop.Target, b.At(e.Hop.Target))

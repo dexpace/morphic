@@ -232,6 +232,13 @@ type Entry struct {
 	Chain Chain
 }
 
+// Lands reports whether e's $ref lands where a type can be read: its hop
+// resolves, and its position is no member of a loop of $refs, which resolves
+// nowhere.
+func (e Entry) Lands() bool {
+	return e.Hop.Status == Resolved && !e.Chain.Member
+}
+
 // Loop is a cycle of $refs: its members, ordered, and Site, where it is
 // reported: the least of them, in whichever document. Kind is the kind of
 // object a loop of reference objects stands for, and zero for one of schema
