@@ -199,7 +199,7 @@ func (l *loading) bindRefs(ctx context.Context) (bool, error) {
 	if l.opts.Reader != nil {
 		l.reader = newExternal(l.opts, newExternalReads(l.self, l.opts.MaxExternalDocuments))
 	}
-	l.bound = bindAll(ctx, l.doc, l.sibs, l.media, l.self, l.reader, refusedByName(l.opts, l.self.path, l.places), l.dialects)
+	l.bound = bindAll(ctx, l.doc, &l.sibs, l.media, l.self, l.reader, refusedByName(l.opts, l.self.path, l.places), l.dialects)
 	table := l.bound.bindings.Table()
 	if l.reader != nil {
 		first := l.srcIndex + 1

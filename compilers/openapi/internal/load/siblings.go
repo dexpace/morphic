@@ -64,21 +64,6 @@ func (s Siblings) Of(rp *soa.ReferencedPathItem) (Sibling, bool) {
 	return s.list[i], true
 }
 
-// Unread reports whether rp writes fields beside its $ref that no model holds:
-// a reference this phase's walk does not reach, in another document or at a
-// position of the source no object it walks holds, such as under an x-* key.
-// One the parser faulted on was reported where it is written, so it is not.
-func (s Siblings) Unread(rp *soa.ReferencedPathItem) bool {
-	node := useSite(rp)
-	if !isReference(node) {
-		return false
-	}
-	if _, met := s.byNode[node]; met || s.faulted[node] {
-		return false
-	}
-	return writesBeside(node)
-}
-
 // useSite returns the mapping rp is written as, through any alias, or nil for
 // a nil rp and one with no node.
 func useSite(rp *soa.ReferencedPathItem) *yaml.Node {
@@ -153,6 +138,18 @@ func siblingsFrom(ctx context.Context, items iter.Seq[soa.WalkItem], tree proven
 func (s *Siblings) add(ctx context.Context, site jsontext.Pointer, rp *soa.ReferencedPathItem, build siblingBuild,
 	tree provenance.Tree,
 ) []ir.Diagnostic {
+	if err := s.model(ctx, site, rp, build); err != nil {
+		return []ir.Diagnostic{diag.Newf(ir.SeverityError, diag.Validation, tree.Node(useSite(rp)),
+			"the fields written beside this path item's $ref could not be read: %s", err.Error())}
+	}
+	return nil
+}
+
+// model is add's modelling, returning the parser's fault rather than reporting
+// it: the first time it meets a mapping it cannot model.
+func (s *Siblings) model(ctx context.Context, site jsontext.Pointer, rp *soa.ReferencedPathItem,
+	build siblingBuild,
+) error {
 	node := useSite(rp)
 	if !isReference(node) || s.faulted[node] {
 		return nil
@@ -164,15 +161,36 @@ func (s *Siblings) add(ctx context.Context, site jsontext.Pointer, rp *soa.Refer
 	if !ok {
 		return nil
 	}
+	if s.byNode == nil {
+		s.byNode, s.faulted = map[*yaml.Node]int{}, map[*yaml.Node]bool{}
+	}
 	item, err := build(ctx, fields)
 	if err != nil {
 		s.faulted[node] = true
-		return []ir.Diagnostic{diag.Newf(ir.SeverityError, diag.Validation, tree.Node(node),
-			"the fields written beside this path item's $ref could not be read: %s", err.Error())}
+		return err
 	}
 	s.byNode[node] = len(s.list)
 	s.list = append(s.list, Sibling{Item: item, Pointer: site})
 	return nil
+}
+
+// addLanding models the fields beside each path item $ref items meets, the
+// walk of an object built at pointer of its document for a landing no walk of
+// the source meets, and beside every one inside what it models, each at its own
+// pointer there. It returns the index of the first model it added, those after
+// it being the rest, and the parser's fault on the first mapping it could not
+// model, where it stops.
+func (s *Siblings) addLanding(ctx context.Context, items iter.Seq[soa.WalkItem], pointer jsontext.Pointer,
+) (int, error) {
+	first := len(s.list)
+	met := func(at jsontext.Pointer, rp *soa.ReferencedPathItem) error {
+		return s.model(ctx, at, rp, buildSibling)
+	}
+	_, err := eachModel(locatedWalk(items, pointer), "sibling search", met)
+	for i := first; err == nil && i < len(s.list) && i < sourceindex.MaxIndexedNodes && ctx.Err() == nil; i++ {
+		_, err = eachModel(s.modelWalk(ctx, i), "sibling search", met)
+	}
+	return first, err
 }
 
 // withoutRef returns a copy of the mapping node less every pair keyed $ref, its

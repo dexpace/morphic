@@ -47,7 +47,7 @@ type bound struct {
 // each landing. reader reads other documents, or is nil; d reads each
 // dialect's rows (dialectRuleOf); media yields the media types the parser does
 // not model.
-func bindAll(ctx context.Context, doc *soa.OpenAPI, sibs Siblings, media MediaTypes, self sourceDocument,
+func bindAll(ctx context.Context, doc *soa.OpenAPI, sibs *Siblings, media MediaTypes, self sourceDocument,
 	reader *external, refuse func(uri string) error, d *dialects,
 ) bound {
 	opened := map[string]*yaml.Node{}
@@ -73,8 +73,8 @@ func bindAll(ctx context.Context, doc *soa.OpenAPI, sibs Siblings, media MediaTy
 	table := bind.Bind(ctx, self.root, cfg)
 	bd := typed.NewBuilder(table)
 	faults := mediaFaults{}
-	indexWalk(bd, walkSource(ctx, doc, sibs, media), bind.Position{}, faults)
-	objects := buildObjects(ctx, bd, table, media, faults)
+	indexWalk(bd, walkSource(ctx, doc, *sibs, media), bind.Position{}, faults)
+	objects := buildObjects(ctx, bd, table, media, faults, sibs)
 	return bound{bindings: bd.Bindings(), objects: objects, built: bd.Build(ctx), faults: faults}
 }
 

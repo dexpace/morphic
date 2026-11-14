@@ -74,11 +74,10 @@ func lowerCallbacks(c lowering.Ctx, w walk, src *soa.Operation, parent opContext
 		diags = append(diags, cbExtDiags...)
 		for expr, rp := range cb.All() {
 			exprStr := string(expr)
-			layers, found := pathItemLayers(c, rp, cbDecl+ids.Ptr(exprStr))
+			layers := pathItemLayers(c, rp, cbDecl+ids.Ptr(exprStr))
 			if layers == nil {
 				continue
 			}
-			diags = append(diags, found...)
 			mount := parent.ptrs.mount + ids.Ptr("callbacks", cbName, exprStr)
 			route := opContext{
 				key: exprStr, template: exprStr, inbound: ir.HTTPInboundCallback,
@@ -135,11 +134,10 @@ func lowerWebhooks(ctx context.Context, c lowering.Ctx, w walk, groups *serviceG
 			return diags
 		}
 		hookPtr := ids.Ptr("webhooks", name)
-		layers, found := pathItemLayers(c, rp, hookPtr)
+		layers := pathItemLayers(c, rp, hookPtr)
 		if layers == nil {
 			continue
 		}
-		diags = append(diags, found...)
 		route := opContext{key: name, inbound: ir.HTTPInboundWebhook}
 		at := mountSite{ptr: hookPtr, use: c, usePtr: hookPtr, residue: &svc.Unmodeled}
 		mounted, hookDiags := mountPathItem(w, layers, at, route)

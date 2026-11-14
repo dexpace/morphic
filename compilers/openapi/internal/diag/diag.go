@@ -236,8 +236,7 @@ const (
 	// written: kept raw for want of a home or past a bound (callbacks too deep,
 	// operation.operationCallbacks), lowered weaker (a mixed enum as a union, an
 	// unconvertible value as the top type, a member or const its type rejects as
-	// written), or dropped (a default or example, an enum's excluded null, the
-	// fields beside a path item $ref the load phase's walk misses). A promotion
+	// written), or dropped (an example, an enum's excluded null). A promotion
 	// or grouping by extension reports an extension kept but read into no field
 	// or group (lowering.Promoter, operation.extensionPaths). It marks the lossy
 	// lowerings reported, not every one.

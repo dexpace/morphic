@@ -4452,12 +4452,11 @@ reads on in the item the `$ref`'s chain ends at, so a pointer and a mount read o
 whichever reference, schema `$ref` or reference object, writes it. A `#/$defs/...` pointer written
 in those fields reads its definition there by the same rule. An item another document holds is
 declared where that document declares it, and a finding names its positions by the reference. The
-fields beside a `$ref` the load phase's walk does not reach, in another document or under an `x-*`
-key, are not lowered, reported as an `openapi/degraded-construct` warning at the mount naming the
-reference that reaches them.
+fields beside a `$ref` are lowered at every position the bindings' table lands a path item on, in
+the source or another document and under an `x-*` key alike, declared where they are written.
 
 - Cases: `path-item-ref-siblings`
-- Codes: `openapi/path-item-ref-collision`, `openapi/degraded-construct`
+- Codes: `openapi/path-item-ref-collision`
 - Tests: `operation.TestPathItemRefSiblings_CollisionIsLoudAndUseSiteWins`,
   `operation.TestPathItemRefSiblings_AReferenceIntoTheFieldsBesideARefReadsThem`,
   `operation.TestPathItemRefSiblings_APointerIntoTheFieldsTakesWhatTheyDeclare`,
@@ -4466,9 +4465,11 @@ reference that reaches them.
   `e2e.TestReferenceObjects_AFieldBesideAPathItemRefIsReadWhereItIsWritten`,
   `operation.TestPathItemRefSiblings_FieldsAnotherDocumentWritesAreModelled`,
   `operation.TestPathItemRefSiblings_FieldsAtAnyLandingAreModelled`,
-  `operation.TestPathItemRefSiblings_AForeignReferentKeepsItsOwnPositions`
-- Status: partly built: the fields beside a `$ref` the load phase's walk does not reach are not
-  lowered (#823).
+  `operation.TestPathItemRefSiblings_AForeignReferentKeepsItsOwnPositions`,
+  `e2e.TestCompile_FieldsBesideAPathItemRefAtAnyLandingAreMounted`,
+  `e2e.TestCompile_ALongChainOfLandingsMountsEachOnesFields`,
+  `e2e.TestCompile_FieldsBesideAForeignPathItemRefAreMounted`,
+  `e2e.TestExternalContent_FieldsBesideAPathItemRefItWritesAreLowered`
 
 ### `tag-groups`
 
