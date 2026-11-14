@@ -1421,13 +1421,14 @@ message:
 
 So ``Use `a`, `b` or `c`.`` names three, ``Do not use `b`; use `a`.`` and ``Use `a` instead of `b`.``
 name `a` alone, and ``Unlike `GET /v0/zones`, this pages.``, ``Formerly `b`.``,
-``If you use `c`, set `d`.`` and ``This was not replaced by `c`.`` name none. A name no phrase
-introduces is neither read nor reported. The policy's trigger is a message introducing an entity of
+``If you use `c`, set `d`.``, ``You may use `c`.`` and ``This was not replaced by `c`.`` name
+none. A name no phrase introduces is neither read nor reported. The policy's trigger is a message introducing an entity of
 the node's class other than the node: one introducing none, or the node alone, fills nothing and is
 not reported, since prose naming something else is no defect. Where it introduces one, the names
 fill the field all or none, the node itself passed over and a repeat kept once: a name naming no
 entity, or several, leaves the field unset, reported at the node, quoting the first such name. The
-message keeps its prose either way. The reading runs once the document is whole, as a replacement may be declared after what it replaces. A
+message keeps its prose either way. The reading runs once the document is whole, as a replacement
+may be declared after what it replaces. A
 Markdown link's title is display text and its URL a page of documentation, neither naming an entity
 the document holds, so a link is never read; nor is a header's, a schema's or a security scheme's
 message, where no measured document names a replacement such a scope resolves. On the golden spec
@@ -4529,7 +4530,8 @@ unmarked, and a callback's goes with the operation declaring it, marked as that 
   `operation.TestGrouping_ByPathPrefixInferred`, `operation.TestGrouping_PathPrefixRootPath`,
   `operation.TestSharedRoute_PathPrefixGroupsTheRoute`,
   `operation.TestGrouping_ACallbackGoesWithItsParentWhateverItsTags`,
-  `operation.TestGroups_PathPrefixStopsAtTheQuery`, `operation.TestGroups_PathPrefixKeepsTheQueryInTheTemplate`,
+  `operation.TestGroups_PathPrefixStopsAtTheQuery`,
+  `operation.TestGroups_PathPrefixKeepsTheQueryInTheTemplate`,
   `operation.TestGroups_PathPrefixReadsAQuestionMarkInsideATemplateExpression`
 
 ### `extension-groups`
@@ -5459,7 +5461,7 @@ A link that does not lower whole is kept verbatim on its response under `openapi
   `whole.TestDocument_MembersFlattensAModelOnceWhateverNamesIt`,
   `e2e.TestBodyAlias_ReadsTheSameInEitherOrder`,
   `e2e.TestBodyAlias_ReadsAnOperationInANestedGroup`,
-  `openapi.TestRun_ReadsTheFinishedDocumentOnce`,
+  `openapi.TestRun_ReadsTheFinishedDocumentOnce`, `openapi.TestRun_AppendsNothingAfterAFirstAsk`,
   `e2e.TestUnpreservable_AnnouncementNeverOutrunsTheEntry`
 - Status: partly built: a key beside a link's `$ref` other than `summary` and `description` is
   dropped with no record, as beside any other reference (#1321).
@@ -6085,10 +6087,12 @@ read.
 - Tests: `e2e.TestParamChoices_FillsChoices`, `e2e.TestParamChoices_ChangesNothingElse`,
   `e2e.TestParamChoices_SourceOrderDecidesNothing`, `e2e.TestParamChoices_LeavesAChoiceItCannotRead`,
   `e2e.TestParamChoices_ReadsNothingOfAKeyThatIsNoObject`, `e2e.TestParamChoices_FollowsThePolicy`,
-  `e2e.TestParamChoices_ResolvesAPathItemsParameter`, `e2e.TestParamChoices_ConformanceReadsTheSameInEitherOrder`,
+  `e2e.TestParamChoices_ResolvesAPathItemsParameter`,
+  `e2e.TestParamChoices_ConformanceReadsTheSameInEitherOrder`,
   `paramchoice.TestPromote_ReadsEachChoiceWholeOrNotAtAll`,
   `paramchoice.TestPromote_FillsAChoiceEveryVariantOfWhichCarriesARequiredParameter`,
-  `paramchoice.TestPromote_ReadsNoKeyThatIsNoObject`, `paramchoice.TestPromote_ReadsNothingWhereNoKeyIsWritten`,
+  `paramchoice.TestPromote_ReadsNoKeyThatIsNoObject`,
+  `paramchoice.TestPromote_ReadsNothingWhereNoKeyIsWritten`,
   `lowering.TestStatementOf_ReadsTheFirstSourceWritten`
 
 ### `extension-pagination`
@@ -6100,7 +6104,8 @@ members of response bodies. Each field is a target of the policy: `pagination.cu
 or `page`, `pagination.limit` the page size, and `pagination.items`, `pagination.nextCursor`,
 `pagination.nextLink`, `pagination.totalCount` and `pagination.totalPages` the page values of the
 same names, and `pagination.hasMore` the flag a page states that another follows, which fills
-`HasMore` and ends the walk by it alone, `Stop: [no_more]`, and which no default source reads. A source listing no values holds, on the operation, an expression naming the value: an
+`HasMore` and ends the walk by it alone, `Stop: [no_more]`, and which no default source reads. A
+source listing no values holds, on the operation, an expression naming the value: an
 OpenAPI runtime expression, `$request.query.<name>`, `$request.path.<name>`,
 `$request.header.<name>` or `$request.body` and a pointer for an input, and `$response.body` and a
 pointer or `$response.header.<name>` for a page value, or the shorthand `$request.` or `$response.`
@@ -6272,7 +6277,8 @@ every operation. A name is compared by its canonical words (`Naming.Canonical`),
    next cursor the body and a header both name leaves the walk undecided. A `POST` reads no header
    next cursor, as its next cursor is the page's member named as the cursor with `next` before it
    (point 1). Such a walk lists
-   `no_next` in `Stop`, as an empty next cursor names no page; a walk under `page` or `offset` lists none, a page holding no
+   `no_next` in `Stop`, as an empty next cursor names no page; a walk under `page` or `offset` lists
+   none, a page holding no
    items ending it whatever `Stop` lists
    ([pagination](../emitters/operations/pagination.md#where-a-page-walk-ends)).
 4. **The flag** of a `cursor` or a `token` walk is `HasMore`: the one boolean member of the body, or
@@ -6314,7 +6320,8 @@ is set, and the operation's `Provenance.Inferred` names `pagination-inference`. 
 query parameters name where a walk continues and that the policy cannot settle gets no `Pagination`,
 never a guess, reported as an info `openapi/undecided-pagination` at the operation's declaration
 naming what stops it: a method other than `GET`, `QUERY` and `POST`, a condition a `POST` fails,
-two places naming a continuation or a page size, one of a type a walk does not send, a `page` string with no whole number for its
+two places naming a continuation or a page size, one of a type a walk does not send, a `page` string
+with no whole number for its
 default or an example, no success response or none with a body, a body that is neither an object nor
 a list, items or a next cursor it names none or several of, two flags, a boolean beside the next cursor
 named as none, a next cursor the body and a header both name, a plain string `next` beside a string

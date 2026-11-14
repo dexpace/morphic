@@ -251,7 +251,8 @@ its target are not. A pagination is read off the operation's keys and off keys m
 where it sits, its parameter, its member or the type either names, so each node whose key it read
 records it. An operation writing a pagination key `true` reads the walk the document's root states
 under it: the key read is the operation's own `true`, which the operation keeps and marks, and no
-field of the `Document`, which has no marker, is filled from the root's entry. A promoted `Pagination` also sets its own `Inferred`, which says the value as a whole is
+field of the `Document`, which has no marker, is filled from the root's entry. A promoted
+`Pagination` also sets its own `Inferred`, which says the value as a whole is
 a heuristic's ([plan policy](../emitters/plan/policy.md)).
 
 Three other places for the record were weighed:

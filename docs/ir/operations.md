@@ -134,7 +134,8 @@ spellings of one thing. `irverify` reports a choice of fewer than two variants
 listed twice in one (`ir/set-entry-duplicate`); a consumer keys a choice and a variant by name, so
 two choices of an operation, or two variants of a choice, sharing a source name are
 `ir/param-choice-name-duplicate`, and two whose source names differ but share a neutral name,
-`fooBar` beside `foo_bar`, are `pass/name-collision` ([naming](./naming.md#names-one-scope-shares)). `pass.Validate` reports a choice naming another operation's
+`fooBar` beside `foo_bar`, are `pass/name-collision` ([naming](./naming.md#names-one-scope-shares)).
+`pass.Validate` reports a choice naming another operation's
 parameter (`pass/param-binding-mismatch`).
 
 Weighed and not taken: one logical `Parameter` typed by a `Union` of variant models, bound through
