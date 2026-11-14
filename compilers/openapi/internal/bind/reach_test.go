@@ -1,0 +1,179 @@
+// Copyright (c) 2026 dexpace.
+// Licensed under the MIT License. See LICENSE in the repository root for details.
+
+package bind_test
+
+import (
+	"encoding/json/jsontext"
+	"fmt"
+	"strings"
+	"testing"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
+	"github.com/dexpace/morphic/compilers/openapi/internal/bind"
+)
+
+// reachDraft is the dialect that has `$recursiveAnchor`.
+const reachDraft = "https://json-schema.org/draft/2019-09/schema"
+
+// reachConfig reads reachDraft as the draft with a recursive anchor.
+func reachConfig() bind.Config {
+	cfg := self
+	cfg.Dialect = func(_, dialect string) bind.DialectRule {
+		return bind.DialectRule{Recursive: dialect == reachDraft}
+	}
+	return cfg
+}
+
+// anchoredChain is n anchored resources, each `$ref`ing the next and each
+// writing a `$recursiveRef`.
+func anchoredChain(n int) string {
+	var b strings.Builder
+	b.WriteString(head + "components:\n  schemas:\n")
+	for i := range n {
+		fmt.Fprintf(&b, "    R%d: {$schema: '%s', $id: 'https://x.test/r%d', $recursiveAnchor: true, properties: {r: {$recursiveRef: '#'}}", i, reachDraft, i)
+		if i+1 < n {
+			fmt.Fprintf(&b, ", $ref: 'https://x.test/r%d'", i+1)
+		}
+		b.WriteString("}\n")
+	}
+	return b.String()
+}
+
+// TestRecursiveAnchor_AResourceAnotherAnchoredOneReachesIsReached pins what the
+// graph answers: of a chain of anchored resources each `$ref`ing the next,
+// every one but the first is reached by one other than itself, and the first
+// by none.
+func TestRecursiveAnchor_AResourceAnotherAnchoredOneReachesIsReached(t *testing.T) {
+	t.Parallel()
+	table := bound(t, anchoredChain(4), reachConfig())
+	require.False(t, table.Exhausted())
+	for i, wantReached := range []bool{false, true, true, true} {
+		declared, reached, known := table.RecursiveAnchor(at(jsontext.Pointer(fmt.Sprintf("/components/schemas/R%d", i))))
+		assert.True(t, declared, "R%d", i)
+		assert.Equal(t, wantReached, reached, "R%d", i)
+		assert.True(t, known, "R%d", i)
+	}
+
+	// Two anchored resources and nothing joining them: neither is reached.
+	alone := bound(t, head+"components:\n  schemas:\n"+
+		"    A: {$schema: '"+reachDraft+"', $id: 'https://x.test/a', $recursiveAnchor: true}\n"+
+		"    B: {$schema: '"+reachDraft+"', $id: 'https://x.test/b', $recursiveAnchor: true}\n", reachConfig())
+	for _, name := range []string{"A", "B"} {
+		_, reached, known := alone.RecursiveAnchor(at(jsontext.Pointer("/components/schemas/" + name)))
+		assert.False(t, reached, name)
+		assert.True(t, known, name)
+	}
+}
+
+// TestBind_TheRecursiveReachGrowsLinearly pins the cost of the walk: n anchored
+// resources each reaching the next cost steps growing by about a doubling per
+// doubling, not four times.
+func TestBind_TheRecursiveReachGrowsLinearly(t *testing.T) {
+	t.Parallel()
+	const n = 250
+	steps := func(size int) int { return bound(t, anchoredChain(size), reachConfig()).Steps() }
+	s1, s2, s4 := steps(n), steps(2*n), steps(4*n)
+	require.Less(t, s1, s2)
+	assert.LessOrEqual(t, float64(s4-s2), 2.2*float64(s2-s1), "steps at n, 2n, 4n: %d, %d, %d", s1, s2, s4)
+}
+
+// dynamicNames is two documents declaring n names each once, the first document's resource `$ref`ing the second's, and the
+// second writing a `$dynamicRef` to each name.
+func dynamicNames(n int) (spec string, other string) {
+	var top, low, refs strings.Builder
+	for i := range n {
+		fmt.Fprintf(&top, "n%d: {$dynamicAnchor: n%d}, ", i, i)
+		fmt.Fprintf(&low, "n%d: {$dynamicAnchor: n%d}, ", i, i)
+		fmt.Fprintf(&refs, "p%d: {$dynamicRef: '#n%d'}, ", i, i)
+	}
+	spec = head + "components:\n  schemas:\n    Top: {$id: 'https://x.test/top', $ref: 'other.yaml#/Low', $defs: {" +
+		strings.TrimSuffix(top.String(), ", ") + "}}\n"
+	other = "Low: {$id: 'https://x.test/low', properties: {" + strings.TrimSuffix(refs.String(), ", ") +
+		"}, $defs: {" + strings.TrimSuffix(low.String(), ", ") + "}}\n"
+	return spec, other
+}
+
+// TestTable_ANameSeveralDocumentsDeclareIsWalkedOncePerName pins the stated
+// shape: each name declared in more than one document costs one walk over
+// the graph, so steps grow no more than four times a doubling of the names,
+// and each name's anchor in the second document is reached by a resource of
+// the first.
+func TestTable_ANameSeveralDocumentsDeclareIsWalkedOncePerName(t *testing.T) {
+	t.Parallel()
+	steps := func(n int) (*bind.Table, int) {
+		spec, other := dynamicNames(n)
+		table := bound(t, spec, withDocuments(map[string]string{"other.yaml": other}))
+		require.False(t, table.Exhausted(), "n=%d", n)
+		return table, table.Steps()
+	}
+	_, s100 := steps(100)
+	_, s200 := steps(200)
+	table, s400 := steps(400)
+	require.Less(t, s100, s200)
+	assert.LessOrEqual(t, float64(s400-s200), 4.4*float64(s200-s100), "steps at 100, 200, 400: %d, %d, %d", s100, s200, s400)
+
+	other := docNamed(t, table, "other.yaml")
+	for _, name := range []string{"n0", "n399"} {
+		anchor := table.DynamicAnchor(other, name)
+		assert.Equal(t, 1, anchor.Count, name)
+		assert.True(t, anchor.Reached, "a resource of the first document declares %s and reaches this one", name)
+		assert.True(t, anchor.Complete, name)
+	}
+}
+
+// TestTable_AccessingADynamicAnchorAllocatesNothing pins that a name's
+// declarations are sorted once when the table is built, not on each call
+// (the declarations are the same name written 1,000 times, as a document
+// reading each reference asks for it 1,000 times).
+func TestTable_AccessingADynamicAnchorAllocatesNothing(t *testing.T) {
+	t.Parallel()
+	for _, n := range []int{500, 1000, 2000} {
+		var b strings.Builder
+		b.WriteString(head + "components:\n  schemas:\n")
+		for i := range n {
+			fmt.Fprintf(&b, "    C%d: {$dynamicAnchor: n, type: object, properties: {k: {$dynamicRef: '#n'}}}\n", i)
+		}
+		table := bound(t, b.String(), self)
+		require.False(t, table.Exhausted(), "n=%d", n)
+
+		anchor := table.DynamicAnchor(bind.Source, "n")
+		assert.Equal(t, n, anchor.Count, "every declaration is counted")
+		assert.Equal(t, bind.Position{Pointer: "/components/schemas/C0"}, anchor.Site, "the first, in pointer order, is the site")
+		assert.Zero(t, testing.AllocsPerRun(20, func() { _ = table.DynamicAnchor(bind.Source, "n") }), "n=%d", n)
+		assert.Equal(t, 0, table.DynamicAnchor(bind.Source, "absent").Count)
+	}
+}
+
+// TestBind_AReferenceToADynamicRefThatReadsAsARefEndsWhereItEnds pins what a
+// $dynamicRef naming no dynamic anchor is in the table: an entry as a $ref
+// has, tagged with the keyword it was written with, whose chain a $ref onto
+// it passes through.
+func TestBind_AReferenceToADynamicRefThatReadsAsARefEndsWhereItEnds(t *testing.T) {
+	t.Parallel()
+	table := bound(t, head+"components:\n  schemas:\n"+
+		"    Pet: {$anchor: pet, type: object}\n"+
+		"    ByPointer: {$dynamicRef: '#/components/schemas/Pet'}\n"+
+		"    ByAnchor: {$dynamicRef: '#pet'}\n"+
+		"    ByRef: {$ref: '#pet'}\n"+
+		"    S: {$ref: '#/components/schemas/ByPointer'}\n", self)
+	pet := at("/components/schemas/Pet")
+
+	for site, keyword := range map[string]string{"ByPointer": "$dynamicRef", "ByAnchor": "$dynamicRef", "ByRef": "$ref"} {
+		e := entryAt(t, table, jsontext.Pointer("/components/schemas/"+site))
+		assert.Equal(t, keyword, e.Keyword, site)
+		assert.Equal(t, bind.Resolved, e.Chain.Status, site)
+		assert.Equal(t, pet, e.Chain.End, site)
+	}
+	s := entryAt(t, table, "/components/schemas/S")
+	assert.Equal(t, "$ref", s.Keyword)
+	assert.Equal(t, pet, s.Chain.End, "the chain of a $ref onto the static $dynamicRef runs through it")
+	assert.Equal(t, 2, s.Chain.Hops)
+
+	// A truly dynamic reference is no entry.
+	dyn := bound(t, head+"components:\n  schemas:\n    Pet: {$dynamicAnchor: pet}\n    D: {$dynamicRef: '#pet'}\n", self)
+	_, ok := dyn.Entry(at("/components/schemas/D"))
+	assert.False(t, ok, "a reference naming a dynamic anchor is dynamic")
+}
