@@ -68,9 +68,9 @@ func appendLinkInputRef(dst []paramRef, lv *ir.LinkValue, field string) []paramR
 // checkLinkTargets holds each link's parameters to the operation it leads to:
 // each names a parameter that operation declares, and none is given two
 // values. A target the document does not declare is the dangling walk's to
-// report, a parameter it declares nowhere too, and an empty one checkEmptyRefs'
-// (reportedHere). Only
-// the operations some link leads to have their parameters read.
+// report, as is a parameter it declares nowhere, and an empty parameter is
+// checkEmptyRefs' (reportedHere). Only the operations some link leads to have
+// their parameters read.
 func checkLinkTargets(doc *ir.Document, refs *ir.IDReferences) []ir.Diagnostic {
 	var sites []linkSite
 	ir.ForEachOperation(doc, func(op ir.Operation) { sites = appendLinkSites(sites, &op) })
