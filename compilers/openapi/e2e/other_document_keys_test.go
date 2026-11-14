@@ -4,6 +4,8 @@
 package e2e_test
 
 import (
+	"fmt"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -97,4 +99,35 @@ func TestCompile_AKeyThatIsNoScalarInContentNoReferenceReachesIsNotReported(t *t
 	})
 
 	assert.Empty(t, diags)
+}
+
+// TestCompile_AChainOfReferencesIsCheckedInTheDocumentItEndsIn holds the object
+// at the end of a chain of references across files, the source reaching the
+// second file, which reaches the third, to the findings that belong to the
+// third: they are placed in it, at the pointer the object has there, and not
+// in the file the chain starts in or passes through.
+func TestCompile_AChainOfReferencesIsCheckedInTheDocumentItEndsIn(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	layout(t, dir, map[string]string{
+		"main.yaml": "openapi: 3.1.0\ninfo: {title: T, version: \"1\"}\npaths:\n  /x: {$ref: \"mid.yaml#/item\"}\n",
+		"mid.yaml":  "item: {$ref: \"end.yaml#/item\"}\n",
+		"end.yaml": "item:\n  get:\n    parameters:\n      - {name: p, in: bogus, schema: {type: string}}\n" +
+			"    responses: {\"200\": {description: ok}}\n",
+	})
+
+	doc, diags := compileDir(t, dir, openapi.Options{AllowExternalRefs: true})
+
+	end := -1
+	for i, s := range doc.Sources {
+		if strings.HasSuffix(s.Path, "end.yaml") {
+			end = i
+		}
+	}
+	require.NotEqual(t, -1, end, "the last file of the chain is one of the sources: %+v", doc.Sources)
+	var found []string
+	for _, d := range diags {
+		found = append(found, fmt.Sprintf("%d%s %s", d.Provenance.Source, d.Provenance.Pointer, d.Code))
+	}
+	assert.Equal(t, []string{fmt.Sprintf("%d/item/get/parameters/0/in %s", end, diag.Validation+"/validation-allowed-values")}, found)
 }
