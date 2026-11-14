@@ -170,7 +170,6 @@
                         "location": "query",
                         "wireName": "from_date",
                         "style": "form",
-                        "explode": true,
                         "allowReserved": false,
                         "allowEmptyValue": false
                       },
@@ -179,7 +178,6 @@
                         "location": "query",
                         "wireName": "start",
                         "style": "form",
-                        "explode": true,
                         "allowReserved": false,
                         "allowEmptyValue": false
                       }

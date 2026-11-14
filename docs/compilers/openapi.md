@@ -4560,10 +4560,11 @@ same `name` and `in`, a header's `name` compared in any case, as HTTP compares a
 (RFC 9110 §5.1), so `x-trace` overrides `X-Trace`, and so does a nearer layer's of a path item a
 `$ref` composes. Each is placed on the HTTP binding at its location (`path`, `query`,
 `querystring`, `header` or `cookie`) under its wire name, with its `style`, `explode` and
-`allowReserved`, each the default where the parameter writes none
-([http-binding](../ir/http-binding.md)): the location's style, and an `explode` true under
-`form` and 3.2's `cookie` style, false under any other. A parameter's ID is derived from the
-operation's mount pointer, its name and its location ([identity](../ir/identity.md)). A list
+`allowReserved` ([http-binding](../ir/http-binding.md)). The `style` is the location's where the
+parameter writes none, and the `explode` is as declared, left unset where the parameter writes none,
+since its default depends on the style and filling it in would present the default as a
+declaration. A parameter's ID is derived from the operation's mount pointer, its name and its
+location ([identity](../ir/identity.md)). A list
 repeating an earlier entry's `name` and `in`, its `$ref`s resolved and a header's `name` compared
 in any case, which OpenAPI forbids, keeps every occurrence, the ID of each repeat of one spelling
 ending in its occurrence number, so `x-trace` beside `X-Trace` keeps the ID each has alone, and is
@@ -4580,16 +4581,15 @@ repeat's ending in its occurrence number (`no_ir_home`).
 - Cases: `param-styles`, `param-style-matrix`, `param-identity`, `header-name-case`,
   `header-name-syntax`
 - Codes: `openapi/duplicate-parameter`
-- Tests: `operation.TestParams_RepeatedNameAndLocationKeepsEveryParameter`,
+- Tests: `operation.TestParams_ExplodeLowersAsDeclared`,
+  `operation.TestParams_RepeatedNameAndLocationKeepsEveryParameter`,
   `operation.TestPathItem_WithNoOperationKeepsItsParameters`,
   `operation.TestPathItem_WithNoOperationNumbersARepeatedParameter`,
   `operation.TestPathItem_WithNoOperationReportsARepeatInAnotherDocument`,
   `operation.TestParams_AHeaderIsOneParameterInAnyCase`,
   `operation.TestPathItem_WithNoOperationKeysAHeaderRepeatedInAnyCase`,
   `ids.TestSlotOf_ComparesAHeadersNameInAnyCase`
-- Status: partly built: an undeclared `explode` is written out as the location's default, which
-  erases whether the document declared it (#627); and a list only a `$ref` reaches is never checked
-  for repeats (#880).
+- Status: partly built: a list only a `$ref` reaches is never checked for repeats (#880).
 
 ### `content-parameters`
 

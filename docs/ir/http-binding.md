@@ -49,8 +49,11 @@ type HTTPParamBinding struct {
                                   // querystring = the whole query string serialized from one schema
                                   //   (OpenAPI 3.2 in: querystring, combined with ContentType)
     WireName   string
-    Style      string             // simple | form | label | matrix | deepObject | pipe/space-delimited
-    Explode    *bool
+    Style      string             // simple | form | label | matrix | deepObject | pipe/space-delimited |
+                                  // cookie (OpenAPI 3.2's, at in: cookie)
+    Explode    *bool              // as declared; nil = the style's default: true under form and
+                                  // cookie, false under any other, and none where Style is
+                                  // empty, as at querystring
     AllowReserved bool            // written as RFC 6570's reserved expansion writes it: reserved
                                   // characters and percent-encoded triples pass unescaped, bar
                                   // those a URL cannot hold there (docs/emitters/refine/text.md#escaping)

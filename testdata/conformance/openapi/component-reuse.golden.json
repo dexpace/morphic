@@ -154,7 +154,6 @@
                         "location": "query",
                         "wireName": "sort",
                         "style": "form",
-                        "explode": true,
                         "allowReserved": false,
                         "allowEmptyValue": false
                       }
@@ -265,7 +264,6 @@
                         "location": "query",
                         "wireName": "sort",
                         "style": "form",
-                        "explode": true,
                         "allowReserved": false,
                         "allowEmptyValue": false
                       }

@@ -264,7 +264,6 @@
                         "location": "query",
                         "wireName": "page",
                         "style": "form",
-                        "explode": true,
                         "allowReserved": false,
                         "allowEmptyValue": false
                       },
@@ -273,7 +272,6 @@
                         "location": "query",
                         "wireName": "limit",
                         "style": "form",
-                        "explode": true,
                         "allowReserved": false,
                         "allowEmptyValue": false
                       },
@@ -282,7 +280,6 @@
                         "location": "query",
                         "wireName": "cursor",
                         "style": "form",
-                        "explode": true,
                         "allowReserved": false,
                         "allowEmptyValue": false
                       },
@@ -291,7 +288,6 @@
                         "location": "header",
                         "wireName": "key",
                         "style": "simple",
-                        "explode": false,
                         "allowReserved": false,
                         "allowEmptyValue": false
                       }
