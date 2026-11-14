@@ -440,14 +440,15 @@ func assertRawPreservedNumbers(t *testing.T, m *ir.Model) {
 }
 
 // assertYAMLIntegerBases pins the value every numeric site stores for an integer
-// whose YAML base comes from its prefix. Reading the source spelling as base 10
-// would store 644 where the document said 420, and would do it silently.
+// whose base comes from its prefix in YAML 1.2's core schema, 0o or 0x. Reading
+// the source spelling as base 10 would store 644 where the document said 420,
+// and would do it silently.
 func assertYAMLIntegerBases(t *testing.T, doc *ir.Document, m *ir.Model) {
 	t.Helper()
 	mode, ok := propByWire(m, "mode")
 	require.True(t, ok)
 	require.NotNil(t, mode.Default)
-	assert.Equal(t, ir.BigVal("420"), mode.Default.Num, "0644 is octal in YAML")
+	assert.Equal(t, ir.BigVal("420"), mode.Default.Num, "0o644 is octal in YAML 1.2")
 
 	enum, ok := doc.Types[mode.Type.Target].(*ir.Enum)
 	require.True(t, ok)
@@ -461,15 +462,15 @@ func assertYAMLIntegerBases(t *testing.T, doc *ir.Document, m *ir.Model) {
 	require.NotNil(t, bounds.Constraints.Min)
 	require.NotNil(t, bounds.Constraints.Max)
 	require.NotNil(t, bounds.Constraints.MultipleOf)
-	assert.Equal(t, ir.BigVal("15"), *bounds.Constraints.Min, "017 is octal")
+	assert.Equal(t, ir.BigVal("15"), *bounds.Constraints.Min, "0o17 is octal")
 	assert.Equal(t, ir.BigVal("31"), *bounds.Constraints.Max, "0x1f is hex")
-	assert.Equal(t, ir.BigVal("10"), *bounds.Constraints.MultipleOf, "0b1010 is binary")
+	assert.Equal(t, ir.BigVal("10"), *bounds.Constraints.MultipleOf, "10 is a plain integer")
 	require.Len(t, bounds.Examples, 1)
 	require.NotNil(t, bounds.Examples[0].Value)
-	assert.Equal(t, ir.BigVal("30"), bounds.Examples[0].Value.Num, "0b11110 is binary")
+	assert.Equal(t, ir.BigVal("30"), bounds.Examples[0].Value.Num, "30 is a plain integer")
 
-	// "_" is a separator, and a leading zero YAML resolves as a decimal float
-	// still has to come out as a JSON-valid literal.
+	// A plain digit string is the integer it spells, and a leading zero is a
+	// base ten integer that still has to come out as a JSON-valid literal.
 	counted, ok := propByWire(m, "counted")
 	require.True(t, ok)
 	require.NotNil(t, counted.Default)

@@ -6,7 +6,6 @@ package load
 import (
 	"os"
 	"slices"
-	"strconv"
 	"strings"
 	"testing"
 
@@ -95,12 +94,13 @@ func TestLoad_AStreamCountsWhatItDrops(t *testing.T) {
 	require.Len(t, got, 1)
 	assert.Contains(t, got[0].Message, "the 3 after it")
 
-	many := minimal31 + strings.Repeat(second, maxStreamDocuments+1)
+	many := minimal31 + strings.Repeat(second, 1025)
 	_, diags, err = Load(t.Context(), 0, openapitest.SourceOf(many), Options{})
 	require.NoError(t, err)
 	got = streamDiags(diags)
 	require.Len(t, got, 1)
-	assert.Contains(t, got[0].Message, "at least "+strconv.Itoa(maxStreamDocuments)+" after it",
+	assert.Contains(t, got[0].Message, "at least 1024 after it hold content the IR does not, "+
+		"and what follows the 1024 read was not read",
 		"past the bound the count is a floor, never a number the walk did not reach")
 }
 
@@ -129,17 +129,15 @@ func TestLoad_AStreamThatStopsParsingIsStillReported(t *testing.T) {
 	assert.Contains(t, got[0].Message, "the one after it holds")
 	assert.Contains(t, got[0].Message, "could not be parsed")
 
-	// Not everything yaml.v3 stops at is malformed: it refuses a %YAML directive
-	// as incompatible wherever it appears, so a well-formed later document that
-	// opens with one is reported as unparsed rather than counted. The wording
-	// says "could not be parsed" and not "is not YAML" for this reason.
+	// A %YAML 1.2 directive is read, so a well-formed later document that
+	// opens with one is a document, and is counted like any other.
 	doc, diags, err = Load(t.Context(), 0, openapitest.SourceOf(minimal31+"...\n%YAML 1.2\n---\nb: 1\n"), Options{})
 	require.NoError(t, err)
 	require.NotNil(t, doc)
 	got = streamDiags(diags)
 	require.Len(t, got, 1)
-	assert.Contains(t, got[0].Message, "could not be parsed")
-	assert.NotContains(t, got[0].Message, "after it")
+	assert.Contains(t, got[0].Message, "the one after it holds content the IR does not")
+	assert.NotContains(t, got[0].Message, "could not be parsed")
 }
 
 // TestLoad_ASingleDocumentReportsNoStream is the control for every case above:

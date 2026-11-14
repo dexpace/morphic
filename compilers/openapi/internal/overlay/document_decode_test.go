@@ -1,7 +1,7 @@
 // Copyright (c) 2026 dexpace.
 // Licensed under the MIT License. See LICENSE in the repository root for details.
 
-package overlay
+package overlay_test
 
 import (
 	"bytes"
@@ -13,21 +13,38 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/dexpace/morphic/compilers/openapi/internal/jsontree"
+	"github.com/dexpace/morphic/compilers/openapi/internal/budget"
+	"github.com/dexpace/morphic/compilers/openapi/internal/doctree"
 )
 
-// libraryParse is what the library makes of an overlay document, which
-// parseDocument must make of any document both read.
+// libraryParse is what the library makes of an overlay document, which the
+// Overlay decoded from the document's tree must equal for any document both
+// read.
 func libraryParse(data string) (*soaoverlay.Overlay, error) {
 	return soaoverlay.ParseReader(bytes.NewReader([]byte(data)))
 }
 
-// TestParseDocument_ReadsWhatTheLibraryReads holds parseDocument to the
-// library's own parse of an overlay document, ParseReader, for documents both
-// read: JSON that the YAML parser reads, which parseDocument reads as JSON, and
-// YAML, which it leaves to the library. The two give the same overlay, or the
-// same error, so reading JSON itself changes no overlay the library applies.
-func TestParseDocument_ReadsWhatTheLibraryReads(t *testing.T) {
+// decodeFromTree reads data into a tree as every input is read, and decodes the
+// library's Overlay from the tree's root with the decoder's own defaults.
+func decodeFromTree(ctx context.Context, data string) (*soaoverlay.Overlay, error) {
+	doc, err := doctree.Read(ctx, []byte(data), budget.Unbounded())
+	if err != nil {
+		return nil, err
+	}
+	var ov soaoverlay.Overlay
+	if doc.Root.Kind == 0 {
+		return &ov, nil // a stream holding nothing, which the library reads as an empty overlay
+	}
+	if err := doc.Root.Decode(&ov); err != nil {
+		return nil, err
+	}
+	return &ov, nil
+}
+
+// TestDecodeFromTree_ReadsWhatTheLibraryReads holds the Overlay decoded from a
+// document's tree to the library's own parse, ParseReader, for documents both
+// read, JSON and YAML alike: the same overlay, or an error from each.
+func TestDecodeFromTree_ReadsWhatTheLibraryReads(t *testing.T) {
 	t.Parallel()
 	const head = `{"overlay": "1.0.0", "info": {"title": "o", "version": "1"}, "actions": `
 	cases := map[string]struct {
@@ -60,26 +77,25 @@ func TestParseDocument_ReadsWhatTheLibraryReads(t *testing.T) {
 			want, wantErr := libraryParse(tc.data)
 			require.Equal(t, tc.errors, wantErr != nil, "the library's verdict on the document")
 
-			got, err := parseDocument(t.Context(), []byte(tc.data))
+			got, err := decodeFromTree(t.Context(), tc.data)
 
 			if wantErr != nil {
-				require.Error(t, err)
-				assert.Equal(t, wantErr.Error(), err.Error(), "the library's error")
+				require.Error(t, err, "the library's error was %v", wantErr)
 				assert.Nil(t, got)
 				return
 			}
 			require.NoError(t, err)
-			assert.Empty(t, cmp.Diff(want, got), "the library's overlay (-library +parseDocument)")
+			assert.Empty(t, cmp.Diff(want, got), "the library's overlay (-library +tree)")
 		})
 	}
 }
 
-// TestParseDocument_ReadsWhatTheLibraryRefuses pins the overlays parseDocument
+// TestDecodeFromTree_ReadsWhatTheLibraryRefuses pins the overlays the tree
 // reads that the library does not: JSON writing a surrogate pair or a solidus
 // escape, as the characters they name, with the nodes in the update the
 // positions the document writes. Half of a surrogate pair is the reader's
 // error, and a done context is its own.
-func TestParseDocument_ReadsWhatTheLibraryRefuses(t *testing.T) {
+func TestDecodeFromTree_ReadsWhatTheLibraryRefuses(t *testing.T) {
 	t.Parallel()
 	const head = `{"overlay": "1.0.0", "info": {"title": "o", "version": "1"}, "actions": ` +
 		`[{"target": "$.info", "update": {"description": "`
@@ -96,7 +112,7 @@ func TestParseDocument_ReadsWhatTheLibraryRefuses(t *testing.T) {
 			_, err := libraryParse(tc.in)
 			require.Error(t, err, "the library refuses it")
 
-			doc, err := parseDocument(t.Context(), []byte(tc.in))
+			doc, err := decodeFromTree(t.Context(), tc.in)
 
 			require.NoError(t, err)
 			require.Len(t, doc.Actions, 1)
@@ -108,15 +124,15 @@ func TestParseDocument_ReadsWhatTheLibraryRefuses(t *testing.T) {
 		})
 	}
 
-	doc, err := parseDocument(t.Context(), []byte(head+"x"+half+"y"+tail))
+	doc, err := decodeFromTree(t.Context(), head+"x"+half+"y"+tail)
 	assert.Nil(t, doc)
-	var lone *jsontree.LoneSurrogateError
+	var lone *doctree.LoneSurrogateError
 	require.ErrorAs(t, err, &lone)
 	assert.Equal(t, half, lone.Escape)
 
 	cancelled, cancel := context.WithCancel(t.Context())
 	cancel()
-	doc, err = parseDocument(cancelled, []byte(head+"x"+pair+"y"+tail))
+	doc, err = decodeFromTree(cancelled, head+"x"+pair+"y"+tail)
 	assert.Nil(t, doc)
 	assert.ErrorIs(t, err, context.Canceled)
 }
