@@ -11,6 +11,7 @@ import (
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
+	"github.com/dexpace/morphic/compilers/openapi/internal/whole"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -22,7 +23,7 @@ import (
 // model, a schema by its components name, and a security scheme by its key
 // (docs/compilers/openapi.md#extension-promotion). c is the source's context,
 // and w the document, which is whole.
-func Resolve(c lowering.Ctx, w *lowering.Whole) []ir.Diagnostic {
+func Resolve(c lowering.Ctx, w *whole.Document) []ir.Diagnostic {
 	r := resolver{c: c, p: c.Promoter(), w: w}
 	if !r.p.Maps(lowering.TargetDeprecationReplacedBy) {
 		return nil
@@ -48,11 +49,11 @@ func Resolve(c lowering.Ctx, w *lowering.Whole) []ir.Diagnostic {
 // mapping reads their replacements, and 8,000 such headers add under half a
 // second to a compile, which an index per list would not repay. A model's
 // member, which messages every compile reads name, is read by its name alone
-// (lowering.Whole.Member), which indexes a model's own properties once.
+// (whole.Document.Member), which indexes a model's own properties once.
 type resolver struct {
 	c lowering.Ctx
 	p lowering.Promoter
-	w *lowering.Whole
+	w *whole.Document
 }
 
 // fill reads the names own gives the replacements of its node, self, into dep,
@@ -130,7 +131,7 @@ func (r *resolver) typeDef(id ir.TypeID, td ir.TypeDef) []ir.Diagnostic {
 
 // memberFinder returns what finds a member of the model id by name: one of
 // the members the model flattens to, by the name it travels under, which a
-// flattening holds one member of (lowering.Whole.Member).
+// flattening holds one member of (whole.Document.Member).
 func (r *resolver) memberFinder(id ir.TypeID) func(string) (ir.EntityRef, int) {
 	return func(name string) (ir.EntityRef, int) {
 		if p, found := r.w.Member(id, name); found {

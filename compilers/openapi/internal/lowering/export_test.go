@@ -39,16 +39,3 @@ func WeightOf(root *yaml.Node, at bind.Reading, within budget.Limit) int {
 
 // ReadingOf exposes readingOf.
 func ReadingOf(c Ctx, usePtr jsontext.Pointer) bind.Reading { return readingOf(c, usePtr) }
-
-// CountFlattenings makes w count each whole flattening it takes from now on,
-// and returns the count, so an external test can hold a read that must name one
-// member to flattening no model.
-func CountFlattenings(w *Whole) *int {
-	n := new(int)
-	flatten := w.flatten
-	w.flatten = func(types ir.TypeRegistry, id ir.TypeID) ir.Flattening {
-		*n++
-		return flatten(types, id)
-	}
-	return n
-}

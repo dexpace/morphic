@@ -8,7 +8,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
+	"github.com/dexpace/morphic/compilers/openapi/internal/whole"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -29,7 +29,7 @@ func TestReader_ReadsEachBodyAndModelOnce(t *testing.T) {
 			{ID: ir.PropID(id + "/b"), Name: ir.Naming{Source: "b", Canonical: "b"}, Type: ir.TypeRef{Target: "t/info"}},
 		}}
 	}
-	r := newReader(lowering.NewWhole(&ir.Document{Types: ir.TypeRegistry{
+	r := newReader(whole.New(&ir.Document{Types: ir.TypeRegistry{
 		"t/list": &ir.List{ID: "t/list"}, "t/info": info, "t/one": body("t/one"), "t/two": body("t/two"),
 		"t/prim/integer": &ir.Primitive{ID: "t/prim/integer", Prim: ir.PrimInteger},
 	}}))

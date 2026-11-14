@@ -11,6 +11,7 @@ import (
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/convention"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
+	"github.com/dexpace/morphic/compilers/openapi/internal/whole"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -76,7 +77,7 @@ func TestIdempotency_TheKeyHeaderIsTheToken(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			doc := oneOperation(tc.op, registry(nil))
-			assert.Empty(t, convention.Apply(under(lowering.Policy{}), lowering.NewWhole(doc)))
+			assert.Empty(t, convention.Apply(under(lowering.Policy{}), whole.New(doc)))
 			op := operationOf(doc)
 			if tc.token == "" {
 				assert.Equal(t, tc.op.Idempotency, op.Idempotency, "the idempotency stays as it was")
@@ -119,7 +120,7 @@ func TestIdempotency_ReportsWhatItCannotSettle(t *testing.T) {
 			t.Parallel()
 			tc.op.Provenance.Pointer = "/paths/~1a/link"
 			doc := oneOperation(tc.op, registry(nil))
-			diags := convention.Apply(under(lowering.Policy{}), lowering.NewWhole(doc))
+			diags := convention.Apply(under(lowering.Policy{}), whole.New(doc))
 			assert.Equal(t, tc.op.Idempotency, operationOf(doc).Idempotency, "the idempotency stays as it was")
 			assert.Equal(t, ir.Inferred("extension-promotion"), operationOf(doc).Provenance.Inferred, "nothing is marked")
 			if tc.why == "" {
@@ -142,7 +143,7 @@ func TestIdempotency_DisabledReadsNoToken(t *testing.T) {
 	for _, op := range []ir.Operation{keyed(http.MethodPost, header("Idempotency-Key")),
 		keyed("LINK", header("Idempotency-Key"))} {
 		doc := oneOperation(op, registry(nil))
-		assert.Empty(t, convention.Apply(off, lowering.NewWhole(doc)), op.Bindings.HTTP[0].Method)
+		assert.Empty(t, convention.Apply(off, whole.New(doc)), op.Bindings.HTTP[0].Method)
 		assert.Equal(t, ir.Idempotency{}, operationOf(doc).Idempotency)
 		assert.Equal(t, ir.Inferred("extension-promotion"), operationOf(doc).Provenance.Inferred)
 	}

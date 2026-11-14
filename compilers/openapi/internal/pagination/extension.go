@@ -9,6 +9,7 @@ import (
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
+	"github.com/dexpace/morphic/compilers/openapi/internal/whole"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -38,10 +39,7 @@ func responseTargets() []lowering.ExtensionTarget {
 // stated holds each operation it reads whose extensions speak of a pagination,
 // filled or not: those a step inferring one leaves alone, by that rule's
 // precedence, without reading an extension again.
-func Promote(c lowering.Ctx, w *lowering.Whole) (stated map[ir.OpID]bool, diags []ir.Diagnostic) {
-	if w == nil {
-		return nil, nil
-	}
+func Promote(c lowering.Ctx, w *whole.Document) (stated map[ir.OpID]bool, diags []ir.Diagnostic) {
 	pg := pager{c: c, p: c.Promoter(), w: w}
 	if !pg.maps() {
 		return nil, nil
@@ -65,7 +63,7 @@ func Promote(c lowering.Ctx, w *lowering.Whole) (stated map[ir.OpID]bool, diags 
 type pager struct {
 	c     lowering.Ctx
 	p     lowering.Promoter
-	w     *lowering.Whole
+	w     *whole.Document
 	reach map[string]map[ir.TypeID]bool
 }
 

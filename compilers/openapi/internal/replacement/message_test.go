@@ -15,6 +15,7 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/load"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
 	"github.com/dexpace/morphic/compilers/openapi/internal/replacement"
+	"github.com/dexpace/morphic/compilers/openapi/internal/whole"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -86,7 +87,7 @@ func TestMessage_AnOperationsNamesItsReplacementByRoute(t *testing.T) {
 				route("op/v2-post", http.MethodPost, "/v2/zones", nil),
 				ir.Operation{ID: "op/hook", Bindings: ir.OpBindings{HTTP: []ir.HTTPBinding{{Method: "FETCH", WebhookName: "/v2/zones"}}}})
 			assert.Equal(t, undecided(tc.why, ir.Provenance{Pointer: "/paths/~1v1~1zones/get"}),
-				replacement.Infer(inferring(), lowering.NewWhole(doc)))
+				replacement.Infer(inferring(), whole.New(doc)))
 			op := doc.Services[0].Groups[0].Operations[0]
 			assert.Equal(t, tc.want, op.Deprecation.ReplacedBy)
 			want := ir.Inferred("extension-promotion")
@@ -120,7 +121,7 @@ func TestMessage_ARouteTwoOperationsShareNamesNone(t *testing.T) {
 		}
 		doc := routes(route("op/v1", http.MethodGet, "/v1", says("Use GET /v2.")), a, b)
 		assert.Equal(t, undecided(`"GET /v2." names more than one operation`, ir.Provenance{}),
-			replacement.Infer(inferring(), lowering.NewWhole(doc)), "first %t", first)
+			replacement.Infer(inferring(), whole.New(doc)), "first %t", first)
 		assert.Empty(t, doc.Services[0].Groups[0].Operations[0].Deprecation.ReplacedBy, "first %t", first)
 	}
 }
@@ -172,7 +173,7 @@ func TestMessage_AMembersAndAParametersNameSiblingsInCode(t *testing.T) {
 				want = slices.Concat(undecided(fmt.Sprintf(tc.why, "parameter"), atParam),
 					undecided(fmt.Sprintf(tc.why, "property"), atMember))
 			}
-			assert.Equal(t, want, replacement.Infer(inferring(), lowering.NewWhole(doc)))
+			assert.Equal(t, want, replacement.Infer(inferring(), whole.New(doc)))
 
 			members := make([]ir.EntityRef, 0, len(tc.want))
 			params := make([]ir.EntityRef, 0, len(tc.want))
@@ -218,7 +219,7 @@ func TestMessage_ANameTwoParametersCarryIsReported(t *testing.T) {
 			}
 			doc := routes(op)
 			doc.Types = ir.TypeRegistry{"t/nil": (*ir.Model)(nil), "t/s": &ir.Scalar{ID: "t/s"}}
-			assert.Equal(t, undecided(tc.why, ir.Provenance{}), replacement.Infer(inferring(), lowering.NewWhole(doc)))
+			assert.Equal(t, undecided(tc.why, ir.Provenance{}), replacement.Infer(inferring(), whole.New(doc)))
 			assert.Equal(t, tc.want, doc.Services[0].Groups[0].Operations[0].Params[0].Deprecation.ReplacedBy)
 		})
 	}
@@ -273,8 +274,8 @@ func TestMessage_YieldsToWhatTheDocumentSays(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			doc := build(tc.own, tc.dep)
-			replacement.Resolve(tc.c, lowering.NewWhole(doc))
-			assert.Empty(t, replacement.Infer(tc.c, lowering.NewWhole(doc)))
+			replacement.Resolve(tc.c, whole.New(doc))
+			assert.Empty(t, replacement.Infer(tc.c, whole.New(doc)))
 			assert.Equal(t, tc.want, replaced(doc))
 		})
 	}

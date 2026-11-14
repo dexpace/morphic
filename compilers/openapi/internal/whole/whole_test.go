@@ -1,27 +1,31 @@
 // Copyright (c) 2026 dexpace.
 // Licensed under the MIT License. See LICENSE in the repository root for details.
 
-package lowering_test
+package whole_test
 
 import (
 	"fmt"
 	"slices"
 	"testing"
 
+	soa "github.com/speakeasy-api/openapi/openapi"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/dexpace/morphic/compilers/openapi/internal/load"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
+	"github.com/dexpace/morphic/compilers/openapi/internal/pagination"
 	"github.com/dexpace/morphic/compilers/openapi/internal/runtimeexpr"
+	"github.com/dexpace/morphic/compilers/openapi/internal/whole"
 	"github.com/dexpace/morphic/ir"
 	"github.com/dexpace/morphic/ir/irtest"
 )
 
-// wholeOf is a Whole over a document whose one service holds op in its one
-// group, and the operation as Whole holds it, which is the one Params reads.
-func wholeOf(op ir.Operation) (*lowering.Whole, *ir.Operation) {
+// wholeOf is a Document over a document whose one service holds op in its one
+// group, and the operation as it holds it, which is the one Params reads.
+func wholeOf(op ir.Operation) (*whole.Document, *ir.Operation) {
 	doc := &ir.Document{Services: []ir.Service{{Groups: []ir.OperationGroup{{Operations: []ir.Operation{op}}}}}}
-	w := lowering.NewWhole(doc)
+	w := whole.New(doc)
 	return w, &doc.Services[0].Groups[0].Operations[0]
 }
 
@@ -41,12 +45,12 @@ func model(id ir.TypeID, mutate func(*ir.Model), props ...ir.Property) *ir.Model
 	})
 }
 
-// TestWhole_ListsEveryOperationOnce pins the operations a document holds:
+// TestDocument_ListsEveryOperationOnce pins the operations a document holds:
 // those of every service and group, each once, a service's before the next's
 // and a group's before those of the groups beside it, as pointers into the
 // document; one in a group nested to ir.MaxGroupDepth among them, and none in a
 // group nested deeper. The order within a group's nested groups is left open.
-func TestWhole_ListsEveryOperationOnce(t *testing.T) {
+func TestDocument_ListsEveryOperationOnce(t *testing.T) {
 	t.Parallel()
 	op := func(id string) ir.Operation { return ir.Operation{ID: ir.OpID(id)} }
 	var chain []ir.OperationGroup
@@ -64,7 +68,7 @@ func TestWhole_ListsEveryOperationOnce(t *testing.T) {
 		}},
 		{Groups: []ir.OperationGroup{{Operations: []ir.Operation{op("op/f")}}, {Groups: chain}}},
 	}}
-	w := lowering.NewWhole(doc)
+	w := whole.New(doc)
 
 	got := make([]ir.OpID, 0, len(w.Ops))
 	seen := map[ir.OpID]bool{}
@@ -89,10 +93,10 @@ func TestWhole_ListsEveryOperationOnce(t *testing.T) {
 	assert.NotNil(t, doc.Services[0].Groups[0].Operations[0].Pagination, "an operation is read in place")
 }
 
-// TestWhole_IndexesParametersOnce pins Params to one index of an operation's
+// TestDocument_IndexesParametersOnce pins Params to one index of an operation's
 // parameters, made when it is first asked for and kept: a parameter and its
 // binding appended after that are in no answer.
-func TestWhole_IndexesParametersOnce(t *testing.T) {
+func TestDocument_IndexesParametersOnce(t *testing.T) {
 	t.Parallel()
 	w, op := wholeOf(ir.Operation{
 		ID:     "op/x",
@@ -178,16 +182,16 @@ func bodyShapes() map[string]bodyShape {
 	}
 }
 
-// TestWhole_MemberAgreesWithMembers holds Member to the flattening Members
+// TestDocument_MemberAgreesWithMembers holds Member to the flattening Members
 // reads, for each shape of body: every wire name of the flattening names the
 // property Members lists, a name outside it names none, and a union body has no
 // member whatever its variants declare.
-func TestWhole_MemberAgreesWithMembers(t *testing.T) {
+func TestDocument_MemberAgreesWithMembers(t *testing.T) {
 	t.Parallel()
 	for name, shape := range bodyShapes() {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
-			w := lowering.NewWhole(&ir.Document{Types: shape.types})
+			w := whole.New(&ir.Document{Types: shape.types})
 			members := w.Members(shape.root)
 			if shape.union {
 				assert.Empty(t, members)
@@ -214,11 +218,11 @@ func TestWhole_MemberAgreesWithMembers(t *testing.T) {
 	}
 }
 
-// TestWhole_WalkNamesEachMemberFromTheRoot pins a walk to the declaration of
+// TestDocument_WalkNamesEachMemberFromTheRoot pins a walk to the declaration of
 // each token's member, through the type of the member before it, and to nothing
 // where a step names no member or reaches no model, however an alias scalar
 // stands between the steps.
-func TestWhole_WalkNamesEachMemberFromTheRoot(t *testing.T) {
+func TestDocument_WalkNamesEachMemberFromTheRoot(t *testing.T) {
 	t.Parallel()
 	types := irtest.DocOf(
 		model("t/page", nil, prop("p/info", "info", "t/info"), prop("p/items", "items", "t/text"),
@@ -248,19 +252,19 @@ func TestWhole_WalkNamesEachMemberFromTheRoot(t *testing.T) {
 	} {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
-			got, ok := lowering.NewWhole(&ir.Document{Types: types}).Walk(tc.root, tc.tokens)
+			got, ok := whole.New(&ir.Document{Types: types}).Walk(tc.root, tc.tokens)
 			assert.Equal(t, tc.ok, ok)
 			assert.Equal(t, tc.want, got)
 		})
 	}
 }
 
-// TestWhole_StandsReadsThroughAliasScalarsToTheCap pins Stands to the type an
+// TestDocument_StandsReadsThroughAliasScalarsToTheCap pins Stands to the type an
 // alias scalar stands for: the same type for one that is none, the model at the
-// end of as many as lowering.MaxAliasHops alias scalars, and nothing past that,
+// end of as many as whole.MaxAliasHops alias scalars, and nothing past that,
 // for a cycle of them, or for an alias of a type the registry lacks or holds as
 // a typed nil.
-func TestWhole_StandsReadsThroughAliasScalarsToTheCap(t *testing.T) {
+func TestDocument_StandsReadsThroughAliasScalarsToTheCap(t *testing.T) {
 	t.Parallel()
 	chain := func(name string, length int) []ir.TypeDef {
 		at := func(i int) ir.TypeID { return ir.TypeID(fmt.Sprintf("%s%03d", name, i)) }
@@ -276,53 +280,55 @@ func TestWhole_StandsReadsThroughAliasScalarsToTheCap(t *testing.T) {
 			irtest.ScalarOf("loop1", "loop2"), irtest.ScalarOf("loop2", "loop1"),
 			irtest.ScalarOf("dangling", "gone"), irtest.ScalarOf("toNil", "nil"),
 		},
-		chain("ok", lowering.MaxAliasHops),
-		chain("long", lowering.MaxAliasHops+1),
+		chain("ok", whole.MaxAliasHops),
+		chain("long", whole.MaxAliasHops+1),
 	)
-	w := lowering.NewWhole(&ir.Document{Types: irtest.DocOf(defs...).Types})
+	w := whole.New(&ir.Document{Types: irtest.DocOf(defs...).Types})
 	w.Types["nil"] = (*ir.Model)(nil)
+	// noType is no type at all, which a typed nil is not: assert.Nil accepts both.
+	var noType ir.TypeDef
 
 	assert.Equal(t, w.Types["m"], w.Stands("m"), "a model stands for itself")
 	assert.Equal(t, w.Types["m"], w.Stands("ok000"), "the head of as many alias scalars as the cap allows")
-	assert.Nil(t, w.Stands("long000"), "the head of one more")
-	assert.Nil(t, w.Stands("loop1"), "a cycle of aliases")
-	assert.Nil(t, w.Stands("dangling"), "an alias of no type")
-	assert.Nil(t, w.Stands("toNil"), "an alias of a typed nil")
-	assert.Nil(t, w.Stands("gone"), "a type the registry lacks")
+	assert.Equal(t, noType, w.Stands("long000"), "the head of one more")
+	assert.Equal(t, noType, w.Stands("loop1"), "a cycle of aliases")
+	assert.Equal(t, noType, w.Stands("dangling"), "an alias of no type")
+	assert.Equal(t, noType, w.Stands("toNil"), "an alias of a typed nil")
+	assert.Equal(t, noType, w.Stands("gone"), "a type the registry lacks")
 }
 
-// TestWhole_HeaderMatchesTheNameWithoutCase pins a header to its wire name as
+// TestDocument_HeaderMatchesTheNameWithoutCase pins a header to its wire name as
 // HTTP compares one, and to every header a response declares under it, and a
 // response's headers to the first read of its key.
-func TestWhole_HeaderMatchesTheNameWithoutCase(t *testing.T) {
+func TestDocument_HeaderMatchesTheNameWithoutCase(t *testing.T) {
 	t.Parallel()
 	headers := []ir.Header{
 		{Property: prop("h/rate", "X-Rate", "t/text")},
 		{Property: prop("h/next", "Link", "t/text")},
 		{Property: prop("h/again", "x-rate", "t/text")},
 	}
-	w := lowering.NewWhole(&ir.Document{})
-	at := lowering.ResponseKey{Op: "op/x"}
+	w := whole.New(&ir.Document{})
+	at := whole.ResponseKey{Op: "op/x"}
 	assert.Equal(t, []ir.PropID{"h/rate", "h/again"}, w.Header(at, headers, "X-RATE"))
 	assert.Equal(t, []ir.PropID{"h/next"}, w.Header(at, headers, "link"))
 	assert.Empty(t, w.Header(at, headers, "ETag"))
 
 	other := []ir.Header{{Property: prop("h/other", "X-Rate", "t/text")}}
 	assert.Equal(t, []ir.PropID{"h/rate", "h/again"}, w.Header(at, other, "x-rate"), "a key's first read is kept")
-	for _, key := range []lowering.ResponseKey{
-		{Op: "op/x", List: lowering.ListErrors}, {Op: "op/x", Index: 1}, {Op: "op/y"},
+	for _, key := range []whole.ResponseKey{
+		{Op: "op/x", List: whole.ListErrors}, {Op: "op/x", Index: 1}, {Op: "op/y"},
 	} {
 		assert.Equal(t, []ir.PropID{"h/other"}, w.Header(key, other, "x-rate"), "%+v is a response of its own", key)
 	}
 }
 
-// TestWhole_ReadsOnceAndAllocatesNothingAfter pins what makes resolving grow
+// TestDocument_ReadsOnceAndAllocatesNothingAfter pins what makes resolving grow
 // with the expressions and what they read rather than with the product of the
 // two: a model, a parameter list and a response's headers are read by the first
 // question of them, and a later question of the same builds nothing. It does
 // not run in parallel, since the count is process-wide.
-func TestWhole_ReadsOnceAndAllocatesNothingAfter(t *testing.T) {
-	w := lowering.NewWhole(&ir.Document{
+func TestDocument_ReadsOnceAndAllocatesNothingAfter(t *testing.T) {
+	w := whole.New(&ir.Document{
 		Types:    irtest.DocOf(model("t/page", nil, prop("p/info", "info", "t/info"))).Types,
 		Services: []ir.Service{{Groups: []ir.OperationGroup{{Operations: []ir.Operation{{ID: "op/x"}}}}}},
 	})
@@ -332,7 +338,7 @@ func TestWhole_ReadsOnceAndAllocatesNothingAfter(t *testing.T) {
 		"a model's member":   func() { w.Member("t/page", "info") },
 		"a model's members":  func() { w.Members("t/page") },
 		"a parameter index":  func() { w.Params(op) },
-		"a response headers": func() { w.Header(lowering.ResponseKey{Op: "op/x"}, headers, "x-rate") },
+		"a response headers": func() { w.Header(whole.ResponseKey{Op: "op/x"}, headers, "x-rate") },
 	}
 	for name, read := range reads {
 		read()
@@ -340,11 +346,11 @@ func TestWhole_ReadsOnceAndAllocatesNothingAfter(t *testing.T) {
 	}
 }
 
-// TestWhole_ABodyReadFlattensNoModel pins what a body read costs: BodyPath over
+// TestDocument_ABodyReadFlattensNoModel pins what a body read costs: BodyPath over
 // a payload of K contents each naming a model that composes the one model,
 // takes one declaration of the first member from each, and flattens no model,
 // at K of 4 and of 16. The control is a flattening Members does make.
-func TestWhole_ABodyReadFlattensNoModel(t *testing.T) {
+func TestDocument_ABodyReadFlattensNoModel(t *testing.T) {
 	t.Parallel()
 	for _, k := range []int{4, 16} {
 		t.Run(fmt.Sprint(k), func(t *testing.T) {
@@ -358,8 +364,8 @@ func TestWhole_ABodyReadFlattensNoModel(t *testing.T) {
 				payload.Contents = append(payload.Contents,
 					ir.Content{MediaType: fmt.Sprintf("application/x-%02d", i), Type: ir.TypeRef{Target: id}})
 			}
-			w := lowering.NewWhole(&ir.Document{Types: irtest.DocOf(defs...).Types})
-			flattenings := lowering.CountFlattenings(w)
+			w := whole.New(&ir.Document{Types: irtest.DocOf(defs...).Types})
+			flattenings := whole.CountFlattenings(w)
 
 			got, why, ok := runtimeexpr.BodyPath(w, payload, []string{"a"}, "request")
 			require.True(t, ok, why)
@@ -370,4 +376,51 @@ func TestWhole_ABodyReadFlattensNoModel(t *testing.T) {
 			assert.Equal(t, 1, *flattenings, "the count sees a flattening that is made")
 		})
 	}
+}
+
+// TestDocument_APromotionNoMemberMarksFlattensNoModel pins what a
+// pagination read through marks costs where no member of the document keeps
+// the key its source reads: the promotion asks no model for its members, so
+// the document flattens none.
+func TestDocument_APromotionNoMemberMarksFlattensNoModel(t *testing.T) {
+	t.Parallel()
+	page := model("t/page", nil, prop("p/items", "items", "t/list"), prop("p/next", "next", "t/text"))
+	op := ir.Operation{
+		ID: "op/list",
+		Responses: []ir.Response{{Payload: &ir.Payload{Contents: []ir.Content{
+			{MediaType: "application/json", Type: ir.TypeRef{Target: "t/page"}},
+		}}}},
+	}
+	w := whole.New(&ir.Document{
+		Types:    irtest.DocOf(page, &ir.List{ID: "t/list", Elem: ir.TypeRef{Target: "t/text"}}, &ir.Scalar{ID: "t/text"}).Types,
+		Services: []ir.Service{{Groups: []ir.OperationGroup{{Operations: []ir.Operation{op}}}}},
+	})
+	c := lowering.New(0, &load.Document{Doc: &soa.OpenAPI{}}, lowering.Policy{Promotions: lowering.ExtensionPromotions{
+		Targets: map[lowering.ExtensionTarget][]lowering.ExtensionSource{
+			lowering.TargetPaginationItems: {{Key: "x-k", Member: "purpose", Values: []string{"items"}}},
+		},
+	}})
+	flattenings := whole.CountFlattenings(w)
+
+	stated, diags := pagination.Promote(c, w)
+	assert.Empty(t, stated, "no key is written")
+	assert.Empty(t, diags)
+	assert.Zero(t, *flattenings, "no member keeps the key, so no model is flattened")
+}
+
+// TestDocument_MembersFlattensAModelOnceWhateverNamesIt pins Members to one
+// flattening of a model however many alias scalars name it: the model and two
+// aliases of it give the same members, flattened once.
+func TestDocument_MembersFlattensAModelOnceWhateverNamesIt(t *testing.T) {
+	t.Parallel()
+	w := whole.New(&ir.Document{Types: irtest.DocOf(
+		model("m", nil, prop("m.a", "a", "string")), irtest.ScalarOf("one", "m"), irtest.ScalarOf("two", "one"),
+	).Types})
+	flattenings := whole.CountFlattenings(w)
+	want := w.Members("m")
+	require.Len(t, want, 1)
+	for _, id := range []ir.TypeID{"one", "two"} {
+		assert.Equal(t, want, w.Members(id), "%s names the model", id)
+	}
+	assert.Equal(t, 1, *flattenings, "the model is flattened once")
 }

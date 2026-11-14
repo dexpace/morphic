@@ -8,8 +8,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
 	"github.com/dexpace/morphic/compilers/openapi/internal/runtimeexpr"
+	"github.com/dexpace/morphic/compilers/openapi/internal/whole"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -66,7 +66,7 @@ func TestBodyPath_WalksEveryContentToTheSameMembers(t *testing.T) {
 	} {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
-			got, why, ok := runtimeexpr.BodyPath(lowering.NewWhole(&ir.Document{Types: registry()}), tc.body, tc.tokens, "request")
+			got, why, ok := runtimeexpr.BodyPath(whole.New(&ir.Document{Types: registry()}), tc.body, tc.tokens, "request")
 			assert.Equal(t, tc.why == "", ok)
 			assert.Equal(t, tc.why, why)
 			assert.Equal(t, tc.want, got)

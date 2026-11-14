@@ -68,3 +68,25 @@ func TestBodyAlias_ReadsTheSameInEitherOrder(t *testing.T) {
 	doc, diags := parseFull(t, string(reversed(t, string(src))))
 	assertBodyAlias(t, doc, diags)
 }
+
+// TestBodyAlias_ReadsAnOperationInANestedGroup compiles body-alias at 3.2 with
+// both operations tagged under a tag whose parent is another, so they sit in
+// a nested group, and holds it to the same facts: every step reading the
+// finished document reaches an operation however deep its group.
+func TestBodyAlias_ReadsAnOperationInANestedGroup(t *testing.T) {
+	t.Parallel()
+	src, err := os.ReadFile(filepath.Join(conformanceDir, "body-alias.yaml"))
+	require.NoError(t, err)
+	spec := strings.Replace(string(src), "openapi: 3.1.0\n", "openapi: 3.2.0\n"+
+		"tags: [{name: animals}, {name: pets, parent: animals}]\n", 1)
+	spec = strings.ReplaceAll(spec, "    get:\n", "    get:\n      tags: [pets]\n")
+	require.Equal(t, 2, strings.Count(spec, "tags: [pets]"), "both operations are tagged")
+	doc, diags := parseFull(t, spec)
+
+	require.Len(t, doc.Services, 1)
+	require.Len(t, doc.Services[0].Groups, 1)
+	require.Len(t, doc.Services[0].Groups[0].Groups, 1, "the pets group nests under animals")
+	assert.Empty(t, doc.Services[0].Groups[0].Operations, "no operation sits in the top group")
+	assert.Len(t, doc.Services[0].Groups[0].Groups[0].Operations, 2, "both sit in the nested one")
+	assertBodyAlias(t, doc, diags)
+}

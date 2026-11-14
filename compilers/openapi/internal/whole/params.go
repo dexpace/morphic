@@ -1,7 +1,7 @@
 // Copyright (c) 2026 dexpace.
 // Licensed under the MIT License. See LICENSE in the repository root for details.
 
-package lowering
+package whole
 
 import (
 	"cmp"
@@ -40,7 +40,7 @@ func keyOf(location ir.HTTPLocation, name string) paramKey {
 
 // indexParams indexes op's HTTP bindings. A binding naming no wire name places
 // its parameter under the parameter's own name, and a parameter bound twice
-// at one place is indexed there once. Whole.Params is its one caller, so an
+// at one place is indexed there once. Document.Params is its one caller, so an
 // operation's parameters are indexed once a run.
 func indexParams(op *ir.Operation) ParamIndex {
 	names := make(map[ir.ParamID]string, len(op.Params))

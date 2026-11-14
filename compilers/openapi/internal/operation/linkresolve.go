@@ -12,6 +12,7 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
 	"github.com/dexpace/morphic/compilers/openapi/internal/resolve"
 	"github.com/dexpace/morphic/compilers/openapi/internal/servers"
+	"github.com/dexpace/morphic/compilers/openapi/internal/whole"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -21,7 +22,7 @@ import (
 // on that response instead, with the finding that says why: a link is lowered
 // whole or not at all, so no consumer reads one missing a value its source
 // states. c is the source's context.
-func (l *Links) Resolve(c lowering.Ctx, w *lowering.Whole, srv *servers.Registry) []ir.Diagnostic {
+func (l *Links) Resolve(c lowering.Ctx, w *whole.Document, srv *servers.Registry) []ir.Diagnostic {
 	if len(l.pending) == 0 {
 		return nil
 	}
@@ -42,7 +43,7 @@ func (l *Links) Resolve(c lowering.Ctx, w *lowering.Whole, srv *servers.Registry
 
 // place lowers p onto the response of from it sits on, or keeps it verbatim
 // there.
-func place(ix opIndex, w *lowering.Whole, srv *servers.Registry, from *ir.Operation, p *pendingLink) []ir.Diagnostic {
+func place(ix opIndex, w *whole.Document, srv *servers.Registry, from *ir.Operation, p *pendingLink) []ir.Diagnostic {
 	d := &p.draft
 	at := p.slot.in(from)
 	link, failed := resolveLink(ix, w, from, at, d)
@@ -65,10 +66,10 @@ func place(ix opIndex, w *lowering.Whole, srv *servers.Registry, from *ir.Operat
 }
 
 // responseView is what resolving a link reads of the response carrying it, and
-// where the link is written. key names the response, which lowering.Whole
+// where the link is written. key names the response, which whole.Document
 // indexes its headers under.
 type responseView struct {
-	key       lowering.ResponseKey
+	key       whole.ResponseKey
 	links     *[]ir.OperationLink
 	unmodeled *ir.Unmodeled
 	payload   *ir.Payload
@@ -78,12 +79,12 @@ type responseView struct {
 // in returns the response s names on op. add took s as the response was
 // appended, so the response is there.
 func (s responseSlot) in(op *ir.Operation) responseView {
-	key := lowering.ResponseKey{Op: op.ID, List: s.list, Index: s.index}
+	key := whole.ResponseKey{Op: op.ID, List: s.list, Index: s.index}
 	switch s.list {
-	case lowering.ListErrors:
+	case whole.ListErrors:
 		e := &op.Errors[s.index]
 		return responseView{key: key, links: &e.Links, unmodeled: &e.Unmodeled, payload: e.Payload, headers: e.Headers}
-	case lowering.ListDefault:
+	case whole.ListDefault:
 		r := op.Default
 		return responseView{key: key, links: &r.Links, unmodeled: &r.Unmodeled, payload: r.Payload, headers: r.Headers}
 	default:
@@ -112,7 +113,7 @@ func untyped(format string, args ...any) *linkFailure {
 }
 
 // resolveLink resolves d, which a response of from carries, at.
-func resolveLink(ix opIndex, w *lowering.Whole, from *ir.Operation, at responseView, d *linkDraft) (ir.OperationLink, *linkFailure) {
+func resolveLink(ix opIndex, w *whole.Document, from *ir.Operation, at responseView, d *linkDraft) (ir.OperationLink, *linkFailure) {
 	target, failed := ix.target(d)
 	if failed != nil {
 		return ir.OperationLink{}, failed
@@ -156,7 +157,7 @@ type opIndex struct {
 	byDecl map[jsontext.Pointer][]*ir.Operation
 }
 
-// indexOperations indexes ops, the document's operations (lowering.Whole.Ops).
+// indexOperations indexes ops, the document's operations (whole.Document.Ops).
 // byDecl holds those the source declares, whose provenance names c's source.
 func indexOperations(c lowering.Ctx, ops []*ir.Operation) opIndex {
 	ix := opIndex{byID: map[ir.OpID]*ir.Operation{}, byName: map[string][]*ir.Operation{}, byDecl: map[jsontext.Pointer][]*ir.Operation{}}

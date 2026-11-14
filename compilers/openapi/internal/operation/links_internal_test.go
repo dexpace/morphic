@@ -15,8 +15,8 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
-	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
 	"github.com/dexpace/morphic/compilers/openapi/internal/servers"
+	"github.com/dexpace/morphic/compilers/openapi/internal/whole"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -28,7 +28,7 @@ func TestLinksResolve_AnOperationTheServiceLacks(t *testing.T) {
 	l := newRawLowerer(&soa.OpenAPI{})
 	var links Links
 	links.add("op/x/gone", responseSlot{}, []linkDraft{{at: l.ctx, use: "/p/links/L", name: "L"}})
-	diags := links.Resolve(l.ctx, lowering.NewWhole(&ir.Document{}), servers.NewRegistry())
+	diags := links.Resolve(l.ctx, whole.New(&ir.Document{}), servers.NewRegistry())
 	require.Len(t, diags, 1)
 	assert.Equal(t, diag.InternalInvariant, diags[0].Code)
 }
@@ -49,7 +49,7 @@ func TestIndexOperations_StopsAtTheGroupDepthBound(t *testing.T) {
 	svc := &ir.Service{Groups: []ir.OperationGroup{
 		nested("op/x/top", 0), nested("op/x/cap", ir.MaxGroupDepth), nested("op/x/past", ir.MaxGroupDepth+1),
 	}}
-	ix := indexOperations(newRawLowerer(&soa.OpenAPI{}).ctx, lowering.NewWhole(&ir.Document{Services: []ir.Service{*svc}}).Ops)
+	ix := indexOperations(newRawLowerer(&soa.OpenAPI{}).ctx, whole.New(&ir.Document{Services: []ir.Service{*svc}}).Ops)
 	assert.Contains(t, ix.byID, ir.OpID("op/x/top"))
 	assert.Contains(t, ix.byID, ir.OpID("op/x/cap"), "a group at the bound is read")
 	assert.NotContains(t, ix.byID, ir.OpID("op/x/past"), "a group past it is not")
@@ -179,7 +179,7 @@ func resolveBytes(t *testing.T, src string) float64 {
 		srv := servers.Reopen(lowered.Servers)
 		var before, after runtime.MemStats
 		runtime.ReadMemStats(&before)
-		w := lowering.NewWhole(&ir.Document{Types: reg, Services: []ir.Service{lowered.Service}})
+		w := whole.New(&ir.Document{Types: reg, Services: []ir.Service{lowered.Service}})
 		diags := lowered.Links.Resolve(l.ctx, w, srv)
 		runtime.ReadMemStats(&after)
 		require.Empty(t, diags, "every size lowers its links alike")
