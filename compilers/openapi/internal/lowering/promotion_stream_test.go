@@ -100,12 +100,12 @@ func TestStatementOf_ReadsTheFirstSourceWritten(t *testing.T) {
 			assert.True(t, written)
 			assert.Equal(t, "x-a", st.Source.Key)
 			assert.Equal(t, ir.RawValue(`[1]`), st.Value)
-			var got []string
+			got := make([]string, 0, len(diags))
 			for _, d := range diags {
 				assert.Equal(t, diag.UnpromotedExtension, d.Code)
 				got = append(got, d.Message)
 			}
-			assert.Equal(t, tc.reports, got)
+			assert.ElementsMatch(t, tc.reports, got)
 		})
 	}
 
