@@ -56,27 +56,34 @@ func readContentEncoding(c lowering.Ctx, schemas []*oas3.JSONSchema[oas3.Referen
 // to, decls declaring the part: each declaration's type, a union's members in
 // its place (unionMembers), and a list's or a tuple's elements in place of the
 // list, since an encoding applies to each item of an array part (OpenAPI 3.2
-// §4.15.1). ok is false where a union's members are not read.
-func partValues(node func(ir.TypeID) (ir.TypeDef, bool), decls []*ir.Property) (values []ir.TypeRef, ok bool) {
+// §4.15.1). ok is false where a union's members are not read. A union's values
+// are read once a run (partUnions.valuesOf), and a part declared once by a
+// union takes them as they are, a list it only reads.
+func partValues(unions *partUnions, node func(ir.TypeID) (ir.TypeDef, bool), decls []*ir.Property) (values []ir.TypeRef, ok bool) {
 	for _, d := range decls {
-		members := []ir.TypeRef{d.Type}
-		if u, isUnion := bodyNode(node, d.Type.Target).(*ir.Union); isUnion && u != nil {
-			if members, ok = unionMembers(node, u); !ok {
-				return nil, false
-			}
+		u, isUnion := bodyNode(node, d.Type.Target).(*ir.Union)
+		if !isUnion || u == nil {
+			values = append(values, itemsOf(node, d.Type)...)
+			continue
 		}
-		for _, m := range members {
-			values = append(values, itemsOf(node, m)...)
+		held, read := unions.valuesOf(node, u)
+		switch {
+		case !read:
+			return nil, false
+		case len(decls) == 1:
+			return held, true
 		}
+		values = append(values, held...)
 	}
 	return values, true
 }
 
 // withDefaultContentType returns pe, the encoding of a part decls declare,
 // with the content type OpenAPI gives it by default, encodedBy saying what its
-// declarations write of contentEncoding.
-func withDefaultContentType(node func(ir.TypeID) (ir.TypeDef, bool), rules oas.EncodingRules, decls []*ir.Property, encodedBy contentEncoding, pe ir.PartEncoding) ir.PartEncoding {
-	if values, ok := partValues(node, decls); ok {
+// declarations write of contentEncoding. unions is the run's reading of the
+// unions parts name.
+func withDefaultContentType(unions *partUnions, node func(ir.TypeID) (ir.TypeDef, bool), rules oas.EncodingRules, decls []*ir.Property, encodedBy contentEncoding, pe ir.PartEncoding) ir.PartEncoding {
+	if values, ok := partValues(unions, node, decls); ok {
 		pe.ContentTypes = defaultContentType(node, rules, values, encodedBy)
 	}
 	return pe

@@ -82,7 +82,7 @@ func readDeclaration(c lowering.Ctx, js *oas3.JSONSchema[oas3.Referenceable]) fi
 	if s := schemaOf(c.Bindings(), js); isArraySchema(s) {
 		return readElements(c, js, s)
 	}
-	return readSchema(c, js, readPartBranch)
+	return readSchema(c, js, branchReading{read: readPartBranch, part: true})
 }
 
 // readPartBranch reads branch, one of a union a part's declaration writes, as a

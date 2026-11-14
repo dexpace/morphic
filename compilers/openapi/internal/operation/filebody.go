@@ -49,12 +49,13 @@ func (r fileReading) open() bool { return r == readsString || r == readsUntyped 
 // refinement to the schema deciding it (schema.DecidingSchema). An absent
 // schema, and a null written for one, is untyped.
 func readFile(c lowering.Ctx, js *oas3.JSONSchema[oas3.Referenceable]) fileReading {
-	return readSchema(c, js, readBranch)
+	return readSchema(c, js, branchReading{read: readBranch})
 }
 
 // readSchema reads js as readFile does, with branch reading each branch of a
-// union js writes.
-func readSchema(c lowering.Ctx, js *oas3.JSONSchema[oas3.Referenceable], branch branchReader) fileReading {
+// union js writes. A union is read once a run for each way its branches are
+// read (unionFileOf), however many contents and parts name it (GitHub #1460).
+func readSchema(c lowering.Ctx, js *oas3.JSONSchema[oas3.Referenceable], branch branchReading) fileReading {
 	s, head, decided := readHead(c, js)
 	if decided {
 		return head
@@ -69,7 +70,10 @@ func readSchema(c lowering.Ctx, js *oas3.JSONSchema[oas3.Referenceable], branch 
 	}
 	// The union holds beside what s says itself, so a string s keeps its
 	// branches to strings.
-	if read := readUnion(c, union, branch); own != readsString || read != readsUntyped {
+	read := lowering.Remembered(c, unionFileOf{s: s, part: branch.part}, func() fileReading {
+		return readUnion(c, union, branch.read)
+	})
+	if own != readsString || read != readsUntyped {
 		return read
 	}
 	return readsString
@@ -77,6 +81,24 @@ func readSchema(c lowering.Ctx, js *oas3.JSONSchema[oas3.Referenceable], branch 
 
 // branchReader reads one branch of a union as a file.
 type branchReader func(lowering.Ctx, *oas3.JSONSchema[oas3.Referenceable]) fileReading
+
+// branchReading is how readSchema reads a union's branches: by read, which is
+// a part's reader (readPartBranch) where part is set and a body's (readBranch)
+// otherwise.
+type branchReading struct {
+	read branchReader
+	part bool
+}
+
+// unionFileOf is what a union's reading as a file is remembered under
+// (lowering.Remembered): s, the schema writing the union, which a $ref chain
+// ends on, and whether its branches are read as a part's, which reads a list
+// of bytes through its elements where a body's does not. The reading turns on
+// nothing else: the documents, and the bindings of their $refs.
+type unionFileOf struct {
+	s    *oas3.Schema
+	part bool
+}
 
 // readBranch reads js, a union's branch, as readFile does, but a branch that
 // is itself a union reads as other, so no reading descends past one union.
@@ -238,8 +260,7 @@ func readUnion(c lowering.Ctx, branches []*oas3.JSONSchema[oas3.Referenceable], 
 
 // leastOf returns the least reading read gives any of items, readsBinary for
 // none. It stops at readsOther, which no item read later can lower, so a wide
-// union that one branch decides costs each use that branch alone; one no
-// branch decides is read whole at each use (GitHub #1460).
+// union that one branch decides is read no further than that branch.
 func leastOf[T any](c lowering.Ctx, items []T, read func(lowering.Ctx, T) fileReading) fileReading {
 	least := readsBinary
 	for _, item := range items {

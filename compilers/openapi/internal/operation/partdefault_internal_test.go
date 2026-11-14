@@ -158,14 +158,14 @@ func TestPartValues_ReadsEachItemOfEachDeclaration(t *testing.T) {
 	node := func(id ir.TypeID) (ir.TypeDef, bool) { td, ok := reg[id]; return td, ok }
 	decl := func(id ir.TypeID) *ir.Property { return &ir.Property{Type: ir.TypeRef{Target: id}} }
 
-	values, ok := partValues(node, []*ir.Property{decl("t/tuple"), decl("t/u/lists"), decl("t/model")})
+	values, ok := partValues(newPartUnions(), node, []*ir.Property{decl("t/tuple"), decl("t/u/lists"), decl("t/model")})
 	require.True(t, ok)
 	assert.Equal(t, []ir.TypeRef{
 		{Target: ir.PrimTypeID(ir.PrimInt64)}, {Target: ir.PrimTypeID(ir.PrimBool)},
 		{Target: ir.PrimTypeID(ir.PrimString)}, {Target: "t/model"}, {Target: "t/model"},
 	}, values)
 
-	values, ok = partValues(node, []*ir.Property{decl("t/model"), decl("t/u/missing")})
+	values, ok = partValues(newPartUnions(), node, []*ir.Property{decl("t/model"), decl("t/u/missing")})
 	assert.False(t, ok, "a union whose members are not read")
 	assert.Nil(t, values)
 }

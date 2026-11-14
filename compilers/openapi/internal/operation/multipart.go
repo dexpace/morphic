@@ -266,12 +266,13 @@ func (k partKeys) Settle(reg ir.TypeRegistry) []ir.Diagnostic {
 func (k partKeys) declared(node func(ir.TypeID) (ir.TypeDef, bool), p keyedPart, part bodyPart, d *ir.Property) ir.PartEncoding {
 	one := []*ir.Property{d}
 	multipart := isMultipart(k.mediaType)
-	pe := partFlags(node, k.c.Bindings(), one, part, p.encoding, multipart)
+	unions := partUnionsOf(k.c)
+	pe := partFlags(unions, node, k.c.Bindings(), one, part, p.encoding, multipart)
 	pe = readPartFile(k.c, part, p.encoding.ContentTypes, multipart).apply(pe)
 	if !p.defaulted {
 		return pe
 	}
-	return withDefaultContentType(node, lowering.EncodingRules(k.c), one, readContentEncoding(k.c, part.schemas), pe)
+	return withDefaultContentType(unions, node, lowering.EncodingRules(k.c), one, readContentEncoding(k.c, part.schemas), pe)
 }
 
 // declarationSchemas returns, for each of decls, the declarations the body's
@@ -676,9 +677,10 @@ func memberHolders(node func(ir.TypeID) (ir.TypeDef, bool), body ir.TypeID) (hol
 // on (declarationFlags), multipart saying whether the body is multipart. Where
 // a type is a kind partTypeFlags cannot decide, Multi is read off every schema
 // of part, as refs resolves them (declaredMulti), a reading left until then
-// since it walks a union's branches.
-func partFlags(node func(ir.TypeID) (ir.TypeDef, bool), refs *typed.Bindings, decls []*ir.Property, part bodyPart, pe ir.PartEncoding, multipart bool) ir.PartEncoding {
-	multi, file, decided := declarationFlags(node, decls, multipart)
+// since it walks a union's branches. unions is the run's reading of the unions
+// parts name.
+func partFlags(unions *partUnions, node func(ir.TypeID) (ir.TypeDef, bool), refs *typed.Bindings, decls []*ir.Property, part bodyPart, pe ir.PartEncoding, multipart bool) ir.PartEncoding {
+	multi, file, decided := declarationFlags(unions, node, decls, multipart)
 	if !decided {
 		multi = declaredMulti(refs, part.schemas)
 	}
@@ -691,10 +693,10 @@ func partFlags(node func(ir.TypeID) (ir.TypeDef, bool), refs *typed.Bindings, de
 // multi where any is, and file where every one is, a type partTypeFlags cannot
 // decide being no file, as a union's member of such a kind is. decided is
 // false where partTypeFlags cannot decide one of them.
-func declarationFlags(node func(ir.TypeID) (ir.TypeDef, bool), decls []*ir.Property, multipart bool) (multi, file, decided bool) {
+func declarationFlags(unions *partUnions, node func(ir.TypeID) (ir.TypeDef, bool), decls []*ir.Property, multipart bool) (multi, file, decided bool) {
 	file, decided = multipart && len(decls) > 0, true
 	for _, d := range decls {
-		declMulti, declFile, ok := partTypeFlags(node, d.Type, multipart)
+		declMulti, declFile, ok := partTypeFlags(unions, node, d.Type, multipart)
 		multi, file, decided = multi || declMulti, file && declFile, decided && ok
 	}
 	return multi, file, decided
@@ -706,23 +708,14 @@ func declarationFlags(node func(ir.TypeID) (ir.TypeDef, bool), decls []*ir.Prope
 // and, in a multipart body, file where every one is raw bytes (rawBytes) or a
 // list or tuple of them. A member memberFlags cannot answer for is neither.
 // decided is false where memberFlags cannot answer, or the union's members are
-// not read.
-func partTypeFlags(node func(ir.TypeID) (ir.TypeDef, bool), ref ir.TypeRef, multipart bool) (multi, file, decided bool) {
+// not read. A union's flags are read once a run (partUnions.flagsOf).
+func partTypeFlags(unions *partUnions, node func(ir.TypeID) (ir.TypeDef, bool), ref ir.TypeRef, multipart bool) (multi, file, decided bool) {
 	td, found := node(ref.Target)
 	union, isUnion := td.(*ir.Union)
 	if !found || !isUnion {
 		return memberFlags(node, ref, multipart)
 	}
-	members, ok := unionMembers(node, union)
-	if !ok {
-		return false, false, false
-	}
-	file = multipart && len(members) > 0
-	for _, member := range members {
-		memberMulti, memberFile, _ := memberFlags(node, member, multipart)
-		multi, file = multi || memberMulti, file && memberFile
-	}
-	return multi, file, true
+	return unions.flagsOf(node, union, multipart)
 }
 
 // maxPartUnions bounds the unions unionMembers and memberHolders read through
@@ -732,8 +725,8 @@ const maxPartUnions = 64
 
 // unionMembers returns the variants of union through the unions nested in it,
 // each read once, so a union naming itself ends. ok is false where a variant
-// names no node or more than maxPartUnions unions are read. Each part naming a
-// union reads it again (GitHub #1460).
+// names no node or more than maxPartUnions unions are read. A part reads it
+// through partUnions, once a run.
 func unionMembers(node func(ir.TypeID) (ir.TypeDef, bool), union *ir.Union) (members []ir.TypeRef, ok bool) {
 	pending := []*ir.Union{union}
 	seen := map[ir.TypeID]bool{}

@@ -259,7 +259,7 @@ func TestPartTypeFlags_DecidesOnlyTheKindsItReads(t *testing.T) {
 		{l.types.PrimID(ir.PrimString), false, true},
 	}
 	for _, tc := range cases {
-		multi, file, decided := partTypeFlags(l.types.Node, ir.TypeRef{Target: tc.target}, true /* multipart */)
+		multi, file, decided := partTypeFlags(newPartUnions(), l.types.Node, ir.TypeRef{Target: tc.target}, true /* multipart */)
 		assert.Equal(t, tc.multi, multi, "%s multi", tc.target)
 		assert.False(t, file, "%s is not bytes", tc.target)
 		assert.Equal(t, tc.decided, decided, "%s decided", tc.target)
@@ -308,7 +308,7 @@ func TestPartTypeFlags_AListOrTupleOfRawBytesIsFiles(t *testing.T) {
 	} {
 		id := tc.node.Common().ID
 		l.types.Register(id, tc.node)
-		multi, file, decided := partTypeFlags(l.types.Node, ir.TypeRef{Target: id}, tc.multipart)
+		multi, file, decided := partTypeFlags(newPartUnions(), l.types.Node, ir.TypeRef{Target: id}, tc.multipart)
 		assert.True(t, multi && decided, "%s repeats", id)
 		assert.Equal(t, tc.file, file, "%s file", id)
 	}
@@ -374,7 +374,7 @@ func TestPartTypeFlags_AUnionReadsThroughItsMembers(t *testing.T) {
 		{"unions up to the bound", chain("t/chain", maxPartUnions), true, false, true, true},
 		{"unions past the bound", chain("t/long", maxPartUnions+1), true, false, false, false},
 	} {
-		multi, file, decided := partTypeFlags(l.types.Node, ir.TypeRef{Target: tc.target}, tc.multipart)
+		multi, file, decided := partTypeFlags(newPartUnions(), l.types.Node, ir.TypeRef{Target: tc.target}, tc.multipart)
 		assert.Equal(t, tc.multi, multi, "%s: multi", tc.name)
 		assert.Equal(t, tc.file, file, "%s: file", tc.name)
 		assert.Equal(t, tc.decided, decided, "%s: decided", tc.name)
