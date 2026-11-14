@@ -338,5 +338,5 @@ how to measure so the number means what the claim says.
   beside 200,000 listing two took `checkRequires` from a median of 168 ms to 622 ms (#1147, #1153).
 - **Probe.** Time a million-entry collection, then many small ones, on both builds: put it first,
   or take the median of many runs where map order places it.
-  `TestReusedMap_EmptiesInPlaceUpToTheLimit` pins the bound, and
-  `TestReusedMaps_AreEmptiedThroughReusedMapAlone` the `clear`s.
+  `TestMap_EmptiesInPlaceUpToTheLimit` pins the bound, and
+  `TestReusedMaps_AreEmptiedThroughReusedMapAlone` the `clear`s and `delete`s.
