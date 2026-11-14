@@ -5188,8 +5188,19 @@ A key naming a catch-all's member has no typed home, `*` included, by decision. 
 encoding key a property name, so `*` names the one member called `*`, and gives an entry naming no
 declared property no effect; reading `*` as every member a catch-all admits is a convention no
 version states, which a typed field would take as a guess, and a field keyed by the key as written,
-beside the `PropID`s, would type a misspelt key alike. What OpenAPI does say of the parts a
-catch-all admits, their structural flags and default content type, has no home either.
+beside the `PropID`s, would type a misspelt key alike.
+
+What OpenAPI does say of the parts a catch-all admits, their structural flags and default content
+type, lowers to `Content.CatchAllEncoding` ([payloads](../ir/payloads.md#a-catch-alls-parts)), keyed
+by the type holding the catch-all: the body's type where it is a map, and otherwise each model the
+flattening of the body's type reads that holds a catch-all, a union body's variants each read so, as
+`ir.CatchAllHolders` lists them and `pass.Validate` holds them. `Value` is the encoding of a part no
+pattern matches, `additionalProperties`' or `unevaluatedProperties`', and `Patterns` one per
+`patternProperties` entry, each read as a declared part with no encoding entry is: `Multi` and
+`Filename` off the value's type, and its default content type below, `contentEncoding` read off
+every catch-all value schema the part walk meets. An encoding that says nothing is not written, and
+a holder whose parts say nothing gets no key. A body that is a map declares no part, so every form
+body stating a schema is settled, though the walk finds no part.
 
 `contentType` lowers to `ContentTypes`, split on `,` and trimmed with empty items dropped, and one
 naming no media type is an `openapi/validation` error ([`validation`](#validation)); and `headers`
@@ -5279,7 +5290,8 @@ or `itemEncoding` under one that is not multipart. A media type is read without 
 in any case.
 
 - Cases: `multipart-encoding`, `file-media`, `encoding-unkeyed`, `multipart-defaults-30`,
-  `multipart-defaults-31`, `multipart-defaults-32`, `encoding-union-branches`, `encoding-outside-form`
+  `multipart-defaults-31`, `multipart-defaults-32`, `encoding-union-branches`, `encoding-outside-form`,
+  `catch-all-encoding`
 - Codes: `openapi/degraded-construct`, `openapi/unknown-encoding-key`, `openapi/validation`
 - Tests: `operation.TestContent_MultipartPartEncoding`,
   `oas.TestCheck_EncodingsApplyWhereTheSpecificationSays`, `oas.TestEncodingRules_AnswerAsTheTableDoes`,
@@ -5331,8 +5343,8 @@ in any case.
   `operation.TestPartEncodings_AUnionBodyKeysEachVariantInEitherOrder`,
   `operation.TestPartMembers_AModelNarrowingAUnionHasItsShapesMembers`,
   `operation.TestShapeFlattenings_ReadsShapesWithinItsLimit`,
-  `operation.TestPartEncodings_AKeptEntryIsPlacedInTheDocumentDeclaringIt`
-- Status: partly built: the parts a catch-all admits have no part encoding (#1805).
+  `operation.TestPartEncodings_AKeptEntryIsPlacedInTheDocumentDeclaringIt`,
+  `operation.TestPartKeys_KeysACatchAll`, `e2e.TestCatchAllEncoding_IsKeptAndVerifies`
 
 ### `encoding-allow-reserved`
 

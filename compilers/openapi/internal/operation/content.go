@@ -128,11 +128,9 @@ func lowerContent(d mediaDecl, w walk, mt string) (ir.Content, []ir.Diagnostic) 
 		content.Type = fileBodyType(w.types, file, content.Type)
 	}
 	if file == nil && isFormContent(mt) {
-		enc, encUnmodeled, encDiags := partEncodings(c, w, media, mt, mediaPtr, content.Type.Target)
+		enc, catchAll, encUnmodeled, encDiags := partEncodings(c, w, media, mt, mediaPtr, content.Type.Target)
 		diags = append(diags, encDiags...)
-		if enc != nil {
-			content.Encoding = enc
-		}
+		content.Encoding, content.CatchAllEncoding = enc, catchAll
 		// Assigned, not merged: the parts' settlement writes into this map.
 		content.Unmodeled = encUnmodeled
 	} else {

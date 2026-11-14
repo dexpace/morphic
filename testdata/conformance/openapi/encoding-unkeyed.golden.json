@@ -73,6 +73,18 @@
                       "target": "t/anon/paths/~1assets/post/requestBody/content/multipart~1form-data/schema",
                       "nullable": false
                     },
+                    "catchAllEncoding": {
+                      "t/anon/paths/~1assets/post/requestBody/content/multipart~1form-data/schema": {
+                        "value": {
+                          "contentTypes": [
+                            "text/plain"
+                          ],
+                          "multi": false,
+                          "filename": false,
+                          "allowReserved": false
+                        }
+                      }
+                    },
                     "unmodeled": {
                       "openapi:encoding/*": {
                         "reason": "no_ir_home",

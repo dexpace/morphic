@@ -823,7 +823,9 @@ it sees. Changes made together in one bump are listed together under it.
   unscoped and under `openapi:externalDocs/`, and the group a tag forms keeps its vendor extensions
   and the tier they state. `Content.CatchAllEncoding`, with `CatchAllParts`, the encoding of the
   parts a form body's catch-all admits, keyed by the map or model holding it
-  ([payloads](./payloads.md#a-catch-alls-parts)); `ir/catch-all-encoding-empty` is a new verifier
-  code and `ir/encoding-key-unknown-catch-all` a new `pass.Validate` error. A consumer pinned to
-  0.67.0 refuses the document; one reading `Stop` with no arm for `no_more` would not end such a
-  walk, and one matching a marker by its old name no longer finds it.
+  ([payloads](./payloads.md#a-catch-alls-parts)), which the OpenAPI compiler fills
+  ([`multipart-encoding`](../compilers/openapi.md#multipart-encoding));
+  `ir/catch-all-encoding-empty` is a new verifier code and `ir/encoding-key-unknown-catch-all` a new
+  `pass.Validate` error. A consumer pinned to 0.67.0 refuses the document; one reading `Stop` with
+  no arm for `no_more` would not end such a walk, and one matching a marker by its old name no
+  longer finds it.

@@ -6,8 +6,6 @@ member 0 0 Availability.removed
 member 0 0 Availability.renamedFrom
 member 0 0 Availability.requiredChanged
 member 0 0 Availability.typeChangedFrom
-member 0 0 CatchAllParts.patterns
-member 0 0 CatchAllParts.value
 member 0 0 Channel.address
 member 0 0 Channel.bindings
 member 0 0 Channel.docs
@@ -22,7 +20,6 @@ member 0 0 Channel.unmodeled
 member 0 0 Constraints.patternMessage
 member 0 0 Constraints.precision
 member 0 0 Constraints.scale
-member 0 0 Content.catchAllEncoding
 member 0 0 Content.schemaFormat
 member 0 0 CtorValue.args
 member 0 0 CtorValue.name
