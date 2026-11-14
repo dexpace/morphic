@@ -54,6 +54,19 @@ func IDPositions() []string {
 	return slices.Sorted(maps.Keys(idPositions))
 }
 
+// EmptyFormPositions returns the "Type.Field" keys idPositions gives an empty
+// form of their own: optional ones and the discriminator's locator.
+func EmptyFormPositions() []string {
+	var keys []string
+	for key, rule := range idPositions {
+		if rule == idOptional || rule == idLocator {
+			keys = append(keys, key)
+		}
+	}
+	slices.Sort(keys)
+	return keys
+}
+
 // RequiredIDFields returns the names of the fields of struct type t that the
 // empty-reference reading holds as references, an empty one being reported.
 func RequiredIDFields(t reflect.Type) []string {

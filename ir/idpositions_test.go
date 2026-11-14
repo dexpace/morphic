@@ -170,6 +170,27 @@ func mentionsIDClassAnywhere(t *testing.T, classes map[*types.TypeName]bool, typ
 	}
 }
 
+// TestIDPositions_AnEmptyFormIsASingleIDs fails when idPositions gives an empty
+// form to a field holding its IDs through a pointer, a slice or a map. The rule
+// is read only for a field holding one ID: a pointer's none is nil, and an
+// element or key of a collection is a reference whatever the field's rule, so
+// such an entry would say a field may be empty and change nothing.
+func TestIDPositions_AnEmptyFormIsASingleIDs(t *testing.T) {
+	t.Parallel()
+	classes := idClassTypes(t)
+	fields := map[string]types.Type{}
+	for _, f := range declaredFields(t) {
+		fields[f.key()] = f.field.Type()
+	}
+	positions := ir.EmptyFormPositions()
+	require.NotEmpty(t, positions)
+	for _, key := range positions {
+		typ, declared := fields[key]
+		require.True(t, declared, "idPositions gives ir.%s an empty form, which ir does not declare", key)
+		assert.True(t, isIDClass(classes, typ), "idPositions gives ir.%s an empty form, but it holds %s", key, typ)
+	}
+}
+
 // localIDCarrier lives only in this test, so no idPositions entry can name a
 // field of it: TestIDPositions_AnUnlistedPositionIsARequiredReference shows what
 // the reading does for a position nothing has recorded a decision for.
