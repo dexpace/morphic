@@ -119,8 +119,8 @@ func TestLoad_RefusesANestingAnOverlayGrafted(t *testing.T) {
 // TestLoad_APointerAmplificationAnOverlayGraftedNamesTheOverlay pins where a
 // refusal of the whole patched tree is placed: a source of 30 levels under
 // 10,000-byte keys passes the pointer bound alone, and an overlay of 3,000
-// short entries passes it too, but grafted at the bottom of the source's spine
-// they total past it. The overlay caused it, so the refusal is at the overlay,
+// short entries passes it too, but grafted into the schema at the bottom of
+// the source's spine, where each is named, they total past it. The overlay caused it, so the refusal is at the overlay,
 // and says it reads the tree the overlay leaves, which the overlay's own
 // document does not write.
 func TestLoad_APointerAmplificationAnOverlayGraftedNamesTheOverlay(t *testing.T) {
@@ -134,7 +134,7 @@ func TestLoad_APointerAmplificationAnOverlayGraftedNamesTheOverlay(t *testing.T)
 			strings.Repeat(" ", indent), strings.Repeat("p", 10_000), i%10)
 		indent += 4
 	}
-	fmt.Fprintf(&source, "%[1]stype: object\n%[1]sx-leaf: {}\n", strings.Repeat(" ", indent))
+	fmt.Fprintf(&source, "%[1]stype: object\n%[1]sproperties:\n%[1]s  leaf: {}\n", strings.Repeat(" ", indent))
 	var update strings.Builder
 	for i := range 3000 {
 		fmt.Fprintf(&update, "      k%d: v\n", i)
@@ -144,7 +144,7 @@ func TestLoad_APointerAmplificationAnOverlayGraftedNamesTheOverlay(t *testing.T)
 	require.NotNil(t, alone, "the source passes the bound alone")
 
 	got, diags, err := Load(t.Context(), 0, openapitest.SourceOf(source.String()),
-		overlayOptions("  - target: $..['x-leaf']\n    update:\n"+update.String()))
+		overlayOptions("  - target: $..leaf\n    update:\n"+update.String()))
 	require.NoError(t, err)
 	assert.Nil(t, got)
 	i := slices.IndexFunc(diags, func(d ir.Diagnostic) bool { return d.Code == diag.PointerAmplification })
@@ -175,7 +175,7 @@ func placedRefusals(t *testing.T, src string) []ir.Diagnostic {
 	t.Helper()
 	var root yaml.Node
 	require.NoError(t, yaml.Unmarshal([]byte(src), &root))
-	return refusals(t.Context(), treeOf(t.Context(), provenance.Doc{}, &root), ir.Provenance{}, &root, Options{})
+	return refusals(t.Context(), treeOf(t.Context(), provenance.Doc{}, &root), ir.Provenance{}, &root, Options{}, false)
 }
 
 // TestRefusals_NamesTheLeastTaggedMapping pins the tagged-mapping refusal's
@@ -203,7 +203,7 @@ func TestRefusals_ReportsEachRefusalAlongsideTheOthers(t *testing.T) {
 	var root yaml.Node
 	require.NoError(t, yaml.Unmarshal([]byte(src), &root))
 
-	diags := refusals(t.Context(), treeOf(t.Context(), provenance.Doc{}, &root), ir.Provenance{}, &root, Options{MaxAliasSurplus: budget.AtMost(1)})
+	diags := refusals(t.Context(), treeOf(t.Context(), provenance.Doc{}, &root), ir.Provenance{}, &root, Options{MaxAliasSurplus: budget.AtMost(1)}, false)
 
 	codes := make([]string, 0, len(diags))
 	for _, d := range diags {
@@ -237,7 +237,7 @@ func TestRefusals_PlaceAWholeDocumentFindingAtWhole(t *testing.T) {
 		require.NoError(t, yaml.Unmarshal([]byte(tc.src), &root), name)
 		tree := provenance.Tree{Doc: provenance.Doc{Source: 2}, Pointers: tc.pointers}
 
-		diags := refusals(t.Context(), tree, whole, &root, tc.opts)
+		diags := refusals(t.Context(), tree, whole, &root, tc.opts, false)
 
 		require.Len(t, diags, 1, "%s: %+v", name, diags)
 		assert.Equal(t, tc.code, diags[0].Code, name)

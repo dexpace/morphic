@@ -35,11 +35,10 @@ const minPointerBytes = 1 << 26 // 64 MiB
 // nothing for one within it. The index must cover the tree the parser will be
 // handed, untruncated, and a document holding a recursive anchor the index
 // finds is left to the anchor-cycle refusal, as Nesting leaves it. Every node
-// counts, values kept verbatim among them, though no compile names theirs one
-// by one, so a document whose values nest long keys deep is refused
-// (GitHub #1499).
+// counts, values kept verbatim among them; the load phase weighs a closed
+// document past it again by what a compile names (GitHub #1499).
 func PointerAmplification(whole ir.Provenance, idx sourceindex.Index) (ir.Diagnostic, bool) {
-	return pointerAmplificationWithin(whole, idx, pointerAllowance(idx.Written()))
+	return pointerAmplificationWithin(whole, idx, PointerAllowance(idx.Written()))
 }
 
 // pointerAmplificationWithin is PointerAmplification under an allowance of
@@ -54,10 +53,11 @@ func pointerAmplificationWithin(whole ir.Provenance, idx sourceindex.Index, allo
 			"for the %d bytes it writes", idx.PointerBytes(), allowance, idx.Written()), true
 }
 
-// pointerAllowance is the pointer bytes a document writing written bytes may
+// PointerAllowance is the pointer bytes a document writing written bytes may
 // spell: maxPointerAmplification times them, floored at minPointerBytes and
-// held at math.MaxInt.
-func pointerAllowance(written int) int {
+// held at math.MaxInt. The load phase holds a closed document's named total
+// to it too (bind.NamedPointerBytes).
+func PointerAllowance(written int) int {
 	if written > math.MaxInt/maxPointerAmplification {
 		return math.MaxInt
 	}

@@ -245,7 +245,7 @@ func (e external) prepare(ctx context.Context, id, key string, data []byte) ([]b
 // findings as its reason.
 func (e external) admit(ctx context.Context, key string, doc doctree.Document) error {
 	place := nowhere()
-	findings := refusals(ctx, place, place.Node(nil), doc.Root, e.opts)
+	findings := refusals(ctx, place, place.Node(nil), doc.Root, e.opts, false)
 	if len(findings) > 0 {
 		reasons := make([]string, len(findings))
 		for i, d := range findings {

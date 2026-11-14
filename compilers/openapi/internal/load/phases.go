@@ -121,7 +121,7 @@ type loading struct {
 // finish, is carried forward.
 func (l *loading) preParse(ctx context.Context) (bool, error) {
 	tree := treeOf(ctx, provenance.Doc{Source: l.srcIndex}, l.root)
-	l.early = append(versionDiagnostics(tree, l.read), refusals(ctx, tree, tree.Node(nil), l.root, l.opts)...)
+	l.early = append(versionDiagnostics(tree, l.read), refusals(ctx, tree, tree.Node(nil), l.root, l.opts, true)...)
 	return diag.HasError(l.early), nil
 }
 

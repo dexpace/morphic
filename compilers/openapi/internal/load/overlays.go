@@ -125,7 +125,7 @@ func applyOverlay(ctx context.Context, srcIndex int, root, ov *yaml.Node, opts O
 // draws the same refusal (overlayRefusals).
 func patchedRefusals(ctx context.Context, tree provenance.Tree, root *yaml.Node, opts Options) []ir.Diagnostic {
 	whole := ir.Provenance{Source: opts.OverlaySrcIndex}
-	found := refusals(ctx, tree, whole, root, opts)
+	found := refusals(ctx, tree, whole, root, opts, true)
 	for i := range found {
 		if found[i].Provenance == whole {
 			found[i].Message += ", once the overlay applies"
@@ -169,5 +169,5 @@ func overlayRefusals(ctx context.Context, opts Options) (doctree.Document, []ir.
 			"overlay document exceeds the %d-node bound the pre-parse scan indexes",
 			sourceindex.MaxIndexedNodes))
 	}
-	return doc, append(found, shapeRefusals(ctx, placed, placed.Node(nil), idx, opts)...)
+	return doc, append(found, shapeRefusals(ctx, placed, placed.Node(nil), idx, opts, false)...)
 }

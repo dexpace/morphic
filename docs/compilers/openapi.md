@@ -275,6 +275,15 @@ not read again, and an extension's content, which no container reads as an objec
 work is at most the kinds times the nodes the node budget admits, and no budget of its own is
 charged. The keys of each other document are checked once, over each outermost object reached in
 it.
+
+A source past the pointer bound, as written or as an overlay patches it, is weighed again before it
+is refused, by what a compile names one by one: a value the grammar keeps raw, an example, a
+default, a `const`, an enum member, an Example Object's value, an `x-` key or a field its object
+leaves out, adds its root alone, and a raw value a `$ref` or a discriminator mapping of the
+document lands in is named node by node as the kind that reference expects. It is refused only
+when that total too is past the bound, or when it cannot be taken: a reference leaves the
+document, a fragment is no JSON pointer, or the weighing runs past the node bound. An overlay
+document and a document a reference reads keep the first total.
 - Tests: `openapi.TestCompile_SourceByteBudgetBindsOnlyPastTheLimit`,
   `openapi.TestCompiler_SourceLimitReadsTheCallersOptions`,
   `openapi.TestDetect_DeclinesASourceHoldingMoreNodesThanTheCallersBudget`,
@@ -314,10 +323,12 @@ it.
   `e2e.TestCompile_AnExternalDocumentIsHeldToTheAliasTextBudget`,
   `e2e.TestCompile_AnObjectReachedInsideAContainerAndAsTheContainerIsCheckedOnce`,
   `load.TestResolve_AReachedObjectIsChargedToNoBudget`, `oas.TestCheck_ANodeSeenIsSkippedWhenItIsReadAgain`,
-  `oas.TestCheck_SkipLeavesUnreadAMappingItAnswersTrueFor`
-- Status: partly built: the pointer bound counts the values a compile keeps verbatim, an example or an
-  extension, whose nodes it never names one by one, so a document whose values nest long keys deep
-  is refused though it would compile cheaply (#1499).
+  `oas.TestCheck_SkipLeavesUnreadAMappingItAnswersTrueFor`,
+  `e2e.TestCompile_ARawValueNestingLongKeysIsNotRefusedAsPointerAmplification`,
+  `e2e.TestCompile_ARawValueAReferenceLandsInIsNamedNodeByNode`,
+  `e2e.TestCompile_APropertyNamedExampleHoldsASchemaAndIsNamedNodeByNode`,
+  `bind.TestNamedPointerBytes_TheTotalDoesNotDependOnWhichMountIsWrittenFirst`,
+  `bind.TestNamedPointerBytes_AReferenceIntoARawValueNamesItNodeByNode`
 
 ### `overlays`
 

@@ -15,6 +15,7 @@ import (
 	yaml "go.yaml.in/yaml/v3"
 
 	"github.com/dexpace/morphic/compilers"
+	"github.com/dexpace/morphic/compilers/openapi/internal/bind"
 	"github.com/dexpace/morphic/compilers/openapi/internal/bind/typed"
 	"github.com/dexpace/morphic/compilers/openapi/internal/budget"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
@@ -279,6 +280,7 @@ func defaultIndex(ctx context.Context, root *yaml.Node) sourceindex.Index {
 // part, and an alias allowance derived from a partial node count would refuse
 // documents on a bound they never crossed.
 func refusals(ctx context.Context, tree provenance.Tree, whole ir.Provenance, root *yaml.Node, opts Options,
+	closed bool,
 ) []ir.Diagnostic {
 	build := opts.buildIndex
 	if build == nil {
@@ -292,7 +294,7 @@ func refusals(ctx context.Context, tree provenance.Tree, whole ir.Provenance, ro
 			sourceindex.MaxIndexedNodes)}
 	}
 
-	diags := shapeRefusals(ctx, tree, whole, idx, opts)
+	diags := shapeRefusals(ctx, tree, whole, idx, opts, closed)
 	if tagged := idx.TaggedMappings(); len(tagged) > 0 {
 		diags = append(diags, taggedMappingRefusal(tree, scan.Least(ctx, root, tagged)))
 	}
@@ -304,8 +306,11 @@ func refusals(ctx context.Context, tree provenance.Tree, whole ir.Provenance, ro
 // (scan.Aliases) and, where neither is refused, the bytes of its nodes'
 // pointers (scan.PointerAmplification), which deep nesting and aliasing both
 // multiply, so one defect is not reported twice. tree places a finding at a
-// node, and whole one about the tree as a whole.
+// node, and whole one about the tree as a whole. A closed document, the source
+// as written or patched, past the pointer bound is weighed again by what a
+// compile names (namedWithin).
 func shapeRefusals(ctx context.Context, tree provenance.Tree, whole ir.Provenance, idx sourceindex.Index, opts Options,
+	closed bool,
 ) []ir.Diagnostic {
 	var diags []ir.Diagnostic
 	if d, deep := scan.Nesting(ctx, tree, idx); deep {
@@ -315,10 +320,19 @@ func shapeRefusals(ctx context.Context, tree provenance.Tree, whole ir.Provenanc
 	if diag.HasError(diags) {
 		return diags
 	}
-	if d, long := scan.PointerAmplification(whole, idx); long {
+	if d, long := scan.PointerAmplification(whole, idx); long && (!closed || !namedWithin(ctx, idx)) {
 		diags = append(diags, d)
 	}
 	return diags
+}
+
+// namedWithin reports whether the pointers a compile of idx's tree names one
+// by one total within the bound its size allows, counting a value kept raw by
+// its root alone (bind.NamedPointerBytes, GitHub #1499). A tree a reference
+// leaves, or one too large to weigh so, is not within it.
+func namedWithin(ctx context.Context, idx sourceindex.Index) bool {
+	total, complete := bind.NamedPointerBytes(ctx, idx.Root(), sourceindex.MaxIndexedNodes)
+	return complete && total <= scan.PointerAllowance(idx.Written())
 }
 
 // taggedMappingRefusal builds the diag.TaggedMapping refusal, anchored where

@@ -46,10 +46,10 @@ func TestPointerAmplification_RefusesPastTheAllowanceAndNotAtIt(t *testing.T) {
 // past it, and an allowance past math.MaxInt holds there.
 func TestPointerAmplification_ReadsTheRatioAndItsFloor(t *testing.T) {
 	t.Parallel()
-	assert.Equal(t, minPointerBytes, pointerAllowance(0))
-	assert.Equal(t, minPointerBytes, pointerAllowance(minPointerBytes/maxPointerAmplification))
-	assert.Equal(t, minPointerBytes+maxPointerAmplification, pointerAllowance(minPointerBytes/maxPointerAmplification+1))
-	assert.Equal(t, math.MaxInt, pointerAllowance(math.MaxInt/maxPointerAmplification+1))
+	assert.Equal(t, minPointerBytes, PointerAllowance(0))
+	assert.Equal(t, minPointerBytes, PointerAllowance(minPointerBytes/maxPointerAmplification))
+	assert.Equal(t, minPointerBytes+maxPointerAmplification, PointerAllowance(minPointerBytes/maxPointerAmplification+1))
+	assert.Equal(t, math.MaxInt, PointerAllowance(math.MaxInt/maxPointerAmplification+1))
 
 	deep := indexOf(t, []byte(nested("k", MaxNesting)+"\n"))
 	require.Greater(t, deep.PointerBytes(), maxPointerAmplification*deep.Written(), "the ratio alone would refuse it")
