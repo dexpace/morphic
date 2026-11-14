@@ -22,6 +22,11 @@ type Operation struct {
 	Stability Stability `json:"stability,omitempty"`
 	// Params are all logical inputs, protocol-unbound.
 	Params []Parameter `json:"params,omitempty"`
+	// ParamChoices are the choices the source states among the operation's
+	// parameters (docs/ir/operations.md#choices-among-parameters); empty = it
+	// states none. Params and every reference to a parameter are as they would
+	// be without them.
+	ParamChoices []ParamChoice `json:"paramChoices,omitempty"`
 	// Request is the body/message content; nil = none.
 	Request *Payload `json:"request,omitzero"`
 	// Responses are the ordered success and alternative-success responses.
@@ -112,6 +117,11 @@ type Parameter struct {
 	// position declared none, not that the value is unbounded
 	// (docs/ir/annotations.md#what-a-reference-carries-down).
 	Constraints *Constraints `json:"constraints,omitzero"`
+	// Encoding is this use's encoding, overriding its type's field by field, as
+	// Property.Encoding does (docs/ir/constraints.md#encodings); nil = the
+	// type's. It is the parameter's own because a $ref'd or shared type cannot
+	// carry what one use writes.
+	Encoding *Encoding `json:"encoding,omitzero"`
 	// ValueFrom derives the parameter's value from a location in the
 	// outgoing/incoming message (AsyncAPI parameter location runtime
 	// expressions); SDKs may auto-fill it. nil = caller-supplied.
@@ -209,6 +219,11 @@ type Content struct {
 	Docs Docs `json:"docs,omitzero"`
 	// Unmodeled holds source constructs the IR does not model, kept verbatim.
 	Unmodeled Unmodeled `json:"unmodeled,omitempty"`
+	// Inferred lists the heuristics that filled a field from a key the content
+	// keeps (docs/ir/unmodeled.md#promotion), as [Provenance].Inferred does on
+	// a node that has one; empty means none did. Stream.Inferred says how the
+	// content is known to stream.
+	Inferred Inferred `json:"inferred,omitempty"`
 }
 
 // ContentStream is how a Content is known to stream
@@ -527,6 +542,9 @@ type Pagination struct {
 	Items *PropPath `json:"items,omitzero"`
 	// NextCursor is the continuation source in the response.
 	NextCursor *PropPath `json:"nextCursor,omitzero"`
+	// HasMore is the response's flag saying another page follows: true
+	// continues. nil = the source states none.
+	HasMore *PropPath `json:"hasMore,omitzero"`
 	// NextLink is the next-page link in the response.
 	NextLink *PropPath `json:"nextLink,omitzero"`
 	// PrevLink is the previous-page navigation link.
@@ -561,6 +579,9 @@ const (
 	// PageStopTotal ends it once the items read reach TotalCount, or the pages
 	// read reach TotalPages.
 	PageStopTotal PageStop = "total"
+	// PageStopNoMore ends iteration at a page whose HasMore is false, null or
+	// absent.
+	PageStopNoMore PageStop = "no_more"
 )
 
 // Valid reports whether s is one of the conditions declared above. PageStop is
@@ -569,7 +590,7 @@ const (
 // value is reported rather than ignored.
 func (s PageStop) Valid() bool {
 	switch s {
-	case PageStopEmpty, PageStopNoNext, PageStopShort, PageStopTotal:
+	case PageStopEmpty, PageStopNoNext, PageStopShort, PageStopTotal, PageStopNoMore:
 		return true
 	default:
 		return false
@@ -620,4 +641,27 @@ type LongRunning struct {
 	FinalType *TypeRef `json:"finalType,omitzero"`
 	// ResultPath locates the final result within the polling response.
 	ResultPath *PropPath `json:"resultPath,omitzero"`
+}
+
+// ParamChoice is one choice among alternative sets of an operation's
+// parameters: of the parameters its variants name, a request carries those of
+// one variant only. A compiler writes one only over parameters its source
+// declares one by one; a sum the source declares is a Union.
+type ParamChoice struct {
+	// Name names the choice.
+	Name Naming `json:"name"`
+	// Required reports that a request carries a parameter of the choice;
+	// false = it may carry none.
+	Required bool `json:"required"`
+	// Variants are the alternatives, two or more.
+	Variants []ParamVariant `json:"variants,omitempty"`
+}
+
+// ParamVariant is one alternative of a ParamChoice.
+type ParamVariant struct {
+	// Name names the variant.
+	Name Naming `json:"name"`
+	// Params are the parameters of the operation a request picking the variant
+	// may carry, one or more, each once. Nothing says they travel together.
+	Params []ParamID `json:"params,omitempty"`
 }

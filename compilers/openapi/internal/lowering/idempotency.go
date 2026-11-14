@@ -8,7 +8,7 @@ import "github.com/dexpace/morphic/ir"
 // IdempotencyInferenceHeuristic is the name an Operation's
 // Provenance.Inferred carries where the idempotency policy read its
 // Idempotency off a header parameter. It is a constant for the reason
-// StreamingMediaTypeHeuristic is: an auditor greps for it.
+// StreamingInferenceHeuristic is: an auditor greps for it.
 const IdempotencyInferenceHeuristic ir.Inferred = "idempotency-inference"
 
 // IdempotencyInference is the idempotency policy: whether an operation

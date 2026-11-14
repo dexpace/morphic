@@ -249,3 +249,62 @@ paths:
 	assert.Equal(t, []ir.OpID{"op/openapi/paths/~1p/get/callbacks/cb/{$request.query.u}/get"},
 		op.Bindings.HTTP[0].Callbacks[0].Operations, "the $ref resolves, and the field beside it is not lowered")
 }
+
+// TestConstraints_ANamedTypeIsReadInItsOwnDocument pins that the type a bound's
+// schema names is the one its own document declares. The root declares an Arr
+// of another type, so reading the name in the root's schemas would take the
+// bound, which the array the other document names does not.
+func TestConstraints_ANamedTypeIsReadInItsOwnDocument(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	layout(t, dir, map[string]string{"other.yaml": `openapi: 3.1.0
+info: {title: o, version: "1"}
+paths: {}
+components:
+  schemas:
+    Use: {$ref: '#/components/schemas/Arr', minLength: 1}
+    Box: {type: object, properties: {inner: {$ref: '#/components/schemas/Arr', minLength: 1}}}
+    Arr: {type: array, items: {type: string}}
+`})
+	const root = `openapi: 3.1.0
+info: {title: t, version: "1"}
+paths: {}
+components:
+  schemas:
+    Arr: {type: string}
+    Holder:
+      type: object
+      properties:
+        far: {$ref: 'other.yaml#/components/schemas/Use'}
+        box: {$ref: 'other.yaml#/components/schemas/Box'}
+`
+	doc, diags := compileOnDisk(t, filepath.Join(dir, "root.yaml"), root, true)
+	openapitest.RequireNoErrorDiags(t, diags)
+	require.Len(t, doc.Sources, 2)
+
+	use, ok := doc.Types["t/openapi@other.yaml/components/schemas/Use"].(*ir.Scalar)
+	require.True(t, ok, "%T", doc.Types["t/openapi@other.yaml/components/schemas/Use"])
+	assert.Nil(t, use.Constraints)
+	assert.Contains(t, use.Unmodeled, "openapi:minLength")
+
+	box, ok := doc.Types["t/openapi@other.yaml/components/schemas/Box"].(*ir.Model)
+	require.True(t, ok, "%T", doc.Types["t/openapi@other.yaml/components/schemas/Box"])
+	inner, ok := propByWire(box, "inner")
+	require.True(t, ok)
+	assert.Nil(t, inner.Constraints)
+	entry := unmodeledEntry(t, inner.Unmodeled, "openapi:minLength")
+	assert.Equal(t, ir.Provenance{Source: 1, Pointer: "/components/schemas/Box/properties/inner/minLength"},
+		ir.Provenance{Source: entry.Provenance.Source, Pointer: entry.Provenance.Pointer})
+
+	var infos []ir.Diagnostic
+	for _, d := range diags {
+		if d.Code == diag.DegradedConstruct {
+			infos = append(infos, d)
+		}
+	}
+	require.Len(t, infos, 2, "%+v", diags)
+	for _, d := range infos {
+		assert.Equal(t, ir.SeverityInfo, d.Severity)
+		assert.Equal(t, 1, d.Provenance.Source, "%s is reported in other.yaml", d.Provenance.Pointer)
+	}
+}

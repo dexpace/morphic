@@ -35,7 +35,7 @@ func refSiteRef(c lowering.Ctx, ts *compile.Types, js *oas3.JSONSchema[oas3.Refe
 	// A rule about the declaration holds the keywords beside its $ref as it holds
 	// a body's (schemaBody), with what the $ref lands on.
 	diags = append(missingArrayItemsBesideRef(c, js, pointer), diags...)
-	unhomed := refSiteUnhomedKeywords(s, nil)
+	unhomed := refSiteUnhomedKeywords(c, s, pointer, nil)
 	hasUnion := declaresUnion(s)
 	ref, homeDiags := homeDeclaration(c, ts, s, target, pointer, home, len(unhomed) > 0 || hasUnion)
 	diags = append(diags, homeDiags...)
@@ -74,7 +74,7 @@ func PreserveRefSiteKeywords(c lowering.Ctx, ts *compile.Types, p *ir.Unmodeled,
 		// reference just as a $ref site does.
 		return keepsAtOutcome(c, ts, s, t, pointer).record(c, ts, p, s, pointer)
 	}
-	diags := recordUnhomedAt(c, ts, p, s, refSiteUnhomedKeywords(s, nil), refSiteShape, pointer)
+	diags := recordUnhomedAt(c, ts, p, s, refSiteUnhomedKeywords(c, s, pointer, nil), refSiteShape, pointer)
 	if !declaresUnion(s) {
 		return diags
 	}

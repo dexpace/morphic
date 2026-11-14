@@ -74,12 +74,12 @@ func TestStreaming_ResponseMediaTypeImpliesServerStream(t *testing.T) {
 				assert.Nil(t, op.RequestStream, "nothing streams towards the server")
 
 				content := firstResponseContent(t, op)
-				assert.Equal(t, &ir.ContentStream{Inferred: "streaming-media-type"}, content.Stream,
+				assert.Equal(t, &ir.ContentStream{Inferred: "streaming-inference"}, content.Stream,
 					"the content says it streams, and that a guess says so")
 				require.NotNil(t, op.ResponseStream.Events, "the frame schema is the stream element type")
 				assert.Empty(t, cmp.Diff(content.Type, *op.ResponseStream.Events))
 				assert.Equal(t, mediaType, content.MediaType, "the media type is still kept as declared")
-				assert.Equal(t, ir.Inferred("streaming-media-type"), op.Provenance.Inferred,
+				assert.Equal(t, ir.Inferred("streaming-inference"), op.Provenance.Inferred,
 					"classifying a media type is a heuristic and says so")
 			})
 		}
@@ -136,7 +136,7 @@ func TestStreaming_RequestMediaTypeImpliesClientStream(t *testing.T) {
 			require.NotNil(t, op.RequestStream.Events)
 			require.NotNil(t, op.Request)
 			assert.Empty(t, cmp.Diff(op.Request.Contents[0].Type, *op.RequestStream.Events))
-			assert.Equal(t, ir.Inferred("streaming-media-type"), op.Provenance.Inferred,
+			assert.Equal(t, ir.Inferred("streaming-inference"), op.Provenance.Inferred,
 				"the request's guess marks the operation, whatever the response does")
 		})
 	}
@@ -467,7 +467,7 @@ func TestStreaming_MarkerListsEveryHeuristicThatApplied(t *testing.T) {
 	byPrefix := openapi.Options{Grouping: openapi.GroupByPathPrefix}
 	doc, _ := streamingSpec(t, eventStreamSpec("3.1.0", "text/event-stream"), byPrefix)
 	op := openapitest.FindOp(t, doc, "getEvents")
-	assert.Equal(t, ir.Inferred("group-path-prefix,streaming-media-type"), op.Provenance.Inferred)
+	assert.Equal(t, ir.Inferred("group-path-prefix,streaming-inference"), op.Provenance.Inferred)
 }
 
 // TestStreaming_MarkerListKeepsAPromotionBesideBoth extends the pin above to a
@@ -493,7 +493,7 @@ func TestStreaming_MarkerListKeepsAPromotionBesideBoth(t *testing.T) {
 	doc, _ := streamingSpec(t, src, openapi.Options{Grouping: openapi.GroupByPathPrefix})
 	op := openapitest.FindOp(t, doc, "getEvents")
 
-	assert.Equal(t, ir.Inferred("group-path-prefix,streaming-media-type,extension-promotion"), op.Provenance.Inferred)
+	assert.Equal(t, ir.Inferred("group-path-prefix,streaming-inference,extension-promotion"), op.Provenance.Inferred)
 	require.NotNil(t, op.Deprecation)
 	assert.Equal(t, "why", op.Deprecation.Message)
 	assert.Equal(t, ir.StabilityBeta, op.Stability)
@@ -554,7 +554,7 @@ components:
 // it, so a caller's list moves it and turning the policy off clears it.
 func TestStreaming_EachContentSaysWhetherItStreams(t *testing.T) {
 	t.Parallel()
-	const guess = "streaming-media-type"
+	const guess = "streaming-inference"
 	for _, tc := range []struct {
 		name   string
 		opts   openapi.Options
@@ -628,7 +628,7 @@ func TestStreaming_AnItemSchemaDeclaresItsContentAStream(t *testing.T) {
 		ndjson   string
 		inferred ir.Inferred
 	}{
-		{"the default policy", openapi.Options{}, "streaming-media-type", "streaming-media-type"},
+		{"the default policy", openapi.Options{}, "streaming-inference", "streaming-inference"},
 		{"a disabled policy", openapi.Options{StreamingMedia: openapi.StreamingMedia{Disabled: true}}, "", ""},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -679,11 +679,11 @@ webhooks:
       responses: {"204": {description: ok}}
 `, openapi.Options{})
 	deliver := openapitest.FindOp(t, doc, "deliver")
-	assert.Equal(t, map[string]string{"application/json": "", "application/x-ndjson": "streaming-media-type"},
+	assert.Equal(t, map[string]string{"application/json": "", "application/x-ndjson": "streaming-inference"},
 		streamsByMediaType(t, deliver.Responses[0].Payload))
 	assert.Equal(t, ir.StreamingServer, deliver.Streaming)
 	ping := openapitest.FindOp(t, doc, "onPing")
-	assert.Equal(t, map[string]string{"text/event-stream": "streaming-media-type"}, streamsByMediaType(t, ping.Request))
+	assert.Equal(t, map[string]string{"text/event-stream": "streaming-inference"}, streamsByMediaType(t, ping.Request))
 	assert.Equal(t, ir.StreamingClient, ping.Streaming)
 }
 
@@ -710,6 +710,6 @@ components:
     Frames: {schema: {type: object, properties: {a: {type: string}}}}
 `, openapi.Options{})
 	op := openapitest.FindOp(t, doc, "s")
-	assert.Equal(t, map[string]string{"text/event-stream": "streaming-media-type", "application/json": ""},
+	assert.Equal(t, map[string]string{"text/event-stream": "streaming-inference", "application/json": ""},
 		streamsByMediaType(t, op.Responses[0].Payload))
 }

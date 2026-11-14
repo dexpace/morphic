@@ -368,15 +368,17 @@ func keepsAtOutcome(c lowering.Ctx, ts *compile.Types, s *oas3.Schema, target ir
 
 // homesAt returns which bounds the position s is written at, lowered to target,
 // holds for its voices, as the census asks of those written beside its allOf. A
-// carrier or an alias holds the value bounds the types the position declares
-// take, and collection bounds where it is a use of the principal, a reference
-// (keywordHome). A node the position owns holds what its kind does, of the value
-// bounds those its types take, and the Union a type list lowers to the bounds its
-// variants do, each the bounds of its own type (lowerTypeVariant).
+// carrier or an alias holds the value bounds the types the position admits take
+// (positionTypes), and collection bounds where it is a use of the principal, a
+// reference (keywordHome), where those types admit an array. A node the position
+// owns holds what its kind does, of the value bounds those take, and the Union a
+// type list lowers to the bounds its variants do, each the bounds of its own type
+// (lowerTypeVariant).
 func homesAt(c lowering.Ctx, ts *compile.Types, s *oas3.Schema, target ir.TypeRef, pointer jsontext.Pointer) boundHomes {
 	if !LoweredToOwnNode(c, ts, pointer, target) {
 		r, refined := refinementOf(c, s, pointer)
-		return boundHomes{value: declaredInstanceTypes(s), collection: refined && r.principal != nil}
+		takes := positionTypes(c, s, pointer)
+		return boundHomes{value: takes, collection: refined && r.principal != nil && takes&kindArray != 0}
 	}
 	// A node still building holds nothing yet.
 	var homes boundHomes
@@ -386,7 +388,7 @@ func homesAt(c lowering.Ctx, ts *compile.Types, s *oas3.Schema, target ir.TypeRe
 			nodes = variantNodes(ts, u)
 		}
 		if slices.ContainsFunc(nodes, constraintsHome) {
-			homes.value = declaredInstanceTypes(s)
+			homes.value = positionTypes(c, s, pointer)
 		}
 		homes.collection = slices.ContainsFunc(nodes, holdsCollectionBounds)
 	}
@@ -411,7 +413,7 @@ func variantNodes(ts *compile.Types, u *ir.Union) []ir.TypeDef {
 func refinedUnhomed(c lowering.Ctx, r refinement, s *oas3.Schema, typed ir.TypeDef) []string {
 	w := newAdmission(c)
 	held := slices.DeleteFunc(slices.Clone(censusKeywords), func(key string) bool { return !said(&w, r, typed, s, key) })
-	return referenceUnhomed(s, held)
+	return referenceUnhomed(c, s, r.comp.pointer, held)
 }
 
 // keptUnion returns the union keywords s writes beside an allOf that lowered to

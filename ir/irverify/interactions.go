@@ -43,7 +43,8 @@ var interactionPath = map[reflect.Type]bool{
 // checkInteractions asserts what starts and ends a page walk or a stream
 // (docs/ir/interaction-patterns.md): every ir.InputPath names a value its
 // operation's request carries, every pagination stop is one ir declares, listed
-// once, and no stream ends on empty data. An emitter switches on a stop to end
+// once, a no_more stop beside the flag it reads, and no stream ends on empty
+// data. An emitter switches on a stop to end
 // its loop, so one it has no arm for is ir/unknown-page-stop.
 //
 // It prunes all but operationPath and interactionPath, for
@@ -70,6 +71,7 @@ func checkInteractions(*ir.Document) walkCheck {
 			case paginationType:
 				if pg, ok := reflect.TypeAssert[ir.Pagination](v); ok {
 					vs = appendStopViolations(vs, pg.Stop, at, &stops)
+					vs = appendFlagViolation(vs, pg, at)
 				}
 				return true
 			case streamDetailType:
@@ -112,6 +114,26 @@ func appendTerminatorViolation(vs []Violation, terminator *string, owner ir.Walk
 		Message: "stream terminator is empty, so a frame holding no data would end the stream",
 		Path:    owner.String() + ".Terminator",
 	})
+}
+
+// appendFlagViolation reports each no_more stop of pg, the pagination at
+// owner, where pg names no flag: the stop reads HasMore, so it ends the walk at
+// nothing a pager can read (ir/page-stop-without-flag). A flag with no stop is
+// legal, as TotalCount is with no total stop.
+func appendFlagViolation(vs []Violation, pg ir.Pagination, owner ir.WalkPath) []Violation {
+	if pg.HasMore != nil {
+		return vs
+	}
+	for i, stop := range pg.Stop {
+		if stop == ir.PageStopNoMore {
+			vs = append(vs, Violation{
+				Code:    "ir/page-stop-without-flag",
+				Message: `pagination stops on "no_more" and names no flag to read`,
+				Path:    owner.String() + ".Stop[" + strconv.Itoa(i) + "]",
+			})
+		}
+	}
+	return vs
 }
 
 // appendStopViolations reports each of stops, the Stop of the pagination at

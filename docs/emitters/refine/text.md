@@ -421,8 +421,8 @@ the rule.
 ## Other formats
 
 A compiler lowers the text a format's binding gives a position by default, as Smithy and TypeSpec
-give a timestamp in a header an HTTP-date, as an `Encoding` at that position, a header's own or that
-of a scalar hoisted to type a parameter ([planned lowerings](../../compilers/planned-lowerings.md)),
+give a timestamp in a header an HTTP-date, as an `Encoding` at that position, a header's own or a parameter's
+(`Parameter.Encoding`) ([planned lowerings](../../compilers/planned-lowerings.md)),
 under the name the IR documents for it and not the format's own, `http-date` for TypeSpec's
 `rfc7231` as for Smithy's `http-date`, which keys its row as any encoding does: an emitter never
 reads which format a document came from (INV1). An encoding with no row of its own types the value

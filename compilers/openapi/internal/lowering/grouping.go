@@ -14,7 +14,7 @@ import (
 
 // GroupPathPrefixHeuristic is the name Provenance.Inferred carries on an
 // operation GroupByPathPrefix filed. It is a constant for the reason
-// StreamingMediaTypeHeuristic is: an auditor greps for it.
+// StreamingInferenceHeuristic is: an auditor greps for it.
 const GroupPathPrefixHeuristic ir.Inferred = "group-path-prefix"
 
 // GroupExtensionHeuristic is the name Provenance.Inferred carries on an

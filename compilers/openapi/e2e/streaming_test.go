@@ -128,7 +128,7 @@ func assertStreamingMedia30(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 	content := firstContent(t, op)
 	assert.Empty(t, cmp.Diff(content.Type, *op.ResponseStream.Events))
 	assert.Equal(t, "text/event-stream", content.MediaType, "the media type itself is still kept as declared")
-	assert.Equal(t, ir.Inferred("streaming-media-type"), op.Provenance.Inferred)
+	assert.Equal(t, ir.Inferred("streaming-inference"), op.Provenance.Inferred)
 }
 
 // assertStreamingMedia31 is the corpus row for what assertStreamingMedia30 leaves
@@ -150,7 +150,7 @@ func assertStreamingMedia31(t *testing.T, doc *ir.Document, diags []ir.Diagnosti
 	assert.Empty(t, cmp.Diff(both.Request.Contents[0].Type, *both.RequestStream.Events))
 	require.NotNil(t, both.ResponseStream)
 	assert.NotNil(t, both.ResponseStream.Events, "a charset parameter does not defeat the match")
-	assert.Equal(t, ir.Inferred("streaming-media-type"), both.Provenance.Inferred)
+	assert.Equal(t, ir.Inferred("streaming-inference"), both.Provenance.Inferred)
 
 	upload, ok := opByName(doc, "uploadRows")
 	require.True(t, ok)
@@ -159,7 +159,7 @@ func assertStreamingMedia31(t *testing.T, doc *ir.Document, diags []ir.Diagnosti
 	require.NotNil(t, upload.RequestStream.Events)
 	assert.Equal(t, ir.TypeID("t/openapi/components/schemas/Frame"), upload.RequestStream.Events.Target)
 	assert.Nil(t, upload.ResponseStream, "a 204 has nothing to stream back")
-	assert.Equal(t, ir.Inferred("streaming-media-type"), upload.Provenance.Inferred)
+	assert.Equal(t, ir.Inferred("streaming-inference"), upload.Provenance.Inferred)
 
 	either, ok := opByName(doc, "streamEither")
 	require.True(t, ok)
@@ -210,7 +210,7 @@ func assertTailMetrics(t *testing.T, doc *ir.Document) {
 	t.Helper()
 	metrics, ok := opByName(doc, "tailMetrics")
 	require.True(t, ok)
-	guessed := &ir.ContentStream{Inferred: "streaming-media-type"}
+	guessed := &ir.ContentStream{Inferred: "streaming-inference"}
 	require.Len(t, metrics.Responses, 1)
 	require.NotNil(t, metrics.Default)
 	for _, payload := range []*ir.Payload{metrics.Responses[0].Payload, metrics.Default.Payload} {

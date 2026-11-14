@@ -189,7 +189,7 @@ func TestDialectShapes_AreReportedWhereverTheCheckReadsASchema(t *testing.T) {
 
 	_, diags = compileMinors(t, minorRoot("3.1.0"), minorExt("openapi: 3.1.0\ninfo: {title: E, version: '1'}\n",
 		"    S: {$schema: "+draft04+", type: integer, not: {exclusiveMinimum: 5}}\n", "{description: ok}"),
-		openapi.NullableWidening{})
+		openapi.NullableInference{})
 	assert.Equal(t, []jsontext.Pointer{"/components/schemas/S/not/exclusiveMinimum"}, extFindings(diags, diag.ExclusiveBoundForm),
 		"a document a reference reaches is judged in its own schemas' dialect")
 }

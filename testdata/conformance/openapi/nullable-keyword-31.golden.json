@@ -75,7 +75,7 @@
       "elem": {
         "target": "t/prim/integer",
         "nullable": true,
-        "inferred": "nullable-widening"
+        "inferred": "nullable-inference"
       }
     },
     "t/anon/components/schemas/Holder/properties/described": {
@@ -94,7 +94,7 @@
       "elem": {
         "target": "t/anon/components/schemas/Holder/properties/described/items",
         "nullable": true,
-        "inferred": "nullable-widening"
+        "inferred": "nullable-inference"
       }
     },
     "t/anon/components/schemas/Holder/properties/described/items": {
@@ -115,7 +115,7 @@
       "base": {
         "target": "t/prim/integer",
         "nullable": true,
-        "inferred": "nullable-widening"
+        "inferred": "nullable-inference"
       }
     },
     "t/anon/components/schemas/Holder/properties/shaped": {
@@ -134,7 +134,7 @@
       "elem": {
         "target": "t/anon/components/schemas/Holder/properties/shaped/items",
         "nullable": true,
-        "inferred": "nullable-widening"
+        "inferred": "nullable-inference"
       }
     },
     "t/anon/components/schemas/Holder/properties/shaped/items": {
@@ -210,7 +210,7 @@
           "type": {
             "target": "t/prim/string",
             "nullable": true,
-            "inferred": "nullable-widening"
+            "inferred": "nullable-inference"
           },
           "required": false,
           "clientOptional": false,
@@ -238,7 +238,7 @@
           "type": {
             "target": "t/openapi/components/schemas/Name",
             "nullable": true,
-            "inferred": "nullable-widening"
+            "inferred": "nullable-inference"
           },
           "required": false,
           "clientOptional": false,
@@ -266,7 +266,7 @@
           "type": {
             "target": "t/openapi/components/schemas/Plain",
             "nullable": true,
-            "inferred": "nullable-widening"
+            "inferred": "nullable-inference"
           },
           "required": false,
           "clientOptional": false,
@@ -441,7 +441,7 @@
       "base": {
         "target": "t/prim/string",
         "nullable": true,
-        "inferred": "nullable-widening"
+        "inferred": "nullable-inference"
       }
     },
     "t/openapi/components/schemas/Plain": {
@@ -505,7 +505,7 @@
     {
       "severity": "info",
       "code": "openapi/inferred-nullable",
-      "message": "nullable: true is read as admitting null under the nullable-widening policy, though the dialect this schema is read in defines no nullable keyword; a reference whose null rests on it is marked inferred",
+      "message": "nullable: true is read as admitting null under the nullable-inference policy, though the dialect this schema is read in defines no nullable keyword; a reference whose null rests on it is marked inferred",
       "provenance": {
         "source": 0,
         "pointer": "/components/schemas/Name/nullable"
@@ -514,7 +514,7 @@
     {
       "severity": "info",
       "code": "openapi/inferred-nullable",
-      "message": "nullable: true is read as admitting null under the nullable-widening policy, though the dialect this schema is read in defines no nullable keyword; a reference whose null rests on it is marked inferred",
+      "message": "nullable: true is read as admitting null under the nullable-inference policy, though the dialect this schema is read in defines no nullable keyword; a reference whose null rests on it is marked inferred",
       "provenance": {
         "source": 0,
         "pointer": "/components/schemas/Holder/properties/inline/nullable"
@@ -523,7 +523,7 @@
     {
       "severity": "info",
       "code": "openapi/inferred-nullable",
-      "message": "nullable: true is read as admitting null under the nullable-widening policy, though the dialect this schema is read in defines no nullable keyword; a reference whose null rests on it is marked inferred",
+      "message": "nullable: true is read as admitting null under the nullable-inference policy, though the dialect this schema is read in defines no nullable keyword; a reference whose null rests on it is marked inferred",
       "provenance": {
         "source": 0,
         "pointer": "/components/schemas/Holder/properties/besideRef/nullable"
@@ -532,7 +532,7 @@
     {
       "severity": "info",
       "code": "openapi/inferred-nullable",
-      "message": "nullable: true is read as admitting null under the nullable-widening policy, though the dialect this schema is read in defines no nullable keyword; a reference whose null rests on it is marked inferred",
+      "message": "nullable: true is read as admitting null under the nullable-inference policy, though the dialect this schema is read in defines no nullable keyword; a reference whose null rests on it is marked inferred",
       "provenance": {
         "source": 0,
         "pointer": "/components/schemas/Holder/properties/counts/items/nullable"
@@ -541,7 +541,7 @@
     {
       "severity": "info",
       "code": "openapi/inferred-nullable",
-      "message": "nullable: true is read as admitting null under the nullable-widening policy, though the dialect this schema is read in defines no nullable keyword; a reference whose null rests on it is marked inferred",
+      "message": "nullable: true is read as admitting null under the nullable-inference policy, though the dialect this schema is read in defines no nullable keyword; a reference whose null rests on it is marked inferred",
       "provenance": {
         "source": 0,
         "pointer": "/components/schemas/Holder/properties/described/items/nullable"
@@ -550,7 +550,7 @@
     {
       "severity": "info",
       "code": "openapi/inferred-nullable",
-      "message": "nullable: true is read as admitting null under the nullable-widening policy, though the dialect this schema is read in defines no nullable keyword; a reference whose null rests on it is marked inferred",
+      "message": "nullable: true is read as admitting null under the nullable-inference policy, though the dialect this schema is read in defines no nullable keyword; a reference whose null rests on it is marked inferred",
       "provenance": {
         "source": 0,
         "pointer": "/components/schemas/Holder/properties/shaped/items/nullable"
@@ -561,7 +561,7 @@
     {
       "format": "openapi@3.1",
       "path": "nullable-keyword-31.yaml",
-      "hash": "01780384b77dfa8d55e46a08515d91bbfbe4371ae08ebcf20e9a54580072b492"
+      "hash": "aea9a29cdacbf13a6cd83861596ce564d2937edd026e56f129cb927cbe660f8b"
     }
   ]
 }

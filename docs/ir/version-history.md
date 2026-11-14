@@ -758,3 +758,35 @@ it sees. Changes made together in one bump are listed together under it.
   consumer pinned to 0.64.0 that read `Explode` as always present no longer finds the key on such a
   binding, and must read its absence as the style's default, as it already does for a response
   header's. Read as false, the absence sends a `form` parameter unexploded.
+- **0.66.0** — no shape change. The OpenAPI compiler reads a bound written beside a schema that
+  names another, through a `$ref`, an `allOf` entry, a `oneOf` or `anyOf`, or an expanded dynamic
+  reference, by the types the position admits, its own and those of every schema it names
+  ([`constraints`](../compilers/openapi.md#constraints)). A value or collection bound none of them
+  takes, a `minLength` beside a reference to an array say, no longer reaches the `Constraints` of
+  the alias, carrier, composition or variant holding it, and is kept verbatim under
+  `openapi:<keyword>` (`degraded_lowering`) instead. No bound that was kept becomes typed. A
+  consumer pinned to 0.65.0 that read such a bound as constraining the reference applied it to
+  values of a kind it never bounds, and finds it now only under `Unmodeled`.
+- **0.68.0** — `Pagination.HasMore`, the page's flag saying another page follows, and the stop
+  `no_more`, ending a walk at a page whose flag is false, null or absent
+  ([pagination](./interaction-patterns.md#pagination)); `no_more` with no `HasMore` is
+  `ir/page-stop-without-flag`. The OpenAPI compiler fills them from a promotion target
+  `pagination.hasMore` and from a cursor walk's page stating one flag, and writes for the first time
+  a walk whose inputs are members of the request body or of an object query parameter, `NextLink`
+  and `PrevLink` beside a walk an input continues, a header `NextCursor`, and the strategies
+  `next_link` and `link_header` where no input continues a page
+  ([`pagination-policy`](../compilers/openapi.md#pagination-policy)). `Parameter.Encoding`, a
+  parameter's own encoding, overriding its type's field by field as `Property.Encoding` does
+  ([encodings](./constraints.md#encodings)); the OpenAPI compiler writes `http-date` there on a
+  header parameter its HTTP-date reading reaches
+  ([`http-date-inference`](../compilers/openapi.md#http-date-inference)). `Content.Inferred`, the
+  heuristics that filled a field from a key the content keeps, the marker a promotion from a content
+  records ([promotion](./unmodeled.md#promotion)). `Operation.ParamChoices`, with `ParamChoice` and
+  `ParamVariant`, the choices a source states among parameters it declares one by one, the
+  parameter list untouched ([choices among parameters](./operations.md#choices-among-parameters));
+  `ir/param-choice-single`, `ir/param-variant-empty` and `ir/param-choice-name-duplicate` are new
+  verifier codes. Three markers are renamed, as each inference's marker is `<fact>-inference`:
+  `streaming-media-type` is `streaming-inference`, `binary-media-type` is `binary-inference` and
+  `nullable-widening` is `nullable-inference`. A consumer pinned to 0.66.0 refuses the document; one
+  reading `Stop` with no arm for `no_more` would not end such a walk, and one matching a marker by
+  its old name no longer finds it.

@@ -137,23 +137,35 @@ const (
 	TargetPaginationItems = lowering.TargetPaginationItems
 	// TargetPaginationNextCursor fills ir.Pagination.NextCursor.
 	TargetPaginationNextCursor = lowering.TargetPaginationNextCursor
+	// TargetPaginationHasMore fills ir.Pagination.HasMore, and the stop
+	// ir.PageStopNoMore beside it.
+	TargetPaginationHasMore = lowering.TargetPaginationHasMore
 	// TargetPaginationNextLink fills ir.Pagination.NextLink.
 	TargetPaginationNextLink = lowering.TargetPaginationNextLink
 	// TargetPaginationTotalCount fills ir.Pagination.TotalCount.
 	TargetPaginationTotalCount = lowering.TargetPaginationTotalCount
 	// TargetPaginationTotalPages fills ir.Pagination.TotalPages.
 	TargetPaginationTotalPages = lowering.TargetPaginationTotalPages
+	// TargetStreamTerminator fills ir.StreamDetail.Terminator, from a key on a
+	// streaming content of a success response or on the operation.
+	TargetStreamTerminator = lowering.TargetStreamTerminator
+	// TargetStreamCondition fills ir.StreamDetail.Condition, from a key on the
+	// operation naming an input of its request.
+	TargetStreamCondition = lowering.TargetStreamCondition
+	// TargetParamChoices fills ir.Operation.ParamChoices, from a key on the
+	// operation naming alternatives among its parameters.
+	TargetParamChoices = lowering.TargetParamChoices
 )
 
-// NullableWidening is the nullable-widening policy: whether a null a schema
+// NullableInference is the nullable-inference policy: whether a null a schema
 // spells, by `nullable: true` or beside a $ref, widens what it is written on. It
 // is another injectable-policy seam (architecture principle 6), and is named
 // here rather than restated for the reason GroupingStrategy is.
-type NullableWidening = lowering.NullableWidening
+type NullableInference = lowering.NullableInference
 
-// NullableWideningHeuristic is the name ir.TypeRef.Inferred carries on a
-// reference whose null the nullable-widening policy read in.
-const NullableWideningHeuristic = lowering.NullableWideningHeuristic
+// NullableInferenceHeuristic is the name ir.TypeRef.Inferred carries on a
+// reference whose null the nullable-inference policy read in.
+const NullableInferenceHeuristic = lowering.NullableInferenceHeuristic
 
 // DiscriminatorInference is the discriminator-inference policy: whether a
 // union's tags are read off the strings each variant pins its tag property
@@ -268,10 +280,10 @@ type Options struct {
 	// The zero value is the default mapping, on; a caller who wants extensions
 	// kept verbatim and nothing more disables it.
 	Promotions ExtensionPromotions `json:"promotions"`
-	// NullableWidening selects whether a null a schema spells widens what it is
+	// NullableInference selects whether a null a schema spells widens what it is
 	// written on, a reference it decides marked as inferred. The zero value is
 	// on; a caller who wants only what the document's version says disables it.
-	NullableWidening NullableWidening `json:"nullableWidening"`
+	NullableInference NullableInference `json:"nullableInference"`
 	// DiscriminatorInference selects whether a union's tags are read off the
 	// strings each variant pins its tag property to, where the document
 	// declares no mapping or no discriminator, and a subtype's routed by name
@@ -563,11 +575,10 @@ const (
 // the field saying it is off: the text names a policy as on or off, and the Go
 // field its being off, as each policy's Disabled does. A name is the marker
 // the policy leaves on what it fills (docs/compilers/openapi.md#policies), but
-// for the streaming and binary policies', whose markers predate the rule
-// (#1847), and the title-names policy's, which leaves none.
+// for the title-names policy's, which leaves none.
 func switchOptions(o *Options) map[string]*bool {
 	return map[string]*bool{
-		string(NullableWideningHeuristic):            &o.NullableWidening.Disabled,
+		string(NullableInferenceHeuristic):           &o.NullableInference.Disabled,
 		string(DiscriminatorInferenceHeuristic):      &o.DiscriminatorInference.Disabled,
 		string(IdempotencyInferenceHeuristic):        &o.IdempotencyInference.Disabled,
 		string(SecretInferenceHeuristic):             &o.SecretInference.Disabled,
@@ -575,9 +586,9 @@ func switchOptions(o *Options) map[string]*bool {
 		string(ReplacementInferenceHeuristic):        &o.ReplacementInference.Disabled,
 		string(PaginationInferenceHeuristic):         &o.PaginationInference.Disabled,
 		string(lowering.ExtensionPromotionHeuristic): &o.Promotions.Disabled,
-		"streaming-inference":                        &o.StreamingMedia.Disabled,
-		"binary-inference":                           &o.BinaryMedia.Disabled,
-		"title-names":                                &o.TitleNames.Disabled,
+		string(lowering.StreamingInferenceHeuristic): &o.StreamingMedia.Disabled,
+		string(lowering.BinaryInferenceHeuristic):    &o.BinaryMedia.Disabled,
+		"title-names": &o.TitleNames.Disabled,
 	}
 }
 

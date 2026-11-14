@@ -215,6 +215,13 @@ func DefaultExtensionPromotions() map[ExtensionTarget][]ExtensionSource {
 			{Key: paginationProperty, Member: "purpose", Values: []string{"items"}},
 		},
 		TargetPaginationNextLink: {{Key: "x-fern-pagination", Member: "next_uri"}},
+		// A stream's terminator is written on the streaming media type it ends,
+		// and no convention names the input selecting a stream, so the condition
+		// has no default source.
+		TargetStreamTerminator: {{Key: "x-speakeasy-sse-sentinel"}},
+		// The one published convention naming alternatives among an
+		// operation's parameters, by name.
+		TargetParamChoices: {{Key: "x-mutually-exclusive-parameter-groups"}},
 	}
 }
 

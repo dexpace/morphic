@@ -5,6 +5,7 @@ package harness_test
 
 import (
 	"context"
+	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -53,28 +54,38 @@ func TestSummary_CountsEachOraclesReach(t *testing.T) {
 			ok(harness.OracleNoPanic), ok(harness.OracleInvariants),
 			{Oracle: harness.OracleNoErrorDiagnostic, Outcome: harness.OutcomeErrorDiag, Detail: "x: y"},
 			ok(harness.OracleRoundTrip), ok(harness.OracleDeterminism), ok(harness.OracleIdempotence),
-			no(harness.OracleOrder, harness.DeclineDuplicateKey),
+			no(harness.OracleOrder, harness.DeclineDuplicateKey), ok(harness.OracleSequenceOrder),
 		}},
 		{Spec: "b", Verdicts: []harness.Verdict{
 			ok(harness.OracleNoPanic), no(harness.OracleInvariants, harness.DeclineNoDocument),
 			ok(harness.OracleNoErrorDiagnostic), no(harness.OracleRoundTrip, harness.DeclineNoDocument),
 			ok(harness.OracleDeterminism), no(harness.OracleIdempotence, harness.DeclineNoDocument),
 			no(harness.OracleOrder, harness.DeclineNothingToPermute),
+			no(harness.OracleSequenceOrder, harness.DeclineNothingToPermute),
 		}},
 		{Spec: "c", Verdicts: []harness.Verdict{ok(harness.OracleNoPanic)}},
 	}
 
 	got := harness.Summary(results)
 
+	// The name column is as wide as the longest oracle's name.
+	row := func(name string, asked, found, declined int, why string) string {
+		line := fmt.Sprintf("%-25s %6d %6d %8d", name, asked, found, declined)
+		if why != "" {
+			line += "  " + why
+		}
+		return line + "\n"
+	}
 	assert.Equal(t, ""+
-		"oracle               asked  found declined\n"+
-		"no-panic                 3      0        0\n"+
-		"invariants               1      0        2  no document 1, not reached 1\n"+
-		"no-error-diagnostic      2      1        1  not reached 1\n"+
-		"round-trip               1      0        2  no document 1, not reached 1\n"+
-		"determinism              2      0        1  not reached 1\n"+
-		"idempotence              1      0        2  no document 1, not reached 1\n"+
-		"order-invariance         0      0        3  duplicate key 1, not reached 1, nothing to permute 1\n",
+		fmt.Sprintf("%-25s %6s %6s %8s\n", "oracle", "asked", "found", "declined")+
+		row("no-panic", 3, 0, 0, "")+
+		row("invariants", 1, 0, 2, "no document 1, not reached 1")+
+		row("no-error-diagnostic", 2, 1, 1, "not reached 1")+
+		row("round-trip", 1, 0, 2, "no document 1, not reached 1")+
+		row("determinism", 2, 0, 1, "not reached 1")+
+		row("idempotence", 1, 0, 2, "no document 1, not reached 1")+
+		row("order-invariance", 0, 0, 3, "duplicate key 1, not reached 1, nothing to permute 1")+
+		row("sequence-order-invariance", 1, 0, 2, "not reached 1, nothing to permute 1"),
 		got)
 }
 

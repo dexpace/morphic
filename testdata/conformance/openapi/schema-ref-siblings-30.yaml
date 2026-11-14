@@ -3,7 +3,7 @@ openapi: 3.0.3
 # every key beside the $ref. OpenAPI 3.1 applies them as the schema's keywords,
 # as the compiler does, reading each as 3.0 defines it and reporting it as a
 # later version's construct. The `nullable` beside `owner`'s $ref, with no `type`
-# beside it, has no effect, and is read by the nullable-widening policy.
+# beside it, has no effect, and is read by the nullable-inference policy.
 info: {title: SchemaRefSiblings30, version: "1.0.0"}
 paths: {}
 components:

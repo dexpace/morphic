@@ -7,7 +7,7 @@ import "github.com/dexpace/morphic/ir"
 
 // SecretInferenceHeuristic is the name a parameter's, a header's or a
 // property's Provenance.Inferred carries where the secret policy set its
-// Secret. It is a constant for the reason StreamingMediaTypeHeuristic is: an
+// Secret. It is a constant for the reason StreamingInferenceHeuristic is: an
 // auditor greps for it.
 const SecretInferenceHeuristic ir.Inferred = "secret-inference"
 

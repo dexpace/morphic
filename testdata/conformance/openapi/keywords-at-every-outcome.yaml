@@ -39,7 +39,8 @@ components:
       format: uuid
       discriminator:
         propertyName: kind
-    # The carrier holds a bound beside the reference, and keeps one it cannot state.
+    # The anchor is no array, so the carrier holds no collection bound beside the
+    # reference and keeps each verbatim.
     Carrier:
       type: object
       properties:
