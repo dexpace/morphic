@@ -54,17 +54,17 @@ func declaredFields(t *testing.T) []declaredField {
 	return out
 }
 
-// idClassTypes resolves the classes of identity the empty-reference reading
-// classifies by to the types the ir package declares. A class is compared by
-// identity, as the reading compares a reflect.Type: resolving TypeID to string
-// would defeat the check this mirrors.
+// idClassTypes resolves the classes of ID the IR's nodes declare, which the
+// empty-reference reading classifies by, to the types the ir package declares.
+// A class is compared by identity, as the reading compares a reflect.Type:
+// resolving TypeID to string would defeat the check this mirrors.
 func idClassTypes(t *testing.T) map[*types.TypeName]bool {
 	t.Helper()
 	p := irDecls(t)
 	classes := map[*types.TypeName]bool{}
-	for _, class := range ir.IDTypes() {
+	for class := range ir.IDClasses() {
 		named, err := p.Named(class.Name())
-		require.NoError(t, err, "idTypes names %s, which the ir package must declare", class.Name())
+		require.NoError(t, err, "a node declares an ID of %s, which the ir package must declare", class.Name())
 		classes[named.Obj()] = true
 	}
 	return classes
@@ -170,17 +170,25 @@ func mentionsIDClassAnywhere(t *testing.T, classes map[*types.TypeName]bool, typ
 	}
 }
 
-// TestIDTypes_AreTheDeclaredClasses holds idTypes, what the reading classifies
-// by, to the classes of ID the IR's nodes declare, which ir derives from their
-// types.
-func TestIDTypes_AreTheDeclaredClasses(t *testing.T) {
+// TestIDPositions_AnEmptyFormIsASingleIDs fails when idPositions gives an empty
+// form to a field holding its IDs through a pointer, a slice or a map. The rule
+// is read only for a field holding one ID: a pointer's none is nil, and an
+// element or key of a collection is a reference whatever the field's rule, so
+// such an entry would say a field may be empty and change nothing.
+func TestIDPositions_AnEmptyFormIsASingleIDs(t *testing.T) {
 	t.Parallel()
-	declared := ir.IDClasses()
-	require.NotEmpty(t, declared)
-	for class := range declared {
-		assert.True(t, ir.IsIDType(class), "idTypes does not list %s, which a node declares", class)
+	classes := idClassTypes(t)
+	fields := map[string]types.Type{}
+	for _, f := range declaredFields(t) {
+		fields[f.key()] = f.field.Type()
 	}
-	assert.Len(t, ir.IDTypes(), len(declared), "idTypes lists a class no node declares")
+	positions := ir.EmptyFormPositions()
+	require.NotEmpty(t, positions)
+	for _, key := range positions {
+		typ, declared := fields[key]
+		require.True(t, declared, "idPositions gives ir.%s an empty form, which ir does not declare", key)
+		assert.True(t, isIDClass(classes, typ), "idPositions gives ir.%s an empty form, but it holds %s", key, typ)
+	}
 }
 
 // localIDCarrier lives only in this test, so no idPositions entry can name a
@@ -215,7 +223,11 @@ func TestEmptyReference_CodeAndMessageNameTheClass(t *testing.T) {
 	assert.Equal(t, "ir/empty-server-ref", server.Code())
 	assert.Equal(t, "server reference is empty, and this position has no empty form", server.Message())
 
-	tag := ir.EmptyReference{Class: reflect.TypeFor[ir.PropID](), Locator: true}
+	untagged := emptyReferencesOf(&ir.Document{Types: ir.TypeRegistry{
+		"t/x/Base": &ir.Model{ID: "t/x/Base", Discriminator: &ir.Discriminator{}},
+	}})
+	require.Len(t, untagged, 1)
+	tag := untagged[0]
 	assert.Equal(t, "ir/empty-prop-ref", tag.Code())
 	assert.Equal(t, "discriminator names no tag property, and neither PropertyName nor Index locates the tag instead",
 		tag.Message())

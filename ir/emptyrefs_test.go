@@ -84,7 +84,7 @@ func TestEmptyReferences_ReadsEachShapeAnIDIsHeldIn(t *testing.T) {
 			require.Len(t, got, 1)
 			assert.Equal(t, tc.class, got[0].Class)
 			assert.Equal(t, tc.path, got[0].Path)
-			assert.False(t, got[0].Locator, "only a discriminator's tag property is a locator")
+			assert.False(t, got[0].Locator(), "only a discriminator's tag property is a locator")
 		})
 	}
 }
@@ -101,7 +101,7 @@ func TestEmptyReferences_ADiscriminatorLocatingNothingIsALocator(t *testing.T) {
 	require.Len(t, got, 1)
 	assert.Equal(t, reflect.TypeFor[ir.PropID](), got[0].Class)
 	assert.Equal(t, "doc.Types[t/x/Base].Discriminator.Property", got[0].Path)
-	assert.True(t, got[0].Locator)
+	assert.True(t, got[0].Locator())
 }
 
 // TestEmptyReferences_ADocumentedEmptyIsNone holds the positions whose comments
@@ -153,8 +153,8 @@ func TestEmptyReferences_ADocumentedEmptyIsNone(t *testing.T) {
 }
 
 // TestEmptyReferences_ListIsInWalkOrder pins that several empty references are
-// listed in the order the walk meets them, each with its own path, and that a
-// sound reference beside them adds nothing.
+// listed in the order the walk meets them, a map's in key order, each with its
+// own path, and that a sound reference beside them adds nothing.
 func TestEmptyReferences_ListIsInWalkOrder(t *testing.T) {
 	t.Parallel()
 	doc := emptyRefService(ir.Service{
@@ -168,10 +168,25 @@ func TestEmptyReferences_ListIsInWalkOrder(t *testing.T) {
 		paths = append(paths, e.Path)
 	}
 
-	assert.Len(t, paths, 3)
-	assert.Contains(t, paths, "doc.Services[0].Servers[1]")
-	assert.Contains(t, paths, "doc.Services[0].Servers[2]")
-	assert.Contains(t, paths, "doc.Services[0].Auth[0].Schemes[0].Scheme")
+	assert.Equal(t, []string{
+		"doc.Services[0].Servers[1]",
+		"doc.Services[0].Servers[2]",
+		"doc.Services[0].Auth[0].Schemes[0].Scheme",
+	}, paths, "a struct's own fields are read as the walk enters it, before what it holds")
 	second := emptyReferencesOf(doc)
 	assert.Equal(t, first, second, "a second walk reads the same list")
+
+	lifecycle := emptyRefService(ir.Service{Groups: []ir.OperationGroup{{
+		Resource: &ir.ResourceInfo{Lifecycle: map[string]ir.OpID{"update": "", "delete": "", "read": ""}},
+	}}})
+	listed := emptyReferencesOf(lifecycle)
+	keyed := make([]string, 0, len(listed))
+	for _, e := range listed {
+		keyed = append(keyed, e.Path)
+	}
+	assert.Equal(t, []string{
+		"doc.Services[0].Groups[0].Resource.Lifecycle[delete]",
+		"doc.Services[0].Groups[0].Resource.Lifecycle[read]",
+		"doc.Services[0].Groups[0].Resource.Lifecycle[update]",
+	}, keyed, "a map's empty values are listed in key order, as the walk ranges it")
 }
