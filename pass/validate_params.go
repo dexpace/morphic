@@ -77,7 +77,7 @@ type paramLocation struct {
 // names names holds by ID: a parameter this operation does not declare is an
 // error unless another family reports it (reportedHere), a param bound
 // twice in one non-host location is an error, and an unbound parameter is a
-// warning (body-carried operations bind nothing). The binding's location is
+// pass/param-unbound warning (body-carried operations bind nothing). The binding's location is
 // spelled only for a diagnostic.
 func checkHTTPParamBinding(op ir.Operation, idx int, names map[ir.ParamID]string, refs *ir.IDReferences,
 	read *bindingMaps,
@@ -123,7 +123,7 @@ func unboundParamWarnings(op ir.Operation, idx int, bound map[ir.ParamID]int) []
 	for _, p := range op.Params {
 		if bound[p.ID] == 0 {
 			where := bindingWhere(op.ID, idx)
-			diags = append(diags, diag(ir.SeverityWarning, "pass/param-binding-mismatch",
+			diags = append(diags, diag(ir.SeverityWarning, "pass/param-unbound",
 				fmt.Sprintf("parameter %q on %s is not bound to any HTTP location", p.Name.Source, where),
 				where))
 		}

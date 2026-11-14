@@ -103,14 +103,10 @@ func TestValidate_ParamBinding_OtherOperationsParamIsRejected(t *testing.T) {
 	doc.Services = []ir.Service{{ID: "s", Groups: []ir.OperationGroup{{Operations: []ir.Operation{get, post}}}}}
 	diags := validated(t, doc)
 
-	var mismatches []string
-	for _, d := range diags {
-		if d.Code == "pass/param-binding-mismatch" {
-			mismatches = append(mismatches, d.Message)
-		}
-	}
-	assert.Len(t, mismatches, 2, "the foreign binding, and the parameter post then leaves unbound: %v", mismatches)
-	assert.Contains(t, mismatches[0], "does not declare")
+	mismatches := withCode(diags, "pass/param-binding-mismatch")
+	require.Len(t, mismatches, 1, "the foreign binding alone: %v", mismatches)
+	assert.Contains(t, mismatches[0].Message, "does not declare")
+	assert.Len(t, withCode(diags, "pass/param-unbound"), 1, "the parameter post then leaves unbound")
 }
 
 // TestValidate_ParamBinding_EachBindingIsJudgedAlone pins that an operation's

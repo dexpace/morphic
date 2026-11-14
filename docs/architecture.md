@@ -376,8 +376,9 @@ Built, and in the default list:
   and `PropID` addresses a declared entry. Well-formedness is what the IR asks of a node beyond
   that, such as discriminator mappings that point at actual variants, wire names and aliases unique
   within a model, a one-way operation that declares no response, and binding completeness: a
-  parameter an HTTP binding places twice at one non-host location is an error, one it places nowhere
-  is a warning, and a `host` binding is additive ([http-binding](./ir/http-binding.md)).
+  parameter an HTTP binding places twice at one non-host location is an error
+  (`pass/param-binding-mismatch`), one it places nowhere is the warning `pass/param-unbound`, and a
+  `host` binding is additive ([http-binding](./ir/http-binding.md)).
   Structural problems are errors, which fail the run at the default threshold (§4); style issues are
   warnings.
 - **names** — what a document's names leave to its targets, which no IR rule forbids: two entities
