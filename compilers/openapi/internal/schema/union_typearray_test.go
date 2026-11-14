@@ -158,6 +158,12 @@ func TestLower_ATypeArraysFormatIsTheVariantsItPairsWith(t *testing.T) {
 	mine := func(k ir.PrimKind) *ir.Scalar {
 		return &ir.Scalar{Base: new(ir.TypeRef{Target: ir.PrimTypeID(k)}), Encoding: &ir.Encoding{Name: "x-mine"}}
 	}
+	instant := ir.TypeRef{Target: ir.PrimTypeID(ir.PrimDatetimeOffset)}
+	httpDate := &ir.Scalar{Base: new(instant), Encoding: &ir.Encoding{Name: "http-date"}}
+	unix := func(k ir.PrimKind) *ir.Scalar {
+		return &ir.Scalar{Base: new(instant),
+			Encoding: &ir.Encoding{Name: "unixTimestamp", WireType: new(ir.TypeRef{Target: ir.PrimTypeID(k)})}}
+	}
 	for _, tc := range []struct {
 		name, schema string
 		variants     []any // an ir.PrimKind for a shared primitive, an *ir.Scalar for a node
@@ -168,6 +174,9 @@ func TestLower_ATypeArraysFormatIsTheVariantsItPairsWith(t *testing.T) {
 		{"a format pairing with neither", "{type: [string, integer], format: x-mine}",
 			[]any{mine(ir.PrimString), mine(ir.PrimInteger)}},
 		{"int32 pairs with both numbers", "{type: [integer, number], format: int32}", []any{ir.PrimInt32, ir.PrimInt32}},
+		{"http-date pairs with a string", "{type: [string, integer], format: http-date}", []any{httpDate, ir.PrimInteger}},
+		{"unixtime pairs with both", "{type: [string, integer], format: unixtime}",
+			[]any{unix(ir.PrimString), unix(ir.PrimInteger)}},
 		{"a redaction names no shape", "{type: [string, integer], format: password}", []any{ir.PrimString, ir.PrimInteger}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {

@@ -136,8 +136,9 @@ func boundLiteral(keyword string) string {
 }
 
 // TestConstraints_ABoundIsReadWhereItsTypeTakesIt pins every value bound beside
-// each of the six types, and a number hoisted as a Scalar for its format, at a
-// component, a property, items and a parameter: it
+// each of the six types, a number hoisted as a Scalar for its format, and a
+// string or integer a format encodes as an instant or bytes, at a component, a
+// property, items and a parameter: it
 // reaches Constraints exactly where the type is one it applies to, and is kept
 // verbatim under openapi:<keyword> once, with one info, everywhere else
 // (docs/compilers/openapi.md#constraints).
@@ -147,7 +148,10 @@ func TestConstraints_ABoundIsReadWhereItsTypeTakesIt(t *testing.T) {
 		"string": {"string", "type: string"}, "integer": {"integer", "type: integer"},
 		"number": {"number", "type: number"}, "boolean": {"boolean", "type: boolean"},
 		"object": {"object", "type: object"}, "array": {"array", "type: array, items: {type: string}"},
-		"formatted number": {"number", "type: number, format: x-mine"},
+		"formatted number":      {"number", "type: number, format: x-mine"},
+		"string as an instant":  {"string", "type: string, format: http-date"},
+		"string as bytes":       {"string", "type: string, format: base64url"},
+		"integer as an instant": {"integer", "type: integer, format: unixtime"},
 	}
 	for keyword, takers := range boundTypes {
 		for name, tc := range shapes {

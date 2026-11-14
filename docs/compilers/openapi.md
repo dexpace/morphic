@@ -807,13 +807,12 @@ references that closes on itself is [`reference-cycles`](#reference-cycles)'.
   `load.TestResolve_EveryKindOfObjectIsValidated`,
   `e2e.TestCompile_AMediaTypeReferenceLowersAlikeAfterARebuild`,
   `operation.TestMediaTypeRef_ACarrierReadsTheDeclarationInItsDocument`
-- Status: partly built: an `encoding` entry naming no part of its body is dropped with no record
-  (#604). A remote document can make the compiler request a private address (#937). A reference
-  object's pointer holding a character above U+FFFF is refused as malformed (#516), and an
-  unresolved reference object's message ends in the resolver's own wording, unless its chain ends on
-  a position holding no object of its kind (#809). A chain of documents each declaring the URI the
-  one before it asked for costs a binding pass per link (#1372). A reference object reaching raw
-  YAML of the source leaves the references inside what it reaches unresolved (#1320), and one
+- Status: partly built: a remote document can make the compiler request a private address (#937).
+  A reference object's pointer holding a character above U+FFFF is refused as malformed (#516), and
+  an unresolved reference object's message ends in the resolver's own wording, unless its chain ends
+  on a position holding no object of its kind (#809). A chain of documents each declaring the URI
+  the one before it asked for costs a binding pass per link (#1372). A reference object reaching
+  raw YAML of the source leaves the references inside what it reaches unresolved (#1320), and one
   whose pointer ends in `/` declares what it reaches at a second pointer (#1330). A reference
   object whose `$ref` is a scalar under a tag outside YAML's JSON schema ruleset, which the model
   decodes no string from, lowers nothing, and nothing reports it (#1368). A schema `$ref` whose
@@ -1720,12 +1719,15 @@ collection bounds, `format: password` ([`password`](#password)), vendor extensio
 validation-only keywords ([`validation-only`](#validation-only)) land where the same keyword beside
 the `allOf` lands, each read at the branch's own pointer and reported as that keyword is there,
 which for most is not at all. A `nullable` folds only from a branch writing no `properties`, under
-the nullable-widening policy ([`nullable`](#nullable)). A `unevaluatedProperties: false` does not
-fold, being a composing model's openness; a bound does not where the position has no field for it,
-as one beside the `allOf` reaches none ([`constraints`](#constraints)): a value bound no type the
-position declares takes, one no type its own branch declares takes, since such a branch admits no
-value it bounds, or one on a node with no `Constraints` for one, the `Union` of a type list
-holding one where a variant whose type takes it does, and a collection bound on any node but a
+the nullable-widening policy ([`nullable`](#nullable)). Neither `unevaluatedProperties` nor
+`unevaluatedItems` folds, in any form: each applies to what no keyword beside it evaluates (JSON
+Schema 2020-12 §11.2, §11.3), so on a branch it holds the instance to what that branch alone
+evaluates, where beside the `allOf` it would exempt what the position and the other branches
+evaluate, and the branch kept whole is its record. A bound does not fold where the position has no
+field for it, as one beside the `allOf` reaches none ([`constraints`](#constraints)): a value bound
+no type the position declares takes, one no type its own branch declares takes, since such a branch
+admits no value it bounds, or one on a node with no `Constraints` for one, the `Union` of a type
+list holding one where a variant whose type takes it does, and a collection bound on any node but a
 `List` or a `Tuple`, that `Union` holding one where such a variant does; a collection bound
 `Constraints` cannot state, a `uniqueItems` of `false` or a count past 64 bits, never folds. A
 `$dynamicRef` beside the `allOf` keeps it from refining ([`allof-refinement`](#allof-refinement)),
@@ -1800,7 +1802,7 @@ every entry reads that one twice.
   `schema.TestVoices_ARefusedBoundPartsNoWriter`,
   `schema.TestAgreement_ReadsABoundInTheDialectOfItsSchemas`,
   `schema.TestVoices_KeywordsOneEntryHoldsDisagreeAsOne`,
-  `schema.TestVoices_UnevaluatedFalseStaysTheModels`,
+  `schema.TestVoices_AnUnevaluatedKeywordStaysWithItsBranch`,
   `schema.TestVoices_AUseBindingKeywordReachesItsCarrierOrItsNode`,
   `schema.TestVoices_KeptAndMetBranchesHoldAtEveryOutcome`,
   `schema.TestAllOf_BranchResidueRidesEveryDistributedVariant`,
@@ -1843,7 +1845,13 @@ of another family, or from another string format where neither is `bytes` (`uuid
 `format: date`), and overlaps any other kind (`uuid` against `format: byte`); for an `Enum`, that
 overlap is disjoint where the kind's judge refuses every member, an enum behind an alias, as a
 member written beside a bound is, judged by the members of the enum it stands for, which the alias
-can only narrow. A `Scalar` hoisted for `time`,
+can only narrow. A `Scalar`'s kind is that of the values it travels as: its base's, but for a base
+its `Encoding`'s `WireType` does not spell, whose values travel as that type, so `format: unixtime`
+on an `integer` is narrower than `integer`, overlaps `int64` and is disjoint from `string`, while
+`byte` stays `bytes`, which a `string` spells. A string format whose text an `Encoding` names
+otherwise, as `http-date` and `contentEncoding` do, has no judge, as `bytes` has none, since the
+format's own grammar reads another text: an enum of HTTP-dates beside `format: http-date` overlaps
+it. A `Scalar` hoisted for `time`,
 whose grammar, RFC 3339's `full-time`, the compiler holds though the table pairs it with no kind
 ([`string-formats`](#string-formats)), is read wherever a kind is, through an alias too, as a
 string format of its own: within `string`, an overlap with `bytes`, and disjoint from every other
@@ -2300,6 +2308,9 @@ field's first 64 at most; each later one is kept verbatim, unjudged, under an
   `schema.TestAllOf_WhatAFieldKeepsOfItsDetailIsOrderFree`,
   `schema.TestAllOf_ContainerMembersAreJudgedAsFieldsAre`,
   `merge.TestClassify_ComparesResolvedKinds`,
+  `merge.TestKindOf_AnEncodedScalarIsReadAsItsValuesTravel`,
+  `merge.TestTypeJudge_AnEncodedScalarRelatesAsItsValues`,
+  `e2e.TestAllOfFold_AnEncodedFormatIsJudgedAsByteIsBesideBinary`,
   `schema.TestAllOf_ARefToAnInlineNodeIsDeclaredApart`,
   `schema.TestAllOf_ACopyANarrowingKeptIsStillACopy`,
   `schema.TestAllOf_AListOfAComponentWinsOverAListOfItsCopy`,
@@ -3134,7 +3145,8 @@ Schema conjoins the two, so it is dropped and reported as an `openapi/degraded-c
 it. Its `ValueType` is the primitive one declared `type` and its `format` select, as a scalar's are
 read ([`string-formats`](#string-formats), [`numeric-formats`](#numeric-formats)), else the
 primitive of the `type` alone, where every member is a value of that primitive, else the primitive
-of the members. A `format` that reaches no `ValueType`, whether the table lacks the pairing or a
+of the members. A `format` that reaches no `ValueType`, whether the table lacks the pairing, as it
+lacks each whose members are a text the value travels as, `byte` and `http-date` among them, or a
 member does not fit it, as none is a value of `binary`'s `bytes`, is kept verbatim under
 `openapi:format` (`degraded_lowering`), with an info `openapi/degraded-construct` at the schema, but
 for `password`, which is a redaction ([`password`](#password)). A member that no declared `type`
@@ -3182,6 +3194,7 @@ lowered first.
   `schema.TestLiteral_ValueTypeReadsTheTypeAndFormatItsValueFits`,
   `schema.TestConst_NullLowersAsAnEnumOfNullAlone`,
   `schema.TestEnum_ReportsWhyAFormatStayedVerbatim`,
+  `schema.TestScalar_AnEncodedFormatBesideAValueSetLowersAsByteDoes`,
   `schema.TestEnum_NarrowsARedeclaredPrimitiveInEitherOrder`,
   `schema.TestEnumAsUnion_UnconvertibleMemberBecomesAny`,
   `schema.TestEnumAsUnion_ExclusiveWhereNoInstanceMatchesTwoEntries`,
@@ -3196,9 +3209,15 @@ lowered first.
 or a schema to `Model.AdditionalProps`, whose `Value` types every key no property names. An object
 whose one member fact is that catch-all lowers to a `MapT` instead
 ([containers](../ir/containers.md)). `unevaluatedProperties: false` lowers to `Additional`
-closed after composition. `minProperties` and `maxProperties` lower to the `Model`'s `Constraints`,
-which bound the property set's cardinality as against `Additional`'s openness, or to a `MapT`'s,
-which bound its entry count.
+closed after composition where no `additionalProperties` is written beside it. An
+`additionalProperties` of any value evaluates every property that `properties` and
+`patternProperties` leave (JSON Schema 2020-12 §10.3.2.3), which leaves `unevaluatedProperties`
+nothing to apply to (§11.3), so beside one the object's openness is `additionalProperties`' alone,
+closed for `false` and a catch-all for anything else, and the inert keyword is kept verbatim with it
+([`validation-only`](#validation-only)); `{type: object, additionalProperties: {…},
+unevaluatedProperties: false}` is a `MapT`. `minProperties` and `maxProperties` lower to the
+`Model`'s `Constraints`, which bound the property set's cardinality as against `Additional`'s
+openness, or to a `MapT`'s, which bound its entry count.
 
 `true` writes a catch-all; an absent keyword does not. In JSON Schema, `additionalProperties: true`
 is the empty schema, so it types the catch-all as the top type exactly as `{}` does: alone it is a
@@ -3208,18 +3227,24 @@ is the empty schema, so it types the catch-all as the top type exactly as `{}` d
 the source declared. Beside `patternProperties` the catch-all's `Value` types a key no pattern
 matches ([catch-alls](../ir/models.md#catch-alls)): absent, such a key is unconstrained, so it is
 the top type, and the IR does not tell an absent `additionalProperties` from `true`; `false` admits
-no such key, so the catch-all holds the patterns and no `Value` beside `Additional` closed. That
-object stays a `Model`, since a `MapT` has no field for a pattern-scoped value.
+no such key, so the catch-all holds the patterns and no `Value` beside `Additional` closed. Beside
+a live `unevaluatedProperties: false`, with no `additionalProperties`, such a key is admitted only
+where composition evaluates it, and the source writes no schema for it, so the catch-all holds the
+patterns and no `Value` beside `Additional` closed after composition. That object stays a
+`Model`, since a `MapT` has no field for a pattern-scoped value.
 
 - Cases: `maps`, `constraints`, `allof-position-constraints`
 - Tests: `schema.TestObject_CatchAllBesideAnotherFactStaysModel`,
   `schema.TestObject_MapAndNothingElseLowersToMapT`,
+  `schema.TestObject_AnInertClosureLeavesAMap`,
   `schema.TestModel_UnevaluatedPropertiesClosedAfterComposition`,
-  `schema.TestAllOf_AClosureAfterCompositionKeepsTheCatchAll`
-- Status: partly built: an `unevaluatedProperties: false` that a catch-all beside it makes inert
-  in JSON Schema still lowers to a closure, which keeps the object a `Model`, and one beside
-  `patternProperties` alone leaves the catch-all typing a key no pattern matches as the top type,
-  where JSON Schema admits such a key only if composition evaluates it (#862).
+  `schema.TestAllOf_ACatchAllLeavesAClosureAfterCompositionInert`,
+  `annotation.TestClosesAfterComposition_OnlyWhereNoAdditionalPropertiesStandsBeside`
+- Status: partly built: the closure is typed beside an applicator kept verbatim that evaluates a
+  member, an inline `allOf` branch's `additionalProperties` or `patternProperties`, `then`, `else`
+  or `dependentSchemas`, so the typed members refuse one the source admits (#1904); and what a
+  target does with a model closed after composition is open, as no emitter rule reads it yet
+  (#1868).
 
 ### `required-members`
 
@@ -3289,13 +3314,18 @@ one under `not`; the branch a refinement lowers from is reported as the position
 absent `items` reads as `true`, the top type, and either of those or a schema lowers exactly as a
 `List`'s `items` would, at the same pointer and under the same hint. An `unevaluatedItems` beside
 them stays the verbatim entry [`validation-only`](#validation-only) keeps, as it does beside a
-`List`, reported as an info `openapi/validation-only-keyword`.
+`List`, reported as an info `openapi/validation-only-keyword`: beside an `items` it is inert and
+kept with that `items`, and beside `prefixItems` alone it is live, so `Rest`, the top type an
+absent `items` reads as, admits elements the entry refuses unless composition evaluates them, and
+the entry is what closes the tuple. The same holds of a `List`'s `Elem`.
 
 JSON Schema drafts 4, 6 and 7 and 2019-09 write a tuple as `items` holding a list, its rest as the
 `additionalItems` beside it. In a schema read in one of them
 ([`dialect-keywords`](#dialect-keywords)) the list lowers to a `Tuple`'s `Elems`, one per entry,
 each a schema whose `$ref` is bound, and `additionalItems` to its `Rest` as 2020-12's `items` does
-beside `prefixItems`: `false` leaves none, and an absent one reads as `true`. Each entry is named as
+beside `prefixItems`: `false` leaves none, and an absent one reads as `true`. A written
+`additionalItems` leaves an `unevaluatedItems` beside the list inert, as that `items` does, and an
+absent one leaves it live. Each entry is named as
 a `prefixItems` entry is, and the rest as an `items` schema is. Each is judged as its 2020-12 twin
 is ([`validation`](#validation)), whether or not a `$ref` reaches it: an entry no schema spells,
 such as `5` or `null`, is an `openapi/validation` error at it, and a rest no schema spells an error
@@ -3323,8 +3353,8 @@ lowering to no `Tuple`.
   `bind.TestTuples_AListOfItemsHoldsSchemas`,
   `load.TestOwnedFinding_JudgesEachValueInItsSchemasDialect`, `load.TestBuiltTargets`,
   `oas.TestSchemaRules_TupleRestFindingJudgesTheRestBesideAList`
-- Status: partly built: `items: true` and an absent `items` lower alike, though only the first makes
-  an `unevaluatedItems` beside them inert, and that one is still kept as live (#862).
+- Status: open: whether a `Rest` or an `Elem` beside a live `unevaluatedItems: false` is typed
+  rather than left to the entry (#1883).
 
 ### `shape-applicator`
 
@@ -3391,22 +3421,28 @@ union of models.
 A `type: string` with a `format` the table names lowers to the shared primitive the pairing selects,
 and no node of its own: `date` to `date`, `time-local` to `time`, `duration` to `duration`, `uuid`
 to `uuid`, `uri` to `url`, `date-time` to `datetime_offset`, `date-time-local` to `datetime`,
-`binary` to `bytes`. `byte` lowers to a hoisted `Scalar` over `bytes` whose `Encoding` is `base64`,
-with the `string` it travels as in `WireType`. A numeric format the table pairs with `number`
-([`numeric-formats`](#numeric-formats)), such as `int64`, `decimal` or `double`, names a number
-written as its text, as a value too wide for a JSON number's readers may travel, so it lowers the
-same way: to a hoisted `Scalar` over the primitive it selects under `number`, whose `Encoding`
-is `string`, a number written as the text of its value, with the `string` in `WireType`. The base is
-the logical type and `WireType` the wire's, for both, as [encodings](../ir/constraints.md#encodings)
-orients the triple. Any other format (`time`, `email`, `uri-reference`, `ipv4`, an invented one)
-lowers to a hoisted `Scalar` over `string` whose `Encoding.Name` is the format as written, case
-kept, with no `WireType`, since the compiler knows no registry of formats beyond the table, and the
-table leaves out `time`, RFC 3339's `full-time`, because it carries an offset and the `time`
-primitive holds none ([primitives](../ir/primitives.md#offsets)). A `contentEncoding` beside a
-`byte`, numeric or unknown format names the encoding instead; where the two name different encodings
-the format is kept verbatim under `openapi:format` (`no_ir_home`) with an info
-`openapi/degraded-construct` at it. A numeric format so kept selects no base, since the string is
-then that encoding's text and not a number's:
+`binary` to `bytes`. A format whose value is of another primitive, written in a text other than
+that primitive's own, lowers to a hoisted `Scalar` over that primitive whose `Encoding` names the
+text as the [IR](../ir/constraints.md#encodings) does: `byte` over `bytes` under `base64`, and
+`base64url` over `bytes` under `base64url`, each with the `string` it travels as in `WireType`, and
+`http-date` over `datetime_offset` under `http-date`, with no `WireType`, since an instant already
+travels as a string. `unixtime` on a string is [`numeric-formats`](#numeric-formats)'. A numeric
+format the table pairs with `number` ([`numeric-formats`](#numeric-formats)), such as `int64`,
+`decimal` or `double`, names a number written as its text, as a value too wide for a JSON number's
+readers may travel, so it lowers the same way: to a hoisted `Scalar` over the primitive it selects
+under `number`, whose `Encoding` is `string`, a number written as the text of its value, with the
+`string` in `WireType`. The base is the logical type and `WireType` the wire's, for each, as
+[encodings](../ir/constraints.md#encodings) orients the triple. Any other format (`time`, `email`,
+`uri-reference`, `ipv4`, an invented one) lowers to a hoisted `Scalar` over `string` whose
+`Encoding.Name` is the format as written, case kept, with no `WireType`, since the compiler knows no
+registry of formats beyond these, and the table leaves out `time`, RFC 3339's `full-time`, because
+it carries an offset and the `time` primitive holds none
+([primitives](../ir/primitives.md#offsets)). A `contentEncoding` beside such a format, a numeric or
+an unknown one names the encoding instead; where the two name different encodings the format is
+kept verbatim under `openapi:format` (`no_ir_home`) with an info `openapi/degraded-construct` at it.
+A format of the first kind so kept leaves the primitive and the `WireType` it selects in place,
+while a numeric format so kept selects no base, since the string is then that encoding's text and
+not a number's:
 `{type: string, format: int64, contentEncoding: base64}` lowers to a `Scalar` over `string` under
 `base64` with no `WireType`, as the encoding alone does
 ([`content-vocabulary`](#content-vocabulary)). A scalar hoisted for its format carries the bounds
@@ -3415,23 +3451,29 @@ written beside it, but for a number carried as text, whose `Constraints` speak o
 numeric bound no string instance, so each value bound written beside it is kept verbatim under
 `openapi:<keyword>` (`no_ir_home`) with an info `openapi/degraded-construct` at it, one an inline
 `allOf` branch writes keeps its branch whole ([`allof-inline-residue`](#allof-inline-residue)), and
-neither the `Scalar` nor a property or parameter carrying it holds one. The table is the same at every minor, and a pairing of `format` with another `type` is
+neither the `Scalar` nor a property or parameter carrying it holds one. The table is the same at
+every minor, and a pairing of `format` with another `type` is
 [`numeric-formats`](#numeric-formats)'. Beside a type array, a format the table pairs with `string`,
-`byte` among them, is the `string` variant's alone ([`type-arrays`](#type-arrays)).
+`byte` and `http-date` among them, is the `string` variant's alone ([`type-arrays`](#type-arrays)).
 
 - Cases: `encoding-byte`, `scalar-format`
 - Codes: `openapi/degraded-construct`
 - Tests: `schema.TestLower_ATypeArraysFormatIsTheVariantsItPairsWith`,
   `schema.TestScalar_UnknownFormatPerBaseType`,
+  `schema.TestScalar_EncodedFormatPairings`,
+  `schema.TestScalar_AnEncodedFormatKeepsTheBoundsWrittenBesideIt`,
+  `schema.TestScalar_AnEncodedFormatBesideContentEncodingKeepsItsPrimitive`,
   `schema.TestScalar_ANumberAsTextIsItsNumberOnAString`,
   `schema.TestScalar_ANumberAsTextKeepsItsBoundsVerbatim`,
   `schema.TestLower_NamedScalarComponentResolves`,
   `merge.TestKindOf_ANumberAsTextIsAString`,
   `spelling.TestFormatTable_EveryRowDistinguishesTheBareType`,
-  `spelling.TestFormatTable_EveryStringRowLowersToItsPrimitive`
+  `spelling.TestFormatTable_EveryStringRowLowersToItsPrimitive`,
+  `spelling.TestEncodedTable_IsApartFromTheFormatTable`
 - Status: partly built: a value bound beside a `$ref` to a number carried as text, or beside an
   `allOf` refining one, lands in the `Constraints` of the alias over it, and a length or `pattern`
-  beside `byte` in those of its `bytes` (#1851).
+  beside `byte`, `base64url` or `http-date` in those of its `bytes` or `datetime_offset`, which
+  speak of the bytes or the instant, though it bounds the text they travel as (#1851).
 
 ### `numeric-formats`
 
@@ -3440,17 +3482,29 @@ node of its own: an integer width — `int8`, `int16`, `int32`, `int64`, `uint8`
 `uint64` — under `integer` and `number` alike, since OpenAPI applies a format to both (3.1.1
 §4.4.1), and `float`, `double`, `decimal` and `decimal128`, to `float32`, `float64`, `decimal` and
 `decimal128`, under `number` alone, since under `integer` they admit only integral values, which no
-primitive narrower than `integer` holds. A pairing the table does not name lowers to a hoisted
-`Scalar` over the type's primitive that keeps the format as `Encoding.Name`; a `contentEncoding`
-beside it applies to strings alone and takes nothing from it
+primitive narrower than `integer` holds. `unixtime`, seconds since the epoch, on a `number`, an
+`integer` or a `string`, lowers to a hoisted `Scalar` over `datetime_offset` whose `Encoding` is
+`unixTimestamp`, the name the [IR](../ir/constraints.md#encodings) gives that text, with the type it
+is written on in `WireType`, which tells whole seconds from a fraction and from a decimal text, as
+[`string-formats`](#string-formats) lowers `byte`. A pairing the table does not name lowers to a
+hoisted `Scalar` over the type's primitive that keeps the format as `Encoding.Name`. A
+`contentEncoding` beside a `string`'s `unixtime` takes that field, and the format is kept verbatim
+under `openapi:format` (`no_ir_home`) with an info `openapi/degraded-construct` at it; beside a
+number's format it applies to strings alone and takes nothing from it
 ([`content-vocabulary`](#content-vocabulary)). Beside a type array, a format the table pairs with a
 listed number is that variant's alone, so a width beside `integer` and `number` is both variants'
 ([`type-arrays`](#type-arrays)).
 
 - Cases: `scalar-format`
+- Codes: `openapi/degraded-construct`
 - Tests: `schema.TestScalar_NumericFormatPairings`,
+  `schema.TestScalar_EncodedFormatPairings`,
+  `schema.TestContentVocabulary_KeptWhereNoEncodingHolds`,
   `schema.TestContentVocabulary_ANumberTakesNone`,
   `schema.TestLower_ATypeArraysFormatIsTheVariantsItPairsWith`
+- Status: partly built: a numeric bound beside `unixtime` on a `number` or an `integer` lands in the
+  `Scalar`'s `Constraints`, which speak of the instant, though it bounds the seconds it travels as
+  (#1851).
 
 ### `password`
 
@@ -3556,13 +3610,14 @@ entry, which exists whatever its value — a property, a composition branch, a c
 `prefixItems` position, a parameter's, header's or media type's `schema` — lowers as the empty
 schema does: to the top type, or as an `allOf` branch to nothing composed, and a `$ref` naming it as
 one naming `{}` does. A keyword whose value is a schema, whose absence states something its empty
-schema may not, is read as left out: `additionalProperties: null` writes no catch-all,
-`contentSchema: null` no `Encoding.Schema`, and a `null` `not`, `if`, `then`, `else`, `contains`,
-`propertyNames`, `unevaluatedItems` or `unevaluatedProperties` is kept nowhere. `items: null` lowers
-as an absent `items` does, and a `null` `items` or `additionalProperties` a node has no home for is
-not kept for want of one ([`shape-applicator`](#shape-applicator)). Nothing is kept verbatim, since
-a `null` means nothing a consumer could recover, and the lowering reports nothing of its own, since
-reading it so loses nothing: the load phase reports each such `null` at the node
+schema may not, is read as left out: `additionalProperties: null` writes no catch-all and leaves
+an `unevaluatedProperties` beside it live, `contentSchema: null` writes no `Encoding.Schema`, and a
+`null` `not`, `if`, `then`, `else`, `contains`, `propertyNames`, `unevaluatedItems` or
+`unevaluatedProperties` is kept nowhere. `items: null` lowers as an absent `items` does, leaving an
+`unevaluatedItems` beside it live, and a `null` `items` or `additionalProperties` a node has no home
+for is not kept for want of one ([`shape-applicator`](#shape-applicator)). Nothing is kept verbatim,
+since a `null` means nothing a consumer could recover, and the lowering reports nothing of its own,
+since reading it so loses nothing: the load phase reports each such `null` at the node
 ([`validation`](#validation)), an entry's as an error and a keyword's as the warning a field left
 out draws, but for `items` beside a 3.0 `type: array`, whose absence
 [`missing-array-items`](#missing-array-items) reports instead. One inside a value the IR keeps
@@ -3751,20 +3806,57 @@ JSON Schema's validation-only keywords are kept verbatim under `validation_only`
 position owns, one entry per family: `not`, `dependentSchemas`, `dependentRequired` and
 `propertyNames` each under `openapi:<keyword>`, at the keyword; and three families each folded into
 one object, at the schema — `if`, `then` and `else` under `openapi:if-then-else`, `contains` with
-`minContains` and `maxContains` under `openapi:contains`, and `unevaluatedItems` with an
-`unevaluatedProperties` that is not `false` under `openapi:unevaluated`, the `false` one being a
-closure ([`additional-properties`](#additional-properties)). In a schema read in JSON Schema draft
+`minContains` and `maxContains` under `openapi:contains`, and `unevaluatedProperties` with
+`unevaluatedItems` under `openapi:unevaluated`, every form of each but an `unevaluatedProperties:
+false` the node the position lowered to holds as a model's closure
+([`additional-properties`](#additional-properties)): a `Model` closed after composition, or a
+`Union` whose variants the schema builds itself, a type list's or a distributed union's
+([`union-beside-structure`](#union-beside-structure)), one of them such a `Model`. Anywhere else,
+on a scalar, an enum, a list, a `$ref` site's alias or carrier, a plain union, a model a `false`
+`allOf` branch closed or the top type, that form is kept with the others, so a consumer finds the
+family under one key whatever the position lowered to. In JSON Schema these two keywords apply
+only to what no keyword beside them evaluates (2020-12 §11.2, §11.3), so one is inert beside the
+keyword that evaluates every location it could apply to: an `additionalProperties` of any value
+beside `unevaluatedProperties`, and beside `unevaluatedItems` an `items` schema or, where the
+dialect reads a list of `items` as a tuple ([`tuples`](#tuples)), the `additionalItems` written
+beside the list. An inert keyword is kept with that keyword, written just before it in the entry's
+object: `{"additionalProperties": true, "unevaluatedProperties": false}`. The entry's keywords are
+read as written in the schema at its position, beside the keywords the IR states there, as what an
+unevaluated keyword applies to depends on what stands beside it; read so, the entry means what the
+source means, nothing where the keyword is inert, and needs no marker or reason of another kind to
+tell the two apart. Read as a schema of its own it means something else:
+`{"additionalProperties": false, "unevaluatedProperties": false}` alone refuses a property the
+position's `properties` declare, and a live `{"unevaluatedProperties": false}` alone refuses every
+property. The keyword the entry repeats beside an inert one is context: the IR holds it already,
+typed where the node has a home for it and kept verbatim where it has none
+([`shape-applicator`](#shape-applicator)), and read where it was written it repeats a keyword
+already there.
+`prefixItems`, `contains`, `properties` and `patternProperties` evaluate only what they match and
+leave the keyword live, and an entry holding only unevaluated keywords holds live ones. One an
+`allOf` branch writes stays with the branch kept whole, whatever its form
+([`allof-inline-residue`](#allof-inline-residue)), since at the position it would exempt what the
+other conjuncts evaluate.
+Every dialect reads both keywords as 2020-12 does. In a schema read in JSON Schema draft
 4, 6 or 7 ([`dialect-keywords`](#dialect-keywords)), `dependencies`, which 2019-09 split into
 `dependentSchemas` and `dependentRequired`, is kept the same way under `openapi:dependencies`, and
 elsewhere is an unknown keyword ([`unknown-keys`](#unknown-keys)). Each entry is reported as an
-info `openapi/validation-only-keyword` at the schema that wrote it.
+info `openapi/validation-only-keyword` at the schema that wrote it, an `openapi:unevaluated` one
+holding an inert keyword naming it and the keyword that leaves it inert.
 
-- Cases: `negation-not`, `dependent-required`, `schema-drafts`
+- Cases: `negation-not`, `dependent-required`, `schema-drafts`, `maps`, `tuples-prefixitems`,
+  `unevaluated-at-every-outcome`
 - Codes: `openapi/validation-only-keyword`
 - Tests: `annotation.TestValidationOnlyAt_KeepsEveryKeywordItClaims`,
   `e2e.TestOlderDrafts_DependenciesAreValidationOnly`,
   `schema.TestLower_ValidationOnlyKeywords`,
-  `annotation.TestValidationOnlyAt_AnUnconvertibleKeywordIsReportedNotKept`
+  `annotation.TestValidationOnlyAt_AnUnconvertibleKeywordIsReportedNotKept`,
+  `annotation.TestUnevaluatedRaw_KeepsAnInertKeywordBesideWhatLeavesItInert`,
+  `annotation.TestValidationOnlyAt_AnInertUnevaluatedKeywordNamesWhatLeavesItInert`,
+  `annotation.TestValidationOnlyAt_AttributesAnInertEntryByItsUnevaluatedKeyword`,
+  `schema.TestClosureTyped_EveryOutcomeKeepsWhatItDoesNotType`,
+  `schema.TestClosureTyped_ReadsAlikeInEitherBranchOrder`,
+  `schema.TestVoices_AnUnevaluatedKeywordStaysWithItsBranch`,
+  `schema.TestUse_ADraftsTupleRestLeavesUnevaluatedItemsInert`
 
 ### `dynamic-ref`
 
@@ -4654,7 +4746,23 @@ conjunct's, so `allOf: [{$ref: A}, {$ref: B}]` keys `B`'s. The `allOf` is read a
 [`allof-classification`](#allof-classification) flattens it, with the same cap, and a `$ref` entry
 is followed up to a bound of its own, and entered again only by a shorter path. A bound that cuts a
 target no path enters is reported as a warning `openapi/degraded-construct` at the body schema,
-since a part reached only past it has no entry. `contentType` lowers to `ContentTypes`, split on `,`
+since a part reached only past it has no `Content.Encoding` key. A part is a property the schema the
+body's `$ref` chain ends on declares, or one an `allOf` branch the walk reaches does, and an entry
+whose key names none keys nothing in `Content.Encoding`: a key naming no property, the key of a
+map's or a catch-all's entry, a property only a `oneOf` or `anyOf` branch declares, a part past a
+bound, and any entry of a body declaring no property, such as one with no schema, one whose schema
+`$ref` does not resolve, or a file body ([`file-bodies`](#file-bodies)). Each such entry is kept
+whole, as written, under the content's `Unmodeled` at `openapi:encoding/<key>` (the key escaped as a
+JSON Pointer token) with reason `no_ir_home`, located at the entry, and reported there as an info
+`openapi/degraded-construct`. The info says that the entry matches no property read from the body's
+schema or its `allOf` branches, or, on a file body, that the body has no parts, and names no other
+cause, since the walk cannot tell a misspelt key from a catch-all's or a union branch's. A key
+naming no property and an entry of a file body are ones OpenAPI gives no effect, 3.2 saying such an
+entry "SHALL be ignored". They are kept all the same. Nothing a kept entry declares is lowered or
+judged: its header schemas register no type, its `x-*`, unknown keys and nested encodings have no
+record of their own, and neither an unknown key nor a reserved header name in it is reported, though
+load still validates its fields. An entry that is no object is kept nowhere and draws only the
+`openapi/validation` error load reports. `contentType` lowers to `ContentTypes`, split on `,`
 and trimmed with empty items dropped, and one naming no media type is an `openapi/validation` error
 ([`validation`](#validation)); `headers` to `Headers`, lowered as a response's are; and `style` and
 `explode` to `Style` and `Explode` as declared, nothing defaulted. `Multi` and `Filename` come from
@@ -4662,7 +4770,8 @@ the part, read once every type has lowered, and `Filename` also from the media t
 entry names. Where the body model has the property and its type is a list, a tuple, a primitive, or
 a scalar whose bases end in one of those or in no base, they are read off that type, the one the
 `allOf` merge settled on, of the declaration the key names: `Multi` where it ends in a list or
-tuple, `Filename` where it ends in `bytes` (`format` `binary` or `byte`) or, in a multipart body, in
+tuple, `Filename` where it ends in `bytes` (`format` `binary` or `byte`, not `base64url`, whose
+bytes travel as the text its `WireType` names) or, in a multipart body, in
 a list or tuple every element of which ends in `bytes` no encoding such as `format: byte`
 re-encodes, a tuple's rest included where elements may follow its prefix. A union is read off its
 variants, through the unions nested in them, each as such a type is and one of another kind as
@@ -4696,7 +4805,7 @@ that is neither multipart nor form, which lowers nowhere, or before 3.2 outside 
 a 3.2 `prefixEncoding` or `itemEncoding` under one that is not multipart. A media type is read
 without its parameters and in any case.
 
-- Cases: `multipart-encoding`, `file-media`
+- Cases: `multipart-encoding`, `file-media`, `encoding-unkeyed`
 - Codes: `openapi/degraded-construct`, `openapi/validation`
 - Tests: `operation.TestContent_MultipartPartEncoding`,
   `oas.TestCheck_EncodingsApplyWhereTheSpecificationSays`, `oas.TestEncodingRules_AnswerAsTheTableDoes`,
@@ -4719,12 +4828,26 @@ without its parameters and in any case.
   `operation.TestPartEncoding_AMergedUnionReadsThroughItsVariants`,
   `operation.TestReadPartFile_ReadsDeclarationsEncodingAndVersion`,
   `operation.TestReadPartFile_ReadsADraftsTupleThroughItsEntries`,
-  `schema.TestListedTuple_ReadsADraftsEntriesAndRest`
-- Status: partly built: an `encoding` key that names no property, or one declared only inside a
-  `oneOf` or `anyOf` branch, is dropped with no diagnostic (#604); on a multi-typed body the entry
-  is keyed by a property no node holds, which validation then refuses (#744); a part's own
-  `format: byte`, and a part of a url-encoded body, is marked as carrying a filename (#1214); and an
-  encoding under a media type it does not apply to is kept in no form (#1047).
+  `schema.TestListedTuple_ReadsADraftsEntriesAndRest`,
+  `operation.TestPartEncodings_AnEntryNamingNoPartIsKeptWhole`,
+  `operation.TestPartEncodings_AnUnkeyedEntryLowersNothingItDeclares`,
+  `operation.TestPartEncodings_AnUnkeyedEntryThatIsNoObjectAddsNothingToLoadsError`,
+  `operation.TestPartEncodings_AnEntryThatCannotBeKeptIsReportedNotAnnounced`,
+  `operation.TestPartEncodings_KeptEntriesDoNotDependOnDeclarationOrder`,
+  `operation.TestPartEncodings_AKeptEntryNeverTakesAPartsRecord`,
+  `operation.TestPartEncodings_AnEntryNamingNoPartIsKeptWholeInCallbacksAndWebhooks`,
+  `operation.TestPartEncodings_AFileBodyOutsideAFormKeepsNoEncodingEntry`,
+  `operation.TestPartEncodings_AKeptEntryIsPlacedInTheDocumentDeclaringIt`
+- Status: partly built: a part only a `oneOf` or `anyOf` branch declares is not keyed, its entry
+  kept whole (#1771); an entry naming one a catch-all governs has no typed home (#1770); a key
+  naming no property draws only the info (#1661); an entry OpenAPI gives no effect, one whose key
+  names no property or one of a file body, keeps `no_ir_home`, a reason promised to leave, until
+  which reason it takes is decided (#1791); a kept entry's unknown keys and reserved header names go
+  unreported, as in the other objects kept whole (#1662); a part of a body declaring `properties`
+  beside a keyword that lowers it to no model is keyed by a property no node holds, which validation
+  then refuses (#1772); a part's own `format: byte`, and a part of a url-encoded body, is marked as
+  carrying a filename (#1214); and an encoding under a media type it does not apply to is kept in no
+  form (#1047).
 
 ### `encoding-allow-reserved`
 
@@ -4848,11 +4971,14 @@ lowers to ([`string-formats`](#string-formats)), with no `Encoding` on the heade
 of one declared by `content` is, and no encoding named along that chain, takes an `Encoding` named
 `http-date` ([encodings](../ir/constraints.md#encodings)) on the header itself. Such a name on such
 a type is the policy's trigger, an encoding the document writes being where it has spoken, and it
-declines nothing that meets it. It is an override of that one use, so a component a `$ref` names
-keeps its own text wherever else it is used. An info `openapi/inferred-http-date` at the header
-reports it, since the reading replaces the RFC 3339 text `date-time` names, which the field's
-definition rules out. A header an encoding gives a part is a MIME header no such definition covers,
-and is not read. On the golden spec one header is read, the `Last-Modified` of
+declines nothing that meets it. A header declared `format: http-date` or `unixtime` carries the
+encoding its format names on its type ([`string-formats`](#string-formats),
+[`numeric-formats`](#numeric-formats)), so the document has spoken for it. It is an override of that
+one use, so a component a `$ref` names keeps its own text wherever else it is used. An info
+`openapi/inferred-http-date` at the header reports it, since the reading replaces the RFC 3339 text
+`date-time` names, which the field's definition rules out. A header an encoding gives a part is a
+MIME header no such definition covers, and is not read. On the golden spec one header is read, the
+`Last-Modified` of
 `GET /accounts/{account_id}/dex/commands/{command_id}/downloads/{filename}`, whose example is an
 HTTP-date (spec @86556f6f).
 
@@ -5130,10 +5256,12 @@ position and `openapi:discriminator/x-*` on one minted
 `openapi:flows/x-*`. `<part>` and `<name>` are
 escaped as RFC 6901 tokens, so a name the document chooses stays one segment
 ([unmodeled](../ir/unmodeled.md#keys)). A Link Object lowers to a link that holds its own, and one
-kept verbatim keeps them inside its `openapi:links/<name>` entry ([`links`](#links)); a path item
-that mounts no operation keeps its own under `openapi:pathItem/<item pointer>/x-*`
-([`path-item-servers`](#path-item-servers)). An extension whose value converts to no JSON reaches
-the IR in no form, reported as an `openapi/degraded-construct` warning at the object holding it.
+kept verbatim keeps them inside its `openapi:links/<name>` entry ([`links`](#links)), as an encoding
+entry naming no part keeps its own inside its `openapi:encoding/<key>` entry
+([`multipart-encoding`](#multipart-encoding)); a path item that mounts no operation keeps its own
+under `openapi:pathItem/<item pointer>/x-*` ([`path-item-servers`](#path-item-servers)). An
+extension whose value converts to no JSON reaches the IR in no form, reported as an
+`openapi/degraded-construct` warning at the object holding it.
 
 - Cases: `extensions-x`, `inline-annotations`
 - Codes: `openapi/degraded-construct`
@@ -5164,7 +5292,9 @@ Two other outcomes also keep nothing and warn: `openapi/unknown-key-entry-taken`
 parameter's own key and its schema's keyword, whichever lowered first surviving; and
 `openapi/unknown-key-unreachable`, where the key is merged in through a `<<` chain deeper than the
 compiler's reader expands, so it reads no pair for it. A key merged in within that depth is read,
-kept and reported as a written one is.
+kept and reported as a written one is. An object a rule keeps whole without reading it, such as an
+encoding entry naming no part ([`multipart-encoding`](#multipart-encoding)), is not judged: its
+unknown keys ride inside its entry, unreported.
 
 - Cases: `path-item-anchored-key`, `unknown-keywords-at-shared-nodes`
 - Codes: `openapi/unknown-object-key`, `openapi/unknown-schema-keyword`,
@@ -5176,7 +5306,7 @@ kept and reported as a written one is.
   `annotation.TestWritesUnknownKeyword_AsksWhatTheCensusWouldKeep`,
   `e2e.TestNullableWidening_DisabledKeepsItAtASharedNode`
 - Status: partly built: a parameter's key and its schema's keyword of one spelling share an entry
-  (#396).
+  (#396); an object kept whole without being read reports none of its unknown keys (#1662).
 
 ### `policies`
 

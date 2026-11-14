@@ -172,6 +172,18 @@ func assertHTTPDateInference(t *testing.T, doc *ir.Document, diags []ir.Diagnost
 		assert.Equal(t, 1, countCode(diags, diag.InferredHTTPDate,
 			"/paths/~1files~1{name}/put/responses/204/headers/"+wire), wire)
 	}
+	// A header whose format names its text carries that encoding on its type,
+	// so the document has spoken for it (docs/compilers/openapi.md#string-formats).
+	for wire, encoding := range map[string]string{"Sunset": "http-date", "Retry-After": "unixTimestamp"} {
+		h, ok := headerByWire(headers, wire)
+		require.True(t, ok, wire)
+		assert.Nil(t, h.Encoding, wire)
+		assert.Empty(t, h.Provenance.Inferred, wire)
+		sc, ok := doc.Types[h.Type.Target].(*ir.Scalar)
+		require.True(t, ok, "%s: the format hoists a Scalar", wire)
+		require.NotNil(t, sc.Encoding, wire)
+		assert.Equal(t, encoding, sc.Encoding.Name, wire)
+	}
 	since, ok := openapitest.ParamBySource(op, "If-Unmodified-Since")
 	require.True(t, ok)
 	assert.Equal(t, ir.PrimTypeID(ir.PrimDatetimeOffset), since.Type.Target, "a parameter has no encoding to hold")

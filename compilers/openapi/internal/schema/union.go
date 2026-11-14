@@ -500,11 +500,13 @@ func variantFormat(s *oas3.Schema, st oas3.SchemaType, types []oas3.SchemaType) 
 	return format
 }
 
-// pairs reports whether format pairs with st: the table lists the pairing, or
-// it is byte beside a string, which scalarShapeOf reads before the table.
+// pairs reports whether format pairs with st: spelling.Lookup lists the
+// pairing, or spelling.LookupEncoded does, as it does byte beside a string.
 func pairs(st oas3.SchemaType, format string) bool {
-	_, listed := spelling.Lookup(string(st) + "/" + format)
-	return listed || (st == oas3.SchemaTypeString && format == "byte")
+	key := string(st) + "/" + format
+	_, listed := spelling.Lookup(key)
+	_, encoded := spelling.LookupEncoded(key)
+	return listed || encoded
 }
 
 // statesBounds reports whether s or one of voices, read at pointer, writes a
@@ -894,6 +896,15 @@ func preserveUnionSiblingsAt(c lowering.Ctx, p *ir.Unmodeled, s *oas3.Schema, po
 // three cannot drift into checking it three different ways.
 func declaresUnion(s *oas3.Schema) bool {
 	return len(s.GetOneOf()) > 0 || len(s.GetAnyOf()) > 0
+}
+
+// buildsVariants reports whether a Union s lowers to holds variants s builds
+// itself, each conjoining what s writes: a type array's (lowerUnion) or a
+// distributed composition's (lowerDistributedUnion). A union of s's oneOf or
+// anyOf alone (lowerOneOfAnyOf) holds the nodes its branches lowered to
+// instead. It reads what lowerSchemaBody dispatches on.
+func buildsVariants(c lowering.Ctx, s *oas3.Schema) bool {
+	return !declaresUnion(s) || hasUnionSiblings(c, s)
 }
 
 // refSiteUnionWhy is preserveUnionSiblingsAt's why at every $ref site: a

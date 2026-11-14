@@ -202,6 +202,30 @@ func TestUse_ANarrowingOfTwoRefsLendsNothing(t *testing.T) {
 	assert.Empty(t, firstDocs(doc, p).Description)
 }
 
+// TestUse_ADraftsTupleRestLeavesUnevaluatedItemsInert pins the dialect a site
+// reads an unevaluatedItems in (docs/compilers/openapi.md#validation-only): a
+// draft reading an `items` list as a tuple leaves the keyword inert beside the
+// `additionalItems` past the list, and live with none, and an `items` schema
+// leaves it inert in any dialect.
+func TestUse_ADraftsTupleRestLeavesUnevaluatedItemsInert(t *testing.T) {
+	t.Parallel()
+	const draft = "$schema: 'https://json-schema.org/draft/2019-09/schema', type: array, "
+	doc, diags := parseFull(t, openapitest.ComponentSpecVer("3.1.0",
+		"    Rest: {"+draft+"items: [{type: string}], additionalItems: {type: integer}, unevaluatedItems: false}\n"+
+			"    NoRest: {"+draft+"items: [{type: string}], unevaluatedItems: false}\n"+
+			"    Schema: {"+draft+"items: {type: string}, unevaluatedItems: false}\n"))
+	openapitest.RequireNoErrorDiags(t, diags)
+	for name, want := range map[string]string{
+		"Rest":   `{"additionalItems":{"type":"integer"},"unevaluatedItems":false}`,
+		"NoRest": `{"unevaluatedItems":false}`,
+		"Schema": `{"items":{"type":"string"},"unevaluatedItems":false}`,
+	} {
+		kept, ok := typeByName(doc, name).Common().Unmodeled["openapi:unevaluated"]
+		require.True(t, ok, name)
+		assert.Equal(t, want, string(kept.Value), name)
+	}
+}
+
 // TestUse_AUnionBesideAnAllOfReadsThroughOnlyARefinement pins what a carrier
 // reads past an allOf a union stands beside: through one refining to its $ref,
 // at the position and past a $ref to a schema writing it, as past any

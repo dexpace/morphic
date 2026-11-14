@@ -34,8 +34,10 @@ bounds no `int64`, and a source's numeric bound written beside that text, which 
 to no string, bounds nothing it says. A compiler keeps such a bound verbatim
 ([boundaries](./boundaries.md)) rather than move it onto the value, as the OpenAPI compiler does for
 a number carried as text ([`string-formats`](../compilers/openapi.md#string-formats)); it still
-holds a length or pattern written beside `format: byte` as a bound of the bytes, and one written
-beside a reference to a number carried as text as a bound of the number (#1851).
+holds a length or pattern written beside `format: byte` or `base64url` as a bound of the bytes, one
+written beside `format: http-date`, or a numeric bound beside `format: unixtime`, as a bound of the
+instant, and one written beside a reference to a number carried as text as a bound of the number
+(#1851).
 
 A count field, `MinLength`, `MaxLength`, `MinItems`, `MaxItems`, `MinProps` or `MaxProps`, holds a
 count from 0 to 2^63−1. A source may write a larger one, as JSON Schema's counts have no upper limit:
@@ -46,9 +48,12 @@ entry bounds nothing less than the entry does.
 Each bound applies to values of one kind and admits every value of another, as JSON Schema's do:
 `Min`, `Max`, `ExclusiveMin`, `ExclusiveMax`, `MultipleOf`, `Precision` and `Scale` to numbers,
 `MinLength`, `MaxLength` and `Pattern` to strings and bytes, `MinItems`, `MaxItems` and
-`UniqueItems` to lists and tuples, and `MinProps` and `MaxProps` to objects. A compiler writes one only where the source declares a type it applies to,
-or declares no type at all, and keeps one written beside another type verbatim under `Unmodeled`
-with `ReasonDegradedLowering`: beside a declared type, it bounds nothing that type admits.
+`UniqueItems` to lists and tuples, and `MinProps` and `MaxProps` to objects. A compiler writes one
+only where the source declares a type it applies to, or declares no type at all, and keeps one
+written beside another type verbatim under `Unmodeled` with `ReasonDegradedLowering`: beside a
+declared type, it bounds nothing that type admits. An encoded value holds those its source type
+takes, where the paragraph above places them: a length or pattern beside a `string` written as
+bytes or an instant, and a numeric bound beside a number written as an instant.
 
 ## Encodings
 

@@ -15,6 +15,7 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/annotation"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
 	"github.com/dexpace/morphic/compilers/openapi/internal/nodeview"
+	"github.com/dexpace/morphic/compilers/openapi/internal/oas"
 	"github.com/dexpace/morphic/compilers/openapi/internal/resolve"
 	"github.com/dexpace/morphic/ir"
 )
@@ -52,15 +53,20 @@ func (u Use) Site(s *oas3.Schema) annotation.Site {
 }
 
 // SiteAt is Site for s written at pointer, saying what the dialect s is read
-// in spells otherwise, which annotation.Read keeps: the keyword naming its
-// identifier, whether the dialect ignores it beside a $ref s writes, as the
-// binder does, and whether it defines `dependencies`.
+// in spells otherwise, which annotation.Read keeps (dialectIn).
 func (u Use) SiteAt(c lowering.Ctx, s *oas3.Schema, pointer jsontext.Pointer) annotation.Site {
 	site := u.Site(s)
-	rules := lowering.SchemaRulesAt(c, pointer)
-	site.Dialect = annotation.Dialect{Identifier: rules.Identifier(), IdentifierIgnored: rules.IgnoresRefFields() && writesRef(s),
-		Dependencies: rules.Defines("dependencies")}
+	site.Dialect = dialectIn(lowering.SchemaRulesAt(c, pointer), s)
 	return site
+}
+
+// dialectIn is what s, read with rules, spells otherwise than 2020-12: the
+// keyword naming its identifier, whether the dialect ignores it beside a $ref s
+// writes, as the binder does, whether it defines `dependencies`, and whether it
+// reads an `items` list as a tuple (listedTuple).
+func dialectIn(rules oas.SchemaRules, s *oas3.Schema) annotation.Dialect {
+	return annotation.Dialect{Identifier: rules.Identifier(), IdentifierIgnored: rules.IgnoresRefFields() && writesRef(s),
+		Dependencies: rules.Defines("dependencies"), ListedTuple: rules.Takes("items", oas.List)}
 }
 
 // writesRef reports whether s writes a $ref the binder reads as one: a string,

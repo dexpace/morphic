@@ -647,7 +647,37 @@ it sees. Changes made together in one bump are listed together under it.
   ([`allof-redeclared-property`](../compilers/openapi.md#allof-redeclared-property)). A consumer
   pinned to 0.56.0 finds those keys gone at those positions, a refined node, a `Union` or a `Mixin` where it
   read a `Model` keeping them, and a `Base` where it read a `Mixin`.
-- **0.58.0** — no shape change. The OpenAPI compiler writes a value bound to `Constraints` only
+- **0.58.0** — the shape is unchanged, and the OpenAPI compiler lowers three registered formats as it
+  lowers `format: byte`: to a `Scalar` over the primitive the value is, whose `Encoding` names the
+  text it is written in as the [IR](./constraints.md#encodings) does. `http-date` is a
+  `datetime_offset` under `http-date`, `unixtime` a `datetime_offset` under `unixTimestamp`, a name
+  no compiler wrote before, with the JSON type it is written on as `WireType`, and `base64url` is
+  `bytes` under `base64url` with a `string` `WireType`. So the secret policy, which reads a
+  credential's name on text or bytes, no longer marks a use declared `http-date`, or `unixtime` on a
+  string, `Secret`. A consumer pinned to 0.57.0 refuses the document; read regardless, it would find
+  an instant or bytes where it read text or a number, and `unixTimestamp` where it read `unixtime`.
+- **0.59.0** — what the OpenAPI compiler writes for `unevaluatedProperties` and `unevaluatedItems`
+  changed, the shape unchanged
+  ([`additional-properties`](../compilers/openapi.md#additional-properties),
+  [`validation-only`](../compilers/openapi.md#validation-only),
+  [`allof-inline-residue`](../compilers/openapi.md#allof-inline-residue)):
+  - `Model.Additional` is `closed_after_composition` only where no `additionalProperties` is written
+    beside the `unevaluatedProperties: false`, which would leave it inert. Beside one the model is
+    `closed` for `false`, and otherwise open with its catch-all, so `{type: object,
+    additionalProperties: {…}, unevaluatedProperties: false}` is a `MapT`. A consumer pinned to
+    0.58.0 read such a model as closed.
+  - A catch-all beside `closed_after_composition` holds its patterns and no `Value`, where it held
+    the top type: a key no pattern matches is allowed only where composition evaluates it.
+  - `openapi:unevaluated` holds an `unevaluatedProperties: false` wherever no model holds it as its
+    closure, where it was dropped, and holds an inert keyword together with the
+    `additionalProperties`, `items` or `additionalItems` beside it that leaves it inert. A consumer
+    pinned to 0.58.0 applying the entry read every keyword in it as live.
+  - Neither keyword an inline `allOf` branch writes folds into the position's `openapi:unevaluated`
+    any more: the branch is kept whole under `openapi:allOf/<n>`, as a branch writing
+    `unevaluatedProperties: false` already was. At the position the keyword exempted what the other
+    conjuncts evaluate, where on its branch it exempts only what the branch evaluates. A consumer
+    pinned to 0.58.0 finds the keyword at the position.
+- **0.60.0** — no shape change. The OpenAPI compiler writes a value bound to `Constraints` only
   where a type the schema declares takes it, as JSON Schema applies each to instances of one kind:
   `minimum`, `maximum`, their exclusive forms and `multipleOf` beside `integer` or `number`,
   `minLength`, `maxLength` and `pattern` beside `string`, and `minProperties` and `maxProperties`
@@ -662,6 +692,6 @@ it sees. Changes made together in one bump are listed together under it.
   bound ([`type-arrays`](../compilers/openapi.md#type-arrays)); a bound on an `allOf` branch beside
   the type list folds onto that variant, and one on a branch declaring a type it does not apply to
   stays with that branch ([`allof-inline-residue`](../compilers/openapi.md#allof-inline-residue)).
-  A consumer pinned to 0.57.0 that read a numeric bound on a string, a bound on the carrier of a
+  A consumer pinned to 0.59.0 that read a numeric bound on a string, a bound on the carrier of a
   type array, or a variant's encoding taken from a format another listed type pairs with finds it
   under `openapi:<keyword>`, on the variant it applies to, or not at all.

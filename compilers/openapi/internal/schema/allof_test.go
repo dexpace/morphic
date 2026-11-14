@@ -355,11 +355,12 @@ func TestAllOf_FalseBranchClosesTheCatchAllItForbids(t *testing.T) {
 	}
 }
 
-// TestAllOf_AClosureAfterCompositionKeepsTheCatchAll pins the other side of
+// TestAllOf_ACatchAllLeavesAClosureAfterCompositionInert pins the other side of
 // that rule: a catch-all `additionalProperties` writes evaluates every key the
 // patterns leave, so `unevaluatedProperties: false` beside it forbids none of
-// them, and the value stays.
-func TestAllOf_AClosureAfterCompositionKeepsTheCatchAll(t *testing.T) {
+// them. The value stays, the model stays open, and the keyword is kept beside
+// the catch-all that leaves it inert.
+func TestAllOf_ACatchAllLeavesAClosureAfterCompositionInert(t *testing.T) {
 	t.Parallel()
 	doc, diags := schema.LowerSpec(t, openapitest.ComponentSpec(`    M:
       allOf: [{type: object, properties: {a: {type: string}}}]
@@ -370,10 +371,13 @@ func TestAllOf_AClosureAfterCompositionKeepsTheCatchAll(t *testing.T) {
 
 	m, ok := typeByName(doc, "M").(*ir.Model)
 	require.True(t, ok, "M is a model, not %T", typeByName(doc, "M"))
-	assert.Equal(t, ir.AdditionalClosedAfterComposition, m.Additional)
+	assert.Empty(t, m.Additional, "the catch-all, not the closure, says what the model admits")
 	require.NotNil(t, m.AdditionalProps)
 	assert.Equal(t, &ir.TypeRef{Target: "t/prim/integer"}, m.AdditionalProps.Value)
 	assert.NotContains(t, m.Unmodeled, "openapi:additionalProperties", "a catch-all the IR holds is not kept twice")
+	require.Contains(t, m.Unmodeled, "openapi:unevaluated")
+	assert.Equal(t, `{"additionalProperties":{"type":"integer"},"unevaluatedProperties":false}`,
+		string(m.Unmodeled["openapi:unevaluated"].Value))
 }
 
 // TestAllOf_FalseBranchBesideUnionClosesEveryVariant pins that a `false` allOf

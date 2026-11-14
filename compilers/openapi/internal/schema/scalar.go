@@ -18,11 +18,12 @@ import (
 )
 
 // scalarTypeID maps a scalar (type, format) pair to a TypeID via spelling.Lookup: a
-// known pairing interns the shared primitive; byte, a number carried as text,
-// a pairing the table does not list, and the 2020-12 content vocabulary beside a
-// string each hoist a named Scalar wrapping the base primitive with an Encoding,
-// so what the position wrote never leaks onto the shared primitive every other
-// declaration of that type also resolves to.
+// known pairing interns the shared primitive; a pairing spelling.LookupEncoded
+// knows, such as byte, a number carried as text, one neither table lists, and
+// the 2020-12 content vocabulary beside a string each hoist a named Scalar
+// wrapping the base primitive with an Encoding, so what the position wrote never
+// leaks onto the shared primitive every other declaration of that type also
+// resolves to.
 //
 // byte and a number carried as text put the logical primitive in Base and the
 // string the value travels as in WireType (docs/compilers/openapi.md#string-formats).
@@ -54,18 +55,19 @@ type scalarShape struct {
 }
 
 // scalarShapeOf returns what a scalar of type st that s writes, with format,
-// lowers to: byte beside a string a Scalar over bytes encoded base64, carried
-// as a string; a pairing the table does not list a Scalar over the type's base
-// keeping the format as its encoding name; and a pairing it lists the primitive
-// it selects, shared unless s writes the content vocabulary for a type that
-// takes it, a string's (keywordKinds).
+// lowers to: a pairing spelling.LookupEncoded knows, such as byte, a Scalar over
+// the primitive it names with its encoding and wire type; a pairing neither
+// table lists a Scalar over the type's base keeping the format as its encoding
+// name; and a pairing spelling.Lookup lists the primitive it selects, shared
+// unless s writes the content vocabulary for a type that takes it, a string's
+// (keywordKinds).
 func scalarShapeOf(s *oas3.Schema, st oas3.SchemaType, format string) scalarShape {
-	if st == oas3.SchemaTypeString && format == "byte" {
-		return scalarShape{base: ir.PrimBytes, format: "base64", wire: new(ir.PrimString)}
-	}
 	key := string(st)
 	if format != "" {
 		key += "/" + format
+	}
+	if row, encoded := spelling.LookupEncoded(key); encoded {
+		return scalarShape{base: row.Prim, format: row.Encoding, wire: wireOf(row)}
 	}
 	prim, known := spelling.Lookup(key)
 	if !known {
@@ -75,6 +77,15 @@ func scalarShapeOf(s *oas3.Schema, st oas3.SchemaType, format string) scalarShap
 		return scalarShape{base: baseForType(st), format: format}
 	}
 	return scalarShape{base: prim, shared: !takesContent(typeKinds(st)) || !declaresContentVocabulary(s)}
+}
+
+// wireOf returns the primitive row's value travels as, the WireType of the
+// Scalar scalarShapeOf gives it: nil where the primitive's own spelling says it.
+func wireOf(row spelling.Encoded) *ir.PrimKind {
+	if row.Wire == "" {
+		return nil
+	}
+	return &row.Wire
 }
 
 // numberTextEncoding is the Encoding.Name of a number written as the text of
@@ -156,9 +167,9 @@ func hoistScalar(c lowering.Ctx, ts *compile.Types, depth int, s *oas3.Schema, s
 // scalarEncoding builds the Encoding a scalar position declares: the whole
 // 2020-12 content vocabulary, where withContent says the scalar's type takes it,
 // over the OpenAPI `format` spelling of the encoding name. formatName is the
-// encoding name the format contributes — "base64" for format: byte, an
-// unrecognized format verbatim, "" when the pairing is already captured by the
-// primitive kind.
+// encoding name the format contributes — the one spelling.LookupEncoded names,
+// as "base64" for format: byte, an unrecognized format verbatim, "" when the
+// pairing is already captured by the primitive kind.
 func scalarEncoding(c lowering.Ctx, ts *compile.Types, depth int, s *oas3.Schema,
 	formatName string, withContent bool, common *ir.TypeCommon, pointer jsontext.Pointer,
 ) (*ir.Encoding, []ir.Diagnostic) {
