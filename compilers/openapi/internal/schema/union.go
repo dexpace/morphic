@@ -461,19 +461,19 @@ type typeArray struct {
 // lowerTypeVariant lowers the variant of s's type array that st names, at
 // pointer, as lowerTyped lowers st alone, but for what applies to another listed
 // type (docs/compilers/openapi.md#type-arrays). An object variant holds no
-// discriminator: no $ref or mapping can name the variant's position, which holds
-// a type's name and no schema, so no type is its subtype; the census keeps the
-// discriminator on the union instead. A scalar variant reads the value bounds,
-// the format and the content vocabulary st takes, and is a Scalar of its own
-// where it holds one, else the shared primitive.
+// discriminator, as no $ref or mapping can name its position: the census keeps
+// it on the union. A variant reads the value bounds of the kinds of st the
+// position admits (positionTypes), as the census does, so a bound is held or
+// kept, never both. A scalar one, holding them, the format or the content
+// vocabulary, is a Scalar of its own, else the shared primitive.
 func lowerTypeVariant(c lowering.Ctx, ts *compile.Types, depth int, s *oas3.Schema, pointer jsontext.Pointer, st oas3.SchemaType, list typeArray) (ir.TypeID, []ir.Diagnostic) {
+	takes := typeKinds(st) & positionTypes(c, s, pointer)
 	switch st {
 	case oas3.SchemaTypeObject:
-		return lowerModel(c, ts, depth, s, pointer, false /* discriminated */, kindObject)
+		return lowerModel(c, ts, depth, s, pointer, false /* discriminated */, takes)
 	case oas3.SchemaTypeArray:
 		return lowerArray(c, ts, depth, s, pointer)
 	default:
-		takes := typeKinds(st)
 		shape := scalarShapeOf(s, st, variantFormat(s, st, list.types))
 		if shape.shared && !statesBounds(c, s, list.voices, pointer, takes) {
 			return ts.PrimID(shape.base), nil
@@ -1073,9 +1073,10 @@ func composedVariantRef(c lowering.Ctx, id ir.TypeID, body *oas3.Schema, branch 
 //
 // The enclosing schema's value constraints, its folding branches' among them,
 // are read as lowerAllOf reads them (GitHub #407). Each variant carries a copy,
-// since a bound on the schema constrains both sides of the disjunction.
+// read by what the whole position admits, so a variant holds a bound its own
+// branch cannot take (GitHub #1936).
 func buildComposedVariant(c lowering.Ctx, ts *compile.Types, depth int, body composedBody, branch ir.TypeID, common ir.TypeCommon) (ir.TypeDef, []ir.Diagnostic) {
-	cons, diags := ConstraintsOf(c, &common.Unmodeled, body.schema, body.voices, body.comp.pointer, declaredInstanceTypes(body.schema))
+	cons, diags := ConstraintsOf(c, &common.Unmodeled, body.schema, body.voices, body.comp.pointer, positionTypes(c, body.schema, body.comp.pointer))
 	m := &ir.Model{TypeCommon: common, Constraints: cons}
 	fields := newModelFields(c, ts, m)
 	diags = append(diags, fillAllOf(c, ts, depth, m, fields, body.comp)...)

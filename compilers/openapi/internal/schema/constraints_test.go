@@ -633,32 +633,6 @@ func TestCollectionBound_OnABranchWithNoFieldStaysWithItsBranch(t *testing.T) {
 	}
 }
 
-// TestCollectionBound_ReadsThePositionNotItsTarget pins that the rule asks what
-// the position wrote and never what the $ref names, as for a value bound: a
-// bound conjoins with whatever the target admits, and reading the target would
-// let declaration order decide. The string and the object are the targets it
-// binds nothing on, and the tuple is one it binds.
-func TestCollectionBound_ReadsThePositionNotItsTarget(t *testing.T) {
-	t.Parallel()
-	targets := "    Str: {type: string}\n    Obj: {type: object, properties: {f: {type: string}}}\n" +
-		"    Tup: {type: array, prefixItems: [{type: string}]}\n"
-	for _, target := range []string{"Str", "Obj", "Tup"} {
-		t.Run(target, func(t *testing.T) {
-			t.Parallel()
-			written := "{$ref: '#/components/schemas/" + target + "', minItems: 1}"
-			doc, diags := parseFull(t, openapitest.ComponentSpec(targets+
-				"    S: "+written+"\n    Holder:\n      type: object\n      properties:\n        f: "+written+"\n"))
-			openapitest.RequireNoErrorDiags(t, diags)
-
-			want := &ir.Constraints{MinItems: new(int64(1))}
-			alias, ok := typeByName(doc, "S").(*ir.Scalar)
-			require.True(t, ok)
-			assert.Equal(t, want, alias.Constraints)
-			assert.Equal(t, want, propertyOf(t, doc, "Holder", "f").Constraints)
-		})
-	}
-}
-
 // TestCollectionBound_BesideAnExpandedDynamicRefReachesWhatThePositionOwns pins
 // the third position that lowers to a reference. Its census asks what the reader
 // filled, as a $ref site's does, so a bound the reader cannot state is kept
@@ -795,11 +769,13 @@ func TestCollectionBound_ADefaultIsJudgedAgainstTheAliasHoldingIt(t *testing.T) 
 }
 
 // TestCollectionBound_BesideAValueBoundReachesOneConstraints pins the join: a
-// position writing both kinds holds both, on one ir.Constraints.
+// position writing both kinds holds both, on one ir.Constraints, where the
+// schema it names declares no type and so excludes neither.
 func TestCollectionBound_BesideAValueBoundReachesOneConstraints(t *testing.T) {
 	t.Parallel()
-	doc, diags := parseFull(t, openapitest.ComponentSpec(tagsSchema+
-		"    S: {$ref: '#/components/schemas/Tags', minItems: 1, maxLength: 9}\n"))
+	doc, diags := parseFull(t, openapitest.ComponentSpec(
+		"    Base: {description: declares no type}\n"+
+			"    S: {$ref: '#/components/schemas/Base', minItems: 1, maxLength: 9}\n"))
 	openapitest.RequireNoErrorDiags(t, diags)
 
 	alias, ok := typeByName(doc, "S").(*ir.Scalar)

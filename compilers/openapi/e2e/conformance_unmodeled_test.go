@@ -1654,9 +1654,17 @@ func assertKeywordsAtEveryOutcome(t *testing.T, doc *ir.Document, diags []ir.Dia
 	dyn, ok := propByWire(carrier, "dyn")
 	require.True(t, ok)
 	assert.Equal(t, componentID("Node"), dyn.Type.Target, "a carrier keeps the reference, not an alias")
-	assert.Equal(t, &ir.Constraints{MaxItems: new(int64(2))}, dyn.Constraints)
-	assert.Equal(t, []string{"openapi:uniqueItems"}, slices.Collect(maps.Keys(dyn.Unmodeled)))
-	assert.Equal(t, ir.ReasonDegradedLowering, unmodeledEntry(t, dyn.Unmodeled, "openapi:uniqueItems").Reason)
+	assert.Nil(t, dyn.Constraints, "the anchor is no array, so no collection bound is held")
+	assert.ElementsMatch(t, []string{"openapi:maxItems", "openapi:uniqueItems"}, slices.Collect(maps.Keys(dyn.Unmodeled)))
+	assertKept(t, dyn.Unmodeled, []keptEntry{
+		{"openapi:maxItems", "2", "/components/schemas/Carrier/properties/dyn/maxItems"},
+		{"openapi:uniqueItems", "false", "/components/schemas/Carrier/properties/dyn/uniqueItems"},
+	})
+	for _, key := range []string{"openapi:maxItems", "openapi:uniqueItems"} {
+		assert.Equal(t, ir.ReasonDegradedLowering, unmodeledEntry(t, dyn.Unmodeled, key).Reason, key)
+	}
+	assert.Contains(t, openapitest.DiagMessageAt(t, diags, "openapi/degraded-construct", ir.SeverityInfo,
+		"/components/schemas/Carrier/properties/dyn"), "maxItems, uniqueItems")
 
 	beside := typeByName(doc, "BesideAUnion").Common().Unmodeled
 	assert.Equal(t, ir.ReasonDegradedLowering, unmodeledEntry(t, beside, "openapi:oneOf").Reason)

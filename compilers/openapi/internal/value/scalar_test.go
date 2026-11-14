@@ -140,6 +140,8 @@ func TestNumericLiteral_YAMLBases(t *testing.T) {
 	}{
 		{"leading zero is base ten", "0644", "644"},
 		{"leading zero negative is base ten", "-017", "-17"},
+		{"negative zero is zero", "-0", "0"},
+		{"negative zeros are zero", "-000", "0"},
 		{"octal 1.2 spelling", "0o17", "15"},
 		{"hex", "0x1f", "31"},
 		{"hex negative", "-0x1f", "-31"},

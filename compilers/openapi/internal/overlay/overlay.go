@@ -42,10 +42,10 @@ type Options struct {
 	Lax bool
 	// MaxNodes bounds the document the overlay may grow the source to, checked
 	// before each action builds anything and as the alias repair copies;
-	// unset, it is unbounded. It is the compile's node budget: the loader
-	// checks the patched tree against the same limit afterwards, and this is
-	// what stops an overlay spending memory to build a tree that check would
-	// refuse (GitHub #491).
+	// unset, it is unbounded. It is the compile's node budget, which the
+	// loader reads the source within and checks the patched tree against no
+	// more, so this alone holds the tree the overlay leaves to it, refusing an
+	// action before it spends memory building past it (GitHub #491).
 	MaxNodes budget.Limit
 }
 

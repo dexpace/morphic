@@ -19,13 +19,13 @@ import (
 )
 
 // TestLoad_ADocumentDeclaringAnotherYAMLVersionIsWarnedInItsEntry holds the
-// three warnings a document read as YAML 1.2 draws: a plain scalar and a
-// line-break character, in its text and in a comment, where it declares 1.1,
-// and the directive where it declares a later minor.
+// three warnings a document read as YAML 1.2 draws: a plain scalar, one
+// tagged !!int and a line-break character, in its text and in a comment, where
+// it declares 1.1, and the directive where it declares a later minor.
 func TestLoad_ADocumentDeclaringAnotherYAMLVersionIsWarnedInItsEntry(t *testing.T) {
 	t.Parallel()
 	src := "%YAML 1.1\n---\nopenapi: 3.1.0\ninfo: {title: t, version: \"1\", description: \"a\u0085b\"} # c d\n" +
-		"paths: {}\nx-a: 0644\n"
+		"paths: {}\nx-a: 0644\nx-b: !!int 010\n"
 
 	_, diags, err := Load(t.Context(), 0, openapitest.SourceOf(src), Options{})
 
@@ -42,6 +42,8 @@ func TestLoad_ADocumentDeclaringAnotherYAMLVersionIsWarnedInItsEntry(t *testing.
 		"/info a comment here holds U+2028, " + tail,
 		`/x-a plain scalar "0644" is the integer 644 in YAML 1.2, which the compiler reads; ` +
 			"YAML 1.1, which the document declares, reads the integer 420",
+		`/x-b scalar tagged !!int "010" is the integer 10 in YAML 1.2, which the compiler reads; ` +
+			"YAML 1.1, which the document declares, reads the integer 8",
 	}, got)
 
 	long := "1_" + strings.Repeat("0", 200)

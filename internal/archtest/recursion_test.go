@@ -38,6 +38,14 @@ var loweringRecursions = [][]string{
 	// records this as the reason schema, compose and resolve cannot be separated
 	// into packages.
 	schemaRecursion,
+	// The instance types a bound beside a named schema is read by. An allOf's
+	// entries, a union's branches and what a $ref or a dynamic reference lands
+	// on are schemas read the same way, and one may name its own schema.
+	// Bounded by the budget maxBoundTypeReads, which a cycle exhausts.
+	{
+		"boundTypes.at", "boundTypes.branch", "boundTypes.conjuncts", "boundTypes.entry", "boundTypes.names",
+		"boundTypes.ref", "boundTypes.schema", "boundTypes.unions",
+	},
 	// The nullability predicate. JSON Schema conjoins keywords, so whether a
 	// schema admits null is decided by its allOf conjuncts as much as by its own
 	// type set, and a conjunct or a $ref lands on a schema asked the same

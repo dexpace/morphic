@@ -88,7 +88,8 @@ witnessing it.
 
 ### `constraints`
 
-- Witnesses: `constraints`, `numeric-precision`, `ref-collection-bounds`, `type-array-bounds`
+- Witnesses: `constraints`, `numeric-precision`, `ref-collection-bounds`, `reference-bounds`,
+  `type-array-bounds`
 
 ### `visibility`
 

@@ -190,11 +190,11 @@ func TestLoad_AnOverlayThatWillNotDecodeIsTheLibrarysToRefuse(t *testing.T) {
 }
 
 // TestLoad_AnOverlayBuildsWithinTheNodeBudget pins the loader's half of GitHub
-// #491: the node budget the patched tree is checked against afterwards is the
-// one the overlay builds within, so an action that would build past it is
-// refused before it builds anything rather than after a tree the check then
-// turns down. The package that applies overlays holds the mechanism; this holds
-// that the compile hands it the caller's budget.
+// #491: the overlay builds within the node budget the source was read within,
+// which nothing checks the patched tree against afterwards, so an action that
+// would build past it is refused before it builds anything. The package that
+// applies overlays holds the mechanism; this holds that the compile hands it
+// the caller's budget.
 func TestLoad_AnOverlayBuildsWithinTheNodeBudget(t *testing.T) {
 	t.Parallel()
 	keys := make([]string, 30)

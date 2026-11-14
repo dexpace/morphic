@@ -25,13 +25,14 @@ const (
 	OracleDeterminism       Oracle = "determinism"
 	OracleIdempotence       Oracle = "idempotence"
 	OracleOrder             Oracle = "order-invariance"
+	OracleSequenceOrder     Oracle = "sequence-order-invariance"
 )
 
 // Oracles returns every oracle in the order Check applies them.
 func Oracles() []Oracle {
 	return []Oracle{
 		OracleNoPanic, OracleInvariants, OracleNoErrorDiagnostic, OracleRoundTrip,
-		OracleDeterminism, OracleIdempotence, OracleOrder,
+		OracleDeterminism, OracleIdempotence, OracleOrder, OracleSequenceOrder,
 	}
 }
 
@@ -53,6 +54,8 @@ func (o Oracle) finds() (Outcome, bool) {
 		return OutcomeNonIdempotent, true
 	case OracleOrder:
 		return OutcomeOrderDependent, true
+	case OracleSequenceOrder:
+		return OutcomeSequenceOrderDependent, true
 	default:
 		return "", false
 	}
@@ -62,9 +65,9 @@ func (o Oracle) finds() (Outcome, bool) {
 // (Summary), so an oracle that could not ask is never read as one that passed.
 type Decline string
 
-// Why an oracle declines. The reasons after DeclineNoDocument are the
-// order-invariance oracle's alone: what its permutation cannot rewrite
-// faithfully, or leaves nothing to compare.
+// Why an oracle declines. The reasons after DeclineNoDocument are the two
+// order oracles' alone: what a permutation cannot rewrite faithfully, or
+// leaves nothing to compare.
 const (
 	// DeclineNotReached: the run ended before the oracle, as Result.Outcome
 	// says: a panic, a Go error, or a source no registered compiler takes.
@@ -82,7 +85,8 @@ const (
 	// can rebind an alias to the other.
 	DeclineAnchorRedefined Decline = "anchor redefined"
 	// DeclineTooDeep: the source nests deeper than any document the compiler
-	// admits.
+	// admits, or what the sequence-order oracle compares nests past its own
+	// bound.
 	DeclineTooDeep Decline = "too deep"
 	// DeclineTooManyDocuments: the source is a stream of more documents than
 	// the rewrite reads.
@@ -92,8 +96,9 @@ const (
 	// DeclinePermutationUnparsable: the permuted source does not parse again,
 	// which is the rewrite's own fault.
 	DeclinePermutationUnparsable Decline = "permutation does not parse"
-	// DeclineNothingToPermute: no mapping holds two entries, so both orders are
-	// one.
+	// DeclineNothingToPermute: the permutation changes nothing, so both orders
+	// are one: no mapping holds two entries, or no allOf or required sequence
+	// of two or more is the sequence-order oracle's to reverse.
 	DeclineNothingToPermute Decline = "nothing to permute"
 	// DeclineReencodingNoSpec: the source re-encoded reads as no spec any
 	// registered compiler takes, so there is no baseline to compare with.
@@ -102,6 +107,16 @@ const (
 	// re-encoding to none, so the two orders would compare a refusal the
 	// rewrite made rather than what the source compiles to.
 	DeclineReencodingRefused Decline = "re-encoding refused"
+	// DeclineReadsAnotherFile: the source's compile reads another file, which
+	// can name an element of a sequence by its index. The sequence-order
+	// oracle reverses the source alone and reads no other file's references,
+	// so reversing would change what such a reference names.
+	DeclineReadsAnotherFile Decline = "reads another file"
+	// DeclineReferenceCycle: nodes beneath the sequences the sequence-order
+	// oracle reverses name each other in a cycle of two or more. What tells
+	// such nodes apart would follow which of them the comparison met first,
+	// not what they say.
+	DeclineReferenceCycle Decline = "reference cycle"
 )
 
 // Verdict is one oracle's answer for one spec: it asked and found nothing

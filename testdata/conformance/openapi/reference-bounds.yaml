@@ -1,0 +1,40 @@
+openapi: 3.1.0
+# A bound is read by the types its schema admits, its own and those of the
+# schemas it names through $ref, allOf or a union, so one beside a reference to a
+# type it does not apply to bounds nothing and is kept verbatim. `taken` and
+# `open` are the controls: a bound the named type takes, and one beside a schema
+# declaring no type, which excludes nothing.
+info: {title: ReferenceBounds, version: "1.0.0"}
+paths:
+  /names/{name}:
+    get:
+      operationId: getName
+      parameters:
+        - {name: name, in: path, required: true, schema: {allOf: [{$ref: '#/components/schemas/Name'}], minimum: 1, minLength: 2}}
+        - {name: tags, in: query, schema: {$ref: '#/components/schemas/Tags', maxLength: 5, maxItems: 3}}
+      responses:
+        '200':
+          description: ok
+          headers:
+            X-Tags: {schema: {allOf: [{$ref: '#/components/schemas/Tags'}], pattern: '^a'}}
+components:
+  schemas:
+    Failure:
+      type: object
+      properties:
+        refined: {allOf: [{$ref: '#/components/schemas/Tags'}], minLength: 1}
+        site: {$ref: '#/components/schemas/Tags', minLength: 1}
+        nullable: {anyOf: [{$ref: '#/components/schemas/Tags'}, {type: 'null'}], minLength: 1}
+        voiced: {allOf: [{$ref: '#/components/schemas/Tags'}, {minLength: 1}]}
+        chained: {allOf: [{$ref: '#/components/schemas/TagsAlias'}], minLength: 1}
+        inline: {allOf: [{type: array, items: {type: string}}], minLength: 1}
+        composed: {allOf: [{$ref: '#/components/schemas/Envelope'}], minLength: 1, minProperties: 2}
+        counted: {$ref: '#/components/schemas/Name', minItems: 1}
+        taken: {allOf: [{$ref: '#/components/schemas/Name'}], minLength: 1}
+        open: {$ref: '#/components/schemas/Open', minLength: 1, minimum: 2}
+    Aliased: {allOf: [{$ref: '#/components/schemas/Name'}], minimum: 1}
+    Envelope: {type: object, properties: {id: {type: string}}}
+    Name: {type: string}
+    Open: {description: A schema declaring no type.}
+    Tags: {type: array, items: {type: string}}
+    TagsAlias: {$ref: '#/components/schemas/Tags'}

@@ -317,6 +317,24 @@ func TestRead_AYAML11DocumentRecordsWhatItReadsOtherwise(t *testing.T) {
 	}
 }
 
+// TestRead_AYAML11DocumentRecordsAnIntegerTaggedOutrightThatReadsApart pins the
+// tagged half of Legacy: a scalar tagged !!int that YAML 1.1 reads as another
+// integer than YAML 1.2, whatever its style, and none whose integer the two
+// read alike or whose text YAML 1.1's int does not spell.
+func TestRead_AYAML11DocumentRecordsAnIntegerTaggedOutrightThatReadsApart(t *testing.T) {
+	t.Parallel()
+	const body = "a: !!int 0644\nb: !!int \"-010\"\nc: !!int 0x1F\nd: !!int 0o17\ne: !!int 12\nf: !!int 0b11\ng: !!str 0644\n"
+
+	doc := read(t, "%YAML 1.1\n---\n"+body)
+
+	got := make([]string, 0, len(doc.Legacy))
+	for _, l := range doc.Legacy {
+		got = append(got, l.Node.Value+": "+l.Is+" / "+l.Was)
+	}
+	assert.Equal(t, []string{"0644: the integer 644 / the integer 420", "-010: the integer -10 / the integer -8"}, got)
+	assert.Empty(t, read(t, body).Legacy, "a document that does not declare YAML 1.1 records nothing")
+}
+
 // TestRead_AYAML11DocumentRecordsABreakInAComment pins the comment half of
 // Legacy: a character YAML 1.1 ends a line at, in a comment attached to a node.
 func TestRead_AYAML11DocumentRecordsABreakInAComment(t *testing.T) {
@@ -414,6 +432,51 @@ func TestRead_AJSONTextIsNeverResolvedAgain(t *testing.T) {
 		got = append(got, c.Value+" "+c.ShortTag())
 	}
 	assert.Equal(t, []string{"1E3 !!float", "-0 !!int", "0.5e-2 !!float", "99999999999999999999 !!float"}, got)
+}
+
+// TestRead_AJSONTextReadsAlikeInEveryEncoding holds a JSON text in UTF-16 and
+// UTF-32 to the tree its UTF-8 gives: it is read as JSON, so what only the JSON
+// reader reads, a surrogate pair of escapes and a key past the parser's length,
+// reads in each encoding.
+func TestRead_AJSONTextReadsAlikeInEveryEncoding(t *testing.T) {
+	t.Parallel()
+	text := `{"openapi":"3.1.0","info":{"title":"a` + bs + `ud83d` + bs + `ude00b","version":"1"},` +
+		`"paths":{},"x-` + strings.Repeat("k", 1100) + `":1}`
+	want := read(t, text)
+
+	for name, enc := range map[string]struct {
+		mark      string
+		width     int
+		bigEndian bool
+	}{
+		"UTF-16LE": {"\xff\xfe", 2, false}, "UTF-16BE": {"\xfe\xff", 2, true},
+		"UTF-32LE": {"\xff\xfe\x00\x00", 4, false}, "UTF-32BE": {"\x00\x00\xfe\xff", 4, true},
+	} {
+		in := []byte(enc.mark)
+		for _, r := range text {
+			in = append(in, encoded(r, enc.width, enc.bigEndian)...)
+		}
+
+		got, err := doctree.Read(t.Context(), in, budget.Unbounded())
+
+		require.NoError(t, err, name)
+		assert.Empty(t, cmp.Diff(dump(want.Root), dump(got.Root)), name)
+		assert.Equal(t, want.Nodes, got.Nodes, name)
+	}
+}
+
+// encoded is r in UTF-16 or UTF-32, as width names, in the byte order
+// bigEndian names. r is in the Basic Multilingual Plane when width is 2.
+func encoded(r rune, width int, bigEndian bool) []byte {
+	out := make([]byte, width)
+	for i := range width {
+		shift := 8 * (width - 1 - i)
+		if !bigEndian {
+			shift = 8 * i
+		}
+		out[i] = byte(r >> shift)
+	}
+	return out
 }
 
 // TestRead_AnEscapedSlashReadsAsASlashOnlyWhereTheStyleSaysSo pins what an

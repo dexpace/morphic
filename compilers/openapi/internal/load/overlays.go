@@ -103,8 +103,9 @@ func applyOverlay(ctx context.Context, srcIndex int, root, ov *yaml.Node, opts O
 	if diag.HasError(pre) {
 		return overlay.Origin{}, pre
 	}
-	// The overlay builds within the same node budget the patched tree is checked
-	// against afterwards, so it can refuse an action before paying for it.
+	// The overlay builds within the node budget the source was read within,
+	// which alone holds the patched tree to it: an action past it is refused
+	// before it builds anything.
 	o := *opts.Overlay
 	o.MaxNodes = opts.MaxSourceNodes
 	origin, diags := overlay.Apply(ctx, opts.OverlaySrcIndex, root, ov, o)

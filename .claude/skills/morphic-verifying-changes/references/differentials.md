@@ -101,11 +101,12 @@ whether the answer means anything.
 ## A clean order oracle says nothing of an order it forgives
 `order-oracle-reads-what-it-compares`
 
-- **Rule.** Read `orderFree` and `diagnosticSet` in `internal/harness/order.go` before trusting a
-  clean order oracle: it forgives the order of what `orderFree` lists and a message's text, and
-  permutes mappings alone at the default limits. An order dependence among a listed collection's
-  elements, in a message, in a sequence such as an `allOf`'s branches (#1666), or at another
-  limit (#1519) needs its own two-order diff, however many specs reach the sweep.
+- **Rule.** Before trusting a clean order oracle, read what it forgives: `orderFree` and
+  `diagnosticSet` in `internal/harness/order.go`, and `reverseSequences` and `canonicalForm`
+  beside them. The mapping oracle permutes mappings alone, the sequence oracle each `allOf` and
+  `required` sequence it may, once, both at the default limits. An order dependence among a listed
+  collection's elements, in a message, in another sequence or order, or at another limit (#1519)
+  needs its own two-order diff, however many specs reach the sweep.
 - **Why.** With a slice held only on operations left unread, `morphic-harness` passed a spec whose
   two headers lower in opposite orders (#1166, #684); sorting every list of examples passed a
   schema whose `examples` array lowered reversed in one order (#1818).

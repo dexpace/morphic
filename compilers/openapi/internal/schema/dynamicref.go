@@ -43,6 +43,19 @@ func dynamicRefOf(c lowering.Ctx, s *oas3.Schema, pointer jsontext.Pointer) (dyn
 	return dynamicRef{keyword: "$recursiveRef", node: n}, true
 }
 
+// dynamicTarget is the position the dynamic reference s writes at pointer
+// names, as dynamicExpansion reads it but for the check that its expansions
+// close no cycle, which walks their whole chain. A reader spending a step on
+// each schema it reads, as boundTypes does, ends such a cycle on its budget.
+func dynamicTarget(c lowering.Ctx, s *oas3.Schema, pointer jsontext.Pointer) (bind.Position, bool) {
+	ref, _, ok := expandableRef(c, s, pointer)
+	if !ok {
+		return bind.Position{}, false
+	}
+	at, _, ok := dynamicTargetOf(c, ref, c.Position(pointer))
+	return at, ok
+}
+
 // dynamicExpansion resolves the dynamic reference s writes at pointer to the
 // position it names, or reports why it is irreducible. Expansion and
 // preservation both decide through it.

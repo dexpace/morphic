@@ -17,10 +17,11 @@ import (
 // legacy appends to found what YAML 1.1 reads otherwise in n, a node of a
 // document declaring YAML 1.1, before its text is restored: a plain value
 // scalar YAML 1.1's types read as another JSON value than the core schema does,
+// or one tagged !!int outright that both read as two integers (taggedInteger),
 // and a line-break character written raw in its text or in a comment attached
 // to it, which YAML 1.1 ends a line at. A key is text, so its reading is none.
 func (s *settler) legacy(found []Legacy, n *yaml.Node) []Legacy {
-	if n.Kind == yaml.ScalarNode && n.Style == 0 && !s.keys[n] {
+	if n.Kind == yaml.ScalarNode && (n.Style == 0 || taggedInteger(n)) && !s.keys[n] {
 		was, is := yaml11Reading(n.Value), coreReading(n)
 		long := len(n.Value) > maxReadText
 		if long {
@@ -39,7 +40,19 @@ func (s *settler) legacy(found []Legacy, n *yaml.Node) []Legacy {
 	return found
 }
 
-// maxReadText bounds the text of a plain scalar whose two readings are
+// taggedInteger reports whether n is a scalar tagged !!int outright whose text
+// is an integer both of YAML 1.1's int and of the core schema, which may read it
+// as two numbers: !!int 0644 is 420 in YAML 1.1 and 644 in YAML 1.2, which
+// value.NumericLiteral reads.
+func taggedInteger(n *yaml.Node) bool {
+	if n.Style&yaml.TaggedStyle == 0 || n.ShortTag() != "!!int" || !coreInt(n.Value) {
+		return false
+	}
+	_, ok := yaml11Integer(n.Value)
+	return ok
+}
+
+// maxReadText bounds the text of a scalar whose two readings are
 // computed and compared as values. A longer one is read and compared by kind
 // alone, in time linear in its text: rendering a based or base-60 number in
 // base ten costs time quadratic in its digits, and its wording would quote it.

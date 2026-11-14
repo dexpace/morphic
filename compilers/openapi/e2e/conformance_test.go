@@ -229,6 +229,7 @@ func conformanceCases() []conformanceCase {
 		{"constraints", assertConstraints},
 		{"numeric-precision", assertNumericPrecision},
 		{"ref-collection-bounds", assertRefCollectionBounds},
+		{"reference-bounds", assertReferenceBounds},
 		{"readonly-writeonly", assertReadOnlyWriteOnly},
 		{"recursive", assertRecursive},
 		{"maps", assertMaps},

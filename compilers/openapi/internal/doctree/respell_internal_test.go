@@ -99,11 +99,11 @@ func TestRespell_EachTriggerGetsAPlaceholderOfItsOwn(t *testing.T) {
 	}
 }
 
-// TestRespell_AUTF16OrUTF32TextIsReadAsTheUTF8ItEncodes holds a text opening
-// with a UTF-16 or UTF-32 byte order mark to the UTF-8 it encodes, respelled as
-// that UTF-8 is, and one that encodes no text, a truncated unit or half a
-// surrogate pair, to the parser, handed back as it is.
-func TestRespell_AUTF16OrUTF32TextIsReadAsTheUTF8ItEncodes(t *testing.T) {
+// TestTranscoded_AUTF16OrUTF32TextIsTheUTF8ItEncodes holds a text opening with
+// a UTF-16 or UTF-32 byte order mark to the UTF-8 it encodes, respelled as that
+// UTF-8 is, and one that encodes no text, a truncated unit or half a surrogate
+// pair, to the parser, handed back as it is.
+func TestTranscoded_AUTF16OrUTF32TextIsTheUTF8ItEncodes(t *testing.T) {
 	t.Parallel()
 	const text = "a: \"x" + bs + "/y\"\n%YAML 1.3\nb: \U0001F600\n"
 	encode := func(mark string, width int, bigEndian bool) []byte {
@@ -127,7 +127,9 @@ func TestRespell_AUTF16OrUTF32TextIsReadAsTheUTF8ItEncodes(t *testing.T) {
 		"UTF-16LE": encode("\xff\xfe", 2, false), "UTF-16BE": encode("\xfe\xff", 2, true),
 		"UTF-32LE": encode("\xff\xfe\x00\x00", 4, false), "UTF-32BE": encode("\x00\x00\xfe\xff", 4, true),
 	} {
-		out, r, dirs := respell(in)
+		utf8Text, ok := transcoded(in)
+		require.True(t, ok, name)
+		out, r, dirs := respell(utf8Text)
 
 		assert.Equal(t, string(want), string(out), name)
 		assert.Equal(t, wantR, r, name)
@@ -139,6 +141,8 @@ func TestRespell_AUTF16OrUTF32TextIsReadAsTheUTF8ItEncodes(t *testing.T) {
 		"half a surrogate pair":      []byte("\xff\xfe\x3d\xd8a\x00"),
 		"a code point past U+10FFFF": []byte("\xff\xfe\x00\x00\x00\x00\x11\x00"),
 	} {
+		_, ok := transcoded(in)
+		assert.False(t, ok, name)
 		out, r, dirs := respell(in)
 
 		assert.Same(t, &in[0], &out[0], "%s: the input slice itself", name)
@@ -328,12 +332,13 @@ func FuzzRespell_PlaceholdersAreInvisible(f *testing.F) {
 		f.Add(seed)
 	}
 	f.Fuzz(func(t *testing.T, text string) {
-		out, r, _ := respell([]byte(text))
-		// A UTF-16 or UTF-32 text spells what the UTF-8 it encodes spells.
+		// A UTF-16 or UTF-32 text is respelled, and spells, as the UTF-8 it
+		// encodes, which Read hands respell in its place.
 		written := text
 		if utf8Text, ok := transcoded([]byte(text)); ok {
 			written = string(utf8Text)
 		}
+		out, r, _ := respell([]byte(written))
 		placeholders := slicesOf(r)
 		first, firstErr := restored(out, r)
 
