@@ -5,6 +5,7 @@ package archtest_test
 
 import (
 	"fmt"
+	"go/ast"
 	"go/types"
 	"maps"
 	"slices"
@@ -152,8 +153,41 @@ func walkUses(p *decls.Package, names []string) map[string][]string {
 		for _, fn := range p.FuncsUsing(obj) {
 			uses[name] = append(uses[name], rel+"."+fn)
 		}
+		uses[name] = append(uses[name], valuesNaming(p, rel, obj)...)
 	}
 	return uses
+}
+
+// valuesNaming returns rel.<name> for each package-level var or const of p whose
+// declaration names obj: a walk held in a func value is called through the
+// value, which no function names the walk for, so the value answers for a stop.
+func valuesNaming(p *decls.Package, rel string, obj types.Object) []string {
+	var out []string
+	for _, f := range p.Syntax {
+		for _, decl := range f.Decls {
+			gen, isGen := decl.(*ast.GenDecl)
+			if !isGen {
+				continue
+			}
+			for _, spec := range gen.Specs {
+				value, isValue := spec.(*ast.ValueSpec)
+				if isValue && namesObject(p, value, obj) {
+					out = append(out, rel+"."+value.Names[0].Name)
+				}
+			}
+		}
+	}
+	return out
+}
+
+// namesObject reports whether node names obj anywhere in it.
+func namesObject(p *decls.Package, node ast.Node, obj types.Object) bool {
+	for n := range ast.Preorder(node) {
+		if ident, isIdent := n.(*ast.Ident); isIdent && p.Info.Uses[ident] == obj {
+			return true
+		}
+	}
+	return false
 }
 
 // walkCallerFindings returns, sorted, a line for each function of pkgs that
@@ -255,6 +289,8 @@ import "github.com/dexpace/morphic/ir"
 
 func plantedWalk(doc *ir.Document) { ir.WalkValues(doc, "") }
 
+var plantedValue = ir.WalkValues
+
 func plantedReader(refs *ir.IDReferences) bool { return refs.Declares(nil, "") }
 `)
 
@@ -269,6 +305,7 @@ func plantedReader(refs *ir.IDReferences) bool { return refs.Declares(nil, "") }
 
 	assert.Equal(t, []string{
 		"pass.plantedReader asks ir.IDReferences.Declares of what a walk collected and is no caller's reader in walkCallers",
+		"pass.plantedValue names ir.WalkValues and has no answer in walkCallers for a walk that stopped",
 		"pass.plantedWalk names ir.WalkValues and has no answer in walkCallers for a walk that stopped",
 		"walkCallers lists pass.ghost, which names no walk",
 		"walkCallers lists pass.ghostReader as a reader for pass.ghost, which asks no collector",
