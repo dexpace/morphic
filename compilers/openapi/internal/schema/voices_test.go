@@ -293,7 +293,8 @@ func TestVoices_ABranchDisagreeingFoldsNothingInEveryOrder(t *testing.T) {
 // they meet as a redeclared field's do, each taking what they say together, in
 // either order. A writer stating no value, as a 3.0 exclusive modifier with no
 // bound beside it or one of false, parts none (GitHub #1494): both fold, and the
-// modifier that bounds nothing is kept and warned of at its own branch.
+// modifier that bounds nothing is kept and warned of at its own branch. Base
+// declares no type, so it excludes no bound from the node the branches fold into.
 func TestVoices_BoundsMeetInEveryOrder(t *testing.T) {
 	t.Parallel()
 	const ref = "{$ref: '#/components/schemas/Base'}"
@@ -312,7 +313,7 @@ func TestVoices_BoundsMeetInEveryOrder(t *testing.T) {
 	} {
 		for _, order := range [][2]string{{tc.a, tc.b}, {tc.b, tc.a}} {
 			doc, diags := parseFull(t, openapitest.ComponentSpecVer(tc.version,
-				"    Base: {type: object}\n    S: {allOf: ["+ref+", "+order[0]+", "+order[1]+"]}\n"))
+				"    Base: {description: declares no type}\n    S: {allOf: ["+ref+", "+order[0]+", "+order[1]+"]}\n"))
 			openapitest.RequireNoErrorDiags(t, diags)
 			m, ok := typeByName(doc, "S").(*ir.Model)
 			require.True(t, ok, name)
@@ -329,7 +330,7 @@ func TestVoices_BoundsMeetInEveryOrder(t *testing.T) {
 
 	for i, order := range []string{"{exclusiveMinimum: true}, {exclusiveMinimum: false}", "{exclusiveMinimum: false}, {exclusiveMinimum: true}"} {
 		doc, diags := parseFull(t, openapitest.ComponentSpecVer("3.0.3",
-			"    Base: {type: object}\n    S: {allOf: ["+ref+", "+order+"]}\n"))
+			"    Base: {description: declares no type}\n    S: {allOf: ["+ref+", "+order+"]}\n"))
 		m, ok := typeByName(doc, "S").(*ir.Model)
 		require.True(t, ok)
 		at := fmt.Sprintf("/components/schemas/S/allOf/%d", i+1)
@@ -345,13 +346,14 @@ func TestVoices_BoundsMeetInEveryOrder(t *testing.T) {
 // TestVoices_ARefusedBoundPartsNoWriter pins a bound beside one the rule table
 // refuses, in either order (GitHub #1494): the refused value states nothing, so
 // both branches fold, the stated bound reaches the node, and the refusal is
-// reported once, at the keyword, as it is beside the allOf.
+// reported once, at the keyword, as it is beside the allOf. Base declares no
+// type, so it excludes no bound.
 func TestVoices_ARefusedBoundPartsNoWriter(t *testing.T) {
 	t.Parallel()
 	const ref = "{$ref: '#/components/schemas/Base'}"
 	for i, order := range []string{"{exclusiveMinimum: 5}, {exclusiveMinimum: true}", "{exclusiveMinimum: true}, {exclusiveMinimum: 5}"} {
 		doc, diags := parseFull(t, openapitest.ComponentSpecVer("3.1.0",
-			"    Base: {type: object}\n    S: {allOf: ["+ref+", "+order+"]}\n"))
+			"    Base: {description: declares no type}\n    S: {allOf: ["+ref+", "+order+"]}\n"))
 		m, ok := typeByName(doc, "S").(*ir.Model)
 		require.True(t, ok)
 		assert.Equal(t, &ir.Constraints{ExclusiveMin: new(ir.BigVal("5"))}, m.Constraints, order)
