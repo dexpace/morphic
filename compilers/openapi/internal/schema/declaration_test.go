@@ -582,13 +582,13 @@ func TestPropertyPosition_ResidueStaysOutOfTheTypeNode(t *testing.T) {
 // URI for reference resolution.
 //
 // The keyword list is written out here rather than read from
-// annotation.DialectKeywords: ranging over the production slice would let a
+// annotation.DialectKeywords: ranging over the production list would let a
 // keyword dropped from it narrow this test instead of failing it, so the two
 // are compared as sets and each is then exercised.
 func TestDialectKeywords_KeptOutOfScope(t *testing.T) {
 	t.Parallel()
 	want := []string{"$id", "$schema", "$vocabulary"}
-	require.ElementsMatch(t, want, annotation.DialectKeywords,
+	require.ElementsMatch(t, want, slices.Collect(annotation.DialectKeywords()),
 		"a keyword joining or leaving the exclusion must be decided here too")
 
 	doc, diags := parseFull(t, openapitest.ComponentSpec(

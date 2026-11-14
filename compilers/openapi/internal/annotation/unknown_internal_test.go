@@ -76,12 +76,12 @@ func TestUndefinedKeywordsIn_KeepsWhatTheCallerNames(t *testing.T) {
 // reference it resolved.
 func TestUnknownKeywordsIn_DecidedKeywordsAreLeftAlone(t *testing.T) {
 	t.Parallel()
-	assert.Equal(t, []string{"$comment", "$dynamicAnchor", "$dynamicRef"}, DecidedKeywords,
+	assert.Equal(t, []string{"$comment", "$dynamicAnchor", "$dynamicRef"}, DecidedKeywordList(),
 		"a keyword joining or leaving the exclusion must be decided here too")
 
 	var body strings.Builder
 	body.WriteString("type: string\n")
-	for _, keyword := range DecidedKeywords {
+	for _, keyword := range DecidedKeywordList() {
 		body.WriteString(keyword + ": v\n")
 	}
 	s := schemaFromYAML(t, body.String())
@@ -153,11 +153,7 @@ func TestUnknownKeysUnder_KeysBeneathTheScopeAndSorted(t *testing.T) {
 	assert.Equal(t, ir.Provenance{Source: 1, Pointer: "/info/contact/zeta"},
 		got["openapi:info/contact/zeta"].Provenance)
 
-	require.Len(t, diags, 2)
-	assert.Equal(t, ir.SeverityWarning, diags[0].Severity)
-	assert.Equal(t, "openapi/unknown-object-key", diags[0].Code)
-	assert.Contains(t, diags[0].Message, `"alpha"`, "the findings follow the sorted keys")
-	assert.Contains(t, diags[1].Message, `"zeta"`)
+	assert.Empty(t, diags, "the rule table reports an unknown object key, so the census only keeps it")
 }
 
 // TestUnknownKeysIn_AttributesEachKeyAtItsOwnPointer pins GitHub #522: two
@@ -177,10 +173,7 @@ func TestUnknownKeysIn_AttributesEachKeyAtItsOwnPointer(t *testing.T) {
 	assert.Equal(t, ir.Provenance{Pointer: "/x/zeta", WrittenBy: 1}, got["openapi:zeta"].Provenance,
 		"the overlaid key names the overlay")
 
-	require.Len(t, diags, 2)
-	assert.Equal(t, ir.Provenance{Source: 0, Pointer: "/x/alpha"}, diags[0].Provenance,
-		"sorted keys put alpha first")
-	assert.Equal(t, ir.Provenance{Pointer: "/x/zeta", WrittenBy: 1}, diags[1].Provenance)
+	assert.Empty(t, diags, "the rule table reports an unknown object key, so the census only keeps it")
 }
 
 // TestUnknownKeysIn_BudgetBoundsWhatOneObjectContributes exercises the bound. An
@@ -259,7 +252,7 @@ func TestUnknownKeysUnder_KeyHoldingASeparatorIsItsOwnEntry(t *testing.T) {
 		"the root's key is one segment, escaped")
 	assert.Equal(t, ir.RawValue(`"fromContact"`), got["openapi:info/contact/slack"].Value,
 		"the scoped entry is the contact object's, and the root cannot spell it")
-	assert.Len(t, diags, 2, "two keys survive, so two are announced")
+	assert.Empty(t, diags, "the rule table announces both keys, so the census announces neither")
 }
 
 // TestUnknownKeysIn_EntryHeldByAnotherConstructIsReported separates the two
@@ -336,9 +329,7 @@ func TestUnknownKeysNamed_DelegatesTheSameGrading(t *testing.T) {
 	assert.Equal(t, ir.ReasonOutOfScope, entry.Reason)
 	assert.Equal(t, ir.RawValue("3"), entry.Value)
 	assert.Equal(t, ir.Provenance{Pointer: "/paths/~1p/notAKey"}, entry.Provenance)
-	require.Len(t, diags, 1)
-	assert.Equal(t, diag.UnknownObjectKey, diags[0].Code)
-	assert.Equal(t, ir.SeverityWarning, diags[0].Severity)
+	assert.Empty(t, diags, "the rule table reports the key, so the census only keeps it")
 }
 
 // fakeObject is a parsed model standing in for the library's, so the census can

@@ -432,7 +432,11 @@ func assertUnkeyedEncoding(t *testing.T, doc *ir.Document, diags []ir.Diagnostic
 		assert.Equal(t, []string{"openapi:encoding/" + tc.key}, slices.Sorted(maps.Keys(content.Unmodeled)),
 			"%s: one record and nothing for what the entry declares", tc.op)
 		entry := content.Unmodeled["openapi:encoding/"+tc.key]
-		assert.Equal(t, ir.ReasonNoIRHome, entry.Reason, tc.op)
+		wantReason := ir.ReasonNoIRHome
+		if tc.names {
+			wantReason = ir.ReasonOutOfScope // the entry names no property, so it has no effect
+		}
+		assert.Equal(t, wantReason, entry.Reason, tc.op)
 		assert.JSONEq(t, tc.value, string(entry.Value), "%s: kept as written", tc.op)
 		assert.Equal(t, jsontext.Pointer(tc.pointer), entry.Provenance.Pointer, "%s: located at the entry", tc.op)
 		assert.Equal(t, []ir.Severity{ir.SeverityInfo}, diagsAt(diags, diag.DegradedConstruct, tc.pointer),

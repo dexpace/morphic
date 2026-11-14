@@ -210,31 +210,31 @@ func TestRawFromNode_PreservesMergeAndOrderingSemantics(t *testing.T) {
 	}
 }
 
-// TestRawFromNode_NamesTheRepeatedKey pins which repeat a mapping is refused
-// for and how it is named: the key whose second copy comes first, among the
-// mapping's own pairs and then each source it merges (nodeview.View.Repeat),
-// at the lines of its first two copies. A key written through an alias is the
-// key it names (GitHub #1072).
-func TestRawFromNode_NamesTheRepeatedKey(t *testing.T) {
+// TestRawFromNode_KeepsTheLastCopyOfARepeatedKey pins what a mapping that
+// writes a key twice renders as: the key's last copy, as the model and load
+// read it. The repeat is load's to report once, so rendering refuses nothing.
+// A key written through an alias is the key it names, and a key a merge source
+// repeats is repeated in the merging mapping too (GitHub #1072, #1663).
+func TestRawFromNode_KeepsTheLastCopyOfARepeatedKey(t *testing.T) {
 	t.Parallel()
 	tests := []struct{ name, yaml, want string }{
-		{"one key twice", "a: 1\nb: 2\na: 3\n", `mapping key "a" already defined at line 1, and written again at line 3`},
-		{"the key repeated first", "x: 1\ny: 1\ny: 2\nx: 2\n", `mapping key "y" already defined at line 2, and written again at line 3`},
-		{"a key three times", "z: 0\nw: 1\nw: 2\nw: 3\n", `mapping key "w" already defined at line 2, and written again at line 3`},
-		{"a key repeated through an alias", "&k rate: 1\n*k : 2\n", `mapping key "rate" already defined at line 1, and written again at line 2`},
-		{"a key a merge source repeats", "base: &b {p: 1,\n  p: 2}\nuse: {<<: *b}\n", `mapping key "p" already defined at line 1, and written again at line 2`},
-		{"no key twice", "a: 1\nb: 2\n", ""},
-		{"an alias key and a key spelled as its anchor's name", "a: &k v\n*k : 1\nk: 2\n", ""},
+		{"one key twice", "a: 1\nb: 2\na: 3\n", `{"a":3,"b":2}`},
+		{"the key repeated first", "x: 1\ny: 1\ny: 2\nx: 2\n", `{"x":2,"y":2}`},
+		{"a key three times", "z: 0\nw: 1\nw: 2\nw: 3\n", `{"w":3,"z":0}`},
+		{"a key repeated through an alias", "&k rate: 1\n*k : 2\n", `{"rate":2}`},
+		{"a key a merge source repeats", "base: &b {p: 1,\n  p: 2}\nuse: {<<: *b}\n", `{"base":{"p":2},"use":{"p":2}}`},
+		{"a key repeated beside a merge", "{<<: {p: 1}, k: 1, k: 2}", `{"k":2,"p":1}`},
+		{"a key repeated in a merge source", "{<<: {p: 1, p: 2}}", `{"p":2}`},
+		{"a key repeated in a nested mapping", "o: {k: 1, k: {n: 1, n: 2}}\n", `{"o":{"k":{"n":2}}}`},
+		{"no key twice", "a: 1\nb: 2\n", `{"a":1,"b":2}`},
+		{"an alias key and a key spelled as its anchor's name", "a: &k v\n*k : 1\nk: 2\n", `{"a":"v","v":1,"k":2}`},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			_, err := RawFromNode(openapitest.YAMLNode(t, tc.yaml))
-			if tc.want == "" {
-				assert.NoError(t, err)
-				return
-			}
-			assert.ErrorContains(t, err, tc.want)
+			got, err := RawFromNode(openapitest.YAMLNode(t, tc.yaml))
+			require.NoError(t, err)
+			assert.JSONEq(t, tc.want, string(got))
 		})
 	}
 }
@@ -245,10 +245,6 @@ func TestRawFromNode_NamesTheRepeatedKey(t *testing.T) {
 func TestRawFromNode_RefusesWhatJSONCannotName(t *testing.T) {
 	t.Parallel()
 	tests := []struct{ name, yaml, wantErr string }{
-		{"duplicate key", "{k: 1, k: 2}", "already defined"},
-		{"duplicate key after a merge", "{<<: {p: 1}, k: 1, k: 2}", "already defined"},
-		{"duplicate key through an alias", "{&k rate: 1, *k : 2}", "already defined"},
-		{"duplicate key in a merge source", "{<<: {p: 1, p: 2}}", "already defined"},
 		{"not a number", ".nan", "numeric literal"},
 		{"positive infinity", ".inf", "numeric literal"},
 		{"negative infinity", "-.inf", "numeric literal"},

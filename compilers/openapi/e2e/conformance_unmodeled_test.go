@@ -1539,8 +1539,16 @@ func assertYAMLMergeKeys(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) 
 		{"openapi:x-codes", `{"100":"Continue","200":"OK","true":"T"}`, "/paths/~1merged/get/x-codes"},
 		{"openapi:x-big", `1e400`, "/paths/~1merged/get/x-big"},
 	})
-	assert.Equal(t, []ir.Severity{ir.SeverityWarning},
-		diagsAt(diags, "openapi/unknown-object-key", "/paths/~1merged/mergedBogus"), "the merged stray key is announced")
+	// The table places a merged key where it is written, and its message names
+	// the place the path item reads it (GitHub #1945).
+	var announced []ir.Diagnostic
+	for _, d := range diags {
+		if d.Code == "openapi/unknown-object-key" && strings.HasSuffix(d.Message, "read at /paths/~1merged/mergedBogus") {
+			announced = append(announced, d)
+		}
+	}
+	require.Len(t, announced, 1, "the merged stray key is announced once")
+	assert.Equal(t, ir.SeverityWarning, announced[0].Severity)
 	for _, d := range diags {
 		assert.NotContains(t, d.Message, "could not be serialized", "every extension converts")
 		assert.NotEqual(t, "openapi/unknown-key-unreachable", d.Code, "every merged key is reached")

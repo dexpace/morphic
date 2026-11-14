@@ -6,6 +6,7 @@ package annotation
 import (
 	"encoding/json/jsontext"
 	"fmt"
+	"slices"
 	"strings"
 	"testing"
 
@@ -184,7 +185,7 @@ func TestDialectAt_KeepsEachKeywordOutOfScope(t *testing.T) {
 		assert.Equal(t, ir.ReasonOutOfScope, entry.Reason)
 	}
 	assert.Len(t, diags, 2, "each exclusion is announced where it was written")
-	assert.True(t, DeclaresAny(s, DialectKeywords),
+	assert.True(t, DeclaresAny(s, slices.Collect(DialectKeywords())),
 		"and the hoist gate agrees a node is needed to hold them")
 }
 
