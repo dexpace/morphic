@@ -6,10 +6,12 @@ package e2e_test
 import (
 	"encoding/json/jsontext"
 	"fmt"
+	"math"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 
@@ -792,4 +794,50 @@ paths:
 	require.True(t, ok)
 	require.Len(t, op.Responses, 2)
 	assert.Equal(t, ir.Docs{Description: "r"}, op.Responses[0].Docs, "the response other.yaml declares")
+}
+
+// TestReferenceObjects_PastTheExpansionBudgetNoChainIsRead pins that once the
+// copies cross Limits.MaxReferenceExpansion, every later $ref resolves to
+// nothing without reading its chain: reading one costs the chain's length at
+// each use, and nothing charges it, so a long chain named at many uses would
+// cost their product before the document is refused. Doubling the chain at
+// many uses has to cost about what doubling it at one does. Not parallel: it
+// reads what the process allocates.
+func TestReferenceObjects_PastTheExpansionBudgetNoChainIsRead(t *testing.T) {
+	spec := func(uses, chain int) string {
+		var b strings.Builder
+		b.WriteString("openapi: 3.1.0\ninfo: {title: T, version: \"1\"}\npaths:\n")
+		for i := range uses {
+			fmt.Fprintf(&b, "  /p%d: {get: {parameters: [{$ref: '#/components/parameters/P0'}], "+
+				"responses: {'200': {description: ok}}}}\n", i)
+		}
+		b.WriteString("components:\n  parameters:\n")
+		for i := range chain {
+			fmt.Fprintf(&b, "    P%d: {$ref: '#/components/parameters/P%d'}\n", i, i+1)
+		}
+		fmt.Fprintf(&b, "    P%d: {name: q, in: query, schema: {type: string}}\n", chain)
+		return b.String()
+	}
+	opts := compilers.Options{FormatOptions: openapi.Options{Limits: openapi.Limits{MaxReferenceExpansion: 1}}}
+	cost := func(uses, chain int) float64 {
+		src := []compilers.Source{{Path: "spec.yaml", Data: []byte(spec(uses, chain))}}
+		var stats runtime.MemStats
+		least := uint64(math.MaxUint64)
+		for range 3 {
+			runtime.ReadMemStats(&stats)
+			before := stats.TotalAlloc
+			doc, diags, err := openapi.New().Compile(t.Context(), src, opts)
+			runtime.ReadMemStats(&stats)
+			least = min(least, stats.TotalAlloc-before)
+			require.NoError(t, err)
+			require.Nil(t, doc, "the first copy crosses the budget")
+			require.Len(t, diags, 1)
+			require.Equal(t, diag.BudgetExceeded, diags[0].Code)
+		}
+		return float64(least)
+	}
+	const many, chain = 200, 400
+	atOne := cost(1, 2*chain) - cost(1, chain)
+	atMany := cost(many, 2*chain) - cost(many, chain)
+	assert.Less(t, atMany, 2*atOne, "doubling a chain at %d uses against at one", many)
 }

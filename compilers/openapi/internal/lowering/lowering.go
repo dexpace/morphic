@@ -372,6 +372,11 @@ func Declared[T, S any, R chainable[T, S], P interface {
 	*T
 	GetRootNode() *yaml.Node
 }](c Ctx, ref R, usePtr jsontext.Pointer) (*T, Ctx, jsontext.Pointer) {
+	// Past the budget a $ref resolves to nothing without reading its chain,
+	// which costs the chain's length at every use and is charged nothing.
+	if _, isRef := c.Bindings().Reference(ref); isRef && ExpansionCrossed(c) {
+		return nil, c, usePtr
+	}
 	use := bind.Position{Doc: c.homeDoc, Pointer: usePtr}
 	obj, decl := resolve.ObjectAt[T, S](c.RefScope(), ref, use)
 	if obj == nil || decl == use {
