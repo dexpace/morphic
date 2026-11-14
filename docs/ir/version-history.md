@@ -766,8 +766,9 @@ it sees. Changes made together in one bump are listed together under it.
   content records ([promotion](./unmodeled.md#promotion)). `Operation.ParamChoices`, with
   `ParamChoice` and `ParamVariant`, the choices a source states among parameters it declares one by
   one, the parameter list untouched
-  ([choices among parameters](./operations.md#choices-among-parameters)); `ir/param-choice-single`
-  and `ir/param-variant-empty` are new verifier codes. Three markers are renamed,
+  ([choices among parameters](./operations.md#choices-among-parameters));
+  `ir/param-choice-single`, `ir/param-variant-empty` and `ir/param-choice-name-duplicate` are new
+  verifier codes. Three markers are renamed,
   as each inference's marker is `<fact>-inference`: `streaming-media-type` is `streaming-inference`,
   `binary-media-type` is `binary-inference` and `nullable-widening` is `nullable-inference`. A
   consumer pinned to 0.65.0 refuses the document; one matching a marker by its old name no longer

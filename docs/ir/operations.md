@@ -129,8 +129,10 @@ A compiler writes a `ParamChoice` only over parameters its source declares separ
 sum its source declares, which is a `Union`: that is the rule that keeps the two from being two
 spellings of one thing. `irverify` reports a choice of fewer than two variants
 (`ir/param-choice-single`), a variant naming no parameter (`ir/param-variant-empty`) and a parameter
-listed twice in one (`ir/set-entry-duplicate`), and `pass.Validate` a choice naming another
-operation's parameter (`pass/param-binding-mismatch`).
+listed twice in one (`ir/set-entry-duplicate`); a consumer keys a choice and a variant by name, so
+two choices of an operation, or two variants of a choice, sharing a source name are
+`ir/param-choice-name-duplicate`. `pass.Validate` reports a choice naming another operation's
+parameter (`pass/param-binding-mismatch`).
 
 Weighed and not taken: one logical `Parameter` typed by a `Union` of variant models, bound through
 `ParamPath`, which removes the declared parameters that `LinkParam.Param` and
