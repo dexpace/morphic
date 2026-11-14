@@ -626,7 +626,7 @@ func TestCompile_ARelativeRefUnderAnIDReadsWhereTheIDPlacesIt(t *testing.T) {
 		"    S: {$id: '" + srv.URL + "/x/s.json', type: object, properties: {b: {$ref: 'b.yaml#/B'}}}\n")
 	for _, allow := range []bool{false, true} {
 		doc, diags, err := openapi.New().Compile(t.Context(), []compilers.Source{{Path: filepath.Join(dir, "root.yaml"), Data: root}},
-			compilers.Options{Reader: reader.Disk{Client: srv.Client()}, FormatOptions: openapi.Options{AllowExternalRefs: allow}})
+			compilers.Options{Reader: reader.Disk{}, FormatOptions: openapi.Options{AllowExternalRefs: allow}})
 		require.NoError(t, err)
 		require.NotNil(t, doc)
 
@@ -736,7 +736,7 @@ func TestCompile_AnAbsolutePathInANetworkDocumentNamesItsHost(t *testing.T) {
 
 	doc, diags, err := openapi.New().Compile(t.Context(),
 		[]compilers.Source{{Path: filepath.Join(t.TempDir(), "root.yaml"), Data: root}},
-		compilers.Options{Reader: reader.Disk{Client: srv.Client()}, FormatOptions: openapi.Options{AllowExternalRefs: true}})
+		compilers.Options{Reader: reader.Disk{}, FormatOptions: openapi.Options{AllowExternalRefs: true}})
 
 	require.NoError(t, err)
 	require.NotNil(t, doc)
@@ -861,8 +861,8 @@ func TestCompile_ANetworkDocumentReadsNoLocalFileByAnyReference(t *testing.T) {
 // (docs/compilers/openapi.md#self-uri), resolved against where it was read:
 // naming a file URI it moves a relative $ref onto a file, which a document
 // read over the network never reaches, so it is refused; naming a path it
-// names that path on the source's host, read only where external references
-// are. Nothing local is read.
+// names that path on the source's host, which a source read as public cannot
+// reach at loopback. Nothing local is read.
 func TestCompile_ASourceReadOverTheNetworkReadsNoLocalFile(t *testing.T) {
 	t.Parallel()
 	local := t.TempDir()
@@ -892,7 +892,7 @@ func TestCompile_ASourceReadOverTheNetworkReadsNoLocalFile(t *testing.T) {
 					assert.NoError(t, err)
 				}))
 				t.Cleanup(srv.Close)
-				rec := &recordingReader{inner: reader.Disk{Client: srv.Client()}}
+				rec := &recordingReader{inner: reader.Disk{}}
 				got, diags, err := openapi.New().Compile(t.Context(),
 					[]compilers.Source{{Path: srv.URL + "/v1/root.yaml", Data: []byte(tc.spec)}},
 					compilers.Options{Reader: rec, FormatOptions: openapi.Options{AllowExternalRefs: allow}})
@@ -913,9 +913,13 @@ func TestCompile_ASourceReadOverTheNetworkReadsNoLocalFile(t *testing.T) {
 					assert.Contains(t, diags[0].Message, bind.OffNetwork, "a $self moves no fetched read onto a file")
 					return
 				}
-				// The path the $self names is on the source's host.
+				// The path the $self names is on the source's host, which this
+				// test serves at a loopback address: a source located at a URL is
+				// bounded as a public document, so even allowed it is refused.
 				if allow {
-					assertNoLocalRead(t, compiled, "", false)
+					require.Len(t, diags, 1, "%+v", diags)
+					assert.Contains(t, diags[0].Message, "secret.yaml refused: it is at a loopback address, "+
+						"which a reference in a document read from a public one does not reach")
 					return
 				}
 				require.Len(t, diags, 1, "%+v", diags)
@@ -952,7 +956,7 @@ func TestCompile_ASourceReadOverTheNetworkIsNamedHoweverItsURLIsSpelled(t *testi
 			spec := "openapi: 3.1.0\ninfo: {title: T, version: \"1\"}\npaths:\n  /a: {get: {operationId: a, parameters: " +
 				"[{$ref: '" + c.ref + "#/components/parameters/P'}], responses: {'200': {description: ok}}}}\n" +
 				"components:\n  parameters:\n    P: {name: own, in: query}\n"
-			rec := &recordingReader{inner: reader.Disk{Client: srv.Client()}}
+			rec := &recordingReader{inner: reader.Disk{}}
 			doc, _, err := openapi.New().Compile(t.Context(), []compilers.Source{{Path: c.source, Data: []byte(spec)}},
 				compilers.Options{Reader: rec, FormatOptions: openapi.Options{AllowExternalRefs: true}})
 			require.NoError(t, err)
@@ -1010,7 +1014,7 @@ func compileOverTheNetwork(t *testing.T, version string, entries []networkEntry,
 	api := srv.URL + "/v1/d/a.yaml"
 	root := "openapi: " + version + "\ninfo: {title: T, version: \"1\"}\npaths: {}\n" +
 		componentsOf(entries, func(e networkEntry) string { return "{$ref: '" + api + e.at() + "'}" })
-	rec := &recordingReader{inner: reader.Disk{Client: srv.Client()}}
+	rec := &recordingReader{inner: reader.Disk{}}
 	got, diags, err := openapi.New().Compile(t.Context(),
 		[]compilers.Source{{Path: filepath.Join(t.TempDir(), "root.yaml"), Data: []byte(root)}},
 		compilers.Options{Reader: rec, FormatOptions: openapi.Options{AllowExternalRefs: true}})

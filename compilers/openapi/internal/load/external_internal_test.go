@@ -44,7 +44,7 @@ func TestExternal_DocumentOfAMissingFilePassesTheReadersErrorThrough(t *testing.
 	_, told := reader.Disk{}.ReadDocument(t.Context(), compilers.DocumentRequest{Location: name})
 	require.ErrorIs(t, told, fs.ErrNotExist, "sanity: the reader reports the file missing")
 
-	_, err := diskReader(Options{}).document(t.Context(), name)
+	_, err := diskReader(Options{}).document(t.Context(), name, "spec.yaml")
 
 	require.Error(t, err)
 	assert.Equal(t, told.Error(), err.Error(), "the reader's own error, unwrapped")
@@ -60,7 +60,7 @@ func TestExternal_DocumentPreparesTheFile(t *testing.T) {
 	require.NoError(t, os.WriteFile(path, []byte("a: &x 1\nb: *x\n"), 0o600))
 	ext := diskReader(Options{})
 
-	tree, err := ext.document(t.Context(), path)
+	tree, err := ext.document(t.Context(), path, "spec.yaml")
 
 	require.NoError(t, err)
 	assertAnchorsReleasedAliasesStand(t, tree)
@@ -76,7 +76,7 @@ func TestExternal_DocumentOverTheByteBudgetIsRefused(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "big.yaml")
 	require.NoError(t, os.WriteFile(path, []byte(strings.Repeat("a", 32)), 0o600))
 
-	_, err := diskReader(Options{MaxSourceBytes: budget.AtMost(16)}).document(t.Context(), path)
+	_, err := diskReader(Options{MaxSourceBytes: budget.AtMost(16)}).document(t.Context(), path, "spec.yaml")
 
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "external document "+path+" refused")
@@ -91,11 +91,11 @@ func TestExternal_DocumentRefusesARefusedFileAgainUnread(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "big.yaml")
 	require.NoError(t, os.WriteFile(path, []byte(strings.Repeat("a", 32)), 0o600))
 	ext := diskReader(Options{MaxSourceBytes: budget.AtMost(16)})
-	_, first := ext.document(t.Context(), path)
+	_, first := ext.document(t.Context(), path, "spec.yaml")
 	require.Error(t, first)
 	require.NoError(t, os.Remove(path))
 
-	_, again := ext.document(t.Context(), path)
+	_, again := ext.document(t.Context(), path, "spec.yaml")
 
 	require.Error(t, again)
 	assert.Equal(t, first.Error(), again.Error(), "the same refusal, not the missing file")
@@ -109,11 +109,11 @@ func TestExternal_DocumentReadsAFileOnce(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "doc.yaml")
 	require.NoError(t, os.WriteFile(path, []byte("a: 1\n"), 0o600))
 	ext := diskReader(Options{})
-	first, err := ext.document(t.Context(), path)
+	first, err := ext.document(t.Context(), path, "spec.yaml")
 	require.NoError(t, err)
 	require.NoError(t, os.Remove(path))
 
-	again, err := ext.document(t.Context(), path)
+	again, err := ext.document(t.Context(), path, "spec.yaml")
 
 	require.NoError(t, err, "served from the first read, not opened")
 	assert.Same(t, first, again, "the tree prepared the first time stands")
@@ -257,7 +257,7 @@ func TestExternal_DocumentFetchesAURL(t *testing.T) {
 	key := srv.URL + "/doc.yaml"
 	ext := diskReader(Options{})
 
-	tree, err := ext.document(t.Context(), key)
+	tree, err := ext.document(t.Context(), key, "spec.yaml")
 
 	require.NoError(t, err)
 	assertAnchorsReleasedAliasesStand(t, tree)
@@ -276,7 +276,7 @@ func TestExternal_DocumentPassesAReadFailureThrough(t *testing.T) {
 	failing := &fakeReader{err: told}
 	ext := newExternal(Options{Reader: failing}, newExternalReads(sourceDocument{}, budget.Unbounded()), &aside{})
 
-	_, err := ext.document(t.Context(), key)
+	_, err := ext.document(t.Context(), key, "spec.yaml")
 
 	require.Error(t, err)
 	assert.ErrorIs(t, err, told)
@@ -297,8 +297,8 @@ func TestExternal_DocumentRefusesARefusedURLAgainUnfetched(t *testing.T) {
 	})
 	ext := diskReader(Options{})
 
-	_, first := ext.document(t.Context(), srv.URL+"/doc.yaml")
-	_, again := ext.document(t.Context(), srv.URL+"/doc.yaml")
+	_, first := ext.document(t.Context(), srv.URL+"/doc.yaml", "spec.yaml")
+	_, again := ext.document(t.Context(), srv.URL+"/doc.yaml", "spec.yaml")
 
 	require.Error(t, first)
 	assert.Contains(t, first.Error(), "refused")
@@ -329,17 +329,17 @@ func TestExternal_DocumentFetchesAURLOnce(t *testing.T) {
 	closed.Close()
 	ext := diskReader(Options{})
 
-	first, err := ext.document(t.Context(), srv.URL+"/doc.yaml")
+	first, err := ext.document(t.Context(), srv.URL+"/doc.yaml", "spec.yaml")
 	require.NoError(t, err)
 	for range 2 {
-		again, err := ext.document(t.Context(), srv.URL+"/doc.yaml")
+		again, err := ext.document(t.Context(), srv.URL+"/doc.yaml", "spec.yaml")
 		require.NoError(t, err)
 		assert.Same(t, first, again)
 	}
-	_, refused := ext.document(t.Context(), srv.URL+"/gone.yaml")
-	_, refusedAgain := ext.document(t.Context(), srv.URL+"/gone.yaml")
-	_, failed := ext.document(t.Context(), closed.URL+"/doc.yaml")
-	_, failedAgain := ext.document(t.Context(), closed.URL+"/doc.yaml")
+	_, refused := ext.document(t.Context(), srv.URL+"/gone.yaml", "spec.yaml")
+	_, refusedAgain := ext.document(t.Context(), srv.URL+"/gone.yaml", "spec.yaml")
+	_, failed := ext.document(t.Context(), closed.URL+"/doc.yaml", "spec.yaml")
+	_, failedAgain := ext.document(t.Context(), closed.URL+"/doc.yaml", "spec.yaml")
 
 	require.Error(t, refused)
 	assert.Same(t, refused, refusedAgain, "the failure the one request got, an unsuccessful status")
@@ -362,13 +362,13 @@ func TestExternal_ReadsPastTheDocumentBudgetAreRefusedUnread(t *testing.T) {
 	})
 	dir := externalDir(t, map[string]string{"a.yaml": "a: 1\n", "b.yaml": "b: 1\n"})
 	ext := diskReader(Options{MaxExternalDocuments: budget.AtMost(2)})
-	_, err := ext.document(t.Context(), filepath.Join(dir, "a.yaml"))
+	_, err := ext.document(t.Context(), filepath.Join(dir, "a.yaml"), "spec.yaml")
 	require.NoError(t, err, "the first document is within the budget")
-	_, err = ext.document(t.Context(), srv.URL+"/a.yaml")
+	_, err = ext.document(t.Context(), srv.URL+"/a.yaml", "spec.yaml")
 	require.NoError(t, err, "the second is too, though it is a URL")
 
-	_, file := ext.document(t.Context(), filepath.Join(dir, "b.yaml"))
-	_, url := ext.document(t.Context(), srv.URL+"/b.yaml")
+	_, file := ext.document(t.Context(), filepath.Join(dir, "b.yaml"), "spec.yaml")
+	_, url := ext.document(t.Context(), srv.URL+"/b.yaml", "spec.yaml")
 
 	require.Error(t, file)
 	assert.Equal(t, "external document "+filepath.Join(dir, "b.yaml")+" refused: it is past the 2-document budget",

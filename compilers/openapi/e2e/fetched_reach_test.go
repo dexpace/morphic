@@ -195,10 +195,14 @@ func TestCompile_ADeclarationOfAFileAnswersNoFetchedDocument(t *testing.T) {
 		}}
 		doc, diags := compileFetched(t, reads, reachSource(schemas), "")
 
-		require.Len(t, diags, 1, "%s: %v", name, fetchedFindings(doc, diags))
-		assert.Equal(t, ir.SeverityError, diags[0].Severity, name)
-		assert.EqualValues(t, "/X", diags[0].Provenance.Pointer, name)
-		assert.Contains(t, diags[0].Message, "external document "+idURL+" refused: it is at a private address, "+
+		// lib.yaml's Z is lowered, so its $id is kept with the info every
+		// lowered $id draws.
+		failed := byCode(diags, "openapi/unresolved-ref")
+		require.Len(t, failed, 1, "%s: %v", name, fetchedFindings(doc, diags))
+		require.Len(t, byCode(diags, "openapi/degraded-construct"), 1, "%s: %v", name, fetchedFindings(doc, diags))
+		assert.Equal(t, ir.SeverityError, failed[0].Severity, name)
+		assert.EqualValues(t, "/X", failed[0].Provenance.Pointer, name)
+		assert.Contains(t, failed[0].Message, "external document "+idURL+" refused: it is at a private address, "+
 			"which a reference in a document read from a public one does not reach", name)
 
 		mm, ok := doc.Types[componentID("M")].(*ir.Scalar)

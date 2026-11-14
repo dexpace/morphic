@@ -4,11 +4,14 @@
 package load
 
 import (
+	"errors"
 	"fmt"
 	"sync"
 
 	yaml "go.yaml.in/yaml/v3"
 
+	"github.com/dexpace/morphic/compilers"
+	"github.com/dexpace/morphic/compilers/openapi/internal/bind"
 	"github.com/dexpace/morphic/compilers/openapi/internal/budget"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/doctree"
@@ -42,25 +45,35 @@ func newExternalReads(self sourceDocument, documents budget.Limit) *externalRead
 }
 
 // answer is how a read was answered: the error it failed with, or the body
-// read and the spelling the document was prepared under.
+// read, the spelling the document was prepared under and the address space it
+// was read from.
 type answer struct {
 	body     []byte
 	err      error
 	prepared string
+	space    compilers.AddressSpace
 }
 
-// reading is one document's read: the answer it got, set once.
+// reading is one document's read: the answer it got, set once, or, while it
+// has none, the widest reach a read of it was refused to its asker under.
 type reading struct {
-	once   sync.Once
-	answer answer
+	mu      sync.Mutex
+	done    bool
+	answer  answer
+	charged bool
+	barred  error
+	// barredAt is the widest reach barred was given under.
+	barredAt compilers.AddressSpace
 }
 
-// once returns the answer the document under key got when it was read. The
-// first ask of the compile reads it with read while the document budget
-// allows one more document, and refuses it unread past that. Every later ask
-// gets the same answer, so a document is read and charged once however many
-// references name it.
-func (r *externalReads) once(key string, read func() answer) answer {
+// once returns the answer the document under key got when it was read, as an
+// asker bounded by reach is answered. The first read of the compile, charged
+// to the document budget, reads it with read, and refuses it unread past the
+// budget; every later ask gets the same answer, so a document is read and
+// charged once however many references name it. A read refused to its asker
+// alone (bind.BarredError) is no answer: an asker the refusal covers, bounded
+// no wider, is refused again unread, and a wider one reads.
+func (r *externalReads) once(key string, reach compilers.AddressSpace, read func() answer) answer {
 	r.mu.Lock()
 	rd, ok := r.answers[key]
 	if !ok {
@@ -68,17 +81,51 @@ func (r *externalReads) once(key string, read func() answer) answer {
 		r.answers[key] = rd
 	}
 	r.mu.Unlock()
-	rd.once.Do(func() {
-		// Set first, so a read that panics leaves a failure rather than an empty
-		// document.
-		rd.answer = answer{err: refused(key, "its read did not finish")}
+	rd.mu.Lock()
+	defer rd.mu.Unlock()
+	switch {
+	case rd.done:
+		return rd.answer
+	case rd.barred != nil && !wider(reach, rd.barredAt):
+		return answer{err: rd.barred}
+	}
+	// Set first, so a read that panics leaves a failure rather than an empty
+	// document.
+	rd.done, rd.answer = true, answer{err: refused(key, "its read did not finish")}
+	if !rd.charged {
+		rd.charged = true
 		if err := r.charge(key); err != nil {
 			rd.answer = answer{err: err}
-			return
+			return rd.answer
 		}
-		rd.answer = read()
-	})
-	return rd.answer
+	}
+	a := read()
+	if barred := (*bind.BarredError)(nil); errors.As(a.err, &barred) {
+		rd.done, rd.barred, rd.barredAt = false, a.err, reach
+		return a
+	}
+	rd.answer = a
+	return a
+}
+
+// wider reports whether a read bounded by reach may dial further than one
+// bounded by than: unbounded, or bounded by a more private space.
+func wider(reach, than compilers.AddressSpace) bool {
+	return reach == compilers.SpaceUnstated || reach > than
+}
+
+// spaceOf returns the space the document under key was read from, or
+// SpaceUnstated where it was read from none or is not read.
+func (r *externalReads) spaceOf(key string) compilers.AddressSpace {
+	r.mu.Lock()
+	rd, ok := r.answers[key]
+	r.mu.Unlock()
+	if !ok {
+		return compilers.SpaceUnstated
+	}
+	rd.mu.Lock()
+	defer rd.mu.Unlock()
+	return rd.answer.space
 }
 
 // adopt records the tree and the bytes prepared under prepared under key too,

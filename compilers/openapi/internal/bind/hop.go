@@ -79,7 +79,9 @@ func (b *binder) named(in resource, uri string) (resource, Reason, string) {
 	}
 	// A miss the merge bound may explain is read as a location all the same:
 	// the table says it is truncated.
-	root, found, why := b.ids.lookupURI(key, func(decl DocID) bool { return admitted(b.docs, decl, in.root.Doc, key) })
+	root, found, why := b.ids.lookupURI(key, func(decl DocID) bool {
+		return admitted(b.docs, decl, in.root.Doc, key) && b.reads.admits(b.docs, decl, in.root.Doc)
+	})
 	switch {
 	case found:
 		b.docs.reach(root.Doc)
@@ -114,7 +116,7 @@ func (b *binder) opened(in resource, uri, key string) (resource, Reason, string)
 	if !reachable(b.docs, in, name) {
 		return resource{}, Unreadable, OffNetwork
 	}
-	return b.read(name)
+	return b.read(name, in)
 }
 
 // readAt is the resource of the document a relative URI uri names, written in
@@ -144,7 +146,7 @@ func (b *binder) readAt(in resource, uri, key string) (resource, Reason, string)
 	if !reachable(b.docs, in, name) {
 		return resource{}, Unreadable, OffNetwork
 	}
-	return b.read(name)
+	return b.read(name, in)
 }
 
 // OffNetwork is why a reference written in a document read over the network
@@ -177,16 +179,18 @@ func OverNetwork(location string) bool {
 	return err == nil && (strings.EqualFold(u.Scheme, "http") || strings.EqualFold(u.Scheme, "https"))
 }
 
-// read is the resource of the document named name, read through Config.Open,
-// or why the read failed. The first read of a document an absolute URI names
-// waits until the pass's walks are done (Held), since a document read meanwhile
-// may declare that URI, and an identifier is not a location to fetch (goOn).
-func (b *binder) read(name string) (resource, Reason, string) {
-	if fragment.Absolute(name) && b.docs.unread(name) {
-		b.held[name] = true
+// read is the resource of the document named name, read through Config.Open
+// as a reference written in the resource in reads it, or why the read failed.
+// The first read of a document an absolute URI names waits until the pass's
+// walks are done (Held), since a document read meanwhile may declare that
+// URI, and an identifier is not a location to fetch (goOn).
+func (b *binder) read(name string, in resource) (resource, Reason, string) {
+	from := b.docs.name(in.root.Doc)
+	if fragment.Absolute(name) && b.reads.unread(b.docs, name, from) {
+		b.reads.hold(name, from)
 		return resource{}, Held, ""
 	}
-	id, err := b.docs.open(name)
+	id, err := b.reads.open(b.docs, name, from)
 	var unparsable *UnparsableError
 	switch {
 	case errors.Is(err, errNotRead):

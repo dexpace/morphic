@@ -349,3 +349,24 @@ func TestMemory_ConcurrentReadsAreSafe(t *testing.T) {
 	}
 	wg.Wait()
 }
+
+// TestMemory_AHeldURLStatesTheSpaceItsHostNames pins what a held document's
+// read states: the space its URL's host names, as what the caller hands for
+// that URL, and none for a path, which no address is dialled for.
+func TestMemory_AHeldURLStatesTheSpaceItsHostNames(t *testing.T) {
+	t.Parallel()
+	m := newMemory(t, []compilers.Source{
+		{Path: "https://pub.example/a.yaml", Data: []byte("a")},
+		{Path: "http://10.0.0.5/b.yaml", Data: []byte("b")},
+		{Path: "specs/c.yaml", Data: []byte("c")},
+	})
+	for location, want := range map[string]compilers.AddressSpace{
+		"https://pub.example/a.yaml": compilers.SpacePublic,
+		"http://10.0.0.5/b.yaml":     compilers.SpacePrivate,
+		"specs/c.yaml":               compilers.SpaceUnstated,
+	} {
+		got, err := m.ReadDocument(t.Context(), compilers.DocumentRequest{Location: location})
+		require.NoError(t, err, location)
+		assert.Equal(t, want, got.Space, location)
+	}
+}

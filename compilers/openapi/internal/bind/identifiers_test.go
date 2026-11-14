@@ -25,7 +25,7 @@ func recordingDocuments(t *testing.T, docs map[string]string) (bind.Config, *[]s
 	t.Helper()
 	cfg := withDocuments(docs)
 	var reads []string
-	cfg.Open = func(name string) (*yaml.Node, error) {
+	cfg.Open = func(name, _ string) (*yaml.Node, error) {
 		reads = append(reads, name)
 		src, ok := docs[name]
 		if !ok {
@@ -217,7 +217,7 @@ func TestBind_ALocationADocumentDeclaresIsThatIdentifier(t *testing.T) {
 	}
 	src := head + "components:\n  schemas:\n    A: {$ref: 'a.yaml#/$defs/T'}\n    Z: {$ref: 'z.yaml#/S'}\n"
 	cfg := resolving
-	cfg.Open = func(name string) (*yaml.Node, error) { return openapitest.YAMLDocument(t, docs[name]), nil }
+	cfg.Open = func(name, _ string) (*yaml.Node, error) { return openapitest.YAMLDocument(t, docs[name]), nil }
 	table := bound(t, src, cfg)
 
 	e := entryAt(t, table, "/components/schemas/A")
@@ -272,7 +272,7 @@ func TestBind_ADocumentNoPassReachesDeclaresNothing(t *testing.T) {
 			src += refs[i]
 		}
 		cfg := resolving
-		cfg.Open = func(name string) (*yaml.Node, error) { return openapitest.YAMLDocument(t, docs[name]), nil }
+		cfg.Open = func(name, _ string) (*yaml.Node, error) { return openapitest.YAMLDocument(t, docs[name]), nil }
 		table := bound(t, src, cfg)
 
 		e := entryAt(t, table, "/components/schemas/U")
@@ -301,7 +301,7 @@ func TestBind_AReadingNoPassSettlesCountsEveryDocument(t *testing.T) {
 			src += refs[i]
 		}
 		cfg := resolving
-		cfg.Open = func(name string) (*yaml.Node, error) { return openapitest.YAMLDocument(t, docs[name]), nil }
+		cfg.Open = func(name, _ string) (*yaml.Node, error) { return openapitest.YAMLDocument(t, docs[name]), nil }
 		cfg.Limit = budget.AtMost(1 << 16)
 		table := bound(t, src, cfg)
 
@@ -348,7 +348,7 @@ func TestBind_ADocumentOnlyAnIdentifierReachesIsReached(t *testing.T) {
 	src := head + "components:\n  schemas:\n    A: {$ref: 'a.yaml#/$defs/T'}\n    U: {$ref: 'https://x.test/u'}\n" +
 		"    Z: {$ref: 'z.yaml#/S'}\n"
 	cfg := resolving
-	cfg.Open = func(name string) (*yaml.Node, error) { return openapitest.YAMLDocument(t, docs[name]), nil }
+	cfg.Open = func(name, _ string) (*yaml.Node, error) { return openapitest.YAMLDocument(t, docs[name]), nil }
 	table := bound(t, src, cfg)
 
 	doc := docNamed(t, table, "/a.yaml")
@@ -376,7 +376,7 @@ func TestBind_DeclarationOrderReachesNoAnswer(t *testing.T) {
 			src += refs[i]
 		}
 		cfg := resolving
-		cfg.Open = func(name string) (*yaml.Node, error) { return openapitest.YAMLDocument(t, docs[name]), nil }
+		cfg.Open = func(name, _ string) (*yaml.Node, error) { return openapitest.YAMLDocument(t, docs[name]), nil }
 		table := bound(t, src, cfg)
 		entries := table.Entries()
 		got := make([]bind.Status, 0, len(entries))

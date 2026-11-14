@@ -49,10 +49,12 @@ var callShapeBaseline = map[string]map[string]int{
 		"compilers/openapi/internal/schema":    6,
 	},
 	"compilers/openapi/internal/bind": {
-		// bind.Config's four functions, which #1488 keeps under #1477's rule: I/O
-		// (Open), policy bind may not import (Locate, Refuse), and a dialect's
-		// rows, built only once a schema names it (Dialect).
-		"compilers/openapi/internal/load": 4,
+		// bind.Config's five functions, which #1488 keeps under #1477's rule: I/O
+		// (Open), policy bind may not import (Locate, Refuse), a dialect's rows,
+		// built only once a schema names it (Dialect), and whether a fetched
+		// document may read one read before, which turns on the address space
+		// each was read from, known only where they were read (Admits).
+		"compilers/openapi/internal/load": 5,
 	},
 	"compilers/openapi/internal/load": {
 		// DocumentReader, through which load reads the documents references and

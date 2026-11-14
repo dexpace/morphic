@@ -296,7 +296,7 @@ func TestLoad_RejectsARelativeLocation(t *testing.T) {
 	refused, diags, err := Load(t.Context(), 0, src, Options{})
 
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), `location "api/spec.yaml" is not an absolute path`)
+	assert.Contains(t, err.Error(), `location "api/spec.yaml" is neither an absolute path nor an http(s) URL`)
 	assert.Nil(t, refused)
 	assert.Nil(t, diags)
 	src.Location = filepath.Join(t.TempDir(), "spec.yaml")

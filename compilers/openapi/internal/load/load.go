@@ -202,8 +202,9 @@ func Load(ctx context.Context, srcIndex int, src compilers.Source, opts Options)
 	}
 	// A relative Location would leave what a reference names to the working
 	// directory, which Location exists to keep out of the compile.
-	if src.Location != "" && !filepath.IsAbs(src.Location) {
-		return nil, nil, fmt.Errorf("openapi: source %d's location %q is not an absolute path", srcIndex, src.Location)
+	if src.Location != "" && !filepath.IsAbs(src.Location) && !fetchedFrom(src.Location) {
+		return nil, nil, fmt.Errorf("openapi: source %d's location %q is neither an absolute path nor an http(s) URL",
+			srcIndex, src.Location)
 	}
 
 	// The byte budget is checked before anything reads the bytes, because it is

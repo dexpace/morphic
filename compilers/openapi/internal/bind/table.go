@@ -34,11 +34,17 @@ type Config struct {
 	// part, names when written in the document named base, and false when it
 	// names none. Nil names each document by its uri.
 	Locate func(uri, base string) (string, bool)
-	// Open returns the tree of the document named name, read under the
-	// compile's budgets, or an *UnparsableError for one that was read and does
-	// not parse, or ErrEmptyDocument for one that holds nothing. Nil reads no
-	// other document.
-	Open func(name string) (*yaml.Node, error)
+	// Open returns the tree of the document named name, as a reference
+	// written in the document named from reads it, under the compile's
+	// budgets, or an *UnparsableError for one that was read and does not
+	// parse, ErrEmptyDocument for one that holds nothing, or a *BarredError
+	// for one refused to from alone. Nil reads no other document.
+	Open func(name, from string) (*yaml.Node, error)
+	// Admits returns the *BarredError refusing the document named name, read
+	// before, to a reference written in the document named from, read over
+	// http(s), or nil where from may read it, as Open would answer from. Nil
+	// admits every one.
+	Admits func(name, from string) error
 	// Refuse returns why a reference whose document part is uri, as written,
 	// is refused unread by that spelling alone, however another reference
 	// names the same document, or nil. Nil refuses none.
@@ -134,9 +140,9 @@ func (w *work) over() bool { return w.steps.Exhausted() || w.cancelled() }
 func (w *work) cancelled() bool { return w.ctx.Err() != nil }
 
 // binder is the state of one pass of a table's building: every reference read
-// once against the URIs its identifiers hold (identifiers.commit). held is each
-// document an absolute URI named that the pass has not read, and wait what
-// waits for those documents. committed reports that a drain of the pass has
+// once against the URIs its identifiers hold (identifiers.commit). reads is
+// who asked for each document, the pass's held reads among them, and wait
+// what waits for those documents. committed reports that a drain of the pass has
 // committed what it reached, and stale that the declarations of a URI it asked
 // for changed, so the pass is read again (reread).
 type binder struct {
@@ -147,7 +153,7 @@ type binder struct {
 	resources resources
 	find      *finder
 	ids       *identifiers
-	held      map[string]bool
+	reads     *reads
 	wait      *waits
 	hops      map[Position]Hop
 	chains    map[Position]Chain
@@ -170,20 +176,24 @@ func Bind(ctx context.Context, src *yaml.Node, cfg Config) *Table {
 	w := &work{ctx: ctx, steps: budget.New(cfg.Limit)}
 	d := newDocs(src, cfg, w)
 	ids := newIdentifiers(resources{d}.document(Source))
-	for {
-		b := newBinder(cfg, d, w, ids)
+	asked := newReads()
+	for passes := 1; ; passes++ {
+		b := newBinder(cfg, d, w, ids, asked)
 		t := run(b)
 		if !reread(b) {
+			t.passes = passes
 			return b.table(t)
 		}
 	}
 }
 
-// newBinder returns a pass over d, knowing what ids holds and nothing else.
-func newBinder(cfg Config, d *docs, w *work, ids *identifiers) *binder {
+// newBinder returns a pass over d, knowing what ids holds and who asked for
+// what (asked), and nothing else.
+func newBinder(cfg Config, d *docs, w *work, ids *identifiers, asked *reads) *binder {
 	d.reached, d.fresh = map[DocID]bool{Source: true}, nil
+	clear(asked.held)
 	b := &binder{cfg: cfg, docs: d, work: w, defs: definitions{docs: d, work: w}, resources: resources{d},
-		find: newFinder(d, w, ids), ids: ids, held: map[string]bool{}, wait: newWaits(), hops: map[Position]Hop{},
+		find: newFinder(d, w, ids), ids: ids, reads: asked, wait: newWaits(), hops: map[Position]Hop{},
 		chains: map[Position]Chain{}}
 	b.objs = &objects{b: b, hops: map[Position]objectHop{}, chains: map[objectKey]Chain{}}
 	return b
@@ -219,7 +229,7 @@ func goOn(b *binder) bool {
 		b.stale = true
 		return false
 	}
-	if len(b.held) == 0 {
+	if len(b.reads.held) == 0 {
 		return b.wait.release(b.find)
 	}
 	readHeld(b)
@@ -261,11 +271,7 @@ func reread(b *binder) bool {
 // all rather than one each, so one may declare another's URI, read then for
 // nothing: the next drain sees the change, and the next pass reads against it.
 func readHeld(b *binder) {
-	for _, name := range slices.Sorted(maps.Keys(b.held)) {
-		// Its failure is kept for the hop that asks for it again (docs.open).
-		_, _ = b.docs.open(name)
-	}
-	clear(b.held)
+	b.reads.drain(b.docs)
 }
 
 // rootOf is the root at the root of document id, read at s.
@@ -470,6 +476,7 @@ type Table struct {
 	refList     []Reference
 	docs        []Document
 	steps       int
+	passes      int
 	limit       budget.Limit
 	exhausted   bool
 	truncated   bool

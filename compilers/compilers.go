@@ -33,10 +33,12 @@ type Source struct {
 	// Path names the source as the caller handed it, which Document.Sources
 	// records.
 	Path string
-	// Location is the absolute path of the file Data was read from, which the
-	// references in it are read against, or "" to read them against Path. A
-	// caller reading a file sets it, so that what a reference names depends on
-	// no working directory and on no spelling of Path.
+	// Location is the absolute path of the file Data was read from, or the
+	// absolute http(s) URL it was fetched from, which the references in it are
+	// read against, or "" to read them against Path. A caller reading a file
+	// sets it, so that what a reference names depends on no working directory
+	// and on no spelling of Path. A source at a URL is read as any document
+	// fetched from the network is: its references dial public addresses alone.
 	Location string
 	Data     []byte
 	// Parsed is what the compiler's own Detect already made of Data, so Compile

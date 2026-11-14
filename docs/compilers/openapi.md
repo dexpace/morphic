@@ -868,7 +868,15 @@ absolute path and a network-path reference among them, names what the document's
 the network. A reference written in a document read over http(s), the source included, is read
 only from an http(s) URL: one naming another location, by a `file:` URI, a drive path, or a base an
 `$id`, a draft 4 `id` or the source's `$self` moves onto one, fails unread where it is written, and
-the rest of the document is read. The read stays inside the directory the source lies in, symbolic
+the rest of the document is read. Nor does such a reference reach an address more private than the
+one its document was read from, a public address ranking below a private one and a private one below
+loopback: the reader bounds the read to that space (`compilers.DocumentRequest.Reach`), judging each
+address it dials, redirects included, and a document read before is judged by the space its read
+stated. A document read over http(s) whose reader stated no space, or a read the reader cannot
+bound, is refused to such a reference too. Each refusal is that reference's alone: another naming
+the document, from a file or the source, reads it. A source located at a URL is bounded as a public
+document. Through an HTTP proxy the host is judged instead, and the proxy resolves a name again,
+which the compile cannot see. The read stays inside the directory the source lies in, symbolic
 links included, and follows relative references alone, unless `Options.AllowExternalRefs` lets it
 reach any file and http(s) URLs: a `$ref` naming a document other than the source by a `file:` URI
 or by an absolute path fails unread, whatever another `$ref` names that document by. Each is judged
@@ -1065,6 +1073,13 @@ and in what a reference reaches outside its model alike. A Path Item's
 `$ref` is the item's own field: one that is no string is read as left out, and the item as what
 else it writes.
 - Tests: `e2e.TestCompile_ExternalFileRefIsNotReadByDefault`,
+  `e2e.TestCompile_AFetchedDocumentMayNotReachAMorePrivateAddress`,
+  `e2e.TestCompile_AnAddressOneDocumentCannotReachIsStillReadForAnother`,
+  `e2e.TestCompile_APrivateDocumentMayReachAPrivateAddressButNotALocalOne`,
+  `e2e.TestCompile_AReaderThatCannotBoundAReadFailsOnlyTheAsker`,
+  `e2e.TestCompile_ASourceLocatedAtAURLIsBoundedAsAPublicDocument`,
+  `e2e.TestCompile_AFetchedDocumentWhoseReaderSaidNothingIsRefusedToABoundedAsker`,
+  `e2e.TestCompile_ADeclarationOfAFileAnswersNoFetchedDocument`,
   `e2e.TestCompile_OneURLSpelledSixWaysIsOneRequestOneKeyAndOneType`,
   `e2e.TestCompile_ADocumentAnotherOriginServesDeclaresNothingForTheSource`,
   `e2e.TestCompile_AFilesDeclarationAnswersTheSourceAndNoRead`,
@@ -1189,9 +1204,9 @@ else it writes.
   `e2e.TestCompile_AReachedObjectTheModelFaultsOnLowersAsUnderPaths`,
   `e2e.TestCompile_ARefAMergeKeyWritesThatIsNoStringLeavesTheEntryOut`,
   `e2e.TestCompile_AComponentWhoseRefIsNoStringIsKeptAsWritten`
-- Status: partly built: a remote document can make the compiler request a private address (#937).
-  A chain of documents each declaring the URI the one before it asked for costs a binding pass per
-  link (#1372).
+- Status: partly built: a chain of documents each declaring the URI the one before it asked for
+  costs a binding pass per link (#1372). A redirected document is based at the URL requested
+  (#1943). Through a proxy, the address the proxy gives a name is judged by nobody (#1947).
 
 ### `reference-cycles`
 

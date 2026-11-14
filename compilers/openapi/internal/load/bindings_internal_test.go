@@ -98,7 +98,7 @@ func TestBindingDiags_ReportsAFailedRefOnceWhereItIsWrittenAtEveryBudget(t *test
 	root := buildTree(t, schemaRoot("other.yaml#/X")+"    B: {$ref: 'other.yaml#/P'}\n")
 	var other yaml.Node
 	require.NoError(t, yaml.Unmarshal([]byte("X: {$ref: '#/Y'}\nY: {$ref: '#/Missing'}\nP: {$ref: '#/X'}\n"), &other))
-	cfg := bind.Config{Self: "spec.yaml", Open: func(string) (*yaml.Node, error) { return &other, nil }}
+	cfg := bind.Config{Self: "spec.yaml", Open: func(string, string) (*yaml.Node, error) { return &other, nil }}
 	want := []ir.Diagnostic{diag.Newf(ir.SeverityError, diag.UnresolvedRef, ir.Provenance{Source: 1, Pointer: "/Y"},
 		`unresolved $ref "#/Missing": it names nothing in the document it points into`)}
 	reported, silent := 0, 0
@@ -145,7 +145,7 @@ func TestBindingDiags_NamesALoopsMembersByTheirDocument(t *testing.T) {
 			"Q: {$ref: 'third.yaml#/R'}\n",
 		"third.yaml": "R: {$ref: 'other.yaml#/Q'}\n",
 	}
-	table := bind.Bind(t.Context(), root, bind.Config{Self: "spec.yaml", Open: func(name string) (*yaml.Node, error) {
+	table := bind.Bind(t.Context(), root, bind.Config{Self: "spec.yaml", Open: func(name, _ string) (*yaml.Node, error) {
 		var node yaml.Node
 		return &node, yaml.Unmarshal([]byte(docs[name]), &node)
 	}})
@@ -270,7 +270,7 @@ func TestBindingDiags_ReportsAChainBackIntoTheSourceWhereItFails(t *testing.T) {
 	var other yaml.Node
 	require.NoError(t, yaml.Unmarshal([]byte("S: {$ref: 'spec.yaml#/components/schemas/B'}\n"), &other))
 	table := bind.Bind(t.Context(), root, bind.Config{Self: "spec.yaml",
-		Open: func(string) (*yaml.Node, error) { return &other, nil }})
+		Open: func(string, string) (*yaml.Node, error) { return &other, nil }})
 
 	diags := bindingDiags(places{}, table)
 	require.Len(t, diags, 1, "%+v", diags)
@@ -284,9 +284,9 @@ func TestBindingDiags_ReportsAChainBackIntoTheSourceWhereItFails(t *testing.T) {
 func TestExternal_DocumentReportsAReadWithNoTreeAsAFault(t *testing.T) {
 	t.Parallel()
 	ext := newExternal(Options{Reader: &fakeReader{}}, newExternalReads(sourceDocument{}, budget.Unbounded()), &aside{})
-	ext.read.once("doc.yaml", func() answer { return answer{body: []byte("a: 1\n")} })
+	ext.read.once("doc.yaml", compilers.SpaceUnstated, func() answer { return answer{body: []byte("a: 1\n")} })
 
-	tree, err := ext.document(t.Context(), "doc.yaml")
+	tree, err := ext.document(t.Context(), "doc.yaml", "spec.yaml")
 
 	assert.Nil(t, tree)
 	require.EqualError(t, err, "internal: no tree was prepared for doc.yaml")

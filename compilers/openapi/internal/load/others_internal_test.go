@@ -196,7 +196,7 @@ func TestUnreachedKeys_NamesWhatOnlyAPassThatDidNotStandRead(t *testing.T) {
 		"    A: {$ref: 'a.yaml#/$defs/T'}\n    Z: {$ref: 'z.yaml#/S'}\n"), &root))
 	table := bind.Bind(t.Context(), &root, bind.Config{Self: "/spec.yaml",
 		Locate: func(uri, _ string) (string, bool) { return "/" + strings.TrimPrefix(uri, "/"), true },
-		Open: func(name string) (*yaml.Node, error) {
+		Open: func(name, _ string) (*yaml.Node, error) {
 			var n yaml.Node
 			return &n, yaml.Unmarshal([]byte(docs[name]), &n)
 		}})

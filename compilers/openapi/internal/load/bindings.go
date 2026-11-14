@@ -61,10 +61,16 @@ func bindTable(ctx context.Context, doc *soa.OpenAPI, self sourceDocument, reade
 			return dialectRuleOf(rows.Schema, dialect)
 		}}
 	if reader != nil {
-		cfg.Open = func(name string) (*yaml.Node, error) {
-			tree, err := reader.document(ctx, name)
-			opened[name] = tree
+		cfg.Open = func(name, from string) (*yaml.Node, error) {
+			tree, err := reader.document(ctx, name, from)
+			if err == nil {
+				opened[name] = tree
+			}
 			return tree, err
+		}
+		cfg.Admits = func(name, from string) error {
+			_, err := reader.document(ctx, name, from)
+			return err
 		}
 	}
 	return bind.Bind(ctx, self.root, cfg)
@@ -259,17 +265,18 @@ func spellLoop(l bind.Loop, table *bind.Table) string {
 	return strings.Join(parts, ", ")
 }
 
-// document is bind.Config.Open: the tree of the document named name, read
-// once in the compile, under its budgets (see externalReads.once), and
-// prepared as the source is. A name that is a URL (refscope.IsURL), spelled
-// as it is located (resolve.Locate), is read at that name; any other is read
-// as the file it names (see fileNamed).
-func (e external) document(ctx context.Context, name string) (*yaml.Node, error) {
+// document is bind.Config.Open: the tree of the document named name, as a
+// reference in the document named from reads it, read once in the compile,
+// under its budgets (see externalReads.once), and prepared as the source is.
+// A name that is a URL (refscope.IsURL), spelled as it is located
+// (resolve.Locate), is read at that name; any other is read as the file it
+// names (see fileNamed).
+func (e external) document(ctx context.Context, name, from string) (*yaml.Node, error) {
 	var a answer
 	if refscope.IsURL(name) {
-		a = e.readAs(ctx, e.documentID(name), name, name)
+		a = e.readAs(ctx, e.documentID(name), name, name, from)
 	} else {
-		a = e.readAs(ctx, e.documentID(name), name, fileNamed(name))
+		a = e.readAs(ctx, e.documentID(name), name, fileNamed(name), from)
 	}
 	if a.err != nil {
 		return nil, a.err

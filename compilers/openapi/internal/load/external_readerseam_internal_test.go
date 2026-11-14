@@ -75,10 +75,10 @@ func TestExternal_FetchWithNoReaderIsRefusedUnread(t *testing.T) {
 		ask  func(ext *external) error
 		key  string
 	}{
-		{"readAs", func(ext *external) error { return ext.readAs(t.Context(), "k", "k", "loc.yaml").err }, "k"},
-		{"a file", func(ext *external) error { _, err := ext.document(t.Context(), "loc.yaml"); return err }, "loc.yaml"},
+		{"readAs", func(ext *external) error { return ext.readAs(t.Context(), "k", "k", "loc.yaml", "spec.yaml").err }, "k"},
+		{"a file", func(ext *external) error { _, err := ext.document(t.Context(), "loc.yaml", "spec.yaml"); return err }, "loc.yaml"},
 		{"a URL", func(ext *external) error {
-			_, err := ext.document(t.Context(), "http://host/doc.yaml")
+			_, err := ext.document(t.Context(), "http://host/doc.yaml", "spec.yaml")
 			return err
 		}, "http://host/doc.yaml"},
 	}
@@ -135,7 +135,7 @@ func TestExternal_ReadFailureMapsTheReadersSentinels(t *testing.T) {
 			opts := Options{Within: "/srv/specs", MaxSourceBytes: budget.AtMost(16)}
 			ext := externalOver(opts, &fakeReader{err: tc.err})
 
-			got := ext.fetch(t.Context(), tc.key, tc.key, tc.key).err
+			got := ext.fetch(t.Context(), tc.key, tc.key, tc.key, compilers.SpaceUnstated).err
 
 			require.Error(t, got)
 			if tc.want == "" {
@@ -175,7 +175,7 @@ func TestExternal_FetchRefusesBytesPastTheBudgetAReaderReturned(t *testing.T) {
 			require.Len(t, body, tc.size)
 			ext := externalOver(Options{MaxSourceBytes: tc.limit}, &fakeReader{data: body})
 
-			got := ext.fetch(t.Context(), "k", "k", "k")
+			got := ext.fetch(t.Context(), "k", "k", "k", compilers.SpaceUnstated)
 
 			_, cached := ext.read.preparedFor("k")
 			if tc.refuse {
@@ -205,10 +205,12 @@ func TestExternal_ReadsAskTheReaderForTheCompilesBounds(t *testing.T) {
 		want string
 	}
 	doors := []door{
-		{"fetch", func(ctx context.Context, ext *external) { ext.fetch(ctx, "k", "k", "dir/./a.yaml") }, "dir/./a.yaml"},
-		{"a file", func(ctx context.Context, ext *external) { _, _ = ext.document(ctx, "dir/../b/./a.yaml") }, "b/a.yaml"},
+		{"fetch", func(ctx context.Context, ext *external) {
+			ext.fetch(ctx, "k", "k", "dir/./a.yaml", compilers.SpaceUnstated)
+		}, "dir/./a.yaml"},
+		{"a file", func(ctx context.Context, ext *external) { _, _ = ext.document(ctx, "dir/../b/./a.yaml", "spec.yaml") }, "b/a.yaml"},
 		{"a URL", func(ctx context.Context, ext *external) {
-			_, _ = ext.document(ctx, "http://host:80/a.yaml?v=1")
+			_, _ = ext.document(ctx, "http://host:80/a.yaml?v=1", "spec.yaml")
 		}, "http://host:80/a.yaml?v=1"},
 	}
 	for _, d := range doors {
@@ -237,7 +239,7 @@ func TestExternal_DocumentKeepsAnEmptyNameAnError(t *testing.T) {
 	fake := &fakeReader{err: fs.ErrNotExist}
 	ext := externalOver(Options{}, fake)
 
-	_, err := ext.document(t.Context(), "")
+	_, err := ext.document(t.Context(), "", "spec.yaml")
 
 	assert.ErrorIs(t, err, fs.ErrNotExist, "no file, passed through from the reader")
 	assert.Empty(t, cmp.Diff([]compilers.DocumentRequest{{Location: ""}}, fake.seen()))
@@ -251,7 +253,7 @@ func TestExternal_DocumentServesWhatTheReaderReturned(t *testing.T) {
 	fake := &fakeReader{data: []byte("a: 1\n")}
 	ext := externalOver(Options{}, fake)
 
-	tree, err := ext.document(t.Context(), "virtual/a.yaml")
+	tree, err := ext.document(t.Context(), "virtual/a.yaml", "spec.yaml")
 	require.NoError(t, err)
 
 	assert.Equal(t, "a", nodeview.DocumentRoot(tree).Content[0].Value)
@@ -280,7 +282,7 @@ func TestExternal_AReadRefusesByHowItIsNamed(t *testing.T) {
 			fake := &fakeReader{data: []byte("X: {}\n")}
 			ext := externalOver(Options{Within: tc.within}, fake)
 
-			a := ext.readAs(t.Context(), tc.key, tc.key, tc.key)
+			a := ext.readAs(t.Context(), tc.key, tc.key, tc.key, "spec.yaml")
 
 			require.NoError(t, a.err)
 			assert.Equal(t, "X: {}\n", string(a.body))

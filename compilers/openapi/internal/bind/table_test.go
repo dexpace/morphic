@@ -405,7 +405,7 @@ func TestBind_ReportsALoopOutsideTheSourceAtItsLeastMember(t *testing.T) {
 // withDocuments is self reading other documents from docs, by name.
 func withDocuments(docs map[string]string) bind.Config {
 	cfg := self
-	cfg.Open = func(name string) (*yaml.Node, error) {
+	cfg.Open = func(name, _ string) (*yaml.Node, error) {
 		src, ok := docs[name]
 		if !ok {
 			return nil, errors.New("no such document")
@@ -430,7 +430,7 @@ func TestBind_RefuseJudgesEachReferenceByItsSpelling(t *testing.T) {
 	cfg.Self = resolving.Self
 	opened := map[string]int{}
 	open := cfg.Open
-	cfg.Open = func(name string) (*yaml.Node, error) { opened[name]++; return open(name) }
+	cfg.Open = func(name, from string) (*yaml.Node, error) { opened[name]++; return open(name, from) }
 	var located, refused []string
 	cfg.Locate = func(uri, base string) (string, bool) {
 		located = append(located, uri)
@@ -482,7 +482,7 @@ func TestBind_ReportsADocumentThatDoesNotParse(t *testing.T) {
 	t.Parallel()
 	parser := errors.New("yaml: line 1: did not find expected node content")
 	cfg := self
-	cfg.Open = func(string) (*yaml.Node, error) { return nil, &bind.UnparsableError{Err: parser} }
+	cfg.Open = func(string, string) (*yaml.Node, error) { return nil, &bind.UnparsableError{Err: parser} }
 
 	table := bound(t, "components:\n  schemas:\n    A: {$ref: 'bad.yaml#/x'}\n", cfg)
 
@@ -510,7 +510,7 @@ func TestBind_ReadsOtherDocuments(t *testing.T) {
 	cfg := withDocuments(docs)
 	opened := map[string]int{}
 	open := cfg.Open
-	cfg.Open = func(name string) (*yaml.Node, error) { opened[name]++; return open(name) }
+	cfg.Open = func(name, from string) (*yaml.Node, error) { opened[name]++; return open(name, from) }
 	cfg.Locate = func(uri, base string) (string, bool) { return uri, uri != "nowhere" }
 	table := bound(t, head+`components:
   schemas:
