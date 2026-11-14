@@ -1179,7 +1179,12 @@ declares — documentation, deprecation, redaction, visibility and `default` —
 parameter or header that references the target, field by field, a keyword the use site writes
 winning over the target's ([annotations](../ir/annotations.md#what-a-reference-carries-down)), and by
 the same rule at every carrier. Redaction has nothing to win with: `format: password` on either side
-asks for it, and no keyword beside the `$ref` withdraws the target's. An extension the promotion
+asks for it, and no keyword beside the `$ref` withdraws the target's. Nor do `deprecated`,
+`readOnly` and `writeOnly`: JSON Schema reads each in force at a location where any occurrence
+applying to it is true, and an occurrence `false` as one omitted, so `deprecated: false` beside a
+`$ref` to a deprecated target leaves the use deprecated, in the 3.1 spelling and in the `allOf`
+decorator spelling alike, whose [fold](../emitters/refine/decorators.md) reads the use deprecated
+where any of its annotations is. An extension the promotion
 policy maps is read the same way ([`extension-promotion`](#extension-promotion)). At a position that
 carries no property, parameter or header — an `allOf`, `oneOf` or `anyOf` branch, an `items`, a
 component — the keywords beside the `$ref` bind an alias hoisted at that position instead
@@ -1213,10 +1218,10 @@ the `$ref` would lend written alone, since the visibility and `default` of the u
   `schema.TestUse_ADefaultBesideItsValueSetStands`,
   `schema.TestUse_ADefaultNoNarrowingExcludesReadsAsBesideARef`,
   `schema.TestUse_ACarrierReadsThroughADecorator`,
-  `schema.TestUse_ALoopOfNarrowingEnumsEnds`
-- Status: partly built: a use reads the end of its chain and not the schema it names (#1029), and a
-  `deprecated: false` on an `allOf` decorator over an object reaches no carrier, where beside a `$ref`
-  it decides (#1258).
+  `schema.TestUse_ALoopOfNarrowingEnumsEnds`, `annotation.TestEffectiveDeprecated_AnySchemaDeprecates`,
+  `annotation.TestEffectiveVisibility_MapsTheFlagsToLifecycles`,
+  `operation.TestParams_RefSchemaUseSiteWinsOverItsReferent`
+- Status: partly built: a use reads the end of its chain and not the schema it names (#1029).
 
 ### `reference-object-siblings`
 
@@ -1262,7 +1267,8 @@ ignored; there the fold is the 3.1 reading, and each sibling it reads is reporte
 the property, parameter or header that uses it, never to the type: both bind a *use* of the type,
 not the type. One a declaration writes, on a component or any other position that owns a node of its
 own, is therefore pushed down to each property, parameter or header referencing it that has a field
-for it, with use-site precedence ([`ref-use-site`](#ref-use-site)), and the declaration keeps its
+for it, as [`ref-use-site`](#ref-use-site) merges them: a `default` with use-site precedence, and
+`readOnly` and `writeOnly` in force where either side sets them, and the declaration keeps its
 own copy verbatim under `no_ir_home`, reported with an info `openapi/degraded-construct` at the
 keyword. That copy is what a component nothing references would otherwise lose in silence. A
 position a property, parameter or header carries keeps them on its carrier whichever reaches it
@@ -1741,7 +1747,9 @@ with no residue is kept on no variant
 Folding needs no precedence, because a branch that disagrees with any conjunct on one of these, the
 keywords beside the `allOf` among them, folds nothing, in every order: the keywords beside the
 `allOf` stand, and each branch writing that keyword otherwise stays whole, with its report. Two
-keywords a position keeps in one entry, `if` and `then` say, are compared as that entry. Value
+keywords a position keeps in one entry, `if` and `then` say, are compared as that entry. A
+`deprecated`, `readOnly` or `writeOnly` written `false` disagrees with nothing and lends nothing, as
+it states nothing a `true` elsewhere does not ([`ref-use-site`](#ref-use-site)). Value
 bounds and the counts `minItems` and `maxItems` agree where they meet, as a redeclared field's do
 ([`allof-redeclared-property`](#allof-redeclared-property)): `maxLength: 3` beside `maxLength: 5`
 folds to `3`, `minItems: 1` beside `minItems: 2` to `2`, and `multipleOf: 4` beside `multipleOf: 6`
@@ -1786,7 +1794,8 @@ every entry reads that one twice.
 
 - Cases: `allof-inline-residue`
 - Codes: `openapi/degraded-construct`
-- Tests: `schema.TestAllOf_BranchWrittenByReferenceStillDerivesResidue`,
+- Tests: `schema.TestVoices_AFalseFlagAgreesWithATrue`,
+  `schema.TestAllOf_BranchWrittenByReferenceStillDerivesResidue`,
   `schema.TestAllOf_MergedBranchKeywordsAreNotResidue`,
   `schema.TestAllOf_UnpreservableBranchIsNotAnnounced`,
   `schema.TestAllOf_NestedInlineBranchKeyedByPointer`,
@@ -5373,60 +5382,103 @@ how operations are arranged rather than filling a fact a node holds.
 5. **Placement and order.** A fact read once the document is whole is read in a package named for
    the fact or for the convention, which imports only `ir` and the compiler's `diag` and
    `lowering`, and so nothing of the walks that built the document. The compiler's run reads them
-   in one block, in one order: links ([`links`](#links)), then promotions, then inferences, then
-   the audits of what the policies read, so an inference sees what every promotion filled. A reading
-   a node needs while it lowers, as nullable widening's ([`nullable`](#nullable)), or while the
-   registry settles, as discriminator inference's, is made there instead.
+   in one block, in one order: links ([`links`](#links)), then promotions, then inferences, so an
+   inference sees what every promotion filled. The audits of what the policies read come last, once
+   the document's own keys are merged in as well. A reading a node needs while it lowers, as
+   nullable widening's ([`nullable`](#nullable)), or while the registry settles, as discriminator
+   inference's, is made there instead.
 
 - Tests: `openapi.TestSwitchOptions_NameEveryPolicy`, `openapi.TestDecodeOptions_TextReachesEveryField`,
-  `lowering.TestPromoter_WritesSeesAKeyWhateverItSays`,
+  `lowering.TestPromoter_WritesSeesAKeyWhateverItSays`, `lowering.TestPromoter_WritesKnowsEveryTarget`,
+  `lowering.TestPromoter_WritesSeesEveryDefaultKey`,
   `replacement.TestMessage_YieldsToWhatTheDocumentSays`, `convention.TestRedact_LeavesWhatTheDocumentSays`,
   `convention.TestIdempotency_ReportsWhatItCannotSettle`, `e2e.TestConventions_DisabledFillsNothing`
-- Status: partly built: the promotion has no text option (#658), and nothing audits what the
-  policies read (#657); no policy fills `Pagination` (#989); and the streaming and binary policies
-  mark `streaming-media-type` and `binary-media-type`, which their options `streaming-inference`
-  and `binary-inference` do not spell, while nullable widening marks `nullable-widening`, a name
-  for the reading rather than the fact (#1847).
+- Status: partly built: `Pagination` is filled by a promotion alone
+  ([`extension-pagination`](#extension-pagination)), as no inference reads one (#989), and that
+  promotion is read in `operation`, whose reader of runtime expressions it shares with the links,
+  rather than in a package of its own (#1905); and the streaming and binary policies mark
+  `streaming-media-type` and `binary-media-type`, which their options `streaming-inference` and
+  `binary-inference` do not spell, while nullable widening marks `nullable-widening`, a name for the
+  reading rather than the fact (#1847).
 
 ### `extension-promotion`
 
-A vendor extension the promotion policy maps to a typed field is read into that field as well as
-kept ([unmodeled](../ir/unmodeled.md#promotion) states the four rules a promotion keeps). The
-policy is `Options.Promotions`, on by default: its `Targets` replace the default mapping and its
-`Disabled` turns it off. A target reads a list of sources, each an extension key and, where the
-key's value is an object holding several facts, the member of it to read. The list is the
-precedence: the first source stating a value fills the field, and a later one stating another is
-reported as an info `openapi/degraded-construct` at its own key. An absent member states nothing,
-and a key with no members to read is reported the same way, once however many sources read it. The
-node keeping the extension lists the marker `extension-promotion` in its `Provenance.Inferred`, as
-does a use its `$ref`'s target lends a field to, and the extension stays in `Unmodeled` untouched.
+A vendor extension the promotion policy, `Options.Promotions` and the text option
+`extension-promotion` ([`policies`](#policies)), maps to a typed field is read into that field as
+well as kept ([unmodeled](../ir/unmodeled.md#promotion) states the four rules a promotion keeps).
+Its `Targets` replace the default mapping. A target reads a list of sources, each an extension key
+and, where the key's value is an object holding several facts, the member of it to read. The list
+is the precedence among the sources: the first source stating a value fills the field, and a later
+one stating another is reported as an info `openapi/degraded-construct` at its own key. An absent
+member states nothing, and a key with no members to read is reported the same way, once however many
+sources read it. The node keeping the extension is marked as [`policies`](#policies) marks a
+promotion, as is a use its `$ref`'s target lends a field to, and the extension stays in `Unmodeled`
+untouched.
+
+A source of a target stating that something is so, a deprecation, an open enum or union, a redaction
+or a part of a page walk, may list the values that state it. Each is compared with a string's text,
+or with a boolean's or a number's JSON, so `true` lists both `true` and `"true"`. A value it lists
+states the fact, and any other states nothing. That other value is reported as an info
+`openapi/degraded-construct` at the key, unless another source, of the same target or another, reads
+it off the same member of the key, listing it or listing no values, whose reading then decides what
+it is; a value every reader's list leaves out is reported by each target listing values there, as
+none reads it. A key spelling openness `allow` or `disallow`, listed `allow`, opens an enum on
+`allow` alone and reports `disallow` as it reports a misspelt `alow`, while the default's
+`x-stability`, listed `deprecated` for a deprecation, leaves a `true` to the stability reading of
+the same key, which reports it. A source with no list reads its target's own vocabulary, as below. A
+key a pagination target reads is judged and reported as one statement of a page walk instead
+([`extension-pagination`](#extension-pagination)).
+
+A policy that would read less than it says is refused when the compile starts, as a Go error and no
+diagnostic, since the mistake is the caller's and not the document's: a target outside the
+vocabulary, a source whose key does not start `x-`, a list of values for a target reading a text, a
+name or a tier, an owned prefix that is not `x-` followed by the start of a name, and targets or
+prefixes beside `Disabled`. Beside the switch, a caller holding only text sets the mapping with the
+option `promotion-targets`, the JSON object `Targets` encodes as, and the owned prefixes with
+`promotion-prefixes`, separated by commas. The `extension-promotion` marker each node lists is the
+record of what a run promoted.
+
+The policy may own extension name prefixes, `Prefixes`, none by default. An extension under one
+that the compiler reads no key of is reported as a warning `openapi/unread-extension` where it is
+written, naming the key it reads nearest it by edit distance, as the likeliest one it misspells:
+owning `x-deprecated` reports `x-deprecated-reasn` and names `x-deprecated-reason`. The keys read are
+each reader's own, the mapping's sources and, where grouping is by extension, the key and the
+aliases key [`extension-groups`](#extension-groups) reads, never a second list of them, so owning
+`x-forge` beside the default grouping by extension reports no `x-forge-aliases`. Each node's
+`Unmodeled` is read once the document is whole, under whatever scope its keys are kept; an
+extension inside an entry kept verbatim, such as an `allOf` branch, is a value of that entry and is
+not read.
 
 `Deprecation` is filled on an operation, a parameter, a header, a property, a type node or a
 security scheme. A key can state the deprecation itself: the default reads `x-fern-availability`,
-then `x-stability`, whose text `deprecated` or boolean `true` creates the `Deprecation`, whatever a
-`deprecated: false` beside it says, since the marker and the entry let a consumer that disagrees
-see what was read. `false` and any other word state nothing, and any other shape is reported. A
-member is filled on what is deprecated by then, and on anything else the key annotates nothing and
-stays where it is. `Message` reads `x-deprecated-reason`, `x-stainless-deprecation-message` and the
-`description` of `x-cfDeprecation`; `Since` reads `x-deprecated-since`; and `RemovalDate` reads
-`x-sunset`, the `date` of `x-forge-sunset` and the `eol` of `x-cfDeprecation`.
+then `x-stability`, and lists their word `deprecated` as the one value creating the `Deprecation`,
+whatever a `deprecated: false` beside it says, since a `false` states nothing
+([`ref-use-site`](#ref-use-site)). Any other word, a tier among them, states nothing, and so does a
+boolean, which names no tier either and is reported once by the stability reading below. A key
+listing no values reads the text `deprecated` and a boolean `true` as stating it, `false` and any
+other word as stating nothing, and reports any other shape. A member is filled on what is deprecated
+by then, by a keyword, a key, or a schema it composes as its `Base` whose keyword or key deprecates
+it, as a decorator over a deprecated target is ([annotations](../ir/annotations.md#decorators)), and on
+anything else the key annotates nothing and stays where it is. `Message` reads
+`x-deprecated-reason`, `x-stainless-deprecation-message` and the `description` of
+`x-cfDeprecation`; `Since` reads `x-deprecated-since`; and `RemovalDate` reads `x-sunset`, the `date`
+of `x-forge-sunset` and the `eol` of `x-cfDeprecation`.
 
 A property, header or parameter naming a `$ref` reads the target's mapped keys beneath its own, as
 [`ref-use-site`](#ref-use-site) merges the target's other annotations: a key beside the `$ref` wins
 field by field and without a report, and the target is the end of the chain, so a schema between the
 two lends nothing, as it lends no keyword. One holding a refinement
 ([`allof-refinement`](#allof-refinement)), or a `$ref` to one, reads along the chain its keywords
-are read along, nearest first: the nearest link stating a deprecation, by a keyword or a key,
-decides it and lends its members, and any link asking for redaction asks it of the use. A node a
-`$ref` still speaks on once a value set takes its type reads that `$ref`'s keys the same way, as it
-reads its keyword. A key on the target stating a deprecation counts as the target's `deprecated`, so
-a `deprecated` beside the `$ref` decides over it as it does over the keyword, and a key beside the
-`$ref`, being the use's own, is not stopped by one. A target lends a member only where it is
-deprecated itself, by a keyword or a key: on a live target the member annotates nothing, as it does
-anywhere, and a use deprecated on its own does not change that. So the target's `Deprecation` is all
-a use reads of it, which is what the [fold](../emitters/refine/decorators.md) of a 3.0 decorator
-over the same target reads, and what the target's key cannot hold is reported where that key is
-written and read, once, with a use reading past it in silence.
+are read along, nearest first: any link stating a deprecation, by a keyword or a key, deprecates the
+use, the nearest deprecated link lends its members, and any link asking for redaction asks it of the
+use. A node a `$ref` still speaks on once a value set takes its type reads that `$ref`'s keys the
+same way, as it reads its keyword. A key on the target stating a deprecation counts as the target's
+`deprecated`, which no `deprecated: false` beside the `$ref` withdraws. A target lends a member only
+where it is deprecated itself, by a keyword or a key: on a live target the member annotates
+nothing, as it does anywhere, and a use deprecated on its own does not change that. So the target's
+`Deprecation` is all a use reads of it, which is what the [fold](../emitters/refine/decorators.md) of
+a 3.0 decorator over the same target reads, and what the target's key cannot hold is reported where
+that key is written and read, once, with a use reading past it in silence.
 
 A value a member cannot hold, anything but text, is reported as an info `openapi/degraded-construct`
 at the extension and not coerced, since the document means something else by the key. Empty text
@@ -5477,7 +5529,24 @@ that names its key. The union a mixed `enum` lowers to ([`enum-const`](#enum-con
 `enum.open` instead, as the enum would, since a target names what the document writes, whatever
 node holds it: `x-extensible-enum` opens it under the default mapping, a `union.open` key does not,
 and on a `oneOf` the enum's key opens nothing. Each node reads one target, so no fact is read twice,
-where one reading could override what the other reports.
+where one reading could override what the other reports. No default source lists the values
+stating openness, as no key spelling it by a word has become common: a mapping naming one lists
+them, and reads any other value as closed and reports it.
+
+`Server.Name` reads `x-fern-server-name` on a server its document names in no other way, as no
+server below 3.2 can be named: a 3.2 `name` is the document's own and the key does not override it.
+Text names the server, which then carries the name as a declared one does, and empty text names
+nothing, leaving the hint its URL gives. `OAuthFlow.TokenEndpointAuthMethods` is read through the
+target `oauthFlow.tokenEndpointAuthMethods`, from the flow its key is written on, a string naming
+one method and a list of strings several. No default key names it, as no spelling has become
+common, and a list holding empty text or a method twice, which no set of names holds, is reported
+as any other shape is. The methods are taken as written, as the registry naming them is open. The
+flow, which has no `Provenance`, lists the marker in its own `Inferred`.
+`HTTPParamBinding.AllowReserved` is read through the target `parameter.allowReserved` on a
+parameter writing no `allowReserved`, which decides for itself, `true` asking for it and `false`
+asking nothing. No default key names it either: the keyword states it wherever 3.2 applies it, and
+a document below 3.2 reserving it at a path names its own key. The parameter lists the marker, as a
+consumer reaches its binding from it.
 
 `Deprecation.ReplacedBy` is read through the target `deprecation.replacedBy`, which no default key
 names either, since no spelling for a replacement has become common. A mapped key's string, or list
@@ -5495,14 +5564,39 @@ entity, or names the node itself, leaves the field unset and is reported as an i
 other members, a replacement on a node that is not deprecated annotates nothing, and it is read from
 the node's own keys alone, never lent by a `$ref`'s target, whose class is another.
 
-- Cases: `extension-promotion`, `extension-stability`, `extension-redaction`
-- Codes: `openapi/degraded-construct`
+- Cases: `extension-promotion`, `extension-stability`, `extension-redaction`, `extension-server-name`
+- Codes: `openapi/degraded-construct`, `openapi/unread-extension`
 - Tests: `lowering.TestPromoterDeprecation_ValueThatIsNotTextIsReported`,
+  `lowering.TestPromoter_ValuesNameWhatStatesTheFact`,
+  `lowering.TestPromoter_AValueAnotherTargetReadsIsItsToReport`,
+  `lowering.TestPromoter_ACallersValuesAreCopied`,
+  `lowering.TestPromoter_AReferentsKeyDeprecatesTheUse`,
+  `lowering.TestPromoter_ADeprecatedBaseHomesTheNodesMembers`,
+  `lowering.TestTargets_ListsEveryDeclaredTarget`,
+  `lowering.TestExtensionPromotionsCheck_Refusals`,
+  `lowering.TestExtensionPromotionsCheck_AcceptsWhatReadsAsWritten`,
+  `lowering.TestListsValues_NamesTheTargetsStatingAFact`,
+  `lowering.TestUnreadExtensions_ReportsAnOwnedKeyNoSourceReads`,
+  `lowering.TestUnreadExtensions_NamesNoKeyAMappingDoesNotRead`,
+  `lowering.TestUnreadExtensions_TheGroupingKeyIsRead`,
+  `lowering.TestUnreadExtensions_TheAliasesKeyIsRead`,
+  `lowering.TestGroupingExtension_KeysAreWhatGroupingReads`,
+  `e2e.TestPromotion_AnOwnedPrefixIsJudgedAtEveryNode`,
+  `e2e.TestPromotion_AnOwnedPrefixCountsEveryGroupingKeyRead`,
+  `lowering.TestServerName_ReadsTheDefaultKey`,
+  `lowering.TestTokenEndpointAuthMethods_ReadsASet`,
+  `lowering.TestAllowReserved_OnlyTrueAsksForIt`,
+  `operation.TestLowerParameter_AKeyAsksForReservedExpansion`,
+  `servers.TestLowerServer_AKeyNamesAServerTheDocumentNamesNot`,
+  `auth.TestLowerSecuritySchemes_AMappedKeyStatesTheTokenEndpointsAuthentication`,
+  `schema.TestUse_ADecoratorOverADeprecatedBaseReadsItsMembers`,
+  `openapi.TestCompile_RefusesAPromotionPolicyItCannotRead`,
+  `openapi.TestDecodeOptions_TextReachesEveryField`,
   `lowering.TestPromoterDeprecation_KeyStatesIt`,
-  `lowering.TestPromoterStability_ReadsEachWord`,
+  `lowering.TestStability_ReadsEachWord`,
   `lowering.TestPromoterRedaction_OnlyTrueWrites`,
-  `lowering.TestPromoterEnumOpenness_WritesNothing`,
-  `lowering.TestPromoterUnionOpenness_OpensOnAMappedKey`,
+  `lowering.TestEnumOpenness_WritesNothing`,
+  `lowering.TestUnionOpenness_OpensOnAMappedKey`,
   `e2e.TestPromotion_AMappedKeyOpensAUnion`,
   `e2e.TestPromotion_AMixedEnumsUnionReadsTheEnumTargetAlone`,
   `lowering.TestPromoter_ReadsSourcesInPolicyOrder`,
@@ -5522,17 +5616,14 @@ the node's own keys alone, never lent by a `$ref`'s target, whose class is anoth
   `e2e.TestPromotion_ADecoratorMatchesTheRefItStandsFor`,
   `e2e.TestPromotion_UsesHoldTheirOwnAnswerInEitherOrder`,
   `e2e.TestPromotion_AContentCarrierReadsTheEntryItElects`
-- Status: partly built: the default mapping leaves pagination, open enums stated by value, reserved
-  expansion and server names to come (#656); a mapping cannot say which extension values state the
-  fact, so a stability key's `true` reads as a deprecation (#654); an unknown key under a prefix the
-  policy owns is kept in silence (#657); a key beside an `allOf` over an object, or on its branch,
-  lands on the decorator the `allOf` lowers to, where beside a `$ref` it lands on the carrier (#1220); a key on a path item, a tag or a
+- Status: partly built: a redaction key beside an `allOf` over an
+  object lands on the decorator the `allOf` lowers to, whose `Sensitive` keeps it a type of its own,
+  where beside a `$ref` it lands on the carrier (#1220); a key on a path item, a tag or a
   content entry, kept under a scope, reaches no field (#1221); a key both a parameter or a header and
   its schema write shares one entry, so the object's is all that is read (#396); a schema a use names
-  between it and the end of its chain lends no key, as it lends no keyword (#1029); a key inside a
-  `oneOf` kept verbatim beside a body, as the base of a hierarchy keeps the union of its subtypes
-  ([`union-beside-structure`](#union-beside-structure)), reaches no field; and a mapping naming a
-  target nothing reads is accepted in silence (#1281).
+  between it and the end of its chain lends no key, as it lends no keyword (#1029); and a key inside
+  a `oneOf` kept verbatim beside a body, as the base of a hierarchy keeps the union of its subtypes
+  ([`union-beside-structure`](#union-beside-structure)), reaches no field.
 
 ### `mutually-exclusive-parameters`
 
@@ -5543,13 +5634,103 @@ field bound through `HTTPParamBinding.ParamPath`.
 
 - Status: not built: no pass promotes the groups yet (#988).
 
+### `extension-pagination`
+
+A page walk an extension declares fills `Operation.Pagination`
+([extension-promotion](#extension-promotion)), read once the document is whole, since its values are
+members of response bodies. Each field is a target of the policy: `pagination.cursor`,
+`pagination.offset` and `pagination.page` the input continuing a walk of strategy `cursor`, `offset`
+or `page`, `pagination.limit` the page size, and `pagination.items`, `pagination.nextCursor`,
+`pagination.nextLink`, `pagination.totalCount` and `pagination.totalPages` the page values of the
+same names. A source listing no values holds, on the operation, an expression naming the value: an
+OpenAPI runtime expression, `$request.query.<name>`, `$request.path.<name>`,
+`$request.header.<name>` or `$request.body` and a pointer for an input, and `$response.body` and a
+pointer or `$response.header.<name>` for a page value, or the shorthand `$request.` or `$response.`
+and a dotted chain of names, the first of an input a parameter's where one parameter carries it and
+the request body's member otherwise. A source listing values marks the node its key sits on as the
+value its word names: a parameter, a property, a response header, or the type one of them names,
+found from the request, its parameters and its body, or from each success response's headers and
+body, nearest the body's root. The default reads both conventions: the `cursor`, `next_cursor`,
+`results` and `next_uri` members of `x-fern-pagination`, and the `purpose` of
+`x-stainless-pagination-property`, whose `next_cursor_param`, `next_cursor_field` and `items` mark
+the cursor, the next cursor and the items. Neither reads an offset or a page number by default,
+since each convention leaves to its own configuration which of the two its walk counts.
+
+A page value is one member of every success response declaring a body, of each of its media types,
+and a header one of every success response, whether an expression or a mark names it, as a pager
+reads whichever arrives. A media type that streams
+([payloads](../ir/payloads.md#a-content-that-streams)) is a sequence of frames and no page, so it is
+not read, and a response every media type of which streams declares no page body, as one declaring
+no body does not. A value that a response or a media type holds at another member, or not at all, as
+a header two success responses each declare does, resolves to nothing, as does a value a mark finds
+at two members as near the root, or at a header and a member of one response. The fields fill a
+pagination whole or not at all: a value that resolves to nothing, two inputs continuing the walk, a
+cursor beside no next cursor or a next cursor beside no cursor, an offset or a page number beside no
+items, which a pager counts to advance an offset and to end either walk
+([pagination](../emitters/operations/pagination.md#what-a-pager-sends-next)), and a walk with
+neither an input nor a next link are each reported as an info `openapi/degraded-construct`, at the
+value or at the operation, and leave the field unset. The pagination sets its own `Inferred` and
+states no `Stop`, which no extension of either convention states, and each node whose key it read
+lists the marker `extension-promotion`. A later source of a target naming another value than the
+first is reported and loses, as for every target. An operation holding a pagination already is not
+read.
+
+What a key holds is one statement to every source of a pagination target reading the key the same
+way, as an expression or as a mark, and is one of three things. It states part of a walk where it is
+an object holding a member a source reads, or, for a source reading the value whole, that value: an
+expression, written as a string, or a word a source lists, each read as above. `false` states that
+no walk, or no value of one, is there: nothing is read from it and nothing is reported. Any other
+value states nothing a source can read: `true`, null, a string, a number or a list where the sources
+read a member; an object holding none of the members they read, such as `{}`; an expression that is
+no string or is empty; and a word none of the sources of its member lists. Each is reported as an
+info `openapi/degraded-construct` at the key, or at the member read, once however many sources read
+it, saying that the key, being written, keeps an inferred pagination off where it is read. A word
+one source lists is reported by none of the others, even where only a source reading the other side
+of the walk lists it. A convention may read an operation's `true` as the walk the document's root
+states; no source reads the root, so that `true` is reported as the others are.
+
+A pagination is read in the precedence [`policies`](#policies) gives, so no inference
+([`pagination-policy`](#pagination-policy)) fills one the document spoke of. OpenAPI writes no
+pagination keyword, so the document has spoken of an operation's pagination wherever it writes a key
+a source of a pagination target names, where this rule reads that source: on the operation for an
+expression, and for a mark on a parameter, a member of the request's body or of a page's, a success
+response's header or the type one of them names, however many operations reach it. A value filling a
+pagination, one resolving to nothing or refused, `false`, and one stating nothing a source can read
+speak alike. `PromotePagination` returns the operations it reads that so speak, by ID, as the set a
+step inferring a pagination reads in place of their extensions, and marks no node for a pagination
+it does not fill. A key written anywhere else, such as on an error response, in a media type that
+streams, or as a mark on the operation itself, is read by no source, so it speaks of nothing.
+
+- Cases: `extension-pagination`
+- Codes: `openapi/degraded-construct`
+- Tests: `operation.TestPromotePagination_FillsWhatTheExtensionsDeclare`,
+  `operation.TestPromotePagination_ReportsWhatFillsNone`,
+  `operation.TestPromotePagination_ReadsEverySuccessResponse`,
+  `operation.TestPromotePagination_ReadsNothingOffPolicy`,
+  `operation.TestPromotePagination_SaysWhichOperationsSpeakOfAPagination`,
+  `operation.TestPromotePagination_ReportsEachValueAKeyHolds`,
+  `operation.TestPromotePagination_StatedReadsEitherSidesKey`,
+  `operation.TestPromotePagination_StatedIsIndependentOfDeclarationOrder`,
+  `operation.TestPromotePagination_StatesNothingOffPolicy`,
+  `operation.TestPromotePagination_ReadsNoOperationHoldingOne`,
+  `lowering.TestOperations_ReadsEveryGroupToTheCap`,
+  `operation.TestMarker_AUseOfATypeTheRegistryLacksMarksNothing`,
+  `lowering.TestPageStatementOf_ReadsAnExpressionOrAMark`,
+  `lowering.TestPageStatementOf_ReportsWhatStatesNoValueOfAWalk`
+- Status: partly built: an operation's `true` that a convention reads as the walk the document's
+  root states is reported, not read (#1876).
+
 ### `pagination-policy`
 
 Pagination is set only by an injectable policy, and what it sets is marked `Inferred` (invariant 6):
-the compiler reads no pagination out of a document's parameter or response names by itself.
+the compiler reads no pagination out of a document's parameter or response names by itself. A
+pagination an extension declares is the document's own statement of the walk, so a policy inferring
+one reads no operation holding one, nor one whose extensions speak of one without filling it, by the
+precedence [`policies`](#policies) gives, the extensions speaking where
+[`extension-pagination`](#extension-pagination) says.
 
-- Status: not built: no policy infers pagination yet, and no promotion reads it from an extension,
-  so the compiler sets no `Pagination` (#989, #656).
+- Status: not built: no policy infers pagination yet, so the compiler sets a `Pagination` only
+  where an extension declares one ([`extension-pagination`](#extension-pagination)) (#989).
 
 ## 16. Swagger 2.0
 

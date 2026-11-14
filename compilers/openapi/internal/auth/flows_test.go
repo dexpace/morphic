@@ -13,6 +13,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/dexpace/morphic/compilers"
+	"github.com/dexpace/morphic/compilers/openapi"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
@@ -544,5 +546,34 @@ func TestLowerSecuritySchemes_AFlowsScopesKeepSourceOrder(t *testing.T) {
 
 			assert.Empty(t, gocmp.Diff(tc.want, fl.Scopes), "scopes lower in source order")
 		})
+	}
+}
+
+// TestLowerSecuritySchemes_AMappedKeyStatesTheTokenEndpointsAuthentication pins
+// the promotion of the one OAuthFlow field no OpenAPI field states: a key the
+// policy maps fills the flow it is written on, marking that flow, and the
+// default mapping, which names no key, reads none, keeping the key alone.
+func TestLowerSecuritySchemes_AMappedKeyStatesTheTokenEndpointsAuthentication(t *testing.T) {
+	t.Parallel()
+	spec := oauthFlowSpec("clientCredentials",
+		`{tokenUrl: "https://a.example/token", scopes: {}, x-auth: [private_key_jwt, client_secret_basic]}`)
+	mapped := openapi.ExtensionPromotions{Targets: map[openapi.ExtensionTarget][]openapi.ExtensionSource{
+		openapi.TargetTokenEndpointAuthMethods: {{Key: "x-auth"}},
+	}}
+	for name, tc := range map[string]struct {
+		policy openapi.ExtensionPromotions
+		want   []string
+	}{
+		"mapped":      {mapped, []string{"private_key_jwt", "client_secret_basic"}},
+		"the default": {openapi.ExtensionPromotions{}, nil},
+	} {
+		doc, diags, err := openapi.New().Compile(t.Context(), []compilers.Source{{Path: "spec.yaml", Data: []byte(spec)}},
+			compilers.Options{FormatOptions: openapi.Options{Promotions: tc.policy}})
+		require.NoError(t, err, name)
+		openapitest.RequireNoErrorDiags(t, diags)
+		fl := onlyFlow(t, doc)
+		assert.Equal(t, tc.want, fl.TokenEndpointAuthMethods, name)
+		assert.Equal(t, tc.want != nil, fl.Inferred == "extension-promotion", name)
+		assert.Contains(t, fl.Unmodeled, "openapi:x-auth", "%s keeps the key", name)
 	}
 }

@@ -278,6 +278,8 @@ func conformanceCases() []conformanceCase {
 		{"extension-promotion", assertExtensionPromotion},
 		{"extension-stability", assertExtensionStability},
 		{"extension-redaction", assertExtensionRedaction},
+		{"extension-pagination", assertExtensionPagination},
+		{"extension-server-name", assertExtensionServerName},
 		{"examples", assertExamples},
 		{"docs-summary-desc", assertDocsSummaryDesc},
 		{"request-body-docs", assertRequestBodyDocs},

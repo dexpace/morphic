@@ -412,6 +412,12 @@ const (
 	// beside it. Not an error, for the reason ReservedHeaderName is not: the
 	// document still lowers.
 	UnknownObjectKey = "openapi/unknown-object-key"
+	// UnreadExtension reports a vendor extension under a prefix the promotion
+	// policy owns that the compiler reads no key of, by its mapping or by
+	// grouping, naming the nearest key it reads (lowering.UnreadExtensions).
+	// Warning for UnknownObjectKey's reason: a key under a prefix a policy owns
+	// is most likely one it reads, misspelt.
+	UnreadExtension = "openapi/unread-extension"
 	// UnknownKeyBudget reports an object declaring more keys the model does not
 	// name than the compiler keeps, so the ones past the bound reached the IR in no
 	// form at all.

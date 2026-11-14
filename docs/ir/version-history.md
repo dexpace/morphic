@@ -677,3 +677,22 @@ it sees. Changes made together in one bump are listed together under it.
     `unevaluatedProperties: false` already was. At the position the keyword exempted what the other
     conjuncts evaluate, where on its branch it exempts only what the branch evaluates. A consumer
     pinned to 0.58.0 finds the keyword at the position.
+- **0.60.0** — no shape changed; what the OpenAPI compiler writes did:
+  - A `deprecated`, `readOnly` or `writeOnly` written `false` withdraws no `true` another schema of
+    a use states, as JSON Schema reads the three, so `deprecated: false` beside a `$ref` to a
+    deprecated target leaves the use's `Deprecation` set
+    ([what a reference carries down](./annotations.md#what-a-reference-carries-down)). A consumer
+    pinned to 0.59.0 that read such a use as live finds it deprecated, and a `readOnly` or
+    `writeOnly` it read as withdrawn in force. An `allOf` branch writing one `false` beside
+    another's `true` no longer disagrees with it, so both fold where both were kept verbatim.
+  - `Operation.Pagination` is filled from the extensions the promotion policy maps, by default those
+    of two conventions ([`extension-pagination`](../compilers/openapi.md#extension-pagination)),
+    with `Pagination.Inferred` set and each node whose key it read marked `extension-promotion`;
+    `Server.Name` is filled from a key on a server the document names in no other way; and
+    `HTTPParamBinding.AllowReserved` and `OAuthFlow.TokenEndpointAuthMethods` are filled where a
+    mapping names a key for them. A consumer pinned to 0.59.0 finds a pagination, a name or a field
+    where none was written.
+  - A decorator over a target a keyword or a key deprecates holds the `Deprecation` its own keys'
+    members state, which they were kept beside in silence.
+  - The default mapping reads only the word `deprecated` of `x-stability` and
+    `x-fern-availability` as a deprecation, so a boolean on either deprecates nothing.

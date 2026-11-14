@@ -188,7 +188,7 @@ func attachDeclaredAnnotations(c lowering.Ctx, ts *compile.Types, s *oas3.Schema
 		common.XML = a.XML
 	}
 	common.Unmodeled = annotation.MergeUnmodeled(common.Unmodeled, a.Unmodeled)
-	from := use.lentKeys(c, s)
+	from := use.lentKeys(c)
 	diags = append(diags, c.Promoter().Deprecation(common.Unmodeled, from, &common.Deprecation, &common.Provenance)...)
 	diags = append(diags, c.Promoter().Redaction(common.Unmodeled, from, &common.Sensitive, &common.Provenance)...)
 	// The openness promotions are applied here rather than where the Enum or
@@ -197,16 +197,16 @@ func attachDeclaredAnnotations(c lowering.Ctx, ts *compile.Types, s *oas3.Schema
 	// declaration's extensions have reached the node's map.
 	switch n := td.(type) {
 	case *ir.Enum:
-		diags = append(diags, c.Promoter().EnumOpenness(common.Unmodeled, &n.Closed, &common.Provenance)...)
+		diags = append(diags, lowering.EnumOpenness(c.Promoter(), common.Unmodeled, &n.Closed, &common.Provenance)...)
 	case *ir.Union:
 		// A target names what the document writes, so the union a mixed enum
 		// lowers to reads the enum's, as the enum would, and only that one: one
 		// fact read through two targets would let either override the other.
-		openness := c.Promoter().UnionOpenness
+		openness := lowering.UnionOpenness
 		if dispatchOf(s).won == "enum" {
-			openness = c.Promoter().EnumOpenness
+			openness = lowering.EnumOpenness
 		}
-		diags = append(diags, openness(common.Unmodeled, &n.Closed, &common.Provenance)...)
+		diags = append(diags, openness(c.Promoter(), common.Unmodeled, &n.Closed, &common.Provenance)...)
 	default:
 		// Openness is a fact of an enum's or a union's value space alone.
 	}

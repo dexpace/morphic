@@ -529,11 +529,11 @@ func TestIsNullLiteral_TellsANullFromFalse(t *testing.T) {
 // mapping of docs/ir/properties.md#visibility, the precedence a site holds over
 // its referent, and the answer for the pairing that admits nothing.
 //
-// Precedence is per flag (the uniform merge of
-// docs/compilers/openapi.md#ref-use-site): a site's readOnly settles readOnly
-// only, so it does not cancel a referent's writeOnly. Both are in force, admit
-// disjoint lifecycle sets, and leave the position visible in none. Until GitHub
-// #276 that case read as plain readOnly, dropping the flag arriving second.
+// Each flag is in force where any schema of the chain sets it, as JSON Schema
+// reads both (docs/compilers/openapi.md#ref-use-site), so a false withdraws
+// nothing, and a site's readOnly does not cancel a referent's writeOnly. Both
+// are then in force, admit disjoint lifecycle sets, and leave the position
+// visible in none.
 func TestEffectiveVisibility_MapsTheFlagsToLifecycles(t *testing.T) {
 	t.Parallel()
 	read := ir.Visibility{Only: []ir.Lifecycle{ir.LifecycleRead, ir.LifecycleDelete, ir.LifecycleQuery}}
@@ -550,8 +550,10 @@ func TestEffectiveVisibility_MapsTheFlagsToLifecycles(t *testing.T) {
 		{name: "writeOnly at the site", ref: "writeOnly: true\n", want: write},
 		{name: "readOnly inherited from the referent", ref: "type: string\n", tgt: "readOnly: true\n", want: read},
 		{name: "writeOnly inherited from the referent", ref: "type: string\n", tgt: "writeOnly: true\n", want: write},
-		{name: "the site wins over the referent for the flag it writes", ref: "readOnly: true\n", tgt: "readOnly: false\n", want: read},
-		{name: "a false flag is still the site's answer", ref: "readOnly: false\n", tgt: "readOnly: true\n"},
+		{name: "a referent's false withdraws nothing", ref: "readOnly: true\n", tgt: "readOnly: false\n", want: read},
+		{name: "nor does the site's", ref: "readOnly: false\n", tgt: "readOnly: true\n", want: read},
+		{name: "and a writeOnly false is as absent", ref: "writeOnly: false\n", tgt: "writeOnly: true\n", want: write},
+		{name: "false on both is unset", ref: "readOnly: false\n", tgt: "writeOnly: false\n"},
 		{name: "both flags on one schema", ref: "readOnly: true\nwriteOnly: true\n", want: none, wantDisjoint: true},
 		{name: "both flags on the referent", ref: "type: string\n", tgt: "readOnly: true\nwriteOnly: true\n", want: none, wantDisjoint: true},
 		{name: "the site's readOnly leaves the referent's writeOnly in force", ref: "readOnly: true\n", tgt: "writeOnly: true\n", want: none, wantDisjoint: true},
@@ -633,11 +635,11 @@ func TestEffectiveDefault_UnconvertibleIsReportedAtTheSchema(t *testing.T) {
 	assert.Equal(t, ir.Provenance{Source: 2, Pointer: "/p"}, diags[0].Provenance)
 }
 
-// TestEffectiveDeprecated_UseSiteOverridesReferent pins the same precedence for
-// the deprecated flag, including the case the nil-safe read exists for: a site
-// that writes no flag at all must fall through to the referent rather than
-// reading its own absence as false.
-func TestEffectiveDeprecated_UseSiteOverridesReferent(t *testing.T) {
+// TestEffectiveDeprecated_AnySchemaDeprecates pins the reading JSON Schema
+// gives the deprecated flag: a location is deprecated where any occurrence
+// applying to it is true, and a false is as absent, so neither the site nor a
+// referent withdraws the other's.
+func TestEffectiveDeprecated_AnySchemaDeprecates(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
 		name     string
@@ -645,7 +647,9 @@ func TestEffectiveDeprecated_UseSiteOverridesReferent(t *testing.T) {
 		want     bool
 	}{
 		{name: "the site says so", ref: "deprecated: true\n", want: true},
-		{name: "the site says not, over a referent that does", ref: "deprecated: false\n", tgt: "deprecated: true\n"},
+		{name: "the site's false withdraws no referent's true", ref: "deprecated: false\n", tgt: "deprecated: true\n", want: true},
+		{name: "nor a referent's false the site's", ref: "deprecated: true\n", tgt: "deprecated: false\n", want: true},
+		{name: "false on both is unset", ref: "deprecated: false\n", tgt: "deprecated: false\n"},
 		{name: "an absent flag falls through", ref: "type: string\n", tgt: "deprecated: true\n", want: true},
 		{name: "neither says anything", ref: "type: string\n", tgt: "type: string\n"},
 		{name: "no schemas at all"},
