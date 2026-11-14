@@ -31,6 +31,13 @@ func collision(node, message string) ir.Diagnostic {
 		message+", so a target can tell them apart only by ID", ir.Provenance{Source: ir.NoSource, Node: node})
 }
 
+// byPosition is the warning pass.Names reports at node about parties named
+// alike that hold no ID.
+func byPosition(node, message string) ir.Diagnostic {
+	return ir.NewDiagnostic(ir.SeverityWarning, "pass/name-collision",
+		message+", so a target can tell them apart only by position", ir.Provenance{Source: ir.NoSource, Node: node})
+}
+
 // brokenApart is the warning pass.Names reports at node about names whose
 // words differ only where they break.
 func brokenApart(node, message string) ir.Diagnostic {
@@ -133,6 +140,16 @@ func TestNames_ReportsEachScope(t *testing.T) {
 			[]ir.Diagnostic{
 				brokenApart("doc", `types t/a ("Setup"), t/c ("SetUp") and t/e have the neutral names "setup" and "set_up"`),
 				brokenApart("doc", `types t/b ("v1.2") and t/d ("v12") have the neutral names "v_1_2" and "v_12"`),
+			}},
+		{"an operation's parameter choices, and a choice's variants", inGroup(ir.OperationGroup{ID: "g",
+			Operations: []ir.Operation{{ID: "op", ParamChoices: []ir.ParamChoice{
+				{Name: named("byDate"), Variants: []ir.ParamVariant{{Name: named("fromTo")}, {Name: named("from_to")}}},
+				{Name: named("by_date"), Variants: []ir.ParamVariant{{Name: named("a")}, {Name: named("b")}}},
+			}}}}),
+			[]ir.Diagnostic{
+				byPosition("op", `in operation op, parameter choices 0 ("byDate") and 1 ("by_date") share the neutral name "by_date"`),
+				byPosition("op", `in parameter choice 0 of operation op, variants 0 ("fromTo") and 1 ("from_to") share the `+
+					`neutral name "from_to"`),
 			}},
 		{"a union's variants whose words break apart", withTypes(&ir.Union{ID: "t/u", Name: named("U"),
 			Variants: []ir.Variant{{Name: hinted("credit_card"), Type: ir.TypeRef{Target: "t/a"}},

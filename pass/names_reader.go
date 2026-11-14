@@ -4,6 +4,7 @@
 package pass
 
 import (
+	"cmp"
 	"fmt"
 	"hash/maphash"
 	"slices"
@@ -88,6 +89,9 @@ type scope struct {
 	// other ID can carry one from a name too, which a message holds as written
 	// and a renderer escapes (GitHub #816).
 	ids []string
+	// apart is what a target tells parties named alike apart by, "ID" where it
+	// is empty: "position" for parties holding no ID.
+	apart string
 }
 
 // at is where every finding of sc is reported: what holds the scope, whose ID
@@ -292,7 +296,7 @@ func (r *nameReader) collision(sc scope, first int) string {
 		b.WriteString(", which differ only where their words break")
 		who = "a target that joins words or ignores letter case"
 	}
-	fmt.Fprintf(&b, ", so %s can tell them apart only by ID", who)
+	fmt.Fprintf(&b, ", so %s can tell them apart only by %s", who, cmp.Or(sc.apart, "ID"))
 	return b.String()
 }
 
