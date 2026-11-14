@@ -758,6 +758,15 @@ it sees. Changes made together in one bump are listed together under it.
   consumer pinned to 0.64.0 that read `Explode` as always present no longer finds the key on such a
   binding, and must read its absence as the style's default, as it already does for a response
   header's. Read as false, the absence sends a `form` parameter unexploded.
+- **0.66.0** — no shape change. The OpenAPI compiler reads a bound written beside a schema that
+  names another, through a `$ref`, an `allOf` entry, a `oneOf` or `anyOf`, or an expanded dynamic
+  reference, by the types the position admits, its own and those of every schema it names
+  ([`constraints`](../compilers/openapi.md#constraints)). A value or collection bound none of them
+  takes, a `minLength` beside a reference to an array say, no longer reaches the `Constraints` of
+  the alias, carrier, composition or variant holding it, and is kept verbatim under
+  `openapi:<keyword>` (`degraded_lowering`) instead. No bound that was kept becomes typed. A
+  consumer pinned to 0.65.0 that read such a bound as constraining the reference applied it to
+  values of a kind it never bounds, and finds it now only under `Unmodeled`.
 - **0.67.0** — `Example.Input` is a `ScenarioInput`: each parameter's value under its `ParamID` in
   `params`, and the request body's in `body`, where it was one `Value` of no stated shape
   ([annotations](./annotations.md#docs-deprecation-examples)). A channel's ID opens with `chan/`

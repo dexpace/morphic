@@ -6,6 +6,7 @@ package main
 import (
 	"bytes"
 	"context"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -55,7 +56,8 @@ func TestRun_PrintsWhatEachOracleReached(t *testing.T) {
 	require.True(t, found, "a blank line parts the report from the summary: %s", stdout.String())
 	assert.Contains(t, report, "a.yaml")
 	assert.Equal(t, harness.Summary(mustCheck(t, dir)), summary)
-	assert.Contains(t, summary, "order-invariance         1      0        1  duplicate key 1\n")
+	assert.Contains(t, summary, fmt.Sprintf("%-25s %6d %6d %8d  duplicate key 1\n", "order-invariance", 1, 0, 1))
+	assert.Contains(t, summary, fmt.Sprintf("%-25s %6d %6d %8d  nothing to permute 2\n", "sequence-order-invariance", 0, 0, 2))
 }
 
 // mustCheck sweeps dir as run does.

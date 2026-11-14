@@ -253,6 +253,7 @@ func TestAllOf_ComposingADisjointSchemaDrawsNoSecondReport(t *testing.T) {
 // TestAllOf_DisjointInlineBranchReportsItsResidueAsInfo holds an inline branch
 // the schema's report covers to its residue alone: an info that names what is
 // kept, with the branch still in Unmodeled, since the warning is the schema's.
+// The residue is the type and the bound the object beside the branch cannot take.
 func TestAllOf_DisjointInlineBranchReportsItsResidueAsInfo(t *testing.T) {
 	t.Parallel()
 	doc, _ := parseFull(t, disjointSpec(`{allOf: [`+refObj+`, {type: string, maxLength: 3}]}`, ""))
@@ -265,11 +266,13 @@ func TestAllOf_DisjointInlineBranchReportsItsResidueAsInfo(t *testing.T) {
 	}
 	require.Len(t, atBranch, 1, "%+v", doc.Diagnostics)
 	assert.Equal(t, ir.SeverityInfo, atBranch[0].Severity)
-	assert.Contains(t, atBranch[0].Message, "the branch (type) is kept verbatim under Unmodeled")
+	assert.Contains(t, atBranch[0].Message, "the branch (type, maxLength) is kept verbatim under Unmodeled")
 
 	s, ok := typeByName(doc, "S").(*ir.Model)
 	require.True(t, ok)
-	assert.Contains(t, s.Unmodeled, "openapi:allOf/1", "and the branch is still kept")
+	require.Contains(t, s.Unmodeled, "openapi:allOf/1", "and the branch is still kept")
+	assert.JSONEq(t, `{"maxLength":3,"type":"string"}`, string(s.Unmodeled["openapi:allOf/1"].Value),
+		"with its maxLength, which the object beside it cannot take")
 	assert.Len(t, disjointReports(doc.Diagnostics), 1)
 }
 

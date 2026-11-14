@@ -235,13 +235,13 @@ func TestConstraints_APositionOfNullAloneReadsNoBound(t *testing.T) {
 	}
 }
 
-// TestConstraints_AReferenceOutcomeReadsByThePositionsOwnType pins the
-// positions lowering to a reference: a $ref site, a collapsed union, a
-// refinement and an expanded $dynamicRef. One declaring no type reads every
-// bound, whatever its target is, and one declaring a type beside its $ref or
-// its allOf reads by that type and keeps the rest, never by the target's type
+// TestConstraints_AReferenceOutcomeReadsByTheTypesItNames pins the positions
+// lowering to a reference: a $ref site, a collapsed union, a refinement and an
+// expanded $dynamicRef. A bound is held where the type the position names takes
+// it and kept and reported where it does not, and one declaring a type beside
+// its $ref or its allOf reads by that type as well
 // (docs/compilers/openapi.md#constraints).
-func TestConstraints_AReferenceOutcomeReadsByThePositionsOwnType(t *testing.T) {
+func TestConstraints_AReferenceOutcomeReadsByTheTypesItNames(t *testing.T) {
 	t.Parallel()
 	const targets = "    Str: {type: string}\n    Arr: {type: array, items: {type: string}}\n" +
 		"    Node: {$dynamicAnchor: node, type: string}\n"
@@ -251,12 +251,12 @@ func TestConstraints_AReferenceOutcomeReadsByThePositionsOwnType(t *testing.T) {
 		name, schema string
 		held, kept   []string
 	}{
-		{"a $ref site", "{$ref: " + str + ", minimum: 1, maxLength: 2}", []string{"minimum", "maxLength"}, nil},
+		{"a $ref site", "{$ref: " + str + ", minimum: 1, maxLength: 2}", []string{"maxLength"}, []string{"minimum"}},
 		{"a collapsed union", "{anyOf: [{$ref: " + str + "}, {type: 'null'}], minimum: 1, maxLength: 2}",
-			[]string{"minimum", "maxLength"}, nil},
-		{"a refinement", "{allOf: [{$ref: " + str + "}], minimum: 1, maxLength: 2}", []string{"minimum", "maxLength"}, nil},
+			[]string{"maxLength"}, []string{"minimum"}},
+		{"a refinement", "{allOf: [{$ref: " + str + "}], minimum: 1, maxLength: 2}", []string{"maxLength"}, []string{"minimum"}},
 		{"an expanded $dynamicRef", "{$dynamicRef: '#node', minimum: 1, maxLength: 2}",
-			[]string{"minimum", "maxLength"}, nil},
+			[]string{"maxLength"}, []string{"minimum"}},
 		{"a $ref site with a type", "{$ref: " + arr + ", type: array, minimum: 1, maxItems: 2}",
 			[]string{"maxItems"}, []string{"minimum"}},
 		{"a refinement with a type", "{type: array, allOf: [{$ref: " + arr + "}], minLength: 1, maxItems: 2}",
