@@ -102,8 +102,8 @@ document's contract, and who chose it decides what holds it still:
   So is a segment the document names, such as a form part's in `openapi:encoding/<part>/`, and so
   is a coordinate, a declaration's pointer, which moves with the declaration ([keys](#keys)).
 - **An array index in a key is the source's position.** A key passing through an array, as a
-  branch's `openapi:allOf/1` and a tag's `openapi:tags/0/x-mark` do, moves when the array is
-  reordered, and can then name another construct's entry, as an ID through an index does ([across
+  branch's `openapi:allOf/1` does, moves when the array is reordered, and can then name another
+  construct's entry, as an ID through an index does ([across
   revisions](./identity.md#across-revisions)).
 - **Everything else in a key is the compiler's spelling**: the prefix, every keyword and every
   scope, including the scope a vendor extension sits beneath (`openapi:info/contact/x-id`).

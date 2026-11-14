@@ -5787,11 +5787,11 @@ diagnostic. An object that lowers to a node with an `Unmodeled` map of its own k
 there, unscoped. One that lowers to no node of its own is keyed by the path from its carrier down to
 it, since several such objects reach one map and an unscoped key would leave the survivor to
 lowering order ([unmodeled](../ir/unmodeled.md#keys)): on the Document, `openapi:info/x-*`,
-`openapi:info/contact/x-*`, `openapi:info/license/x-*`, `openapi:externalDocs/x-*`,
-`openapi:components/x-*`, `openapi:tags/<i>/x-*` and `openapi:tags/<i>/externalDocs/x-*`; on the
-service, `openapi:paths/x-*`; on each operation, the path item's `openapi:pathItem/x-*`, and
-`openapi:responses/x-*` and `openapi:externalDocs/x-*`; on the HTTP binding,
-`openapi:callbacks/<name>/x-*`; on a content, `openapi:encoding/<part>/x-*` and
+`openapi:info/contact/x-*`, `openapi:info/license/x-*`, `openapi:externalDocs/x-*` and
+`openapi:components/x-*`; on a tag's `TagDef`, `openapi:externalDocs/x-*`
+([`tag-groups`](#tag-groups)); on the service, `openapi:paths/x-*`; on each operation, the path
+item's `openapi:pathItem/x-*`, and `openapi:responses/x-*` and `openapi:externalDocs/x-*`; on the
+HTTP binding, `openapi:callbacks/<name>/x-*`; on a content, `openapi:encoding/<part>/x-*` and
 `openapi:itemEncoding/x-*`; on a schema's node, `openapi:xml/x-*`, `openapi:discriminator/x-*` and
 `openapi:externalDocs/x-*`, a discriminator an `allOf` branch writes beside the union the position
 lowers keeping its own on the `Union` holding it, `openapi:allOf/<n>/discriminator/x-*` at the
