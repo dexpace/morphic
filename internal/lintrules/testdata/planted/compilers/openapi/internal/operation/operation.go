@@ -20,3 +20,10 @@ func plantResolution(rp *soa.ReferencedParameter, rr *soa.ReferencedResponse) {
 	_ = rp.GetReferenceResolutionInfo() // want "use of `rp.GetReferenceResolutionInfo` forbidden because \"read what a reference stands for through resolve.Object, which asks the bindings\" (forbidigo)"
 	_, _ = rp.IsReference(), rp.GetReference()
 }
+
+// plantThroughATypeParameter reads the same resolution through a type
+// parameter, which the rule misses: forbidigo matches a call by the static
+// type of its receiver, and here that is R, not the library's wrapper.
+func plantThroughATypeParameter[R interface{ GetObject() *soa.Parameter }](r R) *soa.Parameter {
+	return r.GetObject()
+}

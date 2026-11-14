@@ -140,7 +140,9 @@ linters:
         # return is nothing, or an inline entry's own object, which
         # resolve.Object answers through the bindings' table, a $ref a `<<`
         # merges in among what it reads as one. They are refused outside
-        # resolve and tests, which exclusions below excuse.
+        # resolve and tests, which exclusions below excuse. A call through a
+        # type parameter is not matched, as its receiver's static type is the
+        # parameter; the plants show that miss.
         - pattern: ^openapi\.Reference\.(GetObject|GetResolvedObject|MustGetObject|GetObjectAny|GetReferenceResolutionInfo|IsResolved)$
           pkg: ^github\.com/speakeasy-api/openapi/openapi$
           msg: read what a reference stands for through resolve.Object, which asks the bindings
