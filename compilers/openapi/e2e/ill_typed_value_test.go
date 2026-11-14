@@ -397,6 +397,25 @@ func TestCompile_AScalarAValueSharesIsReadAsTheRefusingPlaceReadsIt(t *testing.T
 	}
 }
 
+// TestCompile_AMappingAValueSharesRendersWhatItsRefusedMemberWrote holds a
+// mapping an alias mounts as a schema and as a value to the member the schema
+// refuses read as left out there, and written in the value: a value reads no
+// type, so its copy shows the text the source wrote, not the null.
+func TestCompile_AMappingAValueSharesRendersWhatItsRefusedMemberWrote(t *testing.T) {
+	t.Parallel()
+	spec := head31 + "x-m: &m {type: string, maxLength: hello}\npaths: {}\ncomponents:\n  schemas:\n" +
+		"    A: *m\n    B: {type: object, examples: [*m]}\n"
+
+	doc, diags := compileText(t, "spec.yaml", spec, openapi.Options{})
+
+	require.NotNil(t, doc)
+	require.Len(t, byCode(diags, typeMismatch), 1, "%+v", diags)
+	assert.True(t, containsJSON(t, doc, `{"name":"maxLength","value":{"kind":"string","str":"hello"}}`),
+		"the example renders what was written")
+	assert.False(t, containsJSON(t, doc, `{"name":"maxLength","value":{"kind":"null"}}`),
+		"and never the null the schema reads there")
+}
+
 // dialectNamers are lines that make a document one that may name a dialect,
 // whose Schema Objects are judged once the bindings give each its dialect,
 // while every schema is still read in the minor's own: the base dialect named
