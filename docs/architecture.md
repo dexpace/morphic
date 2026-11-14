@@ -807,12 +807,15 @@ something a caller asks for with `none`, never a default.
   saying why, so a sweep's summary counts what each asked and what it could not. The order oracle
   leaves sequences as written. A second, **sequence-order independence**, reverses each `allOf`
   and `required` sequence, which JSON Schema defines without position, unless it sits beneath an
-  anchor or a reference points into it, and leaves every other sequence, whose order the IR keeps
-  as fact or presentation. It declines a spec read from more than one file, since another file can
-  name a reversed sequence's element by its index. It forgives which element of a reversed
-  sequence a pointer names, an ID naming a node beneath one being told apart by a digest of that
-  node, and compares each model's flattened shape too; a report that moves with the order marks a
-  tie it does not compare. Both compile at the default limits alone (#1519).
+  anchor, a reference points into it or the source writes its path twice, and leaves every other
+  sequence, whose order the IR keeps as fact or presentation. It declines a spec read from more
+  than one file, since another file can name a reversed sequence's element by its index, and one
+  whose nodes beneath a reversed sequence name each other in a cycle, which no digest tells apart
+  whatever order it meets them in. It forgives which element of a reversed sequence a pointer
+  names, an ID naming a node beneath one being told apart by a digest of that node, and an index
+  after `allOf` or `required` in an `Unmodeled` name, reversed or not, since the name is relative
+  to its holder; it compares each model's flattened shape too, and a report that moves with the
+  order marks a tie it does not compare. Both compile at the default limits alone (#1519).
 - **Architecture test** (`internal/archtest`): import-graph assertions for the layering rules
   above, plus the rules the graph cannot express — which lowerings are mutually recursive (so a
   set that grows is noticed rather than measured), the method-per-type cap, that no function is
