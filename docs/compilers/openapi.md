@@ -1446,7 +1446,7 @@ replacement its message tells a caller to use, and no message is reported.
   `replacement.TestMessage_YieldsToWhatTheDocumentSays`,
   `replacement.TestCodeSpans_ReadsCommonMarksSpans`,
   `replacement.TestMessage_ReadsOnlyIntroducedNames`, `replacement.TestMessage_ReadsEachCueAndNoNearMiss`,
-  `replacement.TestMessage_CostsItsLength`,
+  `replacement.TestMessage_CostsItsLength`, `replacement.TestMessage_UseOpensItsSentence`,
   `e2e.TestConventions_DeclarationOrderChangesNothing`, `e2e.TestConventions_DisabledFillsNothing`
 
 ### `disjoint-visibility`
