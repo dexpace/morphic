@@ -4,6 +4,7 @@
 package irfacts_test
 
 import (
+	"maps"
 	"reflect"
 	"slices"
 	"strings"
@@ -107,6 +108,17 @@ type positionWalk struct {
 	fields map[string]string
 	skip   map[string]bool
 	out    map[ir.TypeID]position
+	// read holds each step of fields or skip the walk met, so that an entry
+	// of either table no position reads can be reported as stale.
+	read map[string]bool
+}
+
+// note records that the walk met step, a key of fields or skip.
+func (w *positionWalk) note(step string) {
+	if w.read == nil {
+		w.read = map[string]bool{}
+	}
+	w.read[step] = true
 }
 
 // walk records the type IDs v holds, under path.
@@ -148,31 +160,40 @@ func (w *positionWalk) fieldsOf(v reflect.Value, path []string, excluded string)
 		}
 		step := v.Type().Name() + "." + f.Name
 		fieldExcluded := excluded
-		if reason, ok := w.fields[step]; ok && fieldExcluded == "" {
-			fieldExcluded = reason
+		if reason, ok := w.fields[step]; ok {
+			w.note(step)
+			if fieldExcluded == "" {
+				fieldExcluded = reason
+			}
+		}
+		skipped := w.skip[step]
+		if skipped {
+			w.note(step)
 		}
 		next := path
-		if !w.skip[step] && !f.Anonymous && step != "TypeRef.Target" {
+		if !skipped && !f.Anonymous && step != "TypeRef.Target" {
 			next = append(slices.Clip(path), step)
 		}
 		w.walk(v.Field(i), next, fieldExcluded)
 	}
 }
 
-// usagePositions returns where the filled document doc names each type ID.
-// Steps through operation groups are left out of the path, since an operation
-// is one root wherever it nests.
-func usagePositions(doc *ir.Document) map[ir.TypeID]position {
-	w := &positionWalk{
-		types:  usageNotRoots,
-		fields: usageNotRootFields,
-		skip: map[string]bool{
-			"Document.Services": true, "Service.Groups": true, "OperationGroup.Groups": true, "OperationGroup.Operations": true,
-		},
-		out: map[ir.TypeID]position{},
-	}
+// usageSkippedSteps are the steps through operation groups that usagePositions
+// leaves out of a path.
+var usageSkippedSteps = map[string]bool{
+	"Document.Services": true, "Service.Groups": true, "OperationGroup.Groups": true, "OperationGroup.Operations": true,
+}
+
+// usagePositions returns where the filled document doc names each type ID,
+// reading the fields of notRootFields as no root and leaving the steps of skip
+// out of the path, and which keys of the two it met. Steps through operation
+// groups are left out, since an operation is one root wherever it nests.
+func usagePositions(
+	doc *ir.Document, notRootFields map[string]string, skip map[string]bool,
+) (positions map[ir.TypeID]position, read map[string]bool) {
+	w := &positionWalk{types: usageNotRoots, fields: notRootFields, skip: skip, out: map[ir.TypeID]position{}}
 	w.walk(reflect.ValueOf(doc).Elem(), nil, "")
-	return w.out
+	return w.out, w.read
 }
 
 // usageFilledDocument fills every field of a document outside its registry,
@@ -224,7 +245,7 @@ func usageEachOperation(services []ir.Service, fn func(*ir.Operation)) {
 func TestIndex_UsageRootsCoverEveryPositionOfTheIR(t *testing.T) {
 	t.Parallel()
 	doc := usageFilledDocument(t)
-	positions := usagePositions(doc)
+	positions, read := usagePositions(doc, usageNotRootFields, usageSkippedSteps)
 	for id := range positions {
 		doc.Types[id] = useType(id)
 	}
@@ -246,5 +267,11 @@ func TestIndex_UsageRootsCoverEveryPositionOfTheIR(t *testing.T) {
 	}
 	for path := range roots {
 		assert.True(t, seen[path], "%s is listed as a root, but the IR has no such position", path)
+	}
+	for _, problem := range staleEntries("usageNotRootFields", slices.Collect(maps.Keys(usageNotRootFields)), read) {
+		t.Error(problem)
+	}
+	for _, problem := range staleEntries("usageSkippedSteps", slices.Collect(maps.Keys(usageSkippedSteps)), read) {
+		t.Error(problem)
 	}
 }

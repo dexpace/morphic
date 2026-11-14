@@ -104,6 +104,19 @@ func mentionsIDClass(classes map[*types.TypeName]bool, typ types.Type) bool {
 // an empty reference is legitimate at. Each name is reported on its own line.
 func TestIDPositions_AreAllClassified(t *testing.T) {
 	t.Parallel()
+	found := identityFieldKeys(t)
+	require.NotEmpty(t, found, "the ir package must declare identity-bearing fields")
+	for _, problem := range classificationProblems(ir.IDPositions(), found,
+		"ir.%s is an identity-bearing field idPositions does not classify: "+
+			"say whether this position may hold an empty reference") {
+		t.Error(problem)
+	}
+}
+
+// identityFieldKeys returns the "Type.Field" key of every field the ir package
+// declares that holds an identity.
+func identityFieldKeys(t *testing.T) map[string]bool {
+	t.Helper()
 	classes := idClassTypes(t)
 	found := map[string]bool{}
 	for _, f := range declaredFields(t) {
@@ -111,16 +124,7 @@ func TestIDPositions_AreAllClassified(t *testing.T) {
 			found[f.key()] = true
 		}
 	}
-	require.NotEmpty(t, found, "the ir package must declare identity-bearing fields")
-	listed := map[string]bool{}
-	for _, name := range ir.IDPositions() {
-		listed[name] = true
-		assert.True(t, found[name], "idPositions classifies ir.%s, which the ir package no longer declares", name)
-	}
-	for name := range found {
-		assert.True(t, listed[name], "ir.%s is an identity-bearing field idPositions does not classify: "+
-			"say whether this position may hold an empty reference", name)
-	}
+	return found
 }
 
 // TestIDPositions_EveryShapeIsOneTheReadingReads fails when an
