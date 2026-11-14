@@ -1770,8 +1770,9 @@ the nullable-widening policy ([`nullable`](#nullable)). Neither `unevaluatedProp
 Schema 2020-12 §11.2, §11.3), so on a branch it holds the instance to what that branch alone
 evaluates, where beside the `allOf` it would exempt what the position and the other branches
 evaluate, and the branch kept whole is its record. A bound does not fold where the position has no
-field for it, as one beside the `allOf` reaches none ([`constraints`](#constraints)): a value bound
-no type the position declares takes, one no type its own branch declares takes, since such a branch
+field for it, as one beside the `allOf` reaches none ([`constraints`](#constraints)): a value or
+collection bound no type the position admits takes, the types of the schemas it names among them,
+one no type its own branch declares takes, since such a branch
 admits no value it bounds, or one on a node with no `Constraints` for one, the `Union` of a type
 list holding one where a variant whose type takes it does, and a collection bound on any node but a
 `List` or a `Tuple`, that `Union` holding one where such a variant does; a collection bound
@@ -3799,24 +3800,29 @@ wherever it stands.
 of the node or carrier the position owns (a `Scalar`, a `Property` or a `Parameter`); `minItems`,
 `maxItems` and `uniqueItems` to the `List`'s, and a `Tuple`'s per [`tuples`](#tuples), which its
 carrier does not restate, or, where the position lowers to a reference (a `$ref` site, a collapsed
-union or an expanded `$dynamicRef`), to the `Constraints` of the alias or carrier it owns, whatever
-the target is, as does one on an inline `allOf` branch
+union or an expanded `$dynamicRef`), to the `Constraints` of the alias or carrier it owns where the
+types the position admits include `array`, as does one on an inline `allOf` branch
 ([`allof-inline-residue`](#allof-inline-residue)); and
-`minProperties` and `maxProperties` per [`additional-properties`](#additional-properties). A value
-bound is read only where a type the schema declares takes it, since JSON Schema applies each to
-instances of one kind and lets any other through (JSON Schema Validation 2020-12 §6.2, §6.3 and
-§6.5): the numeric bounds, the exclusive ones among them, where it declares `integer` or `number`,
-`minLength`, `maxLength` and `pattern` where it declares `string`, and `minProperties` and
-`maxProperties` where it declares `object`; `boolean` and `null` take none. A schema declaring no
-type reads every bound, and so does a position lowering to a reference whose schema declares none;
-one declaring `null` alone reads none, its `Enum` with no member keeping them
-([`null-alone`](#null-alone)); one declaring a type beside its `$ref` or its `allOf` reads by that
-type, never by what the reference names. A bound no declared type takes
-reaches no `Constraints`, the carrier's included, and is kept verbatim under `openapi:<keyword>`
-(`degraded_lowering`) with an info `openapi/degraded-construct` naming what the position lowered
-to: on the node it owns, on an alias hoisted where it lowered to a shared node or a reference, or
-on the carrier of a reference. A type array's variants each take their own type's
-([`type-arrays`](#type-arrays)). A bound is read off the raw node, never the parser's `float64`, so
+`minProperties` and `maxProperties` per [`additional-properties`](#additional-properties). A bound
+is read only where a type the position admits takes it, since JSON Schema applies each to
+instances of one kind and lets any other through (JSON Schema Validation 2020-12 §6.2 to §6.5):
+the numeric bounds, the exclusive ones among them, where it admits `integer` or `number`,
+`minLength`, `maxLength` and `pattern` where it admits `string`, the collection bounds where it
+admits `array`, and `minProperties` and `maxProperties` where it admits `object`; `boolean` and
+`null` take none. The types a position admits are those its own `type` declares that every schema
+it names admits too: the one its `$ref` chain ends on, each `allOf` entry, a `oneOf` or `anyOf`,
+which admits what any of its branches does, or its one non-null branch where it collapses
+([`union-null-variant`](#union-null-variant)), and the target an expanded `$dynamicRef` or
+`$recursiveRef` lands on ([`dynamic-ref`](#dynamic-ref)), read through as many of those as the named
+schemas write, from the source and never from what has been lowered, so no answer turns on the
+order schemas are declared in. A schema declaring no `type` and naming none excludes nothing, so it
+reads every bound; one declaring `null` alone reads none, its `Enum` with no member keeping them
+([`null-alone`](#null-alone)), and so does one whose own and named types share no kind. A bound no
+type the position admits takes reaches no `Constraints`, the carrier's included, and is kept
+verbatim under `openapi:<keyword>` (`degraded_lowering`) with an info `openapi/degraded-construct`
+naming what the position lowered to: on the node it owns, on an alias hoisted where it lowered to a
+shared node or a reference, or on the carrier of a reference. A type array's variants each take
+their own type's ([`type-arrays`](#type-arrays)). A bound is read off the raw node, never the parser's `float64`, so
 its `BigVal` keeps every digit the literal wrote ([`values`](#values)), a quoted one as the decimal
 it spells; one that is no decimal literal a `BigVal` holds is dropped with an
 `openapi/invalid-numeric-literal` error at the keyword.
@@ -3865,6 +3871,21 @@ no bound ([`string-formats`](#string-formats)).
   `schema.TestConstraints_APositionDeclaringNoTypeReadsEveryBound`,
   `schema.TestConstraints_APositionOfNullAloneReadsNoBound`,
   `schema.TestConstraints_AReferenceOutcomeReadsByTheTypesItNames`,
+  `schema.TestConstraints_ABoundIsReadByTheTypesItsSchemaNames`,
+  `schema.TestConstraints_ABoundBesideARefIn30IsKeptAsIn31`,
+  `schema.TestConstraints_ABoundANamedTypeTakesIsRead`,
+  `schema.TestConstraints_ATypeBesideANamedSchemaStillNarrowsTheRead`,
+  `schema.TestConstraints_AUnionIsReadByWhatItsBranchesAdmit`,
+  `schema.TestConstraints_ABranchBoundIsReadByTheTypesItsSchemaNames`,
+  `schema.TestAllOf_ACompositionReadsBoundsByTheTypesItComposes`,
+  `schema.TestAllOf_AnEmptyConjunctionKeepsEveryBound`,
+  `schema.TestUnion_ADistributedBodyReadsBoundsByTheTypesItComposes`,
+  `schema.TestConstraints_AReadPastItsBudgetReadsEveryBoundInEitherOrder`,
+  `schema.TestConstraints_AnExpandedReferenceIsNamedByItsKeyword`,
+  `schema.TestConstraints_ABoundIsReadTheSameInEitherDeclarationOrder`,
+  `schema.TestWritesBound_FindsABoundOnTheSchemaOrAnInlineBranch`,
+  `operation.TestParams_ABoundBesideAReferenceIsReadByItsNamedType`,
+  `e2e.TestConstraints_ANamedTypeIsReadInItsOwnDocument`,
   `schema.TestConstraints_ABoundAListKeepsIsKeptOnce`,
   `schema.TestConstraints_ACarrierRestatesTheBoundsItsNodeTakes`,
   `schema.TestConstraints_ACountATypeCannotTakeIsKeptByTheCensus`,
@@ -3897,9 +3918,14 @@ no bound ([`string-formats`](#string-formats)).
   `schema.TestCompareCounts_OrdersLiteralsExactly`,
   `annotation.TestExactCount_StatesOnlyAnExactCount`,
   `oas.TestShape_Admits`
-- Status: partly built: a position lowering to a reference whose schema declares no type reads every
-  value bound whatever its target's type, so one the target's type cannot take reaches the alias or
-  carrier the position owns (#1907).
+- Status: partly built: the types a schema admits are read off `type` alone, so a value set
+  declaring none (an `enum` or a `const`) reads every bound (#1919); a `type` written beside a `$ref`
+  inside a named schema is not read (#1390); and a read of more than 256 named schemas reads every
+  bound. A bound beside an `enum`, a `const` or a union at a property that a type the position admits
+  takes is held by the property and also kept on its node (#1924). Two declarations of one field that
+  each keep a bound meet the fold of [`allof-redeclared-property`](#allof-redeclared-property)
+  (#1889). A bound left unread is reported at its position, with the census's other keywords, not at
+  the keyword.
 
 ### `validation-only`
 
