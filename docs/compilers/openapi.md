@@ -1421,17 +1421,18 @@ message:
 
 So ``Use `a`, `b` or `c`.`` names three, ``Do not use `b`; use `a`.`` and ``Use `a` instead of `b`.``
 name `a` alone, and ``Unlike `GET /v0/zones`, this pages.``, ``Formerly `b`.``,
-``If you use `c`, set `d`.``, ``You may use `c`.`` and ``This was not replaced by `c`.`` name
-none. A name no phrase introduces is neither read nor reported. The policy's trigger is a message introducing an entity of
-the node's class other than the node: one introducing none, or the node alone, fills nothing and is
-not reported, since prose naming something else is no defect. Where it introduces one, the names
-fill the field all or none, the node itself passed over and a repeat kept once: a name naming no
-entity, or several, leaves the field unset, reported at the node, quoting the first such name. The
-message keeps its prose either way. The reading runs once the document is whole, as a replacement
-may be declared after what it replaces. A
-Markdown link's title is display text and its URL a page of documentation, neither naming an entity
-the document holds, so a link is never read; nor is a header's, a schema's or a security scheme's
-message, where no measured document names a replacement such a scope resolves. On the golden spec
+``If you use `c`, set `d`.``, ``You may use `c`.``, ``Deprecated: use `c`.`` and
+``This was not replaced by `c`.`` name none. A name no phrase introduces is neither read nor
+reported. The policy's trigger is a message introducing an entity of the node's class other than
+the node: one introducing none, or the node alone, fills nothing and is not reported, since prose
+naming something else is no defect. Where it introduces one, the names fill the field all or none,
+the node itself passed over and a repeat kept once: a name naming no entity, or several, leaves the
+field unset, reported at the node, quoting the first such name. The message keeps its prose either
+way. The reading runs once the document is whole, as a replacement may be declared after what it
+replaces. A Markdown link's title is display text and its URL a page of documentation, neither
+naming an entity the document holds, so a link is never read; nor is a header's, a schema's or a
+security scheme's message, where no measured document names a replacement such a scope resolves.
+On the golden spec
 (spec @86556f6f), of the 217 operations whose deprecation carries a message, 25 name a route the
 document declares, 16 in a code span and 9 beside one, and take it; 10 name a path relative to the
 prefix the document mounts it under, which names no route as written, and 146 a link, and take
@@ -1449,6 +1450,8 @@ replacement its message tells a caller to use, and no message is reported.
   `replacement.TestMessage_ReadsOnlyIntroducedNames`, `replacement.TestMessage_ReadsEachCueAndNoNearMiss`,
   `replacement.TestMessage_CostsItsLength`, `replacement.TestMessage_UseOpensItsSentence`,
   `e2e.TestConventions_DeclarationOrderChangesNothing`, `e2e.TestConventions_DisabledFillsNothing`
+- Status: open: a `use` after a colon, a parenthesis or a dash is no cue, so
+  ``Deprecated: use `b` instead.``, which `main` read, names nothing (#1956).
 
 ### `disjoint-visibility`
 
