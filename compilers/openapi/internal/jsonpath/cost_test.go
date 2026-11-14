@@ -5,6 +5,7 @@ package jsonpath_test
 
 import (
 	"fmt"
+	"slices"
 	"strings"
 	"testing"
 
@@ -121,6 +122,36 @@ func TestSelect_SpendsTheStepsEachSitePins(t *testing.T) {
 	} {
 		assert.Equal(t, want, spentOn(t, query, doc), query)
 	}
+}
+
+// TestSelect_KeepsAtMostSixtyFourPatternsReadFromTheDocument holds the cache of
+// patterns an evaluation reads from the document to what it promises: an equal
+// pattern is compiled, and so charged, once, and the first 64 distinct ones are
+// kept, so a second pass over 65 of them pays to compile the 65th alone.
+func TestSelect_KeepsAtMostSixtyFourPatternsReadFromTheDocument(t *testing.T) {
+	t.Parallel()
+	const query = "$[?match(@.s, @.p)]"
+	list := func(patterns []string) string {
+		items := make([]string, len(patterns))
+		for i, p := range patterns {
+			items[i] = fmt.Sprintf("{s: xyz, p: %s}", p)
+		}
+		return "[" + strings.Join(items, ", ") + "]"
+	}
+	distinct := make([]string, 65)
+	for i := range distinct {
+		distinct[i] = fmt.Sprintf("a%02d", i)
+	}
+	same := slices.Repeat([]string{"a00"}, len(distinct))
+
+	once := spentOn(t, query, list(distinct))
+	repeated := spentOn(t, query, list(same))
+	twice := spentOn(t, query, list(slices.Concat(distinct, distinct)))
+
+	require.Greater(t, once, repeated, "an equal pattern is compiled once")
+	compile := (once - repeated) / 64
+	require.Equal(t, 64*compile, once-repeated, "the patterns cost the same to compile")
+	assert.Equal(t, 2*once-64*compile, twice, "the second pass compiles the one pattern the cache did not keep")
 }
 
 // TestMaxResults_IsTheBoundOnWhatAnEvaluationHolds pins the constant the nodes
