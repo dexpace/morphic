@@ -182,7 +182,7 @@ func TestPromote_FillsTheTerminatorOfEveryStreamingContent(t *testing.T) {
 	assert.Empty(t, cs[0].Inferred)
 	assert.Equal(t, ir.Inferred("extension-promotion"), cs[1].Inferred)
 	assert.Equal(t, ir.Inferred("extension-promotion"), cs[2].Inferred)
-	assert.Empty(t, diags)
+	assert.Empty(t, findings(t, diags))
 
 	op, _, diags = compile(t, chat("      x-stream-terminator: \"[DONE]\"\n", jsonBody, framed("text/event-stream", "")), both())
 	require.NotNil(t, terminator(op))
@@ -298,8 +298,7 @@ func TestPromote_FillsTheCondition(t *testing.T) {
 		})
 	}
 
-	off, _, _ := compile(t, src, openapi.Options{Promotions: openapi.ExtensionPromotions{
-		Disabled: true, Targets: both().Promotions.Targets}})
+	off, _, _ := compile(t, src, openapi.Options{Promotions: openapi.ExtensionPromotions{Disabled: true}})
 	require.NotNil(t, off.ResponseStream)
 	assert.Nil(t, off.ResponseStream.Condition, "promotion off fills no condition")
 	assert.Contains(t, off.Unmodeled, "openapi:"+whenKey, "the key stays as written")

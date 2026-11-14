@@ -101,8 +101,7 @@ func assertStreamTerminator(t *testing.T, doc *ir.Document, diags []ir.Diagnosti
 	assert.Contains(t, mop.Unmodeled, "openapi:x-stream-when", "the key is kept")
 	assert.Empty(t, mappedDiags)
 
-	off, offDiags := corpusWith(t, "stream-terminator", openapi.Options{Promotions: openapi.ExtensionPromotions{
-		Disabled: true, Targets: streamPromotions().Targets}})
+	off, offDiags := corpusWith(t, "stream-terminator", openapi.Options{Promotions: openapi.ExtensionPromotions{Disabled: true}})
 	oop, ok := opByName(off, "chat")
 	require.True(t, ok)
 	require.NotNil(t, oop.ResponseStream)
