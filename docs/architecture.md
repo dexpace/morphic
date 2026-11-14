@@ -378,13 +378,18 @@ Built, and in the default list:
   within a model, a one-way operation that declares no response, and binding completeness: a
   parameter an HTTP binding places twice at one non-host location is an error
   (`pass/param-binding-mismatch`), one it places nowhere is the warning `pass/param-unbound`, and a
-  `host` binding is additive ([http-binding](./ir/http-binding.md)).
+  `host` binding is additive ([http-binding](./ir/http-binding.md)). It also reports what a source
+  wrote that no value can meet, each a warning: bounds that admit no value
+  ([constraints](./ir/constraints.md)), a default or an example its type does not admit
+  ([values](./ir/values.md)), and a composition cycle or a type with no finite value
+  ([models](./ir/models.md)).
   Structural problems are errors, which fail the run at the default threshold (§4); style issues are
   warnings.
 - **names** — what a document's names leave to its targets, which no IR rule forbids: two entities
   of one scope whose names a target may render alike, which it can then tell apart only by ID, as
   a warning, and a name with no word character, which a target names from its characters,
-  as an info ([naming](./ir/naming.md#names-one-scope-shares)). An analysis, it renames nothing, and
+  as an info ([naming](./ir/naming.md#names-one-scope-shares)), among them the headers of one
+  response and the properties a model exposes. An analysis, it renames nothing, and
   it runs after every transform, before `validate`, which stays last.
 
 Designed, not yet built:

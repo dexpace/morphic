@@ -70,3 +70,19 @@ func TestNames_ReadsAModelsOwnPropertiesOnceWhateverItExtends(t *testing.T) {
 		})
 	}
 }
+
+// TestNames_ReadsAPairAModelsBaseAndInterfaceBringAtTheModel holds a model that
+// declares nothing, extending one model and implementing another, to the one
+// finding of the pair its base and its interface bring: neither entry alone
+// exposes both, so the model is where they first meet.
+func TestNames_ReadsAPairAModelsBaseAndInterfaceBringAtTheModel(t *testing.T) {
+	t.Parallel()
+	doc := withTypes(
+		extending("A", "", spelled("p/a/0", "userId", "userId")),
+		extending("B", "", spelled("p/b/0", "user_id", "user_id")),
+		&ir.Model{ID: "X", Name: named("X"), Base: &ir.TypeRef{Target: "A"}, Implements: []ir.TypeRef{{Target: "B"}}},
+	)
+
+	assert.Empty(t, cmp.Diff([]ir.Diagnostic{exposed("X", `0 of model A ("userId") and 0 of model B ("user_id")`, "user_id")},
+		namesOf(t, doc)))
+}

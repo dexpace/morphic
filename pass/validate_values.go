@@ -207,10 +207,8 @@ func admits(sh shape, k ir.ValueKind) bool {
 		return k == ir.ValueNumber
 	case shapeList:
 		return k == ir.ValueList
-	case shapeObject:
-		return k == ir.ValueObject
 	default:
-		return true
+		return k == ir.ValueObject // shapeObject: no other shape is asked
 	}
 }
 
