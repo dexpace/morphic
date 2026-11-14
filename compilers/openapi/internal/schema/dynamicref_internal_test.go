@@ -6,17 +6,21 @@ package schema
 import (
 	"encoding/json/jsontext"
 	"fmt"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
 	"github.com/speakeasy-api/openapi/jsonschema/oas3"
-	soa "github.com/speakeasy-api/openapi/openapi"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/dexpace/morphic/compilers"
 	"github.com/dexpace/morphic/compilers/openapi/internal/bind"
+	"github.com/dexpace/morphic/compilers/openapi/internal/load"
+	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
-	"github.com/dexpace/morphic/compilers/openapi/internal/resolve"
+	"github.com/dexpace/morphic/engine/reader"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -34,23 +38,35 @@ var deepMergeSpec = func() string {
 	return b.String()
 }()
 
-// TestOneResource_SaysWhyAPositionMayLieInAnother pins the verdict's three
-// answers: a schema in its document's own resource, one under an $id, and one a
-// merge past the bound may hide an identifier above, which must not read as
-// none.
-func TestOneResource_SaysWhyAPositionMayLieInAnother(t *testing.T) {
+// TestSameResource_SaysWhyTwoPositionsMayLieInTwo pins the verdict's three
+// answers: two schemas in one resource, their document's or one an $id starts,
+// two an $id between puts in two, and one a merge past the bound may hide an
+// identifier above, which must not read as none.
+func TestSameResource_SaysWhyTwoPositionsMayLieInTwo(t *testing.T) {
 	t.Parallel()
 	l, diags := LoweredFor(t, deepMergeSpec)
 	openapitest.RequireNoErrorDiags(t, diags)
-	for at, want := range map[jsontext.Pointer]string{
-		"/components/schemas/Plain":        "",
-		"/components/schemas/Held/$defs/d": "starts a schema resource of its own",
-		"/components/schemas/Deep":         "may hide an identifier",
+	for _, tc := range []struct {
+		from, at jsontext.Pointer
+		want     string
+	}{
+		{"/components/schemas/Plain", "/components/schemas/Plain", ""},
+		{"/components/schemas/Held/$defs/d", "/components/schemas/Held", ""},
+		{"/components/schemas/Plain", "/components/schemas/Held/$defs/d", "puts the two in different schema resources"},
+		{"/components/schemas/Held", "/components/schemas/Plain", "puts the two in different schema resources"},
+		{"/components/schemas/Deep", "/components/schemas/Plain", "may hide an identifier"},
+		{"/components/schemas/Plain", "/components/schemas/Deep", "may hide an identifier"},
 	} {
-		why, ok := oneResource(l.Ctx, bind.Position{Pointer: at})
-		assert.Equal(t, want == "", ok, at)
-		assert.Contains(t, why, want, at)
+		why, ok := sameResource(l.Ctx, bind.Position{Pointer: tc.from}, bind.Position{Pointer: tc.at})
+		assert.Equal(t, tc.want == "", ok, "%s %s", tc.from, tc.at)
+		assert.Contains(t, why, tc.want, "%s %s", tc.from, tc.at)
 	}
+	two, diags := LoweredFor(t, openapitest.ComponentSpec("    A: {$id: 'https://x.test/a', $defs: {d: {}}}\n"+
+		"    B: {$id: 'https://x.test/b', $defs: {d: {}}}\n"))
+	openapitest.RequireNoErrorDiags(t, diags)
+	_, ok := sameResource(two.Ctx, bind.Position{Pointer: "/components/schemas/A/$defs/d"},
+		bind.Position{Pointer: "/components/schemas/B/$defs/d"})
+	assert.False(t, ok, "two resources an $id each starts are two")
 }
 
 // TestDynamicHop_HopsOnlyWhenExactlyOneAnchorSiteIsNamed pins every way the
@@ -118,33 +134,36 @@ func TestDynamicHop_HopsOnlyWhenExactlyOneAnchorSiteIsNamed(t *testing.T) {
 	}
 }
 
-// TestDynamicExpansion_ReadsNoAnchorsForContentNoDocumentPlaces pins that content
-// read at the source's coordinates with no position of its document expands
-// against nothing, the source's anchors included.
-func TestDynamicExpansion_ReadsNoAnchorsForContentNoDocumentPlaces(t *testing.T) {
+// TestResolvesAt_AnswersAsResolvePointerDoes pins that the verdict an
+// expansion asks is resolvePointer's own, at every landing the bindings of the
+// dynamic-ref and schema-identifiers cases make, and at each site and target
+// of their $refs.
+func TestResolvesAt_AnswersAsResolvePointerDoes(t *testing.T) {
 	t.Parallel()
-	l, diags := LoweredFor(t, openapitest.ComponentSpec("    Node: {$dynamicAnchor: n, type: object}\n    D: {$dynamicRef: '#n'}\n"))
-	openapitest.RequireNoErrorDiags(t, diags)
-	js, ok := l.Ctx.Doc.GetComponents().GetSchemas().Get("D")
-	require.True(t, ok)
-
-	_, _, expanded := dynamicExpansion(l.Ctx, js.GetSchema(), "/components/schemas/D")
-	require.True(t, expanded, "read in the source it expands")
-
-	foreign := l.Ctx.InScope(resolve.Scope{Foreign: true, Holder: "other.yaml"})
-	_, why, expanded := dynamicExpansion(foreign, js.GetSchema(), "/components/schemas/D")
-	assert.False(t, expanded)
-	assert.Contains(t, why, "no position of its document")
-}
-
-// TestAnchorHolds_NeedsASchemaInAnotherDocument pins the target a position of
-// another document can be: one holding a schema to hoist.
-func TestAnchorHolds_NeedsASchemaInAnotherDocument(t *testing.T) {
-	t.Parallel()
-	l := NewRawLowerer(&soa.OpenAPI{})
-	why, ok := anchorHolds(l.Ctx, "n", bind.Position{Doc: 1, Pointer: "/T"})
-	assert.False(t, ok)
-	assert.Contains(t, why, "no schema could be built")
+	asked := 0
+	for _, name := range []string{"dynamic-ref", "schema-identifiers"} {
+		data, err := os.ReadFile(filepath.Join("../../../../testdata/conformance/openapi", name+".yaml"))
+		require.NoError(t, err)
+		l, _ := LoweredFor(t, string(data))
+		table := l.Ctx.Bindings().Table()
+		positions := []bind.Position{}
+		for _, landing := range table.Landings() {
+			positions = append(positions, landing.At)
+		}
+		for _, e := range table.Entries() {
+			positions = append(positions, e.Site, e.Hop.Target)
+		}
+		for _, at := range positions {
+			there, read := lowering.InDocument(l.Ctx, at.Doc)
+			want := false
+			if read {
+				_, want = resolvePointer(there, l.Types, at.Pointer, l.Ctx.Bindings().At(at))
+			}
+			assert.Equal(t, want, resolvesAt(l.Ctx, at), "%s: %v", name, at)
+			asked++
+		}
+	}
+	assert.Positive(t, asked)
 }
 
 // TestBases_AnUnknownBaseIsNoMatch pins the three readers comparing bases where
@@ -189,4 +208,33 @@ func TestBases_AnUnknownBaseIsNoMatch(t *testing.T) {
 	assert.False(t, readsAtPosition(l.Ctx, branch("Deep")))
 	assert.True(t, fields.Alike(prov("Plain"), prov("Twin")))
 	assert.False(t, fields.Alike(prov("Plain"), prov("Deep")))
+}
+
+// TestUnresolvedRoot_SaysWhatHoldsNoSchema pins why a $recursiveRef whose
+// resource's root holds no schema is kept: at a document's root, what an
+// identifier would change, and elsewhere, where it is.
+func TestUnresolvedRoot_SaysWhatHoldsNoSchema(t *testing.T) {
+	t.Parallel()
+	assert.Contains(t, unresolvedRoot(bind.Position{}), "under an identifier of its own")
+	assert.Equal(t, `"#" names "/x", where no schema could be built`, unresolvedRoot(bind.Position{Doc: 1, Pointer: "/x"}))
+}
+
+// TestResolvesAt_ResolvesNothingInADocumentTheCompileDidNotRead pins the verdict
+// at a position of a document the bindings read and the compile does not list
+// beside the source: no reference resolves there, as resolveAt reads it.
+func TestResolvesAt_ResolvesNothingInADocumentTheCompileDidNotRead(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "ext.yaml"), []byte("X: {type: string}\n"), 0o600))
+	doc, _, err := load.Load(t.Context(), 0, compilers.Source{Path: filepath.Join(dir, "root.yaml"),
+		Data: []byte(openapitest.ComponentSpec("    A: {$ref: './ext.yaml#/X'}\n"))}, load.Options{Reader: reader.Disk{}})
+	require.NoError(t, err)
+	require.NotNil(t, doc)
+	read := LowererOver(lowering.New(0, doc, lowering.Policy{}))
+	e, ok := read.Ctx.Bindings().Table().Entry(bind.Position{Pointer: "/components/schemas/A"})
+	require.True(t, ok)
+	require.True(t, resolvesAt(read.Ctx, e.Hop.Target), "sanity: the document the compile read resolves")
+	none := *doc
+	none.Others = load.Others{}
+	assert.False(t, resolvesAt(LowererOver(lowering.New(0, &none, lowering.Policy{})).Ctx, e.Hop.Target))
 }

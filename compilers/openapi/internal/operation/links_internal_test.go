@@ -116,46 +116,62 @@ paths:
 ` + values.String()
 }
 
+// linksSpec is a document whose operation declares n query parameters and n
+// response headers, and whose body is a model of n members, and whose n links
+// each read one entry of each list: every link reads the same three lists.
+func linksSpec(n int) string {
+	var params, headers, props, links strings.Builder
+	for i := range n {
+		fmt.Fprintf(&params, "        - {name: p%d, in: query, schema: {type: string}}\n", i)
+		fmt.Fprintf(&headers, "            h%d: {schema: {type: string}}\n", i)
+		fmt.Fprintf(&props, "        m%d: {type: string}\n", i)
+		fmt.Fprintf(&links, "            L%d: {operationId: a, parameters: {p0: '$request.query.p%d', "+
+			"p1: '$response.header.h%d', p2: '$response.body#/m%d'}}\n", i, i, i, i)
+	}
+	return `openapi: 3.1.0
+info: {title: T, version: "1"}
+paths:
+  /a:
+    get:
+      operationId: a
+      parameters:
+` + params.String() + `      responses:
+        "200":
+          description: ok
+          headers:
+` + headers.String() + `          content:
+            application/json: {schema: {$ref: '#/components/schemas/M'}}
+          links:
+` + links.String() + `components:
+  schemas:
+    M:
+      type: object
+      properties:
+` + props.String()
+}
+
 // linkSpecs are the shapes whose reads each name an entry of one list n long:
 // a model's members, through one media type or n holding that model, an
-// operation's parameters, and a response's headers.
+// operation's parameters, and a response's headers, and the shape whose n links
+// each read an entry of all three.
 var linkSpecs = map[string]func(n int) string{
 	"members":  func(n int) string { return membersSpec(n, 1) },
 	"contents": func(n int) string { return membersSpec(n, n) },
 	"params":   func(n int) string { return paramsSpec(n, "$request.query.p") },
 	"headers":  func(n int) string { return paramsSpec(n, "$response.header.h") },
-}
-
-// TestLinksResolve_IndexesEachListOnce pins that resolving reads every list it
-// names through lookups, each indexed once however many values or media types
-// name entries of it: one model, one operation's parameters, and one
-// response's headers.
-func TestLinksResolve_IndexesEachListOnce(t *testing.T) {
-	t.Parallel()
-	for name, spec := range linkSpecs {
-		t.Run(name, func(t *testing.T) {
-			t.Parallel()
-			l, lowered, reg, _ := lowerBeforeLinks(t, spec(8))
-			lk := newLookups(reg)
-			require.Empty(t, lowered.Links.resolve(l.ctx, &lowered.Service, lk, servers.Reopen(lowered.Servers)))
-			require.Len(t, lowered.Service.Groups[0].Operations[0].Responses[0].Links, 1, "the link lowers")
-			want := map[string][3]int{
-				"members": {1, 1, 0}, "contents": {1, 1, 0}, "params": {0, 1, 0}, "headers": {0, 1, 1},
-			}[name]
-			assert.Equal(t, want, [3]int{len(lk.members), len(lk.params), len(lk.headers)},
-				"the models, operations and responses indexed")
-		})
-	}
+	"links":    linksSpec,
 }
 
 // resolveBytes returns the fewest bytes resolving the links of src allocates
-// in three runs over one service lowered before the measured window, the link
+// in three runs over one service lowered before the measured window, the links
 // each run lowers onto its one response taken off it again before the next.
 func resolveBytes(t *testing.T, src string) float64 {
 	t.Helper()
 	defer runtime.GOMAXPROCS(runtime.GOMAXPROCS(1))
 	l, lowered, reg, _ := lowerBeforeLinks(t, src)
 	resp := &lowered.Service.Groups[0].Operations[0].Responses[0]
+	links := len(lowered.Links.pending)
+	require.NotZero(t, links, "the source declares links")
 	fewest := math.Inf(1)
 	for range 3 {
 		resp.Links = nil
@@ -164,8 +180,8 @@ func resolveBytes(t *testing.T, src string) float64 {
 		runtime.ReadMemStats(&before)
 		diags := lowered.Links.Resolve(l.ctx, &lowered.Service, reg, srv)
 		runtime.ReadMemStats(&after)
-		require.Empty(t, diags, "every size lowers its link alike")
-		require.Len(t, resp.Links, 1)
+		require.Empty(t, diags, "every size lowers its links alike")
+		require.Len(t, resp.Links, links)
 		fewest = min(fewest, float64(after.TotalAlloc-before.TotalAlloc))
 	}
 	return fewest
@@ -174,9 +190,10 @@ func resolveBytes(t *testing.T, src string) float64 {
 // TestLinksResolve_AllocatesLinearInWhatItReads holds what resolving allocates
 // to linear growth in the lists its values read: from 2n entries to 4n it
 // grows at most 2.5 times what it grows from n to 2n. An index built again for
-// each value that reads it grows four times. Each size is averaged over four
-// spread across its doubling, so a map growing in steps reads as the growth it
-// averages to. It does not run in parallel, since the count is process-wide.
+// each value that reads it, or for each link, grows four times. Each size is
+// averaged over four spread across its doubling, so a map growing in steps
+// reads as the growth it averages to. It does not run in parallel, since the
+// count is process-wide.
 func TestLinksResolve_AllocatesLinearInWhatItReads(t *testing.T) {
 	for name, spec := range linkSpecs {
 		var bytes [3]float64

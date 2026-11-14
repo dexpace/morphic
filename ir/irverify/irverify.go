@@ -63,12 +63,27 @@ func verify(doc *ir.Document, walk walkFunc) []Violation {
 	vs = append(vs, checkRequires(doc)...)
 	vs = append(vs, checkVersion(doc)...)
 	vs = append(vs, checkDocument(doc)...)
-	vs = append(vs, runWalkChecks(doc, walk)...)
+	vs = append(vs, runWalkChecks(doc, doc, ir.DocumentPath, walk)...)
+	return sorted(vs)
+}
 
-	// Stable: two violations can share a (Code, Path) — an embedded field
-	// contributes no path segment, so two promoted fields of the same name would
-	// collide — and a stable sort leaves those in the walk's deterministic order
-	// rather than an unspecified one.
+// findingsPath is the root a violation VerifyFindings reports is placed under.
+const findingsPath = "findings"
+
+// VerifyFindings holds diags, findings a stage reports beside or on its
+// document, to what Verify holds Document.Diagnostics to, read against sources
+// as a document's findings are against its Sources: the walking checks, every
+// one, over diags alone. Each Path reads diags as findings, findings[0] being
+// diags[0], and the result is sorted as Verify sorts.
+func VerifyFindings(diags []ir.Diagnostic, sources []ir.SourceInfo) []Violation {
+	return sorted(runWalkChecks(&ir.Document{Sources: sources}, diags, findingsPath, ir.WalkValues))
+}
+
+// sorted orders vs by (Code, Path). Stable: two violations can share a (Code,
+// Path) — an embedded field contributes no path segment, so two promoted fields
+// of the same name would collide — and a stable sort leaves those in the walk's
+// deterministic order rather than an unspecified one.
+func sorted(vs []Violation) []Violation {
 	slices.SortStableFunc(vs, func(a, b Violation) int {
 		return cmp.Or(cmp.Compare(a.Code, b.Code), cmp.Compare(a.Path, b.Path))
 	})
@@ -170,37 +185,42 @@ func walkChecks() []func(*ir.Document) walkCheck {
 		checkWebhookRoutes,
 		checkCallbacks,
 		checkInteractions,
+		checkContentStreams,
 		checkLinkValues,
 		checkPrefixHeaders,
+		checkPrefixBindings,
 		checkEntityRefs,
 	}
 }
 
-// runWalkChecks runs every walking check over doc in one walk, and folds the
-// walk's truncation into one ir/walk-truncated violation.
+// runWalkChecks runs every walking check, built for doc, over root in one walk
+// from path, and folds the walk's truncation into one ir/walk-truncated
+// violation at path. root is doc itself, or findings read against its Sources.
 //
 // Truncation is a fact about the document, not about a check, so it is reported
 // once. Not reporting it left the pruning walks silently under-checking a
 // too-deep document (GitHub #55); with one walk there is one flag, and nothing a
 // check can drop.
-func runWalkChecks(doc *ir.Document, walk walkFunc) []Violation {
-	vs, truncated := walkWith(doc, walk, walkChecks())
+func runWalkChecks(doc *ir.Document, root any, path string, walk walkFunc) []Violation {
+	vs, truncated := walkWith(doc, root, path, walk, walkChecks())
 	if !truncated {
 		return vs
 	}
 	return append(vs, Violation{
 		Code:    "ir/walk-truncated",
 		Message: "document nests deeper than the bounded verifier walk; part of it went unchecked",
-		Path:    ir.DocumentPath,
+		Path:    path,
 	})
 }
 
-// walkWith builds each of checks for doc and walks doc once for all of them,
-// reading the declarations in the same walk. It returns what they report, in
-// the order given, and whether the walk was cut short.
-func walkWith(doc *ir.Document, walk walkFunc, checks []func(*ir.Document) walkCheck) ([]Violation, bool) {
+// walkWith builds each of checks for doc and walks root, from path, once for
+// all of them, reading the declarations in the same walk. It returns what they
+// report, in the order given, and whether the walk was cut short.
+func walkWith(doc *ir.Document, root any, path string, walk walkFunc,
+	checks []func(*ir.Document) walkCheck,
+) ([]Violation, bool) {
 	ids, built, visitors := walkVisitors(doc, checks)
-	decls := declarations{collected: ids, truncated: walk(doc, ir.DocumentPath, visitors...)}
+	decls := declarations{collected: ids, truncated: walk(root, path, visitors...)}
 
 	reports := make([][]Violation, len(built))
 	for i, c := range built {

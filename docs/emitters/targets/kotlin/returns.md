@@ -15,20 +15,24 @@ How each [return shape](../../operations/returns.md) lowers in Kotlin.
   responses it returns are wrapped in different envelope types.
 - **Another declared response.** With no body, `suspend fun deleteMethod(): Deleted?`.
 
-`Response` and `EnvelopedResponse` hold the raw headers, so each is a class, never a `data class`,
-whose `toString` shows a header its entry redacts as `[REDACTED]` and its body through the body's
-own ([redaction](../../refine/redaction.md#a-redacted-value)), as [Go's](../go/returns.md) do.
-`OtherResponse` and the failures keep a class's `toString`, which prints neither, and their
-exceptions carry no message.
+`Response`, `EnvelopedResponse` and `OtherResponse` hold the headers and the body as they arrived
+the way a failure does ([what a failure prints](errors.md#what-a-failure-prints)): in private
+`@Transient` fields read through `rawHeaders()` and `rawBody()`, in a class that is never a `data
+class`. The `toString` of `Response` and of `EnvelopedResponse` shows the status and the body
+through the body's own ([redaction](../../refine/redaction.md#a-redacted-value)), and no raw header,
+as [Go's](../go/returns.md#what-a-response-prints) do. `OtherResponse` and the failures keep a
+class's `toString`, which prints neither, and each exception's message is the status alone.
 
 ## `OtherResponse`
 
-Kotlin throws an exception that carries an `OtherResponse`, outside [the tree of
+Kotlin throws an exception that carries an `OtherResponse`, an `SdkException` outside [the tree of
 failures](errors.md), so `catch (e: ApiException)` still takes failures alone:
 
 ```kotlin
-class OtherResponse(val statusCode: Int, val rawHeaders: Headers, val rawBody: ByteArray,
-                    val bodyError: Throwable?, val body: Any?, val headers: Any?)
+class OtherResponse(val statusCode: Int, rawHeaders: Headers, rawBody: ByteArray,
+                    val bodyError: DecodeException?, val body: Any?, val headers: Any?)
+                    // rawHeaders() and rawBody(), as ApiFailure declares them
 
-class OtherResponseException(val response: OtherResponse) : Exception()
+class OtherResponseException(val response: OtherResponse) :
+    SdkException("status ${response.statusCode} is not what this method returns")
 ```

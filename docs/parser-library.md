@@ -1,18 +1,20 @@
 # Parser library behaviours
 
 The OpenAPI compiler reads a document through `github.com/speakeasy-api/openapi`, the parser
-library. Its decoder builds the typed model from the YAML tree, its resolver follows `$ref`s, and
-its overlay applier patches a YAML tree. This page records what the compiler depends on the library
-doing, defects included: each behaviour the compiler refuses input over or works around. Each entry
-gives the behaviour, the smallest input that shows it, the compiler code that exists because of it,
-and the test that pins it.
+library. Its decoder builds the typed model from the YAML tree, its resolver follows `$ref`s, which
+the compiler never asks it to, and its overlay package reads an overlay document and the JSONPath
+selectors in it, which the compiler applies itself. This page records what the compiler depends on
+the library doing, defects included: each behaviour the compiler refuses input over or works
+around. Each entry gives the behaviour, the smallest input that shows it, the compiler code that
+exists because of it, and the test that pins it.
 
 Not every reading the compiler shares with the library is an entry. Where the compiler reproduces
-one, such as how the resolver reads a JSON pointer, a test beside the reproduction asks the library
-the same question. The resolver oracle in `internal/harness` pins, in a golden of its own, what the
-resolver does with each reference shape it generates. The binding oracle in
-`compilers/openapi/internal/canary` holds what the compiler binds each schema `$ref` to against what
-the resolver resolves it to, and lists every disagreement with its reason. The validation oracle
+one, a test beside the reproduction asks the library the same question. The resolver oracle in
+`internal/harness` pins, in a golden of its own, what the resolver does with each reference shape
+it generates, and holds the compiler to survive every one. The binding oracle in
+`compilers/openapi/internal/canary` holds what the compiler binds each `$ref` to, a schema's and a
+reference object's, against what the resolver resolves it to, and lists every disagreement with its
+reason. The validation oracle
 beside it does the same for the library's validator, which the compiler does not call: it holds the
 validator's findings to the compiler's own table of the specification's rules
 ([`validation`](compilers/openapi.md#validation)).
@@ -45,13 +47,13 @@ To bump the library:
 
 1. Run `go test ./...`. Each red subtest of `TestLibraryBehaviour` names an entry whose behaviour
    changed, and its message says what the library did instead. A red test beside a reading the
-   compiler reproduces names a reading that changed, the resolver oracle names a reference shape
-   whose outcome moved, and the resolution pins in `internal/archtest` name a change to what in the
-   library resolves a reference.
+   compiler reproduces names a reading that changed, the binding oracle names a `$ref` whose
+   resolution moved, the resolver oracle a reference shape whose outcome moved, and the resolution
+   pins in `internal/archtest` name a change to what in the library resolves a reference.
 2. For each entry, measure the new behaviour, then rewrite the entry and its pin. Decide what the
    code it names still needs: a guard against a defect the library fixed can go, and code relying on
-   a behaviour the library dropped has to change. Settle each other red test where it stands: the
-   oracle's golden is regenerated with `-update` once the guard it questions is decided.
+   a behaviour the library dropped has to change. Settle each other red test where it stands: an
+   oracle's golden or list of disagreements is regenerated with `-update` once each is read again.
 3. Set every entry's **Verified at** to the new version.
 
 ## Resolution
@@ -79,32 +81,7 @@ components:
 - Verified at: v1.26.3
 - Pinned by: `TestLibraryBehaviour/schema-cycle-overflow`
 - Code:
-  - `load.bindSchemas` binds every schema `$ref` in the compiler, never through the resolver.
-  - `load.resolvable` hands the resolver reference objects alone, never a schema.
-
-### `resolution-unbounded`
-
-Nothing in `references.ResolveOptions` bounds a resolution's depth, work, reads or size, and the
-resolver never checks its context itself: handed a cancelled one, it resolves as usual. The
-context reaches only the HTTP requests it makes, so a client that honours it can stop there; a
-`VirtualFS` read takes none. It reads every document a chain of external references names, until
-the chain ends or a read fails, and it reads each through the `VirtualFS` or `HTTPClient` its
-options give. Those two reads are the only place the compiler can bound a resolution while it
-runs.
-
-```yaml
-# d0.yaml, d1.yaml, ... each naming the next
-x: {$ref: 'd1.yaml#/x'}
-```
-
-- Verified at: v1.26.3
-- Pinned by: `TestLibraryBehaviour/resolution-unbounded`
-- Code:
-  - `load.externalReads.once` charges each document's first read to the document budget, and
-    refuses a read past it.
-  - `openapi.Limits.MaxExternalDocuments` is that budget.
-  - `load.external.prepare` asks the context before handing the resolver a document it read, so a
-    screen of it a cancel cut short admits nothing.
+  - `load.bindAll` binds every `$ref` in the compiler, never through the resolver.
 
 ### `defs-order`
 
@@ -147,7 +124,7 @@ x-lib:
 - Verified at: v1.26.3
 - Pinned by: `TestLibraryBehaviour/mapping-unresolved`
 - Code:
-  - `bind.finder.mappingsOf` notes each mapping value that can name a position, to be bound.
+  - `bind.finder.mappingsOf` notes each mapping value naming no schema component, to be bound.
 
 ### `reference-object-cycle`
 
@@ -155,11 +132,11 @@ A cycle of `$ref`s among reference objects returns `circular reference detected`
 parameters, responses, request bodies, headers, path items, callbacks, examples, links and
 security schemes, in cycles of one to three components, and for a path item, webhook or response
 naming itself by position. A `$ref` into the reference object it is reached through, such as a path
-item naming a key beneath itself, returns `unresolved reference`. Neither hangs nor overflows, so
-the compile leaves reference objects to the resolver and reports each failure at the reference, as
-an unresolved reference. An earlier resolver held a reference's lock while following it, so a chain
-re-entering one deadlocked, and it overflowed its stack on a cycle spelled by position; the
-pre-parse refusals written against it are retired (#574).
+item naming a key beneath itself, returns `unresolved reference`. Neither hangs nor overflows, but
+the error names the member the resolver met first, and a member met after it resolves to nothing
+with no error, so what is reported turns on the order references are resolved in. The compiler
+binds reference objects itself, as it binds schema `$ref`s, and reports such a loop once, at its
+least member, as a loop of schema `$ref`s is.
 
 ```yaml
 components:
@@ -171,30 +148,8 @@ components:
 - Verified at: v1.26.3
 - Pinned by: `TestLibraryBehaviour/reference-object-cycle`
 - Code:
-  - `load.resolvable` hands the resolver every reference object, cycles included.
-
-### `reference-chain-walk`
-
-A reference object's object and root node are its chain's end, though its resolution record names
-the next hop. Asked of a reference, `GetObject` and `GetRootNode` walk every hop from it, checking
-each against the hops walked before with a linear scan and keeping them in a slice past the first
-eight. So one answer costs the square of the chain's length in time, and asking each reference of
-a chain costs the cube, though every answer is the same end.
-
-```yaml
-components:
-  parameters:
-    P0: {$ref: '#/components/parameters/P1'}
-    P1: {$ref: '#/components/parameters/P2'}
-    P2: {name: q, in: query}
-```
-
-- Verified at: v1.26.3
-- Pinned by: `TestLibraryBehaviour/reference-chain-walk`
-- Code:
-  - `load.chain.end` is read once a chain, off the object its last hop reached.
-  - `load.chainEnds` answers the reached-object check from the records a resolution keeps,
-    remembering ends across chains past their hop bound.
+  - `load.bindAll` binds every reference object in the compiler, never through the resolver.
+  - `bind.objects.closeLoop` records a loop of reference objects, to be reported once.
 
 ### `trailing-empty-token`
 
@@ -202,8 +157,9 @@ Through raw YAML, a pointer whose last token is empty names the node the walk ha
 member keyed `""` as RFC 6901 reads it: `jsonpointer.GetTarget` on a `*yaml.Node` returns the node
 before the token, and for a lone `/` the root. The resolver reads raw YAML that way wherever the
 model holds none, an extension's value or another document, so a reference object spelling
-`#/x-params/q/` resolves to `q`. The compiler reads every pointer as RFC 6901 does, so it places
-what a reference object resolved to by the node the chain reached rather than by its pointer.
+`#/x-params/q/` resolves to `q`, the node its own spelling without the `/` names, and one pointer
+names two things by who reads it. The compiler binds reference objects itself and reads every
+pointer as RFC 6901 does, so `#/x-params/q/` names the member of `q` keyed `""`.
 
 ```yaml
 components:
@@ -216,10 +172,50 @@ x-params:
 - Verified at: v1.26.3
 - Pinned by: `TestLibraryBehaviour/trailing-empty-token`
 - Code:
-  - `bind.docs.through` places a reference object's end at the first position on its pointer's read
-    that holds the node the chain reached, which `bind.ReferenceEnd` carries.
-  - `load.resolution.ends` hands the binder the node each chain reached, in whichever document writes
-    the reference.
+  - `load.bindAll` binds every reference object in the compiler, never through the resolver.
+  - `bind.objects.readRef` reads a reference object's pointer as RFC 6901 does.
+
+### `merge-list-pointer`
+
+Through raw YAML, a pointer walk reads past a `<<` naming one mapping, but passes over one naming a
+list of mappings: `jsonpointer.GetTarget` on a `*yaml.Node` finds no key a list merges in, though
+the decoder merges it ([`merge-keys`](#merge-keys)), so a reference object whose pointer reads
+through one into an extension's value fails as naming nothing (#1578). The compiler binds reference
+objects itself and reads every mapping as the decoder does, merges included.
+
+```yaml
+components:
+  parameters:
+    P: {$ref: '#/x-params/q'}   # not found
+x-b: &b {q: {name: q, in: query}}
+x-params:
+  <<: [*b]
+```
+
+- Verified at: v1.26.3
+- Pinned by: `TestLibraryBehaviour/merge-list-pointer`
+- Code:
+  - `bind.objects.readRef` reads a reference object's pointer as the decoder reads a mapping.
+
+### `pointer-token-range`
+
+A pointer token holding a character above U+FFFF is refused: `jsonpointer` checks each token
+against a pattern whose ranges stop at U+FFFF, so a reference object spelling one fails as no valid
+token (#516). RFC 6901 admits any character but `/` and `~` unescaped, and the compiler, which binds
+reference objects itself, reads such a token as the member it spells.
+
+```yaml
+components:
+  parameters:
+    P: {$ref: '#/x-params/😀'}   # jsonpointer part must be a valid token
+x-params:
+  "😀": {name: q, in: query}
+```
+
+- Verified at: v1.26.3
+- Pinned by: `TestLibraryBehaviour/pointer-token-range`
+- Code:
+  - `bind.objects.readRef` admits any character in a token.
 
 ### `media-type-references`
 
@@ -227,12 +223,9 @@ The library models neither OpenAPI 3.2's `components/mediaTypes` nor a content e
 Reference Object: the Components Object has no field for the section, a content map holds a Media
 Type Object whatever its entry writes, so a `$ref` there decodes as an undefined key, and no walk
 yields a reference at either. Its generic reference over a Media Type Object, the one it names no
-alias for, builds from such an entry and resolves as any reference does: through raw YAML wherever
-the model holds nothing, as at `components/mediaTypes`, but not at a position where the model holds
-its own Media Type Object, which the resolver cannot take for a reference, unless its cache of
-referenced objects, which it asks before reading the model, holds one at that key. Its walk panics on
-that reference, a type it has no handler for, and its marshaller is told of its own kinds' core
-models when it is loaded.
+alias for, decodes from such an entry as a reference, as any wrapper does. Its walk panics on that
+reference, a type it has no handler for, and its marshaller is told of its own kinds' core models
+when it is loaded, and of no other.
 
 ```yaml
 paths:
@@ -242,8 +235,7 @@ paths:
         "200":
           description: ok
           content:
-            application/json: {$ref: '#/components/mediaTypes/M'}                          # resolves
-            text/plain: {$ref: '#/paths/~1a/get/responses/200/content/application~1xml'}  # does not
+            application/json: {$ref: '#/components/mediaTypes/M'}   # an undefined key $ref
             application/xml: {schema: {type: string}}
 components:
   mediaTypes:
@@ -258,8 +250,6 @@ components:
     `$ref`, so every pass of the load phase walks them as the source's own reference objects.
   - `load.modelItem` hands a walk a model the library's walk does not know, without asking the
     library for a match it would panic building.
-  - `load.resolution.holdMediaType` holds each Media Type Object of the source where the resolver
-    looks before the model.
   - `load.registerMediaTypeReference` tells the marshaller of the reference's core model, as the
     library tells it of its own kinds'.
 
@@ -410,24 +400,24 @@ components:
 
 ### `recoverable-panic`
 
-Decoding and resolution panic on some documents the YAML parser accepts, on the goroutine that
-called them, where the caller's `recover` reaches the panic, unlike
-[`tagged-mapping-panic`](#tagged-mapping-panic). `soa.Unmarshal` panics with `unknown node kind` on
-a document of nothing but whitespace, before it decodes a node, and resolving a reference to a
-mapping whose `$ref` has no value dereferences nil.
+Decoding panics on some documents the YAML parser accepts, on the goroutine that called it, where
+the caller's `recover` reaches the panic, unlike [`tagged-mapping-panic`](#tagged-mapping-panic).
+`soa.Unmarshal` panics with `unknown node kind` on a document of nothing but whitespace, before it
+decodes a node, and decoding a mapping whose `$ref` has no value as a reference object, such as raw
+YAML a reference lands on, dereferences nil.
 
 ```yaml
 components:
   responses:
     A: {$ref: '#/B'}
-B: {$ref}
+B: {$ref}   # decoded as a response, which A names
 ```
 
 - Verified at: v1.26.3
 - Pinned by: `TestLibraryBehaviour/recoverable-panic`
 - Code:
-  - `load.runRecovered` turns a panic in resolution, in a walk, or in building the fields beside a
-    path item's `$ref` into an error naming what was running.
+  - `load.runRecovered` turns a panic in decoding an object a reference lands on, in a walk, or in
+    building the fields beside a path item's `$ref` into an error naming what was running.
   - `load.buildRecovered` turns a panic in decoding into an `ErrParse` error.
   - `bind/typed.Builder.decodeRecovered` turns a panic in decoding raw YAML as a schema into a
     failure to build it.
@@ -448,9 +438,7 @@ paths:
 - Verified at: v1.26.3
 - Pinned by: `TestLibraryBehaviour/anchored-entry-dropped`
 - Code:
-  - `load.readyForModel` clears every anchor's name before the source is decoded.
-  - `load.resolveExternal` rebuilds the model when a document the resolver decoded itself holds an
-    anchor.
+  - `load.readyForModel` clears every anchor's name before a document is decoded.
 
 ### `embedded-map-keys`
 
@@ -498,11 +486,10 @@ security:
 A key written twice is read as its last occurrence through the model, which skips the earlier ones
 and warns (`validation-duplicate-key`). Through raw YAML it is read as its first: by
 `jsonpointer.GetTarget` on a `*yaml.Node`, and by the model's own fallback to raw YAML for what it
-does not hold, such as an extension's value. The compiler's schema binder reads every mapping as the
-model does, raw YAML included, so a schema `$ref` into raw YAML lands on the last copy where the
-resolver lands on the first (`duplicate-key` in the binding oracle's disagreements). A reference
-object the resolver resolves to a first copy has its content read at no position, so each schema
-`$ref` in it is reported unresolved, saying so.
+does not hold, such as an extension's value. The compiler binds every `$ref` itself and reads every
+mapping as the model does, raw YAML included, so a `$ref` into raw YAML, a schema's or a reference
+object's, lands on the last copy where the resolver lands on the first (`duplicate-key` in the
+binding oracle's disagreements), and one pointer names one position whoever reads it.
 
 ```yaml
 components:
@@ -516,7 +503,7 @@ components:
 - Code:
   - `nodeview.flatten` reads a mapping's repeated key as the model does.
   - `nodeview.Child` reads one at the copy the model does, a merge source's at its first.
-  - `load.mappingKeys` records each key's first pair, as a raw read finds it.
+  - `load.bindAll` binds every reference object in the compiler, never through the resolver.
 
 ### `merge-keys`
 
@@ -544,6 +531,8 @@ components:
   - `nodeview.View.mergeSource` reads each source's pairs as a merge reads them.
   - `nodeview.Child` looks one key up through the merges by the same order and copies.
   - `oas.CheckFormat` reports a `<<` naming no mapping.
+  - `nodeview.MergesNothing` finds a `<<` naming no mapping wherever a mapping's merges reach.
+  - `auth.namesAnOption` reads a requirement merging nothing as no option, not the empty one.
 
 ### `non-scalar-key`
 
@@ -629,10 +618,11 @@ The model decodes a string from a scalar the YAML decoder takes for one: a strin
 boolean, as its text. A `!!timestamp`, which any plain date is
 ([`scalar-resolution`](#scalar-resolution)), a `!!merge`, which a plain `<<` is wherever it stands,
 a `!!binary` and a local tag are none of these. A string field so written reads as empty, and a
-Reference Object's `$ref` as no reference, so the load phase meets none, and the model holds no
-`summary` or `description` beside it either. The validator, which the compiler does not call,
-reports a type mismatch at each; the compiler's table reads any scalar as a string and reports
-neither. The core keeps the node, and what is written beside it.
+Reference Object's `$ref` as no reference, its wrapper holding no object, and the model holds no
+`summary` or `description` beside it either. The compiler binds reference objects itself, reading
+the `$ref` as its text, so the reference is followed all the same. The validator, which the compiler
+does not call, reports a type mismatch at each; the compiler's table reads any scalar as a string
+and reports neither. The core keeps the node, and what is written beside it.
 
 YAML 1.2, which OpenAPI recommends, reads a plain date and a plain `<<` as strings, as it reads any
 scalar under the non-specific `!`, so the compiler tags each such date and `<<` a string in the
@@ -652,7 +642,6 @@ components:
 - Code:
   - `load.mistagged` finds a plain date or `<<` value, which `load.readyForModel` tags a string.
   - `nodeview.Strings` reads a list's items by their text.
-  - `auth.unresolvableSchemeDiags` reads a broken `$ref` from its node.
   - `auth.docsBeside` reads what is written beside it from the core.
 
 ### `unmodeled-keywords`
@@ -771,24 +760,49 @@ components:
 
 ## Overlays
 
-### `overlay-alias-clone`
+### `overlay-jsonpath-dialect`
 
-Applying an overlay clones each update into what its target selects, and the clone follows aliases
-with no record of where it has been. So an update whose anchor names its own ancestor overflows the
-stack, and one whose aliases multiply expands until memory runs out. A cloned alias names a copy of
-its target outside the tree, one in no `Content` list, rather than the anchored node the clone
-placed.
+`Overlay.NewPath`, the overlay package's reader of a selector, reads one as RFC 9535 only for an
+overlay declaring Overlay 1.1 or later, or one whose `x-speakeasy-jsonpath` extension says
+`rfc9535`. It reads any other in an older dialect of its own, in which an RFC 9535 filter does not
+parse, though both versions of the Overlay Specification make every selector RFC 9535. With the
+overlay's `JSONPathVersion` field set to `rfc9535` it reads every selector as RFC 9535, the
+property-name operator `~` included, which RFC 9535 does not have.
 
 ```yaml
+overlay: 1.0.0
 actions:
-  - target: $.info
-    update: {x-a: &a [*a]}
+  - target: '$.paths.*[?@.operationId=="putBlob"]'   # does not parse
 ```
 
 - Verified at: v1.26.3
-- Pinned by: `TestLibraryBehaviour/overlay-alias-clone`
+- Pinned by: `TestLibraryBehaviour/overlay-jsonpath-dialect`
 - Code:
-  - `scan.Aliases` refuses an overlay document whose aliases recurse or expand past its size.
-  - `load.overlayRefusals` runs it before the overlay is applied.
-  - `overlay.repairGrafts` replaces each alias the application leaves naming a copy with what it
-    stands for.
+  - `overlay.read` sets every overlay it reads to RFC 9535, whatever it declares.
+  - `overlay.scanSelector` finds a `~`, which `overlay.readSelector` refuses.
+
+### `jsonpath-rfc9535`
+
+The RFC 9535 parser the overlay package reads selectors with parts from RFC 9535. It refuses a
+member name `true`, `false` or `null` written after a dot, and any `\u` escape in a string, both of
+which RFC 9535 reads. It reads the escape `\r` as a line feed, so a selector naming a member by one
+selects another, and it accepts a control character written unescaped in a string, which RFC 9535
+refuses. Its `match()` and `search()` answer true for a node lacking the value they test, where RFC
+9535 answers false, so a filter calling one selects every such node. Its comparisons read a scalar
+by its YAML tag: a plain date, which the compiler reads as the string it spells, equals no string
+and equals every other plain date, and `0x10` compares as 0. Two objects compare equal only with
+their members in the same order.
+
+```yaml
+actions:
+  - target: "$.paths.*[?match(@.summary, 'Pets.*')]"   # selects every operation with no summary too
+  - target: "$.paths.*[?@['x-limit'] == 0]"           # selects x-limit: 0x10 too
+```
+
+- Verified at: v1.26.3
+- Pinned by: `TestLibraryBehaviour/jsonpath-rfc9535`
+- Code:
+  - `overlay.scanSelector` finds each of these in a selector's text, bar the comparisons, which no
+    text shows.
+  - `overlay.readSelector` refuses each it finds, before any action applies. A comparison applies
+    as the library reads it (#1835).

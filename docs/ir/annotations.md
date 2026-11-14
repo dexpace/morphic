@@ -75,8 +75,13 @@ replacement names an entity; it is no use of it, so neither `ir.TypeEdges` nor u
 
 No format states a replacement in a keyword: Smithy, TypeSpec and GraphQL carry a deprecation's
 message and Protobuf only its flag, so a source that names a replacement does so in that prose or
-in a vendor extension. A compiler fills the field only from what its policy maps
-([promotion](./unmodeled.md#promotion)); a name in prose stays in `Message`.
+in a vendor extension. A compiler fills the field from what its policy maps
+([promotion](./unmodeled.md#promotion)), or, under a policy reading prose, from a name the message
+gives in a form the document's own entities resolve, as the OpenAPI compiler reads an operation's
+route or a code span naming a sibling
+([`replacement-inference`](../compilers/openapi.md#replacement-inference)), the node marked
+inferred. `Message` keeps the prose either way, so a consumer setting the guess aside loses
+nothing.
 
 ## References in prose
 
@@ -176,8 +181,11 @@ description and its `Refs` counting as one ([references in prose](#references-in
 single value that one position may restate for another — a `description` beside the `$ref` says what
 *this* input is, replacing the target's — so the two can never both be true at once, and any
 consumer reading both would need this precedence rule anyway. Applying it once, in the compiler, is
-what keeps every carrier alike. Redaction is the one with a single side: a position can ask for it
-and none can withdraw it, so a use holds it where either position asks.
+what keeps every carrier alike. Redaction, deprecation and visibility have a single side: a position
+can state each and none can withdraw one another states, so a use holds it where either position
+does. That is JSON Schema's own reading of `deprecated`, `readOnly` and `writeOnly`, each in force
+where any occurrence applying to a location is true and absent where one is false, and it is the
+reading a [decorator](#decorators)'s fold makes too, so the two spellings of one use agree.
 
 An OpenAPI Reference Object's own `summary` and `description` fold onto the use site the same way,
 by the OpenAPI compiler's rule

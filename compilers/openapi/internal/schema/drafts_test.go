@@ -92,22 +92,38 @@ func TestPreserveUnknownKeywords_ReadsWhatADraftSpellsOtherwise(t *testing.T) {
 	assert.True(t, openapitest.HasDiagCodeAt(diags, diag.DegradedConstruct, "/components/schemas/D/id"))
 }
 
-// TestRefSite_AKeywordBesideADraftsRefIsWarnedOf pins the fields beside the
-// $ref of a schema read in a draft that ignores them: each the rows define,
-// OpenAPI's `example` among them, draws a later-version warning at its key and
-// is applied as 2020-12 applies it. Those whose reading applying them leaves
-// alike draw none: `$schema`, `definitions`, `$comment`, and what the rows
-// define nothing for, `$defs` in draft 7, an unknown keyword and an extension.
-func TestRefSite_AKeywordBesideADraftsRefIsWarnedOf(t *testing.T) {
+// TestLower_PrefixItemsBesideAListedTupleIsKept pins a draft's schema writing
+// its own tuple, a list of items, and 2020-12's prefixItems beside it: the
+// list is the tuple, and prefixItems is kept verbatim under degraded_lowering
+// with one info at it, as no text makes the two one tuple. Beside one schema
+// of items, which the draft reads as no tuple, prefixItems is the tuple.
+func TestLower_PrefixItemsBesideAListedTupleIsKept(t *testing.T) {
 	t.Parallel()
-	doc, diags := parseFull(t, openapitest.ComponentSpec("    B: {type: string}\n"+
-		"    V: {"+d4+", $ref: '#/components/schemas/B', description: d, x-note: n}\n"+
-		"    W: {$schema: 'http://json-schema.org/draft-07/schema#', $ref: '#/components/schemas/W/definitions/C', example: e,\n"+
-		"      definitions: {C: {type: string}}, $comment: c, $defs: {}, markdownDescription: m, x-note: n}\n"))
-	openapitest.RequireNoErrorDiags(t, diags)
-	assert.Equal(t, []jsontext.Pointer{"/components/schemas/V/description", "/components/schemas/W/example"},
-		openapitest.PointersOf(diags, diag.LaterVersionConstruct))
-	assert.Equal(t, "d", doc.Types[componentID("V")].Common().Docs.Description)
+	const d7 = "$schema: 'http://json-schema.org/draft-07/schema#'"
+	doc, diags := parseFull(t, openapitest.ComponentSpec(
+		"    Both: {"+d7+", type: array, items: [{type: string}], prefixItems: [{type: integer}]}\n"+
+			"    One: {"+d7+", type: array, items: {}, prefixItems: [{type: integer}]}\n"))
+	both, ok := doc.Types[componentID("Both")].(*ir.Tuple)
+	require.True(t, ok)
+	require.Len(t, both.Elems, 1)
+	assert.Equal(t, ir.TypeID("t/prim/string"), both.Elems[0].Target, "the list is the tuple")
+	kept, ok := both.Unmodeled["openapi:prefixItems"]
+	require.True(t, ok)
+	assert.Equal(t, ir.ReasonDegradedLowering, kept.Reason)
+	assert.JSONEq(t, `[{"type": "integer"}]`, string(kept.Value))
+	var at []jsontext.Pointer
+	for _, d := range diags {
+		if d.Code == diag.DegradedConstruct && d.Provenance.Pointer == "/components/schemas/Both/prefixItems" {
+			at = append(at, d.Provenance.Pointer)
+			assert.Equal(t, "prefixItems is kept verbatim: this schema's dialect reads its items list as the tuple", d.Message)
+		}
+	}
+	assert.Len(t, at, 1)
+	one, ok := doc.Types[componentID("One")].(*ir.Tuple)
+	require.True(t, ok)
+	require.Len(t, one.Elems, 1)
+	assert.Equal(t, ir.TypeID("t/prim/integer"), one.Elems[0].Target)
+	assert.NotContains(t, one.Unmodeled, "openapi:prefixItems")
 }
 
 // TestUnion_ABranchWritingAListOfItemsRestatesNothing pins that a union branch

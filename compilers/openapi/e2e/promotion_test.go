@@ -8,6 +8,8 @@
 package e2e_test // external test package — exercises only the public API
 
 import (
+	"maps"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -386,9 +388,9 @@ components:
 
 // defaultKeySpec is a document one default source fills one target of: the key,
 // writing value at its member if it has one, sits on a deprecated operation, on
-// an undeprecated one and on an enum, since the targets live on those carriers
-// and a key reaching only the wrong one would read as a mapping that fills
-// nothing.
+// an undeprecated one, on an enum and on a server, since the targets live on
+// those carriers and a key reaching only the wrong one would read as a mapping
+// that fills nothing.
 func defaultKeySpec(src openapi.ExtensionSource, value string) string {
 	written := "      " + src.Key + ": " + value + "\n"
 	if src.Member != "" {
@@ -396,7 +398,9 @@ func defaultKeySpec(src openapi.ExtensionSource, value string) string {
 	}
 	return `openapi: 3.1.0
 info: {title: T, version: "1"}
-paths:
+servers:
+  - url: https://x.example
+` + written[2:] + `paths:
   /x:
     get:
       operationId: getX
@@ -449,6 +453,9 @@ var defaultTargetRead = map[openapi.ExtensionTarget]struct {
 	openapi.TargetRedaction: {"true", func(doc *ir.Document, _, _ ir.Operation) string {
 		return filledWhen(doc.Types[componentID("E")].Common().Sensitive)
 	}},
+	openapi.TargetServerName: {"filled", func(doc *ir.Document, _, _ ir.Operation) string {
+		return doc.Servers["server/openapi/servers/0"].Name.Source
+	}},
 }
 
 // TestPromotion_DefaultTargetsAreTheOnesApplied holds the exported mapping to
@@ -465,6 +472,9 @@ func TestPromotion_DefaultTargetsAreTheOnesApplied(t *testing.T) {
 	require.NotEmpty(t, defaults, "an empty mapping would make this vacuous")
 
 	for target, sources := range defaults {
+		if strings.HasPrefix(string(target), "pagination.") {
+			continue // no one key fills a pagination; the extension-pagination case reads each
+		}
 		read, known := defaultTargetRead[target]
 		require.True(t, known, "%s is a default target this test reads no field for", target)
 		for _, src := range sources {
@@ -677,4 +687,91 @@ components:
 	assert.Empty(t, getGone.Deprecation.ReplacedBy, "a list naming one entity that does not exist fills nothing")
 	assert.Equal(t, []ir.Severity{ir.SeverityInfo}, diagsAt(diags, "openapi/degraded-construct", "/paths/~1gone/get/x-replaced-by"))
 	assert.Contains(t, getGone.Unmodeled, "openapi:x-replaced-by", "the extension survives its promotion")
+}
+
+// TestPromotion_AnOwnedPrefixIsJudgedAtEveryNode pins the owned-prefix report
+// to every node keeping an extension, the document's own among them: its root,
+// info, contact, license, tags and components keep theirs in the Document's
+// Unmodeled, which is merged last, so a judge run before it would miss them.
+func TestPromotion_AnOwnedPrefixIsJudgedAtEveryNode(t *testing.T) {
+	t.Parallel()
+	const spec = `openapi: 3.1.0
+x-acme-root: 1
+info:
+  title: T
+  version: "1"
+  x-acme-info: 1
+  contact: {name: c, x-acme-contact: 1}
+  license: {name: MIT, x-acme-license: 1}
+tags:
+  - {name: T, x-acme-tag: 1}
+paths:
+  /x:
+    get:
+      operationId: getX
+      x-acme-op: 1
+      responses: {"200": {description: ok}}
+components:
+  x-acme-components: 1
+  schemas:
+    S: {type: string, x-acme-schema: 1}
+`
+	_, diags, err := openapi.New().Compile(t.Context(),
+		[]compilers.Source{{Path: "spec.yaml", Data: []byte(spec)}},
+		compilers.Options{FormatOptions: openapi.Options{Promotions: openapi.ExtensionPromotions{
+			Prefixes: []string{"x-acme-"},
+		}}})
+	require.NoError(t, err)
+	for _, pointer := range []string{
+		"/x-acme-root", "/info/x-acme-info", "/info/contact/x-acme-contact", "/info/license/x-acme-license",
+		"/tags/0/x-acme-tag", "/paths/~1x/get/x-acme-op", "/components/x-acme-components",
+		"/components/schemas/S/x-acme-schema",
+	} {
+		assert.Equal(t, []ir.Severity{ir.SeverityWarning}, diagsAt(diags, "openapi/unread-extension", pointer), pointer)
+	}
+}
+
+// TestPromotion_AnOwnedPrefixCountsEveryGroupingKeyRead pins the owned-prefix
+// report to the keys grouping reads, set as a caller holding only text sets
+// them: under grouping=extension and its defaults, the aliases key beside the
+// grouping key is read, so owning their prefix reports neither, while a key
+// under it nothing reads still is. Grouped by tags, nothing reads either key.
+func TestPromotion_AnOwnedPrefixCountsEveryGroupingKeyRead(t *testing.T) {
+	t.Parallel()
+	const spec = `openapi: 3.1.0
+info: {title: T, version: "1"}
+paths:
+  /x:
+    get:
+      operationId: getX
+      x-forge-group: a
+      x-forge-aliases: [{x-forge-group: b.c}]
+      x-forge-alises: [{x-forge-group: d}]
+      responses: {"200": {description: ok}}
+`
+	unread := func(grouping map[string]string) []string {
+		settings := map[string]string{"promotion-prefixes": "x-forge"}
+		maps.Copy(settings, grouping)
+		opts, err := openapi.New().DecodeOptions(compilers.OptionSet{Settings: settings})
+		require.NoError(t, err)
+		_, diags, err := openapi.New().Compile(t.Context(),
+			[]compilers.Source{{Path: "spec.yaml", Data: []byte(spec)}}, compilers.Options{FormatOptions: opts})
+		require.NoError(t, err)
+		var pointers []string
+		for _, d := range diags {
+			if d.Code == "openapi/unread-extension" {
+				pointers = append(pointers, string(d.Provenance.Pointer))
+			}
+		}
+		return pointers
+	}
+
+	byExtension := unread(map[string]string{"grouping": "extension"})
+	assert.Equal(t, []string{"/paths/~1x/get/x-forge-alises", "/paths/~1x/get/x-forge-group"}, byExtension,
+		"the default reads x-fern-sdk-group-name, so x-forge-group is unread, and x-forge-aliases beside it is read")
+	custom := unread(map[string]string{"grouping": "extension", "grouping-key": "x-forge-group",
+		"grouping-lists": "segments", "grouping-aliases": "x-forge-aliases"})
+	assert.Equal(t, []string{"/paths/~1x/get/x-forge-alises"}, custom)
+	assert.Equal(t, []string{"/paths/~1x/get/x-forge-aliases", "/paths/~1x/get/x-forge-alises",
+		"/paths/~1x/get/x-forge-group"}, unread(map[string]string{"grouping": "tags"}))
 }

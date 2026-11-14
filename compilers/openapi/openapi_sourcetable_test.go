@@ -118,7 +118,7 @@ x-a: &a [*a]
 		// The same shape internal/load/overlay_refusals_internal_test.go pins at
 		// the loader's level (TestLoad_AnOverlayAnchorThatContainsItselfIsRefused):
 		// an alias inside the update names one of its own ancestors, which gives
-		// the overlay library's clone no base case.
+		// the overlay's copy of it no base case.
 		const anchorCycle = "overlay: 1.0.0\ninfo: {title: o, version: \"1\"}\n" +
 			"actions:\n  - target: $.components.schemas.Pet.properties\n    update: {p: &a [*a]}\n"
 		sources := sourceTableSources

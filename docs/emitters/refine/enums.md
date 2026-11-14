@@ -2,19 +2,53 @@
 
 `TypePlan.Open` tells the refiner whether extensibility must survive, holding every enum
 `Enum.Closed` declares open and each the plan's policy opens ([plan
-policy](../plan/policy.md#an-enum-a-client-reads-is-open)), and each target lowers an open, a closed
-and a flags enum in forms of its own ([Go](../targets/go/types.md#enums),
+policy](../plan/policy.md#an-enum-keeps-a-value-it-does-not-list)), and each target lowers an open,
+a closed and a flags enum in forms of its own ([Go](../targets/go/types.md#enums),
 [Kotlin](../targets/kotlin/types.md#enums)). Numeric enums render `Value` through the Values channel
 ([values](values.md)). Duplicate member values (`allow_alias`) must not be rejected; slice order is
 the canonical name for serialization. The open/closed bit, value type, member values, and flags bit
 all survived from the IR to this point — Kiota's string-only-closed-enum mistake is designed out
 because the fact reached refine.
 
-An enum `TypePlan.Open` marks ([plan policy](../plan/policy.md#an-enum-a-client-reads-is-open))
-lowers to the target's open form whatever `Closed` says, so a response carrying a member a later
-version added decodes and keeps its value. Its constants still name only the members the document
-lists, which is all `Closed` asks of what the SDK sends. A `Flags` enum keeps its flags form either
-way, its value a set of bits, and an open one keeps a bit no member names.
+An enum `TypePlan.Open` marks ([plan
+policy](../plan/policy.md#an-enum-keeps-a-value-it-does-not-list)) lowers to the target's open form
+whatever `Closed` says, so a response carrying a member a later version added decodes and keeps its
+value. Its constants still name only the members the document lists, which is all `Closed` asks of
+what the SDK sends. A `Flags` enum keeps its flags form either way, its value a set of bits, and an
+open one keeps a bit no member names.
+
+## An enum with no members
+
+A closed enum with no members admits no value ([the empty enum](../../ir/enums.md#the-empty-enum)),
+and `OpenEnums` leaves it closed whatever its `Flags` ([plan
+policy](../plan/policy.md#an-enum-keeps-a-value-it-does-not-list)): opened, a position the document
+says accepts nothing would keep every value of its `ValueType`, which is the widening the IR
+forbids. A flags one admits no combination either, the empty one, 0, included: the IR states the
+empty value space for every closed enum with no members and excepts no `Flags` one. Each target
+lowers it in its closed form, a type with no constant whose decoder refuses every value with the
+coded error a closed enum gives a value it does not list ([Go](../targets/go/types.md#enums),
+[Kotlin](../targets/kotlin/types.md#enums)), and whose encoder refuses every value alike wherever
+the target's type has a value to hand it, as Go's has its zero value and any conversion. So an
+optional member of that type decodes only where it is absent and is sent only unset, a nullable one
+only as `null`, and a model requiring one decodes and encodes no value, which is what the document
+states. It has no example, and a model requiring it none ([one set of
+examples](../docs-and-mock.md#one-set-of-examples)). The rule reads the member list, which adding a
+member changes: an enum gaining its first member takes the open form, and with it a meaning, some
+value, that it did not have. The golden spec declares none admitting nothing. T-36 holds the rule.
+
+An anonymous enum with no members that every reference to it reaches as `Nullable` admits `null` and
+nothing else, which is how an enumeration of `null` alone, a constant of `null`, a type of `null`
+alone or a union of nothing else lowers ([the empty enum](../../ir/enums.md#the-empty-enum)). It
+declares no type: one with no constant would give a caller nothing to name or hold, since the one
+value it is ever handed is the `null` its reference already says it admits. Each use renders in
+place as the target's type admitting `null` alone, Kotlin's `Nothing?` and Go's runtime `Null`
+([Go](../targets/go/types.md#enums), [Kotlin](../targets/kotlin/types.md#enums)), presence boxed as
+for any member: required, it decodes `null` alone and writes `null`; optional, it decodes where
+absent too and is left out unset. An enum with no members that some reference reaches without
+`Nullable`, or that a source names, declares its closed form as above. The golden spec declares 174
+anonymous enums of `null` alone, each reached only through nullable references, a deletion's
+`result` among them ([enum-const](../../compilers/openapi.md#enum-const); spec @86556f6f), and none
+named. T-36 holds the rule.
 
 ## A member on the wire
 
@@ -29,9 +63,9 @@ compares, whatever `format` says: numbers by value, exactly unless a row's width
 differing only in case are two. Members holding one value, as `allow_alias` declares and `0.1`
 beside `0.10` do, are one: a value matching any of their wire forms decodes as the first of them,
 and each writes the first's, since slice order names the canonical one for serialization. Where text
-carries a member, in a parameter, a header or a form field, it travels as its wire form's text, a
-string's characters or a number's or a boolean's literal, never as a name the target gives the
-member, and is read back by the same comparison.
+carries a member, in a parameter, a header or a form field, it travels as its wire form's text
+([values as text](text.md)), never as a name the target gives the member, and is read back by the
+same comparison.
 
 A target whose enum form holds only some value types lowers the others over the wire form
 ([Go](../targets/go/types.md#enums), [Kotlin](../targets/kotlin/types.md#enums)), never over a form

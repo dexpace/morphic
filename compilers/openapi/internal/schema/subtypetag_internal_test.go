@@ -53,90 +53,13 @@ func TestSubtypeTagReading_ReportsWhatItCannotSettle(t *testing.T) {
 	assert.Empty(t, retagged.Provenance.Inferred)
 }
 
-// TestTypeStrings_ReadsAClosedSetOfStrings pins what a type must be to bound a
-// tag to strings: a string Literal, or a closed Enum marking no flags every
-// member of which is a string, its members read sorted and once. No other node,
-// a nil one included, bounds one. pinnedValue answers for the same nodes,
-// pinning the one string a set of one holds.
-func TestTypeStrings_ReadsAClosedSetOfStrings(t *testing.T) {
-	t.Parallel()
-	str := func(s string) ir.EnumMember { return ir.EnumMember{Value: ir.Value{Kind: ir.ValueString, Str: s}} }
-	num := ir.EnumMember{Value: ir.Value{Kind: ir.ValueNumber, Num: "1"}}
-	for name, tc := range map[string]struct {
-		node ir.TypeDef
-		want []string // nil where none is bounded
-	}{
-		"literal":       {&ir.Literal{Value: str("a").Value}, []string{"a"}},
-		"enum of one":   {&ir.Enum{Members: []ir.EnumMember{str("a")}, Closed: true}, []string{"a"}},
-		"enum":          {&ir.Enum{Members: []ir.EnumMember{str("b"), str("a"), str("b")}, Closed: true}, []string{"a", "b"}},
-		"nil literal":   {(*ir.Literal)(nil), nil},
-		"nil enum":      {(*ir.Enum)(nil), nil},
-		"open enum":     {&ir.Enum{Members: []ir.EnumMember{str("a")}}, nil},
-		"flags":         {&ir.Enum{Members: []ir.EnumMember{str("a")}, Closed: true, Flags: true}, nil},
-		"a number":      {&ir.Enum{Members: []ir.EnumMember{str("a"), num}, Closed: true}, nil},
-		"number":        {&ir.Literal{Value: num.Value}, nil},
-		"model":         {&ir.Model{}, nil},
-		"through alias": {&ir.Scalar{Base: &ir.TypeRef{Target: "t/lit"}}, []string{"a"}},
-	} {
-		t.Run(name, func(t *testing.T) {
-			t.Parallel()
-			reg := ir.TypeRegistry{"t/x": tc.node, "t/lit": &ir.Literal{Value: str("a").Value}}
-			got, ok := typeStrings(reg, "t/x")
-			assert.Equal(t, tc.want != nil, ok)
-			assert.Equal(t, tc.want, got)
-			pin, pins := pinnedValue(reg, "t/x")
-			assert.Equal(t, len(tc.want) == 1, pins, "pinnedValue pins the one string a set of one holds")
-			if pins {
-				assert.Equal(t, tc.want[0], pin)
-			}
-		})
-	}
-}
-
-// TestThroughAliases_ReadsAtMostTheBound pins the alias scalars pinnedValue and
-// typeStrings read a tag's type through: a chain of maxTagAliasHops reaches what
-// it stands over, a longer one or a loop stops on an alias, which bounds no tag.
-func TestThroughAliases_ReadsAtMostTheBound(t *testing.T) {
-	t.Parallel()
-	chain := func(hops int) ir.TypeRegistry {
-		reg := ir.TypeRegistry{"t/lit": &ir.Literal{ID: "t/lit", Value: ir.Value{Kind: ir.ValueString, Str: "a"}}}
-		next := ir.TypeID("t/lit")
-		for i := range hops {
-			id := ir.TypeID(fmt.Sprintf("t/alias%d", i))
-			reg[id] = &ir.Scalar{ID: id, Base: &ir.TypeRef{Target: next}}
-			next = id
-		}
-		reg["t/x"] = reg[next]
-		return reg
-	}
-	for name, tc := range map[string]struct {
-		reg   ir.TypeRegistry
-		bound bool
-	}{
-		"within the bound": {chain(maxTagAliasHops), true},
-		"past the bound":   {chain(maxTagAliasHops + 1), false},
-		"a loop": {ir.TypeRegistry{
-			"t/x": &ir.Scalar{ID: "t/x", Base: &ir.TypeRef{Target: "t/y"}},
-			"t/y": &ir.Scalar{ID: "t/y", Base: &ir.TypeRef{Target: "t/x"}},
-		}, false},
-	} {
-		t.Run(name, func(t *testing.T) {
-			t.Parallel()
-			_, ok := typeStrings(tc.reg, "t/x")
-			assert.Equal(t, tc.bound, ok)
-			_, pins := pinnedValue(tc.reg, "t/x")
-			assert.Equal(t, tc.bound, pins)
-		})
-	}
-}
-
 // TestAdmittedList_NamesAFew pins how a report names what a subtype admits:
 // none, or the first few in order and how many more.
 func TestAdmittedList_NamesAFew(t *testing.T) {
 	t.Parallel()
 	assert.Equal(t, "no string", admittedList(nil))
 	assert.Equal(t, `only "a", "b", "c"`, admittedList([]string{"a", "b", "c"}))
-	assert.Equal(t, `only "a", "b", "c", 2 more`, admittedList([]string{"a", "b", "c", "d", "e"}))
+	assert.Equal(t, `only "a", "b", "c" and 2 more`, admittedList([]string{"a", "b", "c", "d", "e"}))
 }
 
 // TestRoutesByName_ReadsAUnionsListOnce pins what asking whether a union's

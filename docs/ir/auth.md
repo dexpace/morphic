@@ -108,13 +108,13 @@ service's in its place, or nothing at all unless the list offers the empty optio
 ([auth](../emitters/operations/auth.md#unresolved-schemes)).
 
 The kind says what the compiler holds, which is no mechanism. It does not say the source states
-none: an OpenAPI 3.2 requirement can name a scheme by URI, and an entry can write `in` and `name`
-under no `type`. So the scheme fills no field saying how to authenticate, and `irverify` reports one
-that does (`ir/unresolved-auth-has-mechanism`). What it does hold is what a declaration wrote, if
-one did: its `Docs` and `Deprecation`, and the rest verbatim under `Unmodeled`. A compiler reports
-an error for each such scheme, so a document holding one reaches an emitter only where its caller
-accepted that finding. Its ID is in a namespace of its own
-([identity](./identity.md#unresolved-schemes)).
+none: an OpenAPI 3.2 requirement can name a scheme by a URI the compiler does not follow, and an
+entry can write `in` and `name` under no `type`. So the scheme fills no field saying how to
+authenticate, and `irverify` reports one that does (`ir/unresolved-auth-has-mechanism`). What it
+does hold is what a declaration wrote, if one did: its `Docs` and `Deprecation`, and the rest
+verbatim under `Unmodeled`. A compiler reports an error for each such scheme, so a document holding
+one reaches an emitter only where its caller accepted that finding. Its ID is in a namespace of its
+own ([identity](./identity.md#unresolved-schemes)).
 
 The premise is measured. `cloudflare/api-schemas` at `319dc756`, the golden spec, names three such
 schemes from nine operations, and in those nine every option does, so nothing else states what they

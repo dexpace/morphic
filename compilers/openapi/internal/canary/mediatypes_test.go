@@ -20,11 +20,10 @@ import (
 type mediaTypeReference = soa.Reference[soa.MediaType, *soa.MediaType, *core.MediaType]
 
 // mediaTypeReferences pins media-type-references: the library models neither
-// components/mediaTypes nor a content entry written as a $ref, and its walk
-// panics on a reference over a media type; that reference, built from such an
-// entry, resolves through raw YAML, but at a position the model holds its own
-// media type only from the resolver's cache, which it asks first; and the
-// library registers its own kinds' core models with its marshaller.
+// components/mediaTypes nor a content entry written as a $ref, though a
+// reference over a media type decodes from such an entry as a reference; its
+// walk panics on that reference; and the library registers its own kinds' core
+// models with its marshaller.
 func mediaTypeReferences(t *testing.T) {
 	src := `openapi: 3.2.0
 info: {title: t, version: '1'}
@@ -60,28 +59,12 @@ components:
 		}
 	}, revisit(t, result{}))
 
-	build := func(mt string) *mediaTypeReference {
+	for _, mt := range []string{"application/json", "text/plain"} {
 		var ref mediaTypeReference
 		_, err := marshaller.UnmarshalNode(t.Context(), "", content.GetOrZero(mt).GetRootNode(), &ref)
 		require.NoError(t, err, revisit(t, result{}))
-		require.True(t, ref.IsReference(), revisit(t, result{}))
-		return &ref
+		assert.True(t, ref.IsReference(), "%s decodes as a reference: %s", mt, revisit(t, result{}))
 	}
-	opts := soa.ResolveOptions{RootDocument: doc, TargetLocation: location, DisableExternalRefs: true}
-	viaRaw := build("application/json")
-	_, err = viaRaw.Resolve(t.Context(), opts)
-	require.NoError(t, err, "through raw YAML: %s", revisit(t, result{}))
-	assert.NotNil(t, viaRaw.GetObject().GetSchema(), revisit(t, result{}))
-
-	_, err = build("text/plain").Resolve(t.Context(), opts)
-	require.Error(t, err, "the model's own media type: %s", revisit(t, result{}))
-	held := &mediaTypeReference{Object: content.GetOrZero("application/xml")}
-	doc.InitCache()
-	doc.StoreReferencedObjectInCache(location+"#/paths/~1a/get/responses/200/content/application~1xml", held)
-	viaCache := build("text/plain")
-	_, err = viaCache.Resolve(t.Context(), opts)
-	require.NoError(t, err, "from the cache: %s", revisit(t, result{}))
-	assert.Same(t, held.Object, viaCache.GetObject(), revisit(t, result{}))
 
 	assert.True(t, marshaller.IsRegistered(reflect.TypeFor[core.Reference[*core.Parameter]]()), revisit(t, result{}))
 }

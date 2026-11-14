@@ -7,7 +7,9 @@ Extends architecture.md §6 milestone 3 (the first emitters) and beyond.
    emitting models, enums, and one service client end-to-end. Proves the plan/refine/emit boundary
    and that the IR retains what a refiner needs (architecture.md §6 M3). Three targets at once make
    the plan's neutrality a test from the first model: a plan field only one of them can use fails
-   the [plan-or-refine test](plan/plan-or-refine.md) at M3a, not when a later language lands.
+   the [plan-or-refine test](plan/plan-or-refine.md) at M3a, not when a later language lands. The
+   [build check](verification.md#the-output-builds) lands here too, so every golden builds from the
+   first one.
 2. **M3b — the hard axes.** Unions (all four wire shapes), discriminators, visibility projections,
    the four optionality states, containers, external types, values, on each first target. Each is a
    refine step tied to a specific un-lowered IR fact — the acceptance test cashed.
@@ -18,7 +20,8 @@ Extends architecture.md §6 milestone 3 (the first emitters) and beyond.
    and that docs/mock agree with the SDK by construction.
 5. **M4 — write/integrate + surface verification.** Manifest, header-gated pruning, ignore regions,
    additive merge (`dst` for Go), regions that follow their entity, README blocks, staleness;
-   neutral surface diff with injectable per-language severity. It needs the [correlation
+   neutral surface diff with injectable per-language severity; the [manifest's
+   checks](verification.md#the-manifest-says-what-the-output-holds). It needs the [correlation
    key](../ir/derived-facts.md#correlation-keys), which shipped names, regions, files written once
    and unmatched keys all match on.
 6. **M5 — a further language family (TS or Python).** Proves the plan holds beyond the first

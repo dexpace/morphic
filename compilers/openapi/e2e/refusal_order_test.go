@@ -94,8 +94,9 @@ func cycleRefusals(t *testing.T, data []byte) []string {
 // checks that refuse a cycle, the pre-parse scan and reach: generated
 // reference graphs compile to the same refusals, at the same sites, with
 // every mapping's entries reversed. Only a schema cycle is refused; one of path
-// items or parameters is the resolver's to report. The harness's order oracle
-// stops at a spec's first error (GitHub #685), so it cannot see this.
+// items or parameters is reported and refuses nothing. The harness's order
+// oracle
+// sweeps only the committed specs, and these graphs are generated.
 func TestCompile_ACycleRefusalIgnoresDeclarationOrder(t *testing.T) {
 	t.Parallel()
 	const docs = 1500

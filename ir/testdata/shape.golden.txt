@@ -117,8 +117,12 @@ type Content struct
 	"itemEncoding" *PartEncoding omitzero
 	"mediaType" string omitempty
 	"schemaFormat" string omitempty
+	"stream" *ContentStream omitzero
 	"type" TypeRef
 	"unmodeled" Unmodeled omitempty
+
+type ContentStream struct
+	"inferred" Inferred omitempty
 
 type CtorValue struct
 	"args" []Value omitempty
@@ -327,7 +331,7 @@ type HTTPParamBinding struct
 	"param" ParamID omitempty
 	"paramPath" []PropID omitempty
 	"pathPattern" string omitempty
-	"prefix" string omitempty
+	"prefix" *string omitzero
 	"style" string omitempty
 	"wireName" string omitempty
 

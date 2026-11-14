@@ -15,10 +15,21 @@
 
 - **Rule.** `make coverage` profiles each package against its own tests (no `-coverpkg`). Give new
   code a test in its own package, and check a package as the `Makefile` does:
-  `go test ./<pkg> -race -covermode=atomic -coverprofile=f`, then
+  `go test ./<pkg> -covermode=atomic -coverprofile=f`, then
   `go run ./cmd/morphic-covergate f`.
 - **Why.** End-to-end tests exercised every branch of a schema helper and the gate still found 13
   uncovered statements (#1065).
+
+## Race-check a change to concurrent code before calling it done
+`race-before-done`
+
+- **Rule.** A change to code more than one goroutine runs, or to a test starting goroutines, runs
+  under `-race` over each package it touches before it is called done, and again in its review:
+  the gate runs no race detector, and the nightly `make race` meets a merged race only after the
+  merge. Run it without coverage flags, which can hide a race.
+- **Why.** `-race` left the gate for its cost (#1917), and `-race` beside atomic coverage hid a
+  planted race in every run (#1271).
+- **Probe.** `go test -race -count=1 ./<pkg>` per touched package, or `make race` for the suite.
 
 ## A re-exec'd child writes coverage only when it exits through os.Exit
 `child-coverage`
@@ -139,7 +150,7 @@
   package alone with the gate's flags, pinned with `GOMAXPROCS=<n>` beside `taskset -c` where it
   exists, then the steps the failure skipped, and report each run; a failure that holds there
   is real. Where reruns keep failing, take `references/toolchain.md#queue-gates-one-at-a-time`.
-  Reruns never make the gate green; a race run with `-covermode=atomic -coverprofile=<file>` and
+  Reruns never make the gate green; a run with `-covermode=atomic -coverprofile=<file>` and
   `go run ./cmd/morphic-covergate <file>` still give the coverage verdict.
 - **Why.** Gates failed on load while #1271 to #1274 were built, and a race run's profile gave the
   coverage verdict of a tree whose gate failed only on timeouts (#1248, #1347).

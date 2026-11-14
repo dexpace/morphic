@@ -18,8 +18,8 @@ import (
 // is declared part and encoded encoding ("" for no entry), under opts, beside
 // components Blob of raw bytes, Untypeds, an array of untyped items, and
 // Untyped, a union of an untyped value and Untypeds. It returns the part's
-// entry, ok false where it has none.
-func filePart(t *testing.T, version, mediaType, part, encoding string, opts openapi.Options) (ir.PartEncoding, bool) {
+// entry, the zero one where it has none.
+func filePart(t *testing.T, version, mediaType, part, encoding string, opts openapi.Options) ir.PartEncoding {
 	t.Helper()
 	enc := ""
 	if encoding != "" {
@@ -42,17 +42,17 @@ components:
 	entries := openapitest.FindOp(t, doc, "upload").Request.Contents[0].Encoding
 	require.LessOrEqual(t, len(entries), 1, "one part is at most one entry")
 	for _, pe := range entries {
-		return pe, true
+		return pe
 	}
-	return ir.PartEncoding{}, false
+	return ir.PartEncoding{}
 }
 
 // TestReadPartFile_ReadsDeclarationsEncodingAndVersion holds a part's Filename
 // and marker to its declaration, its encoding entry's media types and the
 // version's default media type, in a multipart body: raw bytes, an array or a
 // tuple of them, an untyped part from 3.1 and a part whose encoding names only
-// binary types are files, and a part saying it is text is none, as a
-// url-encoded one never is beyond what its own bytes say (GitHub #1214). A
+// binary types are files, and a part saying it is text is none, as no part of
+// a url-encoded body is, its own bytes and base64 text included (GitHub #1214). A
 // union with an array among its branches repeats, and is files where each of
 // its values reads so, an array branch's through its elements.
 func TestReadPartFile_ReadsDeclarationsEncodingAndVersion(t *testing.T) {
@@ -109,6 +109,10 @@ func TestReadPartFile_ReadsDeclarationsEncodingAndVersion(t *testing.T) {
 			openapi.Options{}, false, true, ""},
 		{"an untyped part", "3.1.0", multipart, "{description: the image}", "", openapi.Options{}, true, false, ""},
 		{"an untyped part in 3.0", "3.0.3", multipart, "{}", "", openapi.Options{}, false, false, ""},
+		{"an untyped part naming its dialect", "3.1.0", multipart,
+			"{$schema: 'https://json-schema.org/draft/2020-12/schema'}", "", openapi.Options{}, true, false, ""},
+		{"an untyped part writing a vocabulary", "3.1.0", multipart,
+			"{$vocabulary: {'https://json-schema.org/draft/2020-12/vocab/core': true}}", "", openapi.Options{}, true, false, ""},
 		{"an untyped part of a binary type", "3.0.3", multipart, "{}", "{contentType: 'image/png, image/jpeg'}",
 			openapi.Options{}, true, false, marker},
 		{"an untyped part of octet-stream", "3.0.3", multipart, "{}", "{contentType: application/octet-stream}",
@@ -180,6 +184,12 @@ func TestReadPartFile_ReadsDeclarationsEncodingAndVersion(t *testing.T) {
 			openapi.Options{}, true, false, ""},
 		{"a type array of base64 and an integer", "3.1.0", multipart, "{type: [string, integer], format: byte}", "",
 			openapi.Options{}, false, false, ""},
+		{"a base64url part", "3.1.0", multipart, "{type: string, format: base64url}", "",
+			openapi.Options{}, false, false, ""},
+		{"a form's base64url part", "3.1.0", form, "{type: string, format: base64url}", "",
+			openapi.Options{}, false, false, ""},
+		{"an HTTP-date part", "3.1.0", multipart, "{type: string, format: http-date}", "",
+			openapi.Options{}, false, false, ""},
 		{"a binary type with the policy off", "3.1.0", multipart, "{}", "{contentType: image/png}",
 			disabled, false, false, ""},
 		{"octet-stream with the policy off", "3.1.0", multipart, "{}", "{contentType: application/octet-stream}",
@@ -188,11 +198,13 @@ func TestReadPartFile_ReadsDeclarationsEncodingAndVersion(t *testing.T) {
 			openapi.Options{}, false, true, ""},
 		{"a form's part of a binary type", "3.1.0", form, "{}", "{contentType: image/png}",
 			openapi.Options{}, false, false, ""},
+		{"a form's raw bytes", "3.1.0", form, binary, "", openapi.Options{}, false, false, ""},
+		{"a form's base64 text", "3.0.3", form, "{type: string, format: byte}", "", openapi.Options{}, false, false, ""},
+		{"base64 text", "3.0.3", multipart, "{type: string, format: byte}", "", openapi.Options{}, false, false, ""},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			pe, ok := filePart(t, tc.version, tc.mediaType, tc.part, tc.encoding, tc.opts)
-			assert.Equal(t, tc.file || tc.multi || tc.encoding != "", ok, "an entry where the part carries something")
+			pe := filePart(t, tc.version, tc.mediaType, tc.part, tc.encoding, tc.opts)
 			assert.Equal(t, tc.file, pe.Filename, "filename")
 			assert.Equal(t, tc.multi, pe.Multi, "multi")
 			assert.Equal(t, tc.inferred, pe.Inferred, "marker")

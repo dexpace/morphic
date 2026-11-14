@@ -36,11 +36,11 @@ func loaded(t *testing.T, spec string) *bind.Table {
 func TestNode_ReadsNothingTheTableDoesNotHold(t *testing.T) {
 	t.Parallel()
 	tb := loaded(t, openapitest.ComponentSpec("    A: {type: object}\n"))
-	n := New(tb)
+	n := New(tb, true)
 	require.NotNil(t, n.node(bind.Source, "/components/schemas/A"), "sanity: the source holds A")
 	assert.Nil(t, n.node(-1, "/components/schemas/A"))
 	assert.Nil(t, n.node(bind.DocID(tb.Documents()), "/components/schemas/A"))
-	assert.Nil(t, New(nil).node(bind.Source, "/components/schemas/A"))
+	assert.Nil(t, New(nil, true).node(bind.Source, "/components/schemas/A"))
 }
 
 // TestNode_ReadsNothingPastTheMergeBound pins that a position reached through
@@ -52,6 +52,6 @@ func TestNode_ReadsNothingPastTheMergeBound(t *testing.T) {
 		return openapitest.ComponentSpec("    A: {type: object}\n") +
 			"x-deep: " + openapitest.NestedMerges(levels, "{b: {name: x}}") + "\n"
 	}
-	assert.NotNil(t, New(loaded(t, spec(nodeview.MergeDepthLimit))).node(bind.Source, "/x-deep/b"))
-	assert.Nil(t, New(loaded(t, spec(nodeview.MergeDepthLimit+1))).node(bind.Source, "/x-deep/b"))
+	assert.NotNil(t, New(loaded(t, spec(nodeview.MergeDepthLimit)), true).node(bind.Source, "/x-deep/b"))
+	assert.Nil(t, New(loaded(t, spec(nodeview.MergeDepthLimit+1)), true).node(bind.Source, "/x-deep/b"))
 }

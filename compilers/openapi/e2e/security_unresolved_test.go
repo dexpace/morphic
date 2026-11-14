@@ -10,6 +10,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/ir"
 	"github.com/dexpace/morphic/ir/irverify"
 )
@@ -65,4 +66,31 @@ paths:
 			}
 		})
 	}
+}
+
+// TestSecurityUnresolved_AnUndecodedSchemeRefIsReportedByAFullCompile pins that
+// the error for a securitySchemes $ref naming nothing reaches the caller when
+// the parser's model did not decode the $ref. The load phase then meets no
+// reference and reports nothing, so the lowering's report is the only one, and
+// a compile dropping the lowering's reports the load phase made already must
+// keep it.
+func TestSecurityUnresolved_AnUndecodedSchemeRefIsReportedByAFullCompile(t *testing.T) {
+	t.Parallel()
+	doc, diags := parseFull(t, `openapi: 3.1.0
+info: {title: t, version: '1'}
+paths: {}
+components:
+  securitySchemes:
+    S: {$ref: !local '#/components/securitySchemes/Ghost'}
+`)
+	var refs []string
+	for _, d := range diags {
+		if d.Code == diag.UnresolvedRef {
+			refs = append(refs, string(d.Provenance.Pointer))
+		}
+	}
+	assert.Equal(t, []string{"/components/securitySchemes/S"}, refs, "one report, at the entry: %+v", diags)
+	assert.Equal(t, []ir.Severity{ir.SeverityError}, diagsAt(diags, diag.UnresolvedRef, "/components/securitySchemes/S"))
+	assert.Equal(t, ir.AuthKindUnresolved, doc.Auth["auth/unresolved/components/securitySchemes/S"].Kind,
+		"the entry lowers to a scheme of no mechanism: %+v", doc.Auth)
 }

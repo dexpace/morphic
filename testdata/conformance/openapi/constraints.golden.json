@@ -59,6 +59,130 @@
     }
   ],
   "types": {
+    "t/anon/components/schemas/S/properties/id": {
+      "kind": "scalar",
+      "id": "t/anon/components/schemas/S/properties/id",
+      "name": {
+        "hint": "id"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "unmodeled": {
+        "openapi:maximum": {
+          "reason": "degraded_lowering",
+          "value": 9,
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/S/properties/id/maximum"
+          }
+        },
+        "openapi:minimum": {
+          "reason": "degraded_lowering",
+          "value": 1,
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/S/properties/id/minimum"
+          }
+        }
+      },
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/S/properties/id"
+      },
+      "base": {
+        "target": "t/prim/string",
+        "nullable": false
+      },
+      "constraints": {
+        "pattern": "^a",
+        "uniqueItems": false
+      }
+    },
+    "t/anon/components/schemas/S/properties/list": {
+      "kind": "list",
+      "id": "t/anon/components/schemas/S/properties/list",
+      "name": {
+        "hint": "list"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "unmodeled": {
+        "openapi:maxLength": {
+          "reason": "degraded_lowering",
+          "value": 5,
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/S/properties/list/maxLength"
+          }
+        }
+      },
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/S/properties/list"
+      },
+      "elem": {
+        "target": "t/prim/string",
+        "nullable": false
+      }
+    },
+    "t/anon/components/schemas/S/properties/meta": {
+      "kind": "model",
+      "id": "t/anon/components/schemas/S/properties/meta",
+      "name": {
+        "hint": "meta"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "unmodeled": {
+        "openapi:minLength": {
+          "reason": "degraded_lowering",
+          "value": 2,
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/S/properties/meta/minLength"
+          }
+        }
+      },
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/S/properties/meta"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/S/properties/meta/properties/a",
+          "name": {
+            "source": "a",
+            "canonical": "a"
+          },
+          "wireName": "a",
+          "type": {
+            "target": "t/prim/string",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/S/properties/meta/properties/a"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
     "t/anon/components/schemas/S/properties/tags": {
       "kind": "list",
       "id": "t/anon/components/schemas/S/properties/tags",
@@ -104,6 +228,68 @@
         "min": "10",
         "exclusiveMin": "0",
         "uniqueItems": false
+      }
+    },
+    "t/openapi/components/schemas/HugeCount": {
+      "kind": "scalar",
+      "id": "t/openapi/components/schemas/HugeCount",
+      "name": {
+        "source": "HugeCount",
+        "canonical": "huge_count"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "unmodeled": {
+        "openapi:maxLength": {
+          "reason": "degraded_lowering",
+          "value": 99999999999999999999,
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/HugeCount/maxLength"
+          }
+        }
+      },
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/HugeCount"
+      },
+      "base": {
+        "target": "t/prim/string",
+        "nullable": false
+      },
+      "constraints": {
+        "minLength": 1,
+        "uniqueItems": false
+      }
+    },
+    "t/openapi/components/schemas/Port": {
+      "kind": "scalar",
+      "id": "t/openapi/components/schemas/Port",
+      "name": {
+        "source": "Port",
+        "canonical": "port"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "unmodeled": {
+        "openapi:maxLength": {
+          "reason": "degraded_lowering",
+          "value": 65535,
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Port/maxLength"
+          }
+        }
+      },
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Port"
+      },
+      "base": {
+        "target": "t/prim/number",
+        "nullable": false
       }
     },
     "t/openapi/components/schemas/S": {
@@ -251,6 +437,91 @@
           }
         },
         {
+          "id": "p/openapi/components/schemas/S/properties/id",
+          "name": {
+            "source": "id",
+            "canonical": "id"
+          },
+          "wireName": "id",
+          "type": {
+            "target": "t/anon/components/schemas/S/properties/id",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "constraints": {
+            "pattern": "^a",
+            "uniqueItems": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/S/properties/id"
+          }
+        },
+        {
+          "id": "p/openapi/components/schemas/S/properties/meta",
+          "name": {
+            "source": "meta",
+            "canonical": "meta"
+          },
+          "wireName": "meta",
+          "type": {
+            "target": "t/anon/components/schemas/S/properties/meta",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/S/properties/meta"
+          }
+        },
+        {
+          "id": "p/openapi/components/schemas/S/properties/list",
+          "name": {
+            "source": "list",
+            "canonical": "list"
+          },
+          "wireName": "list",
+          "type": {
+            "target": "t/anon/components/schemas/S/properties/list",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/S/properties/list"
+          }
+        },
+        {
           "id": "p/openapi/components/schemas/S/properties/tags",
           "name": {
             "source": "tags",
@@ -337,11 +608,58 @@
       }
     }
   },
+  "diagnostics": [
+    {
+      "severity": "info",
+      "code": "openapi/degraded-construct",
+      "message": "this position lowered to a node of kind \"primitive\", which has no home for maximum, minimum declared beside it; kept verbatim under Unmodeled",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/S/properties/id"
+      }
+    },
+    {
+      "severity": "info",
+      "code": "openapi/degraded-construct",
+      "message": "this position lowered to a node of kind \"model\", which has no home for minLength declared beside it; kept verbatim under Unmodeled",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/S/properties/meta"
+      }
+    },
+    {
+      "severity": "info",
+      "code": "openapi/degraded-construct",
+      "message": "this position lowered to a node of kind \"list\", which has no home for maxLength declared beside it; kept verbatim under Unmodeled",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/S/properties/list"
+      }
+    },
+    {
+      "severity": "info",
+      "code": "openapi/degraded-construct",
+      "message": "maxLength is past what a 64-bit integer holds, so no Constraints field states it; kept verbatim under Unmodeled",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/HugeCount"
+      }
+    },
+    {
+      "severity": "info",
+      "code": "openapi/degraded-construct",
+      "message": "this position lowered to a node of kind \"primitive\", which has no home for maxLength declared beside it; kept verbatim under Unmodeled",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Port"
+      }
+    }
+  ],
   "sources": [
     {
       "format": "openapi@3.1",
       "path": "constraints.yaml",
-      "hash": "26eb5b8535115a810b33386594ce36baafe0fc21f0bf7171d6cc923754a2ddaa"
+      "hash": "e8221fbad3e7eb475446340faa5c7553cdda80d490b212716f990346f0b1f9d6"
     }
   ]
 }

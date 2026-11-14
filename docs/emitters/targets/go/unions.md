@@ -29,10 +29,11 @@ type PaymentBankTransfer struct{ Value BankTransfer }
   wrapper in the union's unit takes any variant, and keeps apart two variants that lower to one Go
   type. A wrapper declares the codec pair too, delegating to its `Value`, so it codes as its variant
   does when a caller's own call meets it alone.
-- **The struct and each wrapper redact.** Their `String`, `GoString` and `LogValue` show a variant
-  the union redacts as `[REDACTED]` ([redaction](../../refine/redaction.md#a-redacted-value)), as a
-  model's do ([`User`](models.md#user-in-go)): `fmt` prints a wrapper's fields, so
-  `Payment{Value: PaymentToken{Value: "tok"}}` would print `{{tok}}`.
+- **The struct and each wrapper redact.** A variant the union redacts is held in its wrapper's
+  `Value` as a `runtime.Secret[T]` ([a redacted member](models.md#a-redacted-member)), and the
+  struct's and each wrapper's `Format`, `String`, `GoString` and `LogValue` show it as `[REDACTED]`
+  ([redaction](../../refine/redaction.md#a-redacted-value)), as a model's do
+  ([`User`](models.md#user-in-go)).
 - **A polymorphic base lowers the same way** ([the shared
   rule](../../refine/unions.md#a-polymorphic-base)). `Pet` is a struct holding `PetVariant`, with a
   wrapper per subtype.
@@ -77,10 +78,11 @@ type Target struct {        // anyOf: [Zone, Account], which one value can fit
   variants. Every type keeps its one codec, which reaches a variant in another unit with no exported
   helper, and each variant still reads the bytes beneath it. `MarshalJSONTo` writes the merge and
   runs each set field's admission check over it.
-- **`Validate` passes when a set field's `Validate` passes**, reports every set field's failures
-  when none does, and reports a struct with no field set. With no sum to close, it has no marker, no
-  wrapper and no switch-completeness test.
-- **`String`, `GoString` and `LogValue` redact** a member any set field redacts
+- **`Validate` passes when a set field's checks pass**, each walked through the state the walk
+  carries ([nesting](models.md#nesting)), reports every set field's failures when none does, and
+  reports a struct with no field set. With no sum to close, it has no marker, no wrapper and no
+  switch-completeness test.
+- **`Format`, `String`, `GoString` and `LogValue` redact** a member any set field redacts
   ([redaction](../../refine/redaction.md#a-redacted-value)), in every set field they render.
 
 ## Discriminators
@@ -102,6 +104,16 @@ union. The one option a model sets over its caller's is `RejectUnknownMembers`, 
 pins for itself ([`User`](models.md#user-in-go)). `ir/json.go` is the worked example:
 `(*TypeRegistry).UnmarshalJSONFrom` buffers each entry, `stringMember` finds the `kind` tag by token
 scan, and `decodeTypeDef` decodes the concrete kind under the decoder's options.
+
+`MarshalJSONTo` writes a variant's tag as [the shared
+rule](../../refine/unions.md#the-tag-a-variants-value-carries) says. Where a variant with one own
+tag is a struct declaring the member and its wrapper holds it by value, the method sets the field on
+its copy and writes that straight to the encoder. For any other variant with one, a union, a struct
+its wrapper holds through a pointer, which a copy would write through to the caller's value, or one
+declaring no such member, it encodes the variant under `enc.Options()` and writes the object out
+again with the tag at its member, or first where the object has none, reading it once and decoding
+nothing beneath it. A variant with several own tags, or with none, is written as it stands once its
+tag is checked.
 
 ## `Payment` in Go
 

@@ -697,6 +697,77 @@ func TestOperations_ServersEachLevelAlone(t *testing.T) {
 		"and the service is served at the root OpenAPI supplies for a document declaring none")
 }
 
+// TestOperations_AnEmptyServersListOverridesNothing pins that an explicit empty
+// servers list on a path item or an operation declares nothing, as an absent
+// one does, which is what OpenAPI says of the document's own: the operation is
+// sent to the nearest level above that names servers, and nothing is kept or
+// reported (docs/compilers/openapi.md#path-item-servers).
+func TestOperations_AnEmptyServersListOverridesNothing(t *testing.T) {
+	t.Parallel()
+	doc, diags := parseFull(t, `openapi: 3.1.0
+info: {title: T, version: "1"}
+servers: [{url: 'https://root.example'}]
+paths:
+  /emptyItem:
+    servers: []
+    get: {operationId: emptyItem, responses: {"200": {description: ok}}}
+  /emptyOperation:
+    servers: [{url: 'https://path.example'}]
+    get: {operationId: emptyOperation, servers: [], responses: {"200": {description: ok}}}
+  /emptyBoth:
+    servers: []
+    get: {operationId: emptyBoth, servers: [], responses: {"200": {description: ok}}}
+`)
+	openapitest.RequireNoErrorDiags(t, diags)
+	assert.Empty(t, diags)
+
+	for op, want := range map[string][]string{
+		"emptyItem": nil, "emptyOperation": {"https://path.example"}, "emptyBoth": nil,
+	} {
+		got := openapitest.FindOp(t, doc, op)
+		if want == nil {
+			assert.Nil(t, got.Servers, "%s names none, so its service's apply", op)
+		} else {
+			assert.Equal(t, want, serversNamed(t, doc, got.Servers), "%s is sent to its path item's", op)
+		}
+		assert.Empty(t, got.Unmodeled, "%s keeps nothing of an empty list", op)
+	}
+	assert.Equal(t, []string{"https://root.example"}, serversNamed(t, doc, doc.Services[0].Servers))
+}
+
+// TestOperations_InboundOperationsNameOnlyTheServersTheyState pins the half of
+// docs/ir/servers.md#inbound-operations the compiler holds: a webhook's and a
+// callback's operation name the servers their own declaration and their path
+// item state, and none where neither states any, the service's servers named on
+// none of them, since those are where the API is sent requests.
+func TestOperations_InboundOperationsNameOnlyTheServersTheyState(t *testing.T) {
+	t.Parallel()
+	doc, diags := parseFull(t, `openapi: 3.1.0
+info: {title: T, version: "1"}
+servers: [{url: 'https://api.example'}]
+paths:
+  /subscribe:
+    post:
+      operationId: subscribe
+      responses: {"201": {description: ok}}
+      callbacks:
+        onEvent:
+          '{$request.body#/url}':
+            post: {operationId: onEvent, responses: {"200": {description: ok}}}
+webhooks:
+  created:
+    post: {operationId: created, responses: {"200": {description: ok}}}
+  stated:
+    servers: [{url: 'https://receiver.example'}]
+    post: {operationId: stated, responses: {"200": {description: ok}}}
+`)
+	openapitest.RequireNoErrorDiags(t, diags)
+	assert.Nil(t, openapitest.FindOp(t, doc, "onEvent").Servers)
+	assert.Nil(t, openapitest.FindOp(t, doc, "created").Servers)
+	assert.Equal(t, []string{"https://receiver.example"}, serversNamed(t, doc, openapitest.FindOp(t, doc, "stated").Servers))
+	assert.Equal(t, []string{"https://api.example"}, serversNamed(t, doc, doc.Services[0].Servers))
+}
+
 // TestOperations_PathItemServersAreEachOperationsOwn pins that the operations of
 // one path item hold a list each, so a pass changing one's leaves the others'.
 func TestOperations_PathItemServersAreEachOperationsOwn(t *testing.T) {
@@ -809,4 +880,102 @@ components:
 	assert.Equal(t, []ir.AuthID{ids.Auth("key")}, slices.Sorted(maps.Keys(declared)), "the declared schemes alone")
 	assert.Equal(t, []ir.AuthID{ids.Auth("key"), ids.UnresolvedAuth("ghost")}, slices.Sorted(maps.Keys(lowered.Auth)),
 		"the walk returns them with the scheme the requirement named")
+}
+
+// TestOperation_ARepeatedTagIsKeptOnce pins issue #738's fold of
+// Operation.Tags: a tag names a group the operation joins once, so a repeat is
+// kept at its first occurrence and reported where it is written, naming the
+// first. Tags compare as written, so another case or a blank is another tag. An
+// inline, a callback's and a webhook's operation read it alike, and a path item
+// mounted twice reports its declaration's repeat once.
+func TestOperation_ARepeatedTagIsKeptOnce(t *testing.T) {
+	t.Parallel()
+	const tags = `[a, a, "", b, a, A, " ", ""]`
+	doc, diags := parseFull(t, `openapi: 3.1.0
+info: {title: T, version: "1"}
+paths:
+  /x:
+    get:
+      operationId: inline
+      tags: `+tags+`
+      responses: {"200": {description: ok}}
+      callbacks:
+        onEvent:
+          '{$request.body#/url}':
+            post:
+              operationId: callback
+              tags: `+tags+`
+              responses: {"200": {description: ok}}
+  /once: {$ref: '#/components/pathItems/Shared'}
+  /twice: {$ref: '#/components/pathItems/Shared'}
+  /clean:
+    get:
+      operationId: clean
+      tags: [b, a, B]
+      responses: {"200": {description: ok}}
+webhooks:
+  hook:
+    post:
+      operationId: hook
+      tags: `+tags+`
+      responses: {"200": {description: ok}}
+components:
+  pathItems:
+    Shared:
+      get:
+        tags: `+tags+`
+        responses: {"200": {description: ok}}
+`)
+	want := []string{"a", "", "b", "A", " "}
+	for _, name := range []string{"inline", "callback", "hook"} {
+		assert.Equal(t, want, openapitest.FindOp(t, doc, name).Tags, name)
+	}
+	byID := map[ir.OpID]ir.Operation{}
+	ir.ForEachOperation(doc, func(op ir.Operation) { byID[op.ID] = op })
+	for _, mount := range []ir.OpID{"op/openapi/paths/~1once/get", "op/openapi/paths/~1twice/get"} {
+		op, ok := byID[mount]
+		require.True(t, ok, "a mount of the path item lowers: %s", mount)
+		assert.Equal(t, want, op.Tags, mount)
+	}
+	assert.Equal(t, []string{"b", "a", "B"}, openapitest.FindOp(t, doc, "clean").Tags, "a list repeating nothing")
+
+	var got []string
+	for _, d := range diags {
+		if d.Code == diag.RepeatedEntry {
+			assert.Equal(t, ir.SeverityWarning, d.Severity)
+			got = append(got, string(d.Provenance.Pointer)+": "+d.Message)
+		}
+	}
+	slices.Sort(got)
+	wantDiags := make([]string, 0, 12)
+	for _, decl := range []string{"/components/pathItems/Shared/get",
+		"/paths/~1x/get", "/paths/~1x/get/callbacks/onEvent/{$request.body#~1url}/post", "/webhooks/hook/post"} {
+		wantDiags = append(wantDiags,
+			decl+`/tags/1: tag "a" repeats the entry at index 0; it is kept once`,
+			decl+`/tags/4: tag "a" repeats the entry at index 0; it is kept once`,
+			decl+`/tags/7: tag "" repeats the entry at index 2; it is kept once`)
+	}
+	slices.Sort(wantDiags)
+	assert.Equal(t, wantDiags, got)
+}
+
+// TestOperation_ALongTagListFoldsAsAShortOne pins the fold of a list longer
+// than lowering.FirstOccurrences compares pair by pair, through an operation.
+func TestOperation_ALongTagListFoldsAsAShortOne(t *testing.T) {
+	t.Parallel()
+	written := make([]string, 0, 17)
+	for i := range 17 {
+		written = append(written, "t"+strconv.Itoa(i))
+	}
+	doc, diags := parseFull(t, `openapi: 3.1.0
+info: {title: T, version: "1"}
+paths:
+  /x:
+    get:
+      operationId: x
+      tags: [`+strings.Join(written, ", ")+`, t5]
+      responses: {"200": {description: ok}}
+`)
+	assert.Equal(t, written, openapitest.FindOp(t, doc, "x").Tags)
+	assert.Equal(t, []jsontext.Pointer{"/paths/~1x/get/tags/17"}, openapitest.PointersOf(diags, diag.RepeatedEntry))
 }

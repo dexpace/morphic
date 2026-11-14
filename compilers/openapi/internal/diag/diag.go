@@ -4,6 +4,7 @@
 package diag
 
 import (
+	"encoding/json/jsontext"
 	"fmt"
 
 	"github.com/dexpace/morphic/ir"
@@ -19,10 +20,12 @@ const (
 	Validation = "openapi/validation"
 	// UnsupportedVersion reports an OpenAPI version the compiler cannot lower.
 	UnsupportedVersion = "openapi/unsupported-version"
-	// UnresolvedRef reports a $ref that could not be resolved, or a reference
-	// left unresolved because its pointer passes through the fields beside a path
-	// item $ref, which the resolver reads in the item that $ref names (GitHub
-	// #824).
+	// UnresolvedRef reports a $ref, a schema's or a reference object's, whose
+	// own hop resolves to nothing, at the $ref, in whichever document writes
+	// it, with why (bind.Hop.Why); a $ref whose chain ends on it reports nothing
+	// of its own (docs/compilers/openapi.md#references). The lowering reports a
+	// $ref it cannot follow at its position too, kept only where the load phase
+	// reported none there (openapi.withoutRereported).
 	UnresolvedRef = "openapi/unresolved-ref"
 	// UnresolvedSecurityScheme reports a security requirement naming a scheme
 	// the compiler resolved no mechanism for, at the requirement, from
@@ -53,10 +56,10 @@ const (
 	// (docs/parser-library.md#alias-cycle). A loop of schema $refs that never
 	// reaches a schema is reported once, at its least member the source writes,
 	// else at the least source $ref leading into it (GitHub #912), and the
-	// document still compiles: the compiler binds schema $refs itself
-	// (docs/parser-library.md#schema-cycle-overflow). The resolver reports a
-	// chain of reference objects itself, as UnresolvedRef
-	// (docs/parser-library.md#reference-object-cycle).
+	// document still compiles: the compiler binds every $ref itself
+	// (docs/parser-library.md#schema-cycle-overflow). A loop of reference
+	// objects is reported the same way, where the parser's resolver would
+	// answer by declaration order (docs/parser-library.md#reference-object-cycle).
 	CyclicRef = "openapi/cyclic-ref"
 	// CycleScanFailed reports that the pre-parse alias scan aborted on a fault
 	// of its own (scan.Aliases), leaving its protection against a recursive
@@ -86,7 +89,7 @@ const (
 	// The document is refused before parsing whatever the position, since telling
 	// the faulting ones apart would mean copying the parser's object model, at
 	// the tagged mapping with the least pointer. A tagged scalar is not refused
-	// (GitHub #245).
+	// (docs/compilers/openapi.md#values).
 	TaggedMapping = "openapi/tagged-mapping"
 	// StreamDocumentsDropped reports a YAML stream holding more than one
 	// document with content. An OpenAPI document is one YAML document, so the
@@ -107,26 +110,38 @@ const (
 	// it declined is the parse error it holds.
 	UndecodableSource = "openapi/undecodable-source"
 	// OverlayInvalid reports an overlay document that could not be parsed, or that
-	// parsed but is not a valid Overlay — a missing version, no actions, an action
-	// naming no target. Nothing is applied, so the compile refuses rather than
-	// lowering a source the caller believes was patched.
+	// parsed but is not a valid Overlay — a missing version or one no Overlay
+	// Specification names, no actions, an action naming no target, a selector that
+	// is no RFC 9535 query, a copy in an Overlay 1.0 document — as overlay.read and
+	// overlay.readSelector find. Nothing is applied, so the compile refuses rather
+	// than lowering a source the caller believes was patched.
 	OverlayInvalid = "openapi/invalid-overlay"
-	// OverlayFailed reports an overlay the library could not apply as written: a
-	// selector matching nothing under strict application, or an action whose
-	// update disagrees with the shape it targets. Actions are applied in order and
-	// the ones that landed are not undone, so the compile refuses — the tree left
-	// behind is neither the source nor what the overlay asked for.
+	// OverlayFailed reports an overlay that does not fit the document it is
+	// applied to, or no rule applies as written: an action setting both update
+	// and copy (overlay.read), one whose selector selects nothing under strict
+	// application or whose write the specification's rules refuse
+	// (overlay.runSequence), and an application that panicked. Actions apply in
+	// order and the ones that landed are not undone, so the compile refuses.
 	OverlayFailed = "openapi/overlay-failed"
-	// OverlayAction reports one strict-mode finding about a single action, naming
-	// the action and its target: that it changed nothing, or that it relies on
-	// JSONPath behaviour the overlay did not opt into.
-	//
-	// It stands alone as often as it accompanies a refusal, and the difference is
-	// the point. An action whose selector matched nothing is a typo and refuses
-	// under OverlayFailed, with these naming which actions are why; an action that
-	// matched and then changed nothing is merely redundant — the fix it describes
-	// is already in the source — so it is reported and the compile proceeds.
+	// OverlayUnsupported reports a valid overlay the compiler does not apply: an
+	// Overlay 1.2 document, or a selector RFC 9535 reads that the compiler's
+	// JSONPath implementation refuses or misreads (overlay.readSelector). Nothing
+	// is applied, so the compile refuses.
+	OverlayUnsupported = "openapi/overlay-unsupported"
+	// OverlayAction reports a warning about the overlay or a single action,
+	// naming the action and its target: that it changed nothing, because what it
+	// writes is there already, because it selects nothing under lax application,
+	// or because it sets no modifier; that it sets a field with no effect beside
+	// another; that it writes a merge key, or inside a node YAML aliases name;
+	// or that the source holds aliases or merge keys a selector does not read
+	// through, as overlay.runSequence and overlay.read find.
 	OverlayAction = "openapi/overlay-action"
+	// OverlayReplacedValue reports an action that replaced a primitive the source
+	// declares, as against adding one the source lacks, naming both values: an
+	// overlay written to fill a gap keeps winning once the source fills it, and
+	// this is how that shows (overlay.runSequence). Info, as overriding is a
+	// legitimate use.
+	OverlayReplacedValue = "openapi/overlay-replaced-value"
 	// OverlayOriginIncomplete reports that the overlay applied but the walk that
 	// attributes positions to it exceeded its node budget. Provenance degrades to
 	// naming the source for every position, which is what a compile with no
@@ -145,8 +160,7 @@ const (
 	// Warning where FalseSchema is info: a boolean `false` schema is the idiom for
 	// "forbid this here", but an empty member list is that statement written the
 	// way nobody does on purpose, usually a generator emitting a list it never
-	// filled. Not an error: the document is well-formed, and harness.Check stops
-	// at the first error diagnostic, hiding later findings.
+	// filled. Not an error: the document is well-formed.
 	EmptyEnum = "openapi/empty-enum"
 	// DuplicateEnumValue reports an `enum` entry whose value an earlier entry
 	// already holds, at the repeat's own position, whether the set lowers to an
@@ -158,15 +172,24 @@ const (
 	// Warning: the document is well-formed, and JSON Schema's own uniqueness
 	// requirement on enum is a SHOULD.
 	DuplicateEnumValue = "openapi/duplicate-enum-value"
+	// RepeatedEntry reports an entry of a list of names written again, at the
+	// repeat's own position, naming the index of its first occurrence: a tag an
+	// operation lists twice, from operation.lowerOperation, and a scope a
+	// requirement lists twice for one scheme, from auth.Registry. Each list names
+	// a set, so the entry is kept once, at its first occurrence.
+	//
+	// Warning, as DuplicateEnumValue is: no rule of the specification is broken,
+	// and the repeat adds nothing.
+	RepeatedEntry = "openapi/repeated-entry"
 	// NumericPrecision reports a numeric bound literal that is not a finite
-	// number, at every schema the load phase's check reads (error severity:
-	// Morphic owns these keywords, so this is the sole diagnostic for the
-	// defect — see load.ownedFinding).
+	// number, at every schema the rule table's check reads, in its dialect
+	// (error severity: Morphic owns these keywords, so this is the sole
+	// diagnostic for the defect — see oas's decimalBound).
 	NumericPrecision = "openapi/invalid-numeric-literal"
 	// ExclusiveBoundForm reports an exclusiveMinimum/exclusiveMaximum whose value
 	// form is wrong for the schema's dialect (a boolean under 2020-12, or a
-	// number under 3.0's or draft 4's), at every schema the load phase's check
-	// reads — see load.ownedFinding.
+	// number under 3.0's or draft 4's), at every schema the rule table's check
+	// reads — see oas's decimalBound.
 	ExclusiveBoundForm = "openapi/invalid-exclusive-bound"
 	// InvalidStatusKey reports a responses-map key that names no status: not a
 	// 100–599 code, not one of the 1XX–5XX wildcard ranges, not "default". The
@@ -182,13 +205,13 @@ const (
 	// on nothing but declaration order.
 	DuplicateStatusKey = "openapi/duplicate-status-key"
 	// DuplicateParameter reports a parameter list entry repeating the name and
-	// location of an earlier entry in the same list, its $refs resolved, which
-	// OpenAPI forbids. The rule table states the rule and leaves it here, where
-	// every entry is read through its $ref: every list the source writes is
-	// checked whether or not it lowers (load), and a list another document
-	// writes where it lowers (the parameter lowering) or where a path item
-	// mounting no operation keeps it. Either keeps every occurrence, each
-	// repeat's ID or key ending in its occurrence number.
+	// location of an earlier entry in the same list (ids.SlotOf), its $refs
+	// resolved, which OpenAPI forbids (RepeatedParameter). The rule table
+	// leaves it here, where every entry is read through its $ref: every list
+	// the source writes is checked whether or not it lowers (load), and a list
+	// another document writes where it lowers (the parameter lowering) or where
+	// a path item mounting no operation keeps it. Either keeps every
+	// occurrence, a repeat of one spelling numbered.
 	//
 	// An error, as the specification forbids the repeat.
 	DuplicateParameter = "openapi/duplicate-parameter"
@@ -209,19 +232,21 @@ const (
 	// method is unusable. speakeasy rejects a key naming a *standard* method, which
 	// belongs in its own field, but accepts this one.
 	InvalidMethodKey = "openapi/invalid-method-key"
-	// DegradedConstruct reports a construct the compiler could not carry into the
-	// IR as written: preserved raw for want of a structural home, lowered to a
-	// weaker shape (a heterogeneous enum as a union, an unconvertible value as
-	// the top type), or dropped — an annotation like a default or example, or
-	// the fields beside a path item $ref the load phase's walk does not reach. A
-	// promotion or grouping by extension reports it for an extension kept but
-	// read into no field or group (lowering.Promoter, operation.extensionLevels).
-	// It marks the lossy lowerings the compiler reports, not a guarantee that
-	// every one is.
+	// DegradedConstruct reports a construct the compiler could not lower as
+	// written: kept raw for want of a home or past a bound (callbacks too deep,
+	// operation.operationCallbacks), lowered weaker (a mixed enum as a union, an
+	// unconvertible value as the top type, a member or const its type rejects as
+	// written), or dropped (a default or example, an enum's excluded null, the
+	// fields beside a path item $ref the load phase's walk misses). A promotion
+	// or grouping by extension reports an extension kept but read into no field
+	// or group (lowering.Promoter, operation.extensionPaths). It marks the lossy
+	// lowerings reported, not every one.
 	DegradedConstruct = "openapi/degraded-construct"
 	// CompositionLowering reports that a schema conjoining a structural body with
 	// a oneOf/anyOf was lowered by distributing the body across the union
-	// variants (docs/ir/models.md#composition-beside-a-union,
+	// variants (lowerDistributedUnion), or, for a subtype a discriminator routes
+	// to, by composing a Union minted for it as a mixin of its model
+	// (lowerSubtypeUnion; docs/ir/models.md#composition-beside-a-union,
 	// docs/compilers/openapi.md#union-beside-structure). Nothing is lost, so
 	// this records a decision rather than a degradation: the IR's shape no
 	// longer mirrors the source's, which is what a reader comparing the two
@@ -291,13 +316,12 @@ const (
 	// (UnpreservableConstruct), what was not reached is unresolved, or what is
 	// past the bound is kept verbatim, unlowered.
 	BudgetExceeded = "openapi/budget-exceeded"
-	// InternalInvariant reports that one of the compiler's own invariants broke:
-	// a pointer named a type ID the registry does not hold, a second resolution
-	// read a document load never prepared, or the library faulted while load put
-	// the $refs it respelled back as written. It is a compiler bug, not a problem
-	// with the source, but it is reported rather than dropped in silence, since
-	// the alternative is losing constructs with no trace at all. An entry the
-	// registry refused is compile.RegistryRefused instead.
+	// InternalInvariant reports that one of the compiler's own invariants broke,
+	// such as a pointer naming a type ID the registry does not hold. It is a
+	// compiler bug, not a problem with the source, but it is reported rather
+	// than dropped in silence, since the alternative is losing constructs with
+	// no trace at all. An entry the registry refused is compile.RegistryRefused
+	// instead.
 	InternalInvariant = "openapi/internal-invariant"
 	// DuplicateOperationID reports an operationId that one declaration claims
 	// more than once because it is mounted more than once: a path item or an
@@ -319,8 +343,7 @@ const (
 	// OpenAPI does not say which declaration wins, so the one nearer the use
 	// site does, as for a $ref-adjacent schema sibling, and the other is not
 	// lowered at that mount. A warning, as InvalidStatusKey is: the document
-	// still lowers, nothing is lost unnamed, and an error would stop
-	// harness.Check early (GitHub #577).
+	// still lowers, and nothing is lost unnamed (GitHub #577).
 	PathItemRefCollision = "openapi/path-item-ref-collision"
 	// IncompleteSecurityScheme reports a securitySchemes entry that omits the
 	// field naming its mechanism: `type`, or for type http the RFC 7235 `scheme`
@@ -352,6 +375,17 @@ const (
 	// A warning, as OAuth2NoFlow is: the document lowers whole, but states no
 	// way to send the body.
 	EmptyRequestContent = "openapi/empty-request-content"
+	// UnknownEncodingKey reports an encoding entry of a form body whose key
+	// names no property the body's schema declares, through $ref, allOf, oneOf
+	// and anyOf, where no catch-all admits a member it names no property for and
+	// the part walk read every position declaring one, at the entry, beside the
+	// info keeping it whole; and a key of the nested encoding a 3.2 Encoding
+	// Object writes naming none of its part's
+	// (docs/compilers/openapi.md#multipart-encoding).
+	//
+	// A warning, as InvalidStatusKey is: OpenAPI gives such an entry no effect,
+	// and the entry is kept.
+	UnknownEncodingKey = "openapi/unknown-encoding-key"
 	// ReservedHeaderName reports a header declaration OpenAPI says SHALL be
 	// ignored, because the protocol layer already owns the name. Three positions:
 	//
@@ -363,8 +397,7 @@ const (
 	// The declaration is kept, since dropping it is a loss and an emitter's call
 	// (invariant 2; GitHub #39); the diagnostic lets an emitter suppress it. It is
 	// unconditional, not an Options switch, because nothing is inferred (invariant
-	// 6). Warning, not error: the document is well-formed, and harness.Check stops
-	// at the first error, hiding later findings.
+	// 6). Warning, not error: the document is well-formed.
 	ReservedHeaderName = "openapi/reserved-header-name"
 	// UnpreservableConstruct reports a construct that reached the IR in no form at
 	// all: the compiler had no field to model it and its source node could not be
@@ -391,9 +424,14 @@ const (
 	// gives its objects a closed key set and requires extensions to be prefixed
 	// x-, so such a key is a document error, usually a misspelling of the field
 	// beside it. Not an error, for the reason ReservedHeaderName is not: the
-	// document still lowers, and harness.Check stops at the first error
-	// diagnostic, which would hide every later finding.
+	// document still lowers.
 	UnknownObjectKey = "openapi/unknown-object-key"
+	// UnreadExtension reports a vendor extension under a prefix the promotion
+	// policy owns that the compiler reads no key of, by its mapping or by
+	// grouping, naming the nearest key it reads (lowering.UnreadExtensions).
+	// Warning for UnknownObjectKey's reason: a key under a prefix a policy owns
+	// is most likely one it reads, misspelt.
+	UnreadExtension = "openapi/unread-extension"
 	// UnknownKeyBudget reports an object declaring more keys the model does not
 	// name than the compiler keeps, so the ones past the bound reached the IR in no
 	// form at all.
@@ -447,17 +485,16 @@ const (
 	// type array and no `items`, which 3.0 requires, at the schema's pointer. It
 	// lowers as it would in 3.1, where `items` is optional: a List's element is
 	// the top type. A warning rather than an error: nothing the document
-	// declared is dropped, and harness.Check stops at the first error
-	// diagnostic. A code of its own rather than DegradedConstruct, because
-	// nothing is kept in a weaker shape.
+	// declared is dropped. A code of its own rather than DegradedConstruct,
+	// because nothing is kept in a weaker shape.
 	MissingArrayItems = "openapi/missing-array-items"
-	// LaterVersionConstruct reports a field, or a value of one, that a later
-	// OpenAPI minor than the document declares added to the object it is written
-	// on, lowered as in a document declaring that minor, or a keyword beside a
-	// $ref that its schema's 3.0 minor or dialect ignores, applied as later
-	// versions apply one and read in its schema's minor and dialect. Either
-	// reading loses least: a consumer can set the construct aside, and could not
-	// recover the lowering from a verbatim copy
+	// LaterVersionConstruct reports, from the rule table's check, a field or a
+	// value a later OpenAPI minor added to its object, lowered as that minor
+	// does; a keyword JSON Schema 2020-12 added, in a 3.0 schema or a draft's,
+	// read as 2020-12 reads it; or a keyword beside a $ref its schema's minor or
+	// dialect ignores, applied as later versions apply it. Each reading loses
+	// least: a consumer can set the construct aside, and could not recover the
+	// lowering from a verbatim copy
 	// (docs/compilers/openapi.md#later-version-construct).
 	//
 	// A warning: the construct lowers, though the version or dialect it is
@@ -473,13 +510,12 @@ const (
 	// InvalidPathKey reports a Paths Object key that breaks OpenAPI's path
 	// templating rules, those of 3.2.0 §4.8.2 read at every version: no leading
 	// "/", a character a path admits only percent-encoded, a brace outside a
-	// template expression, an expression used twice, an empty segment, or a
-	// query. One warning per key names each, at the key's path item.
+	// template expression, an expression used twice, an empty segment, a query
+	// or a fragment. One warning per key names each, at the key's path item.
 	//
-	// Warning, as InvalidStatusKey is: the key is used as written, and an error
-	// would stop harness.Check before later findings. A "#" fragment is GitHub
-	// #602's to report, so nothing from it on is read, and matching the
-	// expressions to path parameters is #640's.
+	// Warning, as InvalidStatusKey is: the key is used as written, but for a
+	// fragment, which the URI template leaves out and each operation's binding
+	// keeps. Matching the expressions to path parameters is #640's.
 	InvalidPathKey = "openapi/invalid-path-key"
 	// InferredNullable reports a null the nullable-widening policy reads in
 	// where the document's version does not: a `nullable: true` in a 3.1 or 3.2
@@ -499,21 +535,46 @@ const (
 	UnreadDialect = "openapi/unread-dialect"
 	// InvalidItemsList reports `items` written as a list, a tuple as JSON
 	// Schema's drafts before 2020-12 spell one, in a schema whose dialect takes
-	// no list there, at it. The rule table's check leaves such a list to the
-	// load phase, which knows the schema's dialect once its references are
-	// bound (docs/compilers/openapi.md#tuples). Error, as the table's mismatch
-	// is.
+	// no list there, at it. The rule table's check reports it, reading the
+	// schema with the rows of its dialect (docs/compilers/openapi.md#tuples).
+	// Error, as the table's mismatch is.
 	InvalidItemsList = "openapi/invalid-items-list"
 	// InferredDiscriminator reports a mapping the discriminator-inference
-	// policy reads off the tag values a union's variants pin, where the
-	// discriminator declares none and the component names OpenAPI's implicit
-	// mapping routes by are not those values, at the discriminator; and a
+	// policy reads off the strings a union's variants pin their tag to, where
+	// the discriminator declares none and the component names OpenAPI's
+	// implicit mapping routes by are not all of them, at the discriminator; and a
 	// subtype's tag it reads off the values the subtype admits, where they rule
 	// out the name it is routed by, at the subtype. The node is marked Inferred
 	// (docs/compilers/openapi.md#discriminator-inference).
 	// Info, as InferredNullable is: the reading is the document's evident
 	// intent, and the mark keeps the declared one.
 	InferredDiscriminator = "openapi/inferred-discriminator"
+	// InferredHTTPDate reports a response header the HTTP-date policy writes and
+	// reads as an HTTP-date, a field an RFC defines so whose schema declares a
+	// date-time, whose text format spells as RFC 3339's, at the header. The
+	// header is marked Inferred (docs/compilers/openapi.md#http-date-inference).
+	// Info, as InferredDiscriminator is: the reading departs from what the
+	// format says, and the mark keeps what the document declared.
+	InferredHTTPDate = "openapi/inferred-http-date"
+	// UndecidedIdempotency reports an operation binding an Idempotency-Key
+	// header parameter that the idempotency policy cannot settle as its token,
+	// saying why, at the operation: it is sent by a method whose safety the
+	// compiler does not know, or binds the header more than once
+	// (docs/compilers/openapi.md#idempotency-inference). Info: the document
+	// declares no idempotency, so nothing it says is lost.
+	UndecidedIdempotency = "openapi/undecided-idempotency"
+	// UndecidedReplacement reports a deprecation whose message names an entity
+	// the replacement policy would read as its replacement, beside a name naming
+	// none or several, so the names fill nothing, saying which, at the
+	// deprecated node (docs/compilers/openapi.md#replacement-inference). Info:
+	// the message keeps its prose, so nothing it says is lost.
+	UndecidedReplacement = "openapi/undecided-replacement"
+	// UndecidedPagination reports an operation whose query parameters name a
+	// pagination input the pagination-inference policy cannot settle into an
+	// ir.Pagination, saying why, at the operation: it is left with none
+	// (docs/compilers/openapi.md#pagination-policy). Info: the document
+	// declares no pagination, so nothing it says is lost.
+	UndecidedPagination = "openapi/undecided-pagination"
 )
 
 // Newf builds an ir.Diagnostic with a formatted message. It is the single
@@ -521,6 +582,19 @@ const (
 // are always populated.
 func Newf(sev ir.Severity, code string, prov ir.Provenance, format string, args ...any) ir.Diagnostic {
 	return ir.NewDiagnostic(sev, code, fmt.Sprintf(format, args...), prov)
+}
+
+// RepeatedParameter is the message DuplicateParameter carries at an entry
+// naming name in in that repeats the entry at first, which names firstName,
+// saying how that one is spelled where a header's differs in case. Load's
+// walk and the parameter lowering each report a repeat, so one function words
+// both.
+func RepeatedParameter(name, in string, first jsontext.Pointer, firstName string) string {
+	message := fmt.Sprintf("parameter %q in %q repeats the entry at %s", name, in, first)
+	if firstName == name {
+		return message
+	}
+	return message + fmt.Sprintf(", spelled %q, as HTTP compares header names in any case", firstName)
 }
 
 // HasError reports whether any diagnostic carries error severity. The load phase

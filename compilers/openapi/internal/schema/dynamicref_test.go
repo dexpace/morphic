@@ -216,8 +216,6 @@ func TestDynamicRef_IrreducibleIsKeptAndSaysWhy(t *testing.T) {
 			wantWhy: `no $dynamicAnchor "my%2Danchor" is declared`},
 		{name: "declared twice", schemas: anchors + "    A: {$dynamicRef: '#dup'}\n",
 			wantWhy: "declared 2 times"},
-		{name: "not a component", schemas: anchors + "    A: {$dynamicRef: '#deep'}\n",
-			wantWhy: "rather than on a component schema"},
 		{name: "co-declared with a shape", schemas: anchors + "    A: {$dynamicRef: '#deep', type: string}\n",
 			wantWhy: "co-declared with another applicator"},
 		{name: "co-declared with items", schemas: anchor + "    A: {$dynamicRef: '#m', items: {type: integer}}\n",
@@ -240,12 +238,12 @@ func TestDynamicRef_IrreducibleIsKeptAndSaysWhy(t *testing.T) {
 			name: "the anchor is in a resource of its own",
 			schemas: "    M: {$id: 'https://example.com/m', $dynamicAnchor: m, type: string}\n" +
 				"    A: {$dynamicRef: '#m'}\n",
-			wantWhy: `an identifier at or above "/components/schemas/M"`,
+			wantWhy: `an identifier between it and "/components/schemas/M" puts the two in different schema resources`,
 		},
 		{
 			name:    "the reference is in a resource of its own",
 			schemas: anchor + "    A: {$id: 'https://example.com/a', $dynamicRef: '#m'}\n",
-			wantWhy: `an identifier at or above "/components/schemas/A"`,
+			wantWhy: `an identifier between it and "/components/schemas/M" puts the two in different schema resources`,
 		},
 		{
 			// The pointer of a schema named "" ends in an empty reference token,
@@ -255,25 +253,14 @@ func TestDynamicRef_IrreducibleIsKeptAndSaysWhy(t *testing.T) {
 			// boundary it should have stopped at.
 			name:    `a schema named "" is still in a resource of its own`,
 			schemas: anchor + "    \"\": {$id: 'https://example.com/empty', $dynamicRef: '#m'}\n",
-			wantWhy: `an identifier at or above "/components/schemas/"`,
+			wantWhy: `an identifier between it and "/components/schemas/M" puts the two in different schema resources`,
 			at:      "t/anon/components/schemas/",
-		},
-		{
-			// The mirror of the case above, on the anchor's side. /components/
-			// schemas/ addresses a component schema, so the refusal may not say it
-			// does not — the reason is that an empty name earns no named TypeID,
-			// which is the policy testdata/conformance/openapi/empty-names.yaml
-			// records rather than a shape the compiler failed to recognise.
-			name:    `an anchor on a schema named "" says why, not that it is no component`,
-			schemas: "    \"\": {$dynamicAnchor: m, type: string}\n    A: {$dynamicRef: '#m'}\n",
-			wantWhy: `is declared on the component schema keyed "" at "/components/schemas/", ` +
-				`and an empty name earns no named type to expand to`,
 		},
 		{
 			name: "an enclosing schema starts the resource",
 			schemas: anchor +
 				"    A: {$id: 'https://example.com/a', type: array, items: {$dynamicRef: '#m'}}\n",
-			wantWhy: `an identifier at or above "/components/schemas/A/items"`,
+			wantWhy: `an identifier between it and "/components/schemas/M" puts the two in different schema resources`,
 			at:      "t/anon/components/schemas/A/items",
 		},
 		{
@@ -558,4 +545,245 @@ func assertDiagContains(t *testing.T, diags []ir.Diagnostic, pointer, substr str
 		}
 	}
 	assert.Fail(t, "no diagnostic said why", "nothing at %q mentions %q; got %+v", pointer, substr, diags)
+}
+
+// dynamicAtSpec is a document declaring the anchor n at one position, holder
+// being the component or the response holding it, and Uses, whose property m
+// writes a $dynamicRef naming n and r a $ref naming that position, declared
+// after holder or, first, before it.
+func dynamicAtSpec(holder, uses string, first bool) string {
+	schemas := holder + uses
+	if first {
+		schemas = uses + holder
+	}
+	return "openapi: 3.1.0\ninfo: {title: t, version: '1'}\npaths: {}\ncomponents:\n" +
+		"  responses:\n    Rsp: {description: ok, content: {application/json: {schema: {$dynamicAnchor: rsp, type: object}}}}\n" +
+		"  schemas:\n" + schemas
+}
+
+// TestDynamicRef_ExpandsToAnyPositionARefNames pins a $dynamicRef naming the one
+// $dynamicAnchor of its name wherever its document declares it in its own
+// resource: under $defs, on a property, on an items schema, in a response's
+// inline schema and on the component keyed "". Each expands to the type a $ref
+// to that position resolves to, the declaration's own ID, which no use mints,
+// so the documents compiled with the reference declared before the anchor and
+// after it are one.
+func TestDynamicRef_ExpandsToAnyPositionARefNames(t *testing.T) {
+	t.Parallel()
+	for name, tc := range map[string]struct{ holder, name, pointer string }{
+		"$defs": {"    Outer: {type: object, $defs: {Inner: {$dynamicAnchor: n, type: object}}}\n", "n",
+			"/components/schemas/Outer/$defs/Inner"},
+		"a property": {"    Outer: {type: object, properties: {p: {$dynamicAnchor: n, type: object}}}\n", "n",
+			"/components/schemas/Outer/properties/p"},
+		"an items schema": {"    Outer: {type: array, items: {$dynamicAnchor: n, type: object}}\n", "n",
+			"/components/schemas/Outer/items"},
+		"a response's inline schema": {"", "rsp",
+			"/components/responses/Rsp/content/application~1json/schema"},
+		`the component keyed ""`: {"    \"\": {$dynamicAnchor: n, type: object}\n", "n", "/components/schemas/"},
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			uses := "    Uses: {type: object, properties: {m: {$dynamicRef: '#" + tc.name + "'}, r: {$ref: '#" +
+				tc.pointer + "'}}}\n"
+			docs := make([]*ir.Document, 0, 2)
+			for _, first := range []bool{false, true} {
+				doc, diags := parseFull(t, dynamicAtSpec(tc.holder, uses, first))
+				for _, d := range diags {
+					assert.NotEqual(t, ir.SeverityError, d.Severity, "%+v", d)
+				}
+				m, r := propertyOf(t, doc, "Uses", "m"), propertyOf(t, doc, "Uses", "r")
+				assert.Equal(t, r.Type.Target, m.Type.Target, "the expansion names what the $ref names")
+				assert.Equal(t, ids.In("").ForPointer(jsontext.Pointer(tc.pointer)), m.Type.Target)
+				assert.NotContains(t, m.Unmodeled, "openapi:$dynamicRef")
+				assert.Equal(t, []jsontext.Pointer{"/components/schemas/Uses/properties/m/$dynamicRef"},
+					openapitest.PointersOf(diags, diag.DynamicRefExpanded))
+				docs = append(docs, doc)
+			}
+			assert.Empty(t, cmp.Diff(docs[0].Types, docs[1].Types, orderInvariantIR()...),
+				"which is declared first decides nothing")
+			assert.Empty(t, cmp.Diff(diagnosticSet(docs[0].Diagnostics), diagnosticSet(docs[1].Diagnostics)))
+		})
+	}
+}
+
+// TestDynamicRef_ExpandsWithinOneResource pins the reference and its anchor
+// read in one schema resource an $id starts: the reference expands to the
+// anchor, there the resource's root, as the usual JSON Schema spelling of a
+// recursive schema has it. An $id between the two puts them in two resources,
+// and the reference is kept.
+func TestDynamicRef_ExpandsWithinOneResource(t *testing.T) {
+	t.Parallel()
+	doc, diags := parseFull(t, openapitest.ComponentSpec(
+		"    Dyn:\n      $id: 'https://example.com/dyn'\n      $dynamicAnchor: node\n      type: object\n"+
+			"      properties: {children: {type: array, items: {$dynamicRef: '#node'}}}\n"+
+			"    Split:\n      $dynamicAnchor: split\n      type: object\n"+
+			"      properties: {c: {$id: 'https://example.com/c', type: array, items: {$dynamicRef: '#split'}}}\n"))
+	openapitest.RequireNoErrorDiags(t, diags)
+	items, ok := doc.Types[ir.TypeID("t/anon/components/schemas/Dyn/properties/children/items")].(*ir.Scalar)
+	require.True(t, ok)
+	require.NotNil(t, items.Base)
+	assert.Equal(t, componentID("Dyn"), items.Base.Target)
+	kept := doc.Types[ir.TypeID("t/anon/components/schemas/Split/properties/c/items")]
+	require.NotNil(t, kept)
+	assert.Contains(t, kept.Common().Unmodeled, "openapi:$dynamicRef")
+	assertDiagContains(t, diags, "/components/schemas/Split/properties/c/items/$dynamicRef",
+		`an identifier between it and "/components/schemas/Split" puts the two in different schema resources`)
+}
+
+// d2019 is the `$schema` of JSON Schema 2019-09, which spells a dynamic
+// reference $recursiveRef.
+const d2019 = "$schema: 'https://json-schema.org/draft/2019-09/schema'"
+
+// TestRecursiveRef_ExpandsWhereItsTargetIsStatic pins 2019-09's $recursiveRef
+// in an OpenAPI document: "#" names the root of the resource the reference is
+// in, and the reference expands to it where that declares no $recursiveAnchor
+// true, or every schema of the document declaring one, in a dialect defining
+// the keyword, lies in its resource. Under no identifier "#" names the OpenAPI
+// Object, which holds no schema, so it is kept, saying what makes it expand.
+// Any other value, a sibling it cannot carry, two resources declaring the
+// anchor and an identifier or a declaration the merge bound may hide each keep
+// it too, under degraded_lowering, saying why.
+func TestRecursiveRef_ExpandsWhereItsTargetIsStatic(t *testing.T) {
+	t.Parallel()
+	items := func(name, head, ref string) string {
+		return "    " + name + ": {" + d2019 + ", " + head + "type: object, properties: {c: {type: array, items: " +
+			ref + "}}}\n"
+	}
+	tree := items("Tree", "$id: 'https://example.com/tree', $recursiveAnchor: true, ", "{$recursiveRef: '#'}")
+	chain := func() string {
+		var b strings.Builder
+		b.WriteString("x-c0: &c0 {description: d}\n")
+		for i := 1; i <= 70; i++ {
+			fmt.Fprintf(&b, "x-c%d: &c%d {<<: *c%d}\n", i, i, i-1)
+		}
+		return b.String()
+	}()
+	const at = "/components/schemas/%s/properties/c/items"
+	for _, tc := range []struct {
+		name, schemas, extra, model, expandsTo, why string
+	}{
+		{name: "an anchored root under an identifier", schemas: tree, model: "Tree", expandsTo: "Tree"},
+		{name: "two declarations in one resource", model: "Tree", expandsTo: "Tree",
+			schemas: strings.Replace(tree, "{type: array, items:", "{type: array, $recursiveAnchor: true, items:", 1)},
+		{name: "a root declaring no anchor", schemas: items("Static", "$id: 'https://example.com/s', ", "{$recursiveRef: '#'}"),
+			model: "Static", expandsTo: "Static"},
+		{name: "a root declaring none beside two resources declaring it", model: "Static", expandsTo: "Static",
+			schemas: items("Static", "$id: 'https://example.com/s', ", "{$recursiveRef: '#'}") + tree +
+				items("Other", "$id: 'https://example.com/o', $recursiveAnchor: true, ", "{}")},
+		{name: "a resource declaring it in a dialect defining none", model: "Tree", expandsTo: "Tree",
+			schemas: tree + "    Modern: {$id: 'https://example.com/m', $recursiveAnchor: true}\n"},
+		{name: "a root declaring the anchor false", model: "False", expandsTo: "False",
+			schemas: items("False", "$id: 'https://example.com/f', $recursiveAnchor: false, ", "{$recursiveRef: '#'}")},
+		{name: "no identifier", schemas: items("Bare", "$recursiveAnchor: true, ", "{$recursiveRef: '#'}"), model: "Bare",
+			why: `"#" names the root of the document it is written in, which holds no schema; under an identifier of ` +
+				`its own, the schema it means to recurse to would be that root`},
+		{name: "another value", model: "Pointer",
+			schemas: items("Pointer", "$id: 'https://example.com/p', ", "{$recursiveRef: '#/x'}"),
+			why:     `its value is "#/x", and JSON Schema 2019-09 defines it only for "#"`},
+		{name: "a sibling", model: "Beside",
+			schemas: items("Beside", "$id: 'https://example.com/b', ", "{$recursiveRef: '#', type: string}"),
+			why:     "it is co-declared with another applicator"},
+		{name: "two resources", model: "Tree",
+			schemas: tree + items("Other", "$id: 'https://example.com/o', $recursiveAnchor: true, ", "{}"),
+			why:     "$recursiveAnchor: true is declared in 2 schema resources of this document"},
+		{name: "a declaration past the merge bound", model: "Tree", extra: chain,
+			schemas: tree + "    Deep: {<<: *c70}\n",
+			why:     "this document's identifiers were not read whole"},
+		{name: "an identifier past the merge bound", model: "Deep", extra: chain,
+			schemas: "    Deep: {<<: *c70, " + d2019 + ", type: object, properties: {c: {type: array, items: {$recursiveRef: '#'}}}}\n",
+			why:     `a schema at or above "/components/schemas/Deep/properties/c/items" merges past the levels`},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			src := strings.Replace(openapitest.ComponentSpec(tc.schemas), "components:", tc.extra+"components:", 1)
+			doc, diags := parseFull(t, src)
+			pointer := fmt.Sprintf(at, tc.model)
+			node := doc.Types[ir.TypeID("t/anon"+pointer)]
+			require.NotNil(t, node, "the items position owns a node")
+			if tc.expandsTo != "" {
+				scalar, ok := node.(*ir.Scalar)
+				require.True(t, ok)
+				require.NotNil(t, scalar.Base)
+				assert.Equal(t, componentID(tc.expandsTo), scalar.Base.Target)
+				assert.Equal(t, []jsontext.Pointer{jsontext.Pointer(pointer + "/$recursiveRef")},
+					openapitest.PointersOf(diags, diag.DynamicRefExpanded))
+				assertDiagContains(t, diags, pointer+"/$recursiveRef", "the root of the schema resource it is written in")
+				assert.NotContains(t, node.Common().Unmodeled, "openapi:$recursiveRef")
+				return
+			}
+			entry, ok := node.Common().Unmodeled["openapi:$recursiveRef"]
+			require.True(t, ok, "kept verbatim")
+			assert.Equal(t, ir.ReasonDegradedLowering, entry.Reason)
+			assertDiagContains(t, diags, pointer+"/$recursiveRef", "$recursiveRef was not expanded because "+tc.why)
+		})
+	}
+}
+
+// TestRecursiveRef_IsAKeywordOnlyWhereItsDialectDefinesIt pins 2019-09's pair
+// outside the dialect defining it: in a 2020-12 schema each is an unknown
+// keyword, kept verbatim with the reference unexpanded, where in a 2019-09 one
+// `$recursiveAnchor` is consumed as `$dynamicAnchor` is. Beside a $dynamicRef,
+// which is read first, a $recursiveRef is kept as unknown too.
+func TestRecursiveRef_IsAKeywordOnlyWhereItsDialectDefinesIt(t *testing.T) {
+	t.Parallel()
+	doc, diags := parseFull(t, openapitest.ComponentSpec(
+		"    Modern: {$recursiveAnchor: true, type: object, properties: {c: {type: array, items: {$recursiveRef: '#'}}}}\n"+
+			"    Anchored: {"+d2019+", $id: 'https://example.com/a', $recursiveAnchor: true, type: object}\n"+
+			"    Both: {"+d2019+", $dynamicAnchor: n, type: object, properties: {c: {$dynamicRef: '#n', $recursiveRef: '#'}}}\n"))
+	openapitest.RequireNoErrorDiags(t, diags)
+	items := doc.Types[ir.TypeID("t/anon/components/schemas/Modern/properties/c/items")]
+	require.NotNil(t, items)
+	assert.Equal(t, ir.ReasonOutOfScope, items.Common().Unmodeled["openapi:$recursiveRef"].Reason)
+	assert.Equal(t, ir.ReasonOutOfScope, doc.Types[componentID("Modern")].Common().Unmodeled["openapi:$recursiveAnchor"].Reason)
+	assert.NotContains(t, doc.Types[componentID("Anchored")].Common().Unmodeled, "openapi:$recursiveAnchor")
+	assert.Contains(t, openapitest.PointersOf(diags, diag.UnknownSchemaKeyword),
+		jsontext.Pointer("/components/schemas/Modern/properties/c/items/$recursiveRef"))
+	assert.Equal(t, ir.ReasonOutOfScope, propertyOf(t, doc, "Both", "c").Unmodeled["openapi:$recursiveRef"].Reason)
+}
+
+// TestDynamicRef_ExpandsToAnAnchorOnlyADraftPlaces pins an anchor at a position
+// the parser's model holds no schema for, a JSON Schema draft's `definitions`
+// entry: the reference lands there, as a $ref naming the anchor would, so the
+// schema is built and the reference expands to it. Where a $ref naming it
+// would not resolve, an `$anchor` of its name making the name ambiguous in its
+// resource, nothing builds it, and the reference is kept, saying so.
+func TestDynamicRef_ExpandsToAnAnchorOnlyADraftPlaces(t *testing.T) {
+	t.Parallel()
+	const outer = "    Outer: {$schema: 'http://json-schema.org/draft-07/schema#', type: object, " +
+		"definitions: {Inner: {$dynamicAnchor: n, type: object}}}\n    D: {$dynamicRef: '#n'}\n"
+	doc, diags := parseFull(t, openapitest.ComponentSpec(outer))
+	openapitest.RequireNoErrorDiags(t, diags)
+	inner := ir.TypeID("t/anon/components/schemas/Outer/definitions/Inner")
+	_, built := doc.Types[inner].(*ir.Model)
+	assert.True(t, built)
+	d, ok := doc.Types[componentID("D")].(*ir.Scalar)
+	require.True(t, ok)
+	require.NotNil(t, d.Base)
+	assert.Equal(t, inner, d.Base.Target)
+
+	doc, diags = parseFull(t, openapitest.ComponentSpec(outer+"    Twin: {$anchor: n, type: string}\n"))
+	assert.NotContains(t, doc.Types, inner)
+	assert.Contains(t, doc.Types[componentID("D")].Common().Unmodeled, "openapi:$dynamicRef")
+	assertDiagContains(t, diags, "/components/schemas/D/$dynamicRef",
+		`$dynamicAnchor "n" is declared at "/components/schemas/Outer/definitions/Inner", where no schema could be built`)
+}
+
+// TestRecursiveRef_LandsOnTheRootOfItsResource pins a $recursiveRef in
+// another document whose resource's root no $ref reaches: the reference lands
+// there as a $ref of "#" would, so the root is built and the reference expands
+// to it, in that document's namespace.
+func TestRecursiveRef_LandsOnTheRootOfItsResource(t *testing.T) {
+	t.Parallel()
+	doc, diags, _ := compileBeside(t, map[string]string{"ext.json": `{"$schema": "https://json-schema.org/draft/2019-09/schema",
+  "$defs": {"T": {"$id": "https://example.com/t", "type": "object",
+    "properties": {"c": {"type": "array", "items": {"$recursiveRef": "#"}}}}}}`},
+		openapitest.ComponentSpec("    S: {$ref: 'ext.json#/$defs/T/properties/c'}\n"))
+	openapitest.RequireNoErrorDiags(t, diags)
+	root := ids.In("ext.json").ForPointer("/$defs/T")
+	_, built := doc.Types[root].(*ir.Model)
+	require.True(t, built, "the root no $ref reaches is built")
+	items, ok := doc.Types[ids.In("ext.json").ForPointer("/$defs/T/properties/c/items")].(*ir.Scalar)
+	require.True(t, ok)
+	require.NotNil(t, items.Base)
+	assert.Equal(t, root, items.Base.Target)
 }

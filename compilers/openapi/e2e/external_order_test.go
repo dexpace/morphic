@@ -88,12 +88,7 @@ components:
 // orderDecided holds the corpus specs whose report, compiled as another
 // document, still follows declaration order, each with the issue recording
 // why. An entry must still differ, so it comes off once its issue is fixed.
-var orderDecided = map[string]string{
-	// The resolver keeps the hops of a failing chain, so of two references into
-	// one cycle, the one resolved second is reported without the hop the first
-	// was reported through.
-	"cycle_path_item_mutual.yaml": "#767",
-}
+var orderDecided = map[string]string{}
 
 // referencingRoots returns two sources that each $ref every path item and every
 // component of the OpenAPI 3 document data as ext.yaml: one in data's order,

@@ -117,6 +117,10 @@ const (
 	// and is no JSON pointer, is a PlainName, as a draft 6 or 7 identifier
 	// naming a subschema must be (draft-handrews-json-schema-01 §8.2.3).
 	PlainNameURI
+	// FieldName is an HTTP field name: a Token, which HTTP compares in any case
+	// (RFC 9110 §5.1), so two keys of a map keyed by one that differ in case
+	// alone name one field.
+	FieldName
 )
 
 // Level is how firmly the specification states a rule.
@@ -214,6 +218,24 @@ type DefaultCase int
 const (
 	// DefaultUntyped is a value whose schema writes no type.
 	DefaultUntyped DefaultCase = 1 + iota
+	// DefaultRawBinary is raw bytes, a string of format binary.
+	DefaultRawBinary
+	// DefaultByteFormat is a string of format byte writing no contentEncoding.
+	DefaultByteFormat
+	// DefaultEncodedByteFormat is a string of format byte writing
+	// contentEncoding.
+	DefaultEncodedByteFormat
+	// DefaultContentEncoded is any other string writing contentEncoding.
+	DefaultContentEncoded
+	// DefaultString is any other string.
+	DefaultString
+	// DefaultScalar is a number, an integer or a boolean.
+	DefaultScalar
+	// DefaultObject is an object.
+	DefaultObject
+	// DefaultNestedArray is an array inside the array an encoding applies to
+	// item by item.
+	DefaultNestedArray
 )
 
 // Field is one field of an object.
@@ -221,17 +243,6 @@ type Field struct {
 	Name string
 	// Owner is the package that reports the field's missing-field finding.
 	Owner string
-	// ShapeOwner is the package that reports a value of the wrong shape.
-	ShapeOwner string
-	// ListOwner is the package that judges a list written where the field
-	// holds one schema: a tuple, as a JSON Schema draft a schema names spells
-	// one, which the check, run before any schema's dialect is known, cannot
-	// tell from a mistake.
-	ListOwner string
-	// FormatOwner is the package that judges the value's format, which the
-	// dialect a schema is read in decides, as draft 7's `$id` may name a
-	// fragment that 2020-12's may not, and 2019-09's `$anchor` a colon.
-	FormatOwner string
 	// Values is the values admitted, if the field is enumerated.
 	Values []Value
 	// Alts are the other shapes the field admits.
@@ -253,9 +264,27 @@ type Field struct {
 	// Format is the syntax of a string value; Keys that of a map's keys.
 	Format Format
 	Keys   Format
-	// Keyword marks a JSON Schema keyword: one a later minor adds is read
-	// as the schema lowering reads it, not reported here.
+	// Keyword marks a JSON Schema keyword, which the dialect a schema is
+	// read in defines rather than the minor (SchemaRules).
 	Keyword bool
+	// Decimal marks a numeric bound the schema lowering reads as the decimal
+	// its text spells, quoted or not, so the check judges it as read rather
+	// than by its shape: a literal no decimal spells, and an exclusive bound
+	// in the other form than its row gives.
+	Decimal bool
+	// Within is the media types under which a field of an object a media
+	// type holds takes effect; empty means under every one.
+	Within []Within
+}
+
+// Within is a media type, named without parameters and in lower case, under
+// which a field takes effect at the minors Span holds; one whose subtype is
+// "*" names every media type of its type, as "multipart/*" names each
+// multipart one.
+type Within struct {
+	MediaType string
+	Cites     []Cite
+	Span      Span
 }
 
 // Pattern is a family of keys an object admits beside its fixed fields:
@@ -269,6 +298,9 @@ type Pattern struct {
 	// Keys is the syntax of the key itself.
 	Keys  Format
 	Cites []Cite
+	// ByURI marks a key that may name its object by URI where it is no
+	// component name, as a Security Requirement Object's may from 3.2.
+	ByURI bool
 }
 
 // RuleKind names what a Rule demands.

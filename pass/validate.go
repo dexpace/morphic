@@ -101,6 +101,7 @@ func families(doc *ir.Document, read walked, facts *irfacts.Index) []func() []ir
 		func() []ir.Diagnostic { return checkPayloadRequired(doc) },
 		func() []ir.Diagnostic { return checkPropIDRefs(read.props, read.refs) },
 		func() []ir.Diagnostic { return checkDiscriminators(doc, facts) },
+		func() []ir.Diagnostic { return checkRepeatedVariants(doc) },
 		func() []ir.Diagnostic { return checkDuplicateWireNames(doc) },
 		func() []ir.Diagnostic { return checkAmbiguousAliases(doc) },
 		func() []ir.Diagnostic { return checkDuplicateMemberIDs(doc) },

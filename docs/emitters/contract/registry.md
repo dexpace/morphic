@@ -30,14 +30,16 @@ wants one built from it anyway says so with the `none` threshold.
 
 ## Capabilities
 
-`Capabilities()` lets the engine reason about an emitter without running it — which IR `TypeKind`s
-it lowers, whether it supports write/integrate, whether it produces a surface for compat. It is
-advisory metadata, not a second decision channel; it never changes what `Generate` emits from the
-input it is handed.
+`Capabilities()` lets the engine reason about an emitter without running it — which bindings it
+lowers, whether it supports write/integrate, whether it produces a surface for compat. It is a
+declaration of what the target does, constant for the target, and no second input: `Generate` stays
+a function of what it is handed. The engine reads it to decide what it hands a target and when, and
+the one rule that reads it inside a run, which binding a target lowers, reads the target's own
+`Protocols` and `RPCSystems` ([bindings](../plan/bindings.md)), so what a target declares it covers
+and what it lowers are one list.
 
 ```go
 type Capabilities struct {
-    LowersKinds     []ir.TypeKind   // the kinds this emitter has an emit path for
     WriteIntegrate  bool            // supports additive merge into a live repo (../write-integrate.md)
     SurfaceVerify   bool            // produces a verify.Surface (../surface-verification.md)
     CrossVersion    bool            // implements Router and reads every version snapshot's routes
@@ -46,7 +48,11 @@ type Capabilities struct {
                                     // after them
                                     // (../docs-and-mock.md#samples-come-from-the-sdk-emitters)
     WritesSamples   bool            // returns EmitterOutput.Samples, so a docs target may name it
+    Build           Build           // the toolchains and checks that build its output
+                                    // (../verification.md#the-output-builds)
     Protocols       []plan.Protocol // the protocols whose bindings it lowers (../plan/bindings.md)
+    RPCSystems      []string        // the RPCBinding.System values it lowers; set exactly when
+                                    // Protocols lists "rpc"
     Lifecycle       Lifecycle       // "hidden" | "experimental" | "stable" | "sunset"; required
     Successor       TargetKey       // the target replacing a sunset one; "" when none does
 }
@@ -56,10 +62,24 @@ type Capabilities struct {
 samples of the targets its options name, and when the engine runs it, and `WritesSamples` that it
 returns samples, so a docs target naming one that does not is refused
 (`engine/sample-target-invalid`); the registry refuses a target that sets `CrossVersion` without
-implementing `Router` ([the contract](emitter.md)). `Lifecycle` is the one field the engine acts on
-otherwise, and only to tell the user, never to change an artifact. The states are a target's life in
-order. A `hidden` target is under construction: it is left out of every listing — help, completion,
-the targets a misspelt name is answered with — and runs only when named, with the `experimental`
-warning. An `experimental` target runs with a warning diagnostic saying its output may change in any
-release. A `sunset` target runs with a warning that names its `Successor` when it has one. The
-registry refuses a target that states no lifecycle, so none is stable by omission.
+implementing `Router` ([the contract](emitter.md)). `RPCSystems` is there because one RPC arm holds
+every RPC system and a target lowering gRPC need not lower JSON-RPC: a binding of a system the list
+omits is one the target does not cover ([bindings](../plan/bindings.md)). The registry refuses a
+target listing `rpc` with no system, which would cover no RPC binding while claiming the arm, one
+naming a system without listing `rpc`, and a protocol outside the vocabulary, and T-68 holds what a
+target covers. No field lists the `TypeKind`s a target lowers: every target dispatches over every
+kind (T-1), a kind it cannot lower draws a code (T-7), and its support table is derived from what it
+draws ([verification](../verification.md#what-a-target-cannot-lower)), so a list would be a second
+statement of the dispatch that could disagree with it. `Build` names the checks the engine runs over
+a target's written output when a run asks for them, and the registry refuses a target that declares
+a check without implementing `Checker` ([verification](../verification.md#the-output-builds)). A
+message binding's system is each of its channel's servers' `Protocol`, such as `kafka` or `mqtt`,
+and capabilities name none until a messaging target needs to
+([open question 4](../open-questions.md)), since no compiler lowers a channel yet. `Lifecycle` is
+the one field the engine acts on in every run, and only to tell the user, never to change an
+artifact. The states are a target's life in order. A `hidden` target is under construction: it is
+left out of every listing — help, completion, the targets a misspelt name is answered with — and
+runs only when named, with the `experimental` warning. An `experimental` target runs with a warning
+diagnostic saying its output may change in any release. A `sunset` target runs with a warning that
+names its `Successor` when it has one. The registry refuses a target that states no lifecycle, so
+none is stable by omission.

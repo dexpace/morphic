@@ -40,7 +40,7 @@ func lowerHeaders(c lowering.Ctx, w walk, headers *sequencedmap.Map[string, *soa
 		diags = append(diags, reservedHeaderEntryDiag(c, name, hptr)...)
 		// A summary or description beside a $ref of the entry's chain documents
 		// this header rather than the declaration it names (GitHub #610).
-		lowered.Docs = resolve.UseDocs[soa.Header](rh, lowered.Docs)
+		lowered.Docs = resolve.UseDocs[soa.Header](c.Bindings(), rh, lowered.Docs)
 		out = append(out, lowered)
 	}
 	return out, diags

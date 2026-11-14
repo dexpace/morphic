@@ -155,19 +155,31 @@ func reported(diags []ir.Diagnostic) []string {
 
 // compileBeside compiles root as the root.yaml of a directory holding files,
 // with external references allowed, and returns the document, its diagnostics
-// and the directory. The one document the source reads is Sources[1].
+// and the directory, its links resolved as the compile names the files in it.
+// The one document the source reads is Sources[1].
 func compileBeside(t *testing.T, files map[string]string, root string) (*ir.Document, []ir.Diagnostic, string) {
 	t.Helper()
-	dir := t.TempDir()
+	doc, diags, dir := compileFiles(t, files, root, openapi.Options{AllowExternalRefs: true})
+	require.Len(t, doc.Sources, 2, "the source and the one document it reads")
+	return doc, diags, dir
+}
+
+// compileFiles compiles root as the root.yaml of a directory holding files,
+// reading from disk each document a reference names that opts admits, and
+// returns the document, its diagnostics and the directory, its links resolved
+// as the compile names the files in it.
+func compileFiles(t *testing.T, files map[string]string, root string, opts openapi.Options) (*ir.Document, []ir.Diagnostic, string) {
+	t.Helper()
+	dir, err := filepath.EvalSymlinks(t.TempDir())
+	require.NoError(t, err)
 	for name, body := range files {
 		require.NoError(t, os.WriteFile(filepath.Join(dir, name), []byte(body), 0o600))
 	}
 	doc, diags, err := openapi.New().Compile(t.Context(),
 		[]compilers.Source{{Path: filepath.Join(dir, "root.yaml"), Data: []byte(root)}},
-		compilers.Options{Reader: reader.Disk{}, FormatOptions: openapi.Options{AllowExternalRefs: true}})
+		compilers.Options{Reader: reader.Disk{}, FormatOptions: opts})
 	require.NoError(t, err)
 	require.NotNil(t, doc)
-	require.Len(t, doc.Sources, 2, "the source and the one document it reads")
 	return doc, diags, dir
 }
 

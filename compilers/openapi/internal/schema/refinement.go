@@ -134,12 +134,12 @@ func refinableBranches(comp allOfComposition) bool {
 	return refs <= 1
 }
 
-// conjuncts reads s's own keywords, then each branch of comp but a `true`, which
-// says nothing. A wrapper's own keywords are read alone: its entries are
-// conjuncts of their own.
+// conjuncts reads s's own keywords, a union among them as on an inline branch,
+// then each branch of comp but a `true`, which says nothing. A wrapper's own
+// keywords are read alone: its entries are conjuncts of their own.
 func (w *admission) conjuncts(s *oas3.Schema, comp allOfComposition) []conjunct {
 	out := make([]conjunct, 0, 1+len(comp.branches))
-	out = append(out, conjunct{read: w.written(s, w.nullable), says: saysKind(s)})
+	out = append(out, conjunct{read: inlineConjunct(w, s), says: saysKind(s) || declaresUnion(s)})
 	for i := range comp.branches {
 		e := &comp.branches[i]
 		bs := e.schema.GetSchema()
@@ -154,9 +154,10 @@ func (w *admission) conjuncts(s *oas3.Schema, comp allOfComposition) []conjunct 
 	return out
 }
 
-// inlineConjunct is what the inline branch bs admits as w reads it: its own
-// keywords and the oneOf and anyOf it writes, whose branches name the kinds it
-// admits. Its allOf is read apart, since its entries are conjuncts of their own.
+// inlineConjunct is what bs, an inline branch or the schema writing the allOf,
+// admits as w reads it: its own keywords and the oneOf and anyOf it writes,
+// whose branches name the kinds it admits. Its allOf is read apart, since its
+// entries are conjuncts of their own.
 func inlineConjunct(w *admission, bs *oas3.Schema) admitted {
 	read := w.written(bs, w.nullable)
 	for _, branches := range [][]*oas3.JSONSchema[oas3.Referenceable]{bs.GetOneOf(), bs.GetAnyOf()} {
@@ -293,13 +294,17 @@ func resolveBeaten(c lowering.Ctx, ts *compile.Types, r refinement) {
 const refinedShape = "a use of one of its allOf conjuncts"
 
 // outcomeKeeps is what a position that lowered to a reference keeps verbatim: the
-// census keywords it wrote, described by shape, and the allOf branches its
-// lowering left unread.
+// census keywords it wrote, described by shape, the allOf branches its lowering
+// left unread, the null branches a collapsed union lifts that say more than
+// their null (nullBranchKeeps), and the union keywords beside the allOf it
+// keeps as validation logic, their branches declaring no shape (keptUnion).
 type outcomeKeeps struct {
-	keywords []string
-	shape    string
-	comp     allOfComposition
-	branches []keptBranch
+	keywords   []string
+	shape      string
+	comp       allOfComposition
+	branches   []keptBranch
+	nulls      []keptNullBranch
+	validation []string
 }
 
 // keptBranch is one allOf branch a refinement keeps whole, the keywords nothing
@@ -312,7 +317,9 @@ type keptBranch struct {
 }
 
 // holdsAny reports whether k keeps anything.
-func (k outcomeKeeps) holdsAny() bool { return len(k.keywords) > 0 || len(k.branches) > 0 }
+func (k outcomeKeeps) holdsAny() bool {
+	return len(k.keywords) > 0 || len(k.branches) > 0 || len(k.nulls) > 0 || len(k.validation) > 0
+}
 
 // keepsAtOutcome returns what the position s is written at keeps, having lowered
 // to target: a refinement's census and the branches it left, or the census of
@@ -321,12 +328,17 @@ func keepsAtOutcome(c lowering.Ctx, ts *compile.Types, s *oas3.Schema, target ir
 	r, refined := refinementOf(c, s, pointer)
 	if !refined {
 		keywords, shape := referenceOutcomeKeywords(c, s, pointer)
-		return outcomeKeeps{keywords: keywords, shape: shape}
+		k := outcomeKeeps{keywords: keywords, shape: shape}
+		if shape == collapsedShape {
+			k.nulls = nullBranchKeeps(c, s, pointer)
+		}
+		return k
 	}
 	k := outcomeKeeps{shape: refinedShape, comp: r.comp}
 	typed := valueSetNode(c, ts, r, pointer)
 	if r.principal != nil {
-		k.keywords = refinedUnhomed(c, r, s, typed)
+		degraded, validation := keptUnion(c, r, s)
+		k.keywords, k.validation = append(refinedUnhomed(c, r, s, typed), degraded...), validation
 	}
 	homes := homesAt(c, ts, s, target, pointer)
 	voices := voicingOf(c, s)
@@ -356,23 +368,25 @@ func keepsAtOutcome(c lowering.Ctx, ts *compile.Types, s *oas3.Schema, target ir
 
 // homesAt returns which bounds the position s is written at, lowered to target,
 // holds for its voices, as the census asks of those written beside its allOf. A
-// carrier or an alias holds value bounds, and collection bounds where it is a
-// use of the principal, a reference (keywordHome). A node the position owns holds
-// what its kind does, and the Union a type list lowers to the collection bounds
-// its List or Tuple variant does. A value bound stays with its branch there: the
-// variant one beside the allOf reaches need not be one it constrains (GitHub #1310).
+// carrier or an alias holds the value bounds the types the position declares
+// take, and collection bounds where it is a use of the principal, a reference
+// (keywordHome). A node the position owns holds what its kind does, of the value
+// bounds those its types take, and the Union a type list lowers to the bounds its
+// variants do, each the bounds of its own type (lowerTypeVariant).
 func homesAt(c lowering.Ctx, ts *compile.Types, s *oas3.Schema, target ir.TypeRef, pointer jsontext.Pointer) boundHomes {
 	if !LoweredToOwnNode(c, ts, pointer, target) {
 		r, refined := refinementOf(c, s, pointer)
-		return boundHomes{value: true, collection: refined && r.principal != nil}
+		return boundHomes{value: declaredInstanceTypes(s), collection: refined && r.principal != nil}
 	}
 	// A node still building holds nothing yet.
 	var homes boundHomes
 	if td, ok := ts.Node(target.Target); ok {
-		homes.value = constraintsHome(td)
 		nodes := []ir.TypeDef{td}
 		if u, isUnion := td.(*ir.Union); isUnion {
 			nodes = variantNodes(ts, u)
+		}
+		if slices.ContainsFunc(nodes, constraintsHome) {
+			homes.value = declaredInstanceTypes(s)
 		}
 		homes.collection = slices.ContainsFunc(nodes, holdsCollectionBounds)
 	}
@@ -397,7 +411,30 @@ func variantNodes(ts *compile.Types, u *ir.Union) []ir.TypeDef {
 func refinedUnhomed(c lowering.Ctx, r refinement, s *oas3.Schema, typed ir.TypeDef) []string {
 	w := newAdmission(c)
 	held := slices.DeleteFunc(slices.Clone(censusKeywords), func(key string) bool { return !said(&w, r, typed, s, key) })
-	return unhomedKeywords(s, nil, held)
+	return referenceUnhomed(s, held)
+}
+
+// keptUnion returns the union keywords s writes beside an allOf that lowered to
+// its principal r, a keyword beside a refinement, that the position keeps: none
+// the principal says (unionHeld), as validation logic those whose branches
+// declare no shape, as the same union beside any body is, and every other one
+// degraded (docs/compilers/openapi.md#allof-refinement).
+func keptUnion(c lowering.Ctx, r refinement, s *oas3.Schema) (degraded, validation []string) {
+	if !declaresUnion(s) {
+		return nil, nil
+	}
+	shapeless := !unionBranchesDeclareShape(c, s)
+	w := newAdmission(c)
+	for _, key := range []string{"oneOf", "anyOf"} {
+		switch {
+		case annotation.RawPropertyNode(s, key) == nil || unionHeld(&w, r, s, key):
+		case shapeless:
+			validation = append(validation, key)
+		default:
+			degraded = append(degraded, key)
+		}
+	}
+	return degraded, validation
 }
 
 // said reports whether the principal of r already says what s's keyword key
@@ -453,13 +490,17 @@ func (k outcomeKeeps) recordOn(c lowering.Ctx, ts *compile.Types, owner ir.TypeI
 	if !ok {
 		return diags
 	}
-	return append(diags, k.record(c, &td.Common().Unmodeled, s, pointer)...)
+	return append(diags, k.record(c, ts, &td.Common().Unmodeled, s, pointer)...)
 }
 
 // record keeps k on p and reports it. A branch the IR cannot hold is reported by
 // the keeper, and nothing here claims it was kept.
-func (k outcomeKeeps) record(c lowering.Ctx, p *ir.Unmodeled, s *oas3.Schema, pointer jsontext.Pointer) []ir.Diagnostic {
-	diags := recordUnhomedAt(c, p, s, k.keywords, k.shape, pointer)
+func (k outcomeKeeps) record(c lowering.Ctx, ts *compile.Types, p *ir.Unmodeled, s *oas3.Schema, pointer jsontext.Pointer) []ir.Diagnostic {
+	diags := recordUnhomedAt(c, ts, p, s, k.keywords, k.shape, pointer)
+	for _, key := range k.validation {
+		diags = append(diags, annotation.PreserveValidationOnlyKeyword(p, s, key, pointer, c.Place())...)
+	}
+	diags = append(diags, recordNullBranches(c, p, k.nulls)...)
 	for _, b := range k.branches {
 		kept, keptDiags := annotation.PreserveNodeInto(p, k.comp.branchKey(b.entry.pointer),
 			b.entry.schema.GetSchema().GetRootNode(), ir.ReasonDegradedLowering, c.Place().At(b.entry.pointer))

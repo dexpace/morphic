@@ -15,6 +15,7 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/annotation"
 	"github.com/dexpace/morphic/compilers/openapi/internal/bind"
 	"github.com/dexpace/morphic/compilers/openapi/internal/budget"
+	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
 	"github.com/dexpace/morphic/compilers/openapi/internal/merge"
@@ -22,26 +23,26 @@ import (
 )
 
 // lowerModel hoists an object schema as a Model, or as a MapT when the object
-// is a map and nothing else (objectNode): its value constraints, the
-// property-set cardinality among them, its own properties and which are
-// required, its catch-all (fillAdditional) and, where discriminated, the
-// discriminator it declares. It reads no annotations: attachDeclaredAnnotations
-// does that for every destination.
+// is a map and nothing else (objectNode): its value constraints, those that
+// apply to a value of the kinds takes, the property-set cardinality among them,
+// its own properties and which are required, its catch-all (fillAdditional)
+// and, where discriminated, the discriminator it declares. It reads no
+// annotations: attachDeclaredAnnotations does that for every destination.
 //
 // Cardinality is read here rather than on lowerComponentSchema's internAlias
 // fallback because an object-shaped schema owns its node before that fallback
 // would run, so the fallback never fires for one (GitHub #129).
-func lowerModel(c lowering.Ctx, ts *compile.Types, depth int, s *oas3.Schema, pointer jsontext.Pointer, discriminated bool) (ir.TypeID, []ir.Diagnostic) {
+func lowerModel(c lowering.Ctx, ts *compile.Types, depth int, s *oas3.Schema, pointer jsontext.Pointer, discriminated bool, takes kindSet) (ir.TypeID, []ir.Diagnostic) {
 	var diags []ir.Diagnostic
 	id := internNode(c, ts, pointer, func(common ir.TypeCommon) ir.TypeDef {
-		cons, consDiags := ConstraintsOf(c, &common.Unmodeled, s, nil, pointer)
+		cons, consDiags := ConstraintsOf(c, &common.Unmodeled, s, nil, pointer, takes)
 		diags = append(diags, consDiags...)
 		m := &ir.Model{TypeCommon: common, Constraints: cons}
 		diags = append(diags, fillModelProperties(c, ts, depth, newModelFields(c, ts, m), s, pointer)...)
 		requireMembers(m, s.GetRequired())
 		diags = append(diags, fillAdditional(c, ts, depth, m, s, pointer)...)
 		if discriminated {
-			d, discDiags := lowerDiscriminator(c, ts, s, m, nil, pointer)
+			d, discDiags := lowerDiscriminator(c, ts, s.GetDiscriminator(), pointer, m, nil)
 			diags = append(diags, discDiags...)
 			m.Discriminator = d
 		}
@@ -55,8 +56,7 @@ func lowerModel(c lowering.Ctx, ts *compile.Types, depth int, s *oas3.Schema, po
 // Model rather than the schema, so a keyword that comes to fill a Model field
 // keeps the position a Model without a second predicate to update. A composed
 // union variant and a false schema skip it: one always holds its branch as a
-// Base or Mixin, and the other is closed. An inert `unevaluatedProperties:
-// false` beside a catch-all still closes a model, keeping it one until #862.
+// Base or Mixin, and the other is closed.
 func objectNode(m *ir.Model) ir.TypeDef {
 	if mt, ok := ir.AsMap(m); ok {
 		return mt
@@ -71,17 +71,19 @@ func objectNode(m *ir.Model) ir.TypeDef {
 // (compile.Types.Complete), queued at the model's first redeclaration: a
 // settlement that reads the merged field, such as a form part's flags, finds it
 // folded, and a fold mid-walk would follow the order the declarations lower in
-// (GitHub #898). It is the walk the fold asks (merge.Walk).
+// (GitHub #898). It is the walk the fold asks (merge.Walk). pointer is where
+// the model is written.
 type modelFields struct {
-	c   lowering.Ctx
-	ts  *compile.Types
-	idx *merge.PropIndex
+	c       lowering.Ctx
+	ts      *compile.Types
+	idx     *merge.PropIndex
+	pointer jsontext.Pointer
 }
 
 // newModelFields returns the fields of m, which holds no property yet, lowered
 // in c and registered with ts.
 func newModelFields(c lowering.Ctx, ts *compile.Types, m *ir.Model) modelFields {
-	return modelFields{c: c, ts: ts, idx: merge.NewPropIndex(m)}
+	return modelFields{c: c, ts: ts, idx: merge.NewPropIndex(m), pointer: m.Provenance.Pointer}
 }
 
 // merge lands p on the model, or records it as one more declaration of the
@@ -95,9 +97,18 @@ func (f modelFields) merge(p ir.Property, source merge.Source, secretBy ir.Infer
 
 // Settle folds the model's redeclared fields against reg, the registry every
 // lowering left, and returns what the folds report (compile.Settlement). A
-// fold rewrites the model's property, and adds a node only through Mint.
+// fold rewrites the model's property, and adds a node only through Mint. A tag
+// reading reads that property (tagReadings), so a fold, a completion, runs
+// before every one; one following a stored reading, which may have read the
+// property unfolded, is a compiler bug, reported.
 func (f modelFields) Settle(reg ir.TypeRegistry) []ir.Diagnostic {
-	return f.idx.Fold(merge.Merger{Reg: reg, IDs: f.c.IDs(), Doc: f.c.Place(), Walk: f})
+	diags := f.idx.Fold(merge.Merger{Reg: reg, IDs: f.c.IDs(), Doc: f.c.Place(), Walk: f})
+	if readingsOf(f.c).stored() {
+		diags = append(diags, f.c.DiagAt(ir.SeverityError, diag.InternalInvariant, f.pointer,
+			"internal: the model's redeclared fields fold after a discriminator-inference reading is stored, "+
+				"which may have read them unfolded"))
+	}
+	return diags
 }
 
 // Interned reports whether a node stands at pointer of the model's document
@@ -109,11 +120,9 @@ func (f modelFields) Interned(pointer jsontext.Pointer) bool {
 
 // place returns where p is in the bindings' table, read at f.c's position for
 // its pointer, as the model's own document holds it, and false for a site in
-// another document, such as a component a $ref there reached, or one c does not
-// place.
+// another document, such as a component a $ref there reached.
 func (f modelFields) place(p ir.Provenance) (bind.Position, bool) {
-	at, placed := f.c.Position(p.Pointer)
-	return at, placed && p.Source == f.c.Place().At(p.Pointer).Source
+	return f.c.Position(p.Pointer), p.Source == f.c.Place().At(p.Pointer).Source
 }
 
 // Alike is merge.Walk.Alike. A site place does not place, or one whose base the
@@ -262,13 +271,15 @@ func requireMembers(m *ir.Model, required []string) {
 }
 
 // fillAdditional lowers additionalProperties, patternProperties, and
-// unevaluatedProperties into the model's openness and catch-all shape.
+// unevaluatedProperties into the model's openness and catch-all shape
+// (docs/compilers/openapi.md#additional-properties).
 //
 // `additionalProperties: true` types the catch-all as the top type, as `{}`
 // does: the two are one schema in JSON Schema, and both state that members
 // beyond the declared ones are allowed. Only an absent keyword writes no
 // catch-all, unless patterns need one. Neither spelling touches Additional,
-// which this sets only for `false` and `unevaluatedProperties: false`.
+// which this sets only for `false` and for an `unevaluatedProperties: false`
+// no additionalProperties leaves inert (annotation.ClosesAfterComposition).
 func fillAdditional(c lowering.Ctx, ts *compile.Types, depth int, m *ir.Model, s *oas3.Schema, pointer jsontext.Pointer) []ir.Diagnostic {
 	var diags []ir.Diagnostic
 	ap := s.GetAdditionalProperties()
@@ -282,21 +293,25 @@ func fillAdditional(c lowering.Ctx, ts *compile.Types, depth int, m *ir.Model, s
 		diags = append(diags, refDiags...)
 		m.AdditionalProps = &ir.AdditionalProps{Value: &ref}
 	}
+	closes := annotation.ClosesAfterComposition(s)
 	patterns, patternDiags := patternProps(c, ts, depth, s, pointer)
 	diags = append(diags, patternDiags...)
 	if len(patterns) > 0 {
 		if m.AdditionalProps == nil {
 			// A key no pattern matches is unconstrained unless a closure says
-			// otherwise. Beside `unevaluatedProperties: false` it stays the top
-			// type, though JSON Schema then admits such a key only where
-			// composition evaluates it (GitHub #862).
-			top := ts.PrimRef(ir.PrimAny)
-			m.AdditionalProps = &ir.AdditionalProps{Value: &top}
+			// otherwise. Beside one after composition the source writes no schema
+			// for it, so none is supplied: such a key is admitted only where
+			// composition evaluates it.
+			m.AdditionalProps = &ir.AdditionalProps{}
+			if !closes {
+				top := ts.PrimRef(ir.PrimAny)
+				m.AdditionalProps.Value = &top
+			}
 		}
 		m.AdditionalProps.Patterns = patterns
 	}
 	forbidRest(m)
-	if annotation.IsFalseSchema(s.GetUnevaluatedProperties()) {
+	if closes {
 		m.Additional = ir.AdditionalClosedAfterComposition
 	}
 	return diags

@@ -69,6 +69,67 @@ func TestPromoter_MapsTellsAMappedTarget(t *testing.T) {
 		"the default mapping names no replacement key")
 }
 
+// TestPromoter_WritesSeesAKeyWhateverItSays pins what a reading of names asks
+// before it fills a field: whether the document writes a key the policy reads
+// the target from, in any position of the list and whatever its value,
+// `false` and a misfit among them, and never a key mapped to another target.
+func TestPromoter_WritesSeesAKeyWhateverItSays(t *testing.T) {
+	t.Parallel()
+	p := promoter(lowering.ExtensionPromotions{Targets: map[lowering.ExtensionTarget][]lowering.ExtensionSource{
+		lowering.TargetRedaction:             {{Key: "x-a"}, {Key: "x-b"}},
+		lowering.TargetDeprecationReplacedBy: {{Key: "x-c"}},
+	}})
+	for _, tc := range []struct {
+		name  string
+		own   ir.Unmodeled
+		wants bool
+	}{
+		{"the first key, true", ir.Unmodeled{"openapi:x-a": vendorExtension(`true`)}, true},
+		{"the second key, false", ir.Unmodeled{"openapi:x-b": vendorExtension(`false`)}, true},
+		{"a misfit", ir.Unmodeled{"openapi:x-a": vendorExtension(`"yes"`)}, true},
+		{"a key mapped to another target", ir.Unmodeled{"openapi:x-c": vendorExtension(`true`)}, false},
+		{"an unmapped key", ir.Unmodeled{"openapi:x-d": vendorExtension(`true`)}, false},
+		{"none", nil, false},
+	} {
+		assert.Equal(t, tc.wants, p.Writes(tc.own, lowering.TargetRedaction), tc.name)
+	}
+	assert.False(t, promoter(lowering.ExtensionPromotions{Disabled: true}).Writes(
+		ir.Unmodeled{"openapi:x-sensitive": vendorExtension(`true`)}, lowering.TargetRedaction),
+		"a disabled policy reads no key")
+}
+
+// TestPromoter_WritesKnowsEveryTarget pins Writes to the vocabulary: a key a
+// mapping names for any target, whatever it says, is the document speaking to
+// that target and to no other. An inference asking of a target Writes did not
+// know would fill over what a promotion fills.
+func TestPromoter_WritesKnowsEveryTarget(t *testing.T) {
+	t.Parallel()
+	own := ir.Unmodeled{"openapi:x-k": vendorExtension(`false`)}
+	for _, target := range lowering.Targets() {
+		t.Run(string(target), func(t *testing.T) {
+			t.Parallel()
+			p := promoter(mapping(target, lowering.ExtensionSource{Key: "x-k", Member: "m"}))
+			for _, other := range lowering.Targets() {
+				assert.Equal(t, other == target, p.Writes(own, other), "asked of %s", other)
+			}
+		})
+	}
+}
+
+// TestPromoter_WritesSeesEveryDefaultKey pins the same of the default mapping:
+// each key it reads a target from, the server name's and both pagination
+// conventions' among them, is the document speaking to that target.
+func TestPromoter_WritesSeesEveryDefaultKey(t *testing.T) {
+	t.Parallel()
+	p := promoter(lowering.ExtensionPromotions{})
+	for target, sources := range lowering.DefaultExtensionPromotions() {
+		for _, src := range sources {
+			own := ir.Unmodeled{"openapi:" + src.Key: vendorExtension(`{}`)}
+			assert.True(t, p.Writes(own, target), "%s read for %s", src.Key, target)
+		}
+	}
+}
+
 // TestPromoter_ReplacementSourcesCompareTheirNames pins that two sources the
 // policy maps agree when they name the same replacements, however each spells
 // them, and disagree, the later reported, when they name others.

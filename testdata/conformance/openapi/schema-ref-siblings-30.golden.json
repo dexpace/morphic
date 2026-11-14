@@ -81,7 +81,7 @@
       "kind": "scalar",
       "id": "t/anon/components/schemas/Pet/properties/keepers/items",
       "name": {
-        "hint": "keepers_item"
+        "hint": "keeper"
       },
       "anonymous": true,
       "docs": {

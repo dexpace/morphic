@@ -185,7 +185,7 @@ const (
 	// records).
 	AdditionalClosed AdditionalMode = "closed"
 	// AdditionalClosedAfterComposition closes the set once composition is resolved
-	// (unevaluatedProperties: false).
+	// (unevaluatedProperties: false with no additionalProperties beside it).
 	AdditionalClosedAfterComposition AdditionalMode = "closed_after_composition"
 )
 
@@ -314,9 +314,11 @@ type Discriminator struct {
 	// Index is the 0-based tuple element carrying the tag Literal (Erlang tagged
 	// tuples, JSON arrays with a const head via prefixItems).
 	Index *int `json:"index,omitzero"`
-	// Mapping maps wire value to subtype, and no value is empty. Nil on a union,
-	// it routes by type name. In a model hierarchy, each subtype's
-	// DiscriminatorValue routes to it too.
+	// Mapping maps a wire value to the type it routes to, a union's variant or
+	// a hierarchy's base or subtype, and no value is empty. Nil on a union, it
+	// routes by type name; otherwise it holds the routes declared or inferred
+	// and the one the source implies to each variant they leave out. In a model
+	// hierarchy, each subtype's DiscriminatorValue routes to it too.
 	Mapping map[string]TypeID `json:"mapping,omitempty"`
 	// Default is the variant to use when the tag is absent/unrecognized (OpenAPI
 	// 3.2 defaultMapping); zero = none.
@@ -494,7 +496,8 @@ type Tuple struct {
 
 // Literal is a single constant value used as a type: JSON Schema const, a
 // TypeSpec literal type, an Erlang atom (docs/ir/containers.md). An enum of one
-// member is an Enum, never a Literal (docs/ir/enums.md).
+// member is an Enum, never a Literal (docs/ir/enums.md), and a constant of null
+// is an Enum with no member behind a nullable reference.
 type Literal struct {
 	TypeCommon
 	// Value is the constant value.
@@ -502,7 +505,7 @@ type Literal struct {
 	// ValueType is the primitive the source types the value as, as
 	// Enum.ValueType types an enum's members: an integer and a number of one
 	// value differ here, as do a string and a date. "" where the value is of no
-	// primitive, a null, a list or an object.
+	// primitive, a list or an object.
 	ValueType PrimKind `json:"valueType,omitempty"`
 }
 

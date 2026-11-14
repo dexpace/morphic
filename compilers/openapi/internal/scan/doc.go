@@ -8,7 +8,6 @@
 // and nesting so deep that its cost per node, growing with depth, adds up past
 // use (docs/parser-library.md#nesting-cost). Each is read from the raw text,
 // through the sourceindex.Index the caller supplies. A $ref is no concern of
-// it: the compiler resolves schema $refs itself (internal/bind), and the
-// parser's resolver reports a loop of reference objects
-// (docs/parser-library.md#reference-object-cycle).
+// it: the compiler binds every $ref itself (internal/bind), and reports a loop
+// of them (docs/parser-library.md#reference-object-cycle).
 package scan

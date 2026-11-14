@@ -37,6 +37,9 @@ const (
 	KindResponse
 	// KindMediaType is a Media Type Object.
 	KindMediaType
+	// KindEncoding is an Encoding Object, whose 3.2 fields nesting another the
+	// model does not read, so what they hold is raw YAML to it.
+	KindEncoding
 )
 
 // kindOf is the Kind of a position read at s.
@@ -62,6 +65,8 @@ func kindOf(s state) Kind {
 		return KindResponse
 	case sMediaType:
 		return KindMediaType
+	case sEncoding:
+		return KindEncoding
 	default:
 		return KindOther
 	}
@@ -110,7 +115,10 @@ func (r Reading) Schema() bool { return r.s == sSchema }
 
 // Referable reports whether r reads an object a reference object can stand
 // for, so a $ref written there names an object of that kind.
-func (r Reading) Referable() bool { return referenceKinds[r.s] }
+func (r Reading) Referable() bool {
+	_, ok := refKinds[r.s]
+	return ok
+}
 
 // statesTo hands visit how the grammar reads each position on the way to p,
 // the root's first, as Kinds documents, roots holding what the references a

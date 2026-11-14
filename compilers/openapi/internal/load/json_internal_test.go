@@ -14,8 +14,9 @@ import (
 	yaml "go.yaml.in/yaml/v3"
 
 	"github.com/dexpace/morphic/compilers"
-	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/jsontree"
+	refscope "github.com/dexpace/morphic/compilers/openapi/internal/resolve"
+	"github.com/dexpace/morphic/engine/reader"
 )
 
 // jsonHalf is a source that writes a description holding the escape of half a
@@ -190,40 +191,41 @@ func TestReadJSON_AContextDoneByTheEndOfTheReadIsCtxsError(t *testing.T) {
 	assert.Equal(t, 2, ctx.Calls, "the reader's one ask, which passed, and the check of its error")
 }
 
-// TestResolveExternal_AJSONDocumentBehindARespelledURLIsStillRefused pins the
-// limit docs/compilers/openapi.md#yaml-decoding states in its Status (#1767): a
-// URL net/url respells misses the prepared tree the resolver looks a document
-// up by, so the resolver parses it itself, as YAML alone, and a reference to a
-// JSON document that parser refuses is unresolved, where the URL spelled as
-// net/url keeps it reads. When the limit is lifted, the respelled rows turn to
-// the canonical row's outcome.
-func TestResolveExternal_AJSONDocumentBehindARespelledURLIsStillRefused(t *testing.T) {
+// TestLoad_AJSONDocumentBehindARespelledURLIsReadAsJSON holds every spelling
+// of an external JSON document's URL to the canonical one's outcome: a URL
+// net/url respells, an upper-case or mixed-case scheme or escaped userinfo,
+// reads the tree the compiler prepared for the document, as JSON, since the
+// compiler binds every reference itself and nothing parses the document again
+// as YAML.
+func TestLoad_AJSONDocumentBehindARespelledURLIsReadAsJSON(t *testing.T) {
 	t.Parallel()
 	ext := `{"openapi":"3.1.0","info":{"title":"O","version":"1"},"paths":{"/x":{"get":` +
 		`{"operationId":"x` + `\u` + `d83d` + `\u` + `de00` + `y","responses":{"200":{"description":"ok"}}}}}}`
-	operationID := func(doc *soa.OpenAPI) string {
-		ref, ok := doc.Paths.Get("/x")
-		require.True(t, ok)
-		return ref.GetObject().Get().GetOperationID()
+	scheme := func(spelled string) func(string) string {
+		return func(c string) string { return spelled + "://" + strings.TrimPrefix(c, "http://") }
 	}
 
-	srv, _ := countingServer(t, ext)
-	doc, diags, err := resolveSpec(t, rootReferencing(srv.URL+"/ext.json"), "root.yaml")
-	require.NoError(t, err)
-	assert.Empty(t, diags)
-	assert.Equal(t, "x😀y", operationID(doc), "the URL as net/url spells it is read as JSON")
-
-	for _, tc := range respellings {
-		t.Run(tc.name, func(t *testing.T) {
+	for name, spell := range map[string]func(canonical string) string{
+		"the canonical spelling": scheme("http"),
+		"an upper-case scheme":   scheme("HTTP"),
+		"a mixed-case scheme":    scheme("Http"),
+		"escaped userinfo":       func(c string) string { return strings.Replace(c, "http://", "http://us%65r@", 1) },
+	} {
+		t.Run(name, func(t *testing.T) {
 			t.Parallel()
 			srv, _ := countingServer(t, ext)
+			src := compilers.Source{Path: "root.yaml", Data: []byte(rootReferencing(spell(srv.URL + "/ext.json")))}
 
-			_, diags, err := resolveSpec(t, rootReferencing(tc.spell(srv.URL+"/ext.json")), "root.yaml")
+			loaded, diags, err := Load(t.Context(), 0, src, Options{Reader: reader.Disk{}})
 
 			require.NoError(t, err)
-			require.Len(t, diags, 1)
-			assert.Equal(t, diag.UnresolvedRef, diags[0].Code)
-			assert.Contains(t, diags[0].Message, "found invalid Unicode character escape code")
+			assert.Empty(t, diags)
+			require.NotNil(t, loaded)
+			ref, ok := loaded.Doc.Paths.Get("/x")
+			require.True(t, ok)
+			item := refscope.Object[soa.PathItem](loaded.Bindings, ref)
+			require.NotNil(t, item, "the reference resolved to a path item")
+			assert.Equal(t, "x\U0001F600y", item.Get().GetOperationID())
 		})
 	}
 }

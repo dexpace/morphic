@@ -14,6 +14,7 @@ import (
 
 	"github.com/dexpace/morphic/compilers/compile"
 	"github.com/dexpace/morphic/compilers/openapi/internal/annotation"
+	"github.com/dexpace/morphic/compilers/openapi/internal/bind/typed"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
@@ -54,7 +55,7 @@ func lowerParameters(c lowering.Ctx, w walk, mount jsontext.Pointer, params []so
 		diags = append(diags, paramDiags...)
 		// A summary or description beside a $ref of the entry's chain documents
 		// this use of the parameter, over what its declaration says (GitHub #610).
-		param.Docs = resolve.UseDocs[soa.Parameter](sp.ref, param.Docs)
+		param.Docs = resolve.UseDocs[soa.Parameter](c.Bindings(), sp.ref, param.Docs)
 		logical = append(logical, param)
 		bindings = append(bindings, binding)
 	}
@@ -86,7 +87,14 @@ func lowerParameter(c lowering.Ctx, w walk, id ir.ParamID, p *soa.Parameter, ppt
 	}
 	elected, diags := fillParamType(c, w, &param, &binding, p, pptr)
 	diags = append(diags, reservedHeaderParamDiag(c, name, in, pptr)...)
-	return param, binding, append(diags, fillParamDetail(c, w.types, &param, p, pptr, elected)...)
+	diags = append(diags, fillParamDetail(c, w.types, &param, p, pptr, elected)...)
+	if p.AllowReserved != nil {
+		return param, binding, diags
+	}
+	// Read once the keys are kept, and only where the parameter decides nothing.
+	reserved, promoted := lowering.AllowReserved(c.Promoter(), param.Unmodeled, &param.Provenance)
+	binding.AllowReserved = reserved
+	return param, binding, append(diags, promoted...)
 }
 
 // reservedHeaderParamDiag reports a header parameter OpenAPI §4.8.12 reserves —
@@ -378,15 +386,17 @@ type sourcedParam struct {
 // position recomputed from the merged slice (issue #36), and a $ref'd path
 // item's are under its own declaration pointer, not the path it is mounted at
 // (issue #107).
-func mergeParameters(pathParams []sourcedParam, opParams []*soa.ReferencedParameter, opDeclPtr jsontext.Pointer) []sourcedParam {
+func mergeParameters(b *typed.Bindings, pathParams []sourcedParam, opParams []*soa.ReferencedParameter,
+	opDeclPtr jsontext.Pointer,
+) []sourcedParam {
 	merged := make([]sourcedParam, 0, len(opParams)+len(pathParams))
-	merged = appendSourced(merged, opParams, opDeclPtr, nil, nil)
+	merged = appendSourced(b, merged, opParams, opDeclPtr, nil, nil)
 	if len(pathParams) == 0 {
 		return merged
 	}
-	shadowed := shadowedKeys(opParams)
+	shadowed := shadowedKeys(b, opParams)
 	for _, p := range pathParams {
-		if key, ok := paramKey(p.ref); ok && shadowed[key] {
+		if key, ok := paramKey(b, p.ref); ok && shadowed[key] {
 			continue
 		}
 		merged = append(merged, p)
@@ -399,11 +409,11 @@ func mergeParameters(pathParams []sourcedParam, opParams []*soa.ReferencedParame
 // skipping any whose (name, in) key is in shadowed. A nil shadowed map reads as
 // all-false, which is what the operation side passes: operation parameters are
 // never shadowed, and are lowered in the operation's own context (a nil in).
-func appendSourced(dst []sourcedParam, params []*soa.ReferencedParameter, base jsontext.Pointer,
-	shadowed map[string]bool, in *lowering.Ctx,
+func appendSourced(b *typed.Bindings, dst []sourcedParam, params []*soa.ReferencedParameter, base jsontext.Pointer,
+	shadowed map[ids.ParamSlot]bool, in *lowering.Ctx,
 ) []sourcedParam {
 	for i, p := range params {
-		if key, ok := paramKey(p); ok && shadowed[key] {
+		if key, ok := paramKey(b, p); ok && shadowed[key] {
 			continue
 		}
 		dst = append(dst, sourcedParam{ref: p, pointer: base + ids.Ptr("parameters", strconv.Itoa(i)), in: in})
@@ -413,36 +423,31 @@ func appendSourced(dst []sourcedParam, params []*soa.ReferencedParameter, base j
 
 // shadowedKeys returns the (in, name) identities declared by opParams, so a
 // path-item parameter sharing one is left out of the merge as a duplicate.
-func shadowedKeys(opParams []*soa.ReferencedParameter) map[string]bool {
-	shadowed := make(map[string]bool, len(opParams))
+func shadowedKeys(b *typed.Bindings, opParams []*soa.ReferencedParameter) map[ids.ParamSlot]bool {
+	shadowed := make(map[ids.ParamSlot]bool, len(opParams))
 	for _, p := range opParams {
-		if key, ok := paramKey(p); ok {
+		if key, ok := paramKey(b, p); ok {
 			shadowed[key] = true
 		}
 	}
 	return shadowed
 }
 
-// paramKey builds the (in, name) identity of a parameter for merge dedup.
-func paramKey(rp *soa.ReferencedParameter) (string, bool) {
-	p := resolve.Object[soa.Parameter](rp)
+// paramKey builds the identity a parameter is merged by (ids.SlotOf), read
+// through the bindings b, as the lowering reads it.
+func paramKey(b *typed.Bindings, rp *soa.ReferencedParameter) (ids.ParamSlot, bool) {
+	p := resolve.Object[soa.Parameter](b, rp)
 	if p == nil {
-		return "", false
+		return ids.ParamSlot{}, false
 	}
-	return string(p.GetIn()) + "\x00" + p.GetName(), true
+	return ids.SlotOf(p.GetName(), string(p.GetIn())), true
 }
 
-// paramSlot is what OpenAPI identifies a parameter by: its name and location.
-// It holds exactly what ids.Param mints from, so parameters in two slots never
-// share an ID. Names compare as written, header names included, as the merge's
-// paramKey compares them (#635).
-type paramSlot struct {
-	name, in string
-}
-
-// paramLedger counts how often each slot has been declared on one operation, or
-// on one path item that mounts none, so a repeat is numbered. The count follows
-// the list it is given, in order, and so never the iteration order of a map.
+// paramLedger numbers the parameters of one operation, or of a path item
+// mounting none, in list order, and finds each repeat by its slot
+// (ids.SlotOf). A repeat is numbered among those spelled alike, as an ID is
+// derived from the name as written (ids.Param), so X-Trace and x-trace keep
+// the IDs each has alone, and deleting one renames neither.
 //
 // A repeat in a list the source writes is load's to report, once, where it is
 // written (paramRepeats). One in another document's content, which that
@@ -450,13 +455,25 @@ type paramSlot struct {
 // from.
 type paramLedger struct {
 	mount   jsontext.Pointer
-	seen    map[paramSlot]int
-	firstAt map[paramSlot]jsontext.Pointer
+	seen    map[paramSpelling]int
+	firstAt map[ids.ParamSlot]slotHolder
+}
+
+// paramSpelling is a parameter's name and location as written, which its ID
+// is derived from.
+type paramSpelling struct {
+	name, in string
+}
+
+// slotHolder is the entry that first holds a slot, and the name it spells.
+type slotHolder struct {
+	entry jsontext.Pointer
+	name  string
 }
 
 // newParamLedger returns a ledger for the operation mounted at mount.
 func newParamLedger(mount jsontext.Pointer) *paramLedger {
-	return &paramLedger{mount: mount, seen: map[paramSlot]int{}, firstAt: map[paramSlot]jsontext.Pointer{}}
+	return &paramLedger{mount: mount, seen: map[paramSpelling]int{}, firstAt: map[ids.ParamSlot]slotHolder{}}
 }
 
 // next returns the ID of the parameter holding name in in, written by the list
@@ -467,20 +484,22 @@ func (l *paramLedger) next(c lowering.Ctx, name, in string, entry jsontext.Point
 }
 
 // count records the list entry at entry as one more holder of name in in, and
-// returns which holder it is, counting from one, and the error a repeat raises
-// there when c reads another document's content. The first holder raises
-// none.
+// returns which holder of that spelling it is, counting from one, and the
+// error a repeat of its slot raises there when c reads another document's
+// content. The first holder of a slot raises none.
 func (l *paramLedger) count(c lowering.Ctx, name, in string, entry jsontext.Pointer) (int, []ir.Diagnostic) {
-	slot := paramSlot{name: name, in: in}
-	l.seen[slot]++
-	occurrence := l.seen[slot]
-	if occurrence == 1 {
-		l.firstAt[slot] = entry
+	spelled := paramSpelling{name: name, in: in}
+	l.seen[spelled]++
+	occurrence := l.seen[spelled]
+	slot := ids.SlotOf(name, in)
+	first, repeated := l.firstAt[slot]
+	if !repeated {
+		l.firstAt[slot] = slotHolder{entry: entry, name: name}
 		return occurrence, nil
 	}
 	if !c.RefScope().Foreign {
 		return occurrence, nil
 	}
 	return occurrence, []ir.Diagnostic{c.DiagAt(ir.SeverityError, diag.DuplicateParameter, entry,
-		"parameter %q in %q repeats the entry at %s", name, in, l.firstAt[slot])}
+		"%s", diag.RepeatedParameter(name, in, first.entry, first.name))}
 }

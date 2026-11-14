@@ -1,0 +1,730 @@
+{
+  "idSpaces": {
+    "auth": [
+      "openapi",
+      "unresolved"
+    ],
+    "e": [
+      "anon",
+      "composed",
+      "openapi"
+    ],
+    "g": [
+      "default",
+      "extension",
+      "path-prefix",
+      "tags",
+      "webhooks"
+    ],
+    "op": [
+      "openapi"
+    ],
+    "p": [
+      "composed",
+      "openapi"
+    ],
+    "param": [
+      "openapi"
+    ],
+    "s": [
+      "openapi"
+    ],
+    "server": [
+      "default",
+      "openapi"
+    ],
+    "t": [
+      "anon",
+      "composed",
+      "openapi"
+    ]
+  },
+  "name": "MultipartDefaults30",
+  "version": "1.0.0",
+  "docs": {},
+  "services": [
+    {
+      "id": "s/openapi/0",
+      "name": {
+        "source": "MultipartDefaults30",
+        "canonical": "multipart_defaults_30"
+      },
+      "docs": {},
+      "groups": [
+        {
+          "id": "g/default",
+          "name": {
+            "hint": "default"
+          },
+          "docs": {},
+          "operations": [
+            {
+              "id": "op/openapi/paths/~1upload/post",
+              "name": {
+                "source": "upload",
+                "canonical": "upload"
+              },
+              "docs": {},
+              "request": {
+                "contents": [
+                  {
+                    "mediaType": "multipart/form-data",
+                    "type": {
+                      "target": "t/anon/paths/~1upload/post/requestBody/content/multipart~1form-data/schema",
+                      "nullable": false
+                    },
+                    "encoding": {
+                      "p/openapi/paths/~1upload/post/requestBody/content/multipart~1form-data/schema/properties/blob": {
+                        "contentTypes": [
+                          "text/plain"
+                        ],
+                        "multi": false,
+                        "filename": false,
+                        "allowReserved": false
+                      },
+                      "p/openapi/paths/~1upload/post/requestBody/content/multipart~1form-data/schema/properties/file": {
+                        "contentTypes": [
+                          "application/octet-stream"
+                        ],
+                        "multi": false,
+                        "filename": true,
+                        "allowReserved": false
+                      },
+                      "p/openapi/paths/~1upload/post/requestBody/content/multipart~1form-data/schema/properties/matrix": {
+                        "contentTypes": [
+                          "text/plain"
+                        ],
+                        "multi": true,
+                        "filename": false,
+                        "allowReserved": false
+                      },
+                      "p/openapi/paths/~1upload/post/requestBody/content/multipart~1form-data/schema/properties/styled": {
+                        "contentTypes": [
+                          "text/plain"
+                        ],
+                        "multi": false,
+                        "filename": false,
+                        "allowReserved": false
+                      },
+                      "p/openapi/paths/~1upload/post/requestBody/content/multipart~1form-data/schema/properties/token": {
+                        "contentTypes": [
+                          "application/octet-stream"
+                        ],
+                        "multi": false,
+                        "filename": false,
+                        "allowReserved": false
+                      }
+                    },
+                    "unmodeled": {
+                      "openapi:encoding/styled/style": {
+                        "reason": "no_ir_home",
+                        "value": "form",
+                        "provenance": {
+                          "source": 0,
+                          "pointer": "/paths/~1upload/post/requestBody/content/multipart~1form-data/encoding/styled/style"
+                        }
+                      }
+                    }
+                  }
+                ],
+                "required": false
+              },
+              "responses": [
+                {
+                  "name": {
+                    "hint": "204"
+                  },
+                  "conditions": {
+                    "statusCodes": [
+                      {
+                        "from": 204,
+                        "to": 204
+                      }
+                    ]
+                  },
+                  "docs": {
+                    "description": "ok"
+                  }
+                }
+              ],
+              "oneWay": false,
+              "idempotency": {},
+              "bindings": {
+                "http": [
+                  {
+                    "method": "POST",
+                    "uriTemplate": "/upload",
+                    "requestContentTypes": [
+                      "multipart/form-data"
+                    ],
+                    "sharedRoute": false,
+                    "checksumRequired": false
+                  }
+                ]
+              },
+              "provenance": {
+                "source": 0,
+                "pointer": "/paths/~1upload/post"
+              }
+            },
+            {
+              "id": "op/openapi/paths/~1form/post",
+              "name": {
+                "source": "form",
+                "canonical": "form"
+              },
+              "docs": {},
+              "request": {
+                "contents": [
+                  {
+                    "mediaType": "application/x-www-form-urlencoded",
+                    "type": {
+                      "target": "t/anon/paths/~1form/post/requestBody/content/application~1x-www-form-urlencoded/schema",
+                      "nullable": false
+                    },
+                    "encoding": {
+                      "p/openapi/paths/~1form/post/requestBody/content/application~1x-www-form-urlencoded/schema/properties/tags": {
+                        "explode": false,
+                        "style": "form",
+                        "multi": true,
+                        "filename": false,
+                        "allowReserved": false
+                      },
+                      "p/openapi/paths/~1form/post/requestBody/content/application~1x-www-form-urlencoded/schema/properties/token": {
+                        "contentTypes": [
+                          "application/octet-stream"
+                        ],
+                        "multi": false,
+                        "filename": false,
+                        "allowReserved": false
+                      }
+                    }
+                  }
+                ],
+                "required": false
+              },
+              "responses": [
+                {
+                  "name": {
+                    "hint": "204"
+                  },
+                  "conditions": {
+                    "statusCodes": [
+                      {
+                        "from": 204,
+                        "to": 204
+                      }
+                    ]
+                  },
+                  "docs": {
+                    "description": "ok"
+                  }
+                }
+              ],
+              "oneWay": false,
+              "idempotency": {},
+              "bindings": {
+                "http": [
+                  {
+                    "method": "POST",
+                    "uriTemplate": "/form",
+                    "requestContentTypes": [
+                      "application/x-www-form-urlencoded"
+                    ],
+                    "sharedRoute": false,
+                    "checksumRequired": false
+                  }
+                ]
+              },
+              "provenance": {
+                "source": 0,
+                "pointer": "/paths/~1form/post"
+              }
+            }
+          ]
+        }
+      ],
+      "servers": [
+        "server/default"
+      ],
+      "provenance": {
+        "source": 0
+      }
+    }
+  ],
+  "types": {
+    "t/anon/paths/~1form/post/requestBody/content/application~1x-www-form-urlencoded/schema": {
+      "kind": "model",
+      "id": "t/anon/paths/~1form/post/requestBody/content/application~1x-www-form-urlencoded/schema",
+      "name": {
+        "hint": "form_request"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/paths/~1form/post/requestBody/content/application~1x-www-form-urlencoded/schema"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/paths/~1form/post/requestBody/content/application~1x-www-form-urlencoded/schema/properties/token",
+          "name": {
+            "source": "token",
+            "canonical": "token"
+          },
+          "wireName": "token",
+          "type": {
+            "target": "t/anon/paths/~1form/post/requestBody/content/application~1x-www-form-urlencoded/schema/properties/token",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/paths/~1form/post/requestBody/content/application~1x-www-form-urlencoded/schema/properties/token"
+          }
+        },
+        {
+          "id": "p/openapi/paths/~1form/post/requestBody/content/application~1x-www-form-urlencoded/schema/properties/tags",
+          "name": {
+            "source": "tags",
+            "canonical": "tags"
+          },
+          "wireName": "tags",
+          "type": {
+            "target": "t/anon/paths/~1form/post/requestBody/content/application~1x-www-form-urlencoded/schema/properties/tags",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/paths/~1form/post/requestBody/content/application~1x-www-form-urlencoded/schema/properties/tags"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/anon/paths/~1form/post/requestBody/content/application~1x-www-form-urlencoded/schema/properties/tags": {
+      "kind": "list",
+      "id": "t/anon/paths/~1form/post/requestBody/content/application~1x-www-form-urlencoded/schema/properties/tags",
+      "name": {
+        "hint": "tags"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/paths/~1form/post/requestBody/content/application~1x-www-form-urlencoded/schema/properties/tags"
+      },
+      "elem": {
+        "target": "t/prim/string",
+        "nullable": false
+      }
+    },
+    "t/anon/paths/~1form/post/requestBody/content/application~1x-www-form-urlencoded/schema/properties/token": {
+      "kind": "scalar",
+      "id": "t/anon/paths/~1form/post/requestBody/content/application~1x-www-form-urlencoded/schema/properties/token",
+      "name": {
+        "hint": "token"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/paths/~1form/post/requestBody/content/application~1x-www-form-urlencoded/schema/properties/token"
+      },
+      "base": {
+        "target": "t/prim/bytes",
+        "nullable": false
+      },
+      "encoding": {
+        "name": "base64",
+        "wireType": {
+          "target": "t/prim/string",
+          "nullable": false
+        }
+      }
+    },
+    "t/anon/paths/~1upload/post/requestBody/content/multipart~1form-data/schema": {
+      "kind": "model",
+      "id": "t/anon/paths/~1upload/post/requestBody/content/multipart~1form-data/schema",
+      "name": {
+        "hint": "upload_request"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/paths/~1upload/post/requestBody/content/multipart~1form-data/schema"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/paths/~1upload/post/requestBody/content/multipart~1form-data/schema/properties/file",
+          "name": {
+            "source": "file",
+            "canonical": "file"
+          },
+          "wireName": "file",
+          "type": {
+            "target": "t/prim/bytes",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/paths/~1upload/post/requestBody/content/multipart~1form-data/schema/properties/file"
+          }
+        },
+        {
+          "id": "p/openapi/paths/~1upload/post/requestBody/content/multipart~1form-data/schema/properties/token",
+          "name": {
+            "source": "token",
+            "canonical": "token"
+          },
+          "wireName": "token",
+          "type": {
+            "target": "t/anon/paths/~1upload/post/requestBody/content/multipart~1form-data/schema/properties/token",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/paths/~1upload/post/requestBody/content/multipart~1form-data/schema/properties/token"
+          }
+        },
+        {
+          "id": "p/openapi/paths/~1upload/post/requestBody/content/multipart~1form-data/schema/properties/blob",
+          "name": {
+            "source": "blob",
+            "canonical": "blob"
+          },
+          "wireName": "blob",
+          "type": {
+            "target": "t/anon/paths/~1upload/post/requestBody/content/multipart~1form-data/schema/properties/blob",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/paths/~1upload/post/requestBody/content/multipart~1form-data/schema/properties/blob"
+          }
+        },
+        {
+          "id": "p/openapi/paths/~1upload/post/requestBody/content/multipart~1form-data/schema/properties/raw",
+          "name": {
+            "source": "raw",
+            "canonical": "raw"
+          },
+          "wireName": "raw",
+          "type": {
+            "target": "t/prim/any",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {
+            "description": "anything"
+          },
+          "provenance": {
+            "source": 0,
+            "pointer": "/paths/~1upload/post/requestBody/content/multipart~1form-data/schema/properties/raw"
+          }
+        },
+        {
+          "id": "p/openapi/paths/~1upload/post/requestBody/content/multipart~1form-data/schema/properties/matrix",
+          "name": {
+            "source": "matrix",
+            "canonical": "matrix"
+          },
+          "wireName": "matrix",
+          "type": {
+            "target": "t/anon/paths/~1upload/post/requestBody/content/multipart~1form-data/schema/properties/matrix",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/paths/~1upload/post/requestBody/content/multipart~1form-data/schema/properties/matrix"
+          }
+        },
+        {
+          "id": "p/openapi/paths/~1upload/post/requestBody/content/multipart~1form-data/schema/properties/styled",
+          "name": {
+            "source": "styled",
+            "canonical": "styled"
+          },
+          "wireName": "styled",
+          "type": {
+            "target": "t/prim/string",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/paths/~1upload/post/requestBody/content/multipart~1form-data/schema/properties/styled"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/anon/paths/~1upload/post/requestBody/content/multipart~1form-data/schema/properties/blob": {
+      "kind": "scalar",
+      "id": "t/anon/paths/~1upload/post/requestBody/content/multipart~1form-data/schema/properties/blob",
+      "name": {
+        "hint": "blob"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/paths/~1upload/post/requestBody/content/multipart~1form-data/schema/properties/blob"
+      },
+      "base": {
+        "target": "t/prim/string",
+        "nullable": false
+      },
+      "encoding": {
+        "name": "base64"
+      }
+    },
+    "t/anon/paths/~1upload/post/requestBody/content/multipart~1form-data/schema/properties/matrix": {
+      "kind": "list",
+      "id": "t/anon/paths/~1upload/post/requestBody/content/multipart~1form-data/schema/properties/matrix",
+      "name": {
+        "hint": "matrix"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/paths/~1upload/post/requestBody/content/multipart~1form-data/schema/properties/matrix"
+      },
+      "elem": {
+        "target": "t/anon/paths/~1upload/post/requestBody/content/multipart~1form-data/schema/properties/matrix/items",
+        "nullable": false
+      }
+    },
+    "t/anon/paths/~1upload/post/requestBody/content/multipart~1form-data/schema/properties/matrix/items": {
+      "kind": "list",
+      "id": "t/anon/paths/~1upload/post/requestBody/content/multipart~1form-data/schema/properties/matrix/items",
+      "name": {
+        "hint": "matrix_item"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/paths/~1upload/post/requestBody/content/multipart~1form-data/schema/properties/matrix/items"
+      },
+      "elem": {
+        "target": "t/prim/integer",
+        "nullable": false
+      }
+    },
+    "t/anon/paths/~1upload/post/requestBody/content/multipart~1form-data/schema/properties/token": {
+      "kind": "scalar",
+      "id": "t/anon/paths/~1upload/post/requestBody/content/multipart~1form-data/schema/properties/token",
+      "name": {
+        "hint": "token"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/paths/~1upload/post/requestBody/content/multipart~1form-data/schema/properties/token"
+      },
+      "base": {
+        "target": "t/prim/bytes",
+        "nullable": false
+      },
+      "encoding": {
+        "name": "base64",
+        "wireType": {
+          "target": "t/prim/string",
+          "nullable": false
+        }
+      }
+    },
+    "t/prim/any": {
+      "kind": "primitive",
+      "id": "t/prim/any",
+      "name": {},
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": -1
+      },
+      "prim": "any"
+    },
+    "t/prim/bytes": {
+      "kind": "primitive",
+      "id": "t/prim/bytes",
+      "name": {},
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": -1
+      },
+      "prim": "bytes"
+    },
+    "t/prim/integer": {
+      "kind": "primitive",
+      "id": "t/prim/integer",
+      "name": {},
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": -1
+      },
+      "prim": "integer"
+    },
+    "t/prim/string": {
+      "kind": "primitive",
+      "id": "t/prim/string",
+      "name": {},
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": -1
+      },
+      "prim": "string"
+    }
+  },
+  "servers": {
+    "server/default": {
+      "id": "server/default",
+      "name": {
+        "hint": "server"
+      },
+      "urlTemplate": "/",
+      "description": {},
+      "provenance": {
+        "source": 0
+      }
+    }
+  },
+  "diagnostics": [
+    {
+      "severity": "warning",
+      "code": "openapi/later-version-construct",
+      "message": "field \"contentEncoding\" of the Schema Object was added in OpenAPI 3.1, and this document declares 3.0.3; it is lowered as in an OpenAPI 3.1 document",
+      "provenance": {
+        "source": 0,
+        "pointer": "/paths/~1upload/post/requestBody/content/multipart~1form-data/schema/properties/blob/contentEncoding",
+        "position": {
+          "line": 19,
+          "column": 55
+        }
+      }
+    },
+    {
+      "severity": "warning",
+      "code": "openapi/validation/validation-no-effect",
+      "message": "Encoding Object field \"style\" has no effect under \"multipart/form-data\", where the specification ignores it; kept verbatim under Unmodeled",
+      "provenance": {
+        "source": 0,
+        "pointer": "/paths/~1upload/post/requestBody/content/multipart~1form-data/encoding/styled/style"
+      }
+    }
+  ],
+  "sources": [
+    {
+      "format": "openapi@3.0",
+      "path": "multipart-defaults-30.yaml",
+      "hash": "0bf9273a4efe7c35c6ed40f04c09a8cd03de9e7b864d0f9a9fbdee5b3c6b98c7"
+    }
+  ]
+}

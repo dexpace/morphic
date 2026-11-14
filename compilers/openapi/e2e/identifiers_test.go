@@ -159,27 +159,32 @@ components:
 	assert.Empty(t, cmp.Diff(docs[0].Types, docs[1].Types), "the declaration order decides nothing")
 }
 
-// TestCompile_ADynamicRefNoDocumentPlacesIsKept pins content a reference object
-// resolved to that no position of its document places: nothing says whose anchor
-// it names, so it is kept, and never read against the source's.
-func TestCompile_ADynamicRefNoDocumentPlacesIsKept(t *testing.T) {
+// TestCompile_ADynamicRefAReferenceObjectReachesNamesItsDocumentsAnchor pins
+// content a reference object resolved to in another document, at the last copy
+// of a key written twice, as the model reads one: its $dynamicRef names that
+// document's $dynamicAnchor, here none, so it is kept where that document
+// writes it, and never read against the source's.
+func TestCompile_ADynamicRefAReferenceObjectReachesNamesItsDocumentsAnchor(t *testing.T) {
 	t.Parallel()
 	dir := t.TempDir()
-	layout(t, dir, map[string]string{"ext.yaml": `q:
+	layout(t, dir, map[string]string{"ext.yaml": `q: {name: r, in: query, schema: {type: string}}
+q:
   name: q
   in: query
   schema: {type: array, items: {$dynamicRef: '#node'}}
-q: {name: r, in: query, schema: {type: string}}
 `})
 	src := strings.Replace(specNaming("    Node: {$dynamicAnchor: node, type: object}\n"), "paths: {}",
 		"paths:\n  /a: {get: {parameters: [{$ref: 'ext.yaml#/q'}], responses: {'200': {description: ok}}}}", 1)
 	_, diags := compileOnDisk(t, filepath.Join(dir, "spec.yaml"), src, false)
-	found := false
+	kept := diagsAt(diags, "openapi/degraded-construct", "/q/schema/items/$dynamicRef")
+	require.Len(t, kept, 1, "%+v", diags)
 	for _, d := range diags {
-		found = found || strings.Contains(d.Message, "no position of its document places")
 		assert.NotEqual(t, "openapi/dynamic-ref-expanded", d.Code)
+		if d.Code == "openapi/degraded-construct" {
+			assert.Equal(t, 1, d.Provenance.Source, "placed in ext.yaml")
+			assert.Contains(t, d.Message, `no $dynamicAnchor "node" is declared in this document`)
+		}
 	}
-	assert.True(t, found, "%+v", diags)
 }
 
 // TestCompile_ASchemaAnExpansionReachesIsValidated pins that an expansion reaches

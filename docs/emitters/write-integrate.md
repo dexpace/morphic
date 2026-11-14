@@ -12,11 +12,15 @@ seams; the `Origin`-tagged AST makes the manifest a byproduct of the emit walk.
   built from is carried by the correlation key each entry records where the key's own source holds,
   as an operation's route does when a path variable is renamed. A path or a component renamed
   changes its key too ([correlation keys](../ir/derived-facts.md#correlation-keys)), so only the
-  structural tier of [open question 5](../ir/open-questions.md) could carry it. A
-  symbol derived from an entity keys under it, as `User.ID#create` does
-  ([`User`](targets/go/models.md#user-in-go)), a union's wrappers, fallback and inclusive fields
-  among them, so no two symbols share a key. Write/integrate and surface verification
-  (architecture.md §2.3) both rest on it.
+  structural tier of [open question 5](../ir/open-questions.md) could carry it. A symbol derived
+  from an entity keys under it, as `User.ID#create` does
+  ([`User`](targets/go/models.md#user-in-go)), a shape's declaration under its lifecycles and its
+  patch ([TypePlan](plan/types.md#the-declaration-a-shape-takes)), a union's wrappers, fallback and
+  inclusive fields among them. An ID keeps its source's text, a `#` included, so every key writes
+  its entity's ID with `%` and `#` percent-encoded and a derivation follows the one `#` left: the
+  `create` shape of a property `x`'s type keys apart from the type of a property `x#create` beside
+  it, where the two joined as written were one key. So no two symbols share a key (T-60).
+  Write/integrate and surface verification (architecture.md §2.3) both rest on it.
 - **File-header provenance gates pruning.** `Artifact.Header` writes a generated-by header; the
   writer **never deletes a file lacking it** (hand-edited). First adoption (no prior manifest) skips
   pruning, writes a baseline, emits a notice.
@@ -53,7 +57,6 @@ type Manifest struct {
     Entities map[EntityID]Entry  // every entity the SDK declares and each symbol derived from one
     Keys     int                 // irfacts.CorrelationVersion, the derivation of every Key here
                                  // (ir/derived-facts.md#correlation-keys)
-    Steps    map[string]int      // each refine step and template that ran → its version (#702)
     Regions  []Region            // the hand-written regions found, sorted by entity, then name
 }
 
@@ -138,9 +141,12 @@ type Entry struct {
   `Generations` where it holds `Snapshots`, a field no `Manifest` has, else as a `Manifest`, which a
   target gaining `CrossVersion` reads as its `""` entry and one losing it reads as the entry holding
   the spanning files.
-- **Behavior and steps.** `Options` is the version whose defaults this SDK keeps until its owner
-  moves it ([target options](contract/options.md)), and `Steps` names the version of each step
-  that shaped it, which #702 plans so that a regeneration can say which steps moved.
+- **Behavior.** `Options` is the version whose defaults this SDK keeps until its owner moves it
+  ([target options](contract/options.md)). No refine step's version is recorded: what a
+  regeneration changed is read off the digests, the surface and `Inputs`
+  ([verification](verification.md#what-a-regeneration-changed)).
+- **Checked.** A manifest is held to the output it describes, its coverage exactly and its symbols
+  against the built tree ([verification](verification.md#the-manifest-says-what-the-output-holds)).
 - **Written once.** A file a target generates for the user to own, such as a test to fill in, is an
   artifact with `SkipIfExists` ([the contract](contract/emitter.md)), recorded as `Once`: written by
   the first generation that finds it absent and never again, so one its user deleted stays deleted,

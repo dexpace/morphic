@@ -665,6 +665,29 @@
         "uniqueItems": false
       }
     },
+    "t/openapi/components/schemas/NeedleBeside": {
+      "kind": "scalar",
+      "id": "t/openapi/components/schemas/NeedleBeside",
+      "name": {
+        "source": "NeedleBeside",
+        "canonical": "needle_beside"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/NeedleBeside"
+      },
+      "base": {
+        "target": "t/prim/string",
+        "nullable": false
+      },
+      "constraints": {
+        "maxLength": 1000,
+        "uniqueItems": false
+      }
+    },
     "t/openapi/components/schemas/Owner": {
       "kind": "model",
       "id": "t/openapi/components/schemas/Owner",
@@ -1307,6 +1330,32 @@
   },
   "diagnostics": [
     {
+      "severity": "warning",
+      "code": "openapi/validation/validation-no-effect",
+      "message": "Schema Object field \"nullable\" has no effect without a \"type\" written in the same Schema Object, to which the specification applies it in OpenAPI 3.0 (Schema Object)",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Zone/properties/owner/allOf/1/nullable",
+        "position": {
+          "line": 46,
+          "column": 26
+        }
+      }
+    },
+    {
+      "severity": "warning",
+      "code": "openapi/later-version-construct",
+      "message": "field \"const\" of the Schema Object was added in OpenAPI 3.1, and this document declares 3.0.3; it is lowered as in an OpenAPI 3.1 document",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Port80/allOf/1/const",
+        "position": {
+          "line": 122,
+          "column": 19
+        }
+      }
+    },
+    {
       "severity": "info",
       "code": "openapi/inferred-nullable",
       "message": "nullable: true is read as admitting null under the nullable-widening policy, though OpenAPI 3.0 applies nullable only to a type written in the same Schema Object, and this schema writes none; a reference whose null rests on it is marked inferred",
@@ -1383,7 +1432,7 @@
     {
       "format": "openapi@3.0",
       "path": "allof-refinement.yaml",
-      "hash": "c8cb5cd5feaff1c79343a10847b912ea47e8801a0ff4fcb6bd2acd95bb6e016b"
+      "hash": "c7a3949bd6f5f1b7c986f4e0028c1d249f78c524270fac86b83180adc637d794"
     }
   ]
 }

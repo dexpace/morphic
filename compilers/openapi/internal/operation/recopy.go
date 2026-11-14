@@ -6,8 +6,11 @@ package operation
 import (
 	"strings"
 
+	soa "github.com/speakeasy-api/openapi/openapi"
+
 	"github.com/dexpace/morphic/compilers/openapi/internal/annotation"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
+	"github.com/dexpace/morphic/compilers/openapi/internal/resolve"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -23,14 +26,14 @@ import (
 func chargeItemCopy(c lowering.Ctx, kept, servers int, taken []sourcedParam) {
 	lowering.ChargeExpansion(c, kept+servers)
 	for _, sp := range taken {
-		if sp.ref.IsReference() {
+		if _, isRef := c.Bindings().Reference(sp.ref); isRef {
 			continue
 		}
 		pc := c
 		if sp.in != nil {
 			pc = *sp.in
 		}
-		if p := sp.ref.GetObject(); p != nil {
+		if p := resolve.Object[soa.Parameter](c.Bindings(), sp.ref); p != nil {
 			lowering.ChargeExpansionAt(pc, sp.pointer, p.GetRootNode())
 		}
 	}

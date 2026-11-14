@@ -30,3 +30,29 @@ components:
         propertyName: kind
         mapping:
           cat: Cat
+    # No mapping, but a keyword beside a branch's $ref gives its variant an
+    # alias, which carries no name to route by, so the mapping holds the
+    # routes OpenAPI implies, each component's name keying its variant.
+    Implied:
+      oneOf:
+        - $ref: '#/components/schemas/Cat'
+          description: a cat
+        - $ref: '#/components/schemas/Dog'
+      discriminator:
+        propertyName: kind
+    # Two branches alias one type, each for its own keyword beside its $ref:
+    # nothing in a value naming the type tells them apart, so it routes to the
+    # first, in branch order.
+    Twins:
+      oneOf:
+        - $ref: '#/components/schemas/Cat'
+          description: one cat
+        - $ref: '#/components/schemas/Cat'
+          title: Tabby
+        - $ref: '#/components/schemas/Dog'
+      discriminator:
+        propertyName: kind
+        mapping:
+          tom: '#/components/schemas/Cat'
+          cat: Cat
+          dog: Dog

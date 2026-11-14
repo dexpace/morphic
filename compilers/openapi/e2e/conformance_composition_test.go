@@ -6,6 +6,7 @@ package e2e_test
 import (
 	"encoding/json/jsontext"
 	"fmt"
+	"maps"
 	"slices"
 	"testing"
 
@@ -34,6 +35,13 @@ func assertAllOfInheritance(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 	assert.Equal(t, ir.AdditionalClosed, d.Additional,
 		"composed schema keeps additionalProperties: false")
 	assert.Contains(t, d.Unmodeled, "openapi:x-team", "composed schema keeps x-* extensions")
+
+	leaf, ok := doc.Types[componentID("Leaf")].(*ir.Model)
+	require.True(t, ok)
+	require.NotNil(t, leaf.Base, "a $ref to a member of a discriminator hierarchy is the Base")
+	assert.Equal(t, componentID("Mid"), leaf.Base.Target)
+	assert.Equal(t, []ir.TypeRef{{Target: componentID("Other")}}, leaf.Mixins)
+	assert.True(t, ir.IsSubtype(doc, componentID("Leaf"), componentID("Root")))
 }
 
 func assertAllOfMixins(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
@@ -343,6 +351,11 @@ func assertAllOfRefinement(t *testing.T, doc *ir.Document, diags []ir.Diagnostic
 	require.NotNil(t, needle.Constraints)
 	assert.Equal(t, new(int64(1000)), needle.Constraints.MaxLength)
 	assert.Empty(t, needle.Unmodeled, "the anyOf says nothing the string does not")
+	beside, ok := doc.Types[componentID("NeedleBeside")].(*ir.Scalar)
+	require.True(t, ok, "a union beside the allOf is a conjunct too; got %T", doc.Types[componentID("NeedleBeside")])
+	assert.Equal(t, needle.Base, beside.Base)
+	assert.Equal(t, needle.Constraints, beside.Constraints)
+	assert.Empty(t, beside.Unmodeled)
 
 	zone, ok := doc.Types[componentID("Zone")].(*ir.Model)
 	require.True(t, ok)
@@ -388,7 +401,9 @@ func assertAllOfRefinement(t *testing.T, doc *ir.Document, diags []ir.Diagnostic
 	assertRefinedNodes(t, doc)
 	assert.Equal(t, 1, openapitest.CountDiagsAt(diags, diag.DegradedConstruct, ir.SeverityWarning),
 		"only Disjoint is contradicted, and its conjuncts are reported once")
-	assert.Equal(t, []jsontext.Pointer{"/components/schemas/Disjoint"}, warningPointers(diags))
+	assert.Equal(t, []jsontext.Pointer{"/components/schemas/Disjoint", "/components/schemas/Port80/allOf/1/const",
+		"/components/schemas/Zone/properties/owner/allOf/1/nullable"}, warningPointers(diags),
+		"and a const, which 3.1 added, and a nullable on a branch writing no type, which 3.0 gives no effect")
 }
 
 // assertRefinedOperation covers the positions an operation holds.
@@ -627,20 +642,30 @@ func assertDiscriminatorTransitive(t *testing.T, doc *ir.Document, _ []ir.Diagno
 // is unordered, so the subtype takes the smallest key in byte order whichever
 // was written first — the fixture writes the larger first — while the base's
 // mapping keeps both, and the election is reported at the subtype as
-// information since nothing is lost.
+// information since nothing is lost. A key naming a component that is only a
+// $ref routes to what it names, on the base and on a union, whose value naming
+// a schema by its $id resolves too (docs/compilers/openapi.md#discriminator).
 func assertDiscriminatorAliasMapping(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
 	pet, ok := doc.Types[componentID("Pet")].(*ir.Model)
 	require.True(t, ok, "the base is a Model")
 	require.NotNil(t, pet.Discriminator)
-	assert.Equal(t, map[string]ir.TypeID{"alpha": componentID("Dog"), "zulu": componentID("Dog")},
-		pet.Discriminator.Mapping, "the base keeps every key")
+	dogID, catID := componentID("Dog"), componentID("Cat")
+	assert.Equal(t, map[string]ir.TypeID{"alpha": dogID, "zulu": dogID, "cat": catID, "kitten": catID},
+		pet.Discriminator.Mapping, "the base keeps every key, a component that is a $ref read through")
 
-	dog, ok := doc.Types[componentID("Dog")].(*ir.Model)
-	require.True(t, ok, "Dog composes as a Model")
-	assert.Equal(t, "alpha", dog.DiscriminatorValue,
-		"the smallest key in byte order, not the first written")
-	assert.True(t, openapitest.HasDiagCodeAt(diags, diag.DegradedConstruct, "/components/schemas/Dog"),
-		"the election is reported at the subtype: %+v", diags)
+	for name, tag := range map[string]string{"Dog": "alpha", "Cat": "cat"} {
+		sub, ok := doc.Types[componentID(name)].(*ir.Model)
+		require.True(t, ok, "%s composes as a Model", name)
+		assert.Equal(t, tag, sub.DiscriminatorValue, "%s: the smallest key in byte order, not the first written", name)
+		assert.True(t, openapitest.HasDiagCodeAt(diags, diag.DegradedConstruct, "/components/schemas/"+name),
+			"the election is reported at the subtype: %+v", diags)
+	}
+
+	pets, ok := doc.Types[componentID("Pets")].(*ir.Union)
+	require.True(t, ok, "Pets is a union")
+	require.NotNil(t, pets.Discriminator)
+	assert.Equal(t, map[string]ir.TypeID{"cat": catID, "kitten": catID, "bird": componentID("Bird")},
+		pets.Discriminator.Mapping, "each value routes to a variant, and no route by name is written beside them")
 }
 
 // assertDiscriminatorDefaultMapping pins Discriminator.Default, whose only source
@@ -667,8 +692,9 @@ func assertDiscriminatorDefaultMapping(t *testing.T, doc *ir.Document, diags []i
 // so pass.Validate would reject the discriminator on the model; it moves whole
 // to Unmodeled beside the union. Vehicle, a type array, keeps it on the union
 // its types lower to, whose object variant holds none. Shape's and Animal's
-// routes are true allOf subtypes, Bird's union kept beside it rather than
-// distributed, so each model keeps it, and the document validates clean.
+// routes are true allOf subtypes, Bird composing its union as a mixin rather
+// than distributing it, so each model keeps it, and the document validates
+// clean.
 func assertDiscriminatedUnionBesideModel(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
 	found, err := pass.Validate(t.Context(), doc)
 	require.NoError(t, err)
@@ -677,7 +703,8 @@ func assertDiscriminatedUnionBesideModel(t *testing.T, doc *ir.Document, diags [
 	pet, ok := doc.Types[componentID("Pet")].(*ir.Union)
 	require.True(t, ok, "Pet's branches compose no body, so Pet is their union; got %T", doc.Types[componentID("Pet")])
 	require.NotNil(t, pet.Discriminator, "which the discriminator routes")
-	assert.Equal(t, map[string]ir.TypeID{"cat": componentID("Cat")}, pet.Discriminator.Mapping)
+	assert.Equal(t, map[string]ir.TypeID{"cat": componentID("Cat"), "Dog": componentID("Dog")}, pet.Discriminator.Mapping,
+		"the mapping holds the route it implies to the variant it leaves out")
 	assert.Empty(t, pet.Unmodeled, "the type beside it is said by every branch")
 	assert.False(t, openapitest.HasDiagCodeAt(diags, diag.DegradedConstruct, "/components/schemas/Pet"))
 
@@ -694,7 +721,9 @@ func assertDiscriminatedUnionBesideModel(t *testing.T, doc *ir.Document, diags [
 	require.True(t, ok, "Bird writes allOf to Animal, whose route keeps it a subtype")
 	require.NotNil(t, bird.Base)
 	assert.Equal(t, componentID("Animal"), bird.Base.Target)
-	assert.Contains(t, bird.Unmodeled, "openapi:oneOf", "its union kept beside it")
+	assert.Empty(t, bird.Unmodeled, "it keeps nothing of its union")
+	assert.Equal(t, []ir.TypeRef{{Target: "t/composed/components/schemas/Bird/oneOf"}}, bird.Mixins,
+		"it composes the union as a mixin")
 	animal, ok := doc.Types[componentID("Animal")].(*ir.Model)
 	require.True(t, ok)
 	require.NotNil(t, animal.Discriminator, "its route is a subtype, so it stays")
@@ -797,14 +826,46 @@ func assertDiscriminatorInferred(t *testing.T, doc *ir.Document, diags []ir.Diag
 		assert.False(t, u.WireTagged, name)
 		assert.Empty(t, u.Provenance.Inferred, name)
 	}
-	circle, ok := doc.Types[componentID("Circle")].(*ir.Model)
-	require.True(t, ok, "Circle is a subtype of Shape")
-	assert.Equal(t, "circle", circle.DiscriminatorValue, "it carries the tag it pins, not its name")
-	assert.Equal(t, openapi.DiscriminatorInferenceHeuristic, circle.Provenance.Inferred)
+	for name, tag := range map[string]string{"Circle": "circle", "Square": "square", "Polygon": ""} {
+		m, ok := doc.Types[componentID(name)].(*ir.Model)
+		require.True(t, ok, "%s is a subtype of Shape", name)
+		assert.Equal(t, tag, m.DiscriminatorValue, "%s carries the tag it pins, not its name", name)
+		assert.Equal(t, openapi.DiscriminatorInferenceHeuristic, m.Provenance.Inferred, name)
+	}
 	assert.Contains(t, openapitest.DiagMessageAt(t, diags, diag.InferredDiscriminator, ir.SeverityInfo,
 		"/components/schemas/Circle"), `it carries "circle" instead`)
-	assert.Equal(t, 3, openapitest.CountDiagsAt(diags, diag.InferredDiscriminator, ir.SeverityInfo),
+	assert.Contains(t, openapitest.DiagMessageAt(t, diags, diag.InferredDiscriminator, ir.SeverityInfo,
+		"/components/schemas/Polygon"), `admitting only "hexagon", "triangle"; no tag its instances carry routes to it`)
+
+	assertInferredSets(t, doc, diags)
+	assert.Equal(t, 6, openapitest.CountDiagsAt(diags, diag.InferredDiscriminator, ir.SeverityInfo),
 		"only the declared discriminators' readings are reported")
+}
+
+// assertInferredSets is assertDiscriminatorInferred for the variants pinning
+// a tag to several strings: each string mapped to the variant admitting it,
+// under a declared discriminator and an inferred one, and nothing read where
+// two variants admit one string.
+func assertInferredSets(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
+	t.Helper()
+	calc := unionNamed(t, doc, "Calculation")
+	require.Len(t, calc.Variants, 2)
+	first, second := calc.Variants[0].Type.Target, calc.Variants[1].Type.Target
+	assert.Equal(t, map[string]ir.TypeID{"count": first, "COUNT": first, "min": second, "max": second},
+		calc.Discriminator.Mapping)
+	assert.Equal(t, openapi.DiscriminatorInferenceHeuristic, calc.Provenance.Inferred)
+	assert.Contains(t, openapitest.DiagMessageAt(t, diags, diag.InferredDiscriminator, ir.SeverityInfo,
+		"/components/schemas/Calculation/discriminator"), `"COUNT", "count" where it names none`)
+
+	overlapping := unionNamed(t, doc, "Overlapping")
+	assert.Nil(t, overlapping.Discriminator.Mapping)
+	assert.Empty(t, overlapping.Provenance.Inferred)
+
+	op := unionNamed(t, doc, "Operation")
+	require.Len(t, op.Variants, 2)
+	assert.Equal(t, &ir.Discriminator{PropertyName: "status", Inferred: true, Mapping: map[string]ir.TypeID{
+		"pending": op.Variants[0].Type.Target, "running": op.Variants[0].Type.Target, "completed": op.Variants[1].Type.Target,
+	}}, op.Discriminator)
 }
 
 // unionNamed returns the union the component name lowers to.
@@ -887,7 +948,7 @@ func assertUnionRestatedBranches(t *testing.T, doc *ir.Document, diags []ir.Diag
 	for name, keyword := range map[string]string{
 		"RenderBare": "openapi:oneOf", "Render": "openapi:oneOf", "RenderDocumented": "openapi:anyOf",
 		"RenderExclusive": "openapi:oneOf", "RenderBounded": "openapi:oneOf", "RenderDescribed": "openapi:oneOf",
-		"RenderConjoined": "openapi:anyOf",
+		"RenderConjoined": "openapi:anyOf", "RenderSelf": "openapi:oneOf",
 	} {
 		m, ok := doc.Types[componentID(name)].(*ir.Model)
 		require.True(t, ok, "%s lowers to its body", name)
@@ -1039,5 +1100,22 @@ func assertAllOfUnionBranch(t *testing.T, doc *ir.Document, diags []ir.Diagnosti
 	require.NotNil(t, dog.Base)
 	assert.Equal(t, componentID("Pet"), dog.Base.Target)
 	assert.Equal(t, "dog", dog.DiscriminatorValue)
-	assert.Contains(t, dog.Unmodeled, "openapi:allOf/1", "its union kept with its branch")
+	assert.Empty(t, dog.Unmodeled, "it keeps nothing of its union")
+	assert.Equal(t, []ir.TypeRef{{Target: "t/composed/components/schemas/Dog/allOf/1/oneOf"}}, dog.Mixins,
+		"it composes the union as a mixin")
+	_, ok = doc.Types["t/composed/components/schemas/Dog/allOf/1/oneOf"].(*ir.Union)
+	assert.True(t, ok)
+
+	kennel, ok := doc.Types[componentID("Kennel")].(*ir.Model)
+	require.True(t, ok)
+	resident, ok := propByWire(kennel, "resident")
+	require.True(t, ok)
+	_, ok = doc.Types[resident.Type.Target].(*ir.Union)
+	assert.True(t, ok, "an inline schema no route names distributes")
+	for _, name := range []string{"Payment", "Refund"} {
+		u := unionNamed(t, doc, name)
+		require.NotNil(t, u.Discriminator, name)
+		assert.True(t, u.WireTagged, name)
+		assert.Equal(t, []string{"Bank", "Card"}, slices.Sorted(maps.Keys(u.Discriminator.Mapping)), name)
+	}
 }

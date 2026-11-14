@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"reflect"
 	"testing"
-	"unicode"
 	"unicode/utf8"
 
 	"github.com/stretchr/testify/assert"
@@ -106,8 +105,9 @@ func TestVerify_BlankAliasIsAViolation(t *testing.T) {
 }
 
 // TestVerify_InvisibleRuneBesideAVisibleOneIsNotBlank holds one side of the line
-// isBlankName draws — see its comment for why the IR declines to judge an
-// invisible rune that is not the whole entry.
+// isBlankName draws: an invisible rune beside a visible one is no blank entry,
+// since whether it makes a legal name turns on the grammar of the format the
+// alias is matched against, which the IR does not know (docs/ir/naming.md#aliases).
 func TestVerify_InvisibleRuneBesideAVisibleOneIsNotBlank(t *testing.T) {
 	t.Parallel()
 	assert.Empty(t, aliasViolations(t, "com.example.\u200bUser", " padded "))
@@ -147,19 +147,6 @@ func TestVerify_VisibleAliasIsNotBlank(t *testing.T) {
 			assert.Empty(t, aliasViolations(t, alias))
 		})
 	}
-}
-
-// TestIsInvisible_WasSweptAgainstThisUnicode fails when a Go release moves
-// unicode.Version, since isInvisible holds two ranges no table of package unicode
-// carries, and Unicode has changed the derivation itself between releases, not
-// only those ranges. Rebuild isInvisible from DerivedCoreProperties.txt's
-// Default_Ignorable_Code_Point derivation and sweep every code point against it,
-// then move the version here.
-func TestIsInvisible_WasSweptAgainstThisUnicode(t *testing.T) {
-	t.Parallel()
-	assert.Equal(t, "17.0.0", unicode.Version,
-		"rebuild isInvisible from DerivedCoreProperties.txt's Default_Ignorable_Code_Point "+
-			"derivation and sweep every code point against it, then move this version")
 }
 
 // TestVerify_IllFormedAliasIsAViolation covers the rule every channel shares,

@@ -9,6 +9,10 @@ type OpPlan struct {
     Return          ResponsePlan      // how the primary response is read
     Others          []PlannedResponse // every other response the operation declares (responses.md)
     RequestContent  *ir.Content       // the request content elected; nil = no body
+    RequestText     map[string]TextPlan // by Content.MediaType as written, what of the elected
+                                      // content, and of every content of an operation the API
+                                      // sends, holds a value no style arranges (responses.md);
+                                      // a content holding none has no entry
     Errors          []PlannedError    // every failure the operation declares, ranges collapsed
                                       // (404/4XX/catch-all)
     Page            *PagePlan         // nil = not paginated
@@ -20,7 +24,8 @@ type OpPlan struct {
     Effects         Effects           // what calling it may change: declared, else by what its
                                       // binding defines (policy.md)
     Bindings        BindingView       // per-protocol param/request/response view from OpBindings
-    Inferred        map[string]ir.Provenance  // which fields above were heuristic (INV6)
+    Inferred        map[string]ir.Provenance  // which fields above were heuristic (INV6), by path:
+                                              // "Page.FirstPage" (policy.md)
 }
 
 // The remaining operation-facet plans. Each is nil when the facet is absent, so a refiner's
@@ -33,9 +38,11 @@ type PagePlan struct {                // item-type unwrap is a PLAN decision
     CursorIn   *ir.InputPath          // a parameter, the request body, or a member of either
     CursorOut  *ir.PropPath
     LimitIn    *ir.InputPath          // the page-size input, which a short page is measured by
+    FirstPage  *ir.Value              // under page: the first page's number, never nil there
+                                      // (policy.md); nil under any other strategy
     TotalCount *ir.PropPath           // the items in all, which "total" reads
     TotalPages *ir.PropPath           // the pages in all, which "total" reads
-    Stop       []ir.PageStop          // the source's stop rules; empty = none stated, none guessed
+    Stop       []ir.PageStop          // the IR's stop rules; empty = none stated, none guessed
     Inferred   bool                   // heuristic pagination (may be disabled by policy)
 }
 
@@ -60,7 +67,8 @@ type AuthOption struct {              // one option in the OR-of-ANDs; slice ord
 ```
 
 How `Return`, `Others` and `Errors` read a response is in [responses](responses.md), and
-`StreamPlan` is in [streams](streams.md).
+`StreamPlan` is in [streams](streams.md). An operation the API sends keeps each field's meaning, its
+responses written rather than read ([operations the API sends](../operations/inbound.md)).
 
 `PrimaryResponse` and the contents a `ResponsePlan` elects are the *one legitimate home* for the
 collapse oagen performs destructively in its compiler and Morphic forbids there (INV2): the IR keeps

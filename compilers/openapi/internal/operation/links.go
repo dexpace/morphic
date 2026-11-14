@@ -13,6 +13,7 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
 	"github.com/dexpace/morphic/compilers/openapi/internal/resolve"
+	"github.com/dexpace/morphic/compilers/openapi/internal/runtimeexpr"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -36,19 +37,9 @@ type pendingLink struct {
 // never reordered, so an index taken as a response is appended still names it
 // once the service is whole.
 type responseSlot struct {
-	list  slotList
+	list  runtimeexpr.ResponseList
 	index int
 }
-
-// slotList is the field of ir.Operation a responseSlot reads.
-type slotList int
-
-// The fields a response lowers to.
-const (
-	slotResponses slotList = iota
-	slotErrors
-	slotDefault
-)
 
 // add holds drafts, the links of the response slot names on from.
 func (l *Links) add(from ir.OpID, slot responseSlot, drafts []linkDraft) {
@@ -89,8 +80,8 @@ type draftParam struct {
 }
 
 // draftLinks drafts each link the response r, declared at rptr in c's
-// document, names. A $ref the resolver could not follow is its finding, and
-// drafts nothing. The summary and description written beside a link's $ref
+// document, names. A $ref the bindings could not follow is the load phase's
+// finding, and drafts nothing. The summary and description written beside a link's $ref
 // describe that use of it, so they fold over the declaration's docs
 // (docs/compilers/openapi.md#reference-object-siblings).
 func draftLinks(c lowering.Ctx, r *soa.Response, rptr jsontext.Pointer) ([]linkDraft, []ir.Diagnostic) {
@@ -107,7 +98,7 @@ func draftLinks(c lowering.Ctx, r *soa.Response, rptr jsontext.Pointer) ([]linkD
 			continue
 		}
 		d, draftDiags := draftLink(lc, l, lptr, name)
-		d.docs = resolve.UseDocs[soa.Link](rl, d.docs)
+		d.docs = resolve.UseDocs[soa.Link](c.Bindings(), rl, d.docs)
 		d.at, d.use = c, use
 		drafts = append(drafts, d)
 		diags = append(diags, draftDiags...)

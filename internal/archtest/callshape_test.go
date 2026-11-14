@@ -40,19 +40,19 @@ var callShapeBaseline = map[string]map[string]int{
 	},
 	"compilers/compile": {
 		// The settlement queue runs what a lowering deferred, once the registry is
-		// whole and in order (#898), and Types.Promise's queue builds a node a
+		// whole and in order (#898), as operation's form parts and item defaults
+		// and its stream elements are, and Types.Promise's queue builds a node a
 		// reference names that no lowering built: designed seams. Types.Intern
 		// also calls the build schema hands it before it returns: an immediate
 		// callback.
-		"compilers/openapi/internal/operation": 2,
+		"compilers/openapi/internal/operation": 3,
 		"compilers/openapi/internal/schema":    6,
 	},
 	"compilers/openapi/internal/bind": {
-		// bind.Config's seven functions, which #1488 keeps under #1477's rule: I/O
-		// (Open), policy bind may not import (Locate, Refuse), a live query
-		// (Written), lookups through load's key normalization (Through, Beside),
-		// and a dialect's rows, built only once a schema names it (Dialect).
-		"compilers/openapi/internal/load": 7,
+		// bind.Config's four functions, which #1488 keeps under #1477's rule: I/O
+		// (Open), policy bind may not import (Locate, Refuse), and a dialect's
+		// rows, built only once a schema names it (Dialect).
+		"compilers/openapi/internal/load": 4,
 	},
 	"compilers/openapi/internal/load": {
 		// DocumentReader, through which load reads the documents references and
@@ -61,9 +61,9 @@ var callShapeBaseline = map[string]map[string]int{
 		"engine/reader": 6,
 	},
 	"compilers/openapi/internal/lowering": {
-		// Promoter.Referent and Remembered each call the function they are handed
-		// before they return: immediate callbacks.
-		"compilers/openapi/internal/schema": 13,
+		// Promoter.Referent, Remembered and Settled each call the function they
+		// are handed before they return: immediate callbacks.
+		"compilers/openapi/internal/schema": 17,
 	},
 	"compilers/openapi/internal/merge": {
 		// What a fold asks the walk that declared the field, through merge.Walk:
@@ -75,17 +75,18 @@ var callShapeBaseline = map[string]map[string]int{
 	"compilers/openapi/internal/nodeview": {
 		// What nodeview.Walk calls as it visits and leaves a node: traversal
 		// callbacks.
-		"compilers/openapi/internal/load":        7,
+		"compilers/openapi/internal/load":        3,
 		"compilers/openapi/internal/oas":         2,
-		"compilers/openapi/internal/overlay":     3,
+		"compilers/openapi/internal/overlay":     4,
 		"compilers/openapi/internal/sourceindex": 2,
 	},
 	"compilers/openapi/internal/oas": {
-		// oas.Options' Locate, Seen and Owned, which #1488 keeps under #1477's
-		// rule: the checker places its own findings, and an Owned's, to drop the
-		// repeat an alias makes, a policy, and Seen observes the walk, as Owned
-		// takes each value it leaves to the load phase, traversal callbacks.
-		"compilers/openapi/internal/load": 12,
+		// oas.Options' Locate, Seen, RootRows and Later, which #1488 keeps under
+		// #1477's rule: the checker places its own findings to drop the repeat an
+		// alias makes, a policy, and Seen observes the walk, RootRows answers the
+		// rows of each schema it enters and Later takes each it leaves unread,
+		// traversal callbacks.
+		"compilers/openapi/internal/load": 18,
 	},
 	"compilers/openapi/internal/provenance": {
 		// provenance.Tree's Pointers, a node's pointer in the tree it places, read
@@ -95,10 +96,10 @@ var callShapeBaseline = map[string]map[string]int{
 		"compilers/openapi/internal/scan": 1,
 	},
 	"compilers/openapi/internal/resolve": {
-		// resolve.Scope's Holds, Beside and Writes, which #1488 keeps under #1477's
-		// rule: a lazily built index (Holds), and queries of load's index of the
-		// fields written beside a path item $ref (Beside, Writes).
-		"compilers/openapi/internal/load": 3,
+		// DirectoryLocator, through which Places asks the reader where a
+		// directory lies: I/O at a designed seam, as DocumentReader is load's.
+		"engine":        1,
+		"engine/reader": 2,
 	},
 	"engine/internal/atomicfile": {
 		// Replace calls the fill it is handed before it returns: an immediate
@@ -108,10 +109,12 @@ var callShapeBaseline = map[string]map[string]int{
 	},
 	"ir": {
 		// ir.Visitor and the ForEach walks: traversal callbacks.
-		"internal/census": 1,
-		"ir/irfacts":      3,
-		"ir/irverify":     2,
-		"pass":            16,
+		"compilers/openapi/internal/lowering": 1,
+		"engine/report":                       1,
+		"internal/census":                     1,
+		"ir/irfacts":                          3,
+		"ir/irverify":                         2,
+		"pass":                                16,
 	},
 }
 

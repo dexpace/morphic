@@ -16,11 +16,11 @@ import (
 )
 
 // TestOperationPath_ListsEveryCarrier counts the fields of each type on
-// operationPath, and on the paths below it to what checkInteractions and
-// checkPrefixHeaders read, in the encoded shape, which reaches through every
-// sealed sum, by their type and however it is held: one more field is a path
-// the checks pruning to it skip, where an invented value would pass unread, so
-// it fails here until the path takes it.
+// operationPath, and on the paths below it to what checkInteractions,
+// checkPrefixHeaders and checkContentStreams read, in the encoded shape, which
+// reaches through every sealed sum, by their type and however it is held: one
+// more field is a path the checks pruning to it skip, where an invented value
+// would pass unread, so it fails here until the path takes it.
 func TestOperationPath_ListsEveryCarrier(t *testing.T) {
 	t.Parallel()
 	shape, err := os.ReadFile("../testdata/shape.golden.txt")
@@ -64,6 +64,8 @@ func TestOperationPathChecks_SeeOnlyThePathToTheField(t *testing.T) {
 		"checkStability":      checkStability,
 		"checkInteractions":   checkInteractions,
 		"checkPrefixHeaders":  checkPrefixHeaders,
+		"checkPrefixBindings": checkPrefixBindings,
+		"checkContentStreams": checkContentStreams,
 	} {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()

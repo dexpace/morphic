@@ -102,21 +102,15 @@ func ExpansionCrossed(c Ctx) bool {
 // of its own (marshaller.Model.GetCoreAny).
 type chainable[T, S any] interface {
 	*S
-	resolve.Referenced[T, S]
-	IsReference() bool
+	resolve.Referenced[T]
 	GetCoreAny() any
 }
 
 // readingOf returns how the grammar reads what a $ref written at usePtr in c's
 // document names: as the object it reads there, or as raw YAML, weighed whole,
-// where c places no such position, holds no table, or reads there no object a
-// $ref can name.
+// where c holds no table or reads there no object a $ref can name.
 func readingOf(c Ctx, usePtr jsontext.Pointer) bind.Reading {
-	p, placed := c.Position(usePtr)
-	if !placed {
-		return bind.Reading{}
-	}
-	if at := c.Bindings().Table().ReadingAt(p); at.Referable() {
+	if at := c.Bindings().Table().ReadingAt(c.Position(usePtr)); at.Referable() {
 		return at
 	}
 	return bind.Reading{}
@@ -129,10 +123,7 @@ func readingOf(c Ctx, usePtr jsontext.Pointer) bind.Reading {
 // library's own GetRootNode reads one, adds none.
 func copied[T, S any, R chainable[T, S]](c Ctx, ref R, end *yaml.Node) []*yaml.Node {
 	nodes := []*yaml.Node{end}
-	if !resolve.Chained[T, S](ref) {
-		return nodes
-	}
-	for _, hop := range resolve.Hops[T, S](c.RefScope(), ref) {
+	for _, hop := range resolve.Hops[T, S](c.Bindings(), ref) {
 		if core, ok := hop.Ref.GetCoreAny().(interface{ GetRootNode() *yaml.Node }); ok {
 			nodes = append(nodes, core.GetRootNode())
 		}

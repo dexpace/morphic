@@ -10,6 +10,7 @@ import (
 	"net/url"
 	"path/filepath"
 	"slices"
+	"strings"
 
 	yaml "go.yaml.in/yaml/v3"
 
@@ -80,9 +81,8 @@ func (o Others) At(index int) (Other, bool) {
 	return o.list[i], true
 }
 
-// Named returns the document a reference reads by name, as the parser's
-// resolver or the binder spells it, and false for one the compile did not
-// read beside the source.
+// Named returns the document a reference reads by name, as the binder spells
+// it, and false for one the compile did not read beside the source.
 func (o Others) Named(name string) (Other, bool) {
 	i, ok := o.index(name)
 	if !ok {
@@ -101,13 +101,12 @@ func (o Others) index(name string) (int, bool) {
 }
 
 // unreachedKeys is the key of each document table read that nothing it holds is
-// in (bind.Document.Unreached), but those the parser's resolver read, whose
-// keys resolved holds: a reference object's chain reaches them, which the table
-// need not see. Such a document lowers nothing and is no input of the result.
-func unreachedKeys(table *bind.Table, resolved map[string]bool) map[string]bool {
+// in (bind.Document.Unreached). Such a document lowers nothing and is no input
+// of the result.
+func unreachedKeys(table *bind.Table) map[string]bool {
 	unused := map[string]bool{}
 	for id := range bind.DocID(table.Documents()) {
-		if d := table.Document(id); d.Unreached && !resolved[readKey(d.Name)] {
+		if d := table.Document(id); d.Unreached {
 			unused[readKey(d.Name)] = true
 		}
 	}
@@ -126,12 +125,10 @@ func newOthers(ctx context.Context, read *externalReads, first int, source *dial
 	defer read.mu.Unlock()
 	byLabel := map[string][]string{}
 	for key := range read.data {
-		// The source is held under each spelling the resolver reaches it by,
-		// with no bytes of its own; it is Document.Sources' first entry.
-		if read.self.names(key) || read.trees[key] == read.self.root || unused[key] {
+		if unused[key] {
 			continue
 		}
-		label := labelOf(read.self.path, key, filepath.Abs)
+		label, _ := read.self.labelOf(key)
 		byLabel[label] = append(byLabel[label], key)
 	}
 	o := Others{byName: map[string]int{}}
@@ -141,7 +138,7 @@ func newOthers(ctx context.Context, read *externalReads, first int, source *dial
 		declared, dialect := declaredVersion(read.trees[keys[0]]), declaredDialect(read.trees[keys[0]])
 		version, minor, rows := source.of(declared, dialect)
 		o.list = append(o.list, Other{Index: first + i, Label: label, Info: ir.SourceInfo{
-			Format: "openapi@" + minor, Path: sourcePathOf(keys[0]), Hash: ir.SourceHash(data),
+			Format: "openapi@" + minor, Path: read.self.shownPathOf(keys[0]), Hash: ir.SourceHash(data),
 		}, Rows: rows, version: version, dialect: dialect})
 		o.trees = append(o.trees, provenance.Tree{Doc: provenance.Doc{Source: first + i},
 			Pointers: pointersIn(ctx, read.trees, keys)})
@@ -175,38 +172,48 @@ func pointersIn(ctx context.Context, trees map[string]*yaml.Node, keys []string)
 	}
 }
 
-// labelOf is the label of the document read under key, from the source at
-// self: a file's path relative to the source's directory, with '/' between its
-// segments whatever the system, or its cleaned path where no relative path
-// reaches it; a URL as the resolver spells it. A relative path and an absolute
-// one are related through abs, filepath.Abs's reading of the working
-// directory, as resolve.SameDocument relates them, so one file is one label
-// however the source was named.
-func labelOf(self, key string, abs func(string) (string, error)) string {
-	if refscope.IsURL(key) {
-		return key
+// labelOf is the label of the document read under key, from the source: a
+// file's path, where it lies, relative to the source's directory, with '/'
+// between its segments whatever the system, or its cleaned path where no
+// relative path reaches it, as from a relative directory to an absolute path,
+// which nothing relates without the working directory; a URL as key spells
+// it. A file URI names a file (resolve.Places.FileOf), so the file is
+// one label however a reference spells it. relative reports the first.
+func (s sourceDocument) labelOf(key string) (label string, relative bool) {
+	file, ok := s.places.FileOf(key)
+	if !ok {
+		return key, false
 	}
-	dir, clean := filepath.Dir(self), filepath.Clean(key)
-	if filepath.IsAbs(dir) != filepath.IsAbs(clean) {
-		absDir, dirErr := abs(dir)
-		absKey, keyErr := abs(clean)
-		if dirErr == nil && keyErr == nil {
-			dir, clean = absDir, absKey
+	dir, clean := filepath.Dir(s.path), filepath.Clean(file)
+	if filepath.IsAbs(dir) == filepath.IsAbs(clean) {
+		if rel, err := filepath.Rel(dir, clean); err == nil {
+			return filepath.ToSlash(rel), true
 		}
 	}
-	if rel, err := filepath.Rel(dir, clean); err == nil {
-		return filepath.ToSlash(rel)
-	}
-	return filepath.ToSlash(clean)
+	return filepath.ToSlash(clean), false
 }
 
-// sourcePathOf is the path Document.Sources records for the document read under
-// key: a file's cleaned, as it was read (fileNamed), a URL's as spelled.
-func sourcePathOf(key string) string {
-	if refscope.IsURL(key) {
+// shownPathOf is the path Document.Sources records for the document read
+// under key: a URL's as spelled, and a file's as the path the caller handed
+// names the source, so a source named relatively lists the documents beside it
+// relatively too, wherever its Location lies. That is its label joined to the
+// handed path's directory, keeping the dot segments a label climbing out of
+// that directory starts with, since a link may place the directory elsewhere
+// than cleaning them away would. A file no relative path reaches from the
+// source is its path as read (fileNamed).
+func (s sourceDocument) shownPathOf(key string) string {
+	label, relative := s.labelOf(key)
+	dir, local := filepath.Dir(s.handed), filepath.FromSlash(label)
+	switch {
+	case refscope.IsURL(key):
 		return key
+	case !relative || s.handed == "" || s.handed == s.path || refscope.IsURL(s.handed):
+		return fileNamed(key)
+	case dir != "." && (label == ".." || strings.HasPrefix(label, "../")):
+		return dir + string(filepath.Separator) + local
+	default:
+		return fileNamed(filepath.Join(dir, local))
 	}
-	return fileNamed(key)
 }
 
 // readKey is the key a document a reference names by name is read under: a

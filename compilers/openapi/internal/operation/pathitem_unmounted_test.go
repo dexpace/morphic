@@ -223,7 +223,7 @@ paths:
 
 // TestPathItem_WithNoOperationKeepsNoUnresolvedParameter pins that an entry
 // whose $ref resolves to nothing, which has no name and location to key it by,
-// is reported once, by the resolver, and kept nowhere, as on an operation.
+// is reported once, by the load phase, and kept nowhere, as on an operation.
 func TestPathItem_WithNoOperationKeepsNoUnresolvedParameter(t *testing.T) {
 	t.Parallel()
 	doc, diags := parseFull(t, openapitest.PathsSpec(`  /p:
@@ -271,4 +271,29 @@ components:
 		{"openapi:pathItem/paths/~1b/summary", `"reserved"`, decl + "/summary"},
 		{"openapi:pathItem/paths/~1b/parameters/q/query", param, decl + "/parameters/0"},
 	})
+}
+
+// TestPathItem_WithNoOperationKeysAHeaderRepeatedInAnyCase pins that a path
+// item mounting no operation keys a header parameter repeated in another case
+// as a parameter's ID would be: each under its own spelling, which numbers
+// only a repeat spelled alike, and the repeat reported.
+func TestPathItem_WithNoOperationKeysAHeaderRepeatedInAnyCase(t *testing.T) {
+	t.Parallel()
+	doc, diags := parseFull(t, openapitest.PathsSpec(`  /p:
+    parameters:
+      - {name: X-A, in: header, description: first, schema: {type: string}}
+      - {name: x-a, in: header, description: second, schema: {type: string}}
+      - {name: X-A, in: header, description: third, schema: {type: string}}
+`))
+
+	assertKept(t, doc.Services[0].Unmodeled, []keptEntry{
+		{"openapi:pathItem/paths/~1p/parameters/X-A/header",
+			`{"name": "X-A", "in": "header", "description": "first", "schema": {"type": "string"}}`, "/paths/~1p/parameters/0"},
+		{"openapi:pathItem/paths/~1p/parameters/x-a/header",
+			`{"name": "x-a", "in": "header", "description": "second", "schema": {"type": "string"}}`, "/paths/~1p/parameters/1"},
+		{"openapi:pathItem/paths/~1p/parameters/X-A/header/2",
+			`{"name": "X-A", "in": "header", "description": "third", "schema": {"type": "string"}}`, "/paths/~1p/parameters/2"},
+	})
+	assert.True(t, openapitest.HasDiagCodeAt(diags, diag.DuplicateParameter, "/paths/~1p/parameters/1"))
+	assert.True(t, openapitest.HasDiagCodeAt(diags, diag.DuplicateParameter, "/paths/~1p/parameters/2"))
 }

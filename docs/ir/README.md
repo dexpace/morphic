@@ -31,7 +31,7 @@ spec — field names and shapes in them are normative, receiver methods and help
 | [type-graph](./type-graph.md) | `TypeKind`, `TypeCommon` and `TypeRef` |
 | [primitives](./primitives.md) | `Primitive`, `PrimKind`, the offsets the time kinds hold, and containment between kinds |
 | [scalars](./scalars.md) | `Scalar`, and the alias a position hoists over a shared target |
-| [models](./models.md) | `Model`, `Discriminator`, composition and the flattening |
+| [models](./models.md) | `Model`, `Discriminator`, composition, the flattening and the shapes of a model narrowing a union |
 | [unions](./unions.md) | `Union`, `Variant` and tag modes |
 | [enums](./enums.md) | `Enum`, `EnumMember`, member identity, and the union of strings that becomes an `Enum` |
 | [containers](./containers.md) | `List`, `MapT`, `Tuple`, `Literal`, `External`, `Any` |
@@ -46,7 +46,7 @@ spec — field names and shapes in them are normative, receiver methods and help
 |---|---|
 | [services](./services.md) | `Service`, `OperationGroup`, `ResourceInfo` |
 | [operations](./operations.md) | `Operation`, `Parameter` |
-| [payloads](./payloads.md) | `Payload`, `Content`, `PartEncoding`, `FileInfo` |
+| [payloads](./payloads.md) | `Payload`, `Content`, `PartEncoding`, `FileInfo`, `ContentStream` |
 | [responses](./responses.md) | `Response`, `Header`, `ErrorCase`, `OperationLink`, and how a status is classed |
 | [interaction-patterns](./interaction-patterns.md) | `Pagination`, `LongRunning`, streaming |
 | [auth](./auth.md) | `AuthScheme`, `OAuthFlow`, `AuthRequirement` |
@@ -96,7 +96,15 @@ compiler is planned to follow is [`planned-lowerings.md`](../compilers/planned-l
    emitted in sorted-key order; slices preserve source order). In memory it reads as the tree its
    JSON encodes: a pointer, slice or map may be shared, and is then written once per place that
    holds it, but none may hold itself, which has no encoding. `irverify` reports one that does
-   (`ir/cyclic-structure`).
+   (`ir/cyclic-structure`). The codec refuses only bytes that would be ill-formed, ambiguous or
+   not this generation's: a string that is not UTF-8, an object naming one member twice, and on
+   reading a value the schema does not define, such as an unknown member, a type with no kind or a
+   number where a string goes, or an absent or foreign `irVersion` ([ir-version](./ir-version.md)).
+   Every other invariant is `irverify`'s: a document breaking one, such as an `IDSpaces` kind
+   declared with no namespace, encodes and decodes as it is, bar a structure holding itself, above,
+   and a nil type (`ir/nil-type`), which encodes as `null` and so reads back as a type with no kind.
+   Refusing more in the codec would be a second reader of each invariant to keep in step with
+   `irverify`, and a document breaking one could no longer be written out to see what broke.
 6. **Provenance everywhere.** Every node records where it came from and whether it was declared
    or inferred.
 

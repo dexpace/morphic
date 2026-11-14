@@ -92,21 +92,16 @@ func (f Field) ownedBy(pkg string) Field {
 	return f
 }
 
-// shapeOwnedBy names the package that reports a value of the wrong shape.
-func (f Field) shapeOwnedBy(pkg string) Field {
-	f.ShapeOwner = pkg
+// decimal marks the field a numeric bound read as the decimal it spells.
+func (f Field) decimal() Field {
+	f.Decimal = true
 	return f
 }
 
-// formatOwnedBy names the package that judges the field's format.
-func (f Field) formatOwnedBy(pkg string) Field {
-	f.FormatOwner = pkg
-	return f
-}
-
-// listOwnedBy names the package that judges a list written for the field.
-func (f Field) listOwnedBy(pkg string) Field {
-	f.ListOwner = pkg
+// within adds a media type under which the field takes effect at the minors
+// in s.
+func (f Field) within(mediaType string, s Span, cites ...Cite) Field {
+	f.Within = append(f.Within, Within{MediaType: mediaType, Span: s, Cites: cites})
 	return f
 }
 
@@ -147,6 +142,18 @@ func pattern(name string, shape Shape, k Kind, cites ...Cite) Pattern {
 // keyed sets the syntax of the pattern's keys.
 func (p Pattern) keyed(format Format) Pattern {
 	p.Keys = format
+	return p
+}
+
+// during narrows the minors that admit the pattern.
+func (p Pattern) during(s Span) Pattern {
+	p.Span = s
+	return p
+}
+
+// byURI marks a key that may be the URI of the object it names.
+func (p Pattern) byURI() Pattern {
+	p.ByURI = true
 	return p
 }
 
@@ -253,8 +260,9 @@ const (
 	ownerAnnotation = "annotation"
 )
 
-// fieldDefault returns the value field takes where its object leaves it
-// unwritten, for a value of case k, at the minors s holds.
-func fieldDefault(field string, k DefaultCase, value string, s Span, cites ...Cite) Default {
-	return Default{Field: field, Value: value, Cites: cites, Span: s, Case: k}
+// contentTypeDefault returns the value an Encoding Object's contentType takes
+// where the object leaves it unwritten, for a value of case k, at the minors s
+// holds.
+func contentTypeDefault(k DefaultCase, value string, s Span, cites ...Cite) Default {
+	return Default{Field: "contentType", Value: value, Cites: cites, Span: s, Case: k}
 }

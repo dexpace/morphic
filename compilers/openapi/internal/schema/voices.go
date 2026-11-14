@@ -21,7 +21,10 @@ import (
 // foldKeywords are the keywords an inline allOf branch writes for the position
 // holding it, each read as if written beside the allOf
 // (docs/compilers/openapi.md#allof-inline-residue). foldEntry adds the bounds,
-// the extensions and the keywords that fold together.
+// the extensions and the keywords that fold together. No unevaluated keyword
+// folds: each applies to what its own schema evaluates, so on a branch it holds
+// the instance to what that branch alone evaluates, and the branch kept whole
+// is its record.
 var foldKeywords = []string{
 	"title", "description", "externalDocs", "deprecated", "xml", "default", "readOnly", "writeOnly",
 	"nullable", "not", "dependentSchemas", "dependentRequired", "propertyNames",
@@ -39,12 +42,6 @@ func foldEntry(c lowering.Ctx, s *oas3.Schema, keyword string) (string, bool) {
 		return "if", true
 	case "contains", "minContains", "maxContains":
 		return "contains", true
-	case "unevaluatedItems":
-		return "unevaluated", true
-	case "unevaluatedProperties":
-		// `false` is the model's openness, which no annotation reader keeps
-		// (fillAdditional).
-		return "unevaluated", !annotation.IsFalseSchema(s.GetUnevaluatedProperties())
 	case "format":
 		return keyword, annotation.DeclaresRedaction(s)
 	case "minItems", "maxItems", "uniqueItems":
@@ -80,8 +77,6 @@ func foldValue(s *oas3.Schema, entry string) foldRendering {
 		r.raw, _, r.err = annotation.IfThenElseRaw(s)
 	case "contains":
 		r.raw, _, r.err = annotation.ContainsRaw(s)
-	case "unevaluated":
-		r.raw, _, r.err = annotation.UnevaluatedRaw(s)
 	default:
 		r.raw, r.err = annotation.RawFromNode(annotation.RawPropertyNode(s, entry))
 	}
@@ -95,11 +90,12 @@ func allOfBesideNoRef(s *oas3.Schema) bool {
 	return len(s.GetAllOf()) > 0 && s.Ref == nil
 }
 
-// allOfMayRefine reports whether s's allOf may refine: no $ref, union or
-// $dynamicRef stands beside it, the last two keeping it the composition it would
-// otherwise be (docs/compilers/openapi.md#allof-refinement).
+// allOfMayRefine reports whether s's allOf may refine: no $ref or $dynamicRef
+// stands beside it, the last keeping it the composition it would otherwise be
+// (docs/compilers/openapi.md#allof-refinement). A union beside it is one more
+// conjunct (admission.conjuncts).
 func allOfMayRefine(s *oas3.Schema) bool {
-	return allOfBesideNoRef(s) && !declaresUnion(s) && !declaresDynamicRef(s)
+	return allOfBesideNoRef(s) && !declaresDynamicRef(s)
 }
 
 // allOfDecides reports whether s's allOf is what its position lowers: one the
@@ -108,8 +104,8 @@ func allOfMayRefine(s *oas3.Schema) bool {
 // value set beats otherwise stays verbatim
 // (docs/compilers/openapi.md#competing-keywords). A union beside the composing
 // allOf or on one of its branches leaves it deciding, composed into each variant
-// the union distributes across or into the Model keeping the union verbatim, and
-// so does a $dynamicRef it keeps from expanding.
+// the union distributes across, or into the Model keeping the union verbatim or
+// composing it as a mixin, and so does a $dynamicRef it keeps from expanding.
 func allOfDecides(c lowering.Ctx, s *oas3.Schema) bool {
 	if !allOfBesideNoRef(s) {
 		return false
@@ -157,7 +153,7 @@ func readVoices(c lowering.Ctx, s *oas3.Schema) voicing {
 	a := newAgreement(c)
 	lent := map[string]bool{}
 	for _, entry := range a.write(s) {
-		lent[entry] = true
+		lent[entry] = lent[entry] || !writesFalseFlag(entry, foldValue(s, entry))
 	}
 	comp := allOfBranches(s, "")
 	n := len(comp.branches)
@@ -176,7 +172,12 @@ func readVoices(c lowering.Ctx, s *oas3.Schema) voicing {
 		if !out.speaks[i] {
 			continue
 		}
+		bs := comp.branches[i].schema.GetSchema()
 		for _, entry := range entries {
+			// A false flag lends nothing: it states nothing a later true would not.
+			if writesFalseFlag(entry, foldValue(bs, entry)) {
+				continue
+			}
 			out.lends[i] = out.lends[i] || !lent[entry]
 			lent[entry] = true
 		}
@@ -280,14 +281,15 @@ func disagreed(c lowering.Ctx, bs *oas3.Schema, residue []string) bool {
 }
 
 // folds reports whether a branch that folds consumes keyword: homes says which
-// bounds the position has a field for, and a `nullable` folds where
+// bounds the position has a field for, of which a value bound is read where the
+// branch's own types take it too (writerTakes), and a `nullable` folds where
 // foldsNullable says so.
 func folds(c lowering.Ctx, bs *oas3.Schema, keyword string, homes boundHomes) bool {
 	if keyword == "nullable" {
 		return c.NullableWidening.Honours() && foldsNullable(bs)
 	}
 	if slices.Contains(valueConstraintKeywords, keyword) {
-		return homes.value
+		return taken(writerTakes(homes.value, bs), keyword)
 	}
 	_, fold := foldEntry(c, bs, keyword)
 	if slices.Contains(collectionBoundKeywords, keyword) {
@@ -297,9 +299,10 @@ func folds(c lowering.Ctx, bs *oas3.Schema, keyword string, homes boundHomes) bo
 }
 
 // boundHomes says which bounds the position an allOf is written at has a field
-// for, so that a branch writing one folds there.
+// for, so that a branch writing one folds there: the value bounds that apply to
+// a value of the kinds value (keywordKinds), and the collection bounds.
 type boundHomes struct {
-	value      bool
+	value      kindSet
 	collection bool
 }
 

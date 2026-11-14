@@ -17,8 +17,11 @@ nothing would notice a target that left one out.
   under test. It is deliberately not the mock-server emitter's output ([docs and
   mocks](../docs-and-mock.md)): that mock is wire-consistent with the SDK by construction, so it
   would share any misreading of the spec the generator makes, and a test against it could not
-  disagree with the code it tests. Each test gets a session of its own, so tests run in parallel,
-  and the server records the requests each session received.
+  disagree with the code it tests. That mock's streams and page walks end by construction ([docs and
+  mocks](../docs-and-mock.md#the-mocks-streams-and-page-walks)), so an SDK's tests can run against
+  it, but only these routes show that a pager or a stream reads the API as it means. Each test gets
+  a session of its own, so tests run in parallel, and the server records the requests each session
+  received.
 - **Target-neutral definitions.** Each behavior is an Arazzo workflow: the operation, the request,
   and the success criteria, written by hand. Expectations are not derived from the spec's own
   examples, which the generator under test also reads, for the same reason the server is not
