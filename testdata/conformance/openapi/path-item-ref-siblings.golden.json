@@ -121,7 +121,6 @@
                         "location": "query",
                         "wireName": "beside",
                         "style": "form",
-                        "explode": true,
                         "allowReserved": false,
                         "allowEmptyValue": false
                       }
@@ -223,7 +222,6 @@
                         "location": "query",
                         "wireName": "beside",
                         "style": "form",
-                        "explode": true,
                         "allowReserved": false,
                         "allowEmptyValue": false
                       }

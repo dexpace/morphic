@@ -694,7 +694,6 @@
                         "location": "path",
                         "wireName": "pathMatrixDefaultExplode",
                         "style": "matrix",
-                        "explode": false,
                         "allowReserved": false,
                         "allowEmptyValue": false
                       },
@@ -721,7 +720,6 @@
                         "location": "path",
                         "wireName": "pathLabelDefaultExplode",
                         "style": "label",
-                        "explode": false,
                         "allowReserved": false,
                         "allowEmptyValue": false
                       },
@@ -748,7 +746,6 @@
                         "location": "path",
                         "wireName": "pathSimpleDefaultExplode",
                         "style": "simple",
-                        "explode": false,
                         "allowReserved": false,
                         "allowEmptyValue": false
                       },
@@ -757,7 +754,6 @@
                         "location": "path",
                         "wireName": "pathDefaulted",
                         "style": "simple",
-                        "explode": false,
                         "allowReserved": false,
                         "allowEmptyValue": false
                       },
@@ -784,7 +780,6 @@
                         "location": "query",
                         "wireName": "queryFormDefaultExplode",
                         "style": "form",
-                        "explode": true,
                         "allowReserved": false,
                         "allowEmptyValue": false
                       },
@@ -811,7 +806,6 @@
                         "location": "query",
                         "wireName": "querySpaceDelimitedDefaultExplode",
                         "style": "spaceDelimited",
-                        "explode": false,
                         "allowReserved": false,
                         "allowEmptyValue": false
                       },
@@ -838,7 +832,6 @@
                         "location": "query",
                         "wireName": "queryPipeDelimitedDefaultExplode",
                         "style": "pipeDelimited",
-                        "explode": false,
                         "allowReserved": false,
                         "allowEmptyValue": false
                       },
@@ -865,7 +858,6 @@
                         "location": "query",
                         "wireName": "queryDeepObjectDefaultExplode",
                         "style": "deepObject",
-                        "explode": false,
                         "allowReserved": false,
                         "allowEmptyValue": false
                       },
@@ -874,7 +866,6 @@
                         "location": "query",
                         "wireName": "queryDefaulted",
                         "style": "form",
-                        "explode": true,
                         "allowReserved": false,
                         "allowEmptyValue": false
                       },
@@ -901,7 +892,6 @@
                         "location": "header",
                         "wireName": "headerSimpleDefaultExplode",
                         "style": "simple",
-                        "explode": false,
                         "allowReserved": false,
                         "allowEmptyValue": false
                       },
@@ -910,7 +900,6 @@
                         "location": "header",
                         "wireName": "headerDefaulted",
                         "style": "simple",
-                        "explode": false,
                         "allowReserved": false,
                         "allowEmptyValue": false
                       },
@@ -937,7 +926,6 @@
                         "location": "cookie",
                         "wireName": "cookieFormDefaultExplode",
                         "style": "form",
-                        "explode": true,
                         "allowReserved": false,
                         "allowEmptyValue": false
                       },
@@ -964,7 +952,6 @@
                         "location": "cookie",
                         "wireName": "cookieCookieDefaultExplode",
                         "style": "cookie",
-                        "explode": true,
                         "allowReserved": false,
                         "allowEmptyValue": false
                       },
@@ -973,7 +960,6 @@
                         "location": "cookie",
                         "wireName": "cookieDefaulted",
                         "style": "form",
-                        "explode": true,
                         "allowReserved": false,
                         "allowEmptyValue": false
                       }
@@ -1580,7 +1566,7 @@
     {
       "format": "openapi@3.2",
       "path": "param-style-matrix.yaml",
-      "hash": "1d4c7b09f8c6d6c103f1b4f6f22eaa4c0ad1fe4f25eeba300962cab62a9ccfc0"
+      "hash": "5e69287a7e62a0b2ae0b74738954131db6ce05ca8dd0f583baad94f512047fa0"
     }
   ]
 }

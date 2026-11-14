@@ -180,7 +180,6 @@
                         "location": "path",
                         "wireName": "zone_id",
                         "style": "simple",
-                        "explode": false,
                         "allowReserved": false,
                         "allowEmptyValue": false
                       }

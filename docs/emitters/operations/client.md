@@ -54,11 +54,15 @@ method's signature: a breaking SDK change caused by an additive spec change.
 - **What a setting fills.** A `ParamKey` fills, in every operation of the service, the parameter at
   its location and wire name, a header's compared without case as HTTP compares it (RFC 9110 §5.1),
   whose declaration lowers to one wire form with the others: the same root through its scalar chain
-  ([scalars](../refine/scalars.md)), and the same style and explode. Requiredness, constraints and
-  docs may differ, and each operation checks its own. A declaration of another wire form stays a
-  plain input, reported once by refine, naming the operation, since a shared name does not make two
-  parameters one. A `ParamKey` no operation of the service declares is reported, as a hint naming
-  no entity is ([shaping hints](../contract/shaping-hints.md)).
+  ([scalars](../refine/scalars.md)), the same style, and the same explode wherever it changes the
+  text the value is sent as ([values as text](../refine/text.md)), a binding's nil read as its
+  style's default (true under `form` and `cookie`, false under any other). So a declaration writing
+  that value and one leaving it unwritten are one wire form, and so are two of a scalar, or of a
+  `deepObject` object, whatever explode each writes. Requiredness, constraints and docs may differ,
+  and each operation checks its own. A declaration of another wire form stays a plain input,
+  reported once by refine, naming the operation, since a shared name does not make two parameters
+  one. A `ParamKey` no operation of the service declares is reported, as a hint naming no entity is
+  ([shaping hints](../contract/shaping-hints.md)).
 - **How a call reads it.** The client takes the setting when it is built, a call may give its own,
   and a call with neither for a required parameter is refused unsent, the error naming it. A
   parameter a setting fills is not positional but an optional field of the operation's request type
