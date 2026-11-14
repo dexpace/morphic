@@ -37,9 +37,21 @@ type scalar struct {
 	node *yaml.Node
 	text string
 	num  number
+	// size is the bytes of text a comparison of the scalar reads: a string's,
+	// or the literal a number is written as.
+	size int
 	kind scalarKind
 	b    bool
 }
+
+// readBytes is how many bytes of a document's scalar reading it costs a step:
+// the compiler's reading resolves a plain scalar's tag and the number it may
+// spell, passes over the whole text.
+const readBytes = 8
+
+// compareBytes is how many bytes of two scalars comparing them, or of a
+// string counting its characters, costs a step.
+const compareBytes = 64
 
 // number is a decimal compared by value without being expanded. class orders
 // what no Decimal holds: a value whose power of ten passes ±ir.MaxDecimalExp
@@ -86,6 +98,23 @@ func (n number) compare(o number) int {
 	return n.d.Cmp(o.d)
 }
 
+// scalarOf returns the scalar node n as the compiler reads it, read once an
+// evaluation and charged by its bytes before it is read.
+func (r *reader) scalarOf(ctx context.Context, n *yaml.Node) (scalar, error) {
+	if s, read := r.scalars[n]; read {
+		return s, nil
+	}
+	if err := r.spend(ctx, len(n.Value)/readBytes); err != nil {
+		return scalar{}, err
+	}
+	s := readScalar(n)
+	if r.scalars == nil {
+		r.scalars = map[*yaml.Node]scalar{}
+	}
+	r.scalars[n] = s
+	return s, nil
+}
+
 // readScalar reads the scalar node n as the compiler reads it
 // (value.Classify): null, a boolean, a number, a string, a timestamp as the
 // string it spells, and anything else opaque.
@@ -93,7 +122,7 @@ func readScalar(n *yaml.Node) scalar {
 	s, err := value.Classify(n)
 	if err != nil {
 		if past, ok := errors.AsType[*ir.ExponentRangeError](err); ok {
-			return scalar{kind: kindNumber, num: outOfRange(past)}
+			return scalar{kind: kindNumber, num: outOfRange(past), size: len(n.Value)}
 		}
 		return scalar{kind: kindOpaque, node: n}
 	}
@@ -104,12 +133,21 @@ func readScalar(n *yaml.Node) scalar {
 		return scalar{kind: kindBool, b: s.Bool}
 	case value.ScalarNumber:
 		num, _ := newNumber(string(s.Num)) // a BigVal is a decimal in range
-		return scalar{kind: kindNumber, num: num}
+		return scalar{kind: kindNumber, num: num, size: len(n.Value)}
 	case value.ScalarString, value.ScalarTimestamp:
-		return scalar{kind: kindString, text: s.Text}
+		return scalar{kind: kindString, text: s.Text, size: len(s.Text)}
 	default:
 		return scalar{kind: kindOpaque, node: n}
 	}
+}
+
+// compared charges the bytes comparing a and b reads, before it does: the
+// shorter of the two, where they are of one kind.
+func (r *reader) compared(ctx context.Context, a, b scalar) error {
+	if a.kind != b.kind {
+		return nil
+	}
+	return r.spend(ctx, min(a.size, b.size)/compareBytes)
 }
 
 // sameScalar reports whether two scalars are equal.
@@ -151,14 +189,15 @@ type jsonValue struct {
 
 // asScalar returns v as a scalar, and false for Nothing, an object or an
 // array.
-func (v jsonValue) asScalar() (scalar, bool) {
+func (r *reader) asScalar(ctx context.Context, v jsonValue) (scalar, bool, error) {
 	switch {
 	case v.kind == valueScalar:
-		return v.lit, true
+		return v.lit, true, nil
 	case v.kind == valueNode && v.node.Kind == yaml.ScalarNode:
-		return readScalar(v.node), true
+		s, err := r.scalarOf(ctx, v.node)
+		return s, err == nil, err
 	default:
-		return scalar{}, false
+		return scalar{}, false, nil
 	}
 }
 
@@ -182,8 +221,17 @@ func (r *reader) equal(ctx context.Context, a, b jsonValue) (bool, error) {
 	case a.container() || b.container():
 		return false, nil
 	}
-	sa, _ := a.asScalar()
-	sb, _ := b.asScalar()
+	sa, _, err := r.asScalar(ctx, a)
+	if err != nil {
+		return false, err
+	}
+	sb, _, err := r.asScalar(ctx, b)
+	if err != nil {
+		return false, err
+	}
+	if err := r.compared(ctx, sa, sb); err != nil {
+		return false, err
+	}
 	return sameScalar(sa, sb), nil
 }
 
@@ -193,10 +241,16 @@ func (r *reader) less(ctx context.Context, a, b jsonValue) (bool, error) {
 	if err := r.spend(ctx, 1); err != nil {
 		return false, err
 	}
-	sa, ok := a.asScalar()
-	sb, okB := b.asScalar()
-	if !ok || !okB || sa.kind != sb.kind {
-		return false, nil
+	sa, ok, err := r.asScalar(ctx, a)
+	if err != nil || !ok {
+		return false, err
+	}
+	sb, ok, err := r.asScalar(ctx, b)
+	if err != nil || !ok || sa.kind != sb.kind {
+		return false, err
+	}
+	if err := r.compared(ctx, sa, sb); err != nil {
+		return false, err
 	}
 	switch sa.kind {
 	case kindNumber:
@@ -255,8 +309,24 @@ func (r *reader) shallowEqual(ctx context.Context, a, b *yaml.Node) (bool, []nod
 		}
 		return true, pairs, nil
 	default:
-		return sameScalar(readScalar(a), readScalar(b)), nil, nil
+		return r.sameNodes(ctx, a, b)
 	}
+}
+
+// sameNodes compares two scalar nodes of the document.
+func (r *reader) sameNodes(ctx context.Context, a, b *yaml.Node) (bool, []nodePair, error) {
+	sa, err := r.scalarOf(ctx, a)
+	if err != nil {
+		return false, nil, err
+	}
+	sb, err := r.scalarOf(ctx, b)
+	if err != nil {
+		return false, nil, err
+	}
+	if err := r.compared(ctx, sa, sb); err != nil {
+		return false, nil, err
+	}
+	return sameScalar(sa, sb), nil, nil
 }
 
 // sameMembers compares the keys of two mappings, returning their values

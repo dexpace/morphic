@@ -306,8 +306,8 @@ func TestParse_BoundsTheNestingOfAQuery(t *testing.T) {
 
 // TestSelect_MatchesInTimeLinearInTheInput pins the regular-expression
 // functions: a pattern that backtracks exponentially in some engines costs the
-// input's length here, so a string of twice the length costs exactly that
-// much more, and a pattern past 4,096 bytes is no match for any node.
+// input's length here, and its reading a step per jsonpath.ReadBytes, so a
+// string of twice the length costs exactly that much more.
 func TestSelect_MatchesInTimeLinearInTheInput(t *testing.T) {
 	t.Parallel()
 	holding := func(n int) *yaml.Node {
@@ -318,12 +318,13 @@ func TestSelect_MatchesInTimeLinearInTheInput(t *testing.T) {
 	got, small, err := selectWithin(t, query, holding(10_000), budget.Unbounded())
 	require.NoError(t, err)
 	assert.Empty(t, got)
-	assert.GreaterOrEqual(t, small, 10_000, "a step for each character of the input")
-	assert.Less(t, small, 10_000+100, "and a constant besides")
+	const read = 10_000 / jsonpath.ReadBytes
+	assert.GreaterOrEqual(t, small, 10_000+read, "a step for each character matched, and the reading")
+	assert.Less(t, small, 10_000+read+100, "and a constant besides")
 
 	_, large, err := selectWithin(t, query, holding(20_000), budget.Unbounded())
 	require.NoError(t, err)
-	assert.Equal(t, 10_000, large-small, "the cost grows by the input's growth, no faster")
+	assert.Equal(t, 10_000+read, large-small, "the cost grows by the input's growth, no faster")
 
 	search, _, err := selectWithin(t, "$[?search(@, '(a*)*b')]", holding(10_000), budget.Unbounded())
 	require.NoError(t, err)

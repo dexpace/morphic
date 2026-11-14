@@ -228,13 +228,17 @@ func TestSelect_RefusesAMergeChainWhereverItIsRead(t *testing.T) {
 
 // TestSelect_SpendsNoStepPastItsBudget pins that any budget below what a query
 // needs is refused with ErrSteps, wherever the evaluation stands when it runs
-// out, and that the need itself is enough.
+// out, and that the need itself is enough. Scalars long enough to cost steps
+// to read and to compare are among the values.
 func TestSelect_SpendsNoStepPastItsBudget(t *testing.T) {
 	t.Parallel()
-	root := readTree(t, "a: {k: [1, {x: 2}]}\nb: {k: [1, {x: 2}]}\nr: 'a.*'\ns: abc\n")
+	long := strings.Repeat("x", 2*jsonpath.CompareBytes)
+	root := readTree(t, "a: {k: [1, {x: 2}]}\nb: {k: [1, {x: 2}]}\nr: 'a.*'\ns: abc\n"+
+		"l: "+long+"a\nm: "+long+"b\np: ["+long+"a]\nq: ["+long+"b]\n")
 	for _, query := range []string{
 		"$..[?@ == $.b]", "$[?@.k[0] < 2]", "$[?match(@, $.r) || search(@, 'b')]", "$..*",
 		"$[?@ == $.b || @ != $.b]", "$[?length(@.k) == 2]", "$[?count(@.*) > 1]",
+		"$[?@ == $.m]", "$[?@ < $.m]", "$[?$.m < @]", "$[?@ == $.q]", "$[?length(@) == 1]",
 	} {
 		need := func() int {
 			_, spent, err := selectWithin(t, query, root, budget.Unbounded())

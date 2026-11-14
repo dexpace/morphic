@@ -23,6 +23,8 @@ type reader struct {
 	asked int
 	// results bounds a nodelist: MaxResults.
 	results int
+	// scalars holds each scalar node of the document read so far, as read.
+	scalars map[*yaml.Node]scalar
 }
 
 // evaluator is one evaluation of a query: what it reads with, the root an

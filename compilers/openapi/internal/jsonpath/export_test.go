@@ -31,3 +31,10 @@ func Translate(pattern string) bool {
 	_, _, ok := translate(pattern)
 	return ok
 }
+
+// ReadBytes and CompareBytes are the bytes of a scalar reading it, and
+// comparing it, costs a step.
+const (
+	ReadBytes    = readBytes
+	CompareBytes = compareBytes
+)

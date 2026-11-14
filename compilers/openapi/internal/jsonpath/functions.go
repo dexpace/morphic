@@ -234,10 +234,14 @@ func (r *reader) length(ctx context.Context, v jsonValue) (jsonValue, error) {
 	case v.kind == valueNode && v.node.Kind == yaml.SequenceNode:
 		return jsonValue{kind: valueScalar, lit: countOf(len(v.node.Content))}, nil
 	}
-	if s, ok := v.asScalar(); ok && s.kind == kindString {
-		return jsonValue{kind: valueScalar, lit: countOf(utf8.RuneCountInString(s.text))}, nil
+	s, ok, err := r.asScalar(ctx, v)
+	if err != nil || !ok || s.kind != kindString {
+		return jsonValue{}, err
 	}
-	return jsonValue{}, nil
+	if err := r.spend(ctx, s.size/compareBytes); err != nil {
+		return jsonValue{}, err
+	}
+	return jsonValue{kind: valueScalar, lit: countOf(utf8.RuneCountInString(s.text))}, nil
 }
 
 // callTruth evaluates a match or search: whether its first argument is a
@@ -274,10 +278,11 @@ func (e *evaluator) stringOf(ctx context.Context, o operand, at Located) (*strin
 	if err != nil {
 		return nil, err
 	}
-	if s, ok := v.asScalar(); ok && s.kind == kindString {
-		return &s.text, nil
+	s, ok, err := e.asScalar(ctx, v)
+	if err != nil || !ok || s.kind != kindString {
+		return nil, err
 	}
-	return nil, nil
+	return &s.text, nil
 }
 
 // patternKey names a compiled pattern: its text, and whether match anchored it.
