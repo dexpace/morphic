@@ -1057,10 +1057,13 @@ else it writes.
   `e2e.TestCompile_AnAdditionalOperationThatIsNoMappingIsLeftOut`,
   `e2e.TestCompile_AnAliasedNullRefIsReadWithoutAFault`, `load.TestAside_RestoreLeavesTheTreeAsWritten`,
   `load.TestLoad_TheTreeIsAsWrittenOnceTheModelIsBuilt`,
-  `load.TestLoad_ANullRefOfAReferenceObjectIsReadWithoutAFaultAtEachModelBuild`
+  `load.TestLoad_ANullRefOfAReferenceObjectIsReadWithoutAFaultAtEachModelBuild`,
+  `e2e.TestCompile_AReachedObjectTheModelFaultsOnLosesItsPathItem`,
+  `e2e.TestCompile_AComponentWhoseRefIsNoStringIsKeptAsWritten`
 - Status: partly built: a remote document can make the compiler request a private address (#937),
   and a Reference Object whose `$ref` is null in another document, or in raw YAML only a reference
-  reaches, still faults the model build of what reaches it (#1928).
+  reaches, still faults the model build of what reaches it, as does a 3.2 `additionalOperations`
+  entry there that is no mapping, so the path item reaching it is lost whole (#1928).
   A chain of documents each declaring the URI the one before it asked for costs a binding pass per
   link (#1372).
 

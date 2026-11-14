@@ -380,3 +380,61 @@ func TestCompile_AComponentWhoseRefIsNoStringIsKeptAsWritten(t *testing.T) {
 	require.True(t, ok, "the entry is kept verbatim: %v", doc.Unmodeled)
 	assert.JSONEq(t, `{"$ref":["x"],"name":"u","in":"query"}`, string(kept.Value))
 }
+
+// reachedItem is a path item holding a parameter list whose first entry's $ref
+// is null, beside a parameter that lowers.
+const reachedItem = "item:\n  get:\n    parameters:\n      - {$ref: ~}\n      - {name: ok, in: query, schema: {type: string}}\n" +
+	"    responses: {\"200\": {description: ok}}\n"
+
+// TestCompile_AReachedObjectTheModelFaultsOnLosesItsPathItem pins what a
+// shape the model faults on does where only a $ref reaches it, raw YAML under
+// an x- key or another document, until #1928 judges what a reference lands
+// on outside the source's model before that is built: the table's one error at
+// the shape stands, and the path item reaching it is lost whole, with an error
+// that no path item could be built. Fixing #1928 turns each row into the
+// lowering the same item gets under paths.
+func TestCompile_AReachedObjectTheModelFaultsOnLosesItsPathItem(t *testing.T) {
+	t.Parallel()
+	const noItem = "no path item could be built"
+	for name, tc := range map[string]struct{ spec, at string }{
+		"a null $ref under an x- key": {
+			"openapi: 3.1.0\ninfo: {title: t, version: \"1\"}\npaths:\n  /a: {$ref: \"#/x-lib/item\"}\nx-lib:\n" +
+				strings.ReplaceAll("  "+reachedItem, "\n  ", "\n    "),
+			"/x-lib/item/get/parameters/0/$ref",
+		},
+		"an additionalOperations entry that is no mapping under an x- key": {
+			"openapi: 3.2.0\ninfo: {title: t, version: \"1\"}\npaths:\n  /a: {$ref: \"#/x-lib/item\"}\nx-lib:\n  item:\n" +
+				"    get: {responses: {\"200\": {description: ok}}}\n" +
+				"    additionalOperations: {PURGE: ~, LINK: {responses: {\"200\": {description: ok}}}}\n",
+			"/x-lib/item/additionalOperations/PURGE",
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+
+			doc, diags := compileText(t, "spec.yaml", tc.spec, openapi.Options{})
+
+			require.NotNil(t, doc, "%+v", diags)
+			require.Len(t, diags, 2, "%+v", diags)
+			assert.Equal(t, tc.at, string(byCode(diags, typeMismatch)[0].Provenance.Pointer))
+			lost := byCode(diags, diag.Validation)
+			require.Len(t, lost, 1, "%+v", diags)
+			assert.Equal(t, "/paths/~1a", string(lost[0].Provenance.Pointer))
+			assert.Contains(t, lost[0].Message, noItem)
+			assert.Empty(t, allOperations(doc), "the path item is lost whole")
+		})
+	}
+	t.Run("a null $ref in another document", func(t *testing.T) {
+		t.Parallel()
+
+		diags := compileBesideExpectingErrors(t, reachedItem,
+			"openapi: 3.1.0\ninfo: {title: t, version: \"1\"}\npaths:\n  /a: {$ref: \"other.yaml#/item\"}\n")
+
+		require.Len(t, diags, 2, "%+v", diags)
+		assert.Equal(t, "/item/get/parameters/0/$ref", string(byCode(diags, typeMismatch)[0].Provenance.Pointer))
+		lost := byCode(diags, diag.Validation)
+		require.Len(t, lost, 1, "%+v", diags)
+		assert.Equal(t, "/paths/~1a", string(lost[0].Provenance.Pointer))
+		assert.Contains(t, lost[0].Message, noItem)
+	})
+}
