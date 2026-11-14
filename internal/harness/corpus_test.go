@@ -4,9 +4,13 @@
 package harness_test
 
 import (
+	"bytes"
 	"context"
+	"errors"
+	"io"
 	"io/fs"
 	"maps"
+	"os"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -14,6 +18,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	yaml "go.yaml.in/yaml/v3"
 
 	"github.com/dexpace/morphic/internal/harness"
 )
@@ -204,6 +209,74 @@ func knownDeclines() map[string]harness.Decline {
 	}
 }
 
+// knownSequenceDeclines lists the fixtures the sequence-order oracle declines
+// though they hold a sequence it would swap, each beside its reason.
+// TestHarness_InRepoCorpus holds every other decline of that oracle to
+// harness.DeclineNothingToPermute on a fixture holdsOrderFreeSequence finds no
+// sequence in, and fails an entry the oracle asks.
+func knownSequenceDeclines() map[string]harness.Decline {
+	return map[string]harness.Decline{
+		// Each allOf lists one alias ten times, beneath an anchor, and what an
+		// anchor holds is left as written.
+		filepath.FromSlash("../../testdata/openapi/amplification_alias_bomb.yaml"): harness.DeclineNothingToPermute,
+	}
+}
+
+// holdsOrderFreeSequence reports whether the YAML stream at path writes, at
+// any depth of any of its documents, an allOf or required key whose value is a
+// sequence of two or more entries. It is deliberately cruder than the oracle's
+// own walk, which reads where a mapping holds names rather than keywords, so a
+// decline of the oracle is held to a reading it does not share. An alias is
+// not followed.
+func holdsOrderFreeSequence(t *testing.T, path string) bool {
+	t.Helper()
+	data, err := os.ReadFile(path)
+	require.NoError(t, err)
+	dec := yaml.NewDecoder(bytes.NewReader(data))
+	for {
+		var doc yaml.Node
+		err := dec.Decode(&doc)
+		if errors.Is(err, io.EOF) {
+			return false
+		}
+		require.NoError(t, err, "%s must be YAML", path)
+		if holdsSequenceBelow(&doc) {
+			return true
+		}
+	}
+}
+
+// holdsSequenceBelow is holdsOrderFreeSequence's reading of one node.
+func holdsSequenceBelow(n *yaml.Node) bool {
+	if n.Kind == yaml.AliasNode {
+		return false
+	}
+	if n.Kind == yaml.MappingNode {
+		for i := 0; i+1 < len(n.Content); i += 2 {
+			key, value := n.Content[i], n.Content[i+1]
+			if (key.Value == "allOf" || key.Value == "required") &&
+				value.Kind == yaml.SequenceNode && len(value.Content) >= 2 {
+				return true
+			}
+		}
+	}
+	return slices.ContainsFunc(n.Content, holdsSequenceBelow)
+}
+
+// assertSequenceDecline holds a decline of the sequence-order oracle to its
+// reason: a listed fixture to the listed one, any other to there being nothing
+// to permute, which only a fixture holding no such sequence may say.
+func assertSequenceDecline(t *testing.T, spec string, got harness.Decline) {
+	t.Helper()
+	if want, listed := knownSequenceDeclines()[spec]; listed {
+		assert.Equal(t, want, got, "%s: the sequence-order oracle declines it for another reason", spec)
+		return
+	}
+	assert.Equal(t, harness.DeclineNothingToPermute, got, "%s: the sequence-order oracle declines it unlisted", spec)
+	assert.False(t, holdsOrderFreeSequence(t, spec),
+		"%s writes an allOf or required sequence the sequence-order oracle should have asked of", spec)
+}
+
 // fixtureFiles returns every regular file under root that is a fixture rather
 // than a snapshot (a name containing ".golden.") or a document (".md"). Names
 // that begin with a dot are left out, as the sweep leaves out dot-directories,
@@ -271,7 +344,11 @@ func TestHarness_InRepoCorpus(t *testing.T) {
 			unexpected = append(unexpected, r)
 		}
 		for _, v := range r.Verdicts {
-			if !v.Asked() {
+			switch {
+			case v.Asked():
+			case v.Oracle == harness.OracleSequenceOrder:
+				assertSequenceDecline(t, r.Spec, v.Declined)
+			default:
 				assert.Equal(t, declines[r.Spec], v.Declined, "%s: %s declines it unlisted", r.Spec, v.Oracle)
 			}
 		}
@@ -279,10 +356,24 @@ func TestHarness_InRepoCorpus(t *testing.T) {
 	assertEveryEntryNamesASweptSpec(t, listed, slices.Collect(maps.Keys(invalid)), "knownInvalid")
 	assertEveryEntryNamesASweptSpec(t, listed, slices.Collect(maps.Keys(findings)), "knownFindings")
 	assertEveryEntryNamesASweptSpec(t, listed, slices.Collect(maps.Keys(declines)), "knownDeclines")
+	sequenceDeclines := knownSequenceDeclines()
+	assertEveryEntryNamesASweptSpec(t, listed, slices.Collect(maps.Keys(sequenceDeclines)), "knownSequenceDeclines")
+	// The sequence-order oracle declines nearly every fixture, so a decline of
+	// its own says nothing of whether another oracle reaches a listed one.
+	declinedBy := func(spec string, wanted func(harness.Oracle) bool) bool {
+		return slices.ContainsFunc(swept, func(r harness.Result) bool {
+			return r.Spec == spec && slices.ContainsFunc(r.Verdicts, func(v harness.Verdict) bool {
+				return !v.Asked() && wanted(v.Oracle)
+			})
+		})
+	}
 	for spec := range declines {
-		assert.True(t, slices.ContainsFunc(swept, func(r harness.Result) bool {
-			return r.Spec == spec && slices.ContainsFunc(r.Verdicts, func(v harness.Verdict) bool { return !v.Asked() })
-		}), "%s is listed in knownDeclines but every oracle asks it its question", spec)
+		assert.True(t, declinedBy(spec, func(o harness.Oracle) bool { return o != harness.OracleSequenceOrder }),
+			"%s is listed in knownDeclines but every oracle asks it its question", spec)
+	}
+	for spec := range sequenceDeclines {
+		assert.True(t, declinedBy(spec, func(o harness.Oracle) bool { return o == harness.OracleSequenceOrder }),
+			"%s is listed in knownSequenceDeclines but the sequence-order oracle asks it its question", spec)
 	}
 
 	t.Logf("swept %d specs:\n%s", len(swept), harness.Summary(swept))
