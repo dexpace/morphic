@@ -114,7 +114,7 @@ func TestUnread_AWalkVisitsTheNullAndNothingBehindIt(t *testing.T) {
 		ref := nodeview.Walk{Nodes: 100, Aliases: mode, Visit: collect(&want)}.Run(t.Context(), plain)
 
 		assert.Equal(t, ref.Visited, got.Visited)
-		assert.Equal(t, len(want), len(seen))
+		assert.Len(t, seen, len(want))
 		assert.NotContains(t, seen, "hello")
 		assert.NotContains(t, seen, "x")
 	}
@@ -146,8 +146,7 @@ func TestAliasField_OnlyNodeviewReadsItOnAScalar(t *testing.T) {
 			}
 			reads, guarded := false, false
 			ast.Inspect(fn.Body, func(n ast.Node) bool {
-				switch x := n.(type) {
-				case *ast.SelectorExpr:
+				if x, ok := n.(*ast.SelectorExpr); ok {
 					switch x.Sel.Name {
 					case "Alias":
 						reads = true
@@ -203,8 +202,9 @@ func TestKeyOf_AnAliasOfAScalarKeyStillNamesIt(t *testing.T) {
 	t.Parallel()
 	root := readMapping(t, "x: &a name\n*a : 1\n")
 
-	names := []string{}
-	for _, p := range nodeview.Pairs(root) {
+	pairs := nodeview.Pairs(root)
+	names := make([]string, 0, len(pairs))
+	for _, p := range pairs {
 		names = append(names, p.Key)
 	}
 

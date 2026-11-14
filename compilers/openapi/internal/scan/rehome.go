@@ -51,14 +51,7 @@ func settleOrder(steps map[*yaml.Node]step, mounts map[*yaml.Node][]*yaml.Node) 
 	waits := make(map[*yaml.Node]int, len(mounts))
 	frees := map[*yaml.Node][]*yaml.Node{}
 	for target, aliases := range mounts {
-		holders := map[*yaml.Node]bool{}
-		for _, n := range append([]*yaml.Node{target}, aliases...) {
-			for at := steps[n].holder; at != nil; at = steps[at].holder {
-				if _, shared := mounts[at]; shared {
-					holders[at] = true
-				}
-			}
-		}
+		holders := holdingTargets(steps, mounts, append([]*yaml.Node{target}, aliases...))
 		waits[target] = len(holders)
 		for h := range holders {
 			frees[h] = append(frees[h], target)
@@ -81,6 +74,20 @@ func settleOrder(steps map[*yaml.Node]step, mounts map[*yaml.Node][]*yaml.Node) 
 		}
 	}
 	return order, len(order) == len(mounts)
+}
+
+// holdingTargets returns the targets mounts names that hold one of places, as
+// steps writes the tree.
+func holdingTargets(steps map[*yaml.Node]step, mounts map[*yaml.Node][]*yaml.Node, places []*yaml.Node) map[*yaml.Node]bool {
+	holders := map[*yaml.Node]bool{}
+	for _, n := range places {
+		for at := steps[n].holder; at != nil; at = steps[at].holder {
+			if _, shared := mounts[at]; shared {
+				holders[at] = true
+			}
+		}
+	}
+	return holders
 }
 
 // tokensOf returns the tokens of n's pointer in the tree steps indexes, from
