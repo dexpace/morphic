@@ -16,7 +16,7 @@ import (
 
 // streamingCtx builds a context carrying nothing but the streaming policy.
 func streamingCtx(policy lowering.StreamingInference) lowering.Ctx {
-	return lowering.New(0, &load.Document{Doc: &soa.OpenAPI{}}, lowering.Policy{Streaming: policy})
+	return lowering.New(0, &load.Document{Doc: &soa.OpenAPI{}}, lowering.Policy{StreamingInference: policy})
 }
 
 // TestMediaTypeStreams_AnswersFromThePolicy pins every answer the policy gives,

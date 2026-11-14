@@ -15,7 +15,7 @@ import (
 
 // binaryCtx builds a context carrying nothing but the binary policy.
 func binaryCtx(policy lowering.BinaryInference) lowering.Ctx {
-	return lowering.New(0, &load.Document{Doc: &soa.OpenAPI{}}, lowering.Policy{Binary: policy})
+	return lowering.New(0, &load.Document{Doc: &soa.OpenAPI{}}, lowering.Policy{BinaryInference: policy})
 }
 
 // TestMediaTypeBinary_AnswersFromThePolicy pins every answer the policy gives:

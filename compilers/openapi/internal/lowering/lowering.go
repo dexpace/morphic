@@ -188,8 +188,8 @@ type Policy struct {
 	Grouping               GroupingStrategy
 	GroupingExtension      GroupingExtension
 	Limits                 Limits
-	Streaming              StreamingInference
-	Binary                 BinaryInference
+	StreamingInference     StreamingInference
+	BinaryInference        BinaryInference
 	Promotions             ExtensionPromotions
 	NullableInference      NullableInference
 	DiscriminatorInference DiscriminatorInference
@@ -218,8 +218,8 @@ func New(srcIndex int, doc *load.Document, p Policy) Ctx {
 		GroupingExtension:      p.GroupingExtension,
 		Limits:                 p.Limits,
 		schemas:                declaredSchemaNames(doc.Doc),
-		streaming:              streamingSet(p.Streaming),
-		binary:                 binarySet(p.Binary),
+		streaming:              streamingSet(p.StreamingInference),
+		binary:                 binarySet(p.BinaryInference),
 		promoter:               newPromoter(p.Promotions),
 		NullableInference:      p.NullableInference,
 		DiscriminatorInference: p.DiscriminatorInference,
