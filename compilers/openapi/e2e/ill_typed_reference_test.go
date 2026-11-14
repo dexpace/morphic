@@ -4,6 +4,7 @@
 package e2e_test
 
 import (
+	"path/filepath"
 	"regexp"
 	"strings"
 	"testing"
@@ -36,7 +37,10 @@ type refPosition struct {
 	// emptyItem is set where an item writing nothing is kept, as a callback's
 	// expression or a component is, so its control writes the item as {}.
 	emptyItem bool
-	body      string
+	// kept names the entry a component section with no registry keeps
+	// verbatim under Unmodeled, as the source wrote it, whatever it is read as.
+	kept string
+	body string
 }
 
 const refOp = "paths:\n  /a:\n    get:\n      operationId: getA\n      responses: {\"200\": {description: ok}}\n"
@@ -70,7 +74,7 @@ var refPositions = []refPosition{
 			"        - {name: ok, in: query, schema: {type: string}}\n@@        - $ref:\n      responses: {\"200\": {description: ok}}\n",
 	},
 	{
-		name: "a component parameter", pointer: "/components/parameters/P/$ref",
+		name: "a component parameter", pointer: "/components/parameters/P/$ref", kept: "openapi:components/parameters/P",
 		body: "paths: {}\ncomponents:\n  parameters:\n    Ok: {name: ok, in: query, schema: {type: string}}\n@@    P:\n@@      $ref:\n",
 	},
 	{
@@ -79,7 +83,7 @@ var refPositions = []refPosition{
 			"      responses: {\"200\": {description: ok}}\n",
 	},
 	{
-		name: "a component request body", pointer: "/components/requestBodies/P/$ref",
+		name: "a component request body", pointer: "/components/requestBodies/P/$ref", kept: "openapi:components/requestBodies/P",
 		body: "paths: {}\ncomponents:\n  requestBodies:\n    Ok: {content: {application/json: {schema: {type: string}}}}\n" +
 			"@@    P:\n@@      $ref:\n",
 	},
@@ -89,7 +93,7 @@ var refPositions = []refPosition{
 			"@@        \"404\":\n@@          $ref:\n",
 	},
 	{
-		name: "a component response", pointer: "/components/responses/P/$ref",
+		name: "a component response", pointer: "/components/responses/P/$ref", kept: "openapi:components/responses/P",
 		body: "paths: {}\ncomponents:\n  responses:\n    Ok: {description: ok}\n@@    P:\n@@      $ref:\n",
 	},
 	{
@@ -98,7 +102,7 @@ var refPositions = []refPosition{
 			"          headers:\n            Ok: {schema: {type: string}}\n@@            H:\n@@              $ref:\n",
 	},
 	{
-		name: "a component header", pointer: "/components/headers/P/$ref",
+		name: "a component header", pointer: "/components/headers/P/$ref", kept: "openapi:components/headers/P",
 		body: "paths: {}\ncomponents:\n  headers:\n    Ok: {schema: {type: string}}\n@@    P:\n@@      $ref:\n",
 	},
 	{
@@ -108,7 +112,7 @@ var refPositions = []refPosition{
 			"                Ok: {value: x}\n@@                E:\n@@                  $ref:\n",
 	},
 	{
-		name: "a component example", pointer: "/components/examples/P/$ref",
+		name: "a component example", pointer: "/components/examples/P/$ref", kept: "openapi:components/examples/P",
 		body: "paths: {}\ncomponents:\n  examples:\n    Ok: {value: x}\n@@    P:\n@@      $ref:\n",
 	},
 	{
@@ -117,7 +121,7 @@ var refPositions = []refPosition{
 			"          links:\n            Ok: {operationId: getA}\n@@            L:\n@@              $ref:\n",
 	},
 	{
-		name: "a component link", pointer: "/components/links/P/$ref",
+		name: "a component link", pointer: "/components/links/P/$ref", kept: "openapi:components/links/P",
 		body: refOp + "components:\n  links:\n    Ok: {operationId: getA}\n@@    P:\n@@      $ref:\n",
 	},
 	{
@@ -127,7 +131,7 @@ var refPositions = []refPosition{
 			"@@        cb2:\n@@          $ref:\n",
 	},
 	{
-		name: "a component callback", pointer: "/components/callbacks/P/$ref",
+		name: "a component callback", pointer: "/components/callbacks/P/$ref", kept: "openapi:components/callbacks/P",
 		body: "paths: {}\ncomponents:\n  callbacks:\n    Ok:\n      '{$request.body#/u}':\n        post: {responses: {\"200\": {description: ok}}}\n" +
 			"@@    P:\n@@      $ref:\n",
 	},
@@ -210,6 +214,10 @@ func TestCompile_ANullRefOfAReferenceObjectLeavesTheEntryOut(t *testing.T) {
 					}
 					if !p.pathItem {
 						assert.Equal(t, ir.SeverityError, diags[0].Severity)
+					}
+					if p.kept != "" {
+						assert.JSONEq(t, `{"$ref":null}`, string(doc.Unmodeled[p.kept].Value), "a verbatim copy shows the source")
+						delete(doc.Unmodeled, p.kept)
 					}
 					assert.Equal(t, want, jsonOf(t, doc), "the entry is left out, or for an item kept, read as {}")
 				})
@@ -351,5 +359,122 @@ func TestCompile_AnAliasedNullRefIsReadWithoutAFault(t *testing.T) {
 		ops := allOperations(doc)
 		require.Len(t, ops, 1)
 		require.Len(t, ops[0].Params, 1, "the entry is left out, the neighbour lowers")
+	}
+}
+
+// TestCompile_AComponentWhoseRefIsNoStringIsKeptAsWritten holds an entry of a
+// section with no registry, whose $ref is a list, to the one error at its $ref
+// and to its verbatim copy, which shows every key the source wrote: the entry
+// is read as left out, and the lossless channel still shows it.
+func TestCompile_AComponentWhoseRefIsNoStringIsKeptAsWritten(t *testing.T) {
+	t.Parallel()
+	spec := "openapi: 3.1.0\ninfo: {title: t, version: \"1\"}\npaths: {}\n" +
+		"components:\n  parameters:\n    Unused: {$ref: [x], name: u, in: query}\n"
+
+	doc, diags := compileText(t, "spec.yaml", spec, openapi.Options{})
+
+	require.NotNil(t, doc, "%+v", diags)
+	require.Len(t, diags, 1, "%+v", diags)
+	assert.Equal(t, typeMismatch, diags[0].Code)
+	assert.Equal(t, "/components/parameters/Unused/$ref", string(diags[0].Provenance.Pointer))
+	kept, ok := doc.Unmodeled["openapi:components/parameters/Unused"]
+	require.True(t, ok, "the entry is kept verbatim: %v", doc.Unmodeled)
+	assert.JSONEq(t, `{"$ref":["x"],"name":"u","in":"query"}`, string(kept.Value))
+}
+
+// reachedItem is a path item holding a parameter list whose first entry's $ref
+// is null, beside a parameter that lowers.
+const reachedItem = "item:\n  get:\n    parameters:\n      - {$ref: ~}\n      - {name: ok, in: query, schema: {type: string}}\n" +
+	"    responses: {\"200\": {description: ok}}\n"
+
+// TestCompile_AReachedObjectTheModelFaultsOnLowersAsUnderPaths holds a shape
+// the model faults on where only a $ref reaches it, raw YAML under an x- key or
+// another document, to the lowering the same item gets under paths (GitHub
+// #1928): what the reference lands on is judged before it is built, so the
+// table's one error at the shape stands, the shape is read as left out, and
+// the path item reaching it lowers what else it writes.
+func TestCompile_AReachedObjectTheModelFaultsOnLowersAsUnderPaths(t *testing.T) {
+	t.Parallel()
+	for name, tc := range map[string]struct {
+		spec, at string
+		ops      []string
+	}{
+		"a null $ref under an x- key": {
+			"openapi: 3.1.0\ninfo: {title: t, version: \"1\"}\npaths:\n  /a: {$ref: \"#/x-lib/item\"}\nx-lib:\n" +
+				strings.ReplaceAll("  "+reachedItem, "\n  ", "\n    "),
+			"/x-lib/item/get/parameters/0/$ref", []string{"GET"},
+		},
+		"an additionalOperations entry that is no mapping under an x- key": {
+			"openapi: 3.2.0\ninfo: {title: t, version: \"1\"}\npaths:\n  /a: {$ref: \"#/x-lib/item\"}\nx-lib:\n  item:\n" +
+				"    get: {responses: {\"200\": {description: ok}}}\n" +
+				"    additionalOperations: {PURGE: ~, LINK: {responses: {\"200\": {description: ok}}}}\n",
+			"/x-lib/item/additionalOperations/PURGE", []string{"GET", "LINK"},
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+
+			doc, diags := compileText(t, "spec.yaml", tc.spec, openapi.Options{})
+
+			require.NotNil(t, doc, "%+v", diags)
+			require.Len(t, diags, 1, "%+v", diags)
+			assert.Equal(t, typeMismatch, diags[0].Code)
+			assert.Equal(t, tc.at, string(diags[0].Provenance.Pointer))
+			var methods []string
+			for _, op := range allOperations(doc) {
+				methods = append(methods, op.Bindings.HTTP[0].Method)
+			}
+			assert.ElementsMatch(t, tc.ops, methods, "the path item lowers what it writes")
+			if len(tc.ops) == 1 {
+				params := allOperations(doc)[0].Params
+				require.Len(t, params, 1, "the entry is left out")
+				assert.Equal(t, "ok", params[0].Name.Source)
+			}
+		})
+	}
+	t.Run("a null $ref in another document", func(t *testing.T) {
+		t.Parallel()
+		dir := t.TempDir()
+		layout(t, dir, map[string]string{"other.yaml": reachedItem})
+
+		doc, diags := compileOnDisk(t, filepath.Join(dir, "spec.yaml"),
+			"openapi: 3.1.0\ninfo: {title: t, version: \"1\"}\npaths:\n  /a: {$ref: \"other.yaml#/item\"}\n", true)
+
+		require.Len(t, diags, 1, "%+v", diags)
+		assert.Equal(t, typeMismatch, diags[0].Code)
+		assert.Equal(t, 1, diags[0].Provenance.Source, "in the other document's entry")
+		assert.Equal(t, "/item/get/parameters/0/$ref", string(diags[0].Provenance.Pointer))
+		ops := allOperations(doc)
+		require.Len(t, ops, 1, "the path item lowers")
+		require.Len(t, ops[0].Params, 1, "the entry is left out")
+		assert.Equal(t, "ok", ops[0].Params[0].Name.Source)
+	})
+}
+
+// TestCompile_ARefAMergeKeyWritesThatIsNoStringLeavesTheEntryOut holds a
+// Reference Object whose $ref a `<<` merge key writes, null, a list or a
+// mapping, to the entry left out with the one error at the $ref, as the same
+// $ref written in the mapping itself is: the model reads a reference by the
+// keys a mapping writes itself, so the merged one stands in for it.
+func TestCompile_ARefAMergeKeyWritesThatIsNoStringLeavesTheEntryOut(t *testing.T) {
+	t.Parallel()
+	for _, spelling := range []string{"~", "[a]", "{}"} {
+		t.Run(spelling, func(t *testing.T) {
+			t.Parallel()
+			spec := "openapi: 3.1.0\ninfo: {title: t, version: \"1\"}\nx-b: &b {$ref: " + spelling + "}\npaths:\n  /a:\n    get:\n" +
+				"      parameters:\n        - {<<: *b}\n        - {name: ok, in: query, schema: {type: string}}\n" +
+				"      responses: {\"200\": {description: ok}}\n"
+
+			doc, diags := compileText(t, "spec.yaml", spec, openapi.Options{})
+
+			require.NotNil(t, doc, "%+v", diags)
+			require.Len(t, diags, 1, "one finding, at the $ref: %+v", diags)
+			assert.Equal(t, typeMismatch, diags[0].Code)
+			assert.Equal(t, "/x-b/$ref", string(diags[0].Provenance.Pointer))
+			ops := allOperations(doc)
+			require.Len(t, ops, 1)
+			require.Len(t, ops[0].Params, 1, "the entry is left out")
+			assert.Equal(t, "ok", ops[0].Params[0].Name.Source)
+		})
 	}
 }

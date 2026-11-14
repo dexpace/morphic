@@ -36,7 +36,7 @@ quarantined=""
 # bounds its wall time. A cap makes that bound explicit: crossing it is a
 # deliberate decision about how long every CI run should take, not something a
 # new target does by accident.
-readonly max_targets=16
+readonly max_targets=17
 
 # Minimizing is bounded tightly. For a target taking a string or []byte the flag
 # governs every new input that adds coverage as well as a found crash, a worker

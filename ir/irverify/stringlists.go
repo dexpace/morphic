@@ -9,6 +9,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/dexpace/morphic/ir"
+	"github.com/dexpace/morphic/reuse"
 )
 
 // stringListType is the field type stringLists classifies. ir.Lifecycle is an
@@ -38,7 +39,8 @@ const (
 	// (docs/compilers/openapi.md#tag-groups).
 	listVerbatim
 	// listVersions holds version labels, which answer to Document.Versions as
-	// a whole rather than to a rule of their own list (GitHub #860).
+	// a whole rather than to a rule of their own list: checkVersions holds the
+	// list, and checkStringLists holds each label an Availability writes to it.
 	listVersions
 	// listMembers names members by wire name, which checkRequires holds: one
 	// may be blank, as a property's may, but none repeats or names one of the
@@ -94,20 +96,28 @@ type heldList struct {
 // checkStringLists holds every []string field the walk reaches to the rule
 // stringLists records for it: a path segment is never blank, and a set entry
 // is neither blank nor repeated. A repeat is reported at its later entry,
-// naming the earlier.
+// naming the earlier. Each version label an Availability writes is held to
+// Document.Versions.
 //
 // Field lists are read once per struct type, and paths match the walk's
 // spelling. An entry that does not decode is never blank, since its bytes read
 // as U+FFFD, and it is no repeat either: checkUTF8 alone reports it.
-func checkStringLists(*ir.Document) walkCheck {
+func checkStringLists(doc *ir.Document) walkCheck {
 	var vs []Violation
+	positions := versionPositions(doc)
 	fields := map[reflect.Type][]heldList{}
 	// Every held list is read through this one, so a list costs no map of its
 	// own however long it is.
-	var entries reusedMap[string, int]
+	var entries reuse.Map[string, int]
 	return walkCheck{
 		visit: func(v reflect.Value, at ir.WalkPath) bool {
 			if v.Kind() != reflect.Struct {
+				return true
+			}
+			if v.Type() == availabilityType {
+				if a, ok := reflect.TypeAssert[ir.Availability](v); ok {
+					vs = appendAvailabilityViolations(vs, a, at, positions)
+				}
 				return true
 			}
 			byType, seen := fields[v.Type()]
@@ -144,9 +154,9 @@ func heldListsOf(t reflect.Type) []heldList {
 // rule, at the entry itself; owner is where the struct holding it sits, and
 // entries is what the list is read through.
 func appendListViolations(vs []Violation, list reflect.Value, owner ir.WalkPath, f heldList,
-	entries *reusedMap[string, int],
+	entries *reuse.Map[string, int],
 ) []Violation {
-	first := entries.emptied()
+	first := entries.Emptied()
 	for i := range list.Len() {
 		entry := list.Index(i).String()
 		switch earlier, repeated := first[entry]; {

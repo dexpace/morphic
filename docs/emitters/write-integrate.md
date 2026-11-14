@@ -11,8 +11,10 @@ seams; the `Origin`-tagged AST makes the manifest a byproduct of the emit walk.
   symbol" — a lookup, not oagen's structural rename-inference machinery — and one of what it is
   built from is carried by the correlation key each entry records where the key's own source holds,
   as an operation's route does when a path variable is renamed. A path or a component renamed
-  changes its key too ([correlation keys](../ir/derived-facts.md#correlation-keys)), so only the
-  structural tier of [open question 5](../ir/open-questions.md) could carry it. A symbol derived
+  changes its key too ([correlation keys](../ir/derived-facts.md#correlation-keys)), and nothing
+  derived carries it ([open question 5](../ir/open-questions.md)): what was keyed by its old ID
+  matches nothing, which the generation reports ([a key that matches
+  nothing](#a-key-that-matches-nothing)). A symbol derived
   from an entity keys under it, as `User.ID#create` does
   ([`User`](targets/go/models.md#user-in-go)), a shape's declaration under its lifecycles and its
   patch ([TypePlan](plan/types.md#the-declaration-a-shape-takes)), a union's wrappers, fallback and

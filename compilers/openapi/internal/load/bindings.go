@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"iter"
 	"maps"
-	"net/http"
 	"slices"
 	"strings"
 
@@ -36,20 +35,18 @@ type bound struct {
 	others   Others
 }
 
-// bindAll resolves every $ref of doc, the source's model, in the compiler
-// (internal/bind), never through the parser's resolver, which overflows the
-// stack on a cycle of schemas (docs/parser-library.md#schema-cycle-overflow)
-// and reads a Reference Object otherwise than RFC 6901 and the model do, by
-// declaration order (docs/parser-library.md#reference-object-cycle,
+// bindTable resolves every $ref of the source in the compiler (internal/bind),
+// never through the parser's resolver, which overflows the stack on a cycle of
+// schemas (docs/parser-library.md#schema-cycle-overflow) and reads a Reference
+// Object otherwise than RFC 6901 and the model do, by declaration order
+// (docs/parser-library.md#reference-object-cycle,
 // docs/parser-library.md#trailing-empty-token,
-// docs/parser-library.md#duplicate-key). It indexes the model's schemas and
-// wrappers where the table places them, then builds an object or a schema for
-// each landing. reader reads other documents, or is nil; d reads each
-// dialect's rows (dialectRuleOf); media yields the media types the parser does
-// not model.
-func bindAll(ctx context.Context, doc *soa.OpenAPI, sibs Siblings, media MediaTypes, self sourceDocument,
-	reader *external, refuse func(uri string) error, d *dialects,
-) bound {
+// docs/parser-library.md#duplicate-key). doc is the source's model, reader
+// reads other documents, or is nil, and d reads each dialect's rows
+// (dialectRuleOf).
+func bindTable(ctx context.Context, doc *soa.OpenAPI, self sourceDocument, reader *external, refuse func(uri string) error,
+	d *dialects,
+) *bind.Table {
 	opened := map[string]*yaml.Node{}
 	cfg := bind.Config{Self: self.path, Locate: self.locate, Refuse: refuse, Limit: budget.AtMost(bind.MaxSteps),
 		// Read off the model, as the lowering reads the names a mapping value
@@ -70,7 +67,13 @@ func bindAll(ctx context.Context, doc *soa.OpenAPI, sibs Siblings, media MediaTy
 			return tree, err
 		}
 	}
-	table := bind.Bind(ctx, self.root, cfg)
+	return bind.Bind(ctx, self.root, cfg)
+}
+
+// bindAll indexes the model's schemas and wrappers where table places them,
+// then builds an object or a schema for each landing. doc is the source's
+// model, and media yields the media types the parser does not model.
+func bindAll(ctx context.Context, table *bind.Table, doc *soa.OpenAPI, sibs Siblings, media MediaTypes) bound {
 	bd := typed.NewBuilder(table)
 	faults := mediaFaults{}
 	indexWalk(bd, walkSource(ctx, doc, sibs, media), bind.Position{}, faults)
@@ -133,29 +136,35 @@ func (m mediaFaults) diags(sites places, table *bind.Table) []ir.Diagnostic {
 }
 
 // locate is bind.Config.Locate for the source: the document uri names when
-// written in the one named base (resolve.Locate), named as bind names the
-// source when it is the source.
+// written in the one named base (resolve.Locate), put where the caller mapped
+// its URL (mapped), before anything judges or reads it, and named as bind
+// names the source when it is the source. A URL a mapping puts at no location
+// is kept, and its read refused (external.unnamed).
 func (s sourceDocument) locate(uri, base string) (string, bool) {
 	named, ok := refscope.Locate(uri, base)
 	if !ok {
 		return "", false
+	}
+	if at, mapped, err := s.mapped(named); mapped && err == nil {
+		named = at
 	}
 	return s.nameOf(named), true
 }
 
 // nameOf is the name bind reads the document name names under: the source's
 // path for the source, however it is spelled (refscope.Places.SameDocument),
-// a path where it lies (refscope.Places.File), so a file reached through a
-// link to its directory is one document, and any other name itself.
+// for a file the path where it lies, whether a path or a file URI names it
+// (refscope.Places.FileOf), so a file is one document however a reference
+// spells it, through a link to its directory included, and any other name
+// itself.
 func (s sourceDocument) nameOf(name string) string {
-	switch {
-	case s.places.SameDocument(s.path, name):
+	if s.places.SameDocument(s.path, name) {
 		return s.path
-	case refscope.IsURL(name):
-		return name
-	default:
-		return s.places.File(name)
 	}
+	if path, ok := s.places.FileOf(name); ok {
+		return path
+	}
+	return name
 }
 
 // bindingDiags reports what the table found: each $ref whose own hop fails, a
@@ -252,14 +261,13 @@ func spellLoop(l bind.Loop, table *bind.Table) string {
 
 // document is bind.Config.Open: the tree of the document named name, read
 // once in the compile, under its budgets (see externalReads.once), and
-// prepared as the source is. A name that is a URL (refscope.IsURL) is keyed as
-// a request spells it and read at that key; any other is read as the file it
-// names (see fileNamed).
+// prepared as the source is. A name that is a URL (refscope.IsURL), spelled
+// as it is located (resolve.Locate), is read at that name; any other is read
+// as the file it names (see fileNamed).
 func (e external) document(ctx context.Context, name string) (*yaml.Node, error) {
 	var a answer
-	if req, err := http.NewRequestWithContext(ctx, http.MethodGet, name, nil); err == nil && refscope.IsURL(name) {
-		key := req.URL.String()
-		a = e.readAs(ctx, e.documentID(key), key, key)
+	if refscope.IsURL(name) {
+		a = e.readAs(ctx, e.documentID(name), name, name)
 	} else {
 		a = e.readAs(ctx, e.documentID(name), name, fileNamed(name))
 	}

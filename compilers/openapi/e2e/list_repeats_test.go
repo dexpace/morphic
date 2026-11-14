@@ -117,5 +117,7 @@ func TestCompile_AListInAnotherDocumentIsCheckedWhereItIsWritten(t *testing.T) {
 	}
 	assert.Contains(t, got, duplicateParameter+" /item/parameters/1")
 	assert.Contains(t, got, duplicateParameter+" /item/get/parameters/1")
-	assert.Contains(t, got, duplicateServerName+" /item/servers/1")
+	// A servers list's repeat is placed at the name it repeats, as the
+	// source's own are.
+	assert.Contains(t, got, duplicateServerName+" /item/servers/1/name")
 }

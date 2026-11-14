@@ -49,6 +49,10 @@ type Options struct {
 	// Referenced, when set, is told each mapping read as a Reference Object
 	// standing in the place of an object of kind, its aliases followed.
 	Referenced func(kind Kind, node *yaml.Node)
+	// Shared, when set, reads the root as an object other places may read as
+	// other kinds, so Judged is told every value the check accepts, not only
+	// those an alias, an anchor or a `<<` merge shares.
+	Shared bool
 	// Root is the pointer the root is read at in the document Locate answers
 	// in, empty for that document's own root.
 	Root jsontext.Pointer
@@ -109,7 +113,7 @@ func (c Checker) Check(ctx context.Context, root *yaml.Node, declared string, op
 		start = Document
 	}
 	w.root = nodeview.DocumentRoot(root)
-	w.object(site{kind: start, node: w.root}, 0)
+	w.object(site{kind: start, node: w.root, shared: opts.Shared}, 0)
 	return w.diags
 }
 
@@ -138,7 +142,7 @@ func (c Checker) walker(ctx context.Context, declared string, opts Options) (*wa
 	}
 	w := &walker{ctx: ctx, spec: c.spec, minor: minor, view: nodeview.New(), work: budget.New(opts.Budget)}
 	w.locate, w.declared, w.seen, w.rows = opts.Locate, declared, opts.Seen, opts.Rows
-	w.readAt, w.rootAt, w.said = opts.ReadAt, opts.Root, map[ir.Diagnostic]bool{}
+	w.readAt, w.rootAt, w.said = opts.ReadAt, opts.Root, map[ir.Diagnostic]saying{}
 	w.rootRows, w.later, w.judged, w.referenced = opts.RootRows, opts.Later, opts.Judged, opts.Referenced
 	w.skip = opts.Skip
 	if w.rows.rows == nil {
@@ -193,7 +197,7 @@ type site struct {
 // Object the rows it is read with, which its object is. booleans reports that
 // true and false stand as the schemas its fields hold: by its rows for a
 // Schema Object, which decides for those it holds, else by its minor, where
-// the rows a schema is read with have the last word (walker.shapeOf). where,
+// the rows a schema is read with have the last word (shapeOf). where,
 // unless empty, names what a finding about it holds it to in place of its
 // minor.
 type frame struct {
@@ -308,7 +312,7 @@ func (w *walker) object(s site, depth int) {
 		w.notMapping(f, node)
 		return
 	}
-	f = w.frameOf(f, node)
+	f = frameOf(f, node, w.view)
 	f.shared = f.shared || writesMerge(node)
 	w.accept(f.shared, node)
 	w.repeated(node, s.ptr, obj.Name)
@@ -339,8 +343,8 @@ func (w *walker) rowsAt(s site) SchemaRules {
 }
 
 // frameOf reads node, a mapping, as the object f is.
-func (w *walker) frameOf(f frame, node *yaml.Node) frame {
-	f.pairs = w.view.MappingPairs(node)
+func frameOf(f frame, node *yaml.Node, view *nodeview.View) frame {
+	f.pairs = view.MappingPairs(node)
 	f.byKey = make(map[string]*yaml.Node, len(f.pairs))
 	for _, p := range f.pairs {
 		f.byKey[p.Key] = p.Val

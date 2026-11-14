@@ -24,7 +24,8 @@ type Position struct {
 const NoSource = -1 // the node addresses no input file
 
 type Diagnostic struct {
-    Severity   Severity  // error | warning | info, most severe first; Severities ranks them
+    Severity   Severity  // error | warning | info, most severe first; Severities ranks them;
+                         // irverify reports another (ir/unknown-severity)
     Code       string    // stable: "openapi/unresolved-ref", "ir/dangling-type-ref"
     Message    string
     Provenance Provenance
@@ -58,7 +59,10 @@ refuses one on `NoSource`, which names no document to write into (`ir/provenance
 The one exception is what `NoSource` exists for. A pass reporting on the document it was handed has
 no input file to name, and every real index — `0` included — names a file the document loaded, so
 reusing one would make a renderer fabricate a location. A shared primitive has no one file to name
-either, since every source reaches it by kind ([identity](./identity.md)). `NoSource` is therefore
+either, since every source reaches it by kind ([identity](./identity.md)), so a primitive's `Source`
+is `NoSource`, and `irverify` reports one credited to a source (`ir/prim-names-source`); a
+document that declares no sources admits the zero `Provenance`, as a node built without one
+carries it. `NoSource` is therefore
 the **only** out-of-table `Source` value the IR declares: a verifier accepts it and reports every
 other index that addresses no declared source, so a producer inventing a second sentinel is caught
 rather than tolerated.
@@ -84,4 +88,7 @@ document's top-level mapping, whose pointer is the empty one, which beside a pos
 producer's, and nothing parses it. A verifier holds a `Pointer` to RFC 6901 and a `Position` to
 1-based values, and refuses either one on `NoSource`, where there is no file for it to be inside.
 Nothing requires exactly one locator: a finding may carry a `Node` beside a source location, and a
-node the lowering reached may carry both a pointer and a position.
+node the lowering reached may carry both a pointer and a position. The two need not name one place:
+a node YAML aliases share is one node at several pointers, so its `Pointer` is the least of the
+places that mount it, compared token by token, while its `Position` is where its text is written,
+which may be another of them.

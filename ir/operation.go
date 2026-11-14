@@ -478,6 +478,19 @@ const (
 	IdempotencyToken IdempotencyKind = "idempotency_token"
 )
 
+// Valid reports whether k is one of the kinds declared above, the undeclared
+// empty kind included. IdempotencyKind is a bare string enum, so nothing
+// rejects an invented value on the wire; irverify calls this so that one is
+// reported.
+func (k IdempotencyKind) Valid() bool {
+	switch k {
+	case IdempotencyUnknown, IdempotencySafe, IdempotencyIdempotent, IdempotencyToken:
+		return true
+	default:
+		return false
+	}
+}
+
 // Idempotency is the resolved idempotency classification of an Operation. It
 // reifies the spec's shorthand states unknown | safe | idempotent |
 // idempotency_token(param); TokenParam is set only for the token kind
@@ -509,6 +522,19 @@ const (
 	// PageStrategyToken is continuation-token pagination.
 	PageStrategyToken PageStrategy = "token"
 )
+
+// Valid reports whether s is one of the strategies declared above. The empty
+// string is not one: a pagination always names its mechanism. irverify calls
+// this so that an invented or missing strategy is reported.
+func (s PageStrategy) Valid() bool {
+	switch s {
+	case PageStrategyCursor, PageStrategyOffset, PageStrategyPage, PageStrategyLinkHeader, PageStrategyNextLink,
+		PageStrategyToken:
+		return true
+	default:
+		return false
+	}
+}
 
 // Pagination describes an Operation's pagination
 // (docs/ir/interaction-patterns.md).

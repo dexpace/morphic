@@ -58,8 +58,7 @@ type EnumMemberID string
 // The vocabulary lives here because every consumer of a Document reads it, so a
 // compiler with its own spelling breaks all of them. compilers/compile owns the
 // grammar that assembles an ID from these; irverify holds every compiler to the
-// shape fixed here (GitHub #141). Channels and messages have no prefix yet: no
-// compiler mints one.
+// shape fixed here (GitHub #141).
 const (
 	IDKindType       = "t"
 	IDKindOp         = "op"
@@ -70,13 +69,15 @@ const (
 	IDKindParam      = "param"
 	IDKindEnumMember = "e"
 	IDKindServer     = "server"
+	IDKindChannel    = "chan"
+	IDKindMessage    = "msg"
 )
 
 // IDKinds returns every kind prefix a synthetic ID may open with, in a fixed
 // order. Document.IDSpaces is keyed by them.
 func IDKinds() []string {
 	return []string{IDKindType, IDKindOp, IDKindProp, IDKindAuth, IDKindService, IDKindGroup, IDKindParam,
-		IDKindEnumMember, IDKindServer}
+		IDKindEnumMember, IDKindServer, IDKindChannel, IDKindMessage}
 }
 
 // IDSeparator separates an ID's kind, space and path segments.

@@ -105,8 +105,11 @@ JSON text, YAML or JSON followed by anything else, is read as YAML, as before, i
 
 Every YAML text is read as YAML 1.2, as YAML 1.2 asks of a processor whatever a `%YAML` directive
 declares ([`yaml11-lexing`](../parser-library.md#yaml11-lexing)): a `\/` escape is a slash in a
-double-quoted scalar and the two characters it writes anywhere else, a raw U+0085, U+2028 or U+2029
-is a character and ends no line, and a `%YAML 1.2` directive is read. A document declaring a later
+double-quoted scalar and the two characters it writes anywhere else, as a pair of `\u` escapes
+naming the two halves of a surrogate pair is the one character it names there, as JSON spells one,
+and the twelve characters as written anywhere else, while a half alone is refused as in JSON text
+above; a raw U+0085, U+2028 or U+2029 is a character and ends no line, and a `%YAML 1.2`
+directive is read. A document declaring a later
 minor is read as 1.2 with an `openapi/yaml-version-reading` warning at the directive, by position
 alone, and one declaring another major is refused as the parser refuses it. A document declaring
 1.1 draws the same warning at each plain scalar YAML 1.1's types read as another JSON value than
@@ -186,14 +189,19 @@ scalar under any other tag keeps it.
   `e2e.TestCompile_AJSONSourceWithAKeyPastTheYAMLLimitCompiles`,
   `e2e.TestCompile_AJSONExternalDocumentCompilesAsItsLiteralTwin`,
   `e2e.TestCompile_ALoneSurrogateIsRefusedWhereItIsWritten`,
-  `e2e.TestCompile_APositionAfterAnEscapeCountsItAsWritten`
+  `e2e.TestCompile_APositionAfterAnEscapeCountsItAsWritten`,
+  `e2e.TestCompile_ASurrogatePairOfEscapesInYAMLIsTheCharacterItNames`,
+  `e2e.TestCompile_ALoneHalfOfASurrogatePairIsStillRefused`,
+  `e2e.TestCompile_ASurrogatePairInAKeyAndBesideOtherRespellingsReadsEachAsItsOwn`,
+  `doctree.TestRead_ASurrogatePairIsTheCharacterOnlyInADoubleQuotedScalar`,
+  `doctree.TestRead_ASurrogatePairAfterAnEvenRunOfBackslashesIsNotOne`,
+  `doctree.TestRead_AnUnpairedHalfIsRefusedAsItIsToday`, `doctree.TestRead_ASurrogatePairInAKeyIsTheCharacter`
 - Status: partly built: both order oracles in `internal/harness` parse a source as YAML to permute
   it as YAML 1.1 lexes it, and decline one only the compiler's reader reads as not YAML: a JSON
-  text writing a surrogate pair, and a YAML text writing an escaped slash or a `%YAML 1.2`
-  directive (#1768). A pair of surrogate escapes in YAML text is refused, as YAML 1.2 joins no pair
-  (#1934). A text writing every one of the 64 characters from U+E000 that the reader stands in for
-  what it reads as YAML 1.2, and a UTF-16 or UTF-32 text encoding no text, are read as the parser
-  reads them. A scalar or a sequence under
+  text writing a surrogate pair, and a YAML text writing an escaped slash, a pair of surrogate
+  escapes or a `%YAML 1.2` directive (#1768). A text writing every one of the 64 characters from
+  U+E000 that the reader stands in for what it reads as YAML 1.2, and a UTF-16 or UTF-32 text
+  encoding no text, are read as the parser reads them. A scalar or a sequence under
   a tag outside YAML's JSON schema ruleset is not reported, and where the model reads a string or a
   list it reads as left out (#1368).
 
@@ -280,10 +288,14 @@ A source past the pointer bound, as written or as an overlay patches it, is weig
 is refused, by what a compile names one by one: a value the grammar keeps raw, an example, a
 default, a `const`, an enum member, an Example Object's value, an `x-` key or a field its object
 leaves out, adds its root alone, and a raw value a `$ref` or a discriminator mapping of the
-document lands in is named node by node as the kind that reference expects. It is refused only
-when that total too is past the bound, or when it cannot be taken: a reference leaves the
-document, a fragment is no JSON pointer, or the weighing runs past the node bound. An overlay
-document and a document a reference reads keep the first total.
+document lands in, its fragment read as the binder reads one, percent escapes decoded, is named node
+by node as the kind that reference expects, once, where the walk has not named it already. It is
+refused only when that total too is past the bound, or when it cannot be taken: a reference leaves
+the document, names nothing its pointer finds, or is read under an `$id`, which moves where it
+lands; a fragment is no JSON pointer; the document may name a dialect, by `jsonSchemaDialect` or a
+`$schema` key anywhere, whose keywords hold schemas the minor's grammar keeps raw (draft 7's
+`definitions`, `dependencies`, an `items` list and `additionalItems`); or the weighing runs past the
+node bound. An overlay document and a document a reference reads keep the first total.
 - Tests: `openapi.TestCompile_SourceByteBudgetBindsOnlyPastTheLimit`,
   `openapi.TestCompiler_SourceLimitReadsTheCallersOptions`,
   `openapi.TestDetect_DeclinesASourceHoldingMoreNodesThanTheCallersBudget`,
@@ -328,7 +340,11 @@ document and a document a reference reads keep the first total.
   `e2e.TestCompile_ARawValueAReferenceLandsInIsNamedNodeByNode`,
   `e2e.TestCompile_APropertyNamedExampleHoldsASchemaAndIsNamedNodeByNode`,
   `bind.TestNamedPointerBytes_TheTotalDoesNotDependOnWhichMountIsWrittenFirst`,
-  `bind.TestNamedPointerBytes_AReferenceIntoARawValueNamesItNodeByNode`
+  `bind.TestNamedPointerBytes_AReferenceIntoARawValueNamesItNodeByNode`,
+  `bind.TestNamedPointerBytes_IsIncompleteWhereTheDocumentIsNotClosed`,
+  `bind.TestNamedPointerBytes_AFragmentLandsWhereItsDecodingNames`,
+  `bind.TestNamedPointerBytes_ALandingNamedInPlaceIsCountedOnce`,
+  `e2e.TestCompile_ARawValueAReferenceLandsInIsWeighedHoweverItIsSpelled`
 
 ### `overlays`
 
@@ -345,26 +361,52 @@ the overlay leaves, which the overlay's own refusal does not. An overlay that is
 read as JSON, as a source is ([`yaml-decoding`](#yaml-decoding)), so the characters and escapes the
 YAML parser refuses compile as the characters they name.
 
-An overlay declaring Overlay 1.0 or 1.1, at any patch, which the specification asks tooling not to
-tell apart, is applied by that version's rules. One declaring Overlay 1.2 is refused as an
-`openapi/overlay-unsupported` error. Any other version, and an overlay that does not parse,
-including one writing half of a surrogate pair, or lacks what the specification requires of it — an
-info object naming a title and a version, an `extends` that is a URI reference, an action, a target
-on each — is refused as an `openapi/invalid-overlay` error and nothing is applied, as is an Overlay
-1.0 action writing `copy`, a field 1.1 introduced. Every `target` and `copy` is read as an RFC 9535
-JSONPath query, whatever the version, since both versions name RFC 9535; an extension naming another
-dialect is not read. One RFC 9535 refuses is an `openapi/invalid-overlay` error: one using `~`, and
-one naming a member after a dot by a name RFC 9535's shorthand does not admit, which holds only
-letters, digits, underscores and characters past ASCII and starts with no digit, so an extension
-key, which holds a `-`, is named in brackets; the error says what to write, `['x-internal']` for
-`.x-internal`. One RFC 9535 reads that the compiler's JSONPath implementation refuses or misreads
-where its text shows it ([`jsonpath-rfc9535`](../parser-library.md#jsonpath-rfc9535)) is an
-`openapi/overlay-unsupported` error naming why and, where the compiler reads another spelling, what
-to write. Either is found before any action applies. The implementation also compares otherwise than
-RFC 9535 in a filter, where no text shows it, and those selectors apply as it reads them: a plain
-date, such as `2021-01-01`, equals no string and every other plain date, an integer written in
-another base, such as `0x10`, compares as 0, and two objects are equal only with their members in
-the same order.
+An overlay declaring Overlay 1.0, 1.1 or 1.2, at any patch, which the specification asks tooling
+not to tell apart, is applied by that version's rules, 1.2 by 1.1's, which it restates. The overlay
+document is read by the fields its version's objects define, each in the form the specification
+gives it and read as the compiler reads a scalar, with `x-` fields taken as extensions: a field of
+another form, a required one missing, and a field the version's object does not define, such as a
+misspelled `update` or a `copy` at 1.0, are each an `openapi/invalid-overlay` error at the field,
+and nothing is applied, since an overlay exists to change the output and one applying as nothing
+would ship the SDK it was written to fix. So are any other version and an overlay that does not
+parse, including one writing half of a surrogate pair, and at 1.2 an `extends` or `$self` holding a
+fragment; one that is no URI reference is refused at any version. An Overlay 1.2 action writing
+`$ref` is a reference to a reusable action of `components.actions`, named by a JSON pointer in the
+document's own fragment, its key escaped as RFC 6901 escapes a token: it applies as the action the
+reusable one's `fields` write, at the reference's own `target`, a `description` of either having no
+effect, as an action's has none, and a reference naming no entry, or writing `update`, `remove` or `copy`, is refused, as
+are `fields` writing a `target`. A reusable action nothing references has no effect. The overlay's
+`$self` is recorded as its `SelfURI` in `Document.Sources`; nothing the compiler applies reads it,
+and `extends` is checked as a URI reference and compared with nothing.
+
+Every `target` and `copy` is read as an RFC 9535 JSONPath query by the compiler's own evaluator, over
+the JSON value the source stands for: a YAML alias reads as the value it names, a member a `<<`
+merge key brings in as a member of the mapping merging it, and a scalar as the compiler reads one,
+so a plain date is the string it spells, `0x10` the number 16, and two objects are equal whatever
+the order of their members. A selector RFC 9535 does not read is an `openapi/invalid-overlay` error
+naming the offset where it stops being a query and why, found before any action applies; one using
+`~` says so, and one naming a member after a dot by a name RFC 9535's shorthand does not admit,
+which holds only letters, digits, underscores and characters past ASCII and starts with no digit,
+says what to write, `['x-internal']` for `.x-internal`. `match` and `search` read I-Regexp (RFC
+9485) and run on Go's regexp engine, whose time is linear in its input times its program; a pattern
+past 4,096 bytes or 16,384 instructions, or that is no I-Regexp, matches nothing, as RFC 9535
+section 2.4.6 has it. RFC 9485's grammar admits `^` and `$` as ordinary characters (section 3,
+`NormalChar = ( %x00-27 / ... / %x5E-7A ; '^'-'z' / ... )`), and its section 4 has an
+implementation "yield Boolean results as specified in [XSD-2]"; its mapping to RE2, Go's dialect,
+leaves both as written (section 5.4), where RE2 reads them as anchors, and of that mapping section 5
+says "The material in this section is not normative". The compiler follows the mapping, as the
+JSONPath compliance suite it is held to does: its cases `functions, match, explicit caret` and
+`functions, match, explicit dollar` pass only so. So `^` and `$` anchor, `[\^]` and `[$]` write
+the characters, and `\$` is no I-Regexp escape. A pattern written as a literal that matches no
+string, one with `$` before a character it must match, or `^` after one, in each top-level branch,
+or one that is no I-Regexp, is an `openapi/overlay-action` warning naming why. The selectors of one
+application spend one budget of `overlay.MaxSteps` steps: a step for each node a selector visits,
+compares or returns, each member a mapping's merges expand to and each element two compared arrays
+pair; a step per 8 bytes of a scalar read, once an evaluation, and per 64 bytes two scalars compare;
+a match or search its input's length and one more, times its program's weight; and a step for each
+link of a target's path the action locates and each member of a mapping it indexes to find one. An
+action whose selectors pass the budget, or whose evaluation holds more than `jsonpath.MaxResults`
+nodes in its nodelists at once, is an `openapi/budget-exceeded` error and nothing more applies.
 
 The actions apply in order, each to the tree the ones before it left. An action takes the first of
 `remove`, `update` and `copy` it sets, and a field the specification gives no effect beside a
@@ -372,8 +414,8 @@ remove, or an action setting none, is an `openapi/overlay-action` warning. An ac
 `update` and `copy`, each of which the specification gives no effect beside the other, is refused as
 an `openapi/overlay-failed` error naming both. A remove deletes each node its target selects from
 the object or array holding it, at Overlay 1.0 a primitive too, since 1.0 has no other spelling for
-removing a primitive member. A YAML alias elsewhere naming a node it removed keeps the value it
-stood for, as a copy, each node of which names as its writer the document that wrote it; a copy that
+removing a primitive member. A YAML alias elsewhere naming a node it removed, or one an action
+copied in its place, keeps the value it stood for, as a copy the source wrote; a copy that
 would grow the tree past `MaxSourceNodes` refuses the overlay as an `openapi/budget-exceeded` error,
 and one past the attribution walk's node budget as an `openapi/overlay-failed` error. An update
 writes its value into each node its target selects, and a copy writes the one node its `copy`
@@ -393,38 +435,43 @@ selects, as that node stood when the action began:
    update selecting one is refused naming both of its spellings: an update of the object holding it,
    or the overlay declaring 1.1.
 
-Any other write is refused, and so are an Overlay 1.1 update or copy whose targets are not all of
-one kind, a copy whose `copy` selects more than one node, a remove of the document's root, and a
-write into a node the source writes as a YAML alias, whose anchor shares it with every use. Each is
-an `openapi/overlay-failed` error naming the action, at it in the overlay, and the source compiles
-to no Document. A node a target selects twice is written once, and what is written holds no alias: a
-copy is taken of what each alias names. A primitive an action writes over one the source declares,
-rather than adding a value the source lacks, is an `openapi/overlay-replaced-value` info naming both
-values, at the replacing value in the overlay; info, since overriding is a legitimate use, and
-`--fail-on` is a threshold over every code, so a run failing on this one alone needs a rating by
-code. A write over what an earlier action wrote is not reported, nor is an array an action appends
-to, which keeps what the source declares in it. An action that changes nothing is an
+Any other write is refused, and so are an Overlay 1.1 or 1.2 update or copy whose targets are not
+all of one kind, as the specification requires, a copy whose `copy` selects more than one node, and a
+remove of the document's root. Each is an `openapi/overlay-failed` error naming the action, at it in
+the overlay, and the source compiles to no Document. A target is a position of the value, its
+normalized path: one selected twice is written once, and what is written holds no alias, a copy
+being taken of what each alias names. A primitive an action writes over one the source declares
+where it stands, rather than adding a value the source lacks, is an `openapi/overlay-replaced-value`
+info naming both values, at the replacing value in the overlay; info, since overriding is a
+legitimate use, and `--fail-on` is a threshold over every code, so a run failing on this one alone
+needs a rating by code. A write over what an earlier action wrote is not reported, nor is one into
+a copy of a shared value standing at an alias's or a merge's position, nor an array an action
+appends to, which keeps what the source declares in it. An action that changes nothing is an
 `openapi/overlay-action` warning. An action whose target, or whose `copy`, selects nothing changes
 nothing, as the specification has it. Application is strict unless `Overlay.Lax` is set, and under
 strict such an action refuses the overlay as a likely typo, an `openapi/overlay-failed` error at
 each, once every action has applied; under lax it is an `openapi/overlay-action` warning, and the
 rest of the overlay applies.
 
-The actions read the source's tree as written, not the JSON value the specification applies an
-overlay to: a selector does not read through a YAML alias or a `<<` merge key, and a write inside a
-node an alias names reaches every alias of it. So a source writing an alias or a merge key draws one
-`openapi/overlay-action` warning saying selectors do not read through them, and each action
-changing what a node an alias names holds, by a write into it or below it or a remove from it, draws
-one naming the anchor's line and column and how many aliases name it. A remove of the anchored node
-itself draws none, as each alias keeps the value it stood for. An update writing a `<<` merge key
-into an object the tree holds is warned of too: it merges as written, so the members it names
-replace none the object holds.
+An action writes the positions it selects and no other. Every target is selected before anything
+is written, and each is then made the action's own along its path from the root: a slot holding a
+YAML alias, or a node an alias names, is replaced by a copy of the node's content, its anchors
+dropped and the aliases inside it kept, and a mapping a member of which a `<<` merge key brings in,
+or that is written or removed from, has its merge keys replaced by a copy of each member they bring
+in that it does not write, in the value's order. So an update of an anchored schema leaves each
+alias of it, and each mapping merging it, the value the source wrote, and a write through an alias
+or a merge writes that position alone; none draws a finding. A copy is the size of the subtree the
+source writes, not of the value it stands for, keeps the source as the writer of what the source
+wrote, and is charged to `MaxSourceNodes` before it is built.
 
 Each action is charged the nodes it can build before it runs: one whose charge would carry the tree,
 counted afresh, past `MaxSourceNodes` is refused as an `openapi/budget-exceeded` error with nothing
 it would build built, so it is refused while the tree is past the budget whatever a later action
 removes. An action that builds nothing, such as a remove, is applied however large the tree, since
-the budget holds the tree the overlay leaves. The overlay becomes a second entry in
+the budget holds the tree the overlay leaves. The running count only grows, a replaced primitive
+charged a node it does not add and a remove crediting nothing, so over a tree at the budget's edge
+each action that charges a node counts the tree afresh: such an overlay costs its actions times the
+tree's nodes, which no budget counts. The overlay becomes a second entry in
 `Document.Sources`, and every position it introduced or rewrote names the source as its
 `Provenance.Source` and that entry as its `WrittenBy` ([provenance](../ir/provenance.md)), while a
 position it left alone keeps the source's line and column; a finding about the overlay document
@@ -432,33 +479,67 @@ itself names the overlay as its `Source`. Where the walk that attributes positio
 runs out of its node budget, the overlay is applied and no position names it as a writer, as with
 no overlay, reported as an `openapi/overlay-origin-incomplete` warning.
 
-- Codes: `openapi/invalid-overlay`, `openapi/overlay-failed`, `openapi/overlay-unsupported`,
-  `openapi/overlay-action`, `openapi/overlay-replaced-value`, `openapi/overlay-origin-incomplete`,
-  `openapi/budget-exceeded`
+- Codes: `openapi/invalid-overlay`, `openapi/overlay-failed`, `openapi/overlay-action`,
+  `openapi/overlay-replaced-value`, `openapi/overlay-origin-incomplete`, `openapi/budget-exceeded`
 - Tests: `overlay.TestApply_RejectsAnOverlayItCannotRead`,
   `overlay.TestRead_AppliesTheVersionsTheCompilerKnowsAtAnyPatch`,
   `overlay.TestRead_RefusesWhatTheSpecificationRequiresAndTheOverlayLacks`,
   `overlay.TestRead_RefusesACopyInAnOverlay10Document`, `overlay.TestRead_WarnsOfAFieldWithNoEffect`,
   `overlay.TestRead_RefusesAnActionSettingBothUpdateAndCopy`,
+  `overlay.TestApply_RefusesATreeOfTheWrongShape`,
+  `overlay.TestApply_RefusesAFieldTheVersionDoesNotDefine`,
+  `overlay.TestApply_ReadsEachVersionOfAnOverlayAsItsOwnRulesDo`,
+  `overlay.TestApply_AppliesAReusableActionAtTheReferencesTarget`,
+  `overlay.TestApply_ReadsTheKeyAReferenceNamesDecoded`,
+  `overlay.TestApply_RefusesWhatAReusableActionAndAReferenceMayNotWrite`,
   `overlay.TestReadSelector_ReadsEveryTargetAsRFC9535`,
   `overlay.TestReadSelector_SelectsWithEachKindOfSelector`,
   `overlay.TestReadSelector_SelectsWhatRFC9535sExamplesSelect`,
-  `overlay.TestReadSelector_RefusesWhatItCannotReadAsRFC9535Does`,
-  `overlay.TestScanSelector_TellsAStringFromTheRest`,
-  `overlay.TestSpelledOtherwise_NamesAFixForEachCharacter`,
+  `overlay.TestReadSelector_RefusesWhatRFC9535DoesNotRead`,
+  `overlay.TestReadSelector_SelectsWhatTheCompilerOnceRefused`,
+  `overlay.TestHintFor_TellsAStringFromTheRest`,
+  `overlay.TestApply_SelectsByTheValuesAFilterComparesNotByTheirSpelling`,
+  `overlay.TestApply_ReadsAMemberNamedByAnEscapeOrALiteral`,
+  `overlay.TestApply_RefusesATargetRFC9535DoesNotReadAndSaysWhere`,
+  `jsonpath.TestCompliance`, `jsonpath.TestSelect_WeighsAPatternByItsProgram`,
+  `jsonpath.TestParse_NamesThePatternsThatMatchNoString`,
+  `overlay.TestReadSelector_WarnsOfAPatternThatMatchesNoString`,
+  `jsonpath.TestSelect_ChargesEachElementTwoArraysCompare`,
+  `jsonpath.TestSelect_ReadsAScalarOnceAndChargesTheBytesItCompares`,
+  `jsonpath.TestSelect_ChargesAPatternsProgramForAnEmptyInput`,
+  `jsonpath.TestSelect_HoldsEveryLiveNodelistToOneBound`,
+  `overlay.TestApply_LocatesEachMemberOfAWideMappingAtAStep`,
+  `overlay.TestApply_LocatesDeepTargetsAtAStepAPrefix`,
+  `overlay.TestApply_GivesEveryGeneratedSharedValueTheTreeOfItsExpansion`,
+  `overlay.TestApply_RemovesANodeAndItsDescendantsAtAnAnchorAsItsExpansionDoes`,
+  `overlay.TestApply_RefusesARemoveWhoseHolderWouldCopyPastTheBudget`,
+  `overlay.TestApply_RefusesATargetThatCostsMoreThanTheStepsAnOverlayMaySpend`,
+  `overlay.TestApply_SpendsOneBudgetOnEverySelectorOfAnApplication`,
+  `overlay.TestApply_SpendsStepsInProportionToTheActions`,
   `overlay.TestGrafter_WritesAnUpdateAsTheSpecificationSays`,
   `overlay.TestGrafter_TellsA10PrimitiveRemoveFromAnUpdate`,
   `overlay.TestRemove_TakesTheTargetsOfEachHolderTogether`,
   `overlay.TestGrafter_AppliesActionsInOrderToWhatTheOnesBeforeLeft`,
   `overlay.TestGrafter_ReportsAValueTheSourceDeclaresReplaced`,
   `overlay.TestGrafter_TakesACopyOfTheSourceAsTheActionBegan`,
-  `overlay.TestGrafter_RefusesToWriteThroughAnAlias`,
+  `overlay.TestGrafter_WritesOnePositionOfAnAlias`,
+  `overlay.TestApply_WritesOnlyThePositionAnUpdateTargets`,
+  `overlay.TestApply_GivesTheSharedValueTheSameTreeAsItsExpansion`,
+  `overlay.TestApply_LeavesAnAnchorsOtherUsesAsTheSourceWroteThem`,
+  `overlay.TestApply_AWriteToAMergedMemberLeavesNoSecondKey`,
+  `overlay.TestApply_WritesAMergedMemberAsTheMappingsOwn`,
+  `overlay.TestApply_RefusesAWriteIntoWhatItCannotMakeItsOwn`,
+  `overlay.TestApply_RemovesAtOnePositionOfASharedNode`,
+  `overlay.TestApply_WritesEachPositionOfAWildcardOnce`,
+  `overlay.TestApply_ReadsEachActionTheValueTheOneBeforeLeft`,
+  `overlay.TestApply_RefusesACopyThatWouldGrowTheTreePastItsBudget`,
+  `overlay.TestApply_DrawsNoFindingForTheAliasesTheSourceWrites`,
+  `overlay.TestApply_RemovesAnAliasAndWritesTheAnchorWithoutAFinding`,
+  `overlay.TestApply_WritesAMergeKeyAnUpdateNamesWithoutAFinding`,
   `overlay.TestRepairAliases_CopiesWhatARemoveLeftAnAliasNaming`,
   `overlay.TestRepairAliases_KeepsTheWriterOfWhatItCopies`,
   `overlay.TestApplyWithin_RefusesARepairPastItsBound`,
   `overlay.TestApplyWithin_RefusesARepairPastTheNodeBudget`,
-  `overlay.TestApply_WarnsOfWhatTheSourcesAliasesMakeOfAnAction`,
-  `overlay.TestApply_CountsTheAliasesARemoveLeaves`, `overlay.TestApply_WarnsOfAMergeKeyAnUpdateWrites`,
   `load.TestLoad_ATaggedMappingLeftBehindARemovedAnchorIsRefused`,
   `load.TestLoad_ReadsANamedOverlayThroughTheReader`,
   `load.TestLoad_ANamedOverlayThatCannotBeReadIsAGoError`,
@@ -472,14 +553,20 @@ no overlay, reported as an `openapi/overlay-origin-incomplete` warning.
   `overlay.TestSequence_ChargesAnActionAfterARemoveOnTheTreeItLeft`,
   `load.TestLoad_AnOverlayDoesNotLiftTheNodeBudgetOfTheSource`,
   `load.TestLoad_APointerAmplificationAnOverlayGraftedNamesTheOverlay`,
-  `overlay.TestDecodeFromTree_ReadsWhatTheLibraryReads`,
-  `overlay.TestDecodeFromTree_ReadsWhatTheLibraryRefuses`,
-  `e2e.TestCompile_AJSONOverlayAppliesAsItsLiteralTwin`
-- Status: partly built: an overlay selects and writes the source's YAML aliases and `<<` merge keys
-  as the nodes they are, not as the values they stand for, which is warned of and not mended
-  (#1834). A filter comparing a plain date, an integer written in another base or an object compares
-  otherwise than RFC 9535, and the selectors refused as the JSONPath implementation's are applied
-  nowhere (#1835). An Overlay 1.2 document is refused (#1836). Rating
+  `e2e.TestCompile_AJSONOverlayAppliesAsItsLiteralTwin`,
+  `e2e.TestCompile_AnOverlayDescribesOneSchemaOfASharedNode`,
+  `e2e.TestCompile_AnOverlayLeavesTheSourceAsItFound`,
+  `e2e.TestCompile_AnOverlay12AppliesAndNamesItsSelf`,
+  `e2e.TestCompile_AnOverlayFieldTheVersionDoesNotDefineRefusesTheCompile`,
+  `e2e.TestOverlaySuite_CompliantSets`, `e2e.TestOverlaySuite_ReadsEachDocumentAsItsVersionDoes`,
+  `e2e.TestOverlaySuite_TheReusableActionExampleOfOverlay12`
+- Status: built. Limits: a target the Overlay test suite's schema accepts and RFC 9535 does not, such
+  as a member name holding `-` after a dot, is refused; an `extends` is compared with nothing; a
+  pattern Go's engine cannot compile, such as a repetition past 1,000, matches nothing; `^` and `$`
+  in a pattern anchor, where RFC 9485's grammar reads them as characters; nested descendant
+  segments hold path links in proportion to their steps, which the nodelist bound does not count
+  (#1960); an overlay over a tree at the node budget's edge counts the tree at each action (#1959).
+  Rating
   `openapi/overlay-replaced-value` apart from other codes, to fail a run on it alone, is #1812.
 
 ### `validation`
@@ -546,8 +633,8 @@ reports at the same place keeps that check's wording. Only this rule is read ove
 another document: a key that is no scalar there is reported only where a reference reaches it, so
 a shared file's unread content fails no compile. One about a node of a document no entry lists goes to the least `$ref` reaching it,
 its message naming where in that document it lies. Each finding is made once: a node an alias or a
-merge key mounts at several positions draws one, naming the position in that document that first
-read it where that is another place. A node aliases share is placed at the least pointer of the
+merge key mounts at several positions draws one, naming the least position in that document that
+read it, by the order below, where that is another place than the one it is placed at. A node aliases share is placed at the least pointer of the
 places that mount it, where its anchor is written and where each alias of it is, pointers compared
 token by token and each token by its bytes, so `/A/…` comes before `/A-/…`; its line and column
 stay where its text is written. Which place a document writes first decides nothing, and a document
@@ -555,8 +642,12 @@ whose aliases lead back into what holds them keeps every written place: it is re
 cycle.
 
 A value the table refuses as the wrong type is read as the field left out by every reader of the
-source, wherever the table reads it, the parser's model among them; a construct kept verbatim shows
-it as the source wrote it. Such a value is one with none of the shapes its field admits, a boolean
+source, wherever the table reads it, the parser's model among them, and so is one of what a `$ref`
+reaches outside the source's own reading, raw YAML under an `x-` key or another document, which is
+judged before anything is built for it ([`references`](#references)); a construct kept verbatim shows
+it as the source wrote it. It is read so once every judgment of the document is in: in a document
+that may name a dialect, once its Schema Objects are judged, when the model and the `$ref`s are read
+again, so such a document reads a refused value as the same document naming none does. Such a value is one with none of the shapes its field admits, a boolean
 written as a string among them, which the model reads as `true` or `false`
 ([`string-as-boolean`](../parser-library.md#string-as-boolean)), a scalar or a list under a tag
 outside YAML 1.2's JSON schema ruleset, which OpenAPI limits tags to and which the table reports
@@ -564,7 +655,8 @@ naming the tag, and a value that is no mapping where an object belongs; a `null`
 already. A field that takes any value, a default or an example, takes a tagged value as written. A
 node an alias, an anchor or a `<<` merge key shares is read so only where every place the table
 reads it refuses it: one place that accepts it keeps it as written for all, and a place the table
-does not read, such as an `x-` key, has no say.
+does not read, such as an `x-` key, or one that takes any value, such as a default, an example, a
+`const` or an `enum` member, has no say.
 
 A rule another lowering reports is stated in the table and left to it, so a document draws one
 report: [`operation-ids`](#operation-ids), a repeated parameter ([`parameters`](#parameters)), a
@@ -611,6 +703,10 @@ gives it no effect is [`allow-reserved-locations`](#allow-reserved-locations)' a
   `e2e.TestCompile_AScalarOrSequenceTaggedOutsideTheRulesetIsReadAsLeftOut`,
   `e2e.TestCompile_ANodeASchemaAndAPropertiesMapReadStaysAsWritten`,
   `e2e.TestCompile_ASharedNodeIsReadAsItsInlineSpellingIs`,
+  `oas.TestCheck_AFieldOfAnyShapeAcceptsNothing`,
+  `e2e.TestCompile_AScalarAValueSharesIsReadAsTheRefusingPlaceReadsIt`,
+  `e2e.TestCompile_ARefusedValueIsReadAlikeWhetherADocumentMayNameADialect`,
+  `e2e.TestCompile_ANodeASchemaAcceptsIsKeptInADocumentThatMayNameADialect`,
   `oas.TestCheckFormat_PlacesEachKeyAtItsOwnLine`, `nodeview.TestKeyOf_AKeyThatIsNoScalarNamesNoKey`,
   `e2e.TestCompile_AKeyThatIsNoScalarIsReportedOnceAndLeftOut`,
   `e2e.TestCompile_TwoKeysThatAreNoScalarAreEachReportedInEitherOrder`,
@@ -620,12 +716,16 @@ gives it no effect is [`allow-reserved-locations`](#allow-reserved-locations)' a
   `e2e.TestCompile_AFindingOnANodeAliasesShareIsPlacedAtItsLeastPointer`,
   `e2e.TestCompile_AnInnerSharedNodeIsPlacedAtItsLeastPointerInEveryDeclarationOrder`,
   `e2e.TestCompile_ATypeMismatchOnASharedMountIsPlacedAtTheLeastMount`,
-  `scan.TestLeast_OrdersByThePointersTokens`, `scan.TestLeast_AgreesWithSortingEveryPointer`
-- Status: partly built: a Schema Object of a document that may name a dialect is judged once its
-  model is built, so a value it refuses is read as the model reads it, and so is a value of what a
-  `$ref` reaches outside the source's own reading, raw YAML under an `x-` key or another document
-  (#1928); a schema position there is read from its node all the same
-  ([`null-schema`](#null-schema)).
+  `e2e.TestCompile_ANodeInsideTwoMountsIsPlacedByTheirTokens`,
+  `oas.TestCheck_AFindingNamesTheLeastPositionThatReadIt`, `oas.TestLessPointer_OrdersTokenByToken`,
+  `scan.TestLeast_OrdersByThePointersTokens`, `scan.TestLeast_AgreesWithSortingEveryPointer`,
+  `e2e.TestCompile_AValueARefLandsOnIsJudgedBeforeItIsBuilt`,
+  `e2e.TestCompile_AValueAnotherDocumentsRefLandsOnIsJudgedBeforeItIsBuilt`,
+  `e2e.TestCompile_ANullableARefLandsOnWritesWrongIsNotAdmitted`,
+  `e2e.TestCompile_AValueOneReadingRefusesAndAnotherAcceptsIsKeptForTheOther`,
+  `load.TestLoad_WhatAReferenceReachesIsJudgedOnceBeforeItIsBuilt`
+- Status: partly built: where the table refuses an `$id`'s value in a document that may name a
+  dialect, a schema below it is judged in the dialect that `$id` roots as written (#1958).
 
 ### `minor-required-fields`
 
@@ -755,7 +855,15 @@ it, nor on how the spec was named, and a relative path names the file an absolut
 where the source lies at an absolute path. A file's part is percent-decoded,
 so `my%20file.yaml` names the file `my file.yaml`, unless decoding would read it otherwise, as an
 escaped separator or `#` would, where it is read as written; and a `file:` URI names the file at its
-path, as a reader reads it. Against a document fetched over http(s), a part naming no scheme, an
+path, as a reader reads it, so a file is one document however a reference spells it. A document's
+label is its location from the directory its source lies in, whatever spelling names it; an absolute
+reference changes no label. A URL of any other scheme is spelled as RFC 3986 §6.2.2 normalizes it,
+and an `http` or `https` one as §6.2.3 does too, where it is located and where an identifier declares
+it: its scheme and host in lower case, each escape of an unreserved character decoded and the hex of
+every other in upper case before its dot segments are removed, and for `http` and `https` an empty
+path made `/` and an empty or default port dropped, while an empty query's `?` and a host's final dot
+stay. So every spelling of one URL is one request, one document and one `Document.Sources` entry,
+labelled the one way. Against a document fetched over http(s), a part naming no scheme, an
 absolute path and a network-path reference among them, names what the document's URL makes of it, on
 the network. A reference written in a document read over http(s), the source included, is read
 only from an http(s) URL: one naming another location, by a `file:` URI, a drive path, or a base an
@@ -767,7 +875,15 @@ or by an absolute path fails unread, whatever another `$ref` names that document
 by its own spelling, so what the default reads depends on no order references are read in. In either
 mode a `$ref` naming a URL whose scheme is none of `http`, `https` and `file` fails unread, where a
 reader would take it for a path; a file whose name holds a colon is written `./a:b.yaml`, and is
-read as that file. A document outside fails each reference naming it, and with no reader no document
+read as that file. The caller may map a URI prefix to a location, a directory or an http(s) URL
+(`Options.Locations`, `--opt locate=<uri-prefix>=<location>`); nothing is mapped by inference. The
+mapping is applied where a URL is located, once spelled one way, before any refusal or read judges
+it, the longest prefix winning: the rest of the URL is joined to a directory segment by segment,
+each decoded, and one decoding to a separator names no location, so the reference fails unread and
+no spelling leaves the location; a URL location takes the rest as written. The document is then
+read, confined, named and labelled where its bytes are, so a file reached by its path and by a
+mapped URL is one document, and a mapped location a document read over http(s) may not reach is
+refused as any other. A URL refused as on the network says a mapping would place it. A document outside fails each reference naming it, and with no reader no document
 is read.
 
 Each document a reference reaches is a `Document.Sources` entry after the source and its overlay,
@@ -807,10 +923,12 @@ path item's fields aside ([`path-item-ref-fields`](#path-item-ref-fields)), as O
 properties added SHALL be ignored": a `$ref` there is no reference and draws no finding. It lands on
 an object of its own kind: a position the source's grammar reads as another kind, a schema, a map of
 objects or a value holds none, and raw YAML, as an extension's value or any position of another
-document, is read as the kind it is reached as where it is a mapping. An object is built there, and
-the references inside it are bound where it lies, as the source's are; one no object can be built
-from, which the parser faults on, is reported as an `openapi/validation` error at the reference, and
-lowers nothing.
+document, is read as the kind it is reached as where it is a mapping. It is held to the table
+before anything is built for it, by the one judgement whose findings are reported, so a value that
+judgement refuses reads as left out there too, and a shape the model faults on is set aside there
+as in the source. An object is built there, and the references inside it are bound where it lies,
+as the source's are; one no object can be built from is reported as an `openapi/validation` error
+at the reference, and lowers nothing.
 
 A schema `$ref`, and a discriminator mapping value naming no schema component of the entry document
 ([`discriminator`](#discriminator)), is bound by the compiler itself, never by the parser's resolver
@@ -851,10 +969,14 @@ dialect embedding it spells one, as 2020-12 has an embedded resource do (§9.3.1
 its own `$schema` names does, unless it writes a `$ref` whose siblings the dialect embedding it
 ignores. An `$id` names the URI its part before the `#` resolves to against the base above it, by
 RFC 3986 where that base is a URI and as a `$ref`'s document is placed where it is a file's path,
-and identifiers match as RFC 3986 §6.2.2 normalizes them. One with
+and identifiers match as a located URL is spelled (above). One with
 a fragment that is not empty names none, as 2020-12 admits none, one naming the URI of the resource
 holding it starts no resource, and one naming the source, however spelled, returns to the
-document's. A URI no schema declares names the document at that URI, read as any other is: one read
+document's. A declaration answers a reference only where the referring document could read the
+declaring one: a document answers itself, a document read over http(s) answers another only for a
+URI of its own origin (scheme, host and port), and a document read over http(s) is answered by no
+file, the source among them; for any other asker it declares nothing, and the URI is a location to
+it. A URI no schema declares names the document at that URI, read as any other is: one read
 against an `$id` is the URI the `$id` makes of it, never the file of that name beside the source,
 and is judged for refusal as written while only relative paths moved its base, and as that URI once
 an absolute `$id` did. Every document a reached reference names is parsed before any reference is
@@ -932,14 +1054,39 @@ references that closes on itself is [`reference-cycles`](#reference-cycles)'.
   `openapi/validation`
 
 A Reference Object whose `$ref` is no string, a null, a list, a mapping or a scalar tagged outside
-YAML 1.2's JSON schema ruleset, names nothing: the entry it stands in is read as left out, its
-other keys with it, and the rule table's error at the `$ref` is the one report of it. The parser's
+YAML 1.2's JSON schema ruleset, written by the mapping or merged into it by a `<<` key, names
+nothing: the entry it stands in is read as left out, its
+other keys with it, and the rule table's error at the `$ref` is the one report of it; a component
+kept verbatim shows it as written ([`unreferenced-components`](#unreferenced-components)). The parser's
 model faults building such an object, and a 3.2 `additionalOperations` entry that is no mapping
 ([`nil-populate-panic`](../parser-library.md#nil-populate-panic)), so the load phase sets each
-aside for the model's builds and puts it back before anything else reads the tree. A Path Item's
+aside for the model's builds and puts it back before anything else reads the tree, in the source
+and in what a reference reaches outside its model alike. A Path Item's
 `$ref` is the item's own field: one that is no string is read as left out, and the item as what
 else it writes.
 - Tests: `e2e.TestCompile_ExternalFileRefIsNotReadByDefault`,
+  `e2e.TestCompile_OneURLSpelledSixWaysIsOneRequestOneKeyAndOneType`,
+  `e2e.TestCompile_ADocumentAnotherOriginServesDeclaresNothingForTheSource`,
+  `e2e.TestCompile_AFilesDeclarationAnswersTheSourceAndNoRead`,
+  `e2e.TestCompile_AFetchedDocumentReadsAURLAFileDeclares`,
+  `e2e.TestCompile_ATwoDocumentsDeclaringOneSelfAnswerNoReference`,
+  `e2e.TestCompile_AFileDeclaringAURLIsNotRequestedWhereReadsAreAllowed`,
+  `bind.TestBind_ADeclarationAnswersOnlyWhoCouldReadItsDocument`, `bind.TestBind_ASelfIsADocumentsBaseAndName`,
+  `bind.TestBind_AMappedLocationIsJudgedWhereAFetchedDocumentReadsIt`,
+  `e2e.TestCompile_AFileIsOneDocumentWhateverItsReferenceSpellsIt`,
+  `e2e.TestCompile_AMappedURLIsTheDocumentItsLocationHolds`,
+  `e2e.TestCompile_AMappedURLThatNormalizesOutOfItsPrefixIsRefused`,
+  `e2e.TestCompile_AMappedSegmentThatDecodesToASeparatorNamesNothing`,
+  `e2e.TestCompile_ALocationWithNoFinalSeparatorIsTheDirectoryItNames`,
+  `e2e.TestCompile_AFetchedDocumentsReferenceToAMappedURLIsNotAFile`,
+  `load.TestMapped_PutsAURLUnderTheLongestPrefix`, `load.TestLoad_AMappedURLNamingNoLocationIsRefusedUnread`,
+  `openapi.TestDecodeOptions_LocateMapsEachPrefixToItsLocation`,
+  `openapi.TestDecodeOptions_LocateRefusesAPrefixThatIsNoURIPrefix`,
+  `e2e.TestCompile_AFileURIIsRefusedByItsSpellingWhereReadsAreConfined`,
+  `e2e.TestCompile_AnIdentifierAndAReferenceMeetInOneSpelling`,
+  `resolve.TestLocate_AnAbsoluteURLIsSpelledByRFC3986Normalization`,
+  `resolve.TestLocate_NormalizingTwiceChangesNothing`, `bind.TestNormalURI_IsIdempotentOverGeneratedURLs`,
+  `bind.TestNormalURI_SpellsEachEqualURLOneWay`, `bind.TestNormalURI_KeepsWhatEachSchemeWrites`,
   `e2e.TestOlderDrafts_AnIDNamesAResource`, `e2e.TestOlderDrafts_AnIdentifierBesideARefSetsNoBase`,
   `e2e.TestOlderDrafts_AnAnchorTakesItsDraftsGrammar`,
   `bind.TestDialectRule_AFragmentIdentifierDeclaresByItsDialectsGrammar`,
@@ -1038,10 +1185,11 @@ else it writes.
   `e2e.TestCompile_AnAdditionalOperationThatIsNoMappingIsLeftOut`,
   `e2e.TestCompile_AnAliasedNullRefIsReadWithoutAFault`, `load.TestAside_RestoreLeavesTheTreeAsWritten`,
   `load.TestLoad_TheTreeIsAsWrittenOnceTheModelIsBuilt`,
-  `load.TestLoad_ANullRefOfAReferenceObjectIsReadWithoutAFaultAtEachModelBuild`
-- Status: partly built: a remote document can make the compiler request a private address (#937),
-  and a Reference Object whose `$ref` is null in another document, or in raw YAML only a reference
-  reaches, still faults the model build of what reaches it (#1928).
+  `load.TestLoad_ANullRefOfAReferenceObjectIsReadWithoutAFaultAtEachModelBuild`,
+  `e2e.TestCompile_AReachedObjectTheModelFaultsOnLowersAsUnderPaths`,
+  `e2e.TestCompile_ARefAMergeKeyWritesThatIsNoStringLeavesTheEntryOut`,
+  `e2e.TestCompile_AComponentWhoseRefIsNoStringIsKeptAsWritten`
+- Status: partly built: a remote document can make the compiler request a private address (#937).
   A chain of documents each declaring the URI the one before it asked for costs a binding pass per
   link (#1372).
 
@@ -1103,14 +1251,33 @@ left unresolved. It is read at every minor: a 3.0 or 3.1 document writing one lo
 and is reported, as for every construct a later minor added, with an
 `openapi/later-version-construct` warning ([`later-version-construct`](#later-version-construct)).
 
+A document's `$self`, resolved against where the document was read, is its base and a name of it,
+as OpenAPI 3.2 has it, in the source and in every document a reference reads. Every relative
+reference in it, a schema's, a mapping value or a reference object's, is read against it, as under
+an `$id`: judged for refusal as written while only a relative `$self` moved the base, and as the URI
+it resolves to once an absolute one did. A reference naming the document by its `$self` lands in
+it with no read, a security requirement key among them, and a schema whose `$id` names it roots no
+resource, so its `$schema` chooses no dialect. Another document's `$self` is declared at its root as
+an `$id` is. The location the document was read from still decides what it may reach: a `$self`
+never moves a fetched document's reference onto a file, which is an `openapi/unresolved-ref`
+error where the reference is written. A `$self` holding a `#` is the rule table's format error at
+`#/$self`, and names nothing. So a 3.2 document whose `$self` is an http(s) URL
+reads the documents its relative references name from that URL, not from the files beside it; a
+`locate` option ([`references`](#references)) maps the URL to them.
+
 - Cases: `self-uri`
-- Codes: `openapi/later-version-construct`
+- Codes: `openapi/later-version-construct`, `openapi/unresolved-ref`
 - Tests: `openapi.TestCompile_RecordsSelfURI`,
-  `e2e.TestReferenceObjects_ADocumentPartIsReadWhereTheSourceLies`
-- Status: partly built: OpenAPI 3.2 makes `$self`, resolved against the retrieval URI, the base of
-  every relative reference in every document. No document's `$self` is read as a base: every
-  reference, a schema's, a mapping value or a reference object's, is read against the location the
-  document was read from (#863).
+  `e2e.TestReferenceObjects_ADocumentPartIsReadWhereTheSourceLies`,
+  `e2e.TestCompile_ASelfURIIsTheNameOfTheDocumentAndItsBase`,
+  `e2e.TestCompile_ARelativeReferenceUnderAnHTTPSelfNamesAURL`,
+  `e2e.TestCompile_ASelfURIMovesNoFetchedDocumentOntoAFile`,
+  `e2e.TestCompile_ARelativeSelfIsResolvedAgainstWhereTheDocumentWasRead`,
+  `e2e.TestCompile_ASelfNamingTheIdentifierOfASchemaRootsNothing`,
+  `e2e.TestCompile_ARequirementKeyNamingTheSelfNamesTheSchemeOfTheSource`,
+  `e2e.TestCompile_ASelfHoldingAFragmentIsAnErrorAndNamesNothing`,
+  `e2e.TestCompile_NothingIsMappedByInference`,
+  `e2e.TestCompile_ASourceReadOverTheNetworkReadsNoLocalFile`
 
 ### `verbatim-preservation`
 
@@ -1184,7 +1351,8 @@ neither a section nor a reference, and the reference is followed as any other is
 - Tests: `operation.TestResponses_SummaryNoReaderTakesIsStillReported`,
   `annotation.TestRead_NodeTypeOnlyADefinedValueIsPlaced`,
   `operation.TestContent_MediaTypeDescriptionReachesItsDocs`,
-  `document.TestComponentMediaTypes_AnUnreferencedEntryIsKept`
+  `document.TestComponentMediaTypes_AnUnreferencedEntryIsKept`,
+  `e2e.TestCompile_AComponentWhoseRefIsNoStringIsKeptAsWritten`
 
 ### `unreferenced-components`
 
@@ -1198,8 +1366,10 @@ pointer, with no diagnostic. The sections are `responses`, `parameters`, `exampl
 at every version, as [`unmodeled-dialect-fields`](#unmodeled-dialect-fields) reads a field the
 parser does not model; `components/schemas` and `components/securitySchemes` are lowered
 unconditionally. A section is read as the parser reads it, through `<<` merge keys, so a merged-in
-entry is kept under its own name, and an entry whose key is no scalar under the empty name the
-parser reads it by ([`validation`](#validation) reports the key). Where the components merge
+entry is kept under its own name, and an entry whose key is no scalar is left out
+([`validation`](#validation) reports the key). An entry whose `$ref` is no string, which every
+reader takes for the entry left out ([`references`](#references)), is kept as the source wrote it,
+beside the rule table's error at the `$ref`. Where the components merge
 through `<<` deeper than the levels a mapping's merges are expanded to (`nodeview.MergeDepthLimit`),
 an `openapi/degraded-construct` warning at `components` says so, and an entry past that depth is not
 kept.
@@ -1228,7 +1398,8 @@ for an oversight.
   `document.TestUnreferencedComponents_ReadAsTheParserReadsThem`,
   `document.TestUnreferencedComponents_SelfReferenceByFileNameReaches`,
   `document.TestUnreferencedComponents_MergeDepthBoundIsReported`,
-  `document.TestComponentMediaTypes_AnUnreferencedEntryIsKept`
+  `document.TestComponentMediaTypes_AnUnreferencedEntryIsKept`,
+  `e2e.TestCompile_AComponentWhoseRefIsNoStringIsKeptAsWritten`
 
 ## 3. Names and values
 
@@ -3652,7 +3823,7 @@ saying what a document of its version writes instead, and the lowering reads `it
   `e2e.TestOlderDrafts_AMalformedTupleIsReportedAsItsTwinIs`,
   `e2e.TestOlderDrafts_ATypeListsArrayVariantIsTheTupleWritten`,
   `schema.TestPreserveUnknownKeywords_ReadsWhatADraftSpellsOtherwise`,
-  `bind.TestTuples_AListOfItemsHoldsSchemas`, `load.TestBuiltTargets`,
+  `bind.TestTuples_AListOfItemsHoldsSchemas`, `load.TestLandingTargets`,
   `oas.TestCheck_AnItemsListFollowsTheSchemasRows`, `schema.TestLower_PrefixItemsBesideAListedTupleIsKept`
 - Status: open: whether a `Rest` or an `Elem` beside a live `unevaluatedItems: false` is typed
   rather than left to the entry (#1883).

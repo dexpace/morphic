@@ -67,6 +67,10 @@ type Options struct {
 	// MaxExternalDocuments bounds the documents external references read in one
 	// compile, each counted once however often it is asked for.
 	MaxExternalDocuments budget.Limit
+	// Mappings is where the caller put the documents under a URI prefix,
+	// applied where a document is located, before any refusal or read judges
+	// it; none is applied by inference.
+	Mappings []Mapping
 	// buildIndex builds the pre-parse index over a decoded tree, or nil for the
 	// compiler's own node bound. It is unexported because it is this package's
 	// test seam: it drives the truncated-index refusal without materializing a
@@ -80,6 +84,10 @@ type Options struct {
 	// cancels at the start of a phase through it, and lists the phases a load
 	// enters.
 	entered func(phase)
+	// judging is told each object a check of what the references reach reads
+	// as a kind, or is nil. It is this package's test seam: a test counts how
+	// often each is read, and in which phase.
+	judging func(oas.Kind, *yaml.Node)
 }
 
 // readyForModel clears the name of each anchor in the model's source tree, in
@@ -89,18 +97,29 @@ type Options struct {
 // a map, and drops it silently (docs/parser-library.md#anchored-entry-dropped,
 // GitHub #459). That skip is the only read of a name; an alias reaches its
 // target by a kept pointer. Run it after the refusals and the judgment, which
-// read names. A document read through external is readied too (GitHub #501).
-// It sets aside in a each pair whose key is no scalar, which every reader
-// leaves out (docs/parser-library.md#non-scalar-key).
-func readyForModel(ctx context.Context, root *yaml.Node, a *aside) {
+// read names; it returns the anchors it cleared (loading.judgeLate). A
+// document read through external is readied too (GitHub #501). It sets aside
+// in a each pair whose key is no scalar (docs/parser-library.md#non-scalar-key).
+func readyForModel(ctx context.Context, root *yaml.Node, a *aside) []anchor {
+	var cleared []anchor
 	// An alias is a leaf of the walk: a recursive anchor cannot loop it.
 	nodeview.Walk{Nodes: maxTreeNodes, Visit: func(n *yaml.Node, _ int) nodeview.Step {
-		n.Anchor = ""
+		if n.Anchor != "" {
+			cleared = append(cleared, anchor{node: n, name: n.Anchor})
+			n.Anchor = ""
+		}
 		if n.Kind == yaml.MappingNode {
 			a.hide(n, noKey)
 		}
 		return nodeview.Descend
 	}}.Run(ctx, root)
+	return cleared
+}
+
+// anchor is a node readyForModel cleared the anchor of, and its name.
+type anchor struct {
+	node *yaml.Node
+	name string
 }
 
 // noKey reports whether the pair key names no key of its mapping and is no
@@ -329,8 +348,12 @@ func shapeRefusals(ctx context.Context, tree provenance.Tree, whole ir.Provenanc
 // namedWithin reports whether the pointers a compile of idx's tree names one
 // by one total within the bound its size allows, counting a value kept raw by
 // its root alone (bind.NamedPointerBytes, GitHub #1499). A tree a reference
-// leaves, or one too large to weigh so, is not within it.
+// leaves, one too large to weigh so, and one that may name a dialect, whose
+// schemas another grammar may read (namesDialect), are not within it.
 func namedWithin(ctx context.Context, idx sourceindex.Index) bool {
+	if namesDialect(ctx, idx.Root(), declaredVersion(idx.Root())) {
+		return false
+	}
 	total, complete := bind.NamedPointerBytes(ctx, idx.Root(), sourceindex.MaxIndexedNodes)
 	return complete && total <= scan.PointerAllowance(idx.Written())
 }

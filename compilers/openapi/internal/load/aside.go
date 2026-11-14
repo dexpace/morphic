@@ -22,10 +22,12 @@ type aside struct {
 	changed []asWritten
 }
 
-// asWritten is a node the load changed and what it was before.
+// asWritten is a node the load changed, what it was before, and the change,
+// which whileWritten makes again.
 type asWritten struct {
-	node *yaml.Node
-	was  yaml.Node
+	node   *yaml.Node
+	was    yaml.Node
+	change func()
 }
 
 // hide takes out of the mapping m each pair drop reports, until restore.
@@ -42,21 +44,32 @@ func (a *aside) hide(m *yaml.Node, drop func(key, val *yaml.Node) bool) {
 	if len(kept) == len(m.Content) {
 		return
 	}
-	a.keep(m)
+	a.keep(m, func() { a.hide(m, drop) })
 	m.Content = kept
 }
 
 // spoil has n, a null, read as an empty sequence until restore.
 func (a *aside) spoil(n *yaml.Node) {
-	a.keep(n)
+	a.keep(n, func() { a.spoil(n) })
 	*n = yaml.Node{Kind: yaml.SequenceNode, Tag: "!!seq", Style: yaml.FlowStyle, Line: n.Line, Column: n.Column}
 }
 
-// keep records n as it is now, so restore puts it back.
-func (a *aside) keep(n *yaml.Node) {
+// standIn has the mapping m read as a Reference Object whose $ref is an empty
+// sequence, as spoil leaves one, until restore.
+func (a *aside) standIn(m *yaml.Node) {
+	a.keep(m, func() { a.standIn(m) })
+	m.Content = []*yaml.Node{
+		{Kind: yaml.ScalarNode, Tag: "!!str", Value: "$ref", Line: m.Line, Column: m.Column},
+		{Kind: yaml.SequenceNode, Tag: "!!seq", Style: yaml.FlowStyle, Line: m.Line, Column: m.Column},
+	}
+}
+
+// keep records n as it is now, so restore puts it back, and change, the
+// change about to be made to it.
+func (a *aside) keep(n *yaml.Node, change func()) {
 	a.mu.Lock()
 	defer a.mu.Unlock()
-	a.changed = append(a.changed, asWritten{node: n, was: *n})
+	a.changed = append(a.changed, asWritten{node: n, was: *n, change: change})
 }
 
 // restore puts back every node the aside changed, newest first, and then
@@ -68,4 +81,23 @@ func (a *aside) restore() {
 		*c.node = c.was
 	}
 	a.changed = nil
+}
+
+// whileWritten puts back every node the aside changed, runs read over the tree
+// as written, and then makes each change again, oldest first: what read
+// leaves refused reads as left out (nodeview.Unread) whether or not a change
+// covers it, and a change to a node read turned is made to that node as it
+// now is.
+func (a *aside) whileWritten(read func()) {
+	a.mu.Lock()
+	changes := make([]func(), len(a.changed))
+	for i, c := range a.changed {
+		changes[i] = c.change
+	}
+	a.mu.Unlock()
+	a.restore()
+	read()
+	for _, change := range changes {
+		change()
+	}
 }

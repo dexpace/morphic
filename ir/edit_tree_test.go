@@ -631,9 +631,12 @@ func TestEditor_ReachesTheTreeForEachOperationReaches(t *testing.T) {
 	ir.ForEachOperation(out, func(op ir.Operation) { summaries[op.ID] = op.Docs.Summary })
 	assert.Equal(t, "changed", summaries[onCap], "the update on the cap did not land")
 	ir.ForEachOperation(doc, func(op ir.Operation) { assert.Empty(t, op.Docs.Summary, "the edited document changed") })
-	assert.Equal(t, []string{fmt.Sprintf(`internal: edit: remove rejected: no operation %q to remove; an edit adds `+
-		`no operation, and reaches none in groups nested deeper than %d levels`, past, ir.MaxGroupDepth)},
-		refusals(t, diags))
+	got := refusals(t, diags)
+	require.Len(t, got, 1)
+	assert.Contains(t, got[0], fmt.Sprintf(`internal: edit: remove rejected: no operation %q to remove; an edit adds `+
+		`no operation, and reaches none in groups`, past))
+	assert.Contains(t, got[0], fmt.Sprint(ir.MaxGroupDepth), "the refusal names the depth bound")
+	assert.Contains(t, got[0], fmt.Sprint(ir.MaxWalkSteps), "and the step bound beside it")
 }
 
 // TestEditor_EditsAGroupSliceInsideItself pins the edit of a group whose groups

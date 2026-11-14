@@ -206,15 +206,13 @@ func TestVerify_ListEntryIsSpelledAsTheWalkWould(t *testing.T) {
 	}
 }
 
-// TestVerify_VerbatimAndVersionListsAreNotHeld pins two classifications by
-// example: a type's Tags, beside the Namespace on the same node, and the
-// document's Versions. Each holds a blank and a repeat, and neither is a rule
-// of the list: tags are the source's own (GitHub #738), versions answer to
-// Document.Versions as a whole (GitHub #860).
-func TestVerify_VerbatimAndVersionListsAreNotHeld(t *testing.T) {
+// TestVerify_VerbatimListsAreNotHeld pins a classification by example: a type's
+// Tags, beside the Namespace on the same node, hold a blank and a repeat, and
+// neither is a rule of the list: tags are the source's own (GitHub #738). The
+// version labels answer to Document.Versions and are checked there.
+func TestVerify_VerbatimListsAreNotHeld(t *testing.T) {
 	t.Parallel()
 	doc := heldListDoc()
 	doc.Types["t/x/A"].Common().Tags = []string{"", "a", "a"}
-	doc.Versions = []string{"", "v1", "v1"}
 	assert.Empty(t, verifyDeclared(doc))
 }

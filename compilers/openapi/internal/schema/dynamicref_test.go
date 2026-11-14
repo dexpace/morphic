@@ -14,6 +14,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/dexpace/morphic/compilers/openapi"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
@@ -784,4 +785,37 @@ func TestRecursiveRef_LandsOnTheRootOfItsResource(t *testing.T) {
 	require.True(t, ok)
 	require.NotNil(t, items.Base)
 	assert.Equal(t, root, items.Base.Target)
+}
+
+// TestDynamicRef_AListAnotherReadingKeepsIsNoReference holds a $dynamicRef
+// whose value is a list an alias shares with another schema's `required`,
+// which accepts it, so the value stays as written: the reference is not
+// expanded, since its value is no reference string.
+func TestDynamicRef_AListAnotherReadingKeepsIsNoReference(t *testing.T) {
+	t.Parallel()
+	src := "openapi: 3.1.0\ninfo: {title: t, version: \"1\"}\npaths: {}\nx-l: &l [a]\n" +
+		"components:\n  schemas:\n    S: {$dynamicRef: *l}\n    T: {type: object, required: *l, properties: {a: {type: string}}}\n"
+
+	_, diags, _ := compileFiles(t, nil, src, openapi.Options{})
+
+	assertDiagContains(t, diags, "/components/schemas/S/$dynamicRef",
+		"$dynamicRef was not expanded because its value is not a reference string")
+}
+
+// TestDiscriminator_AListAnotherReadingKeepsResolvesNothing holds a schema's
+// `discriminator` that is a list an alias shares with another schema's
+// `required`, which accepts it, so it stays as written and the census keeps
+// it: the model holds no discriminator there, so no mapping is resolved, and
+// the one finding is the table's.
+func TestDiscriminator_AListAnotherReadingKeepsResolvesNothing(t *testing.T) {
+	t.Parallel()
+	src := "openapi: 3.1.0\ninfo: {title: t, version: \"1\"}\npaths: {}\nx-l: &l [a]\n" +
+		"components:\n  schemas:\n    S: {type: string, discriminator: *l}\n" +
+		"    T: {type: object, required: *l, properties: {a: {type: string}}}\n"
+
+	doc, diags, _ := compileFiles(t, nil, src, openapi.Options{})
+
+	require.Len(t, diags, 2, "%+v", diags)
+	assert.Equal(t, jsontext.Pointer("/components/schemas/S/discriminator"), diags[0].Provenance.Pointer)
+	assert.Contains(t, doc.Types[componentID("S")].Common().Unmodeled, "openapi:discriminator", "kept verbatim")
 }

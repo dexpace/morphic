@@ -16,13 +16,13 @@ type Plan struct {
     Ops       map[ir.OpID]OpPlan        // one entry per operation
     Types     map[ir.TypeID]TypePlan    // one entry per registry type
     Examples  map[string][]Example      // by the ID of each type, property, parameter, enum
-                                        // member and operation: its declared examples, else
-                                        // its type's where it adds no constraint, else one
-                                        // synthesized, an operation's assembled; read by the
-                                        // docs, the samples, SDK tests and the mock
+                                        // member, operation and message: its declared examples,
+                                        // else its type's where it adds no constraint, a
+                                        // message's its payload's paired with its headers',
+                                        // else one synthesized, an operation's assembled; read
+                                        // by the docs, the samples, SDK tests and the mock
                                         // (../docs-and-mock.md#one-set-of-examples)
-    Policy    Policy                    // the policy Build ran under, whose Examples Shown and
-                                        // MessageExamples read
+    Policy    Policy                    // the policy Build ran under, whose Examples Shown reads
     Version   string                    // hashes the document and policy it was built from (below)
 }
 
@@ -43,13 +43,10 @@ const MaxExampleValues = 10_000
 const MaxComposedSize = 100_000
 
 // The sets of the positions Examples has no key for: a content's and a variant's declared
-// examples that Build's check admits, else their type's set, and a message's, else those of its
-// payload's contents paired with its headers' set. Build reports what it refuses, so these report
-// nothing
-// (../docs-and-mock.md#one-set-of-examples).
+// examples that Build's check admits, else their type's set. Build reports what it refuses, so
+// these report nothing (../docs-and-mock.md#one-set-of-examples).
 func ContentExamples(p *Plan, doc *ir.Document, c ir.Content) []Example
 func VariantExamples(p *Plan, doc *ir.Document, v ir.Variant) []Example
-func MessageExamples(p *Plan, doc *ir.Document, m ir.MessageID) []Example
 
 // Shown is ex, a value of t, as the shape in shows it, nil being unprojected: the members in does
 // not hold dropped, a key a catch-all admits kept, and each member in requires that ex lacks taken

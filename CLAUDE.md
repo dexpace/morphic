@@ -160,11 +160,13 @@ in the docs.
 barrier/     Layer 0 — runs code its caller does not own, turns a panic in it into an error, and
              quotes what that code says on one bounded line. Outside tests, the one package
              that may call recover (`.golangci.yml`). Imports ONLY the stdlib.
+reuse/       Layer 0 — scratch state a check reads one collection after another through: the
+             map both checkers empty between collections. Imports ONLY the stdlib.
 ir/          Layer 0 — IR nodes, IDs, traversal, editing, JSON round-trip. Imports ONLY the stdlib.
   irfacts/   Layer 0 — what a Document implies and does not state (subtypes, exposed properties,
              usage, recursion, correlation keys), derived on demand and never stored. Imports
              ir only.
-  irverify/  Layer 0 — structural-invariant checks over a compiled Document. Imports ir only.
+  irverify/  Layer 0 — structural-invariant checks over a compiled Document. Imports ir and reuse.
   irtest/    Layer 0 — golden-file helper (`-update` rewrites) and fixture helpers. Imports ir + go-cmp.
 compilers/   Layer 1 — the Compiler contract and the format-keyed registry. Imports ir and barrier.
   compile/   Layer 1 — what every compiler shares: the type registry with its coordinate map,
@@ -179,7 +181,7 @@ compilers/   Layer 1 — the Compiler contract and the format-keyed registry. Im
              compiler above it.
     e2e/     Test files only, so outside the layering: that compiler's end-to-end tests, the
              conformance corpus and goldens among them, compiled through its public face.
-pass/        Layer 1 — IR → IR passes. Imports ir and ir/irfacts.
+pass/        Layer 1 — IR → IR passes. Imports ir, ir/irfacts and reuse.
 emitters/*   Layer 2 — imports ir, ir/irfacts + emitter contract; never compiler. (Not built yet.)
 engine/      Layer 3 — orchestration; imports everything below. It owns every read, write and
              rendering, so a second driver needs nothing from the CLI:

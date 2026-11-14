@@ -22,7 +22,7 @@ import (
 // node budget, nodes, leaves the tree, which budgeted then reports.
 func repairAliases(ctx context.Context, root *yaml.Node, g *grafter, copies, nodes budget.Limit) (done, safe, budgeted bool) {
 	content := nodeview.DocumentRoot(root)
-	if !g.removed || content == nil {
+	if !g.detached || content == nil {
 		return true, true, false
 	}
 	reachable, walked := reachableNodes(ctx, content)
@@ -37,7 +37,7 @@ func repairAliases(ctx context.Context, root *yaml.Node, g *grafter, copies, nod
 		}
 	}
 	work := budget.New(limit)
-	done, safe = substituteDetached(ctx, content, reachable, g.written, &work)
+	done, safe = substituteDetached(ctx, content, reachable, &work)
 	return done, safe, budgeted && !safe
 }
 
@@ -77,7 +77,7 @@ func reachableNodes(ctx context.Context, root *yaml.Node) (map[*yaml.Node]bool, 
 // A node is replaced in its parent's Content, which is why the walk reads
 // children rather than the node it is at: no action replaces the tree's own
 // root, so no alias can sit there. A copy holds no alias and is not walked.
-func substituteDetached(ctx context.Context, n *yaml.Node, reachable, written map[*yaml.Node]bool, work *budget.Budget,
+func substituteDetached(ctx context.Context, n *yaml.Node, reachable map[*yaml.Node]bool, work *budget.Budget,
 ) (done, safe bool) {
 	safe = true
 	copies := map[*yaml.Node]bool{}
@@ -85,7 +85,7 @@ func substituteDetached(ctx context.Context, n *yaml.Node, reachable, written ma
 		if copies[n] {
 			return nodeview.Prune
 		}
-		if safe = substituteChildren(n, reachable, written, work, copies); !safe {
+		if safe = substituteChildren(n, reachable, work, copies); !safe {
 			return nodeview.Stop
 		}
 		return nodeview.Descend
@@ -101,17 +101,15 @@ func substituteDetached(ctx context.Context, n *yaml.Node, reachable, written ma
 // the source declares is the source's, keeping the line and column the source
 // writes it at: it stands at the alias's position for what the source wrote
 // at the anchor.
-func substituteChildren(n *yaml.Node, reachable, written map[*yaml.Node]bool, work *budget.Budget, copies map[*yaml.Node]bool) bool {
+func substituteChildren(n *yaml.Node, reachable map[*yaml.Node]bool, work *budget.Budget, copies map[*yaml.Node]bool) bool {
 	for i, child := range n.Content {
 		if child == nil || child.Kind != yaml.AliasNode || reachable[child.Alias] {
 			continue
 		}
+		// What an alias names is the source's: the overlay writes a shared node
+		// only through a copy of it, which no alias names.
 		expanded, err := copyOf(child, nil, 0, func(from, _, built *yaml.Node) bool {
-			if written[from] {
-				written[built] = true
-			} else {
-				built.Line, built.Column = from.Line, from.Column
-			}
+			built.Line, built.Column = from.Line, from.Column
 			return work.Spend(1)
 		})
 		if err != nil {

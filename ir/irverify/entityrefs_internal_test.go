@@ -21,9 +21,10 @@ func TestEntityRef_HasAFieldPerIdentityClass(t *testing.T) {
 	fields := map[reflect.Type]int{}
 	for f := range reflect.TypeFor[ir.EntityRef]().Fields() {
 		fields[f.Type]++
-		assert.True(t, idTypes[f.Type], "EntityRef.%s is of %s, which is no identity class", f.Name, f.Type)
+		_, isClass := kindPrefixes[f.Type]
+		assert.True(t, isClass, "EntityRef.%s is of %s, which is no identity class", f.Name, f.Type)
 	}
-	for class := range idTypes {
+	for class := range kindPrefixes {
 		assert.Equal(t, 1, fields[class], "EntityRef names an entity of class %s by exactly one field", class)
 	}
 }
@@ -35,7 +36,7 @@ func TestEntityRef_HasAFieldPerIdentityClass(t *testing.T) {
 func TestReplacementCarriers_AreEveryOneTheIRDeclares(t *testing.T) {
 	t.Parallel()
 	classes := map[string]bool{}
-	for class := range idTypes {
+	for class := range kindPrefixes {
 		classes[class.Name()] = true
 	}
 	fields := map[string]map[string]string{}

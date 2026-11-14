@@ -287,24 +287,25 @@ func TestGrafter_RefusesACopyOfManyNodes(t *testing.T) {
 	}
 }
 
-// TestGrafter_RefusesToWriteThroughAnAlias pins what an action selecting a
-// YAML alias, or merging into a member the source writes as one, does: it is
-// refused, since the alias shares its anchor's node and writing it would
-// change every use of the anchor.
-func TestGrafter_RefusesToWriteThroughAnAlias(t *testing.T) {
+// TestGrafter_WritesOnePositionOfAnAlias pins what an action selecting a
+// YAML alias, or merging into a member the source writes as one, does: it
+// writes that position, and the anchor and every other use of it keep the
+// value they stood for.
+func TestGrafter_WritesOnePositionOfAnAlias(t *testing.T) {
 	t.Parallel()
 	const src = "x-a: &a {k: v}\nx-b: *a\nx-c: {d: *a}\n"
-	for name, action := range map[string]string{
-		"a target that is an alias":  "  - target: $['x-b']\n    update: {k: w}\n",
-		"a member that is an alias":  "  - target: $['x-c']\n    update: {d: {k: w}}\n",
-		"an array target appends to": "  - target: $['x-b']\n    update: [1]\n",
+	for name, tc := range map[string]struct{ action, want string }{
+		"a target that is an alias": {"  - target: $['x-b']\n    update: {k: w}\n",
+			"x-a: {k: v}\nx-b: {k: w}\nx-c: {d: {k: v}}\n"},
+		"a member that is an alias": {"  - target: $['x-c']\n    update: {d: {k: w}}\n",
+			"x-a: {k: v}\nx-b: {k: v}\nx-c: {d: {k: w}}\n"},
+		"a node under an alias": {"  - target: $['x-c'].d\n    update: {k: w}\n",
+			"x-a: {k: v}\nx-b: {k: v}\nx-c: {d: {k: w}}\n"},
 	} {
-		_, root, diags := applied(t, src, v11+action, false)
+		_, root, diags := applied(t, src, v11+tc.action, false)
 
-		sameCodes(t, []string{"warning " + diag.OverlayAction, "error " + diag.OverlayFailed}, diags)
-		require.Len(t, diags, 2, name)
-		assert.Contains(t, diags[1].Message, "YAML alias at line", name)
-		assert.Contains(t, diags[1].Message, "whose anchor shares its value with every use of it", name)
+		sameCodes(t, nil, diags)
+		sameValue(t, tc.want, root)
 		_, k := member(t, root, "x-a", "k")
 		assert.Equal(t, "v", k.Value, "%s: the anchor is as the source wrote it", name)
 	}
@@ -329,13 +330,12 @@ func TestGrafter_WritesWhatAnAliasInTheUpdateNames(t *testing.T) {
 // TestGrafter_LeavesTheSourcesOwnAliasesAlone is the control: an alias the
 // source writes and the overlay does not select is ordinary YAML, which every
 // reading copes with by design, and expanding it would grow what the node
-// budget measures.
+// budget measures, and a source's aliases draw no finding of their own.
 func TestGrafter_LeavesTheSourcesOwnAliasesAlone(t *testing.T) {
 	t.Parallel()
 	_, root, diags := applied(t, "x-t: &s {description: d}\nx-use: *s\ninfo: {title: T}\n",
 		v10+"  - target: $.info\n    update: {description: d}\n", false)
-	sameCodes(t, []string{"warning " + diag.OverlayAction}, diags)
-	assert.Contains(t, diags[0].Message, "do not read through", "the source's aliases are warned of, once")
+	sameCodes(t, nil, diags)
 
 	_, use := member(t, root, "x-use")
 	assert.Equal(t, yaml.AliasNode, use.Kind, "the alias is still an alias, not the subtree it names expanded in place")
@@ -367,7 +367,7 @@ func TestRepairAliases_CopiesWhatARemoveLeftAnAliasNaming(t *testing.T) {
 	const src = "x-t: &s {description: d}\nx-use: *s\nx-merged: {<<: *s, k: 1}\nx-outer: &o {inner: *s}\nx-twice: *o\n" +
 		"x-gone: {a: &g {z: 1}, b: *g}\n"
 	_, root, diags := applied(t, src, v11+"  - target: $['x-t']\n    remove: true\n  - target: $['x-gone']\n    remove: true\n", false)
-	sameCodes(t, []string{"warning " + diag.OverlayAction}, diags)
+	sameCodes(t, nil, diags)
 
 	sameValue(t, "{x-use: {description: d}, x-merged: {<<: {description: d}, k: 1}, x-outer: {inner: {description: d}}, "+
 		"x-twice: {inner: {description: d}}}", root)
@@ -381,19 +381,18 @@ func TestRepairAliases_CopiesWhatARemoveLeftAnAliasNaming(t *testing.T) {
 }
 
 // TestRepairAliases_KeepsTheWriterOfWhatItCopies pins the attribution of a
-// copy a remove's repair makes: a node the overlay wrote into the anchor
-// before removing it is the overlay's at the alias's position, and one the
-// source declares stays the source's, as the value the alias stands for is the
-// source's.
+// copy a remove's repair makes: an update of the anchor writes a copy of it,
+// so the alias goes on standing for what the source declares, and the copy
+// the remove's repair leaves there is the source's.
 func TestRepairAliases_KeepsTheWriterOfWhatItCopies(t *testing.T) {
 	t.Parallel()
-	origin, _, diags := applied(t, "x-r: &r {k: v}\nx-meta: *r\n",
+	origin, root, diags := applied(t, "x-r: &r {k: v}\nx-meta: *r\n",
 		v11+"  - target: $['x-r']\n    update: {k2: w}\n  - target: $['x-r']\n    remove: true\n", false)
-	sameCodes(t, []string{"warning " + diag.OverlayAction, "warning " + diag.OverlayAction}, diags)
+	sameCodes(t, nil, diags)
 
-	assert.Equal(t, overlayIndex, origin.Attribution().WriterAt("/x-meta/k2"), "the overlay wrote k2")
+	sameValue(t, "x-meta: {k: v}\n", root)
 	assert.Equal(t, 0, origin.Attribution().WriterAt("/x-meta/k"), "the source declares k")
-	assert.Equal(t, 0, origin.Attribution().WriterAt("/x-meta"), "and the mapping holding both")
+	assert.Equal(t, 0, origin.Attribution().WriterAt("/x-meta"), "and the mapping holding it")
 }
 
 // aliasNodesNaming counts the alias nodes a Content walk from root reaches

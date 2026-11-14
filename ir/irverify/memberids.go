@@ -23,8 +23,8 @@ func checkMemberIDs(doc *ir.Document) []Violation {
 	var vs []Violation
 	for id, td := range doc.Types {
 		enum, isEnum := td.(*ir.Enum)
-		if !isEnum || enum == nil {
-			continue
+		if !isEnum || enum == nil || !keyedByOwnID(string(id), string(enum.ID)) {
+			continue // a key that is not the enum's ID is checkRegistryKeys' report
 		}
 		for i, m := range enum.Members {
 			if v, bad := memberScopeViolation(id, m.ID, i); bad {

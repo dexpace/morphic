@@ -19,7 +19,7 @@ func TestIdentifiers_AReadingIsTheDocumentsCounted(t *testing.T) {
 	t.Parallel()
 	ix := newIdentifiers(resource{root: Position{Doc: Source}, uri: "/spec.yaml"})
 	ix.begin()
-	_, found, _ := ix.lookupURI("u")
+	_, found, _ := ix.lookupURI("u", func(DocID) bool { return true })
 	require.False(t, found)
 
 	ix.declared["u"] = []Position{{Doc: 1, Pointer: "/A"}}

@@ -5,7 +5,6 @@ package load
 
 import (
 	"fmt"
-	"net/http"
 	"sync"
 
 	yaml "go.yaml.in/yaml/v3"
@@ -127,18 +126,11 @@ func (r *externalReads) recordTree(key string, doc doctree.Document, data []byte
 }
 
 // preparedFor returns the tree prepared for the document name names, or false
-// for none: the one prepared under name, or under the key a request built from
-// name spells, as a URL is read.
+// for none. A URL is named as it is located, one spelling for every way a
+// reference writes it (resolve.Locate), so it is read under that name.
 func (r *externalReads) preparedFor(name string) (*yaml.Node, bool) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	if tree, ok := r.trees[name]; ok {
-		return tree, true
-	}
-	req, err := http.NewRequest(http.MethodGet, name, nil)
-	if err != nil {
-		return nil, false
-	}
-	tree, ok := r.trees[req.URL.String()]
+	tree, ok := r.trees[name]
 	return tree, ok
 }

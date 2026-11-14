@@ -11,6 +11,7 @@ import (
 	"strings"
 
 	"github.com/dexpace/morphic/ir"
+	"github.com/dexpace/morphic/reuse"
 )
 
 // nameReader reads one scope after another through the same buffers, which
@@ -23,7 +24,7 @@ type nameReader struct {
 	// the last set read whose name has that hash. A hash is its key rather
 	// than the name, since a name compared joined is not a string the scope
 	// holds.
-	seen reusedMap[uint64, int]
+	seen reuse.Map[uint64, int]
 	// hash makes the keys of seen, under one seed for the whole run, and
 	// joined holds the words it hashes with their separators left out.
 	hash   maphash.Hash
@@ -39,8 +40,12 @@ type nameReader struct {
 	// the order their second parties were read.
 	shared []int
 	// bare holds the parties whose name has no word character.
-	bare  []int
-	diags []ir.Diagnostic
+	bare []int
+	// owners and wires hold, for each party of the models' own properties read
+	// as one list, the index of the model that declares it and its wire name.
+	owners []int32
+	wires  []string
+	diags  []ir.Diagnostic
 }
 
 // comparison is how a scope's check tells two names with words apart, as the
@@ -76,8 +81,10 @@ func partyOf(n ir.Naming) party {
 // what they are, and how to name each.
 type scope struct {
 	// in is what holds the scope, such as "operation group", and id its ID;
-	// in is empty for a scope the document holds.
-	in, id string
+	// in is empty for a scope the document holds. of, where set, says which
+	// part of it the scope is, such as `response "200"`, for a holder with
+	// several scopes of one kind.
+	in, id, of string
 	// one names a party, and many several, such as "operation" and
 	// "operations".
 	one, many string
@@ -125,6 +132,9 @@ func (sc scope) lead(b *strings.Builder) {
 		return
 	}
 	fmt.Fprintf(b, "in %s %s, ", sc.in, sc.id)
+	if sc.of != "" {
+		fmt.Fprintf(b, "%s, ", sc.of)
+	}
 }
 
 // readScope reads n names, the ith through name, as one scope whose names
@@ -145,7 +155,7 @@ func (r *nameReader) readScope(by comparison, n int, name func(i int) ir.Naming)
 // nothing, which irverify reports as ir/naming-absent, so it is passed over
 // here.
 func (r *nameReader) read(by comparison) bool {
-	seen, n := r.seen.emptied(), len(r.parties)
+	seen, n := r.seen.Emptied(), len(r.parties)
 	r.later, r.last, r.other = sized(r.later, n), sized(r.last, n), sized(r.other, n)
 	r.shared, r.bare = r.shared[:0], r.bare[:0]
 	for i, p := range r.parties {

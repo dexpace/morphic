@@ -81,7 +81,9 @@ arguments (`Property.Args`) make the types they name `Input`, since a client wri
 the field whatever it reads back. `Multipart` marks only a multipart body's own type and the types
 its alias scalars stand for, not the types nested in it. An operation's `Default` is classed neither
 a success nor a failure ([responses](./responses.md)), so its types are not marked `Error`. An
-operation nested past `ir.MaxGroupDepth` is not read, and a type no root reaches has usage 0.
+operation past the bounds of `ir.ForEachOperation`, nested deeper than `ir.MaxGroupDepth` or past
+`ir.MaxWalkSteps` groups and operations, is not read, and `Index.Partial` says so for the usage and
+correlation it reads; a type no root reaches has usage 0.
 
 ## Recursion
 
@@ -101,8 +103,9 @@ on the wire, so it survives the edits that move an ID
 array, a schema moved within its file or to another file, and an `allOf` branch inserted before
 the one declaring a property; an operation keeps its own through a renamed path variable and a
 renamed `operationId`. A rename of the name the key is built from moves the key too, and nothing
-derived from a document alone follows it; that is the structural tier [open
-question 5](./open-questions.md) leaves open.
+derived carries an entity whose pointer and name both change ([open
+question 5](./open-questions.md)): it reads as one entity removed and another added, and what was
+keyed by its old ID is the generation's to report.
 
 An entity named for itself takes a key of its own:
 

@@ -79,24 +79,26 @@ func TestRespell_APlaceholderIsTheLowestOneNoSpellingOfTheTextCanMake(t *testing
 }
 
 // TestRespell_EachTriggerGetsAPlaceholderOfItsOwn holds the placeholders of
-// the three breaks and of the escaped slash apart from each other and from
-// everything the text spells.
+// the three breaks, of the escaped slash and of a pair of escapes apart from
+// each other and from everything the text spells.
 func TestRespell_EachTriggerGetsAPlaceholderOfItsOwn(t *testing.T) {
 	t.Parallel()
-	text := "a: \"p" + nel + "q\"\nb: p" + ls + "q\nc: |\n  p" + ps + "q\nd: \"x" + bs + "/y\"\ne: \"" + bs + "uE000\"\n"
+	text := "a: \"p" + nel + "q\"\nb: p" + ls + "q\nc: |\n  p" + ps + "q\nd: \"x" + bs + "/y\"\ne: \"" + bs + "uE000\"\n" +
+		"f: \"" + bs + "uD83D" + bs + "uDE00\"\n"
 
 	out, r, _ := respell([]byte(text))
 
-	got := []rune{r.breaks[0], r.breaks[1], r.breaks[2], r.slash}
+	got := []rune{r.breaks[0], r.breaks[1], r.breaks[2], r.slash, r.pair}
 	seen := map[rune]bool{}
 	for _, p := range got {
 		assert.GreaterOrEqual(t, p, rune(0xE001), "U+E000 is spelled by an escape")
 		assert.False(t, seen[p], "placeholders are distinct: %U", got)
 		seen[p] = true
 	}
-	for _, c := range []string{nel, ls, ps, bs + "/"} {
+	for _, c := range []string{nel, ls, ps, bs + "/", bs + "uD83D"} {
 		assert.NotContains(t, string(out), c)
 	}
+	assert.Equal(t, utf8.RuneCount([]byte(text)), utf8.RuneCount(out), "one character for one")
 }
 
 // TestTranscoded_AUTF16OrUTF32TextIsTheUTF8ItEncodes holds a text opening with
@@ -151,6 +153,31 @@ func TestTranscoded_AUTF16OrUTF32TextIsTheUTF8ItEncodes(t *testing.T) {
 	}
 }
 
+// TestEscapeAt_ReadsACodePointUpToTheLastAndNoFurther holds the code point an
+// escape names to the Unicode range: the last is read, one past it is
+// utf8.RuneError, and so is a value no rune holds.
+func TestEscapeAt_ReadsACodePointUpToTheLastAndNoFurther(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name string
+		text string
+		n    int
+		want rune
+	}{
+		{"four digits", `\uE000`, 4, 0xE000},
+		{"eight digits, the last code point", `\U0010FFFF`, 8, 0x10FFFF},
+		{"eight digits, one past", `\U00110000`, 8, utf8.RuneError},
+		{"eight digits, past what a rune holds", `\UFFFFFFFF`, 8, utf8.RuneError},
+		{"digits that are no hexadecimal", `\U0010FFFG`, 8, utf8.RuneError},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			assert.Equal(t, tc.want, escapeAt([]byte(tc.text), 0, tc.n))
+		})
+	}
+}
+
 // unitBytes is the code unit u in width bytes, in the byte order bigEndian
 // names.
 func unitBytes(u rune, width int, bigEndian bool) []byte {
@@ -175,12 +202,13 @@ func TestRespell_ATextSpellingEveryCandidateLeavesItsTriggerAsWritten(t *testing
 	for r := rune(0xE000); r < 0xE040; r++ {
 		every.WriteRune(r)
 	}
-	text := "a: \"p" + nel + "q\"\nb: " + every.String() + "\n"
+	text := "a: \"p" + nel + "q\"\nb: " + every.String() + "\nc: \"" + bs + "uD83D" + bs + "uDE00\"\n"
 
 	out, r, _ := respell([]byte(text))
 
 	assert.Equal(t, text, string(out))
 	assert.Zero(t, r.breaks[0])
+	assert.Zero(t, r.pair)
 
 	// One candidate left free is taken.
 	free := strings.Replace(text, string(rune(0xE03F)), "", 1)
@@ -326,6 +354,9 @@ func FuzzRespell_PlaceholdersAreInvisible(f *testing.F) {
 		"title: \"x" + e0 + "y\"\ndescription: 'a" + nel + "b'\n",
 		"x-t: !e%EE%80%80 v\ndescription: 'a" + nel + "b'\n",
 		"a: \"" + bs + "/" + bs + "/\"\n",
+		"a: \"x" + bs + "uD83D" + bs + "uDE00\"\nb: 'x" + bs + "uD83D" + bs + "uDE00'\nc: x" + bs + "uD83D" + bs + "uDE00\nd: 1 # " + bs + "ud83d" + bs + "ude00\n",
+		"a: \"" + bs + bs + "uD83D" + bs + "uDE00\"\nb: \"" + bs + "uD83D\"\nc: \"" + bs + "uDE00" + bs + "uD83D\"\n",
+		"a: \"p" + nel + "q" + bs + "/" + bs + "uD83D" + bs + "uDE00\"\nb: |\n  " + bs + "uD83D" + bs + "uDE00\n",
 		"a: " + bs + "/\n# " + bs + "/\n",
 		"\xfe\xff\xe0\x30",
 	} {
@@ -387,8 +418,8 @@ func FuzzRespell_PlaceholdersAreInvisible(f *testing.F) {
 // slicesOf lists the placeholders r holds, in a fixed order, leaving out what
 // it does not use.
 func slicesOf(r respelling) []rune {
-	out := make([]rune, 0, 4)
-	for _, p := range []rune{r.breaks[0], r.breaks[1], r.breaks[2], r.slash} {
+	out := make([]rune, 0, 5)
+	for _, p := range []rune{r.breaks[0], r.breaks[1], r.breaks[2], r.slash, r.pair} {
 		if p != 0 {
 			out = append(out, p)
 		}
@@ -405,6 +436,9 @@ func replacePlaceholder(r respelling, from, to rune) respelling {
 	}
 	if r.slash == from {
 		r.slash = to
+	}
+	if r.pair == from {
+		r.pair = to
 	}
 	return r
 }

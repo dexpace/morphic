@@ -47,9 +47,9 @@ func loadReferencing(t *testing.T, ref string) (*Document, []string) {
 }
 
 // TestOthers_NamesADocumentByEverySpellingItIsReadUnder pins how a document a
-// reference reads is found again: by the name the binder spells it with, which
-// for a URL is as written, and by the key its request was read under, which
-// escapes what the URL's syntax requires. A name no read answered, or one no
+// reference reads is found again by the name the binder spells it with, which
+// for a URL is the one spelling it is located by (resolve.Locate), escaping
+// what the URL's syntax requires. A name no read answered, or one no
 // request could be built from, finds nothing; nor does an index past the list.
 // A space is no URI reference, which validation reports, and the document is
 // read all the same.
@@ -63,10 +63,10 @@ func TestOthers_NamesADocumentByEverySpellingItIsReadUnder(t *testing.T) {
 	assert.Equal(t, 1, ext.Index, "the first entry after the source")
 	assert.Equal(t, "http://h/a%20b.yaml", ext.Label)
 	assert.Equal(t, "http://h/a%20b.yaml", ext.Info.Path)
-	assert.Equal(t, "http://h/a b.yaml", doc.Bindings.Table().Document(1).Name, "sanity: the binder's spelling")
+	assert.Equal(t, "http://h/a%20b.yaml", doc.Bindings.Table().Document(1).Name, "sanity: the binder's spelling")
 
 	for name, want := range map[string]bool{
-		"http://h/a b.yaml":   true,
+		"http://h/a b.yaml":   false,
 		"http://h/a%20b.yaml": true,
 		"http://h/c.yaml":     false,
 		"http://h/%zz":        false,

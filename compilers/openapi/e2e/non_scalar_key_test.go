@@ -111,3 +111,25 @@ func TestCompile_TwoKeysThatAreNoScalarAreEachReportedInEitherOrder(t *testing.T
 		assert.False(t, strings.HasPrefix(string(id), "t/openapi/components/schemas/"), "no type under components/schemas: %s", id)
 	}
 }
+
+// TestCompile_AKeyThatIsNoScalarInAnotherDocumentIsReportedWhereItIsWritten
+// holds a path item a reference reads from another file to the Format error a
+// key that is no scalar draws, at the key's own line and column in that file.
+// The entry is set aside while the model is built and put back before what the
+// reference reaches is checked, so the key is still there to report.
+func TestCompile_AKeyThatIsNoScalarInAnotherDocumentIsReportedWhereItIsWritten(t *testing.T) {
+	t.Parallel()
+	const ext = "p:\n  get: {responses: {\"200\": {description: ok}}}\n  ? [a]\n  : 1\n"
+	const root = "openapi: 3.2.0\ninfo: {title: T, version: \"1\"}\npaths:\n  /x: {$ref: \"other.yaml#/p\"}\n"
+
+	diags := compileBesideExpectingErrors(t, ext, root)
+
+	require.Len(t, diags, 1, "%+v", diags)
+	d := diags[0]
+	assert.Equal(t, typeMismatch, d.Code)
+	assert.Equal(t, ir.SeverityError, d.Severity)
+	assert.Contains(t, d.Message, "a mapping key must be a string in OpenAPI 3.2 (Format)")
+	assert.Equal(t, 1, d.Provenance.Source, "in the file the reference reads")
+	assert.Equal(t, "/p", string(d.Provenance.Pointer))
+	assert.Equal(t, ir.Position{Line: 3, Column: 5}, d.Provenance.Position)
+}

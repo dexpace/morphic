@@ -222,8 +222,9 @@ func (customServed) ReadDocument(context.Context, compilers.DocumentRequest) ([]
 }
 
 // TestReadDialects_WarnsOfADocumentReadUnderTwoNamesOnce pins that a document
-// the binder reads under two spellings, one Document.Sources entry, is warned
-// of once: its `$schema` is one finding, whichever name reached it.
+// two references spell two ways, one Document.Sources entry and one name to
+// the binder (resolve.Locate), is warned of once: its `$schema` is one
+// finding, whichever spelling reached it.
 func TestReadDialects_WarnsOfADocumentReadUnderTwoNamesOnce(t *testing.T) {
 	t.Parallel()
 	doc, diags, err := Load(t.Context(), 0, compilers.Source{Path: "/r/root.yaml", Data: []byte(
@@ -231,7 +232,7 @@ func TestReadDialects_WarnsOfADocumentReadUnderTwoNamesOnce(t *testing.T) {
 			"    A: {$ref: 'http://h/a b.yaml#/X'}\n    B: {$ref: 'http://h/a%20b.yaml#/X'}\n",
 	)}, Options{Reader: customServed{}})
 	require.NoError(t, err)
-	require.Equal(t, 3, doc.Bindings.Table().Documents(), "sanity: the binder reads two names")
+	require.Equal(t, 2, doc.Bindings.Table().Documents(), "the binder reads one name")
 	require.Len(t, doc.Others.List(), 1, "sanity: of one document")
 	var unread []ir.Diagnostic
 	for _, d := range diags {

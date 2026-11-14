@@ -7,20 +7,16 @@ import (
 	"cmp"
 	"context"
 	"encoding/json/jsontext"
-	"errors"
-	"fmt"
 	"os"
 	"path/filepath"
 	"testing"
 
-	"github.com/speakeasy-api/openapi/marshaller"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	yaml "go.yaml.in/yaml/v3"
 
 	"github.com/dexpace/morphic/compilers"
 	"github.com/dexpace/morphic/compilers/openapi/internal/bind"
-	"github.com/dexpace/morphic/compilers/openapi/internal/bind/typed"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/nodeview"
 	"github.com/dexpace/morphic/compilers/openapi/internal/oas"
@@ -54,57 +50,57 @@ func loadExternal(t *testing.T, dir, root string, opts Options) (*Document, []ir
 	return got, diags
 }
 
-// TestBuiltTargets covers which schemas built for the bindings' landings are
-// validated, and where: one a $ref's chain reaches, at the least such $ref and
-// named by its document, in the source or not, placed in the document writing
-// that $ref, and read where it lands. One no $ref reaches, one that failed to
-// build and a boolean schema are none, but a value the parser read as false
-// though it is no schema is one, read as written, unless nothing is written
-// where it is or it is the rest of the tuple its site writes, which its
-// `items` judges.
-func TestBuiltTargets(t *testing.T) {
+// TestLandingTargets covers which of the table's schema landings are judged,
+// and where, read off the table alone before anything is built: one a $ref's
+// chain reaches, at the least such $ref and named by its document, in the
+// source or not, read as written where it lands. One no $ref reaches, one where
+// nothing is written and a boolean schema are none, but a value that is no
+// schema is one, unless it is the rest of the tuple its site writes, which its
+// `items` judges; a tuple's rest written as a mapping is one.
+func TestLandingTargets(t *testing.T) {
 	t.Parallel()
-	built := buildRaw(t, "{type: object}")
+	mapping := &yaml.Node{Kind: yaml.MappingNode}
 	five := &yaml.Node{Kind: yaml.ScalarNode, Tag: "!!int", Value: "5"}
 	written := map[bind.Position]*yaml.Node{
+		{Pointer: "/x-lib/A"}:                         mapping,
+		{Doc: 1, Pointer: "/B"}:                       mapping,
+		{Doc: 1, Pointer: "/F"}:                       mapping,
+		{Doc: 1, Pointer: "/C"}:                       mapping,
 		{Pointer: "/x-lib/E"}:                         {Kind: yaml.ScalarNode, Tag: "!!bool", Value: "true"},
 		{Pointer: "/x-lib/G"}:                         five,
 		{Pointer: "/x-lib/T/additionalItems"}:         five,
+		{Pointer: "/x-lib/U/additionalItems"}:         mapping,
 		{Doc: 1, Pointer: "/x-lib/T/additionalItems"}: five,
 	}
-	got := builtTargets([]typed.Built{
-		{Landing: bind.Landing{At: bind.Position{Pointer: "/x-lib/A"}, Name: "spec.yaml",
-			Site: bind.Position{Pointer: "/s"}, Reached: true}, Schema: built},
-		{Landing: bind.Landing{At: bind.Position{Doc: 1, Pointer: "/B"}, Name: "other.yaml",
-			Site: bind.Position{Pointer: "/t"}, Reached: true}, Schema: built},
-		{Landing: bind.Landing{At: bind.Position{Doc: 1, Pointer: "/F"}, Name: "other.yaml",
-			Site: bind.Position{Doc: 1, Pointer: "/u"}, Reached: true}, Schema: built},
-		{Landing: bind.Landing{At: bind.Position{Doc: 1, Pointer: "/C"}, Name: "other.yaml"}, Schema: built},
-		{Landing: bind.Landing{At: bind.Position{Pointer: "/x-lib/D"}, Reached: true}, Err: errors.New("no")},
-		{Landing: bind.Landing{At: bind.Position{Pointer: "/x-lib/E"}, Reached: true}, Schema: buildRaw(t, "true")},
-		{Landing: bind.Landing{At: bind.Position{Pointer: "/x-lib/G"}, Site: bind.Position{Pointer: "/g"}, Reached: true},
-			Schema: buildRaw(t, "false")},
-		{Landing: bind.Landing{At: bind.Position{Pointer: "/x-lib/H"}, Reached: true}, Schema: buildRaw(t, "false")},
-		{Landing: bind.Landing{At: bind.Position{Pointer: "/x-lib/T/additionalItems"}, Site: bind.Position{Pointer: "/x-lib/T"},
-			Reached: true}, Schema: buildRaw(t, "false")},
-		{Landing: bind.Landing{At: bind.Position{Doc: 1, Pointer: "/x-lib/T/additionalItems"},
-			Site: bind.Position{Pointer: "/x-lib/T"}, Reached: true}, Schema: buildRaw(t, "false")},
-	}, func(id bind.DocID) string { return fmt.Sprintf("doc%d.yaml", id) },
-		func(p bind.Position) *yaml.Node { return written[p] })
+	got := landingTargets([]bind.Landing{
+		{At: bind.Position{Pointer: "/x-lib/A"}, Name: "spec.yaml", Site: bind.Position{Pointer: "/s"}, Reached: true},
+		{At: bind.Position{Doc: 1, Pointer: "/B"}, Name: "other.yaml", Site: bind.Position{Pointer: "/t"}, Reached: true},
+		{At: bind.Position{Doc: 1, Pointer: "/F"}, Name: "other.yaml", Site: bind.Position{Doc: 1, Pointer: "/u"},
+			Reached: true},
+		{At: bind.Position{Doc: 1, Pointer: "/C"}, Name: "other.yaml"},
+		{At: bind.Position{Pointer: "/x-lib/D"}, Reached: true},
+		{At: bind.Position{Pointer: "/x-lib/E"}, Reached: true},
+		{At: bind.Position{Pointer: "/x-lib/G"}, Name: "spec.yaml", Site: bind.Position{Pointer: "/g"}, Reached: true},
+		{At: bind.Position{Pointer: "/x-lib/T/additionalItems"}, Site: bind.Position{Pointer: "/x-lib/T"}, Reached: true},
+		{At: bind.Position{Pointer: "/x-lib/U/additionalItems"}, Site: bind.Position{Pointer: "/x-lib/U"}, Reached: true},
+		{At: bind.Position{Doc: 1, Pointer: "/x-lib/T/additionalItems"}, Site: bind.Position{Pointer: "/x-lib/T"},
+			Reached: true},
+	}, func(p bind.Position) *yaml.Node { return written[p] })
 
-	require.Len(t, got, 5)
-	assert.Equal(t, reachedTarget{site: bind.Position{Pointer: "/g"}, at: bind.Position{Pointer: "/x-lib/G"},
-		kind: oas.Schema, node: five, doc: "doc0.yaml"}, got[3], "a number is no schema, which the check reports")
-	assert.Equal(t, bind.Position{Doc: 1, Pointer: "/x-lib/T/additionalItems"}, got[4].at,
-		"another document's position is no rest of the tuple its site writes")
+	require.Len(t, got, 6)
 	assert.Equal(t, reachedTarget{site: bind.Position{Pointer: "/s"}, at: bind.Position{Pointer: "/x-lib/A"},
-		kind: oas.Schema, node: built.GetSchema().GetRootNode(), doc: "doc0.yaml"}, got[0])
+		kind: oas.Schema, node: mapping, doc: "spec.yaml"}, got[0])
 	assert.True(t, got[0].inSource())
 	assert.Equal(t, bind.Position{Pointer: "/t"}, got[1].site, "a $ref the source writes places it")
 	assert.Equal(t, bind.Position{Doc: 1, Pointer: "/B"}, got[1].at, "read where it lands, in that document")
-	assert.Equal(t, "doc1.yaml", got[1].doc)
+	assert.Equal(t, "other.yaml", got[1].doc)
 	assert.False(t, got[1].inSource())
 	assert.Equal(t, bind.Position{Doc: 1, Pointer: "/u"}, got[2].site, "a $ref only another document writes places it")
+	assert.Equal(t, reachedTarget{site: bind.Position{Pointer: "/g"}, at: bind.Position{Pointer: "/x-lib/G"},
+		kind: oas.Schema, node: five, doc: "spec.yaml"}, got[3], "a number is no schema, which the check reports")
+	assert.Equal(t, bind.Position{Pointer: "/x-lib/U/additionalItems"}, got[4].at, "a tuple's rest written as a mapping")
+	assert.Equal(t, bind.Position{Doc: 1, Pointer: "/x-lib/T/additionalItems"}, got[5].at,
+		"another document's position is no rest of the tuple its site writes")
 }
 
 // TestObjectTargets covers which object landings are validated, and where: one
@@ -157,17 +153,6 @@ func TestWrittenIn_ReadsTheNodeAtAPosition(t *testing.T) {
 	require.NotNil(t, five)
 	assert.Equal(t, "5", five.Value, "the alias's anchor")
 	assert.Nil(t, writtenIn(view, table, bind.Position{Pointer: "/x-c/d"}), "nothing is written there")
-}
-
-// buildRaw decodes src, YAML, as the bindings build a schema for a landing.
-func buildRaw(t *testing.T, src string) *schemaRef {
-	t.Helper()
-	var n yaml.Node
-	require.NoError(t, yaml.Unmarshal([]byte(src), &n))
-	js := &schemaRef{}
-	_, err := marshaller.UnmarshalNode(t.Context(), "", n.Content[0], js)
-	require.NoError(t, err)
-	return js
 }
 
 // TestLoad_ExternalRefResolutionErrors pins how a finding inside a document an
@@ -263,4 +248,42 @@ func TestReached_ASchemaTheSourceWritesUnmodelledIsJudgedInItsRows(t *testing.T)
 		}
 	}
 	assert.Equal(t, []jsontext.Pointer{"/x-defs/A/exclusiveMinimum"}, at)
+}
+
+// TestLoad_WhatAReferenceReachesIsJudgedOnceBeforeItIsBuilt counts the objects
+// the checks of what the references reach read, by node and kind: a parameter
+// under an extension a $ref reaches, holding values the table refuses, is read
+// once as each kind, every read is made before the phase that reports them,
+// and none in it, so the judgement moved rather than being made twice.
+func TestLoad_WhatAReferenceReachesIsJudgedOnceBeforeItIsBuilt(t *testing.T) {
+	t.Parallel()
+	const spec = "openapi: 3.1.0\ninfo: {title: t, version: \"1\"}\npaths:\n  /a:\n    get:\n      operationId: a\n" +
+		"      parameters:\n        - $ref: '#/x-lib/p'\n      responses:\n        '200': {description: ok}\n" +
+		"x-lib:\n  p: {name: p, in: query, explode: \"true\", required: on, schema: {type: array, items: hello}}\n"
+	reads := map[objectKey]int{}
+	var current phase
+	inReach := 0
+	opts := Options{
+		entered: func(p phase) { current = p },
+		judging: func(kind oas.Kind, node *yaml.Node) {
+			reads[objectKey{node: nodeview.Deref(node), kind: kind}]++
+			if current == phaseReach {
+				inReach++
+			}
+		},
+	}
+
+	doc, diags, err := Load(t.Context(), 0, openapitest.SourceOf(spec), opts)
+
+	require.NoError(t, err)
+	require.NotNil(t, doc, "%+v", diags)
+	require.NotEmpty(t, reads, "the parameter under x-lib is judged")
+	kinds := map[oas.Kind]bool{}
+	for key, n := range reads {
+		assert.Equal(t, 1, n, "%v at line %d is read once", key.kind, key.node.Line)
+		kinds[key.kind] = true
+	}
+	assert.True(t, kinds[oas.Parameter], "the parameter is among what is read: %v", kinds)
+	assert.Zero(t, inReach, "nothing is judged once the findings are reported")
+	assert.Equal(t, 3, countErrorsAt(diags, "openapi/validation/validation-type-mismatch"), "%+v", diags)
 }

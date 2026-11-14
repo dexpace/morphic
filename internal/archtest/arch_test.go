@@ -43,11 +43,14 @@ var rules = map[string][]string{
 	// error, and quotes what that code says. It is below every package that
 	// runs such code, a compiler, a pass or a compiler's own dependency, so it
 	// reaches the standard library alone.
-	"barrier":     {},
+	"barrier": {},
+	// Scratch state a check reads one collection after another through, which
+	// knows no morphic concept, so both checkers share it from below ir.
+	"reuse":       {},
 	"ir":          {},
 	"ir/irfacts":  {module + "/ir"},
 	"ir/irtest":   {module + "/ir", "github.com/google/go-cmp" + subtreeSuffix},
-	"ir/irverify": {module + "/ir"},
+	"ir/irverify": {module + "/ir", module + "/reuse"},
 	"compilers":   {module + "/barrier", module + "/ir"},
 	// What every compiler shares: the type registry, diagnostics and the naming
 	// and ID grammars. It reaches ir alone, so no compiler's vocabulary rides in.
@@ -86,6 +89,16 @@ var rules = map[string][]string{
 	// literal means.
 	"compilers/openapi/internal/value": {module + "/ir",
 		module + "/compilers/openapi/internal/nodeview", "go.yaml.in/yaml/v3"},
+	// The compiler's RFC 9535 query evaluator, over the value a tree stands
+	// for. It reaches nodeview for a mapping's members as the parser reads
+	// them, value for a scalar's reading, ir for the decimal a number compares
+	// by, budget for the steps a query spends and yaml for the tree, and
+	// nothing that reports or lowers: a query selects, and its caller says
+	// what that means.
+	"compilers/openapi/internal/jsonpath": {module + "/ir",
+		module + "/compilers/openapi/internal/budget",
+		module + "/compilers/openapi/internal/nodeview",
+		module + "/compilers/openapi/internal/value", "go.yaml.in/yaml/v3"},
 	// The yaml.v3 nodes tests build trees from: the constructors for the node
 	// kinds a parse produces, the `<<` merge key among them. It reaches yaml and
 	// nothing else, so any package's internal tests can import it, nodeview's
@@ -191,17 +204,19 @@ var rules = map[string][]string{
 	"compilers/openapi/internal/doctree": {module + "/compilers/openapi/internal/budget",
 		module + "/compilers/openapi/internal/nodeview", "go.yaml.in/yaml/v3"},
 	// Source-document patching: an OpenAPI Overlay applied to the decoded node
-	// tree, and the attribution of what it changed. It reads the overlay's tree and
-	// reports through diag, reaching nodeview for the document root and the
-	// keys the parser reads, budget for the node budget it builds within and
-	// provenance for the attribution it hands out — and nothing that lowers,
-	// because it runs before there is anything to lower.
+	// tree, and the attribution of what it changed. It reads the overlay's tree
+	// by its own table of fields, reading a scalar through value, selects
+	// through jsonpath and reports through diag, reaching nodeview for the
+	// document root and the keys the parser reads, budget for the node budget it
+	// builds within and provenance for the attribution it hands out — and
+	// nothing that lowers, because it runs before there is anything to lower.
 	"compilers/openapi/internal/overlay": {module + "/ir",
 		module + "/compilers/openapi/internal/budget",
 		module + "/compilers/openapi/internal/diag",
+		module + "/compilers/openapi/internal/jsonpath",
 		module + "/compilers/openapi/internal/nodeview",
 		module + "/compilers/openapi/internal/provenance",
-		"github.com/speakeasy-api/openapi/overlay", "go.yaml.in/yaml/v3"},
+		module + "/compilers/openapi/internal/value", "go.yaml.in/yaml/v3"},
 	// The entry side: parse, check, resolve. It indexes the tree its one decode
 	// produced through sourceindex, runs the pre-lowering refusals over that index
 	// through scan, applies the caller's overlay through overlay, places what it
@@ -454,7 +469,7 @@ var rules = map[string][]string{
 		"github.com/speakeasy-api/openapi/sequencedmap",
 		"github.com/stretchr/testify/assert",
 		"github.com/stretchr/testify/require", "go.yaml.in/yaml/v3"},
-	"pass": {module + "/ir", module + "/ir/irfacts"},
+	"pass": {module + "/ir", module + "/ir/irfacts", module + "/reuse"},
 	// The emitter contract, Layer 2, ruled before any package of it exists
 	// (unbuilt), so the first emitter is audited from its first import. It
 	// reaches ir and nothing else yet: never a compiler, the engine or another

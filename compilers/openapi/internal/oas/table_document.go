@@ -23,7 +23,7 @@ func openAPIObject() Object {
 				required(Always()).formatted(VersionNumber),
 			objectOf("info", Info, c(V30, "**REQUIRED**. Provides metadata about the API.")).required(Always()),
 			field("$self", String, c(V32, "This string MUST be in the form of a URI reference as defined by")).
-				during(From(V32)).formatted(URI),
+				during(From(V32)).formatted(SelfURI),
 			field("jsonSchemaDialect", String, c(V31, "The default value for the `$schema` keyword within")).
 				during(From(V31)).formatted(AbsoluteURI),
 			listOf("servers", Server, c(V30, "An array of Server Objects, which provide connectivity information")),

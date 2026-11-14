@@ -4,6 +4,7 @@
 package bind
 
 import (
+	"cmp"
 	"encoding/json/jsontext"
 	"fmt"
 	"maps"
@@ -28,10 +29,14 @@ type resource struct {
 	// id reports whether an $id names it, so that its name is an identifier
 	// rather than a document's location.
 	id bool
-	// detached reports that an $id on the way to it from its document's own
-	// names an absolute URI or path, so a read against its base is judged by
-	// the URI it resolves to rather than by its own relative spelling.
+	// detached reports that an $id on the way to it from its document's own,
+	// or the document's $self, names an absolute URI or path, so a read
+	// against its base is judged by the URI it resolves to rather than by its
+	// own relative spelling.
 	detached bool
+	// based reports that a document's $self names it, so a relative
+	// reference written in it is read against that URI, as under an $id.
+	based bool
 }
 
 // resources reads the schema resources of the documents a table reads: where
@@ -42,8 +47,14 @@ type resources struct {
 }
 
 // document is the resource of document id's own content.
+// A document whose $self names a URI is named and based by it (D14 of
+// docs/compilers/openapi.md#self-uri).
 func (r resources) document(id DocID) resource {
-	return resource{root: Position{Doc: id}, uri: r.docs.list[id].name}
+	d := r.docs.list[id]
+	if d.self == "" {
+		return resource{root: Position{Doc: id}, uri: d.name}
+	}
+	return resource{root: Position{Doc: id}, uri: d.self, based: true, detached: d.absolute}
 }
 
 // identifiers is every identifier the documents' schemas declare: each URI an
@@ -128,11 +139,17 @@ func (ix *identifiers) readsDialects(id DocID) bool {
 	return ix.named[id] || !ix.read[id]
 }
 
-// document adds r, doc's own resource, and returns its index.
+// document adds r, doc's own resource, and returns its index. Another
+// document than the source declares the URI its $self names at its root, as
+// an $id declares one; the source is named by its $self directly (names).
 func (ix *identifiers) document(doc DocID, r resource) int32 {
 	i := int32(len(ix.resources))
 	ix.resources = append(ix.resources, r)
 	ix.own[doc] = i
+	if r.based && doc != Source {
+		ix.declared[r.uri] = append(ix.declared[r.uri], r.root)
+		ix.byDoc[doc] = append(ix.byDoc[doc], r.uri)
+	}
 	return i
 }
 
@@ -184,6 +201,35 @@ func (ix *identifiers) declare(r resources, in int32, at Position, n *yaml.Node,
 		ix.recursive[at.Doc] = append(ix.recursive[at.Doc], at)
 	}
 	return in, e.dialect
+}
+
+// admitted reports whether a declaration in document decl answers a reference
+// to uri written in document from: only where from could read decl
+// (docs/compilers/openapi.md#references). A document answers itself, so a
+// compound one resolves within itself. One read over http(s) answers others
+// only for a URI of its own origin, scheme, host and port, so it supplies no
+// other host's content; and a document read over http(s) is answered by no
+// file, nor by a source that is one, which it reaches by no route.
+func admitted(d *docs, decl, from DocID, uri string) bool {
+	declarer, asker := d.list[decl].name, d.list[from].name
+	switch {
+	case decl == from:
+		return true
+	case !Reachable(asker, declarer):
+		return false
+	case !OverNetwork(declarer):
+		return true
+	}
+	return sameOrigin(uri, declarer)
+}
+
+// sameOrigin reports whether the URIs a and b, each spelled as NormalURI
+// spells one, share a scheme and an authority; a URI with none, such as a
+// urn:, shares it with nothing.
+func sameOrigin(a, b string) bool {
+	u, errU := url.Parse(a)
+	v, errV := url.Parse(b)
+	return errU == nil && errV == nil && u.Host != "" && u.Scheme == v.Scheme && u.Host == v.Host
 }
 
 // recursiveAnchored reports whether the schema n writes `$recursiveAnchor` as
@@ -288,12 +334,17 @@ func (ix *identifiers) reading() string {
 	return fmt.Sprint(slices.Sorted(maps.Keys(ix.counted)))
 }
 
-// lookupURI returns the root of the one resource uri identifies, and whether
-// one does. Where none does, why is DuplicateID for two or more, and NoReason
-// otherwise, uri then naming a document.
-func (ix *identifiers) lookupURI(uri string) (Position, bool, Reason) {
+// lookupURI returns the root of the one resource uri identifies to an asker,
+// and whether one does, counting only the declarations of documents answers// says answer it. Where none does, why is DuplicateID for two or more, and
+// NoReason otherwise, uri then naming a document.
+func (ix *identifiers) lookupURI(uri string, answers func(decl DocID) bool) (Position, bool, Reason) {
 	ix.asked[uri] = true
-	found := ix.uris[uri]
+	var found []Position
+	for _, p := range ix.uris[uri] {
+		if answers(p.Doc) {
+			found = append(found, p)
+		}
+	}
 	switch len(found) {
 	case 0:
 		return Position{}, false, NoReason
@@ -350,14 +401,15 @@ func (r resources) enter(in resource, n *yaml.Node, rule DialectRule) (res resou
 }
 
 // names reports whether uri, as resolveURI spells one, names document id: its
-// name, or the name normalized where it is an absolute URI.
+// name, the URI its $self names, or the name normalized where it is an
+// absolute URI.
 func (r resources) names(id DocID, uri string) bool {
 	name := r.docs.list[id].name
-	if uri == name {
+	if uri == name || uri == r.docs.list[id].self {
 		return true
 	}
 	u, err := url.Parse(name)
-	return err == nil && len(u.Scheme) > 1 && uri == normalURI(u)
+	return err == nil && len(u.Scheme) > 1 && uri == NormalURI(u)
 }
 
 // identify is the URI an $id of id names, written where the base is base, and
@@ -381,13 +433,13 @@ func (r resources) identify(id, base string) (uri, part string, ok bool) {
 // RFC 3986 §5.2 where base is an absolute URI, as an $id gives one, and placed
 // as a $ref's document part is (docs.locate) where base is a document's
 // location, such as a file's path. An absolute result is spelled as RFC 3986
-// §6.2.2 normalizes one (normalURI), so two spellings of one identifier match.
+// §6.2.2 normalizes one (NormalURI), so two spellings of one identifier match.
 func (r resources) resolveURI(ref, base string) (string, bool) {
 	b, err := url.Parse(base)
 	if err != nil || len(b.Scheme) < 2 {
 		named, ok := r.docs.locate(ref, base)
 		if u, err := url.Parse(named); ok && err == nil && len(u.Scheme) > 1 {
-			return normalURI(u), true
+			return NormalURI(u), true
 		}
 		return named, ok
 	}
@@ -395,16 +447,75 @@ func (r resources) resolveURI(ref, base string) (string, bool) {
 	if err != nil {
 		return "", false
 	}
-	return normalURI(b.ResolveReference(u)), true
+	return NormalURI(b.ResolveReference(u)), true
 }
 
-// normalURI is the absolute URI u spelled as RFC 3986 §6.2.2 normalizes it:
-// its scheme and host in lower case, its dot segments removed, a character it
-// may not hold percent-encoded, and its percent-encodings normalized
-// (normalEscapes).
-func normalURI(u *url.URL) string {
-	u.Host = strings.ToLower(u.Host)
-	return normalEscapes(u.ResolveReference(&url.URL{}).String())
+// NormalURI is the absolute URI u spelled as RFC 3986 §6.2.2 normalizes it,
+// and an http or https one as §6.2.3 does too: its scheme and host in lower
+// case; each escape of an unreserved character decoded and every other one's
+// hex in upper case (normalEscapes), before its dot segments are removed, so
+// an escaped dot segment is removed and a second pass changes nothing; and
+// for http and https an empty path made "/", and an empty or default port
+// dropped. An empty query's "?" and a host's final dot stay.
+func NormalURI(u *url.URL) string {
+	n := *u
+	n.Host = strings.ToLower(n.Host)
+	if n.Opaque != "" {
+		return normalEscapes(n.String())
+	}
+	path := removeDots(normalEscapes(n.EscapedPath()))
+	if n.Scheme == "http" || n.Scheme == "https" {
+		n.Host = strings.TrimSuffix(strings.TrimSuffix(n.Host, ":"), defaultPort(n.Scheme))
+		path = cmp.Or(path, "/")
+	}
+	hasQuery, hasFragment := n.ForceQuery || n.RawQuery != "", n.Fragment != ""
+	rawQuery, rawFragment := n.RawQuery, n.EscapedFragment()
+	// A path of "/" has String write the authority's "//" wherever the URL
+	// wrote one, an empty host's included, which is then trimmed to the "/".
+	n.Path, n.RawPath, n.RawQuery, n.ForceQuery, n.Fragment, n.RawFragment = "/", "", "", false, "", ""
+	var b strings.Builder
+	b.WriteString(strings.TrimSuffix(n.String(), "/") + path)
+	if hasQuery {
+		b.WriteString("?" + normalEscapes(rawQuery))
+	}
+	if hasFragment {
+		b.WriteString("#" + normalEscapes(rawFragment))
+	}
+	return b.String()
+}
+
+// defaultPort is the port RFC 3986 §6.2.3 has an http or https URL default
+// to, scheme naming which, as a host's suffix.
+func defaultPort(scheme string) string {
+	if scheme == "https" {
+		return ":443"
+	}
+	return ":80"
+}
+
+// removeDots is the path p, escaped and holding no escape of a dot, with its
+// dot segments removed as RFC 3986 §5.2.4 removes them: "." is no segment,
+// ".." takes the one before it away, and either ending p leaves p ending in
+// "/".
+func removeDots(p string) string {
+	if !strings.Contains(p, ".") {
+		return p
+	}
+	segments := strings.Split(p, "/")
+	out := make([]string, 0, len(segments))
+	for i, s := range segments {
+		switch {
+		case s == "..":
+			out = out[:max(len(out)-1, min(len(out), 1))]
+		case s != ".":
+			out = append(out, s)
+			continue
+		}
+		if i == len(segments)-1 {
+			out = append(out, "")
+		}
+	}
+	return strings.Join(out, "/")
 }
 
 // normalEscapes is s with each percent-encoding of an unreserved character

@@ -68,65 +68,83 @@ func (b *binder) named(in resource, uri string) (resource, Reason, string) {
 		return resource{}, Unreadable, "it names no document a reference can"
 	}
 	if b.resources.names(Source, key) {
-		if !reachable(b.docs, in, b.docs.cfg.Self) {
+		switch {
+		case reachable(b.docs, in, b.docs.cfg.Self):
+			return b.resources.document(Source), NoReason, ""
+		case key != b.docs.list[Source].self:
 			return resource{}, Unreadable, OffNetwork
 		}
-		return b.resources.document(Source), NoReason, ""
+		// Named by its $self alone, the source answers no document that could
+		// not read it: the URI is a location to this one (admitted).
 	}
 	// A miss the merge bound may explain is read as a location all the same:
 	// the table says it is truncated.
-	root, found, why := b.ids.lookupURI(key)
+	root, found, why := b.ids.lookupURI(key, func(decl DocID) bool { return admitted(b.docs, decl, in.root.Doc, key) })
 	switch {
 	case found:
 		b.docs.reach(root.Doc)
 		return resource{root: root, uri: key, id: true}, NoReason, ""
 	case why == DuplicateID:
 		return resource{}, why, key
-	case in.id && !fragment.Absolute(uri):
+	case (in.id || in.based) && !fragment.Absolute(uri):
 		return b.readAt(in, uri, key)
 	}
 	return b.opened(in, uri, key)
 }
 
 // opened is the resource of the document uri, written in the resource in,
-// names, placed by Config.Locate, or why not: Config.Refuse refuses that
-// spelling, key, the URI it resolves to, is no location in's document may
-// reach, judged before Config.Locate asks anything of a reader, it names no
+// names, placed by Config.Locate, or why not: key, the URI it resolves to, is
+// no location in's document may reach, or Config.Refuse refuses that spelling,
+// each judged before Config.Locate asks anything of a reader, it names no
 // document, or the read fails (read). An identifier is never refused, since no
 // document is read for one.
 func (b *binder) opened(in resource, uri, key string) (resource, Reason, string) {
-	if why := b.docs.refusal(uri); why != "" {
-		return resource{}, Unreadable, why
-	}
 	if !reachable(b.docs, in, key) {
 		return resource{}, Unreadable, OffNetwork
+	}
+	if why := b.docs.refusal(uri); why != "" {
+		return resource{}, Unreadable, why
 	}
 	name, ok := b.docs.locate(uri, in.uri)
 	if !ok {
 		return resource{}, Unreadable, "it names no document a reference can"
 	}
+	// Where the URL is read from, a location the caller mapped it to among
+	// them, is judged too: a mapping never lands a fetched document on a file.
+	if !reachable(b.docs, in, name) {
+		return resource{}, Unreadable, OffNetwork
+	}
 	return b.read(name)
 }
 
 // readAt is the resource of the document a relative URI uri names, written in
-// the resource in, whose base an $id gives: key, the URI that base makes of it
-// by RFC 3986, normalized as an identifier is (normalURI), read as such rather
-// than placed again by Config.Locate, which spells it as written. Config.Refuse
-// judges uri as written where only relative paths moved the base, and key once
-// an absolute $id detached it, so an $id cannot make a refused read pass as
-// relative.
+// the resource in, whose base an $id or a $self gives: key, the URI that base
+// makes of it by RFC 3986, normalized (NormalURI). Config.Refuse judges uri as
+// written where only relative paths moved the base, and key once an absolute
+// one detached it, so a base cannot make a refused read pass as relative. A
+// key that is a URL is located as one (Config.Locate), so a caller's mapping
+// puts it where its bytes are, and where it lands is judged too.
 func (b *binder) readAt(in resource, uri, key string) (resource, Reason, string) {
 	spelled := uri
 	if in.detached {
 		spelled = key
 	}
-	if why := b.docs.refusal(spelled); why != "" {
-		return resource{}, Unreadable, why
-	}
 	if !reachable(b.docs, in, key) {
 		return resource{}, Unreadable, OffNetwork
 	}
-	return b.read(key)
+	if why := b.docs.refusal(spelled); why != "" {
+		return resource{}, Unreadable, why
+	}
+	name := key
+	if u, err := url.Parse(key); err == nil && len(u.Scheme) > 1 {
+		if located, ok := b.docs.locate(key, key); ok {
+			name = located
+		}
+	}
+	if !reachable(b.docs, in, name) {
+		return resource{}, Unreadable, OffNetwork
+	}
+	return b.read(name)
 }
 
 // OffNetwork is why a reference written in a document read over the network

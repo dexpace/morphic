@@ -43,6 +43,8 @@ func validFormat(format Format, s string) bool {
 	case ResourceURI:
 		u := validURI(s)
 		return u != nil && u.Fragment == ""
+	case SelfURI:
+		return validURI(s) != nil && !strings.Contains(s, "#")
 	case PlainName:
 		return validPlainName(s)
 	case PlainNameURI:

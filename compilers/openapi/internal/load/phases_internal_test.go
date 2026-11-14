@@ -50,6 +50,12 @@ components:
     Owner: {type: object}
 `
 
+// lateSpec is phasedSpec naming a dialect, so its Schema Objects are judged once
+// the bindings are read, with a value one of them refuses, which is turned
+// then and the model built again.
+var lateSpec = strings.Replace(phasedSpec, "Owner: {type: object}", "Owner: &o {type: object, readOnly: \"yes\"}", 1) +
+	"jsonSchemaDialect: https://spec.openapis.org/oas/3.1/dialect/base\n"
+
 // phasedOptions are the options phasedSpec loads under, an overlay among them,
 // telling entered of each phase the load enters.
 func phasedOptions(entered func(phase)) Options {
@@ -280,6 +286,9 @@ func TestLoad_ACancelAtAnyCheckEndsTheLoadCleanly(t *testing.T) {
 		},
 		"split across documents": func(ctx context.Context) (*Document, []ir.Diagnostic, error) {
 			return Load(ctx, 0, split, Options{Reader: reader.Disk{}, Within: dir})
+		},
+		"one whose schemas are judged late": func(ctx context.Context) (*Document, []ir.Diagnostic, error) {
+			return Load(ctx, 0, openapitest.SourceOf(lateSpec), Options{})
 		},
 	} {
 		t.Run(name, func(t *testing.T) {

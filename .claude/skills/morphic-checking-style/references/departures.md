@@ -175,15 +175,17 @@ the rule here rather than reading it across.
 
 - **Rule.** An optional interface, found by a run-time assertion such as the one `ir.WalkValues`
   makes for `ir.CycleVisitor`, is held by no build, so
-  `references/departures.md#interface-assertions-stay-narrow` exempts nothing there: a type meant
-  to satisfy one is converted where it is passed, as `ir.CycleVisitor(deepListCycles{l})` is, or
-  carries a `var _`, unless a test reads what the interface adds. Whether the walk should find them
-  otherwise is #1523.
+  `references/departures.md#interface-assertions-stay-narrow` exempts nothing there: every type
+  satisfying one, exported or not, generic or not, carries a `var _` of it, as `walkCheck` does; a
+  test's own type may convert itself where it is passed, as `ir.CycleVisitor(deepListCycles{l})`
+  does. One declared inside a function goes unseen. It stays optional, not a second parameter
+  (#1523).
 - **Why.** Renaming `walkCheck.Cycle` built and vetted clean, caught only by tests reading cycles,
   and a visitor whose tests read none passed a planted defect until its call converted it (#1266,
   #1313).
-- **Probe.** `git grep -nE '\.\(([[:alnum:]_]+\.)?[A-Z][A-Za-z]*(Visitor|er)\)' -- '*.go' ':!*_test.go' ':!*testdata*'`
-  lists the run-time assertions to an interface of that shape.
+- **Probe.** `go test ./internal/archtest -run TestInterfaceAssertions` names each production type
+  satisfying one of `optionalInterfaces` in `internal/archtest/assertion_test.go` without its
+  assertion.
 
 ## Hold a new line to a rule the tree still breaks
 `rules-the-tree-still-breaks`

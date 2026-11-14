@@ -138,7 +138,7 @@ func (o *objectBuild) build(ctx context.Context, l bind.ObjectLanding) bool {
 // accepts (docs/parser-library.md#recoverable-panic). It returns the wrapper
 // and the walk over it, started at its own kind. What decoding finds wrong with
 // the object is not kept: the load phase holds it to the rule table
-// (validateReached).
+// (judgeReached).
 func decodeObject(ctx context.Context, kind bind.RefKind, node *yaml.Node,
 ) (any, iter.Seq[soa.WalkItem], error) {
 	if node == nil {

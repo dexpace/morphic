@@ -5,6 +5,7 @@ package e2e_test
 
 import (
 	"encoding/json/jsontext"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -131,4 +132,55 @@ paths:
 
 		assert.Empty(t, cmp.Diff(twin.Services, doc.Services, cmpopts.EquateEmpty()), "as the empty schema lowers")
 	})
+}
+
+// TestCompile_AValueThatIsNoSchemaInAnotherDocumentIsNoSchema holds a value
+// written where a schema belongs in a file a reference reads to the same
+// reading the source's own gets: the parser decodes a list, a number, and a
+// string or a tagged string spelling false as the `false` schema, which would
+// close the model, and only the node it was written as tells them from the
+// boolean written there. The source's own such values are read as written
+// null, so only a file read through a reference reaches the node itself.
+func TestCompile_AValueThatIsNoSchemaInAnotherDocumentIsNoSchema(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name   string
+		value  string
+		closed bool
+	}{
+		{name: "false boolean closes the model", value: "false", closed: true},
+		{name: "a list", value: "[x]"},
+		{name: "a number", value: "5"},
+		{name: "a quoted false", value: `"false"`},
+		{name: "a string tagged false", value: "!!str false"},
+		{name: "a quoted true", value: `"true"`},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			dir := t.TempDir()
+			layout(t, dir, map[string]string{
+				"other.yaml": "S:\n  type: object\n  properties: {a: {type: string}}\n  unevaluatedProperties: " + tt.value + "\n",
+			})
+			const root = "openapi: 3.1.0\ninfo: {title: T, version: \"1\"}\npaths:\n  /x:\n    get:\n      responses:\n" +
+				"        \"200\":\n          description: ok\n          content:\n            application/json:\n" +
+				"              schema: {$ref: \"other.yaml#/S\"}\n"
+
+			doc, _ := compileOnDisk(t, filepath.Join(dir, "root.yaml"), root, true)
+
+			var model *ir.Model
+			for id, def := range doc.Types {
+				if m, ok := def.(*ir.Model); ok && strings.HasSuffix(string(id), "other.yaml/S") {
+					model = m
+				}
+			}
+			require.NotNil(t, model, "the file's schema lowers to a model")
+			require.Len(t, model.Properties, 1)
+			if tt.closed {
+				assert.Equal(t, ir.AdditionalClosedAfterComposition, model.Additional)
+				return
+			}
+			assert.Empty(t, model.Additional, "written as no schema, it closes nothing")
+		})
+	}
 }
