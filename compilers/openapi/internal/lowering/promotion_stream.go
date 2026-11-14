@@ -3,12 +3,7 @@
 
 package lowering
 
-import (
-	"strconv"
-
-	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
-	"github.com/dexpace/morphic/ir"
-)
+import "github.com/dexpace/morphic/ir"
 
 // The targets filling an operation's ir.StreamDetail
 // (docs/compilers/openapi.md#streaming-media).
@@ -32,46 +27,28 @@ type TextStatement struct {
 	At ir.Provenance
 }
 
-// TextOf reads what p's sources of target state on the node keeping unmodeled:
-// the text of the first to state one, by the policy's order. A value that is
-// no text, an empty text and a later source stating another text are reported
-// at their own keys as info diag.UnpromotedExtension, and state nothing.
+// TextOf reads what p's sources of target state on the node keeping
+// unmodeled: the text of the first to state one, by the policy's order
+// (firstValue). A value that is no text or an empty text states nothing, and
+// is reported at its own key.
 func (p Promoter) TextOf(target ExtensionTarget, unmodeled ir.Unmodeled) (TextStatement, []ir.Diagnostic) {
-	var st TextStatement
-	var diags []ir.Diagnostic
-	for _, src := range p.targets[target] {
-		entry, written := unmodeled[extensionKeyPrefix+src.Key]
-		if !written {
-			continue
-		}
-		raw, at, _, located := src.value(entry)
-		text, ok := extensionText(raw)
-		switch {
-		case located != states || !ok:
-			diags = append(diags, Unpromoted(src.String(), at, "is no text", "no "+targetNoun(target)+" is filled"))
-		case text == "":
-			diags = append(diags, Unpromoted(src.String(), at, "is an empty text", "no "+targetNoun(target)+" is filled"))
-		case st.Text == "":
-			st.Text, st.Source, st.At = text, src, at
-		case text != st.Text:
-			diags = append(diags, Unpromoted(src.String(), at,
-				"states another text than "+strconv.Quote(st.Source.String())+", which the policy reads first",
-				"it fills no "+targetNoun(target)))
-		}
+	st, written, diags := p.firstValue(target, unmodeled, refuseText)
+	if !written {
+		return TextStatement{}, diags
 	}
-	return st, diags
+	text, _ := extensionText(st.Value)
+	return TextStatement{Text: text, Source: st.Source, At: st.At}, diags
 }
 
-// Unpromoted is the info diag.UnpromotedExtension reporting the key key at at,
-// which states nothing usable, for why, so outcome.
-func Unpromoted(key string, at ir.Provenance, why, outcome string) ir.Diagnostic {
-	return diag.Newf(ir.SeverityInfo, diag.UnpromotedExtension, at, "extension %q %s, so %s", key, why, outcome)
-}
-
-// targetNoun names the field target, a stream target, fills in a report.
-func targetNoun(target ExtensionTarget) string {
-	if target == TargetStreamCondition {
-		return "stream condition"
+// refuseText says why raw states no text, or "" where it does.
+func refuseText(raw ir.RawValue) string {
+	text, ok := extensionText(raw)
+	switch {
+	case !ok:
+		return "is no text"
+	case text == "":
+		return "is an empty text"
+	default:
+		return ""
 	}
-	return "stream terminator"
 }

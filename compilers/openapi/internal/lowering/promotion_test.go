@@ -476,7 +476,7 @@ func appliers() []func(lowering.Promoter, ir.Unmodeled) (bool, []ir.Diagnostic) 
 		// The choices among an operation's parameters are read once the
 		// document is whole (paramchoice.PromoteChoices), from the value read here.
 		func(p lowering.Promoter, unmodeled ir.Unmodeled) (bool, []ir.Diagnostic) {
-			_, written, diags := p.ParamChoiceStatement(unmodeled)
+			_, written, diags := p.StatementOf(lowering.TargetParamChoices, unmodeled)
 			return written, diags
 		},
 		func(p lowering.Promoter, unmodeled ir.Unmodeled) (bool, []ir.Diagnostic) {

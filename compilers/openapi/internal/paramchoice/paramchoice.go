@@ -26,7 +26,7 @@ func PromoteChoices(c lowering.Ctx, w *whole.Document) []ir.Diagnostic {
 	p := c.Promoter()
 	var diags []ir.Diagnostic
 	for _, op := range w.Ops {
-		st, written, readDiags := p.ParamChoiceStatement(op.Unmodeled)
+		st, written, readDiags := p.StatementOf(lowering.TargetParamChoices, op.Unmodeled)
 		diags = append(diags, readDiags...)
 		if !written {
 			continue

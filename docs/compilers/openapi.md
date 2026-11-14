@@ -6056,7 +6056,8 @@ name one parameter carries, among the operation's parameters, a path item's incl
 variants come out sorted by name, whatever order the document writes them in, and a variant's
 parameters in its list's order. The operation's `Params`, its bindings and every reference to a
 parameter are untouched, and no parameter or type is made. The first source whose key the operation
-writes is read, and a later source's key written too is reported and not read. The key stays
+writes is read, whatever it holds; a later source's key writing the same value is silent, and one
+writing another is reported and not read. The key stays
 verbatim, `vendor_extension`, and the operation lists `extension-promotion` in its
 `Provenance.Inferred` where a choice is filled.
 
@@ -6088,7 +6089,7 @@ read.
   `paramchoice.TestPromote_ReadsEachChoiceWholeOrNotAtAll`,
   `paramchoice.TestPromote_FillsAChoiceEveryVariantOfWhichCarriesARequiredParameter`,
   `paramchoice.TestPromote_ReadsNoKeyThatIsNoObject`, `paramchoice.TestPromote_ReadsNothingWhereNoKeyIsWritten`,
-  `lowering.TestParamChoiceStatement_ReadsTheFirstSourceWritten`
+  `lowering.TestStatementOf_ReadsTheFirstSourceWritten`
 
 ### `extension-pagination`
 

@@ -108,20 +108,19 @@ const pathItemKeyPrefix = extensionKeyPrefix + "pathItem/"
 func rootStatement(p Promoter, target ExtensionTarget, src ExtensionSource, entry ir.UnmodeledEntry, own, root ir.Unmodeled) (PageStatement, []ir.Diagnostic) {
 	st := PageStatement{At: entry.Provenance, Written: true}
 	if _, beside := own[pathItemKeyPrefix+src.Key]; beside {
-		return st, []ir.Diagnostic{diag.Newf(ir.SeverityInfo, diag.UnpromotedExtension, entry.Provenance,
-			"extension %q is true beside a statement its path item writes, which no promotion reads, so no "+
-				"pagination is filled for the operation", src.Key)}
+		return st, []ir.Diagnostic{Unpromoted(src.Key, entry.Provenance,
+			"is true beside a statement its path item writes, which no promotion reads",
+			"no pagination is filled for the operation")}
 	}
 	stated, ok := root[extensionKeyPrefix+src.Key]
 	switch {
 	case !ok:
-		return st, []ir.Diagnostic{diag.Newf(ir.SeverityInfo, diag.UnpromotedExtension, entry.Provenance,
-			"extension %q is true, which reads the walk the document's root states under the same key, and the "+
-				"root writes none, so no pagination is inferred for the operation", src.Key)}
+		return st, []ir.Diagnostic{Unpromoted(src.Key, entry.Provenance,
+			"is true, which reads the walk the document's root states under the same key, and the root writes none",
+			"no pagination is inferred for the operation")}
 	case stated.Value.Kind() != '{':
-		return st, []ir.Diagnostic{diag.Newf(ir.SeverityInfo, diag.UnpromotedExtension, stated.Provenance,
-			"extension %q is %s, not an object, so it states no walk for the operations that write true",
-			src.Key, shapeOf(stated.Value))}
+		return st, []ir.Diagnostic{Unpromoted(src.Key, stated.Provenance,
+			"is "+shapeOf(stated.Value)+", not an object", "it states no walk for the operations that write true")}
 	}
 	return pageStatement(p, target, src, stated)
 }
