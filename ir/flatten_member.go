@@ -13,8 +13,8 @@ package ir
 type MemberReader struct {
 	types TypeRegistry
 	// own places, for each model read, each wire name among its own
-	// properties: the index of the last of them declaring it.
-	own map[TypeID]map[string]int
+	// properties: the index of each declaring it, in source order.
+	own map[TypeID]map[string][]int
 	// steps counts what every read has read: the steps of each walk, as a
 	// flattening counts them, and each property an index was made of.
 	steps int
@@ -22,7 +22,7 @@ type MemberReader struct {
 
 // NewMemberReader returns a MemberReader over types that has read nothing.
 func NewMemberReader(types TypeRegistry) *MemberReader {
-	return &MemberReader{types: types, own: map[TypeID]map[string]int{}}
+	return &MemberReader{types: types, own: map[TypeID]map[string][]int{}}
 }
 
 // Member returns the declaration FlattenedProperties(types, root) takes for
@@ -49,23 +49,25 @@ type memberQuery struct {
 }
 
 // emit reads the model id names for the query's wire name, through the
-// model's own index.
+// model's own index: each of its own declarations of the name, in source
+// order, as a flattening's walk reads them.
 func (q *memberQuery) emit(id TypeID, m *Model) {
-	if i, declared := q.reader.ownIndex(id, m)[q.wire]; declared {
+	for _, i := range q.reader.ownIndex(id, m)[q.wire] {
 		q.reads = append(q.reads, PropertyDecl{Owner: id, Property: &m.Properties[i]})
 	}
 }
 
 // ownIndex returns the index of the model m, which id names, by the wire
 // names of its own properties, made at its first read.
-func (r *MemberReader) ownIndex(id TypeID, m *Model) map[string]int {
+func (r *MemberReader) ownIndex(id TypeID, m *Model) map[string][]int {
 	if own, read := r.own[id]; read {
 		return own
 	}
-	own := make(map[string]int, len(m.Properties))
+	own := make(map[string][]int, len(m.Properties))
 	for i := range m.Properties {
 		r.steps++
-		own[m.Properties[i].EffectiveWireName()] = i
+		wire := m.Properties[i].EffectiveWireName()
+		own[wire] = append(own[wire], i)
 	}
 	r.own[id] = own
 	return own

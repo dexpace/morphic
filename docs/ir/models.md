@@ -261,7 +261,7 @@ lists that no member declares and the composition entries that name no model. It
   passes, so an `irfacts` index could answer no faster, and it stays a function of `ir`, where a
   compiler reads it too.
 - *One member.* `ir.MemberReader` answers, for a root and a wire name, the declaration this
-  flattening takes, by the same walk, reading each model's own declaration of the name rather than
+  flattening takes, by the same walk, reading each model's own declarations of the name rather than
   every member. A read costs the root's composition, and each model's properties once per reader,
   so a consumer asking several roots composing one wide model for one name each does not pay that
   width for each. Both take a declaration by one rule, so a change to which one is taken changes
