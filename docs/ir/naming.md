@@ -155,8 +155,9 @@ case, the pass also reports names whose words join alike (below).
   separator, so two such groups meet, which the pass reports (below).
 - **The scopes** are the siblings a target renders into one namespace: the document's
   services, its declared types and its auth schemes; a service's groups; a group's groups and its
-  operations; an operation's parameters; a model's own properties; an enum's members; a union's
-  variants. One name in two scopes is no collision.
+  operations; an operation's parameters; the headers of one response, of the default response and
+  of one error case, and of a service's common error; a model's own properties; an enum's members; a
+  union's variants. One name in two scopes is no collision.
 - **Words joined, where a target joins them.** Two names whose words differ only where they break,
   `set_up` and `setup`, meet where a target joins the words or ignores their letter case, and a
   first target does so in some scopes. Go and Kotlin name a group's package by its words in
@@ -172,6 +173,11 @@ case, the pass also reports names whose words join alike (below).
   (below): properties `set_up` and `setup` are Go's `SetUp` and `Setup` and Kotlin's `setUp` and
   `setup`. No first target's design says yet what it names from a service, nor what Kotlin names
   from an auth scheme, so those compare as they are until one does.
+- **A response's and an error case's headers** are read as a scope of their own, and a finding names
+  the response or error case by the first of its source, canonical and hint spellings, and is placed
+  at the operation, or at the service for a common error: neither case has an ID to report at, and a
+  path through the operation's list would move with the order the source declares responses in. A
+  header is named by its index and quoted spelling, as a property is.
 - **Declared types** are one scope, whatever their `Namespace`: a target places a type by its
   options, never by its namespace, and by default places every type in one unit
   ([output units](../emitters/refine/output-units.md)), so two types of one name meet wherever they
@@ -205,13 +211,6 @@ case, the pass also reports names whose words join alike (below).
 
 Left out, each for its reason:
 
-- **A model's inherited properties.** A model renders the properties its composition exposes
-  ([models](./models.md#the-flattening)), so an own property can meet an inherited one. Reading a
-  flattening per model grows quadratically down a hierarchy, as `validate` found for its own
-  checks, and the case is measured absent: no model compiled from the golden spec
-  (`cloudflare/api-schemas` @ `5c37ac8c`, morphic @ `fd8b0730`) exposes two properties of one
-  neutral name declared by different models (#1412). An own collision is reported at the model
-  declaring it, whatever composes it.
 - **A break the casing leaves unmarked, in a scope that compares words as they are.** Camel and
   Pascal case mark a break by upper-casing the first character of the word after it, which leaves a
   digit, a letter with no case and one already upper-case, such as `ℤ`, as they are, so `v_1_2` and
@@ -241,9 +240,12 @@ Left out, each for its reason:
   `ResourceInfo.Identifiers` and `ResourceInfo.Properties`), which no compiler produces yet, and for
   which no emitter design says what scope their names render into. They and servers join once a
   target names them (#1413).
-- **A response's or an error case's headers**, which a target renders as the fields of one type.
-  Neither has an ID to report at, and a path through its operation's list moves with the order the
-  source declares responses in (#1418).
+- **A model's inherited properties.** A model renders the properties its composition exposes
+  ([models](./models.md#the-flattening)), so an own property can meet an inherited one, which no
+  scope reads yet (#1412). An own collision is reported at the model declaring it, whatever composes
+  it.
+- **A part's headers**, the headers of one part of a multipart or event-stream content, until
+  #1786 says how a target writes them.
 - **A service's renames** (`Service.Renames`), which no compiler writes yet: a declared type is
   compared by its own name, though a rename presents it by another in its service (#1419).
 - **An operation overloading another** (`OverloadOf`), which no compiler sets yet, is compared like

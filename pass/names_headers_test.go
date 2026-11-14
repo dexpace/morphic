@@ -60,11 +60,11 @@ func TestNames_ReadsTheHeadersOfAResponseAndAnErrorCaseAsAScope(t *testing.T) {
 		{"a response named by its canonical spelling", inOperation(ir.Operation{
 			Responses: []ir.Response{{Name: ir.Naming{Canonical: "ok"}, Headers: headers("X-Rate-Limit", "X_Rate_Limit")}},
 		}), []ir.Diagnostic{collision("op/x", `in operation op/x, response "ok", `+pair)}},
+		// The valid twins. Headers are compared as properties are, by their words as
+		// they are, so two whose words break apart differ.
 		{"headers whose words break apart", inOperation(ir.Operation{
 			Responses: []ir.Response{{Name: hinted("200"), Headers: headers("Custom-Header", "customheader")}},
-		}), []ir.Diagnostic{brokenApart("op/x", `in operation op/x, response "200", headers 0 ("Custom-Header") and 1 ("customheader") `+
-			`have the neutral names "custom_header" and "customheader"`)}},
-		// The valid twins.
+		}), nil},
 		{"the same headers in two responses", inOperation(ir.Operation{Responses: []ir.Response{
 			{Name: hinted("200"), Headers: []ir.Header{headerOf("h/a", "X-Rate-Limit")}},
 			{Name: hinted("201"), Headers: []ir.Header{headerOf("h/b", "X_Rate_Limit")}},

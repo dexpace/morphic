@@ -42,9 +42,8 @@ func (Names) Run(ctx context.Context, doc *ir.Document) (*ir.Document, []ir.Diag
 // ctx's error alone once ctx is done. It asks ctx before each family and after
 // the last, so a cancel waits out one at most. Servers, channels, messages, a
 // field's arguments and a resource's identifiers and properties wait for a
-// target to name them (GitHub #1413), a response's headers for a place to
-// report at (GitHub #1418), and a service's renames for a compiler to write
-// one (GitHub #1419).
+// target to name them (GitHub #1413), and a service's renames for a compiler to
+// write one (GitHub #1419).
 func checkNames(ctx context.Context, doc *ir.Document) ([]ir.Diagnostic, error) {
 	if doc == nil {
 		return nil, nil
@@ -64,7 +63,7 @@ func checkNames(ctx context.Context, doc *ir.Document) ([]ir.Diagnostic, error) 
 
 // families returns the families of scopes r reads, in the order they report.
 func (r *nameReader) families() []func(*ir.Document) {
-	return []func(*ir.Document){r.services, r.groups, r.types, r.auth}
+	return []func(*ir.Document){r.services, r.groups, r.headers, r.types, r.auth}
 }
 
 // services reads the document's services as one scope.

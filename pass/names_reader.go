@@ -77,8 +77,10 @@ func partyOf(n ir.Naming) party {
 // what they are, and how to name each.
 type scope struct {
 	// in is what holds the scope, such as "operation group", and id its ID;
-	// in is empty for a scope the document holds.
-	in, id string
+	// in is empty for a scope the document holds. of, where set, says which
+	// part of it the scope is, such as `response "200"`, for a holder with
+	// several scopes of one kind.
+	in, id, of string
 	// one names a party, and many several, such as "operation" and
 	// "operations".
 	one, many string
@@ -126,6 +128,9 @@ func (sc scope) lead(b *strings.Builder) {
 		return
 	}
 	fmt.Fprintf(b, "in %s %s, ", sc.in, sc.id)
+	if sc.of != "" {
+		fmt.Fprintf(b, "%s, ", sc.of)
+	}
 }
 
 // readScope reads n names, the ith through name, as one scope whose names
