@@ -326,10 +326,10 @@ func TestSequence_NeverChargesLessThanItBuilds(t *testing.T) {
 			require.NoError(t, yaml.Unmarshal([]byte(sequenceSpec), &root))
 			p := planOf(t, head+action)
 
-			s := &sequence{plan: p, root: &root, size: budget.New(budget.AtMost(1 << 20))}
-			targets, sources, err := s.selected(t.Context(), p.actions[0])
+			s := &sequence{plan: p, root: &root, size: budget.New(budget.AtMost(1 << 20)), grafts: newGrafter(p.version, &root)}
+			sel, err := s.selected(t.Context(), p.actions[0])
 			require.NoError(t, err)
-			charged := s.cost(p.actions[0], nodesOf(targets), nodesOf(sources))
+			charged := s.cost(p.actions[0], nodesOf(sel.targets), nodesOf(sel.sources))
 			before := countNodes(t.Context(), &root, budget.AtMost(maxNodes))
 
 			_, diags := Apply(t.Context(), 1, &root, docOf(t, head+action), Options{Data: []byte(head + action)})

@@ -95,14 +95,14 @@ func runSequence(ctx context.Context, p plan, root *yaml.Node, lax bool, maxNode
 // cannot: nothing where a cancel cut it short, since the caller reads its
 // context next.
 func (s *sequence) apply(ctx context.Context, a action) ([]ir.Diagnostic, bool) {
-	targets, sources, err := s.selected(ctx, a)
+	sel, err := s.selected(ctx, a)
 	switch {
 	case ctx.Err() != nil:
 		return nil, false
 	case err != nil:
 		return append(s.diags, s.unselectable(a, err)), false
 	}
-	if cost := s.cost(a, nodesOf(targets), nodesOf(sources)); cost > 0 && !s.grafts.admit(ctx, cost) {
+	if cost := s.cost(a, nodesOf(sel.targets), nodesOf(sel.sources)); cost > 0 && !s.grafts.admit(ctx, cost) {
 		return append(s.diags, s.overBudget(a)), false
 	}
 	// A charge a cancel cut short may be partial, so the cancel is seen
@@ -111,10 +111,12 @@ func (s *sequence) apply(ctx context.Context, a action) ([]ir.Diagnostic, bool) 
 	if ctx.Err() != nil {
 		return nil, false
 	}
-	err = s.step(ctx, a, targets, sources)
+	err = s.step(ctx, a, sel)
 	switch {
 	case ctx.Err() != nil:
 		return nil, false
+	case errors.Is(err, jsonpath.ErrSteps):
+		return append(s.diags, s.unselectable(a, err)), false
 	case errors.Is(err, errPastNodeBudget):
 		return append(s.diags, s.overBudget(a)), false
 	case err != nil:
@@ -124,33 +126,45 @@ func (s *sequence) apply(ctx context.Context, a action) ([]ir.Diagnostic, bool) 
 	}
 }
 
-// selected returns the targets a's target selects in the value the tree now
-// stands for, each location once, and for a copy the nodes its copy selector
-// selects, all read before anything is written. A view is made for the
-// action, since each write changes the tree.
-func (s *sequence) selected(ctx context.Context, a action) (targets, sources []jsonpath.Located, err error) {
+// selection is what an action's selectors select, read before anything is
+// written: each target once, the number the locator gave its position, and
+// for a copy the nodes its copy selector selects.
+type selection struct {
+	at      *locator
+	targets []jsonpath.Located
+	ids     []int
+	sources []jsonpath.Located
+}
+
+// selected returns what a's selectors select in the value the tree now
+// stands for, each target location once. A view is made for the action,
+// since each write changes the tree.
+func (s *sequence) selected(ctx context.Context, a action) (selection, error) {
 	if a.kind == kindNone {
-		return nil, nil, nil
+		return selection{}, nil
 	}
 	if nodeview.DocumentRoot(s.root) == nil {
-		return nil, nil, errors.New("it selects no value: the document holds none")
+		return selection{}, errors.New("it selects no value: the document holds none")
 	}
 	view := nodeview.New()
 	found, err := a.targets.Select(ctx, view, s.root, &s.steps)
 	if err != nil {
-		return nil, nil, err
+		return selection{}, err
 	}
-	seen := make(map[string]bool, len(found))
+	sel := selection{at: newLocator(s.grafts, &s.steps)}
 	for _, t := range found {
-		if at := t.Path.String(); !seen[at] {
-			seen[at] = true
-			targets = append(targets, t)
+		id, again, err := sel.at.number(ctx, t.Path)
+		if err != nil {
+			return selection{}, err
+		}
+		if !again {
+			sel.targets, sel.ids = append(sel.targets, t), append(sel.ids, id)
 		}
 	}
 	if a.kind == kindCopy {
-		sources, err = a.sources.Select(ctx, view, s.root, &s.steps)
+		sel.sources, err = a.sources.Select(ctx, view, s.root, &s.steps)
 	}
-	return targets, sources, err
+	return sel, err
 }
 
 // unselectable builds the refusal of an action whose selectors could not be
@@ -174,7 +188,8 @@ func (s *sequence) unselectable(a action, err error) ir.Diagnostic {
 // step applies a to the nodes it selects, and returns why it cannot, which
 // ends the sequence. A copy selecting more than the one node a copy copies is
 // refused whatever its target selects.
-func (s *sequence) step(ctx context.Context, a action, targets, sources []jsonpath.Located) error {
+func (s *sequence) step(ctx context.Context, a action, sel selection) error {
+	targets, sources := sel.targets, sel.sources
 	switch {
 	case a.kind == kindNone:
 		return nil
@@ -199,25 +214,19 @@ func (s *sequence) step(ctx context.Context, a action, targets, sources []jsonpa
 		payload = template
 	}
 	if a.kind == kindRemove {
-		// Making one target's path the action's own may copy a node another
-		// target's position names, so a remove's positions are taken once
-		// every path is its own, and name the slots the tree then holds.
-		for _, t := range targets {
-			if _, err := s.grafts.own(ctx, t.Path.Steps(), false); err != nil {
-				return err
-			}
-		}
-	}
-	positions := make([]position, 0, len(targets))
-	for _, t := range targets {
-		p, err := s.grafts.own(ctx, t.Path.Steps(), a.kind != kindRemove)
+		positions, err := sel.at.positions(ctx, sel.ids)
 		if err != nil {
 			return err
 		}
-		positions = append(positions, p)
-	}
-	if a.kind == kindRemove {
 		return s.grafts.remove(positions)
+	}
+	positions := make([]position, len(sel.ids))
+	for i, id := range sel.ids {
+		node, err := sel.at.own(ctx, id)
+		if err != nil {
+			return err
+		}
+		positions[i] = position{node: node}
 	}
 	return s.write(ctx, a, positions, payload)
 }

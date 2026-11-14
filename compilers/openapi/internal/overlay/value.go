@@ -13,7 +13,6 @@ import (
 	yaml "go.yaml.in/yaml/v3"
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/budget"
-	"github.com/dexpace/morphic/compilers/openapi/internal/jsonpath"
 	"github.com/dexpace/morphic/compilers/openapi/internal/nodeview"
 )
 
@@ -30,57 +29,6 @@ type position struct {
 	raw  *yaml.Node
 	node *yaml.Node
 	slot int
-}
-
-// own walks steps from the root of the value, making each position on the
-// way the action's own to write, and returns the position they end at. The
-// last step's slot is made the action's own too when last is set; a remove
-// takes the slot away instead, and needs only its holder to be, every member
-// of which is made its own, so removing one exposes none a merge brings in.
-func (g *grafter) own(ctx context.Context, steps []jsonpath.Step, last bool) (position, error) {
-	// sequence.selected has found the root to hold a value.
-	at := position{node: nodeview.Deref(nodeview.DocumentRoot(g.root))}
-	for i, s := range steps {
-		final := i == len(steps)-1
-		slot, err := slotOf(at.node, s)
-		if err != nil || final && !last {
-			if err := g.flatten(ctx, at.node); err != nil {
-				return position{}, err
-			}
-			if slot, err = slotOf(at.node, s); err != nil {
-				return position{}, err
-			}
-		}
-		next := position{holder: at.node, slot: slot, raw: at.node.Content[slot], node: nodeview.Deref(at.node.Content[slot])}
-		if !final || last {
-			if next.node, err = g.ownSlot(ctx, at.node, slot); err != nil {
-				return position{}, err
-			}
-		}
-		at = next
-	}
-	return at, nil
-}
-
-// slotOf returns the index in holder's Content of the value s names: an
-// object's own member, at the last of its copies, or an array's element.
-func slotOf(holder *yaml.Node, s jsonpath.Step) (int, error) {
-	if !s.Member {
-		if holder.Kind == yaml.SequenceNode && s.Index < len(holder.Content) {
-			return s.Index, nil
-		}
-		return 0, fmt.Errorf("the document no longer holds the element %d it selected", s.Index)
-	}
-	slot := -1
-	for i := 0; holder.Kind == yaml.MappingNode && i+1 < len(holder.Content); i += 2 {
-		if key, own := nodeview.KeyOf(holder.Content[i]); own && key == s.Name {
-			slot = i + 1
-		}
-	}
-	if slot < 0 {
-		return 0, fmt.Errorf("the document no longer holds the member %q it selected", s.Name)
-	}
-	return slot, nil
 }
 
 // ownSlot makes the value at holder.Content[slot] the action's own to write

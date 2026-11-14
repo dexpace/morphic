@@ -11,30 +11,40 @@ import (
 	"github.com/stretchr/testify/require"
 	yaml "go.yaml.in/yaml/v3"
 
+	"github.com/dexpace/morphic/compilers/openapi/internal/budget"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/jsonpath"
 	"github.com/dexpace/morphic/compilers/openapi/internal/ynode"
 	"github.com/dexpace/morphic/ir"
 )
 
-// TestOwn_RefusesAPathTheTreeNoLongerHolds pins the steps own takes from a
-// selection the tree no longer holds, which no sequence hands it: a member
-// no mapping writes, even once its merges are its own, and an element past an
-// array's end.
-func TestOwn_RefusesAPathTheTreeNoLongerHolds(t *testing.T) {
+// TestLocator_RefusesAPathTheTreeNoLongerHolds pins the steps the locator
+// takes from a selection the tree no longer holds, which no sequence hands
+// it: a member no mapping writes, even once its merges are its own, an element
+// past an array's end, and a root holding no value.
+func TestLocator_RefusesAPathTheTreeNoLongerHolds(t *testing.T) {
 	t.Parallel()
-	root := &yaml.Node{Kind: yaml.DocumentNode, Content: []*yaml.Node{
-		ynode.Map(ynode.Scalar("a"), ynode.Seq(ynode.Scalar("x"))),
-	}}
-	g := newGrafter(v11, root)
+	list := ynode.Seq(ynode.Scalar("x"))
+	root := &yaml.Node{Kind: yaml.DocumentNode, Content: []*yaml.Node{ynode.Map(ynode.Scalar("a"), list)}}
+	steps := budget.New(budget.Unbounded())
+	l := newLocator(newGrafter(v11, root), &steps)
 
-	_, err := g.own(t.Context(), []jsonpath.Step{{Name: "missing", Member: true}}, true)
+	_, err := l.slot(t.Context(), l.prefixes[0].node, jsonpath.Step{Name: "missing", Member: true}, false)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), `the member "missing"`)
 
-	_, err = g.own(t.Context(), []jsonpath.Step{{Name: "a", Member: true}, {Index: 5}}, true)
+	_, err = l.slot(t.Context(), list, jsonpath.Step{Index: 5}, false)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "the element 5")
+
+	_, err = l.slot(t.Context(), list, jsonpath.Step{Name: "x", Member: true}, false)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), `the member "x"`, "an array has no member")
+
+	l.prefixes[0].node = nil
+	_, err = l.own(t.Context(), 0)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "the document holds none")
 }
 
 // TestGrafter_RefusesToWriteWhatIsNoValue pins the writes no target the
@@ -61,4 +71,30 @@ func TestSequence_RefusesASelectionPastTheNodelistsBound(t *testing.T) {
 	assert.Equal(t, diag.BudgetExceeded, d.Code)
 	assert.Equal(t, ir.SeverityError, d.Severity)
 	assert.Contains(t, d.Message, "nodes one selection may hold")
+}
+
+// TestLocator_ChargesAnIndexBeforeBuildingIt pins the charge for locating a
+// member: a mapping's index costs a step a member, spent before it is built,
+// so a budget one short refuses it, as it refuses the index built again once
+// a merge's members are made the mapping's own.
+func TestLocator_ChargesAnIndexBeforeBuildingIt(t *testing.T) {
+	t.Parallel()
+	m := ynode.Map(ynode.Scalar("a"), ynode.Scalar("1"), ynode.Scalar("b"), ynode.Scalar("2"))
+	root := &yaml.Node{Kind: yaml.DocumentNode, Content: []*yaml.Node{m}}
+	var merged yaml.Node
+	require.NoError(t, yaml.Unmarshal([]byte("m: &m {a: 1, b: 2}\nx: {<<: *m, c: 3}\n"), &merged))
+	merging := merged.Content[0].Content[3]
+
+	twoSteps := budget.New(budget.AtMost(2))
+	_, err := newLocator(newGrafter(v11, &merged), &twoSteps).slot(t.Context(), merging, jsonpath.Step{Name: "a", Member: true}, false)
+	require.ErrorIs(t, err, jsonpath.ErrSteps, "the index rebuilt once the merge is flattened is charged too")
+
+	short := budget.New(budget.AtMost(1))
+	_, err = newLocator(newGrafter(v11, root), &short).slot(t.Context(), m, jsonpath.Step{Name: "b", Member: true}, false)
+	require.ErrorIs(t, err, jsonpath.ErrSteps)
+
+	enough := budget.New(budget.AtMost(2))
+	slot, err := newLocator(newGrafter(v11, root), &enough).slot(t.Context(), m, jsonpath.Step{Name: "b", Member: true}, false)
+	require.NoError(t, err)
+	assert.Equal(t, 3, slot)
 }

@@ -5,6 +5,7 @@ package jsonpath
 
 import (
 	"fmt"
+	"slices"
 	"strconv"
 	"strings"
 )
@@ -40,27 +41,30 @@ func (p Path) element(i int) Path {
 	return Path{last: &link{parent: p.last, index: i}}
 }
 
-// Steps returns p's steps from the root, in order.
-func (p Path) Steps() []Step {
-	depth := 0
-	for l := p.last; l != nil; l = l.parent {
-		depth++
+// Parent returns the path of the node holding the one at p and the step from
+// it to p, and false for the root's path, which nothing holds. Path values
+// compare by the link they hold, and two paths naming one position are one
+// value only where they were built as one, so a caller telling positions
+// apart reads them step by step.
+func (p Path) Parent() (Path, Step, bool) {
+	if p.last == nil {
+		return Path{}, Step{}, false
 	}
-	steps := make([]Step, depth)
-	for l := p.last; l != nil; l = l.parent {
-		depth--
-		steps[depth] = Step{Name: l.name, Index: l.index, Member: l.member}
-	}
-	return steps
+	l := p.last
+	return Path{last: l.parent}, Step{Name: l.name, Index: l.index, Member: l.member}, true
 }
 
 // String returns p as RFC 9535 section 2.7 normalizes it: `$`, then each
 // member name in single quotes and each array index in brackets, such as
 // $['paths']['/a'][0].
 func (p Path) String() string {
+	var steps []Step
+	for at, s, ok := p.Parent(); ok; at, s, ok = at.Parent() {
+		steps = append(steps, s)
+	}
 	var b strings.Builder
 	b.WriteByte('$')
-	for _, s := range p.Steps() {
+	for _, s := range slices.Backward(steps) {
 		if !s.Member {
 			b.WriteString("[" + strconv.Itoa(s.Index) + "]")
 			continue

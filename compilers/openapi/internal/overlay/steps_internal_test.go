@@ -136,11 +136,17 @@ func actionsFor(n int) string {
 }
 
 // minimalSteps returns the least bound within which the overlay of n actions
-// applies to the source of paths paths, found by halving: the steps its
-// selectors spend, read as a count and never as a time.
+// applies to the source of paths paths.
 func minimalSteps(t testing.TB, paths, n int) int {
 	t.Helper()
-	src, ov := pathsSource(paths), actionsFor(n)
+	return leastSteps(t, pathsSource(paths), actionsFor(n))
+}
+
+// leastSteps returns the least bound within which ov applies to src, found by
+// halving: the steps its selectors, and the lookups that locate what they
+// select, spend, read as a count and never as a time.
+func leastSteps(t testing.TB, src, ov string) int {
+	t.Helper()
 	lo, hi := 0, 1<<26
 	origin, diags := applyWithinSteps(t, docOf(t, src), ov, hi)
 	require.True(t, origin.Applied(), "within %d steps: %+v", hi, diags)
@@ -172,4 +178,70 @@ func TestApply_SpendsStepsInProportionToTheActions(t *testing.T) {
 
 	assert.Positive(t, first, "%v", steps)
 	assert.InDelta(t, 2*first, second, float64(first)/20, "marginal steps double with the actions: %v", steps)
+}
+
+// growsLinearly requires the steps measure spends at n, 2n and 4n to grow by
+// twice as much over the second doubling as over the first, within a
+// twentieth: work linear in n, where work growing with n's square would
+// grow by four times as much.
+func growsLinearly(t *testing.T, n int, measure func(n int) int) {
+	t.Helper()
+	at := []int{measure(n), measure(2 * n), measure(4 * n)}
+	first, second := at[1]-at[0], at[2]-at[1]
+	assert.Positive(t, first, "%v", at)
+	assert.InDelta(t, 2*first, second, float64(first)/20, "steps at n, 2n and 4n: %v", at)
+}
+
+// wideSource is a source whose x-big member maps n keys each to an empty
+// mapping.
+func wideSource(n int) string {
+	var b strings.Builder
+	b.WriteString(stepsHead + "x-big: {")
+	for i := range n {
+		fmt.Fprintf(&b, "k%d: {}, ", i)
+	}
+	b.WriteString("}\n")
+	return b.String()
+}
+
+// TestApply_LocatesEachMemberOfAWideMappingAtAStep pins the cost of locating
+// what a selector selects in one wide mapping: an update and a remove of
+// every member spend steps linear in the mapping's width, so a member's slot
+// is read from an index built once, not found by a scan of its holder.
+func TestApply_LocatesEachMemberOfAWideMappingAtAStep(t *testing.T) {
+	t.Parallel()
+	for name, action := range map[string]string{
+		"an update": "  - target: $['x-big'].*\n    update: {t: 1}\n",
+		"a remove":  "  - target: $['x-big'].*\n    remove: true\n",
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			growsLinearly(t, 1000, func(n int) int {
+				return leastSteps(t, wideSource(n), "overlay: 1.1.0\ninfo: {title: o, version: \"1\"}\nactions:\n"+action)
+			})
+		})
+	}
+}
+
+// deepWideSource is a source whose x-deep member is a chain of depth mappings,
+// the last holding n members each 0.
+func deepWideSource(depth, n int) string {
+	var foot strings.Builder
+	foot.WriteString("{")
+	for i := range n {
+		fmt.Fprintf(&foot, "w%d: 0, ", i)
+	}
+	foot.WriteString("}")
+	return stepsHead + "x-deep: " + strings.Repeat("{a: ", depth) + foot.String() + strings.Repeat("}", depth) + "\n"
+}
+
+// TestApply_LocatesDeepTargetsAtAStepAPrefix pins the cost of locating many
+// targets at the foot of a deep chain: grown in depth and number together,
+// the steps spent grow linearly, so each prefix the targets share is read
+// once, where reading each target's path from the root would cost their
+// number times their depth.
+func TestApply_LocatesDeepTargetsAtAStepAPrefix(t *testing.T) {
+	t.Parallel()
+	ov := "overlay: 1.1.0\ninfo: {title: o, version: \"1\"}\nactions:\n  - target: $['x-deep']..[?@ == 0]\n    remove: true\n"
+	growsLinearly(t, 250, func(n int) int { return leastSteps(t, deepWideSource(n, n), ov) })
 }

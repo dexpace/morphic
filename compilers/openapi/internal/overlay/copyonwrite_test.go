@@ -368,3 +368,37 @@ func TestApply_AppliesAJSONOverlayThatWritesASurrogatePair(t *testing.T) {
 	assert.Equal(t, []string{"/info"}, holders(root, "description", "x😀y/z"))
 	sameCodes(t, nil, diags)
 }
+
+// TestApply_RefusesARemoveWhoseHolderWouldCopyPastTheBudget pins the charge a
+// remove makes before taking a slot: the holder it removes from is made the
+// action's own first, a copy of an aliased mapping or of the members a merge
+// brings in, and a copy past the node budget refuses the action with the tree
+// as it was.
+func TestApply_RefusesARemoveWhoseHolderWouldCopyPastTheBudget(t *testing.T) {
+	t.Parallel()
+	var big strings.Builder
+	big.WriteString(head + "x-big: &m {")
+	for i := range 1000 {
+		fmt.Fprintf(&big, "k%d: {a: 1}, ", i)
+	}
+	big.WriteString("}\n")
+	for name, tc := range map[string]struct{ src, target string }{
+		"under an alias": {big.String() + "x-al: *m\n", "$['x-al'].k0.a"},
+		"beside a merge": {big.String() + "x-mg: {<<: *m, own: 1}\n", "$['x-mg'].own"},
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			ov := v11 + "  - target: " + tc.target + "\n    remove: true\n"
+			root := decoded(t, tc.src)
+			origin, diags := overlay.Apply(t.Context(), overlayIndex, root, overlayDoc(t, ov),
+				overlay.Options{Path: "o.yaml", Data: []byte(ov), MaxNodes: budget.AtMost(5_000)})
+
+			assert.False(t, origin.Applied())
+			sameCodes(t, []string{"error " + diag.BudgetExceeded}, diags)
+			sameValue(t, tc.src, root)
+
+			origin, _, diags = applied(t, tc.src, ov, false)
+			require.True(t, origin.Applied(), "within the default budget: %+v", diags)
+		})
+	}
+}
