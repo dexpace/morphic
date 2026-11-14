@@ -57,7 +57,6 @@ type Manifest struct {
     Entities map[EntityID]Entry  // every entity the SDK declares and each symbol derived from one
     Keys     int                 // irfacts.CorrelationVersion, the derivation of every Key here
                                  // (ir/derived-facts.md#correlation-keys)
-    Steps    map[string]int      // each refine step and template that ran → its version (#702)
     Regions  []Region            // the hand-written regions found, sorted by entity, then name
 }
 
@@ -142,9 +141,12 @@ type Entry struct {
   `Generations` where it holds `Snapshots`, a field no `Manifest` has, else as a `Manifest`, which a
   target gaining `CrossVersion` reads as its `""` entry and one losing it reads as the entry holding
   the spanning files.
-- **Behavior and steps.** `Options` is the version whose defaults this SDK keeps until its owner
-  moves it ([target options](contract/options.md)), and `Steps` names the version of each step
-  that shaped it, which #702 plans so that a regeneration can say which steps moved.
+- **Behavior.** `Options` is the version whose defaults this SDK keeps until its owner moves it
+  ([target options](contract/options.md)). No refine step's version is recorded: what a
+  regeneration changed is read off the digests, the surface and `Inputs`
+  ([verification](verification.md#what-a-regeneration-changed)).
+- **Checked.** A manifest is held to the output it describes, its coverage exactly and its symbols
+  against the built tree ([verification](verification.md#the-manifest-says-what-the-output-holds)).
 - **Written once.** A file a target generates for the user to own, such as a test to fill in, is an
   artifact with `SkipIfExists` ([the contract](contract/emitter.md)), recorded as `Once`: written by
   the first generation that finds it absent and never again, so one its user deleted stays deleted,
