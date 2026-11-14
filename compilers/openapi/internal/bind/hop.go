@@ -68,14 +68,18 @@ func (b *binder) named(in resource, uri string) (resource, Reason, string) {
 		return resource{}, Unreadable, "it names no document a reference can"
 	}
 	if b.resources.names(Source, key) {
-		if !reachable(b.docs, in, b.docs.cfg.Self) {
+		switch {
+		case reachable(b.docs, in, b.docs.cfg.Self):
+			return b.resources.document(Source), NoReason, ""
+		case key != b.docs.list[Source].self:
 			return resource{}, Unreadable, OffNetwork
 		}
-		return b.resources.document(Source), NoReason, ""
+		// Named by its $self alone, the source answers no document that could
+		// not read it: the URI is a location to this one (admitted).
 	}
 	// A miss the merge bound may explain is read as a location all the same:
 	// the table says it is truncated.
-	root, found, why := b.ids.lookupURI(key)
+	root, found, why := b.ids.lookupURI(key, func(decl DocID) bool { return admitted(b.docs, decl, in.root.Doc, key) })
 	switch {
 	case found:
 		b.docs.reach(root.Doc)

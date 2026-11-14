@@ -901,7 +901,11 @@ RFC 3986 where that base is a URI and as a `$ref`'s document is placed where it 
 and identifiers match as a located URL is spelled (above). One with
 a fragment that is not empty names none, as 2020-12 admits none, one naming the URI of the resource
 holding it starts no resource, and one naming the source, however spelled, returns to the
-document's. A URI no schema declares names the document at that URI, read as any other is: one read
+document's. A declaration answers a reference only where the referring document could read the
+declaring one: a document answers itself, a document read over http(s) answers another only for a
+URI of its own origin (scheme, host and port), and a document read over http(s) is answered by no
+file, the source among them; for any other asker it declares nothing, and the URI is a location to
+it. A URI no schema declares names the document at that URI, read as any other is: one read
 against an `$id` is the URI the `$id` makes of it, never the file of that name beside the source,
 and is judged for refusal as written while only relative paths moved its base, and as that URI once
 an absolute `$id` did. Every document a reached reference names is parsed before any reference is
@@ -991,6 +995,13 @@ and in what a reference reaches outside its model alike. A Path Item's
 else it writes.
 - Tests: `e2e.TestCompile_ExternalFileRefIsNotReadByDefault`,
   `e2e.TestCompile_OneURLSpelledSixWaysIsOneRequestOneKeyAndOneType`,
+  `e2e.TestCompile_ADocumentAnotherOriginServesDeclaresNothingForTheSource`,
+  `e2e.TestCompile_AFilesDeclarationAnswersTheSourceAndNoRead`,
+  `e2e.TestCompile_AFetchedDocumentReadsAURLAFileDeclares`,
+  `e2e.TestCompile_ATwoDocumentsDeclaringOneSelfAnswerNoReference`,
+  `e2e.TestCompile_AFileDeclaringAURLIsNotRequestedWhereReadsAreAllowed`,
+  `bind.TestBind_ADeclarationAnswersOnlyWhoCouldReadItsDocument`, `bind.TestBind_ASelfIsADocumentsBaseAndName`,
+  `bind.TestBind_AMappedLocationIsJudgedWhereAFetchedDocumentReadsIt`,
   `e2e.TestCompile_AFileIsOneDocumentWhateverItsReferenceSpellsIt`,
   `e2e.TestCompile_AMappedURLIsTheDocumentItsLocationHolds`,
   `e2e.TestCompile_AMappedURLThatNormalizesOutOfItsPrefixIsRefused`,

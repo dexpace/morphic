@@ -211,6 +211,35 @@ func (ix *identifiers) declare(r resources, in int32, at Position, n *yaml.Node,
 	return in, e.dialect
 }
 
+// admitted reports whether a declaration in document decl answers a reference
+// to uri written in document from: only where from could read decl
+// (docs/compilers/openapi.md#references). A document answers itself, so a
+// compound one resolves within itself. One read over http(s) answers others
+// only for a URI of its own origin, scheme, host and port, so it supplies no
+// other host's content; and a document read over http(s) is answered by no
+// file, nor by a source that is one, which it reaches by no route.
+func admitted(d *docs, decl, from DocID, uri string) bool {
+	declarer, asker := d.list[decl].name, d.list[from].name
+	switch {
+	case decl == from:
+		return true
+	case !Reachable(asker, declarer):
+		return false
+	case !OverNetwork(declarer):
+		return true
+	}
+	return sameOrigin(uri, declarer)
+}
+
+// sameOrigin reports whether the URIs a and b, each spelled as NormalURI
+// spells one, share a scheme and an authority; a URI with none, such as a
+// urn:, shares it with nothing.
+func sameOrigin(a, b string) bool {
+	u, errU := url.Parse(a)
+	v, errV := url.Parse(b)
+	return errU == nil && errV == nil && u.Host != "" && u.Scheme == v.Scheme && u.Host == v.Host
+}
+
 // recursiveAnchored reports whether the schema n writes `$recursiveAnchor` as
 // the boolean true, which marks its resource for a `$recursiveRef`; false, the
 // default, and any other value mark none.
@@ -313,12 +342,17 @@ func (ix *identifiers) reading() string {
 	return fmt.Sprint(slices.Sorted(maps.Keys(ix.counted)))
 }
 
-// lookupURI returns the root of the one resource uri identifies, and whether
-// one does. Where none does, why is DuplicateID for two or more, and NoReason
-// otherwise, uri then naming a document.
-func (ix *identifiers) lookupURI(uri string) (Position, bool, Reason) {
+// lookupURI returns the root of the one resource uri identifies to an asker,
+// and whether one does, counting only the declarations of documents answers// says answer it. Where none does, why is DuplicateID for two or more, and
+// NoReason otherwise, uri then naming a document.
+func (ix *identifiers) lookupURI(uri string, answers func(decl DocID) bool) (Position, bool, Reason) {
 	ix.asked[uri] = true
-	found := ix.uris[uri]
+	var found []Position
+	for _, p := range ix.uris[uri] {
+		if answers(p.Doc) {
+			found = append(found, p)
+		}
+	}
 	switch len(found) {
 	case 0:
 		return Position{}, false, NoReason

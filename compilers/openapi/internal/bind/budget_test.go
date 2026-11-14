@@ -199,7 +199,9 @@ func TestBind_CountsWorkLinearAcrossHeldDocuments(t *testing.T) {
 				docs[name(i)] = shape.doc(i, n)
 			}
 			cfg, reads := recordingDocuments(t, docs)
-			cfg.Self, cfg.Locate = resolving.Self, resolving.Locate
+			// The source is read from the host the documents are, whose
+			// declarations then answer them: a file's would not.
+			cfg.Self, cfg.Locate = "https://x.test/spec.yaml", resolving.Locate
 			table := bound(t, head+"components:\n  schemas:\n    I: {$id: 'https://x.test/id0'}\n"+
 				"    A: {$ref: '"+name(1)+"#/S'}\n", cfg)
 			require.False(t, table.Exhausted(), shape.name)

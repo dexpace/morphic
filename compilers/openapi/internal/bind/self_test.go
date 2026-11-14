@@ -85,3 +85,42 @@ func TestBind_AMappedLocationIsJudgedWhereAFetchedDocumentReadsIt(t *testing.T) 
 	assert.Contains(t, why, bind.OffNetwork)
 	assert.Equal(t, []string{"https://n.test/net.yaml"}, opened)
 }
+
+// TestBind_ADeclarationAnswersOnlyWhoCouldReadItsDocument holds an identifier
+// to the documents that could read its declarer: a file's answers the source,
+// a fetched document's answers itself but no other document for a URI of
+// another host, which is then read as a location, and a fetched document is
+// answered by no file.
+func TestBind_ADeclarationAnswersOnlyWhoCouldReadItsDocument(t *testing.T) {
+	t.Parallel()
+	docs := map[string]string{
+		"/local.yaml":                "Z: {$id: 'https://t.test/p.yaml', type: object}\n",
+		"https://h.test/hijack.yaml": "Z: {$id: 'https://t.test/q.yaml', type: object}\nW: {$ref: 'https://t.test/q.yaml'}\n",
+		"https://h.test/evil.yaml":   "X: {$ref: 'https://t.test/p.yaml'}\n",
+	}
+	var opened []string
+	src := "openapi: 3.1.0\ncomponents:\n  schemas:\n    L: {$ref: 'local.yaml#/Z'}\n" +
+		"    P: {$ref: 'https://t.test/p.yaml'}\n    Q: {$ref: 'https://t.test/q.yaml'}\n" +
+		"    H: {$ref: 'https://h.test/hijack.yaml#/W'}\n    E: {$ref: 'https://h.test/evil.yaml#/X'}\n"
+	cfg := resolving
+	cfg.Open = func(name string) (*yaml.Node, error) {
+		opened = append(opened, name)
+		if doc, ok := docs[name]; ok {
+			return openapitest.YAMLDocument(t, doc), nil
+		}
+		return nil, errors.New("not found")
+	}
+	table := bound(t, src, cfg)
+
+	local, hijack := docNamed(t, table, "/local.yaml"), docNamed(t, table, "https://h.test/hijack.yaml")
+	assert.Equal(t, bind.Position{Doc: local, Pointer: "/Z"}, entryAt(t, table, "/components/schemas/P").Chain.End,
+		"a file's declaration answers the source")
+	assert.Equal(t, bind.Unresolved, entryAt(t, table, "/components/schemas/Q").Chain.Status,
+		"another host's declaration answers no other document: the URL is read")
+	assert.Equal(t, bind.Position{Doc: hijack, Pointer: "/Z"}, entryAt(t, table, "/components/schemas/H").Chain.End,
+		"a document answers itself")
+	assert.Equal(t, bind.Unresolved, entryAt(t, table, "/components/schemas/E").Chain.Status,
+		"a fetched document is answered by no file")
+	assert.Contains(t, opened, "https://t.test/q.yaml")
+	assert.Contains(t, opened, "https://t.test/p.yaml")
+}
