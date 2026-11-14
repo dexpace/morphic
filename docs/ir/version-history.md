@@ -757,5 +757,4 @@ it sees. Changes made together in one bump are listed together under it.
   and false under any other. `Style` still holds the location's default where none is written. A
   consumer pinned to 0.64.0 that read `Explode` as always present no longer finds the key on such a
   binding, and must read its absence as the style's default, as it already does for a response
-  header's `Explode`, where it would otherwise read it as false and send a `form` parameter
-  unexploded.
+  header's. Read as false, the absence sends a `form` parameter unexploded.
