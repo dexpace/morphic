@@ -79,6 +79,61 @@ func TestSelect_AnswersTheExamplesOfRFC9535(t *testing.T) {
 	}
 }
 
+// TestParse_HoldsAnIntegerToTheInteroperableRange holds an index and each bound
+// of a slice to RFC 9535's I-JSON range: the largest magnitude it admits is
+// read, and one past it is a *SyntaxError at the integer, which says so.
+func TestParse_HoldsAnIntegerToTheInteroperableRange(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name   string
+		query  string
+		offset int
+		fits   bool
+	}{
+		{"an index at the top", "$[9007199254740991]", 2, true},
+		{"an index at the bottom", "$[-9007199254740991]", 2, true},
+		{"an index past the top", "$[9007199254740992]", 2, false},
+		{"an index past the bottom", "$[-9007199254740992]", 2, false},
+		{"a slice end at the top", "$[0:9007199254740991]", 4, true},
+		{"a slice end past the top", "$[0:9007199254740992]", 4, false},
+		{"a slice step past the bottom", "$[::-9007199254740992]", 4, false},
+		{"an index past what 64 bits hold", "$[99999999999999999999]", 2, false},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			_, err := jsonpath.Parse(tc.query)
+
+			if tc.fits {
+				require.NoError(t, err)
+				return
+			}
+			var syntax *jsonpath.SyntaxError
+			require.ErrorAs(t, err, &syntax)
+			assert.Equal(t, tc.offset, syntax.Offset)
+			assert.Contains(t, syntax.Reason, "is past the range of ±(2^53-1)")
+		})
+	}
+}
+
+// TestParse_ReadsAnEscapeOfFourHexadecimalDigits holds a \u escape to its four
+// digits: the largest, U+FFFF, names a member, and one with fewer is a
+// *SyntaxError.
+func TestParse_ReadsAnEscapeOfFourHexadecimalDigits(t *testing.T) {
+	t.Parallel()
+	root := readTree(t, "\"\\uffff\": 1\n\"\\ue000\": 2\n")
+
+	got, _, err := selectWithin(t, `$['\uFFFF']`, root, budget.Unbounded())
+	require.NoError(t, err)
+	require.Len(t, got, 1)
+	assert.Equal(t, "1", got[0].Node.Value)
+
+	_, err = jsonpath.Parse(`$['\uFFF']`)
+	var syntax *jsonpath.SyntaxError
+	require.ErrorAs(t, err, &syntax)
+	assert.Contains(t, syntax.Reason, "four hexadecimal digits")
+}
+
 // TestParse_RefusesWhatTheGrammarDoesNot pins a *SyntaxError, at the offset
 // named, for each way a text can fail to be a query.
 func TestParse_RefusesWhatTheGrammarDoesNot(t *testing.T) {

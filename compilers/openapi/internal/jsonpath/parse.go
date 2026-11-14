@@ -351,11 +351,11 @@ func (s *scanner) integer() (int, error) {
 	case s.text[digits] == '0' && (s.pos-digits > 1 || digits > start):
 		return 0, &SyntaxError{Offset: start, Reason: fmt.Sprintf("the integer %s is spelled with a leading zero or as -0", text)}
 	}
-	n, err := strconv.ParseInt(text, 10, 64)
-	if err != nil || n > maxIndex || n < -maxIndex {
+	n, err := strconv.Atoi(text)
+	if err != nil || int64(n) > maxIndex || int64(n) < -maxIndex {
 		return 0, &SyntaxError{Offset: start, Reason: fmt.Sprintf("the integer %s is past the range of ±(2^53-1)", text)}
 	}
-	return int(n), nil
+	return n, nil
 }
 
 // stringLiteral reads a string literal quoted by its first byte, and returns
@@ -442,6 +442,6 @@ func hex4(s string, i int) (uint64, bool) {
 	if i+4 > len(s) {
 		return 0, false
 	}
-	v, err := strconv.ParseUint(s[i:i+4], 16, 32)
+	v, err := strconv.ParseUint(s[i:i+4], 16, 16)
 	return v, err == nil
 }

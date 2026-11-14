@@ -7,6 +7,7 @@ import (
 	"bytes"
 	"strconv"
 	"strings"
+	"unicode"
 	"unicode/utf16"
 	"unicode/utf8"
 
@@ -253,7 +254,7 @@ func escapeAt(text []byte, i, n int) rune {
 		return utf8.RuneError
 	}
 	v, err := strconv.ParseUint(string(text[i+2:i+2+n]), 16, 32)
-	if err != nil {
+	if err != nil || v > unicode.MaxRune {
 		return utf8.RuneError
 	}
 	return rune(v)

@@ -151,6 +151,31 @@ func TestTranscoded_AUTF16OrUTF32TextIsTheUTF8ItEncodes(t *testing.T) {
 	}
 }
 
+// TestEscapeAt_ReadsACodePointUpToTheLastAndNoFurther holds the code point an
+// escape names to the Unicode range: the last is read, one past it is
+// utf8.RuneError, and so is a value no rune holds.
+func TestEscapeAt_ReadsACodePointUpToTheLastAndNoFurther(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name string
+		text string
+		n    int
+		want rune
+	}{
+		{"four digits", `\uE000`, 4, 0xE000},
+		{"eight digits, the last code point", `\U0010FFFF`, 8, 0x10FFFF},
+		{"eight digits, one past", `\U00110000`, 8, utf8.RuneError},
+		{"eight digits, past what a rune holds", `\UFFFFFFFF`, 8, utf8.RuneError},
+		{"digits that are no hexadecimal", `\U0010FFFG`, 8, utf8.RuneError},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			assert.Equal(t, tc.want, escapeAt([]byte(tc.text), 0, tc.n))
+		})
+	}
+}
+
 // unitBytes is the code unit u in width bytes, in the byte order bigEndian
 // names.
 func unitBytes(u rune, width int, bigEndian bool) []byte {
