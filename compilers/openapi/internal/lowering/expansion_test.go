@@ -226,8 +226,10 @@ func loaded(t *testing.T, src string, limit budget.Limit) lowering.Ctx {
 
 // TestDeclared_ResolvesNoReferencePastTheExpansionBudget pins what bounds a
 // refused run's cost: once the copies cross the budget, a $ref resolves to
-// nothing, at its use site, so no caller lowers another copy. An inline entry,
-// which the source writes once, is not charged and still resolves.
+// nothing, at its use site, so no caller lowers another copy, and a later one
+// reads none of its chain (what that costs,
+// e2e.TestReferenceObjects_PastTheExpansionBudgetNoChainIsRead holds). An inline
+// entry, which the source writes once, is not charged and still resolves.
 func TestDeclared_ResolvesNoReferencePastTheExpansionBudget(t *testing.T) {
 	t.Parallel()
 	// P weighs 17: a mapping (1), the keys name (5) and in (3), and q (2) and
@@ -260,6 +262,10 @@ components:
 	assert.Equal(t, usePtr, string(at))
 	_, refused = c.ExpansionRefusal()
 	assert.True(t, refused)
+
+	p, _, at = lowering.Declared[soa.Parameter](c, params[0], usePtr)
+	assert.Nil(t, p, "a copy past the crossing resolves to nothing")
+	assert.Equal(t, usePtr, string(at))
 
 	inline, _, _ := lowering.Declared[soa.Parameter](c, params[1], "/paths/~1a/get/parameters/1")
 	require.NotNil(t, inline)
