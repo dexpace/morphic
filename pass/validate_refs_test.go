@@ -214,12 +214,6 @@ func TestValidate_DanglingRefInPreviouslyUnwalkedField(t *testing.T) {
 	}
 }
 
-// aliasRuns is how many times TestValidate_AliasedPointerIsDeterministic repeats
-// the same call. Go randomizes map iteration per range statement, so a two-entry
-// registry disagrees with itself within a few runs; the flaw this pins split
-// 443/57 across two outputs over this many.
-const aliasRuns = 500
-
 // aliasedDoc returns a document whose two registry entries share one *TypeRef.
 // That is the shape the reference walk prunes: the shared pointer is descended
 // into at whichever entry the walk reaches first, so the surviving diagnostic
@@ -245,16 +239,14 @@ func diagJSON(t *testing.T, diags []ir.Diagnostic) string {
 // aliasing: repeated runs over one document must produce byte-identical
 // diagnostics. Sorting cannot deliver that on its own — a randomized walk of an
 // aliased graph varies which sites exist, not merely their order — so this fails
-// on any walk whose map iteration is left to Go.
+// on any walk whose map iteration is left to Go. validated reads the document
+// until it has said so determinismRuns times.
 func TestValidate_AliasedPointerIsDeterministic(t *testing.T) {
 	t.Parallel()
 	doc := aliasedDoc()
-	want := diagJSON(t, validated(t, doc))
-	require.Contains(t, want, "t/ghost/aliased", "the shared target must dangle, or nothing is being compared")
+	got := diagJSON(t, validated(t, doc))
 
-	for i := range aliasRuns {
-		require.Equal(t, want, diagJSON(t, validated(t, doc)), "run %d disagrees with the first", i)
-	}
+	require.Contains(t, got, "t/ghost/aliased", "the shared target must dangle, or nothing is being compared")
 }
 
 // pointers returns each diagnostic's IR-space location, in order.
