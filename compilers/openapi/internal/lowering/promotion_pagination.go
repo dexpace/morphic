@@ -120,7 +120,7 @@ func rootStatement(p Promoter, target ExtensionTarget, src ExtensionSource, entr
 			"no pagination is inferred for the operation")}
 	case stated.Value.Kind() != '{':
 		return st, []ir.Diagnostic{Unpromoted(src.Key, stated.Provenance,
-			"is "+shapeOf(stated.Value)+", not an object", "it states no walk for the operations that write true")}
+			"is "+ShapeOf(stated.Value)+", not an object", "it states no walk for the operations that write true")}
 	}
 	return pageStatement(p, target, src, stated)
 }
@@ -137,7 +137,7 @@ func pageStatement(p Promoter, target ExtensionTarget, src ExtensionSource, entr
 		return st, nil
 	case located == misfit:
 		return st, []ir.Diagnostic{unreadPage(src, src.Key, at,
-			"is "+shapeOf(entry.Value)+", not an object", "value of a walk")}
+			"is "+ShapeOf(entry.Value)+", not an object", "value of a walk")}
 	case located == statesNothing:
 		return st, p.unreadMembers(src, held, at)
 	case len(src.Values) > 0:
@@ -151,7 +151,7 @@ func pageStatement(p Promoter, target ExtensionTarget, src ExtensionSource, entr
 	case ok:
 		return st, []ir.Diagnostic{unreadPage(src, src.String(), at, "is an empty string", string(target))}
 	default:
-		return st, []ir.Diagnostic{unreadPage(src, src.String(), at, "is "+shapeOf(raw)+", not a string",
+		return st, []ir.Diagnostic{unreadPage(src, src.String(), at, "is "+ShapeOf(raw)+", not a string",
 			string(target))}
 	}
 }
@@ -223,9 +223,9 @@ func unreadPage(src ExtensionSource, subject string, at ir.Provenance, why, what
 		subject, why, what, reach)
 }
 
-// shapeOf names the kind of raw, a value in the IR's canonical form, as a
+// ShapeOf names the kind of raw, a value in the IR's canonical form, as a
 // report spells it.
-func shapeOf(raw ir.RawValue) string {
+func ShapeOf(raw ir.RawValue) string {
 	switch raw.Kind() {
 	case 't':
 		return "true"

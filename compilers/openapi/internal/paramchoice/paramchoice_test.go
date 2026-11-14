@@ -113,14 +113,16 @@ func TestPromote_FillsAChoiceEveryVariantOfWhichCarriesARequiredParameter(t *tes
 }
 
 // TestPromote_ReadsNoKeyThatIsNoObject pins that a key holding no object of
-// choices fills nothing and marks nothing, reported once at the key.
+// choices fills nothing and marks nothing, reported once at the key with the
+// shape the document should write instead.
 func TestPromote_ReadsNoKeyThatIsNoObject(t *testing.T) {
 	t.Parallel()
 	op, found := compile(t, spec("        - [a]\n        - [b]\n"))
 	assert.Empty(t, op.ParamChoices)
 	assert.Empty(t, op.Provenance.Inferred)
 	assert.Equal(t, map[string]string{key: `extension "x-mutually-exclusive-parameter-groups" is a list, ` +
-		`not an object of named choices, so no choice is filled`}, found)
+		`not an object from each choice's name to a boolean "optional" and "variants", an object from each ` +
+		`variant's name to a list of parameter names, so no choice is filled`}, found)
 }
 
 // TestPromote_ReadsNothingWhereNoKeyIsWritten pins that an operation writing

@@ -99,21 +99,20 @@ func TestInferWalks_LeavesAPostItCannotTellFromACreate(t *testing.T) {
 		`properties: {result: ` + stringList + `}}}}}`
 	for _, tc := range []struct {
 		name, src string
-		condition int
 	}{
 		{"the page moved to a query parameter",
 			searchDoc("post", `{name: page, in: query, schema: {type: integer}}`,
-				`query: {type: string}, per_page: {type: integer}`, okResult), 1},
-		{"no page size in the body", searchDoc("post", "", `query: {type: string}, page: {type: integer}`, okResult), 3},
+				`query: {type: string}, per_page: {type: integer}`, okResult)},
+		{"no page size in the body", searchDoc("post", "", `query: {type: string}, page: {type: integer}`, okResult)},
 		{"the cursor named as the next cursor itself",
 			searchDoc("post", "", `query: {type: string}, cursor: {type: string}`,
 				`"200": {description: ok, content: {application/json: {schema: {type: object, properties: {result: `+
-					stringList+`, cursor: {type: string}}}}}}`), 4},
+					stringList+`, cursor: {type: string}}}}}}`)},
 		{"the items below the root", searchDoc("post", "", searchPage,
 			`"200": {description: ok, content: {application/json: {schema: {type: object, properties: `+
-				`{result: {type: object, properties: {domains: `+stringList+`}}}}}}}`), 5},
-		{"the response a 201", searchDoc("post", "", searchPage, created), 6},
-		{"a 200 beside a 201", searchDoc("post", "", searchPage, okResult+", "+created), 6},
+				`{result: {type: object, properties: {domains: `+stringList+`}}}}}}}`)},
+		{"the response a 201", searchDoc("post", "", searchPage, created)},
+		{"a 200 beside a 201", searchDoc("post", "", searchPage, okResult+", "+created)},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()

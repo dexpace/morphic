@@ -79,8 +79,10 @@ func inferBytes(t *testing.T, src string, operations int) float64 {
 // TestInferWalks_AllocatesLinearInTheBodiesItReads holds what inferring walks
 // from request bodies allocates to linear growth in the operations, each
 // sending a body of its own: from 2n operations to 4n it grows at most 2.5
-// times what it grows from n to 2n. A body read for each member it holds, or
-// every body read for each operation, grows four times. Each size is averaged
+// times what it grows from n to 2n. A body's members resolved again for each
+// member it holds, or every body's for each operation, grows four times; a
+// rescan of the members the reading keeps allocates nothing, so it is not
+// held here. Each size is averaged
 // over four spread across its doubling. It does not run in parallel, since the
 // count is process-wide.
 func TestInferWalks_AllocatesLinearInTheBodiesItReads(t *testing.T) {

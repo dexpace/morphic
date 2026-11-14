@@ -68,8 +68,3 @@ func (p Promoter) firstValue(target ExtensionTarget, own ir.Unmodeled, refuse fu
 func Unpromoted(key string, at ir.Provenance, why, outcome string) ir.Diagnostic {
 	return diag.Newf(ir.SeverityInfo, diag.UnpromotedExtension, at, "extension %q %s, so %s", key, why, outcome)
 }
-
-// ShapeOf names the kind of raw, a value in the IR's canonical form, as a
-// report spells it, for a step reading a promotion's value once the document
-// is whole.
-func ShapeOf(raw ir.RawValue) string { return shapeOf(raw) }

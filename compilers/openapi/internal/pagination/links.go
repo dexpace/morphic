@@ -29,7 +29,7 @@ func prevLinkNames() linkNames {
 	return linkNames{named: []string{"prev_link", "previous_link"}, bare: []string{"prev", "previous"}}
 }
 
-// link returns the path to the one member of body, or, where deep is set, of a
+// pageLink returns the path to the one member of body, or, where deep is set, of a
 // model one of its members holds, that names is a link under, and nil where
 // none or several are.
 func pageLink(ms *models, body *model, deep bool, names linkNames) []ir.PropID {

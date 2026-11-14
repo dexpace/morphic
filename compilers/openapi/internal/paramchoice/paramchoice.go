@@ -33,8 +33,9 @@ func PromoteChoices(c lowering.Ctx, w *whole.Document) []ir.Diagnostic {
 		}
 		var groups map[string]jsontext.Value
 		if err := json.Unmarshal(st.Value, &groups); err != nil || groups == nil {
-			diags = append(diags, lowering.Unpromoted(st.Source.String(), st.At,
-				"is "+lowering.ShapeOf(st.Value)+", not an object of named choices", "no choice is filled"))
+			diags = append(diags, lowering.Unpromoted(st.Source.String(), st.At, "is "+lowering.ShapeOf(st.Value)+
+				`, not an object from each choice's name to a boolean "optional" and "variants", an object `+
+				`from each variant's name to a list of parameter names`, "no choice is filled"))
 			continue
 		}
 		r := reader{w: w, op: op, key: st.Source.String()}

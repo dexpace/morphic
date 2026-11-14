@@ -781,9 +781,12 @@ it sees. Changes made together in one bump are listed together under it.
   header parameter its HTTP-date reading reaches
   ([`http-date-inference`](../compilers/openapi.md#http-date-inference)). `Content.Inferred`, the
   heuristics that filled a field from a key the content keeps, the marker a promotion from a content
-  records ([promotion](./unmodeled.md#promotion)). `Operation.ParamChoices`, with `ParamChoice` and
-  `ParamVariant`, the choices a source states among parameters it declares one by one, the
-  parameter list untouched ([choices among parameters](./operations.md#choices-among-parameters));
+  records ([promotion](./unmodeled.md#promotion)); the OpenAPI compiler writes for the first time a
+  response stream's `Terminator` and `Condition`, from the promotion targets `stream.terminator` and
+  `stream.condition` ([`streaming-media`](../compilers/openapi.md#streaming-media)).
+  `Operation.ParamChoices`, with `ParamChoice` and `ParamVariant`, the choices a source states among
+  parameters it declares one by one, the parameter list untouched
+  ([choices among parameters](./operations.md#choices-among-parameters));
   `ir/param-choice-single`, `ir/param-variant-empty` and `ir/param-choice-name-duplicate` are new
   verifier codes. Three markers are renamed, as each inference's marker is `<fact>-inference`:
   `streaming-media-type` is `streaming-inference`, `binary-media-type` is `binary-inference` and
