@@ -79,24 +79,26 @@ func TestRespell_APlaceholderIsTheLowestOneNoSpellingOfTheTextCanMake(t *testing
 }
 
 // TestRespell_EachTriggerGetsAPlaceholderOfItsOwn holds the placeholders of
-// the three breaks and of the escaped slash apart from each other and from
-// everything the text spells.
+// the three breaks, of the escaped slash and of a pair of escapes apart from
+// each other and from everything the text spells.
 func TestRespell_EachTriggerGetsAPlaceholderOfItsOwn(t *testing.T) {
 	t.Parallel()
-	text := "a: \"p" + nel + "q\"\nb: p" + ls + "q\nc: |\n  p" + ps + "q\nd: \"x" + bs + "/y\"\ne: \"" + bs + "uE000\"\n"
+	text := "a: \"p" + nel + "q\"\nb: p" + ls + "q\nc: |\n  p" + ps + "q\nd: \"x" + bs + "/y\"\ne: \"" + bs + "uE000\"\n" +
+		"f: \"" + bs + "uD83D" + bs + "uDE00\"\n"
 
 	out, r, _ := respell([]byte(text))
 
-	got := []rune{r.breaks[0], r.breaks[1], r.breaks[2], r.slash}
+	got := []rune{r.breaks[0], r.breaks[1], r.breaks[2], r.slash, r.pair}
 	seen := map[rune]bool{}
 	for _, p := range got {
 		assert.GreaterOrEqual(t, p, rune(0xE001), "U+E000 is spelled by an escape")
 		assert.False(t, seen[p], "placeholders are distinct: %U", got)
 		seen[p] = true
 	}
-	for _, c := range []string{nel, ls, ps, bs + "/"} {
+	for _, c := range []string{nel, ls, ps, bs + "/", bs + "uD83D"} {
 		assert.NotContains(t, string(out), c)
 	}
+	assert.Equal(t, utf8.RuneCount([]byte(text)), utf8.RuneCount(out), "one character for one")
 }
 
 // TestTranscoded_AUTF16OrUTF32TextIsTheUTF8ItEncodes holds a text opening with
@@ -175,12 +177,13 @@ func TestRespell_ATextSpellingEveryCandidateLeavesItsTriggerAsWritten(t *testing
 	for r := rune(0xE000); r < 0xE040; r++ {
 		every.WriteRune(r)
 	}
-	text := "a: \"p" + nel + "q\"\nb: " + every.String() + "\n"
+	text := "a: \"p" + nel + "q\"\nb: " + every.String() + "\nc: \"" + bs + "uD83D" + bs + "uDE00\"\n"
 
 	out, r, _ := respell([]byte(text))
 
 	assert.Equal(t, text, string(out))
 	assert.Zero(t, r.breaks[0])
+	assert.Zero(t, r.pair)
 
 	// One candidate left free is taken.
 	free := strings.Replace(text, string(rune(0xE03F)), "", 1)
@@ -390,8 +393,8 @@ func FuzzRespell_PlaceholdersAreInvisible(f *testing.F) {
 // slicesOf lists the placeholders r holds, in a fixed order, leaving out what
 // it does not use.
 func slicesOf(r respelling) []rune {
-	out := make([]rune, 0, 4)
-	for _, p := range []rune{r.breaks[0], r.breaks[1], r.breaks[2], r.slash} {
+	out := make([]rune, 0, 5)
+	for _, p := range []rune{r.breaks[0], r.breaks[1], r.breaks[2], r.slash, r.pair} {
 		if p != 0 {
 			out = append(out, p)
 		}
@@ -408,6 +411,9 @@ func replacePlaceholder(r respelling, from, to rune) respelling {
 	}
 	if r.slash == from {
 		r.slash = to
+	}
+	if r.pair == from {
+		r.pair = to
 	}
 	return r
 }

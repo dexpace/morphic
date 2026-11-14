@@ -105,8 +105,11 @@ JSON text, YAML or JSON followed by anything else, is read as YAML, as before, i
 
 Every YAML text is read as YAML 1.2, as YAML 1.2 asks of a processor whatever a `%YAML` directive
 declares ([`yaml11-lexing`](../parser-library.md#yaml11-lexing)): a `\/` escape is a slash in a
-double-quoted scalar and the two characters it writes anywhere else, a raw U+0085, U+2028 or U+2029
-is a character and ends no line, and a `%YAML 1.2` directive is read. A document declaring a later
+double-quoted scalar and the two characters it writes anywhere else, as a pair of `\u` escapes
+naming the two halves of a surrogate pair is the one character it names there, as JSON spells one,
+and the twelve characters as written anywhere else, while a half alone is refused as in JSON text
+above; a raw U+0085, U+2028 or U+2029 is a character and ends no line, and a `%YAML 1.2`
+directive is read. A document declaring a later
 minor is read as 1.2 with an `openapi/yaml-version-reading` warning at the directive, by position
 alone, and one declaring another major is refused as the parser refuses it. A document declaring
 1.1 draws the same warning at each plain scalar YAML 1.1's types read as another JSON value than
@@ -186,14 +189,19 @@ scalar under any other tag keeps it.
   `e2e.TestCompile_AJSONSourceWithAKeyPastTheYAMLLimitCompiles`,
   `e2e.TestCompile_AJSONExternalDocumentCompilesAsItsLiteralTwin`,
   `e2e.TestCompile_ALoneSurrogateIsRefusedWhereItIsWritten`,
-  `e2e.TestCompile_APositionAfterAnEscapeCountsItAsWritten`
+  `e2e.TestCompile_APositionAfterAnEscapeCountsItAsWritten`,
+  `e2e.TestCompile_ASurrogatePairOfEscapesInYAMLIsTheCharacterItNames`,
+  `e2e.TestCompile_ALoneHalfOfASurrogatePairIsStillRefused`,
+  `e2e.TestCompile_ASurrogatePairInAKeyAndBesideOtherRespellingsReadsEachAsItsOwn`,
+  `doctree.TestRead_ASurrogatePairIsTheCharacterOnlyInADoubleQuotedScalar`,
+  `doctree.TestRead_ASurrogatePairAfterAnEvenRunOfBackslashesIsNotOne`,
+  `doctree.TestRead_AnUnpairedHalfIsRefusedAsItIsToday`, `doctree.TestRead_ASurrogatePairInAKeyIsTheCharacter`
 - Status: partly built: both order oracles in `internal/harness` parse a source as YAML to permute
   it as YAML 1.1 lexes it, and decline one only the compiler's reader reads as not YAML: a JSON
-  text writing a surrogate pair, and a YAML text writing an escaped slash or a `%YAML 1.2`
-  directive (#1768). A pair of surrogate escapes in YAML text is refused, as YAML 1.2 joins no pair
-  (#1934). A text writing every one of the 64 characters from U+E000 that the reader stands in for
-  what it reads as YAML 1.2, and a UTF-16 or UTF-32 text encoding no text, are read as the parser
-  reads them. A scalar or a sequence under
+  text writing a surrogate pair, and a YAML text writing an escaped slash, a pair of surrogate
+  escapes or a `%YAML 1.2` directive (#1768). A text writing every one of the 64 characters from
+  U+E000 that the reader stands in for what it reads as YAML 1.2, and a UTF-16 or UTF-32 text
+  encoding no text, are read as the parser reads them. A scalar or a sequence under
   a tag outside YAML's JSON schema ruleset is not reported, and where the model reads a string or a
   list it reads as left out (#1368).
 

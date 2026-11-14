@@ -32,6 +32,7 @@ const (
 type respelling struct {
 	breaks [3]rune // what stands for U+0085, U+2028 and U+2029, or 0
 	slash  rune    // what, written twice, stands for an escaped slash, or 0
+	pair   rune    // what stands for each backslash and u of a pair of escapes, or 0
 }
 
 // respell returns text as the parser reads it as YAML 1.2, one character for
@@ -40,10 +41,10 @@ type respelling struct {
 // byte order mark, which Read hands it only when it encodes no text
 // (transcoded).
 //
-// Each line-break character, and each escaped slash, is written as a
-// placeholder: a private-use character no spelling of the text can produce
-// (spelled), so restore reads back exactly what was put. A trigger left with no
-// placeholder free is left as written.
+// Each line-break character, escaped slash and pair of surrogate escapes is
+// written as a placeholder: a private-use character no spelling of the text
+// can produce (spelled), so restore reads back exactly what was put. A
+// trigger left with no placeholder free is left as written.
 func respell(text []byte) ([]byte, respelling, []Directive) {
 	if wide(text) {
 		return text, respelling{}, nil
@@ -54,7 +55,8 @@ func respell(text []byte) ([]byte, respelling, []Directive) {
 		present[i] = bytes.Contains(text, []byte(b))
 	}
 	slashed := bytes.Contains(text, []byte(escapedSlash))
-	if present == [3]bool{} && !slashed {
+	pairs := pairsIn(text)
+	if present == [3]bool{} && !slashed && len(pairs) == 0 {
 		return out, respelling{}, dirs
 	}
 
@@ -69,6 +71,10 @@ func respell(text []byte) ([]byte, respelling, []Directive) {
 	if slashed {
 		r.slash = take(&free)
 		out = replaceSlashes(out, r.slash)
+	}
+	if len(pairs) > 0 {
+		r.pair = take(&free)
+		out = replacePairs(out, pairs, r.pair)
 	}
 	return out, r, dirs
 }
@@ -207,6 +213,66 @@ func replaceSlashes(text []byte, p rune) []byte {
 	return append(out, text[last:]...)
 }
 
+// pairEscape is the length of a pair of escapes naming a surrogate pair:
+// `\uD83D\uDE00`, twelve characters.
+const pairEscape = 12
+
+// pairsIn returns where each pair of escapes naming the two halves of a
+// surrogate pair starts in text: a backslash ending a run of odd length, then
+// u and the high half's four hex digits, then a backslash, u and the low
+// half's. YAML's character set holds no surrogate, so the two escapes name
+// nothing apart, and JSON escapes a character past U+FFFF only so (RFC 8259
+// §7); the parser refuses each half alone. Under an even run the first
+// backslash is itself escaped, and the pair is text.
+func pairsIn(text []byte) []int {
+	if !bytes.Contains(text, []byte(`\u`)) {
+		return nil
+	}
+	var starts []int
+	run := 0
+	for i := 0; i < len(text); i++ {
+		if text[i] == '\\' {
+			run++
+			continue
+		}
+		if run%2 == 1 && pairAt(text, i-1) {
+			starts = append(starts, i-1)
+			i += pairEscape - 2
+		}
+		run = 0
+	}
+	return starts
+}
+
+// pairAt reports whether the escapes of a surrogate pair start at text[i].
+func pairAt(text []byte, i int) bool {
+	if i+pairEscape > len(text) || text[i+1] != 'u' || text[i+6] != '\\' || text[i+7] != 'u' {
+		return false
+	}
+	return utf16.IsSurrogate(escapeAt(text, i, 4)) && escapeAt(text, i, 4) < 0xDC00 &&
+		escapeAt(text, i+6, 4) >= 0xDC00 && escapeAt(text, i+6, 4) <= 0xDFFF
+}
+
+// replacePairs returns text with each pair of escapes starting at starts
+// written as p, the high half's hex digits, p twice, the low half's, and p:
+// twelve characters for twelve, so every position after it stands. It returns
+// text itself when p is 0.
+func replacePairs(text []byte, starts []int, p rune) []byte {
+	if p == 0 {
+		return text
+	}
+	s := []byte(string(p))
+	out := make([]byte, 0, len(text)+len(starts)*4*(len(s)-1))
+	last := 0
+	for _, i := range starts {
+		out = append(out, text[last:i]...)
+		out = append(append(append(out, s...), text[i+2:i+6]...), s...)
+		out = append(append(append(out, s...), text[i+8:i+12]...), s...)
+		last = i + pairEscape
+	}
+	return append(out, text[last:]...)
+}
+
 // spelled returns the placeholders text can make a string of the tree hold, a
 // bit each from firstPlaceholder: one written raw, one a \u or \U escape names
 // in either case and of either length, and one in the UTF-8 decoding of a run
@@ -278,9 +344,9 @@ func percentAt(text []byte, i int) rune {
 
 // restore writes back in n what respell put in place: each line-break
 // placeholder as its character, in every string of n, and an escaped slash's
-// doubled placeholder as the slash it escapes in the value of a double-quoted
-// scalar, the one style where the backslash was an escape, and as the two
-// characters written in every other string.
+// doubled placeholder and a pair of escapes as the character they name in the
+// value of a double-quoted scalar, the one style where a backslash is an
+// escape, and as the characters written in every other string.
 func (r respelling) restore(n *yaml.Node) {
 	if r == (respelling{}) {
 		return
@@ -295,12 +361,15 @@ func (r respelling) restore(n *yaml.Node) {
 }
 
 // restored is s with what respell put in place written back, the escaped slash
-// as a slash when escapes reads it as an escape.
+// and a pair of escapes as what they name when escapes reads them as escapes.
 func (r respelling) restored(s string, escapes bool) string {
 	for i, p := range r.breaks {
 		if p != 0 {
 			s = strings.ReplaceAll(s, string(p), lineBreaks[i])
 		}
+	}
+	if r.pair != 0 && strings.ContainsRune(s, r.pair) {
+		s = restoredPairs(s, r.pair, escapes)
 	}
 	if r.slash == 0 {
 		return s
@@ -310,6 +379,36 @@ func (r respelling) restored(s string, escapes bool) string {
 		slash = "/"
 	}
 	return strings.ReplaceAll(s, string([]rune{r.slash, r.slash}), slash)
+}
+
+// restoredPairs is s with each pair of escapes replacePairs wrote as p read
+// back: as the one character the pair names where escapes reads them as
+// escapes, and as the twelve characters written, hex digits as cased, in
+// every other string. Each p in s is one of the four replacePairs writes for
+// a pair, so s split at p holds, after its first part, the high half's
+// digits, an empty part, the low half's and what follows, pair by pair.
+func restoredPairs(s string, p rune, escapes bool) string {
+	parts := strings.Split(s, string(p))
+	var b strings.Builder
+	b.WriteString(parts[0])
+	for i := 1; i+3 < len(parts); i += 4 {
+		if escapes {
+			b.WriteRune(utf16.DecodeRune(hex4(parts[i]), hex4(parts[i+2])))
+		} else {
+			b.WriteString(`\u` + parts[i] + `\u` + parts[i+2])
+		}
+		b.WriteString(parts[i+3])
+	}
+	return b.String()
+}
+
+// hex4 is the value the four hex digits h spell.
+func hex4(h string) rune {
+	var v rune
+	for _, c := range strings.ToLower(h) {
+		v = v<<4 | rune(strings.IndexRune("0123456789abcdef", c))
+	}
+	return v
 }
 
 // breakIn returns the line-break character whose placeholder s holds, the first

@@ -36,14 +36,18 @@ func value(t *testing.T, doc *yaml.Node, key string) *yaml.Node {
 }
 
 // yaml11Lexing pins yaml11-lexing: the lexer reads the YAML 1.1 of the library
-// where YAML 1.2 differs, in the escapes it knows, the directive it accepts
-// and the characters it ends a line at.
+// where YAML 1.2 differs, in the escapes it knows and the pairs of them it
+// joins, the directive it accepts and the characters it ends a line at.
 func yaml11Lexing(t *testing.T) {
 	const nel, e0, bs = "\xc2\x85", "\xee\x80\x80", "\\"
 
 	_, err := lexed("a: \"x" + bs + "/y\"\n")
 	require.Error(t, err, "an escaped slash, which YAML 1.2 allows, is refused")
 	assert.Contains(t, err.Error(), "found unknown escape character")
+
+	_, err = lexed("a: \"" + bs + "uD83D" + bs + "uDE00\"\n")
+	require.Error(t, err, "a pair of escapes naming a surrogate pair, which YAML 1.2 reads as one character, is refused")
+	assert.Contains(t, err.Error(), "found invalid Unicode character escape code")
 
 	doc, err := lexed("a: \"x" + bs + "ay\"\nb: 'x" + bs + "ay'\nc: x" + bs + "ay\n")
 	require.NoError(t, err)
