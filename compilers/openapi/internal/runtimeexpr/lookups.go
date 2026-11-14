@@ -10,13 +10,22 @@ import (
 	"github.com/dexpace/morphic/ir"
 )
 
+// ResponseList is the field of an ir.Operation a response sits in.
+type ResponseList int
+
+// The fields an operation holds its responses in.
+const (
+	ListResponses ResponseList = iota
+	ListErrors
+	ListDefault
+)
+
 // ResponseKey names one response of a service, which Lookups index the headers
-// of: the operation carrying it, which of that operation's lists of responses
-// it sits in, and where in the list. List is numbered as the caller likes, and
-// two responses of an operation differ in List or in Index.
+// of: the operation carrying it, the list it sits in, and where in the list.
+// The default response is the one of ListDefault, at Index 0.
 type ResponseKey struct {
 	Op    ir.OpID
-	List  int
+	List  ResponseList
 	Index int
 }
 

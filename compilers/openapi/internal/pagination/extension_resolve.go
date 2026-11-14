@@ -237,7 +237,7 @@ func (pg *pager) headerOutput(op *ir.Operation, name string) (*ir.PropPath, stri
 	}
 	var out *ir.PropPath
 	for i := range op.Responses {
-		found := pg.lk.Header(runtimeexpr.ResponseKey{Op: op.ID, Index: i}, op.Responses[i].Headers, name)
+		found := pg.lk.Header(runtimeexpr.ResponseKey{Op: op.ID, List: runtimeexpr.ListResponses, Index: i}, op.Responses[i].Headers, name)
 		switch {
 		case len(found) != 1:
 			return nil, "reads response header " + strconv.Quote(name) + ", which a success response does not declare once"

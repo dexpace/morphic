@@ -13,6 +13,7 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
 	"github.com/dexpace/morphic/compilers/openapi/internal/resolve"
+	"github.com/dexpace/morphic/compilers/openapi/internal/runtimeexpr"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -36,19 +37,9 @@ type pendingLink struct {
 // never reordered, so an index taken as a response is appended still names it
 // once the service is whole.
 type responseSlot struct {
-	list  slotList
+	list  runtimeexpr.ResponseList
 	index int
 }
-
-// slotList is the field of ir.Operation a responseSlot reads.
-type slotList int
-
-// The fields a response lowers to.
-const (
-	slotResponses slotList = iota
-	slotErrors
-	slotDefault
-)
 
 // add holds drafts, the links of the response slot names on from.
 func (l *Links) add(from ir.OpID, slot responseSlot, drafts []linkDraft) {

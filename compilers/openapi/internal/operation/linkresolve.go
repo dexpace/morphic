@@ -80,12 +80,12 @@ type responseView struct {
 // in returns the response s names on op. add took s as the response was
 // appended, so the response is there.
 func (s responseSlot) in(op *ir.Operation) responseView {
-	key := runtimeexpr.ResponseKey{Op: op.ID, List: int(s.list), Index: s.index}
+	key := runtimeexpr.ResponseKey{Op: op.ID, List: s.list, Index: s.index}
 	switch s.list {
-	case slotErrors:
+	case runtimeexpr.ListErrors:
 		e := &op.Errors[s.index]
 		return responseView{key: key, links: &e.Links, unmodeled: &e.Unmodeled, payload: e.Payload, headers: e.Headers}
-	case slotDefault:
+	case runtimeexpr.ListDefault:
 		r := op.Default
 		return responseView{key: key, links: &r.Links, unmodeled: &r.Unmodeled, payload: r.Payload, headers: r.Headers}
 	default:

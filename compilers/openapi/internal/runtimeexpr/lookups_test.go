@@ -101,7 +101,7 @@ func TestLookups_IndexEachListOnceWhenAValueFirstReadsIt(t *testing.T) {
 	models, operations, responses = lk.Indexed()
 	assert.Equal(t, [3]int{1, 1, 1}, [3]int{models, operations, responses}, "one list of each kind is indexed")
 
-	lk.Header(runtimeexpr.ResponseKey{Op: "op/x", List: 1}, headers, "X-Rate")
+	lk.Header(runtimeexpr.ResponseKey{Op: "op/x", List: runtimeexpr.ListErrors}, headers, "X-Rate")
 	lk.Header(runtimeexpr.ResponseKey{Op: "op/x", Index: 1}, headers, "X-Rate")
 	lk.Header(runtimeexpr.ResponseKey{Op: "op/y"}, headers, "X-Rate")
 	_, _, responses = lk.Indexed()
