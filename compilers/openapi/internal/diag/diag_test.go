@@ -164,7 +164,7 @@ func codes() []string {
 		diag.UnresolvedSecurityScheme,
 		diag.InvalidLink,
 		diag.UntypedLink,
-		diag.ReservedHeaderName, diag.UnpreservableConstruct,
+		diag.ReservedHeaderName, diag.UnloweredConstruct, diag.UnpreservableConstruct,
 		diag.UnknownSchemaKeyword, diag.UnknownObjectKey, diag.UnreadExtension, diag.UnpromotedExtension, diag.UnknownKeyBudget,
 		diag.UnknownKeyUnreachable, diag.UnknownKeyEntryTaken,
 		diag.InvalidLocationKeyword, diag.InapplicableLocationKeyword,

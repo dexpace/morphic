@@ -4,6 +4,7 @@
 package e2e_test
 
 import (
+	"encoding/json/jsontext"
 	"regexp"
 	"strings"
 	"testing"
@@ -348,6 +349,7 @@ components:
 	assert.Nil(t, s.Properties[0].Default, "the default is dropped, not kept as its text")
 	require.Len(t, diags, 1)
 	assert.Equal(t, ir.SeverityWarning, diags[0].Severity)
-	assert.Equal(t, diag.DegradedConstruct, diags[0].Code)
+	assert.Equal(t, diag.UnloweredConstruct, diags[0].Code)
+	assert.Equal(t, jsontext.Pointer("/components/schemas/S/properties/d/default"), diags[0].Provenance.Pointer)
 	assert.Contains(t, diags[0].Message, `timestamp literal "soon"`)
 }

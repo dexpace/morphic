@@ -1184,9 +1184,10 @@ same literal tagged `!!float` is. A quoted one stays a string. A value no `Value
 `.nan`, a number past `ir.MaxDecimalExp`, a `!!binary` that is not base64, a scalar whose text its
 tag does not admit (`!!null abc`, `!!timestamp soon`), a tag the compiler does not lower (`!acme`), a
 key a mapping or a mapping merged into it writes twice, a merge chain deeper than the reader
-expands, nesting past the reader's depth bound — is not coerced: a default or example is dropped
-with an `openapi/degraded-construct` warning at its position, and a `const` or an enum member is
-[`enum-const`](#enum-const)'s. A scalar whose text its tag does not admit is refused rather than
+expands, nesting past the reader's depth bound — is not coerced: an example is dropped with an
+`openapi/degraded-construct` warning at its position, a default with an `openapi/unlowered-construct`
+warning at its own `default`, in whichever document and once however many carriers read it, each of
+which then takes none, and a `const` or an enum member is [`enum-const`](#enum-const)'s. A scalar whose text its tag does not admit is refused rather than
 read as its text, since its tag says what kind of value it is, YAML's own decoding refuses it, and
 its text read as a string would be a value of a kind the source never wrote, where the warning says
 what the document got wrong. The number reader is the numeric bounds' as well
@@ -1194,14 +1195,16 @@ what the document got wrong. The number reader is the numeric bounds' as well
 [`verbatim-preservation`](#verbatim-preservation)'s.
 
 - Cases: `defaults`, `yaml-timestamp-scalars`, `numeric-precision`, `yaml-merge-keys`
-- Codes: `openapi/degraded-construct`
+- Codes: `openapi/degraded-construct`, `openapi/unlowered-construct`
 - Tests: `value.TestNumericLiteral_YAMLBases`, `value.TestValueFromNode_Timestamp`,
   `value.TestValueFromNode_Scalars`, `value.TestValueFromNode_ReadsAMappingAsTheParserDoes`,
   `value.TestValueFromNode_RefusesWhatNoObjectHolds`, `value.TestClassify_ReadsEachSpellingOnce`,
   `value.TestClassify_RefusesAPlainNumberPastTheExponentRange`,
-  `annotation.TestSchemaExamplesAt_UnconvertibleValueIsReportedNotDropped`
-- Status: partly built: an unconvertible default is reported at the schema of the property or
-  parameter that reads it rather than at its own position (#1101).
+  `annotation.TestSchemaExamplesAt_UnconvertibleValueIsReportedNotDropped`,
+  `schema.TestUseDefault_ReportsAtTheDefault`, `schema.TestUseDefault_ReportsAHeadersDefaultAtTheDefault`,
+  `schema.TestUseDefault_AChainReportsAtTheHopThatSupplied`
+- Status: partly built: a parameter's unconvertible default is still reported at the schema reading
+  it, with `openapi/degraded-construct` (#1101).
 
 ## 4. Schemas: identity, references and annotations
 

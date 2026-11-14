@@ -399,6 +399,11 @@ const (
 	// unconditional, not an Options switch, because nothing is inferred (invariant
 	// 6). Warning, not error: the document is well-formed.
 	ReservedHeaderName = "openapi/reserved-header-name"
+	// UnloweredConstruct reports a construct malformed or contradictory, so not
+	// lowered as written: a consumer gets the IR without it. A default no
+	// ir.Value holds is reported once, where it is written, and every carrier
+	// reading it takes none (schema.Use.Default).
+	UnloweredConstruct = "openapi/unlowered-construct"
 	// UnpreservableConstruct reports a construct that reached the IR in no form at
 	// all: the compiler had no field to model it and its source node could not be
 	// converted to JSON either, so Unmodeled could not hold it. It is an error

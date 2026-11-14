@@ -14,11 +14,13 @@ import (
 	"github.com/dexpace/morphic/compilers/compile"
 	"github.com/dexpace/morphic/compilers/openapi/internal/annotation"
 	"github.com/dexpace/morphic/compilers/openapi/internal/bind"
+	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
 	"github.com/dexpace/morphic/compilers/openapi/internal/nodeview"
 	"github.com/dexpace/morphic/compilers/openapi/internal/oas"
 	"github.com/dexpace/morphic/compilers/openapi/internal/provenance"
 	"github.com/dexpace/morphic/compilers/openapi/internal/resolve"
+	"github.com/dexpace/morphic/compilers/openapi/internal/value"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -97,6 +99,48 @@ func (u Use) DefaultChain(s *oas3.Schema) []*oas3.Schema {
 	return slices.Concat(chain[:own], slices.DeleteFunc(slices.Clone(chain[own:]), func(r *oas3.Schema) bool {
 		return !u.takes(r.GetDefault())
 	}))
+}
+
+// Default returns the default the nearest schema of u's chain writes for the
+// carrier at pointer holding s, as DefaultChain reads the chain, and a warning
+// at that default's own position where no ir.Value holds it. The carrier then
+// takes none: a later hop's default is not what the nearest writes.
+func (u Use) Default(c lowering.Ctx, s *oas3.Schema, pointer jsontext.Pointer) (*ir.Value, []ir.Diagnostic) {
+	chain := u.Site(s).Chain()
+	own := len(chain) - len(u.Referents) + u.narrowedFrom
+	for i, r := range chain {
+		d := r.GetDefault()
+		if d == nil || u.narrowed != nil && i >= own && !u.takes(d) {
+			continue
+		}
+		v, err := value.FromNode(d)
+		if err != nil {
+			return nil, []ir.Diagnostic{diag.Newf(ir.SeverityWarning, diag.UnloweredConstruct, u.defaultAt(c, i, pointer),
+				"default is no value the IR holds, so no property, header or parameter reading it takes one: %s",
+				diag.OneLine(err))}
+		}
+		return &v, nil
+	}
+	return nil, nil
+}
+
+// defaultAt places the default the schema at index i of u.Site's chain writes,
+// for the carrier at pointer: the site's own, a voice's, or a referent's where
+// it is written, in whichever document. A referent the bindings place nowhere
+// is reported at the carrier, which reads it.
+func (u Use) defaultAt(c lowering.Ctx, i int, pointer jsontext.Pointer) ir.Provenance {
+	switch v := i - 1; {
+	case i == 0:
+		return c.Place().At(pointer.AppendToken("default"))
+	case v < len(u.Voices):
+		return c.Place().At(u.Voices[v].At.AppendToken("default"))
+	}
+	r := i - 1 - len(u.Voices)
+	if r >= len(u.places) || !u.places[r].known {
+		return c.Place().At(pointer)
+	}
+	at := u.places[r]
+	return at.doc.At(at.pointer.AppendToken("default"))
 }
 
 // takes reports whether the position admits v: the narrowing does, or v is the
