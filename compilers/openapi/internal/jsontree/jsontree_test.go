@@ -284,11 +284,11 @@ func TestRead_ReportsExactlyTheSurrogateEscapesAsHalves(t *testing.T) {
 	}
 }
 
-// TestRead_ReadsAnEscapeBesideAFaultAsALoneOneDoes holds a string that holds an
+// TestRead_ReadsAFaultAfterAnEscapeAsTheFaultAlone holds a string that holds an
 // escape of a code unit outside D800 to DFFF, then a fault the decoder gives up
 // at, to the verdict of the same string with the escape written as one
 // character: the escape is never the reason, so it is never what Read quotes.
-func TestRead_ReadsAnEscapeBesideAFaultAsALoneOneDoes(t *testing.T) {
+func TestRead_ReadsAFaultAfterAnEscapeAsTheFaultAlone(t *testing.T) {
 	t.Parallel()
 	faults := []string{`\q"]`, esc("d83d") + `"]`, "\t\"]", esc("ZZZZ") + `"]`, esc("d83d") + esc("0041") + `"]`, `\`}
 	for _, fault := range faults {

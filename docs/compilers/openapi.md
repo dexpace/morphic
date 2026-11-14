@@ -81,8 +81,8 @@ OpenAPI's limit on YAML tags forbids, refuses the source before the parser reads
 `openapi/tagged-mapping` error at the tagged mapping with the least pointer, and it compiles to no
 Document. A tagged scalar is not refused here; what it lowers to is [`values`](#values)'.
 
-A source, each document a reference reads and an [overlay](#overlays) that is one JSON text is read
-as JSON, into the tree the YAML parser builds for the same text
+A source, a document a reference reads or an [overlay](#overlays) that is one JSON text is read as
+JSON, into the tree the YAML parser builds for the same text
 ([`json-as-yaml`](../parser-library.md#json-as-yaml)), because that parser refuses or misreads some
 JSON that RFC 8259 allows. It refuses a character outside the Basic Multilingual Plane written as a
 surrogate pair of `\u` escapes, a `\/` escape, a key whose `:` stands more than 1,024 characters
@@ -130,7 +130,7 @@ scalar under any other tag keeps it.
   `jsontree.TestRead_DeclinesWhatIsNotOneJSONText`,
   `jsontree.TestRead_ReadsNestingAtTheDecoderBound`, `jsontree.TestRead_StopsOnceTheContextIsDone`,
   `jsontree.TestRead_ReportsExactlyTheSurrogateEscapesAsHalves`,
-  `jsontree.TestRead_ReadsAnEscapeBesideAFaultAsALoneOneDoes`,
+  `jsontree.TestRead_ReadsAFaultAfterAnEscapeAsTheFaultAlone`,
   `jsontree.TestRead_KeepsTheDecodersReasonWhenItDeclines`,
   `load.TestDecode_ReadsAJSONSourceAsJSON`, `load.TestDecode_ReturnsALoneSurrogateAsItIs`,
   `load.TestDecode_AJSONTextBesideAStreamIsReadAsYAML`, `load.TestParseTree_ReadsJSONAsJSON`,
