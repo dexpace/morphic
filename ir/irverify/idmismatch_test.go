@@ -135,3 +135,32 @@ func TestVerify_NoCheckReadsAKeyThatIsNotItsNodesIDAsTheID(t *testing.T) {
 		})
 	}
 }
+
+// TestVerify_AnAuthKeyThatIsNotItsSchemesIDIsNoSpace holds the space check of an
+// unresolved scheme to the mismatch alone: a scheme filed under a key in the
+// other space from its own ID, either way round, draws ir/auth-id-mismatch and
+// no ir/unresolved-auth-space, and keyed by its own ID it draws nothing.
+func TestVerify_AnAuthKeyThatIsNotItsSchemesIDIsNoSpace(t *testing.T) {
+	t.Parallel()
+	const resolved ir.AuthID = "auth/openapi/components/securitySchemes/token"
+	for _, tc := range []struct {
+		name    string
+		key, id ir.AuthID
+		kind    ir.AuthKind
+	}{
+		{"a mechanism keyed in the unresolved space", unresolvedID, resolved, ir.AuthKindAPIKey},
+		{"an unresolved scheme keyed outside it", resolved, unresolvedID, ir.AuthKindUnresolved},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			scheme := ir.AuthScheme{ID: tc.id, Name: named("token"), Kind: tc.kind, Provenance: ir.Provenance{Source: ir.NoSource}}
+			keyed := func(key ir.AuthID) *ir.Document {
+				return stamped(&ir.Document{Auth: map[ir.AuthID]ir.AuthScheme{key: scheme}})
+			}
+
+			got := verifyDeclared(keyed(tc.key))
+			assert.Equal(t, []string{"ir/auth-id-mismatch @ auth[" + string(tc.key) + "]"}, violationList(got))
+			assert.Empty(t, violationList(verifyDeclared(keyed(tc.id))), "the control: the scheme keyed by its own ID draws nothing")
+		})
+	}
+}
