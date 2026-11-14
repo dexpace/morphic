@@ -223,6 +223,13 @@ linters:
     # a run narrowed to some packages warns about each rule it did not reach.
     warn-unused: true
     rules:
+      # The command's name is a word misspell takes for a typo of "lifetimes",
+      # and its usage line, messages and tests spell it, as do the architecture
+      # test's rule and race-list exemption for its package.
+      - path: ^(cmd/morphic-filetimes/|internal/archtest/(arch|racelist)_test\.go$)
+        linters:
+          - misspell
+        text: '`filetimes` is a misspelling of `lifetimes`'
       # A table-driven test is long because its table is long, and the table is
       # data. Splitting one to satisfy a size cap moves cases away from the
       # assertion that reads them, which is the opposite of what the cap is for.
@@ -277,6 +284,12 @@ linters:
         linters:
           - forbidigo
         text: use of `exec\.(CommandContext|Cmd)`
+      # morphic-filetimes reads the index and the worktree's state through git,
+      # which is the command's job. Only its one starter is excused.
+      - path: ^cmd/morphic-filetimes/main\.go$
+        linters:
+          - forbidigo
+        text: use of `exec\.CommandContext` forbidden
       # Countdown and recorder are each a context.Context: each embeds the one
       # it wraps to answer Err on a schedule or to record each call, which is
       # how a context decorator is written, not a context held for later.

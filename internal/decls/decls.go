@@ -151,8 +151,8 @@ func loadAlone(path string) (*Package, error) {
 }
 
 // unread returns what keeps p from being read whole: the errors the load
-// recorded on it, a production Go file the build leaves out, or no production
-// Go file at all.
+// recorded on it, a production Go file the build leaves out, no production
+// Go file at all, or a directory that cannot be listed.
 func unread(p *packages.Package) []error {
 	errs := make([]error, 0, len(p.Errors)+len(p.IgnoredFiles))
 	for _, e := range p.Errors {
@@ -168,6 +168,12 @@ func unread(p *packages.Package) []error {
 	}
 	if len(p.Syntax) == 0 {
 		errs = append(errs, fmt.Errorf("%s has no production Go file", p.PkgPath))
+	}
+	// go list reads the directory in a child the test cache does not see, so unless
+	// a test walks the directory itself, a file added to a package its binary does
+	// not link reruns the test only through this listing.
+	if _, err := os.ReadDir(p.Dir); err != nil {
+		errs = append(errs, fmt.Errorf("%s: listing its directory: %w", p.PkgPath, err))
 	}
 	return errs
 }

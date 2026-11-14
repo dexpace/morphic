@@ -47,6 +47,18 @@
 - **Probe.** A test reading `PATH`, run twice under one `PATH` and once under another: the third
   run is not `(cached)`.
 
+## A rerun on btrfs can come from a directory's size in its parent's listing
+`btrfs-directory-size`
+
+- **Rule.** On btrfs a directory's size moves with its entries, and go test hashes the size of each
+  entry a test lists. So a file added to a directory reruns a test listing only its parent, through
+  clones at one path too; a commit in place moves `.git`'s size: clone it to the path. Confirm a
+  directory's own listing by its `open` in `-test.testlogfile`, not by the rerun.
+- **Why.** A test listing only the module root reran on a file added under `ir/`, with no `open` of
+  `ir` in its log, and stayed `(cached)` on one added under `compilers/openapi/` (#1373).
+- **Probe.** `stat -c %s ir` before and after a commit adding a file there, and
+  `grep -Fx "open <module root>/ir"` over the log of a test that does not list it.
+
 ## A test's go children never reach a go wrapper on PATH
 `test-go-children-ignore-path`
 
@@ -76,6 +88,34 @@
   `runtime.Callers` frame in a `_test.go` file.
 - **Why.** A `println` run without `-v` listed only the failing package's offenders and missed the
   `pass` fixtures (#544).
+
+## A test opens, in its own process, what its result rests on
+`test-opens-its-inputs`
+
+- **Rule.** A test whose verdict rests on a file outside the module, or one only a child
+  (`go list`, `git`) reads, opens in its own process the in-module files the child reads,
+  or one changing with them: `irtest.ReadModuleFiles` for a dependency, and for a child's list,
+  each directory above it or under a pattern's root. `irtest.RequireOpens` holds either through
+  the test log.
+- **Why.** `readDeclarers` read library sources from the module cache, never rechecked
+  by go test (#1272). Sweeping `exec(test)?\.Command`, `packages.Load` and `decls.Load` found
+  `git ls-files` tests, `decls.Load`'s fixtures and a package `lintrules` names.
+- **Probe.** `touch` that file and rerun: the last `ok` lacks `(cached)`. For a list, commit a new
+  listed file, or package under a pattern, in a copy; clone to the primed path, `make filetimes`,
+  rerun without `-count=1`; on btrfs, `references/toolchain.md#btrfs-directory-size`.
+
+## A test hands its child the PWD it compares paths by
+`child-path-spelling`
+
+- **Rule.** `exectest.Command` leaves `PWD` out of a child's environment. A test that compares a
+  path its child printed with one it spelled passes `"PWD=" + os.Getenv("PWD")` in the child's
+  `env`, as `irtest.RequireOpens` does, since from a symlinked checkout the child, with no `PWD`,
+  spells the physical directory and its parent the logical one.
+- **Why.** Every `RequireOpens` pin failed on a correct tree behind a symlink, which `/tmp` and
+  `/var` are on macOS, and CI's real path never showed it (#1373).
+- **Probe.** `ln -s` a directory above the checkout under a second name, then run the package through it
+  with `go test -count=1`; a link at the module root itself also fails `internal/archtest`, whose walks do
+  not descend it.
 
 ## A full disk or a removed cache reads as a failing build
 `full-disk-reads-as-a-failure`

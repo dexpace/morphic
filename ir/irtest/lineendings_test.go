@@ -5,8 +5,10 @@ package irtest_test
 
 import (
 	"bytes"
+	"maps"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 
@@ -87,8 +89,10 @@ func TestGitAttributes_ResolveToLF(t *testing.T) {
 // are renormalized. That checkout fails the golden and conformance suites with
 // whole-file diffs, and the diff says the IR changed when the line endings did.
 //
-// It reaches only where the problem exists, so it can never redden on the Linux
-// runner — the same shape as the pin it accompanies.
+// It reddens only where the problem exists. CI's checkout normalizes text
+// files, so there it takes a CRLF blob committed with its filters bypassed, or a
+// binary fixture holding 0x0D, to fail it — the same shape as the pin it
+// accompanies.
 func TestTrackedFiles_HoldNoCarriageReturn(t *testing.T) {
 	t.Parallel()
 	root := irtest.RepoRoot(t)
@@ -99,19 +103,75 @@ func TestTrackedFiles_HoldNoCarriageReturn(t *testing.T) {
 		t.Skipf("git ls-files unavailable (%v)", err)
 	}
 
+	require.NotEmpty(t, out, "git tracks no files, so an empty result proves nothing")
 	var offenders []string
 	tracked := strings.Split(strings.TrimSuffix(string(out), "\x00"), "\x00")
-	require.NotEmpty(t, tracked, "git tracks no files, so an empty result proves nothing")
+	dirs := map[string]bool{}
 	for _, rel := range tracked {
+		if _, statErr := os.Lstat(filepath.Join(root, rel)); statErr == nil {
+			for dir := filepath.Dir(rel); !dirs[dir]; dir = filepath.Dir(dir) {
+				dirs[dir] = true
+			}
+		}
 		raw, readErr := os.ReadFile(filepath.Join(root, rel))
 		if readErr != nil {
-			continue // a file staged for deletion, or a submodule entry
+			continue // a file deleted but not staged, a submodule, or a link to no readable file
 		}
 		if bytes.ContainsRune(raw, '\r') {
 			offenders = append(offenders, rel)
 		}
 	}
+	listDirectories(t, root, dirs)
 	assert.Empty(t, offenders,
 		"these tracked files hold CR bytes; run `git add --renormalize .` to bring the checkout "+
 			"back to LF, or mark a file that needs them `-text` in .gitattributes")
+}
+
+// listDirectories lists each directory in dirs, which are relative to root.
+//
+// go test keys a cached result on what the process opens, and a file opened
+// inside the module is checked by its size, mode and time, which the Makefile's
+// content-dating target sets alike on every checkout. A file git lists for the
+// first time is not opened yet, so only a listing of its directory changes what
+// the log holds and reruns the test.
+// The files opened here include every nested .gitattributes, so this covers
+// what TestGitAttributes_ResolveToLF asks git about as well.
+func listDirectories(t *testing.T, root string, dirs map[string]bool) {
+	t.Helper()
+	require.NotEmpty(t, dirs, "no directory above a tracked file, so nothing was listed")
+	for dir := range dirs {
+		_, err := os.ReadDir(filepath.Join(root, dir))
+		require.NoError(t, err, "listing %s", dir)
+	}
+}
+
+// TestTrackedFiles_ListsEveryDirectoryAboveAFile holds listDirectories to its
+// purpose through the test log, which is what go test keys its cached result
+// on: the child run of the test above must open the root and every directory
+// above a tracked file. A listing of the root alone, or of each file's parent
+// alone, returns the right verdict on today's tree and misses a file added in
+// a directory it never listed.
+func TestTrackedFiles_ListsEveryDirectoryAboveAFile(t *testing.T) {
+	t.Parallel()
+	root := irtest.RepoRoot(t)
+	cmd := exectest.Command(t.Context(), t, nil, "git", "ls-files", "-z")
+	cmd.Dir = root
+	out, err := cmd.Output()
+	if err != nil {
+		t.Skipf("git ls-files unavailable (%v)", err)
+	}
+
+	want := map[string]bool{root: true}
+	for rel := range strings.SplitSeq(strings.TrimSuffix(string(out), "\x00"), "\x00") {
+		if _, statErr := os.Lstat(filepath.Join(root, rel)); statErr != nil {
+			continue // a file deleted but not staged, which the child skips too
+		}
+		parts := strings.Split(rel, "/")
+		for n := 1; n < len(parts); n++ {
+			want[filepath.Join(root, filepath.Join(parts[:n]...))] = true
+		}
+	}
+	require.Greater(t, len(want), 1, "no directory below the root, so the walk above proves nothing")
+
+	irtest.RequireOpens(t, "TestTrackedFiles_HoldNoCarriageReturn", slices.Sorted(maps.Keys(want))...)
 }
