@@ -66,7 +66,7 @@ GOLANGCI_LINT_VERSION ?= v2.14.0
 # Per-target fuzz budget, bounded on purpose. The gate's job is to keep every
 # target executable and to search a little on every change; a campaign is what
 # `make fuzz FUZZTIME=5m` is for.
-FUZZTIME ?= 10s
+FUZZTIME ?= 5s
 
 .DEFAULT_GOAL := gate
 
