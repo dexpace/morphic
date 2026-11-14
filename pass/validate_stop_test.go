@@ -46,20 +46,17 @@ func TestValidate_AStoppedWalkIsReportedOnce(t *testing.T) {
 // reference unjudged when the walk that read the declarations stopped.
 func TestValidate_AStoppedWalkClaimsNoReferenceDangling(t *testing.T) {
 	t.Parallel()
-	doc := validDoc()
-	doc.Types["t/holder"] = &ir.Model{ID: "t/holder", Properties: []ir.Property{{
-		ID: "p/holder/a", WireName: "a", Type: ir.TypeRef{Target: "t/prim/string"},
-	}}}
-	doc.Types["t/dangling"] = &ir.Model{ID: "t/dangling", Properties: []ir.Property{{
-		ID: "p/dangling/a", WireName: "a", Type: ir.TypeRef{Target: "t/nowhere"},
-	}}}
+	doc := docWithOperation(ir.Operation{
+		ID:          "op/x/o",
+		Idempotency: ir.Idempotency{Kind: ir.IdempotencyToken, TokenParam: "param/x/o/nowhere"},
+	})
 	whole, err := pass.ValidateWith(t.Context(), doc, ir.WalkValuesContext)
 	require.NoError(t, err)
-	require.Equal(t, 1, countCode(t, whole, "ir/dangling-type-ref"), "the control: a whole walk finds the reference")
+	require.Equal(t, 1, countCode(t, whole, "ir/dangling-param-ref"), "the control: a whole walk finds the reference")
 
 	cut, err := pass.ValidateWith(t.Context(), doc, stoppedWalk)
 
 	require.NoError(t, err)
-	assert.Zero(t, countCode(t, cut, "ir/dangling-type-ref"))
+	assert.Zero(t, countCode(t, cut, "ir/dangling-param-ref"))
 	assert.Equal(t, 1, countCode(t, cut, "ir/walk-truncated"), fmt.Sprint(irtest.DiagCodes(cut)))
 }

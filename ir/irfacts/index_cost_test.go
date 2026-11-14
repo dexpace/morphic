@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/dexpace/morphic/ir"
 	"github.com/dexpace/morphic/ir/irfacts"
@@ -34,7 +35,9 @@ func hierarchyOf(n int) *ir.Document {
 // measures the process.
 func TestIndex_AWalkedQuestionAllocatesNothing(t *testing.T) {
 	doc := hierarchyOf(50)
-	construction := testing.AllocsPerRun(10, func() { _ = irfacts.New(doc) })
+	var kept *irfacts.Index // an Index left unused is inlined onto the stack and measures nothing
+	construction := testing.AllocsPerRun(10, func() { kept = irfacts.New(doc) })
+	require.NotNil(t, kept)
 
 	subtype := testing.AllocsPerRun(10, func() { _ = irfacts.New(doc).IsSubtype("t/x/M0/S0", "t/x/M0") })
 	exposes := testing.AllocsPerRun(10, func() { _ = irfacts.New(doc).Exposes("t/x/M0/S0", "p/x/M0/a") })
