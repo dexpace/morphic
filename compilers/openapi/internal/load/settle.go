@@ -11,10 +11,10 @@ import (
 )
 
 // settle makes the tree read as the table judged it. Each value the table
-// refused as the wrong type where it is written, and accepted nowhere another
-// place reads it, is read as the field left out by every reader of the source,
-// the model among them (docs/compilers/openapi.md#validation), for good; a
-// verbatim copy still renders what the source wrote (nodeview.Written). Then
+// refused as the wrong type, and accepted nowhere another place reads it, is
+// read as the field left out by every reader, for good
+// (docs/compilers/openapi.md#validation); a verbatim copy renders what the
+// source wrote (nodeview.Written). Then
 // the shapes the model faults on are set aside in a until the model is built
 // (docs/parser-library.md#nil-populate-panic,
 // docs/compilers/openapi.md#references): a Reference Object whose $ref

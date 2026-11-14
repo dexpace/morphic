@@ -9,7 +9,6 @@ import (
 	"encoding/json/jsontext"
 	"errors"
 	"fmt"
-	"math"
 	"os"
 	"path/filepath"
 	"testing"
@@ -22,7 +21,6 @@ import (
 	"github.com/dexpace/morphic/compilers"
 	"github.com/dexpace/morphic/compilers/openapi/internal/bind"
 	"github.com/dexpace/morphic/compilers/openapi/internal/bind/typed"
-	"github.com/dexpace/morphic/compilers/openapi/internal/budget"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/nodeview"
 	"github.com/dexpace/morphic/compilers/openapi/internal/oas"
@@ -54,73 +52,6 @@ func loadExternal(t *testing.T, dir, root string, opts Options) (*Document, []ir
 	require.NoError(t, err)
 	require.NotNil(t, got, "%+v", diags)
 	return got, diags
-}
-
-// TestSpanned covers spanned's properties: it counts every node under root,
-// an alias counts as the copy of what it names and nothing more, a tree of
-// exactly limit nodes is counted whole, a limit stops the count one node past
-// it, never at the whole tree, and math.MaxInt, past which no node lies,
-// counts it all.
-func TestSpanned(t *testing.T) {
-	t.Parallel()
-	wide := &yaml.Node{Kind: yaml.MappingNode}
-	for range 1000 {
-		wide.Content = append(wide.Content, &yaml.Node{Kind: yaml.ScalarNode})
-	}
-	target := &yaml.Node{Kind: yaml.ScalarNode}
-	aliased := &yaml.Node{Kind: yaml.MappingNode, Content: []*yaml.Node{{Kind: yaml.AliasNode, Alias: target}}}
-
-	for name, c := range map[string]struct {
-		root   *yaml.Node
-		within budget.Limit
-		count  int
-	}{
-		"every node under root":                   {wide, budget.Unbounded(), 1001},
-		"an alias counts as its target's copy":    {aliased, budget.Unbounded(), 2},
-		"a tree of exactly limit nodes is whole":  {wide, budget.AtMost(1001), 1001},
-		"a limit stops the count one past it":     {wide, budget.AtMost(6), 7},
-		"the largest limit counts the whole tree": {wide, budget.AtMost(math.MaxInt), 1001},
-	} {
-		assert.Equal(t, c.count, spanned(t.Context(), c.root, c.within), name)
-	}
-}
-
-// TestReached_ChargeHoldsADocumentToWhatItHasLeft pins that charge measures an
-// object against what its document has left, not against the whole budget: of
-// a document with 6 nodes left, a 7-node object is refused and a 6-node one is
-// admitted, after which a document with none left refuses even one node.
-func TestReached_ChargeHoldsADocumentToWhatItHasLeft(t *testing.T) {
-	t.Parallel()
-	object := func(nodes int) *yaml.Node {
-		root := &yaml.Node{Kind: yaml.MappingNode}
-		for range nodes - 1 {
-			root.Content = append(root.Content, &yaml.Node{Kind: yaml.ScalarNode})
-		}
-		return root
-	}
-	charged := func() *reached {
-		spans := budget.New(budget.AtMost(10))
-		spans.Spend(4)
-		return &reached{limit: budget.AtMost(10), spans: map[string]*budget.Budget{"doc": &spans}}
-	}
-
-	v := charged()
-	d, over := v.charge(t.Context(), ir.Provenance{}, "doc", object(7))
-	assert.True(t, over)
-	require.Len(t, d, 1)
-	assert.Equal(t, diag.BudgetExceeded, d[0].Code)
-	assert.Contains(t, d[0].Message, "more than the 10 nodes", "the budget, not what is left of it")
-
-	v = charged()
-	d, over = v.charge(t.Context(), ir.Provenance{}, "doc", object(6))
-	assert.False(t, over)
-	assert.Empty(t, d)
-	assert.Equal(t, 10, v.spans["doc"].Spent())
-
-	d, over = v.charge(t.Context(), ir.Provenance{}, "doc", object(1))
-	assert.True(t, over)
-	require.Len(t, d, 1)
-	assert.Equal(t, diag.BudgetExceeded, d[0].Code)
 }
 
 // TestBuiltTargets covers which schemas built for the bindings' landings are
@@ -282,7 +213,7 @@ func TestLoad_ExternalRefResolutionErrors(t *testing.T) {
 
 // TestReached_CheckAllStopsOnceTheContextIsDone pins the context the checks of
 // reached objects ask before each target: handed a done one, no target is
-// charged or checked, where a live one charges and checks each.
+// read, where a live one reads and checks each.
 func TestReached_CheckAllStopsOnceTheContextIsDone(t *testing.T) {
 	t.Parallel()
 	doc := parseSpec(t, minimal31)
@@ -298,11 +229,11 @@ func TestReached_CheckAllStopsOnceTheContextIsDone(t *testing.T) {
 
 	stopped := newReached(doc, Options{}, provenance.Tree{}, judgment{checker: oas.NewChecker()})
 	assert.Empty(t, stopped.checkAll(cancelled, sites, targets, comparePositionsForTest))
-	assert.Empty(t, stopped.spans, "no target was charged")
+	assert.Empty(t, stopped.seen, "no target was read")
 
 	live := newReached(doc, Options{}, provenance.Tree{}, judgment{checker: oas.NewChecker()})
 	assert.NotEmpty(t, live.checkAll(t.Context(), sites, targets, comparePositionsForTest), "a parameter with no `in` is found wanting")
-	assert.NotEmpty(t, live.spans)
+	assert.NotEmpty(t, live.seen)
 }
 
 // comparePositionsForTest orders positions by document, then pointer, as a

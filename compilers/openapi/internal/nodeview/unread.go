@@ -46,9 +46,15 @@ func NamesNothing(n *yaml.Node) bool {
 	}
 	for i := 0; i+1 < len(n.Content); i += 2 {
 		if key, own := KeyOf(n.Content[i]); own && key == "$ref" {
-			v := Deref(n.Content[i+1])
-			return v == nil || v.Kind != yaml.ScalarNode || v.ShortTag() == "!!null"
+			return Deref(n.Content[i+1]) == nil || NoString(n.Content[i+1])
 		}
 	}
 	return false
+}
+
+// NoString reports whether v, its alias followed, is a node but no string: a
+// null, a mapping or a list. A $ref so written names nothing (NamesNothing).
+func NoString(v *yaml.Node) bool {
+	v = Deref(v)
+	return v != nil && (v.Kind != yaml.ScalarNode || v.ShortTag() == "!!null")
 }

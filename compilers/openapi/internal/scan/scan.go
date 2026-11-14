@@ -21,8 +21,8 @@ import (
 
 // Pointers returns a node's JSON pointer in root's tree, its pairs keyed as
 // the parser keys them (nodeview.KeyOf), and whether the tree holds it. A
-// scalar key shares its member's pointer, and an alias's target is placed at
-// the least of the places that mount it (rehome). A nil node or root is held by none, nor is a node under
+// scalar key shares its member's pointer, and a shared node is placed by
+// rehome. A nil node or root is held by none, nor is a node under
 // a `<<` merge key, whose pair the merge's document holds elsewhere, nor a key
 // that is no scalar, which no pointer reads inside.
 //
@@ -176,15 +176,13 @@ func scanRecovered(whole ir.Provenance, scan func() []ir.Diagnostic) []ir.Diagno
 // without end or far past its own size (GitHub #12, #27): an anchor naming its
 // own ancestor overflows the parser's stack, and an alias bomb exhausts its
 // memory (docs/parser-library.md#alias-cycle,
-// docs/parser-library.md#alias-expansion). It serves an overlay too
-// (load.overlayRefusals). tree places a refusal at its node; an incomplete
-// scan yields a diag.CycleScanFailed warning at whole.
+// docs/parser-library.md#alias-expansion), or add past maxBytes of scalar
+// text (GitHub #1429). tree places a refusal at its node; an incomplete scan
+// warns at whole.
 //
-// The index must cover the whole tree that will reach the parser: an alias to
-// an ancestor is visible only from the root. surplus is the alias budget;
-// yaml.v3's own alias guard never fires on a yaml.Node decode (GitHub #479).
-// maxBytes is the byte budget, which the scalar text aliases add to the tree
-// is held to (GitHub #1429): a node budget weighs no text.
+// The index must cover the whole tree that reaches the parser: an alias to an
+// ancestor shows only from the root. surplus is the alias budget, which no
+// guard of yaml.v3's enforces on a node decode (GitHub #479).
 func Aliases(ctx context.Context, tree provenance.Tree, whole ir.Provenance, idx sourceindex.Index,
 	surplus, maxBytes budget.Limit,
 ) []ir.Diagnostic {

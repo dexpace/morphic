@@ -82,12 +82,11 @@ var callShapeBaseline = map[string]map[string]int{
 		"compilers/openapi/internal/sourceindex": 2,
 	},
 	"compilers/openapi/internal/oas": {
-		// oas.Options' Locate, Seen, RootRows and Later, which #1488 keeps under
-		// #1477's rule: the checker places its own findings to drop the repeat an
-		// alias makes, a policy, and Seen observes the walk, RootRows answers the
-		// rows of each schema it enters and Later takes each it leaves unread,
-		// traversal callbacks.
-		"compilers/openapi/internal/load": 18,
+		// oas.Options' Locate, Seen, Skip, Judged, Referenced, RootRows and Later,
+		// which #1488 keeps under #1477's rule: the checker places its own
+		// findings to drop the repeat an alias makes, a policy, and the others
+		// observe or steer the walk: traversal callbacks.
+		"compilers/openapi/internal/load": 24,
 	},
 	"compilers/openapi/internal/provenance": {
 		// provenance.Tree's Pointers, a node's pointer in the tree it places, read

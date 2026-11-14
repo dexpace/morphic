@@ -94,12 +94,8 @@ func (x Index) Nesting() int { return x.nesting }
 // Truncated is false.
 func (x Index) Written() int { return x.written }
 
-// Text is how many bytes of scalar text the tree's nodes write, each scalar
-// once, before any alias is substituted.
-func (x Index) Text() int { return x.text }
-
 // AliasText is how many bytes of scalar text the tree's aliases add to it: its
-// text with every alias substituted, less Text. A tree with no alias adds none,
+// text with every alias substituted, less what its scalars write once each. A tree with no alias adds none,
 // however its escapes decode (GitHub #1429).
 func (x Index) AliasText() int { return max(x.expanded-x.text, 0) }
 

@@ -32,20 +32,19 @@ type objectKey struct {
 // what the references reach and gives each document's Schema Object rows.
 // pending is each Schema Object it handed back unread, in a document that may
 // name a dialect, which is judged under opts once the bindings say which
-// dialect each is read in (judgeSchemas). refused and accepted are the values
-// the check refused as the wrong type, and those it accepted where another
-// place may read them too (oas.Options.Judged), and referenced each mapping it
-// read as a Reference Object (oas.Options.Referenced), which settle reads.
+// dialect each is read in (judgeSchemas).
 type judgment struct {
-	checker    oas.Checker
-	diags      []ir.Diagnostic
-	seen       map[objectKey]bool
-	refused    map[*yaml.Node]bool
-	accepted   map[*yaml.Node]bool
-	referenced []*yaml.Node
-	pending    []oas.Pending
-	version    string
-	opts       oas.Options
+	checker oas.Checker
+	diags   []ir.Diagnostic
+	seen    map[objectKey]bool
+	// refused and accepted are what the check refused as the wrong type, and
+	// accepted where another place may read it too (oas.Options.Judged), and
+	// referenced each mapping it read as a Reference Object, which settle reads.
+	refused, accepted map[*yaml.Node]bool
+	referenced        []*yaml.Node
+	pending           []oas.Pending
+	version           string
+	opts              oas.Options
 }
 
 // declaredVersion returns the version the document at root writes under
@@ -77,14 +76,12 @@ func declaredDialect(root *yaml.Node) string {
 
 // judgeSource holds the source to the table of the version it declares. root
 // is the tree as the source writes it, an applied overlay's patch included, and
-// tree places each finding at the node it is about, naming where it was read
-// when an alias or a merge key mounts that node there. within bounds what the
+// tree places each finding at its node, naming where it was read when an alias
+// or a merge key mounts that node there. within bounds what the
 // check reads (see nodesAdmitted). A document that may name a dialect
 // (namesDialect) has its Schema Objects handed back unread, since the dialect
 // each is read in is known only once the bindings are read (judgeSchemas).
-//
-// It runs before readyForModel clears the tree's anchors, which tell the check
-// that another place may read a value (oas.Options.Judged).
+// It runs before readyForModel clears the anchors oas.Options.Judged reads.
 func judgeSource(ctx context.Context, root *yaml.Node, tree provenance.Tree, within budget.Limit) judgment {
 	j := judgment{checker: oas.NewChecker(), seen: map[objectKey]bool{}, version: declaredVersion(root),
 		refused: map[*yaml.Node]bool{}, accepted: map[*yaml.Node]bool{}}

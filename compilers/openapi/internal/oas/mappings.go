@@ -19,9 +19,8 @@ import (
 // CheckFormat holds every mapping of the tree root to the Format section's
 // rule that a key is a string, at the minor declared names, as Check holds
 // objects. It reports each key that is no scalar, whose entry every reader
-// leaves out (docs/parser-library.md#non-scalar-key), at the mapping's pointer
-// and the key's own line and column, and each `<<` naming no mapping, which
-// merges nothing (docs/parser-library.md#merge-keys).
+// leaves out (docs/parser-library.md#non-scalar-key), at the key's line and
+// column, and each `<<` naming no mapping (docs/parser-library.md#merge-keys).
 //
 // It reads the tree as written, values and extensions included, so a node an
 // alias mounts twice draws one finding, placed at its pointer as the parser

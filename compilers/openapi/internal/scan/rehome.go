@@ -12,15 +12,10 @@ import (
 
 // rehome places each node aliases mount at the least of its places: where it
 // is written and where each alias of it is, pointers compared token by token
-// (lessTokens). So a finding about a shared node names the same pointer
-// whichever place the source writes first (GitHub #1796). A node inside a
-// shared node moves with it, since its steps lead through it.
-//
-// Targets are settled outermost first, each once: one whose place, or an
-// alias's, lies inside another target waits for that one. A tree whose
-// aliases lead back into what holds them settles nothing, keeping every
-// written place: the document is refused, at the cycle. It returns how many
-// targets it settled.
+// (lessTokens), whichever the source writes first (GitHub #1796); what it
+// holds moves with it. Targets are settled outermost first, each once. A tree
+// whose aliases lead back into what holds them settles nothing: it is refused
+// at the cycle. It returns how many targets it settled.
 func rehome(steps map[*yaml.Node]step) int {
 	mounts := map[*yaml.Node][]*yaml.Node{}
 	for n := range steps {

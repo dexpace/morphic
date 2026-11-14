@@ -268,6 +268,13 @@ document, past the <budget>-byte budget`, the source, an overlay document, the t
 patches and each document a reference reads alike. The node budgets weigh no text, so a few
 aliases of a long scalar could otherwise expand into gigabytes within every one. A document with
 no alias adds nothing, however its escapes decode.
+
+What a `$ref` reaches outside the source's own reading is checked once for each kind it is read as,
+whichever reference reaches it first: an object inside a container already checked as that kind is
+not read again, and an extension's content, which no container reads as an object, is. So the
+work is at most the kinds times the nodes the node budget admits, and no budget of its own is
+charged. The keys of each other document are checked once, over each outermost object reached in
+it.
 - Tests: `openapi.TestCompile_SourceByteBudgetBindsOnlyPastTheLimit`,
   `openapi.TestCompiler_SourceLimitReadsTheCallersOptions`,
   `openapi.TestDetect_DeclinesASourceHoldingMoreNodesThanTheCallersBudget`,
@@ -304,9 +311,11 @@ no alias adds nothing, however its escapes decode.
   `e2e.TestCompile_ScalarTextAliasesAddIsHeldToTheByteBudget`,
   `e2e.TestCompile_ScalarTextAliasesAddIsHeldToTheBudgetAtItsEdge`,
   `e2e.TestCompile_AnOverlayDocumentIsHeldToTheAliasTextBudget`,
-  `e2e.TestCompile_AnExternalDocumentIsHeldToTheAliasTextBudget`
-- Status: partly built: an external object reached after its contents is charged against the
-  document budget twice (#571), and the pointer bound counts the values a compile keeps verbatim, an example or an
+  `e2e.TestCompile_AnExternalDocumentIsHeldToTheAliasTextBudget`,
+  `e2e.TestCompile_AnObjectReachedInsideAContainerAndAsTheContainerIsCheckedOnce`,
+  `load.TestResolve_AReachedObjectIsChargedToNoBudget`, `oas.TestCheck_ANodeSeenIsSkippedWhenItIsReadAgain`,
+  `oas.TestCheck_SkipLeavesUnreadAMappingItAnswersTrueFor`
+- Status: partly built: the pointer bound counts the values a compile keeps verbatim, an example or an
   extension, whose nodes it never names one by one, so a document whose values nest long keys deep
   is refused though it would compile cheaply (#1499).
 

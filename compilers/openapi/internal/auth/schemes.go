@@ -9,7 +9,6 @@ import (
 	"strings"
 
 	soa "github.com/speakeasy-api/openapi/openapi"
-	yaml "go.yaml.in/yaml/v3"
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/annotation"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
@@ -50,11 +49,7 @@ func LowerSecuritySchemes(c lowering.Ctx) (map[ir.AuthID]ir.AuthScheme, []ir.Dia
 // nothing: the entry is read as left out, and the load phase's error at the
 // $ref is the one report of it (docs/compilers/openapi.md#references).
 func namesNothing(rs *soa.ReferencedSecurityScheme) bool {
-	if rs == nil {
-		return false
-	}
-	v := nodeview.Deref(rs.GetCore().Reference.ValueNode)
-	return v != nil && (v.Kind != yaml.ScalarNode || v.ShortTag() == "!!null")
+	return rs != nil && nodeview.NoString(rs.GetCore().Reference.ValueNode)
 }
 
 // lowerEntry lowers the securitySchemes entry called name, as written in rs.

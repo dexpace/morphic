@@ -195,7 +195,7 @@ func TestRawFromNode_PreservesMergeAndOrderingSemantics(t *testing.T) {
 			`{"1":"a","null":"c","true":"b","~":"d"}`},
 		{"an alias key naming an integer is its text", "a: &k 1\nb: {*k: v}", `{"a":1,"b":{"1":"v"}}`},
 		{"a locally tagged key is its text", "{!foo k: v}", `{"k":"v"}`},
-		{"a key that is no scalar is the empty string", "{? [1, 2]\n: v}", `{"":"v"}`},
+		{"an entry whose key is no scalar is left out", "{? [1, 2]\n: v}", `{}`},
 		{"alias to a sequence", "a: &s [1, 2]\nb: *s", `{"a":[1,2],"b":[1,2]}`},
 		{"empty mapping", "{}", `{}`},
 		{"empty sequence", "[]", `[]`},

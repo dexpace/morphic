@@ -976,8 +976,8 @@ func carrierAuth(t *testing.T, doc *ir.Document) map[string][]ir.AuthRequirement
 // access the document never wrote. It names no scheme either, so it lowers to no
 // option, at every carrier and in every spelling of the merge, while a merge of
 // a mapping, an empty one included, is what it merges. The loader's error at
-// the fault is the one report of a dropped entry: at the entry, an aliased one
-// at the least place that mounts it, or where an alias it merges is written.
+// the fault is the one report of a dropped entry: at its least place, or where
+// an alias it merges is written.
 func TestSecurityRequirement_AMergeNamingNoMappingIsNoOption(t *testing.T) {
 	t.Parallel()
 	key := ir.AuthRequirement{Schemes: []ir.SchemeUse{{Scheme: ids.Auth("key")}}}

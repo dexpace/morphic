@@ -8,6 +8,7 @@ import (
 	"encoding/json/jsontext"
 	"maps"
 	"slices"
+	"strings"
 
 	soa "github.com/speakeasy-api/openapi/openapi"
 	yaml "go.yaml.in/yaml/v3"
@@ -15,7 +16,6 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/bind"
 	"github.com/dexpace/morphic/compilers/openapi/internal/bind/typed"
 	"github.com/dexpace/morphic/compilers/openapi/internal/budget"
-	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/nodeview"
 	"github.com/dexpace/morphic/compilers/openapi/internal/oas"
 	"github.com/dexpace/morphic/compilers/openapi/internal/provenance"
@@ -29,14 +29,13 @@ import (
 // that of the document holding it (versionOf).
 //
 // Only what a reference reaches is checked, so a shared file's unread content
-// fails no compile. Each finding is reported once (see checkAll), and what a
-// check spans is charged to a budget (see charge).
+// fails no compile. Each object is read once per kind it is read as, and each
+// finding reported once (see checkAll) (GitHub #571).
 type reached struct {
 	checker oas.Checker
 	// version is the source's, as the model reads it.
 	version string
-	// limit bounds what checks of one document's objects may span (see charge),
-	// and what each check reads.
+	// limit bounds what each check reads.
 	limit budget.Limit
 	// tree places a finding about a node of the source (see reachedLocator),
 	// and others one about another document's (see locatorFor).
@@ -44,12 +43,14 @@ type reached struct {
 	others Others
 	// dialects gives the rows each schema checked is read with.
 	dialects Dialects
-	// seen holds the objects the source's own check read as their kind.
+	// seen holds the objects read as their kind, by the source's own check
+	// and by each check of a target since.
 	seen map[objectKey]bool
 	// reported holds every finding already reported, the source's own included.
 	reported map[ir.Diagnostic]bool
-	// spans holds what each document's checks have been charged so far.
-	spans map[string]*budget.Budget
+	// formatted holds the pointers of each other document whose keys a check
+	// has read (oas.CheckFormat), by the document's name.
+	formatted map[string]map[jsontext.Pointer]bool
 }
 
 // reachedTarget is an object the source's references reach: the least
@@ -162,8 +163,7 @@ func isBoolean(n *yaml.Node) bool {
 }
 
 // checkReached checks targets, each object once, at the least site reaching
-// it as compare orders sites, less those the source's own check read as the
-// kind expected (dropSeen).
+// it as compare orders sites, less those already read as the kind expected.
 func checkReached(ctx context.Context, sites places, targets []reachedTarget, compare func(p, q bind.Position) int,
 	checks *reached,
 ) []ir.Diagnostic {
@@ -174,14 +174,45 @@ func checkReached(ctx context.Context, sites places, targets []reachedTarget, co
 			least[key] = t
 		}
 	}
-	checks.dropSeen(least)
+	checks.formatted = outermost(least)
 	return checks.checkAll(ctx, sites, least, compare)
 }
 
-// dropSeen drops each target in the source that the source's own check read as
-// the kind the reference expects.
-func (v *reached) dropSeen(targets map[objectKey]reachedTarget) {
-	maps.DeleteFunc(targets, func(key objectKey, t reachedTarget) bool { return t.inSource() && v.seen[key] })
+// outermost returns, for each document but the source, the pointers of the
+// targets in it no other target holds: one whose pointer has another's as a
+// token prefix lies inside it. The keys of each are read once, and the source's
+// all were read by its own check.
+func outermost(targets map[objectKey]reachedTarget) map[string]map[jsontext.Pointer]bool {
+	at := map[string]map[jsontext.Pointer]bool{}
+	for _, t := range targets {
+		if t.inSource() {
+			continue
+		}
+		if at[t.doc] == nil {
+			at[t.doc] = map[jsontext.Pointer]bool{}
+		}
+		at[t.doc][t.at.Pointer] = true
+	}
+	out := map[string]map[jsontext.Pointer]bool{}
+	for doc, pointers := range at {
+		out[doc] = map[jsontext.Pointer]bool{}
+		for p := range pointers {
+			out[doc][p] = !heldBy(p, pointers)
+		}
+	}
+	return out
+}
+
+// heldBy reports whether a pointer of pointers other than p is a token prefix
+// of p.
+func heldBy(p jsontext.Pointer, pointers map[jsontext.Pointer]bool) bool {
+	for up := p; up != ""; {
+		up = up[:strings.LastIndexByte(string(up), '/')]
+		if pointers[up] {
+			return true
+		}
+	}
+	return false
 }
 
 // newReached returns the checker for the objects doc's references reach, under
@@ -190,30 +221,28 @@ func (v *reached) dropSeen(targets map[objectKey]reachedTarget) {
 // another document to that document's (versionOf). tree is the source's,
 // and judged what the table found in it, none of which is reported again.
 func newReached(doc *soa.OpenAPI, opts Options, tree provenance.Tree, judged judgment) *reached {
-	limit := nodesAdmitted(opts)
 	reported := make(map[ir.Diagnostic]bool, len(judged.diags))
 	for _, d := range judged.diags {
 		reported[oas.AsPlaced(d)] = true
 	}
+	seen := make(map[objectKey]bool, len(judged.seen))
+	maps.Copy(seen, judged.seen)
 	return &reached{
 		checker:  judged.checker,
 		tree:     tree,
 		version:  doc.OpenAPI,
-		limit:    limit,
-		seen:     judged.seen,
+		limit:    nodesAdmitted(opts),
+		seen:     seen,
 		reported: reported,
-		spans:    map[string]*budget.Budget{},
 	}
 }
 
 // checkAll checks each target in the order of its site, and reports its
 // findings. A finding already reported was reported for a lesser $ref, so one
-// placed at a $ref lands at the least whose object's check draws it, and a
-// budget is crossed at the same object, whatever the declaration order.
-//
-// An object inside one checked before it is checked, and charged, again
-// (GitHub #571): a container spans more than its model reads, such as an
-// extension's content.
+// placed at a $ref lands at the least whose object's check draws it, whatever
+// the declaration order. An object already read as the kind a target expects,
+// inside a container checked before it or by the source's own check, is not
+// read again; an extension's content, which no container reads, is.
 func (v *reached) checkAll(ctx context.Context, sites places, targets map[objectKey]reachedTarget,
 	compare func(p, q bind.Position) int,
 ) []ir.Diagnostic {
@@ -228,6 +257,9 @@ func (v *reached) checkAll(ctx context.Context, sites places, targets map[object
 		if ctx.Err() != nil {
 			break
 		}
+		if v.seen[objectKey{node: t.node, kind: t.kind}] {
+			continue
+		}
 		diags = append(diags, v.check(ctx, sites.position(t.site), t)...)
 	}
 	return diags
@@ -240,15 +272,19 @@ func (v *reached) checkAll(ctx context.Context, sites places, targets map[object
 // its node; one about a node of a document no entry lists goes to site, the
 // $ref that reached it.
 func (v *reached) check(ctx context.Context, site ir.Provenance, t reachedTarget) []ir.Diagnostic {
-	if d, over := v.charge(ctx, site, t.doc, t.node); over {
-		return d
-	}
 	opts := oas.Options{Start: t.kind, Budget: v.limit, Locate: v.locatorFor(t), ReadAt: true, Root: t.at.Pointer,
 		Rows:     v.dialects.rowsAt(v.positionOf(t, t.at.Pointer)),
-		RootRows: func(at jsontext.Pointer) (oas.SchemaRules, bool) { return v.dialects.root(v.positionOf(t, at)) }}
+		RootRows: func(at jsontext.Pointer) (oas.SchemaRules, bool) { return v.dialects.root(v.positionOf(t, at)) },
+		Seen:     func(kind oas.Kind, node *yaml.Node) { v.seen[objectKey{node: nodeview.Deref(node), kind: kind}] = true },
+		Skip: func(kind oas.Kind, node *yaml.Node) bool {
+			return v.seen[objectKey{node: nodeview.Deref(node), kind: kind}]
+		},
+	}
 	version := v.versionOf(t)
-	found := append(v.checker.Check(ctx, t.node, version, opts),
-		oas.CheckFormat(ctx, t.node, version, formatOptions(opts))...)
+	found := v.checker.Check(ctx, t.node, version, opts)
+	if !t.inSource() && v.formatted[t.doc][t.at.Pointer] {
+		found = append(found, oas.CheckFormat(ctx, t.node, version, formatOptions(opts))...)
+	}
 	var diags []ir.Diagnostic
 	for _, d := range found {
 		if key := identity(d, t.doc); !v.reported[key] {
@@ -286,46 +322,4 @@ func (v *reached) locatorFor(t reachedTarget) oas.Locator {
 		return walkedFrom(t.node, tree.Node)
 	}
 	return reachedLocator(v.tree, t.node)
-}
-
-// charge counts what checking the object at node spans against doc's budget,
-// each alias counted as a copy of what it names, as a check walks it. A
-// document may be charged what the source may be checked over: the node
-// budget plus the alias budget. Objects nest, so without the charge a document
-// could be checked many times over its size.
-//
-// It reports true when the object is not to be checked: doc's budget was
-// crossed before, or this object would cross it, which is reported once, here.
-func (v *reached) charge(ctx context.Context, site ir.Provenance, doc string, node *yaml.Node) ([]ir.Diagnostic, bool) {
-	spans := v.spansOf(doc)
-	if spans.Exhausted() {
-		return nil, true
-	}
-	if spans.Spend(spanned(ctx, node, spans.Remaining())) {
-		return nil, false
-	}
-	return []ir.Diagnostic{diag.Newf(ir.SeverityError, diag.BudgetExceeded, site,
-		"the objects references reach in %s span more than the %d nodes a document is validated over; "+
-			"its validation stops at this one", doc, v.limit.Cap())}, true
-}
-
-// spansOf returns what doc's checks have been charged, starting its budget
-// the first time one is.
-func (v *reached) spansOf(doc string) *budget.Budget {
-	spans, ok := v.spans[doc]
-	if !ok {
-		fresh := budget.New(v.limit)
-		spans = &fresh
-		v.spans[doc] = spans
-	}
-	return spans
-}
-
-// spanned counts the nodes under root as a model built from it holds them,
-// each alias standing for a copy of what it names (nodeview.AliasTarget), as
-// scan's alias weigher weighs it. It stops one node past within, so refusing an
-// object costs the budget, not the object. No alias leads back up: a document
-// whose anchor names one of its own ancestors was refused.
-func spanned(ctx context.Context, root *yaml.Node, within budget.Limit) int {
-	return nodeview.Walk{Nodes: within.Past(), Aliases: nodeview.AliasTarget}.Run(ctx, root).Visited
 }

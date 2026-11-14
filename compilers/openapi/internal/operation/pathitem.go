@@ -412,9 +412,8 @@ var pathItemFields = []string{"summary", "description", "servers", "parameters",
 
 // pathItemDeclares reports whether key, read off a path item's raw mapping, is
 // one the object accounts for: held in the operations map (the first reading of
-// undeclaredPathItemKeys answers for it), naming a standard method, a field of
-// the model, the item's own $ref, or an x- extension. A $ref the load phase
-// read as left out for the model is back in the mapping, and reported there.
+// undeclaredPathItemKeys answers for it), a standard method, a field of the
+// model, its own $ref, or an x- extension.
 //
 // A method held nowhere in the map is still declared: naming a standard method
 // is enough. Where its anchor is left in place (see undeclaredPathItemKeys),

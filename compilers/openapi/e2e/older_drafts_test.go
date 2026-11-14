@@ -378,7 +378,7 @@ func TestOlderDrafts_AnAliasedNodeIsReadInTheDialectOfEachPosition(t *testing.T)
 // draft and stays in its branch at the other, a body schema writing `id` is a
 // file under the draft alone, and a boolean exclusive bound bounds under the
 // draft and is dropped, reported by the rule table's check, at the other. The roots' names, which order
-// them, decide only where the shared node's finding is placed: at the least place mounting it.
+// them, decide only where a shared node's finding is placed.
 func TestOlderDrafts_AnAliasedNodeIsReadInTheDialectOfEachPlaceByEveryReader(t *testing.T) {
 	t.Parallel()
 	body := func(path, at string) string {

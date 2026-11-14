@@ -1812,14 +1812,14 @@ func TestPartEncodings_AnUnkeyedEntryThatIsNoObjectAddsNothingToLoadsError(t *te
 		name     string
 		encoding string
 		// reported names the entry load reports for key: the one written, or for
-		// an alias the anchor, since load reads a node once.
+		// an alias the least place mounting it, since load reads a node once.
 		reported func(key string) string
 	}{
 		{"null", "{%s: null}", func(key string) string { return key }},
 		{"a number", "{%s: 5}", func(key string) string { return key }},
 		{"a string", "{%s: hello}", func(key string) string { return key }},
 		{"a list", "{%s: [a]}", func(key string) string { return key }},
-		{"an alias of null", "{anchor: &n null, %s: *n}", func(string) string { return "anchor" }},
+		{"an alias of null", "{anchor: &n null, %s: *n}", func(key string) string { return min(key, "anchor") }},
 	}
 	for _, tc := range cases {
 		for _, key := range []string{"ghost", "a"} {

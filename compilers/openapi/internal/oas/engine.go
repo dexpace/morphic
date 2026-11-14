@@ -36,6 +36,10 @@ type Options struct {
 	// not as a Reference Object standing in its place. The node is the
 	// mapping itself, its aliases followed.
 	Seen func(kind Kind, node *yaml.Node)
+	// Skip, when set, is asked of each mapping about to be read as an object
+	// of a kind, its aliases followed; one it answers true for is not read, so
+	// a caller handing it what Seen recorded reads each (node, kind) once.
+	Skip func(kind Kind, node *yaml.Node) bool
 	// Judged, when set, is told each value the check refuses as the wrong type
 	// where it is written (a value with none of the shapes its field admits, or
 	// no mapping where an object belongs; never a null), with refused true, and
@@ -136,6 +140,7 @@ func (c Checker) walker(ctx context.Context, declared string, opts Options) (*wa
 	w.locate, w.declared, w.seen, w.rows = opts.Locate, declared, opts.Seen, opts.Rows
 	w.readAt, w.rootAt, w.said = opts.ReadAt, opts.Root, map[ir.Diagnostic]bool{}
 	w.rootRows, w.later, w.judged, w.referenced = opts.RootRows, opts.Later, opts.Judged, opts.Referenced
+	w.skip = opts.Skip
 	if w.rows.rows == nil {
 		w.rows, _ = c.spec.SchemaRules(declared, "")
 	}
@@ -160,6 +165,7 @@ type walker struct {
 	seen       func(Kind, *yaml.Node)
 	judged     func(*yaml.Node, bool)
 	referenced func(Kind, *yaml.Node)
+	skip       func(Kind, *yaml.Node) bool
 	// rows is the rows a Schema Object no schema holds is read with
 	// (Options.Rows), rootRows those of a dialect root (Options.RootRows),
 	// and later what is handed a schema left unread (Options.Later).
@@ -189,8 +195,7 @@ type site struct {
 // Schema Object, which decides for those it holds, else by its minor, where
 // the rows a schema is read with have the last word (walker.shapeOf). where,
 // unless empty, names what a finding about it holds it to in place of its
-// minor. shared says another place may read what it holds: its parent's frame
-// is shared, or its node is an alias, anchored, or writes a `<<` key.
+// minor.
 type frame struct {
 	obj      Object
 	at       site
@@ -200,7 +205,9 @@ type frame struct {
 	where    string
 	depth    int
 	booleans bool
-	shared   bool
+	// shared says another place may read what f holds: its parent's frame is
+	// shared, or its node is an alias, anchored, or writes a `<<` key.
+	shared bool
 }
 
 // sharedNode reports whether another place may read n: it is an alias, or the
@@ -280,6 +287,9 @@ func (w *walker) object(s site, depth int) {
 	}
 	if s.kind == Schema && s.in != Schema && w.later != nil {
 		w.later(Pending{at: s, depth: depth})
+		return
+	}
+	if w.skip != nil && node.Kind == yaml.MappingNode && w.skip(s.kind, node) {
 		return
 	}
 	if !w.spend(depth, s.ptr) {
