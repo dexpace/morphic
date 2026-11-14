@@ -85,8 +85,8 @@ func TestValidate_ACycleThroughAMixinNamesTheMixin(t *testing.T) {
 
 // TestValidate_ATypeWithNoFiniteValueIsReportedAtEachTypeOfTheKnot holds a type
 // that needs itself, through a required property, an element a list must hold,
-// a value a map must hold, every element of a tuple, one of a union's variants
-// when it has no other, or a base, to a warning at each type of the knot; and
+// a value a map must hold, a position a tuple must fill, one of a union's
+// variants when it has no other, or a base, to a warning at each type of the knot; and
 // the nearest type that is founded to none: a property not required, a
 // reference that admits null, a list that may be empty, a union with another
 // variant, a type that only needs one with no finite value.
@@ -95,6 +95,13 @@ func TestValidate_ATypeWithNoFiniteValueIsReportedAtEachTypeOfTheKnot(t *testing
 	const none = ", which has none either"
 	list := func(id, elem string, minItems *int64) *ir.List {
 		return &ir.List{ID: ir.TypeID(id), Elem: ref(elem), Constraints: &ir.Constraints{MinItems: minItems}, Provenance: provAt(id)}
+	}
+	tuple := func(id string, minItems *int64, rest *ir.TypeRef, elems ...ir.TypeRef) *ir.Tuple {
+		tp := &ir.Tuple{ID: ir.TypeID(id), Elems: elems, Rest: rest, Provenance: provAt(id)}
+		if minItems != nil {
+			tp.Constraints = &ir.Constraints{MinItems: minItems}
+		}
+		return tp
 	}
 	for _, tc := range []struct {
 		name string
@@ -132,11 +139,20 @@ func TestValidate_ATypeWithNoFiniteValueIsReportedAtEachTypeOfTheKnot(t *testing
 		{"a map that must hold a value of its own type", knotDoc(
 			&ir.MapT{ID: "t/mp", Key: new(strT), Value: ref("t/mp"), Constraints: &ir.Constraints{MinProps: new(int64(1))}, Provenance: provAt("t/mp")},
 		), []finding{{"t/mp", "no finite value: each needs its value, t/mp" + none}}},
-		{"a tuple holding itself", knotDoc(
-			&ir.Tuple{ID: "t/p", Elems: []ir.TypeRef{ref("t/prim/string"), ref("t/p")}, Provenance: provAt("t/p")},
+		{"a tuple that must hold itself", knotDoc(
+			tuple("t/p", new(int64(2)), nil, ref("t/prim/string"), ref("t/p")),
 		), []finding{{"t/p", "no finite value: each needs its element 1, t/p" + none}}},
+		{"a tuple that must hold itself past its leading positions", knotDoc(
+			tuple("t/p", new(int64(2)), new(ref("t/p")), ref("t/prim/string")),
+		), []finding{{"t/p", "no finite value: each needs its element 1, t/p" + none}}},
+		{"the same tuple, which need not hold that position", knotDoc(
+			tuple("t/p", new(int64(1)), new(ref("t/p")), ref("t/prim/string"), ref("t/p")),
+		), nil},
+		{"the same tuple, with no minimum", knotDoc(
+			tuple("t/p", nil, nil, ref("t/prim/string"), ref("t/p")),
+		), nil},
 		{"a tuple whose element admits null", knotDoc(
-			&ir.Tuple{ID: "t/p", Elems: []ir.TypeRef{maybe("t/p")}, Provenance: provAt("t/p")},
+			tuple("t/p", new(int64(1)), nil, maybe("t/p")),
 		), nil},
 		{"a union whose one variant is the union", knotDoc(
 			&ir.Union{ID: "t/u", Variants: []ir.Variant{{Type: ref("t/u")}}, Provenance: provAt("t/u")},

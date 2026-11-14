@@ -100,9 +100,9 @@ func (s *edgeSink) emit(ix typeIndex, ref *ir.TypeRef, kind edgeKind, index int)
 // eachEdge adds to sink the edges of td that set picks, in the order a finding
 // names the first of: a model's base, its mixins, then its required properties.
 // A scalar needs its base, a list its element once it must hold one, a map its
-// value likewise, a tuple each element, and a union each variant, none where
-// one is nullable or names no live type, since that is a value needing no
-// other. docs/ir/models.md lists what is not read.
+// value likewise, a tuple each position it must fill, and a union each
+// variant, none where one is nullable or names no live type, since that is a
+// value needing no other. docs/ir/models.md lists what is not read.
 func eachEdge(td ir.TypeDef, ix typeIndex, set edgeSet, sink *edgeSink) {
 	switch t := td.(type) {
 	case *ir.Model:
@@ -121,7 +121,7 @@ func eachEdge(td ir.TypeDef, ix typeIndex, set edgeSet, sink *edgeSink) {
 		}
 	case *ir.Tuple:
 		if set != compositionOnly {
-			sink.each(ix, t.Elems, edgeElementOf)
+			sink.tuple(ix, t)
 		}
 	case *ir.Union:
 		if set != compositionOnly && everyVariantNeeded(t, ix) {
@@ -149,10 +149,22 @@ func (s *edgeSink) model(ix typeIndex, m *ir.Model, set edgeSet) {
 	}
 }
 
-// each adds an edge of kind to each of refs.
-func (s *edgeSink) each(ix typeIndex, refs []ir.TypeRef, kind edgeKind) {
-	for j := range refs {
-		s.emit(ix, &refs[j], kind, j)
+// tuple adds the positions a value of t must fill, its first MinItems: Elems
+// types positions without requiring them (docs/ir/containers.md), so a tuple
+// with no minimum needs nothing, and Rest types those past Elems.
+func (s *edgeSink) tuple(ix typeIndex, t *ir.Tuple) {
+	if t.Constraints == nil || t.Constraints.MinItems == nil {
+		return
+	}
+	filled := *t.Constraints.MinItems
+	for j := range t.Elems {
+		if int64(j) >= filled {
+			return
+		}
+		s.emit(ix, &t.Elems[j], edgeElementOf, j)
+	}
+	if t.Rest != nil && filled > int64(len(t.Elems)) {
+		s.emit(ix, t.Rest, edgeElementOf, len(t.Elems))
 	}
 }
 
