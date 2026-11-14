@@ -107,3 +107,22 @@ func TestValidate_ScenarioReportHasOneOrder(t *testing.T) {
 		assert.Empty(t, cmp.Diff(want, validated(t, doc)), "the same document must report the same list")
 	}
 }
+
+// TestValidate_ScenarioKeyIsPlacedAtItsOwnExample pins where a key naming
+// another operation's parameter is reported when the operation carries an
+// example that is no scenario before it: at the second example's input, the
+// first holding no input to read.
+func TestValidate_ScenarioKeyIsPlacedAtItsOwnExample(t *testing.T) {
+	t.Parallel()
+	doc := scenarioDoc(map[ir.ParamID]ir.Value{"param/x/p/z": {Kind: ir.ValueString, Str: "v"}})
+	op := &doc.Services[0].Groups[0].Operations[0]
+	op.Examples = append([]ir.Example{{Name: "value", Value: &ir.Value{Kind: ir.ValueString, Str: "v"}}}, op.Examples...)
+
+	var at []string
+	for _, d := range validated(t, doc) {
+		if d.Code == "pass/param-binding-mismatch" && d.Severity == ir.SeverityError {
+			at = append(at, d.Provenance.Node)
+		}
+	}
+	assert.Equal(t, []string{"op/x/o/examples/1/input"}, at)
+}
