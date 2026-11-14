@@ -113,6 +113,7 @@ type Content struct
 	"encoding" map[PropID]PartEncoding omitempty
 	"examples" []Example omitempty
 	"file" *FileInfo omitzero
+	"inferred" Inferred omitempty
 	"item" *TypeRef omitzero
 	"itemEncoding" *PartEncoding omitzero
 	"mediaType" string omitempty

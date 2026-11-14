@@ -761,7 +761,9 @@ it sees. Changes made together in one bump are listed together under it.
 - **0.68.0** — `Parameter.Encoding`, a parameter's own encoding, overriding its type's field by
   field as `Property.Encoding` does ([encodings](./constraints.md#encodings)); the OpenAPI compiler
   writes `http-date` there on a header parameter its HTTP-date reading reaches
-  ([`http-date-inference`](../compilers/openapi.md#http-date-inference)). Three markers are renamed,
+  ([`http-date-inference`](../compilers/openapi.md#http-date-inference)). `Content.Inferred`, the
+  heuristics that filled a field from a key the content keeps, the marker a promotion from a
+  content records ([promotion](./unmodeled.md#promotion)). Three markers are renamed,
   as each inference's marker is `<fact>-inference`: `streaming-media-type` is `streaming-inference`,
   `binary-media-type` is `binary-inference` and `nullable-widening` is `nullable-inference`. A
   consumer pinned to 0.65.0 refuses the document; one matching a marker by its old name no longer

@@ -214,6 +214,11 @@ type Content struct {
 	Docs Docs `json:"docs,omitzero"`
 	// Unmodeled holds source constructs the IR does not model, kept verbatim.
 	Unmodeled Unmodeled `json:"unmodeled,omitempty"`
+	// Inferred lists the heuristics that filled a field from a key the content
+	// keeps (docs/ir/unmodeled.md#promotion), as [Provenance].Inferred does on
+	// a node that has one; empty means none did. Stream.Inferred says how the
+	// content is known to stream.
+	Inferred Inferred `json:"inferred,omitempty"`
 }
 
 // ContentStream is how a Content is known to stream
