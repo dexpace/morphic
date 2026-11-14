@@ -17,8 +17,9 @@ const memberKindCode = "ir/enum-member-kind"
 
 // admittedMemberKinds is, for each value type, the kinds of value an enum of it
 // holds as a member: the table docs/ir/enums.md gives for what "matches
-// ValueType" means. No row admits a list, an object, a reference or a
-// constructor, so a member of one is refused under every value type.
+// ValueType" means. No row admits a list, an object, a reference, a
+// constructor or a non-finite number, so a member of one is refused under
+// every value type.
 var admittedMemberKinds = func() map[ir.PrimKind][]ir.ValueKind {
 	text := []ir.ValueKind{ir.ValueString, ir.ValueSymbol}
 	number := []ir.ValueKind{ir.ValueNumber}
@@ -58,6 +59,9 @@ var askedMemberKinds = []ir.Value{
 	{Kind: ir.ValueObject, Object: []ir.Field{{Name: "a", Value: ir.Value{Kind: ir.ValueNull}}}},
 	{Kind: ir.ValueRefKind, Ref: &ir.ValueRef{Type: "t/x/E", Member: "m"}},
 	{Kind: ir.ValueCtor, Ctor: &ir.CtorValue{Scalar: "t/x/E"}},
+	{Kind: ir.ValueInf},
+	{Kind: ir.ValueNegInf},
+	{Kind: ir.ValueNaN},
 }
 
 // enumHolding returns a document of one enum of value type vt with one member
@@ -92,6 +96,24 @@ func TestMemberKinds_EveryPrimKindHasARow(t *testing.T) {
 	for kind := range admittedMemberKinds {
 		assert.True(t, declared[kind], "a row names value type %q, which ir does not declare", kind)
 	}
+}
+
+// TestMemberKinds_AsksEveryValueKind holds askedMemberKinds to the ValueKind
+// constants ir declares, so a kind ir adds is asked of every value type rather
+// than left out of the test below.
+func TestMemberKinds_AsksEveryValueKind(t *testing.T) {
+	t.Parallel()
+	consts, err := irDecls(t).StringConsts("ValueKind")
+	require.NoError(t, err)
+	declared := make([]ir.ValueKind, 0, len(consts))
+	for _, c := range consts {
+		declared = append(declared, ir.ValueKind(c.Value))
+	}
+	asked := make([]ir.ValueKind, 0, len(askedMemberKinds))
+	for _, v := range askedMemberKinds {
+		asked = append(asked, v.Kind)
+	}
+	assert.ElementsMatch(t, declared, asked)
 }
 
 // TestVerify_EnumMemberKindMatchesTheValueType asks every value type about
