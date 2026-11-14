@@ -132,6 +132,38 @@ func TestCompile_ARawValueAReferenceLandsInIsNamedNodeByNode(t *testing.T) {
 	}
 }
 
+// TestCompile_ARawValueAReferenceLandsInIsWeighedHoweverItIsSpelled holds the
+// exemption to where a reference lands, read as the compile reads it: a
+// fragment written with a percent escape, a $ref a draft's keyword holds as a
+// schema, named by jsonSchemaDialect or by $schema, and one read under an $id,
+// which lands in the resource the $id roots, are each refused, as the raw value
+// they land in is named node by node.
+func TestCompile_ARawValueAReferenceLandsInIsWeighedHoweverItIsSpelled(t *testing.T) {
+	t.Parallel()
+	const draft07 = "jsonSchemaDialect: \"http://json-schema.org/draft-07/schema#\"\n"
+	const schemas = "components:\n  schemas:\n    A: "
+	underID := "openapi: 3.1.0\ninfo: {title: t, version: \"1\"}\npaths: {}\nx-data: {type: string}\n" + schemas +
+		"\n      $id: \"https://e.example/a\"\n      properties: {p: {$ref: \"#/x-data\"}}\n      x-data:\n" + spine(8, 12, true)
+	for name, doc := range map[string]string{
+		"a percent escape":          pointerBoundRaw(schemas + "{$ref: \"#/x%2Ddata\"}\n"),
+		"draft 7's definitions":     pointerBoundRaw(draft07 + schemas + "{definitions: {d: {$ref: \"#/x-data\"}}}\n"),
+		"draft 7's dependencies":    pointerBoundRaw(draft07 + schemas + "{dependencies: {d: {$ref: \"#/x-data\"}}}\n"),
+		"draft 7's items list":      pointerBoundRaw(draft07 + schemas + "{items: [{$ref: \"#/x-data\"}]}\n"),
+		"draft 7's additionalItems": pointerBoundRaw(draft07 + schemas + "{items: [{type: string}], additionalItems: {$ref: \"#/x-data\"}}\n"),
+		"a draft $schema names":     pointerBoundRaw(schemas + "{$schema: \"http://json-schema.org/draft-07/schema#\", definitions: {d: {$ref: \"#/x-data\"}}}\n"),
+		"a $ref under an $id":       underID,
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+
+			doc, diags := compileText(t, "spec.yaml", doc, openapi.Options{})
+
+			assert.Nil(t, doc)
+			assert.Len(t, byCode(diags, diag.PointerAmplification), 1, "%+v", diags)
+		})
+	}
+}
+
 // TestCompile_APropertyNamedExampleHoldsASchemaAndIsNamedNodeByNode holds the
 // exemption to the grammar and not to a key's spelling: the deep spine written as
 // the schema of a property called example is a schema, so it is refused.

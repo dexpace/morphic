@@ -329,8 +329,12 @@ func shapeRefusals(ctx context.Context, tree provenance.Tree, whole ir.Provenanc
 // namedWithin reports whether the pointers a compile of idx's tree names one
 // by one total within the bound its size allows, counting a value kept raw by
 // its root alone (bind.NamedPointerBytes, GitHub #1499). A tree a reference
-// leaves, or one too large to weigh so, is not within it.
+// leaves, one too large to weigh so, and one that may name a dialect, whose
+// schemas another grammar may read (namesDialect), are not within it.
 func namedWithin(ctx context.Context, idx sourceindex.Index) bool {
+	if namesDialect(ctx, idx.Root(), declaredVersion(idx.Root())) {
+		return false
+	}
 	total, complete := bind.NamedPointerBytes(ctx, idx.Root(), sourceindex.MaxIndexedNodes)
 	return complete && total <= scan.PointerAllowance(idx.Written())
 }

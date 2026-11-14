@@ -100,9 +100,42 @@ func TestNamedPointerBytes_IsIncompleteWhereTheDocumentIsNotClosed(t *testing.T)
 
 	_, whole := namedTotal(t, closed)
 	_, left := namedTotal(t, leaving)
+	_, nowhere := namedTotal(t, namedHead+"components:\n  schemas:\n    A: {$ref: \"#/x-nowhere\"}\n")
+	_, underID := namedTotal(t, namedHead+"x-data: {}\ncomponents:\n  schemas:\n    A: {$id: \"https://e.example/a\", properties: {p: {$ref: \"#/x-data\"}}}\n")
 	_, spent := bind.NamedPointerBytes(t.Context(), nodeview.DocumentRoot(&doc), 1)
 
 	assert.True(t, whole)
 	assert.False(t, left, "another document could route back into a raw value")
+	assert.False(t, nowhere, "the binder may answer a pointer naming nothing by a rule of its own")
+	assert.False(t, underID, "an $id moves where a $ref under it lands")
 	assert.False(t, spent, "past the step bound")
+}
+
+// TestNamedPointerBytes_AFragmentLandsWhereItsDecodingNames holds a fragment
+// written with a percent escape to the node its decoding names, as the binder
+// reads it: the same total as the fragment written plain.
+func TestNamedPointerBytes_AFragmentLandsWhereItsDecodingNames(t *testing.T) {
+	t.Parallel()
+	const raw = namedHead + "x-data: " + namedSpine + "\n"
+	plain, c1 := namedTotal(t, raw+"components:\n  schemas:\n    A: {$ref: \"#/x-data\"}\n")
+	escaped, c2 := namedTotal(t, raw+"components:\n  schemas:\n    A: {$ref: \"#/x%2Ddata\"}\n")
+
+	assert.True(t, c1)
+	assert.True(t, c2)
+	assert.Equal(t, plain, escaped)
+}
+
+// TestNamedPointerBytes_ALandingNamedInPlaceIsCountedOnce holds a $ref whose
+// target the walk already names where it is written to adding nothing past the
+// $ref itself: the same total as a key of the same length the grammar keeps
+// raw.
+func TestNamedPointerBytes_ALandingNamedInPlaceIsCountedOnce(t *testing.T) {
+	t.Parallel()
+	const base = namedHead + "components:\n  schemas:\n    A: " + namedSpine + "\n"
+	byRef, c1 := namedTotal(t, base+"    B: {$ref: \"#/components/schemas/A\"}\n")
+	byRaw, c2 := namedTotal(t, base+"    B: {$reg: \"#/components/schemas/A\"}\n")
+
+	assert.True(t, c1)
+	assert.True(t, c2)
+	assert.Equal(t, byRaw, byRef)
 }
