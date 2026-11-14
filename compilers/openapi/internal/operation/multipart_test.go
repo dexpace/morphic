@@ -1853,7 +1853,7 @@ func TestPartEncodings_AnUnkeyedEntryThatIsNoObjectAddsNothingToLoadsError(t *te
 }
 
 // TestPartEncodings_AnEntryThatCannotBeKeptIsReportedNotAnnounced writes an
-// entry naming no part with a key twice, which cannot be rendered as JSON. The
+// entry naming no part holding .nan, which cannot be rendered as JSON. The
 // construct is reported as reaching the IR in no form, and no info claims it
 // was kept.
 func TestPartEncodings_AnEntryThatCannotBeKeptIsReportedNotAnnounced(t *testing.T) {
@@ -1861,7 +1861,7 @@ func TestPartEncodings_AnEntryThatCannotBeKeptIsReportedNotAnnounced(t *testing.
 	media := requestMedia(multipartForm)
 	at := media + "/encoding/ghost"
 	_, svc, diags := compileService(t, formDoc("", multipartForm,
-		"{type: object, properties: {a: {type: string}}}", "{ghost: {contentType: image/png, contentType: text/plain}}", ""))
+		"{type: object, properties: {a: {type: string}}}", "{ghost: {contentType: image/png, bogus: .nan}}", ""))
 	assert.Empty(t, keptEncodingNames(formContent(t, svc, false).Unmodeled), "nothing was written")
 	openapitest.AssertHasCode(t, diags, diag.UnpreservableConstruct, ir.SeverityError)
 	assert.True(t, openapitest.HasDiagCodeAt(diags, diag.UnpreservableConstruct, at), "reported at the entry")
@@ -1884,14 +1884,14 @@ func TestPartEncodings_AContentTypeWrittenTakesNoDefault(t *testing.T) {
 
 // TestPartEncodings_AnEntryKeptAtSettlementThatCannotBeKeptKeepsItsRecords
 // holds an entry for a part no property holds, which cannot be kept whole
-// since it writes a key twice, to the records its lowering kept of it, its
+// since it holds .nan, to the records its lowering kept of it, its
 // extension among them, and to the refusal alone, with no announcement that
 // it was kept whole.
 func TestPartEncodings_AnEntryKeptAtSettlementThatCannotBeKeptKeepsItsRecords(t *testing.T) {
 	t.Parallel()
 	media := requestMedia(multipartForm)
 	_, svc, diags := compileService(t, formDoc("", multipartForm,
-		"{const: x, properties: {file: {type: string}}}", "{file: {x-k: 1, contentType: image/png, contentType: text/plain}}", ""))
+		"{const: x, properties: {file: {type: string}}}", "{file: {x-k: 1, contentType: image/png, bogus: .nan}}", ""))
 	content := formContent(t, svc, false)
 	assert.Empty(t, content.Encoding)
 	assert.Equal(t, []string{"file/x-k"}, keptEncodingNames(content.Unmodeled), "the entry's own records stand")

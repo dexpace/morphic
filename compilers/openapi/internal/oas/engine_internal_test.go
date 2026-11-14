@@ -47,6 +47,9 @@ func TestCheck_WorkIsBounded(t *testing.T) {
 	}{
 		{"a budget one short of the objects", five, budget.AtMost(4), true},
 		{"a budget of the objects", five, budget.AtMost(5), false},
+		// One schema, then a list and three mappings read as no object.
+		{"a budget one short of a value's mappings and lists", `{default: [{a: {}}, {}]}`, budget.AtMost(4), true},
+		{"a budget of a value's mappings and lists", `{default: [{a: {}}, {}]}`, budget.AtMost(5), false},
 		{"no budget", five, budget.Unbounded(), false},
 		{"depth", deep, budget.Unbounded(), true},
 	}

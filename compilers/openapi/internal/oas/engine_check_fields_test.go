@@ -341,6 +341,32 @@ func TestCheck_PatternedKeysAreRead(t *testing.T) {
 	})
 }
 
+// TestCheck_RepeatedKeysInRawValuesAreWarnedOf pins the warning for a key
+// written twice inside a value the table reads as no object, at every depth,
+// in a list and beside a $ref: the lowering keeps such a value, or reads it as
+// an ir.Value, at the copy the model reads, so the table is where the repeat is
+// said. A key a later minor's schema defines is read as its field, once.
+func TestCheck_RepeatedKeysInRawValuesAreWarnedOf(t *testing.T) {
+	const info = "title: a, version: v, "
+	verify(t, []scenario{
+		{"an extension's value", "3.1.0", oas.Info, `{` + info + `x-e: {k: 1, k: 2}}`, []finding{at(duplicate, "/x-e/k")}},
+		{"a mapping in a list, deeper", "3.1.0", oas.Info, `{` + info + `x-e: [{}, {o: {k: 1, k: 2}}]}`,
+			[]finding{at(duplicate, "/x-e/1/o/k")}},
+		{"an undefined key's value", "3.1.0", oas.Info, `{` + info + `bogus: {k: 1, k: 2}}`,
+			[]finding{at(unknownKey, "/bogus"), at(duplicate, "/bogus/k")}},
+		{"a field read as any value", "3.1.0", oas.Example, `{value: {k: 1, k: 2}}`, []finding{at(duplicate, "/value/k")}},
+		{"a schema's default", "3.1.0", oas.Schema, `{default: {k: 1, k: 2}}`, []finding{at(duplicate, "/default/k")}},
+		{"a schema's undefined keyword", "3.1.0", oas.Schema, `{bogus: {k: 1, k: 2}}`, []finding{at(duplicate, "/bogus/k")}},
+		{"a key beside a $ref", "3.1.0", oas.Parameter, `{$ref: '#/a', x-n: {k: 1, k: 2}}`,
+			[]finding{at(unknownKey, "/x-n"), at(duplicate, "/x-n/k")}},
+		{"a patterned object's extension", "3.1.0", oas.Responses, `{"200": {description: d}, x-e: {k: 1, k: 2}}`,
+			[]finding{at(duplicate, "/x-e/k")}},
+		{"a later keyword is read as its field", "3.0.3", oas.Schema, `{prefixItems: [{type: string, type: integer}]}`,
+			[]finding{at(later, "/prefixItems"), at(duplicate, "/prefixItems/0/type")}},
+		{"each key once", "3.1.0", oas.Info, `{` + info + `x-e: {k: 1, l: [{k: 1}, {k: 2}]}}`, nil},
+	})
+}
+
 // TestCheck_AnAliasedUnknownKeyIsPlacedAtItsKey pins where an undefined key
 // whose value is an alias sits: at the key, in the mapping writing it, not where
 // the alias's anchor is written, another key's coordinate, so the place does not

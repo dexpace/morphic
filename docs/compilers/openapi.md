@@ -974,8 +974,14 @@ specification reads every key as a string, and one that is no scalar as the empt
 float64's range included, a YAML timestamp in the spelling written, a `!!binary` as its source text,
 and a scalar under a tag of the document's own as its text, since that tag claims no kind its text
 could contradict. A field a reader finds is found the same way, so one supplied through a merge key
-or an alias is kept as a written one is. A node no JSON can hold — a key a mapping or a mapping
-merged into it writes twice, `.nan` or `.inf`, a scalar whose text its tag does not admit, which
+or an alias is kept as a written one is. A key a mapping writes twice is held at the copy the model
+reads, the mapping's own last and a merge source's first
+([`duplicate-key`](../parser-library.md#duplicate-key)), so a kept value agrees with the typed IR
+read beside it, and the rule table warns of the repeat once, at its later copy, as an
+`openapi/validation` warning of the class `validation-duplicate-key`: in a value it reads as no
+object, an extension's, an undefined key's or an `example`'s, as in an object
+([`validation`](#validation)). A node no JSON can hold — `.nan` or `.inf`, a scalar whose text its
+tag does not admit, which
 [`values`](#values) refuses for the reason given there, invalid UTF-8, an alias that cycles or
 expands past the converter's node budget, a merge chain deeper than the reader expands — reaches the
 IR in no form, and so does a number past `ir.MaxDecimalExp`, which the reader a lowered value goes
@@ -992,7 +998,10 @@ extension that converts to no JSON is [`vendor-extensions`](#vendor-extensions)'
   `schema.TestAllOf_TheBindingCountPastTheDecimalRangeIsRefusedInEveryOrder`,
   `annotation.TestValidationOnlyAt_AnUnconvertibleKeywordIsReportedNotKept`,
   `annotation.TestRawFromNode_PreservesMergeAndOrderingSemantics`,
-  `annotation.TestRawFromNode_NamesTheRepeatedKey`, `annotation.TestScalarRenderers_AgreeOnKind`,
+  `annotation.TestRawFromNode_KeepsTheLastCopyOfARepeatedKey`,
+  `annotation.TestScalarRenderers_AgreeOnKind`, `e2e.TestCompile_ARepeatedKeyIsKeptAsItsLastCopy`,
+  `e2e.TestCompile_ARepeatedDefaultIsKeptAsItsLastCopy`,
+  `e2e.TestCompile_ARepeatedKeyIsReadAsItsLastCopyInEverySpelling`,
   `annotation.TestRawPropertyNode_ReadsAKeywordAsTheParserDoes`
 
 ### `unmodeled-dialect-fields`
@@ -5722,9 +5731,11 @@ escaped as RFC 6901 tokens, so a name the document chooses stays one segment
 kept verbatim keeps them inside its `openapi:links/<name>` entry ([`links`](#links)), as an encoding
 entry naming no part keeps its own inside its `openapi:encoding/<key>` entry
 ([`multipart-encoding`](#multipart-encoding)); a path item that mounts no operation keeps its own
-under `openapi:pathItem/<item pointer>/x-*` ([`path-item-servers`](#path-item-servers)). An
-extension whose value converts to no JSON reaches the IR in no form, reported as an
-`openapi/degraded-construct` warning at the object holding it.
+under `openapi:pathItem/<item pointer>/x-*` ([`path-item-servers`](#path-item-servers)). A key an
+extension's value writes twice is kept at the copy the model reads and warned of once
+([`verbatim-preservation`](#verbatim-preservation)). An extension whose value converts to no JSON
+reaches the IR in no form, reported as an `openapi/degraded-construct` warning at the object
+holding it.
 
 - Cases: `extensions-x`, `inline-annotations`
 - Codes: `openapi/degraded-construct`

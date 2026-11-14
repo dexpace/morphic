@@ -140,7 +140,9 @@ func TestCompile_ARepeatedDefaultIsKeptAsItsLastCopy(t *testing.T) {
 // the root and in a schema, in YAML and in JSON, through an alias and through a
 // merge key. Each repeat is one warning at its later copy; a key a merge source
 // repeats is reported where the source writes it, once, however many mappings
-// merge it; and the value kept is the last copy.
+// merge it; and the value kept is the copy the model reads, the last, bar a
+// merge source's, which the model reads at its first
+// (docs/parser-library.md#merge-keys).
 func TestCompile_ARepeatedKeyIsReadAsItsLastCopyInEverySpelling(t *testing.T) {
 	t.Parallel()
 	const head = "openapi: 3.1.0\ninfo: {title: T, version: \"1\"}\npaths: {}\n"
@@ -163,7 +165,7 @@ func TestCompile_ARepeatedKeyIsReadAsItsLastCopyInEverySpelling(t *testing.T) {
 			warned: "/x-limits/rate", line: 4, root: `{"rate":2}`},
 		{name: "a merge source that repeats a key", path: "a.yaml",
 			src:    head + "x-base: &b {rate: 1, rate: 2}\nx-limits: {<<: *b}\n",
-			warned: "/x-base/rate", line: 4, root: `{"rate":2}`},
+			warned: "/x-base/rate", line: 4, root: `{"rate":1}`},
 		{name: "an own key over a merged one is no repeat", path: "a.yaml",
 			src: head + "x-limits: {<<: {rate: 1}, rate: 2}\n", root: `{"rate":2}`},
 		{name: "a schema default in YAML", path: "a.yaml",

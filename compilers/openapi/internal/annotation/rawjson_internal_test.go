@@ -211,10 +211,11 @@ func TestRawFromNode_PreservesMergeAndOrderingSemantics(t *testing.T) {
 }
 
 // TestRawFromNode_KeepsTheLastCopyOfARepeatedKey pins what a mapping that
-// writes a key twice renders as: the key's last copy, as the model and load
-// read it. The repeat is load's to report once, so rendering refuses nothing.
-// A key written through an alias is the key it names, and a key a merge source
-// repeats is repeated in the merging mapping too (GitHub #1072, #1663).
+// writes a key twice renders as: the copy the model and load read, the
+// mapping's own last, and a merge source's first, as the model reads a merge
+// (docs/parser-library.md#merge-keys). The repeat is load's to report once, so
+// rendering refuses nothing. A key written through an alias is the key it
+// names (GitHub #1072, #1663).
 func TestRawFromNode_KeepsTheLastCopyOfARepeatedKey(t *testing.T) {
 	t.Parallel()
 	tests := []struct{ name, yaml, want string }{
@@ -222,9 +223,9 @@ func TestRawFromNode_KeepsTheLastCopyOfARepeatedKey(t *testing.T) {
 		{"the key repeated first", "x: 1\ny: 1\ny: 2\nx: 2\n", `{"x":2,"y":2}`},
 		{"a key three times", "z: 0\nw: 1\nw: 2\nw: 3\n", `{"w":3,"z":0}`},
 		{"a key repeated through an alias", "&k rate: 1\n*k : 2\n", `{"rate":2}`},
-		{"a key a merge source repeats", "base: &b {p: 1,\n  p: 2}\nuse: {<<: *b}\n", `{"base":{"p":2},"use":{"p":2}}`},
+		{"a key a merge source repeats", "base: &b {p: 1,\n  p: 2}\nuse: {<<: *b}\n", `{"base":{"p":2},"use":{"p":1}}`},
 		{"a key repeated beside a merge", "{<<: {p: 1}, k: 1, k: 2}", `{"k":2,"p":1}`},
-		{"a key repeated in a merge source", "{<<: {p: 1, p: 2}}", `{"p":2}`},
+		{"a key repeated in a merge source", "{<<: {p: 1, p: 2}}", `{"p":1}`},
 		{"a key repeated in a nested mapping", "o: {k: 1, k: {n: 1, n: 2}}\n", `{"o":{"k":{"n":2}}}`},
 		{"no key twice", "a: 1\nb: 2\n", `{"a":1,"b":2}`},
 		{"an alias key and a key spelled as its anchor's name", "a: &k v\n*k : 1\nk: 2\n", `{"a":"v","v":1,"k":2}`},
@@ -689,9 +690,5 @@ func TestRawFromNode_DistinguishesAbsentFromUnconvertible(t *testing.T) {
 
 	got, err = RawFromNode(openapitest.YAMLNode(t, ".nan"))
 	require.Error(t, err, "a value that decodes but does not marshal is a failure")
-	assert.Nil(t, got)
-
-	got, err = RawFromNode(openapitest.YAMLNode(t, "{k: 1, k: 2}"))
-	require.Error(t, err, "a mapping writing a key twice holds no one JSON object")
 	assert.Nil(t, got)
 }

@@ -354,13 +354,13 @@ type fakeCore struct{ keys []string }
 func (c *fakeCore) GetUnknownProperties() []string { return c.keys }
 
 // TestTakeString_UnkeepableValueIsReportedAndRead pins the one value TakeString
-// can neither place nor keep: a mapping that writes one key twice, which no JSON
-// rendering can hold. It is reported as lost, and still read, so the census does
-// not report it a second time.
+// can neither place nor keep: a mapping holding a number JSON has no literal
+// for, which no JSON rendering can hold. It is reported as lost, and still
+// read, so the census does not report it a second time.
 func TestTakeString_UnkeepableValueIsReportedAndRead(t *testing.T) {
 	t.Parallel()
 	var root yaml.Node
-	require.NoError(t, yaml.Unmarshal([]byte("k: {a: 1, a: 2}"), &root))
+	require.NoError(t, yaml.Unmarshal([]byte("k: {a: .nan}"), &root))
 	var p ir.Unmodeled
 	got, read, diags := TakeString(&p, &root, "k", nil, sourced(0), "/o", "")
 	assert.Empty(t, got)

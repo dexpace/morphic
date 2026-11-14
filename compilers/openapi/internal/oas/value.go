@@ -336,7 +336,33 @@ func (w *walker) entries(f frame, fld Field, shape Shape, node *yaml.Node, ptr j
 			w.text(f, fmt.Sprintf("field %q entry %q", fld.Name, p.Key), fld, nodeview.Deref(p.Val), ptr.AppendToken(p.Key))
 		}
 	default:
-		// A scalar, or a container of values the table leaves unread.
+		// A scalar, or a container of values the table leaves unread, which the
+		// lowering keeps verbatim or reads as a value.
+		rawRepeats(w, node, ptr, depth+1)
+	}
+}
+
+// rawRepeats warns of each key a mapping written in a value the table reads as
+// no object writes more than once, at its later copy, as repeated warns of one
+// an object writes: the lowering reads such a value at the copy the model
+// reads. It spends the walk's own budget, one unit a mapping or list.
+func rawRepeats(w *walker, val *yaml.Node, ptr jsontext.Pointer, depth int) {
+	node := nodeview.Deref(val)
+	if node == nil || node.Kind != yaml.MappingNode && node.Kind != yaml.SequenceNode {
+		return
+	}
+	if !w.spend(depth, ptr) {
+		return
+	}
+	if node.Kind == yaml.SequenceNode {
+		for i, item := range node.Content {
+			rawRepeats(w, item, itemPointer(ptr, i), depth+1)
+		}
+		return
+	}
+	w.repeated(node, ptr, "a mapping")
+	for _, p := range w.view.MappingPairs(node) {
+		rawRepeats(w, p.Val, ptr.AppendToken(p.Key), depth+1)
 	}
 }
 

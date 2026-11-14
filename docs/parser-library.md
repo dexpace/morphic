@@ -489,7 +489,9 @@ and warns (`validation-duplicate-key`). Through raw YAML it is read as its first
 does not hold, such as an extension's value. The compiler binds every `$ref` itself and reads every
 mapping as the model does, raw YAML included, so a `$ref` into raw YAML, a schema's or a reference
 object's, lands on the last copy where the resolver lands on the first (`duplicate-key` in the
-binding oracle's disagreements), and one pointer names one position whoever reads it.
+binding oracle's disagreements), and one pointer names one position whoever reads it. A value kept
+verbatim or read as an `ir.Value` is read the same way, so it agrees with the typed IR beside it, and
+the rule table warns of the repeat once, at its later copy.
 
 ```yaml
 components:
@@ -503,6 +505,8 @@ components:
 - Code:
   - `nodeview.flatten` reads a mapping's repeated key as the model does.
   - `nodeview.Child` reads one at the copy the model does, a merge source's at its first.
+  - `annotation.RawFromNode` and `value.FromNode` render one at the copy `nodeview.View.MappingPairs`
+    reads.
   - `load.bindAll` binds every reference object in the compiler, never through the resolver.
 
 ### `merge-keys`

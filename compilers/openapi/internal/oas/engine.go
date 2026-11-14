@@ -256,7 +256,27 @@ func (w *walker) object(s site, depth int) {
 	w.fields(f, depth)
 	w.patterned(f, depth)
 	w.unknown(f)
+	rawKeys(w, f, depth)
 	w.rules(f)
+}
+
+// rawKeys reads for repeated keys the value of each key f's object reads as no
+// field and the lowering keeps verbatim: an extension, and a key the object
+// defines at no minor, which unknown reports. An object taking patterned keys
+// reads each other key as an entry, as a schema reads a keyword its dialect
+// added later as a field.
+func rawKeys(w *walker, f frame, depth int) {
+	_, patterned := f.obj.patternAt(w.minor)
+	for _, p := range f.pairs {
+		extension := strings.HasPrefix(p.Key, "x-") && f.obj.Extensible
+		if !extension && (patterned || f.defines(p.Key)) {
+			continue
+		}
+		if _, later := f.addedLater(p.Key, w.minor); later {
+			continue
+		}
+		rawRepeats(w, p.Val, f.at.ptr.AppendToken(p.Key), depth+1)
+	}
 }
 
 // unknown reports each key f's mapping writes that its object neither defines
@@ -394,6 +414,7 @@ func (w *walker) reference(f frame, depth int) bool {
 	rf.obj = w.spec.must(Reference)
 	w.fields(rf, depth)
 	w.unknown(rf)
+	rawKeys(w, rf, depth)
 	return true
 }
 
