@@ -16,8 +16,10 @@ import (
 var ErrContract = errors.New("pass broke its contract")
 
 // Pass is one IR-to-IR step the engine schedules. A Pass holds no mutable
-// state. A pass breaking a duty its methods state fails the run, wrapping
-// ErrContract. architecture.md §2.2 explains Run's signature.
+// state, so it is safe for concurrent use: an engine runs one from several
+// runs at once, each over a document nothing is changing meanwhile. A pass
+// breaking a duty its methods state fails the run, wrapping ErrContract.
+// architecture.md §2.2 explains Run's signature.
 type Pass interface {
 	// Name is stable and unique among an engine's passes: a caller disables one
 	// by it.

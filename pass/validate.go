@@ -16,7 +16,8 @@ var _ Pass = Validator{}
 const ValidateName = "validate"
 
 // Validator is [Validate] as a [Pass]. It is an analysis, so Run hands back the
-// document it was given.
+// document it was given, and it holds no state, so it is safe for
+// concurrent use.
 type Validator struct{}
 
 // Name returns [ValidateName].
