@@ -199,6 +199,9 @@ func attachDeclaredAnnotations(c lowering.Ctx, ts *compile.Types, s *oas3.Schema
 		common.XML = a.XML
 	}
 	common.Unmodeled = annotation.MergeUnmodeled(common.Unmodeled, a.Unmodeled)
+	// A discriminator the census kept whole holds the extensions just read out
+	// of it, which the node keeps no second time (GitHub #849).
+	annotation.DropContained(&common.Unmodeled, "openapi:discriminator")
 	from := use.lentKeys(c)
 	diags = append(diags, c.Promoter().Deprecation(common.Unmodeled, from, &common.Deprecation, &common.Provenance)...)
 	diags = append(diags, c.Promoter().Redaction(common.Unmodeled, from, &common.Sensitive, &common.Provenance)...)

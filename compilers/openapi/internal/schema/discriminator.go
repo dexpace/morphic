@@ -454,6 +454,7 @@ func (d besideUnionDiscriminator) Settle(reg ir.TypeRegistry) []ir.Diagnostic {
 	if !kept {
 		return diags
 	}
+	annotation.DropContained(&m.Unmodeled, "openapi:discriminator")
 	m.Discriminator = nil
 	if mt, isMap := ir.AsMap(m); isMap {
 		reg[d.model] = mt
