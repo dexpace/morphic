@@ -108,7 +108,10 @@ func namedTypes(c lowering.Ctx, s *oas3.Schema, pointer jsontext.Pointer) kindSe
 
 // maxBoundTypeReads bounds one boundTypes read (styleguide bounded-recursion
 // rule), a step per schema it reads, so its depth and breadth: an allOf naming
-// its own schema ends on it.
+// its own schema ends on it. Past it, each schema still open, the position's
+// own included, probes once more as it returns, and the position's $ref once,
+// so a read spends at most twice the budget and three steps. A step's work is not constant: finding a dynamic
+// reference scans the keys of the schema read (GitHub #1939).
 const maxBoundTypeReads = 256
 
 // boundTypes reads the instance types schemas declare, for the bounds written
@@ -212,13 +215,12 @@ func (r *boundTypes) branch(c lowering.Ctx, b *oas3.JSONSchema[oas3.Referenceabl
 	return r.schema(c, b.GetSchema(), pointer)
 }
 
-// ref is what the schema js's $ref chain ends on admits, and anyInstance where
-// it ends on none, at the step a read of a schema spends.
+// ref is what the schema js's $ref chain ends on admits, read as no schema
+// where it ends on none.
 func (r *boundTypes) ref(c lowering.Ctx, js *oas3.JSONSchema[oas3.Referenceable]) kindSet {
 	e, ok := c.Bindings().Entry(js)
 	if !ok || e.Chain.Status != bind.Resolved {
-		r.steps.Spend(1)
-		return anyInstance
+		return r.schema(c, nil, "")
 	}
 	return r.at(c, e.Chain.End)
 }

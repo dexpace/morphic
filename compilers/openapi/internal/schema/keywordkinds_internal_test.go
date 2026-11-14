@@ -5,6 +5,7 @@ package schema
 
 import (
 	"encoding/json/jsontext"
+	"fmt"
 	"maps"
 	"slices"
 	"strings"
@@ -116,34 +117,64 @@ func TestWritesBound_FindsABoundOnTheSchemaOrAnInlineBranch(t *testing.T) {
 	}
 }
 
-// TestBoundTypes_ReadsNoSiblingPastItsBudget pins the cost of a read past
-// maxBoundTypeReads, by the reads it spends: an allOf or a union wider than the
-// budget is read up to the read that exhausts it and no further, as each
-// sibling past it would answer anyInstance and change nothing. A union's null
-// branches are read at a step each, so a union collapsing onto one branch beside
-// many costs no more than the budget either, and so is an entry reading no
-// schema, a boolean one or a $ref landing on none.
+// TestBoundTypes_ReadsNoSiblingPastItsBudget pins the cost of a position's read
+// (namedTypes), by its steps, on shapes wider or deeper than maxBoundTypeReads.
+// Each runs out of budget, so no schema, null branch, boolean, unresolved $ref
+// or dynamic hop is read without a step, and none passes the bound
+// maxBoundTypeReads states, as a sibling read past the budget would. Each branch
+// test and pointer build is followed by a step, so the bound holds them too.
 func TestBoundTypes_ReadsNoSiblingPastItsBudget(t *testing.T) {
 	t.Parallel()
-	refs := strings.Repeat("{$ref: '#/components/schemas/Str'}, ", 4*maxBoundTypeReads)
-	nulls := strings.Repeat("{type: 'null'}, ", 4*maxBoundTypeReads)
-	trues := strings.Repeat("true, ", 4*maxBoundTypeReads)
-	dangling := strings.Repeat("{$ref: '#/components/schemas/Nowhere'}, ", 4*maxBoundTypeReads)
-	c := loweringtest.Context(t, openapitest.ComponentSpecVer("3.1.0",
-		"    AllOf: {allOf: ["+refs+"]}\n    AnyOf: {anyOf: ["+refs+"]}\n"+
-			"    Nulls: {anyOf: [{$ref: '#/components/schemas/Str'}, "+nulls+"]}\n    Str: {type: string}\n"+
-			"    Trues: {allOf: ["+trues+"]}\n    Dangling: {anyOf: ["+dangling+"]}\n"), lowering.Policy{})
-	for _, name := range []string{"AllOf", "AnyOf", "Nulls", "Trues", "Dangling"} {
+	const bound = 2*maxBoundTypeReads + 3
+	spec := openapitest.ComponentSpecVer("3.1.0", budgetShapes(4*maxBoundTypeReads))
+	for _, name := range []string{"AllOf", "AnyOf", "Nulls", "Trues", "Dangling", "Mixed", "D0", "Deep", "All"} {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
+			c := loweringtest.Context(t, spec, lowering.Policy{})
 			pointer := jsontext.Pointer("/components/schemas/" + name)
 			s := heldAt(c, pointer).GetSchema()
 			require.NotNil(t, s)
 			r := boundTypes{steps: budget.New(budget.AtMost(maxBoundTypeReads))}
-			assert.Equal(t, anyInstance, r.schema(c, s, pointer))
-			assert.Equal(t, maxBoundTypeReads+1, r.steps.Spent())
+			assert.Equal(t, anyInstance, r.names(c, s, pointer))
+			assert.True(t, r.steps.Exhausted())
+			assert.LessOrEqual(t, r.steps.Spent(), bound)
 		})
 	}
+}
+
+// budgetShapes declares the shapes TestBoundTypes_ReadsNoSiblingPastItsBudget
+// reads, each n wide or n deep: entries and branches of each kind, null
+// branches of each spelling, a chain of dynamic references, an inline allOf in
+// an anyOf in an allOf whose levels each write a union too, and all of them at
+// one position beside a $ref and a union of its own.
+func budgetShapes(n int) string {
+	kinds := []string{"{$ref: '#/components/schemas/Str'}", "{type: string}", "{description: d}", "true",
+		"{$ref: '#/components/schemas/Nowhere'}", "{$ref: '#/components/schemas/Cyc'}"}
+	nullKinds := []string{"{type: 'null'}", "{type: ['null']}", "{enum: [null]}", "{const: null}"}
+	var mixed, nulls, chain strings.Builder
+	for i := range n {
+		mixed.WriteString(kinds[i%len(kinds)] + ", ")
+		nulls.WriteString(nullKinds[i%len(nullKinds)] + ", ")
+		fmt.Fprintf(&chain, "    D%d: {$dynamicAnchor: d%d, $dynamicRef: '#d%d'}\n", i, i, i+1)
+	}
+	deep := "{type: string}"
+	for i := range maxBoundTypeReads + 44 {
+		if i%2 == 0 {
+			deep = "{allOf: [" + deep + "], anyOf: [{type: string}]}"
+		} else {
+			deep = "{anyOf: [" + deep + ", {type: string}]}"
+		}
+	}
+	refs := strings.Repeat("{$ref: '#/components/schemas/Str'}, ", n)
+	return "    Str: {type: string}\n    Cyc: {$ref: '#/components/schemas/Cyc2'}\n    Cyc2: {$ref: '#/components/schemas/Cyc'}\n" +
+		"    AllOf: {allOf: [" + refs + "]}\n    AnyOf: {anyOf: [" + refs + "]}\n" +
+		"    Nulls: {anyOf: [{$ref: '#/components/schemas/Str'}, " + nulls.String() + "]}\n" +
+		"    Trues: {allOf: [" + strings.Repeat("true, ", n) + "]}\n" +
+		"    Dangling: {anyOf: [" + strings.Repeat("{$ref: '#/components/schemas/Nowhere'}, ", n) + "]}\n" +
+		"    Mixed: {allOf: [" + mixed.String() + "]}\n" + chain.String() +
+		fmt.Sprintf("    D%d: {$dynamicAnchor: d%d, type: string}\n", n, n) + "    Deep: " + deep + "\n" +
+		"    All: {allOf: [{$ref: '#/components/schemas/Deep'}, {$ref: '#/components/schemas/Mixed'}, " +
+		"{$ref: '#/components/schemas/D0'}], $ref: '#/components/schemas/Str', anyOf: [{$ref: '#/components/schemas/Nulls'}]}\n"
 }
 
 // TestBoundTypes_ADynamicCycleEndsOnTheBudget pins the read of dynamic
