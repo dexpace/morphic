@@ -90,10 +90,14 @@ var errCut = errors.New("doctree: the walk of the tree was cut short")
 
 // Read reads data: as JSON when it is one JSON text (readJSON,
 // docs/parser-library.md#json-as-yaml), else as a YAML stream lexed as YAML 1.2
-// and resolved by its core schema (readYAML). A tree
+// and resolved by its core schema (readYAML). A UTF-16 or UTF-32 text is read as
+// the UTF-8 it encodes (transcoded), as JSON or YAML alike. A tree
 // past maxNodes is a *PastNodesError. Bytes the parser refuses are its error,
 // unwrapped, a done ctx's error is ctx's, and either way no tree is returned.
 func Read(ctx context.Context, data []byte, maxNodes budget.Limit) (Document, error) {
+	if text, ok := transcoded(data); ok {
+		data = text
+	}
 	root, nodes, err := readJSON(ctx, data, maxNodes)
 	switch {
 	case err == nil:

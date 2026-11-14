@@ -36,8 +36,8 @@ type respelling struct {
 
 // respell returns text as the parser reads it as YAML 1.2, one character for
 // one (docs/parser-library.md#yaml11-lexing), what it put in place of each
-// trigger, and every %YAML 1.x directive the stream writes. A text with no
-// trigger is returned as it is; a UTF-16 or UTF-32 one is read as its UTF-8
+// trigger is returned as it is, and so is one opening with a UTF-16 or UTF-32
+// byte order mark, which Read hands it only when it encodes no text
 // (transcoded).
 //
 // Each line-break character, and each escaped slash, is written as a
@@ -45,9 +45,7 @@ type respelling struct {
 // (spelled), so restore reads back exactly what was put. A trigger left with no
 // placeholder free is left as written.
 func respell(text []byte) ([]byte, respelling, []Directive) {
-	if utf8Text, ok := transcoded(text); ok {
-		text = utf8Text
-	} else if wide(text) {
+	if wide(text) {
 		return text, respelling{}, nil
 	}
 	dirs, out := directives(text)

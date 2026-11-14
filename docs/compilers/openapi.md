@@ -113,8 +113,8 @@ alone, and one declaring another major is refused as the parser refuses it. A do
 1.2's core schema, `0644`, `yes` or `1:30`, a scalar past 128 characters compared and worded by
 kind alone and its text not quoted, and at each line-break character written raw in its text or in
 a comment; an escaped `\N`, which YAML 1.1 reads alike, draws none, and a document declaring
-nothing or 1.2 draws none. A UTF-16 or UTF-32 text opening with its byte order mark is read as the
-UTF-8 it encodes, so all three read alike. A plain scalar is resolved by YAML 1.2's core schema in
+nothing or 1.2 draws none. A UTF-16 or UTF-32 text opening with its byte order mark, JSON or YAML,
+is read as the UTF-8 it encodes, so all three read alike. A plain scalar is resolved by YAML 1.2's core schema in
 every document: `0644` is the integer 644, `0o17` is 15, and `0b11`, `0X1F`, `1_000` and `+0x1F`
 are strings; its text is what the source wrote. A mapping key keeps the parser's tag, a date's
 aside, which is a string as a value's is, and a `<<` key still merges. A core integer the parser
@@ -157,6 +157,7 @@ scalar under any other tag keeps it.
   `doctree.TestReadJSON_ReportsExactlyTheSurrogateEscapesAsHalves`,
   `doctree.TestReadJSON_ReadsAFaultAfterAnEscapeAsTheFaultAlone`,
   `doctree.TestReadJSON_KeepsTheDecodersReasonWhenItDeclines`,
+  `doctree.TestRead_AJSONTextReadsAlikeInEveryEncoding`,
   `doctree.TestRead_ATailIsWhatTheStreamHoldsPastItsFirstDocument`,
   `doctree.TestRead_AnEscapedSlashReadsAsASlashOnlyWhereTheStyleSaysSo`,
   `doctree.TestRead_ALineBreakYAML11EndsALineAtIsACharacter`,

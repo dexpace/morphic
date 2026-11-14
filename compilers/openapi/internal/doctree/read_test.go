@@ -416,6 +416,51 @@ func TestRead_AJSONTextIsNeverResolvedAgain(t *testing.T) {
 	assert.Equal(t, []string{"1E3 !!float", "-0 !!int", "0.5e-2 !!float", "99999999999999999999 !!float"}, got)
 }
 
+// TestRead_AJSONTextReadsAlikeInEveryEncoding holds a JSON text in UTF-16 and
+// UTF-32 to the tree its UTF-8 gives: it is read as JSON, so what only the JSON
+// reader reads, a surrogate pair of escapes and a key past the parser's length,
+// reads in each encoding.
+func TestRead_AJSONTextReadsAlikeInEveryEncoding(t *testing.T) {
+	t.Parallel()
+	text := `{"openapi":"3.1.0","info":{"title":"a` + bs + `ud83d` + bs + `ude00b","version":"1"},` +
+		`"paths":{},"x-` + strings.Repeat("k", 1100) + `":1}`
+	want := read(t, text)
+
+	for name, enc := range map[string]struct {
+		mark      string
+		width     int
+		bigEndian bool
+	}{
+		"UTF-16LE": {"\xff\xfe", 2, false}, "UTF-16BE": {"\xfe\xff", 2, true},
+		"UTF-32LE": {"\xff\xfe\x00\x00", 4, false}, "UTF-32BE": {"\x00\x00\xfe\xff", 4, true},
+	} {
+		in := []byte(enc.mark)
+		for _, r := range text {
+			in = append(in, encoded(r, enc.width, enc.bigEndian)...)
+		}
+
+		got, err := doctree.Read(t.Context(), in, budget.Unbounded())
+
+		require.NoError(t, err, name)
+		assert.Empty(t, cmp.Diff(dump(want.Root), dump(got.Root)), name)
+		assert.Equal(t, want.Nodes, got.Nodes, name)
+	}
+}
+
+// encoded is r in UTF-16 or UTF-32, as width names, in the byte order
+// bigEndian names. r is in the Basic Multilingual Plane when width is 2.
+func encoded(r rune, width int, bigEndian bool) []byte {
+	out := make([]byte, width)
+	for i := range width {
+		shift := 8 * (width - 1 - i)
+		if !bigEndian {
+			shift = 8 * i
+		}
+		out[i] = byte(r >> shift)
+	}
+	return out
+}
+
 // TestRead_AnEscapedSlashReadsAsASlashOnlyWhereTheStyleSaysSo pins what an
 // escaped slash, which YAML 1.2 allows and the library refuses, reads as in each
 // style: a slash in a double-quoted scalar, the two characters anywhere else,
