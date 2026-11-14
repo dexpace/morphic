@@ -11,6 +11,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/dexpace/morphic/compilers"
 	"github.com/dexpace/morphic/compilers/openapi/internal/budget"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 )
@@ -49,7 +50,8 @@ func TestLoad_AFileURIReadsTheFileItNames(t *testing.T) {
 
 // TestLoad_AFileURIDocumentResolvesItsOwnRelativeRefs pins the chain through a
 // document a file URI named: its relative $ref is read against that URI, so it
-// names a file URI too and is read, through two documents to the third.
+// names a file URI too and is read, through two documents to the third, a
+// refusal naming it by the file it names.
 func TestLoad_AFileURIDocumentResolvesItsOwnRelativeRefs(t *testing.T) {
 	t.Parallel()
 	dir := externalDir(t, map[string]string{
@@ -67,8 +69,8 @@ func TestLoad_AFileURIDocumentResolvesItsOwnRelativeRefs(t *testing.T) {
 	assert.Empty(t, diags, "three documents, read within a budget of three")
 	_, unresolved := budgetFindings(short)
 	require.Len(t, unresolved, 1, "%+v", short)
-	assert.Contains(t, unresolved[0], "external document "+fileURI("file", filepath.Join(dir, "c.yaml"))+" refused",
-		"the third document is the file URI the second's relative $ref names")
+	assert.Contains(t, unresolved[0], "external document "+filepath.Join(dir, "c.yaml")+" refused",
+		"the third document is the file the second's relative $ref names")
 }
 
 // TestLoad_AFileURIIsRefusedWithItsReason pins that a file URI naming no local
@@ -84,22 +86,29 @@ func TestLoad_AFileURIIsRefusedWithItsReason(t *testing.T) {
 	assert.NotContains(t, unresolved[0], "external document", "the reader's reason, not wrapped as a refusal")
 }
 
-// TestLoad_AFileURIAndAPathAreTwoDocuments pins the identity a file URI has: a
-// URL, named only as spelled, so the file its path names is another document,
-// read and charged on its own. Under a budget of one, the second is refused.
-func TestLoad_AFileURIAndAPathAreTwoDocuments(t *testing.T) {
+// TestLoad_AFileURIAndAPathAreOneDocument pins the identity a file URI has: the
+// file its path names (resolve.Places.FileOf), as the reader reads it, so a
+// file a $ref names by a file URI, another by its path and a third through a
+// dot segment is one document, read and charged once, in either order. Under a
+// budget of one, all three resolve; under none, none is read.
+func TestLoad_AFileURIAndAPathAreOneDocument(t *testing.T) {
 	t.Parallel()
 	dir := externalDir(t, map[string]string{"a.yaml": "x: {description: ok}\n"})
-	root := responseRoot("./a.yaml#/x") +
-		"    B: {$ref: '" + fileURI("file", filepath.Join(dir, "a.yaml")) + "#/x'}\n"
+	byURI := "    B: {$ref: '" + fileURI("file", filepath.Join(dir, "a.yaml")) + "#/x'}\n"
+	byDot := "    C: {$ref: '" + filepath.Join(dir, "x", "..", "a.yaml") + "#/x'}\n"
+	for _, root := range []string{responseRoot("./a.yaml#/x") + byURI + byDot, responseRoot("./a.yaml#/x") + byDot + byURI} {
+		fake := &fakeReader{data: []byte("x: {description: ok}\n")}
+		src := compilers.Source{Path: filepath.Join(dir, "root.yaml"), Data: []byte(root)}
 
-	_, within := loadExternal(t, dir, root, Options{MaxExternalDocuments: budget.AtMost(2)})
-	_, past := loadExternal(t, dir, root, Options{MaxExternalDocuments: budget.AtMost(1)})
+		_, within, err := Load(t.Context(), 0, src, Options{Reader: fake, MaxExternalDocuments: budget.AtMost(1)})
+		require.NoError(t, err)
+		_, none := loadExternal(t, dir, root, Options{MaxExternalDocuments: budget.AtMost(0)})
 
-	assert.Empty(t, within, "both read, one document each")
-	over, unresolved := budgetFindings(past)
-	assert.Len(t, over, 1)
-	require.Len(t, unresolved, 1, "%+v", past)
-	assert.Contains(t, unresolved[0], "past the 1-document budget")
-	assert.Equal(t, diag.BudgetExceeded, over[0].Code)
+		assert.Empty(t, within, "one document, read within a budget of one")
+		assert.Len(t, fake.reqs, 1, "and read once")
+		over, unresolved := budgetFindings(none)
+		assert.Len(t, over, 1)
+		assert.Len(t, unresolved, 3, "%+v", none)
+		assert.Equal(t, diag.BudgetExceeded, over[0].Code)
+	}
 }

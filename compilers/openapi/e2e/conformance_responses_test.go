@@ -9,7 +9,9 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/dexpace/morphic/compilers/openapi"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
+	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -145,4 +147,51 @@ func assertResponseSummary32(t *testing.T, doc *ir.Document, diags []ir.Diagnost
 		"an error case is lowered by the same function, so it reads the field too")
 	assert.Empty(t, diagsAt(diags, diag.UnknownObjectKey, "/paths/~1items~1{id}/delete/responses/204/summary"),
 		"a key 3.2 defines is not an undefined key")
+}
+
+// assertHTTPDateInference pins the HTTP-date policy on its case: the
+// Last-Modified and Expires response headers, declared date-time inline and
+// through a $ref, take the http-date encoding, marked and each reported once;
+// a Date declared as text, another date-time field and a header parameter
+// keep what they declare.
+func assertHTTPDateInference(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
+	op, ok := opByName(doc, "putFile")
+	require.True(t, ok)
+	require.Len(t, op.Responses, 1)
+	headers := op.Responses[0].Headers
+	for wire, encoded := range map[string]bool{"Last-Modified": true, "Expires": true, "Date": false, "X-Modified": false} {
+		h, ok := headerByWire(headers, wire)
+		require.True(t, ok, wire)
+		if !encoded {
+			assert.Nil(t, h.Encoding, wire)
+			assert.Empty(t, h.Provenance.Inferred, wire)
+			continue
+		}
+		assert.Equal(t, &ir.Encoding{Name: "http-date"}, h.Encoding, wire)
+		assert.Equal(t, openapi.HTTPDateInferenceHeuristic, h.Provenance.Inferred, wire)
+		assert.Equal(t, 1, countCode(diags, diag.InferredHTTPDate,
+			"/paths/~1files~1{name}/put/responses/204/headers/"+wire), wire)
+	}
+	// A header whose format names its text carries that encoding on its type,
+	// so the document has spoken for it (docs/compilers/openapi.md#string-formats).
+	for wire, encoding := range map[string]string{"Sunset": "http-date", "Retry-After": "unixTimestamp"} {
+		h, ok := headerByWire(headers, wire)
+		require.True(t, ok, wire)
+		assert.Nil(t, h.Encoding, wire)
+		assert.Empty(t, h.Provenance.Inferred, wire)
+		sc, ok := doc.Types[h.Type.Target].(*ir.Scalar)
+		require.True(t, ok, "%s: the format hoists a Scalar", wire)
+		require.NotNil(t, sc.Encoding, wire)
+		assert.Equal(t, encoding, sc.Encoding.Name, wire)
+	}
+	since, ok := openapitest.ParamBySource(op, "If-Unmodified-Since")
+	require.True(t, ok)
+	assert.Equal(t, ir.PrimTypeID(ir.PrimDatetimeOffset), since.Type.Target, "a parameter has no encoding to hold")
+	reported := 0
+	for _, d := range diags {
+		if d.Code == diag.InferredHTTPDate {
+			reported++
+		}
+	}
+	assert.Equal(t, 2, reported, "nothing else is reported")
 }

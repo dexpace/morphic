@@ -492,7 +492,171 @@ it sees. Changes made together in one bump are listed together under it.
     consumer pinned to 0.46.0 encoded a triple's `%` again.
   - `HTTPBinding.RequestContentTypes` lists the request body's media types in source order and
     states no preference among them, where it was worded as priority-ordered.
-- **0.48.0** — A change of meaning, the shape unmoved. `PartEncoding.ContentTypes` holds the content
+- **0.48.0** — four changes of meaning, made together, with no change of shape:
+  - An inbound operation's empty `Servers` names no server where it had named its service's
+    ([servers](./servers.md#inbound-operations)), as its `Auth` inherits nothing: the service's
+    servers are where the API is sent requests. A consumer pinned to 0.47.0 sends a webhook or a
+    callback to the API itself.
+  - An `OperationGroup` may hold no operation and no group. The OpenAPI compiler's grouping by
+    extension makes one for each path a `groups` list names after the first and each path an
+    operation's aliases name ([`extension-groups`](../compilers/openapi.md#extension-groups)), for a
+    remount to name. A consumer pinned to 0.47.0 meets a sub-client with nothing in it.
+  - A callback's operation may list callbacks of its own on its binding, each lowered as its
+    parent's are ([`callbacks`](../compilers/openapi.md#callbacks)), where the OpenAPI compiler had
+    dropped them. A consumer pinned to 0.47.0 that walks one level of callbacks misses them.
+  - The OpenAPI compiler leaves a path key's fragment out of `URITemplate`, keeping it on the binding
+    as `openapi:fragment`, and sets `SharedRoute` on each path operation whose method and route
+    another sends ([`path-keys`](../compilers/openapi.md#path-keys)). A consumer pinned to 0.47.0
+    builds the fragment into a URL and reads no route as shared.
+- **0.49.0** — no shape change. The engine's `const-unions` pass rewrites a closed union of strings
+  whose variant names an anonymous branch of several values, a closed `Enum` of strings or a union of
+  them, where that variant is the branch's one reference and neither says anything of all its
+  values: the branch's values become members of the union's `Enum`, each holding what its own
+  member held, and the branch type goes
+  ([`string-const-union`](../compilers/openapi.md#string-const-union)). A model's `Discriminator`
+  may route to the model itself where it is not `Abstract`, from its `Mapping` or its `Default`,
+  which `pass.Validate` had refused ([discriminator](./models.md#discriminator)). A consumer pinned
+  to 0.48.0 that read such a union as a `Union` finds an `Enum` there, no longer finds the branch
+  type, and meets a base among the types its own discriminator routes to.
+- **0.50.0** — no shape change. A union's `Discriminator.Mapping` that holds an entry its source
+  writes holds, beside those entries, the route the source implies to each variant it declares none
+  for ([models](./models.md#discriminator)): the OpenAPI compiler writes into it the name of the
+  component that variant's branch names, and writes the routes out too where a variant's type is an
+  alias for a keyword beside its `$ref`, as it did for a variant composed over its branch
+  ([`discriminator`](../compilers/openapi.md#discriminator)). Its discriminator-inference policy
+  reads what a variant or a subtype admits as a set of strings
+  ([`discriminator-inference`](../compilers/openapi.md#discriminator-inference)): a variant pinning
+  its tag to several strings no other variant admits maps each to it, in a declared discriminator's
+  `Mapping` and in an inferred one; a tag written as a union of string values bounds them as an
+  `enum` does; and what a schema composes as a union, its variants read as objects in turn, meets
+  what it declares. A consumer pinned to 0.49.0 that routed a variant a mapping left out by its
+  type's name finds the route in the `Mapping`, reads unions it read as untagged, or as routed by
+  component names, as routed by the strings their variants pin, and finds no `DiscriminatorValue` on
+  a subtype whose composed union rules its name out.
+- **0.51.0** — no shape changed: four OpenAPI policies, each on by default and switched off by its
+  option, fill facts a document implies by its names and messages, each node they fill marked in its
+  `Provenance.Inferred`. An operation sent by `POST`, `PUT`, `PATCH` or `DELETE` takes its one
+  header parameter `Idempotency-Key` as its `Idempotency` token
+  ([`idempotency-inference`](../compilers/openapi.md#idempotency-inference)); a parameter, a header
+  or a member whose name ends in a credential's and whose value is text or bytes is `Secret`
+  ([`secret-inference`](../compilers/openapi.md#secret-inference)); a deprecation's message naming a
+  declared route or a sibling in code fills `ReplacedBy`
+  ([`replacement-inference`](../compilers/openapi.md#replacement-inference)); and a `date-time`
+  response header whose field an RFC defines as an HTTP-date takes `Encoding` `http-date`
+  ([`http-date-inference`](../compilers/openapi.md#http-date-inference)). A consumer pinned to
+  0.50.0 refuses a document from this generation, whose idempotency, redaction, replacements and
+  header texts it would read as no OpenAPI document wrote them.
+- **0.52.0** — `Content` gained `Stream`, a `ContentStream` marking a body that is a sequence of
+  frames rather than one document, its `Inferred` naming the heuristics that read it as one
+  ([payloads](./payloads.md#a-content-that-streams)). Every content that streams sets it, in a
+  request, a response, an error or the default, one declaring an `Item` among them, so a response
+  offering `application/json` beside `text/event-stream` says which of the two streams. The OpenAPI
+  compiler sets it for a 3.2 `itemSchema` and for a media type its streaming policy names, the
+  latter marked `streaming-media-type`. `irverify` holds a content declaring an `Item` to a `Stream`
+  (`ir/content-item-without-stream`), and a streaming content of a request or a success response to
+  its side's `StreamDetail` (`ir/content-stream-without-detail`). A consumer pinned to 0.51.0
+  refuses a document with a streaming content.
+- **0.53.0** — four changes of meaning, the shape kept:
+  - A `null` is no `Enum` member, no variant of the `Union` an enumeration lowers to and no
+    `Literal`'s value, but its reference's `Nullable` bit, so an enumeration of `null` alone and a
+    constant of `null` are each a closed `Enum` with no member behind a nullable reference
+    ([enums](./enums.md#the-empty-enum), [containers](./containers.md#literals)). The OpenAPI
+    compiler had lowered a `null` beside members of several kinds to a `null` `Literal` variant as
+    well as a nullable reference, `null` alone to a union of that one variant, and `const: null` to
+    a `null` `Literal`. A consumer pinned to 0.52.0 finds no `null` variant or `Literal` where it
+    read one.
+  - An `Enum`'s `ValueType` is a primitive every member is a value of. The OpenAPI compiler had
+    taken a declared `type` the members are not values of, a `type: integer` over strings among
+    them; it now takes the members' primitive and keeps the type verbatim.
+  - A number's format on a string, `type: string, format: int64` among them, is a `Scalar` over the
+    number whose `Encoding` is named `string`, a number written as the text of its value, with a
+    `string` `WireType`, as `bytes` under `base64` is ([encodings](./constraints.md#encodings)), and
+    its `Constraints`, which speak of the number ([constraints](./constraints.md#constraints)), hold
+    none of the bounds written beside it, which bound its text or no string instance and are kept
+    verbatim. It had been a `Scalar` over `string` whose encoding named the format, holding those
+    bounds. A consumer pinned to 0.52.0 reads such a value's base as the number where it read a
+    string.
+  - Over a `string`, a `WireType` of `string` marks text the encoding is applied to, and none marks
+    text already encoded. No compiler writes the first yet.
+- **0.54.0** — names an emitter renders moved, and one lowering changed, at an unmoved shape:
+  - The [word grammar](./naming.md#the-word-grammar) separates on a letter or mark that is a
+    `Default_Ignorable_Code_Point`, a variation selector or the Hangul filler U+3164 among them, as
+    on the format characters in that property, so a name of only such characters has no
+    `Canonical`, and `irverify` refuses one in a canonical or a hint. A consumer pinned to 0.53.0
+    meets `Canonical` and `Hint` it would have carried such a character in without it.
+  - The OpenAPI compiler names an anonymous schema that writes a `title`, a union branch's variant
+    included, by the title's words, where its position, its owner or the `$ref` beside it named it,
+    under a policy `title-names=false` turns off ([`naming`](../compilers/openapi.md#naming)); names the items of a `components/mediaTypes` entry
+    keyed `""` from the minted name rather than the pointer; and names a schema under a header of an
+    Encoding Object another nests by the header's key.
+  - The OpenAPI compiler compares a header parameter's name in any case
+    ([`parameters`](../compilers/openapi.md#parameters)), so an operation's `x-trace` overrides
+    its path item's `X-Trace`, and one list writing both reports the second as a repeat, each kept
+    under the ID its spelling gives it.
+- **0.55.0** — no shape change. The OpenAPI compiler writes a count, `minLength`, `maxLength`,
+  `minItems`, `maxItems`, `minProperties` or `maxProperties`, past what a 64-bit integer holds to
+  no `Constraints` field, where it wrote `0` or a number the source does not state, and keeps it
+  verbatim under `openapi:<keyword>` (`degraded_lowering`) on the node or carrier the position owns
+  ([`constraints`](../compilers/openapi.md#constraints)); a count literal that is no non-negative
+  integer, which the load phase refuses, reaches no field either. An inline `allOf` branch whose
+  bound keyword states no value, a 3.0 `exclusiveMinimum` with no bound beside it, one of `false` or
+  one the load phase refuses, parts no other branch, so it folds where nothing else parts it
+  ([`allof-inline-residue`](../compilers/openapi.md#allof-inline-residue)), what it keeps landing
+  under its keyword rather than under `openapi:allOf/<n>`. A field several `allOf` conjuncts
+  declare ([`allof-redeclared-property`](../compilers/openapi.md#allof-redeclared-property)) now
+  holds two enums' shared values of the narrower value type, where it kept the first enum of
+  different value types, and holds what an alias of an enum, a `const`, a `Scalar`, a list, a map
+  or a tuple meets beside the node it stands for, where it kept the first; an alias adding only
+  null to a type beside it gives that type. A consumer pinned to 0.54.0 that read such a count's
+  field finds none there, one reading such a branch under `openapi:allOf/<n>` finds its keywords at
+  the position instead, and one reading such a field may find a node minted for it.
+- **0.56.0** — three changes of meaning, the shape kept:
+  - A schema admitting `null` and nothing else is a closed `Enum` with no member behind a nullable
+    reference, whatever spells it ([enums](./enums.md#the-empty-enum)). The OpenAPI compiler had
+    lowered a `type` naming `null` alone to the `any` primitive behind a nullable reference, which
+    also admits every other value, or to a `Model` where `properties` was written beside it, and a
+    `oneOf` or `anyOf` of nothing but such branches to an alias over that `any`. A consumer pinned
+    to 0.55.0 finds an `Enum` with no member where it read nullable `any` or an alias of it.
+  - A union branch admitting `null` alone, written in place, is the union's `null` in every
+    spelling, carried by the reference to the union rather than by a variant
+    ([type-graph](./type-graph.md#type-references)). The OpenAPI compiler had lifted only a branch
+    of `type: "null"`, and kept an `enum` of `null` alone or a `const: null` as a variant naming an
+    `Enum` with no member, so a union of one such branch and one other is now a nullable reference
+    to the other, and a union of more has one variant fewer, while one written beside a structural
+    body is kept verbatim beside it, as one holding a `type: "null"` branch already was. A consumer
+    pinned to 0.55.0 finds no variant where it read one admitting `null` alone. The reverse holds
+    too: a `type: "null"` branch writing a `$ref`, a `$dynamicRef`, an `allOf`, a union, or an
+    `enum` or a `const` of other than `null` alone is a variant where the compiler had lifted it
+    and dropped what it wrote beside its type, so such a consumer also finds a variant where it
+    read none.
+  - Such a branch writing more than its `null`, a `description` among it, is kept whole under the
+    new key `openapi:oneOf/<index>` or `openapi:anyOf/<index>`, reason `no_ir_home`, where the
+    compiler had dropped what a lifted `type: "null"` branch wrote beside its type.
+- **0.57.0** — no shape change. In the OpenAPI compiler, a `oneOf` or `anyOf` beside an `allOf` is
+  one of its conjuncts ([`allof-refinement`](../compilers/openapi.md#allof-refinement)), so an
+  `allOf` no conjunct makes an object refines with a union beside it, where it composed a `Model` or
+  a union of `Model`s. A union on an `allOf` branch lowers with the discriminator written on the
+  branch or beside the `allOf`, and below a discriminated base at a position no route names, where it
+  was kept whole under `openapi:allOf/<n>`. A subtype a discriminator routes to composes a union
+  written beside or on its `allOf` as a `Mixin` naming a `Union` minted for it, whose hint the
+  compiler composes ([models](./models.md#composition-beside-a-union)), where the union was kept
+  under `openapi:oneOf`, `openapi:anyOf` or `openapi:allOf/<n>`. A `$ref` entry to a schema composing
+  a discriminated one at any depth is the `Base`
+  ([`allof-classification`](../compilers/openapi.md#allof-classification)), and so is a type a field
+  is redeclared as that holds a declared discriminator on a `Model` or a `Union`, or composes one
+  ([`allof-redeclared-property`](../compilers/openapi.md#allof-redeclared-property)). A consumer
+  pinned to 0.56.0 finds those keys gone at those positions, a refined node, a `Union` or a `Mixin` where it
+  read a `Model` keeping them, and a `Base` where it read a `Mixin`.
+- **0.58.0** — the shape is unchanged, and the OpenAPI compiler lowers three registered formats as it
+  lowers `format: byte`: to a `Scalar` over the primitive the value is, whose `Encoding` names the
+  text it is written in as the [IR](./constraints.md#encodings) does. `http-date` is a
+  `datetime_offset` under `http-date`, `unixtime` a `datetime_offset` under `unixTimestamp`, a name
+  no compiler wrote before, with the JSON type it is written on as `WireType`, and `base64url` is
+  `bytes` under `base64url` with a `string` `WireType`. So the secret policy, which reads a
+  credential's name on text or bytes, no longer marks a use declared `http-date`, or `unixtime` on a
+  string, `Secret`. A consumer pinned to 0.57.0 refuses the document; read regardless, it would find
+  an instant or bytes where it read text or a number, and `unixTimestamp` where it read `unixtime`.
+- **0.59.0** — A change of meaning, the shape unmoved. `PartEncoding.ContentTypes` holds the content
   type the source format gives a part, or an item of a multipart stream, that names none of its own,
   so a part an emitter could only guess at states one: the OpenAPI compiler lowers the Encoding
   Object's defaults ([payloads](./payloads.md)). `Filename` is no longer set on a part of a
@@ -500,11 +664,12 @@ it sees. Changes made together in one bump are listed together under it.
   through the unions nested in a variant, under each variant declaring it, each entry as that
   variant declares the part, where one variant's declaration took them all, and those of each shape
   a model narrowing a union takes; and a multipart stream with an `itemSchema` always has an
-  `ItemEncoding`. An encoding entry keying no part, every entry of an encoding under a media type
-  that is neither multipart nor form among them, is kept whole under `openapi:encoding/<key>`.
-  `PartEncoding.Style` is set wherever a part's value is arranged as a query parameter's is, `form`
-  where only `explode` or `allowReserved` is written, so `ContentTypes` is not read beside it; and
-  no `Style`, `Explode`, `AllowReserved` or `Headers` is lowered from a field the source format
-  gives no effect under the part's media type, which is kept verbatim instead, as an `itemEncoding`
-  under a media type that is not multipart now is, whole, where it lowered to an `ItemEncoding`. A
-  consumer pinned to 0.47.0 refuses the document.
+  `ItemEncoding`. Every entry of an encoding under a media type that is neither multipart nor form,
+  and the entry of a part the body's type holds no property for, is kept whole under
+  `openapi:encoding/<key>`, as an entry keying no part already was. `PartEncoding.Style` is set
+  wherever a part's value is arranged as a query parameter's is, `form` where only `explode` or
+  `allowReserved` is written, so `ContentTypes` is not read beside it; and no `Style`, `Explode`,
+  `AllowReserved` or `Headers` is lowered from a field the source format gives no effect under the
+  part's media type, which is kept verbatim instead, as an `itemEncoding` under a media type that is
+  not multipart now is, whole, where it lowered to an `ItemEncoding`. A consumer pinned to 0.58.0
+  refuses the document.

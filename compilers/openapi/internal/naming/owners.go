@@ -19,16 +19,16 @@ import (
 const componentSchemaTokens = 3
 
 // owner returns the hint of the object p belongs to and how many of p's
-// tokens lead to its schema: the schema whose structure holds p
+// tokens lead to its schema, kinds being how the grammar reads the way to p
+// (bind.Table.Kinds): the schema whose structure holds p
 // (structureRoot), named for what holds it there (ownerOf) or, where that
 // schema is a document's root, for the document (documentName). A structure
 // nothing names an owner of, such as one only a $ref reaches under an x- key,
 // is named from its pointer alone (pointerOwner).
-func (n *Namer) owner(p bind.Position, tokens []string) (int, string) {
+func (n *Namer) owner(p bind.Position, tokens []string, kinds []bind.Kind) (int, string) {
 	if n.table == nil {
 		return pointerOwner(tokens)
 	}
-	kinds := n.table.Kinds(p)
 	root, ok := structureRoot(kinds)
 	switch {
 	case !ok:
@@ -39,8 +39,51 @@ func (n *Namer) owner(p bind.Position, tokens []string) (int, string) {
 	if hint, ok := n.ownerOf(p.Doc, tokens, kinds, root-1); ok {
 		return root, hint
 	}
+	if start, hint, ok := nestedEncodingHeader(tokens, kinds, root); ok {
+		return start, hint
+	}
 	return pointerOwner(tokens)
 }
+
+// nestedEncodingHeader returns the hint of the header of a nested Encoding
+// Object whose schema holds the structure rooted at tokens[:root], and how many
+// tokens lead to that schema. OpenAPI 3.2 nests one under another's encoding,
+// prefixEncoding or itemEncoding, which the model does not read, so the grammar
+// reads the way past an Encoding Object (bind.KindEncoding) as raw YAML, and
+// this reads it as those fields spell it: the header is named by its key, as
+// one the model reads is (ownerOf). ok is false where the raw YAML above the
+// root is no such way.
+func nestedEncodingHeader(tokens []string, kinds []bind.Kind, root int) (int, string, bool) {
+	i := root - 1
+	for i > 0 && kinds[i] == bind.KindRaw {
+		i--
+	}
+	if kinds[i] != bind.KindEncoding {
+		return 0, "", false
+	}
+	for i < root && nestedEncodingFields[tokens[i]] > 0 {
+		i += nestedEncodingFields[tokens[i]]
+	}
+	if i+2 >= len(tokens) || tokens[i] != "headers" {
+		return 0, "", false
+	}
+	key := tokens[i+1]
+	switch {
+	case tokens[i+2] == "schema" && i+3 <= root:
+		return i + 3, key, true
+	case tokens[i+2] == "content" && i+5 <= root && tokens[i+4] == "schema":
+		return i + 5, key, true
+	case tokens[i+2] == "content" && i+5 <= root && tokens[i+4] == "itemSchema":
+		return i + 5, compile.SubHint(key, "item"), true
+	default:
+		return 0, "", false
+	}
+}
+
+// nestedEncodingFields are the fields an Encoding Object nests another under,
+// each by the tokens it takes to reach that one: a name or an index past the
+// field, or the field alone.
+var nestedEncodingFields = map[string]int{"encoding": 2, "prefixEncoding": 2, "itemEncoding": 1}
 
 // structureRoot returns the index in kinds of the schema whose structure
 // holds the last position: the innermost schema on the way, which holds what
@@ -112,10 +155,11 @@ func (n *Namer) ownerOf(doc bind.DocID, tokens []string, kinds []bind.Kind, i in
 
 // mediaTypeOwner returns the hint of the owner of the media type at holder,
 // above which kinds lie: a components/mediaTypes entry is its own, by its key,
-// and any other is keyed under its owner's content, holder being
+// the empty key included, as a component schema keyed "" is named, and any
+// other is keyed under its owner's content, holder being
 // <owner>/content/<media type> (contentOwner).
 func (n *Namer) mediaTypeOwner(doc bind.DocID, holder jsontext.Pointer, kinds []bind.Kind) (string, bool) {
-	if section, name, ok := ids.ComponentEntry(holder); ok && section == "mediaTypes" {
+	if section, name, ok := ids.ComponentKey(holder); ok && section == "mediaTypes" {
 		return name, true
 	}
 	if len(kinds) < 2 {
@@ -164,13 +208,25 @@ func (n *Namer) parameterName(doc bind.DocID, at jsontext.Pointer) string {
 }
 
 // text returns the scalar the mapping written at at holds under field, as the
-// parser reads a string field, null read as none.
+// parser reads a string field (scalarText).
 func (n *Namer) text(doc bind.DocID, at jsontext.Pointer, field string) string {
-	v := nodeview.Child(n.node(doc, at), field)
-	if v == nil || v.Kind != yaml.ScalarNode || v.ShortTag() == "!!null" {
+	return scalarText(nodeview.Child(n.node(doc, at), field))
+}
+
+// scalarText returns the text of v as the parser's model reads a string field:
+// a string, a number or a boolean as written, and nothing for null, a node
+// that is no scalar, or a scalar under any other tag, such as !!binary or a
+// local one (docs/parser-library.md#undecoded-scalar).
+func scalarText(v *yaml.Node) string {
+	if v == nil || v.Kind != yaml.ScalarNode {
 		return ""
 	}
-	return v.Value
+	switch v.ShortTag() {
+	case "!!str", "!!int", "!!float", "!!bool":
+		return v.Value
+	default:
+		return ""
+	}
 }
 
 // pointerOwner names a position from its pointer alone: beneath

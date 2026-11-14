@@ -167,6 +167,8 @@ func keepUnkeyedEncodings(c lowering.Ctx, media *soa.MediaType, mediaPtr jsontex
 // entry that is no mapping as one with no node, so nothing is kept for it and
 // load's error is its one finding. written reports whether the entry was kept.
 func keepEntry(c lowering.Ctx, u *ir.Unmodeled, name string, entry *yaml.Node, at jsontext.Pointer, why string) (written bool, diags []ir.Diagnostic) {
+	// An entry OpenAPI gives no effect, as one whose key names no property,
+	// takes no_ir_home too until GitHub #1791 decides its reason.
 	written, diags = annotation.PreserveNodeInto(u, annotation.EntryKey("encoding", name), entry,
 		ir.ReasonNoIRHome, c.Place().At(at))
 	if !written {
@@ -784,7 +786,7 @@ func memberFlags(node func(ir.TypeID) (ir.TypeDef, bool), ref ir.TypeRef, multip
 		case *ir.Primitive:
 			return false, multipart && rawBytes(node, ref), true
 		case *ir.Scalar:
-			if t.Base == nil {
+			if t.Base == nil || encodedAsText(t) {
 				return false, false, true
 			}
 			id = t.Base.Target
@@ -793,6 +795,15 @@ func memberFlags(node func(ir.TypeID) (ir.TypeDef, bool), ref ir.TypeRef, multip
 		}
 	}
 	return false, false, true
+}
+
+// encodedAsText reports whether s is a value a format writes as the text its
+// Encoding's WireType names, as `format: base64url` writes bytes, which a part
+// sends as a text field and no file. `format: byte`'s base64 is the one such
+// text a part still reads as a file (GitHub #1214), as it did before any other
+// format lowered so.
+func encodedAsText(s *ir.Scalar) bool {
+	return s.Encoding != nil && s.Encoding.WireType != nil && s.Encoding.Name != "base64"
 }
 
 // buildPartEncoding assembles the explicit encoding config of the part named

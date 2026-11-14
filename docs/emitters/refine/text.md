@@ -245,7 +245,10 @@ and an `any` holds a text as the JSON string it is, since a text carries no JSON
 A text its codec does not read is a value that does not parse, and a response header's leaves its
 field unset and `RawHeader` holding what arrived ([T-26](../testing/mandatory-tests.md)). At the
 revisions above, the golden spec declares one `Last-Modified` header `date-time` and gives an
-HTTP-date as its example, which the next rule reads in a response and `Build` refuses as an example.
+HTTP-date as its example. The OpenAPI compiler's HTTP-date policy lowers that header under
+`http-date` ([`http-date-inference`](../../compilers/openapi.md#http-date-inference)), whose row
+reads the text and the example both; the next rule reads such a header where no encoding spells
+its text, as with that policy off.
 
 A header's text read as a `datetime_offset` that no encoding spells is read by that row and, where
 the row does not read it, as an HTTP-date, as the `{datetime_offset, "http-date"}` row reads one
@@ -259,14 +262,17 @@ recipient to be robust in parsing a timestamp (§5.6.7). Nothing but that readin
 field's type stays the document's, and a `datetime_offset` header an SDK or the mock writes is the
 RFC 3339 text its document declares, though RFC 9110 has a server ignore an `If-Modified-Since` or
 an `If-Unmodified-Since` that is no HTTP-date (§13.1.3, §13.1.4), which only a compiler lowering
-those fields under `http-date` changes; the golden spec's one `If-Modified-Since` is a `string`
-(spec @bc6fad24, morphic @fa253fe19). A `date`, a `time` and a `datetime` read none, since an
-HTTP-date names an instant and they hold none. A declared example is a value, not a text, so `Build`
-checks a header's as it checks a body's, by its type's reading of a JSON value and never by this one
-([docs and mocks](../docs-and-mock.md#one-set-of-examples)): the golden spec's `Wed, 21 Oct 2023
-07:28:00 GMT` is refused as `emitters/plan/example-refused` and the header takes its type's set,
-since each consumer of `Plan.Examples`, the mock writing the header among them, reads a value so,
-and docs showing the declared text would show an HTTP-date that no SDK and no mock writes.
+those fields under `http-date` changes: the OpenAPI compiler's policy reads a response header, and a
+parameter has no encoding of its own for it to fill (#1799); the golden spec's one
+`If-Modified-Since` is a `string` (spec @bc6fad24, morphic @fa253fe19). A `date`, a `time` and a
+`datetime` read none, since an HTTP-date names an instant and they hold none. A declared example is
+a value, not a text, so `Build` checks a header's as it checks a body's, by its type's reading of a
+JSON value and never by this one ([docs and mocks](../docs-and-mock.md#one-set-of-examples)): where
+no encoding spells the header's text, an HTTP-date example, as the golden spec's `Wed, 21 Oct 2023
+07:28:00 GMT` is with the compiler's HTTP-date policy off, is refused as
+`emitters/plan/example-refused` and the header takes its type's set, since each consumer of
+`Plan.Examples`, the mock writing the header among them, reads a value so, and docs showing the
+declared text would show an HTTP-date that no SDK and no mock writes.
 
 A header list whose elements read an HTTP-date, by that rule or under `http-date`, is split at its
 commas as any list is, and then a part that is a day name alone, `Sun` or `Sunday`, takes the part

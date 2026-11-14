@@ -11,3 +11,6 @@ const MaxPartUnions = maxPartUnions
 
 // MaxFileRefHops is maxFileRefHops, for the external tests.
 const MaxFileRefHops = maxFileRefHops
+
+// MaxCallbackNesting is maxCallbackNesting, for the external tests.
+const MaxCallbackNesting = maxCallbackNesting

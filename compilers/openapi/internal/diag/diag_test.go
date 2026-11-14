@@ -91,6 +91,18 @@ func TestNewf_SanitizesInvalidUTF8(t *testing.T) {
 	assert.Equal(t, d.Message, back.Message, "message survives marshal/unmarshal unchanged")
 }
 
+// TestRepeatedParameter_NamesTheFirstSpellingWhereItDiffers pins the words of
+// a repeated parameter: the entry it repeats, and that entry's name where it
+// is spelled otherwise, as a header's may be.
+func TestRepeatedParameter_NamesTheFirstSpellingWhereItDiffers(t *testing.T) {
+	t.Parallel()
+	assert.Equal(t, `parameter "limit" in "query" repeats the entry at /p/parameters/0`,
+		diag.RepeatedParameter("limit", "query", "/p/parameters/0", "limit"))
+	assert.Equal(t, `parameter "x-trace" in "header" repeats the entry at /p/parameters/0, spelled "X-Trace", `+
+		"as HTTP compares header names in any case",
+		diag.RepeatedParameter("x-trace", "header", "/p/parameters/0", "X-Trace"))
+}
+
 // TestHasError_Cases pins the gate the load phase uses to tell a refusal from
 // advisory findings it must carry forward.
 func TestHasError_Cases(t *testing.T) {
@@ -137,8 +149,8 @@ func codes() []string {
 		diag.CycleScanFailed, diag.SourceTooLarge, diag.SourceTooDeep, diag.PointerAmplification, diag.TaggedMapping,
 		diag.StreamDocumentsDropped,
 		diag.UndecodableSource,
-		diag.OverlayInvalid, diag.OverlayFailed,
-		diag.OverlayAction, diag.OverlayOriginIncomplete,
+		diag.OverlayInvalid, diag.OverlayFailed, diag.OverlayUnsupported,
+		diag.OverlayAction, diag.OverlayReplacedValue, diag.OverlayOriginIncomplete,
 		diag.ValidationOnlyKeyword, diag.FalseSchema, diag.EmptyEnum, diag.DuplicateEnumValue,
 		diag.NumericPrecision, diag.ExclusiveBoundForm, diag.InvalidStatusKey,
 		diag.DuplicateStatusKey, diag.DuplicateParameter, diag.DuplicateServerName,
@@ -159,6 +171,7 @@ func codes() []string {
 		diag.MissingArrayItems, diag.LaterVersionConstruct, diag.ItemSchemaOnDocument,
 		diag.InvalidPathKey, diag.InferredNullable, diag.UnreadDialect, diag.InvalidItemsList,
 		diag.InferredDiscriminator,
+		diag.InferredHTTPDate, diag.UndecidedIdempotency, diag.UndecidedReplacement,
 	}
 }
 

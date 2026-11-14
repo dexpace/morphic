@@ -216,6 +216,7 @@ func encodingObject() Object {
 				c(V30, "The value is a comma-separated list, each element of which is either a specific media type")).
 				formatted(MediaRanges).nonEmpty(Always()),
 			mapOf("headers", Header, c(V30, "A map allowing additional information to be provided as headers.")).
+				keyed(FieldName, c(V30, "A map allowing additional information to be provided as headers.")).
 				within("multipart/*", Always(),
 					c(V30, "This field SHALL be ignored if the request body media type is not a `multipart`."),
 					c(V32, "This field SHALL be ignored if the media type is not a `multipart`.")),

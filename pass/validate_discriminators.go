@@ -41,7 +41,9 @@ type mappingReads struct {
 }
 
 // checkUnionDiscriminator requires each mapping target to be one of the union's
-// variant targets.
+// variant targets. It asks nothing of what a variant declares of the tag
+// (docs/ir/unions.md#tag-modes), so a closed variant declaring no tag member,
+// which no tagged payload can be, passes (GitHub #1807).
 func checkUnionDiscriminator(doc *ir.Document, u *ir.Union, read *mappingReads) []ir.Diagnostic {
 	if u.Discriminator == nil {
 		return nil
@@ -56,7 +58,9 @@ func checkUnionDiscriminator(doc *ir.Document, u *ir.Union, read *mappingReads) 
 }
 
 // checkModelDiscriminator requires each mapping target to be a declared subtype
-// of the discriminated base model, and the tag property to be one this model
+// of the discriminated base model, or the base itself where it is not
+// Abstract, whose own instances are a payload too
+// (docs/ir/models.md#discriminator), and the tag property to be one this model
 // exposes. Its routes and tag are asked of facts, the one index of the run.
 func checkModelDiscriminator(doc *ir.Document, facts *irfacts.Index, m *ir.Model, read *mappingReads) []ir.Diagnostic {
 	if m.Discriminator == nil {
@@ -64,7 +68,7 @@ func checkModelDiscriminator(doc *ir.Document, facts *irfacts.Index, m *ir.Model
 	}
 	diags := checkDiscriminatorProperty(facts, m)
 	return append(diags, checkMapping(doc, m.Discriminator, string(m.ID), read, func(target ir.TypeID) bool {
-		return facts.IsSubtype(target, m.ID)
+		return (target == m.ID && !m.Abstract) || facts.IsSubtype(target, m.ID)
 	})...)
 }
 

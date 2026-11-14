@@ -4,12 +4,17 @@
 package operation_test
 
 import (
+	"fmt"
+	"strconv"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
+	"github.com/dexpace/morphic/compilers/openapi/internal/operation"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -270,4 +275,101 @@ func TestCallbacks_RefdPathItemInternsAtDeclaration(t *testing.T) {
 	assert.Equal(t, wantReqID, cbOps[cbIDC].Request.Contents[0].Type.Target)
 	assert.Equal(t, wantReqID, cbOps[cbIDD].Request.Contents[0].Type.Target,
 		"the $ref'd callback path item's request schema interns once")
+}
+
+// nestedCallbacks returns a path whose operation declares a callback whose
+// operation declares one, depth levels deep, each operation named cb<level>
+// and its expression {$request.body#/u<level>}.
+func nestedCallbacks(depth int) string {
+	var b strings.Builder
+	b.WriteString("openapi: 3.1.0\ninfo: {title: T, version: \"1\"}\ntags: [{name: root}]\npaths:\n  /a:\n    post:\n" +
+		"      operationId: cb0\n      tags: [root]\n      responses: {\"200\": {description: ok}}\n")
+	indent := "      "
+	for level := 1; level <= depth; level++ {
+		fmt.Fprintf(&b, "%scallbacks:\n%s  c%d:\n%s    '{$request.body#/u%d}':\n%s      post:\n",
+			indent, indent, level, indent, level, indent)
+		indent += "        "
+		fmt.Fprintf(&b, "%soperationId: cb%d\n%stags: [other]\n%sresponses: {\"200\": {description: ok}}\n",
+			indent, level, indent, indent)
+	}
+	return b.String()
+}
+
+// TestCallbacks_DeclaredOnACallbackLower pins that a callback operation's own
+// callbacks lower as any operation's do, down to MaxCallbackNesting levels: an
+// Operation each, marked a callback, listed by the binding of the operation
+// declaring it, inheriting no security and filed with the path's operation,
+// whatever its tags. The callbacks one level deeper than the bound are kept
+// verbatim on the deepest operation's binding and reported there; a document
+// nested to the bound reports nothing.
+func TestCallbacks_DeclaredOnACallbackLower(t *testing.T) {
+	t.Parallel()
+	for _, depth := range []int{operation.MaxCallbackNesting, operation.MaxCallbackNesting + 1} {
+		t.Run(strconv.Itoa(depth), func(t *testing.T) {
+			t.Parallel()
+			_, svc, diags := compileService(t, nestedCallbacks(depth))
+			openapitest.RequireNoErrorDiags(t, diags)
+
+			require.Len(t, svc.Groups, 1, "every callback goes with the path's operation")
+			ops := svc.Groups[0].Operations
+			require.Len(t, ops, operation.MaxCallbackNesting+1)
+			for level, op := range ops {
+				hb := op.Bindings.HTTP[0]
+				assert.Equal(t, "cb"+strconv.Itoa(level), op.Name.Source, "the declaring operation comes first")
+				if level == 0 {
+					continue
+				}
+				assert.Equal(t, ir.HTTPInboundCallback, hb.Inbound)
+				assert.Nil(t, op.Auth, "a callback inherits no security")
+				parent := ops[level-1].Bindings.HTTP[0].Callbacks
+				require.Len(t, parent, 1, "cb%d lists the callback it declares", level-1)
+				assert.Equal(t, []ir.OpID{op.ID}, parent[0].Operations)
+			}
+			deepest := ops[operation.MaxCallbackNesting]
+			assert.Empty(t, deepest.Bindings.HTTP[0].Callbacks)
+			kept, cut := deepest.Bindings.HTTP[0].Unmodeled["openapi:callbacks"]
+			reported := openapitest.HasDiag(diags, diag.DegradedConstruct)
+			assert.Equal(t, depth > operation.MaxCallbackNesting, cut, "only callbacks past the bound are kept")
+			assert.Equal(t, cut, reported, "and reported")
+			if !cut {
+				return
+			}
+			assert.Equal(t, ir.ReasonDegradedLowering, kept.Reason)
+			assert.Contains(t, string(kept.Value), "cb"+strconv.Itoa(depth), "the map is kept whole")
+			at := string(deepest.Provenance.Pointer) + "/callbacks"
+			assert.Equal(t, at, string(kept.Provenance.Pointer), "kept where it is written")
+			msg := openapitest.DiagMessageAt(t, diags, diag.DegradedConstruct, ir.SeverityWarning, at)
+			assert.Contains(t, msg, "deeper than "+strconv.Itoa(operation.MaxCallbackNesting)+" levels")
+		})
+	}
+}
+
+// TestCallbacks_ACallbackNamingItselfStopsAtTheBound pins the input the bound
+// is for: a callback whose operation declares the callback again by $ref would
+// lower without end, and instead lowers MaxCallbackNesting levels.
+func TestCallbacks_ACallbackNamingItselfStopsAtTheBound(t *testing.T) {
+	t.Parallel()
+	_, svc, diags := compileService(t, `openapi: 3.1.0
+info: {title: T, version: "1"}
+paths:
+  /ping:
+    post:
+      operationId: ping
+      responses: {"200": {description: ok}}
+      callbacks:
+        pong: {$ref: '#/components/callbacks/Pong'}
+components:
+  callbacks:
+    Pong:
+      '{$request.body#/url}':
+        post:
+          responses: {"200": {description: ok}}
+          callbacks:
+            again: {$ref: '#/components/callbacks/Pong'}
+`)
+	openapitest.RequireNoErrorDiags(t, diags)
+	require.Len(t, svc.Groups, 1)
+	assert.Len(t, svc.Groups[0].Operations, operation.MaxCallbackNesting+1)
+	assert.True(t, openapitest.HasDiagCodeAt(diags, diag.DegradedConstruct,
+		"/components/callbacks/Pong/{$request.body#~1url}/post/callbacks"))
 }

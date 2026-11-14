@@ -54,7 +54,8 @@ type Operation struct {
 	// (Smithy @readonly, HTTP GET semantics).
 	Idempotency Idempotency `json:"idempotency"`
 	// Servers names the servers the operation is sent to, most preferred first,
-	// in place of its service's; empty = its service's (docs/ir/servers.md).
+	// in place of its service's; empty = its service's, save on an inbound
+	// operation, which inherits none (docs/ir/servers.md#inbound-operations).
 	// OpenAPI declares them on a path item and on an operation, the operation's
 	// own taking precedence. No entry is empty.
 	Servers []ServerID `json:"servers,omitempty"`
@@ -175,8 +176,13 @@ type Content struct {
 	SchemaFormat string `json:"schemaFormat,omitempty"`
 	// Type is the content's type.
 	Type TypeRef `json:"type"`
+	// Stream marks a body that is a sequence of frames rather than one
+	// document, wherever the content sits, and every content declaring an Item
+	// sets it; nil = one document (docs/ir/payloads.md#a-content-that-streams).
+	Stream *ContentStream `json:"stream,omitzero"`
 	// Item is the element shape of a sequential stream declared per media type
-	// (OpenAPI 3.2 itemSchema for SSE/JSONL/json-seq); nil = not sequential.
+	// (OpenAPI 3.2 itemSchema for SSE/JSONL/json-seq); nil = none declared,
+	// Stream saying whether the content streams all the same.
 	Item *TypeRef `json:"item,omitzero"`
 	// ItemEncoding is the wire encoding of a sequential stream's item (3.2
 	// itemEncoding), or, where a multipart stream declares none, its items' as
@@ -203,6 +209,15 @@ type Content struct {
 	Docs Docs `json:"docs,omitzero"`
 	// Unmodeled holds source constructs the IR does not model, kept verbatim.
 	Unmodeled Unmodeled `json:"unmodeled,omitempty"`
+}
+
+// ContentStream is how a Content is known to stream
+// (docs/ir/payloads.md#a-content-that-streams).
+type ContentStream struct {
+	// Inferred lists the heuristics that read the content as a stream, as
+	// [Provenance].Inferred does on a node that has one; empty means the
+	// source declares it one.
+	Inferred Inferred `json:"inferred,omitempty"`
 }
 
 // PartEncoding is the wire configuration of one multipart part or sequential

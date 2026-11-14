@@ -100,9 +100,9 @@ type declarationSites struct {
 // The winner never depends on which is which: swapping the arguments, and
 // written's two pointers with them, flips a narrowing and leaves any other
 // verdict as it was. The arms, in order: the same target; a degraded Any node,
-// which is unrelated to every type; the top type, or an alias read as it
-// (topAt), which loses to anything else; then arms, and classify for a pair
-// arms leaves unrelated.
+// unrelated to every type; the top type, or an alias read as it (topAt), losing
+// to anything but another; then arms, or classify where arms finds nothing,
+// read for null (heldNull).
 func (j typeJudge) relateFrom(a, b ir.TypeRef, depth int) relation {
 	j.modelPairs = modelPairs()
 	return j.relateAt(a, b, depth)
@@ -126,28 +126,47 @@ func (j typeJudge) relateAt(a, b ir.TypeRef, depth int) relation {
 	}
 	aTop, bTop := j.topAt(at, depth), j.topAt(bt, depth)
 	switch {
+	case aTop && bTop:
+		// Neither loses for being the top type; what else each says decides.
 	case aTop:
 		return relBNarrower
 	case bTop:
 		return relANarrower
 	}
-	if rel := j.arms(a, at, b, bt, depth); rel != relUnrelated {
+	rel := j.arms(a, at, b, bt, depth)
+	if rel == relUnrelated {
+		rel = j.classify(a, at, b, bt, depth)
+	}
+	return j.heldNull(a, at, b, bt, rel)
+}
+
+// heldNull returns rel but where it puts a type admitting null through its alias
+// chain (nullThroughChain) within one whose reference admits none: a field
+// holding that type would admit null the other refuses, whatever the field's
+// reference says, so the two overlap.
+func (j typeJudge) heldNull(a ir.TypeRef, at ir.TypeDef, b ir.TypeRef, bt ir.TypeDef, rel relation) relation {
+	switch {
+	case rel == relANarrower && !b.Nullable && j.nullThroughChain(at):
+		return relOverlap
+	case rel == relBNarrower && !a.Nullable && j.nullThroughChain(bt):
+		return relOverlap
+	default:
 		return rel
 	}
-	return j.classify(a, at, b, bt, depth)
 }
 
 // arms relates two resolved types, neither the top type nor degraded, that it
 // can narrow: two bare primitives (spelling.Relate); a Scalar, Enum or Literal
-// against a bare primitive; two identical such nodes; two literals of different
-// values, which are disjoint; two enums by their values (enums); two models
-// alike in every member (models); two nodes that hold bounds (boundedNodes), two
-// alike in every member and detail taking the copy rule identical nodes take
-// (sameNodes); and a structure against one it says it is (structures). Any other
-// pair is unrelated here.
+// against a bare primitive; an alias against the type it stands for, by what it
+// adds (standsFor); then each as the node it stands for (view): two identical
+// such nodes; two literals of different values, disjoint; two enums (enums);
+// two models alike (models); two nodes holding bounds (boundedNodes), two alike
+// in every member and detail taking the copy rule (sameNodes); and a structure
+// against one it says it is (structures). Any other pair is unrelated here.
 func (j typeJudge) arms(a ir.TypeRef, at ir.TypeDef, b ir.TypeRef, bt ir.TypeDef, depth int) relation {
 	ap, aBare := at.(*ir.Primitive)
 	bp, bBare := bt.(*ir.Primitive)
+	aFor, bFor := j.standsFor(at, b.Target), j.standsFor(bt, a.Target).flipped()
 	switch {
 	case aBare && bBare:
 		return fromSpelling(spelling.Relate(ap.Prim, bp.Prim))
@@ -155,6 +174,14 @@ func (j typeJudge) arms(a ir.TypeRef, at ir.TypeDef, b ir.TypeRef, bt ir.TypeDef
 		return j.nodeAgainstBare(a, at, b, bp.Prim)
 	case aBare:
 		return j.nodeAgainstBare(b, bt, a, ap.Prim).flipped()
+	case aFor != relUnrelated && bFor == relUnrelated:
+		return aFor
+	case bFor != relUnrelated && aFor == relUnrelated:
+		return bFor
+	}
+	stop := j.sharedLink(at, bt)
+	at, bt = j.view(at, stop), j.view(bt, stop)
+	switch {
 	case sameNode(at, bt):
 		return j.sites.copies(a, at, b, bt)
 	case differentLiterals(at, bt):
@@ -300,7 +327,7 @@ func (j typeJudge) classify(a ir.TypeRef, at ir.TypeDef, b ir.TypeRef, bt ir.Typ
 	case aok && ak.prim == ir.PrimAny, bok && bk.prim == ir.PrimAny:
 		return relUnrelated
 	case aok && bok:
-		if relateKinds(ak, bk) == relDisjoint || enumMisses(at, bk, b.Nullable) || enumMisses(bt, ak, a.Nullable) {
+		if relateKinds(ak, bk) == relDisjoint || enumMisses(au, bk, b.Nullable) || enumMisses(bu, ak, a.Nullable) {
 			return relDisjoint
 		}
 		return relOverlap
@@ -309,9 +336,9 @@ func (j typeJudge) classify(a ir.TypeRef, at ir.TypeDef, b ir.TypeRef, bt ir.Typ
 	case bok && isStructural(au):
 		return j.againstOtherInstance(at, aSite, depth)
 	case aok:
-		return j.againstKind(bu, a, at, ak).flipped()
+		return j.againstKind(j.view(bt, ""), a, j.view(at, ""), ak).flipped()
 	case bok:
-		return j.againstKind(au, b, bt, bk)
+		return j.againstKind(j.view(at, ""), b, j.view(bt, ""), bk)
 	case isLiteral(au) && isLiteral(bu):
 		return relOverlap
 	case saysItsValues(au) && saysItsValues(bu) && instanceKind(au) != instanceKind(bu):
@@ -708,9 +735,12 @@ func isDegraded(td ir.TypeDef) bool {
 // a Scalar by its kind and held format (kindOf, relateKinds). Any other node is
 // unrelated. Where an Enum's kind and the bare kind overlap, the pair is
 // disjoint when the bare kind refuses every member, as literalAgainst judges one
-// value, so an enum with no members is disjoint from any such kind.
+// value, so an enum with no members is disjoint from any such kind. An enum or a
+// literal behind aliases is judged by its members or its value, which the
+// aliases can only narrow.
 func (j typeJudge) nodeAgainstBare(ref ir.TypeRef, td ir.TypeDef, bare ir.TypeRef, bareKind ir.PrimKind) relation {
-	if lit, ok := td.(*ir.Literal); ok {
+	end := j.unaliased(td)
+	if lit, ok := end.(*ir.Literal); ok {
 		return literalAgainst(lit.Value, valueKind{prim: bareKind}, bare.Nullable)
 	}
 	if _, ok := td.(*ir.Scalar); !ok {
@@ -730,7 +760,7 @@ func (j typeJudge) nodeAgainstBare(ref ir.TypeRef, td ir.TypeDef, bare ir.TypeRe
 	if rel == relBNarrower {
 		rel = relOverlap
 	}
-	if en, ok := td.(*ir.Enum); ok && rel == relOverlap && noMemberMeets(en, bareK, bare.Nullable) {
+	if en, ok := end.(*ir.Enum); ok && rel == relOverlap && noMemberMeets(en, bareK, bare.Nullable) {
 		return relDisjoint
 	}
 	return rel
@@ -738,9 +768,9 @@ func (j typeJudge) nodeAgainstBare(ref ir.TypeRef, td ir.TypeDef, bare ir.TypeRe
 
 // literalAgainst compares a literal's value with a kind: the literal is
 // narrower when the kind admits it. When it does not, the pair is disjoint
-// where the kind has a judge, and an overlap where it has none, as bytes has
-// none. A null is judged against the kind's side's nullability, not its kind:
-// narrower where the side admits null, disjoint where it does not.
+// where the kind has a judge, and an overlap where it has none (judged), as
+// bytes has none. A null is judged against the kind's side's nullability, not
+// its kind: narrower where the side admits null, disjoint where it does not.
 func literalAgainst(v ir.Value, kind valueKind, nullable bool) relation {
 	switch {
 	case v.Kind == ir.ValueNull && nullable:
@@ -749,7 +779,7 @@ func literalAgainst(v ir.Value, kind valueKind, nullable bool) relation {
 		return relDisjoint
 	case kind.admits(v):
 		return relANarrower
-	case kind.prim == ir.PrimBytes:
+	case !kind.judged():
 		return relOverlap
 	default:
 		return relDisjoint
@@ -957,17 +987,30 @@ const maxTypeResolveDepth = 64
 type valueKind struct {
 	prim   ir.PrimKind
 	format string
+	// unjudged marks a string format whose values an Encoding writes in a text
+	// of its own, as http-date writes a datetime_offset, so prim's grammar,
+	// which reads prim's own text, judges none of them (rewritesText).
+	unjudged bool
 }
 
 // admits reports whether v is a value of k: of its held format where it has
-// one, which narrows string (kindOf), and otherwise of its primitive kind.
+// one, which narrows string (kindOf), of nothing where k is unjudged, and
+// otherwise of its primitive kind.
 func (k valueKind) admits(v ir.Value) bool {
-	if k.format == "" {
+	switch {
+	case k.unjudged:
+		return false
+	case k.format == "":
 		return Admits(k.prim, v)
+	default:
+		inFormat, _ := admitsFormat(k.format, v)
+		return inFormat
 	}
-	inFormat, _ := admitsFormat(k.format, v)
-	return inFormat
 }
+
+// judged reports whether k has a judge that can refuse a value: bytes has
+// none, and neither has a kind an encoding leaves unjudged.
+func (k valueKind) judged() bool { return k.prim != ir.PrimBytes && !k.unjudged }
 
 // heldFormat returns the format enc names where the compiler holds its grammar
 // (admitsFormat) and enc says nothing else. An Encoding that also gives a wire
@@ -1018,13 +1061,13 @@ func formatAgainst(f string, k valueKind) relation {
 // kindOf follows ref through the registry to the kind its values are read as
 // (valueKind), reporting false when the target does not end in a single
 // primitive kind (a model, union, list, tuple, literal, external, or a
-// base-less opaque scalar). The first Encoding met on the way decides the held
-// format, read by heldFormat over a chain ending in string. The chain is
-// bounded against a malformed registry.
+// base-less opaque scalar). A Scalar leads to the type its values travel as
+// (travelsAs), and the first Encoding met decides how the kind reached is read
+// (kindUnder). The chain is bounded against a malformed registry.
 //
-// An Enum resolves via its already-computed ValueType (docs/ir/enums.md). A
-// Literal is deliberately left unresolved: a ValueNumber literal spans integer,
-// number, float and decimal, so no one kind stands for it.
+// An Enum resolves via its ValueType (docs/ir/enums.md). A Literal is left
+// unresolved: a ValueNumber literal spans integer, number, float and decimal,
+// so no one kind stands for it.
 func (r registry) kindOf(ref ir.TypeRef) (valueKind, bool) {
 	id := ref.Target
 	var first *ir.Encoding
@@ -1035,11 +1078,7 @@ func (r registry) kindOf(ref ir.TypeRef) (valueKind, bool) {
 		}
 		switch t := td.(type) {
 		case *ir.Primitive:
-			k := valueKind{prim: t.Prim}
-			if format, held := heldFormat(first); held && t.Prim == ir.PrimString {
-				k.format = format
-			}
-			return k, true
+			return kindUnder(first, t.Prim), true
 		case *ir.Enum:
 			return valueKind{prim: t.ValueType}, true
 		case *ir.Scalar:
@@ -1049,12 +1088,58 @@ func (r registry) kindOf(ref ir.TypeRef) (valueKind, bool) {
 			if first == nil {
 				first = t.Encoding
 			}
-			id = t.Base.Target
+			id = r.travelsAs(t)
 		default:
 			return valueKind{}, false
 		}
 	}
 	return valueKind{}, false
+}
+
+// travelsAs returns the type the values of s are instances of: its Base, but
+// for a Base its Encoding's WireType does not spell, whose values then travel
+// as that type, as an instant written as its seconds is a number. A Base the
+// WireType spells keeps its own kind, as bytes written as a base64 string do.
+func (r registry) travelsAs(s *ir.Scalar) ir.TypeID {
+	if s.Encoding == nil || s.Encoding.WireType == nil {
+		return s.Base.Target
+	}
+	base, baseOK := r.resolve(s.Base.Target)
+	wire, wireOK := r.resolve(s.Encoding.WireType.Target)
+	bp, baseIsPrim := base.(*ir.Primitive)
+	wp, wireIsPrim := wire.(*ir.Primitive)
+	if !baseOK || !wireOK || !baseIsPrim || !wireIsPrim || spelledIn(bp.Prim, wp.Prim) {
+		return s.Base.Target
+	}
+	return s.Encoding.WireType.Target
+}
+
+// spelledIn reports whether JSON writes a value of k as an instance of wire:
+// k is wire or narrows it, as bytes and datetime_offset narrow string.
+func spelledIn(k, wire ir.PrimKind) bool {
+	rel := spelling.Relate(k, wire)
+	return rel == spelling.Same || rel == spelling.ANarrower
+}
+
+// kindUnder is the valueKind of the primitive k, reached under enc, the first
+// Encoding on the chain: a held format over string narrows it (heldFormat),
+// and a text enc names over a string format leaves it unjudged
+// (rewritesText).
+func kindUnder(enc *ir.Encoding, k ir.PrimKind) valueKind {
+	if format, held := heldFormat(enc); held && k == ir.PrimString {
+		return valueKind{prim: k, format: format}
+	}
+	return valueKind{prim: k, unjudged: rewritesText(enc, k)}
+}
+
+// rewritesText reports whether enc names a text for k, a string format: k's
+// grammar reads k's own text, as datetime_offset's reads RFC 3339, so it
+// cannot judge a value enc writes otherwise, even under a name whose grammar
+// the compiler holds, as time's is another text. A kind JSON spells otherwise,
+// string itself included, is judged by its JSON type, which no encoding name
+// changes.
+func rewritesText(enc *ir.Encoding, k ir.PrimKind) bool {
+	return enc != nil && enc.Name != "" && spelling.Relate(k, ir.PrimString) == spelling.ANarrower
 }
 
 // admits reports whether v is a value of the type ref names. A null is judged

@@ -6,36 +6,67 @@ package merge
 import (
 	"reflect"
 
+	"github.com/dexpace/morphic/compilers/openapi/internal/spelling"
 	"github.com/dexpace/morphic/ir"
 )
 
-// enums relates two enums alike but for their members and TypeCommon by the
-// values they hold: none shared is disjoint, and otherwise verdict judges the
-// members' values, the one whose values the other holds all of saying all the
-// other does, beside what else each says. Two listing the values they share in
-// different orders hold no enum of both, since its order would be one
-// declaration's (inOneOrder). Two holding one set of values, or saying a shared
-// value's member differently (sharedMembers), are left unrelated, for classify
-// to judge by their kind, as are two differing in anything else.
+// enums relates two enums alike but for their members, value types and
+// TypeCommon by the values they hold: none shared is disjoint, and otherwise
+// verdict judges the values with the value types (valueTypeHolding) beside what
+// else each says. Two listing shared values in different orders hold no enum of
+// both, whose order would be one's (inOneOrder). Two of value types neither
+// within the other, of one set of values of one value type or in different
+// orders, or saying a shared value's member differently (sharedMembers) are left
+// unrelated, for classify to judge by kind, as is any other pair.
 func (j typeJudge) enums(a, b *ir.Enum) relation {
 	as, bs := *a, *b
 	as.TypeCommon, bs.TypeCommon, as.Members, bs.Members = ir.TypeCommon{}, ir.TypeCommon{}, nil, nil
+	as.ValueType, bs.ValueType = "", ""
 	if !reflect.DeepEqual(as, bs) {
 		return relUnrelated
 	}
 	ai, bi := indexMembers(a.Members), indexMembers(b.Members)
 	aWithin, shared, aok := sharedMembers(a.Members, bi)
 	bWithin, _, bok := sharedMembers(b.Members, ai)
+	kinds, related := valueTypeHolding(a.ValueType, b.ValueType)
+	ordered := inOneOrder(a.Members, bi)
 	switch {
 	case !aok || !bok:
 		return relUnrelated
 	case shared == 0:
 		return relDisjoint
-	case aWithin && bWithin:
+	case !related, aWithin && bWithin && (kinds == holdsBoth || !ordered):
 		return relUnrelated
 	}
 	detail, adoptable := j.detailOf(extras{Common: a.TypeCommon}, extras{Common: b.TypeCommon})
-	return verdict(holding{a: aWithin, b: bWithin}, detail, adoptable && inOneOrder(a.Members, bi))
+	return verdict(holding{a: aWithin, b: bWithin}.and(kinds), detail, adoptable && ordered)
+}
+
+// valueTypeHolding is the holding of two enums' value types: the narrower says
+// all the other does (spelling.Relate), and one says all the other does of
+// itself. It is false where neither is within the other, since no value type
+// says both.
+func valueTypeHolding(a, b ir.PrimKind) (holding, bool) {
+	return holdingOf(fromSpelling(spelling.Relate(a, b)))
+}
+
+// narrowestValueType returns the value type within every other of the enums
+// nodes holds, and false where no one is, or a node is no enum.
+func narrowestValueType(nodes []ir.TypeDef) (ir.PrimKind, bool) {
+	var narrowest ir.PrimKind
+	for k, td := range nodes {
+		e, ok := td.(*ir.Enum)
+		if !ok {
+			return "", false
+		}
+		switch rel := spelling.Relate(e.ValueType, narrowest); {
+		case k == 0, rel == spelling.ANarrower:
+			narrowest = e.ValueType
+		case rel != spelling.Same && rel != spelling.BNarrower:
+			return "", false
+		}
+	}
+	return narrowest, true
 }
 
 // sharedMembers counts the members of xs whose value ys holds, and reports

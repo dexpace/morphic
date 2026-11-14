@@ -54,8 +54,9 @@ var loweringRecursions = [][]string{
 	},
 	// Callbacks. An operation may declare callbacks, each of which is a path item
 	// holding operations of its own (docs/ir/http-binding.md), so the operation
-	// lowering reaches itself through them.
-	{"lowerCallbackOps", "lowerCallbacks", "lowerOperation", "mountPathItem"},
+	// lowering reaches itself through them. Bounded by maxCallbackNesting, the
+	// callbacks an operation whose own lower may be nested in.
+	{"lowerCallbackOps", "lowerCallbacks", "lowerOperation", "mountPathItem", "operationCallbacks"},
 	// Whether one conjunct restates another. Two lists compare by their elements,
 	// each read the same way, down what `items` nests. Each step reads a schema,
 	// which spends the budget maxAdmissionReads holds it to.
@@ -95,9 +96,9 @@ var schemaRecursion = []string{
 	"lowerAllOf",
 	"lowerArray", "lowerBesideUnmodeledUnion", "lowerCoDeclaredUnion",
 	"lowerDiscriminator", "lowerDistributedUnion", "lowerElected", "lowerModel",
-	"lowerOneOfAnyOf", "lowerPrincipal", "lowerSchemaBody", "lowerTypeVariant", "lowerTyped",
-	"lowerUnion",
-	"lowerUntyped", "patternProps", "refSiteRef", "refTypeRef", "referencedVariants",
+	"lowerOneOfAnyOf", "lowerPrincipal", "lowerSchemaBody", "lowerSubtypeUnion", "lowerTypeVariant",
+	"lowerTyped", "lowerUnion",
+	"lowerUntyped", "mintUnion", "patternProps", "refSiteRef", "refTypeRef", "referencedVariants",
 	"resolveAt", "resolveBeaten", "resolveDiscriminatorRoutes", "resolveMappingTarget",
 	"resolvePointer", "resolveSchemaRef",
 	"scalarEncoding", "scalarTypeID", "schemaBody", "schemaRefHomed",
@@ -111,6 +112,7 @@ var schemaRecursion = []string{
 var loweringPackages = []string{
 	"compilers/openapi",
 	"compilers/openapi/internal/auth",
+	"compilers/openapi/internal/convention",
 	"compilers/openapi/internal/document",
 	"compilers/openapi/internal/operation",
 	"compilers/openapi/internal/replacement",
@@ -441,7 +443,7 @@ func visited(index map[string]int, n string) bool {
 
 // TestLoweringCallGraph_RecordsAHandoffAsAnEdge holds the graph to the fix for
 // GitHub #210. Reading call position alone described these three functions as
-// depending on nothing, while each decides which lowering runs by naming it.
+// depending on nothing, while each decides by a function it hands on by name.
 //
 // It asserts the edges rather than the cycles because none of them closes one
 // today: a dependency the graph cannot see is unheld whether or not it currently
@@ -451,9 +453,9 @@ func TestLoweringCallGraph_RecordsAHandoffAsAnEdge(t *testing.T) {
 	graph := loweringCallGraph(t)
 
 	handoffs := map[string]string{
-		"classifyBranchSet": "isNullSchema",
-		"setsDeclareShape":  "branchDeclaresShape",
-		"oneOfAnyOfHasNull": "isNullSchema",
+		"enumNullVerdict":         "isNullValue",
+		"setsDeclareShape":        "branchDeclaresShape",
+		"preserveVariantsUnhomed": "constraintsHome",
 	}
 	for from, to := range handoffs {
 		require.Contains(t, graph, from, "the graph no longer holds %q", from)

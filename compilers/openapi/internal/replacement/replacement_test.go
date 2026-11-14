@@ -21,10 +21,14 @@ import (
 
 // mapped is a context whose policy reads replacements from x-replaced-by.
 func mapped() lowering.Ctx {
-	policy := lowering.ExtensionPromotions{Targets: map[lowering.ExtensionTarget][]lowering.ExtensionSource{
+	return lowering.New(0, &load.Document{Doc: &soa.OpenAPI{}}, lowering.Policy{Promotions: replacedBy()})
+}
+
+// replacedBy is a promotion mapping reading replacements from x-replaced-by.
+func replacedBy() lowering.ExtensionPromotions {
+	return lowering.ExtensionPromotions{Targets: map[lowering.ExtensionTarget][]lowering.ExtensionSource{
 		lowering.TargetDeprecationReplacedBy: {{Key: "x-replaced-by"}},
 	}}
-	return lowering.New(0, &load.Document{Doc: &soa.OpenAPI{}}, lowering.Policy{Promotions: policy})
 }
 
 // names is a node's x-replaced-by key, holding value.

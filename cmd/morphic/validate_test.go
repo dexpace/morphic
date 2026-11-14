@@ -329,7 +329,7 @@ func TestRun_ValidateReportsAnOverlayRefusalWithTheOverlaysFile(t *testing.T) {
 	spec := writeFile(t, "spec.yaml", testspec.Tiny)
 	// The same recursive-anchor shape internal/load/overlay_refusals_internal_test.go
 	// pins at the loader's level: an alias inside the update names one of its
-	// own ancestors, which gives the overlay library's clone no base case.
+	// own ancestors, which gives the overlay's copy of it no base case.
 	const anchorCycle = "overlay: 1.0.0\ninfo: {title: o, version: \"1\"}\n" +
 		"actions:\n  - target: $.info\n    update: {p: &a [*a]}\n"
 	overlay := writeFile(t, "bad-overlay.yaml", anchorCycle)

@@ -4,29 +4,22 @@
 package overlay
 
 import (
-	"bytes"
-	"context"
-	"encoding/json/jsontext"
 	"errors"
-	"strconv"
 	"strings"
 	"testing"
 
-	soaoverlay "github.com/speakeasy-api/openapi/overlay"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	yaml "go.yaml.in/yaml/v3"
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/budget"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
-	"github.com/dexpace/morphic/compilers/openapi/internal/nodeview"
-	"github.com/dexpace/morphic/compilers/openapi/internal/ynode"
 	"github.com/dexpace/morphic/ir"
 )
 
 // budgetSpec and budgetOverlay are a document and a patch small enough to hold
 // in a sentence and still more than a two-node budget: the point of the cases
-// below is which walk runs out, not what either one is looking at.
+// below is where the walk runs out, not what either one is looking at.
 const (
 	budgetSpec = `openapi: 3.1.0
 info: {title: T, version: "1"}
@@ -36,15 +29,10 @@ info: {title: T, version: "1"}
 )
 
 // TestApplyWithin_DegradesToTheSourceAtTheNodeBudget pins what exhausting the
-// budget costs and what it must not: the overlay still applies, and attribution
-// is abandoned wholesale rather than half-taken.
-//
-// Abandoning it is the load-bearing part. A snapshot cut short holds only the
-// nodes it reached, so every node past the cut looks freshly introduced — an
-// attribution built on it would blame the overlay for most of the document,
-// which is worse than the answer a compile with no overlay gives. Reporting the
-// degradation rather than silently taking it is the other half: a caller reading
-// provenance has no other way to tell the two apart.
+// attribution walk's bound costs and what it must not: the overlay still
+// applies, and attribution is abandoned wholesale rather than half-taken, and
+// reported, since a caller reading provenance has no other way to tell the
+// degradation from a compile with no overlay.
 func TestApplyWithin_DegradesToTheSourceAtTheNodeBudget(t *testing.T) {
 	t.Parallel()
 	var root yaml.Node
@@ -60,83 +48,14 @@ func TestApplyWithin_DegradesToTheSourceAtTheNodeBudget(t *testing.T) {
 	assert.Equal(t, diag.OverlayOriginIncomplete, diags[0].Code)
 	assert.Equal(t, ir.SeverityWarning, diags[0].Severity, "the compile still proceeds")
 
-	assert.Equal(t, "d", nodeAt(t, &root, "info", "description"),
-		"the overlay applied; only the attribution of it was given up")
-}
-
-// TestAttribute_DegradesWhenOnlyTheSecondWalkRunsOut pins the other order. The
-// snapshot is taken before the overlay applies and the attribution walk after,
-// so the tree the second walk covers is the larger of the two and can exceed a
-// budget the first fit inside. Driving the walks directly is what separates the
-// two exhaustion points, which applyWithin alone cannot do.
-func TestAttribute_DegradesWhenOnlyTheSecondWalkRunsOut(t *testing.T) {
-	t.Parallel()
-	var root yaml.Node
-	require.NoError(t, yaml.Unmarshal([]byte("a: 1\n"), &root))
-
-	before, complete := snapshot(t.Context(), &root, budget.AtMost(maxNodes))
-	require.True(t, complete)
-
-	key, value := &yaml.Node{Kind: yaml.ScalarNode, Value: "b"}, &yaml.Node{Kind: yaml.ScalarNode, Value: "2"}
-	root.Content[0].Content = append(root.Content[0].Content, key, value)
-
-	_, _, ok := attribute(t.Context(), &root, before, budget.AtMost(2))
-	assert.False(t, ok, "three nodes do not fit a budget of two")
-
-	pointers, nodes, ok := attribute(t.Context(), &root, before, budget.AtMost(maxNodes))
-	require.True(t, ok, "and the same tree fits a real one — the budget is what differed")
-	assert.Equal(t, map[jsontext.Pointer]bool{"/b": true}, pointers,
-		"which is also the answer the exhausted walk withheld")
-	assert.Equal(t, map[*yaml.Node]jsontext.Pointer{key: "/b", value: "/b"}, nodes,
-		"and both nodes of the new member sit at that pointer")
-}
-
-// TestSnapshot_RecordsEveryNodeAgainstItsValue pins the record the attribution
-// walk reads back. Identity alone cannot answer "was this rewritten", so a
-// snapshot that stored presence would silently disable the rewritten-scalar half
-// of the attribution while every introduced-node test kept passing.
-func TestSnapshot_RecordsEveryNodeAgainstItsValue(t *testing.T) {
-	t.Parallel()
-	var root yaml.Node
-	require.NoError(t, yaml.Unmarshal([]byte("a: 1\n"), &root))
-
-	before, complete := snapshot(t.Context(), &root, budget.AtMost(maxNodes))
-	require.True(t, complete)
-
-	mapping := root.Content[0]
-	assert.Equal(t, "a", before[mapping.Content[0]], "the key node, by its value")
-	assert.Equal(t, "1", before[mapping.Content[1]], "and the value node by its own")
-	assert.Contains(t, before, mapping, "a mapping is recorded too, holding no value")
-	assert.NotContains(t, before, &root, "the document node is not one of them")
-}
-
-// TestApplyWithin_RecoversALibraryPanic pins the no-panics-escape invariant on
-// the overlay side, as the barriers around the parser and the resolver do on
-// theirs.
-//
-// A document node holding no root provokes it: yamlpath indexes the first child
-// without checking there is one, so the selector faults before any action is
-// applied. The refusal must leave as a diagnostic like every other overlay
-// problem, and nothing may be attributed to an overlay that never ran.
-//
-// yaml.v3 does not produce this shape today, so the node is built rather than
-// decoded, and the barrier does not rest on the parser continuing to avoid it.
-func TestApplyWithin_RecoversALibraryPanic(t *testing.T) {
-	t.Parallel()
-	root := &yaml.Node{Kind: yaml.DocumentNode}
-	require.Nil(t, nodeview.DocumentRoot(root), "the shape under test: a document with no root")
-
-	origin, diags := applyWithin(t.Context(), 1, root, Options{Data: []byte(budgetOverlay), Lax: true}, budget.AtMost(maxNodes))
-
-	assert.False(t, origin.Applied(), "an overlay that faulted attributes nothing")
-	require.Len(t, diags, 1)
-	assert.Equal(t, diag.OverlayFailed, diags[0].Code)
-	assert.Contains(t, diags[0].Message, "panicked", "the fault is named, not swallowed")
+	description := root.Content[0].Content[3].Content[5]
+	assert.Equal(t, "d", description.Value, "the overlay applied; only the attribution of it was given up")
 }
 
 // TestApplyRecovered_QuotesAPanicOnOneBoundedLine pins that a fault in the
 // application reaches the refusal as diag.Catch quotes it, whatever the
-// library panicked with, and that nothing the application left is reported.
+// application panicked with, and that nothing the application left is
+// reported.
 func TestApplyRecovered_QuotesAPanicOnOneBoundedLine(t *testing.T) {
 	t.Parallel()
 	at := ir.Provenance{Source: 1}
@@ -148,245 +67,26 @@ func TestApplyRecovered_QuotesAPanicOnOneBoundedLine(t *testing.T) {
 	require.Len(t, diags, 1)
 	assert.Equal(t, diag.OverlayFailed, diags[0].Code)
 	assert.Equal(t, at, diags[0].Provenance)
-	assert.Equal(t, "cannot apply overlay: overlay library panicked ("+diag.OneLine(errors.New(huge))+")",
+	assert.Equal(t, "cannot apply overlay: applying it panicked ("+diag.OneLine(errors.New(huge))+")",
 		diags[0].Message)
 	assert.NotContains(t, diags[0].Message, "\n")
 	assert.Less(t, len(diags[0].Message), len(huge)/4, "the bound cut the value")
 }
 
-// TestSnapshotAndAttribute_TakeADocumentWithNoRoot pins the walks themselves
-// against that same shape. The barrier above returns before either runs, so
-// without driving them directly nothing holds their nil guards to anything —
-// and a walk that faulted here would do so on any tree the library later learns
-// to accept.
-func TestSnapshotAndAttribute_TakeADocumentWithNoRoot(t *testing.T) {
+// TestApplyWithin_RefusesARootTheDocumentDoesNotHold pins a tree the parser
+// never hands over and a caller assembling nodes can: a document node holding
+// no root, which a target `$` selects whole. It holds no value to write, and
+// is held by nothing a remove removes it from, so either action is refused.
+func TestApplyWithin_RefusesARootTheDocumentDoesNotHold(t *testing.T) {
 	t.Parallel()
-	root := &yaml.Node{Kind: yaml.DocumentNode}
+	for _, action := range []string{"update: {a: b}", "remove: true"} {
+		root := &yaml.Node{Kind: yaml.DocumentNode}
+		ov := "overlay: 1.1.0\ninfo: {title: O, version: \"1\"}\nactions:\n  - target: $\n    " + action + "\n"
 
-	before, complete := snapshot(t.Context(), root, budget.AtMost(maxNodes))
-	require.True(t, complete)
-	assert.Empty(t, before, "no node to record")
+		origin, diags := applyWithin(t.Context(), 1, root, Options{Data: []byte(ov)}, budget.AtMost(maxNodes))
 
-	pointers, nodes, ok := attribute(t.Context(), root, before, budget.AtMost(maxNodes))
-	require.True(t, ok)
-	assert.Empty(t, pointers, "and none to attribute")
-	assert.Empty(t, nodes)
-}
-
-// nodeAt reads the scalar at a path of mapping keys, so a test can assert on the
-// tree the overlay left behind rather than on a re-serialisation of it.
-func nodeAt(t *testing.T, root *yaml.Node, keys ...string) string {
-	t.Helper()
-	n := root.Content[0]
-	for _, key := range keys {
-		found := false
-		for i := 0; i+1 < len(n.Content); i += 2 {
-			if n.Content[i].Value == key {
-				n, found = n.Content[i+1], true
-				break
-			}
-		}
-		require.True(t, found, "no %q under the path %v", key, keys)
+		assert.False(t, origin.Applied(), action)
+		require.Len(t, diags, 1, action)
+		assert.Equal(t, diag.OverlayFailed, diags[0].Code, action)
 	}
-	return n.Value
-}
-
-// TestApplyWithin_RefusesAGraftItCannotExpandWithinBudget pins the one graft
-// failure that refuses rather than degrades.
-//
-// Running out of tree to walk says only that the document is past what this
-// package reads, which the attribution walks already degrade for. Running out
-// of room to substitute says a graft could not be made safe, and a tree
-// repaired in part is worse than either outcome, so the compile refuses.
-//
-// The budget is set between the two: large enough to walk this small source,
-// small enough that resolving the alias the overlay grafts runs past it.
-func TestApplyWithin_RefusesAGraftItCannotExpandWithinBudget(t *testing.T) {
-	t.Parallel()
-	var root yaml.Node
-	require.NoError(t, yaml.Unmarshal([]byte("openapi: 3.1.0\npaths: {}\n"), &root))
-	const ov = "overlay: 1.0.0\ninfo: {title: o, version: \"1\", x-t: &t {a: 1, b: 2, c: 3, d: 4}}\n" +
-		"actions:\n  - target: $.paths\n    update: {p: *t}\n"
-
-	origin, diags := applyWithin(t.Context(), 1, &root, Options{Data: []byte(ov)}, budget.AtMost(12))
-
-	assert.False(t, origin.Applied())
-	require.True(t, diag.HasError(diags), "the compile refuses: %+v", diags)
-	last := diags[len(diags)-1]
-	assert.Equal(t, diag.OverlayFailed, last.Code)
-	assert.Contains(t, last.Message, "expands past")
-}
-
-// TestRepairGrafts_ReportsWalkingAndSubstitutingApart pins that the two budget
-// failures are told apart at the source, since applyWithin can only show one of
-// them at a time.
-func TestRepairGrafts_ReportsWalkingAndSubstitutingApart(t *testing.T) {
-	t.Parallel()
-	var root yaml.Node
-	require.NoError(t, yaml.Unmarshal([]byte("a: {b: 1, c: 2}\n"), &root))
-
-	normalized, safe := repairGrafts(t.Context(), &root, budget.AtMost(maxNodes))
-	assert.True(t, normalized, "a tree with no graft in it is already normal")
-	assert.True(t, safe)
-
-	normalized, safe = repairGrafts(t.Context(), &root, budget.AtMost(1))
-	assert.False(t, normalized, "a tree it cannot walk is one it cannot say anything about")
-	assert.True(t, safe, "and nothing it could not substitute was found")
-
-	// A document node holding nothing has no content to walk, which is neither
-	// a failure nor a graft.
-	normalized, safe = repairGrafts(t.Context(), &yaml.Node{Kind: yaml.DocumentNode}, budget.AtMost(maxNodes))
-	assert.True(t, normalized)
-	assert.True(t, safe)
-}
-
-// TestExpandAlias_DeclinesAnAliasNamingNothing pins the shape a parse never
-// produces and a caller assembling nodes can: an alias with no target stands
-// for no content, so there is nothing to graft in its place and the caller
-// refuses rather than writing an empty node into the document.
-func TestExpandAlias_DeclinesAnAliasNamingNothing(t *testing.T) {
-	t.Parallel()
-	got, ok := expandAlias(&yaml.Node{Kind: yaml.AliasNode}, new(budget.New(budget.AtMost(maxNodes))))
-	assert.False(t, ok)
-	assert.Nil(t, got)
-}
-
-// TestRepairGrafts_TakesShapesAParseNeverProduces pins the guards the graft
-// repair carries for trees it did not parse. Nodes are built here rather than
-// decoded because that is the whole point: yaml.v3 hands back neither a nil
-// child nor one node in two places, and the walks would loop or fault on either
-// — so the guards are what make this package's correctness independent of what
-// the library grafting into the tree happens to do.
-func TestRepairGrafts_TakesShapesAParseNeverProduces(t *testing.T) {
-	t.Parallel()
-
-	shared := ynode.Map(ynode.Scalar("k"), ynode.Scalar("v"))
-	twice := ynode.Map(ynode.Scalar("a"), shared, ynode.Scalar("b"), shared)
-	reachable, ok := reachableNodes(t.Context(), twice, budget.AtMost(maxNodes))
-	require.True(t, ok, "one node in two places is walked, not walked forever")
-	assert.True(t, reachable[shared], "and counted once")
-
-	withNil := ynode.Map(ynode.Scalar("a"), nil)
-	reachable, ok = reachableNodes(t.Context(), withNil, budget.AtMost(maxNodes))
-	require.True(t, ok, "a nil child is skipped, not dereferenced")
-	assert.True(t, substituteGrafts(t.Context(), withNil, reachable, new(budget.New(budget.AtMost(maxNodes)))), "and skipped again on the way back")
-}
-
-// TestApplyWithin_WalksStopPastTheirBoundNotAtIt pins the edge of each walk
-// around an application that applyWithin's walks parameter bounds: a tree it
-// reads exactly fills the bound and is read whole, and a bound one short of it
-// cuts the walk. The snapshot and the reachable set read every node, attribution every
-// position, keys aside, and the graft repair every child.
-func TestApplyWithin_WalksStopPastTheirBoundNotAtIt(t *testing.T) {
-	t.Parallel()
-	tree := func() *yaml.Node {
-		return ynode.Map(ynode.Scalar("a"), ynode.Map(ynode.Scalar("b"), ynode.Scalar("c")), ynode.Scalar("d"), ynode.Scalar("e"))
-	}
-	const nodes, positions, children = 7, 4, 6 // keys included; keys aside; every node but the root
-	walks := map[string]struct {
-		read func(budget.Limit) bool
-		at   int
-	}{
-		"snapshot": {func(l budget.Limit) bool {
-			_, complete := snapshot(t.Context(), tree(), l)
-			return complete
-		}, nodes},
-		"reachable": {func(l budget.Limit) bool {
-			_, walked := reachableNodes(t.Context(), tree(), l)
-			return walked
-		}, nodes},
-		"attribution": {func(l budget.Limit) bool {
-			root := tree()
-			before, _ := snapshot(t.Context(), root, budget.Unbounded())
-			_, _, ok := attribute(t.Context(), root, before, l)
-			return ok
-		}, positions},
-		"graft repair": {func(l budget.Limit) bool {
-			work := budget.New(l)
-			return substituteGrafts(t.Context(), tree(), map[*yaml.Node]bool{}, &work)
-		}, children},
-	}
-	for name, w := range walks {
-		assert.True(t, w.read(budget.AtMost(w.at)), "%s: a tree of the bound is read whole", name)
-		assert.False(t, w.read(budget.AtMost(w.at-1)), "%s: one short cuts it", name)
-	}
-
-	// A graft spends what it copies too: the tree's two children and the three
-	// nodes the alias names outside it, more than the tree's three nodes.
-	grafted := func() *yaml.Node {
-		return ynode.Map(ynode.Scalar("a"), &yaml.Node{Kind: yaml.AliasNode, Alias: ynode.Map(ynode.Scalar("x"), ynode.Scalar("y"))})
-	}
-	normalized, safe := repairGrafts(t.Context(), grafted(), budget.AtMost(5))
-	assert.True(t, normalized && safe, "the repair fits a budget of what it reads and copies")
-	normalized, safe = repairGrafts(t.Context(), grafted(), budget.AtMost(4))
-	assert.False(t, normalized || safe, "and one short refuses the overlay rather than leave a graft")
-}
-
-// TestSubstituteGrafts_StopsAtItsOwnBudget pins the bound on the walk that
-// finds grafts, as against the one on the expansion that replaces them. A tree
-// wide enough to exhaust the budget before any graft is met stops there rather
-// than walking on: the caller reads that as a graft it could not make safe,
-// which is the safe direction when it no longer knows whether one is left.
-func TestSubstituteGrafts_StopsAtItsOwnBudget(t *testing.T) {
-	t.Parallel()
-	wide := ynode.Map()
-	for i := range 8 {
-		wide.Content = append(wide.Content, ynode.Scalar(strconv.Itoa(i)), ynode.Scalar("v"))
-	}
-
-	work := budget.New(budget.AtMost(4))
-	assert.False(t, substituteGrafts(t.Context(), wide, map[*yaml.Node]bool{}, &work),
-		"sixteen children do not fit a budget of four")
-
-	work = budget.New(budget.AtMost(maxNodes))
-	assert.True(t, substituteGrafts(t.Context(), wide, map[*yaml.Node]bool{}, &work),
-		"and the same tree fits a real one — the budget is what differed")
-}
-
-// TestChildren_AddressesEachNodeAsTheParserReadsIt pins the pointers the
-// attribution walk gives a node: a key written through an alias at the key it
-// names, a `<<` merge's value, a mapping or a list of them, at the mapping
-// merging it, since the parser reads its members as that mapping's own, and a
-// list that is no merge's under its indexes.
-func TestChildren_AddressesEachNodeAsTheParserReadsIt(t *testing.T) {
-	t.Parallel()
-	aliased, inPlace := ynode.Scalar("v1"), ynode.Map(ynode.Scalar("m"), ynode.Scalar("v2"))
-	item := ynode.Map(ynode.Scalar("n"), ynode.Scalar("v3"))
-	list := ynode.Seq(item)
-	root := ynode.Map(ynode.Alias(ynode.Scalar("key")), aliased, ynode.Merge(), inPlace, ynode.Merge(), list)
-
-	got := children(frame{node: root, pointer: "/r"})
-	require.Len(t, got, 3)
-	assert.Equal(t, frame{node: aliased, pointer: "/r/key", key: root.Content[0]}, got[0])
-	assert.Equal(t, frame{node: inPlace, pointer: "/r", key: root.Content[2], merged: true}, got[1])
-	assert.Equal(t, frame{node: list, pointer: "/r", key: root.Content[4], merged: true}, got[2])
-
-	assert.Equal(t, []frame{{node: item, pointer: "/r", merged: true}}, children(got[2]))
-	assert.Equal(t, []frame{{node: item, pointer: "/s/0"}}, children(frame{node: list, pointer: "/s"}))
-}
-
-// TestApply_StopsOnceTheContextIsDone pins the overlay's context, asked
-// before each action, by every walk of the tree and by the attribution:
-// handed a done one, the overlay is not applied, and the attribution of one
-// applied answers nothing.
-func TestApply_StopsOnceTheContextIsDone(t *testing.T) {
-	t.Parallel()
-	cancelled, cancel := context.WithCancel(t.Context())
-	cancel()
-	var root yaml.Node
-	require.NoError(t, yaml.Unmarshal([]byte(sequenceSpec), &root))
-	const ov = "overlay: 1.0.0\ninfo: {title: o, version: '1'}\nactions:\n  - target: $.info\n    update: {description: d}\n"
-	doc, err := soaoverlay.ParseReader(bytes.NewReader([]byte(ov)))
-	require.NoError(t, err)
-
-	diags, applied := runSequence(cancelled, doc, &root, ir.Provenance{Source: 1}, false, budget.AtMost(maxNodes))
-	assert.False(t, applied)
-	assert.Empty(t, diags)
-
-	before, complete := snapshot(t.Context(), &root, budget.AtMost(maxNodes))
-	require.True(t, complete)
-	_, _, ok := attribute(cancelled, &root, before, budget.AtMost(maxNodes))
-	assert.False(t, ok)
-	_, _, ok = attribute(t.Context(), &root, before, budget.AtMost(maxNodes))
-	assert.True(t, ok, "the same tree is attributed under a live context")
 }

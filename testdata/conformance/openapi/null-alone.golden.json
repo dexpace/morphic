@@ -1,0 +1,886 @@
+{
+  "idSpaces": {
+    "auth": [
+      "openapi",
+      "unresolved"
+    ],
+    "e": [
+      "anon",
+      "composed",
+      "openapi"
+    ],
+    "g": [
+      "default",
+      "extension",
+      "path-prefix",
+      "tags",
+      "webhooks"
+    ],
+    "op": [
+      "openapi"
+    ],
+    "p": [
+      "composed",
+      "openapi"
+    ],
+    "param": [
+      "openapi"
+    ],
+    "s": [
+      "openapi"
+    ],
+    "server": [
+      "default",
+      "openapi"
+    ],
+    "t": [
+      "anon",
+      "composed",
+      "openapi"
+    ]
+  },
+  "name": "NullAlone",
+  "version": "1.0.0",
+  "docs": {},
+  "services": [
+    {
+      "id": "s/openapi/0",
+      "name": {
+        "source": "NullAlone",
+        "canonical": "null_alone"
+      },
+      "docs": {},
+      "servers": [
+        "server/default"
+      ],
+      "provenance": {
+        "source": 0
+      }
+    }
+  ],
+  "types": {
+    "t/anon/components/schemas/Holder/properties/constNull": {
+      "kind": "enum",
+      "id": "t/anon/components/schemas/Holder/properties/constNull",
+      "name": {
+        "hint": "const_null"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Holder/properties/constNull"
+      },
+      "valueType": "any",
+      "closed": true,
+      "flags": false
+    },
+    "t/anon/components/schemas/Holder/properties/enumNull": {
+      "kind": "enum",
+      "id": "t/anon/components/schemas/Holder/properties/enumNull",
+      "name": {
+        "hint": "enum_null"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Holder/properties/enumNull"
+      },
+      "valueType": "any",
+      "closed": true,
+      "flags": false
+    },
+    "t/anon/components/schemas/Holder/properties/listed": {
+      "kind": "enum",
+      "id": "t/anon/components/schemas/Holder/properties/listed",
+      "name": {
+        "hint": "listed"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Holder/properties/listed"
+      },
+      "valueType": "any",
+      "closed": true,
+      "flags": false
+    },
+    "t/anon/components/schemas/Holder/properties/many": {
+      "kind": "union",
+      "id": "t/anon/components/schemas/Holder/properties/many",
+      "name": {
+        "hint": "many"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Holder/properties/many"
+      },
+      "variants": [
+        {
+          "name": {
+            "hint": "x"
+          },
+          "type": {
+            "target": "t/openapi/components/schemas/X",
+            "nullable": false
+          },
+          "docs": {}
+        },
+        {
+          "name": {
+            "hint": "y"
+          },
+          "type": {
+            "target": "t/openapi/components/schemas/Y",
+            "nullable": false
+          },
+          "docs": {}
+        }
+      ],
+      "exclusive": true,
+      "wireTagged": false,
+      "closed": true,
+      "inputOnly": false
+    },
+    "t/anon/components/schemas/Holder/properties/nullUnion": {
+      "kind": "enum",
+      "id": "t/anon/components/schemas/Holder/properties/nullUnion",
+      "name": {
+        "hint": "null_union"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "unmodeled": {
+        "openapi:oneOf": {
+          "reason": "degraded_lowering",
+          "value": [
+            {
+              "type": "null"
+            },
+            {
+              "enum": [
+                null
+              ]
+            }
+          ],
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Holder/properties/nullUnion/oneOf"
+          }
+        }
+      },
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Holder/properties/nullUnion"
+      },
+      "valueType": "any",
+      "closed": true,
+      "flags": false
+    },
+    "t/anon/components/schemas/Holder/properties/onlyNull": {
+      "kind": "enum",
+      "id": "t/anon/components/schemas/Holder/properties/onlyNull",
+      "name": {
+        "hint": "only_null"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Holder/properties/onlyNull"
+      },
+      "valueType": "any",
+      "closed": true,
+      "flags": false
+    },
+    "t/anon/components/schemas/Holder/properties/refNull": {
+      "kind": "union",
+      "id": "t/anon/components/schemas/Holder/properties/refNull",
+      "name": {
+        "hint": "ref_null"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Holder/properties/refNull"
+      },
+      "variants": [
+        {
+          "name": {
+            "hint": "x"
+          },
+          "type": {
+            "target": "t/openapi/components/schemas/X",
+            "nullable": false
+          },
+          "docs": {}
+        },
+        {
+          "name": {
+            "hint": "nil"
+          },
+          "type": {
+            "target": "t/openapi/components/schemas/Nil",
+            "nullable": true
+          },
+          "docs": {}
+        }
+      ],
+      "exclusive": true,
+      "wireTagged": false,
+      "closed": true,
+      "inputOnly": false
+    },
+    "t/anon/components/schemas/Holder/properties/withProps": {
+      "kind": "enum",
+      "id": "t/anon/components/schemas/Holder/properties/withProps",
+      "name": {
+        "hint": "with_props"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "unmodeled": {
+        "openapi:properties": {
+          "reason": "degraded_lowering",
+          "value": {
+            "a": {
+              "type": "string"
+            }
+          },
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Holder/properties/withProps/properties"
+          }
+        }
+      },
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Holder/properties/withProps"
+      },
+      "valueType": "any",
+      "closed": true,
+      "flags": false
+    },
+    "t/openapi/components/schemas/Holder": {
+      "kind": "model",
+      "id": "t/openapi/components/schemas/Holder",
+      "name": {
+        "source": "Holder",
+        "canonical": "holder"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Holder"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/Holder/properties/onlyNull",
+          "name": {
+            "source": "onlyNull",
+            "canonical": "only_null"
+          },
+          "wireName": "onlyNull",
+          "type": {
+            "target": "t/anon/components/schemas/Holder/properties/onlyNull",
+            "nullable": true
+          },
+          "required": true,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Holder/properties/onlyNull"
+          }
+        },
+        {
+          "id": "p/openapi/components/schemas/Holder/properties/listed",
+          "name": {
+            "source": "listed",
+            "canonical": "listed"
+          },
+          "wireName": "listed",
+          "type": {
+            "target": "t/anon/components/schemas/Holder/properties/listed",
+            "nullable": true
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Holder/properties/listed"
+          }
+        },
+        {
+          "id": "p/openapi/components/schemas/Holder/properties/enumNull",
+          "name": {
+            "source": "enumNull",
+            "canonical": "enum_null"
+          },
+          "wireName": "enumNull",
+          "type": {
+            "target": "t/anon/components/schemas/Holder/properties/enumNull",
+            "nullable": true
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Holder/properties/enumNull"
+          }
+        },
+        {
+          "id": "p/openapi/components/schemas/Holder/properties/constNull",
+          "name": {
+            "source": "constNull",
+            "canonical": "const_null"
+          },
+          "wireName": "constNull",
+          "type": {
+            "target": "t/anon/components/schemas/Holder/properties/constNull",
+            "nullable": true
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Holder/properties/constNull"
+          }
+        },
+        {
+          "id": "p/openapi/components/schemas/Holder/properties/nullUnion",
+          "name": {
+            "source": "nullUnion",
+            "canonical": "null_union"
+          },
+          "wireName": "nullUnion",
+          "type": {
+            "target": "t/anon/components/schemas/Holder/properties/nullUnion",
+            "nullable": true
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Holder/properties/nullUnion"
+          }
+        },
+        {
+          "id": "p/openapi/components/schemas/Holder/properties/nil",
+          "name": {
+            "source": "nil",
+            "canonical": "nil"
+          },
+          "wireName": "nil",
+          "type": {
+            "target": "t/openapi/components/schemas/Nil",
+            "nullable": true
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Holder/properties/nil"
+          }
+        },
+        {
+          "id": "p/openapi/components/schemas/Holder/properties/anything",
+          "name": {
+            "source": "anything",
+            "canonical": "anything"
+          },
+          "wireName": "anything",
+          "type": {
+            "target": "t/prim/any",
+            "nullable": true
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Holder/properties/anything"
+          }
+        },
+        {
+          "id": "p/openapi/components/schemas/Holder/properties/withProps",
+          "name": {
+            "source": "withProps",
+            "canonical": "with_props"
+          },
+          "wireName": "withProps",
+          "type": {
+            "target": "t/anon/components/schemas/Holder/properties/withProps",
+            "nullable": true
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Holder/properties/withProps"
+          }
+        },
+        {
+          "id": "p/openapi/components/schemas/Holder/properties/typed",
+          "name": {
+            "source": "typed",
+            "canonical": "typed"
+          },
+          "wireName": "typed",
+          "type": {
+            "target": "t/openapi/components/schemas/X",
+            "nullable": true
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Holder/properties/typed"
+          }
+        },
+        {
+          "id": "p/openapi/components/schemas/Holder/properties/enumed",
+          "name": {
+            "source": "enumed",
+            "canonical": "enumed"
+          },
+          "wireName": "enumed",
+          "type": {
+            "target": "t/openapi/components/schemas/X",
+            "nullable": true
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Holder/properties/enumed"
+          }
+        },
+        {
+          "id": "p/openapi/components/schemas/Holder/properties/constant",
+          "name": {
+            "source": "constant",
+            "canonical": "constant"
+          },
+          "wireName": "constant",
+          "type": {
+            "target": "t/openapi/components/schemas/X",
+            "nullable": true
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Holder/properties/constant"
+          }
+        },
+        {
+          "id": "p/openapi/components/schemas/Holder/properties/described",
+          "name": {
+            "source": "described",
+            "canonical": "described"
+          },
+          "wireName": "described",
+          "type": {
+            "target": "t/openapi/components/schemas/X",
+            "nullable": true
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "unmodeled": {
+            "openapi:oneOf/1": {
+              "reason": "no_ir_home",
+              "value": {
+                "description": "nothing",
+                "type": "null"
+              },
+              "provenance": {
+                "source": 0,
+                "pointer": "/components/schemas/Holder/properties/described/oneOf/1"
+              }
+            }
+          },
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Holder/properties/described"
+          }
+        },
+        {
+          "id": "p/openapi/components/schemas/Holder/properties/many",
+          "name": {
+            "source": "many",
+            "canonical": "many"
+          },
+          "wireName": "many",
+          "type": {
+            "target": "t/anon/components/schemas/Holder/properties/many",
+            "nullable": true
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Holder/properties/many"
+          }
+        },
+        {
+          "id": "p/openapi/components/schemas/Holder/properties/refNull",
+          "name": {
+            "source": "refNull",
+            "canonical": "ref_null"
+          },
+          "wireName": "refNull",
+          "type": {
+            "target": "t/anon/components/schemas/Holder/properties/refNull",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Holder/properties/refNull"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/openapi/components/schemas/Nil": {
+      "kind": "enum",
+      "id": "t/openapi/components/schemas/Nil",
+      "name": {
+        "source": "Nil",
+        "canonical": "nil"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Nil"
+      },
+      "valueType": "any",
+      "closed": true,
+      "flags": false
+    },
+    "t/openapi/components/schemas/X": {
+      "kind": "model",
+      "id": "t/openapi/components/schemas/X",
+      "name": {
+        "source": "X",
+        "canonical": "x"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/X"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/X/properties/id",
+          "name": {
+            "source": "id",
+            "canonical": "id"
+          },
+          "wireName": "id",
+          "type": {
+            "target": "t/prim/string",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/X/properties/id"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/openapi/components/schemas/Y": {
+      "kind": "model",
+      "id": "t/openapi/components/schemas/Y",
+      "name": {
+        "source": "Y",
+        "canonical": "y"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Y"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/Y/properties/n",
+          "name": {
+            "source": "n",
+            "canonical": "n"
+          },
+          "wireName": "n",
+          "type": {
+            "target": "t/prim/integer",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Y/properties/n"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/prim/any": {
+      "kind": "primitive",
+      "id": "t/prim/any",
+      "name": {},
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": -1
+      },
+      "prim": "any"
+    },
+    "t/prim/integer": {
+      "kind": "primitive",
+      "id": "t/prim/integer",
+      "name": {},
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": -1
+      },
+      "prim": "integer"
+    },
+    "t/prim/string": {
+      "kind": "primitive",
+      "id": "t/prim/string",
+      "name": {},
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": -1
+      },
+      "prim": "string"
+    }
+  },
+  "servers": {
+    "server/default": {
+      "id": "server/default",
+      "name": {
+        "hint": "server"
+      },
+      "urlTemplate": "/",
+      "description": {},
+      "provenance": {
+        "source": 0
+      }
+    }
+  },
+  "diagnostics": [
+    {
+      "severity": "info",
+      "code": "openapi/degraded-construct",
+      "message": "every branch admits only the null value, so this position lowered as an enum with no member behind a nullable reference; oneOf kept verbatim under Unmodeled",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Holder/properties/nullUnion"
+      }
+    },
+    {
+      "severity": "info",
+      "code": "openapi/degraded-construct",
+      "message": "this position lowered to a node of kind \"enum\", which has no home for properties declared beside it; kept verbatim under Unmodeled",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Holder/properties/withProps"
+      }
+    },
+    {
+      "severity": "info",
+      "code": "openapi/degraded-construct",
+      "message": "this branch admits null alone, which the reference to this position holds, so it is no variant; the branch (description) is kept verbatim under Unmodeled",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Holder/properties/described/oneOf/1"
+      }
+    }
+  ],
+  "sources": [
+    {
+      "format": "openapi@3.1",
+      "path": "null-alone.yaml",
+      "hash": "e8160c2fb3a3476985fc8d2b5eef645ee8e265b283d26fec165060c45694e05b"
+    }
+  ]
+}

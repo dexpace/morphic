@@ -28,7 +28,7 @@ func TestScalarRenderers_AgreeOnKind(t *testing.T) {
 	for _, src := range []string{
 		"null", "~", "!!null ''", "!!null abc", "true", "false", "!!bool maybe",
 		"42", "-7", "0644", "0o17", "0x1f", "0b1010", "1_000", "+5", "1.5", "1.10", ".5", "1e10",
-		"1.8e308", "-1.8e308", "1e400", ".inf", "-.inf", ".nan", "!!int 1.5", "!!float abc", "!!int 5",
+		"1.8e308", "-1.8e308", "1e400", "1e999999999999999999", "1e1000000000000000000", ".inf", "-.inf", ".nan", "!!int 1.5", "!!float abc", "!!int 5",
 		`!!int "5"`, "!<tag:yaml.org,2002:int> 5", "12345678901234567890123",
 		"hello", `"hello"`, "'hello'", `"1.8e308"`, "'42'", "!!str 42", "<<", "|\n  block", ">\n  folded",
 		"2021-1-1", "2021-01-01T10:20:30Z", "!!timestamp 2021-1-1", "!!timestamp notadate",

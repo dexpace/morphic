@@ -168,6 +168,23 @@ func TestNullableWidening_EachShapeReadsByItsVersion(t *testing.T) {
 			inferred(componentID("Node")), ir.TypeRef{Target: componentID("Node")}, at + "/nullable", "no nullable keyword", ""},
 		{"3.1 beside a union", "3.1.0", "{nullable: true, oneOf: [{type: string}, {type: integer}]}", "",
 			inferred(anon), ir.TypeRef{Target: anon}, at + "/nullable", "no nullable keyword", ""},
+		{"3.1 on a null branch beside one other", "3.1.0",
+			"{oneOf: [{$ref: '#/components/schemas/Plain'}, {type: object, enum: [null], nullable: true}]}", "",
+			inferred(componentID("Plain")), ir.TypeRef{Target: anon}, at + "/oneOf/1/nullable", "no nullable keyword", ""},
+		{"3.1 on a null branch beside one admitting null", "3.1.0",
+			`{anyOf: [{type: object, enum: [null], nullable: true}, {type: [string, "null"]}]}`, "",
+			ir.TypeRef{Target: prim(ir.PrimString), Nullable: true}, ir.TypeRef{Target: anon},
+			at + "/anyOf/0/nullable", "no nullable keyword", ""},
+		{"3.1 on a null branch beside two others", "3.1.0",
+			"{oneOf: [{$ref: '#/components/schemas/Plain'}, {$ref: '#/components/schemas/Pet'}, " +
+				"{type: object, enum: [null], nullable: true}]}", "",
+			inferred(anon), ir.TypeRef{Target: anon}, at + "/oneOf/2/nullable", "no nullable keyword", ""},
+		{"3.1 on each branch of a union of null", "3.1.0", "{oneOf: [{type: object, enum: [null], nullable: true}]}", "",
+			inferred(anon), ir.TypeRef{Target: anon}, at + "/oneOf/0/nullable", "no nullable keyword", ""},
+		{"3.0 on a null branch, declared", "3.0.3",
+			"{oneOf: [{$ref: '#/components/schemas/Plain'}, {type: object, enum: [null], nullable: true}]}", "",
+			ir.TypeRef{Target: componentID("Plain"), Nullable: true}, ir.TypeRef{Target: componentID("Plain"), Nullable: true},
+			"", "", ""},
 		{"3.1 beside a union and the properties it intersects with", "3.1.0",
 			"{type: object, nullable: true, properties: {k: {type: string}}, " +
 				"oneOf: [{$ref: '#/components/schemas/Pet'}, {type: object}]}", "",
@@ -201,23 +218,28 @@ func TestNullableWidening_EachShapeReadsByItsVersion(t *testing.T) {
 // TestNullableWidening_AnEnumsNullMemberFollowsTheReadingInForce pins the one
 // lowering besides a reference's bit that asks whether a schema admits null: a
 // null member lifts off an enum onto the reference only where the reading the
-// policy selects admits null. On, the 3.1 schema below admits it and is an Enum
-// of one member; off, its type excludes null, the member stays, and the enum
-// is a union of literals as it would be with no nullable written at all.
+// policy selects admits null. On, the 3.1 schema below admits it, and its
+// reference is nullable; off, its type excludes null, so the member admits
+// nothing and is reported where it is written. Either way the null is no member
+// (docs/compilers/openapi.md#enum-const).
 func TestNullableWidening_AnEnumsNullMemberFollowsTheReadingInForce(t *testing.T) {
 	t.Parallel()
 	src := openapitest.HolderSpec("3.1.0", "{type: string, nullable: true, enum: [a, null]}", "")
 	at := ir.TypeID("t/anon/components/schemas/Holder/properties/p")
+	const member = "/components/schemas/Holder/properties/p/enum/1"
 
-	on, _ := compileNullable(t, src, false)
-	enum, ok := on.Types[at].(*ir.Enum)
-	require.True(t, ok, "the null member lifts onto the reference")
-	require.Len(t, enum.Members, 1)
-	assert.Equal(t, "a", enum.Members[0].Value.Str)
-
-	off, _ := compileNullable(t, src, true)
-	_, isUnion := off.Types[at].(*ir.Union)
-	assert.True(t, isUnion, "the null member stays a member")
+	for _, disabled := range []bool{false, true} {
+		doc, diags := compileNullable(t, src, disabled)
+		enum, ok := doc.Types[at].(*ir.Enum)
+		require.True(t, ok, "the null member is no member, the policy disabled: %v", disabled)
+		require.Len(t, enum.Members, 1)
+		assert.Equal(t, "a", enum.Members[0].Value.Str)
+		holder, ok := doc.Types["t/openapi/components/schemas/Holder"].(*ir.Model)
+		require.True(t, ok)
+		assert.Equal(t, !disabled, holder.Properties[0].Type.Nullable, "the reference admits null only under the policy")
+		assert.Equal(t, disabled, openapitest.HasDiagCodeAt(diags, diag.DegradedConstruct, member),
+			"the null is reported as admitting nothing only where the reading excludes it")
+	}
 }
 
 // chainSpec is a document of the version whose Holder.p reaches end through n
@@ -457,9 +479,9 @@ func TestConst_FixesWhetherTheValueSpaceHoldsNull(t *testing.T) {
 	require.Len(t, props, 2)
 
 	assert.True(t, props["justNull"].Type.Nullable, "a const of null admits null")
-	lit, isLit := doc.Types[props["justNull"].Type.Target].(*ir.Literal)
-	require.True(t, isLit, "the const still lowers to its Literal")
-	assert.Equal(t, ir.Value{Kind: ir.ValueNull}, lit.Value)
+	enum, isEnum := doc.Types[props["justNull"].Type.Target].(*ir.Enum)
+	require.True(t, isEnum, "the const lowers as an enum of null alone does")
+	assert.Empty(t, enum.Members, "the null is the reference's")
 
 	assert.False(t, props["narrowed"].Type.Nullable,
 		"a non-null const conjoins with the type array and takes the null back out")
@@ -947,4 +969,59 @@ func TestSchema_RefNullableAtNonPropertyPosition(t *testing.T) {
 	assert.True(t, list.Elem.Nullable,
 		"a nullable union target lifts to the ref wherever it is used, including a list element")
 	assert.Equal(t, componentID("Target"), list.Elem.Target)
+}
+
+// TestNullAlone_ReadsTheSchemasOwnKeywords holds the predicate a schema of null
+// alone and a union's null branch are read by
+// (docs/compilers/openapi.md#null-alone): own keywords leaving no value but
+// null, and a null admitted as the policy in force reads it. A schema writing a
+// $ref or a combinator beside them admits what those do too, so it is none,
+// whatever its own keywords say.
+func TestNullAlone_ReadsTheSchemasOwnKeywords(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		version, schema string
+		on, off         bool // the predicate with the nullable-widening policy on and off
+	}{
+		{version: "3.1.0", schema: `{type: "null"}`, on: true, off: true},
+		{version: "3.1.0", schema: `{type: ["null"]}`, on: true, off: true},
+		{version: "3.1.0", schema: `{enum: [null]}`, on: true, off: true},
+		{version: "3.0.3", schema: `{enum: [null, null]}`, on: true, off: true},
+		{version: "3.1.0", schema: `{const: null}`, on: true, off: true},
+		{version: "3.1.0", schema: `{type: "null", enum: [null]}`, on: true, off: true},
+		{version: "3.1.0", schema: `{type: [string, "null"], enum: [null]}`, on: true, off: true},
+		{version: "3.1.0", schema: `{type: "null", description: d, x-a: 1}`, on: true, off: true},
+		{version: "3.0.3", schema: `{type: object, enum: [null], nullable: true}`, on: true, off: true},
+		{version: "3.1.0", schema: `{type: object, enum: [null], nullable: true}`, on: true},
+		{version: "3.1.0", schema: `{}`},
+		{version: "3.0.3", schema: `{nullable: true}`},
+		{version: "3.1.0", schema: `{type: [string, "null"]}`},
+		{version: "3.1.0", schema: `{type: string, enum: [null]}`},
+		{version: "3.1.0", schema: `{type: string, const: null}`},
+		{version: "3.1.0", schema: `{type: "null", enum: [null, a]}`},
+		{version: "3.1.0", schema: `{type: "null", enum: []}`},
+		{version: "3.1.0", schema: `{const: null, enum: [null, a]}`},
+		{version: "3.1.0", schema: `{$ref: '#/components/schemas/Nil'}`},
+		{version: "3.1.0", schema: `{$ref: '#/components/schemas/Str', type: "null"}`},
+		{version: "3.1.0", schema: `{type: "null", allOf: [{description: d}]}`},
+		{version: "3.1.0", schema: `{type: "null", oneOf: [{type: string}]}`},
+		{version: "3.1.0", schema: `{type: "null", anyOf: [{type: string}]}`},
+		{version: "3.1.0", schema: `{type: "null", $dynamicRef: '#node'}`},
+	} {
+		t.Run(tc.version+" "+tc.schema, func(t *testing.T) {
+			t.Parallel()
+			src := openapitest.ComponentSpecVer(tc.version, "    Nil: {type: \"null\"}\n    Str: {type: string}\n"+
+				"    Node: {$dynamicAnchor: node, type: string}\n    S: "+tc.schema+"\n")
+			for _, off := range []bool{false, true} {
+				l, _ := schema.LoweredWith(t, src, lowering.Policy{NullableWidening: lowering.NullableWidening{Disabled: off}})
+				js, ok := l.Ctx.Doc.Components.GetSchemas().Get("S")
+				require.True(t, ok)
+				want := tc.on
+				if off {
+					want = tc.off
+				}
+				assert.Equal(t, want, schema.NullAlone(l.Ctx, js.GetSchema()), "policy off: %v", off)
+			}
+		})
+	}
 }

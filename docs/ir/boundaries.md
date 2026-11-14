@@ -61,6 +61,10 @@ are ([`whole-schema-fallbacks`](../compilers/openapi.md#whole-schema-fallbacks),
   [`allof-inline-residue`](../compilers/openapi.md#allof-inline-residue),
   [`allof-redeclared-property`](../compilers/openapi.md#allof-redeclared-property) and
   [`shape-applicator`](../compilers/openapi.md#shape-applicator).
+- **Counts past 64 bits** — a count `Constraints` holds is an `int64` from 0 to 2^63−1
+  ([constraints](./constraints.md#constraints)), and a source count past that has no field. It is
+  kept verbatim under `ReasonDegradedLowering` with an `info` diagnostic where it is written: the
+  OpenAPI compiler's rule is [`constraints`](../compilers/openapi.md#constraints).
 - **TypeSpec `never`-typed properties/variants** — no `never` node exists, so compilers delete
   the member and emit an `info` diagnostic. Nothing is preserved beside it: a `never` member
   admits no value, so there is no content the deletion could lose.
@@ -104,12 +108,15 @@ simply absent from the IR and preserve nothing.
 - **TCGC-style client-shaping decorators** (`@clientName`, `@access`, `@usage`, `@scope`, …) —
   per-language SDK-surface policy, preserved as namespaced entries for emitter policy layers
   ([access](#access) says why `@access` is one and `TypeCommon.Access` is not). A vendor extension
-  stating an operation's sub-client path is the one such hint a compiler reads, and only into the
-  grouping it forms by policy anyway: an OpenAPI `OperationGroup` is a grouping strategy's output,
-  not a declaration, so a strategy reading a declared path changes which fact feeds it, not what the
-  IR models ([`extension-groups`](../compilers/openapi.md#extension-groups)). The reading is opt-in
-  and marked `Inferred`, the extension stays a `vendor_extension` entry, and every other
-  client-shaping key, a method name among them, is left to an emitter's policy layer.
+  stating an operation's sub-client paths, its own or its aliases', is the one such hint a compiler
+  reads, and only into the grouping it forms by policy anyway: an OpenAPI `OperationGroup` is a
+  grouping strategy's output, not a declaration, so a strategy reading a declared path changes which
+  fact feeds it, not what the IR models
+  ([`extension-groups`](../compilers/openapi.md#extension-groups)). The reading is opt-in and marks
+  each operation it files `Inferred`, while a group no operation is filed in, as one only an alias
+  names, carries no mark, since a group has no provenance. The extension stays a `vendor_extension`
+  entry, and every other client-shaping key, a method name and the remount placing an operation
+  under an alias among them, is left to an emitter's policy layer.
 - **Arbitrary GraphQL persisted queries** — the type graph and entry points are retained; query
   composition is a emitters/runtime feature.
 - **Capability/interface-typed fields** (Cap'n Proto capability passing) — requires

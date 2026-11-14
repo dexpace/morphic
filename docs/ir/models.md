@@ -62,17 +62,20 @@ type Discriminator struct {
     Index    *int                  // positional: 0-based tuple element carrying the tag Literal
                                    // (Erlang tagged tuples {ok, V} | {error, R}; JSON arrays with a
                                    // const head via prefixItems)
-    Mapping  map[string]TypeID     // wire value → subtype; nil on a union = infer by type name;
-                                   // a hierarchy routes to each subtype by its DiscriminatorValue
+    Mapping  map[string]TypeID     // wire value → the type it routes to: a union's variant, or a
+                                   // hierarchy's base or subtype; nil on a union = infer by type
+                                   // name, else the routes declared or inferred and the one the
+                                   // source implies to each variant they leave out; a hierarchy
+                                   // routes to each subtype by its DiscriminatorValue
     Default  TypeID                // variant to use when the tag is absent/unrecognized
                                    // (OpenAPI 3.2 defaultMapping); zero = none
     Envelope string                // "" = tag inline in the variant object;
                                    // "object" = {kind, value} wrapper (TypeSpec @discriminated envelope)
     EnvelopeValueName string       // wire name of the envelope's value property (default "value";
                                    // TypeSpec envelopePropertyName); meaningful only when Envelope=="object"
-    Inferred bool                  // discovered heuristically (each variant pins a property to a
-                                   // distinct value), not declared; a heuristic filling only the
-                                   // Mapping of a declared one leaves it false
+    Inferred bool                  // discovered heuristically (each variant pins a property to
+                                   // values no other admits), not declared; a heuristic filling
+                                   // only the Mapping of a declared one leaves it false
 }
 ```
 
@@ -80,6 +83,26 @@ A heuristic that sets `Inferred`, or fills the `Mapping` of a discriminator the 
 with none, names itself in the `Provenance.Inferred` of the node holding the discriminator
 ([provenance](./provenance.md)), as every heuristic does. `Inferred` alone says which half was
 read in: the tag itself, or only where its values route.
+
+On a union, a nil `Mapping` routes each variant by the name of its type, as OpenAPI's implicit
+mapping routes by component name, and one holding an entry routes by its entries alone. So a
+compiler writes into a `Mapping`, beside the entries its source writes, the route the source
+implies to each variant it declares none for, and writes the routes out too where a variant's type
+carries no name the source routes it by, as the OpenAPI compiler does for a variant composed over
+its branch or an alias for a keyword beside its `$ref`
+([`discriminator`](../compilers/openapi.md#discriminator)): a consumer reads a type's name to route
+only where the `Mapping` is nil. Reading a variant's name beside the entries, as OpenAPI's text
+routes a value no entry keys, would keep the IR nearer the source, but a variant whose type carries
+no such name would need its route written all the same, two spellings of one route, and every
+consumer would merge entries and names itself.
+
+A `Mapping` is also what a consumer writing an instance picks the variant's tag from. A source can
+imply a second route to a variant an entry routes: OpenAPI reads every value no entry keys as a
+component name, so a payload tagged `Dog` selects `Dog` beside an entry `dog: Dog`. A map cannot
+mark one of a variant's routes as read and never written, and written in unmarked, the name would
+give the variant a second tag with nothing to say which to write, so a compiler leaves it out, of a
+union's `Mapping` and a hierarchy's alike. A payload carrying it then routes nowhere, or to
+`Default`: the IR has no place yet for a route a consumer reads and never writes (#1863).
 
 A subtype's `DiscriminatorValue` is the tag by which a discriminator on one of its ancestors routes
 to it: a key that discriminator's `Mapping` names it under, or else the name the source routes it
@@ -92,6 +115,17 @@ instead, leaving the field empty where it admits several or none, and names itse
 every subtype of a base pinning its tag to one value does, and that tag then routes to more than
 one. A reading that declined there, as one filling a `Mapping`, which keys one target per tag, must,
 would leave each a tag its own instances reject for an encoder to write.
+
+A model's discriminator routes to its subtypes, and to the model itself where it is not `Abstract`:
+the instances of a concrete base are a payload as its subtypes' are, as an OpenAPI `mapping` may
+name the schema declaring the `discriminator`, and the base's own shape is a variant of every
+reference to it ([a polymorphic base](../emitters/refine/unions.md#a-polymorphic-base)). An
+`Abstract` model has no instance of its own, so `pass.Validate` refuses a route to it from its own
+`Mapping` or `Default` as one to a type that is no variant (`pass/discriminator-missing-variant`).
+The base carries no `DiscriminatorValue` for its own route: that field is the tag a discriminator on
+an ancestor routes a model by, which no ancestor of the base holds, and the base's route is its
+`Mapping` entry, so the fact has one home. `ir.IsSubtype` stays irreflexive: this is a clause of the
+route, not of the subtype relation every other reader of it asks.
 
 ## Composition
 
@@ -281,9 +315,10 @@ short of the limits [below](#an-allof-no-object-satisfies) it is a use of one of
 A `Model` says its value is an object, and `allOf: [{type: integer}, {type: integer, format: int32}]`
 admits none, so it is no composition. An `allOf` no conjunct can make an object lowers to one use of
 the conjunct that decides it, short of the cases the OpenAPI compiler's rule
-[`allof-refinement`](../compilers/openapi.md#allof-refinement) keeps composing, two `$ref`s or a union
-beside the `allOf` among them: a reference to its `$ref`, a node at an inline branch's own pointer,
-and an alias only where the position writes what no carrier holds.
+[`allof-refinement`](../compilers/openapi.md#allof-refinement) keeps composing, two `$ref`s among
+them: a reference to its `$ref`, a node at an inline branch's own pointer, and an alias only where
+the position writes what no carrier holds. A union written beside the `allOf` is one more conjunct,
+as one on a branch is.
 At `cloudflare/api-schemas` @`319dc756` that is 517 of the 3,654 positions lowering an `allOf`, 408 of
 them a single `$ref` entry.
 
@@ -365,12 +400,30 @@ the discriminator routes subtypes rather than variants, and a union of them woul
 base: `S` stays a `Model` holding the discriminator, and the OpenAPI compiler keeps the union
 verbatim ([`union-beside-structure`](../compilers/openapi.md#union-beside-structure)).
 
+Where a discriminator on an ancestor routes to `S`, the route names what `S` lowers to, which a
+`Union` of composed variants would be no subtype of. `S` then stays the `Model` its composition
+lowers to and composes the union by reference, as [below](#a-union-a-composition-names): its last
+`Mixin` names a `Union` of the branches, each the node the branch lowers to alone. No schema
+occupies that `Union`, so it is minted, at the keyword writing the union rather than the branch's
+pointer, which keeps naming the branch's own node. The designs this was weighed against:
+
+- **A mapping naming a `Union` of subtypes**, each variant a subtype of the ancestor: a schema
+  composing `S` would have a `Union` for its `Base` and leave the hierarchy, and every emitter would
+  route one tag to several subtypes.
+- **Distributing and retargeting the route to every variant**: one tag would name several types,
+  where a `Mapping` keys one.
+- **Lowering an `allOf` branch writing the union at its own pointer** and naming that node: the
+  branch would be a referent to every reader of the composition, its own keywords on the union rather
+  than on `S`, while the same union written beside the `allOf` keeps them on `S`, two shapes for one
+  conjunction.
+
 ## A union a composition names
 
 A union a composition names by reference, rather than writing it beside the `allOf` or on one of its
 inline branches, composes as any other referent does ([composition entries](#composition-entries)):
 the `Model` names it as its `Base` or a `Mixin`, declares what the schema writes itself, and
-distributes nothing.
+distributes nothing. So does a union written beside or on the `allOf` of a subtype a discriminator
+routes to, through the `Union` minted for it ([above](#composition-beside-a-union)).
 `Stored: {allOf: [{$ref: Rule}, {properties: {id: …}}]}`, `Rule` a union of `Block` and `Log`, is a
 `Model` whose `Base` is `Rule` and which declares `id`: `Stored ∧ Rule`, as the source writes it.
 Each instance of `Stored` is an instance of one variant of `Rule` carrying `id` beside that
@@ -397,9 +450,9 @@ takes, and the tag a route to it. It was rejected on input the compiler must low
 - **A distant fact would decide it.** A schema a discriminator on one of its ancestors routes to
   stays a subtype of that ancestor (`ir.IsSubtype`), which no `Union` is: in
   `Cat: {allOf: [{$ref: Pet}, {$ref: Breeds}, …]}`, `Pet` routing `Cat` by its name, `Breeds` must
-  stay a `Mixin`. Whether a schema distributed would turn on what another schema declares, as shape
-  6 of [`union-beside-structure`](../compilers/openapi.md#union-beside-structure) lets it for a
-  union written beside the `allOf`.
+  stay a `Mixin`. Whether a schema distributed would turn on what another schema declares, as
+  [`union-beside-structure`](../compilers/openapi.md#union-beside-structure) lets it for a union
+  written beside the `allOf` or on one of its branches.
 - **A shared union would be copied.** Each schema composing a union would carry its own copy of the
   union's variants and discriminator, the golden spec's most shared union ten times over, each
   composed variant a node minted per pair of schema and variant, and no node would say that the

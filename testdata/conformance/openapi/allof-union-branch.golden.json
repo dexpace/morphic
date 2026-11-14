@@ -346,6 +346,46 @@
       "positional": false,
       "inputOnly": false
     },
+    "t/anon/components/schemas/Kennel/properties/resident": {
+      "kind": "union",
+      "id": "t/anon/components/schemas/Kennel/properties/resident",
+      "name": {
+        "hint": "resident"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Kennel/properties/resident"
+      },
+      "variants": [
+        {
+          "name": {
+            "hint": "without_data"
+          },
+          "type": {
+            "target": "t/composed/components/schemas/Kennel/properties/resident/allOf/1/oneOf/0",
+            "nullable": false
+          },
+          "docs": {}
+        },
+        {
+          "name": {
+            "hint": "with_data"
+          },
+          "type": {
+            "target": "t/composed/components/schemas/Kennel/properties/resident/allOf/1/oneOf/1",
+            "nullable": false
+          },
+          "docs": {}
+        }
+      ],
+      "exclusive": true,
+      "wireTagged": false,
+      "closed": true,
+      "inputOnly": false
+    },
     "t/anon/components/schemas/WithoutData/properties/data": {
       "kind": "model",
       "id": "t/anon/components/schemas/WithoutData/properties/data",
@@ -728,6 +768,200 @@
       "positional": false,
       "inputOnly": false
     },
+    "t/composed/components/schemas/Dog/allOf/1/oneOf": {
+      "kind": "union",
+      "id": "t/composed/components/schemas/Dog/allOf/1/oneOf",
+      "name": {
+        "hint": "dog_one_of"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Dog/allOf/1/oneOf"
+      },
+      "variants": [
+        {
+          "name": {
+            "hint": "without_data"
+          },
+          "type": {
+            "target": "t/openapi/components/schemas/WithoutData",
+            "nullable": false
+          },
+          "docs": {}
+        },
+        {
+          "name": {
+            "hint": "with_data"
+          },
+          "type": {
+            "target": "t/openapi/components/schemas/WithData",
+            "nullable": false
+          },
+          "docs": {}
+        }
+      ],
+      "exclusive": true,
+      "wireTagged": false,
+      "closed": true,
+      "inputOnly": false
+    },
+    "t/composed/components/schemas/Kennel/properties/resident/allOf/1/oneOf/0": {
+      "kind": "model",
+      "id": "t/composed/components/schemas/Kennel/properties/resident/allOf/1/oneOf/0",
+      "name": {
+        "hint": "resident_without_data"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Kennel/properties/resident/allOf/1/oneOf/0"
+      },
+      "base": {
+        "target": "t/openapi/components/schemas/Pet",
+        "nullable": false
+      },
+      "mixins": [
+        {
+          "target": "t/openapi/components/schemas/WithoutData",
+          "nullable": false
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/composed/components/schemas/Kennel/properties/resident/allOf/1/oneOf/1": {
+      "kind": "model",
+      "id": "t/composed/components/schemas/Kennel/properties/resident/allOf/1/oneOf/1",
+      "name": {
+        "hint": "resident_with_data"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Kennel/properties/resident/allOf/1/oneOf/1"
+      },
+      "base": {
+        "target": "t/openapi/components/schemas/Pet",
+        "nullable": false
+      },
+      "mixins": [
+        {
+          "target": "t/openapi/components/schemas/WithData",
+          "nullable": false
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/composed/components/schemas/Payment/allOf/1/oneOf/0": {
+      "kind": "model",
+      "id": "t/composed/components/schemas/Payment/allOf/1/oneOf/0",
+      "name": {
+        "hint": "payment_card"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Payment/allOf/1/oneOf/0"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/Payment/allOf/0/properties/amount",
+          "name": {
+            "source": "amount",
+            "canonical": "amount"
+          },
+          "wireName": "amount",
+          "type": {
+            "target": "t/prim/integer",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Payment/allOf/0/properties/amount"
+          }
+        }
+      ],
+      "base": {
+        "target": "t/openapi/components/schemas/Card",
+        "nullable": false
+      },
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/composed/components/schemas/Payment/allOf/1/oneOf/1": {
+      "kind": "model",
+      "id": "t/composed/components/schemas/Payment/allOf/1/oneOf/1",
+      "name": {
+        "hint": "payment_bank"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Payment/allOf/1/oneOf/1"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/Payment/allOf/0/properties/amount",
+          "name": {
+            "source": "amount",
+            "canonical": "amount"
+          },
+          "wireName": "amount",
+          "type": {
+            "target": "t/prim/integer",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Payment/allOf/0/properties/amount"
+          }
+        }
+      ],
+      "base": {
+        "target": "t/openapi/components/schemas/Bank",
+        "nullable": false
+      },
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
     "t/composed/components/schemas/Record/allOf/0/anyOf/0": {
       "kind": "model",
       "id": "t/composed/components/schemas/Record/allOf/0/anyOf/0",
@@ -822,6 +1056,106 @@
       ],
       "base": {
         "target": "t/openapi/components/schemas/WithData",
+        "nullable": false
+      },
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/composed/components/schemas/Refund/allOf/1/oneOf/0": {
+      "kind": "model",
+      "id": "t/composed/components/schemas/Refund/allOf/1/oneOf/0",
+      "name": {
+        "hint": "refund_card"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Refund/allOf/1/oneOf/0"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/Refund/allOf/0/properties/reason",
+          "name": {
+            "source": "reason",
+            "canonical": "reason"
+          },
+          "wireName": "reason",
+          "type": {
+            "target": "t/prim/string",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Refund/allOf/0/properties/reason"
+          }
+        }
+      ],
+      "base": {
+        "target": "t/openapi/components/schemas/Card",
+        "nullable": false
+      },
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/composed/components/schemas/Refund/allOf/1/oneOf/1": {
+      "kind": "model",
+      "id": "t/composed/components/schemas/Refund/allOf/1/oneOf/1",
+      "name": {
+        "hint": "refund_bank"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Refund/allOf/1/oneOf/1"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/Refund/allOf/0/properties/reason",
+          "name": {
+            "source": "reason",
+            "canonical": "reason"
+          },
+          "wireName": "reason",
+          "type": {
+            "target": "t/prim/string",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Refund/allOf/0/properties/reason"
+          }
+        }
+      ],
+      "base": {
+        "target": "t/openapi/components/schemas/Bank",
         "nullable": false
       },
       "abstract": false,
@@ -1064,6 +1398,154 @@
       "closed": true,
       "inputOnly": false
     },
+    "t/openapi/components/schemas/Bank": {
+      "kind": "model",
+      "id": "t/openapi/components/schemas/Bank",
+      "name": {
+        "source": "Bank",
+        "canonical": "bank"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Bank"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/Bank/properties/method",
+          "name": {
+            "source": "method",
+            "canonical": "method"
+          },
+          "wireName": "method",
+          "type": {
+            "target": "t/prim/string",
+            "nullable": false
+          },
+          "required": true,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Bank/properties/method"
+          }
+        },
+        {
+          "id": "p/openapi/components/schemas/Bank/properties/iban",
+          "name": {
+            "source": "iban",
+            "canonical": "iban"
+          },
+          "wireName": "iban",
+          "type": {
+            "target": "t/prim/string",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Bank/properties/iban"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/openapi/components/schemas/Card": {
+      "kind": "model",
+      "id": "t/openapi/components/schemas/Card",
+      "name": {
+        "source": "Card",
+        "canonical": "card"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Card"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/Card/properties/method",
+          "name": {
+            "source": "method",
+            "canonical": "method"
+          },
+          "wireName": "method",
+          "type": {
+            "target": "t/prim/string",
+            "nullable": false
+          },
+          "required": true,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Card/properties/method"
+          }
+        },
+        {
+          "id": "p/openapi/components/schemas/Card/properties/last4",
+          "name": {
+            "source": "last4",
+            "canonical": "last_4"
+          },
+          "wireName": "last4",
+          "type": {
+            "target": "t/prim/string",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Card/properties/last4"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
     "t/openapi/components/schemas/Dog": {
       "kind": "model",
       "id": "t/openapi/components/schemas/Dog",
@@ -1074,25 +1556,6 @@
       "anonymous": false,
       "docs": {},
       "sensitive": false,
-      "unmodeled": {
-        "openapi:allOf/1": {
-          "reason": "degraded_lowering",
-          "value": {
-            "oneOf": [
-              {
-                "$ref": "#/components/schemas/WithoutData"
-              },
-              {
-                "$ref": "#/components/schemas/WithData"
-              }
-            ]
-          },
-          "provenance": {
-            "source": 0,
-            "pointer": "/components/schemas/Dog/allOf/1"
-          }
-        }
-      },
       "provenance": {
         "source": 0,
         "pointer": "/components/schemas/Dog"
@@ -1101,9 +1564,62 @@
         "target": "t/openapi/components/schemas/Pet",
         "nullable": false
       },
+      "mixins": [
+        {
+          "target": "t/composed/components/schemas/Dog/allOf/1/oneOf",
+          "nullable": false
+        }
+      ],
       "abstract": false,
       "positional": false,
       "discriminatorValue": "dog",
+      "inputOnly": false
+    },
+    "t/openapi/components/schemas/Kennel": {
+      "kind": "model",
+      "id": "t/openapi/components/schemas/Kennel",
+      "name": {
+        "source": "Kennel",
+        "canonical": "kennel"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Kennel"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/Kennel/properties/resident",
+          "name": {
+            "source": "resident",
+            "canonical": "resident"
+          },
+          "wireName": "resident",
+          "type": {
+            "target": "t/anon/components/schemas/Kennel/properties/resident",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Kennel/properties/resident"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
       "inputOnly": false
     },
     "t/openapi/components/schemas/Message": {
@@ -1282,6 +1798,55 @@
       "positional": false,
       "inputOnly": false
     },
+    "t/openapi/components/schemas/Payment": {
+      "kind": "union",
+      "id": "t/openapi/components/schemas/Payment",
+      "name": {
+        "source": "Payment",
+        "canonical": "payment"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Payment"
+      },
+      "variants": [
+        {
+          "name": {
+            "hint": "card"
+          },
+          "type": {
+            "target": "t/composed/components/schemas/Payment/allOf/1/oneOf/0",
+            "nullable": false
+          },
+          "docs": {}
+        },
+        {
+          "name": {
+            "hint": "bank"
+          },
+          "type": {
+            "target": "t/composed/components/schemas/Payment/allOf/1/oneOf/1",
+            "nullable": false
+          },
+          "docs": {}
+        }
+      ],
+      "exclusive": true,
+      "wireTagged": true,
+      "discriminator": {
+        "propertyName": "method",
+        "mapping": {
+          "Bank": "t/composed/components/schemas/Payment/allOf/1/oneOf/1",
+          "Card": "t/composed/components/schemas/Payment/allOf/1/oneOf/0"
+        },
+        "inferred": false
+      },
+      "closed": true,
+      "inputOnly": false
+    },
     "t/openapi/components/schemas/Pet": {
       "kind": "model",
       "id": "t/openapi/components/schemas/Pet",
@@ -1374,6 +1939,55 @@
       ],
       "exclusive": false,
       "wireTagged": false,
+      "closed": true,
+      "inputOnly": false
+    },
+    "t/openapi/components/schemas/Refund": {
+      "kind": "union",
+      "id": "t/openapi/components/schemas/Refund",
+      "name": {
+        "source": "Refund",
+        "canonical": "refund"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Refund"
+      },
+      "variants": [
+        {
+          "name": {
+            "hint": "card"
+          },
+          "type": {
+            "target": "t/composed/components/schemas/Refund/allOf/1/oneOf/0",
+            "nullable": false
+          },
+          "docs": {}
+        },
+        {
+          "name": {
+            "hint": "bank"
+          },
+          "type": {
+            "target": "t/composed/components/schemas/Refund/allOf/1/oneOf/1",
+            "nullable": false
+          },
+          "docs": {}
+        }
+      ],
+      "exclusive": true,
+      "wireTagged": true,
+      "discriminator": {
+        "propertyName": "method",
+        "mapping": {
+          "Bank": "t/composed/components/schemas/Refund/allOf/1/oneOf/1",
+          "Card": "t/composed/components/schemas/Refund/allOf/1/oneOf/0"
+        },
+        "inferred": false
+      },
       "closed": true,
       "inputOnly": false
     },
@@ -1566,11 +2180,38 @@
     },
     {
       "severity": "info",
-      "code": "openapi/degraded-construct",
-      "message": "inline allOf branch is merged in place, and nothing reads the rest of it; the branch (oneOf) is kept verbatim under Unmodeled",
+      "code": "openapi/composition-lowering",
+      "message": "oneOf/anyOf written on an allOf branch of a schema a discriminator routes to as its subtype; the union is composed as a mixin of the model",
       "provenance": {
         "source": 0,
-        "pointer": "/components/schemas/Dog/allOf/1"
+        "pointer": "/components/schemas/Dog"
+      }
+    },
+    {
+      "severity": "info",
+      "code": "openapi/composition-lowering",
+      "message": "oneOf/anyOf written on an allOf branch conjoins with the rest of the composition; the composition is distributed across the union variants",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Kennel/properties/resident"
+      }
+    },
+    {
+      "severity": "info",
+      "code": "openapi/composition-lowering",
+      "message": "oneOf/anyOf written on an allOf branch conjoins with the rest of the composition; the composition is distributed across the union variants",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Payment"
+      }
+    },
+    {
+      "severity": "info",
+      "code": "openapi/composition-lowering",
+      "message": "oneOf/anyOf written on an allOf branch conjoins with the rest of the composition; the composition is distributed across the union variants",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Refund"
       }
     },
     {
@@ -1587,7 +2228,7 @@
     {
       "format": "openapi@3.1",
       "path": "allof-union-branch.yaml",
-      "hash": "7f14b278a682f3536dff0c0a0a399957341a04dfecd912ff598e38614df8ba0c"
+      "hash": "af4028c528c012bfc5e97434ef9c1e77a2cd3b0b4f0a683969611426bd7d9bc9"
     }
   ]
 }

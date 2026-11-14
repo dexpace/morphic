@@ -516,6 +516,48 @@ func assertAllOfNarrowingRedeclaration(t *testing.T, doc *ir.Document, diags []i
 	assertInadmissibleDefault(t, doc, diags)
 	assertNarrowingChainsAndScalars(t, doc, diags)
 	assertRefusedLateDefault(t, doc, diags)
+	assertEnumsAndAliasesMeet(t, doc, diags)
+}
+
+// assertEnumsAndAliasesMeet holds the enums of different value types and the
+// aliases beside a node they meet: each field is the enum or the list holding
+// what every declaration says, in either order, with no diagnostic.
+func assertEnumsAndAliasesMeet(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
+	t.Helper()
+	enumOf := func(model string) *ir.Enum {
+		p := narrowedProp(t, doc, model)
+		assert.Empty(t, p.Unmodeled, "%s: nothing is kept", model)
+		assert.Empty(t, diagsUnder(diags, "/components/schemas/"+model+"/"), "%s: no diagnostic", model)
+		target := p.Type.Target
+		if l, ok := doc.Types[target].(*ir.List); ok {
+			target = l.Elem.Target
+		}
+		e, ok := doc.Types[target].(*ir.Enum)
+		require.True(t, ok, "%s: an enum", model)
+		return e
+	}
+	values := func(e *ir.Enum) []ir.Value {
+		out := make([]ir.Value, len(e.Members))
+		for k, m := range e.Members {
+			out[k] = m.Value
+		}
+		return out
+	}
+	one := []ir.Value{{Kind: ir.ValueNumber, Num: "1"}}
+	for _, model := range []string{"EnumValueTypeWideFirst", "EnumValueTypeNarrowFirst", "EnumValueTypesMeet"} {
+		e := enumOf(model)
+		assert.Equal(t, ir.PrimInteger, e.ValueType, "%s: of the narrower value type", model)
+		assert.Equal(t, one, values(e), model)
+	}
+	bc := []ir.Value{{Kind: ir.ValueString, Str: "b"}, {Kind: ir.ValueString, Str: "c"}}
+	for _, model := range []string{"AliasMeetsFirst", "AliasMeetsLast"} {
+		e := enumOf(model)
+		assert.Equal(t, bc, values(e), model)
+		assert.Equal(t, "Letters", e.Docs.Description, "%s: with what the alias adds", model)
+	}
+	for _, model := range []string{"AliasedListMeetsFirst", "AliasedListMeetsLast"} {
+		assert.Equal(t, bc, values(enumOf(model)), model)
+	}
 }
 
 // assertNarrowingChainsAndScalars pins the three-branch chain with its
@@ -1310,14 +1352,14 @@ func assertKeptRaw(t *testing.T, p ir.Unmodeled, key, want string) {
 	assert.JSONEq(t, want, string(entry.Value))
 }
 
-// assertNullOnlyUnion covers a oneOf/anyOf whose only branches are a bare
-// `type: null` schema: one branch, two, either combinator, and both declared at
-// once with the elected one null-only. With no non-null branch to collapse onto,
-// buildUnion would strip every branch as a null marker and intern a Union with
-// no variants, which irverify rejects as ir/union-no-variants (GitHub #416).
-// Such a set admits only null, as a bare `{type: null}` does, so it lowers the
-// same way: the shared `any` primitive with Nullable set, the combinators kept
-// verbatim under Unmodeled because the Scalar has no field for them.
+// assertNullOnlyUnion covers a oneOf/anyOf whose only branches admit null
+// alone: one branch, two, either combinator, the other spellings of the null,
+// and both combinators declared at once with the elected one null-only. With no
+// other branch to collapse onto, buildUnion would strip every branch and intern
+// a Union with no variants, which irverify rejects as ir/union-no-variants
+// (GitHub #416). Such a set admits only null, as `{type: null}` does, so it
+// lowers the same way: an Enum with no member behind a nullable reference, the
+// combinators kept verbatim because the Enum has no field for them.
 func assertNullOnlyUnion(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
 	cases := []struct {
 		name string
@@ -1327,10 +1369,11 @@ func assertNullOnlyUnion(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) 
 		{"AnyOfNull", "openapi:anyOf", `[{"type":"null"}]`},
 		{"OneOfNull", "openapi:oneOf", `[{"type":"null"}]`},
 		{"AnyOfTwoNull", "openapi:anyOf", `[{"type":"null"},{"type":"null"}]`},
+		{"OtherSpellings", "openapi:oneOf", `[{"enum":[null]},{"const":null}]`},
 	}
 	for _, tc := range cases {
-		s := assertNullOnlyScalar(t, doc, tc.name)
-		assertKeptRaw(t, s.Unmodeled, tc.key, tc.raw)
+		e := assertNullOnlyEnum(t, doc, tc.name)
+		assertKeptRaw(t, e.Unmodeled, tc.key, tc.raw)
 		assert.Equal(t, []ir.Severity{ir.SeverityInfo},
 			diagsAt(diags, "openapi/degraded-construct", "/components/schemas/"+tc.name),
 			"%s announces the degraded lowering", tc.name)
@@ -1343,28 +1386,32 @@ func assertNullOnlyUnion(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) 
 	// the union path's usual way of keeping a passed-over combinator. Both
 	// keywords must therefore come from preserveBranchSets's own loop over
 	// both, not from that mechanism.
-	both := assertNullOnlyScalar(t, doc, "BothNull")
+	both := assertNullOnlyEnum(t, doc, "BothNull")
 	assertKeptRaw(t, both.Unmodeled, "openapi:oneOf", `[{"type":"null"}]`)
 	assertKeptRaw(t, both.Unmodeled, "openapi:anyOf", `[{"type":"null"}]`)
 	assert.Equal(t, []ir.Severity{ir.SeverityInfo},
 		diagsAt(diags, "openapi/degraded-construct", "/components/schemas/BothNull"),
 		"BothNull announces the degraded lowering once, for both kept keywords")
+
+	holder, ok := doc.Types[componentID("Holder")].(*ir.Model)
+	require.True(t, ok)
+	require.Len(t, holder.Properties, len(cases)+1)
+	for _, p := range holder.Properties {
+		assert.True(t, p.Type.Nullable, "%s: the null-only branch set lifts onto the reference", p.WireName)
+	}
 }
 
-// assertNullOnlyScalar requires doc.Types[name] to be the scalar over `any`
-// with Nullable set that a null-only union — and a bare `{type: null}` schema
-// at the same position — both lower to.
-func assertNullOnlyScalar(t *testing.T, doc *ir.Document, name string) *ir.Scalar {
+// assertNullOnlyEnum requires doc.Types[name] to be the Enum with no member a
+// null-only union, and a bare `{type: null}` schema at the same position, both
+// lower to (docs/compilers/openapi.md#null-alone).
+func assertNullOnlyEnum(t *testing.T, doc *ir.Document, name string) *ir.Enum {
 	t.Helper()
-	s, ok := doc.Types[componentID(name)].(*ir.Scalar)
-	require.True(t, ok, "%s lowers to a scalar over any, the same node a bare "+
-		"`{type: null}` schema at this position would", name)
-	require.NotNil(t, s.Base)
-	assert.Equal(t, ir.TypeID("t/prim/any"), s.Base.Target)
-	assert.True(t, s.Base.Nullable,
-		"%s: the null-only branch set lifts onto the reference the way a bare "+
-			"{type: null} schema's does", name)
-	return s
+	e, ok := doc.Types[componentID(name)].(*ir.Enum)
+	require.True(t, ok, "%s lowers to an Enum, the node a bare `{type: null}` schema at this "+
+		"position would, got %T", name, doc.Types[componentID(name)])
+	assert.Empty(t, e.Members, "%s holds no value but the null its references admit", name)
+	assert.True(t, e.Closed, name)
+	return e
 }
 
 // assertCoDeclaredSchemaContent covers the election at the other pair of
@@ -1640,9 +1687,10 @@ func assertNullKeywords(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
 	require.True(t, ok)
 	c, ok := propByWire(values, "c")
 	require.True(t, ok)
-	literal, ok := doc.Types[c.Type.Target].(*ir.Literal)
-	require.True(t, ok, "a null const is the value it says")
-	assert.Equal(t, ir.ValueNull, literal.Value.Kind)
+	enum, ok := doc.Types[c.Type.Target].(*ir.Enum)
+	require.True(t, ok, "a null const is an enum of null alone")
+	assert.Empty(t, enum.Members)
+	assert.True(t, c.Type.Nullable, "the reference holds the null")
 	d, ok := propByWire(values, "d")
 	require.True(t, ok)
 	require.NotNil(t, d.Default)
@@ -1652,16 +1700,21 @@ func assertNullKeywords(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
 // assertDiscriminatorAliasedBranch pins that a mapping naming the type a
 // variant aliases routes to that variant, by a keyword of any kind beside the
 // branch's $ref and by a mapping spelled as a reference or a bare name, and that
-// a target naming a variant itself stays on it.
+// a target naming a variant itself stays on it. A mapping leaving a variant out
+// holds the route OpenAPI implies to it, and so does one the source does not
+// write where a variant's alias carries no name to route by.
 func assertDiscriminatorAliasedBranch(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
-	for name, key := range map[string]string{"Pet": "cat", "Unknown": "cat"} {
+	for name, key := range map[string]string{"Pet": "cat", "Unknown": "cat", "Implied": "Cat"} {
 		u, ok := typeByName(doc, name).(*ir.Union)
 		require.True(t, ok, name)
 		require.NotNil(t, u.Discriminator, name)
 		assert.Equal(t, u.Variants[0].Type.Target, u.Discriminator.Mapping[key], name)
 		assert.NotEqual(t, componentID("Cat"), u.Variants[0].Type.Target, "%s: the branch keeps its alias", name)
 	}
-	pet, ok := typeByName(doc, "Pet").(*ir.Union)
-	require.True(t, ok)
-	assert.Equal(t, componentID("Dog"), pet.Discriminator.Mapping["dog"])
+	for name, key := range map[string]string{"Pet": "dog", "Unknown": "Dog", "Implied": "Dog"} {
+		u, ok := typeByName(doc, name).(*ir.Union)
+		require.True(t, ok, name)
+		assert.Len(t, u.Discriminator.Mapping, 2, name)
+		assert.Equal(t, componentID("Dog"), u.Discriminator.Mapping[key], name)
+	}
 }

@@ -26,17 +26,38 @@ type Constraints struct {
 }
 ```
 
+Constraints speak of the value, the instance of the node's logical type, and never of its wire form
+([the type table](../emitters/contract/type-table.md#a-row-keyed-by-an-encoding)). Under an
+[encoding](#encodings) that turns the value into another primitive, a bound the source wrote of the
+wire form is no bound of the value: the length or the pattern of the text an `int64` travels as
+bounds no `int64`, and a source's numeric bound written beside that text, which JSON Schema applies
+to no string, bounds nothing it says. A compiler keeps such a bound verbatim
+([boundaries](./boundaries.md)) rather than move it onto the value, as the OpenAPI compiler does for
+a number carried as text ([`string-formats`](../compilers/openapi.md#string-formats)); it still
+holds a length or pattern written beside `format: byte` or `base64url` as a bound of the bytes, one
+written beside `format: http-date`, or a numeric bound beside `format: unixtime`, as a bound of the
+instant, and one written beside a reference to a number carried as text as a bound of the number
+(#1851).
+
+A count field, `MinLength`, `MaxLength`, `MinItems`, `MaxItems`, `MinProps` or `MaxProps`, holds a
+count from 0 to 2^63−1. A source may write a larger one, as JSON Schema's counts have no upper limit:
+it reaches no field and is kept verbatim under `Unmodeled` with `ReasonDegradedLowering`
+([degraded constructs](./boundaries.md#degraded-constructs)), so an absent count beside such an
+entry bounds nothing less than the entry does.
+
 ## Encodings
 
 ```go
 type Encoding struct {
     Name     string    // "rfc3339" | "unixTimestamp" | "base64" | "base64url" | "iso8601" |
                        // "seconds" | "http-date" | "varint" | "zigzag" | "fixed" |
-                       // "packed" | "expanded" | "delimited" | format strings
+                       // "packed" | "expanded" | "delimited" | "string" | format strings
                        // (packed/expanded are container encodings on List.Encoding; "delimited" =
-                       // protobuf group / editions DELIMITED message encoding)
-    WireType *TypeRef  // the on-wire primitive when it differs from the logical type
-                       // (utcDateTime encoded as int32; bytes as base64 string)
+                       // protobuf group / editions DELIMITED message encoding; "string" = a number
+                       // written as the text of its value)
+    WireType *TypeRef  // the on-wire primitive when the encoding turns the logical value into
+                       // another (utcDateTime encoded as int32; bytes, or a number, as a string;
+                       // over a string, text the encoding is applied to)
     MediaType string   // content media type of the value itself (Smithy @mediaType on string/blob,
                        // JSON Schema contentMediaType); "" = none
     Schema   *TypeRef  // the shape the encoded value has once decoded (JSON Schema contentSchema):
@@ -45,7 +66,18 @@ type Encoding struct {
 ```
 
 The logical-type / encoding-name / wire-type triple is TCGC's reification of TypeSpec `@encode`
-and also absorbs OpenAPI `format` and Protobuf's `sint*/fixed*` wire variants. `MediaType` and
+and also absorbs OpenAPI `format` and Protobuf's `sint*/fixed*` wire variants. It has one
+orientation: a scalar's `Base` is the logical type, the value a caller holds, and `WireType` the
+primitive the encoding turns it into on the wire, so `bytes` under `base64` and an `int64` under
+`string`, the number written as the text of its value, both travel as a `string`, as OpenAPI's
+`format: byte` and `type: string, format: int64` write them. Over a `string` the logical and the wire
+primitive are one, and `WireType` is what tells the two directions apart. Absent, the string is the
+encoded text already, as JSON Schema defines `contentEncoding`, and a consumer passes it through. A
+`WireType` of `string` makes it text the encoding is applied to on its way to the wire, as Smithy
+sends a `@mediaType` string in a header: its UTF-8 octets, encoded. The other spelling of that
+header, a `bytes` position under `base64`, was weighed and not taken: the header would then name a
+type of its own where it binds the string shape every other use names, and only the position's own
+`Encoding`, overriding the shape's, says how it travels there. `MediaType` and
 `Schema` sit beside it because they answer the same question one level in: what the encoded value
 *is*. `Schema` is a `TypeRef` like any other schema position — the decoded shape is hoisted into
 the registry at its own source pointer, never carried here as a raw payload. Encoding attaches

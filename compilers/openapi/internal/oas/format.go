@@ -26,7 +26,7 @@ func validFormat(format Format, s string) bool {
 		return validEmail(s)
 	case ComponentName:
 		return validComponentName(s)
-	case Token:
+	case Token, FieldName:
 		return validToken(s)
 	case AuthScheme:
 		return s == "" || validToken(s)

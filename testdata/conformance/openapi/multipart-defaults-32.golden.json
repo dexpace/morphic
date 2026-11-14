@@ -165,6 +165,7 @@
                       "target": "t/prim/any",
                       "nullable": false
                     },
+                    "stream": {},
                     "item": {
                       "target": "t/anon/paths/~1stream/post/requestBody/content/multipart~1mixed/itemSchema",
                       "nullable": false

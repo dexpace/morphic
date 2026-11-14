@@ -7,6 +7,7 @@ import (
 	"encoding/json/jsontext"
 	"fmt"
 	"maps"
+	"path/filepath"
 	"slices"
 	"strconv"
 	"strings"
@@ -1403,6 +1404,24 @@ components:
 			kept: []unkeyedEntry{{name: "ghost", value: pngEntry}},
 		},
 		{
+			name: "a 3.2 media type component holding a binary string body",
+			doc: openapitest.PathsSpecVer("3.2.0", `  /u:
+    post:
+      operationId: up
+      requestBody:
+        content:
+          multipart/form-data: {$ref: '#/components/mediaTypes/Bin'}
+      responses: {"200": {description: ok}}
+components:
+  mediaTypes:
+    Bin:
+      schema: {type: string, format: binary}
+      encoding: {file: `+pngSource+`}
+`),
+			media: "/components/mediaTypes/Bin", file: true, keyed: map[ir.PropID][]string{},
+			kept: []unkeyedEntry{{name: "file", value: pngEntry}},
+		},
+		{
 			name:  "keys holding a slash and a tilde, in an order that is not sorted",
 			doc:   formDoc("", multipartForm, "{type: object}", "{m~n: "+pngSource+", a/b: {contentType: text/plain}}", ""),
 			media: mfd, keyed: map[ir.PropID][]string{},
@@ -1897,8 +1916,7 @@ func TestPartEncodings_AUnionPastItsBoundIsReported(t *testing.T) {
 // content with its encoding entries in two orders, one document with its two
 // paths in two orders, each writing an entry of the same name, and one whose
 // bodies are components a union keys or no property holds, declared before and
-// after their uses. The Contents come out equal. The order oracle (internal/harness diffOrderInvariants) reads
-// no Content.Unmodeled, so this unit test holds the kept entries instead.
+// after their uses. The Contents come out equal, the entries kept whole included.
 func TestPartEncodings_KeptEntriesDoNotDependOnDeclarationOrder(t *testing.T) {
 	t.Parallel()
 	contents := func(t *testing.T, src string) map[string]ir.Content {
@@ -2041,5 +2059,65 @@ webhooks:
 		assert.Equal(t, []string{"ghost"}, keptEncodingNames(content.Unmodeled), tc.op)
 		assert.Equal(t, unkeyedMessage("ghost"), openapitest.DiagMessageAt(t, diags,
 			diag.DegradedConstruct, ir.SeverityInfo, tc.media+"/encoding/ghost"), tc.op)
+	}
+}
+
+// TestPartEncodings_AKeptEntryIsPlacedInTheDocumentDeclaringIt holds an entry
+// kept whole, of a file body and of a form body, each behind a 3.2 media type
+// $ref into another document, to that document: its record, its info and the
+// warning that its key names no property name the other document and the
+// entry's pointer there, not the $ref's.
+func TestPartEncodings_AKeptEntryIsPlacedInTheDocumentDeclaringIt(t *testing.T) {
+	t.Parallel()
+	const other = `openapi: 3.2.0
+info: {title: O, version: "1"}
+paths: {}
+components:
+  mediaTypes:
+    Bin:
+      schema: {type: string, format: binary}
+      encoding: {file: ` + pngSource + `}
+    Form:
+      schema: {type: object, properties: {a: {type: string}}}
+      encoding: {ghost: ` + pngSource + `}
+`
+	use := func(op, name string) string {
+		return "  /" + op + `:
+    post:
+      operationId: ` + op + `
+      requestBody:
+        content:
+          multipart/form-data: {$ref: 'other.yaml#/components/mediaTypes/` + name + `'}
+      responses: {"204": {description: ok}}
+`
+	}
+	doc, diags := compileMediaTypeUses(t, other, use("bin", "Bin")+use("form", "Form"), true)
+	openapitest.RequireNoErrorDiags(t, diags)
+	documentOf := func(source int) string {
+		if source < 0 || source >= len(doc.Sources) {
+			return fmt.Sprintf("no document (%d)", source)
+		}
+		return filepath.Base(doc.Sources[source].Path)
+	}
+	cases := []struct{ op, name, at, message string }{
+		{"bin", "file", "/components/mediaTypes/Bin/encoding/file", unkeyedFileMessage("file")},
+		{"form", "ghost", "/components/mediaTypes/Form/encoding/ghost", unkeyedMessage("ghost")},
+	}
+	for _, tc := range cases {
+		content := openapitest.FindOp(t, doc, tc.op).Request.Contents[0]
+		rec, ok := content.Unmodeled["openapi:encoding/"+tc.name]
+		if !assert.True(t, ok, "%s: kept; got %v", tc.op, keptEncodingNames(content.Unmodeled)) {
+			continue
+		}
+		assert.Equal(t, "other.yaml "+tc.at, documentOf(rec.Provenance.Source)+" "+string(rec.Provenance.Pointer),
+			"%s: the record is placed where the entry is written", tc.op)
+		var found []string
+		for _, d := range diags {
+			if string(d.Provenance.Pointer) == tc.at {
+				found = append(found, documentOf(d.Provenance.Source)+": "+d.Message)
+			}
+		}
+		assert.Equal(t, []string{"other.yaml: " + tc.message, "other.yaml: " + unknownKeyMessage(tc.name)}, found,
+			"%s: one info and one warning, in the document writing the entry", tc.op)
 	}
 }

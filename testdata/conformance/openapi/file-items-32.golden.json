@@ -86,6 +86,7 @@
                           "target": "t/prim/any",
                           "nullable": false
                         },
+                        "stream": {},
                         "item": {
                           "target": "t/prim/bytes",
                           "nullable": false
@@ -160,6 +161,7 @@
                           "target": "t/prim/any",
                           "nullable": false
                         },
+                        "stream": {},
                         "item": {
                           "target": "t/anon/paths/~1attachments/get/responses/200/content/multipart~1mixed/itemSchema",
                           "nullable": false
@@ -233,6 +235,7 @@
                           "target": "t/prim/any",
                           "nullable": false
                         },
+                        "stream": {},
                         "item": {
                           "target": "t/prim/string",
                           "nullable": false

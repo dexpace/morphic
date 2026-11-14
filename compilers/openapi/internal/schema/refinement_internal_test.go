@@ -160,7 +160,7 @@ func TestValueNulls_ReadsASchemaOnce(t *testing.T) {
 `))
 	v, u := declared(t, l, "V"), declared(t, l, "U")
 	values := valueVerdicts{constant: nullAdmitted, enum: nullAdmitted}
-	union := valueVerdicts{union: nullAdmitted}
+	union := valueVerdicts{union: alike(nullAdmitted)}
 	require.Equal(t, values, valueNulls(l.Ctx, v))
 	require.Equal(t, union, valueNulls(l.Ctx, u))
 

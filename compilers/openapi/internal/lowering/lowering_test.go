@@ -176,6 +176,27 @@ func TestRefScope_IsTheContextSeenAsAScope(t *testing.T) {
 	assert.False(t, scope.Declares.Has("Missing"))
 }
 
+// TestRefScope_ReadsTheSourceWhereItLies pins that the scope judges a document
+// part internal against where the source lies, its Location, which the
+// references were read against, and not against the Path the caller handed,
+// which Document.Sources records.
+func TestRefScope_ReadsTheSourceWhereItLies(t *testing.T) {
+	t.Parallel()
+	located := filepath.Join(t.TempDir(), "spec.yaml")
+	doc, _, err := load.Load(t.Context(), 0, compilers.Source{Path: "spec.yaml", Location: located,
+		Data: []byte(openapitest.ComponentSpec("    User: {type: object}\n"))}, load.Options{})
+	require.NoError(t, err)
+	require.NotNil(t, doc)
+
+	scope := lowering.New(0, doc, lowering.Policy{}).RefScope()
+
+	assert.Equal(t, located, scope.SelfPath)
+	_, internal := scope.InternalPointer(located + "#/components/schemas/User")
+	assert.True(t, internal, "a $ref naming the source where it lies is internal")
+	_, internal = scope.InternalPointer("spec.yaml#/components/schemas/User")
+	assert.True(t, internal, "and so is one naming it relatively, read against where it lies")
+}
+
 // bindingsSpec declares a component schema whose $ref lands on another, for
 // the tests that follow the bindings a context carries.
 const bindingsSpec = `openapi: 3.1.0
@@ -307,6 +328,30 @@ func TestRemembered_KeepsWhatAReadingRemembers(t *testing.T) {
 	assert.Equal(t, 2, lowering.Remembered(c, "outer", outer))
 	assert.Equal(t, 1, lowering.Remembered(c, "inner", inner))
 	assert.Equal(t, 2, reads, "inner was read once, within outer")
+}
+
+// TestSettled_BuildsOneStorePerRun pins that a store is built once for every
+// copy of a context, one for each type of store, and afresh for another
+// context, whose settlements read another registry.
+func TestSettled_BuildsOneStorePerRun(t *testing.T) {
+	t.Parallel()
+	type counts struct{ n int }
+	type names struct{ s string }
+	builds := 0
+	build := func() *counts {
+		builds++
+		return &counts{n: builds}
+	}
+	c := loweringtest.Context(t, bindingsSpec, lowering.Policy{})
+
+	first := lowering.Settled(c, build)
+	assert.Same(t, first, lowering.Settled(c.InScope(c.RefScope().InSource()), build), "a copy shares c's store")
+	assert.Equal(t, &names{s: "n"}, lowering.Settled(c, func() *names { return &names{s: "n"} }),
+		"another type of store is another store")
+	assert.Same(t, first, lowering.Settled(c, build), "a store of another type replaces none")
+	other := lowering.Settled(loweringtest.Context(t, bindingsSpec, lowering.Policy{}), build)
+	assert.NotSame(t, first, other, "another context builds its own")
+	assert.Equal(t, 2, builds, "one store of a type per run")
 }
 
 // TestScoped_KeysAPositionByTheScopeItIsReadIn pins the key a position is

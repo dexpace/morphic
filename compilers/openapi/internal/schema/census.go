@@ -68,18 +68,22 @@ func keywordHome(td ir.TypeDef, s *oas3.Schema, keyword string) bool {
 		// keeps (PreserveUnknownKeywords).
 		_, listed := listedItems(s)
 		return isKind(td, ir.KindTuple) || !listed
-	case "maxItems", "minItems", "uniqueItems":
-		// Either collection node, since collectionConstraints fills both. That is
-		// also why valueConstraintKeywords leaves them out, which puts them in this
-		// census rather than in declaredConstraints.
+	case "maxItems", "minItems":
+		// Either collection node, since collectionConstraints fills both, or a
+		// reference's alias or carrier, unless the count is one no field states.
+		// That is also why valueConstraintKeywords leaves them out, which puts them
+		// in this census rather than in declaredConstraints.
+		return (holdsCollectionBounds(td) || ir.IsNilTypeDef(td)) && !keptCount(s, keyword, countOf(s, keyword))
+	case "uniqueItems":
 		return holdsCollectionBounds(td) || (ir.IsNilTypeDef(td) && referenceHolds(s, keyword))
 	case "const":
 		// Any counts as well as Literal. hoistLiteral degrades a value ir.Value
 		// cannot represent to the top type and reports it, so the const was read
 		// — badly, and already announced — rather than left unread. Claiming it
 		// here would report one keyword twice, the second time as an error, since
-		// a value no converter can read is one no preserver can read either.
-		return isKind(td, ir.KindLiteral) || isKind(td, ir.KindAny)
+		// a value no converter can read is one no preserver can read either. A
+		// null is an Enum with no member (nullConst).
+		return isKind(td, ir.KindLiteral) || isKind(td, ir.KindAny) || nullConstHome(td, s)
 	case "enum":
 		// Any counts here for the reason it counts for const: lowerEnum degrades a
 		// member set past the caller's budget to the top type and reports it, so
@@ -97,6 +101,13 @@ func keywordHome(td ir.TypeDef, s *oas3.Schema, keyword string) bool {
 	default:
 		return false
 	}
+}
+
+// nullConstHome reports whether td is the Enum with no member a `const: null`
+// lowers to (nullConst).
+func nullConstHome(td ir.TypeDef, s *oas3.Schema) bool {
+	e, ok := td.(*ir.Enum)
+	return ok && e != nil && len(e.Members) == 0 && isNullValue(s.GetConst())
 }
 
 // discriminatorHome reports whether td holds the discriminator its position
@@ -152,15 +163,25 @@ func formatHome(td ir.TypeDef, s *oas3.Schema) bool {
 }
 
 // typeHome reports whether every shape s's declared type set names is a shape td
-// can be. One that td cannot be was read by nothing: the walk built a different
-// shape, so `type: string` beside an allOf that composed a Model states something
-// the IR no longer holds.
+// can be. One td cannot be was read by nothing: the walk built a different
+// shape, so `type: string` beside an allOf composing a Model states what the IR
+// no longer holds.
 //
-// A type set that reduces to nothing — `type: "null"` on its own — is carried by
-// TypeRef.Nullable rather than by a node, so it is homed wherever it is written.
+// A type naming only null says only what TypeRef.Nullable carries, so it is
+// homed wherever it is written (docs/compilers/openapi.md#null-alone). An Enum
+// answers by its members: a type one of them is not of reached no field, and an
+// Enum of none has nothing to type.
 func typeHome(td ir.TypeDef, s *oas3.Schema) bool {
 	if lit, ok := td.(*ir.Literal); ok {
 		return literalTyped(lit, s)
+	}
+	if e, ok := td.(*ir.Enum); ok {
+		if len(e.Members) == 0 {
+			return true
+		}
+		if !membersTyped(e.Members, s) {
+			return false
+		}
 	}
 	for _, st := range effectiveTypes(s) {
 		if !typeShapedBy(td, st) {
@@ -172,14 +193,15 @@ func typeHome(td ir.TypeDef, s *oas3.Schema) bool {
 
 // literalTyped reports whether lit holds the type s declares: its ValueType is
 // the primitive that one type, or the type and format, select, which
-// literalValueType took because the value is one of it, or the type is the
-// object or array a composite value already is. A type set naming no shape is
-// TypeRef.Nullable's, as typeHome says; one naming several, or a type the
+// literalValueType took because the value is one of it, or a format of the
+// type, as bytes is of string, or the type is the object or array a composite
+// value already is. A type set naming no shape is TypeRef.Nullable's, as
+// typeHome says, where it admits the value; one naming several, or a type the
 // value is not, reached no field.
 func literalTyped(lit *ir.Literal, s *oas3.Schema) bool {
 	types := effectiveTypes(s)
 	if len(types) == 0 {
-		return true
+		return typesAdmit(s.GetType(), lit.Value)
 	}
 
 	if len(types) > 1 {
@@ -203,15 +225,24 @@ func literalTyped(lit *ir.Literal, s *oas3.Schema) bool {
 	}
 
 	prim, known := spelling.Lookup(string(types[0]))
-	return known && prim == lit.ValueType
+	return known && narrowsOrIs(lit.ValueType, prim)
+}
+
+// membersTyped reports whether every member of an Enum is a value of the type
+// set s declares, which then says nothing the members do not. One a member is
+// no value of is a type the Enum's ValueType does not take (enumValueType).
+func membersTyped(members []ir.EnumMember, s *oas3.Schema) bool {
+	types := s.GetType()
+	return !slices.ContainsFunc(members, func(m ir.EnumMember) bool { return !typesAdmit(types, m.Value) })
 }
 
 // typeShapedBy reports whether td is a node kind that carries the shape st names.
 //
 // An Enum carries a scalar type in ValueType, which enumValueType fills from
-// exactly that type set. A Literal is typeHome's to judge, since what it holds
-// depends on the format beside the type. Any admits every shape, so it
-// contradicts none; External and keywordHome's nil td carry no shape.
+// that type set where its members are values of it. A Literal is typeHome's to
+// judge, since what it holds depends on the format beside the type. Any admits
+// every shape, so it contradicts none; External and keywordHome's nil td carry
+// no shape.
 func typeShapedBy(td ir.TypeDef, st oas3.SchemaType) bool {
 	switch td.(type) {
 	case *ir.Model, *ir.MapT:
@@ -332,7 +363,7 @@ func referenceOutcomeKeywords(c lowering.Ctx, s *oas3.Schema, pointer jsontext.P
 	if hasUnionSiblings(c, s) {
 		return nil, ""
 	}
-	if _, _, collapses := nullUnionCollapse(s, ""); !collapses {
+	if _, _, collapses := nullUnionCollapse(c, s, ""); !collapses {
 		return nil, ""
 	}
 	return unhomedKeywords(s, nil, branchesSay(c, s)), collapsedShape
@@ -360,8 +391,12 @@ func preserveUnhomedKeywords(c lowering.Ctx, ts *compile.Types, s *oas3.Schema, 
 	unhomed := unhomedKeywords(s, td, slices.Concat(d.skipped, d.said))
 	if owns == id && !constraintsHome(td) {
 		// No alias will be hoisted over a node the position already owns, so the
-		// bounds it wrote reach no Constraints field anywhere.
-		unhomed = append(unhomed, declaredConstraints(s)...)
+		// bounds it wrote reach no Constraints field anywhere, but for one a
+		// reader already accounts for (unreadBounds). One carrying a number as
+		// text kept them itself (textBounds).
+		if !carriesNumberAsText(td) {
+			unhomed = append(unhomed, unreadBounds(s, []ir.TypeDef{td})...)
+		}
 	}
 	if len(unhomed) == 0 && len(d.skipped) == 0 {
 		return id, diags
@@ -376,6 +411,20 @@ func preserveUnhomedKeywords(c lowering.Ctx, ts *compile.Types, s *oas3.Schema, 
 	return owner, append(diags, recordSkippedFamilies(c, ts, owner, s, d, pointer)...)
 }
 
+// unreadBounds returns the value constraints s writes (declaredConstraints) that
+// no reader accounts for, in order: what the reader of a node's bounds kept and
+// reported, a count no field states (keepCounts) or a 3.0 exclusive modifier
+// with no bound beside it, which a node of nodes keeps, and a count the load
+// phase refuses (refusedCount) are not kept and reported a second time.
+func unreadBounds(s *oas3.Schema, nodes []ir.TypeDef) []string {
+	return slices.DeleteFunc(declaredConstraints(s), func(keyword string) bool {
+		return refusedCount(s, keyword) || slices.ContainsFunc(nodes, func(td ir.TypeDef) bool {
+			_, kept := td.Common().Unmodeled[annotation.EntryKey("", keyword)]
+			return kept
+		})
+	})
+}
+
 // refSiteShape describes what a $ref position's own declaration lowers to, for
 // the diagnostic recordUnhomedAt reports.
 const refSiteShape = "an alias over its $ref target"
@@ -384,11 +433,14 @@ const refSiteShape = "an alias over its $ref target"
 func nodeShape(kind ir.TypeKind) string { return fmt.Sprintf("a node of kind %q", kind) }
 
 // positionShape is nodeShape for the node td, the position's declaration s
-// lowered to. An Enum's ValueType is the home of any format the table pairs, so
-// an enum that left one verbatim says its members are why: its kind alone would
-// deny the home.
+// lowered to. An Enum's ValueType is the home of its type and of any format the
+// table pairs, so an enum that left one verbatim says its members are why: its
+// kind alone would deny the home.
 func positionShape(td ir.TypeDef, s *oas3.Schema) string {
 	if e, ok := td.(*ir.Enum); ok {
+		if !membersTyped(e.Members, s) {
+			return "an enum whose members are not all values of its declared type"
+		}
 		if prim, paired := formatPrimitive(s); paired && !enumMembersAre(e.Members, prim) {
 			return fmt.Sprintf("an enum whose members are not all values of %s", prim)
 		}
@@ -431,7 +483,7 @@ func preserveVariantsUnhomed(c lowering.Ctx, ts *compile.Types, s *oas3.Schema, 
 	}
 	unhomed := unhomedAcross(s, nodes, handled)
 	if !slices.ContainsFunc(nodes, constraintsHome) {
-		unhomed = append(unhomed, declaredConstraints(s)...)
+		unhomed = append(unhomed, unreadBounds(s, nodes)...)
 	}
 	return append(diags, recordUnhomedKeywords(c, ts, id, s, unhomed, shape, pointer)...)
 }
@@ -450,7 +502,9 @@ func recordUnhomedKeywords(c lowering.Ctx, ts *compile.Types, owner ir.TypeID, s
 	return append(diags, recordUnhomedAt(c, &td.Common().Unmodeled, s, unhomed, shape, pointer)...)
 }
 
-// recordUnhomedAt keeps each unhomed keyword verbatim in p and reports them once.
+// recordUnhomedAt keeps each unhomed keyword verbatim in p and reports them once,
+// a collection count no field states (keptCount) apart from the rest, as
+// keepCounts reports a value count.
 //
 // It names the keywords it actually stored, never the ones it was handed, so the
 // message cannot claim one that failed to convert and was reported unpreservable
@@ -465,6 +519,13 @@ func recordUnhomedAt(c lowering.Ctx, p *ir.Unmodeled, s *oas3.Schema, unhomed []
 		if ok {
 			kept = append(kept, keyword)
 		}
+	}
+	counts := slices.DeleteFunc(slices.Clone(kept), func(keyword string) bool {
+		return keyword != "maxItems" && keyword != "minItems" || !keptCount(s, keyword, countOf(s, keyword))
+	})
+	kept = slices.DeleteFunc(kept, func(keyword string) bool { return slices.Contains(counts, keyword) })
+	if len(counts) > 0 {
+		diags = append(diags, countsKept(c, counts, pointer))
 	}
 	if len(kept) == 0 {
 		return diags
