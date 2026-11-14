@@ -21,11 +21,10 @@ const wide = 12
 
 // soundDocument returns a document Validate finds nothing wrong with, of n
 // entities, each reaching every rule family with collections wider than a map
-// holds unallocated: a model with properties, aliases and a discriminator
-// routing to its subtypes, a union routing to its variants, an enum, a channel
-// on a server with its messages, and an operation binding parameters,
-// paginating to an item property the walk meets before its model, keyed by a
-// token, with multipart request, response, error and default payloads and a
+// holds unallocated: a model of properties, aliases, bounds, defaults and
+// examples a value satisfies, and a discriminator routing to its subtypes, a
+// union, an enum, a channel on a server with its messages, and an operation
+// binding parameters, paginating, with payloads, headers, a scenario and a
 // message binding with a reply.
 func soundDocument(n int) *ir.Document {
 	doc := &ir.Document{
@@ -59,8 +58,11 @@ func addEntityTypes(doc *ir.Document, i int) *ir.Model {
 	for j := range wide {
 		wire := fmt.Sprintf("w%d", j)
 		model.Properties = append(model.Properties, ir.Property{
-			ID: ir.PropID(fmt.Sprintf("p/x/M%d/%s", i, wire)), WireName: wire, Type: str,
-			Name: ir.Naming{Source: wire, Aliases: []string{wire + "a", wire + "b"}},
+			ID: ir.PropID(fmt.Sprintf("p/x/M%d/%s", i, wire)), WireName: wire, Type: str, Required: true,
+			Name:        ir.Naming{Source: wire, Aliases: []string{wire + "a", wire + "b"}},
+			Constraints: &ir.Constraints{MinLength: new(int64(1)), MaxLength: new(int64(10))},
+			Default:     &ir.Value{Kind: ir.ValueString, Str: "d"},
+			Examples:    []ir.Example{{Value: &ir.Value{Kind: ir.ValueString, Str: "e"}}},
 		})
 		sub := &ir.Model{ID: ir.TypeID(fmt.Sprintf("t/x/M%d/S%d", i, j)), Base: &ir.TypeRef{Target: model.ID}}
 		doc.Types[sub.ID] = sub
@@ -108,6 +110,11 @@ func entityOperation(i int, model *ir.Model, messages entityMessages) ir.Operati
 		Errors:    []ir.ErrorCase{{Payload: jsonPayload(model.ID)}},
 		Default:   &ir.Response{Payload: jsonPayload(model.ID), Conditions: ir.ResponseConditions{StatusCodes: []ir.StatusRange{{}}}},
 	}
+	op.Responses[0].Headers = []ir.Header{{
+		ID: ir.PropID(fmt.Sprintf("p/x/O%d/h", i)), Type: ir.TypeRef{Target: "t/prim/string"},
+		Constraints: &ir.Constraints{MinLength: new(int64(1)), MaxLength: new(int64(10))},
+		Default:     &ir.Value{Kind: ir.ValueString, Str: "d"},
+	}}
 	binding := ir.HTTPBinding{SuccessStatus: map[int]int{0: 200}}
 	for j := range wide {
 		id := ir.ParamID(fmt.Sprintf("op/x/O%d/q%d", i, j))
@@ -115,6 +122,9 @@ func entityOperation(i int, model *ir.Model, messages entityMessages) ir.Operati
 		binding.ParamBindings = append(binding.ParamBindings, ir.HTTPParamBinding{Param: id, Location: ir.HTTPLocationQuery})
 	}
 	op.Bindings.HTTP = []ir.HTTPBinding{binding}
+	op.Examples = []ir.Example{{Name: "s", Input: &ir.ScenarioInput{
+		Params: map[ir.ParamID]ir.Value{op.Params[0].ID: {Kind: ir.ValueString, Str: "q"}},
+	}}}
 	op.Pagination = &ir.Pagination{
 		InputCursor: &ir.InputPath{Param: new(op.Params[0].ID)}, InputLimit: &ir.InputPath{Param: new(op.Params[1].ID)},
 		Items: &ir.PropPath{Segments: []ir.PropID{model.Properties[0].ID}},

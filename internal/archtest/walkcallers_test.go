@@ -67,6 +67,8 @@ var walkCallers = map[string]walkCaller{
 	"pass.checkParamBindings":      {answer: validateReports},
 	"pass.checkParamReferences":    {answer: validateReports},
 	"pass.groups":                  {answer: "validate, last in every run, reports for the name reader"},
+	"pass.headers":                 {answer: "validate, last in every run, reports for the name reader"},
+	"pass.eachPosition":            {answer: validateReports},
 	"pass.graphqlReachableTypes":   {answer: "reads the stop; its type walks are cut only where the run's document walk is"},
 	"pass.appendTypeIDs":           {answer: "cut only where the run's document walk is"},
 

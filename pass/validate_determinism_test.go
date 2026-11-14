@@ -168,6 +168,24 @@ var twoFindings = []twoFinding{
 			}, "op/z", "op/b")
 		}},
 	registryRow("checkArgsOutsideGraphQL"),
+	// The families that read what a source says, in the order Validate runs
+	// them after the rest.
+	{family: "checkBounds", code: boundsCode, want: []string{"t/b", "t/z"},
+		doc: func() *ir.Document {
+			return typesOf(func(id ir.TypeID) ir.TypeDef {
+				return &ir.List{ID: id, Elem: strT, Constraints: &ir.Constraints{MinItems: new(int64(2)), MaxItems: new(int64(1))}}
+			}, "t/z", "t/b")
+		}},
+	{family: "checkValues", code: exampleCode, want: []string{"t/b", "t/z"},
+		doc: func() *ir.Document {
+			return typesOf(func(id ir.TypeID) ir.TypeDef {
+				return &ir.List{ID: id, Elem: strT, Examples: []ir.Example{{Value: text("not a list")}}}
+			}, "t/z", "t/b")
+		}},
+	{family: "checkKnots", code: cycleCode, want: []string{"t/b", "t/z"},
+		doc: func() *ir.Document {
+			return typesOf(func(id ir.TypeID) ir.TypeDef { return composed(string(id), new(ref(string(id)))) }, "t/z", "t/b")
+		}},
 }
 
 // TestValidate_EveryFamilyDrawsTwoFindingsInOneOrder holds each rule family to
