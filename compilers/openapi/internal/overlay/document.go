@@ -4,16 +4,14 @@
 package overlay
 
 import (
-	"encoding/json/jsontext"
 	"fmt"
-	"net/url"
-	"strconv"
 	"strings"
 
-	soaoverlay "github.com/speakeasy-api/openapi/overlay"
 	yaml "go.yaml.in/yaml/v3"
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
+	"github.com/dexpace/morphic/compilers/openapi/internal/jsonpath"
+	"github.com/dexpace/morphic/compilers/openapi/internal/nodeview"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -29,8 +27,8 @@ const (
 	// or a copy selects are all of one kind, and an action may copy a node of
 	// the document.
 	v11
-	// v12 is Overlay 1.2, which the compiler reads as valid and does not apply
-	// (GitHub #1836), so no action of it reaches the grafter.
+	// v12 is Overlay 1.2, which applies by 1.1's rules and adds reusable
+	// actions and $self.
 	v12
 )
 
@@ -65,33 +63,34 @@ func (k kind) String() string {
 }
 
 // plan is an overlay document read for applying: the rules of the version it
-// declares, and its actions in order, each selector read.
+// declares, its own URI, and its actions in order, each selector read.
 type plan struct {
 	// at is the overlay's place in Document.Sources, which a finding about it
 	// as a whole names.
 	at ir.Provenance
-	// declared is the version the document writes, as written.
-	declared string
-	version  version
-	actions  []action
+	// declared is the version the document writes, as written, and selfURI
+	// its $self, as written.
+	declared, selfURI string
+	version           version
+	actions           []action
 }
 
 // action is one action of a plan.
 type action struct {
+	// targets reads the target selector, and sources the copy selector, set
+	// for a copy.
+	targets, sources jsonpath.Query
+	// payload is the update value, set for an update.
+	payload *yaml.Node
+	// target is the target selector as written.
+	target string
+	// overlay is the action's place in the overlay document, which a finding
+	// about the action names.
+	overlay ir.Provenance
 	// index is the action's place among the document's actions, and of how
 	// many it holds.
 	index, of int
 	kind      kind
-	// target is the target selector as written, and targets its reading.
-	target  string
-	targets soaoverlay.Queryable
-	// sources reads the copy selector, set for a copy.
-	sources soaoverlay.Queryable
-	// payload is the update value, set for an update.
-	payload *yaml.Node
-	// overlay is the action's place in the overlay document, which a finding
-	// about the action names.
-	overlay ir.Provenance
 }
 
 // label names a in a finding: its place, what it does and what it targets,
@@ -100,72 +99,25 @@ func (a action) label() string {
 	return fmt.Sprintf("overlay action %d of %d (%s %q)", a.index+1, a.of, a.kind, a.target)
 }
 
-// read decodes the overlay document doc, a document node or one of no kind for
-// a stream holding none, as the library decodes the tree it parses, and reads
-// it for applying, at, the overlay's place in Document.Sources. A document that
+// read reads the overlay document doc, a document node or one of no kind for
+// a stream holding none, by the fields its version's objects define (fields.go)
+// for applying, at, the overlay's place in Document.Sources. A document that
 // is no overlay this compiler applies is refused, each reason an
-// openapi/invalid-overlay error, as is a selector RFC 9535 does not apply;
-// what reads but has no effect is a warning.
-//
-// Every selector is read as RFC 9535, which both versions of the specification
-// name, so the document is set to that dialect before any is read
-// (docs/parser-library.md#overlay-jsonpath-dialect).
+// openapi/invalid-overlay error at the field it is about, and nothing of it
+// applies; what reads but has no effect is a warning.
 func read(at ir.Provenance, doc *yaml.Node) (plan, []ir.Diagnostic) {
-	var ov soaoverlay.Overlay
-	if doc.Kind != 0 {
-		if err := doc.Decode(&ov); err != nil {
-			return plan{}, []ir.Diagnostic{diag.Newf(ir.SeverityError, diag.OverlayInvalid, at,
-				"cannot parse overlay: %s", diag.OneLine(err))}
+	r := &reader{at: at, view: nodeview.New()}
+	p := r.overlay(nodeview.Deref(nodeview.DocumentRoot(doc)))
+	if diag.HasError(r.diags) {
+		var refused []ir.Diagnostic
+		for _, d := range r.diags {
+			if d.Severity == ir.SeverityError {
+				refused = append(refused, d)
+			}
 		}
+		return plan{}, refused
 	}
-	v, diags := readHead(at, &ov)
-	if diag.HasError(diags) {
-		return plan{}, diags
-	}
-	p := plan{at: at, declared: ov.Version, version: v, actions: make([]action, 0, len(ov.Actions))}
-	ov.JSONPathVersion = soaoverlay.JSONPathRFC9535
-	for i, written := range ov.Actions {
-		a, found := readAction(at, &ov, v, i, written)
-		diags = append(diags, found...)
-		p.actions = append(p.actions, a)
-	}
-	return p, diags
-}
-
-// readHead holds doc's fixed fields to the specification and returns the
-// version it declares: 1.0 or 1.1 at any patch, an info object naming a title
-// and a version, an extends that parses as a URI reference, and at least one
-// action. A 1.2 document is valid and refused as one the compiler does not
-// apply yet; any other version is invalid.
-func readHead(at ir.Provenance, doc *soaoverlay.Overlay) (version, []ir.Diagnostic) {
-	var diags []ir.Diagnostic
-	invalid := func(format string, args ...any) {
-		diags = append(diags, diag.Newf(ir.SeverityError, diag.OverlayInvalid, at, format, args...))
-	}
-	v, known := versionOf(doc.Version)
-	switch {
-	case doc.Version == "":
-		invalid("invalid overlay: it declares no overlay version")
-	case !known:
-		invalid("overlay version %q is not one the compiler applies, which are 1.0.x and 1.1.x", doc.Version)
-	case v == v12:
-		diags = append(diags, diag.Newf(ir.SeverityError, diag.OverlayUnsupported, at,
-			"overlay version %q is Overlay 1.2, which the compiler does not apply yet (GitHub #1836); "+
-				"it applies 1.0.x and 1.1.x", doc.Version))
-	}
-	if doc.Info.Title == "" {
-		invalid("invalid overlay: the info object names no title")
-	}
-	if doc.Info.Version == "" {
-		invalid("invalid overlay: the info object names no version")
-	}
-	if _, err := url.Parse(doc.Extends); err != nil {
-		invalid("invalid overlay: extends %q is no URI reference", doc.Extends)
-	}
-	if len(doc.Actions) == 0 {
-		invalid("invalid overlay: it holds no action")
-	}
-	return v, diags
+	return p, r.diags
 }
 
 // versionOf reads a declared version as the minor it names: 1.0, 1.1 or 1.2,
@@ -188,52 +140,15 @@ func versionOf(declared string) (version, bool) {
 	}
 }
 
-// readAction reads the action written at index i of doc, which declares v:
-// its kind, its selectors and what it writes. A field the specification gives
-// no effect beside the kind the action takes is a warning, a copy in an
-// Overlay 1.0 document, which has no such field, is refused, and so is an
-// Overlay 1.1 action setting both update and copy, to each of which the
-// specification gives no effect beside the other, leaving the action no
-// meaning.
-func readAction(at ir.Provenance, doc *soaoverlay.Overlay, v version, i int, written soaoverlay.Action,
-) (action, []ir.Diagnostic) {
-	a := action{index: i, of: len(doc.Actions), target: written.Target, kind: kindOf(written)}
-	a.overlay = ir.Provenance{Source: at.Source, Pointer: jsontext.Pointer("/actions/" + strconv.Itoa(i))}
-	if a.kind == kindUpdate {
-		a.payload = &doc.Actions[i].Update
-	}
-	if written.Target == "" {
-		return a, []ir.Diagnostic{diag.Newf(ir.SeverityError, diag.OverlayInvalid, a.overlay,
-			"invalid overlay: action %d of %d names no target", i+1, a.of)}
-	}
-	var diags []ir.Diagnostic
+// kindOf returns the kind an action whose fields are written takes: remove,
+// then update, then copy.
+func kindOf(written map[string]*yaml.Node) kind {
 	switch {
-	case written.Copy != "" && v == v10:
-		diags = append(diags, diag.Newf(ir.SeverityError, diag.OverlayInvalid, a.overlay,
-			"%s sets copy, which Overlay 1.1 introduced; this overlay declares %s", a.label(), doc.Version))
-	case a.kind == kindUpdate && written.Copy != "":
-		diags = append(diags, diag.Newf(ir.SeverityError, diag.OverlayFailed, a.overlay,
-			"%s sets both update and copy, and the specification gives each no effect beside the other; "+
-				"write one of them", a.label()))
-	}
-	var found []ir.Diagnostic
-	a.targets, found = readSelector(doc, a, "target", written.Target)
-	diags = append(diags, found...)
-	if written.Copy != "" {
-		a.sources, found = readSelector(doc, a, "copy", written.Copy)
-		diags = append(diags, found...)
-	}
-	return a, append(diags, idleFields(a, written)...)
-}
-
-// kindOf returns the kind an action takes: remove, then update, then copy.
-func kindOf(written soaoverlay.Action) kind {
-	switch {
-	case written.Remove:
+	case written["remove"] != nil && isTrue(written["remove"]):
 		return kindRemove
-	case !written.Update.IsZero():
+	case written["update"] != nil:
 		return kindUpdate
-	case written.Copy != "":
+	case written["copy"] != nil:
 		return kindCopy
 	default:
 		return kindNone
@@ -242,7 +157,7 @@ func kindOf(written soaoverlay.Action) kind {
 
 // idleFields warns of each field a writes that has no effect: an update or a
 // copy beside a remove, and the action as a whole when it sets none.
-func idleFields(a action, written soaoverlay.Action) []ir.Diagnostic {
+func idleFields(a action, written map[string]*yaml.Node) []ir.Diagnostic {
 	var diags []ir.Diagnostic
 	warn := func(format string, args ...any) {
 		diags = append(diags, diag.Newf(ir.SeverityWarning, diag.OverlayAction, a.overlay, format, args...))
@@ -250,10 +165,10 @@ func idleFields(a action, written soaoverlay.Action) []ir.Diagnostic {
 	if a.kind == kindNone {
 		warn("%s sets none of update, remove and copy, so it changes nothing", a.label())
 	}
-	if a.kind == kindRemove && !written.Update.IsZero() {
+	if a.kind == kindRemove && written["update"] != nil {
 		warn("%s also sets update, which has no effect beside remove", a.label())
 	}
-	if a.kind == kindRemove && written.Copy != "" {
+	if a.kind == kindRemove && written["copy"] != nil {
 		warn("%s also sets copy, which has no effect beside remove", a.label())
 	}
 	return diags

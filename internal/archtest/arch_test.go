@@ -86,6 +86,16 @@ var rules = map[string][]string{
 	// literal means.
 	"compilers/openapi/internal/value": {module + "/ir",
 		module + "/compilers/openapi/internal/nodeview", "go.yaml.in/yaml/v3"},
+	// The compiler's RFC 9535 query evaluator, over the value a tree stands
+	// for. It reaches nodeview for a mapping's members as the parser reads
+	// them, value for a scalar's reading, ir for the decimal a number compares
+	// by, budget for the steps a query spends and yaml for the tree, and
+	// nothing that reports or lowers: a query selects, and its caller says
+	// what that means.
+	"compilers/openapi/internal/jsonpath": {module + "/ir",
+		module + "/compilers/openapi/internal/budget",
+		module + "/compilers/openapi/internal/nodeview",
+		module + "/compilers/openapi/internal/value", "go.yaml.in/yaml/v3"},
 	// The yaml.v3 nodes tests build trees from: the constructors for the node
 	// kinds a parse produces, the `<<` merge key among them. It reaches yaml and
 	// nothing else, so any package's internal tests can import it, nodeview's
@@ -191,17 +201,19 @@ var rules = map[string][]string{
 	"compilers/openapi/internal/doctree": {module + "/compilers/openapi/internal/budget",
 		module + "/compilers/openapi/internal/nodeview", "go.yaml.in/yaml/v3"},
 	// Source-document patching: an OpenAPI Overlay applied to the decoded node
-	// tree, and the attribution of what it changed. It reads the overlay's tree and
-	// reports through diag, reaching nodeview for the document root and the
-	// keys the parser reads, budget for the node budget it builds within and
-	// provenance for the attribution it hands out — and nothing that lowers,
-	// because it runs before there is anything to lower.
+	// tree, and the attribution of what it changed. It reads the overlay's tree
+	// by its own table of fields, reading a scalar through value, selects
+	// through jsonpath and reports through diag, reaching nodeview for the
+	// document root and the keys the parser reads, budget for the node budget it
+	// builds within and provenance for the attribution it hands out — and
+	// nothing that lowers, because it runs before there is anything to lower.
 	"compilers/openapi/internal/overlay": {module + "/ir",
 		module + "/compilers/openapi/internal/budget",
 		module + "/compilers/openapi/internal/diag",
+		module + "/compilers/openapi/internal/jsonpath",
 		module + "/compilers/openapi/internal/nodeview",
 		module + "/compilers/openapi/internal/provenance",
-		"github.com/speakeasy-api/openapi/overlay", "go.yaml.in/yaml/v3"},
+		module + "/compilers/openapi/internal/value", "go.yaml.in/yaml/v3"},
 	// The entry side: parse, check, resolve. It indexes the tree its one decode
 	// produced through sourceindex, runs the pre-lowering refusals over that index
 	// through scan, applies the caller's overlay through overlay, places what it

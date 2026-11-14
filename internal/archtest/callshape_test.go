@@ -78,7 +78,7 @@ var callShapeBaseline = map[string]map[string]int{
 		"compilers/openapi/internal/doctree":     1,
 		"compilers/openapi/internal/load":        3,
 		"compilers/openapi/internal/oas":         3,
-		"compilers/openapi/internal/overlay":     4,
+		"compilers/openapi/internal/overlay":     3,
 		"compilers/openapi/internal/sourceindex": 2,
 	},
 	"compilers/openapi/internal/oas": {

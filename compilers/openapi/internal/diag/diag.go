@@ -118,9 +118,9 @@ const (
 	UndecodableSource = "openapi/undecodable-source"
 	// OverlayInvalid reports an overlay document that could not be parsed, or that
 	// parsed but is not a valid Overlay — a missing version or one no Overlay
-	// Specification names, no actions, an action naming no target, a selector that
-	// is no RFC 9535 query, a copy in an Overlay 1.0 document — as overlay.read and
-	// overlay.readSelector find. Nothing is applied, so the compile refuses rather
+	// Specification names, no actions, a field of the wrong form or one its
+	// version does not define, a reference naming no reusable action, a selector
+	// that is no RFC 9535 query — as overlay.read and overlay.readSelector find. Nothing is applied, so the compile refuses rather
 	// than lowering a source the caller believes was patched.
 	OverlayInvalid = "openapi/invalid-overlay"
 	// OverlayFailed reports an overlay that does not fit the document it is
@@ -130,11 +130,6 @@ const (
 	// (overlay.runSequence), and an application that panicked. Actions apply in
 	// order and the ones that landed are not undone, so the compile refuses.
 	OverlayFailed = "openapi/overlay-failed"
-	// OverlayUnsupported reports a valid overlay the compiler does not apply: an
-	// Overlay 1.2 document, or a selector RFC 9535 reads that the compiler's
-	// JSONPath implementation refuses or misreads (overlay.readSelector). Nothing
-	// is applied, so the compile refuses.
-	OverlayUnsupported = "openapi/overlay-unsupported"
 	// OverlayAction reports a warning about the overlay or a single action,
 	// naming the action and its target: that it changed nothing, because what it
 	// writes is there already, because it selects nothing under lax application,

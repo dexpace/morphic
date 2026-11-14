@@ -353,26 +353,52 @@ the overlay leaves, which the overlay's own refusal does not. An overlay that is
 read as JSON, as a source is ([`yaml-decoding`](#yaml-decoding)), so the characters and escapes the
 YAML parser refuses compile as the characters they name.
 
-An overlay declaring Overlay 1.0 or 1.1, at any patch, which the specification asks tooling not to
-tell apart, is applied by that version's rules. One declaring Overlay 1.2 is refused as an
-`openapi/overlay-unsupported` error. Any other version, and an overlay that does not parse,
-including one writing half of a surrogate pair, or lacks what the specification requires of it — an
-info object naming a title and a version, an `extends` that is a URI reference, an action, a target
-on each — is refused as an `openapi/invalid-overlay` error and nothing is applied, as is an Overlay
-1.0 action writing `copy`, a field 1.1 introduced. Every `target` and `copy` is read as an RFC 9535
-JSONPath query, whatever the version, since both versions name RFC 9535; an extension naming another
-dialect is not read. One RFC 9535 refuses is an `openapi/invalid-overlay` error: one using `~`, and
-one naming a member after a dot by a name RFC 9535's shorthand does not admit, which holds only
-letters, digits, underscores and characters past ASCII and starts with no digit, so an extension
-key, which holds a `-`, is named in brackets; the error says what to write, `['x-internal']` for
-`.x-internal`. One RFC 9535 reads that the compiler's JSONPath implementation refuses or misreads
-where its text shows it ([`jsonpath-rfc9535`](../parser-library.md#jsonpath-rfc9535)) is an
-`openapi/overlay-unsupported` error naming why and, where the compiler reads another spelling, what
-to write. Either is found before any action applies. The implementation also compares otherwise than
-RFC 9535 in a filter, where no text shows it, and those selectors apply as it reads them: a plain
-date, such as `2021-01-01`, equals no string and every other plain date, an integer written in
-another base, such as `0x10`, compares as 0, and two objects are equal only with their members in
-the same order.
+An overlay declaring Overlay 1.0, 1.1 or 1.2, at any patch, which the specification asks tooling
+not to tell apart, is applied by that version's rules, 1.2 by 1.1's, which it restates. The overlay
+document is read by the fields its version's objects define, each in the form the specification
+gives it and read as the compiler reads a scalar, with `x-` fields taken as extensions: a field of
+another form, a required one missing, and a field the version's object does not define, such as a
+misspelled `update` or a `copy` at 1.0, are each an `openapi/invalid-overlay` error at the field,
+and nothing is applied, since an overlay exists to change the output and one applying as nothing
+would ship the SDK it was written to fix. So are any other version and an overlay that does not
+parse, including one writing half of a surrogate pair, and at 1.2 an `extends` or `$self` holding a
+fragment; one that is no URI reference is refused at any version. An Overlay 1.2 action writing
+`$ref` is a reference to a reusable action of `components.actions`, named by a JSON pointer in the
+document's own fragment, its key escaped as RFC 6901 escapes a token: it applies as the action the
+reusable one's `fields` write, at the reference's own `target`, a `description` of either having no
+effect, as an action's has none, and a reference naming no entry, or writing `update`, `remove` or `copy`, is refused, as
+are `fields` writing a `target`. A reusable action nothing references has no effect. The overlay's
+`$self` is recorded as its `SelfURI` in `Document.Sources`; nothing the compiler applies reads it,
+and `extends` is checked as a URI reference and compared with nothing.
+
+Every `target` and `copy` is read as an RFC 9535 JSONPath query by the compiler's own evaluator, over
+the JSON value the source stands for: a YAML alias reads as the value it names, a member a `<<`
+merge key brings in as a member of the mapping merging it, and a scalar as the compiler reads one,
+so a plain date is the string it spells, `0x10` the number 16, and two objects are equal whatever
+the order of their members. A selector RFC 9535 does not read is an `openapi/invalid-overlay` error
+naming the offset where it stops being a query and why, found before any action applies; one using
+`~` says so, and one naming a member after a dot by a name RFC 9535's shorthand does not admit,
+which holds only letters, digits, underscores and characters past ASCII and starts with no digit,
+says what to write, `['x-internal']` for `.x-internal`. `match` and `search` read I-Regexp (RFC
+9485) and run on Go's regexp engine, whose time is linear in its input times its program; a pattern
+past 4,096 bytes or 16,384 instructions, or that is no I-Regexp, matches nothing, as RFC 9535
+section 2.4.6 has it. RFC 9485's grammar admits `^` and `$` as ordinary characters (section 3,
+`NormalChar = ( %x00-27 / ... / %x5E-7A ; '^'-'z' / ... )`), and its section 4 has an
+implementation "yield Boolean results as specified in [XSD-2]"; its mapping to RE2, Go's dialect,
+leaves both as written (section 5.4), where RE2 reads them as anchors, and of that mapping section 5
+says "The material in this section is not normative". The compiler follows the mapping, as the
+JSONPath compliance suite it is held to does: its cases `functions, match, explicit caret` and
+`functions, match, explicit dollar` pass only so. So `^` and `$` anchor, `[\^]` and `[$]` write
+the characters, and `\$` is no I-Regexp escape. A pattern written as a literal that matches no
+string, one with `$` before a character it must match, or `^` after one, in each top-level branch,
+or one that is no I-Regexp, is an `openapi/overlay-action` warning naming why. The selectors of one
+application spend one budget of `overlay.MaxSteps` steps: a step for each node a selector visits,
+compares or returns, each member a mapping's merges expand to and each element two compared arrays
+pair; a step per 8 bytes of a scalar read, once an evaluation, and per 64 bytes two scalars compare;
+a match or search its input's length and one more, times its program's weight; and a step for each
+link of a target's path the action locates and each member of a mapping it indexes to find one. An
+action whose selectors pass the budget, or whose evaluation holds more than `jsonpath.MaxResults`
+nodes in its nodelists at once, is an `openapi/budget-exceeded` error and nothing more applies.
 
 The actions apply in order, each to the tree the ones before it left. An action takes the first of
 `remove`, `update` and `copy` it sets, and a field the specification gives no effect beside a
@@ -380,8 +406,8 @@ remove, or an action setting none, is an `openapi/overlay-action` warning. An ac
 `update` and `copy`, each of which the specification gives no effect beside the other, is refused as
 an `openapi/overlay-failed` error naming both. A remove deletes each node its target selects from
 the object or array holding it, at Overlay 1.0 a primitive too, since 1.0 has no other spelling for
-removing a primitive member. A YAML alias elsewhere naming a node it removed keeps the value it
-stood for, as a copy, each node of which names as its writer the document that wrote it; a copy that
+removing a primitive member. A YAML alias elsewhere naming a node it removed, or one an action
+copied in its place, keeps the value it stood for, as a copy the source wrote; a copy that
 would grow the tree past `MaxSourceNodes` refuses the overlay as an `openapi/budget-exceeded` error,
 and one past the attribution walk's node budget as an `openapi/overlay-failed` error. An update
 writes its value into each node its target selects, and a copy writes the one node its `copy`
@@ -401,38 +427,43 @@ selects, as that node stood when the action began:
    update selecting one is refused naming both of its spellings: an update of the object holding it,
    or the overlay declaring 1.1.
 
-Any other write is refused, and so are an Overlay 1.1 update or copy whose targets are not all of
-one kind, a copy whose `copy` selects more than one node, a remove of the document's root, and a
-write into a node the source writes as a YAML alias, whose anchor shares it with every use. Each is
-an `openapi/overlay-failed` error naming the action, at it in the overlay, and the source compiles
-to no Document. A node a target selects twice is written once, and what is written holds no alias: a
-copy is taken of what each alias names. A primitive an action writes over one the source declares,
-rather than adding a value the source lacks, is an `openapi/overlay-replaced-value` info naming both
-values, at the replacing value in the overlay; info, since overriding is a legitimate use, and
-`--fail-on` is a threshold over every code, so a run failing on this one alone needs a rating by
-code. A write over what an earlier action wrote is not reported, nor is an array an action appends
-to, which keeps what the source declares in it. An action that changes nothing is an
+Any other write is refused, and so are an Overlay 1.1 or 1.2 update or copy whose targets are not
+all of one kind, as the specification requires, a copy whose `copy` selects more than one node, and a
+remove of the document's root. Each is an `openapi/overlay-failed` error naming the action, at it in
+the overlay, and the source compiles to no Document. A target is a position of the value, its
+normalized path: one selected twice is written once, and what is written holds no alias, a copy
+being taken of what each alias names. A primitive an action writes over one the source declares
+where it stands, rather than adding a value the source lacks, is an `openapi/overlay-replaced-value`
+info naming both values, at the replacing value in the overlay; info, since overriding is a
+legitimate use, and `--fail-on` is a threshold over every code, so a run failing on this one alone
+needs a rating by code. A write over what an earlier action wrote is not reported, nor is one into
+a copy of a shared value standing at an alias's or a merge's position, nor an array an action
+appends to, which keeps what the source declares in it. An action that changes nothing is an
 `openapi/overlay-action` warning. An action whose target, or whose `copy`, selects nothing changes
 nothing, as the specification has it. Application is strict unless `Overlay.Lax` is set, and under
 strict such an action refuses the overlay as a likely typo, an `openapi/overlay-failed` error at
 each, once every action has applied; under lax it is an `openapi/overlay-action` warning, and the
 rest of the overlay applies.
 
-The actions read the source's tree as written, not the JSON value the specification applies an
-overlay to: a selector does not read through a YAML alias or a `<<` merge key, and a write inside a
-node an alias names reaches every alias of it. So a source writing an alias or a merge key draws one
-`openapi/overlay-action` warning saying selectors do not read through them, and each action
-changing what a node an alias names holds, by a write into it or below it or a remove from it, draws
-one naming the anchor's line and column and how many aliases name it. A remove of the anchored node
-itself draws none, as each alias keeps the value it stood for. An update writing a `<<` merge key
-into an object the tree holds is warned of too: it merges as written, so the members it names
-replace none the object holds.
+An action writes the positions it selects and no other. Every target is selected before anything
+is written, and each is then made the action's own along its path from the root: a slot holding a
+YAML alias, or a node an alias names, is replaced by a copy of the node's content, its anchors
+dropped and the aliases inside it kept, and a mapping a member of which a `<<` merge key brings in,
+or that is written or removed from, has its merge keys replaced by a copy of each member they bring
+in that it does not write, in the value's order. So an update of an anchored schema leaves each
+alias of it, and each mapping merging it, the value the source wrote, and a write through an alias
+or a merge writes that position alone; none draws a finding. A copy is the size of the subtree the
+source writes, not of the value it stands for, keeps the source as the writer of what the source
+wrote, and is charged to `MaxSourceNodes` before it is built.
 
 Each action is charged the nodes it can build before it runs: one whose charge would carry the tree,
 counted afresh, past `MaxSourceNodes` is refused as an `openapi/budget-exceeded` error with nothing
 it would build built, so it is refused while the tree is past the budget whatever a later action
 removes. An action that builds nothing, such as a remove, is applied however large the tree, since
-the budget holds the tree the overlay leaves. The overlay becomes a second entry in
+the budget holds the tree the overlay leaves. The running count only grows, a replaced primitive
+charged a node it does not add and a remove crediting nothing, so over a tree at the budget's edge
+each action that charges a node counts the tree afresh: such an overlay costs its actions times the
+tree's nodes, which no budget counts. The overlay becomes a second entry in
 `Document.Sources`, and every position it introduced or rewrote names the source as its
 `Provenance.Source` and that entry as its `WrittenBy` ([provenance](../ir/provenance.md)), while a
 position it left alone keeps the source's line and column; a finding about the overlay document
@@ -440,33 +471,67 @@ itself names the overlay as its `Source`. Where the walk that attributes positio
 runs out of its node budget, the overlay is applied and no position names it as a writer, as with
 no overlay, reported as an `openapi/overlay-origin-incomplete` warning.
 
-- Codes: `openapi/invalid-overlay`, `openapi/overlay-failed`, `openapi/overlay-unsupported`,
-  `openapi/overlay-action`, `openapi/overlay-replaced-value`, `openapi/overlay-origin-incomplete`,
-  `openapi/budget-exceeded`
+- Codes: `openapi/invalid-overlay`, `openapi/overlay-failed`, `openapi/overlay-action`,
+  `openapi/overlay-replaced-value`, `openapi/overlay-origin-incomplete`, `openapi/budget-exceeded`
 - Tests: `overlay.TestApply_RejectsAnOverlayItCannotRead`,
   `overlay.TestRead_AppliesTheVersionsTheCompilerKnowsAtAnyPatch`,
   `overlay.TestRead_RefusesWhatTheSpecificationRequiresAndTheOverlayLacks`,
   `overlay.TestRead_RefusesACopyInAnOverlay10Document`, `overlay.TestRead_WarnsOfAFieldWithNoEffect`,
   `overlay.TestRead_RefusesAnActionSettingBothUpdateAndCopy`,
+  `overlay.TestApply_RefusesATreeOfTheWrongShape`,
+  `overlay.TestApply_RefusesAFieldTheVersionDoesNotDefine`,
+  `overlay.TestApply_ReadsEachVersionOfAnOverlayAsItsOwnRulesDo`,
+  `overlay.TestApply_AppliesAReusableActionAtTheReferencesTarget`,
+  `overlay.TestApply_ReadsTheKeyAReferenceNamesDecoded`,
+  `overlay.TestApply_RefusesWhatAReusableActionAndAReferenceMayNotWrite`,
   `overlay.TestReadSelector_ReadsEveryTargetAsRFC9535`,
   `overlay.TestReadSelector_SelectsWithEachKindOfSelector`,
   `overlay.TestReadSelector_SelectsWhatRFC9535sExamplesSelect`,
-  `overlay.TestReadSelector_RefusesWhatItCannotReadAsRFC9535Does`,
-  `overlay.TestScanSelector_TellsAStringFromTheRest`,
-  `overlay.TestSpelledOtherwise_NamesAFixForEachCharacter`,
+  `overlay.TestReadSelector_RefusesWhatRFC9535DoesNotRead`,
+  `overlay.TestReadSelector_SelectsWhatTheCompilerOnceRefused`,
+  `overlay.TestHintFor_TellsAStringFromTheRest`,
+  `overlay.TestApply_SelectsByTheValuesAFilterComparesNotByTheirSpelling`,
+  `overlay.TestApply_ReadsAMemberNamedByAnEscapeOrALiteral`,
+  `overlay.TestApply_RefusesATargetRFC9535DoesNotReadAndSaysWhere`,
+  `jsonpath.TestCompliance`, `jsonpath.TestSelect_WeighsAPatternByItsProgram`,
+  `jsonpath.TestParse_NamesThePatternsThatMatchNoString`,
+  `overlay.TestReadSelector_WarnsOfAPatternThatMatchesNoString`,
+  `jsonpath.TestSelect_ChargesEachElementTwoArraysCompare`,
+  `jsonpath.TestSelect_ReadsAScalarOnceAndChargesTheBytesItCompares`,
+  `jsonpath.TestSelect_ChargesAPatternsProgramForAnEmptyInput`,
+  `jsonpath.TestSelect_HoldsEveryLiveNodelistToOneBound`,
+  `overlay.TestApply_LocatesEachMemberOfAWideMappingAtAStep`,
+  `overlay.TestApply_LocatesDeepTargetsAtAStepAPrefix`,
+  `overlay.TestApply_GivesEveryGeneratedSharedValueTheTreeOfItsExpansion`,
+  `overlay.TestApply_RemovesANodeAndItsDescendantsAtAnAnchorAsItsExpansionDoes`,
+  `overlay.TestApply_RefusesARemoveWhoseHolderWouldCopyPastTheBudget`,
+  `overlay.TestApply_RefusesATargetThatCostsMoreThanTheStepsAnOverlayMaySpend`,
+  `overlay.TestApply_SpendsOneBudgetOnEverySelectorOfAnApplication`,
+  `overlay.TestApply_SpendsStepsInProportionToTheActions`,
   `overlay.TestGrafter_WritesAnUpdateAsTheSpecificationSays`,
   `overlay.TestGrafter_TellsA10PrimitiveRemoveFromAnUpdate`,
   `overlay.TestRemove_TakesTheTargetsOfEachHolderTogether`,
   `overlay.TestGrafter_AppliesActionsInOrderToWhatTheOnesBeforeLeft`,
   `overlay.TestGrafter_ReportsAValueTheSourceDeclaresReplaced`,
   `overlay.TestGrafter_TakesACopyOfTheSourceAsTheActionBegan`,
-  `overlay.TestGrafter_RefusesToWriteThroughAnAlias`,
+  `overlay.TestGrafter_WritesOnePositionOfAnAlias`,
+  `overlay.TestApply_WritesOnlyThePositionAnUpdateTargets`,
+  `overlay.TestApply_GivesTheSharedValueTheSameTreeAsItsExpansion`,
+  `overlay.TestApply_LeavesAnAnchorsOtherUsesAsTheSourceWroteThem`,
+  `overlay.TestApply_AWriteToAMergedMemberLeavesNoSecondKey`,
+  `overlay.TestApply_WritesAMergedMemberAsTheMappingsOwn`,
+  `overlay.TestApply_RefusesAWriteIntoWhatItCannotMakeItsOwn`,
+  `overlay.TestApply_RemovesAtOnePositionOfASharedNode`,
+  `overlay.TestApply_WritesEachPositionOfAWildcardOnce`,
+  `overlay.TestApply_ReadsEachActionTheValueTheOneBeforeLeft`,
+  `overlay.TestApply_RefusesACopyThatWouldGrowTheTreePastItsBudget`,
+  `overlay.TestApply_DrawsNoFindingForTheAliasesTheSourceWrites`,
+  `overlay.TestApply_RemovesAnAliasAndWritesTheAnchorWithoutAFinding`,
+  `overlay.TestApply_WritesAMergeKeyAnUpdateNamesWithoutAFinding`,
   `overlay.TestRepairAliases_CopiesWhatARemoveLeftAnAliasNaming`,
   `overlay.TestRepairAliases_KeepsTheWriterOfWhatItCopies`,
   `overlay.TestApplyWithin_RefusesARepairPastItsBound`,
   `overlay.TestApplyWithin_RefusesARepairPastTheNodeBudget`,
-  `overlay.TestApply_WarnsOfWhatTheSourcesAliasesMakeOfAnAction`,
-  `overlay.TestApply_CountsTheAliasesARemoveLeaves`, `overlay.TestApply_WarnsOfAMergeKeyAnUpdateWrites`,
   `load.TestLoad_ATaggedMappingLeftBehindARemovedAnchorIsRefused`,
   `load.TestLoad_ReadsANamedOverlayThroughTheReader`,
   `load.TestLoad_ANamedOverlayThatCannotBeReadIsAGoError`,
@@ -480,14 +545,20 @@ no overlay, reported as an `openapi/overlay-origin-incomplete` warning.
   `overlay.TestSequence_ChargesAnActionAfterARemoveOnTheTreeItLeft`,
   `load.TestLoad_AnOverlayDoesNotLiftTheNodeBudgetOfTheSource`,
   `load.TestLoad_APointerAmplificationAnOverlayGraftedNamesTheOverlay`,
-  `overlay.TestDecodeFromTree_ReadsWhatTheLibraryReads`,
-  `overlay.TestDecodeFromTree_ReadsWhatTheLibraryRefuses`,
-  `e2e.TestCompile_AJSONOverlayAppliesAsItsLiteralTwin`
-- Status: partly built: an overlay selects and writes the source's YAML aliases and `<<` merge keys
-  as the nodes they are, not as the values they stand for, which is warned of and not mended
-  (#1834). A filter comparing a plain date, an integer written in another base or an object compares
-  otherwise than RFC 9535, and the selectors refused as the JSONPath implementation's are applied
-  nowhere (#1835). An Overlay 1.2 document is refused (#1836). Rating
+  `e2e.TestCompile_AJSONOverlayAppliesAsItsLiteralTwin`,
+  `e2e.TestCompile_AnOverlayDescribesOneSchemaOfASharedNode`,
+  `e2e.TestCompile_AnOverlayLeavesTheSourceAsItFound`,
+  `e2e.TestCompile_AnOverlay12AppliesAndNamesItsSelf`,
+  `e2e.TestCompile_AnOverlayFieldTheVersionDoesNotDefineRefusesTheCompile`,
+  `e2e.TestOverlaySuite_CompliantSets`, `e2e.TestOverlaySuite_ReadsEachDocumentAsItsVersionDoes`,
+  `e2e.TestOverlaySuite_TheReusableActionExampleOfOverlay12`
+- Status: built. Limits: a target the Overlay test suite's schema accepts and RFC 9535 does not, such
+  as a member name holding `-` after a dot, is refused; an `extends` is compared with nothing; a
+  pattern Go's engine cannot compile, such as a repetition past 1,000, matches nothing; `^` and `$`
+  in a pattern anchor, where RFC 9485's grammar reads them as characters; nested descendant
+  segments hold path links in proportion to their steps, which the nodelist bound does not count
+  (#1960); an overlay over a tree at the node budget's edge counts the tree at each action (#1959).
+  Rating
   `openapi/overlay-replaced-value` apart from other codes, to fail a run on it alone, is #1812.
 
 ### `validation`
