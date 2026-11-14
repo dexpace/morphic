@@ -340,9 +340,9 @@ func unmarshal(ctx context.Context, data []byte, root *yaml.Node) (*soa.OpenAPI,
 
 // buildRecovered runs build, the parser's build of a document, behind
 // diag.Catch. The parser faults on degenerate input such as a whitespace-only
-// document (docs/parser-library.md#recoverable-panic), and a fault is an
-// ErrParse error quoting it, which the compiler reports as a source it cannot
-// read.
+// document (docs/parser-library.md#recoverable-panic,
+// docs/parser-library.md#nil-populate-panic), and a fault is an ErrParse error
+// quoting it, which the compiler reports as a source it cannot read.
 //
 // A fault on a goroutine the decoder starts is beyond any barrier, so the one
 // shape known to fault there, a tagged mapping at a reference position

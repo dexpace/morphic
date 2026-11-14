@@ -401,7 +401,9 @@ func fieldNames(obj Object, fld Field, pairs []nodeview.Pair, ptr jsontext.Point
 
 // Admits reports whether node, a field's value, has the shape s as the check
 // reads one, an alias read as the node it names, so a package reading a value
-// the check owns can tell one it passed from one it reported.
+// the check owns can tell one it passed from one it reported. Only a scalar
+// tagged !!bool is a Boolean, where the model reads a string as one
+// (docs/parser-library.md#string-as-boolean).
 func (s Shape) Admits(node *yaml.Node) bool {
 	n := nodeview.Deref(node)
 	return n != nil && matches(s, n)

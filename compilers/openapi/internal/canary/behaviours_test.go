@@ -48,6 +48,8 @@ func canaries() map[string]func(t *testing.T) {
 		"pointer-token-range":      pointerTokenRange,
 		"context-unread":           contextUnread,
 		"media-type-references":    mediaTypeReferences,
+		"nil-populate-panic":       nilPopulatePanic,
+		"string-as-boolean":        stringAsBoolean,
 	}
 }
 

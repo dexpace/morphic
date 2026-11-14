@@ -422,6 +422,28 @@ B: {$ref}   # decoded as a response, which A names
   - `bind/typed.Builder.decodeRecovered` turns a panic in decoding raw YAML as a schema into a
     failure to build it.
 
+### `nil-populate-panic`
+
+Building the model of a Reference Object whose `$ref` is null, at any position that admits one,
+dereferences nil, and so does building a 3.2 `additionalOperations` entry that is no mapping. The
+panic happens on the caller's goroutine, so a `recover` there reaches it, and the whole model is
+lost: the document is refused for one ill-typed field.
+
+```yaml
+paths:
+  /a:
+    get:
+      parameters:
+        - $ref:          # building the operation's model panics
+    additionalOperations:
+      PURGE: ~           # so does this entry, in a 3.2 document
+```
+
+- Verified at: v1.26.3
+- Pinned by: `TestLibraryBehaviour/nil-populate-panic`
+- Code:
+  - `load.buildRecovered` turns the panic into an `ErrParse` error.
+
 ### `anchored-entry-dropped`
 
 An anchored entry of a map the model embeds is left out of the model, with no finding: a path in
@@ -670,6 +692,27 @@ components:
   - `doctree.resolve` tags a plain date or `<<` value a string.
   - `nodeview.Strings` reads a list's items by their text.
   - `auth.docsBeside` reads what is written beside it from the core.
+
+### `string-as-boolean`
+
+A boolean field of the model, such as a parameter's `required` or `explode`, decodes from a string
+scalar: `yes`, `on` and `y` as true, `no`, `off` and `n` as false, quoted or not, and any other
+string as a false that is no nil, so a reader asking whether the field is set reads it as written
+`false`. Only a scalar tagged `!!bool` is a boolean in YAML 1.2's JSON schema, which OpenAPI's
+typing is.
+
+```yaml
+parameters:
+  - {name: p, in: query, required: on}         # Required is true
+  - {name: q, in: query, required: "yes"}      # Required is true
+  - {name: r, in: query, explode: "true"}      # Explode is false, not nil
+```
+
+- Verified at: v1.26.3
+- Pinned by: `TestLibraryBehaviour/string-as-boolean`
+- Code:
+  - `oas.Shape.Admits` reads only a scalar tagged `!!bool` as a boolean, so the table reports such a
+    string.
 
 ### `unmodeled-keywords`
 
