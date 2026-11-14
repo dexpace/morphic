@@ -23,7 +23,8 @@ func Targets() []ExtensionTarget {
 		TargetPaginationCursor, TargetPaginationItems, TargetPaginationLimit, TargetPaginationNextCursor,
 		TargetPaginationNextLink, TargetPaginationOffset, TargetPaginationPage,
 		TargetPaginationTotalCount, TargetPaginationTotalPages, TargetAllowReserved,
-		TargetRedaction, TargetServerName, TargetStability, TargetUnionOpen,
+		TargetRedaction, TargetServerName, TargetStability, TargetStreamCondition, TargetStreamTerminator,
+		TargetUnionOpen,
 	}
 }
 

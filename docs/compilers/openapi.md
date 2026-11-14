@@ -4935,8 +4935,24 @@ list instead of extending it, an entry starting with `+` naming a structured suf
 `streaming-media` setting sets `MediaTypes`, its entries separated by commas, and refuses one that
 is neither a media type nor a suffix, and `streaming-inference=false` sets `Disabled`.
 
-- Cases: `streaming-media-30`, `streaming-media-31`
-- Codes: `openapi/degraded-construct`
+Two promotion targets ([`extension-promotion`](#extension-promotion)) fill the rest of a
+`ResponseStream` once the document is whole, each key kept as written. `stream.terminator`, read by
+default from `x-speakeasy-sse-sentinel`, fills `Terminator` with the text a key states: on the
+operation, recorded in its `Provenance.Inferred`, or on a streaming Content of a success response,
+recorded in the Content's `Inferred`, where real documents write it. It is filled all or none: the
+operation's text, where no streaming Content states another, else the one text every streaming
+Content of the success responses states. A Content stating another, one stating none beside one
+that states it, or a key on an operation streaming no response fills nothing, and one info
+`openapi/unpromoted-extension` names the key, the later by pointer where Contents disagree. An empty
+text, or a value that is no text, states nothing and is reported at its key. `stream.condition`,
+with no default source, reads an expression of the request (`$request.body#/stream`, or the
+shorthand `$request.stream`, read as a pagination input's is) into `Condition`, the input asking for
+the stream when true, recorded in the operation's `Provenance.Inferred`: only where the input's
+type stands for the boolean primitive, the operation streams a response, and a success response
+offers a Content that does not stream beside one that does. Any other key is reported at itself.
+
+- Cases: `streaming-media-30`, `streaming-media-31`, `stream-terminator`
+- Codes: `openapi/degraded-construct`, `openapi/unpromoted-extension`
 - Tests: `operation.TestStreaming_ResponseMediaTypeImpliesServerStream`,
   `operation.TestStreaming_SeveralStreamingContentsLeaveTheElementUnnamed`,
   `operation.TestStreaming_ItemSchemaDeclaresTheStream`,
@@ -4948,9 +4964,11 @@ is neither a media type nor a suffix, and `streaming-inference=false` sets `Disa
   `operation.TestStreaming_ACallbackAndAWebhookMarkTheirContents`,
   `operation.TestStreaming_AMediaTypeRefStreamsByTheKeyItIsWrittenUnder`,
   `e2e.TestExternalContent_AStreamReadsAListAnotherDocumentHolds`,
-  `lowering.TestMediaTypeStreams_AnswersFromThePolicy`
-- Status: partly built: no promotion reads an extension stating a stream's `Terminator`, or the
-  input whose `Condition` selects it, into either field (#1668).
+  `lowering.TestMediaTypeStreams_AnswersFromThePolicy`, `lowering.TestTextOf_ReadsTheFirstSourceStatingAText`,
+  `stream.TestPromote_FillsTheTerminator`, `stream.TestPromote_FillsTheTerminatorOfEveryStreamingContent`,
+  `stream.TestPromote_TerminatorIsAllOrNone`, `stream.TestPromote_OperationAndContentsMustAgree`,
+  `stream.TestPromote_FillsTheCondition`, `stream.TestPromote_AConditionNeedsAStream`,
+  `stream.TestPromote_ReadsPastAResponseWithNoBody`, `runtimeexpr.TestRequestValue_ResolvesEachSpelling`
 
 ### `multipart-encoding`
 
@@ -5892,8 +5910,13 @@ entity, or names the node itself, leaves the field unset and is reported as an i
 other members, a replacement on a node that is not deprecated annotates nothing, and it is read from
 the node's own keys alone, never lent by a `$ref`'s target, whose class is another.
 
+`stream.terminator` and `stream.condition` fill a stream's `Terminator` and `Condition`
+([`streaming-media`](#streaming-media)). A key either reads that states nothing it can fill, a value
+of another shape among them, is reported as an info `openapi/unpromoted-extension` at the key,
+saying why.
+
 - Cases: `extension-promotion`, `extension-stability`, `extension-redaction`, `extension-server-name`
-- Codes: `openapi/degraded-construct`, `openapi/unread-extension`
+- Codes: `openapi/degraded-construct`, `openapi/unread-extension`, `openapi/unpromoted-extension`
 - Tests: `lowering.TestPromoterDeprecation_ValueThatIsNotTextIsReported`,
   `lowering.TestPromoter_ValuesNameWhatStatesTheFact`,
   `lowering.TestPromoter_AValueAnotherTargetReadsIsItsToReport`,

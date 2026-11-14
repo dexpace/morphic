@@ -432,6 +432,13 @@ const (
 	// Warning for UnknownObjectKey's reason: a key under a prefix a policy owns
 	// is most likely one it reads, misspelt.
 	UnreadExtension = "openapi/unread-extension"
+	// UnpromotedExtension reports a key a promotion target reads that states
+	// nothing the target can fill on its node, or states it where the node has
+	// nothing to fill, saying why, at the key: a stream's terminator or the
+	// input selecting it (stream), and a choice among parameters (paramchoice)
+	// (docs/compilers/openapi.md#extension-promotion). Info: the key is kept
+	// verbatim, so nothing it says is lost.
+	UnpromotedExtension = "openapi/unpromoted-extension"
 	// UnknownKeyBudget reports an object declaring more keys the model does not
 	// name than the compiler keeps, so the ones past the bound reached the IR in no
 	// form at all.
@@ -549,10 +556,11 @@ const (
 	// Info, as InferredNullable is: the reading is the document's evident
 	// intent, and the mark keeps the declared one.
 	InferredDiscriminator = "openapi/inferred-discriminator"
-	// InferredHTTPDate reports a response header the HTTP-date policy writes and
-	// reads as an HTTP-date, a field an RFC defines so whose schema declares a
-	// date-time, whose text format spells as RFC 3339's, at the header. The
-	// header is marked Inferred (docs/compilers/openapi.md#http-date-inference).
+	// InferredHTTPDate reports a response header or a header parameter the
+	// HTTP-date policy writes and reads as an HTTP-date, a field an RFC defines
+	// so whose schema declares a date-time, whose text format spells as RFC
+	// 3339's, at the header or the parameter (convention). The node is marked
+	// Inferred (docs/compilers/openapi.md#http-date-inference).
 	// Info, as InferredDiscriminator is: the reading departs from what the
 	// format says, and the mark keeps what the document declared.
 	InferredHTTPDate = "openapi/inferred-http-date"

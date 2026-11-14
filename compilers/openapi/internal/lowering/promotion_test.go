@@ -461,6 +461,18 @@ func statingValue(target lowering.ExtensionTarget) string {
 // unapplied that a real lowering does apply.
 func appliers() []func(lowering.Promoter, ir.Unmodeled) (bool, []ir.Diagnostic) {
 	return []func(lowering.Promoter, ir.Unmodeled) (bool, []ir.Diagnostic){
+		// A stream's terminator and condition are filled once the document is
+		// whole (stream.Promote), from the text their sources state: what is
+		// read here is that text.
+		func(p lowering.Promoter, unmodeled ir.Unmodeled) (bool, []ir.Diagnostic) {
+			var stated bool
+			var diags []ir.Diagnostic
+			for _, target := range []lowering.ExtensionTarget{lowering.TargetStreamTerminator, lowering.TargetStreamCondition} {
+				st, readDiags := p.TextOf(target, unmodeled)
+				stated, diags = stated || st.Text != "", append(diags, readDiags...)
+			}
+			return stated, diags
+		},
 		func(p lowering.Promoter, unmodeled ir.Unmodeled) (bool, []ir.Diagnostic) {
 			var dep *ir.Deprecation
 			var prov ir.Provenance

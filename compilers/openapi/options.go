@@ -143,6 +143,12 @@ const (
 	TargetPaginationTotalCount = lowering.TargetPaginationTotalCount
 	// TargetPaginationTotalPages fills ir.Pagination.TotalPages.
 	TargetPaginationTotalPages = lowering.TargetPaginationTotalPages
+	// TargetStreamTerminator fills ir.StreamDetail.Terminator, from a key on a
+	// streaming content of a success response or on the operation.
+	TargetStreamTerminator = lowering.TargetStreamTerminator
+	// TargetStreamCondition fills ir.StreamDetail.Condition, from a key on the
+	// operation naming an input of its request.
+	TargetStreamCondition = lowering.TargetStreamCondition
 )
 
 // NullableInference is the nullable-inference policy: whether a null a schema
