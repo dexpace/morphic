@@ -55,6 +55,33 @@ func TestEachSighting_StopsAtTheModelAVisitRefuses(t *testing.T) {
 	assert.Equal(t, jsontext.Pointer("/paths/~1a/get"), site)
 }
 
+// TestEachSighting_APanicBetweenModelsNamesNone pins that a panic in the walk
+// after a visit returned is blamed on no model: the site of the model visited
+// before it is cleared once its visit returns, so the report is not placed
+// where nothing faulted.
+func TestEachSighting_APanicBetweenModelsNamesNone(t *testing.T) {
+	t.Parallel()
+	doc := modelOf(t, "openapi: 3.1.0\ninfo: {title: T, version: \"1\"}\npaths:\n  /a: {get: {responses: {'200': {description: ok}}}}\n")
+	visited := 0
+	items := func(yield func(soa.WalkItem) bool) {
+		for item := range walk(t.Context(), doc) {
+			if !yield(item) {
+				return
+			}
+			if visited > 0 {
+				panic("the walk faulted between models")
+			}
+		}
+	}
+	site, err := eachSighting(items, "walk", func(jsontext.Pointer, soa.Locations, *soa.Operation) error {
+		visited++
+		return nil
+	})
+	require.Equal(t, 1, visited, "the operation is visited before the walk faults")
+	require.ErrorContains(t, err, "walk panicked")
+	assert.Empty(t, site, "no model is blamed for a fault between models")
+}
+
 // TestDecodeObject_BuildsNothingWhereTheDocumentHoldsNothing pins the build of
 // a landing at a position its document holds no node at.
 func TestDecodeObject_BuildsNothingWhereTheDocumentHoldsNothing(t *testing.T) {
