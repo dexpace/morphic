@@ -264,8 +264,7 @@ a way to show one entity across API versions. Each is decided by data, never by 
   channels, messages, auth schemes, and the types with a page of their own — holding no URL. A
   channel, a message and an auth scheme each have a page, an `unresolved` scheme's saying the
   document names it without defining it, since several operations or channels name one, routed by ID
-  as every entity is; a message's and a channel's IDs carry no kind prefix yet to keep them apart
-  from other classes in one table (#1527). A type the document declares, neither `Anonymous` nor a
+  as every entity is. A type the document declares, neither `Anonymous` nor a
   primitive, has a page whatever its kind, and so does an anonymous model, union or enum that more
   than one reference reaches, counting through the anonymous lists, maps, tuples and scalars that
   hold it and the decorators over it. Any other type but a decorator (above) is rendered where it is
@@ -431,7 +430,7 @@ READMEs, samples, generated tests and mock responses all need example values, an
 synthesize its own where the document declares none, so the docs would show values the SDK's own
 tests never sent, and every regeneration could change them. So the plan holds one set,
 `Plan.Examples`, keyed by the ID of each type, property (a header among them), parameter, enum
-member and operation:
+member, operation and message:
 
 - **Declared first.** An entity's own `Examples` are its set, labelled authored in the docs, save
   one holding an `ExternalURL` and no value, which the docs show as a link and which no set holds,
@@ -489,16 +488,16 @@ member and operation:
   spec's operations. The document never paired those values, so the scenario is `Inferred` and
   labelled generated whatever values it takes, and `plan.Policy.Examples.Assemble` turns it off. On
   the golden spec no operation declares a scenario.
-- **Positions with no key.** A content and a variant have no ID, and a message's ID carries no kind
-  prefix yet to keep it apart from the other classes in one map
-  ([IDs](../ir/identity.md#what-irverify-holds), #1527). So each one's set is what the plan's
-  `ContentExamples`, `VariantExamples` or `MessageExamples` returns for it, the one function of its
-  kind that the docs, the samples and the mock read it through: its declared examples, read from the
-  IR and checked as above, else its type's, a message's those of its payload's contents, each paired
-  with the first value of its `Headers` type's set as `Example.Headers`, since a message's examples
-  are header and payload pairs, a pairing the document never made and so marked `Inferred` and
-  turned off with `Assemble`, a body's examples being its content's set. `Build` reports each
-  example of these positions it refuses, once, so the functions report nothing and no consumer
+- **A message's, by its ID.** A message's ID opens with a kind prefix of its own
+  ([IDs](../ir/identity.md#what-irverify-holds)), so its set is keyed by it as any entity's is: its
+  declared examples, else those of its payload's contents, each paired with the first value of its
+  `Headers` type's set as `Example.Headers`, since a message's examples are header and payload
+  pairs, a pairing the document never made and so marked `Inferred` and turned off with `Assemble`.
+- **Positions with no key.** A content and a variant have no ID, so each one's set is what the
+  plan's `ContentExamples` or `VariantExamples` returns for it, the one function of its kind that
+  the docs, the samples and the mock read it through: its declared examples, read from the IR and
+  checked as above, else its type's, a body's examples being its content's set. `Build` reports
+  each example of these positions it refuses, once, so the functions report nothing and no consumer
   reports it again. Contents are where a document most often declares a body's examples: on the
   golden spec (spec @57b5196b, morphic @ab953d45), 435 request, response and error contents declare
   651 examples.

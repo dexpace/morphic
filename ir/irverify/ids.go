@@ -46,12 +46,26 @@ func checkIDs(doc *ir.Document) []Violation {
 			vs = append(vs, v)
 		}
 	}
+	// A channel and a message are held to shape alone, as an operation is: one
+	// may be mounted at one pointer and declared at another through a $ref, so
+	// its ID's path need not be the pointer its provenance records (GitHub #107).
+	for id := range doc.Channels {
+		if v, bad := idDefect(ir.IDKindChannel, string(id), ir.Provenance{}); bad {
+			v.Path = "channels[" + string(id) + "]"
+			vs = append(vs, v)
+		}
+	}
+	for id := range doc.Messages {
+		if v, bad := idDefect(ir.IDKindMessage, string(id), ir.Provenance{}); bad {
+			v.Path = "messages[" + string(id) + "]"
+			vs = append(vs, v)
+		}
+	}
 	return append(vs, checkMemberIDs(doc)...)
 }
 
-// kindPrefixes maps every class of ID that opens with a kind prefix to it, so a
-// check that needs the prefix of a class asks one table. Channels and messages
-// are absent: no compiler mints either, so ir defines no prefix for them yet.
+// kindPrefixes maps every class of ID to the kind prefix it opens with, so a
+// check that needs the prefix of a class asks one table.
 var kindPrefixes = map[reflect.Type]string{
 	reflect.TypeFor[ir.TypeID]():       ir.IDKindType,
 	reflect.TypeFor[ir.AuthID]():       ir.IDKindAuth,
@@ -62,6 +76,8 @@ var kindPrefixes = map[reflect.Type]string{
 	reflect.TypeFor[ir.ParamID]():      ir.IDKindParam,
 	reflect.TypeFor[ir.EnumMemberID](): ir.IDKindEnumMember,
 	reflect.TypeFor[ir.ServerID]():     ir.IDKindServer,
+	reflect.TypeFor[ir.ChannelID]():    ir.IDKindChannel,
+	reflect.TypeFor[ir.MessageID]():    ir.IDKindMessage,
 }
 
 // pointerDerived is the classes whose ID path is the pointer the declaring

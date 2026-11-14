@@ -20,13 +20,13 @@ structurally identical anonymous types; aliases are recorded so both IDs stay re
 ## The ID grammar
 
 The shape around the pointer is one grammar every compiler shares: a kind prefix (`t`, `op`, `p`,
-`s`, `g`, `auth`, `param`, `e`, `server`), then the namespace, then the path. Only the path is the
-format's, because a JSON Pointer, a GraphQL structural path and a protobuf fully-qualified name are
-different things and nothing outside the format can compute one. Whatever the format,
-`Provenance.Pointer` records the path as an RFC 6901 pointer, and the ID's path is that pointer
-without its leading `/`: a protobuf full name is one segment, so `acme.v1.UserId` is recorded as
-`/acme.v1.UserId`. A node a lowering *mints* rather than finds takes a namespace of its own, so no
-pointer a reference can spell ever reaches it — the general form of the rule
+`s`, `g`, `auth`, `param`, `e`, `server`, `chan`, `msg`), then the namespace, then the path. Only
+the path is the format's, because a JSON Pointer, a GraphQL structural path and a protobuf
+fully-qualified name are different things and nothing outside the format can compute one. Whatever
+the format, `Provenance.Pointer` records the path as an RFC 6901 pointer, and the ID's path is that
+pointer without its leading `/`: a protobuf full name is one segment, so `acme.v1.UserId` is
+recorded as `/acme.v1.UserId`. A node a lowering *mints* rather than finds takes a namespace of its
+own, so no pointer a reference can spell ever reaches it — the general form of the rule
 [models](./models.md#composition-beside-a-union) states for distributed unions and for the union a
 routed subtype composes.
 
@@ -184,8 +184,9 @@ namespace named `anonaddr`. Agreement does, but only where a node records its po
 security scheme, a server and a property are held to it. An operation is not, because its provenance
 records where its body is declared and its ID where it is mounted, and the two differ for an
 operation reached through a `$ref`'d path item or callback (#107); a parameter is not, for the same
-reason. A service records no pointer, and a group, formed by a rule from every operation sharing a
-key, has no single position to record.
+reason, and neither is a channel or a message, which a format can mount at one pointer and declare
+at another through a `$ref`. A service records no pointer, and a group, formed by a rule from every
+operation sharing a key, has no single position to record.
 
 The declaration is what sees them all. A producer states the namespaces it mints IDs in as
 `Document.IDSpaces`, keyed by kind prefix and built from the constants it derives IDs with, as it
@@ -199,8 +200,9 @@ no empty namespace and none carrying the separator (`ir/id-spaces-unknown-kind`,
 a namespace no ID uses is not an error here; a compiler's own test holds its vocabulary to what its
 corpus uses, in both directions. In this repository a lint rule also holds a compiler to building a
 namespace only from a literal, which is where a path gets glued on, or through the framework's
-qualifier for another document (`compile.Space.Qualified`). Channels and messages
-have no prefix yet and are held to none of this.
+qualifier for another document (`compile.Space.Qualified`). Every class of ID has a kind prefix, a
+channel's `chan` and a message's `msg` among them, so every ID is held to its shape and to the
+declaration.
 
 ## IDs as references
 

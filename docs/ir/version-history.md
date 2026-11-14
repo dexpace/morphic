@@ -760,6 +760,8 @@ it sees. Changes made together in one bump are listed together under it.
   header's. Read as false, the absence sends a `form` parameter unexploded.
 - **0.67.0** — `Example.Input` is a `ScenarioInput`: each parameter's value under its `ParamID` in
   `params`, and the request body's in `body`, where it was one `Value` of no stated shape
-  ([annotations](./annotations.md#docs-deprecation-examples)). No compiler in this repository
-  writes `Input`, so a document it compiled changes only its stamp. A consumer pinned to the prior
-  version refuses the document.
+  ([annotations](./annotations.md#docs-deprecation-examples)). A channel's ID opens with `chan/`
+  and a message's with `msg/`, and `Document.IDSpaces` may key both; a document minting either
+  without the prefix no longer verifies ([IDs](./identity.md#the-id-grammar)). No compiler in this
+  repository writes `Input` or mints either ID, so a document it compiled changes only its stamp. A
+  consumer pinned to the prior version refuses the document.
