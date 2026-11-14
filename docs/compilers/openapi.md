@@ -4452,7 +4452,10 @@ is a tag like any other.
 
 Under the `path-prefix` grouping strategy (`Options.Grouping`), each path operation is filed in one
 group, named by the first non-empty segment of its path's URI template, the key less any fragment
-([`path-keys`](#path-keys)), so `/users` and `/users/{id}` share `users`. A segment that is a
+and any query ([`path-keys`](#path-keys)), so `/users`, `/users/{id}` and `/users?role=admin` share
+`users`, and `/?probe=1` files under the empty segment. The query is found as
+[`path-keys`](#path-keys) finds it, so a `?` inside a template expression begins none, and
+`/{a?b}/users` files under `{a?b}`; `URITemplate` keeps the query. A segment that is a
 template expression names its group as written, `/{tenant}/users` filing under `{tenant}`, and the
 root path, whose segments are all empty, under the empty one. The group's ID is `g/path-prefix/`
 and the segment as one RFC 6901 token, the empty segment's `g/path-prefix`
@@ -4463,12 +4466,13 @@ no resource, so the reading is policy (invariant 6), never the default: an opera
 unmarked, and a callback's goes with the operation declaring it, marked as that one is
 ([`tag-groups`](#tag-groups)). Nothing is reported.
 
+- Cases: `path-prefix-query`
 - Tests: `operation.TestGrouping_PathPrefixGroupsAreIdentifiedByTheirSegment`,
   `operation.TestGrouping_ByPathPrefixInferred`, `operation.TestGrouping_PathPrefixRootPath`,
   `operation.TestSharedRoute_PathPrefixGroupsTheRoute`,
-  `operation.TestGrouping_ACallbackGoesWithItsParentWhateverItsTags`
-- Status: partly built: the segment is read up to the next `/` alone, so a key's query reaches its
-  group, `/users?role=admin` filing under `users?role=admin` (#1823).
+  `operation.TestGrouping_ACallbackGoesWithItsParentWhateverItsTags`,
+  `operation.TestGroups_PathPrefixStopsAtTheQuery`, `operation.TestGroups_PathPrefixKeepsTheQueryInTheTemplate`,
+  `operation.TestGroups_PathPrefixReadsAQuestionMarkInsideATemplateExpression`
 
 ### `extension-groups`
 
