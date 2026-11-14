@@ -429,15 +429,9 @@ type referentPlace struct {
 // placeOf returns where the bindings read js, unknown for a schema they do not
 // know or a document the compile did not read.
 func placeOf(c lowering.Ctx, js *oas3.JSONSchema[oas3.Referenceable]) referentPlace {
-	p, ok := c.Bindings().Site(js)
-	if !ok {
-		return referentPlace{}
-	}
-	in, ok := lowering.InDocument(c, p.Doc)
-	if !ok {
-		return referentPlace{}
-	}
-	return referentPlace{doc: in.Place(), pointer: p.Pointer, known: true}
+	p, known := c.Bindings().Site(js)
+	in, read := lowering.InDocument(c, p.Doc)
+	return referentPlace{doc: in.Place(), pointer: p.Pointer, known: known && read}
 }
 
 // placeIn returns pointer of c's document as a place.
@@ -445,11 +439,9 @@ func placeIn(c lowering.Ctx, pointer jsontext.Pointer) referentPlace {
 	return referentPlace{doc: c.Place(), pointer: pointer, known: true}
 }
 
-// beneath returns the place of what is written at below, relative to p.
+// beneath returns the place of what is written at below, relative to p, and
+// unknown where p is.
 func (p referentPlace) beneath(below jsontext.Pointer) referentPlace {
-	if !p.known {
-		return p
-	}
 	p.pointer += below
 	return p
 }
