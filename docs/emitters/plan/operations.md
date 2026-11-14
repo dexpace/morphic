@@ -9,16 +9,23 @@ type OpPlan struct {
     Return          ResponsePlan      // how the primary response is read
     Others          []PlannedResponse // every other response the operation declares (responses.md)
     RequestContent  *ir.Content       // the request content elected; nil = no body
+    RequestText     map[string]TextPlan // by Content.MediaType as written, what of the elected
+                                      // content, and of every content of an operation the API
+                                      // sends, holds a value no style arranges (responses.md);
+                                      // a content holding none has no entry
     Errors          []PlannedError    // every failure the operation declares, ranges collapsed
                                       // (404/4XX/catch-all)
     Page            *PagePlan         // nil = not paginated
     Stream          *StreamPlan       // nil = neither direction streams (docs/ir/interaction-patterns.md)
     LRO             *LROPlan          // nil = not long-running
+    Stability       ir.Stability      // its own tier, else its nearest group's; "" = none
+                                      // states one (../operations/stability.md)
     Auth            []AuthOption      // OR-of-ANDs, priority-ordered (../operations/auth.md)
-    Effects         Effects           // what calling it may change: declared, else by method
-                                      // (policy.md)
+    Effects         Effects           // what calling it may change: declared, else by what its
+                                      // binding defines (policy.md)
     Bindings        BindingView       // per-protocol param/request/response view from OpBindings
-    Inferred        map[string]ir.Provenance  // which fields above were heuristic (INV6)
+    Inferred        map[string]ir.Provenance  // which fields above were heuristic (INV6), by path:
+                                              // "Page.FirstPage" (policy.md)
 }
 
 // The remaining operation-facet plans. Each is nil when the facet is absent, so a refiner's
@@ -28,8 +35,14 @@ type PagePlan struct {                // item-type unwrap is a PLAN decision
     Strategy   ir.PageStrategy
     ItemType   *ir.TypeRef            // element type items resolve to, unwrapped from the envelope
     ItemPath   *ir.PropPath           // where items live — a PATH (may be nested / in headers)
-    CursorIn   *ir.ParamPath
+    CursorIn   *ir.InputPath          // a parameter, the request body, or a member of either
     CursorOut  *ir.PropPath
+    LimitIn    *ir.InputPath          // the page-size input, which a short page is measured by
+    FirstPage  *ir.Value              // under page: the first page's number, never nil there
+                                      // (policy.md); nil under any other strategy
+    TotalCount *ir.PropPath           // the items in all, which "total" reads
+    TotalPages *ir.PropPath           // the pages in all, which "total" reads
+    Stop       []ir.PageStop          // the IR's stop rules; empty = none stated, none guessed
     Inferred   bool                   // heuristic pagination (may be disabled by policy)
 }
 
@@ -54,7 +67,8 @@ type AuthOption struct {              // one option in the OR-of-ANDs; slice ord
 ```
 
 How `Return`, `Others` and `Errors` read a response is in [responses](responses.md), and
-`StreamPlan` is in [streams](streams.md).
+`StreamPlan` is in [streams](streams.md). An operation the API sends keeps each field's meaning, its
+responses written rather than read ([operations the API sends](../operations/inbound.md)).
 
 `PrimaryResponse` and the contents a `ResponsePlan` elects are the *one legitimate home* for the
 collapse oagen performs destructively in its compiler and Morphic forbids there (INV2): the IR keeps
@@ -66,9 +80,9 @@ Some facts oagen's plan carries are not here, by the [plan-or-refine test](plan-
 Whether there is a body and whether the operation is one-way are stated by the IR, so a refiner
 reads them there, `Operation.Request` and `Operation.OneWay`, as it reads the idempotency-token
 parameter `Operation.Idempotency` names. Whether the operation is safe or idempotent is `Effects`,
-since the IR states it for few operations and a method states it for most ([plan
-policy](policy.md#an-operations-effects-come-from-its-method)). And whether an operation's inputs
-are passed positionally or inside an options object differs by language, so it is each target's
-([request shaping](../refine/requests.md)); the neutral facts it is decided from are already here —
-`BindingView` says where each input binds, and `Parameter.Required` and `Payload.Required` which are
-required — so moving the decision out added no field.
+since the IR states it for few operations and a binding, an HTTP method or a GraphQL operation's
+kind, states it for most ([plan policy](policy.md#an-operations-effects-come-from-its-binding)).
+And whether an operation's inputs are passed positionally or inside an options object differs by
+language, so it is each target's ([request shaping](../refine/requests.md)); the neutral facts it is
+decided from are already here — `BindingView` says where each input binds, and `Parameter.Required`
+and `Payload.Required` which are required — so moving the decision out added no field.

@@ -10,7 +10,10 @@ import (
 
 	soa "github.com/speakeasy-api/openapi/openapi"
 
+	"github.com/dexpace/morphic/compilers/openapi/internal/bind/typed"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
+	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
+	"github.com/dexpace/morphic/compilers/openapi/internal/provenance"
 	refscope "github.com/dexpace/morphic/compilers/openapi/internal/resolve"
 	"github.com/dexpace/morphic/ir"
 )
@@ -24,7 +27,7 @@ import (
 // through a $ref, so a list only a $ref reaches is not checked (GitHub #880).
 // The lists beside a path item's $ref are sibs's model's (writtenItem). A
 // panic in the walk is reported at the model it reached.
-func listRepeats(at func(jsontext.Pointer) ir.Provenance, sibs Siblings, items iter.Seq[soa.WalkItem],
+func listRepeats(place provenance.Doc, sibs Siblings, b *typed.Bindings, items iter.Seq[soa.WalkItem],
 ) []ir.Diagnostic {
 	var diags []ir.Diagnostic
 	site, err := eachModel(items, "repeat check", func(site jsontext.Pointer, model any) error {
@@ -33,70 +36,72 @@ func listRepeats(at func(jsontext.Pointer) ir.Provenance, sibs Siblings, items i
 			// Placed from "", not site: the library renders the root's location
 			// as "/", the pointer to a key named "". Read from the field, since
 			// GetServers stands in a server the source never wrote.
-			diags = append(diags, serverRepeats(at, m.Servers, "")...)
+			diags = append(diags, serverRepeats(place, m.Servers, "")...)
 		case *soa.ReferencedPathItem:
-			if item, ok := writtenItem(m, sibs, site); ok {
-				diags = append(diags, paramRepeats(at, item.GetParameters(), site)...)
-				diags = append(diags, serverRepeats(at, item.GetServers(), site)...)
+			if item, ok := writtenItem(m, b, sibs, site); ok {
+				diags = append(diags, paramRepeats(place, b, item.GetParameters(), site)...)
+				diags = append(diags, serverRepeats(place, item.GetServers(), site)...)
 			}
 		case *soa.Operation:
-			diags = append(diags, paramRepeats(at, m.GetParameters(), site)...)
-			diags = append(diags, serverRepeats(at, m.GetServers(), site)...)
+			diags = append(diags, paramRepeats(place, b, m.GetParameters(), site)...)
+			diags = append(diags, serverRepeats(place, m.GetServers(), site)...)
 		default:
 			// No other model holds a parameter or a servers list.
 		}
 		return nil
 	})
 	if err != nil {
-		diags = append(diags, diag.Newf(ir.SeverityError, diag.Validation, at(site), "%s", err.Error()))
+		diags = append(diags, diag.Newf(ir.SeverityError, diag.Validation, place.At(site), "%s", err.Error()))
 	}
 	return diags
 }
 
 // writtenItem returns the path item whose lists rp writes at site: its own
-// object, or the model of the fields beside its $ref when site is the position
-// that model was found at. The model's operations are walked from there alone,
-// so its own lists are checked there alone too, wherever else an alias mounts
-// it. A $ref with nothing beside it writes no list.
-func writtenItem(rp *soa.ReferencedPathItem, sibs Siblings, site jsontext.Pointer) (*soa.PathItem, bool) {
-	if !rp.IsReference() {
-		return rp.GetObject(), true
+// object, or, where b reads a $ref there, the model of the fields beside it
+// when site is the position that model was found at. The model's operations
+// are walked from there alone, so its own lists are checked there alone too,
+// wherever else an alias mounts it. A $ref with nothing beside it writes no
+// list.
+func writtenItem(rp *soa.ReferencedPathItem, b *typed.Bindings, sibs Siblings, site jsontext.Pointer,
+) (*soa.PathItem, bool) {
+	if _, isRef := b.Reference(rp); !isRef {
+		return refscope.Object[soa.PathItem](b, rp), true
 	}
 	sib, ok := sibs.Of(rp)
 	return sib.Item, ok && sib.Pointer == site
 }
 
-// paramSlot is what OpenAPI identifies a parameter by within one list: its name
-// and location, compared as written.
-type paramSlot struct {
-	name, in string
-}
-
 // paramRepeats reports each entry of the parameter list held by the object at
-// owner that repeats an earlier entry's slot, which OpenAPI forbids, at the
-// repeat, naming the first holder. The rule table states the rule and leaves
-// it here, where every entry is read through its $ref.
+// owner that repeats an earlier entry's slot (ids.SlotOf), which OpenAPI
+// forbids, at the repeat, naming the first holder, and its spelling where a
+// header's differs. The rule table states the rule and leaves it here, where
+// every entry is read through its $ref.
 //
 // An entry is read as the lowering reads it (refscope.Object), so a repeat
-// reported here is one the lowering numbers; one whose $ref resolved to nothing
+// reported here is one the lowering finds; one whose $ref resolved to nothing
 // has no slot.
-func paramRepeats(at func(jsontext.Pointer) ir.Provenance, params []*soa.ReferencedParameter, owner jsontext.Pointer) []ir.Diagnostic {
-	firstAt := make(map[paramSlot]jsontext.Pointer, len(params))
+func paramRepeats(place provenance.Doc, b *typed.Bindings, params []*soa.ReferencedParameter, owner jsontext.Pointer,
+) []ir.Diagnostic {
+	type holder struct {
+		at   jsontext.Pointer
+		name string
+	}
+	firstAt := make(map[ids.ParamSlot]holder, len(params))
 	var diags []ir.Diagnostic
 	for i, rp := range params {
-		p := refscope.Object[soa.Parameter](rp)
+		p := refscope.Object[soa.Parameter](b, rp)
 		if p == nil {
 			continue
 		}
 		entry := owner.AppendToken("parameters").AppendToken(strconv.Itoa(i))
-		slot := paramSlot{name: p.GetName(), in: string(p.GetIn())}
-		first, repeated := firstAt[slot]
+		name, in := p.GetName(), string(p.GetIn())
+		first, repeated := firstAt[ids.SlotOf(name, in)]
 		if !repeated {
-			firstAt[slot] = entry
+			firstAt[ids.SlotOf(name, in)] = holder{at: entry, name: name}
 			continue
 		}
-		diags = append(diags, diag.Newf(ir.SeverityError, diag.DuplicateParameter, at(entry),
-			"parameter %q in %q repeats the entry at %s", slot.name, slot.in, first))
+		diags = append(diags, diag.Newf(ir.SeverityError, diag.DuplicateParameter, place.At(entry),
+			"%s", diag.RepeatedParameter(name, in, first.at, first.name)))
 	}
 	return diags
 }
@@ -107,7 +112,7 @@ func paramRepeats(at func(jsontext.Pointer) ir.Provenance, params []*soa.Referen
 // repeats nothing: a URL hint is the lowering's, not a name the source wrote.
 // A list shorter than two entries has nothing to compare, so most lists cost
 // no map.
-func serverRepeats(at func(jsontext.Pointer) ir.Provenance, servers []*soa.Server, owner jsontext.Pointer) []ir.Diagnostic {
+func serverRepeats(place provenance.Doc, servers []*soa.Server, owner jsontext.Pointer) []ir.Diagnostic {
 	if len(servers) < 2 {
 		return nil
 	}
@@ -124,7 +129,7 @@ func serverRepeats(at func(jsontext.Pointer) ir.Provenance, servers []*soa.Serve
 			firstAt[name] = key
 			continue
 		}
-		diags = append(diags, diag.Newf(ir.SeverityWarning, diag.DuplicateServerName, at(key),
+		diags = append(diags, diag.Newf(ir.SeverityWarning, diag.DuplicateServerName, place.At(key),
 			"server name %q repeats the name at %s; both servers are kept, and a consumer "+
 				"keying servers by name cannot tell them apart", name, first))
 	}

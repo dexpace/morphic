@@ -274,8 +274,8 @@ func straddlesLetterDigit(prev, r rune) bool {
 }
 
 // isWordSequence reports whether s is the shape a neutral name channel
-// promises: words joined by single underscores, each word made of letters,
-// digits and the combining marks that belong to them. The empty string
+// promises: words joined by single underscores, each word made of the runes
+// the grammar keeps in one (ir.IsWordRune). The empty string
 // qualifies — a Naming fills one channel or the other, and a source name with no
 // word rune in it has no words to report.
 //
@@ -291,7 +291,7 @@ func isWordSequence(s string) bool {
 			return false // a leading, trailing, or doubled separator
 		}
 		for _, r := range word {
-			if !unicode.IsLetter(r) && !unicode.IsDigit(r) && !unicode.IsMark(r) {
+			if !ir.IsWordRune(r) {
 				return false
 			}
 		}
@@ -300,15 +300,15 @@ func isWordSequence(s string) bool {
 }
 
 // isBlankName reports whether s holds no rune a name could be made of. It takes
-// as invisible only what Unicode itself classifies so, needing no format's
-// grammar.
+// as invisible only the runes isInvisible reads from Unicode's own properties,
+// needing no format's grammar.
 //
 // strings.TrimSpace is not that test: IsSpace misses the zero-width joiners,
 // the soft hyphen and the BOM (all Cf), and space, control and Cf all miss
-// U+3164 HANGUL FILLER and its two jamo siblings, default-ignorable characters
-// used to pass off a name as empty.
+// the Hangul fillers, such as U+3164, and the variation selectors,
+// default-ignorable characters used to pass off a name as empty.
 //
-// U+2800 BRAILLE PATTERN BLANK is not so classified, so it is left alone:
+// U+2800 BRAILLE PATTERN BLANK is outside that set, so it is left alone:
 // judging it would need the grammar the name is read under.
 func isBlankName(s string) bool {
 	for _, r := range s {
@@ -319,10 +319,12 @@ func isBlankName(s string) bool {
 	return true
 }
 
-// isInvisible reports whether Unicode classifies r as carrying no visible mark.
+// isInvisible reports whether r is white space, a control, or
+// default-ignorable (ir.IsDefaultIgnorable), the set the blank rules take as
+// carrying no visible mark. U+1680 OGHAM SPACE MARK renders a line and stays
+// in, as white space (GitHub #832).
 func isInvisible(r rune) bool {
-	return unicode.IsSpace(r) || unicode.IsControl(r) || unicode.Is(unicode.Cf, r) ||
-		unicode.Is(unicode.Other_Default_Ignorable_Code_Point, r)
+	return unicode.IsSpace(r) || unicode.IsControl(r) || ir.IsDefaultIgnorable(r)
 }
 
 // isCased reports whether s still carries casing an emitter should own. The test

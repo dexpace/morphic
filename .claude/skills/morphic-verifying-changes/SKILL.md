@@ -9,9 +9,10 @@ A result is evidence only when something outside it could have disagreed: a plan
 probe, a `main` control, the opposite order. `CLAUDE.md`'s "Verify by executing" is the rule; this
 skill is how.
 
-The bar is `CLAUDE.md`'s: done means nothing left to find. A defect `main` shares inside the
-change's mechanism is fixed or filed, never a reason to stop
-(`.claude/skills/morphic-reviewing-prs/references/review-probes.md#better-than-main`), and a fix
+The bar is `CLAUDE.md`'s: done means nothing left to find, shown by `morphic-reviewing-prs`'s
+first round. A defect `main` shares inside the change's mechanism is fixed or filed, never a reason
+to stop
+(`.claude/skills/morphic-reviewing-prs/references/correctness.md#better-than-main`), and a fix
 goes to the type that owns the broken state
 (`references/sweep-every-site.md#fix-at-the-invariants-owner`).
 
@@ -23,7 +24,7 @@ goes to the type that owns the broken state
 | this guard or branch matters | force each side (`cond \|\| true`, `cond && false`); a test reddens for each. Coverage cannot see a side that holds no statement |
 | order-independent | swap the declaration order; diff the documents, and the diagnostics as a sorted multiset |
 | no regression against main | `scripts/sweep.py`, or `references/differentials.md#argv-differential` for a change under `cmd/`; each new probe fails on `main`, and a build with the fix broken differs |
-| the fixture reaches the check | confirm where it lands: `harness.Check` stops at the first error diagnostic |
+| the fixture reaches the check | confirm where it lands: `morphic-harness` names what each oracle declined |
 | a bound of N holds | lower it by one at each site; a test at N and N+1 notices |
 | this test reaches no network | `references/claims.md#no-network-through-a-logging-proxy` |
 | lowers to X, is dropped, is refused | compile that literal input; read the IR and every diagnostic |
@@ -33,11 +34,11 @@ goes to the type that owns the broken state
 
 - Before trusting "identical" or "none found", print what ran
   (`references/differentials.md#validate-the-instrument-first`).
-- Read every result line: a mutant that did not compile, a test that never ran and a panic in
-  another test all look like verdicts.
-- Iterate with `go test` on the packages you touched, `go test ./...` before concluding and
-  `make gate` before calling it done: `go test` passing is not the coverage gate
-  (`references/toolchain.md#coverage-per-package`). A review's gate pass may take CI's run for both.
+- Read every result line: a mutant that did not compile, a test that never ran and another
+  test's panic look like verdicts.
+- Iterate with `go test` on the packages you touched, and before calling it done take `make gate`
+  or CI's run of it on the final head: `go test` passing is not the coverage gate
+  (`references/toolchain.md#coverage-per-package`).
 
 ## Script
 

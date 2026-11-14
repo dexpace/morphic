@@ -12,7 +12,6 @@ import (
 	"io"
 	"os"
 	"path/filepath"
-	"slices"
 	"strings"
 	"testing"
 
@@ -266,7 +265,7 @@ func TestRun_BadCompilerOptionIsRefused(t *testing.T) {
 	}{
 		{"malformed pair", "grouping", "want key=value"},
 		{"unknown name", "gruoping=tags", `unknown option "gruoping"`},
-		{"unusable value", "grouping=alphabetical", `want "tags" or "path-prefix"`},
+		{"unusable value", "grouping=alphabetical", `want "tags", "path-prefix" or "extension"`},
 		// A fourth class: the pair is well-formed and the name is known, and the
 		// value is still unusable. Read as "no overlay" it would exit 0 having
 		// applied none, which is the one outcome --opt exists to rule out.
@@ -484,12 +483,12 @@ func (c cancellingCompile) Compile(ctx context.Context, sources []compilers.Sour
 // diagnostic and no document are written, and the run fails naming what
 // cancelled it. The engine fails a run whose stage
 // returned once its context had ended, and the CLI reports a stop only for a
-// run that failed.
+// run that failed. Each case names a destination of its own, so one that wrote
+// fails alone.
 func TestRunPipeline_ARunCancelledInItsLastStageWritesNothing(t *testing.T) {
 	orig := newEngine
 	t.Cleanup(func() { newEngine = orig })
 	spec := writeFile(t, "spec.yaml", testspec.Tiny)
-	dest := filepath.Join(t.TempDir(), "ir.json")
 	stages := []struct {
 		name    string
 		options func(cancel func()) []engine.Option
@@ -513,16 +512,23 @@ func TestRunPipeline_ARunCancelledInItsLastStageWritesNothing(t *testing.T) {
 		{"by a stop signal", errInterrupted, exitFailure, stoppedByInterrupt},
 		{"by its caller", nil, exitFailure, "morphic: stopped: context canceled\n"},
 	}
+	commands := []func(dest string) []string{
+		func(string) []string { return []string{"compile", spec} },
+		func(dest string) []string { return []string{"compile", spec, "-o", dest} },
+		func(string) []string { return []string{"validate", spec} },
+	}
 	for _, stage := range stages {
-		for _, args := range [][]string{{"compile", spec}, {"compile", spec, "-o", dest}, {"validate", spec}} {
+		for _, command := range commands {
 			for _, tt := range tests {
+				dest := filepath.Join(t.TempDir(), "ir.json")
+				args := command(dest)
 				ctx, cancel := context.WithCancelCause(t.Context())
 				newEngine = func(flagged ...engine.Option) (*engine.Engine, error) {
 					return engine.New(append(flagged, stage.options(func() { cancel(tt.cause) })...)...)
 				}
 				var stdout, stderr bytes.Buffer
 
-				code := run(ctx, slices.Clone(args), &stdout, &stderr)
+				code := run(ctx, args, &stdout, &stderr)
 
 				assert.Equal(t, tt.wantCode, code, "%s: %v %s", stage.name, args, tt.name)
 				assert.Equal(t, tt.wantStderr, stderr.String(), "%s: %v %s", stage.name, args, tt.name)

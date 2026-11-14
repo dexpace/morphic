@@ -72,6 +72,12 @@ var rules = map[string][]string{
 	// the compiler would be able to derive one from something other than a
 	// source coordinate.
 	"compilers/openapi/internal/ids": {module + "/ir", module + "/compilers/compile"},
+	// Where a finding or a lowered position is placed: which input document
+	// supplied a pointer, or a node of a decoded tree. It reaches ir and the YAML
+	// node alone, so the overlay that records an attribution, the scans and
+	// checks that place a node and the lowerings that place a pointer reach one
+	// answer as a value, without reaching each other.
+	"compilers/openapi/internal/provenance": {module + "/ir", "go.yaml.in/yaml/v3"},
 	// The one classification of a YAML scalar, and value lowering built on it.
 	// It reaches ir for the value types, yaml for the node it reads and nodeview
 	// for a mapping's members as the parser reads them, and nothing else: a
@@ -88,12 +94,14 @@ var rules = map[string][]string{
 	"compilers/openapi/internal/ynode": {"go.yaml.in/yaml/v3"},
 	// The OpenAPI Specification's rules as data, and the engine that checks a
 	// source tree against them at the minor it declares. It reads the tree
-	// through nodeview, reports through diag, counts its work through budget and
+	// through nodeview, reports through diag, counts its work through budget,
+	// judges a bound's decimal as the lowering reads it through value, and
 	// reaches nothing that loads or lowers: the table is the compiler's own
 	// authority on the specification, so it depends on no parser library.
 	"compilers/openapi/internal/oas": {module + "/ir", module + "/compilers/openapi/internal/budget",
 		module + "/compilers/openapi/internal/diag",
-		module + "/compilers/openapi/internal/nodeview", "go.yaml.in/yaml/v3"},
+		module + "/compilers/openapi/internal/nodeview",
+		module + "/compilers/openapi/internal/value", "go.yaml.in/yaml/v3"},
 	// The one reading of a $ref fragment, and the spelling the resolver is handed
 	// for it (GitHub #911). It reaches the library's reference type for the
 	// resolver's own reading and nothing of the compiler, so the scans, the loader
@@ -107,19 +115,11 @@ var rules = map[string][]string{
 	// than by a reading of its own.
 	"compilers/openapi/internal/nodeview": {module + "/compilers/openapi/internal/budget",
 		"github.com/speakeasy-api/openapi/yml", "go.yaml.in/yaml/v3"},
-	// How the library's walk reads a pointer through the parsed model, a token at
-	// a time, and where it leaves the model for raw YAML. It reaches the library's
-	// navigation and the root node a model was built from, and nothing of the
-	// compiler, so the reference scope and the loader read a pointer as the
-	// resolver does, without the key scan its read of raw YAML costs.
-	"compilers/openapi/internal/navigation": {"github.com/speakeasy-api/openapi/jsonpointer",
-		"github.com/speakeasy-api/openapi/marshaller", "go.yaml.in/yaml/v3"},
-	// Every schema $ref of the source resolved into a table over the decoded
-	// trees, never through the library's resolver (GitHub #558). It reads a tree
-	// through nodeview and a fragment through fragment, counts its work through
-	// budget, and reaches nothing of the library's model or of the compiler:
-	// what the library resolved of a reference object reaches it as data,
-	// through its Config.
+	// Every $ref of the source, a schema's and a reference object's, resolved
+	// into a table over the decoded trees, never through the library's resolver
+	// (GitHub #558). It reads a tree through nodeview and a fragment through
+	// fragment, counts its work through budget, and reaches nothing of the
+	// library's model or of the compiler.
 	"compilers/openapi/internal/bind": {module + "/compilers/openapi/internal/budget",
 		module + "/compilers/openapi/internal/fragment",
 		module + "/compilers/openapi/internal/nodeview", "go.yaml.in/yaml/v3"},
@@ -135,18 +135,12 @@ var rules = map[string][]string{
 	// The name of every node the lowering builds, as a function of the documents
 	// and the node's coordinate (GitHub #981). It reads the grammar through a
 	// bind table, the raw tree through nodeview and a $ref's fragment through
-	// fragment, and composes names in compile's grammar. It reaches nothing that
-	// lowers, so no lowering can make a name depend on the order it runs in.
-	"compilers/openapi/internal/naming": {module + "/compilers/compile",
+	// fragment, composes names in compile's grammar, and reads the words a title
+	// or a key spells through ir's. It reaches nothing that lowers, so no
+	// lowering can make a name depend on the order it runs in.
+	"compilers/openapi/internal/naming": {module + "/ir", module + "/compilers/compile",
 		module + "/compilers/openapi/internal/bind",
 		module + "/compilers/openapi/internal/fragment",
-		module + "/compilers/openapi/internal/ids",
-		module + "/compilers/openapi/internal/nodeview", "go.yaml.in/yaml/v3"},
-	// The $dynamicAnchor declarations of a source tree, which a $dynamicRef
-	// expands against. It reads the tree through nodeview, as the parser reads
-	// it, spells pointers through ids, counts the nodes it reads through budget,
-	// and reaches nothing that lowers.
-	"compilers/openapi/internal/anchors": {module + "/compilers/openapi/internal/budget",
 		module + "/compilers/openapi/internal/ids",
 		module + "/compilers/openapi/internal/nodeview", "go.yaml.in/yaml/v3"},
 	// One walk over the decoded source tree, answering what the pre-lowering
@@ -158,12 +152,13 @@ var rules = map[string][]string{
 		module + "/compilers/openapi/internal/nodeview", "go.yaml.in/yaml/v3"},
 	// The pre-lowering refusals. They read the source through nodeview and the
 	// index built over it, weigh it against its budgets through budget, report
-	// through diag, and reach no part of the lowering — nothing here has a
-	// document to lower yet.
+	// through diag at the place provenance gives a node, and reach no part of
+	// the lowering — nothing here has a document to lower yet.
 	"compilers/openapi/internal/scan": {module + "/ir",
 		module + "/compilers/openapi/internal/budget",
 		module + "/compilers/openapi/internal/diag",
 		module + "/compilers/openapi/internal/nodeview",
+		module + "/compilers/openapi/internal/provenance",
 		module + "/compilers/openapi/internal/sourceindex", "go.yaml.in/yaml/v3"},
 	// What a schema or a carrier says about itself rather than about its shape,
 	// plus how a construct is kept verbatim under Unmodeled, the validation-only
@@ -172,59 +167,60 @@ var rules = map[string][]string{
 	// opinion about lowering — so it sits below the schema lowering that asks it
 	// questions and above nothing that asks it any. It reaches the library's yml
 	// package for the tags its decoder accepts as a string, so a field read off
-	// a raw node decodes as the parser decodes the fields it models, and budget
-	// for the nodes a kept construct may render.
+	// a raw node decodes as the parser decodes the fields it models, budget for
+	// the nodes a kept construct may render, and provenance for where what it
+	// keeps and reports is placed.
 	"compilers/openapi/internal/annotation": {module + "/ir",
 		module + "/compilers/openapi/internal/budget",
 		module + "/compilers/openapi/internal/diag",
+		module + "/compilers/openapi/internal/fragment",
 		module + "/compilers/openapi/internal/ids",
 		module + "/compilers/openapi/internal/nodeview",
+		module + "/compilers/openapi/internal/provenance",
 		module + "/compilers/openapi/internal/value",
 		"github.com/speakeasy-api/openapi/extensions",
 		"github.com/speakeasy-api/openapi/jsonschema/oas3",
 		"github.com/speakeasy-api/openapi/yml", "go.yaml.in/yaml/v3"},
 	// Source-document patching: an OpenAPI Overlay applied to the decoded node
 	// tree, and the attribution of what it changed. It reads bytes and nodes and
-	// reports through diag, reaching ids for the pointer that names a position,
-	// nodeview for the document root and budget for the node budget it builds
-	// within — and nothing that lowers, because it runs before there is anything
-	// to lower.
+	// reports through diag, reaching nodeview for the document root and the
+	// keys the parser reads, budget for the node budget it builds within and
+	// provenance for the attribution it hands out — and nothing that lowers,
+	// because it runs before there is anything to lower.
 	"compilers/openapi/internal/overlay": {module + "/ir",
 		module + "/compilers/openapi/internal/budget",
 		module + "/compilers/openapi/internal/diag",
-		module + "/compilers/openapi/internal/ids",
 		module + "/compilers/openapi/internal/nodeview",
+		module + "/compilers/openapi/internal/provenance",
 		"github.com/speakeasy-api/openapi/overlay", "go.yaml.in/yaml/v3"},
 	// The entry side: parse, check, resolve. It indexes the tree its one decode
 	// produced through sourceindex, runs the pre-lowering refusals over that index
-	// through scan, applies the caller's overlay through overlay, and holds the
-	// tree, and what its references reach, to the specification's rules through
-	// oas, each within its budget through budget. It reaches resolve to read
+	// through scan, applies the caller's overlay through overlay, places what it
+	// finds through provenance, and holds the tree, and what its references
+	// reach, to the specification's rules through oas, each within its budget
+	// through budget. It reaches resolve to read
 	// which mapping values name a position in the source as the lowering will,
-	// and the library's pointer walk, directly and through navigation, to tell a
-	// hop that walked a document's bytes and to walk a document as it does, and
-	// the library's core models to tell its marshaller of the media type
-	// reference it builds (load.MediaTypes). It reaches nothing that lowers — at
-	// this point there is no document to lower.
+	// the library's marshaller to build the object a reference lands on in raw
+	// YAML, and the library's core models to tell its marshaller of the media
+	// type reference it builds (load.MediaTypes). It reaches nothing that lowers
+	// — at this point there is no document to lower.
 	"compilers/openapi/internal/load": {module + "/ir", module + "/compilers",
 		module + "/compilers/openapi/internal/bind",
 		module + "/compilers/openapi/internal/bind/typed",
 		module + "/compilers/openapi/internal/budget",
 		module + "/compilers/openapi/internal/diag",
-		module + "/compilers/openapi/internal/fragment",
-		module + "/compilers/openapi/internal/navigation",
+		module + "/compilers/openapi/internal/ids",
 		module + "/compilers/openapi/internal/nodeview",
 		module + "/compilers/openapi/internal/oas",
 		module + "/compilers/openapi/internal/overlay",
+		module + "/compilers/openapi/internal/provenance",
 		module + "/compilers/openapi/internal/resolve",
 		module + "/compilers/openapi/internal/scan",
 		module + "/compilers/openapi/internal/sourceindex",
-		"github.com/speakeasy-api/openapi/jsonpointer",
 		"github.com/speakeasy-api/openapi/jsonschema/oas3",
 		"github.com/speakeasy-api/openapi/marshaller",
 		"github.com/speakeasy-api/openapi/openapi",
 		"github.com/speakeasy-api/openapi/openapi/core",
-		"github.com/speakeasy-api/openapi/references",
 		"github.com/speakeasy-api/openapi/yml", "go.yaml.in/yaml/v3"},
 	// Recognition of a source from its bytes, before the compile. It reaches load
 	// for the parse the compile goes on to lower, budget for the byte budget that
@@ -237,34 +233,41 @@ var rules = map[string][]string{
 		module + "/compilers/openapi/internal/load",
 		module + "/compilers/openapi/internal/nodeview", "go.yaml.in/yaml/v3"},
 	// What a $ref names: the pointer it addresses, the schema declared there and
-	// the type already interned there. It reaches bind for where a schema $ref
-	// lands, annotation to ask whether a referenced position declares a body at
-	// all, navigation to walk a pointer through the model as the resolver does,
-	// compile for the registry it looks IDs up in, the library's openapi package
+	// the type already interned there. It reaches bind for where a $ref lands,
+	// annotation to ask whether a referenced position declares a body at all,
+	// nodeview to read what a reference object writes beside its $ref as the
+	// model reads a mapping, compile for the registry it looks IDs up in, the library's openapi package
 	// and core models to name each kind of reference once (ReferenceEnd), the
-	// one it names no alias for included (ReferencedMediaType), and yaml to stop
-	// a walk at raw YAML, which holds none. It reaches nothing that lowers —
-	// following a reference far enough to lower its target recurses back into
-	// the schema walk, so that stays with the walk.
-	"compilers/openapi/internal/resolve": {module + "/ir",
+	// one it names no alias for included (ReferencedMediaType), yaml to stop a
+	// walk at raw YAML, which holds none, and compilers for the file a file URI
+	// names as a reader reads it. It reaches nothing that lowers — following a
+	// reference far enough to lower its target recurses back into the schema
+	// walk, so that stays with the walk.
+	"compilers/openapi/internal/resolve": {module + "/ir", module + "/compilers",
 		module + "/compilers/openapi/internal/annotation",
 		module + "/compilers/openapi/internal/bind",
 		module + "/compilers/openapi/internal/bind/typed",
 		module + "/compilers/openapi/internal/fragment",
 		module + "/compilers/openapi/internal/ids",
-		module + "/compilers/openapi/internal/navigation",
+		module + "/compilers/openapi/internal/nodeview",
 		"github.com/speakeasy-api/openapi/jsonschema/oas3",
 		"github.com/speakeasy-api/openapi/openapi",
 		"github.com/speakeasy-api/openapi/openapi/core",
 		"github.com/speakeasy-api/openapi/references",
 		"go.yaml.in/yaml/v3"},
 	// allOf property reconciliation. It reaches annotation for the one field a
-	// redeclaration unions rather than intersects, and takes everything else it
-	// needs from lowering — the registry lookup and the recorder — as function
-	// fields, which is what keeps the conflict lattice drivable without a walk.
+	// redeclaration unions rather than intersects, budget for the model pairs a
+	// judgment compares, diag for what a fold reports, ids for the identity a
+	// field takes of its own, provenance to place what it reports, and spelling
+	// for how two primitive kinds relate. The registry and the walk that
+	// declared the field reach it as values, which is what keeps the conflict
+	// lattice drivable without a walk.
 	"compilers/openapi/internal/merge": {module + "/ir",
 		module + "/compilers/openapi/internal/annotation",
+		module + "/compilers/openapi/internal/budget",
 		module + "/compilers/openapi/internal/diag",
+		module + "/compilers/openapi/internal/ids",
+		module + "/compilers/openapi/internal/provenance",
 		module + "/compilers/openapi/internal/spelling"},
 	// The table that maps a (type, format) pair to a primitive kind, and the
 	// relation between two kinds that table and ir's value domains give. It is its
@@ -275,13 +278,15 @@ var rules = map[string][]string{
 	// What is being lowered: the parsed document, the identity of the source, and
 	// the indexes derived from them at entry. It is the substrate both walks share
 	// and so must reach neither, which is why it sits here rather than with either
-	// one. It reaches load for the version grammar — the dialect question is asked
-	// of the document, and the grammar that answers it is the loader's — and for
-	// the schema bindings the load phase built, which its scope reads. It reaches
-	// naming for what each position is called, anchors for the $dynamicAnchor
-	// index it builds on first ask, and budget for the limits it holds.
+	// one. It reaches load for the schema bindings the load phase built, which its
+	// scope reads, and for the rows a document's schemas are read with, which oas
+	// states: the dialect question is asked of the table, never of the version.
+	// It reaches naming for what each position is called, budget for the limits
+	// it holds, and provenance for where a position of its document is placed.
+	// It reaches nodeview and yaml to weigh the declaration a $ref names, which a
+	// reference's lowering copies, and yaml for the node a schema's rows are
+	// found by.
 	"compilers/openapi/internal/lowering": {module + "/ir",
-		module + "/compilers/openapi/internal/anchors",
 		module + "/compilers/openapi/internal/bind",
 		module + "/compilers/openapi/internal/bind/typed",
 		module + "/compilers/openapi/internal/budget",
@@ -289,15 +294,26 @@ var rules = map[string][]string{
 		module + "/compilers/openapi/internal/ids",
 		module + "/compilers/openapi/internal/load",
 		module + "/compilers/openapi/internal/naming",
+		module + "/compilers/openapi/internal/nodeview",
+		module + "/compilers/openapi/internal/oas",
 		module + "/compilers/openapi/internal/overlay",
+		module + "/compilers/openapi/internal/provenance",
 		module + "/compilers/openapi/internal/resolve",
-		"github.com/speakeasy-api/openapi/openapi"},
+		"github.com/speakeasy-api/openapi/openapi", "go.yaml.in/yaml/v3"},
+	// The lowering context the compiler's tests lower under, over a document the
+	// load phase read. It is apart from openapitest, which internal tests of load
+	// and of packages beneath it import, and so could not import a package that
+	// reaches load.
+	"compilers/openapi/internal/lowering/loweringtest": {module + "/compilers",
+		module + "/compilers/openapi/internal/load",
+		module + "/compilers/openapi/internal/lowering",
+		"github.com/stretchr/testify/require"},
 	// The security schemes a document declares and the requirements that name
 	// them. It is its own package because both sides of the compiler reach it:
 	// the compiler's run lowers the schemes, and the service and operation walks
 	// lower the requirements against them. It reads a field the model names no
 	// member for off the raw node, through nodeview.
-	"compilers/openapi/internal/auth": {module + "/ir", module + "/compilers/compile",
+	"compilers/openapi/internal/auth": {module + "/ir",
 		module + "/compilers/openapi/internal/annotation",
 		module + "/compilers/openapi/internal/diag",
 		module + "/compilers/openapi/internal/ids",
@@ -305,6 +321,29 @@ var rules = map[string][]string{
 		module + "/compilers/openapi/internal/nodeview",
 		module + "/compilers/openapi/internal/resolve",
 		"github.com/speakeasy-api/openapi/openapi"},
+	// What a deprecation names as its replacement, by a key or in its message,
+	// read once the document is whole. It reaches lowering for the policies,
+	// the promotion that reads the names and the parameter lookup links share,
+	// and diag for what it reports, and nothing of the walks: it reads the
+	// document they built (docs/compilers/openapi.md#policies).
+	"compilers/openapi/internal/replacement": {module + "/ir",
+		module + "/compilers/openapi/internal/diag",
+		module + "/compilers/openapi/internal/lowering"},
+	// What a document's names imply, read once the document is whole: an
+	// operation's idempotency token, a credential's redaction and a header's
+	// HTTP-date text. It reaches lowering for the policies, the promotion whose
+	// keys it defers to and the parameter lookup links share, and diag for what
+	// it reports, and nothing of the walks: it reads the document they built.
+	"compilers/openapi/internal/convention": {module + "/ir",
+		module + "/compilers/openapi/internal/diag",
+		module + "/compilers/openapi/internal/lowering"},
+	// The pagination the names an operation uses say, read once the document
+	// is whole. It reaches lowering for the policy and the walk over a
+	// service's operations, and nothing of the walks: it reads the operations
+	// and the registry they built.
+	"compilers/openapi/internal/pagination": {module + "/ir",
+		module + "/compilers/openapi/internal/diag",
+		module + "/compilers/openapi/internal/lowering"},
 	// The servers a document declares, whichever object declares them, and the
 	// registry they are lowered into. It is its own package for the reason auth
 	// is: the service walk lowers the document's own list and the operation walk
@@ -330,6 +369,8 @@ var rules = map[string][]string{
 		module + "/compilers/openapi/internal/lowering",
 		module + "/compilers/openapi/internal/merge",
 		module + "/compilers/openapi/internal/nodeview",
+		module + "/compilers/openapi/internal/oas",
+		module + "/compilers/openapi/internal/provenance",
 		module + "/compilers/openapi/internal/resolve",
 		module + "/compilers/openapi/internal/spelling",
 		module + "/compilers/openapi/internal/value",
@@ -338,9 +379,11 @@ var rules = map[string][]string{
 	// The operation walk: path items, webhooks and callbacks, the parameters
 	// merged onto them, and the content of every body, response and header. It
 	// reaches the schema walk for the positions it hoists, auth for the
-	// requirements it reads and nodeview for the raw nodes behind the model, and
-	// nothing above itself — the compiler assembles the document from what this
-	// returns rather than the other way round.
+	// requirements it reads, nodeview for the raw nodes behind the model, oas
+	// for the cases the Encoding Object's defaults are keyed by, and value for
+	// the constants a link passes, and nothing above itself — the
+	// compiler assembles the document from what this returns rather than the
+	// other way round.
 	"compilers/openapi/internal/operation": {module + "/ir", module + "/compilers/compile",
 		module + "/compilers/openapi/internal/annotation",
 		module + "/compilers/openapi/internal/auth",
@@ -349,9 +392,11 @@ var rules = map[string][]string{
 		module + "/compilers/openapi/internal/ids",
 		module + "/compilers/openapi/internal/lowering",
 		module + "/compilers/openapi/internal/nodeview",
+		module + "/compilers/openapi/internal/oas",
 		module + "/compilers/openapi/internal/resolve",
 		module + "/compilers/openapi/internal/schema",
 		module + "/compilers/openapi/internal/servers",
+		module + "/compilers/openapi/internal/value",
 		"github.com/speakeasy-api/openapi" + subtreeSuffix, "go.yaml.in/yaml/v3"},
 	// What a document says about itself: its info, and what the objects around
 	// it write that lowers to no node of its own. It runs after both walks and
@@ -399,7 +444,8 @@ var rules = map[string][]string{
 	// its options are called are answered through the contract, so no parser is
 	// named here. It reads a run's documents through its own reader package.
 	"engine": {module + "/barrier", module + "/ir", module + "/ir/irverify", module + "/compilers",
-		module + "/compilers/openapi", module + "/engine/cache", module + "/engine/reader", module + "/pass"},
+		module + "/compilers/openapi", module + "/engine/cache", module + "/engine/reader",
+		module + "/engine/triage", module + "/pass"},
 	// Where a run's entries are kept between processes, and what names a build:
 	// files published through the atomic replace, and read as a source is. What
 	// an entry holds is the engine's, so it reaches nothing of the pipeline.
@@ -409,9 +455,13 @@ var rules = map[string][]string{
 	// else, so a caller compiling directly reads as the engine does without
 	// composing a pipeline.
 	"engine/reader": {module + "/compilers"},
-	// The one renderer of a run's findings for a person. It reaches ir alone: it
-	// renders what a run returned and nothing of how the run was composed.
-	"engine/report": {module + "/ir"},
+	// What a caller rules about a run's findings, and the findings as rated. It
+	// reaches ir alone: the engine applies it, and the renderer reads it.
+	"engine/triage": {module + "/ir"},
+	// The one renderer of a run's findings, for a person and for a program. It
+	// reaches ir and the rated findings: it renders what a run returned and
+	// nothing of how the run was composed.
+	"engine/report": {module + "/ir", module + "/engine/triage"},
 	// The engine's writer: the IR document to a stream or a file, published
 	// through the atomic replace beneath it.
 	"engine/output": {module + "/ir", module + "/engine/internal/atomicfile"},
@@ -421,9 +471,10 @@ var rules = map[string][]string{
 	"engine/internal/atomicfile": {"github.com/google/renameio/v2"},
 	// The CLI. Beyond the pipeline it reaches its command framework: cobra
 	// dispatches the commands and renders help, on pflag's parse. What it prints
-	// it asks the engine's renderer and writer for.
+	// it asks the engine's renderer and writer for, and it hands the run the
+	// triage rules a file holds.
 	"cmd/morphic": {module + "/ir", module + "/engine", module + "/engine/cache", module + "/engine/output",
-		module + "/engine/report", "github.com/spf13/cobra", "github.com/spf13/pflag"},
+		module + "/engine/report", module + "/engine/triage", "github.com/spf13/cobra", "github.com/spf13/pflag"},
 	"cmd/morphic-harness": {module + "/internal/harness"},
 	// The census command: tooling outside the pipeline, like the harness command
 	// above. It compiles specs through the engine, lists them as the harness does,
@@ -444,6 +495,9 @@ var rules = map[string][]string{
 	// decorators a test of cancellation puts a cancel at a chosen check with,
 	// which tests across the module import.
 	"internal/ctxtest": {},
+	// Test infrastructure too: the one way a test starts a child process, which
+	// gives a covered child a coverage directory of its own.
+	"internal/exectest": {},
 	// Test infrastructure too: tests that hold a hand-written list to what a
 	// package declares read it type-checked, through go/packages. Two of its
 	// testdata packages are imported by others, which is how a test shows a
@@ -480,9 +534,12 @@ var rules = map[string][]string{
 	"internal/lintrules/testdata/outside": {module + "/ir"},
 	// What the rules .golangci.yml configures refuse, planted for
 	// scripts/lint-planted.sh, and what cmd/morphic-vet refuses, planted for
-	// scripts/vet-rules.sh.
-	"internal/lintrules/testdata/planted": {module + "/ir"},
-	"internal/lintrules/testdata/reach":   {module + "/ir"},
+	// scripts/vet-rules.sh. It reaches the parser library's document, whose
+	// version a rule confines, and its own look-alikes of the OpenAPI
+	// compiler's packages, laid out as the rule's paths name them.
+	"internal/lintrules/testdata/planted": {module + "/ir",
+		module + "/internal/lintrules/testdata/planted" + subtreeSuffix, "github.com/speakeasy-api/openapi/openapi"},
+	"internal/lintrules/testdata/reach": {module + "/ir"},
 }
 
 // exempt names the production packages deliberately outside the layering rules,

@@ -5,18 +5,23 @@ Much of what an SDK does shows only against a live server: honoring `Retry-After
 split across chunk boundaries or carrying one very large event, JSON Lines framing, each pagination
 strategy, status-monitor polling, OAuth token acquisition and refresh, an error body and a success
 body that do not parse, a union variant the SDK does not know, a declared response a method cannot
-return, a success status the document does not list, and the four combinations of required and
-nullable in a response ([optionality](../refine/models.md#optionality--nullability--presence-inv8)).
-Writing those tests once per target does not scale, and nothing would notice a target that left one
-out.
+return, a success status the document does not list, the four combinations of required and
+nullable in a response ([optionality](../refine/models.md#optionality--nullability--presence-inv8)),
+whether a status or a dropped connection is retried, and a redirect followed or returned, one to a
+second origin the server also answers on among them ([runtime
+policy](../contract/runtime-policy.md)). Writing those tests once per target does not scale, and
+nothing would notice a target that left one out.
 
 - **One server, shared by every target.** It has one route per behavior and is written by hand,
   together with the OpenAPI document that describes it, from which each target generates the SDK
   under test. It is deliberately not the mock-server emitter's output ([docs and
   mocks](../docs-and-mock.md)): that mock is wire-consistent with the SDK by construction, so it
   would share any misreading of the spec the generator makes, and a test against it could not
-  disagree with the code it tests. Each test gets a session of its own, so tests run in parallel,
-  and the server records the requests each session received.
+  disagree with the code it tests. That mock's streams and page walks end by construction ([docs and
+  mocks](../docs-and-mock.md#the-mocks-streams-and-page-walks)), so an SDK's tests can run against
+  it, but only these routes show that a pager or a stream reads the API as it means. Each test gets
+  a session of its own, so tests run in parallel, and the server records the requests each session
+  received.
 - **Target-neutral definitions.** Each behavior is an Arazzo workflow: the operation, the request,
   and the success criteria, written by hand. Expectations are not derived from the spec's own
   examples, which the generator under test also reads, for the same reason the server is not

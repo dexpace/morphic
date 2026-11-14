@@ -53,8 +53,7 @@ func entryAt(t *testing.T, table *bind.Table, site jsontext.Pointer) bind.Entry 
 func at(pointer jsontext.Pointer) bind.Position { return bind.Position{Pointer: pointer} }
 
 // TestBind_ReadsEachHop pins one row per way a $ref's own hop lands: where,
-// what the reading finds there, whether it names the source and the pointer it
-// spells, and why one that lands on no schema does not.
+// what the reading finds there, and why one that lands on no schema does not.
 func TestBind_ReadsEachHop(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
@@ -128,8 +127,6 @@ func TestBind_ReadsEachHop(t *testing.T) {
 			if tc.reason == bind.NoReason {
 				assert.Equal(t, bind.Resolved, e.Hop.Status)
 				assert.Equal(t, at(tc.target), e.Hop.Target)
-				assert.True(t, e.Hop.Named)
-				assert.Equal(t, tc.target, e.Hop.Spelled)
 			} else {
 				assert.Equal(t, bind.Unresolved, e.Hop.Status)
 				assert.Equal(t, bind.Unresolved, e.Chain.Status)
@@ -246,8 +243,7 @@ func TestBind_ReadsADefinitionByTheDefsRule(t *testing.T) {
 				return
 			}
 			require.Equal(t, bind.Resolved, e.Hop.Status, e.Hop.Why())
-			assert.Equal(t, at(tc.want), e.Hop.Target)
-			assert.Equal(t, tc.want, e.Hop.Spelled, "a definition is spelled where it is written")
+			assert.Equal(t, at(tc.want), e.Hop.Target, "a definition is placed where it is written")
 		})
 	}
 }
@@ -310,34 +306,6 @@ x-lib:
 	assert.Equal(t, bind.Chain{Status: bind.Resolved, End: at("/x-lib/S"), Hops: 1},
 		entryAt(t, table, "/components/schemas/A").Chain, "in raw YAML")
 	assert.Equal(t, bind.Chain{Status: bind.Resolved, End: at("/components/schemas/M"), Hops: 1}, entryAt(t, table, "/components/schemas/B").Chain, "in the model")
-}
-
-// TestBind_ReadsEachRefAsTheSourceWritesIt pins that a $ref is read as Written
-// spells it where it answers, and as the tree holds it elsewhere: a tree may
-// hold a spelling the parser was handed in place of the source's.
-func TestBind_ReadsEachRefAsTheSourceWritesIt(t *testing.T) {
-	t.Parallel()
-	cfg := self
-	cfg.Written = func(n *yaml.Node) (string, bool) {
-		if n.Value == "#/x-lib/handed" {
-			return "#/x-lib/a+b", true
-		}
-		return "", false
-	}
-	table := bound(t, head+`components:
-  schemas:
-    A: {$ref: '#/x-lib/handed'}
-    B: {$ref: '#/x-lib/handed2'}
-x-lib:
-  a+b: {type: string}
-  handed2: {type: string}
-`, cfg)
-	a := entryAt(t, table, "/components/schemas/A")
-	assert.Equal(t, "#/x-lib/a+b", a.Hop.Ref)
-	assert.Equal(t, at("/x-lib/a+b"), a.Hop.Target, "the written spelling is the one read")
-	b := entryAt(t, table, "/components/schemas/B")
-	assert.Equal(t, "#/x-lib/handed2", b.Hop.Ref)
-	assert.Equal(t, at("/x-lib/handed2"), b.Hop.Target)
 }
 
 // TestBind_FollowsEachChainToItsEnd pins where a chain ends: at the first
@@ -564,18 +532,16 @@ func TestBind_ReadsOtherDocuments(t *testing.T) {
 	require.Equal(t, bind.Resolved, whole.Hop.Status, whole.Hop.Why())
 	assert.Equal(t, "pet.yaml", table.Document(whole.Hop.Target.Doc).Name)
 	assert.Equal(t, bind.Raw, whole.Hop.Role)
-	assert.False(t, whole.Hop.Named)
 	back := entryAt(t, table, "/components/schemas/Back")
 	assert.Equal(t, bind.Chain{Status: bind.Resolved, End: at("/components/schemas/Leaf"), Hops: 2},
 		back.Chain, "a chain back into the source ends there, past a $ref naming another document")
 	there, ok := table.Entry(bind.Position{Doc: back.Hop.Target.Doc, Pointer: "/S"})
 	require.True(t, ok)
 	assert.Equal(t, bind.Chain{Status: bind.Resolved, End: at("/components/schemas/Leaf"), Hops: 1}, there.Chain, "another document's $ref naming the source")
-	for value, named := range map[string]bool{"other.yaml#/S": false, "other.yaml#/T": false, "#/components/schemas/Leaf": true} {
+	for _, value := range []string{"other.yaml#/S", "other.yaml#/T", "#/components/schemas/Leaf"} {
 		m, ok := table.Mapping(at("/components/schemas/Pick/discriminator"), value)
 		require.True(t, ok, value)
 		require.Equal(t, bind.Resolved, m.Chain.Status, value)
-		assert.Equal(t, named, m.Hop.Named, value)
 	}
 	assert.Equal(t, 1, opened["other.yaml"], "read once however many name it")
 	assert.Equal(t, 1, opened["gone.yaml"], "a document that could not be read is not asked for again")

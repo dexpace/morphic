@@ -137,8 +137,8 @@ func TestBuilder_BuildsEachLandingOnce(t *testing.T) {
 	assert.True(t, built[2].Schema.IsBool())
 }
 
-// TestBindings_ANilOneKnowsNothing pins the nil Bindings a context with no
-// load carries: every answer is none.
+// TestBindings_ANilOneKnowsNothing pins what the nil Bindings answers: none,
+// whatever is asked.
 func TestBindings_ANilOneKnowsNothing(t *testing.T) {
 	t.Parallel()
 	var b *typed.Bindings
@@ -151,30 +151,77 @@ func TestBindings_ANilOneKnowsNothing(t *testing.T) {
 	assert.Nil(t, b.Table())
 	_, ok = b.Mapping(&oas3.Discriminator{}, "#/x")
 	assert.False(t, ok)
-	_, ok = b.Unplaced(js)
+	_, _, ok = b.ObjectSite(&soa.ReferencedParameter{})
 	assert.False(t, ok)
+	_, ok = b.Reference(&soa.ReferencedParameter{})
+	assert.False(t, ok)
+	assert.Nil(t, b.ObjectAt(bind.Position{}, bind.RefParameter))
 	bd := typed.NewBuilder(nil)
 	bd.Schema(nil, bind.Position{})
 	assert.Nil(t, bd.Bindings().At(bind.Position{}), "recording no schema holds none")
 }
 
-// TestBindings_AnswersWhereAnUnplacedModelWasRead pins Unplaced: the
-// reference object a schema or discriminator was recorded under, and nothing
-// for one never recorded.
-func TestBindings_AnswersWhereAnUnplacedModelWasRead(t *testing.T) {
+// TestBindings_HoldsTheFirstObjectRecordedAtAPosition pins the object index:
+// where each wrapper was read and as which kind, the first recorded of a kind
+// held at a position, another kind held there beside it, and no wrapper or
+// kind recorded for none.
+func TestBindings_HoldsTheFirstObjectRecordedAtAPosition(t *testing.T) {
 	t.Parallel()
 	bd := typed.NewBuilder(nil)
-	js, d := oas3.NewJSONSchemaFromReference("#/x"), &oas3.Discriminator{}
-	bd.Unplaced(js, "/paths/~1a/get/parameters/0")
-	bd.Unplaced(d, "/components/parameters/P")
+	p := bind.Position{Pointer: "/components/parameters/P"}
+	first, second, header := &soa.ReferencedParameter{}, &soa.ReferencedParameter{}, &soa.ReferencedHeader{}
+	bd.Object(first, bind.RefParameter, p)
+	bd.Object(second, bind.RefParameter, p)
+	bd.Object(header, bind.RefHeader, p)
+	bd.Object(nil, bind.RefParameter, bind.Position{Pointer: "/x"})
+	bd.Object(&soa.ReferencedLink{}, 0, bind.Position{Pointer: "/y"})
 	b := bd.Bindings()
-	for model, want := range map[any]string{js: "/paths/~1a/get/parameters/0", d: "/components/parameters/P"} {
-		site, ok := b.Unplaced(model)
-		assert.True(t, ok)
-		assert.Equal(t, want, site)
-	}
-	_, ok := b.Unplaced(oas3.NewJSONSchemaFromReference("#/x"))
-	assert.False(t, ok, "another schema, though written alike")
+
+	assert.Same(t, first, b.ObjectAt(p, bind.RefParameter), "the first recorded is held")
+	assert.Same(t, header, b.ObjectAt(p, bind.RefHeader), "another kind beside it")
+	assert.True(t, bd.HoldsObject(p, bind.RefParameter))
+	assert.False(t, bd.HoldsObject(p, bind.RefLink))
+	at, kind, ok := b.ObjectSite(second)
+	require.True(t, ok, "a wrapper not held is placed all the same")
+	assert.Equal(t, p, at)
+	assert.Equal(t, bind.RefParameter, kind)
+	assert.Nil(t, b.ObjectAt(bind.Position{Pointer: "/x"}, bind.RefParameter), "no wrapper, none held")
+	assert.Nil(t, b.ObjectAt(bind.Position{Pointer: "/y"}, 0), "no kind, none held")
+}
+
+// TestBindings_ReadsTheReferenceAtAWrappersSite pins Reference: the table's
+// entry for the Reference Object written where a wrapper was read, as the kind
+// it was read as, and none for an inline object, a wrapper read as another
+// kind, or one never recorded.
+func TestBindings_ReadsTheReferenceAtAWrappersSite(t *testing.T) {
+	t.Parallel()
+	doc, _, err := soa.Unmarshal(t.Context(), strings.NewReader(`openapi: 3.1.0
+info: {title: t, version: "1"}
+paths: {}
+components:
+  parameters:
+    P: {$ref: '#/components/parameters/Q'}
+    Q: {name: q, in: query}
+`))
+	require.NoError(t, err)
+	bd := typed.NewBuilder(bind.Bind(t.Context(), doc.GetRootNode(), bind.Config{Self: "spec.yaml"}))
+	params := doc.Components.GetParameters()
+	p, q := params.GetOrZero("P"), params.GetOrZero("Q")
+	bd.Object(p, bind.RefParameter, bind.Position{Pointer: "/components/parameters/P"})
+	bd.Object(q, bind.RefParameter, bind.Position{Pointer: "/components/parameters/Q"})
+	other := &soa.ReferencedHeader{}
+	bd.Object(other, bind.RefHeader, bind.Position{Pointer: "/components/parameters/P"})
+	b := bd.Bindings()
+
+	r, ok := b.Reference(p)
+	require.True(t, ok)
+	assert.Equal(t, bind.Position{Pointer: "/components/parameters/Q"}, r.Chain.End)
+	_, ok = b.Reference(q)
+	assert.False(t, ok, "an inline object writes no reference")
+	_, ok = b.Reference(other)
+	assert.False(t, ok, "read as another kind, the table read none")
+	_, ok = b.Reference(&soa.ReferencedParameter{})
+	assert.False(t, ok, "a wrapper never recorded")
 }
 
 // TestPointerOf pins the pointer a walk location spells: none for the walk's

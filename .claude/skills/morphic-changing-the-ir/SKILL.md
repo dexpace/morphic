@@ -19,12 +19,13 @@ representation they take, and architecture §2.5 says how a change lands.
 3. Name the job a consumer does with the shape and the fact about real input it rests on, and
    count that fact (`references/ir-lessons.md#measure-the-premise`).
 4. Weigh designs that differ in that fact, one of them outside the issue's framing
-   (`references/ir-lessons.md#weigh-the-framing`), and write each loser's reason in `docs/ir` beside
-   the winner.
+   (`references/ir-lessons.md#weigh-the-framing`), prototyping each emitter mechanism against its
+   layer's requirements (`references/ir-lessons.md#prototype-against-every-requirement`), and write
+   each loser's reason in `docs/ir` beside the winner.
 5. Name the check that will hold it: an `irverify` rule, a codec test or a lint rule.
 
 Passes follow architecture §2.2: where validate runs, how a pass takes settings, and which passes
-cannot be turned off.
+always run.
 
 ## What changes with it
 
@@ -35,8 +36,8 @@ cannot be turned off.
   `testdata/golden/openapi/hint_positions.yaml` does not write, is the bump no test sees: make it,
   with the row's `meaning`. `git diff origin/main... -- testdata | grep -E '^-\s*"(canonical|hint)"'`
   lists the names a branch moved.
-- **Other PRs.** Before claiming a version, and after each merge of `main`, list the open PRs
-  that claim one (`references/ir-lessons.md#version-collisions`).
+- **Other PRs.** After each merge moving a version, check no version repeats
+  (`references/ir-lessons.md#version-collisions`).
 - **Mentions.** A position only mentioning a type needs more than classifying
   (`references/ir-lessons.md#mention-is-no-use`).
 - **Hand lists.** A new field, ID class or sum kind meets classification tests in `ir` and
@@ -45,9 +46,10 @@ cannot be turned off.
   `go test ./cmd/morphic-census -update` rewrites; a case that sets the fact takes its line out.
 - **Goldens.** A version bump rewrites none, but a new namespace in a compiler's `Namespaces`
   rewrites the `idSpaces` of every one (`references/ir-lessons.md#new-id-namespace`).
-- **Values.** A lowering writing a value a field never held changes no shape, so no test sees it:
-  bump for its meaning, and read what documents assume of the old values
+- **Values.** A lowering writing a value a field never held, one a consumer switches on, or
+  withdrawing one, changes no shape, so no test sees it: bump for its meaning
   (`references/ir-lessons.md#widened-field-values`).
+  A field naming another node bumps nothing (`references/ir-lessons.md#verdict-on-another-node`).
 - **Emitters.** Once an emitter reads the field, architecture §2.5 says the change lands whole.
 - **Breaking.** A version bump breaks every consumer, as `docs/ir/ir-version.md` says: the title
   carries `!`, and the commit and PR bodies say what an older consumer sees
@@ -55,6 +57,7 @@ cannot be turned off.
 
 ## References
 
-- `references/ir-lessons.md`: version collisions, the hand lists a new field meets, new namespaces,
-  invariants a type held, values a field's readers assume, design rules over their own document,
-  and what the verifier and codecs must reach.
+- `references/ir-lessons.md`: version collisions, hand lists a new field meets, new namespaces,
+  invariants a type held, values a field's readers assume, a flattened member's readers, design
+  rules over their document, what shapes a declaration, and what the verifier and codecs must
+  reach.

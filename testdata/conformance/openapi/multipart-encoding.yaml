@@ -14,6 +14,11 @@ paths:
                 tags:
                   type: array
                   items: {type: string}
+                # One value or a list of them: a part that may repeat.
+                labels:
+                  oneOf:
+                    - {type: string}
+                    - {type: array, items: {type: string}}
             encoding:
               file:
                 contentType: image/png

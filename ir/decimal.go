@@ -82,10 +82,10 @@ type Decimal struct {
 // its e or E and sign, or "" when it has none. It keeps what [BigVal] spells and
 // [Decimal] normalizes.
 type decimalLiteral struct {
-	neg           bool
 	intPart, frac string
-	point         bool
 	exponent      string
+	neg           bool
+	point         bool
 }
 
 // ParseDecimal reads s as a [Decimal]. It refuses text outside the decimal

@@ -66,8 +66,8 @@ func TestTable_EveryKindHasOneObject(t *testing.T) {
 	assert.False(t, ok, "the zero kind names no object")
 }
 
-// TestTable_EveryRowCitesTheSpecification pins that each field, pattern and
-// rule names a sentence of a text it can have come from.
+// TestTable_EveryRowCitesTheSpecification pins that each field, default,
+// pattern and rule names a sentence of a text it can have come from.
 func TestTable_EveryRowCitesTheSpecification(t *testing.T) {
 	valid := func(where string, cites []oas.Cite) {
 		require.NotEmpty(t, cites, where)
@@ -82,6 +82,16 @@ func TestTable_EveryRowCitesTheSpecification(t *testing.T) {
 			valid(o.Name+"."+f.Name, f.Cites)
 			assert.True(t, slices.ContainsFunc(f.Cites, func(c oas.Cite) bool { return f.Defined.Holds(c.Minor) }),
 				"%s.%s: no citation comes from a minor that defines the field", o.Name, f.Name)
+			for _, w := range f.Within {
+				valid(o.Name+"."+f.Name+" within "+w.MediaType, w.Cites)
+				assert.True(t, slices.ContainsFunc(w.Cites, func(c oas.Cite) bool { return w.Span.Holds(c.Minor) }),
+					"%s.%s: no citation of %s comes from a minor it holds at", o.Name, f.Name, w.MediaType)
+			}
+		}
+		for _, d := range o.Defaults {
+			valid(o.Name+"."+d.Field+" default", d.Cites)
+			assert.True(t, slices.ContainsFunc(d.Cites, func(c oas.Cite) bool { return d.Span.Holds(c.Minor) }),
+				"%s.%s: no citation of a default comes from a minor it holds at", o.Name, d.Field)
 		}
 		for _, p := range o.Patterned {
 			valid(o.Name+"."+p.Name, p.Cites)
@@ -118,13 +128,65 @@ func TestTable_SpansAreWellFormed(t *testing.T) {
 			for _, a := range f.Alts {
 				assert.True(t, validSpan(a.Span), where)
 			}
+			withinIsWellFormed(t, where, f)
 		}
-		for _, p := range o.Patterned {
+		defaultsAreWellFormed(t, o)
+		for i, p := range o.Patterned {
 			assert.True(t, validSpan(p.Span), o.Name+"."+p.Name)
+			for _, q := range o.Patterned[i+1:] {
+				assert.False(t, overlaps(p.Span, q.Span), "%s admits two patterns at one minor", o.Name)
+			}
 		}
 		for i, r := range o.Rules {
 			assert.True(t, validSpan(r.Span), o.Name+" rule "+itoa(i))
 			assert.NotZero(t, r.Span, o.Name+" rule "+itoa(i)+" never applies")
+		}
+	}
+}
+
+// withinIsWellFormed holds each media type f takes effect under to a span
+// that holds somewhere, inside the minors defining f, and to a name with no
+// parameters, in lower case, as a holder normalizes the one it asks about, and
+// written once at each minor.
+func withinIsWellFormed(t *testing.T, where string, f oas.Field) {
+	t.Helper()
+	for i, w := range f.Within {
+		assert.True(t, validSpan(w.Span) && w.Span != (oas.Span{}), where+" within "+w.MediaType)
+		assert.Equal(t, strings.ToLower(strings.TrimSpace(w.MediaType)), w.MediaType, where)
+		assert.NotContains(t, w.MediaType, ";", where)
+		for _, m := range minors() {
+			if !w.Span.Holds(m) {
+				continue
+			}
+			assert.True(t, f.Defined.Holds(m), "%s takes effect under %s at %s, where it is not defined", where, w.MediaType, m)
+			for _, other := range f.Within[i+1:] {
+				assert.False(t, other.MediaType == w.MediaType && other.Span.Holds(m),
+					"%s names %s twice at %s", where, w.MediaType, m)
+			}
+		}
+	}
+}
+
+// defaultsAreWellFormed holds each default of o to a field o defines at every
+// minor the default holds at, and the defaults of one field and case to
+// disjoint minors, so at each minor a case has one value.
+func defaultsAreWellFormed(t *testing.T, o oas.Object) {
+	t.Helper()
+	defined := func(name string, m oas.Minor) bool {
+		return slices.ContainsFunc(o.Fields, func(f oas.Field) bool { return f.Name == name && f.Defined.Holds(m) })
+	}
+	for i, d := range o.Defaults {
+		where := o.Name + "." + d.Field + " default"
+		assert.True(t, validSpan(d.Span) && d.Span != (oas.Span{}), where)
+		assert.NotZero(t, d.Case, where+" names no case")
+		for _, m := range minors() {
+			if d.Span.Holds(m) {
+				assert.True(t, defined(d.Field, m), "%s holds at %s, where the object defines no such field", where, m)
+			}
+			for _, e := range o.Defaults[i+1:] {
+				assert.False(t, e.Field == d.Field && e.Case == d.Case && e.Span.Holds(m) && d.Span.Holds(m),
+					"%s has two values of one case at %s", where, m)
+			}
 		}
 	}
 }
@@ -214,10 +276,8 @@ func TestTable_OwnedRulesNameTheirOwners(t *testing.T) {
 			}
 		}
 		for _, f := range o.Fields {
-			for _, owner := range []string{f.Owner, f.ShapeOwner} {
-				if owner != "" {
-					owners[owner] = true
-				}
+			if f.Owner != "" {
+				owners[f.Owner] = true
 			}
 		}
 	}

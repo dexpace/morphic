@@ -32,11 +32,24 @@ whether the answer means anything.
 `generator-width`
 
 - **Rule.** List the read paths and spellings the claim covers and make the generator write each
-  one: positions past a `$ref`, aliases, merge keys, empty keys, every position kind, both
+  one: positions past a `$ref`, aliases, merge keys, empty keys, a scalar the parser tags as no
+  string (a plain date or `<<` value, `!!binary`, a local tag), every position kind, both
   declaration orders, wide documents as well as deep ones. Assert a floor on what was exercised.
 - **Why.** A corpus differential never read through a reference (#774). A generator without `''`
   keys missed 69 regressions (#946). A corpus with no `+` in any fragment reached nothing (#933).
+  Grids writing no plain date left two defects for a later probe (#1226).
 - **Probe.** Count the positions passed and the answers given, not only the inputs.
+
+## Hold each shape a generator leaves out to what admits the input
+`generator-exclusions-are-claims`
+
+- **Rule.** Each shape a generator leaves out claims that no valid input takes it. Check that claim
+  against what admits the input, the format's grammar or the parser, never against a comment in
+  the code under test, which shares the blind spot the generator would then inherit.
+- **Why.** A review's generator wrote no alias to an ancestor because a comment said none could
+  reach the code, and #1508's input did (#1538).
+- **Probe.** The report lists each shape left out beside the grammar or parser behaviour that rules
+  it out.
 
 ## Probe the join, not only the output
 `invariant-probe`
@@ -44,7 +57,7 @@ whether the answer means anything.
 - **Rule.** Where two computations of positions must agree, assert the agreement for every object
   over the corpora, and keep the probe as a test.
 - **Why.** A corpus differential was identical on 2,460 runs while a join probe found a reference
-  end the binder could not place (#1016; `TestBindSchemas_PlacesEveryEndAndBindsEveryRefInTheCorpus`
+  end the binder could not place (#1016; `TestBindAll_BindsEveryRefInTheCorpus`
   is the kept probe).
 
 ## Use a transform differential for spelling and equivalence claims
@@ -85,26 +98,30 @@ whether the answer means anything.
 - **Why.** Diagnostics append in walk order, which the permutation changes (#808). A types-only diff
   missed a reference that took a type already interned at its pointer (#591).
 
-## A clean order oracle says nothing of a fact it does not compare
+## A clean order oracle says nothing of an order it forgives
 `order-oracle-reads-what-it-compares`
 
-- **Rule.** Read `diffOrderInvariants` in `internal/harness/order.go` before trusting a clean order
-  oracle: it is what the oracle compares. A fact outside it, such as one held on an operation or a
-  response, needs its own two-order diff, however many specs reach the sweep, and a spec is not
-  permuted at all where reversing its mappings would lift an alias above its anchor (#403).
-- **Why.** With the normalization of a slice held only on operations deleted, `morphic-harness`
-  still passed a spec whose two headers lower in opposite orders, since no comparison reads them
-  (#1166).
-- **Probe.** `grep -n 'cmp\.Diff' internal/harness/order.go` lists the comparisons; plant an order
-  dependence in the fact and see whether the oracle reddens.
+- **Rule.** Read `orderFree` and `diagnosticSet` in `internal/harness/order.go` before trusting a
+  clean order oracle: it forgives the order of what `orderFree` lists and a message's text, and
+  permutes mappings alone at the default limits. An order dependence among a listed collection's
+  elements, in a message, in a sequence such as an `allOf`'s branches (#1666), or at another
+  limit (#1519) needs its own two-order diff, however many specs reach the sweep.
+- **Why.** With a slice held only on operations left unread, `morphic-harness` passed a spec whose
+  two headers lower in opposite orders (#1166, #684); sorting every list of examples passed a
+  schema whose `examples` array lowered reversed in one order (#1818).
+- **Probe.** Plant an order dependence in the fact and see whether the oracle reddens.
 
-## The order oracle never reaches specs with errors
+## An oracle that declines a spec asked it nothing
 `order-oracle-errors`
 
-- **Rule.** `harness.Check` stops at the first error diagnostic. To measure order dependence over
-  specs with errors, call `orderInvariant` from a scratch test in `internal/harness` on both
-  builds, and delete it after.
-- **Why.** Order-dependent specs hid behind their errors (#917).
+- **Rule.** Before claiming an oracle covered a spec, read its verdict: the `declined` column of
+  the summary `morphic-harness` prints after its report, or `Result.Verdicts`. An oracle with
+  nothing to compare declines, by reason, such as a refusal's round trip or a spec writing a key
+  twice for the order oracle, and a panic leaves every later oracle not reached.
+- **Why.** Order-dependent specs hid behind their errors while the sweep stopped at the first one
+  (#917, #685), and the order oracle reported `ok` on every spec using an anchor it could not
+  permute (#403).
+- **Probe.** `go run ./cmd/morphic-harness <spec>` and read the row of the oracle in question.
 
 ## Never compare cmp.Diff text across runs
 `cmp-diff-random`
@@ -143,6 +160,56 @@ whether the answer means anything.
   into help with exit 0: a success that wrote nothing, invisible to a sweep (#815).
 - **Probe.** `<bin> <args> > out 2> err; echo $?` for each invocation on each build, then `diff` the
   two transcripts.
+
+## Answer an unchanged build's reruns from the IR cache
+`cached-control`
+
+- **Rule.** A build rerun over one spec, such as `main`'s side of repeated sweeps, takes
+  `--cache-dir <dir>`, after `--` for `scripts/sweep.py`; a build of changed code misses, so only
+  an unchanged side gains, and a `--verify` run takes no part. The key holds the spec's path and
+  the working directory, so keep both fixed. A cost measurement never takes the flag, as it would
+  time the hit.
+- **Why.** Golden `validate` on one thread, the collector on, took 103.7G instructions (101.1 to
+  104.5) uncached and 9.47G (9.46 to 9.58) on a hit (#1304), diagnostics identical (spec
+  @d04a1ddd, morphic @c1d984a06).
+- **Probe.** Run twice over one cache directory and once without: the outputs match, and the
+  directory's `stored.ledger` holds one line per build and spec.
+
+## Keep the IR cache from a build its key cannot name
+`cache-key-names-the-executable`
+
+- **Rule.** A binary selecting its mutant by an environment variable never takes `--cache-dir`, and
+  no binary is rebuilt while a run of it starts with the flag.
+- **Why.** The key names a build by its executable's bytes and holds no environment (#1304): a run
+  setting `ZZMUT=1`, which selected a mutant, got the document an unset run had stored, and an unset
+  run got the mutant's when the mutant ran first (morphic @c1d984a06). Off Linux, a run that starts
+  as its binary is replaced stores under the new build (#1318).
+- **Probe.** Plant a mutant behind a variable and run it set and unset over one cache directory:
+  both runs print the first one's document.
+
+## A sweep reaches only the stages its compile flags run
+`sweep-reaches-the-changed-stage`
+
+- **Rule.** `scripts/sweep.py` runs `compile` with the flags after `--`, and a plain compile runs no
+  `irverify`, so a change under `ir/irverify` sweeps with `-- --verify`, and a change to any stage a
+  flag turns on with that flag. Its planted control
+  (`references/differentials.md#planted-control`) shows the sweep reaches the change.
+- **Why.** A plant making `irverify.Verify` report one violation for every document drew no
+  difference from a sweep with no flag, and exit 2 on four specs with `-- --verify` (#1513, #1553).
+- **Probe.** The planted control's sweep, with the flag, lists a difference.
+
+## Settle a change to no production code with two identical builds
+`identical-builds-for-no-production-change`
+
+- **Rule.** For a change that alters no production code, build `cmd/morphic` on both sides with
+  `go build -trimpath -buildvcs=false -o <file> ./cmd/morphic`: byte-identical builds settle every
+  angle reading output at once. Without both flags, two trees of one revision build different
+  binaries, as each records its path and its VCS state.
+- **Why.** Two unpacked copies of one revision, one with a `git init`, built different binaries
+  under a plain `go build` and under `-trimpath` alone, and one under both, and two reviews worked
+  this out unaided (#1381, #1515, #1554).
+- **Probe.** `cmp` of the two builds exits 0, and exits 1 with a production file planted on one
+  side.
 
 ## A real-world corpus guards against regressions; it does not prove a fix
 `corpus-is-a-guard`

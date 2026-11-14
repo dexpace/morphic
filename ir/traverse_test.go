@@ -153,3 +153,40 @@ func TestForEachOperation_AWalkCutAtTheCapLeavesWhatItEntered(t *testing.T) {
 	assert.True(t, truncated)
 	assert.Equal(t, []ir.OpID{"top", "top"}, got, "the second service walks the chain as the first did")
 }
+
+func TestForEachGroup_NilDocument(t *testing.T) {
+	t.Parallel()
+	called := false
+	truncated := ir.ForEachGroup(nil, func(ir.OperationGroup) { called = true })
+	assert.False(t, truncated)
+	assert.False(t, called)
+}
+
+// TestForEachGroup_VisitsEachGroupBeforeThoseItNests holds the walk to
+// declaration order, a group before its own groups and those before its next
+// sibling, across services, so a walk visiting a group after its nested ones,
+// or a level at a time, reorders what it reports.
+func TestForEachGroup_VisitsEachGroupBeforeThoseItNests(t *testing.T) {
+	t.Parallel()
+	doc := &ir.Document{Services: []ir.Service{
+		{Groups: []ir.OperationGroup{
+			{ID: "a", Groups: []ir.OperationGroup{{ID: "a/1", Groups: []ir.OperationGroup{{ID: "a/1/1"}}}, {ID: "a/2"}}},
+			{ID: "b"},
+		}},
+		{Groups: []ir.OperationGroup{{ID: "c"}}},
+	}}
+	var got []ir.GroupID
+	truncated := ir.ForEachGroup(doc, func(g ir.OperationGroup) { got = append(got, g.ID) })
+	assert.False(t, truncated)
+	assert.Equal(t, []ir.GroupID{"a", "a/1", "a/1/1", "a/2", "b", "c"}, got)
+}
+
+// TestForEachGroup_ReportsTheGroupsPastTheCap holds the walk to visiting a
+// group at the cap and not the one below it, and to saying so.
+func TestForEachGroup_ReportsTheGroupsPastTheCap(t *testing.T) {
+	t.Parallel()
+	visited := 0
+	truncated := ir.ForEachGroup(groupChain(ir.MaxGroupDepth+1), func(ir.OperationGroup) { visited++ })
+	assert.True(t, truncated)
+	assert.Equal(t, ir.MaxGroupDepth+1, visited, "levels 0 to the cap, and not the one past it")
+}

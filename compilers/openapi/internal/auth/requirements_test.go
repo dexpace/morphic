@@ -5,20 +5,30 @@ package auth_test
 
 import (
 	"encoding/json/jsontext"
+	"fmt"
+	"maps"
+	"slices"
 	"strings"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
 	soa "github.com/speakeasy-api/openapi/openapi"
+	soacore "github.com/speakeasy-api/openapi/openapi/core"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	yaml "go.yaml.in/yaml/v3"
 
-	"github.com/dexpace/morphic/compilers/compile"
+	"github.com/dexpace/morphic/compilers"
+	"github.com/dexpace/morphic/compilers/openapi"
 	"github.com/dexpace/morphic/compilers/openapi/internal/auth"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
+	"github.com/dexpace/morphic/compilers/openapi/internal/lowering/loweringtest"
+	"github.com/dexpace/morphic/compilers/openapi/internal/nodeview"
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
+	"github.com/dexpace/morphic/engine/reader"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -99,10 +109,11 @@ components:
 }
 
 // TestSecurityRequirement_AScalarTheModelDoesNotDecodeIsAScope pins that a scope
-// is the text a list writes, whatever tag the parser gave it. A plain date is a
-// string to OpenAPI, and the model, which decodes no such item
-// (docs/parser-library.md#undecoded-scalar), would lose every scope beside it
-// with nothing reported.
+// is the text a list writes, whatever tag it is written under. The model decodes
+// no item under a tag outside YAML's JSON schema ruleset
+// (docs/parser-library.md#undecoded-scalar), and would lose every scope beside it
+// with nothing reported. A plain date, which the load phase tags a string, is a
+// scope too.
 func TestSecurityRequirement_AScalarTheModelDoesNotDecodeIsAScope(t *testing.T) {
 	t.Parallel()
 	for written, want := range map[string][]string{
@@ -300,7 +311,7 @@ paths:
 `)
 	assert.Equal(t, svc.Auth[0].Schemes[0].Scheme, onlyOperation(t, svc).Auth[0].Schemes[0].Scheme)
 	assert.Empty(t, cmp.Diff(map[ir.AuthID]ir.AuthScheme{ids.UnresolvedAuth("missing"): {
-		ID: ids.UnresolvedAuth("missing"), Name: compile.NamingFor("missing"), Kind: ir.AuthKindUnresolved,
+		ID: ids.UnresolvedAuth("missing"), Name: ir.NamingFor("missing"), Kind: ir.AuthKindUnresolved,
 	}}, doc.Auth))
 }
 
@@ -338,26 +349,264 @@ components:
 	}
 }
 
-// TestSecurityRequirement_A32URIIsReadAsAName pins a limitation: 3.2 lets a key
-// be a scheme's URI, which is not read yet (#1212), so a document that fully
-// describes the scheme lowers as unresolved and still fails its run, and the
-// finding says so. A warning here would be a request an SDK refuses and no
-// failed run to show for it.
-func TestSecurityRequirement_A32URIIsReadAsAName(t *testing.T) {
+// uriSchemes declares the schemes the URI cases name: key with a mechanism,
+// nomech naming none, and two entries whose names are themselves URIs naming
+// another entry, one of them naming no mechanism.
+const uriSchemes = `components:
+  securitySchemes:
+    key: {type: apiKey, in: header, name: X-Key}
+    nomech: {type: http}
+    "#/components/securitySchemes/named": {type: apiKey, in: header, name: X-Named}
+    named: {type: apiKey, in: query, name: named}
+    "#/components/securitySchemes/unnamed": {type: http}
+    unnamed: {type: apiKey, in: query, name: unnamed}
+`
+
+// TestSecurityRequirement_A32KeyMayNameItsSchemeByURI is the reproduction of
+// issue #1212. From 3.2 a key that is no component name may be the URI of the
+// scheme, read as a reference against the document holding the requirement:
+// one naming an entry of the source's securitySchemes is that entry, declared
+// or not, exactly as if the key had been its name, and is reported where the
+// name would be, quoting the key written, as a scope it repeats is reported
+// under the key. A component name comes first, and any other key is the name it
+// spells.
+func TestSecurityRequirement_A32KeyMayNameItsSchemeByURI(t *testing.T) {
+	t.Parallel()
+	cases := []struct {
+		key  string
+		want ir.AuthID
+	}{
+		{"#/components/securitySchemes/key", ids.Auth("key")},
+		{"spec.yaml#/components/securitySchemes/key", ids.Auth("key")},
+		{"#/components/securitySchemes/k%65y", ids.Auth("key")},
+		{"#/components/securitySchemes/named", ids.Auth("#/components/securitySchemes/named")},
+		{"#/components/securitySchemes/unnamed", ids.UnresolvedAuth("#/components/securitySchemes/unnamed")},
+		{"#/components/securitySchemes/nomech", ids.UnresolvedAuth("nomech")},
+		{"#/components/securitySchemes/ghost", ids.UnresolvedAuth("ghost")},
+		{"#/components/schemas/key", ids.UnresolvedAuth("#/components/schemas/key")},
+		{"#/components/securitySchemes/key/x", ids.UnresolvedAuth("#/components/securitySchemes/key/x")},
+		{"other.yaml#/components/securitySchemes/key", ids.UnresolvedAuth("other.yaml#/components/securitySchemes/key")},
+		{"key#", ids.UnresolvedAuth("key#")},
+	}
+	for _, tc := range cases {
+		t.Run(tc.key, func(t *testing.T) {
+			t.Parallel()
+			doc, svc, diags := serviceSpec(t, `openapi: 3.2.0
+info: {title: T, version: "1"}
+security: [{"`+tc.key+`": [read, read]}]
+paths: {}
+`+uriSchemes)
+			require.Len(t, svc.Auth, 1)
+			assert.Equal(t, []ir.SchemeUse{{Scheme: tc.want, Scopes: []string{"read"}}}, svc.Auth[0].Schemes)
+			assert.Equal(t, []jsontext.Pointer{"/security/0" + ids.Ptr(tc.key, "1")},
+				openapitest.PointersOf(diags, diag.RepeatedEntry), "a repeat is where the key writes it")
+			assert.Contains(t, doc.Auth, tc.want)
+			entries := []ir.AuthID{ids.Auth("key"), ids.UnresolvedAuth("nomech"),
+				ids.Auth("#/components/securitySchemes/named"), ids.Auth("named"),
+				ids.UnresolvedAuth("#/components/securitySchemes/unnamed"), ids.Auth("unnamed")}
+			for id := range doc.Auth {
+				if !slices.Contains(entries, id) {
+					assert.Equal(t, tc.want, id, "the entries, and no scheme but the one the key names")
+				}
+			}
+
+			reported := messagesAt(diags, diag.UnresolvedSecurityScheme)
+			if !strings.HasPrefix(string(tc.want), "auth/unresolved/") {
+				assert.Empty(t, reported)
+				return
+			}
+			require.Len(t, reported, 1, "%+v", diags)
+			assert.Contains(t, reported[0], fmt.Sprintf("unresolved scheme %q", tc.key), "the key as written")
+		})
+	}
+}
+
+// TestSecurityRequirement_A31KeyIsAName pins that 3.0 and 3.1 read a key as a
+// name alone: neither defines the URI form, so a key spelling one names no
+// entry and is reported, with the text a name draws.
+func TestSecurityRequirement_A31KeyIsAName(t *testing.T) {
 	t.Parallel()
 	const uri = "#/components/securitySchemes/key"
-	_, svc, diags := serviceSpec(t, `openapi: 3.2.0
+	for _, version := range []string{"3.0.3", "3.1.1"} {
+		_, svc, diags := serviceSpec(t, `openapi: `+version+`
 info: {title: T, version: "1"}
-security:
-  - "`+uri+`": []
+security: [{"`+uri+`": []}]
 paths: {}
+`+uriSchemes)
+		require.Len(t, svc.Auth, 1, version)
+		assert.Equal(t, []ir.AuthID{ids.UnresolvedAuth(uri)}, schemeUses(svc.Auth[0]), version)
+		assert.Equal(t, []string{`security requirement references unresolved scheme "` + uri +
+			`": the requirement is kept, and the scheme has no mechanism`},
+			messagesAt(diags, diag.UnresolvedSecurityScheme), version)
+	}
+}
+
+// TestSecurityRequirement_A32UnresolvedNameSaysWhatIsNotRead pins the clause a
+// 3.2 document's error adds: a URI naming a scheme outside the source's
+// securitySchemes is not followed, so the reader is not told only that the
+// scheme has no mechanism.
+func TestSecurityRequirement_A32UnresolvedNameSaysWhatIsNotRead(t *testing.T) {
+	t.Parallel()
+	_, _, diags := serviceSpec(t, `openapi: 3.2.0
+info: {title: T, version: "1"}
+security: [{"#/x-schemes/extra": []}]
+paths: {}
+x-schemes:
+  extra: {type: http, scheme: bearer}
+`)
+	assert.Equal(t, []string{`security requirement references unresolved scheme "#/x-schemes/extra": ` +
+		`the requirement is kept, and the scheme has no mechanism; a URI naming a Security Scheme Object ` +
+		`outside the source's components/securitySchemes is not read`},
+		messagesAt(diags, diag.UnresolvedSecurityScheme))
+}
+
+// TestSecurityRequirement_AURIIsReadInTheDocumentHoldingIt pins the rows and the
+// base a key is read with when the requirement is in another document a path
+// mounts: that document's minor decides whether the key may be a URI, and a
+// fragment alone names that document, not the source, so it is not followed.
+// The source's file named whole is the source in either.
+func TestSecurityRequirement_AURIIsReadInTheDocumentHoldingIt(t *testing.T) {
+	t.Parallel()
+	const keys = `[{"root.yaml#/components/securitySchemes/key": []}, {"#/components/securitySchemes/key": []}]`
+	other := func(version string) string {
+		return `openapi: ` + version + `
+info: {title: O, version: "1"}
+paths:
+  /there:
+    get:
+      operationId: there
+      security: ` + keys + `
+      responses: {"200": {description: ok}}
+components:
+  securitySchemes:
+    key: {type: http, scheme: basic}
+`
+	}
+	ghostFragment := ids.UnresolvedAuth("#/components/securitySchemes/key")
+	for _, tc := range []struct {
+		source, other string
+		want          []ir.AuthID
+	}{
+		{"3.1.1", "3.2.0", []ir.AuthID{ids.Auth("key"), ghostFragment}},
+		{"3.2.0", "3.1.1", []ir.AuthID{ids.UnresolvedAuth("root.yaml#/components/securitySchemes/key"), ghostFragment}},
+	} {
+		doc, diags := compileBeside(t, `openapi: `+tc.source+`
+info: {title: T, version: "1"}
+paths:
+  /there: {$ref: 'other.yaml#/paths/~1there'}
 components:
   securitySchemes:
     key: {type: apiKey, in: header, name: X-Key}
-`)
-	require.Len(t, svc.Auth, 1)
-	assert.Equal(t, []ir.AuthID{ids.UnresolvedAuth(uri)}, schemeUses(svc.Auth[0]))
-	assert.Equal(t, 1, openapitest.CountDiagsAt(diags, diag.UnresolvedSecurityScheme, ir.SeverityError))
+`, other(tc.other))
+		op := openapitest.FindOp(t, doc, "there")
+		require.Len(t, op.Auth, 2, "%s mounting %s: %+v", tc.source, tc.other, diags)
+		assert.Equal(t, tc.want, []ir.AuthID{op.Auth[0].Schemes[0].Scheme, op.Auth[1].Schemes[0].Scheme},
+			"%s mounting %s", tc.source, tc.other)
+	}
+}
+
+// compileBeside compiles root as root.yaml beside other as other.yaml, read
+// from memory with external references allowed.
+func compileBeside(t *testing.T, root, other string) (*ir.Document, []ir.Diagnostic) {
+	t.Helper()
+	memory, err := reader.NewMemory([]compilers.Source{{Path: "other.yaml", Data: []byte(other)}})
+	require.NoError(t, err)
+	doc, diags, err := openapi.New().Compile(t.Context(),
+		[]compilers.Source{{Path: "root.yaml", Data: []byte(root)}},
+		compilers.Options{Reader: memory, FormatOptions: openapi.Options{AllowExternalRefs: true}})
+	require.NoError(t, err)
+	require.NotNil(t, doc, "%+v", diags)
+	require.Len(t, doc.Sources, 2, "the root and other.yaml: %+v", diags)
+	return doc, diags
+}
+
+// TestSecurityRequirement_AKeyAnotherDocumentMintsStillNamesTheSourcesEntry pins
+// that no scheme a requirement mints decides what a later key names. A 3.1
+// document a path mounts writes the source's fragment for key, which it reads
+// as a name and mints as unresolved under that spelling. The 3.2 source writing
+// the same key still names its entry, whichever path is declared first.
+func TestSecurityRequirement_AKeyAnotherDocumentMintsStillNamesTheSourcesEntry(t *testing.T) {
+	t.Parallel()
+	const (
+		key   = "#/components/securitySchemes/key"
+		there = "  /there: {$ref: 'other.yaml#/paths/~1there'}\n"
+		here  = `  /here:
+    get:
+      operationId: here
+      security: [{"` + key + `": []}]
+      responses: {"200": {description: ok}}
+`
+		other = `openapi: 3.1.1
+info: {title: O, version: "1"}
+paths:
+  /there:
+    get:
+      operationId: there
+      security: [{"` + key + `": []}]
+      responses: {"200": {description: ok}}
+`
+	)
+	for order, paths := range map[string]string{"mount first": there + here, "own first": here + there} {
+		doc, diags := compileBeside(t, "openapi: 3.2.0\ninfo: {title: T, version: \"1\"}\npaths:\n"+paths+`components:
+  securitySchemes:
+    key: {type: apiKey, in: header, name: X-Key}
+`, other)
+		for name, want := range map[string]ir.AuthID{"here": ids.Auth("key"), "there": ids.UnresolvedAuth(key)} {
+			op := openapitest.FindOp(t, doc, name)
+			require.Len(t, op.Auth, 1, "%s, %s: %+v", order, name, diags)
+			assert.Equal(t, []ir.AuthID{want}, schemeUses(op.Auth[0]), "%s, %s", order, name)
+		}
+	}
+}
+
+// TestSecurityRequirement_ANameAndItsURIAreOneSchemeInEitherOrder pins that the
+// name a URI yields depends on the key and the document alone: one operation
+// writing an undeclared name and another its URI reach one scheme, and the
+// documents and their diagnostics are equal whichever is declared first, bar
+// what the permutation moves by design: the source's hash, and the order of the
+// operations it groups and of the diagnostics, compared as a multiset.
+func TestSecurityRequirement_ANameAndItsURIAreOneSchemeInEitherOrder(t *testing.T) {
+	t.Parallel()
+	const (
+		byName = `  /byName:
+    get:
+      operationId: byName
+      security: [{ghost: []}]
+      responses: {"200": {description: ok}}
+`
+		byURI = `  /byURI:
+    get:
+      operationId: byURI
+      security: [{"#/components/securitySchemes/ghost": []}]
+      responses: {"200": {description: ok}}
+`
+		head = "openapi: 3.2.0\ninfo: {title: T, version: \"1\"}\npaths:\n"
+	)
+	nameFirst, _, nameFirstDiags := serviceSpec(t, head+byName+byURI)
+	uriFirst, _, uriFirstDiags := serviceSpec(t, head+byURI+byName)
+
+	for order, doc := range map[string]*ir.Document{"name first": nameFirst, "URI first": uriFirst} {
+		assert.Equal(t, []ir.AuthID{ids.UnresolvedAuth("ghost")}, slices.Collect(maps.Keys(doc.Auth)), order)
+		for _, name := range []string{"byName", "byURI"} {
+			op := openapitest.FindOp(t, doc, name)
+			require.Len(t, op.Auth, 1, name)
+			assert.Equal(t, []ir.AuthID{ids.UnresolvedAuth("ghost")}, schemeUses(op.Auth[0]), "%s: %s", order, name)
+		}
+	}
+	assert.Empty(t, cmp.Diff(nameFirst, uriFirst, cmpopts.IgnoreFields(ir.SourceInfo{}, "Hash"),
+		cmpopts.IgnoreFields(ir.Provenance{}, "Position"), cmpopts.IgnoreFields(ir.Document{}, "Diagnostics"),
+		cmpopts.SortSlices(func(a, b ir.Operation) bool { return a.ID < b.ID })))
+	assert.ElementsMatch(t, reported(nameFirstDiags), reported(uriFirstDiags))
+}
+
+// reported renders each diagnostic as its code, severity, pointer and message,
+// so two orders of one document compare on what was reported and where.
+func reported(diags []ir.Diagnostic) []string {
+	out := make([]string, 0, len(diags))
+	for _, d := range diags {
+		out = append(out, fmt.Sprintf("%s %v %s %s", d.Code, d.Severity, d.Provenance.Pointer, d.Message))
+	}
+	return out
 }
 
 // TestSecurityRequirement_EveryOperationCarrierDiagnosesAtItsDeclaration pins
@@ -450,8 +699,8 @@ func operationsByDeclaration(svc ir.Service) map[string]ir.Operation {
 // opposite claim.
 func TestSecurityRequirements_AnEmptyListIsNotAnAbsentOne(t *testing.T) {
 	t.Parallel()
-	var c lowering.Ctx
-	reg, _ := auth.LowerSecuritySchemes(lowering.Ctx{Doc: &soa.OpenAPI{}})
+	c := loweringtest.Context(t, openapitest.EmptySpec, lowering.Policy{})
+	reg := auth.RegistryOf(c, nil)
 
 	absent, absentDiags := reg.Requirements(c, nil, "")
 	assert.Nil(t, absent, "no security key at all inherits the enclosing default")
@@ -655,9 +904,301 @@ func loaderErrors(diags []ir.Diagnostic) []string {
 // and a nil one is in no document at all.
 func TestRegistryRequirements_DropsANilEntrySilently(t *testing.T) {
 	t.Parallel()
-	reg, _ := auth.LowerSecuritySchemes(lowering.Ctx{Doc: &soa.OpenAPI{}})
-	got, diags := reg.Requirements(lowering.Ctx{}, []*soa.SecurityRequirement{nil}, "/security")
+	c := loweringtest.Context(t, openapitest.EmptySpec, lowering.Policy{})
+	reg := auth.RegistryOf(c, nil)
+	got, diags := reg.Requirements(c, []*soa.SecurityRequirement{nil}, "/security")
 
 	assert.Empty(t, got, "a nil entry is no requirement, so it is dropped")
 	assert.Empty(t, diags)
+}
+
+// mergeCarriers is a document writing one security list at every position one
+// can be written: the root, an inline operation, a callback's, an operation of
+// a path item a path mounts by $ref, and a webhook's. LIST is the list.
+const mergeCarriers = `openapi: 3.1.0
+info: {title: T, version: "1"}
+x-defs:
+  s: &s 5
+  e: &e {}
+  bad: &bad {<<: 5}
+security: LIST
+paths:
+  /x:
+    get:
+      operationId: inline
+      security: LIST
+      responses: {"200": {description: ok}}
+      callbacks:
+        onEvent:
+          '{$request.body#/url}':
+            post:
+              operationId: callback
+              security: LIST
+              responses: {"200": {description: ok}}
+  /mounted:
+    $ref: '#/components/pathItems/Mounted'
+webhooks:
+  hook:
+    post:
+      operationId: hook
+      security: LIST
+      responses: {"200": {description: ok}}
+components:
+  pathItems:
+    Mounted:
+      get:
+        operationId: mounted
+        security: LIST
+        responses: {"200": {description: ok}}
+  securitySchemes:
+    key: {type: apiKey, in: header, name: X-Key}
+`
+
+// carrierAuth returns the security each carrier of mergeCarriers lowered to,
+// keyed by its operationId, the root's under "root".
+func carrierAuth(t *testing.T, doc *ir.Document) map[string][]ir.AuthRequirement {
+	t.Helper()
+	out := map[string][]ir.AuthRequirement{"root": doc.Services[0].Auth}
+	for _, name := range []string{"inline", "callback", "mounted", "hook"} {
+		out[name] = openapitest.FindOp(t, doc, name).Auth
+	}
+	return out
+}
+
+// TestSecurityRequirement_AMergeNamingNoMappingIsNoOption is the reproduction of
+// issue #1244. An entry whose `<<` names nothing to merge reads as {}, and read
+// as the option meaning "no auth is one acceptable choice", it grants anonymous
+// access the document never wrote. It names no scheme either, so it lowers to no
+// option, at every carrier and in every spelling of the merge, while a merge of
+// a mapping, an empty one included, is what it merges. The loader's error at
+// the fault is the one report of a dropped entry: at the entry, or where an
+// alias it merges is written.
+func TestSecurityRequirement_AMergeNamingNoMappingIsNoOption(t *testing.T) {
+	t.Parallel()
+	key := ir.AuthRequirement{Schemes: []ir.SchemeUse{{Scheme: ids.Auth("key")}}}
+	none := []ir.AuthRequirement{key}
+	empty := []ir.AuthRequirement{key, {}}
+	cases := []struct {
+		entry string
+		want  []ir.AuthRequirement
+		// fault is where the loader reports the merge, for an entry dropped.
+		fault string
+	}{
+		{`{<<: 5}`, none, "/security/1"}, {`{<<: null}`, none, "/security/1"},
+		{`{<<: [5]}`, none, "/security/1"}, {`{<<: [{}, 5]}`, none, "/security/1"},
+		{`{<<: {<<: 5}}`, none, "/security/1"}, {`{!!merge <<: 5}`, none, "/security/1"},
+		{`{!!merge "<<": 5}`, none, "/security/1"}, {`{<<: *s}`, none, "/security/1"},
+		{`{<<: [*e, *s]}`, none, "/security/1"}, {`*bad`, none, "/x-defs/bad"}, {`{<<: *bad}`, none, "/x-defs/bad"},
+		{`{<<: {}}`, empty, ""}, {`{<<: &empty {}}`, empty, ""}, {`{<<: *e}`, empty, ""}, {`{<<: []}`, empty, ""},
+		{`{<<: 5, key: []}`, []ir.AuthRequirement{key, key}, ""},
+		// JSON has no merge key: the quoted key is a name, which reaches no
+		// scheme, and the option stands.
+		{`{"<<": 5}`, []ir.AuthRequirement{key, {Schemes: []ir.SchemeUse{{Scheme: ids.UnresolvedAuth("<<")}}}}, ""},
+	}
+	for _, tc := range cases {
+		t.Run(tc.entry, func(t *testing.T) {
+			t.Parallel()
+			doc, _, diags := serviceSpec(t, strings.ReplaceAll(mergeCarriers, "LIST", "[{key: []}, "+tc.entry+"]"))
+			for carrier, got := range carrierAuth(t, doc) {
+				assert.Empty(t, cmp.Diff(tc.want, got, cmpopts.EquateEmpty()), carrier)
+			}
+			if tc.fault != "" {
+				assert.Contains(t, strings.Join(loaderErrors(diags), "\n"), tc.fault+": a `<<` merge key",
+					"the merge naming nothing is reported: %+v", diags)
+			}
+		})
+	}
+}
+
+// TestSecurityRequirement_AJSONDocumentWritesNoMerge pins #1244's spelling in a
+// JSON document, at the root and on an operation: JSON has no merge key, so
+// `"<<"` is a name like any other, which reaches no scheme and keeps its
+// option, reported, rather than reading as the empty one.
+func TestSecurityRequirement_AJSONDocumentWritesNoMerge(t *testing.T) {
+	t.Parallel()
+	const list = `[{"<<": 5}, {"<<": {}}]`
+	doc, svc, diags := serviceSpec(t, `{"openapi": "3.1.0", "info": {"title": "T", "version": "1"},
+  "security": `+list+`,
+  "paths": {"/x": {"get": {"operationId": "x", "security": `+list+`,
+    "responses": {"200": {"description": "ok"}}}}}}`)
+	want := []ir.AuthRequirement{
+		{Schemes: []ir.SchemeUse{{Scheme: ids.UnresolvedAuth("<<")}}},
+		{Schemes: []ir.SchemeUse{{Scheme: ids.UnresolvedAuth("<<")}}},
+	}
+	assert.Empty(t, cmp.Diff(want, svc.Auth), "the document")
+	assert.Empty(t, cmp.Diff(want, onlyOperation(t, svc).Auth), "the operation")
+	assert.Contains(t, doc.Auth, ids.UnresolvedAuth("<<"))
+	assert.Equal(t, []string{"/paths/~1x/get/security/0", "/paths/~1x/get/security/1", "/security/0", "/security/1"},
+		sortedPointersAt(diags, diag.UnresolvedSecurityScheme))
+}
+
+// TestSecurityRequirement_ASoleMergeNamingNoMappingCollapsesTheListToNil pins
+// the worse half of #1244 at every carrier: read as [{}], `security: [{<<: 5}]`
+// is public to anyone who accepts the error. Its one entry names no option, so
+// the list says nothing about auth and collapses to nil, where the loader
+// reports the merge at the entry.
+func TestSecurityRequirement_ASoleMergeNamingNoMappingCollapsesTheListToNil(t *testing.T) {
+	t.Parallel()
+	doc, _, diags := serviceSpec(t, strings.ReplaceAll(mergeCarriers, "LIST", "[{<<: 5}]"))
+	for carrier, got := range carrierAuth(t, doc) {
+		assert.Nil(t, got, carrier)
+	}
+	reported := strings.Join(loaderErrors(diags), "\n")
+	for _, at := range []string{"/security/0: ", "/paths/~1x/get/security/0: ", "/webhooks/hook/post/security/0: ",
+		"/components/pathItems/Mounted/get/security/0: ",
+		"/paths/~1x/get/callbacks/onEvent/{$request.body#~1url}/post/security/0: "} {
+		assert.Contains(t, reported, at, "the loader places the merge at the entry")
+	}
+}
+
+// TestSecurityRequirement_AMergeChainIsReadToItsEnd pins that an entry merging
+// through a chain longer than nodeview.MergeDepthLimit is read as the parser
+// reads it: empty mappings all the way down write {}, and a `<<` naming no
+// mapping at the end names no option.
+func TestSecurityRequirement_AMergeChainIsReadToItsEnd(t *testing.T) {
+	t.Parallel()
+	chain := func(leaf string) string {
+		for range nodeview.MergeDepthLimit + 6 {
+			leaf = "{<<: " + leaf + "}"
+		}
+		return leaf
+	}
+	key := ir.AuthRequirement{Schemes: []ir.SchemeUse{{Scheme: ids.Auth("key")}}}
+	for leaf, want := range map[string][]ir.AuthRequirement{
+		"{}": {key, {}}, "{<<: 5}": {key},
+	} {
+		_, svc, _ := serviceSpec(t, strings.ReplaceAll(mergeCarriers, "LIST", "[{key: []}, "+chain(leaf)+"]"))
+		assert.Empty(t, cmp.Diff(want, svc.Auth, cmpopts.EquateEmpty()), leaf)
+	}
+}
+
+// TestRegistryRequirements_AnEntryWhoseRootIsNoMappingIsNoOption covers the
+// guard a parsed document cannot reach: a requirement whose root node is no
+// mapping. The marshaller records a root only for a mapping, so only a
+// hand-built requirement holds one, and it is no option rather than {}.
+func TestRegistryRequirements_AnEntryWhoseRootIsNoMappingIsNoOption(t *testing.T) {
+	t.Parallel()
+	c := loweringtest.Context(t, openapitest.EmptySpec, lowering.Policy{})
+	reg := auth.RegistryOf(c, nil)
+	req := soa.NewSecurityRequirement()
+	core := soacore.NewSecurityRequirement()
+	core.SetRootNode(&yaml.Node{Kind: yaml.ScalarNode, Value: "5"})
+	req.SetCore(core)
+
+	got, diags := reg.Requirements(c, []*soa.SecurityRequirement{req}, "")
+	assert.Nil(t, got, "no option, so the list collapses")
+	assert.Empty(t, diags)
+}
+
+// TestSecurityRequirement_ARepeatedScopeIsKeptOnce pins issue #738's fold of
+// SchemeUse.Scopes: the scopes a scheme must hold are a set, so a repeat is
+// kept at its first occurrence and reported where it is written, naming the
+// first, under the name as the pointer escapes it. Each scheme's list folds on
+// its own, at the document and on an operation alike, and scopes compare as
+// written.
+func TestSecurityRequirement_ARepeatedScopeIsKeptOnce(t *testing.T) {
+	t.Parallel()
+	const list = `[{o: [read, read, write, Read, read]}, {o: [read], "a/b": [read, read]}]`
+	_, svc, diags := serviceSpec(t, `openapi: 3.1.0
+info: {title: T, version: "1"}
+security: `+list+`
+paths:
+  /x:
+    get:
+      operationId: x
+      security: `+list+`
+      responses: {"200": {description: ok}}
+components:
+  securitySchemes:
+    o: {type: oauth2, flows: {clientCredentials: {tokenUrl: 'https://x/t', scopes: {read: r, write: w, Read: R}}}}
+    a/b: {type: oauth2, flows: {clientCredentials: {tokenUrl: 'https://x/t', scopes: {read: r}}}}
+`)
+	want := []ir.AuthRequirement{
+		{Schemes: []ir.SchemeUse{{Scheme: ids.Auth("o"), Scopes: []string{"read", "write", "Read"}}}},
+		{Schemes: []ir.SchemeUse{{Scheme: ids.Auth("o"), Scopes: []string{"read"}}, {Scheme: ids.Auth("a/b"), Scopes: []string{"read"}}}},
+	}
+	assert.Empty(t, cmp.Diff(want, svc.Auth), "the document")
+	assert.Empty(t, cmp.Diff(want, onlyOperation(t, svc).Auth), "the operation")
+
+	var got []string
+	for _, d := range diags {
+		if d.Code == diag.RepeatedEntry {
+			assert.Equal(t, ir.SeverityWarning, d.Severity)
+			got = append(got, string(d.Provenance.Pointer)+": "+d.Message)
+		}
+	}
+	slices.Sort(got)
+	wantDiags := make([]string, 0, 6)
+	for _, base := range []string{"", "/paths/~1x/get"} {
+		wantDiags = append(wantDiags,
+			base+`/security/0/o/1: scope "read" of scheme "o" repeats the entry at index 0; it is kept once`,
+			base+`/security/0/o/4: scope "read" of scheme "o" repeats the entry at index 0; it is kept once`,
+			base+`/security/1/a~1b/1: scope "read" of scheme "a/b" repeats the entry at index 0; it is kept once`)
+	}
+	slices.Sort(wantDiags)
+	assert.Equal(t, wantDiags, got)
+}
+
+// TestSecurityRequirement_AnUnresolvedNameNamesADeclaredNearMiss is the
+// reproduction of issue #694: a name matched exactly and reaching no scheme is
+// often a declared one in another case or with a typo, and the error names it.
+// Resolution stays exact, so the requirement names the unresolved scheme all the
+// same. An entry that reaches no mechanism is no hint, a name with no near miss
+// draws the plain text, and in a 3.2 document the hint comes before the URI
+// clause.
+func TestSecurityRequirement_AnUnresolvedNameNamesADeclaredNearMiss(t *testing.T) {
+	t.Parallel()
+	const plain = "the requirement is kept, and the scheme has no mechanism"
+	cases := []struct {
+		version, key, want string
+	}{
+		{"3.1.1", "ApiKey", `"ApiKey": ` + plain + `; a scheme named "apiKey" is declared`},
+		{"3.1.1", "apiKye", `"apiKye": ` + plain + `; a scheme named "apiKey" is declared`},
+		{"3.1.1", "basicAuth", `"basicAuth": ` + plain},
+		{"3.1.1", "oauth", `"oauth": ` + plain},
+		{"3.2.0", "#/components/securitySchemes/api_key", `"#/components/securitySchemes/api_key": ` + plain +
+			`; a scheme named "apiKey" is declared; a URI naming a Security Scheme Object outside the source's ` +
+			`components/securitySchemes is not read`},
+	}
+	for _, tc := range cases {
+		t.Run(tc.version+" "+tc.key, func(t *testing.T) {
+			t.Parallel()
+			_, svc, diags := serviceSpec(t, `openapi: `+tc.version+`
+info: {title: T, version: "1"}
+security: [{"`+tc.key+`": []}]
+paths: {}
+components:
+  securitySchemes:
+    apiKey: {type: apiKey, in: header, name: X-Key}
+    basic_auth: {type: http}
+`)
+			require.Len(t, svc.Auth, 1)
+			assert.Equal(t, []string{"security requirement references unresolved scheme " + tc.want},
+				messagesAt(diags, diag.UnresolvedSecurityScheme))
+		})
+	}
+}
+
+// TestSecurityRequirement_EveryErrorForANameNamesItsNearMiss pins that the hint
+// is the name's and not its first requirement's: each requirement naming it, at
+// the document and on an operation, beside a declared scheme or alone, is
+// reported with the hint, so which one a walk meets first decides nothing.
+func TestSecurityRequirement_EveryErrorForANameNamesItsNearMiss(t *testing.T) {
+	t.Parallel()
+	_, _, diags := serviceSpec(t, `openapi: 3.1.1
+info: {title: T, version: "1"}
+security: [{ApiKey: []}]
+paths:
+  /x:
+    get:
+      operationId: x
+      security: [{ApiKey: []}, {apiKey: [], ApiKey: []}]
+      responses: {"200": {description: ok}}
+components:
+  securitySchemes:
+    apiKey: {type: apiKey, in: header, name: X-Key}
+`)
+	const want = `security requirement references unresolved scheme "ApiKey": the requirement is kept, ` +
+		`and the scheme has no mechanism; a scheme named "apiKey" is declared`
+	assert.Equal(t, []string{want, want, want}, messagesAt(diags, diag.UnresolvedSecurityScheme))
 }

@@ -170,8 +170,8 @@ func vocabularyCore() []vocabCase {
 		},
 		{
 			keyword: "$dynamicAnchor", write: "$dynamicAnchor: m", schemas: stringSchema,
-			excluded: "read as a reference target by anchors.Build, which is what lets a " +
-				"$dynamicRef expand; declaring one says nothing about the shape",
+			excluded: "read as a reference target by the binder, which is what lets a " +
+				"$dynamicRef expand (docs/compilers/openapi.md#dynamic-ref); declaring one says nothing about the shape",
 		},
 		{
 			keyword: "$defs", write: "$defs: {D: {type: string}}", schemas: stringSchema,
@@ -246,6 +246,12 @@ func vocabularyApplicator() []vocabCase {
 		{
 			keyword: "unevaluatedProperties", schemas: objectSchema,
 			write: "unevaluatedProperties: false", alt: "unevaluatedProperties: {type: string}",
+		},
+		// Its false form again, where no model holds it as a closure: kept
+		// verbatim, as every other form is (docs/compilers/openapi.md#validation-only).
+		{
+			keyword: "unevaluatedProperties", schemas: stringSchema,
+			write: "unevaluatedProperties: false", alt: "unevaluatedProperties: true",
 		},
 	}
 }

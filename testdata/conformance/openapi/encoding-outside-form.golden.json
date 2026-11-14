@@ -1,0 +1,355 @@
+{
+  "idSpaces": {
+    "auth": [
+      "openapi",
+      "unresolved"
+    ],
+    "e": [
+      "anon",
+      "composed",
+      "openapi"
+    ],
+    "g": [
+      "default",
+      "extension",
+      "path-prefix",
+      "tags",
+      "webhooks"
+    ],
+    "op": [
+      "openapi"
+    ],
+    "p": [
+      "composed",
+      "openapi"
+    ],
+    "param": [
+      "openapi"
+    ],
+    "s": [
+      "openapi"
+    ],
+    "server": [
+      "default",
+      "openapi"
+    ],
+    "t": [
+      "anon",
+      "composed",
+      "openapi"
+    ]
+  },
+  "name": "EncodingOutsideForm",
+  "version": "1.0.0",
+  "docs": {},
+  "services": [
+    {
+      "id": "s/openapi/0",
+      "name": {
+        "source": "EncodingOutsideForm",
+        "canonical": "encoding_outside_form"
+      },
+      "docs": {},
+      "groups": [
+        {
+          "id": "g/default",
+          "name": {
+            "hint": "default"
+          },
+          "docs": {},
+          "operations": [
+            {
+              "id": "op/openapi/paths/~1json/post",
+              "name": {
+                "source": "json",
+                "canonical": "json"
+              },
+              "docs": {},
+              "request": {
+                "contents": [
+                  {
+                    "mediaType": "application/json",
+                    "type": {
+                      "target": "t/anon/paths/~1json/post/requestBody/content/application~1json/schema",
+                      "nullable": false
+                    },
+                    "unmodeled": {
+                      "openapi:encoding/f": {
+                        "reason": "no_ir_home",
+                        "value": {
+                          "contentType": "text/plain",
+                          "x-note": "kept"
+                        },
+                        "provenance": {
+                          "source": 0,
+                          "pointer": "/paths/~1json/post/requestBody/content/application~1json/encoding/f"
+                        }
+                      }
+                    }
+                  }
+                ],
+                "required": false
+              },
+              "responses": [
+                {
+                  "name": {
+                    "hint": "204"
+                  },
+                  "conditions": {
+                    "statusCodes": [
+                      {
+                        "from": 204,
+                        "to": 204
+                      }
+                    ]
+                  },
+                  "docs": {
+                    "description": "ok"
+                  }
+                }
+              ],
+              "oneWay": false,
+              "idempotency": {},
+              "bindings": {
+                "http": [
+                  {
+                    "method": "POST",
+                    "uriTemplate": "/json",
+                    "requestContentTypes": [
+                      "application/json"
+                    ],
+                    "sharedRoute": false,
+                    "checksumRequired": false
+                  }
+                ]
+              },
+              "provenance": {
+                "source": 0,
+                "pointer": "/paths/~1json/post"
+              }
+            },
+            {
+              "id": "op/openapi/paths/~1bytes/post",
+              "name": {
+                "source": "bytes",
+                "canonical": "bytes"
+              },
+              "docs": {},
+              "request": {
+                "contents": [
+                  {
+                    "mediaType": "application/octet-stream",
+                    "type": {
+                      "target": "t/prim/bytes",
+                      "nullable": false
+                    },
+                    "file": {
+                      "isText": false,
+                      "contentTypes": [
+                        "application/octet-stream"
+                      ]
+                    },
+                    "unmodeled": {
+                      "openapi:encoding/f": {
+                        "reason": "no_ir_home",
+                        "value": {
+                          "contentType": "image/png"
+                        },
+                        "provenance": {
+                          "source": 0,
+                          "pointer": "/paths/~1bytes/post/requestBody/content/application~1octet-stream/encoding/f"
+                        }
+                      }
+                    }
+                  }
+                ],
+                "required": false
+              },
+              "responses": [
+                {
+                  "name": {
+                    "hint": "204"
+                  },
+                  "conditions": {
+                    "statusCodes": [
+                      {
+                        "from": 204,
+                        "to": 204
+                      }
+                    ]
+                  },
+                  "docs": {
+                    "description": "ok"
+                  }
+                }
+              ],
+              "oneWay": false,
+              "idempotency": {},
+              "bindings": {
+                "http": [
+                  {
+                    "method": "POST",
+                    "uriTemplate": "/bytes",
+                    "requestContentTypes": [
+                      "application/octet-stream"
+                    ],
+                    "sharedRoute": false,
+                    "checksumRequired": false
+                  }
+                ]
+              },
+              "provenance": {
+                "source": 0,
+                "pointer": "/paths/~1bytes/post"
+              }
+            }
+          ]
+        }
+      ],
+      "servers": [
+        "server/default"
+      ],
+      "provenance": {
+        "source": 0
+      }
+    }
+  ],
+  "types": {
+    "t/anon/paths/~1json/post/requestBody/content/application~1json/schema": {
+      "kind": "model",
+      "id": "t/anon/paths/~1json/post/requestBody/content/application~1json/schema",
+      "name": {
+        "hint": "json_request"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/paths/~1json/post/requestBody/content/application~1json/schema"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/paths/~1json/post/requestBody/content/application~1json/schema/properties/f",
+          "name": {
+            "source": "f",
+            "canonical": "f"
+          },
+          "wireName": "f",
+          "type": {
+            "target": "t/prim/string",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/paths/~1json/post/requestBody/content/application~1json/schema/properties/f"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/prim/bytes": {
+      "kind": "primitive",
+      "id": "t/prim/bytes",
+      "name": {},
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": -1
+      },
+      "prim": "bytes"
+    },
+    "t/prim/string": {
+      "kind": "primitive",
+      "id": "t/prim/string",
+      "name": {},
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": -1
+      },
+      "prim": "string"
+    }
+  },
+  "servers": {
+    "server/default": {
+      "id": "server/default",
+      "name": {
+        "hint": "server"
+      },
+      "urlTemplate": "/",
+      "description": {},
+      "provenance": {
+        "source": 0
+      }
+    }
+  },
+  "diagnostics": [
+    {
+      "severity": "warning",
+      "code": "openapi/validation/validation-no-effect",
+      "message": "Media Type Object field \"encoding\" has no effect under \"application/json\", which the specification applies to multipart and application/x-www-form-urlencoded media types alone in OpenAPI 3.1 (Media Type Object)",
+      "provenance": {
+        "source": 0,
+        "pointer": "/paths/~1json/post/requestBody/content/application~1json/encoding",
+        "position": {
+          "line": 14,
+          "column": 15
+        }
+      }
+    },
+    {
+      "severity": "warning",
+      "code": "openapi/validation/validation-no-effect",
+      "message": "Media Type Object field \"encoding\" has no effect under \"application/octet-stream\", which the specification applies to multipart and application/x-www-form-urlencoded media types alone in OpenAPI 3.1 (Media Type Object)",
+      "provenance": {
+        "source": 0,
+        "pointer": "/paths/~1bytes/post/requestBody/content/application~1octet-stream/encoding",
+        "position": {
+          "line": 24,
+          "column": 15
+        }
+      }
+    },
+    {
+      "severity": "info",
+      "code": "openapi/degraded-construct",
+      "message": "encoding entry \"f\" belongs to a media type that is neither multipart nor form, where it has no effect, so Content.Encoding has no key for it; kept verbatim under Unmodeled",
+      "provenance": {
+        "source": 0,
+        "pointer": "/paths/~1json/post/requestBody/content/application~1json/encoding/f"
+      }
+    },
+    {
+      "severity": "info",
+      "code": "openapi/degraded-construct",
+      "message": "encoding entry \"f\" belongs to a media type that is neither multipart nor form, where it has no effect, so Content.Encoding has no key for it; kept verbatim under Unmodeled",
+      "provenance": {
+        "source": 0,
+        "pointer": "/paths/~1bytes/post/requestBody/content/application~1octet-stream/encoding/f"
+      }
+    }
+  ],
+  "sources": [
+    {
+      "format": "openapi@3.1",
+      "path": "encoding-outside-form.yaml",
+      "hash": "a45def3e0d769f6a1ca066c9f612f23dc54dd707d8da8c7e4c2afe6b3739e83e"
+    }
+  ]
+}

@@ -6,10 +6,12 @@
     ],
     "e": [
       "anon",
+      "composed",
       "openapi"
     ],
     "g": [
       "default",
+      "extension",
       "path-prefix",
       "tags",
       "webhooks"
@@ -110,7 +112,9 @@
                   {
                     "method": "GET",
                     "uriTemplate": "/a",
-                    "sharedRoute": false,
+                    "pathDocs": {
+                      "summary": "written beside the ref"
+                    },
                     "paramBindings": [
                       {
                         "param": "param/openapi/paths/~1a/get/parameters/beside/query",
@@ -122,8 +126,8 @@
                         "allowEmptyValue": false
                       }
                     ],
-                    "checksumRequired": false,
-                    "isWebhook": false
+                    "sharedRoute": false,
+                    "checksumRequired": false
                   }
                 ]
               },
@@ -140,14 +144,6 @@
                   "provenance": {
                     "source": 0,
                     "pointer": "/paths/~1a/bogusBeside"
-                  }
-                },
-                "openapi:pathItem/summary": {
-                  "reason": "no_ir_home",
-                  "value": "written beside the ref",
-                  "provenance": {
-                    "source": 0,
-                    "pointer": "/paths/~1a/summary"
                   }
                 },
                 "openapi:pathItem/x-beside": {
@@ -218,7 +214,9 @@
                   {
                     "method": "PUT",
                     "uriTemplate": "/a",
-                    "sharedRoute": false,
+                    "pathDocs": {
+                      "summary": "written beside the ref"
+                    },
                     "paramBindings": [
                       {
                         "param": "param/openapi/paths/~1a/put/parameters/beside/query",
@@ -230,8 +228,8 @@
                         "allowEmptyValue": false
                       }
                     ],
-                    "checksumRequired": false,
-                    "isWebhook": false
+                    "sharedRoute": false,
+                    "checksumRequired": false
                   }
                 ]
               },
@@ -248,14 +246,6 @@
                   "provenance": {
                     "source": 0,
                     "pointer": "/paths/~1a/bogusBeside"
-                  }
-                },
-                "openapi:pathItem/summary": {
-                  "reason": "no_ir_home",
-                  "value": "written beside the ref",
-                  "provenance": {
-                    "source": 0,
-                    "pointer": "/paths/~1a/summary"
                   }
                 },
                 "openapi:pathItem/x-beside": {
@@ -305,8 +295,7 @@
                     "method": "GET",
                     "uriTemplate": "/b",
                     "sharedRoute": false,
-                    "checksumRequired": false,
-                    "isWebhook": false
+                    "checksumRequired": false
                   }
                 ]
               },
@@ -373,24 +362,6 @@
       "provenance": {
         "source": 0,
         "pointer": "/paths/~1a/bogusBeside"
-      }
-    },
-    {
-      "severity": "info",
-      "code": "openapi/degraded-construct",
-      "message": "path-item documentation kept under Unmodeled; it documents the path rather than this operation, and ir.Docs holds the operation's own summary and description",
-      "provenance": {
-        "source": 0,
-        "pointer": "/paths/~1b/get"
-      }
-    },
-    {
-      "severity": "info",
-      "code": "openapi/degraded-construct",
-      "message": "path-item documentation kept under Unmodeled; it documents the path rather than this operation, and ir.Docs holds the operation's own summary and description",
-      "provenance": {
-        "source": 0,
-        "pointer": "/paths/~1a/put"
       }
     },
     {

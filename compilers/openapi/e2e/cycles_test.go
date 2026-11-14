@@ -20,8 +20,8 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi"
 	"github.com/dexpace/morphic/compilers/openapi/internal/budget"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
-	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
+	"github.com/dexpace/morphic/compilers/openapi/internal/provenance"
 	"github.com/dexpace/morphic/compilers/openapi/internal/scan"
 	"github.com/dexpace/morphic/compilers/openapi/internal/sourceindex"
 	"github.com/dexpace/morphic/compilers/openapi/internal/ynode"
@@ -74,25 +74,24 @@ var unreadSchemaRefs = []struct{ name, file, at string }{
 	{"schema-empty-token-stays", "cycle_schema_empty_token_stays", "/components/schemas/A"},
 }
 
-// referenceObjectCycles are chains of reference objects that cycle, or whose
-// pointer passes back through a reference on the chain, with a reference each
-// is reported unresolved at. The resolver follows such a chain in a loop and
-// reports it, so the compile reaches the lowering (GitHub #574).
+// referenceObjectCycles are chains of reference objects that loop, reported as
+// one loop at its least member, or whose pointer passes a reference that
+// cannot resolve before it does, reported unresolved where its own hop fails.
 var referenceObjectCycles = []struct {
 	name, file string
-	at         string
+	code, at   string
 }{
-	{"path-item-mutual", "cycle_path_item_mutual", "/paths/~1a"},
-	{"path-item-self", "cycle_path_item_self", "/paths/~1a"},
-	{"webhook-mutual", "cycle_webhook_mutual", "/webhooks/onA"},
-	{"response-via-path", "cycle_response_via_path", "/paths/~1a/get/responses/200"},
-	{"path-item-via-component", "cycle_path_item_via_component", "/paths/~1a"},
-	{"path-item-prefix-self", "cycle_path_item_prefix_self", "/paths/~1a"},
-	{"path-item-prefix-sibling", "cycle_path_item_prefix_sibling", "/paths/~1a"},
-	{"path-item-prefix-chain", "cycle_path_item_prefix_chain", "/paths/~1b"},
-	{"component-path-item-prefix", "cycle_component_path_item_prefix", "/components/pathItems/A"},
-	{"webhook-prefix-self", "cycle_webhook_prefix_self", "/webhooks/onA"},
-	{"path-item-empty-segment", "cycle_path_item_empty_segment", "/components/pathItems/A"},
+	{"path-item-mutual", "cycle_path_item_mutual", diag.CyclicRef, "/paths/~1a"},
+	{"path-item-self", "cycle_path_item_self", diag.CyclicRef, "/paths/~1a"},
+	{"webhook-mutual", "cycle_webhook_mutual", diag.CyclicRef, "/webhooks/onA"},
+	{"response-via-path", "cycle_response_via_path", diag.CyclicRef, "/paths/~1a/get/responses/200"},
+	{"path-item-via-component", "cycle_path_item_via_component", diag.CyclicRef, "/components/pathItems/X"},
+	{"path-item-prefix-self", "cycle_path_item_prefix_self", diag.UnresolvedRef, "/paths/~1a"},
+	{"path-item-prefix-sibling", "cycle_path_item_prefix_sibling", diag.UnresolvedRef, "/paths/~1a"},
+	{"path-item-prefix-chain", "cycle_path_item_prefix_chain", diag.UnresolvedRef, "/paths/~1b"},
+	{"component-path-item-prefix", "cycle_component_path_item_prefix", diag.UnresolvedRef, "/components/pathItems/A"},
+	{"webhook-prefix-self", "cycle_webhook_prefix_self", diag.UnresolvedRef, "/webhooks/onA"},
+	{"path-item-empty-segment", "cycle_path_item_empty_segment", diag.UnresolvedRef, "/components/pathItems/A"},
 }
 
 // TestCycleReproducers_EveryFixtureIsExercised holds the four fixture tables
@@ -276,6 +275,145 @@ func TestCompile_CycleIsReportedAtItsLeastMemberInEitherOrder(t *testing.T) {
 	}
 }
 
+// TestCompile_ABranchOnALoopIsReportedOnlyAsTheLoop pins the gates that keep an
+// allOf or union branch on a loop the compiler reads from being reported
+// twice: removing the gate in fillRefBranch, diagUnresolvedBranches or
+// refTypeRef adds an unresolved-ref beside the cyclic-ref. Where load
+// reports the loop at the branch, its least member, withoutRereported drops that
+// error, so each gate, and fillRefBranch's two routes through a distributed
+// union, has a row whose loop runs through L, which sorts first. A loop past
+// the merge bound goes unread (#1570). A union beside structural
+// keywords reaches diagUnresolvedBranches only as case 3 of
+// docs/compilers/openapi.md#union-beside-structure, which the why field checks.
+func TestCompile_ABranchOnALoopIsReportedOnlyAsTheLoop(t *testing.T) {
+	t.Parallel()
+	const namesNoReferent = "a branch's $ref names no referent this compilation resolves"
+	type report struct {
+		Code     string
+		Severity ir.Severity
+		Pointer  string
+	}
+	tests := []struct {
+		name  string
+		body  string
+		why   string
+		diags []report
+	}{
+		{"allOf branches", `    Y:
+      allOf:
+        - $ref: '#/components/schemas/Y/allOf/1'
+        - $ref: '#/components/schemas/Y/allOf/0'
+`, "", []report{{diag.CyclicRef, ir.SeverityError, "/components/schemas/Y/allOf/0"}}},
+		{"union branches beside structural keywords", `    Z:
+      type: object
+      properties:
+        id: {type: string}
+      oneOf:
+        - $ref: '#/components/schemas/Z/oneOf/1'
+        - $ref: '#/components/schemas/Z/oneOf/0'
+`, namesNoReferent, []report{
+			{diag.CyclicRef, ir.SeverityError, "/components/schemas/Z/oneOf/0"},
+			{diag.DegradedConstruct, ir.SeverityInfo, "/components/schemas/Z"},
+		}},
+		{"anyOf branches beside structural keywords", `    Z:
+      type: object
+      properties:
+        id: {type: string}
+      anyOf:
+        - $ref: '#/components/schemas/Z/anyOf/1'
+        - $ref: '#/components/schemas/Z/anyOf/0'
+`, namesNoReferent, []report{
+			{diag.CyclicRef, ir.SeverityError, "/components/schemas/Z/anyOf/0"},
+			{diag.DegradedConstruct, ir.SeverityInfo, "/components/schemas/Z"},
+		}},
+		{"union branches with no keyword beside them", `    Z:
+      oneOf:
+        - $ref: '#/components/schemas/Z/oneOf/1'
+        - $ref: '#/components/schemas/Z/oneOf/0'
+`, "", []report{{diag.CyclicRef, ir.SeverityError, "/components/schemas/Z/oneOf/0"}}},
+		{"anyOf branches with no keyword beside them", `    Z:
+      anyOf:
+        - $ref: '#/components/schemas/Z/anyOf/1'
+        - $ref: '#/components/schemas/Z/anyOf/0'
+`, "", []report{{diag.CyclicRef, ir.SeverityError, "/components/schemas/Z/anyOf/0"}}},
+		{"allOf branch on a loop through a component", `    Y:
+      allOf:
+        - $ref: '#/components/schemas/L'
+    L: {$ref: '#/components/schemas/Y/allOf/0'}
+`, "", []report{{diag.CyclicRef, ir.SeverityError, "/components/schemas/L"}}},
+		{"union branch beside structural keywords on a loop through a component", `    Z:
+      type: object
+      properties:
+        id: {type: string}
+      oneOf:
+        - $ref: '#/components/schemas/L'
+        - $ref: '#/components/schemas/A'
+    L: {$ref: '#/components/schemas/Z/oneOf/0'}
+    A: {type: object, properties: {a: {type: string}}}
+`, namesNoReferent, []report{
+			{diag.CyclicRef, ir.SeverityError, "/components/schemas/L"},
+			{diag.DegradedConstruct, ir.SeverityInfo, "/components/schemas/Z"},
+		}},
+		{"allOf branch beside a distributed union on a loop through a component", `    Y:
+      type: object
+      properties:
+        id: {type: string}
+      allOf:
+        - $ref: '#/components/schemas/L'
+      oneOf:
+        - $ref: '#/components/schemas/A'
+        - $ref: '#/components/schemas/B'
+    L: {$ref: '#/components/schemas/Y/allOf/0'}
+    A: {type: object, properties: {a: {type: string}}}
+    B: {type: object, properties: {b: {type: string}}}
+`, "", []report{
+			{diag.CyclicRef, ir.SeverityError, "/components/schemas/L"},
+			{diag.CompositionLowering, ir.SeverityInfo, "/components/schemas/Y"},
+		}},
+		{"allOf branch beside a distributed union on a sibling branch on a loop through a component", `    Y:
+      type: object
+      properties:
+        id: {type: string}
+      allOf:
+        - $ref: '#/components/schemas/L'
+        - oneOf:
+            - $ref: '#/components/schemas/A'
+            - $ref: '#/components/schemas/B'
+    L: {$ref: '#/components/schemas/Y/allOf/0'}
+    A: {type: object, properties: {a: {type: string}}}
+    B: {type: object, properties: {b: {type: string}}}
+`, "", []report{
+			{diag.CyclicRef, ir.SeverityError, "/components/schemas/L"},
+			{diag.CompositionLowering, ir.SeverityInfo, "/components/schemas/Y"},
+		}},
+		{"union branch with no keyword beside it on a loop through a component", `    Z:
+      oneOf:
+        - $ref: '#/components/schemas/L'
+        - {type: string}
+    L: {$ref: '#/components/schemas/Z/oneOf/0'}
+`, "", []report{{diag.CyclicRef, ir.SeverityError, "/components/schemas/L"}}},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			doc, diags, err := openapi.New().Compile(t.Context(),
+				[]compilers.Source{{Path: "branches.yaml", Data: []byte(openapitest.ComponentSpec(tc.body))}}, compilers.Options{})
+			require.NoError(t, err, "a loop is a spec problem, not a Go error")
+			require.NotNil(t, doc, "a loop of schema $refs does not refuse the document")
+
+			got := make([]report, 0, len(diags))
+			for _, d := range diags {
+				got = append(got, report{d.Code, d.Severity, string(d.Provenance.Pointer)})
+			}
+			assert.Equal(t, tc.diags, got, "the whole report, in order; got %+v", diags)
+			if tc.why != "" {
+				assert.Contains(t, openapitest.DiagMessageAt(t, diags, diag.DegradedConstruct, ir.SeverityInfo, "/components/schemas/Z"),
+					tc.why, "the union reaches its gate only as this case")
+			}
+		})
+	}
+}
+
 // TestCompile_ALoopThroughAnotherDocumentIsReportedOnce pins a loop of schema
 // $refs that another document's content closes, with external references on:
 // one wholly in that document (GitHub #547), one closing through it and back
@@ -306,7 +444,8 @@ func TestCompile_ALoopThroughAnotherDocumentIsReportedOnce(t *testing.T) {
 			ir.Provenance{Pointer: "/components/schemas/L1"}, false},
 	}
 	for _, tc := range tests {
-		dir := t.TempDir()
+		dir, err := filepath.EvalSymlinks(t.TempDir())
+		require.NoError(t, err)
 		compiled := make([][]string, 0, 2)
 		for _, reversed := range []bool{false, true} {
 			source, other := slices.Clone(tc.source), slices.Clone(tc.other)
@@ -341,11 +480,14 @@ func TestCompile_ALoopThroughAnotherDocumentIsReportedOnce(t *testing.T) {
 	}
 }
 
-// TestCompile_ReferenceObjectCycleIsReportedUnresolved pins what the compile
-// does with a chain of reference objects that fails: it reaches the lowering,
-// and the resolver's failure is reported unresolved at the reference, never as
-// a cycle refused before parsing.
-func TestCompile_ReferenceObjectCycleIsReportedUnresolved(t *testing.T) {
+// TestCompile_AFailingChainOfReferenceObjectsIsReportedOnce pins what the
+// compile does with a chain of reference objects that fails: it reaches the
+// lowering, never refused before parsing, and is reported once, a loop as
+// openapi/cyclic-ref at its least member, as a loop of schema $refs is
+// (docs/compilers/openapi.md#reference-cycles), and a pointer passing a
+// reference that cannot resolve before it does as openapi/unresolved-ref at the
+// $ref whose own hop fails (docs/compilers/openapi.md#references).
+func TestCompile_AFailingChainOfReferenceObjectsIsReportedOnce(t *testing.T) {
 	t.Parallel()
 	for _, tc := range referenceObjectCycles {
 		t.Run(tc.name, func(t *testing.T) {
@@ -354,11 +496,13 @@ func TestCompile_ReferenceObjectCycleIsReportedUnresolved(t *testing.T) {
 			_, diags, err := openapi.New().Compile(t.Context(),
 				[]compilers.Source{{Path: tc.file + ".yaml", Data: data}}, compilers.Options{})
 			require.NoError(t, err, "a failing reference is a spec problem, not a Go error")
+			var reports []string
 			for _, d := range diags {
-				assert.NotEqual(t, diag.CyclicRef, d.Code, "the resolver reports this itself: %+v", d)
+				if d.Severity == ir.SeverityError {
+					reports = append(reports, d.Code+" "+string(d.Provenance.Pointer))
+				}
 			}
-			assert.True(t, openapitest.HasDiagCodeAt(diags, diag.UnresolvedRef, tc.at),
-				"the reference is reported unresolved at %s; got %+v", tc.at, diags)
+			assert.Equal(t, []string{tc.code + " " + tc.at}, reports, "%+v", diags)
 		})
 	}
 }
@@ -397,9 +541,8 @@ components:
 // TestCompile_NonUTF8FragmentReachesNoIdentifier is the compiler-level half of
 // the GitHub #520 fix. A fragment that decodes to bytes that are not UTF-8 must
 // never reach a PropID, since no document key can spell them and the IR cannot
-// encode one that does. Before the fix, the multipart body's encoding key was
-// derived from the raw byte the fragment decoded to, and the document could not
-// be marshalled at all.
+// encode one that does: the multipart body's part, which no property of the
+// body's type holds, keys nothing, and its entry is kept whole.
 func TestCompile_NonUTF8FragmentReachesNoIdentifier(t *testing.T) {
 	t.Parallel()
 	const src = `openapi: 3.1.0
@@ -443,12 +586,9 @@ components:
 	op := openapitest.FirstOp(t, doc.Services[0])
 	require.NotNil(t, op.Request)
 	require.Len(t, op.Request.Contents, 1)
-	want := ir.PropID("p/openapi" + ids.Ptr("paths", "/upload", "post", "requestBody",
-		"content", "multipart/form-data", "schema", "properties", "file"))
-	enc := op.Request.Contents[0].Encoding
-	require.Len(t, enc, 1, "exactly one part is configured; got %v", enc)
-	_, ok := enc[want]
-	assert.True(t, ok, "the encoding key derives from the body's own local position; got %v", enc)
+	content := op.Request.Contents[0]
+	assert.Empty(t, content.Encoding, "the body's type holds no property, so no key is derived for one")
+	assert.Contains(t, content.Unmodeled, "openapi:encoding/file", "the part's entry is kept whole instead")
 }
 
 var componentOnlyCycles = []struct{ name, data string }{
@@ -476,22 +616,23 @@ components:
 `},
 }
 
-// TestDetectCycles_ComponentOnlyCyclesLeftToResolver pins that a cycle of
-// reference objects held in components is no cycle to the alias scan, and is
-// reported unresolved by the parser's resolver, where a loop of schema $refs
-// is the compiler's own to report.
-func TestDetectCycles_ComponentOnlyCyclesLeftToResolver(t *testing.T) {
+// TestDetectCycles_ComponentOnlyCyclesAreLoopsNotAliasCycles pins that a
+// cycle of reference objects held in components is no cycle to the alias
+// scan, which refuses a document, and is reported as a loop of $refs, which
+// refuses nothing (docs/compilers/openapi.md#reference-cycles).
+func TestDetectCycles_ComponentOnlyCyclesAreLoopsNotAliasCycles(t *testing.T) {
 	t.Parallel()
 	for _, tc := range componentOnlyCycles {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			assert.Empty(t, scan.Aliases(t.Context(), scan.InSource(0), scanIndex(t, tc.data), budget.AtMost(openapi.DefaultMaxAliasSurplus)),
-				"a components-only cycle is the resolver's to report")
+			assert.Empty(t, scan.Aliases(t.Context(), provenance.Tree{}, ir.Provenance{}, scanIndex(t, tc.data), budget.AtMost(openapi.DefaultMaxAliasSurplus)),
+				"a components-only cycle is no alias cycle")
 
-			_, diags, err := openapi.New().Compile(t.Context(),
+			doc, diags, err := openapi.New().Compile(t.Context(),
 				[]compilers.Source{{Path: tc.name + ".yaml", Data: []byte(tc.data)}}, compilers.Options{})
 			require.NoError(t, err)
-			openapitest.AssertHasCode(t, diags, diag.UnresolvedRef, ir.SeverityError)
+			assert.NotNil(t, doc, "a loop refuses nothing")
+			openapitest.AssertHasCode(t, diags, diag.CyclicRef, ir.SeverityError)
 		})
 	}
 }
@@ -526,14 +667,6 @@ components:
 info: {title: t, version: '1'}
 paths: {}
 x-foo: {a: {$ref: '#/x-foo/b'}, b: {$ref: '#/x-foo/a'}}
-`},
-	{"responses-ref-cycle", `openapi: 3.1.0
-info: {title: t, version: '1'}
-paths: {}
-components:
-  responses:
-    A: {$ref: '#/components/responses/B'}
-    B: {$ref: '#/components/responses/A'}
 `},
 	{"allof-wrapped-cycle", `openapi: 3.1.0
 info: {title: t, version: '1'}
@@ -688,8 +821,9 @@ func FuzzCycleDetector(f *testing.F) {
 // TestCompile_ReentrantPrefixReportsAlikeInBothDeclarationOrders pins that a
 // pointer through a reference already on its chain is reported the same way
 // whichever reference is declared first: /b's pointer passes through /a, whose
-// own $ref leads to /b. Each is reported unresolved where it is written, and
-// neither is refused as a cycle.
+// own $ref leads to /b, so /b's hop needs its own resolution and resolves to
+// nothing. It is reported unresolved where it is written, /a's own hop, which
+// lands on /b, is not, and neither is refused as a cycle.
 func TestCompile_ReentrantPrefixReportsAlikeInBothDeclarationOrders(t *testing.T) {
 	t.Parallel()
 	const head = "openapi: 3.1.0\ninfo: {title: t, version: '1'}\npaths:\n"
@@ -709,7 +843,7 @@ func TestCompile_ReentrantPrefixReportsAlikeInBothDeclarationOrders(t *testing.T
 				require.Equal(t, diag.UnresolvedRef, d.Code, "%+v", d)
 				sites = append(sites, string(d.Provenance.Pointer))
 			}
-			assert.ElementsMatch(t, []string{"/paths/~1a", "/paths/~1b"}, sites)
+			assert.Equal(t, []string{"/paths/~1b"}, sites)
 		})
 	}
 }

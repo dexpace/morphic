@@ -6,10 +6,12 @@
     ],
     "e": [
       "anon",
+      "composed",
       "openapi"
     ],
     "g": [
       "default",
+      "extension",
       "path-prefix",
       "tags",
       "webhooks"
@@ -57,6 +59,638 @@
     }
   ],
   "types": {
+    "t/anon/components/schemas/AliasedListMeetsFirst/allOf/1/properties/p": {
+      "kind": "list",
+      "id": "t/anon/components/schemas/AliasedListMeetsFirst/allOf/1/properties/p",
+      "name": {
+        "hint": "p"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/AliasedListMeetsFirst/allOf/1/properties/p"
+      },
+      "elem": {
+        "target": "t/openapi/components/schemas/LaterLetters",
+        "nullable": false
+      }
+    },
+    "t/anon/components/schemas/AliasedListMeetsLast/allOf/0/properties/p": {
+      "kind": "list",
+      "id": "t/anon/components/schemas/AliasedListMeetsLast/allOf/0/properties/p",
+      "name": {
+        "hint": "p"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/AliasedListMeetsLast/allOf/0/properties/p"
+      },
+      "elem": {
+        "target": "t/openapi/components/schemas/LaterLetters",
+        "nullable": false
+      }
+    },
+    "t/anon/components/schemas/ArrayBesideUntypedFirst/allOf/0/properties/p": {
+      "kind": "model",
+      "id": "t/anon/components/schemas/ArrayBesideUntypedFirst/allOf/0/properties/p",
+      "name": {
+        "hint": "p"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/ArrayBesideUntypedFirst/allOf/0/properties/p"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/ArrayBesideUntypedFirst/allOf/0/properties/p/properties/a",
+          "name": {
+            "source": "a",
+            "canonical": "a"
+          },
+          "wireName": "a",
+          "type": {
+            "target": "t/prim/string",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/ArrayBesideUntypedFirst/allOf/0/properties/p/properties/a"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/anon/components/schemas/ArrayBesideUntypedFirst/allOf/1/properties/p": {
+      "kind": "list",
+      "id": "t/anon/components/schemas/ArrayBesideUntypedFirst/allOf/1/properties/p",
+      "name": {
+        "hint": "p"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/ArrayBesideUntypedFirst/allOf/1/properties/p"
+      },
+      "elem": {
+        "target": "t/prim/string",
+        "nullable": false
+      }
+    },
+    "t/anon/components/schemas/ArrayBesideUntypedLast/allOf/0/properties/p": {
+      "kind": "list",
+      "id": "t/anon/components/schemas/ArrayBesideUntypedLast/allOf/0/properties/p",
+      "name": {
+        "hint": "p"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/ArrayBesideUntypedLast/allOf/0/properties/p"
+      },
+      "elem": {
+        "target": "t/prim/string",
+        "nullable": false
+      }
+    },
+    "t/anon/components/schemas/ArrayBesideUntypedLast/allOf/1/properties/p": {
+      "kind": "model",
+      "id": "t/anon/components/schemas/ArrayBesideUntypedLast/allOf/1/properties/p",
+      "name": {
+        "hint": "p"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/ArrayBesideUntypedLast/allOf/1/properties/p"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/ArrayBesideUntypedLast/allOf/1/properties/p/properties/a",
+          "name": {
+            "source": "a",
+            "canonical": "a"
+          },
+          "wireName": "a",
+          "type": {
+            "target": "t/prim/string",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/ArrayBesideUntypedLast/allOf/1/properties/p/properties/a"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/anon/components/schemas/EnumNarrowFirst/allOf/0/properties/p": {
+      "kind": "enum",
+      "id": "t/anon/components/schemas/EnumNarrowFirst/allOf/0/properties/p",
+      "name": {
+        "hint": "p"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/EnumNarrowFirst/allOf/0/properties/p"
+      },
+      "valueType": "string",
+      "members": [
+        {
+          "id": "e/anon/components/schemas/EnumNarrowFirst/allOf/0/properties/p/s:a",
+          "name": {
+            "source": "a",
+            "canonical": "a"
+          },
+          "value": {
+            "kind": "string",
+            "str": "a"
+          },
+          "docs": {}
+        }
+      ],
+      "closed": true,
+      "flags": false
+    },
+    "t/anon/components/schemas/EnumNarrowFirst/allOf/1/properties/p": {
+      "kind": "enum",
+      "id": "t/anon/components/schemas/EnumNarrowFirst/allOf/1/properties/p",
+      "name": {
+        "hint": "p"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/EnumNarrowFirst/allOf/1/properties/p"
+      },
+      "valueType": "string",
+      "members": [
+        {
+          "id": "e/anon/components/schemas/EnumNarrowFirst/allOf/1/properties/p/s:a",
+          "name": {
+            "source": "a",
+            "canonical": "a"
+          },
+          "value": {
+            "kind": "string",
+            "str": "a"
+          },
+          "docs": {}
+        },
+        {
+          "id": "e/anon/components/schemas/EnumNarrowFirst/allOf/1/properties/p/s:b",
+          "name": {
+            "source": "b",
+            "canonical": "b"
+          },
+          "value": {
+            "kind": "string",
+            "str": "b"
+          },
+          "docs": {}
+        }
+      ],
+      "closed": true,
+      "flags": false
+    },
+    "t/anon/components/schemas/EnumValueTypeNarrowFirst/allOf/0/properties/p": {
+      "kind": "enum",
+      "id": "t/anon/components/schemas/EnumValueTypeNarrowFirst/allOf/0/properties/p",
+      "name": {
+        "hint": "p"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/EnumValueTypeNarrowFirst/allOf/0/properties/p"
+      },
+      "valueType": "integer",
+      "members": [
+        {
+          "id": "e/anon/components/schemas/EnumValueTypeNarrowFirst/allOf/0/properties/p/n:1e0",
+          "name": {
+            "source": "1",
+            "canonical": "1"
+          },
+          "value": {
+            "kind": "number",
+            "num": "1"
+          },
+          "docs": {}
+        }
+      ],
+      "closed": true,
+      "flags": false
+    },
+    "t/anon/components/schemas/EnumValueTypeNarrowFirst/allOf/1/properties/p": {
+      "kind": "enum",
+      "id": "t/anon/components/schemas/EnumValueTypeNarrowFirst/allOf/1/properties/p",
+      "name": {
+        "hint": "p"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/EnumValueTypeNarrowFirst/allOf/1/properties/p"
+      },
+      "valueType": "number",
+      "members": [
+        {
+          "id": "e/anon/components/schemas/EnumValueTypeNarrowFirst/allOf/1/properties/p/n:1e0",
+          "name": {
+            "source": "1",
+            "canonical": "1"
+          },
+          "value": {
+            "kind": "number",
+            "num": "1"
+          },
+          "docs": {}
+        },
+        {
+          "id": "e/anon/components/schemas/EnumValueTypeNarrowFirst/allOf/1/properties/p/n:2e0",
+          "name": {
+            "source": "2",
+            "canonical": "2"
+          },
+          "value": {
+            "kind": "number",
+            "num": "2"
+          },
+          "docs": {}
+        }
+      ],
+      "closed": true,
+      "flags": false
+    },
+    "t/anon/components/schemas/EnumValueTypeWideFirst/allOf/0/properties/p": {
+      "kind": "enum",
+      "id": "t/anon/components/schemas/EnumValueTypeWideFirst/allOf/0/properties/p",
+      "name": {
+        "hint": "p"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/EnumValueTypeWideFirst/allOf/0/properties/p"
+      },
+      "valueType": "number",
+      "members": [
+        {
+          "id": "e/anon/components/schemas/EnumValueTypeWideFirst/allOf/0/properties/p/n:1e0",
+          "name": {
+            "source": "1",
+            "canonical": "1"
+          },
+          "value": {
+            "kind": "number",
+            "num": "1"
+          },
+          "docs": {}
+        },
+        {
+          "id": "e/anon/components/schemas/EnumValueTypeWideFirst/allOf/0/properties/p/n:2e0",
+          "name": {
+            "source": "2",
+            "canonical": "2"
+          },
+          "value": {
+            "kind": "number",
+            "num": "2"
+          },
+          "docs": {}
+        }
+      ],
+      "closed": true,
+      "flags": false
+    },
+    "t/anon/components/schemas/EnumValueTypeWideFirst/allOf/1/properties/p": {
+      "kind": "enum",
+      "id": "t/anon/components/schemas/EnumValueTypeWideFirst/allOf/1/properties/p",
+      "name": {
+        "hint": "p"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/EnumValueTypeWideFirst/allOf/1/properties/p"
+      },
+      "valueType": "integer",
+      "members": [
+        {
+          "id": "e/anon/components/schemas/EnumValueTypeWideFirst/allOf/1/properties/p/n:1e0",
+          "name": {
+            "source": "1",
+            "canonical": "1"
+          },
+          "value": {
+            "kind": "number",
+            "num": "1"
+          },
+          "docs": {}
+        }
+      ],
+      "closed": true,
+      "flags": false
+    },
+    "t/anon/components/schemas/EnumValueTypesMeet/allOf/0/properties/p": {
+      "kind": "enum",
+      "id": "t/anon/components/schemas/EnumValueTypesMeet/allOf/0/properties/p",
+      "name": {
+        "hint": "p"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/EnumValueTypesMeet/allOf/0/properties/p"
+      },
+      "valueType": "number",
+      "members": [
+        {
+          "id": "e/anon/components/schemas/EnumValueTypesMeet/allOf/0/properties/p/n:1e0",
+          "name": {
+            "source": "1",
+            "canonical": "1"
+          },
+          "value": {
+            "kind": "number",
+            "num": "1"
+          },
+          "docs": {}
+        },
+        {
+          "id": "e/anon/components/schemas/EnumValueTypesMeet/allOf/0/properties/p/n:2.5e0",
+          "name": {
+            "source": "2.5",
+            "canonical": "2_5"
+          },
+          "value": {
+            "kind": "number",
+            "num": "2.5"
+          },
+          "docs": {}
+        }
+      ],
+      "closed": true,
+      "flags": false
+    },
+    "t/anon/components/schemas/EnumValueTypesMeet/allOf/1/properties/p": {
+      "kind": "enum",
+      "id": "t/anon/components/schemas/EnumValueTypesMeet/allOf/1/properties/p",
+      "name": {
+        "hint": "p"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/EnumValueTypesMeet/allOf/1/properties/p"
+      },
+      "valueType": "integer",
+      "members": [
+        {
+          "id": "e/anon/components/schemas/EnumValueTypesMeet/allOf/1/properties/p/n:1e0",
+          "name": {
+            "source": "1",
+            "canonical": "1"
+          },
+          "value": {
+            "kind": "number",
+            "num": "1"
+          },
+          "docs": {}
+        },
+        {
+          "id": "e/anon/components/schemas/EnumValueTypesMeet/allOf/1/properties/p/n:3e0",
+          "name": {
+            "source": "3",
+            "canonical": "3"
+          },
+          "value": {
+            "kind": "number",
+            "num": "3"
+          },
+          "docs": {}
+        }
+      ],
+      "closed": true,
+      "flags": false
+    },
+    "t/anon/components/schemas/EnumWideFirst/allOf/0/properties/p": {
+      "kind": "enum",
+      "id": "t/anon/components/schemas/EnumWideFirst/allOf/0/properties/p",
+      "name": {
+        "hint": "p"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/EnumWideFirst/allOf/0/properties/p"
+      },
+      "valueType": "string",
+      "members": [
+        {
+          "id": "e/anon/components/schemas/EnumWideFirst/allOf/0/properties/p/s:a",
+          "name": {
+            "source": "a",
+            "canonical": "a"
+          },
+          "value": {
+            "kind": "string",
+            "str": "a"
+          },
+          "docs": {}
+        },
+        {
+          "id": "e/anon/components/schemas/EnumWideFirst/allOf/0/properties/p/s:b",
+          "name": {
+            "source": "b",
+            "canonical": "b"
+          },
+          "value": {
+            "kind": "string",
+            "str": "b"
+          },
+          "docs": {}
+        }
+      ],
+      "closed": true,
+      "flags": false
+    },
+    "t/anon/components/schemas/EnumWideFirst/allOf/1/properties/p": {
+      "kind": "enum",
+      "id": "t/anon/components/schemas/EnumWideFirst/allOf/1/properties/p",
+      "name": {
+        "hint": "p"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/EnumWideFirst/allOf/1/properties/p"
+      },
+      "valueType": "string",
+      "members": [
+        {
+          "id": "e/anon/components/schemas/EnumWideFirst/allOf/1/properties/p/s:a",
+          "name": {
+            "source": "a",
+            "canonical": "a"
+          },
+          "value": {
+            "kind": "string",
+            "str": "a"
+          },
+          "docs": {}
+        }
+      ],
+      "closed": true,
+      "flags": false
+    },
+    "t/anon/components/schemas/EnumsMeet/allOf/0/properties/p": {
+      "kind": "enum",
+      "id": "t/anon/components/schemas/EnumsMeet/allOf/0/properties/p",
+      "name": {
+        "hint": "p"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/EnumsMeet/allOf/0/properties/p"
+      },
+      "valueType": "string",
+      "members": [
+        {
+          "id": "e/anon/components/schemas/EnumsMeet/allOf/0/properties/p/s:a",
+          "name": {
+            "source": "a",
+            "canonical": "a"
+          },
+          "value": {
+            "kind": "string",
+            "str": "a"
+          },
+          "docs": {}
+        },
+        {
+          "id": "e/anon/components/schemas/EnumsMeet/allOf/0/properties/p/s:b",
+          "name": {
+            "source": "b",
+            "canonical": "b"
+          },
+          "value": {
+            "kind": "string",
+            "str": "b"
+          },
+          "docs": {}
+        }
+      ],
+      "closed": true,
+      "flags": false
+    },
+    "t/anon/components/schemas/EnumsMeet/allOf/1/properties/p": {
+      "kind": "enum",
+      "id": "t/anon/components/schemas/EnumsMeet/allOf/1/properties/p",
+      "name": {
+        "hint": "p"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/EnumsMeet/allOf/1/properties/p"
+      },
+      "valueType": "string",
+      "members": [
+        {
+          "id": "e/anon/components/schemas/EnumsMeet/allOf/1/properties/p/s:b",
+          "name": {
+            "source": "b",
+            "canonical": "b"
+          },
+          "value": {
+            "kind": "string",
+            "str": "b"
+          },
+          "docs": {}
+        },
+        {
+          "id": "e/anon/components/schemas/EnumsMeet/allOf/1/properties/p/s:c",
+          "name": {
+            "source": "c",
+            "canonical": "c"
+          },
+          "value": {
+            "kind": "string",
+            "str": "c"
+          },
+          "docs": {}
+        }
+      ],
+      "closed": true,
+      "flags": false
+    },
     "t/anon/components/schemas/HexBroadFirst/allOf/1/properties/p": {
       "kind": "scalar",
       "id": "t/anon/components/schemas/HexBroadFirst/allOf/1/properties/p",
@@ -99,11 +733,87 @@
         "name": "hex"
       }
     },
+    "t/anon/components/schemas/ListNarrowFirst/allOf/0/properties/p": {
+      "kind": "list",
+      "id": "t/anon/components/schemas/ListNarrowFirst/allOf/0/properties/p",
+      "name": {
+        "hint": "p"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/ListNarrowFirst/allOf/0/properties/p"
+      },
+      "elem": {
+        "target": "t/prim/int32",
+        "nullable": false
+      }
+    },
+    "t/anon/components/schemas/ListNarrowFirst/allOf/1/properties/p": {
+      "kind": "list",
+      "id": "t/anon/components/schemas/ListNarrowFirst/allOf/1/properties/p",
+      "name": {
+        "hint": "p"
+      },
+      "anonymous": true,
+      "docs": {
+        "description": "Counts"
+      },
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/ListNarrowFirst/allOf/1/properties/p"
+      },
+      "elem": {
+        "target": "t/prim/integer",
+        "nullable": false
+      }
+    },
+    "t/anon/components/schemas/ListWideFirst/allOf/0/properties/p": {
+      "kind": "list",
+      "id": "t/anon/components/schemas/ListWideFirst/allOf/0/properties/p",
+      "name": {
+        "hint": "p"
+      },
+      "anonymous": true,
+      "docs": {
+        "description": "Counts"
+      },
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/ListWideFirst/allOf/0/properties/p"
+      },
+      "elem": {
+        "target": "t/prim/integer",
+        "nullable": false
+      }
+    },
+    "t/anon/components/schemas/ListWideFirst/allOf/1/properties/p": {
+      "kind": "list",
+      "id": "t/anon/components/schemas/ListWideFirst/allOf/1/properties/p",
+      "name": {
+        "hint": "p"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/ListWideFirst/allOf/1/properties/p"
+      },
+      "elem": {
+        "target": "t/prim/int32",
+        "nullable": false
+      }
+    },
     "t/anon/components/schemas/NarrowedPastARef/allOf/0": {
       "kind": "model",
       "id": "t/anon/components/schemas/NarrowedPastARef/allOf/0",
       "name": {
-        "hint": "variant_0"
+        "hint": "narrowed_past_a_ref"
       },
       "anonymous": true,
       "docs": {},
@@ -138,6 +848,606 @@
           "provenance": {
             "source": 0,
             "pointer": "/components/schemas/NarrowedPastARef/allOf/0/properties/p"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/composed/components/schemas/AliasMeetsFirst/allOf/1/properties/p": {
+      "kind": "enum",
+      "id": "t/composed/components/schemas/AliasMeetsFirst/allOf/1/properties/p",
+      "name": {
+        "hint": "p"
+      },
+      "anonymous": true,
+      "docs": {
+        "description": "Letters"
+      },
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/AliasMeetsFirst/allOf/1/properties/p"
+      },
+      "valueType": "string",
+      "members": [
+        {
+          "id": "e/composed/components/schemas/AliasMeetsFirst/allOf/1/properties/p/s:b",
+          "name": {
+            "source": "b",
+            "canonical": "b"
+          },
+          "value": {
+            "kind": "string",
+            "str": "b"
+          },
+          "docs": {}
+        },
+        {
+          "id": "e/composed/components/schemas/AliasMeetsFirst/allOf/1/properties/p/s:c",
+          "name": {
+            "source": "c",
+            "canonical": "c"
+          },
+          "value": {
+            "kind": "string",
+            "str": "c"
+          },
+          "docs": {}
+        }
+      ],
+      "closed": true,
+      "flags": false
+    },
+    "t/composed/components/schemas/AliasMeetsLast/allOf/1/properties/p": {
+      "kind": "enum",
+      "id": "t/composed/components/schemas/AliasMeetsLast/allOf/1/properties/p",
+      "name": {
+        "hint": "p"
+      },
+      "anonymous": true,
+      "docs": {
+        "description": "Letters"
+      },
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/AliasMeetsLast/allOf/1/properties/p"
+      },
+      "valueType": "string",
+      "members": [
+        {
+          "id": "e/composed/components/schemas/AliasMeetsLast/allOf/1/properties/p/s:b",
+          "name": {
+            "source": "b",
+            "canonical": "b"
+          },
+          "value": {
+            "kind": "string",
+            "str": "b"
+          },
+          "docs": {}
+        },
+        {
+          "id": "e/composed/components/schemas/AliasMeetsLast/allOf/1/properties/p/s:c",
+          "name": {
+            "source": "c",
+            "canonical": "c"
+          },
+          "value": {
+            "kind": "string",
+            "str": "c"
+          },
+          "docs": {}
+        }
+      ],
+      "closed": true,
+      "flags": false
+    },
+    "t/composed/components/schemas/AliasedListMeetsFirst/allOf/1/properties/p": {
+      "kind": "list",
+      "id": "t/composed/components/schemas/AliasedListMeetsFirst/allOf/1/properties/p",
+      "name": {
+        "hint": "p"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/AliasedListMeetsFirst/allOf/1/properties/p"
+      },
+      "elem": {
+        "target": "t/composed/components/schemas/AliasedListMeetsFirst/allOf/1/properties/p/items",
+        "nullable": false
+      }
+    },
+    "t/composed/components/schemas/AliasedListMeetsFirst/allOf/1/properties/p/items": {
+      "kind": "enum",
+      "id": "t/composed/components/schemas/AliasedListMeetsFirst/allOf/1/properties/p/items",
+      "name": {
+        "hint": "p_item"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/AliasedListMeetsFirst/allOf/1/properties/p/items"
+      },
+      "valueType": "string",
+      "members": [
+        {
+          "id": "e/composed/components/schemas/AliasedListMeetsFirst/allOf/1/properties/p/items/s:b",
+          "name": {
+            "source": "b",
+            "canonical": "b"
+          },
+          "value": {
+            "kind": "string",
+            "str": "b"
+          },
+          "docs": {}
+        },
+        {
+          "id": "e/composed/components/schemas/AliasedListMeetsFirst/allOf/1/properties/p/items/s:c",
+          "name": {
+            "source": "c",
+            "canonical": "c"
+          },
+          "value": {
+            "kind": "string",
+            "str": "c"
+          },
+          "docs": {}
+        }
+      ],
+      "closed": true,
+      "flags": false
+    },
+    "t/composed/components/schemas/AliasedListMeetsLast/allOf/1/properties/p": {
+      "kind": "list",
+      "id": "t/composed/components/schemas/AliasedListMeetsLast/allOf/1/properties/p",
+      "name": {
+        "hint": "p"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/AliasedListMeetsLast/allOf/1/properties/p"
+      },
+      "elem": {
+        "target": "t/composed/components/schemas/AliasedListMeetsLast/allOf/1/properties/p/items",
+        "nullable": false
+      }
+    },
+    "t/composed/components/schemas/AliasedListMeetsLast/allOf/1/properties/p/items": {
+      "kind": "enum",
+      "id": "t/composed/components/schemas/AliasedListMeetsLast/allOf/1/properties/p/items",
+      "name": {
+        "hint": "p_item"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/AliasedListMeetsLast/allOf/1/properties/p/items"
+      },
+      "valueType": "string",
+      "members": [
+        {
+          "id": "e/composed/components/schemas/AliasedListMeetsLast/allOf/1/properties/p/items/s:b",
+          "name": {
+            "source": "b",
+            "canonical": "b"
+          },
+          "value": {
+            "kind": "string",
+            "str": "b"
+          },
+          "docs": {}
+        },
+        {
+          "id": "e/composed/components/schemas/AliasedListMeetsLast/allOf/1/properties/p/items/s:c",
+          "name": {
+            "source": "c",
+            "canonical": "c"
+          },
+          "value": {
+            "kind": "string",
+            "str": "c"
+          },
+          "docs": {}
+        }
+      ],
+      "closed": true,
+      "flags": false
+    },
+    "t/composed/components/schemas/EnumValueTypesMeet/allOf/1/properties/p": {
+      "kind": "enum",
+      "id": "t/composed/components/schemas/EnumValueTypesMeet/allOf/1/properties/p",
+      "name": {
+        "hint": "p"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/EnumValueTypesMeet/allOf/1/properties/p"
+      },
+      "valueType": "integer",
+      "members": [
+        {
+          "id": "e/composed/components/schemas/EnumValueTypesMeet/allOf/1/properties/p/n:1e0",
+          "name": {
+            "source": "1",
+            "canonical": "1"
+          },
+          "value": {
+            "kind": "number",
+            "num": "1"
+          },
+          "docs": {}
+        }
+      ],
+      "closed": true,
+      "flags": false
+    },
+    "t/composed/components/schemas/EnumsMeet/allOf/1/properties/p": {
+      "kind": "enum",
+      "id": "t/composed/components/schemas/EnumsMeet/allOf/1/properties/p",
+      "name": {
+        "hint": "p"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/EnumsMeet/allOf/1/properties/p"
+      },
+      "valueType": "string",
+      "members": [
+        {
+          "id": "e/composed/components/schemas/EnumsMeet/allOf/1/properties/p/s:b",
+          "name": {
+            "source": "b",
+            "canonical": "b"
+          },
+          "value": {
+            "kind": "string",
+            "str": "b"
+          },
+          "docs": {}
+        }
+      ],
+      "closed": true,
+      "flags": false
+    },
+    "t/composed/components/schemas/ListNarrowFirst/allOf/1/properties/p": {
+      "kind": "list",
+      "id": "t/composed/components/schemas/ListNarrowFirst/allOf/1/properties/p",
+      "name": {
+        "hint": "p"
+      },
+      "anonymous": true,
+      "docs": {
+        "description": "Counts"
+      },
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/ListNarrowFirst/allOf/1/properties/p"
+      },
+      "elem": {
+        "target": "t/prim/int32",
+        "nullable": false
+      }
+    },
+    "t/composed/components/schemas/ListWideFirst/allOf/1/properties/p": {
+      "kind": "list",
+      "id": "t/composed/components/schemas/ListWideFirst/allOf/1/properties/p",
+      "name": {
+        "hint": "p"
+      },
+      "anonymous": true,
+      "docs": {
+        "description": "Counts"
+      },
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/ListWideFirst/allOf/1/properties/p"
+      },
+      "elem": {
+        "target": "t/prim/int32",
+        "nullable": false
+      }
+    },
+    "t/openapi/components/schemas/AliasMeetsFirst": {
+      "kind": "model",
+      "id": "t/openapi/components/schemas/AliasMeetsFirst",
+      "name": {
+        "source": "AliasMeetsFirst",
+        "canonical": "alias_meets_first"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/AliasMeetsFirst"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/AliasMeetsFirst/allOf/0/properties/p",
+          "name": {
+            "source": "p",
+            "canonical": "p"
+          },
+          "wireName": "p",
+          "type": {
+            "target": "t/composed/components/schemas/AliasMeetsFirst/allOf/1/properties/p",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {
+            "description": "Letters"
+          },
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/AliasMeetsFirst/allOf/0/properties/p"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/openapi/components/schemas/AliasMeetsLast": {
+      "kind": "model",
+      "id": "t/openapi/components/schemas/AliasMeetsLast",
+      "name": {
+        "source": "AliasMeetsLast",
+        "canonical": "alias_meets_last"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/AliasMeetsLast"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/AliasMeetsLast/allOf/0/properties/p",
+          "name": {
+            "source": "p",
+            "canonical": "p"
+          },
+          "wireName": "p",
+          "type": {
+            "target": "t/composed/components/schemas/AliasMeetsLast/allOf/1/properties/p",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {
+            "description": "Letters"
+          },
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/AliasMeetsLast/allOf/0/properties/p"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/openapi/components/schemas/AliasedListMeetsFirst": {
+      "kind": "model",
+      "id": "t/openapi/components/schemas/AliasedListMeetsFirst",
+      "name": {
+        "source": "AliasedListMeetsFirst",
+        "canonical": "aliased_list_meets_first"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/AliasedListMeetsFirst"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/AliasedListMeetsFirst/allOf/0/properties/p",
+          "name": {
+            "source": "p",
+            "canonical": "p"
+          },
+          "wireName": "p",
+          "type": {
+            "target": "t/composed/components/schemas/AliasedListMeetsFirst/allOf/1/properties/p",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/AliasedListMeetsFirst/allOf/0/properties/p"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/openapi/components/schemas/AliasedListMeetsLast": {
+      "kind": "model",
+      "id": "t/openapi/components/schemas/AliasedListMeetsLast",
+      "name": {
+        "source": "AliasedListMeetsLast",
+        "canonical": "aliased_list_meets_last"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/AliasedListMeetsLast"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/AliasedListMeetsLast/allOf/0/properties/p",
+          "name": {
+            "source": "p",
+            "canonical": "p"
+          },
+          "wireName": "p",
+          "type": {
+            "target": "t/composed/components/schemas/AliasedListMeetsLast/allOf/1/properties/p",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/AliasedListMeetsLast/allOf/0/properties/p"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/openapi/components/schemas/ArrayBesideUntypedFirst": {
+      "kind": "model",
+      "id": "t/openapi/components/schemas/ArrayBesideUntypedFirst",
+      "name": {
+        "source": "ArrayBesideUntypedFirst",
+        "canonical": "array_beside_untyped_first"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/ArrayBesideUntypedFirst"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/ArrayBesideUntypedFirst/allOf/0/properties/p",
+          "name": {
+            "source": "p",
+            "canonical": "p"
+          },
+          "wireName": "p",
+          "type": {
+            "target": "t/anon/components/schemas/ArrayBesideUntypedFirst/allOf/1/properties/p",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/ArrayBesideUntypedFirst/allOf/0/properties/p"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/openapi/components/schemas/ArrayBesideUntypedLast": {
+      "kind": "model",
+      "id": "t/openapi/components/schemas/ArrayBesideUntypedLast",
+      "name": {
+        "source": "ArrayBesideUntypedLast",
+        "canonical": "array_beside_untyped_last"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/ArrayBesideUntypedLast"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/ArrayBesideUntypedLast/allOf/0/properties/p",
+          "name": {
+            "source": "p",
+            "canonical": "p"
+          },
+          "wireName": "p",
+          "type": {
+            "target": "t/anon/components/schemas/ArrayBesideUntypedLast/allOf/0/properties/p",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/ArrayBesideUntypedLast/allOf/0/properties/p"
           }
         }
       ],
@@ -373,6 +1683,288 @@
           "provenance": {
             "source": 0,
             "pointer": "/components/schemas/DoubleNumberNarrowFirst/allOf/0/properties/p"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/openapi/components/schemas/EnumNarrowFirst": {
+      "kind": "model",
+      "id": "t/openapi/components/schemas/EnumNarrowFirst",
+      "name": {
+        "source": "EnumNarrowFirst",
+        "canonical": "enum_narrow_first"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/EnumNarrowFirst"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/EnumNarrowFirst/allOf/0/properties/p",
+          "name": {
+            "source": "p",
+            "canonical": "p"
+          },
+          "wireName": "p",
+          "type": {
+            "target": "t/anon/components/schemas/EnumNarrowFirst/allOf/0/properties/p",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/EnumNarrowFirst/allOf/0/properties/p"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/openapi/components/schemas/EnumValueTypeNarrowFirst": {
+      "kind": "model",
+      "id": "t/openapi/components/schemas/EnumValueTypeNarrowFirst",
+      "name": {
+        "source": "EnumValueTypeNarrowFirst",
+        "canonical": "enum_value_type_narrow_first"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/EnumValueTypeNarrowFirst"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/EnumValueTypeNarrowFirst/allOf/0/properties/p",
+          "name": {
+            "source": "p",
+            "canonical": "p"
+          },
+          "wireName": "p",
+          "type": {
+            "target": "t/anon/components/schemas/EnumValueTypeNarrowFirst/allOf/0/properties/p",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/EnumValueTypeNarrowFirst/allOf/0/properties/p"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/openapi/components/schemas/EnumValueTypeWideFirst": {
+      "kind": "model",
+      "id": "t/openapi/components/schemas/EnumValueTypeWideFirst",
+      "name": {
+        "source": "EnumValueTypeWideFirst",
+        "canonical": "enum_value_type_wide_first"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/EnumValueTypeWideFirst"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/EnumValueTypeWideFirst/allOf/0/properties/p",
+          "name": {
+            "source": "p",
+            "canonical": "p"
+          },
+          "wireName": "p",
+          "type": {
+            "target": "t/anon/components/schemas/EnumValueTypeWideFirst/allOf/1/properties/p",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/EnumValueTypeWideFirst/allOf/0/properties/p"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/openapi/components/schemas/EnumValueTypesMeet": {
+      "kind": "model",
+      "id": "t/openapi/components/schemas/EnumValueTypesMeet",
+      "name": {
+        "source": "EnumValueTypesMeet",
+        "canonical": "enum_value_types_meet"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/EnumValueTypesMeet"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/EnumValueTypesMeet/allOf/0/properties/p",
+          "name": {
+            "source": "p",
+            "canonical": "p"
+          },
+          "wireName": "p",
+          "type": {
+            "target": "t/composed/components/schemas/EnumValueTypesMeet/allOf/1/properties/p",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/EnumValueTypesMeet/allOf/0/properties/p"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/openapi/components/schemas/EnumWideFirst": {
+      "kind": "model",
+      "id": "t/openapi/components/schemas/EnumWideFirst",
+      "name": {
+        "source": "EnumWideFirst",
+        "canonical": "enum_wide_first"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/EnumWideFirst"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/EnumWideFirst/allOf/0/properties/p",
+          "name": {
+            "source": "p",
+            "canonical": "p"
+          },
+          "wireName": "p",
+          "type": {
+            "target": "t/anon/components/schemas/EnumWideFirst/allOf/1/properties/p",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/EnumWideFirst/allOf/0/properties/p"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/openapi/components/schemas/EnumsMeet": {
+      "kind": "model",
+      "id": "t/openapi/components/schemas/EnumsMeet",
+      "name": {
+        "source": "EnumsMeet",
+        "canonical": "enums_meet"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/EnumsMeet"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/EnumsMeet/allOf/0/properties/p",
+          "name": {
+            "source": "p",
+            "canonical": "p"
+          },
+          "wireName": "p",
+          "type": {
+            "target": "t/composed/components/schemas/EnumsMeet/allOf/1/properties/p",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/EnumsMeet/allOf/0/properties/p"
           }
         }
       ],
@@ -775,6 +2367,231 @@
           "provenance": {
             "source": 0,
             "pointer": "/components/schemas/IntegerInt32NarrowFirst/allOf/0/properties/p"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/openapi/components/schemas/LaterLetters": {
+      "kind": "enum",
+      "id": "t/openapi/components/schemas/LaterLetters",
+      "name": {
+        "source": "LaterLetters",
+        "canonical": "later_letters"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/LaterLetters"
+      },
+      "valueType": "string",
+      "members": [
+        {
+          "id": "e/openapi/components/schemas/LaterLetters/s:b",
+          "name": {
+            "source": "b",
+            "canonical": "b"
+          },
+          "value": {
+            "kind": "string",
+            "str": "b"
+          },
+          "docs": {}
+        },
+        {
+          "id": "e/openapi/components/schemas/LaterLetters/s:c",
+          "name": {
+            "source": "c",
+            "canonical": "c"
+          },
+          "value": {
+            "kind": "string",
+            "str": "c"
+          },
+          "docs": {}
+        },
+        {
+          "id": "e/openapi/components/schemas/LaterLetters/s:d",
+          "name": {
+            "source": "d",
+            "canonical": "d"
+          },
+          "value": {
+            "kind": "string",
+            "str": "d"
+          },
+          "docs": {}
+        }
+      ],
+      "closed": true,
+      "flags": false
+    },
+    "t/openapi/components/schemas/LetterList": {
+      "kind": "list",
+      "id": "t/openapi/components/schemas/LetterList",
+      "name": {
+        "source": "LetterList",
+        "canonical": "letter_list"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/LetterList"
+      },
+      "elem": {
+        "target": "t/openapi/components/schemas/Letters",
+        "nullable": false
+      }
+    },
+    "t/openapi/components/schemas/Letters": {
+      "kind": "enum",
+      "id": "t/openapi/components/schemas/Letters",
+      "name": {
+        "source": "Letters",
+        "canonical": "letters"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Letters"
+      },
+      "valueType": "string",
+      "members": [
+        {
+          "id": "e/openapi/components/schemas/Letters/s:a",
+          "name": {
+            "source": "a",
+            "canonical": "a"
+          },
+          "value": {
+            "kind": "string",
+            "str": "a"
+          },
+          "docs": {}
+        },
+        {
+          "id": "e/openapi/components/schemas/Letters/s:b",
+          "name": {
+            "source": "b",
+            "canonical": "b"
+          },
+          "value": {
+            "kind": "string",
+            "str": "b"
+          },
+          "docs": {}
+        },
+        {
+          "id": "e/openapi/components/schemas/Letters/s:c",
+          "name": {
+            "source": "c",
+            "canonical": "c"
+          },
+          "value": {
+            "kind": "string",
+            "str": "c"
+          },
+          "docs": {}
+        }
+      ],
+      "closed": true,
+      "flags": false
+    },
+    "t/openapi/components/schemas/ListNarrowFirst": {
+      "kind": "model",
+      "id": "t/openapi/components/schemas/ListNarrowFirst",
+      "name": {
+        "source": "ListNarrowFirst",
+        "canonical": "list_narrow_first"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/ListNarrowFirst"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/ListNarrowFirst/allOf/0/properties/p",
+          "name": {
+            "source": "p",
+            "canonical": "p"
+          },
+          "wireName": "p",
+          "type": {
+            "target": "t/composed/components/schemas/ListNarrowFirst/allOf/1/properties/p",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/ListNarrowFirst/allOf/0/properties/p"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/openapi/components/schemas/ListWideFirst": {
+      "kind": "model",
+      "id": "t/openapi/components/schemas/ListWideFirst",
+      "name": {
+        "source": "ListWideFirst",
+        "canonical": "list_wide_first"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/ListWideFirst"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/ListWideFirst/allOf/0/properties/p",
+          "name": {
+            "source": "p",
+            "canonical": "p"
+          },
+          "wireName": "p",
+          "type": {
+            "target": "t/composed/components/schemas/ListWideFirst/allOf/1/properties/p",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/ListWideFirst/allOf/0/properties/p"
           }
         }
       ],
@@ -1252,6 +3069,100 @@
       "positional": false,
       "inputOnly": false
     },
+    "t/openapi/components/schemas/StringBesideUntypedFirst": {
+      "kind": "model",
+      "id": "t/openapi/components/schemas/StringBesideUntypedFirst",
+      "name": {
+        "source": "StringBesideUntypedFirst",
+        "canonical": "string_beside_untyped_first"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/StringBesideUntypedFirst"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/StringBesideUntypedFirst/allOf/0/properties/p",
+          "name": {
+            "source": "p",
+            "canonical": "p"
+          },
+          "wireName": "p",
+          "type": {
+            "target": "t/prim/string",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/StringBesideUntypedFirst/allOf/0/properties/p"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/openapi/components/schemas/StringBesideUntypedLast": {
+      "kind": "model",
+      "id": "t/openapi/components/schemas/StringBesideUntypedLast",
+      "name": {
+        "source": "StringBesideUntypedLast",
+        "canonical": "string_beside_untyped_last"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/StringBesideUntypedLast"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/StringBesideUntypedLast/allOf/0/properties/p",
+          "name": {
+            "source": "p",
+            "canonical": "p"
+          },
+          "wireName": "p",
+          "type": {
+            "target": "t/prim/string",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/StringBesideUntypedLast/allOf/0/properties/p"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
     "t/openapi/components/schemas/StringDatetimeBroadFirst": {
       "kind": "model",
       "id": "t/openapi/components/schemas/StringDatetimeBroadFirst",
@@ -1534,6 +3445,53 @@
       "positional": false,
       "inputOnly": false
     },
+    "t/openapi/components/schemas/UntypedObject": {
+      "kind": "model",
+      "id": "t/openapi/components/schemas/UntypedObject",
+      "name": {
+        "source": "UntypedObject",
+        "canonical": "untyped_object"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/UntypedObject"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/UntypedObject/properties/a",
+          "name": {
+            "source": "a",
+            "canonical": "a"
+          },
+          "wireName": "a",
+          "type": {
+            "target": "t/prim/string",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/UntypedObject/properties/a"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
     "t/openapi/components/schemas/UriStringBroadFirst": {
       "kind": "model",
       "id": "t/openapi/components/schemas/UriStringBroadFirst",
@@ -1721,6 +3679,46 @@
       "abstract": false,
       "positional": false,
       "inputOnly": false
+    },
+    "t/openapi/components/schemas/WrappedLetterList": {
+      "kind": "scalar",
+      "id": "t/openapi/components/schemas/WrappedLetterList",
+      "name": {
+        "source": "WrappedLetterList",
+        "canonical": "wrapped_letter_list"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/WrappedLetterList"
+      },
+      "base": {
+        "target": "t/openapi/components/schemas/LetterList",
+        "nullable": false
+      }
+    },
+    "t/openapi/components/schemas/WrappedLetters": {
+      "kind": "scalar",
+      "id": "t/openapi/components/schemas/WrappedLetters",
+      "name": {
+        "source": "WrappedLetters",
+        "canonical": "wrapped_letters"
+      },
+      "anonymous": false,
+      "docs": {
+        "description": "Letters"
+      },
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/WrappedLetters"
+      },
+      "base": {
+        "target": "t/openapi/components/schemas/Letters",
+        "nullable": false
+      }
     },
     "t/prim/any": {
       "kind": "primitive",
@@ -1931,7 +3929,7 @@
     {
       "format": "openapi@3.1",
       "path": "allof-narrowing-redeclaration.yaml",
-      "hash": "82cfaed186a6666f69ebb2545756de70af9af3dfab66fb55699a224c98644542"
+      "hash": "3bc21d491977802e4fdce9027f195c7c7c7ab9a2b11c20ab29aa06f576a3e0c2"
     }
   ]
 }

@@ -6,10 +6,12 @@
     ],
     "e": [
       "anon",
+      "composed",
       "openapi"
     ],
     "g": [
       "default",
+      "extension",
       "path-prefix",
       "tags",
       "webhooks"
@@ -159,7 +161,8 @@
       "value": {
         "kind": "number",
         "num": "1.8e308"
-      }
+      },
+      "valueType": "number"
     },
     "t/openapi/components/schemas/S": {
       "kind": "model",

@@ -42,11 +42,11 @@ const (
 // Scalar is one YAML scalar classified: its kind, its text as written, and
 // the value its kind reads that text as.
 type Scalar struct {
-	Kind  ScalarKind
 	Text  string
-	Bool  bool
 	Num   ir.BigVal
 	Bytes []byte
+	Kind  ScalarKind
+	Bool  bool
 }
 
 // Classify reads the scalar node n by its resolved tag, never by the schema
@@ -56,9 +56,9 @@ type Scalar struct {
 // (docs/parser-library.md#scalar-resolution), and ShortTag resolves a node
 // built by hand as a parse does.
 //
-// A scalar whose text its tag does not admit — `!!bool maybe`, `!!null abc`,
-// a !!binary that is not base64, `.inf` and `.nan`, which no JSON number
-// spells — is an error, as yaml.v3's own decoding refuses each (GitHub #245).
+// A scalar whose text its tag does not admit, as `!!bool maybe` or `.inf`, is
+// an error, as yaml.v3's decoding refuses it, never text of a kind the source
+// did not write (docs/compilers/openapi.md#values).
 func Classify(n *yaml.Node) (Scalar, error) {
 	if n == nil || n.Kind != yaml.ScalarNode {
 		return Scalar{}, errors.New("openapi: not a scalar")
@@ -78,7 +78,7 @@ func Classify(n *yaml.Node) (Scalar, error) {
 		s.Kind, s.Num = ScalarNumber, num
 		return s, nil
 	case "!!str", "!!merge":
-		return text(n, s), nil
+		return text(n, s)
 	case "!!timestamp":
 		s.Kind = ScalarTimestamp
 		return s, decodes(n, new(time.Time), "timestamp")
@@ -91,22 +91,29 @@ func Classify(n *yaml.Node) (Scalar, error) {
 }
 
 // text classifies a scalar YAML resolved to a string. A plain one that spells
-// a decimal a BigVal holds is a number all the same: yaml.v3 resolves a number past
-// float64's range to a string, and the source wrote a number (GitHub #16). One
-// past ir.MaxDecimalExp stays a string, unreported (GitHub #1115). A quoted one,
-// or one tagged !!str outright, is the string it says.
+// a decimal is a number all the same: yaml.v3 resolves a number past float64's
+// range to a string, and the source wrote a number (GitHub #16). One whose
+// power of ten no BigVal holds (ir.MaxDecimalExp) is refused, as a !!float
+// past it is, rather than read as the text it is not. A quoted one, or one
+// tagged !!str outright, is the string it says.
 //
 // `<<` written as a value, which yaml.v3 tags !!merge wherever it stands, is
 // the text it spells: only a key merges.
-func text(n *yaml.Node, s Scalar) Scalar {
+func text(n *yaml.Node, s Scalar) (Scalar, error) {
 	s.Kind = ScalarString
 	if n.Style != 0 || n.ShortTag() != "!!str" {
-		return s
+		return s, nil
 	}
-	if num, err := ir.NewBigVal(n.Value); err == nil {
+	num, err := ir.NewBigVal(n.Value)
+	switch {
+	case err == nil:
 		s.Kind, s.Num = ScalarNumber, num
+		return s, nil
+	case errors.Is(err, ir.ErrExponentRange):
+		return Scalar{}, fmt.Errorf("openapi: numeric literal %q: %w", n.Value, err)
+	default:
+		return s, nil
 	}
-	return s
 }
 
 // binary classifies a !!binary scalar, decoding its base64 to the bytes it

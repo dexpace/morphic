@@ -8,7 +8,6 @@ import (
 	"iter"
 	"slices"
 
-	"github.com/dexpace/morphic/compilers/openapi/internal/bind"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
 	"github.com/dexpace/morphic/ir"
@@ -29,8 +28,8 @@ const extensionKeyPrefix = "openapi:"
 //
 // It is a closed vocabulary rather than a free-form path because a promotion
 // has to be applied by code that knows the field's type, and a name nothing
-// implements would be a policy that silently does nothing. Nothing refuses such
-// a name yet (GitHub #1281).
+// implements would be a policy that silently does nothing, which is why
+// ExtensionPromotions.Check refuses one (Targets lists the vocabulary).
 type ExtensionTarget string
 
 // The typed fields promotion can fill today. Every other field an extension is
@@ -40,10 +39,9 @@ type ExtensionTarget string
 const (
 	// TargetDeprecation deprecates what a key sits on where no `deprecated`
 	// keyword did, giving the members below a Deprecation to fill. The text
-	// "deprecated" or a boolean true states it; a key may hold other words, as
-	// x-stability does, and false or another word states nothing. A mapping
-	// cannot narrow that to one form, so a stability key's true states it too
-	// (GitHub #654).
+	// "deprecated" or a boolean true states it, and false or another word states
+	// nothing, unless the source lists the values that state it
+	// (ExtensionSource.Values), as the default does for its stability keys.
 	TargetDeprecation ExtensionTarget = "deprecation"
 	// TargetDeprecationMessage fills ir.Deprecation.Message.
 	TargetDeprecationMessage ExtensionTarget = "deprecation.message"
@@ -56,19 +54,32 @@ const (
 	TargetDeprecationRemovalVersion ExtensionTarget = "deprecation.removalVersion"
 	// TargetDeprecationRemovalDate fills ir.Deprecation.RemovalDate.
 	TargetDeprecationRemovalDate ExtensionTarget = "deprecation.removalDate"
+	// TargetDeprecationReplacedBy fills ir.Deprecation.ReplacedBy with what a key
+	// names as replacing what it sits on: a string or a list of strings, each the
+	// name the document gives an entity of that node's class. No default key
+	// names it, since no spelling for a replacement has become common; a document
+	// that writes one names its own mapping.
+	TargetDeprecationReplacedBy ExtensionTarget = "deprecation.replacedBy"
 
-	// TargetEnumOpen clears ir.Enum.Closed, saying the member set admits values
-	// the document does not list.
+	// TargetEnumOpen clears ir.Enum.Closed, or a mixed enum's ir.Union.Closed,
+	// saying the member set admits values the document does not list.
 	//
 	// It names the fact rather than the field, unlike the rest of this
 	// vocabulary: a schema's `enum` is closed by definition, so openness is the
 	// only half of that bool a document declares, and a target named for Closed
 	// could only be written false and would read as its own opposite.
 	//
-	// The key's presence is the statement, since x-extensible-enum, the
-	// established spelling, writes the member list as its value. An explicit
-	// boolean `false` is honoured rather than inverted (extensionOpenness).
+	// The key's presence is the statement, since x-extensible-enum writes the
+	// member list as its value. A `false` is honoured (extensionOpenness); a
+	// source listing Values opens it on those alone.
 	TargetEnumOpen ExtensionTarget = "enum.open"
+
+	// TargetUnionOpen clears the ir.Union.Closed of a oneOf or an anyOf, saying
+	// a payload may hold a variant the union does not list. It names the fact
+	// for TargetEnumOpen's reason: a oneOf or anyOf is closed by definition. No
+	// default key names it, since no spelling for an open union has become
+	// common; a document that writes one names its own mapping.
+	TargetUnionOpen ExtensionTarget = "union.open"
 
 	// TargetStability fills ir.Operation.Stability. The words a value may use
 	// are stabilityTier's.
@@ -80,6 +91,23 @@ const (
 	// clears no keyword and no $ref target's key. It can hide a true on the schema
 	// of its own parameter or header, as the two share one entry (GitHub #396).
 	TargetRedaction ExtensionTarget = "redaction"
+
+	// TargetAllowReserved sets the ir.HTTPParamBinding.AllowReserved of a
+	// parameter writing no `allowReserved`, which states it itself where OpenAPI
+	// applies it. A boolean true states it and false states nothing. No default
+	// key names it, as no spelling has become common.
+	TargetAllowReserved ExtensionTarget = "parameter.allowReserved"
+
+	// TargetServerName names an ir.Server whose document gives it no name, which
+	// below OpenAPI 3.2 none can: a 3.2 `name` is the document's own and wins.
+	TargetServerName ExtensionTarget = "server.name"
+
+	// TargetTokenEndpointAuthMethods fills ir.OAuthFlow.TokenEndpointAuthMethods
+	// from a string or a list of strings on the flow, each as the IANA registry
+	// of token endpoint authentication methods spells it. No OpenAPI field
+	// states it, and no default key names it, since no spelling has become
+	// common.
+	TargetTokenEndpointAuthMethods ExtensionTarget = "oauthFlow.tokenEndpointAuthMethods"
 )
 
 // ExtensionSource is one place a policy reads a fact from: the extension Key
@@ -94,6 +122,12 @@ type ExtensionSource struct {
 	// Member names a member of the key's object value, or is empty to read the
 	// value whole.
 	Member string `json:"member,omitempty"`
+	// Values lists the values that state the target's fact, for a target that
+	// reads one (ListsValues), each compared with a string's text or a boolean's
+	// or number's JSON spelling. Empty reads the target's own vocabulary. A value
+	// it does not list states nothing, reported where no other source reads it
+	// off the same member of the key.
+	Values []string `json:"values,omitempty"`
 }
 
 // String spells s as a report names it.
@@ -122,18 +156,25 @@ type ExtensionPromotions struct {
 	// list is in order of precedence: the first source stating a value fills the
 	// field, and a later one stating another is reported.
 	Targets map[ExtensionTarget][]ExtensionSource `json:"targets,omitempty"`
+	// Prefixes are the extension name prefixes the policy owns: a key under one
+	// that neither a source nor grouping reads is reported, naming the nearest
+	// key they read, as it is most likely that key misspelt (UnreadExtensions).
+	// None is owned by default.
+	Prefixes []string `json:"prefixes,omitempty"`
 }
 
 // DefaultExtensionPromotions is the mapping the policy uses when the caller
 // states none. It is a default and not a standard: OpenAPI defines none of
 // these keys, and each is simply the spelling that has become common for a
 // field the format never gave a keyword. A document using another spelling is
-// not wrong — it names its own mapping. GitHub #656 tracks the facts it leaves.
+// not wrong — it names its own mapping.
 func DefaultExtensionPromotions() map[ExtensionTarget][]ExtensionSource {
+	stated := []string{"deprecated"}
 	return map[ExtensionTarget][]ExtensionSource{
 		// Both are stability keys, and `deprecated` is a word of theirs that names
-		// no tier: this is what reads it.
-		TargetDeprecation: {{Key: "x-fern-availability"}, {Key: "x-stability"}},
+		// no tier: this is what reads it, and the only value it reads, since a
+		// boolean on a key of tiers states none of them.
+		TargetDeprecation: {{Key: "x-fern-availability", Values: stated}, {Key: "x-stability", Values: stated}},
 		TargetDeprecationMessage: {
 			{Key: "x-deprecated-reason"},
 			{Key: "x-stainless-deprecation-message"},
@@ -153,28 +194,54 @@ func DefaultExtensionPromotions() map[ExtensionTarget][]ExtensionSource {
 		// The order decides a disagreement, whichever tier each key names. It is
 		// the one that reads the less stable statement on what the golden spec
 		// writes (docs/compilers/openapi.md#extension-promotion).
-		TargetStability: {{Key: "x-stability"}, {Key: "x-fern-availability"}},
-		TargetRedaction: {{Key: "x-sensitive"}},
+		TargetStability:  {{Key: "x-stability"}, {Key: "x-fern-availability"}},
+		TargetRedaction:  {{Key: "x-sensitive"}},
+		TargetServerName: {{Key: "x-fern-server-name"}},
+		// A page walk is declared in one of two ways: an object on the operation
+		// whose members hold expressions naming each value, or a key on each
+		// value's parameter, member or type whose word names its part. Each
+		// convention names a part the other does not, and neither an offset nor
+		// a page number, whose readings they leave to configuration.
+		TargetPaginationCursor: {
+			{Key: "x-fern-pagination", Member: "cursor"},
+			{Key: paginationProperty, Member: "purpose", Values: []string{"next_cursor_param"}},
+		},
+		TargetPaginationNextCursor: {
+			{Key: "x-fern-pagination", Member: "next_cursor"},
+			{Key: paginationProperty, Member: "purpose", Values: []string{"next_cursor_field"}},
+		},
+		TargetPaginationItems: {
+			{Key: "x-fern-pagination", Member: "results"},
+			{Key: paginationProperty, Member: "purpose", Values: []string{"items"}},
+		},
+		TargetPaginationNextLink: {{Key: "x-fern-pagination", Member: "next_uri"}},
 	}
 }
 
+// paginationProperty is the key a default marking source reads.
+const paginationProperty = "x-stainless-pagination-property"
+
 // Promoter reads preserved vendor extensions into typed fields, by a policy
 // fixed when it is built. Its zero value is the disabled policy, and reads
-// nothing.
+// nothing. A reader of one target, such as ServerName, is a function over its
+// Sources.
 //
 // Every read takes the node's Unmodeled entries rather than the source node,
 // which is what makes "the extension survives its own promotion" structural
 // instead of a rule each caller has to remember: nothing here can consume an
 // entry. It takes them at the top level, so a key under a scope or inside a
-// verbatim entry reaches no field (GitHub #661, #1220, #1221).
+// verbatim entry reaches no field (GitHub #1220, #1221).
 type Promoter struct {
 	targets map[ExtensionTarget][]ExtensionSource
 	// keys is every extension key targets reads, distinct and sorted.
 	keys []string
-	// referents remembers what each position lends (Referent). Copies share it
-	// on purpose: an answer reads only the document and the policy, which no
-	// lowering changes. Nothing guards it, as a compile lowers on one goroutine.
-	referents map[bind.Position]Referent
+	// prefixes is the policy's Prefixes, distinct and sorted.
+	prefixes []string
+	// referents remembers what each schema lends (Referent), by the key a caller
+	// names it with. Copies share it on purpose: an answer reads only the
+	// document and the policy, which no lowering changes. Nothing guards it, as a
+	// compile lowers on one goroutine.
+	referents map[any]Referent
 }
 
 // Referent is what a carrier of a $ref reads of the schema the $ref ends on.
@@ -192,11 +259,12 @@ type Referent struct {
 	Members ir.Deprecation
 	// Redacted reports that a key on the referent asks for redaction.
 	Redacted bool
-	// InheritsDeprecated reports that the use site writes no `deprecated`, which
-	// would decide over the referent's. A key on the referent stating one then
-	// counts as the referent's `deprecated`. It is the one fact here of the use
-	// and not the referent, so its caller sets it.
-	InheritsDeprecated bool
+	// Homes reports that a schema the node falls back to is deprecated, by its
+	// keyword or a key, so the node is deprecated through it though the node's
+	// own Deprecation is unset, as a decorator's is, and a member the node
+	// writes annotates that deprecation. Its caller sets it, as the keyword is
+	// no key and the schema is not the node.
+	Homes bool
 }
 
 // newPromoter normalizes a policy. The caller's map and lists are copied, so no
@@ -212,40 +280,95 @@ func newPromoter(p ExtensionPromotions) *Promoter {
 	}
 	out := &Promoter{
 		targets:   make(map[ExtensionTarget][]ExtensionSource, len(targets)),
-		referents: map[bind.Position]Referent{},
+		referents: map[any]Referent{},
+		prefixes:  slices.Compact(slices.Sorted(slices.Values(p.Prefixes))),
 	}
 	for target, sources := range targets {
-		out.targets[target] = slices.Clone(sources)
-		for _, src := range sources {
+		copied := make([]ExtensionSource, len(sources))
+		for i, src := range sources {
+			src.Values = slices.Clone(src.Values)
+			copied[i] = src
 			out.keys = append(out.keys, src.Key)
 		}
+		out.targets[target] = copied
 	}
 	slices.Sort(out.keys)
 	out.keys = slices.Compact(out.keys)
 	return out
 }
 
+// readElsewhere reports whether another source of targets, src's target's or
+// another's, reads raw off the member of the key src reads, whose reading then
+// decides what raw is: one listing raw, or one listing no values, which reads
+// its own vocabulary and reports what that misses. src, not listing raw, is no
+// such source. A value every reader's list leaves out is src's to report, as
+// no reading takes it.
+func readElsewhere(targets map[ExtensionTarget][]ExtensionSource, src ExtensionSource, raw ir.RawValue) bool {
+	for _, sources := range targets {
+		for _, s := range sources {
+			if s.Key == src.Key && s.Member == src.Member && (len(s.Values) == 0 || listsWord(s, raw)) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+// listed reads raw as src's Values state target's fact: one of them states it,
+// and any other value is a misfit where no other source of targets reads it
+// off the same member of the key, and states nothing where one does.
+func listed(targets map[ExtensionTarget][]ExtensionSource, src ExtensionSource, raw ir.RawValue) (bool, statement) {
+	if listsWord(src, raw) {
+		return true, states
+	}
+	if readElsewhere(targets, src, raw) {
+		return false, statesNothing
+	}
+	return false, misfit
+}
+
+// listsWord reports whether raw is one of the values src lists.
+func listsWord(src ExtensionSource, raw ir.RawValue) bool {
+	text, ok := scalarText(raw)
+	return ok && slices.Contains(src.Values, text)
+}
+
+// scalarText spells a scalar value as ExtensionSource.Values compares it: a
+// string's text, or a boolean's or a number's JSON, raw being in the IR's
+// canonical form. Null, a list and an object are no scalar.
+func scalarText(raw ir.RawValue) (string, bool) {
+	if text, ok := extensionText(raw); ok {
+		return text, true
+	}
+	switch kind := raw.Kind(); kind {
+	case 't', 'f', '0':
+		return string(raw), true
+	default:
+		return "", false
+	}
+}
+
 // Keys yields every extension key the policy reads, for a carrier to find on its
 // referent.
 func (p Promoter) Keys() iter.Seq[string] { return slices.Values(p.keys) }
 
-// Referent returns what the schema at position at lends a carrier of a $ref
-// ending on it. declared is that schema's `deprecated: true`, and entries reads
-// its mapped keys in Unmodeled's form, once for every copy of p: a schema has as
-// many carriers as a document names it, and a key's value can be as large as the
-// document.
+// Referent returns what a schema lends a carrier falling back to it. of names
+// the schema, comparable and the same for each carrier, declared is its
+// `deprecated: true`, and entries reads its mapped keys in Unmodeled's form, once
+// for every copy of p: a schema has as many carriers as a document names it, and
+// a key's value can be as large as the document.
 //
 // The readings' findings are dropped because the schema is a declaration, and
 // reports where it is written; a use repeating them would be one report per use.
-func (p Promoter) Referent(at bind.Position, declared bool, entries func() ir.Unmodeled) Referent {
+func (p Promoter) Referent(of any, declared bool, entries func() ir.Unmodeled) Referent {
 	if len(p.keys) == 0 {
 		return Referent{}
 	}
-	if known, seen := p.referents[at]; seen {
+	if known, seen := p.referents[of]; seen {
 		return known
 	}
 	read := p.readReferent(declared, entries())
-	p.referents[at] = read
+	p.referents[of] = read
 	return read
 }
 
@@ -253,8 +376,8 @@ func (p Promoter) Referent(at bind.Position, declared bool, entries func() ir.Un
 // carrier of a $ref to it.
 func (p Promoter) readReferent(declared bool, entries ir.Unmodeled) Referent {
 	var read Referent
-	_, read.Deprecated, _ = firstStated(entries, p.targets[TargetDeprecation], deprecationReading())
-	_, read.Redacted, _ = firstStated(entries, p.targets[TargetRedaction], redactionReading())
+	_, read.Deprecated, _ = firstStated(entries, p.targets[TargetDeprecation], p.deprecationReading())
+	_, read.Redacted, _ = firstStated(entries, p.targets[TargetRedaction], p.redactionReading())
 	if !declared && !read.Deprecated {
 		return read
 	}
@@ -266,26 +389,31 @@ func (p Promoter) readReferent(declared bool, entries ir.Unmodeled) Referent {
 
 // Deprecation reads the extensions in own, and what from lends, into a
 // deprecation: a key stating one creates *dep where no keyword did, then the
-// members fill what is there. It marks prov with the heuristic when it writes
-// anything.
+// members fill what is there, or what they write where from is deprecated and
+// the node writes none (Referent.Homes). It marks prov with the heuristic when
+// it writes anything.
 //
 // A *dep still nil is the whole answer for a node that is not deprecated: a
 // member beside none annotates nothing and stays where it is. A `deprecated:
-// false` does not stop a key, as the marker and the entry show what was read.
+// false` states nothing, so it stops no key (annotation.EffectiveDeprecated).
 func (p Promoter) Deprecation(own ir.Unmodeled, from Referent, dep **ir.Deprecation, prov *ir.Provenance) []ir.Diagnostic {
 	if dep == nil || prov == nil {
 		return nil
 	}
-	_, stated, diags := firstStated(own, p.targets[TargetDeprecation], deprecationReading())
-	promoted := (stated || from.Deprecated && from.InheritsDeprecated) && *dep == nil
+	_, stated, diags := firstStated(own, p.targets[TargetDeprecation], p.deprecationReading())
+	promoted := (stated || from.Deprecated) && *dep == nil
 	if promoted {
 		*dep = &ir.Deprecation{}
 	}
-	if *dep == nil {
+	home := *dep
+	if home == nil && !from.Homes {
 		return diags
 	}
+	if home == nil {
+		home = &ir.Deprecation{}
+	}
 	lent := deprecationMembers(&from.Members)
-	for i, member := range deprecationMembers(*dep) {
+	for i, member := range deprecationMembers(home) {
 		text, filled, misfits := firstStated(own, p.targets[member.target], textReading(member.target))
 		diags = append(diags, misfits...)
 		if !filled {
@@ -297,6 +425,7 @@ func (p Promoter) Deprecation(own ir.Unmodeled, from Referent, dep **ir.Deprecat
 		}
 	}
 	if promoted {
+		*dep = home
 		prov.Inferred = ir.JoinInferred(prov.Inferred, ExtensionPromotionHeuristic)
 	}
 	return diags
@@ -319,16 +448,18 @@ func deprecationMembers(dep *ir.Deprecation) [4]deprecationMember {
 	}
 }
 
-// Stability fills tier from the vendor extensions kept in unmodeled, and marks
-// prov with the heuristic when it does.
-func (p Promoter) Stability(unmodeled ir.Unmodeled, tier *ir.Stability, prov *ir.Provenance) []ir.Diagnostic {
+// Stability fills tier from the vendor extensions kept in unmodeled, by p's
+// sources of TargetStability, and marks prov with the heuristic when it does.
+func Stability(p Promoter, unmodeled ir.Unmodeled, tier *ir.Stability, prov *ir.Provenance) []ir.Diagnostic {
 	if tier == nil || prov == nil {
 		return nil
 	}
-	stated, found, diags := firstStated(unmodeled, p.targets[TargetStability], reading[ir.Stability]{
+	stated, found, diags := firstStated(unmodeled, p.Sources(TargetStability), reading[ir.Stability]{
 		target: TargetStability,
 		want:   "names no stability tier",
-		read:   p.readStability,
+		read: func(src ExtensionSource, raw ir.RawValue) (ir.Stability, statement) {
+			return readStability(p, src, raw)
+		},
 	})
 	if found {
 		*tier = stated
@@ -344,7 +475,7 @@ func (p Promoter) Redaction(own ir.Unmodeled, from Referent, redact *bool, prov 
 	if redact == nil || prov == nil {
 		return nil
 	}
-	_, stated, diags := firstStated(own, p.targets[TargetRedaction], redactionReading())
+	_, stated, diags := firstStated(own, p.targets[TargetRedaction], p.redactionReading())
 	if (stated || from.Redacted) && !*redact {
 		*redact = true
 		prov.Inferred = ir.JoinInferred(prov.Inferred, ExtensionPromotionHeuristic)
@@ -352,8 +483,9 @@ func (p Promoter) Redaction(own ir.Unmodeled, from Referent, redact *bool, prov 
 	return diags
 }
 
-// EnumOpenness clears e.Closed when the vendor extensions kept in unmodeled
-// state the set open, and marks prov with the heuristic when they do.
+// EnumOpenness clears *closed, an enum's or that of the union a mixed enum
+// lowers to, when the vendor extensions kept in unmodeled state the set open by
+// p's sources of TargetEnumOpen, and marks prov with the heuristic when they do.
 //
 // The key's presence is the statement, so every value shape but an explicit
 // `false` reads as open (extensionOpenness).
@@ -362,16 +494,38 @@ func (p Promoter) Redaction(own ir.Unmodeled, from Referent, redact *bool, prov 
 // so there is nothing to open. Minting an enum from a member-list extension is
 // out of scope; the entry survives verbatim for a consumer that wants it
 // (GitHub #427).
-func (p Promoter) EnumOpenness(unmodeled ir.Unmodeled, e *ir.Enum, prov *ir.Provenance) []ir.Diagnostic {
-	if e == nil || prov == nil {
+func EnumOpenness(p Promoter, unmodeled ir.Unmodeled, closed *bool, prov *ir.Provenance) []ir.Diagnostic {
+	if closed == nil || prov == nil {
 		return nil
 	}
-	open, _, diags := firstStated(unmodeled, p.targets[TargetEnumOpen], reading[bool]{
-		target: TargetEnumOpen,
-		read:   func(_ ExtensionSource, raw ir.RawValue) (bool, statement) { return extensionOpenness(raw), states },
+	return openness(p, unmodeled, TargetEnumOpen, closed, prov)
+}
+
+// UnionOpenness clears *closed, that of a union a oneOf or anyOf lowers to,
+// when the vendor extensions kept in unmodeled state the union open by p's
+// sources of TargetUnionOpen, and marks prov with the heuristic when they do,
+// as EnumOpenness opens an enum.
+func UnionOpenness(p Promoter, unmodeled ir.Unmodeled, closed *bool, prov *ir.Provenance) []ir.Diagnostic {
+	if closed == nil || prov == nil {
+		return nil
+	}
+	return openness(p, unmodeled, TargetUnionOpen, closed, prov)
+}
+
+// openness clears *closed and marks prov when a source p reads target from
+// states openness in unmodeled (extensionOpenness).
+func openness(p Promoter, unmodeled ir.Unmodeled, target ExtensionTarget, closed *bool, prov *ir.Provenance) []ir.Diagnostic {
+	open, _, diags := firstStated(unmodeled, p.Sources(target), reading[bool]{
+		target: target,
+		read: func(src ExtensionSource, raw ir.RawValue) (bool, statement) {
+			if len(src.Values) > 0 {
+				return listed(p.targets, src, raw)
+			}
+			return extensionOpenness(raw), states
+		},
 	})
 	if open {
-		e.Closed = false
+		*closed = false
 		prov.Inferred = ir.JoinInferred(prov.Inferred, ExtensionPromotionHeuristic)
 	}
 	return diags
@@ -421,20 +575,30 @@ func textReading(target ExtensionTarget) reading[string] {
 }
 
 // deprecationReading reads a value as saying that what it sits on is deprecated.
-func deprecationReading() reading[bool] {
+func (p Promoter) deprecationReading() reading[bool] {
 	return reading[bool]{
 		target: TargetDeprecation,
 		want:   "is neither text nor a boolean",
-		read:   func(_ ExtensionSource, raw ir.RawValue) (bool, statement) { return statesDeprecated(raw) },
+		read: func(src ExtensionSource, raw ir.RawValue) (bool, statement) {
+			if len(src.Values) > 0 {
+				return listed(p.targets, src, raw)
+			}
+			return statesDeprecated(raw)
+		},
 	}
 }
 
 // redactionReading reads a value as asking for redaction.
-func redactionReading() reading[bool] {
+func (p Promoter) redactionReading() reading[bool] {
 	return reading[bool]{
 		target: TargetRedaction,
 		want:   "is not a boolean",
-		read:   func(_ ExtensionSource, raw ir.RawValue) (bool, statement) { return statesBoolean(raw) },
+		read: func(src ExtensionSource, raw ir.RawValue) (bool, statement) {
+			if len(src.Values) > 0 {
+				return listed(p.targets, src, raw)
+			}
+			return statesBoolean(raw)
+		},
 	}
 }
 
@@ -446,8 +610,16 @@ func redactionReading() reading[bool] {
 // as is a value the target cannot hold: the entry stays either way, so the
 // report is what tells a reader the field did not take it.
 func firstStated[T comparable](unmodeled ir.Unmodeled, sources []ExtensionSource, r reading[T]) (T, bool, []ir.Diagnostic) {
+	kept, _, found, diags := firstStatedAt(unmodeled, sources, r)
+	return kept, found, diags
+}
+
+// firstStatedAt is firstStated, also returning the provenance of the source
+// whose value it returns.
+func firstStatedAt[T comparable](unmodeled ir.Unmodeled, sources []ExtensionSource, r reading[T]) (T, ir.Provenance, bool, []ir.Diagnostic) {
 	var kept T
 	var first ExtensionSource
+	var keptAt ir.Provenance
 	var found bool
 	var diags []ir.Diagnostic
 	for _, src := range sources {
@@ -455,7 +627,7 @@ func firstStated[T comparable](unmodeled ir.Unmodeled, sources []ExtensionSource
 		if !declared {
 			continue
 		}
-		raw, at, located := src.value(entry)
+		raw, at, _, located := src.value(entry)
 		if located == misfit {
 			// Worded without the member, so one key several sources read reports
 			// once: compile.Diags drops a repeat of the whole diagnostic.
@@ -468,36 +640,45 @@ func firstStated[T comparable](unmodeled ir.Unmodeled, sources []ExtensionSource
 		v, said := r.read(src, raw)
 		switch {
 		case said == misfit:
+			want := r.want
+			if len(src.Values) > 0 {
+				want = "holds none of the values the policy lists"
+			}
 			diags = append(diags, diag.Newf(ir.SeverityInfo, diag.DegradedConstruct, at,
-				"extension %q %s, so it does not fill %s", src, r.want, r.target))
+				"extension %q %s, so it does not fill %s", src, want, r.target))
 		case said != states:
 		case !found:
-			kept, first, found = v, src, true
+			kept, first, keptAt, found = v, src, at, true
 		case v != kept:
 			diags = append(diags, diag.Newf(ir.SeverityInfo, diag.DegradedConstruct, at,
 				"extension %q states another %s than %q, which the policy reads first, and does not fill it",
 				src, r.target, first))
 		}
 	}
-	return kept, found, diags
+	return kept, keptAt, found, diags
 }
 
 // readStability reads a value as a tier.
 //
 // One key may also be a source of TargetDeprecation, whose reader takes what
-// names no tier: its word `deprecated` and a true are that target's statement,
-// and a value neither target can hold is its report. Answering those here too
-// would report one defect twice, or call a word misread that was read. Another
-// word no target reads, a false, and any of these on a key only this target
-// reads, is a misfit.
-func (p Promoter) readStability(src ExtensionSource, raw ir.RawValue) (ir.Stability, statement) {
+// names no tier: what it states, such as the word `deprecated`, is that target's
+// statement, and what it reports is its report. Answering those here too would
+// report one defect twice, or call a word misread that was read. Any other
+// value, and any value on a key only this target reads, is a misfit.
+func readStability(p Promoter, src ExtensionSource, raw ir.RawValue) (ir.Stability, statement) {
 	if text, ok := extensionText(raw); ok {
 		if tier := stabilityTier(text); tier != ir.StabilityUnstated {
 			return tier, states
 		}
 	}
-	if _, said := statesDeprecated(raw); said != statesNothing && slices.Contains(p.targets[TargetDeprecation], src) {
-		return ir.StabilityUnstated, statesNothing
+	deprecation := p.deprecationReading()
+	for _, other := range p.targets[TargetDeprecation] {
+		if other.Key != src.Key || other.Member != src.Member {
+			continue
+		}
+		if _, said := deprecation.read(other, raw); said != statesNothing {
+			return ir.StabilityUnstated, statesNothing
+		}
 	}
 	return ir.StabilityUnstated, misfit
 }
@@ -549,23 +730,24 @@ func statesBoolean(raw ir.RawValue) (bool, statement) {
 }
 
 // value returns what s reads of entry, and where that sits: the entry's value
-// whole, or the member s names. An absent member states nothing, as an absent
-// key does; a value with no members cannot hold one (misfit).
-func (s ExtensionSource) value(entry ir.UnmodeledEntry) (ir.RawValue, ir.Provenance, statement) {
+// whole, or the member s names, beside the members the entry holds where s
+// reads one. An absent member states nothing, as an absent key does; a value
+// with no members cannot hold one (misfit).
+func (s ExtensionSource) value(entry ir.UnmodeledEntry) (ir.RawValue, ir.Provenance, map[string]ir.RawValue, statement) {
 	if s.Member == "" {
-		return entry.Value, entry.Provenance, states
+		return entry.Value, entry.Provenance, nil, states
 	}
 	var members map[string]ir.RawValue
 	if err := json.Unmarshal(entry.Value, &members); err != nil || members == nil {
-		return nil, entry.Provenance, misfit
+		return nil, entry.Provenance, nil, misfit
 	}
 	raw, present := members[s.Member]
 	if !present {
-		return nil, entry.Provenance, statesNothing
+		return nil, entry.Provenance, members, statesNothing
 	}
 	at := entry.Provenance
 	at.Pointer += ids.Ptr(s.Member)
-	return raw, at, states
+	return raw, at, members, states
 }
 
 // extensionText reads a preserved extension value as a string. Every

@@ -6,10 +6,12 @@
     ],
     "e": [
       "anon",
+      "composed",
       "openapi"
     ],
     "g": [
       "default",
+      "extension",
       "path-prefix",
       "tags",
       "webhooks"
@@ -83,6 +85,9 @@
                         "type": {
                           "target": "t/anon/paths/~1events/get/responses/200/content/text~1event-stream/schema",
                           "nullable": false
+                        },
+                        "stream": {
+                          "inferred": "streaming-media-type"
                         }
                       }
                     ]
@@ -108,8 +113,7 @@
                     "method": "GET",
                     "uriTemplate": "/events",
                     "sharedRoute": false,
-                    "checksumRequired": false,
-                    "isWebhook": false
+                    "checksumRequired": false
                   }
                 ]
               },

@@ -10,25 +10,29 @@ IR bug (INV9), not a compiler change.
 
 | IR construct | Wire truth preserved |
 |---|---|
-| fixed-width `Primitive` (`int8`…`uint64`, `float32`, `float64`) | — |
-| unbounded `Primitive` (`integer`, `number`, `float`) | every digit, when exact |
+| fixed-width `Primitive` (`int8`…`uint64`, `float32`, `float64`) | an integer's value, read in any spelling of it and written as plain digits ([type table](../contract/type-table.md#an-integer-row-reads-a-number-by-its-value)) |
+| unbounded `Primitive` (`integer`, `number`, `float`) | every digit, when exact; an `integer`'s value as a fixed-width one's |
 | `decimal`, `decimal128` | every digit |
 | `bool`, `string`, `bytes`, `url` | bytes as base64 text, where `kotlinx.serialization`'s own `ByteArray` serializer writes an array of numbers; a URL's text, never re-serialized from a parsed form |
 | `uuid` | canonical text |
 | `date`, `time`, `datetime`, `datetime_offset`, `duration` | the offset a timestamp was written with; a duration's years and months, which neither language's own duration holds |
+| a primitive under an encoding with a row ([a row keyed by an encoding](../contract/type-table.md#a-row-keyed-by-an-encoding)) | the spelling its encoding names, `-_8=` and never `+/8=` under `base64url`; under an encoding with no row, the wire form as the caller gave it |
 | `any`, `Any` | the value, its members in order and each number's text; decoding into Go's `any` would turn each number into a `float64` |
 | nil `*TypeRef` | — |
 | `Scalar{Base}` chain | encoding triple; the root's codec |
-| `Model` (Base/Implements/Mixins) | `WireID` order |
+| `Model` (Base/Implements/Mixins) | `WireID` order; over a union it narrows, each variant's members and tag beside the model's own ([inheritance](models.md#inheritance)) |
 | anonymous decorator: a `Model` with only a `Base`, or a `Scalar` with neither `Constraints` nor `Encoding`, beside annotations ([decorators](decorators.md)) | — |
-| `Model` whose `Base` is no model, not a decorator | — |
+| `Model` whose `Base` is no model, not a decorator | over a union it narrows, each variant's members and tag beside the model's own ([inheritance](models.md#inheritance)) |
 | `AdditionalProps` / `Additional` | pattern channel |
 | `Union` (four wire shapes, [unions](unions.md)) | `WireName`/`WireID` per variant; an unknown variant's value; every variant an inclusive union's value admits |
-| `Enum` open/closed/flags | member `WireName`; each member's JSON kind, compared by value ([a member on the wire](enums.md#a-member-on-the-wire)) |
+| `Enum` open/closed/flags | member `WireName`; each member's wire form, compared as JSON compares values ([a member on the wire](enums.md#a-member-on-the-wire)) |
 | `List`/`MapT`/`Tuple` | packed/expanded |
 | `Literal` | — |
 | `External` | — |
-| `Visibility` sets | — |
+| `Property.Secret`, `Parameter.Secret`, `TypeCommon.Sensitive` ([redaction](redaction.md)) | the value on the wire, untouched |
+| `Operation.Stability`, `OperationGroup.Stability` ([stability](../operations/stability.md)) | — |
+| `Deprecation{Message, ReplacedBy}` ([deprecations](deprecation.md)) | — |
+| `Visibility` sets | the members each shape's declaration holds and requires, a `PATCH` body's as its schema states them unless it is a patch shape ([TypePlan](../plan/types.md#what-a-patch-relaxes)) |
 | `Required` ⊥ `Nullable` ⊥ `Presence` | — |
 | `Constraints` | numeric bounds as decimal |
 | `Discriminator{Mapping→ID}` | discriminator wire key |
@@ -36,6 +40,7 @@ IR bug (INV9), not a compiler change.
 | `Streaming` + `StreamDetail` | frame boundaries; per-event content-type |
 | `LongRunning` | monitor/final-state channel |
 | `OneWay` | — |
+| `HTTPBinding.Inbound` ([operations the API sends](../operations/inbound.md)) | the request's bytes as they arrived, checked before they decode |
 | `Channel`/`Message`/`MessageBinding` | address/correlation paths |
 | `ErrorCase{Fault, Retryable}` | status→kind map; an error's raw body |
 | `Response` beside the primary (`OpPlan.Others`) | the status; the body as it arrived |

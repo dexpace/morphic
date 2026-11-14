@@ -308,7 +308,7 @@ func TestRegistry_DetectRefusesAClaimNamingAPartFormat(t *testing.T) {
 				formats: []compilers.SourceFormat{alpha}, marker: "alpha", detects: format,
 			}))
 
-			_, ok, err := reg.Detect(t.Context(), spec, nil)
+			_, ok, err := reg.Detect(t.Context(), spec, compilers.Configuration{})
 
 			require.ErrorIs(t, err, compilers.ErrContract)
 			assert.False(t, ok)
@@ -343,7 +343,7 @@ func TestRegistry_DetectRefusesADeclineIndexingAnotherSource(t *testing.T) {
 				declines: []ir.Diagnostic{at(tc.source, ir.SeverityError)},
 			}))
 
-			det, _, err := reg.Detect(t.Context(), spec, nil)
+			det, _, err := reg.Detect(t.Context(), spec, compilers.Configuration{})
 
 			if !tc.broken {
 				require.NoError(t, err)
@@ -377,7 +377,7 @@ func TestRegistry_DetectRecordsTheSourceItWasHanded(t *testing.T) {
 			}))
 			src := compilers.Source{Path: "in." + name, Data: []byte(data)}
 
-			det, _, err := reg.Detect(t.Context(), src, nil)
+			det, _, err := reg.Detect(t.Context(), src, compilers.Configuration{})
 
 			require.NoError(t, err)
 			assert.Equal(t, src, det.Source)
@@ -406,7 +406,7 @@ func TestRegistry_DetectRefusesADeclineSpeakingWithNoError(t *testing.T) {
 			reg := compilers.NewRegistry()
 			require.NoError(t, reg.Register(&stubCompiler{formats: []compilers.SourceFormat{alpha}, declines: tc.declines}))
 
-			det, ok, err := reg.Detect(t.Context(), spec, nil)
+			det, ok, err := reg.Detect(t.Context(), spec, compilers.Configuration{})
 
 			assert.False(t, ok)
 			if !tc.broken {

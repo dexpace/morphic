@@ -7,9 +7,11 @@ import (
 	"slices"
 	"testing"
 
+	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/dexpace/morphic/compilers/openapi"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
 	"github.com/dexpace/morphic/ir"
@@ -33,6 +35,49 @@ func assertEnumString(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 	assert.True(t, pinned.Closed)
 	require.Len(t, pinned.Members, 1)
 	assert.Equal(t, "only", pinned.Members[0].Value.Str)
+}
+
+// assertStringConstUnion pins what the compiler keeps of a union of string
+// values for pass.ConstUnions to normalize (docs/compilers/openapi.md#string-const-union):
+// the union, its variants naming the types each branch lowers to, a const's
+// Literal holding what its branch says of its value, a constraint it has no
+// home for included. A oneOf branch lowers to a union of its own, a branch
+// naming a component to that component, and one naming another union's branch
+// to the type that branch lowers to, as any $ref does.
+func assertStringConstUnion(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
+	color, ok := doc.Types[componentID("Color")].(*ir.Union)
+	require.True(t, ok, "the compiler keeps a oneOf of consts a union")
+	require.Len(t, color.Variants, 2)
+	red, ok := doc.Types[color.Variants[0].Type.Target].(*ir.Literal)
+	require.True(t, ok)
+	assert.Equal(t, ir.Value{Kind: ir.ValueString, Str: "red"}, red.Value)
+	assert.Equal(t, ir.Docs{Summary: "Red", Description: "The colour red."}, red.Docs)
+	green, ok := doc.Types[color.Variants[1].Type.Target].(*ir.Literal)
+	require.True(t, ok)
+	assert.NotNil(t, green.Deprecation, "a branch's deprecation stays on its literal")
+
+	for _, name := range []string{"Level", "Tier", "Size", "Fit", "Plan", "Direction", "Compass", "Shade", "Pinned"} {
+		_, ok := doc.Types[componentID(name)].(*ir.Union)
+		assert.True(t, ok, "%s lowers to a union", name)
+	}
+	direction, _ := doc.Types[componentID("Direction")].(*ir.Union)
+	require.Len(t, direction.Variants, 2)
+	_, ok = doc.Types[direction.Variants[0].Type.Target].(*ir.Union)
+	assert.True(t, ok, "a oneOf branch lowers to a union of its own")
+	size, _ := doc.Types[componentID("Size")].(*ir.Union)
+	fit, _ := doc.Types[componentID("Fit")].(*ir.Union)
+	require.NotEmpty(t, size.Variants)
+	require.NotEmpty(t, fit.Variants)
+	assert.Equal(t, size.Variants[0].Type.Target, fit.Variants[0].Type.Target,
+		"a $ref naming another union's branch names the type it lowers to")
+	shade, _ := doc.Types[componentID("Shade")].(*ir.Union)
+	require.Len(t, shade.Variants, 2)
+	assert.Equal(t, componentID("Light"), shade.Variants[1].Type.Target)
+	pinned, _ := doc.Types[componentID("Pinned")].(*ir.Union)
+	require.Len(t, pinned.Variants, 2)
+	a, ok := doc.Types[pinned.Variants[0].Type.Target].(*ir.Literal)
+	require.True(t, ok)
+	assert.Contains(t, a.Unmodeled, "openapi:pattern", "the Literal keeps the constraint it has no home for")
 }
 
 func assertEnumNumeric(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
@@ -64,6 +109,57 @@ func assertTypeArrayNumeric(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 		require.Len(t, u.Variants, 2, name)
 		assert.Equal(t, want, u.Exclusive, name)
 	}
+}
+
+// assertTypeArrayBounds pins each value bound beside a type array on the variant
+// whose type it applies to, a Scalar of its own at <pointer>/type/<index>, none
+// on the variant it does not, a format paired with one listed type on that
+// variant alone, one no listed type takes kept on the union, and nothing on the
+// property carrying one, a bound on a branch beside it included.
+func assertTypeArrayBounds(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
+	variantOf := func(name string, i int) ir.TypeDef {
+		u, ok := doc.Types[componentID(name)].(*ir.Union)
+		require.True(t, ok, name)
+		require.Len(t, u.Variants, 2, name)
+		return doc.Types[u.Variants[i].Type.Target]
+	}
+	held := func(name string, i int) *ir.Constraints {
+		sc, ok := variantOf(name, i).(*ir.Scalar)
+		require.True(t, ok, "%s variant %d is a Scalar of its own", name, i)
+		assert.Equal(t, ir.TypeID("t/anon/components/schemas/"+name+"/type/"+string(rune('0'+i))), sc.ID)
+		return sc.Constraints
+	}
+	one, two := ir.BigVal("1"), ir.BigVal("2")
+	assert.Equal(t, &ir.Constraints{Min: &one}, held("Measure", 0))
+	assert.Equal(t, &ir.Constraints{Min: &one}, held("Measure", 1))
+	assert.Equal(t, &ir.Constraints{Min: &two}, held("Mixed", 0))
+	assert.Equal(t, &ir.Constraints{MaxLength: new(int64(3))}, held("Mixed", 1))
+	assert.Equal(t, &ir.Constraints{MaxLength: new(int64(2))}, held("OnBranch", 1))
+	assert.Empty(t, doc.Types[componentID("OnBranch")].Common().Unmodeled, "the branch folded")
+	assert.Equal(t, ir.PrimInteger, primOf(t, variantOf("Dated", 0)))
+	assert.Equal(t, &ir.Constraints{MinLength: new(int64(10))}, held("Dated", 1))
+	dated, ok := variantOf("Dated", 1).(*ir.Scalar)
+	require.True(t, ok)
+	assert.Equal(t, ir.PrimTypeID(ir.PrimDate), dated.Base.Target, "the string variant takes the date")
+
+	untaken := doc.Types[componentID("Untaken")]
+	assert.Equal(t, ir.RawValue("1"), unmodeledEntry(t, untaken.Common().Unmodeled, "openapi:minProperties").Value)
+	assert.Equal(t, []ir.Severity{ir.SeverityInfo}, diagsAt(diags, "openapi/degraded-construct", "/components/schemas/Untaken"))
+	assert.Len(t, diags, 1, "%+v", diags)
+
+	holder, ok := doc.Types[componentID("Holder")].(*ir.Model)
+	require.True(t, ok)
+	either, ok := propByWire(holder, "either")
+	require.True(t, ok)
+	assert.Nil(t, either.Constraints, "a carrier of a type array holds no bound")
+}
+
+// primOf returns the primitive td is, failing on any other node.
+func primOf(t *testing.T, td ir.TypeDef) ir.PrimKind {
+	t.Helper()
+	p, ok := td.(*ir.Primitive)
+	require.True(t, ok, "got %T", td)
+	return p.Prim
 }
 
 // assertEmptyEnum covers `enum: []`: legal JSON Schema whose value space holds
@@ -188,6 +284,61 @@ func assertScalarFormat(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 	assert.Equal(t, ir.PrimTypeID(ir.PrimString), ts.Base.Target)
 	require.NotNil(t, ts.Encoding)
 	assert.Equal(t, "time", ts.Encoding.Name)
+
+	// A number's format on a string: the number is the Base, and the string it
+	// travels as the WireType, as byte puts bytes and its string.
+	for wire, base := range map[string]ir.PrimKind{"id": ir.PrimInt64, "price": ir.PrimDecimal} {
+		p, found := propByWire(h, wire)
+		require.True(t, found, wire)
+		ns, isScalar := doc.Types[p.Type.Target].(*ir.Scalar)
+		require.True(t, isScalar, "%s hoists a Scalar", wire)
+		require.NotNil(t, ns.Base)
+		assert.Equal(t, ir.PrimTypeID(base), ns.Base.Target, wire)
+		require.NotNil(t, ns.Encoding)
+		require.NotNil(t, ns.Encoding.WireType, wire)
+		assert.Equal(t, ir.Encoding{Name: "string", WireType: &ir.TypeRef{Target: ir.PrimTypeID(ir.PrimString)}},
+			*ns.Encoding, wire)
+	}
+
+	assertEncodedFormats(t, doc, h)
+}
+
+// assertEncodedFormats pins the registered formats whose value is of another
+// primitive than the JSON type they are written on: each hoists a Scalar over
+// that primitive under the encoding the IR names its text by, the JSON type in
+// WireType where the primitive's own spelling does not say it, and the bounds
+// written beside it kept (docs/compilers/openapi.md#string-formats,
+// docs/compilers/openapi.md#numeric-formats).
+func assertEncodedFormats(t *testing.T, doc *ir.Document, h *ir.Model) {
+	t.Helper()
+	wire := func(k ir.PrimKind) *ir.TypeRef { return &ir.TypeRef{Target: ir.PrimTypeID(k)} }
+	for prop, want := range map[string]struct {
+		base ir.PrimKind
+		enc  ir.Encoding
+	}{
+		"thumbprint": {ir.PrimBytes, ir.Encoding{Name: "base64url", WireType: wire(ir.PrimString)}},
+		"modified":   {ir.PrimDatetimeOffset, ir.Encoding{Name: "http-date"}},
+		"resetAt":    {ir.PrimDatetimeOffset, ir.Encoding{Name: "unixTimestamp", WireType: wire(ir.PrimInteger)}},
+		"seenAt":     {ir.PrimDatetimeOffset, ir.Encoding{Name: "unixTimestamp", WireType: wire(ir.PrimNumber)}},
+		"issuedAt":   {ir.PrimDatetimeOffset, ir.Encoding{Name: "unixTimestamp", WireType: wire(ir.PrimString)}},
+	} {
+		t.Run(prop, func(t *testing.T) {
+			p, ok := propByWire(h, prop)
+			require.True(t, ok, "the property is declared")
+			sc, ok := doc.Types[p.Type.Target].(*ir.Scalar)
+			require.True(t, ok, "the format hoists a Scalar")
+			require.NotNil(t, sc.Base)
+			assert.Equal(t, ir.PrimTypeID(want.base), sc.Base.Target, "over the primitive the value is")
+			require.NotNil(t, sc.Encoding)
+			assert.Empty(t, cmp.Diff(want.enc, *sc.Encoding), "under the encoding the IR names")
+		})
+	}
+	modified, ok := propByWire(h, "modified")
+	require.True(t, ok)
+	sc, ok := doc.Types[modified.Type.Target].(*ir.Scalar)
+	require.True(t, ok)
+	require.NotNil(t, sc.Constraints, "the bound beside the format stays on its Scalar")
+	assert.Equal(t, new(int64(29)), sc.Constraints.MinLength)
 }
 
 // assertSelectedPrimitives pins the table's pairings this spec writes: each
@@ -264,6 +415,9 @@ func assertSecretCarriers(t *testing.T, doc *ir.Document) {
 		{"viaRef", componentID("Pw")},      // inherited from the referent, as deprecated is
 		{"viaAlias", componentID("Chain")}, // from the end of the $ref chain
 		{"beside", componentID("Plain")},   // written beside the $ref, binding the use
+		{"refined", componentID("Plain")},  // beside an allOf refining the $ref, or in a branch of it
+		{"inBranch", componentID("Plain")},
+		{"wrapped", componentID("Pw")}, // an allOf over a string is a use of it, inheriting as viaRef does
 	} {
 		p, ok := propByWire(login, tc.wire)
 		require.True(t, ok, tc.wire)
@@ -280,13 +434,6 @@ func assertSecretCarriers(t *testing.T, doc *ir.Document) {
 	require.True(t, ok)
 	assert.False(t, nullable.Secret, "the node holds it, not a copy on the use")
 	assert.Equal(t, ir.TypeRef{Target: componentID("Pw"), Nullable: true}, nullable.Type)
-	wrapped, ok := propByWire(login, "wrapped")
-	require.True(t, ok)
-	assert.False(t, wrapped.Secret, "the node holds it, not a copy on the use")
-	m, ok := doc.Types[wrapped.Type.Target].(*ir.Model)
-	require.True(t, ok, "an allOf over one $ref is a model")
-	require.NotNil(t, m.Base)
-	assert.Equal(t, componentID("Pw"), m.Base.Target)
 	chain, ok := doc.Types[componentID("Chain")].(*ir.Scalar)
 	require.True(t, ok, "an alias component is a Scalar")
 	require.NotNil(t, chain.Base)
@@ -415,8 +562,21 @@ func assertXMLHints(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 	isbn, ok := propByWire(book, "isbn")
 	require.True(t, ok)
 	require.NotNil(t, isbn.XML, "a scalar property has no node of its own, so the property carries them")
-	assert.Equal(t, ir.XMLHints{Namespace: "urn:example:books", Prefix: "bk", NodeType: "attribute"},
-		*isbn.XML, "attribute: true is the node type, not a flag of its own")
+	assert.Equal(t, ir.XMLHints{Namespace: "urn:example:books", Prefix: "bk", Attribute: new(true)},
+		*isbn.XML, "attribute is kept as written, NodeType holding only 3.2's nodeType")
+
+	lang, ok := doc.Types[componentID("Lang")].(*ir.Scalar)
+	require.True(t, ok)
+	require.NotNil(t, lang.XML)
+	assert.Equal(t, new(true), lang.XML.Attribute, "a type declares its node an attribute")
+	inherited, ok := propByWire(book, "lang")
+	require.True(t, ok)
+	assert.Nil(t, inherited.XML, "a property writing no xml takes its type's hints whole")
+	overridden, ok := propByWire(book, "title")
+	require.True(t, ok)
+	require.NotNil(t, overridden.XML)
+	assert.Equal(t, ir.XMLHints{Attribute: new(false)}, *overridden.XML,
+		"a declared false beside the $ref is kept, so it overrides the type's true field by field")
 
 	authors, ok := propByWire(book, "authors")
 	require.True(t, ok)
@@ -424,7 +584,7 @@ func assertXMLHints(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 	list, ok := doc.Types[authors.Type.Target].(*ir.List)
 	require.True(t, ok)
 	require.NotNil(t, list.XML)
-	assert.True(t, list.XML.Wrapped, "wrapping is a property of the collection")
+	assert.Equal(t, new(true), list.XML.Wrapped, "wrapping is a property of the collection")
 	elem, ok := doc.Types[list.Elem.Target]
 	require.True(t, ok)
 	require.NotNil(t, elem.Common().XML)
@@ -474,4 +634,43 @@ func assertXMLNodeType32(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) 
 
 	assert.Empty(t, diagsAt(diags, diag.UnknownObjectKey, "/components/schemas/Report/properties/id/xml/nodeType"),
 		"a key 3.2 defines is not an undefined key")
+}
+
+// assertSecretInference pins the secret policy at each use of its case: a
+// parameter, a response header and a member whose name ends in a credential's
+// and whose value is text or bytes are redacted and marked; one ending in
+// another word, one of another type, and one the document marks either way,
+// at the use or on its $ref's target, keep what it says.
+func assertSecretInference(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
+	op, ok := opByName(doc, "listLogs")
+	require.True(t, ok)
+	for name, inferred := range map[string]bool{
+		"R2-Secret-Access-Key": true, "api_key": true, "R2-Access-Key-Id": false, "page_token": false, "password": false,
+	} {
+		p, ok := openapitest.ParamBySource(op, name)
+		require.True(t, ok, name)
+		assert.Equal(t, inferred, p.Secret, name)
+		assert.Equal(t, inferred, p.Provenance.Inferred == openapi.SecretInferenceHeuristic, "%s marked", name)
+	}
+	require.Len(t, op.Responses, 1)
+	for wire, inferred := range map[string]bool{"X-Auth-Token": true, "X-Token-Type": false} {
+		h, ok := headerByWire(op.Responses[0].Headers, wire)
+		require.True(t, ok, wire)
+		assert.Equal(t, inferred, h.Secret, wire)
+		assert.Equal(t, inferred, h.Provenance.Inferred == openapi.SecretInferenceHeuristic, "%s marked", wire)
+	}
+	creds := secretModel(t, doc, "Credentials")
+	for wire, tc := range map[string]struct{ secret, marked bool }{
+		"client_secret": {true, true}, "privateKey": {true, true}, "session_token": {true, false},
+		"secret_id": {false, false}, "has_password": {false, false}, "secret": {false, false},
+		"refresh_token": {false, false}, "access_key": {true, true},
+		// An HTTP-date is an instant, no text or bytes
+		// (docs/compilers/openapi.md#string-formats).
+		"bearer_token": {false, false},
+	} {
+		p, ok := propByWire(creds, wire)
+		require.True(t, ok, wire)
+		assert.Equal(t, tc.secret, p.Secret, wire)
+		assert.Equal(t, tc.marked, p.Provenance.Inferred == openapi.SecretInferenceHeuristic, "%s marked", wire)
+	}
 }

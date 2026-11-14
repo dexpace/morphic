@@ -9,6 +9,10 @@ import (
 	"github.com/dexpace/morphic/internal/lintrules"
 )
 
+// vet is the go vet tool's entry point, which a test replaces to run main in
+// its own process: a child's coverage is discarded (internal/exectest).
+var vet = unitchecker.Main
+
 func main() {
-	unitchecker.Main(lintrules.Analyzers()...)
+	vet(lintrules.Analyzers()...)
 }

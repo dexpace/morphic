@@ -435,7 +435,7 @@ func TestValidate_ModelImplementsAndAdditionalPropsWalked(t *testing.T) {
 	m := doc.Types["t/m"].(*ir.Model)
 	m.Implements = []ir.TypeRef{{Target: "t/ghost-iface"}}
 	m.AdditionalProps = &ir.AdditionalProps{
-		Value: ir.TypeRef{Target: "t/ghost-apval"},
+		Value: &ir.TypeRef{Target: "t/ghost-apval"},
 		Key:   &ir.TypeRef{Target: "t/ghost-apkey"},
 		Patterns: []ir.PatternProps{
 			{Pattern: "^x", Value: ir.TypeRef{Target: "t/ghost-appat"}},

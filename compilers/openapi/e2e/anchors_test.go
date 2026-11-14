@@ -47,7 +47,7 @@ const anchorFixtureHead = "openapi: 3.1.0\ninfo: {title: T, version: \"1\"}\n" +
 // anchoredEntries writes an anchored value at every model the parser folds into
 // a map, each as the paths of a document with one path, /x. The path item case
 // is the one the external twin cannot tell apart from its twin: a reference to
-// a path item hands the resolver the item itself, which no map folds.
+// a path item names the item itself, which no map folds.
 var anchoredEntries = []struct{ name, paths string }{
 	{"a path item", `
   /x: &item
@@ -115,9 +115,9 @@ func TestCompile_AnAnchoredEntryCompilesAsItsUnanchoredTwin(t *testing.T) {
 
 // TestCompile_AnAnchoredEntryInAnExternalDocumentCompilesAsItsTwin extends the
 // twin comparison to a document an external reference names, read from a file
-// and over HTTP. The resolver parsed such a document itself, out of reach of
-// the release of the source's anchors, and the same entries were skipped there
-// in silence (GitHub #501).
+// and over HTTP. The parser library's resolver once parsed such a document
+// itself, out of reach of the release of the source's anchors, and the same
+// entries were skipped there in silence (GitHub #501).
 //
 // The two halves of a comparison differ in the external document's anchors
 // alone: a file is named by one relative path from either directory, and a
@@ -185,12 +185,12 @@ func compileReferring(t *testing.T, path, uri string) *ir.Document {
 	return compileSource(t, path, anchorFixtureHead+"paths:\n  /x: {$ref: \""+uri+"#/paths/~1x\"}\n")
 }
 
-// TestCompile_AMediaTypeReferenceLowersAlikeAfterARebuild pins that a source
-// the load phase rebuilds, which an upper-cased scheme forces for an anchored
-// document it reads (GitHub #538), lowers its content entries written as a $ref
-// as one it does not rebuild: modelled again with the rebuilt source, one into
-// that document lowers at its declaration there (GitHub #856).
-func TestCompile_AMediaTypeReferenceLowersAlikeAfterARebuild(t *testing.T) {
+// TestCompile_AMediaTypeReferenceLowersAlikeUnderAnUpperCasedScheme pins that a
+// source naming an anchored document by an upper-cased scheme, which once made
+// the load phase rebuild it (GitHub #538), lowers its content entries written
+// as a $ref as one naming it in lower case: one into that document lowers at its
+// declaration there (GitHub #856).
+func TestCompile_AMediaTypeReferenceLowersAlikeUnderAnUpperCasedScheme(t *testing.T) {
 	t.Parallel()
 	const ext = `openapi: 3.2.0
 info: {title: O, version: "1"}
@@ -297,9 +297,8 @@ func TestCompile_ARecursiveAnchorInAnExternalDocumentIsRefused(t *testing.T) {
 
 // TestCompile_ARefusedExternalDocumentIsFetchedOnce pins that refusing an
 // external document costs one fetch of it, however many references name it,
-// while each of them still reports the refusal at its own $ref. The resolver
-// keeps a document only once it has built something from it, so it asks for a
-// refused one again on every reference.
+// while each of them still reports the refusal at its own $ref: the refusal is
+// the document's answer, given again to each reference that asks.
 func TestCompile_ARefusedExternalDocumentIsFetchedOnce(t *testing.T) {
 	t.Parallel()
 	const budget = 1 << 10
@@ -331,12 +330,11 @@ func TestCompile_ARefusedExternalDocumentIsFetchedOnce(t *testing.T) {
 }
 
 // TestCompile_AnExternalDocumentIsParsedAsItWasJudged pins that no bytes reach
-// the parser unjudged. A reference naming nothing in a document leaves it
-// uncached, so the next reference into it asks for it again; and, under a $ref
-// URL that net/url respells, the resolver misses the prepared tree and parses
-// what it is handed itself (GitHub #538). It is handed the bytes the one read
-// got and judged: a second request would have served a document past the node
-// budget, from which nothing must be lowered.
+// the parser unjudged, however its references reach it: after a reference
+// naming nothing in it, and under a $ref URL that net/url respells (GitHub
+// #538), each reads the bytes the one read got and judged, where a second
+// request would have served a document past the node budget, from which
+// nothing must be lowered.
 func TestCompile_AnExternalDocumentIsParsedAsItWasJudged(t *testing.T) {
 	t.Parallel()
 	const budget = 100

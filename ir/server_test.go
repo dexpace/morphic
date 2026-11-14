@@ -28,8 +28,8 @@ func TestServer_JSONContract(t *testing.T) {
 		URLTemplate: "https://{region}.example.com/v1",
 		Description: populatedDocs(),
 		Variables: []ir.ServerVariable{
-			{Name: "region", Default: "us-east-1", Enum: []string{"us-east-1", "eu-west-1"}, Docs: populatedDocs()},
-			{Name: "stage", Default: "prod"},
+			{Name: "region", Default: new("us-east-1"), Enum: []string{"us-east-1", "eu-west-1"}, Docs: populatedDocs()},
+			{Name: "stage", Default: new("prod")},
 		},
 		Protocol:        "kafka",
 		ProtocolVersion: "3.5",
@@ -90,7 +90,7 @@ func TestServerVariable_JSONContract(t *testing.T) {
 	t.Parallel()
 	assertJSONContract(t, ir.ServerVariable{}, `{"docs":{}}`, ir.ServerVariable{
 		Name:      "region",
-		Default:   "us-east-1",
+		Default:   new("us-east-1"),
 		Enum:      []string{"us-east-1", "eu-west-1", "ap-south-1"},
 		Docs:      populatedDocs(),
 		Unmodeled: populatedUnmodeled(),

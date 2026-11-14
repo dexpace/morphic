@@ -6,10 +6,12 @@
     ],
     "e": [
       "anon",
+      "composed",
       "openapi"
     ],
     "g": [
       "default",
+      "extension",
       "path-prefix",
       "tags",
       "webhooks"
@@ -270,7 +272,6 @@
                   {
                     "method": "GET",
                     "uriTemplate": "/pets/{petId}",
-                    "sharedRoute": false,
                     "paramBindings": [
                       {
                         "param": "param/openapi/paths/~1pets~1{petId}/get/parameters/petId/path",
@@ -292,8 +293,8 @@
                         "contentType": "application/json"
                       }
                     ],
-                    "checksumRequired": false,
-                    "isWebhook": false
+                    "sharedRoute": false,
+                    "checksumRequired": false
                   }
                 ]
               },
@@ -366,12 +367,11 @@
                   {
                     "method": "POST",
                     "uriTemplate": "/pets",
-                    "sharedRoute": false,
                     "requestContentTypes": [
                       "application/json"
                     ],
-                    "checksumRequired": false,
-                    "isWebhook": false
+                    "sharedRoute": false,
+                    "checksumRequired": false
                   }
                 ]
               },
@@ -472,7 +472,6 @@
                   {
                     "method": "PUT",
                     "uriTemplate": "/uploads",
-                    "sharedRoute": false,
                     "paramBindings": [
                       {
                         "param": "param/openapi/paths/~1uploads/put/parameters/limit/query",
@@ -487,8 +486,8 @@
                     "requestContentTypes": [
                       "application/json"
                     ],
-                    "checksumRequired": false,
-                    "isWebhook": false
+                    "sharedRoute": false,
+                    "checksumRequired": false
                   }
                 ]
               },
@@ -540,12 +539,11 @@
                   {
                     "method": "POST",
                     "uriTemplate": "/uploads",
-                    "sharedRoute": false,
                     "requestContentTypes": [
                       "application/json"
                     ],
-                    "checksumRequired": false,
-                    "isWebhook": false
+                    "sharedRoute": false,
+                    "checksumRequired": false
                   }
                 ]
               },
@@ -586,23 +584,24 @@
                   {
                     "method": "POST",
                     "uriTemplate": "/subscriptions",
-                    "sharedRoute": false,
-                    "checksumRequired": false,
-                    "isWebhook": false,
                     "callbacks": [
                       {
+                        "name": "onEvent",
                         "expression": "{$request.body#/url}",
                         "operations": [
                           "op/openapi/paths/~1subscriptions/post/callbacks/onEvent/{$request.body#~1url}/post"
                         ]
                       },
                       {
+                        "name": "onShared",
                         "expression": "{$request.body#/shared}",
                         "operations": [
                           "op/openapi/paths/~1subscriptions/post/callbacks/onShared/{$request.body#~1shared}/post"
                         ]
                       }
-                    ]
+                    ],
+                    "sharedRoute": false,
+                    "checksumRequired": false
                   }
                 ]
               },
@@ -654,12 +653,12 @@
                   {
                     "method": "POST",
                     "uriTemplate": "{$request.body#/url}",
-                    "sharedRoute": false,
+                    "inbound": "callback",
                     "requestContentTypes": [
                       "application/json"
                     ],
-                    "checksumRequired": false,
-                    "isWebhook": false
+                    "sharedRoute": false,
+                    "checksumRequired": false
                   }
                 ]
               },
@@ -711,12 +710,12 @@
                   {
                     "method": "POST",
                     "uriTemplate": "{$request.body#/shared}",
-                    "sharedRoute": false,
+                    "inbound": "callback",
                     "requestContentTypes": [
                       "application/json"
                     ],
-                    "checksumRequired": false,
-                    "isWebhook": false
+                    "sharedRoute": false,
+                    "checksumRequired": false
                   }
                 ]
               },
@@ -742,6 +741,9 @@
                     },
                     "encoding": {
                       "p/openapi/paths/~1forms/post/requestBody/content/multipart~1form-data/schema/properties/part": {
+                        "contentTypes": [
+                          "text/plain"
+                        ],
                         "headers": [
                           {
                             "id": "p/openapi/paths/~1forms/post/requestBody/content/multipart~1form-data/encoding/part/headers/X-Part",
@@ -805,6 +807,34 @@
                         "filename": false,
                         "allowReserved": false
                       }
+                    },
+                    "unmodeled": {
+                      "openapi:encoding/part/encoding": {
+                        "reason": "no_ir_home",
+                        "value": {
+                          "inner": {
+                            "headers": {
+                              "X-Nested": {
+                                "schema": {
+                                  "items": {
+                                    "properties": {
+                                      "za": {
+                                        "type": "string"
+                                      }
+                                    },
+                                    "type": "object"
+                                  },
+                                  "type": "array"
+                                }
+                              }
+                            }
+                          }
+                        },
+                        "provenance": {
+                          "source": 0,
+                          "pointer": "/paths/~1forms/post/requestBody/content/multipart~1form-data/encoding/part/encoding"
+                        }
+                      }
                     }
                   }
                 ],
@@ -835,12 +865,11 @@
                   {
                     "method": "POST",
                     "uriTemplate": "/forms",
-                    "sharedRoute": false,
                     "requestContentTypes": [
                       "multipart/form-data"
                     ],
-                    "checksumRequired": false,
-                    "isWebhook": false
+                    "sharedRoute": false,
+                    "checksumRequired": false
                   }
                 ]
               },
@@ -922,7 +951,6 @@
                   {
                     "method": "POST",
                     "uriTemplate": "/shared",
-                    "sharedRoute": false,
                     "paramBindings": [
                       {
                         "param": "param/openapi/paths/~1shared/post/parameters/scope/query",
@@ -937,8 +965,8 @@
                     "requestContentTypes": [
                       "application/json"
                     ],
-                    "checksumRequired": false,
-                    "isWebhook": false
+                    "sharedRoute": false,
+                    "checksumRequired": false
                   }
                 ]
               },
@@ -1061,6 +1089,33 @@
                         "source": 0,
                         "pointer": "/paths/~1structures/get/responses/200/headers/X-List"
                       }
+                    },
+                    {
+                      "id": "p/openapi/paths/~1structures/get/responses/200/headers/X-Titled",
+                      "name": {
+                        "source": "X-Titled",
+                        "canonical": "x_titled"
+                      },
+                      "wireName": "X-Titled",
+                      "type": {
+                        "target": "t/anon/paths/~1structures/get/responses/200/headers/X-Titled/schema",
+                        "nullable": false
+                      },
+                      "required": false,
+                      "clientOptional": false,
+                      "defaultAdded": false,
+                      "visibility": {
+                        "none": false
+                      },
+                      "flatten": false,
+                      "eventHeader": false,
+                      "eventPayload": false,
+                      "secret": false,
+                      "docs": {},
+                      "provenance": {
+                        "source": 0,
+                        "pointer": "/paths/~1structures/get/responses/200/headers/X-Titled"
+                      }
                     }
                   ],
                   "docs": {
@@ -1102,7 +1157,6 @@
                   {
                     "method": "GET",
                     "uriTemplate": "/structures",
-                    "sharedRoute": false,
                     "paramBindings": [
                       {
                         "param": "param/openapi/paths/~1structures/get/parameters/filter/query",
@@ -1123,8 +1177,8 @@
                         "allowEmptyValue": false
                       }
                     ],
-                    "checksumRequired": false,
-                    "isWebhook": false
+                    "sharedRoute": false,
+                    "checksumRequired": false
                   }
                 ]
               },
@@ -1176,12 +1230,11 @@
                   {
                     "method": "PUT",
                     "uriTemplate": "/structures",
-                    "sharedRoute": false,
                     "requestContentTypes": [
                       "application/json"
                     ],
-                    "checksumRequired": false,
-                    "isWebhook": false
+                    "sharedRoute": false,
+                    "checksumRequired": false
                   }
                 ]
               },
@@ -1234,12 +1287,11 @@
                   {
                     "method": "POST",
                     "uriTemplate": "/structures",
-                    "sharedRoute": false,
                     "requestContentTypes": [
                       "application/json"
                     ],
-                    "checksumRequired": false,
-                    "isWebhook": false
+                    "sharedRoute": false,
+                    "checksumRequired": false
                   }
                 ]
               },
@@ -1280,8 +1332,7 @@
                     "method": "QUERY",
                     "uriTemplate": "/structures",
                     "sharedRoute": false,
-                    "checksumRequired": false,
-                    "isWebhook": false
+                    "checksumRequired": false
                   }
                 ]
               },
@@ -1322,8 +1373,7 @@
                     "method": "mSearch",
                     "uriTemplate": "/structures",
                     "sharedRoute": false,
-                    "checksumRequired": false,
-                    "isWebhook": false
+                    "checksumRequired": false
                   }
                 ]
               },
@@ -1360,6 +1410,7 @@
                           "target": "t/prim/any",
                           "nullable": false
                         },
+                        "stream": {},
                         "item": {
                           "target": "t/anon/paths/~1events/get/responses/200/content/application~1jsonl/itemSchema",
                           "nullable": false
@@ -1388,8 +1439,7 @@
                     "method": "GET",
                     "uriTemplate": "/events",
                     "sharedRoute": false,
-                    "checksumRequired": false,
-                    "isWebhook": false
+                    "checksumRequired": false
                   }
                 ]
               },
@@ -1450,13 +1500,13 @@
                 "http": [
                   {
                     "method": "POST",
-                    "sharedRoute": false,
+                    "inbound": "webhook",
+                    "webhookName": "ping",
                     "requestContentTypes": [
                       "application/json"
                     ],
-                    "checksumRequired": false,
-                    "isWebhook": true,
-                    "webhookName": "ping"
+                    "sharedRoute": false,
+                    "checksumRequired": false
                   }
                 ]
               },
@@ -1495,10 +1545,10 @@
                 "http": [
                   {
                     "method": "POST",
+                    "inbound": "webhook",
+                    "webhookName": "pong",
                     "sharedRoute": false,
-                    "checksumRequired": false,
-                    "isWebhook": true,
-                    "webhookName": "pong"
+                    "checksumRequired": false
                   }
                 ]
               },
@@ -1604,6 +1654,98 @@
           "provenance": {
             "source": 0,
             "pointer": "/components/headers/Trace/schema/properties/t"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/anon/components/mediaTypes//itemSchema": {
+      "kind": "model",
+      "id": "t/anon/components/mediaTypes//itemSchema",
+      "name": {
+        "hint": "empty_item"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/mediaTypes//itemSchema"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/mediaTypes//itemSchema/properties/v",
+          "name": {
+            "source": "v",
+            "canonical": "v"
+          },
+          "wireName": "v",
+          "type": {
+            "target": "t/prim/string",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/mediaTypes//itemSchema/properties/v"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/anon/components/mediaTypes//schema/items": {
+      "kind": "model",
+      "id": "t/anon/components/mediaTypes//schema/items",
+      "name": {
+        "hint": "empty_item"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/mediaTypes//schema/items"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/mediaTypes//schema/items/properties/u",
+          "name": {
+            "source": "u",
+            "canonical": "u"
+          },
+          "wireName": "u",
+          "type": {
+            "target": "t/prim/string",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/mediaTypes//schema/items/properties/u"
           }
         }
       ],
@@ -1986,7 +2128,9 @@
         "hint": "items"
       },
       "anonymous": true,
-      "docs": {},
+      "docs": {
+        "summary": "Nor A Hint"
+      },
       "sensitive": false,
       "provenance": {
         "source": 0,
@@ -2263,7 +2407,7 @@
       "kind": "model",
       "id": "t/anon/components/schemas/Positions/properties/composed/allOf/1",
       "name": {
-        "hint": "variant_1"
+        "hint": "composed"
       },
       "anonymous": true,
       "docs": {},
@@ -2331,7 +2475,9 @@
         }
       ],
       "exclusive": true,
-      "wireTagged": false
+      "wireTagged": false,
+      "closed": true,
+      "inputOnly": false
     },
     "t/anon/components/schemas/Positions/properties/decorated/oneOf/0": {
       "kind": "model",
@@ -2456,7 +2602,9 @@
         }
       ],
       "exclusive": true,
-      "wireTagged": false
+      "wireTagged": false,
+      "closed": true,
+      "inputOnly": false
     },
     "t/anon/components/schemas/Positions/properties/embedded": {
       "kind": "scalar",
@@ -2616,7 +2764,9 @@
         }
       ],
       "exclusive": true,
-      "wireTagged": false
+      "wireTagged": false,
+      "closed": true,
+      "inputOnly": false
     },
     "t/anon/components/schemas/Positions/properties/exclusive/oneOf/1": {
       "kind": "model",
@@ -2700,7 +2850,9 @@
         }
       ],
       "exclusive": false,
-      "wireTagged": false
+      "wireTagged": false,
+      "closed": true,
+      "inputOnly": false
     },
     "t/anon/components/schemas/Positions/properties/inclusive/anyOf/1": {
       "kind": "model",
@@ -2940,7 +3092,9 @@
         }
       ],
       "exclusive": true,
-      "wireTagged": false
+      "wireTagged": false,
+      "closed": true,
+      "inputOnly": false
     },
     "t/anon/components/schemas/Positions/properties/mixedEnum/enum/0": {
       "kind": "literal",
@@ -2958,7 +3112,8 @@
       "value": {
         "kind": "string",
         "str": "a"
-      }
+      },
+      "valueType": "string"
     },
     "t/anon/components/schemas/Positions/properties/mixedEnum/enum/1": {
       "kind": "literal",
@@ -2976,7 +3131,8 @@
       "value": {
         "kind": "number",
         "num": "1"
-      }
+      },
+      "valueType": "number"
     },
     "t/anon/components/schemas/Positions/properties/mixedEnum/enum/2": {
       "kind": "literal",
@@ -2994,7 +3150,8 @@
       "value": {
         "kind": "bool",
         "bool": true
-      }
+      },
+      "valueType": "bool"
     },
     "t/anon/components/schemas/Positions/properties/multiTyped": {
       "kind": "union",
@@ -3032,7 +3189,9 @@
         }
       ],
       "exclusive": true,
-      "wireTagged": false
+      "wireTagged": false,
+      "closed": true,
+      "inputOnly": false
     },
     "t/anon/components/schemas/Positions/properties/multiTypedObject": {
       "kind": "union",
@@ -3070,7 +3229,9 @@
         }
       ],
       "exclusive": true,
-      "wireTagged": false
+      "wireTagged": false,
+      "closed": true,
+      "inputOnly": false
     },
     "t/anon/components/schemas/Positions/properties/multiTypedObject/type/0": {
       "kind": "model",
@@ -3378,7 +3539,9 @@
         }
       ],
       "exclusive": true,
-      "wireTagged": false
+      "wireTagged": false,
+      "closed": true,
+      "inputOnly": false
     },
     "t/anon/components/schemas/Positions/properties/refBesideAllOf/oneOf/0": {
       "kind": "scalar",
@@ -3411,6 +3574,530 @@
         "target": "t/openapi/components/schemas/Pet",
         "nullable": false
       }
+    },
+    "t/anon/components/schemas/Positions/properties/routed": {
+      "kind": "model",
+      "id": "t/anon/components/schemas/Positions/properties/routed",
+      "name": {
+        "hint": "routed"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Positions/properties/routed"
+      },
+      "base": {
+        "target": "t/openapi/components/schemas/Kennel",
+        "nullable": false
+      },
+      "mixins": [
+        {
+          "target": "t/composed/components/schemas/Positions/properties/routed/oneOf",
+          "nullable": false
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "discriminatorValue": "routed",
+      "inputOnly": false
+    },
+    "t/anon/components/schemas/Positions/properties/routedBranch": {
+      "kind": "model",
+      "id": "t/anon/components/schemas/Positions/properties/routedBranch",
+      "name": {
+        "hint": "routed_branch"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Positions/properties/routedBranch"
+      },
+      "base": {
+        "target": "t/openapi/components/schemas/Kennel",
+        "nullable": false
+      },
+      "mixins": [
+        {
+          "target": "t/composed/components/schemas/Positions/properties/routedBranch/allOf/1/oneOf",
+          "nullable": false
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "discriminatorValue": "routedBranch",
+      "inputOnly": false
+    },
+    "t/anon/components/schemas/Positions/properties/titledList": {
+      "kind": "list",
+      "id": "t/anon/components/schemas/Positions/properties/titledList",
+      "name": {
+        "hint": "titled_list"
+      },
+      "anonymous": true,
+      "docs": {
+        "summary": "Titled List"
+      },
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Positions/properties/titledList"
+      },
+      "elem": {
+        "target": "t/anon/components/schemas/Positions/properties/titledList/items",
+        "nullable": false
+      }
+    },
+    "t/anon/components/schemas/Positions/properties/titledList/items": {
+      "kind": "model",
+      "id": "t/anon/components/schemas/Positions/properties/titledList/items",
+      "name": {
+        "hint": "titled_list_item"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Positions/properties/titledList/items"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/Positions/properties/titledList/items/properties/ta",
+          "name": {
+            "source": "ta",
+            "canonical": "ta"
+          },
+          "wireName": "ta",
+          "type": {
+            "target": "t/prim/string",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Positions/properties/titledList/items/properties/ta"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/anon/components/schemas/Positions/properties/titledVariants": {
+      "kind": "union",
+      "id": "t/anon/components/schemas/Positions/properties/titledVariants",
+      "name": {
+        "hint": "titled_variants"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Positions/properties/titledVariants"
+      },
+      "variants": [
+        {
+          "name": {
+            "hint": "by_name"
+          },
+          "type": {
+            "target": "t/anon/components/schemas/Positions/properties/titledVariants/oneOf/0",
+            "nullable": false
+          },
+          "docs": {}
+        },
+        {
+          "name": {
+            "hint": "variant_1"
+          },
+          "type": {
+            "target": "t/anon/components/schemas/Positions/properties/titledVariants/oneOf/1",
+            "nullable": false
+          },
+          "docs": {}
+        },
+        {
+          "name": {
+            "hint": "variant_2"
+          },
+          "type": {
+            "target": "t/anon/components/schemas/Positions/properties/titledVariants/oneOf/2",
+            "nullable": false
+          },
+          "docs": {}
+        },
+        {
+          "name": {
+            "hint": "variant_3"
+          },
+          "type": {
+            "target": "t/anon/components/schemas/Positions/properties/titledVariants/oneOf/3",
+            "nullable": false
+          },
+          "docs": {}
+        },
+        {
+          "name": {
+            "hint": "variant_4"
+          },
+          "type": {
+            "target": "t/anon/components/schemas/Positions/properties/titledVariants/oneOf/4",
+            "nullable": false
+          },
+          "docs": {}
+        },
+        {
+          "name": {
+            "hint": "indoor"
+          },
+          "type": {
+            "target": "t/anon/components/schemas/Positions/properties/titledVariants/oneOf/5",
+            "nullable": false
+          },
+          "docs": {}
+        },
+        {
+          "name": {
+            "hint": "premium"
+          },
+          "type": {
+            "target": "t/anon/components/schemas/Positions/properties/titledVariants/oneOf/6",
+            "nullable": false
+          },
+          "docs": {}
+        }
+      ],
+      "exclusive": true,
+      "wireTagged": false,
+      "closed": true,
+      "inputOnly": false
+    },
+    "t/anon/components/schemas/Positions/properties/titledVariants/oneOf/0": {
+      "kind": "model",
+      "id": "t/anon/components/schemas/Positions/properties/titledVariants/oneOf/0",
+      "name": {
+        "hint": "by_name"
+      },
+      "anonymous": true,
+      "docs": {
+        "summary": "By Name"
+      },
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Positions/properties/titledVariants/oneOf/0"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/Positions/properties/titledVariants/oneOf/0/properties/tb",
+          "name": {
+            "source": "tb",
+            "canonical": "tb"
+          },
+          "wireName": "tb",
+          "type": {
+            "target": "t/prim/string",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Positions/properties/titledVariants/oneOf/0/properties/tb"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/anon/components/schemas/Positions/properties/titledVariants/oneOf/1": {
+      "kind": "model",
+      "id": "t/anon/components/schemas/Positions/properties/titledVariants/oneOf/1",
+      "name": {
+        "hint": "variant_1"
+      },
+      "anonymous": true,
+      "docs": {
+        "summary": "Clash"
+      },
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Positions/properties/titledVariants/oneOf/1"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/Positions/properties/titledVariants/oneOf/1/properties/tc",
+          "name": {
+            "source": "tc",
+            "canonical": "tc"
+          },
+          "wireName": "tc",
+          "type": {
+            "target": "t/prim/string",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Positions/properties/titledVariants/oneOf/1/properties/tc"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/anon/components/schemas/Positions/properties/titledVariants/oneOf/2": {
+      "kind": "model",
+      "id": "t/anon/components/schemas/Positions/properties/titledVariants/oneOf/2",
+      "name": {
+        "hint": "variant_2"
+      },
+      "anonymous": true,
+      "docs": {
+        "summary": "Clash"
+      },
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Positions/properties/titledVariants/oneOf/2"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/Positions/properties/titledVariants/oneOf/2/properties/td",
+          "name": {
+            "source": "td",
+            "canonical": "td"
+          },
+          "wireName": "td",
+          "type": {
+            "target": "t/prim/string",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Positions/properties/titledVariants/oneOf/2/properties/td"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/anon/components/schemas/Positions/properties/titledVariants/oneOf/3": {
+      "kind": "model",
+      "id": "t/anon/components/schemas/Positions/properties/titledVariants/oneOf/3",
+      "name": {
+        "hint": "variant_3"
+      },
+      "anonymous": true,
+      "docs": {
+        "summary": "Pet"
+      },
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Positions/properties/titledVariants/oneOf/3"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/Positions/properties/titledVariants/oneOf/3/properties/te",
+          "name": {
+            "source": "te",
+            "canonical": "te"
+          },
+          "wireName": "te",
+          "type": {
+            "target": "t/prim/string",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Positions/properties/titledVariants/oneOf/3/properties/te"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/anon/components/schemas/Positions/properties/titledVariants/oneOf/4": {
+      "kind": "model",
+      "id": "t/anon/components/schemas/Positions/properties/titledVariants/oneOf/4",
+      "name": {
+        "hint": "variant_4"
+      },
+      "anonymous": true,
+      "docs": {
+        "summary": "Variant 0"
+      },
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Positions/properties/titledVariants/oneOf/4"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/Positions/properties/titledVariants/oneOf/4/properties/tf",
+          "name": {
+            "source": "tf",
+            "canonical": "tf"
+          },
+          "wireName": "tf",
+          "type": {
+            "target": "t/prim/string",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Positions/properties/titledVariants/oneOf/4/properties/tf"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/anon/components/schemas/Positions/properties/titledVariants/oneOf/5": {
+      "kind": "scalar",
+      "id": "t/anon/components/schemas/Positions/properties/titledVariants/oneOf/5",
+      "name": {
+        "hint": "indoor"
+      },
+      "anonymous": true,
+      "docs": {
+        "summary": "Indoor"
+      },
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Positions/properties/titledVariants/oneOf/5"
+      },
+      "base": {
+        "target": "t/openapi/components/schemas/Pet",
+        "nullable": false
+      }
+    },
+    "t/anon/components/schemas/Positions/properties/titledVariants/oneOf/6": {
+      "kind": "model",
+      "id": "t/anon/components/schemas/Positions/properties/titledVariants/oneOf/6",
+      "name": {
+        "hint": "premium"
+      },
+      "anonymous": true,
+      "docs": {
+        "summary": "Premium"
+      },
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Positions/properties/titledVariants/oneOf/6"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/Positions/properties/titledVariants/oneOf/6/allOf/1/properties/tg",
+          "name": {
+            "source": "tg",
+            "canonical": "tg"
+          },
+          "wireName": "tg",
+          "type": {
+            "target": "t/prim/string",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Positions/properties/titledVariants/oneOf/6/allOf/1/properties/tg"
+          }
+        }
+      ],
+      "base": {
+        "target": "t/openapi/components/schemas/Pet",
+        "nullable": false
+      },
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
     },
     "t/anon/components/schemas/Positions/properties/tuple": {
       "kind": "tuple",
@@ -3522,7 +4209,9 @@
         }
       ],
       "exclusive": true,
-      "wireTagged": false
+      "wireTagged": false,
+      "closed": true,
+      "inputOnly": false
     },
     "t/anon/components/schemas/Positions/properties/unionOfUnions/oneOf/0": {
       "kind": "union",
@@ -3560,7 +4249,9 @@
         }
       ],
       "exclusive": true,
-      "wireTagged": false
+      "wireTagged": false,
+      "closed": true,
+      "inputOnly": false
     },
     "t/anon/components/schemas/Positions/properties/unionOfUnions/oneOf/0/oneOf/0": {
       "kind": "model",
@@ -3680,7 +4371,9 @@
         }
       ],
       "exclusive": true,
-      "wireTagged": false
+      "wireTagged": false,
+      "closed": true,
+      "inputOnly": false
     },
     "t/anon/components/schemas/Positions/properties/wrapped/oneOf/0": {
       "kind": "model",
@@ -3927,6 +4620,52 @@
           "provenance": {
             "source": 0,
             "pointer": "/paths/~1events/get/responses/200/content/application~1jsonl/itemSchema/properties/at"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/anon/paths/~1forms/post/requestBody/content/multipart~1form-data/encoding/part/encoding/inner/headers/X-Nested/schema/items": {
+      "kind": "model",
+      "id": "t/anon/paths/~1forms/post/requestBody/content/multipart~1form-data/encoding/part/encoding/inner/headers/X-Nested/schema/items",
+      "name": {
+        "hint": "x_nested_item"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/paths/~1forms/post/requestBody/content/multipart~1form-data/encoding/part/encoding/inner/headers/X-Nested/schema/items"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/paths/~1forms/post/requestBody/content/multipart~1form-data/encoding/part/encoding/inner/headers/X-Nested/schema/items/properties/za",
+          "name": {
+            "source": "za",
+            "canonical": "za"
+          },
+          "wireName": "za",
+          "type": {
+            "target": "t/prim/string",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/paths/~1forms/post/requestBody/content/multipart~1form-data/encoding/part/encoding/inner/headers/X-Nested/schema/items/properties/za"
           }
         }
       ],
@@ -4512,7 +5251,9 @@
         }
       ],
       "exclusive": true,
-      "wireTagged": false
+      "wireTagged": false,
+      "closed": true,
+      "inputOnly": false
     },
     "t/anon/paths/~1structures/get/responses/200/content/application~1xml/schema/oneOf/0": {
       "kind": "model",
@@ -4811,6 +5552,54 @@
           "provenance": {
             "source": 0,
             "pointer": "/paths/~1structures/get/responses/200/headers/X-List/schema/items/properties/cb"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/anon/paths/~1structures/get/responses/200/headers/X-Titled/schema": {
+      "kind": "model",
+      "id": "t/anon/paths/~1structures/get/responses/200/headers/X-Titled/schema",
+      "name": {
+        "hint": "titled_header"
+      },
+      "anonymous": true,
+      "docs": {
+        "summary": "Titled Header"
+      },
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/paths/~1structures/get/responses/200/headers/X-Titled/schema"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/paths/~1structures/get/responses/200/headers/X-Titled/schema/properties/cn",
+          "name": {
+            "source": "cn",
+            "canonical": "cn"
+          },
+          "wireName": "cn",
+          "type": {
+            "target": "t/prim/string",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/paths/~1structures/get/responses/200/headers/X-Titled/schema/properties/cn"
           }
         }
       ],
@@ -5212,6 +6001,86 @@
       "positional": false,
       "inputOnly": false
     },
+    "t/composed/components/schemas/Positions/properties/routed/oneOf": {
+      "kind": "union",
+      "id": "t/composed/components/schemas/Positions/properties/routed/oneOf",
+      "name": {
+        "hint": "routed_one_of"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Positions/properties/routed/oneOf"
+      },
+      "variants": [
+        {
+          "name": {
+            "hint": "pet"
+          },
+          "type": {
+            "target": "t/openapi/components/schemas/Pet",
+            "nullable": false
+          },
+          "docs": {}
+        },
+        {
+          "name": {
+            "hint": "owner"
+          },
+          "type": {
+            "target": "t/openapi/components/schemas/Owner",
+            "nullable": false
+          },
+          "docs": {}
+        }
+      ],
+      "exclusive": true,
+      "wireTagged": false,
+      "closed": true,
+      "inputOnly": false
+    },
+    "t/composed/components/schemas/Positions/properties/routedBranch/allOf/1/oneOf": {
+      "kind": "union",
+      "id": "t/composed/components/schemas/Positions/properties/routedBranch/allOf/1/oneOf",
+      "name": {
+        "hint": "routed_branch_one_of"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Positions/properties/routedBranch/allOf/1/oneOf"
+      },
+      "variants": [
+        {
+          "name": {
+            "hint": "pet"
+          },
+          "type": {
+            "target": "t/openapi/components/schemas/Pet",
+            "nullable": false
+          },
+          "docs": {}
+        },
+        {
+          "name": {
+            "hint": "owner"
+          },
+          "type": {
+            "target": "t/openapi/components/schemas/Owner",
+            "nullable": false
+          },
+          "docs": {}
+        }
+      ],
+      "exclusive": true,
+      "wireTagged": false,
+      "closed": true,
+      "inputOnly": false
+    },
     "t/openapi/components/schemas/***": {
       "kind": "model",
       "id": "t/openapi/components/schemas/***",
@@ -5256,6 +6125,61 @@
       "positional": false,
       "inputOnly": false
     },
+    "t/openapi/components/schemas/Kennel": {
+      "kind": "model",
+      "id": "t/openapi/components/schemas/Kennel",
+      "name": {
+        "source": "Kennel",
+        "canonical": "kennel"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Kennel"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/Kennel/properties/kind",
+          "name": {
+            "source": "kind",
+            "canonical": "kind"
+          },
+          "wireName": "kind",
+          "type": {
+            "target": "t/prim/string",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Kennel/properties/kind"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "discriminator": {
+        "property": "p/openapi/components/schemas/Kennel/properties/kind",
+        "mapping": {
+          "routed": "t/anon/components/schemas/Positions/properties/routed",
+          "routedBranch": "t/anon/components/schemas/Positions/properties/routedBranch"
+        },
+        "inferred": false
+      },
+      "inputOnly": false
+    },
     "t/openapi/components/schemas/Keyed": {
       "kind": "model",
       "id": "t/openapi/components/schemas/Keyed",
@@ -5264,7 +6188,9 @@
         "canonical": "keyed"
       },
       "anonymous": false,
-      "docs": {},
+      "docs": {
+        "summary": "Not A Hint"
+      },
       "sensitive": false,
       "unmodeled": {
         "openapi:definitions": {
@@ -5372,7 +6298,9 @@
           "eventHeader": false,
           "eventPayload": false,
           "secret": false,
-          "docs": {},
+          "docs": {
+            "summary": "Nor A Hint"
+          },
           "provenance": {
             "source": 0,
             "pointer": "/components/schemas/Keyed/properties/throughDefs"
@@ -6019,6 +6947,60 @@
           }
         },
         {
+          "id": "p/openapi/components/schemas/Positions/properties/routed",
+          "name": {
+            "source": "routed",
+            "canonical": "routed"
+          },
+          "wireName": "routed",
+          "type": {
+            "target": "t/anon/components/schemas/Positions/properties/routed",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Positions/properties/routed"
+          }
+        },
+        {
+          "id": "p/openapi/components/schemas/Positions/properties/routedBranch",
+          "name": {
+            "source": "routedBranch",
+            "canonical": "routed_branch"
+          },
+          "wireName": "routedBranch",
+          "type": {
+            "target": "t/anon/components/schemas/Positions/properties/routedBranch",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Positions/properties/routedBranch"
+          }
+        },
+        {
           "id": "p/openapi/components/schemas/Positions/properties/multiTyped",
           "name": {
             "source": "multiTyped",
@@ -6361,6 +7343,141 @@
             "source": 0,
             "pointer": "/components/schemas/Positions/properties/throughAllOf"
           }
+        },
+        {
+          "id": "p/openapi/components/schemas/Positions/properties/titledList",
+          "name": {
+            "source": "titledList",
+            "canonical": "titled_list"
+          },
+          "wireName": "titledList",
+          "type": {
+            "target": "t/anon/components/schemas/Positions/properties/titledList",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Positions/properties/titledList"
+          }
+        },
+        {
+          "id": "p/openapi/components/schemas/Positions/properties/titledVariants",
+          "name": {
+            "source": "titledVariants",
+            "canonical": "titled_variants"
+          },
+          "wireName": "titledVariants",
+          "type": {
+            "target": "t/anon/components/schemas/Positions/properties/titledVariants",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Positions/properties/titledVariants"
+          }
+        },
+        {
+          "id": "p/openapi/components/schemas/Positions/properties/throughNestedEncoding",
+          "name": {
+            "source": "throughNestedEncoding",
+            "canonical": "through_nested_encoding"
+          },
+          "wireName": "throughNestedEncoding",
+          "type": {
+            "target": "t/anon/paths/~1forms/post/requestBody/content/multipart~1form-data/encoding/part/encoding/inner/headers/X-Nested/schema/items",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Positions/properties/throughNestedEncoding"
+          }
+        },
+        {
+          "id": "p/openapi/components/schemas/Positions/properties/throughEmptyMediaType",
+          "name": {
+            "source": "throughEmptyMediaType",
+            "canonical": "through_empty_media_type"
+          },
+          "wireName": "throughEmptyMediaType",
+          "type": {
+            "target": "t/anon/components/mediaTypes//schema/items",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Positions/properties/throughEmptyMediaType"
+          }
+        },
+        {
+          "id": "p/openapi/components/schemas/Positions/properties/throughEmptyItemSchema",
+          "name": {
+            "source": "throughEmptyItemSchema",
+            "canonical": "through_empty_item_schema"
+          },
+          "wireName": "throughEmptyItemSchema",
+          "type": {
+            "target": "t/anon/components/mediaTypes//itemSchema",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Positions/properties/throughEmptyItemSchema"
+          }
         }
       ],
       "abstract": false,
@@ -6460,6 +7577,34 @@
     }
   ],
   "unmodeled": {
+    "openapi:components/mediaTypes/": {
+      "reason": "no_ir_home",
+      "value": {
+        "itemSchema": {
+          "properties": {
+            "v": {
+              "type": "string"
+            }
+          },
+          "type": "object"
+        },
+        "schema": {
+          "items": {
+            "properties": {
+              "u": {
+                "type": "string"
+              }
+            },
+            "type": "object"
+          },
+          "type": "array"
+        }
+      },
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/mediaTypes/"
+      }
+    },
     "openapi:x-library": {
       "reason": "vendor_extension",
       "value": {
@@ -6495,7 +7640,7 @@
         "source": 0,
         "pointer": "/components/schemas/***",
         "position": {
-          "line": 290,
+          "line": 336,
           "column": 7
         }
       }
@@ -6508,7 +7653,20 @@
         "source": 0,
         "pointer": "/components/schemas/",
         "position": {
-          "line": 294,
+          "line": 340,
+          "column": 7
+        }
+      }
+    },
+    {
+      "severity": "warning",
+      "code": "openapi/validation/validation-invalid-syntax",
+      "message": "Components Object field \"mediaTypes\" has the key \"\", which must be a name of letters, digits, '.', '-' and '_' in OpenAPI 3.2 (Components Object)",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/mediaTypes/",
+        "position": {
+          "line": 390,
           "column": 7
         }
       }
@@ -6529,6 +7687,24 @@
       "provenance": {
         "source": 0,
         "pointer": "/components/schemas/Positions/properties/distributed"
+      }
+    },
+    {
+      "severity": "info",
+      "code": "openapi/composition-lowering",
+      "message": "oneOf/anyOf co-declared with a schema a discriminator routes to as its subtype; the union is composed as a mixin of the model",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Positions/properties/routed"
+      }
+    },
+    {
+      "severity": "info",
+      "code": "openapi/composition-lowering",
+      "message": "oneOf/anyOf written on an allOf branch of a schema a discriminator routes to as its subtype; the union is composed as a mixin of the model",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Positions/properties/routedBranch"
       }
     },
     {
@@ -6575,13 +7751,31 @@
         "source": 0,
         "pointer": "/components/schemas/Keyed/dependencies"
       }
+    },
+    {
+      "severity": "info",
+      "code": "openapi/degraded-construct",
+      "message": "encoding encoding has no ir.PartEncoding home; kept verbatim under Unmodeled",
+      "provenance": {
+        "source": 0,
+        "pointer": "/paths/~1forms/post/requestBody/content/multipart~1form-data/encoding/part/encoding"
+      }
+    },
+    {
+      "severity": "warning",
+      "code": "openapi/unknown-encoding-key",
+      "message": "encoding entry \"inner\" names no property the part's schema declares, which OpenAPI requires of an encoding key, so the entry has no effect",
+      "provenance": {
+        "source": 0,
+        "pointer": "/paths/~1forms/post/requestBody/content/multipart~1form-data/encoding/part/encoding/inner"
+      }
     }
   ],
   "sources": [
     {
       "format": "openapi@3.2",
       "path": "hint_positions.yaml",
-      "hash": "d8b8f974c365ea3a596b56e8257cf558db0f0b0a514323fe3bd810b3cf83290b"
+      "hash": "a1c5634e6e9a8fc9d174f872950e504755d62225859e68c968785dc96637ae4d"
     }
   ]
 }

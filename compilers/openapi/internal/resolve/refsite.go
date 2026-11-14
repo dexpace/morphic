@@ -14,24 +14,24 @@ import (
 	"github.com/dexpace/morphic/ir"
 )
 
-// ComponentRef resolves an internal pointer addressing a top-level component
-// schema to its stable named ID, but only when that component is declared. It
-// returns handled=true once the pointer is classified as a component pointer,
-// declared or not, so callers can stop: a declared component yields ok=true, an
-// undeclared one ok=false (a dangling reference to drop). The ID is rebuilt
-// from the component's canonical name, unescaped then re-escaped by ids.Ptr,
-// not from the incoming pointer text, so a non-canonically escaped reference
-// (`A~B` for a component named "A~B", interned under `A~0B`) still resolves to
-// the interned node.
-func (s Scope) ComponentRef(pointer jsontext.Pointer) (id ir.TypeID, ok, handled bool) {
-	name, isComponent := ids.ComponentSchemaName(pointer)
-	if !isComponent {
-		return "", false, false
+// ComponentRef classifies an internal pointer against the document's component
+// schemas (ids.ComponentState), and returns a NamedComponent's stable named ID:
+// one the document declares, where a name it does not is an
+// UndeclaredComponent, a dangling reference to drop. The ID is rebuilt from the
+// component's canonical name, unescaped then re-escaped by ids.Ptr, not from the
+// incoming pointer text, so a non-canonically escaped reference (`A~B` for a
+// component named "A~B", interned under `A~0B`) still resolves to the interned
+// node.
+func (s Scope) ComponentRef(pointer jsontext.Pointer) (ir.TypeID, ids.ComponentState) {
+	name, state := ids.ComponentSchema(pointer)
+	switch {
+	case state != ids.NamedComponent:
+		return "", state
+	case s.Declares.Has(name):
+		return ids.Document{}.NamedType(ids.Ptr("components", "schemas", name)), state
+	default:
+		return "", ids.UndeclaredComponent
 	}
-	if s.Declares(name) {
-		return ids.Document{}.NamedType(ids.Ptr("components", "schemas", name)), true, true
-	}
-	return "", false, true
 }
 
 // NamesReferent reports whether the $ref at js names a schema this
@@ -45,8 +45,8 @@ func (s Scope) NamesReferent(js *oas3.JSONSchema[oas3.Referenceable]) bool {
 		return false
 	}
 	if at.Doc == bind.Source {
-		if _, resolved, handled := s.ComponentRef(at.Pointer); handled {
-			return resolved
+		if _, state := s.ComponentRef(at.Pointer); state.ByName() {
+			return state == ids.NamedComponent
 		}
 	}
 	return Hoistable(s.Bindings.Declared(js))
@@ -60,15 +60,14 @@ func Hoistable(decl *oas3.JSONSchema[oas3.Referenceable]) bool {
 	return decl != nil && (decl.IsBool() || annotation.At(decl).Node != nil)
 }
 
-// IsRefSite reports whether a position is $ref-shaped: the resolver's own
+// IsRefSite reports whether a position is $ref-shaped: the library's own
 // IsReference (a non-empty $ref), or a schema body that carries a Ref field of
 // its own even when empty. That is deliberately broader than annotation.At's
-// classification: schemaRefHomed, TargetSchema, and bodySchemaPointer
-// (operation/multipart.go) all need "there is a $ref-carrying body here," not
-// "there is a genuine, followable reference," so the degenerate {$ref: ""}
-// shape counts for them even though it does not count as an
-// annotation.Reference. s is the schema body the caller already holds; a nil s
-// (a boolean schema carries none) is never $ref-shaped.
+// classification: schemaRefHomed and TargetSchema both need "there is a
+// $ref-carrying body here," not "there is a genuine, followable reference," so
+// the degenerate {$ref: ""} shape counts for them even though it does not count
+// as an annotation.Reference. s is the schema body the caller already holds; a
+// nil s (a boolean schema carries none) is never $ref-shaped.
 func IsRefSite(js *oas3.JSONSchema[oas3.Referenceable], s *oas3.Schema) bool {
 	return js.IsReference() || (s != nil && s.Ref != nil)
 }

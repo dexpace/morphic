@@ -32,6 +32,9 @@ import (
 // them through PreserveRefSiteKeywords (GitHub #114).
 func refSiteRef(c lowering.Ctx, ts *compile.Types, js *oas3.JSONSchema[oas3.Referenceable], s *oas3.Schema, pointer jsontext.Pointer, home annotation.Home) (ir.TypeRef, []ir.Diagnostic) {
 	target, diags := refTypeRef(c, ts, js, pointer)
+	// A rule about the declaration holds the keywords beside its $ref as it holds
+	// a body's (schemaBody), with what the $ref lands on.
+	diags = append(missingArrayItemsBesideRef(c, js, pointer), diags...)
 	unhomed := refSiteUnhomedKeywords(s, nil)
 	hasUnion := declaresUnion(s)
 	ref, homeDiags := homeDeclaration(c, ts, s, target, pointer, home, len(unhomed) > 0 || hasUnion)
@@ -67,10 +70,11 @@ func PreserveRefSiteKeywords(c lowering.Ctx, ts *compile.Types, p *ir.Unmodeled,
 		return nil
 	}
 	if !resolve.IsRefSite(js, s) {
-		unhomed, shape := referenceOutcomeKeywords(c, s, pointer)
-		return recordUnhomedAt(c, p, s, unhomed, shape, pointer)
+		// A collapsed union, an expanded $dynamicRef and a refinement lower to a
+		// reference just as a $ref site does.
+		return keepsAtOutcome(c, ts, s, t, pointer).record(c, ts, p, s, pointer)
 	}
-	diags := recordUnhomedAt(c, p, s, refSiteUnhomedKeywords(s, nil), refSiteShape, pointer)
+	diags := recordUnhomedAt(c, ts, p, s, refSiteUnhomedKeywords(s, nil), refSiteShape, pointer)
 	if !declaresUnion(s) {
 		return diags
 	}
@@ -107,18 +111,12 @@ func unresolvedWhy(c lowering.Ctx, js *oas3.JSONSchema[oas3.Referenceable]) stri
 	if e, ok := c.Bindings().Entry(js); ok {
 		return hopWhy(e.Hop)
 	}
-	return unreadWhy(c.Bindings(), js)
+	return unreadWhy(c.Bindings())
 }
 
-// unreadWhy is why the table holds nothing for model, a schema or a
-// discriminator: it lies in what a reference object resolved to where the
-// table could not place it (typed.Bindings.Unplaced), or the budget or the
-// merge bound stopped the reading (bind.Table.Unread).
-func unreadWhy(refs *typed.Bindings, model any) string {
-	if site, ok := refs.Unplaced(model); ok {
-		return ": it is in what the reference at " + site + " resolved to, which the compiler " +
-			"cannot read where the parser placed it"
-	}
+// unreadWhy is why the table holds nothing for a schema or a discriminator it
+// read: the budget or the merge bound stopped the reading (bind.Table.Unread).
+func unreadWhy(refs *typed.Bindings) string {
 	if why := refs.Table().Unread(); why != "" {
 		return ": " + why
 	}
@@ -168,19 +166,38 @@ func resolveAt(c lowering.Ctx, ts *compile.Types, at bind.Position, decl *oas3.J
 // A $ref and a discriminator mapping target meet here once each has its
 // pointer, so they cannot drift apart.
 func resolvePointer(c lowering.Ctx, ts *compile.Types, pointer jsontext.Pointer, decl *oas3.JSONSchema[oas3.Referenceable]) (ir.TypeID, bool) {
+	id, hoisted, ok := declaredIn(c, pointer, decl)
+	if hoisted {
+		ts.Promise(c.IDs().Coordinate(pointer), func() []ir.Diagnostic { return hoistSubSchema(c, ts, decl, pointer) })
+	}
+	return id, ok
+}
+
+// declaredIn returns the ID of the type declared at pointer in c's document,
+// holding decl, as resolvePointer resolves it, and whether it is a position
+// hoisted where a reference reaches it, which a reference promises a node. It
+// reads no registry, so no answer turns on which schema lowered first.
+func declaredIn(c lowering.Ctx, pointer jsontext.Pointer, decl *oas3.JSONSchema[oas3.Referenceable]) (id ir.TypeID, hoisted, ok bool) {
 	// The source's components alone are lowered whole and named by name;
 	// another document's are hoisted where a reference reaches them, as any
 	// other position of it is.
 	if c.IDs() == (ids.Document{}) {
-		if id, resolved, handled := c.RefScope().ComponentRef(pointer); handled {
-			return id, resolved
+		if named, state := c.RefScope().ComponentRef(pointer); state.ByName() {
+			return named, false, state == ids.NamedComponent
 		}
 	}
 	if !resolve.Hoistable(decl) {
-		return "", false
+		return "", false, false
 	}
-	ts.Promise(c.IDs().Coordinate(pointer), func() []ir.Diagnostic { return hoistSubSchema(c, ts, decl, pointer) })
-	return c.IDs().ForPointer(pointer), true
+	return c.IDs().ForPointer(pointer), true, true
+}
+
+// resolvesAt reports whether a reference to at, a position of the bindings'
+// table, resolves, as resolveAt resolves one, without promising its node
+// (declaredAt).
+func resolvesAt(c lowering.Ctx, at bind.Position) bool {
+	_, ok := declaredAt(c, at, c.Bindings().At(at))
+	return ok
 }
 
 // hoistSubSchema builds the node at pointer from decl, the schema written there,
@@ -205,7 +222,7 @@ func hoistSubSchema(c lowering.Ctx, ts *compile.Types, decl *oas3.JSONSchema[oas
 	diags = append(diags, aliasDiags...)
 	// As in lowerComponentSchema: this alias is the first node the pointer owns,
 	// so the annotations Ref had nowhere to put now have a home.
-	return append(diags, attachDeclaredAnnotations(c, ts, s.Node, pointer)...)
+	return append(diags, attachDeclaredAnnotations(c, ts, s.Node, pointer, ref)...)
 }
 
 // onLoop reports whether the $ref at b lies on a loop of $refs, which the load

@@ -137,12 +137,11 @@ func TestOperations_PathItemServersNamedOnEveryRoute(t *testing.T) {
 	assert.False(t, openapitest.HasDiag(diags, diag.DegradedConstruct), "nothing is degraded: %+v", diags)
 }
 
-// TestPathItem_KeptFindingsAreNotInferred pins that the finding reporting a
-// path item's documentation, kept on each operation it mounts, names no
-// heuristic. Path-prefix grouping marks the operation, and the finding used to
-// take that marker from the operation's provenance although the path item
-// declares what it reports.
-func TestPathItem_KeptFindingsAreNotInferred(t *testing.T) {
+// TestPathItem_DocsAddNoMarker pins that a path item's documentation reaches its
+// operation's binding as declared text, beside a marker the operation already
+// carries for another reason: path-prefix grouping marks the operation, and
+// reading the pair is no heuristic, so it adds none and reports nothing.
+func TestPathItem_DocsAddNoMarker(t *testing.T) {
 	t.Parallel()
 	svc, diags := serviceWithGrouping(t, openapitest.PathsSpec(`  /x:
     summary: path summary
@@ -154,18 +153,11 @@ func TestPathItem_KeptFindingsAreNotInferred(t *testing.T) {
 	require.Len(t, svc.Groups, 1)
 	require.Len(t, svc.Groups[0].Operations, 1)
 	op := svc.Groups[0].Operations[0]
-	require.Equal(t, ir.Inferred("group-path-prefix"), op.Provenance.Inferred,
-		"the operation is marked, so the finding had a marker to take")
-
-	var found []ir.Diagnostic
-	for _, d := range diags {
-		if d.Code == diag.DegradedConstruct && strings.HasPrefix(d.Message, "path-item documentation kept") {
-			found = append(found, d)
-		}
-	}
-	require.Len(t, found, 1)
-	assert.Empty(t, found[0].Provenance.Inferred, "the path item declares it")
-	assert.Equal(t, op.Provenance.Pointer, found[0].Provenance.Pointer, "reported at the operation")
+	assert.Equal(t, ir.Inferred("group-path-prefix"), op.Provenance.Inferred, "the grouping's marker alone")
+	assert.Equal(t, "path summary", op.Bindings.HTTP[0].PathDocs.Summary)
+	assert.False(t, slices.ContainsFunc(diags, func(d ir.Diagnostic) bool {
+		return strings.HasPrefix(d.Message, "path-item documentation")
+	}), "the pair reached a field, so nothing is reported")
 }
 
 // pathItemUnknownKeySpec writes one key the Path Item Object does not define on
@@ -268,42 +260,28 @@ webhooks:
 `
 
 // TestPathItem_DocsKeptOnEveryRoute pins that a path item's summary and
-// description reach the IR at all, on whichever of the three routes reaches the
-// path item.
-//
-// Both were read nowhere: fillOperationDocs reads the Operation Object's own
-// pair, so a path item's documentation reached neither Docs, nor Unmodeled, nor
-// a diagnostic. Each route is asserted with its own text, so a fix that kept the
-// enclosing path item's pair — or the same one three times — fails rather than
+// description reach the HTTP binding's PathDocs, on whichever of the three
+// routes reaches the path item, with nothing kept under Unmodeled and nothing
+// reported. Each route is asserted with its own text, so a fix that wrote the
+// enclosing path item's pair, or one pair three times, fails rather than
 // passing on the shape alone.
 func TestPathItem_DocsKeptOnEveryRoute(t *testing.T) {
 	t.Parallel()
 	doc, diags := parseFull(t, pathItemDocsSpec)
 	openapitest.RequireNoErrorDiags(t, diags)
 
-	// kept is the path item's own pointer, where the pair is declared;
-	// reported is the operation, which is what carries the entry.
-	for _, tc := range []struct{ op, text, kept, reported string }{
-		{"postP", "path", "/paths/~1p", "/paths/~1p/post"},
-		{"onHook", "webhook", "/webhooks/hooked", "/webhooks/hooked/post"},
-		{"onEvent", "callback",
-			"/paths/~1p/post/callbacks/onEvent/{$request.body#~1url}",
-			"/paths/~1p/post/callbacks/onEvent/{$request.body#~1url}/post"},
+	for _, tc := range []struct{ op, text, at string }{
+		{"postP", "path", "/paths/~1p/post"},
+		{"onHook", "webhook", "/webhooks/hooked/post"},
+		{"onEvent", "callback", "/paths/~1p/post/callbacks/onEvent/{$request.body#~1url}/post"},
 	} {
 		op := openapitest.FindOp(t, doc, tc.op)
-		for _, field := range []struct{ key, keyword string }{
-			{"openapi:pathItem/summary", "summary"},
-			{"openapi:pathItem/description", "description"},
-		} {
-			entry, ok := op.Unmodeled[field.key]
-			require.True(t, ok, "%s keeps its path item's %s", tc.op, field.keyword)
-			assert.Equal(t, ir.ReasonNoIRHome, entry.Reason)
-			assert.JSONEq(t, `"`+tc.text+` `+field.keyword+`"`, string(entry.Value),
-				"%s keeps the text its own path item declared", tc.op)
-			assert.Equal(t, jsontext.Pointer(tc.kept+"/"+field.keyword), entry.Provenance.Pointer)
-		}
-		assert.True(t, openapitest.HasDiagCodeAt(diags, diag.DegradedConstruct, tc.reported),
-			"%s reports the path item's documentation as kept rather than lowered", tc.op)
+		require.Len(t, op.Bindings.HTTP, 1)
+		assert.Equal(t, ir.Docs{Summary: tc.text + " summary", Description: tc.text + " description"},
+			op.Bindings.HTTP[0].PathDocs, "%s carries the pair its own path item declared", tc.op)
+		assert.Empty(t, op.Unmodeled, "%s keeps nothing of the pair verbatim", tc.op)
+		assert.False(t, openapitest.HasDiagCodeAt(diags, diag.DegradedConstruct, tc.at),
+			"%s reports nothing: the pair reached a field", tc.op)
 	}
 
 	assert.Equal(t, "operation summary", openapitest.FindOp(t, doc, "postP").Docs.Summary,
@@ -313,8 +291,8 @@ func TestPathItem_DocsKeptOnEveryRoute(t *testing.T) {
 }
 
 // TestPathItem_DocsAbsentKeepNothing pins the other half: a path item that
-// documents nothing writes no entry and announces nothing, so the preservation
-// is not a per-operation constant.
+// documents nothing writes no PathDocs and announces nothing, so the pair is not
+// a per-operation constant.
 func TestPathItem_DocsAbsentKeepNothing(t *testing.T) {
 	t.Parallel()
 	doc, diags := parseFull(t, openapitest.PathsSpec(`  /p:
@@ -323,8 +301,7 @@ func TestPathItem_DocsAbsentKeepNothing(t *testing.T) {
 	openapitest.RequireNoErrorDiags(t, diags)
 
 	op := openapitest.FindOp(t, doc, "getP")
-	assert.NotContains(t, op.Unmodeled, "openapi:pathItem/summary")
-	assert.NotContains(t, op.Unmodeled, "openapi:pathItem/description")
+	assert.Zero(t, op.Bindings.HTTP[0].PathDocs)
 	assert.False(t, openapitest.HasDiagCodeAt(diags, diag.DegradedConstruct, "/paths/~1p/get"))
 }
 
@@ -395,7 +372,7 @@ func TestPathItem_AdditionalOperationsLowerOnEveryRoute(t *testing.T) {
 	}
 
 	flushHook := openapitest.FindOp(t, doc, "flushHook")
-	assert.True(t, flushHook.Bindings.HTTP[0].IsWebhook,
+	assert.Equal(t, ir.HTTPInboundWebhook, flushHook.Bindings.HTTP[0].Inbound,
 		"a webhook mount marks the binding whichever field declared the operation")
 	assert.Equal(t, "hooked", flushHook.Bindings.HTTP[0].WebhookName,
 		"the webhooks-map key names the event")
@@ -689,6 +666,9 @@ paths:
   /c:
     description: the path at length
     get: {responses: {"200": {description: ok}}}
+  /d:
+    $ref: '#/components/pathItems/Q'
+    description: the use site at length
 components:
   pathItems:
     P:
@@ -696,33 +676,35 @@ components:
       bogus4: true
       get: {responses: {"200": {description: ok}}}
       delete: {responses: {"200": {description: ok}}}
+    Q:
+      summary: the other shared item
+      get: {responses: {"200": {description: ok}}}
 `
 
 // TestPathItem_KeepsWhatItDeclaresOncePerMount pins that what a path item keeps
 // is computed once a mount and copied onto each operation, rather than
 // recomputed for each with compile.Diags left to drop the repeated findings
-// (GitHub #414). /b holds each layer of a $ref'd mount to it. The documentation
-// note is sited at each operation, so each gets one whichever keywords the
-// layers write: /a a summary, /c a description, and /b one at each layer.
+// (GitHub #414). /b holds each layer of a $ref'd mount to it. Its
+// documentation reaches each operation's PathDocs whichever keywords the layers
+// write, /a a summary, /c a description, and /b and /d one at each layer, each
+// keyword of a layer that leaves it out kept from the other layer, and draws no
+// finding.
 func TestPathItem_KeepsWhatItDeclaresOncePerMount(t *testing.T) {
 	t.Parallel()
 	svc, diags := serviceAsReported(t, keptOncePerMountSpec)
 
-	var keys, notes []string
+	var keys []string
 	for _, d := range diags {
-		switch {
-		case d.Code == diag.UnknownObjectKey:
+		switch d.Code {
+		case diag.UnknownObjectKey:
 			keys = append(keys, string(d.Provenance.Pointer))
-		case d.Code == diag.DegradedConstruct && strings.HasPrefix(d.Message, "path-item documentation"):
-			notes = append(notes, string(d.Provenance.Pointer))
+		case diag.DegradedConstruct:
+			assert.Failf(t, "documentation is reported", "%s: %s", d.Provenance.Pointer, d.Message)
 		}
 	}
 	assert.ElementsMatch(t, []string{"/paths/~1a/bogus1", "/paths/~1a/bogus2", "/paths/~1b/bogus3",
 		"/components/pathItems/P/bogus4"}, keys,
 		"each undeclared key is reported once, however many operations hold it")
-	assert.ElementsMatch(t, []string{"/paths/~1a/get", "/paths/~1a/put", "/paths/~1a/post",
-		"/components/pathItems/P/get", "/components/pathItems/P/delete", "/paths/~1c/get"}, notes,
-		"each operation holding its path's summary or description is told so once, where it is declared")
 
 	ops := map[ir.OpID]ir.Operation{}
 	for _, g := range svc.Groups {
@@ -733,16 +715,20 @@ func TestPathItem_KeepsWhatItDeclaresOncePerMount(t *testing.T) {
 	for _, tc := range []struct {
 		mount         string
 		methods, keys []string
+		docs          ir.Docs
 	}{
 		{"/paths/~1a", []string{"get", "put", "post"},
-			[]string{"pathItem/bogus1", "pathItem/bogus2", "pathItem/x-path", "pathItem/summary"}},
-		{"/paths/~1b", []string{"get", "delete"},
-			[]string{"pathItem/bogus3", "pathItem/bogus4", "pathItem/summary", "pathItem/description"}},
-		{"/paths/~1c", []string{"get"}, []string{"pathItem/description"}},
+			[]string{"pathItem/bogus1", "pathItem/bogus2", "pathItem/x-path"}, ir.Docs{Summary: "the path"}},
+		{"/paths/~1b", []string{"get", "delete"}, []string{"pathItem/bogus3", "pathItem/bogus4"},
+			ir.Docs{Summary: "the use site", Description: "the shared item"}},
+		{"/paths/~1c", []string{"get"}, nil, ir.Docs{Description: "the path at length"}},
+		{"/paths/~1d", []string{"get"}, nil,
+			ir.Docs{Summary: "the other shared item", Description: "the use site at length"}},
 	} {
 		for _, method := range tc.methods {
 			op, ok := ops[ir.OpID("op/openapi"+tc.mount+"/"+method)]
 			require.True(t, ok, "%s mounts %s", tc.mount, method)
+			assert.Equal(t, tc.docs, op.Bindings.HTTP[0].PathDocs, "%s %s documents its path", tc.mount, method)
 			for _, key := range tc.keys {
 				assert.Contains(t, op.Unmodeled, "openapi:"+key, "%s %s holds %s", tc.mount, method, key)
 			}
@@ -757,10 +743,10 @@ func TestPathItem_KeepsWhatItDeclaresOncePerMount(t *testing.T) {
 }
 
 // TestPathItem_DocsKeepApartFromAnOperationsOwnKeys pins that a path item's
-// documentation and an operation's own undeclared key never share an entry
-// (GitHub #1323). The pair is keyed beneath the item's scope, and the census
-// escapes the "/" of a key spelled like one, so each of the three values lands
-// under a key of its own and no finding says a key went unrepresented.
+// documentation and an operation's own undeclared keys never share a home
+// (GitHub #1323). The pair lowers to the binding's PathDocs, and the census
+// escapes the "/" of a key spelled like an item's scoped key, so each of the
+// three values lands apart and no finding says a key went unrepresented.
 func TestPathItem_DocsKeepApartFromAnOperationsOwnKeys(t *testing.T) {
 	t.Parallel()
 	doc, diags := parseFull(t, openapitest.PathsSpec(`  /a:
@@ -777,7 +763,6 @@ func TestPathItem_DocsKeepApartFromAnOperationsOwnKeys(t *testing.T) {
 	for _, tc := range []struct{ key, text, at string }{
 		{"openapi:pathItemSummary", "an undeclared key", "/paths/~1a/get/pathItemSummary"},
 		{"openapi:pathItem~1summary", "a key spelled like the entry", "/paths/~1a/get/pathItem~1summary"},
-		{"openapi:pathItem/summary", "the path's summary", "/paths/~1a/summary"},
 	} {
 		entry, ok := op.Unmodeled[tc.key]
 		if !assert.True(t, ok, "%s is kept", tc.key) {
@@ -786,5 +771,7 @@ func TestPathItem_DocsKeepApartFromAnOperationsOwnKeys(t *testing.T) {
 		assert.JSONEq(t, `"`+tc.text+`"`, string(entry.Value), "%s holds its own value", tc.key)
 		assert.Equal(t, jsontext.Pointer(tc.at), entry.Provenance.Pointer)
 	}
+	assert.Equal(t, "the path's summary", op.Bindings.HTTP[0].PathDocs.Summary)
+	assert.NotContains(t, op.Unmodeled, "openapi:pathItem/summary", "the pair is typed, so no key holds it")
 	assert.False(t, openapitest.HasDiag(diags, diag.UnknownKeyEntryTaken), "no key is reported as reaching the IR in no form")
 }

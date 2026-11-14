@@ -12,13 +12,15 @@ Extends architecture.md §6 milestone 3 (the first emitters) and beyond.
    the four optionality states, containers, external types, values, on each first target. Each is a
    refine step tied to a specific un-lowered IR fact — the acceptance test cashed.
 3. **M3c — operations & runtime.** Pagination, streaming, LRO, error taxonomy, auth; the runtime
-   policy tree and the boilerplate templates; the wire-conformance harness; the behavior server, its
-   workflows and its coverage gate (T-14).
+   policy tree, its layers and the reader of embedded policy, and the boilerplate templates; the
+   wire-conformance harness; the behavior server, its workflows and its coverage gate (T-14).
 4. **M3d — docs + mock emitters.** Prove reuse of `Doc + Plan` over a second and third target AST,
    and that docs/mock agree with the SDK by construction.
 5. **M4 — write/integrate + surface verification.** Manifest, header-gated pruning, ignore regions,
    additive merge (`dst` for Go), regions that follow their entity, README blocks, staleness;
-   neutral surface diff with injectable per-language severity.
+   neutral surface diff with injectable per-language severity. It needs the [correlation
+   key](../ir/derived-facts.md#correlation-keys), which shipped names, regions, files written once
+   and unmatched keys all match on.
 6. **M5 — a further language family (TS or Python).** Proves the plan holds beyond the first
    targets' statically typed languages: a new target is a new target AST + printer + refine pipeline
    reusing the shared plan and step contract, forcing **no** IR or plan change. The shared plan

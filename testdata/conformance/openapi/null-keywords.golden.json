@@ -6,10 +6,12 @@
     ],
     "e": [
       "anon",
+      "composed",
       "openapi"
     ],
     "g": [
       "default",
+      "extension",
       "path-prefix",
       "tags",
       "webhooks"
@@ -58,7 +60,7 @@
   ],
   "types": {
     "t/anon/components/schemas/Values/properties/c": {
-      "kind": "literal",
+      "kind": "enum",
       "id": "t/anon/components/schemas/Values/properties/c",
       "name": {
         "hint": "c"
@@ -70,9 +72,9 @@
         "source": 0,
         "pointer": "/components/schemas/Values/properties/c"
       },
-      "value": {
-        "kind": "null"
-      }
+      "valueType": "any",
+      "closed": true,
+      "flags": false
     },
     "t/openapi/components/schemas/Bounded": {
       "kind": "scalar",

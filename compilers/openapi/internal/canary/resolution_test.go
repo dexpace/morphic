@@ -7,15 +7,8 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	"io"
-	"io/fs"
-	"net/http"
-	"reflect"
-	"strconv"
 	"strings"
-	"sync/atomic"
 	"testing"
-	"testing/fstest"
 
 	"github.com/speakeasy-api/openapi/jsonpointer"
 	"github.com/speakeasy-api/openapi/jsonschema/oas3"
@@ -31,17 +24,13 @@ const resolved = "resolved"
 
 // resolveAll decodes input and resolves every reference in it, with external
 // references off: what the resolver reports, or resolved. The library's own
-// walk calls each reference's Resolve in turn, as the load phase does.
+// walk calls each reference's Resolve in turn.
 func resolveAll(ctx context.Context, input []byte) string {
-	return resolveWith(ctx, input, soa.ResolveAllOptions{OpenAPILocation: location, DisableExternalRefs: true})
-}
-
-// resolveWith is resolveAll under opts.
-func resolveWith(ctx context.Context, input []byte, opts soa.ResolveAllOptions) string {
 	doc, _, err := soa.Unmarshal(ctx, bytes.NewReader(input))
 	if err != nil {
 		return "decode: " + err.Error()
 	}
+	opts := soa.ResolveAllOptions{OpenAPILocation: location, DisableExternalRefs: true}
 	if _, err := doc.ResolveAllReferences(ctx, opts); err != nil {
 		return err.Error()
 	}
@@ -117,120 +106,6 @@ func schemaCycleOverflow(t *testing.T) {
 		require.Equal(t, returned, r.outcome, revisit(t, r))
 		assert.Contains(t, r.report, "not found", revisit(t, r))
 	})
-}
-
-// resolveOptionFields are the fields references.ResolveOptions declares,
-// none of which bounds depth, work, fetches or size.
-var resolveOptionFields = []string{
-	"RootDocument", "TargetLocation", "TargetDocument", "DisableExternalRefs",
-	"VirtualFS", "HTTPClient", "SkipValidation",
-}
-
-// chainLength is how many external documents the chains here name.
-const chainLength = 1000
-
-// resolutionUnbounded pins resolution-unbounded: nothing in the options bounds
-// a resolution, the resolver never checks its context, only handing it to the
-// requests it makes, and every document a chain names is read, through the
-// file system or client the options give.
-func resolutionUnbounded(t *testing.T) {
-	t.Run("no option bounds it", func(t *testing.T) {
-		t.Parallel()
-		ty := reflect.TypeFor[references.ResolveOptions]()
-		var fields []string
-		for f := range ty.Fields() {
-			fields = append(fields, f.Name)
-		}
-		assert.Equal(t, resolveOptionFields, fields, revisit(t, result{}))
-	})
-	t.Run("a cancelled context resolves", func(t *testing.T) {
-		t.Parallel()
-		doc, _, err := soa.Unmarshal(t.Context(), strings.NewReader(schemas(refTo("schemas", "A", "B"), "B: {type: string}")))
-		require.NoError(t, err)
-		ctx, cancel := context.WithCancel(t.Context())
-		cancel()
-		_, err = doc.ResolveAllReferences(ctx, soa.ResolveAllOptions{OpenAPILocation: location, DisableExternalRefs: true})
-		require.NoError(t, err, revisit(t, result{}))
-		a, ok := doc.Components.Schemas.Get("A")
-		require.True(t, ok)
-		assert.NotNil(t, a.GetResolvedSchema(), revisit(t, result{}))
-	})
-	t.Run("a chain of files is read whole", func(t *testing.T) {
-		t.Parallel()
-		files := &chainFS{}
-		got := resolveWith(t.Context(), []byte(schemas("A: {$ref: 'd0.yaml#/x'}")),
-			soa.ResolveAllOptions{OpenAPILocation: location, VirtualFS: files})
-		assert.Equal(t, resolved, got, revisit(t, result{report: got}))
-		assert.Equal(t, int64(chainLength), files.opens.Load(), revisit(t, result{}))
-	})
-	t.Run("a chain of URLs is read whole", func(t *testing.T) {
-		t.Parallel()
-		client := &chainClient{}
-		got := resolveWith(t.Context(), []byte(schemas("A: {$ref: 'https://example.com/d0.yaml#/x'}")),
-			soa.ResolveAllOptions{OpenAPILocation: location, HTTPClient: client})
-		assert.Equal(t, resolved, got, revisit(t, result{report: got}))
-		assert.Equal(t, int64(chainLength), client.requests.Load(), revisit(t, result{}))
-	})
-	t.Run("each request carries the context", func(t *testing.T) {
-		t.Parallel()
-		ctx, cancel := context.WithCancel(t.Context())
-		cancel()
-		client := &chainClient{}
-		got := resolveWith(ctx, []byte(schemas("A: {$ref: 'https://example.com/d0.yaml#/x'}")),
-			soa.ResolveAllOptions{OpenAPILocation: location, HTTPClient: client})
-		assert.Equal(t, resolved, got, "a client that ignores it is read to the end: %s", revisit(t, result{report: got}))
-		assert.Equal(t, int64(chainLength), client.cancelled.Load(), revisit(t, result{}))
-	})
-}
-
-// chainDocument returns document n of a chain of chainLength: each names the
-// next, and the last holds a schema.
-func chainDocument(n int) []byte {
-	if n >= chainLength-1 {
-		return []byte("x: {type: string}\n")
-	}
-	return fmt.Appendf(nil, "x: {$ref: 'd%d.yaml#/x'}\n", n+1)
-}
-
-// chainNumber reads n from a path ending in dn.yaml, or fails.
-func chainNumber(path string) (int, error) {
-	name := path[strings.LastIndex(path, "/")+1:]
-	digits, ok := strings.CutPrefix(strings.TrimSuffix(name, ".yaml"), "d")
-	if !ok || !strings.HasSuffix(name, ".yaml") {
-		return 0, fmt.Errorf("%q is no document of the chain", path)
-	}
-	return strconv.Atoi(digits)
-}
-
-// chainFS serves the chain's documents as files, counting each open.
-type chainFS struct{ opens atomic.Int64 }
-
-// Open serves the chain document name ends with.
-func (c *chainFS) Open(name string) (fs.File, error) {
-	c.opens.Add(1)
-	n, err := chainNumber(name)
-	if err != nil {
-		return nil, err
-	}
-	return fstest.MapFS{"d.yaml": {Data: chainDocument(n)}}.Open("d.yaml")
-}
-
-// chainClient serves the chain's documents over HTTP, counting each request,
-// and each request whose context is done, which it serves all the same.
-type chainClient struct{ requests, cancelled atomic.Int64 }
-
-// Do serves the chain document the request's path ends with.
-func (c *chainClient) Do(req *http.Request) (*http.Response, error) {
-	c.requests.Add(1)
-	if req.Context().Err() != nil {
-		c.cancelled.Add(1)
-	}
-	n, err := chainNumber(req.URL.Path)
-	if err != nil {
-		return nil, err
-	}
-	return &http.Response{StatusCode: http.StatusOK, Request: req, Header: http.Header{},
-		Body: io.NopCloser(bytes.NewReader(chainDocument(n)))}, nil
 }
 
 // defsOrder pins defs-order: whether a "#/$defs/..." reference resolves
@@ -394,4 +269,49 @@ func trailingEmptyToken(t *testing.T) {
 	own, err := jsonpointer.GetTarget(doc.GetRootNode(), "/x-params/q")
 	require.NoError(t, err)
 	assert.Same(t, own, p.GetObject().GetRootNode(), "it resolves to q itself: %s", revisit(t, result{}))
+}
+
+// mergeListPointer pins merge-list-pointer: through raw YAML, a pointer walk
+// reads past a `<<` naming one mapping, but passes over one naming a list of
+// mappings, and so does a reference object resolving through it.
+func mergeListPointer(t *testing.T) {
+	const tail = "x-c: &c {other: {name: o, in: query}}\nx-b: &b {q: {name: q, in: query}}\n"
+	for merge, found := range map[string]bool{"*b": true, "[*c, *b]": false, "[*b]": false} {
+		src := head + "components:\n  parameters:\n    P: {$ref: '#/x-params/q'}\n" + tail + "x-params:\n  <<: " +
+			merge + "\n"
+		var tree yaml.Node
+		require.NoError(t, yaml.Unmarshal([]byte(src), &tree))
+		_, err := jsonpointer.GetTarget(&tree, "/x-params/q")
+		assert.Equal(t, found, err == nil, "%s: %v\n%s", merge, err, revisit(t, result{}))
+
+		doc, _, err := soa.Unmarshal(t.Context(), strings.NewReader(src))
+		require.NoError(t, err)
+		_, err = doc.Components.Parameters.GetOrZero("P").Resolve(t.Context(),
+			soa.ResolveOptions{RootDocument: doc, TargetLocation: location, DisableExternalRefs: true})
+		assert.Equal(t, found, err == nil, "%s resolved: %v\n%s", merge, err, revisit(t, result{}))
+	}
+}
+
+// pointerTokenRange pins pointer-token-range: a pointer token holding a
+// character above U+FFFF is refused as no valid token, one in the Basic
+// Multilingual Plane is read, and a reference object spelling either resolves
+// as the walk reads it.
+func pointerTokenRange(t *testing.T) {
+	for key, found := range map[string]bool{"é": true, "😀": false} {
+		src := head + "components:\n  parameters:\n    P: {$ref: '#/x-params/" + key + "'}\nx-params:\n  \"" + key +
+			"\": {name: q, in: query}\n"
+		var tree yaml.Node
+		require.NoError(t, yaml.Unmarshal([]byte(src), &tree))
+		_, err := jsonpointer.GetTarget(&tree, jsonpointer.JSONPointer("/x-params/"+key))
+		assert.Equal(t, found, err == nil, "%s: %v\n%s", key, err, revisit(t, result{}))
+		if !found {
+			assert.ErrorContains(t, err, "jsonpointer part must be a valid token", revisit(t, result{}))
+		}
+
+		doc, _, err := soa.Unmarshal(t.Context(), strings.NewReader(src))
+		require.NoError(t, err)
+		_, err = doc.Components.Parameters.GetOrZero("P").Resolve(t.Context(),
+			soa.ResolveOptions{RootDocument: doc, TargetLocation: location, DisableExternalRefs: true})
+		assert.Equal(t, found, err == nil, "%s resolved: %v\n%s", key, err, revisit(t, result{}))
+	}
 }

@@ -23,6 +23,31 @@ components:
         # No anchor declares this name, so the reference is irreducible and is
         # kept verbatim instead of being dropped.
         ghost: {$dynamicRef: '#Missing'}
+        # The one anchor of this name sits under $defs, a position a $ref can
+        # name too, so the reference expands to the type a $ref there names.
+        deep: {$dynamicRef: '#deep'}
+    Holder:
+      type: object
+      $defs:
+        Deep: {$dynamicAnchor: deep, type: object, properties: {d: {type: string}}}
+    # The reference and its anchor lie in the one resource the $id starts, the
+    # usual spelling of a recursive schema, so it expands to the resource's root.
+    Linked:
+      $id: https://example.com/linked
+      $dynamicAnchor: link
+      type: object
+      properties:
+        next: {$dynamicRef: '#link'}
+    # 2019-09's spelling: "#" names the root of the resource the $id starts,
+    # which declares the one $recursiveAnchor of the document, so the reference
+    # expands to it.
+    Recursive:
+      $schema: https://json-schema.org/draft/2019-09/schema
+      $id: https://example.com/recursive
+      $recursiveAnchor: true
+      type: object
+      properties:
+        children: {type: array, items: {$recursiveRef: '#'}}
     # A component keyed "" is addressed by /components/schemas/, a pointer whose
     # last reference token is empty. The $id here starts a schema resource of its
     # own, so this reference may not expand across it — and deciding that means

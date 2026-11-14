@@ -94,6 +94,14 @@ func TestCheck_PathTemplatesAnswerToPathParameters(t *testing.T) {
 			"{\"/a/{id}/{other}\": {get: {responses: {'200': {description: d}}, parameters: [" + param + "]}}}", []finding{at(dangling, "/~1a~1{id}~1{other}")}},
 		{"an unclosed brace", "3.1.0", oas.Paths, "{\"/a/{id\": {get: " + ok + "}}", nil},
 		{"a fragment is no part of the path", "3.1.0", oas.Paths, "{\"/a#{id}\": {get: " + ok + "}}", nil},
+		{"a fragment's parameter names no expression", "3.1.0", oas.Paths,
+			"{\"/a#{id}\": {get: {responses: {'200': {description: d}}, parameters: [" + param + "]}}}",
+			[]finding{at(dangling, "/~1a#{id}/get/parameters/0")}},
+		{"a fragment after a query", "3.1.0", oas.Paths, "{\"/a?q#{id}\": {get: " + ok + "}}", nil},
+		{"a # in a query begins a fragment, braces or not", "3.1.0", oas.Paths, "{\"/a?{q#x}\": {get: " + ok + "}}", nil},
+		{"a # in an expression is its name's", "3.1.0", oas.Paths,
+			"{\"/a/{id#x}\": {get: {responses: {'200': {description: d}}, parameters: [{name: 'id#x', in: path, required: true, schema: {}}]}}}", nil},
+		{"a # after a stray brace begins a fragment", "3.1.0", oas.Paths, "{\"/a/{x#{id}\": {get: " + ok + "}}", nil},
 		{"parameters that are no list", "3.1.0", oas.Paths, "{\"/a/{id}\": {get: {responses: {'200': {description: d}}, parameters: x}}}",
 			[]finding{at(mismatch, "/~1a~1{id}/get/parameters"), at(dangling, "/~1a~1{id}")}},
 		{"additional operations", "3.2.0", oas.Paths,
@@ -190,6 +198,35 @@ func TestCheck_EncodingsApplyWhereTheSpecificationSays(t *testing.T) {
 		{"a component's name is no media type", "3.2.0", oas.Components, "{mediaTypes: {JSON: {encoding: {}}}}", nil},
 	})
 	for _, d := range run(t, "3.1.0", oas.RequestBody, body("application/json", "encoding: {}")) {
+		assert.Equal(t, ir.SeverityWarning, d.Severity)
+	}
+}
+
+// TestCheck_NullableAppliesBesideAType pins where a 3.0 `nullable: true` has
+// no effect: with no `type` beside it, a `type` written null being none,
+// whatever composition or enum is, as a warning at the keyword. Beside a
+// `$ref` it draws only the later-version warning every key there draws, and a
+// `nullable: false`, the default, or a 3.1 schema, which defines no such
+// keyword, draws nothing.
+func TestCheck_NullableAppliesBesideAType(t *testing.T) {
+	const nullable = "/nullable"
+	verify(t, []scenario{
+		{"alone", "3.0.3", oas.Schema, "{nullable: true}", []finding{at(inert, nullable)}},
+		{"spelled True", "3.0.3", oas.Schema, "{nullable: True}", []finding{at(inert, nullable)}},
+		{"beside allOf", "3.0.3", oas.Schema, "{nullable: true, allOf: [{type: string}]}", []finding{at(inert, nullable)}},
+		{"beside oneOf", "3.0.3", oas.Schema, "{nullable: true, oneOf: [{type: string}]}", []finding{at(inert, nullable)}},
+		{"beside enum", "3.0.3", oas.Schema, "{nullable: true, enum: [a]}", []finding{at(inert, nullable)}},
+		{"beside a null type", "3.0.3", oas.Schema, "{nullable: true, type: null}",
+			[]finding{at(inert, nullable), at(mismatch, "/type")}},
+		{"beside a type", "3.0.3", oas.Schema, "{nullable: true, type: string}", nil},
+		{"false", "3.0.3", oas.Schema, "{nullable: false}", nil},
+		{"beside a $ref", "3.0.3", oas.Schema, "{$ref: '#/components/schemas/A', nullable: true}",
+			[]finding{at(later, nullable)}},
+		{"beside a null $ref", "3.0.3", oas.Schema, "{$ref: null, nullable: true}",
+			[]finding{at(inert, nullable), at(mismatch, "/$ref")}},
+		{"in 3.1", "3.1.0", oas.Schema, "{nullable: true}", nil},
+	})
+	for _, d := range run(t, "3.0.3", oas.Schema, "{nullable: true}") {
 		assert.Equal(t, ir.SeverityWarning, d.Severity)
 	}
 }

@@ -72,6 +72,12 @@ func messageCases() []messageCase {
 			return typesDoc(m)
 		}, "ir/type-ref-inferred-not-nullable", fmt.Sprintf(
 			"type reference is marked inferred by %q but admits no null", illFormed)},
+		{"inferred on a part carrying no filename", func() *ir.Document {
+			return opDoc(ir.Operation{ID: "op/x/S/op", Name: named("op"), Request: &ir.Payload{Contents: []ir.Content{{
+				ItemEncoding: &ir.PartEncoding{Inferred: illFormed},
+			}}}})
+		}, "ir/part-encoding-inferred-not-filename", fmt.Sprintf(
+			"part encoding is marked inferred by %q but carries no filename", illFormed)},
 		{"bigval out of range", func() *ir.Document {
 			m := namedModel("t/x/A")
 			m.Properties = []ir.Property{{ID: "p/x/A/p", Name: named("p"), Type: ir.TypeRef{Target: "t/x/A"},
@@ -101,7 +107,7 @@ func messageCases() []messageCase {
 			illFormed, illFormed, ir.IdempotencyToken)},
 		{"webhook template", func() *ir.Document {
 			return opDoc(ir.Operation{ID: "op/x/S/op", Name: named("op"), Bindings: ir.OpBindings{
-				HTTP: []ir.HTTPBinding{{IsWebhook: true, URITemplate: illFormed}}}})
+				HTTP: []ir.HTTPBinding{{Inbound: ir.HTTPInboundWebhook, URITemplate: illFormed}}}})
 		}, "ir/webhook-route", fmt.Sprintf(
 			"webhook binding carries URI template %q; a webhook names its event in WebhookName and has no template",
 			illFormed)},
@@ -110,6 +116,59 @@ func messageCases() []messageCase {
 				HTTP: []ir.HTTPBinding{{WebhookName: illFormed}}}})
 		}, "ir/webhook-route", fmt.Sprintf(
 			"binding that is not a webhook carries webhook name %q; only a webhook binding names an event", illFormed)},
+		{"prefix header of no map", func() *ir.Document {
+			doc := opDoc(ir.Operation{ID: "op/x/S/op", Name: named("op"), Responses: []ir.Response{{Headers: []ir.Header{{
+				ID: "p/x/h", Name: named("h"), Type: ir.TypeRef{Target: illFormed}, Prefix: new(""),
+			}}}}})
+			doc.Types = ir.TypeRegistry{illFormed: namedModel(illFormed)}
+			return doc
+		}, "ir/prefix-header-not-map", fmt.Sprintf("header under a prefix has type %q, which is no map", illFormed)},
+		{"prefix header wire name", func() *ir.Document {
+			return opDoc(ir.Operation{ID: "op/x/S/op", Name: named("op"), Responses: []ir.Response{{Headers: []ir.Header{{
+				ID: "p/x/h", Name: named("h"), WireName: illFormed, Type: ir.TypeRef{Target: "t/x/M"}, Prefix: new(""),
+			}}}}})
+		}, "ir/prefix-header-wire-name", fmt.Sprintf("header under a prefix also names the field %q", illFormed)},
+		{"prefix binding location", func() *ir.Document {
+			return opDoc(ir.Operation{ID: "op/x/S/op", Name: named("op"), Bindings: ir.OpBindings{HTTP: []ir.HTTPBinding{{
+				ParamBindings: []ir.HTTPParamBinding{{Location: ir.HTTPLocation(illFormed), Prefix: new("")}},
+			}}}})
+		}, "ir/prefix-binding-location", fmt.Sprintf(
+			"binding under a prefix binds location %q, which is neither header nor query", illFormed)},
+		{"prefix binding wire name", func() *ir.Document {
+			return opDoc(ir.Operation{ID: "op/x/S/op", Name: named("op"), Bindings: ir.OpBindings{HTTP: []ir.HTTPBinding{{
+				ParamBindings: []ir.HTTPParamBinding{{Location: ir.HTTPLocationQuery, WireName: illFormed, Prefix: new("")}},
+			}}}})
+		}, "ir/prefix-binding-wire-name", fmt.Sprintf("binding under a prefix also names the field %q", illFormed)},
+		{"prefix binding of no map", func() *ir.Document {
+			doc := opDoc(ir.Operation{
+				ID: "op/x/S/op", Name: named("op"),
+				Params: []ir.Parameter{{ID: "param/x/p", Name: named("p"), Type: ir.TypeRef{Target: illFormed}}},
+				Bindings: ir.OpBindings{HTTP: []ir.HTTPBinding{{ParamBindings: []ir.HTTPParamBinding{{
+					Param: "param/x/p", Location: ir.HTTPLocationHeader, Prefix: new(""),
+				}}}}},
+			})
+			doc.Types = ir.TypeRegistry{illFormed: namedModel(illFormed)}
+			return doc
+		}, "ir/prefix-binding-not-map", fmt.Sprintf(
+			"binding under a prefix binds a parameter of type %q, which is no map", illFormed)},
+		{"inbound kind", func() *ir.Document {
+			return opDoc(ir.Operation{ID: "op/x/S/op", Name: named("op"), Bindings: ir.OpBindings{
+				HTTP: []ir.HTTPBinding{{Inbound: ir.HTTPInbound(illFormed)}}}})
+		}, "ir/unknown-http-inbound", fmt.Sprintf("binding carries undeclared inbound kind %q", illFormed)},
+		{"callback unlisted", func() *ir.Document {
+			return opDoc(ir.Operation{ID: ir.OpID("op/x/S/" + illFormed), Name: named("op"), Bindings: ir.OpBindings{
+				HTTP: []ir.HTTPBinding{{Inbound: ir.HTTPInboundCallback}}}})
+		}, "ir/callback-unlisted", fmt.Sprintf(
+			"operation %q is marked a callback, but no binding lists it among its Callbacks", "op/x/S/"+illFormed)},
+		{"callback unmarked", func() *ir.Document {
+			cb := ir.OpID("op/x/S/" + illFormed)
+			doc := opDoc(ir.Operation{ID: "op/x/S/op", Name: named("op"), Bindings: ir.OpBindings{
+				HTTP: []ir.HTTPBinding{{Callbacks: []ir.Callback{{Operations: []ir.OpID{cb}}}}}}})
+			doc.Services[0].Groups[0].Operations = append(doc.Services[0].Groups[0].Operations,
+				ir.Operation{ID: cb, Name: named("cb")})
+			return doc
+		}, "ir/callback-unmarked", fmt.Sprintf(
+			"a binding lists operation %q among its Callbacks, but it is not marked a callback", "op/x/S/"+illFormed)},
 		{"prim not derived", func() *ir.Document {
 			return typesDoc(&ir.Primitive{ID: ir.TypeID("t/x/" + illFormed), Prim: ir.PrimString})
 		}, "ir/prim-id-not-derived", fmt.Sprintf(

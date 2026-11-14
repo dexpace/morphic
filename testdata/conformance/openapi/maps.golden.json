@@ -6,10 +6,12 @@
     ],
     "e": [
       "anon",
+      "composed",
       "openapi"
     ],
     "g": [
       "default",
+      "extension",
       "path-prefix",
       "tags",
       "webhooks"
@@ -148,6 +150,66 @@
       "positional": false,
       "inputOnly": false
     },
+    "t/openapi/components/schemas/ClosedAfterPatterns": {
+      "kind": "model",
+      "id": "t/openapi/components/schemas/ClosedAfterPatterns",
+      "name": {
+        "source": "ClosedAfterPatterns",
+        "canonical": "closed_after_patterns"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/ClosedAfterPatterns"
+      },
+      "additionalProps": {
+        "patterns": [
+          {
+            "pattern": "^x-",
+            "value": {
+              "target": "t/prim/string",
+              "nullable": false
+            }
+          }
+        ]
+      },
+      "additional": "closed_after_composition",
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/openapi/components/schemas/ClosedPatternMap": {
+      "kind": "model",
+      "id": "t/openapi/components/schemas/ClosedPatternMap",
+      "name": {
+        "source": "ClosedPatternMap",
+        "canonical": "closed_pattern_map"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/ClosedPatternMap"
+      },
+      "additionalProps": {
+        "patterns": [
+          {
+            "pattern": "^x-",
+            "value": {
+              "target": "t/prim/string",
+              "nullable": false
+            }
+          }
+        ]
+      },
+      "additional": "closed",
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
     "t/openapi/components/schemas/ClosedRecord": {
       "kind": "model",
       "id": "t/openapi/components/schemas/ClosedRecord",
@@ -192,6 +254,169 @@
         }
       ],
       "additional": "closed",
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/openapi/components/schemas/ClosedTwice": {
+      "kind": "model",
+      "id": "t/openapi/components/schemas/ClosedTwice",
+      "name": {
+        "source": "ClosedTwice",
+        "canonical": "closed_twice"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "unmodeled": {
+        "openapi:unevaluated": {
+          "reason": "validation_only",
+          "value": {
+            "additionalProperties": false,
+            "unevaluatedProperties": false
+          },
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/ClosedTwice"
+          }
+        }
+      },
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/ClosedTwice"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/ClosedTwice/properties/a",
+          "name": {
+            "source": "a",
+            "canonical": "a"
+          },
+          "wireName": "a",
+          "type": {
+            "target": "t/prim/string",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/ClosedTwice/properties/a"
+          }
+        }
+      ],
+      "additional": "closed",
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/openapi/components/schemas/InertBesideAMap": {
+      "kind": "map",
+      "id": "t/openapi/components/schemas/InertBesideAMap",
+      "name": {
+        "source": "InertBesideAMap",
+        "canonical": "inert_beside_a_map"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "unmodeled": {
+        "openapi:unevaluated": {
+          "reason": "validation_only",
+          "value": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "unevaluatedProperties": false
+          },
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/InertBesideAMap"
+          }
+        }
+      },
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/InertBesideAMap"
+      },
+      "value": {
+        "target": "t/prim/integer",
+        "nullable": false
+      }
+    },
+    "t/openapi/components/schemas/InertBesideARecord": {
+      "kind": "model",
+      "id": "t/openapi/components/schemas/InertBesideARecord",
+      "name": {
+        "source": "InertBesideARecord",
+        "canonical": "inert_beside_a_record"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "unmodeled": {
+        "openapi:unevaluated": {
+          "reason": "validation_only",
+          "value": {
+            "additionalProperties": true,
+            "unevaluatedProperties": {
+              "type": "string"
+            }
+          },
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/InertBesideARecord"
+          }
+        }
+      },
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/InertBesideARecord"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/InertBesideARecord/properties/a",
+          "name": {
+            "source": "a",
+            "canonical": "a"
+          },
+          "wireName": "a",
+          "type": {
+            "target": "t/prim/string",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/InertBesideARecord/properties/a"
+          }
+        }
+      ],
+      "additionalProps": {
+        "value": {
+          "target": "t/prim/any",
+          "nullable": false
+        }
+      },
       "abstract": false,
       "positional": false,
       "inputOnly": false
@@ -351,11 +576,40 @@
       }
     }
   },
+  "diagnostics": [
+    {
+      "severity": "info",
+      "code": "openapi/validation-only-keyword",
+      "message": "unevaluatedProperties beside additionalProperties applies to no property, since additionalProperties evaluates each one it would; both kept verbatim under Unmodeled",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/InertBesideAMap"
+      }
+    },
+    {
+      "severity": "info",
+      "code": "openapi/validation-only-keyword",
+      "message": "unevaluatedProperties beside additionalProperties applies to no property, since additionalProperties evaluates each one it would; both kept verbatim under Unmodeled",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/InertBesideARecord"
+      }
+    },
+    {
+      "severity": "info",
+      "code": "openapi/validation-only-keyword",
+      "message": "unevaluatedProperties beside additionalProperties applies to no property, since additionalProperties evaluates each one it would; both kept verbatim under Unmodeled",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/ClosedTwice"
+      }
+    }
+  ],
   "sources": [
     {
       "format": "openapi@3.1",
       "path": "maps.yaml",
-      "hash": "80b768b595ead6337557f683bce1b9755ab21f093822456a793a8a5e5819f9a7"
+      "hash": "77e272f27411482e6b944213fce69040c7a6d2cd96863de656dfd072c4119e72"
     }
   ]
 }

@@ -113,3 +113,33 @@ func TestCompile_RefusesADocumentNestedPastTheBound(t *testing.T) {
 	assert.Equal(t, fmt.Sprintf("document nests %d levels deep with its aliases expanded, past the %d-level bound", n+4, scan.MaxNesting),
 		diags[0].Message, "the root, components, schemas and A, and the levels below")
 }
+
+// TestMaxNesting_AnAbsentRestPastTheBoundDrawsNoReport pins the schema walk's
+// bound on a tuple nested past it, a draft 7 list of items and 2020-12's
+// prefixItems alike: one report, at the entry the bound stops, and none at the
+// rest beside it, which the document does not write and which nests nothing.
+func TestMaxNesting_AnAbsentRestPastTheBoundDrawsNoReport(t *testing.T) {
+	t.Parallel()
+	frames := intConst(t, "github.com/dexpace/morphic/compilers/openapi/internal/schema", "maxSchemaDepth")
+	for name, tc := range map[string]struct{ open, rest, dialect string }{
+		"a list of items": {"{type: array, items: [", "additionalItems", "$schema: 'http://json-schema.org/draft-07/schema#', "},
+		"prefixItems":     {"{type: array, prefixItems: [", "items", ""},
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			body := "{" + tc.dialect + strings.TrimPrefix(strings.Repeat(tc.open, frames), "{") + "{type: string}" +
+				strings.Repeat("]}", frames)
+			data := []byte("openapi: 3.1.0\ninfo: {title: t, version: \"1\"}\npaths: {}\ncomponents:\n  schemas:\n    A: " + body + "\n")
+			_, diags, err := openapi.New().Compile(t.Context(), []compilers.Source{{Path: "deep.yaml", Data: data}}, compilers.Options{})
+			require.NoError(t, err)
+			var at []string
+			for _, d := range diags {
+				if d.Code == "openapi/degraded-construct" && d.Severity == ir.SeverityError {
+					at = append(at, string(d.Provenance.Pointer))
+				}
+			}
+			require.Len(t, at, 1, "one report: %v", at)
+			assert.False(t, strings.HasSuffix(at[0], "/"+tc.rest), "not at the absent %s: %s", tc.rest, at[0])
+		})
+	}
+}

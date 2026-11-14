@@ -19,40 +19,65 @@ import (
 // deeper.
 const maxPointerTokens = 1024
 
-// maxPasses bounds how many reference objects one read passes through. Each
-// is read on from where the parser's resolver ended its chain, and an end the
-// resolver places past another reference object is read on through that one
-// in turn (GitHub #762), so a loop of such ends stops here.
-const maxPasses = 64
-
 // errNotRead is why a reference to another document fails when the table
 // reads none (Config.Open is nil).
 var errNotRead = errors.New("other documents are not read")
 
 // document is one document a table reads: its name, its root, the view that
-// reads it as the parser does, and whether its positions are read by the
-// OpenAPI grammar, as the source's are; another's are raw YAML.
+// reads it as the parser does, whether its positions are read by the OpenAPI
+// grammar, as the source's are, another's being raw YAML, and whether its root
+// is an OpenAPI Object, which places its schemas (docs.identityState).
 type document struct {
 	name    string
 	root    *yaml.Node
 	view    *nodeview.View
 	grammar bool
+	openapi bool
 }
 
 // docs is every document a table has read, and the work reading them costs.
+// reached is those the pass under way asked for, which a document read for a
+// pass before it need not be, and fresh those of them it reached since a
+// drain last took them (takeFresh).
 type docs struct {
-	cfg    Config
-	list   []*document
-	byName map[string]DocID
-	failed map[string]error
-	work   *work
+	cfg     Config
+	list    []*document
+	byName  map[string]DocID
+	failed  map[string]error
+	work    *work
+	reached map[DocID]bool
+	fresh   []DocID
+	// rules is each document's reading of each dialect it names, which
+	// Config.Dialect gives (dialectRule), asked once, and last the one asked
+	// last.
+	rules map[ruleKey]DialectRule
+	last  struct {
+		key   ruleKey
+		rule  DialectRule
+		asked bool
+	}
+	// components is Config.Components as a set, which a mapping value spelling
+	// one names (finder.mappingsOf).
+	components map[string]bool
+}
+
+// ruleKey is a document and a dialect its schemas name.
+type ruleKey struct {
+	doc     DocID
+	dialect string
 }
 
 // newDocs returns the documents of a table over the source tree root.
 func newDocs(root *yaml.Node, cfg Config, w *work) *docs {
-	src := &document{name: cfg.Self, root: nodeview.DocumentRoot(root), view: nodeview.New(), grammar: true}
+	src := &document{name: cfg.Self, root: nodeview.DocumentRoot(root), view: nodeview.New(), grammar: true,
+		openapi: true}
+	components := make(map[string]bool, len(cfg.Components))
+	for _, name := range cfg.Components {
+		components[name] = true
+	}
 	return &docs{cfg: cfg, list: []*document{src}, byName: map[string]DocID{cfg.Self: Source},
-		failed: map[string]error{}, work: w}
+		failed: map[string]error{}, work: w, reached: map[DocID]bool{Source: true}, rules: map[ruleKey]DialectRule{},
+		components: components}
 }
 
 // locate is the name of the document uri names, written in the document
@@ -79,6 +104,7 @@ func (d *docs) refusal(uri string) string {
 // first time it is asked for, and the same answer every later time.
 func (d *docs) open(name string) (DocID, error) {
 	if id, ok := d.byName[name]; ok {
+		d.reach(id)
 		return id, nil
 	}
 	if err, ok := d.failed[name]; ok {
@@ -97,9 +123,42 @@ func (d *docs) open(name string) (DocID, error) {
 		return 0, err
 	}
 	id := DocID(len(d.list))
-	d.list = append(d.list, &document{name: name, root: nodeview.DocumentRoot(tree), view: nodeview.New()})
+	root := nodeview.DocumentRoot(tree)
+	view := nodeview.New()
+	d.list = append(d.list, &document{name: name, root: root, view: view, openapi: writesOpenAPI(view, root)})
 	d.byName[name] = id
+	d.reach(id)
 	return id, nil
+}
+
+// reach notes that the pass under way asked for document id.
+func (d *docs) reach(id DocID) {
+	if !d.reached[id] {
+		d.reached[id] = true
+		d.fresh = append(d.fresh, id)
+	}
+}
+
+// takeFresh returns the documents reached since it last ran, and forgets them.
+func (d *docs) takeFresh() []DocID {
+	fresh := d.fresh
+	d.fresh = nil
+	return fresh
+}
+
+// writesOpenAPI reports whether root, a document's, is an OpenAPI Object: one
+// naming its version, which OAS 3.1 §4.3.1 lets a read detect a document by.
+func writesOpenAPI(view *nodeview.View, root *yaml.Node) bool {
+	_, ok := scalarOf(view.ChildByToken(nodeview.Deref(root), "openapi"))
+	return ok
+}
+
+// unread reports whether a read of name would be the first, one that a compile
+// reading other documents has yet to make.
+func (d *docs) unread(name string) bool {
+	_, opened := d.byName[name]
+	_, failed := d.failed[name]
+	return !opened && !failed && d.cfg.Open != nil
 }
 
 // path returns the nodes along p's pointer from its document's root, aliases
@@ -123,10 +182,7 @@ func (d *docs) node(p Position) *yaml.Node {
 // compare orders positions as a table reads them: the source's first,
 // another document's by its name, then by pointer (comparePositions).
 func (d *docs) compare(p, q Position) int {
-	if c, ok := byName(p, q, d.name); ok {
-		return c
-	}
-	return comparePositions(p, q)
+	return compareNamed(p, q, d.name)
 }
 
 // name returns the name of the document id names.
@@ -140,15 +196,28 @@ func (d *docs) rootState(id DocID) state {
 	return sRaw
 }
 
+// identityState is the state a document's root is read at for what its schemas
+// declare, and for the resource a position of it is in: the grammar's where it
+// is an OpenAPI document, which places them as the source does. Any other has no
+// grammar, so its mappings are schemas but for what a schema's keywords say is
+// not one, as OAS 3.1 §4.3.1 leaves such a document to the reader: its root may
+// be a schema, or a map of them under keys of its own.
+func (d *docs) identityState(id DocID) state {
+	if d.list[id].openapi {
+		return sDocument
+	}
+	return sLoose
+}
+
 // stateAt is the state the OpenAPI grammar reads p at where p is: its own
 // document's, not that of a reference read through on the way.
 func (d *docs) stateAt(p Position) state {
 	return stateOf(d.rootState(p.Doc), slices.Collect(p.Pointer.Tokens()))
 }
 
-// refOf is the $ref n carries, read through id's view as the source writes it,
-// and whether it carries a string one: a null $ref is none, as the parser
-// reads it.
+// refOf is the $ref n carries, read through id's view as the model reads the
+// mapping, a `<<` merging one in included, and whether it carries a string one:
+// a null $ref is none, as the parser reads it.
 func (d *docs) refOf(id DocID, n *yaml.Node) (string, bool) {
 	if n = nodeview.Deref(n); n == nil || n.Kind != yaml.MappingNode {
 		return "", false
@@ -156,11 +225,6 @@ func (d *docs) refOf(id DocID, n *yaml.Node) (string, bool) {
 	v := nodeview.Deref(d.list[id].view.ChildByToken(n, "$ref"))
 	if v == nil || v.Kind != yaml.ScalarNode || v.Tag == "!!null" {
 		return "", false
-	}
-	if d.cfg.Written != nil {
-		if written, ok := d.cfg.Written(v); ok {
-			return written, true
-		}
 	}
 	return v.Value, true
 }
@@ -171,54 +235,6 @@ type reading struct {
 	at    Position
 	node  *yaml.Node
 	state state
-}
-
-// read reads pointer from the root of document id, as RFC 6901 reads it, and
-// through each reference object it passes, into what that names (through).
-func (d *docs) read(id DocID, pointer jsontext.Pointer) (reading, Reason) {
-	return d.readFrom(id, pointer, 0, nil)
-}
-
-// readFrom is read, having passed passes reference objects already. Given a
-// node to reach, it stops at the first position holding it, and names nothing
-// where none does. The pointer read so far is kept as bytes and spelled into
-// the reading only where one is passed on or returned, so a read costs its
-// pointer's length rather than its square.
-func (d *docs) readFrom(id DocID, pointer jsontext.Pointer, passes int, want *yaml.Node) (reading, Reason) {
-	r := reading{at: Position{Doc: id}, node: d.list[id].root, state: d.rootState(id)}
-	var soFar []byte
-	tokens := 0
-	for token := range pointer.Tokens() {
-		if tokens++; tokens > maxPointerTokens || !d.work.spend(1) {
-			return r.spelledAs(soFar), NoTarget
-		}
-		if referenceKinds[r.state] && d.writesRef(r) {
-			var reason Reason
-			if r, reason = d.through(r.spelledAs(soFar), passes); reason != NoReason {
-				return r, reason
-			}
-			soFar = append(soFar[:0], r.at.Pointer...)
-		}
-		if want != nil && nodeview.Deref(r.node) == want {
-			return r.spelledAs(soFar), NoReason
-		}
-		child := d.child(r.at.Doc, r.node, token)
-		if child == nil {
-			return r.spelledAs(soFar), d.absent(r.at.Doc, r.node)
-		}
-		soFar = append(soFar, jsontext.Pointer("").AppendToken(token)...)
-		r = reading{at: Position{Doc: r.at.Doc}, node: child, state: step(r.state, token)}
-	}
-	if want != nil && nodeview.Deref(r.node) != want {
-		return r.spelledAs(soFar), NoTarget
-	}
-	return r.spelledAs(soFar), NoReason
-}
-
-// writesRef reports whether r holds a $ref through would read on through.
-func (d *docs) writesRef(r reading) bool {
-	ref, ok := d.refOf(r.at.Doc, r.node)
-	return ok && ref != ""
 }
 
 // spelledAs is r at the pointer spelled in b.
@@ -255,36 +271,6 @@ func isIndex(token string) bool {
 		return false
 	}
 	return strings.Trim(token, "0123456789") == ""
-}
-
-// through carries r on to what the reference object at r names, where the
-// parser's resolver ended its chain (Config.Through), read at the same state:
-// a pointer through a response reads on in the response it names. The end is
-// read as any pointer is, through the reference objects it lies past, up to
-// the node the chain reached (ReferenceEnd, and
-// docs/parser-library.md#trailing-empty-token). An object writing no $ref is read
-// where it is, in whichever document.
-func (d *docs) through(r reading, passes int) (reading, Reason) {
-	if !d.writesRef(r) {
-		return r, NoReason
-	}
-	if d.cfg.Through == nil || passes >= maxPasses {
-		return r, Unpassable
-	}
-	e, ok := d.cfg.Through(d.list[r.at.Doc].name, r.at.Pointer)
-	if !ok {
-		return r, Unpassable
-	}
-	id, err := d.open(e.Name)
-	if err != nil {
-		return r, Unpassable
-	}
-	end, reason := d.readFrom(id, e.Pointer, passes+1, nodeview.Deref(e.Node))
-	if reason != NoReason {
-		return r, Unpassable
-	}
-	end.state = r.state
-	return end, NoReason
 }
 
 // schemaShaped reports whether n can be read as a schema: a mapping, or a

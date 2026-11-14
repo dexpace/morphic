@@ -1,9 +1,14 @@
 openapi: 3.1.0
-info: {title: YamlTimestampScalars, version: "1.0.0"}
+# A string field is the second place an unquoted date stands, and the model of
+# the parser reads one as left out unless the load phase tags it a string.
+info:
+  title: YamlTimestampScalars
+  version: 2021-01-01
 paths:
   /items:
     get:
       operationId: getItem
+      summary: 2021-01-01
       responses:
         "200":
           description: ok

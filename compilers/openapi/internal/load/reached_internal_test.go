@@ -4,6 +4,7 @@
 package load
 
 import (
+	"cmp"
 	"context"
 	"encoding/json/jsontext"
 	"errors"
@@ -14,7 +15,6 @@ import (
 	"testing"
 
 	"github.com/speakeasy-api/openapi/marshaller"
-	soa "github.com/speakeasy-api/openapi/openapi"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	yaml "go.yaml.in/yaml/v3"
@@ -26,16 +26,19 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/nodeview"
 	"github.com/dexpace/morphic/compilers/openapi/internal/oas"
-	"github.com/dexpace/morphic/compilers/openapi/internal/overlay"
+	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
+	"github.com/dexpace/morphic/compilers/openapi/internal/provenance"
 	"github.com/dexpace/morphic/engine/reader"
 	"github.com/dexpace/morphic/ir"
 )
 
 // externalDir writes files, name to content, into a fresh directory for a root
-// to reach, and returns the directory.
+// to reach, and returns the directory, its links resolved, as a compile names
+// the files in it.
 func externalDir(t *testing.T, files map[string]string) string {
 	t.Helper()
-	dir := t.TempDir()
+	dir, err := filepath.EvalSymlinks(t.TempDir())
+	require.NoError(t, err)
 	for name, content := range files {
 		writeFile(t, dir, name, content)
 	}
@@ -120,92 +123,24 @@ func TestReached_ChargeHoldsADocumentToWhatItHasLeft(t *testing.T) {
 	assert.Equal(t, diag.BudgetExceeded, d[0].Code)
 }
 
-// reachedFixtureOther, reachedFixtureThird and reachedFixtureRoot exercise
-// reachedNode and targetOf through a real, resolved document: a schema
-// reference to an object, one to a boolean (nothing but its value), a path
-// item, a path item whose chain stops at a pointer naming nothing, a response
-// whose chain loops, a chain through two documents, and internal references
-// that stay in the source or leave it.
-const reachedFixtureOther = `openapi: 3.1.0
-info: {title: O, version: "1"}
-paths:
-  /x:
-    get:
-      operationId: getX
-      responses: {"200": {description: ok}}
-  /stops: {$ref: "#/paths/~1missing"}
-components:
-  schemas:
-    Obj: {type: object, properties: {inner: {type: string}}}
-    AnyBool: true
-    Hop: {$ref: "./third.yaml#/components/schemas/Leaf"}
-  responses:
-    Loop: {$ref: "#/components/responses/Back"}
-    Back: {$ref: "#/components/responses/Loop"}
-`
-
-const reachedFixtureThird = `components:
-  schemas:
-    Leaf: {type: string}
-`
-
-const reachedFixtureRoot = `openapi: 3.1.0
-info: {title: T, version: "1"}
-paths:
-  /x: {$ref: "./other.yaml#/paths/~1x"}
-  /stops: {$ref: "./other.yaml#/paths/~1stops"}
-components:
-  schemas:
-    S: {$ref: "./other.yaml#/components/schemas/Obj"}
-    Bool: {$ref: "./other.yaml#/components/schemas/AnyBool"}
-    Chained: {$ref: "./other.yaml#/components/schemas/Hop"}
-    Local: {type: string}
-    ToLocal: {$ref: "#/components/schemas/Local"}
-    ToS: {$ref: "#/components/schemas/S"}
-  responses:
-    Loops: {$ref: "./other.yaml#/components/responses/Loop"}
-`
-
-// reachedFixtureDoc loads reachedFixtureRoot beside the documents it names
-// and returns the resolved document and the directory they are in.
-func reachedFixtureDoc(t *testing.T) (*soa.OpenAPI, string) {
-	t.Helper()
-	dir := externalDir(t, map[string]string{"other.yaml": reachedFixtureOther, "third.yaml": reachedFixtureThird})
-	got, _ := loadExternal(t, dir, reachedFixtureRoot, Options{})
-	return got.Doc, dir
-}
-
-// TestTargetOf covers which reference objects reach an object, and the
-// document each names: the one its chain ends in, not the one it first leaves
-// for. One whose chain ends on no object reaches nothing.
-func TestTargetOf(t *testing.T) {
-	t.Parallel()
-	doc, dir := reachedFixtureDoc(t)
-	x, ok := doc.Paths.Get("/x")
-	require.True(t, ok)
-	stops, ok := doc.Paths.Get("/stops")
-	require.True(t, ok)
-
-	got, ok := targetOf("/site", x, nil)
-	require.True(t, ok)
-	assert.Equal(t, filepath.Join(dir, "other.yaml"), got.doc)
-	assert.False(t, got.inSource)
-	assert.Equal(t, jsontext.Pointer("/site"), got.site)
-	assert.NotNil(t, got.node)
-	assert.Equal(t, oas.PathItem, got.kind)
-	_, ok = targetOf("/site", stops, nil)
-	assert.False(t, ok, "/stops reaches no object")
-}
-
 // TestBuiltTargets covers which schemas built for the bindings' landings are
 // validated, and where: one a $ref's chain reaches, at the least such $ref and
 // named by its document, in the source or not, placed in the document writing
 // that $ref, and read where it lands. One no $ref reaches, one that failed to
-// build and a boolean schema are none.
+// build and a boolean schema are none, but a value the parser read as false
+// though it is no schema is one, read as written, unless nothing is written
+// where it is or it is the rest of the tuple its site writes, which its
+// `items` judges.
 func TestBuiltTargets(t *testing.T) {
 	t.Parallel()
 	built := buildRaw(t, "{type: object}")
-	place := func(p bind.Position) ir.Provenance { return ir.Provenance{Source: int(p.Doc) + 10, Pointer: p.Pointer} }
+	five := &yaml.Node{Kind: yaml.ScalarNode, Tag: "!!int", Value: "5"}
+	written := map[bind.Position]*yaml.Node{
+		{Pointer: "/x-lib/E"}:                         {Kind: yaml.ScalarNode, Tag: "!!bool", Value: "true"},
+		{Pointer: "/x-lib/G"}:                         five,
+		{Pointer: "/x-lib/T/additionalItems"}:         five,
+		{Doc: 1, Pointer: "/x-lib/T/additionalItems"}: five,
+	}
 	got := builtTargets([]typed.Built{
 		{Landing: bind.Landing{At: bind.Position{Pointer: "/x-lib/A"}, Name: "spec.yaml",
 			Site: bind.Position{Pointer: "/s"}, Reached: true}, Schema: built},
@@ -216,21 +151,81 @@ func TestBuiltTargets(t *testing.T) {
 		{Landing: bind.Landing{At: bind.Position{Doc: 1, Pointer: "/C"}, Name: "other.yaml"}, Schema: built},
 		{Landing: bind.Landing{At: bind.Position{Pointer: "/x-lib/D"}, Reached: true}, Err: errors.New("no")},
 		{Landing: bind.Landing{At: bind.Position{Pointer: "/x-lib/E"}, Reached: true}, Schema: buildRaw(t, "true")},
-	}, place, func(id bind.DocID) string { return fmt.Sprintf("doc%d.yaml", id) })
+		{Landing: bind.Landing{At: bind.Position{Pointer: "/x-lib/G"}, Site: bind.Position{Pointer: "/g"}, Reached: true},
+			Schema: buildRaw(t, "false")},
+		{Landing: bind.Landing{At: bind.Position{Pointer: "/x-lib/H"}, Reached: true}, Schema: buildRaw(t, "false")},
+		{Landing: bind.Landing{At: bind.Position{Pointer: "/x-lib/T/additionalItems"}, Site: bind.Position{Pointer: "/x-lib/T"},
+			Reached: true}, Schema: buildRaw(t, "false")},
+		{Landing: bind.Landing{At: bind.Position{Doc: 1, Pointer: "/x-lib/T/additionalItems"},
+			Site: bind.Position{Pointer: "/x-lib/T"}, Reached: true}, Schema: buildRaw(t, "false")},
+	}, func(id bind.DocID) string { return fmt.Sprintf("doc%d.yaml", id) },
+		func(p bind.Position) *yaml.Node { return written[p] })
 
-	require.Len(t, got, 3)
-	assert.Equal(t, reachedTarget{site: "/s", kind: oas.Schema, node: built.GetSchema().GetRootNode(), doc: "spec.yaml",
-		inSource: true, home: refSite{doc: "doc0.yaml", pointer: "/x-lib/A"}}, got[0])
-	assert.Equal(t, jsontext.Pointer("/t"), got[1].site)
-	assert.Equal(t, refSite{doc: "doc1.yaml", pointer: "/B"}, got[1].home, "read where it lands, in that document")
-	assert.Equal(t, "other.yaml", got[1].doc)
-	assert.False(t, got[1].inSource)
-	assert.Nil(t, got[1].place, "a $ref the source writes is placed as the source's")
-	assert.Equal(t, jsontext.Pointer("/u"), got[2].site)
-	require.NotNil(t, got[2].place, "a $ref only another document writes")
-	assert.Equal(t, ir.Provenance{Source: 11, Pointer: "/u"}, got[2].place("/u"), "placed in that document")
-	assert.Equal(t, "doc1.yaml", got[2].siteDoc, "and ordered by its name")
-	assert.Empty(t, got[1].siteDoc)
+	require.Len(t, got, 5)
+	assert.Equal(t, reachedTarget{site: bind.Position{Pointer: "/g"}, at: bind.Position{Pointer: "/x-lib/G"},
+		kind: oas.Schema, node: five, doc: "doc0.yaml"}, got[3], "a number is no schema, which the check reports")
+	assert.Equal(t, bind.Position{Doc: 1, Pointer: "/x-lib/T/additionalItems"}, got[4].at,
+		"another document's position is no rest of the tuple its site writes")
+	assert.Equal(t, reachedTarget{site: bind.Position{Pointer: "/s"}, at: bind.Position{Pointer: "/x-lib/A"},
+		kind: oas.Schema, node: built.GetSchema().GetRootNode(), doc: "doc0.yaml"}, got[0])
+	assert.True(t, got[0].inSource())
+	assert.Equal(t, bind.Position{Pointer: "/t"}, got[1].site, "a $ref the source writes places it")
+	assert.Equal(t, bind.Position{Doc: 1, Pointer: "/B"}, got[1].at, "read where it lands, in that document")
+	assert.Equal(t, "doc1.yaml", got[1].doc)
+	assert.False(t, got[1].inSource())
+	assert.Equal(t, bind.Position{Doc: 1, Pointer: "/u"}, got[2].site, "a $ref only another document writes places it")
+}
+
+// TestObjectTargets covers which object landings are validated, and where: one
+// a reference object's chain reaches, at the least such reference, as the kind
+// the landing is read as, the node written there. One no reference reaches and
+// one where nothing is written are none.
+func TestObjectTargets(t *testing.T) {
+	t.Parallel()
+	param := &yaml.Node{Kind: yaml.MappingNode}
+	written := map[bind.Position]*yaml.Node{{Pointer: "/x-params/q"}: param, {Doc: 1, Pointer: "/q"}: param}
+	got := objectTargets([]bind.ObjectLanding{
+		{At: bind.Position{Pointer: "/x-params/q"}, Kind: bind.RefParameter, Name: "spec.yaml",
+			Site: bind.Position{Pointer: "/p"}, Reached: true},
+		{At: bind.Position{Doc: 1, Pointer: "/q"}, Kind: bind.RefHeader, Name: "other.yaml",
+			Site: bind.Position{Doc: 1, Pointer: "/h"}, Reached: true},
+		{At: bind.Position{Pointer: "/x-params/unreached"}, Kind: bind.RefParameter, Name: "spec.yaml"},
+		{At: bind.Position{Pointer: "/x-params/gone"}, Kind: bind.RefParameter, Name: "spec.yaml", Reached: true},
+	}, func(p bind.Position) *yaml.Node { return written[p] })
+
+	assert.Equal(t, []reachedTarget{
+		{site: bind.Position{Pointer: "/p"}, at: bind.Position{Pointer: "/x-params/q"}, kind: oas.Parameter, node: param,
+			doc: "spec.yaml"},
+		{site: bind.Position{Doc: 1, Pointer: "/h"}, at: bind.Position{Doc: 1, Pointer: "/q"}, kind: oas.Header,
+			node: param, doc: "other.yaml"},
+	}, got)
+}
+
+// TestObjectKinds_NamesTheRuleTablesKindOfEach pins that every kind of object a
+// reference object can stand for is held to the rule table as that kind.
+func TestObjectKinds_NamesTheRuleTablesKindOfEach(t *testing.T) {
+	t.Parallel()
+	want := map[bind.RefKind]oas.Kind{
+		bind.RefPathItem: oas.PathItem, bind.RefParameter: oas.Parameter, bind.RefHeader: oas.Header,
+		bind.RefRequestBody: oas.RequestBody, bind.RefResponse: oas.Response, bind.RefCallback: oas.Callback,
+		bind.RefExample: oas.Example, bind.RefLink: oas.Link, bind.RefSecurityScheme: oas.SecurityScheme,
+		bind.RefMediaType: oas.MediaType,
+	}
+	assert.Equal(t, want, objectKinds)
+}
+
+// TestWrittenIn_ReadsTheNodeAtAPosition pins what writtenIn reads at a
+// position of a bound document: the node written there, an alias followed,
+// and nil where the pointer names nothing.
+func TestWrittenIn_ReadsTheNodeAtAPosition(t *testing.T) {
+	t.Parallel()
+	root := openapitest.YAMLDocument(t, "openapi: 3.1.0\nx-a: &a 5\nx-b: *a\n")
+	table := bind.Bind(t.Context(), root, bind.Config{Self: "spec.yaml"})
+	view := nodeview.New()
+	five := writtenIn(view, table, bind.Position{Pointer: "/x-b"})
+	require.NotNil(t, five)
+	assert.Equal(t, "5", five.Value, "the alias's anchor")
+	assert.Nil(t, writtenIn(view, table, bind.Position{Pointer: "/x-c/d"}), "nothing is written there")
 }
 
 // buildRaw decodes src, YAML, as the bindings build a schema for a landing.
@@ -242,85 +237,6 @@ func buildRaw(t *testing.T, src string) *schemaRef {
 	_, err := marshaller.UnmarshalNode(t.Context(), "", n.Content[0], js)
 	require.NoError(t, err)
 	return js
-}
-
-// TestReachedNode covers every outcome of reachedNode: a reference object
-// resolving to an object, a chain that ends on no object, and a resolvable
-// that cannot say what it names, which no real document produces, so a fake
-// drives it.
-func TestReachedNode(t *testing.T) {
-	t.Parallel()
-	doc, _ := reachedFixtureDoc(t)
-
-	t.Run("a reference object resolving to an object", func(t *testing.T) {
-		t.Parallel()
-		ref, ok := doc.Paths.Get("/x")
-		require.True(t, ok)
-		node, ok := reachedNode(ref)
-		assert.True(t, ok)
-		assert.Same(t, nodeview.Deref(ref.GetObject().GetRootNode()), node)
-	})
-
-	stops, ok := doc.Paths.Get("/stops")
-	require.True(t, ok)
-	loops, ok := doc.Components.Responses.Get("Loops")
-	require.True(t, ok)
-	for name, ref := range map[string]resolvable{"stops": stops, "loops": loops} {
-		t.Run("a chain that "+name+" ends on no object", func(t *testing.T) {
-			t.Parallel()
-			require.True(t, ref.IsResolved(), "the resolver marks it resolved, with nothing at its end")
-			node, ok := reachedNode(ref)
-			assert.False(t, ok)
-			assert.Nil(t, node)
-		})
-	}
-
-	t.Run("a resolvable that cannot say what it names names nothing to check", func(t *testing.T) {
-		t.Parallel()
-		_, ok := reachedNode(fakeResolvable{ref: "other.yaml#/x", resolved: true})
-		assert.False(t, ok)
-	})
-}
-
-// TestKindOf covers the kind each reference object expects, and that a
-// resolvable the table has no kind for expects none.
-func TestKindOf(t *testing.T) {
-	t.Parallel()
-	for want, ref := range map[oas.Kind]resolvable{
-		oas.PathItem: &soa.ReferencedPathItem{}, oas.Parameter: &soa.ReferencedParameter{},
-		oas.Header: &soa.ReferencedHeader{}, oas.RequestBody: &soa.ReferencedRequestBody{},
-		oas.Response: &soa.ReferencedResponse{}, oas.Example: &soa.ReferencedExample{},
-		oas.Link: &soa.ReferencedLink{}, oas.Callback: &soa.ReferencedCallback{},
-		oas.SecurityScheme: &soa.ReferencedSecurityScheme{},
-	} {
-		got, ok := kindOf(ref)
-		assert.True(t, ok, "%T", ref)
-		assert.Equal(t, want, got, "%T", ref)
-	}
-	_, ok := kindOf(fakeResolvable{})
-	assert.False(t, ok)
-}
-
-// TestCheckReached_APanicReadingTheWalkIsReported pins the barrier around the
-// walk: a panic in it is reported at the root, and nothing is checked.
-func TestCheckReached_APanicReadingTheWalkIsReported(t *testing.T) {
-	t.Parallel()
-	doc := parseSpec(t, minimal31)
-	item := fakeWalkItem("x", fakeResolvable{ref: "other.yaml#/x", resolved: true})
-	items := func(yield func(soa.WalkItem) bool) {
-		if yield(item) {
-			panic("walk boom")
-		}
-	}
-
-	diags := checkReached(t.Context(), pointerAt(0, overlay.Origin{}), items, nil,
-		newReached(doc, Options{}, sourceTree{}, judgment{}))
-
-	require.Len(t, diags, 1, "%+v", diags)
-	assert.Equal(t, diag.Validation, diags[0].Code)
-	assert.Equal(t, ir.SeverityError, diags[0].Severity)
-	assert.Equal(t, "validation panicked: walk boom", diags[0].Message)
-	assert.Equal(t, jsontext.Pointer(""), diags[0].Provenance.Pointer)
 }
 
 // TestLoad_ExternalRefResolutionErrors pins how a finding inside a document an
@@ -373,17 +289,47 @@ func TestReached_CheckAllStopsOnceTheContextIsDone(t *testing.T) {
 	var node yaml.Node
 	require.NoError(t, yaml.Unmarshal([]byte("{name: p}"), &node))
 	targets := map[objectKey]reachedTarget{
-		{node: node.Content[0], kind: oas.Parameter}: {site: "/x", kind: oas.Parameter, node: node.Content[0], doc: "other.yaml"},
+		{node: node.Content[0], kind: oas.Parameter}: {site: bind.Position{Pointer: "/x"}, kind: oas.Parameter,
+			node: node.Content[0], doc: "other.yaml"},
 	}
-	at := pointerAt(0, overlay.Origin{})
+	sites := places{}
 	cancelled, cancel := context.WithCancel(t.Context())
 	cancel()
 
-	stopped := newReached(doc, Options{}, sourceTree{}, judgment{})
-	assert.Empty(t, stopped.checkAll(cancelled, at, targets))
+	stopped := newReached(doc, Options{}, provenance.Tree{}, judgment{checker: oas.NewChecker()})
+	assert.Empty(t, stopped.checkAll(cancelled, sites, targets, comparePositionsForTest))
 	assert.Empty(t, stopped.spans, "no target was charged")
 
-	live := newReached(doc, Options{}, sourceTree{}, judgment{})
-	assert.NotEmpty(t, live.checkAll(t.Context(), at, targets), "a parameter with no `in` is found wanting")
+	live := newReached(doc, Options{}, provenance.Tree{}, judgment{checker: oas.NewChecker()})
+	assert.NotEmpty(t, live.checkAll(t.Context(), sites, targets, comparePositionsForTest), "a parameter with no `in` is found wanting")
 	assert.NotEmpty(t, live.spans)
+}
+
+// comparePositionsForTest orders positions by document, then pointer, as a
+// table orders positions of one document.
+func comparePositionsForTest(p, q bind.Position) int {
+	if c := cmp.Compare(p.Doc, q.Doc); c != 0 {
+		return c
+	}
+	return cmp.Compare(p.Pointer, q.Pointer)
+}
+
+// TestReached_ASchemaTheSourceWritesUnmodelledIsJudgedInItsRows pins a value
+// of a schema the source writes where the parser models none, an extension's
+// content, which a $ref reaches: the source's own check reads no schema there,
+// so the check of what references reach judges it, in the source's rows.
+func TestReached_ASchemaTheSourceWritesUnmodelledIsJudgedInItsRows(t *testing.T) {
+	t.Parallel()
+	src := "openapi: 3.1.0\ninfo: {title: T, version: '1'}\npaths: {}\n" +
+		"x-defs: {A: {type: integer, exclusiveMinimum: true}}\n" +
+		"components:\n  schemas:\n    S: {$ref: '#/x-defs/A'}\n"
+	_, diags, err := Load(t.Context(), 0, compilers.Source{Path: "s.yaml", Data: []byte(src)}, Options{})
+	require.NoError(t, err)
+	var at []jsontext.Pointer
+	for _, d := range diags {
+		if d.Code == diag.ExclusiveBoundForm {
+			at = append(at, d.Provenance.Pointer)
+		}
+	}
+	assert.Equal(t, []jsontext.Pointer{"/x-defs/A/exclusiveMinimum"}, at)
 }

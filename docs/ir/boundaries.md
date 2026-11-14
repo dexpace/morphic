@@ -7,25 +7,32 @@ is one an `Unmodeled` [reason](./unmodeled.md#reasons) names.
 
 JSON Schema's `not`, `if`/`then`/`else`, `dependentSchemas`, `dependentRequired`,
 `contains`/`minContains`/`maxContains`, `propertyNames`, `unevaluatedItems`, and
-`unevaluatedProperties` express *validation logic*, not data shape; no target language's type
-system represents them, and none of the other source formats has an equivalent. The IR
-deliberately does not model them structurally. Compilers keep them verbatim in `Unmodeled`
+`unevaluatedProperties`, and the earlier drafts' `dependencies`, which 2019-09 split into
+`dependentSchemas` and `dependentRequired`, express *validation logic*, not data shape; no target
+language's type system represents them, and none of the other source formats has an equivalent.
+The IR deliberately does not model them structurally. Compilers keep them verbatim in `Unmodeled`
 (`openapi:not`, `openapi:if-then-else`, `openapi:contains`, …) under `ReasonValidationOnly` and
 emit an `info` diagnostic, so the information is never silently lost and a future
 validation-oriented emitter (request validators, mock servers) can still consume them — selecting
 on the reason rather than sifting vendor metadata out of the same bag
-([unmodeled](./unmodeled.md#reasons)). The one structural carve-back: `unevaluatedProperties: false`
-is *shape* (a closed model after composition) and lowers to
-`Model.Additional = closed_after_composition`. Every other `unevaluated*` form stays verbatim,
-`unevaluatedProperties` with a schema value included. `propertyNames` is not a second carve-back
-onto `AdditionalProps.Key`: it constrains *every* key of the object, including the ones `properties`
-declares — where there is no `AdditionalProps` to hold a key type at all — and it is a whole schema
-rather than a type, so only its degenerate `{type: string}` form names one.
+([unmodeled](./unmodeled.md#reasons)). The one structural carve-back: a live
+`unevaluatedProperties: false` is *shape* (a closed model after composition) and lowers to
+`Model.Additional = closed_after_composition` where a model holds it. Every other `unevaluated*`
+form stays verbatim: `unevaluatedProperties` with a schema value, a `false` no model holds, and one
+a keyword beside it leaves inert, as `additionalProperties` leaves `unevaluatedProperties` and
+`items` leaves `unevaluatedItems`, each evaluating every location the other could apply to. An
+inert one is kept with that keyword, so the entry, read beside what its position states, means what
+the source means: nothing. Read as a schema of its own an `unevaluated*` entry means something
+else, as what it applies to depends on the keywords beside it. `propertyNames` is not a second
+carve-back onto `AdditionalProps.Key`: it constrains *every* key of the object, including the ones
+`properties` declares — where there is no `AdditionalProps` to hold a key type at all — and it is a
+whole schema rather than a type, so only its degenerate `{type: string}` form names one.
 
 Two neighbouring keyword groups are *not* part of this boundary — the content vocabulary
 (`contentEncoding`, `contentMediaType`, `contentSchema`) and the keywords that identify a schema
-resource (`$id`, `$schema`, `$vocabulary`) — and neither is `$dynamicRef`. How the OpenAPI compiler
-lowers each is stated with its rules:
+resource (`$id`, draft 4's `id`, `$schema`, `$vocabulary`) — and neither is `$dynamicRef`, nor
+JSON Schema 2019-09's `$recursiveRef`. How the
+OpenAPI compiler lowers each is stated with its rules:
 [`content-vocabulary`](../compilers/openapi.md#content-vocabulary),
 [`dialect-keywords`](../compilers/openapi.md#dialect-keywords) and
 [`dynamic-ref`](../compilers/openapi.md#dynamic-ref).
@@ -52,14 +59,18 @@ are ([`whole-schema-fallbacks`](../compilers/openapi.md#whole-schema-fallbacks),
 `allOf` branch [`allof-false-branch`](../compilers/openapi.md#allof-false-branch)).
 
 - **JSON Schema shapes** — `oneOf`/`anyOf` co-declared with structural keywords that cannot be
-  distributed, competing keywords at one position, an inline `allOf` branch declaring more than the
-  merge consumes, a redeclared property the merge cannot fold whole, and a shape applicator the
+  distributed, competing keywords at one position, an inline `allOf` branch declaring what no reader
+  consumes, a redeclared property the merge cannot fold whole, and a shape applicator the
   lowered node cannot carry. Each is a rule of the OpenAPI compiler:
   [`union-beside-structure`](../compilers/openapi.md#union-beside-structure),
   [`competing-keywords`](../compilers/openapi.md#competing-keywords),
   [`allof-inline-residue`](../compilers/openapi.md#allof-inline-residue),
   [`allof-redeclared-property`](../compilers/openapi.md#allof-redeclared-property) and
   [`shape-applicator`](../compilers/openapi.md#shape-applicator).
+- **Counts past 64 bits** — a count `Constraints` holds is an `int64` from 0 to 2^63−1
+  ([constraints](./constraints.md#constraints)), and a source count past that has no field. It is
+  kept verbatim under `ReasonDegradedLowering` with an `info` diagnostic where it is written: the
+  OpenAPI compiler's rule is [`constraints`](../compilers/openapi.md#constraints).
 - **TypeSpec `never`-typed properties/variants** — no `never` node exists, so compilers delete
   the member and emit an `info` diagnostic. Nothing is preserved beside it: a `never` member
   admits no value, so there is no content the deletion could lose.
@@ -102,7 +113,16 @@ simply absent from the IR and preserve nothing.
   never folded into `LongRunning`; promoted to a typed node only if a second format lands.
 - **TCGC-style client-shaping decorators** (`@clientName`, `@access`, `@usage`, `@scope`, …) —
   per-language SDK-surface policy, preserved as namespaced entries for emitter policy layers
-  ([access](#access) says why `@access` is one and `TypeCommon.Access` is not).
+  ([access](#access) says why `@access` is one and `TypeCommon.Access` is not). A vendor extension
+  stating an operation's sub-client paths, its own or its aliases', is the one such hint a compiler
+  reads, and only into the grouping it forms by policy anyway: an OpenAPI `OperationGroup` is a
+  grouping strategy's output, not a declaration, so a strategy reading a declared path changes which
+  fact feeds it, not what the IR models
+  ([`extension-groups`](../compilers/openapi.md#extension-groups)). The reading is opt-in and marks
+  each operation it files `Inferred`, while a group no operation is filed in, as one only an alias
+  names, carries no mark, since a group has no provenance. The extension stays a `vendor_extension`
+  entry, and every other client-shaping key, a method name and the remount placing an operation
+  under an alias among them, is left to an emitter's policy layer.
 - **Arbitrary GraphQL persisted queries** — the type graph and entry points are retained; query
   composition is a emitters/runtime feature.
 - **Capability/interface-typed fields** (Cap'n Proto capability passing) — requires
@@ -116,11 +136,14 @@ simply absent from the IR and preserve nothing.
   artifact given IR-wide status against invariant 9. TypeSpec's `&` is *model-only*
   (`ir-spec-matrix.md`'s Intersection row records it as `⚠ & (model is)`) and so is already covered
   by `Base`/`Mixins` ([models](./models.md#composition)); Smithy, GraphQL, Protobuf and Erlang/OTP
-  cannot express it at all. The shape is instead handled where it arises: distributed across the
-  union's variants per [models](./models.md#composition-beside-a-union) when every branch names a
-  referent, and kept verbatim under `ReasonDegradedLowering` in the five residual shapes
-  [`union-beside-structure`](../compilers/openapi.md#union-beside-structure) lists. A second format
-  that declares a genuine intersection — not a model-only `&` — is what would reopen this.
+  cannot express it at all. The shape is instead handled where it arises: read as the union alone
+  where the structural keywords say nothing its branches do not, distributed across the union's
+  variants per [models](./models.md#composition-beside-a-union) when every branch names a
+  referent, and kept verbatim under `ReasonDegradedLowering` in the residual shapes
+  [`union-beside-structure`](../compilers/openapi.md#union-beside-structure) lists. Where an `allOf`
+  names the union by reference instead, `Base`/`Mixins` already state the conjunction
+  ([models](./models.md#a-union-a-composition-names)). A second format that declares a genuine
+  intersection — not a model-only `&` — is what would reopen this.
 
 ## Access
 

@@ -26,12 +26,12 @@ func TestAttachDeclaredAnnotations_LeavesANodeStillBeingBuiltToItsBuilder(t *tes
 
 	var midBuild []ir.Diagnostic
 	id := internNode(l.Ctx, l.Types, at, func(cm ir.TypeCommon) ir.TypeDef {
-		require.NotPanics(t, func() { midBuild = attachDeclaredAnnotations(l.Ctx, l.Types, s, at) })
+		require.NotPanics(t, func() { midBuild = attachDeclaredAnnotations(l.Ctx, l.Types, s, at, ir.TypeRef{}) })
 		return &ir.Model{TypeCommon: cm}
 	})
 	assert.Empty(t, midBuild, "a revisit mid-build reports nothing")
 
-	assert.Empty(t, attachDeclaredAnnotations(l.Ctx, l.Types, s, at))
+	assert.Empty(t, attachDeclaredAnnotations(l.Ctx, l.Types, s, at, ir.TypeRef{}))
 	td, ok := l.Types.Node(id)
 	require.True(t, ok)
 	assert.Equal(t, "kept", td.Common().Docs.Description, "the builder's own pass attaches it")

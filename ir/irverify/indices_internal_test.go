@@ -133,6 +133,7 @@ func TestIndexCarrierFields_MatchTheIRShape(t *testing.T) {
 var integerFields = map[string]string{
 	"HTTPBinding.SuccessStatus": "keys index Operation.Responses; bounds-checked by checkIndices",
 	"Provenance.Source":         "index into Document.Sources; bounds-checked by checkProvenance",
+	"Provenance.WrittenBy":      "index into Document.Sources, 0 for none; checkProvenance holds it to an overlay entry",
 
 	// Deliberately unchecked. Index selects an element of the tuple a variant or
 	// subtype happens to be, so the slice it addresses is not fixed by the
@@ -167,6 +168,8 @@ var integerFields = map[string]string{
 	"frame.num":         "the order a flattening met a model in, not a position in any IR slice",
 	"frame.low":         "Tarjan's low-link of a model a flattening met, not a position in any IR slice",
 	"frame.since":       "how many models a flattening had finished, a length of its own list, not a position",
+	"narrowState.at":    "where a union sits in a narrowing walk's own list of variants to read, not a position in any IR slice",
+	"walked.steps":      "how much a narrowing walk has read, not a position",
 	"loggedPath.shared": "how many steps a kept path shares with the one kept before it, not a position in any IR slice",
 	"loggedPath.end":    "where a kept path's own steps end in its log's storage, not a position in any IR slice",
 

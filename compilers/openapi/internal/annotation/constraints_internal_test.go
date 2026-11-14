@@ -21,7 +21,7 @@ import (
 
 func TestConstraints_NilSchema(t *testing.T) {
 	t.Parallel()
-	c, kept, diags := Constraints(nil, false, "/p", sourced(0))
+	c, kept, diags := Constraints(nil, AllBounds, false, "/p", sourced(0))
 	assert.Nil(t, c)
 	assert.Nil(t, kept)
 	assert.Nil(t, diags)
@@ -44,6 +44,7 @@ func TestCountIsExact(t *testing.T) {
 		{"integer past int64", "99999999999999999999", 0, false},
 		{"float past float64", "1e400", 0, false},
 		{"truncated fraction", "1.5", 1, false},
+		{"negative", "-1", -1, false},
 		{"no number", "many", 0, false},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -102,7 +103,7 @@ func TestConstraints_ReadsEveryScalarKeyword(t *testing.T) {
 	s := schemaFromYAML(t, "type: string\nminimum: 1\nmaximum: 9\nmultipleOf: 3\n"+
 		"minLength: 2\nmaxLength: 8\npattern: '^a'\nminProperties: 1\nmaxProperties: 4\n")
 
-	got, _, diags := Constraints(s, false, "/p", sourced(0))
+	got, _, diags := Constraints(s, AllBounds, false, "/p", sourced(0))
 
 	require.Empty(t, diags)
 	require.NotNil(t, got)
@@ -122,11 +123,11 @@ func TestConstraints_ReadsEveryScalarKeyword(t *testing.T) {
 // wrote.
 func TestConstraints_NothingDeclaredIsNilNotEmpty(t *testing.T) {
 	t.Parallel()
-	got, _, diags := Constraints(schemaFromYAML(t, "type: string\n"), false, "/p", sourced(0))
+	got, _, diags := Constraints(schemaFromYAML(t, "type: string\n"), AllBounds, false, "/p", sourced(0))
 	assert.Nil(t, got)
 	assert.Empty(t, diags)
 
-	got, _, diags = Constraints(nil, false, "/p", sourced(0))
+	got, _, diags = Constraints(nil, AllBounds, false, "/p", sourced(0))
 	assert.Nil(t, got)
 	assert.Nil(t, diags)
 }
@@ -138,7 +139,7 @@ func TestConstraints_KeepsTheExactLiteral(t *testing.T) {
 	t.Parallel()
 	s := schemaFromYAML(t, "type: number\nminimum: 9007199254740993\nmaximum: 0.30000000000000004\n")
 
-	got, _, diags := Constraints(s, false, "/p", sourced(0))
+	got, _, diags := Constraints(s, AllBounds, false, "/p", sourced(0))
 
 	require.Empty(t, diags)
 	require.NotNil(t, got)
@@ -146,21 +147,18 @@ func TestConstraints_KeepsTheExactLiteral(t *testing.T) {
 	assert.Equal(t, new(ir.BigVal("0.30000000000000004")), got.Max, "and a decimal it cannot represent")
 }
 
-// TestNumericBounds_AMalformedLiteralIsReportedNotDropped pins the error route.
-// The loader suppresses the library's own float64 type-mismatch on these
-// keywords, so this is the only diagnostic a bad bound gets: staying silent
-// would drop it with nothing said.
-func TestNumericBounds_AMalformedLiteralIsReportedNotDropped(t *testing.T) {
+// TestNumericBounds_AMalformedLiteralIsDropped pins what a bound no decimal
+// spells reads as: nothing, rather than half a bound. The rule table's check
+// reports it, at every schema it reads (docs/compilers/openapi.md#constraints),
+// so a reading here says nothing of it.
+func TestNumericBounds_AMalformedLiteralIsDropped(t *testing.T) {
 	t.Parallel()
 	for _, keyword := range []string{"minimum", "maximum", "multipleOf"} {
 		t.Run(keyword, func(t *testing.T) {
 			t.Parallel()
-			got, _, diags := Constraints(schemaFromYAML(t, "type: number\n"+keyword+": .inf\n"), false, "/p", sourced(0))
+			got, _, diags := Constraints(schemaFromYAML(t, "type: number\n"+keyword+": .inf\n"), AllBounds, false, "/p", sourced(0))
 
-			require.Len(t, diags, 1)
-			assert.Equal(t, ir.SeverityError, diags[0].Severity)
-			assert.Equal(t, diag.NumericPrecision, diags[0].Code)
-			assert.Contains(t, diags[0].Message, keyword)
+			assert.Empty(t, diags)
 			assert.Nil(t, got, "the bound is dropped rather than half-read")
 		})
 	}
@@ -198,7 +196,7 @@ func TestApplyExclusive_BothDialects(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			got, _, diags := Constraints(schemaFromYAML(t, "type: number\n"+tc.body), tc.exclusiveBoolean, "/p", sourced(0))
+			got, _, diags := Constraints(schemaFromYAML(t, "type: number\n"+tc.body), AllBounds, tc.exclusiveBoolean, "/p", sourced(0))
 
 			require.Empty(t, diags)
 			require.NotNil(t, got)
@@ -210,37 +208,32 @@ func TestApplyExclusive_BothDialects(t *testing.T) {
 	}
 }
 
-// TestApplyExclusive_TheWrongFormForTheDialectIsReported pins the mismatch. A
-// value in the other dialect's form carries no usable bound here, and the
-// loader suppressed the library's check on these keywords, so accepting it
-// silently would drop a constraint the source did write.
-func TestApplyExclusive_TheWrongFormForTheDialectIsReported(t *testing.T) {
+// TestApplyExclusive_TheWrongFormForTheDialectIsDropped pins the mismatch. A
+// value in the other dialect's form carries no usable bound here, so it sets
+// none, and the rule table's check reports it
+// (docs/compilers/openapi.md#constraints).
+func TestApplyExclusive_TheWrongFormForTheDialectIsDropped(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
 		name             string
 		body             string
 		exclusiveBoolean bool
-		wantSays         string
 	}{
 		{
 			name: "a number where 3.0 wants a boolean", exclusiveBoolean: true,
-			body: "minimum: 1\nexclusiveMinimum: 5\n", wantSays: "a boolean",
+			body: "minimum: 1\nexclusiveMinimum: 5\n",
 		},
 		{
 			name: "a boolean where 2020-12 wants a number", exclusiveBoolean: false,
-			body: "minimum: 1\nexclusiveMinimum: true\n", wantSays: "a number",
+			body: "minimum: 1\nexclusiveMinimum: true\n",
 		},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			got, _, diags := Constraints(schemaFromYAML(t, "type: number\n"+tc.body), tc.exclusiveBoolean, "/p", sourced(0))
+			got, _, diags := Constraints(schemaFromYAML(t, "type: number\n"+tc.body), AllBounds, tc.exclusiveBoolean, "/p", sourced(0))
 
-			require.Len(t, diags, 1)
-			assert.Equal(t, ir.SeverityError, diags[0].Severity)
-			assert.Equal(t, diag.ExclusiveBoundForm, diags[0].Code)
-			assert.Contains(t, diags[0].Message, tc.wantSays)
-			assert.Contains(t, diags[0].Message, "exclusiveMinimum")
+			assert.Empty(t, diags)
 			require.NotNil(t, got, "the sibling minimum is still read")
 			assert.Nil(t, got.ExclusiveMin, "the mismatched value sets no bound")
 			assert.Equal(t, new(ir.BigVal("1")), got.Min, "and it stays inclusive, unmoved")
@@ -248,16 +241,15 @@ func TestApplyExclusive_TheWrongFormForTheDialectIsReported(t *testing.T) {
 	}
 }
 
-// TestApplyExclusive_AMalformedNumericBoundIsReported pins the error route
-// through the 2020-12 arm, which reads its own bound off the raw node and so
-// has the same way to fail as minimum and maximum do.
-func TestApplyExclusive_AMalformedNumericBoundIsReported(t *testing.T) {
+// TestApplyExclusive_AMalformedNumericBoundIsDropped pins the 2020-12 arm, which
+// reads its own bound off the raw node and so has the same way to fail as
+// minimum and maximum do: the bound is dropped, and the rule table's check
+// reports it (docs/compilers/openapi.md#constraints).
+func TestApplyExclusive_AMalformedNumericBoundIsDropped(t *testing.T) {
 	t.Parallel()
-	got, _, diags := Constraints(schemaFromYAML(t, "type: number\nexclusiveMaximum: .inf\n"), false, "/p", sourced(0))
+	got, _, diags := Constraints(schemaFromYAML(t, "type: number\nexclusiveMaximum: .inf\n"), AllBounds, false, "/p", sourced(0))
 
-	require.Len(t, diags, 1)
-	assert.Equal(t, diag.NumericPrecision, diags[0].Code)
-	assert.Contains(t, diags[0].Message, "exclusiveMaximum")
+	assert.Empty(t, diags)
 	assert.Nil(t, got)
 }
 
@@ -326,7 +318,7 @@ func TestConstraints_CoDeclaredBoundsBothReachAField(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			got, kept, diags := Constraints(schemaFromYAML(t, "type: number\n"+tc.body), false, "/p", sourced(3))
+			got, kept, diags := Constraints(schemaFromYAML(t, "type: number\n"+tc.body), AllBounds, false, "/p", sourced(3))
 
 			require.NotNil(t, got)
 			if diff := cmp.Diff(tc.want, *got); diff != "" {
@@ -347,7 +339,7 @@ func TestConstraints_ABoundNoFloatHoldsIsCarriedVerbatim(t *testing.T) {
 	t.Parallel()
 	got, kept, diags := Constraints(schemaFromYAMLUnvalidated(t,
 		"type: number\nminimum: 1.0e2000000\nexclusiveMinimum: 5\nmaximum: 1e-1000001\nexclusiveMaximum: 5\n"),
-		false, "/p", sourced(0))
+		AllBounds, false, "/p", sourced(0))
 
 	require.NotNil(t, got)
 	want := ir.Constraints{
@@ -374,7 +366,7 @@ func TestConstraints_OneKeywordPerSideKeepsNothing(t *testing.T) {
 	} {
 		t.Run(body, func(t *testing.T) {
 			t.Parallel()
-			got, kept, diags := Constraints(schemaFromYAML(t, "type: number\n"+body), false, "/p", sourced(0))
+			got, kept, diags := Constraints(schemaFromYAML(t, "type: number\n"+body), AllBounds, false, "/p", sourced(0))
 
 			require.NotNil(t, got)
 			assert.Empty(t, diags)
@@ -418,7 +410,7 @@ func TestApplyExclusiveFlag_ThreeZeroModifierMovesTheBound(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			got, kept, diags := Constraints(schemaFromYAML(t, "type: number\n"+tc.body), true, "/p", sourced(0))
+			got, kept, diags := Constraints(schemaFromYAML(t, "type: number\n"+tc.body), AllBounds, true, "/p", sourced(0))
 
 			require.NotNil(t, got)
 			if diff := cmp.Diff(tc.want, *got); diff != "" {
@@ -441,7 +433,7 @@ func TestApplyExclusiveFlag_ThreeZeroModifierMovesTheBound(t *testing.T) {
 func TestApplyExclusiveFlag_AModifierWithNoBoundIsKeptAndReported(t *testing.T) {
 	t.Parallel()
 	got, kept, diags := Constraints(schemaFromYAML(t,
-		"type: number\nexclusiveMinimum: true\nexclusiveMaximum: true\n"), true, "/p", sourced(3))
+		"type: number\nexclusiveMinimum: true\nexclusiveMaximum: true\n"), AllBounds, true, "/p", sourced(3))
 
 	assert.Nil(t, got, "a modifier that bounds nothing leaves no constraint behind")
 	require.Len(t, kept, 2, "each side keeps its own modifier; got %v", kept)
@@ -476,28 +468,37 @@ func TestApplyExclusiveFlag_AModifierWithNoBoundIsKeptAndReported(t *testing.T) 
 func TestConstraints_AttributesAKeptModifierAtItsKeyword(t *testing.T) {
 	t.Parallel()
 	_, kept, diags := Constraints(schemaFromYAML(t, "type: number\nexclusiveMinimum: true\n"),
-		true, "/p", overlaid("/p/exclusiveMinimum"))
+		AllBounds, true, "/p", overlaid("/p/exclusiveMinimum"))
 
 	entry, ok := kept["openapi:exclusiveMinimum"]
 	require.True(t, ok)
-	assert.Equal(t, ir.Provenance{Source: 1, Pointer: "/p/exclusiveMinimum"}, entry.Provenance)
+	assert.Equal(t, ir.Provenance{Pointer: "/p/exclusiveMinimum", WrittenBy: 1}, entry.Provenance)
 	require.Len(t, diags, 1, "the orphaned modifier is still reported")
 }
 
 // TestApplyExclusiveFlag_AnUnreadableBoundIsNotAMissingOne pins the difference
 // between a minimum nobody wrote and one that would not read. numericBounds
 // leaves the parsed slot nil in both cases, so a modifier reading only the slot
-// took the second for the first: a literal that already earned its own error
-// then drew a second diagnostic asserting the keyword was absent, and parked
-// the modifier under Unmodeled as an orphan — on a schema that wrote the bound
-// on the line above.
+// took the second for the first: it drew a diagnostic asserting the keyword was
+// absent, and parked the modifier under Unmodeled as an orphan — on a schema
+// that wrote the bound on the line above. The bad literal is the rule table's
+// to report (docs/compilers/openapi.md#constraints), so nothing is said here.
 func TestApplyExclusiveFlag_AnUnreadableBoundIsNotAMissingOne(t *testing.T) {
 	t.Parallel()
 	got, kept, diags := Constraints(schemaFromYAML(t,
-		"type: number\nminimum: .inf\nexclusiveMinimum: true\n"), true, "/p", sourced(3))
+		"type: number\nminimum: .inf\nexclusiveMinimum: true\n"), AllBounds, true, "/p", sourced(3))
 
 	assert.Nil(t, got, "an unreadable bound leaves no constraint behind")
 	assert.Empty(t, kept, "the modifier modifies a bound that was written; it is no orphan")
-	require.Len(t, diags, 1, "the bad literal is the whole complaint; got %v", diags)
-	assert.Equal(t, diag.NumericPrecision, diags[0].Code)
+	assert.Empty(t, diags, "the bad literal is the whole complaint, and it is load's")
+}
+
+// TestExactCount_StatesOnlyAnExactCount pins what a reader of a count takes from
+// the model: its reading where the literal states it, and none where it does
+// not, so no bound stands for a number the source does not write.
+func TestExactCount_StatesOnlyAnExactCount(t *testing.T) {
+	t.Parallel()
+	exact := new(int64(3))
+	assert.Same(t, exact, ExactCount(schemaFromYAMLUnvalidated(t, "minLength: 3"), "minLength", exact))
+	assert.Nil(t, ExactCount(schemaFromYAMLUnvalidated(t, "minLength: 99999999999999999999"), "minLength", new(int64(0))))
 }

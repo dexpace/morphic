@@ -9,6 +9,10 @@
       "anon@common.yaml",
       "anon@paths.yaml",
       "anon@schemas~1pet.yaml",
+      "composed",
+      "composed@common.yaml",
+      "composed@paths.yaml",
+      "composed@schemas~1pet.yaml",
       "openapi",
       "openapi@common.yaml",
       "openapi@paths.yaml",
@@ -16,6 +20,7 @@
     ],
     "g": [
       "default",
+      "extension",
       "path-prefix",
       "tags",
       "webhooks"
@@ -203,7 +208,6 @@
                   {
                     "method": "GET",
                     "uriTemplate": "/pets",
-                    "sharedRoute": false,
                     "paramBindings": [
                       {
                         "param": "param/openapi/paths/~1pets/get/parameters/limit/query",
@@ -215,8 +219,8 @@
                         "allowEmptyValue": false
                       }
                     ],
-                    "checksumRequired": false,
-                    "isWebhook": false
+                    "sharedRoute": false,
+                    "checksumRequired": false
                   }
                 ]
               },
@@ -336,12 +340,11 @@
                   {
                     "method": "POST",
                     "uriTemplate": "/pets",
-                    "sharedRoute": false,
                     "requestContentTypes": [
                       "application/json"
                     ],
-                    "checksumRequired": false,
-                    "isWebhook": false
+                    "sharedRoute": false,
+                    "checksumRequired": false
                   }
                 ]
               },
@@ -492,7 +495,6 @@
                   {
                     "method": "GET",
                     "uriTemplate": "/pets/{petId}",
-                    "sharedRoute": false,
                     "paramBindings": [
                       {
                         "param": "param/openapi/paths/~1pets~1{petId}/get/parameters/X-Trace/header",
@@ -513,8 +515,8 @@
                         "allowEmptyValue": false
                       }
                     ],
-                    "checksumRequired": false,
-                    "isWebhook": false
+                    "sharedRoute": false,
+                    "checksumRequired": false
                   }
                 ]
               },

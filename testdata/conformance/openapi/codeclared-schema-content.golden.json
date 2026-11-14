@@ -6,10 +6,12 @@
     ],
     "e": [
       "anon",
+      "composed",
       "openapi"
     ],
     "g": [
       "default",
+      "extension",
       "path-prefix",
       "tags",
       "webhooks"
@@ -192,7 +194,6 @@
                   {
                     "method": "GET",
                     "uriTemplate": "/x",
-                    "sharedRoute": false,
                     "paramBindings": [
                       {
                         "param": "param/openapi/paths/~1x/get/parameters/p/query",
@@ -215,8 +216,8 @@
                         "contentType": "application/json"
                       }
                     ],
-                    "checksumRequired": false,
-                    "isWebhook": false
+                    "sharedRoute": false,
+                    "checksumRequired": false
                   }
                 ]
               },

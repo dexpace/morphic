@@ -33,8 +33,9 @@ const (
 	listAliases
 	// listVerbatim copies a source's own entries, and whether one may repeat
 	// or be blank is that format's to say: OpenAPI may list a tag twice, and
-	// "" is a legal server variable value. Normalizing one is its compiler's
-	// (GitHub #738 holds OpenAPI's tags and scopes).
+	// "" is a legal server variable value. Normalizing one is its compiler's,
+	// as OpenAPI's keeps a tag or a scope written twice once
+	// (docs/compilers/openapi.md#tag-groups).
 	listVerbatim
 	// listVersions holds version labels, which answer to Document.Versions as
 	// a whole rather than to a rule of their own list (GitHub #860).

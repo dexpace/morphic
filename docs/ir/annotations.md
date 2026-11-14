@@ -18,7 +18,16 @@ type DocRef struct {
     Type               TypeID // the type the span names
 }
 
-type Deprecation struct { Message, Since, RemovalVersion, RemovalDate string }
+type Deprecation struct {
+    Message, Since, RemovalVersion, RemovalDate string
+    ReplacedBy []EntityRef       // what to use instead, in source order ([replacements](#replacements))
+}
+
+type EntityRef struct {          // one entity by its ID: exactly one field is set
+    Type TypeID; Operation OpID; Channel ChannelID; Message MessageID; Auth AuthID
+    Service ServiceID; Group GroupID; Property PropID; Param ParamID; Member EnumMemberID
+    Server ServerID
+}
 // A scheduled removal is two fields because a version and a date are two facts, not two
 // spellings of one: a document may state either or both, and neither is derivable from the
 // other without a release calendar the IR does not have. A consumer deciding whether removing
@@ -45,6 +54,34 @@ type ErrorExample struct { Type TypeRef; Content Value }
 // Field legality is contextual (validated): Value/Headers on types, properties, parameters,
 // contents, and messages; Input/Output/Error on operations. An Example never mixes the two arms.
 ```
+
+## Replacements
+
+A deprecation that says what to use instead names it in `ReplacedBy`, so a docs target can link
+"use `getOrderV2` instead" and an SDK can name the replacement in the deprecation it emits. Each
+entry is an `EntityRef`: the ID of the replacement in the field of its class, so a consumer reads
+which kind of entity it is from the field and finds it in the registry that field names, and the
+reference check (`ir/dangling-*-ref`) holds it like any other ID. `irverify` holds a ref to one
+field set (`ir/entity-ref-empty`, `ir/entity-ref-ambiguous`) and an entity to naming another
+(`ir/replaced-by-itself`). A list, because a source that splits an operation names two; an
+empty one names nothing.
+
+The replacement may be of another class than what it replaces, since a source can move a value
+from a query parameter into the body, so the reference names its class rather than taking the
+carrier's. A bare ID string was rejected because a consumer would have to try each registry to
+learn what it names, and the reference check could not see it; a field per class was chosen
+over a class tag beside a string so that the IDs stay typed, which is what the check reads. A
+replacement names an entity; it is no use of it, so neither `ir.TypeEdges` nor usage follows it.
+
+No format states a replacement in a keyword: Smithy, TypeSpec and GraphQL carry a deprecation's
+message and Protobuf only its flag, so a source that names a replacement does so in that prose or
+in a vendor extension. A compiler fills the field from what its policy maps
+([promotion](./unmodeled.md#promotion)), or, under a policy reading prose, from a name the message
+gives in a form the document's own entities resolve, as the OpenAPI compiler reads an operation's
+route or a code span naming a sibling
+([`replacement-inference`](../compilers/openapi.md#replacement-inference)), the node marked
+inferred. `Message` keeps the prose either way, so a consumer setting the guess aside loses
+nothing.
 
 ## References in prose
 
@@ -144,8 +181,11 @@ description and its `Refs` counting as one ([references in prose](#references-in
 single value that one position may restate for another — a `description` beside the `$ref` says what
 *this* input is, replacing the target's — so the two can never both be true at once, and any
 consumer reading both would need this precedence rule anyway. Applying it once, in the compiler, is
-what keeps every carrier alike. Redaction is the one with a single side: a position can ask for it
-and none can withdraw it, so a use holds it where either position asks.
+what keeps every carrier alike. Redaction, deprecation and visibility have a single side: a position
+can state each and none can withdraw one another states, so a use holds it where either position
+does. That is JSON Schema's own reading of `deprecated`, `readOnly` and `writeOnly`, each in force
+where any occurrence applying to a location is true and absent where one is false, and it is the
+reading a [decorator](#decorators)'s fold makes too, so the two spellings of one use agree.
 
 An OpenAPI Reference Object's own `summary` and `description` fold onto the use site the same way,
 by the OpenAPI compiler's rule
@@ -171,9 +211,11 @@ place it was declared and the one place it is recorded.
 
 A format that admits nothing beside a reference annotates one use of a shared type by wrapping it:
 OpenAPI 3.0 writes `state: {allOf: [{$ref: Status}], description: the widget state}`, and keeps it
-losslessly as an anonymous `Model` whose `Base` is `Status`. 3.1 writes the same use `{$ref: Status,
-description: …}`, which hoists an anonymous `Scalar` alias over `Status` wherever no carrier holds
-the annotations ([one structural home per declaration](#one-structural-home-per-declaration)).
+losslessly as an anonymous `Model` whose `Base` is `Status`, where `Status` can be an object, and as
+the use it is where it cannot ([models](./models.md#an-allof-no-object-satisfies)). 3.1 writes the
+same use `{$ref: Status, description: …}`, which hoists an anonymous `Scalar` alias over `Status`
+wherever no carrier holds the annotations
+([one structural home per declaration](#one-structural-home-per-declaration)).
 Neither node says anything about a value that its `Base` does not. Such a node is a **decorator**,
 and `ir.Decorated` is the one statement of the rule: an anonymous type whose `Base` is set, and
 which is

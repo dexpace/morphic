@@ -13,7 +13,6 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/load"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
-	"github.com/dexpace/morphic/compilers/openapi/internal/overlay"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -21,8 +20,17 @@ import (
 // external tests.
 const MaxDiscriminatorAncestorDepth = maxDiscriminatorAncestorDepth
 
-// MaxTypePositionHops is maxTypePositionHops, for the external tests.
-const MaxTypePositionHops = maxTypePositionHops
+// MaxChainHops is maxChainHops, for the external tests.
+const MaxChainHops = maxChainHops
+
+// MaxAdmissionReads is maxAdmissionReads, for the external tests.
+const MaxAdmissionReads = maxAdmissionReads
+
+// MaxAdmissionMembers is maxAdmissionMembers, for the external tests.
+const MaxAdmissionMembers = maxAdmissionMembers
+
+// MaxRefinedConjuncts is maxRefinedConjuncts, for the external tests.
+const MaxRefinedConjuncts = maxRefinedConjuncts
 
 // Lowerer is test scaffolding, not a compiler type. The compiler has no such
 // struct: every lowering is a function of the context and the registry, and
@@ -51,12 +59,16 @@ func LowererOver(ctx lowering.Ctx) *Lowerer {
 // plus the load diagnostics, so a test can drive one entry point at a time.
 func LoweredFor(t *testing.T, src string) (*Lowerer, []ir.Diagnostic) {
 	t.Helper()
+	return LoweredWith(t, src, lowering.Policy{Grouping: lowering.GroupByTags})
+}
+
+// LoweredWith is LoweredFor under policy.
+func LoweredWith(t *testing.T, src string, policy lowering.Policy) (*Lowerer, []ir.Diagnostic) {
+	t.Helper()
 	loadedDoc, diags, err := load.Load(t.Context(), 0, openapitest.SourceOf(src), load.Options{})
 	require.NoError(t, err)
 	require.NotNil(t, loadedDoc, "load returned no document: %+v", diags)
-	return LowererOver(lowering.New(0, loadedDoc.Doc, loadedDoc.Source,
-		lowering.GroupByTags, lowering.Limits{}, lowering.StreamingMedia{}, lowering.ExtensionPromotions{}, lowering.NullableWidening{}, overlay.Origin{}).
-		WithLoaded(loadedDoc)), diags
+	return LowererOver(lowering.New(0, loadedDoc, policy)), diags
 }
 
 // LowerSpec loads src and lowers its component schemas, returning the document
@@ -72,7 +84,7 @@ func LowerSpec(t *testing.T, src string) (*ir.Document, []ir.Diagnostic) {
 // NewRawLowerer builds a fixture over a hand-constructed document, bypassing the
 // parser so nil slice/map entries (which the parser panics on) can be exercised.
 func NewRawLowerer(doc *soa.OpenAPI) *Lowerer {
-	return LowererOver(lowering.New(0, doc, ir.SourceInfo{}, "", lowering.Limits{}, lowering.StreamingMedia{}, lowering.ExtensionPromotions{}, lowering.NullableWidening{}, overlay.Origin{}))
+	return LowererOver(lowering.New(0, &load.Document{Doc: doc}, lowering.Policy{}))
 }
 
 // Document finishes the registry as run does once every lowering has

@@ -56,8 +56,18 @@ type ResourceInfo struct {
 }
 ```
 
-OpenAPI compilers build groups from tags (policy-controllable: tag-based vs path-prefix-based);
-TypeSpec from interfaces/namespaces; Smithy from resources; GraphQL yields three groups
-(query/mutation/subscription); Protobuf one group per `service`; Erlang/OTP one group per module.
-How a tag builds a group, and nests it under a declared parent, is the OpenAPI compiler's rule
-[`tag-groups`](../compilers/openapi.md#tag-groups).
+OpenAPI compilers build groups by policy: by tag (the default), by path prefix, or by the group path
+a vendor extension states; TypeSpec from interfaces/namespaces; Smithy from resources; GraphQL
+yields three groups (query/mutation/subscription); Protobuf one group per `service`; Erlang/OTP one
+group per module. How a tag builds a group, and nests it under a declared parent, is the OpenAPI
+compiler's rule [`tag-groups`](../compilers/openapi.md#tag-groups), how a path's first segment
+does, [`path-prefix-groups`](../compilers/openapi.md#path-prefix-groups), and how an extension's
+path does, [`extension-groups`](../compilers/openapi.md#extension-groups).
+
+A group may hold no operation and no group: a sub-client the source names that no operation is filed
+in. The OpenAPI compiler's grouping by extension makes one for each path a document exposes an
+operation under besides the one it is filed under, so that a remount, which names a group by its ID
+([shaping hints](../emitters/contract/shaping-hints.md)), names one the IR holds and can nest; an
+operation sits in one group, so its other placements are the remount's. A consumer applying no
+remount meets such a group with nothing to call; whether an SDK emitter then makes a sub-client of
+it is undecided (#1824).

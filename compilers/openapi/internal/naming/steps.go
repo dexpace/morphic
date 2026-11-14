@@ -14,17 +14,43 @@ import (
 )
 
 // steps composes the hint of the position the schema keywords in rest lead to
-// from enclosing, the hint of the position they start at, and reports whether
-// that position is a composition branch, which branch names further. Each
-// step consumes a token, bounding the walk.
-func steps(enclosing string, rest []string) (hint string, branch bool) {
+// from enclosing, the hint of the position they start at. It reports whether
+// that position is a composition branch, which Namer.branch names further,
+// and whether its own title named it. title names the position consumed
+// tokens of rest lead to by its title (titles.at), asked of each but one a
+// step names by the document's own key, and a name it gives stands in for the
+// one composed so far, so the positions beneath compose from it. Each step
+// consumes a token, bounding the walk.
+func steps(enclosing string, rest []string, title titler) (hint string, branch, titled bool) {
 	c := chain{base: enclosing}
-	for i := 0; i < len(rest); {
-		var step int
-		c, branch, step = stepOf(c, rest[i:])
-		i += step
+	if t := title.at(0, false); t != "" {
+		c, titled = chain{base: t}, true
 	}
-	return compile.SubHints(c.base, c.parts...), branch
+	for i := 0; i < len(rest); {
+		s := stepOf(c, rest[i:])
+		i += s.tokens
+		c, branch, titled = s.hint, s.branch, false
+		if s.keyed {
+			continue
+		}
+		if t := title.at(i, s.union); t != "" {
+			c, branch, titled = chain{base: t}, false, true
+		}
+	}
+	return compile.SubHints(c.base, c.parts...), branch, titled
+}
+
+// titler returns the name the title of the position consumed tokens of a walk
+// lead to gives it, "" where it gives none; union marks a oneOf or anyOf
+// branch, whose siblings' titles it is read beside.
+type titler func(consumed int, union bool) string
+
+// at is t's answer, and "" for a nil titler, which reads no title.
+func (t titler) at(consumed int, union bool) string {
+	if t == nil {
+		return ""
+	}
+	return t(consumed, union)
 }
 
 // chain is a hint being composed: base, then each part compile.SubHint would
@@ -42,45 +68,65 @@ func (c chain) then(part string) chain {
 	return c
 }
 
-// stepOf applies the keyword at rest[0] to the enclosing hint, returning the
-// hint of the position it leads to, whether that position is a composition
-// branch, and how many tokens the step consumed: two for a keyword whose
-// children are keyed or indexed, one otherwise. A keyword the lowering does not
-// walk (not, if, then, else, an unknown one) is named after its own token: only
-// a reference reaches it, so any stable spelling keeps its name independent of
-// declaration order.
-func stepOf(enclosing chain, rest []string) (hint chain, branch bool, step int) {
+// step is what one keyword does to the hint being composed (stepOf): the hint
+// of the position it leads to and how many tokens it consumed, two for a
+// keyword whose children are keyed or indexed and one otherwise. branch marks
+// a composition branch, union a oneOf or anyOf one, and keyed a position named
+// as the document names it, by its own key or as the schema holding it, which
+// no title renames.
+type step struct {
+	hint                 chain
+	tokens               int
+	branch, union, keyed bool
+}
+
+// stepOf applies the keyword at rest[0] to the enclosing hint. A keyword the
+// lowering does not walk (not, if, then, else, an unknown one) is named after
+// its own token: only a reference reaches it, so any stable spelling keeps its
+// name independent of declaration order.
+func stepOf(enclosing chain, rest []string) step {
 	keyword := rest[0]
+	if keyword == "items" && len(rest) > 1 && isDecimalIndex(rest[1]) {
+		// A tuple's positional item written as a list of items, as the JSON
+		// Schema drafts before 2020-12 spell one, named as prefixItems names it.
+		return step{hint: enclosing.then(rest[1]), tokens: 2}
+	}
 	if role, ok := structuralRoles[keyword]; ok {
-		return enclosing.then(role), false, 1
+		return step{hint: enclosing.then(role), tokens: 1}
 	}
 	if len(rest) < 2 {
-		return chain{base: keyword}, false, 1
+		return step{hint: chain{base: keyword}, tokens: 1}
 	}
 	child := rest[1]
 	switch {
 	case keyedSchemaMaps[keyword]:
-		return chain{base: child}, false, 2
+		return step{hint: chain{base: child}, tokens: 2, keyed: definitionMaps[keyword]}
 	case keyword == "patternProperties":
-		return enclosing.then("pattern"), false, 2
+		return step{hint: enclosing.then("pattern"), tokens: 2}
 	case (keyword == "prefixItems" || keyword == "enum") && isDecimalIndex(child):
 		// A tuple's positional item, or the literal a member of an enum no
 		// enumeration holds is lowered to.
-		return enclosing.then(child), false, 2
+		return step{hint: enclosing.then(child), tokens: 2}
+	case keyword == "allOf" && isDecimalIndex(child):
+		// An allOf branch is a conjunct of the schema holding it, so a node built
+		// there is that schema's, and named as it is.
+		return step{hint: enclosing, tokens: 2, branch: true, keyed: true}
 	case compositionKeywords[keyword] && isDecimalIndex(child):
-		return chain{base: positionalBranch(child)}, true, 2
+		return step{hint: chain{base: positionalBranch(child)}, tokens: 2, branch: true, union: true}
 	case keyword == "type" && isDecimalIndex(child):
 		// One variant of a multi-typed schema, built from that schema itself,
 		// so it is named as the schema is.
-		return enclosing, false, 2
+		return step{hint: enclosing, tokens: 2}
 	}
-	return chain{base: keyword}, false, 1
+	return step{hint: chain{base: keyword}, tokens: 1}
 }
 
 // structuralRoles maps each keyword whose one schema the lowering names by role
-// to that role.
+// to that role: a tuple's rest is an item, whether 2020-12's items or a draft's
+// additionalItems holds it.
 var structuralRoles = map[string]string{
 	"items":                "item",
+	"additionalItems":      "item",
 	"additionalProperties": "value",
 	"contentSchema":        "content",
 }
@@ -92,6 +138,12 @@ var structuralRoles = map[string]string{
 var keyedSchemaMaps = map[string]bool{
 	"properties": true, "$defs": true, "definitions": true, "dependentSchemas": true, "dependencies": true,
 }
+
+// definitionMaps are the keyed maps whose key is the name the document gives
+// the schema itself, as a component schema's is, where a property's or a
+// dependency's names what holds it: a title documents such a schema rather
+// than naming it.
+var definitionMaps = map[string]bool{"$defs": true, "definitions": true}
 
 // compositionKeywords are the schema keywords whose numbered children are
 // composition branches.
@@ -128,7 +180,7 @@ func unresolvedName(ref string) string {
 	}
 	tokens := slices.Collect(p.Tokens())
 	start, hint := pointerOwner(tokens)
-	hint, _ = steps(hint, tokens[start:])
+	hint, _, _ = steps(hint, tokens[start:], nil)
 	return hint
 }
 

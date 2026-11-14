@@ -6,10 +6,12 @@
     ],
     "e": [
       "anon",
+      "composed",
       "openapi"
     ],
     "g": [
       "default",
+      "extension",
       "path-prefix",
       "tags",
       "webhooks"
@@ -668,7 +670,6 @@
                   {
                     "method": "GET",
                     "uriTemplate": "/matrix/{pathMatrixExplode}/{pathMatrixNoExplode}/{pathMatrixDefaultExplode}/{pathLabelExplode}/{pathLabelNoExplode}/{pathLabelDefaultExplode}/{pathSimpleExplode}/{pathSimpleNoExplode}/{pathSimpleDefaultExplode}/{pathDefaulted}",
-                    "sharedRoute": false,
                     "paramBindings": [
                       {
                         "param": "param/openapi/paths/~1matrix~1{pathMatrixExplode}~1{pathMatrixNoExplode}~1{pathMatrixDefaultExplode}~1{pathLabelExplode}~1{pathLabelNoExplode}~1{pathLabelDefaultExplode}~1{pathSimpleExplode}~1{pathSimpleNoExplode}~1{pathSimpleDefaultExplode}~1{pathDefaulted}/get/parameters/pathMatrixExplode/path",
@@ -977,8 +978,8 @@
                         "allowEmptyValue": false
                       }
                     ],
-                    "checksumRequired": false,
-                    "isWebhook": false
+                    "sharedRoute": false,
+                    "checksumRequired": false
                   }
                 ]
               },
@@ -1038,7 +1039,6 @@
                   {
                     "method": "GET",
                     "uriTemplate": "/whole-query",
-                    "sharedRoute": false,
                     "paramBindings": [
                       {
                         "param": "param/openapi/paths/~1whole-query/get/parameters/querystringWhole/querystring",
@@ -1049,8 +1049,8 @@
                         "contentType": "application/x-www-form-urlencoded"
                       }
                     ],
-                    "checksumRequired": false,
-                    "isWebhook": false
+                    "sharedRoute": false,
+                    "checksumRequired": false
                   }
                 ]
               },

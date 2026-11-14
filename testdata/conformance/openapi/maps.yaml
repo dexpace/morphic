@@ -23,6 +23,13 @@ components:
       type: object
       patternProperties:
         "^x-": {type: string}
+    # Closed beside its patterns: a key no pattern matches is refused, so the
+    # catch-all holds the patterns and types no other key.
+    ClosedPatternMap:
+      type: object
+      patternProperties:
+        "^x-": {type: string}
+      additionalProperties: false
     OpenRecord:
       type: object
       properties:
@@ -37,4 +44,28 @@ components:
       type: object
       properties:
         a: {type: string}
+      unevaluatedProperties: false
+    # Live: no additionalProperties evaluates what it could apply to.
+    ClosedAfterPatterns:
+      type: object
+      patternProperties:
+        "^x-": {type: string}
+      unevaluatedProperties: false
+    # Inert beside additionalProperties, which says the object's openness
+    # alone; the keyword is kept with it.
+    InertBesideAMap:
+      type: object
+      additionalProperties: {type: integer}
+      unevaluatedProperties: false
+    InertBesideARecord:
+      type: object
+      properties:
+        a: {type: string}
+      additionalProperties: true
+      unevaluatedProperties: {type: string}
+    ClosedTwice:
+      type: object
+      properties:
+        a: {type: string}
+      additionalProperties: false
       unevaluatedProperties: false

@@ -6,6 +6,7 @@ package planted
 import (
 	"encoding/json" // want "import 'encoding/json' is not allowed from list 'json-v1': use encoding/json/v2 and encoding/json/jsontext (depguard)"
 	"os"
+	"os/exec"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -37,4 +38,9 @@ func TestPlanted(t *testing.T) {
 	assert.Equal(t, xs, []int{1})
 	var none any
 	assert.Equal(t, nil, none)
+}
+
+// plantTestChild builds a child by hand, which a test file may not do either.
+func plantTestChild() {
+	_ = exec.Command("x") // want "use of `exec.Command` forbidden because \"start a child through exectest.Command\" (forbidigo)"
 }

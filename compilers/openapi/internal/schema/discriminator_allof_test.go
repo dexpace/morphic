@@ -118,9 +118,9 @@ func TestAllOf_InlineSubtypeHasNoImplicitDiscriminatorValue(t *testing.T) {
 
 // TestAllOf_ExtensionSubtypeIsTaggedOnlyByAMapping pins GitHub #572: a subtype
 // declared under an extension and reached by $ref is no component schema, so a
-// mapping entry tags it and nothing else does. Under components/x-shared
-// ComponentSchemaName still returns the entry's name, so that host is what holds
-// the implicit tag to the name's ok: Dog must not answer to a name no schema has.
+// mapping entry tags it and nothing else does. A pointer under components/x-shared
+// has a component entry's shape, so that host is what holds the implicit tag to
+// ids.ComponentSchema's state: Dog must not answer to a name no schema has.
 func TestAllOf_ExtensionSubtypeIsTaggedOnlyByAMapping(t *testing.T) {
 	t.Parallel()
 	const subtypes = `%[1]sCat: {allOf: [{$ref: '#/components/schemas/Pet'}], type: object, properties: {purr: {type: string}}}

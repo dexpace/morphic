@@ -117,6 +117,17 @@ components:
     Fixed:
       type: string
       enum: [one, two]
+    # A mixed enum lowers to a union of its literals, which its key opens as it
+    # would the enum; without the key it stays closed, and a oneOf writing the
+    # key is no enum, so the key opens nothing there.
+    Mixed:
+      enum: [1, small]
+      x-extensible-enum: [1, small]
+    MixedFixed:
+      enum: [1, small]
+    NotAnEnum:
+      oneOf: [{type: string}, {type: integer}]
+      x-extensible-enum: [small]
   securitySchemes:
     k:
       type: apiKey

@@ -8,15 +8,20 @@ import "slices"
 // schemaKeywords returns the JSON Schema keywords a Schema Object takes: the
 // subset OpenAPI 3.0 names, and the 2020-12 vocabularies 3.1 and 3.2 adopt.
 func schemaKeywords() []Field {
-	fields := slices.Concat(keywords30(), dialectCore(), dialectApplicators(), dialectValidation(), dialectAnnotations())
+	return readBounds(slices.Concat(keywords30(), dialectCore(), dialectApplicators(), dialectValidation(),
+		dialectAnnotations()))
+}
+
+// readBounds marks each numeric bound of fields, a JSON Schema dialect's
+// keywords, read as the decimal it spells (Field.Decimal): the schema lowering
+// reads a bound off the raw node, a quoted number as the decimal it spells, so
+// the check judges one as it reads it, bar a multipleOf written as a number no
+// greater than 0, which its shape refuses.
+func readBounds(fields []Field) []Field {
 	for i, f := range fields {
 		switch f.Name {
 		case "minimum", "maximum", "multipleOf", "exclusiveMinimum", "exclusiveMaximum":
-			// The schema lowering reads a bound off the raw node, a quoted number as the
-			// decimal it spells, and reports one that is no decimal a BigVal holds or is
-			// written in the other dialect's form, so the table leaves the shape to it,
-			// bar a multipleOf written as a number no greater than 0.
-			fields[i] = f.shapeOwnedBy(ownerSchema)
+			fields[i] = f.decimal()
 		}
 	}
 	return fields

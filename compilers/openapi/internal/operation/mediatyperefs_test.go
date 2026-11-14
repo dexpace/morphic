@@ -101,8 +101,7 @@ components:
 // it, named for its key, in the document declaring it, whichever entry is
 // lowered first (GitHub #856): a components/mediaTypes entry of the source and
 // of another document, and an inline content entry of the source, with and
-// without a reader, since the resolver finds the source's own media types
-// where load holds them (docs/parser-library.md#media-type-references).
+// without a reader (docs/parser-library.md#media-type-references).
 func TestMediaTypeRef_OneDeclarationIsOneType(t *testing.T) {
 	t.Parallel()
 	const other = `openapi: 3.2.0
@@ -285,11 +284,12 @@ func countDiagsAt(diags []ir.Diagnostic, code, pointer string) int {
 	return n
 }
 
-// TestMediaTypeRef_DocsAnotherDocumentsAliasWritesAreReported pins the docs the
-// fold takes from an alias in another document: a body's Content.Docs holds
-// them, and a parameter's, which would keep them verbatim at a position no
-// position of this compile places, reports that it does not.
-func TestMediaTypeRef_DocsAnotherDocumentsAliasWritesAreReported(t *testing.T) {
+// TestMediaTypeRef_DocsAnotherDocumentsAliasWritesArePlacedThere pins the
+// docs the fold takes from an alias in another document: a body's
+// Content.Docs holds them, and a parameter keeps them verbatim where the alias
+// writes them, in that document's Document.Sources entry, as the bindings'
+// table places the alias.
+func TestMediaTypeRef_DocsAnotherDocumentsAliasWritesArePlacedThere(t *testing.T) {
 	t.Parallel()
 	const other = `openapi: 3.2.0
 info: {title: O, version: "1"}
@@ -305,9 +305,12 @@ components:
 	get := openapitest.FindOp(t, doc, "getB")
 	assert.Equal(t, ir.Docs{Description: "From the alias."}, get.Responses[0].Payload.Contents[0].Docs)
 	require.Len(t, get.Params, 1)
-	assert.NotContains(t, get.Params[0].Unmodeled, "openapi:content/application~1json/description")
-	assert.True(t, openapitest.HasDiagCodeAt(diags, diag.DegradedConstruct,
-		"/paths/~1b/get/parameters/0/content/application~1json"), "got %v", diags)
+	kept, ok := get.Params[0].Unmodeled["openapi:content/application~1json/description"]
+	require.True(t, ok, "the alias's description is kept")
+	assert.Equal(t, ir.Provenance{Source: 1, Pointer: "/components/mediaTypes/Alias/description"}, kept.Provenance,
+		"where the alias writes it")
+	assert.False(t, openapitest.HasDiagCodeAt(diags, diag.DegradedConstruct,
+		"/paths/~1b/get/parameters/0/content/application~1json"), "nothing is left unplaced: %v", diags)
 }
 
 // TestMediaTypeRef_AnUnsetSiblingLeavesTheDeclarationsDocs pins a description

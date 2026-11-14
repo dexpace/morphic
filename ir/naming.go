@@ -24,8 +24,9 @@ type Naming struct {
 	Source string `json:"source,omitempty"`
 	// Canonical is the IR-normalized identifier in neutral form: lower_snake
 	// words with no casing opinions. A word is letters and digits (plus the
-	// combining marks belonging to them); every other character in the source
-	// name separates two words rather than surviving into the sequence.
+	// combining marks belonging to them), none of them default-ignorable; every
+	// other character in the source name separates two words rather than
+	// surviving into the sequence.
 	Canonical string `json:"canonical,omitempty"`
 	// Hint is a context-derived suggestion for an entity with no source name to
 	// render: a hoisted anonymous type (e.g. "connection_domain"), or one the
@@ -48,6 +49,36 @@ type Naming struct {
 	// Diagnostic, not carried through. Dropping it loses no name, so it is not
 	// the lossy flattening invariant #2 forbids.
 	Aliases []string `json:"aliases,omitempty"`
+}
+
+// EmptyNameHint is the hint minted for an entity the source left unnamed: an
+// enum member whose value is "", a property or component keyed by it, a tag
+// declared as "". Each is a legal document an emitter still has to render an
+// identifier for, and a Naming with every channel empty gives it nothing
+// (GitHub #251).
+//
+// It is one neutral word rather than a positional index, which would say where
+// but not what; emitters resolve colliding names
+// (docs/emitters/refine/naming.md). Minting it is not an inference under
+// invariant 6: Hint already carries names no source wrote, like "variant_0" for
+// a bare oneOf branch.
+const EmptyNameHint = "empty"
+
+// NamingFor builds the neutral Naming of a name the source declares: the
+// spelling it used, plus the canonical word sequence derived from it.
+//
+// Use it wherever a source name becomes an IR name. The pairing is the
+// invariant: a Source with no Canonical leaves an emitter to segment the
+// spelling itself, the casing decision invariant 4 moves out of the compilers.
+//
+// An empty name declares no spelling to pair, so it yields [EmptyNameHint]
+// instead. A spelling of only non-word characters ("***") keeps its Source and
+// canonicalizes to no words, a name an emitter can still escape from.
+func NamingFor(source string) Naming {
+	if source == "" {
+		return Naming{Hint: EmptyNameHint}
+	}
+	return Naming{Source: source, Canonical: CanonicalWords(source)}
 }
 
 // CanonicalWords renders name as the neutral lower_snake word sequence
@@ -159,7 +190,7 @@ func sourceWords(name string) iter.Seq[string] {
 			// rune, so it separates.
 			r, size := utf8.DecodeRuneInString(name[i:])
 			switch {
-			case !isWordRune(r):
+			case !IsWordRune(r):
 				if inWord && !yield(name[start:i]) {
 					return
 				}
@@ -181,15 +212,52 @@ func sourceWords(name string) iter.Seq[string] {
 	}
 }
 
-// isWordRune reports whether r belongs to a word rather than separating two.
+// IsWordRune reports whether r belongs to a word rather than separating two.
 // Letters and digits are word characters, and a combining mark belongs to the
-// letter it follows: a decomposed "é" is one letter written as two runes, so
-// reading the mark as a separator would split a word in half.
+// letter it follows: a decomposed "é" is one letter written as two runes. One
+// that is default-ignorable (IsDefaultIgnorable), such as a variation selector
+// or the Hangul filler U+3164, renders as nothing, so it separates too.
 //
-// Everything else separates, so the result is a word sequence whatever the
-// source spelled the boundary as: a dot, a slash, brackets, _, - or a space.
-func isWordRune(r rune) bool {
-	return unicode.IsLetter(r) || unicode.IsDigit(r) || unicode.IsMark(r)
+// So the result is a word sequence whatever the source spelled the boundary
+// as: a dot, a slash, brackets, _, - or a space. No ASCII rune is
+// default-ignorable, which spares the common case the tables.
+func IsWordRune(r rune) bool {
+	return (unicode.IsLetter(r) || unicode.IsDigit(r) || unicode.IsMark(r)) &&
+		(r < utf8.RuneSelf || !IsDefaultIgnorable(r))
+}
+
+// IsDefaultIgnorable reports whether r is a Default_Ignorable_Code_Point: a
+// character that renders as nothing where a renderer does not support it. The
+// word grammar separates on one (IsWordRune), and irverify's blank rules take
+// one as invisible.
+//
+// Package unicode has no table for the property, so it is built from its
+// terms as DerivedCoreProperties.txt defines it: Other_Default_Ignorable_Code_Point,
+// Cf and Variation_Selector, less Prepended_Concatenation_Mark and the two
+// ranges unicode lacks a table for, the interlinear annotation characters and
+// the Egyptian hieroglyph format controls, which are Cf and render. White_Space
+// is subtracted too, and no rune of it is in any term (GitHub #832).
+func IsDefaultIgnorable(r rune) bool {
+	// The Cf ranges Unicode 17.0.0 takes out of Default_Ignorable_Code_Point that
+	// package unicode has no table for: U+FFF9..U+FFFB and U+13430..U+1343F.
+	// DerivedCoreProperties.txt's header writes the second as 13430..13440, but
+	// U+13440 is Mn and in no added term, so subtracting it changes nothing.
+	// TestIsDefaultIgnorable_WasSweptAgainstThisUnicode fails when a Go release
+	// moves unicode.Version. Rechecking these ranges is then not enough, as
+	// Unicode has changed the derivation itself between releases: rebuild this
+	// from that derivation and sweep every code point against it.
+	const (
+		interlinearFirst, interlinearLast       = '\uFFF9', '\uFFFB'
+		egyptianFormatFirst, egyptianFormatLast = '\U00013430', '\U0001343F'
+	)
+
+	interlinear := r >= interlinearFirst && r <= interlinearLast
+	egyptianFormat := r >= egyptianFormatFirst && r <= egyptianFormatLast
+	if interlinear || egyptianFormat || unicode.Is(unicode.Prepended_Concatenation_Mark, r) {
+		return false
+	}
+	return unicode.Is(unicode.Cf, r) || unicode.Is(unicode.Other_Default_Ignorable_Code_Point, r) ||
+		unicode.Is(unicode.Variation_Selector, r)
 }
 
 // wordBoundary reports whether a new word starts at word rune r, which follows

@@ -12,7 +12,8 @@ type Server struct {
                                         // OpenAPI 3.2 Server.name)
     URLTemplate string                  // may contain {variables}
     Description Docs
-    Variables   []ServerVariable        // {Name, Default, Enum []string, Docs, Unmodeled}
+    Variables   []ServerVariable        // {Name, Default *string, Enum []string, Docs, Unmodeled};
+                                        // nil Default = none stated, "" = substitute nothing
     Protocol    string                  // "https" default; "kafka", "wss", … for messaging servers
     ProtocolVersion string              // e.g. Kafka "3.5", AMQP "0-9-1" (AsyncAPI)
     Tags        []string
@@ -34,7 +35,8 @@ inside it. The scopes a server serves name it: `Service.Servers`, `Channel.Serve
 `Operation.Servers` are each a list of IDs, most preferred first, since a consumer that needs one
 server, an SDK client's default among them, takes the first it can use ([the
 client](../emitters/operations/client.md)). An operation's non-empty list replaces its service's for
-that operation, as its `Auth` replaces its service's; an empty one leaves its service's. An empty
+that operation, as its `Auth` replaces its service's; an empty one leaves its service's, save on an
+inbound operation (below), which inherits none. An empty
 service or channel list names no server. It does not mean every server, because the registry holds
 servers that serve one operation alone; a format that reads a scope naming none as served by all of
 them, as AsyncAPI reads a channel, lists them all. A server no scope names is still a declaration
@@ -62,3 +64,17 @@ than naming one. And `Operation.Servers` sits on the neutral core beside `Auth`,
 overrides the same way, rather than on a binding: it says where the operation is sent, whichever
 binding sends it. An operation bound to a channel leaves it empty, since its channel names its
 servers.
+
+## Inbound operations
+
+An operation whose HTTP binding is `Inbound` ([http-binding](./http-binding.md#inbound-operations))
+is a request the API sends and the client receives, so the servers its service names, which are
+where the API is sent requests, are not where it goes. Such an operation inherits no server, as it
+inherits no security requirement ([auth](./auth.md#inbound-operations)): its `Servers` are what its
+own declaration states, an OpenAPI webhook's or callback's operation and path item, and empty states
+none. What it states keeps the field's one meaning, where the request is sent, which for a request
+the API sends is the receiver; a callback's runtime expression resolves its URL, which a server it
+names does not replace. Two alternatives were weighed. Inheriting matches the rule for every other
+operation and sends a webhook to the API itself for a consumer missing the exception, the shape
+`Auth` rejected; declining servers on an inbound operation, kept verbatim instead, drops what a
+document states of where a delivery is sent, which no other position holds.

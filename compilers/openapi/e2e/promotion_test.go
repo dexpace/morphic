@@ -8,6 +8,8 @@
 package e2e_test // external test package — exercises only the public API
 
 import (
+	"maps"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -193,6 +195,23 @@ func assertEnumOpenness(t *testing.T, doc *ir.Document) {
 		assert.Equal(t, tc.inferred, enum.Provenance.Inferred, "%s heuristic marker", tc.schema)
 	}
 
+	// A mixed enum lowers to a union, which its key opens as it would the enum;
+	// a oneOf writing the key is no enum, so the key opens nothing there.
+	for _, tc := range []struct {
+		schema   string
+		closed   bool
+		inferred ir.Inferred
+	}{
+		{"Mixed", false, "extension-promotion"},
+		{"MixedFixed", true, ""},
+		{"NotAnEnum", true, ""},
+	} {
+		u, ok := doc.Types[componentID(tc.schema)].(*ir.Union)
+		require.True(t, ok, "%s lowers to a union", tc.schema)
+		assert.Equal(t, tc.closed, u.Closed, "%s openness", tc.schema)
+		assert.Equal(t, tc.inferred, u.Provenance.Inferred, "%s heuristic marker", tc.schema)
+	}
+
 	for _, schema := range []string{"Size", "Shade"} {
 		enum, ok := doc.Types[componentID(schema)].(*ir.Enum)
 		require.True(t, ok)
@@ -279,11 +298,99 @@ func TestPromotion_TargetsReplaceTheDefaults(t *testing.T) {
 	assert.Equal(t, ir.Inferred("extension-promotion"), op.Provenance.Inferred)
 }
 
+// TestPromotion_AMappedKeyOpensAUnion pins the compiler applying the union
+// openness promotion, which the promoter's own test cannot see: under a mapping
+// naming the key, a oneOf and an anyOf writing it open and are marked as a
+// guess, one not writing it stays closed, and under the default mapping, which
+// names no key for it, the key opens nothing.
+func TestPromotion_AMappedKeyOpensAUnion(t *testing.T) {
+	t.Parallel()
+	const spec = `openapi: 3.1.0
+info: {title: T, version: "1"}
+paths: {}
+components:
+  schemas:
+    One:
+      oneOf: [{type: string}, {type: integer}]
+      x-open-union: true
+    Any:
+      anyOf: [{type: string}, {type: integer}]
+      x-open-union: true
+    Plain:
+      oneOf: [{type: string}, {type: integer}]
+`
+	mapped := openapi.Options{Promotions: openapi.ExtensionPromotions{
+		Targets: map[openapi.ExtensionTarget][]openapi.ExtensionSource{openapi.TargetUnionOpen: {{Key: "x-open-union"}}},
+	}}
+	for _, tc := range []struct {
+		name string
+		opts openapi.Options
+		open map[string]bool
+	}{
+		{"a mapping naming the key", mapped, map[string]bool{"One": true, "Any": true, "Plain": false}},
+		{"the default mapping", openapi.Options{}, map[string]bool{"One": false, "Any": false, "Plain": false}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			doc := compileClean(t, spec, tc.opts)
+
+			for name, open := range tc.open {
+				u, ok := doc.Types[componentID(name)].(*ir.Union)
+				require.True(t, ok, "%s is a union, not %T", name, doc.Types[componentID(name)])
+				assert.Equal(t, !open, u.Closed, name)
+				var guess ir.Inferred
+				if open {
+					guess = "extension-promotion"
+				}
+				assert.Equal(t, guess, u.Provenance.Inferred, name)
+			}
+		})
+	}
+}
+
+// TestPromotion_AMixedEnumsUnionReadsTheEnumTargetAlone pins that the union a
+// mixed enum lowers to reads enum.open and not union.open, a oneOf's or an
+// anyOf's: one fact read through one target, so a union key opens nothing
+// there, the first key stated decides, and a key stating otherwise is reported
+// once, however many targets a mapping lists it under.
+func TestPromotion_AMixedEnumsUnionReadsTheEnumTargetAlone(t *testing.T) {
+	t.Parallel()
+	const spec = `openapi: 3.1.0
+info: {title: T, version: "1"}
+paths: {}
+components:
+  schemas:
+    UnionKey: {enum: [1, a], x-u: true}
+    Conflict: {enum: [1, a], x-a: false, x-b: [1, a]}
+`
+	doc := compileClean(t, spec, openapi.Options{Promotions: openapi.ExtensionPromotions{
+		Targets: map[openapi.ExtensionTarget][]openapi.ExtensionSource{
+			openapi.TargetEnumOpen:  {{Key: "x-a"}, {Key: "x-b"}},
+			openapi.TargetUnionOpen: {{Key: "x-u"}, {Key: "x-a"}, {Key: "x-b"}},
+		},
+	}})
+
+	for _, name := range []string{"UnionKey", "Conflict"} {
+		u, ok := doc.Types[componentID(name)].(*ir.Union)
+		require.True(t, ok, "%s is a union, not %T", name, doc.Types[componentID(name)])
+		assert.True(t, u.Closed, "%s stays closed", name)
+		assert.Empty(t, u.Provenance.Inferred, name)
+	}
+
+	var lost []string
+	for _, d := range doc.Diagnostics {
+		if d.Provenance.Pointer == "/components/schemas/Conflict/x-b" {
+			lost = append(lost, d.Message)
+		}
+	}
+	assert.Len(t, lost, 1, "x-b, losing to x-a, is reported once: %q", lost)
+}
+
 // defaultKeySpec is a document one default source fills one target of: the key,
 // writing value at its member if it has one, sits on a deprecated operation, on
-// an undeprecated one and on an enum, since the targets live on those carriers
-// and a key reaching only the wrong one would read as a mapping that fills
-// nothing.
+// an undeprecated one, on an enum and on a server, since the targets live on
+// those carriers and a key reaching only the wrong one would read as a mapping
+// that fills nothing.
 func defaultKeySpec(src openapi.ExtensionSource, value string) string {
 	written := "      " + src.Key + ": " + value + "\n"
 	if src.Member != "" {
@@ -291,7 +398,9 @@ func defaultKeySpec(src openapi.ExtensionSource, value string) string {
 	}
 	return `openapi: 3.1.0
 info: {title: T, version: "1"}
-paths:
+servers:
+  - url: https://x.example
+` + written[2:] + `paths:
   /x:
     get:
       operationId: getX
@@ -344,6 +453,9 @@ var defaultTargetRead = map[openapi.ExtensionTarget]struct {
 	openapi.TargetRedaction: {"true", func(doc *ir.Document, _, _ ir.Operation) string {
 		return filledWhen(doc.Types[componentID("E")].Common().Sensitive)
 	}},
+	openapi.TargetServerName: {"filled", func(doc *ir.Document, _, _ ir.Operation) string {
+		return doc.Servers["server/openapi/servers/0"].Name.Source
+	}},
 }
 
 // TestPromotion_DefaultTargetsAreTheOnesApplied holds the exported mapping to
@@ -360,6 +472,9 @@ func TestPromotion_DefaultTargetsAreTheOnesApplied(t *testing.T) {
 	require.NotEmpty(t, defaults, "an empty mapping would make this vacuous")
 
 	for target, sources := range defaults {
+		if strings.HasPrefix(string(target), "pagination.") {
+			continue // no one key fills a pagination; the extension-pagination case reads each
+		}
 		read, known := defaultTargetRead[target]
 		require.True(t, known, "%s is a default target this test reads no field for", target)
 		for _, src := range sources {
@@ -512,4 +627,151 @@ paths:
 	assert.Equal(t, "2026-08-01", op.Deprecation.RemovalDate)
 	assert.Equal(t, "9.0.0", op.Deprecation.RemovalVersion,
 		"both facts survive; neither overwrites the other")
+}
+
+// TestPromotion_ReplacementsResolveOnceTheDocumentIsWhole pins the replacement
+// target end to end: a policy mapping x-replaced-by fills each deprecated
+// node's ReplacedBy with the entity its name resolves to, an operation by an
+// operationId declared after it, a parameter beside it and a schema by its
+// components name, and a name naming nothing fills nothing and says so.
+func TestPromotion_ReplacementsResolveOnceTheDocumentIsWhole(t *testing.T) {
+	t.Parallel()
+	const spec = `openapi: 3.1.0
+info: {title: T, version: "1"}
+paths:
+  /old:
+    get:
+      operationId: getOld
+      deprecated: true
+      x-replaced-by: getNew
+      parameters:
+        - {name: limit, in: query, deprecated: true, x-replaced-by: query.pageSize, schema: {type: integer}}
+        - {name: pageSize, in: query, schema: {type: integer}}
+      responses: {"200": {description: ok}}
+  /gone:
+    get:
+      operationId: getGone
+      deprecated: true
+      x-replaced-by: [getNew, nothing]
+      responses: {"200": {description: ok}}
+  /new:
+    get:
+      operationId: getNew
+      responses: {"200": {description: ok}}
+components:
+  schemas:
+    Old: {type: object, deprecated: true, x-replaced-by: New}
+    New: {type: object}
+`
+	doc, diags, err := openapi.New().Compile(t.Context(),
+		[]compilers.Source{{Path: "spec.yaml", Data: []byte(spec)}},
+		compilers.Options{FormatOptions: openapi.Options{Promotions: openapi.ExtensionPromotions{
+			Targets: map[openapi.ExtensionTarget][]openapi.ExtensionSource{
+				openapi.TargetDeprecationReplacedBy: {{Key: "x-replaced-by"}},
+			},
+		}}})
+	require.NoError(t, err)
+
+	getOld, ok := opByName(doc, "getOld")
+	require.True(t, ok)
+	getNew, ok := opByName(doc, "getNew")
+	require.True(t, ok)
+	require.NotNil(t, getOld.Deprecation)
+	assert.Equal(t, []ir.EntityRef{{Operation: getNew.ID}}, getOld.Deprecation.ReplacedBy)
+	require.NotNil(t, getOld.Params[0].Deprecation)
+	assert.Equal(t, []ir.EntityRef{{Param: getOld.Params[1].ID}}, getOld.Params[0].Deprecation.ReplacedBy)
+	assert.Equal(t, []ir.EntityRef{{Type: componentID("New")}}, doc.Types[componentID("Old")].Common().Deprecation.ReplacedBy)
+
+	getGone, ok := opByName(doc, "getGone")
+	require.True(t, ok)
+	assert.Empty(t, getGone.Deprecation.ReplacedBy, "a list naming one entity that does not exist fills nothing")
+	assert.Equal(t, []ir.Severity{ir.SeverityInfo}, diagsAt(diags, "openapi/degraded-construct", "/paths/~1gone/get/x-replaced-by"))
+	assert.Contains(t, getGone.Unmodeled, "openapi:x-replaced-by", "the extension survives its promotion")
+}
+
+// TestPromotion_AnOwnedPrefixIsJudgedAtEveryNode pins the owned-prefix report
+// to every node keeping an extension, the document's own among them: its root,
+// info, contact, license, tags and components keep theirs in the Document's
+// Unmodeled, which is merged last, so a judge run before it would miss them.
+func TestPromotion_AnOwnedPrefixIsJudgedAtEveryNode(t *testing.T) {
+	t.Parallel()
+	const spec = `openapi: 3.1.0
+x-acme-root: 1
+info:
+  title: T
+  version: "1"
+  x-acme-info: 1
+  contact: {name: c, x-acme-contact: 1}
+  license: {name: MIT, x-acme-license: 1}
+tags:
+  - {name: T, x-acme-tag: 1}
+paths:
+  /x:
+    get:
+      operationId: getX
+      x-acme-op: 1
+      responses: {"200": {description: ok}}
+components:
+  x-acme-components: 1
+  schemas:
+    S: {type: string, x-acme-schema: 1}
+`
+	_, diags, err := openapi.New().Compile(t.Context(),
+		[]compilers.Source{{Path: "spec.yaml", Data: []byte(spec)}},
+		compilers.Options{FormatOptions: openapi.Options{Promotions: openapi.ExtensionPromotions{
+			Prefixes: []string{"x-acme-"},
+		}}})
+	require.NoError(t, err)
+	for _, pointer := range []string{
+		"/x-acme-root", "/info/x-acme-info", "/info/contact/x-acme-contact", "/info/license/x-acme-license",
+		"/tags/0/x-acme-tag", "/paths/~1x/get/x-acme-op", "/components/x-acme-components",
+		"/components/schemas/S/x-acme-schema",
+	} {
+		assert.Equal(t, []ir.Severity{ir.SeverityWarning}, diagsAt(diags, "openapi/unread-extension", pointer), pointer)
+	}
+}
+
+// TestPromotion_AnOwnedPrefixCountsEveryGroupingKeyRead pins the owned-prefix
+// report to the keys grouping reads, set as a caller holding only text sets
+// them: under grouping=extension and its defaults, the aliases key beside the
+// grouping key is read, so owning their prefix reports neither, while a key
+// under it nothing reads still is. Grouped by tags, nothing reads either key.
+func TestPromotion_AnOwnedPrefixCountsEveryGroupingKeyRead(t *testing.T) {
+	t.Parallel()
+	const spec = `openapi: 3.1.0
+info: {title: T, version: "1"}
+paths:
+  /x:
+    get:
+      operationId: getX
+      x-forge-group: a
+      x-forge-aliases: [{x-forge-group: b.c}]
+      x-forge-alises: [{x-forge-group: d}]
+      responses: {"200": {description: ok}}
+`
+	unread := func(grouping map[string]string) []string {
+		settings := map[string]string{"promotion-prefixes": "x-forge"}
+		maps.Copy(settings, grouping)
+		opts, err := openapi.New().DecodeOptions(compilers.OptionSet{Settings: settings})
+		require.NoError(t, err)
+		_, diags, err := openapi.New().Compile(t.Context(),
+			[]compilers.Source{{Path: "spec.yaml", Data: []byte(spec)}}, compilers.Options{FormatOptions: opts})
+		require.NoError(t, err)
+		var pointers []string
+		for _, d := range diags {
+			if d.Code == "openapi/unread-extension" {
+				pointers = append(pointers, string(d.Provenance.Pointer))
+			}
+		}
+		return pointers
+	}
+
+	byExtension := unread(map[string]string{"grouping": "extension"})
+	assert.Equal(t, []string{"/paths/~1x/get/x-forge-alises", "/paths/~1x/get/x-forge-group"}, byExtension,
+		"the default reads x-fern-sdk-group-name, so x-forge-group is unread, and x-forge-aliases beside it is read")
+	custom := unread(map[string]string{"grouping": "extension", "grouping-key": "x-forge-group",
+		"grouping-lists": "segments", "grouping-aliases": "x-forge-aliases"})
+	assert.Equal(t, []string{"/paths/~1x/get/x-forge-alises"}, custom)
+	assert.Equal(t, []string{"/paths/~1x/get/x-forge-aliases", "/paths/~1x/get/x-forge-alises",
+		"/paths/~1x/get/x-forge-group"}, unread(map[string]string{"grouping": "tags"}))
 }

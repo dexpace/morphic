@@ -6,10 +6,12 @@
     ],
     "e": [
       "anon",
+      "composed",
       "openapi"
     ],
     "g": [
       "default",
+      "extension",
       "path-prefix",
       "tags",
       "webhooks"
@@ -93,6 +95,106 @@
         "nullable": false
       }
     },
+    "t/anon/components/schemas/Holder/$defs/Deep": {
+      "kind": "model",
+      "id": "t/anon/components/schemas/Holder/$defs/Deep",
+      "name": {
+        "hint": "deep"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Holder/$defs/Deep"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/Holder/$defs/Deep/properties/d",
+          "name": {
+            "source": "d",
+            "canonical": "d"
+          },
+          "wireName": "d",
+          "type": {
+            "target": "t/prim/string",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Holder/$defs/Deep/properties/d"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/anon/components/schemas/Recursive/properties/children": {
+      "kind": "list",
+      "id": "t/anon/components/schemas/Recursive/properties/children",
+      "name": {
+        "hint": "children"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Recursive/properties/children"
+      },
+      "elem": {
+        "target": "t/anon/components/schemas/Recursive/properties/children/items",
+        "nullable": false
+      }
+    },
+    "t/anon/components/schemas/Recursive/properties/children/items": {
+      "kind": "scalar",
+      "id": "t/anon/components/schemas/Recursive/properties/children/items",
+      "name": {
+        "hint": "children_item"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Recursive/properties/children/items"
+      },
+      "base": {
+        "target": "t/openapi/components/schemas/Recursive",
+        "nullable": false
+      }
+    },
+    "t/openapi/components/schemas/Holder": {
+      "kind": "model",
+      "id": "t/openapi/components/schemas/Holder",
+      "name": {
+        "source": "Holder",
+        "canonical": "holder"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Holder"
+      },
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
     "t/openapi/components/schemas/Leaf": {
       "kind": "scalar",
       "id": "t/openapi/components/schemas/Leaf",
@@ -111,6 +213,63 @@
         "target": "t/prim/string",
         "nullable": false
       }
+    },
+    "t/openapi/components/schemas/Linked": {
+      "kind": "model",
+      "id": "t/openapi/components/schemas/Linked",
+      "name": {
+        "source": "Linked",
+        "canonical": "linked"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "unmodeled": {
+        "openapi:$id": {
+          "reason": "out_of_scope",
+          "value": "https://example.com/linked",
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Linked/$id"
+          }
+        }
+      },
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Linked"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/Linked/properties/next",
+          "name": {
+            "source": "next",
+            "canonical": "next"
+          },
+          "wireName": "next",
+          "type": {
+            "target": "t/openapi/components/schemas/Linked",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Linked/properties/next"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
     },
     "t/openapi/components/schemas/Node": {
       "kind": "model",
@@ -152,6 +311,71 @@
           "provenance": {
             "source": 0,
             "pointer": "/components/schemas/Node/properties/label"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/openapi/components/schemas/Recursive": {
+      "kind": "model",
+      "id": "t/openapi/components/schemas/Recursive",
+      "name": {
+        "source": "Recursive",
+        "canonical": "recursive"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "unmodeled": {
+        "openapi:$id": {
+          "reason": "out_of_scope",
+          "value": "https://example.com/recursive",
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Recursive/$id"
+          }
+        },
+        "openapi:$schema": {
+          "reason": "out_of_scope",
+          "value": "https://json-schema.org/draft/2019-09/schema",
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Recursive/$schema"
+          }
+        }
+      },
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Recursive"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/Recursive/properties/children",
+          "name": {
+            "source": "children",
+            "canonical": "children"
+          },
+          "wireName": "children",
+          "type": {
+            "target": "t/anon/components/schemas/Recursive/properties/children",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Recursive/properties/children"
           }
         }
       ],
@@ -264,6 +488,33 @@
             "source": 0,
             "pointer": "/components/schemas/Tree/properties/ghost"
           }
+        },
+        {
+          "id": "p/openapi/components/schemas/Tree/properties/deep",
+          "name": {
+            "source": "deep",
+            "canonical": "deep"
+          },
+          "wireName": "deep",
+          "type": {
+            "target": "t/anon/components/schemas/Holder/$defs/Deep",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Tree/properties/deep"
+          }
         }
       ],
       "abstract": false,
@@ -317,7 +568,7 @@
         "source": 0,
         "pointer": "/components/schemas/",
         "position": {
-          "line": 33,
+          "line": 58,
           "column": 7
         }
       }
@@ -351,6 +602,60 @@
     },
     {
       "severity": "info",
+      "code": "openapi/dynamic-ref-expanded",
+      "message": "$dynamicRef expanded to \"t/anon/components/schemas/Holder/$defs/Deep\", the one matching $dynamicAnchor in this document",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Tree/properties/deep/$dynamicRef"
+      }
+    },
+    {
+      "severity": "info",
+      "code": "openapi/dynamic-ref-expanded",
+      "message": "$dynamicRef expanded to \"t/openapi/components/schemas/Linked\", the one matching $dynamicAnchor in this document",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Linked/properties/next/$dynamicRef"
+      }
+    },
+    {
+      "severity": "info",
+      "code": "openapi/degraded-construct",
+      "message": "$id identifies or configures a JSON Schema resource rather than describing data; the IR models no such axis, so it is kept verbatim under Unmodeled and is read only for reference resolution",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Linked/$id"
+      }
+    },
+    {
+      "severity": "info",
+      "code": "openapi/dynamic-ref-expanded",
+      "message": "$recursiveRef expanded to \"t/openapi/components/schemas/Recursive\", the root of the schema resource it is written in",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Recursive/properties/children/items/$recursiveRef"
+      }
+    },
+    {
+      "severity": "info",
+      "code": "openapi/degraded-construct",
+      "message": "$id identifies or configures a JSON Schema resource rather than describing data; the IR models no such axis, so it is kept verbatim under Unmodeled and is read only for reference resolution",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Recursive/$id"
+      }
+    },
+    {
+      "severity": "info",
+      "code": "openapi/degraded-construct",
+      "message": "$schema identifies or configures a JSON Schema resource rather than describing data; the IR models no such axis, so it is kept verbatim under Unmodeled and is read only where it roots a schema resource of a 3.1 or 3.2 document, to choose that resource's dialect, never for reference resolution",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Recursive/$schema"
+      }
+    },
+    {
+      "severity": "info",
       "code": "openapi/degraded-construct",
       "message": "$id identifies or configures a JSON Schema resource rather than describing data; the IR models no such axis, so it is kept verbatim under Unmodeled and is read only for reference resolution",
       "provenance": {
@@ -361,7 +666,7 @@
     {
       "severity": "info",
       "code": "openapi/degraded-construct",
-      "message": "$dynamicRef was not expanded because an $id at or above \"/components/schemas/\" starts a schema resource of its own, and the IR resolves no resource base URIs; it is kept verbatim under Unmodeled",
+      "message": "$dynamicRef was not expanded because an identifier between it and \"/components/schemas/Node\" puts the two in different schema resources, and a dynamic reference names an anchor of its own resource; it is kept verbatim under Unmodeled",
       "provenance": {
         "source": 0,
         "pointer": "/components/schemas//$dynamicRef"
@@ -372,7 +677,7 @@
     {
       "format": "openapi@3.1",
       "path": "dynamic-ref.yaml",
-      "hash": "4ae3f35d31355eedd294ecae9d7a312ec39cb830a1ed5826b90404d29eaf529b"
+      "hash": "f011b5098990de72b586c68e4d0f1c9d810e3f0e6f1e6c09471c2f040d831fa9"
     }
   ]
 }

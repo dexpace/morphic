@@ -28,7 +28,7 @@ func checkEncodingKeys(doc *ir.Document, facts *irfacts.Index) []ir.Diagnostic {
 	var diags []ir.Diagnostic
 	var keys []ir.PropID // every content's keys are sorted in this one list
 	forEachPayload(doc, func(site payloadSite) {
-		diags = appendEncodingKeyDiags(diags, facts, site, &keys)
+		diags = appendEncodingKeyDiags(diags, doc.Types, facts, site, &keys)
 	})
 	return diags
 }
@@ -144,9 +144,11 @@ func siteOf(p ir.Payload, owner, field string, index int, request bool) payloadS
 // A content whose type no entry declares exposes no part, so each of its keys
 // is reported beside checkDanglingRefs's finding on the type. The claims
 // differ, as with checkMapping.
-func appendEncodingKeyDiags(dst []ir.Diagnostic, facts *irfacts.Index, site payloadSite, keys *[]ir.PropID) []ir.Diagnostic {
+func appendEncodingKeyDiags(dst []ir.Diagnostic, types ir.TypeRegistry, facts *irfacts.Index, site payloadSite,
+	keys *[]ir.PropID,
+) []ir.Diagnostic {
 	for i, c := range site.contents {
-		dst = appendUnknownPartDiags(dst, facts, c, site, i, keys)
+		dst = appendUnknownPartDiags(dst, types, facts, c, site, i, keys)
 	}
 	return dst
 }
@@ -159,8 +161,8 @@ func appendEncodingKeyDiags(dst []ir.Diagnostic, facts *irfacts.Index, site payl
 // type's flattening overrides passes, though docs/ir/models.md#the-flattening
 // has it name the one taken: flattening every type asked about grows
 // quadratically down a deep hierarchy.
-func appendUnknownPartDiags(dst []ir.Diagnostic, facts *irfacts.Index, c ir.Content, site payloadSite, i int,
-	keys *[]ir.PropID,
+func appendUnknownPartDiags(dst []ir.Diagnostic, types ir.TypeRegistry, facts *irfacts.Index, c ir.Content,
+	site payloadSite, i int, keys *[]ir.PropID,
 ) []ir.Diagnostic {
 	*keys = (*keys)[:0]
 	for key := range c.Encoding {
@@ -168,7 +170,7 @@ func appendUnknownPartDiags(dst []ir.Diagnostic, facts *irfacts.Index, c ir.Cont
 	}
 	slices.Sort(*keys)
 	for _, key := range *keys {
-		if facts.Exposes(c.Type.Target, key) {
+		if partNamed(types, facts, c.Type.Target, key) {
 			continue
 		}
 		at := site.where() + "/contents/" + strconv.Itoa(i) + "/encoding/" + string(key)
@@ -177,4 +179,82 @@ func appendUnknownPartDiags(dst []ir.Diagnostic, facts *irfacts.Index, c ir.Cont
 				key, at, c.Type.Target), at))
 	}
 	return dst
+}
+
+// partNamed reports whether key names a part of a body typed target: a
+// property the type exposes, or one a variant of the union it stands for
+// exposes, through the unions nested in its variants, as a composition
+// distributed across a union puts the body's properties on every variant;
+// else one a shape of such a type that is a model narrowing a union holds
+// (narrowedHolds), which is read only then (docs/ir/payloads.md).
+func partNamed(types ir.TypeRegistry, facts *irfacts.Index, target ir.TypeID, key ir.PropID) bool {
+	return anyHolder(types, target, func(h ir.TypeID) bool { return facts.Exposes(h, key) }) ||
+		anyHolder(types, target, func(h ir.TypeID) bool { return narrowedHolds(types, h, key, maxNarrowedSteps) })
+}
+
+// anyHolder reports whether holds answers true of target or, where it stands
+// for a union, of a variant of that union, through the unions nested in them,
+// depth first, stopping at the first. Each union is read once, so a union
+// nesting itself ends.
+func anyHolder(types ir.TypeRegistry, target ir.TypeID, holds func(ir.TypeID) bool) bool {
+	if holds(target) {
+		return true
+	}
+	read := map[*ir.Union]bool{}
+	pending := []ir.TypeID{target}
+	for len(pending) > 0 {
+		next := pending[len(pending)-1]
+		pending = pending[:len(pending)-1]
+		u := unionThrough(types, next)
+		if u == nil || read[u] {
+			continue
+		}
+		read[u] = true
+		for _, v := range u.Variants {
+			if holds(v.Type.Target) {
+				return true
+			}
+			pending = append(pending, v.Type.Target)
+		}
+	}
+	return false
+}
+
+// maxNarrowedSteps bounds the steps ir.NarrowedShapes takes for one type a
+// key is asked of (styleguide bounded-everything rule). It is the bound the
+// OpenAPI compiler keys a narrowing's parts under, so no key it writes is
+// refused for a walk cut shorter here.
+const maxNarrowedSteps = 100_000
+
+// narrowedHolds reports whether a shape of the model target, where it narrows
+// a union (ir.NarrowedShapes), holds a member declared as key: a part only one
+// of the union's variants declares, which the model exposes nowhere. A walk
+// past limit steps lists no shape, so it holds none.
+func narrowedHolds(types ir.TypeRegistry, target ir.TypeID, key ir.PropID, limit int) bool {
+	n, _, _ := ir.NarrowedShapes(types, target, limit)
+	for _, shape := range n.Shapes {
+		if slices.ContainsFunc(shape.Properties, func(fp ir.FlatProperty) bool { return fp.Property.ID == key }) {
+			return true
+		}
+	}
+	return false
+}
+
+// unionThrough returns the union target stands for, read through a chain of
+// alias scalars, and nil where it stands for none. The IR permits a cyclic
+// chain, so a visited set ends the walk at the first type it meets twice.
+func unionThrough(types ir.TypeRegistry, target ir.TypeID) *ir.Union {
+	seen := map[ir.TypeID]bool{}
+	for !seen[target] {
+		seen[target] = true
+		if u, ok := types[target].(*ir.Union); ok {
+			return u
+		}
+		base, alias := ir.AliasBase(types, target)
+		if !alias {
+			return nil
+		}
+		target = base
+	}
+	return nil
 }

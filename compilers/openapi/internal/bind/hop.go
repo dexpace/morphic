@@ -4,8 +4,9 @@
 package bind
 
 import (
-	"encoding/json/jsontext"
 	"errors"
+	"fmt"
+	"net/url"
 	"strings"
 	"unicode/utf8"
 
@@ -28,7 +29,7 @@ func (b *binder) resolve(site Position, path []*yaml.Node, ref string, schema bo
 		h.Reason = BadPointer
 		return h
 	}
-	in, known := b.resources.holding(site, path, schema)
+	in, known := b.resources.holding(site, path, schema, b.ids.readsDialects(site.Doc))
 	if !known {
 		h.Reason = MergeBound
 		return h
@@ -38,7 +39,6 @@ func (b *binder) resolve(site Position, path []*yaml.Node, ref string, schema bo
 		h.Reason, h.Detail = reason, detail
 		return h
 	}
-	h.Named = to.root.Doc == Source
 	r, reason := b.land(site, path, to, ref, schema, &h)
 	if reason != NoReason {
 		h.Reason = reason
@@ -54,10 +54,11 @@ func (b *binder) resolve(site Position, path []*yaml.Node, ref string, schema bo
 
 // named is the resource the document part uri of a reference read in the
 // resource in names: in itself for none, else the one the URI it names against
-// in's identifies: a resource an $id names, the source, or the document there,
-// opened. A relative URI read against an $id that no schema declares names the
-// document at the URI the $id makes of it (readAt); an absolute one names what
-// it names wherever it is written.
+// in's identifies: a resource an $id names, in whichever document, the source,
+// or the document there, opened. A relative URI read against an $id that no
+// schema declares names the document at the URI the $id makes of it (readAt);
+// an absolute one names what it names wherever it is written. A location the
+// document in is read from may not reach (Reachable) is refused unread.
 func (b *binder) named(in resource, uri string) (resource, Reason, string) {
 	if uri = strings.TrimSpace(uri); uri == "" {
 		return in, NoReason, ""
@@ -67,6 +68,9 @@ func (b *binder) named(in resource, uri string) (resource, Reason, string) {
 		return resource{}, Unreadable, "it names no document a reference can"
 	}
 	if b.resources.names(Source, key) {
+		if !reachable(b.docs, in, b.docs.cfg.Self) {
+			return resource{}, Unreadable, OffNetwork
+		}
 		return b.resources.document(Source), NoReason, ""
 	}
 	// A miss the merge bound may explain is read as a location all the same:
@@ -74,22 +78,28 @@ func (b *binder) named(in resource, uri string) (resource, Reason, string) {
 	root, found, why := b.ids.lookupURI(key)
 	switch {
 	case found:
+		b.docs.reach(root.Doc)
 		return resource{root: root, uri: key, id: true}, NoReason, ""
 	case why == DuplicateID:
 		return resource{}, why, key
-	case in.id && !absolute(uri):
+	case in.id && !fragment.Absolute(uri):
 		return b.readAt(in, uri, key)
 	}
-	return b.opened(in, uri)
+	return b.opened(in, uri, key)
 }
 
 // opened is the resource of the document uri, written in the resource in,
 // names, placed by Config.Locate, or why not: Config.Refuse refuses that
-// spelling, it names no document, or the read fails (read). An identifier is
-// never refused, since no document is read for one.
-func (b *binder) opened(in resource, uri string) (resource, Reason, string) {
+// spelling, key, the URI it resolves to, is no location in's document may
+// reach, judged before Config.Locate asks anything of a reader, it names no
+// document, or the read fails (read). An identifier is never refused, since no
+// document is read for one.
+func (b *binder) opened(in resource, uri, key string) (resource, Reason, string) {
 	if why := b.docs.refusal(uri); why != "" {
 		return resource{}, Unreadable, why
+	}
+	if !reachable(b.docs, in, key) {
+		return resource{}, Unreadable, OffNetwork
 	}
 	name, ok := b.docs.locate(uri, in.uri)
 	if !ok {
@@ -100,10 +110,11 @@ func (b *binder) opened(in resource, uri string) (resource, Reason, string) {
 
 // readAt is the resource of the document a relative URI uri names, written in
 // the resource in, whose base an $id gives: key, the URI that base makes of it
-// by RFC 3986, read as such rather than placed by Config.Locate, which reads a
-// path against a URL as a local one (GitHub #936). Config.Refuse judges uri as
-// written where only relative paths moved the base, and key once an absolute
-// $id detached it, so an $id cannot make a refused read pass as relative.
+// by RFC 3986, normalized as an identifier is (normalURI), read as such rather
+// than placed again by Config.Locate, which spells it as written. Config.Refuse
+// judges uri as written where only relative paths moved the base, and key once
+// an absolute $id detached it, so an $id cannot make a refused read pass as
+// relative.
 func (b *binder) readAt(in resource, uri, key string) (resource, Reason, string) {
 	spelled := uri
 	if in.detached {
@@ -112,12 +123,51 @@ func (b *binder) readAt(in resource, uri, key string) (resource, Reason, string)
 	if why := b.docs.refusal(spelled); why != "" {
 		return resource{}, Unreadable, why
 	}
+	if !reachable(b.docs, in, key) {
+		return resource{}, Unreadable, OffNetwork
+	}
 	return b.read(key)
 }
 
+// OffNetwork is why a reference written in a document read over the network
+// is not read, where it names a document by no http or https URL (Reachable).
+const OffNetwork = "a reference in a document read over http or https reads only http and https URLs"
+
+// reachable reports whether a reference written in the resource in, of one of
+// d's documents, may read the document named name: judged by the location
+// in's document was read from, never by a URI an $id gives in, so that no $id
+// moves a reference in a document read over the network onto a file.
+func reachable(d *docs, in resource, name string) bool {
+	return Reachable(d.name(in.root.Doc), name)
+}
+
+// Reachable reports whether a reference written in the document read from
+// from may read the document at target. One read over http or https reads
+// only another so read, as its author owns no file of the reader's: a path, a
+// file URI, a drive's path or a URL of any other scheme is read nowhere. Any
+// other document may read any. It is the one judgement every route reading a
+// reference makes, before the document is read.
+func Reachable(from, target string) bool {
+	return !OverNetwork(from) || OverNetwork(target)
+}
+
+// OverNetwork reports whether location names a document read over the
+// network: an http or https URL, its scheme in any case. A file URI, a path
+// and a URL of any other scheme are not.
+func OverNetwork(location string) bool {
+	u, err := url.Parse(location)
+	return err == nil && (strings.EqualFold(u.Scheme, "http") || strings.EqualFold(u.Scheme, "https"))
+}
+
 // read is the resource of the document named name, read through Config.Open,
-// or why the read failed.
+// or why the read failed. The first read of a document an absolute URI names
+// waits until the pass's walks are done (Held), since a document read meanwhile
+// may declare that URI, and an identifier is not a location to fetch (goOn).
 func (b *binder) read(name string) (resource, Reason, string) {
+	if fragment.Absolute(name) && b.docs.unread(name) {
+		b.held[name] = true
+		return resource{}, Held, ""
+	}
 	id, err := b.docs.open(name)
 	var unparsable *UnparsableError
 	switch {
@@ -136,85 +186,46 @@ func (b *binder) read(name string) (resource, Reason, string) {
 // land reads where the fragment of ref, written at site and reached along
 // path, names in the resource to: a JSON pointer from its root, a
 // "#/$defs/..." one in a document's own resource by the $defs rule
-// (definition), or the schema a plain name names (anchored). It notes in h the
-// pointer it spells when it names the source.
+// (definition), or the schema a plain name names (anchored). It notes in h
+// the URI of a resource it names nothing in.
 func (b *binder) land(site Position, path []*yaml.Node, to resource, ref string, schema bool, h *Hop,
 ) (reading, Reason) {
 	pointer := fragment.Pointer(ref)
 	switch {
 	case pointer != "" && !strings.HasPrefix(string(pointer), "/"):
-		if isAnchorName(string(pointer)) {
-			return b.anchored(to, string(pointer), h)
-		}
-		return reading{}, BadPointer
+		return b.anchored(to, string(pointer))
 	case !pointer.IsValid() || !utf8.ValidString(string(pointer)):
 		return reading{}, BadPointer
 	}
 	if uri, _, _ := strings.Cut(ref, "#"); strings.TrimSpace(uri) == "" && !to.id && isDefs(pointer) {
-		return b.definition(site, path, pointer, schema, h)
+		r, reason := b.readPointer(site.Doc, pointer)
+		return b.defs.definition(site, path, pointer, schema, r, reason)
 	}
-	r, reason := b.pointed(to.root.Doc, to.root.Pointer+pointer, h)
+	r, reason := b.readPointer(to.root.Doc, to.root.Pointer+pointer)
 	if reason == NoTarget && to.id {
 		reason, h.Detail = NoResourceTarget, to.uri
 	}
 	return r, reason
 }
 
-// definition reads a "#/$defs/..." pointer written at site, reached along
-// path, in its document's own resource, by the $defs rule, noting in h the
-// position it spells. It is refused where site is in the fields beside a path
-// item's $ref, as any definition it can name is: the parser reads such a
-// pointer through that $ref instead (GitHub #824).
-func (b *binder) definition(site Position, path []*yaml.Node, pointer jsontext.Pointer, schema bool, h *Hop,
-) (reading, Reason) {
-	if site.Doc == Source && b.beside(site.Pointer, h) {
-		return reading{}, BesideDefs
-	}
-	r, reason := b.defs.definition(site, path, pointer, schema)
-	if reason == NoReason && h.Named {
-		h.Spelled = r.at.Pointer
-	}
-	return r, reason
-}
-
-// pointed reads pointer from the root of document doc, noting in h the
-// pointer it spells when it names the source. It is refused where it lands
-// in the fields beside a path item's $ref: the parser reads such a pointer
-// through that $ref instead (GitHub #824).
-func (b *binder) pointed(doc DocID, pointer jsontext.Pointer, h *Hop) (reading, Reason) {
-	if h.Named {
-		h.Spelled = pointer
-		if b.beside(pointer, h) {
-			return reading{}, BesideRef
-		}
-	}
-	return b.docs.read(doc, pointer)
-}
-
-// anchored reads the schema the resource to declares name in, as its
-// $anchor or $dynamicAnchor. Only the source's identifiers are read.
-func (b *binder) anchored(to resource, name string, h *Hop) (reading, Reason) {
-	if to.root.Doc != Source {
-		return reading{}, AnchorUnread
-	}
+// anchored reads the schema the resource to declares the plain name name in, as
+// its $anchor, its $dynamicAnchor or an identifier naming that fragment alone,
+// whichever document holds it: any fragment no JSON pointer spells is a plain
+// name, as every JSON Schema dialect reads one (2020-12 §5). A name no grammar
+// admits, which only draft 4's `id` can declare, is BadPointer where no schema
+// declares it and none past a merge bound may: no other dialect could, so it
+// is likelier a pointer written wrong.
+func (b *binder) anchored(to resource, name string) (reading, Reason) {
+	b.find.identify(to.root.Doc)
 	at, why := b.ids.lookupAnchor(to.root, name)
-	if why != NoReason {
+	switch {
+	case why == NoReason:
+		return b.readPointer(to.root.Doc, at.Pointer)
+	case why != NoAnchor || isAnchorName(name) || isPlainName(name):
 		return reading{}, why
+	default:
+		return reading{}, BadPointer
 	}
-	return b.pointed(Source, at.Pointer, h)
-}
-
-// beside reports whether pointer is in the fields beside a path item's $ref
-// (Config.Beside), noting in h which ones.
-func (b *binder) beside(pointer jsontext.Pointer, h *Hop) bool {
-	if b.cfg.Beside == nil {
-		return false
-	}
-	use, key, ok := b.cfg.Beside(pointer)
-	if ok {
-		h.Use, h.Key = use, key
-	}
-	return ok
 }
 
 // hop is the hop of the $ref written at p, read once and remembered. Only a
@@ -234,7 +245,57 @@ func (b *binder) hop(p Position) Hop {
 	if h.Status == Resolved {
 		b.find.landed(h)
 	}
+	if h.Reason == Held {
+		b.wait.held = append(b.wait.held, p)
+	}
 	return h
+}
+
+// DynamicFragment returns the anchor name a $dynamicRef written as ref addresses,
+// or the reason it addresses none. Only the same-document `#name` spelling
+// resolves; a URI part or a `#/…` pointer addresses no anchor.
+//
+// The name is the fragment percent-decoded once (RFC 3986): `#my%2Danchor` and
+// `#my-anchor` name one anchor. PathUnescape keeps `+` literal, as a fragment
+// needs, and a fragment it cannot decode is refused, not matched raw.
+func DynamicFragment(ref string) (name, why string, ok bool) {
+	spelled, found := strings.CutPrefix(ref, "#")
+	if !found || spelled == "" || strings.Contains(spelled, "/") {
+		return "", fmt.Sprintf("%q is not a plain same-document fragment", ref), false
+	}
+	name, err := url.PathUnescape(spelled)
+	if err != nil {
+		return "", fmt.Sprintf("%q is not valid percent-encoded text: %s", ref, err.Error()), false
+	}
+	return name, "", true
+}
+
+// anchorNamed reports whether s is a name the anchor keyword can declare in a
+// schema read as rule says: by the plain-name grammar for `$anchor` where the
+// dialect gives it that grammar (DialectRule.PlainNames), as 2019-09 does; by
+// 2020-12's for any other, as for `$dynamicAnchor`, which 2020-12 added, and
+// for an `$anchor` in a draft defining none, read as 2020-12 reads it. An
+// identifier's name is fragmentName's.
+func anchorNamed(rule DialectRule, keyword, s string) bool {
+	if keyword == "$anchor" && rule.PlainNames {
+		return isPlainName(s)
+	}
+	return isAnchorName(s)
+}
+
+// isPlainName reports whether s is a plain name JSON Schema drafts 6, 7 and
+// 2019-09 declare an anchor by (draft-handrews-json-schema-02 §8.2.3): a
+// letter, then letters, digits, '-', '_', ':' and '.'.
+func isPlainName(s string) bool {
+	for i, c := range s {
+		switch {
+		case c >= 'a' && c <= 'z', c >= 'A' && c <= 'Z':
+		case i > 0 && (c >= '0' && c <= '9' || c == '-' || c == '_' || c == ':' || c == '.'):
+		default:
+			return false
+		}
+	}
+	return s != ""
 }
 
 // isAnchorName reports whether s is a name a $anchor can declare, by JSON

@@ -27,9 +27,9 @@ func retainedSections() []string {
 // openapi:components/<section>/<name> with ReasonNoIRHome and no diagnostic
 // (GitHub #616). It must run after every other lowering: only they know what
 // they followed (lowering.Ctx.Reached), and a $ref string they never follow,
-// in a links map, an x- extension or an example's value, carries nothing of
-// its target into the IR. A section is read as the parser reads it, through
-// `<<` merge keys, so a merged-in entry is kept under its own name.
+// in an x- extension or an example's value, carries nothing of its target into
+// the IR. A section is read as the parser reads it, through `<<` merge keys,
+// so a merged-in entry is kept under its own name.
 func retainUnreferencedComponents(c lowering.Ctx) (ir.Unmodeled, []ir.Diagnostic) {
 	view := nodeview.New()
 	components := view.ChildByToken(nodeview.DocumentRoot(c.Doc.GetRootNode()), "components")
@@ -42,7 +42,7 @@ func retainUnreferencedComponents(c lowering.Ctx) (ir.Unmodeled, []ir.Diagnostic
 				continue
 			}
 			_, keptDiags := annotation.PreserveNodeInto(&out, "openapi:"+ids.Scope("components", section, entry.Key),
-				entry.Val, ir.ReasonNoIRHome, c.ProvenanceAt(pointer))
+				entry.Val, ir.ReasonNoIRHome, c.Place().At(pointer))
 			diags = append(diags, keptDiags...)
 		}
 	}

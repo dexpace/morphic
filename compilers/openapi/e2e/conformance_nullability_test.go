@@ -85,6 +85,131 @@ func assertCollapsedBranchHint(t *testing.T, doc *ir.Document) {
 	assert.Equal(t, branchID, ref.Base.Target, "the outside reference reaches that same node")
 }
 
+// assertEnumNullMember holds a null enum entry to the reference: no Literal
+// holds it, the Enum listing null alone has no member, a type excluding null
+// leaves the entry admitting nothing (docs/compilers/openapi.md#enum-const),
+// and a union branch of the golden spec's spelling of null alone is the
+// union's null (docs/compilers/openapi.md#union-null-variant).
+func assertEnumNullMember(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
+	for id, td := range doc.Types {
+		if lit, ok := td.(*ir.Literal); ok {
+			assert.NotEqual(t, ir.ValueNull, lit.Value.Kind, "no Literal holds the null: %s", id)
+		}
+	}
+	mixed, ok := doc.Types[componentID("Mixed")].(*ir.Union)
+	require.True(t, ok, "members of two kinds are a union")
+	assert.Len(t, mixed.Variants, 2, "a variant per member that is not null")
+	narrowed, ok := doc.Types[componentID("Narrowed")].(*ir.Enum)
+	require.True(t, ok)
+	require.Len(t, narrowed.Members, 1)
+	assert.Equal(t, "a", narrowed.Members[0].Value.Str)
+	assert.Equal(t, []ir.Severity{ir.SeverityWarning},
+		diagsAt(diags, "openapi/degraded-construct", "/components/schemas/Narrowed/enum/1"),
+		"the null its type excludes is reported at it")
+
+	holder, ok := doc.Types[componentID("Holder")].(*ir.Model)
+	require.True(t, ok)
+	nullable := map[string]bool{}
+	for _, p := range holder.Properties {
+		nullable[p.WireName] = p.Type.Nullable
+	}
+	assert.Equal(t, map[string]bool{"mixed": true, "narrowed": false, "orNull": true}, nullable)
+	orNull, ok := doc.Types[componentID("OrNull")].(*ir.Scalar)
+	require.True(t, ok, "a branch admitting null alone is the union's null, so the union collapses")
+	require.NotNil(t, orNull.Base)
+	assert.Equal(t, ir.TypeRef{Target: componentID("Mixed"), Nullable: true}, *orNull.Base)
+
+	op, ok := opByName(doc, "deleteZone")
+	require.True(t, ok)
+	body, ok := doc.Types[firstContent(t, op).Type.Target].(*ir.Model)
+	require.True(t, ok)
+	for _, wire := range []string{"result", "gone"} {
+		p, found := propByWire(body, wire)
+		require.True(t, found, wire)
+		assert.True(t, p.Type.Nullable, "%s admits null", wire)
+		assert.Equal(t, wire == "result", p.Required, "%s keeps its own presence", wire)
+		only, isEnum := doc.Types[p.Type.Target].(*ir.Enum)
+		require.True(t, isEnum, "%s is an Enum, got %T", wire, doc.Types[p.Type.Target])
+		assert.Empty(t, only.Members, "%s admits null and nothing else", wire)
+		assert.True(t, only.Closed)
+		assert.Empty(t, only.Unmodeled, "a type beside no member says nothing")
+	}
+}
+
+// assertNullAlone holds every spelling of a schema admitting null and nothing
+// else to one shape: a closed Enum with no member at the position, behind a
+// nullable reference, where a schema admitting every value and null is the
+// top type (docs/compilers/openapi.md#null-alone). A union branch of null
+// alone is the union's null in each spelling, keeping what else it writes
+// (docs/compilers/openapi.md#union-null-variant).
+func assertNullAlone(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
+	holder, ok := doc.Types[componentID("Holder")].(*ir.Model)
+	require.True(t, ok)
+	for _, wire := range []string{"onlyNull", "listed", "enumNull", "constNull", "nullUnion", "nil", "withProps"} {
+		p, found := propByWire(holder, wire)
+		require.True(t, found, wire)
+		assert.True(t, p.Type.Nullable, "%s admits null", wire)
+		assert.Equal(t, wire == "onlyNull", p.Required, "%s keeps its own presence", wire)
+		e, isEnum := doc.Types[p.Type.Target].(*ir.Enum)
+		require.True(t, isEnum, "%s is an Enum, got %T", wire, doc.Types[p.Type.Target])
+		assert.Empty(t, e.Members, "%s admits null and nothing else", wire)
+		assert.True(t, e.Closed, wire)
+		assert.Equal(t, ir.PrimAny, e.ValueType, wire)
+	}
+	nested, found := propByWire(holder, "nil")
+	require.True(t, found)
+	assert.Equal(t, componentID("Nil"), nested.Type.Target, "a $ref names the component's own Enum")
+
+	anything, found := propByWire(holder, "anything")
+	require.True(t, found)
+	assert.Equal(t, ir.TypeRef{Target: "t/prim/any", Nullable: true}, anything.Type,
+		"every value and null is the top type, told apart from null alone")
+
+	withProps, found := propByWire(holder, "withProps")
+	require.True(t, found)
+	assertKeptRaw(t, doc.Types[withProps.Type.Target].Common().Unmodeled, "openapi:properties", `{"a":{"type":"string"}}`)
+	assert.Equal(t, []ir.Severity{ir.SeverityInfo},
+		diagsAt(diags, "openapi/degraded-construct", "/components/schemas/Holder/properties/withProps"),
+		"the property set the Enum has no home for is reported once")
+	assertNullBranches(t, doc, holder, diags)
+}
+
+// assertNullBranches holds null-alone.yaml's union branches of null alone to
+// the union's reference: no variant, every spelling alike, a description kept
+// whole on the carrier, and a $ref to one a variant naming its declaration.
+func assertNullBranches(t *testing.T, doc *ir.Document, holder *ir.Model, diags []ir.Diagnostic) {
+	t.Helper()
+	for _, wire := range []string{"typed", "enumed", "constant", "described"} {
+		p, found := propByWire(holder, wire)
+		require.True(t, found, wire)
+		assert.Equal(t, ir.TypeRef{Target: componentID("X"), Nullable: true}, p.Type,
+			"%s is a nullable reference to its one other branch", wire)
+	}
+	described, found := propByWire(holder, "described")
+	require.True(t, found)
+	entry := unmodeledEntry(t, described.Unmodeled, "openapi:oneOf/1")
+	assert.Equal(t, ir.ReasonNoIRHome, entry.Reason)
+	assert.JSONEq(t, `{"type":"null","description":"nothing"}`, string(entry.Value))
+	assert.Equal(t, []ir.Severity{ir.SeverityInfo},
+		diagsAt(diags, "openapi/degraded-construct", "/components/schemas/Holder/properties/described/oneOf/1"))
+
+	many, found := propByWire(holder, "many")
+	require.True(t, found)
+	assert.True(t, many.Type.Nullable)
+	u, isUnion := doc.Types[many.Type.Target].(*ir.Union)
+	require.True(t, isUnion)
+	require.Len(t, u.Variants, 2, "the null branch is no variant")
+
+	refNull, found := propByWire(holder, "refNull")
+	require.True(t, found)
+	assert.False(t, refNull.Type.Nullable, "the union's own reference says no null")
+	u, isUnion = doc.Types[refNull.Type.Target].(*ir.Union)
+	require.True(t, isUnion)
+	require.Len(t, u.Variants, 2)
+	assert.Equal(t, ir.TypeRef{Target: componentID("Nil"), Nullable: true}, u.Variants[1].Type,
+		"a $ref to a schema of null alone stays a variant")
+}
+
 // assertNullableEnum31 covers 3.1's spelling of a nullable enum: `null` listed
 // among the members of a null-admitting type array. The member is normalized
 // onto the Nullable bit of every reference to the enum rather than degrading the
@@ -174,7 +299,9 @@ func assertNullabilityConjunction(t *testing.T, doc *ir.Document, _ []ir.Diagnos
 	assert.False(t, props["viaAllOfBoth"].Type.Nullable,
 		"one conjunct forbidding null decides the conjunction")
 
-	for _, name := range []string{"WrapNullableScalar", "WrapNullableModel", "WrapBoth"} {
+	_, isModel := doc.Types[componentID("WrapNullableScalar")].(*ir.Model)
+	assert.False(t, isModel, "a conjunct admitting no object composes nothing")
+	for _, name := range []string{"WrapNullableModel", "WrapBoth"} {
 		wrap, isModel := doc.Types[componentID(name)].(*ir.Model)
 		require.True(t, isModel, "%s composes as a model", name)
 		if wrap.Base != nil {

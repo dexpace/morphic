@@ -211,8 +211,8 @@ func assertElectedLoweringKeywords(t *testing.T, doc *ir.Document, diags []ir.Di
 
 	format, ok := doc.Types[componentID("ConstWithFormat")].(*ir.Literal)
 	require.True(t, ok)
-	assert.JSONEq(t, `"int32"`, string(unmodeledEntry(t, format.Unmodeled, "openapi:format").Value),
-		"a Literal has no Encoding field")
+	assert.Equal(t, ir.PrimInt32, format.ValueType, "the value fits the type and format, so ValueType holds both")
+	assert.Empty(t, format.Unmodeled, "nothing the literal declares is left without a field")
 
 	bound, ok := doc.Types[componentID("ConstWithBound")].(*ir.Literal)
 	require.True(t, ok)
@@ -277,9 +277,10 @@ func assertAllOfBooleanBranch(t *testing.T, doc *ir.Document, diags []ir.Diagnos
 		"a false schema and a closed empty model are no longer the same node")
 }
 
-// assertAllOfInlineResidue pins the residue of an inline allOf branch: the merge
-// reads only its properties and required list, so whatever else the branch wrote
-// survives beside the composed model rather than vanishing into it (GitHub #123).
+// assertAllOfInlineResidue pins the residue of an inline allOf branch: what no
+// reader consumes survives beside the composed model rather than vanishing into
+// it (GitHub #123), and what the position reads lands as it would beside the
+// allOf (GitHub #660).
 //
 // The severity split is the point. A branch declaring a type that cannot be an
 // object contradicts the ir.Model the composition produced, so it is a warning;
@@ -292,8 +293,12 @@ func assertAllOfInlineResidue(t *testing.T, doc *ir.Document, diags []ir.Diagnos
 	assert.True(t, ok, "the inline branch still contributes its properties")
 	entry := unmodeledEntry(t, narrowed.Unmodeled, "openapi:allOf/1")
 	assert.Equal(t, ir.ReasonDegradedLowering, entry.Reason)
-	assert.JSONEq(t, `{"type":"object","properties":{"name":{"type":"string"}},"maxProperties":3}`,
+	assert.JSONEq(t, `{"type":"object","properties":{"name":{"type":"string"}},"additionalProperties":false,
+		"description":"A narrowed base.","maxProperties":3}`,
 		string(entry.Value), "the whole branch is kept, not only the unmerged keyword")
+	assert.Equal(t, "A narrowed base.", narrowed.Docs.Description, "and the position reads what it can")
+	require.NotNil(t, narrowed.Constraints)
+	assert.Equal(t, new(int64(3)), narrowed.Constraints.MaxProps)
 	assert.Equal(t, []ir.Severity{ir.SeverityInfo},
 		diagsAt(diags, "openapi/degraded-construct", "/components/schemas/Narrowed/allOf/1"),
 		"a branch that only narrows the model is info")
@@ -305,6 +310,15 @@ func assertAllOfInlineResidue(t *testing.T, doc *ir.Document, diags []ir.Diagnos
 	assert.Equal(t, []ir.Severity{ir.SeverityWarning},
 		diagsAt(diags, "openapi/degraded-construct", "/components/schemas/Contradicted/allOf/1"),
 		"a branch excluding object contradicts the composed model and is a warning")
+
+	rebased, ok := doc.Types[componentID("Rebased")].(*ir.Model)
+	require.True(t, ok)
+	entry = unmodeledEntry(t, rebased.Unmodeled, "openapi:allOf/0/allOf/0")
+	assert.JSONEq(t, `{"type":"object","not":{"$ref":"item.json"}}`, string(entry.Value),
+		"a branch read against another base folds nothing")
+	assert.JSONEq(t, `{"$ref":"item.json"}`, string(unmodeledEntry(t, rebased.Unmodeled, "openapi:not").Value),
+		"the outer branch, read against the position's base, folds its not")
+	assert.NotContains(t, rebased.Unmodeled, "openapi:allOf/1", "and so is not kept")
 }
 
 // assertAllOfConflictingType pins what an unsatisfiable redeclaration leaves in
@@ -502,6 +516,48 @@ func assertAllOfNarrowingRedeclaration(t *testing.T, doc *ir.Document, diags []i
 	assertInadmissibleDefault(t, doc, diags)
 	assertNarrowingChainsAndScalars(t, doc, diags)
 	assertRefusedLateDefault(t, doc, diags)
+	assertEnumsAndAliasesMeet(t, doc, diags)
+}
+
+// assertEnumsAndAliasesMeet holds the enums of different value types and the
+// aliases beside a node they meet: each field is the enum or the list holding
+// what every declaration says, in either order, with no diagnostic.
+func assertEnumsAndAliasesMeet(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
+	t.Helper()
+	enumOf := func(model string) *ir.Enum {
+		p := narrowedProp(t, doc, model)
+		assert.Empty(t, p.Unmodeled, "%s: nothing is kept", model)
+		assert.Empty(t, diagsUnder(diags, "/components/schemas/"+model+"/"), "%s: no diagnostic", model)
+		target := p.Type.Target
+		if l, ok := doc.Types[target].(*ir.List); ok {
+			target = l.Elem.Target
+		}
+		e, ok := doc.Types[target].(*ir.Enum)
+		require.True(t, ok, "%s: an enum", model)
+		return e
+	}
+	values := func(e *ir.Enum) []ir.Value {
+		out := make([]ir.Value, len(e.Members))
+		for k, m := range e.Members {
+			out[k] = m.Value
+		}
+		return out
+	}
+	one := []ir.Value{{Kind: ir.ValueNumber, Num: "1"}}
+	for _, model := range []string{"EnumValueTypeWideFirst", "EnumValueTypeNarrowFirst", "EnumValueTypesMeet"} {
+		e := enumOf(model)
+		assert.Equal(t, ir.PrimInteger, e.ValueType, "%s: of the narrower value type", model)
+		assert.Equal(t, one, values(e), model)
+	}
+	bc := []ir.Value{{Kind: ir.ValueString, Str: "b"}, {Kind: ir.ValueString, Str: "c"}}
+	for _, model := range []string{"AliasMeetsFirst", "AliasMeetsLast"} {
+		e := enumOf(model)
+		assert.Equal(t, bc, values(e), model)
+		assert.Equal(t, "Letters", e.Docs.Description, "%s: with what the alias adds", model)
+	}
+	for _, model := range []string{"AliasedListMeetsFirst", "AliasedListMeetsLast"} {
+		assert.Equal(t, bc, values(enumOf(model)), model)
+	}
 }
 
 // assertNarrowingChainsAndScalars pins the three-branch chain with its
@@ -877,6 +933,105 @@ func assertDialectKeywords(t *testing.T, doc *ir.Document, diags []ir.Diagnostic
 	}
 }
 
+// assertSchemaDialects pins the dialect each schema is read in
+// (docs/compilers/openapi.md#dialect-keywords): the document's
+// jsonSchemaDialect, draft 4, where a schema names none, so a boolean bound
+// modifies the bound beside it; a root's own `$schema` over it, its subschemas
+// read alike, with or without the empty fragment; a resource an $id embeds
+// naming its own; and a dialect the table has no rows for read as 3.1's own,
+// with a warning at the `$schema` naming it.
+func assertSchemaDialects(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
+	scalar := func(name string) *ir.Constraints {
+		s, ok := doc.Types[componentID(name)].(*ir.Scalar)
+		require.True(t, ok, name)
+		require.NotNil(t, s.Constraints, name)
+		return s.Constraints
+	}
+	positive := scalar("Positive")
+	assert.Nil(t, positive.Min, "the boolean moved the bound beside it")
+	assert.Equal(t, ir.BigVal("0"), *positive.ExclusiveMin)
+	assert.Equal(t, ir.BigVal("10"), *scalar("Bounded").ExclusiveMax)
+	assert.Equal(t, ir.BigVal("1"), *scalar("Custom").ExclusiveMin)
+
+	legacy, ok := doc.Types[componentID("Legacy")].(*ir.Model)
+	require.True(t, ok)
+	require.Len(t, legacy.Properties, 1)
+	count := legacy.Properties[0].Constraints
+	require.NotNil(t, count)
+	assert.Nil(t, count.Max)
+	assert.Equal(t, ir.BigVal("100"), *count.ExclusiveMax)
+
+	embedding, ok := doc.Types[componentID("Embedding")].(*ir.Model)
+	require.True(t, ok)
+	require.Len(t, embedding.Properties, 1)
+	inner := embedding.Properties[0].Constraints
+	require.NotNil(t, inner)
+	assert.Equal(t, ir.BigVal("3"), *inner.ExclusiveMin, "2020-12's bound, inside a document defaulting to draft 4")
+
+	assert.Equal(t, []ir.Severity{ir.SeverityWarning},
+		diagsAt(diags, "openapi/unread-dialect", "/components/schemas/Custom/$schema"))
+	var unread int
+	for _, d := range diags {
+		assert.NotEqual(t, ir.SeverityError, d.Severity, d.Message)
+		if d.Code == "openapi/unread-dialect" {
+			unread++
+		}
+	}
+	assert.Equal(t, 1, unread, "draft 4 and 2020-12 are read")
+}
+
+// assertSchemaDrafts pins what the JSON Schema drafts before 2020-12 spell
+// otherwise, each read in the draft its schema names
+// (docs/compilers/openapi.md#dialect-keywords): a list of items as a tuple
+// whose rest is additionalItems (#tuples), as an array's items too, which
+// the parser reads as false (#whole-schema-fallbacks), draft 6's dependencies kept as
+// validation-only (#validation-only), a keyword beside draft 7's $ref warned of
+// and 2019-09's applied silently (#later-version-construct), and draft 4's `id`
+// naming a resource whose fragment ids a $ref reads, bar one beside that $ref,
+// which draft 4 ignores (#references).
+func assertSchemaDrafts(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
+	tuple := func(name string) *ir.Tuple {
+		tp, ok := doc.Types[componentID(name)].(*ir.Tuple)
+		require.True(t, ok, "%s lowers to a tuple", name)
+		return tp
+	}
+	pair := tuple("Pair")
+	require.Len(t, pair.Elems, 2)
+	assert.Equal(t, componentID("Count"), pair.Elems[1].Target, "an entry's $ref is bound")
+	assert.Nil(t, pair.Rest, "additionalItems: false admits nothing past them")
+	pairs, ok := doc.Types[componentID("Pairs")].(*ir.List)
+	require.True(t, ok)
+	nested, ok := doc.Types[pairs.Elem.Target].(*ir.Tuple)
+	require.True(t, ok, "a tuple as an array's items, which the parser reads as false")
+	assert.Len(t, nested.Elems, 2)
+	open := tuple("Open")
+	require.Len(t, open.Elems, 1)
+	require.NotNil(t, open.Rest, "additionalItems is the rest")
+	rest, ok := doc.Types[open.Rest.Target].(*ir.Scalar)
+	require.True(t, ok)
+	require.NotNil(t, rest.Constraints)
+	assert.Equal(t, ir.BigVal("0"), *rest.Constraints.ExclusiveMin, "draft 7's exclusive bound is a number")
+
+	paired, ok := doc.Types[componentID("Paired")].(*ir.Model)
+	require.True(t, ok)
+	assert.Equal(t, ir.ReasonValidationOnly, paired.Unmodeled["openapi:dependencies"].Reason)
+
+	assert.Equal(t, []ir.Severity{ir.SeverityWarning},
+		diagsAt(diags, "openapi/later-version-construct", "/components/schemas/Labelled/description"))
+	assert.Empty(t, diagsAt(diags, "openapi/later-version-construct", "/components/schemas/Applied/description"))
+
+	named, ok := doc.Types[componentID("Named")].(*ir.Model)
+	require.True(t, ok)
+	require.Len(t, named.Properties, 2)
+	for _, p := range named.Properties {
+		assert.Equal(t, ir.TypeID("t/anon/components/schemas/Named/definitions/Leaf"), p.Type.Target,
+			"#leaf names the definition draft 4's id declares it at, an id beside the $ref aside")
+	}
+	for _, d := range diags {
+		assert.NotEqual(t, ir.SeverityError, d.Severity, d.Message)
+	}
+}
+
 // assertSchemaIdentifiers pins a $ref naming a schema by an identifier, as JSON
 // Schema 2020-12 §8.2 reads one (docs/compilers/openapi.md#references): a plain
 // name a $anchor or a $dynamicAnchor declares, every schema under no $id being
@@ -907,9 +1062,11 @@ func assertSchemaIdentifiers(t *testing.T, doc *ir.Document, diags []ir.Diagnost
 }
 
 // assertDynamicRef pins both halves of $dynamicRef lowering (GitHub #125). A name
-// declared exactly once on a component schema has one possible target whatever
-// path evaluation took, so it expands; anything else is irreducible and the
-// reference is kept verbatim beside whatever did lower.
+// declared exactly once in the reference's resource has one possible target
+// whatever path evaluation took, so it expands, under $defs or under an $id as
+// on a component, and so does 2019-09's $recursiveRef to its resource's root;
+// anything else is irreducible and the reference is kept verbatim beside
+// whatever did lower.
 //
 // The escaped spelling is here because the fragment is URI text: RFC 3986 §2.3
 // makes '%2D' and '-' one character, so it must reach the same anchor the plain
@@ -941,6 +1098,26 @@ func assertDynamicRef(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
 	assert.JSONEq(t, `"#Missing"`, string(entry.Value))
 	assert.Equal(t, []ir.Severity{ir.SeverityInfo}, diagsAt(diags, "openapi/degraded-construct",
 		"/components/schemas/Tree/properties/ghost/$dynamicRef"))
+
+	deep, ok := propByWire(tree, "deep")
+	require.True(t, ok)
+	assert.Equal(t, ir.TypeID("t/anon/components/schemas/Holder/$defs/Deep"), deep.Type.Target,
+		"an anchor below a component expands to the type a $ref there names")
+
+	linked, ok := doc.Types[componentID("Linked")].(*ir.Model)
+	require.True(t, ok)
+	next, ok := propByWire(linked, "next")
+	require.True(t, ok)
+	assert.Equal(t, componentID("Linked"), next.Type.Target, "one resource holds both ends")
+
+	children, ok := doc.Types[ir.TypeID("t/anon/components/schemas/Recursive/properties/children")].(*ir.List)
+	require.True(t, ok)
+	elem, ok := doc.Types[children.Elem.Target].(*ir.Scalar)
+	require.True(t, ok)
+	require.NotNil(t, elem.Base)
+	assert.Equal(t, componentID("Recursive"), elem.Base.Target, "a $recursiveRef names its resource's root")
+	assert.Equal(t, []ir.Severity{ir.SeverityInfo}, diagsAt(diags, "openapi/dynamic-ref-expanded",
+		"/components/schemas/Recursive/properties/children/items/$recursiveRef"))
 
 	assertDynamicRefAcrossAnEmptyName(t, doc, diags)
 }
@@ -1029,35 +1206,117 @@ func assertResidue(t *testing.T, p ir.Unmodeled, want map[string]string) {
 	}
 }
 
-// assertResponseLinks pins a response's links: neither ir.Response nor
-// ir.ErrorCase has a field for the link objects OpenAPI declares there, so they
-// are kept verbatim rather than dropped while the operation they name lowers
-// normally.
-//
-// Both status ranges, because only the success one used to keep them: the same
-// declaration survived on a 2xx and vanished on a 4xx, with no diagnostic either
-// way, purely because the error branch had no links rule of its own
-// (GitHub #275).
-func assertResponseLinks(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
-	op, ok := opByName(doc, "createOrder")
-	require.True(t, ok)
-	require.Len(t, op.Responses, 1)
-	entry := unmodeledEntry(t, op.Responses[0].Unmodeled, "openapi:links")
-	assert.Equal(t, ir.ReasonNoIRHome, entry.Reason)
-	assert.JSONEq(t,
-		`{"GetOrder":{"operationId":"getOrder","parameters":{"orderId":"$response.body#/id"}}}`,
-		string(entry.Value))
+// assertResponseLinks pins how a response's links lower
+// (docs/compilers/openapi.md#links): onto a success response, an error case and
+// a default alike, in source order; each kind of value at the parameter,
+// member or header it reads; a $ref'd link at its declaration; the server a
+// link names registered; and a link no ir.LinkValue spells kept verbatim,
+// whole, with an info. Every link is declared before the operation it leads
+// to.
+func assertResponseLinks(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
+	create, get, replace, audit := linkOp(t, doc, "createOrder"), linkOp(t, doc, "getOrder"),
+		linkOp(t, doc, "replaceOrder"), linkOp(t, doc, "audit")
+	require.Len(t, create.Responses, 1)
+	byName := map[string]ir.OperationLink{}
+	order := make([]string, 0, len(create.Responses[0].Links))
+	for _, l := range create.Responses[0].Links {
+		byName[l.Name.Source] = l
+		order = append(order, l.Name.Source)
+	}
+	assert.Equal(t, []string{"GetOrder", "ByLocation", "Replace", "ByCustomer", "Audit"}, order,
+		"in source order, the link kept verbatim left out")
 
-	require.Len(t, op.Errors, 1)
-	errEntry := unmodeledEntry(t, op.Errors[0].Unmodeled, "openapi:links")
-	assert.Equal(t, ir.ReasonNoIRHome, errEntry.Reason)
-	assert.JSONEq(t,
-		`{"GetConflicting":{"operationId":"getOrder","parameters":{"orderId":"$response.body#/existingId"}}}`,
-		string(errEntry.Value),
-		"an error response keeps its links by the same rule the success one does")
+	orderID := linkParam(t, get, "orderId")
+	assertLink(t, byName["GetOrder"], get.ID, []ir.LinkParam{
+		{Param: orderID, Value: responseMembers("Order/properties/id")},
+		{Param: linkParam(t, get, "verbose"), Value: ir.LinkValue{Kind: ir.LinkConstant, Constant: &ir.Value{Kind: ir.ValueBool, Bool: true}}},
+		{Param: linkParam(t, get, "X-Request-Id"), Value: requestParam(linkParam(t, create, "X-Request-Id"))},
+	}, nil)
+	assert.Equal(t, "The order just created.", byName["GetOrder"].Docs.Description)
+	assert.Contains(t, byName["GetOrder"].Unmodeled, "openapi:x-follow", "an extension on the link stays on it")
 
-	_, ok = opByName(doc, "getOrder")
-	assert.True(t, ok, "the operation a link names is an ordinary operation")
+	location := create.Responses[0].Headers[0].ID
+	assertLink(t, byName["ByLocation"], get.ID, []ir.LinkParam{
+		{Param: orderID, Value: ir.LinkValue{Kind: ir.LinkResponse, Response: &ir.PropPath{In: "header", Segments: []ir.PropID{location}}}},
+	}, nil)
+	assert.Equal(t, jsontext.Pointer("/components/links/ByLocation"), byName["ByLocation"].Provenance.Pointer)
+
+	wholeRequest := ir.LinkValue{Kind: ir.LinkRequest, Request: &ir.InputPath{}}
+	assertLink(t, byName["Replace"], replace.ID, []ir.LinkParam{
+		{Param: linkParam(t, replace, "orderId"), Value: responseMembers("Order/properties/id")},
+	}, &wholeRequest)
+	require.NotNil(t, byName["Replace"].Server, "the server the link names")
+	assert.Equal(t, "https://write.example.com", doc.Servers[*byName["Replace"].Server].URLTemplate)
+
+	assertLink(t, byName["ByCustomer"], get.ID, []ir.LinkParam{{Param: orderID, Value: ir.LinkValue{
+		Kind: ir.LinkRequest, Request: &ir.InputPath{Segments: []ir.PropID{
+			componentProp("OrderInput/properties/customer"), componentProp("Customer/properties/id"),
+		}},
+	}}}, nil)
+	assertLink(t, byName["Audit"], audit.ID, []ir.LinkParam{
+		{Param: linkParam(t, audit, "status"), Value: ir.LinkValue{Kind: ir.LinkStatus}},
+		{Param: linkParam(t, audit, "method"), Value: ir.LinkValue{Kind: ir.LinkMethod}},
+	}, &ir.LinkValue{Kind: ir.LinkURL})
+
+	kept := unmodeledEntry(t, create.Responses[0].Unmodeled, "openapi:links/ByTag")
+	assert.Equal(t, ir.ReasonNoIRHome, kept.Reason)
+	assert.JSONEq(t, `{"operationId":"getOrder","parameters":{"orderId":"$response.body#/tags/0"}}`, string(kept.Value))
+	assert.Equal(t, []ir.Severity{ir.SeverityInfo},
+		diagsAt(diags, "openapi/untyped-link", "/paths/~1orders/post/responses/201/links/ByTag"))
+
+	require.Len(t, create.Errors, 1)
+	require.Len(t, create.Errors[0].Links, 1, "an error response's links lower by the same rule")
+	assertLink(t, create.Errors[0].Links[0], get.ID, []ir.LinkParam{
+		{Param: orderID, Value: responseMembers("Conflict/properties/existingId")},
+	}, nil)
+	require.NotNil(t, create.Default)
+	require.Len(t, create.Default.Links, 1, "so do the default's")
+	assertLink(t, create.Default.Links[0], create.ID, nil, &wholeRequest)
+}
+
+// linkOp returns the operation named name.
+func linkOp(t *testing.T, doc *ir.Document, name string) ir.Operation {
+	t.Helper()
+	op, ok := opByName(doc, name)
+	require.True(t, ok, "the document declares %s", name)
+	return op
+}
+
+// linkParam returns the ID of op's parameter named name.
+func linkParam(t *testing.T, op ir.Operation, name string) ir.ParamID {
+	t.Helper()
+	for _, p := range op.Params {
+		if p.Name.Source == name {
+			return p.ID
+		}
+	}
+	require.Failf(t, "no parameter", "%s declares no parameter %q", op.ID, name)
+	return ""
+}
+
+// componentProp is the ID of the property a component schema declares at the
+// path under components/schemas.
+func componentProp(path string) ir.PropID {
+	return ir.PropID("p/openapi/components/schemas/" + path)
+}
+
+// responseMembers is a link value reading the response body's member at the
+// component property path.
+func responseMembers(path string) ir.LinkValue {
+	return ir.LinkValue{Kind: ir.LinkResponse, Response: &ir.PropPath{Segments: []ir.PropID{componentProp(path)}}}
+}
+
+// requestParam is a link value reading the request's parameter id.
+func requestParam(id ir.ParamID) ir.LinkValue {
+	return ir.LinkValue{Kind: ir.LinkRequest, Request: &ir.InputPath{Param: &id}}
+}
+
+// assertLink holds link to its target, parameters and body.
+func assertLink(t *testing.T, link ir.OperationLink, target ir.OpID, params []ir.LinkParam, body *ir.LinkValue) {
+	t.Helper()
+	assert.Equal(t, target, link.Operation, "link %s leads to its target", link.Name.Source)
+	assert.Equal(t, params, link.Params, "link %s passes its parameters", link.Name.Source)
+	assert.Equal(t, body, link.Body, "link %s passes its body", link.Name.Source)
 }
 
 // assertCoDeclaredKeywords pins the keywords a schema writes that compete for
@@ -1115,14 +1374,14 @@ func assertKeptRaw(t *testing.T, p ir.Unmodeled, key, want string) {
 	assert.JSONEq(t, want, string(entry.Value))
 }
 
-// assertNullOnlyUnion covers a oneOf/anyOf whose only branches are a bare
-// `type: null` schema: one branch, two, either combinator, and both declared at
-// once with the elected one null-only. With no non-null branch to collapse onto,
-// buildUnion would strip every branch as a null marker and intern a Union with
-// no variants, which irverify rejects as ir/union-no-variants (GitHub #416).
-// Such a set admits only null, as a bare `{type: null}` does, so it lowers the
-// same way: the shared `any` primitive with Nullable set, the combinators kept
-// verbatim under Unmodeled because the Scalar has no field for them.
+// assertNullOnlyUnion covers a oneOf/anyOf whose only branches admit null
+// alone: one branch, two, either combinator, the other spellings of the null,
+// and both combinators declared at once with the elected one null-only. With no
+// other branch to collapse onto, buildUnion would strip every branch and intern
+// a Union with no variants, which irverify rejects as ir/union-no-variants
+// (GitHub #416). Such a set admits only null, as `{type: null}` does, so it
+// lowers the same way: an Enum with no member behind a nullable reference, the
+// combinators kept verbatim because the Enum has no field for them.
 func assertNullOnlyUnion(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
 	cases := []struct {
 		name string
@@ -1132,10 +1391,11 @@ func assertNullOnlyUnion(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) 
 		{"AnyOfNull", "openapi:anyOf", `[{"type":"null"}]`},
 		{"OneOfNull", "openapi:oneOf", `[{"type":"null"}]`},
 		{"AnyOfTwoNull", "openapi:anyOf", `[{"type":"null"},{"type":"null"}]`},
+		{"OtherSpellings", "openapi:oneOf", `[{"enum":[null]},{"const":null}]`},
 	}
 	for _, tc := range cases {
-		s := assertNullOnlyScalar(t, doc, tc.name)
-		assertKeptRaw(t, s.Unmodeled, tc.key, tc.raw)
+		e := assertNullOnlyEnum(t, doc, tc.name)
+		assertKeptRaw(t, e.Unmodeled, tc.key, tc.raw)
 		assert.Equal(t, []ir.Severity{ir.SeverityInfo},
 			diagsAt(diags, "openapi/degraded-construct", "/components/schemas/"+tc.name),
 			"%s announces the degraded lowering", tc.name)
@@ -1148,28 +1408,32 @@ func assertNullOnlyUnion(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) 
 	// the union path's usual way of keeping a passed-over combinator. Both
 	// keywords must therefore come from preserveBranchSets's own loop over
 	// both, not from that mechanism.
-	both := assertNullOnlyScalar(t, doc, "BothNull")
+	both := assertNullOnlyEnum(t, doc, "BothNull")
 	assertKeptRaw(t, both.Unmodeled, "openapi:oneOf", `[{"type":"null"}]`)
 	assertKeptRaw(t, both.Unmodeled, "openapi:anyOf", `[{"type":"null"}]`)
 	assert.Equal(t, []ir.Severity{ir.SeverityInfo},
 		diagsAt(diags, "openapi/degraded-construct", "/components/schemas/BothNull"),
 		"BothNull announces the degraded lowering once, for both kept keywords")
+
+	holder, ok := doc.Types[componentID("Holder")].(*ir.Model)
+	require.True(t, ok)
+	require.Len(t, holder.Properties, len(cases)+1)
+	for _, p := range holder.Properties {
+		assert.True(t, p.Type.Nullable, "%s: the null-only branch set lifts onto the reference", p.WireName)
+	}
 }
 
-// assertNullOnlyScalar requires doc.Types[name] to be the scalar over `any`
-// with Nullable set that a null-only union — and a bare `{type: null}` schema
-// at the same position — both lower to.
-func assertNullOnlyScalar(t *testing.T, doc *ir.Document, name string) *ir.Scalar {
+// assertNullOnlyEnum requires doc.Types[name] to be the Enum with no member a
+// null-only union, and a bare `{type: null}` schema at the same position, both
+// lower to (docs/compilers/openapi.md#null-alone).
+func assertNullOnlyEnum(t *testing.T, doc *ir.Document, name string) *ir.Enum {
 	t.Helper()
-	s, ok := doc.Types[componentID(name)].(*ir.Scalar)
-	require.True(t, ok, "%s lowers to a scalar over any, the same node a bare "+
-		"`{type: null}` schema at this position would", name)
-	require.NotNil(t, s.Base)
-	assert.Equal(t, ir.TypeID("t/prim/any"), s.Base.Target)
-	assert.True(t, s.Base.Nullable,
-		"%s: the null-only branch set lifts onto the reference the way a bare "+
-			"{type: null} schema's does", name)
-	return s
+	e, ok := doc.Types[componentID(name)].(*ir.Enum)
+	require.True(t, ok, "%s lowers to an Enum, the node a bare `{type: null}` schema at this "+
+		"position would, got %T", name, doc.Types[componentID(name)])
+	assert.Empty(t, e.Members, "%s holds no value but the null its references admit", name)
+	assert.True(t, e.Closed, name)
+	return e
 }
 
 // assertCoDeclaredSchemaContent covers the election at the other pair of
@@ -1268,9 +1532,9 @@ func indexByParam(bindings []ir.HTTPParamBinding) map[string]ir.HTTPParamBinding
 func assertYAMLMergeKeys(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
 	op, ok := opByName(doc, "getMerged")
 	require.True(t, ok)
+	assert.Equal(t, ir.Docs{Summary: "Shared summary", Description: "Shared description"}, op.Bindings.HTTP[0].PathDocs,
+		"the merged pair documents the path")
 	assertKept(t, op.Unmodeled, []keptEntry{
-		{"openapi:pathItem/summary", `"Shared summary"`, "/paths/~1merged/summary"},
-		{"openapi:pathItem/description", `"Shared description"`, "/paths/~1merged/description"},
 		{"openapi:pathItem/mergedBogus", `{"responses":{"200":{"description":"MERGED"}}}`, "/paths/~1merged/mergedBogus"},
 		{"openapi:x-codes", `{"100":"Continue","200":"OK","true":"T"}`, "/paths/~1merged/get/x-codes"},
 		{"openapi:x-big", `1e400`, "/paths/~1merged/get/x-big"},
@@ -1313,9 +1577,9 @@ func assertMergedReaders(t *testing.T, doc *ir.Document, op ir.Operation) {
 	require.Len(t, op.Bindings.HTTP[0].ParamBindings, 1)
 	assert.True(t, op.Bindings.HTTP[0].ParamBindings[0].AllowEmptyValue, "the merged allowEmptyValue is read")
 	require.Len(t, op.Responses, 1)
-	assertKept(t, op.Responses[0].Unmodeled, []keptEntry{
-		{"openapi:links", `{"self":{"operationId":"getMerged"}}`, "/paths/~1merged/get/responses/200/links"},
-	})
+	require.Len(t, op.Responses[0].Links, 1, "the merged links map is read")
+	assert.Equal(t, "self", op.Responses[0].Links[0].Name.Source)
+	assert.Equal(t, op.ID, op.Responses[0].Links[0].Operation)
 	require.Len(t, op.Responses[0].Headers, 1)
 	assert.Equal(t, "simple", op.Responses[0].Headers[0].Style, "the merged header style is read")
 	post, ok := opByName(doc, "postMerged")
@@ -1403,6 +1667,47 @@ func assertKeywordsAtEveryOutcome(t *testing.T, doc *ir.Document, diags []ir.Dia
 	assert.Empty(t, diagsAt(diags, "openapi/degraded-construct", "/components/schemas/Homed"))
 }
 
+// assertUnevaluatedAtEveryOutcome pins where `unevaluatedProperties: false`
+// reaches the IR: a model's openness where the position built one closed after
+// composition, itself or as a variant of a union it built, and otherwise
+// verbatim under openapi:unevaluated, once, on the node or carrier the position
+// owns, at a component, a property, an items schema and a parameter's schema.
+// No matrix row: the case is a preservation claim.
+func assertUnevaluatedAtEveryOutcome(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
+	for _, name := range []string{"Closed", "ObjectVariant", "Distributed"} {
+		assert.NotContains(t, typeByName(doc, name).Common().Unmodeled, "openapi:unevaluated", "%s holds it as a closure", name)
+	}
+	kept := map[string]ir.Unmodeled{}
+	for _, name := range []string{"Scalar", "Enumerated", "Constant", "Listed", "Paired", "Alias", "PlainUnion",
+		"NoObjectVariant", "Anything", "ClosedByABranch"} {
+		kept["/components/schemas/"+name] = typeByName(doc, name).Common().Unmodeled
+	}
+	holder, ok := typeByName(doc, "Holder").(*ir.Model)
+	require.True(t, ok)
+	for _, wire := range []string{"scalar", "ref"} {
+		p, found := propByWire(holder, wire)
+		require.True(t, found, wire)
+		kept["/components/schemas/Holder/properties/"+wire] = p.Unmodeled
+	}
+	items, ok := doc.Types["t/anon/components/schemas/Holder/properties/list/items"]
+	require.True(t, ok, "an items schema keeping it owns a node")
+	kept["/components/schemas/Holder/properties/list/items"] = items.Common().Unmodeled
+	op, ok := opByName(doc, "getThings")
+	require.True(t, ok)
+	require.Len(t, op.Params, 1)
+	kept["/paths/~1things/get/parameters/0/schema"] = op.Params[0].Unmodeled
+	for at, unmodeled := range kept {
+		entry := unmodeledEntry(t, unmodeled, "openapi:unevaluated")
+		assert.Equal(t, `{"unevaluatedProperties":false}`, string(entry.Value), at)
+		assert.Equal(t, ir.ReasonValidationOnly, entry.Reason, at)
+		assert.Equal(t, jsontext.Pointer(at), entry.Provenance.Pointer, at)
+		assert.Equal(t, []ir.Severity{ir.SeverityInfo}, diagsAt(diags, "openapi/validation-only-keyword", at), at)
+	}
+	closed, ok := typeByName(doc, "ClosedByABranch").(*ir.Model)
+	require.True(t, ok)
+	assert.Equal(t, ir.AdditionalClosed, closed.Additional, "the false branch closes it outright")
+}
+
 // assertUnknownKeywordsAtSharedNodes pins that a keyword no field of the model
 // names reaches the IR at a position that lowers to a shared node and has no
 // carrier, on an alias hoisted for it, and that a position writing only a
@@ -1445,9 +1750,10 @@ func assertNullKeywords(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
 	require.True(t, ok)
 	c, ok := propByWire(values, "c")
 	require.True(t, ok)
-	literal, ok := doc.Types[c.Type.Target].(*ir.Literal)
-	require.True(t, ok, "a null const is the value it says")
-	assert.Equal(t, ir.ValueNull, literal.Value.Kind)
+	enum, ok := doc.Types[c.Type.Target].(*ir.Enum)
+	require.True(t, ok, "a null const is an enum of null alone")
+	assert.Empty(t, enum.Members)
+	assert.True(t, c.Type.Nullable, "the reference holds the null")
 	d, ok := propByWire(values, "d")
 	require.True(t, ok)
 	require.NotNil(t, d.Default)
@@ -1457,16 +1763,28 @@ func assertNullKeywords(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
 // assertDiscriminatorAliasedBranch pins that a mapping naming the type a
 // variant aliases routes to that variant, by a keyword of any kind beside the
 // branch's $ref and by a mapping spelled as a reference or a bare name, and that
-// a target naming a variant itself stays on it.
+// a target naming a variant itself stays on it. A mapping leaving a variant out
+// holds the route OpenAPI implies to it, and so does one the source does not
+// write where a variant's alias carries no name to route by. A type two
+// variants alias routes to the first of them.
 func assertDiscriminatorAliasedBranch(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
-	for name, key := range map[string]string{"Pet": "cat", "Unknown": "cat"} {
+	for name, key := range map[string]string{"Pet": "cat", "Unknown": "cat", "Implied": "Cat"} {
 		u, ok := typeByName(doc, name).(*ir.Union)
 		require.True(t, ok, name)
 		require.NotNil(t, u.Discriminator, name)
 		assert.Equal(t, u.Variants[0].Type.Target, u.Discriminator.Mapping[key], name)
 		assert.NotEqual(t, componentID("Cat"), u.Variants[0].Type.Target, "%s: the branch keeps its alias", name)
 	}
-	pet, ok := typeByName(doc, "Pet").(*ir.Union)
+	for name, key := range map[string]string{"Pet": "dog", "Unknown": "Dog", "Implied": "Dog"} {
+		u, ok := typeByName(doc, name).(*ir.Union)
+		require.True(t, ok, name)
+		assert.Len(t, u.Discriminator.Mapping, 2, name)
+		assert.Equal(t, componentID("Dog"), u.Discriminator.Mapping[key], name)
+	}
+	twins, ok := typeByName(doc, "Twins").(*ir.Union)
 	require.True(t, ok)
-	assert.Equal(t, componentID("Dog"), pet.Discriminator.Mapping["dog"])
+	require.NotNil(t, twins.Discriminator)
+	first := twins.Variants[0].Type.Target
+	assert.NotEqual(t, componentID("Cat"), first, "the branch keeps its alias")
+	assert.Equal(t, map[string]ir.TypeID{"tom": first, "cat": first, "dog": componentID("Dog")}, twins.Discriminator.Mapping)
 }

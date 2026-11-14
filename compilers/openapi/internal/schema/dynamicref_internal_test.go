@@ -5,142 +5,75 @@ package schema
 
 import (
 	"encoding/json/jsontext"
+	"fmt"
+	"os"
+	"path/filepath"
+	"strings"
 	"testing"
 
-	soa "github.com/speakeasy-api/openapi/openapi"
+	"github.com/speakeasy-api/openapi/jsonschema/oas3"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/dexpace/morphic/compilers"
+	"github.com/dexpace/morphic/compilers/openapi/internal/bind"
+	"github.com/dexpace/morphic/compilers/openapi/internal/load"
+	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
+	"github.com/dexpace/morphic/engine/reader"
+	"github.com/dexpace/morphic/ir"
 )
 
-// TestDeclaresResourceIDAbove_WithoutARawTree pins the guard on the path walk.
-// The walk reads the raw source because $id has no oas3.Schema field, so a
-// document with no raw tree behind it — one built in memory, or a pointer naming
-// a position the source does not have — must read as "no resource boundary
-// found" rather than wander off the tree.
-//
-// No committed spec reaches this: every pointer a $dynamicRef is lowered at was
-// built by walking the very tree this re-walks. The guard is exercised directly
-// because the hazard is a later caller passing a synthesized pointer, not a live
-// defect.
-func TestDeclaresResourceIDAbove_WithoutARawTree(t *testing.T) {
-	t.Parallel()
-	l := NewRawLowerer(&soa.OpenAPI{})
+// deepMergeSpec holds a schema in its document's resource, one under an $id, and
+// one merging through a chain past the view's bound, built rather than spelled
+// since it is 70 links long.
+var deepMergeSpec = func() string {
+	var b strings.Builder
+	b.WriteString("openapi: 3.1.0\ninfo: {title: t, version: '1'}\npaths: {}\nx-c0: &c0 {$id: 'https://x.test/deep'}\n")
+	for i := 1; i <= 70; i++ {
+		fmt.Fprintf(&b, "x-c%d: &c%d {<<: *c%d}\n", i, i, i-1)
+	}
+	b.WriteString("components:\n  schemas:\n    Plain: {type: string}\n")
+	b.WriteString("    Held: {$id: 'https://x.test/held', $defs: {d: {type: string}}}\n    Deep: {<<: *c70}\n")
+	return b.String()
+}()
 
-	assert.False(t, declaresResourceIDAbove(l.Ctx, "/components/schemas/A"),
-		"a document with no raw tree declares no resource anywhere")
-}
-
-// TestDeclaresResourceIDAbove_EmptySegmentIsATokenNotAnArtifact pins which
-// empty segments the path walk may drop. Splitting a pointer on '/' yields one
-// leading empty segment no reference token stands behind; every later one names
-// the key "", which is how a schema literally named "" is addressed. Dropping
-// those would read the $id of the components/schemas map instead of the
-// schema's own.
-//
-// The document root carries a member named "" with an $id, which makes the two
-// rootward cases discriminating: the empty pointer names the root and must not
-// reach it, while "/" is how ids.Ptr spells that member and must. Without the
-// $id both read false.
-func TestDeclaresResourceIDAbove_EmptySegmentIsATokenNotAnArtifact(t *testing.T) {
+// TestSameResource_SaysWhyTwoPositionsMayLieInTwo pins the verdict's three
+// answers: two schemas in one resource, their document's or one an $id starts,
+// two an $id between puts in two, and one a merge past the bound may hide an
+// identifier above, which must not read as none.
+func TestSameResource_SaysWhyTwoPositionsMayLieInTwo(t *testing.T) {
 	t.Parallel()
-	l, diags := LoweredFor(t, `openapi: 3.1.0
-info: {title: T, version: "1"}
-paths: {}
-"": {$id: https://example.com/root-member}
-components:
-  schemas:
-    "":
-      $id: https://example.com/empty
-      properties: {x: {type: string}}
-    Sibling: {type: string}
-`)
+	l, diags := LoweredFor(t, deepMergeSpec)
 	openapitest.RequireNoErrorDiags(t, diags)
-
-	for name, tc := range map[string]struct {
-		pointer jsontext.Pointer
-		want    bool
-		why     string
+	for _, tc := range []struct {
+		from, at jsontext.Pointer
+		want     string
 	}{
-		"the position is named by a trailing empty token": {
-			"/components/schemas/", true,
-			"the trailing token names the schema itself, whose own $id is the boundary",
-		},
-		"an interior empty token still descends": {
-			"/components/schemas//properties/x", true,
-			"the $id above a property is still a boundary over it",
-		},
-		"a sibling sits above no $id at all": {
-			"/components/schemas/Sibling", false,
-			"a neighbour of the named schema inherits no boundary from it",
-		},
-		"the empty pointer names the document root": {
-			"", false,
-			`the empty pointer stops at the root, so the $id under the root's "" member is out of reach`,
-		},
-		"a lone slash names the root member keyed \"\"": {
-			"/", true,
-			`ids.Ptr("") spells that member "/", so its own $id is the boundary — reading "/" as the root, ` +
-				"the way a reference resolves, would walk straight past it",
-		},
+		{"/components/schemas/Plain", "/components/schemas/Plain", ""},
+		{"/components/schemas/Held/$defs/d", "/components/schemas/Held", ""},
+		{"/components/schemas/Plain", "/components/schemas/Held/$defs/d", "puts the two in different schema resources"},
+		{"/components/schemas/Held", "/components/schemas/Plain", "puts the two in different schema resources"},
+		{"/components/schemas/Deep", "/components/schemas/Plain", "may hide an identifier"},
+		{"/components/schemas/Plain", "/components/schemas/Deep", "may hide an identifier"},
 	} {
-		t.Run(name, func(t *testing.T) {
-			t.Parallel()
-			assert.Equal(t, tc.want, declaresResourceIDAbove(l.Ctx, tc.pointer), tc.why)
-		})
+		why, ok := sameResource(l.Ctx, bind.Position{Pointer: tc.from}, bind.Position{Pointer: tc.at})
+		assert.Equal(t, tc.want == "", ok, "%s %s", tc.from, tc.at)
+		assert.Contains(t, why, tc.want, "%s %s", tc.from, tc.at)
 	}
-}
-
-// TestComponentSchemaAt_OnlyATopLevelComponentPointerHasABody pins the split
-// the function exists for: a component pointer has a body, and a pointer into
-// that same component does not.
-//
-// The fixture declares an empty-named component beside the real one, which
-// makes the guard observable. A deeper pointer's component name comes back
-// empty, so without the guard the lookup asks for "" and, in a document
-// declaring no such name, misses and returns nil, which looks exactly like the
-// right answer (#202).
-func TestComponentSchemaAt_OnlyATopLevelComponentPointerHasABody(t *testing.T) {
-	t.Parallel()
-	l, diags := LoweredFor(t, openapitest.ComponentSpec(
-		"    Outer:\n      type: object\n      title: outer\n"+
-			"      properties: {inner: {type: string, title: inner}}\n"+
-			"    \"\": {type: string, title: empty}\n"))
+	two, diags := LoweredFor(t, openapitest.ComponentSpec("    A: {$id: 'https://x.test/a', $defs: {d: {}}}\n"+
+		"    B: {$id: 'https://x.test/b', $defs: {d: {}}}\n"))
 	openapitest.RequireNoErrorDiags(t, diags)
-
-	tests := []struct {
-		name, wantTitle string
-		pointer         jsontext.Pointer
-	}{
-		{name: "the component itself", pointer: "/components/schemas/Outer", wantTitle: "outer"},
-		// The empty name is a name the document may declare, but it is not one this
-		// grammar addresses: a pointer ending at the slash names no entry, so the
-		// component it declares is reached as an anonymous position instead.
-		{name: "the pointer that names no entry", pointer: "/components/schemas/"},
-		{name: "a property inside that component", pointer: "/components/schemas/Outer/properties/inner"},
-		{name: "a component of another kind", pointer: "/components/parameters/Outer"},
-		{name: "no component pointer at all", pointer: "/paths/~1a/get"},
-	}
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-			got := componentSchemaAt(l.Ctx, tc.pointer)
-			if tc.wantTitle == "" {
-				assert.Nil(t, got, "only a top-level component schema has a body here")
-				return
-			}
-			require.NotNil(t, got)
-			assert.Equal(t, tc.wantTitle, got.GetTitle(), "and it is that component's own body")
-		})
-	}
+	_, ok := sameResource(two.Ctx, bind.Position{Pointer: "/components/schemas/A/$defs/d"},
+		bind.Position{Pointer: "/components/schemas/B/$defs/d"})
+	assert.False(t, ok, "two resources an $id each starts are two")
 }
 
 // TestDynamicHop_HopsOnlyWhenExactlyOneAnchorSiteIsNamed pins every way the
 // chain walk can stop, since a wrong verdict either expands what it should
 // refuse or refuses what it should expand (#202).
 //
-// A hop needs a component at the pointer, a $dynamicRef written on it, and
+// A hop needs a schema at the position, a $dynamicRef written on it, and
 // exactly one site declaring the anchor it names. Anything else ends the chain,
 // and a chain that ends has no cycle and expands, which is the direction sites
 // already errs in. Hopping on any other count would pick an arbitrary branch,
@@ -171,7 +104,7 @@ func TestDynamicHop_HopsOnlyWhenExactlyOneAnchorSiteIsNamed(t *testing.T) {
 			at:      "/components/schemas/C",
 		},
 		{
-			name:    "the pointer names no component",
+			name:    "the position holds no schema",
 			schemas: "    C: {type: string}\n",
 			at:      "/components/schemas/C/properties/inner",
 		},
@@ -189,16 +122,119 @@ func TestDynamicHop_HopsOnlyWhenExactlyOneAnchorSiteIsNamed(t *testing.T) {
 			l, diags := LoweredFor(t, openapitest.ComponentSpec(tc.schemas))
 			openapitest.RequireNoErrorDiags(t, diags)
 			if tc.anchor != "" {
-				sites, siteDiags := l.Ctx.DynamicAnchorSites(tc.anchor)
+				sites, _ := l.Ctx.DynamicAnchorSites(tc.anchor)
 				require.Len(t, sites, tc.wantSites, "the fixture must set up the case it is named for")
-				require.Empty(t, siteDiags)
 			}
 
-			next, hops, hopDiags := dynamicHop(l.Ctx, tc.at)
+			next, hops := dynamicHop(l.Ctx, bind.Position{Pointer: tc.at})
 
 			assert.Equal(t, tc.wantNext != "", hops)
-			assert.Equal(t, tc.wantNext, next)
-			assert.Empty(t, hopDiags)
+			assert.Equal(t, tc.wantNext, next.Pointer)
 		})
 	}
+}
+
+// TestResolvesAt_AnswersAsResolvePointerDoes pins that the verdict an
+// expansion asks is resolvePointer's own, at every landing the bindings of the
+// dynamic-ref and schema-identifiers cases make, and at each site and target
+// of their $refs.
+func TestResolvesAt_AnswersAsResolvePointerDoes(t *testing.T) {
+	t.Parallel()
+	asked := 0
+	for _, name := range []string{"dynamic-ref", "schema-identifiers"} {
+		data, err := os.ReadFile(filepath.Join("../../../../testdata/conformance/openapi", name+".yaml"))
+		require.NoError(t, err)
+		l, _ := LoweredFor(t, string(data))
+		table := l.Ctx.Bindings().Table()
+		positions := []bind.Position{}
+		for _, landing := range table.Landings() {
+			positions = append(positions, landing.At)
+		}
+		for _, e := range table.Entries() {
+			positions = append(positions, e.Site, e.Hop.Target)
+		}
+		for _, at := range positions {
+			there, read := lowering.InDocument(l.Ctx, at.Doc)
+			want := false
+			if read {
+				_, want = resolvePointer(there, l.Types, at.Pointer, l.Ctx.Bindings().At(at))
+			}
+			assert.Equal(t, want, resolvesAt(l.Ctx, at), "%s: %v", name, at)
+			asked++
+		}
+	}
+	assert.Positive(t, asked)
+}
+
+// TestBases_AnUnknownBaseIsNoMatch pins the three readers comparing bases where
+// a $ref is written alike: past the merge bound a schema on the way may hide an
+// $id, so a base the bindings cannot tell matches none, though both would read
+// as the document's. Twin, written as Plain is in the document's resource,
+// matches it at each. Deep's own $refs are reported unresolved, for the same
+// reason, and nothing else is.
+func TestBases_AnUnknownBaseIsNoMatch(t *testing.T) {
+	t.Parallel()
+	const body = "\n      type: object\n      properties: {p: {type: array, items: {$ref: '#/components/schemas/Item'}}}\n" +
+		"      allOf: [{not: {$ref: '#/components/schemas/Item'}}]\n"
+	src := strings.Replace(deepMergeSpec, "    Deep: {<<: *c70}\n",
+		"    Item: {type: string}\n    Plain:"+body+"    Twin:"+body+"    Deep:\n      <<: *c70"+body, 1)
+	l, diags := LoweredFor(t, src)
+	var unresolved []jsontext.Pointer
+	for _, d := range diags {
+		if d.Severity == ir.SeverityError {
+			unresolved = append(unresolved, d.Provenance.Pointer)
+		}
+	}
+	assert.ElementsMatch(t, []jsontext.Pointer{"/components/schemas/Deep/properties/p/items",
+		"/components/schemas/Deep/allOf/0/not"}, unresolved, "%+v", diags)
+	at := func(name string) *oas3.JSONSchema[oas3.Referenceable] {
+		js := l.Ctx.Bindings().At(bind.Position{Pointer: jsontext.Pointer("/components/schemas/" + name + "/properties/p")})
+		require.NotNil(t, js, name)
+		return js
+	}
+	branch := func(name string) allOfBranch {
+		s := l.Ctx.Bindings().At(bind.Position{Pointer: jsontext.Pointer("/components/schemas/" + name)}).GetSchema()
+		return allOfBranches(s, "").branches[0]
+	}
+	prov := func(name string) ir.Provenance {
+		return l.Ctx.Place().At(jsontext.Pointer("/components/schemas/" + name + "/properties/p"))
+	}
+	w := newAdmission(l.Ctx)
+	fields := modelFields{c: l.Ctx}
+
+	assert.True(t, w.sameText(at("Plain"), at("Twin")))
+	assert.False(t, w.sameText(at("Plain"), at("Deep")))
+	assert.True(t, readsAtPosition(l.Ctx, branch("Plain")))
+	assert.False(t, readsAtPosition(l.Ctx, branch("Deep")))
+	assert.True(t, fields.Alike(prov("Plain"), prov("Twin")))
+	assert.False(t, fields.Alike(prov("Plain"), prov("Deep")))
+}
+
+// TestUnresolvedRoot_SaysWhatHoldsNoSchema pins why a $recursiveRef whose
+// resource's root holds no schema is kept: at a document's root, what an
+// identifier would change, and elsewhere, where it is.
+func TestUnresolvedRoot_SaysWhatHoldsNoSchema(t *testing.T) {
+	t.Parallel()
+	assert.Contains(t, unresolvedRoot(bind.Position{}), "under an identifier of its own")
+	assert.Equal(t, `"#" names "/x", where no schema could be built`, unresolvedRoot(bind.Position{Doc: 1, Pointer: "/x"}))
+}
+
+// TestResolvesAt_ResolvesNothingInADocumentTheCompileDidNotRead pins the verdict
+// at a position of a document the bindings read and the compile does not list
+// beside the source: no reference resolves there, as resolveAt reads it.
+func TestResolvesAt_ResolvesNothingInADocumentTheCompileDidNotRead(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "ext.yaml"), []byte("X: {type: string}\n"), 0o600))
+	doc, _, err := load.Load(t.Context(), 0, compilers.Source{Path: filepath.Join(dir, "root.yaml"),
+		Data: []byte(openapitest.ComponentSpec("    A: {$ref: './ext.yaml#/X'}\n"))}, load.Options{Reader: reader.Disk{}})
+	require.NoError(t, err)
+	require.NotNil(t, doc)
+	read := LowererOver(lowering.New(0, doc, lowering.Policy{}))
+	e, ok := read.Ctx.Bindings().Table().Entry(bind.Position{Pointer: "/components/schemas/A"})
+	require.True(t, ok)
+	require.True(t, resolvesAt(read.Ctx, e.Hop.Target), "sanity: the document the compile read resolves")
+	none := *doc
+	none.Others = load.Others{}
+	assert.False(t, resolvesAt(LowererOver(lowering.New(0, &none, lowering.Policy{})).Ctx, e.Hop.Target))
 }

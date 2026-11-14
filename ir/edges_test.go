@@ -20,9 +20,9 @@ import (
 // typeIDReflect is the reflect.Type of ir.TypeID.
 var typeIDReflect = reflect.TypeFor[ir.TypeID]()
 
-// docRefReflect is the reflect.Type of ir.DocRef, the one position holding a
-// TypeID that is no edge.
-var docRefReflect = reflect.TypeFor[ir.DocRef]()
+// nameReflects are the reflect.Types of the positions holding a TypeID that is
+// no edge: ir.DocRef and ir.EntityRef name a type rather than use it.
+var nameReflects = map[reflect.Type]bool{reflect.TypeFor[ir.DocRef](): true, reflect.TypeFor[ir.EntityRef](): true}
 
 // newFilled returns a TypeDef of kind with every field filled.
 func newFilled(t *testing.T, kind ir.TypeKind) ir.TypeDef {
@@ -34,11 +34,11 @@ func newFilled(t *testing.T, kind ir.TypeKind) ir.TypeDef {
 }
 
 // reflectedEdges is the oracle: every non-empty TypeID the reflection walk
-// reaches from td except td's own ID and a DocRef's, in the order it reaches
-// them, with the path of each.
+// reaches from td except td's own ID and a DocRef's or an EntityRef's, in the
+// order it reaches them, with the path of each.
 func reflectedEdges(td ir.TypeDef) (ids []ir.TypeID, paths []string) {
 	ir.WalkValues(td, "<root>", ir.VisitFunc(func(v reflect.Value, at ir.WalkPath) bool {
-		if v.Type() == docRefReflect {
+		if nameReflects[v.Type()] {
 			return false
 		}
 		path := at.String()

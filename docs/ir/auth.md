@@ -73,17 +73,30 @@ one, and `irverify` reports a repeat (`ir/oauth-scope-duplicate`).
 **How a client authenticates to the token endpoint** is `TokenEndpointAuthMethods`, spelled as the
 IANA registry RFC 8414's `token_endpoint_auth_methods_supported` draws on spells it
 (`client_secret_basic`, `client_secret_post`, `private_key_jwt`, …). It is a set: the methods the
-endpoint accepts, none blank and none repeated. The registry is open, so a value outside it is kept
-as written, and an empty list means the source does not say, leaving the choice to the SDK's
-[runtime policy](../emitters/contract/runtime-policy.md). No format the matrix covers states it as a
-field; an OpenAPI document that does so writes a vendor extension, which stays under `Unmodeled`
-until a promotion target reads it.
+endpoint accepts, none blank ([what blank means](./naming.md#aliases)) and none repeated. The
+registry is open, so a value outside it is kept as written, and an empty list means the source does
+not say, leaving the choice to the SDK's [runtime policy](../emitters/contract/runtime-policy.md).
+No format the matrix covers states it as a field; an OpenAPI document that does so writes a vendor
+extension, which stays under `Unmodeled` until a promotion target reads it.
 
 **A declared credential shape** is `Credentials`, a reference to a registered type, for a scheme —
 typically `custom` — whose credential is several fields combined into a request rather than the
 one value its kind implies. Nil means the source declares no shape. No compiler fills it yet:
 building that type out of an extension would mint a node ([identity](./identity.md#the-id-grammar)),
 which is a design of its own.
+
+## Inbound operations
+
+An operation whose HTTP binding is `Inbound` ([http-binding](./http-binding.md#inbound-operations))
+is a request the API sends and the client receives, so a requirement the service, a server or the
+document states, which says how a client authenticates to the API, does not describe it. Such an
+operation inherits no requirement: its `Auth` is what its own declaration states, read as how the
+API authenticates to the receiver, and nil states none. An OpenAPI webhook writing `security` keeps
+it there; one writing none has nil, though the document's top-level `security` names schemes, since
+that list is the client's. Reading nil as inheriting would hand a webhook the client's API key, a
+credential the receiver never sees. The alternatives were weighed: inheriting matches the rule for
+every other operation, and is wrong for the one direction the requirement does not cover; refusing
+an inbound operation any `Auth` would drop what a document says of how the API signs a delivery.
 
 ## Unresolved schemes
 
@@ -95,13 +108,13 @@ service's in its place, or nothing at all unless the list offers the empty optio
 ([auth](../emitters/operations/auth.md#unresolved-schemes)).
 
 The kind says what the compiler holds, which is no mechanism. It does not say the source states
-none: an OpenAPI 3.2 requirement can name a scheme by URI, and an entry can write `in` and `name`
-under no `type`. So the scheme fills no field saying how to authenticate, and `irverify` reports one
-that does (`ir/unresolved-auth-has-mechanism`). What it does hold is what a declaration wrote, if
-one did: its `Docs` and `Deprecation`, and the rest verbatim under `Unmodeled`. A compiler reports
-an error for each such scheme, so a document holding one reaches an emitter only where its caller
-accepted that finding. Its ID is in a namespace of its own
-([identity](./identity.md#unresolved-schemes)).
+none: an OpenAPI 3.2 requirement can name a scheme by a URI the compiler does not follow, and an
+entry can write `in` and `name` under no `type`. So the scheme fills no field saying how to
+authenticate, and `irverify` reports one that does (`ir/unresolved-auth-has-mechanism`). What it
+does hold is what a declaration wrote, if one did: its `Docs` and `Deprecation`, and the rest
+verbatim under `Unmodeled`. A compiler reports an error for each such scheme, so a document holding
+one reaches an emitter only where its caller accepted that finding. Its ID is in a namespace of its
+own ([identity](./identity.md#unresolved-schemes)).
 
 The premise is measured. `cloudflare/api-schemas` at `319dc756`, the golden spec, names three such
 schemes from nine operations, and in those nine every option does, so nothing else states what they

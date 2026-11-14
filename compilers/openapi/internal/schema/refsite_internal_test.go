@@ -18,16 +18,15 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
 	"github.com/dexpace/morphic/compilers/openapi/internal/load"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
-	"github.com/dexpace/morphic/compilers/openapi/internal/overlay"
+	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
 	"github.com/dexpace/morphic/ir"
 )
 
 // TestRefTypeRef_SaysWhyAnUnboundRefIsUnresolved pins the reasons refTypeRef
-// gives for a $ref the bindings hold no answer of their own for: none where
-// there are no bindings, why the table never read one past the merge bound,
-// none for one landing where the bindings hold no schema, as when building one
-// failed, which the load phase reports, and why the table could not place what
-// a reference object resolved to.
+// gives for a $ref the bindings hold no answer of their own for: none for one
+// they never read where nothing stopped the reading, why the table never read
+// one past the merge bound, and none for one landing where the bindings hold
+// no schema, as when building one failed, which the load phase reports.
 func TestRefTypeRef_SaysWhyAnUnboundRefIsUnresolved(t *testing.T) {
 	t.Parallel()
 	message := func(t *testing.T, l *Lowerer, js *oas3.JSONSchema[oas3.Referenceable]) string {
@@ -38,8 +37,8 @@ func TestRefTypeRef_SaysWhyAnUnboundRefIsUnresolved(t *testing.T) {
 		return diags[0].Message
 	}
 
-	bare := NewRawLowerer(&soa.OpenAPI{})
-	assert.Equal(t, `unresolved $ref "#/x"`, message(t, bare, oas3.NewJSONSchemaFromReference("#/x")))
+	loaded, _ := LoweredFor(t, openapitest.EmptySpec)
+	assert.Equal(t, `unresolved $ref "#/x"`, message(t, loaded, oas3.NewJSONSchemaFromReference("#/x")))
 
 	var deep strings.Builder
 	deep.WriteString("openapi: 3.1.0\ninfo: {title: t, version: '1'}\npaths: {}\nx-c0: &c0 {$ref: '#/components/schemas/T'}\n")
@@ -57,15 +56,6 @@ func TestRefTypeRef_SaysWhyAnUnboundRefIsUnresolved(t *testing.T) {
 	a, ok = unheld.Ctx.Doc.Components.GetSchemas().Get("A")
 	require.True(t, ok)
 	assert.Equal(t, `unresolved $ref "#/components/schemas/H/properties/p"`, message(t, unheld, a))
-
-	bd := typed.NewBuilder(bind.Bind(t.Context(), unheld.Ctx.Doc.GetRootNode(), bind.Config{Self: "spec.yaml"}))
-	bd.Unplaced(a, "/paths/~1a/get/parameters/0")
-	unplaced := LowererOver(lowering.New(0, unheld.Ctx.Doc, ir.SourceInfo{}, "", lowering.Limits{},
-		lowering.StreamingMedia{}, lowering.ExtensionPromotions{}, lowering.NullableWidening{}, overlay.Origin{}).WithLoaded(
-		&load.Document{Doc: unheld.Ctx.Doc, Bindings: bd.Bindings()}))
-	assert.Equal(t, `unresolved $ref "#/components/schemas/H/properties/p": it is in what the reference at `+
-		"/paths/~1a/get/parameters/0 resolved to, which the compiler cannot read where the parser placed it",
-		message(t, unplaced, a))
 }
 
 // TestResolvePointer_PromisesWhatItNames pins that a $ref never builds what it
@@ -133,7 +123,5 @@ func unheldLowerer(t *testing.T) *Lowerer {
 	a, ok := doc.Components.GetSchemas().Get("A")
 	require.True(t, ok)
 	bd.Schema(a, bind.Position{Pointer: "/components/schemas/A"})
-	ctx := lowering.New(0, doc, ir.SourceInfo{}, "", lowering.Limits{}, lowering.StreamingMedia{},
-		lowering.ExtensionPromotions{}, lowering.NullableWidening{}, overlay.Origin{}).WithLoaded(&load.Document{Doc: doc, Bindings: bd.Bindings()})
-	return LowererOver(ctx)
+	return LowererOver(lowering.New(0, &load.Document{Doc: doc, Bindings: bd.Bindings()}, lowering.Policy{}))
 }

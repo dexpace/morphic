@@ -1,7 +1,7 @@
-# The same prefix, with a sibling at the key the pointer names. The resolver
-# reads a path item's pointer through the item its $ref names, not beside it,
-# and reports the reference unresolved
-# (docs/parser-library.md#reference-object-cycle).
+# The same prefix, with a sibling at the key the pointer names. The pointer
+# reads the get written beside the $ref, where it is written, an operation and
+# no path item, so the reference is unresolved
+# (docs/compilers/openapi.md#path-item-ref-fields).
 openapi: 3.1.0
 info: {title: Path Item Prefix Sibling, version: "1"}
 paths:

@@ -58,10 +58,10 @@ func internNode(c lowering.Ctx, ts *compile.Types, pointer jsontext.Pointer, bui
 func commonFor(c lowering.Ctx, id ir.TypeID, pointer jsontext.Pointer) ir.TypeCommon {
 	common := ir.TypeCommon{
 		ID:         id,
-		Provenance: c.ProvenanceAt(pointer),
+		Provenance: c.Place().At(pointer),
 	}
-	if name, ok := ids.ComponentSchemaName(pointer); ok {
-		common.Name = compile.NamingFor(name)
+	if name, state := ids.ComponentSchema(pointer); state == ids.NamedComponent {
+		common.Name = ir.NamingFor(name)
 	} else {
 		common.Anonymous = true
 		common.Name = compile.NamingHint(lowering.NameAt(c, pointer))
@@ -72,12 +72,12 @@ func commonFor(c lowering.Ctx, id ir.TypeID, pointer jsontext.Pointer) ir.TypeCo
 // internAlias interns a Scalar at pointer whose Base is target, so a component
 // (or a sibling-carrying schema) whose body lowered to a shared or referenced
 // target still owns a resolvable node at its own TypeID. It carries the value
-// constraints s writes, and the exclusive modifier no Constraints field holds,
-// for the reason hoistScalar records.
+// constraints s writes that the types it declares take, and the exclusive
+// modifier no Constraints field holds, for the reason hoistScalar records.
 func internAlias(c lowering.Ctx, ts *compile.Types, s *oas3.Schema, pointer jsontext.Pointer, target ir.TypeRef,
 ) (ir.TypeID, []ir.Diagnostic) {
 	var kept ir.Unmodeled
-	cons, diags := ConstraintsOf(c, &kept, s, pointer)
+	cons, diags := ConstraintsOf(c, &kept, s, positionVoices(c, ts, s, pointer, target), pointer, declaredInstanceTypes(s))
 	return internAliasHolding(c, ts, cons, kept, pointer, target), diags
 }
 
@@ -88,7 +88,7 @@ func internAlias(c lowering.Ctx, ts *compile.Types, s *oas3.Schema, pointer json
 func internReferenceAlias(c lowering.Ctx, ts *compile.Types, s *oas3.Schema, pointer jsontext.Pointer, target ir.TypeRef,
 ) (ir.TypeID, []ir.Diagnostic) {
 	var kept ir.Unmodeled
-	cons, diags := referenceConstraintsOf(c, &kept, s, pointer)
+	cons, diags := referenceConstraintsOf(c, ts, &kept, s, positionVoices(c, ts, s, pointer, target), target, pointer)
 	return internAliasHolding(c, ts, cons, kept, pointer, target), diags
 }
 

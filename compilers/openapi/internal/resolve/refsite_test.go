@@ -7,7 +7,6 @@ import (
 	"encoding/json/jsontext"
 	"os"
 	"path/filepath"
-	"slices"
 	"testing"
 
 	"github.com/speakeasy-api/openapi/jsonschema/oas3"
@@ -44,9 +43,8 @@ func loadBound(t *testing.T, path, src string, opts load.Options, declared ...st
 	require.NotNil(t, doc.Bindings, "the source is bound")
 	return bound{doc: doc, scope: resolve.Scope{
 		SelfPath: path,
-		Doc:      doc.Doc,
 		Bindings: doc.Bindings,
-		Declares: func(name string) bool { return slices.Contains(declared, name) },
+		Declares: resolve.NewNames(declared...),
 	}}
 }
 
@@ -80,10 +78,12 @@ const targetsSpec = `
 `
 
 // externalDocument writes ext.yaml, which targetsSpec names, beside a spec in
-// a directory of its own and returns the path the spec is loaded by.
+// a directory of its own, its links resolved as a compile names the files in
+// it, and returns the path the spec is loaded by.
 func externalDocument(t *testing.T) string {
 	t.Helper()
-	dir := t.TempDir()
+	dir, err := filepath.EvalSymlinks(t.TempDir())
+	require.NoError(t, err)
 	body := "components:\n  schemas:\n    E: {type: string, title: external}\n"
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "ext.yaml"), []byte(body), 0o600))
 	return filepath.Join(dir, "spec.yaml")
@@ -198,19 +198,20 @@ func TestIsRefSite_IncludesTheDegenerateRef(t *testing.T) {
 
 func TestResolveComponentRef(t *testing.T) {
 	t.Parallel()
-	sc := resolve.Scope{Declares: func(n string) bool { return n == "User" }}
+	sc := resolve.Scope{Declares: resolve.NewNames("User")}
 
-	id, ok, handled := sc.ComponentRef("/components/schemas/User")
-	assert.True(t, handled)
-	assert.True(t, ok)
+	id, state := sc.ComponentRef("/components/schemas/User")
+	assert.Equal(t, ids.NamedComponent, state)
 	assert.Equal(t, ids.Document{}.NamedType("/components/schemas/User"), id)
 
-	_, ok, handled = sc.ComponentRef("/components/schemas/Missing")
-	assert.True(t, handled, "an undeclared component pointer is still classified as a component")
-	assert.False(t, ok, "an undeclared component does not resolve")
+	_, state = sc.ComponentRef("/components/schemas/Missing")
+	assert.Equal(t, ids.UndeclaredComponent, state, "a name the document does not declare does not resolve")
 
-	_, _, handled = sc.ComponentRef("/components/schemas/Foo/properties/bar")
-	assert.False(t, handled, "a sub-schema pointer is not a top-level component pointer")
+	_, state = sc.ComponentRef("/components/schemas/")
+	assert.Equal(t, ids.UnnamedComponent, state, "the component keyed \"\" is its own state, never folded into another")
+
+	_, state = sc.ComponentRef("/components/schemas/Foo/properties/bar")
+	assert.Equal(t, ids.NotComponent, state, "a sub-schema pointer is not a top-level component pointer")
 }
 
 // TestResolveComponentRef_NonCanonicalEscape pins that the resolved ID is built
@@ -219,11 +220,10 @@ func TestResolveComponentRef(t *testing.T) {
 // the interned node rather than an unbacked ID (issue #14).
 func TestResolveComponentRef_NonCanonicalEscape(t *testing.T) {
 	t.Parallel()
-	sc := resolve.Scope{Declares: func(n string) bool { return n == "A~B" }}
+	sc := resolve.Scope{Declares: resolve.NewNames("A~B")}
 
-	id, ok, handled := sc.ComponentRef("/components/schemas/A~B")
-	assert.True(t, handled)
-	assert.True(t, ok)
+	id, state := sc.ComponentRef("/components/schemas/A~B")
+	assert.Equal(t, ids.NamedComponent, state)
 	assert.Equal(t, ids.Document{}.NamedType("/components/schemas/A~0B"), id,
 		"the ID is canonically re-escaped to match the interned node")
 	assert.Equal(t, ids.Document{}.NamedType(ids.Ptr("components", "schemas", "A~B")), id,

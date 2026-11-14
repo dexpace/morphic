@@ -474,8 +474,9 @@ func TestAllOf_ARefToASiblingFieldIsDeclaredApart(t *testing.T) {
 // writes as format: time, which lowers to a Scalar the table pairs with no kind:
 // a full-time default is adopted and a const that is one narrows the field,
 // while a value with no offset, another string format and an enum of no time
-// are refused with a warning, and a node holding detail of its own is kept
-// beside the const. Each case is compiled in both branch orders.
+// are refused with a warning, and a node holding detail of its own meets the
+// const in a literal holding it too. Each case is compiled in both branch
+// orders.
 func TestAllOf_ATimeIsJudgedByItsGrammar(t *testing.T) {
 	t.Parallel()
 	const timed = "{type: string, format: time}"
@@ -493,7 +494,7 @@ func TestAllOf_ATimeIsJudgedByItsGrammar(t *testing.T) {
 		{"a local time", timed, "{type: string, format: time-local}", "", "", diag.ConflictingRedecl},
 		{"an enum of no time", timed, "{type: string, enum: [a]}", "", "", diag.ConflictingRedecl},
 		{"a full-time const beside detail", "{type: string, format: time, description: d}", `{const: "12:00:00Z"}`,
-			"", "", diag.DegradedConstruct},
+			ir.KindLiteral, "", ""},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
@@ -692,4 +693,254 @@ func nonBareSpec(extra, schemaA, schemaB string) string {
 		"          properties: {v: " + schemaA + "}\n" +
 		"        - type: object\n" +
 		"          properties: {v: " + schemaB + "}\n")
+}
+
+// TestAllOf_EnumsAndListsNarrowToWhatTheyShare pins GitHub #1042 in both branch
+// orders: an enum within another is the field's type, and a list whose element
+// is narrower than a described list's is a list of the narrower element holding
+// the description, minted for the field. A minItems or an x- extension on the
+// broader list is adopted the same way. Nothing is kept or reported.
+func TestAllOf_EnumsAndListsNarrowToWhatTheyShare(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name, broad, narrow string
+		check               func(t *testing.T, doc *ir.Document, target ir.TypeID)
+	}{
+		{"an enum within another", "{type: string, enum: [a, b]}", "{type: string, enum: [a]}",
+			func(t *testing.T, doc *ir.Document, target ir.TypeID) {
+				t.Helper()
+				e, ok := doc.Types[target].(*ir.Enum)
+				require.True(t, ok)
+				require.Len(t, e.Members, 1)
+				assert.Equal(t, "a", e.Members[0].Value.Str)
+			}},
+		{"a described list", "{type: array, description: d, items: {type: integer}}",
+			"{type: array, items: {type: integer, format: int32}}",
+			func(t *testing.T, doc *ir.Document, target ir.TypeID) {
+				t.Helper()
+				l, ok := doc.Types[target].(*ir.List)
+				require.True(t, ok)
+				assert.Equal(t, ir.TypeID("t/prim/int32"), l.Elem.Target)
+				assert.Equal(t, "d", l.Docs.Description)
+			}},
+		{"a bounded list", "{type: array, minItems: 1, items: {type: integer}}",
+			"{type: array, items: {type: integer, format: int32}}",
+			func(t *testing.T, doc *ir.Document, target ir.TypeID) {
+				t.Helper()
+				l, ok := doc.Types[target].(*ir.List)
+				require.True(t, ok)
+				assert.Equal(t, ir.TypeID("t/prim/int32"), l.Elem.Target)
+				assert.Equal(t, &ir.Constraints{MinItems: new(int64(1))}, l.Constraints)
+			}},
+		{"an extended list", "{type: array, x-kept: 1, items: {type: integer}}",
+			"{type: array, items: {type: integer, format: int32}}",
+			func(t *testing.T, doc *ir.Document, target ir.TypeID) {
+				t.Helper()
+				l, ok := doc.Types[target].(*ir.List)
+				require.True(t, ok)
+				assert.Equal(t, ir.TypeID("t/prim/int32"), l.Elem.Target)
+				assert.Contains(t, l.Unmodeled, "openapi:x-kept")
+			}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			for _, order := range [][2]string{{tc.broad, tc.narrow}, {tc.narrow, tc.broad}} {
+				p, doc, diags := redeclared(t, order[0], order[1])
+				assert.Empty(t, diags, "%v", order)
+				assert.Empty(t, p.Unmodeled, "%v", order)
+				tc.check(t, doc, p.Type.Target)
+			}
+		})
+	}
+}
+
+// TestAllOf_EnumsSharingSomeValuesMeetInAnEnumOfThem pins the enum minted for
+// two sharing only some values: it holds those, each member identified beneath
+// it in the composed namespace, where irverify holds a member's ID.
+func TestAllOf_EnumsSharingSomeValuesMeetInAnEnumOfThem(t *testing.T) {
+	t.Parallel()
+	p, doc, diags := redeclared(t, "{type: string, enum: [a, b]}", "{type: string, enum: [b, c]}")
+
+	assert.Empty(t, diags)
+	require.Equal(t, ir.TypeID("t/composed/components/schemas/T/allOf/1/properties/v"), p.Type.Target)
+	e, ok := doc.Types[p.Type.Target].(*ir.Enum)
+	require.True(t, ok)
+	require.Len(t, e.Members, 1)
+	assert.Equal(t, "b", e.Members[0].Value.Str)
+	assert.Equal(t, ir.EnumMemberID("e/composed/components/schemas/T/allOf/1/properties/v/s:b"), e.Members[0].ID)
+	assert.Empty(t, validated(t, doc), "the minted enum's members live where irverify holds them")
+	declared, ok := doc.Types["t/anon/components/schemas/T/allOf/0/properties/v"].(*ir.Enum)
+	require.True(t, ok)
+	assert.Equal(t, ir.EnumMemberID("e/anon/components/schemas/T/allOf/0/properties/v/s:b"), declared.Members[1].ID,
+		"the declared enum's members are as they were")
+}
+
+// TestAllOf_ADefaultIsJudgedByTheNodeTheFieldHolds pins a default written beside
+// a list or an enum the field's node is built from: the list of int32 refuses a
+// default past it, and the enum of the shared values one it cut, so each is
+// reported and kept in either order rather than adopted when written first.
+func TestAllOf_ADefaultIsJudgedByTheNodeTheFieldHolds(t *testing.T) {
+	t.Parallel()
+	for _, pair := range [][2]string{
+		{"{type: array, description: d, items: {type: integer}, default: [5000000000]}", "{type: array, items: {type: integer, format: int32}}"},
+		{"{type: string, enum: [a, b], default: a}", "{type: string, enum: [b, c]}"},
+	} {
+		for i, order := range [][2]string{{pair[0], pair[1]}, {pair[1], pair[0]}} {
+			p, _, diags := redeclared(t, order[0], order[1])
+			assert.Nil(t, p.Default, "%v", order)
+			require.Len(t, diags, 1, "%v", order)
+			assert.Equal(t, diag.DegradedConstruct, diags[0].Code, "%v", order)
+			assert.Equal(t, fmt.Sprintf("/components/schemas/T/allOf/%d/properties/v", i), string(diags[0].Provenance.Pointer), "%v", order)
+		}
+	}
+}
+
+// TestAllOf_EnumsOfDifferentValueTypesAreJudgedByTheirValues pins GitHub #1654
+// in both branch orders: an enum of integer within an enum of number is the
+// field's type, and two each holding a value the other lacks meet in an enum of
+// what they share, of the narrower value type, with nothing reported or kept.
+func TestAllOf_EnumsOfDifferentValueTypesAreJudgedByTheirValues(t *testing.T) {
+	t.Parallel()
+	const within = "{type: integer, enum: [1]}"
+	for i, order := range [][2]string{{"{type: number, enum: [1, 2]}", within}, {within, "{type: number, enum: [1, 2]}"}} {
+		p, _, diags := redeclared(t, order[0], order[1])
+		assert.Empty(t, diags, "%v", order)
+		assert.Empty(t, p.Unmodeled, "%v", order)
+		want := fmt.Sprintf("t/anon/components/schemas/T/allOf/%d/properties/v", 1-i)
+		assert.Equal(t, ir.TypeID(want), p.Type.Target, "%v: the enum of integer", order)
+	}
+
+	for _, order := range [][2]string{
+		{"{type: number, enum: [1, 2.5]}", "{type: integer, enum: [1, 3]}"},
+		{"{type: integer, enum: [1, 3]}", "{type: number, enum: [1, 2.5]}"},
+	} {
+		p, doc, diags := redeclared(t, order[0], order[1])
+		assert.Empty(t, diags, "%v", order)
+		require.Equal(t, ir.TypeID("t/composed/components/schemas/T/allOf/1/properties/v"), p.Type.Target, "%v", order)
+		e, ok := doc.Types[p.Type.Target].(*ir.Enum)
+		require.True(t, ok, "%v", order)
+		assert.Equal(t, ir.PrimInteger, e.ValueType, "%v", order)
+		require.Len(t, e.Members, 1, "%v", order)
+		assert.Equal(t, ir.BigVal("1"), e.Members[0].Value.Num, "%v", order)
+		assert.Empty(t, validated(t, doc), "%v", order)
+	}
+}
+
+// TestAllOf_AnAliasMeetsAsTheNodeItStandsFor pins GitHub #1672 in both branch
+// orders: a component wrapping an enum or a list in an allOf, one only a $ref,
+// and one beside a description, each meet the enum or the list beside them as the
+// node they stand for, in a node holding what the alias adds, with nothing
+// reported or kept.
+func TestAllOf_AnAliasMeetsAsTheNodeItStandsFor(t *testing.T) {
+	t.Parallel()
+	const components = `    L1: {type: array, items: {type: string, enum: [a, b, c]}}
+    L2: {type: array, items: {type: string, enum: [b, c, d]}}
+    E1: {type: string, enum: [a, b, c]}
+    E2: {type: string, enum: [b, c, d]}
+    Wrapped: {allOf: [{$ref: '#/components/schemas/L1'}]}
+    WrappedE1: {allOf: [{$ref: '#/components/schemas/E1'}]}
+    BareRef: {$ref: '#/components/schemas/E1'}
+    Described: {$ref: '#/components/schemas/E1', description: d}
+`
+	ref := func(name string) string { return "{$ref: '#/components/schemas/" + name + "'}" }
+	for _, tc := range []struct {
+		alias, other, docs string
+		list               bool
+	}{
+		{alias: "Wrapped", other: "L2", list: true},
+		{alias: "WrappedE1", other: "E2"},
+		{alias: "BareRef", other: "E2"},
+		{alias: "Described", other: "E2", docs: "d"},
+	} {
+		for _, order := range [][2]string{{ref(tc.alias), ref(tc.other)}, {ref(tc.other), ref(tc.alias)}} {
+			doc, diags := settledSpec(t, components, order[0], order[1])
+			openapitest.RequireNoErrorDiags(t, diags)
+			assert.Empty(t, diags, "%v", order)
+			p := propertyOf(t, doc, "T", "v")
+			assert.Empty(t, p.Unmodeled, "%v", order)
+			require.Equal(t, ir.TypeID("t/composed/components/schemas/T/allOf/1/properties/v"), p.Type.Target, "%v", order)
+			target := p.Type.Target
+			if tc.list {
+				l, ok := doc.Types[target].(*ir.List)
+				require.True(t, ok, "%v", order)
+				target = l.Elem.Target
+			}
+			e, ok := doc.Types[target].(*ir.Enum)
+			require.True(t, ok, "%v", order)
+			assert.Equal(t, []string{"b", "c"}, []string{e.Members[0].Value.Str, e.Members[1].Value.Str}, "%v", order)
+			assert.Equal(t, tc.docs, doc.Types[p.Type.Target].Common().Docs.Description, "%v", order)
+			assert.Empty(t, validated(t, doc), "%v", order)
+		}
+	}
+}
+
+// TestAllOf_AnAliasIsJudgedByWhatItAdds pins, in both branch orders, what an
+// alias adds to the node it stands for: docs read field by field down its
+// chain; a bound on an open enum, which no node of its kind holds, judged as
+// written; one alias of the top type within the other; and null alone, so the
+// node it stands for is within it, while one adding docs too, or holding null
+// beside a node it would be within, overlaps it. A field keeping a type the
+// other refuses reports it and keeps that one verbatim.
+func TestAllOf_AnAliasIsJudgedByWhatItAdds(t *testing.T) {
+	t.Parallel()
+	const components = `    E1: {type: string, enum: [a, b, c], description: e1}
+    E2: {type: string, enum: [b, c, d]}
+    E3: {type: string, enum: [a, b, c, d]}
+    Doc: {$ref: '#/components/schemas/E1', description: inner}
+    Deep: {$ref: '#/components/schemas/Doc', title: outer}
+    OE: {type: string, enum: [a, b, c], x-extensible-enum: true}
+    OE2: {type: string, enum: [b, c, d], x-extensible-enum: true}
+    KeepO: {$ref: '#/components/schemas/OE', maxLength: 5}
+    Top: {}
+    TopA: {$ref: '#/components/schemas/Top', description: d}
+    NAny: {anyOf: [{$ref: '#/components/schemas/E1'}, {type: 'null'}]}
+    DN: {$ref: '#/components/schemas/NAny', description: dn}
+    M: {type: object, properties: {a: {type: string}}}
+    MN: {anyOf: [{$ref: '#/components/schemas/M'}, {type: 'null'}]}
+    L: {type: array, items: {type: string}}
+    LN: {anyOf: [{$ref: '#/components/schemas/L'}, {type: 'null'}]}
+`
+	ref := func(name string) string { return "{$ref: '#/components/schemas/" + name + "'}" }
+	for _, tc := range []struct {
+		alias, other string
+		// want is the field's type, "" for a node the merge mints.
+		want ir.TypeID
+		docs ir.Docs
+		// kept is whether the second declaration is reported and kept.
+		kept bool
+	}{
+		{alias: "Deep", other: "E2", docs: ir.Docs{Summary: "outer", Description: "inner"}},
+		{alias: "KeepO", other: "OE2", kept: true},
+		{alias: "TopA", other: "Top", want: componentID("TopA"), docs: ir.Docs{Description: "d"}},
+		{alias: "NAny", other: "E1", want: componentID("E1"), docs: ir.Docs{Description: "e1"}},
+		{alias: "MN", other: "M", want: componentID("M")},
+		{alias: "LN", other: "L", want: componentID("L")},
+		{alias: "NAny", other: "E3", kept: true},
+		{alias: "DN", other: "E1", kept: true},
+	} {
+		for _, order := range [][2]string{{ref(tc.alias), ref(tc.other)}, {ref(tc.other), ref(tc.alias)}} {
+			doc, diags := settledSpec(t, components, order[0], order[1])
+			openapitest.RequireNoErrorDiags(t, diags)
+			p := propertyOf(t, doc, "T", "v")
+			first := componentID(strings.TrimSuffix(strings.TrimPrefix(order[0], "{$ref: '#/components/schemas/"), "'}"))
+			if tc.kept {
+				assert.Len(t, diags, 1, "%v: the declaration the field refuses is reported", order)
+				assert.Len(t, p.Unmodeled, 1, "%v: and kept", order)
+				assert.Equal(t, first, p.Type.Target, "%v: the field keeps the first", order)
+				continue
+			}
+			assert.Empty(t, diags, "%v", order)
+			assert.Empty(t, p.Unmodeled, "%v", order)
+			assert.False(t, p.Type.Nullable, "%v: one declaration refuses null", order)
+			if tc.want != "" {
+				assert.Equal(t, tc.want, p.Type.Target, "%v", order)
+			} else {
+				assert.Equal(t, ir.TypeID("t/composed/components/schemas/T/allOf/1/properties/v"), p.Type.Target, "%v", order)
+			}
+			if tc.docs.Summary != "" || tc.docs.Description != "" {
+				assert.Equal(t, tc.docs, doc.Types[p.Type.Target].Common().Docs, "%v", order)
+			}
+			assert.Empty(t, validated(t, doc), "%v", order)
+		}
+	}
 }

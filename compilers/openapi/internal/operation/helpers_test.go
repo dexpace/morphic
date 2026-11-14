@@ -16,7 +16,6 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
 	"github.com/dexpace/morphic/compilers/openapi/internal/operation"
-	"github.com/dexpace/morphic/compilers/openapi/internal/overlay"
 	"github.com/dexpace/morphic/compilers/openapi/internal/schema"
 	"github.com/dexpace/morphic/compilers/openapi/internal/servers"
 	"github.com/dexpace/morphic/ir"
@@ -64,8 +63,23 @@ func typeByName(doc *ir.Document, name string) ir.TypeDef {
 // compiler's business, not theirs.
 func serviceWithGrouping(t *testing.T, src string, grouping lowering.GroupingStrategy) (ir.Service, []ir.Diagnostic) {
 	t.Helper()
+	return serviceUnder(t, src, lowering.Policy{Grouping: grouping})
+}
+
+// serviceByExtension is serviceWithGrouping under GroupByExtension, reading
+// ext. It takes ext as it is, with no default filled in: that is the
+// compiler's options' business.
+func serviceByExtension(t *testing.T, src string, ext lowering.GroupingExtension) (ir.Service, []ir.Diagnostic) {
+	t.Helper()
+	return serviceUnder(t, src, lowering.Policy{Grouping: lowering.GroupByExtension, GroupingExtension: ext})
+}
+
+// serviceUnder runs the service walk under policy, with every diagnostic
+// after the load deduplicated as the compiler does.
+func serviceUnder(t *testing.T, src string, policy lowering.Policy) (ir.Service, []ir.Diagnostic) {
+	t.Helper()
 	var acc compile.Diags
-	svc, loadDiags := walkService(t, src, grouping, acc.AppendAll)
+	svc, loadDiags := walkService(t, src, policy, acc.AppendAll)
 	return svc, append(loadDiags, acc.List()...)
 }
 
@@ -76,35 +90,34 @@ func serviceWithGrouping(t *testing.T, src string, grouping lowering.GroupingStr
 func serviceAsReported(t *testing.T, src string) (ir.Service, []ir.Diagnostic) {
 	t.Helper()
 	var reported []ir.Diagnostic
-	svc, _ := walkService(t, src, lowering.GroupByTags, func(diags []ir.Diagnostic) {
+	svc, _ := walkService(t, src, lowering.Policy{Grouping: lowering.GroupByTags}, func(diags []ir.Diagnostic) {
 		reported = append(reported, diags...)
 	})
 	return svc, reported
 }
 
 // walkService loads src and runs the phases beneath the service walk, then the
-// walk itself under grouping, handing report each phase's diagnostics in turn.
+// walk itself under policy and the link resolution after it, handing report
+// each phase's diagnostics in turn.
 // It returns the service and the load's diagnostics.
-func walkService(t *testing.T, src string, grouping lowering.GroupingStrategy,
-	report func([]ir.Diagnostic),
-) (ir.Service, []ir.Diagnostic) {
+func walkService(t *testing.T, src string, policy lowering.Policy, report func([]ir.Diagnostic)) (ir.Service, []ir.Diagnostic) {
 	t.Helper()
 	loadedDoc, loadDiags, err := load.Load(t.Context(), 0, openapitest.SourceOf(src), load.Options{})
 	require.NoError(t, err)
 	require.NotNil(t, loadedDoc)
 
 	types := compile.NewTypes()
-	c := lowering.New(0, loadedDoc.Doc, loadedDoc.Source, grouping, lowering.Limits{}, lowering.StreamingMedia{},
-		lowering.ExtensionPromotions{}, lowering.NullableWidening{}, overlay.Origin{}).WithLoaded(loadedDoc)
+	c := lowering.New(0, loadedDoc, policy)
 	report(schema.LowerComponentSchemas(t.Context(), c, types))
 
-	schemes, schemeDiags := auth.LowerSecuritySchemes(c)
+	declared, schemeDiags := auth.LowerSecuritySchemes(c)
 	report(schemeDiags)
-	svc, _, svcDiags := operation.LowerService(t.Context(), c, types, servers.NewRegistry(), schemes)
+	lowered, svcDiags := operation.LowerService(t.Context(), c, types, declared)
 	report(svcDiags)
-	_, finished := types.Finish(t.Context())
+	reg, finished := types.Finish(t.Context())
 	report(finished)
-	return svc, loadDiags
+	report(lowered.Links.Resolve(c, &lowered.Service, reg, servers.Reopen(lowered.Servers)))
+	return lowered.Service, loadDiags
 }
 
 // errorFindings spells each error in diags as its code and pointer, in the order

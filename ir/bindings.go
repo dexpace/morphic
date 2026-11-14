@@ -53,23 +53,6 @@ const (
 // HTTPBinding maps an Operation onto one HTTP method and path, or for a webhook
 // onto a method and the event it names (docs/ir/http-binding.md).
 type HTTPBinding struct {
-	// Method is the method as sent on the wire (OpenAPI 3.2 additionalOperations
-	// keys carry exact capitalization; QUERY and custom methods are legal).
-	Method string `json:"method,omitempty"`
-	// URITemplate is the RFC 6570 path template — the one true path
-	// representation. A webhook binding has none: WebhookName names its event.
-	URITemplate string `json:"uriTemplate,omitempty"`
-	// HostPrefix is the endpoint host prefix, may contain {param} labels
-	// (Smithy @endpoint).
-	HostPrefix string `json:"hostPrefix,omitempty"`
-	// SharedRoute reports that multiple operations legally share method+path,
-	// disambiguated by request content (TypeSpec @sharedRoute); validate must not
-	// reject the duplicate, and single-route emitters must merge.
-	SharedRoute bool `json:"sharedRoute"`
-	// ParamBindings assigns each logical parameter its HTTP location.
-	ParamBindings []HTTPParamBinding `json:"paramBindings,omitempty"`
-	// RequestContentTypes are the priority-ordered request media types.
-	RequestContentTypes []string `json:"requestContentTypes,omitempty"`
 	// ResponseBodyPath sets the HTTP response body to this sub-field of the
 	// response type (gRPC transcoding response_body); nil = the whole payload.
 	ResponseBodyPath *PropPath `json:"responseBodyPath,omitzero"`
@@ -79,15 +62,26 @@ type HTTPBinding struct {
 	// Compression requires the client to compress the request body
 	// (Smithy @requestCompression).
 	Compression *RequestCompression `json:"compression,omitzero"`
-	// ChecksumRequired requires the client to send a payload checksum
-	// (Smithy @httpChecksumRequired).
-	ChecksumRequired bool `json:"checksumRequired"`
-	// PatchImplicitOptionality controls PATCH implicit optionality: nil = protocol
-	// default (PATCH projections make properties optional); false = disabled
-	// (TypeSpec @patch implicitOptionality).
+	// PatchImplicitOptionality says whether a PATCH body makes every member
+	// optional whatever its schema requires (TypeSpec @patch
+	// implicitOptionality): true = it does; false = it does not; nil = the
+	// source states nothing, so the body requires what its schema requires
+	// (docs/ir/http-binding.md#patch-optionality).
 	PatchImplicitOptionality *bool `json:"patchImplicitOptionality,omitzero"`
-	// IsWebhook marks an inbound webhook operation (OpenAPI 3.1 webhooks).
-	IsWebhook bool `json:"isWebhook"`
+	// Unmodeled holds source constructs the IR does not model, kept verbatim.
+	Unmodeled Unmodeled `json:"unmodeled,omitempty"`
+	// Method is the method as sent on the wire (OpenAPI 3.2 additionalOperations
+	// keys carry exact capitalization; QUERY and custom methods are legal).
+	Method string `json:"method,omitempty"`
+	// URITemplate is the RFC 6570 path template — the one true path
+	// representation. A webhook binding has none: WebhookName names its event.
+	URITemplate string `json:"uriTemplate,omitempty"`
+	// HostPrefix is the endpoint host prefix, may contain {param} labels
+	// (Smithy @endpoint).
+	HostPrefix string `json:"hostPrefix,omitempty"`
+	// Inbound says the API sends this request and the client receives it: a
+	// webhook or a callback. Empty is an operation the client sends.
+	Inbound HTTPInbound `json:"inbound,omitempty"`
 	// WebhookName is the webhooks-map key that declared a webhook operation,
 	// verbatim. The key names an event rather than a path, so braces in it are
 	// part of the name and not template variables. It is no Naming: the
@@ -95,10 +89,26 @@ type HTTPBinding struct {
 	// legal, would name nothing. irverify reports this field on a binding that is
 	// not a webhook, and URITemplate on one that is, as ir/webhook-route.
 	WebhookName string `json:"webhookName,omitempty"`
+	// PathDocs documents the path the binding mounts the operation on, shared
+	// by every operation on it (an OpenAPI Path Item's summary and description),
+	// as URITemplate is; the operation's own documentation is Operation.Docs.
+	// Omitted when empty, as Payload.Docs is: most paths document nothing.
+	PathDocs Docs `json:"pathDocs,omitzero"`
+	// ParamBindings assigns each logical parameter its HTTP location.
+	ParamBindings []HTTPParamBinding `json:"paramBindings,omitempty"`
+	// RequestContentTypes are the request body's media types, as written and in
+	// source order, which states no preference among them.
+	RequestContentTypes []string `json:"requestContentTypes,omitempty"`
 	// Callbacks are out-of-band operations keyed by runtime expressions.
 	Callbacks []Callback `json:"callbacks,omitempty"`
-	// Unmodeled holds source constructs the IR does not model, kept verbatim.
-	Unmodeled Unmodeled `json:"unmodeled,omitempty"`
+	// SharedRoute reports that multiple operations legally share method+path,
+	// disambiguated by request content (TypeSpec @sharedRoute) or by nothing on
+	// the wire (OpenAPI path keys differing only in a fragment); validate must
+	// not reject the duplicate, and single-route emitters must merge.
+	SharedRoute bool `json:"sharedRoute"`
+	// ChecksumRequired requires the client to send a payload checksum
+	// (Smithy @httpChecksumRequired).
+	ChecksumRequired bool `json:"checksumRequired"`
 }
 
 // RequestCompression declares required request-body compression encodings
@@ -129,7 +139,10 @@ type HTTPParamBinding struct {
 	Style string `json:"style,omitempty"`
 	// Explode overrides the default explode behavior; nil = default.
 	Explode *bool `json:"explode,omitzero"`
-	// AllowReserved permits reserved characters unescaped in the value.
+	// AllowReserved writes the value as RFC 6570's reserved expansion does
+	// (OpenAPI allowReserved): RFC 3986's reserved characters and each
+	// percent-encoded triple pass unescaped, bar those a URL cannot hold where
+	// the value lands (docs/emitters/refine/text.md#escaping).
 	AllowReserved bool `json:"allowReserved"`
 	// AllowEmptyValue permits the client to send the parameter with an empty
 	// value in place of omitting it, which the server reads as the parameter
@@ -137,15 +150,20 @@ type HTTPParamBinding struct {
 	// write an empty value — spaceDelimited, pipeDelimited, deepObject — it has
 	// no effect.
 	AllowEmptyValue bool `json:"allowEmptyValue"`
-	// PathPattern is a multi-segment path pattern constraint for this param
-	// (gRPC transcoding {name=shelves/*/books/*}); "" = single segment. The URI
-	// template uses reserved expansion; emitters that cannot validate the pattern
-	// drop it with a diagnostic.
+	// PathPattern is the pattern of path segments the param fills (gRPC
+	// transcoding {name=shelves/*/books/*}); "" = one segment. Where it names
+	// several, holding a / or a **, the value is percent-encoded in all but /
+	// and RFC 3986's unreserved characters, a % among them, so each / cuts a
+	// segment, whatever AllowReserved says
+	// (docs/emitters/refine/text.md#escaping). A consumer that cannot check a
+	// value against the pattern skips that check, never the escaping.
 	PathPattern string `json:"pathPattern,omitempty"`
-	// Prefix spreads a map-typed param as prefixed wire entries: prefixed headers
-	// (Smithy @httpPrefixHeaders) or catch-all query maps (@httpQueryParams with
-	// Prefix "").
-	Prefix string `json:"prefix,omitempty"`
+	// Prefix, when set, spreads a map-typed param over the headers, or the query
+	// parameters, whose names start with it, each entry named by the prefix
+	// followed by its key, and "" takes every name (Smithy @httpPrefixHeaders,
+	// @httpQueryParams); such a binding sets no WireName. nil = the one field
+	// WireName names (docs/ir/http-binding.md#prefix-bindings).
+	Prefix *string `json:"prefix,omitzero"`
 	// ContentType serializes the param as a media type (OpenAPI content-style
 	// params).
 	ContentType string `json:"contentType,omitempty"`
@@ -154,9 +172,41 @@ type HTTPParamBinding struct {
 	BodyPath []PropID `json:"bodyPath,omitempty"`
 }
 
+// HTTPInbound is the kind of an HTTP request the API sends rather than
+// receives, which says what routes it (docs/ir/http-binding.md#inbound-operations).
+type HTTPInbound string
+
+// HTTP inbound kinds.
+const (
+	// HTTPInboundWebhook is a request the API sends on an event, to a URL
+	// arranged outside the document (OpenAPI webhooks).
+	HTTPInboundWebhook HTTPInbound = "webhook"
+	// HTTPInboundCallback is a request the API sends to a URL the exchange of
+	// the operation declaring it supplies, one the client sent or one the API
+	// sent in turn, whose binding lists it among its Callbacks (OpenAPI
+	// callbacks).
+	HTTPInboundCallback HTTPInbound = "callback"
+)
+
+// Valid reports whether k is one of the kinds declared above, or empty, a
+// request the client sends. HTTPInbound is a bare string enum, so nothing
+// rejects an invented kind on the wire; irverify calls this so that one is
+// reported rather than switched on.
+func (k HTTPInbound) Valid() bool {
+	switch k {
+	case "", HTTPInboundWebhook, HTTPInboundCallback:
+		return true
+	default:
+		return false
+	}
+}
+
 // Callback is an out-of-band operation set keyed by a runtime expression
 // (docs/ir/http-binding.md).
 type Callback struct {
+	// Name is the key the source maps the callback by, verbatim (an OpenAPI
+	// callbacks-map key); one name may key several expressions.
+	Name string `json:"name,omitempty"`
 	// Expression is the runtime expression that resolves the callback URL.
 	Expression string `json:"expression,omitempty"`
 	// Operations are the callback operations keyed by that expression; no entry

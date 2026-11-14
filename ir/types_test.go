@@ -46,7 +46,7 @@ func typeDefZeroShapeTests() []struct {
 		{
 			name: "union",
 			td:   &ir.Union{},
-			want: `{"kind":"union","id":"","name":{},"anonymous":false,"docs":{},"sensitive":false,"provenance":{"source":0},"exclusive":false,"wireTagged":false}`,
+			want: `{"kind":"union","id":"","name":{},"anonymous":false,"docs":{},"sensitive":false,"provenance":{"source":0},"exclusive":false,"wireTagged":false,"closed":false,"inputOnly":false}`,
 		},
 		{
 			name: "enum",
@@ -122,8 +122,9 @@ func TestModel_PopulatedRoundTrip(t *testing.T) {
 		Base:       &ir.TypeRef{Target: "t/model/Base"},
 		Implements: []ir.TypeRef{{Target: "t/iface/A"}, {Target: "t/iface/B"}},
 		Mixins:     []ir.TypeRef{{Target: "t/mixin/M1"}},
+		Requires:   []string{"createdAt"},
 		AdditionalProps: &ir.AdditionalProps{
-			Value: populatedTypeRef(),
+			Value: new(populatedTypeRef()),
 			Key:   &ir.TypeRef{Target: "t/prim/string"},
 			Patterns: []ir.PatternProps{
 				{Pattern: "^x-", Value: populatedTypeRef()},
@@ -156,6 +157,8 @@ func TestUnion_PopulatedRoundTrip(t *testing.T) {
 		},
 		Exclusive:  true,
 		WireTagged: true,
+		Closed:     true,
+		InputOnly:  true,
 		Discriminator: &ir.Discriminator{
 			PropertyName: "petType",
 			Mapping:      map[string]ir.TypeID{"dog": "t/Dog"},
@@ -225,6 +228,7 @@ func TestLiteral_PopulatedRoundTrip(t *testing.T) {
 	want := &ir.Literal{
 		TypeCommon: populatedTypeCommon("t/literal/Fixed"),
 		Value:      ir.Value{Kind: ir.ValueString, Str: "fixed"},
+		ValueType:  ir.PrimString,
 	}
 	assertTypeDefRoundTrip(t, want)
 }
@@ -474,9 +478,9 @@ func TestWireIDRange_JSONContract(t *testing.T) {
 // schemas — round-trips.
 func TestAdditionalProps_JSONContract(t *testing.T) {
 	t.Parallel()
-	assertJSONContract(t, ir.AdditionalProps{}, `{"value":{"target":"","nullable":false}}`,
+	assertJSONContract(t, ir.AdditionalProps{}, `{}`,
 		ir.AdditionalProps{
-			Value: populatedTypeRef(),
+			Value: new(populatedTypeRef()),
 			Key:   &ir.TypeRef{Target: "t/prim/string"},
 			Patterns: []ir.PatternProps{
 				{Pattern: "^x-", Value: populatedTypeRef()},

@@ -4,13 +4,13 @@
 package schema
 
 import (
-	"encoding/json/jsontext"
 	"testing"
 
+	"github.com/speakeasy-api/openapi/jsonschema/oas3"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	yaml "go.yaml.in/yaml/v3"
 
-	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -44,6 +44,7 @@ func TestEnumMemberForm_ClassifiesEveryValueKind(t *testing.T) {
 
 	refused := []ir.ValueKind{
 		ir.ValueNull, ir.ValueList, ir.ValueObject, ir.ValueRefKind, ir.ValueCtor,
+		ir.ValueInf, ir.ValueNegInf, ir.ValueNaN,
 		ir.ValueKind("a kind ir does not declare"),
 	}
 	for _, kind := range refused {
@@ -57,79 +58,23 @@ func TestEnumMemberForm_ClassifiesEveryValueKind(t *testing.T) {
 	}
 }
 
-// TestEnumMemberKey_EncodesEveryAdmissibleKind writes each key out: a tag for
-// the kind of value, a colon, then the value as it is: the ID escapes the whole
-// key as one pointer token.
-func TestEnumMemberKey_EncodesEveryAdmissibleKind(t *testing.T) {
+// TestEnumMembers_KeepsNoneBeneathAnIDNoMemberFits pins the assertion on the
+// enum ID a member is placed beneath: one that is no type ID gives no member a
+// place, so the set keeps none rather than members carrying malformed IDs. The
+// same nodes under a well-formed ID make members, so the refusal is the ID's.
+func TestEnumMembers_KeepsNoneBeneathAnIDNoMemberFits(t *testing.T) {
 	t.Parallel()
-	tests := []struct {
-		name string
-		val  ir.Value
-		want string
-	}{
-		{"string", ir.Value{Kind: ir.ValueString, Str: "a-b"}, "s:a-b"},
-		{"string keeping a slash", ir.Value{Kind: ir.ValueString, Str: "a/b"}, "s:a/b"},
-		{"string with % and #", ir.Value{Kind: ir.ValueString, Str: "100%#1"}, "s:100%#1"},
-		{"empty string", ir.Value{Kind: ir.ValueString}, "s:"},
-		{"symbol", ir.Value{Kind: ir.ValueSymbol, Str: "ok"}, "y:ok"},
-		{"number", ir.Value{Kind: ir.ValueNumber, Num: ir.BigVal("-1.5")}, "n:-1.5e0"},
-		{"number spelled with an exponent", ir.Value{Kind: ir.ValueNumber, Num: ir.BigVal("-15e-1")}, "n:-1.5e0"},
-		{"number outside the decimal grammar", ir.Value{Kind: ir.ValueNumber, Num: ir.BigVal("1p4")}, "n:1p4"},
-		{"bool", ir.Value{Kind: ir.ValueBool, Bool: true}, "b:true"},
-		{"bytes", ir.Value{Kind: ir.ValueBytes, Bytes: []byte("hi?>")}, "x:aGk_Pg"},
-		{"null", ir.Value{Kind: ir.ValueNull}, "z:"},
-	}
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-			key, ok := enumMemberKey(tc.val)
-			require.True(t, ok)
-			assert.Equal(t, tc.want, key)
-		})
-	}
-}
+	nodes := []*yaml.Node{{Kind: yaml.ScalarNode, Tag: "!!str", Value: "a"}}
 
-// TestEnumMemberKey_IsInjectiveAcrossKinds holds that two values of different
-// kinds never share a key, whatever text they spell, and that no value's ID is
-// the ID of a repeat: the string a/2 is not the second a.
-func TestEnumMemberKey_IsInjectiveAcrossKinds(t *testing.T) {
-	t.Parallel()
-	values := []ir.Value{
-		{Kind: ir.ValueString, Str: "1"},
-		{Kind: ir.ValueSymbol, Str: "1"},
-		{Kind: ir.ValueNumber, Num: ir.BigVal("1")},
-		{Kind: ir.ValueString, Str: "true"},
-		{Kind: ir.ValueBool, Bool: true},
-		{Kind: ir.ValueString, Str: ""},
-		{Kind: ir.ValueNull},
-		{Kind: ir.ValueString, Str: "a/2"},
-		{Kind: ir.ValueString, Str: "a"},
-	}
-	const enum = jsontext.Pointer("/components/schemas/E")
-	repeat := ids.Document{}.EnumMember(enum, "s:a", 2)
-	seen := map[string]int{}
-	for i, v := range values {
-		key, ok := enumMemberKey(v)
-		require.True(t, ok)
-		require.NotContains(t, seen, key, "values %d and %d share a key", seen[key], i)
-		seen[key] = i
-		assert.NotEqual(t, repeat, ids.Document{}.EnumMember(enum, key, 1), "value %d spells the second a", i)
-	}
-}
+	members, _, ok := enumMembers(readEnum(nodes), "t/openapi/components/schemas/E")
+	require.True(t, ok)
+	assert.Equal(t, []ir.EnumMember{{ID: "e/openapi/components/schemas/E/s:a", Name: ir.NamingFor("a"),
+		Value: ir.Value{Kind: ir.ValueString, Str: "a"}}}, members)
 
-// TestEnumMemberKey_RefusesWhatNoEnumHolds pins the kinds with no key. A list,
-// an object, a reference and a constructor are not members of an enum, so the
-// lowering degrades the whole set to a union before it asks for one.
-func TestEnumMemberKey_RefusesWhatNoEnumHolds(t *testing.T) {
-	t.Parallel()
-	for _, kind := range []ir.ValueKind{
-		ir.ValueList, ir.ValueObject, ir.ValueRefKind, ir.ValueCtor,
-		ir.ValueKind("a kind ir does not declare"),
-	} {
-		key, ok := enumMemberKey(ir.Value{Kind: kind})
-		assert.False(t, ok, "%s has no key", kind)
-		assert.Empty(t, key)
-	}
+	members, prim, ok := enumMembers(readEnum(nodes), "openapi/components/schemas/E")
+	assert.False(t, ok, "no member is placed beneath an ID that is no type ID")
+	assert.Empty(t, members)
+	assert.Empty(t, prim)
 }
 
 // TestValueKey_IsInjectiveAcrossNesting holds that values a flat encoding would
@@ -164,8 +109,8 @@ func TestValueKey_IsInjectiveAcrossNesting(t *testing.T) {
 }
 
 // TestValueKey_RefusesWhatNoSourceEnumHolds pins the values with no key: a
-// reference, a constructor, anything nested in one, and a value nested past the
-// depth bound.
+// reference, a constructor, a non-finite number, anything nested in one, and a
+// value nested past the depth bound.
 func TestValueKey_RefusesWhatNoSourceEnumHolds(t *testing.T) {
 	t.Parallel()
 	ref := ir.Value{Kind: ir.ValueRefKind}
@@ -176,6 +121,9 @@ func TestValueKey_RefusesWhatNoSourceEnumHolds(t *testing.T) {
 	for name, v := range map[string]ir.Value{
 		"a reference":           ref,
 		"a constructor":         {Kind: ir.ValueCtor},
+		"infinity":              {Kind: ir.ValueInf},
+		"negative infinity":     {Kind: ir.ValueNegInf},
+		"not a number":          {Kind: ir.ValueNaN},
 		"a kind ir lacks":       {Kind: ir.ValueKind("a kind ir does not declare")},
 		"a list holding one":    {Kind: ir.ValueList, List: []ir.Value{ref}},
 		"an object holding one": {Kind: ir.ValueObject, Object: []ir.Field{{Name: "r", Value: ref}}},
@@ -203,4 +151,54 @@ func TestValueKey_GrowsByAFixedAmountPerLevel(t *testing.T) {
 	key, ok := valueKey(deep, 0)
 	require.True(t, ok)
 	assert.Less(t, len(key), 8*depth, "%d bytes", len(key))
+}
+
+// TestTypesAdmit_ReadsEachTypesKinds pins the type keyword's reading of a
+// value, by the kinds the admission reading gives each: a type no schema
+// defines judges nothing, and no type declared admits every value.
+func TestTypesAdmit_ReadsEachTypesKinds(t *testing.T) {
+	t.Parallel()
+	str, one, half := ir.Value{Kind: ir.ValueString, Str: "1"}, ir.Value{Kind: ir.ValueNumber, Num: "1.0"},
+		ir.Value{Kind: ir.ValueNumber, Num: "0.5"}
+	null, yes := ir.Value{Kind: ir.ValueNull}, ir.Value{Kind: ir.ValueBool, Bool: true}
+	obj, list := ir.Value{Kind: ir.ValueObject}, ir.Value{Kind: ir.ValueList}
+	bin := ir.Value{Kind: ir.ValueBytes, Bytes: []byte("hi")}
+	for _, tc := range []struct {
+		types  []oas3.SchemaType
+		admits []ir.Value
+		not    []ir.Value
+	}{
+		{nil, []ir.Value{str, null, obj}, nil},
+		{[]oas3.SchemaType{oas3.SchemaTypeString}, []ir.Value{str, bin}, []ir.Value{one, null}},
+		{[]oas3.SchemaType{oas3.SchemaTypeInteger}, []ir.Value{one}, []ir.Value{half, str}},
+		{[]oas3.SchemaType{oas3.SchemaTypeNumber}, []ir.Value{one, half}, []ir.Value{str}},
+		{[]oas3.SchemaType{oas3.SchemaTypeBoolean}, []ir.Value{yes}, []ir.Value{str}},
+		{[]oas3.SchemaType{oas3.SchemaTypeObject}, []ir.Value{obj}, []ir.Value{list}},
+		{[]oas3.SchemaType{oas3.SchemaTypeArray}, []ir.Value{list}, []ir.Value{obj}},
+		{[]oas3.SchemaType{oas3.SchemaTypeInteger, oas3.SchemaTypeBoolean}, []ir.Value{one, yes}, []ir.Value{str}},
+		{[]oas3.SchemaType{oas3.SchemaTypeInteger, "file"}, []ir.Value{str, one, null}, nil},
+	} {
+		for _, v := range tc.admits {
+			assert.True(t, typesAdmit(tc.types, v), "%v admits %+v", tc.types, v)
+		}
+		for _, v := range tc.not {
+			assert.False(t, typesAdmit(tc.types, v), "%v admits no %+v", tc.types, v)
+		}
+	}
+}
+
+// TestDescribeValue_SpellsEachKind pins how a member is named in a message.
+func TestDescribeValue_SpellsEachKind(t *testing.T) {
+	t.Parallel()
+	for v, want := range map[*ir.Value]string{
+		{Kind: ir.ValueString, Str: "a"}:        `"a"`,
+		{Kind: ir.ValueSymbol, Str: "b"}:        `"b"`,
+		{Kind: ir.ValueNumber, Num: "1.5"}:      "1.5",
+		{Kind: ir.ValueBool}:                    "false",
+		{Kind: ir.ValueNull}:                    "null",
+		{Kind: ir.ValueBytes}:                   "of kind bytes",
+		{Kind: ir.ValueKind("a kind ir lacks")}: "of kind a kind ir lacks",
+	} {
+		assert.Equal(t, want, describeValue(*v))
+	}
 }

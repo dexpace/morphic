@@ -5,6 +5,7 @@ package annotation
 
 import (
 	"encoding/json/jsontext"
+	"fmt"
 	"maps"
 	"slices"
 
@@ -13,6 +14,7 @@ import (
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
+	"github.com/dexpace/morphic/compilers/openapi/internal/provenance"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -68,15 +70,15 @@ func PreserveNodeInto(p *ir.Unmodeled, key string, node *yaml.Node,
 // no caller a way to have the census keep the keyword again under another key,
 // or report a collision with this entry.
 //
-// An absent keyword is no construct: it keeps nothing and asks locate nothing.
+// An absent keyword is no construct: it keeps and places nothing.
 func PreserveSchemaKeyword(p *ir.Unmodeled, s *oas3.Schema, keyword string,
-	reason ir.UnmodeledReason, pointer jsontext.Pointer, locate Locator,
+	reason ir.UnmodeledReason, pointer jsontext.Pointer, doc provenance.Doc,
 ) (bool, []ir.Diagnostic) {
 	node := RawPropertyNode(s, keyword)
 	if node == nil {
 		return false, nil
 	}
-	return PreserveNodeInto(p, EntryKey("", keyword), node, reason, locate(pointer+ids.Ptr(keyword)))
+	return PreserveNodeInto(p, EntryKey("", keyword), node, reason, doc.At(pointer+ids.Ptr(keyword)))
 }
 
 // PreserveValidationOnlyKeyword is PreserveSchemaKeyword for a validation-only
@@ -87,13 +89,13 @@ func PreserveSchemaKeyword(p *ir.Unmodeled, s *oas3.Schema, keyword string,
 // keywords has no such node and is not kept here but by Read, which attributes
 // it by the keywords it holds (GitHub #534).
 func PreserveValidationOnlyKeyword(p *ir.Unmodeled, s *oas3.Schema, keyword string,
-	pointer jsontext.Pointer, locate Locator,
+	pointer jsontext.Pointer, doc provenance.Doc,
 ) []ir.Diagnostic {
-	kept, diags := PreserveSchemaKeyword(p, s, keyword, ir.ReasonValidationOnly, pointer, locate)
+	kept, diags := PreserveSchemaKeyword(p, s, keyword, ir.ReasonValidationOnly, pointer, doc)
 	if !kept {
 		return diags
 	}
-	return append(diags, validationOnlyNote(locate(pointer), keyword))
+	return append(diags, validationOnlyNote(doc.At(pointer), keyword))
 }
 
 // unpreservableDiag reports a construct the compiler could neither model nor
@@ -116,24 +118,29 @@ func unpreservableDiag(key string, prov ir.Provenance, err error) ir.Diagnostic 
 
 // preserveValidationOnlyInto records a validation-only payload at entry and
 // returns the one diagnostic announcing it at note, the schema that wrote it,
-// naming it by label. An absent payload records nothing and announces nothing;
-// an unconvertible one never reaches here, because its caller reports it
-// through unpreservableDiag first.
+// saying message. An absent payload records nothing and announces nothing; an
+// unconvertible one never reaches here, because its caller reports it through
+// unpreservableDiag first.
 func preserveValidationOnlyInto(p *ir.Unmodeled, key string, raw ir.RawValue,
-	entry, note ir.Provenance, label string,
+	entry, note ir.Provenance, message string,
 ) []ir.Diagnostic {
 	if len(raw) == 0 {
 		return nil
 	}
 	PreserveInto(p, key, raw, ir.ReasonValidationOnly, entry)
-	return []ir.Diagnostic{validationOnlyNote(note, label)}
+	return []ir.Diagnostic{diag.Newf(ir.SeverityInfo, diag.ValidationOnlyKeyword, note, "%s", message)}
 }
 
 // validationOnlyNote announces the validation-only entry named label at note,
 // the schema that wrote it: one info per entry kept, whichever keeper kept it.
 func validationOnlyNote(note ir.Provenance, label string) ir.Diagnostic {
-	return diag.Newf(ir.SeverityInfo, diag.ValidationOnlyKeyword, note,
-		"validation-only keyword %q kept verbatim under Unmodeled", label)
+	return diag.Newf(ir.SeverityInfo, diag.ValidationOnlyKeyword, note, "%s", validationOnlyMessage(label))
+}
+
+// validationOnlyMessage is what the report of the validation-only entry named
+// label says.
+func validationOnlyMessage(label string) string {
+	return fmt.Sprintf("validation-only keyword %q kept verbatim under Unmodeled", label)
 }
 
 // CopyEntriesInto writes onto p a copy of each entry of src, its value cloned,
@@ -184,5 +191,20 @@ func MergeUnmodeled(dst, src ir.Unmodeled) ir.Unmodeled {
 		dst = ir.Unmodeled{}
 	}
 	maps.Copy(dst, src)
+	return dst
+}
+
+// underlayUnmodeled adds to dst each entry of src it lacks, so a nearer writer
+// keeps its entry, walking src alone: a site folds its voices into one map, and
+// overlaying that map on each would cost every voice all those before it.
+func underlayUnmodeled(dst, src ir.Unmodeled) ir.Unmodeled {
+	if dst == nil && len(src) > 0 {
+		dst = make(ir.Unmodeled, len(src))
+	}
+	for keyword, entry := range src {
+		if _, held := dst[keyword]; !held {
+			dst[keyword] = entry
+		}
+	}
 	return dst
 }

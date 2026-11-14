@@ -15,6 +15,7 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/annotation"
 	"github.com/dexpace/morphic/compilers/openapi/internal/auth"
 	"github.com/dexpace/morphic/compilers/openapi/internal/budget"
+	"github.com/dexpace/morphic/compilers/openapi/internal/convention"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/document"
 	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
@@ -22,6 +23,8 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
 	"github.com/dexpace/morphic/compilers/openapi/internal/operation"
 	"github.com/dexpace/morphic/compilers/openapi/internal/overlay"
+	"github.com/dexpace/morphic/compilers/openapi/internal/pagination"
+	"github.com/dexpace/morphic/compilers/openapi/internal/replacement"
 	"github.com/dexpace/morphic/compilers/openapi/internal/schema"
 	"github.com/dexpace/morphic/compilers/openapi/internal/servers"
 	"github.com/dexpace/morphic/ir"
@@ -74,6 +77,15 @@ func (c *Compiler) Compile(ctx context.Context, sources []compilers.Source, opts
 	if err != nil {
 		return nil, nil, err
 	}
+	// Here and not in optionsFrom: detection reads its byte budget through
+	// optionsFrom, taking the default one on an error, so a grouping the compile
+	// cannot honour would have it read past the caller's.
+	if err := formatOpts.checkGrouping(); err != nil {
+		return nil, nil, err
+	}
+	if err := formatOpts.Promotions.Check(); err != nil {
+		return nil, nil, fmt.Errorf("openapi: %w", err)
+	}
 	loadedDoc, loadDiags, err := load.Load(ctx, rootSrcIndex, sources[0], loadOptions(formatOpts, opts.Reader, sources[0]))
 	// The load phase reads a document once under each name a reference spells
 	// it by, as a relative and an absolute path to one file where external
@@ -104,6 +116,13 @@ func (c *Compiler) Compile(ctx context.Context, sources []compilers.Source, opts
 	if err != nil {
 		return nil, all, err
 	}
+	if out == nil {
+		// A refusal's findings are read against SourceTable, which names no
+		// document a $ref read (compilers.Compiled), so what the load phase found
+		// in one is left out with the Document that would have listed it.
+		n := len(c.SourceTable(sources, opts))
+		return nil, slices.DeleteFunc(all, func(d ir.Diagnostic) bool { return !d.Provenance.InTable(n) }), nil
+	}
 	out.Diagnostics = all
 	return out, out.Diagnostics, nil
 }
@@ -112,11 +131,11 @@ func (c *Compiler) Compile(ctx context.Context, sources []compilers.Source, opts
 // the load phase already reported at the same position.
 //
 // The load phase reports a failure at the $ref, and a cycle once, with the
-// reason. The lowering reports a schema or security-scheme $ref it could not
-// follow at that pointer, and also where the load phase did not: a $ref the
-// binding never read, or one a resolver panic hid. So only a report the load
-// phase made at that exact provenance, in whichever document, is dropped; kept,
-// one failure would read as two (#385).
+// reason. The lowering reports a schema $ref it could not follow at that
+// pointer, and also where the load phase did not, as at a $ref the binding
+// never read. So only a report the load phase made at that exact provenance,
+// in whichever document, is dropped; kept, one failure would read as two
+// (#385).
 func withoutRereported(lowered, loaded []ir.Diagnostic) []ir.Diagnostic {
 	reported := make(map[ir.Provenance]bool)
 	for _, d := range loaded {
@@ -156,14 +175,14 @@ func (*Compiler) SourceTable(sources []compilers.Source, opts compilers.Options)
 // run drives the four-phase pipeline over one loaded document (architecture
 // §2.1) and assembles the Document. Order matters: named component schemas
 // first, so refs from operations find interned IDs; then security schemes, so
-// requirements reference registered IDs; then the service walk; then the
-// deferred settlements; then document metadata.
+// requirements reference registered IDs; then the service walk; then deferred
+// settlements; then document metadata.
 //
 // It reports cancellation as a Go error, not a diagnostic: nothing about the
-// document is wrong, the caller stopped asking. The document is dropped with it,
-// since the phases that honour ctx stop mid-registry and what is left
-// references types never interned or settled, but the diagnostics gathered
-// before the stop are returned.
+// document is wrong, the caller stopped asking. It drops the document, since
+// the phases honouring ctx stop mid-registry, leaving references to types never
+// interned or settled, but returns the diagnostics gathered before the stop.
+// It refuses a document past Limits.MaxReferenceExpansion without error.
 func run(ctx context.Context, c lowering.Ctx, ts *compile.Types) (*ir.Document, []ir.Diagnostic, error) {
 	// out is this function's, not a struct's: a document being built
 	// (micro-compiler-design §4.1). Nothing below allocates it.
@@ -183,15 +202,13 @@ func run(ctx context.Context, c lowering.Ctx, ts *compile.Types) (*ir.Document, 
 		return nil, acc.List(), err
 	}
 
-	schemes, authDiags := auth.LowerSecuritySchemes(c)
+	declared, authDiags := auth.LowerSecuritySchemes(c)
 	acc.AppendAll(authDiags)
 
-	srv := servers.NewRegistry()
-	svc, tagDefs, svcDiags := operation.LowerService(ctx, c, ts, srv, schemes)
-	out.Auth = schemes.Schemes()
-	out.Services = []ir.Service{svc}
-	out.Servers = srv.Servers()
-	out.TagDefs = tagDefs
+	lowered, svcDiags := operation.LowerService(ctx, c, ts, declared)
+	out.Auth = lowered.Auth
+	out.Services = []ir.Service{lowered.Service}
+	out.TagDefs = lowered.TagDefs
 	acc.AppendAll(svcDiags)
 	// Every lowering has returned, so the registry is finished: a coordinate a
 	// $ref named and none built is built now, in its own context
@@ -206,14 +223,44 @@ func run(ctx context.Context, c lowering.Ctx, ts *compile.Types) (*ir.Document, 
 		return nil, acc.List(), err
 	}
 	out.Types = reg
+	// What is read once the document is whole is read here, in the one order
+	// docs/compilers/openapi.md#policies gives: links, then promotions, then
+	// inferences, an inference filling only what no keyword or promotion
+	// states. A link names operations and members anywhere in the service, and
+	// a server it names registers then too, so the servers are read after it.
+	// A replacement may be declared after what it replaces, and what a name
+	// implies turns on the type a $ref names, built in any order.
+	srv := servers.Reopen(lowered.Servers)
+	acc.AppendAll(lowered.Links.Resolve(c, &out.Services[0], reg, srv))
+	out.Servers = srv.Servers()
+	// The operations whose extensions speak of a pagination are what the
+	// pagination inference passes over, by the precedence
+	// docs/compilers/openapi.md#policies gives: what they say of one, even that
+	// there is none, wins over what the names an operation uses suggest.
+	stated, pageDiags := operation.PromotePagination(c, &out.Services[0], reg)
+	acc.AppendAll(pageDiags)
+	acc.AppendAll(replacement.Resolve(c, out))
+	acc.AppendAll(replacement.Infer(c, out))
+	acc.AppendAll(convention.Apply(c, out))
+	acc.AppendAll(pagination.InferWalks(c, out, stated))
 
 	m, metaDiags := document.Lower(c)
 	out.Name, out.Version = m.Name, m.Version
 	out.TermsOfService, out.Docs = m.TermsOfService, m.Docs
 	out.Contact, out.License = m.Contact, m.License
 	out.Unmodeled = annotation.MergeUnmodeled(out.Unmodeled, m.Unmodeled)
-	out.Unmodeled = annotation.MergeUnmodeled(out.Unmodeled, c.Kept.Entries())
+	out.Unmodeled = annotation.MergeUnmodeled(out.Unmodeled, lowered.Kept)
 	acc.AppendAll(metaDiags)
+	// An extension under a prefix the policy owns is judged once every node
+	// that could keep one is built, the document's own Unmodeled included.
+	acc.AppendAll(lowering.UnreadExtensions(c, out))
+	// Past the budget no $ref lowered, nor an additionalOperations entry, so
+	// what the lowering found depends on which copy came first: the refusal is
+	// reported alone, the same in any order. It is asked once every lowering has
+	// returned, so none charges after it.
+	if refusal, past := c.ExpansionRefusal(); past {
+		return nil, []ir.Diagnostic{refusal}, nil
+	}
 	out.IRVersion = ir.IRVersion
 	out.IDSpaces = ids.Namespaces(lowering.OtherIDs(c)...).Declaration()
 	out.Sources = c.Sources()
@@ -236,11 +283,12 @@ func optionsFrom(opts compilers.Options) (Options, error) {
 
 // loadOptions projects Options onto the subset the load phase reads, with the
 // caller's reader and the confinement Options.AllowExternalRefs sets for it:
-// the directory of src's path unless it is on. It exists so the mapping lives
-// in one place: load.Options is that package's own input, deliberately not this
-// public type, whose shape is a published contract (see Options) and most of
-// which describes lowering the loader cannot see. Each budget is read as
-// Limits spells one, its default beside it (budget.FromOption).
+// the directory src lies in (load.Location) unless it is on. It exists so the
+// mapping lives in one place: load.Options is that package's own input,
+// deliberately not this public type, whose shape is a published contract (see
+// Options) and most of which describes lowering the loader cannot see. Each
+// budget is read as Limits spells one, its default beside it
+// (budget.FromOption).
 func loadOptions(o Options, reader compilers.DocumentReader, src compilers.Source) load.Options {
 	out := load.Options{
 		Reader:               reader,
@@ -250,7 +298,7 @@ func loadOptions(o Options, reader compilers.DocumentReader, src compilers.Sourc
 		MaxExternalDocuments: budget.FromOption(o.Limits.MaxExternalDocuments, DefaultMaxExternalDocuments),
 	}
 	if !o.AllowExternalRefs {
-		out.Within = filepath.Dir(src.Path)
+		out.Within = filepath.Dir(load.Location(src))
 	}
 	if o.Overlay != nil {
 		out.Overlay = &overlay.Options{Path: o.Overlay.Path, Data: o.Overlay.Data, Lax: o.Overlay.Lax}
@@ -259,15 +307,31 @@ func loadOptions(o Options, reader compilers.DocumentReader, src compilers.Sourc
 	return out
 }
 
-// loweringCtx projects a loaded document and the caller's options onto the
-// lowering context, and is the loadOptions of the phase below: it is the one
-// place the loader's result type meets the lowering, so lowering.New can take
-// the facts it needs rather than the loader's struct. It reads the enum budget
-// as loadOptions reads the others.
+// loweringCtx builds the lowering context over a loaded document under the
+// caller's options, and is the loadOptions of the phase below: it projects
+// Options onto lowering.Policy, that package's own input, deliberately not this
+// public type. It reads the budgets the lowering holds, on enums and on what
+// $refs and path items copy, as loadOptions reads the others.
 func loweringCtx(doc *load.Document, o Options) lowering.Ctx {
-	limits := lowering.Limits{MaxEnumMembers: budget.FromOption(o.Limits.MaxEnumMembers, DefaultMaxEnumMembers)}
-	return lowering.New(rootSrcIndex, doc.Doc, doc.Source, o.Grouping, limits,
-		o.StreamingMedia, o.Promotions, o.NullableWidening, doc.Overlay).WithLoaded(doc)
+	return lowering.New(rootSrcIndex, doc, lowering.Policy{
+		Grouping:          o.Grouping,
+		GroupingExtension: o.GroupingExtension,
+		Limits: lowering.Limits{
+			MaxEnumMembers:        budget.FromOption(o.Limits.MaxEnumMembers, DefaultMaxEnumMembers),
+			MaxReferenceExpansion: budget.FromOption(o.Limits.MaxReferenceExpansion, DefaultMaxReferenceExpansion),
+		},
+		Streaming:              o.StreamingMedia,
+		Binary:                 o.BinaryMedia,
+		Promotions:             o.Promotions,
+		NullableWidening:       o.NullableWidening,
+		DiscriminatorInference: o.DiscriminatorInference,
+		IdempotencyInference:   o.IdempotencyInference,
+		SecretInference:        o.SecretInference,
+		HTTPDateInference:      o.HTTPDateInference,
+		ReplacementInference:   o.ReplacementInference,
+		PaginationInference:    o.PaginationInference,
+		TitleNames:             o.TitleNames,
+	})
 }
 
 // undecodable reports a source this compiler recognized and could not read.

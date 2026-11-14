@@ -51,7 +51,7 @@ type typeSpelling struct {
 // Property.Encoding.MediaType), where `schema` would push the media type into
 // Unmodeled. The specification gives no precedence. The election is
 // unconditional, even where the entry names no schema (GitHub #320).
-func electTypeSpelling(c lowering.Ctx, js *oas3.JSONSchema[oas3.Referenceable],
+func electTypeSpelling(c lowering.Ctx, w walk, js *oas3.JSONSchema[oas3.Referenceable],
 	content *sequencedmap.Map[string, *soa.MediaType], root *yaml.Node, at jsontext.Pointer,
 	carrier, home string,
 ) (typeSpelling, []ir.Diagnostic) {
@@ -65,7 +65,7 @@ func electTypeSpelling(c lowering.Ctx, js *oas3.JSONSchema[oas3.Referenceable],
 		mediaPtr := at + ids.Ptr("content", mt)
 		elected, electedDiags := contentSpelling(c, media, mt, mediaPtr, carrier, home)
 		diags = append(diags, electedDiags...)
-		diags = append(diags, c.Kept.Once(c.IDs().Coordinate(at), func() (ir.Unmodeled, []ir.Diagnostic) {
+		diags = append(diags, w.kept.once(c.IDs().Coordinate(at), func() (ir.Unmodeled, []ir.Diagnostic) {
 			return passedOverEntries(c, nodeview.Pairs(nodeview.Child(root, "content")), mt, at)
 		})...)
 		diags = append(diags, passedOverSpelling(c, &elected.unmodeled, root, "schema", "content", at)...)
@@ -109,12 +109,11 @@ func contentSpelling(c lowering.Ctx, media *soa.MediaType, mt string, mediaPtr j
 // the keyword families its own election passes over. The severity is warning,
 // not the info announcing a conjunction JSON Schema allows, because OpenAPI
 // forbids this one; it matches passedOverEntries'. It is not an error: the
-// document lowers as well as an election can make it, and harness.Check stops
-// at the first error diagnostic, hiding later findings.
+// document lowers as well as an election can make it.
 func passedOverSpelling(c lowering.Ctx, u *ir.Unmodeled, root *yaml.Node, passed, elected string, at jsontext.Pointer) []ir.Diagnostic {
 	pointer := at + ids.Ptr(passed)
 	kept, diags := annotation.PreserveNodeInto(u, "openapi:"+passed,
-		nodeview.Child(root, passed), ir.ReasonDegradedLowering, c.ProvenanceAt(pointer))
+		nodeview.Child(root, passed), ir.ReasonDegradedLowering, c.Place().At(pointer))
 	if !kept {
 		return diags
 	}
@@ -146,7 +145,7 @@ func electContentEntry(content *sequencedmap.Map[string, *soa.MediaType]) (strin
 // elected, kept verbatim under openapi:<its coordinate>, and reports them once at
 // the map, sorted, so the report follows no declaration order.
 //
-// They are the Document's rather than the carrier's (lowering.KeptOnce): a carrier
+// They are the Document's rather than the carrier's (keptOnce): a carrier
 // a $ref reaches lowers once per reference, and an entry belongs to the
 // declaration, which no node stands for. So what they cost is what the source
 // wrote, and none need dropping.
@@ -162,7 +161,7 @@ func passedOverEntries(c lowering.Ctx, written []nodeview.Pair, elected string, 
 	for _, entry := range passed {
 		pointer := at + ids.Ptr("content", entry.Key)
 		ok, keptDiags := annotation.PreserveNodeInto(&entries, "openapi:"+c.IDs().Coordinate(pointer),
-			entry.Val, ir.ReasonDegradedLowering, c.ProvenanceAt(pointer))
+			entry.Val, ir.ReasonDegradedLowering, c.Place().At(pointer))
 		diags = append(diags, keptDiags...)
 		if ok {
 			kept = append(kept, entry.Key)
@@ -208,13 +207,13 @@ func contentEntryFields(d mediaDecl, scope, carrier, home string) ([]ir.Example,
 	c, media, mediaPtr := d.ctx, d.media, d.pointer
 	examples, diags := exampleList(c, media.GetExample(), media.GetExamples(), mediaPtr)
 	var unmodeled ir.Unmodeled
-	ext, extDiags := annotation.ExtensionsUnder(media.GetExtensions(), c.ProvenanceAt, mediaPtr, scope)
+	ext, extDiags := annotation.ExtensionsUnder(media.GetExtensions(), c.Place(), mediaPtr, scope)
 	unmodeled = annotation.MergeUnmodeled(unmodeled, ext)
 	diags = append(diags, extDiags...)
 	for _, field := range contentOnlyFields(media) {
 		at := mediaPtr + ids.Ptr(field.keyword)
 		kept, keptDiags := annotation.PreserveNodeInto(&unmodeled,
-			annotation.EntryKey(scope, field.keyword), field.node, ir.ReasonNoIRHome, c.ProvenanceAt(at))
+			annotation.EntryKey(scope, field.keyword), field.node, ir.ReasonNoIRHome, c.Place().At(at))
 		diags = append(diags, keptDiags...)
 		if !kept {
 			continue
@@ -228,7 +227,7 @@ func contentEntryFields(d mediaDecl, scope, carrier, home string) ([]ir.Example,
 	// Last, so the keys the readers above kept are already recorded and the census
 	// leaves them alone: it answers only for what nothing read.
 	return examples, unmodeled,
-		append(diags, annotation.UnknownKeysUnder(&unmodeled, media, c.ProvenanceAt, mediaPtr, scope, taken...)...)
+		append(diags, annotation.UnknownKeysUnder(&unmodeled, media, c.Place(), mediaPtr, scope, taken...)...)
 }
 
 // keepContentDocs keeps verbatim what documents a parameter's or header's
@@ -252,13 +251,9 @@ func keepContentDocs(d mediaDecl, u *ir.Unmodeled, scope, carrier, home string) 
 		if !ok {
 			continue
 		}
-		if !h.placed {
-			diags = append(diags, unplacedDoc(d, key))
-			continue
-		}
 		at := h.at + ids.Ptr(key)
 		kept, keptDiags := annotation.PreserveNodeInto(u, annotation.EntryKey(scope, key), node,
-			ir.ReasonNoIRHome, h.c.ProvenanceAt(at))
+			ir.ReasonNoIRHome, h.c.Place().At(at))
 		diags = append(diags, keptDiags...)
 		if kept {
 			diags = append(diags, h.c.DiagAt(ir.SeverityInfo, diag.DegradedConstruct, at,
@@ -269,37 +264,30 @@ func keepContentDocs(d mediaDecl, u *ir.Unmodeled, scope, carrier, home string) 
 }
 
 // docHop is a position a content entry's docs may be written at: the mapping
-// there, and the context and pointer it is written at, unless placed is false.
-// summary reports whether a summary written there documents the entry: a
-// Media Type Object defines none, so one its declaration writes is an
-// undefined key, which the census keeps.
+// there, and the context and pointer it is written at. summary reports whether
+// a summary written there documents the entry: a Media Type Object defines
+// none, so one its declaration writes is an undefined key, which the census
+// keeps.
 type docHop struct {
 	root    *yaml.Node
 	c       lowering.Ctx
 	at      jsontext.Pointer
-	placed  bool
 	summary bool
 }
 
 // docHops returns the positions d's docs may be written at, nearest first:
-// the entry's own, each components/mediaTypes alias its chain passes, and the
-// declaration. An alias is placed only where the entry is written in the
-// source and the alias is too, as resolve.ObjectAt reads a chain.
+// the entry's own, each components/mediaTypes alias its chain passes, at the
+// position the bindings' table reads it at, in whichever document, and the
+// declaration.
 func docHops(d mediaDecl) []docHop {
-	decl := docHop{root: d.media.GetRootNode(), c: d.ctx, at: d.pointer, placed: true}
+	decl := docHop{root: d.media.GetRootNode(), c: d.ctx, at: d.pointer}
 	if d.use == nil {
 		return []docHop{decl}
 	}
-	hops := []docHop{{root: d.use.GetCore().GetRootNode(), c: d.entryCtx, at: d.entryPtr, placed: true,
-		summary: true}}
-	scope, placed := d.entryCtx.RefScope(), !d.entryCtx.RefScope().Foreign
-	last := d.use
-	for _, hop := range resolve.Hops[soa.MediaType](scope, d.use) {
-		target, inSource := scope.InternalPointer(last.GetReference().String())
-		placed = placed && inSource && !hop.Foreign
-		hops = append(hops, docHop{root: hop.Ref.GetCore().GetRootNode(), c: d.entryCtx.InScope(scope.InSource()),
-			at: target, placed: placed, summary: true})
-		scope, last = scope.InSource(), hop.Ref
+	hops := []docHop{{root: d.use.GetCore().GetRootNode(), c: d.entryCtx, at: d.entryPtr, summary: true}}
+	for _, hop := range resolve.Hops[soa.MediaType](d.entryCtx.Bindings(), d.use) {
+		in, _ := lowering.InDocument(d.entryCtx, hop.At.Doc)
+		hops = append(hops, docHop{root: hop.Ref.GetCore().GetRootNode(), c: in, at: hop.At.Pointer, summary: true})
 	}
 	return append(hops, decl)
 }
@@ -324,15 +312,6 @@ func nearestWriting(hops []docHop, key string) (docHop, *yaml.Node, bool) {
 func unset(node *yaml.Node) bool {
 	n := nodeview.Deref(node)
 	return n.Kind == yaml.ScalarNode && (n.Value == "" || n.ShortTag() == "!!null")
-}
-
-// unplacedDoc reports, at d's entry, the key the fold takes from an alias in
-// another document, which no position of this compile places, as the fields
-// beside a path item's $ref there are reported (GitHub #823).
-func unplacedDoc(d mediaDecl, key string) ir.Diagnostic {
-	return d.entryCtx.DiagAt(ir.SeverityWarning, diag.DegradedConstruct, d.entryPtr,
-		"the %s this media type takes is written beside a $ref in another document, which this compiler "+
-			"does not place; it is not kept", key)
 }
 
 // contentOnlyFields returns the Media Type Object fields the IR models at a

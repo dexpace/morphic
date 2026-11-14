@@ -4,9 +4,13 @@
 package load
 
 import (
+	"bytes"
+	"context"
 	"encoding/json/jsontext"
 	"fmt"
 	"math"
+	"os"
+	"slices"
 	"strings"
 	"testing"
 
@@ -18,9 +22,10 @@ import (
 	"github.com/dexpace/morphic/compilers"
 	"github.com/dexpace/morphic/compilers/openapi/internal/budget"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
+	"github.com/dexpace/morphic/compilers/openapi/internal/nodeview"
 	"github.com/dexpace/morphic/compilers/openapi/internal/oas"
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
-	"github.com/dexpace/morphic/compilers/openapi/internal/overlay"
+	"github.com/dexpace/morphic/compilers/openapi/internal/provenance"
 	"github.com/dexpace/morphic/compilers/openapi/internal/scan"
 	"github.com/dexpace/morphic/ir"
 )
@@ -66,7 +71,7 @@ components:
       <<: {minLength: -1}
 `
 	root := decodeRoot(t, src)
-	tree := newSourceTree(t.Context(), 4, overlay.Origin{}, root)
+	tree := treeOf(t.Context(), provenance.Doc{Source: 4}, root)
 
 	got := judgeSource(t.Context(), root, tree, budget.Unbounded())
 
@@ -103,7 +108,7 @@ components:
 	top := nodeAt(t, root, "components", "parameters")
 	p := nodeAt(t, top, "P")
 
-	got := judgeSource(t.Context(), root, newSourceTree(t.Context(), 0, overlay.Origin{}, root), budget.Unbounded())
+	got := judgeSource(t.Context(), root, treeOf(t.Context(), provenance.Doc{}, root), budget.Unbounded())
 
 	assert.Empty(t, got.diags)
 	assert.True(t, got.seen[objectKey{node: p, kind: oas.Parameter}], "the parameter, once however it is reached")
@@ -132,8 +137,8 @@ func nodeAt(t *testing.T, n *yaml.Node, keys ...string) *yaml.Node {
 }
 
 // TestJudgeSource_AnOverlayOwnsWhatItWrote pins the attribution of a finding
-// about a node an overlay introduced: the overlay's index, and the node's
-// pointer, where a node the overlay left alone keeps the source's.
+// about a node an overlay introduced: the node's pointer, with the overlay as
+// its writer, where a node the overlay left alone names no writer.
 func TestJudgeSource_AnOverlayOwnsWhatItWrote(t *testing.T) {
 	t.Parallel()
 	const spec = "openapi: 3.1.0\ninfo: {title: T}\npaths: {}\n"
@@ -144,10 +149,10 @@ func TestJudgeSource_AnOverlayOwnsWhatItWrote(t *testing.T) {
 	require.NoError(t, err)
 	got := map[jsontext.Pointer]int{}
 	for _, d := range diags {
-		got[d.Provenance.Pointer] = d.Provenance.Source
+		got[d.Provenance.Pointer] = d.Provenance.WrittenBy
 	}
 	assert.Equal(t, map[jsontext.Pointer]int{"/info": 0, "/info/description": 1}, got,
-		"the missing version is the source's to answer for, the description the overlay's")
+		"the missing version is the source's to answer for, the description the overlay's, which wrote it")
 }
 
 // TestPlaceAt_PutsForeignFindingsAtTheReference pins where a finding about an
@@ -234,7 +239,7 @@ func TestJudgeSource_ReadsEveryObjectTheCompilerAdmits(t *testing.T) {
 
 	var root yaml.Node
 	require.NoError(t, yaml.Unmarshal([]byte("openapi: 3.1.0\ninfo: {title: t, version: v}\npaths: {/a: {}, /b: {}}\n"), &root))
-	got := judgeSource(t.Context(), &root, newSourceTree(t.Context(), 0, overlay.Origin{}, &root), budget.AtMost(2))
+	got := judgeSource(t.Context(), &root, treeOf(t.Context(), provenance.Doc{}, &root), budget.AtMost(2))
 	require.Len(t, got.diags, 1, "%+v", got.diags)
 	assert.Equal(t, diag.BudgetExceeded, got.diags[0].Code)
 	assert.Equal(t, ir.SeverityError, got.diags[0].Severity)
@@ -242,21 +247,41 @@ func TestJudgeSource_ReadsEveryObjectTheCompilerAdmits(t *testing.T) {
 
 // TestJudgeSource_RefusesTheAnchorsNoReferenceCanName holds the table's grammar
 // for an anchor's name to the binder's, which reads a $ref's plain-name
-// fragment: the table refuses a $anchor exactly where a $ref to its name
-// resolves to nothing.
+// fragment, in each dialect that declares one: the table refuses a $anchor, or
+// an identifier naming a fragment alone, exactly where a $ref to its name
+// resolves to nothing, and that is where the dialect's grammar refuses the
+// name: 2020-12's admits a leading '_' and no ':', the plain names of 2019-09's
+// `$anchor` and of drafts 6 and 7 the reverse. Draft 4 states no grammar, so
+// its `id` refuses none and each name resolves.
 func TestJudgeSource_RefusesTheAnchorsNoReferenceCanName(t *testing.T) {
 	t.Parallel()
-	for _, name := range []string{"a", "_a", "Z9", "a.b-c_d", "1a", "-a", ".a", "_", "a:b", "a/b", "é"} {
-		spec := "openapi: 3.1.0\ninfo: {title: T, version: '1'}\npaths: {}\ncomponents:\n  schemas:\n" +
-			"    A: {$anchor: '" + name + "', type: string}\n    B: {$ref: '#" + name + "'}\n"
-		_, diags, err := Load(t.Context(), 0, compilers.Source{Path: "a.yaml", Data: []byte(spec)}, Options{})
-		require.NoError(t, err)
-		refused, unresolved := false, false
-		for _, d := range diags {
-			refused = refused || d.Provenance.Pointer == "/components/schemas/A/$anchor"
-			unresolved = unresolved || d.Code == diag.UnresolvedRef
+	plain := "_a 1a -a .a _ a/b é"
+	for _, d := range []struct{ dialect, keyword, prefix, refuses string }{
+		{"", "$anchor", "", "1a -a .a a:b a/b é"},
+		{"https://json-schema.org/draft/2019-09/schema", "$anchor", "", plain},
+		{"http://json-schema.org/draft-07/schema#", "$id", "#", plain},
+		{"http://json-schema.org/draft-06/schema#", "$id", "#", plain},
+		{draft04, "id", "#", ""},
+	} {
+		for _, name := range []string{"a", "_a", "Z9", "a.b-c_d", "1a", "-a", ".a", "_", "a:b", "a/b", "é"} {
+			spec := "openapi: 3.1.0\ninfo: {title: T, version: '1'}\njsonSchemaDialect: '" + d.dialect + "'\n" +
+				"paths: {}\ncomponents:\n  schemas:\n" +
+				"    A: {" + d.keyword + ": '" + d.prefix + name + "', type: string}\n    B: {$ref: '#" + name + "'}\n"
+			if d.dialect == "" {
+				spec = strings.Replace(spec, "jsonSchemaDialect: ''\n", "", 1)
+			}
+			_, diags, err := Load(t.Context(), 0, compilers.Source{Path: "a.yaml", Data: []byte(spec)}, Options{})
+			require.NoError(t, err)
+			refused, unresolved := false, false
+			for _, g := range diags {
+				refused = refused || g.Provenance.Pointer == jsontext.Pointer("/components/schemas/A/"+d.keyword) &&
+					g.Severity == ir.SeverityError
+				unresolved = unresolved || g.Code == diag.UnresolvedRef
+			}
+			want := slices.Contains(strings.Fields(d.refuses), name)
+			assert.Equal(t, want, refused, "%s %q in %q: %+v", d.keyword, name, d.dialect, diags)
+			assert.Equal(t, want, unresolved, "a $ref to %s %q in %q: %+v", d.keyword, name, d.dialect, diags)
 		}
-		assert.Equal(t, unresolved, refused, "%q: %+v", name, diags)
 	}
 }
 
@@ -382,4 +407,97 @@ func TestLoad_AFindingOnASourceNodeCarriesItsPointer(t *testing.T) {
 				diags[0].Provenance))
 		})
 	}
+}
+
+// TestNamesDialect_ReadsTheKeyAndTheField pins which documents have their
+// schemas judged once the bindings are read: a 3.1 or 3.2 one writing
+// jsonSchemaDialect, or the key `$schema` in any mapping of its tree, under a
+// merge key, behind an alias or in an example alike, and a 3.0 one never.
+func TestNamesDialect_ReadsTheKeyAndTheField(t *testing.T) {
+	t.Parallel()
+	head := "info: {title: t, version: '1'}\npaths: {}\n"
+	for _, tc := range []struct {
+		name, src string
+		want      bool
+	}{
+		{"3.0 writing $schema", "openapi: 3.0.3\n" + head + "components: {schemas: {S: {$schema: x}}}\n", false},
+		{"jsonSchemaDialect", "openapi: 3.1.0\njsonSchemaDialect: 'https://e.com/d'\n" + head, true},
+		{"$schema in a schema", "openapi: 3.2.0\n" + head + "components: {schemas: {S: {$schema: x}}}\n", true},
+		{"under a merge key", "openapi: 3.1.0\n" + head + "components: {schemas: {S: {<<: {$schema: x}}}}\n", true},
+		{"behind an alias", "openapi: 3.1.0\n" + head + "x-a: &a {$schema: x}\ncomponents: {schemas: {S: *a}}\n", true},
+		{"in an example", "openapi: 3.1.0\n" + head + "components: {examples: {E: {value: {$schema: x}}}}\n", true},
+		{"as a value", "openapi: 3.1.0\n" + head + "x-a: [$schema]\n", false},
+		{"none", "openapi: 3.1.0\n" + head + "components: {schemas: {S: {type: string}}}\n", false},
+		{"no version", "jsonSchemaDialect: 'https://e.com/d'\n", false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			root := openapitest.YAMLDocument(t, tc.src)
+			assert.Equal(t, tc.want, namesDialect(t.Context(), root, declaredVersion(root)))
+		})
+	}
+	root := openapitest.YAMLDocument(t, "openapi: 3.1.0\n"+head)
+	ctx, cancel := context.WithCancel(t.Context())
+	cancel()
+	assert.True(t, namesDialect(ctx, root, "3.1.0"), "a walk cut short may name one")
+}
+
+// TestJudgeSource_DeferringASchemaChangesNoFinding holds every 3.1 and 3.2 spec
+// under testdata writing no `$schema` to one judgement whether its Schema
+// Objects are read at once or handed back and read with CheckPending, as a
+// document that may name a dialect has them read: the same findings, in a
+// permuted order at most, and the same objects told to Seen. A spec whose
+// aliases expand it past a bound the corpus's ordinary specs stay under is
+// passed over.
+func TestJudgeSource_DeferringASchemaChangesNoFinding(t *testing.T) {
+	t.Parallel()
+	checked := 0
+	for _, path := range openapitest.SpecFiles(t, "../../../../testdata") {
+		data, err := os.ReadFile(path)
+		require.NoError(t, err, path)
+		if bytes.Contains(data, []byte("$schema")) {
+			continue
+		}
+		var root yaml.Node
+		if yaml.Unmarshal(data, &root) != nil {
+			continue
+		}
+		if expanded := (nodeview.Walk{Nodes: 1 << 16, Aliases: nodeview.AliasTarget}).Run(t.Context(), &root); expanded.Cut {
+			continue
+		}
+		version := declaredVersion(&root)
+		if m, ok := oas.ParseMinor(version); !ok || m == oas.V30 {
+			continue
+		}
+		checked++
+		once, onceSeen := judgedSchemas(t, &root, version, false)
+		deferred, deferredSeen := judgedSchemas(t, &root, version, true)
+		assert.ElementsMatch(t, once, deferred, path)
+		assert.Equal(t, onceSeen, deferredSeen, path)
+	}
+	assert.Positive(t, checked, "the corpus holds 3.1 and 3.2 specs")
+}
+
+// judgedSchemas returns what the table finds in root, a document declaring
+// version, and the objects it tells Seen of, its Schema Objects read at once
+// or, where deferred, handed back and read with CheckPending.
+func judgedSchemas(t *testing.T, root *yaml.Node, version string, deferred bool) ([]ir.Diagnostic, map[objectKey]bool) {
+	t.Helper()
+	seen := map[objectKey]bool{}
+	var pending []oas.Pending
+	opts := oas.Options{
+		Locate: walkedFrom(root, func(n *yaml.Node) ir.Provenance {
+			return ir.Provenance{Position: ir.Position{Line: n.Line, Column: n.Column}}
+		}),
+		ReadAt: true,
+		Seen:   func(k oas.Kind, n *yaml.Node) { seen[objectKey{node: nodeview.Deref(n), kind: k}] = true },
+	}
+	checker := oas.NewChecker()
+	if !deferred {
+		return checker.Check(t.Context(), root, version, opts), seen
+	}
+	later := opts
+	later.Later = func(p oas.Pending) { pending = append(pending, p) }
+	diags := checker.Check(t.Context(), root, version, later)
+	return append(diags, checker.CheckPending(t.Context(), pending, version, opts)...), seen
 }

@@ -24,11 +24,11 @@ import (
 // would invert the dependency.
 const maxAliasChain = 10000
 
-// maxPointerSegments bounds how many tokens one JSON pointer walk follows. A
+// MaxPointerSegments bounds how many tokens one JSON pointer walk follows. A
 // pointer names a position in the document, so a real one is a handful of
 // segments deep; the bound is what keeps the walk terminating on a pointer built
 // to be long rather than to name anything, per the bounded-recursion rule.
-const maxPointerSegments = 1024
+const MaxPointerSegments = 1024
 
 // MergeDepthLimit bounds how deep a chain of `<<` merge keys the mapping view
 // expands. It is far tighter than maxAliasChain: each merge level
@@ -76,7 +76,7 @@ type Pair struct {
 // View reads a raw yaml.Node tree as speakeasy's unmarshaller does,
 // dereferencing aliases and expanding `<<` merge keys (yml.ResolveAlias,
 // yml.ResolveMergeKeys). A cycle the scan misses because it reads a different
-// tree than the resolver faults the process (GitHub #26), so every mapping read
+// tree than the library faults the process (GitHub #26), so every mapping read
 // in this file goes through a View.
 //
 // It memoizes each mapping's expansion, since otherwise a merge chain goes
@@ -469,6 +469,58 @@ func (v *View) mergeSource(val *yaml.Node, depth int) expansion {
 	return e
 }
 
+// MergeSources returns what the `<<` value val names: each element of a list
+// written or aliased there, or val itself.
+func MergeSources(val *yaml.Node) []*yaml.Node {
+	if v := Deref(val); v != nil && v.Kind == yaml.SequenceNode {
+		return v.Content
+	}
+	return []*yaml.Node{val}
+}
+
+// NotMapping reports whether src, followed through its alias, is no mapping,
+// so a `<<` naming it merges nothing (docs/parser-library.md#merge-keys).
+func NotMapping(src *yaml.Node) bool {
+	s := Deref(src)
+	return s == nil || s.Kind != yaml.MappingNode
+}
+
+// MergesNothing reports whether a `<<` of the mapping n, or of a mapping a `<<`
+// merges in at any depth, names something that is no mapping, which merges
+// nothing (docs/parser-library.md#merge-keys). n is dereferenced, and a node
+// that is no mapping writes no `<<`.
+//
+// It reads the merges to their end, as the parser does, where View stops at
+// MergeDepthLimit: a mapping the chain shows no fault in is one the parser reads
+// whole. Each mapping is read once, however many aliases reach it, so the work
+// is bounded by the tree rather than by the paths through it.
+func MergesNothing(n *yaml.Node) bool {
+	n = Deref(n)
+	if n == nil || n.Kind != yaml.MappingNode {
+		return false
+	}
+	seen := map[*yaml.Node]bool{n: true}
+	for todo := []*yaml.Node{n}; len(todo) > 0; {
+		m := todo[len(todo)-1]
+		todo = todo[:len(todo)-1]
+		for i := 0; i+1 < len(m.Content); i += 2 {
+			if !IsMergeKey(m.Content[i]) {
+				continue
+			}
+			for _, src := range MergeSources(m.Content[i+1]) {
+				if NotMapping(src) {
+					return true
+				}
+				if s := Deref(src); !seen[s] {
+					seen[s] = true
+					todo = append(todo, s)
+				}
+			}
+		}
+	}
+	return false
+}
+
 // DocumentPath walks pointer, a position in this document, from root as RFC
 // 6901 reads it, returning the root and each node reached, aliases
 // dereferenced. complete reports whether every token was followed; if not, the
@@ -484,7 +536,7 @@ func (v *View) DocumentPath(root *yaml.Node, pointer jsontext.Pointer) (path []*
 	segments := 0
 	for token := range pointer.Tokens() {
 		segments++
-		if segments > maxPointerSegments {
+		if segments > MaxPointerSegments {
 			return path, false
 		}
 		cur = Deref(v.ChildByToken(cur, token))
@@ -559,9 +611,9 @@ func (v *View) mappingChild(n *yaml.Node, token string) *yaml.Node {
 // where the costs roughly meet; BenchmarkDocumentPath_IntoAWideMapping carries
 // the widths that show it.
 //
-// Width says nothing about reuse: declaresResourceIDAbove builds a view per
-// call and reads each node once, so indexing there cost time and allocations
-// for nothing. keyIndex adds a reuse condition.
+// Width says nothing about reuse: a view built for one path reads each node once,
+// so indexing there costs time and allocations for nothing. keyIndex adds a
+// reuse condition.
 const minIndexedPairs = 16
 
 // keyIndex returns n's expansion as a key map, built on the second read of a

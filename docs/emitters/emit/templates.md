@@ -26,7 +26,12 @@ Grafted from the template-first stance, applied only to the narrow boilerplate s
   where spec names live also declares the names it binds there ([reserved
   names](../refine/reserved-names.md)), and the lint renders it and holds that declaration to what
   the rendering binds, so a local added to a template cannot shadow a parameter the declaration left
-  out.
+  out. A Kotlin template declares as well the names it writes from Kotlin's default imports, a
+  function such as `error` among them, held the same way: a nearer declaration of such a name, a
+  variant `List` or an operation `error`, hides it where the template writes it, and its file then
+  imports it under a name of its own ([Kotlin naming](../targets/kotlin/naming.md#imports)). No spec
+  type shadows a default-imported class in its package, a unit reserving each ([reserved
+  names](../targets/kotlin/naming.md#reserved-names)).
 - **A mandatory format pass** (`Formatter.Format(path, src)`), run on *all* emitted files. Any
   syntactic slip a template produces is caught here as a located, hard `Diagnostic` (file + the
   formatter's message), never shipped. Because typed-AST structure is already syntactically valid by
@@ -36,6 +41,9 @@ Grafted from the template-first stance, applied only to the narrow boilerplate s
 
 The generated *typed veneer* references a `Transport` / `Serializer` interface (Kiota's
 `IParseNode`/`ISerializationWriter` seam); the concrete transport is a runtime-policy-configured
-library. This is the seam that keeps runtime policy (INV10) out of the typed structural model:
+HTTP library, `net/http` or Ktor, which the runtime wraps. Both the interface and what implements it
+are templates, which render into the runtime's unit ([output
+units](../refine/output-units.md#the-runtimes-unit)). This is the seam that keeps runtime policy
+(INV10) out of the typed structural model:
 the veneer of models/unions/methods is policy-free, and `Policy` only ever parameterises the
 boilerplate that backs the interface.

@@ -14,15 +14,12 @@ import (
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
-	soa "github.com/speakeasy-api/openapi/openapi"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/bind"
 	"github.com/dexpace/morphic/compilers/openapi/internal/budget"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
-	"github.com/dexpace/morphic/compilers/openapi/internal/overlay"
-	"github.com/dexpace/morphic/engine/reader"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -35,8 +32,7 @@ const (
 
 // schemaChain and responseChain are what the last document of a chainServer
 // chain holds at x: a schema, and a response. A chain of $refs to either reads
-// the same documents; only a response chain is followed by the parser's
-// resolver, which reports what it cannot read.
+// the same documents, and reports what it cannot read.
 const (
 	schemaChain   = "x: {type: string}\n"
 	responseChain = "x: {description: ok}\n"
@@ -113,8 +109,8 @@ func TestLoad_AnEndlessChainIsReadToTheDocumentBudget(t *testing.T) {
 }
 
 // TestLoad_ASchemaChainIsReadToTheDocumentBudget pins the same bound for a
-// chain of schema $refs, which the compiler follows itself: the documents it
-// reads are the resolver's, read once and counted against one budget, so a
+// chain of schema $refs: the documents it reads are a response chain's, read
+// once and counted against one budget, so a
 // chain that never ends makes exactly the budgeted number of requests and ends
 // unresolved in the last document it read.
 func TestLoad_ASchemaChainIsReadToTheDocumentBudget(t *testing.T) {
@@ -195,55 +191,29 @@ func TestLoad_TheDocumentBudgetRefusesAFileChainToo(t *testing.T) {
 		"it is past the 3-document budget")
 }
 
-// resolveCounting resolves spec at path as resolveSpec does, under opts with
-// external references allowed, and reports how many times the document was
-// rebuilt for a second pass.
-func resolveCounting(t *testing.T, spec, path string, opts Options) ([]ir.Diagnostic, int) {
-	t.Helper()
-	data := []byte(spec)
-	root, _, err := decodeStream(t.Context(), data)
-	require.NoError(t, err)
-	releaseAnchors(t.Context(), root)
-	doc, err := unmarshal(t.Context(), data, root)
-	require.NoError(t, err)
-	rebuilds := 0
-	rebuild := func() (*soa.OpenAPI, error) {
-		rebuilds++
-		again, err := unmarshal(t.Context(), data, root)
-		return again, err
-	}
-	opts.Reader = reader.Disk{}
-	at := pointerAt(0, overlay.Origin{})
-	_, _, ext, pass, missed, err := resolveExternal(t.Context(), doc, Siblings{}, MediaTypes{},
-		newSourceDocument(path, data, root, judgment{}, newSourceTree(t.Context(), 0, overlay.Origin{}, root), nil), opts, rebuild)
-	require.NoError(t, err)
-	return append(passDiags(at, pass, missed), crossed(at, ext)...), rebuilds
-}
-
-// TestResolveExternal_BothPassesShareOneDocumentBudget pins that GitHub #538's
-// second pass reads nothing the first read, files included, so it spends none
-// of the budget again: a respelled anchored document and a file fit a budget
-// of two through both passes, and under a budget of one the budget is reported
-// once and the file, asked for second, is refused, as in the first pass.
-func TestResolveExternal_BothPassesShareOneDocumentBudget(t *testing.T) {
+// TestLoad_ADocumentIsReadOnceAgainstTheBudget pins that a document is
+// charged to the budget once however many references read it, a URL and a
+// file alike: an anchored network document and a file, each named twice, fit a
+// budget of two, and under a budget of one the budget is reported once and
+// each $ref into the URL, which an absolute URI names and the binder reads
+// after the file (bind.Held), is refused unfetched.
+func TestLoad_ADocumentIsReadOnceAgainstTheBudget(t *testing.T) {
 	t.Parallel()
 	trigger, requests := countingServer(t, anchoredExternalDoc)
 	dir := externalDir(t, map[string]string{"local.yaml": "components:\n  responses:\n    S: {description: ok}\n"})
-	spec := rootReferencing(respelled(trigger.URL, "HTTP")+"/ext.yaml") +
-		"components:\n  responses:\n    A: {$ref: './local.yaml#/components/responses/S'}\n"
-	path := filepath.Join(dir, "root.yaml")
+	spec := rootReferencing(trigger.URL+"/ext.yaml") + "  /y: {$ref: \"" + trigger.URL + "/ext.yaml#/paths/~1x\"}\n" +
+		"components:\n  responses:\n    A: {$ref: './local.yaml#/components/responses/S'}\n" +
+		"    B: {$ref: './local.yaml#/components/responses/S'}\n"
 
-	fits, rebuilds := resolveCounting(t, spec, path, Options{MaxExternalDocuments: budget.AtMost(2)})
+	_, fitDiags := loadExternal(t, dir, spec, Options{MaxExternalDocuments: budget.AtMost(2)})
+	assert.Empty(t, fitDiags, "both documents fit the budget")
 
-	require.Equal(t, 1, rebuilds, "sanity: the respelled anchored document sets the second pass off")
-	assert.Empty(t, fits, "both documents fit the budget in both passes")
-	assert.Equal(t, int32(1), requests.Load())
-
-	past, rebuilds := resolveCounting(t, spec, path, Options{MaxExternalDocuments: budget.AtMost(1)})
-
-	require.Equal(t, 1, rebuilds, "sanity: the anchored document, asked for first, is read")
+	_, past := loadExternal(t, dir, spec, Options{MaxExternalDocuments: budget.AtMost(1)})
 	over, unresolved := budgetFindings(past)
-	assert.Len(t, over, 1, "reported once, though both passes ran: %+v", past)
-	require.Len(t, unresolved, 1, "%+v", past)
-	assert.Contains(t, unresolved[0], filepath.Join(dir, "local.yaml")+" refused: it is past the 1-document budget")
+	assert.Len(t, over, 1, "reported once: %+v", past)
+	require.Len(t, unresolved, 2, "each $ref into the URL: %+v", past)
+	for _, message := range unresolved {
+		assert.Contains(t, message, trigger.URL+"/ext.yaml refused: it is past the 1-document budget")
+	}
+	assert.Equal(t, int32(1), requests.Load(), "the URL is fetched once, by the load it fits")
 }

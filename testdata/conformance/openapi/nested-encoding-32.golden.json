@@ -6,10 +6,12 @@
     ],
     "e": [
       "anon",
+      "composed",
       "openapi"
     ],
     "g": [
       "default",
+      "extension",
       "path-prefix",
       "tags",
       "webhooks"
@@ -136,12 +138,11 @@
                   {
                     "method": "POST",
                     "uriTemplate": "/upload",
-                    "sharedRoute": false,
                     "requestContentTypes": [
                       "multipart/form-data"
                     ],
-                    "checksumRequired": false,
-                    "isWebhook": false
+                    "sharedRoute": false,
+                    "checksumRequired": false
                   }
                 ]
               },
@@ -264,6 +265,15 @@
       "provenance": {
         "source": 0,
         "pointer": "/paths/~1upload/post/requestBody/content/multipart~1form-data/encoding/note/prefixEncoding"
+      }
+    },
+    {
+      "severity": "warning",
+      "code": "openapi/unknown-encoding-key",
+      "message": "encoding entry \"inner\" names no property the part's schema declares, which OpenAPI requires of an encoding key, so the entry has no effect",
+      "provenance": {
+        "source": 0,
+        "pointer": "/paths/~1upload/post/requestBody/content/multipart~1form-data/encoding/note/encoding/inner"
       }
     }
   ],

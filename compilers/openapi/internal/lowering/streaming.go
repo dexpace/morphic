@@ -51,9 +51,8 @@ func DefaultStreamingMediaTypes() []string {
 }
 
 // MediaTypeStreams reports whether the policy classifies mediaType as a stream
-// of frames. It is a predicate rather than a getter for the reason
-// DeclaresSchema is: handing back the set would make it writable through a copy
-// of the context.
+// of frames. It is a predicate rather than a getter because handing back the
+// set would make it writable through a copy of the context.
 func (c Ctx) MediaTypeStreams(mediaType string) bool {
 	normalized := NormalizeMediaType(mediaType)
 	if c.streaming[normalized] {

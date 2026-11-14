@@ -33,19 +33,22 @@ stderr. Output to stdout is indented for reading; a file written with --output
 is compact unless --pretty asks for the indented form.
 
 --explain reports what compiling produced at one source coordinate — the type
-node interned there, the coordinates interned beneath it, and the diagnostics
-stamped at it — instead of writing the document. The coordinate is a JSON
-Pointer, so '' is the whole document. It writes no file, so it cannot be
-combined with --output.
+node the document holds there, the coordinates beneath it that hold one, each
+construct kept verbatim under Unmodeled at or beneath it with the node keeping
+it and why, and the diagnostics stamped at it — instead of writing the
+document. A pass may replace or remove a node the compiler made, which
+--disable-pass shows. The coordinate is a JSON Pointer, so '' is the whole
+document. It writes no file, so it cannot be combined with --output.
 
 --disable-pass turns off one IR pass by name, and may be repeated. A name no
 pass carries is refused (exit 2) with the names that exist. --skip-validate is
 --disable-pass validate under its older name.
 
 --verify holds the document the compiler returns, and each pass's, to the IR's
-structural invariants, and each pass to leaving its input as it found it. The
-first stage to break one ends the run (exit 2) with every invariant it broke.
-It is for developing a compiler or a pass, and slows the run.
+structural invariants, the findings each stage reports with it, and each pass
+to leaving its input as it found it. The first stage to break one ends the run
+(exit 2) with every invariant it broke. It is for developing a compiler or a
+pass, and slows the run.
 
 --cache-dir keeps each document in the directory it names, and answers a later
 run from there when nothing the document depends on has changed: this build,
@@ -53,6 +56,19 @@ the spec and every document it reads, the settings, the passes, and the working
 directory. The output and the exit status are the same either way. A cache
 that cannot be used costs the time and a warning on stderr, and a --verify run
 does not use it, as it exists to run the stages.
+
+--triage reads a JSON file of rules, each naming one diagnostic code exactly:
+a rule rates the code's findings at another severity, everywhere or at one
+place, or accepts the findings at one place, which then fail the run at no
+--fail-on. The README gives the file's form. A rule no finding matched is
+named after the findings.
+
+The findings go to stderr as text unless --diag-format json asks for one JSON
+report of the verdict and every finding as rated, beside the rule each met.
+Text writes each finding one per line, but for each code and severity only the
+first --diag-limit, 3 unless given and 0 for every one, and only those at or
+above --show, info unless given; it then counts what it did not write, and a
+finding a rule accepted is only counted.
 
 --opt passes a setting to the compiler the spec selects, which names and
 validates its own options; morphic itself knows none of them. The OpenAPI
@@ -65,13 +81,18 @@ Exit status is 0 when nothing reaches --fail-on, 1 when something does or the
 spec lowered to no document at all, and 2 for a misuse, an I/O error, a
 compiler or pass that broke its contract, or a run a signal stopped.
 
+--output replaces a file through a temporary file beside it, renamed into
+place, so the file's directory must take a new one. A FIFO or a character
+device, such as /dev/null, is written as stdout is, but for a FIFO no process
+reads, which is refused rather than waited for.
+
 SIGINT, SIGTERM or SIGHUP stops the run, which then writes no document: a file
 --output names keeps its previous content, its temporary file removed. One
-that comes once the document is being written to stdout or moved into place,
-once an --explain report has begun, or, for a spec that lowered to no
-document, once the compile is over, is too late to stop the run, which
-finishes as though it had not come. Another signal while the run is stopping
-changes nothing.`
+that comes once the document is being written to stdout or to a FIFO or
+device, or moved into place, once an --explain report has begun, or, for a spec
+that lowered to no document, once the compile is over, is too late to stop the
+run, which finishes as though it had not come. Another signal while the run is
+stopping changes nothing.`
 
 // compileExample is compile's examples, indented as cobra's help indents a
 // section.
@@ -124,6 +145,10 @@ type specOptions struct {
 	disable      passFlag
 	settings     settingFlag
 	cacheDir     string
+	triagePath   string
+	format       formatFlag
+	show         showFlag
+	limit        limitFlag
 }
 
 // disabledPasses is the pass names the flags turn off: --disable-pass's, and
@@ -151,9 +176,10 @@ type compileOptions struct {
 func bindSpecFlags(fs *pflag.FlagSet, opts *specOptions) {
 	opts.settings = settingFlag{}
 	opts.failOn = failOnFlag(engine.FailOnError)
+	opts.format, opts.show, opts.limit = formatText, showFlag(ir.SeverityInfo), defaultDiagLimit
 
 	fs.Var(&opts.failOn, "fail-on",
-		"exit 1 on a diagnostic at or above this severity: error, warning or info; none exits 1 only when the spec lowered to no document")
+		"exit 1 on a finding rated at or above this severity that no --triage rule accepted: error, warning or info; none exits 1 only when the spec lowered to no document")
 	fs.BoolVar(&opts.skipValidate, "skip-validate", false,
 		"alias for --disable-pass validate")
 	fs.Var(&opts.disable, "disable-pass",
@@ -165,6 +191,15 @@ func bindSpecFlags(fs *pflag.FlagSet, opts *specOptions) {
 	fs.StringVar(&opts.cacheDir, "cache-dir", "",
 		"keep compiled documents in this directory, and reuse one while nothing it depends on has changed")
 	fs.Lookup("cache-dir").Annotations = map[string][]string{cobra.BashCompSubdirsInDir: {}}
+	fs.StringVar(&opts.triagePath, "triage", "",
+		"rate or accept findings by code and place, as the rules this JSON file lists say")
+	fs.Lookup("triage").Annotations = map[string][]string{cobra.BashCompFilenameExt: {"json"}}
+	fs.Var(&opts.format, "diag-format",
+		"write the findings to stderr as text, for a person, or as one JSON report, for a program")
+	fs.Var(&opts.show, "show",
+		"in text, write each finding at or above this severity, error, warning or info, and count the rest")
+	fs.Var(&opts.limit, "diag-limit",
+		"in text, write this many findings of one code and severity, and count the rest; 0 writes every one")
 }
 
 // completeSpecFile offers spec files, by extension, for the one operand compile
@@ -193,34 +228,61 @@ func compileArgs(opts *compileOptions) cobra.PositionalArgs {
 }
 
 // specArgs checks what every spec-taking command takes once its flags are
-// parsed: exactly one spec file. The command's own name is in the message, so
-// a misuse names what was typed. No flag's value is checked here: --fail-on
-// refuses a bad one as it is set, and which pass names exist is the engine's
-// to say.
+// parsed: exactly one spec file, and no text option beside --diag-format json,
+// which would be accepted and ignored. The command's own name is in the
+// message, so a misuse names what was typed. No flag's value is checked here:
+// each refuses a bad one as it is set, and which pass names exist is the
+// engine's to say.
 func specArgs(cmd *cobra.Command, args []string) error {
 	if len(args) != 1 {
 		return misuse(cmd, cmd.Name()+" requires exactly one spec file")
+	}
+	fs := cmd.Flags()
+	if fs.Lookup("diag-format").Value.String() != string(formatJSON) {
+		return nil
+	}
+	for _, name := range []string{"show", "diag-limit"} {
+		if fs.Changed(name) {
+			return misuse(cmd, "--diag-format json writes every finding, so --"+name+" has nothing to withhold")
+		}
 	}
 	return nil
 }
 
 // runPipeline runs the engine over specPath under ctx and renders every
-// diagnostic the run produced to stderr.
+// finding the run produced to stderr, in the format opts names.
 //
 // A non-nil err ends the run with its exit code: 2 when the run could not
-// happen, the engine not built, failed or cancelled, and a refused diagnostics
-// write as writeFailureExit says, so no document follows findings nobody saw.
-// Otherwise code is the exit code the engine's verdict calls for, and res
-// holds the document, or is nil when the spec lowered to none.
+// happen, the triage file or the engine refused, the run failed or was
+// cancelled, and a refused diagnostics write as writeFailureExit says, so no
+// document follows findings nobody saw. Otherwise code is the exit code the
+// engine's verdict calls for, and res holds the document, or is nil when the
+// spec lowered to none.
 func runPipeline(
 	ctx context.Context, specPath string, opts specOptions, stderr io.Writer,
 ) (res *engine.Result, code int, err error) {
-	cached, err := cacheOptions(ctx, opts.cacheDir, stderr)
+	rules, err := readTriage(ctx, opts.triagePath)
 	if err != nil {
 		return nil, 0, failure(err)
 	}
+	cached, warning, err := cacheOptions(ctx, opts.cacheDir)
+	if err != nil {
+		return nil, 0, failure(err)
+	}
+	// A JSON report is the one thing written to stderr, so it carries the
+	// warnings text writes as lines of their own; a run that ends before its
+	// report writes them as text does.
+	var held []error
+	switch {
+	case warning == nil:
+	case opts.format == formatJSON:
+		held = append(held, warning)
+	default:
+		warnCache(stderr, warning)
+	}
 	eng, err := newEngine(cached...)
 	if err != nil {
+		warnAll(stderr, held)
 		return nil, 0, failure(err)
 	}
 
@@ -229,19 +291,18 @@ func runPipeline(
 		DisablePasses:   opts.disabledPasses(),
 		FailOn:          engine.FailOn(opts.failOn),
 		Verify:          opts.verify,
+		Triage:          rules,
 	})
 	if err != nil {
+		warnAll(stderr, held)
 		return nil, 0, failure(err)
 	}
 
 	if res.Failed {
 		code = exitFindings
 	}
-	if err := report.WriteDiagnostics(stderr, res.Diagnostics, res.Sources); err != nil {
+	if err := writeFindings(stderr, opts, res, held); err != nil {
 		return nil, 0, &exitError{code: writeFailureExit(code), err: fmt.Errorf("write diagnostics: %w", err)}
-	}
-	if res.CacheErr != nil {
-		warnCache(stderr, res.CacheErr)
 	}
 	if res.Document == nil {
 		return nil, code, nil
@@ -262,7 +323,7 @@ func compileSpec(cmd *cobra.Command, specPath string, opts compileOptions) error
 	}
 
 	if opts.explain.set {
-		e := report.Explain(res.Document, res.Diagnostics, res.Sources, opts.explain.pointer)
+		e := report.Explain(res.Document, res.Diagnostics, opts.explain.pointer)
 		// The writers check ctx before the document's first byte, and this is
 		// the same check for the report: a stop that came while the
 		// diagnostics were being written, or since, leaves none of it written.
@@ -284,10 +345,10 @@ func compileSpec(cmd *cobra.Command, specPath string, opts compileOptions) error
 // code and whose output then could not be written.
 //
 // A failed write does not overwrite a non-zero code. Whether a destination can
-// be written is a property of the destination (/dev/null and a read-only
-// directory both refuse output.ReplaceDocument's temporary file), not of the
-// spec, so the verdict on the spec keeps the exit code and 2 is left for runs
-// that failed for a reason outside the spec.
+// be written is a property of the destination (a read-only directory refuses
+// output.ReplaceDocument's temporary file, and a FIFO no process reads is
+// refused), not of the spec, so the verdict on the spec keeps the exit code and
+// 2 is left for runs that failed for a reason outside the spec.
 func writeFailureExit(code int) int {
 	if code != 0 {
 		return code

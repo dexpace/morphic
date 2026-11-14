@@ -66,7 +66,7 @@ func TestAllOf_NestedLowersAsFlat_ReachesWhatItCompares(t *testing.T) {
 	required, _ := compileView(t, byName["a required name only the base declares"])
 	assert.Equal(t, []string{"a"}, required.Requires, "the name is required of the composition, not of a property it holds")
 
-	residue, _ := compileView(t, byName["a residue description"])
+	residue, _ := compileView(t, byName["a residue"])
 	assert.Positive(t, residue.Kept, "the residue is kept")
 
 	subtype, _ := compileView(t, byName["a discriminated base inside a wrapper"])
@@ -315,10 +315,6 @@ func TestAllOf_NestedWrapperWithResidueKeptVerbatim(t *testing.T) {
 		sibling string
 		residue string
 	}{
-		{"description", "description: Doc", "description"},
-		{"title", "title: Grouped", "title"},
-		{"vendor extension", "x-vendor: keepme", "x-vendor"},
-		{"readOnly", "readOnly: true", "readOnly"},
 		{"discriminator", "discriminator: {propertyName: kind}", "discriminator"},
 		{"oneOf", "oneOf: [{type: string}]", "oneOf"},
 		{"additionalProperties false", "additionalProperties: false", "additionalProperties"},
@@ -372,10 +368,10 @@ func TestAllOf_KeptEntryOfAKeptWrapperIsKeptTwice(t *testing.T) {
 	t.Parallel()
 	m := `    M:
       allOf:
-        - description: grouped
+        - additionalProperties: false
           allOf:
             - {$ref: '#/components/schemas/A'}
-            - {title: inner, properties: {p: {type: string}}}
+            - {patternProperties: {'^i': {type: string}}, properties: {p: {type: string}}}
             - false
 `
 	for _, doc := range nestedOrders(t, m, nestedAB) {
@@ -384,9 +380,9 @@ func TestAllOf_KeptEntryOfAKeptWrapperIsKeptTwice(t *testing.T) {
 		assert.Equal(t, []string{"openapi:allOf/0", "openapi:allOf/0/allOf/1", "openapi:allOf/0/allOf/2"},
 			slices.Sorted(maps.Keys(model.Unmodeled)), "the wrapper and each entry kept itself, each under its own path")
 		wrapper := string(model.Unmodeled["openapi:allOf/0"].Value)
-		assert.Contains(t, wrapper, `"title":"inner"`, "the wrapper's copy holds the kept entry")
+		assert.Contains(t, wrapper, `"patternProperties":`, "the wrapper's copy holds the kept entry")
 		assert.Contains(t, wrapper, `,false]`, "and the false one")
-		assert.Contains(t, string(model.Unmodeled["openapi:allOf/0/allOf/1"].Value), `"title":"inner"`)
+		assert.Contains(t, string(model.Unmodeled["openapi:allOf/0/allOf/1"].Value), `"patternProperties":`)
 		assert.Equal(t, "false", string(model.Unmodeled["openapi:allOf/0/allOf/2"].Value))
 	}
 }
@@ -423,7 +419,7 @@ func TestAllOf_NestedEmptyAllOfKeptVerbatim(t *testing.T) {
 		assert.Contains(t,
 			openapitest.DiagMessageAt(t, doc.Diagnostics, diag.DegradedConstruct,
 				ir.SeverityInfo, "/components/schemas/M/allOf/0"),
-			"only its properties and required list compose; the branch (allOf) is kept verbatim")
+			"nothing reads the rest of it; the branch (allOf) is kept verbatim")
 	}
 	assert.Empty(t, cmp.Diff(docs[0].Types, docs[1].Types, orderInvariantIR()...),
 		"declaration order must not change the types")
@@ -438,23 +434,23 @@ func TestAllOf_NestedInlineBranchKeyedByPointer(t *testing.T) {
       allOf:
         - type: object
           properties: {a: {type: string}}
-          description: Top
+          additionalProperties: false
         - allOf:
             - type: object
               properties: {b: {type: string}}
-              description: First
+              patternProperties: {'^b': {type: string}}
             - type: object
               properties: {c: {type: string}}
-              minProperties: 1
+              unevaluatedProperties: false
 `
 	for _, doc := range nestedOrders(t, m, nestedAB) {
 		model, ok := typeByName(doc, "M").(*ir.Model)
 		require.True(t, ok, "M should be a model")
 		require.Len(t, model.Unmodeled, 3, "got %+v", model.Unmodeled)
 		for key, want := range map[string]string{
-			"openapi:allOf/0":         `"description":"Top"`,
-			"openapi:allOf/1/allOf/0": `"description":"First"`,
-			"openapi:allOf/1/allOf/1": `"minProperties":1`,
+			"openapi:allOf/0":         `"additionalProperties":false`,
+			"openapi:allOf/1/allOf/0": `"patternProperties":`,
+			"openapi:allOf/1/allOf/1": `"unevaluatedProperties":false`,
 		} {
 			entry, ok := model.Unmodeled[key]
 			require.True(t, ok, "missing %s in %+v", key, model.Unmodeled)
@@ -468,14 +464,12 @@ func TestAllOf_NestedInlineBranchKeyedByPointer(t *testing.T) {
 	}
 }
 
-// TestAllOf_NestedBranchIsNamedByItsInnermostIndex pins that a $ref branch
-// inside a wrapper is named by its innermost index, in either declaration
-// order: an outside $ref to that pointer lowers it from the other side. The
-// target is the empty-named component because a branch holding a $ref takes
-// its target's name first, so only a target that names nothing lets the index
-// reach the IR. The B before the wrapper puts the branch at flat position 2 but
-// innermost index 1, so only the innermost index yields variant_1.
-func TestAllOf_NestedBranchIsNamedByItsInnermostIndex(t *testing.T) {
+// TestAllOf_ABranchNamingNothingIsNamedForItsSchema pins the name of a $ref
+// branch inside a wrapper whose target names nothing: the schema holding the
+// list, in either declaration order, as an outside $ref to that pointer lowers
+// it from the other side. Only a target that names nothing lets it through, since
+// a branch holding a $ref takes its target's name first.
+func TestAllOf_ABranchNamingNothingIsNamedForItsSchema(t *testing.T) {
 	t.Parallel()
 	m := `    M:
       allOf:
@@ -490,7 +484,7 @@ func TestAllOf_NestedBranchIsNamedByItsInnermostIndex(t *testing.T) {
 	for _, doc := range nestedOrders(t, m, outsider+unnamed+nestedAB) {
 		narrowed, ok := doc.Types["t/anon/components/schemas/M/allOf/1/allOf/1"]
 		require.True(t, ok, "the narrowed branch is hoisted at its pointer")
-		assert.Equal(t, "variant_1", narrowed.Common().Name.Hint)
+		assert.Equal(t, "m", narrowed.Common().Name.Hint)
 	}
 }
 
@@ -605,15 +599,15 @@ var equivalencePairs = []struct {
 `, `    M:
       allOf: [{$ref: '#/components/schemas/A'}, false]
 `},
-	{"a residue description", `    M:
+	{"a residue", `    M:
       allOf:
-        - description: grouped
+        - additionalProperties: false
           allOf: [{$ref: '#/components/schemas/A'}, {$ref: '#/components/schemas/B'}]
 `, `    M:
       allOf:
         - {$ref: '#/components/schemas/A'}
         - {$ref: '#/components/schemas/B'}
-        - description: grouped
+        - additionalProperties: false
 `},
 	{"a distributed oneOf beside the wrappers", `    M:
       type: object

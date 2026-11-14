@@ -8,5 +8,5 @@ import "github.com/dexpace/morphic/ir"
 func Edge(name string) (ir.TypeRegistry, ir.TypeID, ir.Naming) {
 	reg := ir.TypeRegistry{}                   // want "registrywrites: builds a type registry (a map from ir.TypeID to ir.TypeDef) outside ir and compilers/compile; go through compile.Types"
 	id := ir.TypeID(name)                      // want "idderivations: converts a value to ir.TypeID outside compilers/compile; derive the ID through the framework"
-	return reg, id, ir.Naming{Canonical: name} // want "namechannels: ir.Naming.Canonical is filled by something other than a call into ir or compilers/compile; use compile.NamingFor, compile.NamingHint or ir.CanonicalWords"
+	return reg, id, ir.Naming{Canonical: name} // want "namechannels: ir.Naming.Canonical is filled by something other than a call into ir or compilers/compile; use ir.NamingFor, compile.NamingHint or ir.CanonicalWords"
 }

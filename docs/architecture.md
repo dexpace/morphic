@@ -18,6 +18,7 @@ between stages. The IR itself is specified in the [IR design](./ir/README.md).
                         ┌── IR passes (IR → IR) ───┐
                         │  link · dedup · filter   │
                         │  version-slice · overlay │
+                        │  const-unions · names    │
                         │  validate                │
                         └──────────┬───────────────┘
                                    ▼
@@ -47,7 +48,9 @@ between stages. The IR itself is specified in the [IR design](./ir/README.md).
    values (severity, code, message, source location). The engine decides what is fatal.
 6. **Heuristics are policy, not semantics.** Anything inferred rather than declared (pagination
    from parameter names, envelope detection, acronym casing) lives in injectable per-compiler or
-   per-emitter policy objects, is clearly marked `Inferred` in provenance, and can be disabled.
+   per-emitter policy objects, is clearly marked `Inferred` in provenance, and can be disabled. The
+   OpenAPI compiler states once how its policies are switched, marked, ordered and reported
+   ([`policies`](compilers/openapi.md#policies)).
 7. **The IR is serializable.** The full document round-trips through JSON. This enables golden
    snapshot tests, IR diffing between spec versions, caching, and out-of-process emitters.
 
@@ -63,7 +66,9 @@ engine hands it in `compilers.Options.Reader`, in the compile, under the compile
 budgets: decoding options reads nothing. The compiler says how far a read may go, as a directory it
 must stay inside, and the reader enforces it, symbolic links included: the OpenAPI compiler keeps
 every read inside the spec's directory, following relative references alone, unless
-`allow-external-refs` lifts that.
+`allow-external-refs` lifts that. A reader of files may also say where a directory lies, its links
+resolved (`compilers.DirectoryLocator`), so a compile names one file reached through two spellings
+of its directory as one document.
 
 Contract, abridged from `compilers.Compiler`, whose doc comments state each method's duties:
 
@@ -85,20 +90,25 @@ type Compiler interface {
 
 A returned `Document`'s `Sources` begins with the table `SourceTable` gives, in order and filled
 in, and may go on to name each further document the compile read, such as one a reference names.
-`SourceTable` reads no input, so it names only what the caller supplies; a refusal reads no other
-document, so the table is what its diagnostics index.
+`SourceTable` reads no input, so it names only what the caller supplies, and a refusal's diagnostics
+index that table alone: a compile refused after reading another document leaves out what it found
+there, with the `Document` that would have listed it
+([`source-budgets`](compilers/openapi.md#source-budgets)).
 
 Internal phases every compiler follows (each format implements them its own way):
 
 1. **Load & bundle** — read every document the source's references name, through the caller's
-   reader, and resolve references across them. Each document read is a `Document.Sources` entry,
-   and original positions (document + JSON pointer / line-col) are preserved for provenance, so
-   what another document declares is lowered where it declares it.
+   reader, and resolve references across them. Each document a reference reaches is a
+   `Document.Sources` entry, and original positions (document + JSON pointer / line-col) are
+   preserved for provenance, so what another document declares is lowered where it declares it.
 2. **Normalize within the format** — collapse format-version differences before IR construction:
    Swagger 2.0 is lifted to the OpenAPI 3.x shape (`body`/`formData` params → request body,
    `host`+`basePath` → servers); OpenAPI 3.0 `nullable` and 3.1 `type: [T, "null"]` both become
    the IR's nullable bit. The IR never records which dialect a fact came from except in
-   provenance.
+   provenance. Versions differ on two axes, which objects and fields a document may write and how
+   its schemas read, and both are rows of the format's rule table keyed by the minors that define
+   them, a schema's keywords also by the JSON Schema dialect it is read in, so a lowering asks the
+   table how a construct reads rather than asking the version or the dialect.
 3. **Hoist & identify** — every anonymous inline type is hoisted into the type registry exactly
    once, keyed by its source pointer, with a naming *hint* (not a name) that is a function of the
    documents and that pointer alone. One function derives every inline name, whichever lowering
@@ -133,8 +143,9 @@ they bound (schema nesting depth, how deeply a document nests, how many times it
 document's aliases expand it to, reference-chain length), because nothing about them is a caller's
 to choose. The bounds on the *input* are, so they are options: `openapi.Options.Limits` carries a
 byte budget, a parsed-node budget and an alias budget for one source document, a member budget for
-one enum, and a budget on how many documents external references read in one compile, each with a
-documented default and each settable — zero takes the default, negative turns the budget off.
+one enum, a budget on how many documents external references read in one compile, and a budget on
+what the lowering copies of the declarations `$ref`s name, each with a documented default and each
+settable — zero takes the default, negative turns the budget off.
 Crossing one is a spec problem like any other, so it is an `openapi/budget-exceeded` diagnostic
 rather than a Go error. Inside the OpenAPI compiler these budgets, and every other count held to a
 limit, count through one type, `compilers/openapi/internal/budget`, so "unbounded" has one spelling
@@ -199,18 +210,21 @@ caught: the one duty no walk of a single document can check.
 
 **What stays in the OpenAPI compiler.** Three of its pieces read as if any format could use them:
 the YAML view (`internal/nodeview`), version sniffing (`internal/detect`) and document identity
-(`resolve.SameDocument`, `resolve.IsURL`). None moves into `compilers/compile`, because what each
-owes is agreement with the OpenAPI parser library, not with YAML or RFC 3986. The view reads a
-mapping as the library's unmarshaller does, its `<<` merges and repeated keys included, which
-yaml.v3's own decoder reads differently. Sniffing reads the parse the compile lowers, through that
-view, and claims a broken document by OpenAPI's discriminating keys. Identity classifies a location
-as the library's resolver does. A compiler parsing through the same library is the evidence that
-would move the view or identity, and one wanting the byte probe for a key of its own would move
-that probe; any other needs a reading that agrees with its own parser, since a shared reading would
-disagree with it as detection disagreed with the compile before it read through the view. What does
-cross formats is a duty rather than code, a recognition naming the version the compile reads, and
-`Detection.Compile` holds every compiler to it. The one piece every compiler spelled alike, the
-digest a source table records, is `ir.SourceHash`.
+(`resolve.Locate`, `resolve.Places`, `resolve.IsURL`). None moves into `compilers/compile`,
+because what each owes is agreement with the OpenAPI parser library, not with YAML or RFC 3986
+alone. The view reads a mapping as the library's unmarshaller does, its `<<` merges and repeated
+keys included, which yaml.v3's own decoder reads differently. Sniffing reads the parse the compile
+lowers, through that view, and claims a broken document by OpenAPI's discriminating keys. Identity
+classifies a location as the library's join does, departing from it where RFC 3986 reads a
+reference otherwise; the compiler binds every reference itself, so nothing hands the library a
+spelling to agree with. A compiler
+parsing through the same library is the evidence that would move the view or identity, and one
+wanting the byte probe for a key of its own would move that probe; any other needs a reading that
+agrees with its own parser, since a shared reading would disagree with it as detection disagreed
+with the compile before it read through the view. What does cross formats is a duty rather than
+code, a recognition naming the version the compile reads, and `Detection.Compile` holds every
+compiler to it. The one piece every compiler spelled alike, the digest a source table records, is
+`ir.SourceHash`.
 
 Compilers are registered in a registry keyed by the formats they report, and detection belongs to
 them too: the registry asks each compiler in registration order whether it recognizes a source, and
@@ -256,14 +270,17 @@ changed since the last one. An update hands its change a deep copy of the node's
 nodes the edit keys apart, a group's groups and operations, a service's groups, the document's
 services and registries, are left out of the copy and changed by their own IDs. The edit keeps each
 node at the key its own ID names and adds no ID, a nested one included, so every ID stays in a
-namespace the document already declares (invariant 3). A write that would break either, or that only
-a bug makes, is refused, and `Finish` returns each refusal as an `ir/edit-refused` error beside the
-document, so it fails the run at the default threshold instead of passing unseen. A removal removes
-what its ID names, with what that holds, and nothing else: a group or a service its last member
-leaves stays, for the pass to remove when its own rule says so. Whether a removal leaves a reference
-dangling is not the edit's to judge: `validate` reports one. Adding a node is not an edit's either:
-the first pass to mint one, `link`, brings that, with a namespace of its own (invariant 3's
-corollary).
+namespace the document already declares (invariant 3). The one exception is an enum member's own ID,
+the one its enum's ID and its value give it (`ir.EnumMemberIDFor`,
+[identity](./ir/identity.md#enum-members)) in a namespace the document declares for members: only
+that member can hold it, so an enum a pass builds takes IDs that collide with nothing. A write that
+would break either, or that only a bug makes, is refused, and `Finish` returns each refusal as an
+`ir/edit-refused` error beside the document, so it fails the run at the default threshold instead of
+passing unseen. A removal removes what its ID names, with what that holds, and nothing else: a group
+or a service its last member leaves stays, for the pass to remove when its own rule says so. Whether
+a removal leaves a reference dangling is not the edit's to judge: `validate` reports one. Adding a
+node is not an edit's either: the first pass to mint one, `link`, brings that, with a namespace of
+its own (invariant 3's corollary).
 
 Two rules in `internal/lintrules` hold the containers to the editor: `registrywrites` refuses
 building a registry, or writing one of its entries, anywhere but `ir` and the compilers (the type
@@ -277,10 +294,13 @@ A pass that takes settings, as `filter`, `version-slice` and `overlay` will, hol
 value, so `Run` keeps one signature for every pass. A caller supplies them through a typed field on
 `RunOptions`, and the CLI through flags of the pass's own, both added with the pass. Where the
 settings have no neutral default, as those three's have none, supplying them is what turns the pass
-on. The compilers' textual option map is the wrong model here: it serves a set of formats the engine
-knows nothing about, while the built-in passes are a closed set the engine composes, so each setting
-can be typed, checked and documented where it is declared. An embedder's own pass takes its
-settings where the embedder builds it.
+on, save that `version-slice` slices every document stating versions, since no emitter reads
+availability, and a run asking a target that writes one snapshot for its artifacts names the version
+or is refused ([the emitter contract](./emitters/contract/emitter.md)). The compilers' textual
+option map is the wrong model here: it serves a set of formats the engine knows nothing about, while
+the built-in passes are a closed set the engine composes, so each setting can be typed, checked and
+documented where it is declared. An embedder's own pass takes its settings where the embedder builds
+it.
 
 The order lives in the `engine` package's default list, `engine.Passes`, not in `pass/`: composing
 passes is orchestration, which only the engine does. An embedder runs a list of its own,
@@ -340,6 +360,14 @@ engine refuses there.
 
 Built, and in the default list:
 
+- **const-unions** — a closed union of strings, every variant a string `Literal`, a one-member
+  `Enum` or a union of one value, or a branch of several values that only the variant names, is
+  rewritten as the closed `Enum` of its values at the union's own ID, each member holding what is
+  said of its value, and each branch type nothing else references is removed
+  ([`string-const-union`](./compilers/openapi.md#string-const-union)). A transform, it runs first.
+  It is no convenience simplification of reference-learnings.md §B0, which are off by default: it
+  loses nothing, keeping the union wherever an `Enum` could not say all it does, so it is on, and
+  `--disable-pass const-unions` hands an emitter the union instead.
 - **validate** — referential integrity and the well-formedness rules the IR states, each rule family
   in a `pass/validate_<family>.go` of its own. Integrity means every typed-ID reference resolves to
   something the document declares (a `TypeRef` target against the type registry, an `OpID` against
@@ -351,6 +379,11 @@ Built, and in the default list:
   is a warning, and a `host` binding is additive ([http-binding](./ir/http-binding.md)).
   Structural problems are errors, which fail the run at the default threshold (§4); style issues are
   warnings.
+- **names** — what a document's names leave to its targets, which no IR rule forbids: two entities
+  of one scope whose names a target may render alike, which it can then tell apart only by ID, as
+  a warning, and a name with no word character, which a target names from its characters,
+  as an info ([naming](./ir/naming.md#names-one-scope-shares)). An analysis, it renames nothing, and
+  it runs after every transform, before `validate`, which stays last.
 
 Designed, not yet built:
 
@@ -358,14 +391,20 @@ Designed, not yet built:
   (multi-service, spec-stitching).
 - **dedup** — structurally identical anonymous types are merged (by content hash), with ID
   aliases retained so provenance survives.
-- **filter** — include/exclude operations and types by pattern (Kiota-style path filtering),
-  followed by reachability trimming of orphaned types. Filtering serves *surface reduction*
-  (a smaller SDK). Regenerating only one service of an existing SDK is a different problem and
-  never uses a filtered document: global decisions (dedup, shared files, naming) must stay
-  byte-identical across scoped runs, so the emitter consumes the full document plus a scope
-  option and gates emission itself (a lesson oagen recorded after trying the filtered route).
+- **filter** — include/exclude operations and types by pattern (Kiota-style path filtering), and the
+  operations and properties holding a marker its settings name, such as an extension marking one
+  internal, reporting a required property it removes as a warning `pass/filter-required-removed`,
+  since an SDK lacking it may send a request the API refuses, and pruning what it removes from
+  examples (#723), followed by reachability trimming of orphaned types. A marker is read here and
+  not by one emitter, so the docs never describe an SDK other than the one generated
+  (`docs/emitters/docs-and-mock.md`). Filtering serves *surface reduction* (a smaller SDK).
+  Regenerating only one service of an existing SDK is a different problem and never uses a filtered
+  document: global decisions (dedup, shared files, naming) must stay byte-identical across scoped
+  runs, so the emitter consumes the full document plus a scope option and gates emission itself (a
+  lesson oagen recorded after trying the filtered route).
 - **version-slice** — project a document carrying availability metadata into a concrete
-  per-version snapshot (the TypeSpec versioning model: timeline stored, snapshot consumed).
+  per-version snapshot (the TypeSpec versioning model: timeline stored, snapshot consumed). Each
+  snapshot keeps `Document.Versions` whole, so every run reads the versions in one order.
 - **overlay** — user-supplied IR patches (rename hints, pagination declarations for specs that
   can't express them, doc overrides) applied as data, not code. IR overlays are language-neutral
   and each entry carries provenance (user-authored vs tool-inferred, mirroring the `Inferred`
@@ -381,17 +420,18 @@ Designed, not yet built:
   the source, applied to the parsed node tree before the model is built, so untouched nodes keep the
   line and column the parser read them at rather than a position in a re-serialised file nobody has.
   The overlay becomes a second `Document.Sources` entry, and every position it introduced or rewrote
-  names that entry as its `Provenance.Source`. Strict application is the default: an action whose
-  JSONPath matches nothing is reported and the compile refuses, because an overlay that silently
-  does nothing ships an SDK missing the fix it was written to make.
+  names that entry as its `Provenance.WrittenBy`, the patched document staying its `Source`
+  ([provenance](./ir/provenance.md)). Strict application is the default: an action whose JSONPath
+  matches nothing is reported and the compile refuses, because an overlay that silently does nothing
+  ships an SDK missing the fix it was written to make.
 
 Passes operate on the IR only; they know nothing about source formats or target languages.
 
 ### 2.3 Emitters (IR → artifacts)
 
-Emitters are plugins (SDK-per-language, docs, mock servers, and a command-line client planned as an
-extension point, `docs/emitters/docs-and-mock.md`…). Out of scope for this session except for the
-boundary they impose on the IR; the internal shape mirrors what Kiota and oagen converged on
+Emitters are plugins: SDKs per language, docs, mock servers and, planned as an extension point, a
+command-line client (`docs/emitters/docs-and-mock.md`). Out of scope for this session except for
+the boundary they impose on the IR; the internal shape mirrors what Kiota and oagen converged on
 independently:
 
 1. **Plan** — compute language-*neutral* per-operation and per-type decisions once (is-paginated,
@@ -400,7 +440,7 @@ independently:
    no policy. This list is the decision set oagen's emitters demonstrably needed, computed once and
    shared across all languages, less two kinds of entry ([plan fact or refine
    fact](./emitters/plan/plan-or-refine.md)): what the IR already states, such as body presence and
-   idempotency, which a refiner reads there; and what varies by language, such as oagen's
+   the idempotency token, which a refiner reads there; and what varies by language, such as oagen's
    parameter-passing shape (positional vs inside an options object), which is each target's.
 2. **Refine** — per-language lowering: reserved words, casing, union representation strategy
    (native union vs sealed interface vs wrapper class), enum strategy for open enums, interface
@@ -415,13 +455,14 @@ Two further emitter-side stages are named here so their obligations shape the co
 though both are post-milestone scope:
 
 - **Write/integrate** — regenerating into a live repo alongside hand-written code requires:
-  deterministic file paths, a generation manifest (spec/emitter/config hashes, sorted file
-  list, and an entity → generated-symbol map **keyed by IR stable IDs**, which survive a rename
-  of what they are not built from, a correlation key carrying the rest (#679)), file-header
-  provenance that gates pruning (never delete a file lacking the
-  generated-by header), ignore-region markers for hand-written islands, and additive-only
-  merging. Additive-only writers also need a staleness check — (previous-revision entities −
-  current entities) ∩ files-on-disk — to surface dead code that pruning cannot touch.
+  deterministic file paths, a generation manifest (digests of the IR and of what else the generation
+  read, a sorted file list, and an entity → generated-symbol map **keyed by IR stable IDs**, which
+  survive a rename of what they are not built from, a [correlation
+  key](./ir/derived-facts.md#correlation-keys) carrying one that keeps the name the key is built
+  from), file-header provenance that gates pruning (never delete a file
+  lacking the generated-by header), ignore-region markers for hand-written islands, and
+  additive-only merging. Additive-only writers also need a staleness check — (previous-revision
+  entities − current entities) ∩ files-on-disk — to surface dead code that pruning cannot touch.
 - **Surface verification** — per-language extractors project existing SDK source into a
   neutral API-surface model; the same projection of generated output is diffed against it.
   Change records are *neutral*; breaking/additive severity is an injectable per-language
@@ -444,12 +485,13 @@ logical exception-kind and fault, doc-URL template), **telemetry** (request-
 ID and client-telemetry headers), **logging** (a closed lifecycle-event list), **user-agent**
 construction (identifier template, app-info enrichment), **idempotency injection** (header name,
 auto-generate rules), **pagination pacing** (auto-page delay), and **request guards** (option
-keys that must not appear as params — misuse detection), widened by connection-error retries,
-`Retry-After` and **redirects**. Delivery model: canonical defaults + deep-partial layers, the
-policy a document embeds below the project's and the project's below each emitter's, each with
-per-operation overrides (`docs/emitters/contract/runtime-policy.md`). Precedence rule: *declared
-IR facts win over policy defaults* — `ErrorCase.Retryable/Fault` and `Operation.Idempotency` come
-from the spec; policy fills in where the spec is silent, never the reverse.
+keys that must not appear as params — misuse detection), widened by retries after an uncertain
+outcome, `Retry-After` and **redirects**. Delivery model: versioned defaults + deep-partial layers,
+the policy a document embeds below the project's and the project's below the one it sets for each
+emitter, each with per-operation overrides (`docs/emitters/contract/runtime-policy.md`). Precedence
+rule: *declared IR facts win over policy defaults* — `ErrorCase.Retryable/Fault` and
+`Operation.Idempotency` come from the spec; policy fills in where the spec is silent, never the
+reverse.
 
 ### 2.5 Changing the IR
 
@@ -484,22 +526,27 @@ a run's output is the same whether it hit, which is what the corpus test in `eng
 and a stamp would make it differ from build to build.
 
 **What a key covers.** A key is derived before anything runs, from the build, `IRVersion`, the
-working directory, the spec's path and bytes, the passes the run leaves on, in order, and the
-textual compiler settings. Each is there because the document depends on it. The path is written
-into `Sources`. The working directory reaches type IDs: a compile reads it to relate a relative
-path to an absolute one, so one spec reaching one document can lower to two sets of IDs from two
-directories (#1297). The build is the identity of the code, compilers and passes included:
-`cache.BuildID` hashes the executable, since a module version names neither a dirty tree nor the
-toolchain. It reads the file at the executable's path, as no portable call reads the image running,
-so a build installed as a run starts, before that read, is the one named: the run keeps what the
-old build compiled under the new build's key, and that entry answers the new build (#1318). The
-threshold is not covered, as a hit judges the verdict afresh, and neither is the format, which
+spec's path, where it lies and its bytes, the passes the run leaves on, in order, and the textual
+compiler settings. Each is there because the document depends on it. The path is written into
+`Sources`. Where the spec lies, its `compilers.Source.Location`, is what its references are read
+against, so it reaches the IDs of what the documents they name declare. The working directory is
+not covered: it reaches the document only through where the spec lies and through the documents a
+run reads, which an entry lists (below). The build is the identity of the code, compilers and
+passes included: `cache.BuildID` hashes the image the process runs, since a module version names
+neither a dirty tree nor the toolchain. A path names that image only until a build is installed
+over it, and a run that named the installed build would keep what the old one compiled under the
+new one's key, where it would answer the new build. So on Linux the image is read through
+`/proc/self/exe`, which serves the file the process started from whatever has since replaced its
+path. Elsewhere, macOS among them, the executable's path is read, and a build installed as a run
+starts, before that read, is the one named (#1318). The threshold and the triage rules are not
+covered, as a hit rates its findings and judges the verdict afresh, and neither is the format, which
 follows from the bytes and which finding is what a hit skips.
 
 **What a key cannot cover.** Which other documents a compile reads is known only once it has run.
 So a compile reads through a recorder, the entry lists each request with the hash of what came
-back, and a hit makes the same reads through the run's own reader first: one document with other
-bytes, or one no longer there, is a miss. A run where a read failed stores nothing, because the
+back, and each directory the reader placed with where (`compilers.DirectoryLocator`), and a hit makes
+the same reads and placements through the run's own reader first: one document with other bytes,
+one no longer there, or a directory a link now places elsewhere, is a miss. A run where a read failed stores nothing, because the
 missing document could appear later and the entry would have nothing to compare it with. So a hit
 costs those reads, a remote document's fetch among them, and a key holds one entry, so documents
 that alternate between two states compile each time.
@@ -543,14 +590,13 @@ morphic/
 │   │   └── internal/       #             Its own packages, each below that face:
 │   │       ├── diag/       #             diagnostic codes and the constructor
 │   │       ├── ids/        #             pointer construction; pointer → TypeID
-│   │       ├── fragment/   #             a $ref fragment read as a pointer, and spelled for the resolver
-│   │       ├── navigation/ #             a pointer read through the parsed model as the library reads it
+│   │       ├── fragment/   #             a $ref fragment read as a pointer
 │   │       ├── spelling/   #             the primitive kinds OpenAPI spells
 │   │       ├── nodeview/   #             the raw YAML as the parser reads it, and one bounded walk
 │   │       ├── value/      #             scalar and BigVal lowering
 │   │       ├── sourceindex/ #            what one walk of a decoded source tree answers
-│   │       ├── scan/       #             pre-parse refusals (alias cycles and fan-out, nesting)
-│   │       ├── bind/       #             every schema $ref bound where it lands, loops found
+│   │       ├── scan/       #             pre-parse refusals (alias cycles and fan-out, nesting, pointer bytes)
+│   │       ├── bind/       #             every $ref bound where it lands, loops found
 │   │       ├── annotation/ #             what a schema says about itself, not its shape
 │   │       ├── oas/        #             the OpenAPI Specification's rules by minor, and their check
 │   │       ├── overlay/    #             an Overlay applied, and the positions it answers for
@@ -559,26 +605,28 @@ morphic/
 │   │       ├── detect/     #             a source recognized from its bytes, on load's parse
 │   │       ├── merge/      #             allOf property reconciliation
 │   │       ├── naming/     #             each node's name, from its coordinate alone
-│   │       ├── anchors/    #             the $dynamicAnchor index a $dynamicRef expands against
-│   │       ├── lowering/   #             the immutable context every lowering reads
+│   │       ├── lowering/   #             the context every lowering reads
 │   │       ├── schema/     #             the schema walk, composition, preservation
 │   │       ├── auth/       #             security schemes and requirements
 │   │       ├── operation/  #             path items, webhooks, callbacks, params, content
 │   │       ├── servers/    #             the servers a document declares, one registry
 │   │       ├── document/   #             info, and what the document keeps verbatim
-│   │       └── canary/ openapitest/ ynode/ # tests only: library canaries, fixtures, YAML nodes
+│   │       └── canary/ openapitest/ ynode/ # tests only: library canaries, fixtures, YAML nodes,
+│   │                       #             and lowering/loweringtest/, a context over a loaded document
 │   ├── typespec/ smithy/ graphql/ asyncapi/ protobuf/ otp/   (future)
-├── pass/                   # Layer 1 — IR → IR passes (validate, dedup, filter, slice, overlay).
+├── pass/                   # Layer 1 — IR passes: validate, names, dedup, filter, slice, overlay.
 ├── emitters/               # Layer 2 — emitter contract, plan layer, registry (future).
 ├── engine/                 # Layer 3 — orchestration: detect format, run compiler, passes, emitters.
 │   ├── cache/              #           Keeps a run's entries on disk, and names the build.
 │   ├── reader/             #           Reads what a run's references name: disk, network or memory.
-│   ├── report/             #           Renders diagnostics and --explain for a person.
+│   ├── triage/             #           The rules a caller writes about a run's findings, and the findings as rated.
+│   ├── report/             #           Renders the findings, as text or a JSON report, and --explain.
 │   └── output/             #           Writes the IR document to a stream, or to a file atomically.
-├── internal/archtest/      #           Layering, the recursion pin, reachability and the caps (tooling).
+├── internal/archtest/      #           Layering, the recursion pin, reachability, call shape, caps (tooling).
 ├── internal/census/        #           Counts which IR facts a set of documents sets (tooling).
 ├── internal/conformance/   #           Holds each registered format to its matrix column (tooling, tests only).
 ├── internal/decls/         #           Type-checked reads of declarations, for tests (tooling).
+├── internal/exectest/      #           The one way a test builds a child command (tooling, tests only).
 ├── internal/harness/       #           Bug-catching oracle sweep over a spec corpus (tooling).
 ├── internal/jsonshape/     #           The IR's JSON shape: IRVersion's pin and the census read it (tooling).
 ├── internal/keydoc/        #           Reader of the keyed documents and their citations (tooling).
@@ -609,8 +657,9 @@ Dependency rules, enforced by an architecture test as in oagen:
 - `ir` imports only the standard library. It contains no parsing, no generation, no I/O.
 - `barrier` imports only the standard library, and sits below the packages that run code they do not
   own behind it: `compilers`, which runs a compiler, `engine`, which runs a pass, and the OpenAPI
-  compiler's `diag`, behind which that compiler runs its parser, its overlay library and its own
-  alias scan. No other package recovers a panic outside its tests, as `.golangci.yml` enforces.
+  compiler's `diag`, behind which that compiler runs its parser, the JSONPath evaluator it applies
+  an overlay with and its own alias scan. No other package recovers a panic outside its tests, as
+  `.golangci.yml` enforces.
 - `compilers/compile` imports only `ir`: it is below every compiler, not beside them.
 - `compilers/*` and `pass` import `ir` (and their own format libraries), and `pass` also
   `ir/irfacts` — never each other, never `emitters` or `engine`. A compiler also names the
@@ -624,15 +673,24 @@ Dependency rules, enforced by an architecture test as in oagen:
   beneath it carries an entry of its own, as a compiler's packages do.
 - `engine` imports everything below it; `cmd` imports `engine`.
 
+The import rules bound what a package names, not where control goes: a package can still call into
+one it does not import, through a function, an interface or a type argument handed to it.
+`internal/archtest` counts those calls for each pair of packages and holds them to
+`callShapeBaseline`, where each pair says what its calls are: a designed seam such as the registry
+calling a compiler, a traversal or immediate callback, or a function #1488 keeps, such as I/O, a
+policy or a lazily built index. A new such call is a change to that table, made on purpose, rather
+than one no check sees.
+
 The engine owns every read, every write and every rendering for a person, so a second driver — an
 editor integration, an emitter driver, a test harness — reads, writes and reports exactly as the CLI
 does without importing it. It takes a spec file (`Run`), a spec held in memory beside documents on
 disk (`RunSpec`, for an edited buffer or a harness), sources already in memory (`RunSources`, which
 reads nothing else), or a document already compiled (`RunDocument`, which runs the passes alone).
 `engine/reader` reads what a source's references name, `engine/output` writes the document to a
-stream or replaces a file atomically, `engine/report` renders diagnostics and `--explain`, and
-`engine/cache` keeps what a run compiled (§2.6). The CLI parses flags, picks the streams, cancels
-the run on SIGINT, SIGTERM or SIGHUP, and turns the run into an exit code.
+stream or replaces a file atomically, `engine/report` renders the findings and `--explain`,
+`engine/triage` rates the findings by a caller's rules (§4), and `engine/cache` keeps what a run
+compiled (§2.6). The CLI parses flags, picks the streams, cancels the run on SIGINT, SIGTERM or
+SIGHUP, and turns the run into an exit code.
 
 Two caps guard the shape rather than the graph, both in `internal/archtest` and `.golangci.yml`:
 no type under `compilers/` may carry more than 20 methods, and no function may exceed 70 lines or
@@ -657,19 +715,58 @@ heuristics that produced it, when any did. A shared primitive, which every sourc
 names no source (`NoSource`); so does a pass reporting on the document itself, which locates its
 finding by an IR-space `Node` instead. Every stage returns
 `[]Diagnostic{Severity, Code, Message, Provenance}`. Codes are stable strings
-(`openapi/unresolved-ref`, `ir/dangling-type-ref`, `pass/discriminator-missing-variant`) so CI
-can allowlist. A mature allowlist entry is keyed by (diagnostic code × entity ID), requires a
-human rationale, supports expiry tied to a release, and rejects wildcards — narrowness is
-validated, so approvals cannot rot into blanket suppressions. Nothing in the pipeline writes to
-stderr. The engine renders diagnostics (`engine/report`), and a driver such as the CLI chooses the
-stream they go to.
+(`openapi/unresolved-ref`, `ir/dangling-type-ref`, `pass/discriminator-missing-variant`) so a
+caller can name them. Nothing in the pipeline writes to stderr. The engine renders diagnostics
+(`engine/report`), and a driver such as the CLI chooses the stream they go to.
+
+**Triage.** A caller rules on the findings of a run with `RunOptions.Triage`, rules of
+`engine/triage` the CLI reads from a `--triage` file. A rule names one code, matched exactly, and a
+reason, and either rates the code's findings at another severity, everywhere or at one place, or
+accepts the findings at one place, which then fail the run at no threshold. A place is the
+finding's pointer in the spec or its IR node, the two locators that stay put while a spec is
+edited, as a line does not. The decisions it rests on:
+
+- *No pattern.* A `*` in a code is refused, and a rule names one place or none, so a rule written
+  for the findings someone has seen applies to none elsewhere: a new finding a pattern happened to
+  match would be accepted unread. Rating a whole code is the one breadth admitted, as a rated
+  finding is still counted and shown at its rating. A place still holds every finding of a code
+  there, one reported later included, and it can hold a whole scope: a pass places a collision
+  between two of the document's types at the document's node, so a rule accepting one accepts the
+  next (#1825).
+- *An acceptance names a place.* Accepting a code everywhere would be a blanket suppression, so an
+  acceptance is keyed by code and place, the code-by-entity key the [prior art](./prior-art.md)
+  takes for an approval.
+- *A rule that matches nothing is reported.* `Result.UnusedRules` lists it on a run that
+  produced a document, and the CLI names it: unless its pass is off, the finding it was written
+  for has gone, because the spec changed or a later build lowers the construct, and the rule
+  can go too. That is the decay an approval's expiry stands guard against, found by the run
+  itself; an expiry by date would make one run's verdict depend on the day it ran, and morphic
+  has no release a rule could name.
+- *Rules are applied after the run, never stored.* `Result.Diagnostics` and the document keep the
+  findings as their stages reported them, `Result.Findings` holds them as rated, and the cache keys
+  no rule, so a cached run is rated by the rules of the run it answers.
+- *A rule cannot hide a broken stage.* A finding reported at a severity the IR does not declare
+  fails the run with a Go error whatever a rule makes of it.
+- *No profile ships.* A profile of the codes whose findings change no lowering cannot be written
+  while one `openapi/validation` code spans rules that do and rules that do not, as
+  `validation-allowed-values` does for a path parameter's `required: false`, lowered as required
+  anyway, and an unknown `style`, which reaches the IR (#1802).
+
+A finding in a document a `$ref` reads has no place a rule names yet, so a rule rates it by its
+code alone and none accepts it (#1804).
+
+The CLI's text writes each finding at its rating, but only the first few of each code and
+severity, and counts the rest, as a run of the golden spec draws about two thousand findings;
+its JSON report writes every finding with the rule it met, under a schema version a test holds to
+the encoded shape.
 
 **What fails a run.** A stage reports severities; whether the run fails is the engine's verdict,
-taken once the passes have reported, and recorded as `Result.Failed`, so the CLI's exit status
-(`--fail-on`) and any other driver read one rule rather than each reading the diagnostics its own
-way. `RunOptions.FailOn` sets the threshold. At `error`, the default, an error diagnostic fails the
-run; `warning` and `info` are stricter gates, each failing it on a diagnostic at or above that
-severity; `none` fails only a run that produced no document, which fails at every threshold. A
+taken once the passes have reported and the triage has rated their findings, and recorded as
+`Result.Failed`, so the CLI's exit status (`--fail-on`) and any other driver read one rule rather
+than each reading the diagnostics its own way. `RunOptions.FailOn` sets the threshold. At `error`,
+the default, a finding rated an error fails the run; `warning` and `info` are stricter gates, each
+failing it on a finding rated at or above that severity, and no threshold fails it on a finding a
+rule accepted; `none` fails only a run that produced no document, which fails at every threshold. A
 diagnostic of a severity the IR does not declare is a stage breaking its contract and fails the run
 with a Go error: no threshold can rank it, and ranking it below them all would let a misspelt error
 through every gate. Failing withholds nothing: a failed run still returns its document and every
@@ -699,15 +796,22 @@ something a caller asks for with `none`, never a default.
   order — no panic, `irverify`'s structural invariants, no error diagnostic, JSON round-trip,
   determinism across two compiles, each pass's idempotence and the pass list's (§2.2), and
   **order-independence**. The last one compiles the same source twice with every mapping's entry
-  order reversed and diffs the two documents. It is the general form of the two-order check, and it
-  is what catches an interning collision: two declarations minting one node at a single pointer
-  produce the same document read either way only if neither is the one that got there first. Both
-  pointer collisions the compiler has had were invisible to a single-order suite.
+  order reversed, each YAML anchor moved to the first place that names it, and diffs the two
+  documents whole, forgiving only the order of what a mapping orders. It is the general form of the
+  two-order check, and it is what catches an interning collision: two declarations minting one node
+  at a single pointer produce the same document read either way only if neither is the one that got
+  there first. Both pointer collisions the compiler has had were invisible to a single-order suite.
+  An error diagnostic stops none of the oracles, and an oracle with nothing to compare declines,
+  saying why, so a sweep's summary counts what each asked and what it could not. The order oracle
+  leaves sequences as written, an `allOf`'s branches among them (#1666), and compiles at the
+  default limits alone (#1519).
 - **Architecture test** (`internal/archtest`): import-graph assertions for the layering rules
   above, plus the rules the graph cannot express — which lowerings are mutually recursive (so a
-  set that grows is noticed rather than measured), the method-per-type cap, and that no function is
+  set that grows is noticed rather than measured), the method-per-type cap, that no function is
   reached by tests alone, bar the test-support packages and the API kept, by name, for a caller to
-  come.
+  come, and how many calls each package makes into one it does not import, through a function, an
+  interface or a type argument handed to it, held to a baseline that rises only for a call of a kind
+  it keeps, such as a traversal callback.
 - **Lint rules** (`.golangci.yml`; `internal/lintrules`, under `make vet`): what a linter can
   hold — which packages may build or write an `ir.TypeRegistry`, derive a name or build an ID, that
   no pipeline stage prints or logs, and that a switch over an IR enum names every member. Each rule

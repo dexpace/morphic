@@ -6,10 +6,12 @@
     ],
     "e": [
       "anon",
+      "composed",
       "openapi"
     ],
     "g": [
       "default",
+      "extension",
       "path-prefix",
       "tags",
       "webhooks"
@@ -84,6 +86,7 @@
                           "target": "t/prim/any",
                           "nullable": false
                         },
+                        "stream": {},
                         "item": {
                           "target": "t/anon/paths/~1events/get/responses/200/content/multipart~1mixed/itemSchema",
                           "nullable": false
@@ -120,8 +123,7 @@
                     "method": "GET",
                     "uriTemplate": "/events",
                     "sharedRoute": false,
-                    "checksumRequired": false,
-                    "isWebhook": false
+                    "checksumRequired": false
                   }
                 ]
               },
@@ -158,6 +160,7 @@
                           "target": "t/prim/any",
                           "nullable": false
                         },
+                        "stream": {},
                         "item": {
                           "target": "t/anon/paths/~1parts/get/responses/200/content/multipart~1mixed/itemSchema",
                           "nullable": false
@@ -210,8 +213,7 @@
                     "method": "GET",
                     "uriTemplate": "/parts",
                     "sharedRoute": false,
-                    "checksumRequired": false,
-                    "isWebhook": false
+                    "checksumRequired": false
                   }
                 ]
               },

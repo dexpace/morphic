@@ -6,10 +6,12 @@
     ],
     "e": [
       "anon",
+      "composed",
       "openapi"
     ],
     "g": [
       "default",
+      "extension",
       "path-prefix",
       "tags",
       "webhooks"
@@ -57,6 +59,155 @@
     }
   ],
   "types": {
+    "t/openapi/components/schemas/Bird": {
+      "kind": "model",
+      "id": "t/openapi/components/schemas/Bird",
+      "name": {
+        "source": "Bird",
+        "canonical": "bird"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "unmodeled": {
+        "openapi:$id": {
+          "reason": "out_of_scope",
+          "value": "https://example.com/bird",
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Bird/$id"
+          }
+        }
+      },
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Bird"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/Bird/properties/petType",
+          "name": {
+            "source": "petType",
+            "canonical": "pet_type"
+          },
+          "wireName": "petType",
+          "type": {
+            "target": "t/prim/string",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Bird/properties/petType"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/openapi/components/schemas/Cat": {
+      "kind": "model",
+      "id": "t/openapi/components/schemas/Cat",
+      "name": {
+        "source": "Cat",
+        "canonical": "cat"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Cat"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/Cat/properties/meow",
+          "name": {
+            "source": "meow",
+            "canonical": "meow"
+          },
+          "wireName": "meow",
+          "type": {
+            "target": "t/prim/bool",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Cat/properties/meow"
+          }
+        }
+      ],
+      "base": {
+        "target": "t/openapi/components/schemas/Pet",
+        "nullable": false
+      },
+      "abstract": false,
+      "positional": false,
+      "discriminatorValue": "cat",
+      "inputOnly": false
+    },
+    "t/openapi/components/schemas/CatAlias": {
+      "kind": "scalar",
+      "id": "t/openapi/components/schemas/CatAlias",
+      "name": {
+        "source": "CatAlias",
+        "canonical": "cat_alias"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/CatAlias"
+      },
+      "base": {
+        "target": "t/openapi/components/schemas/Cat",
+        "nullable": false
+      }
+    },
+    "t/openapi/components/schemas/CatNote": {
+      "kind": "scalar",
+      "id": "t/openapi/components/schemas/CatNote",
+      "name": {
+        "source": "CatNote",
+        "canonical": "cat_note"
+      },
+      "anonymous": false,
+      "docs": {
+        "description": "a noted cat"
+      },
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/CatNote"
+      },
+      "base": {
+        "target": "t/openapi/components/schemas/Cat",
+        "nullable": false
+      }
+    },
     "t/openapi/components/schemas/Dog": {
       "kind": "model",
       "id": "t/openapi/components/schemas/Dog",
@@ -158,10 +309,62 @@
         "property": "p/openapi/components/schemas/Pet/properties/petType",
         "mapping": {
           "alpha": "t/openapi/components/schemas/Dog",
+          "cat": "t/openapi/components/schemas/Cat",
+          "kitten": "t/openapi/components/schemas/Cat",
           "zulu": "t/openapi/components/schemas/Dog"
         },
         "inferred": false
       },
+      "inputOnly": false
+    },
+    "t/openapi/components/schemas/Pets": {
+      "kind": "union",
+      "id": "t/openapi/components/schemas/Pets",
+      "name": {
+        "source": "Pets",
+        "canonical": "pets"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Pets"
+      },
+      "variants": [
+        {
+          "name": {
+            "hint": "cat"
+          },
+          "type": {
+            "target": "t/openapi/components/schemas/Cat",
+            "nullable": false
+          },
+          "docs": {}
+        },
+        {
+          "name": {
+            "hint": "bird"
+          },
+          "type": {
+            "target": "t/openapi/components/schemas/Bird",
+            "nullable": false
+          },
+          "docs": {}
+        }
+      ],
+      "exclusive": true,
+      "wireTagged": true,
+      "discriminator": {
+        "propertyName": "petType",
+        "mapping": {
+          "bird": "t/openapi/components/schemas/Bird",
+          "cat": "t/openapi/components/schemas/Cat",
+          "kitten": "t/openapi/components/schemas/Cat"
+        },
+        "inferred": false
+      },
+      "closed": true,
       "inputOnly": false
     },
     "t/prim/bool": {
@@ -211,13 +414,31 @@
         "source": 0,
         "pointer": "/components/schemas/Dog"
       }
+    },
+    {
+      "severity": "info",
+      "code": "openapi/degraded-construct",
+      "message": "the discriminator mapping names this schema under 2 keys (cat, kitten); discriminatorValue holds the smallest in byte order, and the base's mapping keeps them all",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Cat"
+      }
+    },
+    {
+      "severity": "info",
+      "code": "openapi/degraded-construct",
+      "message": "$id identifies or configures a JSON Schema resource rather than describing data; the IR models no such axis, so it is kept verbatim under Unmodeled and is read only for reference resolution",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Bird/$id"
+      }
     }
   ],
   "sources": [
     {
       "format": "openapi@3.1",
       "path": "discriminator-alias-mapping.yaml",
-      "hash": "1089b1621bcb5bfc402131bcbd3c766dc3d9cd4ad4ff49fd8664d61c0c373e6a"
+      "hash": "1f6a75ec132ca85759e65b57e92a6c739747f32c7698163db7fc69b051bf4c91"
     }
   ]
 }

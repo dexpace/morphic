@@ -16,7 +16,7 @@ import (
 
 func TestInternalPointer(t *testing.T) {
 	t.Parallel()
-	sc := resolve.Scope{SelfPath: "m.yaml", Declares: func(string) bool { return false }}
+	sc := resolve.Scope{SelfPath: "m.yaml"}
 	cases := []struct {
 		ref    string
 		want   jsontext.Pointer
@@ -51,7 +51,7 @@ func TestInternalPointer(t *testing.T) {
 // declared names failed every spec-correct escape (GitHub #40).
 func TestInternalPointer_AgreesWithTheResolverOnWhatItIsHanded(t *testing.T) {
 	t.Parallel()
-	sc := resolve.Scope{SelfPath: "m.yaml", Declares: func(string) bool { return false }}
+	sc := resolve.Scope{SelfPath: "m.yaml"}
 	tests := []struct {
 		name, ref string
 		want      jsontext.Pointer
@@ -72,10 +72,9 @@ func TestInternalPointer_AgreesWithTheResolverOnWhatItIsHanded(t *testing.T) {
 		{name: "leading space", ref: " #/components/schemas/A", want: "/components/schemas/A", internal: true},
 		{name: "second hash ends the pointer", ref: "#/a#b", want: "/a", internal: true},
 		{name: "self-document part still internal", ref: "m.yaml#/components/schemas/A%2DB", want: "/components/schemas/A-B", internal: true},
-		// The document half is not decoded, because the resolver does not decode it
-		// either: GetURI trims and stops. A self-reference has to be spelled the way
-		// the file is named.
-		{name: "document half is not decoded", ref: "m%2Eyaml#/components/schemas/A", internal: false},
+		// The document half is read as the file it names, decoded, as the load
+		// phase hands it to the resolver (Locate, ForResolver).
+		{name: "document half is decoded", ref: "m%2Eyaml#/components/schemas/A", want: "/components/schemas/A", internal: true},
 		{name: "a plus in the document half is no escape", ref: "m+x.yaml#/components/schemas/A", internal: false},
 		// No document key can spell a byte that is not UTF-8, so the fragment can
 		// never resolve (GitHub #520).

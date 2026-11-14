@@ -36,6 +36,23 @@ func comparePositions(p, q Position) int {
 	return cmp.Compare(p.Pointer, q.Pointer)
 }
 
+// PositionOrder returns the order t reads positions in: the source's first,
+// another document's by its name, then by pointer, so an order by it depends
+// on no order documents were read in.
+func PositionOrder(t *Table) func(p, q Position) int {
+	name := func(id DocID) string { return t.docs[id].Name }
+	return func(p, q Position) int { return compareNamed(p, q, name) }
+}
+
+// compareNamed orders p and q as a table reads them, documents named by name
+// (PositionOrder, docs.compare).
+func compareNamed(p, q Position, name func(DocID) string) int {
+	if c, ok := byName(p, q, name); ok {
+		return c
+	}
+	return comparePositions(p, q)
+}
+
 // byName orders p and q, positions in two documents neither of which is the
 // source, by the names name gives those documents.
 func byName(p, q Position, name func(DocID) string) (int, bool) {
@@ -112,26 +129,25 @@ const (
 	// NoTarget is a pointer that names no node of its document.
 	NoTarget
 	// NoResourceTarget is a pointer that names no node of the schema resource
-	// an $id names, which it is read from; Hop.Detail is the resource's URI.
+	// an identifier names, which it is read from; Hop.Detail is the resource's
+	// URI.
 	NoResourceTarget
 	// NotSchema is a node no schema reference may name: an object of the
 	// grammar, or a value that is neither a mapping nor a boolean.
 	NotSchema
 	// NotObject is a node a reference object's $ref names that is no object of
-	// the kind Hop.Detail names. The parser resolves those, not the binder, so
-	// only load words a failure by it, as a schema's NotSchema is worded.
+	// the kind Hop.Detail names: an object the grammar reads as another kind,
+	// or raw YAML that is no mapping.
 	NotObject
 	// NoAnchor is a plain-name fragment no schema of the resource it names
-	// declares as its $anchor or $dynamicAnchor.
+	// declares as its $anchor, its $dynamicAnchor or, in a draft before
+	// 2019-09, an identifier naming that fragment alone (DialectRule.Fragments).
 	NoAnchor
 	// DuplicateAnchor is a plain-name fragment two or more schemas of the
 	// resource it names declare, so it names none.
 	DuplicateAnchor
-	// AnchorUnread is a plain-name fragment naming a resource of another
-	// document, whose identifiers are not read (GitHub #1049).
-	AnchorUnread
-	// DuplicateID is a URI two or more schemas declare as their $id, so it
-	// names none; Hop.Detail is the URI.
+	// DuplicateID is a URI two or more schemas declare as their identifier, a
+	// $id or draft 4's id, so it names none; Hop.Detail is the URI.
 	DuplicateID
 	// BadPointer is a fragment that is no JSON pointer and no $anchor name: an
 	// invalid escape, bytes that are not UTF-8, or a second '#', which RFC
@@ -141,10 +157,10 @@ const (
 	// for.
 	NoDefinition
 	// OwnDefinition is a "#/$defs/..." pointer the $defs rule finds nothing
-	// for, which the schema writing it defines: its own definitions answer
-	// only where an $id makes it a resource of its own, whose root the pointer
-	// is then read from (resources.holding), as OAS 3.1 reads one with none
-	// against the document.
+	// for, which the schema writing it defines: its own definitions answer only
+	// where an identifier makes it a resource of its own, whose root the
+	// pointer is then read from (resources.holding), as OAS 3.1 reads one with
+	// none against the document.
 	OwnDefinition
 	// RawDefinition is a "#/$defs/..." pointer the $defs rule finds nothing
 	// for, which raw YAML above it defines: raw YAML holds no schema of the
@@ -161,16 +177,14 @@ const (
 	// Empty is a reference to another document that was read and holds
 	// nothing (IsEmpty).
 	Empty
-	// BesideRef is a pointer through the fields beside a path item's $ref;
-	// Hop.Use and Hop.Key name them.
-	BesideRef
-	// BesideDefs is a "#/$defs/..." pointer written in the fields beside a path
-	// item's $ref, as any definition it can name is; Hop.Use and Hop.Key name
-	// them.
-	BesideDefs
 	// Unpassable is a pointer through a reference object, in whichever
-	// document, that resolves to nothing the compiler reads.
+	// document, whose chain does not resolve, or whose resolution needs the
+	// hop reading that pointer.
 	Unpassable
+	// Held is a reference to a document an absolute URI names, whose read waits
+	// until the pass's walks are done. The pass then reads it and answers it,
+	// unless the budget cuts it first.
+	Held
 	// MergeBound is a read that stopped at a mapping merging through `<<`
 	// deeper than nodeview.MergeDepthLimit, so a key it needs may lie past the
 	// bound: one the pointer names, an $id that may give the base it is read
@@ -182,36 +196,30 @@ const (
 // Hop is where the $ref written at a position lands: the next position of its
 // chain, or why there is none.
 type Hop struct {
+	// Target is the position the hop lands on.
+	Target Position
 	// Ref is the $ref as written.
-	Ref    string
+	Ref string
+	// Detail is a read error, for Unreadable, a parse error, for Unparsable,
+	// the URI named, for NoResourceTarget and DuplicateID, and the kind of
+	// object asked for, for NotObject.
+	Detail string
+	// Status is how the hop ended, and Reason why, when it is Unresolved.
 	Status Status
 	Reason Reason
-	// Detail is a read error, for Unreadable, a parse error, for Unparsable,
-	// and the URI named, for NoResourceTarget and DuplicateID.
-	Detail string
-	// Use and Key are the path item $ref and the key written beside it, for
-	// BesideRef.
-	Use jsontext.Pointer
-	Key string
-	// Target is the position the hop lands on, and Role what it reads there.
-	Target Position
-	Role   Role
-	// Named reports whether the $ref names the source, and Spelled is then the
-	// pointer it spells from the source's root: where the lowering places what
-	// it names, though a reference object it passes may carry Target into
-	// another document.
-	Named   bool
-	Spelled jsontext.Pointer
+	// Role is what the hop reads at Target.
+	Role Role
 }
 
 // Chain is where a reference's chain of $refs ends: following each hop until a
 // position holds no $ref.
 type Chain struct {
-	Status Status
 	// End is the position the chain ends on, when Resolved; Hops counts the
 	// $refs read to reach it.
 	End  Position
 	Hops int
+	// Status is how the chain ended.
+	Status Status
 	// Member reports, when Cyclic, whether the position itself lies on a loop
 	// rather than leading into one.
 	Member bool
@@ -225,18 +233,82 @@ type Entry struct {
 }
 
 // Loop is a cycle of $refs: its members, ordered, and Site, where it is
-// reported: the least of them, in whichever document.
+// reported: the least of them, in whichever document. Kind is the kind of
+// object a loop of reference objects stands for, and zero for one of schema
+// $refs.
 type Loop struct {
 	Members []Position
 	Site    Position
+	Kind    RefKind
 }
 
-// Landing is a position some hop reads as a schema though the parser's model
+// RefKind is the kind of object a Reference Object stands for, which the
+// position writing it reads and which its $ref must land on. The zero RefKind
+// is none: a schema's $ref.
+type RefKind uint8
+
+// The kinds of object a Reference Object can stand for, in the order a
+// position reading several is settled in.
+const (
+	RefPathItem RefKind = iota + 1
+	RefParameter
+	RefHeader
+	RefRequestBody
+	RefResponse
+	RefCallback
+	RefExample
+	RefLink
+	RefSecurityScheme
+	RefMediaType
+)
+
+// refKindNames spells each RefKind, in order, as a message names one.
+var refKindNames = []string{"path item", "parameter", "header", "request body", "response", "callback",
+	"example", "link", "security scheme", "media type"}
+
+// String spells k as a message names the kind of object, or "schema" for the
+// zero RefKind and "object" for a value no constant names.
+func (k RefKind) String() string {
+	switch {
+	case k == 0:
+		return "schema"
+	case int(k) > len(refKindNames):
+		return "object"
+	default:
+		return refKindNames[k-1]
+	}
+}
+
+// Reference is one position writing a Reference Object's $ref, read as Kind:
+// its hop, which lands on an object of Kind or fails NotObject, and its chain.
+type Reference struct {
+	Site  Position
+	Kind  RefKind
+	Hop   Hop
+	Chain Chain
+}
+
+// ObjectLanding is a position a Reference Object's chain lands on that the
+// source's grammar reads as no object of Kind, which an object of Kind is
+// built for: raw YAML of the source, such as an extension's value, or a node of
+// another document, whose Name it is in. Site is the least position whose
+// chain reaches it, in whichever document; Reached is false when none does, as
+// where the budget cut the reading.
+type ObjectLanding struct {
+	At      Position
+	Kind    RefKind
+	Name    string
+	Site    Position
+	Reached bool
+}
+
+// Landing is a position the table reads as a schema though the parser's model
 // holds none there, which a schema has to be built for: raw YAML in the
-// source, or a node of another document, whose Name it is in. Site is the
-// least position whose chain reaches it, a $ref's or a mapping value's, in
-// whichever document; Reached is false when none does, as where the budget
-// cut the reading.
+// source, or a node of another document, whose Name it is in, that some hop
+// reads, or a tuple's entry or rest, which the model has no member for. Site
+// is the least position whose chain reaches it, a $ref's, a mapping value's or
+// an expanding $dynamicRef's, in whichever document, or the schema writing the
+// tuple; Reached is false when none does, as where the budget cut the reading.
 type Landing struct {
 	At      Position
 	Name    string
@@ -255,7 +327,7 @@ type Mapping struct {
 // Why says why h, a hop that did not resolve, lands on no schema, in one
 // phrasing for every report of it.
 func (h Hop) Why() string {
-	if h.Status == OverBudget {
+	if h.Status == OverBudget || h.Reason == Held {
 		return "it was not read within the budget"
 	}
 	switch h.Reason {
@@ -268,14 +340,14 @@ func (h Hop) Why() string {
 	case NotObject:
 		return "it names a position that holds no " + h.Detail
 	case NoAnchor:
-		return "no schema of the resource it names declares that name as its $anchor or $dynamicAnchor"
+		return "no schema of the resource it names declares that name as its $anchor, its $dynamicAnchor " +
+			"or, in a draft before 2019-09, an identifier naming that fragment alone"
 	case DuplicateAnchor:
-		return "two or more schemas of the resource it names declare that name as their $anchor or " +
-			"$dynamicAnchor, so it names none of them"
-	case AnchorUnread:
-		return "it names a plain name in another document, whose identifiers are not read (GitHub #1049)"
+		return "two or more schemas of the resource it names declare that name as their $anchor, their " +
+			"$dynamicAnchor or, in a draft before 2019-09, an identifier naming that fragment alone, so it " +
+			"names none of them"
 	case DuplicateID:
-		return "two or more schemas declare " + h.Detail + " as their $id, so it names none of them"
+		return "two or more schemas declare " + h.Detail + " as their identifier, so it names none of them"
 	case BadPointer:
 		return "its fragment is no JSON pointer"
 	case NoDefinition:
@@ -283,7 +355,7 @@ func (h Hop) Why() string {
 			"holds one by that name"
 	case OwnDefinition:
 		return "the schema writing it defines that name, but a schema's own definitions answer a " +
-			"\"#/$defs/...\" pointer only where an $id makes it a resource of its own, and neither the " +
+			"\"#/$defs/...\" pointer only where an identifier makes it a resource of its own, and neither the " +
 			"document's root nor a schema of the model above it holds one"
 	case RawDefinition:
 		return "raw YAML above it, such as an extension's value, defines that name, but raw YAML holds no " +
@@ -297,26 +369,12 @@ func (h Hop) Why() string {
 		return "the document it names does not parse as YAML: " + h.Detail
 	case Empty:
 		return "the document it names is empty"
-	case BesideRef:
-		return "it reaches " + string(h.Spelled) + "; " + BesideReason(h.Use, h.Key)
-	case BesideDefs:
-		return "it is written in the fields beside a path item $ref, as is any definition it can name; " +
-			BesideReason(h.Use, h.Key)
 	case Unpassable:
-		return "its pointer passes through a reference that resolves to nothing the compiler reads"
+		return "its pointer passes through a reference that does not resolve"
 	case MergeBound:
 		return "it reads a key that may lie past a `<<` merge chain deeper than the " +
 			strconv.Itoa(nodeview.MergeDepthLimit) + " levels the compiler expands"
 	default:
 		return "it does not resolve"
 	}
-}
-
-// BesideReason says why a reference reaching the fields beside the path item
-// $ref at use, under key, is left unresolved, in one phrasing for every
-// report.
-func BesideReason(use jsontext.Pointer, key string) string {
-	return "the path item $ref at " + string(use) + " has " + strconv.Quote(key) + " written beside it, and " +
-		"the resolver reads a pointer through that $ref into the item it names, not into the field written " +
-		"there, so the reference is left unresolved (GitHub #824)"
 }

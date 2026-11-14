@@ -8,7 +8,9 @@ package e2e_test // external test package — exercises only the public API
 
 import (
 	"encoding/json/v2"
+	"errors"
 	"fmt"
+	"net/http"
 	"os"
 	"path/filepath"
 	"slices"
@@ -65,15 +67,28 @@ func TestExternalCorpus_DeclarationOrderDecidesNothing(t *testing.T) {
 	}
 }
 
+// TestExternalCorpus_RemoteReadsAreRefused holds the order oracle's reader
+// offline: a remote reference it meets fails with errOffline, so neither order
+// depends on the network.
+func TestExternalCorpus_RemoteReadsAreRefused(t *testing.T) {
+	t.Parallel()
+	// example.invalid never resolves (RFC 6761), so a regressed reader still
+	// contacts no third-party host.
+	const root = `openapi: 3.1.0
+info: {title: T, version: "1"}
+paths: {}
+components:
+  schemas:
+    A: {$ref: "https://example.invalid/a.yaml"}
+`
+	got := compiledThrough(t, t.TempDir(), root)
+	assert.Contains(t, strings.Join(got, "\n"), errOffline.Error(), "the oracle's reader sent a remote read")
+}
+
 // orderDecided holds the corpus specs whose report, compiled as another
 // document, still follows declaration order, each with the issue recording
 // why. An entry must still differ, so it comes off once its issue is fixed.
-var orderDecided = map[string]string{
-	// The resolver keeps the hops of a failing chain, so of two references into
-	// one cycle, the one resolved second is reported without the hop the first
-	// was reported through.
-	"cycle_path_item_mutual.yaml": "#767",
-}
+var orderDecided = map[string]string{}
 
 // referencingRoots returns two sources that each $ref every path item and every
 // component of the OpenAPI 3 document data as ext.yaml: one in data's order,
@@ -152,15 +167,27 @@ func mappingKeys(n *yaml.Node) []string {
 	return out
 }
 
-// compiledThrough compiles root as root.yaml in dir with external references
-// allowed, and returns what an order comparison reads: each diagnostic, sorted,
-// and the types, encoded deterministically.
+// errOffline is the one failure every http(s) read of the sweep gets.
+var errOffline = errors.New("the order oracle reads no http(s) reference")
+
+// stubOffline is a RoundTripper that sends nothing and fails every request alike,
+// so both declaration orders see the same report for a remote reference
+// whatever the network does, and the suite reaches no third-party host.
+type stubOffline struct{}
+
+// RoundTrip implements http.RoundTripper.
+func (stubOffline) RoundTrip(*http.Request) (*http.Response, error) { return nil, errOffline }
+
+// compiledThrough compiles root as root.yaml in dir with external file
+// references allowed and every http(s) one refused, and returns what an order
+// comparison reads: each diagnostic, sorted, and the types, encoded
+// deterministically.
 func compiledThrough(t *testing.T, dir, root string) []string {
 	t.Helper()
 	path := filepath.Join(dir, "root.yaml")
 	require.NoError(t, os.WriteFile(path, []byte(root), 0o600))
 	doc, diags, err := openapi.New().Compile(t.Context(), []compilers.Source{{Path: path, Data: []byte(root)}},
-		compilers.Options{Reader: reader.Disk{}, FormatOptions: openapi.Options{AllowExternalRefs: true}})
+		compilers.Options{Reader: reader.Disk{Client: &http.Client{Transport: stubOffline{}}}, FormatOptions: openapi.Options{AllowExternalRefs: true}})
 	require.NoError(t, err)
 	out := make([]string, 0, len(diags)+1)
 	for _, d := range diags {

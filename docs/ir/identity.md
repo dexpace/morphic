@@ -12,10 +12,10 @@ type ServerID string
 
 IDs are opaque to consumers but constructed deterministically by compilers from the source pointer
 of the defining occurrence, so the same input always yields the same IDs (stable snapshots,
-cachable, diffable across revisions that keep each entity's pointer; one that renames a path or a
-component gives what is beneath it new IDs, #419). IDs are never derived from display names and
-never rewritten by renames. The `dedup` pass may alias two structurally identical anonymous types;
-aliases are recorded so both IDs stay resolvable.
+cachable, diffable). An ID identifies an entity within one document; across two revisions it does
+so only while the entity's pointer is unchanged ([across revisions](#across-revisions)). IDs are
+never derived from display names and never rewritten by renames. The `dedup` pass may alias two
+structurally identical anonymous types; aliases are recorded so both IDs stay resolvable.
 
 ## The ID grammar
 
@@ -27,7 +27,8 @@ different things and nothing outside the format can compute one. Whatever the fo
 without its leading `/`: a protobuf full name is one segment, so `acme.v1.UserId` is recorded as
 `/acme.v1.UserId`. A node a lowering *mints* rather than finds takes a namespace of its own, so no
 pointer a reference can spell ever reaches it — the general form of the rule
-[models](./models.md#composition-beside-a-union) states for distributed unions.
+[models](./models.md#composition-beside-a-union) states for distributed unions and for the union a
+routed subtype composes.
 
 ## Across documents
 
@@ -41,6 +42,41 @@ source's directory, as one segment, escaped as RFC 6901 escapes a token:
 declares. The location, not the entry's index, qualifies it, so an ID moves only when its document
 does. Operations, parameters and security schemes are named by where the source mounts or names
 them, so they take the source's namespace whichever document declares them.
+
+## Across revisions
+
+An ID is a function of where its entity sits in the source, so two revisions of one API agree on an
+ID exactly where they agree on that position. Two kinds of edit break the agreement, and they fail
+in opposite ways:
+
+- **A renamed position gives new IDs.** Renaming a path, a component or a document, or moving a
+  schema within its file, changes the pointer of the entity and of everything beneath it, so a
+  consumer comparing by ID reads one entity removed and another added.
+- **A reordered array gives an old ID to another entity.** A pointer through an array names a
+  position in it, so an entry inserted before it moves the next revision's entity onto the old
+  index: `t/anon/paths/~1things/get/parameters/0/schema` is the `sort` parameter's enum in one
+  revision and the `color` parameter's in the next, once `color` is listed first. The same holds
+  for every other array a pointer passes through: `allOf`, `anyOf` and `oneOf` branches,
+  `prefixItems`, a list of `type`s, an `enum`'s values and a list of `servers`. A consumer
+  comparing by ID then attaches one entity's state to another, a wrong match rather than a missing
+  one, and nothing about either ID shows it. The golden spec's own history holds a case
+  ([correlation keys](./derived-facts.md#correlation-keys)). On the golden spec 10,122 of 41,697
+  types, 13,466 of 32,291 enum members, 5,871 of 49,434 properties and all 8 servers have an ID
+  that passes through an array index (spec @319dc756, morphic @b206dc99):
+
+  ```bash
+  morphic compile openapi.json | jq -c '[.. | objects | .id? | strings | select(contains("/"))]
+    | group_by(split("/")[0]) | map({key: .[0] | split("/")[0], value: [length, (map(select(
+      test("/(parameters|allOf|anyOf|oneOf|prefixItems|type|enum|servers)/[0-9]+(/|$)")))
+       | length)]}) | from_entries'
+  ```
+
+So an ID is never, on its own, evidence that two revisions hold the same entity. What carries an
+entity across revisions is its [correlation key](./derived-facts.md#correlation-keys), built from
+what the document itself names the entity by and never from an array position, save a tuple
+element's. A consumer that keys state by ID across revisions trusts a match only where the
+correlation key agrees too, and treats a match on the key alone as the same entity moved. A diff of
+two revisions, inside Morphic or outside it, rests on the key for the same reason.
 
 ## Primitives
 
@@ -88,10 +124,11 @@ messages (AsyncAPI reuses one named message across channels, operations, and rep
 An operation group is the plainest minted node. OpenAPI has no construct that is a group: a Tag
 Object is metadata about a name, and an operation may use a tag no Tag Object declares. The rule
 that forms the group therefore mints its ID, in a namespace named for the rule — the OpenAPI
-compiler's are `g/tags/<tag name>`, `g/path-prefix/<first segment>`, and the two singletons
-`g/default` and `g/webhooks`. A format that declares its groups (a TypeSpec interface, a Smithy
-resource, a protobuf service) takes the declaration's own coordinate as the path, as it does for
-any other entity. Either way the ID is unique across the whole document, nested groups and every
+compiler's are `g/tags/<tag name>`, `g/path-prefix/<first segment>`,
+`g/extension/<segment>/<segment>…` for the group path a vendor extension states, and the two
+singletons `g/default` and `g/webhooks`. A format that declares its groups (a TypeSpec interface, a
+Smithy resource, a protobuf service) takes the declaration's own coordinate as the path, as it does
+for any other entity. Either way the ID is unique across the whole document, nested groups and every
 service included, because a consumer keys a group by it alone; `irverify` reports a repeat as
 `ir/duplicate-group-id` and an absent one as `ir/empty-group-id`. The group's `Naming` is never part
 of it, so two groups that render the same words stay two entities, and what an emitter does about
@@ -107,13 +144,14 @@ apiece, and a path item reached from two paths gives each mount's parameters IDs
 mount. The mount rather than the declaration scopes it, which is the reason an operation is
 identified by its mount (#107), and for the same reason a parameter is exempt from the agreement
 below: its provenance records the declaration it was read from. No list index is used, so reordering
-a parameter list renames nothing unless the list repeats a name and location. OpenAPI forbids a
-repeat, but one reached through a `$ref` gets past the bundled parser's check, and both parameters
-are kept: the first in list order has the bare ID, each repeat appends its occurrence number as one
-more token (`…/<in>/2`), and the compiler reports it (`openapi/duplicate-parameter`), in every list
-the source writes whether or not an operation lowers it. The path is injective and the only rule
-minting into kind `param`, so it takes the format's own namespace, `openapi`, with no space of its
-own.
+a parameter list renames nothing unless the list repeats a name, as spelled, and location. OpenAPI
+forbids a repeat, a header's name compared in any case as HTTP compares it, but one reached through
+a `$ref` gets past the bundled parser's check, and both parameters are kept: the first in list order
+has the bare ID, each repeat of one spelling appends its occurrence number as one more token
+(`…/<in>/2`), so `X-Trace` beside `x-trace` keeps the ID each has alone, and the compiler reports
+it (`openapi/duplicate-parameter`), in every list the source writes whether or not an operation
+lowers it. The path is injective and the only rule minting into kind `param`, so it takes the
+format's own namespace, `openapi`, with no space of its own.
 
 Two things are left open. Nothing holds a parameter's ID beneath its own operation's: `irverify`
 checks it against the grammar, and the OpenAPI compiler roots both at one mount, but a parameter
@@ -125,11 +163,14 @@ them fixes it here.
 
 An enum member is identified by the enum that declares it and the value it holds:
 `e/<the enum's namespace>/<the enum's path>/<key>`. The member lives in the namespace of its
-enum's own `TypeID` (`openapi` for a component schema, `anon` for an inline one) and beneath its
-path, so it needs no namespace of its own: only enums hold members. `irverify` holds it there
-(`ir/member-id-scope`); a member records no pointer for the agreement below to compare, so that
-scope is what ties the two IDs together. The key, and the number a repeated value appends after it,
-are described in [enums](./enums.md#member-identity).
+enum's own `TypeID` (`openapi` for a component schema, `anon` for an inline one, `composed` for one
+a merge mints) and beneath its path, so it needs no namespace of its own: only enums hold members.
+`irverify` holds it there (`ir/member-id-scope`); a member records no pointer for the agreement
+below to compare, so that scope is what ties the two IDs together. The key, and the number a
+repeated value appends after it, are described in [enums](./enums.md#member-identity).
+`ir.EnumMemberIDFor` derives the ID from the enum's ID and the key `ir.EnumMemberKey` reads off the
+value, so a compiler and a pass building an enum reach one ID, and an `ir.Editor` lets an edit add
+it, as only that member can hold it ([architecture](../architecture.md) §2.2).
 
 ## What irverify holds
 

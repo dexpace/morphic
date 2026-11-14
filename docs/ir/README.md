@@ -17,11 +17,12 @@ spec — field names and shapes in them are normative, receiver methods and help
 | Document | Owns |
 |---|---|
 | [document](./document.md) | `Document`: the root, its registries and the API's own metadata |
-| [ir-version](./ir-version.md) | `IRVersion`: what moves it, names included, what a consumer does on a mismatch, and how a bump lands |
+| [ir-version](./ir-version.md) | `IRVersion`: what moves it, names and `Unmodeled` keys included, what a consumer does on a mismatch, and how a bump lands |
 | [version-history](./version-history.md) | What each generation changed, and what a consumer of the one before it sees |
-| [identity](./identity.md) | IDs: the grammar, each class of ID, and what `irverify` holds them to |
-| [naming](./naming.md) | `Naming`: source name, neutral word sequence, hint and aliases |
+| [identity](./identity.md) | IDs: the grammar, each class of ID, what holds across revisions, and what `irverify` holds them to |
+| [naming](./naming.md) | `Naming`: source name, neutral word sequence, hint and aliases, and the names one scope shares |
 | [provenance](./provenance.md) | `Provenance` and `Diagnostic`: where a node or a finding came from |
+| [consumers](./consumers.md) | What a consumer other than an emitter relies on: what it finds, identity across revisions, what to pin, which `Unmodeled` keys hold still, size |
 
 **Types**
 
@@ -30,14 +31,14 @@ spec — field names and shapes in them are normative, receiver methods and help
 | [type-graph](./type-graph.md) | `TypeKind`, `TypeCommon` and `TypeRef` |
 | [primitives](./primitives.md) | `Primitive`, `PrimKind`, the offsets the time kinds hold, and containment between kinds |
 | [scalars](./scalars.md) | `Scalar`, and the alias a position hoists over a shared target |
-| [models](./models.md) | `Model`, `Discriminator`, composition and the flattening |
+| [models](./models.md) | `Model`, `Discriminator`, composition, the flattening and the shapes of a model narrowing a union |
 | [unions](./unions.md) | `Union`, `Variant` and tag modes |
-| [enums](./enums.md) | `Enum`, `EnumMember` and member identity |
+| [enums](./enums.md) | `Enum`, `EnumMember`, member identity, and the union of strings that becomes an `Enum` |
 | [containers](./containers.md) | `List`, `MapT`, `Tuple`, `Literal`, `External`, `Any` |
 | [properties](./properties.md) | `Property` and `Visibility` |
 | [constraints](./constraints.md) | `Constraints`, `Encoding`, `XMLHints` |
 | [values](./values.md) | `Value`, `BigVal` and the typed-data channel |
-| [derived-facts](./derived-facts.md) | What `ir/irfacts` derives: subtypes, exposed properties, usage, recursion |
+| [derived-facts](./derived-facts.md) | What `ir/irfacts` derives: subtypes, exposed properties, usage, recursion, correlation keys |
 
 **The service layer**
 
@@ -45,8 +46,8 @@ spec — field names and shapes in them are normative, receiver methods and help
 |---|---|
 | [services](./services.md) | `Service`, `OperationGroup`, `ResourceInfo` |
 | [operations](./operations.md) | `Operation`, `Parameter` |
-| [payloads](./payloads.md) | `Payload`, `Content`, `PartEncoding`, `FileInfo` |
-| [responses](./responses.md) | `Response`, `Header`, `ErrorCase`, and how a status is classed |
+| [payloads](./payloads.md) | `Payload`, `Content`, `PartEncoding`, `FileInfo`, `ContentStream` |
+| [responses](./responses.md) | `Response`, `Header`, `ErrorCase`, `OperationLink`, and how a status is classed |
 | [interaction-patterns](./interaction-patterns.md) | `Pagination`, `LongRunning`, streaming |
 | [auth](./auth.md) | `AuthScheme`, `OAuthFlow`, `AuthRequirement` |
 | [servers](./servers.md) | `Server`, the registry and the scopes that name it |
@@ -95,7 +96,15 @@ compiler is planned to follow is [`planned-lowerings.md`](../compilers/planned-l
    emitted in sorted-key order; slices preserve source order). In memory it reads as the tree its
    JSON encodes: a pointer, slice or map may be shared, and is then written once per place that
    holds it, but none may hold itself, which has no encoding. `irverify` reports one that does
-   (`ir/cyclic-structure`).
+   (`ir/cyclic-structure`). The codec refuses only bytes that would be ill-formed, ambiguous or
+   not this generation's: a string that is not UTF-8, an object naming one member twice, and on
+   reading a value the schema does not define, such as an unknown member, a type with no kind or a
+   number where a string goes, or an absent or foreign `irVersion` ([ir-version](./ir-version.md)).
+   Every other invariant is `irverify`'s: a document breaking one, such as an `IDSpaces` kind
+   declared with no namespace, encodes and decodes as it is, bar a structure holding itself, above,
+   and a nil type (`ir/nil-type`), which encodes as `null` and so reads back as a type with no kind.
+   Refusing more in the codec would be a second reader of each invariant to keep in step with
+   `irverify`, and a document breaking one could no longer be written out to see what broke.
 6. **Provenance everywhere.** Every node records where it came from and whether it was declared
    or inferred.
 

@@ -16,8 +16,7 @@ import (
 // decimal and decimal128 map under number alone: under integer they admit only
 // the integral values, which no primitive narrower than integer holds. Any
 // pairing absent here, as time is (docs/ir/primitives.md#offsets), hoists a
-// Scalar that keeps the format, byte excepted: the schema walk reads it before
-// the table, as base64-encoded bytes.
+// Scalar that keeps the format, or the encoding encodedTable names for it.
 //
 // No row maps to its bare type's kind, which would leave the format nowhere
 // (TestFormatTable_EveryRowDistinguishesTheBareType).
@@ -61,6 +60,43 @@ var formatTable = map[string]ir.PrimKind{
 func Lookup(key string) (ir.PrimKind, bool) {
 	prim, ok := formatTable[key]
 	return prim, ok
+}
+
+// Encoded is a (type, format) pairing whose value is of a primitive other than
+// the JSON type it is written on, in a text other than that primitive's own.
+type Encoded struct {
+	// Prim is the primitive the value is.
+	Prim ir.PrimKind
+	// Encoding names the text, as docs/ir/constraints.md#encodings does.
+	Encoding string
+	// Wire is the primitive the value travels as, or "" where Prim's own
+	// spelling says it, as a datetime_offset travels as a string.
+	Wire ir.PrimKind
+}
+
+// encodedTable maps a "type/format" key to the pairing it selects
+// (docs/compilers/openapi.md#string-formats,
+// docs/compilers/openapi.md#numeric-formats). No key is also formatTable's
+// (TestEncodedTable_IsApartFromTheFormatTable).
+//
+// unixtime is named unixTimestamp, the IR's name for seconds since the epoch,
+// since a consumer keys a row by that name and never reads which format a
+// document came from. Its Wire is the JSON type it is written on, which tells
+// whole seconds from a fraction or a decimal text.
+var encodedTable = map[string]Encoded{
+	"string/byte":      {Prim: ir.PrimBytes, Encoding: "base64", Wire: ir.PrimString},
+	"string/base64url": {Prim: ir.PrimBytes, Encoding: "base64url", Wire: ir.PrimString},
+	"string/http-date": {Prim: ir.PrimDatetimeOffset, Encoding: "http-date"},
+	"integer/unixtime": {Prim: ir.PrimDatetimeOffset, Encoding: "unixTimestamp", Wire: ir.PrimInteger},
+	"number/unixtime":  {Prim: ir.PrimDatetimeOffset, Encoding: "unixTimestamp", Wire: ir.PrimNumber},
+	"string/unixtime":  {Prim: ir.PrimDatetimeOffset, Encoding: "unixTimestamp", Wire: ir.PrimString},
+}
+
+// LookupEncoded returns the pairing a "type/format" key selects, and whether
+// encodedTable has a row for it.
+func LookupEncoded(key string) (Encoded, bool) {
+	row, ok := encodedTable[key]
+	return row, ok
 }
 
 // Relation is how two primitive kinds compare as the types of one field

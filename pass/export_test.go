@@ -5,6 +5,7 @@ package pass
 
 import (
 	"context"
+	"reflect"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -66,6 +67,13 @@ var ValidateWith = validate
 // context.
 func Families() int { return len(families(nil, walked{}, nil)) }
 
+// NameFamilies is how many families of scopes Names reads, each after a check
+// of its context.
+func NameFamilies() int {
+	var r nameReader
+	return len(r.families())
+}
+
 // FamilyAllocs returns the allocations one run of each rule family Validate
 // runs over doc makes, in the order it runs them, as testing.AllocsPerRun
 // counts. The walk they read is taken beforehand, and so is the index they
@@ -109,4 +117,56 @@ func PropIDRefs(tb testing.TB, doc *ir.Document) func() []ir.Diagnostic {
 	tb.Helper()
 	w := walkedFor(tb, doc)
 	return func() []ir.Diagnostic { return checkPropIDRefs(w.props, w.refs) }
+}
+
+// UnionReads is how many unions pass.ConstUnions reads in doc, as it reads
+// them, which reading each once holds to how many doc has.
+func UnionReads(doc *ir.Document) int { return readingOf(doc, nil).reads }
+
+// ReadingWork is the work pass.ConstUnions does watching the members of doc's
+// branches, reading doc's unions and building the Enums it makes of them, as
+// it counts it, with the references a walk of doc counts.
+func ReadingWork(doc *ir.Document) int {
+	refs := refsTo(doc.Types)
+	ir.WalkValues(doc, ir.DocumentPath, refs)
+	r := readingOf(doc, refs)
+	r.rewrite()
+	return refs.membersRead + r.work
+}
+
+// Watched is how many types pass.ConstUnions counts the references to in doc,
+// none of which spares it the walk.
+func Watched(doc *ir.Document) int { return len(refsTo(doc.Types).watched) }
+
+// watching returns the typeRefs of ids alone.
+func watching(ids []ir.TypeID) *typeRefs {
+	r := refsTo(nil)
+	for _, id := range ids {
+		r.watched[id] = true
+	}
+	return r
+}
+
+// TypeReads is how many Go types a walk of doc for the references to ids
+// reads for whether a value of them can hold a TypeID.
+func TypeReads(doc *ir.Document, ids ...ir.TypeID) int {
+	r := watching(ids)
+	ir.WalkValues(doc, ir.DocumentPath, r)
+	return r.typesRead
+}
+
+// TypeRefVisits is how many values a walk of doc for the references to ids
+// shows its visitor, which pruning holds to what can hold a TypeID.
+func TypeRefVisits(doc *ir.Document, ids ...ir.TypeID) int {
+	r, n := watching(ids), 0
+	ir.WalkValues(doc, ir.DocumentPath, ir.VisitFunc(func(v reflect.Value, at ir.WalkPath) bool {
+		n++
+		return r.Visit(v, at)
+	}))
+	return n
+}
+
+// NarrowedHolds is narrowedHolds, for the external tests that cross its limit.
+func NarrowedHolds(types ir.TypeRegistry, target ir.TypeID, key ir.PropID, limit int) bool {
+	return narrowedHolds(types, target, key, limit)
 }

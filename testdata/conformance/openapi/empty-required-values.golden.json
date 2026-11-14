@@ -6,10 +6,12 @@
     ],
     "e": [
       "anon",
+      "composed",
       "openapi"
     ],
     "g": [
       "default",
+      "extension",
       "path-prefix",
       "tags",
       "webhooks"
@@ -117,7 +119,6 @@
                   {
                     "method": "GET",
                     "uriTemplate": "/items",
-                    "sharedRoute": false,
                     "paramBindings": [
                       {
                         "param": "param/openapi/paths/~1items/get/parameters//query",
@@ -128,8 +129,8 @@
                         "allowEmptyValue": false
                       }
                     ],
-                    "checksumRequired": false,
-                    "isWebhook": false
+                    "sharedRoute": false,
+                    "checksumRequired": false
                   }
                 ]
               },
@@ -256,6 +257,7 @@
         },
         {
           "name": "base",
+          "default": "",
           "docs": {}
         }
       ],

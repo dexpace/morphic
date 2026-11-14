@@ -152,10 +152,8 @@ func paramNamed(t *testing.T, op ir.Operation, name string) ir.Parameter {
 //
 // It exercises every reference kind a path-item subtree reaches: a parameter, a
 // request body, a response and a callback on the sibling operation, and a
-// header, a link and an example on its response. A Link Object lowers to no
-// node of its own, only to preserveResponseExtras' verbatim map, so its
-// resolving half is TestPathItemRefSiblings_UnresolvedLinkIsReported
-// (GitHub #275).
+// header, a link and an example on its response. A link that names nothing is
+// TestPathItemRefSiblings_UnresolvedLinkIsReported's (GitHub #275).
 func TestPathItemRefSiblings_ReferenceKindsResolve(t *testing.T) {
 	t.Parallel()
 	doc, diags := parseFull(t, pathItemRefKindsSpec)
@@ -181,10 +179,11 @@ func TestPathItemRefSiblings_ReferenceKindsResolve(t *testing.T) {
 	assert.Equal(t, "refEx", examples[0].Name)
 	require.NotNil(t, examples[0].Value, "the referenced example's own value is lowered")
 
-	links, ok := created.Unmodeled["openapi:links"]
-	require.True(t, ok, "the sibling response's $ref'd link is kept verbatim")
-	assert.Contains(t, string(links.Value), "RefL",
-		"a Link Object has no IR home, so the map reaches the IR under its own key")
+	require.Len(t, created.Links, 1, "a $ref'd link on a sibling response resolves")
+	assert.Equal(t, "next", created.Links[0].Name.Source)
+	assert.Equal(t, getA.ID, created.Links[0].Operation)
+	assert.Equal(t, jsontext.Pointer("/components/links/RefL"), created.Links[0].Provenance.Pointer,
+		"the link is declared where its $ref ends")
 
 	cbPost := openapitest.FindOp(t, doc, "cbPost")
 	assert.Equal(t, ir.OpID("op/openapi/paths/~1a/get/callbacks/onEvent/{$request.body#~1url}/post"), cbPost.ID,
@@ -340,10 +339,9 @@ func unresolvedAt(diags []ir.Diagnostic) []string {
 // TestPathItemRefSiblings_AForeignReferentKeepsItsOwnPositions pins a use site
 // writing item parameters beside a $ref to another document's path item: each
 // parameter keeps the type its own schema declares, the referent's lowered
-// where that document declares it. Where the bindings' table places no end, as
-// for a key that document writes twice, the referent is lowered at the use
-// site, under its "$ref", so the two still share no pointer. A finding names
-// the referent's positions by the reference.
+// where that document declares it, at the last copy of a key it writes twice,
+// as the model reads one. A finding names the referent's positions by the
+// reference.
 func TestPathItemRefSiblings_AForeignReferentKeepsItsOwnPositions(t *testing.T) {
 	t.Parallel()
 	const item = `
@@ -366,9 +364,9 @@ func TestPathItemRefSiblings_AForeignReferentKeepsItsOwnPositions(t *testing.T) 
 			refType: ids.In("target.yaml").AnonType("/paths/~1b/parameters/0/schema"),
 		},
 		"a key written twice": {
-			target:  "B:" + strings.ReplaceAll(item, "\n    ", "\n  ") + "B: {}\n",
+			target:  "B: {}\nB:" + strings.ReplaceAll(item, "\n    ", "\n  "),
 			ref:     "./target.yaml#/B",
-			refType: ids.Document{}.AnonType("/paths/~1a/$ref/parameters/0/schema"),
+			refType: ids.In("target.yaml").AnonType("/B/parameters/0/schema"),
 		},
 	} {
 		t.Run(name, func(t *testing.T) {
@@ -476,8 +474,8 @@ paths:
 
 // besideRefPaths are /a and /b of every case below: /a writes get, put and its
 // item parameters beside a $ref to /b, which declares a get and parameters too,
-// so the resolver reads a pointer through /a's $ref to /b's, while /a's mount
-// declares its own at the pointer the reference spells. /a is anchored for an
+// and a pointer to one of those fields reads /a's own, which /a's mount declares
+// at the pointer the reference spells. /a is anchored for an
 // alias to bring the same fields to a second path.
 const besideRefPaths = `  /a: &a
     $ref: '#/paths/~1b'
@@ -509,8 +507,7 @@ func besideRefSpec(paths, rest string) string {
 }
 
 // besideRefChain is /c taking its request body through a component that names
-// /a's get request body, which the component walk resolves after the paths, so
-// the reference resolves whichever path the document declares first.
+// /a's get request body.
 const besideRefChain = `  /c:
     post:
       operationId: postC
@@ -518,14 +515,13 @@ const besideRefChain = `  /c:
       responses: {"200": {description: OK}}
 `
 
-// TestPathItemRefSiblings_APointerPastTheRefIsRefusedInEitherOrder pins the
-// refusal of a reference into the fields beside a $ref (GitHub #824). The
-// resolver read #/paths/~1a/get/requestBody as /b's, and the mount declares
-// /a's own at that pointer, so whichever lowered first gave both its type: /c's
-// body took /a's schema when /a came first. Refused, neither order lowers one,
-// both report it where it is written, and both keep X, which nothing lowers,
-// verbatim.
-func TestPathItemRefSiblings_APointerPastTheRefIsRefusedInEitherOrder(t *testing.T) {
+// TestPathItemRefSiblings_APointerBesideTheRefReadsTheFieldsInEitherOrder pins
+// a reference into the fields beside a $ref (GitHub #824): a pointer reads a
+// key the path item writes beside its $ref where it is written, as the mount
+// keeps the nearer layer (docs/compilers/openapi.md#path-item-ref-fields), so
+// /c's body, through X, is the one /a's get declares, the node /a's own mount
+// interns, in either declaration order, and X is reached.
+func TestPathItemRefSiblings_APointerBesideTheRefReadsTheFieldsInEitherOrder(t *testing.T) {
 	t.Parallel()
 	const components = "components:\n  requestBodies:\n    X: {$ref: '#/paths/~1a/get/requestBody'}\n"
 	first, firstDiags := parseFull(t, besideRefSpec(besideRefChain, components))
@@ -533,77 +529,70 @@ func TestPathItemRefSiblings_APointerPastTheRefIsRefusedInEitherOrder(t *testing
 		besideRefChain+besideRefPaths+components)
 
 	for name, doc := range map[string]*ir.Document{"/a first": first, "/c first": second} {
-		postC := openapitest.FindOp(t, doc, "postC")
-		assert.Nil(t, postC.Request, "%s: /c takes no body through the refused reference", name)
-		getA := openapitest.FindOp(t, doc, "getA")
-		require.NotNil(t, getA.Request, name)
-		body, ok := doc.Types[getA.Request.Contents[0].Type.Target].(*ir.Model)
+		own := openapitest.BodyTarget(t, openapitest.FindOp(t, doc, "getA").Request)
+		body, ok := doc.Types[own].(*ir.Model)
 		require.True(t, ok, name)
 		assert.Equal(t, "near", body.Properties[0].WireName, "%s: /a keeps its own body", name)
-		assert.Equal(t, ir.ReasonNoIRHome, doc.Unmodeled["openapi:components/requestBodies/X"].Reason,
-			"%s: the component only the refused chain passes through is kept", name)
+		assert.Equal(t, own, openapitest.BodyTarget(t, openapitest.FindOp(t, doc, "postC").Request),
+			"%s: /c takes the same one", name)
+		assert.NotContains(t, doc.Unmodeled, "openapi:components/requestBodies/X", "%s: X is reached", name)
 	}
 	assert.Empty(t, cmp.Diff(first.Types, second.Types), "the registry does not depend on the order")
-	for name, diags := range map[string][]ir.Diagnostic{"/a first": firstDiags, "/c first": secondDiags} {
-		errs := errorsAt(diags)
-		assert.Len(t, errs["/paths/~1c/post/requestBody"], 1, "%s: reported once at /c", name)
-		assert.Len(t, errs["/components/requestBodies/X"], 1, "%s: and once at the component", name)
-	}
-	assert.Contains(t, errorsAt(firstDiags)["/paths/~1c/post/requestBody"][0], "GitHub #824")
+	assert.Empty(t, errorsAt(firstDiags))
+	assert.Empty(t, errorsAt(secondDiags))
 }
 
-// TestPathItemRefSiblings_AnAnswerWrittenThereIsTakenInEitherOrder pins the one
-// answer the refusal takes. With external references allowed, the load phase
-// holds the source for the resolver, so the chain through X finds the body /a's
-// get writes, by a pointer or by the source's file name, and through /z, which
-// aliases /a, a copy of it. It finds put's too, which only /a writes and which
-// without them the resolver finds nowhere (GitHub #824). Each is the
-// declaration the mount interns at the same pointer, so /c lowers it in both
-// declaration orders with nothing reported.
-func TestPathItemRefSiblings_AnAnswerWrittenThereIsTakenInEitherOrder(t *testing.T) {
+// TestPathItemRefSiblings_APointerIntoTheFieldsTakesWhatTheyDeclare pins that
+// a pointer into the fields beside a $ref takes what they declare however the
+// document is read: by a pointer, by the source's file name, through /z, whose
+// YAML alias writes /a's fields again at a position of its own, and into put,
+// which only /a writes, with or without a reader of other documents. /c lowers
+// the declaration the mount interns at the same pointer, in both declaration
+// orders, with nothing reported.
+func TestPathItemRefSiblings_APointerIntoTheFieldsTakesWhatTheyDeclare(t *testing.T) {
 	t.Parallel()
-	compile := func(src string) (*ir.Document, []ir.Diagnostic) {
-		doc, diags, err := openapi.New().Compile(t.Context(), []compilers.Source{{Path: "spec.yaml", Data: []byte(src)}},
-			compilers.Options{Reader: reader.Disk{}, FormatOptions: openapi.Options{AllowExternalRefs: true}})
-		require.NoError(t, err)
-		require.NotNil(t, doc)
-		return doc, diags
-	}
-	for _, tc := range []struct{ ref, method, mount, wire string }{
-		{"#/paths/~1a/get/requestBody", "GET", "/a", "near"},
-		{"spec.yaml#/paths/~1a/get/requestBody", "GET", "/a", "near"},
-		{"spec.yaml#/paths/~1z/get/requestBody", "GET", "/z", "near"},
-		{"#/paths/~1a/put/requestBody", "PUT", "/a", "nearPut"},
-	} {
-		ref := tc.ref
-		components := "components:\n  requestBodies:\n    X: {$ref: '" + ref + "'}\n"
-		first, firstDiags := compile(besideRefSpec("  /z: *a\n"+besideRefChain, components))
-		second, secondDiags := compile("openapi: 3.1.0\ninfo: {title: T, version: \"1\"}\npaths:\n" +
-			besideRefChain + besideRefPaths + "  /z: *a\n" + components)
-
-		for name, doc := range map[string]*ir.Document{"/a first": first, "/c first": second} {
-			own := openapitest.BodyTarget(t, opByPath(t, doc, tc.method, tc.mount).Request)
-			body, ok := doc.Types[own].(*ir.Model)
-			require.True(t, ok, "%s %s", ref, name)
-			assert.Equal(t, tc.wire, body.Properties[0].WireName, "%s %s: %s keeps its own body", ref, name, tc.mount)
-			assert.Equal(t, own, openapitest.BodyTarget(t, openapitest.FindOp(t, doc, "postC").Request),
-				"%s %s: /c takes the same one", ref, name)
+	for _, opts := range []compilers.Options{{}, {Reader: reader.Disk{}, FormatOptions: openapi.Options{AllowExternalRefs: true}}} {
+		compile := func(src string) (*ir.Document, []ir.Diagnostic) {
+			doc, diags, err := openapi.New().Compile(t.Context(), []compilers.Source{{Path: "spec.yaml", Data: []byte(src)}}, opts)
+			require.NoError(t, err)
+			require.NotNil(t, doc)
+			return doc, diags
 		}
-		assert.Empty(t, cmp.Diff(first.Types, second.Types), "%s: the registry does not depend on the order", ref)
-		assert.Empty(t, errorsAt(firstDiags), ref)
-		assert.Empty(t, errorsAt(secondDiags), ref)
+		for _, tc := range []struct{ ref, method, mount, wire string }{
+			{"#/paths/~1a/get/requestBody", "GET", "/a", "near"},
+			{"spec.yaml#/paths/~1a/get/requestBody", "GET", "/a", "near"},
+			{"spec.yaml#/paths/~1z/get/requestBody", "GET", "/z", "near"},
+			{"#/paths/~1a/put/requestBody", "PUT", "/a", "nearPut"},
+		} {
+			ref := tc.ref
+			components := "components:\n  requestBodies:\n    X: {$ref: '" + ref + "'}\n"
+			first, firstDiags := compile(besideRefSpec("  /z: *a\n"+besideRefChain, components))
+			second, secondDiags := compile("openapi: 3.1.0\ninfo: {title: T, version: \"1\"}\npaths:\n" +
+				besideRefChain + besideRefPaths + "  /z: *a\n" + components)
+
+			for name, doc := range map[string]*ir.Document{"/a first": first, "/c first": second} {
+				own := openapitest.BodyTarget(t, opByPath(t, doc, tc.method, tc.mount).Request)
+				body, ok := doc.Types[own].(*ir.Model)
+				require.True(t, ok, "%s %s", ref, name)
+				assert.Equal(t, tc.wire, body.Properties[0].WireName, "%s %s: %s keeps its own body", ref, name, tc.mount)
+				assert.Equal(t, own, openapitest.BodyTarget(t, openapitest.FindOp(t, doc, "postC").Request),
+					"%s %s: /c takes the same one", ref, name)
+			}
+			assert.Empty(t, cmp.Diff(first.Types, second.Types), "%s: the registry does not depend on the order", ref)
+			assert.Empty(t, errorsAt(firstDiags), ref)
+			assert.Empty(t, errorsAt(secondDiags), ref)
+		}
 	}
 }
 
-// TestPathItemRefSiblings_AReferenceIntoTheFieldsBesideARefIsRefused pins the
-// refusal on every route a reference reaches a pointer by: a $ref of each kind,
-// a discriminator mapping value, a reference written inside the fields
-// themselves, and an alias's second position. A "#/$defs/..." pointer written
-// in those fields is one too, since its definition is read through the $ref.
-// Each is one error at the reference saying why, and nothing interned for it. A
-// pointer to a key nothing writes beside the $ref is left as main reads it, and
-// one only those fields write fails in the resolver, reported once there.
-func TestPathItemRefSiblings_AReferenceIntoTheFieldsBesideARefIsRefused(t *testing.T) {
+// TestPathItemRefSiblings_AReferenceIntoTheFieldsBesideARefReadsThem pins a
+// reference into the fields beside a path item's $ref on every route a
+// reference reaches a pointer by: a $ref of each kind, a discriminator mapping
+// value, a reference written inside the fields themselves, and an alias's
+// second position. Each takes what /a writes there, which /a's own mount
+// lowers at that pointer; a key /a writes nothing beside its $ref under is read
+// in /b, the item it names. Nothing is reported.
+func TestPathItemRefSiblings_AReferenceIntoTheFieldsBesideARefReadsThem(t *testing.T) {
 	t.Parallel()
 	const discriminated = `      requestBody:
         content:
@@ -616,95 +605,92 @@ components:
   schemas:
     Cat: {type: object, properties: {k: {type: string}}}
 `
-	const (
-		refused    = "refused"    // reported here, at the reference, saying why
-		unresolved = "unresolved" // reported by the resolver, which found nothing
-		resolved   = "resolved"   // nothing to report
-	)
-	// leaked reports whether /c lowered the construct the refused reference
-	// names, as the resolver read it.
-	bodyAt := func(method string) func(*ir.Document) bool {
-		return func(doc *ir.Document) bool { return opByPath(t, doc, method, "/c").Request != nil }
+	// wires returns the property names of the body /c's operation of method
+	// takes.
+	wires := func(method string) func(*ir.Document) string {
+		return func(doc *ir.Document) string {
+			body, ok := doc.Types[openapitest.BodyTarget(t, opByPath(t, doc, method, "/c").Request)].(*ir.Model)
+			if !ok {
+				return ""
+			}
+			return body.Properties[0].WireName
+		}
 	}
 	cases := []struct {
-		name, paths string
-		site        jsontext.Pointer
-		want        string
-		leaked      func(*ir.Document) bool
+		name, paths, want string
+		took              func(*ir.Document) string
 	}{
 		{"schema", `  /c:
     post:
       requestBody: {content: {application/json: {schema: {$ref: '#/paths/~1a/get/requestBody/content/application~1json/schema'}}}}
       responses: {"200": {description: OK}}
-`, "/paths/~1c/post/requestBody/content/application~1json/schema", refused,
-			func(doc *ir.Document) bool {
-				return openapitest.BodyTarget(t, opByPath(t, doc, "POST", "/c").Request) != ir.PrimTypeID(ir.PrimAny)
-			}},
-		{"a schema's $ref to a refused one", `  /c:
+`, "near", wires("POST")},
+		{"a schema's $ref through a component", `  /c:
     post:
       requestBody: {content: {application/json: {schema: {$ref: '#/components/schemas/X'}}}}
       responses: {"200": {description: OK}}
 components:
   schemas:
     X: {$ref: '#/paths/~1a/get/requestBody/content/application~1json/schema'}
-`, "/components/schemas/X", refused, func(doc *ir.Document) bool {
+`, "near", func(doc *ir.Document) string {
 			x, ok := doc.Types["t/openapi/components/schemas/X"].(*ir.Scalar)
-			return !ok || x.Base == nil || x.Base.Target != ir.PrimTypeID(ir.PrimAny)
+			if !ok || x.Base == nil {
+				return ""
+			}
+			body, ok := doc.Types[x.Base.Target].(*ir.Model)
+			if !ok {
+				return ""
+			}
+			return body.Properties[0].WireName
 		}},
 		{"parameter by index", `  /c:
     post:
       parameters: [{$ref: '#/paths/~1a/parameters/0'}]
       responses: {"200": {description: OK}}
-`, "/paths/~1c/post/parameters/0", refused,
-			func(doc *ir.Document) bool { return len(opByPath(t, doc, "POST", "/c").Params) > 0 }},
+`, "near", func(doc *ir.Document) string { return opByPath(t, doc, "POST", "/c").Params[0].Name.Source }},
 		{"mapping value", "  /c:\n    post:\n" +
 			strings.Replace(discriminated, "%s", "'#/paths/~1a/get/requestBody/content/application~1json/schema'", 1),
-			"/paths/~1c/post/requestBody/content/application~1json/schema/discriminator/mapping/near", refused,
-			func(doc *ir.Document) bool { return mapsTag(doc, "near") }},
+			"near", func(doc *ir.Document) string {
+				if mapsTag(doc, "near") {
+					return "near"
+				}
+				return ""
+			}},
 		{"inside the fields", `  /c:
     $ref: '#/paths/~1b'
     get:
       requestBody: {$ref: '#/paths/~1a/get/requestBody'}
       responses: {"200": {description: OK}}
-`, "/paths/~1c/get/requestBody", refused, bodyAt("GET")},
+`, "near", wires("GET")},
 		{"a key not written beside", `  /c:
     post:
       requestBody: {$ref: '#/paths/~1a/post/requestBody'}
       responses: {"200": {description: OK}}
-`, "/paths/~1c/post/requestBody", resolved, nil},
+`, "farPost", wires("POST")},
 		{"an alias's position", `  /d: *a
   /c:
     post:
       requestBody: {$ref: '#/paths/~1d/get/requestBody'}
       responses: {"200": {description: OK}}
-`, "/paths/~1c/post/requestBody", refused, bodyAt("POST")},
+`, "near", wires("POST")},
 		{"a key only written beside", `  /c:
     post:
       requestBody: {$ref: '#/paths/~1a/put/requestBody'}
       responses: {"200": {description: OK}}
-`, "/paths/~1c/post/requestBody", unresolved, bodyAt("POST")},
+`, "nearPut", wires("POST")},
 	}
 	for _, tc := range cases {
 		doc, diags := parseFull(t, besideRefSpec(tc.paths, ""))
-		errs := errorsAt(diags)
-		if tc.want == resolved {
-			assert.Empty(t, errs, "%s: resolved as main resolves it", tc.name)
-			continue
-		}
-		require.Len(t, errs[tc.site], 1, "%s: one report at the reference: %v", tc.name, errs)
-		assert.Len(t, errs, 1, "%s: and no other: %v", tc.name, errs)
-		assert.Equal(t, tc.want == refused, strings.Contains(errs[tc.site][0], "GitHub #824"),
-			"%s: %s", tc.name, errs[tc.site][0])
-		assert.False(t, tc.leaked(doc), "%s: nothing is lowered for the reference", tc.name)
+		assert.Empty(t, errorsAt(diags), tc.name)
+		assert.Equal(t, tc.want, tc.took(doc), tc.name)
 	}
 }
 
-// TestPathItemRefSiblings_ADefsPointerBesideARefIsRefused pins a "#/$defs/..."
-// pointer written in the fields beside a $ref, for a $ref and for a mapping
-// value. Its definitions are read from where it is written, so through /a's
-// $ref: the mapping's took /b's Y, hoisted at /a's own position with /b's
-// properties, and the $ref found none. Each is now one error saying why.
-func TestPathItemRefSiblings_ADefsPointerBesideARefIsRefused(t *testing.T) {
+// TestPathItemRefSiblings_ADefsPointerBesideARefReadsItsOwnDefinitions pins a
+// "#/$defs/..." pointer written in the fields beside a $ref, for a $ref and for
+// a mapping value: its definitions are read from where it is written, /a's own
+// fields, whose schema defines Y with near, not through /a's $ref into /b's.
+func TestPathItemRefSiblings_ADefsPointerBesideARefReadsItsOwnDefinitions(t *testing.T) {
 	t.Parallel()
 	const schema = `            schema:
               $defs: {Y: {type: object, properties: {k: {type: string}, %s: {type: string}}}}
@@ -736,13 +722,11 @@ components:
 	doc, diags := parseFull(t, spec)
 
 	const at = "/paths/~1a/get/requestBody/content/application~1json/schema"
-	errs := errorsAt(diags)
-	for _, site := range []jsontext.Pointer{at + "/properties/y", at + "/discriminator/mapping/y"} {
-		require.Len(t, errs[site], 1, "one report at %s: %v", site, errs)
-		assert.Contains(t, errs[site][0], "as is any definition it can name", site)
-	}
-	assert.NotContains(t, doc.Types, ir.TypeID("t/anon"+at+"/$defs/Y"),
-		"nothing is hoisted at /a's position from /b's definitions")
+	assert.Empty(t, errorsAt(diags))
+	y, ok := doc.Types[ir.TypeID("t/anon"+at+"/$defs/Y")].(*ir.Model)
+	require.True(t, ok, "/a's own definition is hoisted where /a writes it")
+	assert.Equal(t, "near", y.Properties[1].WireName)
+	assert.True(t, mapsTag(doc, "y"))
 }
 
 // mapsTag reports whether a discriminator anywhere in doc maps tag.
@@ -779,10 +763,10 @@ func errorsAt(diags []ir.Diagnostic) map[jsontext.Pointer][]string {
 	return out
 }
 
-// TestPathItemRefSiblings_APointerIntoAnotherDocumentIsNotRefused pins that the
-// refusal reads a pointer in the source only. /c names ext.yaml's /a, whose
-// pointer spells a position /a here writes beside its $ref, so a check reading
-// the pointer alone would refuse a reference the resolver read correctly.
+// TestPathItemRefSiblings_APointerIntoAnotherDocumentIsNotRefused pins that a
+// pointer is read in the document it names. /c names ext.yaml's /a, whose
+// pointer spells a position /a here writes beside its $ref, so a reading of
+// the pointer alone would take the source's field for ext.yaml's.
 func TestPathItemRefSiblings_APointerIntoAnotherDocumentIsNotRefused(t *testing.T) {
 	t.Parallel()
 	dir := t.TempDir()

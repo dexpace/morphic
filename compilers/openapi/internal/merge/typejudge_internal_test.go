@@ -4,7 +4,9 @@
 package merge
 
 import (
+	"encoding/json/jsontext"
 	"fmt"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -51,6 +53,36 @@ func judgeRegistry() map[ir.TypeID]ir.TypeDef {
 	reg["t/scalar-str"] = &ir.Scalar{ID: "t/scalar-str", Base: &ir.TypeRef{Target: "t/prim/string"}}
 	reg["t/scalar-int"] = &ir.Scalar{ID: "t/scalar-int", Base: &integer}
 	reg["t/scalar-any"] = &ir.Scalar{ID: "t/scalar-any", Base: &ir.TypeRef{Target: "t/prim/any"}}
+	reg["t/scalar-any-doc"] = &ir.Scalar{Base: &ir.TypeRef{Target: "t/prim/any"},
+		ID: "t/scalar-any-doc", Docs: ir.Docs{Description: "d"}, Deprecation: &ir.Deprecation{}, Sensitive: true}
+	reg["t/scalar-any-ex"] = &ir.Scalar{Base: &ir.TypeRef{Target: "t/prim/any"},
+		ID: "t/scalar-any-ex", Examples: []ir.Example{{Value: new(num("1"))}}}
+	reg["t/alias-scalar-any-doc"] = &ir.Scalar{ID: "t/alias-scalar-any-doc", Base: &ir.TypeRef{Target: "t/scalar-any-doc"}}
+	reg["t/alias-doc-scalar-any"] = &ir.Scalar{Base: &ir.TypeRef{Target: "t/scalar-any"},
+		ID: "t/alias-doc-scalar-any", Docs: ir.Docs{Description: "d"}}
+	reg["t/list-scalar-any"] = &ir.List{ID: "t/list-scalar-any", Elem: ir.TypeRef{Target: "t/scalar-any"}}
+	untyped := func(id ir.TypeID, td ir.TypeDef) {
+		c := td.Common()
+		c.ID, c.Provenance = id, ir.Provenance{Pointer: "/untyped/" + jsontext.Pointer(id)}
+		reg[id] = td
+	}
+	untyped("t/model-untyped", &ir.Model{Properties: []ir.Property{{WireName: "own"}}})
+	untyped("t/model-untyped-doc", &ir.Model{Properties: []ir.Property{{WireName: "own"}},
+		Docs: ir.Docs{Description: "d"}})
+	untyped("t/model-untyped-ex", &ir.Model{Properties: []ir.Property{{WireName: "own"}},
+		Examples: []ir.Example{{}}})
+	untyped("t/model-untyped-doc-inline", &ir.Model{Properties: []ir.Property{{WireName: "own"}},
+		Anonymous: true, Docs: ir.Docs{Description: "d"}})
+	untyped("t/alias-untyped", &ir.Scalar{Base: &ir.TypeRef{Target: "t/model-untyped"}})
+	untyped("t/alias-doc-untyped", &ir.Scalar{Base: &ir.TypeRef{Target: "t/alias-untyped"},
+		Docs: ir.Docs{Description: "d"}})
+	untyped("t/alias-of-untyped-doc", &ir.Scalar{Base: &ir.TypeRef{Target: "t/model-untyped-doc"}})
+	untyped("t/list-untyped", &ir.List{Elem: i32})
+	untyped("t/map-untyped", &ir.MapT{Value: i32})
+	reg["t/alias-typed-untyped"] = &ir.Scalar{ID: "t/alias-typed-untyped", Base: &ir.TypeRef{Target: "t/model-untyped"}}
+	reg["t/list-model-untyped"] = &ir.List{ID: "t/list-model-untyped", Elem: ir.TypeRef{Target: "t/model-untyped"}}
+	reg["t/list-model-untyped-doc"] = &ir.List{ID: "t/list-model-untyped-doc", Elem: ir.TypeRef{Target: "t/model-untyped-doc"}}
+	reg["t/list-scalar-any-doc"] = &ir.List{ID: "t/list-scalar-any-doc", Elem: ir.TypeRef{Target: "t/scalar-any-doc"}}
 	reg["t/scalar-enc"] = &ir.Scalar{ID: "t/scalar-enc", Base: &integer, Encoding: &ir.Encoding{Name: "x"}}
 	reg["t/scalar-opaque"] = &ir.Scalar{ID: "t/scalar-opaque"}
 	formatted := func(id ir.TypeID, enc ir.Encoding) *ir.Scalar {
@@ -83,6 +115,21 @@ func judgeRegistry() map[ir.TypeID]ir.TypeDef {
 	reg["t/list-int"] = &ir.List{ID: "t/list-int", Elem: integer}
 	reg["t/list-i32"] = &ir.List{ID: "t/list-i32", Elem: i32}
 	reg["t/list-i32-null"] = &ir.List{ID: "t/list-i32-null", Elem: nullable(i32)}
+	reg["t/list-u32"] = &ir.List{ID: "t/list-u32", Elem: primRef(ir.PrimUint32)}
+	reg["t/lit-a-doc"] = &ir.Literal{ID: "t/lit-a-doc", Docs: ir.Docs{Description: "d"}, Value: str("a")}
+	reg["t/list-i32-kept-other"] = &ir.List{ID: "t/list-i32-kept-other", Elem: i32,
+		Unmodeled: ir.Unmodeled{"openapi:x-a": {Value: ir.RawValue("2")}}}
+	reg["t/list-int-kept"] = &ir.List{ID: "t/list-int-kept",
+		Unmodeled: ir.Unmodeled{"openapi:x-a": {Value: ir.RawValue("1")}}, Elem: integer}
+	reg["t/list-i32-h-described"] = &ir.List{ID: "t/list-i32-h-described", Anonymous: true,
+		Docs: ir.Docs{Description: "d"}, Elem: i32}
+	reg["t/scalar-opaque-doc"] = &ir.Scalar{ID: "t/scalar-opaque-doc", Docs: ir.Docs{Description: "d"}}
+	reg["t/enum-ab-doc"] = &ir.Enum{ID: "t/enum-ab-doc", ValueType: ir.PrimString,
+		Members: []ir.EnumMember{{Value: str("a"), Docs: ir.Docs{Description: "x"}}, {Value: str("b")}}}
+	reg["t/enum-ab"] = &ir.Enum{ID: "t/enum-ab", ValueType: ir.PrimString,
+		Members: []ir.EnumMember{{Value: str("a")}, {Value: str("b")}}}
+	reg["t/list-int-exampled"] = &ir.List{ID: "t/list-int-exampled",
+		Examples: []ir.Example{{Value: &ir.Value{Kind: ir.ValueList}}}, Elem: integer}
 	bound := func(lo, hi int64) *ir.Constraints {
 		c := &ir.Constraints{}
 		if lo > 0 {
@@ -124,6 +171,8 @@ func judgeRegistry() map[ir.TypeID]ir.TypeDef {
 	reg["t/tuple-null"] = tuple("t/tuple-null", nil, nil, nullable(i32))
 	reg["t/tuple-rest"] = tuple("t/tuple-rest", nil, &i32, i32)
 	reg["t/tuple-rest-int"] = tuple("t/tuple-rest-int", nil, &integer, i32)
+	str := primRef(ir.PrimString)
+	reg["t/tuple-rest-str"] = tuple("t/tuple-rest-str", nil, &str, i32)
 	reg["t/list-i32-min"] = &ir.List{ID: "t/list-i32-min", Elem: i32, Constraints: &ir.Constraints{MinItems: &minItems}}
 	reg["t/list-int-min"] = &ir.List{ID: "t/list-int-min", Elem: integer, Constraints: &ir.Constraints{MinItems: &minItems}}
 	reg["t/list-i32-twin"] = &ir.List{ID: "t/list-i32-twin", Elem: i32}
@@ -149,14 +198,70 @@ func judgeRegistry() map[ir.TypeID]ir.TypeDef {
 	reg["t/cycle2"] = &ir.List{ID: "t/cycle2", Elem: ir.TypeRef{Target: "t/cycle"}}
 	reg["t/cycle-b"] = &ir.List{ID: "t/cycle-b", Elem: ir.TypeRef{Target: "t/cycle2-b"}}
 	reg["t/cycle2-b"] = &ir.List{ID: "t/cycle2-b", Elem: ir.TypeRef{Target: "t/cycle-b"}}
+	valueTypedEnums(reg)
+	aliasesOverNodes(reg)
 	return reg
+}
+
+// valueTypedEnums adds enums whose value types differ: t/enum-<kind>-<values>,
+// their values joined.
+func valueTypedEnums(reg map[ir.TypeID]ir.TypeDef) {
+	for _, e := range []struct {
+		kind   ir.PrimKind
+		values []string
+	}{
+		{ir.PrimNumber, []string{"1", "2"}}, {ir.PrimNumber, []string{"2", "1"}}, {ir.PrimNumber, []string{"1"}},
+		{ir.PrimNumber, []string{"1", "2.5"}}, {ir.PrimNumber, []string{"2.5"}},
+		{ir.PrimInteger, []string{"1"}}, {ir.PrimInteger, []string{"1", "2"}}, {ir.PrimInteger, []string{"1", "3"}},
+		{ir.PrimInt32, []string{"1", "2"}}, {ir.PrimInt32, []string{"1"}},
+		{ir.PrimUint32, []string{"1", "2"}}, {ir.PrimUint32, []string{"2"}},
+	} {
+		id := ir.TypeID("t/enum-" + string(e.kind) + "-" + strings.Join(e.values, ""))
+		members := make([]ir.EnumMember, len(e.values))
+		for k, v := range e.values {
+			members[k] = ir.EnumMember{Value: num(v)}
+		}
+		reg[id] = &ir.Enum{ID: id, ValueType: e.kind, Members: members}
+	}
+}
+
+// aliasesOverNodes adds aliases over the registry's enums, consts, scalars and
+// lists, and the nodes they meet.
+func aliasesOverNodes(reg map[ir.TypeID]ir.TypeDef) {
+	alias := func(id, base ir.TypeID, bounds *ir.Constraints) {
+		reg[id] = &ir.Scalar{ID: id, Base: &ir.TypeRef{Target: base}, Constraints: bounds}
+	}
+	maxLength := &ir.Constraints{MaxLength: new(int64(5))}
+	alias("t/alias-enum-str-max", "t/enum-str", maxLength)
+	alias("t/alias-lit-a-max", "t/lit-a", maxLength)
+	alias("t/alias-enum-big-max", "t/enum-big", &ir.Constraints{Max: new(ir.BigVal("6000000000"))})
+	alias("t/alias-enum-ab", "t/enum-ab", nil)
+	alias("t/alias-list-i32-min", "t/list-i32-min", nil)
+	alias("t/alias-scalar-time", "t/scalar-time", &ir.Constraints{MinLength: new(int64(1))})
+	alias("t/alias-lit-time-doc", "t/lit-time", nil)
+	alias("t/alias-list-i32-min-doc", "t/list-i32-min", nil)
+	alias("t/alias-time-ref", "t/scalar-time", nil)
+	reg["t/alias-time-ref"].Common().Unmodeled = ir.Unmodeled{"openapi:not": {Value: ir.RawValue(`{"$ref":"n.json"}`)}}
+	reg["t/alias-enum-str-null"] = &ir.Scalar{ID: "t/alias-enum-str-null",
+		Base: &ir.TypeRef{Target: "t/enum-str", Nullable: true}}
+	reg["t/enum-str-closed"] = &ir.Enum{ID: "t/enum-str-closed", ValueType: ir.PrimString, Closed: true,
+		Members: []ir.EnumMember{{Value: str("a")}}}
+	reg["t/alias-list-i32-min-doc"].Common().Docs = ir.Docs{Description: "d"}
+	reg["t/alias-lit-time-doc"].Common().Docs = ir.Docs{Description: "x"}
+	reg["t/enum-bc"] = &ir.Enum{ID: "t/enum-bc", ValueType: ir.PrimString,
+		Members: []ir.EnumMember{{Value: str("b")}, {Value: str("c")}}}
+	reg["t/scalar-i32-doc"] = &ir.Scalar{ID: "t/scalar-i32-doc", Base: new(primRef(ir.PrimInt32)),
+		Docs: ir.Docs{Description: "d"}}
 }
 
 func ref(id ir.TypeID) ir.TypeRef { return ir.TypeRef{Target: id} }
 
+// relate is relateFrom for a field's own types.
+func (j typeJudge) relate(a, b ir.TypeRef) relation { return j.relateFrom(a, b, 0) }
+
 func TestTypeJudge_RelateArms(t *testing.T) {
 	t.Parallel()
-	j := typeJudge{Resolve: stubResolve(judgeRegistry())}
+	j := typeJudge{resolve: stubResolve(judgeRegistry()), sites: declarationSites{walk: &stubWalk{}}}
 	prim := func(k ir.PrimKind) ir.TypeID { return primRef(k).Target }
 
 	for _, tc := range []struct {
@@ -187,7 +292,13 @@ func TestTypeJudge_RelateArms(t *testing.T) {
 		{"a scalar over its own kind", "t/scalar-str", prim(ir.PrimString), relANarrower},
 		{"a scalar over a narrower kind", "t/scalar-int", prim(ir.PrimNumber), relANarrower},
 		{"a scalar over a broader kind", "t/scalar-int", prim(ir.PrimInt32), relOverlap},
-		{"an alias over the top type", "t/scalar-any", prim(ir.PrimInt32), relOverlap},
+		{"an alias over the top type", "t/scalar-any", prim(ir.PrimInt32), relBNarrower},
+		{"an alias over the top type holding what a reference carries down", "t/scalar-any-doc", prim(ir.PrimInt32), relBNarrower},
+		{"an alias over the top type holding examples", "t/scalar-any-ex", prim(ir.PrimInt32), relOverlap},
+		{"an alias of an alias holding docs over the top type", "t/alias-scalar-any-doc", "t/model", relUnrelated},
+		{"an alias holding docs of an alias over the top type", "t/alias-doc-scalar-any", "t/model", relBNarrower},
+		{"a list of an alias over the top type", "t/list-scalar-any", "t/list-i32", relBNarrower},
+		{"a list of an alias holding docs over the top type", "t/list-scalar-any-doc", "t/list-i32", relOverlap},
 		{"an opaque scalar", "t/scalar-opaque", prim(ir.PrimInt32), relUnrelated},
 		{"a literal the kind admits", "t/lit-1", prim(ir.PrimInteger), relANarrower},
 		{"a literal string against integer", "t/lit-a", prim(ir.PrimInteger), relDisjoint},
@@ -208,8 +319,8 @@ func TestTypeJudge_RelateArms(t *testing.T) {
 		{"a time a time scalar's bound refuses", "t/lit-time", "t/scalar-time-max", relDisjoint},
 		{"a time a time scalar's bound admits", "t/lit-time", "t/scalar-time-roomy", relANarrower},
 		{"a literal against an alias of a kind it is not", "t/lit-a", "t/scalar-int", relOverlap},
-		{"a time against a time scalar holding detail", "t/lit-time", "t/scalar-time-doc", relOverlap},
-		{"a time against an alias of a time scalar", "t/lit-time", "t/alias-time", relOverlap},
+		{"a time against a time scalar holding detail", "t/lit-time", "t/scalar-time-doc", relMeet},
+		{"a time against an alias of a time scalar", "t/lit-time", "t/alias-time", relANarrower},
 		{"a time against a format with no grammar here", "t/lit-time", "t/scalar-email", relOverlap},
 		{"an enum no member of which is a time", "t/enum-str", "t/scalar-time", relDisjoint},
 		{"an enum with a time member", "t/enum-time", "t/scalar-time", relOverlap},
@@ -218,8 +329,26 @@ func TestTypeJudge_RelateArms(t *testing.T) {
 		{"a time scalar against a format with no grammar here", "t/scalar-time", "t/scalar-email", relOverlap},
 		{"a null literal against a bare integer", "t/lit-null", prim(ir.PrimInteger), relDisjoint},
 		{"a model against a bare kind", "t/model", prim(ir.PrimInteger), relDisjoint},
-		{"the top type spelled as an alias against a model", "t/scalar-any", "t/model", relUnrelated},
-		{"two literals", "t/lit-a", "t/lit-x", relOverlap},
+		{"a model stating no instance type against a bare kind", "t/model-untyped", prim(ir.PrimInteger), relBNarrower},
+		{"one holding docs a reference carries down", "t/model-untyped-doc", prim(ir.PrimInteger), relBNarrower},
+		{"one holding examples", "t/model-untyped-ex", prim(ir.PrimInteger), relOverlap},
+		{"one holding docs written at the declaration", "t/model-untyped-doc-inline", prim(ir.PrimInteger), relOverlap},
+		{"an enum against a model stating no instance type", "t/enum-str", "t/model-untyped", relANarrower},
+		{"a literal against a model stating no instance type", "t/lit-a", "t/model-untyped", relANarrower},
+		{"a list against a model stating no instance type", "t/list-i32", "t/model-untyped", relANarrower},
+		{"an alias stating none of a model stating none", "t/alias-untyped", prim(ir.PrimInteger), relBNarrower},
+		{"an alias holding docs a reference carries down of one", "t/alias-doc-untyped", prim(ir.PrimInteger), relBNarrower},
+		{"an alias of one holding docs", "t/alias-of-untyped-doc", prim(ir.PrimInteger), relOverlap},
+		{"an alias stating a type of a model stating none", "t/alias-typed-untyped", prim(ir.PrimInteger), relDisjoint},
+		{"two structures each stating no instance type", "t/list-untyped", "t/model-untyped", relOverlap},
+		{"a list stating none against a model", "t/list-untyped", "t/model", relBNarrower},
+		{"a map stating none against a list", "t/map-untyped", "t/list-i32", relBNarrower},
+		{"a list of a model stating none against a list of strings", "t/list-model-untyped", "t/list-str", relBNarrower},
+		{"a list of one holding docs against a list of strings", "t/list-model-untyped-doc", "t/list-str", relOverlap},
+		{"the top type spelled as an alias against a model", "t/scalar-any", "t/model", relBNarrower},
+		{"an alias over the top type holding docs against a model", "t/scalar-any-doc", "t/model", relBNarrower},
+		{"an alias over the top type holding examples against a model", "t/scalar-any-ex", "t/model", relUnrelated},
+		{"two different literals", "t/lit-a", "t/lit-x", relDisjoint},
 		{"two identical hoisted literals", "t/lit-a-h1", "t/lit-a-h2", relSame},
 		{"a named enum against a hoisted copy", "t/enum-str", "t/enum-str-h", relANarrower},
 		{"two identical named literals", "t/lit-a", "t/lit-a-twin", relOverlap},
@@ -230,9 +359,9 @@ func TestTypeJudge_RelateArms(t *testing.T) {
 		{"a scalar against a literal", "t/scalar-str", "t/lit-a", relOverlap},
 		{"a narrower element", "t/list-int-null", "t/list-i32", relBNarrower},
 		{"a narrower element, the other way", "t/list-i32", "t/list-int-null", relANarrower},
-		{"a narrower element that admits null the broader does not", "t/list-int", "t/list-i32-null", relOverlap},
+		{"a narrower element that admits null the broader does not", "t/list-int", "t/list-i32-null", relMeet},
 		{"one element admitting null and the other not", "t/list-i32-null", "t/list-i32", relBNarrower},
-		{"a loser-only constraint", "t/list-int-min", "t/list-i32", relOverlap},
+		{"a loser-only constraint", "t/list-int-min", "t/list-i32", relMeet},
 		{"a winner-only constraint", "t/list-int", "t/list-i32-min", relBNarrower},
 		{"the same constraint on both", "t/list-int-min", "t/list-i32-min", relBNarrower},
 		{"two lists alike, declared apart", "t/list-i32", "t/list-i32-twin", relOverlap},
@@ -244,13 +373,20 @@ func TestTypeJudge_RelateArms(t *testing.T) {
 		{"two lists of one element, one bound tighter", "t/list-i32-min2", "t/list-i32-min", relANarrower},
 		{"two lists of one element, each adding a bound", "t/list-i32-min", "t/list-i32-max", relMeet},
 		{"a narrower element and bounds that say all the other's do", "t/list-i32-min2", "t/list-int-min1", relANarrower},
-		{"a narrower element and looser bounds", "t/list-i32-min", "t/list-int-min2", relOverlap},
-		{"a narrower element and a bound only the broader says", "t/list-i32-min", "t/list-int-max", relOverlap},
-		{"two lists of one element differing beside a bound", "t/list-i32-described", "t/list-i32-max", relOverlap},
+		{"a narrower element and looser bounds", "t/list-i32-min", "t/list-int-min2", relMeet},
+		{"a narrower element and a bound only the broader says", "t/list-i32-min", "t/list-int-max", relMeet},
+		{"two lists of one element differing beside a bound", "t/list-i32-described", "t/list-i32-max", relMeet},
 		{"a narrower element holding detail the broader lacks", "t/list-i32-described", "t/list-int", relANarrower},
 		{"a narrower element holding the detail the broader holds", "t/list-i32-described", "t/list-int-described", relANarrower},
-		{"a narrower element lacking detail the broader holds", "t/list-i32", "t/list-int-described", relOverlap},
-		{"two lists of lists whose elements meet", "t/lists-min", "t/lists-max", relOverlap},
+		{"a narrower element lacking detail the broader holds", "t/list-i32", "t/list-int-described", relMeet},
+		{"a narrower element lacking examples the broader gives", "t/list-i32", "t/list-int-exampled", relOverlap},
+		{"two lists of one element, one described", "t/list-i32", "t/list-i32-described", relOverlap},
+		{"two hoisted lists of one element, one described", "t/list-i32-h1", "t/list-i32-h-described", relOverlap},
+		{"a narrower element lacking what the broader keeps", "t/list-i32", "t/list-int-kept", relMeet},
+		{"two opaque scalars, one described", "t/scalar-opaque", "t/scalar-opaque-doc", relUnrelated},
+		{"an enum within another", "t/enum-str", "t/enum-ab", relANarrower},
+		{"an enum within another saying its shared member otherwise", "t/enum-str", "t/enum-ab-doc", relOverlap},
+		{"two lists of lists whose elements meet", "t/lists-min", "t/lists-max", relMeet},
 		{"two lists of lists, one element tighter", "t/lists-min2", "t/lists-min", relANarrower},
 		{"two maps of one value, each adding a bound", "t/map-min", "t/map-max", relMeet},
 		{"two maps of one value, one constrained", "t/map-min", "t/map-bare", relANarrower},
@@ -261,10 +397,13 @@ func TestTypeJudge_RelateArms(t *testing.T) {
 		{"two tuples, each adding a bound", "t/tuple-min", "t/tuple-max", relMeet},
 		{"two tuples, one constrained", "t/tuple-min", "t/tuple", relANarrower},
 		{"two tuples of different lengths", "t/tuple", "t/tuple-long", relUnrelated},
-		{"two tuples whose positions differ", "t/tuple", "t/tuple-int", relUnrelated},
-		{"two tuples whose positions admit null apart", "t/tuple", "t/tuple-null", relUnrelated},
+		{"two tuples, one position narrower", "t/tuple", "t/tuple-int", relANarrower},
+		{"two tuples, one position admitting null", "t/tuple", "t/tuple-null", relANarrower},
 		{"a tuple with a rest against one with none", "t/tuple", "t/tuple-rest", relUnrelated},
-		{"two tuples whose rests differ", "t/tuple-rest", "t/tuple-rest-int", relUnrelated},
+		{"two tuples, one rest narrower", "t/tuple-rest", "t/tuple-rest-int", relANarrower},
+		{"two tuples whose rests share no value", "t/tuple-rest", "t/tuple-rest-str", relUnrelated},
+		{"two literals of one value, one described", "t/lit-a", "t/lit-a-doc", relOverlap},
+		{"a narrower element keeping a key the broader keeps otherwise", "t/list-i32-kept-other", "t/list-int-kept", relOverlap},
 		{"a tuple against a list", "t/tuple", "t/list-i32", relUnrelated},
 		{"disjoint elements overlap in the empty list", "t/list-str", "t/list-i32", relOverlap},
 		{"disjoint elements where one list is never empty", "t/list-str", "t/list-int-min", relDisjoint},
@@ -279,6 +418,29 @@ func TestTypeJudge_RelateArms(t *testing.T) {
 		{"a map value", "t/map-int", "t/map-i32", relBNarrower},
 		{"maps with different keys", "t/map-i32", "t/map-i32-keyed", relUnrelated},
 		{"nesting past the cap", "t/cycle", "t/cycle-b", relUnrelated},
+		{"an enum within another of a broader value type", "t/enum-integer-1", "t/enum-number-12", relANarrower},
+		{"one set of values of a narrower value type", "t/enum-integer-12", "t/enum-number-12", relANarrower},
+		{"one set of values of another type in another order", "t/enum-integer-12", "t/enum-number-21", relOverlap},
+		{"an enum within another of a narrower value type", "t/enum-number-1", "t/enum-integer-12", relMeet},
+		{"enums of different value types sharing some values", "t/enum-number-12.5", "t/enum-integer-13", relMeet},
+		{"enums of different value types sharing none", "t/enum-number-2.5", "t/enum-integer-13", relDisjoint},
+		{"enums of overlapping value types sharing values", "t/enum-int32-12", "t/enum-uint32-12", relOverlap},
+		{"enums of overlapping value types sharing none", "t/enum-int32-1", "t/enum-uint32-2", relDisjoint},
+		{"an alias of an enum no member of which a kind admits", "t/alias-enum-str-max", prim(ir.PrimUUID), relDisjoint},
+		{"an alias of a const a kind refuses", "t/alias-lit-a-max", prim(ir.PrimInteger), relDisjoint},
+		{"an alias of a const a kind admits", "t/alias-lit-a-max", prim(ir.PrimString), relANarrower},
+		{"an alias of an enum against a node of a kind no member meets", "t/alias-enum-big-max", "t/scalar-i32-doc", relDisjoint},
+		{"an alias of an enum against the enum", "t/alias-enum-ab", "t/enum-ab", relANarrower},
+		{"an alias of an enum against one it meets", "t/alias-enum-ab", "t/enum-bc", relMeet},
+		{"an alias of a list against one it meets", "t/alias-list-i32-min", "t/list-i32-max", relMeet},
+		{"an alias of a time scalar holding a bound a time meets", "t/lit-time", "t/alias-scalar-time", relANarrower},
+		{"an alias of a time holding docs a time scalar gives otherwise", "t/alias-lit-time-doc", "t/scalar-time-doc", relOverlap},
+		{"two aliases of one list saying it otherwise, judged as two scalars", "t/alias-list-i32-min", "t/alias-list-i32-min-doc", relUnrelated},
+		{"a time against an alias of a time scalar the view cannot read", "t/lit-time", "t/alias-time-ref", relOverlap},
+		{"two enums differing in closedness", "t/enum-str", "t/enum-str-closed", relOverlap},
+		{"an alias of the top type against the top it stands for", "t/alias-doc-scalar-any", "t/scalar-any", relANarrower},
+		{"an alias adding null to an enum against the enum", "t/alias-enum-str-null", "t/enum-str", relBNarrower},
+		{"an alias adding null to an enum against a kind holding it", "t/alias-enum-str-null", prim(ir.PrimString), relOverlap},
 	} {
 		want := tc.want
 		assert.Equal(t, want, j.relate(ref(tc.a), ref(tc.b)), tc.name)
@@ -288,11 +450,17 @@ func TestTypeJudge_RelateArms(t *testing.T) {
 	nullTwin := ref("t/lit-a-h2")
 	nullTwin.Nullable = true
 	assert.Equal(t, relBNarrower, j.relate(nullTwin, ref("t/lit-a-h1")), "identical hoisted nodes order by null")
+	assert.Equal(t, relANarrower, j.relate(ref("t/lit-a-h1"), nullTwin), "in either order")
 
 	nullInt := primRef(ir.PrimInteger)
 	nullInt.Nullable = true
 	assert.Equal(t, relANarrower, j.relate(ref("t/lit-null"), nullInt), "a null literal against a nullable integer")
 	assert.Equal(t, relBNarrower, j.relate(nullInt, ref("t/lit-null")), "a nullable integer against a null literal")
+
+	nullString := primRef(ir.PrimString)
+	nullString.Nullable = true
+	assert.Equal(t, relANarrower, j.relate(ref("t/alias-enum-str-null"), nullString),
+		"an alias admitting null within a kind whose reference admits null too")
 
 	nullTime := ref("t/scalar-time")
 	nullTime.Nullable = true
@@ -328,7 +496,7 @@ func TestRelateKinds_ReadsAHeldFormatAsAStringFormat(t *testing.T) {
 // kind, holds none.
 func TestKindOf_TheFirstEncodingDecidesTheFormat(t *testing.T) {
 	t.Parallel()
-	j := typeJudge{Resolve: stubResolve(judgeRegistry())}
+	j := typeJudge{resolve: stubResolve(judgeRegistry()), sites: declarationSites{walk: &stubWalk{}}}
 	for _, tc := range []struct {
 		id   ir.TypeID
 		want valueKind
@@ -349,6 +517,161 @@ func TestKindOf_TheFirstEncodingDecidesTheFormat(t *testing.T) {
 	}
 }
 
+// encodedRegistry is narrowingRegistry plus a Scalar for each way an Encoding
+// writes a value: under a WireType its base is or is not spelled in, under a
+// name with no WireType, and under a WireType or base that is no primitive.
+func encodedRegistry() map[ir.TypeID]ir.TypeDef {
+	reg := narrowingRegistry()
+	scalar := func(id ir.TypeID, base ir.TypeID, enc ir.Encoding) {
+		reg[id] = &ir.Scalar{ID: id, Base: &ir.TypeRef{Target: base}, Encoding: &enc}
+	}
+	wire := func(k ir.PrimKind) *ir.TypeRef { r := primRef(k); return &r }
+	offset, bytes := primRef(ir.PrimDatetimeOffset).Target, primRef(ir.PrimBytes).Target
+	scalar("t/unixtime-int", offset, ir.Encoding{Name: "unixTimestamp", WireType: wire(ir.PrimInteger)})
+	scalar("t/unixtime-num", offset, ir.Encoding{Name: "unixTimestamp", WireType: wire(ir.PrimNumber)})
+	scalar("t/unixtime-str", offset, ir.Encoding{Name: "unixTimestamp", WireType: wire(ir.PrimString)})
+	scalar("t/http-date", offset, ir.Encoding{Name: "http-date"})
+	scalar("t/offset-base64", offset, ir.Encoding{Name: "base64"})
+	scalar("t/offset-media", offset, ir.Encoding{MediaType: "text/plain"})
+	scalar("t/offset-time", offset, ir.Encoding{Name: "time"})
+	scalar("t/byte", bytes, ir.Encoding{Name: "base64", WireType: wire(ir.PrimString)})
+	scalar("t/base64url", bytes, ir.Encoding{Name: "base64url", WireType: wire(ir.PrimString)})
+	scalar("t/number-text", primRef(ir.PrimInt64).Target, ir.Encoding{Name: "string", WireType: wire(ir.PrimString)})
+	scalar("t/string-email", primRef(ir.PrimString).Target, ir.Encoding{Name: "email"})
+	scalar("t/int-weird", primRef(ir.PrimInteger).Target, ir.Encoding{Name: "weird"})
+	scalar("t/wire-gone", offset, ir.Encoding{Name: "x", WireType: &ir.TypeRef{Target: "t/absent"}})
+	scalar("t/wire-node", offset, ir.Encoding{Name: "x", WireType: &ir.TypeRef{Target: "t/unixtime-int"}})
+	scalar("t/alias-wired", "t/http-date", ir.Encoding{Name: "x", WireType: wire(ir.PrimInteger)})
+	reg["t/alias-unixtime-int"] = &ir.Scalar{ID: "t/alias-unixtime-int", Base: &ir.TypeRef{Target: "t/unixtime-int"}}
+	reg["t/enum-http-date"] = &ir.Enum{ID: "t/enum-http-date", ValueType: ir.PrimString,
+		Members: []ir.EnumMember{{Value: str("Sun, 06 Nov 1994 08:49:37 GMT")}}}
+	reg["t/enum-base64"] = &ir.Enum{ID: "t/enum-base64", ValueType: ir.PrimString,
+		Members: []ir.EnumMember{{Value: str("MjAyMA==")}}}
+	reg["t/enum-seconds"] = &ir.Enum{ID: "t/enum-seconds", ValueType: ir.PrimInteger,
+		Members: []ir.EnumMember{{Value: num("1700000000")}}}
+	return reg
+}
+
+// TestKindOf_AnEncodedScalarIsReadAsItsValuesTravel pins travelsAs and
+// rewritesText: a Scalar whose WireType does not spell its base is read as
+// that type, as seconds written as an integer are an integer, while a base
+// its WireType spells keeps its kind, as bytes do under base64; and a string
+// format whose text an encoding names otherwise is unjudged, as an http-date
+// is no RFC 3339 text (docs/compilers/openapi.md#allof-redeclared-property).
+// A WireType or base that is no primitive leaves the base read as it is.
+func TestKindOf_AnEncodedScalarIsReadAsItsValuesTravel(t *testing.T) {
+	t.Parallel()
+	j := typeJudge{resolve: stubResolve(encodedRegistry()), sites: declarationSites{walk: &stubWalk{}}}
+	for id, want := range map[ir.TypeID]valueKind{
+		"t/unixtime-int":       {prim: ir.PrimInteger},
+		"t/alias-unixtime-int": {prim: ir.PrimInteger},
+		"t/unixtime-num":       {prim: ir.PrimNumber},
+		"t/unixtime-str":       {prim: ir.PrimDatetimeOffset, unjudged: true},
+		"t/http-date":          {prim: ir.PrimDatetimeOffset, unjudged: true},
+		"t/offset-base64":      {prim: ir.PrimDatetimeOffset, unjudged: true},
+		"t/offset-media":       {prim: ir.PrimDatetimeOffset},
+		"t/offset-time":        {prim: ir.PrimDatetimeOffset, unjudged: true},
+		"t/byte":               {prim: ir.PrimBytes, unjudged: true},
+		"t/number-text":        {prim: ir.PrimString},
+		"t/string-email":       {prim: ir.PrimString},
+		"t/int-weird":          {prim: ir.PrimInteger},
+		"t/wire-gone":          {prim: ir.PrimDatetimeOffset, unjudged: true},
+		"t/wire-node":          {prim: ir.PrimDatetimeOffset, unjudged: true},
+		"t/alias-wired":        {prim: ir.PrimDatetimeOffset, unjudged: true},
+	} {
+		got, ok := j.kindOf(ref(id))
+		require.True(t, ok, "%s", id)
+		assert.Equal(t, want, got, "%s", id)
+	}
+}
+
+// TestTypeJudge_AnEncodedScalarRelatesAsItsValues pins what those kinds
+// decide: unixtime on an integer is narrower than integer and number, overlaps
+// int64 and shares nothing with a string, as an integer would; an http-date is
+// narrower than datetime_offset and string, as byte is than bytes; and an enum
+// of text an encoding writes overlaps the scalar where the base's grammar
+// would refuse the text, while a bare datetime_offset still refuses it.
+func TestTypeJudge_AnEncodedScalarRelatesAsItsValues(t *testing.T) {
+	t.Parallel()
+	j := typeJudge{resolve: stubResolve(encodedRegistry()), sites: declarationSites{walk: &stubWalk{}}}
+	prim := func(k ir.PrimKind) ir.TypeID { return primRef(k).Target }
+	for _, tc := range []struct {
+		a, b ir.TypeID
+		want relation
+	}{
+		{"t/unixtime-int", prim(ir.PrimInteger), relANarrower},
+		{"t/unixtime-int", prim(ir.PrimNumber), relANarrower},
+		{"t/unixtime-int", prim(ir.PrimInt64), relOverlap},
+		{"t/unixtime-int", prim(ir.PrimString), relDisjoint},
+		{"t/unixtime-int", prim(ir.PrimDatetimeOffset), relDisjoint},
+		{"t/unixtime-int", "t/http-date", relDisjoint},
+		{"t/unixtime-int", "t/enum-seconds", relOverlap},
+		{"t/unixtime-num", prim(ir.PrimInteger), relOverlap},
+		{"t/unixtime-str", prim(ir.PrimString), relANarrower},
+		{"t/unixtime-str", prim(ir.PrimInteger), relDisjoint},
+		{"t/http-date", prim(ir.PrimDatetimeOffset), relANarrower},
+		{"t/http-date", prim(ir.PrimString), relANarrower},
+		{"t/http-date", prim(ir.PrimInteger), relDisjoint},
+		{"t/http-date", "t/enum-http-date", relOverlap},
+		{"t/offset-base64", "t/enum-base64", relOverlap},
+		{"t/byte", prim(ir.PrimBytes), relANarrower},
+		{"t/byte", "t/base64url", relOverlap},
+		{"t/enum-http-date", prim(ir.PrimDatetimeOffset), relDisjoint},
+	} {
+		assert.Equal(t, tc.want, j.relate(ref(tc.a), ref(tc.b)), "%s against %s", tc.a, tc.b)
+		assert.Equal(t, tc.want.flipped(), j.relate(ref(tc.b), ref(tc.a)), "%s against %s", tc.b, tc.a)
+	}
+}
+
+// TestValueKind_AnUnjudgedKindAdmitsNothing pins admits and literalAgainst on
+// a kind an encoding leaves unjudged: no value is shown to be one of it, an
+// RFC 3339 text no more than any, so a literal overlaps it rather than being
+// narrower or disjoint, as against bytes.
+func TestValueKind_AnUnjudgedKindAdmitsNothing(t *testing.T) {
+	t.Parallel()
+	offset := valueKind{prim: ir.PrimDatetimeOffset}
+	unjudged := valueKind{prim: ir.PrimDatetimeOffset, unjudged: true}
+	for _, v := range []ir.Value{str("2020-01-01T00:00:00Z"), str("Sun, 06 Nov 1994 08:49:37 GMT"), num("1")} {
+		assert.False(t, unjudged.admits(v), "%v", v)
+		assert.Equal(t, relOverlap, literalAgainst(v, unjudged, false), "%v", v)
+	}
+	assert.True(t, offset.admits(str("2020-01-01T00:00:00Z")), "the judged kind reads its own text")
+	assert.Equal(t, relDisjoint, literalAgainst(str("Sun, 06 Nov 1994 08:49:37 GMT"), offset, false))
+}
+
+// TestKindOf_ANumberAsTextIsAString pins travelsAs: a Scalar whose Encoding
+// carries a number as a string has a string's instances, so it relates to a
+// string and not to its number, while bytes, which JSON spells as a string
+// already, keeps its own kind however it is encoded, a kind with no judge
+// (docs/compilers/openapi.md#string-formats).
+func TestKindOf_ANumberAsTextIsAString(t *testing.T) {
+	t.Parallel()
+	wire := func() *ir.Encoding { s := primRef(ir.PrimString); return &ir.Encoding{Name: "string", WireType: &s} }
+	reg := map[ir.TypeID]ir.TypeDef{}
+	for _, k := range []ir.PrimKind{ir.PrimString, ir.PrimInt64, ir.PrimBytes} {
+		reg[primRef(k).Target] = &ir.Primitive{ID: primRef(k).Target, Prim: k}
+	}
+	i64, b := primRef(ir.PrimInt64), primRef(ir.PrimBytes)
+	reg["t/num-text"] = &ir.Scalar{ID: "t/num-text", Base: &i64, Encoding: wire()}
+	reg["t/alias-num-text"] = &ir.Scalar{ID: "t/alias-num-text", Base: &ir.TypeRef{Target: "t/num-text"}}
+	reg["t/num"] = &ir.Scalar{ID: "t/num", Base: &i64, Encoding: &ir.Encoding{Name: "string"}}
+	reg["t/bytes-b64"] = &ir.Scalar{ID: "t/bytes-b64", Base: &b, Encoding: wire()}
+	j := typeJudge{resolve: stubResolve(reg), sites: declarationSites{walk: &stubWalk{}}}
+	for id, want := range map[ir.TypeID]valueKind{
+		"t/num-text": {prim: ir.PrimString}, "t/alias-num-text": {prim: ir.PrimString}, "t/num": {prim: ir.PrimInt64},
+		"t/bytes-b64": {prim: ir.PrimBytes, unjudged: true},
+	} {
+		got, ok := j.kindOf(ref(id))
+		require.True(t, ok, "%s", id)
+		assert.Equal(t, want, got, "%s", id)
+	}
+	str, _ := j.kindOf(primRef(ir.PrimString))
+	num, _ := j.kindOf(primRef(ir.PrimInt64))
+	text, _ := j.kindOf(ref("t/num-text"))
+	assert.Equal(t, relSame, relateKinds(str, text), "a string and a number as text share their instances")
+	assert.Equal(t, relDisjoint, relateKinds(num, text), "a JSON number is no string")
+}
+
 func TestTypeJudge_AdmitsPerNode(t *testing.T) {
 	t.Parallel()
 	reg := judgeRegistry()
@@ -361,7 +684,7 @@ func TestTypeJudge_AdmitsPerNode(t *testing.T) {
 		Constraints: &ir.Constraints{MaxLength: &short}}
 	reg["t/list-pair"] = &ir.List{ID: "t/list-pair", Elem: ref("t/enum-1"), Constraints: &ir.Constraints{MaxItems: &two}}
 	reg["t/map-pair"] = &ir.MapT{ID: "t/map-pair", Value: ref("t/enum-1"), Constraints: &ir.Constraints{MaxProps: &two}}
-	j := typeJudge{Resolve: stubResolve(reg)}
+	j := typeJudge{resolve: stubResolve(reg), sites: declarationSites{walk: &stubWalk{}}}
 	list := func(vs ...ir.Value) ir.Value { return ir.Value{Kind: ir.ValueList, List: vs} }
 	obj := func(v ir.Value) ir.Value {
 		return ir.Value{Kind: ir.ValueObject, Object: []ir.Field{{Name: "k", Value: v}}}
@@ -412,7 +735,7 @@ func TestRelation_Flipped(t *testing.T) {
 func TestTypeJudge_NullIsJudgedByNullability(t *testing.T) {
 	t.Parallel()
 	null := ir.Value{Kind: ir.ValueNull}
-	j := typeJudge{Resolve: stubResolve(narrowingRegistry())}
+	j := typeJudge{resolve: stubResolve(narrowingRegistry()), sites: declarationSites{walk: &stubWalk{}}}
 	nullable := func(k ir.PrimKind) ir.TypeRef { r := primRef(k); r.Nullable = true; return r }
 
 	assert.True(t, j.admits(nullable(ir.PrimInteger), null))
@@ -498,7 +821,7 @@ func TestClassify_ComparesResolvedKinds(t *testing.T) {
 		{"a model and the model an alias Base stands for", "t/via-alias", "t/model", relANarrower},
 		{"a Base the registry does not hold", "t/dangling", "t/model", relUnrelated},
 		{"a part the registry does not hold beside one that leads there", "t/partly-gone", "t/model", relANarrower},
-		{"an alias of a scalar is judged by kind, not by what it composes", "t/scalar-on", "t/scalar", relOverlap},
+		{"an alias of a scalar is within the scalar it stands for", "t/scalar-on", "t/scalar", relANarrower},
 		{"models composing each other", "t/cycle-a", "t/cycle-b", relOverlap},
 		{"a model and a bare object", "t/model", "t/bare", relANarrower},
 		{"a map and a bare object", "t/map", "t/bare", relANarrower},
@@ -525,7 +848,7 @@ func TestClassify_ComparesResolvedKinds(t *testing.T) {
 		assert.Equal(t, tc.want.flipped(), judge(g).relate(ir.TypeRef{Target: tc.b}, ir.TypeRef{Target: tc.a}), "%s, flipped", tc.name)
 	}
 
-	gone, ok := g.Resolve("t/alias-gone")
+	gone, ok := g.resolve("t/alias-gone")
 	require.True(t, ok)
 	assert.Equal(t, gone, judge(g).unaliased(gone), "an alias with nothing at its end stands for itself, never for no type")
 }
@@ -699,4 +1022,30 @@ func TestTypeJudge_ComparesReferentsNotReferences(t *testing.T) {
 		"a degraded node stands for a declaration the judgment cannot see")
 	assert.Equal(t, relDisjoint, judge(g).relate(ref("t/m"), ref("t/a")),
 		"a structural type and a primitive are different kinds")
+}
+
+// TestTypeJudge_CopiesUnderAnotherBaseOverlap pins that a hoisted copy keeping
+// a reference is one type with a node held alike only where the two read it
+// against one base (Walk.Alike): elsewhere they are two types declared apart,
+// which overlap, whether the other is a copy or a node declared elsewhere.
+// Copies keeping none say the same under any base.
+func TestTypeJudge_CopiesUnderAnotherBaseOverlap(t *testing.T) {
+	t.Parallel()
+	reg := judgeRegistry()
+	not := ir.Unmodeled{"openapi:not": {Value: ir.RawValue(`{"$ref":"n.json"}`)}}
+	for _, id := range []ir.TypeID{"t/lit-a-ref1", "t/lit-a-ref2"} {
+		reg[id] = &ir.Literal{ID: id, Anonymous: true, Value: str("a"), Unmodeled: not}
+	}
+	reg["t/lit-a-ref"] = &ir.Literal{ID: "t/lit-a-ref", Value: str("a"), Unmodeled: not}
+	absolute := ir.Unmodeled{"openapi:not": {Value: ir.RawValue(`{"$ref":"https://ex.test/n.json"}`)}}
+	for _, id := range []ir.TypeID{"t/lit-a-abs1", "t/lit-a-abs2"} {
+		reg[id] = &ir.Literal{ID: id, Anonymous: true, Value: str("a"), Unmodeled: absolute}
+	}
+	j := typeJudge{resolve: stubResolve(reg), sites: declarationSites{walk: &stubWalk{apart: true}}}
+	assert.Equal(t, relOverlap, j.relate(ref("t/lit-a-ref1"), ref("t/lit-a-ref2")))
+	assert.Equal(t, relOverlap, j.relate(ref("t/lit-a-ref"), ref("t/lit-a-ref1")), "a node declared apart")
+	assert.Equal(t, relSame, j.relate(ref("t/lit-a-h1"), ref("t/lit-a-h2")), "copies keeping no reference")
+	assert.Equal(t, relSame, j.relate(ref("t/lit-a-abs1"), ref("t/lit-a-abs2")), "copies keeping an absolute one")
+	assert.Equal(t, relANarrower, j.relate(ref("t/enum-str"), ref("t/enum-str-h")),
+		"a node declared apart still wins over a hoisted copy")
 }

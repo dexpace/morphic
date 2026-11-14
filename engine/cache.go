@@ -8,7 +8,6 @@ import (
 	"encoding/json/v2"
 	"errors"
 	"fmt"
-	"os"
 
 	"github.com/dexpace/morphic/barrier"
 	"github.com/dexpace/morphic/compilers"
@@ -35,8 +34,6 @@ type Cache interface {
 type cacheBinding struct {
 	store Cache
 	build string
-	// workingDir names the directory a compile reads, os.Getwd outside a test.
-	workingDir func() (string, error)
 }
 
 // WithCache answers a run from c when an earlier one had the same inputs, and
@@ -49,7 +46,7 @@ type cacheBinding struct {
 // one across two builds serves one's documents to the other. New refuses a nil
 // c and an empty build.
 func WithCache(c Cache, build string) Option {
-	return func(cfg *config) { cfg.cache = &cacheBinding{store: c, build: build, workingDir: os.Getwd} }
+	return func(cfg *config) { cfg.cache = &cacheBinding{store: c, build: build} }
 }
 
 // check refuses a binding no run could use.
@@ -71,22 +68,15 @@ func cacheable(opts RunOptions) bool {
 }
 
 // compileCached is compile, answered from the engine's cache where the run takes
-// part, which skips detection too: that parses the spec. A failed key, lookup or
+// part, which skips detection too: that parses the spec. A failed lookup or
 // store costs the work and goes on Result.CacheErr, and never fails the run.
 func (e *Engine) compileCached(ctx context.Context, spec compilers.Source, opts RunOptions,
 	docs compilers.DocumentReader, p plan,
 ) (*Result, error) {
 	if e.cache == nil || !cacheable(opts) {
-		return e.compile(ctx, spec, configurer(opts, docs), p)
+		return e.compile(ctx, spec, configuration(opts, docs), p)
 	}
-	key, keyErr := e.cache.runKey(spec, opts, p)
-	if keyErr != nil {
-		res, err := e.compile(ctx, spec, configurer(opts, docs), p)
-		if err == nil {
-			res.CacheErr = keyErr
-		}
-		return res, err
-	}
+	key := e.cache.runKey(spec, opts, p)
 	res, hit, lookupErr := e.cache.fetch(ctx, key, docs)
 	if hit {
 		// A run cancelled meanwhile returns no document, as one cancelled in a
@@ -97,7 +87,7 @@ func (e *Engine) compileCached(ctx context.Context, spec compilers.Source, opts 
 		return res, nil
 	}
 	reads := newRecorder(docs)
-	res, err := e.compile(ctx, spec, configurer(opts, reads), p)
+	res, err := e.compile(ctx, spec, configuration(opts, reads), p)
 	if err != nil {
 		return nil, err
 	}
@@ -106,7 +96,8 @@ func (e *Engine) compileCached(ctx context.Context, spec compilers.Source, opts 
 }
 
 // fetch answers a run from the entry named key. ok is false for no entry, for
-// one a changed document outdates, and for one that fails, which err then says.
+// one a changed document or a moved directory outdates, and for one that
+// fails, which err then says.
 // Rereading costs what the compile's reads cost, the network's among them.
 func (b *cacheBinding) fetch(ctx context.Context, key cache.Key, docs compilers.DocumentReader) (*Result, bool, error) {
 	entry, ok, err := b.load(ctx, key)
@@ -117,7 +108,7 @@ func (b *cacheBinding) fetch(ctx context.Context, key cache.Key, docs compilers.
 	if err != nil {
 		return nil, false, fmt.Errorf("engine: cache: entry %s: %w", key, err)
 	}
-	if !readsUnchanged(ctx, docs, head.Reads) {
+	if !readsUnchanged(ctx, docs, head.Reads) || !directoriesUnchanged(docs, head.Directories) {
 		return nil, false, nil
 	}
 	var doc ir.Document
@@ -151,7 +142,7 @@ func (b *cacheBinding) keep(ctx context.Context, key cache.Key, res *Result, rea
 	if res.Document == nil || !sound {
 		return nil
 	}
-	entry, err := encodeEntry(key, res, listed)
+	entry, err := encodeEntry(key, res, listed, reads.directories())
 	if err != nil {
 		return fmt.Errorf("engine: cache: %w", err)
 	}

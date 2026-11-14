@@ -224,6 +224,172 @@ components:
         - type: object
           properties:
             data: {$ref: '#/components/schemas/AtLeastTwoMembers'}
+    # A component that is {} with only a description admits every value, so it
+    # adds no conjunct, as a bare {} does, wherever it stands, and the field keeps
+    # its description, which the reference carries down.
+    Anything:
+      description: Admits every value.
+    TopAliasFirst:
+      allOf:
+        - type: object
+          properties:
+            data: {$ref: '#/components/schemas/Anything'}
+        - type: object
+          properties:
+            data: {$ref: '#/components/schemas/Meeting'}
+        - type: object
+          properties:
+            data: {$ref: '#/components/schemas/Recording'}
+    TopAliasLast:
+      allOf:
+        - type: object
+          properties:
+            data: {$ref: '#/components/schemas/Meeting'}
+        - type: object
+          properties:
+            data: {$ref: '#/components/schemas/Recording'}
+        - type: object
+          properties:
+            data: {$ref: '#/components/schemas/Anything'}
+    # An inline object written the same way as a component, a nested object
+    # included, is a copy of it: the component wins in either order, and two
+    # inline copies are one type.
+    Owner:
+      type: object
+      properties:
+        name: {type: string}
+        address:
+          type: object
+          properties:
+            street: {type: string}
+    OwnerThenCopy:
+      allOf:
+        - type: object
+          properties:
+            owner: {$ref: '#/components/schemas/Owner'}
+        - type: object
+          properties:
+            owner:
+              type: object
+              properties:
+                name: {type: string}
+                address:
+                  type: object
+                  properties:
+                    street: {type: string}
+    CopyThenOwner:
+      allOf:
+        - type: object
+          properties:
+            owner:
+              type: object
+              properties:
+                name: {type: string}
+                address:
+                  type: object
+                  properties:
+                    street: {type: string}
+        - type: object
+          properties:
+            owner: {$ref: '#/components/schemas/Owner'}
+    TwoCopies:
+      allOf:
+        - type: object
+          properties:
+            owner:
+              type: object
+              properties:
+                name: {type: string}
+        - type: object
+          properties:
+            owner:
+              type: object
+              properties:
+                name: {type: string}
+    # A map or a union beside a model composes with it, as a written allOf of
+    # the two does, in either order.
+    ModelThenMap:
+      allOf:
+        - type: object
+          properties:
+            data: {$ref: '#/components/schemas/Meeting'}
+        - type: object
+          properties:
+            data:
+              type: object
+              additionalProperties: {type: string}
+    MapThenModel:
+      allOf:
+        - type: object
+          properties:
+            data:
+              type: object
+              additionalProperties: {type: string}
+        - type: object
+          properties:
+            data: {$ref: '#/components/schemas/Meeting'}
+    ModelThenUnion:
+      allOf:
+        - type: object
+          properties:
+            data: {$ref: '#/components/schemas/Meeting'}
+        - type: object
+          properties:
+            data:
+              oneOf:
+                - {$ref: '#/components/schemas/Meeting'}
+                - {$ref: '#/components/schemas/Recording'}
+    UnionThenModel:
+      allOf:
+        - type: object
+          properties:
+            data:
+              oneOf:
+                - {$ref: '#/components/schemas/Meeting'}
+                - {$ref: '#/components/schemas/Recording'}
+        - type: object
+          properties:
+            data: {$ref: '#/components/schemas/Meeting'}
+    # Lists, maps or tuples of two different models hold a member composing
+    # both, as the field itself would.
+    ListsOfModels:
+      allOf:
+        - type: object
+          properties:
+            data:
+              type: array
+              items: {$ref: '#/components/schemas/Meeting'}
+        - type: object
+          properties:
+            data:
+              type: array
+              items: {$ref: '#/components/schemas/Recording'}
+    MapsOfModels:
+      allOf:
+        - type: object
+          properties:
+            data:
+              type: object
+              additionalProperties: {$ref: '#/components/schemas/Meeting'}
+        - type: object
+          properties:
+            data:
+              type: object
+              additionalProperties: {$ref: '#/components/schemas/Recording'}
+    TuplesOfModels:
+      allOf:
+        - type: object
+          properties:
+            data:
+              type: array
+              prefixItems:
+                - {$ref: '#/components/schemas/Meeting'}
+        - type: object
+          properties:
+            data:
+              type: array
+              prefixItems:
+                - {$ref: '#/components/schemas/Recording'}
     AnyObject:
       type: object
     AtLeastTwoMembers:

@@ -1,0 +1,296 @@
+// Copyright (c) 2026 dexpace.
+// Licensed under the MIT License. See LICENSE in the repository root for details.
+
+package schema_test
+
+import (
+	"testing"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
+	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
+	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
+	"github.com/dexpace/morphic/ir"
+)
+
+// TestUse_ALoopOfNarrowingEnumsEnds pins the bound on what one use reads on
+// through: enums each passing over a $ref to the next never end on a schema, so
+// the walk stops, and what it read stands.
+func TestUse_ALoopOfNarrowingEnumsEnds(t *testing.T) {
+	t.Parallel()
+	doc, diags := parseFull(t, openapitest.ComponentSpecVer("3.1.0", `    Holder:
+      type: object
+      properties:
+        f: {$ref: '#/components/schemas/A'}
+    A: {enum: [a], allOf: [{$ref: '#/components/schemas/B'}]}
+    B: {enum: [a], description: from b, allOf: [{$ref: '#/components/schemas/A'}]}
+`))
+	openapitest.RequireNoErrorDiags(t, diags)
+	assert.Equal(t, "from b", propertyOf(t, doc, "Holder", "f").Docs.Description)
+}
+
+// TestUse_ADefaultReadsOnlyWhereThePositionTakesIt pins a default read across a
+// narrowing at each spelling, by value and, with no value set, by kind.
+func TestUse_ADefaultReadsOnlyWhereThePositionTakesIt(t *testing.T) {
+	t.Parallel()
+	doc, diags := parseFull(t, openapitest.ComponentSpecVer("3.1.0", `    Holder:
+      type: object
+      properties:
+        kept: {allOf: [{$ref: '#/components/schemas/Num'}], type: number}
+        dropped: {allOf: [{$ref: '#/components/schemas/Num'}, {type: integer}]}
+        viaRef: {$ref: '#/components/schemas/Narrow'}
+    Num: {type: number, default: 1.5}
+    Narrow: {allOf: [{$ref: '#/components/schemas/Mode'}, {enum: [b]}]}
+    Mode: {type: string, default: a}
+`))
+	openapitest.RequireNoErrorDiags(t, diags)
+	assert.NotNil(t, propertyOf(t, doc, "Holder", "kept").Default)
+	assert.Nil(t, propertyOf(t, doc, "Holder", "dropped").Default, "an integer takes no 1.5")
+	assert.Nil(t, propertyOf(t, doc, "Holder", "viaRef").Default, "the enum a $ref lands on takes no a")
+
+	unread, _ := parseFull(t, openapitest.ComponentSpecVer("3.1.0", `    Holder:
+      type: object
+      properties:
+        f: {allOf: [{$ref: '#/components/schemas/Odd'}, {enum: [a]}]}
+    Odd: {type: string, default: .nan}
+`))
+	assert.Nil(t, propertyOf(t, unread, "Holder", "f").Default, "a value it cannot read is none it takes")
+}
+
+// TestUse_ALostRefSpeaksWithWhatIsBesideIt pins a $ref its lowering lost: what is
+// written beside it speaks before its target, on a carrier and on a node alike.
+func TestUse_ALostRefSpeaksWithWhatIsBesideIt(t *testing.T) {
+	t.Parallel()
+	const lost = "{$ref: '#/components/schemas/Mode', description: beside, deprecated: true}"
+	doc, diags := parseFull(t, openapitest.ComponentSpecVer("3.1.0", `    Mode: {type: string, enum: [a, b], description: target}
+    Narrow: {allOf: [`+lost+`, {enum: [a]}]}
+    Passed: {enum: [a], allOf: [`+lost+`]}
+    Holder:
+      type: object
+      properties:
+        f: {allOf: [`+lost+`, {enum: [a]}]}
+`))
+	openapitest.RequireNoErrorDiags(t, diags)
+	f := propertyOf(t, doc, "Holder", "f")
+	assert.Equal(t, "beside", f.Docs.Description)
+	assert.NotNil(t, f.Deprecation)
+	for _, name := range []string{"Narrow", "Passed"} {
+		common := typeByName(doc, name).Common()
+		assert.Equal(t, "beside", common.Docs.Description, name)
+		assert.NotNil(t, common.Deprecation, name)
+	}
+}
+
+// TestUse_ADefaultNoNarrowingExcludesReadsAsBesideARef pins that only a conjunct
+// narrowing the $ref judges its target's default: one the target's own type leaves
+// out reads as a plain $ref reads it, where a conjunct excluding it drops it. A
+// nullable beside the $ref adds null to what the $ref admits, as 3.0 reads it.
+func TestUse_ADefaultNoNarrowingExcludesReadsAsBesideARef(t *testing.T) {
+	t.Parallel()
+	doc, diags := parseFull(t, openapitest.ComponentSpecVer("3.0.3", `    Bare: {type: string, default: null}
+    Nullable: {type: string, nullable: true, default: null}
+    Untyped: {default: null}
+    Holder:
+      type: object
+      properties:
+        plain: {$ref: '#/components/schemas/Bare'}
+        wrapped: {allOf: [{$ref: '#/components/schemas/Bare'}], description: d}
+        widened: {allOf: [{$ref: '#/components/schemas/Bare'}, {nullable: true}]}
+        viaRef: {$ref: '#/components/schemas/Wrapper'}
+        narrowed: {allOf: [{$ref: '#/components/schemas/Nullable'}, {type: string}]}
+        reopened: {allOf: [{$ref: '#/components/schemas/Nullable'}, {type: string}], nullable: true}
+        viaNarrow: {$ref: '#/components/schemas/Narrow', nullable: true}
+        byValue: {allOf: [{$ref: '#/components/schemas/Mode'}, {enum: [a, c]}]}
+        byValueOrNull: {allOf: [{$ref: '#/components/schemas/Mode'}, {enum: [a, c]}], nullable: true}
+        nullBeside: {allOf: [{$ref: '#/components/schemas/Untyped', type: string, nullable: true}], description: d}
+        nullBesideNarrowed: {allOf: [{$ref: '#/components/schemas/Untyped', type: string, nullable: true}, {type: string}]}
+    Wrapper: {allOf: [{$ref: '#/components/schemas/Bare'}], description: d}
+    Narrow: {allOf: [{$ref: '#/components/schemas/Nullable'}, {type: string}]}
+    Mode: {type: string, enum: [a, b], default: b}
+`))
+	openapitest.RequireNoErrorDiags(t, diags)
+	for _, wire := range []string{"plain", "wrapped", "widened", "viaRef", "reopened", "viaNarrow", "nullBeside"} {
+		assert.NotNil(t, propertyOf(t, doc, "Holder", wire).Default, wire)
+	}
+	assert.Nil(t, propertyOf(t, doc, "Holder", "narrowed").Default, "a string takes no null its $ref admits")
+	assert.Nil(t, propertyOf(t, doc, "Holder", "byValue").Default, "the conjuncts together leave only a")
+	assert.Nil(t, propertyOf(t, doc, "Holder", "byValueOrNull").Default, "a null is all that nullable adds")
+	assert.Nil(t, propertyOf(t, doc, "Holder", "nullBesideNarrowed").Default,
+		"a string takes no null the nullable beside its $ref admits")
+}
+
+// TestUse_ADefaultBesideItsValueSetStands pins that a narrowing judges only what
+// lies past it: a default written with the value set is the position's own, in or
+// out of the set, as a plain enum's is, and it stands ahead of what the $ref says.
+func TestUse_ADefaultBesideItsValueSetStands(t *testing.T) {
+	t.Parallel()
+	doc, diags := parseFull(t, openapitest.ComponentSpecVer("3.0.3", `    Mode: {type: string, enum: [a, b], default: a}
+    Plain: {enum: [a], default: other}
+    OnBranch: {allOf: [{$ref: '#/components/schemas/Mode'}, {enum: [a], default: other}]}
+    Beside: {allOf: [{$ref: '#/components/schemas/Mode'}, {enum: [a]}], default: other}
+    Lost: {enum: [a], default: other, allOf: [{$ref: '#/components/schemas/Mode'}]}
+    Holder:
+      type: object
+      properties:
+        plain: {$ref: '#/components/schemas/Plain'}
+        onBranch: {allOf: [{$ref: '#/components/schemas/Mode'}, {enum: [a], default: other}]}
+        beside: {allOf: [{$ref: '#/components/schemas/Mode'}, {enum: [a]}], default: other}
+        viaOnBranch: {$ref: '#/components/schemas/OnBranch'}
+        viaBeside: {$ref: '#/components/schemas/Beside'}
+        viaLost: {$ref: '#/components/schemas/Lost'}
+`))
+	openapitest.RequireNoErrorDiags(t, diags)
+	for _, wire := range []string{"plain", "onBranch", "beside", "viaOnBranch", "viaBeside", "viaLost"} {
+		got := propertyOf(t, doc, "Holder", wire).Default
+		if assert.NotNil(t, got, wire) {
+			assert.Equal(t, "other", got.Str, wire)
+		}
+	}
+}
+
+// TestUse_ACarrierReadsThroughADecorator pins the object spelling of a read-only
+// use: a decorator over an object keeps its node, and the carrier holding it reads
+// what its $ref binds as the 3.1 spelling does, a bound beside the $ref included.
+// A composition adding a member says more than its $ref, so it reads nothing
+// through it.
+func TestUse_ACarrierReadsThroughADecorator(t *testing.T) {
+	t.Parallel()
+	doc, diags := parseFull(t, openapitest.ComponentSpecVer("3.0.3", `    Stamp:
+      type: object
+      readOnly: true
+      default: {at: 1}
+      properties: {at: {type: integer}}
+    Holder:
+      type: object
+      properties:
+        wrapped: {allOf: [{$ref: '#/components/schemas/Stamp'}], description: mine}
+        branch: {allOf: [{$ref: '#/components/schemas/Stamp'}, {description: mine}]}
+        bound: {allOf: [{$ref: '#/components/schemas/Stamp'}, {minProperties: 1}]}
+        viaRef: {$ref: '#/components/schemas/Wrap'}
+        adds:
+          allOf:
+            - {$ref: '#/components/schemas/Stamp'}
+            - {properties: {extra: {type: string}}}
+        requires: {allOf: [{$ref: '#/components/schemas/Stamp'}], required: [at]}
+    Wrap: {allOf: [{$ref: '#/components/schemas/Stamp'}], description: wrapper}
+`))
+	openapitest.RequireNoErrorDiags(t, diags)
+	for _, wire := range []string{"wrapped", "branch", "bound", "viaRef"} {
+		p := propertyOf(t, doc, "Holder", wire)
+		assert.NotEmpty(t, p.Visibility.Only, wire)
+		assert.NotNil(t, p.Default, wire)
+	}
+	for _, wire := range []string{"adds", "requires"} {
+		p := propertyOf(t, doc, "Holder", wire)
+		assert.Empty(t, p.Visibility.Only, wire)
+		assert.Nil(t, p.Default, wire)
+	}
+}
+
+// TestUse_ANarrowingOfTwoRefsLendsNothing pins that an enum beside an allOf of two
+// $refs reads neither: no precedence chooses one.
+func TestUse_ANarrowingOfTwoRefsLendsNothing(t *testing.T) {
+	t.Parallel()
+	doc, diags := parseFull(t, openapitest.ComponentSpecVer("3.1.0", `    A: {type: string, description: a}
+    B: {type: string, description: b}
+    Holder:
+      type: object
+      properties:
+        f: {enum: [x], allOf: [{$ref: '#/components/schemas/A'}, {$ref: '#/components/schemas/B'}]}
+`))
+	openapitest.RequireNoErrorDiags(t, diags)
+	p := propertyOf(t, doc, "Holder", "f")
+	assert.Empty(t, firstDocs(doc, p).Description)
+}
+
+// TestUse_ADraftsTupleRestLeavesUnevaluatedItemsInert pins the dialect a site
+// reads an unevaluatedItems in (docs/compilers/openapi.md#validation-only): a
+// draft reading an `items` list as a tuple leaves the keyword inert beside the
+// `additionalItems` past the list, and live with none, and an `items` schema
+// leaves it inert in any dialect.
+func TestUse_ADraftsTupleRestLeavesUnevaluatedItemsInert(t *testing.T) {
+	t.Parallel()
+	const draft = "$schema: 'https://json-schema.org/draft/2019-09/schema', type: array, "
+	doc, diags := parseFull(t, openapitest.ComponentSpecVer("3.1.0",
+		"    Rest: {"+draft+"items: [{type: string}], additionalItems: {type: integer}, unevaluatedItems: false}\n"+
+			"    NoRest: {"+draft+"items: [{type: string}], unevaluatedItems: false}\n"+
+			"    Schema: {"+draft+"items: {type: string}, unevaluatedItems: false}\n"))
+	openapitest.RequireNoErrorDiags(t, diags)
+	for name, want := range map[string]string{
+		"Rest":   `{"additionalItems":{"type":"integer"},"unevaluatedItems":false}`,
+		"NoRest": `{"unevaluatedItems":false}`,
+		"Schema": `{"items":{"type":"string"},"unevaluatedItems":false}`,
+	} {
+		kept, ok := typeByName(doc, name).Common().Unmodeled["openapi:unevaluated"]
+		require.True(t, ok, name)
+		assert.Equal(t, want, string(kept.Value), name)
+	}
+}
+
+// TestUse_ADecoratorOverADeprecatedBaseReadsItsMembers pins the 3.0 spelling of
+// a use against the 3.1 one: a decorator over a target a keyword or a key
+// deprecates is deprecated through it, so a member key beside its allOf
+// annotates that deprecation on the decorator, as beside a $ref it annotates
+// the carrier's. A decorator over a live target, or one writing no member,
+// takes no Deprecation.
+func TestUse_ADecoratorOverADeprecatedBaseReadsItsMembers(t *testing.T) {
+	t.Parallel()
+	doc, diags := parseFull(t, openapitest.ComponentSpecVer("3.1.0", `    Old: {type: object, deprecated: true, properties: {a: {type: string}}}
+    Stated: {type: object, x-stability: deprecated, properties: {a: {type: string}}}
+    Live: {type: object, properties: {a: {type: string}}}
+    Holder:
+      type: object
+      properties:
+        beside: {$ref: '#/components/schemas/Old', x-sunset: "2099-01-01"}
+        besideStated: {$ref: '#/components/schemas/Stated', x-sunset: "2099-01-01"}
+        wrapped: {allOf: [{$ref: '#/components/schemas/Old'}], x-sunset: "2099-01-01"}
+        wrappedStated: {allOf: [{$ref: '#/components/schemas/Stated'}], x-sunset: "2099-01-01"}
+        live: {allOf: [{$ref: '#/components/schemas/Live'}], x-sunset: "2099-01-01"}
+        bare: {allOf: [{$ref: '#/components/schemas/Old'}], description: d}
+`))
+	openapitest.RequireNoErrorDiags(t, diags)
+	want := &ir.Deprecation{RemovalDate: "2099-01-01"}
+	assert.Equal(t, want, propertyOf(t, doc, "Holder", "beside").Deprecation)
+	assert.Equal(t, want, propertyOf(t, doc, "Holder", "besideStated").Deprecation)
+	for wire, dep := range map[string]*ir.Deprecation{"wrapped": want, "wrappedStated": want, "live": nil, "bare": nil} {
+		decorator := doc.Types[propertyOf(t, doc, "Holder", wire).Type.Target].Common()
+		assert.Equal(t, dep, decorator.Deprecation, wire)
+		assert.Equal(t, dep != nil, decorator.Provenance.Inferred == lowering.ExtensionPromotionHeuristic, wire)
+	}
+}
+
+// TestUse_AUnionBesideAnAllOfReadsThroughOnlyARefinement pins what a carrier
+// reads past an allOf a union stands beside: through one refining to its $ref,
+// at the position and past a $ref to a schema writing it, as past any
+// refinement, and through none that composes, which the union distributes
+// across (docs/compilers/openapi.md#allof-refinement).
+func TestUse_AUnionBesideAnAllOfReadsThroughOnlyARefinement(t *testing.T) {
+	t.Parallel()
+	for _, doc := range discriminatedOrders(t, "3.1.0", `    Holder:
+      type: object
+      properties:
+        refines: {allOf: [{$ref: '#/components/schemas/Str'}], anyOf: [{type: string}, {type: number}], description: mine}
+        viaRefines: {$ref: '#/components/schemas/Refines'}
+        composes: {allOf: [{$ref: '#/components/schemas/Stamp'}], oneOf: [{$ref: '#/components/schemas/A'}, {$ref: '#/components/schemas/B'}]}
+        viaComposes: {$ref: '#/components/schemas/Composes'}
+    Refines: {allOf: [{$ref: '#/components/schemas/Str'}], anyOf: [{type: string}, {type: number}]}
+    Composes: {allOf: [{$ref: '#/components/schemas/Stamp'}], oneOf: [{$ref: '#/components/schemas/A'}, {$ref: '#/components/schemas/B'}]}
+`, `    Str: {type: string, default: lent, description: from Str}
+    Stamp: {type: object, default: {at: 1}, properties: {at: {type: integer}}}
+    A: {type: object, properties: {a: {type: string}}}
+    B: {type: object, properties: {b: {type: string}}}
+`) {
+		refines := propertyOf(t, doc, "Holder", "refines")
+		assert.Equal(t, "mine", refines.Docs.Description, "what the position writes speaks first")
+		for _, wire := range []string{"refines", "viaRefines"} {
+			p := propertyOf(t, doc, "Holder", wire)
+			require.NotNil(t, p.Default, wire)
+			assert.Equal(t, "lent", p.Default.Str, wire)
+		}
+		assert.Equal(t, "from Str", propertyOf(t, doc, "Holder", "viaRefines").Docs.Description)
+		for _, wire := range []string{"composes", "viaComposes"} {
+			assert.Nil(t, propertyOf(t, doc, "Holder", wire).Default, wire)
+		}
+	}
+}

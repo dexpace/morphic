@@ -302,3 +302,121 @@ components:
       type: object
       properties:
         branch: {$ref: '#/components/schemas/NarrowedPastARef/allOf/0'}
+    # A schema writing properties and no type constrains objects and admits a
+    # string, so a scalar or an array beside it is the narrower, in either order.
+    UntypedObject:
+      properties:
+        a: {type: string}
+    StringBesideUntypedFirst:
+      allOf:
+        - properties:
+            p: {$ref: '#/components/schemas/UntypedObject'}
+        - properties:
+            p: {type: string}
+    StringBesideUntypedLast:
+      allOf:
+        - properties:
+            p: {type: string}
+        - properties:
+            p: {$ref: '#/components/schemas/UntypedObject'}
+    ArrayBesideUntypedFirst:
+      allOf:
+        - properties:
+            p: {properties: {a: {type: string}}}
+        - properties:
+            p: {type: array, items: {type: string}}
+    ArrayBesideUntypedLast:
+      allOf:
+        - properties:
+            p: {type: array, items: {type: string}}
+        - properties:
+            p: {properties: {a: {type: string}}}
+    # Two enums: the one whose values the other holds every one of is the
+    # narrower, in either order, and two sharing only some meet in an enum of
+    # those, which the merge mints.
+    EnumWideFirst:
+      allOf:
+        - properties:
+            p: {type: string, enum: [a, b]}
+        - properties:
+            p: {type: string, enum: [a]}
+    EnumNarrowFirst:
+      allOf:
+        - properties:
+            p: {type: string, enum: [a]}
+        - properties:
+            p: {type: string, enum: [a, b]}
+    EnumsMeet:
+      allOf:
+        - properties:
+            p: {type: string, enum: [a, b]}
+        - properties:
+            p: {type: string, enum: [b, c]}
+    # A list narrower in its element meets a broader one holding a description:
+    # the field takes a list of the narrower element holding the description,
+    # in either order.
+    ListWideFirst:
+      allOf:
+        - properties:
+            p: {type: array, description: Counts, items: {type: integer}}
+        - properties:
+            p: {type: array, items: {type: integer, format: int32}}
+    ListNarrowFirst:
+      allOf:
+        - properties:
+            p: {type: array, items: {type: integer, format: int32}}
+        - properties:
+            p: {type: array, description: Counts, items: {type: integer}}
+    # Two enums of different value types are judged by their values: the enum
+    # of integer within the enum of number is the field's type, in either order,
+    # and two each holding a value the other lacks meet in an enum of the value
+    # they share, of the narrower value type.
+    EnumValueTypeWideFirst:
+      allOf:
+        - properties:
+            p: {type: number, enum: [1, 2]}
+        - properties:
+            p: {type: integer, enum: [1]}
+    EnumValueTypeNarrowFirst:
+      allOf:
+        - properties:
+            p: {type: integer, enum: [1]}
+        - properties:
+            p: {type: number, enum: [1, 2]}
+    EnumValueTypesMeet:
+      allOf:
+        - properties:
+            p: {type: number, enum: [1, 2.5]}
+        - properties:
+            p: {type: integer, enum: [1, 3]}
+    # An alias of an enum or a list meets one beside it as the node it stands
+    # for, in a node holding what the alias adds, in either order.
+    Letters: {type: string, enum: [a, b, c]}
+    LaterLetters: {type: string, enum: [b, c, d]}
+    WrappedLetters: {allOf: [{$ref: '#/components/schemas/Letters'}], description: Letters}
+    LetterList: {type: array, items: {$ref: '#/components/schemas/Letters'}}
+    WrappedLetterList: {allOf: [{$ref: '#/components/schemas/LetterList'}]}
+    AliasMeetsFirst:
+      allOf:
+        - properties:
+            p: {$ref: '#/components/schemas/WrappedLetters'}
+        - properties:
+            p: {$ref: '#/components/schemas/LaterLetters'}
+    AliasMeetsLast:
+      allOf:
+        - properties:
+            p: {$ref: '#/components/schemas/LaterLetters'}
+        - properties:
+            p: {$ref: '#/components/schemas/WrappedLetters'}
+    AliasedListMeetsFirst:
+      allOf:
+        - properties:
+            p: {$ref: '#/components/schemas/WrappedLetterList'}
+        - properties:
+            p: {type: array, items: {$ref: '#/components/schemas/LaterLetters'}}
+    AliasedListMeetsLast:
+      allOf:
+        - properties:
+            p: {type: array, items: {$ref: '#/components/schemas/LaterLetters'}}
+        - properties:
+            p: {$ref: '#/components/schemas/WrappedLetterList'}

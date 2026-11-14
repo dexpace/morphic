@@ -15,9 +15,12 @@ import (
 )
 
 // The IR's JSON goes through encoding/json/v2 alone. A Document owns its bytes
-// in both directions: it pins the options that decide what it writes and what
-// it accepts, so neither depends on the options, or the JSON API, a caller
-// used.
+// in both directions: once its methods run, they pin the options that decide
+// what it writes and what it accepts, so neither depends on the options a
+// caller passed. A caller can still go around them: a marshaler or
+// unmarshaler it registers for Document runs in their place, and
+// encoding/json, or v2 under encoding/json's CallMethodsWithLegacySemantics,
+// encodes a Document held by value without calling MarshalJSONTo.
 
 var (
 	// ErrVersionAbsent reports a document that declares no irVersion: a
@@ -29,7 +32,8 @@ var (
 )
 
 // MarshalJSONTo encodes the Document under canonicalOptions, whatever options
-// the caller passed. Only whitespace, such as indentation, stays the caller's.
+// the caller passed, though a marshaler the caller registers for Document runs
+// in its place. Only whitespace, such as indentation, stays the caller's.
 // The Document is the unit this holds for (invariant 7): a sub-structure encoded
 // on its own takes the caller's options, so sorting its maps takes
 // json.Deterministic(true).
@@ -43,9 +47,10 @@ func (d *Document) MarshalJSONTo(enc *jsontext.Encoder) error {
 // bytes (invariant 7): map entries sorted by key, the minimal string escaping of RFC 8785, and a
 // refusal to write a string that is not UTF-8 or an object that repeats a name,
 // where the alternatives are a silent U+FFFD and an ambiguous document. The rest
-// pin v2's defaults, so no caller option can stringify a number, drop a zero
-// struct, respell or reorder a raw value, substitute a marshaler, or write null
-// where the IR spells absence by omission.
+// pin v2's defaults, so once MarshalJSONTo runs no caller option can stringify a
+// number, drop a zero struct, respell or reorder a raw value, substitute a
+// marshaler, or write null for a nil list or map held as a map's value, which is
+// [] or {}.
 func canonicalOptions() json.Options {
 	return json.JoinOptions(
 		json.Deterministic(true),
@@ -68,8 +73,9 @@ func canonicalOptions() json.Options {
 // UnmarshalJSONFrom decodes a Document this build can read and refuses any
 // other before interpreting a member of it (docs/ir/ir-version.md): a missing
 // or foreign irVersion, a member the schema does not define, a duplicate name,
-// or a string that is not UTF-8. The refusals do not depend on the caller's
-// options, because the document is decoded again here under the IR's own.
+// or a string that is not UTF-8. Once it runs, the refusals do not depend on
+// the caller's options, because the document is decoded again here under the
+// IR's own; an unmarshaler the caller registers for Document runs in its place.
 func (d *Document) UnmarshalJSONFrom(dec *jsontext.Decoder) error {
 	raw, err := dec.ReadValue()
 	if err != nil {

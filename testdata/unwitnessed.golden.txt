@@ -28,7 +28,6 @@ member 0 0 Deprecation.removalVersion
 member 0 0 Discriminator.envelope
 member 0 0 Discriminator.envelopeValueName
 member 0 0 Discriminator.index
-member 0 0 Discriminator.inferred
 member 0 0 DocRef.endByte
 member 0 0 DocRef.startByte
 member 0 0 DocRef.type
@@ -36,11 +35,17 @@ member 0 0 Docs.refs
 member 0 0 Document.channels
 member 0 0 Document.messages
 member 0 0 Document.versions
+member 0 0 EntityRef.auth
+member 0 0 EntityRef.channel
+member 0 0 EntityRef.group
+member 0 0 EntityRef.member
+member 0 0 EntityRef.message
+member 0 0 EntityRef.server
+member 0 0 EntityRef.service
+member 0 0 EntityRef.type
 member 0 0 Enum.fallbackMember
 member 0 0 Enum.flags
 member 0 0 EnumMember.availability
-member 0 0 EnumMember.deprecation
-member 0 0 EnumMember.docs
 member 0 0 EnumMember.examples
 member 0 0 EnumMember.unmodeled
 member 0 0 EnumMember.wireName
@@ -71,14 +76,12 @@ member 0 0 HTTPBinding.compression
 member 0 0 HTTPBinding.hostPrefix
 member 0 0 HTTPBinding.patchImplicitOptionality
 member 0 0 HTTPBinding.responseBodyPath
-member 0 0 HTTPBinding.sharedRoute
 member 0 0 HTTPBinding.successStatus
 member 0 0 HTTPParamBinding.bodyPath
 member 0 0 HTTPParamBinding.paramPath
 member 0 0 HTTPParamBinding.pathPattern
 member 0 0 HTTPParamBinding.prefix
-member 0 0 Idempotency.kind
-member 0 0 Idempotency.tokenParam
+member 0 0 Header.prefix
 member 0 0 List.encoding
 member 0 0 LongRunning.finalOperation
 member 0 0 LongRunning.finalStateVia
@@ -125,11 +128,9 @@ member 0 0 OpBindings.otp
 member 0 0 OpBindings.rpc
 member 0 0 Operation.availability
 member 0 0 Operation.examples
-member 0 0 Operation.idempotency
 member 0 0 Operation.longRunning
 member 0 0 Operation.oneWay
 member 0 0 Operation.overloadOf
-member 0 0 Operation.pagination
 member 0 0 Operation.parameterVisibility
 member 0 0 Operation.returnTypeVisibility
 member 0 0 OperationGroup.availability
@@ -137,23 +138,11 @@ member 0 0 OperationGroup.resource
 member 0 0 OperationGroup.stability
 member 0 0 OperationGroup.unmodeled
 member 0 0 Pagination.firstLink
-member 0 0 Pagination.inferred
-member 0 0 Pagination.inputCursor
-member 0 0 Pagination.inputLimit
-member 0 0 Pagination.items
 member 0 0 Pagination.lastLink
-member 0 0 Pagination.nextCursor
-member 0 0 Pagination.nextLink
 member 0 0 Pagination.prevLink
-member 0 0 Pagination.strategy
-member 0 0 Pagination.totalCount
-member 0 0 ParamPath.param
-member 0 0 ParamPath.segments
 member 0 0 Parameter.availability
 member 0 0 Parameter.valueFrom
-member 0 0 PropPath.in
 member 0 0 PropPath.root
-member 0 0 PropPath.segments
 member 0 0 Property.args
 member 0 0 Property.availability
 member 0 0 Property.clientOptional
@@ -167,6 +156,7 @@ member 0 0 Property.wireID
 member 0 0 Property.wireNameByFormat
 member 0 0 ProtocolDecl.name
 member 0 0 ProtocolDecl.options
+member 0 0 Provenance.writtenBy
 member 0 0 RPCBinding.fullMethod
 member 0 0 RPCBinding.idempotencyLevel
 member 0 0 RPCBinding.inputType
@@ -198,8 +188,12 @@ member 0 0 Service.protocols
 member 0 0 Service.provenance
 member 0 0 Service.renames
 member 0 0 Service.version
+member 0 0 StreamCondition.input
+member 0 0 StreamCondition.value
+member 0 0 StreamDetail.condition
 member 0 0 StreamDetail.initial
 member 0 0 StreamDetail.requiresLength
+member 0 0 StreamDetail.terminator
 member 0 0 TemplateArg.type
 member 0 0 TemplateArg.value
 member 0 0 TemplateInstantiation.args
@@ -211,6 +205,7 @@ member 0 0 TypeCommon.mediaTypeHint
 member 0 0 TypeCommon.namespace
 member 0 0 TypeCommon.tags
 member 0 0 TypeCommon.wireNameByFormat
+member 0 0 Union.inputOnly
 member 0 0 Value.ctor
 member 0 0 Value.ref
 member 0 0 ValueRef.member
@@ -243,22 +238,22 @@ value 0 0 AuthKind "x509"
 value 0 0 HTTPLocation "body"
 value 0 0 HTTPLocation "body_property"
 value 0 0 HTTPLocation "host"
-value 0 0 IdempotencyKind "idempotency_token"
 value 0 0 IdempotencyKind "idempotent"
 value 0 0 IdempotencyKind "safe"
 value 0 0 MsgDirection "receive"
 value 0 0 MsgDirection "send"
-value 0 0 PageStrategy "cursor"
+value 0 0 PageStop "empty"
+value 0 0 PageStop "short"
+value 0 0 PageStop "total"
 value 0 0 PageStrategy "link_header"
-value 0 0 PageStrategy "next_link"
-value 0 0 PageStrategy "offset"
-value 0 0 PageStrategy "page"
-value 0 0 PageStrategy "token"
 value 0 0 PresenceKind "explicit"
 value 0 0 PresenceKind "implicit"
 value 0 0 PresenceKind "required"
 value 0 0 PrimKind "float"
 value 0 0 TypeKind "external"
 value 0 0 ValueKind "ctor"
+value 0 0 ValueKind "inf"
+value 0 0 ValueKind "nan"
+value 0 0 ValueKind "neginf"
 value 0 0 ValueKind "ref"
 value 0 0 ValueKind "symbol"

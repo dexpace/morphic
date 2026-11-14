@@ -98,33 +98,27 @@ func TestBind_ReadsIdentifiers(t *testing.T) {
 				return
 			}
 			require.Equal(t, bind.Resolved, e.Hop.Status, e.Hop.Why())
-			assert.Equal(t, at(tc.want), e.Hop.Target)
-			assert.Equal(t, tc.want, e.Hop.Spelled, "an identifier is spelled where its schema is written")
+			assert.Equal(t, at(tc.want), e.Hop.Target, "an identifier is placed where its schema is written")
 			assert.Equal(t, bind.Schema, e.Hop.Role)
 		})
 	}
 }
 
 // TestBind_ReadsNoIdentifierTheModelIgnores pins where no identifier is read:
-// the fields beside a reference object's $ref, which the model ignores. One
-// written beside a path item's $ref is read, and refused as any pointer into
-// those fields is (GitHub #824).
+// the fields beside a reference object's $ref, which OpenAPI ignores. One
+// written beside a path item's $ref is read, as a mount reads those fields
+// (docs/compilers/openapi.md#path-item-ref-fields).
 func TestBind_ReadsNoIdentifierTheModelIgnores(t *testing.T) {
 	t.Parallel()
-	cfg := resolving
-	cfg.Beside = func(p jsontext.Pointer) (jsontext.Pointer, string, bool) {
-		if p == "/paths/~1a/parameters/0/schema" {
-			return "/paths/~1a", "parameters", true
-		}
-		return "", "", false
-	}
 	table := bound(t, "openapi: 3.1.0\ninfo: {title: t, version: '1'}\n"+
 		"paths:\n  /a:\n    $ref: '#/components/pathItems/I'\n    parameters: [{name: p, in: query, schema: {$anchor: i}}]\n"+
 		"components:\n  pathItems:\n    I: {}\n"+
 		"  parameters:\n    P: {$ref: '#/components/parameters/Q', schema: {$anchor: p}}\n    Q: {name: q, in: query}\n"+
-		"  schemas:\n    A: {$ref: '#p'}\n    B: {$ref: '#i'}\n", cfg)
+		"  schemas:\n    A: {$ref: '#p'}\n    B: {$ref: '#i'}\n", resolving)
 	assert.Equal(t, bind.NoAnchor, entryAt(t, table, "/components/schemas/A").Hop.Reason)
-	assert.Equal(t, bind.BesideRef, entryAt(t, table, "/components/schemas/B").Hop.Reason)
+	b := entryAt(t, table, "/components/schemas/B")
+	require.Equal(t, bind.Resolved, b.Hop.Status, b.Hop.Why())
+	assert.Equal(t, at("/paths/~1a/parameters/0/schema"), b.Hop.Target)
 }
 
 // TestBind_ReadsTheSourcesIdentifiersFromAnotherDocument pins whose
@@ -139,23 +133,36 @@ func TestBind_ReadsTheSourcesIdentifiersFromAnotherDocument(t *testing.T) {
 	a := entryAt(t, table, "/components/schemas/A")
 	require.Equal(t, bind.Resolved, a.Chain.Status)
 	assert.Equal(t, at("/components/schemas/B"), a.Chain.End)
-	assert.Equal(t, bind.AnchorUnread, entryAt(t, table, "/components/schemas/C").Hop.Reason)
+	assert.Equal(t, bind.Position{Doc: 1, Pointer: "/T"}, entryAt(t, table, "/components/schemas/C").Hop.Target)
 }
 
-// TestBind_ReadsAMappingValueByIdentifier pins that a discriminator's mapping
-// value names a schema by an identifier as a $ref does, read against the
-// resource the discriminator is in.
-func TestBind_ReadsAMappingValueByIdentifier(t *testing.T) {
+// TestBind_ReadsAMappingValueNamingNoComponentAsAReference pins which
+// discriminator mapping values the table reads: each naming no schema
+// component of the source (Config.Components), as a $ref written at the
+// discriminator, with a fragment or without, against the resource the
+// discriminator is in, and the defaultMapping alike. A value naming a
+// component is the lowering's to read by name.
+func TestBind_ReadsAMappingValueNamingNoComponentAsAReference(t *testing.T) {
 	t.Parallel()
+	cfg := resolving
+	cfg.Components = []string{"D", "X", "Y"}
 	table := bound(t, head+"components:\n  schemas:\n"+
-		"    D: {$id: 'https://x.test/d', discriminator: {propertyName: k, mapping: {x: '#x', y: 'y'}}}\n"+
-		"    X: {$anchor: x}\n    Y: {$id: 'https://x.test/y'}\n", resolving)
+		"    D:\n      $id: 'https://x.test/d'\n"+
+		"      discriminator: {propertyName: k, mapping: {x: '#x', y: 'y', n: 'Y'}, defaultMapping: 'y#'}\n"+
+		"    X: {$anchor: x}\n    Y: {$id: 'https://x.test/y'}\n", cfg)
 	disc := bind.Position{Pointer: "/components/schemas/D/discriminator"}
+
 	x, ok := table.Mapping(disc, "#x")
 	require.True(t, ok)
 	assert.Equal(t, bind.NoAnchor, x.Hop.Reason, "an anchor of the document's resource, read in d's")
-	_, ok = table.Mapping(disc, "y")
-	assert.False(t, ok, "a value with no '#' names a component, which the table does not read")
+	for _, value := range []string{"y", "y#"} {
+		y, ok := table.Mapping(disc, value)
+		require.True(t, ok, "%q names no component, so it is a URI reference", value)
+		require.Equal(t, bind.Resolved, y.Hop.Status, value)
+		assert.Equal(t, at("/components/schemas/Y"), y.Hop.Target, "%q is read against d's resource", value)
+	}
+	_, ok = table.Mapping(disc, "Y")
+	assert.False(t, ok, "a value naming a component is read by name, not by the table")
 }
 
 // TestBind_LocatesAnAbsoluteURIUnderAnID pins that an absolute URI written
@@ -270,4 +277,82 @@ func TestBind_RefusesAReadUnderAnIDAsItsSpellingsWould(t *testing.T) {
 		assert.Equal(t, bind.Resolved, e.Hop.Status, "%s: %s", site, e.Hop.Why())
 	}
 	assert.NotContains(t, refused, "/dir/schemas/tag.json", "a relative $id keeps a relative $ref relative")
+}
+
+// TestReachable pins which documents a reference may read, by where the
+// document writing it was read from: one read over http or https, its scheme
+// in any case, reads only another so read, and any other reads any.
+func TestReachable(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		from, target string
+		want         bool
+	}{
+		{"https://h/a.yaml", "https://h/b.yaml", true},
+		{"HTTP://h/a.yaml", "http://other/b.yaml", true},
+		{"https://h/a.yaml", "file:///etc/passwd", false},
+		{"https://h/a.yaml", "/etc/passwd", false},
+		{"https://h/a.yaml", `C:\x.yaml`, false},
+		{"https://h/a.yaml", "urn:example:x", false},
+		{"https://h/a.yaml", "b.yaml", false},
+		{"/dir/a.yaml", "file:///etc/passwd", true},
+		{"/dir/a.yaml", "https://h/b.yaml", true},
+		{"file:///dir/a.yaml", "/etc/passwd", true},
+		{"a.yaml", "b.yaml", true},
+	} {
+		assert.Equal(t, tc.want, bind.Reachable(tc.from, tc.target), "%s -> %s", tc.from, tc.target)
+	}
+}
+
+// TestBind_AReferenceInANetworkDocumentReadsOnlyTheNetwork pins the binder's
+// own judgement of a reference written in a document read over the network:
+// one naming a file, as written or through an $id above it, is refused
+// unread, before it is placed or read, a mapping value's too, and the
+// source named back by its own location is refused alike; one on the network
+// is read, and an identifier the document declares is no location, so it is
+// never refused.
+func TestBind_AReferenceInANetworkDocumentReadsOnlyTheNetwork(t *testing.T) {
+	t.Parallel()
+	cfg := withDocuments(map[string]string{"/dir/secret.yaml": "X: {}\n", "https://h/b.yaml": "B: {}\n"})
+	var located []string
+	cfg.Self, cfg.Locate = "https://h/spec.yaml", func(uri, base string) (string, bool) {
+		located = append(located, uri)
+		return resolving.Locate(uri, base)
+	}
+	open := cfg.Open
+	var opened []string
+	cfg.Open = func(name string) (*yaml.Node, error) {
+		opened = append(opened, name)
+		return open(name)
+	}
+	table := bound(t, head+"components:\n  schemas:\n"+
+		"    F: {$ref: 'file:///dir/secret.yaml#/X'}\n"+
+		"    I: {$id: 'file:///dir/', properties: {p: {$ref: 'secret.yaml#/X'}}}\n"+
+		"    M: {oneOf: [{type: object}], discriminator: {propertyName: k, mapping: {a: 'file:///dir/secret.yaml#/X'}}}\n"+
+		"    S: {$ref: 'https://h/spec.yaml#/components/schemas/B'}\n"+
+		"    N: {$ref: 'b.yaml#/B'}\n"+
+		"    U: {$id: 'urn:x:u', type: string}\n"+
+		"    V: {$ref: 'urn:x:u'}\n"+
+		"    B: {type: string}\n", cfg)
+
+	for _, site := range []jsontext.Pointer{"/components/schemas/F", "/components/schemas/I/properties/p"} {
+		assert.Equal(t, "the document it names could not be read: "+bind.OffNetwork, entryAt(t, table, site).Hop.Why(), site)
+	}
+	m, ok := table.Mapping(at("/components/schemas/M/discriminator"), "file:///dir/secret.yaml#/X")
+	require.True(t, ok)
+	assert.Equal(t, "the document it names could not be read: "+bind.OffNetwork, m.Hop.Why())
+	for _, site := range []jsontext.Pointer{"/components/schemas/S", "/components/schemas/N", "/components/schemas/V"} {
+		e := entryAt(t, table, site)
+		assert.Equal(t, bind.Resolved, e.Hop.Status, "%s: %s", site, e.Hop.Why())
+	}
+	assert.Equal(t, []string{"https://h/b.yaml"}, opened, "nothing local is opened")
+	assert.NotContains(t, located, "file:///dir/secret.yaml", "nor placed, which may ask the reader")
+
+	back := withDocuments(map[string]string{"https://h/b.yaml": "B: {$ref: 'file:///dir/spec.yaml#/components/schemas/T'}\n"})
+	back.Self, back.Locate = "file:///dir/spec.yaml", resolving.Locate
+	table = bound(t, head+"components:\n  schemas:\n    A: {$ref: 'https://h/b.yaml#/B'}\n    T: {type: string}\n", back)
+	e, ok := table.Entry(bind.Position{Doc: 1, Pointer: "/B"})
+	require.True(t, ok)
+	assert.Equal(t, "the document it names could not be read: "+bind.OffNetwork, e.Hop.Why(),
+		"the source, named back from the network by its own location")
 }

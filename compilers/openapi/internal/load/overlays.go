@@ -11,9 +11,10 @@ import (
 	yaml "go.yaml.in/yaml/v3"
 
 	"github.com/dexpace/morphic/compilers"
+	"github.com/dexpace/morphic/compilers/openapi/internal/bind"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/overlay"
-	"github.com/dexpace/morphic/compilers/openapi/internal/scan"
+	"github.com/dexpace/morphic/compilers/openapi/internal/provenance"
 	"github.com/dexpace/morphic/compilers/openapi/internal/sourceindex"
 	"github.com/dexpace/morphic/ir"
 )
@@ -33,7 +34,7 @@ func readOverlay(ctx context.Context, opts Options) (Options, []ir.Diagnostic, e
 	if opts.Overlay.Path == "" {
 		return opts, nil, errors.New("openapi: the overlay holds no bytes and names no file to read")
 	}
-	if overNetwork(opts.Overlay.Path) {
+	if bind.OverNetwork(opts.Overlay.Path) {
 		return opts, nil, fmt.Errorf("openapi: overlay %s names a URL; an overlay is read from a local file",
 			opts.Overlay.Path)
 	}
@@ -64,8 +65,8 @@ func overlayPastBudget(opts Options) ir.Diagnostic {
 
 // patch reads the caller's overlay (readOverlay) and applies it to the decoded
 // tree, or does nothing when there is none. The overlay document is refused
-// first if it is too large, too deep, or aliased past what the library can
-// follow (overlayRefusals); applyOverlay does the rest.
+// first if it is too large, too deep, or aliased past what its copy can follow
+// (overlayRefusals); applyOverlay does the rest.
 func patch(ctx context.Context, srcIndex int, root *yaml.Node, opts Options) (overlay.Origin, []ir.Diagnostic, error) {
 	opts, read, err := readOverlay(ctx, opts)
 	if err != nil || len(read) > 0 {
@@ -86,15 +87,15 @@ func patch(ctx context.Context, srcIndex int, root *yaml.Node, opts Options) (ov
 }
 
 // applyOverlay applies the overlay given what its pre-apply refusals found,
-// taken as data so each outcome is testable. An error there refuses before the
-// library is handed anything. Anything less, only the scan's report that it
-// faulted, is carried into what the compile reports: the overlay's protection
-// from the library is incomplete.
+// taken as data so each outcome is testable. An error there refuses before
+// anything is applied. Anything less, only the scan's report that it faulted,
+// is carried into what the compile reports: the overlay's protection from its
+// own aliases is incomplete.
 //
 // It re-runs the pre-parse refusals afterwards, because an overlay action can
 // graft what they refuse, such as nesting past the bound. They locate through
 // the attribution the application produced, so a refusal on a grafted node
-// names the overlay, not a position the node lacks.
+// names the overlay, not a position the node lacks (patchedRefusals).
 func applyOverlay(ctx context.Context, srcIndex int, root *yaml.Node, opts Options, pre []ir.Diagnostic,
 ) (overlay.Origin, []ir.Diagnostic) {
 	if diag.HasError(pre) {
@@ -109,19 +110,36 @@ func applyOverlay(ctx context.Context, srcIndex int, root *yaml.Node, opts Optio
 	if diag.HasError(diags) {
 		return overlay.Origin{}, diags
 	}
-	return origin, append(diags, refusals(ctx, locator(srcIndex, origin, scan.Pointers(ctx, root)), root, opts)...)
+	tree := treeOf(ctx, provenance.Doc{Source: srcIndex, Overlay: origin.Attribution()}, root)
+	return origin, append(diags, patchedRefusals(ctx, tree, root, opts)...)
+}
+
+// patchedRefusals is refusals of root, the tree the overlay patched, one at a
+// node placed as tree places it. One of the whole tree, such as its pointers'
+// bytes, is placed at the overlay, whose actions caused it, since the source
+// passed the same refusals before the overlay applied (loading.preParse), and
+// says it reads the tree the overlay leaves, as the overlay's own document
+// draws the same refusal (overlayRefusals).
+func patchedRefusals(ctx context.Context, tree provenance.Tree, root *yaml.Node, opts Options) []ir.Diagnostic {
+	whole := ir.Provenance{Source: opts.OverlaySrcIndex}
+	found := refusals(ctx, tree, whole, root, opts)
+	for i := range found {
+		if found[i].Provenance == whole {
+			found[i].Message += ", once the overlay applies"
+		}
+	}
+	return found
 }
 
 // overlayRefusals holds an overlay to the source's refusals, under the same
-// limits, before the library is handed it. The library clones each update by
-// following aliases, into every node its target selects: an anchor naming its
-// own ancestor overflows the stack, an alias bomb exhausts memory
-// (docs/parser-library.md#overlay-alias-clone, GitHub #489), and a deep update
-// costs more per node than a shallow one.
+// limits, before it is applied. An update is copied through its aliases into
+// every node its target selects (overlay.copyOf): an anchor naming its own
+// ancestor gives the copy no end, an alias bomb exhausts memory (GitHub #489),
+// and a deep update costs more per node than a shallow one.
 //
 // The whole overlay is decoded, since a scan of each update alone would miss a
 // cycle whose anchor sits outside it. Undecodable bytes are left to the
-// library.
+// overlay's own reading, which refuses them.
 func overlayRefusals(ctx context.Context, opts Options) []ir.Diagnostic {
 	// The byte budget is checked before anything reads the bytes, as the
 	// source's is (GitHub #75): an overlay is an input document like the source,
@@ -138,16 +156,12 @@ func overlayRefusals(ctx context.Context, opts Options) []ir.Diagnostic {
 	if build == nil {
 		build = defaultIndex
 	}
-	locate := scan.InTree(opts.OverlaySrcIndex, scan.Pointers(ctx, tree))
+	placed := treeOf(ctx, provenance.Doc{Source: opts.OverlaySrcIndex}, tree)
 	idx := build(ctx, tree)
 	if idx.Truncated() {
-		return []ir.Diagnostic{diag.Newf(ir.SeverityError, diag.SourceTooLarge, locate(nil),
+		return []ir.Diagnostic{diag.Newf(ir.SeverityError, diag.SourceTooLarge, placed.Node(nil),
 			"overlay document exceeds the %d-node bound the pre-parse scan indexes",
 			sourceindex.MaxIndexedNodes)}
 	}
-	var diags []ir.Diagnostic
-	if d, deep := scan.Nesting(ctx, locate, idx); deep {
-		diags = append(diags, d)
-	}
-	return append(diags, scan.Aliases(ctx, locate, idx, opts.MaxAliasSurplus)...)
+	return shapeRefusals(ctx, placed, placed.Node(nil), idx, opts)
 }

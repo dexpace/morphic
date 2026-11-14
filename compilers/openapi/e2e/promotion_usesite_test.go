@@ -136,8 +136,8 @@ func TestPromotion_AUseReadsItsReferentsKeys(t *testing.T) {
 			&ir.Deprecation{Message: "mine", RemovalDate: "2030-01-01"}, false, true},
 		{"a key stating the deprecation", `{$ref: '#/components/schemas/Spent'}`,
 			&ir.Deprecation{RemovalDate: "2031-01-01"}, false, true},
-		{"a keyword beside the $ref decides over the referent's key", `{$ref: '#/components/schemas/Spent', deprecated: false}`,
-			nil, false, false},
+		{"a false beside the $ref withdraws no referent's key", `{$ref: '#/components/schemas/Spent', deprecated: false}`,
+			&ir.Deprecation{RemovalDate: "2031-01-01"}, false, true},
 		{"a keyword deprecating the use reads no live referent's member", `{$ref: '#/components/schemas/Dated', deprecated: true}`,
 			&ir.Deprecation{}, false, false},
 		{"nor does a key deprecating it", `{$ref: '#/components/schemas/Dated', x-fern-availability: deprecated}`,
@@ -163,6 +163,74 @@ func TestPromotion_AUseReadsItsReferentsKeys(t *testing.T) {
 				assert.Equal(t, tc.marked, got.inferred == marker, "%s marker", carrier)
 			}
 		})
+	}
+}
+
+// refinedComponents refine useSiteComponents' Spent, each a use of it
+// (docs/compilers/openapi.md#allof-refinement).
+const refinedComponents = `    RefinesSpent: {allOf: [{$ref: '#/components/schemas/Spent'}], description: r}
+    LiveSpent: {allOf: [{$ref: '#/components/schemas/Spent'}], deprecated: false}
+`
+
+// TestPromotion_ARefinementLendsWhatItRefines holds a refinement's carriers to
+// the chain their keywords are read along (docs/compilers/openapi.md#extension-promotion):
+// a refinement is a use of its target, a $ref to one reads through it, any link
+// stating a deprecation, by a keyword or a key, deprecates it, and a false
+// withdraws none. Reading only the end of a $ref, each would read the
+// refinement's own keys, which are none.
+func TestPromotion_ARefinementLendsWhatItRefines(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name   string
+		schema string
+		want   *ir.Deprecation
+		secret bool
+	}{
+		{"a refinement's target lends its members", `{allOf: [{$ref: '#/components/schemas/Old'}], description: d}`,
+			&ir.Deprecation{Message: "use New", RemovalDate: "2030-01-01"}, false},
+		{"and its redaction", `{allOf: [{$ref: '#/components/schemas/Tok'}], description: d}`, nil, true},
+		{"a use reads through a refinement", `{$ref: '#/components/schemas/RefinesSpent'}`,
+			&ir.Deprecation{RemovalDate: "2031-01-01"}, false},
+		{"whose false withdraws no target's key", `{$ref: '#/components/schemas/LiveSpent'}`,
+			&ir.Deprecation{RemovalDate: "2031-01-01"}, false},
+		{"nor does a branch's", `{allOf: [{$ref: '#/components/schemas/Spent'}, {deprecated: false}]}`,
+			&ir.Deprecation{RemovalDate: "2031-01-01"}, false},
+		{"a decorator lends its carrier nothing, as its node holds it",
+			`{allOf: [{$ref: '#/components/schemas/SpentObject'}], description: d}`, nil, false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			doc, diags := compileUse(t, useSiteSpec(tc.schema)+refinedComponents+decoratedComponents)
+			assert.Empty(t, diags)
+			for carrier, got := range useSitesOf(t, doc) {
+				assert.Equal(t, tc.want, got.deprecation, "%s deprecation", carrier)
+				assert.Equal(t, tc.secret, got.secret, "%s secret", carrier)
+			}
+		})
+	}
+}
+
+// TestPromotion_ALostRefLendsTheNodeItSpeaksOn holds a node a $ref speaks on
+// after losing the type, to a value set narrowing it or an enum beside its allOf
+// (docs/compilers/openapi.md#ref-use-site), to that $ref's keys as to its
+// keyword: the $ref is no Base of the node, so nothing else reaches them.
+func TestPromotion_ALostRefLendsTheNodeItSpeaksOn(t *testing.T) {
+	t.Parallel()
+	doc, diags := compileUse(t, `openapi: 3.1.0
+info: {title: T, version: "1"}
+paths: {}
+components:
+  schemas:
+    Old: {type: string, enum: [x, y], x-stability: deprecated, x-deprecated-reason: gone, x-sensitive: true}
+    Narrowed: {allOf: [{$ref: '#/components/schemas/Old'}, {enum: [x]}]}
+    PassedOver: {type: string, enum: [x], allOf: [{$ref: '#/components/schemas/Old'}]}
+`)
+	openapitest.RequireNoErrorDiags(t, diags)
+	for _, name := range []string{"Narrowed", "PassedOver"} {
+		node, ok := doc.Types[ir.TypeID("t/openapi/components/schemas/"+name)]
+		require.True(t, ok, name)
+		assert.Equal(t, &ir.Deprecation{Message: "gone"}, node.Common().Deprecation, name)
+		assert.True(t, node.Common().Sensitive, name)
 	}
 }
 
@@ -231,14 +299,22 @@ paths:
 	assert.Equal(t, &ir.Deprecation{RemovalDate: "2031-01-01"}, headerDeclines.Deprecation)
 }
 
+// decoratedComponents are useSiteComponents' targets as objects, over which an
+// allOf of one $ref stays a decorator.
+const decoratedComponents = `    OldObject: {type: object, deprecated: true, x-deprecated-reason: use New, x-sunset: "2030-01-01"}
+    SpentObject: {type: object, x-fern-availability: deprecated, x-sunset: "2031-01-01"}
+    DatedObject: {type: object, x-sunset: "2032-01-01"}
+`
+
 // TestPromotion_ADecoratorMatchesTheRefItStandsFor pins the two spellings of one
 // use to one answer. A 3.0 document annotates a use by wrapping the $ref in an
-// allOf, and an emitter folds the decorator's annotations, then the wrapped
-// type's, onto the carrier (docs/emitters/refine/decorators.md), so what the
-// $ref's carrier holds has to be what that fold reads off the nodes. The second
-// and third rows are why a target has to be deprecated to lend a member: a fold
-// has no Deprecation to take Dated's date from. A member key on the decorator and
-// its `deprecated: false` still part from the $ref (GitHub #1220, #1258).
+// allOf. Over a target admitting no object that is a refinement, whose carriers
+// read the target as the $ref's do. Over an object it is a decorator, which an
+// emitter folds onto the carrier (docs/emitters/refine/decorators.md), so the
+// $ref's carrier holds what that fold reads off the nodes: a live target lends no
+// member, as the fold finds no Deprecation to take Dated's date from. A
+// decorator's member key and `deprecated: false` still part from the $ref
+// (GitHub #1220, #1258).
 func TestPromotion_ADecoratorMatchesTheRefItStandsFor(t *testing.T) {
 	t.Parallel()
 	for _, tc := range []struct {
@@ -249,16 +325,28 @@ func TestPromotion_ADecoratorMatchesTheRefItStandsFor(t *testing.T) {
 		{"a key on a live target", "Dated", "x-fern-availability: deprecated"},
 		{"a target deprecated with members", "Old", "description: d"},
 	} {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-			target := "'#/components/schemas/" + tc.target + "'"
-			beside := compileClean(t, useSiteSpec(`{$ref: `+target+`, `+tc.annotation+`}`), openapi.Options{})
-			wrapped := compileClean(t, useSiteSpec(`{allOf: [{$ref: `+target+`}], `+tc.annotation+`}`), openapi.Options{})
-
-			for carrier, got := range useSitesOf(t, beside) {
-				assert.Equal(t, foldedDeprecation(t, wrapped), got.deprecation, carrier)
+		for _, object := range []bool{false, true} {
+			name, target := tc.name, tc.target
+			if object {
+				name, target = name+" over an object", target+"Object"
 			}
-		})
+			t.Run(name, func(t *testing.T) {
+				t.Parallel()
+				ref := "{$ref: '#/components/schemas/" + target + "'"
+				beside := compileClean(t, useSiteSpec(ref+", "+tc.annotation+"}")+decoratedComponents, openapi.Options{})
+				wrapped := compileClean(t, useSiteSpec("{allOf: ["+ref+"}], "+tc.annotation+"}")+decoratedComponents,
+					openapi.Options{})
+
+				refined := useSitesOf(t, wrapped)
+				for carrier, got := range useSitesOf(t, beside) {
+					want := refined[carrier].deprecation
+					if object {
+						want = foldedDeprecation(t, wrapped)
+					}
+					assert.Equal(t, want, got.deprecation, carrier)
+				}
+			})
+		}
 	}
 }
 

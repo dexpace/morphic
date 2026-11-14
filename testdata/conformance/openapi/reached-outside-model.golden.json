@@ -6,10 +6,12 @@
     ],
     "e": [
       "anon",
+      "composed",
       "openapi"
     ],
     "g": [
       "default",
+      "extension",
       "path-prefix",
       "tags",
       "webhooks"
@@ -63,6 +65,25 @@
                 "canonical": "list_pets"
               },
               "docs": {},
+              "responses": [
+                {
+                  "name": {
+                    "hint": "200"
+                  },
+                  "conditions": {
+                    "statusCodes": [
+                      {
+                        "from": 200,
+                        "to": 200
+                      }
+                    ]
+                  },
+                  "docs": {
+                    "summary": "Pets",
+                    "description": "The pets"
+                  }
+                }
+              ],
               "oneWay": false,
               "idempotency": {},
               "bindings": {
@@ -71,8 +92,7 @@
                     "method": "GET",
                     "uriTemplate": "/pets",
                     "sharedRoute": false,
-                    "checksumRequired": false,
-                    "isWebhook": false
+                    "checksumRequired": false
                   }
                 ]
               },
@@ -112,8 +132,7 @@
       "docs": {},
       "sensitive": false,
       "xml": {
-        "nodeType": "element",
-        "wrapped": false
+        "nodeType": "element"
       },
       "provenance": {
         "source": 0,
@@ -138,8 +157,7 @@
       "docs": {},
       "sensitive": false,
       "xml": {
-        "nodeType": "element",
-        "wrapped": false
+        "nodeType": "element"
       },
       "provenance": {
         "source": 0,
@@ -188,8 +206,7 @@
       "docs": {},
       "sensitive": false,
       "xml": {
-        "nodeType": "element",
-        "wrapped": false
+        "nodeType": "element"
       },
       "provenance": {
         "source": 0,
@@ -382,16 +399,6 @@
     }
   },
   "unmodeled": {
-    "openapi:components/responses/Listed": {
-      "reason": "no_ir_home",
-      "value": {
-        "$ref": "#/x-responses/Listed"
-      },
-      "provenance": {
-        "source": 0,
-        "pointer": "/components/responses/Listed"
-      }
-    },
     "openapi:x-lib": {
       "reason": "vendor_extension",
       "value": {

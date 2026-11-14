@@ -5,6 +5,7 @@ package operation
 
 import (
 	"encoding/json/jsontext"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -13,6 +14,7 @@ import (
 
 	"github.com/dexpace/morphic/compilers/compile"
 	"github.com/dexpace/morphic/compilers/openapi/internal/annotation"
+	"github.com/dexpace/morphic/compilers/openapi/internal/bind/typed"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
@@ -30,7 +32,7 @@ import (
 // ID is rooted at mount, the operation's mount pointer, not at the declaration
 // it was copied from; a repeat of one name and location keeps an ID of its own
 // (paramLedger).
-func lowerParameters(c lowering.Ctx, ts *compile.Types, mount jsontext.Pointer, params []sourcedParam) ([]ir.Parameter, []ir.HTTPParamBinding, []ir.Diagnostic) {
+func lowerParameters(c lowering.Ctx, w walk, mount jsontext.Pointer, params []sourcedParam) ([]ir.Parameter, []ir.HTTPParamBinding, []ir.Diagnostic) {
 	if len(params) == 0 {
 		return nil, nil, nil
 	}
@@ -49,11 +51,11 @@ func lowerParameters(c lowering.Ctx, ts *compile.Types, mount jsontext.Pointer, 
 		}
 		id, repeatDiags := ledger.next(pc, p.GetName(), string(p.GetIn()), sp.pointer)
 		diags = append(diags, repeatDiags...)
-		param, binding, paramDiags := lowerParameter(dc, ts, id, p, pptr)
+		param, binding, paramDiags := lowerParameter(dc, w, id, p, pptr)
 		diags = append(diags, paramDiags...)
 		// A summary or description beside a $ref of the entry's chain documents
 		// this use of the parameter, over what its declaration says (GitHub #610).
-		param.Docs = resolve.UseDocs[soa.Parameter](sp.ref, param.Docs)
+		param.Docs = resolve.UseDocs[soa.Parameter](c.Bindings(), sp.ref, param.Docs)
 		logical = append(logical, param)
 		bindings = append(bindings, binding)
 	}
@@ -63,13 +65,13 @@ func lowerParameters(c lowering.Ctx, ts *compile.Types, mount jsontext.Pointer, 
 // lowerParameter lowers one resolved parameter into its logical Parameter and
 // HTTP binding, both naming the parameter by id. Path parameters are always
 // required regardless of the declared flag (OpenAPI requires it).
-func lowerParameter(c lowering.Ctx, ts *compile.Types, id ir.ParamID, p *soa.Parameter, pptr jsontext.Pointer) (ir.Parameter, ir.HTTPParamBinding, []ir.Diagnostic) {
+func lowerParameter(c lowering.Ctx, w walk, id ir.ParamID, p *soa.Parameter, pptr jsontext.Pointer) (ir.Parameter, ir.HTTPParamBinding, []ir.Diagnostic) {
 	name, in := p.GetName(), p.GetIn()
 	param := ir.Parameter{
 		ID:         id,
-		Name:       compile.NamingFor(name),
+		Name:       ir.NamingFor(name),
 		Required:   p.GetRequired() || in == soa.ParameterInPath,
-		Provenance: c.ProvenanceAt(pptr),
+		Provenance: c.Place().At(pptr),
 	}
 	style, explode := resolveStyleExplode(p, in)
 	binding := ir.HTTPParamBinding{
@@ -83,9 +85,16 @@ func lowerParameter(c lowering.Ctx, ts *compile.Types, id ir.ParamID, p *soa.Par
 		// it outside in: query, and warns where the style gives it no effect.
 		AllowEmptyValue: p.GetAllowEmptyValue(),
 	}
-	elected, diags := fillParamType(c, ts, &param, &binding, p, pptr)
+	elected, diags := fillParamType(c, w, &param, &binding, p, pptr)
 	diags = append(diags, reservedHeaderParamDiag(c, name, in, pptr)...)
-	return param, binding, append(diags, fillParamDetail(c, &param, p, pptr, elected)...)
+	diags = append(diags, fillParamDetail(c, w.types, &param, p, pptr, elected)...)
+	if p.AllowReserved != nil {
+		return param, binding, diags
+	}
+	// Read once the keys are kept, and only where the parameter decides nothing.
+	reserved, promoted := lowering.AllowReserved(c.Promoter(), param.Unmodeled, &param.Provenance)
+	binding.AllowReserved = reserved
+	return param, binding, append(diags, promoted...)
 }
 
 // reservedHeaderParamDiag reports a header parameter OpenAPI §4.8.12 reserves —
@@ -117,15 +126,15 @@ func reservedHeaderParamDiag(c lowering.Ctx, name string, in soa.ParameterIn, pp
 // parameter, whose media type goes on the binding. Constraints come from that
 // same schema position; the default comes from it too, falling back to its $ref
 // target (docs/compilers/openapi.md#ref-use-site).
-func fillParamType(c lowering.Ctx, ts *compile.Types, param *ir.Parameter, binding *ir.HTTPParamBinding, p *soa.Parameter, pptr jsontext.Pointer) (typeSpelling, []ir.Diagnostic) {
-	elected, diags := electTypeSpelling(c, p.GetSchema(), p.GetContent(), p.GetRootNode(), pptr,
+func fillParamType(c lowering.Ctx, w walk, param *ir.Parameter, binding *ir.HTTPParamBinding, p *soa.Parameter, pptr jsontext.Pointer) (typeSpelling, []ir.Diagnostic) {
+	elected, diags := electTypeSpelling(c, w, p.GetSchema(), p.GetContent(), p.GetRootNode(), pptr,
 		"parameter", "ir.Parameter")
-	paramType, typeDiags := schema.CarriedRef(elected.ctx, ts, schema.TopLevelDepth, elected.js, elected.pointer)
+	paramType, typeDiags := schema.CarriedRef(elected.ctx, w.types, schema.TopLevelDepth, elected.js, elected.pointer)
 	diags = append(diags, typeDiags...)
 	param.Type = paramType
 	param.Unmodeled = annotation.MergeUnmodeled(param.Unmodeled, elected.unmodeled)
 	binding.ContentType = elected.mediaType
-	return elected, append(diags, fillParamSchema(elected.ctx, ts, param, elected.js, elected.pointer)...)
+	return elected, append(diags, fillParamSchema(elected.ctx, w.types, param, elected.js, elected.pointer)...)
 }
 
 // fillParamSchema reads a parameter schema's default value and scalar
@@ -148,17 +157,17 @@ func fillParamSchema(c lowering.Ctx, ts *compile.Types, param *ir.Parameter, js 
 	if s == nil {
 		return nil
 	}
-	// resolve.Scope.TargetSchema reads the end of a $ref chain, since one hop
-	// would take the default and description off an intermediate reference
-	// instead of the schema that declares them.
-	tgt := c.RefScope().TargetSchema(js, s)
-	def, diags := annotation.EffectiveDefault(s, tgt, pointer, c.ProvenanceAt)
+	// schema.UseOf reads the end of a $ref chain, since one hop would take the
+	// default and description off an intermediate reference instead of the
+	// schema that declares them.
+	use := schema.UseOf(c, ts, js, param.Type, pointer)
+	def, diags := annotation.EffectiveDefault(use.DefaultChain(s), pointer, c.Place())
 	param.Default = def
 
-	cons, consDiags := schema.CarrierConstraintsOf(c, ts, &param.Unmodeled, s, param.Type, pointer)
+	cons, consDiags := schema.CarrierConstraintsOf(c, ts, &param.Unmodeled, s, use.Voices, param.Type, pointer)
 	param.Constraints = cons
 	diags = append(diags, consDiags...)
-	diags = append(diags, fillParamSchemaAnnotations(c, ts, param, s, tgt, pointer)...)
+	diags = append(diags, fillParamSchemaAnnotations(c, ts, param, s, use, pointer)...)
 	// A parameter is the third annotation.HomeCarrier, so the keywords beside a
 	// $ref that the alias it resolves to cannot hold are kept here, exactly as a
 	// property and a header keep them (schema.FillPropertyDetail).
@@ -172,11 +181,11 @@ func fillParamSchema(c lowering.Ctx, ts *compile.Types, param *ir.Parameter, js 
 // declaration.
 //
 // fillParamDetail writes the parameter's own annotations afterwards, and they
-// win where both are set. tgt is the schema the use-site $ref resolves to,
-// which docs, deprecation and redaction fall back to
-// (docs/compilers/openapi.md#ref-use-site); examples, xml and the visibility
-// keywords stay site-only, since they describe the position, not the type.
-func fillParamSchemaAnnotations(c lowering.Ctx, ts *compile.Types, param *ir.Parameter, s, tgt *oas3.Schema, pointer jsontext.Pointer) []ir.Diagnostic {
+// win where both are set. Docs, deprecation and redaction read what use falls
+// back to (docs/compilers/openapi.md#ref-use-site); examples, xml and the
+// visibility keywords stay with the position, which they describe, and its
+// voices.
+func fillParamSchemaAnnotations(c lowering.Ctx, ts *compile.Types, param *ir.Parameter, s *oas3.Schema, use schema.Use, pointer jsontext.Pointer) []ir.Diagnostic {
 	// Visibility is kept before the own-node guard, not after it. The guard exists
 	// so an annotation with a home on the node is not also copied to the carrier,
 	// but readOnly/writeOnly have no home on either: recordDeclarationResidue
@@ -184,11 +193,15 @@ func fillParamSchemaAnnotations(c lowering.Ctx, ts *compile.Types, param *ir.Par
 	// ir.Parameter has no Visibility field. Keeping them after the guard would
 	// drop them for exactly the parameters whose schema owns a node — an object,
 	// an enum, an array.
-	diags := preserveParamVisibility(c, param, s, pointer)
+	var diags []ir.Diagnostic
+	for _, v := range slices.Backward(use.Written()) {
+		diags = append(diags, preserveParamVisibility(c, param, v.Node, v.At)...)
+	}
+	diags = append(diags, preserveParamVisibility(c, param, s, pointer)...)
 	if schema.LoweredToOwnNode(c, ts, pointer, param.Type) {
 		return diags
 	}
-	a, readDiags := annotation.Read(annotation.Site{Kind: annotation.Reference, Node: s, Referent: tgt}, pointer, c.ProvenanceAt)
+	a, readDiags := annotation.Read(use.SiteAt(c, s, pointer), pointer, c.Place())
 	diags = append(diags, readDiags...)
 
 	param.Docs = a.Docs
@@ -201,9 +214,10 @@ func fillParamSchemaAnnotations(c lowering.Ctx, ts *compile.Types, param *ir.Par
 	if len(a.Examples) > 0 {
 		param.Examples = a.Examples
 	}
-	if a.XML != nil {
-		diags = append(diags, preserveParamXML(c, param, s, pointer)...)
+	for _, v := range slices.Backward(use.Voices) {
+		diags = append(diags, preserveParamXML(c, param, v.Node, v.At)...)
 	}
+	diags = append(diags, preserveParamXML(c, param, s, pointer)...)
 	param.Unmodeled = annotation.MergeUnmodeled(param.Unmodeled, a.Unmodeled)
 	// Last, as it keeps only the keywords no reader above it kept, and everything
 	// annotation.Read recorded is already on the parameter by this line.
@@ -218,7 +232,7 @@ func fillParamSchemaAnnotations(c lowering.Ctx, ts *compile.Types, param *ir.Par
 // gap by adding the field (GitHub #124).
 func preserveParamXML(c lowering.Ctx, param *ir.Parameter, s *oas3.Schema, pointer jsontext.Pointer) []ir.Diagnostic {
 	at := pointer + ids.Ptr("xml")
-	kept, diags := annotation.PreserveSchemaKeyword(&param.Unmodeled, s, "xml", ir.ReasonNoIRHome, pointer, c.ProvenanceAt)
+	kept, diags := annotation.PreserveSchemaKeyword(&param.Unmodeled, s, "xml", ir.ReasonNoIRHome, pointer, c.Place())
 	if kept {
 		diags = append(diags, c.DiagAt(ir.SeverityInfo, diag.DegradedConstruct, at,
 			"parameter schema xml hints have no ir.Parameter home; kept verbatim under Unmodeled"))
@@ -244,7 +258,7 @@ func preserveParamVisibility(c lowering.Ctx, param *ir.Parameter, s *oas3.Schema
 			continue
 		}
 		at := pointer + ids.Ptr(keyword)
-		kept, keptDiags := annotation.PreserveSchemaKeyword(&param.Unmodeled, s, keyword, ir.ReasonNoIRHome, pointer, c.ProvenanceAt)
+		kept, keptDiags := annotation.PreserveSchemaKeyword(&param.Unmodeled, s, keyword, ir.ReasonNoIRHome, pointer, c.Place())
 		diags = append(diags, keptDiags...)
 		if !kept {
 			continue
@@ -272,7 +286,7 @@ func paramHoldsResidue(keyword string) bool {
 // been preserved: a promotion reads the kept Unmodeled entries rather
 // than the source node, so a parameter whose x-* keys are not in the map yet
 // has nothing to promote from (GitHub #423).
-func fillParamDetail(c lowering.Ctx, param *ir.Parameter, p *soa.Parameter, pptr jsontext.Pointer, elected typeSpelling) []ir.Diagnostic {
+func fillParamDetail(c lowering.Ctx, ts *compile.Types, param *ir.Parameter, p *soa.Parameter, pptr jsontext.Pointer, elected typeSpelling) []ir.Diagnostic {
 	if d := p.GetDescription(); d != "" {
 		param.Docs.Description = d
 	}
@@ -283,11 +297,12 @@ func fillParamDetail(c lowering.Ctx, param *ir.Parameter, p *soa.Parameter, pptr
 	if ex := positionExamples(own, elected.examples); len(ex) > 0 {
 		param.Examples = ex
 	}
-	pExt, extDiags := annotation.ExtensionsFrom(p.GetExtensions(), c.ProvenanceAt, pptr)
+	pExt, extDiags := annotation.ExtensionsFrom(p.GetExtensions(), c.Place(), pptr)
 	diags = append(diags, extDiags...)
 	param.Unmodeled = annotation.MergeUnmodeled(param.Unmodeled, pExt)
-	diags = append(diags, annotation.UnknownKeysIn(&param.Unmodeled, p, c.ProvenanceAt, pptr)...)
-	return append(diags, schema.PromoteUse(c, elected.js, param.Unmodeled, &param.Deprecation, &param.Secret, &param.Provenance)...)
+	diags = append(diags, annotation.UnknownKeysIn(&param.Unmodeled, p, c.Place(), pptr)...)
+	return append(diags, schema.PromoteUse(c, schema.KeysLentTo(c, ts, elected.js, param.Type, elected.pointer), param.Unmodeled,
+		&param.Deprecation, &param.Secret, &param.Provenance)...)
 }
 
 // resolveStyleExplode materializes a parameter's resolved serialization style
@@ -371,15 +386,17 @@ type sourcedParam struct {
 // position recomputed from the merged slice (issue #36), and a $ref'd path
 // item's are under its own declaration pointer, not the path it is mounted at
 // (issue #107).
-func mergeParameters(pathParams []sourcedParam, opParams []*soa.ReferencedParameter, opDeclPtr jsontext.Pointer) []sourcedParam {
+func mergeParameters(b *typed.Bindings, pathParams []sourcedParam, opParams []*soa.ReferencedParameter,
+	opDeclPtr jsontext.Pointer,
+) []sourcedParam {
 	merged := make([]sourcedParam, 0, len(opParams)+len(pathParams))
-	merged = appendSourced(merged, opParams, opDeclPtr, nil, nil)
+	merged = appendSourced(b, merged, opParams, opDeclPtr, nil, nil)
 	if len(pathParams) == 0 {
 		return merged
 	}
-	shadowed := shadowedKeys(opParams)
+	shadowed := shadowedKeys(b, opParams)
 	for _, p := range pathParams {
-		if key, ok := paramKey(p.ref); ok && shadowed[key] {
+		if key, ok := paramKey(b, p.ref); ok && shadowed[key] {
 			continue
 		}
 		merged = append(merged, p)
@@ -392,11 +409,11 @@ func mergeParameters(pathParams []sourcedParam, opParams []*soa.ReferencedParame
 // skipping any whose (name, in) key is in shadowed. A nil shadowed map reads as
 // all-false, which is what the operation side passes: operation parameters are
 // never shadowed, and are lowered in the operation's own context (a nil in).
-func appendSourced(dst []sourcedParam, params []*soa.ReferencedParameter, base jsontext.Pointer,
-	shadowed map[string]bool, in *lowering.Ctx,
+func appendSourced(b *typed.Bindings, dst []sourcedParam, params []*soa.ReferencedParameter, base jsontext.Pointer,
+	shadowed map[ids.ParamSlot]bool, in *lowering.Ctx,
 ) []sourcedParam {
 	for i, p := range params {
-		if key, ok := paramKey(p); ok && shadowed[key] {
+		if key, ok := paramKey(b, p); ok && shadowed[key] {
 			continue
 		}
 		dst = append(dst, sourcedParam{ref: p, pointer: base + ids.Ptr("parameters", strconv.Itoa(i)), in: in})
@@ -406,36 +423,31 @@ func appendSourced(dst []sourcedParam, params []*soa.ReferencedParameter, base j
 
 // shadowedKeys returns the (in, name) identities declared by opParams, so a
 // path-item parameter sharing one is left out of the merge as a duplicate.
-func shadowedKeys(opParams []*soa.ReferencedParameter) map[string]bool {
-	shadowed := make(map[string]bool, len(opParams))
+func shadowedKeys(b *typed.Bindings, opParams []*soa.ReferencedParameter) map[ids.ParamSlot]bool {
+	shadowed := make(map[ids.ParamSlot]bool, len(opParams))
 	for _, p := range opParams {
-		if key, ok := paramKey(p); ok {
+		if key, ok := paramKey(b, p); ok {
 			shadowed[key] = true
 		}
 	}
 	return shadowed
 }
 
-// paramKey builds the (in, name) identity of a parameter for merge dedup.
-func paramKey(rp *soa.ReferencedParameter) (string, bool) {
-	p := resolve.Object[soa.Parameter](rp)
+// paramKey builds the identity a parameter is merged by (ids.SlotOf), read
+// through the bindings b, as the lowering reads it.
+func paramKey(b *typed.Bindings, rp *soa.ReferencedParameter) (ids.ParamSlot, bool) {
+	p := resolve.Object[soa.Parameter](b, rp)
 	if p == nil {
-		return "", false
+		return ids.ParamSlot{}, false
 	}
-	return string(p.GetIn()) + "\x00" + p.GetName(), true
+	return ids.SlotOf(p.GetName(), string(p.GetIn())), true
 }
 
-// paramSlot is what OpenAPI identifies a parameter by: its name and location.
-// It holds exactly what ids.Param mints from, so parameters in two slots never
-// share an ID. Names compare as written, header names included, as the merge's
-// paramKey compares them (#635).
-type paramSlot struct {
-	name, in string
-}
-
-// paramLedger counts how often each slot has been declared on one operation, or
-// on one path item that mounts none, so a repeat is numbered. The count follows
-// the list it is given, in order, and so never the iteration order of a map.
+// paramLedger numbers the parameters of one operation, or of a path item
+// mounting none, in list order, and finds each repeat by its slot
+// (ids.SlotOf). A repeat is numbered among those spelled alike, as an ID is
+// derived from the name as written (ids.Param), so X-Trace and x-trace keep
+// the IDs each has alone, and deleting one renames neither.
 //
 // A repeat in a list the source writes is load's to report, once, where it is
 // written (paramRepeats). One in another document's content, which that
@@ -443,13 +455,25 @@ type paramSlot struct {
 // from.
 type paramLedger struct {
 	mount   jsontext.Pointer
-	seen    map[paramSlot]int
-	firstAt map[paramSlot]jsontext.Pointer
+	seen    map[paramSpelling]int
+	firstAt map[ids.ParamSlot]slotHolder
+}
+
+// paramSpelling is a parameter's name and location as written, which its ID
+// is derived from.
+type paramSpelling struct {
+	name, in string
+}
+
+// slotHolder is the entry that first holds a slot, and the name it spells.
+type slotHolder struct {
+	entry jsontext.Pointer
+	name  string
 }
 
 // newParamLedger returns a ledger for the operation mounted at mount.
 func newParamLedger(mount jsontext.Pointer) *paramLedger {
-	return &paramLedger{mount: mount, seen: map[paramSlot]int{}, firstAt: map[paramSlot]jsontext.Pointer{}}
+	return &paramLedger{mount: mount, seen: map[paramSpelling]int{}, firstAt: map[ids.ParamSlot]slotHolder{}}
 }
 
 // next returns the ID of the parameter holding name in in, written by the list
@@ -460,20 +484,22 @@ func (l *paramLedger) next(c lowering.Ctx, name, in string, entry jsontext.Point
 }
 
 // count records the list entry at entry as one more holder of name in in, and
-// returns which holder it is, counting from one, and the error a repeat raises
-// there when c reads another document's content. The first holder raises
-// none.
+// returns which holder of that spelling it is, counting from one, and the
+// error a repeat of its slot raises there when c reads another document's
+// content. The first holder of a slot raises none.
 func (l *paramLedger) count(c lowering.Ctx, name, in string, entry jsontext.Pointer) (int, []ir.Diagnostic) {
-	slot := paramSlot{name: name, in: in}
-	l.seen[slot]++
-	occurrence := l.seen[slot]
-	if occurrence == 1 {
-		l.firstAt[slot] = entry
+	spelled := paramSpelling{name: name, in: in}
+	l.seen[spelled]++
+	occurrence := l.seen[spelled]
+	slot := ids.SlotOf(name, in)
+	first, repeated := l.firstAt[slot]
+	if !repeated {
+		l.firstAt[slot] = slotHolder{entry: entry, name: name}
 		return occurrence, nil
 	}
 	if !c.RefScope().Foreign {
 		return occurrence, nil
 	}
 	return occurrence, []ir.Diagnostic{c.DiagAt(ir.SeverityError, diag.DuplicateParameter, entry,
-		"parameter %q in %q repeats the entry at %s", name, in, l.firstAt[slot])}
+		"%s", diag.RepeatedParameter(name, in, first.entry, first.name))}
 }

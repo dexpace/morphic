@@ -7,6 +7,7 @@ import (
 	"context"
 	"encoding/json/jsontext"
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -16,6 +17,7 @@ import (
 
 	"github.com/dexpace/morphic/compilers"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
+	"github.com/dexpace/morphic/compilers/openapi/internal/oas"
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
 	"github.com/dexpace/morphic/compilers/openapi/internal/overlay"
 	"github.com/dexpace/morphic/compilers/openapi/internal/sourceindex"
@@ -87,25 +89,27 @@ func TestLoad_A32KeywordIn32DocumentDrawsNoFinding(t *testing.T) {
 	assert.Empty(t, diags, "a 3.2 keyword in a 3.2 document is no finding")
 }
 
-// TestLoad_ResolverFaultBecomesADiagnostic pins the last refusal in the load
-// path: a document the parser accepts and the resolver faults on is reported as
-// an unresolved reference, so the fault never escapes as a Go error or a crash.
-// It is sited at the reference being resolved when the panic hit, the same way
-// an ordinary resolution failure is (TestEachReference_PanicIsReportedAtTheReference
-// covers the panic-handling mechanism itself).
-func TestLoad_ResolverFaultBecomesADiagnostic(t *testing.T) {
+// TestLoad_AnObjectTheParserFaultsOnIsReportedOnce pins the last refusal in
+// the load path: raw YAML a reference object lands on, which the parser
+// panics building an object from, is reported once, at the reference, as a
+// build failure, so the fault never escapes as a Go error or a crash, and the
+// document is lowered with nothing at that reference.
+func TestLoad_AnObjectTheParserFaultsOnIsReportedOnce(t *testing.T) {
 	t.Parallel()
-	doc, diags, err := Load(t.Context(), 0, openapitest.SourceOf(resolverPanicSpec), Options{})
+	doc, diags, err := Load(t.Context(), 0, openapitest.SourceOf(parserPanicSpec), Options{})
 
-	require.NoError(t, err, "a resolver fault is a spec problem, not a Go error")
-	assert.NotNil(t, doc, "resolution failure does not stop the document being lowered")
-	require.Equal(t, 1, countErrorsAt(diags, diag.UnresolvedRef), "and it is reported: %+v", diags)
+	require.NoError(t, err, "a parser fault is a spec problem, not a Go error")
+	assert.NotNil(t, doc, "a failed build does not stop the document being lowered")
+	assert.Zero(t, countErrorsAt(diags, diag.UnresolvedRef), "%+v", diags)
+	var built []ir.Diagnostic
 	for _, d := range diags {
-		if d.Code == diag.UnresolvedRef {
-			assert.Equal(t, jsontext.Pointer("/components/responses/000"), d.Provenance.Pointer,
-				"the reference being resolved when the panic hit")
+		if d.Code == diag.Validation {
+			built = append(built, d)
 		}
 	}
+	require.Len(t, built, 1, "reported once: %+v", diags)
+	assert.Equal(t, jsontext.Pointer("/components/responses/000"), built[0].Provenance.Pointer, "at the reference")
+	assert.Contains(t, built[0].Message, "the $ref here reaches #/B, where no response could be built: parser panicked: ")
 }
 
 // TestLoad_RecoverableLiteralIsNotAFinding pins that a numeric bound YAML writes
@@ -151,19 +155,39 @@ func TestSupportedMinor_AcceptsOnlyTheThreeMinors(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.version, func(t *testing.T) {
 			t.Parallel()
-			got, ok := SupportedMinor(tc.version)
+			got, ok := supportedMinor(tc.version)
 			assert.Equal(t, tc.want != "", ok)
 			assert.Equal(t, tc.want, got)
 		})
 	}
 }
 
-// TestSupportedMinor_AllocatesNothing pins what the lowering's dialect check
-// costs: it asks this of every schema whose null it reads, so the minor is
-// read off the version (oas.ParseMinor) and named by a constant. It is not run
-// in parallel: AllocsPerRun refuses to be.
-func TestSupportedMinor_AllocatesNothing(t *testing.T) {
-	assert.Zero(t, testing.AllocsPerRun(100, func() { _, _ = SupportedMinor("3.1.0") }))
+// TestLoad_ReadsTheRowsOfTheVersionTheSourceDeclares pins the rows load hands
+// the lowering for the source (Document.Rows): those of the minor it declares,
+// the Schema Object's and the Encoding Object's alike, in the dialect its
+// jsonSchemaDialect names.
+func TestLoad_ReadsTheRowsOfTheVersionTheSourceDeclares(t *testing.T) {
+	t.Parallel()
+	rowsOf := func(version, rest string) Rows {
+		t.Helper()
+		doc, _, err := Load(t.Context(), 0, openapitest.SourceOf("openapi: "+version+
+			"\ninfo: {title: T, version: \"1\"}\npaths: {}\n"+rest), Options{})
+		require.NoError(t, err)
+		require.NotNil(t, doc)
+		return doc.Rows
+	}
+	r30, r31 := rowsOf("3.0.3", ""), rowsOf("3.1.0", "")
+	assert.True(t, r30.Schema.Defines("nullable"))
+	assert.False(t, r31.Schema.Defines("nullable"))
+	assert.True(t, r31.Schema.Defines("prefixItems"))
+	_, untyped30 := r30.Encoding.ContentType(oas.DefaultUntyped)
+	_, untyped31 := r31.Encoding.ContentType(oas.DefaultUntyped)
+	assert.False(t, untyped30)
+	assert.True(t, untyped31)
+	r04 := rowsOf("3.1.0", "jsonSchemaDialect: '"+draft04+"'\n")
+	assert.True(t, r04.Schema.Takes("exclusiveMinimum", oas.Boolean))
+	_, untyped04 := r04.Encoding.ContentType(oas.DefaultUntyped)
+	assert.True(t, untyped04, "a dialect leaves the Encoding Object's rows the minor's")
 }
 
 // overlayHeader is the preamble every overlay document below needs.
@@ -257,6 +281,28 @@ func TestLoad_ADocumentThatFailsToBuildIsAGoError(t *testing.T) {
 	assert.Contains(t, err.Error(), "source 5", "the failing source is named")
 	assert.Nil(t, doc)
 	assert.Nil(t, diags)
+}
+
+// TestLoad_RejectsARelativeLocation pins that a source's Location, where it
+// lies, must be absolute: a relative one would read its references against the
+// working directory, which it is there to keep out of the compile. It is a
+// caller's mistake, a Go error; an absolute one, and none, are read.
+func TestLoad_RejectsARelativeLocation(t *testing.T) {
+	t.Parallel()
+	src := openapitest.SourceOf(minimal31)
+	src.Location = "api/spec.yaml"
+
+	refused, diags, err := Load(t.Context(), 0, src, Options{})
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), `location "api/spec.yaml" is not an absolute path`)
+	assert.Nil(t, refused)
+	assert.Nil(t, diags)
+	src.Location = filepath.Join(t.TempDir(), "spec.yaml")
+	got, diags, err := Load(t.Context(), 0, src, Options{})
+	require.NoError(t, err, "%+v", diags)
+	assert.Equal(t, src.Location, got.Location, "an absolute one is where its references are read")
+	assert.Equal(t, src.Path, got.Source.Path, "and the path handed is what Document.Sources records")
 }
 
 // TestLoad_RejectsAnOverlaySharingTheSourceIndex pins the one way the

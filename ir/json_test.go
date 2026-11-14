@@ -308,7 +308,7 @@ var lenientDecodeOptions = []json.Options{
 // (top-level and nested).
 // Every case runs twice: once under default options, once under
 // lenientDecodeOptions, since the guarantee is that the caller's options
-// cannot relax any of them.
+// cannot relax any of them once UnmarshalJSONFrom runs.
 func TestDocument_UnmarshalRefusesMalformedInput(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
@@ -432,16 +432,17 @@ func TestDocument_UnmarshalRefusesInvalidUTF8(t *testing.T) {
 
 // unsortedTypesDoc returns a Document for the encode tests below: Types entries
 // inserted out of sorted order, a Name that HTML and JS escaping would rewrite, a
-// channel binding holding a nil RawConfig, and an Unmodeled payload spelled the
-// way each raw-value option would respell it — an integer past float64's
-// precision, a float with a trailing zero, members out of order, and an escape
-// the canonical form drops.
+// channel binding holding a nil RawConfig, an IDSpaces kind holding a nil list,
+// and an Unmodeled payload spelled the way each raw-value option would respell
+// it — an integer past float64's precision, a float with a trailing zero,
+// members out of order, and an escape the canonical form drops.
 func unsortedTypesDoc() ir.Document {
 	types := ir.TypeRegistry{}
 	for _, id := range []ir.TypeID{"t/z", "t/a", "t/m"} {
 		types[id] = &ir.Primitive{ID: id, Prim: ir.PrimString}
 	}
 	return ir.Document{IRVersion: ir.IRVersion, Name: "a<b>c&d\u2028e", Types: types,
+		IDSpaces: map[string][]string{ir.IDKindType: nil},
 		Channels: map[ir.ChannelID]ir.Channel{"c/x": {ID: "c/x", Bindings: map[string]ir.RawConfig{"kafka": nil}}},
 		Unmodeled: ir.Unmodeled{"openapi:x-probe": {
 			Reason: ir.ReasonVendorExtension,
@@ -451,12 +452,11 @@ func unsortedTypesDoc() ir.Document {
 }
 
 // TestDocument_MarshalIgnoresCallerOptions pins that every caller option which
-// could change Document's encoded bytes is overridden by canonicalOptions
-// (json.go). Each option changes the bytes of unsortedTypesDoc when it is not
+// could change Document's encoded bytes is overridden by canonicalOptions once
+// MarshalJSONTo runs (json.go), a marshaler for anything the Document holds
+// among them. Each option changes the bytes of unsortedTypesDoc when it is not
 // pinned; each case must still produce bytes identical to a plain
-// json.Marshal(doc) with no options at all. FormatNilSliceAsNull is pinned too
-// but has no case: no IR type holds a nil slice the encoder reaches without an
-// omission option, so no document can show it.
+// json.Marshal(doc) with no options at all.
 func TestDocument_MarshalIgnoresCallerOptions(t *testing.T) {
 	t.Parallel()
 	doc := unsortedTypesDoc()
@@ -469,6 +469,7 @@ func TestDocument_MarshalIgnoresCallerOptions(t *testing.T) {
 		"\"name\":\"a<b>c&d\u2028e\"",                           // no HTML or JS escaping
 		`"value":{"z":12345678901234567890,"a":1.50,"s":"a/b"}`, // raw spellings and order kept, escapes minimal
 		`"bindings":{"kafka":{}}`,                               // a nil map is {}, never null
+		`"idSpaces":{"t":[]}`,                                   // a nil slice is [], never null
 		`"source":0`,                                            // numbers are not stringified
 		`"docs":{}`,                                             // a zero struct is not dropped
 	} {
@@ -482,6 +483,7 @@ func TestDocument_MarshalIgnoresCallerOptions(t *testing.T) {
 		{"EscapeForHTML", jsontext.EscapeForHTML(true)},
 		{"EscapeForJS", jsontext.EscapeForJS(true)},
 		{"FormatNilMapAsNull", json.FormatNilMapAsNull(true)},
+		{"FormatNilSliceAsNull", json.FormatNilSliceAsNull(true)},
 		{"StringifyNumbers", json.StringifyNumbers(true)},
 		{"OmitZeroStructFields", json.OmitZeroStructFields(true)},
 		{"WithMarshalers", json.WithMarshalers(json.MarshalFunc(func(ir.TypeID) ([]byte, error) {
@@ -582,6 +584,48 @@ func TestDocument_MarshalHonoursCallerIndent(t *testing.T) {
 	compacted := jsontext.Value(indented)
 	require.NoError(t, compacted.Compact())
 	assert.Equal(t, string(plain), string(compacted), "indentation must be the only difference from the plain encoding")
+}
+
+// TestDocument_ACodecForTheDocumentRunsInItsPlace pins the way around the
+// Document's methods json.go names: a marshaler or an unmarshaler a caller
+// registers for Document runs in place of MarshalJSONTo or UnmarshalJSONFrom,
+// so none of their pins or refusals applies.
+func TestDocument_ACodecForTheDocumentRunsInItsPlace(t *testing.T) {
+	t.Parallel()
+	doc := unsortedTypesDoc()
+	replaced, err := json.Marshal(&doc, json.WithMarshalers(json.MarshalFunc(func(*ir.Document) ([]byte, error) {
+		return []byte(`{"replaced":true}`), nil
+	})))
+	require.NoError(t, err)
+	assert.Equal(t, `{"replaced":true}`, string(replaced))
+
+	var decoded ir.Document
+	err = json.Unmarshal([]byte(`{"irVersion":"0.0.0","unknown":1}`), &decoded,
+		json.WithUnmarshalers(json.UnmarshalFunc(func([]byte, *ir.Document) error { return nil })))
+	assert.NoError(t, err, "neither the foreign irVersion nor the unknown member is refused")
+}
+
+// TestDocument_EncodesWhatOnlyTheVerifierRefuses pins that the encoder leaves
+// what irverify holds to irverify (docs/ir/README.md#design-rules): an IDSpaces
+// kind declared with no namespace, which ir/id-spaces-not-canonical reports,
+// encodes and decodes back as it is, and a nil type, which ir/nil-type
+// reports, encodes as null, which decoding refuses as a type with no kind.
+func TestDocument_EncodesWhatOnlyTheVerifierRefuses(t *testing.T) {
+	t.Parallel()
+	doc := ir.Document{IRVersion: ir.IRVersion, IDSpaces: map[string][]string{ir.IDKindType: {}}}
+	raw, err := json.Marshal(&doc)
+	require.NoError(t, err)
+	assert.Contains(t, string(raw), `"idSpaces":{"t":[]}`)
+
+	var decoded ir.Document
+	require.NoError(t, json.Unmarshal(raw, &decoded))
+	assert.Empty(t, cmp.Diff(doc, decoded))
+
+	nilType := ir.Document{IRVersion: ir.IRVersion, Types: ir.TypeRegistry{"t/x/A": nil}}
+	raw, err = json.Marshal(&nilType)
+	require.NoError(t, err)
+	assert.Contains(t, string(raw), `"types":{"t/x/A":null}`)
+	assert.Error(t, json.Unmarshal(raw, &ir.Document{}), "null is a type with no kind")
 }
 
 // TestTypeDef_UnmarshalRefusesForeignKindTag pins that a concrete kind

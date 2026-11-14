@@ -1,0 +1,38 @@
+openapi: 3.2.0
+info: {title: FileItems32, version: "1.0.0"}
+paths:
+  /photos:
+    get:
+      operationId: listPhotos
+      responses:
+        "200":
+          description: ok
+          content:
+            # Each item of a multipart stream of raw bytes is a file part.
+            multipart/mixed:
+              itemSchema: {type: string, format: binary}
+              itemEncoding: {contentType: 'image/png, image/jpeg'}
+  /attachments:
+    get:
+      operationId: listAttachments
+      responses:
+        "200":
+          description: ok
+          content:
+            # An item writing no type defaults to application/octet-stream,
+            # so the stream says its items are files though it writes no
+            # itemEncoding.
+            multipart/mixed:
+              itemSchema: {description: One attachment.}
+  /thumbnails:
+    get:
+      operationId: listThumbnails
+      responses:
+        "200":
+          description: ok
+          content:
+            # A string item is a file only by its binary media type, which the
+            # binary policy reads.
+            multipart/mixed:
+              itemSchema: {type: string}
+              itemEncoding: {contentType: image/webp}

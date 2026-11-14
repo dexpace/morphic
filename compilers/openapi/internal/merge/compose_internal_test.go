@@ -21,21 +21,31 @@ import (
 // composeRegistry holds the types the composition tests declare fields as. A
 // component sits under no declaration, so it reads as written by a $ref, and a
 // node hoisted at or under declaredAt(n) reads as written inline by the nth
-// declaration.
+// declaration. Each model declares a property of its own, so no two are copies
+// of one another (typeJudge.models).
 func composeRegistry() map[ir.TypeID]ir.TypeDef {
-	own := []ir.Property{{WireName: "own"}}
+	own := func(id ir.TypeID) []ir.Property { return []ir.Property{{WireName: string(id)}} }
 	inline := func(id ir.TypeID, pointer jsontext.Pointer) *ir.Model {
-		return &ir.Model{ID: id, Anonymous: true, Provenance: ptrAt(pointer), Properties: own}
+		return &ir.Model{ID: id, Anonymous: true, Provenance: ptrAt(pointer), Properties: own(id)}
 	}
 	return map[ir.TypeID]ir.TypeDef{
-		"t/A":      &ir.Model{ID: "t/A", Provenance: ptrAt("/components/schemas/A"), Properties: own},
-		"t/B":      &ir.Model{ID: "t/B", Provenance: ptrAt("/components/schemas/B"), Properties: own},
+		"t/A":      &ir.Model{ID: "t/A", Provenance: ptrAt("/components/schemas/A"), Properties: own("t/A")},
+		"t/B":      &ir.Model{ID: "t/B", Provenance: ptrAt("/components/schemas/B"), Properties: own("t/B")},
 		"t/sub":    &ir.Model{ID: "t/sub", Provenance: ptrAt("/components/schemas/Sub"), Base: &ir.TypeRef{Target: "t/A"}},
 		"t/bare":   &ir.Model{ID: "t/bare", Anonymous: true, Provenance: ptrAt(declaredAt(0))},
 		"t/bare1":  &ir.Model{ID: "t/bare1", Anonymous: true, Provenance: ptrAt(declaredAt(1))},
-		"t/Pet":    &ir.Model{ID: "t/Pet", Provenance: ptrAt("/components/schemas/Pet"), Properties: own, Discriminator: &ir.Discriminator{}},
-		"t/Dog":    &ir.Model{ID: "t/Dog", Provenance: ptrAt("/components/schemas/Dog"), Properties: own, Discriminator: &ir.Discriminator{}},
+		"t/Pet":    &ir.Model{ID: "t/Pet", Provenance: ptrAt("/components/schemas/Pet"), Properties: own("t/Pet"), Discriminator: &ir.Discriminator{}},
+		"t/Dog":    &ir.Model{ID: "t/Dog", Provenance: ptrAt("/components/schemas/Dog"), Properties: own("t/Dog"), Discriminator: &ir.Discriminator{}},
+		"t/Mid":    &ir.Model{ID: "t/Mid", Provenance: ptrAt("/components/schemas/Mid"), Properties: own("t/Mid"), Base: &ir.TypeRef{Target: "t/Pet"}},
+		"t/midAka": &ir.Scalar{ID: "t/midAka", Base: &ir.TypeRef{Target: "t/Mid"}},
+		"t/Low":    &ir.Model{ID: "t/Low", Provenance: ptrAt("/components/schemas/Low"), Properties: own("t/Low"), Base: &ir.TypeRef{Target: "t/midAka"}},
+		"t/loopA":  &ir.Model{ID: "t/loopA", Provenance: ptrAt("/components/schemas/LoopA"), Properties: own("t/loopA"), Base: &ir.TypeRef{Target: "t/loopB"}},
+		"t/loopB":  &ir.Model{ID: "t/loopB", Provenance: ptrAt("/components/schemas/LoopB"), Properties: own("t/loopB"), Base: &ir.TypeRef{Target: "t/loopA"}},
 		"t/alias":  &ir.Scalar{ID: "t/alias", Base: &ir.TypeRef{Target: "t/B"}},
+		"t/tagged": &ir.Union{ID: "t/tagged", Variants: []ir.Variant{{Type: ir.TypeRef{Target: "t/A"}}}, Discriminator: &ir.Discriminator{}},
+		"t/byTag":  &ir.Model{ID: "t/byTag", Provenance: ptrAt("/components/schemas/ByTag"), Properties: own("t/byTag"), Base: &ir.TypeRef{Target: "t/tagged"}},
+		"t/guessed": &ir.Union{ID: "t/guessed", Variants: []ir.Variant{{Type: ir.TypeRef{Target: "t/B"}}},
+			Discriminator: &ir.Discriminator{Inferred: true}},
 		"t/in0":    inline("t/in0", declaredAt(0)),
 		"t/in1":    inline("t/in1", declaredAt(1)),
 		"t/in2":    inline("t/in2", declaredAt(2)),
@@ -44,6 +54,10 @@ func composeRegistry() map[ir.TypeID]ir.TypeDef {
 		"t/top":    &ir.Primitive{ID: "t/top", Prim: ir.PrimAny},
 		"t/any":    &ir.Any{ID: "t/any"},
 		"t/map":    &ir.MapT{ID: "t/map"},
+		"t/union":  &ir.Union{ID: "t/union", Variants: []ir.Variant{{Type: ir.TypeRef{Target: "t/A"}}, {Type: ir.TypeRef{Target: "t/B"}}}},
+		"t/list":   &ir.List{ID: "t/list", Elem: ir.TypeRef{Target: "t/str"}},
+		"t/topDoc": &ir.Scalar{Base: &ir.TypeRef{Target: "t/top"}, ID: "t/topDoc", Docs: ir.Docs{Description: "d"}},
+		"t/topEx":  &ir.Scalar{Base: &ir.TypeRef{Target: "t/top"}, ID: "t/topEx", Examples: []ir.Example{{}}},
 	}
 }
 
@@ -70,10 +84,12 @@ func declsOf(targets ...ir.TypeID) []declaration {
 	return out
 }
 
-// TestFold_RedeclaredModelsCompose pins what a field declared as several models
-// takes: a model the fold mints, composing each once as a written allOf of them
-// does. Nothing is lost, so nothing is kept and nothing reported, and a bare
-// `{}` beside the models adds no conjunct.
+// TestFold_RedeclaredModelsCompose pins what a field declared as several models,
+// or as a model beside a map or a union, takes: a model the fold mints,
+// composing each once as a written allOf of them does, its Base the first taking
+// part in a discriminator hierarchy at any depth. Nothing is lost, so
+// nothing is kept and nothing reported, and a bare `{}` beside the models adds
+// no conjunct.
 func TestFold_RedeclaredModelsCompose(t *testing.T) {
 	t.Parallel()
 	for _, tc := range []struct {
@@ -88,12 +104,23 @@ func TestFold_RedeclaredModelsCompose(t *testing.T) {
 		{name: "two components stay mixins, in order", targets: []ir.TypeID{"t/B", "t/A"}, mixins: []ir.TypeID{"t/B", "t/A"}},
 		{name: "a discriminated component is the base", targets: []ir.TypeID{"t/A", "t/Pet"}, base: "t/Pet", mixins: []ir.TypeID{"t/A"}},
 		{name: "the first discriminated component is", targets: []ir.TypeID{"t/Dog", "t/A", "t/Pet"}, base: "t/Dog", mixins: []ir.TypeID{"t/A", "t/Pet"}},
+		{name: "a subtype of a discriminated component is", targets: []ir.TypeID{"t/A", "t/Mid"}, base: "t/Mid", mixins: []ir.TypeID{"t/A"}},
+		{name: "a deeper one, through an alias", targets: []ir.TypeID{"t/A", "t/Low"}, base: "t/Low", mixins: []ir.TypeID{"t/A"}},
+		{name: "a cycle of subtypes declaring none is not", targets: []ir.TypeID{"t/A", "t/loopA"}, mixins: []ir.TypeID{"t/A", "t/loopA"}},
+		{name: "a union holding a declared discriminator is", targets: []ir.TypeID{"t/A", "t/tagged"}, base: "t/tagged", mixins: []ir.TypeID{"t/A"}},
+		{name: "a model under one is", targets: []ir.TypeID{"t/A", "t/byTag"}, base: "t/byTag", mixins: []ir.TypeID{"t/A"}},
+		{name: "a union holding an inferred one is not", targets: []ir.TypeID{"t/A", "t/guessed"}, mixins: []ir.TypeID{"t/A", "t/guessed"}},
 		{name: "one type declared twice composes once", targets: []ir.TypeID{"t/A", "t/B", "t/A"}, mixins: []ir.TypeID{"t/A", "t/B"}},
 		{name: "`{}` adds no conjunct", targets: []ir.TypeID{"t/top", "t/A", "t/in2"}, base: "t/A", mixins: []ir.TypeID{"t/in2"}},
+		{name: "an alias of `{}` saying nothing of its values adds none", targets: []ir.TypeID{"t/A", "t/B", "t/topDoc"}, mixins: []ir.TypeID{"t/A", "t/B"}},
 		{name: "a bare object adds no conjunct", targets: []ir.TypeID{"t/bare", "t/A", "t/in2"}, base: "t/A", mixins: []ir.TypeID{"t/in2"}},
 		{name: "a type what composes it holds adds no conjunct", targets: []ir.TypeID{"t/A", "t/B", "t/sub"}, mixins: []ir.TypeID{"t/B", "t/sub"}},
 		{name: "an alias composes as written", targets: []ir.TypeID{"t/alias", "t/in1"}, base: "t/alias", mixins: []ir.TypeID{"t/in1"}},
 		{name: "a node under its declaration is inline", targets: []ir.TypeID{"t/in0", "t/nested"}, mixins: []ir.TypeID{"t/in0", "t/nested"}},
+		{name: "a model and a map", targets: []ir.TypeID{"t/A", "t/map"}, mixins: []ir.TypeID{"t/A", "t/map"}},
+		{name: "a map and an inline model", targets: []ir.TypeID{"t/map", "t/in1"}, base: "t/map", mixins: []ir.TypeID{"t/in1"}},
+		{name: "a model and a union", targets: []ir.TypeID{"t/union", "t/A"}, mixins: []ir.TypeID{"t/union", "t/A"}},
+		{name: "a map beside two models", targets: []ir.TypeID{"t/A", "t/B", "t/map"}, mixins: []ir.TypeID{"t/A", "t/B", "t/map"}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
@@ -129,8 +156,8 @@ func targetsOf(refs []ir.TypeRef) []ir.TypeID {
 }
 
 // TestFold_OnlyTwoOrMoreModelsCompose pins where the type stays the winner's:
-// one type holds every other, or a declaration that remains is no model, so the
-// fold keeps what it did and mints nothing.
+// one type holds every other, a declaration that remains is no model, map or
+// union, or none is a model, so the fold keeps what it did and mints nothing.
 func TestFold_OnlyTwoOrMoreModelsCompose(t *testing.T) {
 	t.Parallel()
 	for _, tc := range []struct {
@@ -149,7 +176,9 @@ func TestFold_OnlyTwoOrMoreModelsCompose(t *testing.T) {
 		{name: "`{}` loses to one model", targets: []ir.TypeID{"t/top", "t/A"}, want: "t/A"},
 		{name: "a kind beside two models", targets: []ir.TypeID{"t/A", "t/B", "t/str"}, want: "t/A", dropped: []jsontext.Pointer{declaredAt(1), declaredAt(2)}},
 		{name: "a degraded node beside two models", targets: []ir.TypeID{"t/any", "t/A", "t/B"}, want: "t/any", dropped: []jsontext.Pointer{declaredAt(1), declaredAt(2)}},
-		{name: "a map beside two models", targets: []ir.TypeID{"t/A", "t/B", "t/map"}, want: "t/A", dropped: []jsontext.Pointer{declaredAt(1), declaredAt(2)}},
+		{name: "a list beside two models", targets: []ir.TypeID{"t/A", "t/B", "t/list"}, want: "t/A", dropped: []jsontext.Pointer{declaredAt(1), declaredAt(2)}},
+		{name: "a map and a union with no model", targets: []ir.TypeID{"t/map", "t/union"}, want: "t/map", dropped: []jsontext.Pointer{declaredAt(1)}},
+		{name: "an alias of `{}` holding examples beside two models", targets: []ir.TypeID{"t/A", "t/B", "t/topEx"}, want: "t/A", dropped: []jsontext.Pointer{declaredAt(1), declaredAt(2)}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
@@ -233,18 +262,13 @@ func TestFold_AliasesOfOneModelComposeThoughTheirBoundsMeet(t *testing.T) {
 	reg["t/min"] = &ir.Scalar{ID: "t/min", Base: &ir.TypeRef{Target: "t/B"}, Constraints: &ir.Constraints{MinProps: new(int64(1))}}
 	reg["t/max"] = &ir.Scalar{ID: "t/max", Base: &ir.TypeRef{Target: "t/B"}, Constraints: &ir.Constraints{MaxProps: new(int64(4))}}
 	g, recorded := stubMerger(reg)
-	mint, mints := g.Mint, 0
-	g.Mint = func(pointer jsontext.Pointer, node ir.TypeDef) ir.TypeID {
-		mints++
-		return mint(pointer, node)
-	}
 
 	got := g.fold(declsOf("t/min", "t/max"))
 
 	composed, ok := reg[got.Type.Target].(*ir.Model)
 	require.True(t, ok, "the field's type is the composition")
 	assert.Equal(t, []ir.TypeRef{{Target: "t/min"}, {Target: "t/max"}}, composed.Mixins)
-	assert.Equal(t, 1, mints, "one pointer takes one node, which Register would otherwise refuse")
+	assert.Equal(t, 1, g.walk.minted, "one pointer takes one node, which Register would otherwise refuse")
 	assert.Empty(t, *recorded)
 }
 

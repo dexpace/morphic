@@ -6,10 +6,12 @@
     ],
     "e": [
       "anon",
+      "composed",
       "openapi"
     ],
     "g": [
       "default",
+      "extension",
       "path-prefix",
       "tags",
       "webhooks"
@@ -144,7 +146,6 @@
                   {
                     "method": "GET",
                     "uriTemplate": "/items",
-                    "sharedRoute": false,
                     "paramBindings": [
                       {
                         "param": "param/openapi/paths/~1items/get/parameters/cursor/query",
@@ -165,8 +166,8 @@
                         "allowEmptyValue": false
                       }
                     ],
-                    "checksumRequired": false,
-                    "isWebhook": false
+                    "sharedRoute": false,
+                    "checksumRequired": false
                   }
                 ]
               },
@@ -352,6 +353,15 @@
       "provenance": {
         "source": 0,
         "pointer": "/components/schemas/Cursor/default"
+      }
+    },
+    {
+      "severity": "info",
+      "code": "openapi/undecided-pagination",
+      "message": "no pagination is inferred: no success response has a body to read a page from",
+      "provenance": {
+        "source": 0,
+        "pointer": "/paths/~1items/get"
       }
     }
   ],

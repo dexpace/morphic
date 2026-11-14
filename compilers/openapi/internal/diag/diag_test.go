@@ -91,6 +91,18 @@ func TestNewf_SanitizesInvalidUTF8(t *testing.T) {
 	assert.Equal(t, d.Message, back.Message, "message survives marshal/unmarshal unchanged")
 }
 
+// TestRepeatedParameter_NamesTheFirstSpellingWhereItDiffers pins the words of
+// a repeated parameter: the entry it repeats, and that entry's name where it
+// is spelled otherwise, as a header's may be.
+func TestRepeatedParameter_NamesTheFirstSpellingWhereItDiffers(t *testing.T) {
+	t.Parallel()
+	assert.Equal(t, `parameter "limit" in "query" repeats the entry at /p/parameters/0`,
+		diag.RepeatedParameter("limit", "query", "/p/parameters/0", "limit"))
+	assert.Equal(t, `parameter "x-trace" in "header" repeats the entry at /p/parameters/0, spelled "X-Trace", `+
+		"as HTTP compares header names in any case",
+		diag.RepeatedParameter("x-trace", "header", "/p/parameters/0", "X-Trace"))
+}
+
 // TestHasError_Cases pins the gate the load phase uses to tell a refusal from
 // advisory findings it must carry forward.
 func TestHasError_Cases(t *testing.T) {
@@ -134,11 +146,12 @@ func TestHasError_Cases(t *testing.T) {
 func codes() []string {
 	return []string{
 		diag.Validation, diag.UnsupportedVersion, diag.UnresolvedRef, diag.CyclicRef,
-		diag.CycleScanFailed, diag.SourceTooLarge, diag.SourceTooDeep, diag.TaggedMapping, diag.StreamDocumentsDropped,
+		diag.CycleScanFailed, diag.SourceTooLarge, diag.SourceTooDeep, diag.PointerAmplification, diag.TaggedMapping,
+		diag.StreamDocumentsDropped,
 		diag.UndecodableSource,
-		diag.OverlayInvalid, diag.OverlayFailed,
-		diag.OverlayAction, diag.OverlayOriginIncomplete,
-		diag.ValidationOnlyKeyword, diag.FalseSchema, diag.EmptyEnum, diag.DuplicateEnumValue,
+		diag.OverlayInvalid, diag.OverlayFailed, diag.OverlayUnsupported,
+		diag.OverlayAction, diag.OverlayReplacedValue, diag.OverlayOriginIncomplete,
+		diag.ValidationOnlyKeyword, diag.FalseSchema, diag.EmptyEnum, diag.DuplicateEnumValue, diag.RepeatedEntry,
 		diag.NumericPrecision, diag.ExclusiveBoundForm, diag.InvalidStatusKey,
 		diag.DuplicateStatusKey, diag.DuplicateParameter, diag.DuplicateServerName,
 		diag.InvalidMethodKey, diag.DegradedConstruct,
@@ -147,14 +160,19 @@ func codes() []string {
 		diag.AliasAmplification, diag.BudgetExceeded,
 		diag.InternalInvariant,
 		diag.DuplicateOperationID, diag.ConflictingOperationID, diag.PathItemRefCollision,
-		diag.IncompleteSecurityScheme, diag.OAuth2NoFlow, diag.EmptyRequestContent,
+		diag.IncompleteSecurityScheme, diag.OAuth2NoFlow, diag.EmptyRequestContent, diag.UnknownEncodingKey,
 		diag.UnresolvedSecurityScheme,
+		diag.InvalidLink,
+		diag.UntypedLink,
 		diag.ReservedHeaderName, diag.UnpreservableConstruct,
-		diag.UnknownSchemaKeyword, diag.UnknownObjectKey, diag.UnknownKeyBudget,
+		diag.UnknownSchemaKeyword, diag.UnknownObjectKey, diag.UnreadExtension, diag.UnknownKeyBudget,
 		diag.UnknownKeyUnreachable, diag.UnknownKeyEntryTaken,
 		diag.InvalidLocationKeyword, diag.InapplicableLocationKeyword,
 		diag.MissingArrayItems, diag.LaterVersionConstruct, diag.ItemSchemaOnDocument,
-		diag.InvalidPathKey, diag.InferredNullable,
+		diag.InvalidPathKey, diag.InferredNullable, diag.UnreadDialect, diag.InvalidItemsList,
+		diag.InferredDiscriminator,
+		diag.InferredHTTPDate, diag.UndecidedIdempotency, diag.UndecidedReplacement,
+		diag.UndecidedPagination,
 	}
 }
 

@@ -6,10 +6,12 @@
     ],
     "e": [
       "anon",
+      "composed",
       "openapi"
     ],
     "g": [
       "default",
+      "extension",
       "path-prefix",
       "tags",
       "webhooks"
@@ -57,6 +59,26 @@
     }
   ],
   "types": {
+    "t/anon/components/schemas/Implied/oneOf/0": {
+      "kind": "scalar",
+      "id": "t/anon/components/schemas/Implied/oneOf/0",
+      "name": {
+        "hint": "cat"
+      },
+      "anonymous": true,
+      "docs": {
+        "description": "a cat"
+      },
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Implied/oneOf/0"
+      },
+      "base": {
+        "target": "t/openapi/components/schemas/Cat",
+        "nullable": false
+      }
+    },
     "t/anon/components/schemas/Pet/oneOf/0": {
       "kind": "scalar",
       "id": "t/anon/components/schemas/Pet/oneOf/0",
@@ -71,6 +93,46 @@
       "provenance": {
         "source": 0,
         "pointer": "/components/schemas/Pet/oneOf/0"
+      },
+      "base": {
+        "target": "t/openapi/components/schemas/Cat",
+        "nullable": false
+      }
+    },
+    "t/anon/components/schemas/Twins/oneOf/0": {
+      "kind": "scalar",
+      "id": "t/anon/components/schemas/Twins/oneOf/0",
+      "name": {
+        "hint": "cat"
+      },
+      "anonymous": true,
+      "docs": {
+        "description": "one cat"
+      },
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Twins/oneOf/0"
+      },
+      "base": {
+        "target": "t/openapi/components/schemas/Cat",
+        "nullable": false
+      }
+    },
+    "t/anon/components/schemas/Twins/oneOf/1": {
+      "kind": "scalar",
+      "id": "t/anon/components/schemas/Twins/oneOf/1",
+      "name": {
+        "hint": "tabby"
+      },
+      "anonymous": true,
+      "docs": {
+        "summary": "Tabby"
+      },
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Twins/oneOf/1"
       },
       "base": {
         "target": "t/openapi/components/schemas/Cat",
@@ -199,6 +261,55 @@
       "positional": false,
       "inputOnly": false
     },
+    "t/openapi/components/schemas/Implied": {
+      "kind": "union",
+      "id": "t/openapi/components/schemas/Implied",
+      "name": {
+        "source": "Implied",
+        "canonical": "implied"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Implied"
+      },
+      "variants": [
+        {
+          "name": {
+            "hint": "cat"
+          },
+          "type": {
+            "target": "t/anon/components/schemas/Implied/oneOf/0",
+            "nullable": false
+          },
+          "docs": {}
+        },
+        {
+          "name": {
+            "hint": "dog"
+          },
+          "type": {
+            "target": "t/openapi/components/schemas/Dog",
+            "nullable": false
+          },
+          "docs": {}
+        }
+      ],
+      "exclusive": true,
+      "wireTagged": true,
+      "discriminator": {
+        "propertyName": "kind",
+        "mapping": {
+          "Cat": "t/anon/components/schemas/Implied/oneOf/0",
+          "Dog": "t/openapi/components/schemas/Dog"
+        },
+        "inferred": false
+      },
+      "closed": true,
+      "inputOnly": false
+    },
     "t/openapi/components/schemas/Pet": {
       "kind": "union",
       "id": "t/openapi/components/schemas/Pet",
@@ -244,7 +355,69 @@
           "dog": "t/openapi/components/schemas/Dog"
         },
         "inferred": false
-      }
+      },
+      "closed": true,
+      "inputOnly": false
+    },
+    "t/openapi/components/schemas/Twins": {
+      "kind": "union",
+      "id": "t/openapi/components/schemas/Twins",
+      "name": {
+        "source": "Twins",
+        "canonical": "twins"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Twins"
+      },
+      "variants": [
+        {
+          "name": {
+            "hint": "cat"
+          },
+          "type": {
+            "target": "t/anon/components/schemas/Twins/oneOf/0",
+            "nullable": false
+          },
+          "docs": {}
+        },
+        {
+          "name": {
+            "hint": "tabby"
+          },
+          "type": {
+            "target": "t/anon/components/schemas/Twins/oneOf/1",
+            "nullable": false
+          },
+          "docs": {}
+        },
+        {
+          "name": {
+            "hint": "dog"
+          },
+          "type": {
+            "target": "t/openapi/components/schemas/Dog",
+            "nullable": false
+          },
+          "docs": {}
+        }
+      ],
+      "exclusive": true,
+      "wireTagged": true,
+      "discriminator": {
+        "propertyName": "kind",
+        "mapping": {
+          "cat": "t/anon/components/schemas/Twins/oneOf/0",
+          "dog": "t/openapi/components/schemas/Dog",
+          "tom": "t/anon/components/schemas/Twins/oneOf/0"
+        },
+        "inferred": false
+      },
+      "closed": true,
+      "inputOnly": false
     },
     "t/openapi/components/schemas/Unknown": {
       "kind": "union",
@@ -287,10 +460,13 @@
       "discriminator": {
         "propertyName": "kind",
         "mapping": {
+          "Dog": "t/openapi/components/schemas/Dog",
           "cat": "t/anon/components/schemas/Unknown/oneOf/0"
         },
         "inferred": false
-      }
+      },
+      "closed": true,
+      "inputOnly": false
     },
     "t/prim/string": {
       "kind": "primitive",
@@ -327,13 +503,31 @@
         "source": 0,
         "pointer": "/components/schemas/Unknown/oneOf/0/k-beside"
       }
+    },
+    {
+      "severity": "info",
+      "code": "openapi/degraded-construct",
+      "message": "discriminator mapping \"tom\" names a schema 2 branches of this union reach through a $ref (\"/components/schemas/Twins/oneOf/0\", \"/components/schemas/Twins/oneOf/1\"), and a tag routes to one variant; routed to the first",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Twins/discriminator/mapping/tom"
+      }
+    },
+    {
+      "severity": "info",
+      "code": "openapi/degraded-construct",
+      "message": "discriminator mapping \"cat\" names a schema 2 branches of this union reach through a $ref (\"/components/schemas/Twins/oneOf/0\", \"/components/schemas/Twins/oneOf/1\"), and a tag routes to one variant; routed to the first",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Twins/discriminator/mapping/cat"
+      }
     }
   ],
   "sources": [
     {
       "format": "openapi@3.1",
       "path": "discriminator-aliased-branch.yaml",
-      "hash": "6f7620c5ca4757bdce0e93cb73ed69031196299c03ecc3d6d08697b00cb3a528"
+      "hash": "bd2adec17446a76c2730ecd6d0bf575a913d87cfd193bb0821244be0eea59130"
     }
   ]
 }

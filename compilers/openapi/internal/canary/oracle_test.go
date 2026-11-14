@@ -3,10 +3,10 @@
 
 package canary_test
 
-// The binding oracle (GitHub #914): the compiler binds schema $refs itself
-// (compilers/openapi/internal/bind), and this holds what it binds to what the
-// parser library's resolver, which the compiler never asks, resolves the same
-// $ref to. The two agree except where the library is wrong, or where the
+// The binding oracle (GitHub #914): the compiler binds every $ref itself, a
+// schema's and a reference object's (compilers/openapi/internal/bind), and
+// this holds what it binds to what the parser library's resolver, which the
+// compiler never asks, resolves the same $ref to. The two agree except where the library is wrong, or where the
 // compiler reads a reference by a rule of its own; each such disagreement is
 // listed in oracleDisagreements with the reason, and one the list does not
 // hold fails.
@@ -48,6 +48,7 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/bind/typed"
 	"github.com/dexpace/morphic/compilers/openapi/internal/load"
 	"github.com/dexpace/morphic/compilers/openapi/internal/nodeview"
+	"github.com/dexpace/morphic/internal/exectest"
 )
 
 // update rewrites oracleDisagreements and validationDisagreements from what
@@ -113,7 +114,8 @@ var oracleReasons = map[string]string{
 		"it reads past one for a reference object's own $ref; the compiler reads both alike " +
 		"(docs/compilers/openapi.md#references)",
 	"anchor-id": "the compiler reads a plain-name fragment as the $anchor or $dynamicAnchor the resource it " +
-		"names declares, and a URI an $id declares as that schema, every schema under no $id being in the " +
+		"names declares, or the identifier naming that fragment alone a draft before 2019-09 declares it by, " +
+		"and a URI an $id declares as that schema, every schema under no $id being in the " +
 		"document's resource, as OAS 3.1 reads one (JSON Schema 2020-12 §8.2, docs/compilers/openapi.md#references); " +
 		"the library looks for an anchor only inside the top-level schema it resolves, whatever URI names it, " +
 		"reads no $dynamicAnchor as one, and reads a URI an $id declares as a document to fetch",
@@ -131,6 +133,19 @@ var oracleReasons = map[string]string{
 	"duplicate-key": "the compiler reads a key written twice in a mapping as its last occurrence wherever the " +
 		"mapping is, as the parser's model reads one; the library's read of raw YAML takes the first " +
 		"(docs/parser-library.md#duplicate-key)",
+	"cycle": "the library reports a loop of reference objects as circular at the first member it resolves, " +
+		"and answers each other with no object and no error; the compiler reports the loop " +
+		"(docs/compilers/openapi.md#reference-cycles)",
+	"token-range": "the library refuses a pointer token holding a character above U+FFFF " +
+		"(docs/parser-library.md#pointer-token-range); RFC 6901 admits any",
+	"merge-list": "the library's read of raw YAML passes over a `<<` naming a list of mappings " +
+		"(docs/parser-library.md#merge-list-pointer); the compiler merges it as the decoder does",
+	"order": "the library reads a pointer through a reference object only once that reference has been " +
+		"resolved, so its answer turns on the order references are resolved in; the compiler reads through " +
+		"the reference's chain whatever is read first (docs/compilers/openapi.md#references)",
+	"beside-path-item-ref": "the library reads a pointer through a path item $ref into the item it names, never " +
+		"into the fields written beside the $ref; the compiler reads a field written there " +
+		"(docs/compilers/openapi.md#path-item-ref-fields)",
 }
 
 // oracleDoc is one document the oracle compiles, under a name naming where
@@ -139,8 +154,8 @@ type oracleDoc struct {
 	name, spec string
 }
 
-// TestBindingOracle_AgreesWithTheLibrary is the oracle. For each $ref site
-// the library's walk reaches in each document, it compares the chain end the
+// TestBindingOracle_AgreesWithTheLibrary is the oracle. For each $ref site,
+// a schema's or a reference object's, the library's walk reaches in each document, it compares the chain end the
 // compiler binds with the one the library resolves, and requires every
 // disagreement to be listed with its reason, and every listing to be one.
 func TestBindingOracle_AgreesWithTheLibrary(t *testing.T) {
@@ -196,20 +211,36 @@ func binderAnswers(t *testing.T, spec string) (map[jsontext.Pointer]string, bool
 		return nil, false
 	}
 	view := nodeview.New()
-	out := map[jsontext.Pointer]string{}
-	for _, e := range table.Entries() {
-		if e.Site.Doc != bind.Source {
-			continue
+	nodeAt := func(at bind.Position) *yaml.Node {
+		path, found := view.DocumentPath(table.Document(at.Doc).Root, at.Pointer)
+		if !found {
+			return nil
 		}
-		out[e.Site.Pointer] = chainAnswer(e.Chain, func(at bind.Position) *yaml.Node {
-			path, found := view.DocumentPath(table.Document(at.Doc).Root, at.Pointer)
-			if !found {
-				return nil
-			}
-			return path[len(path)-1]
-		})
+		return path[len(path)-1]
+	}
+	out := map[jsontext.Pointer]string{}
+	for site, c := range sourceChains(table) {
+		out[site] = chainAnswer(c, nodeAt)
 	}
 	return out, true
+}
+
+// sourceChains returns the chain of each $ref site of the source, a schema's
+// or a reference object's, by its pointer: a site read as several kinds of
+// reference object, which only raw YAML is, by the first.
+func sourceChains(table *bind.Table) map[jsontext.Pointer]bind.Chain {
+	out := map[jsontext.Pointer]bind.Chain{}
+	for _, e := range table.Entries() {
+		if e.Site.Doc == bind.Source {
+			out[e.Site.Pointer] = e.Chain
+		}
+	}
+	for _, r := range table.References() {
+		if _, seen := out[r.Site.Pointer]; r.Site.Doc == bind.Source && !seen {
+			out[r.Site.Pointer] = r.Chain
+		}
+	}
+	return out
 }
 
 // binderEnds is binderAnswers by the pointer each chain ends on, which no
@@ -221,10 +252,8 @@ func binderEnds(t *testing.T, spec string) (map[jsontext.Pointer]string, bool) {
 		return nil, false
 	}
 	out := map[jsontext.Pointer]string{}
-	for _, e := range table.Entries() {
-		if e.Site.Doc == bind.Source {
-			out[e.Site.Pointer] = fmt.Sprintf("%s %d#%s", e.Chain.Status, e.Chain.End.Doc, e.Chain.End.Pointer)
-		}
+	for site, c := range sourceChains(table) {
+		out[site] = fmt.Sprintf("%s %d#%s", c.Status, c.End.Doc, c.End.Pointer)
 	}
 	return out, true
 }
@@ -306,17 +335,28 @@ func answerDocument(ctx context.Context, index int, spec string, skip int) {
 	}
 }
 
-// walkSites returns the pointer of each schema the library's walk of doc
-// reaches that writes a $ref, in walk order, each once, and the schema there.
-func walkSites(ctx context.Context, doc *soa.OpenAPI) ([]jsontext.Pointer, map[jsontext.Pointer]*oas3.JSONSchema[oas3.Referenceable]) {
+// objectReference is a reference object as the library's wrappers of every
+// kind answer for one.
+type objectReference interface {
+	IsReference() bool
+	IsResolved() bool
+	Resolve(ctx context.Context, opts soa.ResolveOptions) ([]error, error)
+	GetRootNode() *yaml.Node
+}
+
+// walkSites returns the pointer of each schema and reference object the
+// library's walk of doc reaches that writes a $ref, in walk order, each once,
+// and the model there: a schema or an objectReference.
+func walkSites(ctx context.Context, doc *soa.OpenAPI) ([]jsontext.Pointer, map[jsontext.Pointer]any) {
 	var sites []jsontext.Pointer
-	at := map[jsontext.Pointer]*oas3.JSONSchema[oas3.Referenceable]{}
+	at := map[jsontext.Pointer]any{}
 	for item := range soa.Walk(ctx, doc) {
 		// Match returns only what its matcher does, and this one never fails.
-		_ = item.Match(soa.Matcher{Schema: func(js *oas3.JSONSchema[oas3.Referenceable]) error {
+		_ = item.Match(soa.Matcher{Any: func(model any) error {
 			p := typed.PointerOf(item.Location)
-			if _, seen := at[p]; js.IsReference() && !seen {
-				sites, at[p] = append(sites, p), js
+			w, ok := model.(interface{ IsReference() bool })
+			if _, seen := at[p]; ok && w.IsReference() && !seen {
+				sites, at[p] = append(sites, p), model
 			}
 			return nil
 		}})
@@ -324,23 +364,41 @@ func walkSites(ctx context.Context, doc *soa.OpenAPI) ([]jsontext.Pointer, map[j
 	return sites, at
 }
 
-// libraryAnswer resolves js as the library does and answers as chainAnswer
-// does: the node its chain ends on, a loop the library names as one, or none,
-// with the error the library gave, if any.
-func libraryAnswer(ctx context.Context, js *oas3.JSONSchema[oas3.Referenceable], opts references.ResolveOptions) (string, string) {
-	if !js.IsResolved() {
-		if _, err := js.Resolve(ctx, opts); err != nil {
-			if strings.Contains(err.Error(), "circular reference") {
-				return answerCyclic, err.Error()
-			}
-			return answerUnresolved, err.Error()
+// libraryAnswer resolves model, a schema or an objectReference, as the library
+// does and answers as chainAnswer does: the node its chain ends on, a loop the
+// library names as one, or none, with the error the library gave, if any.
+func libraryAnswer(ctx context.Context, model any, opts references.ResolveOptions) (string, string) {
+	var err error
+	var end func() *yaml.Node
+	switch m := model.(type) {
+	case *oas3.JSONSchema[oas3.Referenceable]:
+		if !m.IsResolved() {
+			_, err = m.Resolve(ctx, opts)
 		}
+		end = func() *yaml.Node {
+			if s := m.GetResolvedSchema(); s != nil {
+				return s.GetCore().GetRootNode()
+			}
+			return nil
+		}
+	case objectReference:
+		if !m.IsResolved() {
+			_, err = m.Resolve(ctx, opts)
+		}
+		end = m.GetRootNode
+	default:
+		return answerUnresolved, fmt.Sprintf("a site of no reference type: %T", model)
 	}
-	end := js.GetResolvedSchema()
-	if end == nil {
-		return answerUnresolved, "no schema and no error"
+	if err != nil {
+		if strings.Contains(err.Error(), "circular reference") {
+			return answerCyclic, err.Error()
+		}
+		return answerUnresolved, err.Error()
 	}
-	return nodeAnswer(end.GetCore().GetRootNode()), ""
+	if n := end(); n != nil {
+		return nodeAnswer(n), ""
+	}
+	return answerUnresolved, "no object and no error"
 }
 
 // parseSkip reads oracleSkipEnv's "document:site", or none.
@@ -446,8 +504,8 @@ func runOracleChild(t *testing.T, path, skip string) result {
 	t.Helper()
 	ctx, cancel := context.WithTimeout(t.Context(), oracleTimeout)
 	defer cancel()
-	cmd := exec.CommandContext(ctx, os.Args[0])
-	cmd.Env = append(os.Environ(), childEnv+"=binding-oracle", inputEnv+"="+path, oracleSkipEnv+"="+skip)
+	env := []string{childEnv + "=binding-oracle", inputEnv + "=" + path, oracleSkipEnv + "=" + skip}
+	cmd := exectest.Command(ctx, t, env, os.Args[0])
 	out, err := cmd.CombinedOutput()
 	code := 0
 	if exit, ok := errors.AsType[*exec.ExitError](err); ok {
@@ -591,11 +649,12 @@ func checkDisagreements(t *testing.T, found []disagreement, listed map[string]st
 const oracleHeader = `# Generated by:
 #   go test ./compilers/openapi/internal/canary -run TestBindingOracle_AgreesWithTheLibrary -update
 #
-# Each site where the schema $ref the compiler binds ends on another node, or
-# fails otherwise, than the parser library's resolver: document, site, the
-# compiler's answer, the library's, and the reason, a key of oracleReasons.
-# Regenerating keeps each reason a disagreement still has and marks a new one
-# unclassified, which fails until a reason is written for it.
+# Each site where the $ref the compiler binds, a schema's or a reference
+# object's, ends on another node, or fails otherwise, than the parser library's
+# resolver: document, site, the compiler's answer, the library's, and the
+# reason, a key of oracleReasons. Regenerating keeps each reason a
+# disagreement still has and marks a new one unclassified, which fails until a
+# reason is written for it.
 `
 
 // writeDisagreements writes oracleDisagreements from what was found, each

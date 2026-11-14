@@ -14,14 +14,14 @@ response takes:
 ```go
 type APIError struct {         // the runtime's: what one failed response said
     StatusCode int
-    RawHeader  http.Header     // every header as it arrived, by wire name
-    RawBody    []byte          // the body as it arrived, up to Policy.Errors' bound
-    BodyErr    error           // why the body did not decode; nil when it did, or had none
+    Raw                        // RawHeader() and RawBody(): the headers and body as they arrived
+                               // (returns.md#what-a-response-prints)
+    BodyErr    error           // why the body did not decode, a *DecodeError (below); nil when it
+                               // did, or had none
     Fault      Fault           // the entry's, else the status's class
     Kind       Kind            // the taxonomy's logical kind for the status; "" = none
     Body       any             // the body as its Type lowers, of any kind; nil = none decoded
     Headers    any             // the entry's declared headers, a struct; nil = none declared
-    retry      retryFacts      // the entry's Retryable and Throttling, behind IsRetryable()
 }
 
 func (e *APIError) Error() string { return fmt.Sprintf("api error: status %d", e.StatusCode) }
@@ -38,21 +38,59 @@ func Body[B any](err error) (B, bool) { // err's failure's body, where it is a B
 }
 ```
 
-`Headers[H]` reads the same way, and `(*APIError).Is` answers `errors.Is` for `sdk.ErrClient`,
-`sdk.ErrServer` and a sentinel per kind (`sdk.ErrNotFound`).
+`Headers[H]` reads the same way, and `(*APIError).Is` answers `errors.Is` for `runtime.ErrClient`,
+`runtime.ErrServer` and a sentinel per kind (`runtime.ErrNotFound`), each declared in the
+[runtime's unit](../../refine/output-units.md#the-runtimes-unit).
 
 Printer emits the decoder, registering each entry: `429 → RateLimited`, with its headers struct,
-fault and retry facts, which the retry runtime consults through `IsRetryable()`/`IsThrottling()`.
+fault and retry facts. The decoder hands the entry's `Retryable` and `Throttling` to the send loop
+beside the value, not inside it: `APIError` has exported fields alone, so a decoder in another
+package builds it by a literal ([the runtime](overview.md#what-a-caller-reaches-of-the-runtime)).
 
 A caller branches on what happened, and reads the body when it needs it:
 
 ```go
 switch {
-case errors.Is(err, sdk.ErrNotFound): // …
-case errors.Is(err, sdk.ErrClient):
-    if p, ok := sdk.Body[sdk.Problem](err); ok { show(p) }
+case errors.Is(err, runtime.ErrNotFound): // …
+case errors.Is(err, runtime.ErrClient):
+    if p, ok := runtime.Body[sdk.Problem](err); ok { show(p) }
 }
 ```
+
+## A transport's failure
+
+A failure the runtime catches from a library holds the library's chain where no rendering reaches it
+and none of its text ([redaction](../../refine/redaction.md#nothing-a-library-wrote-is-shown)):
+
+```go
+type TransportError struct { // the runtime's: a request that got no response
+    Method string
+    URL    string             // the URL as shown
+    Causes []string           // the types in the library's chain, outermost first
+    Chain                     // Is(target): errors.Is through that chain
+}
+
+type DecodeError struct {     // the runtime's: a body that did not decode, or a request that did
+    Type   string             // not encode; the type it was read into or written from
+    Causes []string
+    Chain
+}
+
+type Chain state.Chain        // a function returning the library's error, as Raw holds a response
+```
+
+`Causes` lists the chain as `errors.Is` walks it: a link before what it wraps, and the branches of
+one wrapping several (`Unwrap() []error`) in their order, each whole before the next, its first 32
+links and no more. A chain branching at each link grows with its depth as a power of two: with Go
+1.27.3, 18 nested `errors.Join(e, e)` over an `e` of two links, an `*os.SyscallError` wrapping
+`syscall.ECONNREFUSED`, walked whole gave 786,431 links and a 14 MB `Error`, and 32 gave 611 bytes,
+a bound chosen, past the 3 links a refused connection's chain holds. `Error` writes the members and
+`Causes` joined by ` > `, and neither type has an `Unwrap`, since a reporter walking a chain prints
+each link's text. `Chain`'s `Is` lets a caller ask the library's chain a question whose answer is a
+boolean, `errors.Is(err, syscall.ECONNREFUSED)` or `context.DeadlineExceeded`, and `errors.As` finds
+none of its values, which a caller wanting one reads in a `Transport` wrapper. An `Authenticator`'s
+error is held as a transport's is, since a token source's text can quote the token response it was
+sent. T-65 holds this section.
 
 ## A failure's place
 

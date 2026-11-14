@@ -6,10 +6,12 @@
     ],
     "e": [
       "anon",
+      "composed",
       "openapi"
     ],
     "g": [
       "default",
+      "extension",
       "path-prefix",
       "tags",
       "webhooks"
@@ -107,7 +109,6 @@
                   {
                     "method": "GET",
                     "uriTemplate": "/reports",
-                    "sharedRoute": false,
                     "paramBindings": [
                       {
                         "param": "param/openapi/paths/~1reports/get/parameters/criteria/querystring",
@@ -118,8 +119,8 @@
                         "contentType": "application/x-www-form-urlencoded"
                       }
                     ],
-                    "checksumRequired": false,
-                    "isWebhook": false
+                    "sharedRoute": false,
+                    "checksumRequired": false
                   }
                 ]
               },
@@ -179,7 +180,6 @@
                   {
                     "method": "GET",
                     "uriTemplate": "/reports/summary",
-                    "sharedRoute": false,
                     "paramBindings": [
                       {
                         "param": "param/openapi/paths/~1reports~1summary/get/parameters/status/query",
@@ -191,8 +191,8 @@
                         "allowEmptyValue": false
                       }
                     ],
-                    "checksumRequired": false,
-                    "isWebhook": false
+                    "sharedRoute": false,
+                    "checksumRequired": false
                   }
                 ]
               },
@@ -252,7 +252,6 @@
                   {
                     "method": "GET",
                     "uriTemplate": "/reports/raw",
-                    "sharedRoute": false,
                     "paramBindings": [
                       {
                         "param": "param/openapi/paths/~1reports~1raw/get/parameters/criteria/querystring",
@@ -264,8 +263,8 @@
                         "contentType": "application/x-www-form-urlencoded"
                       }
                     ],
-                    "checksumRequired": false,
-                    "isWebhook": false
+                    "sharedRoute": false,
+                    "checksumRequired": false
                   }
                 ]
               },

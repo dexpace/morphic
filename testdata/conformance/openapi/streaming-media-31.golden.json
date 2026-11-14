@@ -6,10 +6,12 @@
     ],
     "e": [
       "anon",
+      "composed",
       "openapi"
     ],
     "g": [
       "default",
+      "extension",
       "path-prefix",
       "tags",
       "webhooks"
@@ -70,6 +72,9 @@
                     "type": {
                       "target": "t/anon/paths/~1ingest/post/requestBody/content/application~1x-ndjson/schema",
                       "nullable": false
+                    },
+                    "stream": {
+                      "inferred": "streaming-media-type"
                     }
                   }
                 ],
@@ -95,6 +100,9 @@
                         "type": {
                           "target": "t/anon/paths/~1ingest/post/responses/200/content/text~1event-stream; charset=utf-8/schema",
                           "nullable": false
+                        },
+                        "stream": {
+                          "inferred": "streaming-media-type"
                         }
                       }
                     ]
@@ -126,12 +134,11 @@
                   {
                     "method": "POST",
                     "uriTemplate": "/ingest",
-                    "sharedRoute": false,
                     "requestContentTypes": [
                       "application/x-ndjson"
                     ],
-                    "checksumRequired": false,
-                    "isWebhook": false
+                    "sharedRoute": false,
+                    "checksumRequired": false
                   }
                 ]
               },
@@ -155,6 +162,9 @@
                     "type": {
                       "target": "t/openapi/components/schemas/Frame",
                       "nullable": false
+                    },
+                    "stream": {
+                      "inferred": "streaming-media-type"
                     }
                   }
                 ],
@@ -193,12 +203,11 @@
                   {
                     "method": "POST",
                     "uriTemplate": "/upload",
-                    "sharedRoute": false,
                     "requestContentTypes": [
                       "application/x-ndjson"
                     ],
-                    "checksumRequired": false,
-                    "isWebhook": false
+                    "sharedRoute": false,
+                    "checksumRequired": false
                   }
                 ]
               },
@@ -235,6 +244,9 @@
                         "type": {
                           "target": "t/anon/paths/~1mixed/get/responses/200/content/application~1x-ndjson/schema",
                           "nullable": false
+                        },
+                        "stream": {
+                          "inferred": "streaming-media-type"
                         }
                       },
                       {
@@ -242,6 +254,9 @@
                         "type": {
                           "target": "t/anon/paths/~1mixed/get/responses/200/content/application~1jsonl/schema",
                           "nullable": false
+                        },
+                        "stream": {
+                          "inferred": "streaming-media-type"
                         }
                       }
                     ]
@@ -263,8 +278,7 @@
                     "method": "GET",
                     "uriTemplate": "/mixed",
                     "sharedRoute": false,
-                    "checksumRequired": false,
-                    "isWebhook": false
+                    "checksumRequired": false
                   }
                 ]
               },
@@ -301,6 +315,9 @@
                         "type": {
                           "target": "t/openapi/components/schemas/Frame",
                           "nullable": false
+                        },
+                        "stream": {
+                          "inferred": "streaming-media-type"
                         }
                       },
                       {
@@ -308,6 +325,9 @@
                         "type": {
                           "target": "t/openapi/components/schemas/Frame",
                           "nullable": false
+                        },
+                        "stream": {
+                          "inferred": "streaming-media-type"
                         }
                       }
                     ]
@@ -333,8 +353,7 @@
                     "method": "GET",
                     "uriTemplate": "/negotiated",
                     "sharedRoute": false,
-                    "checksumRequired": false,
-                    "isWebhook": false
+                    "checksumRequired": false
                   }
                 ]
               },
@@ -371,6 +390,9 @@
                         "type": {
                           "target": "t/anon/paths/~1feed/get/responses/200/content/application~1x-ndjson/schema",
                           "nullable": false
+                        },
+                        "stream": {
+                          "inferred": "streaming-media-type"
                         }
                       },
                       {
@@ -378,6 +400,9 @@
                         "type": {
                           "target": "t/openapi/components/schemas/Frame",
                           "nullable": false
+                        },
+                        "stream": {
+                          "inferred": "streaming-media-type"
                         }
                       }
                     ]
@@ -403,14 +428,155 @@
                     "method": "GET",
                     "uriTemplate": "/feed",
                     "sharedRoute": false,
-                    "checksumRequired": false,
-                    "isWebhook": false
+                    "checksumRequired": false
                   }
                 ]
               },
               "provenance": {
                 "source": 0,
                 "pointer": "/paths/~1feed/get",
+                "inferred": "streaming-media-type"
+              }
+            },
+            {
+              "id": "op/openapi/paths/~1metrics/get",
+              "name": {
+                "source": "tailMetrics",
+                "canonical": "tail_metrics"
+              },
+              "docs": {},
+              "responses": [
+                {
+                  "name": {
+                    "hint": "200"
+                  },
+                  "conditions": {
+                    "statusCodes": [
+                      {
+                        "from": 200,
+                        "to": 200
+                      }
+                    ]
+                  },
+                  "payload": {
+                    "contents": [
+                      {
+                        "mediaType": "application/json",
+                        "type": {
+                          "target": "t/openapi/components/schemas/Frame",
+                          "nullable": false
+                        }
+                      },
+                      {
+                        "mediaType": "text/event-stream",
+                        "type": {
+                          "target": "t/openapi/components/schemas/Frame",
+                          "nullable": false
+                        },
+                        "stream": {
+                          "inferred": "streaming-media-type"
+                        }
+                      }
+                    ]
+                  },
+                  "docs": {
+                    "description": "ok"
+                  }
+                }
+              ],
+              "errors": [
+                {
+                  "name": {
+                    "hint": "4_xx"
+                  },
+                  "conditions": {
+                    "statusCodes": [
+                      {
+                        "from": 400,
+                        "to": 499
+                      }
+                    ]
+                  },
+                  "payload": {
+                    "contents": [
+                      {
+                        "mediaType": "text/event-stream",
+                        "type": {
+                          "target": "t/openapi/components/schemas/Frame",
+                          "nullable": false
+                        },
+                        "stream": {
+                          "inferred": "streaming-media-type"
+                        }
+                      }
+                    ]
+                  },
+                  "fault": "client",
+                  "docs": {
+                    "description": "failed"
+                  }
+                }
+              ],
+              "default": {
+                "name": {
+                  "hint": "default"
+                },
+                "conditions": {
+                  "statusCodes": [
+                    {
+                      "from": 0,
+                      "to": 0
+                    }
+                  ]
+                },
+                "payload": {
+                  "contents": [
+                    {
+                      "mediaType": "application/json",
+                      "type": {
+                        "target": "t/openapi/components/schemas/Frame",
+                        "nullable": false
+                      }
+                    },
+                    {
+                      "mediaType": "application/x-ndjson",
+                      "type": {
+                        "target": "t/openapi/components/schemas/Frame",
+                        "nullable": false
+                      },
+                      "stream": {
+                        "inferred": "streaming-media-type"
+                      }
+                    }
+                  ]
+                },
+                "docs": {
+                  "description": "other"
+                }
+              },
+              "oneWay": false,
+              "streaming": "server",
+              "responseStream": {
+                "events": {
+                  "target": "t/openapi/components/schemas/Frame",
+                  "nullable": false
+                },
+                "requiresLength": false
+              },
+              "idempotency": {},
+              "bindings": {
+                "http": [
+                  {
+                    "method": "GET",
+                    "uriTemplate": "/metrics",
+                    "sharedRoute": false,
+                    "checksumRequired": false
+                  }
+                ]
+              },
+              "provenance": {
+                "source": 0,
+                "pointer": "/paths/~1metrics/get",
                 "inferred": "streaming-media-type"
               }
             },
@@ -441,6 +607,9 @@
                         "type": {
                           "target": "t/openapi/components/schemas/Frame",
                           "nullable": false
+                        },
+                        "stream": {
+                          "inferred": "streaming-media-type"
                         }
                       }
                     ]
@@ -466,8 +635,7 @@
                     "method": "GET",
                     "uriTemplate": "/sequence",
                     "sharedRoute": false,
-                    "checksumRequired": false,
-                    "isWebhook": false
+                    "checksumRequired": false
                   }
                 ]
               },
@@ -491,6 +659,9 @@
                     "type": {
                       "target": "t/openapi/components/schemas/Frame",
                       "nullable": false
+                    },
+                    "stream": {
+                      "inferred": "streaming-media-type"
                     }
                   }
                 ],
@@ -529,12 +700,11 @@
                   {
                     "method": "POST",
                     "uriTemplate": "/sequence-suffix",
-                    "sharedRoute": false,
                     "requestContentTypes": [
                       "application/geo+json-seq"
                     ],
-                    "checksumRequired": false,
-                    "isWebhook": false
+                    "sharedRoute": false,
+                    "checksumRequired": false
                   }
                 ]
               },
@@ -858,7 +1028,7 @@
     {
       "format": "openapi@3.1",
       "path": "streaming-media-31.yaml",
-      "hash": "a755a1efe149a7a8d5e794705a230f998a975e17a0ed2ac363e27c364067eba0"
+      "hash": "e637356b87c1363de18a82d22e8d76a2fc331ca38e61b72747f2acea54ee731d"
     }
   ]
 }

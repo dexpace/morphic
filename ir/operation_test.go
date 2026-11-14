@@ -4,6 +4,8 @@
 package ir_test
 
 import (
+	"encoding/json/jsontext"
+	"encoding/json/v2"
 	"strings"
 	"testing"
 
@@ -65,7 +67,11 @@ func TestOperation_PopulatedRoundTrip(t *testing.T) {
 				Fault:      "client",
 			},
 		},
-		OneWay:    false,
+		Default: &ir.Response{
+			Name:       ir.Naming{Source: "default"},
+			Conditions: ir.ResponseConditions{StatusCodes: []ir.StatusRange{{From: 0, To: 0}}},
+			Payload:    errorPayload(),
+		},
 		Streaming: ir.StreamingBidi,
 		RequestStream: &ir.StreamDetail{
 			Events:         &ir.TypeRef{Target: "t/req-events"},
@@ -76,7 +82,7 @@ func TestOperation_PopulatedRoundTrip(t *testing.T) {
 		},
 		Pagination: &ir.Pagination{
 			Strategy:    ir.PageStrategyCursor,
-			InputCursor: &ir.ParamPath{Param: "param/x/cursor"},
+			InputCursor: &ir.InputPath{Param: new(ir.ParamID("param/x/cursor"))},
 			Items:       &ir.PropPath{Segments: []ir.PropID{"p/items"}},
 			NextCursor:  &ir.PropPath{Segments: []ir.PropID{"p/nextCursor"}},
 		},
@@ -100,6 +106,9 @@ func TestOperation_PopulatedRoundTrip(t *testing.T) {
 		Unmodeled:  populatedUnmodeled(),
 		Provenance: populatedProvenance(),
 	}
+	assertNoFieldZero(t, want, zeroField{"OneWay", "mutually exclusive with the responses the " +
+		"fixture sets, which validate rejects beside it; it carries no omitempty, so " +
+		"TestOperation_ZeroValueShape pins its key"})
 	assertRoundTrip(t, want)
 }
 
@@ -134,6 +143,27 @@ func TestStreamingMode_UnknownIsInvalid(t *testing.T) {
 	t.Parallel()
 	for _, mode := range []ir.StreamingMode{"none", "Server", "duplex"} {
 		assert.False(t, mode.Valid(), "%q", mode)
+	}
+}
+
+// TestPageStop_TiesToConstBlock holds Valid to the package's declarations
+// rather than a list. A condition added without teaching Valid fails here, not
+// as a spurious ir/unknown-page-stop on a document that states it correctly.
+func TestPageStop_TiesToConstBlock(t *testing.T) {
+	t.Parallel()
+	declared := declaredConstsOfType(t, "PageStop")
+	require.NotEmpty(t, declared, "the ir sources must declare PageStop constants")
+	for _, c := range declared {
+		assert.True(t, ir.PageStop(c.Value).Valid(), "declared condition %q must be Valid", c.Value)
+	}
+}
+
+// TestPageStop_UnknownIsInvalid pins the other direction: Valid rejects a
+// condition no const declares, the empty one and another casing among them.
+func TestPageStop_UnknownIsInvalid(t *testing.T) {
+	t.Parallel()
+	for _, stop := range []ir.PageStop{"", "Empty", "no-next", "never"} {
+		assert.False(t, stop.Valid(), "%q", stop)
 	}
 }
 
@@ -230,8 +260,9 @@ func TestParameter_JSONContract(t *testing.T) {
 }
 
 // TestPayload_JSONContract pins Payload's omitempty contract (every field is
-// optional) and that a Payload with multiple media-type contents round-trips,
-// all kept per the "no primary-response selection" invariant.
+// optional) and that a fully populated Payload round-trips, its several
+// media-type contents all kept per the "no primary-response selection"
+// invariant.
 func TestPayload_JSONContract(t *testing.T) {
 	t.Parallel()
 	assertJSONContract(t, ir.Payload{}, `{}`, ir.Payload{
@@ -240,6 +271,7 @@ func TestPayload_JSONContract(t *testing.T) {
 			{MediaType: "application/xml", Type: populatedTypeRef()},
 		},
 		Required:  new(true),
+		Docs:      populatedDocs(),
 		Unmodeled: populatedUnmodeled(),
 	})
 }
@@ -293,14 +325,15 @@ func TestPayload_DocsIsOmittedWhenEmpty(t *testing.T) {
 
 // TestContent_JSONContract pins Content's omitempty contract — Type carries
 // no omitempty, every other field is optional — and that a fully populated
-// Content — item schema for sequential streaming, per-part encodings, and
-// file info — round-trips.
+// Content — a stream and its item schema, per-part encodings, and file info —
+// round-trips.
 func TestContent_JSONContract(t *testing.T) {
 	t.Parallel()
 	assertJSONContract(t, ir.Content{}, `{"type":{"target":"","nullable":false}}`, ir.Content{
 		MediaType:    "multipart/form-data",
 		SchemaFormat: "application/vnd.apache.avro+json",
 		Type:         populatedTypeRef(),
+		Stream:       &ir.ContentStream{Inferred: "streaming-media-type"},
 		Item:         &ir.TypeRef{Target: "t/item"},
 		ItemEncoding: &ir.PartEncoding{ContentTypes: []string{"application/json"}, Multi: true},
 		Encoding: map[ir.PropID]ir.PartEncoding{
@@ -345,7 +378,20 @@ func TestContent_ItemEncodingSingular(t *testing.T) {
 		ItemEncoding: &ir.PartEncoding{Multi: true, Style: "a"},
 	}
 	got := assertDeterministicMarshal(t, content)
-	assert.Contains(t, got, `"itemEncoding":{"multi":true,"filename":false,"style":"a","allowReserved":false}`)
+	var members map[string]jsontext.Value
+	require.NoError(t, json.Unmarshal([]byte(got), &members))
+	assert.JSONEq(t, `{"multi":true,"filename":false,"style":"a","allowReserved":false}`, string(members["itemEncoding"]))
+}
+
+// TestContentStream_JSONContract pins ContentStream's omitempty contract: a
+// declared stream encodes as an empty object, which Content.Stream's omitzero
+// keeps apart from no stream at all, and a fully populated one round-trips.
+func TestContentStream_JSONContract(t *testing.T) {
+	t.Parallel()
+	assertJSONContract(t, ir.ContentStream{}, `{}`, ir.ContentStream{Inferred: "streaming-media-type"})
+	declared := ir.Content{Type: populatedTypeRef(), Stream: &ir.ContentStream{}}
+	assert.Contains(t, assertDeterministicMarshal(t, declared), `"stream":{}`)
+	assertRoundTrip(t, declared)
 }
 
 // TestPartEncoding_JSONContract pins PartEncoding's omitempty contract — Multi,
@@ -360,6 +406,7 @@ func TestPartEncoding_JSONContract(t *testing.T) {
 		Headers:       []ir.Header{populatedHeader()},
 		Multi:         true,
 		Filename:      true,
+		Inferred:      "binary-media-type",
 		Style:         "form",
 		Explode:       new(false),
 		AllowReserved: true,
@@ -378,6 +425,7 @@ func TestFileInfo_JSONContract(t *testing.T) {
 		ContentTypeDefault: "image/png",
 		FilenameLocation:   "header",
 		FilenameWireName:   "X-Filename",
+		Inferred:           "binary-media-type",
 	})
 }
 
@@ -393,6 +441,7 @@ func TestResponse_JSONContract(t *testing.T) {
 		Payload:        &ir.Payload{Contents: []ir.Content{{MediaType: "application/json", Type: populatedTypeRef()}}},
 		Headers:        []ir.Header{populatedHeader()},
 		StatusCodeProp: &ir.PropPath{Segments: []ir.PropID{"p/status"}},
+		Links:          []ir.OperationLink{populatedOperationLink()},
 		Docs:           populatedDocs(),
 		Unmodeled:      populatedUnmodeled(),
 	})
@@ -456,8 +505,10 @@ func TestErrorCase_JSONContract(t *testing.T) {
 			Fault:      "client",
 			Retryable:  new(true),
 			Throttling: new(false),
+			Links:      []ir.OperationLink{populatedOperationLink()},
 			Docs:       populatedDocs(),
 			Unmodeled:  populatedUnmodeled(),
+			Inferred:   "extension-promotion",
 		})
 }
 
@@ -471,6 +522,11 @@ func TestStreamDetail_JSONContract(t *testing.T) {
 		Events:         &ir.TypeRef{Target: "t/events", Nullable: true},
 		Initial:        &ir.TypeRef{Target: "t/initial"},
 		RequiresLength: true,
+		Terminator:     new("[DONE]"),
+		Condition: &ir.StreamCondition{
+			Input: ir.InputPath{Segments: []ir.PropID{"p/stream"}},
+			Value: ir.Value{Kind: ir.ValueBool, Bool: true},
+		},
 	})
 }
 
@@ -508,8 +564,8 @@ func TestPagination_JSONContract(t *testing.T) {
 	assertJSONContract(t, ir.Pagination{}, `{"inferred":false}`, ir.Pagination{
 		Strategy:    ir.PageStrategyCursor,
 		Inferred:    true,
-		InputCursor: &ir.ParamPath{Param: "param/x/cursor", Segments: []ir.PropID{"p/cursor"}},
-		InputLimit:  &ir.ParamPath{Param: "param/x/limit"},
+		InputCursor: &ir.InputPath{Param: new(ir.ParamID("param/x/cursor")), Segments: []ir.PropID{"p/cursor"}},
+		InputLimit:  &ir.InputPath{Param: new(ir.ParamID("param/x/limit"))},
 		Items:       &ir.PropPath{Segments: []ir.PropID{"p/items"}},
 		NextCursor:  &ir.PropPath{Segments: []ir.PropID{"p/nextCursor"}},
 		NextLink:    &ir.PropPath{Segments: []ir.PropID{"p/nextLink"}},
@@ -517,6 +573,8 @@ func TestPagination_JSONContract(t *testing.T) {
 		FirstLink:   &ir.PropPath{Segments: []ir.PropID{"p/firstLink"}},
 		LastLink:    &ir.PropPath{Segments: []ir.PropID{"p/lastLink"}},
 		TotalCount:  &ir.PropPath{Segments: []ir.PropID{"p/totalCount"}},
+		TotalPages:  &ir.PropPath{Segments: []ir.PropID{"p/totalPages"}},
+		Stop:        []ir.PageStop{ir.PageStopNoNext, ir.PageStopShort},
 	})
 }
 
@@ -533,13 +591,13 @@ func TestPropPath_JSONContract(t *testing.T) {
 	})
 }
 
-// TestParamPath_JSONContract pins ParamPath's omitempty contract (both fields
-// are optional) and that a populated ParamPath round-trips with its segments
+// TestInputPath_JSONContract pins InputPath's omitempty contract (both fields
+// are optional) and that a populated InputPath round-trips with its segments
 // in walk order.
-func TestParamPath_JSONContract(t *testing.T) {
+func TestInputPath_JSONContract(t *testing.T) {
 	t.Parallel()
-	assertJSONContract(t, ir.ParamPath{}, `{}`,
-		ir.ParamPath{Param: "param/x/filter", Segments: []ir.PropID{"p/outer", "p/inner"}})
+	assertJSONContract(t, ir.InputPath{}, `{}`,
+		ir.InputPath{Param: new(ir.ParamID("param/x/filter")), Segments: []ir.PropID{"p/outer", "p/inner"}})
 }
 
 // TestLongRunning_JSONContract pins LongRunning's omitempty contract (every

@@ -18,6 +18,7 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/auth"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
+	"github.com/dexpace/morphic/compilers/openapi/internal/load"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
 	"github.com/dexpace/morphic/ir"
@@ -37,9 +38,9 @@ func TestLowerSecuritySchemes_ANilEntryLowersAndReportsNothing(t *testing.T) {
 			sequencedmap.NewElem("ghost", (*soa.ReferencedSecurityScheme)(nil))),
 	}}
 
-	got, diags := auth.LowerSecuritySchemes(lowering.Ctx{Doc: doc})
+	got, diags := auth.LowerSecuritySchemes(lowering.New(0, &load.Document{Doc: doc}, lowering.Policy{}))
 
-	assert.Contains(t, got.Schemes(), ids.UnresolvedAuth("ghost"))
+	assert.Contains(t, got, ids.UnresolvedAuth("ghost"))
 	assert.Empty(t, diags, "a nil entry names no reference that could have failed")
 }
 
@@ -51,7 +52,7 @@ func TestLowerSecuritySchemes_ANilEntryLowersAndReportsNothing(t *testing.T) {
 //
 // A $ref resolving to nothing is reported once at the entry's own pointer: this
 // package and the load phase both report it there, and the compiler keeps the
-// load phase's, which carries the resolver's reason (GitHub #385). An entry not
+// load phase's, which carries the binder's reason (GitHub #385). An entry not
 // written as an object already draws the loader's type-mismatch alone.
 func TestLowerSecuritySchemes_ABrokenRefIsReportedByLoadOnce(t *testing.T) {
 	t.Parallel()
@@ -109,12 +110,12 @@ components:
 	}
 }
 
-// TestLowerSecuritySchemes_AnEntryTheLoadPhaseNeverReachedIsReportedHere pins
-// what this package's report of a broken $ref is for. A resolver panic ends the
-// load phase's walk at /components/responses/000, before it reaches the entry,
-// so the load phase reports nothing there; without this report the scheme the
-// document declares would be dropped with no diagnostic that sites it.
-func TestLowerSecuritySchemes_AnEntryTheLoadPhaseNeverReachedIsReportedHere(t *testing.T) {
+// TestLowerSecuritySchemes_ABrokenRefIsReportedOnceThoughTheParserFaults pins
+// that the load phase reports a broken $ref however the rest of the document
+// fares: the parser panics building what /components/responses/000 names, and
+// the entry is reported all the same, once, so the scheme the document
+// declares is never dropped with no diagnostic that sites it.
+func TestLowerSecuritySchemes_ABrokenRefIsReportedOnceThoughTheParserFaults(t *testing.T) {
 	t.Parallel()
 	doc, _, diags := serviceSpec(t, `openapi: 3.0.3
 info: {title: T, version: "1"}
@@ -127,26 +128,34 @@ components:
 B: {$ref}
 `)
 	require.NotEmpty(t, messagesAtPointer(diags, "/components/responses/000"),
-		"the fixture reaches the resolver panic it exists for: %+v", diags)
+		"the fixture reaches the parser panic it exists for: %+v", diags)
 
 	assert.NotContains(t, doc.Auth, ids.Auth("ghost"))
 	got := messagesAtPointer(diags, "/components/securitySchemes/ghost")
 	require.Len(t, got, 1, "%+v", diags)
-	assert.Equal(t, `security scheme "ghost" has a $ref that resolves to nothing: `+
-		`"#/components/securitySchemes/Missing"`, got[0])
+	assert.Equal(t, `unresolved $ref "#/components/securitySchemes/Missing": it names nothing in the document it `+
+		"points into", got[0])
 }
 
-// TestLowerSecuritySchemes_NoComponentsAtAll pins the two earlier exits: a
-// document with no components, and one whose components declare no schemes.
+// TestLowerSecuritySchemes_NoComponentsAtAll pins a document with no
+// components, and one whose components declare no schemes: neither lowers a
+// scheme, and a registry built from what they lower leaves the Document's Auth
+// unset.
 func TestLowerSecuritySchemes_NoComponentsAtAll(t *testing.T) {
 	t.Parallel()
-	got, diags := auth.LowerSecuritySchemes(lowering.Ctx{Doc: &soa.OpenAPI{}})
-	assert.Nil(t, got.Schemes(), "an empty Auth map would be a field the source never wrote")
-	assert.Empty(t, diags)
-
-	got, diags = auth.LowerSecuritySchemes(lowering.Ctx{Doc: &soa.OpenAPI{Components: &soa.Components{}}})
-	assert.Nil(t, got.Schemes())
-	assert.Empty(t, diags)
+	for name, doc := range map[string]*soa.OpenAPI{
+		"no components":            {},
+		"components but no scheme": {Components: &soa.Components{}},
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			c := lowering.New(0, &load.Document{Doc: doc}, lowering.Policy{})
+			got, diags := auth.LowerSecuritySchemes(c)
+			assert.Empty(t, got)
+			assert.Empty(t, diags)
+			assert.Nil(t, auth.RegistryOf(c, got).Schemes(), "an empty Auth map would be a field the source never wrote")
+		})
+	}
 }
 
 // TestLowerSecuritySchemes_AnEntryNamingNoMechanismLowersAsUnresolved pins the
@@ -418,22 +427,23 @@ components:
 
 // TestLowerSecuritySchemes_ARefTheModelDoesNotDecodeIsReported pins that no scheme
 // of kind unresolved goes unreported, with no requirement naming it to draw an
-// error instead. The model holds no reference for such a $ref
-// (docs/parser-library.md#undecoded-scalar), so the load phase meets none and this
-// report is the only one.
+// error instead. The model holds no reference for a $ref under a tag outside
+// YAML's JSON schema ruleset (docs/parser-library.md#undecoded-scalar), but the
+// load phase reads the scalar as the document's JSON spells it, so it reports
+// the $ref, here naming another document, which no compile without a reader
+// reads.
 func TestLowerSecuritySchemes_ARefTheModelDoesNotDecodeIsReported(t *testing.T) {
 	t.Parallel()
 	for written, text := range map[string]string{
-		"2021-01-01":    "2021-01-01",
 		"!!binary aGk=": "aGk=",
 		"!local tagged": "tagged",
-		"*date":         "2021-01-01",
+		"*tagged":       "tagged",
 	} {
 		t.Run(written, func(t *testing.T) {
 			t.Parallel()
 			doc, _, diags := serviceSpec(t, `openapi: 3.1.0
 info: {title: T, version: "1"}
-x-date: &date 2021-01-01
+x-tagged: &tagged !local tagged
 paths: {}
 components:
   securitySchemes:
@@ -445,7 +455,8 @@ components:
 
 			got := messagesAtPointer(diags, "/components/securitySchemes/ghost")
 			require.Len(t, got, 1, "%+v", diags)
-			assert.Equal(t, `security scheme "ghost" has a $ref that resolves to nothing: "`+text+`"`, got[0])
+			assert.Equal(t, `unresolved $ref "`+text+`": it names another document, and external references are not read`,
+				got[0])
 			assert.Equal(t, 1, openapitest.CountDiagsAt(diags, diag.UnresolvedRef, ir.SeverityError), "%+v", diags)
 		})
 	}

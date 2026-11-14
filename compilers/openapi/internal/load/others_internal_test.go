@@ -6,9 +6,9 @@ package load
 import (
 	"context"
 	"encoding/json/jsontext"
-	"errors"
 	"math"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -16,6 +16,7 @@ import (
 	yaml "go.yaml.in/yaml/v3"
 
 	"github.com/dexpace/morphic/compilers"
+	"github.com/dexpace/morphic/compilers/openapi/internal/bind"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/internal/ctxtest"
 )
@@ -126,42 +127,79 @@ func TestPointersIn_IndexesUnderTheLoadsContext(t *testing.T) {
 
 // TestLabelOf_IsTheLocationTheSourcesDirectoryReachesADocumentBy pins the
 // label that qualifies another document's IDs: a path relative to the source's
-// directory, written with '/', whether either path is relative or absolute,
-// the two related through the working directory; the cleaned path where that
-// cannot be read; and a URL as read.
+// directory, written with '/', where both are relative or both absolute; the
+// cleaned path where one is relative and the other absolute, which nothing
+// relates without the working directory, never read; and a URL as read.
 func TestLabelOf_IsTheLocationTheSourcesDirectoryReachesADocumentBy(t *testing.T) {
 	t.Parallel()
-	// inWork reads paths as filepath.Abs does with /work as the working directory.
-	inWork := func(p string) (string, error) {
-		if filepath.IsAbs(p) {
-			return p, nil
-		}
-		return filepath.Join("/work", p), nil
-	}
-	// unread reads them as filepath.Abs does where the working directory cannot
-	// be read: an absolute path as it is, a relative one not at all.
-	unread := func(p string) (string, error) {
-		if filepath.IsAbs(p) {
-			return p, nil
-		}
-		return "", errors.New("no working directory")
-	}
 	for _, tc := range []struct {
 		self, key, want string
-		abs             func(string) (string, error)
+		relative        bool
 	}{
-		{"/r/root.yaml", "/r/common.yaml", "common.yaml", inWork},
-		{"/r/root.yaml", "/r/schemas/pet.yaml", "schemas/pet.yaml", inWork},
-		{"/r/root.yaml", "/r/schemas/../pet.yaml", "pet.yaml", inWork},
-		{"/r/root.yaml", "/s/pet.yaml", "../s/pet.yaml", inWork},
-		{"root.yaml", "inner/pet.yaml", "inner/pet.yaml", unread},
-		{"root.yaml", "/work/inner/pet.yaml", "inner/pet.yaml", inWork},
-		{"specs/root.yaml", "/work/pet.yaml", "../pet.yaml", inWork},
-		{"/work/specs/root.yaml", "inner/pet.yaml", "../inner/pet.yaml", inWork},
-		{"root.yaml", "/s/pet.yaml", "/s/pet.yaml", unread},
-		{"/r/root.yaml", "inner/pet.yaml", "inner/pet.yaml", unread},
-		{"/r/root.yaml", "https://h/pet.yaml", "https://h/pet.yaml", unread},
+		{"/r/root.yaml", "/r/common.yaml", "common.yaml", true},
+		{"/r/root.yaml", "/r/schemas/pet.yaml", "schemas/pet.yaml", true},
+		{"/r/root.yaml", "/r/schemas/../pet.yaml", "pet.yaml", true},
+		{"/r/root.yaml", "/s/pet.yaml", "../s/pet.yaml", true},
+		{"root.yaml", "inner/pet.yaml", "inner/pet.yaml", true},
+		{"specs/root.yaml", "pet.yaml", "../pet.yaml", true},
+		{"root.yaml", "/work/inner/pet.yaml", "/work/inner/pet.yaml", false},
+		{"/work/specs/root.yaml", "inner/pet.yaml", "inner/pet.yaml", false},
+		{"/r/root.yaml", "https://h/pet.yaml", "https://h/pet.yaml", false},
 	} {
-		assert.Equal(t, tc.want, labelOf(tc.self, tc.key, tc.abs), "%s from %s", tc.key, tc.self)
+		label, relative := sourceDocument{path: tc.self}.labelOf(tc.key)
+		assert.Equal(t, tc.want, label, "%s from %s", tc.key, tc.self)
+		assert.Equal(t, tc.relative, relative, "%s from %s", tc.key, tc.self)
 	}
+}
+
+// TestShownPathOf_NamesADocumentAsTheHandedPathNamesTheSource pins the path
+// Document.Sources records for another document: beside the path the caller
+// handed, as relative as it is, where its label is relative, though the
+// references were read against the source's absolute Location, a label
+// climbing out of the handed directory keeping its dot segments, which a link
+// to that directory gives another meaning than cleaning them away would; else
+// as read.
+func TestShownPathOf_NamesADocumentAsTheHandedPathNamesTheSource(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		self sourceDocument
+		key  string
+		want string
+	}{
+		{sourceDocument{path: "/r/api/root.yaml", handed: "api/root.yaml"}, "/r/api/common.yaml", "api/common.yaml"},
+		{sourceDocument{path: "/r/api/root.yaml", handed: "root.yaml"}, "/r/common.yaml", "../common.yaml"},
+		{sourceDocument{path: "/r/api/root.yaml", handed: "/l/api/root.yaml"}, "/r/api/s/c.yaml", "/l/api/s/c.yaml"},
+		{sourceDocument{path: "/r/api/root.yaml", handed: "api/root.yaml"}, "/r/common.yaml", "api/../common.yaml"},
+		{sourceDocument{path: "/r/api/root.yaml", handed: "/l/api/root.yaml"}, "/r/common.yaml", "/l/api/../common.yaml"},
+		{sourceDocument{path: "/r/api/root.yaml", handed: "api/root.yaml"}, "/common.yaml", "api/../../common.yaml"},
+		{sourceDocument{path: "/r/api/root.yaml", handed: "root.yaml"}, "/r/api/file:x.yaml", "./file:x.yaml"},
+		{sourceDocument{path: "/r/api/root.yaml", handed: "root.yaml"}, "https://h/c.yaml", "https://h/c.yaml"},
+		{sourceDocument{path: "/r/api/root.yaml", handed: "https://h/root.yaml"}, "/r/api/c.yaml", "/r/api/c.yaml"},
+		{sourceDocument{path: "api/root.yaml", handed: "api/root.yaml"}, "api/x/../c.yaml", "api/c.yaml"},
+		{sourceDocument{path: "api/root.yaml"}, "/abs/c.yaml", "/abs/c.yaml"},
+		{sourceDocument{path: "root.yaml", handed: "root.yaml"}, "file:x.yaml", "file:x.yaml"},
+	} {
+		assert.Equal(t, filepath.FromSlash(tc.want), tc.self.shownPathOf(tc.key), "%s from %+v", tc.key, tc.self)
+	}
+}
+
+// TestUnreachedKeys_NamesWhatOnlyAPassThatDidNotStandRead pins what leaves
+// Document.Sources: a document the table holds nothing of.
+func TestUnreachedKeys_NamesWhatOnlyAPassThatDidNotStandRead(t *testing.T) {
+	t.Parallel()
+	docs := map[string]string{
+		"/a.yaml": "$defs: {T: {type: integer}}\n",
+		"/z.yaml": "S: {$id: '/a.yaml', $defs: {T: {type: string}}}\n",
+	}
+	var root yaml.Node
+	require.NoError(t, yaml.Unmarshal([]byte("components:\n  schemas:\n"+
+		"    A: {$ref: 'a.yaml#/$defs/T'}\n    Z: {$ref: 'z.yaml#/S'}\n"), &root))
+	table := bind.Bind(t.Context(), &root, bind.Config{Self: "/spec.yaml",
+		Locate: func(uri, _ string) (string, bool) { return "/" + strings.TrimPrefix(uri, "/"), true },
+		Open: func(name string) (*yaml.Node, error) {
+			var n yaml.Node
+			return &n, yaml.Unmarshal([]byte(docs[name]), &n)
+		}})
+
+	assert.Equal(t, map[string]bool{"/a.yaml": true}, unreachedKeys(table))
 }

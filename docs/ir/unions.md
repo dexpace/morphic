@@ -13,6 +13,8 @@ type Union struct {
     WireTagged    bool           // the payload names its variant: by the Discriminator's tag, or by
                                  // a single key (Smithy union, protobuf oneof); false = untagged
     Discriminator *Discriminator // where the tag sits in the payload; set only when WireTagged
+    Closed        bool           // false = open: a payload may hold a variant this does not list
+    InputOnly     bool           // only a request carries it (GraphQL @oneOf input objects)
 }
 
 type Variant struct {
@@ -66,3 +68,60 @@ says the discriminator must not change the validation outcome, but that binds va
 wire: what validation admits stays in `Exclusive`, and on an `anyOf` the tag picks one of the
 several schemas a payload may satisfy. A mode for "tag plus validation" would spell the same wire
 shape twice.
+
+A variant need not declare the property a `PropertyName` tag sits at, require it, or type it as a
+string. The payload carries the tag, which an open variant admits whether or not it names it:
+OpenAPI asks that the payload hold the property and says only that a schema should require it, and
+a variant typing it as a number owns the tags whose text is that number's literal ([the tag a
+variant's value carries](../emitters/refine/unions.md#the-tag-a-variants-value-carries)). So
+`pass.Validate` holds a union's discriminator to its routes, each naming a variant, and reports
+nothing a variant declares of the tag, nor yet a closed variant declaring no such property, which no
+tagged payload can be (#1807). A rule refusing a variant that does not declare the tag would
+refuse OpenAPI's own shape, a `oneOf` of schemas a `discriminator` beside it tags, and warning where
+one leaves it optional or a number would report documents the compiler lowers as written: on the
+golden spec (spec @`86556f6f`, morphic @`0cd087ff6`), of the 551 variants of the 145 unions a
+property name tags, 59 declare the tag optional and 34 declare it a number, every one of them an
+integer error code its `mapping` routes.
+
+A union whose source declares no discriminator may still name its variant in the payload: where
+every variant requires one property and pins it to values no other variant admits, that value tells
+them apart as validation does. A compiler policy may read such a tag in, as a `Discriminator` with
+`Inferred` set ([models](./models.md#discriminator)), and the union is then `WireTagged`, since the
+payload does name its variant. The mark keeps the reading auditable: a consumer taking only what the
+source declares reads such a union as untagged, which validation still decodes.
+
+## A type listed twice
+
+Two variants naming one type are told apart by nothing in a value of it, save the key of a
+key-tagged union: a payload tag routes to a type, which both variants name. Such a value matches
+both, so an exclusive union refuses every value of the type, and in an inclusive one neither variant
+admits a value the other does not, a `null` aside where only one is nullable. A source can write
+either, as `oneOf: [{$ref: A}, {$ref: A}]` or an `anyOf` listing `{type: string}` twice, so the IR
+keeps both variants, as it keeps every branch, and `pass.Validate` reports the later: as a warning
+`pass/exclusive-union-repeated-variant` where the union is exclusive, which then admits less than
+the source seems to say, and as an info `pass/inclusive-union-redundant-variant` where it is not.
+Each case has a code of its own, so a consumer selecting findings by code can take the redundant
+repeat without the one that narrows what the union admits.
+
+## Open unions
+
+`Closed` says whether a payload can hold a variant the union does not list, as `Enum.Closed` says
+of a value no member names ([enums](./enums.md)). A closed union admits its variants and nothing
+else; an open one may meet a variant added after the consumer was built, which the consumer must be
+able to represent rather than refuse, as an unknown-variant case beside the known ones. The default
+follows each format's semantics, never one target's: a JSON Schema `oneOf` or `anyOf` admits only
+what matches a listed schema, so every OpenAPI and AsyncAPI union is closed; a Smithy union is
+open, since a client must tolerate a member it does not know; a protobuf `oneof` is open, since an
+unknown field leaves no case set rather than failing the message; a GraphQL output union gains
+members as a schema evolves, and is open. A `@oneOf` input object is closed, since the server
+validates what a client sends. A document that marks an OpenAPI union open can only do it through
+an extension, which a promotion mapping may read into `Closed`
+([promotion](./unmodeled.md#promotion)); no spelling is common enough for the OpenAPI compiler's
+default mapping to name one, bar the key that opens an enum, which also opens the union of literals
+a mixed enum lowers to. Whether a target tolerates an unknown variant of a closed union is
+its policy, never the IR's.
+
+`InputOnly` marks a union only a request may carry, with an identity distinct from every output
+type, as `Model.InputOnly` marks an input object ([models](./models.md)). GraphQL is the source: a
+`@oneOf` input object is such a union, and an emitter projecting separate input and output types
+reads the flag rather than a format-named marker.

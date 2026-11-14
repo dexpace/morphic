@@ -37,7 +37,10 @@ and digits (with the combining marks that belong to them), a camel-case or lette
 starts a new one, and **every other character separates** — `.`, `/`, `[`, `-`, a space alike. So
 `com.example.User` and `com-example-user` canonicalize the same, and an emitter reading `Canonical`
 never has to ask which compiler produced it. A source name with no word character in it
-canonicalizes to the empty string; `Source` keeps the spelling.
+canonicalizes to the empty string; `Source` keeps the spelling. A letter or mark that Unicode makes
+a `Default_Ignorable_Code_Point`, such as a variation selector or the Hangul filler U+3164, renders
+as nothing, so it is no word character either: it separates, as the zero-width space beside it in
+that property does, and a name of only such characters has no words, as `***` has none.
 
 At least one of `Source`, `Canonical` and `Hint` is set. A `Naming` with all three empty names the
 entity to nobody, and every rule above is vacuously true of it, so `irverify` reports it
@@ -87,9 +90,17 @@ lossless-by-default rules out. `Source` is the internal precedent: it carries `U
 no content rule touches it, because it records what the spec said rather than deciding a spelling.
 What is left is decidable without any grammar, and `irverify` holds an alias to exactly that much:
 
-- **Every entry names something** (`ir/naming-alias-blank`). An entry whose every rune is one
-  Unicode classifies as invisible — a space, a control, a format character, or a default-ignorable
-  one — matches nothing under any grammar. `""`, `" "`, `"\u200b"` and `"\u3164"` are alike here.
+- **Every entry names something** (`ir/naming-alias-blank`). An entry whose every rune is white
+  space, a control, or a `Default_Ignorable_Code_Point` (most format characters, the variation
+  selectors, and fillers such as U+3164) matches nothing under any grammar, U+1680 OGHAM SPACE MARK
+  counting with white space though it renders a line. `""`, `" "`, `"\u200b"`, `"\u3164"` and
+  `"\ufe0f"` are alike here. The format characters Unicode takes out of that property because they
+  render — the prepended concatenation marks, the interlinear annotation characters and the
+  Egyptian hieroglyph format controls — are visible, so an entry made of them is not blank, as
+  U+2800 BRAILLE PATTERN BLANK, which renders as whitespace, is not.
+  The same test decides every other blank rule, not the alias rule alone: a path segment
+  (`ir/path-segment-blank`) and a set entry (`ir/set-entry-blank`), a token endpoint auth method
+  among them, are blank by it.
   An invisible rune sitting *beside* a visible one is a different question and is not asked:
   whether `com.example.<ZWSP>User` is a legal name is decidable only under the grammar of the
   format it will be matched against, which the IR does not know.
@@ -119,3 +130,124 @@ An alias can also collide with *another* entity's name, and that is not a rule o
   in two namespaces is two names; and one document can hold several independent schemas — each
   message payload of an AsyncAPI document is one — that may each declare the same type and alias.
   A collision between named types is the compiler's to report, within the schema it parsed.
+
+## Names one scope shares
+
+Two entities may share a neutral name. Words cannot tell `getUser`, `get_user` and `GetUser` apart,
+nor `-1` from `1`, and a source may write the same name twice. That is no defect of the IR: an
+emitter tells such names apart by ID ([naming](../emitters/refine/naming.md)), and renames
+nothing in the document. But any target may meet the collision, since rendering a name from its
+words alone is conforming
+([naming](../emitters/refine/naming.md#the-source-spelling-for-letter-case-only)), so one check over
+the neutral words answers for all of them, and the `names` pass reports it to the document's author
+(`pass/name-collision`, a warning). Where a first target joins the words or ignores their letter
+case, the pass also reports names whose words join alike (below).
+
+- **The name compared** is the one a target renders from: `Canonical`, or `Hint` where there is
+  none, so a hint meeting a source spelling collides with it, as the group of untagged operations,
+  hinted `default`, does with a tag `default`.
+- **Words that differ only where they break**, `v_1_2` beside `v_12` or `1_0` beside `10`, are two
+  names, though letter case marks no break before a digit: a target marking words by their letter
+  case writes `_` at a break it leaves unmarked
+  ([naming](../emitters/refine/naming.md#a-break-letter-case-cannot-mark-takes-an-underscore)), so
+  they render apart there, as Go's `V1_2` and `V12`, and the exact comparison needs no rule for
+  them. A service's group is the exception: split into a package of its own, its words join with no
+  separator, so two such groups meet, which the pass reports (below).
+- **The scopes** are the siblings a target renders into one namespace: the document's
+  services, its declared types and its auth schemes; a service's groups; a group's groups and its
+  operations; an operation's parameters; a model's own properties; an enum's members; a union's
+  variants. One name in two scopes is no collision.
+- **Words joined, where a target joins them.** Two names whose words differ only where they break,
+  `set_up` and `setup`, meet where a target joins the words or ignores their letter case, and a
+  first target does so in some scopes. Go and Kotlin name a group's package by its words in
+  lowercase, joined. Kotlin writes a declared type, a sub-client and a closed union's variant each
+  to a class file of its name, and a file system that ignores case makes one file of `SetUp.class`
+  and `Setup.class`; it compares an inclusive union's variants, which are properties, as it does a
+  closed union's, so a union whose kind changes keeps its variants' names
+  ([Kotlin](../emitters/targets/kotlin/naming.md#reserved-names)). So a service's groups, a group's
+  groups, the declared types and a union's variants compare their words joined with no separator,
+  and a finding there names each neutral name it joins. Every other scope compares the words as
+  they are. In a group's operations, an operation's parameters, a model's properties and an enum's
+  members, each first target marks a break by letter case or a separator wherever its casing can
+  (below): properties `set_up` and `setup` are Go's `SetUp` and `Setup` and Kotlin's `setUp` and
+  `setup`. No first target's design says yet what it names from a service, nor what Kotlin names
+  from an auth scheme, so those compare as they are until one does.
+- **Declared types** are one scope, whatever their `Namespace`: a target places a type by its
+  options, never by its namespace, and by default places every type in one unit
+  ([output units](../emitters/refine/output-units.md)), so two types of one name meet wherever they
+  were declared. An alias is another matter: it is matched against a writer's names within its
+  namespace, which is why the registry is no scope of its aliases (above). An anonymous type is left
+  out, since a target may inline it rather than name it, and its hint is the compiler's suggestion.
+  So is a primitive, an `Any` node or an `External`, which a target resolves through its type table
+  and never declares ([type table](../emitters/contract/type-table.md)).
+- **A finding is placed** at what holds its scope, the document for its own. A party's place in
+  its scope follows declaration order where a mapping declared it, so a finding placed at a party
+  would move with that order.
+- **A party is named** by its ID, or a union's variant, which has none, by the type it holds. An
+  index names a place in the IR's list, which need not be the source's: an OpenAPI operation's
+  parameters join those its path item declares, and two of one spelling differ only in the location
+  their IDs hold; a union's variants leave out a `null` branch, and a hint has no spelling. A
+  property or an enum member is named by its index beside its quoted spelling instead, because its
+  ID holds a source key or value verbatim, control characters included: a key is unique in its
+  mapping, and two members of one spelling are one value written twice. Any other ID can carry
+  one from a tag, path, parameter or component name, which a message holds as written and a
+  renderer escapes (#816).
+- **An exact repeat is reported** like any other collision: two documents each declaring a
+  component `Pet` give two types that render alike, which nothing else reports. A repeat may also
+  draw a finding of the compiler's, such as `openapi/duplicate-enum-value`, which says what the
+  source repeats, where this one says what a target does with it.
+- **A name with no word character** has no neutral name at all, and a target names it from its
+  characters
+  ([naming](../emitters/refine/naming.md#a-name-with-no-words-takes-its-characters-names)), so the
+  pass reports each such entity as an info, `pass/name-without-words`. It compares the name only
+  with the same spelling, which every target names alike: another, such as `==` beside `=`, meets
+  it only through the table of character names, which a target's options may replace.
+
+Left out, each for its reason:
+
+- **A model's inherited properties.** A model renders the properties its composition exposes
+  ([models](./models.md#the-flattening)), so an own property can meet an inherited one. Reading a
+  flattening per model grows quadratically down a hierarchy, as `validate` found for its own
+  checks, and the case is measured absent: no model compiled from the golden spec
+  (`cloudflare/api-schemas` @ `5c37ac8c`, morphic @ `fd8b0730`) exposes two properties of one
+  neutral name declared by different models (#1412). An own collision is reported at the model
+  declaring it, whatever composes it.
+- **A break the casing leaves unmarked, in a scope that compares words as they are.** Camel and
+  Pascal case mark a break by upper-casing the first character of the word after it, which leaves a
+  digit, a letter with no case and one already upper-case, such as `ℤ`, as they are, so `v_1_2` and
+  `v_12` are both `V12` unless the casing writes a separator there (#1746). An acronym or a source
+  spelling that upper-cases more of a word can leave the break after it between two capitals, as
+  `user_id` and `user_i_d` both render `UserID` under an acronym `ID`, and since a configuration
+  replaces the acronyms, the emitter that renders such a pair reports it, as it does any two names
+  of different words it renders alike
+  ([naming](../emitters/refine/naming.md#collisions-and-the-names-a-generation-shipped)). No such
+  scope of the golden spec (`cloudflare/api-schemas` @ `bc6fad24`, morphic @ `ea70eba7`) holds two
+  names that differ only at a break before such a character.
+- **Names beyond ASCII that a file system folds alike** though their words do not join alike, in a
+  scope that compares words joined: groups `Straße` and `Strasse`, of words `straße` and `strasse`,
+  are one directory on macOS, which the fold the emitters compare paths by joins ([the path
+  fold](../emitters/emit/rules.md)).
+- **A group beside an operation of the same parent.** Whether a sub-client and a method share a
+  namespace is the target's: a Go struct cannot hold a field and a method of one name, while a
+  Kotlin class can hold a property and a function.
+- **A name a target composes**, such as an operation's request type beside a declared type of that
+  name. The composition is the target's.
+- **Servers, responses and error cases.** The emitter design renders no identifier from a server's
+  `Name` yet ([the client](../emitters/operations/client.md)), and a response or error case is told
+  apart by its status; the OpenAPI compiler reports a name one servers list repeats
+  (`openapi/duplicate-server-name`) and two keys of one status range
+  (`openapi/duplicate-status-key`).
+- **Channels and messages, a field's arguments and a resource's parts** (`Property.Args`,
+  `ResourceInfo.Identifiers` and `ResourceInfo.Properties`), which no compiler produces yet, and for
+  which no emitter design says what scope their names render into. They and servers join once a
+  target names them (#1413).
+- **A response's or an error case's headers**, which a target renders as the fields of one type.
+  Neither has an ID to report at, and a path through its operation's list moves with the order the
+  source declares responses in (#1418).
+- **A service's renames** (`Service.Renames`), which no compiler writes yet: a declared type is
+  compared by its own name, though a rename presents it by another in its service (#1419).
+- **An operation overloading another** (`OverloadOf`), which no compiler sets yet, is compared like
+  any other operation, by its own name: no emitter design says yet how a target presents an
+  overload beside its base.
+- **Groups nested past `ir.MaxGroupDepth`**, which `ir.ForEachGroup` does not enter, and which
+  `validate` reports (`ir/walk-truncated`).

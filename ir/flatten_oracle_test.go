@@ -19,9 +19,10 @@ import (
 // TestFlattenedProperties_AgreesWithAnOrderFreeReading holds every flattening
 // of random registries to what a reading that orders nothing says it must
 // hold: the declarations ExposedProps reaches, grouped by wire name; a
-// requirement wherever a declaration or a Requires states one; the names and
-// entries left over; and no member taken by a declaration of a model that the
-// overridden declaration's model composes, unless each composes the other.
+// requirement wherever a declaration or a Requires states one; a redaction
+// wherever a declaration asks for one; the names and entries left over; and no
+// member taken by a declaration of a model that the overridden declaration's
+// model composes, unless each composes the other.
 // Flattening every root leaves the registry as a fresh build of it.
 func TestFlattenedProperties_AgreesWithAnOrderFreeReading(t *testing.T) {
 	t.Parallel()
@@ -34,6 +35,8 @@ func TestFlattenedProperties_AgreesWithAnOrderFreeReading(t *testing.T) {
 			models, unflattened := composition(doc.Types, root)
 			requireDeclarations(t, doc, root, f, models, what)
 			requireRequirements(t, f, models, what)
+			requireRedactions(t, doc.Types, f, what)
+			requireDeprecations(t, f, what)
 			assert.ElementsMatch(t, slices.Collect(maps.Keys(unflattened)), f.Unflattened, "%s: unflattened", what)
 			requireOverrides(t, doc.Types, f, what)
 		}
@@ -106,6 +109,43 @@ func requireRequirements(t *testing.T, f ir.Flattening, models map[ir.TypeID]*ir
 		}
 	}
 	assert.ElementsMatch(t, undeclared, f.Undeclared, "%s: undeclared", what)
+}
+
+// requireRedactions holds each member's Secret to its declarations: redacted
+// where one is Secret or of a type reachesSensitive says is.
+func requireRedactions(t *testing.T, types ir.TypeRegistry, f ir.Flattening, what string) {
+	t.Helper()
+	for _, fp := range f.Properties {
+		var want bool
+		for _, d := range append([]ir.PropertyDecl{fp.PropertyDecl}, fp.Overridden...) {
+			want = want || d.Property.Secret || reachesSensitive(types, d.Property.Type.Target)
+		}
+		assert.Equal(t, want, fp.Secret, "%s: %q is redacted where a declaration asks for it", what,
+			fp.Property.EffectiveWireName())
+	}
+}
+
+// requireDeprecations holds each member's Deprecation to its declarations:
+// one where any of them states one, and the taken one's where it does.
+func requireDeprecations(t *testing.T, f ir.Flattening, what string) {
+	t.Helper()
+	for _, fp := range f.Properties {
+		var stated []*ir.Deprecation
+		for _, d := range append([]ir.PropertyDecl{fp.PropertyDecl}, fp.Overridden...) {
+			if d.Property.Deprecation != nil {
+				stated = append(stated, d.Property.Deprecation)
+			}
+		}
+		wire := fp.Property.EffectiveWireName()
+		if len(stated) == 0 {
+			assert.Nil(t, fp.Deprecation, "%s: %q is deprecated by no declaration", what, wire)
+			continue
+		}
+		require.NotNil(t, fp.Deprecation, "%s: %q is deprecated where a declaration says so", what, wire)
+		if fp.Property.Deprecation != nil {
+			assert.Same(t, fp.Property.Deprecation, fp.Deprecation, "%s: %q carries the taken declaration's", what, wire)
+		}
+	}
 }
 
 // requireOverrides holds every member to a declaration no overridden one's

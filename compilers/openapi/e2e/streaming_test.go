@@ -134,13 +134,12 @@ func assertStreamingMedia30(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 // assertStreamingMedia31 is the corpus row for what assertStreamingMedia30 leaves
 // out, which a 3.0 document lowers alike: a request that streams beside its
 // response, one that streams alone, a response whose two streaming contents name
-// different element types, where none is elected, and one whose two name the
-// same, where it is.
+// different element types, where none is elected, one whose two name the same,
+// where it is, and a plain body beside a stream (assertTailMetrics).
 //
-// The last two are the pair that says what the refusal is for. Refusing on the
-// count alone would pass the first of them and fail the second, and content
-// negotiation over a single frame — the same schema as text/event-stream and as
-// application/x-ndjson — is the commoner shape of the two.
+// The two responses streaming twice say what the refusal is for. Refusing on
+// the count alone would pass the first and fail the second, and content
+// negotiation over a single frame is the commoner shape of the two.
 func assertStreamingMedia31(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
 	both, ok := opByName(doc, "ingestRows")
 	require.True(t, ok)
@@ -200,4 +199,33 @@ func assertStreamingMedia31(t *testing.T, doc *ir.Document, diags []ir.Diagnosti
 	suffix, ok := opByName(doc, "uploadSequence")
 	require.True(t, ok)
 	assert.Equal(t, ir.StreamingClient, suffix.Streaming, "and so is whatever carries its suffix")
+
+	assertTailMetrics(t, doc)
+}
+
+// assertTailMetrics holds a response offering a plain body beside an event
+// stream to marking the stream alone, as an error's and the default's contents
+// are marked, though the operation's stream summarizes neither.
+func assertTailMetrics(t *testing.T, doc *ir.Document) {
+	t.Helper()
+	metrics, ok := opByName(doc, "tailMetrics")
+	require.True(t, ok)
+	guessed := &ir.ContentStream{Inferred: "streaming-media-type"}
+	require.Len(t, metrics.Responses, 1)
+	require.NotNil(t, metrics.Default)
+	for _, payload := range []*ir.Payload{metrics.Responses[0].Payload, metrics.Default.Payload} {
+		require.NotNil(t, payload)
+		require.Len(t, payload.Contents, 2)
+		assert.Nil(t, payload.Contents[0].Stream, "%s is one document", payload.Contents[0].MediaType)
+		assert.Equal(t, guessed, payload.Contents[1].Stream, "%s streams", payload.Contents[1].MediaType)
+	}
+	require.Len(t, metrics.Errors, 1)
+	failure := metrics.Errors[0].Payload
+	require.NotNil(t, failure)
+	require.Len(t, failure.Contents, 1)
+	assert.Equal(t, guessed, failure.Contents[0].Stream, "an error's content streams too")
+	assert.Equal(t, ir.StreamingServer, metrics.Streaming)
+	require.NotNil(t, metrics.ResponseStream)
+	require.NotNil(t, metrics.ResponseStream.Events, "only the success response's stream is elected from")
+	assert.Equal(t, ir.TypeID("t/openapi/components/schemas/Frame"), metrics.ResponseStream.Events.Target)
 }

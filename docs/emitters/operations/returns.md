@@ -12,11 +12,13 @@ spelled as the target spells it ([Go](../targets/go/returns.md),
   **refine.** The method returns that type as any field of it lowers ([lowering
   table](../refine/lowering-table.md)). A nullable return takes the target's nullable form.
 - **A file** (`GET /file`, `application/octet-stream`, `format: binary`). **plan.** `Shape` `raw`,
-  since the compiler marks the content a file (`Content.File`). **refine.** The method returns the
-  runtime's `RawBody`, holding the response's bytes and the media type it arrived as. Nothing
-  decodes or buffers the body, so a large download streams.
-- **No body** (`DELETE /pet/{id}` → `204`, or any `HEAD`). **plan.** `Shape` `void`. **refine.** The
-  method returns no value.
+  since the compiler marks the content a file (`Content.File`), as it is for a form or multipart
+  content one of whose fields or parts no style arranges ([body
+  shapes](../plan/responses.md#body-shapes)). **refine.** The method returns the runtime's
+  `RawBody`, holding the response's bytes and the media type it arrived as. Nothing decodes or
+  buffers the body, so a large download streams.
+- **No body** (`DELETE /pet/{id}` → `204`, or any `HEAD`). **plan.** `Shape` `void`, or for a `HEAD`
+  its binding's `NoBody` ([bindings](../plan/bindings.md)). **refine.** The method returns no value.
 - **A lone default** (`POST /purge`, whose only response is `default`). **plan.** The IR lowers it
   to `Operation.Default`, classed neither way ([responses](../../ir/responses.md)), and the default
   `PrimaryResponse` takes it for the primary response, marked `Inferred` ([plan
@@ -63,14 +65,29 @@ spelled as the target spells it ([Go](../targets/go/returns.md),
 
   A zero value would not do here: Kotlin's `Rule` has none, a pager has no value to zero, and a nil
   `*Rule` beside a nil error reads as a created rule until the caller's next line dereferences it.
-- **An envelope** (`GET /zone` → `{success, errors, messages, result: Zone}`, under an envelope a
-  configuration names). **plan.** `Return.Type` is `Zone`, and `Return.Envelope` says it sits at
-  `result` and that `success: false` is a failure ([envelopes](../plan/responses.md#envelopes)).
-  **refine.** The method returns `Zone`, and a body whose flag says it failed is a failure, never a
-  `Zone` ([failures](errors.md)). The envelope's other members are not lost: an enveloped operation,
-  a paginated one aside, has a `WithResponse` method whatever its headers, and its `Response` holds
-  the envelope whole in `Envelope`, as `EnvelopeRead.Body` lowers, beside `Body`. On a response with
-  no envelope, `Envelope` is the target's empty value.
+- **An envelope** (`GET /zone` → `{success, errors, messages, result: Zone}` with `result` required,
+  under an envelope a configuration names). **plan.** `Return.Type` is `Zone`, and `Return.Envelope`
+  says it sits at `result` and that a `success` holding anything but `true` is a failure
+  ([envelopes](../plan/responses.md#envelopes)). **refine.** The method returns `Zone`, or the
+  target's nullable form where `result` is optional or nullable, and a body whose flag says it
+  failed is a failure, never a `Zone` ([failures](errors.md)). The envelope's other members are not
+  lost: an operation whose method returns an enveloped response, a paginated or long-running one
+  aside, has a `WithResponse` method whatever its headers, which returns the runtime's
+  `EnvelopedResponse`: what its `Response` would hold, and `Envelope`, the body whole, typed as
+  `EnvelopeRead.Body` lowers where every enveloped response the method returns shares that type, in
+  the target's nullable form where one it returns has no envelope, as a `204` beside a `200` has
+  none, and as the target's top type only where two envelope types differ, as a `200` and a `202`
+  wrapped in two do. One whose method returns no enveloped response keeps `Response`, so no
+  signature grows a field it never fills.
+
+  Matching reads the document, so a change to the spec can move a body across it. A body that gains
+  the last member an envelope's `Members` names, or starts composing one of its `Bases`, starts
+  returning the member at `Value`, and one that loses it returns the body whole; a response declared
+  beside an enveloped one turns `Envelope`'s type nullable where it has no envelope, and into the
+  top type where it has another. The surface differ reports each signature this changes as a break
+  ([surface verification](../surface-verification.md)), as it does a first other response's above.
+  On the golden spec, 122 bodies declare all but one of `success`, `errors`, `messages` and
+  `result`: 76 lack `result` and 46 `messages`.
 - **A status the document does not list, and a body that does not decode** (`GET /zone` → `201`, or
   a `200` holding a proxy's HTML). **plan.** No field: [the
   plan](../plan/responses.md#which-entry-answers) says which entry answers. **refine.** The response

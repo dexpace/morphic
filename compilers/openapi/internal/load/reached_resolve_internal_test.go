@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -225,12 +226,12 @@ components:
 		diagLines(diags)), "the table's finding, and no unresolved $ref")
 }
 
-// TestResolve_ANodeReadAsAnotherKindReportsNothingTheSourceDid pins what a node
-// a $ref reads as another kind holds: what the source declares inside it, here
-// a header's schema, whose finding the source's own validation reported. That
-// finding is reported once, by the source, and not again for the $ref (GitHub
-// #759).
-func TestResolve_ANodeReadAsAnotherKindReportsNothingTheSourceDid(t *testing.T) {
+// TestResolve_ANodeOfAnotherKindIsNoObjectOfTheKindAsked pins a $ref to a node
+// the grammar reads as another kind: it names no object of the kind it asks
+// for, so it is reported unresolved, and the node is not read as that kind, so
+// what the source declares inside it, here a header's schema, is reported
+// once, by the source, and not again for the $ref (GitHub #759).
+func TestResolve_ANodeOfAnotherKindIsNoObjectOfTheKindAsked(t *testing.T) {
 	t.Parallel()
 	_, diags := loadExternal(t, t.TempDir(), `openapi: 3.1.0
 info: {title: T, version: "1"}
@@ -246,7 +247,8 @@ components:
 
 	assert.Empty(t, cmp.Diff([]string{
 		"/components/headers/H/schema/minLength openapi/validation/validation-type-mismatch",
-	}, diagLines(diags)), "the source's own finding, once, as the header it declares: the $ref's reading as a parameter adds none")
+		"/paths/~1a/get/parameters/0 openapi/unresolved-ref",
+	}, diagLines(diags)), "the source's own finding, once, as the header it declares, and the $ref, which names no parameter")
 }
 
 // TestResolve_EveryKindOfObjectIsValidated reaches each kind of object a $ref
@@ -560,6 +562,56 @@ paths:
 	assert.Equal(t, diag.Validation+"/validation-allowed-values", diags[0].Code)
 }
 
+// TestResolve_AFindingAtAnotherDocumentsRefIsPlacedThere pins where a finding
+// about a reached object is placed when the $ref reaching it is written in
+// another document: in that document's own Document.Sources entry, at the
+// $ref, never at the same pointer of the source. In each row the source
+// reaches an object of b.yaml first, and a $ref a.yaml writes then reaches
+// one inside it, crossing b.yaml's budget: a schema's $ref and a reference
+// object.
+func TestResolve_AFindingAtAnotherDocumentsRefIsPlacedThere(t *testing.T) {
+	t.Parallel()
+	object := func(fields int) string {
+		props := make([]string, fields)
+		for i := range props {
+			props[i] = fmt.Sprintf("p%d: {type: string}", i+1)
+		}
+		return "{type: object, properties: {" + strings.Join(props, ", ") + "}}"
+	}
+	for name, tc := range map[string]struct {
+		paths, a, b string
+		at          jsontext.Pointer
+	}{
+		"a schema's $ref": {
+			paths: "  /a: {get: {parameters: [{$ref: \"./a.yaml#/components/parameters/W\"}], responses: {\"200\": {description: ok}}}}\n" +
+				"  /b: {get: {parameters: [{$ref: \"./b.yaml#/components/parameters/Y\"}], responses: {\"200\": {description: ok}}}}\n",
+			a:  "components:\n  parameters:\n    W: {name: w, in: query, schema: {$ref: \"./b.yaml#/components/parameters/Y/schema\"}}\n",
+			b:  "components:\n  parameters:\n    Y: {name: p, in: query, schema: " + object(10) + "}\n",
+			at: "/components/parameters/W/schema",
+		},
+		"a reference object": {
+			paths: "  /a: {$ref: \"./a.yaml#/paths/~1a\"}\n  /b: {$ref: \"./b.yaml#/components/pathItems/PI\"}\n",
+			a: "paths:\n  /a: {get: {parameters: [{$ref: \"./b.yaml#/components/pathItems/PI/get/parameters/0\"}], " +
+				"responses: {\"200\": {description: ok}}}}\n",
+			b: "components:\n  pathItems:\n    PI: {get: {parameters: [{name: p, in: query, schema: " + object(7) + "}], " +
+				"responses: {\"200\": {description: ok}}}}\n",
+			at: "/paths/~1a/get/parameters/0",
+		},
+	} {
+		dir := externalDir(t, map[string]string{"a.yaml": tc.a, "b.yaml": tc.b})
+		root := "openapi: 3.1.0\ninfo: {title: T, version: \"1\"}\npaths:\n" + tc.paths
+
+		got, diags := loadExternal(t, dir, root, Options{MaxSourceNodes: budget.AtMost(60), MaxAliasSurplus: budget.AtMost(1)})
+
+		a, ok := got.Others.Named(filepath.Join(dir, "a.yaml"))
+		require.True(t, ok, "%s: a.yaml is read beside the source", name)
+		require.NotZero(t, a.Index, name)
+		require.Len(t, diags, 1, "%s: %+v", name, diags)
+		assert.Equal(t, diag.BudgetExceeded, diags[0].Code, name)
+		assert.Equal(t, ir.Provenance{Source: a.Index, Pointer: tc.at}, diags[0].Provenance, name)
+	}
+}
+
 // v32OtherFixture and v32RootFixture are a 3.2 root reaching two external
 // schemas, one writing a keyword only 3.2 defines (Pet's defaultMapping) and
 // one with a defect (Broken: {type: 42}).
@@ -648,9 +700,10 @@ paths:
 
 // TestResolve_AReached30SchemaIsCheckedAsTheSourcesAre compiles one 3.0 schema
 // in the source, reached directly, and reached inside a parameter, and each
-// draws the same two findings, as 3.0 words them: its type list, which 3.0
+// draws the same findings, as 3.0 words them: its type list, which 3.0
 // does not admit (3.0.4 §Schema Object: type "Value MUST be a string"), and its
-// negative minLength. examples is not a 3.0 keyword, and draws none.
+// negative minLength, and a later minor's warning at examples, which is no 3.0
+// keyword.
 func TestResolve_AReached30SchemaIsCheckedAsTheSourcesAre(t *testing.T) {
 	t.Parallel()
 	const header = "openapi: 3.0.3\ninfo: {title: T, version: \"1\"}\npaths: {}\ncomponents:\n"
@@ -672,12 +725,13 @@ func TestResolve_AReached30SchemaIsCheckedAsTheSourcesAre(t *testing.T) {
 
 			_, diags := loadExternal(t, dir, c.root, Options{})
 
-			require.Len(t, diags, 2, "%+v", diags)
-			for _, d := range diags {
+			require.Len(t, diags, 3, "%+v", diags)
+			for _, d := range diags[:2] {
 				assert.Equal(t, diag.Validation+"/validation-type-mismatch", d.Code)
 			}
 			assert.Contains(t, diags[0].Message, `Schema Object field "minLength" must be a non-negative integer in OpenAPI 3.0`)
 			assert.Contains(t, diags[1].Message, `Schema Object field "type" must be a string in OpenAPI 3.0`)
+			assert.Equal(t, diag.LaterVersionConstruct, diags[2].Code, "examples is a keyword 3.1 added")
 		})
 	}
 }
@@ -818,14 +872,13 @@ func respelledRoot(scheme, host string) string {
 		"  /x: {$ref: \"" + url + "\"}\n  /y: {$ref: \"" + url + "\"}\n"
 }
 
-// TestResolve_ValidatesOnceAfterARebuild: an upper-cased scheme forces GitHub
-// #538's rebuild, since the resolver's own parse of a mis-keyed document skips
-// the anchored get. /x's 8:25 finding, inside that get, exists only in the
-// recovered document, and validateReached, run once on the document resolve
-// returns, must find it exactly once. other.yaml is served over HTTP so the
+// TestResolve_ValidatesOnceUnderAnUpperCasedScheme pins GitHub #538: an
+// upper-cased scheme once made the parser library's resolver parse the
+// document itself, which skipped the anchored get. /x's 8:25 finding, inside
+// that get, must be found exactly once. other.yaml is served over HTTP so the
 // spelling is the one difference between the runs, which must report the same
 // diagnostics: each finding once, placed in other.yaml at its node.
-func TestResolve_ValidatesOnceAfterARebuild(t *testing.T) {
+func TestResolve_ValidatesOnceUnderAnUpperCasedScheme(t *testing.T) {
 	t.Parallel()
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		_, err := w.Write([]byte(respelledOther))
@@ -841,18 +894,18 @@ func TestResolve_ValidatesOnceAfterARebuild(t *testing.T) {
 		return diags
 	}
 
-	notRebuilt := run("http")
-	rebuilt := run("HTTP")
+	lower := run("http")
+	upper := run("HTTP")
 
 	respelled := cmp.Transformer("respelled", func(msg string) string {
 		return strings.ReplaceAll(msg, "HTTP://", "http://")
 	})
-	if d := cmp.Diff(notRebuilt, rebuilt, respelled); d != "" {
-		t.Errorf("the diagnostics must be identical whether or not a rebuild ran (-not-rebuilt +rebuilt):\n%s", d)
+	if d := cmp.Diff(lower, upper, respelled); d != "" {
+		t.Errorf("the diagnostics must be identical under either scheme (-lower +upper):\n%s", d)
 	}
 	made := map[string]bool{}
 	recovered := 0
-	for _, d := range rebuilt {
+	for _, d := range upper {
 		assert.Equal(t, 1, d.Provenance.Source, "placed in other.yaml, where its node is: %+v", d)
 		key := fmt.Sprint(d.Code, d.Provenance, d.Message)
 		assert.False(t, made[key], "made once: %+v", d)
@@ -864,7 +917,7 @@ func TestResolve_ValidatesOnceAfterARebuild(t *testing.T) {
 			assert.Equal(t, jsontext.Pointer("/paths/~1x/get/parameters/0/in"), d.Provenance.Pointer)
 		}
 	}
-	assert.Equal(t, 1, recovered, "the recovered get's own finding, exactly once: %+v", rebuilt)
+	assert.Equal(t, 1, recovered, "the anchored get's own finding, exactly once: %+v", upper)
 }
 
 // inSourceFinding is one finding on a node of the source: the pointer it is
@@ -1124,7 +1177,8 @@ func TestResolve_AnObjectTheSourceDeclaresIsNotChargedToTheBudget(t *testing.T) 
 // operations checked. An object
 // reached both itself and inside another reached object draws each warning
 // once. A 3.2 document draws none; another document's object is held to the
-// source's version (GitHub #839), each warning placed at its pointer there.
+// version it declares, or the source's where it declares none, each warning
+// placed at its pointer there.
 func TestResolve_AReachedObjectIsHeldToTheLaterVersionTable(t *testing.T) {
 	t.Parallel()
 	const later = " openapi/later-version-construct"
@@ -1183,13 +1237,296 @@ func TestResolve_AReachedObjectIsHeldToTheLaterVersionTable(t *testing.T) {
 		})
 	}
 
-	t.Run("another document's object is held to the source's version", func(t *testing.T) {
+	const root31 = "openapi: 3.1.0\ninfo: {title: T, version: \"1\"}\npaths: {}\n" +
+		"components:\n  schemas:\n    Ref: {$ref: 'other.yaml#/x-lib/Pet'}\n    Cat: {type: object}\n"
+	t.Run("another document declaring no version is held to the source's", func(t *testing.T) {
 		t.Parallel()
 		dir := externalDir(t, map[string]string{"other.yaml": pet})
-		_, diags := loadExternal(t, dir, "openapi: 3.1.0\ninfo: {title: T, version: \"1\"}\npaths: {}\n"+
-			"components:\n  schemas:\n    Ref: {$ref: 'other.yaml#/x-lib/Pet'}\n    Cat: {type: object}\n", Options{})
+		_, diags := loadExternal(t, dir, root31, Options{})
 		assert.Empty(t, cmp.Diff([]string{"/x-lib/Pet/discriminator/defaultMapping" + later}, diagLines(diags)), "%+v", diags)
 		require.Len(t, diags, 1)
 		assert.Equal(t, 1, diags[0].Provenance.Source, "placed in other.yaml's entry")
 	})
+	t.Run("another document's object is held to the version it declares", func(t *testing.T) {
+		t.Parallel()
+		dir := externalDir(t, map[string]string{"other.yaml": "openapi: 3.2.0\ninfo: {title: O, version: \"1\"}\n" + pet})
+		_, diags := loadExternal(t, dir, root31, Options{})
+		assert.Empty(t, diags, "3.2 added defaultMapping")
+	})
+}
+
+// TestResolve_AFindingNamesTheDocumentItIsIn pins the document a finding is
+// placed in, through Load. The second and third $refs name ext.yaml, whose
+// target is itself a $ref on to sub/ext2.yaml, where the second's finding is:
+// placing it in the document a $ref names would send a reader to a line of
+// ext.yaml that sits in the other file. The third's chain fails in ext.yaml,
+// so it reaches no object to check, and the failure is reported where
+// ext.yaml writes the $ref that fails.
+func TestResolve_AFindingNamesTheDocumentItIsIn(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	writeFile(t, dir, "ext.yaml", `components:
+  responses:
+    R: {content: {}}
+    Chain: {$ref: 'sub/ext2.yaml#/components/responses/R2'}
+    Broken: {$ref: 'sub/ext2.yaml#/components/responses/Scalar'}
+`)
+	require.NoError(t, os.Mkdir(filepath.Join(dir, "sub"), 0o700))
+	writeFile(t, filepath.Join(dir, "sub"), "ext2.yaml", `# a line ext.yaml does not have
+components:
+  responses:
+    R2: {content: {}}
+    Scalar: 42
+`)
+	src := compilers.Source{Path: filepath.Join(dir, "root.yaml"), Data: []byte(`openapi: 3.1.0
+info: {title: T, version: "1"}
+paths:
+  /a:
+    get:
+      responses:
+        "200": {$ref: 'ext.yaml#/components/responses/R'}
+        "201": {$ref: 'ext.yaml#/components/responses/Chain'}
+        "202": {$ref: 'ext.yaml#/components/responses/Broken'}
+`)}
+
+	doc, diags, err := Load(t.Context(), 0, src, Options{Reader: reader.Disk{}})
+	require.NoError(t, err)
+
+	var placed []string
+	for _, d := range diags {
+		if strings.HasPrefix(d.Code, diag.Validation+"/") {
+			other, ok := doc.Others.At(d.Provenance.Source)
+			require.True(t, ok, "placed in a document read beside the source: %+v", d)
+			placed = append(placed, fmt.Sprintf("%s#%s %d:%d", other.Label, d.Provenance.Pointer,
+				d.Provenance.Position.Line, d.Provenance.Position.Column))
+		}
+	}
+	assert.Equal(t, []string{
+		"ext.yaml#/components/responses/R 3:8",
+		"sub/ext2.yaml#/components/responses/R2 4:9",
+	}, placed)
+	for _, d := range diags {
+		if d.Provenance.Pointer == "/paths/~1a/get/responses/202" {
+			assert.False(t, strings.HasPrefix(d.Code, diag.Validation+"/"), "a reference that fails reaches no object to check: %+v", d)
+		}
+	}
+	var failed []ir.Diagnostic
+	for _, d := range diags {
+		if d.Code == diag.UnresolvedRef {
+			failed = append(failed, d)
+		}
+	}
+	require.Len(t, failed, 1, "%+v", diags)
+	assert.Equal(t, `unresolved $ref "sub/ext2.yaml#/components/responses/Scalar": it names a position that holds `+
+		"no response", failed[0].Message)
+	broken, ok := doc.Others.At(failed[0].Provenance.Source)
+	require.True(t, ok)
+	assert.Equal(t, "ext.yaml", broken.Label)
+	assert.Equal(t, jsontext.Pointer("/components/responses/Broken"), failed[0].Provenance.Pointer,
+		"where ext.yaml writes the $ref that fails")
+}
+
+// TestResolve_AFileSpelledTwoWaysPlacesAFindingOnce pins a node of a file the
+// source spells two ways, which read prepares once under each spelling: Bad's
+// parameter is an alias of Base's, so each check finds Base's fields, and the
+// findings are placed where ext.yaml writes them, once, in its one entry,
+// whichever spelling reaches the alias.
+func TestResolve_AFileSpelledTwoWaysPlacesAFindingOnce(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	writeFile(t, dir, "ext.yaml", `components:
+  parameters:
+    Base: &base {name: b, in: nowhere}
+    Bad: *base
+`)
+	plain, dotted := filepath.Join(dir, "ext.yaml"), dir+"/./ext.yaml"
+	for name, refs := range map[string][2]string{"the alias dotted": {plain, dotted}, "the alias plain": {dotted, plain}} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			src := compilers.Source{Path: filepath.Join(dir, "root.yaml"), Data: []byte(`openapi: 3.1.0
+info: {title: T, version: "1"}
+paths:
+  /a:
+    get:
+      parameters:
+        - $ref: '` + refs[0] + `#/components/parameters/Base'
+        - $ref: '` + refs[1] + `#/components/parameters/Bad'
+      responses: {"200": {description: ok}}
+`)}
+
+			doc, diags, err := Load(t.Context(), 0, src, Options{Reader: reader.Disk{}})
+			require.NoError(t, err)
+
+			var placed []string
+			for _, d := range diags {
+				if strings.HasPrefix(d.Code, diag.Validation+"/") {
+					placed = append(placed, fmt.Sprintf("%d %s %d:%d", d.Provenance.Source, d.Provenance.Pointer,
+						d.Provenance.Position.Line, d.Provenance.Position.Column))
+				}
+			}
+			slices.Sort(placed)
+			assert.Equal(t, []string{
+				"1 /components/parameters/Base 3:11",
+				"1 /components/parameters/Base/in 3:31",
+			}, placed, "%+v", diags)
+			require.Len(t, doc.Others.List(), 1, "one file, one entry")
+			assert.Equal(t, "ext.yaml", doc.Others.List()[0].Label)
+		})
+	}
+}
+
+// TestResolve_AReachedFindingNamesThePositionThatReadIt pins the read
+// position a finding about another document's node names, as the source's own
+// do: a parameter and a schema property ext.yaml mounts through aliases are each
+// reported once, at the anchor, naming the position the least $ref reaching
+// them reads them at in ext.yaml, whichever path the source declares first. A
+// parameter a chain of two $refs reaches is read where the last one lands, so
+// it names none.
+func TestResolve_AReachedFindingNamesThePositionThatReadIt(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	writeFile(t, dir, "ext.yaml", `x-param: &p {name: n, in: nowhere, schema: {type: string}}
+x-schema: &s {type: bogus}
+paths:
+  /x: {get: {parameters: [*p], responses: {"200": {description: ok}}}}
+  /y: {get: {parameters: [*p], responses: {"200": {description: ok}}}}
+components:
+  schemas:
+    S: {properties: {s: *s}}
+  parameters:
+    Hop: {$ref: '#/components/parameters/Bad'}
+    Bad: {name: b, in: inside, schema: {type: string}}
+`)
+	const a, b = "  /a: {$ref: 'ext.yaml#/paths/~1x'}\n", "  /b: {$ref: 'ext.yaml#/paths/~1y'}\n"
+	for name, paths := range map[string]string{"a declared first": a + b, "b declared first": b + a} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			src := compilers.Source{Path: filepath.Join(dir, "root.yaml"), Data: []byte("openapi: 3.1.0\n" +
+				"info: {title: T, version: \"1\"}\npaths:\n" + paths +
+				"  /c: {get: {parameters: [{$ref: 'ext.yaml#/components/parameters/Hop'}], responses: {\"200\": {description: ok}}}}\n" +
+				"components: {schemas: {R: {$ref: 'ext.yaml#/components/schemas/S'}}}\n")}
+
+			_, diags, err := Load(t.Context(), 0, src, Options{Reader: reader.Disk{}})
+			require.NoError(t, err)
+
+			read := map[jsontext.Pointer]string{}
+			found := 0
+			for _, d := range diags {
+				if strings.HasPrefix(d.Code, diag.Validation+"/") {
+					require.Equal(t, 1, d.Provenance.Source, "%+v", d)
+					_, at, _ := strings.Cut(d.Message, "; read at ")
+					read[d.Provenance.Pointer] = at
+					found++
+				}
+			}
+			assert.Equal(t, map[jsontext.Pointer]string{
+				"/x-param/in":                   "/paths/~1x/get/parameters/0/in",
+				"/x-schema/type":                "/components/schemas/S/properties/s/type",
+				"/components/parameters/Bad/in": "",
+			}, read, "%+v", diags)
+			assert.Equal(t, 3, found, "each node once: %+v", diags)
+		})
+	}
+}
+
+// TestResolve_ReachedFindingsDoNotDependOnDeclarationOrder compiles one source
+// as written and with its paths reversed, and requires the same reports, each
+// finding placed at the least $ref reaching its object. The shapes: a target
+// several $refs share, one an internal alias chains to, one no object is at,
+// reached twice, and one /z's pointer passes /m's $ref to reach.
+func TestResolve_ReachedFindingsDoNotDependOnDeclarationOrder(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	writeFile(t, dir, "ext.yaml", `components:
+  responses:
+    A: {description: fine}
+    R: {content: {}}
+    B: {content: {}}
+    R2: {content: {}}
+    Scalar: 42
+`)
+	paths := []string{
+		"/a: 'ext.yaml#/components/responses/A'",
+		"/x: 'ext.yaml#/components/responses/R'",
+		"/y: 'ext.yaml#/components/responses/R'",
+		"/c: '#/components/responses/Alias'",
+		"/b1: 'ext.yaml#/components/responses/B'",
+		"/b2: 'ext.yaml#/components/responses/B'",
+		"/s1: 'ext.yaml#/components/responses/Scalar'",
+		"/s2: 'ext.yaml#/components/responses/Scalar'",
+		"/z: '#/paths/~1m/get/responses/200'",
+		"/m: 'ext.yaml#/components/responses/R2'",
+	}
+	compile := func(order []string) []string {
+		src := "openapi: 3.1.0\ninfo: {title: T, version: \"1\"}\npaths:\n"
+		for _, p := range order {
+			path, ref, _ := strings.Cut(p, ": ")
+			src += "  " + path + ": {get: {responses: {\"200\": {$ref: " + ref + "}}}}\n"
+		}
+		src += "components:\n  responses:\n    Alias: {$ref: 'ext.yaml#/components/responses/R'}\n"
+		_, diags, err := Load(t.Context(), 0,
+			compilers.Source{Path: filepath.Join(dir, "root.yaml"), Data: []byte(src)}, Options{Reader: reader.Disk{}})
+		require.NoError(t, err)
+		out := make([]string, 0, len(diags))
+		for _, d := range diags {
+			out = append(out, fmt.Sprintf("%s %s %s", d.Code, d.Provenance.Pointer, d.Message))
+		}
+		slices.Sort(out)
+		return out
+	}
+
+	reversedPaths := slices.Clone(paths)
+	slices.Reverse(reversedPaths)
+	asWritten := compile(paths)
+	reversed := compile(reversedPaths)
+
+	if d := cmp.Diff(asWritten, reversed); d != "" {
+		t.Errorf("reports depend on declaration order (-as written +reversed):\n%s", d)
+	}
+	var findingSites []string
+	for _, line := range asWritten {
+		if code, rest, _ := strings.Cut(line, " "); strings.HasPrefix(code, diag.Validation+"/") {
+			site, _, _ := strings.Cut(rest, " ")
+			findingSites = append(findingSites, site)
+		}
+	}
+	assert.Equal(t, []string{
+		"/components/responses/B",  // drawn by /b1 and /b2, kept once
+		"/components/responses/R",  // reached from /x, /y, /c and the alias itself
+		"/components/responses/R2", // reached at /m, which /z's chain resolves first as written
+	}, findingSites, "each finding at its node in ext.yaml, once")
+	for _, site := range []string{"/paths/~1s1/get/responses/200", "/paths/~1s2/get/responses/200"} {
+		assert.Contains(t, asWritten, diag.UnresolvedRef+" "+site+` unresolved $ref "ext.yaml#/components/responses/Scalar": `+
+			"it names a position that holds no response", "Scalar fails each $ref alike, whichever reaches it first")
+	}
+}
+
+// TestResolve_ABoundInAnotherDocumentIsTheSchemaLowerings pins that a numeric
+// bound past float64's range, in a document a $ref reads, draws no finding: the
+// table leaves a bound's shape to the schema lowering, which reads 1e400 from
+// the raw node exactly.
+func TestResolve_ABoundInAnotherDocumentIsTheSchemaLowerings(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	writeFile(t, dir, "ext.yaml", `components:
+  responses:
+    R:
+      description: ok
+      content:
+        application/json:
+          schema: {type: number, maximum: 1e400}
+`)
+	src := compilers.Source{Path: filepath.Join(dir, "root.yaml"), Data: []byte(`openapi: 3.1.0
+info: {title: T, version: "1"}
+paths:
+  /a:
+    get:
+      responses:
+        "200": {$ref: 'ext.yaml#/components/responses/R'}
+`)}
+
+	doc, diags, err := Load(t.Context(), 0, src, Options{Reader: reader.Disk{}})
+	require.NoError(t, err)
+	require.NotNil(t, doc)
+	assert.Empty(t, diags)
 }

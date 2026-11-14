@@ -31,6 +31,7 @@ import (
 	yaml "go.yaml.in/yaml/v3"
 
 	"github.com/dexpace/morphic/compilers"
+	"github.com/dexpace/morphic/compilers/openapi/internal/bind"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/load"
 	"github.com/dexpace/morphic/compilers/openapi/internal/nodeview"
@@ -70,11 +71,16 @@ var validationReasons = map[string]string{
 	"version-gate": "the library does not gate a field or value by the declared minor; the table warns, as " +
 		"later-version-construct, of one that only " +
 		"a later minor's Fixed Fields define, such as an Info Object summary (3.1.2 §Info Object) or a Server Object " +
-		"name (3.2.0 §Server Object), and lowers it as that minor does",
+		"name (3.2.0 §Server Object), or a keyword JSON Schema 2020-12 added in a 3.0 schema (3.0.4 §Schema " +
+		"Object: 'Additional keywords defined by the JSON Schema specification that are not mentioned here are " +
+		"strictly unsupported'), and lowers it as that minor does",
 	"ref-siblings": "the library reads a 3.0 schema's $ref and the keywords beside it and says nothing of them; " +
 		"3.0 reads the position as a Reference Object (3.0.4 §Reference Object: 'This object cannot be extended " +
 		"with additional properties, and any properties added SHALL be ignored'), while 3.1 applies them as the " +
-		"schema's keywords, so the table warns of each, as later-version-construct, and lowers it as 3.1 does",
+		"schema's keywords, so the table warns of each, as later-version-construct, and the lowering applies it " +
+		"as 3.1 does, reading it as 3.0 defines it; JSON Schema drafts 4, 6 and 7 ignore them too " +
+		"(draft-handrews-json-schema-01 §8.3: 'All other properties in a \"$ref\" object MUST be ignored'), so " +
+		"in a schema read in one the table warns of each the draft defines, applied as 2020-12 applies it",
 	"later-refused": "the library refuses a construct a later minor added as an error (additionalOperations before " +
 		"3.2, a cookie parameter's style: cookie before 3.2, a discriminator's defaultMapping or an xml nodeType " +
 		"before 3.2, which its 3.1 meta-schema closes); the table reports " +
@@ -96,8 +102,24 @@ var validationReasons = map[string]string{
 		"rule it breaks counts them (3.1.2 §Parameter Object: 'The map MUST only contain one entry')",
 	"numeric-literal": "the library holds a numeric keyword to a float64 and checks a schema as JSON text, so it " +
 		"refuses a literal YAML reads as a number that JSON spells otherwise (.5, 5., 0644) or float64 cannot hold " +
-		"(1e999); the table leaves the shape of a bound to the schema lowering, which reads the literal exactly and " +
-		"reports one that is no decimal a BigVal holds (docs/compilers/openapi.md#constraints)",
+		"(1e999); the table judges a bound as the schema lowering reads it, the literal exactly, and reports one " +
+		"that is no decimal a BigVal holds at the value, where the library reports the schema " +
+		"(docs/compilers/openapi.md#constraints)",
+	"count-width": "the library holds a count keyword to an int64, so it refuses a non-negative integer past what " +
+		"one holds, though JSON Schema sets a count no upper limit; the table reads the literal's sign and " +
+		"integrality exactly, and the lowering keeps one no field states (docs/compilers/openapi.md#constraints)",
+	"declared-dialect": "the library holds a 3.1 or 3.2 schema to its version's 2020-12 meta-schema whatever " +
+		"dialect it names, and refuses what a draft spells otherwise, a draft 4 exclusive bound, a boolean " +
+		"modifying the bound beside it, or a tuple written as a list of items, which beneath another items it " +
+		"reports as an invalid target (docs/parser-library.md#failure-beneath-itself); the specification has a root's " +
+		"$schema, else the document's jsonSchemaDialect, choose the dialect (3.1.2 §Schema Object: 'if present " +
+		"MUST be used to determine which dialect should be used when processing the schema'), and the compiler " +
+		"reads each in it (docs/compilers/openapi.md#dialect-keywords)",
+	"plain-date": "the library reads a date written with no tag at a string field as a timestamp, the type the " +
+		"YAML parser gives it, and refuses it as the wrong type; YAML 1.2, which OpenAPI recommends, has no timestamp " +
+		"and reads a plain date as a string, and OpenAPI limits its tags to the JSON schema ruleset's (3.1.2 §Format: " +
+		"'Tags MUST be limited to those allowed by YAML's JSON schema ruleset'), of which only !!str holds one, so " +
+		"the table reads it as the string it spells (docs/compilers/openapi.md#yaml-decoding)",
 	"over-strict": "the library warns of a field written beside a type it does not apply to; the specification's " +
 		"'Applies To' column says where a field has meaning and bars it nowhere (3.2.0 §Security Scheme Object: " +
 		"bearerFormat applies to http), so the table accepts it, and the security scheme lowering keeps the field " +
@@ -107,6 +129,11 @@ var validationReasons = map[string]string{
 		"parameter by the load phase's check of every parameter list (docs/compilers/openapi.md#parameters), a " +
 		"scheme with no type, or an HTTP one with no scheme or an empty one, by the security scheme lowering " +
 		"(docs/compilers/openapi.md#security-requirements)",
+	"merged-ref": "the library reads a mapping whose $ref a `<<` merges in as an inline object, and holds it to " +
+		"that object's rules; the table reads it as a reference, as the document's JSON spells it " +
+		"(docs/compilers/openapi.md#references)",
+	"token-range": "the library refuses a $ref whose pointer holds a character above U+FFFF " +
+		"(docs/parser-library.md#pointer-token-range); RFC 6901 admits any",
 	"beside-ref": "the library models a Path Item that writes a $ref as the reference alone, and validates none of " +
 		"the fields beside it; the table reads them as the item's own, as the lowering does " +
 		"(docs/compilers/openapi.md#path-item-ref-fields)",
@@ -119,9 +146,10 @@ var validationReasons = map[string]string{
 		"MUST include either a content field or a schema field, but not both'), an XML Object's nodeType bars wrapped " +
 		"(3.2.0 §XML Object), a Header Object writes no in (3.2.0 §Header Object: 'in MUST NOT be specified') and holds one content " +
 		"entry (3.1.2 §Header Object: 'The map MUST only contain one entry'), and a " +
-		"$ref is a URI reference, which holds no space (3.1.2 §Reference Object: 'This MUST be in the form of a URI'), and " +
+		"$ref is a URI reference, which holds no space (3.1.2 §Reference Object: 'This MUST be in the form of a URI'), " +
 		"a header name is a token, which a slash is not (3.1.2 §Parameter Object: 'states header names are case " +
-		"insensitive')",
+		"insensitive'), and so is a headers map's key, two of which naming one header in different case name it " +
+		"twice (3.1.2 §Response Object: 'Maps a header name to its definition')",
 	"querystring-keywords": "the library accepts explode and allowReserved at in: querystring, which 3.2 bars " +
 		"there as it bars style (3.2.0 §Parameter Object: 'These fields MUST NOT be used with in: \"querystring\"'); " +
 		"the table warns of each as invalid-location-keyword: the content says what the parameter means, and the " +
@@ -133,9 +161,21 @@ var validationReasons = map[string]string{
 		"an empty component; the specification requires them to match ^[a-zA-Z0-9\\.\\-_]+$ (3.1.2 §Components " +
 		"Object: 'All the fixed fields declared above are objects that MUST use keys that match the regular " +
 		"expression'), which the table reports where the key is written",
+	"media-type-components": "the library models no Components Object mediaTypes " +
+		"(docs/parser-library.md#media-type-references), so it reads a schema's $ref into an entry as naming " +
+		"nothing, where the load phase models each entry and resolves the $ref",
+	"nullable-type": "the library has no check for a 3.0 nullable: true with no type beside it, which the " +
+		"specification gives no effect (3.0.4 §Schema Object: 'This keyword only takes effect if type is explicitly " +
+		"defined within the same Schema Object'); the table warns of it as validation-no-effect " +
+		"(docs/compilers/openapi.md#nullable)",
 	"path-templating": "the library does not match a path's template expressions to its path parameters, which the " +
 		"specification requires (3.1.2 §Path Templating: 'Each template expression in the path MUST correspond to a " +
 		"path parameter')",
+	"no-effect": "the library refuses an encoding under a media type that is neither multipart nor form as a value " +
+		"it does not allow; the specification gives the field no effect there and refuses it nowhere (3.1.2 §Media " +
+		"Type Object: 'The encoding field SHALL only apply to Request Body Objects, and only when the media type is " +
+		"multipart or application/x-www-form-urlencoded'), so the table warns of it as validation-no-effect and the " +
+		"lowering keeps each entry whole (docs/compilers/openapi.md#multipart-encoding)",
 }
 
 // validationDoc is one document the oracle checks, under its repository path.
@@ -265,10 +305,11 @@ func compareDocument(t *testing.T, d validationDoc) (library, compiler []finding
 	if _, ok := oas.ParseMinor(version); !ok {
 		return nil, nil, fmt.Sprintf("declares %q, a version the table does not cover", version)
 	}
-	if refused := loadRefusal(t, d); refused != "" {
+	doc, refused := loaded(t, d)
+	if refused != "" {
 		return nil, nil, refused
 	}
-	compiler = tableFindings(t, root, version)
+	compiler = tableFindings(t, root, version, doc)
 	library, err := libraryFindings(t, d.data, root)
 	if err != nil {
 		return nil, nil, err.Error()
@@ -276,29 +317,32 @@ func compareDocument(t *testing.T, d validationDoc) (library, compiler []finding
 	return library, compiler, ""
 }
 
-// loadRefusal says why the load phase refuses a document before it validates
-// it, or is empty when it does not: a document it never validates has no
-// findings to compare, and some, such as an alias bomb, must not reach the
-// library at all.
-func loadRefusal(t *testing.T, d validationDoc) string {
+// loaded returns what the load phase makes of a document, and why it refuses
+// it before it validates it, empty when it does not: a document it never
+// validates has no findings to compare, and some, such as an alias bomb, must
+// not reach the library at all.
+func loaded(t *testing.T, d validationDoc) (*load.Document, string) {
 	t.Helper()
 	doc, diags, err := load.Load(t.Context(), 0, compilers.Source{Path: d.name, Data: d.data}, load.Options{})
 	if err != nil {
-		return "load fails: " + err.Error()
+		return nil, "load fails: " + err.Error()
 	}
 	if doc != nil {
-		return ""
+		return doc, ""
 	}
 	for _, dg := range diags {
 		if dg.Severity == ir.SeverityError {
-			return "load refuses it: " + dg.Code
+			return nil, "load refuses it: " + dg.Code
 		}
 	}
-	return "load refuses it"
+	return nil, "load refuses it"
 }
 
-// tableFindings checks the tree with the table at the declared version.
-func tableFindings(t testing.TB, root *yaml.Node, version string) []finding {
+// tableFindings checks the tree with the table at the declared version, each
+// Schema Object read with the rows of the dialect doc, the load of the same
+// document, reads it in: its own or a dialect root's at or above it, which
+// gives every schema the rows the compiler's check reads it with.
+func tableFindings(t testing.TB, root *yaml.Node, version string, doc *load.Document) []finding {
 	t.Helper()
 	view := nodeview.New()
 	locate := func(ptr jsontext.Pointer) ir.Provenance {
@@ -309,7 +353,10 @@ func tableFindings(t testing.TB, root *yaml.Node, version string) []finding {
 		}
 		return prov
 	}
-	diags := oas.NewChecker().Check(t.Context(), root, version, oas.Options{Locate: locate})
+	diags := oas.NewChecker().Check(t.Context(), root, version, oas.Options{Locate: locate, Rows: doc.Rows.Schema,
+		RootRows: func(at jsontext.Pointer) (oas.SchemaRules, bool) {
+			return doc.Dialects.At(bind.Position{Doc: bind.Source, Pointer: at})
+		}})
 	out := make([]finding, 0, len(diags))
 	for _, d := range diags {
 		out = append(out, finding{class: classOf(d.Code), line: d.Provenance.Position.Line, column: d.Provenance.Position.Column})

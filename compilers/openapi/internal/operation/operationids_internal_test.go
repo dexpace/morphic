@@ -178,7 +178,7 @@ func TestByDeclaration_ANilNodeGroupsByDeclarationPointerAlone(t *testing.T) {
 // declaration's first, naming that first mount.
 func TestJudge_ReportsEveryDeclarationAndMountButTheFirst(t *testing.T) {
 	t.Parallel()
-	diags := judge(newRawLowerer(nil).ctx, "dup", []declaration{
+	diags := judge(newRawLowerer(&soa.OpenAPI{}).ctx, "dup", []declaration{
 		{at: "/paths/~1a/get", mounts: []jsontext.Pointer{"/paths/~1a/get", "/paths/~1b/get"}},
 		{at: "/components/pathItems/S/get", mounts: []jsontext.Pointer{"/paths/~1c/get"}},
 	})
@@ -221,5 +221,5 @@ func TestOperationIDClaims_AddSkipsAnEmptyOperationID(t *testing.T) {
 	claims.add(&soa.Operation{}, opPointers{mount: "/paths/~1a/get", decl: "/paths/~1a/get"})
 
 	assert.Empty(t, claims.names, "nothing was claimed, so nothing is queued to report")
-	assert.Empty(t, claims.report(newRawLowerer(nil).ctx))
+	assert.Empty(t, claims.report(newRawLowerer(&soa.OpenAPI{}).ctx))
 }

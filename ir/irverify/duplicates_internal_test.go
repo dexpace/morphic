@@ -317,11 +317,15 @@ var identityClasses = map[string]string{
 	"Stability":       "how far a source commits to an operation's contract, not an identity",
 	"StreamingMode":   "streaming direction, not an identity",
 	"IdempotencyKind": "idempotency class, not an identity",
+	"PageStop":        "a condition that ends pagination, not an identity",
+	"LinkValueKind":   "where a link reads a value from, not an identity",
 	"PageStrategy":    "pagination mechanism, not an identity",
+	"HTTPInbound":     "who sends an HTTP operation, the client or the API, not an identity",
 	"HTTPLocation":    "HTTP wire location of a parameter, not an identity",
 	"MsgDirection":    "send/receive perspective, not an identity",
 	"UnmodeledReason": "why an Unmodeled entry was kept, not an identity",
 	"Severity":        "diagnostic severity, not an identity",
+	"Undistributed":   "why ir.NarrowedShapes lists no shape of a model narrowing a union, not an identity",
 	"treeClass":       "which kind of node of the service tree an ir.Editor holds, its own state and not an identity",
 }
 

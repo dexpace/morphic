@@ -27,10 +27,12 @@ import (
 // skips it drops what was written at it without a word — which is what both
 // GitHub #116 and #143 were.
 func homeDeclaration(c lowering.Ctx, ts *compile.Types, s *oas3.Schema, target ir.TypeRef, pointer jsontext.Pointer, home annotation.Home, unhomed bool) (ir.TypeRef, []ir.Diagnostic) {
-	ref, diags := hoistDeclarationHome(c, ts, s, target, pointer, home, unhomed)
+	voices := positionVoices(c, ts, s, pointer, target)
+	ref, diags := hoistDeclarationHome(c, ts, s, target, pointer, home, unhomed || declaresScoped(c, voices))
 	if s != nil {
-		diags = append(diags, attachDeclaredAnnotations(c, ts, s, pointer)...)
+		diags = append(diags, attachDeclaredAnnotations(c, ts, s, pointer, target)...)
 	}
+	diags = append(diags, recordVoicedResidue(c, ts, voices, pointer, home)...)
 	return ref, append(diags, recordDeclarationResidue(c, ts, s, pointer, home)...)
 }
 
@@ -89,7 +91,7 @@ func declaresAnnotations(s *oas3.Schema) bool {
 	if s.GetTitle() != "" || s.GetDescription() != "" || s.GetExternalDocs() != nil {
 		return true
 	}
-	if annotation.EffectiveDeprecated(s, nil) || annotation.DeclaresRedaction(s) || s.GetXML() != nil {
+	if annotation.EffectiveDeprecated([]*oas3.Schema{s}) || annotation.DeclaresRedaction(s) || s.GetXML() != nil {
 		return true
 	}
 	if ext := s.GetExtensions(); ext != nil && ext.Len() > 0 {
@@ -100,8 +102,8 @@ func declaresAnnotations(s *oas3.Schema) bool {
 
 // declaresValidationOnly reports whether s writes a validation-only keyword
 // that annotation.Read keeps verbatim under Unmodeled. A `false`
-// unevaluatedProperties is excluded on purpose: fillAdditional lowers it into
-// the model's openness, so it is structure rather than a preserved keyword.
+// unevaluatedProperties counts: only a Model, which owns its pointer and so
+// needs no node hoisted, holds it as its openness (closureTyped).
 func declaresValidationOnly(s *oas3.Schema) bool {
 	if annotation.Written(s.GetNot()) || annotation.Written(s.GetContains()) ||
 		annotation.Written(s.GetPropertyNames()) {
@@ -119,23 +121,49 @@ func declaresValidationOnly(s *oas3.Schema) bool {
 	if annotation.RawPropertyNode(s, "dependentRequired") != nil {
 		return true
 	}
-	up := s.GetUnevaluatedProperties()
-	return annotation.Written(s.GetUnevaluatedItems()) || (annotation.Written(up) && !annotation.IsFalseSchema(up))
+	return annotation.Written(s.GetUnevaluatedItems()) || annotation.Written(s.GetUnevaluatedProperties())
+}
+
+// closureTyped reports whether td, the node s lowered to, holds s's
+// `unevaluatedProperties: false` as a model's openness, so no entry keeps it:
+// the keyword is live (annotation.ClosesAfterComposition), and td is a Model
+// closed after composition, or a Union whose variants s builds itself
+// (buildsVariants), one of them such a Model. A `false` allOf branch that
+// closed the model outright leaves it holding the keyword no longer.
+func closureTyped(c lowering.Ctx, ts *compile.Types, s *oas3.Schema, td ir.TypeDef) bool {
+	if !annotation.ClosesAfterComposition(s) {
+		return false
+	}
+	switch n := td.(type) {
+	case *ir.Model:
+		return closedAfterComposition(n)
+	case *ir.Union:
+		return buildsVariants(c, s) && slices.ContainsFunc(variantNodes(ts, n), closedAfterComposition)
+	default:
+		return false
+	}
+}
+
+// closedAfterComposition reports whether td is a Model closed once composition
+// is resolved.
+func closedAfterComposition(td ir.TypeDef) bool {
+	m, ok := td.(*ir.Model)
+	return ok && m.Additional == ir.AdditionalClosedAfterComposition
 }
 
 // attachDeclaredAnnotations records every annotation s declares on the type
 // node pointer owns, the one structural home they have (ir.TypeCommon).
 //
-// It is the sole reader of declaration-scoped annotations and runs above
-// lower()'s dispatch: every declaration reaches it through homeDeclaration or
-// an alias fallback (lowerComponentSchema, hoistSubSchema), so a new lowering
+// It reads every declaration's annotations, above lower()'s dispatch: each
+// reaches it through homeDeclaration or an alias fallback, so a new lowering
 // destination cannot forget to read them (GitHub #114).
 //
 // A schema whose body reduced to a shared primitive owns no node; its
 // annotations stay with the declaring property (FillPropertyDetail). Ownership
 // is checked before conversion because callers cover a pointer in either order,
-// and only the one that finds a node may emit conversion diagnostics.
-func attachDeclaredAnnotations(c lowering.Ctx, ts *compile.Types, s *oas3.Schema, pointer jsontext.Pointer) []ir.Diagnostic {
+// and only the one that finds a node may emit conversion diagnostics. target
+// says what speaks there (nodeUse).
+func attachDeclaredAnnotations(c lowering.Ctx, ts *compile.Types, s *oas3.Schema, pointer jsontext.Pointer, target ir.TypeRef) []ir.Diagnostic {
 	// No node here means a position that reduced to a shared primitive, or one
 	// still being built further up this walk, whose builder attaches the same
 	// declaration once its build returns (GitHub #749).
@@ -143,7 +171,10 @@ func attachDeclaredAnnotations(c lowering.Ctx, ts *compile.Types, s *oas3.Schema
 	if !ok {
 		return nil
 	}
-	a, diags := annotation.Read(annotation.Site{Kind: annotation.Declaration, Node: s}, pointer, c.ProvenanceAt)
+	use := nodeUse(c, ts, s, pointer, target)
+	site := use.SiteAt(c, s, pointer)
+	site.Closure = closureTyped(c, ts, s, td)
+	a, diags := annotation.Read(site, pointer, c.Place())
 
 	common := td.Common()
 	common.Docs = a.Docs
@@ -157,21 +188,34 @@ func attachDeclaredAnnotations(c lowering.Ctx, ts *compile.Types, s *oas3.Schema
 		common.XML = a.XML
 	}
 	common.Unmodeled = annotation.MergeUnmodeled(common.Unmodeled, a.Unmodeled)
-	diags = append(diags, c.Promoter().Deprecation(common.Unmodeled, lowering.Referent{}, &common.Deprecation, &common.Provenance)...)
-	diags = append(diags, c.Promoter().Redaction(common.Unmodeled, lowering.Referent{}, &common.Sensitive, &common.Provenance)...)
-	// The enum-openness promotion is applied here rather than where the Enum is
-	// built, for the same reason the deprecation one is: a promotion reads the
-	// preserved Unmodeled entries, and this is the point at which the
+	from := use.lentKeys(c)
+	diags = append(diags, c.Promoter().Deprecation(common.Unmodeled, from, &common.Deprecation, &common.Provenance)...)
+	diags = append(diags, c.Promoter().Redaction(common.Unmodeled, from, &common.Sensitive, &common.Provenance)...)
+	// The openness promotions are applied here rather than where the Enum or
+	// Union is built, for the same reason the deprecation one is: a promotion
+	// reads the preserved Unmodeled entries, and this is the point at which the
 	// declaration's extensions have reached the node's map.
-	if enum, isEnum := td.(*ir.Enum); isEnum {
-		diags = append(diags, c.Promoter().EnumOpenness(common.Unmodeled, enum, &common.Provenance)...)
+	switch n := td.(type) {
+	case *ir.Enum:
+		diags = append(diags, lowering.EnumOpenness(c.Promoter(), common.Unmodeled, &n.Closed, &common.Provenance)...)
+	case *ir.Union:
+		// A target names what the document writes, so the union a mixed enum
+		// lowers to reads the enum's, as the enum would, and only that one: one
+		// fact read through two targets would let either override the other.
+		openness := lowering.UnionOpenness
+		if dispatchOf(s).won == "enum" {
+			openness = lowering.EnumOpenness
+		}
+		diags = append(diags, openness(c.Promoter(), common.Unmodeled, &n.Closed, &common.Provenance)...)
+	default:
+		// Openness is a fact of an enum's or a union's value space alone.
 	}
 	if len(a.Examples) > 0 {
 		common.Examples = a.Examples
 	}
 	diags = append(diags, recordUnplacedContent(c, &common.Unmodeled, s, td, pointer)...)
 	diags = append(diags, recordUnexpandedDynamicRef(c, &common.Unmodeled, s, pointer)...)
-	return append(diags, PreserveUnknownKeywords(c, &common.Unmodeled, s, pointer)...)
+	return append(diags, PreserveUnknownKeywords(c, &common.Unmodeled, s, pointer, td)...)
 }
 
 // recordDeclarationResidue keeps, on the node pointer owns, every keyword the
@@ -231,7 +275,7 @@ func ResidueKeywords() []string { return slices.Clone(residueKeywords) }
 func recordResidue(c lowering.Ctx, common *ir.TypeCommon, s *oas3.Schema, pointer jsontext.Pointer) []ir.Diagnostic {
 	var diags []ir.Diagnostic
 	for _, keyword := range residueKeywords {
-		kept, keptDiags := annotation.PreserveSchemaKeyword(&common.Unmodeled, s, keyword, ir.ReasonNoIRHome, pointer, c.ProvenanceAt)
+		kept, keptDiags := annotation.PreserveSchemaKeyword(&common.Unmodeled, s, keyword, ir.ReasonNoIRHome, pointer, c.Place())
 		diags = append(diags, keptDiags...)
 		if !kept {
 			continue

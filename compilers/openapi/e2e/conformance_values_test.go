@@ -4,6 +4,8 @@
 package e2e_test
 
 import (
+	"maps"
+	"slices"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -73,8 +75,8 @@ func assertNonScalarDefaults(t *testing.T, m *ir.Model) {
 // assertYAMLTimestampScalars covers a YAML 1.1 quirk: an unquoted date like
 // 2021-01-01 resolves to tag !!timestamp, not !!str. It must survive as the
 // literal string everywhere OpenAPI's JSON data model can carry one — enum,
-// const, a property default, a schema-level example, and a media-type example —
-// with nothing dropped or degraded to null.
+// const, a property default, a schema-level example, a media-type example, and
+// a string field (GitHub #1280) — with nothing dropped or degraded to null.
 //
 // "Everywhere" spans both channels a date can land in. It used to mean only the
 // ir.Value one, and the raw-JSON one went on rewriting a date to RFC 3339 with
@@ -120,6 +122,9 @@ func assertYAMLTimestampScalars(t *testing.T, doc *ir.Document, diags []ir.Diagn
 	require.Len(t, mediaExamples, 1, "the media-type example is preserved")
 	require.NotNil(t, mediaExamples[0].Value)
 	assert.Equal(t, ir.Value{Kind: ir.ValueString, Str: "2021-01-01"}, *mediaExamples[0].Value)
+
+	assert.Equal(t, "2021-01-01", doc.Version, "a string field holds the date as its text")
+	assert.Equal(t, "2021-01-01", op.Docs.Summary, "a string field holds the date as its text")
 
 	assertRawPreservedDates(t, doc)
 }
@@ -216,6 +221,54 @@ func assertConstraints(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
 	assertLengthAndCollectionBounds(t, doc, m)
 	assertCoDeclaredBounds(t, m, diags)
 	assertCoDeclaredBoundKept(t, doc, m)
+	assertHugeCountKept(t, doc, diags)
+	assertBoundsATypeCannotTake(t, doc, m, diags)
+}
+
+// assertBoundsATypeCannotTake pins a value bound beside a type it does not
+// apply to: it reaches no Constraints, the property's included, and is kept
+// verbatim once, with one info, on the node the position owns, an alias where
+// it lowered to a shared primitive, while a bound the type takes beside it
+// lands as ever.
+func assertBoundsATypeCannotTake(t *testing.T, doc *ir.Document, m *ir.Model, diags []ir.Diagnostic) {
+	t.Helper()
+	for _, tc := range []struct {
+		wire, at string
+		held     *ir.Constraints
+		kept     []string
+	}{
+		{"id", "/components/schemas/S/properties/id", &ir.Constraints{Pattern: "^a"}, []string{"openapi:maximum", "openapi:minimum"}},
+		{"meta", "/components/schemas/S/properties/meta", nil, []string{"openapi:minLength"}},
+		{"list", "/components/schemas/S/properties/list", nil, []string{"openapi:maxLength"}},
+	} {
+		p, ok := propByWire(m, tc.wire)
+		require.True(t, ok, tc.wire)
+		assert.Equal(t, tc.held, p.Constraints, tc.wire)
+		assert.Empty(t, p.Unmodeled, tc.wire)
+		node, ok := doc.Types[p.Type.Target]
+		require.True(t, ok, tc.wire)
+		assert.Equal(t, ir.TypeID("t/anon"+tc.at), node.Common().ID, "%s owns its node", tc.wire)
+		assert.Equal(t, tc.kept, slices.Sorted(maps.Keys(node.Common().Unmodeled)), tc.wire)
+		assert.Equal(t, []ir.Severity{ir.SeverityInfo}, diagsAt(diags, "openapi/degraded-construct", tc.at), tc.wire)
+	}
+	port, ok := doc.Types[componentID("Port")].(*ir.Scalar)
+	require.True(t, ok)
+	assert.Nil(t, port.Constraints)
+	assert.Equal(t, ir.RawValue("65535"), unmodeledEntry(t, port.Unmodeled, "openapi:maxLength").Value)
+	assert.Equal(t, []ir.Severity{ir.SeverityInfo}, diagsAt(diags, "openapi/degraded-construct", "/components/schemas/Port"))
+}
+
+// assertHugeCountKept pins a count past 64 bits: no Constraints field states it,
+// so it is kept verbatim under its keyword, with one info at its schema, beside
+// the count the field does state.
+func assertHugeCountKept(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
+	t.Helper()
+	s, ok := doc.Types[componentID("HugeCount")].(*ir.Scalar)
+	require.True(t, ok)
+	assert.Equal(t, &ir.Constraints{MinLength: new(int64(1))}, s.Constraints)
+	require.Contains(t, s.Unmodeled, "openapi:maxLength")
+	assert.Equal(t, ir.RawValue("99999999999999999999"), s.Unmodeled["openapi:maxLength"].Value)
+	assert.Len(t, diagsUnder(diags, "/components/schemas/HugeCount"), 1)
 }
 
 // assertCoDeclaredBounds pins the 2020-12 rule that a side declaring both of

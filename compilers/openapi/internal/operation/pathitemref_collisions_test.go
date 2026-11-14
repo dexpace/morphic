@@ -85,9 +85,7 @@ func TestPathItemRefSiblings_CollisionIsLoudAndUseSiteWins(t *testing.T) {
 	getB := opByPath(t, doc, "GET", "/b")
 	assert.Equal(t, "refGet", getB.Name.Source, "the referent still lowers at its own path")
 
-	summary, ok := getA.Unmodeled["openapi:pathItem/summary"]
-	require.True(t, ok)
-	assert.JSONEq(t, `"use summary"`, string(summary.Value), "the use site's summary survives")
+	assert.Equal(t, "use summary", getA.Bindings.HTTP[0].PathDocs.Summary, "the use site's summary survives")
 	assert.Equal(t, []string{"https://use.example"}, serversNamed(t, doc, getA.Servers),
 		"the use site's servers win the collision")
 	ext, ok := getA.Unmodeled["openapi:pathItem/x-shared"]
@@ -205,4 +203,32 @@ func collisionFindings(t *testing.T, diags []ir.Diagnostic) []string {
 	}
 	slices.Sort(out)
 	return out
+}
+
+// TestPathItemRefSiblings_AHeaderCollidesInAnyCase pins that a header parameter
+// the use site writes collides with the referent's of the name spelled in
+// another case, as HTTP compares a header's name: the use site's is lowered,
+// and the collision is reported at it.
+func TestPathItemRefSiblings_AHeaderCollidesInAnyCase(t *testing.T) {
+	t.Parallel()
+	doc, diags := parseFull(t, `openapi: 3.1.0
+info: {title: T, version: "1"}
+paths:
+  /a:
+    $ref: '#/paths/~1b'
+    parameters:
+      - {name: x-dup, in: header, schema: {type: string}}
+  /b:
+    parameters:
+      - {name: X-Dup, in: header, schema: {type: integer}}
+    get:
+      operationId: refGet
+      responses: {"200": {description: OK}}
+`)
+	openapitest.RequireNoErrorDiags(t, diags)
+	assert.True(t, openapitest.HasDiagCodeAt(diags, diag.PathItemRefCollision, "/paths/~1a/parameters/0"))
+	getA := opByPath(t, doc, "GET", "/a")
+	require.Len(t, getA.Params, 1, "the referent's parameter is not lowered beside the use site's")
+	assert.Equal(t, "x-dup", getA.Params[0].Name.Source)
+	assert.Equal(t, ir.TypeID("t/prim/string"), getA.Params[0].Type.Target)
 }

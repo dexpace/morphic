@@ -6,10 +6,12 @@
     ],
     "e": [
       "anon",
+      "composed",
       "openapi"
     ],
     "g": [
       "default",
+      "extension",
       "path-prefix",
       "tags",
       "webhooks"
@@ -105,8 +107,7 @@
                     "method": "GET",
                     "uriTemplate": "/both",
                     "sharedRoute": false,
-                    "checksumRequired": false,
-                    "isWebhook": false
+                    "checksumRequired": false
                   }
                 ]
               },
@@ -156,17 +157,17 @@
                   {
                     "method": "POST",
                     "uriTemplate": "/sole",
-                    "sharedRoute": false,
-                    "checksumRequired": false,
-                    "isWebhook": false,
                     "callbacks": [
                       {
+                        "name": "onEvent",
                         "expression": "{$request.body#/url}",
                         "operations": [
                           "op/openapi/paths/~1sole/post/callbacks/onEvent/{$request.body#~1url}/post"
                         ]
                       }
-                    ]
+                    ],
+                    "sharedRoute": false,
+                    "checksumRequired": false
                   }
                 ]
               },
@@ -216,9 +217,9 @@
                   {
                     "method": "POST",
                     "uriTemplate": "{$request.body#/url}",
+                    "inbound": "callback",
                     "sharedRoute": false,
-                    "checksumRequired": false,
-                    "isWebhook": false
+                    "checksumRequired": false
                   }
                 ]
               },
@@ -269,8 +270,7 @@
                     "method": "GET",
                     "uriTemplate": "/sole-again",
                     "sharedRoute": false,
-                    "checksumRequired": false,
-                    "isWebhook": false
+                    "checksumRequired": false
                   }
                 ]
               },
@@ -312,8 +312,7 @@
                     "method": "GET",
                     "uriTemplate": "/inherits",
                     "sharedRoute": false,
-                    "checksumRequired": false,
-                    "isWebhook": false
+                    "checksumRequired": false
                   }
                 ]
               },
@@ -356,8 +355,7 @@
                     "method": "GET",
                     "uriTemplate": "/public",
                     "sharedRoute": false,
-                    "checksumRequired": false,
-                    "isWebhook": false
+                    "checksumRequired": false
                   }
                 ]
               },
@@ -408,8 +406,7 @@
                     "method": "GET",
                     "uriTemplate": "/no-mechanism",
                     "sharedRoute": false,
-                    "checksumRequired": false,
-                    "isWebhook": false
+                    "checksumRequired": false
                   }
                 ]
               },
@@ -460,8 +457,7 @@
                     "method": "GET",
                     "uriTemplate": "/broken-ref",
                     "sharedRoute": false,
-                    "checksumRequired": false,
-                    "isWebhook": false
+                    "checksumRequired": false
                   }
                 ]
               },
@@ -515,8 +511,7 @@
                     "method": "GET",
                     "uriTemplate": "/no-scopes",
                     "sharedRoute": false,
-                    "checksumRequired": false,
-                    "isWebhook": false
+                    "checksumRequired": false
                   }
                 ]
               },
@@ -574,10 +569,10 @@
                 "http": [
                   {
                     "method": "POST",
+                    "inbound": "webhook",
+                    "webhookName": "created",
                     "sharedRoute": false,
-                    "checksumRequired": false,
-                    "isWebhook": true,
-                    "webhookName": "created"
+                    "checksumRequired": false
                   }
                 ]
               },
@@ -798,7 +793,7 @@
     {
       "severity": "error",
       "code": "openapi/unresolved-ref",
-      "message": "unresolved $ref \"#/components/securitySchemes/missingAuth\": not found -- key missingAuth not found in sequencedmap.Map",
+      "message": "unresolved $ref \"#/components/securitySchemes/missingAuth\": it names nothing in the document it points into",
       "provenance": {
         "source": 0,
         "pointer": "/components/securitySchemes/brokenRefAuth"
