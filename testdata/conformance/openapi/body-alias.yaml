@@ -1,0 +1,29 @@
+openapi: 3.1.0
+info: {title: T, version: "1"}
+paths:
+  /pets:
+    get:
+      operationId: listPets
+      parameters: [{name: cursor, in: query, schema: {type: string}}]
+      responses:
+        "200":
+          description: ok
+          content: {application/json: {schema: {$ref: '#/components/schemas/Pets'}}}
+          links:
+            next: {operationId: listPets, parameters: {cursor: '$response.body#/next_cursor'}}
+  /dogs:
+    get:
+      operationId: listDogs
+      x-fern-pagination: {cursor: $request.cursor, next_cursor: $response.next_cursor, results: $response.result}
+      parameters: [{name: cursor, in: query, schema: {type: string}}]
+      responses:
+        "200": {description: ok, content: {application/json: {schema: {$ref: '#/components/schemas/Dogs'}}}}
+components:
+  schemas:
+    Pets: {$ref: '#/components/schemas/Page'}
+    Dogs: {$ref: '#/components/schemas/Pets'}
+    Page:
+      type: object
+      properties:
+        result: {type: array, items: {type: string}}
+        next_cursor: {type: string}

@@ -1,0 +1,82 @@
+// Copyright (c) 2026 dexpace.
+// Licensed under the MIT License. See LICENSE in the repository root for details.
+
+package operation
+
+import (
+	"fmt"
+	"testing"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
+	"github.com/dexpace/morphic/ir"
+)
+
+// unionWidth is the number of models the union of unionRegistry holds.
+const unionWidth = 12
+
+// unionRegistry holds the union t/u of unionWidth models, and the set of those.
+func unionRegistry() (ir.TypeRegistry, map[ir.TypeID]bool) {
+	reg := ir.TypeRegistry{}
+	variants := make([]ir.Variant, 0, unionWidth)
+	models := map[ir.TypeID]bool{}
+	for i := range unionWidth {
+		id := ir.TypeID(fmt.Sprintf("t/m%02d", i))
+		reg[id] = &ir.Model{ID: id}
+		models[id] = true
+		variants = append(variants, ir.Variant{Type: ir.TypeRef{Target: id}})
+	}
+	reg["t/u"] = &ir.Union{ID: "t/u", Variants: variants}
+	return reg, models
+}
+
+// countingNode is a node over reg that counts in reads each lookup of a type in
+// counted.
+func countingNode(reg ir.TypeRegistry, counted map[ir.TypeID]bool, reads *int) func(ir.TypeID) (ir.TypeDef, bool) {
+	return func(id ir.TypeID) (ir.TypeDef, bool) {
+		if counted[id] {
+			*reads++
+		}
+		td, ok := reg[id]
+		return td, ok
+	}
+}
+
+// TestPartUnions_ReadAUnionOncePerRun holds what a run reads of a union that
+// parts name to one reading of its members, whatever the number of parts: the
+// flags of a part, for a form body and for a multipart one, and the values its
+// encoding applies to. The lookups of the union's models made for one part are
+// all that are made for eight.
+func TestPartUnions_ReadAUnionOncePerRun(t *testing.T) {
+	t.Parallel()
+	reg, models := unionRegistry()
+	ref := ir.TypeRef{Target: "t/u"}
+	decls := []*ir.Property{{Type: ref}}
+	readers := map[string]func(unions *partUnions, node func(ir.TypeID) (ir.TypeDef, bool)){
+		"a part's flags": func(unions *partUnions, node func(ir.TypeID) (ir.TypeDef, bool)) {
+			partTypeFlags(unions, node, ref, true /* multipart */)
+			partTypeFlags(unions, node, ref, false)
+		},
+		"a part's values": func(unions *partUnions, node func(ir.TypeID) (ir.TypeDef, bool)) {
+			partValues(unions, node, decls)
+		},
+	}
+	for name, read := range readers {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			reads := map[int]int{}
+			for _, parts := range []int{1, 8} {
+				n := 0
+				unions := newPartUnions()
+				node := countingNode(reg, models, &n)
+				for range parts {
+					read(unions, node)
+				}
+				reads[parts] = n
+			}
+			require.Positive(t, reads[1], "a part's union is read")
+			assert.Equal(t, reads[1], reads[8], "lookups of the union's models for 1 part and for 8")
+		})
+	}
+}
