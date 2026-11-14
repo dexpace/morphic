@@ -246,8 +246,10 @@ func (r *reader) length(ctx context.Context, v jsonValue) (jsonValue, error) {
 
 // callTruth evaluates a match or search: whether its first argument is a
 // string the pattern its second names matches, whole for match, anywhere for
-// search. The call spends the input's length, weighed by the pattern's size,
-// in steps; a pattern read from the document is charged its compiling too.
+// search. The call spends the input's length and one more, weighed by the
+// pattern's size, in steps, since the engine runs its program at the input's
+// end too, an empty input's included; a pattern read from the document is
+// charged its compiling too.
 func (e *evaluator) callTruth(ctx context.Context, c *call, at Located) (bool, error) {
 	input, err := e.stringOf(ctx, c.args[0], at)
 	if err != nil || input == nil {
@@ -266,7 +268,7 @@ func (e *evaluator) callTruth(ctx context.Context, c *call, at Located) (bool, e
 	if p.re == nil {
 		return false, nil
 	}
-	if err := e.spend(ctx, len(*input)*p.weight); err != nil {
+	if err := e.spend(ctx, (len(*input)+1)*p.weight); err != nil {
 		return false, err
 	}
 	return p.re.MatchString(*input), nil

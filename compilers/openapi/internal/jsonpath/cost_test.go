@@ -68,3 +68,18 @@ func TestSelect_ReadsAScalarOnceAndChargesTheBytesItCompares(t *testing.T) {
 		})
 	}
 }
+
+// TestSelect_ChargesAPatternsProgramForAnEmptyInput pins the least a call of
+// match or search costs: its program's weight, which the engine runs at the
+// input's end however short the input. One more empty string searched by a
+// program of a thousand optional atoms costs hundreds of steps, not the two a
+// candidate costs before it is tested.
+func TestSelect_ChargesAPatternsProgramForAnEmptyInput(t *testing.T) {
+	t.Parallel()
+	const query = "$[?search(@, '(a?){1000}')]"
+
+	one := spentOn(t, query, `[""]`)
+	two := spentOn(t, query, `["", ""]`)
+
+	assert.Greater(t, two-one, 250, "one more call of the program")
+}
