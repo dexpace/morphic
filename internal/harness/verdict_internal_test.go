@@ -35,6 +35,22 @@ func TestOracle_EachFindsAnOutcomeOfItsOwn(t *testing.T) {
 	assert.False(t, ok)
 }
 
+// TestOracles_TheSequenceOrderOracleIsLast pins the oracle's place in the list
+// and the outcome it finds: it follows the mapping order oracle, so the first
+// finding Check meets is unchanged where only one of them finds.
+func TestOracles_TheSequenceOrderOracleIsLast(t *testing.T) {
+	t.Parallel()
+	oracles := Oracles()
+	require.GreaterOrEqual(t, len(oracles), 2)
+	assert.Equal(t, []Oracle{OracleOrder, OracleSequenceOrder}, oracles[len(oracles)-2:])
+
+	outcome, ok := OracleSequenceOrder.finds()
+	assert.True(t, ok)
+	assert.Equal(t, OutcomeSequenceOrderDependent, outcome)
+	assert.Equal(t, Oracle("sequence-order-invariance"), OracleSequenceOrder)
+	assert.Equal(t, Outcome("sequence-order-dependent"), OutcomeSequenceOrderDependent)
+}
+
 // TestVerdict_ConstructorsRefuseWhatNoVerdictHolds pins the constructors'
 // assertions: a finding needs an oracle that finds something and a detail to
 // read, and a decline needs a reason.
@@ -98,6 +114,7 @@ func TestCheck_ARefusalDeclinesWhatHoldsADocument(t *testing.T) {
 		passed(OracleDeterminism),
 		declined(OracleIdempotence, DeclineNoDocument),
 		passed(OracleOrder),
+		declined(OracleSequenceOrder, DeclineNothingToPermute),
 	}, r.Verdicts)
 }
 
@@ -120,7 +137,9 @@ func TestCheck_ARefusedReencodingIsDeclined(t *testing.T) {
 	r := Check(context.Background(), "spec", []byte(src))
 
 	require.Len(t, r.Verdicts, len(Oracles()))
-	assert.Equal(t, declined(OracleOrder, DeclineReencodingRefused), r.Verdicts[len(r.Verdicts)-1])
+	assert.Equal(t, declined(OracleOrder, DeclineReencodingRefused), r.Verdicts[len(r.Verdicts)-2])
+	assert.Equal(t, declined(OracleSequenceOrder, DeclineNothingToPermute), r.Verdicts[len(r.Verdicts)-1],
+		"the source holds no sequence to swap, so the oracle never compiles a rewrite of it")
 }
 
 // TestCheck_AFaultEndingTheRunLeavesTheRestNotReached pins the verdicts of a
@@ -154,7 +173,7 @@ func TestCheck_AFaultEndingTheRunLeavesTheRestNotReached(t *testing.T) {
 		assert.Equal(t, r.Verdicts[0].Detail, r.Detail)
 		assert.Equal(t, []Verdict{passed(OracleInvariants), passed(OracleNoErrorDiagnostic), passed(OracleRoundTrip)},
 			r.Verdicts[1:4])
-		assert.Equal(t, notReached(OracleDeterminism, OracleIdempotence, OracleOrder), r.Verdicts[4:])
+		assert.Equal(t, notReached(OracleDeterminism, OracleIdempotence, OracleOrder, OracleSequenceOrder), r.Verdicts[4:])
 	})
 	t.Run("a Go error from the first compile", func(t *testing.T) {
 		orig := compile

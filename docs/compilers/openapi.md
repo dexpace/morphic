@@ -145,8 +145,8 @@ scalar under any other tag keeps it.
   `e2e.TestCompile_AJSONExternalDocumentCompilesAsItsLiteralTwin`,
   `e2e.TestCompile_ALoneSurrogateIsRefusedWhereItIsWritten`,
   `e2e.TestCompile_APositionAfterAnEscapeCountsItAsWritten`
-- Status: partly built: the order oracle in `internal/harness` parses a source as YAML to permute
-  it, and declines one only the JSON reader reads as not YAML (#1768). A scalar or a sequence under
+- Status: partly built: both order oracles in `internal/harness` parse a source as YAML to permute
+  it, and decline one only the JSON reader reads as not YAML (#1768). A scalar or a sequence under
   a tag outside YAML's JSON schema ruleset is not reported, and where the model reads a string or a
   list it reads as left out (#1368).
 
