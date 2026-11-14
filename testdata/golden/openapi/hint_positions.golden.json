@@ -278,7 +278,6 @@
                         "location": "path",
                         "wireName": "petId",
                         "style": "simple",
-                        "explode": false,
                         "allowReserved": false,
                         "allowEmptyValue": false
                       },
@@ -287,7 +286,6 @@
                         "location": "header",
                         "wireName": "X-Trace",
                         "style": "simple",
-                        "explode": false,
                         "allowReserved": false,
                         "allowEmptyValue": false,
                         "contentType": "application/json"
@@ -478,7 +476,6 @@
                         "location": "query",
                         "wireName": "limit",
                         "style": "form",
-                        "explode": true,
                         "allowReserved": false,
                         "allowEmptyValue": false
                       }
@@ -957,7 +954,6 @@
                         "location": "query",
                         "wireName": "scope",
                         "style": "form",
-                        "explode": true,
                         "allowReserved": false,
                         "allowEmptyValue": false
                       }
@@ -1163,7 +1159,6 @@
                         "location": "query",
                         "wireName": "filter",
                         "style": "form",
-                        "explode": true,
                         "allowReserved": false,
                         "allowEmptyValue": false
                       },
@@ -1172,7 +1167,6 @@
                         "location": "query",
                         "wireName": "foo",
                         "style": "form",
-                        "explode": true,
                         "allowReserved": false,
                         "allowEmptyValue": false
                       }

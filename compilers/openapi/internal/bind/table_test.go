@@ -488,9 +488,9 @@ func TestBind_ReportsADocumentThatDoesNotParse(t *testing.T) {
 
 	a := entryAt(t, table, "/components/schemas/A")
 	assert.Equal(t, bind.Unparsable, a.Hop.Reason)
-	assert.Equal(t, "the document it names does not parse as YAML: yaml: line 1: did not find expected node content", a.Hop.Why())
+	assert.Equal(t, "the document it names does not parse: yaml: line 1: did not find expected node content", a.Hop.Why())
 	err := &bind.UnparsableError{Err: parser}
-	require.EqualError(t, err, "it does not parse as YAML: yaml: line 1: did not find expected node content")
+	require.EqualError(t, err, "it does not parse: yaml: line 1: did not find expected node content")
 	assert.ErrorIs(t, err, parser)
 }
 

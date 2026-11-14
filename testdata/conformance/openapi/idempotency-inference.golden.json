@@ -115,7 +115,6 @@
                         "location": "header",
                         "wireName": "Idempotency-Key",
                         "style": "simple",
-                        "explode": false,
                         "allowReserved": false,
                         "allowEmptyValue": false
                       }
@@ -190,7 +189,6 @@
                         "location": "header",
                         "wireName": "Idempotency-Key",
                         "style": "simple",
-                        "explode": false,
                         "allowReserved": false,
                         "allowEmptyValue": false
                       }
@@ -283,7 +281,6 @@
                         "location": "header",
                         "wireName": "idempotency-key",
                         "style": "simple",
-                        "explode": false,
                         "allowReserved": false,
                         "allowEmptyValue": false
                       },
@@ -292,7 +289,6 @@
                         "location": "path",
                         "wireName": "id",
                         "style": "simple",
-                        "explode": false,
                         "allowReserved": false,
                         "allowEmptyValue": false
                       }
@@ -399,7 +395,6 @@
                         "location": "header",
                         "wireName": "Idempotency-Key",
                         "style": "simple",
-                        "explode": false,
                         "allowReserved": false,
                         "allowEmptyValue": false
                       },
@@ -408,7 +403,6 @@
                         "location": "header",
                         "wireName": "IDEMPOTENCY-KEY",
                         "style": "simple",
-                        "explode": false,
                         "allowReserved": false,
                         "allowEmptyValue": false
                       },
@@ -417,7 +411,6 @@
                         "location": "path",
                         "wireName": "id",
                         "style": "simple",
-                        "explode": false,
                         "allowReserved": false,
                         "allowEmptyValue": false
                       }
@@ -506,7 +499,6 @@
                         "location": "query",
                         "wireName": "Idempotency-Key",
                         "style": "form",
-                        "explode": true,
                         "allowReserved": false,
                         "allowEmptyValue": false
                       },
@@ -515,7 +507,6 @@
                         "location": "path",
                         "wireName": "id",
                         "style": "simple",
-                        "explode": false,
                         "allowReserved": false,
                         "allowEmptyValue": false
                       }

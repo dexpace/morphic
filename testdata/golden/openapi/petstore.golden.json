@@ -169,7 +169,6 @@
                         "location": "query",
                         "wireName": "limit",
                         "style": "form",
-                        "explode": true,
                         "allowReserved": false,
                         "allowEmptyValue": false
                       }
@@ -359,7 +358,6 @@
                         "location": "path",
                         "wireName": "petId",
                         "style": "simple",
-                        "explode": false,
                         "allowReserved": false,
                         "allowEmptyValue": false
                       }

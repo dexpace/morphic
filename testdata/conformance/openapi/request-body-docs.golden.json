@@ -190,7 +190,6 @@
                         "location": "path",
                         "wireName": "id",
                         "style": "simple",
-                        "explode": false,
                         "allowReserved": false,
                         "allowEmptyValue": false
                       }

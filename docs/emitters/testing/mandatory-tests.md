@@ -800,9 +800,10 @@ throughout these documents.
     whole minute with its seconds, at a zero offset with `Z` and at `+02:00` in a query as
     `%2B02%3A00`, a `uuid` given in upper case as lower case, `bytes` as padded base64
     percent-encoded in a path and as it is in a header, a space as `%20`, a query parameter named
-    `a<b` as `a%3Cb`, a `,` in a member of an unexploded query list as `%2C`, an exploded `form`
-    list in a cookie as `p=a; p=b`, an unexploded `cookie`-style list as `p=a,b`, `a/b?c#d` and
-    `a//b` in a path under `AllowReserved` as `a/b%3Fc%23d` and `a//b`, a map's entries and a
+    `a<b` as `a%3Cb`, a `,` in a member of an unexploded query list as `%2C`, a `form` list in a
+    cookie whose `Explode` is unset as an exploded one, `p=a; p=b`, an unexploded `cookie`-style
+    list as `p=a,b`, `a/b?c#d` and `a//b` in a path under `AllowReserved` as `a/b%3Fc%23d` and
+    `a//b`, a map's entries and a
     `Prefix` map's fields in their keys' order, the map's entry, and a `form`-exploded map's, giving
     way to a field another binding writes, a query map under the empty `Prefix` as a parameter per
     entry named by its key alone, a string under `ContentType` `application/json` with its
@@ -865,7 +866,7 @@ throughout these documents.
     declares no encoding is its text with no `Content-Type` of its own, one of a list of strings a
     part for each element, and one of a list of strings declaring `text/plain`, or of objects
     declaring `application/json`, a list too, a part of that type for each element; a `deepObject`
-    object of leaves whose `Explode` is false is arranged, sent as
+    object of leaves whose `Explode` is false or unset is arranged, sent as
     `color%5BR%5D=100&color%5BG%5D=200`. The mock server and an inbound request's reader give back
     each input's pairs, in order, `search` and `searchBranches` sharing one query each their own,
     and the string sent, for the values `a&b=c`, `a+b c`, `100%`, `é` and an empty string too, a

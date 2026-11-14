@@ -81,6 +81,23 @@ OpenAPI's limit on YAML tags forbids, refuses the source before the parser reads
 `openapi/tagged-mapping` error at the tagged mapping with the least pointer, and it compiles to no
 Document. A tagged scalar is not refused here; what it lowers to is [`values`](#values)'.
 
+A source, a document a reference reads or an [overlay](#overlays) that is one JSON text is read as
+JSON, into the tree the YAML parser builds for the same text
+([`json-as-yaml`](../parser-library.md#json-as-yaml)), because that parser refuses or misreads some
+JSON that RFC 8259 allows. It refuses a character outside the Basic Multilingual Plane written as a
+surrogate pair of `\u` escapes, a `\/` escape, a key whose `:` stands more than 1,024 characters
+past the key's start (a key of more than 1,022 characters written `"key":`), a raw DEL, U+FFFE,
+U+FFFF or a C1 control other than U+0085 in a string, and a tab before the root value or on a line
+after the one it ends on, and it reads a raw U+0085 as a space. Each compiles as the same text
+written with the characters themselves, at the positions the text writes: a line ends at LF, CR or
+CR LF alone, as JSON tools and editors end one, so a raw U+0085, U+2028 or U+2029 in a string ends
+none, where the parser ends a line at each, and a column counts characters. An escape that names
+half of a surrogate pair, one not paired with the other half it needs, names no character: it
+refuses the source as an `openapi/undecodable-source` error, the document a reference names as an
+`openapi/unresolved-ref` error, and an overlay as an `openapi/invalid-overlay` error, each with a
+message that names the escape as written and the line and column it begins at. Text that is not one
+JSON text, YAML or JSON followed by anything else, is read as YAML, as before, its errors included.
+
 A date such as `2021-01-01`, and a `<<` anywhere but as a mapping's key, written with no tag or
 under YAML's non-specific `!`, are the strings they spell, in the source and in each document read
 beside it. YAML 1.2, which OpenAPI recommends, has no timestamp or merge type: its core schema reads
@@ -94,7 +111,7 @@ scalar under any other tag keeps it.
 
 - Cases: `yaml-timestamp-scalars`
 - Codes: `openapi/undecodable-source`, `openapi/stream-documents-dropped`, `openapi/tagged-mapping`,
-  `openapi/budget-exceeded`
+  `openapi/budget-exceeded`, `openapi/unresolved-ref`, `openapi/invalid-overlay`
 - Tests: `detect.TestRecognize_ABrokenDocumentIsReportedAtAnySize`,
   `openapi.TestDetect_ReadsTheVersionTheCompileReads`,
   `detect.TestRecognize_AReadCutShortIsReported`,
@@ -107,10 +124,31 @@ scalar under any other tag keeps it.
   `e2e.TestCompile_APlainDateInAnExternalDocumentCompilesAsItsTwin`,
   `e2e.TestCompile_APlainDateAnOverlayWritesCompilesAsItsTwin`,
   `e2e.TestCompile_ADateTaggedOutrightKeepsItsTag`,
-  `load.TestExternal_DocumentPreparesTheFile`
-- Status: partly built: a JSON source holding a surrogate-pair escape is refused as undecodable
-  (#900). A scalar or a sequence under a tag outside YAML's JSON schema ruleset is not reported,
-  and where the model reads a string or a list it reads as left out (#1368).
+  `load.TestExternal_DocumentPreparesTheFile`,
+  `jsontree.TestRead_BuildsTheTreeYAMLBuilds`, `jsontree.TestRead_ReadsWhatYAMLRefusesOrMisreads`,
+  `jsontree.TestRead_ReportsALoneSurrogateWhereItIsWritten`,
+  `jsontree.TestRead_DeclinesWhatIsNotOneJSONText`,
+  `jsontree.TestRead_ReadsNestingAtTheDecoderBound`, `jsontree.TestRead_StopsOnceTheContextIsDone`,
+  `jsontree.TestRead_ReportsExactlyTheSurrogateEscapesAsHalves`,
+  `jsontree.TestRead_ReadsAFaultAfterAnEscapeAsTheFaultAlone`,
+  `jsontree.TestRead_KeepsTheDecodersReasonWhenItDeclines`,
+  `load.TestDecode_ReadsAJSONSourceAsJSON`, `load.TestDecode_ReturnsALoneSurrogateAsItIs`,
+  `load.TestDecode_AJSONTextBesideAStreamIsReadAsYAML`, `load.TestParseTree_ReadsJSONAsJSON`,
+  `load.TestReadJSON_ADoneContextEndsTheReadWithoutAYAMLParse`,
+  `load.TestReadJSON_AContextDoneByTheEndOfTheReadIsCtxsError`,
+  `load.TestLoad_AJSONDocumentBehindARespelledURLIsReadAsJSON`,
+  `detect.TestRecognize_AJSONSourceWritingASurrogatePairIsRecognized`,
+  `detect.TestRecognize_ALoneSurrogateIsReportedWhereItIsWritten`,
+  `e2e.TestCompile_AnEscapedJSONSourceCompilesAsItsLiteralTwin`,
+  `e2e.TestCompile_AJSONSourceWithATabBeforeTheRootCompilesAsItsTwin`,
+  `e2e.TestCompile_AJSONSourceWithAKeyPastTheYAMLLimitCompiles`,
+  `e2e.TestCompile_AJSONExternalDocumentCompilesAsItsLiteralTwin`,
+  `e2e.TestCompile_ALoneSurrogateIsRefusedWhereItIsWritten`,
+  `e2e.TestCompile_APositionAfterAnEscapeCountsItAsWritten`
+- Status: partly built: the order oracle in `internal/harness` parses a source as YAML to permute
+  it, and declines one only the JSON reader reads as not YAML (#1768). A scalar or a sequence under
+  a tag outside YAML's JSON schema ruleset is not reported, and where the model reads a string or a
+  list it reads as left out (#1368).
 
 ### `source-budgets`
 
@@ -212,28 +250,31 @@ is, and so are an overlay naming no file and one naming an http(s) URL, since no
 compile onto the network. Once applied, the pre-parse refusals and the node budgets hold the patched
 tree as they hold the source, and validation and every lowering read it. A refusal at a node the
 overlay grafted names the overlay, and so does a refusal of the whole patched tree, such as its
-pointers' bytes, since the source passed the same refusals alone; its message says it reads the
-tree the overlay leaves, which the overlay's own refusal does not.
+pointers' bytes, since the source passed the same refusals alone; its message says it reads the tree
+the overlay leaves, which the overlay's own refusal does not. An overlay that is one JSON text is
+read as JSON, as a source is ([`yaml-decoding`](#yaml-decoding)), so the characters and escapes the
+YAML parser refuses compile as the characters they name.
 
 An overlay declaring Overlay 1.0 or 1.1, at any patch, which the specification asks tooling not to
 tell apart, is applied by that version's rules. One declaring Overlay 1.2 is refused as an
-`openapi/overlay-unsupported` error. Any other version, and an overlay that does not parse or lacks
-what the specification requires of it — an info object naming a title and a version, an `extends`
-that is a URI reference, an action, a target on each — is refused as an `openapi/invalid-overlay`
-error and nothing is applied, as is an Overlay 1.0 action writing `copy`, a field 1.1 introduced.
-Every `target` and `copy` is read as an RFC 9535 JSONPath query, whatever the version, since both
-versions name RFC 9535; an extension naming another dialect is not read. One RFC 9535 refuses is an
-`openapi/invalid-overlay` error: one using `~`, and one naming a member after a dot by a name RFC
-9535's shorthand does not admit, which holds only letters, digits, underscores and characters past
-ASCII and starts with no digit, so an extension key, which holds a `-`, is named in brackets; the
-error says what to write, `['x-internal']` for `.x-internal`. One RFC 9535 reads that the compiler's
-JSONPath implementation refuses or misreads where its text shows it
-([`jsonpath-rfc9535`](../parser-library.md#jsonpath-rfc9535)) is an `openapi/overlay-unsupported`
-error naming why and, where the compiler reads another spelling, what to write. Either is found
-before any action applies. The implementation also compares otherwise than RFC 9535 in a filter,
-where no text shows it, and those selectors apply as it reads them: a plain date, such as
-`2021-01-01`, equals no string and every other plain date, an integer written in another base, such
-as `0x10`, compares as 0, and two objects are equal only with their members in the same order.
+`openapi/overlay-unsupported` error. Any other version, and an overlay that does not parse,
+including one writing half of a surrogate pair, or lacks what the specification requires of it — an
+info object naming a title and a version, an `extends` that is a URI reference, an action, a target
+on each — is refused as an `openapi/invalid-overlay` error and nothing is applied, as is an Overlay
+1.0 action writing `copy`, a field 1.1 introduced. Every `target` and `copy` is read as an RFC 9535
+JSONPath query, whatever the version, since both versions name RFC 9535; an extension naming another
+dialect is not read. One RFC 9535 refuses is an `openapi/invalid-overlay` error: one using `~`, and
+one naming a member after a dot by a name RFC 9535's shorthand does not admit, which holds only
+letters, digits, underscores and characters past ASCII and starts with no digit, so an extension
+key, which holds a `-`, is named in brackets; the error says what to write, `['x-internal']` for
+`.x-internal`. One RFC 9535 reads that the compiler's JSONPath implementation refuses or misreads
+where its text shows it ([`jsonpath-rfc9535`](../parser-library.md#jsonpath-rfc9535)) is an
+`openapi/overlay-unsupported` error naming why and, where the compiler reads another spelling, what
+to write. Either is found before any action applies. The implementation also compares otherwise than
+RFC 9535 in a filter, where no text shows it, and those selectors apply as it reads them: a plain
+date, such as `2021-01-01`, equals no string and every other plain date, an integer written in
+another base, such as `0x10`, compares as 0, and two objects are equal only with their members in
+the same order.
 
 The actions apply in order, each to the tree the ones before it left. An action takes the first of
 `remove`, `update` and `copy` it sets, and a field the specification gives no effect beside a
@@ -340,7 +381,10 @@ no overlay, reported as an `openapi/overlay-origin-incomplete` warning.
   `overlay.TestSequence_ChargesAnActionToTheBudgetsEdge`,
   `overlay.TestSequence_ChargesAnActionAfterARemoveOnTheTreeItLeft`,
   `load.TestLoad_TheNodeBudgetReadsTheTreeTheOverlayLeaves`,
-  `load.TestLoad_APointerAmplificationAnOverlayGraftedNamesTheOverlay`
+  `load.TestLoad_APointerAmplificationAnOverlayGraftedNamesTheOverlay`,
+  `overlay.TestParseDocument_ReadsWhatTheLibraryReads`,
+  `overlay.TestParseDocument_ReadsWhatTheLibraryRefuses`,
+  `e2e.TestCompile_AJSONOverlayAppliesAsItsLiteralTwin`
 - Status: partly built: an overlay selects and writes the source's YAML aliases and `<<` merge keys
   as the nodes they are, not as the values they stand for, which is warned of and not mended
   (#1834). A filter comparing a plain date, an integer written in another base or an object compares
@@ -4516,10 +4560,11 @@ same `name` and `in`, a header's `name` compared in any case, as HTTP compares a
 (RFC 9110 §5.1), so `x-trace` overrides `X-Trace`, and so does a nearer layer's of a path item a
 `$ref` composes. Each is placed on the HTTP binding at its location (`path`, `query`,
 `querystring`, `header` or `cookie`) under its wire name, with its `style`, `explode` and
-`allowReserved`, each the default where the parameter writes none
-([http-binding](../ir/http-binding.md)): the location's style, and an `explode` true under
-`form` and 3.2's `cookie` style, false under any other. A parameter's ID is derived from the
-operation's mount pointer, its name and its location ([identity](../ir/identity.md)). A list
+`allowReserved` ([http-binding](../ir/http-binding.md)). The `style` is the location's where the
+parameter writes none, and the `explode` is as declared, left unset where the parameter writes none,
+since its default depends on the style and filling it in would present the default as a
+declaration. A parameter's ID is derived from the operation's mount pointer, its name and its
+location ([identity](../ir/identity.md)). A list
 repeating an earlier entry's `name` and `in`, its `$ref`s resolved and a header's `name` compared
 in any case, which OpenAPI forbids, keeps every occurrence, the ID of each repeat of one spelling
 ending in its occurrence number, so `x-trace` beside `X-Trace` keeps the ID each has alone, and is
@@ -4536,16 +4581,15 @@ repeat's ending in its occurrence number (`no_ir_home`).
 - Cases: `param-styles`, `param-style-matrix`, `param-identity`, `header-name-case`,
   `header-name-syntax`
 - Codes: `openapi/duplicate-parameter`
-- Tests: `operation.TestParams_RepeatedNameAndLocationKeepsEveryParameter`,
+- Tests: `operation.TestParams_ExplodeLowersAsDeclared`,
+  `operation.TestParams_RepeatedNameAndLocationKeepsEveryParameter`,
   `operation.TestPathItem_WithNoOperationKeepsItsParameters`,
   `operation.TestPathItem_WithNoOperationNumbersARepeatedParameter`,
   `operation.TestPathItem_WithNoOperationReportsARepeatInAnotherDocument`,
   `operation.TestParams_AHeaderIsOneParameterInAnyCase`,
   `operation.TestPathItem_WithNoOperationKeysAHeaderRepeatedInAnyCase`,
   `ids.TestSlotOf_ComparesAHeadersNameInAnyCase`
-- Status: partly built: an undeclared `explode` is written out as the location's default, which
-  erases whether the document declared it (#627); and a list only a `$ref` reaches is never checked
-  for repeats (#880).
+- Status: partly built: a list only a `$ref` reaches is never checked for repeats (#880).
 
 ### `content-parameters`
 

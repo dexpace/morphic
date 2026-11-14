@@ -181,6 +181,13 @@ var rules = map[string][]string{
 		"github.com/speakeasy-api/openapi/extensions",
 		"github.com/speakeasy-api/openapi/jsonschema/oas3",
 		"github.com/speakeasy-api/openapi/yml", "go.yaml.in/yaml/v3"},
+	// The reading of a source that is one JSON text into the node tree the YAML
+	// parser builds for it, for what that parser refuses or misreads
+	// (docs/parser-library.md#json-as-yaml). It reaches yaml for the node it
+	// builds and nodeview for how often a walk asks its context, and nothing
+	// else: it owes agreement with the parser's tree and no other part of the
+	// compiler, so it stays here and below the loader and the overlay that call it.
+	"compilers/openapi/internal/jsontree": {module + "/compilers/openapi/internal/nodeview", "go.yaml.in/yaml/v3"},
 	// Source-document patching: an OpenAPI Overlay applied to the decoded node
 	// tree, and the attribution of what it changed. It reads bytes and nodes and
 	// reports through diag, reaching nodeview for the document root and the
@@ -190,6 +197,7 @@ var rules = map[string][]string{
 	"compilers/openapi/internal/overlay": {module + "/ir",
 		module + "/compilers/openapi/internal/budget",
 		module + "/compilers/openapi/internal/diag",
+		module + "/compilers/openapi/internal/jsontree",
 		module + "/compilers/openapi/internal/nodeview",
 		module + "/compilers/openapi/internal/provenance",
 		"github.com/speakeasy-api/openapi/overlay", "go.yaml.in/yaml/v3"},
@@ -210,6 +218,7 @@ var rules = map[string][]string{
 		module + "/compilers/openapi/internal/budget",
 		module + "/compilers/openapi/internal/diag",
 		module + "/compilers/openapi/internal/ids",
+		module + "/compilers/openapi/internal/jsontree",
 		module + "/compilers/openapi/internal/nodeview",
 		module + "/compilers/openapi/internal/oas",
 		module + "/compilers/openapi/internal/overlay",

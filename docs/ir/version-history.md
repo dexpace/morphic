@@ -751,3 +751,10 @@ it sees. Changes made together in one bump are listed together under it.
   A `prefixItems` beside a JSON Schema draft's `items` list is kept under `openapi:prefixItems`,
   where it was dropped ([`tuples`](../compilers/openapi.md#tuples)). A consumer pinned to 0.63.0
   reads such a reference as the top type and such a body as a model.
+- **0.65.0** — no shape change. The OpenAPI compiler lowers a parameter's `explode` as declared
+  ([`parameters`](../compilers/openapi.md#parameters)): an `HTTPParamBinding.Explode` is nil where
+  the parameter writes none, where it had held its style's default, true under `form` and `cookie`
+  and false under any other. `Style` still holds the location's default where none is written. A
+  consumer pinned to 0.64.0 that read `Explode` as always present no longer finds the key on such a
+  binding, and must read its absence as the style's default, as it already does for a response
+  header's. Read as false, the absence sends a `form` parameter unexploded.

@@ -200,7 +200,6 @@
                         "location": "query",
                         "wireName": "q",
                         "style": "form",
-                        "explode": true,
                         "allowReserved": false,
                         "allowEmptyValue": false
                       },
@@ -218,7 +217,6 @@
                         "location": "query",
                         "wireName": "path",
                         "style": "form",
-                        "explode": true,
                         "allowReserved": true,
                         "allowEmptyValue": false
                       },
@@ -227,7 +225,6 @@
                         "location": "query",
                         "wireName": "bare",
                         "style": "form",
-                        "explode": true,
                         "allowReserved": false,
                         "allowEmptyValue": true
                       },
@@ -236,7 +233,6 @@
                         "location": "query",
                         "wireName": "payload",
                         "style": "form",
-                        "explode": true,
                         "allowReserved": false,
                         "allowEmptyValue": false,
                         "contentType": "application/json"
@@ -246,7 +242,6 @@
                         "location": "header",
                         "wireName": "requestId",
                         "style": "simple",
-                        "explode": false,
                         "allowReserved": false,
                         "allowEmptyValue": false
                       }
@@ -318,7 +313,6 @@
                         "location": "header",
                         "wireName": "requestId",
                         "style": "simple",
-                        "explode": false,
                         "allowReserved": false,
                         "allowEmptyValue": false
                       }

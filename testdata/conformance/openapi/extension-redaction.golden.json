@@ -374,7 +374,6 @@
                         "location": "query",
                         "wireName": "onSchema",
                         "style": "form",
-                        "explode": true,
                         "allowReserved": false,
                         "allowEmptyValue": false
                       },
@@ -383,7 +382,6 @@
                         "location": "query",
                         "wireName": "onObject",
                         "style": "form",
-                        "explode": true,
                         "allowReserved": false,
                         "allowEmptyValue": false
                       },
@@ -392,7 +390,6 @@
                         "location": "query",
                         "wireName": "beside",
                         "style": "form",
-                        "explode": true,
                         "allowReserved": false,
                         "allowEmptyValue": false
                       },
@@ -401,7 +398,6 @@
                         "location": "query",
                         "wireName": "ownsNode",
                         "style": "form",
-                        "explode": true,
                         "allowReserved": false,
                         "allowEmptyValue": false
                       },
@@ -410,7 +406,6 @@
                         "location": "query",
                         "wireName": "stated",
                         "style": "form",
-                        "explode": true,
                         "allowReserved": false,
                         "allowEmptyValue": false
                       },
@@ -419,7 +414,6 @@
                         "location": "query",
                         "wireName": "misread",
                         "style": "form",
-                        "explode": true,
                         "allowReserved": false,
                         "allowEmptyValue": false
                       },
@@ -428,7 +422,6 @@
                         "location": "query",
                         "wireName": "plain",
                         "style": "form",
-                        "explode": true,
                         "allowReserved": false,
                         "allowEmptyValue": false
                       }

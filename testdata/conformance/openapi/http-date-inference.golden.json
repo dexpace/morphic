@@ -312,7 +312,6 @@
                         "location": "path",
                         "wireName": "name",
                         "style": "simple",
-                        "explode": false,
                         "allowReserved": false,
                         "allowEmptyValue": false
                       },
@@ -321,7 +320,6 @@
                         "location": "header",
                         "wireName": "If-Unmodified-Since",
                         "style": "simple",
-                        "explode": false,
                         "allowReserved": false,
                         "allowEmptyValue": false
                       }

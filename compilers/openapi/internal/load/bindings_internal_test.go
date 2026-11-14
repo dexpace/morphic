@@ -311,7 +311,7 @@ func TestLoad_ASchemaRefIsUnresolvedWhereItsDocumentCannotBeRead(t *testing.T) {
 		}
 	})
 	dir := externalDir(t, map[string]string{"bad.yaml": "a: [\n"})
-	const unread, unparsed = "the document it names could not be read: ", "the document it names does not parse as YAML: yaml: line 1: "
+	const unread, unparsed = "the document it names could not be read: ", "the document it names does not parse: yaml: line 1: "
 	for _, c := range []struct {
 		name, path, ref, phrase, says string
 	}{

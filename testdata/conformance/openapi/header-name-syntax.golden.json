@@ -161,7 +161,6 @@
                         "location": "header",
                         "wireName": "X-Trace",
                         "style": "simple",
-                        "explode": false,
                         "allowReserved": false,
                         "allowEmptyValue": false
                       },
@@ -170,7 +169,6 @@
                         "location": "header",
                         "wireName": "x-trace",
                         "style": "simple",
-                        "explode": false,
                         "allowReserved": false,
                         "allowEmptyValue": false
                       }

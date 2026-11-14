@@ -169,6 +169,9 @@ var generations = []generation{
 	{version: "0.64.0", format: 1, shape: "0b2f5e45e4be29c67a153976848af676bc99d9f21d9e41a91b7abfd167ae026b",
 		names:   "825b85ca996798c9051c78f69d22b7c1ad6d30e36341b320540fab82f21b6890",
 		meaning: "the OpenAPI compiler expands a $dynamicRef to an anchor at any position of its schema resource, and 2019-09's $recursiveRef to its resource's root, where it kept each verbatim; a body schema writing $schema or $vocabulary is a file, and a prefixItems beside a draft's items list is kept under openapi:prefixItems"},
+	{version: "0.65.0", format: 1, shape: "0b2f5e45e4be29c67a153976848af676bc99d9f21d9e41a91b7abfd167ae026b",
+		names:   "825b85ca996798c9051c78f69d22b7c1ad6d30e36341b320540fab82f21b6890",
+		meaning: "a parameter binding's Explode is as declared, nil where the parameter writes none, where it held its style's default"},
 }
 
 // shapeGolden holds the description the newest row's shape hashes, so a change
