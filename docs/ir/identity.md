@@ -225,7 +225,10 @@ report, so the defect draws one code (#575). Two empties are outside it, each re
 A registry node's own `ID` is its declaration and never a reference. Where a registry keys a node by
 an ID other than its own, the defect is `ir/<noun>-id-mismatch` alone, from `irverify`; neither checker
 also calls the node's `ID` a dangling reference, though a reference held inside that node to an
-undeclared ID still dangles.
+undeclared ID still dangles. An empty key is no ID: `irverify` reports it as `ir/empty-<noun>-id` in
+the mismatch's place, and `pass.Validate` reads the document without what a registry files there, so
+an empty reference, which names nothing, resolves to nothing, and the node filed there is held by
+`irverify` alone.
 
 ## Why IDs
 

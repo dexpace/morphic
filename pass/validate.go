@@ -56,6 +56,7 @@ func validate(ctx context.Context, doc *ir.Document, walk walkFunc) ([]ir.Diagno
 	if doc == nil {
 		return nil, nil
 	}
+	doc, refused := withoutEmptyKeys(doc)
 	// One walk reads what the reference, PropID and parameter checks need, and
 	// asks ctx as it goes. checkParams leaves to the dangling check exactly what
 	// it reports.
@@ -67,7 +68,7 @@ func validate(ctx context.Context, doc *ir.Document, walk walkFunc) ([]ir.Diagno
 	// encoding key, are walked while that is cheap and answered from the document
 	// indexed once after that (#850).
 	facts := irfacts.New(doc)
-	diags := make([]ir.Diagnostic, 0, 8)
+	diags := append(make([]ir.Diagnostic, 0, 8), refused...)
 	for _, family := range families(doc, read, facts) {
 		if err := ctx.Err(); err != nil {
 			return nil, err
@@ -79,6 +80,39 @@ func validate(ctx context.Context, doc *ir.Document, walk walkFunc) ([]ir.Diagno
 		return nil, err
 	}
 	return diags, nil
+}
+
+// withoutEmptyKeys returns doc, or, where a registry files a node under the
+// empty key, an edit of it filing nothing there, with what the edit refused,
+// which names a bug here. The empty key is no node's ID, so the entry is
+// irverify's to report (ir/empty-<noun>-id), and read here an empty reference,
+// which names nothing, would resolve to it.
+func withoutEmptyKeys(doc *ir.Document) (*ir.Document, []ir.Diagnostic) {
+	_, types := doc.Types[""]
+	_, channels := doc.Channels[""]
+	_, messages := doc.Messages[""]
+	_, auth := doc.Auth[""]
+	_, servers := doc.Servers[""]
+	if !types && !channels && !messages && !auth && !servers {
+		return doc, nil
+	}
+	edit := ir.NewEditor(doc)
+	if types {
+		edit.RemoveType("")
+	}
+	if channels {
+		edit.RemoveChannel("")
+	}
+	if messages {
+		edit.RemoveMessage("")
+	}
+	if auth {
+		edit.RemoveAuthScheme("")
+	}
+	if servers {
+		edit.RemoveServer("")
+	}
+	return edit.Finish()
 }
 
 // families returns validate's rule families over doc and what its walk read,

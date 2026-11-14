@@ -171,3 +171,6 @@ func TypeRefVisits(doc *ir.Document, ids ...ir.TypeID) int {
 func NarrowedHolds(types ir.TypeRegistry, target ir.TypeID, key ir.PropID, limit int) bool {
 	return narrowedHolds(types, target, key, limit)
 }
+
+// WithoutEmptyKeys is withoutEmptyKeys, for the external tests.
+var WithoutEmptyKeys = withoutEmptyKeys
