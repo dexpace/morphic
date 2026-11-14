@@ -338,6 +338,10 @@ const (
 	RuleMisplaced
 	// RuleCode: a predicate written in Go, named by Name.
 	RuleCode
+	// RuleReserved: Field, where every When term holds, names none of Names,
+	// in any case: the value of a string field, or each key of a map field.
+	// OpenAPI says a definition under such a name SHALL be ignored.
+	RuleReserved
 )
 
 // Rule binds several fields of an object, or judges one beyond its shape.
@@ -358,6 +362,8 @@ type Rule struct {
 	Owner string
 	// Fields is the fields an exclusion, alternative or ban names.
 	Fields []string
+	// Names is the names a Reserved rule reserves.
+	Names []string
 	// When is the terms a conditional rule applies under: it judges only where
 	// every one holds.
 	When []Term

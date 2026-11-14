@@ -75,6 +75,8 @@ func parameterRules() []Rule {
 		syntax(Always(), "name", Token, when(term("in", "cookie")),
 			c(V30, "cookie - Used to pass a specific cookie value to the API."),
 			c(V32, "Analogous to `form`, but following [[RFC6265]] `Cookie` syntax rules")),
+		reserved(Always(), "name", when(term("in", "header")), fields("Accept", "Content-Type", "Authorization"),
+			c(V30, "If `in` is `\"header\"` and the `name` field is `\"Accept\"`, `\"Content-Type\"` or `\"Authorization\"`, the parameter definition SHALL be ignored.")),
 		forbiddenWhen(Always(), fields("allowEmptyValue"), when(term("in", "path", "header", "cookie", "querystring")),
 			c(V30, "This field is valid only for `query` parameters.")),
 		inapplicable(Always(), "allowEmptyValue",
@@ -232,7 +234,9 @@ func encodingObject() Object {
 		// The nested fields apply "in the same manner" as the Media Type Object's,
 		// whose text bars writing them together: a reading by analogy, so a
 		// warning.
-		Rules:    softened(encodingExclusions(c, V32, "Applies nested Encoding Objects in the same manner as the")),
+		Rules: append(softened(encodingExclusions(c, V32, "Applies nested Encoding Objects in the same manner as the")),
+			reserved(Always(), "headers", nil, fields("Content-Type"),
+				c(V30, "`Content-Type` is described separately and SHALL be ignored in this section."))),
 		Defaults: contentTypeDefaults(c),
 	}
 }

@@ -305,19 +305,20 @@ func TestCompile_AnAliasIsChargedBesideItsEnd(t *testing.T) {
 // TestCompile_AReferenceExpansionRefusalIsTheSameInEitherOrder pins what a
 // refusal reports: nothing the lowering found. Either parameter fits the budget
 // alone, so the one lowered first is copied and the other crosses; reporting
-// what the copy found would report the reserved header in one order alone.
+// what the copy found would report the keyword the schema census keeps, a
+// finding of the lowering alone, in one order alone.
 func TestCompile_AReferenceExpansionRefusalIsTheSameInEitherOrder(t *testing.T) {
 	t.Parallel()
 	reserved := getWith("/a", "      parameters: [{$ref: '#/components/parameters/Accept'}]\n"+okResponses)
 	long := getWith("/b", "      parameters: [{$ref: '#/components/parameters/P'}]\n"+okResponses)
-	// Accept weighs 31, as paramP does with Accept and header for q and query.
-	// P weighs 78: paramP's 25, a description key (12) and a 40-byte value (41).
-	components := "  parameters:\n    Accept: {name: Accept, in: header, schema: {type: string}}\n" +
+	// Accept fits the budget alone, as P does, weighing 78: paramP's 25, a
+	// description key (12) and a 40-byte value (41).
+	components := "  parameters:\n    Accept: {name: Accept, in: query, schema: {type: string, bogus: 1}}\n" +
 		"    P: {name: q, in: query, schema: {type: string}, description: " + strings.Repeat("x", 40) + "}\n"
 
 	doc, diags := compileExpanding(t, pathsWith(reserved+long, components), -1)
 	require.NotNil(t, doc)
-	openapitest.AssertHasCode(t, diags, diag.ReservedHeaderName, ir.SeverityWarning)
+	openapitest.AssertHasCode(t, diags, diag.UnknownSchemaKeyword, ir.SeverityInfo)
 
 	for name, paths := range map[string]string{"reserved first": reserved + long, "reserved last": long + reserved} {
 		t.Run(name, func(t *testing.T) {

@@ -43,6 +43,10 @@ func responseObject() Object {
 			mapOf("links", Link, c(V30, "A map of operations links that can be followed from the response.")).
 				keyed(ComponentName, c(V30, "following the naming constraints of the names for")),
 		},
+		Rules: []Rule{
+			reserved(Always(), "headers", nil, fields("Content-Type"),
+				c(V30, "If a response header is defined with the name `\"Content-Type\"`, it SHALL be ignored.")),
+		},
 	}
 }
 

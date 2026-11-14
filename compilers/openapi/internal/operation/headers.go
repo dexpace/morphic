@@ -5,13 +5,11 @@ package operation
 
 import (
 	"encoding/json/jsontext"
-	"strings"
 
 	soa "github.com/speakeasy-api/openapi/openapi"
 	"github.com/speakeasy-api/openapi/sequencedmap"
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/annotation"
-	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
 	"github.com/dexpace/morphic/compilers/openapi/internal/resolve"
@@ -37,34 +35,12 @@ func lowerHeaders(c lowering.Ctx, w walk, headers *sequencedmap.Map[string, *soa
 		}
 		lowered, headerDiags := lowerHeader(c, dc, w, h, name, hptr, hdecl)
 		diags = append(diags, headerDiags...)
-		diags = append(diags, reservedHeaderEntryDiag(c, name, hptr)...)
 		// A summary or description beside a $ref of the entry's chain documents
 		// this header rather than the declaration it names (GitHub #610).
 		lowered.Docs = resolve.UseDocs[soa.Header](c.Bindings(), rh, lowered.Docs)
 		out = append(out, lowered)
 	}
 	return out, diags
-}
-
-// reservedHeaderEntryDiag reports a headers-map entry OpenAPI says SHALL be
-// ignored. Both maps this lowering serves, a response's (§4.8.17) and an
-// encoding's (§4.8.15), reserve Content-Type and nothing else, because each has
-// its own place to state a media type. The comparison is case-insensitive, as
-// HTTP field names are.
-//
-// It reports at the entry's own pointer, not the declaration's: the reserved
-// thing is the key the header is mapped under, so of two keys $ref'ing one
-// component only the one spelled Content-Type is reserved.
-//
-// This is the headers-map half of the rule; reservedHeaderParamDiag is the
-// parameter half. The header still lowers (see diag.ReservedHeaderName).
-func reservedHeaderEntryDiag(c lowering.Ctx, name string, hptr jsontext.Pointer) []ir.Diagnostic {
-	if !strings.EqualFold(name, "Content-Type") {
-		return nil
-	}
-	return []ir.Diagnostic{c.DiagAt(ir.SeverityWarning, diag.ReservedHeaderName, hptr,
-		"header %q is reserved: OpenAPI says a Content-Type entry in a headers map SHALL be "+
-			"ignored, so it is lowered as declared and left for the emitter to suppress", name)}
 }
 
 // lowerHeader lowers one header entry into a Header. Its schema goes through

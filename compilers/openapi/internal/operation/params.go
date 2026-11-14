@@ -7,7 +7,6 @@ import (
 	"encoding/json/jsontext"
 	"slices"
 	"strconv"
-	"strings"
 
 	"github.com/speakeasy-api/openapi/jsonschema/oas3"
 	soa "github.com/speakeasy-api/openapi/openapi"
@@ -86,7 +85,6 @@ func lowerParameter(c lowering.Ctx, w walk, id ir.ParamID, p *soa.Parameter, ppt
 		AllowEmptyValue: p.GetAllowEmptyValue(),
 	}
 	elected, diags := fillParamType(c, w, &param, &binding, p, pptr)
-	diags = append(diags, reservedHeaderParamDiag(c, name, in, pptr)...)
 	diags = append(diags, fillParamDetail(c, w.types, &param, p, pptr, elected)...)
 	if p.AllowReserved != nil {
 		return param, binding, diags
@@ -95,30 +93,6 @@ func lowerParameter(c lowering.Ctx, w walk, id ir.ParamID, p *soa.Parameter, ppt
 	reserved, promoted := lowering.AllowReserved(c.Promoter(), param.Unmodeled, &param.Provenance)
 	binding.AllowReserved = reserved
 	return param, binding, append(diags, promoted...)
-}
-
-// reservedHeaderParamDiag reports a header parameter OpenAPI §4.8.12 reserves —
-// one named Accept, Content-Type or Authorization, whose definition it says
-// SHALL be ignored. The comparison is case-insensitive because HTTP field names
-// are, so a parameter spelled "authorization" collides with the security scheme
-// exactly as one spelled "Authorization" does.
-//
-// This is the parameter half of the rule, and reservedHeaderEntryDiag is the
-// headers-map half. The parameter still lowers: see diag.ReservedHeaderName for
-// why keeping it and reporting it is the choice, rather than dropping it here.
-func reservedHeaderParamDiag(c lowering.Ctx, name string, in soa.ParameterIn, pptr jsontext.Pointer) []ir.Diagnostic {
-	if in != soa.ParameterInHeader {
-		return nil
-	}
-	for _, reserved := range []string{"Accept", "Content-Type", "Authorization"} {
-		if !strings.EqualFold(name, reserved) {
-			continue
-		}
-		return []ir.Diagnostic{c.DiagAt(ir.SeverityWarning, diag.ReservedHeaderName, pptr,
-			"header parameter %q is reserved: OpenAPI says a definition for %s SHALL be ignored, "+
-				"so it is lowered as declared and left for the emitter to suppress", name, reserved)}
-	}
-	return nil
 }
 
 // fillParamType lowers a parameter's type from the spelling electTypeSpelling

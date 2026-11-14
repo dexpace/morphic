@@ -4719,11 +4719,18 @@ location but `query`, which OpenAPI forbids, it is an `openapi/validation` error
 
 A header parameter named `Accept`, `Content-Type` or `Authorization`, which OpenAPI says SHALL be
 ignored because the protocol layer owns the name, lowers as declared and is reported as an
-`openapi/reserved-header-name` warning at the parameter: dropping declared content is an emitter's
-call, not a compiler's, and the diagnostic lets an emitter suppress it.
+`openapi/reserved-header-name` warning at its `name`: dropping declared content is an emitter's
+call, not a compiler's, and the diagnostic lets an emitter suppress it. A `headers` map of a
+Response Object or an Encoding Object reserves `Content-Type`, which each states elsewhere, and an
+entry under it is reported the same way at the entry. Names compare in any case, as HTTP compares
+field names. The rule table reports both ([`validation`](#validation)), wherever the object is
+written, so a component nothing references is reported, and one many operations use is reported
+once.
 
 - Codes: `openapi/reserved-header-name`
-- Tests: `operation.TestParams_ReservedHeaderNamesAreReported`
+- Tests: `operation.TestParams_ReservedHeaderNamesAreReported`,
+  `oas.TestCheck_ReservedHeaderParameter`, `oas.TestCheck_ReservedHeaderEntries`,
+  `e2e.TestReservedHeaderNames_ReportedOnceWhereverWritten`, `e2e.TestUnknownKeys_ObjectsKeptWhole`
 
 ### `idempotency-inference`
 

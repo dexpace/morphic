@@ -109,6 +109,8 @@ func (r ruler) apply(rule Rule) {
 		r.misplaced(rule)
 	case RuleCode:
 		r.code(rule)
+	case RuleReserved:
+		reservedNames(r, rule)
 	}
 }
 
@@ -346,6 +348,46 @@ func (r ruler) inapplicable(rule Rule) {
 	r.w.add(diag.Newf(ir.SeverityWarning, diag.InapplicableLocationKeyword, r.w.locate(ptr),
 		"%s field %s has no effect for %s in OpenAPI %s, which applies it %s; lowered as declared",
 		r.f.obj.noun(), rule.Field, r.place(rule.When), r.w.minor, rule.Scope), ptr)
+}
+
+// reservedNames warns of a name the rule reserves, where the conditions hold:
+// the value of a string field, at the field, or a key of a map field, at the
+// key. OpenAPI says a definition under it SHALL be ignored; it lowers as
+// declared, for the emitter to suppress.
+func reservedNames(r ruler, rule Rule) {
+	node := nodeview.Deref(r.f.byKey[rule.Field])
+	if node == nil || r.f.test(rule.When) != yes {
+		return
+	}
+	ptr := r.f.at.ptr.AppendToken(rule.Field)
+	if name, ok := textOf(node); ok {
+		if reserved, is := reservedName(name, rule.Names); is {
+			r.w.warn(diag.ReservedHeaderName, ptr, "header %s %q is reserved: OpenAPI says a definition for %s SHALL "+
+				"be ignored, so it is lowered as declared and left for the emitter to suppress", r.f.obj.noun(), name, reserved)
+		}
+		return
+	}
+	if node.Kind != yaml.MappingNode {
+		return
+	}
+	for _, p := range r.w.view.MappingPairs(node) {
+		if reserved, is := reservedName(p.Key, rule.Names); is {
+			r.w.warn(diag.ReservedHeaderName, ptr.AppendToken(p.Key), "header %q is reserved: OpenAPI says a %s entry "+
+				"in a headers map SHALL be ignored, so it is lowered as declared and left for the emitter to suppress",
+				p.Key, reserved)
+		}
+	}
+}
+
+// reservedName returns the one of names that name spells in any case, as HTTP
+// compares field names, and whether there is one.
+func reservedName(name string, names []string) (string, bool) {
+	for _, reserved := range names {
+		if strings.EqualFold(name, reserved) {
+			return reserved, true
+		}
+	}
+	return "", false
 }
 
 // misplaced warns of each field written where the conditions bar it.

@@ -225,6 +225,13 @@ func misplaced(s Span, fields []string, cond []Term, cites ...Cite) Rule {
 	return Rule{Kind: RuleMisplaced, Span: s, Level: Should, Fields: fields, When: cond, Cites: cites}
 }
 
+// reserved returns a rule: name, when the terms hold, names none of names in
+// any case, as HTTP compares field names; a string field by its value, a map
+// field by each of its keys.
+func reserved(s Span, name string, cond []Term, names []string, cites ...Cite) Rule {
+	return Rule{Kind: RuleReserved, Span: s, Level: Should, Field: name, When: cond, Names: names, Cites: cites}
+}
+
 // code returns a rule written in Go, reported by owner when it is not empty.
 func code(s Span, name, owner string, cites ...Cite) Rule {
 	return Rule{Kind: RuleCode, Span: s, Name: name, Owner: owner, Cites: cites}
