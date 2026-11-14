@@ -24,9 +24,11 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/operation"
 	"github.com/dexpace/morphic/compilers/openapi/internal/overlay"
 	"github.com/dexpace/morphic/compilers/openapi/internal/pagination"
+	"github.com/dexpace/morphic/compilers/openapi/internal/paramchoice"
 	"github.com/dexpace/morphic/compilers/openapi/internal/replacement"
 	"github.com/dexpace/morphic/compilers/openapi/internal/schema"
 	"github.com/dexpace/morphic/compilers/openapi/internal/servers"
+	"github.com/dexpace/morphic/compilers/openapi/internal/stream"
 	"github.com/dexpace/morphic/compilers/openapi/internal/whole"
 	"github.com/dexpace/morphic/ir"
 )
@@ -248,6 +250,8 @@ func run(ctx context.Context, c lowering.Ctx, ts *compile.Types, newWhole func(*
 	// there is none, wins over what the names an operation uses suggest.
 	stated, pageDiags := pagination.Promote(c, w, out.Unmodeled)
 	acc.AppendAll(pageDiags)
+	acc.AppendAll(stream.PromoteDetail(c, w))
+	acc.AppendAll(paramchoice.PromoteChoices(c, w))
 	acc.AppendAll(replacement.Resolve(c, w))
 	acc.AppendAll(replacement.Infer(c, w))
 	acc.AppendAll(convention.Apply(c, w))
@@ -329,7 +333,7 @@ func loweringCtx(doc *load.Document, o Options) lowering.Ctx {
 		Streaming:              o.StreamingMedia,
 		Binary:                 o.BinaryMedia,
 		Promotions:             o.Promotions,
-		NullableWidening:       o.NullableWidening,
+		NullableInference:      o.NullableInference,
 		DiscriminatorInference: o.DiscriminatorInference,
 		IdempotencyInference:   o.IdempotencyInference,
 		SecretInference:        o.SecretInference,

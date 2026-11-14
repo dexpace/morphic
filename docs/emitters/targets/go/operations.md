@@ -10,6 +10,9 @@ form or multipart body gives the struct a field for each of its members in place
 body, a caller writing `UploadParams{File: f, Title: &t}` ([the
 body](../../refine/requests.md#the-body)).
 
+A choice among parameters adds no field and no type; `Validate` checks it ([request
+shaping](../../refine/requests.md)).
+
 ## Pagination
 
 The IR, the plan and what every target generates are in

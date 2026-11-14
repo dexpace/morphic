@@ -8,6 +8,7 @@ import (
 	"maps"
 	"slices"
 	"strings"
+	"unicode"
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
@@ -79,18 +80,20 @@ type deprecated struct {
 }
 
 // scope is how a message names an entity of one class: the class, as a report
-// names it, the names a message gives, and what finds the entity a name names,
-// returning how many it matches and the entity, read only where that is one.
+// names it, the names a message gives, each with where it is written, and what
+// finds the entity a name names, returning how many it matches and the entity,
+// read only where that is one.
 type scope struct {
 	class string
-	named func(string) []string
+	named func(string) []named
 	find  func(string) (ir.EntityRef, int)
 }
 
 // message fills, under the replacement policy, the replacements n's message
 // names, where n is deprecated and its own keys write none, so that nothing
-// the promotion fills is read over. A message naming no entity of n's class,
-// or n alone, names no replacement. One naming another fills the field all or
+// the promotion fills is read over. Only a name a phrase introduces is read
+// (introducedNames). A message naming no entity of n's class, or n alone,
+// names no replacement. One naming another fills the field all or
 // none, n passed over and a repeat kept once: a name naming nothing, or
 // several entities, leaves it unset, reported, the prose keeping it. n is
 // marked where they fill it. The rule is
@@ -99,7 +102,7 @@ func (r *resolver) message(n deprecated, s scope) []ir.Diagnostic {
 	if n.dep == nil || r.p.Writes(n.own, lowering.TargetDeprecationReplacedBy) {
 		return nil
 	}
-	names := s.named(n.dep.Message)
+	names := introducedNames(n.dep.Message, s.named(n.dep.Message))
 	refs := make([]ir.EntityRef, 0, len(names))
 	named, why := false, ""
 	for _, name := range names {
@@ -136,20 +139,21 @@ func (r *resolver) message(n deprecated, s scope) []ir.Diagnostic {
 	return nil
 }
 
-// codeSpans returns the content of each code span in text, in order, as
-// CommonMark reads one (§6.1): a run of backticks opens a span that the next
+// codeSpans returns the content of each code span in text, in order, and
+// where the span is written, its backticks included, as CommonMark reads one
+// (§6.1): a run of backticks opens a span that the next
 // run of as many closes, a line ending in it reads as a space, and a space at
 // each end is stripped once from content that is not all spaces. A run nothing
 // closes is literal text. The runs are found in one pass, and the next run of
 // each length by a cursor that only moves forward.
-func codeSpans(text string) []string {
+func codeSpans(text string) []named {
 	runs := backtickRuns(text)
 	byLength := map[int][]int{}
 	for i, r := range runs {
 		byLength[r.length] = append(byLength[r.length], i)
 	}
 	cursor := map[int]int{}
-	var spans []string
+	var spans []named
 	for i := 0; i < len(runs); {
 		open := runs[i]
 		same := byLength[open.length]
@@ -163,7 +167,8 @@ func codeSpans(text string) []string {
 			continue
 		}
 		closing := runs[same[k]]
-		spans = append(spans, spanContent(text[open.start+open.length:closing.start]))
+		spans = append(spans, named{text: spanContent(text[open.start+open.length : closing.start]),
+			start: open.start, end: closing.start + closing.length})
 		i = same[k] + 1
 	}
 	return spans
@@ -233,21 +238,51 @@ func indexRoutes(ops []*ir.Operation) routeIndex {
 // named returns each route text names: a word that is a method ix holds, a
 // backtick or a parenthesis before it aside, and after white space a path,
 // inside a code span or out of one, up to the next white space or backtick.
-// Each is `<method> <path>`, the path as written, punctuation after it kept.
-func (ix routeIndex) named(text string) []string {
-	words := strings.Fields(text)
-	var routes []string
+// Each is `<method> <path>`, the path as written, punctuation after it kept,
+// written from its method, a backtick before it included, to its path's end,
+// a backtick closing it included.
+func (ix routeIndex) named(text string) []named {
+	words := fields(text)
+	var routes []named
 	for i := 0; i+1 < len(words); i++ {
-		method := strings.TrimLeft(words[i], "`(")
+		method := strings.TrimLeft(words[i].text, "`(")
 		if !ix.methods[method] {
 			continue
 		}
-		path, _, _ := strings.Cut(strings.TrimLeft(words[i+1], "`"), "`")
-		if strings.HasPrefix(path, "/") {
-			routes = append(routes, method+" "+path)
+		next := words[i+1]
+		rest := strings.TrimLeft(next.text, "`")
+		path, _, closed := strings.Cut(rest, "`")
+		if !strings.HasPrefix(path, "/") {
+			continue
 		}
+		end := next.start + len(next.text) - len(rest) + len(path)
+		if closed {
+			end++
+		}
+		start := words[i].start + len(words[i].text) - len(strings.TrimLeft(words[i].text, "("))
+		routes = append(routes, named{text: method + " " + path, start: start, end: end})
 	}
 	return routes
+}
+
+// fields returns the runs of text between white space, each with where it
+// starts, as strings.Fields splits text.
+func fields(text string) []named {
+	var out []named
+	start := -1
+	for i, c := range text {
+		switch {
+		case !unicode.IsSpace(c) && start < 0:
+			start = i
+		case unicode.IsSpace(c) && start >= 0:
+			out = append(out, named{text: text[start:i], start: start, end: i})
+			start = -1
+		}
+	}
+	if start >= 0 {
+		out = append(out, named{text: text[start:], start: start, end: len(text)})
+	}
+	return out
 }
 
 // find returns the operation route names, and how many it names: the route as

@@ -17,9 +17,9 @@ import (
 )
 
 // The shorthand a pagination expression may take instead of a runtime
-// expression: a dotted chain of names after the side it reads.
+// expression: a dotted chain of names after the side it reads, which
+// runtimeexpr.RequestValue reads for the request.
 const (
-	shorthandRequest  = "$" + runtimeexpr.SourceRequest + "."
 	shorthandResponse = "$" + runtimeexpr.SourceResponse + "."
 )
 
@@ -80,7 +80,7 @@ func (pg *pager) input(op *ir.Operation, target lowering.ExtensionTarget) (resol
 		if !st.Stated {
 			return r, "", diags
 		}
-		in, failure := pg.requestValue(op, st.Expression)
+		in, _, failure := runtimeexpr.RequestValue(pg.w, op, st.Expression)
 		r.value = in
 		return r, failure, diags
 	}, sameInput)
@@ -113,71 +113,6 @@ func sameInput(a, b *ir.InputPath) bool {
 // sameOutput reports whether two page values name one value.
 func sameOutput(a, b *ir.PropPath) bool {
 	return a.In == b.In && slices.Equal(a.Segments, b.Segments)
-}
-
-// requestValue resolves text, an expression naming a value of op's request:
-// a runtime expression reading a parameter or the body, or the shorthand
-// `$request.` and a dotted chain of names, the first a parameter's name or,
-// where no parameter carries it, a member of the body. It returns why it
-// resolves nothing.
-func (pg *pager) requestValue(op *ir.Operation, text string) (*ir.InputPath, string) {
-	if e, isExpression, err := runtimeexpr.Parse(text); isExpression && err == nil {
-		if e.Source != runtimeexpr.SourceRequest {
-			return nil, "names no value of the request"
-		}
-		if e.Part == runtimeexpr.PartBody {
-			return pg.bodyInput(op, e.Tokens)
-		}
-		found := pg.w.Params(op).Bound(ir.HTTPLocation(e.Part), e.Name)
-		if len(found) != 1 {
-			return nil, "reads " + e.Part + " parameter " + strconv.Quote(e.Name) + ", which the operation does not declare once"
-		}
-		return &ir.InputPath{Param: &found[0]}, ""
-	}
-	rest, ok := strings.CutPrefix(text, shorthandRequest)
-	names := strings.Split(rest, ".")
-	if !ok || slices.Contains(names, "") {
-		return nil, "is no expression naming a value of the request"
-	}
-	switch found := pg.w.Params(op).Bound("", names[0]); len(found) {
-	case 0:
-		return pg.bodyInput(op, names)
-	case 1:
-		return pg.paramInput(op, found[0], names[1:])
-	default:
-		return nil, "names parameter " + strconv.Quote(names[0]) + ", which the operation declares in more than one location"
-	}
-}
-
-// bodyInput is the member of op's request body tokens walk to, the body whole
-// for none.
-func (pg *pager) bodyInput(op *ir.Operation, tokens []string) (*ir.InputPath, string) {
-	segments, why, ok := runtimeexpr.BodyPath(pg.w, op.Request, tokens, "request")
-	if !ok {
-		return nil, why
-	}
-	return &ir.InputPath{Segments: segments}, ""
-}
-
-// paramInput is the member of op's parameter id that names walk to, the
-// parameter whole for none.
-func (pg *pager) paramInput(op *ir.Operation, id ir.ParamID, names []string) (*ir.InputPath, string) {
-	in := &ir.InputPath{Param: &id}
-	if len(names) == 0 {
-		return in, ""
-	}
-	i := slices.IndexFunc(op.Params, func(p ir.Parameter) bool { return p.ID == id })
-	if i < 0 {
-		// A binding names only a parameter its operation holds.
-		return nil, "names parameter " + string(id) + ", which a binding names and the operation does not hold"
-	}
-	segments, ok := pg.w.Walk(op.Params[i].Type.Target, names)
-	if !ok {
-		return nil, "reads " + strings.Join(names, ".") + " of parameter " + strconv.Quote(op.Params[i].Name.Source) +
-			", which holds no such chain of members"
-	}
-	in.Segments = segments
-	return in, ""
 }
 
 // responseValue resolves text, an expression naming a value every success

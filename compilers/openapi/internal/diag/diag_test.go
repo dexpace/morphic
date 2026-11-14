@@ -165,14 +165,14 @@ func codes() []string {
 		diag.InvalidLink,
 		diag.UntypedLink,
 		diag.ReservedHeaderName, diag.UnpreservableConstruct,
-		diag.UnknownSchemaKeyword, diag.UnknownObjectKey, diag.UnreadExtension, diag.UnknownKeyBudget,
+		diag.UnknownSchemaKeyword, diag.UnknownObjectKey, diag.UnreadExtension, diag.UnpromotedExtension, diag.UnknownKeyBudget,
 		diag.UnknownKeyUnreachable, diag.UnknownKeyEntryTaken,
 		diag.InvalidLocationKeyword, diag.InapplicableLocationKeyword,
 		diag.MissingArrayItems, diag.LaterVersionConstruct, diag.ItemSchemaOnDocument,
 		diag.InvalidPathKey, diag.InferredNullable, diag.UnreadDialect, diag.InvalidItemsList,
 		diag.InferredDiscriminator,
 		diag.InferredHTTPDate, diag.UndecidedIdempotency, diag.UndecidedReplacement,
-		diag.UndecidedPagination, diag.UnpromotedExtension,
+		diag.UndecidedPagination,
 	}
 }
 

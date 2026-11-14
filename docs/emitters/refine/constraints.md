@@ -18,3 +18,8 @@ compares them by `ir.Decimal`, never by a float or a rational, which cannot buil
 `Pattern` a target's regex engine cannot honor is dropped with a `warning` diagnostic, never
 silently mistranslated, and a constraint on a type only a user's type-table row knows is left to the
 server with an info diagnostic ([type table](../contract/type-table.md)).
+
+`LowerConstraints` also reads `Operation.ParamChoices` into the request type's `Validate()`: one
+check per choice, failing where the fields set belong to no single variant, or to none where the
+choice is `Required`, and naming the choice and its variants
+([choices among parameters](../../ir/operations.md#choices-among-parameters)).

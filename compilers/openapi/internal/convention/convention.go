@@ -35,7 +35,7 @@ func Apply(c lowering.Ctx, w *whole.Document) (diags []ir.Diagnostic) {
 
 // operation fills what op's names imply: its idempotency token, the redaction
 // of its parameters and of every header it declares, and the text of each of
-// its responses' headers.
+// its header parameters and its responses' headers.
 func operation(c lowering.Ctx, w *whole.Document, op *ir.Operation) []ir.Diagnostic {
 	reg := w.Types
 	diags := idempotency(c, w, op)
@@ -43,6 +43,7 @@ func operation(c lowering.Ctx, w *whole.Document, op *ir.Operation) []ir.Diagnos
 		p := &op.Params[i]
 		redactUse(c, reg, p.Name, p.Type, p.Unmodeled, &p.Secret, &p.Provenance)
 	}
+	diags = append(diags, httpDateParam(c, reg, op)...)
 	for _, hs := range responseHeaders(op) {
 		for i := range hs {
 			redact(c, reg, &hs[i].Property)

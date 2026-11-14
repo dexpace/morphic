@@ -168,7 +168,7 @@ func TestDocumentDialect_ADocumentOfSchemasNamesItsDialectAtItsRoot(t *testing.T
 	t.Parallel()
 	doc, diags := compileMinors(t, minorRoot("3.1.0"),
 		`{"$schema": "http://json-schema.org/draft-04/schema#", "components": {"schemas": {"S": `+
-			`{"type": "integer", "minimum": 5, "exclusiveMinimum": true}}, "responses": {"R": {"description": "ok"}}}}`, openapi.NullableWidening{})
+			`{"type": "integer", "minimum": 5, "exclusiveMinimum": true}}, "responses": {"R": {"description": "ok"}}}}`, openapi.NullableInference{})
 	openapitest.RequireNoErrorDiags(t, diags)
 	assert.Equal(t, map[jsontext.Pointer]ir.BigVal{"/components/schemas/S": "5"}, extBounds(doc))
 }

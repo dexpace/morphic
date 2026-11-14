@@ -67,6 +67,15 @@ func pathRoute(key string) (route, fragment string, fragmented bool) {
 	return key[:s.fragmentAt], key[s.fragmentAt+1:], true
 }
 
+// pathOnly returns template, a URI template carrying no fragment, less the
+// query it carries: from the "?" a pathKeyScan reads as beginning one, so a
+// "?" inside a template expression begins none.
+func pathOnly(template string) string {
+	s := pathKeyScan{key: template, fragmentAt: -1}
+	s.read()
+	return template[:len(template)-len(s.query)]
+}
+
 // pathKeyScan is one left-to-right reading of a Paths key, recording the path
 // templating rules it breaks.
 type pathKeyScan struct {

@@ -10,7 +10,7 @@ its methods from that ([Go](../targets/go/operations.md#streaming),
 
 IR: `Operation{ Streaming:server, ResponseStream:&StreamDetail{ Events:&TypeRef→Metrics },
 Responses:[200 → {application/json → MetricsPage, text/event-stream → Metrics
-Stream:&ContentStream{Inferred:streaming-media-type}}] }`, bound `HTTPBinding{GET /metrics}`. The
+Stream:&ContentStream{Inferred:streaming-inference}}] }`, bound `HTTPBinding{GET /metrics}`. The
 event stream's `Stream` says it is the content that streams, and no binding field states the
 framing: the content's `MediaType` does.
 

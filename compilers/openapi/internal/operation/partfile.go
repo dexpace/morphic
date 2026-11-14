@@ -133,7 +133,7 @@ func partContentFile(c lowering.Ctx, contentTypes []string) partFile {
 		switch {
 		case lowering.NormalizeMediaType(ct) == octetStream:
 		case c.MediaTypeBinary(ct):
-			out.inferred = lowering.BinaryMediaTypeHeuristic
+			out.inferred = lowering.BinaryInferenceHeuristic
 		default:
 			return partFile{}
 		}

@@ -192,7 +192,6 @@ member 0 0 StreamCondition.value
 member 0 0 StreamDetail.condition
 member 0 0 StreamDetail.initial
 member 0 0 StreamDetail.requiresLength
-member 0 0 StreamDetail.terminator
 member 0 0 TemplateArg.type
 member 0 0 TemplateArg.value
 member 0 0 TemplateInstantiation.args

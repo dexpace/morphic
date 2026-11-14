@@ -84,6 +84,9 @@ func markerCarriers() []markerCarrier {
 			}}
 			return doc
 		}, "doc.Auth[auth/x/a].Flows[0].Inferred"},
+		{"a content's own marker", func(list ir.Inferred) *ir.Document {
+			return content(ir.Content{Inferred: list})
+		}, "doc.Services[0].Groups[0].Operations[0].Request.Contents[0].Inferred"},
 		{"a file body's own marker", func(list ir.Inferred) *ir.Document {
 			return content(ir.Content{File: &ir.FileInfo{Inferred: list}})
 		}, "doc.Services[0].Groups[0].Operations[0].Request.Contents[0].File.Inferred"},

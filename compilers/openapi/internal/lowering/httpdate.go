@@ -7,7 +7,7 @@ import "github.com/dexpace/morphic/ir"
 
 // HTTPDateInferenceHeuristic is the name a header's Provenance.Inferred carries
 // where the HTTP-date policy set its Encoding. It is a constant for the reason
-// StreamingMediaTypeHeuristic is: an auditor greps for it.
+// StreamingInferenceHeuristic is: an auditor greps for it.
 const HTTPDateInferenceHeuristic ir.Inferred = "http-date-inference"
 
 // HTTPDateInference is the HTTP-date policy: whether a response header whose

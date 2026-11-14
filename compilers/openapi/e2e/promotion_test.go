@@ -475,6 +475,9 @@ func TestPromotion_DefaultTargetsAreTheOnesApplied(t *testing.T) {
 		if strings.HasPrefix(string(target), "pagination.") {
 			continue // no one key fills a pagination; the extension-pagination case reads each
 		}
+		if target == openapi.TargetStreamTerminator || target == openapi.TargetParamChoices {
+			continue // each needs a stream or parameters; the stream-terminator and param-choices cases read it
+		}
 		read, known := defaultTargetRead[target]
 		require.True(t, known, "%s is a default target this test reads no field for", target)
 		for _, src := range sources {

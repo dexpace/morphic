@@ -46,6 +46,14 @@ func TestOperation_PopulatedRoundTrip(t *testing.T) {
 			{Name: ir.Naming{Source: "limit"}, Type: populatedTypeRef(), Required: true},
 			{Name: ir.Naming{Source: "offset"}, Type: populatedTypeRef(), Required: false},
 		},
+		ParamChoices: []ir.ParamChoice{{
+			Name:     ir.Naming{Source: "paging"},
+			Required: true,
+			Variants: []ir.ParamVariant{
+				{Name: ir.Naming{Source: "by_limit"}, Params: []ir.ParamID{"param/x/limit"}},
+				{Name: ir.Naming{Source: "by_offset"}, Params: []ir.ParamID{"param/x/offset"}},
+			},
+		}},
 		Request: &ir.Payload{Contents: []ir.Content{{MediaType: "application/json", Type: populatedTypeRef()}}},
 		Responses: []ir.Response{
 			{
@@ -245,6 +253,7 @@ func TestParameter_JSONContract(t *testing.T) {
 			Required:     true,
 			Default:      &ir.Value{Kind: ir.ValueNumber, Num: ir.BigVal("10")},
 			Constraints:  populatedConstraints(),
+			Encoding:     &ir.Encoding{Name: "http-date"},
 			ValueFrom:    &ir.PropPath{In: "header", Segments: []ir.PropID{"p/x"}},
 			Docs:         populatedDocs(),
 			Deprecation:  populatedDeprecation(),
@@ -333,7 +342,7 @@ func TestContent_JSONContract(t *testing.T) {
 		MediaType:    "multipart/form-data",
 		SchemaFormat: "application/vnd.apache.avro+json",
 		Type:         populatedTypeRef(),
-		Stream:       &ir.ContentStream{Inferred: "streaming-media-type"},
+		Stream:       &ir.ContentStream{Inferred: "streaming-inference"},
 		Item:         &ir.TypeRef{Target: "t/item"},
 		ItemEncoding: &ir.PartEncoding{ContentTypes: []string{"application/json"}, Multi: true},
 		Encoding: map[ir.PropID]ir.PartEncoding{
@@ -346,6 +355,7 @@ func TestContent_JSONContract(t *testing.T) {
 		},
 		Docs:      ir.Docs{Summary: "One form.", Description: "The body as a form."},
 		Unmodeled: populatedUnmodeled(),
+		Inferred:  "extension-promotion",
 	})
 }
 
@@ -388,7 +398,7 @@ func TestContent_ItemEncodingSingular(t *testing.T) {
 // keeps apart from no stream at all, and a fully populated one round-trips.
 func TestContentStream_JSONContract(t *testing.T) {
 	t.Parallel()
-	assertJSONContract(t, ir.ContentStream{}, `{}`, ir.ContentStream{Inferred: "streaming-media-type"})
+	assertJSONContract(t, ir.ContentStream{}, `{}`, ir.ContentStream{Inferred: "streaming-inference"})
 	declared := ir.Content{Type: populatedTypeRef(), Stream: &ir.ContentStream{}}
 	assert.Contains(t, assertDeterministicMarshal(t, declared), `"stream":{}`)
 	assertRoundTrip(t, declared)
@@ -406,7 +416,7 @@ func TestPartEncoding_JSONContract(t *testing.T) {
 		Headers:       []ir.Header{populatedHeader()},
 		Multi:         true,
 		Filename:      true,
-		Inferred:      "binary-media-type",
+		Inferred:      "binary-inference",
 		Style:         "form",
 		Explode:       new(false),
 		AllowReserved: true,
@@ -425,7 +435,7 @@ func TestFileInfo_JSONContract(t *testing.T) {
 		ContentTypeDefault: "image/png",
 		FilenameLocation:   "header",
 		FilenameWireName:   "X-Filename",
-		Inferred:           "binary-media-type",
+		Inferred:           "binary-inference",
 	})
 }
 

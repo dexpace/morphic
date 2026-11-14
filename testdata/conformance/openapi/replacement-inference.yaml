@@ -4,7 +4,10 @@
 # by a code span naming a member of its model or a parameter of its operation.
 # A message naming something the document does not declare fills nothing, and
 # keeps its prose; one naming such a name beside a member it declares is
-# reported as undecided.
+# reported as undecided. A name is read only where a phrase introduces it as a
+# replacement: one a message mentions to say what a deprecated entity differs
+# from, was called, replaced or must not be used for is read as no
+# replacement.
 openapi: 3.1.0
 info: {title: ReplacementInference, version: "1.0.0"}
 paths:
@@ -31,6 +34,35 @@ paths:
     get:
       operationId: listZones
       responses: {'204': {description: ok}}
+  /v0/zones:
+    get: {operationId: listZonesV0, responses: {'204': {description: ok}}}
+    post: {operationId: createZoneV0, responses: {'204': {description: ok}}}
+  /old/zones:
+    get:
+      operationId: listZonesOld
+      deprecated: true
+      x-deprecated-reason: "Unlike `GET /v0/zones`, this pages."
+      responses: {'204': {description: ok}}
+    post:
+      operationId: createZoneOld
+      deprecated: true
+      x-deprecated-reason: "This endpoint replaced POST /v0/zones."
+      responses: {'204': {description: ok}}
+  /things:
+    get:
+      operationId: listThings
+      responses:
+        '200':
+          description: ok
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  a: {type: string, deprecated: true, x-deprecated-reason: "Formerly `b`."}
+                  b: {type: string}
+                  c: {type: string, deprecated: true, x-deprecated-reason: "Use `d`, not `b`."}
+                  d: {type: string}
 components:
   schemas:
     Zone:

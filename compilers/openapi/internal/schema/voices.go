@@ -286,7 +286,7 @@ func disagreed(c lowering.Ctx, bs *oas3.Schema, residue []string) bool {
 // foldsNullable says so.
 func folds(c lowering.Ctx, bs *oas3.Schema, keyword string, homes boundHomes) bool {
 	if keyword == "nullable" {
-		return c.NullableWidening.Honours() && foldsNullable(bs)
+		return c.NullableInference.Honours() && foldsNullable(bs)
 	}
 	if slices.Contains(valueConstraintKeywords, keyword) {
 		return taken(writerTakes(homes.value, bs), keyword)

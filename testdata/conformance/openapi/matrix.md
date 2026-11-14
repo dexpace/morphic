@@ -120,11 +120,15 @@ witnessing it.
 
 ### `operation-grouping`
 
-- Witnesses: `tags-grouping`, `group-identity`, `tags-grouping-32`
+- Witnesses: `tags-grouping`, `group-identity`, `tags-grouping-32`, `path-prefix-query`
 
 ### `http-binding`
 
 - Witnesses: `param-identity`, `http-binding`, `path-item-operations`, `path-key-fragments`
+
+### `exclusive-parameters`
+
+- Witnesses: `param-choices`
 
 ### `param-styles`
 
@@ -146,7 +150,7 @@ witnessing it.
 
 ### `streaming-server`
 
-- Witnesses: `sequential-media`, `streaming-media-30`, `streaming-media-31`
+- Witnesses: `sequential-media`, `streaming-media-30`, `streaming-media-31`, `stream-terminator`
 
 ### `streaming-client`
 

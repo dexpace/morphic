@@ -51,6 +51,7 @@ rows no spec names yet, which are the ones the next compiler will be first to bi
 | `operation-grouping` | Operations grouped by service/interface | ✅ tags (3.2 parent/kind) | ⚠ tags | ✅ interface/namespace | ✅ service/resource | ✅ Query/Mutation/Subscription | ⚠ | ✅ service | ✅ module |
 | `resource-hierarchy` | Resource hierarchy (CRUDL) | — | — | ⚠ @autoRoute | ✅ resource (incl. put, instance vs collection ops) | — | — | — | — |
 | `http-binding` | HTTP binding (method/path/status) | ✅ | ✅ | ✅ @route/@get… | ✅ http traits | — | ⚠ ws binding | ⚠ transcoding | — |
+| `exclusive-parameters` | Alternatives among an operation's separately declared parameters | ⚠ an x-* key a promotion mapping names | — | — | — | — | — | — (a oneof is a union in the request message: tagged-unions) | — |
 | `param-styles` | Param styles (explode, matrix…) | ✅ style/explode | ⚠ collectionFormat | ✅ | ✅ | — | — | — | — |
 | `prefix-headers` | Headers bound to a map by a name prefix | — | — | — | ✅ @httpPrefixHeaders (input, output, error) | — | — | — | — |
 | `multi-content` | Multiple content types per body | ✅ | ⚠ consumes | ✅ @header contentType | ⚠ | — | ✅ | — | — |

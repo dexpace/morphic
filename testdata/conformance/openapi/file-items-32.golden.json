@@ -241,7 +241,7 @@
                           "nullable": false
                         },
                         "itemEncoding": {
-                          "inferred": "binary-media-type",
+                          "inferred": "binary-inference",
                           "contentTypes": [
                             "image/webp"
                           ],

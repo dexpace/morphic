@@ -57,13 +57,13 @@ func declaring(version string) string {
 const minorResponse = "{description: ok}"
 
 // compileMinors compiles root beside ext, read from memory, under the
-// nullable-widening policy widening.
-func compileMinors(t *testing.T, root, ext string, widening openapi.NullableWidening) (*ir.Document, []ir.Diagnostic) {
+// nullable-inference policy widening.
+func compileMinors(t *testing.T, root, ext string, widening openapi.NullableInference) (*ir.Document, []ir.Diagnostic) {
 	t.Helper()
 	dir := t.TempDir()
 	memory, err := reader.NewMemory([]compilers.Source{{Path: filepath.Join(dir, "ext.yaml"), Data: []byte(ext)}})
 	require.NoError(t, err)
-	opts := openapi.Options{AllowExternalRefs: true, NullableWidening: widening}
+	opts := openapi.Options{AllowExternalRefs: true, NullableInference: widening}
 	doc, diags, err := openapi.New().Compile(t.Context(),
 		[]compilers.Source{{Path: filepath.Join(dir, "root.yaml"), Data: []byte(root)}},
 		compilers.Options{Reader: memory, FormatOptions: opts})
@@ -147,7 +147,7 @@ func TestDocumentMinor_EachDocumentIsReadAtTheMinorItDeclares(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			doc, diags := compileMinors(t, tc.root, tc.ext, openapi.NullableWidening{})
+			doc, diags := compileMinors(t, tc.root, tc.ext, openapi.NullableInference{})
 			openapitest.RequireNoErrorDiags(t, diags)
 			assert.Equal(t, tc.format, doc.Sources[1].Format)
 			assert.Equal(t, tc.bounds, extBounds(doc))
@@ -163,7 +163,7 @@ func TestDocumentMinor_AnObjectIsHeldToItsDocumentsTable(t *testing.T) {
 	t.Parallel()
 	_, diags := compileMinors(t, minorRoot("3.2.0"),
 		minorExt(declaring("3.1.0"), "    S: {type: string}\n", "{content: {application/json: {schema: {type: string}}}}"),
-		openapi.NullableWidening{})
+		openapi.NullableInference{})
 	var found []string
 	for _, d := range diags {
 		if d.Code == diag.Validation+"/validation-required-field" {
@@ -206,7 +206,7 @@ func TestDocumentMinor_ANullIsReadInTheDialectOfItsDocument(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			doc, diags := compileMinors(t, tc.root, tc.ext, openapi.NullableWidening{Disabled: true})
+			doc, diags := compileMinors(t, tc.root, tc.ext, openapi.NullableInference{Disabled: true})
 			openapitest.RequireNoErrorDiags(t, diags)
 			p := holderProps(t, doc)["p"].Type
 			assert.Equal(t, tc.nullable, p.Nullable)
@@ -239,7 +239,7 @@ components:
 `
 	defaultOf := func(alias string) *ir.Value {
 		ext := minorExt(declaring("3.1.0"), alias+"    U: {default: null}\n", minorResponse)
-		doc, diags := compileMinors(t, root, ext, openapi.NullableWidening{})
+		doc, diags := compileMinors(t, root, ext, openapi.NullableInference{})
 		openapitest.RequireNoErrorDiags(t, diags)
 		m, ok := doc.Types[componentID("M")].(*ir.Model)
 		require.True(t, ok)
@@ -321,7 +321,7 @@ paths:
       content:
         multipart/form-data:
           schema: {type: object, properties: {blob: {}}}
-`, openapi.NullableWidening{})
+`, openapi.NullableInference{})
 			openapitest.RequireNoErrorDiags(t, diags)
 			upload, ok := opByName(doc, "upload")
 			require.True(t, ok)

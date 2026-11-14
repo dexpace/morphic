@@ -39,8 +39,8 @@ func TestJoinInferred_ListsEachNameOnceInFirstWrittenOrder(t *testing.T) {
 		{"a repeat past the names a small set holds", []ir.Inferred{distinctNames(stackNames + 1), "n0"},
 			distinctNames(stackNames + 1)},
 		{"the heuristics the compiler writes", []ir.Inferred{
-			"group-path-prefix", "streaming-media-type", "extension-promotion",
-		}, "group-path-prefix,streaming-media-type,extension-promotion"},
+			"group-path-prefix", "streaming-inference", "extension-promotion",
+		}, "group-path-prefix,streaming-inference,extension-promotion"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()

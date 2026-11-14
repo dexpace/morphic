@@ -1497,3 +1497,7 @@ throughout these documents.
     them, and none on a first generation; and no generated file states an SDK's version, a Kotlin
     build whose `version` is set publishing every module and its platform at it
     ([surface verification](../surface-verification.md#the-level-a-regeneration-reports)).
+76. **T-76 · A choice among parameters** — on every target, a request setting one variant's
+    parameters validates, one setting two variants' fails naming the choice, and one setting none
+    fails only where the choice is required ([choices among
+    parameters](../../ir/operations.md#choices-among-parameters)).

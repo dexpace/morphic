@@ -84,6 +84,9 @@ anchored by its model's anchor alone and shown through no shape, which `Shown` t
 `ModelShape`, as an SDK declares it ([a shape reaches what it
 holds](plan/types.md#a-shape-reaches-what-it-holds)).
 
+Each choice among an operation's parameters is rendered with them: its name, whether one variant is
+required, and each variant's parameters.
+
 A table lists every member its model's flattening holds, each name `TypePlan.Undeclared` lists among
 them as a row typed as the catch-all types it, required save in a patch shape's table, which relaxes
 it as it relaxes any member, with no anchor since it has no `PropID`, and anchors a member only
@@ -228,6 +231,9 @@ spec's `realtimekit_StorageConfig` redeclares `access_key` with no bound over a 
 it to one character at least, and a handler reading the taken one alone accepts `""` (spec
 @bc6fad24, morphic @fa253fe19). So an example the plan keeps for a request is a body the mock
 accepts, and a body the mock refuses is one the plan would refuse as an example.
+
+A request carrying parameters of two variants of a choice, or none of a required one, is answered
+as one failing validation is.
 
 - **A union** is read by its `TypePlan.Union`: a discriminated one by the variant its tag routes to,
   a tag naming none taking the order [unions](refine/unions.md#a-value-no-variant-recognizes) gives,

@@ -25,8 +25,8 @@ highlights, and the list moves to a specification of its own when the compiler l
   `unixTimestamp`, `seconds`, `base64` and `base64url` as written, `rfc7231` → `http-date` and
   `ISO8601` → `iso8601`; any other name, `milliseconds` among them, as written with its wire type.
   The encoding TypeSpec's HTTP library specifies for a position by default without applying it,
-  `rfc7231` for a `utcDateTime` or `offsetDateTime` header, is written as that position's Encoding
-  the same way, as `http-date` ([values as text](../emitters/refine/text.md#other-formats))
+  `rfc7231` for a `utcDateTime` or `offsetDateTime` header, is written as that position's Encoding,
+  a header parameter's own `Parameter.Encoding`, the same way, as `http-date` ([values as text](../emitters/refine/text.md#other-formats))
 - `@encodedName` → WireNameByFormat at property AND type level
 - unions w/ named variants → closed Union, `@discriminated` → WireTagged +
   Discriminator.PropertyName/Envelope/EnvelopeValueName
@@ -101,7 +101,7 @@ highlights, and the list moves to a specification of its own when the compiler l
 - `@timestampFormat`, the text an HTTP binding gives a position by default, `http-date` for a
   timestamp in a header, `date-time` for one in a label or a query and base64 for a `@mediaType`
   string in a header, and the format a protocol gives a timestamp where neither says → that
-  position's Encoding ([values as text](../emitters/refine/text.md#other-formats)), under the names
+  position's Encoding, a parameter's own `Parameter.Encoding` ([values as text](../emitters/refine/text.md#other-formats)), under the names
   the IR documents ([encodings](../ir/constraints.md#encodings)), which key an emitter's rows:
   `http-date` as written, `date-time` → `rfc3339`, and `epoch-seconds` → `unixTimestamp` with a
   `float64` WireType, the number with a fraction Smithy writes, and the `@mediaType` string in a
