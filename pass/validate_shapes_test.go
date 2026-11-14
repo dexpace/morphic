@@ -45,12 +45,14 @@ func shapesDoc(props ...ir.Property) *ir.Document {
 // TestValidate_BoundsAreJoinedAcrossTheShapesAChainEnds holds each type a chain
 // of aliases can end at to the bounds it takes, and a bound that does not parse
 // and a chain that never ends to no finding: a tuple, a map, a model and a
-// list read the bounds of their own, an alias of one reads them as well, and
-// the rest are left to irverify or to the types that hold them.
+// list read the bounds of their own, here a minimum the position's maximum
+// contradicts, an alias of one reads them as well, and the rest are left to
+// irverify or to the types that hold them. Of two ends of one value, the
+// exclusive one is kept.
 func TestValidate_BoundsAreJoinedAcrossTheShapesAChainEnds(t *testing.T) {
 	t.Parallel()
-	items := &ir.Constraints{MinItems: new(int64(2)), MaxItems: new(int64(1))}
-	members := &ir.Constraints{MinProps: new(int64(2)), MaxProps: new(int64(1))}
+	items := &ir.Constraints{MaxItems: new(int64(1))}
+	members := &ir.Constraints{MaxProps: new(int64(1))}
 	for _, tc := range []struct {
 		name string
 		typ  ir.TypeRef
@@ -70,10 +72,18 @@ func TestValidate_BoundsAreJoinedAcrossTheShapesAChainEnds(t *testing.T) {
 		{"a maximum above a minimum", intT, numeric("1", "", "2", ""), 0},
 		{"two minimums, the greater kept", intT, &ir.Constraints{Min: big("3"), ExclusiveMin: big("1"), Max: big("2")}, 1},
 		{"two maximums, the lesser kept", intT, &ir.Constraints{Min: big("3"), Max: big("9"), ExclusiveMax: big("2")}, 1},
+		{"a minimum and an exclusive one at it", intT, &ir.Constraints{Min: big("5"), ExclusiveMin: big("5"), Max: big("5")}, 1},
+		{"a maximum and an exclusive one at it", intT, &ir.Constraints{Min: big("5"), Max: big("5"), ExclusiveMax: big("5")}, 1},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			got := found(t, shapesDoc(prop("p/a/x", tc.typ, bounded(tc.c))), boundsCode)
+			doc := shapesDoc(prop("p/a/x", tc.typ, bounded(tc.c)))
+			atLeast := &ir.Constraints{MinItems: new(int64(2)), MinProps: new(int64(2))}
+			doc.Types["t/list"].(*ir.List).Constraints = atLeast
+			doc.Types["t/tuple"].(*ir.Tuple).Constraints = atLeast
+			doc.Types["t/map"].(*ir.MapT).Constraints = atLeast
+			doc.Types["t/obj"].(*ir.Model).Constraints = atLeast
+			got := found(t, doc, boundsCode)
 			assert.Len(t, got, tc.want, "%v", got)
 		})
 	}

@@ -44,7 +44,8 @@ func exampled(vs ...*ir.Value) func(*ir.Property) {
 // value, null where the position admits none, the whole numbers of an integer
 // and the bounds declared at the position. Each row is followed by the
 // nearest default that is admitted, and so are the positions the check leaves
-// alone: an encoded one, a union, and a reference to a constant.
+// alone: one encoded by its type or by the property, a union, and a reference
+// to a constant.
 func TestValidate_ADefaultItsTypeDoesNotAdmitIsReported(t *testing.T) {
 	t.Parallel()
 	enum := &ir.Enum{ID: "t/e", ValueType: ir.PrimString, Members: []ir.EnumMember{
@@ -95,6 +96,10 @@ func TestValidate_ADefaultItsTypeDoesNotAdmitIsReported(t *testing.T) {
 		{"a list of its maximum", at(func(p *ir.Property) { p.Default = one; p.Constraints = &ir.Constraints{MaxItems: new(int64(1))} },
 			ir.TypeRef{Target: "t/l"}), nil},
 		{"a string for an encoded decimal", at(defaulted(text("1.5")), ir.TypeRef{Target: "t/dec"}), nil},
+		{"a string for an integer the property encodes", at(func(p *ir.Property) {
+			p.Default = text("5")
+			p.Encoding = &ir.Encoding{Name: "string"}
+		}, intT), nil},
 		{"a string for a union, one of whose variants admits it", at(defaulted(text("x")), ir.TypeRef{Target: "t/u"}), nil},
 		{"a string for a type holding anything", at(defaulted(text("x")), anyT), nil},
 		{"a reference to a constant", at(defaulted(&ir.Value{Kind: ir.ValueRefKind, Ref: &ir.ValueRef{}}), intT), nil},

@@ -86,3 +86,30 @@ func TestNames_ReadsAPairAModelsBaseAndInterfaceBringAtTheModel(t *testing.T) {
 	assert.Empty(t, cmp.Diff([]ir.Diagnostic{exposed("X", `0 of model A ("userId") and 0 of model B ("user_id")`)},
 		namesOf(t, doc)))
 }
+
+// TestNames_ReadsNoPairAgainBelowTheEntryThatMetIt holds a model that declares
+// nothing and composes two entries, one of which met a pair already, to no
+// finding of its own, whichever entry that is: its base, an interface it
+// implements or a mixin. The pair is told at the entry's own scope alone.
+func TestNames_ReadsNoPairAgainBelowTheEntryThatMetIt(t *testing.T) {
+	t.Parallel()
+	held, other := ir.TypeRef{Target: "Pair"}, ir.TypeRef{Target: "Other"}
+	want := []ir.Diagnostic{
+		collision("Pair", `in model Pair, properties 0 ("userId") and 1 ("user_id") share the neutral name "user_id"`),
+	}
+	for name, below := range map[string]*ir.Model{
+		"its base":     {ID: "Below", Name: named("Below"), Base: &held, Mixins: []ir.TypeRef{other}},
+		"an interface": {ID: "Below", Name: named("Below"), Base: &other, Implements: []ir.TypeRef{held}},
+		"a mixin":      {ID: "Below", Name: named("Below"), Mixins: []ir.TypeRef{other, held}},
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			doc := withTypes(
+				extending("Pair", "", spelled("p/pair/0", "userId", "userId"), spelled("p/pair/1", "user_id", "user_id")),
+				extending("Other", "", spelled("p/other/0", "other", "other")),
+				below,
+			)
+			assert.Empty(t, cmp.Diff(want, namesOf(t, doc)))
+		})
+	}
+}
