@@ -4599,7 +4599,8 @@ document declares more, so that no declaration order changes the type. Its schem
 lowered as the `schema` spelling's is with the same constraints and `xml` hints, hoisted at
 `<owner>/content/<key>/schema`, or the top type where the entry writes none, and the key as written
 is the media type that serializes the value: `HTTPParamBinding.ContentType` on a parameter,
-`Property.Encoding.MediaType` on a header, neither set by the `schema` spelling. Every other entry
+`Property.Encoding.MediaType` on a header, neither set by the `schema` spelling; a parameter's own
+`Parameter.Encoding` is written only by [`http-date-inference`](#http-date-inference). Every other entry
 lowers nothing and is kept whole on the Document under `openapi:<coordinate>`, its own pointer behind
 a document's qualifier where it is not the source (`degraded_lowering`), once however many references
 reach it: such an entry belongs to the declaration, which no node stands for, and a parameter or
@@ -5296,14 +5297,21 @@ MIME header no such definition covers, and is not read. On the golden spec one h
 `GET /accounts/{account_id}/dex/commands/{command_id}/downloads/{filename}`, whose example is an
 HTTP-date (spec @86556f6f).
 
+A header parameter is read the same way, under the name its binding places it at, the wire name or
+else its own, for the same fields, since `Expires` and `Last-Modified` are sent as well as returned:
+where the parameter writes no `Encoding` and its type reads as such an instant, it takes the
+`http-date` encoding on `Parameter.Encoding`, its own, so a `$ref`'d component it names, and every
+other use of that component, keep their text ([operations](../ir/operations.md)). Its
+`Provenance.Inferred` names `http-date-inference`, and an info `openapi/inferred-http-date` at the
+parameter reports it once, however many operations a path item's parameter is copied into. A query,
+path or cookie parameter is never read, whatever its name.
+
 - Cases: `http-date-inference`
 - Codes: `openapi/inferred-http-date`
 - Tests: `convention.TestHTTPDate_AFieldItsRFCDefinesAsADate`,
   `convention.TestHTTPDate_ReadsEveryResponseAndNoPart`,
-  `e2e.TestConventions_DeclarationOrderChangesNothing`, `e2e.TestConventions_DisabledFillsNothing`
-- Status: partly built: a header parameter so declared, which an SDK writes, keeps RFC 3339's text,
-  as a parameter has no encoding of its own and a scalar hoisted to type it would sit at a pointer
-  a `$ref` can name (#1799).
+  `e2e.TestConventions_DeclarationOrderChangesNothing`, `e2e.TestConventions_DisabledFillsNothing`,
+  `convention.TestHTTPDate_ReachesAHeaderParameter`, `convention.TestHTTPDate_ParameterRows`
 
 ### `links`
 
