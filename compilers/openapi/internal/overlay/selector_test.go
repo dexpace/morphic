@@ -136,27 +136,20 @@ func escapeQuotes(s string) string {
 	return string(out)
 }
 
-// TestReadSelector_RefusesWhatItCannotReadAsRFC9535Does pins each selector
-// the compiler refuses, and how: one RFC 9535 refuses is an invalid overlay,
-// and one RFC 9535 reads that the compiler's JSONPath implementation refuses
-// or misreads is unsupported. Either refuses before any action applies,
-// naming the selector and what to write instead where there is a spelling the
-// compiler reads, on one line.
-func TestReadSelector_RefusesWhatItCannotReadAsRFC9535Does(t *testing.T) {
+// TestReadSelector_RefusesWhatRFC9535DoesNotRead pins each selector RFC 9535
+// refuses: an invalid overlay, before any action applies, naming the selector
+// and the offset the reader stops at, and the spelling to write instead where
+// the compiler can say one, on one line.
+func TestReadSelector_RefusesWhatRFC9535DoesNotRead(t *testing.T) {
 	t.Parallel()
-	tests := map[string]struct{ target, code, says string }{
-		"no query at all":            {"paths", diag.OverlayInvalid, "does not parse"},
-		"an unclosed bracket":        {"$.paths[", diag.OverlayInvalid, "does not parse"},
-		"the property-name operator": {"$.paths.*~", diag.OverlayInvalid, "~, which RFC 9535 does not define"},
-		"a raw control character":    {"$['a\tb']", diag.OverlayInvalid, "control character"},
-		"a member name with a dash":  {"$.paths.*.get.x-internal", diag.OverlayInvalid, "write it ['x-internal']"},
-		"a member name with a digit": {"$.paths.*.*.responses.200", diag.OverlayInvalid, "write it ['200']"},
-		"a member named true":        {"$.paths.true", diag.OverlayUnsupported, "write it ['true']"},
-		"a member named null":        {"$..null", diag.OverlayUnsupported, "write it ['null']"},
-		"a \\u escape":               {`$['caf\` + `u00e9']`, diag.OverlayUnsupported, "write the character it names, U+00E9 'é', itself"},
-		"a \\r escape":               {`$['a\rb']`, diag.OverlayUnsupported, `\r`},
-		"match()":                    {"$.paths.*[?match(@.operationId, 'put.*')]", diag.OverlayUnsupported, "match()"},
-		"search()":                   {"$.paths.*[?search(@.operationId, 'Blob')]", diag.OverlayUnsupported, "search()"},
+	const reads = "does not read as an RFC 9535 query at offset"
+	tests := map[string]struct{ target, says string }{
+		"no query at all":            {"paths", reads},
+		"an unclosed bracket":        {"$.paths[", reads},
+		"the property-name operator": {"$.paths.*~", "~"},
+		"a raw control character":    {"$['a\tb']", reads},
+		"a member name with a dash":  {"$.paths.*.get.x-internal", "write it ['x-internal']"},
+		"a member name with a digit": {"$.paths.*.*.responses.200", "write it ['200']"},
 	}
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
@@ -167,12 +160,49 @@ func TestReadSelector_RefusesWhatItCannotReadAsRFC9535Does(t *testing.T) {
 				origin, root, diags := applied(t, selectorSpec, ov, lax)
 
 				assert.False(t, origin.Applied())
-				sameCodes(t, []string{"error " + tc.code}, diags)
+				sameCodes(t, []string{"error " + diag.OverlayInvalid}, diags)
 				assert.Contains(t, diags[0].Message, tc.says)
 				assert.Contains(t, diags[0].Message, "(update "+strconv.Quote(tc.target)+"): its target ")
 				assert.NotContains(t, diags[0].Message, "^", "the parser's caret line is not carried")
 				sameValue(t, selectorSpec, root)
 			}
+		})
+	}
+}
+
+// TestReadSelector_SelectsWhatTheCompilerOnceRefused pins the targets that were
+// refused as unsupported and are queries like any other: a member named for a
+// literal, an escape in a name, and the functions match and search, whose
+// selections are the operations their patterns match.
+func TestReadSelector_SelectsWhatTheCompilerOnceRefused(t *testing.T) {
+	t.Parallel()
+	tests := map[string]struct {
+		target string
+		hits   int
+	}{
+		"a member named true":  {"$.paths.true", 0},
+		"a member named null":  {"$..null", 0},
+		"a \\u escape":         {`$['caf\` + `u00e9']`, 0},
+		"a \\r escape":         {`$['a\rb']`, 0},
+		"match()":              {"$.paths.*[?match(@.operationId, 'put.*')]", 1},
+		"match() is anchored":  {"$.paths.*[?match(@.operationId, 'Blob')]", 0},
+		"search()":             {"$.paths.*[?search(@.operationId, 'Blob')]", 2},
+		"a failing pattern":    {"$.paths.*[?search(@.operationId, '[')]", 0},
+		"a function's absence": {"$.paths.*[?!match(@.operationId, 'put.*')]", 2},
+	}
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			ov := v11 + "  - target: \"" + escapeQuotes(tc.target) + "\"\n    update: {x-hit: true}\n"
+			origin, root, diags := applied(t, selectorSpec, ov, true)
+
+			assert.True(t, origin.Applied(), "%+v", diags)
+			assert.Equal(t, tc.hits, hits(root))
+			if tc.hits == 0 {
+				sameCodes(t, []string{"warning " + diag.OverlayAction}, diags)
+				return
+			}
+			sameCodes(t, nil, diags)
 		})
 	}
 }
