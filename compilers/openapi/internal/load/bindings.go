@@ -148,17 +148,18 @@ func (s sourceDocument) locate(uri, base string) (string, bool) {
 
 // nameOf is the name bind reads the document name names under: the source's
 // path for the source, however it is spelled (refscope.Places.SameDocument),
-// a path where it lies (refscope.Places.File), so a file reached through a
-// link to its directory is one document, and any other name itself.
+// for a file the path where it lies, whether a path or a file URI names it
+// (refscope.Places.FileOf), so a file is one document however a reference
+// spells it, through a link to its directory included, and any other name
+// itself.
 func (s sourceDocument) nameOf(name string) string {
-	switch {
-	case s.places.SameDocument(s.path, name):
+	if s.places.SameDocument(s.path, name) {
 		return s.path
-	case refscope.IsURL(name):
-		return name
-	default:
-		return s.places.File(name)
 	}
+	if path, ok := s.places.FileOf(name); ok {
+		return path
+	}
+	return name
 }
 
 // bindingDiags reports what the table found: each $ref whose own hop fails, a

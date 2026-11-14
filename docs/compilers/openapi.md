@@ -784,7 +784,9 @@ it, nor on how the spec was named, and a relative path names the file an absolut
 where the source lies at an absolute path. A file's part is percent-decoded,
 so `my%20file.yaml` names the file `my file.yaml`, unless decoding would read it otherwise, as an
 escaped separator or `#` would, where it is read as written; and a `file:` URI names the file at its
-path, as a reader reads it. A URL of any other scheme is spelled as RFC 3986 §6.2.2 normalizes it,
+path, as a reader reads it, so a file is one document however a reference spells it. A document's
+label is its location from the directory its source lies in, whatever spelling names it; an absolute
+reference changes no label. A URL of any other scheme is spelled as RFC 3986 §6.2.2 normalizes it,
 and an `http` or `https` one as §6.2.3 does too, where it is located and where an identifier declares
 it: its scheme and host in lower case, each escape of an unreserved character decoded and the hex of
 every other in upper case before its dot segments are removed, and for `http` and `https` an empty
@@ -981,6 +983,8 @@ and in what a reference reaches outside its model alike. A Path Item's
 else it writes.
 - Tests: `e2e.TestCompile_ExternalFileRefIsNotReadByDefault`,
   `e2e.TestCompile_OneURLSpelledSixWaysIsOneRequestOneKeyAndOneType`,
+  `e2e.TestCompile_AFileIsOneDocumentWhateverItsReferenceSpellsIt`,
+  `e2e.TestCompile_AFileURIIsRefusedByItsSpellingWhereReadsAreConfined`,
   `e2e.TestCompile_AnIdentifierAndAReferenceMeetInOneSpelling`,
   `resolve.TestLocate_AnAbsoluteURLIsSpelledByRFC3986Normalization`,
   `resolve.TestLocate_NormalizingTwiceChangesNothing`, `bind.TestNormalURI_IsIdempotentOverGeneratedURLs`,

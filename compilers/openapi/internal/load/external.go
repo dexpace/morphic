@@ -7,7 +7,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"net/url"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -112,15 +111,12 @@ func (e external) fetch(ctx context.Context, id, key, location string) answer {
 
 // unnamed returns the refusal of the document under key, read at location,
 // unread, or nil: a location a source read over the network may not reach
-// (bind.Reachable), as every document it reads is read over it too; or, for a
-// read confined to Options.Within, a file URI's. A file read at a path is no
-// file URI, though its name may start like one ("./file:a.yaml").
+// (bind.Reachable), as every document it reads is read over it too. A file
+// URI a confined read refuses is refused by the reference's spelling
+// (refusedByName), since a file is read at its path however it is named.
 func (e external) unnamed(key, location string) error {
 	if !bind.Reachable(e.read.self.path, location) {
 		return refused(key, bind.OffNetwork)
-	}
-	if e.opts.Within != "" && isFileURI(location) {
-		return errors.New("it is named by a file URI" + followedWhenAllowed)
 	}
 	return nil
 }
@@ -131,12 +127,12 @@ const followedWhenAllowed = ", which a read follows only when external reference
 
 // refusedByName returns why a read refuses a $ref by how its document part is
 // written, uri, or nil, judging each $ref alone so that no order of reading
-// changes the answer. Confined to opts.Within, it refuses an absolute file path
-// naming any document but the source, named self, since a relative $ref reaches
-// the same file however the working directory is spelled (GitHub #780). In
-// either mode it refuses a URL whose scheme is none of http, https and file,
-// which a reader would take for a path against the working directory. With no
-// reader it is nil.
+// changes the answer. Confined to opts.Within, it refuses an absolute path and
+// a file URI naming any document but the source, named self, since a relative
+// $ref reaches the same file however the working directory is spelled (GitHub
+// #780, #1886). In either mode it refuses a URL whose scheme is none of http,
+// https and file, which a reader would take for a path against the working
+// directory. With no reader it is nil.
 func refusedByName(opts Options, self string, places *refscope.Places) func(uri string) error {
 	if opts.Reader == nil {
 		return nil
@@ -152,7 +148,12 @@ func refusedByName(opts Options, self string, places *refscope.Places) func(uri 
 		// IsURL found a scheme, which is all a URL's text holds before its first ':'.
 		scheme, _, _ := strings.Cut(uri, ":")
 		switch scheme = strings.ToLower(scheme); scheme {
-		case "http", "https", "file":
+		case "file":
+			if confined && !namesSource(places, self, uri) {
+				return refused(uri, "it is named by a file URI"+followedWhenAllowed)
+			}
+			return nil
+		case "http", "https":
 			return nil
 		default:
 			return refused(uri, fmt.Sprintf("it is named by a URL with the scheme %q, "+
@@ -257,12 +258,6 @@ func (e external) admit(ctx context.Context, key string, doc doctree.Document) e
 		return refused(key, "it "+pastNodesReason(&doctree.PastNodesError{Nodes: doc.Nodes, Limit: e.opts.MaxSourceNodes, Whole: true}))
 	}
 	return nil
-}
-
-// isFileURI reports whether s is a file: URI.
-func isFileURI(s string) bool {
-	u, err := url.Parse(s)
-	return err == nil && strings.EqualFold(u.Scheme, "file")
 }
 
 // nowhere places an external document's findings, which leave as the text of

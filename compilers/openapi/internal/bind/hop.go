@@ -89,17 +89,17 @@ func (b *binder) named(in resource, uri string) (resource, Reason, string) {
 }
 
 // opened is the resource of the document uri, written in the resource in,
-// names, placed by Config.Locate, or why not: Config.Refuse refuses that
-// spelling, key, the URI it resolves to, is no location in's document may
-// reach, judged before Config.Locate asks anything of a reader, it names no
+// names, placed by Config.Locate, or why not: key, the URI it resolves to, is
+// no location in's document may reach, or Config.Refuse refuses that spelling,
+// each judged before Config.Locate asks anything of a reader, it names no
 // document, or the read fails (read). An identifier is never refused, since no
 // document is read for one.
 func (b *binder) opened(in resource, uri, key string) (resource, Reason, string) {
-	if why := b.docs.refusal(uri); why != "" {
-		return resource{}, Unreadable, why
-	}
 	if !reachable(b.docs, in, key) {
 		return resource{}, Unreadable, OffNetwork
+	}
+	if why := b.docs.refusal(uri); why != "" {
+		return resource{}, Unreadable, why
 	}
 	name, ok := b.docs.locate(uri, in.uri)
 	if !ok {
@@ -120,11 +120,11 @@ func (b *binder) readAt(in resource, uri, key string) (resource, Reason, string)
 	if in.detached {
 		spelled = key
 	}
-	if why := b.docs.refusal(spelled); why != "" {
-		return resource{}, Unreadable, why
-	}
 	if !reachable(b.docs, in, key) {
 		return resource{}, Unreadable, OffNetwork
+	}
+	if why := b.docs.refusal(spelled); why != "" {
+		return resource{}, Unreadable, why
 	}
 	return b.read(key)
 }
