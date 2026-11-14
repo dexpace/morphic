@@ -110,7 +110,7 @@ func (b *binder) opened(in resource, uri, key string) (resource, Reason, string)
 
 // readAt is the resource of the document a relative URI uri names, written in
 // the resource in, whose base an $id gives: key, the URI that base makes of it
-// by RFC 3986, normalized as an identifier is (normalURI), read as such rather
+// by RFC 3986, normalized as an identifier is (NormalURI), read as such rather
 // than placed again by Config.Locate, which spells it as written. Config.Refuse
 // judges uri as written where only relative paths moved the base, and key once
 // an absolute $id detached it, so an $id cannot make a refused read pass as

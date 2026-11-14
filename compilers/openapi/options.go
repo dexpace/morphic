@@ -319,6 +319,11 @@ type Options struct {
 	// lowered there. One past the source's budgets or pre-parse refusals fails
 	// each reference naming it.
 	AllowExternalRefs bool `json:"allowExternalRefs"`
+	// Locations maps where the documents named under a URI prefix are read
+	// from, as the caller writes it: nothing is mapped unless it is written
+	// here. Each is applied where a document is located, before any refusal
+	// or read judges it (docs/compilers/openapi.md#references).
+	Locations []Location `json:"locations,omitempty"`
 	// Overlay is an OpenAPI Overlay document to apply to the source before
 	// lowering, or nil for none. It is the source-document patching hook
 	// architecture §2.2 names, and is deliberately not the IR overlay pass beside
@@ -450,6 +455,15 @@ type Limits struct {
 	// copy of what its path item declares. A document past it is refused as
 	// openapi/budget-exceeded, compiling to no Document.
 	MaxReferenceExpansion int `json:"maxReferenceExpansion,omitzero"`
+}
+
+// Location maps the documents a URI prefix names to where their bytes are:
+// the URI Prefix + rest is read at Location + rest. Prefix is an absolute
+// URI ending in "/", with no query or fragment. Location is a directory, a
+// relative one read against the source's, or an http(s) URL ending in "/".
+type Location struct {
+	Prefix   string `json:"prefix"`
+	Location string `json:"location"`
 }
 
 // Overlay is one OpenAPI Overlay document and how strictly to apply it.

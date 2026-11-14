@@ -357,7 +357,7 @@ func (r resources) names(id DocID, uri string) bool {
 		return true
 	}
 	u, err := url.Parse(name)
-	return err == nil && len(u.Scheme) > 1 && uri == normalURI(u)
+	return err == nil && len(u.Scheme) > 1 && uri == NormalURI(u)
 }
 
 // identify is the URI an $id of id names, written where the base is base, and
@@ -381,13 +381,13 @@ func (r resources) identify(id, base string) (uri, part string, ok bool) {
 // RFC 3986 §5.2 where base is an absolute URI, as an $id gives one, and placed
 // as a $ref's document part is (docs.locate) where base is a document's
 // location, such as a file's path. An absolute result is spelled as RFC 3986
-// §6.2.2 normalizes one (normalURI), so two spellings of one identifier match.
+// §6.2.2 normalizes one (NormalURI), so two spellings of one identifier match.
 func (r resources) resolveURI(ref, base string) (string, bool) {
 	b, err := url.Parse(base)
 	if err != nil || len(b.Scheme) < 2 {
 		named, ok := r.docs.locate(ref, base)
 		if u, err := url.Parse(named); ok && err == nil && len(u.Scheme) > 1 {
-			return normalURI(u), true
+			return NormalURI(u), true
 		}
 		return named, ok
 	}
@@ -395,14 +395,14 @@ func (r resources) resolveURI(ref, base string) (string, bool) {
 	if err != nil {
 		return "", false
 	}
-	return normalURI(b.ResolveReference(u)), true
+	return NormalURI(b.ResolveReference(u)), true
 }
 
-// normalURI is the absolute URI u spelled as RFC 3986 §6.2.2 normalizes it:
+// NormalURI is the absolute URI u spelled as RFC 3986 §6.2.2 normalizes it:
 // its scheme and host in lower case, its dot segments removed, a character it
 // may not hold percent-encoded, and its percent-encodings normalized
 // (normalEscapes).
-func normalURI(u *url.URL) string {
+func NormalURI(u *url.URL) string {
 	u.Host = strings.ToLower(u.Host)
 	return normalEscapes(u.ResolveReference(&url.URL{}).String())
 }
