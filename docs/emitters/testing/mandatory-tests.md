@@ -1450,23 +1450,36 @@ throughout these documents.
     its control route, which the API's listener does not answer; and the docs give each a page
     naming its event or its declaring operation and expression, with no sample ([operations the API
     sends](../operations/inbound.md)).
-72. **T-72 · Unhonored rows** — a document exercising a row a target does not honor draws
-    `emitters/<target>/unhonored-row` naming the row and its locations before `Generate` runs; a row
-    the target honors draws nothing; and every key of the capability matrix has a detector in
-    `irfacts.Rows` or a stated reason for none ([verification](../verification.md)).
-73. **T-73 · The verify stage** — every golden output of every target builds, lints and passes its
-    tests in the stage, its samples compiled in the snippet project; a planted compile error is
-    reported at the entity whose declaration holds it, through `Artifact.Spans`; a missing or old
-    toolchain skips that target's checks and says so, never reading as a pass; and a failing stage
-    leaves the destination untouched unless the caller lets the failure through
-    ([verification](../verification.md#after-the-output-builds)).
-74. **T-74 · The manifest checked** — every operation and type the plan emits has exactly one
-    manifest entry, a dropped and a doubled entry each an error; every symbol the manifest names
-    exists in the built output, a planted rename that skips the manifest reported
-    ([verification](../verification.md#after-the-manifest-says-what-the-output-holds)).
-75. **T-75 · Severity and versions** — each row of the seeded severity table, on every target and in
-    both channels; an enum gaining a member read in a response is behavioral breaking and, on Go,
-    structurally additive as apidiff agrees; Go's structural verdicts equal apidiff's over the
-    surface corpus; and a regeneration's bump follows the rule, a moved step version that changed an
-    artifact a patch and one that changed nothing none
-    ([surface verification](../surface-verification.md#the-version-a-regeneration-takes)).
+72. **T-72 · What a target cannot lower** — a document holding a construct a target degrades draws
+    that construct's code from `Generate`; a run that fails on the code, at a threshold or by a
+    triage rule, writes none of that target's files, and one rating it down writes them; and each
+    target's support table, the codes it draws over each matrix row's witnesses, equals its
+    committed copy, a witness added or a degrade removed failing until the copy is regenerated
+    ([verification](../verification.md#what-a-target-cannot-lower)).
+73. **T-73 · The build check** — every golden output of every target builds, lints and passes its
+    tests under its declared checks on the gate's host, its samples among its test sources; a
+    planted compile error inside a method of a client is reported at the operation whose
+    declaration holds it, through `Artifact.Spans`, one on an import line at its file, and a
+    message with no position at the target; a toolchain missing, older than its minimum or newer
+    than its maximum, and a `Setup` check that fails, each skip the checks depending on it under
+    `check-skipped`, never reading as a pass; a check running past its `Timeout` is ended and has
+    failed; a failing check leaves the written files in place and fails the run; and a run that does
+    not ask for the check starts no process
+    ([verification](../verification.md#the-output-builds)).
+74. **T-74 · The manifest checked** — an operation with neither an entry nor a diagnostic, an entry
+    naming no entity of the document, a declaration written under an `Origin` with no entry, an
+    entry naming no declaration, and two entries of one scope sharing a symbol are each
+    `manifest-mismatch`; a planted rename that skips the manifest and a kept region shadowing a
+    generated symbol are each `symbol-unresolved`; a symbol generated code alone calls draws
+    neither; and a target with no extractor has the resolution check skipped and said to be
+    ([verification](../verification.md#the-manifest-says-what-the-output-holds)).
+75. **T-75 · Severity and levels** — each row of both seeded tables, on every target; an enum
+    gaining a member read in a response is structurally additive on Go, and behaviorally breaking
+    only where the enum is closed and declares no fallback member; a response member added is
+    behaviorally breaking for a closed model and not for an open one; for each fixture pair of
+    generated Go packages differing by one change, Go's structural verdict is breaking exactly where
+    apidiff reports an incompatible change, the divergences Go's overview lists aside; and a
+    regeneration's level follows the rule: major, minor, a patch where only a file's digest moved
+    and none where no file changed, a behavioral record raising none of them, and none on a first
+    generation
+    ([surface verification](../surface-verification.md#the-level-a-regeneration-reports)).

@@ -26,54 +26,86 @@ that emit performs.
 
 ## What a change record carries
 
-Some classifications turn on facts beyond the symbol that changed, so a neutral record carries them,
-and a target's severity reads them rather than guessing:
+Two channels answer two questions, and a record belongs to the channel whose question it answers:
 
-- **Direction.** Each record names the usages of the entity it concerns, from `Facts.Usage`
-  ([derived facts](../ir/derived-facts.md#usage)): an enum or a union gaining a member is additive
-  for a value the SDK sends and changes what a deployed SDK reading a response meets, unless the
-  type is `Open` ([plan policy](plan/policy.md)). A type used both ways is judged both ways, and the
-  more severe verdict counts.
-- **Optionality in a response.** A response member going from required to optional breaks a typed
-  target, Go's `string` becoming `*string`, and is easy to miss, since the same change in a request
-  is additive. The record says which side the member is read on.
-- **Bindings.** A changed method, path, parameter location or serialization style breaks a call
-  without changing a type, so it is a record of the behavioral channel, beside a changed default.
+- **Structural: does code written against the last generation still work with this one?** A
+  structural record is a change of the surface: a declaration, a member, a parameter or a result
+  added, removed or retyped. It is keyed as the manifest keys a symbol, by its entity's ID and the
+  derivation that follows it ([write / integrate](write-integrate.md)), so a member's record names
+  the shape declaring it, as `User.ID#create` does. What working means is each target's: for Go,
+  that a caller's code builds, and for a JVM target also that a caller compiled against the last
+  generation still links ([Kotlin](targets/kotlin/overview.md#merging-and-surface-extraction)).
+- **Behavioral: does an SDK already deployed, generated from the old document, still work against
+  the API the new one describes?** A behavioral record is a change of the API, whatever it does to
+  the surface, and carries the facts its verdict turns on:
+  - **Direction.** For an enum or a union, the usages `Facts.Usage` gives its type
+    ([derived facts](../ir/derived-facts.md#usage)): a member gained matters to a deployed SDK
+    reading the type and not to one only sending it. For a model's member, its lifecycles too
+    (`Visibility`): a `readOnly` member of a model used both ways is only read, where the type's
+    usage alone would judge it as sent.
+  - **The side an optionality change is read on.** A response member going from required to
+    optional is easy to miss, since the same change in a request only relaxes what a caller gives.
+  - **Bindings.** A changed method, path, parameter location, serialization style or wire name
+    breaks a call without changing a type, so it is a record of this channel, beside a changed
+    default.
 
-Two channels answer two questions. The structural channel asks whether a caller's code still
-builds against the regenerated SDK. The behavioral channel asks whether a deployed SDK, built
-against the old document, still works against the API the new one describes, which a new member of
-a closed response enum does not.
+One change of the API can leave a record in each channel, and the two need not agree. A member
+added to an enum a response carries is a constant added on Go, additive for a caller's code, while
+an SDK deployed with that enum closed fails on the first response carrying the member.
 
 ## Severity, seeded
 
-Each target's `verify.Severity` starts from the rules every typed target shares, one verdict per
-channel, and states where it departs ([Go](targets/go/overview.md#merging-and-surface-extraction),
-[Kotlin](targets/kotlin/overview.md#merging-and-surface-extraction)):
+Each target's `verify.Severity` starts from the rules the first targets share and states where it
+departs ([Go](targets/go/overview.md#merging-and-surface-extraction),
+[Kotlin](targets/kotlin/overview.md#merging-and-surface-extraction)). A structural verdict is
+breaking, additive or none, and a behavioral one breaking or none. A severity is total over the
+differ's record kinds, so no change goes unjudged.
 
-| Change | Structural: callers' code | Behavioral: deployed SDKs |
-|---|---|---|
-| An entity removed, or renamed with no correlation key carrying it | breaking | breaking |
-| A request member or parameter added | additive if optional, breaking if required | breaking if required |
-| A request member made required | breaking | breaking |
-| A response member added | additive | additive |
-| A response member made optional | breaking on a typed target | breaking |
-| A union or enum gaining a member, read in a response | the target's: breaking where a match over it must be exhaustive, as a Kotlin `when` over an `enum class` | breaking unless `Open` |
-| A union or enum gaining a member, only sent | additive | additive |
-| A success status added | breaking where it changes a return ([return shapes](operations/returns.md)) | breaking |
-| A failure status added | additive | additive |
-| A media type removed | breaking | breaking |
-| A binding changed: method, path, parameter location or style | none | breaking |
-| A default changed | none | reported |
+**Structural**, by what changed in the surface. What a change of the API does to the surface is
+each target's lowering, so these rules read the declarations and never the API: a response member
+made optional retypes a Go field from `string` to `Opt[string]` and leaves as it was one held
+through a pointer on a recursive reference ([Go](targets/go/lowering.md)), and an operation gaining
+its first input beyond the path gains a request argument ([request shaping](refine/requests.md)).
 
-## The version a regeneration takes
+| Surface change | Verdict |
+|---|---|
+| A declaration, a member, a method or a constant removed; a rename is a removal unless the entity's correlation key carries the symbol it shipped ([naming](refine/naming.md#collisions-and-the-names-a-generation-shipped)) | breaking |
+| The declared type of a member, a parameter or a result changed | breaking |
+| A parameter added to a method or removed from one, or an argument a constructor requires added | breaking |
+| A member added to a sum a caller's match must exhaust | breaking |
+| A declaration added; a member added to a type; a member added to a sum no match need exhaust | additive |
+| Documentation or a deprecation mark changed | none |
 
-A regeneration's version bump follows from what changed, never from a digest of the spec's text.
+**Behavioral**, by what changed in the API:
+
+| API change | Verdict |
+|---|---|
+| An operation removed, or a media type the SDK sends or reads | breaking |
+| A binding changed: method, path, a parameter's location, style or wire name | breaking |
+| A request member or parameter added, or made required | breaking if required, none if optional |
+| A response member added | breaking where its model is closed, which decodes strictly ([unknown members](refine/models.md#unknown-members)); none otherwise |
+| A response member made optional | the target's: breaking where its decoder refuses a body lacking a member its type requires |
+| An enum or a union gaining a member, read in a response | breaking where the type is closed and, for an enum, declares no `FallbackMember`; none where it is `Open`, as the default policy makes each one it can ([plan policy](plan/policy.md)) |
+| An enum or a union gaining a member, only sent | none |
+| A success status added | none where it carries the body the operation returns, since a 2xx the document does not list is read as the return ([return shapes](operations/returns.md)); breaking where it carries another |
+| A failure status added | none: a status no declared case matches is the error taxonomy's to classify ([failures](operations/errors.md)) |
+| A default changed | none: a default is documented and never sent ([values](refine/values.md#a-default-is-documented-never-sent)), so the record is shown and breaks nothing |
+
+The tables are seeds. Which further changes of the API the behavioral channel reports is [open
+question 6](open-questions.md), decided against real cross-revision diffs.
+
+## The level a regeneration reports
+
+A regeneration's version level follows from what changed, never from a digest of the spec's text.
 The structural channel sets it, since an SDK's version is a promise to its callers' code: a
-breaking record makes it major, an additive one minor. A behavioral record makes it at least minor,
-since the regenerated SDK behaves differently from the last. A regeneration with none of those that
-still changed an artifact, through a step whose version moved
-([verification](verification.md#during-steps-carry-versions)) or a document whose wording did,
-takes a patch, and one that changed no artifact takes none, which the manifest's digests show
-([write / integrate](write-integrate.md#what-the-manifest-records)).
+breaking record makes it major, else an additive one minor, else a file whose digest moved
+([what the manifest records](write-integrate.md#what-the-manifest-records)) a patch, and a
+regeneration that changed no file has none. A behavioral record never raises it. It says what the
+SDKs already deployed will meet, which no version of the new one changes, so those records lead
+the report and leave the level alone.
 
+The engine reports the level and does not apply it. No option names an SDK's version, the one the
+user agent's placeholder waits on too ([runtime policy](contract/runtime-policy.md)), and what a
+level becomes is its owner's to say: below `1.0.0` a breaking change need not be a major one, and
+on Go a major from `v2` up is a new module path, an option only its owner changes
+([Go's names](targets/go/naming.md)). A first generation has no prior, and so no level.

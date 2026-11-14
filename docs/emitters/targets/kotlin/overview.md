@@ -194,7 +194,8 @@ Three other designs were weighed:
 
 Go formats in process with `go/format` ([printing](../../emit/printing.md)). Go can call no Kotlin
 formatter, and `Generate` does no I/O, so the Kotlin printer lays out canonical code itself, and the
-Kotlin formatter runs as a check in the verify stage (#704) rather than inside the emitter.
+Kotlin formatter runs as one of the target's checks
+([verification](../../verification.md#the-output-builds)) rather than inside the emitter.
 
 ## Merging and surface extraction
 
@@ -207,7 +208,13 @@ The Kotlin targets' extractors ([surface verification](../../surface-verificatio
 dumps the Kotlin Gradle plugin's ABI validation writes, what generated code alone calls left out of
 them ([above](#what-a-caller-reaches-of-the-runtime)): the JVM's class-file signatures, and for
 Multiplatform the KLib ABI plus the generated Objective-C header, since a change Swift sees can
-break callers the Kotlin ABI does not show. Kotlin's severity differs from Go's in two places: a
-parameter added with a default leaves Kotlin callers compiling but changes the JVM signature, which
-is binary-breaking, and on Multiplatform a rename only the Swift header shows still breaks Swift
-callers.
+break callers the Kotlin ABI does not show. Kotlin's severity differs from Go's in three places. A
+caller of a JVM library may be compiled against the last generation, so the structural channel
+([surface verification](../../surface-verification.md#what-a-change-record-carries)) asks of
+Kotlin whether that binary still links as well as whether its source compiles: a parameter added
+with a default leaves Kotlin callers compiling but changes the JVM signature, which is
+binary-breaking. On Multiplatform a rename only the Swift header shows still breaks Swift callers.
+And a sum a `when` must exhaust gains a member as a break: a union declared as a sealed interface,
+whichever way the union travels, and a closed enum's `enum class`, while an open enum's final class
+([types](types.md)) is exhausted by no `when`. The ABI dumps are the oracle for the binary half;
+the source half has none, and is held by the fixtures of T-75.

@@ -21,9 +21,10 @@
 5. **Manifest granularity for merge.** Whether the entity→symbol map keys at property level (not just
    type/op level) to support field-level additive merge, or leaves sub-type merge to the
    merge adapter. Decide when write/integrate (M4) is built.
-6. **Surface behavioral channel scope.** Which behavioral changes beyond default-value changes
-   (e.g. a `Retryable` flip, an idempotency change) belong in the separate behavioral channel vs the
-   structural one. Decide when surface verification (M4) is built against real cross-revision diffs.
+6. **Surface behavioral channel scope.** The channel's question and its first rules are set
+   ([surface verification](surface-verification.md#severity-seeded)). Which changes beyond them
+   (e.g. a `Retryable` flip, an idempotency change, a tightened constraint) it reports, and at which
+   verdict, is decided when surface verification (M4) is built against real cross-revision diffs.
 
 7. **Behavior server distribution.** The server T-14 runs against is Go in this repository, and a
    target in another language needs it running beside its own test suite. Whether that is a

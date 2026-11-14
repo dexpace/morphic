@@ -166,13 +166,3 @@ while naming another entity:
 tell them apart. Against c92b9b0f, each of the nineteen operations that kept its route and ID under
 a renamed `operationId` is matched to itself. Deriving every key of the golden spec takes about
 150 ms, against a compile of about 6 s.
-
-## Capability rows
-
-`Rows()` answers which rows of the [capability matrix](../ir-spec-matrix.md) a document exercises:
-for each row's stable key, the locations of the nodes that exercise it, sorted, such as every
-operation whose `Pagination` is set for `pagination`. One detector per row reads the facts the row
-names, and a test holds the detectors to the matrix's keys, as the conformance corpus is held to
-them: a row added to the matrix has a detector, or a reason no IR fact shows it. The engine reads
-`Rows` to tell a user, before generation, which rows a target does not honor
-([verification](../emitters/verification.md#before-what-a-target-honors)).

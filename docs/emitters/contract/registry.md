@@ -49,10 +49,8 @@ type Capabilities struct {
                                     // after them
                                     // (../docs-and-mock.md#samples-come-from-the-sdk-emitters)
     WritesSamples   bool            // returns EmitterOutput.Samples, so a docs target may name it
-    Rows            []string        // the capability-matrix rows it honors, by key
-                                    // (../verification.md#before-what-a-target-honors)
-    Verify          Verify          // how its output is built and checked
-                                    // (../verification.md#after-the-output-builds)
+    Build           Build           // the toolchains and checks that build its output
+                                    // (../verification.md#the-output-builds)
     Protocols       []plan.Protocol // the protocols whose bindings it lowers (../plan/bindings.md)
     RPCSystems      []string        // the RPCBinding.System values it lowers; set exactly when
                                     // Protocols lists "rpc"
@@ -70,10 +68,13 @@ every RPC system and a target lowering gRPC need not lower JSON-RPC: a binding o
 omits is one the target does not cover ([bindings](../plan/bindings.md)). The registry refuses a
 target listing `rpc` with no system, which would cover no RPC binding while claiming the arm, one
 naming a system without listing `rpc`, and a protocol outside the vocabulary, and T-68 holds what a
-target covers. A message binding's system is each of its channel's servers' `Protocol`, such as
-`kafka` or `mqtt`, and capabilities name none until a messaging target needs to ([open question
-4](../open-questions.md)), since no compiler lowers a channel yet. `Lifecycle` is the one field the
-engine acts on otherwise, and only to tell the user, never to change an artifact. The states are a
+target covers. `Build` names the checks the engine runs over a target's written output when a run
+asks for them, and the registry refuses a target that declares a check without implementing
+`Checker` ([verification](../verification.md#the-output-builds)). A message binding's system is
+each of its channel's servers' `Protocol`, such as `kafka` or `mqtt`, and capabilities name none
+until a messaging target needs to ([open question 4](../open-questions.md)), since no compiler
+lowers a channel yet. `Lifecycle` is the one field the engine acts on in every run, and only to
+tell the user, never to change an artifact. The states are a
 target's life in order. A `hidden` target is under construction: it is left out of every listing —
 help, completion, the targets a misspelt name is answered with — and runs only when named, with the
 `experimental` warning. An `experimental` target runs with a warning diagnostic saying its output

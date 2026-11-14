@@ -40,6 +40,20 @@ type SampleReader interface {
     SampleTargets() []TargetKey
 }
 
+// Checker is implemented by a target whose Capabilities.Build declares a check: it reads what a
+// check printed into its messages. It is pure, as Generate is: the engine runs the check and maps
+// each message to an entity (../verification.md#the-output-builds).
+type Checker interface {
+    Messages(check string, output []byte) []CheckMessage
+}
+
+// CheckMessage is one message of a check, at the file and line its tool gave.
+type CheckMessage struct {
+    Path string // from the output root, forward-slashed; "" where the tool gave none
+    Line int    // 1-based; 0 where the tool gave none
+    Text string
+}
+
 type EmitterInput struct {
     Doc     *ir.Document          // the ABI — the ONLY structural input (INV1)
     Facts   *irfacts.Index        // what Doc implies: subtypes, usage, recursion, correlation keys (docs/ir/derived-facts.md), indexed ONCE by the engine, shared with the plan (below)
@@ -76,12 +90,6 @@ type EmitterOutput struct {
                                      // language its callers write, for the docs
 }
 
-// Span is the lines one top-level declaration of a file holds, 1-based and inclusive.
-type Span struct {
-    From, To int
-    Origin   EntityID
-}
-
 // Sample is one operation's call as an SDK target spells it.
 type Sample struct {
     Language string                 // the fence's language, such as "go", "kotlin" or "swift"
@@ -108,8 +116,16 @@ type Artifact struct {
     Integrate    *IntegrateHint  // path-prefix stripping / tree-shake root for live-repo merge, and
                                  // whether the file is merged as blocks (../write-integrate.md)
     Origins      []EntityID      // IR IDs whose emission produced this file (drives ID-keyed prune)
-    Spans        []Span          // the lines each top-level declaration holds, by its Origin, so a
-                                 // toolchain's message maps to an entity (../verification.md)
+    Spans        []Span          // the lines each declaration written under an Origin holds, so
+                                 // a check's message maps to an entity (../verification.md)
+}
+
+// Span is the lines one declaration holds, its documentation comment among them, 1-based and
+// inclusive. A declaration inside another has a span of its own, as a method in a class and a
+// field in a struct do, so a line belongs to the innermost span holding it.
+type Span struct {
+    From, To int
+    Origin   EntityID
 }
 ```
 
