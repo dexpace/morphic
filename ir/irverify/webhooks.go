@@ -34,8 +34,9 @@ var webhookPath = func() map[reflect.Type]bool {
 //
 // Neither field is required: an empty webhooks-map key is legal and lowers to
 // no name. It prunes all but webhookPath, for checkStreamingModes's reason, so
-// a binding is held only where webhookPath leads; a new carrier fails
-// TestEnumPath_ListsEveryCarrier until the path names it.
+// a binding is held only where webhookPath leads: a new carrier fails
+// TestEnumPath_ListsEveryCarrier, which counts carriers and reads no path,
+// and the path is widened by hand.
 func checkWebhookRoutes(*ir.Document) walkCheck {
 	var vs []Violation
 	return walkCheck{
