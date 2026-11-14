@@ -63,7 +63,7 @@ func checkNames(ctx context.Context, doc *ir.Document) ([]ir.Diagnostic, error) 
 
 // families returns the families of scopes r reads, in the order they report.
 func (r *nameReader) families() []func(*ir.Document) {
-	return []func(*ir.Document){r.services, r.groups, r.headers, r.types, r.auth}
+	return []func(*ir.Document){r.services, r.groups, r.headers, r.types, r.auth, r.inherited}
 }
 
 // services reads the document's services as one scope.
@@ -155,8 +155,7 @@ func builtIn(td ir.TypeDef) bool {
 
 // typeParts reads the named parts of the type at id, its properties, members
 // or variants, as one scope, a union's variants compared joined. A model's are
-// its own properties: one sharing a name with a property it inherits goes
-// unreported (GitHub #1412).
+// its own properties; inherited reads the rest.
 func (r *nameReader) typeParts(id ir.TypeID, td ir.TypeDef) {
 	switch t := td.(type) {
 	case *ir.Model:

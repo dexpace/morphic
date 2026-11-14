@@ -40,8 +40,12 @@ type nameReader struct {
 	// the order their second parties were read.
 	shared []int
 	// bare holds the parties whose name has no word character.
-	bare  []int
-	diags []ir.Diagnostic
+	bare []int
+	// owners and wires hold, for each party of the models' own properties read
+	// as one list, the index of the model that declares it and its wire name.
+	owners []int32
+	wires  []string
+	diags  []ir.Diagnostic
 }
 
 // comparison is how a scope's check tells two names with words apart, as the

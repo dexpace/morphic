@@ -156,8 +156,9 @@ case, the pass also reports names whose words join alike (below).
 - **The scopes** are the siblings a target renders into one namespace: the document's
   services, its declared types and its auth schemes; a service's groups; a group's groups and its
   operations; an operation's parameters; the headers of one response, of the default response and
-  of one error case, and of a service's common error; a model's own properties; an enum's members; a
-  union's variants. One name in two scopes is no collision.
+  of one error case, and of a service's common error; a model's own properties; the properties a
+  model exposes, its own and those it inherits; an enum's members; a union's variants. One name in
+  two scopes is no collision.
 - **Words joined, where a target joins them.** Two names whose words differ only where they break,
   `set_up` and `setup`, meet where a target joins the words or ignores their letter case, and a
   first target does so in some scopes. Go and Kotlin name a group's package by its words in
@@ -178,6 +179,14 @@ case, the pass also reports names whose words join alike (below).
   at the operation, or at the service for a common error: neither case has an ID to report at, and a
   path through the operation's list would move with the order the source declares responses in. A
   header is named by its index and quoted spelling, as a property is.
+- **A model's inherited properties** are read as the model exposes them
+  ([models](./models.md#the-flattening)), so a property that meets one it inherits, or two that two
+  mixins bring, is a finding at the model where the two first meet, one declaration of a wire name
+  counting once as a target renders it. A model below it is not told again. Every model's own
+  properties are read as one list first, and only the models where two spellings of one neutral name
+  can first meet are flattened, so a document with no such pair pays for the list alone and a
+  hierarchy is not flattened once a model deep. An own collision is reported at the model declaring
+  it, whatever composes it.
 - **Declared types** are one scope, whatever their `Namespace`: a target places a type by its
   options, never by its namespace, and by default places every type in one unit
   ([output units](../emitters/refine/output-units.md)), so two types of one name meet wherever they
@@ -240,10 +249,6 @@ Left out, each for its reason:
   `ResourceInfo.Identifiers` and `ResourceInfo.Properties`), which no compiler produces yet, and for
   which no emitter design says what scope their names render into. They and servers join once a
   target names them (#1413).
-- **A model's inherited properties.** A model renders the properties its composition exposes
-  ([models](./models.md#the-flattening)), so an own property can meet an inherited one, which no
-  scope reads yet (#1412). An own collision is reported at the model declaring it, whatever composes
-  it.
 - **A part's headers**, the headers of one part of a multipart or event-stream content, until
   #1786 says how a target writes them.
 - **A service's renames** (`Service.Renames`), which no compiler writes yet: a declared type is
