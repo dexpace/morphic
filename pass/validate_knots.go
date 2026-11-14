@@ -44,12 +44,11 @@ type edge struct {
 }
 
 // typeIndex numbers the live types, which liveTypeIDs sorts, so a reference
-// finds its vertex by search and no map is built. union marks the unions, and
-// composed those and the alias scalars leading to one, which a composition
-// entry naming them composes.
+// finds its vertex by search and no map is built. composed marks the unions and
+// the alias scalars leading to one, which a composition entry naming them
+// composes.
 type typeIndex struct {
 	ids      []ir.TypeID
-	union    []bool
 	composed []bool
 }
 
@@ -383,12 +382,12 @@ func checkKnots(doc *ir.Document, ids []ir.TypeID) []ir.Diagnostic {
 	if len(ids) == 0 {
 		return nil
 	}
-	ix := typeIndex{ids: ids, union: make([]bool, len(ids)), composed: make([]bool, len(ids))}
+	ix := typeIndex{ids: ids, composed: make([]bool, len(ids))}
 	every := make([]bool, len(ids))
 	for i, id := range ids {
-		_, ix.union[i] = doc.Types[id].(*ir.Union)
+		_, union := doc.Types[id].(*ir.Union)
 		ix.composed[i] = leadsToUnion(doc, doc.Types[id])
-		every[i] = !ix.union[i]
+		every[i] = !union
 	}
 	comp := buildGraph(doc, ix, true, nil)
 	cyclic := knot(len(ids), comp.starts, comp.targets, every)
