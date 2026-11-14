@@ -453,6 +453,8 @@ no overlay, reported as an `openapi/overlay-origin-incomplete` warning.
   `overlay.TestApply_GivesTheSharedValueTheSameTreeAsItsExpansion`,
   `overlay.TestApply_LeavesAnAnchorsOtherUsesAsTheSourceWroteThem`,
   `overlay.TestApply_AWriteToAMergedMemberLeavesNoSecondKey`,
+  `overlay.TestApply_WritesAMergedMemberAsTheMappingsOwn`,
+  `overlay.TestApply_RefusesAWriteIntoWhatItCannotMakeItsOwn`,
   `overlay.TestApply_RemovesAtOnePositionOfASharedNode`,
   `overlay.TestApply_WritesEachPositionOfAWildcardOnce`,
   `overlay.TestApply_ReadsEachActionTheValueTheOneBeforeLeft`,

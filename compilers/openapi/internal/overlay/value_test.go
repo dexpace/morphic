@@ -119,3 +119,29 @@ func TestApply_RefusesAnOverlayDocumentOfTheWrongShape(t *testing.T) {
 	origin, _, diags = applied(t, head, ov, false)
 	assert.True(t, origin.Applied(), "a reference writing its own description: %+v", diags)
 }
+
+// TestApply_WritesAMergedMemberAsTheMappingsOwn pins a write into a mapping
+// whose merge brings in the member written, and a remove of a member that
+// shadows a merged one: the update merges into the member's value rather than
+// shadowing it with a member of its own, and the remove leaves no merged
+// member in its place.
+func TestApply_WritesAMergedMemberAsTheMappingsOwn(t *testing.T) {
+	t.Parallel()
+	const src = head + "components:\n  schemas:\n    A: &a {type: object, properties: {x: {type: string}}}\n" +
+		"    C: {<<: *a, type: string}\n"
+	tests := map[string]struct{ action, c string }{
+		"an update merging into a merged member": {"  - target: $.components.schemas.C\n    update: {properties: {y: {type: string}}}\n",
+			"{type: string, properties: {x: {type: string}, y: {type: string}}}"},
+		"a remove of a member shadowing a merged one": {"  - target: $.components.schemas.C.type\n    remove: true\n",
+			"{properties: {x: {type: string}}}"},
+	}
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			origin, root, diags := applied(t, src, v11+tc.action, false)
+
+			require.True(t, origin.Applied(), "%+v", diags)
+			sameValue(t, head+"components:\n  schemas:\n    A: "+plainA+"\n    C: "+tc.c+"\n", root)
+		})
+	}
+}
