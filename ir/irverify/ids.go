@@ -94,9 +94,9 @@ var pointerDerived = map[reflect.Type]bool{
 }
 
 // appendDeclaredIDViolations reports what is wrong with the ID a node declares
-// for itself: nothing at all, a spelling the grammar could not have produced
-// or, where the class is pointer-derived, a path that is not the pointer the
-// node records.
+// for itself: nothing at all, a spelling the grammar could not have produced,
+// any spelling of a class kindPrefixes does not name, or, where the class is
+// pointer-derived, a path that is not the pointer the node records.
 //
 // It is the grammar checkIDs holds a type's, a scheme's or a server's to, for the
 // classes that have no registry for checkIDs to read.
@@ -109,9 +109,14 @@ func appendDeclaredIDViolations(vs []Violation, node reflect.Value, class reflec
 			Path:    at.String(),
 		})
 	}
-	// Every class has a prefix (TestKindPrefixes_MatchTheIdentityClasses); one
-	// read as "" would make every ID of its class malformed, not pass it.
-	prefix := kindPrefixes[class]
+	prefix, held := kindPrefixes[class]
+	if !held {
+		return append(vs, Violation{
+			Code:    "ir/id-malformed",
+			Message: "id " + strconv.Quote(id) + " is of class " + class.Name() + ", which opens with no kind prefix",
+			Path:    at.String(),
+		})
+	}
 	var prov ir.Provenance
 	if pointerDerived[class] {
 		prov.Pointer = recordedPointer(node)

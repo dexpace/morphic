@@ -12,6 +12,7 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/dexpace/morphic/ir"
 )
@@ -40,4 +41,40 @@ func TestKindPrefixes_NameEveryIDKindOnce(t *testing.T) {
 	want := slices.Sorted(slices.Values(ir.IDKinds()))
 	assert.Empty(t, cmp.Diff(want, got),
 		"every kind prefix ir lists names exactly one class of ID (-ir.IDKinds +kindPrefixes)")
+}
+
+// unlistedID is a class of ID kindPrefixes does not name, which only a test
+// can declare: every class the IR declares has a prefix.
+type unlistedID string
+
+// unlistedNode declares an ID of unlistedID as its own, as an IR node does.
+type unlistedNode struct{ ID unlistedID }
+
+// TestAppendDeclaredIDViolations_AClassWithNoPrefixIsMalformed pins that a
+// node declaring an ID of a class kindPrefixes does not name is reported,
+// whatever the ID's spelling, one opening with the separator among them, where
+// an empty prefix would read it as well-formed.
+func TestAppendDeclaredIDViolations_AClassWithNoPrefixIsMalformed(t *testing.T) {
+	t.Parallel()
+	for _, id := range []string{"c/x/C", "/x/C", "x"} {
+		node := reflect.ValueOf(unlistedNode{ID: unlistedID(id)})
+		vs := appendDeclaredIDViolations(nil, node, reflect.TypeFor[unlistedID](), id, ir.WalkPath{})
+		require.Len(t, vs, 1, "id %q", id)
+		assert.Equal(t, "ir/id-malformed", vs[0].Code, "id %q", id)
+	}
+}
+
+// TestIDSpaceViolations_AClassWithNoPrefixIsNotPlaced pins that an ID of a class
+// with no prefix is left to the malformed report rather than also placed in a
+// namespace: read with an empty prefix, "/x/C" would name the namespace "x".
+func TestIDSpaceViolations_AClassWithNoPrefixIsNotPlaced(t *testing.T) {
+	t.Parallel()
+	var collected ir.IDDeclarations
+	ir.WalkValues(&unlistedNode{ID: "/x/C"}, ir.DocumentPath, &collected)
+	require.Len(t, collected.List(), 1, "the node declares its ID")
+	doc := &ir.Document{IDSpaces: map[string][]string{ir.IDKindType: {"y"}}}
+
+	for _, v := range idSpaceViolations(doc, declarations{collected: &collected}) {
+		assert.NotEqual(t, "ir/id-space-undeclared", v.Code, "%s at %s", v.Message, v.Path)
+	}
 }
