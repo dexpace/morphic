@@ -1,7 +1,7 @@
 // Copyright (c) 2026 dexpace.
 // Licensed under the MIT License. See LICENSE in the repository root for details.
 
-package annotation_test
+package lowering_test
 
 import (
 	"encoding/json/jsontext"
@@ -10,7 +10,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	"github.com/dexpace/morphic/compilers/openapi/internal/annotation"
+	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -19,8 +19,14 @@ func held(src int, pointer, value string) ir.UnmodeledEntry {
 	return ir.UnmodeledEntry{
 		Reason:     ir.ReasonVendorExtension,
 		Value:      ir.RawValue(value),
-		Provenance: ir.Provenance{Source: src, Pointer: jsonPointer(pointer)},
+		Provenance: ir.Provenance{Source: src, Pointer: jsontext.Pointer(pointer)},
 	}
+}
+
+// noPromotions is the disabled policy, which reads no key, so it exempts none
+// from a drop.
+func noPromotions() lowering.Promoter {
+	return promoter(lowering.ExtensionPromotions{Disabled: true})
 }
 
 // TestDropContained_DropsWhatAnotherEntryHoldsWhole holds the one shape the
@@ -32,7 +38,7 @@ func TestDropContained_DropsWhatAnotherEntryHoldsWhole(t *testing.T) {
 		"openapi:s":    held(0, "/s", `{"if":{"x":1}}`),
 		"openapi:s/if": held(0, "/s/if/x", `1`),
 	}
-	annotation.DropContained(&p)
+	lowering.DropContained(noPromotions(), &p)
 	assert.Equal(t, []string{"openapi:s"}, keysOf(p))
 }
 
@@ -51,17 +57,47 @@ func TestDropContained_KeepsWhatIsNotInside(t *testing.T) {
 		"the same pointer":                     held(0, "/s", `{"if":{"x":1}}`),
 	} {
 		p := ir.Unmodeled{"openapi:s": whole, "openapi:inner": lookalike}
-		annotation.DropContained(&p)
+		lowering.DropContained(noPromotions(), &p)
 		assert.Equal(t, []string{"openapi:inner", "openapi:s"}, keysOf(p), name)
 	}
 
 	inside := ir.Unmodeled{"openapi:s": whole, "openapi:inner": held(0, "/s/if/x", `1`), "openapi:other": held(0, "/o", `1`)}
-	annotation.DropContained(&inside, "openapi:other")
+	lowering.DropContained(noPromotions(), &inside, "openapi:other")
 	assert.Equal(t, []string{"openapi:inner", "openapi:other", "openapi:s"}, keysOf(inside),
 		"only the entries whole names are asked whether they hold another")
 
-	annotation.DropContained(&inside, "openapi:s")
+	lowering.DropContained(noPromotions(), &inside, "openapi:s")
 	assert.Equal(t, []string{"openapi:other", "openapi:s"}, keysOf(inside))
+}
+
+// TestDropContained_KeepsAKeyAPromotionReads holds an entry naming a key the
+// policy reads to staying though another holds it whole, unscoped and beneath
+// a scope, since a promotion reads the kept entries; a key that only ends in
+// such a name, or that a disabled policy reads, is dropped.
+func TestDropContained_KeepsAKeyAPromotionReads(t *testing.T) {
+	t.Parallel()
+	reads := promoter(mapping(lowering.TargetRedaction, lowering.ExtensionSource{Key: "x-sensitive"},
+		lowering.ExtensionSource{Key: "x-a/b"}))
+	branch := held(0, "/s/allOf/1", `{"format":"uuid","x-sensitive":true,"x-a/b":1,"x-notx-sensitive":2}`)
+	inner := map[string]ir.UnmodeledEntry{
+		"openapi:x-sensitive":             held(0, "/s/allOf/1/x-sensitive", `true`),
+		"openapi:schema/x-sensitive":      held(0, "/s/allOf/1/x-sensitive", `true`),
+		"openapi:schema/x-a/b":            held(0, "/s/allOf/1/x-a~1b", `1`),
+		"openapi:schema/x-notx-sensitive": held(0, "/s/allOf/1/x-notx-sensitive", `2`),
+	}
+	stays := map[string]bool{
+		"openapi:x-sensitive": true, "openapi:schema/x-sensitive": true, "openapi:schema/x-a/b": true,
+	}
+	for key, entry := range inner {
+		p := ir.Unmodeled{"openapi:schema/allOf/1": branch, key: entry}
+		lowering.DropContained(reads, &p)
+		_, kept := p[key]
+		assert.Equal(t, stays[key], kept, key)
+
+		off := ir.Unmodeled{"openapi:schema/allOf/1": branch, key: entry}
+		lowering.DropContained(noPromotions(), &off)
+		assert.Equal(t, []string{"openapi:schema/allOf/1"}, keysOf(off), "%s, no key read", key)
+	}
 }
 
 // TestDropContained_AnAssembledEntryHoldsNothing holds a validation-only record,
@@ -73,7 +109,7 @@ func TestDropContained_AnAssembledEntryHoldsNothing(t *testing.T) {
 		"openapi:validationOnly": held(0, "/s", `{"not":{"type":"string"},"if":{"x":1}}`),
 		"openapi:not":            held(0, "/s/else", `{"type":"integer"}`),
 	}
-	annotation.DropContained(&p)
+	lowering.DropContained(noPromotions(), &p)
 	assert.Len(t, p, 2)
 }
 
@@ -82,11 +118,12 @@ func TestDropContained_AnAssembledEntryHoldsNothing(t *testing.T) {
 func TestDropContained_LeavesNilAndEmptyAlone(t *testing.T) {
 	t.Parallel()
 	var nilMap ir.Unmodeled
-	annotation.DropContained(&nilMap)
+	lowering.DropContained(noPromotions(), &nilMap)
 	assert.Nil(t, nilMap)
 	empty := ir.Unmodeled{}
-	annotation.DropContained(&empty)
+	lowering.DropContained(noPromotions(), &empty)
 	assert.Empty(t, empty)
+	lowering.DropContained(noPromotions(), nil)
 }
 
 // keysOf returns the keys of p in order.
@@ -98,6 +135,3 @@ func keysOf(p ir.Unmodeled) []string {
 	slices.Sort(out)
 	return out
 }
-
-// jsonPointer is s as a pointer.
-func jsonPointer(s string) jsontext.Pointer { return jsontext.Pointer(s) }

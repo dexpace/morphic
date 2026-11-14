@@ -18,7 +18,11 @@ import (
 // and an empty src to nil.
 func TestUnder_KeysEachEntryBeneathTheScope(t *testing.T) {
 	t.Parallel()
-	entry := held(0, "/p/schema/x-a", `1`)
+	entry := ir.UnmodeledEntry{
+		Reason:     ir.ReasonVendorExtension,
+		Value:      ir.RawValue(`1`),
+		Provenance: ir.Provenance{Pointer: "/p/schema/x-a"},
+	}
 	src := ir.Unmodeled{"openapi:x-a": entry, "openapi:allOf/1": entry}
 	assert.Empty(t, cmp.Diff(ir.Unmodeled{"openapi:schema/x-a": entry, "openapi:schema/allOf/1": entry},
 		annotation.Under("schema", src)))

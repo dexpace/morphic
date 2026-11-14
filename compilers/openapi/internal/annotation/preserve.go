@@ -5,11 +5,9 @@ package annotation
 
 import (
 	"encoding/json/jsontext"
-	"encoding/json/v2"
 	"fmt"
 	"maps"
 	"slices"
-	"strings"
 
 	"github.com/speakeasy-api/openapi/jsonschema/oas3"
 	yaml "go.yaml.in/yaml/v3"
@@ -209,66 +207,4 @@ func underlayUnmodeled(dst, src ir.Unmodeled) ir.Unmodeled {
 		}
 	}
 	return dst
-}
-
-// DropContained removes from p each entry that another entry of p holds
-// whole: its provenance lies in the same source strictly beneath the other's,
-// and its value is the value found there inside the other's. With whole set,
-// only those entries are asked whether they hold another.
-func DropContained(p *ir.Unmodeled, whole ...string) {
-	if p == nil || len(*p) < 2 {
-		return
-	}
-	holders := whole
-	if len(holders) == 0 {
-		holders = slices.Collect(maps.Keys(*p))
-	}
-	for key, inner := range *p {
-		for _, h := range holders {
-			outer, held := (*p)[h]
-			if h != key && held && holdsWhole(outer, inner) {
-				delete(*p, key)
-				break
-			}
-		}
-	}
-}
-
-// holdsWhole reports whether outer's value holds inner's at the pointer inner
-// lies at beneath outer's, in the same source, the two compared as canonical
-// JSON. An entry assembled from several positions holds nothing at a pointer
-// beneath its own, so it holds no other.
-func holdsWhole(outer, inner ir.UnmodeledEntry) bool {
-	if outer.Provenance.Source != inner.Provenance.Source {
-		return false
-	}
-	rest, beneath := strings.CutPrefix(string(inner.Provenance.Pointer), string(outer.Provenance.Pointer)+"/")
-	if !beneath {
-		return false
-	}
-	at := outer.Value
-	for token := range jsontext.Pointer("/" + rest).Tokens() {
-		var members map[string]jsontext.Value
-		if json.Unmarshal(at, &members) != nil {
-			return false // a value that is no object holds nothing beneath it
-		}
-		next, ok := members[token]
-		if !ok {
-			return false
-		}
-		at = next
-	}
-	found, okFound := canonical(at)
-	want, okWant := canonical(inner.Value)
-	return okFound && okWant && found == want
-}
-
-// canonical returns v in its canonical form (RFC 8785), and false for v that
-// is no JSON value.
-func canonical(v jsontext.Value) (string, bool) {
-	c := slices.Clone(v)
-	if c.Canonicalize() != nil {
-		return "", false
-	}
-	return string(c), true
 }

@@ -1,0 +1,68 @@
+// Copyright (c) 2026 dexpace.
+// Licensed under the MIT License. See LICENSE in the repository root for details.
+
+package operation_test
+
+import (
+	"slices"
+	"testing"
+
+	"github.com/stretchr/testify/assert"
+
+	"github.com/dexpace/morphic/ir"
+)
+
+// TestPromotion_ReadsAKeyInABranchKeptWhole holds a promotion to the keys an
+// allOf branch writes where its carrier keeps the branch whole: a parameter, a
+// content parameter, a header and a property, the $ref first and the branch
+// first, are each redacted and deprecated, and keep the branch beside each key
+// read from it. A cursor and a next cursor marked the same way page their
+// operation.
+func TestPromotion_ReadsAKeyInABranchKeptWhole(t *testing.T) {
+	t.Parallel()
+	doc, diags := parseFull(t, specFrom(t, specsDir, "promoted_keys_in_a_branch_kept_whole"))
+	for _, d := range diags {
+		assert.Equal(t, "openapi/degraded-construct info", d.Code+" "+string(d.Severity), d.Message)
+	}
+	facts := opTree(t, doc, "facts")
+	params, headers := at(facts, "params"), at(facts, "responses", "0", "headers")
+	body := tree(t, doc.Types[ir.TypeID("t/anon/paths/~1facts/get/responses/200/content/application~1json/schema")])
+	properties := at(body, "properties")
+	for _, c := range []struct {
+		name, scope, branch string
+		carrier             any
+	}{
+		{"ref_first", "schema/", "allOf/1", namedItem(t, params, "ref_first")},
+		{"branch_first", "schema/", "allOf/0", namedItem(t, params, "branch_first")},
+		{"content_ref_first", "content/application~1json/schema/", "allOf/1", namedItem(t, params, "content_ref_first")},
+		{"content_branch_first", "content/application~1json/schema/", "allOf/0",
+			namedItem(t, params, "content_branch_first")},
+		{"H-Ref-First", "schema/", "allOf/1", namedItem(t, headers, "H-Ref-First")},
+		{"H-Branch-First", "schema/", "allOf/0", namedItem(t, headers, "H-Branch-First")},
+		{"property ref_first", "", "allOf/1", namedItem(t, properties, "ref_first")},
+		{"property branch_first", "", "allOf/0", namedItem(t, properties, "branch_first")},
+	} {
+		assert.Equal(t, true, at(c.carrier, "secret"), c.name)
+		assert.Equal(t, "old", at(c.carrier, "deprecation", "message"), c.name)
+		held := entries(t, at(c.carrier, "unmodeled"))
+		kept := make([]string, 0, len(held))
+		for key := range held {
+			kept = append(kept, key)
+		}
+		slices.Sort(kept)
+		assert.Equal(t, []string{
+			"openapi:" + c.scope + c.branch, "openapi:" + c.scope + "x-deprecated-reason",
+			"openapi:" + c.scope + "x-sensitive", "openapi:" + c.scope + "x-stability",
+		}, kept, c.name)
+	}
+
+	for _, name := range []string{"pagesRefFirst", "pagesBranchFirst", "pagesContentRefFirst", "pagesContentBranchFirst"} {
+		op := opTree(t, doc, name)
+		if !assert.NotNil(t, at(op, "pagination"), name) {
+			continue
+		}
+		assert.Equal(t, "cursor", at(op, "pagination", "strategy"), name)
+		assert.Equal(t, at(namedItem(t, at(op, "params"), "cursor"), "id"), at(op, "pagination", "inputCursor", "param"), name)
+		assert.NotNil(t, at(op, "pagination", "nextCursor", "segments"), name)
+	}
+}

@@ -818,7 +818,8 @@ it sees. Changes made together in one bump are listed together under it.
   `openapi:content/<mt>/reference/<i>/…`, every position's. An entry another entry of its carrier
   holds whole, by provenance and value, is no longer kept a second time: `openapi:xml/<x-k>` beside a
   whole `xml`, a `readOnly` read out of an `allOf` branch kept whole, and
-  `openapi:discriminator/<x-k>` beside a whole `openapi:discriminator`. A tag's keys, kept on the
+  `openapi:discriminator/<x-k>` beside a whole `openapi:discriminator`, bar a key the promotion
+  policy reads, which stays where a promotion finds it. A tag's keys, kept on the
   Document under `openapi:tags/<i>/` and `openapi:tags/<i>/externalDocs/`, move to its `TagDef`,
   unscoped and under `openapi:externalDocs/`, and the group a tag forms keeps its vendor extensions
   and the tier they state. `Content.CatchAllEncoding`, with `CatchAllParts`, the encoding of the

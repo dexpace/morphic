@@ -4882,9 +4882,12 @@ keys stay unscoped, so a parameter and its schema can each write one key and bot
 unscoped. An entry another entry of the carrier holds whole is kept once: an `xml` object kept whole
 holds its own extensions, and an `allOf` branch kept whole holds a `readOnly` read out of it, so
 neither inner key is kept again, compared by provenance and value, never by the key's spelling;
-a discriminator kept whole on a type holds its extensions the same way. The `xml` of a schema that owns a node of its own stays on
-that node's `XMLHints` instead. A schema with no node of its own keeps there too what any carrier
-keeps: the content vocabulary ([`content-vocabulary`](#content-vocabulary)), a `$dynamicRef` that
+a discriminator kept whole on a type holds its extensions the same way. A key the promotion policy
+reads is the exception, kept beside what holds it at any scope: a promotion reads the kept entries,
+and one read only inside another's value would fill no field, so a branch kept whole that writes
+`x-sensitive` still redacts its carrier ([unmodeled](../ir/unmodeled.md#promotion)). The `xml` of
+a schema that owns a node of its own stays on that node's `XMLHints` instead. A schema with no node
+of its own keeps there too what any carrier keeps: the content vocabulary ([`content-vocabulary`](#content-vocabulary)), a `$dynamicRef` that
 did not expand ([`dynamic-ref`](#dynamic-ref)) and a keyword nothing reads
 ([`unknown-keys`](#unknown-keys)).
 
@@ -4895,7 +4898,8 @@ did not expand ([`dynamic-ref`](#dynamic-ref)) and a keyword nothing reads
   `operation.TestParams_SchemaVisibilityKeptWhenTheSchemaOwnsANode`,
   `operation.TestParams_SchemaXMLHintsStayOnAnOwnedNode`,
   `operation.TestParameter_SchemaAndObjectSpellOneKey`, `e2e.TestUnknownKeys_ACarrierAndItsSchemaKeepOneKeyApart`,
-  `annotation.TestUnder_KeysEachEntryBeneathTheScope`, `annotation.TestDropContained_KeepsWhatIsNotInside`,
+  `annotation.TestUnder_KeysEachEntryBeneathTheScope`, `lowering.TestDropContained_KeepsWhatIsNotInside`,
+  `lowering.TestDropContained_KeepsAKeyAPromotionReads`, `operation.TestPromotion_ReadsAKeyInABranchKeptWhole`,
   `operation.TestParameter_XMLKeptOnce`, `operation.TestParameter_BranchKeptWholeOnce`,
   `schema.TestDiscriminator_KeptWholeOnce`
 
