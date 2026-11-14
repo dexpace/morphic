@@ -151,7 +151,7 @@ func codes() []string {
 		diag.UndecodableSource,
 		diag.OverlayInvalid, diag.OverlayFailed, diag.OverlayUnsupported,
 		diag.OverlayAction, diag.OverlayReplacedValue, diag.OverlayOriginIncomplete,
-		diag.ValidationOnlyKeyword, diag.FalseSchema, diag.EmptyEnum, diag.DuplicateEnumValue,
+		diag.ValidationOnlyKeyword, diag.FalseSchema, diag.EmptyEnum, diag.DuplicateEnumValue, diag.RepeatedEntry,
 		diag.NumericPrecision, diag.ExclusiveBoundForm, diag.InvalidStatusKey,
 		diag.DuplicateStatusKey, diag.DuplicateParameter, diag.DuplicateServerName,
 		diag.InvalidMethodKey, diag.DegradedConstruct,

@@ -647,12 +647,42 @@ it sees. Changes made together in one bump are listed together under it.
   ([`allof-redeclared-property`](../compilers/openapi.md#allof-redeclared-property)). A consumer
   pinned to 0.56.0 finds those keys gone at those positions, a refined node, a `Union` or a `Mixin` where it
   read a `Model` keeping them, and a `Base` where it read a `Mixin`.
-- **0.58.0** — no shape changed; what the OpenAPI compiler writes did:
+- **0.58.0** — the shape is unchanged, and the OpenAPI compiler lowers three registered formats as it
+  lowers `format: byte`: to a `Scalar` over the primitive the value is, whose `Encoding` names the
+  text it is written in as the [IR](./constraints.md#encodings) does. `http-date` is a
+  `datetime_offset` under `http-date`, `unixtime` a `datetime_offset` under `unixTimestamp`, a name
+  no compiler wrote before, with the JSON type it is written on as `WireType`, and `base64url` is
+  `bytes` under `base64url` with a `string` `WireType`. So the secret policy, which reads a
+  credential's name on text or bytes, no longer marks a use declared `http-date`, or `unixtime` on a
+  string, `Secret`. A consumer pinned to 0.57.0 refuses the document; read regardless, it would find
+  an instant or bytes where it read text or a number, and `unixTimestamp` where it read `unixtime`.
+- **0.59.0** — what the OpenAPI compiler writes for `unevaluatedProperties` and `unevaluatedItems`
+  changed, the shape unchanged
+  ([`additional-properties`](../compilers/openapi.md#additional-properties),
+  [`validation-only`](../compilers/openapi.md#validation-only),
+  [`allof-inline-residue`](../compilers/openapi.md#allof-inline-residue)):
+  - `Model.Additional` is `closed_after_composition` only where no `additionalProperties` is written
+    beside the `unevaluatedProperties: false`, which would leave it inert. Beside one the model is
+    `closed` for `false`, and otherwise open with its catch-all, so `{type: object,
+    additionalProperties: {…}, unevaluatedProperties: false}` is a `MapT`. A consumer pinned to
+    0.58.0 read such a model as closed.
+  - A catch-all beside `closed_after_composition` holds its patterns and no `Value`, where it held
+    the top type: a key no pattern matches is allowed only where composition evaluates it.
+  - `openapi:unevaluated` holds an `unevaluatedProperties: false` wherever no model holds it as its
+    closure, where it was dropped, and holds an inert keyword together with the
+    `additionalProperties`, `items` or `additionalItems` beside it that leaves it inert. A consumer
+    pinned to 0.58.0 applying the entry read every keyword in it as live.
+  - Neither keyword an inline `allOf` branch writes folds into the position's `openapi:unevaluated`
+    any more: the branch is kept whole under `openapi:allOf/<n>`, as a branch writing
+    `unevaluatedProperties: false` already was. At the position the keyword exempted what the other
+    conjuncts evaluate, where on its branch it exempts only what the branch evaluates. A consumer
+    pinned to 0.58.0 finds the keyword at the position.
+- **0.60.0** — no shape changed; what the OpenAPI compiler writes did:
   - A `deprecated`, `readOnly` or `writeOnly` written `false` withdraws no `true` another schema of
     a use states, as JSON Schema reads the three, so `deprecated: false` beside a `$ref` to a
     deprecated target leaves the use's `Deprecation` set
     ([what a reference carries down](./annotations.md#what-a-reference-carries-down)). A consumer
-    pinned to 0.57.0 that read such a use as live finds it deprecated, and a `readOnly` or
+    pinned to 0.59.0 that read such a use as live finds it deprecated, and a `readOnly` or
     `writeOnly` it read as withdrawn in force. An `allOf` branch writing one `false` beside
     another's `true` no longer disagrees with it, so both fold where both were kept verbatim.
   - `Operation.Pagination` is filled from the extensions the promotion policy maps, by default those
@@ -660,18 +690,18 @@ it sees. Changes made together in one bump are listed together under it.
     with `Pagination.Inferred` set and each node whose key it read marked `extension-promotion`;
     `Server.Name` is filled from a key on a server the document names in no other way; and
     `HTTPParamBinding.AllowReserved` and `OAuthFlow.TokenEndpointAuthMethods` are filled where a
-    mapping names a key for them. A consumer pinned to 0.57.0 finds a pagination, a name or a field
+    mapping names a key for them. A consumer pinned to 0.59.0 finds a pagination, a name or a field
     where none was written.
   - A decorator over a target a keyword or a key deprecates holds the `Deprecation` its own keys'
     members state, which they were kept beside in silence.
   - The default mapping reads only the word `deprecated` of `x-stability` and
     `x-fern-availability` as a deprecation, so a boolean on either deprecates nothing.
-- **0.59.0** — the OpenAPI compiler fills `Operation.Pagination` where the document speaks of none,
+- **0.61.0** — the OpenAPI compiler fills `Operation.Pagination` where the document speaks of none,
   and with it `PageStop` `no_next`, which it had never set: its pagination-inference policy reads a
   walk off the names an operation's query parameters and success responses use
   ([`pagination-policy`](../compilers/openapi.md#pagination-policy)), each such `Pagination` marked
   `Inferred` and its operation's `Provenance.Inferred` naming `pagination-inference`. An operation
   whose extensions speak of a pagination gets none from it
-  ([`extension-pagination`](../compilers/openapi.md#extension-pagination)). The shape is 0.58.0's. A
-  consumer pinned to 0.58.0 met a `Pagination` only where an extension stated one, and now meets one
+  ([`extension-pagination`](../compilers/openapi.md#extension-pagination)). The shape is 0.60.0's. A
+  consumer pinned to 0.60.0 met a `Pagination` only where an extension stated one, and now meets one
   on each operation the policy settles, which it reads as declared unless it reads `Inferred`.

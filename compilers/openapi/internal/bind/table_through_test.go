@@ -380,8 +380,8 @@ func TestBind_ReadsEverySchemaSiteOnce(t *testing.T) {
 }
 
 // TestBind_ResolvesEachMappingValue pins a discriminator's mapping values: each
-// holding a '#' read as a $ref written at the discriminator, a bare name read by
-// the lowering instead, defaultMapping alike, wherever the discriminator is
+// read as a $ref written at the discriminator, a component's name read by the
+// lowering instead, defaultMapping alike, wherever the discriminator is
 // written, raw YAML a $ref lands on included. A "#/$defs/..." value reads the
 // definitions of the schema holding the discriminator, and a chain through a
 // "#/$defs/..." $ref reads it where that $ref is written (GitHub #996).
@@ -398,12 +398,13 @@ func TestBind_ResolvesEachMappingValue(t *testing.T) {
     Holder: {$defs: {X: {type: string}}, properties: {p: {$ref: '#/$defs/X'}}}
     Box: {$ref: '#/x-lib/Box'}
     Q: {discriminator: {propertyName: k, mapping: {b: '#/x-lib/b'}}}
+    Cat: {type: object}
 x-lib:
   a: {$ref: '#/x-lib/b'}
   b: {type: object}
   h: {$ref: '#/components/schemas/Holder/properties/p'}
   Box: {discriminator: {propertyName: k, mapping: {i: '#/x-lib/b'}}}
-`, self)
+`, bind.Config{Self: self.Self, Components: []string{"P", "Holder", "Box", "Q", "Cat"}})
 	disc := at("/components/schemas/P/discriminator")
 	for value, want := range map[string]bind.Chain{
 		"#/x-lib/a":       {Status: bind.Resolved, End: at("/x-lib/b"), Hops: 2},
@@ -418,7 +419,7 @@ x-lib:
 		assert.Equal(t, disc, m.At, value)
 	}
 	_, ok := table.Mapping(disc, "Cat")
-	assert.False(t, ok, "a bare name is the lowering's to read")
+	assert.False(t, ok, "a component's name is the lowering's to read")
 	_, ok = table.Mapping(at("/x-lib/Box/discriminator"), "#/x-lib/b")
 	assert.True(t, ok, "a discriminator in raw YAML a $ref lands on is read")
 	_, ok = table.Mapping(at("/components/schemas/Q/discriminator"), "#/x-lib/b")

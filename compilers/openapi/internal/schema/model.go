@@ -42,7 +42,7 @@ func lowerModel(c lowering.Ctx, ts *compile.Types, depth int, s *oas3.Schema, po
 		requireMembers(m, s.GetRequired())
 		diags = append(diags, fillAdditional(c, ts, depth, m, s, pointer)...)
 		if discriminated {
-			d, discDiags := lowerDiscriminator(c, ts, s.GetDiscriminator(), pointer, m, mappingRoute{})
+			d, discDiags := lowerDiscriminator(c, ts, s.GetDiscriminator(), pointer, m, nil)
 			diags = append(diags, discDiags...)
 			m.Discriminator = d
 		}
@@ -56,8 +56,7 @@ func lowerModel(c lowering.Ctx, ts *compile.Types, depth int, s *oas3.Schema, po
 // Model rather than the schema, so a keyword that comes to fill a Model field
 // keeps the position a Model without a second predicate to update. A composed
 // union variant and a false schema skip it: one always holds its branch as a
-// Base or Mixin, and the other is closed. An inert `unevaluatedProperties:
-// false` beside a catch-all still closes a model, keeping it one until #862.
+// Base or Mixin, and the other is closed.
 func objectNode(m *ir.Model) ir.TypeDef {
 	if mt, ok := ir.AsMap(m); ok {
 		return mt
@@ -274,13 +273,15 @@ func requireMembers(m *ir.Model, required []string) {
 }
 
 // fillAdditional lowers additionalProperties, patternProperties, and
-// unevaluatedProperties into the model's openness and catch-all shape.
+// unevaluatedProperties into the model's openness and catch-all shape
+// (docs/compilers/openapi.md#additional-properties).
 //
 // `additionalProperties: true` types the catch-all as the top type, as `{}`
 // does: the two are one schema in JSON Schema, and both state that members
 // beyond the declared ones are allowed. Only an absent keyword writes no
 // catch-all, unless patterns need one. Neither spelling touches Additional,
-// which this sets only for `false` and `unevaluatedProperties: false`.
+// which this sets only for `false` and for an `unevaluatedProperties: false`
+// no additionalProperties leaves inert (annotation.ClosesAfterComposition).
 func fillAdditional(c lowering.Ctx, ts *compile.Types, depth int, m *ir.Model, s *oas3.Schema, pointer jsontext.Pointer) []ir.Diagnostic {
 	var diags []ir.Diagnostic
 	ap := s.GetAdditionalProperties()
@@ -294,21 +295,25 @@ func fillAdditional(c lowering.Ctx, ts *compile.Types, depth int, m *ir.Model, s
 		diags = append(diags, refDiags...)
 		m.AdditionalProps = &ir.AdditionalProps{Value: &ref}
 	}
+	closes := annotation.ClosesAfterComposition(s)
 	patterns, patternDiags := patternProps(c, ts, depth, s, pointer)
 	diags = append(diags, patternDiags...)
 	if len(patterns) > 0 {
 		if m.AdditionalProps == nil {
 			// A key no pattern matches is unconstrained unless a closure says
-			// otherwise. Beside `unevaluatedProperties: false` it stays the top
-			// type, though JSON Schema then admits such a key only where
-			// composition evaluates it (GitHub #862).
-			top := ts.PrimRef(ir.PrimAny)
-			m.AdditionalProps = &ir.AdditionalProps{Value: &top}
+			// otherwise. Beside one after composition the source writes no schema
+			// for it, so none is supplied: such a key is admitted only where
+			// composition evaluates it.
+			m.AdditionalProps = &ir.AdditionalProps{}
+			if !closes {
+				top := ts.PrimRef(ir.PrimAny)
+				m.AdditionalProps.Value = &top
+			}
 		}
 		m.AdditionalProps.Patterns = patterns
 	}
 	forbidRest(m)
-	if annotation.IsFalseSchema(s.GetUnevaluatedProperties()) {
+	if closes {
 		m.Additional = ir.AdditionalClosedAfterComposition
 	}
 	return diags

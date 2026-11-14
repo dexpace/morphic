@@ -1,0 +1,58 @@
+openapi: 3.1.0
+info: {title: UnevaluatedAtEveryOutcome, version: "1.0.0"}
+paths:
+  /things:
+    get:
+      operationId: getThings
+      parameters:
+        - name: q
+          in: query
+          schema: {type: string, unevaluatedProperties: false}
+      responses:
+        '200': {description: ok}
+components:
+  schemas:
+    Name: {type: string}
+    # A model holds the keyword as its openness, closed once composition is
+    # resolved, and so does a union whose variants the schema builds itself.
+    Closed:
+      type: object
+      properties: {a: {type: string}}
+      unevaluatedProperties: false
+    ObjectVariant:
+      type: [object, string]
+      properties: {a: {type: string}}
+      unevaluatedProperties: false
+    Distributed:
+      type: object
+      properties: {k: {type: string}}
+      oneOf:
+        - {$ref: '#/components/schemas/Closed'}
+        - {type: object, properties: {b: {type: string}}}
+      unevaluatedProperties: false
+    # Every other outcome keeps it verbatim, whatever the keyword means there.
+    Scalar: {type: string, unevaluatedProperties: false}
+    Enumerated: {enum: [a], unevaluatedProperties: false}
+    Constant: {const: a, unevaluatedProperties: false}
+    Listed: {type: array, items: {type: string}, unevaluatedProperties: false}
+    Paired: {type: array, prefixItems: [{type: string}], unevaluatedProperties: false}
+    Alias: {$ref: '#/components/schemas/Name', unevaluatedProperties: false}
+    # A union of what its branches lowered to: the closure one of them holds is
+    # its own, not this keyword's.
+    PlainUnion:
+      oneOf: [{$ref: '#/components/schemas/Closed'}, {type: string}]
+      unevaluatedProperties: false
+    NoObjectVariant: {type: [string, integer], unevaluatedProperties: false}
+    Anything: {unevaluatedProperties: false}
+    # A false branch closes the model outright, so it holds the keyword no more.
+    ClosedByABranch:
+      type: object
+      properties: {k: {type: string}}
+      allOf: [false]
+      unevaluatedProperties: false
+    Holder:
+      type: object
+      properties:
+        scalar: {type: string, unevaluatedProperties: false}
+        ref: {$ref: '#/components/schemas/Name', unevaluatedProperties: false}
+        list: {type: array, items: {type: string, unevaluatedProperties: false}}

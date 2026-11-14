@@ -137,7 +137,7 @@ witnessing it.
 ### `multipart-encoding`
 
 - Witnesses: `multipart-encoding`, `media-type-spelling`, `nested-encoding-32`, `file-media`,
-  `file-items-32`
+  `file-items-32`, `encoding-unkeyed`
 
 ### `per-status-errors`
 
@@ -183,7 +183,8 @@ witnessing it.
 
 ### `per-op-auth`
 
-- Witnesses: `security-or-and`, `security-root-empty`, `security-unresolved`
+- Witnesses: `security-or-and`, `security-root-empty`, `security-unresolved`, `security-states`,
+  `security-root-absent`, `security-root-optional`
 
 ### `servers`
 

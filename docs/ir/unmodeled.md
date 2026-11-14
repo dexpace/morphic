@@ -49,7 +49,10 @@ the declaring position only where the entry combines several keywords into one s
 and no single node addresses it (`openapi:if-then-else`, `openapi:contains`, `openapi:unevaluated`).
 Such an entry's `WrittenBy` names an overlay that wrote every keyword it combines: one that wrote
 the whole construct is its writer, and one that only added to it leaves it with the document that
-declares it ([provenance](./provenance.md)).
+declares it ([provenance](./provenance.md)). An `openapi:unevaluated` entry may also hold the
+keyword that leaves an unevaluated one inert, written just before it
+([boundaries](./boundaries.md#validation-only-constructs)): that is context the entry holds
+whoever wrote it, so it is not among the keywords `WrittenBy` asks after.
 
 ## Keys
 

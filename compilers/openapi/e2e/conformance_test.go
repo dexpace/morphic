@@ -194,6 +194,7 @@ func conformanceCases() []conformanceCase {
 		{"schema-drafts", assertSchemaDrafts},
 		{"dynamic-ref", assertDynamicRef},
 		{"keywords-at-every-outcome", assertKeywordsAtEveryOutcome},
+		{"unevaluated-at-every-outcome", assertUnevaluatedAtEveryOutcome},
 		{"unknown-keywords-at-shared-nodes", assertUnknownKeywordsAtSharedNodes},
 		{"null-keywords", assertNullKeywords},
 		{"discriminator-aliased-branch", assertDiscriminatorAliasedBranch},
@@ -252,6 +253,7 @@ func conformanceCases() []conformanceCase {
 		{"header-name-syntax", assertHeaderNameSyntax},
 		{"multi-content", assertMultiContent},
 		{"multipart-encoding", assertMultipartEncoding},
+		{"encoding-unkeyed", assertUnkeyedEncoding},
 		{"file-body", assertFileBody},
 		{"file-media", assertFileMedia},
 		{"file-items-32", assertFileItems32},
@@ -305,6 +307,10 @@ func conformanceCases() []conformanceCase {
 		{"reached-outside-model", assertReachedOutsideModel},
 		{"security-or-and", assertSecurityOrAnd},
 		{"security-root-empty", assertSecurityRootEmpty},
+		{"security-states", assertSecurityStatesCase},
+		{"security-root-absent", assertSecurityRootAbsent},
+		{"security-root-optional", assertSecurityRootOptional},
+		{"repeated-tags-and-scopes", assertRepeatedTagsAndScopes},
 		{"security-unresolved", assertSecurityUnresolved},
 	}
 }
