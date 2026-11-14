@@ -12,6 +12,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"slices"
 	"strings"
 	"testing"
 
@@ -201,34 +202,53 @@ func TestReferenceObjects_AnEndingSlashNamesAnEmptyMember(t *testing.T) {
 // TestReferenceObjects_AMergeListIsReadAsTheDecoderMergesIt pins GitHub #1578:
 // a reference object's pointer reads through a `<<` naming a list of mappings,
 // in raw YAML, as the decoder merges it, at every kind, and to a key below the
-// merged mapping. An alias may not precede its anchor, so each spec is
-// compiled in its written order alone.
+// merged mapping. An alias may not precede its anchor, so the other order each
+// spec is compiled in moves the $refs after what they name and swaps the
+// anchored mappings, the `<<` last, and must lower as the written one does.
 func TestReferenceObjects_AMergeListIsReadAsTheDecoderMergesIt(t *testing.T) {
 	t.Parallel()
 	const head = "openapi: 3.1.0\ninfo: {title: t, version: '1'}\n"
 	const param = "{name: q, in: query, schema: {type: string}}"
 	const getA = "paths:\n  /a: {get: {operationId: a, parameters: [{$ref: '%s'}], responses: {'200': {description: ok}}}}\n"
-	for name, spec := range map[string]string{
-		"a list": fmt.Sprintf(getA, "#/x-params/q") + "x-c: &c {other: " + param + "}\nx-b: &b {q: " + param + "}\n" +
-			"x-params:\n  <<: [*c, *b]\n",
-		"a list of one": fmt.Sprintf(getA, "#/x-params/q") + "x-b: &b {q: " + param + "}\nx-params:\n  <<: [*b]\n",
-		"a key below": fmt.Sprintf(getA, "#/x-params/deep/q") + "x-c: &c {other: " + param + "}\n" +
-			"x-b: &b {deep: {q: " + param + "}}\nx-params:\n  <<: [*c, *b]\n",
-		"a response": "paths:\n  /a: {get: {operationId: a, responses: {'200': {$ref: '#/x-r/r'}}}}\n" +
-			"x-rc: &rc {o: {description: o}}\nx-rb: &rb {r: {description: r}}\nx-r:\n  <<: [*rc, *rb]\n",
-		"a path item": "paths:\n  /a: {$ref: '#/x-p/a'}\n" +
-			"x-c: &c {o: {get: {responses: {'200': {description: o}}}}}\n" +
-			"x-b: &b {a: {get: {operationId: a, responses: {'200': {description: a}}}}}\nx-p:\n  <<: [*c, *b]\n",
-		"a security scheme": "paths:\n  /a: {get: {operationId: a, security: [{S: []}], responses: {'200': {description: ok}}}}\n" +
-			"x-b: &b {q: {type: http, scheme: bearer}}\nx-s:\n  <<: [*b]\ncomponents:\n  securitySchemes:\n" +
-			"    S: {$ref: '#/x-s/q'}\n",
+	for name, c := range map[string]struct {
+		uses    string
+		anchors []string
+		merged  string
+	}{
+		"a list": {fmt.Sprintf(getA, "#/x-params/q"),
+			[]string{"x-c: &c {other: " + param + "}\n", "x-b: &b {q: " + param + "}\n"}, "x-params:\n  <<: [*c, *b]\n"},
+		"a list of one": {fmt.Sprintf(getA, "#/x-params/q"),
+			[]string{"x-b: &b {q: " + param + "}\n"}, "x-params:\n  <<: [*b]\n"},
+		"a key below": {fmt.Sprintf(getA, "#/x-params/deep/q"),
+			[]string{"x-c: &c {other: " + param + "}\n", "x-b: &b {deep: {q: " + param + "}}\n"},
+			"x-params:\n  <<: [*c, *b]\n"},
+		"a response": {"paths:\n  /a: {get: {operationId: a, responses: {'200': {$ref: '#/x-r/r'}}}}\n",
+			[]string{"x-rc: &rc {o: {description: o}}\n", "x-rb: &rb {r: {description: r}}\n"}, "x-r:\n  <<: [*rc, *rb]\n"},
+		"a path item": {"paths:\n  /a: {$ref: '#/x-p/a'}\n",
+			[]string{"x-c: &c {o: {get: {responses: {'200': {description: o}}}}}\n",
+				"x-b: &b {a: {get: {operationId: a, responses: {'200': {description: a}}}}}\n"}, "x-p:\n  <<: [*c, *b]\n"},
+		"a security scheme": {"paths:\n  /a: {get: {operationId: a, security: [{S: []}], responses: {'200': {description: ok}}}}\n" +
+			"components:\n  securitySchemes:\n    S: {$ref: '#/x-s/q'}\n",
+			[]string{"x-b: &b {q: {type: http, scheme: bearer}}\n"}, "x-s:\n  <<: [*b]\n"},
 	} {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
-			doc, diags := refSpec{spec: head + spec}.compile(t, head+spec)
-			assert.Empty(t, placedFindings(diags))
-			_, ok := opByName(doc, "a")
-			assert.True(t, ok, "the operation lowers")
+			swapped := slices.Clone(c.anchors)
+			slices.Reverse(swapped)
+			written := head + c.uses + strings.Join(c.anchors, "") + c.merged
+			other := head + strings.Join(swapped, "") + c.merged + c.uses
+			var registries []string
+			var findings [][]string
+			for _, spec := range []string{written, other} {
+				doc, diags := refSpec{}.compile(t, spec)
+				assert.Empty(t, placedFindings(diags))
+				_, ok := opByName(doc, "a")
+				assert.True(t, ok, "the operation lowers")
+				registries = append(registries, typesJSON(t, doc))
+				findings = append(findings, placedFindings(diags))
+			}
+			assert.Empty(t, cmp.Diff(registries[0], registries[1]), "one registry in either order")
+			assert.Equal(t, findings[0], findings[1], "one set of findings in either order")
 		})
 	}
 }
