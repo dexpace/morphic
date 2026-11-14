@@ -141,6 +141,10 @@ var validationReasons = map[string]string{
 		"query alone before 3.2 (3.1.2 §Parameter Object: 'This field only applies to parameters with an in value of " +
 		"query') and for the locations and styles that percent-encode from 3.2, so the table warns and lowers it as " +
 		"declared",
+	"undefined-key": "the library keeps a key its object does not define and reports nothing; the specification " +
+		"closes each object's fields and admits only x- keys beside them (3.1.2 §Specification Extensions: 'The " +
+		"extensions properties are implemented as patterned fields that are always prefixed by x-'), so the table " +
+		"warns of each other key, at the key, wherever its object is written",
 	"library-silent": "the library has no check for a rule the specification states and the table cites: a " +
 		"Parameter or Header Object holds schema or content, not both (3.1.2 §Parameter Object: 'Parameter Objects " +
 		"MUST include either a content field or a schema field, but not both'), an XML Object's nodeType bars wrapped " +

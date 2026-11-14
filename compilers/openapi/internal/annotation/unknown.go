@@ -162,10 +162,10 @@ func UndefinedKeywordsIn(p *ir.Unmodeled, s *oas3.Schema, keys []string, pointer
 // lowering to a node with an Unmodeled map of its own. owner is the object's
 // source pointer.
 //
-// Unlike its schema neighbour this reports a fault: OpenAPI gives each object a
-// closed key set and requires extensions to be prefixed x-, so such a key is
-// usually a misspelling. It is kept all the same, because the IR is lossless
-// even for invalid input, and a misspelt key is the one most worth finding.
+// It keeps each key and reports none: the rule table reports every such key of
+// every object it judges, lowered or not (docs/compilers/openapi.md#unknown-keys),
+// so a report here would be the key's second. What it reports is about the
+// entry: one taken, unreachable or past the budget.
 func UnknownKeysIn(p *ir.Unmodeled, model any, doc provenance.Doc, owner jsontext.Pointer, taken ...string) []ir.Diagnostic {
 	return UnknownKeysUnder(p, model, doc, owner, "", taken...)
 }
@@ -196,13 +196,7 @@ func UnknownKeysUnder(p *ir.Unmodeled, model any, doc provenance.Doc, owner json
 func UnknownKeysNamed(p *ir.Unmodeled, keys []string, root *yaml.Node,
 	doc provenance.Doc, owner jsontext.Pointer, scope string, taken ...string,
 ) []ir.Diagnostic {
-	return census(p, keys, root, doc, owner, scope, keyClass{
-		code:     diag.UnknownObjectKey,
-		severity: ir.SeverityWarning,
-		skip:     taken,
-		message: "key %q is not defined by the OpenAPI object it is written on and is not an " +
-			"x- extension; kept verbatim under Unmodeled",
-	})
+	return census(p, keys, root, doc, owner, scope, keyClass{skip: taken})
 }
 
 // TakeString reads a string field the parser's model names no member for,
@@ -263,7 +257,7 @@ func stringValue(node *yaml.Node) (string, bool) {
 // Which of the two a key is says something about the source, which the
 // diagnostic channel reports.
 type keyClass struct {
-	code     string
+	code     string // empty for a class the rule table reports, which keeps and announces nothing
 	severity ir.Severity
 	skip     []string // keys another reader answers for
 	message  string   // one %q, filled with the key
@@ -313,7 +307,7 @@ func keep(p *ir.Unmodeled, root *yaml.Node, key string, doc provenance.Doc, owne
 		return []ir.Diagnostic{unreachableKeyDiag(entry, at)}
 	}
 	kept, diags := PreserveNodeInto(p, entry, node, ir.ReasonOutOfScope, at)
-	if !kept {
+	if !kept || cl.code == "" {
 		return diags
 	}
 	return append(diags, diag.Newf(cl.severity, cl.code, at, cl.message, key))

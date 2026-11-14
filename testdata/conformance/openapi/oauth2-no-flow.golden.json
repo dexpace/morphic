@@ -189,6 +189,19 @@
   "diagnostics": [
     {
       "severity": "warning",
+      "code": "openapi/unknown-object-key",
+      "message": "key \"application\" is not defined by the OAuth Flows Object it is written on and is not an x- extension",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/securitySchemes/unknownFlowsOnly/flows/application",
+        "position": {
+          "line": 21,
+          "column": 22
+        }
+      }
+    },
+    {
+      "severity": "warning",
       "code": "openapi/oauth2-no-flow",
       "message": "oauth2 security scheme declares no flow and no oauth2MetadataUrl, so it states no way to obtain a token",
       "provenance": {
@@ -203,15 +216,6 @@
       "provenance": {
         "source": 0,
         "pointer": "/components/securitySchemes/unknownFlowsOnly"
-      }
-    },
-    {
-      "severity": "warning",
-      "code": "openapi/unknown-object-key",
-      "message": "key \"application\" is not defined by the OpenAPI object it is written on and is not an x- extension; kept verbatim under Unmodeled",
-      "provenance": {
-        "source": 0,
-        "pointer": "/components/securitySchemes/unknownFlowsOnly/flows/application"
       }
     }
   ],

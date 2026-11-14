@@ -1001,10 +1001,10 @@ A source revision may add a field the bundled parser's model names no member for
 `Response.summary`, XML `nodeType`, the nested Encoding fields, a Media Type Object's `description`,
 `components/mediaTypes` and a content entry written as a Reference Object are the live set. Such a
 field is read off the raw node by a reader of its own, and the object census is *told* which keys
-that reader took: the census grades a key by the parser's model, so left alone it reports a field
-the document defines as an undefined key. The reader runs whatever version the document declares, as
-[`later-version-construct`](#later-version-construct) requires, so the census never calls such a
-field undefined.
+that reader took: the census grades a key by the parser's model, so left alone it keeps a field the
+document defines as an undefined key. The reader runs whatever version the document declares, as
+[`later-version-construct`](#later-version-construct) requires, so the census never keeps such a
+field as undefined.
 
 The census is told what the reader actually took, never a key list by version. A value the parser
 would decode as a string goes to its home — `summary` into `Docs.Summary`, `nodeType` into
@@ -1045,7 +1045,9 @@ at every version, as [`unmodeled-dialect-fields`](#unmodeled-dialect-fields) rea
 parser does not model; `components/schemas` and `components/securitySchemes` are lowered
 unconditionally. A section is read as the parser reads it, through `<<` merge keys, so a merged-in
 entry is kept under its own name, and an entry whose key is no scalar under the empty name the
-parser reads it by ([`validation`](#validation) reports the key). Where the components merge
+parser reads it by ([`validation`](#validation) reports the key). A key an entry writes that its
+object does not define is reported all the same, by the rule table
+([`unknown-keys`](#unknown-keys)), and rides inside the kept entry. Where the components merge
 through `<<` deeper than the levels a mapping's merges are expanded to (`nodeview.MergeDepthLimit`),
 an `openapi/degraded-construct` warning at `components` says so, and an entry past that depth is not
 kept.
@@ -5725,13 +5727,21 @@ extension whose value converts to no JSON reaches the IR in no form, reported as
 
 ### `unknown-keys`
 
-A key an OpenAPI object neither defines nor admits as an `x-` extension is kept verbatim under
-`openapi:<key>` in the `Unmodeled` of the node that carries the object (`out_of_scope`), reported as
-an `openapi/unknown-object-key` warning at the key, since the object's key set is closed and such a
-key is usually a misspelling of its neighbour; an object that lowers to no node of its own is keyed
-beneath the scope its extensions use (`openapi:info/<key>`, `openapi:pathItem/<key>`,
-[`vendor-extensions`](#vendor-extensions)). A path item's is judged like any other, a value carrying
-a YAML anchor included. A schema keyword no field of the schema model names is kept the same way,
+A key an OpenAPI object neither defines at any minor nor admits as an `x-` extension is reported by
+the rule table ([`validation`](#validation)) as an `openapi/unknown-object-key` warning at the key,
+since the object's key set is closed and such a key is usually a misspelling of its neighbour. The
+table walks every object the grammar reaches, lowered or not, so a key is reported once wherever its
+object is written: in a component nothing references, an encoding nested in another or kept by
+position, a kept link, a schema's `xml`, `externalDocs` or `discriminator`, a schema kept verbatim,
+and beside a Reference Object's `$ref`, which defines only `$ref`, `summary` and `description`. A
+key merged in through `<<` is placed where it is written, as the table places every field. A key a
+later minor defines draws the later version's warning instead
+([`later-version-construct`](#later-version-construct)), and a Schema Object's keywords are its
+dialect's, below. The lowering keeps the key verbatim under `openapi:<key>` in the `Unmodeled` of the
+node that carries the object (`out_of_scope`) and reports nothing; an object that lowers to no node
+of its own is keyed beneath the scope its extensions use (`openapi:info/<key>`,
+`openapi:pathItem/<key>`, [`vendor-extensions`](#vendor-extensions)). A path item's is judged like
+any other, a value carrying a YAML anchor included. A schema keyword no field of the schema model names is kept the same way,
 reported as an info `openapi/unknown-schema-keyword`, because JSON Schema obliges an implementation
 to ignore a keyword it does not know, and a position that lowers to a shared node and carries no
 property or parameter hoists an alias for it to land on; `$comment`, `$dynamicAnchor` and
@@ -5746,22 +5756,27 @@ Two other outcomes also keep nothing and warn: `openapi/unknown-key-entry-taken`
 `openapi:<key>` is already held by a construct written elsewhere on a carrier two objects share, a
 parameter's own key and its schema's keyword, whichever lowered first surviving; and
 `openapi/unknown-key-unreachable`, where the key is merged in through a `<<` chain deeper than the
-compiler's reader expands, so it reads no pair for it. A key merged in within that depth is read,
-kept and reported as a written one is. An object a rule keeps whole without reading it, such as an
-encoding entry naming no part ([`multipart-encoding`](#multipart-encoding)), is not judged: its
-unknown keys ride inside its entry, unreported.
+compiler's reader expands, so it reads no pair for it. A key merged in within that depth is read and
+kept as a written one is. An object a rule keeps whole without reading it, such as an encoding
+entry naming no part ([`multipart-encoding`](#multipart-encoding)), keeps its unknown keys inside
+its entry, and the table reports each.
 
 - Cases: `path-item-anchored-key`, `unknown-keywords-at-shared-nodes`
 - Codes: `openapi/unknown-object-key`, `openapi/unknown-schema-keyword`,
   `openapi/unknown-key-budget`, `openapi/unknown-key-entry-taken`, `openapi/unknown-key-unreachable`
 - Tests: `e2e.TestUnknownKeys_KeptAtEveryObject`,
   `e2e.TestUnknownKeys_SchemaAndObjectAreGradedApart`,
+  `e2e.TestUnknownKeys_UnreferencedComponents`, `e2e.TestUnknownKeys_ObjectsKeptWhole`,
+  `e2e.TestUnknownKeys_InsideAKeptSchema`, `e2e.TestUnknownKeys_ReportedOnceInEveryObjectAndMinor`,
+  `e2e.TestUnknownKeys_MergedKeyIsPlacedWhereItIsWritten`,
+  `e2e.TestUnknownKeys_EveryKeptKeyIsReported`, `oas.TestCheck_UnknownKeysAreReportedAtEveryObject`,
+  `oas.TestCheck_KeysBesideARef`,
   `annotation.TestUnknownKeysIn_BudgetBoundsWhatOneObjectContributes`,
   `annotation.TestUndefinedKeywordsIn_KeepsWhatTheCallerNames`,
   `annotation.TestWritesUnknownKeyword_AsksWhatTheCensusWouldKeep`,
   `e2e.TestNullableInference_DisabledKeepsItAtASharedNode`
 - Status: partly built: a parameter's key and its schema's keyword of one spelling share an entry
-  (#396); an object kept whole without being read reports none of its unknown keys (#1662).
+  (#396).
 
 ### `policies`
 

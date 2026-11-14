@@ -71,6 +71,12 @@ func (r *reporter) add(d ir.Diagnostic, ptr jsontext.Pointer) {
 	r.diags = append(r.diags, d)
 }
 
+// warn adds a warning of code at ptr, a finding under a code of its own rather
+// than a validation class (report).
+func (r *reporter) warn(code string, ptr jsontext.Pointer, format string, args ...any) {
+	r.add(diag.Newf(ir.SeverityWarning, code, r.locate(ptr), format, args...), ptr)
+}
+
 // readAtClause begins what Options.ReadAt adds to a message.
 const readAtClause = "; read at "
 

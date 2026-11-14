@@ -1539,16 +1539,19 @@ func assertYAMLMergeKeys(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) 
 		{"openapi:x-codes", `{"100":"Continue","200":"OK","true":"T"}`, "/paths/~1merged/get/x-codes"},
 		{"openapi:x-big", `1e400`, "/paths/~1merged/get/x-big"},
 	})
-	// The table places a merged key where it is written, and its message names
-	// the place the path item reads it (GitHub #1945).
+	// The table places a merged key where it is written, as it places every
+	// field: here in a merge source written inline, which no pointer reaches,
+	// so at its line and column alone (GitHub #1945).
 	var announced []ir.Diagnostic
 	for _, d := range diags {
-		if d.Code == "openapi/unknown-object-key" && strings.HasSuffix(d.Message, "read at /paths/~1merged/mergedBogus") {
+		if d.Code == "openapi/unknown-object-key" && strings.HasPrefix(d.Message, `key "mergedBogus" `) {
 			announced = append(announced, d)
 		}
 	}
 	require.Len(t, announced, 1, "the merged stray key is announced once")
 	assert.Equal(t, ir.SeverityWarning, announced[0].Severity)
+	assert.Empty(t, announced[0].Provenance.Pointer, "no pointer reaches an inline merge source")
+	assert.Equal(t, 10, announced[0].Provenance.Position.Line, "the line the key is written on")
 	for _, d := range diags {
 		assert.NotContains(t, d.Message, "could not be serialized", "every extension converts")
 		assert.NotEqual(t, "openapi/unknown-key-unreachable", d.Code, "every merged key is reached")

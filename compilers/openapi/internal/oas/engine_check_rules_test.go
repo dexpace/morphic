@@ -194,15 +194,18 @@ func TestCheck_OAuthFlowsNeedTheirUrls(t *testing.T) {
 }
 
 // TestCheck_HeadersLeaveWhatAParameterNamesToTheUnknownKeys pins that the
-// table states the Header Object's bans on what a parameter names and leaves
-// them to the unknown-key census, which reports each, since a Header Object
-// defines none of those keys; a Parameter Object's allowEmptyValue outside the
-// query, a field it does define, is the table's.
+// table states the Header Object's bans on what a parameter names and reports
+// each as an unknown key, once, since a Header Object defines none of those
+// keys; a Parameter Object's allowEmptyValue outside the query, a field it does
+// define, is a forbidden field.
 func TestCheck_HeadersLeaveWhatAParameterNamesToTheUnknownKeys(t *testing.T) {
 	verify(t, []scenario{
-		{"name and in", "3.1.0", oas.Header, `{name: n, in: header, schema: {}}`, nil},
-		{"allowEmptyValue and allowReserved in 3.1", "3.1.0", oas.Header, `{allowEmptyValue: true, allowReserved: true, schema: {}}`, nil},
-		{"allowEmptyValue in 3.2", "3.2.0", oas.Header, `{allowEmptyValue: true, schema: {}}`, nil},
+		{"name and in", "3.1.0", oas.Header, `{name: n, in: header, schema: {}}`,
+			[]finding{at(unknownKey, "/name"), at(unknownKey, "/in")}},
+		{"allowEmptyValue and allowReserved in 3.1", "3.1.0", oas.Header, `{allowEmptyValue: true, allowReserved: true, schema: {}}`,
+			[]finding{at(unknownKey, "/allowEmptyValue"), at(unknownKey, "/allowReserved")}},
+		{"allowEmptyValue in 3.2", "3.2.0", oas.Header, `{allowEmptyValue: true, schema: {}}`,
+			[]finding{at(unknownKey, "/allowEmptyValue")}},
 		{"allowEmptyValue outside the query", "3.1.0", oas.Parameter, `{name: a, in: header, allowEmptyValue: true, schema: {}}`,
 			[]finding{at(forbidden, "/allowEmptyValue")}},
 		{"allowEmptyValue in the query", "3.1.0", oas.Parameter, `{name: a, in: query, allowEmptyValue: true, schema: {}}`, nil},

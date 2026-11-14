@@ -64,6 +64,26 @@ func TestCheck_WorkIsBounded(t *testing.T) {
 	}
 }
 
+// TestKeyPlace_NamesNoPointerItCannotDerive holds an aliased key of an object
+// placed by its line alone, as a merge source written inline is, to no pointer:
+// only the root's key is the empty pointer's own, so only it is named.
+func TestKeyPlace_NamesNoPointerItCannotDerive(t *testing.T) {
+	doc := openapitest.YAMLDocument(t, "openapi: 3.1.0\nx-m: &m 1\ninfo: {title: t, version: v, bogus: *m}\npaths: {}\nroot: *m\n")
+	diags := NewChecker().Check(t.Context(), doc, "3.1.0", Options{
+		Locate: func(jsontext.Pointer) ir.Provenance { return ir.Provenance{Position: ir.Position{Line: 1}} },
+	})
+	var places []ir.Provenance
+	for _, d := range diags {
+		if d.Code == diag.UnknownObjectKey {
+			places = append(places, d.Provenance)
+		}
+	}
+	assert.Equal(t, []ir.Provenance{
+		{Position: ir.Position{Line: 3, Column: 37}},
+		{Pointer: "/root", Position: ir.Position{Line: 5, Column: 7}},
+	}, places, "each at its alias, and a pointer only for the root's key")
+}
+
 // TestCheck_DefaultsFillTheUnsetOptions pins the options a caller may leave out.
 func TestCheck_DefaultsFillTheUnsetOptions(t *testing.T) {
 	c := NewChecker()

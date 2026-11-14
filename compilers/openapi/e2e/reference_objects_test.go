@@ -488,8 +488,9 @@ components:
 }
 
 // TestReferenceObjects_NothingBesideARefIsRead pins that what a reference
-// object writes beside its $ref, which OpenAPI ignores, is no reference:
-// a $ref there naming nothing draws no finding.
+// object writes beside its $ref, which OpenAPI ignores, is no reference: a
+// $ref there naming nothing draws no finding, and each key is reported once as
+// one the Reference Object does not define.
 func TestReferenceObjects_NothingBesideARefIsRead(t *testing.T) {
 	t.Parallel()
 	refSpec{spec: `openapi: 3.1.0
@@ -508,7 +509,10 @@ components:
     P: {name: p, in: query, schema: {type: string}}
 `}.inBothOrders(t, func(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
 		t.Helper()
-		assert.Empty(t, placedFindings(diags))
+		assert.Equal(t, []string{
+			"warning " + diag.UnknownObjectKey + " /paths/~1a/get/parameters/0/examples",
+			"warning " + diag.UnknownObjectKey + " /paths/~1a/get/parameters/0/schema",
+		}, slices.Sorted(slices.Values(sitedFindings(diags))))
 		op, ok := opByName(doc, "a")
 		require.True(t, ok)
 		require.Len(t, op.Params, 1)

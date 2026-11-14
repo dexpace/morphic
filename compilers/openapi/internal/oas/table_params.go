@@ -117,8 +117,9 @@ func headerObject() Object {
 			exclusive(Always(), fields("example", "examples"),
 				c(V30, "The `example` and `examples` fields are mutually exclusive")),
 			count(Always(), Must, "content", 1, c(V30, "The map MUST only contain one entry.")),
-			// Each is a key the Header Object does not define, which the unknown-key
-			// census reports where it is written and keeps verbatim.
+			// Each is a key the Header Object does not define, which the engine
+			// reports as an unknown key where it is written (walker.unknown) and the
+			// annotation census keeps verbatim, so the rule draws no second finding.
 			forbiddenWhen(Always(), fields("name", "in"), nil,
 				c(V30, "`name` MUST NOT be specified, it is given in the corresponding `headers` map.")).owned(ownerAnnotation),
 			forbiddenWhen(Through(V31), fields("allowEmptyValue", "allowReserved"), nil,

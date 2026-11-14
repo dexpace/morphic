@@ -523,8 +523,9 @@ func corpusKeptKeys(t *testing.T, path string) (*ir.Document, []ir.Diagnostic, b
 
 // TestUnknownKeys_EveryKeptKeyIsReported holds the census and the table to each
 // other over the whole corpus: an object key the lowering kept under
-// out_of_scope has an unknown-object-key finding at the key, or one naming the
-// place a merged key is read at. An object missing a field the model also
+// out_of_scope has an unknown-object-key finding at the key, one naming the
+// place a merged key is read at, or for a key an inline merge source writes,
+// one naming the key at no pointer. An object missing a field the model also
 // misses would keep the key and report nothing.
 func TestUnknownKeys_EveryKeptKeyIsReported(t *testing.T) {
 	t.Parallel()
@@ -557,9 +558,13 @@ func TestUnknownKeys_EveryKeptKeyIsReported(t *testing.T) {
 			}) {
 				continue
 			}
+			// A key merged in from a source written inline is placed where it is
+			// written, which no pointer reaches, so its finding names the key alone.
+			inline := fmt.Sprintf("key %q ", last)
 			reported := slices.ContainsFunc(diags, func(d ir.Diagnostic) bool {
-				return d.Code == diag.UnknownObjectKey &&
-					(string(d.Provenance.Pointer) == p || strings.HasSuffix(d.Message, "read at "+p))
+				return d.Code == diag.UnknownObjectKey && (string(d.Provenance.Pointer) == p ||
+					strings.HasSuffix(d.Message, "read at "+p) ||
+					d.Provenance.Pointer == "" && strings.HasPrefix(d.Message, inline))
 			})
 			assert.True(t, reported, "%s: %s kept as %s at %s has no unknown-object-key finding",
 				path, site.path, site.key, p)

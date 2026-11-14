@@ -521,21 +521,24 @@
   },
   "diagnostics": [
     {
+      "severity": "warning",
+      "code": "openapi/unknown-object-key",
+      "message": "key \"mergedBogus\" is not defined by the Path Item Object it is written on and is not an x- extension",
+      "provenance": {
+        "source": 0,
+        "position": {
+          "line": 10,
+          "column": 23
+        }
+      }
+    },
+    {
       "severity": "info",
       "code": "openapi/degraded-construct",
       "message": "security scheme bearerFormat is not defined by type \"apiKey\"; kept verbatim under Unmodeled",
       "provenance": {
         "source": 0,
         "pointer": "/components/securitySchemes/key/bearerFormat"
-      }
-    },
-    {
-      "severity": "warning",
-      "code": "openapi/unknown-object-key",
-      "message": "key \"mergedBogus\" is not defined by the OpenAPI object it is written on and is not an x- extension; kept verbatim under Unmodeled",
-      "provenance": {
-        "source": 0,
-        "pointer": "/paths/~1merged/mergedBogus"
       }
     },
     {

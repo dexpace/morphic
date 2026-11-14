@@ -418,7 +418,9 @@ const (
 	// is the same thing ValidationOnlyKeyword records beside it.
 	UnknownSchemaKeyword = "openapi/unknown-schema-keyword"
 	// UnknownObjectKey reports a key on an OpenAPI object that the specification
-	// neither defines nor admits as an extension, kept verbatim under Unmodeled.
+	// neither defines nor admits as an extension, a key beside a Reference
+	// Object's $ref included. The rule table reports it wherever the object is
+	// written, lowered or not; the lowering keeps it and reports nothing.
 	//
 	// Warning where its schema neighbour UnknownSchemaKeyword is info: OpenAPI
 	// gives its objects a closed key set and requires extensions to be prefixed

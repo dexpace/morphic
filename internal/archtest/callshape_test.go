@@ -88,7 +88,7 @@ var callShapeBaseline = map[string]map[string]int{
 		// alias makes, a policy, and Seen observes the walk, RootRows answers the
 		// rows of each schema it enters and Later takes each it leaves unread,
 		// traversal callbacks.
-		"compilers/openapi/internal/load": 18,
+		"compilers/openapi/internal/load": 20,
 	},
 	"compilers/openapi/internal/provenance": {
 		// provenance.Tree's Pointers, a node's pointer in the tree it places, read
