@@ -3984,7 +3984,9 @@ no bound ([`string-formats`](#string-formats)).
   a property that a type the position admits takes is held by the property and also kept on its node
   (#1924). Two declarations of one field that each keep a bound meet the fold of
   [`allof-redeclared-property`](#allof-redeclared-property) (#1889). A bound left unread is reported
-  at its position, with the census's other keywords, not at the keyword.
+  at its position, with the census's other keywords, not at the keyword. A read counts schemas, not
+  their keys, so positions naming a schema of very many keys cost their number times the schemas
+  read times those keys (#1939).
 
 ### `validation-only`
 

@@ -110,8 +110,9 @@ func namedTypes(c lowering.Ctx, s *oas3.Schema, pointer jsontext.Pointer) kindSe
 // rule), a step per schema it reads, so its depth and breadth: an allOf naming
 // its own schema ends on it. Past it, each schema still open, the position's
 // own included, probes once more as it returns, and the position's $ref once,
-// so a read spends at most twice the budget and three steps. A step's work is not constant: finding a dynamic
-// reference scans the keys of the schema read (GitHub #1939).
+// so a read spends at most twice the budget plus three steps. A step's work is
+// not constant: finding a dynamic reference scans the keys of the schema read
+// (GitHub #1939).
 const maxBoundTypeReads = 256
 
 // boundTypes reads the instance types schemas declare, for the bounds written
