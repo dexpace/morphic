@@ -10,6 +10,7 @@ import (
 
 	"github.com/dexpace/morphic/ir"
 	"github.com/dexpace/morphic/ir/irfacts"
+	"github.com/dexpace/morphic/ir/irtest"
 )
 
 // encodedParam is a parameter whose type is "u", written as "x" and decoded to
@@ -66,6 +67,27 @@ func TestCorrelation_KeysWhatAParametersEncodingDecodesTo(t *testing.T) {
 		map[string]string{
 			"t/anon/u": "route:GET ~1a/param:query q/schema",
 			"t/anon/t": "route:GET ~1a/param:query q/decoded",
+			"t/anon/x": "",
+		})
+}
+
+// TestCorrelation_KeysWhatAFieldArgumentsEncodingDecodesTo pins that the type a
+// field argument's encoding decodes to is keyed under the argument, as an
+// operation parameter's is, and the type it is written as is not.
+func TestCorrelation_KeysWhatAFieldArgumentsEncodingDecodesTo(t *testing.T) {
+	t.Parallel()
+	arg := ir.Parameter{
+		ID: "param/test/q", Name: ir.Naming{Source: "q"}, Type: useRef("t/anon/u"),
+		Encoding: &ir.Encoding{WireType: &ir.TypeRef{Target: "t/anon/x"}, Schema: &ir.TypeRef{Target: "t/anon/t"}},
+	}
+	holder := &ir.Model{ID: "t/test/Holder", Name: ir.Naming{Source: "Holder"}, Properties: []ir.Property{{
+		ID: "p/test/f", Name: ir.Naming{Source: "f"}, Type: useRef("t/anon/f"), Args: []ir.Parameter{arg},
+	}}}
+
+	assertKeys(t, irtest.DocOf(holder, anonAny("t/anon/f"), anonAny("t/anon/u"), anonAny("t/anon/t"), anonAny("t/anon/x")),
+		map[string]string{
+			"t/anon/u": "type:Holder/prop:f/arg:q/schema",
+			"t/anon/t": "type:Holder/prop:f/arg:q/decoded",
 			"t/anon/x": "",
 		})
 }
