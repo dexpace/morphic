@@ -170,14 +170,17 @@ names](naming.md#reserved-names)), as `String` is: 20 properties of the golden s
 `format` (spec @bc6fad24). Go generates no hash and no comparison of a model: `==` compares a
 pointer by identity and is not defined over a slice or a map.
 
-So no model is comparable, from its first generation: each model's struct opens with the field
-`_ [0]func()`, which takes no space and which `==` and a map's key refuse. A struct that was
-comparable stops being so when it gains a list, a map or a box over one, the commonest change an
-API makes, and a caller's `==` then fails to build, a break for a member added. Measured with Go
-1.27.3 and x/exp `a52e3aef5920`: a struct of one string gaining a `[]string` member was reported
-incompatible by `apidiff` (`old is comparable, new is not`), and compatible with the field in
-place; the field left the struct's size as it was and `reflect.DeepEqual` as it answers; and it
-refuses a literal written without field names, whose callers a member added would break as well.
+So no struct a caller holds is comparable, from its first generation: a model's, a tuple's
+positional struct, an operation's `<Operation>Params`, a response's headers type and a union's each
+open with the field `_ [0]func()`, which holds nothing and which `==` and a map's key refuse. A
+struct that was comparable stops being so when it gains a list, a map or a box over one, the
+commonest change an API makes, and a caller's `==` then fails to build, a break for a member added.
+Measured with Go 1.27.3 and x/exp `a52e3aef5920`: a struct of one string gaining a `[]string`
+member was reported incompatible by `apidiff` (`old is comparable, new is not`), and compatible with
+the field in place, as a `Params` struct gaining a list parameter was; the field left that struct's
+size as it was, raising only the alignment of one narrower than a pointer, and `reflect.DeepEqual`
+as it answers; and it refuses a literal written without field names, whose callers a member added
+would break as well.
 
 `Validate` walks the same way: it hands its own `Format` that state marked as a check, and each
 `Format` so asked runs its value's checks in place of writing it and passes the state to each nested

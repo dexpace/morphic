@@ -157,10 +157,12 @@ type Check struct {
   file, and one with no position, or a failing check that printed no message, at the target, naming
   the check. Such a finding names no source, and its message the file or the target.
 - **Spans are of the file as written.** A span counts the lines of `Artifact.Content`, which a
-  target that formats in `Generate` returns formatted. The writer shifts each span past the regions
-  it restored above it, since it alone knows them, and a file it left as its owner edited it
-  ([what the manifest records](write-integrate.md#what-the-manifest-records)) keeps no span, so a
-  message there is reported at the file.
+  target that formats in `Generate` returns formatted. They hold for a file this run wrote from
+  that content: the writer shifts each span past the regions it restored above it and lengthens
+  one a region lies inside, since it alone knows them. Any other file keeps no span, so a message
+  there is reported at the file: one its owner edited and the writer left
+  ([what the manifest records](write-integrate.md#what-the-manifest-records)), one written once or
+  marked `@morphic:ignore-file`, and one a merge adapter wrote, whose lines are its own.
 - **Samples are built by the same checks.** A target that returns samples
   ([docs and mocks](docs-and-mock.md#samples-come-from-the-sdk-emitters)) returns, among its test
   artifacts, a file holding each sample of the snapshot it writes, its `Code` as returned inside
@@ -188,16 +190,18 @@ integrate](write-integrate.md)), so it is checked exactly, with no tolerance, ea
 diagnostic:
 
 - **Coverage** (`emitters/<target>/manifest-mismatch`), over the entries the run wrote, those it
-  kept from the prior manifest being the staleness check's ([write /
-  integrate](write-integrate.md)). Every operation the run's scope selects has an entry, or a
-  diagnostic of the target's at that operation saying why it has none. Every entry names an entity
-  of the document, by the ID before its key's derivation. Every declaration the printer wrote under
-  an `Origin`, which `Artifact.Spans` lists by its manifest key, a derived one's derivation
-  included, has the entry of that key naming its file, and every entry names such a declaration.
-  No two entries of one `Scope` share a `Symbol`. Which types take a declaration is each target's
-  lowering, an alias collapsed, a container lowered in place, a model declared once per shape, so
-  no count of the document's types is expected: a type something references and nothing declares
-  fails the build check, which the gate runs over every golden.
+  kept from the prior manifest being the staleness check's
+  ([write / integrate](write-integrate.md)). Every operation the run's scope selects has an entry,
+  or a diagnostic of the target's at that operation saying why it has none. Every entry names an
+  entity of the document, by the ID before its key's derivation. Every declaration the printer wrote
+  under an `Origin`, which `Artifact.Spans` lists by its manifest key, a derived one's derivation
+  included, has the entry of that key naming its file, and every entry names such a declaration, an
+  entry of a second scope, as a Multiplatform declaration's Objective-C name is
+  ([naming](refine/naming.md#collisions-and-the-names-a-generation-shipped)), the declaration its
+  entity's first entry names. No two entries of one `Scope` share a `Symbol`. Which types take a
+  declaration is each target's lowering, an alias collapsed, a container lowered in place, a model
+  declared once per shape, so no count of the document's types is expected: a type something
+  references and nothing declares fails the build check, which the gate runs over every golden.
 - **Resolution** (`emitters/<target>/symbol-unresolved`). The target's extractor reads the tree the
   writer left ([surface verification](surface-verification.md)), and every record of the
   generation's own `Surface` must be among what it reads, under the symbol the manifest gives its

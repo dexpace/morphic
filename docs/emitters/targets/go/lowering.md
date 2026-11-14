@@ -59,7 +59,7 @@ lowers to in Go.
 | `LowerUnions` | a struct holding a sealed interface + marker method + a wrapper per variant or subtype + a fallback on an open one; on an inclusive union, a struct with a pointer per variant |
 | `LowerDiscriminator` | tag-dispatched `UnmarshalJSONFrom` on the union's struct + typed factories + a `MarshalJSONTo` writing each variant's tag |
 | `LowerOpenEnums` | closed → typed consts; open → consts+`Unknown(raw)`; flags → bitset; each over the value type's row, or the wire text where it has no constants; no members → the closed form, its decoder and its encoder refusing every value, or, anonymous and reached only as nullable, the runtime `Null` in place |
-| `ExtractInterfaces` | Go interfaces / client interfaces for testability, a client's sealed by an unexported method so that a caller's fake embeds it and an added operation breaks no fake ([surface extraction](overview.md#merging-and-surface-extraction)) |
+| `ExtractInterfaces` | Go interfaces / client interfaces for testability, a client's documented to gain a method with each operation added ([surface extraction](overview.md#merging-and-surface-extraction)) |
 | `LowerPagination` | auto-pager yielding `iter.Seq2[T, error]`, sending [each next request](../../operations/pagination.md#what-a-pager-sends-next) from `PagePlan`; pacing left to policy |
 | `LowerStreaming` | a method per shape the operation offers; `Stream[T, H]` with `Recv()`/`Send()` over an element of any kind and `Header()` over the declared headers' struct; a `bytes` side lowered as a file; terminal ends |
 | `LowerLRO` | poller type + `Poll()/PollUntilDone()` returning the final type, paced and bounded by `Policy.Polling` |

@@ -1460,36 +1460,38 @@ throughout these documents.
 73. **T-73 · The build check** — every golden output of every target builds, lints and passes its
     tests under its declared checks on the gate's host, its samples compiled among its test sources
     and never run; a planted compile error inside a method of a client is reported at the operation
-    whose declaration holds it, through `Artifact.Spans`, with a kept region restored above it in
-    the file as without, one on an import line or in a file its owner edited at its file, and a
-    message with no position at the target; the same error is reported once, the checks after the
-    failing one not run; a toolchain missing, older than its minimum or newer than its maximum, and
-    a `Setup` check that fails, each skip the checks depending on it under `check-skipped`, never
-    reading as a pass; a check running past its `Timeout` is ended with the processes it started and
-    has failed; a failing check leaves the written files in place and fails the run; and a run that
-    does not ask for the check starts no process
-    ([verification](../verification.md#the-output-builds)).
+    whose declaration holds it, through `Artifact.Spans`, with a kept region restored above it or
+    inside it as without, one on an import line, in a file its owner edited or in one a merge
+    adapter wrote at its file, and a message with no position at the target; the same error is
+    reported once, the checks after the failing one not run; a toolchain missing, older than its
+    minimum or newer than its maximum, and a `Setup` check that fails, each skip the checks
+    depending on it under `check-skipped`, never reading as a pass; a check running past its
+    `Timeout` is ended with the processes it started and has failed; a failing check leaves the
+    written files in place and fails the run; and a run that does not ask for the check starts no
+    process ([verification](../verification.md#the-output-builds)).
 74. **T-74 · The manifest checked** — an operation with neither an entry nor a diagnostic, an entry
     naming no entity of the document, a declaration written under an `Origin` with no entry, a
     shape's declaration among them, an entry naming no declaration, and two entries of one scope
     sharing a symbol are each `manifest-mismatch`, while an entry a scoped run kept for an entity
-    outside its scope is none; a planted rename that skips the manifest and a kept region shadowing
-    a generated symbol are each `symbol-unresolved`; a symbol generated code alone calls and a
-    record in a file its owner edited draw neither; and a target with no extractor has the
-    resolution check skipped and said to be
+    outside its scope and a Multiplatform declaration's Objective-C entry are none; a planted rename
+    that skips the manifest and a kept region shadowing a generated symbol are each
+    `symbol-unresolved`; a symbol generated code alone calls and a record in a file its owner edited
+    draw neither; and a target with no extractor, and a Kotlin target in a run that did not ask for
+    the build check, each have the resolution check skipped and said to be
     ([verification](../verification.md#the-manifest-says-what-the-output-holds)).
 75. **T-75 · Severity and levels** — each row of both seeded tables, on every target; an enum
     gaining a member read in a response is structurally additive on Go, and behaviorally breaking
     only where the enum is closed and declares no fallback member; a response member added is
     behaviorally breaking for a closed model, and for one whose typed catch-all its value does not
-    fit, and not for an open one; a run naming no prior revision of the spec reports no behavioral
-    record and says so; for each fixture pair of generated Go packages differing by one change, Go's
-    structural verdict is breaking exactly where apidiff reports an incompatible change, a model
-    gaining a list member and a client's interface gaining a method each additive among them, the
-    divergences Go's overview lists aside; a parameter renamed is breaking on Kotlin and none on Go;
-    and a regeneration's level follows the rule: major, minor, a deprecation among the minors, a
-    patch where a file was written, pruned or its digest moved with no record, none where no file
-    changed, none reported for a target with no extractor, a behavioral record raising none of
+    fit, and not for an open one; a run naming no prior revision of the spec, and one whose prior
+    revision does not compile, each report no behavioral record under `engine/no-prior-revision`;
+    for each fixture pair of generated Go packages differing by one change, Go's structural verdict
+    is breaking exactly where apidiff reports an incompatible change, a model and a `Params` struct
+    gaining a list member each additive among them, the one divergence Go's overview lists aside, a
+    method added to a client's interface; a parameter renamed is breaking on Kotlin and none on Go;
+    and a regeneration's level follows the rule: major, minor, a deprecation on Go among the minors,
+    a patch where a file was written, pruned or its digest moved with no record, none where no file
+    changed, `level-unknown` for a target with no extractor, a behavioral record raising none of
     them, and none on a first generation; and no generated file states an SDK's version, a Kotlin
     build whose `version` is set publishing every module and its platform at it
     ([surface verification](../surface-verification.md#the-level-a-regeneration-reports)).

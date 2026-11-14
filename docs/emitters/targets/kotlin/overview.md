@@ -226,4 +226,6 @@ whichever way the union travels, and a closed enum's `enum class`, while an open
 ([types](types.md)) is exhausted by no `when`. And a parameter renamed breaks a caller that names
 the argument, and on Multiplatform a Swift caller's label. The ABI dumps show what changed for a
 compiled caller and say of no change whether it breaks, so Kotlin has no outside oracle as Go has
-`apidiff`: each verdict is its severity's, held by the fixtures of T-75.
+`apidiff`: each verdict is its severity's, held by the fixtures of T-75. Whether a dump shows a
+`@Deprecated` mark is not measured, so until it is Kotlin's surface reports no deprecation, and a
+regeneration that only deprecates reads as a patch.

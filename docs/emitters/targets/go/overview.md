@@ -164,7 +164,8 @@ exported API with `go/types`, as `apidiff` does, of each package outside `intern
 declaration to its entity through the prior manifest, whose entries name the symbol each entity
 shipped under ([write / integrate](../../write-integrate.md#what-the-manifest-records)). An SDK
 with no manifest, one Morphic did not generate, joins nothing: the differ compares one generation
-with the next.
+with the next. A deprecation is a comment in Go, which `go/types` does not hold, so the extractor
+reads each declaration's `Deprecated:` paragraph from the syntax it type-checks.
 
 `golang.org/x/exp/apidiff` compares two Go packages and labels each change compatible or not, which
 is the structural channel's question as Go asks it. It is the test oracle for Go's severity, and
@@ -181,16 +182,18 @@ neither the differ nor the severity function:
   fixture makes by one change, a test holds Go's structural verdict to apidiff's: breaking exactly
   where apidiff reports an incompatible change. The comparison is per pair, since a message names a
   declaration and no entity. A pair on which they differ is a bug in the severity unless this
-  section lists it with its reason, and it lists none (T-75).
+  section lists it with its reason, and it lists one (T-75).
 
-Two of Go's declarations are shaped so that the commonest changes of an API stay additive under
-those rules. A model is never comparable ([models](models.md#nesting)), so a member added takes no
-`==` from a caller. And a client's interface is sealed by an unexported method, so the one way to
-implement it outside the SDK is to embed it, as a test's fake does, and a method an added
-operation brings breaks no fake. Measured with Go 1.27.3: a fake embedding a sealed interface
-built and ran, a type declaring the exported methods itself was refused (`missing method sealed`),
-and `apidiff` reported a method added to the sealed interface compatible and to an unsealed one
-incompatible.
+The one divergence is a method added to a client's interface, which each operation added brings.
+`apidiff` reports it incompatible, since a type declaring the interface's methods itself stops
+implementing it, and Go's severity calls it additive: the interface is declared for a caller's
+tests, its documentation says it gains a method with each operation, and a fake that embeds it
+keeps building. Sealing the interface with an unexported method, which makes embedding the only
+way to implement it and `apidiff` report the addition compatible, was measured and not taken: a
+double a tool generates declares every method itself, and is refused (`missing method sealed`).
+
+A struct a caller holds is never comparable ([models](models.md#nesting)), so a member added takes
+no `==` from a caller, and there the two agree with no divergence to list.
 
 Measured at x/exp `a52e3aef5920`, a revision of 9 November 2026, over two type-checked packages: a
 field's type changed, a method gaining a parameter, a constant's value changed and a declaration's
