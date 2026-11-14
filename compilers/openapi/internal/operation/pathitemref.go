@@ -39,35 +39,29 @@ type layer struct {
 // read in use, or none when it resolves to nothing: the fields beside each $ref
 // of its chain, nearest first, each declared at the position the bindings'
 // table reads that $ref at, in whichever document, then the item the chain
-// ends at. The fields beside a $ref of its chain that the load phase did not
-// model are reported rather than dropped in silence (see unreadFields).
-func pathItemLayers(use lowering.Ctx, rp *soa.ReferencedPathItem, usePtr jsontext.Pointer) ([]layer, []ir.Diagnostic) {
+// ends at. The load phase models the fields beside every $ref the bindings'
+// table lands a path item on (load.Siblings), so none is left unread.
+func pathItemLayers(use lowering.Ctx, rp *soa.ReferencedPathItem, usePtr jsontext.Pointer) []layer {
 	pi, dc, declPtr := lowering.Declared[soa.PathItem](use, rp, usePtr)
 	if pi == nil {
-		return nil, nil
+		return nil
 	}
 	sibs := use.Siblings()
 	var layers []layer
-	var diags []ir.Diagnostic
-	// visit reads one $ref of the chain, written at decl in in's document;
-	// reached is how a report names it.
-	visit := func(hop *soa.ReferencedPathItem, in lowering.Ctx, decl jsontext.Pointer, reached string, foreign bool) {
+	// visit reads one $ref of the chain, written at decl in in's document.
+	visit := func(hop *soa.ReferencedPathItem, in lowering.Ctx, decl jsontext.Pointer) {
 		if sib, ok := sibs.Of(hop); ok {
 			layers = append(layers, layer{item: sib.Item, decl: decl, name: string(decl), in: in})
-			return
-		}
-		if sibs.Unread(hop) {
-			diags = append(diags, unreadFields(use, usePtr, reached, foreign))
 		}
 	}
-	visit(rp, use, usePtr, string(usePtr), use.RefScope().Foreign) // an alias's own position, as for an inline item
+	visit(rp, use, usePtr) // an alias's own position, as for an inline item
 	last := rp
 	for _, hop := range resolve.Hops[soa.PathItem](use.Bindings(), rp) {
-		in, read := lowering.InDocument(use, hop.At.Doc)
-		visit(hop.Ref, in, hop.At.Pointer, writtenRef(use, last), !read || in.RefScope().Foreign)
+		in, _ := lowering.InDocument(use, hop.At.Doc)
+		visit(hop.Ref, in, hop.At.Pointer)
 		last = hop.Ref
 	}
-	return append(layers, referent(use, dc, last, pi, declPtr)), diags
+	return append(layers, referent(use, dc, last, pi, declPtr))
 }
 
 // writtenRef is the $ref the reference object hop writes, as the bindings'
@@ -75,19 +69,6 @@ func pathItemLayers(use lowering.Ctx, rp *soa.ReferencedPathItem, usePtr jsontex
 func writtenRef(c lowering.Ctx, hop *soa.ReferencedPathItem) string {
 	r, _ := c.Bindings().Reference(hop)
 	return r.Hop.Ref
-}
-
-// unreadFields reports, at the mount's use site, the fields written beside the
-// $ref of the path item at reached that the load phase did not model: another
-// document's, as it models only the source's, or those at a position of the
-// source its walk does not reach, such as under an x-* key (GitHub #823).
-func unreadFields(use lowering.Ctx, usePtr jsontext.Pointer, reached string, foreign bool) ir.Diagnostic {
-	where := "at a position the compiler's walk of this document does not reach"
-	if foreign {
-		where = "in another document, which this compiler does not read"
-	}
-	return use.DiagAt(ir.SeverityWarning, diag.DegradedConstruct, usePtr,
-		"the path item at %s writes fields beside its $ref %s; they are not lowered at this mount", reached, where)
 }
 
 // referent returns the layer of pi, the item a chain ends at through last,

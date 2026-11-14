@@ -22,7 +22,7 @@ const componentSchemaTokens = 3
 // tokens lead to its schema, kinds being how the grammar reads the way to p
 // (bind.Table.Kinds): the schema whose structure holds p
 // (structureRoot), named for what holds it there (ownerOf) or, where that
-// schema is a document's root, for the document (documentName). A structure
+// schema is a document's root, for the document (Document). A structure
 // nothing names an owner of, such as one only a $ref reaches under an x- key,
 // is named from its pointer alone (pointerOwner).
 func (n *Namer) owner(p bind.Position, tokens []string, kinds []bind.Kind) (int, string) {
@@ -34,7 +34,7 @@ func (n *Namer) owner(p bind.Position, tokens []string, kinds []bind.Kind) (int,
 	case !ok:
 		return pointerOwner(tokens)
 	case root == 0:
-		return 0, n.documentName(p.Doc)
+		return 0, n.Document(p.Doc)
 	}
 	if hint, ok := n.ownerOf(p.Doc, tokens, kinds, root-1); ok {
 		return root, hint
@@ -119,12 +119,12 @@ func inStructure(k bind.Kind) bool {
 	return k == bind.KindSchema || k == bind.KindSchemaMap || k == bind.KindOther
 }
 
-// documentName is the hint the root of the document doc is named by where a
-// reference reads it as a schema, which no owner holds: the document's name,
-// what follows its last '/' (refHint), as a $ref spelling the document
-// suggests it. doc is one the table holds, since only a reading the table
-// recorded makes a root a schema (bind.Table.Kinds).
-func (n *Namer) documentName(doc bind.DocID) string {
+// Document is the hint what is declared at the root of the document doc is
+// named by, which no key names: the document's name, what follows its last
+// '/' (refHint), as a $ref spelling the document suggests it. A schema there
+// is named so, as is a Security Scheme Object a requirement key lands on. doc
+// is one the table holds, as only a reference the table read lands there.
+func (n *Namer) Document(doc bind.DocID) string {
 	return refHint(n.table.Document(doc).Name)
 }
 

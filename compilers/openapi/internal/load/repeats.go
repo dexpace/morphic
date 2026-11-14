@@ -4,12 +4,14 @@
 package load
 
 import (
+	"context"
 	"encoding/json/jsontext"
 	"iter"
 	"strconv"
 
 	soa "github.com/speakeasy-api/openapi/openapi"
 
+	"github.com/dexpace/morphic/compilers/openapi/internal/bind"
 	"github.com/dexpace/morphic/compilers/openapi/internal/bind/typed"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
@@ -22,11 +24,11 @@ import (
 // what an earlier entry of the same list is identified by: a parameter's name
 // and location (paramRepeats), or a server's name (serverRepeats).
 //
-// items is walkSource's walk, which visits each list where the source writes
-// it, lowered or not, and again wherever a YAML alias mounts it, but never
-// through a $ref, so a list only a $ref reaches is not checked (GitHub #880).
-// The lists beside a path item's $ref are sibs's model's (writtenItem). A
-// panic in the walk is reported at the model it reached.
+// items is a walk that visits each list where the source writes it, lowered
+// or not, and again wherever a YAML alias mounts it, but never through a $ref:
+// walkSource's, or a landing's (landingRepeats). The lists beside a path item's
+// $ref are sibs's model's (writtenItem). A panic in the walk is reported at the
+// model it reached.
 func listRepeats(place provenance.Doc, sibs Siblings, b *typed.Bindings, items iter.Seq[soa.WalkItem],
 ) []ir.Diagnostic {
 	var diags []ir.Diagnostic
@@ -52,6 +54,28 @@ func listRepeats(place provenance.Doc, sibs Siblings, b *typed.Bindings, items i
 	})
 	if err != nil {
 		diags = append(diags, diag.Newf(ir.SeverityError, diag.Validation, place.At(site), "%s", err.Error()))
+	}
+	return diags
+}
+
+// landingRepeats reports what listRepeats finds in each path item a reference
+// lands on where the source's grammar reads none, such as under an x- key,
+// which the lowering mounts and no walk of the source meets. Each is walked
+// from the landing's own pointer, entering the fields beside each $ref in it
+// (sibs), so each list is checked where it is written, once, however many
+// references mount it: a landing inside another draws its findings twice,
+// identical, which the compile records once (compile.Diags). Another
+// document's parameters are the lowering's to check (operation.paramLedger),
+// and its servers no reader checks (GitHub #880).
+func landingRepeats(ctx context.Context, place provenance.Doc, sibs Siblings, b *typed.Bindings) []ir.Diagnostic {
+	var diags []ir.Diagnostic
+	for _, l := range b.Table().ObjectLandings() {
+		rp, built := b.ObjectAt(l.At, bind.RefPathItem).(*soa.ReferencedPathItem)
+		if l.At.Doc != bind.Source || l.Kind != bind.RefPathItem || !l.Reached || !built {
+			continue
+		}
+		items := sibs.interleaved(ctx, locatedWalk(walk(ctx, rp), l.At.Pointer))
+		diags = append(diags, listRepeats(place, sibs, b, items)...)
 	}
 	return diags
 }

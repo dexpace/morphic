@@ -13,10 +13,14 @@ import (
 
 	"github.com/dexpace/morphic/compilers/compile"
 	"github.com/dexpace/morphic/compilers/openapi/internal/annotation"
+	"github.com/dexpace/morphic/compilers/openapi/internal/bind"
+	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
 	"github.com/dexpace/morphic/compilers/openapi/internal/nodeview"
 	"github.com/dexpace/morphic/compilers/openapi/internal/oas"
+	"github.com/dexpace/morphic/compilers/openapi/internal/provenance"
 	"github.com/dexpace/morphic/compilers/openapi/internal/resolve"
+	"github.com/dexpace/morphic/compilers/openapi/internal/value"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -31,6 +35,9 @@ type Use struct {
 	// Referents is what the position falls back to, nearest first
 	// (docs/compilers/openapi.md#ref-use-site).
 	Referents []*oas3.Schema
+	// places[i] is where Referents[i] is written, in whichever document;
+	// lend and lendAll write the two together.
+	places []referentPlace
 	// Principal is a refinement's inline principal where it owns a node, and nil
 	// otherwise: it is also the first of Referents.
 	Principal *annotation.Voice
@@ -93,6 +100,48 @@ func (u Use) DefaultChain(s *oas3.Schema) []*oas3.Schema {
 	return slices.Concat(chain[:own], slices.DeleteFunc(slices.Clone(chain[own:]), func(r *oas3.Schema) bool {
 		return !u.takes(r.GetDefault())
 	}))
+}
+
+// Default returns the default the nearest schema of u's chain writes for the
+// carrier at pointer holding s, as DefaultChain reads the chain, and a warning
+// at that default's own position where no ir.Value holds it. The carrier then
+// takes none: a later hop's default is not what the nearest writes.
+func (u Use) Default(c lowering.Ctx, s *oas3.Schema, pointer jsontext.Pointer) (*ir.Value, []ir.Diagnostic) {
+	chain := u.Site(s).Chain()
+	own := len(chain) - len(u.Referents) + u.narrowedFrom
+	for i, r := range chain {
+		d := r.GetDefault()
+		if d == nil || u.narrowed != nil && i >= own && !u.takes(d) {
+			continue
+		}
+		v, err := value.FromNode(d)
+		if err != nil {
+			return nil, []ir.Diagnostic{diag.Newf(ir.SeverityWarning, diag.UnloweredConstruct, u.defaultAt(c, i, pointer),
+				"default is no value the IR holds, so no property, header or parameter reading it takes one: %s",
+				diag.OneLine(err))}
+		}
+		return &v, nil
+	}
+	return nil, nil
+}
+
+// defaultAt places the default the schema at index i of u.Site's chain writes,
+// for the carrier at pointer: the site's own, a voice's, or a referent's where
+// it is written, in whichever document. A referent the bindings place nowhere
+// is reported at the carrier, which reads it.
+func (u Use) defaultAt(c lowering.Ctx, i int, pointer jsontext.Pointer) ir.Provenance {
+	switch v := i - 1; {
+	case i == 0:
+		return c.Place().At(pointer.AppendToken("default"))
+	case v < len(u.Voices):
+		return c.Place().At(u.Voices[v].At.AppendToken("default"))
+	}
+	r := i - 1 - len(u.Voices)
+	if r >= len(u.places) || !u.places[r].known {
+		return c.Place().At(pointer)
+	}
+	at := u.places[r]
+	return at.doc.At(at.pointer.AppendToken("default"))
 }
 
 // takes reports whether the position admits v: the narrowing does, or v is the
@@ -202,11 +251,13 @@ func throughRef(c lowering.Ctx, s *oas3.Schema) *oas3.JSONSchema[oas3.Referencea
 	return refs[0]
 }
 
-// speakers returns what p's $ref says of a use, nearest first: what is written
-// beside it, then what it lands on lends.
-func (p passage) speakers(c lowering.Ctx) []*oas3.Schema {
-	s := p.ref.GetSchema()
-	return append([]*oas3.Schema{s}, lentBy(c, c.RefScope().TargetSchema(p.ref, s)).Referents...)
+// speakers returns what p's $ref says of a use, nearest first, as a Use's
+// referents: what is written beside it, then what it lands on lends.
+func (p passage) speakers(c lowering.Ctx) Use {
+	var u Use
+	u.lend(p.ref.GetSchema(), placeOf(c, p.ref))
+	u.lendAll(lentBy(c, c.Bindings().Declared(p.ref)))
+	return u
 }
 
 // ownsNode reports whether p's principal lowered to a node of its own, which
@@ -223,7 +274,7 @@ func (p passage) ownsNode(c lowering.Ctx, ts *compile.Types, t ir.TypeRef) bool 
 func UseOf(c lowering.Ctx, ts *compile.Types, js *oas3.JSONSchema[oas3.Referenceable], t ir.TypeRef, pointer jsontext.Pointer) Use {
 	s := js.GetSchema()
 	if resolve.IsRefSite(js, s) {
-		u := lentBy(c, c.RefScope().TargetSchema(js, s))
+		u := lentBy(c, c.Bindings().Declared(js))
 		u.nullable = t.Nullable
 		return u
 	}
@@ -234,13 +285,13 @@ func UseOf(c lowering.Ctx, ts *compile.Types, js *oas3.JSONSchema[oas3.Reference
 	}
 	if p.ownsNode(c, ts, t) {
 		u.Principal = &annotation.Voice{Node: p.principal.schema.GetSchema(), At: p.principal.pointer}
-		u.Referents = append(u.Referents, u.Principal.Node)
+		u.lend(u.Principal.Node, placeIn(c, p.principal.pointer))
 	}
 	if p.ref == nil {
 		return u
 	}
 	u.narrowedFrom = len(u.Referents)
-	u.Referents = append(u.Referents, p.speakers(c)...)
+	u.lendAll(p.speakers(c))
 	if p.narrows {
 		u.narrowed = &p.admits
 	}
@@ -258,9 +309,9 @@ func nodeUse(c lowering.Ctx, ts *compile.Types, s *oas3.Schema, pointer jsontext
 	switch {
 	case !ok:
 	case p.lost:
-		u.Referents = p.speakers(c)
+		u.lendAll(p.speakers(c))
 	case p.ref != nil:
-		u.deprecatedBase = slices.ContainsFunc(p.speakers(c), func(r *oas3.Schema) bool {
+		u.deprecatedBase = slices.ContainsFunc(p.speakers(c).Referents, func(r *oas3.Schema) bool {
 			return r.GetDeprecated() || keysOf(c, r).Deprecated
 		})
 	}
@@ -272,37 +323,134 @@ type lentOf struct {
 	schema *oas3.Schema
 }
 
-// lentBy reads what s, the schema a $ref names, lends a use of it, nearest first:
-// s, the branches of its allOf that fold (lendingBranches), and past a
-// refinement, a decorator or a narrowing enum whatever its own $ref lends in
-// turn. Only s itself is read for what it admits, the narrowest of the chain, so
-// the narrowing starts past its branches. A chain of $refs is read as
-// resolve.Scope.TargetSchema reads it, to its end, past what an alias on it
-// writes (GitHub #1029). Every $ref to s asks, so it is read once a run.
-func lentBy(c lowering.Ctx, s *oas3.Schema) Use {
-	return lowering.Remembered(c, lentOf{s}, func() Use { return readLent(c, s) })
+// lentBy reads what js, the schema a $ref lands on, lends a use of it, nearest
+// first: each hop of the chain of $refs from js that writes more than its $ref,
+// the schema the chain ends on, the branches of its allOf that fold
+// (lendingBranches), and past a refinement, a decorator or a narrowing enum
+// whatever its own $ref lends in turn. Only that end is read for what it admits,
+// so the narrowing starts past its branches. Every $ref landing on js asks, so it
+// is read once a run.
+func lentBy(c lowering.Ctx, js *oas3.JSONSchema[oas3.Referenceable]) Use {
+	return lowering.Remembered(c, lentOf{js.GetSchema()}, func() Use { return readLent(c, js) })
 }
 
-// readLent reads what lentBy remembers.
-func readLent(c lowering.Ctx, s *oas3.Schema) Use {
+// readLent reads what lentBy remembers. A run of aliases is read within one
+// turn, so only the passages throughRef reads spend maxLentHops.
+func readLent(c lowering.Ctx, js *oas3.JSONSchema[oas3.Referenceable]) Use {
 	var u Use
-	if p, ok := passageOf(c, s, ""); ok && p.narrows {
-		u.narrowed = &p.admits
-		u.narrowedFrom = 1 + len(lendingBranches(c, s))
-	}
-	for range maxLentHops {
-		if s == nil {
+	for turn := range maxLentHops {
+		s, ok := u.lendRun(c, js)
+		if !ok {
 			break
 		}
-		u.Referents = append(append(u.Referents, s), lendingBranches(c, s)...)
+		if turn == 0 {
+			u.narrowTo(c, s)
+		}
 		through := throughRef(c, s)
 		if through == nil {
 			break
 		}
-		u.Referents = append(u.Referents, through.GetSchema())
-		s = c.RefScope().TargetSchema(through, through.GetSchema())
+		u.lend(through.GetSchema(), placeOf(c, through))
+		js = c.Bindings().Declared(through)
 	}
 	return u
+}
+
+// lendRun appends to u.Referents each alias of the run of $refs js starts that
+// writes more than its $ref, then the schema the run ends on and its lending
+// branches, and returns that schema. It is false, the run lending nothing past
+// what it appended, where the run ends on no schema, as a chain that loops or
+// fails does. The table's count of the chain's hops bounds the run.
+func (u *Use) lendRun(c lowering.Ctx, js *oas3.JSONSchema[oas3.Referenceable]) (*oas3.Schema, bool) {
+	e, ref := c.Bindings().Entry(js)
+	if ref && e.Chain.Status != bind.Resolved {
+		return nil, false
+	}
+	for range e.Chain.Hops + 1 {
+		s := annotation.SchemaOf(js)
+		if s == nil {
+			return nil, false
+		}
+		at := placeOf(c, js)
+		if !resolve.IsRefSite(js, s) {
+			u.lend(s, at)
+			u.lendBranches(c, s, at)
+			return s, true
+		}
+		if writesMoreThanRef(s) {
+			u.lend(s, at)
+			u.lendBranches(c, s, at)
+		}
+		js = c.Bindings().Declared(js)
+	}
+	return nil, false
+}
+
+// narrowTo has u admit what s admits where s, the end of the first run of a
+// chain, narrows what its own $ref admits: past it, a referent's default stands
+// only where s admits it.
+func (u *Use) narrowTo(c lowering.Ctx, s *oas3.Schema) {
+	if p, ok := passageOf(c, s, ""); ok && p.narrows {
+		u.narrowed, u.narrowedFrom = &p.admits, len(u.Referents)
+	}
+}
+
+// lend appends s, written at, to what u falls back to. It and lendAll are the
+// only writers of Referents and places, which keep each referent's place at
+// its index.
+func (u *Use) lend(s *oas3.Schema, at referentPlace) {
+	u.Referents = append(u.Referents, s)
+	u.places = append(u.places, at)
+}
+
+// lendAll appends what from falls back to, each referent with its place, to
+// what u falls back to.
+func (u *Use) lendAll(from Use) {
+	u.Referents = append(u.Referents, from.Referents...)
+	u.places = append(u.places, from.places...)
+}
+
+// lendBranches appends the lending branches of s, written at, each placed
+// beneath it.
+func (u *Use) lendBranches(c lowering.Ctx, s *oas3.Schema, at referentPlace) {
+	for _, b := range lendingBranches(c, s) {
+		u.lend(b.schema.GetSchema(), at.beneath(b.pointer))
+	}
+}
+
+// writesMoreThanRef reports whether s, a schema writing a $ref, writes anything
+// else, which a use reads; one writing its $ref alone lends nothing.
+func writesMoreThanRef(s *oas3.Schema) bool {
+	n := nodeview.Deref(s.GetRootNode())
+	return n == nil || n.Kind != yaml.MappingNode || len(n.Content) > 2
+}
+
+// referentPlace is where a referent is written: the document placing it and the
+// pointer there, unknown where the bindings place none.
+type referentPlace struct {
+	doc     provenance.Doc
+	pointer jsontext.Pointer
+	known   bool
+}
+
+// placeOf returns where the bindings read js, unknown for a schema they do not
+// know or a document the compile did not read.
+func placeOf(c lowering.Ctx, js *oas3.JSONSchema[oas3.Referenceable]) referentPlace {
+	p, known := c.Bindings().Site(js)
+	in, read := lowering.InDocument(c, p.Doc)
+	return referentPlace{doc: in.Place(), pointer: p.Pointer, known: known && read}
+}
+
+// placeIn returns pointer of c's document as a place.
+func placeIn(c lowering.Ctx, pointer jsontext.Pointer) referentPlace {
+	return referentPlace{doc: c.Place(), pointer: pointer, known: true}
+}
+
+// beneath returns the place of what is written at below, relative to p, and
+// unknown where p is.
+func (p referentPlace) beneath(below jsontext.Pointer) referentPlace {
+	p.pointer += below
+	return p
 }
 
 // DecidingSchema returns the schema deciding what s lowers to, s itself or, past

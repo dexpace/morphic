@@ -184,7 +184,11 @@ and size the budgets above leave free. A declaration a `$ref` names, a schema as
 each `$ref` naming it, so each such `$ref` is charged what the declarations its chain names weigh:
 the one it ends at, and each component alias it passes through, whose fields beside its own `$ref`
 lower at every use too ([`reference-object-siblings`](#reference-object-siblings),
-[`path-item-ref-fields`](#path-item-ref-fields)). A declaration weighs a node for each YAML node, a
+[`path-item-ref-fields`](#path-item-ref-fields)), and the use itself. An alias, and the mapping
+that writes the use's `$ref`, each weigh one node for the mapping and what it writes beside its
+`$ref`, weighed as a declaration is: the `$ref` is read, not copied, so a bare use and each bare
+alias of its chain weigh one node, and a `$ref` merged in through `<<` is weighed as written. A
+declaration weighs a node for each YAML node, a
 YAML alias as a copy of what it names, and a byte for each byte of scalar text, but a schema it
 holds weighs one node whatever the schema holds: it lowers once, to the type every copy refers to. A
 schema is weighed whole beneath a merge key, which the grammar reads as raw YAML, and wherever the
@@ -225,6 +229,9 @@ is left out too.
   `openapi.TestCompile_AReferenceExpansionRefusalKeepsWhatItsTableCanPlace`,
   `openapi.TestCompile_ASchemaIsChargedAsOneNode`,
   `openapi.TestCompile_AnAliasIsChargedBesideItsEnd`, `lowering.TestExpansion_ChargesEveryCopy`,
+  `lowering.TestExpansion_AHopWeighsWhatItWritesBesideItsRef`,
+  `lowering.TestDeclared_ChargesEachAliasWhatItWritesBesideItsRef`, `e2e.TestCompile_ALongRefChainCompiles`,
+  `e2e.TestCompile_AChainFarPastTheExpansionBudgetIsRefused`,
   `lowering.TestWeightOf_CostsTheBudgetNotTheDeclaration`,
   `lowering.TestWeightOf_CountsASchemaAsOneNode`,
   `lowering.TestDeclared_ChargesEachDeclarationOfAChain`,
@@ -1195,9 +1202,10 @@ same literal tagged `!!float` is. A quoted one stays a string. A value no `Value
 `.nan`, a number past `ir.MaxDecimalExp`, a `!!binary` that is not base64, a scalar whose text its
 tag does not admit (`!!null abc`, `!!timestamp soon`), a tag the compiler does not lower (`!acme`), a
 key a mapping or a mapping merged into it writes twice, a merge chain deeper than the reader
-expands, nesting past the reader's depth bound — is not coerced: a default or example is dropped
-with an `openapi/degraded-construct` warning at its position, and a `const` or an enum member is
-[`enum-const`](#enum-const)'s. A scalar whose text its tag does not admit is refused rather than
+expands, nesting past the reader's depth bound — is not coerced: an example is dropped with an
+`openapi/degraded-construct` warning at its position, a default with an `openapi/unlowered-construct`
+warning at its own `default`, in whichever document and once however many carriers read it, each of
+which then takes none, and a `const` or an enum member is [`enum-const`](#enum-const)'s. A scalar whose text its tag does not admit is refused rather than
 read as its text, since its tag says what kind of value it is, YAML's own decoding refuses it, and
 its text read as a string would be a value of a kind the source never wrote, where the warning says
 what the document got wrong. The number reader is the numeric bounds' as well
@@ -1205,14 +1213,16 @@ what the document got wrong. The number reader is the numeric bounds' as well
 [`verbatim-preservation`](#verbatim-preservation)'s.
 
 - Cases: `defaults`, `yaml-timestamp-scalars`, `numeric-precision`, `yaml-merge-keys`
-- Codes: `openapi/degraded-construct`
+- Codes: `openapi/degraded-construct`, `openapi/unlowered-construct`
 - Tests: `value.TestNumericLiteral_YAMLBases`, `value.TestValueFromNode_Timestamp`,
   `value.TestValueFromNode_Scalars`, `value.TestValueFromNode_ReadsAMappingAsTheParserDoes`,
   `value.TestValueFromNode_RefusesWhatNoObjectHolds`, `value.TestClassify_ReadsEachSpellingOnce`,
   `value.TestClassify_RefusesAPlainNumberPastTheExponentRange`,
-  `annotation.TestSchemaExamplesAt_UnconvertibleValueIsReportedNotDropped`
-- Status: partly built: an unconvertible default is reported at the schema of the property or
-  parameter that reads it rather than at its own position (#1101).
+  `annotation.TestSchemaExamplesAt_UnconvertibleValueIsReportedNotDropped`,
+  `schema.TestUseDefault_ReportsAtTheDefault`, `schema.TestUseDefault_ReportsAHeadersDefaultAtTheDefault`,
+  `schema.TestUseDefault_AChainReportsAtTheHopThatSupplied`
+- Status: partly built: a parameter's unconvertible default is still reported at the schema reading
+  it, with `openapi/degraded-construct` (#1101).
 
 ## 4. Schemas: identity, references and annotations
 
@@ -1261,8 +1271,9 @@ lowers first, with no diagnostic. A chain of `$ref`s that never reaches a node w
 
 The keywords written beside a schema's `$ref`, which 3.1 admits and which are applied the same way in
 a 3.0 document, each read in its own document's dialect
-([`later-version-construct`](#later-version-construct)), and the annotations its target
-declares — documentation, deprecation, redaction, visibility and `default` — merge onto the property,
+([`later-version-construct`](#later-version-construct)), and the annotations each hop of its `$ref`
+chain declares, nearest first — documentation, deprecation, redaction, visibility and `default` — merge
+onto the property,
 parameter or header that references the target, field by field, a keyword the use site writes
 winning over the target's ([annotations](../ir/annotations.md#what-a-reference-carries-down)), and by
 the same rule at every carrier. Redaction has nothing to win with: `format: password` on either side
@@ -1281,7 +1292,7 @@ than override, so each position keeps the ones it declared and none is copied to
 
 A refinement ([`allof-refinement`](#allof-refinement)) is a use of what it names, so a carrier holding
 one reads its target by this rule, and one holding a `$ref` to a refinement reads through it, up to 64
-`$ref`s: what the target declares, what its inline branches lend it
+refinements, an alias between two spending none of them: what the target declares, what its inline branches lend it
 ([`allof-inline-residue`](#allof-inline-residue)), then what its own `$ref` declares, nearest first. A
 `$ref` that loses the type to a value set narrowing it still speaks, for documentation, deprecation,
 visibility and redaction, on the carrier or else on the alias keeping it, and so does one an `enum`
@@ -1298,7 +1309,7 @@ it composes as `Base` and `Mixins`, which lends a carrier nothing, where a conju
 the `$ref` would lend written alone, since the visibility and `default` of the use have no other home.
 
 - Cases: `param-ref-inheritance`, `allof-ref-branch-siblings`, `readonly-writeonly`,
-  `schema-ref-siblings-30`, `allof-refinement`
+  `schema-ref-siblings-30`, `allof-refinement`, `ref-chain-annotations`
 - Tests: `e2e.TestAnnotationRetention`, `schema.TestModel_RefSiblingDescriptionWins`,
   `schema.TestSchemaExamples_ComponentRefSiblingKeepsThem`,
   `schema.TestRefinement_ACarrierReadsThroughARefinement`,
@@ -1307,8 +1318,9 @@ the `$ref` would lend written alone, since the visibility and `default` of the u
   `schema.TestUse_ACarrierReadsThroughADecorator`,
   `schema.TestUse_ALoopOfNarrowingEnumsEnds`, `annotation.TestEffectiveDeprecated_AnySchemaDeprecates`,
   `annotation.TestEffectiveVisibility_MapsTheFlagsToLifecycles`,
-  `operation.TestParams_RefSchemaUseSiteWinsOverItsReferent`
-- Status: partly built: a use reads the end of its chain and not the schema it names (#1029).
+  `operation.TestParams_RefSchemaUseSiteWinsOverItsReferent`, `schema.TestUseOf_LendsEachHopOfTheChain`,
+  `schema.TestUseOf_LendsEachHopAcrossTwoDocuments`, `schema.TestUseOf_AnAliasHopIsNoPassage`,
+  `schema.TestUseOf_PassagesAreBoundedAndAliasesSpendNone`
 
 ### `reference-object-siblings`
 
@@ -4060,10 +4072,13 @@ Every dialect reads both keywords as 2020-12 does. In a schema read in JSON Sche
 `dependentSchemas` and `dependentRequired`, is kept the same way under `openapi:dependencies`, and
 elsewhere is an unknown keyword ([`unknown-keys`](#unknown-keys)). Each entry is reported as an
 info `openapi/validation-only-keyword` at the schema that wrote it, an `openapi:unevaluated` one
-holding an inert keyword naming it and the keyword that leaves it inert.
+holding an inert keyword naming it and the keyword that leaves it inert. A position a kept keyword's
+`$ref` lands on is lowered all the same, and so is each position a chain of them passes, an alias
+keeping what it writes beside its `$ref`: the compiler lowers every position a schema `$ref` of the
+document lands on, hop by hop, as it would one a lowered keyword names.
 
 - Cases: `negation-not`, `dependent-required`, `schema-drafts`, `maps`, `tuples-prefixitems`,
-  `unevaluated-at-every-outcome`
+  `unevaluated-at-every-outcome`, `kept-ref-landings`
 - Codes: `openapi/validation-only-keyword`
 - Tests: `annotation.TestValidationOnlyAt_KeepsEveryKeywordItClaims`,
   `e2e.TestOlderDrafts_DependenciesAreValidationOnly`,
@@ -4301,9 +4316,12 @@ written with one value, written with a second — requiring that the absent form
 first and the first from the second, and an exception asserts the inverse with its written
 justification. A keyword that stops being carried fails there rather than waiting for a reader to
 notice. The guarantee is a floor rather than an inventory: it compares one pair of values per
-keyword, so a lowering that carried one spelling and dropped another would still pass.
+keyword, so a lowering that carried one spelling and dropped another would still pass. A keyword
+kept verbatim keeps its `$ref`s as written, and the positions they land on are lowered
+([`validation-only`](#validation-only)).
 
-- Tests: `schema.TestVocabulary2020_12_EveryKeywordIsLoweredOrKept`
+- Tests: `schema.TestVocabulary2020_12_EveryKeywordIsLoweredOrKept`, `schema.TestPromiseLandings_BuildsNothingTwice`,
+  `schema.TestPromiseLandings_LowersWhatNothingElseReached`, `e2e.TestCompile_KeptRefLandingsAreLoweredOnceInEitherOrder`
 
 ## 8. Paths and operations
 
@@ -4456,22 +4474,24 @@ reads on in the item the `$ref`'s chain ends at, so a pointer and a mount read o
 whichever reference, schema `$ref` or reference object, writes it. A `#/$defs/...` pointer written
 in those fields reads its definition there by the same rule. An item another document holds is
 declared where that document declares it, and a finding names its positions by the reference. The
-fields beside a `$ref` the load phase's walk does not reach, in another document or under an `x-*`
-key, are not lowered, reported as an `openapi/degraded-construct` warning at the mount naming the
-reference that reaches them.
+fields beside a `$ref` are lowered at every position the bindings' table lands a path item on, in
+the source or another document and under an `x-*` key alike, declared where they are written.
 
 - Cases: `path-item-ref-siblings`
-- Codes: `openapi/path-item-ref-collision`, `openapi/degraded-construct`
+- Codes: `openapi/path-item-ref-collision`
 - Tests: `operation.TestPathItemRefSiblings_CollisionIsLoudAndUseSiteWins`,
   `operation.TestPathItemRefSiblings_AReferenceIntoTheFieldsBesideARefReadsThem`,
   `operation.TestPathItemRefSiblings_APointerIntoTheFieldsTakesWhatTheyDeclare`,
   `operation.TestPathItemRefSiblings_APointerBesideTheRefReadsTheFieldsInEitherOrder`,
   `operation.TestPathItemRefSiblings_ADefsPointerBesideARefReadsItsOwnDefinitions`,
   `e2e.TestReferenceObjects_AFieldBesideAPathItemRefIsReadWhereItIsWritten`,
-  `operation.TestPathItemRefSiblings_FieldsAnotherDocumentWritesAreReported`,
-  `operation.TestPathItemRefSiblings_AForeignReferentKeepsItsOwnPositions`
-- Status: partly built: the fields beside a `$ref` the load phase's walk does not reach are not
-  lowered (#823).
+  `operation.TestPathItemRefSiblings_FieldsAnotherDocumentWritesAreModelled`,
+  `operation.TestPathItemRefSiblings_FieldsAtAnyLandingAreModelled`,
+  `operation.TestPathItemRefSiblings_AForeignReferentKeepsItsOwnPositions`,
+  `e2e.TestCompile_FieldsBesideAPathItemRefAtAnyLandingAreMounted`,
+  `e2e.TestCompile_ALongChainOfLandingsMountsEachOnesFields`,
+  `e2e.TestCompile_FieldsBesideAForeignPathItemRefAreMounted`,
+  `e2e.TestExternalContent_FieldsBesideAPathItemRefItWritesAreLowered`
 
 ### `tag-groups`
 
@@ -4648,8 +4668,10 @@ in any case, which OpenAPI forbids, keeps every occurrence, the ID of each repea
 ending in its occurrence number, so `x-trace` beside `X-Trace` keeps the ID each has alone, and is
 reported as an `openapi/duplicate-parameter` error at the repeat, naming the first entry's spelling
 where it differs. Every list the source writes is
-checked, whether or not it lowers, and a list another document writes where it lowers or where a
-path item that mounts no operation keeps it; the rule table
+checked, whether or not it lowers, a path item's a reference lands on where the source's grammar
+reads none, such as under an `x-` key, among them, beside its `$ref` or not, once however many paths
+mount it, and a list another document writes where it lowers or where a path item that mounts no
+operation keeps it; the rule table
 ([`validation`](#validation)) states this rule and leaves it to this one. A path item that mounts
 no operation has none to merge its parameters into, so it keeps each entry as written, a `$ref`
 included, where it keeps what else it writes ([`path-item-servers`](#path-item-servers)), under
@@ -4666,8 +4688,9 @@ repeat's ending in its occurrence number (`no_ir_home`).
   `operation.TestPathItem_WithNoOperationReportsARepeatInAnotherDocument`,
   `operation.TestParams_AHeaderIsOneParameterInAnyCase`,
   `operation.TestPathItem_WithNoOperationKeysAHeaderRepeatedInAnyCase`,
-  `ids.TestSlotOf_ComparesAHeadersNameInAnyCase`
-- Status: partly built: a list only a `$ref` reaches is never checked for repeats (#880).
+  `ids.TestSlotOf_ComparesAHeadersNameInAnyCase`,
+  `e2e.TestCompile_AListAtAPathItemLandingIsCheckedForRepeats`,
+  `e2e.TestCompile_AListAtAPathItemLandingInAnotherDocumentIsCheckedForRepeats`
 
 ### `content-parameters`
 
@@ -5557,18 +5580,22 @@ spellings apart in `Service.Auth`.
 A requirement's key names an entry of the source's `securitySchemes`, whichever document holds the
 requirement, matched exactly, in the specification's order. A key that is the name of an entry is
 that name, at every minor. From 3.2, which lets a key be the URI of a Security Scheme Object, any
-other key is read as a reference is, against the document holding the requirement
-([`references`](#references)), and one naming the position of an entry of the source's
-`securitySchemes` names that entry, as its name would. Any other key is the name it spells; 3.0 and
-3.1 define no URI form, so there a key is a name alone. A name that reaches no mechanism lowers to a
+other key is a reference, read against the document holding the requirement
+([`references`](#references)), a bare word as a relative URI: one landing on an entry of the source's
+`securitySchemes`, or naming one that resolves to nothing, names that entry, as its name would, and
+one landing on a Security Scheme Object anywhere else, in the source or another document, names that
+object, lowered once where it is declared, under the ID its position there derives
+([identity](../ir/identity.md)), whichever requirement reaches it first. 3.0 and 3.1 define no URI
+form, so there a key is a name alone. A name that reaches no mechanism lowers to a
 scheme of kind `unresolved` ([auth](../ir/auth.md#unresolved-schemes)), one per name, and is
 reported as an `openapi/unresolved-security-scheme` error at each requirement, quoting the key as
 written. Where a declared scheme that reaches a mechanism is a near miss of the name, the error
 names it, resolution staying exact: the first that holds of the same neutral name, the same letters
 and digits in any case, and, for a name of 4 to 64 bytes where at most 64 declared schemes reach a
 mechanism, a name one edit apart, an insertion, a deletion, a substitution or two adjacent runes
-swapped, the least in byte order where several do. In a 3.2 document the error then adds that a URI
-naming a Security Scheme Object outside the source's `securitySchemes` is not read. Nothing else
+swapped, the least in byte order where several do. A key read as a reference that lands on nothing adds why,
+in the words the reference's own report would use, and lowers to a scheme minted from the key and the
+document writing it, so one key in two documents is two schemes. Nothing else
 about the requirement changes: the option keeps its other schemes, its scopes and its place in the
 list, so an operation stating its own requirement does not read as inheriting, and an option whose
 name reaches no mechanism does not vanish from the options beside it. The error stands however the
@@ -5637,7 +5664,7 @@ requirement naming no scheme and a scheme naming no mechanism, and leaves them t
   `auth.TestSecurityRequirement_ARepeatedScopeIsKeptOnce`,
   `auth.TestSecurityRequirement_A32KeyMayNameItsSchemeByURI`,
   `auth.TestSecurityRequirement_A31KeyIsAName`,
-  `auth.TestSecurityRequirement_A32UnresolvedNameSaysWhatIsNotRead`,
+  `auth.TestSecurityRequirement_A32URIIsReadWhereverItLands`,
   `auth.TestSecurityRequirement_AURIIsReadInTheDocumentHoldingIt`,
   `auth.TestSecurityRequirement_ANameAndItsURIAreOneSchemeInEitherOrder`,
   `auth.TestSecurityRequirement_AKeyAnotherDocumentMintsStillNamesTheSourcesEntry`,
@@ -5648,9 +5675,8 @@ requirement naming no scheme and a scheme naming no mechanism, and leaves them t
   `auth.TestNearest_ReadsOneEditWithinItsBounds`, `auth.TestOneEditApart_CountsOneEdit`,
   `lowering.TestFirstOccurrences_KeepsEachEntryOnceAtItsFirst`,
   `auth.TestAuth_RequirementsOrOfAnds`
-- Status: partly built: a 3.2 requirement naming a scheme by a URI outside the source's
-  `components/securitySchemes` lowers as unresolved (#1869), and so does one naming the source by
-  its `$self` (#863), a field under a tag outside YAML's JSON schema ruleset reads as left out, so
+- Status: partly built: a 3.2 requirement naming the source by its `$self` lowers as unresolved
+  (#863), a field under a tag outside YAML's JSON schema ruleset reads as left out, so
   `scheme: !local bearer` is reported as omitted and names no mechanism, and a `security` list under
   a local tag inherits with no finding (#1368), and a `$ref` written as null refuses the whole
   document (#1284).
@@ -5704,9 +5730,10 @@ the first.
   `servers.TestRegistry_RootNamesTheDeclaredServersInSourceOrder`,
   `load.TestServerRepeats_ReportsEveryListTheSourceWrites`,
   `load.TestServerRepeats_ReportsOnlyANameOneListRepeatsExactly`,
-  `servers.TestServerVariables_AnEmptyDefaultIsNotNone`
-- Status: partly built: a servers list only a `$ref` reaches is never checked for a repeated name
-  (#880).
+  `servers.TestServerVariables_AnEmptyDefaultIsNotNone`,
+  `e2e.TestCompile_AServersListAtAPathItemLandingIsCheckedForRepeats`
+- Status: partly built: a servers list another document writes is never checked for a repeated
+  name (#880).
 
 ## 15. Vendor extensions and policy
 

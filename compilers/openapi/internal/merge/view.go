@@ -220,7 +220,7 @@ func viewOf(end ir.TypeDef, chain []*ir.Scalar, bounds *ir.Constraints) (ir.Type
 // chain whose every alias says nothing else (aliasSaysNothing), docs included,
 // adds only null, so id is within td (relBNarrower). Any other is relUnrelated,
 // for the view to judge, as is a td whose chain does not reach id. Docs count,
-// as a use site may not carry them (GitHub #1029).
+// as a use of td reads them (docs/compilers/openapi.md#ref-use-site).
 func (r registry) standsFor(td ir.TypeDef, id ir.TypeID) relation {
 	null, says := false, false
 	for range maxTypeResolveDepth {

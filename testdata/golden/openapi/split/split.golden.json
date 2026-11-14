@@ -2,6 +2,9 @@
   "idSpaces": {
     "auth": [
       "openapi",
+      "openapi@common.yaml",
+      "openapi@paths.yaml",
+      "openapi@schemas~1pet.yaml",
       "unresolved"
     ],
     "e": [

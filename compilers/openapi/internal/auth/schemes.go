@@ -60,7 +60,7 @@ func lowerEntry(c lowering.Ctx, name string, rs *soa.ReferencedSecurityScheme) (
 // unreachable from a parsed document, so that guard is for a hand-built node.
 func unresolvableScheme(c lowering.Ctx, name string, rs *soa.ReferencedSecurityScheme, entry jsontext.Pointer,
 ) (ir.AuthScheme, []ir.Diagnostic) {
-	scheme := unresolvedScheme(name, c.Place().At(entry))
+	scheme := unresolvedScheme(ids.UnresolvedAuth(name), name, c.Place().At(entry))
 	if rs == nil {
 		return scheme, nil
 	}

@@ -65,7 +65,7 @@ func TestLower_PropertyDetailRichSchema(t *testing.T) {
 	assert.NotEmpty(t, byWire["withExt"].Unmodeled)
 	var sawDefaultWarn bool
 	for _, d := range diags {
-		if d.Severity == ir.SeverityWarning && strings.Contains(d.Message, "default:") {
+		if d.Severity == ir.SeverityWarning && d.Code == diag.UnloweredConstruct {
 			sawDefaultWarn = true
 		}
 	}

@@ -45,7 +45,7 @@ witnessing it.
 
 ### `negation`
 
-- Witnesses: `negation-not`
+- Witnesses: `negation-not`, `kept-ref-landings`
 
 ### `enums-string`
 
@@ -84,7 +84,8 @@ witnessing it.
 
 ### `defaults`
 
-- Witnesses: `defaults`, `yaml-timestamp-scalars`, `numeric-precision`, `param-ref-inheritance`
+- Witnesses: `defaults`, `yaml-timestamp-scalars`, `numeric-precision`, `param-ref-inheritance`,
+  `ref-chain-annotations`
 
 ### `constraints`
 
@@ -217,7 +218,7 @@ witnessing it.
 ### `docs-summary-description`
 
 - Witnesses: `param-ref-inheritance`, `path-item-docs`, `docs-summary-desc`, `request-body-docs`,
-  `ref-site-docs`, `response-summary-32`
+  `ref-site-docs`, `response-summary-32`, `ref-chain-annotations`
 
 ### `vendor-extensions`
 

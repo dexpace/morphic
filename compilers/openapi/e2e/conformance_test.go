@@ -331,6 +331,8 @@ func conformanceCases() []conformanceCase {
 		{"security-root-optional", assertSecurityRootOptional},
 		{"repeated-tags-and-scopes", assertRepeatedTagsAndScopes},
 		{"security-unresolved", assertSecurityUnresolved},
+		{"ref-chain-annotations", assertRefChainAnnotations},
+		{"kept-ref-landings", assertKeptRefLandings},
 	}
 }
 

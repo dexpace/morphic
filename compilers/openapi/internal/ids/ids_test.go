@@ -444,9 +444,11 @@ func TestNamespaces_NameEveryNamespaceThisCompilerMints(t *testing.T) {
 }
 
 // TestNamespaces_DeclareEachOtherDocumentsSpaces pins that a compile reading
-// other documents declares, for each, the type, property, enum member and
-// server spaces its IDs are minted in, and no operation, parameter, security
-// scheme or service space, which the source's mounts and names alone take.
+// other documents declares, for each, the type, property, enum member, server
+// and security scheme spaces its IDs are minted in, a scheme a requirement key
+// reaches there among them, and no operation, parameter or service space,
+// which the source's mounts and names alone take, nor an unresolved scheme's,
+// which every document shares.
 func TestNamespaces_DeclareEachOtherDocumentsSpaces(t *testing.T) {
 	t.Parallel()
 	assert.Equal(t, map[string][]string{
@@ -454,7 +456,7 @@ func TestNamespaces_DeclareEachOtherDocumentsSpaces(t *testing.T) {
 			"composed@b~1c.yaml", "openapi", "openapi@a.yaml", "openapi@b~1c.yaml"},
 		ir.IDKindOp:      {"openapi"},
 		ir.IDKindProp:    {"composed", "composed@a.yaml", "composed@b~1c.yaml", "openapi", "openapi@a.yaml", "openapi@b~1c.yaml"},
-		ir.IDKindAuth:    {"openapi", "unresolved"},
+		ir.IDKindAuth:    {"openapi", "openapi@a.yaml", "openapi@b~1c.yaml", "unresolved"},
 		ir.IDKindService: {"openapi"},
 		ir.IDKindGroup:   {"default", "extension", "path-prefix", "tags", "webhooks"},
 		ir.IDKindParam:   {"openapi"},

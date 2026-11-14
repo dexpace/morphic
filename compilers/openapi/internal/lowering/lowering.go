@@ -374,7 +374,7 @@ func Declared[T, S any, R chainable[T, S], P interface {
 	// inline entry is not charged here: a path item's own inline parameters are
 	// charged where its additionalOperations entries take them
 	// (ChargeExpansionAt).
-	if !c.expansion.admit(readingOf(c, usePtr), copied[T, S](c, ref, P(obj).GetRootNode())...) {
+	if !c.expansion.admit(readingOf(c, usePtr), P(obj).GetRootNode(), copied[T, S](c, ref)...) {
 		return nil, c, usePtr
 	}
 	there, ok := InDocument(c, decl.Doc)
@@ -412,10 +412,6 @@ func (c Ctx) SchemaRules() oas.SchemaRules { return rowsOf(c).Schema }
 // with (rowsOf), as SchemaRules returns the Schema Object's: what a part takes
 // where its encoding leaves a field unwritten.
 func EncodingRules(c Ctx) oas.EncodingRules { return rowsOf(c).Encoding }
-
-// SecurityRules returns the Security Requirement Object's rows a requirement c
-// lowers is read with (rowsOf): whether its key may name a scheme by URI.
-func SecurityRules(c Ctx) oas.SecurityRules { return rowsOf(c).Security }
 
 // rowsOf returns what the table says at the minor of the document whose
 // content c reads, in the dialect its jsonSchemaDialect names
@@ -527,6 +523,12 @@ func NameTitle(c Ctx, pointer jsontext.Pointer) (string, bool) {
 // suggests (naming.Namer.Through), and "" where it suggests none.
 func NameThrough(c Ctx, pointer jsontext.Pointer) string {
 	return c.loaded.names.Through(bind.Position{Doc: c.homeDoc, Pointer: pointer})
+}
+
+// NameOfDocument returns the hint what is declared at the root of document doc
+// of the bindings' table is named by (naming.Namer.Document).
+func NameOfDocument(c Ctx, doc bind.DocID) string {
+	return c.loaded.names.Document(doc)
 }
 
 // homeOf returns the document other than the source whose positions c reads,

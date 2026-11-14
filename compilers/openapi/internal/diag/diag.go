@@ -236,8 +236,7 @@ const (
 	// written: kept raw for want of a home or past a bound (callbacks too deep,
 	// operation.operationCallbacks), lowered weaker (a mixed enum as a union, an
 	// unconvertible value as the top type, a member or const its type rejects as
-	// written), or dropped (a default or example, an enum's excluded null, the
-	// fields beside a path item $ref the load phase's walk misses). A promotion
+	// written), or dropped (an example, an enum's excluded null). A promotion
 	// or grouping by extension reports an extension kept but read into no field
 	// or group (lowering.Promoter, operation.extensionPaths). It marks the lossy
 	// lowerings reported, not every one.
@@ -399,6 +398,11 @@ const (
 	// unconditional, not an Options switch, because nothing is inferred (invariant
 	// 6). Warning, not error: the document is well-formed.
 	ReservedHeaderName = "openapi/reserved-header-name"
+	// UnloweredConstruct reports a construct malformed or contradictory, so not
+	// lowered as written: a consumer gets the IR without it. A default no
+	// ir.Value holds is reported once, where it is written, and every carrier
+	// reading it takes none (schema.Use.Default).
+	UnloweredConstruct = "openapi/unlowered-construct"
 	// UnpreservableConstruct reports a construct that reached the IR in no form at
 	// all: the compiler had no field to model it and its source node could not be
 	// converted to JSON either, so Unmodeled could not hold it. It is an error

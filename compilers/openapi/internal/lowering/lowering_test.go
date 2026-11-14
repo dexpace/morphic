@@ -522,7 +522,6 @@ func TestSiblings_ReadsTheLoadPhasesModel(t *testing.T) {
 	require.True(t, ok, "the context reads the load phase's model")
 	assert.NotNil(t, sib.Item.Put(), "the operation beside the $ref is modelled")
 	assert.Equal(t, jsontext.Pointer("/paths/~1a"), sib.Pointer)
-	assert.False(t, c.Siblings().Unread(rp), "a source use site is read")
 }
 
 // TestMediaTypeUse_ReadsTheLoadPhasesModel holds where a lowering reads the

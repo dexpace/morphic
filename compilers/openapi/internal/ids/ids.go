@@ -144,6 +144,7 @@ func Namespaces(others ...Document) compile.Namespaces {
 		ns[ir.IDKindEnumMember] = append(ns[ir.IDKindEnumMember], d.space(OpenAPISpace), d.space(AnonSpace),
 			d.space(ComposedSpace))
 		ns[ir.IDKindServer] = append(ns[ir.IDKindServer], d.space(OpenAPISpace))
+		ns[ir.IDKindAuth] = append(ns[ir.IDKindAuth], d.space(OpenAPISpace))
 	}
 	return ns
 }
@@ -152,8 +153,9 @@ func Namespaces(others ...Document) compile.Namespaces {
 // it. The zero value is the source, whose IDs take the bare spaces; another is
 // named by its label (In), which qualifies each space (compile.Space.Qualified),
 // so one pointer in two documents derives two IDs, each still the pointer it
-// records. Operations, parameters, security schemes and services are named by
-// where the source mounts or names them, so they take no Document; a server is
+// records. Operations, parameters and services are named by where the source
+// mounts or names them, so they take no Document; a server, and a security
+// scheme a requirement key reaches outside the source's securitySchemes, is
 // named where it is declared, so it does.
 type Document struct {
 	label string
@@ -288,6 +290,20 @@ func DefaultServer() ir.ServerID { return compile.ServerID(DefaultServerSpace, "
 // Auth returns the stable ID of the named security scheme.
 func Auth(name string) ir.AuthID {
 	return compile.AuthID(OpenAPISpace, string(schemePointer(name)))
+}
+
+// Auth returns the stable ID of the Security Scheme Object at pointer in d, a
+// position outside the source's securitySchemes a requirement key reaches.
+func (d Document) Auth(pointer jsontext.Pointer) ir.AuthID {
+	return compile.AuthID(d.space(OpenAPISpace), string(pointer))
+}
+
+// UnresolvedAuth returns the stable ID of the scheme a requirement key written
+// in d that reaches no mechanism lowers to: in the one space ir reserves for
+// that kind, at the pointer a declaration of key has, behind d's qualifier for
+// another document (Coordinate), so one key in two documents is two schemes.
+func (d Document) UnresolvedAuth(key string) ir.AuthID {
+	return compile.AuthID(compile.UnresolvedSpace, d.Coordinate(schemePointer(key)))
 }
 
 // UnresolvedAuth returns the stable ID of the scheme a name that reaches no
