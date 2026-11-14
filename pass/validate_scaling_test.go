@@ -53,7 +53,7 @@ func costAround(t *testing.T, n int, build func(n int) *ir.Document,
 	for j := range spread {
 		size := int(math.Round(float64(n) * math.Exp2(float64(j)/spread)))
 		doc := build(size)
-		holds(t, size, validated(t, doc))
+		holds(t, size, validatedOnce(t, doc))
 		a, b := validateCost(t, doc)
 		allocs += a / spread
 		bytes += b / spread

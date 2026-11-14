@@ -50,6 +50,20 @@ const (
 	HTTPLocationHost HTTPLocation = "host"
 )
 
+// Valid reports whether l is one of the locations declared above. The empty
+// string is not one: a parameter binding always names where it binds.
+// HTTPLocation is a bare string enum, so nothing rejects an invented value on
+// the wire; irverify calls this so that one is reported.
+func (l HTTPLocation) Valid() bool {
+	switch l {
+	case HTTPLocationPath, HTTPLocationQuery, HTTPLocationQuerystring, HTTPLocationHeader, HTTPLocationCookie,
+		HTTPLocationBody, HTTPLocationBodyProperty, HTTPLocationHost:
+		return true
+	default:
+		return false
+	}
+}
+
 // HTTPBinding maps an Operation onto one HTTP method and path, or for a webhook
 // onto a method and the event it names (docs/ir/http-binding.md).
 type HTTPBinding struct {
@@ -246,6 +260,13 @@ const (
 	// MsgDirectionReceive means the application receives the message.
 	MsgDirectionReceive MsgDirection = "receive"
 )
+
+// Valid reports whether d is one of the directions declared above. The empty
+// string is not one: a message binding always names its direction.
+// irverify calls this so that an invented or missing direction is reported.
+func (d MsgDirection) Valid() bool {
+	return d == MsgDirectionSend || d == MsgDirectionReceive
+}
 
 // MessageBinding maps an Operation onto a messaging channel
 // (docs/ir/messaging.md).

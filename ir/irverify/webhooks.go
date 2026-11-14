@@ -17,25 +17,37 @@ var (
 	opIDType        = reflect.TypeFor[ir.OpID]()
 )
 
+// webhookPath is operationPath and the two types between an Operation and its
+// bindings, the path to every HTTPBinding checkWebhookRoutes holds; the carrier
+// counts of both are pinned by TestEnumPath_ListsEveryCarrier.
+var webhookPath = func() map[reflect.Type]bool {
+	path := maps.Clone(operationPath)
+	path[reflect.TypeFor[ir.OpBindings]()] = true
+	path[reflect.TypeFor[[]ir.HTTPBinding]()] = true
+	return path
+}()
+
 // checkWebhookRoutes asserts every ir.HTTPBinding names its route in the field
 // Inbound selects, a webhook its event in WebhookName and any other binding its
 // template in URITemplate, and that Inbound is a kind ir declares. A binding
 // filling the other field gives two answers to whether it is a webhook.
 //
 // Neither field is required: an empty webhooks-map key is legal and lowers to
-// no name. The walk reaches bindings rather than the fields carrying them, so a
-// new carrier is held at once.
+// no name. It prunes all but webhookPath, for checkStreamingModes's reason, so
+// a binding is held only where webhookPath leads: a new carrier fails
+// TestEnumPath_ListsEveryCarrier, which counts carriers and reads no path,
+// and the path is widened by hand.
 func checkWebhookRoutes(*ir.Document) walkCheck {
 	var vs []Violation
 	return walkCheck{
 		visit: func(v reflect.Value, at ir.WalkPath) bool {
 			if v.Type() != httpBindingType {
-				return true
+				return webhookPath[v.Type()]
 			}
 			if b, ok := reflect.TypeAssert[ir.HTTPBinding](v); ok {
 				vs = appendStrayRoute(vs, b, at)
 			}
-			return true
+			return false
 		},
 		report: reporting(&vs),
 	}
@@ -114,8 +126,12 @@ func noteCallbacks(op *ir.Operation, path ir.WalkPath, marked, listed map[ir.OpI
 
 // callbackDisagreements reports each operation marked a callback that no
 // binding lists, then each listed operation the walk declared that is not
-// marked, each in byte order of its ID.
+// marked, each in byte order of its ID. A walk cut short read part of the
+// bindings, so it claims neither, and the cut is reported.
 func callbackDisagreements(d declarations, marked, listed map[ir.OpID]string) []Violation {
+	if d.truncated {
+		return nil
+	}
 	var vs []Violation
 	for _, id := range slices.Sorted(maps.Keys(marked)) {
 		if _, ok := listed[id]; !ok {

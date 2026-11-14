@@ -14,16 +14,20 @@ Part of the [IR design](./README.md). Tracked for implementation.
    `843eae2f`) deriving usage for every type, the subtype index and the type graph included, takes
    about 50 ms of a compile of about 8 s (morphic `4545c23e`), so storing it bought nothing, and a
    stored copy goes stale after any transform that changes what an operation reaches.
-5. **Cross-revision correlation** — answered for the two tiers a document alone supports. An ID
+5. **Cross-revision correlation** — settled at the two tiers a document alone supports. An ID
    identifies an entity within one document, and across revisions only while its pointer holds
    still; a reordered array even hands an old ID to another entity ([across
    revisions](./identity.md#across-revisions)). The [correlation
    key](./derived-facts.md#correlation-keys) carries an entity across the rest: derived on demand
    rather than stored, built from what the document names the entity by, and none where two entities
-   share one. Still open: a third, *structural* tier for an entity whose pointer and name both
-   change — a content hash or field-set similarity shared with the `dedup` pass, which oagen's
-   compat stack found it needed once name-based correlation missed renames (prior-art.md §1). Decide
-   it once a diff consumer shows the first two tiers miss what it must match.
+   share one. A third, *structural* tier, for an entity whose pointer and name both change, is
+   decided against (#1624). Resemblance, a content hash or a field-set similarity, is a relation
+   between two documents rather than a fact of one, and `irfacts` reads one document. And it
+   mismatches: on the golden spec (spec @8b1a4518, morphic @c8fb18b6), 1,196 of the 2,817 named
+   models holding two properties or more share their property-name set with another named model, so
+   the set cannot name an entity's successor. Such an entity reads as one removed and another added,
+   and what a consumer keyed by its old ID is the generation's to report
+   ([a key that matches nothing](../emitters/write-integrate.md#a-key-that-matches-nothing)).
 6. **Response discrimination placement** — `ResponseConditions` (status ranges) is HTTP-shaped
    living on the neutral core. Fresh evidence that it sits awkwardly: RPC single-response and OTP
    call replies both use empty conditions, and `Response.StatusCodeProp` is likewise

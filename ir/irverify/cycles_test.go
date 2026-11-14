@@ -21,7 +21,7 @@ import (
 // doc.Types[t/x/M].Examples[i].Value.
 func examplesDoc(values ...ir.Value) *ir.Document {
 	scalar := &ir.Scalar{ID: "t/x/S", Name: named("s"), Base: &ir.TypeRef{Target: "t/prim/string"}}
-	prim := &ir.Primitive{ID: "t/prim/string", Prim: ir.PrimString}
+	prim := &ir.Primitive{ID: "t/prim/string", Prim: ir.PrimString, Provenance: ir.Provenance{Source: ir.NoSource}}
 	model := &ir.Model{ID: "t/x/M", Name: named("m")}
 	for i := range values {
 		model.Examples = append(model.Examples, ir.Example{Value: &values[i]})

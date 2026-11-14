@@ -148,17 +148,16 @@ func declaredIDField(t reflect.Type) idField {
 	return idField{}
 }
 
-// idClasses returns every class of ID a node of a [Document] can declare as its
-// own, derived from the IR's type graph rather than from any one document, so a
-// class nothing in this document declares still has to resolve references.
+// idClasses is every class of ID a node of a [Document] can declare as its own,
+// derived from the IR's type graph rather than from any one document, so a
+// class nothing in this document declares still has to resolve references. It
+// is derived once, as the package starts, and never written.
 //
-// The walk is over reflect.Type, so the finite set of types the package declares
-// bounds it: each is expanded once. [TypeDef] is an interface and a type walk
-// cannot see what implements it, so the concrete kinds are seeded from
-// newTypeDefByKind, already the single source of truth for kind dispatch.
-func idClasses() map[reflect.Type]bool {
-	return idClassesOf(idClassRoots())
-}
+// The walk is over reflect.Type, which the finite set of types the package
+// declares bounds. [TypeDef] is an interface a type walk cannot see behind, so
+// the concrete kinds are seeded from newTypeDefByKind, the single source of
+// truth for kind dispatch.
+var idClasses = idClassesOf(idClassRoots())
 
 // idClassesOf returns every class of ID a value of one of the types in queue
 // can declare, or hold a value declaring.

@@ -40,6 +40,8 @@ func TestVerify_ReportsTruncationOnce(t *testing.T) {
 		}
 		truncations++
 		assert.Equal(t, "doc", v.Path, "truncation is a fact about the document, not about a node")
+		assert.Equal(t, "document nests deeper or unfolds larger than the bounded walk reads; part of it went unchecked",
+			v.Message)
 	}
 	assert.Equal(t, 1, truncations)
 }

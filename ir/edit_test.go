@@ -911,8 +911,8 @@ func TestEditor_UpdateKeepsAliasingAndEndsACycle(t *testing.T) {
 	ctor.Args = []ir.Value{{Kind: ir.ValueCtor, Ctor: ctor}}
 	base := []string{"a", "b", "c"}
 	node := &ir.Scalar{ID: "t/s", Tags: base[:2], Namespace: base[:3], Examples: []ir.Example{
-		{Name: "a", Value: shared, Input: &ir.Value{Kind: ir.ValueList, List: list}, Unmodeled: extensions},
-		{Name: "b", Value: shared, Input: &ir.Value{Kind: ir.ValueList, List: list}, Unmodeled: extensions},
+		{Name: "a", Value: shared, Input: &ir.ScenarioInput{Body: &ir.Value{Kind: ir.ValueList, List: list}}, Unmodeled: extensions},
+		{Name: "b", Value: shared, Input: &ir.ScenarioInput{Body: &ir.Value{Kind: ir.ValueList, List: list}}, Unmodeled: extensions},
 		{Name: "c", Value: &ir.Value{Kind: ir.ValueCtor, Ctor: ctor}},
 	}}
 
@@ -922,8 +922,8 @@ func TestEditor_UpdateKeepsAliasingAndEndsACycle(t *testing.T) {
 	examples := cp.Examples
 	assert.Same(t, examples[0].Value, examples[1].Value, "one shared pointer, one shared copy")
 	assert.NotSame(t, shared, examples[0].Value)
-	assert.Same(t, &examples[0].Input.List[0], &examples[1].Input.List[0], "one shared slice, one shared copy")
-	assert.NotSame(t, &list[0], &examples[0].Input.List[0])
+	assert.Same(t, &examples[0].Input.Body.List[0], &examples[1].Input.Body.List[0], "one shared slice, one shared copy")
+	assert.NotSame(t, &list[0], &examples[0].Input.Body.List[0])
 	assert.Equal(t, reflect.ValueOf(examples[0].Unmodeled).Pointer(), reflect.ValueOf(examples[1].Unmodeled).Pointer(),
 		"one shared map, one shared copy")
 	assert.NotEqual(t, reflect.ValueOf(extensions).Pointer(), reflect.ValueOf(examples[0].Unmodeled).Pointer())

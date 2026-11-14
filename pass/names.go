@@ -42,9 +42,8 @@ func (Names) Run(ctx context.Context, doc *ir.Document) (*ir.Document, []ir.Diag
 // ctx's error alone once ctx is done. It asks ctx before each family and after
 // the last, so a cancel waits out one at most. Servers, channels, messages, a
 // field's arguments and a resource's identifiers and properties wait for a
-// target to name them (GitHub #1413), a response's headers for a place to
-// report at (GitHub #1418), and a service's renames for a compiler to write
-// one (GitHub #1419).
+// target to name them (GitHub #1413), and a service's renames for a compiler to
+// write one (GitHub #1419).
 func checkNames(ctx context.Context, doc *ir.Document) ([]ir.Diagnostic, error) {
 	if doc == nil {
 		return nil, nil
@@ -64,7 +63,7 @@ func checkNames(ctx context.Context, doc *ir.Document) ([]ir.Diagnostic, error) 
 
 // families returns the families of scopes r reads, in the order they report.
 func (r *nameReader) families() []func(*ir.Document) {
-	return []func(*ir.Document){r.services, r.groups, r.types, r.auth}
+	return []func(*ir.Document){r.services, r.groups, r.headers, r.types, r.auth, r.inherited}
 }
 
 // services reads the document's services as one scope.
@@ -77,10 +76,10 @@ func (r *nameReader) services(doc *ir.Document) {
 }
 
 // groups reads each service's top-level groups, and below them each group's
-// groups, its operations and each operation's parameters. Groups nested past
-// ir.MaxGroupDepth go unread, which validate reports as ir/walk-truncated. An
-// operation overloading another (OverloadOf) is compared like any other, as no
-// compiler sets one yet.
+// groups, its operations and each operation's parameters. Groups past
+// ir.ForEachGroup's bounds go unread, which validate reports as
+// ir/walk-truncated. An operation overloading another (OverloadOf) is compared
+// like any other, as no compiler sets one yet.
 func (r *nameReader) groups(doc *ir.Document) {
 	for _, svc := range doc.Services {
 		r.groupList("service", string(svc.ID), svc.Groups)
@@ -156,8 +155,7 @@ func builtIn(td ir.TypeDef) bool {
 
 // typeParts reads the named parts of the type at id, its properties, members
 // or variants, as one scope, a union's variants compared joined. A model's are
-// its own properties: one sharing a name with a property it inherits goes
-// unreported (GitHub #1412).
+// its own properties; inherited reads the rest.
 func (r *nameReader) typeParts(id ir.TypeID, td ir.TypeDef) {
 	switch t := td.(type) {
 	case *ir.Model:

@@ -11,6 +11,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/dexpace/morphic/ir"
+	"github.com/dexpace/morphic/reuse"
 )
 
 var namingType = reflect.TypeFor[ir.Naming]()
@@ -55,7 +56,7 @@ func checkNaming(*ir.Document) walkCheck {
 	var vs []Violation
 	// Every alias list is read through this one, so a list costs no map of its
 	// own however long it is.
-	var aliases reusedMap[string, int]
+	var aliases reuse.Map[string, int]
 	return walkCheck{
 		visit: func(v reflect.Value, at ir.WalkPath) bool {
 			if v.Kind() != reflect.Struct || v.Type() != namingType {
@@ -70,7 +71,7 @@ func checkNaming(*ir.Document) walkCheck {
 
 // appendNamingChecks reports what is wrong with the one Naming naming, at at.
 // read is what appendAliasViolations reads the aliases through.
-func appendNamingChecks(vs []Violation, naming reflect.Value, at ir.WalkPath, read *reusedMap[string, int]) []Violation {
+func appendNamingChecks(vs []Violation, naming reflect.Value, at ir.WalkPath, read *reuse.Map[string, int]) []Violation {
 	source, canon, hint, aliases := namingChannels(naming)
 	vs = appendAbsentViolation(vs, source, canon, hint, at)
 	vs = appendNamingViolations(vs, source, canon, hint, at)
@@ -104,9 +105,9 @@ func namingChannels(naming reflect.Value) (source, canon, hint string, aliases r
 // Collisions with other entities' names are no rule of the list
 // (docs/ir/naming.md).
 func appendAliasViolations(vs []Violation, source string, aliases reflect.Value, at ir.WalkPath,
-	read *reusedMap[string, int],
+	read *reuse.Map[string, int],
 ) []Violation {
-	seen := read.emptied() // what another entity's list held collides with nothing here
+	seen := read.Emptied() // what another entity's list held collides with nothing here
 	for i := range aliases.Len() {
 		alias := aliases.Index(i).String()
 		switch first, repeated := seen[alias]; {

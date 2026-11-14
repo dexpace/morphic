@@ -13,7 +13,6 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -175,6 +174,8 @@ var generations = []generation{
 	{version: "0.66.0", format: 1, shape: "0b2f5e45e4be29c67a153976848af676bc99d9f21d9e41a91b7abfd167ae026b",
 		names:   "825b85ca996798c9051c78f69d22b7c1ad6d30e36341b320540fab82f21b6890",
 		meaning: "a value or collection bound written beside a schema naming another, through a $ref, an allOf entry, a union or an expanded dynamic reference, reaches Constraints only where a type the named schemas admit takes it, and is kept under openapi:<keyword> otherwise"},
+	{version: "0.67.0", format: 1, shape: "70fb63281dbb10880528536556e0481c65ceaa9ac2d7a90a75e6f0139181286e",
+		names: "825b85ca996798c9051c78f69d22b7c1ad6d30e36341b320540fab82f21b6890"},
 }
 
 // shapeGolden holds the description the newest row's shape hashes, so a change
@@ -194,13 +195,7 @@ func TestIRVersion_PinsTheEncodedShape(t *testing.T) {
 	desc, err := jsonshape.Describe(irDecls(t), "Document")
 	require.NoError(t, err)
 
-	if irtest.Update() {
-		require.NoError(t, os.WriteFile(shapeGolden, []byte(desc), 0o644))
-	}
-	want, err := os.ReadFile(shapeGolden)
-	require.NoError(t, err, "go test ./ir -run TestIRVersion -update writes it")
-	assert.Empty(t, cmp.Diff(string(want), desc),
-		"%s is stale: go test ./ir -run TestIRVersion -update rewrites it, then review its diff", shapeGolden)
+	irtest.CompareBytes(t, shapeGolden, []byte(desc))
 
 	sum := sha256.Sum256([]byte(desc))
 	for _, finding := range pinFindings(generations, ir.IRVersion, jsonshape.Format, hex.EncodeToString(sum[:])) {

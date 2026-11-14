@@ -75,8 +75,7 @@ var operationPath = map[reflect.Type]bool{
 
 // checkStreamingModes asserts every Operation.Streaming holds a mode ir
 // declares. An emitter switches on the mode to shape a method, and StreamingMode
-// is a plain string type, so nothing else rejects an invented one. The other
-// wire enums with no Valid method are not held yet (GitHub #1190).
+// is a plain string type, so nothing else rejects an invented one.
 //
 // It prunes all but operationPath: shown every value, it cost each verified
 // compile 0.8% for one field of one struct.

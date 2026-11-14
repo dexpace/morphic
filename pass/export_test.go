@@ -65,7 +65,7 @@ var ValidateWith = validate
 
 // Families is how many rule families Validate runs, each after an ask of its
 // context.
-func Families() int { return len(families(nil, walked{}, nil)) }
+func Families() int { return len(families(&ir.Document{}, walked{}, nil)) }
 
 // NameFamilies is how many families of scopes Names reads, each after a check
 // of its context.
@@ -95,6 +95,16 @@ func FamilyAllocs(tb testing.TB, doc *ir.Document) []float64 {
 	return costs
 }
 
+// FamilyFindings returns what family i of the rule families Validate runs, in
+// the order it runs them, reports over doc, taken from one walk of doc and the
+// index it asks, so a test reads one family apart from the others.
+func FamilyFindings(tb testing.TB, doc *ir.Document, i int) []ir.Diagnostic {
+	tb.Helper()
+	run := families(doc, walkedFor(tb, doc), irfacts.New(doc))
+	require.Less(tb, i, len(run), "family %d of %d", i, len(run))
+	return run[i]()
+}
+
 // WalkAllocs returns the allocations the one walk Validate takes of doc makes,
 // as testing.AllocsPerRun counts.
 func WalkAllocs(tb testing.TB, doc *ir.Document) float64 {
@@ -102,21 +112,12 @@ func WalkAllocs(tb testing.TB, doc *ir.Document) float64 {
 	return testing.AllocsPerRun(5, func() { _ = walkedFor(tb, doc) })
 }
 
-// ReusedMap is reusedMap, for the external tests.
-type ReusedMap[K comparable, V any] = reusedMap[K, V]
-
-// Emptied is r.emptied, for the external tests.
-func Emptied[K comparable, V any](r *ReusedMap[K, V]) map[K]V { return r.emptied() }
-
-// ReuseLimit is reuseLimit, for the external tests.
-const ReuseLimit = reuseLimit
-
 // PropIDRefs returns checkPropIDRefs over what one walk of doc reads, as
 // validate runs it, for the external tests to measure.
 func PropIDRefs(tb testing.TB, doc *ir.Document) func() []ir.Diagnostic {
 	tb.Helper()
 	w := walkedFor(tb, doc)
-	return func() []ir.Diagnostic { return checkPropIDRefs(w.props, w.refs) }
+	return func() []ir.Diagnostic { return checkPropIDRefs(w.props, w.refs, w.truncated) }
 }
 
 // UnionReads is how many unions pass.ConstUnions reads in doc, as it reads
@@ -170,3 +171,6 @@ func TypeRefVisits(doc *ir.Document, ids ...ir.TypeID) int {
 func NarrowedHolds(types ir.TypeRegistry, target ir.TypeID, key ir.PropID, limit int) bool {
 	return narrowedHolds(types, target, key, limit)
 }
+
+// WithoutEmptyKeys is withoutEmptyKeys, for the external tests.
+var WithoutEmptyKeys = withoutEmptyKeys

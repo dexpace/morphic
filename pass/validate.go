@@ -16,7 +16,8 @@ var _ Pass = Validator{}
 const ValidateName = "validate"
 
 // Validator is [Validate] as a [Pass]. It is an analysis, so Run hands back the
-// document it was given.
+// document it was given, and it holds no state, so it is safe for
+// concurrent use.
 type Validator struct{}
 
 // Name returns [ValidateName].
@@ -47,7 +48,7 @@ func Validate(ctx context.Context, doc *ir.Document) ([]ir.Diagnostic, error) {
 }
 
 // walkFunc is how validate walks the document: ir.WalkValuesContext, unless a
-// test is counting the walks.
+// test is counting the walks or cutting one short.
 type walkFunc func(ctx context.Context, root any, path string, visitors ...ir.Visitor) (bool, error)
 
 // validate is Validate walking the document with walk.
@@ -55,6 +56,7 @@ func validate(ctx context.Context, doc *ir.Document, walk walkFunc) ([]ir.Diagno
 	if doc == nil {
 		return nil, nil
 	}
+	doc, refused := withoutEmptyKeys(doc)
 	// One walk reads what the reference, PropID and parameter checks need, and
 	// asks ctx as it goes. checkParams leaves to the dangling check exactly what
 	// it reports.
@@ -66,7 +68,7 @@ func validate(ctx context.Context, doc *ir.Document, walk walkFunc) ([]ir.Diagno
 	// encoding key, are walked while that is cheap and answered from the document
 	// indexed once after that (#850).
 	facts := irfacts.New(doc)
-	diags := make([]ir.Diagnostic, 0, 8)
+	diags := append(make([]ir.Diagnostic, 0, 8), refused...)
 	for _, family := range families(doc, read, facts) {
 		if err := ctx.Err(); err != nil {
 			return nil, err
@@ -80,46 +82,85 @@ func validate(ctx context.Context, doc *ir.Document, walk walkFunc) ([]ir.Diagno
 	return diags, nil
 }
 
+// withoutEmptyKeys returns doc, or, where a registry files a node under the
+// empty key, an edit of it filing nothing there, with what the edit refused,
+// which names a bug here. The empty key is no node's ID, so the entry is
+// irverify's to report (ir/empty-<noun>-id), and read here an empty reference,
+// which names nothing, would resolve to it.
+func withoutEmptyKeys(doc *ir.Document) (*ir.Document, []ir.Diagnostic) {
+	_, types := doc.Types[""]
+	_, channels := doc.Channels[""]
+	_, messages := doc.Messages[""]
+	_, auth := doc.Auth[""]
+	_, servers := doc.Servers[""]
+	if !types && !channels && !messages && !auth && !servers {
+		return doc, nil
+	}
+	edit := ir.NewEditor(doc)
+	if types {
+		edit.RemoveType("")
+	}
+	if channels {
+		edit.RemoveChannel("")
+	}
+	if messages {
+		edit.RemoveMessage("")
+	}
+	if auth {
+		edit.RemoveAuthScheme("")
+	}
+	if servers {
+		edit.RemoveServer("")
+	}
+	return edit.Finish()
+}
+
 // families returns validate's rule families over doc and what its walk read,
 // in the order they report. Validate asks its context between two, so a cancel
 // waits out one family at most.
 //
 // A family allocates only for a diagnostic. It sorts and keys collections in a
 // list and a map it keeps for the run, so a value with nothing wrong costs it
-// nothing but a step those or a log may grow by. The index it asks, facts, is
-// not yet held to that: it allocates per type it indexes and per question it
-// walks (GitHub #1150).
+// nothing but a step those or a log may grow by. The index it asks, facts,
+// allocates per index it builds and not per type it indexes (GitHub #1150).
 func families(doc *ir.Document, read walked, facts *irfacts.Index) []func() []ir.Diagnostic {
-	// A family that ranges a map sorts its keys first and needs a determinism test
-	// of its own: a range added without one can go unnoticed (GitHub #1546).
+	// Sorted once for the run, and written by no family.
+	live := liveTypeIDs(doc)
+	// A family that ranges a map sorts its keys first. A new family takes a row of
+	// twoFindings in validate_determinism_test.go, which holds it to one order.
 	return []func() []ir.Diagnostic{
 		func() []ir.Diagnostic { return checkNilTypes(doc) },
 		func() []ir.Diagnostic { return checkDanglingRefs(read.refs, read.truncated) },
-		func() []ir.Diagnostic { return checkGroupWalkTruncated(doc) },
+		func() []ir.Diagnostic { return checkEmptyRefs(read.empty) },
+		func() []ir.Diagnostic { return checkGroupWalkTruncated(facts, read.truncated) },
 		func() []ir.Diagnostic { return checkResponseIndices(doc) },
 		func() []ir.Diagnostic { return checkEncodingKeys(doc, facts) },
 		func() []ir.Diagnostic { return checkPayloadRequired(doc) },
-		func() []ir.Diagnostic { return checkPropIDRefs(read.props, read.refs) },
-		func() []ir.Diagnostic { return checkDiscriminators(doc, facts) },
-		func() []ir.Diagnostic { return checkRepeatedVariants(doc) },
-		func() []ir.Diagnostic { return checkDuplicateWireNames(doc) },
-		func() []ir.Diagnostic { return checkAmbiguousAliases(doc) },
-		func() []ir.Diagnostic { return checkDuplicateMemberIDs(doc) },
+		func() []ir.Diagnostic { return checkPropIDRefs(read.props, read.refs, read.truncated) },
+		func() []ir.Diagnostic { return checkDiscriminators(doc, live, facts) },
+		func() []ir.Diagnostic { return checkRepeatedVariants(doc, live) },
+		func() []ir.Diagnostic { return checkDuplicateWireNames(doc, live) },
+		func() []ir.Diagnostic { return checkAmbiguousAliases(doc, live) },
+		func() []ir.Diagnostic { return checkDuplicateMemberIDs(doc, live) },
 		func() []ir.Diagnostic { return checkParams(doc, read.refs) },
 		func() []ir.Diagnostic { return checkIdempotency(doc) },
 		func() []ir.Diagnostic { return checkMessageBindings(doc) },
 		func() []ir.Diagnostic { return checkOneWay(doc) },
 		func() []ir.Diagnostic { return checkDefaultResponses(doc) },
-		func() []ir.Diagnostic { return checkArgsOutsideGraphQL(doc) },
+		func() []ir.Diagnostic { return checkArgsOutsideGraphQL(doc, live) },
+		func() []ir.Diagnostic { return checkBounds(doc, live) },
+		func() []ir.Diagnostic { return checkValues(doc, live) },
+		func() []ir.Diagnostic { return checkKnots(doc, live) },
 	}
 }
 
 // walked is what one walk of a document reads for the checks that need it: the
 // references that may dangle with the identities they resolve against, its
-// PropIDs, and whether the walk was cut short.
+// PropIDs, the references it holds empty, and whether the walk was cut short.
 type walked struct {
 	refs      *ir.IDReferences
 	props     *propIDSites
+	empty     *ir.EmptyReferences
 	truncated bool
 }
 
@@ -127,8 +168,8 @@ type walked struct {
 // ctx's error alone if the walk stopped at it.
 func walkDocument(ctx context.Context, doc *ir.Document, walk walkFunc) (walked, error) {
 	refs := ir.NewIDReferences(doc)
-	w := walked{refs: refs, props: &propIDSites{refs: refs}}
-	truncated, err := walk(ctx, doc, ir.DocumentPath, w.refs, w.props)
+	w := walked{refs: refs, props: &propIDSites{refs: refs}, empty: &ir.EmptyReferences{}}
+	truncated, err := walk(ctx, doc, ir.DocumentPath, w.refs, w.props, w.empty)
 	if err != nil {
 		return walked{}, err
 	}
