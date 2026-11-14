@@ -232,7 +232,8 @@ func (r *reader) deepEqual(ctx context.Context, a, b *yaml.Node) (bool, error) {
 }
 
 // shallowEqual compares a and b at their own level, returning the pairs of
-// children left to compare.
+// children left to compare. Two arrays' elements are paired at a step each,
+// spent before they are, as two objects' members are (members).
 func (r *reader) shallowEqual(ctx context.Context, a, b *yaml.Node) (bool, []nodePair, error) {
 	switch {
 	case a == nil || b == nil:
@@ -244,6 +245,9 @@ func (r *reader) shallowEqual(ctx context.Context, a, b *yaml.Node) (bool, []nod
 	case a.Kind == yaml.SequenceNode:
 		if len(a.Content) != len(b.Content) {
 			return false, nil, nil
+		}
+		if err := r.spend(ctx, len(a.Content)); err != nil {
+			return false, nil, err
 		}
 		pairs := make([]nodePair, len(a.Content))
 		for i := range a.Content {
