@@ -77,6 +77,19 @@ func TestCheck_JudgedTellsAnObjectThatIsNoMappingAndATaggedValue(t *testing.T) {
 	assert.ElementsMatch(t, []string{"hello", "t"}, values(j.refused), "the entry that is no object, and the tagged title")
 }
 
+// TestCheck_ATaggedItemOfAListIsNamedByItsTag holds a list refused for an item
+// it holds under a tag outside the ruleset to the sentence naming that item's
+// tag, which the list itself, written plain, does not carry.
+func TestCheck_ATaggedItemOfAListIsNamedByItsTag(t *testing.T) {
+	t.Parallel()
+
+	j := judge(t, oas.Schema, "{type: [string, !acme integer]}")
+
+	require.Len(t, j.diags, 1)
+	assert.Equal(t, mismatch, j.diags[0].Code)
+	assert.Contains(t, j.diags[0].Message, `; it is tagged "!acme", outside YAML 1.2's JSON schema ruleset`)
+}
+
 // TestCheck_ATagOutsideTheRulesetIsRefusedWithTheTagSaid holds the table's error
 // for a scalar or a sequence under a tag the JSON schema ruleset lacks, saying
 // the tag and the minor, and none for the tags it has.

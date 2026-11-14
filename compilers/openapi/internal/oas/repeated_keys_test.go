@@ -53,6 +53,7 @@ func TestCheckRepeatedKeys_ReportsEachKeyAMappingWritesAgainAtItsCopy(t *testing
 		{"in a mapping an extension holds", "x-e:\n  k: 1\n  k: 2\n", []string{"/x-e/k@3:3"}},
 		{"in a mapping a list holds", "l:\n  - {k: 1}\n  - {k: 1, k: 2}\n", []string{"/l/1/k@3:12"}},
 		{"no repeated key", "a: 1\nb: 2\n", nil},
+		{"a key that is no scalar is no copy", "? [a]\n: 1\n? [a]\n: 2\nb: 1\nb: 2\n", []string{"/b@6:1"}},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {

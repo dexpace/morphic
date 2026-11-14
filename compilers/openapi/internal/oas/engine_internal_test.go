@@ -155,3 +155,19 @@ func TestSharedNode_IsTrueForAnAliasAndForAnAnchoredNodeAlone(t *testing.T) {
 	assert.True(t, sharedNode(pairs[3]), "an alias")
 	assert.False(t, sharedNode(pairs[5]), "a mapping written once")
 }
+
+// TestOutsideRuleset_IsFalseForAnAbsentNodeAndTrueForATagOutsideIt holds a
+// node under a tag YAML 1.2's JSON schema ruleset lacks to being outside it,
+// and an absent node, a plain scalar and a tag the ruleset has to being inside.
+func TestOutsideRuleset_IsFalseForAnAbsentNodeAndTrueForATagOutsideIt(t *testing.T) {
+	t.Parallel()
+	var root yaml.Node
+	require.NoError(t, yaml.Unmarshal([]byte("a: !acme x\nb: !!int 3\nc: plain\nd: !acme [x]\n"), &root))
+	pairs := root.Content[0].Content
+
+	assert.False(t, outsideRuleset(nil), "an absent node")
+	assert.True(t, outsideRuleset(pairs[1]), "a scalar under a local tag")
+	assert.False(t, outsideRuleset(pairs[3]), "a scalar under a tag the ruleset has")
+	assert.False(t, outsideRuleset(pairs[5]), "a plain scalar")
+	assert.True(t, outsideRuleset(pairs[7]), "a sequence under a local tag")
+}
