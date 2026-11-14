@@ -198,6 +198,16 @@ func (s *sequence) step(ctx context.Context, a action, targets, sources []jsonpa
 		}
 		payload = template
 	}
+	if a.kind == kindRemove {
+		// Making one target's path the action's own may copy a node another
+		// target's position names, so a remove's positions are taken once
+		// every path is its own, and name the slots the tree then holds.
+		for _, t := range targets {
+			if _, err := s.grafts.own(ctx, t.Path.Steps(), false); err != nil {
+				return err
+			}
+		}
+	}
 	positions := make([]position, 0, len(targets))
 	for _, t := range targets {
 		p, err := s.grafts.own(ctx, t.Path.Steps(), a.kind != kindRemove)
