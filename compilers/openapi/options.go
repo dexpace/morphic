@@ -338,9 +338,10 @@ type Options struct {
 // (4,475,339 bytes, 138,990 nodes, no enum at all).
 const (
 	// DefaultMaxSourceBytes is the byte budget: 64 MiB, a 5.2x margin over the
-	// largest measured description. It is the only budget enforceable before the
-	// source is parsed, which is why it is the loosest — it exists to bound the
-	// parse itself, and everything finer is measured after it.
+	// largest measured description. It is the only budget enforceable before a
+	// YAML source is parsed, which is why it is the loosest — it exists to bound
+	// that parse, and everything finer is measured after it. A JSON text is
+	// held to the node budget as it is read.
 	DefaultMaxSourceBytes = 1 << 26
 	// DefaultMaxSourceNodes is the parsed-node budget: 2,097,152, a 4.4x margin
 	// over the largest measured description. Node count, not byte count, is what
@@ -407,14 +408,14 @@ type Limits struct {
 	// no further than it allows. It binds the same way on an overlay and on a
 	// document an external reference names, each read no further.
 	MaxSourceBytes int `json:"maxSourceBytes,omitzero"`
-	// MaxSourceNodes bounds the YAML nodes one source document parses to,
-	// checked before the typed model is built from it. With an overlay it
-	// bounds the tree the overlay leaves: an action that would build past it
-	// is refused before it builds anything, and one that builds nothing, such
-	// as a remove, is applied however large the tree. A document an external
-	// reference names is checked against it the same way, before the resolver
-	// builds from that document, and what references reach in it is validated
-	// within this budget plus MaxAliasSurplus.
+	// MaxSourceNodes bounds the nodes one document holds as it is read: the
+	// source, the overlay and each document an external reference names, a
+	// JSON text read no further than the first node past it and a YAML text
+	// counted once parsed, before the typed model or the resolver builds from
+	// it. It also bounds the tree an overlay leaves: an action that would build
+	// past it is refused before it builds anything, so no overlay lifts a
+	// source past it. What references reach in an external document is
+	// validated within this budget plus MaxAliasSurplus.
 	MaxSourceNodes int `json:"maxSourceNodes,omitzero"`
 	// MaxEnumMembers bounds the members of a single enum. An enum past it lowers
 	// as the top type with an error diagnostic naming the budget; the rest of the
