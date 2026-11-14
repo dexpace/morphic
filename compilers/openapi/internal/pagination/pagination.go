@@ -4,8 +4,6 @@
 package pagination
 
 import (
-	"fmt"
-	"net/http"
 	"slices"
 	"strconv"
 	"strings"
@@ -54,9 +52,6 @@ func (r *reader) infer(op *ir.Operation) (why string, undecided bool) {
 	if !named {
 		return "", false
 	}
-	if m, ok := unsafeMethod(op); ok {
-		return fmt.Sprintf("the operation is a %s, and only a GET or a QUERY is safe to send again for each page", m), true
-	}
 	if why != "" {
 		return why, true
 	}
@@ -79,20 +74,6 @@ func inbound(op *ir.Operation) bool {
 // which net/http names no constant for.
 const methodQuery = "QUERY"
 
-// unsafeMethod returns the method of op's first HTTP binding that a walk
-// cannot send again for each page: any but GET and QUERY, the methods asking
-// for no change on the server. A walk resends its operation, so a POST taking a
-// path item's page parameters, as one creating a resource can, would create it
-// once per page.
-func unsafeMethod(op *ir.Operation) (string, bool) {
-	for _, b := range op.Bindings.HTTP {
-		if b.Method != http.MethodGet && b.Method != methodQuery {
-			return b.Method, true
-		}
-	}
-	return "", false
-}
-
 // build is the Pagination a walk sending in reads off pg. A walk following a
 // next cursor ends at the flag its page states (ir.PageStopNoMore), the page's
 // own statement of where it ends, and otherwise where the cursor is empty, null
@@ -100,18 +81,16 @@ func unsafeMethod(op *ir.Operation) (string, bool) {
 // pages or items lists no stop, a page holding none ending it whatever Stop
 // lists.
 func build(in inputs, pg page) *ir.Pagination {
-	cursor := in.cursor.ID
 	out := &ir.Pagination{
 		Strategy:    in.strategy,
 		Inferred:    true,
-		InputCursor: &ir.InputPath{Param: &cursor},
+		InputCursor: in.cursor.input(),
 		Items:       &ir.PropPath{Segments: slices.Clone(pg.items)},
 		TotalCount:  pathTo(pg.totalCount),
 		TotalPages:  pathTo(pg.totalPages),
 	}
 	if in.limit != nil {
-		limit := in.limit.ID
-		out.InputLimit = &ir.InputPath{Param: &limit}
+		out.InputLimit = in.limit.input()
 	}
 	switch {
 	case pg.hasMore != nil:
@@ -146,10 +125,15 @@ func undecidedAt(op *ir.Operation, why string) ir.Diagnostic {
 const maxListed = 3
 
 // listed joins names, two or more, into a list sorted so it reads the same
-// whatever order the document declares them in, naming the first maxListed
-// and how many more there are.
+// whatever order the document declares them in (joined).
 func listed(names []string) string {
 	slices.Sort(names)
+	return joined(names)
+}
+
+// joined joins names, two or more, in their order, naming the first maxListed
+// and how many more there are.
+func joined(names []string) string {
 	if more := len(names) - maxListed; more > 0 {
 		names = append(names[:maxListed:maxListed], strconv.Itoa(more)+" more")
 	}

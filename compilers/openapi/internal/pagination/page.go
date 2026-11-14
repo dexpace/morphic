@@ -50,13 +50,16 @@ type scalar struct {
 	prim   ir.PrimKind
 }
 
-// pageKey is a body read for a walk: its type, and for a walk reading a next
-// cursor the canonical name and the primitive of the parameter it feeds, which
-// name and type the member carrying it.
+// pageKey is a body read for a walk: its type, for a walk reading a next
+// cursor the canonical name and the primitive of the place it feeds, which
+// name and type the member carrying it, and whether the walk is a POST's,
+// whose page names its items at its root and its next cursor as next_<cursor>
+// alone, as the answer of a create need not.
 type pageKey struct {
 	body   ir.TypeID
 	cursor string
 	prim   ir.PrimKind
+	strict bool
 }
 
 // page is where a body holds what a walk reads, each a path of members from
@@ -88,9 +91,9 @@ func (r *reader) responsePage(op *ir.Operation, in inputs) (page, string) {
 	if len(op.Responses) == 0 {
 		return page{}, "the operation declares no success response to read a page from"
 	}
-	key := pageKey{}
+	key := pageKey{strict: in.strict}
 	if in.readsNextCursor() {
-		key.cursor, key.prim = in.cursor.Name.Canonical, in.prim
+		key.cursor, key.prim = in.cursor.canonical(), in.prim
 	}
 	var pages []page
 	var whys []string
@@ -142,7 +145,7 @@ func (r *reader) readPage(key pageKey) page {
 // modelPage reads where the model body holds a page: its items, its next
 // cursor where key names one, and its totals.
 func (r *reader) modelPage(body *model, key pageKey) page {
-	items, why := r.items(body)
+	items, why := r.items(body, key.strict)
 	if why != "" {
 		return page{why: why}
 	}
@@ -165,11 +168,15 @@ func (r *reader) modelPage(body *model, key pageKey) page {
 
 // nextCursor returns the path to the one member of members, or of a model one
 // of them holds, of the cursor's primitive and named as the cursor with next
-// before it, or, where none is, as the cursor itself: a page naming both
-// echoes the cursor it was sent beside the next one. It returns too the model
-// holding that member, and otherwise why there is none.
+// before it, or, where none is and key is not strict, as the cursor itself: a
+// page naming both echoes the cursor it was sent beside the next one, and a
+// create answers with what it was sent. It returns too the model holding that
+// member, and otherwise why there is none.
 func (r *reader) nextCursor(body *model, key pageKey) ([]ir.PropID, *model, string) {
-	names := [...]string{"next_" + key.cursor, key.cursor}
+	names := []string{"next_" + key.cursor, key.cursor}
+	if key.strict {
+		names = names[:1]
+	}
 	for _, name := range names {
 		path, holder, found := r.find(body, name, func(prim ir.PrimKind) bool { return prim == key.prim })
 		switch found {
@@ -180,6 +187,10 @@ func (r *reader) nextCursor(body *model, key pageKey) ([]ir.PropID, *model, stri
 		default:
 			return nil, nil, fmt.Sprintf("holds %d members %q of the cursor's type, each a next cursor", found, name)
 		}
+	}
+	if key.strict {
+		return nil, nil, fmt.Sprintf("holds no member %q of the cursor's type, which a POST read as a walk names its "+
+			"next cursor, never the cursor it was sent, as a create answers with what it was sent", names[0])
 	}
 	return nil, nil, fmt.Sprintf("holds no member %q or %q of the cursor's type", names[0], names[1])
 }
@@ -281,9 +292,10 @@ func (r *reader) find(body *model, name string, admit func(ir.PrimKind) bool) ([
 }
 
 // items returns the path to the list body holds a page's items in: the one
-// list named as items; else the one list the one model named so holds; else
-// the body's one list. why says otherwise what stops it.
-func (r *reader) items(body *model) ([]ir.PropID, string) {
+// list named as items; else, where strict is not set, the one list the one
+// model named so holds, or the body's one list. why says otherwise what stops
+// it.
+func (r *reader) items(body *model, strict bool) ([]ir.PropID, string) {
 	var named, holders []*ir.Property
 	var held ir.TypeID
 	for _, l := range body.lists {
@@ -301,6 +313,9 @@ func (r *reader) items(body *model) ([]ir.PropID, string) {
 		return []ir.PropID{named[0].ID}, ""
 	case len(named) > 1:
 		return nil, fmt.Sprintf("holds lists %s, each named as its items", wireNames(named))
+	case strict:
+		return nil, "holds no list named as its items at its root, where a POST read as a walk holds them, as a " +
+			"create's answer may hold a list of another kind"
 	case len(holders) == 1:
 		return heldItems(holders[0], r.model(held))
 	case len(holders) > 1:

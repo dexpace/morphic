@@ -375,10 +375,11 @@ webhooks:
 	}
 }
 
-// TestInferWalks_ReadsOnlyAMethodSafeToSendAgain pins that a walk is read only off
-// a GET or a QUERY, which a pager can send again for each page: a POST taking
-// its path item's page parameters, as one creating a resource does, is
-// reported and left with none, whatever its body holds.
+// TestInferWalks_ReadsOnlyAMethodSafeToSendAgain pins that a walk is read off a
+// GET or a QUERY, which a pager can send again for each page, and never off a
+// method that is no POST: a POST taking its path item's page parameters, as
+// one creating a resource does, is reported for a walk its request body does
+// not continue and left with none, and any other method for its method.
 func TestInferWalks_ReadsOnlyAMethodSafeToSendAgain(t *testing.T) {
 	t.Parallel()
 	page := `{type: object, properties: {result: ` + stringList + `}}`
@@ -415,7 +416,9 @@ paths:
 	got := undecided(diags)
 	slices.Sort(got)
 	assert.Equal(t, []string{
-		"no pagination is inferred: the operation is a POST, and only a GET or a QUERY is safe to send again for each page",
+		`no pagination is inferred: the operation is a POST, and query parameter "page" names where its walk ` +
+			`continues: a POST is read as a walk only where its request body does, as one taking its path item's ` +
+			`parameters may be a create`,
 		"no pagination is inferred: the operation is a SEARCH, and only a GET or a QUERY is safe to send again for each page",
 	}, got)
 }
