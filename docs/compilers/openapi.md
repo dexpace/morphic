@@ -184,7 +184,10 @@ and size the budgets above leave free. A declaration a `$ref` names, a schema as
 each `$ref` naming it, so each such `$ref` is charged what the declarations its chain names weigh:
 the one it ends at, and each component alias it passes through, whose fields beside its own `$ref`
 lower at every use too ([`reference-object-siblings`](#reference-object-siblings),
-[`path-item-ref-fields`](#path-item-ref-fields)). A declaration weighs a node for each YAML node, a
+[`path-item-ref-fields`](#path-item-ref-fields)). An alias weighs one node for its mapping and what
+it writes beside its `$ref`, weighed as a declaration is: its `$ref` is read, not copied, so a chain
+of bare aliases weighs one node a hop, and a `$ref` merged in through `<<` is weighed as written. A
+declaration weighs a node for each YAML node, a
 YAML alias as a copy of what it names, and a byte for each byte of scalar text, but a schema it
 holds weighs one node whatever the schema holds: it lowers once, to the type every copy refers to. A
 schema is weighed whole beneath a merge key, which the grammar reads as raw YAML, and wherever the
@@ -225,6 +228,9 @@ is left out too.
   `openapi.TestCompile_AReferenceExpansionRefusalKeepsWhatItsTableCanPlace`,
   `openapi.TestCompile_ASchemaIsChargedAsOneNode`,
   `openapi.TestCompile_AnAliasIsChargedBesideItsEnd`, `lowering.TestExpansion_ChargesEveryCopy`,
+  `lowering.TestExpansion_AHopWeighsWhatItWritesBesideItsRef`,
+  `lowering.TestDeclared_ChargesEachAliasWhatItWritesBesideItsRef`, `e2e.TestCompile_ALongRefChainCompiles`,
+  `e2e.TestCompile_AChainFarPastTheExpansionBudgetIsRefused`,
   `lowering.TestWeightOf_CostsTheBudgetNotTheDeclaration`,
   `lowering.TestWeightOf_CountsASchemaAsOneNode`,
   `lowering.TestDeclared_ChargesEachDeclarationOfAChain`,

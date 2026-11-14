@@ -374,7 +374,7 @@ func Declared[T, S any, R chainable[T, S], P interface {
 	// inline entry is not charged here: a path item's own inline parameters are
 	// charged where its additionalOperations entries take them
 	// (ChargeExpansionAt).
-	if !c.expansion.admit(readingOf(c, usePtr), copied[T, S](c, ref, P(obj).GetRootNode())...) {
+	if !c.expansion.admit(readingOf(c, usePtr), P(obj).GetRootNode(), copied[T, S](c, ref)...) {
 		return nil, c, usePtr
 	}
 	there, ok := InDocument(c, decl.Doc)
