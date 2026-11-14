@@ -13,7 +13,6 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -196,13 +195,7 @@ func TestIRVersion_PinsTheEncodedShape(t *testing.T) {
 	desc, err := jsonshape.Describe(irDecls(t), "Document")
 	require.NoError(t, err)
 
-	if irtest.Update() {
-		require.NoError(t, os.WriteFile(shapeGolden, []byte(desc), 0o644))
-	}
-	want, err := os.ReadFile(shapeGolden)
-	require.NoError(t, err, "go test ./ir -run TestIRVersion -update writes it")
-	assert.Empty(t, cmp.Diff(string(want), desc),
-		"%s is stale: go test ./ir -run TestIRVersion -update rewrites it, then review its diff", shapeGolden)
+	irtest.CompareBytes(t, shapeGolden, []byte(desc))
 
 	sum := sha256.Sum256([]byte(desc))
 	for _, finding := range pinFindings(generations, ir.IRVersion, jsonshape.Format, hex.EncodeToString(sum[:])) {

@@ -74,6 +74,11 @@ func WriteGolden(path string, doc *ir.Document) error {
 	if err != nil {
 		return fmt.Errorf("irtest: marshal golden %s: %w", path, err)
 	}
+	return writeBytes(path, raw)
+}
+
+// writeBytes writes raw to path, creating parent directories as needed.
+func writeBytes(path string, raw []byte) error {
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 		return fmt.Errorf("irtest: mkdir for golden %s: %w", path, err)
 	}
@@ -83,7 +88,7 @@ func WriteGolden(path string, doc *ir.Document) error {
 	return nil
 }
 
-// testingT is the subset of *testing.T that compareGolden relies on. It exists
+// testingT is the subset of *testing.T that the golden compares rely on. It exists
 // so the abort/failure branches can be exercised with a recording stub instead
 // of aborting a real test.
 type testingT interface {
@@ -116,22 +121,42 @@ func compareGolden(t testingT, goldenPath string, doc *ir.Document) {
 	if err := stampError(doc); err != nil {
 		t.Fatalf("irtest: compare golden %s: %v", goldenPath, err)
 	}
-	if Update() {
-		if err := WriteGolden(goldenPath, doc); err != nil {
-			t.Fatalf("update golden: %v", err)
-		}
-		return
-	}
-	want, err := os.ReadFile(goldenPath)
-	if err != nil {
-		t.Fatalf("read golden %s (run with -update to create): %v", goldenPath, err)
-	}
 	raw, err := encodeGolden(doc)
 	if err != nil {
 		t.Fatalf("marshal document: %v", err)
 	}
-	if diff := cmp.Diff(string(want), string(raw)); diff != "" {
-		t.Errorf("golden mismatch for %s (-golden +got):\n%s", goldenPath, diff)
+	compareBytes(t, goldenPath, raw)
+}
+
+// CompareBytes compares got against the golden file at path, or rewrites it
+// when -update is set. It refuses an empty path. Failures include a full diff.
+//
+// resolver_oracle_test.go of internal/harness and oracle_test.go of the
+// canary declare their own -update and rewrite a list they merge reasons into,
+// which is not a byte compare, so they stay out.
+func CompareBytes(t *testing.T, path string, got []byte) {
+	t.Helper()
+	compareBytes(t, path, got)
+}
+
+// compareBytes is CompareBytes against the minimal testingT surface.
+func compareBytes(t testingT, path string, got []byte) {
+	t.Helper()
+	if path == "" {
+		t.Fatalf("irtest: compare golden: empty golden path")
+	}
+	if Update() {
+		if err := writeBytes(path, got); err != nil {
+			t.Fatalf("update golden: %v", err)
+		}
+		return
+	}
+	want, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("read golden %s (run with -update to create): %v", path, err)
+	}
+	if diff := cmp.Diff(string(want), string(got)); diff != "" {
+		t.Errorf("golden mismatch for %s (-golden +got); -update rewrites it:\n%s", path, diff)
 	}
 }
 

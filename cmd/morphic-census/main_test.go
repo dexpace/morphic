@@ -12,7 +12,6 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -181,13 +180,5 @@ func TestRun_HoldsTheFactsNoCommittedSpecSets(t *testing.T) {
 	require.NotZero(t, unset.Len(), "the census lists the facts it found unset")
 	require.NotZero(t, set, "and found some set")
 
-	if irtest.Update() {
-		require.NoError(t, os.WriteFile(unwitnessedGolden, []byte(unset.String()), 0o644))
-		return
-	}
-	want, err := os.ReadFile(unwitnessedGolden)
-	require.NoError(t, err, "read %s (run with -update to create it)", unwitnessedGolden)
-	if diff := cmp.Diff(string(want), unset.String()); diff != "" {
-		t.Errorf("facts no committed spec sets (-golden +got):\n%s", diff)
-	}
+	irtest.CompareBytes(t, unwitnessedGolden, []byte(unset.String()))
 }
