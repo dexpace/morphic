@@ -4,6 +4,7 @@
 package overlay
 
 import (
+	"errors"
 	"strconv"
 	"testing"
 
@@ -12,6 +13,7 @@ import (
 	yaml "go.yaml.in/yaml/v3"
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/budget"
+	"github.com/dexpace/morphic/compilers/openapi/internal/jsonpath"
 	"github.com/dexpace/morphic/compilers/openapi/internal/nodeview"
 	"github.com/dexpace/morphic/ir"
 )
@@ -72,12 +74,11 @@ func TestReadSelector_SelectsWhatRFC9535sExamplesSelect(t *testing.T) {
 	}
 }
 
-// TestScanSelector_TellsAStringFromTheRest pins how the scan reads a
-// selector's text: a construct is noted where RFC 9535 places it, outside a
-// string literal or inside one as the case is, an escaped quote or backslash
-// does not end a literal or begin an escape, a literal of either quote holds
-// the other, and an unclosed literal or a trailing backslash ends the text
-// without fault.
+// TestHintFor_TellsAStringFromTheRest pins the hint a refused selector gets,
+// read where the parse stopped: a `~` there, or a member name after a dot
+// that the shorthand does not admit, and none for either written inside a
+// string literal, whatever its quotes and escapes, nor for a selector that
+// parses.
 func TestHintFor_TellsAStringFromTheRest(t *testing.T) {
 	t.Parallel()
 	tests := map[string]string{
@@ -93,6 +94,8 @@ func TestHintFor_TellsAStringFromTheRest(t *testing.T) {
 		`$['a`:                                 "",
 		`$['a\`:                                "",
 		`$.a~`:                                 "uses ~, which RFC 9535 does not define",
+		`$.a)`:                                 "",
+		`$.`:                                   "",
 		`$['a\rb']`:                            "",
 		`$["a\rb"]`:                            "",
 		`$.true`:                               "",
@@ -121,7 +124,13 @@ func TestHintFor_TellsAStringFromTheRest(t *testing.T) {
 		"$.a~[?match(@,'\\r')]":                "uses ~, which RFC 9535 does not define",
 	}
 	for selector, want := range tests {
-		assert.Equal(t, want, hintFor(selector), "%q", selector)
+		got := ""
+		if _, err := jsonpath.Parse(selector); err != nil {
+			syntax, ok := errors.AsType[*jsonpath.SyntaxError](err)
+			require.True(t, ok, "%q", selector)
+			got = hintFor(selector, syntax)
+		}
+		assert.Equal(t, want, got, "%q", selector)
 	}
 }
 

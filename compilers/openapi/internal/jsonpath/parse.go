@@ -35,10 +35,14 @@ const (
 )
 
 // SyntaxError reports text that is no RFC 9535 query: the byte offset at which
-// it stops being one, and why.
+// it stops being one, and why. Dot is the offset of the dot before a member
+// name the text stops being a query in, at its first byte or the byte after
+// the shorthand it is read as, and 0 where it stops elsewhere, since a query
+// starts with $.
 type SyntaxError struct {
 	Reason string
 	Offset int
+	Dot    int
 }
 
 // Error returns the reason with its offset.
@@ -47,10 +51,13 @@ func (e *SyntaxError) Error() string {
 }
 
 // scanner reads the lexical parts of one query's text: blank space, names,
-// numbers and string literals, at an offset it advances.
+// numbers and string literals, at an offset it advances. It keeps where the
+// last member name after a dot was read, its dot and its end, for an error
+// there to name.
 type scanner struct {
-	text string
-	pos  int
+	text            string
+	pos             int
+	nameDot, nameAt int
 }
 
 // parser reads one query's grammar over its scanner. open counts the nestings
@@ -99,9 +106,14 @@ func firstInvalid(text string) int {
 	return i
 }
 
-// fail returns a *SyntaxError at the parser's offset.
+// fail returns a *SyntaxError at the parser's offset, naming the dot before
+// the member name read last where the offset is that name's end.
 func (s *scanner) fail(reason string) *SyntaxError {
-	return &SyntaxError{Offset: s.pos, Reason: reason}
+	e := &SyntaxError{Offset: s.pos, Reason: reason}
+	if s.nameDot > 0 && s.pos == s.nameAt {
+		e.Dot = s.nameDot
+	}
+	return e
 }
 
 // rest returns a short quotation of the text from the parser's offset.
@@ -209,6 +221,7 @@ func (s *scanner) shorthand() (string, error) {
 		}
 		s.pos += size
 	}
+	s.nameDot, s.nameAt = start-1, s.pos
 	if s.pos == start {
 		return "", s.fail("a dot is followed by a member name or *")
 	}
