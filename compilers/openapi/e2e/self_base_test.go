@@ -114,14 +114,16 @@ func TestCompile_ASelfURIMovesNoFetchedDocumentOntoAFile(t *testing.T) {
 
 // TestCompile_ARelativeSelfIsResolvedAgainstWhereTheDocumentWasRead holds a
 // relative $self to the directory its document lies in and not to the working
-// directory: reads the document's references make move with the $self, and
-// land on the same file whichever directory the compile runs from.
+// directory: reads the document's references make move with the $self, a
+// response's as a schema's, as GitHub #863 has it, and land on the same file
+// whichever directory the compile runs from.
 func TestCompile_ARelativeSelfIsResolvedAgainstWhereTheDocumentWasRead(t *testing.T) {
 	root := realDir(t)
 	layout(t, root, map[string]string{
-		"res/spec.yaml": "openapi: 3.2.0\n$self: sub/x.yaml\ninfo: {title: t, version: \"1\"}\npaths: {}\n" +
+		"res/spec.yaml": "openapi: 3.2.0\n$self: sub/x.yaml\ninfo: {title: t, version: \"1\"}\n" +
+			"paths:\n  /a:\n    get:\n      operationId: a\n      responses:\n        \"200\": {$ref: \"../other.yaml#/R\"}\n" +
 			"components:\n  schemas:\n    S: {$ref: '../other.yaml#/OS'}\n",
-		"res/other.yaml": "OS: {type: object}\n",
+		"res/other.yaml": "OS: {type: object}\nR: {description: r}\n",
 	})
 	irs := make([]string, 0, 2)
 	for name, run := range map[string]struct{ dir, spec string }{
@@ -137,30 +139,38 @@ func TestCompile_ARelativeSelfIsResolvedAgainstWhereTheDocumentWasRead(t *testin
 		require.NoError(t, err, name)
 		assertNoErrorDiags(t, diags)
 		assert.Equal(t, ids.In("other.yaml").ForPointer("/OS"), aliasTarget(t, doc, "S"), name)
+		op, ok := opByName(doc, "a")
+		require.True(t, ok, name)
+		require.Len(t, op.Responses, 1, name)
+		assert.Equal(t, "r", op.Responses[0].Docs.Description, "%s: the response other.yaml declares", name)
 		irs = append(irs, jsonOf(t, doc))
 	}
 	require.Len(t, irs, 2)
 	assert.Equal(t, irs[0], irs[1], "the IR does not depend on the working directory")
 }
 
-// TestCompile_ASelfNamingTheIdentifierOfASchemaRootsNothing holds a schema
-// whose $id is the document's own $self to naming no resource of its own, so
-// its draft 4 $schema chooses no dialect and the boolean exclusive bound is
-// refused as a 3.1 one; beside it a schema with another $id roots a resource
-// and reads in draft 4.
+// TestCompile_ASelfNamingTheIdentifierOfASchemaRootsNothing holds GitHub
+// #863's document: a property schema whose $id is the document's own $self
+// names no resource of its own, so its draft 4 $schema chooses no dialect and
+// the boolean exclusive bound is refused as a 3.2 one; beside it a property
+// with another $id roots a resource and reads in draft 4. The schemas are
+// properties, held by another, since a schema no other holds roots a resource
+// whatever its $id.
 func TestCompile_ASelfNamingTheIdentifierOfASchemaRootsNothing(t *testing.T) {
 	t.Parallel()
 	const draft4 = "'http://json-schema.org/draft-04/schema#'"
-	src := "openapi: 3.2.0\n$self: " + selfURL + "\ninfo: {title: t, version: \"1\"}\npaths: {}\ncomponents:\n  schemas:\n" +
-		"    a: {$id: '" + selfURL + "', $schema: " + draft4 + ", type: integer, minimum: 5, exclusiveMinimum: true}\n" +
-		"    b: {$id: 'https://example.com/b', $schema: " + draft4 + ", type: integer, minimum: 5, exclusiveMinimum: true}\n"
+	src := "openapi: 3.2.0\n$self: 'https://example.com/api.yaml'\ninfo: {title: D, version: \"1\"}\npaths: {}\n" +
+		"components:\n  schemas:\n    T:\n      type: object\n      properties:\n" +
+		"        a: {$id: 'https://example.com/api.yaml', $schema: " + draft4 + ", type: integer, minimum: 5, exclusiveMinimum: true}\n" +
+		"        b: {$id: 'https://example.com/b', $schema: " + draft4 + ", type: integer, minimum: 5, exclusiveMinimum: true}\n"
 
-	doc, diags := compileText(t, "api/openapi.yaml", src, openapi.Options{})
+	doc, diags := compileText(t, "api.yaml", src, openapi.Options{})
 
-	assert.Equal(t, []jsontext.Pointer{"/components/schemas/a/exclusiveMinimum"}, openapitest.PointersOf(diags, diag.ExclusiveBoundForm))
+	assert.Equal(t, []jsontext.Pointer{"/components/schemas/T/properties/a/exclusiveMinimum"},
+		openapitest.PointersOf(diags, diag.ExclusiveBoundForm))
 	bounds := lowerBounds(doc)
-	assert.Equal(t, [2]ir.BigVal{"5", ""}, bounds["/components/schemas/a"], "a has no exclusive bound")
-	assert.Equal(t, [2]ir.BigVal{"", "5"}, bounds["/components/schemas/b"], "b reads in draft 4")
+	assert.Equal(t, [2]ir.BigVal{"5", ""}, bounds["/components/schemas/T/properties/a"], "a has no exclusive bound")
+	assert.Equal(t, [2]ir.BigVal{"", "5"}, bounds["/components/schemas/T/properties/b"], "b reads in draft 4")
 }
 
 // TestCompile_ARequirementKeyNamingTheSelfNamesTheSchemeOfTheSource holds a
@@ -172,7 +182,7 @@ func TestCompile_ARequirementKeyNamingTheSelfNamesTheSchemeOfTheSource(t *testin
 		"paths:\n  /a:\n    get:\n      operationId: a\n" +
 		"      security: [{'" + selfURL + "#/components/securitySchemes/key': []}]\n" +
 		"      responses: {'200': {description: ok}}\n" +
-		"components:\n  securitySchemes:\n    key: {type: apiKey, name: k, in: header}\n"
+		"components:\n  securitySchemes:\n    key: {type: apiKey, in: header, name: X-Key}\n"
 
 	doc, diags := compileText(t, "api/openapi.yaml", src, openapi.Options{})
 
