@@ -50,6 +50,7 @@ func canaries() map[string]func(t *testing.T) {
 		"media-type-references":    mediaTypeReferences,
 		"nil-populate-panic":       nilPopulatePanic,
 		"string-as-boolean":        stringAsBoolean,
+		"alias-field-on-scalar":    aliasFieldOnScalar,
 	}
 }
 

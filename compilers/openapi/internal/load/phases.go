@@ -30,6 +30,7 @@ const (
 	phaseRefuse   phase = "refuse"   // the pre-parse refusals
 	phasePatch    phase = "patch"    // the overlay read and applied
 	phaseJudge    phase = "judge"    // the rule table's judgment of the tree
+	phaseSettle   phase = "settle"   // the tree made to read as the table judged it
 	phaseModel    phase = "model"    // the parser's model built, and its version read
 	phaseSiblings phase = "siblings" // the fields beside path item $refs, and the media types, modelled
 	phaseBind     phase = "bind"     // every $ref bound in the compiler
@@ -59,6 +60,7 @@ func steps() []step {
 		{phaseRefuse, (*loading).preParse},
 		{phasePatch, (*loading).patchOverlay},
 		{phaseJudge, (*loading).judge},
+		{phaseSettle, (*loading).settle},
 		{phaseModel, (*loading).buildModel},
 		{phaseSiblings, (*loading).findSiblings},
 		{phaseBind, (*loading).bindRefs},
@@ -137,6 +139,12 @@ func (l *loading) patchOverlay(ctx context.Context) (bool, error) {
 // judge holds the tree to the rule table as the source writes it.
 func (l *loading) judge(ctx context.Context) (bool, error) {
 	l.judged = judgeSource(ctx, l.root, l.tree, nodesAdmitted(l.opts))
+	return false, nil
+}
+
+// settle makes the tree read as the table judged it (settle).
+func (l *loading) settle(context.Context) (bool, error) {
+	settle(l.judged)
 	return false, nil
 }
 

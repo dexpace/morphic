@@ -26,14 +26,18 @@ import (
 func (w *walker) value(f frame, fld Field, val *yaml.Node, depth int) {
 	node := nodeview.Deref(val)
 	ptr := f.at.ptr.AppendToken(fld.Name)
+	shared := f.shared || sharedNode(val)
 	if f.rows.rows != nil && dialectShape(w, f, fld, node, ptr) {
+		w.accept(shared, node)
 		return
 	}
 	shape, ok := w.shapeOf(f, fld, node)
 	if !ok {
+		w.refuse(node)
 		w.mismatch(f, fld, node, ptr)
 		return
 	}
+	w.accept(shared, node)
 	if shape == String {
 		w.text(f, fmt.Sprintf("field %q", fld.Name), fld, node, ptr)
 	}
@@ -50,7 +54,7 @@ func (w *walker) value(f frame, fld Field, val *yaml.Node, depth int) {
 // an error saying what the document's version writes instead.
 func dialectShape(w *walker, f frame, fld Field, node *yaml.Node, ptr jsontext.Pointer) bool {
 	switch {
-	case fld.Decimal && !isNull(node) && (matches(fld.Shape, node) || !outOfRange(fld.Shape, node)):
+	case fld.Decimal && !isNull(node) && !outsideRuleset(node) && (matches(fld.Shape, node) || !outOfRange(fld.Shape, node)):
 		decimalBound(w, f, fld, node, ptr)
 		return true
 	case fld.Name == "items" && node.Kind == yaml.SequenceNode && !f.rows.Takes("items", List):
@@ -123,8 +127,33 @@ func (w *walker) mismatch(f frame, fld Field, node *yaml.Node, ptr jsontext.Poin
 			return
 		}
 	}
+	if outsideRuleset(node) {
+		null = fmt.Sprintf("; it is tagged %q, outside YAML 1.2's JSON schema ruleset, to which OpenAPI %s limits tags (Format)",
+			node.Tag, w.minor)
+	}
 	w.report(sev, classType, ptr, "%s field %q must be %s in %s (%s)%s",
 		f.obj.Name, fld.Name, describeShape(fld), f.in(w.minor), citeFor(fld.Cites, w.minor).Section, null)
+}
+
+// outsideRuleset reports whether node is a scalar or a sequence under a tag
+// YAML 1.2's JSON schema ruleset lacks, which OpenAPI limits a document's tags
+// to (Format): it has no shape a typed field admits. A tagged mapping is
+// refused before the check reads the tree.
+func outsideRuleset(node *yaml.Node) bool {
+	switch {
+	case node == nil:
+		return false
+	case node.Kind == yaml.SequenceNode:
+		return node.ShortTag() != "!!seq"
+	case node.Kind != yaml.ScalarNode || node.Style&yaml.TaggedStyle == 0:
+		return false
+	}
+	switch node.ShortTag() {
+	case "!!null", "!!bool", "!!int", "!!float", "!!str":
+		return false
+	default:
+		return true
+	}
 }
 
 // nullReading is how the compiler reads a null written for a field.
@@ -204,8 +233,12 @@ func isNull(node *yaml.Node) bool {
 }
 
 // shapeOf finds the shape, among the field's own and the alternatives that hold
-// at the declared minor, that the node has.
+// at the declared minor, that the node has. A node tagged outside the ruleset
+// has none, but where the field takes any value (outsideRuleset).
 func (w *walker) shapeOf(f frame, fld Field, node *yaml.Node) (Shape, bool) {
+	if fld.Shape != Any && outsideRuleset(node) {
+		return fld.Shape, false
+	}
 	if matches(fld.Shape, node) {
 		return fld.Shape, true
 	}
@@ -303,7 +336,8 @@ func (f frame) admitted(fld Field, m Minor) string {
 func (w *walker) entries(f frame, fld Field, shape Shape, node *yaml.Node, ptr jsontext.Pointer, depth int) {
 	switch shape {
 	case Nested:
-		w.object(site{kind: fld.Of, node: node, ptr: ptr, held: fld.Name, rows: f.rows, in: f.obj.Kind}, depth+1)
+		w.object(site{kind: fld.Of, node: node, ptr: ptr, held: fld.Name, rows: f.rows, in: f.obj.Kind,
+			shared: f.shared}, depth+1)
 	case Map:
 		w.repeated(node, ptr, "field "+strconv.Quote(fld.Name)+" of the "+f.obj.Name)
 		pairs := w.view.MappingPairs(node)
@@ -313,13 +347,14 @@ func (w *walker) entries(f frame, fld Field, shape Shape, node *yaml.Node, ptr j
 		for _, p := range pairs {
 			if !f.holdsBoolean(fld, p.Val) {
 				w.object(site{kind: fld.Of, node: p.Val, ptr: ptr.AppendToken(p.Key), held: p.Key, rows: f.rows,
-					in: f.obj.Kind}, depth+1)
+					in: f.obj.Kind, shared: f.shared}, depth+1)
 			}
 		}
 	case List:
 		for i, item := range node.Content {
 			if !f.holdsBoolean(fld, item) {
-				w.object(site{kind: fld.Of, node: item, ptr: itemPointer(ptr, i), rows: f.rows, in: f.obj.Kind}, depth+1)
+				w.object(site{kind: fld.Of, node: item, ptr: itemPointer(ptr, i), rows: f.rows, in: f.obj.Kind,
+					shared: f.shared}, depth+1)
 			}
 		}
 	case StringList:
@@ -428,14 +463,14 @@ func matches(shape Shape, node *yaml.Node) bool {
 }
 
 // allScalar reports whether every entry or item of the container is a scalar
-// that is not null.
+// that is neither null nor tagged outside the ruleset (outsideRuleset).
 func allScalar(node *yaml.Node) bool {
 	for i, n := range node.Content {
 		if node.Kind == yaml.MappingNode && i%2 == 0 {
 			continue
 		}
 		n = nodeview.Deref(n)
-		if n == nil || n.Kind != yaml.ScalarNode || n.Tag == "!!null" {
+		if n == nil || n.Kind != yaml.ScalarNode || n.Tag == "!!null" || outsideRuleset(n) {
 			return false
 		}
 	}

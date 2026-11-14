@@ -36,6 +36,12 @@ type Options struct {
 	// not as a Reference Object standing in its place. The node is the
 	// mapping itself, its aliases followed.
 	Seen func(kind Kind, node *yaml.Node)
+	// Judged, when set, is told each value the check refuses as the wrong type
+	// where it is written (a value with none of the shapes its field admits, or
+	// no mapping where an object belongs; never a null), with refused true, and
+	// each value it accepts inside a frame an alias, an anchor or a `<<` merge
+	// shares, with refused false. The node is the value, its alias followed.
+	Judged func(node *yaml.Node, refused bool)
 	// Root is the pointer the root is read at in the document Locate answers
 	// in, empty for that document's own root.
 	Root jsontext.Pointer
@@ -126,7 +132,7 @@ func (c Checker) walker(ctx context.Context, declared string, opts Options) (*wa
 	w := &walker{ctx: ctx, spec: c.spec, minor: minor, view: nodeview.New(), work: budget.New(opts.Budget)}
 	w.locate, w.declared, w.seen, w.rows = opts.Locate, declared, opts.Seen, opts.Rows
 	w.readAt, w.rootAt, w.said = opts.ReadAt, opts.Root, map[ir.Diagnostic]bool{}
-	w.rootRows, w.later = opts.RootRows, opts.Later
+	w.rootRows, w.later, w.judged = opts.RootRows, opts.Later, opts.Judged
 	if w.rows.rows == nil {
 		w.rows, _ = c.spec.SchemaRules(declared, "")
 	}
@@ -149,6 +155,7 @@ type walker struct {
 	work    budget.Budget
 	stopped bool
 	seen    func(Kind, *yaml.Node)
+	judged  func(*yaml.Node, bool)
 	// rows is the rows a Schema Object no schema holds is read with
 	// (Options.Rows), rootRows those of a dialect root (Options.RootRows),
 	// and later what is handed a schema left unread (Options.Later).
@@ -160,14 +167,16 @@ type walker struct {
 
 // site is an object to read: its kind, node, pointer, the key its parent
 // holds it under, and the kind of that parent, zero at the root. rows is the
-// rows of the schema holding it, where one does.
+// rows of the schema holding it, where one does, and shared says its parent's
+// frame is shared (frame.shared).
 type site struct {
-	node *yaml.Node
-	ptr  jsontext.Pointer
-	held string
-	rows SchemaRules
-	kind Kind
-	in   Kind
+	node   *yaml.Node
+	ptr    jsontext.Pointer
+	held   string
+	rows   SchemaRules
+	kind   Kind
+	in     Kind
+	shared bool
 }
 
 // frame is a mapping read as an object, how deep it is, and for a Schema
@@ -176,7 +185,8 @@ type site struct {
 // Schema Object, which decides for those it holds, else by its minor, where
 // the rows a schema is read with have the last word (walker.shapeOf). where,
 // unless empty, names what a finding about it holds it to in place of its
-// minor.
+// minor. shared says another place may read what it holds: its parent's frame
+// is shared, or its node is an alias, anchored, or writes a `<<` key.
 type frame struct {
 	obj      Object
 	at       site
@@ -186,6 +196,45 @@ type frame struct {
 	where    string
 	depth    int
 	booleans bool
+	shared   bool
+}
+
+// sharedNode reports whether another place may read n: it is an alias, or the
+// node it names is anchored.
+func sharedNode(n *yaml.Node) bool {
+	if n == nil {
+		return false
+	}
+	return n.Kind == yaml.AliasNode || nodeview.Deref(n).Anchor != ""
+}
+
+// writesMerge reports whether the mapping n writes a `<<` key, whose sources
+// another mapping may merge too.
+func writesMerge(n *yaml.Node) bool {
+	for i := 0; i+1 < len(n.Content); i += 2 {
+		if nodeview.IsMergeKey(n.Content[i]) {
+			return true
+		}
+	}
+	return false
+}
+
+// refuse tells Options.Judged that node, the value a field holds, is refused
+// as the wrong type where it is written, unless it is a null, which every
+// reader already takes for the field left out.
+func (w *walker) refuse(node *yaml.Node) {
+	if w.judged != nil && node != nil && !isNull(node) {
+		w.judged(node, true)
+	}
+}
+
+// accept tells Options.Judged that node, its alias followed, is accepted, when
+// another place may read it too: a place that reads a node as well-typed keeps
+// it as written whatever another refuses.
+func (w *walker) accept(shared bool, node *yaml.Node) {
+	if w.judged != nil && shared && node != nil {
+		w.judged(node, false)
+	}
 }
 
 // in names what a finding about f holds it to: the dialect a JSON Schema
@@ -232,7 +281,8 @@ func (w *walker) object(s site, depth int) {
 	if !w.spend(depth, s.ptr) {
 		return
 	}
-	f := frame{obj: obj, at: s, depth: depth, booleans: w.spec.booleanHeld(Schema, w.minor)}
+	f := frame{obj: obj, at: s, depth: depth, booleans: w.spec.booleanHeld(Schema, w.minor),
+		shared: s.shared || sharedNode(s.node)}
 	if s.kind == Schema {
 		f.rows = w.rowsAt(s)
 		f.obj, f.booleans = f.rows.rows.object, f.rows.Booleans()
@@ -245,6 +295,8 @@ func (w *walker) object(s site, depth int) {
 		return
 	}
 	f = w.frameOf(f, node)
+	f.shared = f.shared || writesMerge(node)
+	w.accept(f.shared, node)
 	w.repeated(node, s.ptr, obj.Name)
 	if w.reference(f, depth) {
 		return
@@ -283,11 +335,13 @@ func (w *walker) frameOf(f frame, node *yaml.Node) frame {
 }
 
 // notMapping reports a node that is no mapping where f's kind needs one,
-// unless the kind admits a boolean there.
+// unless the kind admits a boolean there, and tells Options.Judged which.
 func (w *walker) notMapping(f frame, node *yaml.Node) {
 	if f.obj.Boolean.Holds(w.minor) && matches(Boolean, node) {
+		w.accept(f.shared, node)
 		return
 	}
+	w.refuse(node)
 	w.report(ir.SeverityError, classType, f.at.ptr, "%s must be an object in %s (%s)", f.obj.Name, f.in(w.minor), f.obj.Name)
 }
 

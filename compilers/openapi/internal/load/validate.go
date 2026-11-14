@@ -32,14 +32,18 @@ type objectKey struct {
 // what the references reach and gives each document's Schema Object rows.
 // pending is each Schema Object it handed back unread, in a document that may
 // name a dialect, which is judged under opts once the bindings say which
-// dialect each is read in (judgeSchemas).
+// dialect each is read in (judgeSchemas). refused and accepted are the values
+// the check refused as the wrong type, and those it accepted where another
+// place may read them too (oas.Options.Judged), which settle reads.
 type judgment struct {
-	checker oas.Checker
-	diags   []ir.Diagnostic
-	seen    map[objectKey]bool
-	pending []oas.Pending
-	version string
-	opts    oas.Options
+	checker  oas.Checker
+	diags    []ir.Diagnostic
+	seen     map[objectKey]bool
+	refused  map[*yaml.Node]bool
+	accepted map[*yaml.Node]bool
+	pending  []oas.Pending
+	version  string
+	opts     oas.Options
 }
 
 // declaredVersion returns the version the document at root writes under
@@ -76,8 +80,12 @@ func declaredDialect(root *yaml.Node) string {
 // check reads (see nodesAdmitted). A document that may name a dialect
 // (namesDialect) has its Schema Objects handed back unread, since the dialect
 // each is read in is known only once the bindings are read (judgeSchemas).
+//
+// It runs before readyForModel clears the tree's anchors, which tell the check
+// that another place may read a value (oas.Options.Judged).
 func judgeSource(ctx context.Context, root *yaml.Node, tree provenance.Tree, within budget.Limit) judgment {
-	j := judgment{checker: oas.NewChecker(), seen: map[objectKey]bool{}, version: declaredVersion(root)}
+	j := judgment{checker: oas.NewChecker(), seen: map[objectKey]bool{}, version: declaredVersion(root),
+		refused: map[*yaml.Node]bool{}, accepted: map[*yaml.Node]bool{}}
 	j.opts = oas.Options{
 		Budget: within,
 		Locate: walkedFrom(root, tree.Node),
@@ -87,6 +95,13 @@ func judgeSource(ctx context.Context, root *yaml.Node, tree provenance.Tree, wit
 		ReadAt: true,
 	}
 	opts := j.opts
+	opts.Judged = func(node *yaml.Node, refused bool) {
+		if refused {
+			j.refused[node] = true
+			return
+		}
+		j.accepted[node] = true
+	}
 	if namesDialect(ctx, root, j.version) {
 		opts.Later = func(p oas.Pending) { j.pending = append(j.pending, p) }
 	}

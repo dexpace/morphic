@@ -470,12 +470,18 @@ func (v *View) mergeSource(val *yaml.Node, depth int) expansion {
 }
 
 // MergeSources returns what the `<<` value val names: each element of a list
-// written or aliased there, or val itself.
+// written or aliased there, its alias followed, or val itself. It reads one
+// level, as a merge does, so its work is the list's length.
 func MergeSources(val *yaml.Node) []*yaml.Node {
-	if v := Deref(val); v != nil && v.Kind == yaml.SequenceNode {
-		return v.Content
+	v := Deref(val)
+	if v == nil || v.Kind != yaml.SequenceNode {
+		return []*yaml.Node{val}
 	}
-	return []*yaml.Node{val}
+	out := make([]*yaml.Node, len(v.Content))
+	for i, item := range v.Content {
+		out[i] = Deref(item)
+	}
+	return out
 }
 
 // NotMapping reports whether src, followed through its alias, is no mapping,

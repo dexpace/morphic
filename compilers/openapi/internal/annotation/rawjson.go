@@ -79,6 +79,9 @@ func (c *rawConv) node(dst jsontext.Value, n *yaml.Node, depth int) (jsontext.Va
 	if n == nil {
 		return nil, errors.New("nil yaml node")
 	}
+	// A value the load phase read as left out is rendered as the source wrote
+	// it (nodeview.Unread).
+	n = nodeview.Written(n)
 	if depth > maxRawDepth {
 		return nil, fmt.Errorf("nesting exceeds %d", maxRawDepth)
 	}

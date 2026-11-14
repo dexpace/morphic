@@ -511,6 +511,18 @@ its message naming where in that document it lies. Each finding is made once: a 
 merge key mounts at several positions draws one, placed where the node is written and naming the
 position in that document that first read it.
 
+A value the table refuses as the wrong type is read as the field left out by every reader of the
+source, wherever the table reads it, the parser's model among them; a construct kept verbatim shows
+it as the source wrote it. Such a value is one with none of the shapes its field admits, a boolean
+written as a string among them, which the model reads as `true` or `false`
+([`string-as-boolean`](../parser-library.md#string-as-boolean)), a scalar or a list under a tag
+outside YAML 1.2's JSON schema ruleset, which OpenAPI limits tags to and which the table reports
+naming the tag, and a value that is no mapping where an object belongs; a `null` is read so
+already. A field that takes any value, a default or an example, takes a tagged value as written. A
+node an alias, an anchor or a `<<` merge key shares is read so only where every place the table
+reads it refuses it: one place that accepts it keeps it as written for all, and a place the table
+does not read, such as an `x-` key, has no say.
+
 A rule another lowering reports is stated in the table and left to it, so a document draws one
 report: [`operation-ids`](#operation-ids), a repeated parameter ([`parameters`](#parameters)), a
 security requirement naming no scheme and a scheme naming no mechanism
@@ -547,7 +559,20 @@ gives it no effect is [`allow-reserved-locations`](#allow-reserved-locations)' a
   `oas.TestCheck_ASchemaIsHeldToItsDialectsRows`, `oas.TestCheck_AFindingInADraftNamesItsDialect`,
   `oas.TestCheck_ARootReadsItsOwnRows`, `oas.TestCheckPending_ReadsWhatACheckHandedBack`,
   `load.TestNamesDialect_ReadsTheKeyAndTheField`, `load.TestJudgeSource_DeferringASchemaChangesNoFinding`,
-  `e2e.TestOlderDrafts_ASchemaIsHeldToItsDialectsRows`
+  `e2e.TestOlderDrafts_ASchemaIsHeldToItsDialectsRows`,
+  `oas.TestCheck_JudgedTellsEachValueTheCheckRefusedWhereItIsWritten`,
+  `oas.TestCheck_ATagOutsideTheRulesetIsRefusedWithTheTagSaid`,
+  `oas.TestCheck_JudgedTellsEachValueAFrameSharesAcceptedOrRefused`,
+  `nodeview.TestUnread_ReadsAsNullAndWrittenReturnsWhatTheSourceWrote`,
+  `e2e.TestCompile_ABooleanWrittenAsAStringIsReadAsTheFieldLeftOut`,
+  `e2e.TestCompile_AScalarOrSequenceTaggedOutsideTheRulesetIsReadAsLeftOut`,
+  `e2e.TestCompile_ANodeASchemaAndAPropertiesMapReadStaysAsWritten`,
+  `e2e.TestCompile_ASharedNodeIsReadAsItsInlineSpellingIs`
+- Status: partly built: a Schema Object of a document that may name a dialect is judged once its
+  model is built, so a value it refuses is read as the model reads it, and so is a value of what a
+  `$ref` reaches outside the source's own reading, raw YAML under an `x-` key or another document
+  (#1928); a schema position there is read from its node all the same
+  ([`null-schema`](#null-schema)).
 
 ### `minor-required-fields`
 

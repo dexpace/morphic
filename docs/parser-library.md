@@ -444,6 +444,24 @@ paths:
 - Code:
   - `load.buildRecovered` turns the panic into an `ErrParse` error.
 
+### `alias-field-on-scalar`
+
+The decoder and the encoder read a node's `Alias` field only for an alias node: a scalar whose
+`Alias` holds another node decodes into a map or a struct, and encodes, as the scalar it is. So the
+compiler keeps, behind a value it reads as left out, the node the source wrote there, which only a
+renderer of what the source wrote asks for.
+
+```go
+n := &yaml.Node{Kind: yaml.ScalarNode, Tag: "!!null", Value: "null", Alias: written}
+// decodes as nil, encodes as null
+```
+
+- Verified at: v1.26.3
+- Pinned by: `TestLibraryBehaviour/alias-field-on-scalar`
+- Code:
+  - `nodeview.Unread` keeps the node as written there.
+  - `nodeview.Written` returns it.
+
 ### `anchored-entry-dropped`
 
 An anchored entry of a map the model embeds is left out of the model, with no finding: a path in
@@ -676,8 +694,9 @@ and reports neither. The core keeps the node, and what is written beside it.
 YAML 1.2, which OpenAPI recommends, reads a plain date and a plain `<<` as strings, as it reads any
 scalar under the non-specific `!`, so the compiler tags each such date and `<<` a string in the
 source and each document it reads beside it before their models are built, but a `<<` key, which
-merges ([`merge-keys`](#merge-keys)). A scalar under any other tag keeps it, and still reads as
-above (#1368).
+merges ([`merge-keys`](#merge-keys)). A scalar under any other tag keeps it, and the compiler's
+table refuses it where a typed field holds it, so the load phase reads it as the field left out
+before the model is built.
 
 ```yaml
 info: {title: 2021-01-01}    # GetTitle is empty

@@ -46,6 +46,9 @@ func (c converter) value(node *yaml.Node, depth int) (ir.Value, error) {
 	if node == nil {
 		return ir.Value{Kind: ir.ValueNull}, nil
 	}
+	// A value the load phase read as left out is converted as the source wrote
+	// it (nodeview.Unread).
+	node = nodeview.Written(node)
 	switch node.Kind {
 	case yaml.AliasNode:
 		return c.value(node.Alias, depth+1)
