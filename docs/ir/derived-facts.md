@@ -101,8 +101,9 @@ on the wire, so it survives the edits that move an ID
 array, a schema moved within its file or to another file, and an `allOf` branch inserted before
 the one declaring a property; an operation keeps its own through a renamed path variable and a
 renamed `operationId`. A rename of the name the key is built from moves the key too, and nothing
-derived from a document alone follows it; that is the structural tier [open
-question 5](./open-questions.md) leaves open.
+derived carries an entity whose pointer and name both change ([open
+question 5](./open-questions.md)): it reads as one entity removed and another added, and what was
+keyed by its old ID is the generation's to report.
 
 An entity named for itself takes a key of its own:
 
