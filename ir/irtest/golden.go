@@ -93,6 +93,7 @@ func writeBytes(path string, raw []byte) error {
 // of aborting a real test.
 type testingT interface {
 	Helper()
+	Failed() bool
 	Fatalf(format string, args ...any)
 	Errorf(format string, args ...any)
 }
@@ -129,7 +130,9 @@ func compareGolden(t testingT, goldenPath string, doc *ir.Document) {
 }
 
 // CompareBytes compares got against the golden file at path, or rewrites it
-// when -update is set. It refuses an empty path. Failures include a full diff.
+// when -update is set. It refuses an empty path, and under -update a test that
+// has already failed, so a regression cannot be written into its own golden.
+// Failures include a full diff.
 //
 // resolver_oracle_test.go of internal/harness and oracle_test.go of the
 // canary declare their own -update and rewrite a list they merge reasons into,
@@ -146,6 +149,9 @@ func compareBytes(t testingT, path string, got []byte) {
 		t.Fatalf("irtest: compare golden: empty golden path")
 	}
 	if Update() {
+		if t.Failed() {
+			t.Fatalf("irtest: update golden %s: the test has already failed, so the golden is left as it was", path)
+		}
 		if err := writeBytes(path, got); err != nil {
 			t.Fatalf("update golden: %v", err)
 		}
