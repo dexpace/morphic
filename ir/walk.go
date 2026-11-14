@@ -25,7 +25,9 @@ const MaxWalkDepth = 4096
 // document whose references unfold far past its own size, a slice or pointer
 // held twice a level, costs at most this much to walk. It is many times what
 // the largest compiled document shows a visitor. A visitor reaching it is shown
-// nothing more, and the walk reports truncation, as at the depth cap.
+// nothing more, and the walk reports truncation, as at the depth cap. It bounds
+// the walk, not what a visitor reports: a check that reports per value shown
+// can report millions on such a document (GitHub #1957).
 const MaxWalkValues = 1 << 27
 
 // MapKeySuffix ends the path of a value reached as a map key rather than as a
