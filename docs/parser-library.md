@@ -590,9 +590,9 @@ characters written `"key":`); a raw DEL, U+FFFE, U+FFFF or a C1 control other th
 string; and a tab before the root value or on a line after the one it ends on. It refuses half of a
 pair as it refuses a whole one, and every message names no position within the line. It reads a raw
 U+0085 in a string as a space, and, as YAML 1.1 does, counts U+0085, U+2028 and U+2029 as line ends,
-where JSON tools count LF, CR and CR LF alone. The library parses the source, an overlay and each
-document a reference names with it, so each meets the refusal or the misreading
-([`yaml-decoding`](compilers/openapi.md#yaml-decoding)).
+where JSON tools count LF, CR and CR LF alone. The compiler parses the source and each document a
+reference names with it, and the library parses an overlay with it, so each meets the refusal or the
+misreading ([`yaml-decoding`](compilers/openapi.md#yaml-decoding)).
 
 ```json
 {"description": "x\ud83d\ude00"}
