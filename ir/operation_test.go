@@ -253,6 +253,7 @@ func TestParameter_JSONContract(t *testing.T) {
 			Required:     true,
 			Default:      &ir.Value{Kind: ir.ValueNumber, Num: ir.BigVal("10")},
 			Constraints:  populatedConstraints(),
+			Encoding:     &ir.Encoding{Name: "http-date"},
 			ValueFrom:    &ir.PropPath{In: "header", Segments: []ir.PropID{"p/x"}},
 			Docs:         populatedDocs(),
 			Deprecation:  populatedDeprecation(),

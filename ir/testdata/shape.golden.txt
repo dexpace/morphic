@@ -516,6 +516,7 @@ type Operation struct
 	"oneWay" bool
 	"overloadOf" *OpID omitzero
 	"pagination" *Pagination omitzero
+	"paramChoices" []ParamChoice omitempty
 	"parameterVisibility" []string omitempty
 	"params" []Parameter omitempty
 	"provenance" Provenance
@@ -580,7 +581,16 @@ type Pagination struct
 	"totalCount" *PropPath omitzero
 	"totalPages" *PropPath omitzero
 
+type ParamChoice struct
+	"name" Naming
+	"required" bool
+	"variants" []ParamVariant omitempty
+
 type ParamID string
+
+type ParamVariant struct
+	"name" Naming
+	"params" []ParamID omitempty
 
 type Parameter struct
 	"availability" *Availability omitzero

@@ -763,7 +763,11 @@ it sees. Changes made together in one bump are listed together under it.
   writes `http-date` there on a header parameter its HTTP-date reading reaches
   ([`http-date-inference`](../compilers/openapi.md#http-date-inference)). `Content.Inferred`, the
   heuristics that filled a field from a key the content keeps, the marker a promotion from a
-  content records ([promotion](./unmodeled.md#promotion)). Three markers are renamed,
+  content records ([promotion](./unmodeled.md#promotion)). `Operation.ParamChoices`, with
+  `ParamChoice` and `ParamVariant`, the choices a source states among parameters it declares one by
+  one, the parameter list untouched
+  ([choices among parameters](./operations.md#choices-among-parameters)); `ir/param-choice-single`
+  and `ir/param-variant-empty` are new verifier codes. Three markers are renamed,
   as each inference's marker is `<fact>-inference`: `streaming-media-type` is `streaming-inference`,
   `binary-media-type` is `binary-inference` and `nullable-widening` is `nullable-inference`. A
   consumer pinned to 0.65.0 refuses the document; one matching a marker by its old name no longer

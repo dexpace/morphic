@@ -6,6 +6,7 @@ package pass
 import (
 	"fmt"
 	"reflect"
+	"strconv"
 
 	"github.com/dexpace/morphic/ir"
 )
@@ -137,7 +138,8 @@ type paramRef struct {
 
 // appendParamRefs appends to dst the parameter references op carries besides
 // its bindings: the pagination inputs, the inputs that select a stream, the
-// idempotency token and the request values its links read. An absent input is
+// idempotency token, the parameters its choices name and the request values
+// its links read. An absent input is
 // no reference, and neither is one into the request body, nor an empty token,
 // which is how an operation that is not token-keyed spells having none. An
 // input with an empty ID is one.
@@ -154,6 +156,14 @@ func appendParamRefs(dst []paramRef, op ir.Operation) []paramRef {
 	}
 	if token := op.Idempotency.TokenParam; token != "" {
 		dst = append(dst, paramRef{token, "idempotency/tokenParam"})
+	}
+	for i, choice := range op.ParamChoices {
+		for j, variant := range choice.Variants {
+			field := "paramChoices/" + strconv.Itoa(i) + "/variants/" + strconv.Itoa(j)
+			for _, id := range variant.Params {
+				dst = append(dst, paramRef{id, field})
+			}
+		}
 	}
 	return appendLinkInputRefs(dst, &op)
 }

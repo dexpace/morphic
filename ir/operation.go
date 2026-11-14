@@ -22,6 +22,11 @@ type Operation struct {
 	Stability Stability `json:"stability,omitempty"`
 	// Params are all logical inputs, protocol-unbound.
 	Params []Parameter `json:"params,omitempty"`
+	// ParamChoices are the choices the source states among the operation's
+	// parameters (docs/ir/operations.md#choices-among-parameters); empty = it
+	// states none. Params and every reference to a parameter are as they would
+	// be without them.
+	ParamChoices []ParamChoice `json:"paramChoices,omitempty"`
 	// Request is the body/message content; nil = none.
 	Request *Payload `json:"request,omitzero"`
 	// Responses are the ordered success and alternative-success responses.
@@ -630,4 +635,27 @@ type LongRunning struct {
 	FinalType *TypeRef `json:"finalType,omitzero"`
 	// ResultPath locates the final result within the polling response.
 	ResultPath *PropPath `json:"resultPath,omitzero"`
+}
+
+// ParamChoice is one choice among alternative sets of an operation's
+// parameters: of the parameters its variants name, a request carries those of
+// one variant only. A compiler writes one only over parameters its source
+// declares one by one; a sum the source declares is a Union.
+type ParamChoice struct {
+	// Name names the choice.
+	Name Naming `json:"name"`
+	// Required reports that a request carries a parameter of the choice;
+	// false = it may carry none.
+	Required bool `json:"required"`
+	// Variants are the alternatives, two or more.
+	Variants []ParamVariant `json:"variants,omitempty"`
+}
+
+// ParamVariant is one alternative of a ParamChoice.
+type ParamVariant struct {
+	// Name names the variant.
+	Name Naming `json:"name"`
+	// Params are the parameters of the operation a request picking the variant
+	// may carry, one or more, each once. Nothing says they travel together.
+	Params []ParamID `json:"params,omitempty"`
 }

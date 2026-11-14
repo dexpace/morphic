@@ -237,6 +237,7 @@ a row.
 | `HTTPParamBinding.AllowReserved` | `Parameter` | `Provenance.Inferred` |
 | `StreamDetail.Terminator`, `StreamDetail.Condition` | `Operation` | `Provenance.Inferred` |
 | `StreamDetail.Terminator` | `Content` | `Inferred` |
+| `Operation.ParamChoices` | `Operation` | `Provenance.Inferred` |
 | `ErrorCase.Retryable`, `ErrorCase.Throttling` | `ErrorCase` | `Inferred` |
 | `OAuthFlow.TokenEndpointAuthMethods` | `OAuthFlow` | `Inferred` |
 
