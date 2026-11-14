@@ -40,7 +40,9 @@ func TestSpacesUsed_ReadsEveryKindSortedWithoutRepeats(t *testing.T) {
 		ir.IDKindType: {"a", "b"}, ir.IDKindAuth: {"k"}, ir.IDKindService: {"api", "svc"},
 		ir.IDKindGroup: {"tags"}, ir.IDKindOp: {"paths"},
 	}
-	assert.Empty(t, cmp.Diff(want, irtest.SpacesUsed(doc)), "(-want +got)")
+	got, cut := irtest.SpacesUsed(doc)
+	assert.False(t, cut, "the walk read the whole document")
+	assert.Empty(t, cmp.Diff(want, got), "(-want +got)")
 }
 
 // TestSpacesUsed_LeavesOutWhatNeedsNoDeclaration pins the three kinds of ID that
@@ -69,7 +71,9 @@ func TestSpacesUsed_LeavesOutWhatNeedsNoDeclaration(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			assert.Empty(t, cmp.Diff(tc.want, irtest.SpacesUsed(tc.doc)), "(-want +got)")
+			got, cut := irtest.SpacesUsed(tc.doc)
+			assert.False(t, cut, "the walk read the whole document")
+			assert.Empty(t, cmp.Diff(tc.want, got), "(-want +got)")
 		})
 	}
 }
