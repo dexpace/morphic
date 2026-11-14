@@ -4,6 +4,7 @@
 package e2e_test
 
 import (
+	"regexp"
 	"strings"
 	"testing"
 
@@ -32,7 +33,10 @@ type refPosition struct {
 	// pathItem is set where the $ref is the item's own field, so that an
 	// ill-typed one is the null warning and the item lowers what it writes.
 	pathItem bool
-	body     string
+	// emptyItem is set where an item writing nothing is kept, as a callback's
+	// expression or a component is, so its control writes the item as {}.
+	emptyItem bool
+	body      string
 }
 
 const refOp = "paths:\n  /a:\n    get:\n      operationId: getA\n      responses: {\"200\": {description: ok}}\n"
@@ -49,15 +53,16 @@ var refPositions = []refPosition{
 		body: "paths: {}\nwebhooks:\n  ok: {get: {responses: {\"200\": {description: ok}}}}\n@@  w:\n@@    $ref:\n",
 	},
 	{
-		name: "a path item of a callback", pathItem: true,
+		name: "a path item of a callback", pathItem: true, emptyItem: true,
 		pointer: "/paths/~1a/post/callbacks/cb/{$request.body#~1v}/$ref",
 		body: "paths:\n  /a:\n    post:\n      operationId: postA\n      responses: {\"200\": {description: ok}}\n" +
 			"      callbacks:\n        cb:\n          '{$request.body#/u}':\n            post: {responses: {\"200\": {description: ok}}}\n" +
 			"@@          '{$request.body#/v}':\n@@            $ref:\n",
 	},
 	{
-		name: "a path item under components/pathItems", since31: true, pathItem: true, pointer: "/components/pathItems/P/$ref",
-		body: "paths: {}\ncomponents:\n  pathItems:\n    Ok: {get: {responses: {\"200\": {description: ok}}}}\n@@    P:\n@@      $ref:\n",
+		name: "a path item under components/pathItems", since31: true, pathItem: true, emptyItem: true,
+		pointer: "/components/pathItems/P/$ref",
+		body:    "paths: {}\ncomponents:\n  pathItems:\n    Ok: {get: {responses: {\"200\": {description: ok}}}}\n@@    P:\n@@      $ref:\n",
 	},
 	{
 		name: "an inline parameter", pointer: "/paths/~1a/get/parameters/1/$ref",
@@ -132,6 +137,14 @@ var refPositions = []refPosition{
 	},
 }
 
+// renderEmpty writes the position's document with its entry written as the
+// item {} in place of its $ref.
+func (p refPosition) renderEmpty(version string) string {
+	q := p
+	q.body = regexp.MustCompile(`:\n@@ *\$ref:\n`).ReplaceAllString(p.body, ": {}\n")
+	return q.render(version, "", false)
+}
+
 // refSpellings are the three ways a $ref can be written null.
 var refSpellings = []string{"", " ~", " null"}
 
@@ -169,9 +182,18 @@ func TestCompile_ANullRefOfAReferenceObjectLeavesTheEntryOut(t *testing.T) {
 			if p.since31 && version == "3.0.3" {
 				continue
 			}
-			control, controlDiags := compileText(t, "spec.yaml", p.render(version, "", true), openapi.Options{})
+			controlText := p.render(version, "", true)
+			if p.emptyItem {
+				controlText = p.renderEmpty(version)
+			}
+			control, controlDiags := compileText(t, "spec.yaml", controlText, openapi.Options{})
 			require.NotNil(t, control, "%s on %s", p.name, version)
 			require.Empty(t, controlDiags, "the document without the entry is valid: %s on %s: %+v", p.name, version, controlDiags)
+			want := jsonOf(t, control)
+			if p.emptyItem {
+				// A component kept verbatim shows the null $ref the source wrote.
+				want = strings.Replace(want, `"value":{}`, `"value":{"$ref":null}`, 1)
+			}
 
 			for _, spelling := range refSpellings {
 				t.Run(p.name+" on "+version+" spelled $ref:"+spelling, func(t *testing.T) {
@@ -189,7 +211,7 @@ func TestCompile_ANullRefOfAReferenceObjectLeavesTheEntryOut(t *testing.T) {
 					if !p.pathItem {
 						assert.Equal(t, ir.SeverityError, diags[0].Severity)
 					}
-					assert.Equal(t, jsonOf(t, control), jsonOf(t, doc), "the entry is left out, as written null it would be")
+					assert.Equal(t, want, jsonOf(t, doc), "the entry is left out, or for an item kept, read as {}")
 				})
 			}
 		}
