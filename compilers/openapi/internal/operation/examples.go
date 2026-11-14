@@ -64,7 +64,7 @@ func appendPluralExample(c lowering.Ctx, out []ir.Example, re *soa.ReferencedExa
 	diags = append(diags, annotation.UnknownKeysIn(&ext, ex, dc.Place(), decl)...)
 	// A summary or description beside a $ref of the entry's chain documents this
 	// use of the example (GitHub #610).
-	docs := resolve.UseDocs[soa.Example](re, ir.Docs{Summary: ex.GetSummary(), Description: ex.GetDescription()})
+	docs := resolve.UseDocs[soa.Example](c.Bindings(), re, ir.Docs{Summary: ex.GetSummary(), Description: ex.GetDescription()})
 	proto := ir.Example{
 		Name:        name,
 		Summary:     docs.Summary,

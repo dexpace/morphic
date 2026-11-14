@@ -48,8 +48,8 @@ func TestOneOf_WithDiscriminator(t *testing.T) {
 	require.Len(t, pet.Variants, 2, "both variants present")
 	require.NotNil(t, pet.Discriminator)
 	assert.Equal(t, "petType", pet.Discriminator.PropertyName)
-	assert.Equal(t, map[string]ir.TypeID{"cat": "t/openapi/components/schemas/Cat"},
-		pet.Discriminator.Mapping)
+	assert.Equal(t, map[string]ir.TypeID{"cat": "t/openapi/components/schemas/Cat", "Dog": "t/openapi/components/schemas/Dog"},
+		pet.Discriminator.Mapping, "the mapping holds the route it implies to the variant it leaves out")
 }
 
 func TestAnyOf_IsNonExclusiveUnion(t *testing.T) {
@@ -517,6 +517,14 @@ func TestOneOf_CoDeclaredNotDistributedReasons(t *testing.T) {
     NullBranch:
       properties: {kind: {type: string}}
       oneOf: [{$ref: '#/components/schemas/A'}, {type: 'null'}]
+    NullEnumBranch:
+      type: object
+      properties: {kind: {type: string}}
+      oneOf: [{$ref: '#/components/schemas/A'}, {enum: [null]}]
+    NullConstBranch:
+      type: object
+      properties: {kind: {type: string}}
+      anyOf: [{const: null}, {$ref: '#/components/schemas/A'}]
     BothCombinators:
       type: object
       properties: {kind: {type: string}}
@@ -534,11 +542,17 @@ func TestOneOf_CoDeclaredNotDistributedReasons(t *testing.T) {
 
 	for name, reason := range map[string]string{
 		"NotAModel":       "the body is not a model, so it carries no composition to distribute into",
-		"NullBranch":      "a branch is a bare null, which the union lifts onto the position, so no variant can conjoin the body with it",
+		"NullBranch":      "a branch admits null alone, which the union lifts onto the position, so no variant can conjoin the body with it",
+		"NullEnumBranch":  "a branch admits null alone, which the union lifts onto the position, so no variant can conjoin the body with it",
+		"NullConstBranch": "a branch admits null alone, which the union lifts onto the position, so no variant can conjoin the body with it",
 		"BothCombinators": "oneOf and anyOf are both declared, so distributing either would drop the other",
 		"Discriminated":   "the discriminator beside it routes to branches composing this schema, its subtypes, which distributing them into a union would undo",
 	} {
-		entry, ok := typeByName(doc, name).Common().Unmodeled["openapi:oneOf"]
+		key := "openapi:oneOf"
+		if name == "NullConstBranch" {
+			key = "openapi:anyOf"
+		}
+		entry, ok := typeByName(doc, name).Common().Unmodeled[key]
 		require.True(t, ok, "%s keeps its union verbatim", name)
 		assert.Equal(t, ir.ReasonDegradedLowering, entry.Reason, "%s", name)
 		assert.Contains(t,
@@ -558,7 +572,7 @@ func TestOneOf_CoDeclaredNotDistributedReasons(t *testing.T) {
 		openapitest.DiagMessageAt(t, diags, diag.DegradedConstruct, ir.SeverityInfo,
 			"/components/schemas/Discriminated/discriminator"),
 		"not a subtype of the model holding it")
-	assert.Equal(t, 5, openapitest.CountDiagsAt(diags, diag.DegradedConstruct, ir.SeverityInfo),
+	assert.Equal(t, 7, openapitest.CountDiagsAt(diags, diag.DegradedConstruct, ir.SeverityInfo),
 		"each declined shape is reported once, and the kept discriminator once; got %+v", diags)
 }
 
@@ -1353,11 +1367,11 @@ func TestOneOf_CoDeclaredBranchKeywordIsJudgedAloneAsBesideTheType(t *testing.T)
 // TestOneOf_CoDeclaredUnionReadPastItsBudgetDeclaresShape holds a union read
 // past a budget, in its body or in value sets its branches write together, to
 // the degraded lowering: a reading cut short says nothing, and a value set cut
-// short would otherwise read as admitting nothing, which every keyword restates. What a
-// verdict does not need is not read, so it spends nothing: a branch writing
-// only what is judged without the body leaves it unread, one nesting nothing
-// reads no declarations below it, and a place many branches restate is read
-// once, each row one an eager or repeated read reddens.
+// short would otherwise read as admitting nothing, which every keyword restates.
+// What a verdict does not need is not read: a branch writing only what is
+// judged without the body leaves it unread, one restating the body's own
+// keywords reads nothing it composes, one nesting nothing reads no declarations
+// below it, and a place many branches restate is read once.
 func TestOneOf_CoDeclaredUnionReadPastItsBudgetDeclaresShape(t *testing.T) {
 	t.Parallel()
 	var onePlace, oneNestedPlace, declared, booleans string
@@ -1386,9 +1400,15 @@ func TestOneOf_CoDeclaredUnionReadPastItsBudgetDeclaresShape(t *testing.T) {
 		why    string
 	}{
 		"ConjunctsPastTheReadBudget": {
+			"      type: object\n      properties: {a: {type: string}}\n" +
+				strings.Replace(conjuncts, "{description: c}]", "{properties: {b: {type: string}}}]", 1) +
+				"      oneOf: [{properties: {b: {type: string, minLength: 1}}}]\n",
+			readDistributed, "",
+		},
+		"OwnTypeBesideConjunctsPastTheReadBudget": {
 			"      type: object\n      properties: {a: {type: string}}\n" + conjuncts +
 				"      oneOf: [{type: object, required: [a]}]\n",
-			readDistributed, "",
+			validation, "",
 		},
 		"TypeAgainstAValueSetPastTheMemberBudget": {
 			"      type: string\n      enum: [" + strings.Join(members, ", ") + "]\n" +
@@ -1452,6 +1472,88 @@ func TestOneOf_CoDeclaredUnionReadPastItsBudgetDeclaresShape(t *testing.T) {
 			}
 		})
 	}
+}
+
+// TestOneOf_CoDeclaredRestatementOfTheBodyItselfOutlastsItsComposition pins a
+// branch restating only what the body itself writes, a property or its type,
+// beside a composition of any length: the body's own reading settles it, so the
+// union stays validation logic, where one restating what only the composition
+// declares is read through it, and past the read budget declares shape
+// (GitHub #1423).
+func TestOneOf_CoDeclaredRestatementOfTheBodyItselfOutlastsItsComposition(t *testing.T) {
+	t.Parallel()
+	branches := map[string]string{
+		"own property": "{required: [a], properties: {a: {type: string}}}",
+		"own type":     "{type: object, required: [a]}",
+		"composed":     "{required: [b], properties: {b: {type: integer}}}",
+	}
+	for _, links := range []int{50, 100, 128, 130, 300} {
+		for shape, branch := range branches {
+			t.Run(fmt.Sprintf("%s at %d links", shape, links), func(t *testing.T) {
+				t.Parallel()
+				doc, diags := schema.LowerSpec(t, openapitest.ComponentSpecVer("3.1.0", "    S:\n      type: object\n"+
+					"      properties: {a: {type: string}}\n      allOf: [{$ref: '#/components/schemas/C1'}]\n"+
+					"      oneOf: ["+branch+", {required: [b]}]\n"+chainOf(links, "C")))
+				openapitest.RequireNoErrorDiags(t, diags)
+				want := string(ir.ReasonValidationOnly)
+				if shape == "composed" && links > 50 {
+					want = readDistributed
+				}
+				assert.Equal(t, want, unionReading(doc, "S"))
+			})
+		}
+	}
+}
+
+// TestOneOf_CoDeclaredOwnReadingSettlesInAnyBranchOrder pins that the body's own
+// reading settles its branches as a set, in every order of them: where it runs
+// out it settles none, however many it read first, and where it finishes it
+// settles each it can, the first declaring shape included, spending nothing the
+// whole reading then lacks (GitHub #1423).
+func TestOneOf_CoDeclaredOwnReadingSettlesInAnyBranchOrder(t *testing.T) {
+	t.Parallel()
+	restating := func(from, to int) string {
+		var props []string
+		for i := from; i < to; i++ {
+			props = append(props, fmt.Sprintf("p%d: {type: string, minLength: 1}", i))
+		}
+		return "{properties: {" + strings.Join(props, ", ") + "}}"
+	}
+	own := make([]string, 0, 260)
+	for i := range 260 {
+		own = append(own, fmt.Sprintf("p%d: {type: string}", i))
+	}
+	body := "    S:\n      type: object\n      properties: {b: {type: string}, " + strings.Join(own, ", ") + "}\n" +
+		"      allOf: [{$ref: '#/components/schemas/C1'}]\n"
+	for name, tc := range map[string]struct {
+		branches [2]string
+		want     string
+	}{
+		"running out": {[2]string{restating(0, 200), restating(200, 260)}, readDistributed},
+		"finishing":   {[2]string{"{properties: {c: {type: integer, minimum: 1}}}", restating(0, 200)}, string(ir.ReasonValidationOnly)},
+	} {
+		for _, order := range [][2]int{{0, 1}, {1, 0}} {
+			t.Run(fmt.Sprintf("%s, branch %d first", name, order[0]), func(t *testing.T) {
+				t.Parallel()
+				doc, diags := schema.LowerSpec(t, openapitest.ComponentSpecVer("3.1.0", body+
+					"      oneOf: ["+tc.branches[order[0]]+", "+tc.branches[order[1]]+"]\n"+
+					strings.Replace(chainOf(30, "C"), "properties: {b: {type: integer}}", "properties: {c: {type: integer}}", 1)))
+				openapitest.RequireNoErrorDiags(t, diags)
+				assert.Equal(t, tc.want, unionReading(doc, "S"))
+			})
+		}
+	}
+}
+
+// chainOf declares links schemas named prefix and their index from 1, each
+// composing the next, the last an object with an integer property b.
+func chainOf(links int, prefix string) string {
+	var out strings.Builder
+	for i := 1; i < links; i++ {
+		fmt.Fprintf(&out, "    %s%d: {allOf: [{$ref: '#/components/schemas/%s%d'}]}\n", prefix, i, prefix, i+1)
+	}
+	fmt.Fprintf(&out, "    %s%d: {type: object, properties: {b: {type: integer}}}\n", prefix, links)
+	return out.String()
 }
 
 // TestOneOf_CoDeclaredShapelessBranchesAreValidationLogicAtEachPosition holds

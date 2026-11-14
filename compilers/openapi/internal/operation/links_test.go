@@ -302,6 +302,51 @@ func TestLinks_AHeaderTwoCasesDeclareIsNeither(t *testing.T) {
 	}
 }
 
+// TestLinks_AHeaderIsReadOffItsOwnResponse pins that a link reading a header
+// reads the one its own response declares, however many responses, in each of
+// the lists an operation holds them in, and operations declare a header of that
+// name: each response keeps its own index of headers.
+func TestLinks_AHeaderIsReadOffItsOwnResponse(t *testing.T) {
+	t.Parallel()
+	response := func(status string) string {
+		return `        "` + status + `":
+          description: r
+          headers: {X-Rate: {schema: {type: string}}}
+          links: {L: {operationId: a, parameters: {id: '$response.header.X-Rate'}}}
+`
+	}
+	operation := func(id string) string {
+		return `    get:
+      operationId: ` + id + `
+      parameters: [{name: id, in: query, schema: {type: string}}]
+      responses:
+` + response("200") + response("201") + response("404") + response("default")
+	}
+	doc, diags := parseFull(t, openapitest.PathsSpec("  /a:\n"+operation("a")+"  /b:\n"+operation("b")))
+	openapitest.RequireNoErrorDiags(t, diags)
+	own := map[ir.PropID]string{}
+	reads := func(label string, headers []ir.Header, links []ir.OperationLink) {
+		t.Helper()
+		require.Len(t, headers, 1, label)
+		require.Len(t, links, 1, label)
+		value := links[0].Params[0].Value.Response
+		require.NotNil(t, value, label)
+		assert.Equal(t, &ir.PropPath{In: "header", Segments: []ir.PropID{headers[0].ID}}, value, label)
+		own[headers[0].ID] = label
+	}
+	for _, name := range []string{"a", "b"} {
+		op := openapitest.FindOp(t, doc, name)
+		require.Len(t, op.Responses, 2, name)
+		require.Len(t, op.Errors, 1, name)
+		require.NotNil(t, op.Default, name)
+		reads(name+" 200", op.Responses[0].Headers, op.Responses[0].Links)
+		reads(name+" 201", op.Responses[1].Headers, op.Responses[1].Links)
+		reads(name+" 404", op.Errors[0].Headers, op.Errors[0].Links)
+		reads(name+" default", op.Default.Headers, op.Default.Links)
+	}
+	assert.Len(t, own, 8, "no two responses declare one header, so no read could have taken another's")
+}
+
 // TestLinks_UseSiteDocsFoldOverTheDeclaration pins that the summary and
 // description written beside a link's $ref describe that use of it, each
 // overriding the declaration's field it names and leaving the other standing.

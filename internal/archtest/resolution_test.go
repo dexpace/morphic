@@ -27,9 +27,9 @@ import (
 )
 
 // libraryModule is the parser library whose reference resolution the compiler
-// keeps to reference objects: its schema resolver overflows the stack on a
-// reference-only cycle and answers by declaration order, so the compiler binds
-// schema $refs itself (GitHub #558).
+// does not use: its schema resolver overflows the stack on a reference-only
+// cycle, and its resolution of either kind answers by declaration order, so the
+// compiler binds every $ref itself (GitHub #558).
 const libraryModule = "github.com/speakeasy-api/openapi"
 
 // The two anchors the library's resolution API is derived from: its resolver,
@@ -48,14 +48,10 @@ const (
 // TestResolutionCalls_HeldToTheBaseline fails when a count rises, since each new
 // use deepens the dependence on the library's resolution, and when one falls
 // until the count here is lowered to match, so the map only shrinks (GitHub
-// #920). No member of the schema package appears: the compiler resolves schema
-// $refs itself (internal/bind), so any use of the library's schema resolution
-// is a new one. What stays is the resolution of reference objects.
-var resolutionBaseline = map[string]map[string]int{
-	"compilers/openapi/internal/load": {
-		"openapi.Reference.Resolve": 2,
-	},
-}
+// #920). It is empty: the compiler binds every $ref itself (internal/bind), a
+// schema's and a reference object's, so no production package uses the
+// library's resolution, and any use is a new one.
+var resolutionBaseline = map[string]map[string]int{}
 
 // reviewedMembers is the resolution API as derived from the library version
 // go.mod requires, by short name. A member nothing calls shows in no baseline

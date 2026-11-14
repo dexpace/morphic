@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"slices"
 	"strconv"
+	"strings"
 
 	"github.com/speakeasy-api/openapi/extensions"
 	soa "github.com/speakeasy-api/openapi/openapi"
@@ -35,9 +36,11 @@ type layer struct {
 }
 
 // pathItemLayers returns the layers of the path item rp, written at usePtr and
-// read in use, or none when it resolves to nothing. The fields beside a $ref of
-// its chain that the load phase did not model are reported rather than dropped
-// in silence (see unreadFields).
+// read in use, or none when it resolves to nothing: the fields beside each $ref
+// of its chain, nearest first, each declared at the position the bindings'
+// table reads that $ref at, in whichever document, then the item the chain
+// ends at. The fields beside a $ref of its chain that the load phase did not
+// model are reported rather than dropped in silence (see unreadFields).
 func pathItemLayers(use lowering.Ctx, rp *soa.ReferencedPathItem, usePtr jsontext.Pointer) ([]layer, []ir.Diagnostic) {
 	pi, dc, declPtr := lowering.Declared[soa.PathItem](use, rp, usePtr)
 	if pi == nil {
@@ -46,14 +49,10 @@ func pathItemLayers(use lowering.Ctx, rp *soa.ReferencedPathItem, usePtr jsontex
 	sibs := use.Siblings()
 	var layers []layer
 	var diags []ir.Diagnostic
-	// visit reads one $ref of the chain: decl is where its fields are declared,
-	// or "" for where the walk first met them, and reached how a report names it.
-	visit := func(hop *soa.ReferencedPathItem, decl jsontext.Pointer, reached string, foreign bool) {
+	// visit reads one $ref of the chain, written at decl in in's document;
+	// reached is how a report names it.
+	visit := func(hop *soa.ReferencedPathItem, in lowering.Ctx, decl jsontext.Pointer, reached string, foreign bool) {
 		if sib, ok := sibs.Of(hop); ok {
-			if decl == "" {
-				decl = sib.Pointer
-			}
-			in := use.InScope(use.RefScope().InSource())
 			layers = append(layers, layer{item: sib.Item, decl: decl, name: string(decl), in: in})
 			return
 		}
@@ -61,18 +60,21 @@ func pathItemLayers(use lowering.Ctx, rp *soa.ReferencedPathItem, usePtr jsontex
 			diags = append(diags, unreadFields(use, usePtr, reached, foreign))
 		}
 	}
-	visit(rp, usePtr, string(usePtr), use.RefScope().Foreign) // an alias's own position, as for an inline item
+	visit(rp, use, usePtr, string(usePtr), use.RefScope().Foreign) // an alias's own position, as for an inline item
 	last := rp
-	if resolve.Chained[soa.PathItem](rp) {
-		// A scope a layer or Hops keeps outlives the call, and with it the
-		// closure over a copy of the context it holds, so each is read where it
-		// is kept, not for every mount.
-		for _, hop := range resolve.Hops[soa.PathItem](use.RefScope(), rp) {
-			visit(hop.Ref, "", string(last.GetReference()), hop.Foreign)
-			last = hop.Ref
-		}
+	for _, hop := range resolve.Hops[soa.PathItem](use.Bindings(), rp) {
+		in, read := lowering.InDocument(use, hop.At.Doc)
+		visit(hop.Ref, in, hop.At.Pointer, writtenRef(use, last), !read || in.RefScope().Foreign)
+		last = hop.Ref
 	}
-	return append(layers, referent(use, dc, last, pi, declPtr, layers)), diags
+	return append(layers, referent(use, dc, last, pi, declPtr)), diags
+}
+
+// writtenRef is the $ref the reference object hop writes, as the bindings'
+// table read it.
+func writtenRef(c lowering.Ctx, hop *soa.ReferencedPathItem) string {
+	r, _ := c.Bindings().Reference(hop)
+	return r.Hop.Ref
 }
 
 // unreadFields reports, at the mount's use site, the fields written beside the
@@ -90,35 +92,24 @@ func unreadFields(use lowering.Ctx, usePtr jsontext.Pointer, reached string, for
 
 // referent returns the layer of pi, the item a chain ends at through last,
 // declared at declPtr in dc's document (lowering.Declared). A finding made in
-// use's document names a position in another by the reference (referenceName).
-// A nearer layer declaring at that position too is the use site of an item the
-// compile cannot place where it is declared, as past the longest chain it
-// follows or at a key its document writes twice: the item is then declared
-// under the use site's "$ref", which no document names, so the two never
-// intern a type at one pointer (invariant 3).
+// use's document names a position in another by the reference
+// (referenceName).
 func referent(use, dc lowering.Ctx, last *soa.ReferencedPathItem, pi *soa.PathItem, declPtr jsontext.Pointer,
-	nearer []layer,
 ) layer {
 	ref := layer{item: pi, decl: declPtr, name: string(declPtr), in: dc}
 	if dc.IDs() != use.IDs() {
-		ref.name = referenceName(last)
+		ref.name = referenceName(writtenRef(use, last))
 	}
-	if !slices.ContainsFunc(nearer, func(l layer) bool { return l.decl == declPtr && l.in.IDs() == dc.IDs() }) {
-		return ref
-	}
-	ref.decl += ids.Ptr("$ref")
-	ref.name = referenceName(last)
 	return ref
 }
 
-// referenceName is how a finding names the position the $ref of hop names: the
-// reference as written, with an empty fragment when it has none.
-func referenceName(hop *soa.ReferencedPathItem) string {
-	name := string(hop.GetReference())
-	if !hop.GetReference().HasJSONPointer() {
-		name += "#"
+// referenceName is how a finding names the position a $ref written as ref
+// names: the reference as written, with an empty fragment when it has none.
+func referenceName(ref string) string {
+	if !strings.Contains(ref, "#") {
+		ref += "#"
 	}
-	return name
+	return ref
 }
 
 // construct keys name what a layer declares that a nearer one can take over.
@@ -134,6 +125,12 @@ const (
 
 // constructOf returns the key of one construct of kind named name.
 func constructOf(kind, name string) string { return kind + "\x00" + name }
+
+// paramConstruct returns the key of the construct a parameter of slot is, so
+// two layers declaring one slot, a header's in any case, declare one construct.
+func paramConstruct(slot ids.ParamSlot) string {
+	return constructOf(constructParameter, slot.In+"\x00"+slot.Name)
+}
 
 // itemConstruct is one construct a layer declares: its key, how a finding
 // names it, and where it is written relative to the layer.
@@ -167,10 +164,11 @@ func itemConstructs(l layer) []itemConstruct {
 		add(constructKey, key, "the undeclared key "+strconv.Quote(key), ids.Ptr(key))
 	}
 	for i, rp := range l.item.GetParameters() {
-		if key, ok := paramKey(rp); ok {
-			p := resolve.Object[soa.Parameter](rp)
-			add(constructParameter, key, fmt.Sprintf("the parameter %q in %s", p.GetName(), p.GetIn()),
-				ids.Ptr("parameters", strconv.Itoa(i)))
+		if slot, ok := paramKey(l.in.Bindings(), rp); ok {
+			p := resolve.Object[soa.Parameter](l.in.Bindings(), rp)
+			out = append(out, itemConstruct{key: paramConstruct(slot),
+				label: fmt.Sprintf("the parameter %q in %s", p.GetName(), p.GetIn()),
+				rel:   ids.Ptr("parameters", strconv.Itoa(i))})
 		}
 	}
 	return out
@@ -267,13 +265,13 @@ func firstDeclared(decls []itemConstruct) map[string]itemConstruct {
 func itemParams(layers []layer) []sourcedParam {
 	if len(layers) == 1 {
 		// One layer's entries are read in its operations' own scope.
-		return appendSourced(nil, layers[0].item.GetParameters(), layers[0].decl, nil, nil)
+		return appendSourced(layers[0].in.Bindings(), nil, layers[0].item.GetParameters(), layers[0].decl, nil, nil)
 	}
 	var params []sourcedParam
-	shadowed := map[string]bool{}
+	shadowed := map[ids.ParamSlot]bool{}
 	for _, l := range layers {
-		params = appendSourced(params, l.item.GetParameters(), l.decl, shadowed, &l.in)
-		for key := range shadowedKeys(l.item.GetParameters()) {
+		params = appendSourced(l.in.Bindings(), params, l.item.GetParameters(), l.decl, shadowed, &l.in)
+		for key := range shadowedKeys(l.in.Bindings(), l.item.GetParameters()) {
 			shadowed[key] = true
 		}
 	}

@@ -4,6 +4,7 @@
 package e2e_test
 
 import (
+	"encoding/json/jsontext"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -26,8 +27,8 @@ import (
 const laterVersionCase = "later-version-constructs"
 
 // assertLaterVersionConstructs pins a sample of the case's readings, one per
-// kind of object, each as a 3.1 or 3.2 document lowers it, and that nothing is
-// called undefined. TestLaterVersionConstructs_LowerAsInTheVersionThatAddedThem
+// kind of object and a schema's keyword, each as a 3.1 or 3.2 document lowers
+// it, and that nothing is called undefined. TestLaterVersionConstructs_LowerAsInTheVersionThatAddedThem
 // holds the whole document to that.
 func assertLaterVersionConstructs(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
 	require.Len(t, doc.Servers, 1)
@@ -56,6 +57,11 @@ func assertLaterVersionConstructs(t *testing.T, doc *ir.Document, diags []ir.Dia
 	assert.Equal(t, "element", item.XML.NodeType)
 	require.NotNil(t, item.Discriminator)
 	assert.Equal(t, ir.TypeID("t/openapi/components/schemas/Novel"), item.Discriminator.Default)
+
+	_, ok = doc.Types[ir.TypeID("t/anon/components/schemas/Edition/properties/number")].(*ir.Literal)
+	assert.True(t, ok, "a const a 3.0 schema writes lowers as in 3.1")
+	assert.Contains(t, openapitest.PointersOf(diags, diag.LaterVersionConstruct),
+		jsontext.Pointer("/components/schemas/Edition/properties/number/const"), "and is a later minor's construct")
 
 	assert.False(t, slices.ContainsFunc(diags, func(d ir.Diagnostic) bool { return d.Code == diag.UnknownObjectKey }),
 		"a construct a later minor defines is not an undefined key")

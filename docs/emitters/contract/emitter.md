@@ -40,6 +40,28 @@ type SampleReader interface {
     SampleTargets() []TargetKey
 }
 
+// Checker is implemented by a target whose Capabilities.Build declares a check: it reads what a
+// failed check printed into its messages. It is pure, as Generate is: the engine runs the check
+// and maps each message to an entity (../verification.md#the-output-builds).
+type Checker interface {
+    Messages(CheckOutput) []CheckMessage
+}
+
+// CheckOutput is what one failed check printed, and what its tool's paths are resolved against.
+type CheckOutput struct {
+    Check  string   // the check's Name
+    Output []byte   // both streams, cut at the engine's cap
+    Root   string   // the output root's absolute path, as the tool was run in it
+    Files  []string // the paths the run wrote, from the root, forward-slashed
+}
+
+// CheckMessage is one message of a check, at the written file and the line its tool named.
+type CheckMessage struct {
+    Path string // one of CheckOutput.Files; "" where the tool named no file, or none written
+    Line int    // 1-based; 0 where the tool gave none
+    Text string
+}
+
 type EmitterInput struct {
     Doc     *ir.Document          // the ABI — the ONLY structural input (INV1)
     Facts   *irfacts.Index        // what Doc implies: subtypes, usage, recursion, correlation keys (docs/ir/derived-facts.md), indexed ONCE by the engine, shared with the plan (below)
@@ -102,6 +124,17 @@ type Artifact struct {
     Integrate    *IntegrateHint  // path-prefix stripping / tree-shake root for live-repo merge, and
                                  // whether the file is merged as blocks (../write-integrate.md)
     Origins      []EntityID      // IR IDs whose emission produced this file (drives ID-keyed prune)
+    Spans        []Span          // the lines each declaration written under an Origin holds, so
+                                 // a check's message maps to an entity (../verification.md)
+}
+
+// Span is the lines of Content one declaration holds, its documentation comment among them,
+// 1-based and inclusive. A declaration inside another has a span of its own, as a method in a
+// class and a field in a struct do, so a line belongs to the innermost span holding it.
+type Span struct {
+    From, To int
+    Key      string // the manifest key of what it declares: its entity's ID and, for a symbol
+                    // derived from one, the derivation (../write-integrate.md)
 }
 ```
 

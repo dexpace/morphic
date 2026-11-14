@@ -244,6 +244,7 @@
                     },
                     "encoding": {
                       "p/openapi/paths/~1merged/post/requestBody/content/multipart~1form-data/schema/properties/f": {
+                        "style": "form",
                         "contentTypes": [
                           "text/plain"
                         ],

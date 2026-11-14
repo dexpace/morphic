@@ -160,7 +160,14 @@ dependencies alone, so with Maven 3.9.16 the same application resolved the root 
 writing both versions, it resolved the runtime at 1.1 under the root at 1.0 and failed the same way;
 and it ran only importing the platform and writing no module's version. So the modules are published
 together under one version, which the platform aligns for a build that imports it, a Maven build
-where it names no version and nowhere else. Modules of two generations that a build forces together,
+where it names no version and nowhere else. No build file states that version: each project takes
+the build's `version`, which its owner sets in `gradle.properties` or with `-Pversion`, so a
+release changes no generated file ([surface
+verification](../../surface-verification.md#the-level-a-regeneration-reports)). Measured with
+Gradle 9.8.2 over a root, a module and the platform whose build files state none: `version=1.2.3`
+in the root's `gradle.properties` published the module and the platform at 1.2.3, the platform
+constraining the module to it, `-Pversion=2.0.0` took over from it, and with neither each project's
+version was `unspecified`. Modules of two generations that a build forces together,
 as a strict version (`!!`) does past the platform's constraint, fail at the first call that meets a
 declaration changed between them (`NoSuchMethodError`), and nothing refuses them sooner. A digest of
 the generated files written into each module and compared when the client is built was weighed, and
@@ -194,7 +201,8 @@ Three other designs were weighed:
 
 Go formats in process with `go/format` ([printing](../../emit/printing.md)). Go can call no Kotlin
 formatter, and `Generate` does no I/O, so the Kotlin printer lays out canonical code itself, and the
-Kotlin formatter runs as a check in the verify stage (#704) rather than inside the emitter.
+Kotlin formatter runs as one of the target's checks
+([verification](../../verification.md#the-output-builds)) rather than inside the emitter.
 
 ## Merging and surface extraction
 
@@ -207,7 +215,17 @@ The Kotlin targets' extractors ([surface verification](../../surface-verificatio
 dumps the Kotlin Gradle plugin's ABI validation writes, what generated code alone calls left out of
 them ([above](#what-a-caller-reaches-of-the-runtime)): the JVM's class-file signatures, and for
 Multiplatform the KLib ABI plus the generated Objective-C header, since a change Swift sees can
-break callers the Kotlin ABI does not show. Kotlin's severity differs from Go's in two places: a
-parameter added with a default leaves Kotlin callers compiling but changes the JVM signature, which
-is binary-breaking, and on Multiplatform a rename only the Swift header shows still breaks Swift
-callers.
+break callers the Kotlin ABI does not show. Kotlin's severity differs from Go's in four places. A
+caller of a JVM library may be compiled against the last generation, so the structural channel
+([surface verification](../../surface-verification.md#what-a-change-record-carries)) asks of
+Kotlin whether that binary still links as well as whether its source compiles: a parameter added
+with a default leaves Kotlin callers compiling but changes the JVM signature, which is
+binary-breaking. On Multiplatform a rename only the Swift header shows still breaks Swift callers.
+And a sum a `when` must exhaust gains a member as a break: a union declared as a sealed interface,
+whichever way the union travels, and a closed enum's `enum class`, while an open enum's final class
+([types](types.md)) is exhausted by no `when`. And a parameter renamed breaks a caller that names
+the argument, and on Multiplatform a Swift caller's label. The ABI dumps show what changed for a
+compiled caller and say of no change whether it breaks, so Kotlin has no outside oracle as Go has
+`apidiff`: each verdict is its severity's, held by the fixtures of T-75. Whether a dump shows a
+`@Deprecated` mark is not measured, so until it is Kotlin's surface reports no deprecation, and a
+regeneration that only deprecates reads as a patch.

@@ -169,9 +169,10 @@ func assertEmptyNamedProperty(t *testing.T, doc *ir.Document) {
 // enclosing node's. Each pairs an unnamed position with the role or index that
 // distinguishes the child from its siblings — a list element, a map value, a
 // pattern group, a tuple slot or rest (a draft's spelling too), an enum branch,
-// a composed union variant, a contentSchema, a media type's itemSchema, and the
-// items of a schema a header or a parameter holds, directly or under its
-// content. A slice rather than a map so a failure names them in a fixed order.
+// a composed union variant, a contentSchema, a media type's itemSchema, the
+// items of a parameter's schema, directly or under its content, and what a
+// media type component keyed "" holds. A slice, so a failure names them in a
+// fixed order.
 var composedHints = []struct {
 	id   ir.TypeID
 	hint string
@@ -187,12 +188,11 @@ var composedHints = []struct {
 	{"t/anon/components/schemas/Mixed/properties//enum/1", "empty_1"},
 	{"t/composed/components/schemas/Host/properties//oneOf/0", "empty_alt"},
 	{"t/anon/components/schemas/Blob/properties//contentSchema", "empty_content"},
-	{"t/anon/components/responses/Framed/headers//content/application~1jsonl/itemSchema", "empty_item"},
 	{"t/anon/components/parameters/Unnamed/content/application~1jsonl/itemSchema", "empty_item"},
-	{"t/anon/components/responses/Listed/headers//schema/items", "empty_item"},
 	{"t/anon/components/parameters/UnnamedList/schema/items", "empty_item"},
-	{"t/anon/components/responses/Carried/headers//content/application~1json/schema/items", "empty_item"},
 	{"t/anon/components/parameters/UnnamedContent/content/application~1json/schema/items", "empty_item"},
+	{"t/anon/components/mediaTypes//schema/items", "empty_item"},
+	{"t/anon/components/mediaTypes//itemSchema", "empty_item"},
 }
 
 // assertEmptyDerivedHints covers hints a child composes from an enclosing
@@ -201,10 +201,8 @@ var composedHints = []struct {
 //
 // A composed variant of an inline branch has no row:
 // docs/compilers/openapi.md#union-beside-structure keeps that union verbatim,
-// so only the $ref form the Host case uses reaches composedVariant. A
-// components/mediaTypes entry keyed "" (#1536) and a header under a nested
-// encoding (#1535) have none either: each is named from its pointer, not by a
-// path that composes from the empty name.
+// so only the $ref form the Host case uses reaches composedVariant. A header
+// keyed "" has none: it is no header name, so header-name-syntax holds those.
 func assertEmptyDerivedHints(t *testing.T, doc *ir.Document) {
 	t.Helper()
 	mixed, ok := doc.Types[componentID("Mixed")].(*ir.Model)
@@ -473,7 +471,9 @@ func assertRecursive(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 // object whose one member fact is its catch-all is a MapT, carrying its value
 // type and entry bounds, and a catch-all beside anything else is a Model's
 // AdditionalProps. An explicit `true` types the catch-all as the top type in
-// either.
+// either. `unevaluatedProperties: false` closes the object once composition is
+// resolved only where no additionalProperties leaves it inert, and beside
+// patterns alone nothing types a key they miss.
 func assertMaps(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 	i64 := func(v int64) *int64 { return &v }
 	for name, want := range map[string]*ir.MapT{
@@ -510,13 +510,50 @@ func assertMaps(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 	ca, ok := doc.Types[componentID("ClosedAfter")].(*ir.Model)
 	require.True(t, ok)
 	assert.Equal(t, ir.AdditionalClosedAfterComposition, ca.Additional)
+	assert.Empty(t, ca.Unmodeled, "the model holds the closure, so nothing keeps it")
+	cp, ok := doc.Types[componentID("ClosedAfterPatterns")].(*ir.Model)
+	require.True(t, ok)
+	assert.Equal(t, ir.AdditionalClosedAfterComposition, cp.Additional)
+	require.NotNil(t, cp.AdditionalProps)
+	assert.Nil(t, cp.AdditionalProps.Value, "the source types no key the patterns miss")
+	assert.Len(t, cp.AdditionalProps.Patterns, 1)
+	assertInertClosures(t, doc)
+}
+
+// assertInertClosures pins the maps' objects writing an unevaluatedProperties
+// that additionalProperties beside it leaves inert: additionalProperties alone
+// says what each admits, and the keyword is kept with it.
+func assertInertClosures(t *testing.T, doc *ir.Document) {
+	t.Helper()
+	inert := map[string]string{
+		"InertBesideAMap":    `{"additionalProperties":{"type":"integer"},"unevaluatedProperties":false}`,
+		"InertBesideARecord": `{"additionalProperties":true,"unevaluatedProperties":{"type":"string"}}`,
+		"ClosedTwice":        `{"additionalProperties":false,"unevaluatedProperties":false}`,
+	}
+	for name, want := range inert {
+		entry := unmodeledEntry(t, typeByName(doc, name).Common().Unmodeled, "openapi:unevaluated")
+		assert.Equal(t, ir.ReasonValidationOnly, entry.Reason, name)
+		assert.Equal(t, want, string(entry.Value), name)
+	}
+	mt, ok := typeByName(doc, "InertBesideAMap").(*ir.MapT)
+	require.True(t, ok, "an inert closure leaves a map a map; got %T", typeByName(doc, "InertBesideAMap"))
+	assert.Equal(t, ir.TypeRef{Target: "t/prim/integer"}, mt.Value)
+	rec, ok := typeByName(doc, "InertBesideARecord").(*ir.Model)
+	require.True(t, ok)
+	assert.Empty(t, rec.Additional, "open: its catch-all evaluates every other key")
+	require.NotNil(t, rec.AdditionalProps)
+	assert.Equal(t, &ir.TypeRef{Target: "t/prim/any"}, rec.AdditionalProps.Value)
+	twice, ok := typeByName(doc, "ClosedTwice").(*ir.Model)
+	require.True(t, ok)
+	assert.Equal(t, ir.AdditionalClosed, twice.Additional, "the stronger closure stands")
 }
 
 // assertTuples pins what each prefixItems tuple admits past its elements and
 // the bounds beside them (GitHub #597). Only `items: false` closes a tuple, and
 // a typed rest is lowered into the type graph as a List's items is, at the same
 // pointer and under the same hint. All of it is modeled, so no tuple keeps
-// anything beside itself or reports a degradation.
+// anything beside itself or reports a degradation. An unevaluatedItems beside
+// them is kept, with the items that leaves it inert.
 func assertTuples(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
 	i64 := func(v int64) *int64 { return &v }
 	pair := []ir.TypeRef{{Target: "t/prim/string"}, {Target: "t/prim/integer"}}
@@ -551,6 +588,26 @@ func assertTuples(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
 	assert.Equal(t, "pair_with_rest_item", rest.Name.Hint, "named as a List's items would be")
 	_, ok = propByWire(rest, "flag")
 	assert.True(t, ok, "the rest's own properties reach the IR")
+
+	for name, want := range map[string]string{
+		"InertPair": `{"items":true,"unevaluatedItems":false}`,
+		"LivePair":  `{"unevaluatedItems":false}`,
+		"InertList": `{"items":{"type":"string"},"unevaluatedItems":{"type":"integer"}}`,
+		"LiveList":  `{"unevaluatedItems":false}`,
+	} {
+		entry := unmodeledEntry(t, typeByName(doc, name).Common().Unmodeled, "openapi:unevaluated")
+		assert.Equal(t, ir.ReasonValidationOnly, entry.Reason, name)
+		assert.Equal(t, want, string(entry.Value), name)
+		assert.Contains(t, diagsAt(diags, "openapi/validation-only-keyword", "/components/schemas/"+name),
+			ir.SeverityInfo, name)
+	}
+	for _, name := range []string{"InertPair", "LivePair"} {
+		tup, ok := typeByName(doc, name).(*ir.Tuple)
+		require.True(t, ok, name)
+		if assert.NotNil(t, tup.Rest, name) {
+			assert.Equal(t, ir.TypeID("t/prim/any"), tup.Rest.Target, "%s: the entry, not Rest, says what may follow", name)
+		}
+	}
 }
 
 func assertLiteralConst(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
@@ -597,4 +654,44 @@ func assertUnreferencedComponents(t *testing.T, doc *ir.Document, diags []ir.Dia
 	require.Len(t, op.Responses[0].Links, 1, "the link the response names lowers onto it")
 	assert.Equal(t, op.ID, op.Responses[0].Links[0].Operation)
 	assert.False(t, openapitest.HasDiag(diags, diag.UnknownObjectKey))
+}
+
+// assertTitleHints covers a schema's title as the hint of the node it lowers
+// to: a union branch's, the variant's name too, beside a $ref or in its
+// allOf's branch, an owner's schema's and a property's, the positions beneath
+// composing from it. A component and a $defs entry keep their keys, and a
+// branch whose title another branch's or a component's name shares keeps its
+// position.
+func assertTitleHints(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
+	lookup, ok := doc.Types[componentID("Lookup")].(*ir.Union)
+	require.True(t, ok)
+	variants := make([]string, 0, len(lookup.Variants))
+	for _, v := range lookup.Variants {
+		variants = append(variants, v.Name.Hint)
+	}
+	assert.Equal(t, []string{"by_name", "by_id", "variant_2", "variant_3", "variant_4", "indoor_pet", "premium_pet"},
+		variants)
+
+	holder, ok := doc.Types[componentID("Holder")].(*ir.Model)
+	require.True(t, ok)
+	assert.Equal(t, "holder", holder.Name.Canonical, "a component keeps its key")
+	assert.Equal(t, "Not The Name", holder.Docs.Summary, "the title stays the summary")
+
+	for id, hint := range map[ir.TypeID]string{
+		"t/anon/components/schemas/Lookup/oneOf/0":                                   "by_name",
+		"t/anon/components/schemas/Lookup/oneOf/0/properties/tags/items":             "tags_item",
+		"t/anon/components/schemas/Lookup/oneOf/2":                                   "variant_2",
+		"t/anon/components/schemas/Holder/properties/address":                        "postal_address",
+		"t/anon/components/schemas/Holder/properties/address/properties/lines/items": "lines_item",
+		"t/anon/components/schemas/Holder/properties/points":                         "point_list",
+		"t/anon/components/schemas/Holder/properties/points/items":                   "point_list_item",
+		"t/anon/components/schemas/Holder/$defs/Local":                               "local",
+		"t/anon/paths/~1lookups/post/requestBody/content/application~1json/schema":   "new_lookup",
+	} {
+		node, found := doc.Types[id]
+		require.True(t, found, "no node at %s", id)
+		assert.Equal(t, hint, node.Common().Name.Hint, "%s", id)
+	}
+	address := doc.Types["t/anon/components/schemas/Holder/properties/address"]
+	assert.Equal(t, "Postal Address", address.Common().Docs.Summary, "the title stays the summary")
 }

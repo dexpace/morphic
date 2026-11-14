@@ -1,7 +1,7 @@
 # Two paths whose only key is a $ref to each other, by document position. The
-# resolver follows the chain in a loop and reports the cycle as an unresolved
-# reference (docs/parser-library.md#reference-object-cycle), so the compile
-# leaves it to the resolver (GitHub #574).
+# chain loops and never reaches a path item, a loop reported once as
+# openapi/cyclic-ref at its least member
+# (docs/compilers/openapi.md#reference-cycles, GitHub #574).
 openapi: 3.1.0
 info: {title: Path Item Mutual, version: "1"}
 paths:

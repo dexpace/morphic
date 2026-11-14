@@ -323,11 +323,14 @@ names compared without case, the operation resolves with `Client` empty or with 
 `declared`, the one place an operation resolves a member of the client's apart: the runtime writes
 no agent or key there, and the value sent is the caller's or the scheme's alone. `Resolve` reports
 each as a warning `emitters/policy/header-taken` naming the member, the operation and the parameter
-or scheme. The defaults meet it under `unsafe`: 6 of the golden spec's 3,794 operations declare a
+or scheme. The defaults met it under `unsafe`: 6 of the golden spec's 3,794 operations declare a
 header parameter `Idempotency-Key`, 5 of them a `POST`, and none states a token (spec @bc6fad24,
-morphic @fa253fe19). Writing the key where the caller gave the parameter none was weighed, and reads
-a parameter as a token by its name, an inference that is a compiler's policy to make and mark
-(#1785).
+morphic @fa253fe19). The OpenAPI compiler's idempotency policy reads such a parameter as its
+operation's token ([`idempotency-inference`](../../compilers/openapi.md#idempotency-inference)),
+which makes the operation idempotent and has `declared` write a key in that parameter where the
+caller gave none, so `unsafe` puts none in `Header` there, and the warning meets an operation
+declaring the header only where the policy is off or reads no token, as for a method only an
+`additionalOperations` entry declares.
 
 **A duration states its unit.** `"30s"`, `"500ms"` and `"10m"` are durations; `30` is none, and
 neither is `"30"`, `"1.5s"` or `"1h"`. One unit throughout, a count of milliseconds, was weighed and
@@ -381,9 +384,11 @@ apply](#a-setting-that-cannot-apply)).
   variables' names, so the header reads no order of the list.
 - `UserAgent.Template` is printable ASCII in which `{sdk}` and `{target}` are the placeholders, each
   written any number of times or not at all, so `acme/1.4` is a template. Any other `{` or `}` is
-  invalid, there being no escape for one, and a placeholder for the SDK's version waits for the
-  options that name a version. The caller's application name and version are each an RFC 9110 token,
-  refused when the client is built otherwise, so neither can add a header.
+  invalid, there being no escape for one. There is no placeholder for the SDK's version, which is
+  its owner's and no input of a generation ([surface
+  verification](../surface-verification.md#the-level-a-regeneration-reports)): an owner who wants it
+  in the header writes it into the template. The caller's application name and version are each an
+  RFC 9110 token, refused when the client is built otherwise, so neither can add a header.
 - `Idempotency.Generate` `declared` gives a call a key, where its operation's `Idempotency` names a
   token parameter and the caller gave none, in that parameter; `unsafe` also sends one in `Header`
   on each operation whose `Effects` are neither safe nor idempotent, which makes none of them

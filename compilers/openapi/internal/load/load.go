@@ -7,6 +7,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"path/filepath"
 
 	"github.com/speakeasy-api/openapi/marshaller"
 	soa "github.com/speakeasy-api/openapi/openapi"
@@ -21,6 +22,7 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/oas"
 	"github.com/dexpace/morphic/compilers/openapi/internal/overlay"
 	"github.com/dexpace/morphic/compilers/openapi/internal/provenance"
+	refscope "github.com/dexpace/morphic/compilers/openapi/internal/resolve"
 	"github.com/dexpace/morphic/compilers/openapi/internal/scan"
 	"github.com/dexpace/morphic/compilers/openapi/internal/sourceindex"
 	"github.com/dexpace/morphic/ir"
@@ -74,12 +76,6 @@ type Options struct {
 	// cancels at the start of a phase through it, and lists the phases a load
 	// enters.
 	entered func(phase)
-	// rebuildDoc rebuilds the model for resolveExternal's second pass, or nil for
-	// unmarshal itself. It is unexported because it is this package's test seam:
-	// the rebuild repeats an unmarshal that already succeeded on the same bytes
-	// and tree, and unmarshal depends on nothing else, so only a substitute
-	// reaches the error build returns for a failed rebuild.
-	rebuildDoc func(ctx context.Context, data []byte, root *yaml.Node) (*soa.OpenAPI, error)
 }
 
 // readyForModel readies every node of the model's source tree, in one walk: it
@@ -90,8 +86,7 @@ type Options struct {
 // a map, and drops it silently (docs/parser-library.md#anchored-entry-dropped,
 // GitHub #459). That skip is the only read of a name; an alias reaches its
 // target by a kept pointer. Run it after the pre-parse refusals, which read
-// names. A document read through external is readied too (GitHub #501), and
-// replaces the resolver's own parse on a second resolution (GitHub #538).
+// names. A document read through external is readied too (GitHub #501).
 func readyForModel(ctx context.Context, root *yaml.Node) {
 	// An alias is a leaf of the walk: a recursive anchor cannot loop it. A scalar
 	// is judged from its parent, which knows whether it is a key.
@@ -115,8 +110,9 @@ func readyForModel(ctx context.Context, root *yaml.Node) {
 // written reads as left out (docs/parser-library.md#undecoded-scalar, GitHub
 // #1280).
 //
-// A scalar under any other tag keeps it: what that reads as is GitHub #245's
-// and #1368's to settle.
+// A scalar under any other tag keeps it, and reads as
+// docs/compilers/openapi.md#values says; whether one outside YAML's JSON
+// schema ruleset is reported is GitHub #1368's to settle.
 func mistagged(n *yaml.Node, i int) bool {
 	c := n.Content[i]
 	if c == nil || c.Kind != yaml.ScalarNode || c.Style&yaml.TaggedStyle != 0 {
@@ -139,23 +135,25 @@ func mistagged(n *yaml.Node, i int) bool {
 // its own, which the CLI reports on the channel it uses for being invoked wrong.
 var ErrParse = errors.New("parse source")
 
-// Document is the successful output of the load phase: a parsed, resolved
-// speakeasy document plus the identity metadata the rest of the compiler needs.
+// Document is the successful output of the load phase: a parsed speakeasy
+// document, where each of its references lands, and the identity metadata the
+// rest of the compiler needs.
 // A nil *Document with error-severity diagnostics means the source is a spec
 // problem the compiler refuses to lower (e.g. an unsupported version). The
 // normalized "openapi" + major.minor format reaches the IR through
 // Source.Format alone; Document does not separately carry a
 // compilers.SourceFormat, since nothing downstream ever read one.
 type Document struct {
-	Doc    *soa.OpenAPI  // parsed, reference-resolved document
+	Doc    *soa.OpenAPI  // parsed document, whose references Bindings resolve
 	Source ir.SourceInfo // the entry Document.Sources records for this source
-	// Bindings answers where each schema $ref lands and where its chain ends,
-	// as the compiler resolved it (bindSchemas), and the schemas there.
+	// Location is where the source lies, as its references are read against
+	// (see Location), and Places where every file the compile names lies.
+	Location string
+	Places   *refscope.Places
+	// Bindings answers where each $ref lands and where its chain ends, a
+	// schema's or a Reference Object's, as the compiler resolved it (bindAll),
+	// and the models there.
 	Bindings *typed.Bindings
-	// Holds is resolve.Scope.Holds, answered from an index of the raw YAML
-	// the model reads on in, which builds each mapping's index once, whoever
-	// asks (GitHub #778).
-	Holds func(raw *yaml.Node, token string) bool
 	// Overlay attributes the positions an applied overlay is answerable for. Its
 	// zero value — nothing applied — is the answer for a compile with no overlay.
 	Overlay overlay.Origin
@@ -178,11 +176,13 @@ type Document struct {
 }
 
 // Rows is what the rule table says at the minor a document is read at, in a
-// dialect: how its schemas read (oas.SchemaRules), and what its Encoding
-// Objects leave unwritten (oas.EncodingRules).
+// dialect: how its schemas read (oas.SchemaRules), what its Encoding Objects
+// leave unwritten (oas.EncodingRules), and how its Security Requirement
+// Objects name a scheme (oas.SecurityRules).
 type Rows struct {
 	Schema   oas.SchemaRules
 	Encoding oas.EncodingRules
+	Security oas.SecurityRules
 }
 
 // Load parses, validates, and resolves one source document. Spec problems
@@ -198,6 +198,11 @@ func Load(ctx context.Context, srcIndex int, src compilers.Source, opts Options)
 	// reference it is; this collision is not, so it is checked here.
 	if opts.Overlay != nil && opts.OverlaySrcIndex == srcIndex {
 		return nil, nil, fmt.Errorf("openapi: overlay source index %d is source %d's own", opts.OverlaySrcIndex, srcIndex)
+	}
+	// A relative Location would leave what a reference names to the working
+	// directory, which Location exists to keep out of the compile.
+	if src.Location != "" && !filepath.IsAbs(src.Location) {
+		return nil, nil, fmt.Errorf("openapi: source %d's location %q is not an absolute path", srcIndex, src.Location)
 	}
 
 	// The byte budget is checked before anything reads the bytes, because it is
@@ -231,9 +236,15 @@ func Load(ctx context.Context, srcIndex int, src compilers.Source, opts Options)
 // found past the first document is reported on every return path — a refusal
 // included — without being read as a refusal itself.
 func build(ctx context.Context, srcIndex int, src compilers.Source, parsed *Parsed, opts Options) (*Document, []ir.Diagnostic, error) {
-	l := &loading{srcIndex: srcIndex, src: src, opts: opts, root: parsed.root}
-	// Every return leaves the tree as the source wrote it.
-	defer l.restoreTrees()
+	places := refscope.NewPlaces(opts.Reader)
+	// Where the source lies, and the directory a read is confined to, are
+	// placed as every file the compile names is, so a link to the source's
+	// directory names the source as its target does.
+	if location := Location(src); filepath.IsAbs(location) {
+		src.Location = places.File(location)
+	}
+	opts.Within = places.Directory(opts.Within)
+	l := &loading{srcIndex: srcIndex, src: src, opts: opts, root: parsed.root, places: places}
 	for _, s := range steps() {
 		if err := opts.enter(ctx, s.phase); err != nil {
 			return nil, nil, err
@@ -255,25 +266,13 @@ func build(ctx context.Context, srcIndex int, src compilers.Source, parsed *Pars
 	return doc, diags, nil
 }
 
-// rebuilder returns the rebuild of the model of root that resolveExternal's
-// second pass is handed: o.rebuildDoc, or unmarshal itself.
-func (o Options) rebuilder(ctx context.Context, data []byte, root *yaml.Node) func() (*soa.OpenAPI, error) {
-	rebuildDoc := o.rebuildDoc
-	if rebuildDoc == nil {
-		rebuildDoc = unmarshal
-	}
-	return func() (*soa.OpenAPI, error) { return rebuildDoc(ctx, data, root) }
-}
-
-// sourceChecks runs the rules the compiler checks over the resolved source:
-// the repeats of a parameter or servers list, and the references refused for
-// reading past a path item $ref into the fields beside it, less any resolved
-// already reports (see besideRefs).
+// sourceChecks runs the rules the compiler checks over the source: the
+// repeats of a parameter or servers list, each entry read through the
+// bindings, as the lowering reads it.
 func sourceChecks(ctx context.Context, place provenance.Doc, doc *soa.OpenAPI, sibs Siblings,
-	media MediaTypes, resolved []ir.Diagnostic,
+	media MediaTypes, bindings *typed.Bindings,
 ) []ir.Diagnostic {
-	diags := listRepeats(place, sibs, walkSource(ctx, doc, sibs, media))
-	return append(diags, besideRefs(place, sibs, walkSource(ctx, doc, sibs, media), resolved)...)
+	return listRepeats(place, sibs, bindings, walkSource(ctx, doc, sibs, media))
 }
 
 // defaultIndex indexes a decoded tree under the compiler's node bound. It is
@@ -393,7 +392,7 @@ func buildRecovered(build func() (*soa.OpenAPI, error)) (*soa.OpenAPI, error) {
 // (oas.Spec.SchemaRules).
 func rowsAt(spec oas.Spec, version, dialect string) (rows Rows, unread bool) {
 	schema, unread := spec.SchemaRules(version, dialect)
-	return Rows{Schema: schema, Encoding: spec.EncodingRules(version)}, unread
+	return Rows{Schema: schema, Encoding: spec.EncodingRules(version), Security: spec.SecurityRules(version)}, unread
 }
 
 // supportedMinor returns the normalized major.minor prefix of an OpenAPI version

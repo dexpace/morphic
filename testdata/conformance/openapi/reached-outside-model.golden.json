@@ -65,6 +65,25 @@
                 "canonical": "list_pets"
               },
               "docs": {},
+              "responses": [
+                {
+                  "name": {
+                    "hint": "200"
+                  },
+                  "conditions": {
+                    "statusCodes": [
+                      {
+                        "from": 200,
+                        "to": 200
+                      }
+                    ]
+                  },
+                  "docs": {
+                    "summary": "Pets",
+                    "description": "The pets"
+                  }
+                }
+              ],
               "oneWay": false,
               "idempotency": {},
               "bindings": {
@@ -380,16 +399,6 @@
     }
   },
   "unmodeled": {
-    "openapi:components/responses/Listed": {
-      "reason": "no_ir_home",
-      "value": {
-        "$ref": "#/x-responses/Listed"
-      },
-      "provenance": {
-        "source": 0,
-        "pointer": "/components/responses/Listed"
-      }
-    },
     "openapi:x-lib": {
       "reason": "vendor_extension",
       "value": {

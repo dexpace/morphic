@@ -15,12 +15,12 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/speakeasy-api/openapi/marshaller"
 	soa "github.com/speakeasy-api/openapi/openapi"
-	"github.com/speakeasy-api/openapi/references"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/dexpace/morphic/compilers"
 	"github.com/dexpace/morphic/compilers/openapi"
+	"github.com/dexpace/morphic/compilers/openapi/internal/bind"
 	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
 	"github.com/dexpace/morphic/compilers/openapi/internal/load"
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
@@ -29,11 +29,10 @@ import (
 	"github.com/dexpace/morphic/ir"
 )
 
-// The tests of an alias chain read documents the parser's resolver has run
-// over, through the whole compiler or the loader, rather than hand-built values:
-// a chain only exists once that resolver has built the resolution info each hop
-// reads, which no hand-constructed value reproduces. Both import a package that
-// imports this one, which only an external test package may.
+// The tests of an alias chain read documents the loader has bound, through the
+// whole compiler or the loader, rather than hand-built values: a chain is what
+// the bindings' table reads, which no hand-built wrapper carries. Both import a
+// package that imports this one, which only an external test package may.
 
 // parseFull runs the whole public compiler pipeline over src. That reach back
 // through openapi is also why openapitest cannot hold it — see that package's
@@ -65,15 +64,15 @@ func TestObject_NilEntryIsNil(t *testing.T) {
 		rl  *soa.ReferencedLink
 		rss *soa.ReferencedSecurityScheme
 	)
-	assert.Nil(t, resolve.Object[soa.PathItem](rpi))
-	assert.Nil(t, resolve.Object[soa.Response](rr))
-	assert.Nil(t, resolve.Object[soa.Header](rh))
-	assert.Nil(t, resolve.Object[soa.Callback](rcb))
-	assert.Nil(t, resolve.Object[soa.Parameter](rp))
-	assert.Nil(t, resolve.Object[soa.RequestBody](rrb))
-	assert.Nil(t, resolve.Object[soa.Example](re))
-	assert.Nil(t, resolve.Object[soa.Link](rl))
-	assert.Nil(t, resolve.Object[soa.SecurityScheme](rss))
+	assert.Nil(t, resolve.Object[soa.PathItem](nil, rpi))
+	assert.Nil(t, resolve.Object[soa.Response](nil, rr))
+	assert.Nil(t, resolve.Object[soa.Header](nil, rh))
+	assert.Nil(t, resolve.Object[soa.Callback](nil, rcb))
+	assert.Nil(t, resolve.Object[soa.Parameter](nil, rp))
+	assert.Nil(t, resolve.Object[soa.RequestBody](nil, rrb))
+	assert.Nil(t, resolve.Object[soa.Example](nil, re))
+	assert.Nil(t, resolve.Object[soa.Link](nil, rl))
+	assert.Nil(t, resolve.Object[soa.SecurityScheme](nil, rss))
 }
 
 // TestObjectAt_CrossDocumentInternsAtTheDeclarationThere is the
@@ -152,20 +151,17 @@ func TestObjectAt_AliasChainWithinBoundReachesDeclaration(t *testing.T) {
 		"the walk follows every hop to the final declaration")
 }
 
-// TestObjectAt_AliasChainBeyondBoundFallsBackToUseSite pins the behaviour
-// of resolve.MaxRefChain itself. A chain longer than the bound has no declaration the
-// walk can prove it reached, so it must fall back to the use-site pointer —
-// terminating, deterministic, and never a mid-chain alias whose only key is
-// $ref. Nothing in a real spec looks like this; the bound exists so a
-// pathological one cannot make the walk unbounded.
-func TestObjectAt_AliasChainBeyondBoundFallsBackToUseSite(t *testing.T) {
+// TestObjectAt_AChainOfAnyLengthReachesItsDeclaration pins that no bound but
+// the binding's work budget stops a chain: one far longer than any document
+// writes still reaches the declaration it ends at, as the bindings' table
+// follows it.
+func TestObjectAt_AChainOfAnyLengthReachesItsDeclaration(t *testing.T) {
 	t.Parallel()
-	doc, diags := parseFull(t, chainedAliasSpec(resolve.MaxRefChain+4))
+	doc, diags := parseFull(t, chainedAliasSpec(200))
 	openapitest.RequireNoErrorDiags(t, diags)
 	op := openapitest.FindOp(t, doc, "getA")
 	require.Len(t, op.Params, 1)
-	assert.Equal(t, ir.TypeID("t/anon/paths/~1a/get/parameters/0/schema"), op.Params[0].Type.Target,
-		"an over-long chain keeps the one pointer that is certainly addressable")
+	assert.Equal(t, ir.TypeID("t/anon/components/parameters/P200/schema"), op.Params[0].Type.Target)
 }
 
 // chainedAliasSpec builds a spec whose operation $refs P0 at the head of an
@@ -290,44 +286,97 @@ func assertCrossDocumentDeclarations(t *testing.T, doc *ir.Document) {
 	assert.Equal(t, wantRespID, op.Responses[0].Payload.Contents[0].Type.Target)
 }
 
-// TestObject_UnresolvedReferenceHasNoObject pins the fallback between the two
-// getters. An entry that is a $ref has no inline object, so the answer can only
-// come from what the reference resolved to — and when it resolved to nothing,
-// the answer is nothing rather than a panic or a zero value the caller would
-// lower as though the document had written it.
-func TestObject_UnresolvedReferenceHasNoObject(t *testing.T) {
-	t.Parallel()
-	ref := &soa.ReferencedSecurityScheme{}
-	valErrs, err := marshaller.Unmarshal(t.Context(),
-		strings.NewReader("$ref: '#/components/securitySchemes/Missing'"), ref)
+// loaded loads src as the source, its references bound.
+func loaded(t *testing.T, src string) *load.Document {
+	t.Helper()
+	doc, _, err := load.Load(t.Context(), 0, openapitest.SourceOf(src), load.Options{})
 	require.NoError(t, err)
-	require.Empty(t, valErrs, "the fixture parses cleanly")
-	require.Nil(t, ref.GetObject(), "a $ref entry carries no inline object, which is the state under test")
-
-	assert.Nil(t, resolve.Object[soa.SecurityScheme](ref))
+	require.NotNil(t, doc)
+	return doc
 }
 
-// brittleEntry is a reference-or-inline entry whose getters dereference their
+// TestObject_ReadsTheTableNotTheWrapper pins what Object answers: the object
+// the bindings' table ends the chain of the Reference Object written where the
+// wrapper was read on, and nothing where that chain does not resolve. A $ref a
+// `<<` merges in makes the parser decode an inline wrapper holding an empty
+// object, and the table reads it as the reference the document's JSON spells
+// (docs/compilers/openapi.md#references): one resolving nowhere answers
+// nothing, not that object. An inline entry answers its own object, and a
+// wrapper the bindings never read its own, which for a $ref is none.
+func TestObject_ReadsTheTableNotTheWrapper(t *testing.T) {
+	t.Parallel()
+	doc := loaded(t, `openapi: 3.1.0
+info: {title: T, version: "1"}
+paths: {}
+components:
+  parameters:
+    P: {name: p, in: query}
+    Alias: {$ref: '#/components/parameters/P'}
+    Merged: {<<: {$ref: '#/components/parameters/P'}}
+    Missing: {$ref: '#/components/parameters/Nope'}
+    MergedMissing: {<<: {$ref: '#/components/parameters/Nope'}}
+`)
+	params := doc.Doc.Components.GetParameters()
+	p := params.GetOrZero("P").GetObject()
+	require.NotNil(t, p)
+	merged := params.GetOrZero("Merged")
+	require.NotNil(t, merged.GetObject(), "the parser decodes a merged $ref as an inline entry")
+	require.NotSame(t, p, merged.GetObject())
+
+	assert.Same(t, p, resolve.Object[soa.Parameter](doc.Bindings, params.GetOrZero("Alias")))
+	assert.Same(t, p, resolve.Object[soa.Parameter](doc.Bindings, merged), "the table reads the merged $ref")
+	assert.Same(t, p, resolve.Object[soa.Parameter](doc.Bindings, params.GetOrZero("P")), "an inline entry is itself")
+	assert.Nil(t, resolve.Object[soa.Parameter](doc.Bindings, params.GetOrZero("Missing")))
+	mergedMissing := params.GetOrZero("MergedMissing")
+	require.NotNil(t, mergedMissing.GetObject(), "the parser decodes an object for it, which the document never wrote")
+	assert.Nil(t, resolve.Object[soa.Parameter](doc.Bindings, mergedMissing), "an unresolved merged $ref names nothing")
+
+	ref := &soa.ReferencedParameter{}
+	valErrs, err := marshaller.Unmarshal(t.Context(), strings.NewReader("$ref: '#/components/parameters/P'"), ref)
+	require.NoError(t, err)
+	require.Empty(t, valErrs)
+	assert.Nil(t, resolve.Object[soa.Parameter](doc.Bindings, ref), "a wrapper the bindings never read")
+}
+
+// TestObjectAt_NotesEachPositionOfTheSourceItsChainPasses pins what ObjectAt
+// records in its scope's Reached: each alias its chain passes and the
+// declaration it ends at, in the source, and nothing for an inline entry, a
+// chain that fails or a scope recording nothing.
+func TestObjectAt_NotesEachPositionOfTheSourceItsChainPasses(t *testing.T) {
+	t.Parallel()
+	doc := loaded(t, chainedAliasSpec(2)+"    Missing: {$ref: '#/components/parameters/Nope'}\n")
+	params := doc.Doc.Components.GetParameters()
+	reached := resolve.NewReached()
+	scope := resolve.Scope{SelfPath: doc.Location, Bindings: doc.Bindings, Reached: reached}
+	use := bind.Position{Pointer: "/use"}
+
+	obj, at := resolve.ObjectAt[soa.Parameter](scope, params.GetOrZero("P0"), use)
+	require.NotNil(t, obj)
+	assert.Equal(t, bind.Position{Pointer: "/components/parameters/P2"}, at)
+	for _, pointer := range []jsontext.Pointer{"/components/parameters/P1", "/components/parameters/P2"} {
+		assert.True(t, reached.Has(pointer), pointer)
+	}
+	assert.False(t, reached.Has("/components/parameters/P0"), "the use site is no position the chain reaches")
+
+	obj, at = resolve.ObjectAt[soa.Parameter](scope, params.GetOrZero("P2"), use)
+	assert.NotNil(t, obj)
+	assert.Equal(t, use, at, "an inline entry declares its object where it is written")
+	obj, at = resolve.ObjectAt[soa.Parameter](scope, params.GetOrZero("Missing"), use)
+	assert.Nil(t, obj)
+	assert.Equal(t, use, at)
+	scope.Reached = nil
+	obj, _ = resolve.ObjectAt[soa.Parameter](scope, params.GetOrZero("P0"), use)
+	assert.NotNil(t, obj, "a scope recording nothing still answers")
+}
+
+// brittleEntry is a reference-or-inline entry whose getter dereferences its
 // receiver. Every speakeasy alias happens to tolerate a nil one, which is why
 // TestObject_NilEntryIsNil passes with or without the guard Object opens with —
-// the entries it lists cannot tell the two apart.
-//
-// This one can. Nothing about the constraint promises nil-tolerance, and Object
-// declines to depend on it further down, for the resolved-object fallback
-// ("rather than coupling this compiler to that undocumented nil-tolerance");
-// the guard is what makes that stance hold at the top too.
+// the entries it lists cannot tell the two apart. This one can: nothing about
+// the constraint promises nil-tolerance.
 type brittleEntry struct{ obj int }
 
-func (b *brittleEntry) GetObject() *int         { return &b.obj }
-func (b *brittleEntry) GetObjectAny() any       { return &b.obj }
-func (b *brittleEntry) GetResolvedObject() *int { return &b.obj }
-func (b *brittleEntry) GetReference() references.Reference {
-	return references.Reference("#/components/schemas/" + strconv.Itoa(b.obj))
-}
-
-func (b *brittleEntry) GetReferenceResolutionInfo() *references.ResolveResult[brittleEntry] {
-	return nil
-}
+func (b *brittleEntry) GetObject() *int { return &b.obj }
 
 // TestObject_NilEntryIsNotDereferenced holds the guard itself, which
 // TestObject_NilEntryIsNil cannot: an entry that does not tolerate a nil
@@ -338,69 +387,37 @@ func TestObject_NilEntryIsNotDereferenced(t *testing.T) {
 	require.Panics(t, func() { _ = ref.GetObject() },
 		"the fixture must be brittle, or this asserts nothing")
 
-	assert.Nil(t, resolve.Object[int, brittleEntry](ref))
+	assert.Nil(t, resolve.Object[int, brittleEntry](nil, ref))
 }
 
-// elsewhereRoot is a source whose path items are reached each way an entry can
-// be: written inline, by an internal $ref, by a $ref into ext.yaml, by one into
-// ext.yaml that comes back into the source, once directly and once through a
-// further alias there, and by one naming nothing. The responses of /through are
-// reached by pointers passing the $ref of /ext, /back and /internal on the way.
-const elsewhereRoot = `openapi: 3.1.0
+// TestObjectAt_AHopIntoTheSourceReadsOnAsTheSources pins where ObjectAt ends a
+// chain leaving the source and coming back: the source's /hop names ext.yaml's
+// /hop, whose $ref names the source's Q, an alias of P, so the chain ends at P,
+// in the source, as the bindings' table reads each $ref against the document
+// writing it.
+func TestObjectAt_AHopIntoTheSourceReadsOnAsTheSources(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "ext.yaml"), []byte(`paths:
+  /hop: {$ref: 'root.yaml#/components/pathItems/Q'}
+`), 0o600))
+	doc, _, err := load.Load(t.Context(), 0, compilers.Source{Path: filepath.Join(dir, "root.yaml"), Data: []byte(`openapi: 3.1.0
 info: {title: T, version: "1"}
 paths:
-  /inline: {get: {responses: {"200": {description: ok}}}}
-  /internal: {$ref: '#/components/pathItems/P'}
-  /ext: {$ref: './ext.yaml#/paths/~1x'}
-  /back: {$ref: './ext.yaml#/paths/~1back'}
   /hop: {$ref: './ext.yaml#/paths/~1hop'}
-  /missing: {$ref: '#/components/pathItems/Nope'}
-  /through:
-    get:
-      responses:
-        "200": {$ref: '#/paths/~1ext/get/responses/200'}
-        "201": {$ref: '#/paths/~1back/get/responses/200'}
-        "202": {$ref: '#/paths/~1internal/get/responses/200'}
 components:
   pathItems:
     P: {get: {responses: {"200": {description: ok}}}}
     Q: {$ref: '#/components/pathItems/P'}
-`
-
-// loadElsewhere loads elsewhereRoot beside the ext.yaml its entries name, and
-// returns it with that file's path.
-func loadElsewhere(t *testing.T) (*load.Document, string) {
-	t.Helper()
-	dir := t.TempDir()
-	ext := filepath.Join(dir, "ext.yaml")
-	require.NoError(t, os.WriteFile(ext, []byte(`paths:
-  /x: {get: {responses: {"200": {description: ok}}}}
-  /back: {$ref: 'root.yaml#/components/pathItems/P'}
-  /hop: {$ref: 'root.yaml#/components/pathItems/Q'}
-`), 0o600))
-	doc, _, err := load.Load(t.Context(), 0, compilers.Source{Path: filepath.Join(dir, "root.yaml"),
-		Data: []byte(elsewhereRoot)}, load.Options{Reader: reader.Disk{}})
+`)}, load.Options{Reader: reader.Disk{}})
 	require.NoError(t, err)
 	require.NotNil(t, doc)
-	return doc, ext
-}
-
-// TestObjectAt_AHopIntoTheSourceReadsOnAsTheSources pins the scope ObjectAt
-// reads each hop in. The entry is ext.yaml's, read where ext.yaml sits: its
-// $ref names the source's Q, a $ref written in the source, so the next hop
-// reads `#/...` as the source's and reaches P. Read as ext.yaml's, it named a
-// position there, and the walk fell back to the use site.
-func TestObjectAt_AHopIntoTheSourceReadsOnAsTheSources(t *testing.T) {
-	t.Parallel()
-	doc, ext := loadElsewhere(t)
 	rp, ok := doc.Doc.Paths.Get("/hop")
 	require.True(t, ok)
-	info := rp.GetReferenceResolutionInfo()
-	require.NotNil(t, info)
-	require.NotNil(t, info.Object, "the source's entry resolved to ext.yaml's")
 
-	scope := resolve.Scope{SelfPath: doc.Source.Path, Doc: doc.Doc, Foreign: true, Holder: ext}
-	obj, pointer := resolve.ObjectAt[soa.PathItem](scope, info.Object, "/use")
+	scope := resolve.Scope{SelfPath: doc.Location, Bindings: doc.Bindings}
+	obj, at := resolve.ObjectAt[soa.PathItem](scope, rp, bind.Position{Pointer: "/paths/~1hop"})
 	require.NotNil(t, obj)
-	assert.Equal(t, jsontext.Pointer("/components/pathItems/P"), pointer)
+	assert.Equal(t, bind.Position{Pointer: "/components/pathItems/P"}, at)
+	assert.Same(t, doc.Doc.Components.GetPathItems().GetOrZero("P").GetObject(), obj, "the source's own model")
 }

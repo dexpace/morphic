@@ -65,8 +65,8 @@ func TestCompile_ComponentScalarConstraintsPreserved(t *testing.T) {
 // reading of a numeric field through the compiler's front door: a magnitude
 // math/big will not build as a rational, or no BigVal holds, is judged by its
 // sign and integrality alone, and a bound past what a BigVal holds is the
-// load phase's to refuse, at the keyword. Only diagnostic codes are asserted, never the lowered
-// maxLength, which #1050 tracks.
+// load phase's to refuse, at the keyword, and a count past it the compiler's,
+// as no entry can hold it. Only diagnostic codes are asserted.
 func TestCompile_ANumericFieldIsReadPastARationalsRange(t *testing.T) {
 	t.Parallel()
 	const (
@@ -80,7 +80,8 @@ func TestCompile_ANumericFieldIsReadPastARationalsRange(t *testing.T) {
 		pointer    string   // suffix of the first error's pointer, when there is one
 	}{
 		{"an integer length past a rational", "{type: string, maxLength: 1e1000001}}}", nil, ""},
-		{"an integer length past what a BigVal holds", "{type: string, maxLength: 1e1000000000000000000}}}", nil, ""},
+		{"an integer length past what a BigVal holds", "{type: string, maxLength: 1e1000000000000000000}}}",
+			[]string{"openapi/unpreservable-construct"}, "/schemas/N"},
 		{"a negative step past a rational", "{type: number, multipleOf: -1e1000001}}}", []string{mismatch}, "/multipleOf"},
 		{"a bound past a binary float", "{type: number, minimum: 1e2000000000}}}", nil, ""},
 		{"a bound past what a BigVal holds", "{type: number, minimum: 1e1000000000000000000}}}", []string{invalid}, "/schemas/N/minimum"},
@@ -153,14 +154,14 @@ func TestCompile_HoistedSubSchemaConstraintsPreserved(t *testing.T) {
 	assert.Equal(t, ir.BigVal("10"), *sc.Constraints.Max)
 }
 
-// TestOwnedShapes_AreReportedWhereverTheCheckReadsASchema pins where a bound's
-// shape and an items list are judged: at every schema the rule table's check
-// reads, in that schema's dialect, so one the lowering never reads, under
+// TestDialectShapes_AreReportedWhereverTheCheckReadsASchema pins where a
+// bound's shape and an items list are judged: at every schema the rule table's
+// check reads, in that schema's dialect, so one the lowering never reads, under
 // `not`, `if`, `propertyNames` or `contains`, beside an `enum`, or in a schema
 // with no type, is reported as one it does, at the keyword, and an aliased
 // value once. A draft 4 schema's numeric exclusive bound is refused under `not`
 // as beside it.
-func TestOwnedShapes_AreReportedWhereverTheCheckReadsASchema(t *testing.T) {
+func TestDialectShapes_AreReportedWhereverTheCheckReadsASchema(t *testing.T) {
 	t.Parallel()
 	_, diags := parseFull(t, openapitest.ComponentSpec(
 		"    N: {not: {type: integer, minimum: 1, exclusiveMinimum: true}}\n"+

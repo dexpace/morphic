@@ -986,6 +986,46 @@ func TestAllOf_AComposedFieldKeepsADiscriminatedBase(t *testing.T) {
 	assert.Equal(t, componentID("Plain"), m.Mixins[0].Target)
 }
 
+// TestAllOf_AComposedFieldElectsTheBaseAWrittenAllOfDoes pins a field declared
+// as Plain and as a member of a hierarchy whose discriminator a union holds: one
+// standing with a union on its allOf branch, or an ancestor's beside its oneOf.
+// The minted model's Base is the one a written allOf of the two elects, in
+// either declaration order.
+func TestAllOf_AComposedFieldElectsTheBaseAWrittenAllOfDoes(t *testing.T) {
+	t.Parallel()
+	ref := func(name string) string { return "{$ref: '#/components/schemas/" + name + "'}" }
+	field := func(name string) string {
+		return "{type: object, properties: {f: " + ref(name) + "}}"
+	}
+	for _, doc := range discriminatedOrders(t, "3.1.0", `    Refund:
+      discriminator: {propertyName: method}
+      allOf:
+        - {type: object, properties: {reason: {type: string}}}
+        - oneOf: [`+ref("Card")+`, `+ref("Bank")+`]
+    Under: {allOf: [`+ref("Tagged")+`, {type: object, properties: {u: {type: string}}}]}
+`, `    Tagged:
+      oneOf: [`+ref("Card")+`, `+ref("Bank")+`]
+      discriminator: {propertyName: method}
+    Card: {type: object, required: [method], properties: {method: {type: string}, last4: {type: string}}}
+    Bank: {type: object, required: [method], properties: {method: {type: string}, iban: {type: string}}}
+    Plain: {type: object, properties: {note: {type: string}}}
+    WrittenRefund: {allOf: [`+ref("Plain")+`, `+ref("Refund")+`]}
+    WrittenUnder: {allOf: [`+ref("Plain")+`, `+ref("Under")+`]}
+    FieldRefund: {allOf: [`+field("Plain")+`, `+field("Refund")+`]}
+    FieldUnder: {allOf: [`+field("Plain")+`, `+field("Under")+`]}
+`) {
+		for written, declared := range map[string]string{"WrittenRefund": "FieldRefund", "WrittenUnder": "FieldUnder"} {
+			w, ok := typeByName(doc, written).(*ir.Model)
+			require.True(t, ok, written)
+			require.NotNil(t, w.Base, written)
+			m := composedField(t, doc, declared, "f")
+			require.NotNil(t, m.Base, declared)
+			assert.Equal(t, w.Base.Target, m.Base.Target, declared)
+			assert.Equal(t, w.Mixins, m.Mixins, declared)
+		}
+	}
+}
+
 // TestAllOf_EveryDistributedVariantSharesOneComposedField pins the mint across
 // variants. A distributed union's variants each fold the body's declarations,
 // and each keeps the field's one PropID, so each names the one node.
@@ -1705,6 +1745,36 @@ func TestAllOf_ContainersOfDifferentModelsComposeTheirMembers(t *testing.T) {
 			m, ok := doc.Types[member.Target].(*ir.Model)
 			require.True(t, ok, order[0])
 			assert.ElementsMatch(t, []ir.TypeID{componentID("A"), componentID("B")}, refTargets(m.Mixins), order[0])
+		}
+	}
+}
+
+// TestAllOf_AMemberBehindAnAliasIsJudgedByWhatItStandsFor pins GitHub #1365 in
+// both branch orders: a list's or a map's member written as an enum or a const
+// beside a bound is an alias of it, judged by its members, so against a uuid no
+// member is, beside a container never empty, the field draws the conflict its
+// direct spelling draws.
+func TestAllOf_AMemberBehindAnAliasIsJudgedByWhatItStandsFor(t *testing.T) {
+	t.Parallel()
+	const components = `    E: {type: string, enum: [a, b]}
+    C: {const: a}
+`
+	const uuid = "{type: string, format: uuid}"
+	for _, member := range []string{
+		"{$ref: '#/components/schemas/E'}", "{$ref: '#/components/schemas/E', maxLength: 5}",
+		"{$ref: '#/components/schemas/C'}", "{$ref: '#/components/schemas/C', maxLength: 5}",
+	} {
+		for _, container := range []struct{ never, other string }{
+			{"{type: array, minItems: 1, items: " + member + "}", "{type: array, items: " + uuid + "}"},
+			{"{type: object, minProperties: 1, additionalProperties: " + member + "}",
+				"{type: object, additionalProperties: " + uuid + "}"},
+		} {
+			for _, order := range [][2]string{{container.never, container.other}, {container.other, container.never}} {
+				_, diags := settledSpec(t, components, order[0], order[1])
+				openapitest.RequireNoErrorDiags(t, diags)
+				assert.Len(t, conflictDiags(diags), 1, "%v", order)
+				assert.Len(t, diags, 1, "%v: and nothing else", order)
+			}
 		}
 	}
 }

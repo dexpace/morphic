@@ -17,9 +17,14 @@ import (
 	"github.com/dexpace/morphic/ir"
 )
 
-func TestIsNullSchema_EmptyEitherFalse(t *testing.T) {
+// TestNullBranch_NoSchemaIsNoNullBranch covers the guard's own contract: no
+// branch, and an either holding no schema, which no lowering reaches as a
+// branch, are no union's null.
+func TestNullBranch_NoSchemaIsNoNullBranch(t *testing.T) {
 	t.Parallel()
-	assert.False(t, isNullSchema(openapitest.EmptyEitherSchema()), "empty either is not a null schema")
+	l := NewRawLowerer(&soa.OpenAPI{})
+	assert.False(t, nullBranch(l.Ctx, nil), "no branch is no null")
+	assert.False(t, nullBranch(l.Ctx, openapitest.EmptyEitherSchema()), "empty either is not a null schema")
 }
 
 // TestAllNullUnion_NoBranchesFalse covers the guard's own contract rather than
@@ -28,7 +33,8 @@ func TestIsNullSchema_EmptyEitherFalse(t *testing.T) {
 // direct call can drive.
 func TestAllNullUnion_NoBranchesFalse(t *testing.T) {
 	t.Parallel()
-	assert.False(t, allNullUnion(&oas3.Schema{}), "no oneOf/anyOf branches admits nothing to be null-only")
+	l := NewRawLowerer(&soa.OpenAPI{})
+	assert.False(t, allNullUnion(l.Ctx, &oas3.Schema{}), "no oneOf/anyOf branches admits nothing to be null-only")
 }
 
 // TestBranchesSay_NoBranchesSayNothing covers the guard's own contract rather
@@ -79,4 +85,16 @@ func TestPreserveNullOnlyUnion_NothingToKeep(t *testing.T) {
 	})
 	diags := preserveNullOnlyUnion(l.Ctx, l.Types, id, &oas3.Schema{}, "/components/schemas/S")
 	assert.Empty(t, diags, "nothing was kept, so nothing is announced")
+}
+
+// TestComposeMixin_NeedsAModel drives the two states its one caller cannot
+// produce, having just lowered the routed subtype to a model: no node at id, and
+// a node of another kind, which has no Mixins to compose the union into.
+func TestComposeMixin_NeedsAModel(t *testing.T) {
+	t.Parallel()
+	l := NewRawLowerer(&soa.OpenAPI{})
+	assertInternalInvariant(t, composeMixin(l.Ctx, l.Types, "t/anon/missing", "t/composed/u", "/p"))
+
+	l.Types.Register("t/anon/scalar", &ir.Scalar{ID: "t/anon/scalar"})
+	assertInternalInvariant(t, composeMixin(l.Ctx, l.Types, "t/anon/scalar", "t/composed/u", "/p"))
 }

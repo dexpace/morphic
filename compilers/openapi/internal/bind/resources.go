@@ -80,6 +80,9 @@ type identifiers struct {
 	// reference expands only against the one declaration a document makes of
 	// a name, so one in a resource of its own counts (docs/compilers/openapi.md#dynamic-ref).
 	dynamic map[dynamicKey][]Position
+	// recursive is every `$recursiveAnchor` of true by document, where its
+	// schema's dialect defines the keyword (DialectRule.Recursive).
+	recursive map[DocID][]Position
 	// truncated holds each document with a schema merging through `<<` deeper
 	// than the view expands, so an identifier past the bound may be missing.
 	truncated map[DocID]bool
@@ -111,7 +114,8 @@ func newIdentifiers(source resource) *identifiers {
 		declared: map[string][]Position{}, uris: map[string][]Position{}, counted: map[DocID]bool{Source: true},
 		byDoc: map[DocID][]string{},
 		asked: map[string]bool{}, readings: map[string]bool{}, anchors: map[anchorKey][]Position{},
-		dynamic: map[dynamicKey][]Position{}, truncated: map[DocID]bool{}, read: map[DocID]bool{},
+		dynamic: map[dynamicKey][]Position{}, recursive: map[DocID][]Position{}, truncated: map[DocID]bool{},
+		read:     map[DocID]bool{},
 		dialects: map[Position]DialectRoot{}, named: map[DocID]bool{}}
 }
 
@@ -176,7 +180,18 @@ func (ix *identifiers) declare(r resources, in int32, at Position, n *yaml.Node,
 			ix.dynamic[d] = append(ix.dynamic[d], at)
 		}
 	}
+	if rule.Recursive && recursiveAnchored(view, n) {
+		ix.recursive[at.Doc] = append(ix.recursive[at.Doc], at)
+	}
 	return in, e.dialect
+}
+
+// recursiveAnchored reports whether the schema n writes `$recursiveAnchor` as
+// the boolean true, which marks its resource for a `$recursiveRef`; false, the
+// default, and any other value mark none.
+func recursiveAnchored(view *nodeview.View, n *yaml.Node) bool {
+	v := nodeview.Deref(view.ChildByToken(nodeview.Deref(n), "$recursiveAnchor"))
+	return v != nil && v.Kind == yaml.ScalarNode && v.Tag == "!!bool" && strings.EqualFold(v.Value, "true")
 }
 
 // commit makes the URIs the documents counted declare answer, and reports
@@ -360,24 +375,6 @@ func (r resources) identify(id, base string) (uri, part string, ok bool) {
 	}
 	uri, ok = r.resolveURI(part, base)
 	return uri, part, ok
-}
-
-// IdentifierURI returns the URI the identifier id names, written where the base
-// is base, an absolute URI such as a fetched document's, as the binder reads one
-// (resources.identify): its part before the '#', trimmed, resolved by RFC 3986.
-// local reports that a reference under it may name a location on disk: a
-// file: URI, or one whose scheme is a single letter, as a Windows drive's is,
-// which resolveURI does not resolve as a URL. It is false where id names none,
-// or base is no absolute URI.
-func IdentifierURI(id, base string) (uri string, local, ok bool) {
-	if b, err := url.Parse(base); err != nil || len(b.Scheme) < 2 {
-		return "", false, false
-	}
-	if uri, _, ok = (resources{}).identify(id, base); !ok {
-		return "", false, false
-	}
-	u, err := url.Parse(uri)
-	return uri, err != nil || len(u.Scheme) < 2 || strings.EqualFold(u.Scheme, "file"), true
 }
 
 // resolveURI is the URI ref names, written where the base is base: resolved by

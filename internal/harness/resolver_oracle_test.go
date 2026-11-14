@@ -5,11 +5,12 @@ package harness_test
 
 // The differential oracle for the compiler's reading of references.
 //
-// The compiler binds schema $refs itself (compilers/openapi/internal/bind),
-// never through speakeasy's resolver, which overflows the stack on a cycle
-// (docs/parser-library.md#schema-cycle-overflow), and leaves to the resolver
-// the reference-object chains it reports itself
-// (docs/parser-library.md#reference-object-cycle). Whether either holds is not
+// The compiler binds every $ref itself (compilers/openapi/internal/bind), a
+// schema's and a reference object's, never through speakeasy's resolver, which
+// overflows the stack on a cycle of schemas
+// (docs/parser-library.md#schema-cycle-overflow) and answers a loop of
+// reference objects by declaration order
+// (docs/parser-library.md#reference-object-cycle). Whether that holds is not
 // something a test of the compiler alone can show: a hang or a crash the
 // resolver would meet is invisible until the compiler meets it too.
 //
@@ -17,7 +18,7 @@ package harness_test
 // the compiler does against what the resolver does, both measured in a
 // subprocess, because a hang and a stack overflow cannot be observed from
 // inside the process they happen to, and because the compiler is subject to
-// both if a schema $ref ever reaches the resolver again. An oracle that hangs
+// both if a $ref ever reaches the resolver again. An oracle that hangs
 // instead of failing on the regression it exists for would be no oracle at all.
 //
 // It lives entirely in a _test.go file: the coverage gate counts statements in

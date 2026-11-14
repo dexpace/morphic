@@ -8,12 +8,12 @@
 # source: a target written tomorrow is fuzzed the moment it lands, and there is
 # no list here to go stale.
 #
-# Usage: fuzz.sh [fuzztime]        (default 10s per target, or $FUZZTIME)
+# Usage: fuzz.sh [fuzztime]        (default 5s per target, or $FUZZTIME)
 set -euo pipefail
 
 cd "$(git -C "$(dirname "${BASH_SOURCE[0]}")" rev-parse --show-toplevel)"
 
-fuzztime="${1:-${FUZZTIME:-10s}}"
+fuzztime="${1:-${FUZZTIME:-5s}}"
 
 # Targets held out of the search, each naming the issue that must close before
 # it comes back. A search is not the place to rediscover a bug that is already
@@ -38,10 +38,13 @@ quarantined=""
 # new target does by accident.
 readonly max_targets=16
 
-# Minimizing a found crash is bounded too. Left at its 60s default it would
-# dominate the run on the one occasion it matters, and the reproducer is written
-# out either way.
-readonly minimize_time=10s
+# Minimizing is bounded tightly. For a target taking a string or []byte the flag
+# governs every new input that adds coverage as well as a found crash, a worker
+# minimizing runs no search (go1.27 internal/fuzz: minimize.go's isMinimizable,
+# fuzz.go's queueForMinimization), and left at its 60s default it would dominate
+# the run. A shorter bound can leave a crash's reproducer and each new corpus
+# entry less minimal; the reproducer is written out either way.
+readonly minimize_time=1s
 
 found=0
 fuzzed=0

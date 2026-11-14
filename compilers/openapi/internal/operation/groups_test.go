@@ -740,13 +740,17 @@ func TestGrouping_ByExtensionFallsBackToPathPrefix(t *testing.T) {
 	assert.Equal(t, []string{"info at /paths/~1legacy/get/x-group"}, reported)
 }
 
-// TestGrouping_ByExtensionListOfGroupsFilesUnderTheFirst pins ListsAreGroups:
+// TestGrouping_ByExtensionListOfGroupsMintsAGroupForEach pins ListsAreGroups:
 // a list names several groups, and the operation is filed under the first
-// alone, so no group is minted for the rest, which the extension keeps.
-func TestGrouping_ByExtensionListOfGroupsFilesUnderTheFirst(t *testing.T) {
+// alone, while each other path gets a group holding no operation, nested in its
+// prefix's, for a remount to name. A path another operation is filed under is
+// one group, and the extension stays kept whole.
+func TestGrouping_ByExtensionListOfGroupsMintsAGroupForEach(t *testing.T) {
 	t.Parallel()
 	spec := openapitest.PathsSpec(`  /zones:
-    get: {operationId: listZones, x-group: [zones.settings, dns], responses: {"200": {description: ok}}}
+    get: {operationId: listZones, x-group: [zones.settings, dns.records, users], responses: {"200": {description: ok}}}
+  /users:
+    get: {operationId: listUsers, x-group: users, responses: {"200": {description: ok}}}
 `)
 	ext := groupedByExtension
 	ext.Lists = lowering.ListsAreGroups
@@ -758,11 +762,116 @@ func TestGrouping_ByExtensionListOfGroupsFilesUnderTheFirst(t *testing.T) {
 		"g/extension/zones/settings": {
 			parent: "g/extension/zones", name: "settings", ops: []ir.OpID{"op/openapi/paths/~1zones/get"},
 		},
+		"g/extension/dns":         {name: "dns"},
+		"g/extension/dns/records": {parent: "g/extension/dns", name: "records"},
+		"g/extension/users":       {name: "users", ops: []ir.OpID{"op/openapi/paths/~1users/get"}},
 	}
 	got := placements(t, svc.Groups)
 	assert.Empty(t, cmp.Diff(want, got, cmp.AllowUnexported(groupPlacement{})), "the group tree (-want +got)")
 	entry := svc.Groups[0].Groups[0].Operations[0].Unmodeled["openapi:x-group"]
-	assert.JSONEq(t, `["zones.settings","dns"]`, string(entry.Value), "the extension is kept whole")
+	assert.JSONEq(t, `["zones.settings","dns.records","users"]`, string(entry.Value), "the extension is kept whole")
+}
+
+// aliasedSpec lists aliases each way a document can: beside a path of the
+// operation's own, on an operation stating none, as an object stating no path,
+// on a webhook, a callback and a path item, none of which the strategy reads,
+// and once naming no path, which is reported.
+const aliasedSpec = `openapi: 3.1.0
+info: {title: T, version: "1"}
+paths:
+  /issues:
+    get:
+      operationId: listIssues
+      x-group: workers.issues
+      x-aliases: [{x-group: o11y.issues, x-name: list}, {x-name: only}, {x-group: workers}]
+      callbacks:
+        done:
+          '{$request.query.cb}':
+            post: {operationId: issuesDone, x-aliases: [{x-group: hooks}], responses: {"200": {description: ok}}}
+      responses: {"200": {description: ok}}
+  /queries:
+    x-aliases: [{x-group: item.level}]
+    get:
+      operationId: listQueries
+      tags: [misc]
+      x-aliases: [{x-group: o11y.queries}]
+      responses: {"200": {description: ok}}
+  /bad:
+    get: {operationId: bad, tags: [misc], x-aliases: [{x-group: a..b}, {x-group: never}], responses: {"200": {description: ok}}}
+webhooks:
+  onEvent: {post: {operationId: onEvent, x-aliases: [{x-group: events}], responses: {"200": {description: ok}}}}
+`
+
+// aliasedExtension is groupedByExtension reading the aliases aliasedSpec lists.
+var aliasedExtension = lowering.GroupingExtension{
+	Key: "x-group", Lists: lowering.ListsAreSegments, Aliases: "x-aliases", Fallback: lowering.GroupByTags,
+}
+
+// TestGrouping_ByExtensionMintsAGroupForEachAlias pins Aliases: each path an
+// operation's aliases state gets a group holding no operation, nested in its
+// prefix's, whether the operation is filed by its own path or by the fallback,
+// while a webhook's, a callback's and a path item's aliases are not read. A
+// value naming no path is reported at its key and mints none of its paths.
+func TestGrouping_ByExtensionMintsAGroupForEachAlias(t *testing.T) {
+	t.Parallel()
+	svc, diags := serviceByExtension(t, aliasedSpec, aliasedExtension)
+	openapitest.RequireNoErrorDiags(t, diags)
+
+	issues := ir.OpID("op/openapi/paths/~1issues/get")
+	want := map[ir.GroupID]groupPlacement{
+		"g/extension/workers": {name: "workers"},
+		"g/extension/workers/issues": {parent: "g/extension/workers", name: "issues", ops: []ir.OpID{
+			issues, issues + "/callbacks/done/{$request.query.cb}/post",
+		}},
+		"g/extension/o11y":         {name: "o11y"},
+		"g/extension/o11y/issues":  {parent: "g/extension/o11y", name: "issues"},
+		"g/tags/misc":              {name: "misc", ops: []ir.OpID{"op/openapi/paths/~1queries/get", "op/openapi/paths/~1bad/get"}},
+		"g/extension/o11y/queries": {parent: "g/extension/o11y", name: "queries"},
+		"g/webhooks":               {ops: []ir.OpID{"op/openapi/webhooks/onEvent/post"}},
+	}
+	got := placements(t, svc.Groups)
+	assert.Empty(t, cmp.Diff(want, got, cmp.AllowUnexported(groupPlacement{})), "the group tree (-want +got)")
+
+	var found []string
+	for _, d := range diags {
+		if d.Code == diag.DegradedConstruct {
+			found = append(found, string(d.Severity)+" at "+string(d.Provenance.Pointer))
+		}
+	}
+	assert.Equal(t, []string{"info at /paths/~1bad/get/x-aliases"}, found)
+	listQueries := svc.Groups[2].Operations[0]
+	require.Equal(t, ir.OpID("op/openapi/paths/~1queries/get"), listQueries.ID)
+	assert.Empty(t, listQueries.Provenance.Inferred, "an alias moves no filing, so the fallback's marker stands")
+	assert.JSONEq(t, `[{"x-group":"o11y.queries"}]`, string(listQueries.Unmodeled["openapi:x-aliases"].Value),
+		"the aliases stay kept whole")
+}
+
+// TestGrouping_ByExtensionRemountsAreIndependentOfDeclarationOrder is the
+// two-order diff for the groups a remount names: a group minted for an alias
+// before an operation is filed in it, or after, and one an alias names inside a
+// filed group, nest and hold what they would in the other order.
+func TestGrouping_ByExtensionRemountsAreIndependentOfDeclarationOrder(t *testing.T) {
+	t.Parallel()
+	const aliasing = `  /aliasing:
+    get: {operationId: aliasing, x-group: a, x-aliases: [{x-group: o11y.issues}, {x-group: b.c}], responses: {"200": {description: ok}}}
+`
+	const filed = `  /filed:
+    get: {operationId: filed, x-group: o11y.issues, responses: {"200": {description: ok}}}
+  /outer:
+    get: {operationId: outer, x-group: b, responses: {"200": {description: ok}}}
+`
+	tree := func(paths string) map[ir.GroupID]groupPlacement {
+		t.Helper()
+		svc, diags := serviceByExtension(t, openapitest.PathsSpec(paths), aliasedExtension)
+		openapitest.RequireNoErrorDiags(t, diags)
+		return placements(t, svc.Groups)
+	}
+	got := tree(aliasing + filed)
+	assert.Empty(t, cmp.Diff(tree(filed+aliasing), got, cmp.AllowUnexported(groupPlacement{})),
+		"the groups must not depend on declaration order")
+	assert.Equal(t, groupPlacement{parent: "g/extension/o11y", name: "issues", ops: []ir.OpID{"op/openapi/paths/~1filed/get"}},
+		got["g/extension/o11y/issues"])
+	assert.Equal(t, groupPlacement{parent: "g/extension/b", name: "c"}, got["g/extension/b/c"])
 }
 
 // TestGrouping_ByExtensionReadsAReferencedPathItemWhereItIsDeclared pins the
@@ -827,4 +936,50 @@ func TestGrouping_ByExtensionTreeIsIndependentOfDeclarationOrder(t *testing.T) {
 	require.Len(t, got[0].Operations, 1)
 	require.Len(t, got[0].Groups, 1)
 	assert.Equal(t, "members", got[0].Groups[0].Name.Source)
+}
+
+// TestGrouping_ACallbackGoesWithItsParentWhateverItsTags pins where every
+// strategy files a callback's operation: in its parent's group, as a webhook's
+// stays in the webhook group, its own tags kept on it and grouping nothing, so
+// no group forms for a tag only a callback names.
+func TestGrouping_ACallbackGoesWithItsParentWhateverItsTags(t *testing.T) {
+	t.Parallel()
+	spec := `openapi: 3.1.0
+info: {title: F3, version: "1"}
+tags: [{name: pets}, {name: hooks}]
+paths:
+  /a:
+    post:
+      operationId: parent
+      tags: [pets]
+      responses: {"200": {description: ok}}
+      callbacks:
+        onEvent:
+          "{$request.body#/url}":
+            post:
+              operationId: child
+              tags: [hooks]
+              x-group: hooks
+              responses: {"200": {description: ok}}
+`
+	const parent, child = "op/openapi/paths/~1a/post", "op/openapi/paths/~1a/post/callbacks/onEvent/{$request.body#~1url}/post"
+	for strategy, group := range map[lowering.GroupingStrategy]ir.GroupID{
+		lowering.GroupByTags: "g/tags/pets", lowering.GroupByPathPrefix: "g/path-prefix/a",
+		lowering.GroupByExtension: "g/tags/pets",
+	} {
+		svc, diags := serviceUnderStrategy(t, spec, strategy)
+		openapitest.RequireNoErrorDiags(t, diags)
+		assert.Equal(t, map[ir.GroupID][]ir.OpID{group: {parent, child}}, opsByGroup(t, svc.Groups), "%s", strategy)
+		assert.Equal(t, []string{"hooks"}, svc.Groups[0].Operations[1].Tags, "%s keeps the callback's tags", strategy)
+	}
+}
+
+// serviceUnderStrategy is serviceWithGrouping under strategy, reading
+// groupedByExtension where strategy is GroupByExtension.
+func serviceUnderStrategy(t *testing.T, src string, strategy lowering.GroupingStrategy) (ir.Service, []ir.Diagnostic) {
+	t.Helper()
+	if strategy == lowering.GroupByExtension {
+		return serviceByExtension(t, src, groupedByExtension)
+	}
+	return serviceWithGrouping(t, src, strategy)
 }

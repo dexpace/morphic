@@ -44,7 +44,7 @@ func lowerRequestBody(c lowering.Ctx, w walk, op *ir.Operation, hb *ir.HTTPBindi
 	// A Request Body Object's description documents the body rather than any
 	// one media type in it (GitHub #609), and a summary or description beside a
 	// $ref of its chain documents this use of it (GitHub #610).
-	payload.Docs = resolve.UseDocs[soa.RequestBody](src.GetRequestBody(), ir.Docs{Description: rb.GetDescription()})
+	payload.Docs = resolve.UseDocs[soa.RequestBody](c.Bindings(), src.GetRequestBody(), ir.Docs{Description: rb.GetDescription()})
 	payload.Required = new(rb.GetRequired())
 	// soa.RequestBody exposes no GetExtensions at this library version, so the
 	// field is read directly — as annotation.XMLHints already reads its own.

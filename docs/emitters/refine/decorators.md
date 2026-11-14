@@ -66,5 +66,6 @@ The fold is a shared refine helper in `emitters/refine`, reading only the IR fac
 along. T-16 holds it to the compiler's merge: a 3.0 decorator and the 3.1 `$ref` carrying the same
 annotations beside it generate identical artifacts at every kind of position, so moving a document
 from one spelling to the other changes no SDK. A union variant is one such position: the compiler
-names a variant whose branch is a decorator over a `$ref` as it names the `$ref`'s
+names a variant whose branch is a decorator over a `$ref` as it names the `$ref`'s, or under the
+title-names policy by the title the branch writes, in either spelling
 ([`union`](../../compilers/openapi.md#union)).

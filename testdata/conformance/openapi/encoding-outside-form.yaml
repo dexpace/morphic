@@ -1,0 +1,25 @@
+openapi: 3.1.0
+info: {title: EncodingOutsideForm, version: "1.0.0"}
+paths:
+  # An encoding under a media type that is neither multipart nor form has no
+  # effect; each entry is kept whole.
+  /json:
+    post:
+      operationId: json
+      requestBody:
+        content:
+          application/json:
+            schema: {type: object, properties: {f: {type: string}}}
+            encoding:
+              f: {contentType: text/plain, x-note: kept}
+      responses: {"204": {description: ok}}
+  /bytes:
+    post:
+      operationId: bytes
+      requestBody:
+        content:
+          application/octet-stream:
+            schema: {type: string, format: binary}
+            encoding:
+              f: {contentType: image/png}
+      responses: {"204": {description: ok}}

@@ -25,9 +25,8 @@ import (
 // TestRefTypeRef_SaysWhyAnUnboundRefIsUnresolved pins the reasons refTypeRef
 // gives for a $ref the bindings hold no answer of their own for: none for one
 // they never read where nothing stopped the reading, why the table never read
-// one past the merge bound, none for one landing where the bindings hold no
-// schema, as when building one failed, which the load phase reports, and why
-// the table could not place what a reference object resolved to.
+// one past the merge bound, and none for one landing where the bindings hold
+// no schema, as when building one failed, which the load phase reports.
 func TestRefTypeRef_SaysWhyAnUnboundRefIsUnresolved(t *testing.T) {
 	t.Parallel()
 	message := func(t *testing.T, l *Lowerer, js *oas3.JSONSchema[oas3.Referenceable]) string {
@@ -57,14 +56,6 @@ func TestRefTypeRef_SaysWhyAnUnboundRefIsUnresolved(t *testing.T) {
 	a, ok = unheld.Ctx.Doc.Components.GetSchemas().Get("A")
 	require.True(t, ok)
 	assert.Equal(t, `unresolved $ref "#/components/schemas/H/properties/p"`, message(t, unheld, a))
-
-	bd := typed.NewBuilder(bind.Bind(t.Context(), unheld.Ctx.Doc.GetRootNode(), bind.Config{Self: "spec.yaml"}))
-	bd.Unplaced(a, "/paths/~1a/get/parameters/0")
-	unplaced := LowererOver(lowering.New(0, &load.Document{Doc: unheld.Ctx.Doc, Bindings: bd.Bindings()},
-		lowering.Policy{}))
-	assert.Equal(t, `unresolved $ref "#/components/schemas/H/properties/p": it is in what the reference at `+
-		"/paths/~1a/get/parameters/0 resolved to, which the compiler cannot read where the parser placed it",
-		message(t, unplaced, a))
 }
 
 // TestResolvePointer_PromisesWhatItNames pins that a $ref never builds what it

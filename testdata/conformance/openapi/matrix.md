@@ -33,7 +33,7 @@ witnessing it.
 
 - Witnesses: `allof-oneof-cooccurrence`, `allof-ref-branch-siblings`, `union-beside-ref`,
   `anyof-untagged`, `union-decorated-branch`, `type-array-numeric`, `union-restated-type`,
-  `union-inline-branches`, `allof-union-branch`
+  `union-inline-branches`, `allof-union-branch`, `type-array-bounds`
 
 ### `intersection`
 
@@ -70,7 +70,7 @@ witnessing it.
 
 ### `encoding-hints`
 
-- Witnesses: `encoding-byte`, `content-vocabulary`
+- Witnesses: `encoding-byte`, `content-vocabulary`, `http-date-inference`
 
 ### `wire-name-distinct`
 
@@ -80,7 +80,7 @@ witnessing it.
 
 - Witnesses: `nullable-union-discriminator`, `nullability-four-states`, `nullable-30`,
   `nullable-31-ref`, `nullable-enum-31`, `nullability-conjunction`, `null-only-union`,
-  `nullable-keyword-30`, `nullable-keyword-31`
+  `nullable-keyword-30`, `nullable-keyword-31`, `enum-null-member`, `null-alone`
 
 ### `defaults`
 
@@ -88,7 +88,7 @@ witnessing it.
 
 ### `constraints`
 
-- Witnesses: `constraints`, `numeric-precision`, `ref-collection-bounds`
+- Witnesses: `constraints`, `numeric-precision`, `ref-collection-bounds`, `type-array-bounds`
 
 ### `visibility`
 
@@ -96,7 +96,7 @@ witnessing it.
 
 ### `redaction`
 
-- Witnesses: `secret-format`, `extension-redaction`
+- Witnesses: `secret-format`, `extension-redaction`, `secret-inference`
 
 ### `recursive-types`
 
@@ -124,7 +124,7 @@ witnessing it.
 
 ### `http-binding`
 
-- Witnesses: `param-identity`, `http-binding`, `path-item-operations`
+- Witnesses: `param-identity`, `http-binding`, `path-item-operations`, `path-key-fragments`
 
 ### `param-styles`
 
@@ -137,7 +137,8 @@ witnessing it.
 ### `multipart-encoding`
 
 - Witnesses: `multipart-encoding`, `media-type-spelling`, `nested-encoding-32`, `file-media`,
-  `file-items-32`
+  `file-items-32`, `encoding-unkeyed`, `encoding-union-branches`, `encoding-outside-form`,
+  `multipart-defaults-30`, `multipart-defaults-31`, `multipart-defaults-32`
 
 ### `per-status-errors`
 
@@ -165,10 +166,7 @@ witnessing it.
 
 ### `pagination`
 
-- Uncovered: OpenAPI states it only through links and x-*, and this compiler lowers a link as a link
-  and keeps x-* verbatim, reading neither into ir.Pagination — response-links and extensions-x pin
-  both. Invariant 6 puts the inference in a pass rather than in the compiler, so this retires when
-  such a pass lands and a spec can read ir.Pagination back
+- Witnesses: `extension-pagination`, `pagination-inferred`
 
 ### `long-running-operations`
 
@@ -178,10 +176,7 @@ witnessing it.
 
 ### `idempotency`
 
-- Uncovered: OpenAPI conveys it through HTTP verb semantics alone, and the method string
-  http-binding pins is the whole of what a spec could read. ir.Idempotency models the capability,
-  and a pass inferring safe/idempotent from that method is what would let a spec witness the row;
-  this retires when one lands
+- Witnesses: `idempotency-inference`
 
 ### `auth-schemes`
 
@@ -189,7 +184,8 @@ witnessing it.
 
 ### `per-op-auth`
 
-- Witnesses: `security-or-and`, `security-root-empty`, `security-unresolved`
+- Witnesses: `security-or-and`, `security-root-empty`, `security-unresolved`, `security-states`,
+  `security-root-absent`, `security-root-optional`
 
 ### `servers`
 
@@ -201,7 +197,8 @@ witnessing it.
 
 ### `deprecation`
 
-- Witnesses: `param-ref-inheritance`, `deprecation`, `extension-promotion`, `extension-stability`
+- Witnesses: `param-ref-inheritance`, `deprecation`, `extension-promotion`, `extension-stability`,
+  `replacement-inference`
 
 ### `stability`
 

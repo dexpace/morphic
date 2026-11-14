@@ -64,15 +64,22 @@ them admit is a coded decode error unless its constraints single one out. A `pat
 
 On an untagged union, `null` is the union's value, never a variant's. A variant admits `null` when
 `null` decodes into it: its reference is `Nullable`, or its type, read through decorators and alias
-scalars, is the `null` literal, an enum with a `null` member, the `Any` type or the `any` primitive,
-or a union one of whose variants admits `null`. `null` holds nothing a variant could keep apart, so
-the union holds it itself: every reference to a union with such a variant lowers as a nullable
-reference does ([optionality](models.md#optionality--nullability--presence-inv8)), a `null` never
-reaches a variant, and a variant admitting nothing else lowers to no member. The rule reads through
-unions: `Outer: {anyOf: [{$ref: Inner}, {type: integer}]}` admits `null` when `Inner`'s variants are
+scalars, is the `Any` type or the `any` primitive, or a union one of whose variants admits `null`;
+no enum has a `null` member and no `Literal` a `null` value
+([enums](../../ir/enums.md#the-empty-enum), [containers](../../ir/containers.md#literals)). `null`
+holds nothing a variant could keep apart, so the union holds it itself: every reference to a union
+with such a variant lowers as a nullable reference does
+([optionality](models.md#optionality--nullability--presence-inv8)), a `null` never reaches a
+variant, and a variant admitting nothing else lowers to no member, as a nullable reference to an
+enum with no member does. The OpenAPI compiler lifts a branch of `null` alone onto the union's
+reference itself where the branch is written in place and its own keywords say that `null`
+([union-null-variant](../../compilers/openapi.md#union-null-variant)), so a `$ref` to a
+declaration of `null` alone, a branch whose `null` a union of its own says, and one whose `enum`
+lists a member its `type` excludes, `{type: "null", enum: [null, a]}`, each reach an emitter as
+such a variant. The rule reads through unions:
+`Outer: {anyOf: [{$ref: Inner}, {type: integer}]}` admits `null` when `Inner`'s variants are
 nullable, and holds it, where a rule read only at `Outer`'s own variants would let a `null` reach
-them and match none. Both spellings the compiler can give a null member (#618) then lower alike. The
-golden spec's single-result envelope declares `result` as
+them and match none. The golden spec's single-result envelope declares `result` as
 `anyOf: [{type: object, nullable: true}, {type: string, nullable: true}]`: an object, a string or
 `null`, the last held by the reference.
 
@@ -236,8 +243,9 @@ routes there. A tag routes to a variant where `Discrim.Mapping` names the varian
 as [above](#discriminators). The plan writes a union's routes out: the entries of the IR's
 `Mapping`, or, where the IR leaves it nil, each variant under the source name of its type, the name
 OpenAPI's implicit mapping routes by, which an anonymous variant lacks
-([discriminator](../../ir/models.md#discriminator)). What a mapping naming some variants implies for
-the others is #1702's to decide, and until then such a variant has the routes the IR states, none.
+([discriminator](../../ir/models.md#discriminator)). A `Mapping` holding an entry holds, beside the
+routes declared or inferred, the one the source implies to each variant they leave out, so a variant
+it leaves out has none.
 
 A variant's own tags are the tags routing to it that its tag member admits: every declaration of the
 member in the variant's flattening, the one it takes and those it overrides, admits the value of the
@@ -277,10 +285,11 @@ them admits, recognition holding a value only in a variant that admits it. Witho
 value would decode as one: on the golden spec (spec @bc6fad24, morphic @fa253fe19), 5 of the 145
 unions a property name routes declare no mapping over two inline variants, the `calculations` of the
 `workers-observability` query bodies, each variant pinning `operator` to several values, so the IR
-routes nothing to either. Of the 586 routes of the other 140, 575 lead to a variant that pins the
-tag, 34 of them as a number, 10 to one leaving the member a plain string, as `nsc_Interconnect`'s
-two do, and one to a union. Two variants, those of `infra_ServiceConfig`, admit both `http` and
-`tcp` through a base they share, and 5 variants own several tags, 50 between them.
+routed nothing to either, as it still does with the discriminator-inference policy off. Of the 586
+routes of the other 140, 575 lead to a variant that pins the tag, 34 of them as a number, 10 to one
+leaving the member a plain string, as `nsc_Interconnect`'s two do, and one to a union. Two variants,
+those of `infra_ServiceConfig`, admit both `http` and `tcp` through a base they share, and 5
+variants own several tags, 50 between them.
 
 Writing the tag a value holds, as an encoder that only copies the member does, was the rule this
 replaces: a `nsc_Interconnect` variant built with `type` unset went out as `"type": ""`, which no

@@ -50,7 +50,8 @@ func lowerArray(c lowering.Ctx, ts *compile.Types, depth int, s *oas3.Schema, po
 // listedTuple returns how many schemas s, at pointer, writes `items` as a list
 // of where the rows of its dialect read that list as a tuple, as the drafts
 // before 2020-12 spell one, and false where they do not or it writes no list.
-// A list read so nowhere is the load phase's to report (load.ownedFinding).
+// A list read so nowhere is the table's to report
+// (docs/compilers/openapi.md#tuples).
 func listedTuple(c lowering.Ctx, s *oas3.Schema, pointer jsontext.Pointer) (int, bool) {
 	n, listed := listedItems(s)
 	return n, listed && lowering.SchemaRulesAt(c, pointer).Takes("items", oas.List)
@@ -96,6 +97,7 @@ func buildListedTuple(c lowering.Ctx, ts *compile.Types, depth int, s *oas3.Sche
 		elems = append(elems, ref)
 	}
 	t := &ir.Tuple{TypeCommon: common, Elems: elems, Constraints: collectionConstraints(c, ts, s, pointer)}
+	diags = append(diags, keepPrefixItems(c, &t.Unmodeled, s, pointer)...)
 	rest := ids.Ptr("additionalItems")
 	if js := heldAt(there, site+rest); !annotation.IsFalseSchema(js) {
 		ref, restDiags := Ref(c, ts, depth, js, pointer+rest)
@@ -103,6 +105,22 @@ func buildListedTuple(c lowering.Ctx, ts *compile.Types, depth int, s *oas3.Sche
 		t.Rest = &ref
 	}
 	return t, diags
+}
+
+// keepPrefixItems keeps on p, verbatim, the prefixItems s writes beside the
+// items list its dialect reads as the tuple, which is the dialect's own
+// spelling of one, where no text makes the two one tuple
+// (docs/compilers/openapi.md#tuples), and reports it once.
+func keepPrefixItems(c lowering.Ctx, p *ir.Unmodeled, s *oas3.Schema, pointer jsontext.Pointer) []ir.Diagnostic {
+	if annotation.RawPropertyNode(s, "prefixItems") == nil {
+		return nil
+	}
+	kept, diags := annotation.PreserveSchemaKeyword(p, s, "prefixItems", ir.ReasonDegradedLowering, pointer, c.Place())
+	if kept {
+		diags = append(diags, c.DiagAt(ir.SeverityInfo, diag.DegradedConstruct, pointer+ids.Ptr("prefixItems"),
+			"prefixItems is kept verbatim: this schema's dialect reads its items list as the tuple"))
+	}
+	return diags
 }
 
 // writtenAt returns where s, lowered at pointer, is written: where the
@@ -146,13 +164,9 @@ func ListedTuple(c lowering.Ctx, js *oas3.JSONSchema[oas3.Referenceable]) (
 
 // heldAt returns the schema the bindings hold at pointer of c's document, the
 // one the parser modelled or the load phase built there, and nil where they
-// hold none or c reads another document's content at the source's positions.
+// hold none.
 func heldAt(c lowering.Ctx, pointer jsontext.Pointer) *oas3.JSONSchema[oas3.Referenceable] {
-	at, ok := c.Position(pointer)
-	if !ok {
-		return nil
-	}
-	return c.Bindings().At(at)
+	return c.Bindings().At(c.Position(pointer))
 }
 
 // buildTuple lowers prefixItems into a Tuple's Elems, the items beside them
@@ -162,8 +176,8 @@ func heldAt(c lowering.Ctx, pointer jsontext.Pointer) *oas3.JSONSchema[oas3.Refe
 // leaves no Rest. Any other lowers as a List's items does, under the same name,
 // since /items is named alike whichever node holds it (lowering.NameAt). An absent one
 // lowers to the top type as `items: true` does, though only the latter makes an
-// unevaluatedItems beside it inert (#862). No field is derived from another:
-// Elems is never trimmed to maxItems, and a closed tuple gains no maxItems.
+// unevaluatedItems beside it inert. No field is derived from another: Elems is
+// never trimmed to maxItems, and a closed tuple gains no maxItems.
 func buildTuple(c lowering.Ctx, ts *compile.Types, depth int, s *oas3.Schema, common ir.TypeCommon, pointer jsontext.Pointer, prefix []*oas3.JSONSchema[oas3.Referenceable]) (ir.TypeDef, []ir.Diagnostic) {
 	var diags []ir.Diagnostic
 	elems := make([]ir.TypeRef, 0, len(prefix))
@@ -185,18 +199,20 @@ func buildTuple(c lowering.Ctx, ts *compile.Types, depth int, s *oas3.Schema, co
 // at pointer, which bound the whole instance whether it lowers to a List or a
 // Tuple, met with those the branches of its allOf write for it (positionVoices).
 // Only the integer and boolean bounds are read here, from the parser's model,
-// which holds an integer past int64 as 0 (GitHub #1050); numeric-value bounds go
-// through raw nodes elsewhere to avoid the float64 trap.
+// each count where the model holds the number its literal states
+// (annotation.ExactCount); the census keeps one it does not (keptCount).
 func collectionConstraints(c lowering.Ctx, ts *compile.Types, s *oas3.Schema, pointer jsontext.Pointer) *ir.Constraints {
 	return voicedCollectionBounds(ownCollectionConstraints(s), positionVoices(c, ts, s, pointer, ir.TypeRef{}))
 }
 
-// ownCollectionConstraints reads the collection bounds s itself writes.
+// ownCollectionConstraints reads the collection bounds s itself writes, and nil
+// where it states none.
 func ownCollectionConstraints(s *oas3.Schema) *ir.Constraints {
-	if s.MinItems == nil && s.MaxItems == nil && s.UniqueItems == nil {
+	minItems, maxItems := annotation.ExactCount(s, "minItems", s.MinItems), annotation.ExactCount(s, "maxItems", s.MaxItems)
+	if minItems == nil && maxItems == nil && s.UniqueItems == nil {
 		return nil
 	}
-	cons := &ir.Constraints{MinItems: s.MinItems, MaxItems: s.MaxItems}
+	cons := &ir.Constraints{MinItems: minItems, MaxItems: maxItems}
 	if s.UniqueItems != nil {
 		cons.UniqueItems = *s.UniqueItems
 	}
@@ -208,9 +224,10 @@ func ownCollectionConstraints(s *oas3.Schema) *ir.Constraints {
 // is alike in every dialect, so only this tells the document.
 //
 // It reads the declaration, never what it lowered to, so an array lowering to
-// a tuple or an enum is held to the rule as a List is; that a 3.0 prefixItems
-// lowers at all is GitHub #820. `items: {}` is silent, as is a list, read off
-// the raw node, which no documented parser behaviour models.
+// a tuple or an enum is held to the rule as a List is, a 3.0 prefixItems
+// among them (docs/compilers/openapi.md#later-version-construct). `items: {}`
+// is silent, as is a list, read off the raw node, which no documented parser
+// behaviour models.
 // missingArrayItemsBesideRef holds a $ref site's keywords to it; a subschema
 // kept verbatim never reaches it.
 func missingArrayItems(c lowering.Ctx, s *oas3.Schema, pointer jsontext.Pointer) []ir.Diagnostic {

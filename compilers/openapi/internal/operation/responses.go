@@ -19,6 +19,7 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
 	"github.com/dexpace/morphic/compilers/openapi/internal/resolve"
+	"github.com/dexpace/morphic/compilers/openapi/internal/runtimeexpr"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -76,12 +77,12 @@ func lowerResponses(c lowering.Ctx, w walk, op *ir.Operation, src *soa.Operation
 		if isErrorRange(rng) {
 			ec, drafts, ecDiags := lowerErrorCase(rc, w, r, code, rng, rptr, rr)
 			diags = append(diags, ecDiags...)
-			w.links.add(op.ID, responseSlot{list: slotErrors, index: len(op.Errors)}, drafts)
+			w.links.add(op.ID, responseSlot{list: runtimeexpr.ListErrors, index: len(op.Errors)}, drafts)
 			op.Errors = append(op.Errors, ec)
 		} else {
 			resp, drafts, respDiags := lowerResponse(rc, w, r, code, statusConditions(rng, named), rptr, rr)
 			diags = append(diags, respDiags...)
-			w.links.add(op.ID, responseSlot{list: slotResponses, index: len(op.Responses)}, drafts)
+			w.links.add(op.ID, responseSlot{list: runtimeexpr.ListResponses, index: len(op.Responses)}, drafts)
 			op.Responses = append(op.Responses, resp)
 		}
 	}
@@ -105,7 +106,7 @@ func lowerDefaultResponse(c lowering.Ctx, w walk, op *ir.Operation,
 	resp, drafts, diags := lowerResponse(dc, w, def, defaultResponseKey,
 		statusConditions(statusRange(defaultResponseKey)), dptr, resps.GetDefault())
 	op.Default = &resp
-	w.links.add(op.ID, responseSlot{list: slotDefault}, drafts)
+	w.links.add(op.ID, responseSlot{list: runtimeexpr.ListDefault}, drafts)
 	return diags
 }
 
@@ -176,7 +177,7 @@ func lowerResponseParts(c lowering.Ctx, w walk, r *soa.Response, code string, rp
 	parts := responseParts{name: responseName(code), payload: payload, headers: headers}
 	summary, taken, summaryDiags := responseSummary(c, &parts.unmodeled, r, rptr)
 	diags = append(diags, summaryDiags...)
-	parts.docs = resolve.UseDocs[soa.Response](ref, ir.Docs{Summary: summary, Description: r.GetDescription()})
+	parts.docs = resolve.UseDocs[soa.Response](c.Bindings(), ref, ir.Docs{Summary: summary, Description: r.GetDescription()})
 	links, linkDiags := draftLinks(c, r, rptr)
 	parts.links = links
 	diags = append(diags, linkDiags...)
@@ -307,10 +308,9 @@ func statusConditions(rng ir.StatusRange, ok bool) ir.ResponseConditions {
 //
 // A warning rather than an error: the response itself lowers completely — body,
 // headers, docs, name — and only the status it answers to is unknown, so the
-// document still compiles to IR worth having. It also keeps a fixture carrying
-// one reachable, since harness.Check returns at the first error diagnostic and
-// FuzzCompile skips an input that produces one, which would put every oracle
-// past this point out of reach of the case that provokes it.
+// document still compiles to IR worth having. It also keeps an input carrying
+// one in reach of FuzzCompile, which skips an input that draws an error and so
+// would hold none of its oracles to the case that provokes it.
 func invalidStatusKeyDiag(c lowering.Ctx, code string, entry jsontext.Pointer) ir.Diagnostic {
 	return c.DiagAt(ir.SeverityWarning, diag.InvalidStatusKey, entry,
 		"response key %q is no status code, no 1XX-5XX range, and not %s; "+

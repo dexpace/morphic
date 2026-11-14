@@ -1,0 +1,546 @@
+{
+  "idSpaces": {
+    "auth": [
+      "openapi",
+      "unresolved"
+    ],
+    "e": [
+      "anon",
+      "composed",
+      "openapi"
+    ],
+    "g": [
+      "default",
+      "extension",
+      "path-prefix",
+      "tags",
+      "webhooks"
+    ],
+    "op": [
+      "openapi"
+    ],
+    "p": [
+      "composed",
+      "openapi"
+    ],
+    "param": [
+      "openapi"
+    ],
+    "s": [
+      "openapi"
+    ],
+    "server": [
+      "default",
+      "openapi"
+    ],
+    "t": [
+      "anon",
+      "composed",
+      "openapi"
+    ]
+  },
+  "name": "EnumNullMember",
+  "version": "1.0.0",
+  "docs": {},
+  "services": [
+    {
+      "id": "s/openapi/0",
+      "name": {
+        "source": "EnumNullMember",
+        "canonical": "enum_null_member"
+      },
+      "docs": {},
+      "groups": [
+        {
+          "id": "g/default",
+          "name": {
+            "hint": "default"
+          },
+          "docs": {},
+          "operations": [
+            {
+              "id": "op/openapi/paths/~1zones~1{id}/delete",
+              "name": {
+                "source": "deleteZone",
+                "canonical": "delete_zone"
+              },
+              "docs": {},
+              "params": [
+                {
+                  "id": "param/openapi/paths/~1zones~1{id}/delete/parameters/id/path",
+                  "name": {
+                    "source": "id",
+                    "canonical": "id"
+                  },
+                  "type": {
+                    "target": "t/prim/string",
+                    "nullable": false
+                  },
+                  "required": true,
+                  "docs": {},
+                  "provenance": {
+                    "source": 0,
+                    "pointer": "/paths/~1zones~1{id}/delete/parameters/0"
+                  }
+                }
+              ],
+              "responses": [
+                {
+                  "name": {
+                    "hint": "200"
+                  },
+                  "conditions": {
+                    "statusCodes": [
+                      {
+                        "from": 200,
+                        "to": 200
+                      }
+                    ]
+                  },
+                  "payload": {
+                    "contents": [
+                      {
+                        "mediaType": "application/json",
+                        "type": {
+                          "target": "t/anon/paths/~1zones~1{id}/delete/responses/200/content/application~1json/schema",
+                          "nullable": false
+                        }
+                      }
+                    ]
+                  },
+                  "docs": {
+                    "description": "deleted"
+                  }
+                }
+              ],
+              "oneWay": false,
+              "idempotency": {},
+              "bindings": {
+                "http": [
+                  {
+                    "method": "DELETE",
+                    "uriTemplate": "/zones/{id}",
+                    "paramBindings": [
+                      {
+                        "param": "param/openapi/paths/~1zones~1{id}/delete/parameters/id/path",
+                        "location": "path",
+                        "wireName": "id",
+                        "style": "simple",
+                        "allowReserved": false,
+                        "allowEmptyValue": false
+                      }
+                    ],
+                    "sharedRoute": false,
+                    "checksumRequired": false
+                  }
+                ]
+              },
+              "provenance": {
+                "source": 0,
+                "pointer": "/paths/~1zones~1{id}/delete"
+              }
+            }
+          ]
+        }
+      ],
+      "servers": [
+        "server/default"
+      ],
+      "provenance": {
+        "source": 0
+      }
+    }
+  ],
+  "types": {
+    "t/anon/components/schemas/Mixed/enum/0": {
+      "kind": "literal",
+      "id": "t/anon/components/schemas/Mixed/enum/0",
+      "name": {
+        "hint": "mixed_0"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Mixed/enum/0"
+      },
+      "value": {
+        "kind": "number",
+        "num": "1"
+      },
+      "valueType": "number"
+    },
+    "t/anon/components/schemas/Mixed/enum/1": {
+      "kind": "literal",
+      "id": "t/anon/components/schemas/Mixed/enum/1",
+      "name": {
+        "hint": "mixed_1"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Mixed/enum/1"
+      },
+      "value": {
+        "kind": "string",
+        "str": "x"
+      },
+      "valueType": "string"
+    },
+    "t/anon/paths/~1zones~1{id}/delete/responses/200/content/application~1json/schema": {
+      "kind": "model",
+      "id": "t/anon/paths/~1zones~1{id}/delete/responses/200/content/application~1json/schema",
+      "name": {
+        "hint": "response"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/paths/~1zones~1{id}/delete/responses/200/content/application~1json/schema"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/paths/~1zones~1{id}/delete/responses/200/content/application~1json/schema/properties/result",
+          "name": {
+            "source": "result",
+            "canonical": "result"
+          },
+          "wireName": "result",
+          "type": {
+            "target": "t/anon/paths/~1zones~1{id}/delete/responses/200/content/application~1json/schema/properties/result",
+            "nullable": true
+          },
+          "required": true,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/paths/~1zones~1{id}/delete/responses/200/content/application~1json/schema/properties/result"
+          }
+        },
+        {
+          "id": "p/openapi/paths/~1zones~1{id}/delete/responses/200/content/application~1json/schema/properties/gone",
+          "name": {
+            "source": "gone",
+            "canonical": "gone"
+          },
+          "wireName": "gone",
+          "type": {
+            "target": "t/anon/paths/~1zones~1{id}/delete/responses/200/content/application~1json/schema/properties/gone",
+            "nullable": true
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/paths/~1zones~1{id}/delete/responses/200/content/application~1json/schema/properties/gone"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/anon/paths/~1zones~1{id}/delete/responses/200/content/application~1json/schema/properties/gone": {
+      "kind": "enum",
+      "id": "t/anon/paths/~1zones~1{id}/delete/responses/200/content/application~1json/schema/properties/gone",
+      "name": {
+        "hint": "gone"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/paths/~1zones~1{id}/delete/responses/200/content/application~1json/schema/properties/gone"
+      },
+      "valueType": "any",
+      "closed": true,
+      "flags": false
+    },
+    "t/anon/paths/~1zones~1{id}/delete/responses/200/content/application~1json/schema/properties/result": {
+      "kind": "enum",
+      "id": "t/anon/paths/~1zones~1{id}/delete/responses/200/content/application~1json/schema/properties/result",
+      "name": {
+        "hint": "result"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/paths/~1zones~1{id}/delete/responses/200/content/application~1json/schema/properties/result"
+      },
+      "valueType": "any",
+      "closed": true,
+      "flags": false
+    },
+    "t/openapi/components/schemas/Holder": {
+      "kind": "model",
+      "id": "t/openapi/components/schemas/Holder",
+      "name": {
+        "source": "Holder",
+        "canonical": "holder"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Holder"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/Holder/properties/mixed",
+          "name": {
+            "source": "mixed",
+            "canonical": "mixed"
+          },
+          "wireName": "mixed",
+          "type": {
+            "target": "t/openapi/components/schemas/Mixed",
+            "nullable": true
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Holder/properties/mixed"
+          }
+        },
+        {
+          "id": "p/openapi/components/schemas/Holder/properties/narrowed",
+          "name": {
+            "source": "narrowed",
+            "canonical": "narrowed"
+          },
+          "wireName": "narrowed",
+          "type": {
+            "target": "t/openapi/components/schemas/Narrowed",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Holder/properties/narrowed"
+          }
+        },
+        {
+          "id": "p/openapi/components/schemas/Holder/properties/orNull",
+          "name": {
+            "source": "orNull",
+            "canonical": "or_null"
+          },
+          "wireName": "orNull",
+          "type": {
+            "target": "t/openapi/components/schemas/OrNull",
+            "nullable": true
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Holder/properties/orNull"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/openapi/components/schemas/Mixed": {
+      "kind": "union",
+      "id": "t/openapi/components/schemas/Mixed",
+      "name": {
+        "source": "Mixed",
+        "canonical": "mixed"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Mixed"
+      },
+      "variants": [
+        {
+          "name": {
+            "hint": "mixed_0"
+          },
+          "type": {
+            "target": "t/anon/components/schemas/Mixed/enum/0",
+            "nullable": false
+          },
+          "docs": {}
+        },
+        {
+          "name": {
+            "hint": "mixed_1"
+          },
+          "type": {
+            "target": "t/anon/components/schemas/Mixed/enum/1",
+            "nullable": false
+          },
+          "docs": {}
+        }
+      ],
+      "exclusive": true,
+      "wireTagged": false,
+      "closed": true,
+      "inputOnly": false
+    },
+    "t/openapi/components/schemas/Narrowed": {
+      "kind": "enum",
+      "id": "t/openapi/components/schemas/Narrowed",
+      "name": {
+        "source": "Narrowed",
+        "canonical": "narrowed"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Narrowed"
+      },
+      "valueType": "string",
+      "members": [
+        {
+          "id": "e/openapi/components/schemas/Narrowed/s:a",
+          "name": {
+            "source": "a",
+            "canonical": "a"
+          },
+          "value": {
+            "kind": "string",
+            "str": "a"
+          },
+          "docs": {}
+        }
+      ],
+      "closed": true,
+      "flags": false
+    },
+    "t/openapi/components/schemas/OrNull": {
+      "kind": "scalar",
+      "id": "t/openapi/components/schemas/OrNull",
+      "name": {
+        "source": "OrNull",
+        "canonical": "or_null"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/OrNull"
+      },
+      "base": {
+        "target": "t/openapi/components/schemas/Mixed",
+        "nullable": true
+      }
+    },
+    "t/prim/string": {
+      "kind": "primitive",
+      "id": "t/prim/string",
+      "name": {},
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": -1
+      },
+      "prim": "string"
+    }
+  },
+  "servers": {
+    "server/default": {
+      "id": "server/default",
+      "name": {
+        "hint": "server"
+      },
+      "urlTemplate": "/",
+      "description": {},
+      "provenance": {
+        "source": 0
+      }
+    }
+  },
+  "diagnostics": [
+    {
+      "severity": "info",
+      "code": "openapi/degraded-construct",
+      "message": "heterogeneous or non-scalar enum lowered as a union of literals",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Mixed"
+      }
+    },
+    {
+      "severity": "warning",
+      "code": "openapi/degraded-construct",
+      "message": "enum member null admits no instance: a keyword beside the enum excludes null, and JSON Schema conjoins the two; the member is dropped, and the reference admits no null",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Narrowed/enum/1"
+      }
+    }
+  ],
+  "sources": [
+    {
+      "format": "openapi@3.0",
+      "path": "enum-null-member.yaml",
+      "hash": "73b9632c9cc83f55bed796d2f303c7904c8d30d8e66a3f0ef35320875f04f29a"
+    }
+  ]
+}

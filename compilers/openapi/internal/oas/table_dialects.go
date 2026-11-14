@@ -6,14 +6,18 @@ package oas
 // dialect is a JSON Schema dialect a 3.1 or 3.2 Schema Object can declare,
 // through its `$schema` or its document's jsonSchemaDialect: the URI naming
 // it, what builds the keywords it reads in place of the minor's, nil where
-// they are the minor's own, and whether it ignores the keywords beside a
-// `$ref`, as the drafts before 2019-09 do. The keywords are built only for a
-// dialect a schema names, so a compile naming none pays for no row of one.
+// they are the minor's own, the rules it states beyond the Schema Object's,
+// whether it ignores the keywords beside a `$ref`, as the drafts before
+// 2019-09 do, and, for a draft, whether true and false stand as schemas, as
+// they do from draft 6. The keywords are built only for a dialect a schema
+// names, so a compile naming none pays for no row of one.
 type dialect struct {
 	id               string
 	keywords         func() []Field
+	rules            func() []Rule
 	cites            []Cite
 	ignoresRefFields bool
+	booleans         bool
 }
 
 // schemaDialects are the dialects the table has rows for: the OAS dialect and
@@ -35,13 +39,16 @@ func schemaDialects() []dialect {
 		{id: "https://spec.openapis.org/oas/3.2/dialect/2025-09-17", cites: published},
 		{id: "https://spec.openapis.org/oas/3.2/dialect/2026-02-26", cites: published},
 		{id: "https://json-schema.org/draft/2020-12/schema", cites: []Cite{defined}},
-		{id: "https://json-schema.org/draft/2019-09/schema", keywords: draft2019Keywords, cites: []Cite{others}},
-		{id: "http://json-schema.org/draft-07/schema#", keywords: draft07Keywords, ignoresRefFields: true, cites: []Cite{others,
-			jsonSchemaText(TextDraft07Core)(`8.3. Schema References With "$ref"`, `All other properties in a "$ref" object MUST be ignored.`)}},
-		{id: "http://json-schema.org/draft-06/schema#", keywords: draft06Keywords, ignoresRefFields: true, cites: []Cite{others,
-			jsonSchemaText(TextDraft06Core)(`8. Schema references with $ref`, `All other properties in a "$ref" object MUST be ignored.`)}},
-		{id: "http://json-schema.org/draft-04/schema#", keywords: draft04Keywords, ignoresRefFields: true, cites: []Cite{others,
-			jsonSchemaText(TextJSONReference03)("3. Syntax", `Any members other than "$ref" in a JSON Reference object SHALL be ignored.`)}},
+		{id: "https://json-schema.org/draft/2019-09/schema", keywords: draft2019Keywords, booleans: true, cites: []Cite{others}},
+		{id: "http://json-schema.org/draft-07/schema#", keywords: draft07Keywords, rules: draft07Rules, ignoresRefFields: true,
+			booleans: true, cites: []Cite{others, jsonSchemaText(TextDraft07Core)(`8.3. Schema References With "$ref"`,
+				`All other properties in a "$ref" object MUST be ignored.`)}},
+		{id: "http://json-schema.org/draft-06/schema#", keywords: draft06Keywords, rules: draft06Rules, ignoresRefFields: true,
+			booleans: true, cites: []Cite{others, jsonSchemaText(TextDraft06Core)(`8. Schema references with $ref`,
+				`All other properties in a "$ref" object MUST be ignored.`)}},
+		{id: "http://json-schema.org/draft-04/schema#", keywords: draft04Keywords, rules: draft04Rules, ignoresRefFields: true,
+			cites: []Cite{others, jsonSchemaText(TextJSONReference03)("3. Syntax",
+				`Any members other than "$ref" in a JSON Reference object SHALL be ignored.`)}},
 	}
 }
 
@@ -101,4 +108,37 @@ func draft04Keywords() []Field {
 		keyword("default", Any, s, v(`6.2.1. Valid values`, `There are no restrictions placed on the value of this keyword.`)),
 		keyword("format", String, s, v(`7.1. Foreword`, `It MUST be a string.`)),
 	}
+}
+
+// draft04Rules are what JSON Schema draft 4 requires of its keywords' values
+// beyond the Schema Object's rules: `required` holds an entry, and each entry
+// of `dependencies` is a list of one or more distinct strings, or a schema.
+func draft04Rules() []Rule {
+	v := jsonSchemaText(TextDraft04Validation)
+	dependencies := code(From(V31), "dependencies", "",
+		v(`5.4.5.1. Valid values`, `Each value of this object MUST be either an object or an array.`),
+		v(`5.4.5.1. Valid values`, `If the value is an array, it MUST have at least one element.`))
+	dependencies.Min = 1
+	return []Rule{
+		count(From(V31), Must, "required", 0, v(`5.4.3.1. Valid values`, `This array MUST have at least one element.`)),
+		dependencies,
+	}
+}
+
+// draft06Rules are what JSON Schema draft 6 requires of its keywords' values
+// beyond the Schema Object's rules: each entry of `dependencies` is a list of
+// distinct strings, or a schema.
+func draft06Rules() []Rule {
+	v := jsonSchemaText(TextDraft06Validation)
+	return []Rule{code(From(V31), "dependencies", "",
+		v(`6.21. dependencies`, `Each dependency value MUST be an array or a valid JSON Schema.`),
+		v(`6.21. dependencies`, `If the dependency value is an array, each element in the array, if any, MUST be a string, and MUST be unique.`))}
+}
+
+// draft07Rules are draft06Rules as JSON Schema draft 7 states them.
+func draft07Rules() []Rule {
+	v := jsonSchemaText(TextDraft07Validation)
+	return []Rule{code(From(V31), "dependencies", "",
+		v(`6.5.7. dependencies`, `Each dependency value MUST be an array or a valid JSON Schema.`),
+		v(`6.5.7. dependencies`, `If the dependency value is an array, each element in the array, if any, MUST be a string, and MUST be unique.`))}
 }

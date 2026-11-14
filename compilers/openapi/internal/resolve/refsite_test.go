@@ -43,7 +43,6 @@ func loadBound(t *testing.T, path, src string, opts load.Options, declared ...st
 	require.NotNil(t, doc.Bindings, "the source is bound")
 	return bound{doc: doc, scope: resolve.Scope{
 		SelfPath: path,
-		Doc:      doc.Doc,
 		Bindings: doc.Bindings,
 		Declares: resolve.NewNames(declared...),
 	}}
@@ -79,10 +78,12 @@ const targetsSpec = `
 `
 
 // externalDocument writes ext.yaml, which targetsSpec names, beside a spec in
-// a directory of its own and returns the path the spec is loaded by.
+// a directory of its own, its links resolved as a compile names the files in
+// it, and returns the path the spec is loaded by.
 func externalDocument(t *testing.T) string {
 	t.Helper()
-	dir := t.TempDir()
+	dir, err := filepath.EvalSymlinks(t.TempDir())
+	require.NoError(t, err)
 	body := "components:\n  schemas:\n    E: {type: string, title: external}\n"
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "ext.yaml"), []byte(body), 0o600))
 	return filepath.Join(dir, "spec.yaml")

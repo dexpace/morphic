@@ -13,8 +13,8 @@ import (
 
 // Pointer returns the JSON pointer ref's fragment spells, read as RFC 3986 and
 // RFC 6901 read it: percent escapes decoded and nothing else, so '+' names
-// itself. It is the resolver's reading of ForResolver(ref), so it parts from
-// the resolver's reading of ref on '+' alone. It returns "" for a ref with no
+// itself. It is the parser library's reading of ForResolver(ref), so it parts
+// from the library's reading of ref on '+' alone. It returns "" for a ref with no
 // fragment.
 func Pointer(ref string) jsontext.Pointer {
 	return jsontext.Pointer(references.Reference(ForResolver(ref)).GetJSONPointer())
@@ -27,9 +27,10 @@ func Absolute(ref string) bool {
 	return err == nil && len(u.Scheme) > 1
 }
 
-// ForResolver returns ref spelled so the resolver reads Pointer(ref) from it.
+// ForResolver returns ref spelled so the parser library's pointer reading,
+// which its resolver shares, reads Pointer(ref) from it.
 //
-// The resolver query-unescapes a fragment (references.Reference.GetJSONPointer),
+// The library query-unescapes a fragment (references.Reference.GetJSONPointer),
 // reading '+' as a space, so each '+' in the part it decodes is written "%2B".
 // A fragment it cannot decode it keeps raw, '+' included, so ref is returned
 // unchanged, as it is when that part holds no '+'. The document part, and

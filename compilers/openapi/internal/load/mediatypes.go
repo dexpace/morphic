@@ -27,9 +27,9 @@ import (
 // (docs/parser-library.md#media-type-references): each components/mediaTypes
 // entry of the source, and each content entry written as a $ref, modelled as a
 // refscope.ReferencedMediaType. Every pass of this phase meets them as it meets
-// the source's own reference objects (walkSource), so their references resolve
-// and their findings are reported alike (GitHub #856). The zero value holds
-// none.
+// the source's own reference objects (walkSource), so they are indexed where
+// the binder reads them, and their findings are reported alike (GitHub #856).
+// The zero value holds none.
 type MediaTypes struct {
 	// declared holds each components/mediaTypes entry of the source, in the
 	// order the section is read, with the pointer naming it.
@@ -40,10 +40,9 @@ type MediaTypes struct {
 	// faults why it faulted building one it can.
 	uses   map[*yaml.Node]*refscope.ReferencedMediaType
 	faults map[*yaml.Node]error
-	// canonical holds the model of each Media Type Object of the source that is
-	// no reference, by the mapping it is written as, so a resolution ending on
-	// one is handed it (adopt) rather than the copy the resolver built, whose
-	// references no walk meets.
+	// canonical holds the model of each Media Type Object that is no
+	// reference, by the mapping it is written as, so one declaration is one
+	// model however many walks meet it.
 	canonical map[*yaml.Node]*refscope.ReferencedMediaType
 	// build builds a model, buildMediaType outside a test.
 	build mediaTypeBuild
@@ -60,22 +59,22 @@ type declaredMediaType struct {
 }
 
 // mediaFault is what a walk yields in place of the model of a content entry
-// written as a $ref that the parser faulted building, for the resolution pass
-// to report where the entry is written (resolution.reportFault).
+// written as a $ref that the parser faulted building, for the load phase to
+// report where the entry is written (mediaFaults).
 type mediaFault struct {
 	node *yaml.Node
 	err  error
 }
 
 // Use returns the model of media, a content entry, when its mapping writes a
-// $ref of its own, which is what makes the library read an object as a
-// reference, and whether it does. The model is nil for one whose $ref holds no
-// value, which the rule table reports, one the parser faulted on, which the
-// resolution pass reports, and one no walk of this phase met, inside an object
-// a $ref reaches in the source's raw YAML (GitHub #1320).
+// $ref, read as the model reads a mapping, a `<<` merging one in included, as
+// the binder reads a reference (docs/compilers/openapi.md#references), and
+// whether it does. The model is nil for one whose $ref holds no value, which
+// the rule table reports, and one the parser faulted on, which the load phase
+// reports (mediaFaults).
 func (m MediaTypes) Use(media *soa.MediaType) (*refscope.ReferencedMediaType, bool) {
 	node := nodeview.Deref(media.GetRootNode())
-	if _, writes := ownRef(node); !writes {
+	if _, writes := writtenRef(node); !writes {
 		return nil, false
 	}
 	return m.uses[node], true
@@ -150,18 +149,14 @@ func registerMediaTypeReference() {
 	marshaller.RegisterType(func() *core.Reference[*core.MediaType] { return &core.Reference[*core.MediaType]{} })
 }
 
-// ownRef returns the value of the $ref node writes among its own pairs, as
-// the library tells a reference object (isRefKey), and whether it writes one.
-func ownRef(node *yaml.Node) (*yaml.Node, bool) {
+// writtenRef returns the value of the $ref node writes, read as the model reads
+// a mapping, a `<<` merging one in included, and whether it writes one.
+func writtenRef(node *yaml.Node) (*yaml.Node, bool) {
 	if node == nil || node.Kind != yaml.MappingNode {
 		return nil, false
 	}
-	for i := 0; i+1 < len(node.Content); i += 2 {
-		if isRefKey(node.Content[i]) {
-			return nodeview.Deref(node.Content[i+1]), true
-		}
-	}
-	return nil, false
+	ref := nodeview.Child(node, "$ref")
+	return nodeview.Deref(ref), ref != nil
 }
 
 // unreadableRef reports whether node writes a $ref the parser cannot build a
@@ -169,7 +164,7 @@ func ownRef(node *yaml.Node) (*yaml.Node, bool) {
 // (docs/parser-library.md#recoverable-panic). The rule table reports that
 // $ref, so the entry is left unmodelled rather than reported twice.
 func unreadableRef(node *yaml.Node) bool {
-	ref, writes := ownRef(node)
+	ref, writes := writtenRef(node)
 	return writes && (ref == nil || ref.Kind != yaml.ScalarNode || ref.ShortTag() == "!!null")
 }
 
@@ -195,11 +190,9 @@ func (m MediaTypes) followedByDeclared(ctx context.Context, items iter.Seq[soa.W
 // within yields items and, after each Media Type Object among them, its model,
 // at the same location, modelling it the first time any walk meets its mapping:
 // a content entry is no reference object to the library, so no walk of its own
-// yields one. One written as a $ref is resolved as one, and the model of any
-// other is what a resolution ending on it is handed (adopt), and what load
-// holds where the resolver looks first (external.hold,
-// resolution.holdMediaType), as it cannot take the library's own model for a
-// reference. The zero MediaTypes yields items alone.
+// yields one. One written as a $ref is the reference it is written as, and the
+// model of any other wraps the library's own, so the bindings index a wrapper
+// of each at its position. The zero MediaTypes yields items alone.
 func (m MediaTypes) within(ctx context.Context, items iter.Seq[soa.WalkItem]) iter.Seq[soa.WalkItem] {
 	if m.uses == nil {
 		return items
@@ -234,7 +227,7 @@ func (m MediaTypes) met(ctx context.Context, media *soa.MediaType) any {
 	if node == nil {
 		return nil
 	}
-	if _, writes := ownRef(node); !writes {
+	if _, writes := writtenRef(node); !writes {
 		model, seen := m.canonical[node]
 		if !seen {
 			model = &refscope.ReferencedMediaType{Object: media}
@@ -267,26 +260,6 @@ func (m MediaTypes) buildUse(ctx context.Context, node *yaml.Node) {
 		return
 	}
 	m.uses[node] = model
-}
-
-// adopt hands the reference whose chain c is the model this phase holds of the
-// Media Type Object the chain ended on in the source, in place of the copy the
-// resolver built from the same mapping, and reports whether it did. Only the
-// model's references are met by a walk, and one declaration is then one
-// object however many references reach it.
-func (m MediaTypes) adopt(c chain) bool {
-	if c.cut || c.stopped != "" || len(c.records) == 0 {
-		return false
-	}
-	last := c.records[len(c.records)-1]
-	if !last.inSource() || c.end == nil {
-		return false
-	}
-	model, ok := m.canonical[nodeview.Deref(c.end)]
-	if !ok || model == last.object {
-		return false
-	}
-	return last.replace(model)
 }
 
 // modelItem is the walk item of model, a reference object the library's walk

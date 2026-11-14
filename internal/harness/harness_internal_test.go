@@ -153,7 +153,7 @@ func TestRoundTrips_ReserializeError(t *testing.T) {
 }
 
 func TestDeterministic_MarshalFirstError(t *testing.T) {
-	detail, ok := deterministic(context.Background(), "s", []byte("x"), badExtDoc())
+	detail, ok := deterministic(context.Background(), "s", []byte("x"), badExtDoc(), nil)
 	assert.False(t, ok)
 	assert.Contains(t, detail, "marshal first:")
 }
@@ -165,7 +165,7 @@ func TestDeterministic_RecompileError(t *testing.T) {
 		return nil, nil, errors.New("recompile boom")
 	}
 
-	detail, ok := deterministic(context.Background(), "s", []byte("x"), soundDoc())
+	detail, ok := deterministic(context.Background(), "s", []byte("x"), soundDoc(), nil)
 	assert.False(t, ok)
 	assert.Contains(t, detail, "recompile:")
 }
@@ -178,7 +178,7 @@ func TestDeterministic_MarshalSecondError(t *testing.T) {
 	}
 	reserializeJSON = func(any, ...json.Options) ([]byte, error) { return nil, errors.New("reencode boom") }
 
-	detail, ok := deterministic(context.Background(), "s", []byte("x"), soundDoc())
+	detail, ok := deterministic(context.Background(), "s", []byte("x"), soundDoc(), nil)
 	assert.False(t, ok)
 	assert.Contains(t, detail, "marshal second:")
 }
@@ -191,7 +191,7 @@ func TestDeterministic_MismatchIsReported(t *testing.T) {
 		return &ir.Document{Name: "Different"}, nil, nil
 	}
 
-	detail, ok := deterministic(context.Background(), "s", []byte("x"), soundDoc())
+	detail, ok := deterministic(context.Background(), "s", []byte("x"), soundDoc(), nil)
 	assert.False(t, ok)
 	assert.Contains(t, detail, "IR JSON differs")
 }
@@ -526,8 +526,8 @@ const stubSource = "stub: 1\na: x\nb: y\n"
 // TestCheck_ASecondRegisteredCompilerIsSweptWithEveryOracle is the point of
 // compiling through the registry: a compiler added beside the built-ins gets its
 // files listed, compiled and put through the oracles with no change to the
-// harness. The order oracle is the last of them, so reaching it shows the rest
-// were passed.
+// harness. The order oracle is the last of them, so its finding being the
+// outcome, the first one Check met, shows every oracle before it found nothing.
 func TestCheck_ASecondRegisteredCompilerIsSweptWithEveryOracle(t *testing.T) {
 	for _, tc := range []struct {
 		name       string

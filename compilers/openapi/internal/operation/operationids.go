@@ -127,7 +127,7 @@ func declarations(claims []operationIDClaim, written *writtenTree) []declaration
 // reuse) or resolve to one declaration pointer. A reference naming this
 // document by its file name does both. One through a directory, like
 // ./spec.yaml, is given another document's pointer (GitHub #576), and shares
-// the node, since the resolver answers it from the source as held.
+// the node, since the bindings read it in the source.
 //
 // Neither test can turn a conflict into a reuse, since each identifies one
 // declaration.

@@ -460,6 +460,32 @@
   },
   "diagnostics": [
     {
+      "severity": "warning",
+      "code": "openapi/validation/validation-no-effect",
+      "message": "Schema Object field \"nullable\" has no effect without a \"type\" written in the same Schema Object, to which the specification applies it in OpenAPI 3.0 (Schema Object)",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Holder/properties/untyped/nullable",
+        "position": {
+          "line": 16,
+          "column": 29
+        }
+      }
+    },
+    {
+      "severity": "warning",
+      "code": "openapi/validation/validation-no-effect",
+      "message": "Schema Object field \"nullable\" has no effect without a \"type\" written in the same Schema Object, to which the specification applies it in OpenAPI 3.0 (Schema Object)",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Holder/properties/composed/nullable",
+        "position": {
+          "line": 18,
+          "column": 21
+        }
+      }
+    },
+    {
       "severity": "info",
       "code": "openapi/inferred-nullable",
       "message": "nullable: true is read as admitting null under the nullable-widening policy, though OpenAPI 3.0 applies nullable only to a type written in the same Schema Object, and this schema writes none; a reference whose null rests on it is marked inferred",

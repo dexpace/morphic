@@ -62,9 +62,11 @@ type HTTPBinding struct {
 	// Compression requires the client to compress the request body
 	// (Smithy @requestCompression).
 	Compression *RequestCompression `json:"compression,omitzero"`
-	// PatchImplicitOptionality controls PATCH implicit optionality: nil = protocol
-	// default (PATCH projections make properties optional); false = disabled
-	// (TypeSpec @patch implicitOptionality).
+	// PatchImplicitOptionality says whether a PATCH body makes every member
+	// optional whatever its schema requires (TypeSpec @patch
+	// implicitOptionality): true = it does; false = it does not; nil = the
+	// source states nothing, so the body requires what its schema requires
+	// (docs/ir/http-binding.md#patch-optionality).
 	PatchImplicitOptionality *bool `json:"patchImplicitOptionality,omitzero"`
 	// Unmodeled holds source constructs the IR does not model, kept verbatim.
 	Unmodeled Unmodeled `json:"unmodeled,omitempty"`
@@ -94,13 +96,15 @@ type HTTPBinding struct {
 	PathDocs Docs `json:"pathDocs,omitzero"`
 	// ParamBindings assigns each logical parameter its HTTP location.
 	ParamBindings []HTTPParamBinding `json:"paramBindings,omitempty"`
-	// RequestContentTypes are the priority-ordered request media types.
+	// RequestContentTypes are the request body's media types, as written and in
+	// source order, which states no preference among them.
 	RequestContentTypes []string `json:"requestContentTypes,omitempty"`
 	// Callbacks are out-of-band operations keyed by runtime expressions.
 	Callbacks []Callback `json:"callbacks,omitempty"`
 	// SharedRoute reports that multiple operations legally share method+path,
-	// disambiguated by request content (TypeSpec @sharedRoute); validate must not
-	// reject the duplicate, and single-route emitters must merge.
+	// disambiguated by request content (TypeSpec @sharedRoute) or by nothing on
+	// the wire (OpenAPI path keys differing only in a fragment); validate must
+	// not reject the duplicate, and single-route emitters must merge.
 	SharedRoute bool `json:"sharedRoute"`
 	// ChecksumRequired requires the client to send a payload checksum
 	// (Smithy @httpChecksumRequired).
@@ -137,7 +141,10 @@ type HTTPParamBinding struct {
 	// true under form and cookie, false under any other, and none where Style is
 	// empty, as at querystring.
 	Explode *bool `json:"explode,omitzero"`
-	// AllowReserved permits reserved characters unescaped in the value.
+	// AllowReserved writes the value as RFC 6570's reserved expansion does
+	// (OpenAPI allowReserved): RFC 3986's reserved characters and each
+	// percent-encoded triple pass unescaped, bar those a URL cannot hold where
+	// the value lands (docs/emitters/refine/text.md#escaping).
 	AllowReserved bool `json:"allowReserved"`
 	// AllowEmptyValue permits the client to send the parameter with an empty
 	// value in place of omitting it, which the server reads as the parameter
@@ -145,17 +152,20 @@ type HTTPParamBinding struct {
 	// write an empty value — spaceDelimited, pipeDelimited, deepObject — it has
 	// no effect.
 	AllowEmptyValue bool `json:"allowEmptyValue"`
-	// PathPattern is a multi-segment path pattern constraint for this param
-	// (gRPC transcoding {name=shelves/*/books/*}); "" = single segment. The URI
-	// template uses reserved expansion; emitters that cannot validate the pattern
-	// drop it with a diagnostic.
+	// PathPattern is the pattern of path segments the param fills (gRPC
+	// transcoding {name=shelves/*/books/*}); "" = one segment. Where it names
+	// several, holding a / or a **, the value is percent-encoded in all but /
+	// and RFC 3986's unreserved characters, a % among them, so each / cuts a
+	// segment, whatever AllowReserved says
+	// (docs/emitters/refine/text.md#escaping). A consumer that cannot check a
+	// value against the pattern skips that check, never the escaping.
 	PathPattern string `json:"pathPattern,omitempty"`
-	// Prefix spreads a map-typed param as prefixed wire entries: prefixed headers
-	// (Smithy @httpPrefixHeaders) or catch-all query maps (@httpQueryParams with
-	// Prefix ""). An empty Prefix also means a binding of one field, so neither
-	// @httpQueryParams nor @httpPrefixHeaders("") has a spelling yet (GitHub
-	// #1748).
-	Prefix string `json:"prefix,omitempty"`
+	// Prefix, when set, spreads a map-typed param over the headers, or the query
+	// parameters, whose names start with it, each entry named by the prefix
+	// followed by its key, and "" takes every name (Smithy @httpPrefixHeaders,
+	// @httpQueryParams); such a binding sets no WireName. nil = the one field
+	// WireName names (docs/ir/http-binding.md#prefix-bindings).
+	Prefix *string `json:"prefix,omitzero"`
 	// ContentType serializes the param as a media type (OpenAPI content-style
 	// params).
 	ContentType string `json:"contentType,omitempty"`
@@ -173,9 +183,10 @@ const (
 	// HTTPInboundWebhook is a request the API sends on an event, to a URL
 	// arranged outside the document (OpenAPI webhooks).
 	HTTPInboundWebhook HTTPInbound = "webhook"
-	// HTTPInboundCallback is a request the API sends to a URL an operation the
-	// client sent supplies, which that operation's binding lists among its
-	// Callbacks (OpenAPI callbacks).
+	// HTTPInboundCallback is a request the API sends to a URL the exchange of
+	// the operation declaring it supplies, one the client sent or one the API
+	// sent in turn, whose binding lists it among its Callbacks (OpenAPI
+	// callbacks).
 	HTTPInboundCallback HTTPInbound = "callback"
 )
 

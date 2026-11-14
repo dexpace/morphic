@@ -7,8 +7,11 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
+	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
+	"github.com/dexpace/morphic/ir"
 )
 
 // TestUse_ALoopOfNarrowingEnumsEnds pins the bound on what one use reads on
@@ -199,4 +202,95 @@ func TestUse_ANarrowingOfTwoRefsLendsNothing(t *testing.T) {
 	openapitest.RequireNoErrorDiags(t, diags)
 	p := propertyOf(t, doc, "Holder", "f")
 	assert.Empty(t, firstDocs(doc, p).Description)
+}
+
+// TestUse_ADraftsTupleRestLeavesUnevaluatedItemsInert pins the dialect a site
+// reads an unevaluatedItems in (docs/compilers/openapi.md#validation-only): a
+// draft reading an `items` list as a tuple leaves the keyword inert beside the
+// `additionalItems` past the list, and live with none, and an `items` schema
+// leaves it inert in any dialect.
+func TestUse_ADraftsTupleRestLeavesUnevaluatedItemsInert(t *testing.T) {
+	t.Parallel()
+	const draft = "$schema: 'https://json-schema.org/draft/2019-09/schema', type: array, "
+	doc, diags := parseFull(t, openapitest.ComponentSpecVer("3.1.0",
+		"    Rest: {"+draft+"items: [{type: string}], additionalItems: {type: integer}, unevaluatedItems: false}\n"+
+			"    NoRest: {"+draft+"items: [{type: string}], unevaluatedItems: false}\n"+
+			"    Schema: {"+draft+"items: {type: string}, unevaluatedItems: false}\n"))
+	openapitest.RequireNoErrorDiags(t, diags)
+	for name, want := range map[string]string{
+		"Rest":   `{"additionalItems":{"type":"integer"},"unevaluatedItems":false}`,
+		"NoRest": `{"unevaluatedItems":false}`,
+		"Schema": `{"items":{"type":"string"},"unevaluatedItems":false}`,
+	} {
+		kept, ok := typeByName(doc, name).Common().Unmodeled["openapi:unevaluated"]
+		require.True(t, ok, name)
+		assert.Equal(t, want, string(kept.Value), name)
+	}
+}
+
+// TestUse_ADecoratorOverADeprecatedBaseReadsItsMembers pins the 3.0 spelling of
+// a use against the 3.1 one: a decorator over a target a keyword or a key
+// deprecates is deprecated through it, so a member key beside its allOf
+// annotates that deprecation on the decorator, as beside a $ref it annotates
+// the carrier's. A decorator over a live target, or one writing no member,
+// takes no Deprecation.
+func TestUse_ADecoratorOverADeprecatedBaseReadsItsMembers(t *testing.T) {
+	t.Parallel()
+	doc, diags := parseFull(t, openapitest.ComponentSpecVer("3.1.0", `    Old: {type: object, deprecated: true, properties: {a: {type: string}}}
+    Stated: {type: object, x-stability: deprecated, properties: {a: {type: string}}}
+    Live: {type: object, properties: {a: {type: string}}}
+    Holder:
+      type: object
+      properties:
+        beside: {$ref: '#/components/schemas/Old', x-sunset: "2099-01-01"}
+        besideStated: {$ref: '#/components/schemas/Stated', x-sunset: "2099-01-01"}
+        wrapped: {allOf: [{$ref: '#/components/schemas/Old'}], x-sunset: "2099-01-01"}
+        wrappedStated: {allOf: [{$ref: '#/components/schemas/Stated'}], x-sunset: "2099-01-01"}
+        live: {allOf: [{$ref: '#/components/schemas/Live'}], x-sunset: "2099-01-01"}
+        bare: {allOf: [{$ref: '#/components/schemas/Old'}], description: d}
+`))
+	openapitest.RequireNoErrorDiags(t, diags)
+	want := &ir.Deprecation{RemovalDate: "2099-01-01"}
+	assert.Equal(t, want, propertyOf(t, doc, "Holder", "beside").Deprecation)
+	assert.Equal(t, want, propertyOf(t, doc, "Holder", "besideStated").Deprecation)
+	for wire, dep := range map[string]*ir.Deprecation{"wrapped": want, "wrappedStated": want, "live": nil, "bare": nil} {
+		decorator := doc.Types[propertyOf(t, doc, "Holder", wire).Type.Target].Common()
+		assert.Equal(t, dep, decorator.Deprecation, wire)
+		assert.Equal(t, dep != nil, decorator.Provenance.Inferred == lowering.ExtensionPromotionHeuristic, wire)
+	}
+}
+
+// TestUse_AUnionBesideAnAllOfReadsThroughOnlyARefinement pins what a carrier
+// reads past an allOf a union stands beside: through one refining to its $ref,
+// at the position and past a $ref to a schema writing it, as past any
+// refinement, and through none that composes, which the union distributes
+// across (docs/compilers/openapi.md#allof-refinement).
+func TestUse_AUnionBesideAnAllOfReadsThroughOnlyARefinement(t *testing.T) {
+	t.Parallel()
+	for _, doc := range discriminatedOrders(t, "3.1.0", `    Holder:
+      type: object
+      properties:
+        refines: {allOf: [{$ref: '#/components/schemas/Str'}], anyOf: [{type: string}, {type: number}], description: mine}
+        viaRefines: {$ref: '#/components/schemas/Refines'}
+        composes: {allOf: [{$ref: '#/components/schemas/Stamp'}], oneOf: [{$ref: '#/components/schemas/A'}, {$ref: '#/components/schemas/B'}]}
+        viaComposes: {$ref: '#/components/schemas/Composes'}
+    Refines: {allOf: [{$ref: '#/components/schemas/Str'}], anyOf: [{type: string}, {type: number}]}
+    Composes: {allOf: [{$ref: '#/components/schemas/Stamp'}], oneOf: [{$ref: '#/components/schemas/A'}, {$ref: '#/components/schemas/B'}]}
+`, `    Str: {type: string, default: lent, description: from Str}
+    Stamp: {type: object, default: {at: 1}, properties: {at: {type: integer}}}
+    A: {type: object, properties: {a: {type: string}}}
+    B: {type: object, properties: {b: {type: string}}}
+`) {
+		refines := propertyOf(t, doc, "Holder", "refines")
+		assert.Equal(t, "mine", refines.Docs.Description, "what the position writes speaks first")
+		for _, wire := range []string{"refines", "viaRefines"} {
+			p := propertyOf(t, doc, "Holder", wire)
+			require.NotNil(t, p.Default, wire)
+			assert.Equal(t, "lent", p.Default.Str, wire)
+		}
+		assert.Equal(t, "from Str", propertyOf(t, doc, "Holder", "viaRefines").Docs.Description)
+		for _, wire := range []string{"composes", "viaComposes"} {
+			assert.Nil(t, propertyOf(t, doc, "Holder", wire).Default, wire)
+		}
+	}
 }

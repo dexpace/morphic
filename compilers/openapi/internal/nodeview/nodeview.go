@@ -76,7 +76,7 @@ type Pair struct {
 // View reads a raw yaml.Node tree as speakeasy's unmarshaller does,
 // dereferencing aliases and expanding `<<` merge keys (yml.ResolveAlias,
 // yml.ResolveMergeKeys). A cycle the scan misses because it reads a different
-// tree than the resolver faults the process (GitHub #26), so every mapping read
+// tree than the library faults the process (GitHub #26), so every mapping read
 // in this file goes through a View.
 //
 // It memoizes each mapping's expansion, since otherwise a merge chain goes
@@ -467,6 +467,58 @@ func (v *View) mergeSource(val *yaml.Node, depth int) expansion {
 		e.repeated = cmp.Or(e.repeated, got.sourceRepeat())
 	}
 	return e
+}
+
+// MergeSources returns what the `<<` value val names: each element of a list
+// written or aliased there, or val itself.
+func MergeSources(val *yaml.Node) []*yaml.Node {
+	if v := Deref(val); v != nil && v.Kind == yaml.SequenceNode {
+		return v.Content
+	}
+	return []*yaml.Node{val}
+}
+
+// NotMapping reports whether src, followed through its alias, is no mapping,
+// so a `<<` naming it merges nothing (docs/parser-library.md#merge-keys).
+func NotMapping(src *yaml.Node) bool {
+	s := Deref(src)
+	return s == nil || s.Kind != yaml.MappingNode
+}
+
+// MergesNothing reports whether a `<<` of the mapping n, or of a mapping a `<<`
+// merges in at any depth, names something that is no mapping, which merges
+// nothing (docs/parser-library.md#merge-keys). n is dereferenced, and a node
+// that is no mapping writes no `<<`.
+//
+// It reads the merges to their end, as the parser does, where View stops at
+// MergeDepthLimit: a mapping the chain shows no fault in is one the parser reads
+// whole. Each mapping is read once, however many aliases reach it, so the work
+// is bounded by the tree rather than by the paths through it.
+func MergesNothing(n *yaml.Node) bool {
+	n = Deref(n)
+	if n == nil || n.Kind != yaml.MappingNode {
+		return false
+	}
+	seen := map[*yaml.Node]bool{n: true}
+	for todo := []*yaml.Node{n}; len(todo) > 0; {
+		m := todo[len(todo)-1]
+		todo = todo[:len(todo)-1]
+		for i := 0; i+1 < len(m.Content); i += 2 {
+			if !IsMergeKey(m.Content[i]) {
+				continue
+			}
+			for _, src := range MergeSources(m.Content[i+1]) {
+				if NotMapping(src) {
+					return true
+				}
+				if s := Deref(src); !seen[s] {
+					seen[s] = true
+					todo = append(todo, s)
+				}
+			}
+		}
+	}
+	return false
 }
 
 // DocumentPath walks pointer, a position in this document, from root as RFC

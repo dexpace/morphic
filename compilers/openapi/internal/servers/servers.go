@@ -78,8 +78,8 @@ func (r *Registry) Root(c lowering.Ctx) ([]ir.ServerID, []ir.Diagnostic) {
 //
 // A nil entry, which no valid document writes, lowers nothing and keeps the
 // index it occupies, so the next entry's ID is still its own position. An empty
-// list declares nothing, as an absent one does: whether it should override the
-// list above it is undecided (GitHub #1081).
+// list declares nothing, as an absent one does, and so overrides nothing above
+// it (docs/compilers/openapi.md#path-item-servers).
 func (r *Registry) Declared(c lowering.Ctx, list []*soa.Server, owner jsontext.Pointer) ([]ir.ServerID, []ir.Diagnostic) {
 	if len(list) == 0 {
 		return nil, nil
@@ -137,7 +137,16 @@ func lowerServer(c lowering.Ctx, s *soa.Server, id ir.ServerID, sptr jsontext.Po
 		Unmodeled:   ext,
 		Provenance:  c.Place().At(sptr),
 	}
-	return out, append(diags, annotation.UnknownKeysIn(&out.Unmodeled, s, c.Place(), sptr)...)
+	diags = append(diags, annotation.UnknownKeysIn(&out.Unmodeled, s, c.Place(), sptr)...)
+	if s.GetName() != "" {
+		return out, diags
+	}
+	// Only a name the document declares nowhere else is a key's to give.
+	name, promoted := lowering.ServerName(c.Promoter(), out.Unmodeled, &out.Provenance)
+	if name != "" {
+		out.Name = ir.NamingFor(name)
+	}
+	return out, append(diags, promoted...)
 }
 
 // serverName builds a server's neutral naming: the declared name (only OpenAPI

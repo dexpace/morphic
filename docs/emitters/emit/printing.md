@@ -10,8 +10,8 @@ formatter (`go/format.Source`, Python `black`, TS `prettier`), which is the cano
 formatting. Indentation, spacing, and import ordering stop being the emitter's problem — an entire
 class of whitespace/import-order bugs is eliminated by delegation. A language whose formatter Go
 cannot call in process, as Kotlin's, takes the other route: its printer lays out canonical code
-itself, and the formatter runs as a check in the verify stage, outside `Generate` ([Kotlin
-formatting](../targets/kotlin/overview.md#formatting)).
+itself, and the formatter runs as one of the target's checks, outside `Generate`
+([Kotlin formatting](../targets/kotlin/overview.md#formatting)).
 
 ## Determinism, and the velocity answer
 

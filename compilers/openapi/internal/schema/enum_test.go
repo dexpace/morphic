@@ -144,97 +144,195 @@ func TestEnum_NullMemberNormalizesToNullable(t *testing.T) {
 	}
 }
 
-// TestEnum_NullMemberKeepsUnionFallback pins the other half of #44: a member
-// set the normalization must not touch still lowers to a union of literals,
-// with its info diagnostic and every member preserved.
+// TestEnum_NullIsNeverAMember pins docs/compilers/openapi.md#enum-const for a
+// `null` entry beside members an Enum cannot hold, or beside none: the null is
+// no variant and no member, but the reference's Nullable bit, as the `oneOf`
+// spelling of the same set lowers (GitHub #618). Where a keyword beside the enum
+// excludes null, the entry admits nothing: it is dropped with a warning at it,
+// and the reference stays non-nullable.
 //
-// The last two rows bound the rule: a type keyword excluding null conjoins with
-// the enum, so its `null` member admits nothing and normalizing would widen the
-// declared type; an all-null set has no member left to build an Enum from.
-//
-// wantNullable is asserted beside the variants because the two must agree: a
-// fallback keeping the null while the reference denies it leaves a position an
-// emitter cannot generate.
-func TestEnum_NullMemberKeepsUnionFallback(t *testing.T) {
+// Each position of the null is a row, since a reading by index could keep one
+// and not another, and a repeated null leaves the union exclusive.
+func TestEnum_NullIsNeverAMember(t *testing.T) {
 	t.Parallel()
-	null := ir.Value{Kind: ir.ValueNull}
+	one := ir.Value{Kind: ir.ValueNumber, Num: ir.BigVal("1")}
+	a := ir.Value{Kind: ir.ValueString, Str: "a"}
 	cases := []struct {
 		name, version, schema string
-		wantVariants          []ir.Value
+		wantVariants          []ir.Value // nil: an Enum, of wantMembers
+		wantMembers           []ir.Value
 		wantNullable          bool
+		wantDropped           string // the pointer, under the property, of the null reported as admitting nothing
 	}{
-		{
-			name:    "heterogeneous members beside a null member",
-			version: "3.1.0",
-			schema:  `{type: [string, "null"], enum: [1, a, null]}`,
-			wantVariants: []ir.Value{
-				{Kind: ir.ValueNumber, Num: ir.BigVal("1")},
-				{Kind: ir.ValueString, Str: "a"},
-				null,
-			},
-			wantNullable: true,
-		},
-		{
-			// The bare spelling of the row above: no type keyword, so the members
-			// decide, and they say the same thing the type array did.
-			name:    "heterogeneous members, no type keyword",
-			version: "3.1.0",
-			schema:  `{enum: [1, a, null]}`,
-			wantVariants: []ir.Value{
-				{Kind: ir.ValueNumber, Num: ir.BigVal("1")},
-				{Kind: ir.ValueString, Str: "a"},
-				null,
-			},
-			wantNullable: true,
-		},
-		{
-			name:    "type keyword excludes null",
-			version: "3.1.0",
-			schema:  `{type: string, enum: [red, green, null]}`,
-			wantVariants: []ir.Value{
-				{Kind: ir.ValueString, Str: "red"},
-				{Kind: ir.ValueString, Str: "green"},
-				null,
-			},
-			wantNullable: false,
-		},
-		{
-			name:         "every member is null",
-			version:      "3.1.0",
-			schema:       `{type: ["null"], enum: [null]}`,
-			wantVariants: []ir.Value{null},
-			wantNullable: true,
-		},
+		{name: "heterogeneous, null last", version: "3.1.0", schema: `{type: [integer, string, "null"], enum: [1, a, null]}`,
+			wantVariants: []ir.Value{one, a}, wantNullable: true},
+		{name: "heterogeneous, null first", version: "3.1.0", schema: `{enum: [null, 1, a]}`,
+			wantVariants: []ir.Value{one, a}, wantNullable: true},
+		{name: "heterogeneous, null between", version: "3.0.3", schema: `{enum: [1, null, a]}`,
+			wantVariants: []ir.Value{one, a}, wantNullable: true},
+		{name: "heterogeneous, null repeated", version: "3.1.0", schema: `{enum: [1, null, a, null]}`,
+			wantVariants: []ir.Value{one, a}, wantNullable: true},
+		{name: "heterogeneous, a type excludes null", version: "3.1.0", schema: `{type: [integer, string], enum: [1, a, null]}`,
+			wantVariants: []ir.Value{one, a}, wantDropped: "/enum/2"},
+		{name: "one kind, a type excludes null", version: "3.1.0", schema: `{type: string, enum: [a, null]}`,
+			wantMembers: []ir.Value{a}, wantDropped: "/enum/1"},
+		{name: "one kind, 3.0 with no nullable", version: "3.0.3", schema: `{type: string, enum: [a, null]}`,
+			wantMembers: []ir.Value{a}, wantDropped: "/enum/1"},
+		{name: "null alone, 3.0 nullable object", version: "3.0.3", schema: `{type: object, enum: [null], nullable: true}`,
+			wantMembers: []ir.Value{}, wantNullable: true},
+		{name: "null alone, 3.1 type array", version: "3.1.0", schema: `{type: [object, "null"], enum: [null]}`,
+			wantMembers: []ir.Value{}, wantNullable: true},
+		{name: "null alone, no type", version: "3.1.0", schema: `{enum: [null, null]}`,
+			wantMembers: []ir.Value{}, wantNullable: true},
+		{name: "null alone, a type excludes it", version: "3.1.0", schema: `{type: object, enum: [null]}`,
+			wantMembers: []ir.Value{}, wantDropped: "/enum/0"},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			doc, diags := schema.LowerSpec(t, enumPropertySpec(tc.version, tc.schema))
 			openapitest.RequireNoErrorDiags(t, diags)
-			assert.True(t, openapitest.HasDiagAt(diags, diag.DegradedConstruct, ir.SeverityInfo),
-				"the degraded-enum diagnostic still fires; got %+v", diags)
+			const at = "/components/schemas/S/properties/p"
 
 			owner, ok := doc.Types[componentID("S")].(*ir.Model)
 			require.True(t, ok, "S is a model")
 			require.Len(t, owner.Properties, 1)
 			assert.Equal(t, tc.wantNullable, owner.Properties[0].Type.Nullable,
-				"the reference agrees with the members the fallback kept")
+				"the reference alone says whether the position admits null")
 
-			u, ok := doc.Types[ir.TypeID("t/anon/components/schemas/S/properties/p")].(*ir.Union)
-			require.True(t, ok, "the property lowers to a union of literals")
-			require.Len(t, u.Variants, len(tc.wantVariants))
+			got, isUnion := enumValuesAt(t, doc, ir.TypeID("t/anon"+at))
+			assert.Equal(t, tc.wantVariants != nil, isUnion, "an Enum unless the non-null members are of several kinds")
+			want := tc.wantMembers
+			if tc.wantVariants != nil {
+				want = tc.wantVariants
+			}
+			if diff := cmp.Diff(want, got); diff != "" {
+				t.Errorf("no member or variant holds the null (-want +got):\n%s", diff)
+			}
+			assert.Equal(t, isUnion, openapitest.HasDiagAt(diags, diag.DegradedConstruct, ir.SeverityInfo),
+				"only a union reports its kind; got %+v", diags)
 
-			got := make([]ir.Value, 0, len(u.Variants))
-			for _, v := range u.Variants {
-				lit, isLit := doc.Types[v.Type.Target].(*ir.Literal)
-				require.True(t, isLit, "every variant is a hoisted Literal")
-				got = append(got, lit.Value)
+			var wantDropped []jsontext.Pointer
+			if tc.wantDropped != "" {
+				wantDropped = []jsontext.Pointer{jsontext.Pointer(at + tc.wantDropped)}
 			}
-			if diff := cmp.Diff(tc.wantVariants, got); diff != "" {
-				t.Errorf("every declared member survives as a literal (-want +got):\n%s", diff)
-			}
+			assert.Equal(t, wantDropped, degradedWarnings(diags),
+				"a null the schema excludes is reported at itself, and only it")
 		})
 	}
+}
+
+// TestEnum_NullAgreesWithTheOneOfSpelling holds the two spellings of one value
+// set, an enum and a oneOf of consts and null, to one reading: a union of the
+// same values whose reference alone admits null (GitHub #618).
+func TestEnum_NullAgreesWithTheOneOfSpelling(t *testing.T) {
+	t.Parallel()
+	read := func(body string) ([]ir.Value, bool) {
+		doc, diags := schema.LowerSpec(t, enumPropertySpec("3.1.0", body))
+		openapitest.RequireNoErrorDiags(t, diags)
+		owner, ok := doc.Types[componentID("S")].(*ir.Model)
+		require.True(t, ok)
+		got, isUnion := enumValuesAt(t, doc, owner.Properties[0].Type.Target)
+		require.True(t, isUnion, "%s lowers to a union", body)
+		return got, owner.Properties[0].Type.Nullable
+	}
+	enumValues, enumNull := read(`{enum: [1, x, null]}`)
+	oneOfValues, oneOfNull := read(`{oneOf: [{const: 1}, {const: x}, {type: "null"}]}`)
+	if diff := cmp.Diff(oneOfValues, enumValues); diff != "" {
+		t.Errorf("the two spellings hold different values (-oneOf +enum):\n%s", diff)
+	}
+	assert.True(t, enumNull, "the null is the reference's")
+	assert.Equal(t, oneOfNull, enumNull)
+}
+
+// TestConst_NullLowersAsAnEnumOfNullAlone holds `const: null` to the node
+// `enum: [null]` lowers to beside the same keywords: a closed Enum with no
+// member, typed alike, behind a reference that alone says whether the position
+// admits null, and the same warning where a keyword beside it excludes null. No
+// Literal holds a null (docs/ir/containers.md#literals). A union branch of
+// either is the union's null (TestUnion_EverySpellingOfANullBranchLowersAlike).
+func TestConst_NullLowersAsAnEnumOfNullAlone(t *testing.T) {
+	t.Parallel()
+	read := func(t *testing.T, body string) (*ir.Enum, bool, []jsontext.Pointer) {
+		t.Helper()
+		doc, diags := schema.LowerSpec(t, enumPropertySpec("3.1.0", body))
+		openapitest.RequireNoErrorDiags(t, diags)
+		for id, td := range doc.Types {
+			lit, isLit := td.(*ir.Literal)
+			assert.False(t, isLit && lit.Value.Kind == ir.ValueNull, "%s is a Literal of null", id)
+		}
+		owner, ok := doc.Types[componentID("S")].(*ir.Model)
+		require.True(t, ok)
+		ref := owner.Properties[0].Type
+		enum, ok := doc.Types[ref.Target].(*ir.Enum)
+		require.True(t, ok, "%s lowers to an Enum, got %T", body, doc.Types[ref.Target])
+		return enum, ref.Nullable, degradedWarnings(diags)
+	}
+	for _, tc := range []struct {
+		name, beside string
+		nullable     bool
+	}{
+		{name: "alone", nullable: true},
+		{name: "a null type", beside: `type: "null", `, nullable: true},
+		{name: "a nullable string", beside: `type: [string, "null"], `, nullable: true},
+		{name: "a string excluding null", beside: `type: string, `},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			body := func(set string) string { return "{" + tc.beside + set + "}" }
+			got, gotNull, gotWarned := read(t, body("const: null"))
+			want, wantNull, wantWarned := read(t, body("enum: [null]"))
+			assert.Empty(t, got.Members, "no member holds the null")
+			assert.True(t, got.Closed)
+			assert.Empty(t, got.Unmodeled, "the const and a type beside it are read, so nothing is kept verbatim")
+			assert.Equal(t, want.ValueType, got.ValueType, "typed as the enum spelling is")
+			assert.Equal(t, tc.nullable, gotNull, "the reference alone admits the null")
+			assert.Equal(t, wantNull, gotNull)
+			assert.Len(t, gotWarned, len(wantWarned), "warned where the enum spelling is")
+			for _, at := range gotWarned {
+				assert.True(t, strings.HasSuffix(string(at), "/const"), "the warning is at the const, got %s", at)
+			}
+			assert.Equal(t, !tc.nullable, len(gotWarned) == 1, "a null the type excludes is reported")
+		})
+	}
+}
+
+// enumValuesAt returns the values the enum lowered at id holds: an Enum's
+// members, or the values of a Union's Literal variants, and whether it is the
+// Union.
+func enumValuesAt(t *testing.T, doc *ir.Document, id ir.TypeID) ([]ir.Value, bool) {
+	t.Helper()
+	got := []ir.Value{}
+	switch n := doc.Types[id].(type) {
+	case *ir.Enum:
+		for _, m := range n.Members {
+			got = append(got, m.Value)
+		}
+		return got, false
+	case *ir.Union:
+		for _, v := range n.Variants {
+			lit, ok := doc.Types[v.Type.Target].(*ir.Literal)
+			require.True(t, ok, "every variant is a hoisted Literal")
+			got = append(got, lit.Value)
+		}
+		assert.True(t, n.Exclusive, "no two variants hold one value")
+		return got, true
+	default:
+		require.Failf(t, "the enum lowers to an Enum or a Union", "got %T", n)
+		return nil, false
+	}
+}
+
+// degradedWarnings returns the pointers of diags' openapi/degraded-construct
+// warnings, in order.
+func degradedWarnings(diags []ir.Diagnostic) []jsontext.Pointer {
+	var out []jsontext.Pointer
+	for _, d := range diags {
+		if d.Code == diag.DegradedConstruct && d.Severity == ir.SeverityWarning {
+			out = append(out, d.Provenance.Pointer)
+		}
+	}
+	return out
 }
 
 // TestEnum_EmptyMemberListMatchesNoValue pins what `enum: []` lowers to. It is
@@ -485,6 +583,65 @@ func TestEnum_ValueTypeReadsTheFormatItsMembersFit(t *testing.T) {
 			assert.Equal(t, tc.kept, kept)
 			assert.Equal(t, tc.kept, openapitest.HasDiagCodeAt(diags, diag.DegradedConstruct, "/components/schemas/E"),
 				"the format is reported exactly where it is kept: %+v", diags)
+		})
+	}
+}
+
+// TestEnum_AMemberNoTypeAdmitsIsReportedAndKept pins
+// docs/compilers/openapi.md#enum-const for a member the declared type rejects:
+// JSON Schema conjoins the two, so no instance matches it, which is a warning at
+// the member (GitHub #619). The members lower as written, and the Enum's
+// ValueType is theirs, never a type they are not values of, which the census
+// keeps verbatim instead. A YAML !!binary is a string's text to the type and
+// bytes to the ValueType, a format of string (GitHub #1453).
+func TestEnum_AMemberNoTypeAdmitsIsReportedAndKept(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name     string
+		schema   string
+		want     ir.PrimKind // "" for a union of literals
+		rejected []string    // the entries reported, under the schema
+	}{
+		{"strings under integer", `{type: integer, enum: [a, b]}`, ir.PrimString, []string{"/enum/0", "/enum/1"}},
+		{"numbers under string", `{type: string, enum: [1, 2]}`, ir.PrimNumber, []string{"/enum/0", "/enum/1"}},
+		{"binary under string", `{type: string, enum: [!!binary aGk=]}`, ir.PrimBytes, nil},
+		{"binary beside a string", `{type: string, enum: [a, !!binary aGk=]}`, "", nil},
+		{"binary under integer", `{type: integer, enum: [!!binary aGk=]}`, ir.PrimBytes, []string{"/enum/0"}},
+		{"a fraction and a string under integer", `{type: integer, enum: [1, 2, three, 4.5]}`, "",
+			[]string{"/enum/2", "/enum/3"}},
+		{"a type array", `{type: [string, integer], enum: [a, 1, true]}`, "", []string{"/enum/2"}},
+		{"an object under string", `{type: string, enum: [a, {b: 1}]}`, "", []string{"/enum/1"}},
+		{"an integer written with a point", `{type: integer, enum: [1.0, 2]}`, ir.PrimInteger, nil},
+		{"binary with no type", `{enum: [!!binary aGk=, !!binary aG8=]}`, ir.PrimBytes, nil},
+		{"members of their type", `{type: number, enum: [1, 2.5]}`, ir.PrimNumber, nil},
+		{"a string under null alone", `{type: "null", enum: [a, null]}`, ir.PrimString, []string{"/enum/0"}},
+		{"numbers under a null list", `{type: ["null"], enum: [1, 2]}`, ir.PrimNumber, []string{"/enum/0", "/enum/1"}},
+		{"a string under a nullable integer", `{type: [integer, "null"], enum: [a, null]}`, ir.PrimString,
+			[]string{"/enum/0"}},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			doc, diags := schema.LowerSpec(t, openapitest.ComponentSpec("    E: "+tc.schema+"\n"))
+			openapitest.RequireNoErrorDiags(t, diags)
+			const at = "/components/schemas/E"
+			var want []jsontext.Pointer
+			for _, r := range tc.rejected {
+				want = append(want, jsontext.Pointer(at+r))
+			}
+			assert.Equal(t, want, degradedWarnings(diags), "each member no type admits, and only it")
+
+			e, isEnum := doc.Types[componentID("E")].(*ir.Enum)
+			assert.Equal(t, tc.want != "", isEnum, "got %T", doc.Types[componentID("E")])
+			if isEnum {
+				assert.Equal(t, tc.want, e.ValueType, "the members' primitive")
+				_, kept := e.Unmodeled["openapi:type"]
+				assert.Equal(t, tc.rejected != nil, kept, "a type the members are not values of stays verbatim")
+			}
+			if isEnum && tc.rejected != nil {
+				assert.Contains(t, openapitest.DiagMessageAt(t, diags, diag.DegradedConstruct, ir.SeverityInfo, at),
+					"lowered to an enum whose members are not all values of its declared type,", "the keeping says why")
+			}
 		})
 	}
 }
@@ -868,25 +1025,28 @@ func memberKeys(members []ir.EnumMember) []string {
 func TestLiteral_ValueTypeReadsTheTypeAndFormatItsValueFits(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
-		name   string
-		schema string
-		want   ir.PrimKind
-		kept   string
+		name     string
+		schema   string
+		want     ir.PrimKind
+		kept     string
+		rejected bool // no instance matches the const, which is reported at it
 	}{
-		{"an integer written with a point", `{type: integer, const: 80.0}`, ir.PrimInteger, ""},
-		{"a number written as an integer", `{type: number, const: 80}`, ir.PrimNumber, ""},
-		{"a date", `{type: string, format: date, const: "2020-01-01"}`, ir.PrimDate, ""},
-		{"a sized integer", `{type: integer, format: int64, const: 1}`, ir.PrimInt64, ""},
-		{"no declared type", `{const: 80}`, ir.PrimNumber, ""},
-		{"a bool", `{type: boolean, const: true}`, ir.PrimBool, ""},
-		{"a value no date", `{type: string, format: date, const: soon}`, ir.PrimString, "openapi:format"},
-		{"a value the type is not", `{type: integer, const: x}`, ir.PrimString, "openapi:type"},
-		{"several declared types", `{type: [integer, string], const: 1}`, ir.PrimNumber, "openapi:type"},
-		{"an object", `{type: object, const: {a: 1}}`, "", ""},
-		{"a list", `{type: array, const: [1]}`, "", ""},
-		{"an object the type is not", `{type: array, const: {a: 1}}`, "", "openapi:type"},
-		{"a list the type is not", `{type: object, const: [1]}`, "", "openapi:type"},
-		{"a null", `{type: "null", const: null}`, "", ""},
+		{"an integer written with a point", `{type: integer, const: 80.0}`, ir.PrimInteger, "", false},
+		{"a number written as an integer", `{type: number, const: 80}`, ir.PrimNumber, "", false},
+		{"a date", `{type: string, format: date, const: "2020-01-01"}`, ir.PrimDate, "", false},
+		{"a sized integer", `{type: integer, format: int64, const: 1}`, ir.PrimInt64, "", false},
+		{"no declared type", `{const: 80}`, ir.PrimNumber, "", false},
+		{"a bool", `{type: boolean, const: true}`, ir.PrimBool, "", false},
+		{"a value no date", `{type: string, format: date, const: soon}`, ir.PrimString, "openapi:format", false},
+		{"a value the type is not", `{type: integer, const: x}`, ir.PrimString, "openapi:type", true},
+		{"a fraction under integer", `{type: integer, const: 1.5}`, ir.PrimNumber, "openapi:type", true},
+		{"several declared types", `{type: [integer, string], const: 1}`, ir.PrimNumber, "openapi:type", false},
+		{"an object", `{type: object, const: {a: 1}}`, "", "", false},
+		{"a list", `{type: array, const: [1]}`, "", "", false},
+		{"a binary under string", `{type: string, const: !!binary aGk=}`, ir.PrimBytes, "", false},
+		{"a number under null alone", `{type: "null", const: 5}`, ir.PrimNumber, "openapi:type", true},
+		{"an object the type is not", `{type: array, const: {a: 1}}`, "", "openapi:type", true},
+		{"a list the type is not", `{type: object, const: [1]}`, "", "openapi:type", true},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
@@ -907,6 +1067,12 @@ func TestLiteral_ValueTypeReadsTheTypeAndFormatItsValueFits(t *testing.T) {
 			}
 			assert.Equal(t, tc.kept != "", openapitest.HasDiagCodeAt(diags, diag.DegradedConstruct, "/components/schemas/L"),
 				"a keyword is reported exactly where it is kept: %+v", diags)
+			var want []jsontext.Pointer
+			if tc.rejected {
+				want = []jsontext.Pointer{"/components/schemas/L/const"}
+			}
+			assert.Equal(t, want, degradedWarnings(diags),
+				"a const no instance matches is reported at it, and only then")
 		})
 	}
 }

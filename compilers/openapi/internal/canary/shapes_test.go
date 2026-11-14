@@ -8,14 +8,16 @@ import (
 	"strings"
 )
 
-// oracleShape is a document the binding oracle compiles: its paths, its
-// component schemas, written one a line, the rest of components, and what
-// follows them. A shape that is not fixed is compiled with its schemas in both
-// orders; a fixed one, whose YAML aliases must follow their anchors or whose
-// key written twice must keep its last copy, in the order written.
+// oracleShape is a document the binding oracle compiles: its paths, the
+// entries of its components section, schemas unless section names another,
+// written one a line, the rest of components, and what follows them. A shape
+// that is not fixed is compiled with its entries in both orders; a fixed one,
+// whose YAML aliases must follow their anchors or whose key written twice must
+// keep its last copy, in the order written.
 type oracleShape struct {
 	name       string
 	paths      string
+	section    string
 	schemas    []string
 	components string
 	tail       string
@@ -35,7 +37,11 @@ func (s oracleShape) document(reversed bool) string {
 	} else {
 		b.WriteString("openapi: 3.1.0\ninfo: {title: t, version: '1'}\npaths:\n" + s.paths)
 	}
-	b.WriteString("components:\n  schemas:\n")
+	section := s.section
+	if section == "" {
+		section = "schemas"
+	}
+	b.WriteString("components:\n  " + section + ":\n")
 	for _, line := range schemas {
 		b.WriteString("    " + line + "\n")
 	}
@@ -57,11 +63,11 @@ func component(name string) string {
 // oracleShapes are the shapes the binding oracle compiles: loops of $refs at
 // each position a schema is written at, recursion through what a schema
 // declares, chains, the $defs rule, pointer spellings, targets no schema is
-// written at, YAML aliases and merges, keys written twice, and pointers
-// through a reference object.
+// written at, YAML aliases and merges, keys written twice, pointers through a
+// reference object, and chains of reference objects.
 func oracleShapes() []oracleShape {
 	return slices.Concat(loopShapes(), chainShapes(), defsShapes(), spellingShapes(), targetShapes(), yamlShapes(),
-		repeatedShapes())
+		repeatedShapes(), objectShapes())
 }
 
 // loopShapes are loops of $refs, each closing at another position.
@@ -193,5 +199,35 @@ func repeatedShapes() []oracleShape {
 			ref("M", component("Missing")), "M: {type: string}"}},
 		{name: "repeated/raw", fixed: true, schemas: []string{ref("A", "#/x-lib/S")},
 			tail: "x-lib:\n  S: {type: string}\n  S: {type: integer}\n"},
+	}
+}
+
+// objectShapes are chains of reference objects: loops, a chain failing where
+// it ends, a read needing another that needs it, pointers the library reads
+// otherwise than RFC 6901, and a target of another kind.
+func objectShapes() []oracleShape {
+	param := "{name: q, in: query, schema: {type: string}}"
+	use := "  /a: {get: {responses: {'200': {$ref: '#/components/responses/X'}}}}\n"
+	return []oracleShape{
+		{name: "object/chain", section: "parameters", schemas: []string{ref("A", "#/components/parameters/B"),
+			ref("B", "#/components/parameters/C"), "C: " + param}},
+		{name: "object/loop-self", section: "parameters", schemas: []string{ref("A", "#/components/parameters/A")}},
+		{name: "object/loop-two", section: "requestBodies", schemas: []string{ref("A", "#/components/requestBodies/B"),
+			ref("B", "#/components/requestBodies/A")}},
+		{name: "object/failing-chain", section: "responses", paths: use, schemas: []string{
+			ref("X", "#/components/responses/A"), ref("A", "#/components/responses/B"),
+			ref("B", "#/components/responses/Missing")}},
+		{name: "object/needing-itself", section: "responses", schemas: []string{
+			ref("A", "#/components/responses/B/headers/H"), ref("B", "#/components/responses/A/headers/H")}},
+		{name: "object/trailing-slash", section: "parameters", schemas: []string{ref("A", "#/x-params/q/")},
+			tail: "x-params:\n  q: " + param + "\n"},
+		{name: "object/high-code-point", section: "parameters", schemas: []string{ref("A", "#/x-params/😀")},
+			tail: "x-params:\n  \"😀\": " + param + "\n"},
+		{name: "object/other-kind", section: "parameters", schemas: []string{ref("A", "#/components/headers/H")},
+			components: "  headers:\n    H: {schema: {type: string}}\n"},
+		{name: "object/merge-list", fixed: true, section: "parameters", schemas: []string{ref("A", "#/x-params/q")},
+			tail: "x-b: &b {q: " + param + "}\nx-params:\n  <<: [*b]\n"},
+		{name: "object/repeated-raw", fixed: true, section: "parameters", schemas: []string{ref("A", "#/x-params/q")},
+			tail: "x-params:\n  q: {name: first, in: query}\n  q: " + param + "\n"},
 	}
 }

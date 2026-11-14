@@ -5,6 +5,7 @@ package schema_test
 
 import (
 	"encoding/json/jsontext"
+	"strings"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
@@ -71,6 +72,57 @@ func TestAllOf_ExtraRefsBecomeMixins(t *testing.T) {
 	assert.Equal(t, componentID("B"), c.Mixins[1].Target)
 	require.Len(t, c.Properties, 1)
 	assert.Equal(t, "c", c.Properties[0].Name.Source)
+}
+
+// TestAllOf_ARefToAHierarchyMemberIsTheBase pins the Base an allOf of several
+// $refs elects (docs/compilers/openapi.md#allof-classification): the first whose
+// target takes part in a discriminator hierarchy, declaring the discriminator or
+// composing one that does at any depth, so a schema composing a subtype is a
+// subtype too, in either declaration order; where none does, each $ref is a
+// Mixin (GitHub #986).
+func TestAllOf_ARefToAHierarchyMemberIsTheBase(t *testing.T) {
+	t.Parallel()
+	ref := func(name string) string { return "{$ref: '#/components/schemas/" + name + "'}" }
+	for _, doc := range discriminatedOrders(t, "3.1.0", `    Leaf: {allOf: [`+ref("Other")+`, `+ref("Mid")+`]}
+    Deeper: {allOf: [`+ref("Other")+`, `+ref("Low")+`]}
+    First: {allOf: [`+ref("Mid")+`, `+ref("Other")+`]}
+    Two: {allOf: [`+ref("Other")+`, `+ref("Mid2")+`, `+ref("Mid")+`]}
+    Declaring: {allOf: [`+ref("Other")+`, `+ref("Root")+`]}
+    None: {allOf: [`+ref("Other")+`, `+ref("Extra")+`]}
+`, `    Low: {allOf: [`+ref("Mid")+`]}
+    Mid: {allOf: [`+ref("Root")+`]}
+    Mid2: {allOf: [`+ref("Root")+`]}
+    Root:
+      type: object
+      properties: {kind: {type: string}}
+      discriminator: {propertyName: kind}
+    Other: {type: object, properties: {x: {type: string}}}
+    Extra: {type: object, properties: {y: {type: string}}}
+`) {
+		for name, tc := range map[string]struct {
+			base   string
+			mixins []string
+		}{
+			"Leaf": {"Mid", []string{"Other"}}, "Deeper": {"Low", []string{"Other"}}, "First": {"Mid", []string{"Other"}},
+			"Two": {"Mid2", []string{"Other", "Mid"}}, "Declaring": {"Root", []string{"Other"}}, "None": {"", []string{"Other", "Extra"}},
+		} {
+			m, ok := typeByName(doc, name).(*ir.Model)
+			require.True(t, ok, "%s composes; got %T", name, typeByName(doc, name))
+			mixins := make([]string, 0, len(m.Mixins))
+			for _, r := range m.Mixins {
+				mixins = append(mixins, strings.TrimPrefix(string(r.Target), string(componentID(""))))
+			}
+			assert.Equal(t, tc.mixins, mixins, name)
+			if tc.base == "" {
+				assert.Nil(t, m.Base, name)
+				assert.False(t, ir.IsSubtype(doc, componentID(name), componentID("Root")), name)
+				continue
+			}
+			require.NotNil(t, m.Base, name)
+			assert.Equal(t, componentID(tc.base), m.Base.Target, name)
+			assert.True(t, ir.IsSubtype(doc, componentID(name), componentID("Root")), "%s is a subtype of Root", name)
+		}
+	}
 }
 
 func TestAllOf_DiscriminatorHierarchy(t *testing.T) {
@@ -303,11 +355,12 @@ func TestAllOf_FalseBranchClosesTheCatchAllItForbids(t *testing.T) {
 	}
 }
 
-// TestAllOf_AClosureAfterCompositionKeepsTheCatchAll pins the other side of
+// TestAllOf_ACatchAllLeavesAClosureAfterCompositionInert pins the other side of
 // that rule: a catch-all `additionalProperties` writes evaluates every key the
 // patterns leave, so `unevaluatedProperties: false` beside it forbids none of
-// them, and the value stays.
-func TestAllOf_AClosureAfterCompositionKeepsTheCatchAll(t *testing.T) {
+// them. The value stays, the model stays open, and the keyword is kept beside
+// the catch-all that leaves it inert.
+func TestAllOf_ACatchAllLeavesAClosureAfterCompositionInert(t *testing.T) {
 	t.Parallel()
 	doc, diags := schema.LowerSpec(t, openapitest.ComponentSpec(`    M:
       allOf: [{type: object, properties: {a: {type: string}}}]
@@ -318,10 +371,13 @@ func TestAllOf_AClosureAfterCompositionKeepsTheCatchAll(t *testing.T) {
 
 	m, ok := typeByName(doc, "M").(*ir.Model)
 	require.True(t, ok, "M is a model, not %T", typeByName(doc, "M"))
-	assert.Equal(t, ir.AdditionalClosedAfterComposition, m.Additional)
+	assert.Empty(t, m.Additional, "the catch-all, not the closure, says what the model admits")
 	require.NotNil(t, m.AdditionalProps)
 	assert.Equal(t, &ir.TypeRef{Target: "t/prim/integer"}, m.AdditionalProps.Value)
 	assert.NotContains(t, m.Unmodeled, "openapi:additionalProperties", "a catch-all the IR holds is not kept twice")
+	require.Contains(t, m.Unmodeled, "openapi:unevaluated")
+	assert.Equal(t, `{"additionalProperties":{"type":"integer"},"unevaluatedProperties":false}`,
+		string(m.Unmodeled["openapi:unevaluated"].Value))
 }
 
 // TestAllOf_FalseBranchBesideUnionClosesEveryVariant pins that a `false` allOf

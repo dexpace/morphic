@@ -6,6 +6,7 @@ package bind
 import (
 	"slices"
 	"strconv"
+	"strings"
 
 	yaml "go.yaml.in/yaml/v3"
 
@@ -13,8 +14,8 @@ import (
 )
 
 // root is a position a walk for reference sites starts from, and the state
-// it is read at: the source's root, a position a hop lands on, read as a
-// schema, or what a reference object resolved to, read as its kind.
+// it is read at: the source's root, a position a schema $ref's hop lands on,
+// read as a schema, or one a reference object's lands on, read as its kind.
 type root struct {
 	at    Position
 	state state
@@ -22,35 +23,40 @@ type root struct {
 
 // frame is one position a walk has yet to read. In the source's own walk,
 // which reads the identifiers its schemas declare, res indexes the resource
-// its parent's content is in (identifiers.resources), dialect is the one its
-// parent is read in, and inert marks the fields beside a reference object's
-// $ref, which the model ignores, so no identifier is read there.
+// its parent's content is in (identifiers.resources), and dialect is the one
+// its parent is read in.
 type frame struct {
 	node    *yaml.Node
 	at      Position
 	dialect string
 	res     int32
 	state   state
-	inert   bool
 }
 
 // finder finds the positions a table answers for: the schema sites, the
-// discriminator mapping values, the landings, and where each reference object
-// resolves to, walking each root as it is noted, and the identifiers each
-// document's schemas declare. It keeps what it has found, and which of that is
-// new since the table last settled.
+// discriminator mapping values, the reference objects, and the landings of
+// each, walking each root as it is noted, and the identifiers each document's
+// schemas declare. It keeps what it has found, and which of that is new since
+// the table last settled.
 type finder struct {
 	docs          *docs
 	ids           *identifiers
 	work          *work
-	ends          map[Position]Position
 	sites         map[Position]bool
 	mappingSites  map[mappingKey]bool
+	objects       map[objectKey]bool
 	fresh         []Position
 	freshMappings []mappingKey
+	freshObjects  []objectKey
 	freshDynamic  []dynamicSite
-	expansions    []expansion
-	landings      map[Position]bool
+	// freshRecursive is each $recursiveRef found since the table last settled
+	// (dynamicOf).
+	freshRecursive []Position
+	expansions     []expansion
+	landings       map[Position]bool
+	// objLandings is each position a reference object's chain lands on that
+	// the grammar reads as no object of its kind (ObjectLanding).
+	objLandings map[objectKey]bool
 	// tupled is each schema the parser's model cannot hold, by the schema
 	// writing it (tupleOf).
 	tupled  map[Position]Position
@@ -62,16 +68,14 @@ type finder struct {
 // newFinder returns a finder over docs that has found nothing, noting what the
 // documents declare in ids.
 func newFinder(d *docs, w *work, ids *identifiers) *finder {
-	return &finder{docs: d, ids: ids, work: w, ends: map[Position]Position{},
-		sites: map[Position]bool{}, mappingSites: map[mappingKey]bool{}, landings: map[Position]bool{},
-		tupled:  map[Position]Position{},
-		covered: map[root]bool{}, roots: map[Position]state{}}
+	return &finder{docs: d, ids: ids, work: w, sites: map[Position]bool{}, mappingSites: map[mappingKey]bool{},
+		objects: map[objectKey]bool{}, landings: map[Position]bool{}, objLandings: map[objectKey]bool{},
+		tupled: map[Position]Position{}, covered: map[root]bool{}, roots: map[Position]state{}}
 }
 
 // walk reads every position below r by the grammar, noting each schema position
 // that writes a $ref (a site), each discriminator mapping value that can name a
-// position (mapping), and what each reference object resolved to (a root to
-// walk in turn). A node an alias places at several positions is read at each,
+// position (mapping), and each reference object (objects). A node an alias places at several positions is read at each,
 // as the parser reads it. With mark, each position read at a state is noted, so
 // a later root inside one already read is not read again; the source's own walk
 // from its root notes none, and reads its identifiers the first time it runs.
@@ -104,6 +108,9 @@ func (w *finder) walk(r root, mark bool) {
 			f = w.declared(n, f)
 		} else if len(w.ids.dialects) > 0 {
 			f.dialect = rootDialect(w.ids, f.at, f.dialect)
+		}
+		if f.state == sSchema {
+			w.dynamicOf(n, f)
 		}
 		w.tupleOf(n, f)
 		stack = w.pushChildren(stack, n, f)
@@ -146,35 +153,41 @@ func (w *finder) identifyAll() {
 }
 
 // declared notes the identifiers the schema at f, holding n, declares, and
-// returns f as its children read it: in the resource its content is in, and
-// inert below a reference object's $ref other than a path item's, whose fields
-// beside it are read (Config.Beside).
+// returns f as its children read it: in the resource its content is in.
 func (w *finder) declared(n *yaml.Node, f frame) frame {
-	switch {
-	case f.inert:
-	case f.state == sSchema || f.state == sLoose:
+	if f.state == sSchema || f.state == sLoose {
 		f.res, f.dialect = w.ids.declare(resources{w.docs}, f.res, f.at, n, f.dialect)
-	case referenceKinds[f.state] && f.state != sPathItem:
-		_, f.inert = w.docs.refOf(f.at.Doc, n)
 	}
 	return f
 }
 
 // visit notes what the position f, holding n, gives the table.
 func (w *finder) visit(n *yaml.Node, f frame) {
-	switch {
-	case f.state == sSchema:
-		if _, ok := w.docs.refOf(f.at.Doc, n); ok && !w.sites[f.at] {
-			w.sites[f.at] = true
-			w.fresh = append(w.fresh, f.at)
-		}
-		w.mappingsOf(n, f.at)
-		w.dynamicOf(n, f.at)
-	case referenceKinds[f.state]:
-		if r, reason := w.docs.through(reading{at: f.at, node: n, state: f.state}, 0); reason == NoReason && r.at != f.at {
-			w.ends[f.at] = r.at
-			w.pending = append(w.pending, root{at: r.at, state: f.state})
-		}
+	if f.state != sSchema {
+		w.objectOf(n, f)
+		return
+	}
+	if _, ok := w.docs.refOf(f.at.Doc, n); ok && !w.sites[f.at] {
+		w.sites[f.at] = true
+		w.fresh = append(w.fresh, f.at)
+	}
+	w.mappingsOf(n, f.at)
+}
+
+// objectOf notes the position f, holding n, as a reference object of the kind
+// its state reads, where it writes a $ref: a string one, read as the model
+// reads the mapping, a `<<` merging it in included.
+func (w *finder) objectOf(n *yaml.Node, f frame) {
+	kind, ok := refKinds[f.state]
+	if !ok {
+		return
+	}
+	if _, refs := w.docs.refOf(f.at.Doc, n); !refs {
+		return
+	}
+	if k := (objectKey{at: f.at, kind: kind}); !w.objects[k] {
+		w.objects[k] = true
+		w.freshObjects = append(w.freshObjects, k)
 	}
 }
 
@@ -204,49 +217,45 @@ type dynamicSite struct {
 	key dynamicKey
 }
 
-// expansion is a $dynamicRef written at from and the schema at to declaring the
-// one anchor of its name, which it reaches as a $ref reaches what it names.
+// expansion is a dynamic reference written at from and the schema at to it
+// names, which it reaches as a $ref reaches what it names: the one anchor of a
+// $dynamicRef's name, or the root of a $recursiveRef's resource.
 type expansion struct {
 	from, to Position
 }
 
-// dynamicOf notes the anchor the $dynamicRef the schema at at, holding n, names,
-// where another document holds it. Nothing but a reference builds a schema of
-// another document (landed), and an expansion is one, so settle lands on the
-// anchor. The source's are the model's own.
-func (w *finder) dynamicOf(n *yaml.Node, at Position) {
-	if at.Doc == Source {
+// dynamicOf notes the dynamic reference the schema at f, holding n and read in
+// f's dialect, writes: a $dynamicRef naming an anchor, and a $recursiveRef of
+// "#" where the dialect defines one (DialectRule.Recursive). Nothing but a
+// reference builds a schema the model does not hold, another document's or
+// raw YAML's (landed), and an expansion is one, so settle lands on what each
+// names (landDynamic).
+func (w *finder) dynamicOf(n *yaml.Node, f frame) {
+	view := w.docs.list[f.at.Doc].view
+	if ref, ok := scalarOf(view.ChildByToken(n, "$dynamicRef")); ok {
+		if name, _, ok := DynamicFragment(ref); ok {
+			w.freshDynamic = append(w.freshDynamic, dynamicSite{at: f.at, key: dynamicKey{doc: f.at.Doc, name: name}})
+		}
 		return
 	}
-	ref, ok := scalarOf(w.docs.list[at.Doc].view.ChildByToken(n, "$dynamicRef"))
-	if !ok {
-		return
-	}
-	if name, _, ok := DynamicFragment(ref); ok {
-		w.freshDynamic = append(w.freshDynamic, dynamicSite{at: at, key: dynamicKey{doc: at.Doc, name: name}})
+	ref, ok := scalarOf(view.ChildByToken(n, "$recursiveRef"))
+	if ok && strings.TrimSpace(ref) == "#" && dialectRule(w.docs, f.at.Doc, f.dialect).Recursive {
+		w.freshRecursive = append(w.freshRecursive, f.at)
 	}
 }
 
-// landOnAnchors lands on the one schema declaring each anchor a $dynamicRef in
-// another document names, as a reference would, for the schema an expansion
-// takes to be built and read. It waits for no later pass: a name is only asked
-// of a document open, whose identifiers it reads whole.
-func (w *finder) landOnAnchors() {
-	dynamic := w.freshDynamic
-	w.freshDynamic = nil
-	for _, d := range dynamic {
-		w.identify(d.key.doc)
-		if at := w.ids.dynamic[d.key]; len(at) == 1 {
-			w.landed(Hop{Target: at[0], Role: Raw})
-			w.expansions = append(w.expansions, expansion{from: d.at, to: at[0]})
-		}
-	}
+// landOn notes h, the hop the dynamic reference written at from takes to what
+// it names, as a $ref's would be (landed).
+func (w *finder) landOn(from Position, h Hop) {
+	w.landed(h)
+	w.expansions = append(w.expansions, expansion{from: from, to: h.Target})
 }
 
 // mappingsOf notes each value of the discriminator the schema at at, holding
-// n, writes that can name a position: one holding a '#', which a component's
-// bare name cannot (lowering reads any other as a name). The parser reads none
-// (docs/parser-library.md#mapping-unresolved), so each is bound here.
+// n, writes that names no schema component of the source (Config.Components):
+// a URI reference, with a fragment or without, as OpenAPI reads a value naming
+// no schema. The parser reads none (docs/parser-library.md#mapping-unresolved),
+// so each is bound here.
 func (w *finder) mappingsOf(n *yaml.Node, at Position) {
 	view := w.docs.list[at.Doc].view
 	d := nodeview.Deref(view.ChildByToken(n, "discriminator"))
@@ -262,7 +271,7 @@ func (w *finder) mappingsOf(n *yaml.Node, at Position) {
 	}
 	values = append(values, view.ChildByToken(d, "defaultMapping"))
 	for _, v := range values {
-		if v = nodeview.Deref(v); v == nil || v.Kind != yaml.ScalarNode || !containsHash(v.Value) {
+		if v = nodeview.Deref(v); v == nil || v.Kind != yaml.ScalarNode || w.docs.components[v.Value] {
 			continue
 		}
 		if k := (mappingKey{at: disc, value: v.Value}); !w.mappingSites[k] {
@@ -272,29 +281,42 @@ func (w *finder) mappingsOf(n *yaml.Node, at Position) {
 	}
 }
 
-// containsHash reports whether value holds a '#'.
-func containsHash(value string) bool {
-	return slices.Contains([]byte(value), '#')
-}
-
 // pushChildren returns stack with the positions directly below f, whose node is
 // n, appended in order, so a walk reads its children with no slice of their
-// own.
+// own. Nothing beside a reference object's $ref is read but a path item's
+// fields (refsOnly): OpenAPI ignores it, so it holds no reference and declares
+// no identifier.
 func (w *finder) pushChildren(stack []frame, n *yaml.Node, f frame) []frame {
+	if w.refsOnly(n, f) {
+		return stack
+	}
 	switch n.Kind {
 	case yaml.MappingNode:
 		for _, p := range w.docs.list[f.at.Doc].view.MappingPairs(n) {
 			stack = append(stack, frame{node: p.Val, at: f.at.below(p.Key),
-				state: stepIn(w.docs, f.at.Doc, n, f.state, p.Key, f.dialect), res: f.res, inert: f.inert, dialect: f.dialect})
+				state: stepIn(w.docs, f.at.Doc, n, f.state, p.Key, f.dialect), res: f.res, dialect: f.dialect})
 		}
 	case yaml.SequenceNode:
 		for i, c := range n.Content {
 			token := strconv.Itoa(i)
 			stack = append(stack, frame{node: c, at: f.at.below(token), state: step(f.state, token), res: f.res,
-				inert: f.inert, dialect: f.dialect})
+				dialect: f.dialect})
 		}
 	}
 	return stack
+}
+
+// refsOnly reports whether f, holding n, is a reference object other than a
+// path item, whose fields beside its $ref OpenAPI gives a meaning
+// (docs/compilers/openapi.md#path-item-ref-fields): one whose $ref is all of it
+// the specification reads.
+func (w *finder) refsOnly(n *yaml.Node, f frame) bool {
+	kind, ok := refKinds[f.state]
+	if !ok || kind == RefPathItem {
+		return false
+	}
+	_, refs := w.docs.refOf(f.at.Doc, n)
+	return refs
 }
 
 // below is the position token names under p.
@@ -308,6 +330,16 @@ func (w *finder) landed(h Hop) {
 	w.pending = append(w.pending, root{at: h.Target, state: sSchema})
 	if h.Role != Schema {
 		w.landings[h.Target] = true
+	}
+}
+
+// landedObject notes the root a reference object's hop of kind gives a walk,
+// its target at, and, where the grammar reads no object of kind there (raw),
+// an object landing the load phase builds one for.
+func (w *finder) landedObject(at Position, kind RefKind, raw bool) {
+	w.pending = append(w.pending, root{at: at, state: kind.state()})
+	if raw {
+		w.objLandings[objectKey{at: at, kind: kind}] = true
 	}
 }
 

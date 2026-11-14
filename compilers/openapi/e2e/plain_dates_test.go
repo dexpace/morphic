@@ -327,8 +327,8 @@ actions:
 
 // TestCompile_ADateTaggedOutrightKeepsItsTag holds the change of GitHub #1280 to
 // plain dates: a scalar the source tags !!timestamp keeps its tag, so one whose
-// text is no date is refused as that tag reads it, not kept as text, which is
-// #245's to decide.
+// text is no date is refused as that tag reads it, not kept as text
+// (docs/compilers/openapi.md#values).
 func TestCompile_ADateTaggedOutrightKeepsItsTag(t *testing.T) {
 	t.Parallel()
 	doc, diags := parseFull(t, datedFixtureHead+`paths: {}

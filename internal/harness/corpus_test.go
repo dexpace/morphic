@@ -6,7 +6,9 @@ package harness_test
 import (
 	"context"
 	"io/fs"
+	"maps"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 
@@ -17,11 +19,11 @@ import (
 )
 
 // knownInvalid lists the fixtures under testdata/ that a correct compiler or
-// pass reports an error diagnostic on under this sweep's default options, so the
-// "must be OK" sweep excludes them. Each was read to confirm the error is
-// intended behavior, not a bug; its reason sits beside the entry.
-// TestHarness_InRepoCorpus fails a listed fixture that is missing or has any
-// other outcome, a clean compile or a panic among them.
+// pass reports an error diagnostic on under this sweep's default options. Each
+// was read to confirm the error is intended behavior, not a bug; its reason
+// sits beside the entry. An error stops no oracle, so each is held to every
+// other oracle as any fixture is. TestHarness_InRepoCorpus fails a listed
+// fixture that is missing or draws no error.
 func knownInvalid() map[string]bool {
 	return map[string]bool{
 		// A response with no description and a header whose required is the
@@ -58,9 +60,9 @@ func knownInvalid() map[string]bool {
 		filepath.FromSlash("../../testdata/openapi/cycle_duplicate_key.yaml"): true,
 		// Chains of reference objects that cycle, spelled by document position
 		// ('#/paths/~1a', '#/webhooks/onA') rather than through components, or
-		// whose pointer passes through a reference on the chain. The resolver
-		// follows each in a loop and reports it as an unresolved reference
-		// (docs/parser-library.md#reference-object-cycle, #574).
+		// whose pointer passes through a reference on the chain: a loop is
+		// reported once, at its least member, and a read needing itself as an
+		// unresolved reference (docs/compilers/openapi.md#reference-cycles).
 		filepath.FromSlash("../../testdata/openapi/cycle_path_item_mutual.yaml"):           true,
 		filepath.FromSlash("../../testdata/openapi/cycle_path_item_self.yaml"):             true,
 		filepath.FromSlash("../../testdata/openapi/cycle_webhook_mutual.yaml"):             true,
@@ -143,6 +145,14 @@ func knownInvalid() map[string]bool {
 		// specification bars ("MUST only contain one entry"); the case pins how
 		// such a document lowers.
 		filepath.FromSlash("../../testdata/conformance/openapi/content-several-entries.yaml"): true,
+		// Header names no HTTP field can have, which the specification bars: a
+		// headers map keyed by what is no token, and a header parameter spelled in
+		// two cases; the case pins how such a document lowers.
+		filepath.FromSlash("../../testdata/conformance/openapi/header-name-syntax.yaml"): true,
+		// An operation binding Idempotency-Key in two cases, a repeat as header
+		// names compare in any case; the case pins that the idempotency policy
+		// then infers no token.
+		filepath.FromSlash("../../testdata/conformance/openapi/idempotency-inference.yaml"): true,
 		// Discriminator mappings naming a schema that is not a variant of the
 		// base: a sub-schema (f08, f13), a component named "" (f31), and a
 		// $defs entry mapped from a base with no composition (defs_at_root,
@@ -156,6 +166,41 @@ func knownInvalid() map[string]bool {
 		filepath.FromSlash("../../testdata/openapi/defs_mapping_unreferenced_target.yaml"):      true,
 		// The other dangling reproducers (f07, f10, f11, f28) intern their
 		// targets and compile clean, so they are absent.
+	}
+}
+
+// knownFindings lists the findings an oracle other than the error diagnostic
+// makes on a committed fixture: a defect in the compiler, each beside the issue
+// that holds it. TestHarness_InRepoCorpus fails a fixture whose findings are
+// not exactly these, so a fix takes its entry out. An entry names an outcome,
+// not what differs, so until then it also stands for any other finding of its
+// oracle on that fixture.
+func knownFindings() map[string][]harness.Outcome {
+	return map[string][]harness.Outcome{
+		// A finding on a node that aliases share is located where its anchor is
+		// written, which declaration order decides: the library's validation of
+		// the node, and the alias-amplification refusal (#1796).
+		filepath.FromSlash("../../testdata/openapi/cycle_alias_dual_position.yaml"): {harness.OutcomeOrderDependent},
+		filepath.FromSlash("../../testdata/openapi/amplification_alias_bomb.yaml"):  {harness.OutcomeOrderDependent},
+	}
+}
+
+// knownDeclines lists the fixtures some oracle asks nothing of, each beside the
+// one reason every oracle that declines it gives. TestHarness_InRepoCorpus
+// fails a decline not listed here and an entry that declines nothing, so an
+// oracle never stops reaching a fixture unseen.
+func knownDeclines() map[string]harness.Decline {
+	return map[string]harness.Decline{
+		// Refusals: a fixture the compile lowers to no document leaves the
+		// oracles that hold a document, invariants, round trip and idempotence,
+		// nothing to hold. Determinism and order-invariance compare the
+		// refusals' findings.
+		filepath.FromSlash("../../testdata/openapi/amplification_alias_bomb.yaml"):    harness.DeclineNoDocument,
+		filepath.FromSlash("../../testdata/openapi/cycle_yaml_anchor.yaml"):           harness.DeclineNoDocument,
+		filepath.FromSlash("../../testdata/openapi/tagged_mapping_request_body.yaml"): harness.DeclineNoDocument,
+		// Its point is a key written twice, whose reversal changes which
+		// declaration wins.
+		filepath.FromSlash("../../testdata/openapi/cycle_duplicate_key.yaml"): harness.DeclineDuplicateKey,
 	}
 }
 
@@ -185,9 +230,10 @@ func fixtureFiles(t *testing.T, root string) []string {
 	return files
 }
 
-// TestHarness_InRepoCorpus sweeps every committed spec through all oracles. Any
-// non-OK outcome on a spec that is not a known-invalid fixture is a finding; the
-// failure message is the full report so the offending specs are named at once.
+// TestHarness_InRepoCorpus sweeps every committed spec through all oracles and
+// holds each to the findings knownInvalid and knownFindings list for it and to
+// the declines knownDeclines lists, failing with the full report so the
+// offending specs are named at once. Its log holds the sweep's Summary.
 //
 // The sweep lists a file only when a registered compiler claims it, so a fixture
 // that stops being recognized would drop out of it with every oracle green. It
@@ -212,32 +258,57 @@ func TestHarness_InRepoCorpus(t *testing.T) {
 	assert.Empty(t, unlisted, "fixtures no registered compiler claims are not swept; "+
 		"fix the fixture, or if it is deliberately not a spec, move it out of testdata")
 
-	invalid := knownInvalid()
-	seenInvalid := make(map[string]bool, len(invalid))
-
-	var results []harness.Result
-	var failures []harness.Result
+	invalid, findings, declines := knownInvalid(), knownFindings(), knownDeclines()
+	var unexpected []harness.Result
 	for _, r := range swept {
+		var want []harness.Outcome
 		if invalid[r.Spec] {
-			seenInvalid[r.Spec] = true
-			assert.Equal(t, harness.OutcomeErrorDiag, r.Outcome,
-				"known-invalid fixture %s must fail with an error diagnostic; fix it or update knownInvalid: %s",
-				r.Spec, r.Detail)
-			continue
+			want = append(want, harness.OutcomeErrorDiag)
 		}
-		results = append(results, r)
-		if r.Outcome != harness.OutcomeOK {
-			failures = append(failures, r)
+		want = append(want, findings[r.Spec]...)
+		slices.Sort(want)
+		if !slices.Equal(want, foundOutcomes(r)) {
+			unexpected = append(unexpected, r)
 		}
+		for _, v := range r.Verdicts {
+			if !v.Asked() {
+				assert.Equal(t, declines[r.Spec], v.Declined, "%s: %s declines it unlisted", r.Spec, v.Oracle)
+			}
+		}
+	}
+	assertEveryEntryNamesASweptSpec(t, listed, slices.Collect(maps.Keys(invalid)), "knownInvalid")
+	assertEveryEntryNamesASweptSpec(t, listed, slices.Collect(maps.Keys(findings)), "knownFindings")
+	assertEveryEntryNamesASweptSpec(t, listed, slices.Collect(maps.Keys(declines)), "knownDeclines")
+	for spec := range declines {
+		assert.True(t, slices.ContainsFunc(swept, func(r harness.Result) bool {
+			return r.Spec == spec && slices.ContainsFunc(r.Verdicts, func(v harness.Verdict) bool { return !v.Asked() })
+		}), "%s is listed in knownDeclines but every oracle asks it its question", spec)
 	}
 
-	// Guard the exclusion list against rot: every listed fixture must exist.
-	for p := range invalid {
-		assert.True(t, seenInvalid[p], "known-invalid fixture %s not found in corpus", p)
+	t.Logf("swept %d specs:\n%s", len(swept), harness.Summary(swept))
+	if len(unexpected) > 0 {
+		t.Fatalf("findings other than knownInvalid and knownFindings list:\n%s", harness.Report(unexpected))
 	}
+}
 
-	if len(failures) > 0 {
-		t.Fatalf("harness findings:\n%s", harness.Report(failures))
+// foundOutcomes is what each oracle that found something in r found, sorted,
+// so a list need not follow Check's order to match it.
+func foundOutcomes(r harness.Result) []harness.Outcome {
+	var out []harness.Outcome
+	for _, v := range r.Verdicts {
+		if v.Found() {
+			out = append(out, v.Outcome)
+		}
 	}
-	t.Logf("swept %d specs (%d known-invalid excluded), all OK", len(results), len(invalid))
+	slices.Sort(out)
+	return out
+}
+
+// assertEveryEntryNamesASweptSpec guards a hand-written list against rot: an
+// entry naming no spec the sweep reached holds nothing.
+func assertEveryEntryNamesASweptSpec(t *testing.T, swept map[string]bool, entries []string, list string) {
+	t.Helper()
+	for _, p := range entries {
+		assert.True(t, swept[p], "%s names %s, which the sweep did not reach", list, p)
+	}
 }

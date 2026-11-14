@@ -368,13 +368,13 @@ func taggedMappingPanic(t *testing.T) {
 }
 
 // recoverablePanic pins recoverable-panic: decoding a document of nothing but
-// whitespace, and resolving a reference to a $ref written with no value, panic
-// on the goroutine that called them, where its recover reaches the panic.
+// whitespace, and decoding a mapping whose $ref has no value as a reference
+// object, panic on the goroutine that called them, where its recover reaches
+// the panic.
 func recoverablePanic(t *testing.T) {
 	tests := map[string]struct{ child, input, message string }{
 		"a whitespace document": {"unmarshal", " \n", "unknown node kind"},
-		"a $ref with no value": {"resolve", section("responses", "A: {$ref: '#/B'}") + "B: {$ref}\n",
-			"nil pointer dereference"},
+		"a $ref with no value":  {"decode-response", "{$ref}\n", "nil pointer dereference"},
 	}
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
@@ -763,4 +763,18 @@ func requirementScopes(t *testing.T) {
 		assert.Equal(t, tc.model, slices.Collect(req.Keys()), "the model of %s: %s", tc.written, revisit(t, result{}))
 		assert.Equal(t, tc.core, slices.Collect(req.GetCore().Keys()), "the core of %s: %s", tc.written, revisit(t, result{}))
 	}
+}
+
+// decodeResponse decodes input, a YAML mapping, as a response that may be a
+// reference, as the load phase builds the object a reference lands on in raw
+// YAML: what decoding reports, or "decoded".
+func decodeResponse(ctx context.Context, input []byte) string {
+	var tree yaml.Node
+	if err := yaml.Unmarshal(input, &tree); err != nil || len(tree.Content) == 0 {
+		return fmt.Sprintf("yaml: %v", err)
+	}
+	if _, err := marshaller.UnmarshalNode(ctx, "reference", tree.Content[0], &soa.ReferencedResponse{}); err != nil {
+		return err.Error()
+	}
+	return "decoded"
 }

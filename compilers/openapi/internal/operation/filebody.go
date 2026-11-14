@@ -199,21 +199,22 @@ func writesOnly(s *oas3.Schema, allowed func(string) bool) bool {
 }
 
 // openKeyword reports whether a schema writing key can still leave its media
-// type to say how its value travels: an annotation, an identifier or a store of
-// schemas, which say nothing of the value, a length bound, which OpenAPI
-// applies to a binary payload's octets, contentMediaType, which a media type
-// set by the content's key or an encoding entry overrides, its own extensions,
-// type, which readOpen reads, and a union, where unions says so.
+// type to say how its value travels: an annotation, an anchor, a resource or
+// dialect keyword (annotation.DialectKeywords) or a store of schemas, which say
+// nothing of the value, a length bound, which OpenAPI applies to a binary
+// payload's octets, contentMediaType, which a media type set by the content's
+// key or an encoding entry overrides, its own extensions, type, which readOpen
+// reads, and a union, where unions says so.
 func openKeyword(key string, unions bool) bool {
 	switch key {
-	case "type", "$anchor", "$comment", "$defs", "$dynamicAnchor", "$id", "contentMediaType", "default",
+	case "type", "$anchor", "$comment", "$defs", "$dynamicAnchor", "contentMediaType", "default",
 		"deprecated", "description", "example", "examples", "externalDocs", "maxLength", "minLength", "nullable",
 		"readOnly", "title", "writeOnly", "xml":
 		return true
 	case "anyOf", "oneOf":
 		return unions
 	default:
-		return strings.HasPrefix(key, "x-")
+		return slices.Contains(annotation.DialectKeywords, key) || strings.HasPrefix(key, "x-")
 	}
 }
 
@@ -251,14 +252,17 @@ func leastOf[T any](c lowering.Ctx, items []T, read func(lowering.Ctx, T) fileRe
 
 // admitsNoBytes reports whether branch, one of a union's, admits no value but
 // null, or none at all, read through the $refs it starts: a false schema, or a
-// type null writing nothing else a reader of a file looks at.
+// schema of null alone in any spelling (schema.NullAlone) writing nothing else
+// a reader of a file looks at, the enum or const saying its null aside.
 func admitsNoBytes(c lowering.Ctx, branch *oas3.JSONSchema[oas3.Referenceable]) bool {
 	if annotation.IsFalseSchema(refEnd(c.Bindings(), branch)) {
 		return true
 	}
 	s := schemaOf(c.Bindings(), branch)
-	return s != nil && slices.Equal(s.GetType(), []oas3.SchemaType{oas3.SchemaTypeNull}) &&
-		writesOnlyOpenKeywords(c, s, false /* unions */)
+	return s != nil && schema.NullAlone(c, s) && writesOnly(s, func(key string) bool {
+		key = schema.TwinKeyword(c, s, key)
+		return openKeyword(key, false /* unions */) || key == "enum" || key == "const"
+	})
 }
 
 // withoutNull returns types with null removed, a copy so the schema's own

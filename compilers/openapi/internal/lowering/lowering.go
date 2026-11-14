@@ -83,14 +83,20 @@ type Ctx struct {
 	schemas resolve.Names
 
 	// NullableWidening is the nullable-widening policy, and
-	// DiscriminatorInference the discriminator-inference policy. They sit
-	// before foreign so the three share a word.
+	// DiscriminatorInference the discriminator-inference policy, beside the
+	// policies of what a document's names and messages imply, read once it is
+	// whole. They sit before foreign so all of them share a word.
 	NullableWidening       NullableWidening
 	DiscriminatorInference DiscriminatorInference
+	IdempotencyInference   IdempotencyInference
+	SecretInference        SecretInference
+	HTTPDateInference      HTTPDateInference
+	ReplacementInference   ReplacementInference
+	PaginationInference    PaginationInference
 
 	// foreign marks a lowering of content another document holds, read in that
-	// document's scope, and holder is the path the resolver read it by (see
-	// Within). Unexported and set only by Within, InScope and InDocument, which
+	// document's scope, and holder is the name the bindings read it by (see
+	// InDocument). Unexported and set only by InScope and InDocument, which
 	// scope them to the subtree that copy is threaded through.
 	foreign bool
 	holder  string
@@ -160,26 +166,20 @@ type loadResult struct {
 	others   load.Others
 	rows     load.Rows
 	dialects load.Dialects
-	// reads holds those readings in the scope fields they fill: Holds over the
-	// raw YAML, Beside and Writes over siblings, Bindings over the schema
-	// $refs.
+	// reads holds those readings in the scope fields they fill: SelfPath, and
+	// Bindings over every $ref.
 	reads resolve.Scope
 	// readings remembers each answer Remembered read, in a map per type of key
 	// and answer (memo). Copies share it on purpose: an answer reads only the
 	// documents and their bindings, which no lowering changes, so what one copy
 	// remembers is what another would read.
 	readings map[any]any
-}
-
-// ScopedPosition is a position as a context reads it: with the scope it is read
-// in (see Within) and the document the context places positions in. It keys a
-// reading that turns on where a position is read (Remembered), and only Scoped
-// builds one, as the scope is the context's own and unexported.
-type ScopedPosition struct {
-	foreign bool
-	holder  string
-	home    int
-	at      bind.Position
+	// settled holds each store Settled built, by its type (store). Copies share
+	// it on purpose, so every settlement of a run reads one store. Unlike an
+	// answer in readings, what a store holds reads the registry, so it would
+	// change a later settlement's answer were a settlement between the two to
+	// rewrite what it read (Settled).
+	settled map[any]any
 }
 
 // Policy is the caller's choice of how a source is lowered, as the compiler's
@@ -193,6 +193,12 @@ type Policy struct {
 	Promotions             ExtensionPromotions
 	NullableWidening       NullableWidening
 	DiscriminatorInference DiscriminatorInference
+	IdempotencyInference   IdempotencyInference
+	SecretInference        SecretInference
+	HTTPDateInference      HTTPDateInference
+	ReplacementInference   ReplacementInference
+	PaginationInference    PaginationInference
+	TitleNames             TitleNames
 }
 
 // New derives the context for doc, at srcIndex, under p. doc must not be nil:
@@ -217,12 +223,17 @@ func New(srcIndex int, doc *load.Document, p Policy) Ctx {
 		promoter:               newPromoter(p.Promotions),
 		NullableWidening:       p.NullableWidening,
 		DiscriminatorInference: p.DiscriminatorInference,
+		IdempotencyInference:   p.IdempotencyInference,
+		SecretInference:        p.SecretInference,
+		HTTPDateInference:      p.HTTPDateInference,
+		ReplacementInference:   p.ReplacementInference,
+		PaginationInference:    p.PaginationInference,
 		overlay:                doc.Overlay,
 
 		loaded: &loadResult{siblings: doc.Siblings, media: doc.MediaTypes, others: doc.Others, rows: doc.Rows,
-			dialects: doc.Dialects, names: naming.New(doc.Bindings.Table()),
-			reads: resolve.Scope{Holds: doc.Holds, Beside: doc.Siblings.Beside, Writes: doc.Siblings.Writes,
-				Bindings: doc.Bindings}, readings: map[any]any{}},
+			dialects: doc.Dialects, names: naming.New(doc.Bindings.Table(), p.TitleNames.Honours()),
+			reads:    resolve.Scope{SelfPath: doc.Location, Places: doc.Places, Bindings: doc.Bindings},
+			readings: map[any]any{}, settled: map[any]any{}},
 		reached:   resolve.NewReached(),
 		expansion: newExpansion(p.Limits.MaxReferenceExpansion),
 	}
@@ -275,12 +286,6 @@ func (c Ctx) Bindings() *typed.Bindings {
 	return c.loaded.reads.Bindings
 }
 
-// Scoped returns at as c reads it: in c's scope, and in the coordinates of the
-// document c places its positions in.
-func Scoped(c Ctx, at bind.Position) ScopedPosition {
-	return ScopedPosition{foreign: c.foreign, holder: c.holder, home: c.home, at: at}
-}
-
 // Remembered returns read's answer for key, read once and remembered for every
 // copy of c. read must turn only on the documents and their bindings, which no
 // lowering changes, and key on all else it turns on; a package's own key type
@@ -307,6 +312,28 @@ func Remembered[K comparable, V any](c Ctx, key K, read func() V) V {
 // kept under. It holds nothing, so it is boxed without allocating.
 type memo[K comparable, V any] struct{}
 
+// Settled returns the run's store of type S, which build makes on the first
+// ask of any copy of c, for what settlements (compile.Settlement) read of the
+// registry. Remembered may not keep such a reading, as it reads what the
+// settlements before it left: it is sound only while no settlement after it
+// rewrites what it read. The run takes every completion
+// (compile.Types.Complete) before any deferred settlement, so a store only
+// deferred settlements fill is sound where only completions rewrite what it
+// reads. S's documentation names them, and each reports a store it finds
+// filled.
+func Settled[S any](c Ctx, build func() *S) *S {
+	if s, ok := c.loaded.settled[store[S]{}].(*S); ok {
+		return s
+	}
+	s := build()
+	c.loaded.settled[store[S]{}] = s
+	return s
+}
+
+// store is what Settled keeps the store of type S under. It holds nothing, so
+// it is boxed without allocating.
+type store[S any] struct{}
+
 // Siblings returns the fields the load phase modelled beside the document's
 // path item $refs (see New). A load.Siblings only answers questions, so
 // handing it out lets no copy of c change what another reads.
@@ -320,78 +347,46 @@ func (c Ctx) MediaTypeUse(media *soa.MediaType) (*resolve.ReferencedMediaType, b
 	return c.loaded.media.Use(media)
 }
 
-// Within returns c for lowering what the entry ref resolves to, in the scope
-// resolve.ScopeOf reads it in: Foreign when another document holds it,
-// InSource when its chain ends in the source, and c itself for an inline entry.
-//
-// A URI reference in another document's content is read against that
-// document. Read as the source's, `#/...` resolved to whatever the source
-// declared at the same pointer, when that had lowered first (GitHub #762). A
-// name, such as a component's in a mapping, still names the entry document's,
-// as the specification recommends for such implicit connections.
-func Within[T, S any, R interface {
-	*S
-	resolve.Referenced[T, S]
-}](c Ctx, ref R) Ctx {
-	scope := resolve.ScopeOf[T, S](c.RefScope(), ref)
-	c.foreign, c.holder = scope.Foreign, scope.Holder
-	return c
-}
-
 // Declared returns what the entry ref, written at usePtr in c's document,
 // resolves to, with the context its declaration is lowered in and the pointer
-// declaring it there. For the source's own reference whose chain ends in the
-// source, that is Within's context and the pointer resolve.ObjectAt reads.
-// Otherwise it is the context of the document the chain ends in (InDocument)
-// and the position the bindings' table places the end at (bind.Table.Through),
-// the source's included for a reference another document writes (GitHub
-// #751), or the use site where it places none. Past
+// declaring it there: the position the chain of its Reference Object ends on,
+// in whichever document (InDocument), as the bindings' table places it, or,
+// for an inline entry, c and usePtr themselves. Past
 // [Limits.MaxReferenceExpansion] a $ref resolves to nothing
 // ([Ctx.ExpansionRefusal]).
 func Declared[T, S any, R chainable[T, S], P interface {
 	*T
 	GetRootNode() *yaml.Node
 }](c Ctx, ref R, usePtr jsontext.Pointer) (*T, Ctx, jsontext.Pointer) {
-	obj, decl := resolve.ObjectAt[T, S](c.RefScope(), ref, usePtr)
+	// Past the budget a $ref resolves to nothing without reading its chain,
+	// which costs the chain's length at every use and is charged nothing.
+	if _, isRef := c.Bindings().Reference(ref); isRef && ExpansionCrossed(c) {
+		return nil, c, usePtr
+	}
+	use := bind.Position{Doc: c.homeDoc, Pointer: usePtr}
+	obj, decl := resolve.ObjectAt[T, S](c.RefScope(), ref, use)
+	if obj == nil || decl == use {
+		return obj, c, usePtr
+	}
 	// The caller lowers a copy of what a $ref's chain names, so each is charged
 	// what that weighs. One past the budget resolves to nothing, as an unresolved
 	// $ref does, so no caller lowers another copy and none costs anything. An
 	// inline entry is not charged here: a path item's own inline parameters are
 	// charged where its additionalOperations entries take them
 	// (ChargeExpansionAt).
-	if obj != nil && ref.GetReference() != "" &&
-		!c.expansion.admit(readingOf(c, usePtr), copied[T, S](c, ref, P(obj).GetRootNode())...) {
+	if !c.expansion.admit(readingOf(c, usePtr), copied[T, S](c, ref, P(obj).GetRootNode())...) {
 		return nil, c, usePtr
 	}
-	in := Within[T, S](c, ref)
-	if there, at, ok := declaredElsewhere(c, obj != nil && (in.foreign || c.home != 0), usePtr); ok {
-		return obj, there, at
+	there, ok := InDocument(c, decl.Doc)
+	if !ok {
+		return nil, c, usePtr
 	}
-	return obj, in, decl
-}
-
-// declaredElsewhere returns the context and pointer of what the reference
-// object at usePtr in c's document resolved to, where the table places its
-// end, and false where Declared keeps Within's answer: elsewhere is false, or
-// the end is the source's own reference's in the source, or the table places
-// none.
-func declaredElsewhere(c Ctx, elsewhere bool, usePtr jsontext.Pointer) (Ctx, jsontext.Pointer, bool) {
-	if !elsewhere {
-		return c, "", false
-	}
-	end, ok := c.Bindings().Table().Through(bind.Position{Doc: c.homeDoc, Pointer: usePtr})
-	if !ok || end.Doc == bind.Source && c.home == 0 {
-		return c, "", false
-	}
-	there, ok := InDocument(c, end.Doc)
-	return there, end.Pointer, ok
+	return obj, there, decl.Pointer
 }
 
 // InScope returns c for lowering at the source's coordinates what is read in
-// scope: the source's own content (resolve.Scope.InSource), or, as Within
-// gives it, another document's that no position of that document places.
-// What another document declares at a position of its own is lowered in its
-// coordinates instead (InDocument).
+// scope, the source's own content (resolve.Scope.InSource). What another
+// document declares is lowered in its coordinates instead (InDocument).
 func (c Ctx) InScope(scope resolve.Scope) Ctx {
 	c.foreign, c.holder, c.home, c.homeDoc = scope.Foreign, scope.Holder, 0, bind.Source
 	return c
@@ -418,30 +413,26 @@ func (c Ctx) SchemaRules() oas.SchemaRules { return rowsOf(c).Schema }
 // where its encoding leaves a field unwritten.
 func EncodingRules(c Ctx) oas.EncodingRules { return rowsOf(c).Encoding }
 
+// SecurityRules returns the Security Requirement Object's rows a requirement c
+// lowers is read with (rowsOf): whether its key may name a scheme by URI.
+func SecurityRules(c Ctx) oas.SecurityRules { return rowsOf(c).Security }
+
 // rowsOf returns what the table says at the minor of the document whose
-// content c reads, in the dialect its jsonSchemaDialect names, which its scope
-// names (load.Other.Rows), the source's for its own (load.Document.Rows).
-//
-// The scope, not home, names that document: Declared can read one document's
-// content at another's positions.
+// content c reads, in the dialect its jsonSchemaDialect names
+// (load.Other.Rows), the source's for its own (load.Document.Rows).
 func rowsOf(c Ctx) load.Rows {
-	if c.foreign {
-		if o, ok := c.loaded.others.Named(c.holder); ok {
-			return o.Rows
-		}
+	if o, ok := homeOf(c); ok {
+		return o.Rows
 	}
 	return c.loaded.rows
 }
 
 // SchemaRulesAt returns the rows the schema at pointer of c's document is read
 // with: those of the dialect the innermost schema resource root at or above it
-// names, where one does (load.Dialects.At), and c's otherwise (SchemaRules),
-// as where c reads another document's content at the source's positions.
+// names, where one does (load.Dialects.At), and c's otherwise (SchemaRules).
 func SchemaRulesAt(c Ctx, pointer jsontext.Pointer) oas.SchemaRules {
-	if at, placed := c.Position(pointer); placed {
-		if r, ok := c.loaded.dialects.At(at); ok {
-			return r
-		}
+	if r, ok := c.loaded.dialects.At(c.Position(pointer)); ok {
+		return r
 	}
 	return c.SchemaRules()
 }
@@ -478,9 +469,8 @@ func SchemaRulesIn(c Ctx, id bind.DocID) oas.SchemaRules {
 // there is one answer.
 func (c Ctx) RefScope() resolve.Scope {
 	r := c.loaded.reads
-	return resolve.Scope{Doc: c.Doc, SelfPath: c.Source.Path, Declares: c.schemas, Foreign: c.foreign,
-		Holder: c.holder, Ends: resolve.ReferenceEnd, Reached: c.reached, Holds: r.Holds, Beside: r.Beside,
-		Writes: r.Writes, Bindings: r.Bindings}
+	return resolve.Scope{SelfPath: r.SelfPath, Places: r.Places, Declares: c.schemas, Foreign: c.foreign,
+		Holder: c.holder, Reached: c.reached, Bindings: r.Bindings}
 }
 
 // DiagAt builds one diagnostic at pointer, stamped with this compile's source
@@ -519,21 +509,18 @@ func OtherIDs(c Ctx) []ids.Document {
 	return out
 }
 
-// IDsAt returns how the IDs of what the Document.Sources entry at source
-// declares name that document: ids.In its label for one a reference read
-// beside the source, and the source's own for the source and its overlay.
-func IDsAt(c Ctx, source int) ids.Document {
-	if o, ok := c.loaded.others.At(source); ok {
-		return ids.In(o.Label)
-	}
-	return ids.Document{}
-}
-
 // NameAt returns the hint the node built at pointer in c's document is named
 // by (naming.Namer.At): a function of the documents and the coordinate alone,
 // whichever lowering builds the node, read once for every copy of c.
 func NameAt(c Ctx, pointer jsontext.Pointer) string {
 	return c.loaded.names.At(bind.Position{Doc: c.homeDoc, Pointer: pointer})
+}
+
+// NameTitle returns the name the title of the schema at pointer in c's
+// document gives the node built there (naming.Namer.Title), and false where it
+// gives none.
+func NameTitle(c Ctx, pointer jsontext.Pointer) (string, bool) {
+	return c.loaded.names.Title(bind.Position{Doc: c.homeDoc, Pointer: pointer})
 }
 
 // NameThrough returns the name the $ref written at pointer in c's document
@@ -595,11 +582,9 @@ func (c Ctx) Place() provenance.Doc {
 	return provenance.Doc{Source: c.SrcIndex, Overlay: c.overlay.Attribution()}
 }
 
-// Position returns where pointer is in the bindings' table, and false where c
-// reads what another document holds at the source's coordinates (InScope), which
-// no position of the table places.
-func (c Ctx) Position(pointer jsontext.Pointer) (bind.Position, bool) {
-	return bind.Position{Doc: c.homeDoc, Pointer: pointer}, !c.foreign || c.home != 0
+// Position returns where pointer of c's document is in the bindings' table.
+func (c Ctx) Position(pointer jsontext.Pointer) bind.Position {
+	return bind.Position{Doc: c.homeDoc, Pointer: pointer}
 }
 
 // DynamicAnchorSites returns the positions of c's document declaring the

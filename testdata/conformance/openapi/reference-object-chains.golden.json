@@ -1,0 +1,750 @@
+{
+  "idSpaces": {
+    "auth": [
+      "openapi",
+      "unresolved"
+    ],
+    "e": [
+      "anon",
+      "composed",
+      "openapi"
+    ],
+    "g": [
+      "default",
+      "extension",
+      "path-prefix",
+      "tags",
+      "webhooks"
+    ],
+    "op": [
+      "openapi"
+    ],
+    "p": [
+      "composed",
+      "openapi"
+    ],
+    "param": [
+      "openapi"
+    ],
+    "s": [
+      "openapi"
+    ],
+    "server": [
+      "default",
+      "openapi"
+    ],
+    "t": [
+      "anon",
+      "composed",
+      "openapi"
+    ]
+  },
+  "name": "ReferenceObjectChains",
+  "version": "1.0.0",
+  "docs": {},
+  "services": [
+    {
+      "id": "s/openapi/0",
+      "name": {
+        "source": "ReferenceObjectChains",
+        "canonical": "reference_object_chains"
+      },
+      "docs": {},
+      "groups": [
+        {
+          "id": "g/default",
+          "name": {
+            "hint": "default"
+          },
+          "docs": {},
+          "operations": [
+            {
+              "id": "op/openapi/paths/~1orders/put",
+              "name": {
+                "source": "replaceOrder",
+                "canonical": "replace_order"
+              },
+              "docs": {},
+              "request": {
+                "contents": [
+                  {
+                    "mediaType": "application/json",
+                    "type": {
+                      "target": "t/anon/paths/~1drafts/put/requestBody/content/application~1json/schema",
+                      "nullable": false
+                    }
+                  }
+                ],
+                "required": false
+              },
+              "responses": [
+                {
+                  "name": {
+                    "hint": "204"
+                  },
+                  "conditions": {
+                    "statusCodes": [
+                      {
+                        "from": 204,
+                        "to": 204
+                      }
+                    ]
+                  },
+                  "docs": {
+                    "description": "Replaced"
+                  }
+                }
+              ],
+              "oneWay": false,
+              "idempotency": {},
+              "bindings": {
+                "http": [
+                  {
+                    "method": "PUT",
+                    "uriTemplate": "/orders",
+                    "requestContentTypes": [
+                      "application/json"
+                    ],
+                    "sharedRoute": false,
+                    "checksumRequired": false
+                  }
+                ]
+              },
+              "provenance": {
+                "source": 0,
+                "pointer": "/paths/~1orders/put"
+              }
+            },
+            {
+              "id": "op/openapi/paths/~1orders/post",
+              "name": {
+                "source": "createOrder",
+                "canonical": "create_order"
+              },
+              "docs": {},
+              "params": [
+                {
+                  "id": "param/openapi/paths/~1orders/post/parameters/page/query",
+                  "name": {
+                    "source": "page",
+                    "canonical": "page"
+                  },
+                  "type": {
+                    "target": "t/anon/components/parameters/Page/schema",
+                    "nullable": false
+                  },
+                  "required": false,
+                  "docs": {},
+                  "provenance": {
+                    "source": 0,
+                    "pointer": "/components/parameters/Page"
+                  }
+                },
+                {
+                  "id": "param/openapi/paths/~1orders/post/parameters/limit/query",
+                  "name": {
+                    "source": "limit",
+                    "canonical": "limit"
+                  },
+                  "type": {
+                    "target": "t/prim/integer",
+                    "nullable": false
+                  },
+                  "required": false,
+                  "docs": {},
+                  "provenance": {
+                    "source": 0,
+                    "pointer": "/components/parameters/Limit"
+                  }
+                },
+                {
+                  "id": "param/openapi/paths/~1orders/post/parameters/cursor/query",
+                  "name": {
+                    "source": "cursor",
+                    "canonical": "cursor"
+                  },
+                  "type": {
+                    "target": "t/prim/string",
+                    "nullable": false
+                  },
+                  "required": false,
+                  "docs": {},
+                  "provenance": {
+                    "source": 0,
+                    "pointer": "/x-params/cursor"
+                  }
+                },
+                {
+                  "id": "param/openapi/paths/~1orders/post/parameters/key/header",
+                  "name": {
+                    "source": "key",
+                    "canonical": "key"
+                  },
+                  "type": {
+                    "target": "t/prim/string",
+                    "nullable": false
+                  },
+                  "required": false,
+                  "docs": {},
+                  "provenance": {
+                    "source": 0,
+                    "pointer": "/x-params/🔑"
+                  }
+                }
+              ],
+              "request": {
+                "contents": [
+                  {
+                    "mediaType": "application/json",
+                    "type": {
+                      "target": "t/anon/paths/~1archive/post/requestBody/content/application~1json/schema",
+                      "nullable": false
+                    }
+                  }
+                ],
+                "required": false
+              },
+              "responses": [
+                {
+                  "name": {
+                    "hint": "200"
+                  },
+                  "conditions": {
+                    "statusCodes": [
+                      {
+                        "from": 200,
+                        "to": 200
+                      }
+                    ]
+                  },
+                  "headers": [
+                    {
+                      "id": "p/openapi/x-shared/Created/headers/X-Rate",
+                      "name": {
+                        "source": "X-Rate",
+                        "canonical": "x_rate"
+                      },
+                      "wireName": "X-Rate",
+                      "type": {
+                        "target": "t/prim/integer",
+                        "nullable": false
+                      },
+                      "required": false,
+                      "clientOptional": false,
+                      "defaultAdded": false,
+                      "visibility": {
+                        "none": false
+                      },
+                      "flatten": false,
+                      "eventHeader": false,
+                      "eventPayload": false,
+                      "secret": false,
+                      "docs": {},
+                      "provenance": {
+                        "source": 0,
+                        "pointer": "/x-shared/Created/headers/X-Rate"
+                      }
+                    }
+                  ],
+                  "docs": {
+                    "description": "Created"
+                  }
+                }
+              ],
+              "oneWay": false,
+              "idempotency": {},
+              "bindings": {
+                "http": [
+                  {
+                    "method": "POST",
+                    "uriTemplate": "/orders",
+                    "paramBindings": [
+                      {
+                        "param": "param/openapi/paths/~1orders/post/parameters/page/query",
+                        "location": "query",
+                        "wireName": "page",
+                        "style": "form",
+                        "allowReserved": false,
+                        "allowEmptyValue": false
+                      },
+                      {
+                        "param": "param/openapi/paths/~1orders/post/parameters/limit/query",
+                        "location": "query",
+                        "wireName": "limit",
+                        "style": "form",
+                        "allowReserved": false,
+                        "allowEmptyValue": false
+                      },
+                      {
+                        "param": "param/openapi/paths/~1orders/post/parameters/cursor/query",
+                        "location": "query",
+                        "wireName": "cursor",
+                        "style": "form",
+                        "allowReserved": false,
+                        "allowEmptyValue": false
+                      },
+                      {
+                        "param": "param/openapi/paths/~1orders/post/parameters/key/header",
+                        "location": "header",
+                        "wireName": "key",
+                        "style": "simple",
+                        "allowReserved": false,
+                        "allowEmptyValue": false
+                      }
+                    ],
+                    "requestContentTypes": [
+                      "application/json"
+                    ],
+                    "sharedRoute": false,
+                    "checksumRequired": false
+                  }
+                ]
+              },
+              "provenance": {
+                "source": 0,
+                "pointer": "/paths/~1orders/post"
+              }
+            },
+            {
+              "id": "op/openapi/paths/~1drafts/put",
+              "name": {
+                "hint": "put_drafts"
+              },
+              "docs": {},
+              "request": {
+                "contents": [
+                  {
+                    "mediaType": "application/json",
+                    "type": {
+                      "target": "t/anon/paths/~1drafts/put/requestBody/content/application~1json/schema",
+                      "nullable": false
+                    }
+                  }
+                ],
+                "required": false
+              },
+              "responses": [
+                {
+                  "name": {
+                    "hint": "204"
+                  },
+                  "conditions": {
+                    "statusCodes": [
+                      {
+                        "from": 204,
+                        "to": 204
+                      }
+                    ]
+                  },
+                  "docs": {
+                    "description": "Drafted"
+                  }
+                }
+              ],
+              "oneWay": false,
+              "idempotency": {},
+              "bindings": {
+                "http": [
+                  {
+                    "method": "PUT",
+                    "uriTemplate": "/drafts",
+                    "requestContentTypes": [
+                      "application/json"
+                    ],
+                    "sharedRoute": false,
+                    "checksumRequired": false
+                  }
+                ]
+              },
+              "provenance": {
+                "source": 0,
+                "pointer": "/paths/~1drafts/put"
+              }
+            },
+            {
+              "id": "op/openapi/paths/~1drafts/post",
+              "name": {
+                "hint": "post_drafts"
+              },
+              "docs": {},
+              "request": {
+                "contents": [
+                  {
+                    "mediaType": "application/json",
+                    "type": {
+                      "target": "t/anon/paths/~1archive/post/requestBody/content/application~1json/schema",
+                      "nullable": false
+                    }
+                  }
+                ],
+                "required": false
+              },
+              "responses": [
+                {
+                  "name": {
+                    "hint": "204"
+                  },
+                  "conditions": {
+                    "statusCodes": [
+                      {
+                        "from": 204,
+                        "to": 204
+                      }
+                    ]
+                  },
+                  "docs": {
+                    "description": "Archived"
+                  }
+                }
+              ],
+              "oneWay": false,
+              "idempotency": {},
+              "bindings": {
+                "http": [
+                  {
+                    "method": "POST",
+                    "uriTemplate": "/drafts",
+                    "requestContentTypes": [
+                      "application/json"
+                    ],
+                    "sharedRoute": false,
+                    "checksumRequired": false
+                  }
+                ]
+              },
+              "provenance": {
+                "source": 0,
+                "pointer": "/paths/~1archive/post"
+              }
+            },
+            {
+              "id": "op/openapi/paths/~1archive/post",
+              "name": {
+                "hint": "post_archive"
+              },
+              "docs": {},
+              "request": {
+                "contents": [
+                  {
+                    "mediaType": "application/json",
+                    "type": {
+                      "target": "t/anon/paths/~1archive/post/requestBody/content/application~1json/schema",
+                      "nullable": false
+                    }
+                  }
+                ],
+                "required": false
+              },
+              "responses": [
+                {
+                  "name": {
+                    "hint": "204"
+                  },
+                  "conditions": {
+                    "statusCodes": [
+                      {
+                        "from": 204,
+                        "to": 204
+                      }
+                    ]
+                  },
+                  "docs": {
+                    "description": "Archived"
+                  }
+                }
+              ],
+              "oneWay": false,
+              "idempotency": {},
+              "bindings": {
+                "http": [
+                  {
+                    "method": "POST",
+                    "uriTemplate": "/archive",
+                    "requestContentTypes": [
+                      "application/json"
+                    ],
+                    "sharedRoute": false,
+                    "checksumRequired": false
+                  }
+                ]
+              },
+              "provenance": {
+                "source": 0,
+                "pointer": "/paths/~1archive/post"
+              }
+            }
+          ]
+        }
+      ],
+      "servers": [
+        "server/default"
+      ],
+      "provenance": {
+        "source": 0
+      }
+    }
+  ],
+  "types": {
+    "t/anon/components/parameters/Page/schema": {
+      "kind": "model",
+      "id": "t/anon/components/parameters/Page/schema",
+      "name": {
+        "hint": "page"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/parameters/Page/schema"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/parameters/Page/schema/properties/size",
+          "name": {
+            "source": "size",
+            "canonical": "size"
+          },
+          "wireName": "size",
+          "type": {
+            "target": "t/prim/integer",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/parameters/Page/schema/properties/size"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/anon/paths/~1archive/post/requestBody/content/application~1json/schema": {
+      "kind": "model",
+      "id": "t/anon/paths/~1archive/post/requestBody/content/application~1json/schema",
+      "name": {
+        "hint": "request"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/paths/~1archive/post/requestBody/content/application~1json/schema"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/paths/~1archive/post/requestBody/content/application~1json/schema/properties/id",
+          "name": {
+            "source": "id",
+            "canonical": "id"
+          },
+          "wireName": "id",
+          "type": {
+            "target": "t/prim/string",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/paths/~1archive/post/requestBody/content/application~1json/schema/properties/id"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/anon/paths/~1drafts/put/requestBody/content/application~1json/schema": {
+      "kind": "model",
+      "id": "t/anon/paths/~1drafts/put/requestBody/content/application~1json/schema",
+      "name": {
+        "hint": "request"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/paths/~1drafts/put/requestBody/content/application~1json/schema"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/paths/~1drafts/put/requestBody/content/application~1json/schema/properties/draft",
+          "name": {
+            "source": "draft",
+            "canonical": "draft"
+          },
+          "wireName": "draft",
+          "type": {
+            "target": "t/prim/string",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/paths/~1drafts/put/requestBody/content/application~1json/schema/properties/draft"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/openapi/components/schemas/PageSize": {
+      "kind": "scalar",
+      "id": "t/openapi/components/schemas/PageSize",
+      "name": {
+        "source": "PageSize",
+        "canonical": "page_size"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/PageSize"
+      },
+      "base": {
+        "target": "t/anon/components/parameters/Page/schema",
+        "nullable": false
+      }
+    },
+    "t/prim/integer": {
+      "kind": "primitive",
+      "id": "t/prim/integer",
+      "name": {},
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": -1
+      },
+      "prim": "integer"
+    },
+    "t/prim/string": {
+      "kind": "primitive",
+      "id": "t/prim/string",
+      "name": {},
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": -1
+      },
+      "prim": "string"
+    }
+  },
+  "servers": {
+    "server/default": {
+      "id": "server/default",
+      "name": {
+        "hint": "server"
+      },
+      "urlTemplate": "/",
+      "description": {},
+      "provenance": {
+        "source": 0
+      }
+    }
+  },
+  "unmodeled": {
+    "openapi:x-params": {
+      "reason": "vendor_extension",
+      "value": {
+        "cursor": {
+          "in": "query",
+          "name": "cursor",
+          "schema": {
+            "type": "string"
+          }
+        },
+        "other": {
+          "in": "query",
+          "name": "other",
+          "schema": {
+            "type": "string"
+          }
+        },
+        "🔑": {
+          "in": "header",
+          "name": "key",
+          "schema": {
+            "type": "string"
+          }
+        }
+      },
+      "provenance": {
+        "source": 0,
+        "pointer": "/x-params"
+      }
+    },
+    "openapi:x-shared": {
+      "reason": "vendor_extension",
+      "value": {
+        "Created": {
+          "description": "Created",
+          "headers": {
+            "X-Rate": {
+              "$ref": "#/components/headers/Rate"
+            }
+          }
+        }
+      },
+      "provenance": {
+        "source": 0,
+        "pointer": "/x-shared"
+      }
+    }
+  },
+  "diagnostics": [
+    {
+      "severity": "info",
+      "code": "openapi/undecided-pagination",
+      "message": "no pagination is inferred: the operation is a POST, and only a GET or a QUERY is safe to send again for each page",
+      "provenance": {
+        "source": 0,
+        "pointer": "/paths/~1orders/post"
+      }
+    }
+  ],
+  "sources": [
+    {
+      "format": "openapi@3.1",
+      "path": "reference-object-chains.yaml",
+      "hash": "d28c1d2d6811b62bd5949badde6fba92feb289f5d1ff5afc0bea2014a9c3a899"
+    }
+  ]
+}

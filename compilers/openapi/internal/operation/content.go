@@ -67,10 +67,9 @@ type mediaDecl struct {
 // declaredMedia returns what the content entry media, written at mediaPtr in
 // c's document, stands for (mediaDecl), and false for one written as a $ref
 // resolving to nothing, which lowers nothing, as any reference object does
-// (docs/compilers/openapi.md#references). The load phase or the rule table
-// reported why, but for a $ref inside an object reached in raw YAML
-// (GitHub #1320) or one the model decodes no string from (GitHub #1368). Keys
-// beside the $ref but summary and description are not read (GitHub #1321).
+// (docs/compilers/openapi.md#references), where the load phase reported why.
+// Keys beside the $ref but summary and description are not read (GitHub
+// #1321).
 //
 // One declaration lowers at its own pointer however many entries name it, so
 // it interns one type (GitHub #856).
@@ -100,7 +99,7 @@ func mediaTypeDocs(d mediaDecl, u *ir.Unmodeled) (ir.Docs, []string, []ir.Diagno
 		d.ctx.Place(), d.pointer, "")
 	docs := ir.Docs{Description: description}
 	if d.use != nil {
-		docs = resolve.UseDocs[soa.MediaType](d.use, docs)
+		docs = resolve.UseDocs[soa.MediaType](d.entryCtx.Bindings(), d.use, docs)
 	}
 	if !read {
 		return docs, nil, diags
@@ -109,8 +108,8 @@ func mediaTypeDocs(d mediaDecl, u *ir.Unmodeled) (ir.Docs, []string, []ir.Diagno
 }
 
 // lowerContent lowers one media-type view: its type graph, examples, binary/
-// form specialization, sequential-media shape, docs and extensions, as d
-// declares them, under mt, the key it is written under.
+// form specialization, sequential-media shape, whether it streams, docs and
+// extensions, as d declares them, under mt, the key it is written under.
 func lowerContent(d mediaDecl, w walk, mt string) (ir.Content, []ir.Diagnostic) {
 	c, media, mediaPtr := d.ctx, d.media, d.pointer
 	mediaType, diags := schema.Ref(c, w.types, schema.TopLevelDepth, media.GetSchema(), mediaPtr+ids.Ptr("schema"))
@@ -123,19 +122,26 @@ func lowerContent(d mediaDecl, w walk, mt string) (ir.Content, []ir.Diagnostic) 
 	if len(ex) > 0 {
 		content.Examples = ex
 	}
-	switch file := bodyFile(c, mt, readFile(c, media.GetSchema())); {
-	case file != nil:
+	file := bodyFile(c, mt, readFile(c, media.GetSchema()))
+	if file != nil {
 		content.File = file
 		content.Type = fileBodyType(w.types, file, content.Type)
-	case isFormContent(mt):
+	}
+	if file == nil && isFormContent(mt) {
 		enc, encUnmodeled, encDiags := partEncodings(c, w, media, mt, mediaPtr, content.Type.Target)
 		diags = append(diags, encDiags...)
 		if enc != nil {
 			content.Encoding = enc
 		}
-		content.Unmodeled = annotation.MergeUnmodeled(content.Unmodeled, encUnmodeled)
+		// Assigned, not merged: the parts' settlement writes into this map.
+		content.Unmodeled = encUnmodeled
+	} else {
+		kept, keptDiags := keepBodyEncodings(c, media, mediaPtr, mt)
+		diags = append(diags, keptDiags...)
+		content.Unmodeled = annotation.MergeUnmodeled(content.Unmodeled, kept)
 	}
 	diags = append(diags, fillSequential(c, w, &content, media, mediaPtr)...)
+	content.Stream = contentStream(c, mt, content.Item)
 	ext, extDiags := annotation.ExtensionsFrom(media.GetExtensions(), c.Place(), mediaPtr)
 	diags = append(diags, extDiags...)
 	if len(ext) > 0 {
@@ -146,6 +152,18 @@ func lowerContent(d mediaDecl, w walk, mt string) (ir.Content, []ir.Diagnostic) 
 	diags = append(diags, docDiags...)
 	return content, append(diags,
 		annotation.UnknownKeysIn(&content.Unmodeled, media, c.Place(), mediaPtr, taken...)...)
+}
+
+// keepBodyEncodings keeps whole the encoding entries of a body with no parts
+// for any of them to name (docs/compilers/openapi.md#multipart-encoding): a
+// file body under a form media type, and any body under a media type that is
+// neither multipart nor form, where OpenAPI gives the field no effect.
+func keepBodyEncodings(c lowering.Ctx, media *soa.MediaType, mediaPtr jsontext.Pointer, mt string) (ir.Unmodeled, []ir.Diagnostic) {
+	why := unkeyedFileEntry
+	if !isFormContent(mt) {
+		why = unkeyedOtherEntry
+	}
+	return keepUnkeyedEncodings(c, media, mediaPtr, partWalk{}, why)
 }
 
 // fileBodyType is the type of the file body file whose schema lowered to

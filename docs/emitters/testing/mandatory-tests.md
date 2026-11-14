@@ -224,10 +224,11 @@ throughout these documents.
     `tailMetricsStream(onHeaders:)` has pass a block, given them, and a response's first declared
     header adds a field and changes no signature; a stream under a binding other than HTTP draws no
     `unframed-stream`; a media type only a compiler option names gets the one stream method, as
-    `bytes`, with that warning; a primary `Default` that streams is `bidi` beside a `Send`; a
-    `bytes` side lowers as a file, and a request's file body is a byte source whatever its `Type`;
-    and each operation of the golden spec that streams gets a `StreamPlan`
-    ([streams](../plan/streams.md), [streaming](../operations/streaming.md), [request
+    `bytes`, with that warning, and a `text/event-stream` content with no `Content.Stream`, as the
+    compiler's policy turned off leaves one, is read whole; a primary `Default` that streams is
+    `bidi` beside a `Send`; a `bytes` side lowers as a file, and a request's file body is a byte
+    source whatever its `Type`; and each operation of the golden spec that streams gets a
+    `StreamPlan` ([streams](../plan/streams.md), [streaming](../operations/streaming.md), [request
     shaping](../refine/requests.md)).
 25. **T-25 · Emit-layer rules** — one check per rule of the [emit rules](../emit/rules.md). A
     template's context type holds no pointer, map, function or method, by reflection. A golden whose
@@ -298,9 +299,9 @@ throughout these documents.
     list, its elements keep the member and it stays closed. A required member no shape holds
     (`Visibility.None`) is required of no value, and of two tuple variants, one with two required
     positions and one with one and no `Rest`, each admits only its own length. A `null` that two
-    nullable variants admit, a `null` literal variant does or a variant that is such a union does,
-    is held by the reference, as a nullable one's is. A value no variant admits takes the fallback
-    on an open union and is a coded error on a closed one
+    nullable variants admit, one of them a nullable reference to an enum with no member, or a
+    variant that is such a union does, is held by the reference, as a nullable one's is. A value no
+    variant admits takes the fallback on an open union and is a coded error on a closed one
     ([unions](../refine/unions.md#a-value-several-variants-admit),
     [TypePlan](../plan/types.md#variants-that-can-share-a-value)).
 30. **T-30 · Visibility projections** — on every target, a model holding a model, a union, a list
@@ -396,14 +397,16 @@ throughout these documents.
     strict decoding, one with no members stays closed under either setting and refuses every value,
     a flags one refusing 0 too, an optional member of it decoding only where it is absent, and
     refuses to encode every value a target can hand it, so that Go fails to encode a struct
-    requiring one left at its zero value and leaves out an optional one unset, one declaring a
-    `FallbackMember` reads an unlisted value as that member, and an open `Flags` enum keeps a bit no
-    member names in its flags form; an enum declared open is `Open` wherever it is used, with no
-    `Inferred` mark. A `oneOf` of two string variants only their `pattern`s tell apart decodes each
-    value into the variant whose pattern it meets, in either declaration order; a value both admit
-    and meet decodes into the first, and under `StrictExclusive` is a coded error, as is one both
-    admit and neither meets ([plan
-    policy](../plan/policy.md#an-enum-keeps-a-value-it-does-not-list),
+    requiring one left at its zero value and leaves out an optional one unset, an anonymous one
+    every reference reaches as nullable declares no type and is `Null` on Go and `Nothing?` on
+    Kotlin at each use, a required member of it writing `null` and refusing `"x"` and an optional
+    one decoding where absent and left out unset, one declaring a `FallbackMember` reads an unlisted
+    value as that member, and an open `Flags` enum keeps a bit no member names in its flags form; an
+    enum declared open is `Open` wherever it is used, with no `Inferred` mark. A `oneOf` of two
+    string variants only their `pattern`s tell apart decodes each value into the variant whose
+    pattern it meets, in either declaration order; a value both admit and meet decodes into the
+    first, and under `StrictExclusive` is a coded error, as is one both admit and neither meets
+    ([plan policy](../plan/policy.md#an-enum-keeps-a-value-it-does-not-list),
     [unions](../refine/unions.md#variant-identity-and-recognition)).
 37. **T-37 · Retries and redirects** — on every target, against the behavior server (T-14) and with
     each wait timed as T-13 times one, under the default policy: a 429 and a 503 are sent again for
@@ -761,33 +764,35 @@ throughout these documents.
     union one of whose variants is a union, a union a subtype composes as a `Mixin`, under its
     base's discriminator, and a union the model reaches through a model it composes. A variant's
     `readOnly` member is in no create or patch shape of the model's, and each variant composed there
-    requires what its entry's `Required` lists and redacts what its entry's `Redacted` lists, so
-    each of `rulesets_ResponseRule`'s variants requires the five members the model requires beside
-    those its union's variant does, and a member only one of the union's variants redacts is
-    redacted in the variant composed over it alone. Adding a variant to the union renames no variant
-    composed there and no union nesting entries, each keyed by the model and its `Over`, or the
-    start of `Over` its entries share. Read by a client under `OpenUnions`, such a model keeps a
-    variant its union does not list, and one whose variant holds the model compiles, the union
-    breaking the cycle. Each target declares one variant for each entry of the model's
-    `TypePlan.Composed` and no other, entries sharing the start of their `Over` nested as a union of
-    them, and a model composing its union through an alias scalar, as a 3.1 `$ref` beside a
-    `description` hoists, narrows it as one naming the union does. An entry requiring a member that
-    the model and a variant it is over pin to finite sets sharing no value is left out: `Item:
-    {allOf: [Leaf, Node]}` over a `Node` of `Group` and `Leaf`, each pinning `kind`, declares the
-    one variant over `Leaf`, still as a union, routes the tag `group` to no variant and has no
-    table, flag or example over `Group`; an entry is kept where the member the two pin apart is one
-    its `Required` does not list; a model every entry of which is such keeps them all, each member
-    as its flattening takes it; and a variant that pins a member both ways itself keeps its entry
-    under a model pinning it as the variant's later declaration does, `SelfBody: {allOf: [Env,
-    Failure]}` keeping its entry over `ErrBody: {allOf: [OkB, Failure]}`, since neither side reads a
-    declaration its own flattening overrides. A model its union lists is that variant, a model the
-    union's sum holds. A model adding nothing to its union aliases it, and one narrowing two unions,
-    one whose union has a variant composing it or reaches itself through its variants, one over a
-    key-tagged, enveloped or index-tagged union, and one whose entries, with what their walks read,
-    would pass `plan.MaxComposedSize`, among them one holding few members over a long composition
-    and one over unions nested deep, each beside one leaf, which `Build` reports as
-    `emitters/plan/composed-limit`, each draw a diagnostic and degrade
-    ([inheritance](../refine/models.md#inheritance)).
+    requires what its entry's `Required` lists, redacts what its entry's `Redacted` lists and marks
+    deprecated each member its entry's `Deprecated` holds, so each of `rulesets_ResponseRule`'s
+    variants requires the five members the model requires beside those its union's variant does, and
+    a member only one of the union's variants redacts is redacted in the variant composed over it
+    alone. Adding a variant to the union renames no variant composed there and no union nesting
+    entries, each keyed by the model and its `Over`, or the start of `Over` its entries share. Read
+    by a client under `OpenUnions`, such a model keeps a variant its union does not list, and one
+    whose variant holds the model compiles, the union breaking the cycle. Each target declares one
+    variant for each entry of the model's `TypePlan.Composed`, each a shape `ir.NarrowedShapes`
+    lists ([the shapes of a model narrowing a
+    union](../../ir/models.md#the-shapes-of-a-model-narrowing-a-union)), and no other, entries
+    sharing the start of their `Over` nested as a union of them, and a model composing its union
+    through an alias scalar, as a 3.1 `$ref` beside a `description` hoists, narrows it as one naming
+    the union does. An entry requiring a member that the model and a variant it is over pin to
+    finite sets sharing no value is left out: `Item: {allOf: [Leaf, Node]}` over a `Node` of `Group`
+    and `Leaf`, each pinning `kind`, declares the one variant over `Leaf`, still as a union, routes
+    the tag `group` to no variant and has no table, flag or example over `Group`; an entry is kept
+    where the member the two pin apart is one its `Required` does not list; a model every entry of
+    which is such keeps them all, each member as its flattening takes it; and a variant that pins a
+    member both ways itself keeps its entry under a model pinning it as the variant's later
+    declaration does, `SelfBody: {allOf: [Env, Failure]}` keeping its entry over `ErrBody: {allOf:
+    [OkB, Failure]}`, since neither side reads a declaration its own flattening overrides. A model
+    its union lists is that variant, a model the union's sum holds. A model adding nothing to its
+    union aliases it, and one narrowing two unions, one whose union has a variant composing it or
+    reaches itself through its variants, one over a key-tagged, enveloped or index-tagged union, and
+    one whose entries, with what their walks read, would pass `plan.MaxComposedSize`, among them one
+    holding few members over a long composition and one over unions nested deep, each beside one
+    leaf, which `Build` reports as `emitters/plan/composed-limit`, each draw a diagnostic and
+    degrade ([inheritance](../refine/models.md#inheritance)).
 47. **T-47 · Values as text** — on every target, under T-12's interception, a value of each
     primitive sent in a path, a query, a header, a cookie, a form field and a `text/plain` body is
     the text [values as text](../refine/text.md) gives it: a `float64` 1 as `1` and 10²¹ in plain
@@ -799,7 +804,8 @@ throughout these documents.
     list in a cookie as `p=a; p=b`, an unexploded `cookie`-style list as `p=a,b`, `a/b?c#d` and
     `a//b` in a path under `AllowReserved` as `a/b%3Fc%23d` and `a//b`, a map's entries and a
     `Prefix` map's fields in their keys' order, the map's entry, and a `form`-exploded map's, giving
-    way to a field another binding writes, a string under `ContentType` `application/json` with its
+    way to a field another binding writes, a query map under the empty `Prefix` as a parameter per
+    entry named by its key alone, a string under `ContentType` `application/json` with its
     quotes, a `text/plain` body as its UTF-8 octets with no byte-order mark, and a scalar's class
     and an `enum class` entry as their wire forms, never their `toString()`. An optional query input
     holding null or an empty list is sent as an absent one, a null member of a list is left out, and
@@ -948,12 +954,15 @@ throughout these documents.
     GMT` and `Sun Nov  6 08:49:37 1994` as `1994-11-06T08:49:37Z`, and at
     `9999-12-31T23:59:59-01:00` fails before anything is sent; `base64`, `rfc3339` and `iso8601`
     write what their primitives' rows do; and a property whose own `Encoding` is `base64url`, typed
-    by a scalar declaring `base64`, writes `fb ff` as `-_8=`. A `bytes` scalar under an encoding no
-    row names whose `WireType` is `string`, and a `datetime_offset` under one with no `WireType`,
-    are each a string in the SDK that is sent as given, with a warning
+    by a scalar declaring `base64`, writes `fb ff` as `-_8=`. A `string` under `base64` whose
+    `WireType` is `string` writes `hi` as `aGk=` and reads it back, and refuses `/w==`, whose octet
+    is no UTF-8, where one with no `WireType` sends `aGk=` as given. A `bytes` scalar under an
+    encoding no row names whose `WireType` is `string`, and a `datetime_offset` under one with no
+    `WireType`, are each a string in the SDK that is sent as given, with a warning
     `emitters/<target>/unmapped-encoding`; a `datetime_offset` under `unixTimestamp` whose
-    `WireType` is `int64` is an `int64`; and a `string` under `email` stays a string with an info
-    ([the type table](../contract/type-table.md#a-row-keyed-by-an-encoding)).
+    `WireType` is `int64`, `integer`, `number` or `string` is that type; and a `string` under
+    `email` stays a string with an info ([the type
+    table](../contract/type-table.md#a-row-keyed-by-an-encoding)).
 52. **T-52 · The path fold** — the fold joins each pair of a table holding what APFS makes one path,
     `Setup` and `SetUp`, `ſetup` and `setup`, a Kelvin sign and `K`, `σς` and `σσ`, `Straße` and
     `Strasse`, an `é` composed and decomposed, `q` with U+0323 then U+0307 and with the two
@@ -1378,7 +1387,8 @@ throughout these documents.
     [samples](../docs-and-mock.md#samples-come-from-the-sdk-emitters)).
 70. **T-70 · Deprecations** — on every target, a deprecated operation, type, property, parameter,
     enum member and union variant each carry the target's mark on every declaration they lower to,
-    each method of an operation, each shape of a model and a builder's setter among them, a
+    each method of an operation, each shape of a model and a builder's setter among them, a model's
+    member a later conjunct redeclares without `deprecated` marked as its earlier declaration is, a
     positional path parameter its text in its method's documentation, a member a caller sets
     unmarked while building its holder its text in the holder's, and one setting no field the shared
     sentence; its text holds the message escaped, each replacement as it renders after a collision
@@ -1440,3 +1450,48 @@ throughout these documents.
     its control route, which the API's listener does not answer; and the docs give each a page
     naming its event or its declaring operation and expression, with no sample ([operations the API
     sends](../operations/inbound.md)).
+72. **T-72 · What a target cannot lower** — a document holding a construct a target degrades draws
+    that construct's code from `Generate`; a run of two targets that fails on one's code, at a
+    threshold or by a triage rule, writes neither's files, in either order the targets finish, and
+    one rating the code down writes both; and each target's support table, each matrix row's
+    witnesses with the codes the target draws on each at the `none` threshold, equals its committed
+    copy, a witness added or a degrade removed failing until the copy is regenerated
+    ([verification](../verification.md#what-a-target-cannot-lower)).
+73. **T-73 · The build check** — every golden output of every target builds, lints and passes its
+    tests under its declared checks on the gate's host, its samples compiled among its test sources
+    and never run; a planted compile error inside a method of a client is reported at the operation
+    whose declaration holds it, through `Artifact.Spans`, with a kept region restored above it or
+    inside it as without, one on an import line, in a file its owner edited or in one a merge
+    adapter wrote at its file, and a message with no position at the target; the same error is
+    reported once, the checks after the failing one not run; a toolchain missing, older than its
+    minimum or newer than its maximum, and a `Setup` check that fails, each skip the checks
+    depending on it under `check-skipped`, never reading as a pass; a check running past its
+    `Timeout` is ended with the processes it started and has failed; a failing check leaves the
+    written files in place and fails the run; and a run that does not ask for the check starts no
+    process ([verification](../verification.md#the-output-builds)).
+74. **T-74 · The manifest checked** — an operation with neither an entry nor a diagnostic, an entry
+    naming no entity of the document, a declaration written under an `Origin` with no entry, a
+    shape's declaration among them, an entry naming no declaration, and two entries of one scope
+    sharing a symbol are each `manifest-mismatch`, while an entry a scoped run kept for an entity
+    outside its scope and a Multiplatform declaration's Objective-C entry are none; a planted rename
+    that skips the manifest and a kept region shadowing a generated symbol are each
+    `symbol-unresolved`; a symbol generated code alone calls and a record in a file its owner edited
+    draw neither; and a target with no extractor, and a Kotlin target in a run that did not ask for
+    the build check, each have the resolution check skipped and said to be
+    ([verification](../verification.md#the-manifest-says-what-the-output-holds)).
+75. **T-75 · Severity and levels** — each row of both seeded tables, on every target; an enum
+    gaining a member read in a response is structurally additive on Go, and behaviorally breaking
+    only where the enum is closed and declares no fallback member; a response member added is
+    behaviorally breaking for a closed model, and for one whose typed catch-all its value does not
+    fit, and not for an open one; a run naming no prior revision of the spec, and one whose prior
+    revision does not compile, each report no behavioral record under `engine/no-prior-revision`;
+    for each fixture pair of generated Go packages differing by one change, Go's structural verdict
+    is breaking exactly where apidiff reports an incompatible change, a model and a `Params` struct
+    gaining a list member each additive among them, the one divergence Go's overview lists aside, a
+    method added to a client's interface; a parameter renamed is breaking on Kotlin and none on Go;
+    and a regeneration's level follows the rule: major, minor, a deprecation on Go among the minors,
+    a patch where a file was written, pruned or its digest moved with no record, none where no file
+    changed, `level-unknown` for a target with no extractor, a behavioral record raising none of
+    them, and none on a first generation; and no generated file states an SDK's version, a Kotlin
+    build whose `version` is set publishing every module and its platform at it
+    ([surface verification](../surface-verification.md#the-level-a-regeneration-reports)).

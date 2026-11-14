@@ -7,9 +7,11 @@ import (
 	"context"
 	"encoding/json/jsontext"
 	"fmt"
+	"slices"
 
 	yaml "go.yaml.in/yaml/v3"
 
+	"github.com/dexpace/morphic/compilers/openapi/internal/bind"
 	"github.com/dexpace/morphic/compilers/openapi/internal/budget"
 	"github.com/dexpace/morphic/compilers/openapi/internal/nodeview"
 	"github.com/dexpace/morphic/compilers/openapi/internal/oas"
@@ -28,18 +30,21 @@ type objectKey struct {
 // objects it read, so the validation of what a reference reaches skips them.
 // checker is the table it judged against, built once a load, which judges
 // what the references reach and gives each document's Schema Object rows.
-// owned is each value it left to the load phase (oas.Options.Owned), which
-// is judged once the dialect of each schema is known (ownedFindings).
+// pending is each Schema Object it handed back unread, in a document that may
+// name a dialect, which is judged under opts once the bindings say which
+// dialect each is read in (judgeSchemas).
 type judgment struct {
 	checker oas.Checker
 	diags   []ir.Diagnostic
 	seen    map[objectKey]bool
-	owned   []oas.Owned
+	pending []oas.Pending
+	version string
+	opts    oas.Options
 }
 
 // declaredVersion returns the version the document at root writes under
-// "openapi", or "" when it writes none as a scalar. It reads the tree rather
-// than the model, which is built from a respelled copy.
+// "openapi", or "" when it writes none as a scalar. It reads the tree as the
+// document writes it rather than the model.
 func declaredVersion(root *yaml.Node) string {
 	for _, p := range nodeview.Pairs(nodeview.DocumentRoot(root)) {
 		if v := nodeview.Deref(p.Val); p.Key == "openapi" && v != nil && v.Kind == yaml.ScalarNode && v.Tag != "!!null" {
@@ -68,24 +73,67 @@ func declaredDialect(root *yaml.Node) string {
 // is the tree as the source writes it, an applied overlay's patch included, and
 // tree places each finding at the node it is about, naming where it was read
 // when an alias or a merge key mounts that node there. within bounds what the
-// check reads (see nodesAdmitted). A draft's schema is held to its minor's
-// keyword rows, bar what the check hands back to judge in its dialect
-// (judgeOwned), so a keyword only the draft defines is held to none (GitHub
-// #1466).
+// check reads (see nodesAdmitted). A document that may name a dialect
+// (namesDialect) has its Schema Objects handed back unread, since the dialect
+// each is read in is known only once the bindings are read (judgeSchemas).
 func judgeSource(ctx context.Context, root *yaml.Node, tree provenance.Tree, within budget.Limit) judgment {
-	j := judgment{checker: oas.NewChecker(), seen: map[objectKey]bool{}}
-	version := declaredVersion(root)
-	opts := oas.Options{
+	j := judgment{checker: oas.NewChecker(), seen: map[objectKey]bool{}, version: declaredVersion(root)}
+	j.opts = oas.Options{
 		Budget: within,
 		Locate: walkedFrom(root, tree.Node),
 		Seen: func(kind oas.Kind, node *yaml.Node) {
 			j.seen[objectKey{node: nodeview.Deref(node), kind: kind}] = true
 		},
 		ReadAt: true,
-		Owned:  func(o oas.Owned) { j.owned = append(j.owned, o) },
 	}
-	j.diags = append(j.checker.Check(ctx, root, version, opts),
-		oas.CheckFormat(ctx, root, version, formatOptions(opts))...)
+	opts := j.opts
+	if namesDialect(ctx, root, j.version) {
+		opts.Later = func(p oas.Pending) { j.pending = append(j.pending, p) }
+	}
+	j.diags = append(j.checker.Check(ctx, root, j.version, opts),
+		oas.CheckFormat(ctx, root, j.version, formatOptions(opts))...)
+	return j
+}
+
+// namesDialect reports whether a schema of the document at root, declaring
+// version, may be read in another dialect than its minor's own: the document
+// is 3.1 or 3.2 and writes jsonSchemaDialect, or a mapping of its tree writes
+// the key `$schema`, in a schema or not, which is all a dialect root can name
+// one by. It reads the tree, so it holds for a document whose model is not yet
+// built, and a walk the tree's bound or ctx cuts short says it may.
+func namesDialect(ctx context.Context, root *yaml.Node, version string) bool {
+	if m, ok := oas.ParseMinor(version); !ok || m == oas.V30 {
+		return false
+	}
+	if declaredDialect(root) != "" {
+		return true
+	}
+	walk := nodeview.Walk{Nodes: maxTreeNodes, Visit: func(n *yaml.Node, _ int) nodeview.Step {
+		if n.Kind == yaml.MappingNode && slices.ContainsFunc(nodeview.Pairs(n), func(p nodeview.Pair) bool {
+			return p.Key == "$schema"
+		}) {
+			return nodeview.Stop
+		}
+		return nodeview.Descend
+	}}.Run(ctx, root)
+	return walk.Stopped || walk.Cut
+}
+
+// judgeSchemas returns j with the findings about the Schema Objects the
+// source's check handed back unread (judgeSource), each read with the rows of
+// the dialect it is read in, which the bindings, once read, give (Dialects):
+// those of a dialect root it is or is held by, else the source's.
+func judgeSchemas(ctx context.Context, j judgment, d Dialects) judgment {
+	if len(j.pending) == 0 {
+		return j
+	}
+	opts := j.opts
+	opts.Rows = d.rowsAt(bind.Position{Doc: bind.Source})
+	opts.RootRows = func(at jsontext.Pointer) (oas.SchemaRules, bool) {
+		return d.root(bind.Position{Doc: bind.Source, Pointer: at})
+	}
+	j.diags = append(j.diags, j.checker.CheckPending(ctx, j.pending, j.version, opts)...)
+	j.pending = nil
 	return j
 }
 

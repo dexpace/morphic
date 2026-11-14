@@ -1,8 +1,8 @@
 # The prefix spelled with a trailing separator: '/A/' ends in an empty
-# reference token, which the resolver reads as a key under A, through the
-# reference it is resolving. It deadlocked there once, and now reports the
-# reference unresolved, at the use and the component
-# (docs/parser-library.md#reference-object-cycle).
+# reference token, a member of what A names keyed "", which reads through the
+# reference it is resolving. That read needs A's own chain, so A is reported
+# unresolved, once, and /a leading to it draws nothing of its own
+# (docs/compilers/openapi.md#reference-cycles).
 openapi: 3.1.0
 info: {title: Path Item Empty Segment, version: "1"}
 paths:

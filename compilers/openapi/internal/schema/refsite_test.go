@@ -589,7 +589,7 @@ func TestUndeclaredRegion_TwoReferencesAgreeInBothOrders(t *testing.T) {
 // /a's encoding key names lives on Base. The key is found by flattening the
 // composition (partMembers), which needs /b's node, and /a's reference leaves
 // building it to /b, so the keys are settled once every node exists (partKeys);
-// read earlier, the key would fall back to a property ID that exists nowhere.
+// read earlier, the key would find no property to name.
 func TestCrossPathReference_ComposedMultipartKeepsItsEncodingKeys(t *testing.T) {
 	t.Parallel()
 	const preamble = "openapi: 3.1.0\ninfo: {title: t, version: \"1\"}\npaths:\n"
@@ -642,11 +642,10 @@ func TestCrossPathReference_ComposedMultipartKeepsItsEncodingKeys(t *testing.T) 
 			require.NotNil(t, postA.Request)
 			require.Len(t, postA.Request.Contents, 1)
 			enc := postA.Request.Contents[0].Encoding
-			require.Len(t, enc, 1, "meta carries no explicit encoding and is left out")
-			for propID := range enc {
-				assert.Equal(t, baseFile.ID, propID,
-					"the encoding key names the property Base itself declares, not a pointer under /a")
-			}
+			require.Len(t, enc, 2, "file's entry, and meta's default content type")
+			file, ok := enc[baseFile.ID]
+			require.True(t, ok, "the encoding key names the property Base itself declares, not a pointer under /a")
+			assert.Equal(t, []string{"application/octet-stream"}, file.ContentTypes)
 		})
 	}
 }

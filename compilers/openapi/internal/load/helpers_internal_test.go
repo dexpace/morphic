@@ -4,26 +4,32 @@
 package load
 
 import (
+	"net/http"
+	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"slices"
 	"strings"
+	"sync/atomic"
 	"testing"
 
 	soa "github.com/speakeasy-api/openapi/openapi"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	yaml "go.yaml.in/yaml/v3"
 
 	"github.com/dexpace/morphic/compilers"
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
-	"github.com/dexpace/morphic/compilers/openapi/internal/provenance"
+	refscope "github.com/dexpace/morphic/compilers/openapi/internal/resolve"
 	"github.com/dexpace/morphic/engine/reader"
 	"github.com/dexpace/morphic/ir"
 )
 
-// buildDoc runs a source through the steps build runs before resolving:
-// decode, release anchors, populate the model. It returns the populated
-// document and the raw tree, so a test can drive one stage directly instead
-// of paying for the whole Load pipeline.
-func buildDoc(t *testing.T, spec string) (*soa.OpenAPI, *yaml.Node) {
+// buildTree runs a source through the steps the load phase runs before
+// binding: decode, release anchors, populate the model. It returns the raw
+// tree, so a test can drive one stage directly instead of paying for the whole
+// Load pipeline.
+func buildTree(t *testing.T, spec string) *yaml.Node {
 	t.Helper()
 	parsed, err := parsedFor(t.Context(), compilers.Source{Path: "spec.yaml", Data: []byte(spec)})
 	require.NoError(t, err)
@@ -31,7 +37,7 @@ func buildDoc(t *testing.T, spec string) (*soa.OpenAPI, *yaml.Node) {
 	doc, err := unmarshal(t.Context(), []byte(spec), parsed.root)
 	require.NoError(t, err)
 	require.NotNil(t, doc)
-	return doc, parsed.root
+	return parsed.root
 }
 
 // mappingSpec is a source whose component schemas are schemas, and whose
@@ -65,11 +71,11 @@ func readingIf(external bool) Options {
 	return Options{}
 }
 
-// resolverPanicSpec is a document the parser accepts and the resolver faults on:
-// `B: {$ref}` is a mapping whose $ref key carries no value, so populating the
-// response reference that points at it nil-dereferences inside speakeasy.
+// parserPanicSpec is a document the parser accepts and faults on building what
+// a reference reaches: `B: {$ref}` is a mapping whose $ref key carries no
+// value, so building a response from it nil-dereferences inside the parser.
 // FuzzCycleDetector found it; the same bytes are committed as a corpus entry.
-const resolverPanicSpec = "openapi: 3.0\ncomponents:\n responses:\n  000: {$ref: '#/B'}\nB: {$ref}"
+const parserPanicSpec = "openapi: 3.0\ncomponents:\n responses:\n  000: {$ref: '#/B'}\nB: {$ref}"
 
 // countErrorsAt counts the error-severity diagnostics carrying code. Severity is
 // fixed rather than a parameter because every refusal this package reports is an
@@ -116,41 +122,82 @@ func markerPosition(t *testing.T, spec, marker string) (line, col int) {
 	return 1 + strings.Count(spec[:at], "\n"), at - strings.LastIndex(spec[:at], "\n")
 }
 
-// resolveSpecWith is resolveSpec at root.yaml with a caller-supplied rebuild, for
-// the tests that need to observe or fail whether it is called.
-func resolveSpecWith(t *testing.T, spec string, rebuild func() (*soa.OpenAPI, error)) (*soa.OpenAPI, []ir.Diagnostic, error) {
+// modelOf builds spec's model the way build does before binding it.
+func modelOf(t *testing.T, spec string) *soa.OpenAPI {
 	t.Helper()
-	resolved, _, _, pass, missed, err := resolveExternal(t.Context(), modelOf(t, spec),
-		Siblings{}, MediaTypes{}, sourceDocument{path: "root.yaml"}, Options{Reader: reader.Disk{}}, rebuild)
-	return resolved, passDiags(provenance.Doc{}, pass, missed), err
+	data := []byte(spec)
+	root, _, err := decodeStream(t.Context(), data)
+	require.NoError(t, err)
+	readyForModel(t.Context(), root)
+	doc, err := unmarshal(t.Context(), data, root)
+	require.NoError(t, err)
+	return doc
 }
 
-// respelled returns url with its scheme spelled scheme, which net/url respells
-// back to "http" in the request built from it.
-func respelled(url, scheme string) string {
-	return scheme + "://" + strings.TrimPrefix(url, "http://")
+// decodeRoot decodes src, which must decode.
+func decodeRoot(t *testing.T, src string) *yaml.Node {
+	t.Helper()
+	parsed, err := Decode(t.Context(), []byte(src))
+	require.NoError(t, err)
+	return parsed.Root()
 }
 
-// respellings is the set of URL spellings net/url respells relative to how
-// http.NewRequest's caller wrote them (GitHub #538): the resolver keys a
-// document by the reference's absolute URL as written, while the reader stores
-// it under req.URL.String().
-//
-// A literal space in the path is absent: url.Parse and http.NewRequest
-// normalize it and its %20 escape to one request key, so the two spellings
-// never produce different keys. An empty port is covered by TestPreparedFor,
-// since a test server cannot listen on the default port.
-var respellings = []struct {
-	name  string
-	spell func(canonical string) string
-}{
-	{"upper-case scheme", func(c string) string {
-		return "HTTP://" + strings.TrimPrefix(c, "http://")
-	}},
-	{"mixed-case scheme", func(c string) string {
-		return "Http://" + strings.TrimPrefix(c, "http://")
-	}},
-	{"escaped userinfo", func(c string) string {
-		return strings.Replace(c, "http://", "http://us%65r@", 1)
-	}},
+// rootReferencing is a minimal source document whose one path is a reference to
+// /x in the document at url.
+func rootReferencing(url string) string {
+	return "openapi: 3.1.0\ninfo: {title: T, version: \"1\"}\n" +
+		"paths:\n  /x: {$ref: \"" + url + "#/paths/~1x\"}\n"
+}
+
+// anchoredExternalDoc anchors both of /x's operations: the parser folds a path
+// item's methods into a map and skips an entry whose value carries an anchor,
+// so a document read without this compiler's own anchor release drops both.
+const anchoredExternalDoc = `openapi: 3.1.0
+info: {title: O, version: "1"}
+paths:
+  /x:
+    get: &g
+      operationId: EXTGET
+      responses: {"200": {description: ok}}
+    put: &p
+      operationId: EXTPUT
+      responses: {"200": {description: ok}}
+`
+
+// assertRecoveredAt requires that the path item at path of loaded, read
+// through its bindings, carries both of anchoredExternalDoc's anchored
+// operations: the outcome that fails silently, an empty or half-populated path
+// item, where a document was read without the anchor release.
+func assertRecoveredAt(t *testing.T, loaded *Document, path string) {
+	t.Helper()
+	ref, ok := loaded.Doc.Paths.Get(path)
+	require.True(t, ok, "%s is in the document", path)
+	item := refscope.Object[soa.PathItem](loaded.Bindings, ref)
+	require.NotNil(t, item, "%s's reference resolved to a path item", path)
+	get := item.Get()
+	require.NotNil(t, get, "the anchored GET entry was folded, not skipped")
+	assert.Equal(t, "EXTGET", get.GetOperationID())
+	put := item.Put()
+	require.NotNil(t, put, "the anchored PUT entry was folded, not skipped")
+	assert.Equal(t, "EXTPUT", put.GetOperationID())
+}
+
+// countingServer starts an httptest.Server serving body to every request, and
+// returns it with a counter of how many requests it received.
+func countingServer(t *testing.T, body string) (*httptest.Server, *atomic.Int32) {
+	t.Helper()
+	var requests atomic.Int32
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		requests.Add(1)
+		_, err := w.Write([]byte(body))
+		assert.NoError(t, err)
+	}))
+	t.Cleanup(srv.Close)
+	return srv, &requests
+}
+
+// writeFile writes content to name under dir, failing the test on error.
+func writeFile(t *testing.T, dir, name, content string) {
+	t.Helper()
+	require.NoError(t, os.WriteFile(filepath.Join(dir, name), []byte(content), 0o600))
 }

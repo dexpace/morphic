@@ -7,13 +7,45 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"slices"
 	"strconv"
+	"strings"
 
+	"github.com/dexpace/morphic/engine/triage"
 	"github.com/dexpace/morphic/ir"
 )
 
 // errNoWriter reports a renderer handed no writer to render to.
 var errNoWriter = errors.New("report: no writer to write to")
+
+// Report is what a run returned that the renderers read, taken from an
+// engine.Result, beside what the driver adds: WriteText renders Findings,
+// UnusedRules and Sources, and WriteJSON every field.
+type Report struct {
+	// Failed is the run's verdict, engine.Result.Failed.
+	Failed bool `json:"failed"`
+	// Sources is the table each finding's Provenance.Source indexes,
+	// engine.Result.Sources.
+	Sources []ir.SourceInfo `json:"sources"`
+	// Findings is every finding as rated, engine.Result.Findings.
+	Findings []triage.Finding `json:"findings"`
+	// UnusedRules is engine.Result.UnusedRules: the rules no finding met.
+	UnusedRules []triage.Rule `json:"unusedRules"`
+	// Warnings is what kept the run from working as asked without failing it,
+	// such as a cache it could not use, one line each, and never a finding.
+	Warnings []string `json:"warnings"`
+}
+
+// TextOptions says how many of a run's findings WriteText shows one per line.
+// Its zero value shows each finding no rule accepted.
+type TextOptions struct {
+	// Least is the least severity shown one per line: a finding rated below it
+	// is counted. Empty shows every severity.
+	Least ir.Severity
+	// PerCode is how many findings of one code and rating are shown one per
+	// line, the first in reported order, the rest counted. Zero shows each.
+	PerCode int
+}
 
 // lineWriter writes formatted lines to w until one write fails, and keeps that
 // failure, so a renderer writing many lines reports the first and stops.
@@ -30,20 +62,154 @@ func (lw *lineWriter) printf(format string, args ...any) {
 	_, lw.err = fmt.Fprintf(lw.w, format, args...)
 }
 
-// WriteDiagnostics writes each of diags to w, one per line, as
-// "<severity> <code><location>: <message>". sources is the table each
-// Provenance.Source indexes, a run's engine.Result.Sources. It stops at the
-// first write that fails and returns that write's error, and refuses a nil w
-// whether or not there is a line to write.
-func WriteDiagnostics(w io.Writer, diags []ir.Diagnostic, sources []ir.SourceInfo) error {
+// groupKey is a code and the severity its findings are rated at.
+type groupKey struct {
+	severity ir.Severity
+	code     string
+}
+
+// group is the findings of one code at one rating: how many are shown one per
+// line and how many only counted.
+type group struct {
+	groupKey
+	shown    int
+	withheld int
+}
+
+// WriteText writes r's findings to w for a person, one per line as
+// "<severity> <code><location>: <message>" at the rated severity, in reported
+// order, as many as opts admits. Then, indented so no line parser reads it as
+// a finding: a line per code and rating it withheld findings of, the unused
+// rules as findings are, and, once a finding was withheld or accepted, a
+// tally. It escapes every string a spec can write (printable).
+//
+// It refuses a nil w and options naming no severity or a negative count, and
+// stops at the first write that fails, returning its error.
+func WriteText(w io.Writer, r Report, opts TextOptions) error {
 	if w == nil {
 		return errNoWriter
 	}
-	lw := &lineWriter{w: w}
-	for _, d := range diags {
-		lw.printf("%s %s%s%s: %s\n", d.Severity, d.Code, location(sources, d.Provenance), writer(sources, d.Provenance), d.Message)
+	least, err := opts.least()
+	if err != nil {
+		return err
 	}
+	lw := &lineWriter{w: w}
+	var groups []*group
+	byKey := map[groupKey]*group{}
+	accepted := 0
+	for _, f := range r.Findings {
+		if f.Accepted {
+			accepted++
+			continue
+		}
+		at := groupKey{severity: f.Severity, code: f.Diagnostic.Code}
+		g, seen := byKey[at]
+		if !seen {
+			g = &group{groupKey: at}
+			byKey[at], groups = g, append(groups, g)
+		}
+		rank, ranked := f.Severity.Rank()
+		if (ranked && rank < least) || (opts.PerCode > 0 && g.shown == opts.PerCode) {
+			g.withheld++
+			continue
+		}
+		g.shown++
+		lw.printf("%s\n", line(f, r.Sources))
+	}
+	writeFooter(lw, r, groups, accepted, opts.PerCode)
 	return lw.err
+}
+
+// least returns the rank of the least severity o shows, or why o names none.
+func (o TextOptions) least() (int, error) {
+	if o.PerCode < 0 {
+		return 0, fmt.Errorf("report: %d findings of a code is no count to show", o.PerCode)
+	}
+	if o.Least == "" {
+		return 0, nil
+	}
+	rank, ranked := o.Least.Rank()
+	if !ranked {
+		return 0, fmt.Errorf("report: %q is no severity to show from", string(o.Least))
+	}
+	return rank, nil
+}
+
+// writeFooter writes what follows the findings WriteText shows: what it
+// withheld of each group, the unused rules, and the tally once anything was
+// withheld or accepted.
+func writeFooter(lw *lineWriter, r Report, groups []*group, accepted, perCode int) {
+	withheld := accepted
+	for _, g := range groups {
+		withheld += g.withheld
+		switch {
+		case g.withheld == 0:
+		case g.shown > 0:
+			lw.printf("  %d more %s %s not shown\n", g.withheld, printable(string(g.severity)), printable(g.code))
+		default:
+			lw.printf("  %d %s %s not shown\n", g.withheld, printable(string(g.severity)), printable(g.code))
+		}
+	}
+	writeUnused(lw, r.UnusedRules, perCode)
+	if withheld == 0 {
+		return
+	}
+	counts := map[ir.Severity]int{}
+	for _, f := range r.Findings {
+		if !f.Accepted {
+			counts[f.Severity]++
+		}
+	}
+	var tally strings.Builder
+	for _, sev := range slices.Backward(ir.Severities()) {
+		fmt.Fprintf(&tally, "%d %s, ", counts[sev], sev)
+	}
+	lw.printf("  %d of %d findings shown: %s%d accepted\n", len(r.Findings)-withheld, len(r.Findings), tally.String(), accepted)
+}
+
+// writeUnused writes a line naming each unused rule, the first perCode of each
+// code when perCode is positive, then a line counting the rest of that code:
+// a file of rules written for every finding of a spec can leave thousands
+// unused once the spec is fixed.
+func writeUnused(lw *lineWriter, unused []triage.Rule, perCode int) {
+	var codes []string
+	named, more := map[string]int{}, map[string]int{}
+	for _, rule := range unused {
+		if _, seen := named[rule.Code]; !seen {
+			codes = append(codes, rule.Code)
+		}
+		if perCode > 0 && named[rule.Code] == perCode {
+			more[rule.Code]++
+			continue
+		}
+		named[rule.Code]++
+		lw.printf("  triage rule for %s%s matched no finding\n", printable(rule.Code), rulePlace(rule))
+	}
+	for _, code := range codes {
+		if more[code] > 0 {
+			lw.printf("  %d more of the triage rules for %s matched no finding\n", more[code], printable(code))
+		}
+	}
+}
+
+// rulePlace spells where rule rules, leading space included: " at <pointer>",
+// " at node <node>", or nothing for a rule naming its code alone.
+func rulePlace(rule triage.Rule) string {
+	switch {
+	case rule.Pointer != "":
+		return " at " + printable(string(rule.Pointer))
+	case rule.Node != "":
+		return " at node " + printable(rule.Node)
+	default:
+		return ""
+	}
+}
+
+// line renders f as WriteText writes it, newline aside.
+func line(f triage.Finding, sources []ir.SourceInfo) string {
+	d := f.Diagnostic
+	return printable(string(f.Severity)) + " " + printable(d.Code) + location(sources, d.Provenance) +
+		writer(sources, d.Provenance) + ": " + printable(d.Message)
 }
 
 // location renders the "where" of a diagnostic line, leading space included,
@@ -54,20 +220,21 @@ func WriteDiagnostics(w io.Writer, diags []ir.Diagnostic, sources []ir.SourceInf
 //
 // A locator whose index names no entry of sources is spelled without a path,
 // and a finding naming neither a source nor a node prints nothing rather than
-// a guess.
+// a guess. Each part is escaped (printable).
 func location(sources []ir.SourceInfo, prov ir.Provenance) string {
-	path := sourcePath(sources, prov.Source)
+	path := printable(sourcePath(sources, prov.Source))
+	pointer := printable(string(prov.Pointer))
 	switch {
-	case prov.Pointer != "" && prov.Position.Line > 0:
-		return " " + onPath(path, ":", positionText(prov.Position)) + " (#" + string(prov.Pointer) + ")"
-	case prov.Pointer != "":
-		return " " + onPath(path, "#", string(prov.Pointer))
+	case pointer != "" && prov.Position.Line > 0:
+		return " " + onPath(path, ":", positionText(prov.Position)) + " (#" + pointer + ")"
+	case pointer != "":
+		return " " + onPath(path, "#", pointer)
 	case prov.Position.Line > 0:
 		return " " + onPath(path, ":", positionText(prov.Position))
 	case path != "":
 		return " " + path
 	case prov.Node != "":
-		return " " + prov.Node
+		return " " + printable(prov.Node)
 	default:
 		return ""
 	}
@@ -84,7 +251,7 @@ func writer(sources []ir.SourceInfo, prov ir.Provenance) string {
 	if path == "" {
 		return ""
 	}
-	return " (written by " + path + ")"
+	return " (written by " + printable(path) + ")"
 }
 
 // onPath spells locator against path, joined by sep, or alone when no path

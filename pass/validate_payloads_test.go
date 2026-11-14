@@ -20,6 +20,7 @@ import (
 	"github.com/dexpace/morphic/internal/jsonshape"
 	"github.com/dexpace/morphic/ir"
 	"github.com/dexpace/morphic/ir/irtest"
+	"github.com/dexpace/morphic/pass"
 )
 
 // multipartContent is a body content typed by validDoc's model, carrying enc.
@@ -293,8 +294,9 @@ func TestValidate_EncodingKeyThroughCyclicAlias(t *testing.T) {
 // TestValidate_EncodingKeyThroughAUnionBody pins a body that is a union, as one
 // a composition is distributed across is: a key naming a property a variant
 // exposes, the body's own on every variant or a branch's on one, names a part,
-// read through an alias over the union too, and one no variant exposes names
-// none, nor one on an alias chain closing on itself before any union
+// read through an alias over the union and through a union nested in a variant
+// too, and one no variant exposes names none, nor one on an alias chain
+// closing on itself before any union or in a union nesting itself
 // (docs/ir/payloads.md).
 func TestValidate_EncodingKeyThroughAUnionBody(t *testing.T) {
 	t.Parallel()
@@ -308,6 +310,8 @@ func TestValidate_EncodingKeyThroughAUnionBody(t *testing.T) {
 		"through an alias over the union":  {"t/alias", "p/other/b", true},
 		"one no variant exposes":           {"t/u", "p/nowhere", false},
 		"an alias cycle reaching no union": {"t/loop/a", "p/nowhere", false},
+		"a nested union's variant's":       {"t/outer", "p/other/b", true},
+		"none, in a union nesting itself":  {"t/self", "p/nowhere", false},
 	} {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
@@ -317,6 +321,10 @@ func TestValidate_EncodingKeyThroughAUnionBody(t *testing.T) {
 			doc.Types["t/u"] = &ir.Union{ID: "t/u", Closed: true,
 				Variants: []ir.Variant{{Type: ir.TypeRef{Target: "t/m"}}, {Type: ir.TypeRef{Target: "t/other"}}}}
 			doc.Types["t/alias"] = &ir.Scalar{ID: "t/alias", Base: &ir.TypeRef{Target: "t/u"}}
+			doc.Types["t/outer"] = &ir.Union{ID: "t/outer", Closed: true,
+				Variants: []ir.Variant{{Type: ir.TypeRef{Target: "t/prim/string"}}, {Type: ir.TypeRef{Target: "t/alias"}}}}
+			doc.Types["t/self"] = &ir.Union{ID: "t/self", Closed: true,
+				Variants: []ir.Variant{{Type: ir.TypeRef{Target: "t/self"}}, {Type: ir.TypeRef{Target: "t/m"}}}}
 			doc.Types["t/loop/a"] = &ir.Scalar{ID: "t/loop/a", Base: &ir.TypeRef{Target: "t/loop/b"}}
 			doc.Types["t/loop/b"] = &ir.Scalar{ID: "t/loop/b", Base: &ir.TypeRef{Target: "t/loop/a"}}
 			c := requestContent(doc)
@@ -331,6 +339,58 @@ func TestValidate_EncodingKeyThroughAUnionBody(t *testing.T) {
 			assert.Len(t, found, 1)
 		})
 	}
+}
+
+// TestValidate_EncodingKeyThroughANarrowingModel holds a key on a body that is
+// a model narrowing a union, or on a union's variant that is one, to the
+// members of the shapes it takes: a member only one of the union's variants
+// declares is a part, and one no shape holds is none.
+func TestValidate_EncodingKeyThroughANarrowingModel(t *testing.T) {
+	t.Parallel()
+	for name, tc := range map[string]struct {
+		target ir.TypeID
+		key    ir.PropID
+		parts  bool
+	}{
+		"a variant's, on the model":              {"t/n", "p/other/b", true},
+		"the model's own":                        {"t/n", "p/n/note", true},
+		"a variant's, on a union's variant":      {"t/wrap", "p/other/b", true},
+		"one no shape holds":                     {"t/n", "p/nowhere", false},
+		"a variant's, on a model narrowing none": {"t/m", "p/other/b", false},
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			doc := narrowingDoc()
+			c := requestContent(doc)
+			c.Type = ir.TypeRef{Target: tc.target}
+			c.Encoding = map[ir.PropID]ir.PartEncoding{tc.key: {Multi: true}}
+			found := withCode(validated(t, doc), "ir/encoding-key-unknown-property")
+			if tc.parts {
+				assert.Empty(t, found)
+				return
+			}
+			assert.Len(t, found, 1)
+		})
+	}
+	doc := narrowingDoc()
+	assert.True(t, pass.NarrowedHolds(doc.Types, "t/n", "p/other/b", 1_000))
+	assert.False(t, pass.NarrowedHolds(doc.Types, "t/n", "p/other/b", 1), "a walk past its limit holds nothing")
+}
+
+// narrowingDoc is validDoc with t/n, a model declaring note and composing t/u,
+// a union of validDoc's t/m and t/other, which declares b, and t/wrap, a union
+// of a string and t/n.
+func narrowingDoc() *ir.Document {
+	doc := validDoc()
+	doc.Types["t/other"] = &ir.Model{ID: "t/other",
+		Properties: []ir.Property{{ID: "p/other/b", WireName: "b", Type: ir.TypeRef{Target: "t/prim/string"}}}}
+	doc.Types["t/u"] = &ir.Union{ID: "t/u", Closed: true,
+		Variants: []ir.Variant{{Type: ir.TypeRef{Target: "t/m"}}, {Type: ir.TypeRef{Target: "t/other"}}}}
+	doc.Types["t/n"] = &ir.Model{ID: "t/n", Base: &ir.TypeRef{Target: "t/u"},
+		Properties: []ir.Property{{ID: "p/n/note", WireName: "note", Type: ir.TypeRef{Target: "t/prim/string"}}}}
+	doc.Types["t/wrap"] = &ir.Union{ID: "t/wrap", Closed: true,
+		Variants: []ir.Variant{{Type: ir.TypeRef{Target: "t/prim/string"}}, {Type: ir.TypeRef{Target: "t/n"}}}}
+	return doc
 }
 
 // TestValidate_EncodingKeyOnTypeWithoutParts covers the targets that expose no

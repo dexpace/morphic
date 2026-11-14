@@ -159,5 +159,46 @@ pinned exactly, `emitters/golang` alone may import it ([package layout](../../pa
 upgrade reruns the spike's cases as tests of the adapter.
 
 Go's extractor ([surface verification](../../surface-verification.md)) reads the existing package's
-exported API, as `apidiff` does, of each package outside `internal/`
-([above](#what-a-caller-reaches-of-the-runtime)).
+exported API with `go/types`, as `apidiff` does, of each package outside `internal/`
+([above](#what-a-caller-reaches-of-the-runtime)). Source carries no IR ID, so it joins each
+declaration to its entity through the prior manifest, whose entries name the symbol each entity
+shipped under ([write / integrate](../../write-integrate.md#what-the-manifest-records)). An SDK
+with no manifest, one Morphic did not generate, joins nothing: the differ compares one generation
+with the next. A deprecation is a comment in Go, which `go/types` does not hold, so the extractor
+reads each declaration's `Deprecated:` paragraph from the syntax it type-checks.
+
+`golang.org/x/exp/apidiff` compares two Go packages and labels each change compatible or not, which
+is the structural channel's question as Go asks it. It is the test oracle for Go's severity, and
+neither the differ nor the severity function:
+
+- **Not the differ.** A `Change` of its report is a message and a flag, with no symbol or ID to
+  join an entity on.
+- **Not the severity.** It answers only whether a caller's Go code builds. Given an enum gaining a
+  constant it says compatible, which it is for a caller's code, while the behavioral channel
+  reports what an SDK deployed with that enum closed meets ([surface
+  verification](../../surface-verification.md#what-a-change-record-carries)).
+- **The oracle.** Go's severity is Go's own compatibility rules, the ones apidiff applies, of which
+  the shared rows are the part every typed target has. So for each pair of generated packages a
+  fixture makes by one change, a test holds Go's structural verdict to apidiff's: breaking exactly
+  where apidiff reports an incompatible change. The comparison is per pair, since a message names a
+  declaration and no entity. A pair on which they differ is a bug in the severity unless this
+  section lists it with its reason, and it lists one (T-75).
+
+The one divergence is a method added to a client's interface, which each operation added brings.
+`apidiff` reports it incompatible, since a type declaring the interface's methods itself stops
+implementing it, and Go's severity calls it additive: the interface is declared for a caller's
+tests, its documentation says it gains a method with each operation, and a fake that embeds it
+keeps building. Sealing the interface with an unexported method, which makes embedding the only
+way to implement it and `apidiff` report the addition compatible, was measured and not taken: a
+double a tool generates declares every method itself, and is refused (`missing method sealed`).
+
+A struct a caller holds is never comparable ([models](models.md#nesting)), so a member added takes
+no `==` from a caller, and there the two agree with no divergence to list.
+
+Measured at x/exp `a52e3aef5920`, a revision of 9 November 2026, over two type-checked packages: a
+field's type changed, a method gaining a parameter, a constant's value changed and a declaration's
+underlying type changed were each incompatible, and a constant added and a struct field added each
+compatible. The role is settled before the milestone that builds the differ because it shapes the
+extractor: one built on apidiff's report would have nothing to key a record by. As a test-only
+dependency it needs no compatibility promise, which `x/exp` gives none of; its licence, BSD-3-Clause
+at that revision, and its maintenance are confirmed again when the test is written (M4).

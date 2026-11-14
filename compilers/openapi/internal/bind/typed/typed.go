@@ -22,7 +22,8 @@ import (
 
 type schemaRef = oas3.JSONSchema[oas3.Referenceable]
 
-// Bindings is a bind table and the typed schemas its positions hold. It is
+// Bindings is a bind table and the typed models its positions hold: schemas,
+// and the reference-or-inline wrappers of the parser's other kinds. It is
 // built once (Builder) and never written after, and a nil one knows nothing.
 type Bindings struct {
 	table *bind.Table
@@ -36,9 +37,17 @@ type Bindings struct {
 	of map[*oas3.Schema]bind.Position
 	// held is the schema at each position: the model's own, or one built.
 	held map[bind.Position]*schemaRef
-	// unplaced is the reference object each schema and discriminator of an end
-	// the table could not place was read under, as spelled (Builder.Unplaced).
-	unplaced map[any]string
+	// objectSites is where each wrapper was read, and as which kind, and
+	// objects the wrapper of each kind held at each position: the model's own,
+	// or one built for an object landing.
+	objectSites map[any]objectSite
+	objects     map[objectSite]any
+}
+
+// objectSite is a position and the kind of object read there.
+type objectSite struct {
+	at   bind.Position
+	kind bind.RefKind
 }
 
 // Table returns the table b answers from.
@@ -133,17 +142,34 @@ func (b *Bindings) Mapping(d *oas3.Discriminator, value string) (bind.Mapping, b
 	return b.table.Mapping(at, value)
 }
 
-// Unplaced returns the reference object in whose content model, a schema or a
-// discriminator, was read, spelled as its pointer and, outside the source, its
-// document, where the table could not place what the parser resolved that
-// object to (bind.Table.Through), so no $ref in it is bound. It is false for
-// any other model.
-func (b *Bindings) Unplaced(model any) (string, bool) {
+// ObjectSite returns where model, a reference-or-inline wrapper, was read, and
+// as which kind, and false for one b does not know.
+func (b *Bindings) ObjectSite(model any) (bind.Position, bind.RefKind, bool) {
 	if b == nil {
-		return "", false
+		return bind.Position{}, 0, false
 	}
-	site, ok := b.unplaced[model]
-	return site, ok
+	s, ok := b.objectSites[model]
+	return s.at, s.kind, ok
+}
+
+// Reference returns the table's entry for the Reference Object model's site
+// writes, read as the kind model was read as, and false where the table reads
+// none there: an inline object, or a wrapper b does not know.
+func (b *Bindings) Reference(model any) (bind.Reference, bool) {
+	at, kind, ok := b.ObjectSite(model)
+	if !ok {
+		return bind.Reference{}, false
+	}
+	return b.table.Reference(at, kind)
+}
+
+// ObjectAt returns the wrapper of kind held at p, the first recorded there, or
+// nil.
+func (b *Bindings) ObjectAt(p bind.Position, kind bind.RefKind) any {
+	if b == nil {
+		return nil
+	}
+	return b.objects[objectSite{at: p, kind: kind}]
 }
 
 // Builder builds Bindings over a table: told where each schema of the
@@ -178,7 +204,7 @@ const MaxMends = 8
 func NewBuilder(table *bind.Table) *Builder {
 	return &Builder{decode: decodeSchema, view: nodeview.New(), b: &Bindings{table: table, at: map[*schemaRef]bind.Position{},
 		discs: map[*oas3.Discriminator]bind.Position{}, held: map[bind.Position]*schemaRef{},
-		unplaced: map[any]string{}}}
+		objectSites: map[any]objectSite{}, objects: map[objectSite]any{}}}
 }
 
 // decodeSchema decodes n into js as the parser decodes a schema of its model.
@@ -253,11 +279,23 @@ func (bd *Builder) Discriminator(d *oas3.Discriminator, p bind.Position) {
 	}
 }
 
-// Unplaced records that model, a schema or a discriminator, was read in what
-// the reference object site spells resolved to, where the table could not
-// place it.
-func (bd *Builder) Unplaced(model any, site string) {
-	bd.b.unplaced[model] = site
+// Object records that model, a reference-or-inline wrapper of kind, was read
+// at p. The first recorded of a kind at a position is the one held there.
+func (bd *Builder) Object(model any, kind bind.RefKind, p bind.Position) {
+	if model == nil || kind == 0 {
+		return
+	}
+	s := objectSite{at: p, kind: kind}
+	bd.b.objectSites[model] = s
+	if _, held := bd.b.objects[s]; !held {
+		bd.b.objects[s] = model
+	}
+}
+
+// HoldsObject reports whether a wrapper of kind is held at p.
+func (bd *Builder) HoldsObject(p bind.Position, kind bind.RefKind) bool {
+	_, held := bd.b.objects[objectSite{at: p, kind: kind}]
+	return held
 }
 
 // Walk records js, read at p, and every schema and discriminator below it, at
@@ -375,8 +413,7 @@ func dialectRooted(t *bind.Table) bool {
 }
 
 // build builds the schema at l, unless one is held there already: one inside
-// a landing built before it, or what a reference object of the source
-// resolved to, which the parser built.
+// a landing built before it, or inside an object built for an object landing.
 func (bd *Builder) build(ctx context.Context, l bind.Landing) Built {
 	built := Built{Landing: l, Schema: bd.b.held[l.At]}
 	if built.Schema != nil {

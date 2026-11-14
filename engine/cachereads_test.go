@@ -87,3 +87,29 @@ func TestRecorder_ARunItCannotVouchForIsUnsound(t *testing.T) {
 		assert.False(t, sound)
 	})
 }
+
+// placingReader places each directory where its places says, as a reader
+// following links would, and reads nothing.
+type placingReader struct {
+	fickleReader
+	places map[string]string
+}
+
+func (r *placingReader) LocateDirectory(dir string) string { return r.places[dir] }
+
+// TestRecorder_PlacesADirectoryAsTheReaderBeneath pins a recorder's
+// compilers.DirectoryLocator: it answers as the reader beneath does, or with
+// the directory as spelled for one placing none, and notes each answer, which
+// an entry then holds a later run to.
+func TestRecorder_PlacesADirectoryAsTheReaderBeneath(t *testing.T) {
+	t.Parallel()
+	docs := &placingReader{places: map[string]string{"/b": "/real/b", "/a": "/real/a"}}
+	rec := engine.NewRecorder(docs)
+	assert.Equal(t, "/real/b", rec.LocateDirectory("/b"))
+	assert.Equal(t, "/real/a", rec.LocateDirectory("/a"))
+	assert.Equal(t, [][2]string{{"/a", "/real/a"}, {"/b", "/real/b"}}, engine.SettledDirectories(rec),
+		"each answer noted, in one order")
+
+	assert.Equal(t, "/a", engine.NewRecorder(&fickleReader{}).LocateDirectory("/a"),
+		"a reader placing none leaves the directory as spelled")
+}

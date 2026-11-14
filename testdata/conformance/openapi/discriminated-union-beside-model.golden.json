@@ -105,6 +105,46 @@
       "positional": false,
       "inputOnly": false
     },
+    "t/composed/components/schemas/Bird/oneOf": {
+      "kind": "union",
+      "id": "t/composed/components/schemas/Bird/oneOf",
+      "name": {
+        "hint": "bird_one_of"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Bird/oneOf"
+      },
+      "variants": [
+        {
+          "name": {
+            "hint": "finch"
+          },
+          "type": {
+            "target": "t/openapi/components/schemas/Finch",
+            "nullable": false
+          },
+          "docs": {}
+        },
+        {
+          "name": {
+            "hint": "crow"
+          },
+          "type": {
+            "target": "t/openapi/components/schemas/Crow",
+            "nullable": false
+          },
+          "docs": {}
+        }
+      ],
+      "exclusive": true,
+      "wireTagged": false,
+      "closed": true,
+      "inputOnly": false
+    },
     "t/openapi/components/schemas/Animal": {
       "kind": "model",
       "id": "t/openapi/components/schemas/Animal",
@@ -154,23 +194,6 @@
       "anonymous": false,
       "docs": {},
       "sensitive": false,
-      "unmodeled": {
-        "openapi:oneOf": {
-          "reason": "degraded_lowering",
-          "value": [
-            {
-              "$ref": "#/components/schemas/Finch"
-            },
-            {
-              "$ref": "#/components/schemas/Crow"
-            }
-          ],
-          "provenance": {
-            "source": 0,
-            "pointer": "/components/schemas/Bird/oneOf"
-          }
-        }
-      },
       "provenance": {
         "source": 0,
         "pointer": "/components/schemas/Bird"
@@ -179,6 +202,12 @@
         "target": "t/openapi/components/schemas/Animal",
         "nullable": false
       },
+      "mixins": [
+        {
+          "target": "t/composed/components/schemas/Bird/oneOf",
+          "nullable": false
+        }
+      ],
       "abstract": false,
       "positional": false,
       "discriminatorValue": "bird",
@@ -666,6 +695,7 @@
       "discriminator": {
         "propertyName": "kind",
         "mapping": {
+          "Dog": "t/openapi/components/schemas/Dog",
           "cat": "t/openapi/components/schemas/Cat"
         },
         "inferred": false
@@ -927,8 +957,8 @@
     },
     {
       "severity": "info",
-      "code": "openapi/degraded-construct",
-      "message": "oneOf/anyOf co-declared with structural keywords intersects with them, and a discriminator on an ancestor routes to this schema as its subtype, which distributing it into a union would undo; union branches kept verbatim under Unmodeled",
+      "code": "openapi/composition-lowering",
+      "message": "oneOf/anyOf co-declared with a schema a discriminator routes to as its subtype; the union is composed as a mixin of the model",
       "provenance": {
         "source": 0,
         "pointer": "/components/schemas/Bird"
@@ -966,7 +996,7 @@
     {
       "format": "openapi@3.1",
       "path": "discriminated-union-beside-model.yaml",
-      "hash": "8e0704805247c08a472e427c3eb2b340278a3a031226cde97169b3fe9bf2f5d3"
+      "hash": "68c529dcf191e9916ca4b715d6e70cb0f3f35b492899ab31e354dc6a638de6f7"
     }
   ]
 }

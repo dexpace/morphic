@@ -227,17 +227,16 @@ func schemaBody(c lowering.Ctx, ts *compile.Types, depth int, schema *oas3.Schem
 // the oneOf/anyOf dispatch that precede structural lowering.
 func lowerSchemaBody(c lowering.Ctx, ts *compile.Types, depth int, schema *oas3.Schema, pointer jsontext.Pointer) (ir.TypeRef, []ir.Diagnostic) {
 	if at, _, expanded := dynamicExpansion(c, schema, pointer); expanded {
-		// anchorHolds settled that the anchor resolves, by what resolveAt reads
-		// in c's own document, so nothing falls through: that would drop the
-		// $dynamicRef unrecorded, as recordUnexpandedDynamicRef keeps only one
-		// that does not expand, where an empty target fails irverify.
+		// The expansion settled that the target resolves, by what resolveAt
+		// reads in its own document (resolvesAt), so nothing falls through: that
+		// would drop the reference unrecorded, as recordUnexpandedDynamicRef
+		// keeps only one that does not expand, where an empty target fails
+		// irverify.
 		target, _ := resolveAt(c, ts, at, c.Bindings().At(at))
 		ref, nullDiags := schemaNullRef(c, target, schema, siteAt(pointer))
-		return ref, append([]ir.Diagnostic{c.DiagAt(ir.SeverityInfo, diag.DynamicRefExpanded,
-			pointer+ids.Ptr("$dynamicRef"),
-			"$dynamicRef expanded to %q, the one matching $dynamicAnchor in this document", target)}, nullDiags...)
+		return ref, append([]ir.Diagnostic{dynamicExpanded(c, schema, pointer, target)}, nullDiags...)
 	}
-	if len(schema.GetOneOf()) > 0 || len(schema.GetAnyOf()) > 0 {
+	if declaresUnion(schema) && !refinesToBranch(c, schema, pointer) {
 		if hasUnionSiblings(c, schema) {
 			id, unionDiags := lowerCoDeclaredUnion(c, ts, depth, schema, pointer)
 			ref, nullDiags := schemaNullRef(c, id, schema, siteAt(pointer))
@@ -245,14 +244,42 @@ func lowerSchemaBody(c lowering.Ctx, ts *compile.Types, depth int, schema *oas3.
 		}
 		return lowerOneOfAnyOf(c, ts, depth, schema, pointer)
 	}
-	if u, ok := branchUnion(c, schema, pointer); ok {
-		id, unionDiags := lowerDistributedUnion(c, ts, depth, schema, u, pointer)
+	u, how, ok := branchUnion(c, schema, pointer)
+	if ok {
+		lowerUnion := lowerDistributedUnion
+		if how == unionRoutedSubtype {
+			lowerUnion = lowerSubtypeUnion
+		}
+		id, unionDiags := lowerUnion(c, ts, depth, schema, u, pointer)
 		ref, nullDiags := schemaNullRef(c, id, schema, siteAt(pointer))
 		return ref, append(unionDiags, nullDiags...)
 	}
 	id, bodyDiags := lower(c, ts, depth, schema, pointer)
+	if how == unionHierarchyBase {
+		// The union stays with its branch, and the discriminator standing with it
+		// on the model, held to its routes as one beside the union is.
+		deferDiscriminatorBesideUnion(c, ts, id, schema, u.holder, pointer)
+	}
 	ref, nullDiags := schemaNullRef(c, id, schema, siteAt(pointer))
 	return ref, append(bodyDiags, nullDiags...)
+}
+
+// refinesToBranch reports whether s, written at pointer, refines to one of its
+// allOf branches, which then decides the position, a union beside the allOf
+// being one of the conjuncts it refines (docs/compilers/openapi.md#allof-refinement).
+func refinesToBranch(c lowering.Ctx, s *oas3.Schema, pointer jsontext.Pointer) bool {
+	r, refines := refinementOf(c, s, pointer)
+	return refines && r.principal != nil
+}
+
+// allOfComposes reports whether s writes an allOf that composes rather than
+// refines, the one a union beside it distributes across or is kept beside.
+func allOfComposes(c lowering.Ctx, s *oas3.Schema) bool {
+	if len(s.GetAllOf()) == 0 {
+		return false
+	}
+	_, refines := refinementOf(c, s, "")
+	return !refines
 }
 
 // lower interns the inline schema at pointer and returns its TypeID. An allOf
@@ -262,20 +289,50 @@ func lowerSchemaBody(c lowering.Ctx, ts *compile.Types, depth int, schema *oas3.
 // its rival. The value set either lowers to is typed by every conjunct
 // (typeValueSet). Any other schema lowers by its election (lowerElected).
 func lower(c lowering.Ctx, ts *compile.Types, depth int, s *oas3.Schema, pointer jsontext.Pointer) (ir.TypeID, []ir.Diagnostic) {
+	d, elected := electionOf(c, s, pointer)
 	r, refines := refinementOf(c, s, pointer)
 	if !refines {
-		return lowerElected(c, ts, depth, s, pointer, dispatchOf(s))
+		return lowerElected(c, ts, depth, s, pointer, d)
 	}
 	var id ir.TypeID
 	var diags []ir.Diagnostic
-	if r.principal != nil {
-		id, diags = lowerPrincipal(c, ts, depth, r)
-	} else {
+	if elected {
 		resolveBeaten(c, ts, r)
-		id, diags = lowerElected(c, ts, depth, s, pointer, dispatchOf(s).besideAllOf())
+		id, diags = lowerElected(c, ts, depth, s, pointer, d)
+	} else {
+		id, diags = lowerPrincipal(c, ts, depth, r)
 	}
 	typeValueSet(c, ts, s, r, pointer)
 	return id, diags
+}
+
+// electionOf returns the election lower lowers s by, written at pointer, and
+// false where an allOf refining it has a principal, which decides the position
+// instead: the keywords beside the allOf, as if none were written, for one
+// refining with none.
+func electionOf(c lowering.Ctx, s *oas3.Schema, pointer jsontext.Pointer) (dispatch, bool) {
+	r, refines := refinementOf(c, s, pointer)
+	switch {
+	case !refines:
+		return dispatchOf(s), true
+	case r.principal != nil:
+		return dispatch{}, false
+	default:
+		return dispatchOf(s).besideAllOf(), true
+	}
+}
+
+// lowersTypeArray reports whether s, written at pointer, lowers by its type list
+// (lowerUnion): it lists more than one type, and lower elects no family. Nothing
+// lowerSchemaBody tries first takes such a schema: a type is a shape, so no
+// $dynamicRef expands and no union collapses beside it, and a union beside it or
+// on an allOf branch distributes only over the allOf, which the election elects.
+func lowersTypeArray(c lowering.Ctx, s *oas3.Schema, pointer jsontext.Pointer) bool {
+	if len(effectiveTypes(s)) < 2 {
+		return false
+	}
+	d, elected := electionOf(c, s, pointer)
+	return elected && d.won == ""
 }
 
 // lowerElected lowers s, at pointer, by the family d elects, which takes
@@ -293,11 +350,11 @@ func lowerElected(c lowering.Ctx, ts *compile.Types, depth int, s *oas3.Schema, 
 	}
 	switch d.won {
 	case "const":
-		return unhomed(hoistLiteral(c, ts, s, s.GetConst(), pointer))
+		return unhomed(lowerConst(c, ts, s, pointer))
 	case "enum":
 		return unhomed(lowerEnum(c, ts, s, pointer))
 	case "allOf":
-		return unhomed(lowerAllOf(c, ts, depth, s, pointer))
+		return unhomed(lowerAllOf(c, ts, depth, s, pointer, !slices.Contains(d.said, "discriminator")))
 	}
 	// won is "": the schema declares no family, or only an allOf that refines
 	// with no branch deciding what the position is, so the type set decides.
@@ -311,6 +368,10 @@ func lowerElected(c lowering.Ctx, ts *compile.Types, depth int, s *oas3.Schema, 
 		return id, append(diags, preserveVariantsUnhomed(c, ts, s, id, nodeShape(ir.KindUnion), []string{"type"}, pointer)...)
 	case len(types) == 1:
 		return unhomed(lowerTyped(c, ts, depth, s, pointer, types[0]))
+	case writesType(s):
+		// Every type s names is null, so its value space is null and nothing
+		// else, which is no schemaless position's (docs/compilers/openapi.md#null-alone).
+		return unhomed(lowerNullAlone(c, ts, s, pointer), nil)
 	default:
 		return unhomed(lowerUntyped(c, ts, depth, s, pointer))
 	}
@@ -320,7 +381,7 @@ func lowerElected(c lowering.Ctx, ts *compile.Types, depth int, s *oas3.Schema, 
 func lowerTyped(c lowering.Ctx, ts *compile.Types, depth int, s *oas3.Schema, pointer jsontext.Pointer, st oas3.SchemaType) (ir.TypeID, []ir.Diagnostic) {
 	switch st {
 	case oas3.SchemaTypeObject:
-		return lowerModel(c, ts, depth, s, pointer, true /* discriminated */)
+		return lowerModel(c, ts, depth, s, pointer, true /* discriminated */, kindObject)
 	case oas3.SchemaTypeArray:
 		return lowerArray(c, ts, depth, s, pointer)
 	default:
@@ -333,7 +394,9 @@ func lowerTyped(c lowering.Ctx, ts *compile.Types, depth int, s *oas3.Schema, po
 // else is schemaless.
 func lowerUntyped(c lowering.Ctx, ts *compile.Types, depth int, s *oas3.Schema, pointer jsontext.Pointer) (ir.TypeID, []ir.Diagnostic) {
 	if props := s.GetProperties(); props != nil && props.Len() > 0 {
-		return lowerModel(c, ts, depth, s, pointer, true /* discriminated */)
+		// The node asserts an object, but the source declares no type, so every
+		// bound is read as it would be at a position lowering to the top type.
+		return lowerModel(c, ts, depth, s, pointer, true /* discriminated */, declaredInstanceTypes(s))
 	}
 	return ts.PrimID(ir.PrimAny), nil
 }

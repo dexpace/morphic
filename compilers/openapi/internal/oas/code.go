@@ -35,10 +35,14 @@ func (r ruler) code(rule Rule) {
 		additionalMethods(r, rule)
 	case "encoding-applies":
 		encodingApplies(r, rule)
+	case "nullable-applies":
+		nullableApplies(r, rule)
 	case "dependent-required":
 		dependentRequired(r, rule)
 	case "vocabulary":
 		vocabulary(r, rule)
+	case "dependencies":
+		dependencies(r, rule)
 	default:
 		r.w.add(diag.Newf(ir.SeverityError, diag.InternalInvariant, r.w.locate(r.f.at.ptr),
 			"the %s names the rule %q, which the engine does not implement", r.f.obj.Name, rule.Name), r.f.at.ptr)
@@ -149,11 +153,33 @@ func operationsOf(r ruler, item map[string]*yaml.Node, ptr jsontext.Pointer) []o
 	return out
 }
 
-// expressions returns the names of the template expressions of a path. A "#"
-// ends the path, as it ends what the path-key check reads (GitHub #602).
+// expressions returns the names of the template expressions of a path, less
+// its fragment (fragmentAt), which is no part of the route a request is sent to.
 func expressions(path string) []string {
-	before, _, _ := strings.Cut(path, "#")
-	return braced(before)
+	return braced(path[:fragmentAt(path)])
+}
+
+// fragmentAt returns where a path key's fragment begins, or its length where
+// it carries none, as the lowering splits one (docs/compilers/openapi.md#path-keys):
+// at the first "#" outside a template expression, "{", a name holding no brace,
+// then "}", or the first "#" after a "?", which ends the path in a query.
+func fragmentAt(path string) int {
+	for i := 0; i < len(path); i++ {
+		switch path[i] {
+		case '#':
+			return i
+		case '?':
+			if at := strings.IndexByte(path[i:], '#'); at >= 0 {
+				return i + at
+			}
+			return len(path)
+		case '{':
+			if n := strings.IndexAny(path[i+1:], "{}"); n > 0 && path[i+1+n] == '}' {
+				i += n + 1
+			}
+		}
+	}
+	return len(path)
 }
 
 // braced returns the text of each {group} s writes, up to the first brace no
@@ -431,6 +457,22 @@ func encodingApplies(r ruler, rule Rule) {
 	}
 }
 
+// nullableApplies warns of a `nullable: true` a 3.0 Schema Object writes with no
+// `type` beside it, to which the specification applies it, so it has no
+// effect, whatever the nullable-widening policy reads
+// (docs/compilers/openapi.md#nullable). Beside a `$ref` every key is a later
+// minor's construct, warned of as one (walker.reference), so it is left alone
+// there.
+func nullableApplies(r ruler, rule Rule) {
+	n := nodeview.Deref(r.f.byKey["nullable"])
+	if n == nil || !matches(Boolean, n) || !strings.EqualFold(n.Value, "true") ||
+		r.f.writes("type", r.w.minor) || r.f.writes("$ref", r.w.minor) {
+		return
+	}
+	r.fail(rule, classNoEffect, r.f.at.ptr.AppendToken("nullable"),
+		`field "nullable" has no effect without a "type" written in the same Schema Object, to which the specification applies it`)
+}
+
 // dependentRequired reports an entry of dependentRequired that is no list of
 // strings, and a string an entry lists twice: each lists the properties an
 // instance holding the entry's key must hold too.
@@ -463,4 +505,41 @@ func vocabulary(r ruler, rule Rule) {
 			r.fail(rule, classType, ptr, "field \"$vocabulary\" entry "+quote(p.Key)+" must be a boolean")
 		}
 	}
+}
+
+// dependencies judges each entry of a JSON Schema draft's `dependencies`: a
+// list is held to distinct strings, and to the entries the rule's Min counts,
+// any other entry is a schema, read as one, as the binder places it
+// (bind.DialectRule.Dependencies), and one that is neither is reported.
+func dependencies(r ruler, rule Rule) {
+	base := r.f.at.ptr.AppendToken("dependencies")
+	for _, p := range r.w.view.MappingPairs(r.f.byKey["dependencies"]) {
+		ptr := base.AppendToken(p.Key)
+		entry := nodeview.Deref(p.Val)
+		switch {
+		case entry != nil && entry.Kind == yaml.SequenceNode:
+			propertyDependency(r, rule, p.Key, entry, ptr)
+		case entry != nil && (entry.Kind == yaml.MappingNode || r.f.booleans && matches(Boolean, entry)):
+			r.w.object(site{kind: Schema, node: p.Val, ptr: ptr, held: p.Key, rows: r.f.rows, in: Schema}, r.f.depth+1)
+		default:
+			r.fail(rule, classType, ptr, "field \"dependencies\" entry "+quote(p.Key)+" must be a list of strings or a schema")
+		}
+	}
+}
+
+// propertyDependency judges list, the entry of `dependencies` keyed key at ptr
+// that lists the properties an instance holding key must hold too.
+func propertyDependency(r ruler, rule Rule, key string, list *yaml.Node, ptr jsontext.Pointer) {
+	what := "field \"dependencies\" entry " + quote(key)
+	switch {
+	case !matches(StringList, list):
+		r.fail(rule, classType, ptr, what+" must be a list of strings or a schema")
+		return
+	case len(list.Content) < rule.Min:
+		r.fail(rule, classCount, ptr, what+" must hold at least "+plural(rule.Min))
+	}
+	repeats(list, textOf, func(i, first int, s string) {
+		r.fail(rule, classDuplicate, itemPointer(ptr, i), what+" repeats "+quote(s)+" first written at "+
+			string(itemPointer(ptr, first)))
+	})
 }

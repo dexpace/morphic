@@ -354,6 +354,39 @@ func TestNullableWidening_DisabledKeepsWhatTheDialectDoesNotDefine(t *testing.T)
 	}
 }
 
+// TestNullableWidening_ANullableWithNoTypeIsWarnedOfUnderEitherPolicy pins
+// that whether a 3.0 `nullable: true` has an effect is a fact of the
+// specification, not of the policy: with no `type` beside it, it draws one
+// no-effect warning at the keyword either way. With the policy on, the
+// policy's info sits at the same pointer and the reference admits null, marked
+// inferred; with it off, the reference admits none.
+func TestNullableWidening_ANullableWithNoTypeIsWarnedOfUnderEitherPolicy(t *testing.T) {
+	t.Parallel()
+	const at = jsontext.Pointer("/components/schemas/Holder/properties/p/nullable")
+	for _, tc := range []struct {
+		name     string
+		off      bool
+		inferred []jsontext.Pointer
+		want     ir.TypeRef
+	}{
+		{"on", false, []jsontext.Pointer{at}, inferred(prim(ir.PrimAny))},
+		{"off", true, nil, ir.TypeRef{Target: prim(ir.PrimAny)}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			doc, diags := compileNullable(t, openapitest.HolderSpec("3.0.3", "{nullable: true}", ""), tc.off)
+			assert.Equal(t, []jsontext.Pointer{at}, openapitest.PointersOf(diags, diag.Validation+"/validation-no-effect"))
+			assert.Equal(t, tc.inferred, openapitest.PointersOf(diags, diag.InferredNullable))
+			for _, d := range diags {
+				if d.Code == diag.Validation+"/validation-no-effect" {
+					assert.Equal(t, ir.SeverityWarning, d.Severity)
+				}
+			}
+			assert.Equal(t, tc.want, holderProps(t, doc)["p"].Type)
+		})
+	}
+}
+
 // compositionSpec composes N, whose nullable 3.1 does not define, two ways: an
 // allOf whose branches redeclare one property, the first through nullable and
 // the second through a type array, and a union beside properties, which

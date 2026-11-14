@@ -225,7 +225,8 @@ func TestParams_RefSchemaInheritsFromItsReferent(t *testing.T) {
 
 // TestParams_RefSchemaUseSiteWinsOverItsReferent pins the half that already
 // worked, so closing the fallback cannot quietly invert the precedence: what is
-// written beside the $ref describes this use of the type and outranks the target.
+// written beside the $ref describes this use of the type and outranks the
+// target, bar a deprecated false, which JSON Schema reads as absent.
 func TestParams_RefSchemaUseSiteWinsOverItsReferent(t *testing.T) {
 	t.Parallel()
 	_, svc, diags := compileService(t, paramRefInheritSpec)
@@ -235,7 +236,7 @@ func TestParams_RefSchemaUseSiteWinsOverItsReferent(t *testing.T) {
 	assert.Equal(t, "USE_SITE", p.Docs.Description, "the use-site description wins")
 	require.NotNil(t, p.Default)
 	assert.Equal(t, "use-site", p.Default.Str, "and the use-site default")
-	assert.Nil(t, p.Deprecation, "and an explicit deprecated: false suppresses the referent's true")
+	assert.NotNil(t, p.Deprecation, "but a deprecated: false beside the $ref withdraws no referent's true")
 }
 
 // TestParams_RefSchemaInheritsThroughARefChain pins which resolution the

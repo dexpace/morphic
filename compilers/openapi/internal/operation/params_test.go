@@ -10,6 +10,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/dexpace/morphic/compilers"
+	"github.com/dexpace/morphic/compilers/openapi"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
 	"github.com/dexpace/morphic/ir"
@@ -465,5 +467,38 @@ func TestParams_ExplodeLowersAsDeclared(t *testing.T) {
 			assert.Equal(t, tc.style, got.Style, "the written style is kept")
 			assert.Equal(t, tc.want, got.Explode)
 		})
+	}
+}
+
+// TestLowerParameter_AKeyAsksForReservedExpansion pins the allowReserved
+// promotion: a key the policy maps asks for a parameter's reserved characters
+// unescaped where the parameter writes no allowReserved, marking it, and one
+// that writes the keyword decides, whatever the key says.
+func TestLowerParameter_AKeyAsksForReservedExpansion(t *testing.T) {
+	t.Parallel()
+	const spec = `openapi: 3.2.0
+info: {title: T, version: "1"}
+paths:
+  /x/{path}:
+    get:
+      operationId: x
+      parameters:
+        - {name: path, in: path, required: true, x-raw: true, schema: {type: string}}
+        - {name: written, in: query, allowReserved: false, x-raw: true, schema: {type: string}}
+        - {name: plain, in: query, schema: {type: string}}
+      responses: {"200": {description: ok}}
+`
+	doc, diags, err := openapi.New().Compile(t.Context(), []compilers.Source{openapitest.SourceOf(spec)},
+		compilers.Options{FormatOptions: openapi.Options{Promotions: openapi.ExtensionPromotions{
+			Targets: map[openapi.ExtensionTarget][]openapi.ExtensionSource{openapi.TargetAllowReserved: {{Key: "x-raw"}}},
+		}}})
+	require.NoError(t, err)
+	openapitest.RequireNoErrorDiags(t, diags)
+	op := openapitest.FirstOp(t, doc.Services[0])
+	require.Len(t, op.Bindings.HTTP, 1)
+	for i, want := range []bool{true, false, false} {
+		binding := op.Bindings.HTTP[0].ParamBindings[i]
+		assert.Equal(t, want, binding.AllowReserved, binding.WireName)
+		assert.Equal(t, want, op.Params[i].Provenance.Inferred == "extension-promotion", binding.WireName)
 	}
 }

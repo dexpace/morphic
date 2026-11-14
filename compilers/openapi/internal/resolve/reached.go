@@ -5,6 +5,8 @@ package resolve
 
 import (
 	"encoding/json/jsontext"
+
+	"github.com/dexpace/morphic/compilers/openapi/internal/bind"
 )
 
 // Reached records the positions in the source a lowering resolved a reference
@@ -30,9 +32,10 @@ func (r *Reached) Has(pointer jsontext.Pointer) bool {
 	return r != nil && r.at[pointer]
 }
 
-// note records pointer, unless r is nil.
-func (r *Reached) note(pointer jsontext.Pointer) {
-	if r != nil {
-		r.at[pointer] = true
+// noteSource records the pointer of p, a position of the source, unless r is
+// nil or p is another document's.
+func (r *Reached) noteSource(p bind.Position) {
+	if r != nil && p.Doc == bind.Source {
+		r.at[p.Pointer] = true
 	}
 }
