@@ -45,7 +45,7 @@ witnessing it.
 
 ### `negation`
 
-- Witnesses: `negation-not`
+- Witnesses: `negation-not`, `kept-ref-landings`
 
 ### `enums-string`
 

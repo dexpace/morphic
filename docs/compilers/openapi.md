@@ -4056,7 +4056,10 @@ Every dialect reads both keywords as 2020-12 does. In a schema read in JSON Sche
 `dependentSchemas` and `dependentRequired`, is kept the same way under `openapi:dependencies`, and
 elsewhere is an unknown keyword ([`unknown-keys`](#unknown-keys)). Each entry is reported as an
 info `openapi/validation-only-keyword` at the schema that wrote it, an `openapi:unevaluated` one
-holding an inert keyword naming it and the keyword that leaves it inert.
+holding an inert keyword naming it and the keyword that leaves it inert. A position a kept keyword's
+`$ref` lands on is lowered all the same, and so is each position a chain of them passes, an alias
+keeping what it writes beside its `$ref`: the compiler lowers every position a schema `$ref` of the
+document lands on, hop by hop, as it would one a lowered keyword names.
 
 - Cases: `negation-not`, `dependent-required`, `schema-drafts`, `maps`, `tuples-prefixitems`,
   `unevaluated-at-every-outcome`, `kept-ref-landings`
@@ -4297,9 +4300,12 @@ written with one value, written with a second — requiring that the absent form
 first and the first from the second, and an exception asserts the inverse with its written
 justification. A keyword that stops being carried fails there rather than waiting for a reader to
 notice. The guarantee is a floor rather than an inventory: it compares one pair of values per
-keyword, so a lowering that carried one spelling and dropped another would still pass.
+keyword, so a lowering that carried one spelling and dropped another would still pass. A keyword
+kept verbatim keeps its `$ref`s as written, and the positions they land on are lowered
+([`validation-only`](#validation-only)).
 
-- Tests: `schema.TestVocabulary2020_12_EveryKeywordIsLoweredOrKept`
+- Tests: `schema.TestVocabulary2020_12_EveryKeywordIsLoweredOrKept`, `schema.TestPromiseLandings_BuildsNothingTwice`,
+  `schema.TestPromiseLandings_LowersWhatNothingElseReached`, `e2e.TestCompile_KeptRefLandingsAreLoweredOnceInEitherOrder`
 
 ## 8. Paths and operations
 

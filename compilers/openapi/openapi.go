@@ -213,6 +213,7 @@ func run(ctx context.Context, c lowering.Ctx, ts *compile.Types, newWhole func(*
 	out.Services = []ir.Service{lowered.Service}
 	out.TagDefs = lowered.TagDefs
 	acc.AppendAll(svcDiags)
+	acc.AppendAll(schema.PromiseLandings(c, ts))
 	// Every lowering has returned, so the registry is finished: a coordinate a
 	// $ref named and none built is built now, in its own context
 	// (compile.Types.Promise), and what was deferred until the registry is whole
