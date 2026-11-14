@@ -319,8 +319,8 @@ components:
 // be reached more than once: two $refs to one component, a container reached
 // beside something inside it, at the lesser $ref and at the greater, and one
 // node read as two kinds. Each finding is placed at its node in other.yaml,
-// whichever $ref is declared first. Inside a container, an object is validated
-// twice, and charged twice, and its finding reported once.
+// whichever $ref is declared first. An object is checked once for each kind it
+// is read as, charged to no budget, and its finding reported once.
 func TestResolve_AnObjectReachedTwiceIsReportedOnce(t *testing.T) {
 	t.Parallel()
 	compile := func(t *testing.T, other, root string, opts Options) []ir.Diagnostic {
@@ -385,16 +385,17 @@ paths:
 		assert.Equal(t, jsontext.Pointer("/paths/~1x/get/parameters/0/in"), diags[0].Provenance.Pointer)
 	})
 
-	t.Run("what a container holds is charged again", func(t *testing.T) {
+	t.Run("what a container holds is checked once and charged nothing", func(t *testing.T) {
 		t.Parallel()
 		diags := compile(t, nestedOtherFixture(), containedFirst, Options{MaxSourceNodes: budget.AtMost(150), MaxAliasSurplus: budget.AtMost(1)})
 
-		require.Len(t, diags, 2, "the container fits this budget and its parameter, charged again, "+
-			"does not: %+v", diags)
+		require.Len(t, diags, 1, "the container fits this budget, and its parameter, read once, "+
+			"is no more than it: %+v", diags)
 		assert.Equal(t, jsontext.Pointer("/paths/~1x/get/parameters/0/in"), diags[0].Provenance.Pointer)
 		assert.Equal(t, diag.Validation+"/validation-allowed-values", diags[0].Code)
-		assert.Equal(t, jsontext.Pointer("/paths/~1b/get/parameters/0"), diags[1].Provenance.Pointer)
-		assert.Equal(t, diag.BudgetExceeded, diags[1].Code)
+		for _, d := range diags {
+			assert.NotEqual(t, diag.BudgetExceeded, d.Code, "%+v", d)
+		}
 	})
 
 	t.Run("what a container spans but does not read is validated through its own $ref", func(t *testing.T) {
@@ -781,52 +782,27 @@ func nestedRoot(paths []string) string {
 	return "openapi: 3.1.0\ninfo: {title: T, version: \"1\"}\npaths:\n" + strings.Join(paths, "")
 }
 
-// TestResolve_ReachedValidationIsBudgeted runs nestedRootPaths under three
-// budgets. At 151 nodes (150 + 1) the parameter's finding is reported once,
-// reached from /a, the path item at /b, which charges those nodes again, is refused
-// as budget-exceeded, and Small at /c is not validated, in either declaration
-// order. The three total 206 nodes, so 206 (205 + 1) admits all of them where
-// MaxSourceNodes alone, 205, would not: that boundary is what shows the alias
-// budget's share is counted. An unbounded budget admits them all too.
-func TestResolve_ReachedValidationIsBudgeted(t *testing.T) {
+// TestResolve_AReachedObjectIsChargedToNoBudget runs nestedRootPaths under the
+// budgets that once refused it. An object is checked once for each kind it is
+// read as, so what a container holds is no cost of the container's, and the
+// parameter's finding and Small's are both reported at 151 nodes (150 + 1) as at
+// 206 and unbounded, in either declaration order, and none is budget-exceeded.
+func TestResolve_AReachedObjectIsChargedToNoBudget(t *testing.T) {
 	t.Parallel()
 	nestedRootFixture := nestedRoot(nestedRootPaths)
-	other := nestedOtherFixture()
-	dir := externalDir(t, map[string]string{"other.yaml": other})
-	otherPath := filepath.Join(dir, "other.yaml")
-
-	t.Run("a tight budget refuses the container after the overlap", func(t *testing.T) {
-		t.Parallel()
-		_, diags := loadExternal(t, dir, nestedRootFixture, Options{MaxSourceNodes: budget.AtMost(150), MaxAliasSurplus: budget.AtMost(1)})
-
-		require.Len(t, diags, 2, "exactly two: Small's document is already over budget, so neither "+
-			"its finding nor a second budget-exceeded is reported: %+v", diags)
-		assert.Equal(t, jsontext.Pointer("/paths/~1x/get/parameters/0/in"), diags[0].Provenance.Pointer)
-		assert.Equal(t, diag.Validation+"/validation-allowed-values", diags[0].Code)
-
-		assert.Equal(t, diag.BudgetExceeded, diags[1].Code)
-		assert.Equal(t, ir.SeverityError, diags[1].Severity)
-		assert.Equal(t, jsontext.Pointer("/paths/~1b"), diags[1].Provenance.Pointer)
-		assert.Equal(t, fmt.Sprintf(
-			"the objects references reach in %s span more than the 151 nodes a document is validated over; "+
-				"its validation stops at this one", otherPath),
-			diags[1].Message)
-
-		reversed := slices.Clone(nestedRootPaths)
-		slices.Reverse(reversed)
-		_, again := loadExternal(t, dir, nestedRoot(reversed), Options{MaxSourceNodes: budget.AtMost(150), MaxAliasSurplus: budget.AtMost(1)})
-		if d := cmp.Diff(diags, again); d != "" {
-			t.Errorf("the budget is crossed at another object when the paths are reversed (-as written +reversed):\n%s", d)
-		}
-	})
+	reversed := slices.Clone(nestedRootPaths)
+	slices.Reverse(reversed)
+	dir := externalDir(t, map[string]string{"other.yaml": nestedOtherFixture()})
 
 	for name, opts := range map[string]Options{
-		"a budget the three fit admits them all": {MaxSourceNodes: budget.AtMost(205), MaxAliasSurplus: budget.AtMost(1)},
-		"an unbounded budget admits them all":    {},
+		"a tight budget":         {MaxSourceNodes: budget.AtMost(150), MaxAliasSurplus: budget.AtMost(1)},
+		"a budget the three fit": {MaxSourceNodes: budget.AtMost(205), MaxAliasSurplus: budget.AtMost(1)},
+		"an unbounded budget":    {},
 	} {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
 			_, diags := loadExternal(t, dir, nestedRootFixture, opts)
+			_, again := loadExternal(t, dir, nestedRoot(reversed), opts)
 
 			require.Len(t, diags, 2, "%+v", diags)
 			assert.Equal(t, jsontext.Pointer("/paths/~1x/get/parameters/0/in"), diags[0].Provenance.Pointer)
@@ -834,6 +810,9 @@ func TestResolve_ReachedValidationIsBudgeted(t *testing.T) {
 			assert.Equal(t, jsontext.Pointer("/components/responses/Small/content/application~1json/schema/minLength"),
 				diags[1].Provenance.Pointer)
 			assert.Equal(t, diag.Validation+"/validation-type-mismatch", diags[1].Code)
+			if d := cmp.Diff(diags, again); d != "" {
+				t.Errorf("the findings depend on the order the paths are declared in (-as written +reversed):\n%s", d)
+			}
 		})
 	}
 }

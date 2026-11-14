@@ -174,15 +174,9 @@ func knownInvalid() map[string]bool {
 // that holds it. TestHarness_InRepoCorpus fails a fixture whose findings are
 // not exactly these, so a fix takes its entry out. An entry names an outcome,
 // not what differs, so until then it also stands for any other finding of its
-// oracle on that fixture.
+// oracle on that fixture. None is held at present.
 func knownFindings() map[string][]harness.Outcome {
-	return map[string][]harness.Outcome{
-		// A finding on a node that aliases share is located where its anchor is
-		// written, which declaration order decides: the library's validation of
-		// the node, and the alias-amplification refusal (#1796).
-		filepath.FromSlash("../../testdata/openapi/cycle_alias_dual_position.yaml"): {harness.OutcomeOrderDependent},
-		filepath.FromSlash("../../testdata/openapi/amplification_alias_bomb.yaml"):  {harness.OutcomeOrderDependent},
-	}
+	return map[string][]harness.Outcome{}
 }
 
 // knownDeclines lists the fixtures some oracle asks nothing of, each beside the

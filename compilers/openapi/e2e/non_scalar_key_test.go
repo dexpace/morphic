@@ -49,7 +49,7 @@ func TestCompile_AKeyThatIsNoScalarIsReportedOnceAndLeftOut(t *testing.T) {
 		pointer string
 		at      ir.Position
 	}
-	var got []site
+	got := make([]site, 0, len(diags))
 	for _, d := range diags {
 		assert.Equal(t, typeMismatch, d.Code)
 		assert.Equal(t, ir.SeverityError, d.Severity)
