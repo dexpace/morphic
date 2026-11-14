@@ -60,9 +60,12 @@ A key names the origin format, then the construct — and, where one carrier hol
 more than one source object, the path between them. `openapi:x-rate-limit` is the extension on the
 node's own object; `openapi:info/contact/x-id` is the contact block's, kept on the document;
 `openapi:encoding/<part>/x-vendor` is one form part's, kept on the content; `openapi:schema/x-a` is a
-parameter's or a header's schema's, kept on the carrier beside the object's own `openapi:x-a`; and
+parameter's or a header's schema's, kept on the carrier beside the object's own `openapi:x-a`, and
+`openapi:content/<mt>/x-a` and `openapi:content/<mt>/schema/x-a` the content entry's it elects and
+that entry's schema's, `<mt>` its media type as one escaped segment; and
 `openapi:reference/<i>/x-a` is what a Reference Object writes beside its `$ref`, kept on the node
-its use lowers to, `i` counting the use and then each alias of its chain. The scope is
+its use lowers to, `i` counting the use and then each alias of its chain, beneath
+`openapi:content/<mt>/` for a parameter's or a header's content entry. The scope is
 load-bearing, not decoration. Most objects lower to a node carrying an `Unmodeled` map of their own
 and take no scope, but the rest ride on the nearest node that does — an info block's on the
 document, a path item's on each of its operations, an encoding's on the owning content — and
@@ -86,6 +89,12 @@ with `x-`, as a callback named `x-hook` keeps its extensions under `openapi:call
 only after such a keyword. The same gap separates both from the non-extension entries a shared
 carrier holds under those scopes, such as `openapi:encoding/<part>/prefixEncoding`.
 
+An entry another entry of its carrier holds whole, lying in the same source beneath it with the value
+found there, is kept once, inside the entry holding it: a `readOnly` read out of an `allOf` branch
+kept whole is `openapi:schema/readOnly` on one parameter and only inside `openapi:schema/allOf/1` on
+another. A key the promotion policy reads is the exception, kept beside what holds it, since a
+promotion reads the kept entries ([promotion](#promotion)).
+
 An entry that belongs to a declaration no node stands for has no carrier to scope it, so it is the
 document's, keyed by the declaration's coordinate rather than a scope:
 `openapi:/components/parameters/P/content/text~1plain`. A coordinate is a pointer, behind a qualifier
@@ -105,6 +114,9 @@ document's contract, and who chose it decides what holds it still:
   branch's `openapi:allOf/1` does, moves when the array is reordered, and can then name another
   construct's entry, as an ID through an index does ([across
   revisions](./identity.md#across-revisions)).
+- **A chain position is the source's too.** The `<i>` of `openapi:reference/<i>/` counts from the
+  use, 0, through every alias the chain passes, whether it writes a key or not, so an alias added
+  to or removed from a chain moves the keys of every alias past it, as an index moves.
 - **Everything else in a key is the compiler's spelling**: the prefix, every keyword and every
   scope, including the scope a vendor extension sits beneath (`openapi:info/contact/x-id`).
   Renaming one, retiring one, moving an entry under another scope or reason, or changing the form

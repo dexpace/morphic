@@ -82,4 +82,9 @@ and as JSON by another, the first's request type holds `metadata` as pairs and t
 member typed as pairs in the model's own declaration gives a JSON body pairs it cannot write, and a
 multipart content added later would retype a member its callers build. A declaration of the model
 for each such content needs a name the shape rules do not give, since which members are text follows
-the content's encoding and no shape. T-48 holds it.
+the content's encoding and no shape. T-48 holds it. An emitter that does not read
+`Content.CatchAllEncoding` degrades to its own rule for the parts a catch-all admits, as for a
+property with no `Encoding` entry: the field restates the content type OpenAPI gives the value's type
+by default and the part's `Multi` and `Filename`, so a rule deriving those from the type sends what
+the field says, and one that does not, sending an array value as one part or a binary one with no
+file name, sends a request the API may refuse, though never one missing a member.
