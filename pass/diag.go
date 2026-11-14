@@ -12,3 +12,11 @@ import "github.com/dexpace/morphic/ir"
 func diag(sev ir.Severity, code, message, node string) ir.Diagnostic {
 	return ir.NewDiagnostic(sev, code, message, ir.Provenance{Source: ir.NoSource, Node: node})
 }
+
+// diagAt builds a diagnostic on the entity at node, carrying that entity's own
+// provenance, from, with Node set: the finding is placed at the entity and
+// points into its source as well.
+func diagAt(sev ir.Severity, code, message, node string, from ir.Provenance) ir.Diagnostic {
+	from.Node = node
+	return ir.NewDiagnostic(sev, code, message, from)
+}

@@ -114,7 +114,7 @@ var callShapeBaseline = map[string]map[string]int{
 		"internal/census":                     1,
 		"ir/irfacts":                          4,
 		"ir/irverify":                         2,
-		"pass":                                15,
+		"pass":                                16,
 	},
 }
 
