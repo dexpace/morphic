@@ -5033,11 +5033,17 @@ each entry of its `examples` map in order, each an `Example` named by its key: `
 `description` as written, `value`, or 3.2's `dataValue`, as `Value` ([`values`](#values)), and
 `externalValue` as `ExternalURL`. 3.2's `serializedValue`, which `ir.Example` has no field for, is
 kept verbatim in the example's `Unmodeled` under `openapi:serializedValue` (`no_ir_home`), reported
-as an info `openapi/degraded-construct` at it. A schema's examples are
+as an info `openapi/degraded-construct` at it. An entry keyed by the empty string lowers unnamed,
+as `Example.Name` reads `""` as no name, so the key is kept on the example's own `Unmodeled` under
+`openapi:name`, the value `""` (`degraded_lowering`), located at the entry, and reported there as an
+info `openapi/degraded-construct`; an undeclared `name` key the Example Object writes keeps that
+entry instead ([`unknown-keys`](#unknown-keys)). A schema's examples are
 [`schema-examples`](#schema-examples)'.
 
 - Cases: `examples-32`
 - Codes: `openapi/degraded-construct`
+- Tests: `operation.TestExamples_EmptyKeyIsKept`,
+  `operation.TestExamples_AnEmptyKeyLeavesAWrittenNameKey`, `e2e.TestExamples_AnEmptyKeyChangesTheDocument`
 
 ### `item-schema`
 
