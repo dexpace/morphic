@@ -113,6 +113,7 @@ func families(doc *ir.Document, read walked, facts *irfacts.Index) []func() []ir
 		func() []ir.Diagnostic { return checkDefaultResponses(doc) },
 		func() []ir.Diagnostic { return checkArgsOutsideGraphQL(doc) },
 		func() []ir.Diagnostic { return checkBounds(doc) },
+		func() []ir.Diagnostic { return checkValues(doc) },
 	}
 }
 
