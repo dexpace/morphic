@@ -525,6 +525,12 @@ func NameThrough(c Ctx, pointer jsontext.Pointer) string {
 	return c.loaded.names.Through(bind.Position{Doc: c.homeDoc, Pointer: pointer})
 }
 
+// NameOfDocument returns the hint what is declared at the root of document doc
+// of the bindings' table is named by (naming.Namer.Document).
+func NameOfDocument(c Ctx, doc bind.DocID) string {
+	return c.loaded.names.Document(doc)
+}
+
 // homeOf returns the document other than the source whose positions c reads,
 // and false for the source's own.
 func homeOf(c Ctx) (load.Other, bool) {

@@ -222,3 +222,31 @@ func TestCompile_ARequirementKeyLandingOnNoMechanismIsUnresolved(t *testing.T) {
 	assert.NotEqual(t, inSource, other)
 	assert.Equal(t, other, schemeOf(t, doc, "mountedOwn"), "one object is one scheme")
 }
+
+// TestCompile_ASchemeAtADocumentsRootIsNamedForItsDocument pins requirement
+// keys landing on whole documents, each a Security Scheme Object at its root,
+// which no key names: each scheme is named for its document, as a schema there
+// is, so two of them take two names and the names pass finds none shared,
+// whichever key is written first.
+func TestCompile_ASchemeAtADocumentsRootIsNamedForItsDocument(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	layout(t, dir, map[string]string{
+		"shared": "type: http\nscheme: bearer\n",
+		"lone":   "type: apiKey\nin: header\nname: X-Key\n",
+	})
+	for _, keys := range []string{`[{"./shared": []}, {"lone": []}]`, `[{"lone": []}, {"./shared": []}]`} {
+		entry := "openapi: 3.2.0\ninfo: {title: T, version: \"1\"}\npaths:\n  /a:\n    get:\n" +
+			"      operationId: a\n      security: " + keys + "\n      responses: {\"200\": {description: ok}}\n"
+		doc, diags := compileVerified(t, compilers.Source{Path: filepath.Join(dir, "entry.yaml"), Data: []byte(entry)},
+			openapi.Options{})
+		require.NotNil(t, doc)
+
+		assert.Empty(t, findingsAt(diags), "no name-collision, nor any other finding: %s", keys)
+		require.Len(t, doc.Auth, 2, keys)
+		for id, name := range map[ir.AuthID]string{"auth/openapi@shared": "shared", "auth/openapi@lone": "lone"} {
+			require.Contains(t, doc.Auth, id, keys)
+			assert.Equal(t, ir.NamingFor(name), doc.Auth[id].Name, "%s: %s", keys, id)
+		}
+	}
+}

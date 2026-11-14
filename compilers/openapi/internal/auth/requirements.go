@@ -162,21 +162,31 @@ func (r *Registry) landed(c lowering.Ctx, end bind.Position) (ir.AuthID, []ir.Di
 	}
 	rs, _ := c.Bindings().ObjectAt(end, bind.RefSecurityScheme).(*soa.ReferencedSecurityScheme)
 	ss := resolve.Object[soa.SecurityScheme](c.Bindings(), rs)
-	missing := dc.IDs().UnresolvedAuth(string(end.Pointer))
+	missing, name := dc.IDs().UnresolvedAuth(string(end.Pointer)), landingName(dc, end)
 	if !read || ss == nil {
 		// The load phase reports a landing it could build nothing at.
-		minted, _ := r.unresolved(missing, string(end.Pointer))
+		minted, _ := r.unresolved(missing, name)
 		return minted, nil
 	}
-	scheme, diags := lowerSecurityScheme(dc, dc, end.Pointer.LastToken(), ss, end.Pointer, end.Pointer)
+	scheme, diags := lowerSecurityScheme(dc, dc, name, ss, end.Pointer, end.Pointer)
 	if scheme.Kind == ir.AuthKindUnresolved {
 		// lowerSecurityScheme reported what the object lacks, at the object.
-		minted, _ := r.unresolved(missing, string(end.Pointer))
+		minted, _ := r.unresolved(missing, name)
 		return minted, diags
 	}
 	scheme.ID = id
 	r.byID[id] = scheme
 	return id, diags
+}
+
+// landingName returns the name of the Security Scheme Object at end: the key it
+// is declared under, and at a document's root, which no key names, the
+// document's name, as a schema there is named (lowering.NameOfDocument).
+func landingName(c lowering.Ctx, end bind.Position) string {
+	if end.Pointer == "" {
+		return lowering.NameOfDocument(c, end.Doc)
+	}
+	return end.Pointer.LastToken()
 }
 
 // unresolvedDiag reports, at pointer, the requirement key key naming no scheme
