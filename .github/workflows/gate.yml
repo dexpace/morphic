@@ -127,7 +127,7 @@ jobs:
     name: race detector
     if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 60
     permissions:
       actions: read
       contents: read
@@ -164,12 +164,13 @@ jobs:
         if: steps.moved.outputs.run == 'true'
         run: echo "GOTOOLCHAIN=go$(env -u GOTOOLCHAIN make -s print-go-version)" >>"$GITHUB_ENV"
       # Built first for the suite job's reason (#1010), which this job's empty
-      # cache makes stronger: every package compiles here.
+      # cache makes stronger: every package compiles here. Each long step has a
+      # timeout of its own, inside the job's: a step's timeout fails the step,
+      # which the report below sees, where the job's would cancel it unseen.
       - name: build
         if: steps.moved.outputs.run == 'true'
+        timeout-minutes: 15
         run: make build
-      # A step's timeout fails the step, which the report below sees; the job's
-      # would cancel it, which it does not.
       - name: race
         if: steps.moved.outputs.run == 'true'
         timeout-minutes: 35

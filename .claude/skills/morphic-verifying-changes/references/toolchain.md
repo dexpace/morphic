@@ -27,8 +27,8 @@
   under `-race` over each package it touches before it is called done, and again in its review:
   the gate runs no race detector, and the nightly `make race` meets a merged race only after the
   merge. Run it without coverage flags, which can hide a race.
-- **Why.** `-race` left the gate for its cost, and `-race` beside atomic coverage hid a planted race
-  in every run (#1271).
+- **Why.** `-race` left the gate for its cost (#1917), and `-race` beside atomic coverage hid a
+  planted race in every run (#1271).
 - **Probe.** `go test -race -count=1 ./<pkg>` per touched package, or `make race` for the suite.
 
 ## A re-exec'd child writes coverage only when it exits through os.Exit
