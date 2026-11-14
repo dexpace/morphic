@@ -123,10 +123,11 @@ type boundTypes struct {
 }
 
 // schema is what s, written at pointer of c's document, admits: its own type,
-// conjoined with what the schemas it names admit. A schema it cannot read, or
-// one past the budget, excludes nothing; namedTypes discards a read past it.
+// conjoined with what the schemas it names admit. A schema it cannot read, such
+// as a boolean one, or one past the budget, excludes nothing; namedTypes
+// discards a read past it. Each read spends a step, one finding no schema too.
 func (r *boundTypes) schema(c lowering.Ctx, s *oas3.Schema, pointer jsontext.Pointer) kindSet {
-	if s == nil || !r.steps.Spend(1) {
+	if !r.steps.Spend(1) || s == nil {
 		return anyInstance
 	}
 	return declaredInstanceTypes(s) & r.names(c, s, pointer)
@@ -212,10 +213,11 @@ func (r *boundTypes) branch(c lowering.Ctx, b *oas3.JSONSchema[oas3.Referenceabl
 }
 
 // ref is what the schema js's $ref chain ends on admits, and anyInstance where
-// it ends on none.
+// it ends on none, at the step a read of a schema spends.
 func (r *boundTypes) ref(c lowering.Ctx, js *oas3.JSONSchema[oas3.Referenceable]) kindSet {
 	e, ok := c.Bindings().Entry(js)
 	if !ok || e.Chain.Status != bind.Resolved {
+		r.steps.Spend(1)
 		return anyInstance
 	}
 	return r.at(c, e.Chain.End)

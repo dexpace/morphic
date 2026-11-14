@@ -1073,7 +1073,8 @@ func composedVariantRef(c lowering.Ctx, id ir.TypeID, body *oas3.Schema, branch 
 //
 // The enclosing schema's value constraints, its folding branches' among them,
 // are read as lowerAllOf reads them (GitHub #407). Each variant carries a copy,
-// since a bound on the schema constrains both sides of the disjunction.
+// read by what the whole position admits, so a variant holds a bound its own
+// branch cannot take (GitHub #1936).
 func buildComposedVariant(c lowering.Ctx, ts *compile.Types, depth int, body composedBody, branch ir.TypeID, common ir.TypeCommon) (ir.TypeDef, []ir.Diagnostic) {
 	cons, diags := ConstraintsOf(c, &common.Unmodeled, body.schema, body.voices, body.comp.pointer, positionTypes(c, body.schema, body.comp.pointer))
 	m := &ir.Model{TypeCommon: common, Constraints: cons}

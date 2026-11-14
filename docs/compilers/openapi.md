@@ -3858,19 +3858,19 @@ admits `array`, and `minProperties` and `maxProperties` where it admits `object`
 `null` take none. The types a position admits are those its own `type` declares that every schema
 it names admits too: the one its `$ref` chain ends on, each `allOf` entry, a `oneOf` or `anyOf`,
 which admits what any of its branches does, a branch of null alone, written with a `type` or not,
-admitting none a bound applies to ([`union-null-variant`](#union-null-variant)), and the target an
-expanded `$dynamicRef` or `$recursiveRef` lands on ([`dynamic-ref`](#dynamic-ref)), read through as
-many of those as the named schemas write, from the source and never from what has been lowered, so
-no answer turns on the order schemas are declared in. A schema declaring no `type` and naming none
-excludes nothing, so it reads every bound; one declaring `null` alone reads none, its `Enum` with no
-member keeping them
+admitting none a bound applies to ([`union-null-variant`](#union-null-variant)), and the target a
+`$dynamicRef` or `$recursiveRef` names ([`dynamic-ref`](#dynamic-ref)), one closing a cycle of
+them, which does not expand, included, read through as many of those as the named schemas write,
+from the source and never from what has been lowered, so no answer turns on the order schemas are
+declared in. A schema declaring no `type` and naming none excludes nothing, so it reads every
+bound; one declaring `null` alone reads none, its `Enum` with no member keeping them
 ([`null-alone`](#null-alone)), and so does one whose own and named types share no kind. A bound no
 type the position admits takes reaches no `Constraints`, the carrier's included, and is kept
 verbatim under `openapi:<keyword>` (`degraded_lowering`) with an info `openapi/degraded-construct`
 naming what the position lowered to: on the node it owns, on an alias hoisted where it lowered to a
 shared node or a reference, or on the carrier of a reference. A type array's variants each take
 their own type's, where the position admits it ([`type-arrays`](#type-arrays)). Each named schema
-is read in its own document, an inline one at its own pointer, so a dynamic reference expands as it
+is read in its own document, an inline one at its own pointer, so a dynamic reference names what it
 does where that schema is lowered. A bound is read off the raw node, never the parser's `float64`, so
 its `BigVal` keeps every digit the literal wrote ([`values`](#values)), a quoted one as the decimal
 it spells; one that is no decimal literal a `BigVal` holds is dropped with an
@@ -3977,12 +3977,14 @@ no bound ([`string-formats`](#string-formats)).
   `oas.TestShape_Admits`
 - Status: partly built: the types a schema admits are read off `type` alone, a union's branch of
   null alone aside, so a value set declaring none (an `enum` or a `const`) reads every bound (#1919);
-  a `type` written beside a `$ref` inside a named schema is not read (#1390); and a read of more than
-  256 named schemas, as a cycle of references is, reads every bound. A bound beside an `enum`, a `const` or a union at a property that a type the position admits
-  takes is held by the property and also kept on its node (#1924). Two declarations of one field that
-  each keep a bound meet the fold of [`allof-redeclared-property`](#allof-redeclared-property)
-  (#1889). A bound left unread is reported at its position, with the census's other keywords, not at
-  the keyword.
+  a `type` written beside a `$ref` inside a named schema is not read (#1390); and a read of more
+  than 256 named schemas reads every bound, as one through a cycle of `allOf` entries or of dynamic
+  references always does. A distributed union's variant holds each bound the whole position takes,
+  one its own branch cannot take included (#1936). A bound beside an `enum`, a `const` or a union at
+  a property that a type the position admits takes is held by the property and also kept on its node
+  (#1924). Two declarations of one field that each keep a bound meet the fold of
+  [`allof-redeclared-property`](#allof-redeclared-property) (#1889). A bound left unread is reported
+  at its position, with the census's other keywords, not at the keyword.
 
 ### `validation-only`
 

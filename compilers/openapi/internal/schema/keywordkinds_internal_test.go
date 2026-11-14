@@ -121,15 +121,19 @@ func TestWritesBound_FindsABoundOnTheSchemaOrAnInlineBranch(t *testing.T) {
 // budget is read up to the read that exhausts it and no further, as each
 // sibling past it would answer anyInstance and change nothing. A union's null
 // branches are read at a step each, so a union collapsing onto one branch beside
-// many costs no more than the budget either.
+// many costs no more than the budget either, and so is an entry reading no
+// schema, a boolean one or a $ref landing on none.
 func TestBoundTypes_ReadsNoSiblingPastItsBudget(t *testing.T) {
 	t.Parallel()
 	refs := strings.Repeat("{$ref: '#/components/schemas/Str'}, ", 4*maxBoundTypeReads)
 	nulls := strings.Repeat("{type: 'null'}, ", 4*maxBoundTypeReads)
+	trues := strings.Repeat("true, ", 4*maxBoundTypeReads)
+	dangling := strings.Repeat("{$ref: '#/components/schemas/Nowhere'}, ", 4*maxBoundTypeReads)
 	c := loweringtest.Context(t, openapitest.ComponentSpecVer("3.1.0",
 		"    AllOf: {allOf: ["+refs+"]}\n    AnyOf: {anyOf: ["+refs+"]}\n"+
-			"    Nulls: {anyOf: [{$ref: '#/components/schemas/Str'}, "+nulls+"]}\n    Str: {type: string}\n"), lowering.Policy{})
-	for _, name := range []string{"AllOf", "AnyOf", "Nulls"} {
+			"    Nulls: {anyOf: [{$ref: '#/components/schemas/Str'}, "+nulls+"]}\n    Str: {type: string}\n"+
+			"    Trues: {allOf: ["+trues+"]}\n    Dangling: {anyOf: ["+dangling+"]}\n"), lowering.Policy{})
+	for _, name := range []string{"AllOf", "AnyOf", "Nulls", "Trues", "Dangling"} {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
 			pointer := jsontext.Pointer("/components/schemas/" + name)
@@ -159,8 +163,9 @@ func TestBoundTypes_ADynamicCycleEndsOnTheBudget(t *testing.T) {
 }
 
 // TestBoundTypes_AReferenceLandingOnNoSchemaExcludesNothing pins the read of a
-// $ref whose chain ends on no schema: it admits every kind and spends no read,
-// so a bound beside it is read as beside a schema writing no type.
+// $ref whose chain ends on no schema: it admits every kind at the step a read
+// of a schema spends, so a bound beside it is read as beside a schema writing
+// no type.
 func TestBoundTypes_AReferenceLandingOnNoSchemaExcludesNothing(t *testing.T) {
 	t.Parallel()
 	c := loweringtest.Context(t, openapitest.ComponentSpecVer("3.1.0",
@@ -170,5 +175,5 @@ func TestBoundTypes_AReferenceLandingOnNoSchemaExcludesNothing(t *testing.T) {
 	require.NotNil(t, s)
 	r := boundTypes{steps: budget.New(budget.AtMost(maxBoundTypeReads))}
 	assert.Equal(t, anyInstance, r.schema(c, s, pointer))
-	assert.Equal(t, 1, r.steps.Spent())
+	assert.Equal(t, 2, r.steps.Spent())
 }
