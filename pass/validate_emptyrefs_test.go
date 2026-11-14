@@ -108,3 +108,71 @@ func TestValidate_DocumentedEmptyPositionsStayLegal(t *testing.T) {
 		assert.NotRegexp(t, `^ir/empty-.*-ref$`, d.Code, "%s at %s", d.Message, d.Provenance.Node)
 	}
 }
+
+// TestValidate_AnEmptyReferenceDrawsNoSecondCode pins the readers of a required
+// ID beside the binding and mapping checks: a message a binding uses, an
+// encoding key and a link's parameter, each left empty, draw the empty-reference
+// code alone, where each check reading them also reported it under its own.
+func TestValidate_AnEmptyReferenceDrawsNoSecondCode(t *testing.T) {
+	t.Parallel()
+	const op = "doc.Services[0].Groups[0].Operations[0]"
+	for _, tc := range []struct {
+		name  string
+		doc   func() *ir.Document
+		code  string
+		nodes []string
+	}{
+		{
+			name: "a message a binding uses, beside one its channel carries",
+			doc: func() *ir.Document {
+				o := ir.Operation{ID: "op/x/o"}
+				o.Bindings.Message = &ir.MessageBinding{
+					Channel: "chan/x/c", Direction: ir.MsgDirectionSend, Messages: []ir.MessageID{"msg/x/m", ""},
+				}
+				doc := docWithOperation(o)
+				doc.Channels = map[ir.ChannelID]ir.Channel{"chan/x/c": {ID: "chan/x/c", Messages: []ir.MessageID{"msg/x/m"}}}
+				doc.Messages = map[ir.MessageID]ir.Message{"msg/x/m": {ID: "msg/x/m"}}
+				return doc
+			},
+			code:  "ir/empty-message-ref",
+			nodes: []string{op + ".Bindings.Message.Messages[1]"},
+		},
+		{
+			name: "an encoding key",
+			doc: func() *ir.Document {
+				return docWithOperation(ir.Operation{ID: "op/x/o", Request: &ir.Payload{Contents: []ir.Content{{
+					MediaType: "multipart/form-data", Type: ir.TypeRef{Target: "t/m"},
+					Encoding: map[ir.PropID]ir.PartEncoding{"": {}},
+				}}}})
+			},
+			code:  "ir/empty-prop-ref",
+			nodes: []string{op + ".Request.Contents[0].Encoding[].key"},
+		},
+		{
+			name: "a link's parameter, given twice",
+			doc: func() *ir.Document {
+				return docWithOperation(ir.Operation{
+					ID: "op/x/o", Params: []ir.Parameter{{ID: "param/x/o/q", Name: ir.Naming{Source: "q"}}},
+					Responses: []ir.Response{{Links: []ir.OperationLink{{
+						Name: ir.Naming{Source: "l"}, Operation: "op/x/o", Params: []ir.LinkParam{{Param: ""}, {Param: ""}},
+					}}}},
+				})
+			},
+			code:  "ir/empty-param-ref",
+			nodes: []string{op + ".Responses[0].Links[0].Params[0].Param", op + ".Responses[0].Links[0].Params[1].Param"},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			diags := validated(t, tc.doc())
+
+			assert.Equal(t, tc.nodes, nodesOfCode(diags, tc.code))
+			for _, d := range diags {
+				if d.Code == tc.code || d.Severity != ir.SeverityError {
+					continue
+				}
+				assert.Failf(t, "a second code", "%s at %s: %s", d.Code, d.Provenance.Node, d.Message)
+			}
+		})
+	}
+}

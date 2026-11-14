@@ -39,6 +39,25 @@ func checkDanglingRefs(refs *ir.IDReferences, truncated bool) []ir.Diagnostic {
 	return diags
 }
 
+// checkEmptyRefs reports every reference the walk found empty where its position
+// requires one, as ir/empty-<noun>-ref, in the words irverify reports it in.
+// Which positions admit an empty ID is ir's table, read by both checkers, so a
+// check here that reads a required ID leaves an empty one to this family and
+// the defect draws one code (GitHub #575). An entity's own empty ID and an
+// empty TypeRef.Target are out of its scope, held by irverify alone.
+func checkEmptyRefs(empty *ir.EmptyReferences) []ir.Diagnostic {
+	found := empty.List()
+	if len(found) == 0 {
+		return nil
+	}
+	slices.SortStableFunc(found, func(a, b ir.EmptyReference) int { return strings.Compare(a.Path, b.Path) })
+	diags := make([]ir.Diagnostic, 0, len(found))
+	for _, ref := range found {
+		diags = append(diags, diag(ir.SeverityError, ref.Code(), ref.Message(), ref.Path))
+	}
+	return diags
+}
+
 // checkPropIDRefs reports every PropID a document carries that names no property
 // it declares.
 //

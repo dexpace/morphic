@@ -68,7 +68,8 @@ func appendLinkInputRef(dst []paramRef, lv *ir.LinkValue, field string) []paramR
 // checkLinkTargets holds each link's parameters to the operation it leads to:
 // each names a parameter that operation declares, and none is given two
 // values. A target the document does not declare is the dangling walk's to
-// report, and so is a parameter it declares nowhere (danglingWalkSkips). Only
+// report, a parameter it declares nowhere too, and an empty one checkEmptyRefs'
+// (reportedHere). Only
 // the operations some link leads to have their parameters read.
 func checkLinkTargets(doc *ir.Document, refs *ir.IDReferences) []ir.Diagnostic {
 	var sites []linkSite
@@ -100,17 +101,21 @@ func checkLinkTargets(doc *ir.Document, refs *ir.IDReferences) []ir.Diagnostic {
 }
 
 // linkParamDiags reports each parameter site's link gives that own, its
-// target's parameters, does not hold, and each it gives a second value.
+// target's parameters, does not hold, and each it gives a second value. An
+// empty parameter is checkEmptyRefs' to report, however often it is given.
 func linkParamDiags(site linkSite, own map[ir.ParamID]bool, refs *ir.IDReferences) []ir.Diagnostic {
 	var diags []ir.Diagnostic
 	given := make(map[ir.ParamID]bool, len(site.link.Params))
 	for k, lp := range site.link.Params {
+		if lp.Param == "" {
+			continue
+		}
 		where := func() string { return string(site.from) + "/" + site.field + "/params/" + strconv.Itoa(k) }
 		switch {
 		case given[lp.Param]:
 			diags = append(diags, diag(ir.SeverityError, "pass/param-binding-mismatch",
 				fmt.Sprintf("%s gives parameter %q a second value", where(), lp.Param), where()))
-		case !own[lp.Param] && danglingWalkSkips(lp.Param, refs):
+		case !own[lp.Param] && reportedHere(lp.Param, refs):
 			diags = append(diags, diag(ir.SeverityError, "pass/param-binding-mismatch",
 				fmt.Sprintf("%s names parameter %q, which operation %q, the link's target, does not declare",
 					where(), lp.Param, site.link.Operation), where()))

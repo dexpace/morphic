@@ -25,14 +25,14 @@ func checkParams(doc *ir.Document, refs *ir.IDReferences) []ir.Diagnostic {
 	return append(diags, checkLinkTargets(doc, refs)...)
 }
 
-// danglingWalkSkips reports whether the dangling walk is silent on a reference
-// to id, so that naming no parameter of its own operation is reported here. The
-// walk resolves a declared ID, another operation's or a field argument's
-// (Property.Args), and skips an empty one; it reports one the document declares
-// nowhere, once. Past the walk's depth bound neither reports it, and
-// ir/walk-truncated says why.
-func danglingWalkSkips(id ir.ParamID, refs *ir.IDReferences) bool {
-	return id == "" || refs.Declares(paramIDType, string(id))
+// reportedHere reports whether a reference to id that names no parameter of its
+// own operation is reported here: one the document declares, another
+// operation's or a field argument's (Property.Args). The dangling walk reports
+// one the document declares nowhere, and checkEmptyRefs an empty one, each
+// once. Past the walk's depth bound none reports it, and ir/walk-truncated
+// says why.
+func reportedHere(id ir.ParamID, refs *ir.IDReferences) bool {
+	return id != "" && refs.Declares(paramIDType, string(id))
 }
 
 // checkParamBindings validates each HTTP binding's parameter bindings against
@@ -71,7 +71,7 @@ type paramLocation struct {
 
 // checkHTTPParamBinding validates HTTP binding idx of op, whose parameters'
 // names names holds by ID: a parameter this operation does not declare is an
-// error unless the dangling walk reports it (danglingWalkSkips), a param bound
+// error unless another family reports it (reportedHere), a param bound
 // twice in one non-host location is an error, and an unbound parameter is a
 // warning (body-carried operations bind nothing). The binding's location is
 // spelled only for a diagnostic.
@@ -84,7 +84,7 @@ func checkHTTPParamBinding(op ir.Operation, idx int, names map[ir.ParamID]string
 	for _, pb := range b.ParamBindings {
 		name, own := names[pb.Param]
 		if !own {
-			if danglingWalkSkips(pb.Param, refs) {
+			if reportedHere(pb.Param, refs) {
 				where := bindingWhere(op.ID, idx)
 				diags = append(diags, diag(ir.SeverityError, "pass/param-binding-mismatch",
 					fmt.Sprintf("binding on %s names parameter %q, which this operation does not declare", where, pb.Param), where))
@@ -172,8 +172,8 @@ func appendInputRef(dst []paramRef, in *ir.InputPath, field string) []paramRef {
 //
 // Another operation's parameter is a well-formed reference, so the registry walk
 // has nothing to say about it, while an emitter reads the pagination cursor off
-// the wrong operation's parameter. What the dangling walk reports is left to it
-// (danglingWalkSkips). Every operation is read through the same map and list,
+// the wrong operation's parameter. What another family reports is left to it
+// (reportedHere). Every operation is read through the same map and list,
 // so none costs one of its own.
 func checkParamReferences(doc *ir.Document, refs *ir.IDReferences) []ir.Diagnostic {
 	var diags []ir.Diagnostic
@@ -186,7 +186,7 @@ func checkParamReferences(doc *ir.Document, refs *ir.IDReferences) []ir.Diagnost
 		}
 		carried = appendParamRefs(carried[:0], op)
 		for _, ref := range carried {
-			if own[ref.id] || !danglingWalkSkips(ref.id, refs) {
+			if own[ref.id] || !reportedHere(ref.id, refs) {
 				continue
 			}
 			where := string(op.ID) + "/" + ref.field

@@ -66,9 +66,8 @@ type messagesAt struct {
 // A channel that resolves nowhere is left alone: there is no set to compare
 // against. One that names no declared channel is ir/dangling-channel-ref
 // already (checkDanglingRefs), so a second diagnostic here would restate a
-// defect rather than add a claim. One that names none at all is reported by
-// irverify alone, as ir/empty-channel-ref: this pass does not report an empty
-// channel yet (GitHub #575).
+// defect rather than add a claim. An empty channel or message names none at
+// all, which checkEmptyRefs reports.
 func appendUncarriedMessageDiags(dst []ir.Diagnostic, doc *ir.Document,
 	channel ir.ChannelID, used []ir.MessageID, at messagesAt, carried *reusedMap[ir.MessageID, bool]) []ir.Diagnostic {
 	ch, declared := doc.Channels[channel]
@@ -80,7 +79,7 @@ func appendUncarriedMessageDiags(dst []ir.Diagnostic, doc *ir.Document,
 		carries[id] = true
 	}
 	for i, id := range used {
-		if carries[id] {
+		if id == "" || carries[id] {
 			continue
 		}
 		site := fmt.Sprintf("%s/bindings/message/%s/%d", at.op, at.field, i)

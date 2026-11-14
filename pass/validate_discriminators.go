@@ -117,6 +117,9 @@ func checkMapping(doc *ir.Document, d *ir.Discriminator, where string, read *map
 	slices.Sort(read.keys)
 	for _, key := range read.keys {
 		target := d.Mapping[key]
+		if target == "" {
+			continue // it names nothing to route to, which checkEmptyRefs reports alone
+		}
 		if legal, why := mappingTarget(doc, target, member); !legal {
 			diags = append(diags, missingVariant(fmt.Sprintf("mapping %q", key), where, target, why))
 		}

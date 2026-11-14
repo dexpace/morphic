@@ -95,6 +95,7 @@ func families(doc *ir.Document, read walked, facts *irfacts.Index) []func() []ir
 	return []func() []ir.Diagnostic{
 		func() []ir.Diagnostic { return checkNilTypes(doc) },
 		func() []ir.Diagnostic { return checkDanglingRefs(read.refs, read.truncated) },
+		func() []ir.Diagnostic { return checkEmptyRefs(read.empty) },
 		func() []ir.Diagnostic { return checkGroupWalkTruncated(doc) },
 		func() []ir.Diagnostic { return checkResponseIndices(doc) },
 		func() []ir.Diagnostic { return checkEncodingKeys(doc, facts) },
@@ -116,10 +117,11 @@ func families(doc *ir.Document, read walked, facts *irfacts.Index) []func() []ir
 
 // walked is what one walk of a document reads for the checks that need it: the
 // references that may dangle with the identities they resolve against, its
-// PropIDs, and whether the walk was cut short.
+// PropIDs, the references it holds empty, and whether the walk was cut short.
 type walked struct {
 	refs      *ir.IDReferences
 	props     *propIDSites
+	empty     *ir.EmptyReferences
 	truncated bool
 }
 
@@ -127,8 +129,8 @@ type walked struct {
 // ctx's error alone if the walk stopped at it.
 func walkDocument(ctx context.Context, doc *ir.Document, walk walkFunc) (walked, error) {
 	refs := ir.NewIDReferences(doc)
-	w := walked{refs: refs, props: &propIDSites{refs: refs}}
-	truncated, err := walk(ctx, doc, ir.DocumentPath, w.refs, w.props)
+	w := walked{refs: refs, props: &propIDSites{refs: refs}, empty: &ir.EmptyReferences{}}
+	truncated, err := walk(ctx, doc, ir.DocumentPath, w.refs, w.props, w.empty)
 	if err != nil {
 		return walked{}, err
 	}

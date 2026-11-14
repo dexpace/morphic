@@ -202,7 +202,7 @@ func TestValidator_RunReportsNothingOnceItsContextIsDone(t *testing.T) {
 type ctxKey struct{}
 
 // TestValidate_WalksTheDocumentOnce counts the walks Validate makes through the
-// walk validate is handed: one, carrying what its three walking checks read,
+// walk validate is handed: one, carrying what its four walking checks read,
 // under Validate's context. No result can show it, since a walk per check
 // reports the same. The counted run must report what Validate does, so the
 // count is of the real run, and the document carries a dangling reference so
@@ -222,7 +222,8 @@ func TestValidate_WalksTheDocumentOnce(t *testing.T) {
 	require.NoError(t, err)
 
 	assert.Equal(t, 1, walks, "the walking checks must share one walk of the document")
-	assert.Equal(t, 2, visitors, "the walk carries the references with what they resolve against, and the PropIDs")
+	assert.Equal(t, 3, visitors,
+		"the walk carries the references with what they resolve against, the PropIDs and the empty references")
 	assert.Equal(t, "validate's", under, "the walk runs under Validate's context")
 	assert.Contains(t, irtest.DiagCodes(got), "ir/dangling-type-ref")
 	assert.Empty(t, cmp.Diff(validated(t, doc), got), "the counted run reports what Validate does")
