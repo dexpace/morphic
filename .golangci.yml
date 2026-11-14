@@ -248,6 +248,13 @@ linters:
         linters:
           - usetesting
         text: os\.MkdirTemp
+      # The reader judges every address a read dials only through a transport
+      # that dials through no function of the caller's, the deprecated Dial and
+      # DialTLS among them, so it reads both to refuse the transport that sets one.
+      - path: ^engine/reader/netguard\.go$
+        linters:
+          - staticcheck
+        text: 'SA1019: \(net/http\.Transport\)\.Dial(TLS)? has been deprecated'
       # forbidigo's output rules are invariant 5's, which binds the pipeline's
       # stages: ir, compilers, pass, emitters and engine, beside the plants that
       # hold the rules, whose tooling package stands for one outside it. emitters

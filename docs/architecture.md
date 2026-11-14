@@ -66,9 +66,13 @@ engine hands it in `compilers.Options.Reader`, in the compile, under the compile
 budgets: decoding options reads nothing. The compiler says how far a read may go, as a directory it
 must stay inside, and the reader enforces it, symbolic links included: the OpenAPI compiler keeps
 every read inside the spec's directory, following relative references alone, unless
-`allow-external-refs` lifts that. A reader of files may also say where a directory lies, its links
-resolved (`compilers.DirectoryLocator`), so a compile names one file reached through two spellings
-of its directory as one document.
+`allow-external-refs` lifts that. A read over http(s) also names the most private address it may
+dial (`compilers.DocumentRequest.Reach`), and the reader states where the address that answered lies
+(`compilers.DocumentRead.Space`), refusing a dial past the reach with `compilers.ErrAddressSpace`,
+and a bounded read it cannot judge with `compilers.ErrUnboundedRead`, so a document read from the
+network makes the compile dial no address more private than its own. A reader of files may also
+say where a directory lies, its links resolved (`compilers.DirectoryLocator`), so a compile names
+one file reached through two spellings of its directory as one document.
 
 Contract, abridged from `compilers.Compiler`, whose doc comments state each method's duties:
 

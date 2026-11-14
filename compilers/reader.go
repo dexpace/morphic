@@ -96,6 +96,23 @@ var ErrDocumentTooLarge = errors.New("larger than the read allows")
 // its request's Reach.
 var ErrAddressSpace = errors.New("at an address more private than the read may reach")
 
+// AddressSpaceError is ErrAddressSpace naming the address refused and the
+// space it lies in.
+type AddressSpaceError struct {
+	// Address is the address the read would have dialled.
+	Address string
+	// Space is where Address lies.
+	Space AddressSpace
+}
+
+// Error implements error.
+func (e *AddressSpaceError) Error() string {
+	return fmt.Sprintf("%s: %v", e.Address, ErrAddressSpace)
+}
+
+// Unwrap returns ErrAddressSpace.
+func (e *AddressSpaceError) Unwrap() error { return ErrAddressSpace }
+
 // ErrUnboundedRead reports a request stating a Reach to a reader that cannot
 // judge the addresses the read would dial.
 var ErrUnboundedRead = errors.New("the reader cannot bound the addresses this read dials")

@@ -11,6 +11,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/dexpace/morphic/compilers"
 )
 
 // TestDisk_FetchRefusesAURLNoRequestCanBeBuiltFor pins fetch's own guard:
@@ -23,10 +25,10 @@ func TestDisk_FetchRefusesAURLNoRequestCanBeBuiltFor(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) { hits.Add(1) }))
 	t.Cleanup(srv.Close)
 
-	got, err := Disk{Client: srv.Client()}.fetch(t.Context(), "http://[::1", 0)
+	got, err := Disk{Client: srv.Client()}.fetch(t.Context(), "http://[::1", compilers.DocumentRequest{})
 
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "http://[::1")
-	assert.Nil(t, got)
+	assert.Nil(t, got.Data)
 	assert.Zero(t, hits.Load())
 }
