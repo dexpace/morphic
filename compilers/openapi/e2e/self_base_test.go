@@ -123,7 +123,7 @@ func TestCompile_ARelativeSelfIsResolvedAgainstWhereTheDocumentWasRead(t *testin
 			"components:\n  schemas:\n    S: {$ref: '../other.yaml#/OS'}\n",
 		"res/other.yaml": "OS: {type: object}\n",
 	})
-	var irs []string
+	irs := make([]string, 0, 2)
 	for name, run := range map[string]struct{ dir, spec string }{
 		"from the parent": {root, "res/spec.yaml"}, "from the directory": {filepath.Join(root, "res"), "spec.yaml"},
 	} {
@@ -195,7 +195,7 @@ func TestCompile_ASelfHoldingAFragmentIsAnErrorAndNamesNothing(t *testing.T) {
 
 	_, diags := compileWithReader(t, "api/openapi.yaml", head32+"$self: '"+selfURL+"#frag'\n"+body, openapi.Options{}, loopbackDisk{})
 
-	var got []string
+	got := make([]string, 0, len(diags))
 	for _, d := range diags {
 		got = append(got, string(d.Severity)+" "+string(d.Provenance.Pointer))
 	}

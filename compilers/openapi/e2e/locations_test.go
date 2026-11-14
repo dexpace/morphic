@@ -58,7 +58,8 @@ func TestCompile_AMappedURLIsTheDocumentItsLocationHolds(t *testing.T) {
 
 // TestCompile_AMappedURLThatNormalizesOutOfItsPrefixIsRefused holds a URL whose
 // dot segments leave the prefix, once spelled, to the network's refusal, and
-// to no read of a path above the directory.
+// to no read of a path above the directory; the URL itself is asked of the
+// reader, which refuses it as on the network.
 func TestCompile_AMappedURLThatNormalizesOutOfItsPrefixIsRefused(t *testing.T) {
 	t.Parallel()
 	root := realDir(t)
@@ -74,6 +75,9 @@ func TestCompile_AMappedURLThatNormalizesOutOfItsPrefixIsRefused(t *testing.T) {
 	assert.Equal(t, "/components/schemas/p", string(bad[0].Provenance.Pointer))
 	assert.Contains(t, bad[0].Message, onNetwork)
 	for _, loc := range rec.locations() {
+		if strings.HasPrefix(loc, "https://") {
+			continue
+		}
 		assert.True(t, strings.HasPrefix(loc, dir+string(filepath.Separator)), "%s is not above the directory", loc)
 	}
 }
