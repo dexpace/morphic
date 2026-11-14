@@ -49,8 +49,8 @@ type canonical struct{ document, shape []string }
 // reversed sequence a string names, an ID beneath one being told apart by its
 // owners' digest; the order of what orderFree lists, mixins, requires and an
 // array kept verbatim at a reversed sequence's pointer; and every node at or
-// beneath a tie. A string of another file is not erased; one naming a
-// sequence another document of the stream reverses is.
+// beneath a tie. A string naming a sequence another document of the stream
+// reverses is erased too.
 func canonicalForm(doc *ir.Document, seqs sequences, ties []string) (canonical, error) {
 	encoded, err := encodeComparable(doc, markedArray)
 	if err != nil {
@@ -176,17 +176,15 @@ func (r *rewriter) rewrite(v any, p place, depth int) []byte {
 // object rewrites an object: a marked collection as a sorted array, one at or
 // beneath a tie site as the tie, and any other member by member, sorted by
 // name and then by value, since erased names can collide. An id is erased
-// alone, and the pointer of a provenance in another source is kept as written.
+// alone.
 func (r *rewriter) object(o map[string]any, p place, depth int) []byte {
 	if elems, ok := o[unorderedMark].([]any); ok && len(o) == 1 {
 		return r.array(elems, place{how: p.how&noIdentity | sortElements}, depth)
 	}
-	own := originOf(o)
+	own := provenancePointer(o)
 	if erased, tied := r.tiedAt(own); tied && p.how&noIdentity == 0 {
 		return slices.Concat([]byte(`{"reportedTie":`), r.quote(erased), []byte("}"))
 	}
-	_, isPointer := o["pointer"].(string)
-	foreign := isPointer && !compiledSource(o)
 	type member struct{ name, value []byte }
 	members := make([]member, 0, len(o))
 	for name, v := range o {
@@ -201,8 +199,6 @@ func (r *rewriter) object(o map[string]any, p place, depth int) []byte {
 		switch text, isText := v.(string); {
 		case isText && name == "id":
 			value = r.quote(erase(text, r.seqs))
-		case isText && name == "pointer" && foreign:
-			value = r.quote(text)
 		default:
 			value = r.rewrite(v, childPlace(name, p, own), depth+1)
 		}
@@ -222,17 +218,16 @@ func (r *rewriter) object(o map[string]any, p place, depth int) []byte {
 }
 
 // childPlace is the place of the member name of an object at p, whose
-// provenance is own: within a verbatim value, or the verbatim value an object
-// of the compiled source keeps beside its provenance; mixins and requires,
-// which mirror allOf and required whatever the source's order; or the
-// unmodeled map.
-func childPlace(name string, p place, own origin) place {
+// provenance's pointer is own: within a verbatim value, or the verbatim value
+// an object keeps beside its provenance; mixins and requires, which mirror
+// allOf and required whatever the source's order; or the unmodeled map.
+func childPlace(name string, p place, own string) place {
 	child := place{how: p.how & noIdentity}
 	switch {
 	case p.how&verbatim != 0:
 		return place{how: child.how | verbatim, at: string(appendToken([]byte(p.at), name))}
-	case name == "value" && own.compiled && own.pointer != "":
-		return place{how: child.how | verbatim, at: own.pointer}
+	case name == "value" && own != "":
+		return place{how: child.how | verbatim, at: own}
 	case name == "mixins", name == "requires":
 		child.how |= sortElements
 	case name == "unmodeled":
@@ -294,34 +289,22 @@ func (r *rewriter) quote(s string) []byte {
 	return b
 }
 
-// tiedAt returns a provenance's pointer erased, and whether it is a pointer
-// of the compiled source at or beneath a tie site.
-func (r *rewriter) tiedAt(o origin) (string, bool) {
-	erased := erase(o.pointer, r.seqs)
-	return erased, o.compiled && slices.ContainsFunc(r.ties, func(site string) bool {
+// tiedAt returns a provenance's pointer erased, and whether it is at or
+// beneath a tie site.
+func (r *rewriter) tiedAt(pointer string) (string, bool) {
+	erased := erase(pointer, r.seqs)
+	return erased, slices.ContainsFunc(r.ties, func(site string) bool {
 		return erased == site || strings.HasPrefix(erased, site) && strings.HasPrefix(erased[len(site):], "/")
 	})
 }
 
-// origin is what an object's provenance says: its pointer, and whether that
-// is a pointer of the compiled source, the one the sequences are in.
-type origin struct {
-	pointer  string
-	compiled bool
-}
-
-// originOf reads an object's provenance member.
-func originOf(o map[string]any) origin {
+// provenancePointer reads the pointer of an object's provenance member. It is
+// a pointer of the compiled source, the one the sequences are in, since the
+// oracle declines a document read from more than one.
+func provenancePointer(o map[string]any) string {
 	prov, _ := o["provenance"].(map[string]any)
 	pointer, _ := prov["pointer"].(string)
-	return origin{pointer: pointer, compiled: compiledSource(prov)}
-}
-
-// compiledSource reports whether a provenance names the compiled source, the
-// first of the document's table, which an absent index names too.
-func compiledSource(prov map[string]any) bool {
-	source, ok := prov["source"].(number)
-	return !ok || source == "0"
+	return pointer
 }
 
 // eraseRelative writes as "-" each decimal token of a relative pointer that
@@ -372,7 +355,7 @@ func (r *rewriter) shape(doc *ir.Document) []string {
 // so two declarations saying the same are one.
 func (r *rewriter) memberShape(p ir.FlatProperty) string {
 	prov := p.Property.Provenance
-	if erased, tied := r.tiedAt(origin{pointer: string(prov.Pointer), compiled: prov.Source == 0}); tied {
+	if erased, tied := r.tiedAt(string(prov.Pointer)); tied {
 		return "reported tie at " + erased
 	}
 	encoded, err := json.Marshal(struct {

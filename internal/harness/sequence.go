@@ -307,16 +307,12 @@ func rebase(s string, seqs sequences) string {
 // does. From the first '/' at which one applies, it walks the '/'-separated
 // tokens, keeping the pointer walked so far; where that pointer is one of
 // seqs and the next token is a decimal index below its length, the index is
-// rewritten. It stops at an '@', after which an ID names a node of another
-// file, whose pointers no sequence of seqs is in.
+// rewritten.
 func rewriteIndices(s string, seqs sequences, write func(n, i int) string) string {
 	if len(seqs) == 0 || !mayNameAnIndex(s) {
 		return s
 	}
 	for start := range len(s) {
-		if s[start] == '@' {
-			return s
-		}
 		if s[start] != '/' {
 			continue
 		}

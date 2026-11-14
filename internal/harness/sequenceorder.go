@@ -21,9 +21,9 @@ import (
 // with its allOf and required sequences reversed (reverseSequences), and
 // reports what the reversal changed beyond which element of a reversed
 // sequence a pointer names (diffSequenceInvariants). It declines as
-// orderInvariant does. Of a sequence of three it tries one other order, it
-// swaps nothing in another file a reference reaches, and it compiles at the
-// default options alone.
+// orderInvariant does, and a source whose compile reads another file. Of a
+// sequence of three it tries one other order, and it compiles at the default
+// options alone.
 func sequenceOrderInvariant(ctx context.Context, spec string, data []byte, compiled bool) Verdict {
 	baseline, why := reencodeMappings(data)
 	if why != "" {
@@ -52,9 +52,12 @@ func sequenceOrderInvariant(ctx context.Context, spec string, data []byte, compi
 // equal but for which element of a reversed sequence their pointers name is a
 // report that moves with the order, a tie the lowering states, so nothing the
 // documents hold at or beneath its pointer is compared. Every difference is
-// reported, one after another. It declines a document whose canonical form
-// nests past its bound, since then nothing was compared.
+// reported, one after another. It declines a document read from more than one
+// file, and one whose canonical form nests past its bound.
 func diffSequenceInvariants(first *ir.Document, firstDiags []ir.Diagnostic, second *ir.Document, secondDiags []ir.Diagnostic, perm permutation) (string, bool, Decline) {
+	if first != nil && len(first.Sources) > 1 {
+		return "", false, DeclineReadsAnotherFile
+	}
 	var found []string
 	ties, unpaired := movedReports(firstDiags, secondDiags, perm)
 	if unpaired != "" {
@@ -106,20 +109,16 @@ func compareForms(first, second *ir.Document, perm permutation, ties []string) (
 // index of a reversed sequence erased, and its pointer.
 type report struct{ key, erased, pointer string }
 
-// reportsOf reads diags, rebasing each pointer of the compiled source and
-// each node from the coordinates of from, when given, to those of the source
-// as written, where written lists the reversed sequences.
+// reportsOf reads diags, rebasing each pointer and node from the coordinates
+// of from, when given, to those of the source as written, where written lists
+// the reversed sequences.
 func reportsOf(diags []ir.Diagnostic, from, written sequences) []report {
 	out := make([]report, 0, len(diags))
 	for _, d := range diags {
-		if d.Provenance.Source == 0 {
-			d.Provenance.Pointer = jsontext.Pointer(rebase(string(d.Provenance.Pointer), from))
-		}
+		d.Provenance.Pointer = jsontext.Pointer(rebase(string(d.Provenance.Pointer), from))
 		d.Provenance.Node = rebase(d.Provenance.Node, from)
 		e := d
-		if d.Provenance.Source == 0 {
-			e.Provenance.Pointer = jsontext.Pointer(erase(string(d.Provenance.Pointer), written))
-		}
+		e.Provenance.Pointer = jsontext.Pointer(erase(string(d.Provenance.Pointer), written))
 		e.Provenance.Node = erase(d.Provenance.Node, written)
 		out = append(out, report{key: diagnosticKey(d), erased: diagnosticKey(e), pointer: string(d.Provenance.Pointer)})
 	}

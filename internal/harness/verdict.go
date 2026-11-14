@@ -85,7 +85,8 @@ const (
 	// can rebind an alias to the other.
 	DeclineAnchorRedefined Decline = "anchor redefined"
 	// DeclineTooDeep: the source nests deeper than any document the compiler
-	// admits.
+	// admits, or what the sequence-order oracle compares nests past its own
+	// bound.
 	DeclineTooDeep Decline = "too deep"
 	// DeclineTooManyDocuments: the source is a stream of more documents than
 	// the rewrite reads.
@@ -106,6 +107,11 @@ const (
 	// re-encoding to none, so the two orders would compare a refusal the
 	// rewrite made rather than what the source compiles to.
 	DeclineReencodingRefused Decline = "re-encoding refused"
+	// DeclineReadsAnotherFile: the source's compile reads another file, which
+	// can name an element of a sequence by its index. The sequence-order
+	// oracle reverses the source alone and reads no other file's references,
+	// so reversing would change what such a reference names.
+	DeclineReadsAnotherFile Decline = "reads another file"
 )
 
 // Verdict is one oracle's answer for one spec: it asked and found nothing

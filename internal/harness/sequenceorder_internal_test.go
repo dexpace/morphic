@@ -9,6 +9,8 @@ import (
 	"encoding/json/jsontext"
 	"encoding/json/v2"
 	"errors"
+	"os"
+	"path/filepath"
 	"slices"
 	"strings"
 	"testing"
@@ -175,6 +177,25 @@ func TestCheck_SequenceOrderOracleHoldsOnTheRealCompiler(t *testing.T) {
 			assert.Equal(t, tc.want, got)
 		})
 	}
+}
+
+// TestCheck_SequenceOrderOracleDeclinesASpecOfTwoFiles pins that a source
+// whose compile reads another file is declined: that file names the first
+// branch of N's allOf by its index, which the walk does not read, so reversing
+// the branches would change what the reference names, not only their order.
+func TestCheck_SequenceOrderOracleDeclinesASpecOfTwoFiles(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	src := schemas("N: {allOf: [{type: object, properties: {p: {type: number}}}, {type: object, properties: {p: {type: integer}}}]}",
+		"User: {$ref: 'other.yaml#/Thing'}")
+	spec := filepath.Join(dir, "main.yaml")
+	require.NoError(t, os.WriteFile(spec, []byte(src), 0o600))
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "other.yaml"),
+		[]byte("Thing: {type: object, properties: {branch: {$ref: 'main.yaml#/components/schemas/N/allOf/0'}}}\n"), 0o600))
+
+	got := sequenceVerdict(t, Check(t.Context(), spec, []byte(src)))
+
+	assert.Equal(t, declined(OracleSequenceOrder, DeclineReadsAnotherFile), got)
 }
 
 // propertyChain is a document whose one schema nests n levels, each an allOf

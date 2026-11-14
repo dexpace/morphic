@@ -226,6 +226,9 @@ func knownSequenceDeclines() map[string]harness.Decline {
 		// Each allOf lists one alias ten times, beneath an anchor, and what an
 		// anchor holds is left as written.
 		filepath.FromSlash("../../testdata/openapi/amplification_alias_bomb.yaml"): harness.DeclineNothingToPermute,
+		// The root names the other files of the split spec, which can name an
+		// element of its allOf by index.
+		filepath.FromSlash("../../testdata/golden/openapi/split/root.yaml"): harness.DeclineReadsAnotherFile,
 	}
 }
 

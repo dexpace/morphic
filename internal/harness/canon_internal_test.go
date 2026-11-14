@@ -167,54 +167,51 @@ func TestDiffSequenceInvariants_ADocumentItCannotWriteIsReported(t *testing.T) {
 // of what the comparison forgives. Each pair of rows differs in one index,
 // which the reversal can have moved in the second row of the pair and cannot
 // in the first: an index after another keyword than allOf or required, an
-// array kept verbatim off the reversed sequences, and a pointer or ID of
-// another source.
+// array kept verbatim off the reversed sequences, and a provenance or a
+// diagnostic in a sequence the reversal left as written.
 func TestDiffSequenceInvariants_ForgivesOnlyWhatTheReversalMoves(t *testing.T) {
 	t.Parallel()
-	const ab = "/components/schemas/AB/allOf"
-	kept := func(name string, at ir.Provenance, value string) func(*ir.Document, int) []ir.Diagnostic {
+	const ab, cd = "/components/schemas/AB/allOf", "/components/schemas/CD/allOf"
+	kept := func(name, pointer, value string) func(*ir.Document, int) []ir.Diagnostic {
 		return func(doc *ir.Document, _ int) []ir.Diagnostic {
 			doc.Types[typeA].(*ir.Model).Unmodeled = ir.Unmodeled{name: {Reason: ir.ReasonVendorExtension,
-				Value: ir.RawValue(value), Provenance: at}}
+				Value: ir.RawValue(value), Provenance: ir.Provenance{Pointer: jsontext.Pointer(pointer)}}}
 			return nil
 		}
 	}
 	keptAt := func(prefix string) func(*ir.Document, int) []ir.Diagnostic {
 		return func(doc *ir.Document, i int) []ir.Diagnostic {
-			return kept(prefix+strconv.Itoa(i), ir.Provenance{}, "true")(doc, i)
+			return kept(prefix+strconv.Itoa(i), "", "true")(doc, i)
 		}
 	}
-	keptArray := func(pointer string, source int) func(*ir.Document, int) []ir.Diagnostic {
+	keptArray := func(pointer string) func(*ir.Document, int) []ir.Diagnostic {
 		return func(doc *ir.Document, i int) []ir.Diagnostic {
-			at := ir.Provenance{Source: source, Pointer: jsontext.Pointer(pointer)}
-			return kept("x-ext", at, []string{`{"allOf":[1,2]}`, `{"allOf":[2,1]}`}[i])(doc, i)
+			return kept("x-ext", pointer, []string{`{"allOf":[1,2]}`, `{"allOf":[2,1]}`}[i])(doc, i)
 		}
 	}
-	// tiedBeside reports at one index in either order, which the reversal moves,
-	// so the site is a tie, and changes what a model of source says there.
-	tiedBeside := func(source int) func(*ir.Document, int) []ir.Diagnostic {
-		return func(doc *ir.Document, i int) []ir.Diagnostic {
-			m := declaring("C", "t/prim/string")
-			m.Provenance = ir.Provenance{Source: source, Pointer: ab + "/0/properties/p"}
-			m.Docs.Description = strconv.Itoa(i)
-			doc.Types[m.ID] = m
-			return []ir.Diagnostic{{Severity: ir.SeverityWarning, Code: "x/tie",
-				Provenance: ir.Provenance{Pointer: ab + "/1/properties/p"}}}
-		}
+	// tied reports at one index in either order, which the reversal moves, so
+	// the site is a tie, and changes what a model says there.
+	tied := func(doc *ir.Document, i int) []ir.Diagnostic {
+		m := declaring("C", "t/prim/string")
+		m.Provenance = ir.Provenance{Pointer: ab + "/0/properties/p"}
+		m.Docs.Description = strconv.Itoa(i)
+		doc.Types[m.ID] = m
+		return []ir.Diagnostic{{Severity: ir.SeverityWarning, Code: "x/tie",
+			Provenance: ir.Provenance{Pointer: ab + "/1/properties/p"}}}
 	}
-	model := func(prefix string, source int) func(*ir.Document, int) []ir.Diagnostic {
+	model := func(seq string) func(*ir.Document, int) []ir.Diagnostic {
 		return func(doc *ir.Document, i int) []ir.Diagnostic {
 			m := declaring("C", "t/prim/string")
-			m.ID = ir.TypeID(prefix + ab + "/" + strconv.Itoa(i))
-			m.Provenance = ir.Provenance{Source: source, Pointer: jsontext.Pointer(ab + "/" + strconv.Itoa(i))}
+			m.ID = ir.TypeID("t/openapi" + seq + "/" + strconv.Itoa(i))
+			m.Provenance = ir.Provenance{Pointer: jsontext.Pointer(seq + "/" + strconv.Itoa(i))}
 			doc.Types[m.ID] = m
 			return nil
 		}
 	}
-	reported := func(source int) func(*ir.Document, int) []ir.Diagnostic {
+	reported := func(seq string) func(*ir.Document, int) []ir.Diagnostic {
 		return func(_ *ir.Document, i int) []ir.Diagnostic {
 			return []ir.Diagnostic{{Severity: ir.SeverityWarning, Code: "x/at",
-				Provenance: ir.Provenance{Source: source, Pointer: jsontext.Pointer(ab + "/" + strconv.Itoa(i))}}}
+				Provenance: ir.Provenance{Pointer: jsontext.Pointer(seq + "/" + strconv.Itoa(i))}}}
 		}
 	}
 	for _, tc := range []struct {
@@ -224,21 +221,17 @@ func TestDiffSequenceInvariants_ForgivesOnlyWhatTheReversalMoves(t *testing.T) {
 	}{
 		{"an unmodeled name indexing a oneOf", keptAt("openapi:oneOf/"), true},
 		{"an unmodeled name indexing an allOf", keptAt("openapi:allOf/"), false},
-		{"a verbatim allOf array off the reversed sequences", keptArray("/components/schemas/A/x-ext", 0), true},
-		{"a verbatim allOf array of another source", keptArray("/components/schemas/AB", 1), true},
-		{"a verbatim allOf array at a reversed sequence", keptArray("/components/schemas/AB", 0), false},
-		{"a node of another source at a tie", tiedBeside(1), true},
-		{"a node of the compiled source at a tie", tiedBeside(0), false},
-		{"a provenance of another source", model("t/openapi", 1), true},
-		{"a provenance of the compiled source", model("t/openapi", 0), false},
-		{"an ID of another file", model("t/openapi@b.yaml", 0), true},
-		{"a diagnostic of another source", reported(1), true},
-		{"a diagnostic of the compiled source", reported(0), false},
+		{"a verbatim allOf array off the reversed sequences", keptArray("/components/schemas/A/x-ext"), true},
+		{"a verbatim allOf array at a reversed sequence", keptArray("/components/schemas/AB"), false},
+		{"a node at a tie", tied, false},
+		{"a provenance in a sequence left as written", model(cd), true},
+		{"a provenance in a reversed sequence", model(ab), false},
+		{"a diagnostic in a sequence left as written", reported(cd), true},
+		{"a diagnostic in a reversed sequence", reported(ab), false},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			first := composedOf("t/prim/string", typeA, typeB)
-			second := composedOf("t/prim/string", typeA, typeB)
+			first, second := composedOf("t/prim/string", typeA, typeB), composedOf("t/prim/string", typeA, typeB)
 			firstDiags, secondDiags := tc.edit(first, 0), tc.edit(second, 1)
 
 			detail, ok, why := diffSequenceInvariants(first, firstDiags, second, secondDiags, abOrder)
