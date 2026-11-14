@@ -101,7 +101,7 @@ func TestOperation_PopulatedRoundTrip(t *testing.T) {
 		OverloadOf:           new(ir.OpID("op/base")),
 		Bindings:             ir.OpBindings{HTTP: []ir.HTTPBinding{{Method: "GET", URITemplate: "/users"}}},
 		Examples: []ir.Example{
-			{Name: "ex1", Input: &ir.Value{Kind: ir.ValueString, Str: "in"}, Output: &ir.Value{Kind: ir.ValueString, Str: "out"}},
+			{Name: "ex1", Input: &ir.ScenarioInput{Body: &ir.Value{Kind: ir.ValueString, Str: "in"}}, Output: &ir.Value{Kind: ir.ValueString, Str: "out"}},
 		},
 		Unmodeled:  populatedUnmodeled(),
 		Provenance: populatedProvenance(),

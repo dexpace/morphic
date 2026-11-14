@@ -73,7 +73,7 @@ func TestExample_JSONContract(t *testing.T) {
 		Description: "a longer description",
 		Value:       &val,
 		Headers:     &val,
-		Input:       &val,
+		Input:       &ir.ScenarioInput{Params: map[ir.ParamID]ir.Value{"param/x/q": val}, Body: &val},
 		Output:      &val,
 		Error: &ir.ErrorExample{
 			Type:    populatedTypeRef(),

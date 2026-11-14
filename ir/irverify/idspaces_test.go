@@ -23,7 +23,7 @@ type spacedClass struct {
 }
 
 func spacedClasses() []spacedClass {
-	classes := make([]spacedClass, 0, 6)
+	classes := make([]spacedClass, 0, 8)
 	for _, class := range declaredIDClasses() {
 		classes = append(classes, spacedClass{
 			name:   class.name,
@@ -48,6 +48,22 @@ func spacedClasses() []spacedClass {
 				return &ir.Document{IRVersion: ir.IRVersion, Auth: map[ir.AuthID]ir.AuthScheme{scheme.ID: scheme}}
 			},
 			path: func(id string) string { return "doc.Auth[" + id + "]" },
+		},
+		spacedClass{
+			name: "channel", prefix: ir.IDKindChannel,
+			doc: func(id string) *ir.Document {
+				ch := ir.Channel{ID: ir.ChannelID(id), Name: ir.Naming{Source: "c", Canonical: "c"}}
+				return &ir.Document{IRVersion: ir.IRVersion, Channels: map[ir.ChannelID]ir.Channel{ch.ID: ch}}
+			},
+			path: func(id string) string { return "doc.Channels[" + id + "]" },
+		},
+		spacedClass{
+			name: "message", prefix: ir.IDKindMessage,
+			doc: func(id string) *ir.Document {
+				m := ir.Message{ID: ir.MessageID(id), Name: ir.Naming{Source: "m", Canonical: "m"}}
+				return &ir.Document{IRVersion: ir.IRVersion, Messages: map[ir.MessageID]ir.Message{m.ID: m}}
+			},
+			path: func(id string) string { return "doc.Messages[" + id + "]" },
 		},
 	)
 }

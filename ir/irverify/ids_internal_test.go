@@ -29,17 +29,6 @@ func TestRecordedPointer_ReadsTheProvenanceBesideTheID(t *testing.T) {
 	assert.Empty(t, recordedPointer(reflect.ValueOf(ir.OperationGroup{})))
 }
 
-// TestAppendDeclaredIDViolations_ClassWithoutAPrefixIsLeftAlone pins the guard
-// for a class that declares its own ID and has no kind prefix to hold it to.
-// Channels and messages are such classes, but a registry holds them, so no
-// document reaches this today; the guard keeps a later class from being judged
-// against a prefix it does not have.
-func TestAppendDeclaredIDViolations_ClassWithoutAPrefixIsLeftAlone(t *testing.T) {
-	t.Parallel()
-	node := reflect.ValueOf(ir.Channel{ID: "c/x/C"})
-	assert.Empty(t, appendDeclaredIDViolations(nil, node, reflect.TypeFor[ir.ChannelID](), "c/x/C", ir.WalkPath{}))
-}
-
 // TestKindPrefixes_NameEveryIDKindOnce holds the class table to the kind list.
 // A kind added to ir.IDKinds without a class here would have its IDs skipped by
 // the grammar check and the namespace check alike, silently, because a class

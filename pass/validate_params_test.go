@@ -27,15 +27,17 @@ func TestValidate_ParamBinding_UndeclaredIDIsReportedOnceAsDangling(t *testing.T
 	assert.Zero(t, countCode(t, diags, "pass/param-binding-mismatch"), "the dangling walk owns an ID nothing declares")
 }
 
-// TestValidate_ParamBinding_EmptyParamIsRejected pins that a binding naming no
-// parameter at all is reported here: the dangling walk skips an empty ID.
-func TestValidate_ParamBinding_EmptyParamIsRejected(t *testing.T) {
+// TestValidate_ParamBinding_EmptyParamIsReportedOnceAsEmpty pins that a binding
+// naming no parameter at all draws the empty-reference report alone: neither the
+// dangling walk nor the binding check reports it under a second code.
+func TestValidate_ParamBinding_EmptyParamIsReportedOnceAsEmpty(t *testing.T) {
 	t.Parallel()
 	op := paramBindingOp("op", ir.Parameter{ID: "param/x/op/id/query", Name: ir.Naming{Source: "id"}})
 	op.Bindings.HTTP[0].ParamBindings = append(op.Bindings.HTTP[0].ParamBindings,
 		ir.HTTPParamBinding{Location: ir.HTTPLocationQuery})
 	diags := validated(t, docWithOperation(op))
-	assert.Equal(t, 1, countCode(t, diags, "pass/param-binding-mismatch"))
+	assert.Equal(t, 1, countCode(t, diags, "ir/empty-param-ref"))
+	assert.Zero(t, countCode(t, diags, "pass/param-binding-mismatch"))
 	assert.Zero(t, countCode(t, diags, "ir/dangling-param-ref"))
 }
 
@@ -275,19 +277,21 @@ func TestValidate_ParamReferences_EmptyTokenParamWithoutTokenKindIsClean(t *test
 	assert.Zero(t, countCode(t, diags, "ir/dangling-param-ref"))
 }
 
-// TestValidate_ParamReferences_EmptyPaginationInputIsRejected pins that a
-// pagination input naming no parameter is reported here, as an empty binding
-// is: the dangling walk skips an empty ID.
-func TestValidate_ParamReferences_EmptyPaginationInputIsRejected(t *testing.T) {
+// TestValidate_ParamReferences_EmptyPaginationInputIsReportedOnceAsEmpty pins
+// that a pagination input naming no parameter draws the empty-reference report
+// alone, as an empty binding does.
+func TestValidate_ParamReferences_EmptyPaginationInputIsReportedOnceAsEmpty(t *testing.T) {
 	t.Parallel()
 	op := paramRefOp("op/x/get", "param/x/get/p", "", "param/x/get/p", "param/x/get/p")
+	diags := validated(t, docWithOperations(op))
 	var at []string
-	for _, d := range validated(t, docWithOperations(op)) {
-		if d.Code == "pass/param-binding-mismatch" {
+	for _, d := range diags {
+		if d.Code == "ir/empty-param-ref" {
 			at = append(at, d.Provenance.Node)
 		}
 	}
-	assert.Equal(t, []string{"op/x/get/pagination/inputCursor"}, at)
+	assert.Equal(t, []string{"doc.Services[0].Groups[0].Operations[0].Pagination.InputCursor.Param"}, at)
+	assert.Zero(t, countCode(t, diags, "pass/param-binding-mismatch"))
 }
 
 // TestValidate_ParamReferences_FieldArgumentIsRejected pins that a binding or a
