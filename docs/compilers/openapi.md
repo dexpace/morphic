@@ -421,7 +421,10 @@ Each action is charged the nodes it can build before it runs: one whose charge w
 counted afresh, past `MaxSourceNodes` is refused as an `openapi/budget-exceeded` error with nothing
 it would build built, so it is refused while the tree is past the budget whatever a later action
 removes. An action that builds nothing, such as a remove, is applied however large the tree, since
-the budget holds the tree the overlay leaves. The overlay becomes a second entry in
+the budget holds the tree the overlay leaves. The running count only grows, a replaced primitive
+charged a node it does not add and a remove crediting nothing, so over a tree at the budget's edge
+each action that charges a node counts the tree afresh: such an overlay costs its actions times the
+tree's nodes, which no budget counts. The overlay becomes a second entry in
 `Document.Sources`, and every position it introduced or rewrote names the source as its
 `Provenance.Source` and that entry as its `WrittenBy` ([provenance](../ir/provenance.md)), while a
 position it left alone keeps the source's line and column; a finding about the overlay document
@@ -513,7 +516,10 @@ no overlay, reported as an `openapi/overlay-origin-incomplete` warning.
 - Status: built. Limits: a target the Overlay test suite's schema accepts and RFC 9535 does not, such
   as a member name holding `-` after a dot, is refused; an `extends` is compared with nothing; a
   pattern Go's engine cannot compile, such as a repetition past 1,000, matches nothing; `^` and `$`
-  in a pattern anchor, where RFC 9485's grammar reads them as characters. Rating
+  in a pattern anchor, where RFC 9485's grammar reads them as characters; nested descendant
+  segments hold path links in proportion to their steps, which the nodelist bound does not count
+  (#1960); an overlay over a tree at the node budget's edge counts the tree at each action (#1959).
+  Rating
   `openapi/overlay-replaced-value` apart from other codes, to fail a run on it alone, is #1812.
 
 ### `validation`
