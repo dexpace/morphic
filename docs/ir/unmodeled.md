@@ -128,7 +128,7 @@ rendered name, so a renamed key at an unmoved version is caught only in review (
 | `validation_only` | Validation logic rather than data shape: the structural picture is complete without it, and no target type system or sibling source format has an equivalent ([boundaries](./boundaries.md#validation-only-constructs)). |
 | `degraded_lowering` | No faithful target for the shape as written — the IR has no combinator for it, or no target type system holds it — so it was lowered to a documented weaker shape with the original kept beside it ([boundaries](./boundaries.md#degraded-constructs)). |
 | `no_ir_home` | Expressible in target languages, and no boundary the IR draws on purpose: the position simply has no field for it yet. A gap expected to close — each of these is a promotion candidate. |
-| `out_of_scope` | A boundary the IR draws on purpose ([boundaries](./boundaries.md#deliberate-exclusions)): runtime machinery or per-target SDK policy rather than API shape. Kept so nothing is lost, but no node is coming — the intended consumer is an emitter policy layer, not a promotion pass. |
+| `out_of_scope` | A boundary the IR draws on purpose ([boundaries](./boundaries.md#deliberate-exclusions)): runtime machinery or per-target SDK policy rather than API shape, or a construct its own format gives no meaning or effect. Kept so nothing is lost, but no node is coming — the intended consumer is an emitter policy layer, not a promotion pass. |
 
 `no_ir_home` and `out_of_scope` are the pair worth keeping straight, because they read alike and
 mean opposite things: the first is an admission (a field the IR should probably grow), the second
@@ -136,6 +136,12 @@ is a decision ([the list of exclusions](./boundaries.md#deliberate-exclusions), 
 precisely so those constructs are never mistaken for oversights). A promotion pass mining the IR for
 its next typed node reads `no_ir_home` and must skip `out_of_scope`; nothing about the key or the
 value distinguishes them, which is the whole reason `Reason` is data rather than a comment.
+
+A reason of its own for a construct its format gives no effect, `no_effect`, was weighed and
+declined: an emitter does the same with it as with `out_of_scope`, nothing unless a policy names the
+key; a policy may name such a key as it names any other `out_of_scope` one; a promotion pass skips
+both alike; and the finding's code already tells a misspelt key from a policy's. A new value would
+move the IR's shape for a difference no consumer reads.
 
 ## Reporting
 

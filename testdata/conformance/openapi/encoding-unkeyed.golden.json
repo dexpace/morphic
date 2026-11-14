@@ -223,7 +223,7 @@
                     },
                     "unmodeled": {
                       "openapi:encoding/ghost": {
-                        "reason": "no_ir_home",
+                        "reason": "out_of_scope",
                         "value": {
                           "contentType": "image/png",
                           "headers": {
@@ -305,7 +305,7 @@
                     },
                     "unmodeled": {
                       "openapi:encoding/file": {
-                        "reason": "no_ir_home",
+                        "reason": "out_of_scope",
                         "value": {
                           "contentType": "image/png"
                         },
@@ -384,7 +384,7 @@
                     },
                     "unmodeled": {
                       "openapi:encoding/ghost": {
-                        "reason": "no_ir_home",
+                        "reason": "out_of_scope",
                         "value": {
                           "explode": false,
                           "style": "form"

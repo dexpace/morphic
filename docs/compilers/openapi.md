@@ -5085,15 +5085,20 @@ body schema, since a part reached only past it has no `Content.Encoding` key. A 
 bound of its own in the body's type is reported so too.
 
 Each entry that keys nothing is kept whole, as written, under the content's `Unmodeled` at
-`openapi:encoding/<key>` (the key escaped as a JSON Pointer token) with reason `no_ir_home`, located
-at the entry, and reported there as an info `openapi/degraded-construct` saying why:
+`openapi:encoding/<key>` (the key escaped as a JSON Pointer token), located at the entry, and
+reported there as an info `openapi/degraded-construct` saying why. Its reason follows its effect: an
+entry the walk decides names no property, and every entry of a file body, which has no parts, has
+none where it is written and no node is coming for it, so it is kept under `out_of_scope`
+([boundaries](../ir/boundaries.md#deliberate-exclusions)); an entry the walk cannot decide, as a
+catch-all may take its key, and one of the other kinds below, under `no_ir_home`:
 
 1. A key naming no part the walk reads: no property, a map's or a catch-all's entry, a part past a
    bound, or any entry of a body declaring no property, such as one with no schema, one whose schema
    `$ref` does not resolve, or a file body ([`file-bodies`](#file-bodies)). Nothing such an entry
-   declares is lowered or judged: its header schemas register no type, its `x-*`, unknown keys and
-   nested encodings have no record of their own, and neither an unknown key nor a reserved header
-   name in it is reported, though load still validates its fields. Where the walk reads every
+   declares is lowered: its header schemas register no type, and its `x-*`, unknown keys and nested
+   encodings have no record of their own, though load's rule table judges its fields, an unknown key
+   or a reserved header name in it among them ([`unknown-keys`](#unknown-keys),
+   [`reserved-header-names`](#reserved-header-names)). Where the walk reads every
    position of the body's schema that can declare a property, and no catch-all there admits a member
    the schema names no property for, the key names no property, which OpenAPI requires of every key
    (3.0.4 and 3.1.1: "The key, being the property name, MUST exist in the schema as a property"),
@@ -5232,7 +5237,7 @@ in any case.
   `operation.TestReadPartFile_ReadsDeclarationsEncodingAndVersion`,
   `operation.TestReadPartFile_ReadsADraftsTupleThroughItsEntries`,
   `schema.TestListedTuple_ReadsADraftsEntriesAndRest`,
-  `operation.TestPartEncodings_AnEntryNamingNoPartIsKeptWhole`,
+  `operation.TestPartEncodings_AnEntryNamingNoPartIsKeptWhole`, `operation.TestKeepEntry_ReasonFollowsEffect`,
   `operation.TestPartEncodings_AnUnkeyedEntryLowersNothingItDeclares`,
   `operation.TestPartEncodings_AnUnkeyedEntryThatIsNoObjectAddsNothingToLoadsError`,
   `operation.TestPartEncodings_AnEntryThatCannotBeKeptIsReportedNotAnnounced`,
@@ -5262,9 +5267,7 @@ in any case.
   `operation.TestPartMembers_AModelNarrowingAUnionHasItsShapesMembers`,
   `operation.TestShapeFlattenings_ReadsShapesWithinItsLimit`,
   `operation.TestPartEncodings_AKeptEntryIsPlacedInTheDocumentDeclaringIt`
-- Status: partly built: a kept entry's unknown keys and reserved header names go unreported, as in
-  the other objects kept whole (#1662); which reason keeps an entry OpenAPI gives no effect is open
-  (#1791); and the parts a catch-all admits have no part encoding (#1805).
+- Status: partly built: the parts a catch-all admits have no part encoding (#1805).
 
 ### `encoding-allow-reserved`
 

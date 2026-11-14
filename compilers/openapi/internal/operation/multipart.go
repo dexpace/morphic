@@ -135,11 +135,11 @@ const (
 // keepUnkeyedEncodings keeps whole each entry of media's encoding map whose key
 // names none of the parts w found, under Unmodeled at
 // annotation.EntryKey("encoding", key), with one info each, which why completes
-// (docs/compilers/openapi.md#multipart-encoding). Where the walk read every
-// position of the body that can declare a property, and no catch-all admits
-// the key, the key names no property and draws a warning besides
-// (unknownEncodingKey). Nothing an entry kept declares is lowered or judged
-// (GitHub #1662). An entry that is no object is skipped, since load reports it.
+// (docs/compilers/openapi.md#multipart-encoding). Where the walk decides the
+// key names no property it draws a warning besides (unknownEncodingKey). Such
+// an entry, and a file body's, has no effect, so it is out of scope; one the
+// walk cannot decide, as a catch-all may take its key, has no IR home. An
+// entry that is no object is skipped, since load reports it.
 func keepUnkeyedEncodings(c lowering.Ctx, media *soa.MediaType, mediaPtr jsontext.Pointer, w partWalk, why string) (ir.Unmodeled, []ir.Diagnostic) {
 	walked := make(map[string]struct{}, len(w.parts))
 	for _, part := range w.parts {
@@ -152,9 +152,17 @@ func keepUnkeyedEncodings(c lowering.Ctx, media *soa.MediaType, mediaPtr jsontex
 			continue
 		}
 		at := mediaPtr + ids.Ptr("encoding", name)
-		written, keepDiags := keepEntry(c, &kept, name, enc.GetRootNode(), at, why)
+		// An entry the walk decides names no property, a file body's among them,
+		// has no effect where it is written; one a catch-all may take has no IR
+		// home yet.
+		namesNothing := w.decidesKeys() && why != unkeyedOtherEntry
+		reason := ir.ReasonNoIRHome
+		if namesNothing {
+			reason = ir.ReasonOutOfScope
+		}
+		written, keepDiags := keepEntry(c, &kept, name, enc.GetRootNode(), at, why, reason)
 		diags = append(diags, keepDiags...)
-		if written && w.decidesKeys() && why != unkeyedOtherEntry {
+		if written && namesNothing {
 			diags = append(diags, unknownEncodingKey(c, name, "body", at))
 		}
 	}
@@ -162,15 +170,16 @@ func keepUnkeyedEncodings(c lowering.Ctx, media *soa.MediaType, mediaPtr jsontex
 }
 
 // keepEntry keeps entry, the encoding entry named name written at at, whole
-// under u at annotation.EntryKey("encoding", name), with one info saying, as
-// why completes it, why Content.Encoding has no key for it. The model reads an
-// entry that is no mapping as one with no node, so nothing is kept for it and
-// load's error is its one finding. written reports whether the entry was kept.
-func keepEntry(c lowering.Ctx, u *ir.Unmodeled, name string, entry *yaml.Node, at jsontext.Pointer, why string) (written bool, diags []ir.Diagnostic) {
-	// An entry OpenAPI gives no effect, as one whose key names no property,
-	// takes no_ir_home too until GitHub #1791 decides its reason.
+// under u at annotation.EntryKey("encoding", name) for reason, with one info
+// saying, as why completes it, why Content.Encoding has no key for it. The
+// model reads an entry that is no mapping as one with no node, so nothing is
+// kept for it and load's error is its one finding. written reports whether the
+// entry was kept.
+func keepEntry(c lowering.Ctx, u *ir.Unmodeled, name string, entry *yaml.Node, at jsontext.Pointer, why string,
+	reason ir.UnmodeledReason,
+) (written bool, diags []ir.Diagnostic) {
 	written, diags = annotation.PreserveNodeInto(u, annotation.EntryKey("encoding", name), entry,
-		ir.ReasonNoIRHome, c.Place().At(at))
+		reason, c.Place().At(at))
 	if !written {
 		return false, diags
 	}
@@ -325,7 +334,7 @@ func (k partKeys) keepWhole(p keyedPart) []ir.Diagnostic {
 		return nil
 	}
 	kept := k.kept // the map partEncodings made, which the content holds
-	written, diags := keepEntry(k.c, &kept, p.part.name, p.entry, p.at, unkeyedPartEntry)
+	written, diags := keepEntry(k.c, &kept, p.part.name, p.entry, p.at, unkeyedPartEntry, ir.ReasonNoIRHome)
 	if !written {
 		maps.Copy(k.kept, p.unmodeled)
 	}
