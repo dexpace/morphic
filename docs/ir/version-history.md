@@ -758,3 +758,8 @@ it sees. Changes made together in one bump are listed together under it.
   consumer pinned to 0.64.0 that read `Explode` as always present no longer finds the key on such a
   binding, and must read its absence as the style's default, as it already does for a response
   header's. Read as false, the absence sends a `form` parameter unexploded.
+- **0.67.0** — `Example.Input` is a `ScenarioInput`: each parameter's value under its `ParamID` in
+  `params`, and the request body's in `body`, where it was one `Value` of no stated shape
+  ([annotations](./annotations.md#docs-deprecation-examples)). No compiler in this repository
+  writes `Input`, so a document it compiled changes only its stamp. A consumer pinned to the prior
+  version refuses the document.

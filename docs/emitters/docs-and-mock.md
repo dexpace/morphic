@@ -482,13 +482,13 @@ member and operation:
   than synthesized, of its body, required or not, from the elected request content's, and of its
   return content where it returns one: a call shows no optional filter the document gives no value
   for, and always the body it sends, which 231 of the golden spec's operations, sending an optional
-  body with no example on it, would otherwise lack. Its `Input` is an object holding each
-  parameter's value under its `ParamID` and the body's under `body`, which no `ParamID` can be,
-  since a parameter and a body member may share a name, as they do in 9 of the golden spec's
-  operations; a declared scenario's `Input` is read in the shape #1528 settles. The document never
-  paired those values, so the scenario is `Inferred` and labelled generated whatever values it
-  takes, and `plan.Policy.Examples.Assemble` turns it off. On the golden spec no operation declares
-  a scenario.
+  body with no example on it, would otherwise lack. Its `Input` is a `ScenarioInput`, the shape a
+  declared scenario's takes ([annotations](../ir/annotations.md#docs-deprecation-examples)): each
+  parameter's value under its `ParamID`, and the body's in `Body`, which keying by name could not
+  keep apart, since a parameter and a body member may share a name, as they do in 9 of the golden
+  spec's operations. The document never paired those values, so the scenario is `Inferred` and
+  labelled generated whatever values it takes, and `plan.Policy.Examples.Assemble` turns it off. On
+  the golden spec no operation declares a scenario.
 - **Positions with no key.** A content and a variant have no ID, and a message's ID carries no kind
   prefix yet to keep it apart from the other classes in one map
   ([IDs](../ir/identity.md#what-irverify-holds), #1527). So each one's set is what the plan's

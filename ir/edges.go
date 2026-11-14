@@ -151,13 +151,27 @@ func (w *edgeWalk) examples(exs []Example) {
 		ex := &exs[i]
 		w.value(ex.Value, 0)
 		w.value(ex.Headers, 0)
-		w.value(ex.Input, 0)
+		w.input(ex.Input)
 		w.value(ex.Output, 0)
 		if e := ex.Error; e != nil {
 			w.ref(&e.Type)
 			w.value(&e.Content, 0)
 		}
 	}
+}
+
+// input yields the types a scenario's input refers to: each parameter's value
+// in key order, which is the order the reflection walk ranges the map in, then
+// the body's.
+func (w *edgeWalk) input(in *ScenarioInput) {
+	if in == nil {
+		return
+	}
+	for _, id := range slices.Sorted(maps.Keys(in.Params)) {
+		v := in.Params[id]
+		w.value(&v, 0)
+	}
+	w.value(in.Body, 0)
 }
 
 // availability yields the prior types a versioning timeline records.

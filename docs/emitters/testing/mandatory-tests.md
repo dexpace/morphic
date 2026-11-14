@@ -661,15 +661,15 @@ throughout these documents.
     where every required input's set holds a value, one assembled, each value shown through the
     shape its operation sends it in, from its required parameters' sets, its optional parameters'
     declared ones, its body's, required or not, and its return content's, after those it declares,
-    always `Inferred`, its `Input` keyed by `ParamID` with the body under `body`, and none with
-    `Assemble` off, a position whose type is a decorator its own examples, else the nearest
-    decorator's, else, adding no constraint, its `Alias`'s set, and a content's, a variant's or a
-    message's set, read through its one plan function alone, which reports nothing since `Build`
-    reports each refused example once, is its own declared examples, else its type's, a message's
-    those of its payload's contents paired with its headers' set, that pairing `Inferred` and off
-    with `Assemble`, which the docs, the samples and the mock read a body's examples from. A model
-    narrowing a union is checked and shown as that union over its `TypePlan.Composed` entries, a
-    value no entry admits refused and one shown through each entry admitting it, filled from what
+    always `Inferred`, its `Input` a `ScenarioInput` keyed by `ParamID` with the body in `Body`, and
+    none with `Assemble` off, a position whose type is a decorator its own examples, else the
+    nearest decorator's, else, adding no constraint, its `Alias`'s set, and a content's, a variant's
+    or a message's set, read through its one plan function alone, which reports nothing since
+    `Build` reports each refused example once, is its own declared examples, else its type's, a
+    message's those of its payload's contents paired with its headers' set, that pairing `Inferred`
+    and off with `Assemble`, which the docs, the samples and the mock read a body's examples from. A
+    model narrowing a union is checked and shown as that union over its `TypePlan.Composed` entries,
+    a value no entry admits refused and one shown through each entry admitting it, filled from what
     that entry requires in the shape, and a model adding nothing to its union as that union. Where
     none applies, the value synthesized is valid against its constraints and its type's
     validation-only constructs, as `browser-rendering`'s body holding `url` or `html` and never

@@ -44,16 +44,32 @@ type Example struct {
                               // for message examples: the payload
     Headers     *Value        // message examples: the correlated header values (AsyncAPI message
                               // examples are header+payload PAIRS — never split them)
-    Input       *Value        // operation scenarios: paired input ↔ output/error
+    Input       *ScenarioInput // operation scenarios: paired input ↔ output/error;
+                              // nil = not an operation scenario
     Output      *Value        // (Smithy @examples, TypeSpec @opExample parameters/returnType)
     Error       *ErrorExample // the scenario ends in this error instead of Output
     ExternalURL string
     Unmodeled   Unmodeled
 }
+type ScenarioInput struct {
+    Params map[ParamID]Value  // each parameter's value, by the ID of a parameter of the operation
+    Body   *Value             // the value of the request content; nil = the scenario sends none
+}
 type ErrorExample struct { Type TypeRef; Content Value }
 // Field legality is contextual (validated): Value/Headers on types, properties, parameters,
 // contents, and messages; Input/Output/Error on operations. An Example never mixes the two arms.
 ```
+
+A scenario's input states each value once. A parameter's value sits under its ID whatever its
+binding, a path, query or header parameter alike, and `Body` is the value of the request content.
+`Body` is nil on an operation that binds any parameter into its body, whole or by property: there
+the parameters state the body, so a `Body` beside them would state part of it twice
+(`ir/input-body-twice`), and a `Body` on an operation that sends no request has no content to be the
+value of (`ir/input-body-absent`). A nil `Input` is no operation scenario; an empty one sends
+nothing. The input is keyed by `ParamID`, not by a parameter's source name, because a parameter and
+a body member can share a name; and it is a struct rather than an object `Value`, whose field names
+would hide an ID where no reference check finds it
+([IDs as references](./identity.md#ids-as-references)).
 
 ## Replacements
 
