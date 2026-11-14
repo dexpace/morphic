@@ -166,6 +166,11 @@ var validationReasons = map[string]string{
 	"path-templating": "the library does not match a path's template expressions to its path parameters, which the " +
 		"specification requires (3.1.2 §Path Templating: 'Each template expression in the path MUST correspond to a " +
 		"path parameter')",
+	"no-effect": "the library refuses an encoding under a media type that is neither multipart nor form as a value " +
+		"it does not allow; the specification gives the field no effect there and refuses it nowhere (3.1.2 §Media " +
+		"Type Object: 'The encoding field SHALL only apply to Request Body Objects, and only when the media type is " +
+		"multipart or application/x-www-form-urlencoded'), so the table warns of it as validation-no-effect and the " +
+		"lowering keeps each entry whole (docs/compilers/openapi.md#multipart-encoding)",
 }
 
 // validationDoc is one document the oracle checks, under its repository path.

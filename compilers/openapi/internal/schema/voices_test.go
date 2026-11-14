@@ -216,6 +216,28 @@ func keptBranches(m *ir.Model) []string {
 	return out
 }
 
+// TestVoices_AFalseFlagAgreesWithATrue pins the boolean annotations JSON Schema
+// reads in force where any occurrence is true: a branch writing one false says
+// nothing another's true disagrees with, so both fold, in either order, and the
+// use reads the flag in force.
+func TestVoices_AFalseFlagAgreesWithATrue(t *testing.T) {
+	t.Parallel()
+	const ref = "{$ref: '#/components/schemas/Base'}"
+	for _, flags := range []string{"{readOnly: true}, {readOnly: false}", "{readOnly: false}, {readOnly: true}",
+		"{deprecated: false}, {deprecated: true}", "{writeOnly: false}, {writeOnly: true}"} {
+		t.Run(flags, func(t *testing.T) {
+			t.Parallel()
+			doc, diags := parseFull(t, voicesDoc("{allOf: ["+ref+", "+flags+"]}"))
+			openapitest.RequireNoErrorDiags(t, diags)
+			m, ok := typeByName(doc, "S").(*ir.Model)
+			require.True(t, ok)
+			assert.Empty(t, keptBranches(m), "no branch disagrees, so each folds")
+			use := propertyOf(t, doc, "Holder", "s")
+			assert.True(t, use.Deprecation != nil || len(use.Visibility.Only) > 0, "the true is in force at the use")
+		})
+	}
+}
+
 // TestVoices_ABranchDisagreeingFoldsNothingInEveryOrder pins that a keyword two
 // conjuncts write differently has no winner: the keywords beside the allOf stand,
 // and each branch writing another value stays whole, whichever comes first.
@@ -234,8 +256,6 @@ func TestVoices_ABranchDisagreeingFoldsNothingInEveryOrder(t *testing.T) {
 		"a third agreeing": {"{allOf: [" + ref + ", {title: t}, {title: t}, {title: u}]}",
 			[]string{"openapi:allOf/1", "openapi:allOf/2", "openapi:allOf/3"}},
 		"two patterns": {"{allOf: [" + ref + ", {pattern: a}, {pattern: b}]}",
-			[]string{"openapi:allOf/1", "openapi:allOf/2"}},
-		"a flag": {"{allOf: [" + ref + ", {readOnly: true}, {readOnly: false}]}",
 			[]string{"openapi:allOf/1", "openapi:allOf/2"}},
 		"example against examples": {"{allOf: [" + ref + ", {example: {id: a}}, {examples: [{id: a}]}]}",
 			[]string{"openapi:allOf/1", "openapi:allOf/2"}},

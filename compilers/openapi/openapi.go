@@ -23,6 +23,7 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
 	"github.com/dexpace/morphic/compilers/openapi/internal/operation"
 	"github.com/dexpace/morphic/compilers/openapi/internal/overlay"
+	"github.com/dexpace/morphic/compilers/openapi/internal/pagination"
 	"github.com/dexpace/morphic/compilers/openapi/internal/replacement"
 	"github.com/dexpace/morphic/compilers/openapi/internal/schema"
 	"github.com/dexpace/morphic/compilers/openapi/internal/servers"
@@ -81,6 +82,9 @@ func (c *Compiler) Compile(ctx context.Context, sources []compilers.Source, opts
 	// cannot honour would have it read past the caller's.
 	if err := formatOpts.checkGrouping(); err != nil {
 		return nil, nil, err
+	}
+	if err := formatOpts.Promotions.Check(); err != nil {
+		return nil, nil, fmt.Errorf("openapi: %w", err)
 	}
 	loadedDoc, loadDiags, err := load.Load(ctx, rootSrcIndex, sources[0], loadOptions(formatOpts, opts.Reader, sources[0]))
 	// The load phase reads a document once under each name a reference spells
@@ -229,9 +233,16 @@ func run(ctx context.Context, c lowering.Ctx, ts *compile.Types) (*ir.Document, 
 	srv := servers.Reopen(lowered.Servers)
 	acc.AppendAll(lowered.Links.Resolve(c, &out.Services[0], reg, srv))
 	out.Servers = srv.Servers()
+	// The operations whose extensions speak of a pagination are what the
+	// pagination inference passes over, by the precedence
+	// docs/compilers/openapi.md#policies gives: what they say of one, even that
+	// there is none, wins over what the names an operation uses suggest.
+	stated, pageDiags := operation.PromotePagination(c, &out.Services[0], reg)
+	acc.AppendAll(pageDiags)
 	acc.AppendAll(replacement.Resolve(c, out))
 	acc.AppendAll(replacement.Infer(c, out))
 	acc.AppendAll(convention.Apply(c, out))
+	acc.AppendAll(pagination.InferWalks(c, out, stated))
 
 	m, metaDiags := document.Lower(c)
 	out.Name, out.Version = m.Name, m.Version
@@ -240,6 +251,9 @@ func run(ctx context.Context, c lowering.Ctx, ts *compile.Types) (*ir.Document, 
 	out.Unmodeled = annotation.MergeUnmodeled(out.Unmodeled, m.Unmodeled)
 	out.Unmodeled = annotation.MergeUnmodeled(out.Unmodeled, lowered.Kept)
 	acc.AppendAll(metaDiags)
+	// An extension under a prefix the policy owns is judged once every node
+	// that could keep one is built, the document's own Unmodeled included.
+	acc.AppendAll(lowering.UnreadExtensions(c, out))
 	// Past the budget no $ref lowered, nor an additionalOperations entry, so
 	// what the lowering found depends on which copy came first: the refusal is
 	// reported alone, the same in any order. It is asked once every lowering has
@@ -315,6 +329,7 @@ func loweringCtx(doc *load.Document, o Options) lowering.Ctx {
 		SecretInference:        o.SecretInference,
 		HTTPDateInference:      o.HTTPDateInference,
 		ReplacementInference:   o.ReplacementInference,
+		PaginationInference:    o.PaginationInference,
 		TitleNames:             o.TitleNames,
 	})
 }

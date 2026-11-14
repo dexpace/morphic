@@ -118,6 +118,7 @@ var loweringPackages = []string{
 	"compilers/openapi/internal/convention",
 	"compilers/openapi/internal/document",
 	"compilers/openapi/internal/operation",
+	"compilers/openapi/internal/pagination",
 	"compilers/openapi/internal/replacement",
 	"compilers/openapi/internal/schema",
 	"compilers/openapi/internal/servers",
@@ -456,9 +457,9 @@ func TestLoweringCallGraph_RecordsAHandoffAsAnEdge(t *testing.T) {
 	graph := loweringCallGraph(t)
 
 	handoffs := map[string]string{
-		"enumNullVerdict":         "isNullValue",
-		"setsDeclareShape":        "branchDeclaresShape",
-		"preserveVariantsUnhomed": "constraintsHome",
+		"enumNullVerdict":  "isNullValue",
+		"setsDeclareShape": "branchDeclaresShape",
+		"unreadBounds":     "constraintsHome",
 	}
 	for from, to := range handoffs {
 		require.Contains(t, graph, from, "the graph no longer holds %q", from)

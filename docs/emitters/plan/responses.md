@@ -141,8 +141,9 @@ read as follows:
   a paginated operation's page is read whole, as any page is: `Value` is nil, `Type` stays the page,
   and its items are where `Page.ItemPath` says. A poller likewise reads each body whole, its poll's
   as `LRO.PollType`, and finds the result where its `LROPlan` says. Either still reads the flag. So
-  an envelope records no page information: a pager's own paths reach it in the whole page, and where
-  those come from on OpenAPI is #989's.
+  an envelope records no page information: a pager's own paths reach it in the whole page, and on
+  OpenAPI the compiler's pagination policy reads them off the names a page uses
+  ([`pagination-policy`](../../compilers/openapi.md#pagination-policy)).
 - **A failure in-band.** Where `Flag` is set, the decoder reads that member before decoding the
   body, as a discriminator's tag is read ([unions](../refine/unions.md#discriminators)), and
   compares it with `Succeeds` as [plan policy](policy.md#envelopes) says. A body whose flag holds a

@@ -137,7 +137,16 @@ func lowerServer(c lowering.Ctx, s *soa.Server, id ir.ServerID, sptr jsontext.Po
 		Unmodeled:   ext,
 		Provenance:  c.Place().At(sptr),
 	}
-	return out, append(diags, annotation.UnknownKeysIn(&out.Unmodeled, s, c.Place(), sptr)...)
+	diags = append(diags, annotation.UnknownKeysIn(&out.Unmodeled, s, c.Place(), sptr)...)
+	if s.GetName() != "" {
+		return out, diags
+	}
+	// Only a name the document declares nowhere else is a key's to give.
+	name, promoted := lowering.ServerName(c.Promoter(), out.Unmodeled, &out.Provenance)
+	if name != "" {
+		out.Name = ir.NamingFor(name)
+	}
+	return out, append(diags, promoted...)
 }
 
 // serverName builds a server's neutral naming: the declared name (only OpenAPI

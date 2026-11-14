@@ -82,6 +82,11 @@ func TestTable_EveryRowCitesTheSpecification(t *testing.T) {
 			valid(o.Name+"."+f.Name, f.Cites)
 			assert.True(t, slices.ContainsFunc(f.Cites, func(c oas.Cite) bool { return f.Defined.Holds(c.Minor) }),
 				"%s.%s: no citation comes from a minor that defines the field", o.Name, f.Name)
+			for _, w := range f.Within {
+				valid(o.Name+"."+f.Name+" within "+w.MediaType, w.Cites)
+				assert.True(t, slices.ContainsFunc(w.Cites, func(c oas.Cite) bool { return w.Span.Holds(c.Minor) }),
+					"%s.%s: no citation of %s comes from a minor it holds at", o.Name, f.Name, w.MediaType)
+			}
 		}
 		for _, d := range o.Defaults {
 			valid(o.Name+"."+d.Field+" default", d.Cites)
@@ -123,14 +128,41 @@ func TestTable_SpansAreWellFormed(t *testing.T) {
 			for _, a := range f.Alts {
 				assert.True(t, validSpan(a.Span), where)
 			}
+			withinIsWellFormed(t, where, f)
 		}
 		defaultsAreWellFormed(t, o)
-		for _, p := range o.Patterned {
+		for i, p := range o.Patterned {
 			assert.True(t, validSpan(p.Span), o.Name+"."+p.Name)
+			for _, q := range o.Patterned[i+1:] {
+				assert.False(t, overlaps(p.Span, q.Span), "%s admits two patterns at one minor", o.Name)
+			}
 		}
 		for i, r := range o.Rules {
 			assert.True(t, validSpan(r.Span), o.Name+" rule "+itoa(i))
 			assert.NotZero(t, r.Span, o.Name+" rule "+itoa(i)+" never applies")
+		}
+	}
+}
+
+// withinIsWellFormed holds each media type f takes effect under to a span
+// that holds somewhere, inside the minors defining f, and to a name with no
+// parameters, in lower case, as a holder normalizes the one it asks about, and
+// written once at each minor.
+func withinIsWellFormed(t *testing.T, where string, f oas.Field) {
+	t.Helper()
+	for i, w := range f.Within {
+		assert.True(t, validSpan(w.Span) && w.Span != (oas.Span{}), where+" within "+w.MediaType)
+		assert.Equal(t, strings.ToLower(strings.TrimSpace(w.MediaType)), w.MediaType, where)
+		assert.NotContains(t, w.MediaType, ";", where)
+		for _, m := range minors() {
+			if !w.Span.Holds(m) {
+				continue
+			}
+			assert.True(t, f.Defined.Holds(m), "%s takes effect under %s at %s, where it is not defined", where, w.MediaType, m)
+			for _, other := range f.Within[i+1:] {
+				assert.False(t, other.MediaType == w.MediaType && other.Span.Holds(m),
+					"%s names %s twice at %s", where, w.MediaType, m)
+			}
 		}
 	}
 }

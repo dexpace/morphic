@@ -21,7 +21,7 @@ import (
 
 func TestConstraints_NilSchema(t *testing.T) {
 	t.Parallel()
-	c, kept, diags := Constraints(nil, false, "/p", sourced(0))
+	c, kept, diags := Constraints(nil, AllBounds, false, "/p", sourced(0))
 	assert.Nil(t, c)
 	assert.Nil(t, kept)
 	assert.Nil(t, diags)
@@ -103,7 +103,7 @@ func TestConstraints_ReadsEveryScalarKeyword(t *testing.T) {
 	s := schemaFromYAML(t, "type: string\nminimum: 1\nmaximum: 9\nmultipleOf: 3\n"+
 		"minLength: 2\nmaxLength: 8\npattern: '^a'\nminProperties: 1\nmaxProperties: 4\n")
 
-	got, _, diags := Constraints(s, false, "/p", sourced(0))
+	got, _, diags := Constraints(s, AllBounds, false, "/p", sourced(0))
 
 	require.Empty(t, diags)
 	require.NotNil(t, got)
@@ -123,11 +123,11 @@ func TestConstraints_ReadsEveryScalarKeyword(t *testing.T) {
 // wrote.
 func TestConstraints_NothingDeclaredIsNilNotEmpty(t *testing.T) {
 	t.Parallel()
-	got, _, diags := Constraints(schemaFromYAML(t, "type: string\n"), false, "/p", sourced(0))
+	got, _, diags := Constraints(schemaFromYAML(t, "type: string\n"), AllBounds, false, "/p", sourced(0))
 	assert.Nil(t, got)
 	assert.Empty(t, diags)
 
-	got, _, diags = Constraints(nil, false, "/p", sourced(0))
+	got, _, diags = Constraints(nil, AllBounds, false, "/p", sourced(0))
 	assert.Nil(t, got)
 	assert.Nil(t, diags)
 }
@@ -139,7 +139,7 @@ func TestConstraints_KeepsTheExactLiteral(t *testing.T) {
 	t.Parallel()
 	s := schemaFromYAML(t, "type: number\nminimum: 9007199254740993\nmaximum: 0.30000000000000004\n")
 
-	got, _, diags := Constraints(s, false, "/p", sourced(0))
+	got, _, diags := Constraints(s, AllBounds, false, "/p", sourced(0))
 
 	require.Empty(t, diags)
 	require.NotNil(t, got)
@@ -156,7 +156,7 @@ func TestNumericBounds_AMalformedLiteralIsDropped(t *testing.T) {
 	for _, keyword := range []string{"minimum", "maximum", "multipleOf"} {
 		t.Run(keyword, func(t *testing.T) {
 			t.Parallel()
-			got, _, diags := Constraints(schemaFromYAML(t, "type: number\n"+keyword+": .inf\n"), false, "/p", sourced(0))
+			got, _, diags := Constraints(schemaFromYAML(t, "type: number\n"+keyword+": .inf\n"), AllBounds, false, "/p", sourced(0))
 
 			assert.Empty(t, diags)
 			assert.Nil(t, got, "the bound is dropped rather than half-read")
@@ -196,7 +196,7 @@ func TestApplyExclusive_BothDialects(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			got, _, diags := Constraints(schemaFromYAML(t, "type: number\n"+tc.body), tc.exclusiveBoolean, "/p", sourced(0))
+			got, _, diags := Constraints(schemaFromYAML(t, "type: number\n"+tc.body), AllBounds, tc.exclusiveBoolean, "/p", sourced(0))
 
 			require.Empty(t, diags)
 			require.NotNil(t, got)
@@ -231,7 +231,7 @@ func TestApplyExclusive_TheWrongFormForTheDialectIsDropped(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			got, _, diags := Constraints(schemaFromYAML(t, "type: number\n"+tc.body), tc.exclusiveBoolean, "/p", sourced(0))
+			got, _, diags := Constraints(schemaFromYAML(t, "type: number\n"+tc.body), AllBounds, tc.exclusiveBoolean, "/p", sourced(0))
 
 			assert.Empty(t, diags)
 			require.NotNil(t, got, "the sibling minimum is still read")
@@ -247,7 +247,7 @@ func TestApplyExclusive_TheWrongFormForTheDialectIsDropped(t *testing.T) {
 // reports it (docs/compilers/openapi.md#constraints).
 func TestApplyExclusive_AMalformedNumericBoundIsDropped(t *testing.T) {
 	t.Parallel()
-	got, _, diags := Constraints(schemaFromYAML(t, "type: number\nexclusiveMaximum: .inf\n"), false, "/p", sourced(0))
+	got, _, diags := Constraints(schemaFromYAML(t, "type: number\nexclusiveMaximum: .inf\n"), AllBounds, false, "/p", sourced(0))
 
 	assert.Empty(t, diags)
 	assert.Nil(t, got)
@@ -318,7 +318,7 @@ func TestConstraints_CoDeclaredBoundsBothReachAField(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			got, kept, diags := Constraints(schemaFromYAML(t, "type: number\n"+tc.body), false, "/p", sourced(3))
+			got, kept, diags := Constraints(schemaFromYAML(t, "type: number\n"+tc.body), AllBounds, false, "/p", sourced(3))
 
 			require.NotNil(t, got)
 			if diff := cmp.Diff(tc.want, *got); diff != "" {
@@ -339,7 +339,7 @@ func TestConstraints_ABoundNoFloatHoldsIsCarriedVerbatim(t *testing.T) {
 	t.Parallel()
 	got, kept, diags := Constraints(schemaFromYAMLUnvalidated(t,
 		"type: number\nminimum: 1.0e2000000\nexclusiveMinimum: 5\nmaximum: 1e-1000001\nexclusiveMaximum: 5\n"),
-		false, "/p", sourced(0))
+		AllBounds, false, "/p", sourced(0))
 
 	require.NotNil(t, got)
 	want := ir.Constraints{
@@ -366,7 +366,7 @@ func TestConstraints_OneKeywordPerSideKeepsNothing(t *testing.T) {
 	} {
 		t.Run(body, func(t *testing.T) {
 			t.Parallel()
-			got, kept, diags := Constraints(schemaFromYAML(t, "type: number\n"+body), false, "/p", sourced(0))
+			got, kept, diags := Constraints(schemaFromYAML(t, "type: number\n"+body), AllBounds, false, "/p", sourced(0))
 
 			require.NotNil(t, got)
 			assert.Empty(t, diags)
@@ -410,7 +410,7 @@ func TestApplyExclusiveFlag_ThreeZeroModifierMovesTheBound(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			got, kept, diags := Constraints(schemaFromYAML(t, "type: number\n"+tc.body), true, "/p", sourced(0))
+			got, kept, diags := Constraints(schemaFromYAML(t, "type: number\n"+tc.body), AllBounds, true, "/p", sourced(0))
 
 			require.NotNil(t, got)
 			if diff := cmp.Diff(tc.want, *got); diff != "" {
@@ -433,7 +433,7 @@ func TestApplyExclusiveFlag_ThreeZeroModifierMovesTheBound(t *testing.T) {
 func TestApplyExclusiveFlag_AModifierWithNoBoundIsKeptAndReported(t *testing.T) {
 	t.Parallel()
 	got, kept, diags := Constraints(schemaFromYAML(t,
-		"type: number\nexclusiveMinimum: true\nexclusiveMaximum: true\n"), true, "/p", sourced(3))
+		"type: number\nexclusiveMinimum: true\nexclusiveMaximum: true\n"), AllBounds, true, "/p", sourced(3))
 
 	assert.Nil(t, got, "a modifier that bounds nothing leaves no constraint behind")
 	require.Len(t, kept, 2, "each side keeps its own modifier; got %v", kept)
@@ -468,7 +468,7 @@ func TestApplyExclusiveFlag_AModifierWithNoBoundIsKeptAndReported(t *testing.T) 
 func TestConstraints_AttributesAKeptModifierAtItsKeyword(t *testing.T) {
 	t.Parallel()
 	_, kept, diags := Constraints(schemaFromYAML(t, "type: number\nexclusiveMinimum: true\n"),
-		true, "/p", overlaid("/p/exclusiveMinimum"))
+		AllBounds, true, "/p", overlaid("/p/exclusiveMinimum"))
 
 	entry, ok := kept["openapi:exclusiveMinimum"]
 	require.True(t, ok)
@@ -486,7 +486,7 @@ func TestConstraints_AttributesAKeptModifierAtItsKeyword(t *testing.T) {
 func TestApplyExclusiveFlag_AnUnreadableBoundIsNotAMissingOne(t *testing.T) {
 	t.Parallel()
 	got, kept, diags := Constraints(schemaFromYAML(t,
-		"type: number\nminimum: .inf\nexclusiveMinimum: true\n"), true, "/p", sourced(3))
+		"type: number\nminimum: .inf\nexclusiveMinimum: true\n"), AllBounds, true, "/p", sourced(3))
 
 	assert.Nil(t, got, "an unreadable bound leaves no constraint behind")
 	assert.Empty(t, kept, "the modifier modifies a bound that was written; it is no orphan")

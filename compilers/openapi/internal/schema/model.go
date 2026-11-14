@@ -23,19 +23,19 @@ import (
 )
 
 // lowerModel hoists an object schema as a Model, or as a MapT when the object
-// is a map and nothing else (objectNode): its value constraints, the
-// property-set cardinality among them, its own properties and which are
-// required, its catch-all (fillAdditional) and, where discriminated, the
-// discriminator it declares. It reads no annotations: attachDeclaredAnnotations
-// does that for every destination.
+// is a map and nothing else (objectNode): its value constraints, those that
+// apply to a value of the kinds takes, the property-set cardinality among them,
+// its own properties and which are required, its catch-all (fillAdditional)
+// and, where discriminated, the discriminator it declares. It reads no
+// annotations: attachDeclaredAnnotations does that for every destination.
 //
 // Cardinality is read here rather than on lowerComponentSchema's internAlias
 // fallback because an object-shaped schema owns its node before that fallback
 // would run, so the fallback never fires for one (GitHub #129).
-func lowerModel(c lowering.Ctx, ts *compile.Types, depth int, s *oas3.Schema, pointer jsontext.Pointer, discriminated bool) (ir.TypeID, []ir.Diagnostic) {
+func lowerModel(c lowering.Ctx, ts *compile.Types, depth int, s *oas3.Schema, pointer jsontext.Pointer, discriminated bool, takes kindSet) (ir.TypeID, []ir.Diagnostic) {
 	var diags []ir.Diagnostic
 	id := internNode(c, ts, pointer, func(common ir.TypeCommon) ir.TypeDef {
-		cons, consDiags := ConstraintsOf(c, &common.Unmodeled, s, nil, pointer)
+		cons, consDiags := ConstraintsOf(c, &common.Unmodeled, s, nil, pointer, takes)
 		diags = append(diags, consDiags...)
 		m := &ir.Model{TypeCommon: common, Constraints: cons}
 		diags = append(diags, fillModelProperties(c, ts, depth, newModelFields(c, ts, m), s, pointer)...)

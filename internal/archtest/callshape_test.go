@@ -40,11 +40,12 @@ var callShapeBaseline = map[string]map[string]int{
 	},
 	"compilers/compile": {
 		// The settlement queue runs what a lowering deferred, once the registry is
-		// whole and in order (#898), and Types.Promise's queue builds a node a
+		// whole and in order (#898), as operation's form parts and item defaults
+		// and its stream elements are, and Types.Promise's queue builds a node a
 		// reference names that no lowering built: designed seams. Types.Intern
 		// also calls the build schema hands it before it returns: an immediate
 		// callback.
-		"compilers/openapi/internal/operation": 2,
+		"compilers/openapi/internal/operation": 3,
 		"compilers/openapi/internal/schema":    6,
 	},
 	"compilers/openapi/internal/bind": {
@@ -113,11 +114,12 @@ var callShapeBaseline = map[string]map[string]int{
 	},
 	"ir": {
 		// ir.Visitor and the ForEach walks: traversal callbacks.
-		"engine/report":   1,
-		"internal/census": 1,
-		"ir/irfacts":      3,
-		"ir/irverify":     2,
-		"pass":            16,
+		"compilers/openapi/internal/lowering": 1,
+		"engine/report":                       1,
+		"internal/census":                     1,
+		"ir/irfacts":                          3,
+		"ir/irverify":                         2,
+		"pass":                                16,
 	},
 }
 

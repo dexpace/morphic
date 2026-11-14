@@ -172,7 +172,7 @@ testdata/conformance/openapi/allof-refinement.yaml	122:19	later-version-construc
 testdata/conformance/openapi/codeclared-schema-content.yaml	17:11	validation-mutually-exclusive-fields	compiler	library-silent
 testdata/conformance/openapi/codeclared-schema-content.yaml	25:11	validation-mutually-exclusive-fields	compiler	library-silent
 testdata/conformance/openapi/codeclared-schema-content.yaml	35:15	validation-mutually-exclusive-fields	compiler	library-silent
-testdata/conformance/openapi/constraints.yaml	52:18	validation-type-mismatch	library	count-width
+testdata/conformance/openapi/constraints.yaml	59:18	validation-type-mismatch	library	count-width
 testdata/conformance/openapi/content-several-entries.yaml	18:13	validation-allowed-values	library	rule-name
 testdata/conformance/openapi/content-several-entries.yaml	18:13	validation-entry-count	compiler	rule-name
 testdata/conformance/openapi/content-several-entries.yaml	26:17	validation-entry-count	compiler	library-silent
@@ -211,6 +211,10 @@ testdata/conformance/openapi/empty-required-values.yaml	38:30	validation-require
 testdata/conformance/openapi/empty-required-values.yaml	39:39	validation-required-field	library	empty-is-missing
 testdata/conformance/openapi/empty-required-values.yaml	40:47	validation-required-field	library	empty-is-missing
 testdata/conformance/openapi/empty-required-values.yaml	40:61	validation-required-field	library	empty-is-missing
+testdata/conformance/openapi/encoding-outside-form.yaml	14:15	validation-allowed-values	library	no-effect
+testdata/conformance/openapi/encoding-outside-form.yaml	14:15	validation-no-effect	compiler	no-effect
+testdata/conformance/openapi/encoding-outside-form.yaml	24:15	validation-allowed-values	library	no-effect
+testdata/conformance/openapi/encoding-outside-form.yaml	24:15	validation-no-effect	compiler	no-effect
 testdata/conformance/openapi/extension-promotion.yaml	136:19	later-version-construct	compiler	version-gate
 testdata/conformance/openapi/header-name-case.yaml	19:21	validation-duplicate-key	compiler	library-silent
 testdata/conformance/openapi/header-name-case.yaml	31:27	validation-duplicate-key	compiler	library-silent

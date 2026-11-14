@@ -1,0 +1,119 @@
+openapi: 3.1.0
+info: {title: PaginationInferred, version: "1.0.0"}
+# OpenAPI declares no pagination, so each operation here states its walk only
+# by the names it uses, which the pagination-inference policy reads.
+paths:
+  /zones:
+    get:
+      operationId: listZones
+      # A page number beside a page size, the page an envelope composed of a
+      # shared collection that states both totals.
+      parameters:
+        - {name: name, in: query, schema: {type: string}}
+        - {name: page, in: query, schema: {type: integer, default: 1, minimum: 1}}
+        - {name: per_page, in: query, schema: {type: integer, default: 20}}
+      responses:
+        "200":
+          description: A page of zones.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Collection'
+                  - type: object
+                    properties:
+                      result: {type: array, items: {$ref: '#/components/schemas/Zone'}}
+  /logs:
+    get:
+      operationId: listLogs
+      # An offset beside a limit, the page a bare list.
+      parameters:
+        - {name: offset, in: query, schema: {type: integer, format: int32}}
+        - {name: limit, in: query, schema: {type: integer, format: int32}}
+      responses:
+        "200":
+          description: A page of log lines.
+          content:
+            application/json:
+              schema: {type: array, items: {type: string}}
+  /keys:
+    get:
+      operationId: listKeys
+      # A cursor the page's info hands back.
+      parameters:
+        - {name: cursor, in: query, schema: {type: string}}
+        - {name: limit, in: query, schema: {type: integer}}
+      responses:
+        "200":
+          description: A page of keys.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  result: {type: array, items: {type: string}}
+                  result_info: {$ref: '#/components/schemas/CursorInfo'}
+  /jobs:
+    get:
+      operationId: listJobs
+      # A token, its page's items in a list the result holds beside the token
+      # sent and the next one.
+      parameters:
+        - {name: pageToken, in: query, schema: {type: string}}
+        - {name: pageSize, in: query, schema: {type: integer}}
+      responses:
+        "200":
+          description: A page of jobs.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/JobPage'}
+  /events:
+    get:
+      operationId: listEvents
+      # A page number and a cursor both: the names settle no walk, and the
+      # operation is reported and left with none.
+      parameters:
+        - {name: page, in: query, schema: {type: integer}}
+        - {name: cursor, in: query, schema: {type: string}}
+      responses:
+        "200":
+          description: A page of events.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Collection'}
+components:
+  schemas:
+    Collection:
+      type: object
+      properties:
+        success: {type: boolean}
+        errors: {type: array, items: {type: string}}
+        messages: {type: array, items: {type: string}}
+        result: {type: array, items: {}}
+        result_info: {$ref: '#/components/schemas/ResultInfo'}
+    ResultInfo:
+      type: object
+      properties:
+        page: {type: integer}
+        per_page: {type: integer}
+        count: {type: integer}
+        total_count: {type: integer}
+        total_pages: {type: integer}
+    CursorInfo:
+      type: object
+      properties:
+        count: {type: integer}
+        cursor: {type: string, description: "The cursor of the next page, empty on the last."}
+    JobPage:
+      type: object
+      properties:
+        result:
+          type: object
+          properties:
+            jobs: {type: array, items: {type: string}}
+            pageToken: {type: string}
+            nextPageToken: {type: string}
+    Zone:
+      type: object
+      properties:
+        id: {type: string}

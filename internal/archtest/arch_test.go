@@ -350,6 +350,13 @@ var rules = map[string][]string{
 	"compilers/openapi/internal/convention": {module + "/ir",
 		module + "/compilers/openapi/internal/diag",
 		module + "/compilers/openapi/internal/lowering"},
+	// The pagination the names an operation uses say, read once the document
+	// is whole. It reaches lowering for the policy and the walk over a
+	// service's operations, and nothing of the walks: it reads the operations
+	// and the registry they built.
+	"compilers/openapi/internal/pagination": {module + "/ir",
+		module + "/compilers/openapi/internal/diag",
+		module + "/compilers/openapi/internal/lowering"},
 	// The servers a document declares, whichever object declares them, and the
 	// registry they are lowered into. It is its own package for the reason auth
 	// is: the service walk lowers the document's own list and the operation walk
@@ -385,8 +392,9 @@ var rules = map[string][]string{
 	// The operation walk: path items, webhooks and callbacks, the parameters
 	// merged onto them, and the content of every body, response and header. It
 	// reaches the schema walk for the positions it hoists, auth for the
-	// requirements it reads, nodeview for the raw nodes behind the model and
-	// value for the constants a link passes, and nothing above itself — the
+	// requirements it reads, nodeview for the raw nodes behind the model, oas
+	// for the cases the Encoding Object's defaults are keyed by, and value for
+	// the constants a link passes, and nothing above itself — the
 	// compiler assembles the document from what this returns rather than the
 	// other way round.
 	"compilers/openapi/internal/operation": {module + "/ir", module + "/compilers/compile",
@@ -397,6 +405,7 @@ var rules = map[string][]string{
 		module + "/compilers/openapi/internal/ids",
 		module + "/compilers/openapi/internal/lowering",
 		module + "/compilers/openapi/internal/nodeview",
+		module + "/compilers/openapi/internal/oas",
 		module + "/compilers/openapi/internal/resolve",
 		module + "/compilers/openapi/internal/schema",
 		module + "/compilers/openapi/internal/servers",

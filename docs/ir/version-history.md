@@ -677,7 +677,70 @@ it sees. Changes made together in one bump are listed together under it.
     `unevaluatedProperties: false` already was. At the position the keyword exempted what the other
     conjuncts evaluate, where on its branch it exempts only what the branch evaluates. A consumer
     pinned to 0.58.0 finds the keyword at the position.
-- **0.60.0** — no shape change. The OpenAPI compiler expands a `$dynamicRef` to an anchor at any
+- **0.60.0** — no shape changed; what the OpenAPI compiler writes did:
+  - A `deprecated`, `readOnly` or `writeOnly` written `false` withdraws no `true` another schema of
+    a use states, as JSON Schema reads the three, so `deprecated: false` beside a `$ref` to a
+    deprecated target leaves the use's `Deprecation` set
+    ([what a reference carries down](./annotations.md#what-a-reference-carries-down)). A consumer
+    pinned to 0.59.0 that read such a use as live finds it deprecated, and a `readOnly` or
+    `writeOnly` it read as withdrawn in force. An `allOf` branch writing one `false` beside
+    another's `true` no longer disagrees with it, so both fold where both were kept verbatim.
+  - `Operation.Pagination` is filled from the extensions the promotion policy maps, by default those
+    of two conventions ([`extension-pagination`](../compilers/openapi.md#extension-pagination)),
+    with `Pagination.Inferred` set and each node whose key it read marked `extension-promotion`;
+    `Server.Name` is filled from a key on a server the document names in no other way; and
+    `HTTPParamBinding.AllowReserved` and `OAuthFlow.TokenEndpointAuthMethods` are filled where a
+    mapping names a key for them. A consumer pinned to 0.59.0 finds a pagination, a name or a field
+    where none was written.
+  - A decorator over a target a keyword or a key deprecates holds the `Deprecation` its own keys'
+    members state, which they were kept beside in silence.
+  - The default mapping reads only the word `deprecated` of `x-stability` and
+    `x-fern-availability` as a deprecation, so a boolean on either deprecates nothing.
+- **0.61.0** — the OpenAPI compiler fills `Operation.Pagination` where the document speaks of none,
+  and with it `PageStop` `no_next`, which it had never set: its pagination-inference policy reads a
+  walk off the names an operation's query parameters and success responses use
+  ([`pagination-policy`](../compilers/openapi.md#pagination-policy)), each such `Pagination` marked
+  `Inferred` and its operation's `Provenance.Inferred` naming `pagination-inference`. An operation
+  whose extensions speak of a pagination gets none from it
+  ([`extension-pagination`](../compilers/openapi.md#extension-pagination)). The shape is 0.60.0's. A
+  consumer pinned to 0.60.0 met a `Pagination` only where an extension stated one, and now meets one
+  on each operation the policy settles, which it reads as declared unless it reads `Inferred`.
+- **0.62.0** — no shape change. The OpenAPI compiler writes a value bound to `Constraints` only
+  where a type the schema declares takes it, as JSON Schema applies each to instances of one kind:
+  `minimum`, `maximum`, their exclusive forms and `multipleOf` beside `integer` or `number`,
+  `minLength`, `maxLength` and `pattern` beside `string`, and `minProperties` and `maxProperties`
+  beside `object` ([`constraints`](../compilers/openapi.md#constraints)). One beside another type
+  is kept verbatim under `openapi:<keyword>` (`degraded_lowering`), on an alias hoisted where the
+  position lowered to a shared primitive, which then holds the docs its property held, and the
+  content vocabulary beside a type other than `string` reaches no `Encoding`
+  ([`content-vocabulary`](../compilers/openapi.md#content-vocabulary)). A type array's scalar
+  variant holding a bound, an encoding or the content vocabulary is a `Scalar` at
+  `<pointer>/type/<index>`, each bound and a format the table pairs with one listed type land on
+  the variant whose type takes them, and the property or parameter carrying the union holds no
+  bound ([`type-arrays`](../compilers/openapi.md#type-arrays)); a bound on an `allOf` branch beside
+  the type list folds onto that variant, and one on a branch declaring a type it does not apply to
+  stays with that branch ([`allof-inline-residue`](../compilers/openapi.md#allof-inline-residue)).
+  A consumer pinned to 0.61.0 that read a numeric bound on a string, a bound on the carrier of a
+  type array, or a variant's encoding taken from a format another listed type pairs with finds it
+  under `openapi:<keyword>`, on the variant it applies to, or not at all.
+- **0.63.0** — A change of meaning, the shape unmoved. `PartEncoding.ContentTypes` holds the content
+  type the source format gives a part, or an item of a multipart stream, that names none of its own,
+  so a part an emitter could only guess at states one: the OpenAPI compiler lowers the Encoding
+  Object's defaults ([payloads](./payloads.md)). `Filename` is no longer set on a part of a
+  url-encoded body or on base64 text. `Content.Encoding` keys a part only a union's branch declares,
+  through the unions nested in a variant, under each variant declaring it, each entry as that
+  variant declares the part, where one variant's declaration took them all, and those of each shape
+  a model narrowing a union takes; and a multipart stream with an `itemSchema` always has an
+  `ItemEncoding`. Every entry of an encoding under a media type that is neither multipart nor form,
+  and the entry of a part the body's type holds no property for, is kept whole under
+  `openapi:encoding/<key>`, as an entry keying no part already was. `PartEncoding.Style` is set
+  wherever a part's value is arranged as a query parameter's is, `form` where only `explode` or
+  `allowReserved` is written, so `ContentTypes` is not read beside it; and no `Style`, `Explode`,
+  `AllowReserved` or `Headers` is lowered from a field the source format gives no effect under the
+  part's media type, which is kept verbatim instead, as an `itemEncoding` under a media type that is
+  not multipart now is, whole, where it lowered to an `ItemEncoding`. A consumer pinned to 0.62.0
+  refuses the document.
+- **0.64.0** — no shape change. The OpenAPI compiler expands a `$dynamicRef` to an anchor at any
   position of its schema resource, and JSON Schema 2019-09's `$recursiveRef` to the root of the
   resource it is written in ([`dynamic-ref`](../compilers/openapi.md#dynamic-ref)): such a
   reference's `TypeRef` names the type at that position where it named a node keeping
@@ -686,5 +749,5 @@ it sees. Changes made together in one bump are listed together under it.
   `openapi:$recursiveAnchor` is no longer kept in a 2019-09 schema. A body schema writing `$schema`
   or `$vocabulary` is a file where it was not ([`file-bodies`](../compilers/openapi.md#file-bodies)).
   A `prefixItems` beside a JSON Schema draft's `items` list is kept under `openapi:prefixItems`,
-  where it was dropped ([`tuples`](../compilers/openapi.md#tuples)). A consumer pinned to 0.59.0
+  where it was dropped ([`tuples`](../compilers/openapi.md#tuples)). A consumer pinned to 0.63.0
   reads such a reference as the top type and such a body as a model.

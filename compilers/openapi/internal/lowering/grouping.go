@@ -95,6 +95,23 @@ func DefaultGroupingExtension() GroupingExtension {
 	return GroupingExtension{Key: "x-fern-sdk-group-name", Lists: ListsAreSegments, Aliases: "x-forge-aliases"}
 }
 
+// Keys returns the extensions grouping reads under strategy: Key and Aliases,
+// each where it names one, under GroupByExtension, and none under any other
+// strategy. It is the one list of them, so the lowering filing operations and
+// the audit of an owned prefix (UnreadExtensions) read the same keys.
+func (g GroupingExtension) Keys(strategy GroupingStrategy) []string {
+	if strategy != GroupByExtension {
+		return nil
+	}
+	var keys []string
+	for _, key := range []string{g.Key, g.Aliases} {
+		if key != "" {
+			keys = append(keys, key)
+		}
+	}
+	return keys
+}
+
 // groupPathSeparator separates the segments of a group path a string writes.
 const groupPathSeparator = "."
 

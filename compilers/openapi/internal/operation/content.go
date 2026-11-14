@@ -123,20 +123,23 @@ func lowerContent(d mediaDecl, w walk, mt string) (ir.Content, []ir.Diagnostic) 
 	if len(ex) > 0 {
 		content.Examples = ex
 	}
-	switch file := bodyFile(c, mt, readFile(c, media.GetSchema())); {
-	case file != nil:
+	file := bodyFile(c, mt, readFile(c, media.GetSchema()))
+	if file != nil {
 		content.File = file
 		content.Type = fileBodyType(w.types, file, content.Type)
-		kept, keptDiags := keepFileBodyEncodings(c, media, mediaPtr, mt)
-		diags = append(diags, keptDiags...)
-		content.Unmodeled = annotation.MergeUnmodeled(content.Unmodeled, kept)
-	case isFormContent(mt):
+	}
+	if file == nil && isFormContent(mt) {
 		enc, encUnmodeled, encDiags := partEncodings(c, w, media, mt, mediaPtr, content.Type.Target)
 		diags = append(diags, encDiags...)
 		if enc != nil {
 			content.Encoding = enc
 		}
-		content.Unmodeled = annotation.MergeUnmodeled(content.Unmodeled, encUnmodeled)
+		// Assigned, not merged: the parts' settlement writes into this map.
+		content.Unmodeled = encUnmodeled
+	} else {
+		kept, keptDiags := keepBodyEncodings(c, media, mediaPtr, mt)
+		diags = append(diags, keptDiags...)
+		content.Unmodeled = annotation.MergeUnmodeled(content.Unmodeled, kept)
 	}
 	diags = append(diags, fillSequential(c, w, &content, media, mediaPtr)...)
 	content.Stream = contentStream(c, mt, content.Item)
@@ -152,15 +155,16 @@ func lowerContent(d mediaDecl, w walk, mt string) (ir.Content, []ir.Diagnostic) 
 		annotation.UnknownKeysIn(&content.Unmodeled, media, c.Place(), mediaPtr, taken...)...)
 }
 
-// keepFileBodyEncodings keeps whole the encoding entries of a file body written
-// under a form media type, which declares no part for any of them to name
-// (docs/compilers/openapi.md#multipart-encoding). Under any other media type it
-// keeps nothing.
-func keepFileBodyEncodings(c lowering.Ctx, media *soa.MediaType, mediaPtr jsontext.Pointer, mt string) (ir.Unmodeled, []ir.Diagnostic) {
+// keepBodyEncodings keeps whole the encoding entries of a body with no parts
+// for any of them to name (docs/compilers/openapi.md#multipart-encoding): a
+// file body under a form media type, and any body under a media type that is
+// neither multipart nor form, where OpenAPI gives the field no effect.
+func keepBodyEncodings(c lowering.Ctx, media *soa.MediaType, mediaPtr jsontext.Pointer, mt string) (ir.Unmodeled, []ir.Diagnostic) {
+	why := unkeyedFileEntry
 	if !isFormContent(mt) {
-		return nil, nil
+		why = unkeyedOtherEntry
 	}
-	return keepUnkeyedEncodings(c, media, mediaPtr, nil, unkeyedFileEntry)
+	return keepUnkeyedEncodings(c, media, mediaPtr, partWalk{}, why)
 }
 
 // fileBodyType is the type of the file body file whose schema lowered to

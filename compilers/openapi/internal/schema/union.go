@@ -17,6 +17,7 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
+	"github.com/dexpace/morphic/compilers/openapi/internal/spelling"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -424,13 +425,16 @@ func decorates(td ir.TypeDef) bool {
 // exactly one, so overlapping variants must not exclude each other; with an
 // integer width, integer and number name the same primitive, and the two
 // variants stay, for an emitter to keep apart (docs/emitters/targets/go/unions.md).
+// Each variant reads what the position's folding allOf branches write, at the
+// pointers they are written at.
 func lowerUnion(c lowering.Ctx, ts *compile.Types, depth int, s *oas3.Schema, pointer jsontext.Pointer, types []oas3.SchemaType) (ir.TypeID, []ir.Diagnostic) {
 	var diags []ir.Diagnostic
 	id := internNode(c, ts, pointer, func(common ir.TypeCommon) ir.TypeDef {
+		list := typeArray{types: types, voices: positionVoices(c, ts, s, pointer, ir.TypeRef{})}
 		variants := make([]ir.Variant, 0, len(types))
 		for i, st := range types {
 			vptr := pointer + ids.Ptr("type", strconv.Itoa(i))
-			vid, vDiags := lowerTypeVariant(c, ts, depth, s, vptr, st)
+			vid, vDiags := lowerTypeVariant(c, ts, depth, s, vptr, st, list)
 			diags = append(diags, vDiags...)
 			variants = append(variants, ir.Variant{
 				Name: compile.NamingHint(string(st)),
@@ -447,17 +451,70 @@ func lowerUnion(c lowering.Ctx, ts *compile.Types, depth int, s *oas3.Schema, po
 	return id, diags
 }
 
-// lowerTypeVariant lowers the variant of s's type array that st names, as
-// lowerTyped lowers st alone, except that an object variant holds no
-// discriminator: no $ref or mapping can name the variant's position, which
-// holds a type's name and no schema, so no type is its subtype. The census
-// keeps the discriminator on the union instead
-// (docs/compilers/openapi.md#type-arrays).
-func lowerTypeVariant(c lowering.Ctx, ts *compile.Types, depth int, s *oas3.Schema, pointer jsontext.Pointer, st oas3.SchemaType) (ir.TypeID, []ir.Diagnostic) {
-	if st == oas3.SchemaTypeObject {
-		return lowerModel(c, ts, depth, s, pointer, false /* discriminated */)
+// typeArray is what every variant of one type array reads beside its schema: the
+// types it lists, and the voices of the position it is written at.
+type typeArray struct {
+	types  []oas3.SchemaType
+	voices []annotation.Voice
+}
+
+// lowerTypeVariant lowers the variant of s's type array that st names, at
+// pointer, as lowerTyped lowers st alone, but for what applies to another listed
+// type (docs/compilers/openapi.md#type-arrays). An object variant holds no
+// discriminator: no $ref or mapping can name the variant's position, which holds
+// a type's name and no schema, so no type is its subtype; the census keeps the
+// discriminator on the union instead. A scalar variant reads the value bounds,
+// the format and the content vocabulary st takes, and is a Scalar of its own
+// where it holds one, else the shared primitive.
+func lowerTypeVariant(c lowering.Ctx, ts *compile.Types, depth int, s *oas3.Schema, pointer jsontext.Pointer, st oas3.SchemaType, list typeArray) (ir.TypeID, []ir.Diagnostic) {
+	switch st {
+	case oas3.SchemaTypeObject:
+		return lowerModel(c, ts, depth, s, pointer, false /* discriminated */, kindObject)
+	case oas3.SchemaTypeArray:
+		return lowerArray(c, ts, depth, s, pointer)
+	default:
+		takes := typeKinds(st)
+		shape := scalarShapeOf(s, st, variantFormat(s, st, list.types))
+		if shape.shared && !statesBounds(c, s, list.voices, pointer, takes) {
+			return ts.PrimID(shape.base), nil
+		}
+		return hoistScalar(c, ts, depth, s, shape, takes, list.voices, pointer)
 	}
-	return lowerTyped(c, ts, depth, s, pointer, st)
+}
+
+// variantFormat returns the format s writes, for its type array's variant of
+// type st among types: the format where it pairs with st, or with no listed
+// type, since nothing then says which type it describes, and a format validates
+// only the instances of the types it is defined for (JSON Schema Validation
+// 2020-12 §7.1); none where it pairs with another listed type.
+func variantFormat(s *oas3.Schema, st oas3.SchemaType, types []oas3.SchemaType) string {
+	format := writtenFormat(s)
+	if format == "" || pairs(st, format) {
+		return format
+	}
+	if slices.ContainsFunc(types, func(t oas3.SchemaType) bool { return pairs(t, format) }) {
+		return ""
+	}
+	return format
+}
+
+// pairs reports whether format pairs with st: spelling.Lookup lists the
+// pairing, or spelling.LookupEncoded does, as it does byte beside a string.
+func pairs(st oas3.SchemaType, format string) bool {
+	key := string(st) + "/" + format
+	_, listed := spelling.Lookup(key)
+	_, encoded := spelling.LookupEncoded(key)
+	return listed || encoded
+}
+
+// statesBounds reports whether s or one of voices, read at pointer, writes a
+// value bound a reader of the kinds takes holds: one ConstraintsOf reads into a
+// field or keeps, as an empty pattern or a keyword written null is not. It reads
+// apart from the node, so what it reads is reported where hoistScalar reads it.
+func statesBounds(c lowering.Ctx, s *oas3.Schema, voices []annotation.Voice, pointer jsontext.Pointer, takes kindSet) bool {
+	var kept ir.Unmodeled
+	cons, _ := ConstraintsOf(c, &kept, s, voices, pointer, takes)
+	return cons != nil || len(kept) > 0
 }
 
 // typesDisjoint reports whether no instance has two of types. A type listed
@@ -1018,7 +1075,7 @@ func composedVariantRef(c lowering.Ctx, id ir.TypeID, body *oas3.Schema, branch 
 // are read as lowerAllOf reads them (GitHub #407). Each variant carries a copy,
 // since a bound on the schema constrains both sides of the disjunction.
 func buildComposedVariant(c lowering.Ctx, ts *compile.Types, depth int, body composedBody, branch ir.TypeID, common ir.TypeCommon) (ir.TypeDef, []ir.Diagnostic) {
-	cons, diags := ConstraintsOf(c, &common.Unmodeled, body.schema, body.voices, body.comp.pointer)
+	cons, diags := ConstraintsOf(c, &common.Unmodeled, body.schema, body.voices, body.comp.pointer, declaredInstanceTypes(body.schema))
 	m := &ir.Model{TypeCommon: common, Constraints: cons}
 	fields := newModelFields(c, ts, m)
 	diags = append(diags, fillAllOf(c, ts, depth, m, fields, body.comp)...)

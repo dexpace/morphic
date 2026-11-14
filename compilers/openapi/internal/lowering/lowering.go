@@ -92,6 +92,7 @@ type Ctx struct {
 	SecretInference        SecretInference
 	HTTPDateInference      HTTPDateInference
 	ReplacementInference   ReplacementInference
+	PaginationInference    PaginationInference
 
 	// foreign marks a lowering of content another document holds, read in that
 	// document's scope, and holder is the path the resolver read it by (see
@@ -197,6 +198,7 @@ type Policy struct {
 	SecretInference        SecretInference
 	HTTPDateInference      HTTPDateInference
 	ReplacementInference   ReplacementInference
+	PaginationInference    PaginationInference
 	TitleNames             TitleNames
 }
 
@@ -226,6 +228,7 @@ func New(srcIndex int, doc *load.Document, p Policy) Ctx {
 		SecretInference:        p.SecretInference,
 		HTTPDateInference:      p.HTTPDateInference,
 		ReplacementInference:   p.ReplacementInference,
+		PaginationInference:    p.PaginationInference,
 		overlay:                doc.Overlay,
 
 		loaded: &loadResult{siblings: doc.Siblings, media: doc.MediaTypes, others: doc.Others, rows: doc.Rows,
@@ -444,6 +447,10 @@ func (c Ctx) SchemaRules() oas.SchemaRules { return rowsOf(c).Schema }
 // where its encoding leaves a field unwritten.
 func EncodingRules(c Ctx) oas.EncodingRules { return rowsOf(c).Encoding }
 
+// SecurityRules returns the Security Requirement Object's rows a requirement c
+// lowers is read with (rowsOf): whether its key may name a scheme by URI.
+func SecurityRules(c Ctx) oas.SecurityRules { return rowsOf(c).Security }
+
 // rowsOf returns what the table says at the minor of the document whose
 // content c reads, in the dialect its jsonSchemaDialect names, which its scope
 // names (load.Other.Rows), the source's for its own (load.Document.Rows).
@@ -543,16 +550,6 @@ func OtherIDs(c Ctx) []ids.Document {
 		out = append(out, ids.In(o.Label))
 	}
 	return out
-}
-
-// IDsAt returns how the IDs of what the Document.Sources entry at source
-// declares name that document: ids.In its label for one a reference read
-// beside the source, and the source's own for the source and its overlay.
-func IDsAt(c Ctx, source int) ids.Document {
-	if o, ok := c.loaded.others.At(source); ok {
-		return ids.In(o.Label)
-	}
-	return ids.Document{}
 }
 
 // NameAt returns the hint the node built at pointer in c's document is named

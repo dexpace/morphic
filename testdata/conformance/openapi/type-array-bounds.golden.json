@@ -1,0 +1,598 @@
+{
+  "idSpaces": {
+    "auth": [
+      "openapi",
+      "unresolved"
+    ],
+    "e": [
+      "anon",
+      "composed",
+      "openapi"
+    ],
+    "g": [
+      "default",
+      "extension",
+      "path-prefix",
+      "tags",
+      "webhooks"
+    ],
+    "op": [
+      "openapi"
+    ],
+    "p": [
+      "composed",
+      "openapi"
+    ],
+    "param": [
+      "openapi"
+    ],
+    "s": [
+      "openapi"
+    ],
+    "server": [
+      "default",
+      "openapi"
+    ],
+    "t": [
+      "anon",
+      "composed",
+      "openapi"
+    ]
+  },
+  "name": "TypeArrayBounds",
+  "version": "1.0.0",
+  "docs": {},
+  "services": [
+    {
+      "id": "s/openapi/0",
+      "name": {
+        "source": "TypeArrayBounds",
+        "canonical": "type_array_bounds"
+      },
+      "docs": {},
+      "servers": [
+        "server/default"
+      ],
+      "provenance": {
+        "source": 0
+      }
+    }
+  ],
+  "types": {
+    "t/anon/components/schemas/Dated/type/1": {
+      "kind": "scalar",
+      "id": "t/anon/components/schemas/Dated/type/1",
+      "name": {
+        "hint": "dated"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Dated/type/1"
+      },
+      "base": {
+        "target": "t/prim/date",
+        "nullable": false
+      },
+      "constraints": {
+        "minLength": 10,
+        "uniqueItems": false
+      }
+    },
+    "t/anon/components/schemas/Holder/properties/either": {
+      "kind": "union",
+      "id": "t/anon/components/schemas/Holder/properties/either",
+      "name": {
+        "hint": "either"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Holder/properties/either"
+      },
+      "variants": [
+        {
+          "name": {
+            "hint": "integer"
+          },
+          "type": {
+            "target": "t/prim/integer",
+            "nullable": false
+          },
+          "docs": {}
+        },
+        {
+          "name": {
+            "hint": "string"
+          },
+          "type": {
+            "target": "t/anon/components/schemas/Holder/properties/either/type/1",
+            "nullable": false
+          },
+          "docs": {}
+        }
+      ],
+      "exclusive": true,
+      "wireTagged": false,
+      "closed": true,
+      "inputOnly": false
+    },
+    "t/anon/components/schemas/Holder/properties/either/type/1": {
+      "kind": "scalar",
+      "id": "t/anon/components/schemas/Holder/properties/either/type/1",
+      "name": {
+        "hint": "either"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Holder/properties/either/type/1"
+      },
+      "base": {
+        "target": "t/prim/string",
+        "nullable": false
+      },
+      "constraints": {
+        "maxLength": 3,
+        "uniqueItems": false
+      }
+    },
+    "t/anon/components/schemas/Measure/type/0": {
+      "kind": "scalar",
+      "id": "t/anon/components/schemas/Measure/type/0",
+      "name": {
+        "hint": "measure"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Measure/type/0"
+      },
+      "base": {
+        "target": "t/prim/number",
+        "nullable": false
+      },
+      "constraints": {
+        "min": "1",
+        "uniqueItems": false
+      }
+    },
+    "t/anon/components/schemas/Measure/type/1": {
+      "kind": "scalar",
+      "id": "t/anon/components/schemas/Measure/type/1",
+      "name": {
+        "hint": "measure"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Measure/type/1"
+      },
+      "base": {
+        "target": "t/prim/integer",
+        "nullable": false
+      },
+      "constraints": {
+        "min": "1",
+        "uniqueItems": false
+      }
+    },
+    "t/anon/components/schemas/Mixed/type/0": {
+      "kind": "scalar",
+      "id": "t/anon/components/schemas/Mixed/type/0",
+      "name": {
+        "hint": "mixed"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Mixed/type/0"
+      },
+      "base": {
+        "target": "t/prim/integer",
+        "nullable": false
+      },
+      "constraints": {
+        "min": "2",
+        "uniqueItems": false
+      }
+    },
+    "t/anon/components/schemas/Mixed/type/1": {
+      "kind": "scalar",
+      "id": "t/anon/components/schemas/Mixed/type/1",
+      "name": {
+        "hint": "mixed"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Mixed/type/1"
+      },
+      "base": {
+        "target": "t/prim/string",
+        "nullable": false
+      },
+      "constraints": {
+        "maxLength": 3,
+        "uniqueItems": false
+      }
+    },
+    "t/anon/components/schemas/OnBranch/type/1": {
+      "kind": "scalar",
+      "id": "t/anon/components/schemas/OnBranch/type/1",
+      "name": {
+        "hint": "on_branch"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/OnBranch/type/1"
+      },
+      "base": {
+        "target": "t/prim/string",
+        "nullable": false
+      },
+      "constraints": {
+        "maxLength": 2,
+        "uniqueItems": false
+      }
+    },
+    "t/openapi/components/schemas/Dated": {
+      "kind": "union",
+      "id": "t/openapi/components/schemas/Dated",
+      "name": {
+        "source": "Dated",
+        "canonical": "dated"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Dated"
+      },
+      "variants": [
+        {
+          "name": {
+            "hint": "integer"
+          },
+          "type": {
+            "target": "t/prim/integer",
+            "nullable": false
+          },
+          "docs": {}
+        },
+        {
+          "name": {
+            "hint": "string"
+          },
+          "type": {
+            "target": "t/anon/components/schemas/Dated/type/1",
+            "nullable": false
+          },
+          "docs": {}
+        }
+      ],
+      "exclusive": true,
+      "wireTagged": false,
+      "closed": true,
+      "inputOnly": false
+    },
+    "t/openapi/components/schemas/Holder": {
+      "kind": "model",
+      "id": "t/openapi/components/schemas/Holder",
+      "name": {
+        "source": "Holder",
+        "canonical": "holder"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Holder"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/Holder/properties/either",
+          "name": {
+            "source": "either",
+            "canonical": "either"
+          },
+          "wireName": "either",
+          "type": {
+            "target": "t/anon/components/schemas/Holder/properties/either",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Holder/properties/either"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/openapi/components/schemas/Measure": {
+      "kind": "union",
+      "id": "t/openapi/components/schemas/Measure",
+      "name": {
+        "source": "Measure",
+        "canonical": "measure"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Measure"
+      },
+      "variants": [
+        {
+          "name": {
+            "hint": "number"
+          },
+          "type": {
+            "target": "t/anon/components/schemas/Measure/type/0",
+            "nullable": false
+          },
+          "docs": {}
+        },
+        {
+          "name": {
+            "hint": "integer"
+          },
+          "type": {
+            "target": "t/anon/components/schemas/Measure/type/1",
+            "nullable": false
+          },
+          "docs": {}
+        }
+      ],
+      "exclusive": false,
+      "wireTagged": false,
+      "closed": true,
+      "inputOnly": false
+    },
+    "t/openapi/components/schemas/Mixed": {
+      "kind": "union",
+      "id": "t/openapi/components/schemas/Mixed",
+      "name": {
+        "source": "Mixed",
+        "canonical": "mixed"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Mixed"
+      },
+      "variants": [
+        {
+          "name": {
+            "hint": "integer"
+          },
+          "type": {
+            "target": "t/anon/components/schemas/Mixed/type/0",
+            "nullable": false
+          },
+          "docs": {}
+        },
+        {
+          "name": {
+            "hint": "string"
+          },
+          "type": {
+            "target": "t/anon/components/schemas/Mixed/type/1",
+            "nullable": false
+          },
+          "docs": {}
+        }
+      ],
+      "exclusive": true,
+      "wireTagged": false,
+      "closed": true,
+      "inputOnly": false
+    },
+    "t/openapi/components/schemas/OnBranch": {
+      "kind": "union",
+      "id": "t/openapi/components/schemas/OnBranch",
+      "name": {
+        "source": "OnBranch",
+        "canonical": "on_branch"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/OnBranch"
+      },
+      "variants": [
+        {
+          "name": {
+            "hint": "integer"
+          },
+          "type": {
+            "target": "t/prim/integer",
+            "nullable": false
+          },
+          "docs": {}
+        },
+        {
+          "name": {
+            "hint": "string"
+          },
+          "type": {
+            "target": "t/anon/components/schemas/OnBranch/type/1",
+            "nullable": false
+          },
+          "docs": {}
+        }
+      ],
+      "exclusive": true,
+      "wireTagged": false,
+      "closed": true,
+      "inputOnly": false
+    },
+    "t/openapi/components/schemas/Untaken": {
+      "kind": "union",
+      "id": "t/openapi/components/schemas/Untaken",
+      "name": {
+        "source": "Untaken",
+        "canonical": "untaken"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "unmodeled": {
+        "openapi:minProperties": {
+          "reason": "degraded_lowering",
+          "value": 1,
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Untaken/minProperties"
+          }
+        }
+      },
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Untaken"
+      },
+      "variants": [
+        {
+          "name": {
+            "hint": "integer"
+          },
+          "type": {
+            "target": "t/prim/integer",
+            "nullable": false
+          },
+          "docs": {}
+        },
+        {
+          "name": {
+            "hint": "string"
+          },
+          "type": {
+            "target": "t/prim/string",
+            "nullable": false
+          },
+          "docs": {}
+        }
+      ],
+      "exclusive": true,
+      "wireTagged": false,
+      "closed": true,
+      "inputOnly": false
+    },
+    "t/prim/date": {
+      "kind": "primitive",
+      "id": "t/prim/date",
+      "name": {},
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": -1
+      },
+      "prim": "date"
+    },
+    "t/prim/integer": {
+      "kind": "primitive",
+      "id": "t/prim/integer",
+      "name": {},
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": -1
+      },
+      "prim": "integer"
+    },
+    "t/prim/number": {
+      "kind": "primitive",
+      "id": "t/prim/number",
+      "name": {},
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": -1
+      },
+      "prim": "number"
+    },
+    "t/prim/string": {
+      "kind": "primitive",
+      "id": "t/prim/string",
+      "name": {},
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": -1
+      },
+      "prim": "string"
+    }
+  },
+  "servers": {
+    "server/default": {
+      "id": "server/default",
+      "name": {
+        "hint": "server"
+      },
+      "urlTemplate": "/",
+      "description": {},
+      "provenance": {
+        "source": 0
+      }
+    }
+  },
+  "diagnostics": [
+    {
+      "severity": "info",
+      "code": "openapi/degraded-construct",
+      "message": "this position lowered to a node of kind \"union\", which has no home for minProperties declared beside it; kept verbatim under Unmodeled",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Untaken"
+      }
+    }
+  ],
+  "sources": [
+    {
+      "format": "openapi@3.1",
+      "path": "type-array-bounds.yaml",
+      "hash": "e2f2719678b1aac85e9b27db48d3aab11fa080827724919a466e7097ec332047"
+    }
+  ]
+}

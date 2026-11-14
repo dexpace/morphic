@@ -310,8 +310,8 @@ chain, and of where it is bound:
   its text with no `Content-Type` of its own, which RFC 7578 reads as `text/plain` (§4.4), each
   element of a list a part of that name (`Multi`). An object there has none. OpenAPI gives one a
   default media type, `application/json` (§4.15.1), but the default is OpenAPI's and no other
-  format's, so it is the compiler's to lower into `ContentTypes` (#1777) and never an emitter's to
-  assume of a document whose format it does not read (INV1);
+  format's, so it is the compiler's to lower into `ContentTypes`, as the OpenAPI compiler does, and
+  never an emitter's to assume of a document whose format it does not read (INV1);
 - a `Prefix` binding, and a header whose `Prefix` is set, has one where its type is a map of leaves;
 - a `host` label, a `text/plain` body, and a form field or part whose content type is `text/plain`
   have one where their type is a leaf, and a field or part under `Multi` where its elements are, and
@@ -406,9 +406,9 @@ binding's: over each operation's query and cookie and each of its form or multip
 typed by a model, 994 in all, no two bindings own a name and no two maps share the rest, so the
 golden spec draws no `name-owned-twice`. The parts are the `metadata` of `POST
 /accounts/{account_id}/images/v1`, of `POST /accounts/{account_id}/images/v2/direct_upload` and of
-`PUT /zones/{zone_id}/snippets/{snippet_name}`, each an object no Encoding Object names, and they
-stay their caller's text until the compiler lowers OpenAPI's default for them (#1777), which types
-each as its object and sends it as JSON. The descriptions of ten of the parameters call theirs JSON,
+`PUT /zones/{zone_id}/snippets/{snippet_name}`, each an object no Encoding Object names, which the
+compiler has since given OpenAPI's default for them, `application/json`, so each is typed as its
+object and sent as JSON. The descriptions of ten of the parameters call theirs JSON,
 one array in one parameter, as in
 `search=[{"field":"value","op":"in","value":["evil.com","bad.org"]}]`, which a caller's one pair
 sends and an overlay declaring `content` types. The other two, the `filters` of `GET` and `DELETE

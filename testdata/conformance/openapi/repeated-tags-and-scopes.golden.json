@@ -1,0 +1,213 @@
+{
+  "idSpaces": {
+    "auth": [
+      "openapi",
+      "unresolved"
+    ],
+    "e": [
+      "anon",
+      "composed",
+      "openapi"
+    ],
+    "g": [
+      "default",
+      "extension",
+      "path-prefix",
+      "tags",
+      "webhooks"
+    ],
+    "op": [
+      "openapi"
+    ],
+    "p": [
+      "composed",
+      "openapi"
+    ],
+    "param": [
+      "openapi"
+    ],
+    "s": [
+      "openapi"
+    ],
+    "server": [
+      "default",
+      "openapi"
+    ],
+    "t": [
+      "anon",
+      "composed",
+      "openapi"
+    ]
+  },
+  "name": "RepeatedTagsAndScopes",
+  "version": "1.0.0",
+  "docs": {},
+  "services": [
+    {
+      "id": "s/openapi/0",
+      "name": {
+        "source": "RepeatedTagsAndScopes",
+        "canonical": "repeated_tags_and_scopes"
+      },
+      "docs": {},
+      "groups": [
+        {
+          "id": "g/tags/pets",
+          "name": {
+            "source": "pets",
+            "canonical": "pets"
+          },
+          "docs": {},
+          "operations": [
+            {
+              "id": "op/openapi/paths/~1pets/get",
+              "name": {
+                "source": "listPets",
+                "canonical": "list_pets"
+              },
+              "docs": {},
+              "responses": [
+                {
+                  "name": {
+                    "hint": "200"
+                  },
+                  "conditions": {
+                    "statusCodes": [
+                      {
+                        "from": 200,
+                        "to": 200
+                      }
+                    ]
+                  },
+                  "docs": {
+                    "description": "ok"
+                  }
+                }
+              ],
+              "oneWay": false,
+              "idempotency": {},
+              "auth": [
+                {
+                  "schemes": [
+                    {
+                      "scheme": "auth/openapi/components/securitySchemes/oauth",
+                      "scopes": [
+                        "read",
+                        "write"
+                      ]
+                    }
+                  ]
+                }
+              ],
+              "tags": [
+                "pets",
+                "store"
+              ],
+              "bindings": {
+                "http": [
+                  {
+                    "method": "GET",
+                    "uriTemplate": "/pets",
+                    "sharedRoute": false,
+                    "checksumRequired": false
+                  }
+                ]
+              },
+              "provenance": {
+                "source": 0,
+                "pointer": "/paths/~1pets/get"
+              }
+            }
+          ]
+        }
+      ],
+      "servers": [
+        "server/default"
+      ],
+      "provenance": {
+        "source": 0
+      }
+    }
+  ],
+  "auth": {
+    "auth/openapi/components/securitySchemes/oauth": {
+      "id": "auth/openapi/components/securitySchemes/oauth",
+      "name": {
+        "source": "oauth",
+        "canonical": "oauth"
+      },
+      "kind": "oauth2",
+      "docs": {},
+      "flows": [
+        {
+          "kind": "client_credentials",
+          "tokenURL": "https://example.com/token",
+          "scopes": [
+            {
+              "name": "read",
+              "description": "Read pets"
+            },
+            {
+              "name": "write",
+              "description": "Write pets"
+            }
+          ]
+        }
+      ],
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/securitySchemes/oauth"
+      }
+    }
+  },
+  "servers": {
+    "server/default": {
+      "id": "server/default",
+      "name": {
+        "hint": "server"
+      },
+      "urlTemplate": "/",
+      "description": {},
+      "provenance": {
+        "source": 0
+      }
+    }
+  },
+  "tagDefs": [
+    {
+      "name": "pets",
+      "docs": {}
+    },
+    {
+      "name": "store",
+      "docs": {}
+    }
+  ],
+  "diagnostics": [
+    {
+      "severity": "warning",
+      "code": "openapi/repeated-entry",
+      "message": "scope \"read\" of scheme \"oauth\" repeats the entry at index 0; it is kept once",
+      "provenance": {
+        "source": 0,
+        "pointer": "/paths/~1pets/get/security/0/oauth/2"
+      }
+    },
+    {
+      "severity": "warning",
+      "code": "openapi/repeated-entry",
+      "message": "tag \"pets\" repeats the entry at index 0; it is kept once",
+      "provenance": {
+        "source": 0,
+        "pointer": "/paths/~1pets/get/tags/2"
+      }
+    }
+  ],
+  "sources": [
+    {
+      "format": "openapi@3.1",
+      "path": "repeated-tags-and-scopes.yaml",
+      "hash": "6292145f18b49f7a99ef1ffb03f5db41fc4eb7b818b061f2923a4a6543bd0da4"
+    }
+  ]
+}

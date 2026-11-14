@@ -876,6 +876,58 @@
               }
             },
             {
+              "id": "op/openapi/paths/~1unread/patch",
+              "name": {
+                "source": "notAWord",
+                "canonical": "not_a_word"
+              },
+              "docs": {},
+              "responses": [
+                {
+                  "name": {
+                    "hint": "200"
+                  },
+                  "conditions": {
+                    "statusCodes": [
+                      {
+                        "from": 200,
+                        "to": 200
+                      }
+                    ]
+                  },
+                  "docs": {
+                    "description": "ok"
+                  }
+                }
+              ],
+              "oneWay": false,
+              "idempotency": {},
+              "bindings": {
+                "http": [
+                  {
+                    "method": "PATCH",
+                    "uriTemplate": "/unread",
+                    "sharedRoute": false,
+                    "checksumRequired": false
+                  }
+                ]
+              },
+              "unmodeled": {
+                "openapi:x-stability": {
+                  "reason": "vendor_extension",
+                  "value": true,
+                  "provenance": {
+                    "source": 0,
+                    "pointer": "/paths/~1unread/patch/x-stability"
+                  }
+                }
+              },
+              "provenance": {
+                "source": 0,
+                "pointer": "/paths/~1unread/patch"
+              }
+            },
+            {
               "id": "op/openapi/paths/~1pathitem/get",
               "name": {
                 "source": "underPathItemKey",
@@ -982,10 +1034,19 @@
     {
       "severity": "info",
       "code": "openapi/degraded-construct",
-      "message": "extension \"x-stability\" is neither text nor a boolean, so it does not fill deprecation",
+      "message": "extension \"x-stability\" names no stability tier, so it does not fill stability",
       "provenance": {
         "source": 0,
         "pointer": "/paths/~1unread/post/x-stability"
+      }
+    },
+    {
+      "severity": "info",
+      "code": "openapi/degraded-construct",
+      "message": "extension \"x-stability\" names no stability tier, so it does not fill stability",
+      "provenance": {
+        "source": 0,
+        "pointer": "/paths/~1unread/patch/x-stability"
       }
     }
   ],
@@ -993,7 +1054,7 @@
     {
       "format": "openapi@3.1",
       "path": "extension-stability.yaml",
-      "hash": "c27df299ca78a0225e984e908b697e473a25c3682f9ec8b9e783e581d620623d"
+      "hash": "a7c9a68f586f087249c85b4268fbd718cb57f64191e3564455cbfaa838daea16"
     }
   ]
 }

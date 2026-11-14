@@ -218,6 +218,24 @@ type DefaultCase int
 const (
 	// DefaultUntyped is a value whose schema writes no type.
 	DefaultUntyped DefaultCase = 1 + iota
+	// DefaultRawBinary is raw bytes, a string of format binary.
+	DefaultRawBinary
+	// DefaultByteFormat is a string of format byte writing no contentEncoding.
+	DefaultByteFormat
+	// DefaultEncodedByteFormat is a string of format byte writing
+	// contentEncoding.
+	DefaultEncodedByteFormat
+	// DefaultContentEncoded is any other string writing contentEncoding.
+	DefaultContentEncoded
+	// DefaultString is any other string.
+	DefaultString
+	// DefaultScalar is a number, an integer or a boolean.
+	DefaultScalar
+	// DefaultObject is an object.
+	DefaultObject
+	// DefaultNestedArray is an array inside the array an encoding applies to
+	// item by item.
+	DefaultNestedArray
 )
 
 // Field is one field of an object.
@@ -254,6 +272,19 @@ type Field struct {
 	// than by its shape: a literal no decimal spells, and an exclusive bound
 	// in the other form than its row gives.
 	Decimal bool
+	// Within is the media types under which a field of an object a media
+	// type holds takes effect; empty means under every one.
+	Within []Within
+}
+
+// Within is a media type, named without parameters and in lower case, under
+// which a field takes effect at the minors Span holds; one whose subtype is
+// "*" names every media type of its type, as "multipart/*" names each
+// multipart one.
+type Within struct {
+	MediaType string
+	Cites     []Cite
+	Span      Span
 }
 
 // Pattern is a family of keys an object admits beside its fixed fields:
@@ -267,6 +298,9 @@ type Pattern struct {
 	// Keys is the syntax of the key itself.
 	Keys  Format
 	Cites []Cite
+	// ByURI marks a key that may name its object by URI where it is no
+	// component name, as a Security Requirement Object's may from 3.2.
+	ByURI bool
 }
 
 // RuleKind names what a Rule demands.

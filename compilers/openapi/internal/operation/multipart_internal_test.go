@@ -4,11 +4,9 @@
 package operation
 
 import (
-	"encoding/json/jsontext"
 	"fmt"
-	"os"
-	"path/filepath"
 	"reflect"
+	"strings"
 	"testing"
 
 	"github.com/speakeasy-api/openapi/jsonschema/oas3"
@@ -16,147 +14,17 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/dexpace/morphic/compilers"
-	"github.com/dexpace/morphic/compilers/openapi/internal/bind"
-	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
-	"github.com/dexpace/morphic/compilers/openapi/internal/load"
-	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
-	"github.com/dexpace/morphic/engine/reader"
 	"github.com/dexpace/morphic/ir"
 )
 
-// TestBodyModelPointer_NoModelBehindBody covers the walk's dead ends on a
-// hand-built registry: an ID nothing declares, an opaque scalar, a kind that is
-// no model, and an alias chain that closes on itself. The last is what the bound
-// is for: no compile builds a closed alias chain, since a loop of $refs lowers
-// to the top type, but the walk reads whatever registry it is handed, and
-// without the bound would loop forever on one.
-func TestBodyModelPointer_NoModelBehindBody(t *testing.T) {
-	t.Parallel()
-	l := newRawLowerer(&soa.OpenAPI{})
-	l.types.Register("t/opaque", &ir.Scalar{ID: "t/opaque"})
-	l.types.Register("t/cycle/a", &ir.Scalar{
-		ID: "t/cycle/a", Base: &ir.TypeRef{Target: "t/cycle/b"},
-	})
-	l.types.Register("t/cycle/b", &ir.Scalar{
-		ID: "t/cycle/b", Base: &ir.TypeRef{Target: "t/cycle/a"},
-	})
-	prim := l.types.PrimID(ir.PrimString)
-
-	cases := []struct {
-		name string
-		body ir.TypeID
-	}{
-		{"an ID no registry entry declares", "t/absent"},
-		{"an opaque scalar standing for nothing", "t/opaque"},
-		{"a kind that declares no properties", prim},
-		{"an alias chain that closes on itself", "t/cycle/a"},
-	}
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-			model, ok := bodyModel(l.types.Node, tc.body)
-			assert.False(t, ok, "no model stands behind this body")
-			assert.Zero(t, model, "and no position is invented for one")
-		})
-	}
-}
-
-// TestBodySchemaPointer_LocalRefFragment pins the fallback's own ref hop, which
-// the production path reaches only for a body standing for no model: a $ref the
-// compiler resolved to a position in the source is keyed by that position.
-func TestBodySchemaPointer_LocalRefFragment(t *testing.T) {
-	t.Parallel()
-	l, js := refSite(t, "#/components/schemas/Form")
-	assert.Equal(t, keyed{pointer: "/components/schemas/Form"}, keyedAt(l.ctx, js))
-}
-
-// TestBodySchemaPointer_AnotherDocumentsRefKeysInThatDocument pins the document
-// half of a $ref deciding the key. Cutting the fragment off blindly turned
-// another document's property into an identity in this one, silently naming
-// whichever local schema shared the path. A document that is read keys the
-// entry in that document, whose IDs it qualifies; one that is not read, or
-// that the compile does not list, lands nowhere, so the local pointer stands.
-func TestBodySchemaPointer_AnotherDocumentsRefKeysInThatDocument(t *testing.T) {
-	t.Parallel()
-	t.Run("not read", func(t *testing.T) {
-		t.Parallel()
-		l, js := refSite(t, "./ext-form.yaml#/components/schemas/Form")
-		assert.Equal(t, local, keyedAt(l.ctx, js),
-			"a fragment from another document must not become a pointer into this one")
-	})
-
-	t.Run("read", func(t *testing.T) {
-		t.Parallel()
-		dir := t.TempDir()
-		require.NoError(t, os.WriteFile(filepath.Join(dir, "ext-form.yaml"),
-			[]byte("components:\n  schemas:\n    Form: {type: object}\n"), 0o600))
-		src := openapitest.ComponentSpec("    Form: {type: object}\n    Ref: {$ref: './ext-form.yaml#/components/schemas/Form'}\n")
-		l, _ := loweredAt(t, compilers.Source{Path: filepath.Join(dir, "spec.yaml"), Data: []byte(src)},
-			load.Options{Reader: reader.Disk{}})
-		js := refComponent(t, l)
-		e, ok := l.ctx.Bindings().Entry(js)
-		require.True(t, ok)
-		require.Equal(t, bind.Resolved, e.Hop.Status, "the $ref lands in the other document")
-
-		assert.Equal(t, keyed{doc: ids.In("ext-form.yaml"), pointer: "/components/schemas/Form"}, keyedAt(l.ctx, js),
-			"the other document's position, in its own IDs")
-
-		unlisted := lowering.New(0, &load.Document{Doc: l.ctx.Doc, Bindings: l.ctx.Bindings()}, lowering.Policy{})
-		assert.Equal(t, local, keyedAt(unlisted, js),
-			"a landing in a document the compile did not list keeps the local pointer")
-	})
-}
-
-// TestBodySchemaPointer_SelfNamedRefFollowsFragment pins the other half: a ref
-// spelling this document's own filename is internal, so its fragment is a
-// pointer here after all.
-func TestBodySchemaPointer_SelfNamedRefFollowsFragment(t *testing.T) {
-	t.Parallel()
-	l, js := refSite(t, "spec.yaml#/components/schemas/Form")
-	assert.Equal(t, keyed{pointer: "/components/schemas/Form"}, keyedAt(l.ctx, js))
-}
-
-// TestBodySchemaPointer_NonUTF8FragmentStaysLocal pins another reason a $ref
-// falls back to the local pointer: a fragment that decodes to bytes that are
-// not UTF-8 can never resolve, because no document key can spell them. Reading
-// it anyway would have carried the raw byte into a PropID the IR cannot encode
-// (GitHub #520).
-func TestBodySchemaPointer_NonUTF8FragmentStaysLocal(t *testing.T) {
-	t.Parallel()
-	l, js := refSite(t, "#/components/schemas/%FF")
-	assert.Equal(t, local, keyedAt(l.ctx, js), "a fragment that is not UTF-8 must not become a pointer")
-}
-
-// TestBodySchemaPointer_UnresolvedRefStaysLocal pins another reason: a $ref
-// naming nothing lands nowhere, so it keys no encoding entry by a position the
-// document does not hold.
-func TestBodySchemaPointer_UnresolvedRefStaysLocal(t *testing.T) {
-	t.Parallel()
-	l, js := refSite(t, "#/components/schemas/Missing")
-	assert.Equal(t, local, keyedAt(l.ctx, js))
-}
-
-// TestBodySchemaPointer_ExternalRefNoFragment pins that a $ref naming another
-// document with no fragment falls back to the local pointer.
-func TestBodySchemaPointer_ExternalRefNoFragment(t *testing.T) {
-	t.Parallel()
-	l, js := refSite(t, "external.yaml")
-	assert.Equal(t, local, keyedAt(l.ctx, js), "a fragmentless ref falls back to the local pointer")
-}
-
-func TestBodySchemaPointer_NilSchema(t *testing.T) {
-	t.Parallel()
-	l := newRawLowerer(&soa.OpenAPI{})
-	assert.Equal(t, local, keyedAt(l.ctx, nil))
-}
-
-// TestPartMembers_DeadEnds mirrors TestBodyModelPointer_NoModelBehindBody for
-// the members a part is keyed by: the same dead ends and a Base chain that
-// closes on itself. None may invent a property — a part keyed by a PropID
-// nothing declares is a dangling reference the encoding map would carry
-// silently — and a cyclic composition still yields the members it declares.
+// TestPartMembers_DeadEnds covers the walk's dead ends on a hand-built
+// registry: an ID nothing declares, an opaque scalar, a kind that is no model,
+// an alias chain that closes on itself, and a Base chain that closes on
+// itself. None may invent a property, which the encoding map would carry as a
+// dangling reference, and a cyclic composition still yields the members it
+// declares. No compile builds the alias cycle, but the walk reads whatever
+// registry it is handed, which is what its bound is for.
 func TestPartMembers_DeadEnds(t *testing.T) {
 	t.Parallel()
 	file := ir.Property{ID: "p/model/cycle/file", WireName: "file"}
@@ -178,36 +46,172 @@ func TestPartMembers_DeadEnds(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			assert.Empty(t, partMembers(reg, tc.body), "no property stands behind this body, and none is invented")
+			members, complete, _ := partMembers(reg, tc.body)
+			assert.Empty(t, members, "no property stands behind this body, and none is invented")
+			assert.True(t, complete)
 		})
 	}
-	members := partMembers(reg, "t/model/cycle")
-	require.Contains(t, members, "file", "a model whose base closes on itself still has its own members")
-	assert.Equal(t, file.ID, members["file"].ID)
+	members, complete, _ := partMembers(reg, "t/model/cycle")
+	require.Len(t, members["file"], 1, "a model whose base closes on itself still has its own members")
+	assert.Equal(t, file.ID, members["file"][0].ID)
+	assert.True(t, complete)
 }
 
 // TestPartMembers_AUnionBodyHasItsVariantsMembers pins a body standing for a
 // union, as one a composition is distributed across does, through an alias
-// too: its members are its variants', the first variant declaring a name naming
-// it, so a key names the body's own property on every variant.
+// too: its members are its variants', through a union nested in a variant,
+// each variant's declaration of a name in source order, and a declaration
+// several variants share listed once.
 func TestPartMembers_AUnionBodyHasItsVariantsMembers(t *testing.T) {
 	t.Parallel()
 	shared := ir.Property{ID: "p/body/file", WireName: "file"}
 	first := ir.Property{ID: "p/one/x", WireName: "x"}
+	second := ir.Property{ID: "p/two/x", WireName: "x"}
+	deep := ir.Property{ID: "p/deep/y", WireName: "y"}
 	reg := ir.TypeRegistry{
-		"t/one":   &ir.Model{ID: "t/one", Properties: []ir.Property{shared, first}},
-		"t/two":   &ir.Model{ID: "t/two", Properties: []ir.Property{shared, {ID: "p/two/x", WireName: "x"}}},
-		"t/u":     &ir.Union{ID: "t/u", Variants: []ir.Variant{{Type: ir.TypeRef{Target: "t/one"}}, {Type: ir.TypeRef{Target: "t/two"}}}},
+		"t/one":    &ir.Model{ID: "t/one", Properties: []ir.Property{shared, first}},
+		"t/two":    &ir.Model{ID: "t/two", Properties: []ir.Property{shared, second}},
+		"t/deep":   &ir.Model{ID: "t/deep", Properties: []ir.Property{deep, {ID: "p/deep/x", WireName: "x"}}},
+		"t/inner":  &ir.Union{ID: "t/inner", Variants: []ir.Variant{{Type: ir.TypeRef{Target: "t/deep"}}, {Type: ir.TypeRef{Target: "t/u"}}}},
+		"t/innera": &ir.Scalar{ID: "t/innera", Base: &ir.TypeRef{Target: "t/inner"}},
+		"t/u": &ir.Union{ID: "t/u", Variants: []ir.Variant{
+			{Type: ir.TypeRef{Target: "t/one"}}, {Type: ir.TypeRef{Target: "t/innera"}}, {Type: ir.TypeRef{Target: "t/two"}},
+		}},
 		"t/alias": &ir.Scalar{ID: "t/alias", Base: &ir.TypeRef{Target: "t/u"}},
 		"t/nil":   (*ir.Union)(nil),
 	}
-	for _, body := range []ir.TypeID{"t/u", "t/alias"} {
-		members := partMembers(reg, body)
-		require.Len(t, members, 2, "%s", body)
-		assert.Equal(t, shared.ID, members["file"].ID, "%s", body)
-		assert.Equal(t, first.ID, members["x"].ID, "the first variant declaring x names it: %s", body)
+	ids := func(props []*ir.Property) []ir.PropID {
+		out := make([]ir.PropID, 0, len(props))
+		for _, p := range props {
+			out = append(out, p.ID)
+		}
+		return out
 	}
-	assert.Empty(t, partMembers(reg, "t/nil"), "a typed nil union stands for no members")
+	for _, body := range []ir.TypeID{"t/u", "t/alias"} {
+		members, complete, _ := partMembers(reg, body)
+		assert.True(t, complete, "%s", body)
+		require.Len(t, members, 3, "%s", body)
+		assert.Equal(t, []ir.PropID{shared.ID}, ids(members["file"]), "a shared declaration is listed once: %s", body)
+		assert.Equal(t, []ir.PropID{first.ID, "p/deep/x", second.ID}, ids(members["x"]),
+			"each variant's declaration, in source order, the nested union's in its place: %s", body)
+		assert.Equal(t, []ir.PropID{deep.ID}, ids(members["y"]), "a nested union's variant's member: %s", body)
+	}
+	members, complete, _ := partMembers(reg, "t/nil")
+	assert.Empty(t, members, "a typed nil union stands for no members")
+	assert.True(t, complete)
+}
+
+// narrowingRegistry holds t/n, a model declaring note and composing t/u, a
+// union of t/a, declaring file, and t/b, declaring url; t/two, composing t/u
+// and t/v, two unions; and t/plain, which composes no union.
+func narrowingRegistry() ir.TypeRegistry {
+	str := ir.TypeRef{Target: "t/prim/string"}
+	model := func(id ir.TypeID, props []ir.Property, mixins ...ir.TypeID) *ir.Model {
+		m := &ir.Model{ID: id, Properties: props}
+		for _, mixin := range mixins {
+			m.Mixins = append(m.Mixins, ir.TypeRef{Target: mixin})
+		}
+		return m
+	}
+	union := func(id ir.TypeID, variants ...ir.TypeID) *ir.Union {
+		u := &ir.Union{ID: id}
+		for _, v := range variants {
+			u.Variants = append(u.Variants, ir.Variant{Type: ir.TypeRef{Target: v}})
+		}
+		return u
+	}
+	return ir.TypeRegistry{
+		"t/prim/string": &ir.Primitive{ID: "t/prim/string", Prim: ir.PrimString},
+		"t/a":           model("t/a", []ir.Property{{ID: "p/a/file", WireName: "file", Type: str}}),
+		"t/b":           model("t/b", []ir.Property{{ID: "p/b/url", WireName: "url", Type: str}}),
+		"t/c":           model("t/c", []ir.Property{{ID: "p/c/id", WireName: "id", Type: str}}),
+		"t/u":           union("t/u", "t/a", "t/b"),
+		"t/v":           union("t/v", "t/c"),
+		"t/n":           model("t/n", []ir.Property{{ID: "p/n/note", WireName: "note", Type: str}}, "t/u"),
+		"t/two":         model("t/two", nil, "t/u", "t/v"),
+		"t/plain":       model("t/plain", []ir.Property{{ID: "p/plain/x", WireName: "x", Type: str}}),
+	}
+}
+
+// TestPartMembers_AModelNarrowingAUnionHasItsShapesMembers pins a body that is
+// a model narrowing a union to its own members and each shape's, so a part
+// only a variant declares has a declaration to key, and a model narrowing two
+// unions, whose shapes ir.NarrowedShapes does not list, to its own alone,
+// named as unread.
+func TestPartMembers_AModelNarrowingAUnionHasItsShapesMembers(t *testing.T) {
+	t.Parallel()
+	reg := narrowingRegistry()
+	members, complete, unread := partMembers(reg, "t/n")
+	assert.True(t, complete)
+	assert.Empty(t, unread)
+	got := map[string][]ir.PropID{}
+	for name, decls := range members {
+		for _, d := range decls {
+			got[name] = append(got[name], d.ID)
+		}
+	}
+	assert.Equal(t, map[string][]ir.PropID{"note": {"p/n/note"}, "file": {"p/a/file"}, "url": {"p/b/url"}}, got)
+
+	members, _, unread = partMembers(reg, "t/two")
+	assert.Empty(t, members)
+	assert.Equal(t, []unreadNarrowing{{model: "t/two", why: "several"}}, unread)
+}
+
+// TestShapeFlattenings_ReadsShapesWithinItsLimit pins the shapes read to a
+// model narrowing a union, none to one composing no union, and a narrowing
+// whose walk passes the limit to none, named as unread past it.
+func TestShapeFlattenings_ReadsShapesWithinItsLimit(t *testing.T) {
+	t.Parallel()
+	reg := narrowingRegistry()
+	shapes, why := shapeFlattenings(reg, "t/n", ir.FlattenedProperties(reg, "t/n"), maxNarrowedSteps)
+	assert.Nil(t, why)
+	assert.Len(t, shapes, 2, "one shape for each variant")
+	shapes, why = shapeFlattenings(reg, "t/plain", ir.FlattenedProperties(reg, "t/plain"), maxNarrowedSteps)
+	assert.Nil(t, why)
+	assert.Empty(t, shapes)
+	shapes, why = shapeFlattenings(reg, "t/n", ir.FlattenedProperties(reg, "t/n"), 1)
+	assert.Empty(t, shapes)
+	assert.Equal(t, &unreadNarrowing{model: "t/n", why: "past 1 steps"}, why)
+}
+
+// TestDeclaredProp_PlacesNothingTheBindingsDoNot pins that a schema the
+// bindings never read names no property, so a part's reading keeps it.
+func TestDeclaredProp_PlacesNothingTheBindingsDoNot(t *testing.T) {
+	t.Parallel()
+	l := newRawLowerer(&soa.OpenAPI{})
+	_, ok := declaredProp(l.ctx, oas3.NewJSONSchemaFromSchema[oas3.Referenceable](&oas3.Schema{}))
+	assert.False(t, ok)
+}
+
+// TestMemberHolders_StopsPastItsBound pins that the union walk reads
+// maxPartUnions unions and says it stopped past them, keeping the holders it
+// reached, and that a chain at the bound is read whole.
+func TestMemberHolders_StopsPastItsBound(t *testing.T) {
+	t.Parallel()
+	chain := func(unions int) (ir.TypeRegistry, ir.TypeID) {
+		reg := ir.TypeRegistry{}
+		for i := range unions {
+			variants := []ir.Variant{{Type: ir.TypeRef{Target: ir.TypeID(fmt.Sprintf("t/m/%d", i))}}}
+			if i+1 < unions {
+				variants = append(variants, ir.Variant{Type: ir.TypeRef{Target: ir.TypeID(fmt.Sprintf("t/u/%d", i+1))}})
+			}
+			reg[ir.TypeID(fmt.Sprintf("t/u/%d", i))] = &ir.Union{ID: ir.TypeID(fmt.Sprintf("t/u/%d", i)), Variants: variants}
+			reg[ir.TypeID(fmt.Sprintf("t/m/%d", i))] = &ir.Model{ID: ir.TypeID(fmt.Sprintf("t/m/%d", i))}
+		}
+		return reg, "t/u/0"
+	}
+	node := func(reg ir.TypeRegistry) func(ir.TypeID) (ir.TypeDef, bool) {
+		return func(id ir.TypeID) (ir.TypeDef, bool) { td, ok := reg[id]; return td, ok }
+	}
+	reg, body := chain(maxPartUnions)
+	holders, complete := memberHolders(node(reg), body)
+	assert.True(t, complete, "a chain of maxPartUnions unions is read whole")
+	assert.Len(t, holders, maxPartUnions)
+
+	reg, body = chain(maxPartUnions + 1)
+	holders, complete = memberHolders(node(reg), body)
+	assert.False(t, complete, "one union more is past the bound")
+	assert.Len(t, holders, maxPartUnions, "the holders the walk reached are kept")
 }
 
 // TestBodyParts_RefHopBound covers the walk's $ref hop bound: past it the walk
@@ -393,40 +397,6 @@ func registered(l *lowerer, node ir.TypeDef) ir.TypeID {
 	return id
 }
 
-// refSite loads a source declaring a component Ref whose $ref spells ref, and
-// the object schema Form it may name, and returns the lowerer over it with the
-// schema Ref: the position bodySchemaPointer is asked about.
-func refSite(t *testing.T, ref string) (*lowerer, *oas3.JSONSchema[oas3.Referenceable]) {
-	t.Helper()
-	l, _ := loweredFor(t, openapitest.ComponentSpec("    Form: {type: object}\n    Ref: {$ref: '"+ref+"'}\n"))
-	return l, refComponent(t, l)
-}
-
-// local is the source's "/local", the pointer keyedAt falls back to.
-var local = keyed{pointer: "/local"}
-
-// keyedAt is bodySchemaPointer's answer for js under c, falling back to
-// "/local", as one comparable value.
-func keyedAt(c lowering.Ctx, js *oas3.JSONSchema[oas3.Referenceable]) keyed {
-	d, p := bodySchemaPointer(c, js, "/local")
-	return keyed{doc: d, pointer: p}
-}
-
-// keyed is where bodySchemaPointer keys an encoding entry: a document and a
-// pointer there.
-type keyed struct {
-	doc     ids.Document
-	pointer jsontext.Pointer
-}
-
-// refComponent returns the component Ref of the document l holds.
-func refComponent(t *testing.T, l *lowerer) *oas3.JSONSchema[oas3.Referenceable] {
-	t.Helper()
-	js, ok := l.ctx.Doc.Components.Schemas.Get("Ref")
-	require.True(t, ok, "the fixture declares component Ref")
-	return js
-}
-
 // TestPartEncodingEmpty_ReadsEveryField holds partEncodingEmpty to every field
 // ir.PartEncoding declares: each, set alone, makes the encoding one to keep. A
 // field the check skipped would leave a part declaring only that field out of
@@ -457,4 +427,145 @@ func TestPartEncodingEmpty_ReadsEveryField(t *testing.T) {
 			assert.False(t, partEncodingEmpty(pe), "a part declaring only %s keeps its encoding", f.Name)
 		})
 	}
+}
+
+// TestDeclaredMulti_ReadsEveryDeclaration holds whether a part repeats, read
+// off its declarations where its type does not decide it, to each
+// declaration: an array repeats, and so does a union writing no type of its
+// own with an array branch, and nothing else does.
+func TestDeclaredMulti_ReadsEveryDeclaration(t *testing.T) {
+	t.Parallel()
+	l, _ := loweredFor(t, openapitest.ComponentSpec("    Bin: {type: string, format: binary}\n"+
+		"    List: {type: array, items: {type: string}}\n"+
+		"    Either: {oneOf: [{type: string}, {type: array, items: {type: string}}]}\n"+
+		"    Typed: {type: string, oneOf: [{type: array, items: {type: string}}]}\n"))
+	get := func(name string) *oas3.JSONSchema[oas3.Referenceable] {
+		js, ok := l.ctx.Doc.Components.Schemas.Get(name)
+		require.True(t, ok, name)
+		return js
+	}
+	for _, tc := range []struct {
+		name    string
+		schemas []string
+		multi   bool
+	}{
+		{"binary", []string{"Bin"}, false},
+		{"an array beside binary", []string{"Bin", "List"}, true},
+		{"a union with an array branch", []string{"Either"}, true},
+		{"a union beside a type of its own", []string{"Typed"}, false},
+	} {
+		var schemas []*oas3.JSONSchema[oas3.Referenceable]
+		for _, name := range tc.schemas {
+			schemas = append(schemas, get(name))
+		}
+		assert.Equal(t, tc.multi, declaredMulti(l.ctx.Bindings(), schemas), tc.name)
+	}
+}
+
+// TestPartWalk_DecidesKeysOnlyWhereItReadsEveryDeclaration holds whether a key
+// naming none of a body's parts names no property to each keyword that can
+// admit a member or declare a property the walk does not read, written alone
+// beside a property, and to a body writing none of them.
+func TestPartWalk_DecidesKeysOnlyWhereItReadsEveryDeclaration(t *testing.T) {
+	t.Parallel()
+	const base = "type: object, properties: {a: {type: string}}"
+	for _, tc := range []struct {
+		name, schema string
+		decides      bool
+	}{
+		{"nothing beside", "{" + base + "}", true},
+		{"an annotation, an assertion and an extension beside", "{" + base + ", description: d, minProperties: 1, x-k: 1}", true},
+		{"an annotation beside a $ref", "{$ref: '#/components/schemas/Form', description: d}", true},
+		{"additionalProperties false", "{" + base + ", additionalProperties: false}", true},
+		{"additionalProperties", "{" + base + ", additionalProperties: {type: string}}", false},
+		{"additionalProperties true", "{" + base + ", additionalProperties: true}", false},
+		{"unevaluatedProperties", "{" + base + ", unevaluatedProperties: {type: string}}", false},
+		{"unevaluatedProperties false", "{" + base + ", unevaluatedProperties: false}", true},
+		{"patternProperties", "{" + base + ", patternProperties: {'^x': {type: string}}}", false},
+		{"if", "{" + base + ", if: {required: [a]}}", false},
+		{"then", "{" + base + ", then: {properties: {b: {type: string}}}}", false},
+		{"else", "{" + base + ", else: {properties: {b: {type: string}}}}", false},
+		{"dependentSchemas", "{" + base + ", dependentSchemas: {a: {properties: {b: {type: string}}}}}", false},
+		{"$dynamicRef", "{" + base + ", $dynamicRef: '#/components/schemas/Form'}", false},
+		{"properties beside a $ref", "{$ref: '#/components/schemas/Form', properties: {b: {type: string}}}", false},
+		{"allOf beside a $ref", "{$ref: '#/components/schemas/Form', allOf: [{properties: {b: {type: string}}}]}", false},
+		{"oneOf beside a $ref", "{$ref: '#/components/schemas/Form', oneOf: [{properties: {b: {type: string}}}]}", false},
+		{"anyOf beside a $ref", "{$ref: '#/components/schemas/Form', anyOf: [{properties: {b: {type: string}}}]}", false},
+		{"a catch-all beside a $ref", "{$ref: '#/components/schemas/Form', additionalProperties: true}", false},
+		{"then beside a $ref", "{$ref: '#/components/schemas/Form', then: {properties: {b: {type: string}}}}", false},
+		{"a bare $ref chain", "{$ref: '#/components/schemas/Hop'}", true},
+		{"a $ref resolving to nothing", "{$ref: '#/components/schemas/Missing'}", false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			l, _ := loweredFor(t, openapitest.ComponentSpec("    Form: {"+base+"}\n    Hop: {$ref: '#/components/schemas/Form'}\n    Body: "+tc.schema+"\n"))
+			js, ok := l.ctx.Doc.Components.Schemas.Get("Body")
+			require.True(t, ok)
+			assert.Equal(t, tc.decides, walkBodyParts(l.ctx.Bindings(), js).decidesKeys())
+		})
+	}
+}
+
+// TestPartWalk_ReadsARefChainToItsBound holds the $ref chain whose sites the
+// walk reads for properties written beside each $ref to maxBodyAliasHops
+// sites: a chain of one fewer is read whole and decides a key, and a chain of
+// as many leaves a key undecided, as a site past the bound may write one.
+func TestPartWalk_ReadsARefChainToItsBound(t *testing.T) {
+	t.Parallel()
+	chain := func(sites int) string {
+		var b strings.Builder
+		for i := range sites {
+			fmt.Fprintf(&b, "    L%d: {$ref: '#/components/schemas/L%d'}\n", i, i+1)
+		}
+		fmt.Fprintf(&b, "    L%d: {type: object, properties: {a: {type: string}}}\n", sites)
+		return b.String()
+	}
+	for sites, decides := range map[int]bool{maxBodyAliasHops - 1: true, maxBodyAliasHops: false} {
+		l, _ := loweredFor(t, openapitest.ComponentSpec(chain(sites)))
+		js, ok := l.ctx.Doc.Components.Schemas.Get("L0")
+		require.True(t, ok)
+		w := walkBodyParts(l.ctx.Bindings(), js)
+		require.Len(t, w.parts, 1, "the walk reads the chain's end at %d sites", sites)
+		assert.Equal(t, decides, w.decidesKeys(), "%d sites", sites)
+	}
+}
+
+// TestDeclarationSchemas_PlacesEachSchemaOnce holds the schemas of a part n
+// union branches declare to one for each branch's declaration, a schema
+// declaring none of them to every one, and their reading to a cost linear in
+// n: placing every schema for every declaration costs n², so doubling n would
+// quadruple it. It is not run in parallel: AllocsPerRun measures the process.
+func TestDeclarationSchemas_PlacesEachSchemaOnce(t *testing.T) {
+	unplaced := oas3.NewJSONSchemaFromSchema[oas3.Referenceable](&oas3.Schema{})
+	read := func(n int) (map[ir.PropID][]*oas3.JSONSchema[oas3.Referenceable], []*ir.Property, float64) {
+		var b strings.Builder
+		b.WriteString("    U:\n      oneOf:\n")
+		for range n {
+			b.WriteString("        - {type: object, properties: {file: {type: string}}}\n")
+		}
+		l, _ := loweredFor(t, openapitest.ComponentSpec(b.String()))
+		js, ok := l.ctx.Doc.Components.Schemas.Get("U")
+		require.True(t, ok)
+		w := walkBodyParts(l.ctx.Bindings(), js)
+		require.Len(t, w.parts, 1)
+		part := w.parts[0]
+		require.Len(t, part.schemas, n)
+		decls := make([]*ir.Property, 0, n)
+		for _, s := range part.schemas {
+			id, placed := declaredProp(l.ctx, s)
+			require.True(t, placed)
+			decls = append(decls, &ir.Property{ID: id})
+		}
+		cost := testing.AllocsPerRun(5, func() { declarationSchemas(l.ctx, part, decls) })
+		part.schemas = append(part.schemas, unplaced)
+		return declarationSchemas(l.ctx, part, decls), decls, cost
+	}
+	schemas, decls, few := read(50)
+	for i, d := range decls {
+		require.Len(t, schemas[d.ID], 2, "declaration %d", i)
+		assert.NotSame(t, unplaced, schemas[d.ID][0], "declaration %d reads its own schema", i)
+		assert.Same(t, unplaced, schemas[d.ID][1], "and the one no declaration is written as, after it: %d", i)
+	}
+	_, _, many := read(100)
+	assert.Less(t, many, 3*few, "doubling the branches costs %v allocations against %v", many, few)
 }

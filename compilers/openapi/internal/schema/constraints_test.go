@@ -1127,31 +1127,40 @@ func heldBounds(td ir.TypeDef) *ir.Constraints {
 }
 
 // TestConstraints_ACountAVariantKeepsIsKeptOnce pins a count no field states
-// beside a type array: kept where the variant reading it keeps it, and not
-// again on the union, with one report, and on the union alone where no variant
-// reads it.
+// beside a type array: kept where the variant whose type reads it keeps it, and
+// not again on the union, with one report, and on the union alone where no
+// listed type reads it.
 func TestConstraints_ACountAVariantKeepsIsKeptOnce(t *testing.T) {
 	t.Parallel()
 	doc, diags := parseFull(t, openapitest.ComponentSpec(
-		"    Obj: {type: [string, object], properties: {a: {type: string}}, maxLength: 99999999999999999999}\n"+
-			"    Bare: {type: [string, integer], maxLength: 99999999999999999999}\n"))
+		"    Obj: {type: [object, string], properties: {a: {type: string}}, maxLength: 99999999999999999999}\n"+
+			"    Bare: {type: [string, integer], maxLength: 99999999999999999999}\n"+
+			"    None: {type: [integer, boolean], maxLength: 99999999999999999999}\n"))
 	openapitest.RequireNoErrorDiags(t, diags)
-	assert.Empty(t, typeByName(doc, "Obj").Common().Unmodeled, "the union keeps nothing a variant kept")
-	assert.True(t, openapitest.HasDiagCodeAt(diags, diag.DegradedConstruct, "/components/schemas/Obj/type/1"))
-	assert.Equal(t, []string{"openapi:maxLength"}, unmodeledKeys(typeByName(doc, "Bare").Common().Unmodeled))
-	assert.True(t, openapitest.HasDiagCodeAt(diags, diag.DegradedConstruct, "/components/schemas/Bare"))
-	assert.Len(t, diags, 2, "%+v", diags)
+	for name, at := range map[string]string{"Obj": "type/1", "Bare": "type/0"} {
+		assert.Empty(t, typeByName(doc, name).Common().Unmodeled, "the union keeps nothing a variant kept")
+		variant := doc.Types[ir.TypeID("t/anon/components/schemas/"+name+"/"+at)]
+		require.NotNil(t, variant, name)
+		assert.Equal(t, []string{"openapi:maxLength"}, unmodeledKeys(variant.Common().Unmodeled), name)
+		assert.True(t, openapitest.HasDiagCodeAt(diags, diag.DegradedConstruct, "/components/schemas/"+name+"/"+at), name)
+	}
+	assert.Equal(t, []string{"openapi:maxLength"}, unmodeledKeys(typeByName(doc, "None").Common().Unmodeled))
+	assert.Contains(t, openapitest.DiagMessageAt(t, diags, diag.DegradedConstruct, ir.SeverityInfo,
+		"/components/schemas/None"), "which has no home for maxLength")
+	assert.Len(t, diags, 3, "%+v", diags)
 }
 
 // TestConstraints_AModifierBoundingNothingIsReportedOnce pins the census to what
 // the reader of a node's bounds kept: a 3.0 exclusive modifier with no bound
 // beside it, on a node whose Constraints it leaves empty, is kept and warned of
-// by that reader, and not kept again and reported as having no home.
+// by that reader, and not kept again and reported as having no home. A type
+// that takes no numeric bound reads none: the census keeps it, with its info and
+// no warning (TestConstraints_AModifierATypeCannotTakeIsKeptByTheCensus).
 func TestConstraints_AModifierBoundingNothingIsReportedOnce(t *testing.T) {
 	t.Parallel()
 	doc, diags := parseFull(t, openapitest.ComponentSpecVer("3.0.3",
-		"    M: {type: object, properties: {a: {type: string}}, exclusiveMinimum: true}\n"+
-			"    S: {type: string, format: x-f, exclusiveMinimum: true}\n"))
+		"    M: {properties: {a: {type: string}}, exclusiveMinimum: true}\n"+
+			"    S: {type: number, format: x-f, exclusiveMinimum: true}\n"))
 	openapitest.RequireNoErrorDiags(t, diags)
 	for _, name := range []string{"M", "S"} {
 		assert.Equal(t, []string{"openapi:exclusiveMinimum"}, unmodeledKeys(typeByName(doc, name).Common().Unmodeled), name)

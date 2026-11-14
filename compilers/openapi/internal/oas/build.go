@@ -98,6 +98,13 @@ func (f Field) decimal() Field {
 	return f
 }
 
+// within adds a media type under which the field takes effect at the minors
+// in s.
+func (f Field) within(mediaType string, s Span, cites ...Cite) Field {
+	f.Within = append(f.Within, Within{MediaType: mediaType, Span: s, Cites: cites})
+	return f
+}
+
 // keyword marks the field a JSON Schema keyword.
 func (f Field) keyword() Field {
 	f.Keyword = true
@@ -135,6 +142,18 @@ func pattern(name string, shape Shape, k Kind, cites ...Cite) Pattern {
 // keyed sets the syntax of the pattern's keys.
 func (p Pattern) keyed(format Format) Pattern {
 	p.Keys = format
+	return p
+}
+
+// during narrows the minors that admit the pattern.
+func (p Pattern) during(s Span) Pattern {
+	p.Span = s
+	return p
+}
+
+// byURI marks a key that may be the URI of the object it names.
+func (p Pattern) byURI() Pattern {
+	p.ByURI = true
 	return p
 }
 
@@ -241,8 +260,9 @@ const (
 	ownerAnnotation = "annotation"
 )
 
-// fieldDefault returns the value field takes where its object leaves it
-// unwritten, for a value of case k, at the minors s holds.
-func fieldDefault(field string, k DefaultCase, value string, s Span, cites ...Cite) Default {
-	return Default{Field: field, Value: value, Cites: cites, Span: s, Case: k}
+// contentTypeDefault returns the value an Encoding Object's contentType takes
+// where the object leaves it unwritten, for a value of case k, at the minors s
+// holds.
+func contentTypeDefault(k DefaultCase, value string, s Span, cites ...Cite) Default {
+	return Default{Field: "contentType", Value: value, Cites: cites, Span: s, Case: k}
 }
