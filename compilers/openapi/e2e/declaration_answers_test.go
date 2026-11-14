@@ -20,8 +20,10 @@ import (
 const (
 	// trustedPet is the identifier a hostile document claims.
 	trustedPet = "https://trusted.example/pet.yaml"
-	// hijackDoc declares trustedPet for a schema of its own and refers to it.
-	hijackDoc = "Z: {$id: '" + trustedPet + "', type: object, description: HIJACK}\nW: {$ref: '" + trustedPet + "'}\n"
+	// hijackDoc is GitHub #1942's hijack.yaml, a Y the source refers to and a Z
+	// declaring trustedPet, with a W of its own referring to that URL.
+	hijackDoc = "Y: {type: string}\nZ: {$id: \"" + trustedPet + "\", type: object, description: \"from the other host\"}\n" +
+		"W: {$ref: '" + trustedPet + "'}\n"
 )
 
 // trusted starts the server that stands for trusted.example: it serves docs,
@@ -57,12 +59,12 @@ func compileTrusted(t *testing.T, src string, rec compilers.DocumentReader) (*ir
 	return compileWithReader(t, "spec.yaml", src, openapi.Options{AllowExternalRefs: true}, rec)
 }
 
-// TestCompile_ADocumentAnotherOriginServesDeclaresNothingForTheSource holds a
-// document fetched from one host that declares an $id of another to answer no
-// reference to that URL from a document that did not fetch it: the source's
-// reference reads the URL, from the host it names, once, while the fetched
-// document's own reference to it is answered by its own declaration. Both
-// orders.
+// TestCompile_ADocumentAnotherOriginServesDeclaresNothingForTheSource holds
+// GitHub #1942's documents: one fetched from one host that declares an $id of
+// another answers no reference to that URL from a document that did not fetch
+// it, so the source's Pet reads the URL, from the host it names, once, while
+// the fetched document's own reference to it is answered by its own
+// declaration. Both orders.
 func TestCompile_ADocumentAnotherOriginServesDeclaresNothingForTheSource(t *testing.T) {
 	t.Parallel()
 	for name, order := range map[string][2]string{"pet first": {"Pet", "H"}, "hijack first": {"H", "Pet"}} {
@@ -71,7 +73,7 @@ func TestCompile_ADocumentAnotherOriginServesDeclaresNothingForTheSource(t *test
 			remote, rec := trusted(t, map[string]string{"/pet.yaml": "{type: object, description: real}\n"})
 			hijack := serveDocs(t, map[string]string{"/hijack.yaml": hijackDoc})
 			refs := map[string]string{"Pet": trustedPet, "H": hijack.URL + "/hijack.yaml#/W"}
-			src := head31 + "paths: {}\ncomponents:\n  schemas:\n"
+			src := head31 + "paths: {}\ncomponents:\n  schemas:\n    A: {$ref: '" + hijack.URL + "/hijack.yaml#/Y'}\n"
 			for _, k := range order {
 				src += "    " + k + ": {$ref: '" + refs[k] + "'}\n"
 			}
@@ -80,7 +82,8 @@ func TestCompile_ADocumentAnotherOriginServesDeclaresNothingForTheSource(t *test
 
 			assertNoErrorDiags(t, diags)
 			assert.Equal(t, "real", describedBy(t, doc, aliasTarget(t, doc, "Pet")), "the host the URL names answers it")
-			assert.Equal(t, "HIJACK", describedBy(t, doc, aliasTarget(t, doc, "H")), "the document's own declaration answers its own reference")
+			assert.Equal(t, "from the other host", describedBy(t, doc, aliasTarget(t, doc, "H")),
+				"the document's own declaration answers its own reference")
 			assert.Equal(t, []string{"/pet.yaml"}, remote.requests())
 			assert.Equal(t, []string{"/hijack.yaml"}, hijack.requests())
 		})
