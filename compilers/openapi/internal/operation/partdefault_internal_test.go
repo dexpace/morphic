@@ -23,6 +23,7 @@ func defaultsRegistry() ir.TypeRegistry {
 	prim := func(k ir.PrimKind) ir.TypeRef { return ref(ir.PrimTypeID(k)) }
 	reg := ir.TypeRegistry{
 		"t/base64":    &ir.Scalar{ID: "t/base64", Base: new(prim(ir.PrimBytes)), Encoding: &ir.Encoding{Name: "base64"}},
+		"t/base64url": &ir.Scalar{ID: "t/base64url", Base: new(prim(ir.PrimBytes)), Encoding: &ir.Encoding{Name: "base64url"}},
 		"t/email":     &ir.Scalar{ID: "t/email", Base: new(prim(ir.PrimString)), Encoding: &ir.Encoding{Name: "email"}},
 		"t/opaque":    &ir.Scalar{ID: "t/opaque"},
 		"t/enum":      &ir.Enum{ID: "t/enum", ValueType: ir.PrimInt32},
@@ -79,6 +80,8 @@ func TestDefaultContentType_ReadsEachValueByItsRow(t *testing.T) {
 		{"format byte", "t/base64", unencoded, octet, text, text},
 		{"format byte writing contentEncoding", "t/base64", encoded, octet, octet, octet},
 		{"format byte, contentEncoding written by some declarations", "t/base64", partlyEncoded, "", "", ""},
+		{"format base64url", "t/base64url", unencoded, text, text, text},
+		{"format base64url writing contentEncoding", "t/base64url", encoded, text, octet, octet},
 		{"a string a format names", "t/email", unencoded, text, text, text},
 		{"a string writing contentEncoding", "t/email", encoded, text, octet, octet},
 		{"a string, contentEncoding written by some declarations", "t/email", partlyEncoded, "", "", ""},
@@ -198,10 +201,10 @@ func TestReadContentEncoding_ReadsEveryDeclaration(t *testing.T) {
 // zero case, which takes no default.
 func TestPrimitiveCase_KeysEachKind(t *testing.T) {
 	t.Parallel()
-	assert.Zero(t, primitiveCase("no-such-kind", false, unencoded))
-	assert.Equal(t, oas.DefaultScalar, primitiveCase(ir.PrimInt64, true, partlyEncoded),
+	assert.Zero(t, primitiveCase("no-such-kind", "", unencoded))
+	assert.Equal(t, oas.DefaultScalar, primitiveCase(ir.PrimInt64, "base64", partlyEncoded),
 		"a number takes its row whatever contentEncoding says")
-	assert.Equal(t, oas.DefaultRawBinary, primitiveCase(ir.PrimBytes, false, partlyEncoded),
+	assert.Equal(t, oas.DefaultRawBinary, primitiveCase(ir.PrimBytes, "", partlyEncoded),
 		"raw bytes take theirs too")
-	assert.Equal(t, oas.DefaultUntyped, primitiveCase(ir.PrimAny, true, encoded), "and an untyped value its")
+	assert.Equal(t, oas.DefaultUntyped, primitiveCase(ir.PrimAny, "base64", encoded), "and an untyped value its")
 }

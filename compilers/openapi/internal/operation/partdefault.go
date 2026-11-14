@@ -154,10 +154,10 @@ type valueReading struct {
 }
 
 // readValue reads the value of type ref as its default content type is keyed
-// (valueReading), through the alias scalars on its chain, noting a scalar that
-// names an encoding, and bounded by maxBodyAliasHops.
+// (valueReading), through the alias scalars on its chain, noting the encoding
+// the first scalar naming one names, and bounded by maxBodyAliasHops.
 func readValue(node func(ir.TypeID) (ir.TypeDef, bool), rules oas.EncodingRules, ref ir.TypeRef, encodedBy contentEncoding) valueReading {
-	named := false
+	encoding := ""
 	id := ref.Target
 	for range maxBodyAliasHops {
 		td, found := node(id)
@@ -165,20 +165,22 @@ func readValue(node func(ir.TypeID) (ir.TypeDef, bool), rules oas.EncodingRules,
 			return valueReading{}
 		}
 		if s, alias := td.(*ir.Scalar); alias && s != nil && s.Base != nil {
-			named = named || s.Encoding != nil && s.Encoding.Name != ""
+			if encoding == "" && s.Encoding != nil {
+				encoding = s.Encoding.Name
+			}
 			id = s.Base.Target
 			continue
 		}
-		return readNode(node, rules, td, named, encodedBy)
+		return readNode(node, rules, td, encoding, encodedBy)
 	}
 	return valueReading{}
 }
 
-// readNode reads td, the node a value's alias chain ends on, named saying a
-// scalar on the chain names an encoding: a primitive, an enum and a literal by
+// readNode reads td, the node a value's alias chain ends on, encoding being
+// the one a scalar on the chain names: a primitive, an enum and a literal by
 // their primitive (primitiveCase), a model and a map as objects, an array
 // inside an array by its row or else its items, and a union by its members.
-func readNode(node func(ir.TypeID) (ir.TypeDef, bool), rules oas.EncodingRules, td ir.TypeDef, named bool, encodedBy contentEncoding) valueReading {
+func readNode(node func(ir.TypeID) (ir.TypeDef, bool), rules oas.EncodingRules, td ir.TypeDef, encoding string, encodedBy contentEncoding) valueReading {
 	if elems, isArray := elementsOf(td); isArray {
 		if ct, ok := rules.ContentType(oas.DefaultNestedArray); ok {
 			return valueReading{contentType: ct}
@@ -187,11 +189,11 @@ func readNode(node func(ir.TypeID) (ir.TypeDef, bool), rules oas.EncodingRules, 
 	}
 	switch t := td.(type) {
 	case *ir.Primitive:
-		return byCase(rules, primitiveCase(t.Prim, named, encodedBy))
+		return byCase(rules, primitiveCase(t.Prim, encoding, encodedBy))
 	case *ir.Enum:
-		return byCase(rules, primitiveCase(t.ValueType, named, encodedBy))
+		return byCase(rules, primitiveCase(t.ValueType, encoding, encodedBy))
 	case *ir.Literal:
-		return readLiteral(rules, t, named, encodedBy)
+		return readLiteral(rules, t, encoding, encodedBy)
 	case *ir.Model, *ir.MapT:
 		return byCase(rules, oas.DefaultObject)
 	case *ir.Union:
@@ -206,10 +208,10 @@ func readNode(node func(ir.TypeID) (ir.TypeDef, bool), rules oas.EncodingRules, 
 
 // readLiteral reads a literal by its primitive, or, where it has none, by its
 // value: null takes no content type, and an object one as an object does.
-func readLiteral(rules oas.EncodingRules, l *ir.Literal, named bool, encodedBy contentEncoding) valueReading {
+func readLiteral(rules oas.EncodingRules, l *ir.Literal, encoding string, encodedBy contentEncoding) valueReading {
 	switch {
 	case l.ValueType != "":
-		return byCase(rules, primitiveCase(l.ValueType, named, encodedBy))
+		return byCase(rules, primitiveCase(l.ValueType, encoding, encodedBy))
 	case l.Value.Kind == ir.ValueNull:
 		return valueReading{null: true}
 	case l.Value.Kind == ir.ValueObject:
@@ -225,20 +227,30 @@ func byCase(rules oas.EncodingRules, k oas.DefaultCase) valueReading {
 	return valueReading{contentType: ct}
 }
 
+// byteFormatEncoding is the encoding the schema lowering names `format: byte`
+// by: of the formats it lowers to bytes sent as text, the one OpenAPI 3.0's
+// table gives a row of its own, where `base64url` takes a string's.
+const byteFormatEncoding = "base64"
+
 // primitiveCase is the case OpenAPI's table keys a value of primitive kind p
-// by, named saying a scalar over it names an encoding: bytes no scalar
-// re-encodes are raw binary, bytes one does a string of format byte, and those
-// and other strings are keyed by whether they write contentEncoding
-// (encodedCase). The zero case, which has no row, is a kind of none.
-func primitiveCase(p ir.PrimKind, named bool, encodedBy contentEncoding) oas.DefaultCase {
+// by, encoding being the one a scalar over it names: bytes no scalar
+// re-encodes are raw binary, bytes base64 re-encodes a string of format byte,
+// bytes another encoding re-encodes, as base64url does, any other string, and
+// strings are keyed by whether they write contentEncoding (encodedCase). The
+// zero case, which has no row, is a kind of none.
+func primitiveCase(p ir.PrimKind, encoding string, encodedBy contentEncoding) oas.DefaultCase {
 	switch p {
 	case ir.PrimAny:
 		return oas.DefaultUntyped
 	case ir.PrimBytes:
-		if !named {
+		switch encoding {
+		case "":
 			return oas.DefaultRawBinary
+		case byteFormatEncoding:
+			return encodedCase(encodedBy, oas.DefaultByteFormat, oas.DefaultEncodedByteFormat)
+		default:
+			return encodedCase(encodedBy, oas.DefaultString, oas.DefaultContentEncoded)
 		}
-		return encodedCase(encodedBy, oas.DefaultByteFormat, oas.DefaultEncodedByteFormat)
 	case ir.PrimString, ir.PrimDate, ir.PrimTime, ir.PrimDatetime, ir.PrimDatetimeOffset, ir.PrimDuration,
 		ir.PrimURL, ir.PrimUUID:
 		return encodedCase(encodedBy, oas.DefaultString, oas.DefaultContentEncoded)

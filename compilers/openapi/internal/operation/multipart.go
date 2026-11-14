@@ -786,7 +786,7 @@ func memberFlags(node func(ir.TypeID) (ir.TypeDef, bool), ref ir.TypeRef, multip
 		case *ir.Primitive:
 			return false, multipart && rawBytes(node, ref), true
 		case *ir.Scalar:
-			if t.Base == nil || encodedAsText(t) {
+			if t.Base == nil {
 				return false, false, true
 			}
 			id = t.Base.Target
@@ -795,15 +795,6 @@ func memberFlags(node func(ir.TypeID) (ir.TypeDef, bool), ref ir.TypeRef, multip
 		}
 	}
 	return false, false, true
-}
-
-// encodedAsText reports whether s is a value a format writes as the text its
-// Encoding's WireType names, as `format: base64url` writes bytes, which a part
-// sends as a text field and no file. `format: byte`'s base64 is the one such
-// text a part still reads as a file (GitHub #1214), as it did before any other
-// format lowered so.
-func encodedAsText(s *ir.Scalar) bool {
-	return s.Encoding != nil && s.Encoding.WireType != nil && s.Encoding.Name != "base64"
 }
 
 // buildPartEncoding assembles the explicit encoding config of the part named

@@ -4711,8 +4711,10 @@ names, and the part takes the one every value takes, a null value passing over:
 
 1. an object, a model or a map, takes `application/json`;
 2. a number, an integer, a boolean, and a string, a format's primitive among them, take
-   `text/plain`, as an enum or a `const` of strings does where it writes `format: binary` or
-   `byte`, which its type has no home for and keeps under `Unmodeled`;
+   `text/plain`, as the bytes `format: base64url` sends as text do, which 3.0's table keys as a
+   string of a format other than `binary` or `byte`, and as an enum or a `const` of strings does
+   where it writes `format: binary` or `byte`, which its type has no home for and keeps under
+   `Unmodeled`;
 3. raw bytes, which every minor's lowering reads `format: binary` as, take
    `application/octet-stream`, as 3.0's row for `binary` and the later minors' row for raw binary,
    which their own multipart example gives a string of format `binary`, say;
