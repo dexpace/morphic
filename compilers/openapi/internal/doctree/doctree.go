@@ -35,9 +35,9 @@ type Document struct {
 type Directive struct{ Minor, Line int }
 
 // Legacy is one thing a document declaring YAML 1.1 writes that YAML 1.1 reads
-// as another JSON value than YAML 1.2, at the node holding it: a plain scalar,
-// with its two readings worded, or a character YAML 1.1 ends a line at, in the
-// node's text or in a comment attached to it.
+// as another JSON value than YAML 1.2, at the node holding it: a plain scalar or
+// one tagged !!int, with its two readings worded, or a character YAML 1.1 ends a
+// line at, in the node's text or in a comment attached to it.
 type Legacy struct {
 	Node *yaml.Node
 	// Was is YAML 1.1's reading and Is YAML 1.2's, worded: "the integer 420",

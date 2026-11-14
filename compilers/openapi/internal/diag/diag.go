@@ -102,8 +102,9 @@ const (
 	StreamDocumentsDropped = "openapi/stream-documents-dropped"
 	// YAMLVersionReading reports a document read as YAML 1.2, as YAML 1.2
 	// asks of a processor, that declares another version: a later minor, at
-	// its directive, and in a document declaring 1.1 each plain scalar and
-	// line-break character YAML 1.1 reads as another JSON value
+	// its directive, and in a document declaring 1.1 each plain scalar, each
+	// one tagged !!int and each line-break character YAML 1.1 reads as another
+	// JSON value
 	// (docs/compilers/openapi.md#yaml-decoding).
 	YAMLVersionReading = "openapi/yaml-version-reading"
 	// UndecodableSource reports a source that declares one of this compiler's

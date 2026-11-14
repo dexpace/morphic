@@ -317,6 +317,24 @@ func TestRead_AYAML11DocumentRecordsWhatItReadsOtherwise(t *testing.T) {
 	}
 }
 
+// TestRead_AYAML11DocumentRecordsAnIntegerTaggedOutrightThatReadsApart pins the
+// tagged half of Legacy: a scalar tagged !!int that YAML 1.1 reads as another
+// integer than YAML 1.2, whatever its style, and none whose integer the two
+// read alike or whose text YAML 1.1's int does not spell.
+func TestRead_AYAML11DocumentRecordsAnIntegerTaggedOutrightThatReadsApart(t *testing.T) {
+	t.Parallel()
+	const body = "a: !!int 0644\nb: !!int \"-010\"\nc: !!int 0x1F\nd: !!int 0o17\ne: !!int 12\nf: !!int 0b11\ng: !!str 0644\n"
+
+	doc := read(t, "%YAML 1.1\n---\n"+body)
+
+	got := make([]string, 0, len(doc.Legacy))
+	for _, l := range doc.Legacy {
+		got = append(got, l.Node.Value+": "+l.Is+" / "+l.Was)
+	}
+	assert.Equal(t, []string{"0644: the integer 644 / the integer 420", "-010: the integer -10 / the integer -8"}, got)
+	assert.Empty(t, read(t, body).Legacy, "a document that does not declare YAML 1.1 records nothing")
+}
+
 // TestRead_AYAML11DocumentRecordsABreakInAComment pins the comment half of
 // Legacy: a character YAML 1.1 ends a line at, in a comment attached to a node.
 func TestRead_AYAML11DocumentRecordsABreakInAComment(t *testing.T) {

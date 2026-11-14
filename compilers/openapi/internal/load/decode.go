@@ -183,12 +183,16 @@ func versionDiagnostics(tree provenance.Tree, doc doctree.Document) []ir.Diagnos
 // legacyMessage words l, one thing YAML 1.1 reads otherwise.
 func legacyMessage(l doctree.Legacy) string {
 	const declared = ", which the compiler reads; YAML 1.1, which the document declares, "
+	scalar := "plain scalar"
+	if l.Node.Style&yaml.TaggedStyle != 0 {
+		scalar = "scalar tagged " + l.Node.ShortTag()
+	}
 	switch {
 	case l.Kinds:
-		return fmt.Sprintf("a plain scalar of %d characters is %s in YAML 1.2%sreads %s",
-			utf8.RuneCountInString(l.Node.Value), l.Is, declared, l.Was)
+		return fmt.Sprintf("a %s of %d characters is %s in YAML 1.2%sreads %s",
+			scalar, utf8.RuneCountInString(l.Node.Value), l.Is, declared, l.Was)
 	case l.Break == 0:
-		return fmt.Sprintf("plain scalar %q is %s in YAML 1.2%sreads %s", l.Node.Value, l.Is, declared, l.Was)
+		return fmt.Sprintf("%s %q is %s in YAML 1.2%sreads %s", scalar, l.Node.Value, l.Is, declared, l.Was)
 	case l.InComment:
 		return fmt.Sprintf("a comment here holds U+%04X, a character in YAML 1.2%sends a line there", l.Break, declared)
 	default:

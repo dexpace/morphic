@@ -110,7 +110,8 @@ is a character and ends no line, and a `%YAML 1.2` directive is read. A document
 minor is read as 1.2 with an `openapi/yaml-version-reading` warning at the directive, by position
 alone, and one declaring another major is refused as the parser refuses it. A document declaring
 1.1 draws the same warning at each plain scalar YAML 1.1's types read as another JSON value than
-1.2's core schema, `0644`, `yes` or `1:30`, a scalar past 128 characters compared and worded by
+1.2's core schema, `0644`, `yes` or `1:30`, and at each scalar tagged `!!int` the two read as two
+integers, `!!int 0644`, a scalar past 128 characters compared and worded by
 kind alone and its text not quoted, and at each line-break character written raw in its text or in
 a comment; an escaped `\N`, which YAML 1.1 reads alike, draws none, and a document declaring
 nothing or 1.2 draws none. A UTF-16 or UTF-32 text opening with its byte order mark, JSON or YAML,
@@ -163,6 +164,7 @@ scalar under any other tag keeps it.
   `doctree.TestRead_ALineBreakYAML11EndsALineAtIsACharacter`,
   `doctree.TestRead_ADirectiveIsTheOneGoverningTheDocumentTaken`,
   `doctree.TestRead_AYAML11DocumentRecordsWhatItReadsOtherwise`,
+  `doctree.TestRead_AYAML11DocumentRecordsAnIntegerTaggedOutrightThatReadsApart`,
   `doctree.TestRead_ACoreScalarIsRetaggedAndNeverRewritten`,
   `e2e.TestCompile_AnOverlayStreamWithASecondDocumentIsRefused`,
   `e2e.TestCompile_AnExternalDocumentStreamIsReportedInItsOwnEntry`,
