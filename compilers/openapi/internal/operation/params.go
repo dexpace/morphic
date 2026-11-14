@@ -89,8 +89,10 @@ func lowerParameter(c lowering.Ctx, w walk, id ir.ParamID, p *soa.Parameter, ppt
 	if p.AllowReserved != nil {
 		return param, binding, diags
 	}
-	// Read once the keys are kept, and only where the parameter decides nothing.
-	reserved, promoted := lowering.AllowReserved(c.Promoter(), param.Unmodeled, &param.Provenance)
+	// Read once the keys are kept, and only where the parameter decides nothing:
+	// its own key, else the nearest object it carries stating one.
+	reserved, promoted := lowering.AllowReserved(c.Promoter(),
+		lowering.Carried(c.Promoter(), param.Unmodeled, elected.carries...), &param.Provenance)
 	binding.AllowReserved = reserved
 	return param, binding, append(diags, promoted...)
 }
@@ -275,8 +277,13 @@ func fillParamDetail(c lowering.Ctx, ts *compile.Types, param *ir.Parameter, p *
 	diags = append(diags, extDiags...)
 	param.Unmodeled = annotation.MergeUnmodeled(param.Unmodeled, pExt)
 	diags = append(diags, annotation.UnknownKeysIn(&param.Unmodeled, p, c.Place(), pptr)...)
-	return append(diags, schema.PromoteUse(c, schema.KeysLentTo(c, ts, elected.js, param.Type, elected.pointer), param.Unmodeled,
-		&param.Deprecation, &param.Secret, &param.Provenance)...)
+	// Redaction and deprecation hold where the parameter or an object it carries
+	// states them, as they hold where its schema's $ref target does; a value is
+	// read, and a misfit reported, at the nearest key writing one.
+	lent := c.Promoter().Lent(schema.KeysLentTo(c, ts, elected.js, param.Type, elected.pointer), param.Unmodeled,
+		elected.carries...)
+	carried := lowering.Carried(c.Promoter(), param.Unmodeled, elected.carries...)
+	return append(diags, schema.PromoteUse(c, lent, carried, &param.Deprecation, &param.Secret, &param.Provenance)...)
 }
 
 // styleAndExplode returns a parameter's serialization style and its explode

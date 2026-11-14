@@ -82,7 +82,7 @@ func assertRefBesideKeys(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) 
 // through a verified run and holds it to assertRefBesideKeys.
 func TestRefBesideKeys_AreKeptOnTheirUseAndVerify(t *testing.T) {
 	t.Parallel()
-	doc, diags := compileVerified(t, "ref-beside-keys.yaml", corpusFile(t, "ref-beside-keys"))
+	doc, diags := compileNamedVerified(t, "ref-beside-keys.yaml", corpusFile(t, "ref-beside-keys"))
 	assertRefBesideKeys(t, doc, diags)
 }
 
@@ -137,7 +137,7 @@ components:
     A: {$ref: '#/components/securitySchemes/B', x-n: 1}
     B: {type: http, scheme: basic}
 `
-	doc, _ := compileVerified(t, "schemes.yaml", src)
+	doc, _ := compileNamedVerified(t, "schemes.yaml", src)
 	a := tree(t, doc.Auth["auth/openapi/components/securitySchemes/A"])
 	assert.Empty(t, cmp.Diff(map[string]any{"openapi:reference/0/x-n": float64(1)}, keptValues(at(a, "unmodeled"))))
 }

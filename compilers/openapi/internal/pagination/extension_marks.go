@@ -61,9 +61,13 @@ func (pg *pager) markedInput(op *ir.Operation, target lowering.ExtensionTarget, 
 	m := &marker{pg: pg, target: target, src: src}
 	var found []*ir.InputPath
 	var read []*ir.Provenance
+	mediaTypes := paramMediaTypes(op)
 	for i := range op.Params {
 		p := &op.Params[i]
-		if keeper, ok := m.marksUse(p.Unmodeled, &p.Provenance, p.Type.Target); ok {
+		// A mark is a valued fact: the parameter's own key, else the nearest object
+		// it carries writing one.
+		own := lowering.Carried(pg.p, p.Unmodeled, lowering.CarrierScopes(mediaTypes[p.ID])...)
+		if keeper, ok := m.marksUse(own, &p.Provenance, p.Type.Target); ok {
 			found, read = append(found, &ir.InputPath{Param: &p.ID}), append(read, keeper)
 		}
 	}
@@ -127,7 +131,12 @@ func (m *marker) inResponse(body *ir.Payload, headers []ir.Header) (*position, s
 	}
 	for i := range headers {
 		h := &headers[i].Property
-		keeper, ok := m.marksUse(h.Unmodeled, &h.Provenance, h.Type.Target)
+		mediaType := ""
+		if h.Encoding != nil {
+			mediaType = h.Encoding.MediaType
+		}
+		own := lowering.Carried(m.pg.p, h.Unmodeled, lowering.CarrierScopes(mediaType)...)
+		keeper, ok := m.marksUse(own, &h.Provenance, h.Type.Target)
 		switch {
 		case !ok:
 		case found != nil:
@@ -362,4 +371,16 @@ func (pg *pager) anyMember(keeps func(*ir.Property) bool) bool {
 func (pg *pager) isModel(id ir.TypeID) bool {
 	_, ok := pg.w.Stands(id).(*ir.Model)
 	return ok
+}
+
+// paramMediaTypes returns the media type each binding of op serializes its
+// parameter in, by the parameter's ID: none for one its schema states.
+func paramMediaTypes(op *ir.Operation) map[ir.ParamID]string {
+	out := map[ir.ParamID]string{}
+	for _, hb := range op.Bindings.HTTP {
+		for _, pb := range hb.ParamBindings {
+			out[pb.Param] = pb.ContentType
+		}
+	}
+	return out
 }

@@ -219,9 +219,10 @@ func TestPageStatementOf_ReadsTheRootForTrue(t *testing.T) {
 			lowering.PageStatement{At: opAt(), Written: true}, "openapi/unpromoted-extension", "/paths/~1x/get/x-page"},
 		{"a root writing true", onTrue, rootKey(`true`),
 			lowering.PageStatement{At: opAt(), Written: true}, "openapi/unpromoted-extension", "/x-page"},
-		{"a path item's statement beside the true", ir.Unmodeled{"openapi:x-page": opKey(`true`),
+		{"a path item's statement beside the true, nearer than the root's", ir.Unmodeled{"openapi:x-page": opKey(`true`),
 			"openapi:pathItem/x-page": opKey(`{"cursor":"$request.d"}`)}, rootKey(`{"cursor":"$request.c"}`),
-			lowering.PageStatement{At: opAt(), Written: true}, "openapi/unpromoted-extension", "/paths/~1x/get/x-page"},
+			lowering.PageStatement{Expression: "$request.d", At: ir.Provenance{Pointer: "/paths/~1x/get/x-page/cursor"},
+				Stated: true, Written: true}, "", ""},
 		{"no root, as for a node that is no operation", onTrue, nil,
 			lowering.PageStatement{At: opAt(), Written: true}, "openapi/degraded-construct", "/paths/~1x/get/x-page"},
 	} {

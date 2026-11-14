@@ -14,7 +14,7 @@ import (
 // verified run, and requires the three findings and no other.
 func TestBodies_ThreeFindingsOfOneDocument(t *testing.T) {
 	t.Parallel()
-	doc, diags := compileVerified(t, "bodies.yaml", testdataSpec(t, "media_key_and_form_bodies"))
+	doc, diags := compileNamedVerified(t, "bodies.yaml", testdataSpec(t, "media_key_and_form_bodies"))
 	assert.Equal(t, []string{
 		"openapi/body-without-semantics info /paths/~1a/get/requestBody",
 		"openapi/partless-form-body warning /paths/~1mp/post/requestBody/content/multipart~1form-data/schema",
@@ -29,7 +29,7 @@ func TestBodies_ThreeFindingsOfOneDocument(t *testing.T) {
 // verified run: one warning, under its own code.
 func TestBodies_AMethodThatForbidsOne(t *testing.T) {
 	t.Parallel()
-	_, diags := compileVerified(t, "trace.yaml", testdataSpec(t, "body_on_trace"))
+	_, diags := compileNamedVerified(t, "trace.yaml", testdataSpec(t, "body_on_trace"))
 	got := findings(diags)
 	assert.Contains(t, got, "openapi/body-forbidden-by-method warning /paths/~1a/trace/requestBody")
 	assert.NotContains(t, got, "openapi/body-without-semantics info /paths/~1a/trace/requestBody")
@@ -41,7 +41,7 @@ func TestBodies_AMethodThatForbidsOne(t *testing.T) {
 // parameter carrying no invented style.
 func TestContentParameters_SerializationKeywordsAreReported(t *testing.T) {
 	t.Parallel()
-	doc, diags := compileVerified(t, "content-params.yaml", testdataSpec(t, "param_content_serialization"))
+	doc, diags := compileNamedVerified(t, "content-params.yaml", testdataSpec(t, "param_content_serialization"))
 	assert.Equal(t, []string{
 		"openapi/inapplicable-location-keyword warning /paths/~1a/get/parameters/0/allowReserved",
 		"openapi/inapplicable-location-keyword warning /paths/~1a/get/parameters/0/explode",
@@ -58,8 +58,8 @@ func TestContentParameters_SerializationKeywordsAreReported(t *testing.T) {
 // info.
 func TestExamples_AnEmptyKeyChangesTheDocument(t *testing.T) {
 	t.Parallel()
-	named, namedDiags := compileVerified(t, "named.yaml", testdataSpec(t, "example_key_empty"))
-	single, singleDiags := compileVerified(t, "single.yaml", testdataSpec(t, "example_key_single"))
+	named, namedDiags := compileNamedVerified(t, "named.yaml", testdataSpec(t, "example_key_empty"))
+	single, singleDiags := compileNamedVerified(t, "single.yaml", testdataSpec(t, "example_key_single"))
 	assert.Equal(t, []string{"openapi/degraded-construct info /paths/~1a/get/responses/200/content/application~1json/examples/"},
 		findings(namedDiags))
 	assert.Empty(t, singleDiags)

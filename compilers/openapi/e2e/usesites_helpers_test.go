@@ -20,16 +20,16 @@ import (
 	"github.com/dexpace/morphic/ir"
 )
 
-// compileVerified compiles src as the file name through the engine, as
+// compileNamedVerified compiles src as the file name through the engine, as
 // `morphic compile --verify` does: every document the compiler and each pass
 // return is held to the IR's invariants, and a breach is a Go error. It returns
 // the document and every finding of the run, the passes' beside the compiler's.
-func compileVerified(t *testing.T, name, src string) (*ir.Document, []ir.Diagnostic) {
+func compileNamedVerified(t *testing.T, name, src string) (*ir.Document, []ir.Diagnostic) {
 	t.Helper()
 	return runVerified(t, compilers.Source{Path: name, Data: []byte(src)}, nil)
 }
 
-// compileVerifiedOnDisk is compileVerified for a root document written under
+// compileVerifiedOnDisk is compileNamedVerified for a root document written under
 // dir that reads another document beside it.
 func compileVerifiedOnDisk(t *testing.T, dir, root string) (*ir.Document, []ir.Diagnostic) {
 	t.Helper()

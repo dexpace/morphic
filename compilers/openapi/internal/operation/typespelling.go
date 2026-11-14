@@ -24,17 +24,20 @@ import (
 )
 
 // typeSpelling is how a parameter or header stated its type: the schema node,
-// the context and pointer it is declared at, the media type serializing it —
-// empty for the `schema` spelling — the examples a content-style entry
+// the context and pointer it is declared at, the media type serializing it,
+// empty for the `schema` spelling, the examples a content-style entry
 // declares, and what the elected entry writes beyond its type and the spelling
-// the election passed over, kept for the carrier at this position to merge onto
-// its own Unmodeled. A content entry written as a $ref declares its schema
-// where the chain ends (declaredMedia), in that document's context.
+// the election passed over, for the carrier to merge onto its Unmodeled. A
+// content entry written as a $ref declares its schema where the chain ends
+// (declaredMedia), in that document's context. carries is the scopes the
+// carrier keeps what the spelling's objects write under, nearest first
+// (lowering.CarrierScopes).
 type typeSpelling struct {
 	ctx       lowering.Ctx
 	js        *oas3.JSONSchema[oas3.Referenceable]
 	pointer   jsontext.Pointer
 	mediaType string
+	carries   []string
 	unmodeled ir.Unmodeled
 	examples  []ir.Example
 }
@@ -71,7 +74,7 @@ func electTypeSpelling(c lowering.Ctx, w walk, js *oas3.JSONSchema[oas3.Referenc
 		diags = append(diags, passedOverSpelling(c, &elected.unmodeled, root, "schema", "content", at)...)
 		return elected, diags
 	}
-	elected := typeSpelling{ctx: c, js: js, pointer: at + ids.Ptr("schema")}
+	elected := typeSpelling{ctx: c, js: js, pointer: at + ids.Ptr("schema"), carries: lowering.CarrierScopes("")}
 	if js == nil {
 		// Neither spelling states a type — a header carrying only a description,
 		// or a `content` map naming no usable entry — so there is no winner, and
@@ -90,7 +93,8 @@ func electTypeSpelling(c lowering.Ctx, w walk, js *oas3.JSONSchema[oas3.Referenc
 func contentSpelling(c lowering.Ctx, media *soa.MediaType, mt string, mediaPtr jsontext.Pointer,
 	carrier, home string,
 ) (typeSpelling, []ir.Diagnostic) {
-	elected := typeSpelling{ctx: c, pointer: mediaPtr + ids.Ptr("schema"), mediaType: mt}
+	elected := typeSpelling{ctx: c, pointer: mediaPtr + ids.Ptr("schema"), mediaType: mt,
+		carries: lowering.CarrierScopes(mt)}
 	d, found := declaredMedia(c, media, mediaPtr)
 	if !found {
 		return elected, nil

@@ -67,7 +67,13 @@ var statedPaths = []string{`  /filled:
       responses:
         "200":
           description: ok
-          headers: {Next: {schema: {type: string, x-role: {}}}}`, `  /type:
+          headers: {Next: {schema: {type: string, x-role: {}}}}`, `  /header/content:
+    get:
+      operationId: markedContentHeader
+      responses:
+        "200":
+          description: ok
+          headers: {Next: {content: {text/plain: {schema: {type: string, x-role: {}}}}}}`, `  /type:
     get:
       operationId: markedType
       parameters: [{name: q, in: query, schema: {$ref: '#/components/schemas/Unsaid'}}]
@@ -133,7 +139,7 @@ func TestPromote_SaysWhichOperationsSpeakOfAPagination(t *testing.T) {
 	t.Parallel()
 	spoke, ops, _ := promoteStated(t, statedSpec(t, statedPaths), pagePolicy())
 	assert.Equal(t, []string{
-		"filled", "markedHeader", "markedMember", "markedParameter", "markedType", "refused",
+		"filled", "markedContentHeader", "markedHeader", "markedMember", "markedParameter", "markedType", "refused",
 		"sharedA", "sharedB", "statedEmpty", "statedFalse", "statedNull", "unresolved",
 	}, spoke)
 
@@ -266,8 +272,8 @@ paths:
 					assert.Empty(t, reports)
 					return
 				case v.value == "true" && !at.mark:
-					want, reach = `extension "x-page" is true, which reads the walk the document's root states under `+
-						`the same key, and the root writes none`, ", so no pagination is inferred for the operation"
+					want, reach = `extension "x-page" is true, which reads the walk its path item, else the document's `+
+						`root, states under the same key, and neither writes one`, ", so no pagination is inferred for the operation"
 				case v.atMember && at.mark:
 					pointer += "/purpose"
 				case v.atMember:
@@ -296,7 +302,7 @@ func promoteStated(t *testing.T, spec string, policy lowering.ExtensionPromotion
 	for _, d := range diags {
 		require.Equal(t, ir.SeverityInfo, d.Severity, "%+v", d)
 		code := "openapi/degraded-construct"
-		if strings.Contains(d.Message, "the document's root states") {
+		if strings.Contains(d.Message, "which reads the walk") {
 			code = "openapi/unpromoted-extension"
 		}
 		require.Equal(t, code, d.Code, "%+v", d)

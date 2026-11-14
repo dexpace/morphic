@@ -85,20 +85,21 @@ func TestPromote_ReadsTheRootForTrue(t *testing.T) {
 // filling nothing where the root states no walk for it: one finding, at the
 // operation's key when the root writes none, at the root's own when it writes
 // no object, shared by every operation writing true; nothing at all for
-// false; none for a path item that states a walk of its own, which no
-// promotion reads, the root's not taken in its place; and none inferred for
-// any of them, though a parameter names a walk. An operation writing nothing
-// is still inferred, whatever the root states.
+// false; at the path item's key when it writes no object, whose statement is
+// nearer than the root's, which is not taken in its place; and none inferred
+// for any of them, though a parameter names a walk. An operation writing
+// nothing is still inferred, whatever the root states.
 func TestPromote_TrueWithNoRootStatement(t *testing.T) {
 	t.Parallel()
 	const (
 		opKey       = "/paths/~1things/get/x-fern-pagination"
 		onTrue      = "      x-fern-pagination: true\n"
-		pathItemKey = "    x-fern-pagination: {offset: $request.start, results: $response.data}\n"
+		pathItemKey = "    x-fern-pagination: cursor\n"
 	)
 	type finding struct{ pointer, message string }
-	trueNoRoot := finding{opKey, `extension "x-fern-pagination" is true, which reads the walk the document's root ` +
-		`states under the same key, and the root writes none, so no pagination is inferred for the operation`}
+	trueNoRoot := finding{opKey, `extension "x-fern-pagination" is true, which reads the walk its path item, else ` +
+		`the document's root, states under the same key, and neither writes one, so no pagination is inferred for ` +
+		`the operation`}
 	for _, tc := range []struct {
 		name, root, item, op string
 		more                 bool
@@ -110,9 +111,9 @@ func TestPromote_TrueWithNoRootStatement(t *testing.T) {
 				`walk for the operations that write true`}}},
 		{"false beside a root that states a walk", rootWalk, "", "      x-fern-pagination: false\n", false, nil},
 		{"false and no root key", "", "", "      x-fern-pagination: false\n", false, nil},
-		{"true beside a path item that states a walk", rootWalk, pathItemKey, onTrue, false,
-			[]finding{{opKey, `extension "x-fern-pagination" is true beside a statement its path item writes, which no ` +
-				`promotion reads, so no pagination is filled for the operation`}}},
+		{"true beside a path item stating no walk, the root stating one", rootWalk, pathItemKey, onTrue, false,
+			[]finding{{"/paths/~1things/x-fern-pagination", `extension "x-fern-pagination" is a string, not an ` +
+				`object, so it states no walk for the operations that write true`}}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()

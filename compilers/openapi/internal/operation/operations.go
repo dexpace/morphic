@@ -219,9 +219,6 @@ func lowerOperation(c lowering.Ctx, w walk, src *soa.Operation, opCtx opContext)
 	diags = append(diags, cbDiags...)
 	op.Bindings = ir.OpBindings{HTTP: []ir.HTTPBinding{hb}}
 	diags = append(diags, applyOperationAnnotations(c, &op, src, decl)...)
-	// After the extensions are on the map, since that is what it reads.
-	diags = append(diags, c.Promoter().Deprecation(op.Unmodeled, lowering.Referent{}, &op.Deprecation, &op.Provenance)...)
-	diags = append(diags, lowering.Stability(c.Promoter(), op.Unmodeled, &op.Stability, &op.Provenance)...)
 	// mountPathItem names the path item's servers only where these name none,
 	// since an operation's own override them.
 	own, serverDiags := w.servers.Declared(c, src.GetServers(), decl)
@@ -286,4 +283,15 @@ func fillOperationDocs(d *ir.Docs, src *soa.Operation) {
 	if ed := src.GetExternalDocs(); ed != nil {
 		d.ExternalDocs = append(d.ExternalDocs, ir.Link{URL: ed.GetURL(), Description: ed.GetDescription()})
 	}
+}
+
+// promoteOperation fills what op's keys state of its deprecation and its tier,
+// once its path item's are on it beside its own, since that is what it reads:
+// a deprecation where op or its path item states one, and the tier op states,
+// else its path item's (docs/compilers/openapi.md#extension-promotion).
+func promoteOperation(p lowering.Promoter, op *ir.Operation) []ir.Diagnostic {
+	own := lowering.Carried(p, op.Unmodeled, pathItemScope)
+	diags := p.Deprecation(own, p.Lent(lowering.Referent{}, op.Unmodeled, pathItemScope), &op.Deprecation,
+		&op.Provenance)
+	return append(diags, lowering.Stability(p, own, &op.Stability, &op.Provenance)...)
 }

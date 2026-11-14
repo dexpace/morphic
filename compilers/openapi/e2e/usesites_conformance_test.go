@@ -43,6 +43,6 @@ func assertCatchAllEncoding(t *testing.T, doc *ir.Document, diags []ir.Diagnosti
 // document verifier and pass.Validate accept, and the run draws no finding.
 func TestCatchAllEncoding_IsKeptAndVerifies(t *testing.T) {
 	t.Parallel()
-	doc, diags := compileVerified(t, "catch-all-encoding.yaml", corpusFile(t, "catch-all-encoding"))
+	doc, diags := compileNamedVerified(t, "catch-all-encoding.yaml", corpusFile(t, "catch-all-encoding"))
 	assertCatchAllEncoding(t, doc, diags)
 }

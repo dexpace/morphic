@@ -114,7 +114,7 @@ func assertCarriedKeys(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
 // verified and holds its parameters and header to checkCarriedParams.
 func TestCarriedKeys_AParameterScopesItsSchemasEntries(t *testing.T) {
 	t.Parallel()
-	doc, diags := compileVerified(t, "carried-keys.yaml", carriedKeysSpec(t))
+	doc, diags := compileNamedVerified(t, "carried-keys.yaml", carriedKeysSpec(t))
 	checkCarriedParams(t, doc, diags)
 }
 
@@ -122,7 +122,7 @@ func TestCarriedKeys_AParameterScopesItsSchemasEntries(t *testing.T) {
 // verified and holds its operations to checkCarriedTiers.
 func TestCarriedKeys_AnOperationReadsItsPathItemsTier(t *testing.T) {
 	t.Parallel()
-	doc, diags := compileVerified(t, "carried-keys.yaml", carriedKeysSpec(t))
+	doc, diags := compileNamedVerified(t, "carried-keys.yaml", carriedKeysSpec(t))
 	checkCarriedTiers(t, doc, diags)
 }
 
@@ -130,7 +130,7 @@ func TestCarriedKeys_AnOperationReadsItsPathItemsTier(t *testing.T) {
 // carried-keys verified and holds its tags and groups to checkCarriedTags.
 func TestCarriedKeys_ATagKeepsItsKeysAndItsGroupTakesTheTier(t *testing.T) {
 	t.Parallel()
-	doc, diags := compileVerified(t, "carried-keys.yaml", carriedKeysSpec(t))
+	doc, diags := compileNamedVerified(t, "carried-keys.yaml", carriedKeysSpec(t))
 	checkCarriedTags(t, doc, diags)
 }
 
@@ -142,8 +142,8 @@ func TestCarriedKeys_ATagKeepsItsKeysAndItsGroupTakesTheTier(t *testing.T) {
 func TestCarriedKeys_DeclarationOrderChangesNothing(t *testing.T) {
 	t.Parallel()
 	src := carriedKeysSpec(t)
-	a, aDiags := compileVerified(t, "carried-keys.yaml", src)
-	b, bDiags := compileVerified(t, "carried-keys.yaml", string(reversed(t, src)))
+	a, aDiags := compileNamedVerified(t, "carried-keys.yaml", src)
+	b, bDiags := compileNamedVerified(t, "carried-keys.yaml", string(reversed(t, src)))
 	assert.Equal(t, findings(aDiags), findings(bDiags))
 	assert.Empty(t, cmp.Diff(withoutVersion(t, a), withoutVersion(t, b)))
 	assert.Contains(t, withoutVersion(t, b), "openapi:schema/x-a")
@@ -154,7 +154,7 @@ func TestCarriedKeys_DeclarationOrderChangesNothing(t *testing.T) {
 // collision finding is gone.
 func TestParameter_SchemaAndObjectSpellOneKeyEndToEnd(t *testing.T) {
 	t.Parallel()
-	doc, diags := compileVerified(t, "p.yaml", testdataSpec(t, "param_schema_keys_apart"))
+	doc, diags := compileNamedVerified(t, "p.yaml", testdataSpec(t, "param_schema_keys_apart"))
 	assert.Equal(t, []string{
 		"openapi/degraded-construct info /paths/~1a/get/parameters/1/schema",
 		"openapi/unknown-object-key warning /paths/~1a/get/parameters/0/divisibleBy",
@@ -172,12 +172,12 @@ func TestParameter_SchemaAndObjectSpellOneKeyEndToEnd(t *testing.T) {
 // it, and requires the declaration alone.
 func TestParameter_XMLAndBranchKeptOnceEndToEnd(t *testing.T) {
 	t.Parallel()
-	doc, diags := compileVerified(t, "x.yaml", testdataSpec(t, "param_xml_kept_once"))
+	doc, diags := compileNamedVerified(t, "x.yaml", testdataSpec(t, "param_xml_kept_once"))
 	q := namedItem(t, at(tree(t, operationAt(t, doc, "GET", "/p")), "params"), "q")
 	assert.Equal(t, []string{"openapi:schema/xml"}, sortedKeys(keptValues(at(q, "unmodeled"))))
 	assert.Equal(t, []string{"openapi/degraded-construct info /paths/~1p/get/parameters/0/schema/xml"}, findings(diags))
 
-	doc, diags = compileVerified(t, "x.yaml", testdataSpec(t, "param_branch_kept_once"))
+	doc, diags = compileNamedVerified(t, "x.yaml", testdataSpec(t, "param_branch_kept_once"))
 	g := opTree(t, doc, "g")
 	id := namedItem(t, at(g, "params"), "schema_id")
 	assert.Equal(t, []string{"openapi:schema/allOf/1"}, sortedKeys(keptValues(at(id, "unmodeled"))),
@@ -194,7 +194,7 @@ func TestParameter_XMLAndBranchKeptOnceEndToEnd(t *testing.T) {
 // statement stands, as it does when it sits behind a $ref.
 func TestParameter_RedactionIsSingleSidedEndToEnd(t *testing.T) {
 	t.Parallel()
-	doc, diags := compileVerified(t, "x.yaml", testdataSpec(t, "param_redaction_single_sided"))
+	doc, diags := compileNamedVerified(t, "x.yaml", testdataSpec(t, "param_redaction_single_sided"))
 	assert.Empty(t, diags)
 	a := opTree(t, doc, "a")
 	for _, name := range []string{"inl", "ref"} {
@@ -209,7 +209,7 @@ func TestParameter_RedactionIsSingleSidedEndToEnd(t *testing.T) {
 // takes a tier it did not state.
 func TestTags_KeysOnTheTagAndTierOnItsGroupEndToEnd(t *testing.T) {
 	t.Parallel()
-	doc, diags := compileVerified(t, "x.yaml", testdataSpec(t, "tag_keys_and_group_tier"))
+	doc, diags := compileNamedVerified(t, "x.yaml", testdataSpec(t, "tag_keys_and_group_tier"))
 	assert.Empty(t, diags)
 	assert.Empty(t, cmp.Diff(map[string]any{"openapi:x-note": "n", "openapi:x-stability": "beta"},
 		keptValues(at(tree(t, doc), "tagDefs", "0", "unmodeled"))))
@@ -225,7 +225,7 @@ func TestTags_KeysOnTheTagAndTierOnItsGroupEndToEnd(t *testing.T) {
 // keeping its own keys, and the group taking the first declaration's.
 func TestTags_ARepeatedNameKeepsEachDeclaration(t *testing.T) {
 	t.Parallel()
-	doc, diags := compileVerified(t, "x.yaml", testdataSpec(t, "tag_repeated_name"))
+	doc, diags := compileNamedVerified(t, "x.yaml", testdataSpec(t, "tag_repeated_name"))
 	assert.Equal(t, []string{"openapi/validation/validation-duplicate-key error /tags/1/name"}, findings(diags))
 	d := tree(t, doc)
 	assert.Empty(t, cmp.Diff(map[string]any{"openapi:x-first": float64(1), "openapi:x-stability": "beta"},

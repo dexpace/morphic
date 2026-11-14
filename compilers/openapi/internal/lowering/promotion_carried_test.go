@@ -49,8 +49,8 @@ func TestCarried_TheOwnKeyBeatsTheScopedOne(t *testing.T) {
 		"openapi:pathItem/x-stability": vendorExtension(`"beta"`),
 	}
 
-	assert.Empty(t, cmp.Diff(own, lowering.Carried(p, merged, "pathItem")), "the own key wins")
-	assert.Empty(t, cmp.Diff(own, own))
+	assert.Empty(t, cmp.Diff(merged, lowering.Carried(p, merged, "pathItem")), "the own key wins")
+	assert.Len(t, own, 1)
 
 	got := lowering.Carried(p, scoped, "pathItem")
 	assert.Equal(t, vendorExtension(`"beta"`), got["openapi:x-stability"], "the scoped statement, unscoped")
@@ -90,6 +90,15 @@ func TestLent_ASingleSidedFactHoldsWhereAnyStatesIt(t *testing.T) {
 		"the carrier's own key is the caller's to read, not a scope's")
 	from := lowering.Referent{Redacted: true}
 	assert.True(t, p.Lent(from, ir.Unmodeled{}, "schema").Redacted, "what the $ref target lends stays")
+}
+
+// TestCarrierScopes_NamesTheSchemaOrTheContentEntryThenItsSchema holds the
+// scopes a parameter or a header is read through to the spelling it elects,
+// nearest first, a media type escaped as one segment.
+func TestCarrierScopes_NamesTheSchemaOrTheContentEntryThenItsSchema(t *testing.T) {
+	t.Parallel()
+	assert.Equal(t, []string{"schema"}, lowering.CarrierScopes(""))
+	assert.Equal(t, []string{"content/text~1plain", "content/text~1plain/schema"}, lowering.CarrierScopes("text/plain"))
 }
 
 // sortedKeys returns the keys of u in order.

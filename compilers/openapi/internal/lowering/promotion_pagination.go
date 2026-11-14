@@ -98,25 +98,23 @@ func PageStatementOf(p Promoter, target ExtensionTarget, src ExtensionSource, un
 const pathItemKeyPrefix = extensionKeyPrefix + "pathItem/"
 
 // rootStatement reads what src says on an operation writing its key true,
-// entry, beside the operation's own entries, own: the walk the document's
-// root, root, states under the same key, as if the operation wrote it, and
-// written either way. A root writing none, or no object, a true among them,
-// states nothing and is reported, the latter at the root's key, so every
-// operation writing true shares one finding. A statement its path item writes
-// is the nearer one, which no promotion reads (#1221), so the root's is not
-// taken in its place.
+// entry, beside the operation's own entries, own: the walk the nearest object
+// above it states under the same key, its path item's, kept among own, else
+// the document root's, root, as if the operation wrote it, and written either
+// way. A root writing none, or a statement that is no object, states nothing
+// and is reported, the latter at its own key, so every operation writing true
+// shares one finding.
 func rootStatement(p Promoter, target ExtensionTarget, src ExtensionSource, entry ir.UnmodeledEntry, own, root ir.Unmodeled) (PageStatement, []ir.Diagnostic) {
 	st := PageStatement{At: entry.Provenance, Written: true}
-	if _, beside := own[pathItemKeyPrefix+src.Key]; beside {
-		return st, []ir.Diagnostic{Unpromoted(src.Key, entry.Provenance,
-			"is true beside a statement its path item writes, which no promotion reads",
-			"no pagination is filled for the operation")}
+	stated, ok := own[pathItemKeyPrefix+src.Key]
+	if !ok {
+		stated, ok = root[extensionKeyPrefix+src.Key]
 	}
-	stated, ok := root[extensionKeyPrefix+src.Key]
 	switch {
 	case !ok:
 		return st, []ir.Diagnostic{Unpromoted(src.Key, entry.Provenance,
-			"is true, which reads the walk the document's root states under the same key, and the root writes none",
+			"is true, which reads the walk its path item, else the document's root, states under the same key, "+
+				"and neither writes one",
 			"no pagination is inferred for the operation")}
 	case stated.Value.Kind() != '{':
 		return st, []ir.Diagnostic{Unpromoted(src.Key, stated.Provenance,

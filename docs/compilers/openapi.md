@@ -5897,6 +5897,17 @@ sources read it. The node keeping the extension is marked as [`policies`](#polic
 promotion, as is a use its `$ref`'s target lends a field to, and the extension stays in `Unmodeled`
 untouched.
 
+A carrier also reads the objects whose keys it keeps beneath a scope: an operation its path item
+(`openapi:pathItem/`), and a parameter or a header the content entry it elects (`content/<mt>/`) and
+the schema of its spelling (`schema/` or `content/<mt>/schema/`). It reads them two ways, as
+[annotations](../ir/annotations.md#what-a-reference-carries-down) reads a `$ref` target. A
+single-sided fact, a redaction or a deprecation, holds where the carrier or any object it carries
+states it, so a carrier's `x-sensitive: false` withdraws nothing its schema states, as it withdraws
+nothing a `$ref` target states, and a deprecation's members fill from the nearest object stating
+them. A valued fact, an operation's tier, a parameter's `allowReserved` or its pagination mark, is
+the nearest statement's, the carrier's own first. The entry keeps its own provenance, so a finding
+about a carried key sits at that key, and the carrier keeping it is the node marked.
+
 A source of a target stating that something is so, a deprecation, an open enum or union, a redaction
 or a part of a page walk, may list the values that state it. Each is compared with a string's text,
 or with a boolean's or a number's JSON, so `true` lists both `true` and `"true"`. A value it lists
@@ -6104,11 +6115,13 @@ saying why.
   `e2e.TestPromotion_ALostRefLendsTheNodeItSpeaksOn`,
   `e2e.TestPromotion_ADecoratorMatchesTheRefItStandsFor`,
   `e2e.TestPromotion_UsesHoldTheirOwnAnswerInEitherOrder`,
-  `e2e.TestPromotion_AContentCarrierReadsTheEntryItElects`
+  `e2e.TestPromotion_AContentCarrierReadsTheEntryItElects`, `lowering.TestCarried_ReturnsOwnWhereNothingIsCarried`,
+  `lowering.TestCarried_TheOwnKeyBeatsTheScopedOne`, `lowering.TestLent_ASingleSidedFactHoldsWhereAnyStatesIt`,
+  `e2e.TestCarriedKeys_AnOperationReadsItsPathItemsTier`
 - Status: partly built: a redaction key beside an `allOf` over an
   object lands on the decorator the `allOf` lowers to, whose `Sensitive` keeps it a type of its own,
-  where beside a `$ref` it lands on the carrier (#1220); a key on a path item, a tag or a
-  content entry, kept under a scope, reaches no field (#1221); a key both a parameter or a header and
+  where beside a `$ref` it lands on the carrier (#1220); a key on a tag, kept under a scope on the
+  document, reaches no field (#1221); a key both a parameter or a header and
   its schema write shares one entry, so the object's is all that is read (#396); a schema a use names
   between it and the end of its chain lends no key, as it lends no keyword (#1029); and a key inside
   a `oneOf` kept verbatim beside a body, as the base of a hierarchy keeps the union of its subtypes
@@ -6229,10 +6242,10 @@ that is no object, a root `true` being followed no further, states no walk, and 
 stated all the same: the former is reported as an info `openapi/unpromoted-extension` at the
 operation's key, the latter at the root's key, so every operation writing `true` shares one finding.
 A `true` beside the same key its path item writes, which the operation keeps as
-`openapi:pathItem/<key>`, fills nothing and is reported at the operation's key as the same code: the
-nearer statement is the one a reader would expect to win, and no promotion reads it, so the root's
-is not taken in its place. An operation writing nothing beside a root that states a walk has not
-opted in, and its inference is unchanged.
+`openapi:pathItem/<key>`, reads the path item's statement before the root's: it is the nearer one,
+and the root's is not taken in its place, so a path item's value that is no object is reported at
+its own key. A statement is never carried otherwise: an operation writing nothing has not opted in,
+whatever its path item or the root states, and its inference is unchanged.
 
 A pagination is read in the precedence [`policies`](#policies) gives, so no inference
 ([`pagination-policy`](#pagination-policy)) fills one the document spoke of. OpenAPI writes no
@@ -6268,8 +6281,8 @@ streams, or as a mark on the operation itself, is read by no source, so it speak
   `lowering.TestPageStatementOf_ReportsWhatStatesNoValueOfAWalk`,
   `pagination.TestInferWalks_LeavesWhatAnExtensionSpeaksOf`, `pagination.TestPromote_FillsTheFlag`,
   `pagination.TestPromote_ReadsTheRootForTrue`, `pagination.TestPromote_TrueWithNoRootStatement`,
-  `lowering.TestPageStatementOf_ReadsTheRootForTrue`
-- Status: open: a key a path item writes is read by no promotion (#1221).
+  `lowering.TestPageStatementOf_ReadsTheRootForTrue`, `pagination.TestPromote_TrueReadsThePathItemFirst`,
+  `pagination.TestPromote_ASilentOperationReadsNeitherItsPathItemNorTheRoot`
 
 ### `pagination-policy`
 

@@ -236,6 +236,7 @@ func mountPathItem(w walk, layers []layer, at mountSite, route opContext) ([]mou
 			op.Servers = slices.Clone(named)
 		}
 		diags = append(diags, keepOn(&op, kept, docs)...)
+		diags = append(diags, promoteOperation(l.in.Promoter(), &op)...)
 		mounted = append(mounted, mountedOp{op: op, extra: extra, levels: filed.levels, remounts: filed.remounts})
 		if po.additional {
 			// mergeParameters puts the operation's own parameters first, so what

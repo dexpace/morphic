@@ -78,8 +78,10 @@ func lowerHeader(c, dc lowering.Ctx, w walk, h *soa.Header, name string, hptr, h
 	}
 	diags = append(diags, schema.FillPropertyDetail(elected.ctx, w.types, &p, elected.js, elected.pointer)...)
 	diags = append(diags, applyHeaderAnnotations(dc, &p, h, hdecl, elected.examples)...)
-	diags = append(diags, schema.PromoteUse(dc, schema.KeysLentTo(dc, w.types, elected.js, p.Type, elected.pointer), p.Unmodeled,
-		&p.Deprecation, &p.Secret, &p.Provenance)...)
+	lent := dc.Promoter().Lent(schema.KeysLentTo(dc, w.types, elected.js, p.Type, elected.pointer), p.Unmodeled,
+		elected.carries...)
+	own := lowering.Carried(dc.Promoter(), p.Unmodeled, elected.carries...)
+	diags = append(diags, schema.PromoteUse(dc, lent, own, &p.Deprecation, &p.Secret, &p.Provenance)...)
 	lowered := ir.Header{Property: p, Explode: h.Explode}
 	if h.Style != nil {
 		lowered.Style = string(*h.Style)
