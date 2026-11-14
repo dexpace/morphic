@@ -109,13 +109,21 @@ func TestVerify_NilTypeDefIsAViolation(t *testing.T) {
 	assert.Contains(t, codesOf(got), "ir/nil-type")
 }
 
+// TestVerify_TypedNilTypeDefIsAViolation holds a typed nil of every kind, a
+// non-nil interface whose Common() and fields still panic, to ir/nil-type
+// rather than a crash: a check that asserts one kind and reads it needs the
+// guard as much as one reading Common().
 func TestVerify_TypedNilTypeDefIsAViolation(t *testing.T) {
-	// A typed nil pointer is a non-nil interface whose Common() still panics, so
-	// it must be reported as ir/nil-type rather than crashing the walk.
-	doc := &ir.Document{Types: ir.TypeRegistry{"t/x/typednil": (*ir.Model)(nil)}}
-	got := verifyDeclared(doc)
-	require.NotEmpty(t, got)
-	assert.Contains(t, codesOf(got), "ir/nil-type")
+	t.Parallel()
+	for _, td := range []ir.TypeDef{
+		(*ir.Primitive)(nil), (*ir.Scalar)(nil), (*ir.Model)(nil), (*ir.Union)(nil), (*ir.Enum)(nil), (*ir.List)(nil),
+		(*ir.MapT)(nil), (*ir.Tuple)(nil), (*ir.Literal)(nil), (*ir.External)(nil), (*ir.Any)(nil),
+	} {
+		doc := &ir.Document{Types: ir.TypeRegistry{"t/x/typednil": td}}
+		var got []irverify.Violation
+		require.NotPanics(t, func() { got = verifyDeclared(doc) }, "%T", td)
+		assert.Contains(t, codesOf(got), "ir/nil-type", "%T", td)
+	}
 }
 
 func TestVerify_EmptyTypeIDIsAViolation(t *testing.T) {

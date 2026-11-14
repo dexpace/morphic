@@ -37,6 +37,8 @@ func TestVerify_PrimitiveNamesNoSource(t *testing.T) {
 		{"shared, sources declared", oneSource(), ir.Provenance{Source: ir.NoSource}, nil},
 		{"shared, no sources declared", nil, ir.Provenance{Source: ir.NoSource}, nil},
 		{"zero provenance, no sources declared", nil, ir.Provenance{}, nil},
+		{"a pointer on the first source, no sources declared", nil, ir.Provenance{Pointer: "/components/schemas/S"},
+			[]string{"types[t/prim/string]"}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()

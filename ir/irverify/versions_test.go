@@ -36,9 +36,9 @@ func versionedModel(avail *ir.Availability) *ir.Document {
 func TestVerify_VersionListIsHeldToItsLabels(t *testing.T) {
 	t.Parallel()
 	doc := scenarioBase()
-	doc.Versions = []string{"v1", "v1", ""}
-	assert.Equal(t, []string{"doc.Versions[1]"}, scenarioCodes(doc, labelRepeated))
-	assert.Equal(t, []string{"doc.Versions[2]"}, scenarioCodes(doc, labelBlank))
+	doc.Versions = []string{"v1", "v1", "", ""}
+	assert.Equal(t, []string{"doc.Versions[1]"}, scenarioCodes(doc, labelRepeated), "a blank is no label to repeat")
+	assert.Equal(t, []string{"doc.Versions[2]", "doc.Versions[3]"}, scenarioCodes(doc, labelBlank))
 
 	first := scenarioBase()
 	first.Versions = []string{"", "v1"}
@@ -125,6 +125,12 @@ func TestVerify_AddedAndRemovedAlternateInVersionOrder(t *testing.T) {
 		{"two adds in a row", ir.Availability{Added: []string{"v1", "v2"}}, []string{modelAvailability + ".Added[1]"}},
 		{"removed repeating itself", ir.Availability{Removed: []string{"v1", "v1"}},
 			[]string{modelAvailability + ".Removed[1]"}},
+		{"removed going back", ir.Availability{Removed: []string{"v1", "v2", "v1"}},
+			[]string{modelAvailability + ".Removed[2]"}},
+		{"added going back", ir.Availability{Added: []string{"v2", "v3", "v1"}},
+			[]string{modelAvailability + ".Added[2]"}},
+		{"removed repeating before going back", ir.Availability{Removed: []string{"v2", "v2", "v1"}},
+			[]string{modelAvailability + ".Removed[1]"}},
 		{"added and removed alternating", ir.Availability{Added: []string{"v1", "v3"}, Removed: []string{"v2"}}, nil},
 		{"removed first, then added", ir.Availability{Added: []string{"v3"}, Removed: []string{"v2"}}, nil},
 		{"removed alone", ir.Availability{Removed: []string{"v2"}}, nil},
@@ -137,6 +143,20 @@ func TestVerify_AddedAndRemovedAlternateInVersionOrder(t *testing.T) {
 			assert.Empty(t, scenarioCodes(doc, labelUndeclared), "every label is declared")
 		})
 	}
+}
+
+// TestVerify_ALabelIsPlacedAtItsFirstEntry pins where a label of a version
+// list holding a blank entry or a repeat sits: a blank entry declares no label,
+// and a repeated label is read at its first entry, not its last.
+func TestVerify_ALabelIsPlacedAtItsFirstEntry(t *testing.T) {
+	t.Parallel()
+	blank := versionedModel(&ir.Availability{Added: []string{""}})
+	blank.Versions = append(blank.Versions, "")
+	assert.Equal(t, []string{modelAvailability + ".Added[0]"}, scenarioCodes(blank, labelUndeclared))
+
+	repeated := versionedModel(&ir.Availability{Added: []string{"v1", "v3"}, Removed: []string{"v2"}})
+	repeated.Versions = append(repeated.Versions, "v1")
+	assert.Empty(t, scenarioCodes(repeated, outOfOrder), "v1 sits at index 0, before v2")
 }
 
 // TestVerify_OrderIsReadOnlyWhereEveryLabelIsDeclared pins that an undeclared
