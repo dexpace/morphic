@@ -28,8 +28,7 @@ func TestPromiseLandings_PromisesNoMemberOfALoop(t *testing.T) {
     C: {contentSchema: {$ref: '#/components/schemas/B/contentSchema'}}
 `,
 	} {
-		plain, promised, found := lowerBoth(t, openapitest.ComponentSpecVer("3.1.0", schemas))
-		assert.Empty(t, found, name)
+		plain, promised := lowerBoth(t, openapitest.ComponentSpecVer("3.1.0", schemas))
 		assert.Empty(t, cmp.Diff(plain.Types, promised.Types), name)
 	}
 }
