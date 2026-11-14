@@ -275,6 +275,7 @@ func conformanceCases() []conformanceCase {
 		{"response-links", assertResponseLinks},
 		{"body-alias", assertBodyAlias},
 		{"pagination-inferred", assertPaginationInferred},
+		{"param-choices", assertParamChoices},
 		{"webhooks", assertWebhooks},
 		{"callbacks", assertCallbacks},
 		{"inline-hoist-positions", assertInlineHoistPositions},

@@ -46,6 +46,14 @@ func TestOperation_PopulatedRoundTrip(t *testing.T) {
 			{Name: ir.Naming{Source: "limit"}, Type: populatedTypeRef(), Required: true},
 			{Name: ir.Naming{Source: "offset"}, Type: populatedTypeRef(), Required: false},
 		},
+		ParamChoices: []ir.ParamChoice{{
+			Name:     ir.Naming{Source: "paging"},
+			Required: true,
+			Variants: []ir.ParamVariant{
+				{Name: ir.Naming{Source: "by_limit"}, Params: []ir.ParamID{"param/x/limit"}},
+				{Name: ir.Naming{Source: "by_offset"}, Params: []ir.ParamID{"param/x/offset"}},
+			},
+		}},
 		Request: &ir.Payload{Contents: []ir.Content{{MediaType: "application/json", Type: populatedTypeRef()}}},
 		Responses: []ir.Response{
 			{
