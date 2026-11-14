@@ -98,10 +98,9 @@ func TestWalkValues_VisitorsShareOneTraversal(t *testing.T) {
 }
 
 // TestWalkValues_APrunedVisitorStillMeetsASharedPointerElsewhere holds the walk
-// to entering a pointer once per visitor rather than once per walk. Here one
-// pointer is reached at doc.A and at doc.B; the first visitor prunes doc.A, so
-// alone it enters the pointer at doc.B. A walk recording only that some visitor
-// had entered it would skip it there, and the first visitor would never meet it.
+// to reading a pointer from each holder for each visitor. Here one pointer is
+// held at doc.A and at doc.B; the first visitor prunes doc.A, so it meets the
+// pointer at doc.B alone, and the second, which prunes nothing, meets it at both.
 func TestWalkValues_APrunedVisitorStillMeetsASharedPointerElsewhere(t *testing.T) {
 	t.Parallel()
 	shared := &ptrNode{}
@@ -110,7 +109,9 @@ func TestWalkValues_APrunedVisitorStillMeetsASharedPointerElsewhere(t *testing.T
 
 	got, want, _, _ := sharedAndAlone(root, rules)
 	assert.Contains(t, got[0].paths, "doc.B.Next", "the first visitor meets the pointer where it alone enters it")
-	assert.NotContains(t, got[1].paths, "doc.B.Next", "the second entered it at doc.A, and meets it once")
+	assert.NotContains(t, got[0].paths, "doc.A.Next", "and does not enter the holder it pruned")
+	assert.Contains(t, got[1].paths, "doc.A.Next", "the second meets the pointer at the first holder")
+	assert.Contains(t, got[1].paths, "doc.B.Next", "and again at the second, which the encoding writes too")
 	assertSameWalks(t, got, want, root)
 }
 

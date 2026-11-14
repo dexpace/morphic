@@ -45,7 +45,7 @@ func newTypeGraph(types ir.TypeRegistry, h *hierarchy) *typeGraph {
 	var p typeParts
 	for i, id := range ids {
 		p.read(types[id])
-		g.addType(i, &p, h.children[id])
+		g.addType(i, &p, h.childrenOf(id))
 	}
 	return g
 }

@@ -38,7 +38,11 @@ func (r *intervals) condense(edges [][]int) [][]int {
 		}
 	}
 	r.cyclic = make([]bool, len(comps))
-	kids := make([][]int, len(comps))
+	most := 0
+	for _, out := range edges {
+		most += len(out)
+	}
+	kids := pairsOf[int](most)
 	for c, members := range comps {
 		for _, v := range members {
 			for _, w := range edges[v] {
@@ -47,11 +51,11 @@ func (r *intervals) condense(edges [][]int) [][]int {
 					r.cyclic[c] = true // a member reaching itself, or another: a component of two has such an edge.
 					continue
 				}
-				kids[p] = append(kids[p], c)
+				kids.add(p, c)
 			}
 		}
 	}
-	return kids
+	return kids.grouped(len(comps))
 }
 
 // number searches down kids from each component no other names as a child, and

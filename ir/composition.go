@@ -120,12 +120,19 @@ func IsSubtypeWithin(doc *Document, target, base TypeID, limit int) (sub bool, s
 	return sub, limit - left, ok
 }
 
+// walkedLists is how many type IDs a walked question's lists hold on the stack
+// before they move to the heap: a hierarchy a few types deep and wide.
+const walkedLists = 8
+
 // isSubtype walks up from target, taking steps from *left, until it meets base
-// or runs out of supertypes or steps.
+// or runs out of supertypes or steps. Its lists start in arrays on the stack,
+// and its set is a map that does not escape, which Go keeps there too while it
+// is small, so a question about a shallow hierarchy allocates nothing.
 func isSubtype(doc *Document, target, base TypeID, left *int) (sub, ok bool) {
+	var queued, found [walkedLists]TypeID
 	seen := map[TypeID]bool{}
-	queue := []TypeID{target}
-	var supers []TypeID
+	queue := append(queued[:0], target)
+	supers := found[:0]
 	for len(queue) > 0 {
 		id := queue[len(queue)-1]
 		queue = queue[:len(queue)-1]
@@ -187,8 +194,10 @@ func exposedWalk(doc *Document, root TypeID, left *int, visit func(PropID) bool)
 	if doc == nil {
 		return true
 	}
+	// The queue starts on the stack, as isSubtype's lists do.
+	var queued [walkedLists]TypeID
 	seen := map[TypeID]bool{}
-	queue := []TypeID{root}
+	queue := append(queued[:0], root)
 	for len(queue) > 0 {
 		id := queue[len(queue)-1]
 		queue = queue[:len(queue)-1]

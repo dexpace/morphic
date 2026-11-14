@@ -47,7 +47,7 @@ func Validate(ctx context.Context, doc *ir.Document) ([]ir.Diagnostic, error) {
 }
 
 // walkFunc is how validate walks the document: ir.WalkValuesContext, unless a
-// test is counting the walks.
+// test is counting the walks or cutting one short.
 type walkFunc func(ctx context.Context, root any, path string, visitors ...ir.Visitor) (bool, error)
 
 // validate is Validate walking the document with walk.
@@ -86,9 +86,8 @@ func validate(ctx context.Context, doc *ir.Document, walk walkFunc) ([]ir.Diagno
 //
 // A family allocates only for a diagnostic. It sorts and keys collections in a
 // list and a map it keeps for the run, so a value with nothing wrong costs it
-// nothing but a step those or a log may grow by. The index it asks, facts, is
-// not yet held to that: it allocates per type it indexes and per question it
-// walks (GitHub #1150).
+// nothing but a step those or a log may grow by. The index it asks, facts,
+// allocates per index it builds and not per type it indexes (GitHub #1150).
 func families(doc *ir.Document, read walked, facts *irfacts.Index) []func() []ir.Diagnostic {
 	// A family that ranges a map sorts its keys first and needs a determinism test
 	// of its own: a range added without one can go unnoticed (GitHub #1546).
@@ -96,7 +95,7 @@ func families(doc *ir.Document, read walked, facts *irfacts.Index) []func() []ir
 		func() []ir.Diagnostic { return checkNilTypes(doc) },
 		func() []ir.Diagnostic { return checkDanglingRefs(read.refs, read.truncated) },
 		func() []ir.Diagnostic { return checkEmptyRefs(read.empty) },
-		func() []ir.Diagnostic { return checkGroupWalkTruncated(doc) },
+		func() []ir.Diagnostic { return checkGroupWalkTruncated(facts, read.truncated) },
 		func() []ir.Diagnostic { return checkResponseIndices(doc) },
 		func() []ir.Diagnostic { return checkEncodingKeys(doc, facts) },
 		func() []ir.Diagnostic { return checkPayloadRequired(doc) },

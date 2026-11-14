@@ -178,22 +178,32 @@ func checkPlanted(t *testing.T, base *decls.Package, planted, src string) *decls
 	return &decls.Package{Types: pkg, Info: info, Syntax: files, Fset: base.Fset}
 }
 
-// missingAssertions returns a line for each exported type p declares that
-// implements an exported interface p or a package p imports declares in the
-// module, with no var in p asserting it, sorted, and how many such pairs it
-// found. An interface elsewhere is left out, as p could not assert it without
-// a new import, and so is a generic type or interface, as only an
-// instantiation of one implements anything.
+// optionalInterfaces are the interfaces a walk tests a value it holds for,
+// rather than requiring: a type meant to be one that loses a method still
+// compiles, and the walk stops calling it. So every type implementing one,
+// exported or not, asserts it (departures.md#optional-interface-converted).
+var optionalInterfaces = []string{"ir.CycleVisitor"}
+
+// missingAssertions returns a line for each type p declares that implements an
+// exported interface p or a package p imports declares in the module, with no
+// var in p asserting it, sorted, and how many such pairs it found: every pair
+// of an exported type, and an unexported type's with an optional interface. An
+// interface elsewhere is left out, as p could not assert it without a new
+// import, and so is a generic type or interface, as only an instantiation of
+// one implements anything.
 func missingAssertions(p *decls.Package, root string) ([]string, int) {
 	ifaces := moduleInterfaces(p)
 	asserted := assertedInterfaces(p)
 	var violations []string
 	var pairs int
 	for tn := range p.Objects[*types.TypeName]() {
-		if !tn.Exported() || tn.IsAlias() || isGeneric(tn) {
+		if tn.IsAlias() || isGeneric(tn) {
 			continue
 		}
 		for _, iface := range ifaces {
+			if !tn.Exported() && !slices.Contains(optionalInterfaces, qualified(iface.decl)) {
+				continue
+			}
 			// *T's method set holds T's, so this covers both receivers, and a
 			// pointer to an interface has no methods, so no interface is held.
 			if !types.Implements(types.NewPointer(tn.Type()), iface.methods) {

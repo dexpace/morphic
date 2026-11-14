@@ -7,6 +7,7 @@ import (
 	"fmt"
 
 	"github.com/dexpace/morphic/ir"
+	"github.com/dexpace/morphic/reuse"
 )
 
 // checkDuplicateMemberIDs reports an enum that gives two members one ID.
@@ -19,13 +20,13 @@ import (
 // through the same map, so none costs one of its own.
 func checkDuplicateMemberIDs(doc *ir.Document) []ir.Diagnostic {
 	var diags []ir.Diagnostic
-	var members reusedMap[ir.EnumMemberID, bool]
+	var members reuse.Map[ir.EnumMemberID, bool]
 	for _, id := range liveTypeIDs(doc) {
 		enum, ok := doc.Types[id].(*ir.Enum)
 		if !ok {
 			continue
 		}
-		seen := members.emptied()
+		seen := members.Emptied()
 		for i, m := range enum.Members {
 			if m.ID == "" {
 				continue

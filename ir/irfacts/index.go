@@ -37,6 +37,8 @@ type Index struct {
 	components      *components
 	correlationOnce sync.Once
 	correlation     *correlations
+	partialOnce     sync.Once
+	partial         bool
 }
 
 // New returns the index of doc's facts. It builds nothing: each index is built
@@ -75,6 +77,15 @@ func (x *Index) IsSubtype(target, base ir.TypeID) bool {
 // there are none.
 func (x *Index) Subtypes(base ir.TypeID) []ir.TypeID {
 	return x.hierarchyIndex().descendants(base)
+}
+
+// Partial reports whether the facts the index reads from the document's
+// operations, Usage and Correlation, may answer for part of it: whether
+// ir.ForEachOperation, which reads at least what they read, stopped at a bound.
+// A caller taking those answers as the whole document's asks it first.
+func (x *Index) Partial() bool {
+	x.partialOnce.Do(func() { x.partial = ir.ForEachOperation(x.doc, func(ir.Operation) {}) })
+	return x.partial
 }
 
 // registry returns the document's registry, nil when there is no document.

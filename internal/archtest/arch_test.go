@@ -43,11 +43,14 @@ var rules = map[string][]string{
 	// error, and quotes what that code says. It is below every package that
 	// runs such code, a compiler, a pass or a compiler's own dependency, so it
 	// reaches the standard library alone.
-	"barrier":     {},
+	"barrier": {},
+	// Scratch state a check reads one collection after another through, which
+	// knows no morphic concept, so both checkers share it from below ir.
+	"reuse":       {},
 	"ir":          {},
 	"ir/irfacts":  {module + "/ir"},
 	"ir/irtest":   {module + "/ir", "github.com/google/go-cmp" + subtreeSuffix},
-	"ir/irverify": {module + "/ir"},
+	"ir/irverify": {module + "/ir", module + "/reuse"},
 	"compilers":   {module + "/barrier", module + "/ir"},
 	// What every compiler shares: the type registry, diagnostics and the naming
 	// and ID grammars. It reaches ir alone, so no compiler's vocabulary rides in.
@@ -453,7 +456,7 @@ var rules = map[string][]string{
 		"github.com/speakeasy-api/openapi/sequencedmap",
 		"github.com/stretchr/testify/assert",
 		"github.com/stretchr/testify/require", "go.yaml.in/yaml/v3"},
-	"pass": {module + "/ir", module + "/ir/irfacts"},
+	"pass": {module + "/ir", module + "/ir/irfacts", module + "/reuse"},
 	// The emitter contract, Layer 2, ruled before any package of it exists
 	// (unbuilt), so the first emitter is audited from its first import. It
 	// reaches ir and nothing else yet: never a compiler, the engine or another

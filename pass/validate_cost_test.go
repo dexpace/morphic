@@ -149,9 +149,8 @@ func jsonPayload(target ir.TypeID) *ir.Payload {
 // or a kept path is spelled, and a list or a map made, only for a diagnostic:
 // each entity reaches every family with collections wider than a map holds
 // unallocated. A map or a log the run keeps grows in steps, far fewer.
-// Building the index allocates per type it indexes, which this leaves out
-// (GitHub #1150). It is not run in parallel: AllocsPerRun measures the
-// process.
+// Building the index is left out, as irfacts' own tests hold it (GitHub
+// #1150). It is not run in parallel: AllocsPerRun measures the process.
 func TestValidate_ASoundValueCostsNothing(t *testing.T) {
 	const entities = 50
 	few, many := soundDocument(entities), soundDocument(2*entities)

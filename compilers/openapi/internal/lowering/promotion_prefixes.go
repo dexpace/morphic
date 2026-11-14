@@ -31,6 +31,9 @@ func UnreadExtensions(c Ctx, doc *ir.Document) []ir.Diagnostic {
 	read = slices.Compact(read)
 	var diags []ir.Diagnostic
 	unmodeledType := reflect.TypeFor[ir.Unmodeled]()
+	// Whether the walk stopped goes unread: the visitor prunes at every Unmodeled,
+	// so it stops only where a visitor shown everything does, and the run's
+	// validate, whose walk carries one, reports ir/walk-truncated there.
 	ir.WalkValues(doc, ir.DocumentPath, ir.VisitFunc(func(v reflect.Value, _ ir.WalkPath) bool {
 		if v.Type() != unmodeledType {
 			return true

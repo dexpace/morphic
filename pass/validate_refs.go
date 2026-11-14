@@ -27,7 +27,7 @@ func checkDanglingRefs(refs *ir.IDReferences, truncated bool) []ir.Diagnostic {
 	var diags []ir.Diagnostic
 	if truncated {
 		diags = append(diags, diag(ir.SeverityError, "ir/walk-truncated",
-			"document nests deeper than the bounded reference walk; some references went unchecked",
+			"document nests deeper or unfolds larger than the bounded reference walk reads; some references went unchecked",
 			ir.DocumentPath))
 	}
 	for _, ref := range byLocation(refs.Unresolved(truncated)) {

@@ -9,6 +9,7 @@ import (
 
 	"github.com/dexpace/morphic/ir"
 	"github.com/dexpace/morphic/ir/irfacts"
+	"github.com/dexpace/morphic/reuse"
 )
 
 // checkDiscriminators reports discriminator mappings whose target either does
@@ -36,7 +37,7 @@ func checkDiscriminators(doc *ir.Document, facts *irfacts.Index) []ir.Diagnostic
 // so none costs a collection of its own: a union's variant targets, and a
 // mapping's keys, sorted.
 type mappingReads struct {
-	variants reusedMap[ir.TypeID, bool]
+	variants reuse.Map[ir.TypeID, bool]
 	keys     []string
 }
 
@@ -48,7 +49,7 @@ func checkUnionDiscriminator(doc *ir.Document, u *ir.Union, read *mappingReads) 
 	if u.Discriminator == nil {
 		return nil
 	}
-	variants := read.variants.emptied()
+	variants := read.variants.Emptied()
 	for _, v := range u.Variants {
 		variants[v.Type.Target] = true
 	}

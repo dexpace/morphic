@@ -40,7 +40,7 @@ func Verify(doc *ir.Document) []Violation {
 }
 
 // walkFunc is how verify walks the document: ir.WalkValues, unless a test is
-// counting the walks.
+// counting the walks or cutting one short.
 type walkFunc func(root any, path string, visitors ...ir.Visitor) bool
 
 // verify is Verify walking the document with walk.
@@ -129,6 +129,8 @@ func (d declarations) pathsAt(at map[int]bool) map[int]string {
 	return paths
 }
 
+var _ ir.CycleVisitor = walkCheck{}
+
 // walkCheck is one check's part in the walk every check shares: visit is shown
 // each value the walk reaches, as an ir.Visitor's Visit is, and report returns
 // what the check found once the walk is over, given the declarations the same
@@ -198,9 +200,10 @@ func walkChecks() []func(*ir.Document) walkCheck {
 // violation at path. root is doc itself, or findings read against its Sources.
 //
 // Truncation is a fact about the document, not about a check, so it is reported
-// once. Not reporting it left the pruning walks silently under-checking a
-// too-deep document (GitHub #55); with one walk there is one flag, and nothing a
-// check can drop.
+// once, whether the depth cap or a visitor's limit of values cut the walk. Not
+// reporting it left the pruning walks silently under-checking a too-deep
+// document (GitHub #55); with one walk there is one flag, and nothing a check
+// can drop.
 func runWalkChecks(doc *ir.Document, root any, path string, walk walkFunc) []Violation {
 	vs, truncated := walkWith(doc, root, path, walk, walkChecks())
 	if !truncated {
@@ -208,7 +211,7 @@ func runWalkChecks(doc *ir.Document, root any, path string, walk walkFunc) []Vio
 	}
 	return append(vs, Violation{
 		Code:    "ir/walk-truncated",
-		Message: "document nests deeper than the bounded verifier walk; part of it went unchecked",
+		Message: "document nests deeper or unfolds larger than the bounded walk reads; part of it went unchecked",
 		Path:    path,
 	})
 }

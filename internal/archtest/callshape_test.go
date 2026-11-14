@@ -112,9 +112,9 @@ var callShapeBaseline = map[string]map[string]int{
 		"compilers/openapi/internal/lowering": 1,
 		"engine/report":                       1,
 		"internal/census":                     1,
-		"ir/irfacts":                          3,
+		"ir/irfacts":                          4,
 		"ir/irverify":                         2,
-		"pass":                                16,
+		"pass":                                15,
 	},
 }
 

@@ -81,7 +81,9 @@ arguments (`Property.Args`) make the types they name `Input`, since a client wri
 the field whatever it reads back. `Multipart` marks only a multipart body's own type and the types
 its alias scalars stand for, not the types nested in it. An operation's `Default` is classed neither
 a success nor a failure ([responses](./responses.md)), so its types are not marked `Error`. An
-operation nested past `ir.MaxGroupDepth` is not read, and a type no root reaches has usage 0.
+operation past the bounds of `ir.ForEachOperation`, nested deeper than `ir.MaxGroupDepth` or past
+`ir.MaxWalkSteps` groups and operations, is not read, and `Index.Partial` says so for the usage and
+correlation it reads; a type no root reaches has usage 0.
 
 ## Recursion
 
