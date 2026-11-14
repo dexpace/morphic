@@ -342,3 +342,41 @@ func TestReverseSequences_APermutationThatDoesNotParseIsDeclined(t *testing.T) {
 	assert.Equal(t, DeclinePermutationUnparsable, why)
 	assert.Nil(t, got)
 }
+
+// TestReverseSequences_AnAnchorGivenTwiceIsDeclined pins that a source whose
+// anchors could be rebound by the move undoing an alias written above its
+// anchor is declined once something is reversed, as the mapping rewrite
+// declines it.
+func TestReverseSequences_AnAnchorGivenTwiceIsDeclined(t *testing.T) {
+	t.Parallel()
+	src := schemas("A: &a {type: string}", "B: &a {type: integer}", "AB: {allOf: [{title: a}, {title: b}]}")
+
+	got, _, why := reverseSequences([]byte(src))
+
+	assert.Equal(t, DeclineAnchorRedefined, why)
+	assert.Nil(t, got)
+}
+
+// TestRewriteIndices_RewritesTheIndicesOfReversedSequences pins the walk that
+// erases and rebases an index: it starts at the first '/' from which one
+// applies, keeps the pointer walked so far as written, and leaves a string
+// naming no index of a reversed sequence as it is.
+func TestRewriteIndices_RewritesTheIndicesOfReversedSequences(t *testing.T) {
+	t.Parallel()
+	written := sequences{"/c/AB/allOf": 2, "/c/AB/allOf/0/allOf": 2}
+	moved := sequences{"/c/AB/allOf": 2, "/c/AB/allOf/1/allOf": 2}
+	for _, tc := range []struct{ name, in, erased, rebased string }{
+		{"an ID naming an element of nested sequences", "t/anon/c/AB/allOf/0/allOf/1/properties/p",
+			"t/anon/c/AB/allOf/-/allOf/-/properties/p", "t/anon/c/AB/allOf/1/allOf/1/properties/p"},
+		{"a pointer from the root", "/c/AB/allOf/1/allOf/0", "/c/AB/allOf/-/allOf/0", "/c/AB/allOf/0/allOf/1"},
+		{"an index past the sequence's length", "/c/AB/allOf/2", "/c/AB/allOf/2", "/c/AB/allOf/2"},
+		{"a sequence nobody reversed", "/c/CD/allOf/0", "/c/CD/allOf/0", "/c/CD/allOf/0"},
+		{"a relative name", "openapi:allOf/1", "openapi:allOf/1", "openapi:allOf/1"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			assert.Equal(t, tc.erased, erase(tc.in, written))
+			assert.Equal(t, tc.rebased, rebase(tc.in, moved))
+		})
+	}
+}

@@ -29,9 +29,9 @@ const maxReverseDepth = 1025
 
 // orderInvariant compiles a source twice, once as re-encoded and once with
 // every mapping's entry order reversed, and reports what the permutation
-// changed beyond source order. Sequences are not reversed here: an allOf's
-// branches and a required list are the sequence-order oracle's
-// (sequenceOrderInvariant), and every other sequence's order is semantic.
+// changed beyond source order. It reverses no sequence: an allOf's and a
+// required list's are sequenceOrderInvariant's, and any other's order is
+// semantic.
 //
 // Unlike `deterministic`, which recompiles the same bytes, permuted input
 // catches a lowering that depends on which declaration reached a pointer

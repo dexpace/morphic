@@ -120,3 +120,39 @@ func TestDiffSequenceInvariants_ASelfReferenceEndsTheWalk(t *testing.T) {
 
 	assert.True(t, ok, detail)
 }
+
+// TestDiffSequenceInvariants_ADocumentItCannotWriteIsReported pins that a
+// document the comparison cannot write is a finding naming the order it came
+// from, rather than two empty forms that compare equal.
+func TestDiffSequenceInvariants_ADocumentItCannotWriteIsReported(t *testing.T) {
+	t.Parallel()
+	unencodable := func() *ir.Document {
+		doc := composedOf("t/prim/string", "t/prim/string", typeA, typeB)
+		doc.Types[typeA].(*ir.Model).Docs.Description = "\xff"
+		return doc
+	}
+	deep := func() *ir.Document {
+		doc := composedOf("t/prim/string", "t/prim/string", typeA, typeB)
+		value := strings.Repeat("[", maxCanonicalDepth+1) + strings.Repeat("]", maxCanonicalDepth+1)
+		doc.Types[typeA].(*ir.Model).Unmodeled = ir.Unmodeled{"openapi:x": {Reason: ir.ReasonValidationOnly, Value: ir.RawValue(value)}}
+		return doc
+	}
+	plain := func() *ir.Document { return composedOf("t/prim/string", "t/prim/string", typeA, typeB) }
+	for _, tc := range []struct {
+		name          string
+		first, second *ir.Document
+		prefix        string
+	}{
+		{"as written, a string that is no UTF-8", unencodable(), plain(), "encode as written: "},
+		{"reversed, a string that is no UTF-8", plain(), unencodable(), "encode permuted: "},
+		{"as written, a value nested past the bound", deep(), plain(), "encode as written: " + errTooDeep.Error()},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			detail, ok := diffSequenceInvariants(tc.first, nil, tc.second, nil, abOrder)
+
+			assert.False(t, ok)
+			assert.True(t, strings.HasPrefix(detail, tc.prefix), detail)
+		})
+	}
+}

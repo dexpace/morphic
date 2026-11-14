@@ -405,3 +405,31 @@ func TestSequenceOrderInvariant_CompileFailureIsReported(t *testing.T) {
 	assert.Equal(t, found(OracleSequenceOrder, "recompile permuted: boom"), got)
 	assert.Equal(t, 2, compiles, "the oracle compiles its baseline and the permutation, and no more")
 }
+
+// TestSequenceOrderInvariant_DeclinesWhatItCannotPermute pins the oracle's
+// declines before it compiles anything: a source that is no YAML, one the
+// rewrite cannot permute faithfully, and one whose reversal writes the same
+// bytes.
+func TestSequenceOrderInvariant_DeclinesWhatItCannotPermute(t *testing.T) {
+	orig := compile
+	t.Cleanup(func() { compile = orig })
+	compile = func(context.Context, string, []byte, []pass.Pass) (*ir.Document, []ir.Diagnostic, error) {
+		require.FailNow(t, "a declined source is never compiled")
+		return nil, nil, nil
+	}
+	for _, tc := range []struct {
+		name, src string
+		why       Decline
+	}{
+		{"a source that is no YAML", "\t- a: [\n", DeclineNotYAML},
+		{"an anchor given twice", schemas("A: &a {type: string}", "B: &a {type: integer}",
+			"AB: {allOf: [{title: a}, {title: b}]}"), DeclineAnchorRedefined},
+		{"two branches alike", schemas("AB: {allOf: [{title: a}, {title: a}]}"), DeclineNothingToPermute},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			got := sequenceOrderInvariant(context.Background(), "spec.yaml", []byte(tc.src), true)
+
+			assert.Equal(t, declined(OracleSequenceOrder, tc.why), got)
+		})
+	}
+}

@@ -30,16 +30,17 @@ type Outcome string
 // OutcomeUnrecognized is a source no registered compiler takes: its Detail names
 // the format when one was recognized and none serves it.
 const (
-	OutcomeOK               Outcome = "ok"
-	OutcomePanic            Outcome = "panic"
-	OutcomeError            Outcome = "error"
-	OutcomeUnrecognized     Outcome = "unrecognized"
-	OutcomeViolations       Outcome = "violations"
-	OutcomeErrorDiag        Outcome = "error-diagnostic"
-	OutcomeRoundtrip        Outcome = "roundtrip-mismatch"
-	OutcomeNondeterministic Outcome = "nondeterministic"
-	OutcomeNonIdempotent    Outcome = "non-idempotent"
-	OutcomeOrderDependent   Outcome = "order-dependent"
+	OutcomeOK                     Outcome = "ok"
+	OutcomePanic                  Outcome = "panic"
+	OutcomeError                  Outcome = "error"
+	OutcomeUnrecognized           Outcome = "unrecognized"
+	OutcomeViolations             Outcome = "violations"
+	OutcomeErrorDiag              Outcome = "error-diagnostic"
+	OutcomeRoundtrip              Outcome = "roundtrip-mismatch"
+	OutcomeNondeterministic       Outcome = "nondeterministic"
+	OutcomeNonIdempotent          Outcome = "non-idempotent"
+	OutcomeOrderDependent         Outcome = "order-dependent"
+	OutcomeSequenceOrderDependent Outcome = "sequence-order-dependent"
 )
 
 // Result is one spec's outcome plus human-readable detail, and every oracle's
@@ -151,10 +152,10 @@ func check(ctx context.Context, spec string, data []byte, give func(Verdict)) er
 	} else {
 		give(OracleRoundTrip.judge(roundTrip(doc)))
 	}
-	// Determinism comes before the two oracles that compile the source again
-	// another way, so a compiler that is not even same-input-same-output is
-	// reported as that first, rather than as a pass changing its own output or
-	// as order-dependence.
+	// Determinism comes before the oracles that run the source again another
+	// way, so a compiler that is not even same-input-same-output is reported
+	// as that first, rather than as a pass changing its own output or as
+	// order-dependence.
 	give(OracleDeterminism.judge(deterministic(ctx, spec, data, doc, diags)))
 	if doc == nil {
 		give(declined(OracleIdempotence, DeclineNoDocument))
@@ -162,6 +163,7 @@ func check(ctx context.Context, spec string, data []byte, give func(Verdict)) er
 		give(OracleIdempotence.judge(idempotent(ctx, spec, data, doc)))
 	}
 	give(orderInvariant(ctx, spec, data, doc != nil))
+	give(sequenceOrderInvariant(ctx, spec, data, doc != nil))
 	return nil
 }
 
