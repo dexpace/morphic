@@ -111,6 +111,57 @@ func assertTypeArrayNumeric(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 	}
 }
 
+// assertTypeArrayBounds pins each value bound beside a type array on the variant
+// whose type it applies to, a Scalar of its own at <pointer>/type/<index>, none
+// on the variant it does not, a format paired with one listed type on that
+// variant alone, one no listed type takes kept on the union, and nothing on the
+// property carrying one, a bound on a branch beside it included.
+func assertTypeArrayBounds(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
+	variantOf := func(name string, i int) ir.TypeDef {
+		u, ok := doc.Types[componentID(name)].(*ir.Union)
+		require.True(t, ok, name)
+		require.Len(t, u.Variants, 2, name)
+		return doc.Types[u.Variants[i].Type.Target]
+	}
+	held := func(name string, i int) *ir.Constraints {
+		sc, ok := variantOf(name, i).(*ir.Scalar)
+		require.True(t, ok, "%s variant %d is a Scalar of its own", name, i)
+		assert.Equal(t, ir.TypeID("t/anon/components/schemas/"+name+"/type/"+string(rune('0'+i))), sc.ID)
+		return sc.Constraints
+	}
+	one, two := ir.BigVal("1"), ir.BigVal("2")
+	assert.Equal(t, &ir.Constraints{Min: &one}, held("Measure", 0))
+	assert.Equal(t, &ir.Constraints{Min: &one}, held("Measure", 1))
+	assert.Equal(t, &ir.Constraints{Min: &two}, held("Mixed", 0))
+	assert.Equal(t, &ir.Constraints{MaxLength: new(int64(3))}, held("Mixed", 1))
+	assert.Equal(t, &ir.Constraints{MaxLength: new(int64(2))}, held("OnBranch", 1))
+	assert.Empty(t, doc.Types[componentID("OnBranch")].Common().Unmodeled, "the branch folded")
+	assert.Equal(t, ir.PrimInteger, primOf(t, variantOf("Dated", 0)))
+	assert.Equal(t, &ir.Constraints{MinLength: new(int64(10))}, held("Dated", 1))
+	dated, ok := variantOf("Dated", 1).(*ir.Scalar)
+	require.True(t, ok)
+	assert.Equal(t, ir.PrimTypeID(ir.PrimDate), dated.Base.Target, "the string variant takes the date")
+
+	untaken := doc.Types[componentID("Untaken")]
+	assert.Equal(t, ir.RawValue("1"), unmodeledEntry(t, untaken.Common().Unmodeled, "openapi:minProperties").Value)
+	assert.Equal(t, []ir.Severity{ir.SeverityInfo}, diagsAt(diags, "openapi/degraded-construct", "/components/schemas/Untaken"))
+	assert.Len(t, diags, 1, "%+v", diags)
+
+	holder, ok := doc.Types[componentID("Holder")].(*ir.Model)
+	require.True(t, ok)
+	either, ok := propByWire(holder, "either")
+	require.True(t, ok)
+	assert.Nil(t, either.Constraints, "a carrier of a type array holds no bound")
+}
+
+// primOf returns the primitive td is, failing on any other node.
+func primOf(t *testing.T, td ir.TypeDef) ir.PrimKind {
+	t.Helper()
+	p, ok := td.(*ir.Primitive)
+	require.True(t, ok, "got %T", td)
+	return p.Prim
+}
+
 // assertEmptyEnum covers `enum: []`: legal JSON Schema whose value space holds
 // no member, so the position accepts no instance. The IR says that exactly,
 // since a closed Enum admits its members and nothing else. Reading the keyword

@@ -705,3 +705,21 @@ it sees. Changes made together in one bump are listed together under it.
   ([`extension-pagination`](../compilers/openapi.md#extension-pagination)). The shape is 0.60.0's. A
   consumer pinned to 0.60.0 met a `Pagination` only where an extension stated one, and now meets one
   on each operation the policy settles, which it reads as declared unless it reads `Inferred`.
+- **0.62.0** — no shape change. The OpenAPI compiler writes a value bound to `Constraints` only
+  where a type the schema declares takes it, as JSON Schema applies each to instances of one kind:
+  `minimum`, `maximum`, their exclusive forms and `multipleOf` beside `integer` or `number`,
+  `minLength`, `maxLength` and `pattern` beside `string`, and `minProperties` and `maxProperties`
+  beside `object` ([`constraints`](../compilers/openapi.md#constraints)). One beside another type
+  is kept verbatim under `openapi:<keyword>` (`degraded_lowering`), on an alias hoisted where the
+  position lowered to a shared primitive, which then holds the docs its property held, and the
+  content vocabulary beside a type other than `string` reaches no `Encoding`
+  ([`content-vocabulary`](../compilers/openapi.md#content-vocabulary)). A type array's scalar
+  variant holding a bound, an encoding or the content vocabulary is a `Scalar` at
+  `<pointer>/type/<index>`, each bound and a format the table pairs with one listed type land on
+  the variant whose type takes them, and the property or parameter carrying the union holds no
+  bound ([`type-arrays`](../compilers/openapi.md#type-arrays)); a bound on an `allOf` branch beside
+  the type list folds onto that variant, and one on a branch declaring a type it does not apply to
+  stays with that branch ([`allof-inline-residue`](../compilers/openapi.md#allof-inline-residue)).
+  A consumer pinned to 0.61.0 that read a numeric bound on a string, a bound on the carrier of a
+  type array, or a variant's encoding taken from a format another listed type pairs with finds it
+  under `openapi:<keyword>`, on the variant it applies to, or not at all.

@@ -33,7 +33,7 @@ witnessing it.
 
 - Witnesses: `allof-oneof-cooccurrence`, `allof-ref-branch-siblings`, `union-beside-ref`,
   `anyof-untagged`, `union-decorated-branch`, `type-array-numeric`, `union-restated-type`,
-  `union-inline-branches`, `allof-union-branch`
+  `union-inline-branches`, `allof-union-branch`, `type-array-bounds`
 
 ### `intersection`
 
@@ -88,7 +88,7 @@ witnessing it.
 
 ### `constraints`
 
-- Witnesses: `constraints`, `numeric-precision`, `ref-collection-bounds`
+- Witnesses: `constraints`, `numeric-precision`, `ref-collection-bounds`, `type-array-bounds`
 
 ### `visibility`
 

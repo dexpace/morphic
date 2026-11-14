@@ -281,14 +281,15 @@ func disagreed(c lowering.Ctx, bs *oas3.Schema, residue []string) bool {
 }
 
 // folds reports whether a branch that folds consumes keyword: homes says which
-// bounds the position has a field for, and a `nullable` folds where
+// bounds the position has a field for, of which a value bound is read where the
+// branch's own types take it too (writerTakes), and a `nullable` folds where
 // foldsNullable says so.
 func folds(c lowering.Ctx, bs *oas3.Schema, keyword string, homes boundHomes) bool {
 	if keyword == "nullable" {
 		return c.NullableWidening.Honours() && foldsNullable(bs)
 	}
 	if slices.Contains(valueConstraintKeywords, keyword) {
-		return homes.value
+		return taken(writerTakes(homes.value, bs), keyword)
 	}
 	_, fold := foldEntry(c, bs, keyword)
 	if slices.Contains(collectionBoundKeywords, keyword) {
@@ -298,9 +299,10 @@ func folds(c lowering.Ctx, bs *oas3.Schema, keyword string, homes boundHomes) bo
 }
 
 // boundHomes says which bounds the position an allOf is written at has a field
-// for, so that a branch writing one folds there.
+// for, so that a branch writing one folds there: the value bounds that apply to
+// a value of the kinds value (keywordKinds), and the collection bounds.
 type boundHomes struct {
-	value      bool
+	value      kindSet
 	collection bool
 }
 

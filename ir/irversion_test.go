@@ -160,6 +160,9 @@ var generations = []generation{
 	{version: "0.61.0", format: 1, shape: "0b2f5e45e4be29c67a153976848af676bc99d9f21d9e41a91b7abfd167ae026b",
 		names:   "825b85ca996798c9051c78f69d22b7c1ad6d30e36341b320540fab82f21b6890",
 		meaning: "the OpenAPI compiler fills Operation.Pagination where no keyword or promoted extension speaks of one, from the names an operation's query parameters and success responses use, marked Inferred and naming pagination-inference"},
+	{version: "0.62.0", format: 1, shape: "0b2f5e45e4be29c67a153976848af676bc99d9f21d9e41a91b7abfd167ae026b",
+		names:   "825b85ca996798c9051c78f69d22b7c1ad6d30e36341b320540fab82f21b6890",
+		meaning: "a value bound reaches Constraints only beside a type it applies to, and a type array's bounds, format and content vocabulary land on the variant whose type takes them"},
 }
 
 // shapeGolden holds the description the newest row's shape hashes, so a change
