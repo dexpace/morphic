@@ -29,8 +29,9 @@ const maxReverseDepth = 1025
 
 // orderInvariant compiles a source twice, once as re-encoded and once with
 // every mapping's entry order reversed, and reports what the permutation
-// changed beyond source order. Sequences are not reversed: their order is
-// semantic, which leaves the order of an allOf's branches unasked (#1666).
+// changed beyond source order. Sequences are not reversed here: an allOf's
+// branches and a required list are the sequence-order oracle's
+// (sequenceOrderInvariant), and every other sequence's order is semantic.
 //
 // Unlike `deterministic`, which recompiles the same bytes, permuted input
 // catches a lowering that depends on which declaration reached a pointer
@@ -50,22 +51,32 @@ func orderInvariant(ctx context.Context, spec string, data []byte, compiled bool
 	if bytes.Equal(reversed, baseline) {
 		return declined(OracleOrder, DeclineNothingToPermute)
 	}
+	return comparePermuted(ctx, OracleOrder, spec, baseline, reversed, compiled, diffOrderInvariants)
+}
+
+// comparePermuted is o's verdict on a source whose re-encoding is baseline and
+// whose permutation is permuted: it compiles both and holds them to diff. It
+// declines a baseline no compiler takes, or one refused where the source
+// compiled.
+func comparePermuted(ctx context.Context, o Oracle, spec string, baseline, permuted []byte, compiled bool,
+	diff func(first *ir.Document, firstDiags []ir.Diagnostic, second *ir.Document, secondDiags []ir.Diagnostic) (string, bool),
+) Verdict {
 	doc, diags, err := compile(ctx, spec, baseline, passes())
 	if errors.Is(err, errUnrecognized) {
-		return declined(OracleOrder, DeclineReencodingNoSpec)
+		return declined(o, DeclineReencodingNoSpec)
 	}
 	if err != nil {
 		// A Go error is never the spec's, so it is reported, as on the other arm.
-		return found(OracleOrder, "compile re-encoded: "+err.Error())
+		return found(o, "compile re-encoded: "+err.Error())
 	}
 	if doc == nil && compiled {
-		return declined(OracleOrder, DeclineReencodingRefused)
+		return declined(o, DeclineReencodingRefused)
 	}
-	other, otherDiags, err := compile(ctx, spec, reversed, passes())
+	other, otherDiags, err := compile(ctx, spec, permuted, passes())
 	if err != nil {
-		return found(OracleOrder, "recompile permuted: "+err.Error())
+		return found(o, "recompile permuted: "+err.Error())
 	}
-	return OracleOrder.judge(diffOrderInvariants(doc, diags, other, otherDiags))
+	return o.judge(diff(doc, diags, other, otherDiags))
 }
 
 // diffOrderInvariants compares what a declaration-order permutation must leave
@@ -79,12 +90,10 @@ func orderInvariant(ctx context.Context, spec string, data []byte, compiled bool
 // that lost what a second declaration wrote. What the permutation reorders by
 // design is compared regardless of order (canonicalJSON).
 func diffOrderInvariants(first *ir.Document, firstDiags []ir.Diagnostic, second *ir.Document, secondDiags []ir.Diagnostic) (string, bool) {
-	switch {
-	case first == nil && second != nil:
-		return "the permuted source compiles to a document, and as written to none", false
-	case first != nil && second == nil:
-		return "the permuted source compiles to no document, and as written to one", false
-	case first != nil:
+	if refused := oneRefusal(first, second); refused != "" {
+		return refused, false
+	}
+	if first != nil {
 		if a, b := len(first.Types), len(second.Types); a != b {
 			return fmt.Sprintf("permuted source interns %d types against %d", b, a), false
 		}
@@ -96,6 +105,20 @@ func diffOrderInvariants(first *ir.Document, firstDiags []ir.Diagnostic, second 
 		return "diagnostics depend on declaration order (-as-written +reversed):\n" + d, false
 	}
 	return "", true
+}
+
+// oneRefusal says which of two compiles, the source as written and its
+// permutation, alone returned no document, and is empty when both or neither
+// did.
+func oneRefusal(first, second *ir.Document) string {
+	switch {
+	case first == nil && second != nil:
+		return "the permuted source compiles to a document, and as written to none"
+	case first != nil && second == nil:
+		return "the permuted source compiles to no document, and as written to one"
+	default:
+		return ""
+	}
 }
 
 // sameDocument compares two documents' canonical encodings, and reports the
@@ -129,13 +152,18 @@ func sameDocument(first, second *ir.Document) (string, bool) {
 func diagnosticSet(diags []ir.Diagnostic) []string {
 	out := make([]string, 0, len(diags))
 	for _, d := range diags {
-		p := d.Provenance
-		positioned := p.Position != ir.Position{}
-		out = append(out, fmt.Sprintf("%s\x00%s\x00%s\x00%t\x00%s\x00%d\x00%d\x00%s",
-			d.Severity, d.Code, p.Pointer, positioned, p.Node, p.Source, p.WrittenBy, p.Inferred))
+		out = append(out, diagnosticKey(d))
 	}
 	slices.Sort(out)
 	return out
+}
+
+// diagnosticKey is what diagnosticSet compares of one diagnostic.
+func diagnosticKey(d ir.Diagnostic) string {
+	p := d.Provenance
+	positioned := p.Position != ir.Position{}
+	return fmt.Sprintf("%s\x00%s\x00%s\x00%t\x00%s\x00%d\x00%d\x00%s",
+		d.Severity, d.Code, p.Pointer, positioned, p.Node, p.Source, p.WrittenBy, p.Inferred)
 }
 
 // lines splits an encoding into its lines, so a difference reads line by line.
@@ -152,6 +180,13 @@ func lines(encoded []byte) []string { return strings.Split(string(encoded), "\n"
 // changed element still differs and a moved one does not. A collection a
 // sequence orders, such as an enum's members, keeps its order.
 func canonicalJSON(doc *ir.Document) ([]byte, error) {
+	return encodeComparable(doc, sortedArray, jsontext.WithIndent("  "))
+}
+
+// encodeComparable encodes doc without its diagnostics and its compiled
+// source's hash, as canonicalJSON describes, with each collection orderFree
+// lists written by arrange.
+func encodeComparable(doc *ir.Document, arrange func(elems [][]byte) []byte, opts ...json.Options) ([]byte, error) {
 	type plain ir.Document // no methods, so the options below reach it
 	own := plain(*doc)
 	own.Diagnostics = nil
@@ -159,70 +194,74 @@ func canonicalJSON(doc *ir.Document) ([]byte, error) {
 		own.Sources = slices.Clone(own.Sources)
 		own.Sources[0].Hash = ""
 	}
-	return json.Marshal(&own, json.Deterministic(true), json.WithMarshalers(orderFree()),
-		jsontext.ReorderRawObjects(true), jsontext.WithIndent("  "))
+	return json.Marshal(&own, append([]json.Options{json.Deterministic(true),
+		json.WithMarshalers(orderFree(arrange)), jsontext.ReorderRawObjects(true)}, opts...)...)
 }
 
 // orderFree writes the collections a mapping's entry order decides, each one
-// the corpus's two orders tell apart by design, with their elements sorted by
-// their own canonical encodings. That needs no key, so elements carrying none
-// unique compare as the multiset they are: an element's encoding sorts its own
-// collections first, so two whose members the permutation reversed still pair
-// up (#683). Examples alone hold both a mapping's entries and a sequence's
-// elements (sortedExamples).
-func orderFree() *json.Marshalers {
+// the corpus's two orders tell apart by design, as arrange writes their
+// elements' own encodings: sorted, or as they stand for a later rewrite to
+// sort. Sorting needs no key, so elements carrying none unique compare as the
+// multiset they are: an element's encoding sorts its own collections first, so
+// two whose members the permutation reversed still pair up (#683). Examples
+// alone hold both a mapping's entries and a sequence's elements
+// (sortedExamples).
+func orderFree(arrange func(elems [][]byte) []byte) *json.Marshalers {
 	return json.JoinMarshalers(
-		sortedElements[ir.Property](),
-		sortedElements[ir.Header](),
+		sortedElements[ir.Property](arrange),
+		sortedElements[ir.Header](arrange),
 		// The service tree's elements are read by value, never through a generic
 		// of this module, whose writes the lint keeping them in ir cannot read.
 		json.MarshalToFunc(func(enc *jsontext.Encoder, v []ir.Operation) error {
-			return writeSorted(enc, len(v), func(i int) any { return v[i] })
+			return writeOrderFree(enc, len(v), func(i int) any { return v[i] }, arrange)
 		}),
 		json.MarshalToFunc(func(enc *jsontext.Encoder, v []ir.OperationGroup) error {
-			return writeSorted(enc, len(v), func(i int) any { return v[i] })
+			return writeOrderFree(enc, len(v), func(i int) any { return v[i] }, arrange)
 		}),
-		sortedElements[ir.PatternProps](),
-		sortedElements[ir.Field](),
-		sortedElements[ir.ServerVariable](),
-		sortedElements[ir.OAuthScope](),
-		json.MarshalToFunc(sortedExamples),
-		sortedElements[ir.Content](),
-		sortedElements[ir.Response](),
-		sortedElements[ir.ErrorCase](),
-		sortedElements[ir.OperationLink](),
-		sortedElements[ir.LinkParam](),
-		sortedElements[ir.Callback](),
-		sortedElements[ir.SchemeUse](),
+		sortedElements[ir.PatternProps](arrange),
+		sortedElements[ir.Field](arrange),
+		sortedElements[ir.ServerVariable](arrange),
+		sortedElements[ir.OAuthScope](arrange),
+		json.MarshalToFunc(func(enc *jsontext.Encoder, v []ir.Example) error {
+			return sortedExamples(enc, v, arrange)
+		}),
+		sortedElements[ir.Content](arrange),
+		sortedElements[ir.Response](arrange),
+		sortedElements[ir.ErrorCase](arrange),
+		sortedElements[ir.OperationLink](arrange),
+		sortedElements[ir.LinkParam](arrange),
+		sortedElements[ir.Callback](arrange),
+		sortedElements[ir.SchemeUse](arrange),
 		json.MarshalToFunc(sortedRequestContentTypes),
 	)
 }
 
-// sortedElements writes a []T with its elements in the byte order of their
-// encodings (writeSorted).
-func sortedElements[T any]() *json.Marshalers {
+// sortedElements writes a []T as arrange writes its elements' encodings
+// (writeOrderFree).
+func sortedElements[T any](arrange func(elems [][]byte) []byte) *json.Marshalers {
 	return json.MarshalToFunc(func(enc *jsontext.Encoder, v []T) error {
-		return writeSorted(enc, len(v), func(i int) any { return &v[i] })
+		return writeOrderFree(enc, len(v), func(i int) any { return &v[i] }, arrange)
 	})
 }
 
 // sortedExamples writes a list of examples holding a named one, an `examples`
-// mapping's entry, sorted (writeSorted), and a list of unnamed ones in order.
-// An unnamed example is the `example` keyword's value or an element of a
-// schema's `examples` array, which no mapping orders. A mapping entry keyed by
-// the empty string is unnamed too, so a list holding a named one is sorted
-// whole, unnamed ones among it included.
-func sortedExamples(enc *jsontext.Encoder, v []ir.Example) error {
+// mapping's entry, as arrange writes it (writeOrderFree), and a list of unnamed
+// ones in order. An unnamed example is the `example` keyword's value or an
+// element of a schema's `examples` array, which no mapping orders. A mapping
+// entry keyed by the empty string is unnamed too, so a list holding a named one
+// is arranged whole, unnamed ones among it included.
+func sortedExamples(enc *jsontext.Encoder, v []ir.Example, arrange func(elems [][]byte) []byte) error {
 	if !slices.ContainsFunc(v, func(e ir.Example) bool { return e.Name != "" }) {
 		return errors.ErrUnsupported
 	}
-	return writeSorted(enc, len(v), func(i int) any { return &v[i] })
+	return writeOrderFree(enc, len(v), func(i int) any { return &v[i] }, arrange)
 }
 
-// writeSorted writes the n elements at gives as an array, in the byte order of
-// their encodings, each encoded under the options writing the array, these
-// marshalers among them. An empty array is written as it would be otherwise.
-func writeSorted(enc *jsontext.Encoder, n int, at func(i int) any) error {
+// writeOrderFree writes the n elements at gives as arrange writes their
+// encodings, each encoded under the options writing the collection, these
+// marshalers among them. An empty collection is written as it would be
+// otherwise.
+func writeOrderFree(enc *jsontext.Encoder, n int, at func(i int) any, arrange func(elems [][]byte) []byte) error {
 	if n == 0 {
 		return errors.ErrUnsupported
 	}
@@ -234,8 +273,18 @@ func writeSorted(enc *jsontext.Encoder, n int, at func(i int) any) error {
 		}
 		elems[i] = b
 	}
+	return enc.WriteValue(arrange(elems))
+}
+
+// sortedArray is an array of elems in the byte order of their encodings.
+func sortedArray(elems [][]byte) []byte {
 	slices.SortFunc(elems, bytes.Compare)
-	return enc.WriteValue(append(append([]byte{'['}, bytes.Join(elems, []byte{','})...), ']'))
+	return array(elems)
+}
+
+// array is an array of elems as they stand.
+func array(elems [][]byte) []byte {
+	return append(append([]byte{'['}, bytes.Join(elems, []byte{','})...), ']')
 }
 
 // sortedRequestContentTypes writes an HTTP binding with its request's content
