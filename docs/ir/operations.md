@@ -166,7 +166,8 @@ of the 3,763 operations in the golden spec, 573 state none (spec @319dc756).
 
 **`OperationGroup.Stability`** ([services](./services.md)) is the tier of every member stating none,
 nearest group first. It is read through the group and never copied down, so a member's own field
-keeps saying what the source says of that member.
+keeps saying what the source says of that member. An OpenAPI tag states one through a promoted key
+on the group the tag forms, whose `Inferred` records it.
 
 **Deprecation is a separate fact.** An operation can be `beta` and deprecated: the first says what a
 caller may rely on, the second that a caller should leave. A source's vocabulary may mix the two, as

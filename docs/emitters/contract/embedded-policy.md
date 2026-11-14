@@ -57,10 +57,7 @@ key mapped to `rename` on a parameter renames that parameter, on an operation th
 service that client. A `hint` key on the document configures its service where it has only one, as
 every OpenAPI document does, since the document holds what its root writes; where it has several,
 the key is misplaced. A key a mapping names on any other node, such as a `policy` key on a property,
-configures nothing and is reported as a warning `emitters/embed/misplaced`. So does a key the
-document holds for one of several objects, such as a tag's under `openapi:tags/<n>/`: it describes
-that object rather than the document, and configures nothing until the IR carries it where the
-object lowers (#1221).
+configures nothing and is reported as a warning `emitters/embed/misplaced`.
 
 Two keys of one node conflict only over a leaf both write: runtime policy's leaf ([what a layer
 writes](runtime-policy.md#what-a-layer-writes)), or a `ShapeHint` field, an `Extra` entry each. A

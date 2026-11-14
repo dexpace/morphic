@@ -864,8 +864,7 @@ reader](contract/embedded-policy.md) reads those a configuration maps into membe
 `Extra` ([shaping hints](contract/shaping-hints.md)), by its rules for where a key applies, for two
 keys setting one member and for layers. Its default mapping is empty, since each key is one tool's
 spelling. The docs emitter decodes the `Extra` members it defines strictly, reporting a wrong shape
-as a warning `emitters/docs/extra-invalid` and coercing nothing. A key held for a tag, as a display
-name is, configures nothing until the IR carries a tag where it lowers (#1221). A code sample a
+as a warning `emitters/docs/extra-invalid` and coercing nothing. A tag's key configures the group the tag forms, which holds it beside the tag's `TagDef`. A code sample a
 document declares is shown as authored beside the samples the SDK emitters return, its language kept
 as the fence's info string only where it is one word of letters, digits, `+`, `-`, `#` or `.`, so no
 value reopens the code as Markdown. An internal marker is the filter pass's to read (architecture.md

@@ -67,9 +67,12 @@ func LowerService(ctx context.Context, c lowering.Ctx, ts *compile.Types, declar
 	diags = append(diags, w.claims.report(c)...)
 	groups.markSharedRoutes()
 	svc.Groups = groups.finalize()
+	tagDefs, tagDiags := lowerTagDefs(c)
+	diags = append(diags, tagDiags...)
+	diags = append(diags, tagGroups(c.Promoter(), svc.Groups, tagDefs)...)
 	return Lowered{
 		Service: svc,
-		TagDefs: lowerTagDefs(c),
+		TagDefs: tagDefs,
 		Servers: reg.Servers(),
 		Auth:    schemes.Schemes(),
 		Kept:    w.kept.entries,

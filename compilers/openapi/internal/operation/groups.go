@@ -6,6 +6,7 @@ package operation
 import (
 	"encoding/json/jsontext"
 	"slices"
+	"strconv"
 	"strings"
 
 	soa "github.com/speakeasy-api/openapi/openapi"
@@ -24,24 +25,93 @@ import (
 // Parent and Kind are recorded as declared (OpenAPI 3.2's tag hierarchy and tag
 // role, both dropped until GitHub #613). Reading a role out of Kind is grouping
 // policy rather than a property of the document, so it is not interpreted here.
-func lowerTagDefs(c lowering.Ctx) []ir.TagDef {
+func lowerTagDefs(c lowering.Ctx) ([]ir.TagDef, []ir.Diagnostic) {
 	tags := c.Doc.GetTags()
 	if len(tags) == 0 {
-		return nil
+		return nil, nil
 	}
 	defs := make([]ir.TagDef, 0, len(tags))
-	for _, t := range tags {
+	var diags []ir.Diagnostic
+	for i, t := range tags {
 		if t == nil {
 			continue
 		}
+		kept, keptDiags := tagKeys(c, t, ids.Ptr("tags", strconv.Itoa(i)))
+		diags = append(diags, keptDiags...)
 		defs = append(defs, ir.TagDef{
-			Name:   t.GetName(),
-			Docs:   tagDocsFrom(t),
-			Parent: t.GetParent(),
-			Kind:   t.GetKind(),
+			Name:      t.GetName(),
+			Docs:      tagDocsFrom(t),
+			Parent:    t.GetParent(),
+			Kind:      t.GetKind(),
+			Unmodeled: kept,
 		})
 	}
-	return defs
+	return defs, diags
+}
+
+// tagKeys returns what the tag t, written at ptr, writes that its TagDef has
+// no field for: its x-* and undeclared keys unscoped, and its externalDocs
+// object's under externalDocs (docs/ir/unmodeled.md#carriers).
+func tagKeys(c lowering.Ctx, t *soa.Tag, ptr jsontext.Pointer) (ir.Unmodeled, []ir.Diagnostic) {
+	kept, diags := annotation.ExtensionsFrom(t.GetExtensions(), c.Place(), ptr)
+	diags = append(diags, annotation.UnknownKeysIn(&kept, t, c.Place(), ptr)...)
+	ed, edPtr := t.GetExternalDocs(), ptr+ids.Ptr("externalDocs")
+	edExt, edDiags := annotation.ExtensionsUnder(ed.GetExtensions(), c.Place(), edPtr, "externalDocs")
+	kept = annotation.MergeUnmodeled(kept, edExt)
+	diags = append(diags, edDiags...)
+	return kept, append(diags, annotation.UnknownKeysUnder(&kept, ed, c.Place(), edPtr, "externalDocs")...)
+}
+
+// tagGroups gives each group a declared tag forms the vendor extensions of the
+// tag's first declaration and the tier they state, recorded in its Inferred,
+// and reports a tier stated on a tag that forms no group, which fills nothing
+// (docs/compilers/openapi.md#tag-groups).
+func tagGroups(p lowering.Promoter, groups []ir.OperationGroup, defs []ir.TagDef) []ir.Diagnostic {
+	first := map[ir.GroupID]int{}
+	for i := range slices.Backward(defs) {
+		first[ids.TagGroup(defs[i].Name)] = i
+	}
+	formed := map[string]bool{}
+	var diags []ir.Diagnostic
+	stack := make([]*ir.OperationGroup, 0, len(groups))
+	for i := range groups {
+		stack = append(stack, &groups[i])
+	}
+	for len(stack) > 0 {
+		g := stack[len(stack)-1]
+		stack = stack[:len(stack)-1]
+		for i := range g.Groups {
+			stack = append(stack, &g.Groups[i])
+		}
+		i, declared := first[g.ID]
+		if !declared {
+			continue
+		}
+		formed[defs[i].Name] = true
+		g.Unmodeled = annotation.MergeUnmodeled(g.Unmodeled, vendorExtensions(defs[i].Unmodeled))
+		diags = append(diags, lowering.GroupStability(p, g.Unmodeled, &g.Stability, &g.Inferred)...)
+	}
+	for _, def := range defs {
+		if !formed[def.Name] {
+			diags = append(diags, lowering.UnformedTier(p, def.Name, def.Unmodeled)...)
+		}
+	}
+	return diags
+}
+
+// vendorExtensions returns the entries of u kept as the tag's own vendor
+// extensions, unscoped: its externalDocs object's stay on the tag alone.
+func vendorExtensions(u ir.Unmodeled) ir.Unmodeled {
+	var out ir.Unmodeled
+	for key, entry := range u {
+		if entry.Reason == ir.ReasonVendorExtension && !strings.Contains(strings.TrimPrefix(key, "openapi:"), "/") {
+			if out == nil {
+				out = ir.Unmodeled{}
+			}
+			out[key] = entry
+		}
+	}
+	return out
 }
 
 // tagDocsFrom maps a Tag's summary, description, and externalDocs onto Docs.

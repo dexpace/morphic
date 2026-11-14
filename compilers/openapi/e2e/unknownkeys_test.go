@@ -72,9 +72,9 @@ func TestUnknownKeys_KeptAtEveryObject(t *testing.T) {
 			"doc.Servers[server/openapi/paths/~1widgets/servers/0].Unmodeled"},
 		{"operation server", "openapi:host", `"OPERATIONSERVER"`,
 			"doc.Servers[server/openapi/paths/~1widgets/get/servers/0].Unmodeled"},
-		{"tag", "openapi:tags/0/color", `"TAG"`, "doc.Unmodeled"},
+		{"tag", "openapi:color", `"TAG"`, "doc.TagDefs[0].Unmodeled"},
 		{"components", "openapi:components/definitions", `"COMPONENTS"`, "doc.Unmodeled"},
-		{"tag externalDocs", "openapi:tags/0/externalDocs/title", `"TAGEXTERNALDOCS"`, "doc.Unmodeled"},
+		{"tag externalDocs", "openapi:externalDocs/title", `"TAGEXTERNALDOCS"`, "doc.TagDefs[0].Unmodeled"},
 		{"operation", "openapi:operationid", `"OPERATION"`, ".Unmodeled"},
 		// On each operation of the item, like its servers and its x-*: the path
 		// item lowers to no node of its own, so the scope is what tells its keys

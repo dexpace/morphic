@@ -802,7 +802,10 @@ it sees. Changes made together in one bump are listed together under it.
   `openapi:content/<mt>/reference/<i>/…`, every position's. An entry another entry of its carrier
   holds whole, by provenance and value, is no longer kept a second time: `openapi:xml/<x-k>` beside a
   whole `xml`, a `readOnly` read out of an `allOf` branch kept whole, and
-  `openapi:discriminator/<x-k>` beside a whole `openapi:discriminator`.
+  `openapi:discriminator/<x-k>` beside a whole `openapi:discriminator`. A tag's keys, kept on the
+  Document under `openapi:tags/<i>/` and `openapi:tags/<i>/externalDocs/`, move to its `TagDef`,
+  unscoped and under `openapi:externalDocs/`, and the group a tag forms keeps its vendor extensions
+  and the tier they state.
   A consumer pinned to 0.66.0 refuses the document; one
   reading `Stop` with no arm for `no_more` would not end such a walk, and one matching a marker by
   its old name no longer finds it.

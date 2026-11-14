@@ -1,0 +1,480 @@
+{
+  "idSpaces": {
+    "auth": [
+      "openapi",
+      "unresolved"
+    ],
+    "e": [
+      "anon",
+      "composed",
+      "openapi"
+    ],
+    "g": [
+      "default",
+      "extension",
+      "path-prefix",
+      "tags",
+      "webhooks"
+    ],
+    "op": [
+      "openapi"
+    ],
+    "p": [
+      "composed",
+      "openapi"
+    ],
+    "param": [
+      "openapi"
+    ],
+    "s": [
+      "openapi"
+    ],
+    "server": [
+      "default",
+      "openapi"
+    ],
+    "t": [
+      "anon",
+      "composed",
+      "openapi"
+    ]
+  },
+  "name": "T",
+  "version": "1",
+  "docs": {},
+  "services": [
+    {
+      "id": "s/openapi/0",
+      "name": {
+        "source": "T",
+        "canonical": "t"
+      },
+      "docs": {},
+      "groups": [
+        {
+          "id": "g/tags/T",
+          "name": {
+            "source": "T",
+            "canonical": "t"
+          },
+          "docs": {
+            "externalDocs": [
+              {
+                "url": "https://example.com"
+              }
+            ]
+          },
+          "operations": [
+            {
+              "id": "op/openapi/paths/~1a/get",
+              "name": {
+                "source": "a",
+                "canonical": "a"
+              },
+              "docs": {},
+              "stability": "beta",
+              "params": [
+                {
+                  "id": "param/openapi/paths/~1a/get/parameters/p/query",
+                  "name": {
+                    "source": "p",
+                    "canonical": "p"
+                  },
+                  "type": {
+                    "target": "t/prim/string",
+                    "nullable": false
+                  },
+                  "required": false,
+                  "docs": {},
+                  "secret": true,
+                  "unmodeled": {
+                    "openapi:schema/x-a": {
+                      "reason": "vendor_extension",
+                      "value": "FROM_SCHEMA",
+                      "provenance": {
+                        "source": 0,
+                        "pointer": "/paths/~1a/get/parameters/0/schema/x-a"
+                      }
+                    },
+                    "openapi:schema/x-sensitive": {
+                      "reason": "vendor_extension",
+                      "value": true,
+                      "provenance": {
+                        "source": 0,
+                        "pointer": "/paths/~1a/get/parameters/0/schema/x-sensitive"
+                      }
+                    },
+                    "openapi:x-a": {
+                      "reason": "vendor_extension",
+                      "value": "FROM_PARAMETER",
+                      "provenance": {
+                        "source": 0,
+                        "pointer": "/paths/~1a/get/parameters/0/x-a"
+                      }
+                    }
+                  },
+                  "provenance": {
+                    "source": 0,
+                    "pointer": "/paths/~1a/get/parameters/0",
+                    "inferred": "extension-promotion"
+                  }
+                },
+                {
+                  "id": "param/openapi/paths/~1a/get/parameters/c/query",
+                  "name": {
+                    "source": "c",
+                    "canonical": "c"
+                  },
+                  "type": {
+                    "target": "t/prim/string",
+                    "nullable": false
+                  },
+                  "required": false,
+                  "docs": {},
+                  "secret": true,
+                  "unmodeled": {
+                    "openapi:content/application~1json/schema/x-a": {
+                      "reason": "vendor_extension",
+                      "value": "FROM_SCHEMA",
+                      "provenance": {
+                        "source": 0,
+                        "pointer": "/paths/~1a/get/parameters/1/content/application~1json/schema/x-a"
+                      }
+                    },
+                    "openapi:content/application~1json/x-a": {
+                      "reason": "vendor_extension",
+                      "value": "FROM_MEDIA",
+                      "provenance": {
+                        "source": 0,
+                        "pointer": "/paths/~1a/get/parameters/1/content/application~1json/x-a"
+                      }
+                    },
+                    "openapi:content/application~1json/x-sensitive": {
+                      "reason": "vendor_extension",
+                      "value": true,
+                      "provenance": {
+                        "source": 0,
+                        "pointer": "/paths/~1a/get/parameters/1/content/application~1json/x-sensitive"
+                      }
+                    }
+                  },
+                  "provenance": {
+                    "source": 0,
+                    "pointer": "/paths/~1a/get/parameters/1",
+                    "inferred": "extension-promotion"
+                  }
+                }
+              ],
+              "responses": [
+                {
+                  "name": {
+                    "hint": "200"
+                  },
+                  "conditions": {
+                    "statusCodes": [
+                      {
+                        "from": 200,
+                        "to": 200
+                      }
+                    ]
+                  },
+                  "headers": [
+                    {
+                      "id": "p/openapi/paths/~1a/get/responses/200/headers/X-H",
+                      "name": {
+                        "source": "X-H",
+                        "canonical": "x_h"
+                      },
+                      "wireName": "X-H",
+                      "type": {
+                        "target": "t/prim/string",
+                        "nullable": false
+                      },
+                      "required": false,
+                      "clientOptional": false,
+                      "defaultAdded": false,
+                      "visibility": {
+                        "none": false
+                      },
+                      "encoding": {
+                        "mediaType": "text/plain"
+                      },
+                      "flatten": false,
+                      "eventHeader": false,
+                      "eventPayload": false,
+                      "secret": true,
+                      "docs": {},
+                      "unmodeled": {
+                        "openapi:content/text~1plain/x-sensitive": {
+                          "reason": "vendor_extension",
+                          "value": true,
+                          "provenance": {
+                            "source": 0,
+                            "pointer": "/paths/~1a/get/responses/200/headers/X-H/content/text~1plain/x-sensitive"
+                          }
+                        },
+                        "openapi:x-a": {
+                          "reason": "vendor_extension",
+                          "value": "FROM_HEADER",
+                          "provenance": {
+                            "source": 0,
+                            "pointer": "/paths/~1a/get/responses/200/headers/X-H/x-a"
+                          }
+                        }
+                      },
+                      "provenance": {
+                        "source": 0,
+                        "pointer": "/paths/~1a/get/responses/200/headers/X-H",
+                        "inferred": "extension-promotion"
+                      }
+                    }
+                  ],
+                  "docs": {
+                    "description": "ok"
+                  }
+                }
+              ],
+              "oneWay": false,
+              "idempotency": {},
+              "tags": [
+                "T"
+              ],
+              "bindings": {
+                "http": [
+                  {
+                    "method": "GET",
+                    "uriTemplate": "/a",
+                    "paramBindings": [
+                      {
+                        "param": "param/openapi/paths/~1a/get/parameters/p/query",
+                        "location": "query",
+                        "wireName": "p",
+                        "style": "form",
+                        "allowReserved": false,
+                        "allowEmptyValue": false
+                      },
+                      {
+                        "param": "param/openapi/paths/~1a/get/parameters/c/query",
+                        "location": "query",
+                        "wireName": "c",
+                        "style": "form",
+                        "allowReserved": false,
+                        "allowEmptyValue": false,
+                        "contentType": "application/json"
+                      }
+                    ],
+                    "sharedRoute": false,
+                    "checksumRequired": false
+                  }
+                ]
+              },
+              "unmodeled": {
+                "openapi:pathItem/x-stability": {
+                  "reason": "vendor_extension",
+                  "value": "beta",
+                  "provenance": {
+                    "source": 0,
+                    "pointer": "/paths/~1a/x-stability"
+                  }
+                }
+              },
+              "provenance": {
+                "source": 0,
+                "pointer": "/paths/~1a/get",
+                "inferred": "extension-promotion"
+              }
+            },
+            {
+              "id": "op/openapi/paths/~1a/put",
+              "name": {
+                "source": "own",
+                "canonical": "own"
+              },
+              "docs": {},
+              "stability": "stable",
+              "responses": [
+                {
+                  "name": {
+                    "hint": "204"
+                  },
+                  "conditions": {
+                    "statusCodes": [
+                      {
+                        "from": 204,
+                        "to": 204
+                      }
+                    ]
+                  },
+                  "docs": {
+                    "description": "ok"
+                  }
+                }
+              ],
+              "oneWay": false,
+              "idempotency": {},
+              "tags": [
+                "T"
+              ],
+              "bindings": {
+                "http": [
+                  {
+                    "method": "PUT",
+                    "uriTemplate": "/a",
+                    "sharedRoute": false,
+                    "checksumRequired": false
+                  }
+                ]
+              },
+              "unmodeled": {
+                "openapi:pathItem/x-stability": {
+                  "reason": "vendor_extension",
+                  "value": "beta",
+                  "provenance": {
+                    "source": 0,
+                    "pointer": "/paths/~1a/x-stability"
+                  }
+                },
+                "openapi:x-stability": {
+                  "reason": "vendor_extension",
+                  "value": "stable",
+                  "provenance": {
+                    "source": 0,
+                    "pointer": "/paths/~1a/put/x-stability"
+                  }
+                }
+              },
+              "provenance": {
+                "source": 0,
+                "pointer": "/paths/~1a/put",
+                "inferred": "extension-promotion"
+              }
+            }
+          ],
+          "stability": "beta",
+          "unmodeled": {
+            "openapi:x-note": {
+              "reason": "vendor_extension",
+              "value": "n",
+              "provenance": {
+                "source": 0,
+                "pointer": "/tags/0/x-note"
+              }
+            },
+            "openapi:x-stability": {
+              "reason": "vendor_extension",
+              "value": "beta",
+              "provenance": {
+                "source": 0,
+                "pointer": "/tags/0/x-stability"
+              }
+            }
+          },
+          "inferred": "extension-promotion"
+        }
+      ],
+      "servers": [
+        "server/default"
+      ],
+      "provenance": {
+        "source": 0
+      }
+    }
+  ],
+  "types": {
+    "t/prim/string": {
+      "kind": "primitive",
+      "id": "t/prim/string",
+      "name": {},
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": -1
+      },
+      "prim": "string"
+    }
+  },
+  "servers": {
+    "server/default": {
+      "id": "server/default",
+      "name": {
+        "hint": "server"
+      },
+      "urlTemplate": "/",
+      "description": {},
+      "provenance": {
+        "source": 0
+      }
+    }
+  },
+  "tagDefs": [
+    {
+      "name": "T",
+      "docs": {
+        "externalDocs": [
+          {
+            "url": "https://example.com"
+          }
+        ]
+      },
+      "unmodeled": {
+        "openapi:externalDocs/x-doc": {
+          "reason": "vendor_extension",
+          "value": 1,
+          "provenance": {
+            "source": 0,
+            "pointer": "/tags/0/externalDocs/x-doc"
+          }
+        },
+        "openapi:x-note": {
+          "reason": "vendor_extension",
+          "value": "n",
+          "provenance": {
+            "source": 0,
+            "pointer": "/tags/0/x-note"
+          }
+        },
+        "openapi:x-stability": {
+          "reason": "vendor_extension",
+          "value": "beta",
+          "provenance": {
+            "source": 0,
+            "pointer": "/tags/0/x-stability"
+          }
+        }
+      }
+    },
+    {
+      "name": "Lone",
+      "docs": {},
+      "unmodeled": {
+        "openapi:x-stability": {
+          "reason": "vendor_extension",
+          "value": "alpha",
+          "provenance": {
+            "source": 0,
+            "pointer": "/tags/1/x-stability"
+          }
+        }
+      }
+    }
+  ],
+  "diagnostics": [
+    {
+      "severity": "info",
+      "code": "openapi/unpromoted-extension",
+      "message": "extension \"x-stability\" states a tier on tag \"Lone\", which forms no operation group, so it fills no stability",
+      "provenance": {
+        "source": 0,
+        "pointer": "/tags/1/x-stability"
+      }
+    }
+  ],
+  "sources": [
+    {
+      "format": "openapi@3.1",
+      "path": "carried-keys.yaml",
+      "hash": "eb9746c08c4ff7f1d4f9255e5cda5627b4d4f344885322810da378f148be1d78"
+    }
+  ]
+}

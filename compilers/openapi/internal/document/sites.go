@@ -5,7 +5,6 @@ package document
 
 import (
 	"encoding/json/jsontext"
-	"strconv"
 
 	"github.com/speakeasy-api/openapi/extensions"
 
@@ -87,16 +86,6 @@ func sites(c lowering.Ctx) []site {
 		// retainUnreferencedComponents keeps each entry no reference reached.
 		{scope: "components", owner: ids.Ptr("components"), model: c.Doc.GetComponents(),
 			taken: []string{"mediaTypes"}},
-	}
-	for i, t := range c.Doc.GetTags() {
-		if t == nil {
-			continue
-		}
-		index := strconv.Itoa(i)
-		ptr := ids.Ptr("tags", index)
-		out = append(out,
-			site{scope: "tags/" + index, owner: ptr, model: t},
-			site{scope: "tags/" + index + "/externalDocs", owner: ptr + ids.Ptr("externalDocs"), model: t.GetExternalDocs()})
 	}
 	return out
 }

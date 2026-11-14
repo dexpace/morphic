@@ -110,3 +110,35 @@ func sortedKeys(u ir.Unmodeled) []string {
 	slices.Sort(out)
 	return out
 }
+
+// TestGroupStability_RecordsTheHeuristicInInferred holds a group's tier to the
+// key it keeps, recorded in its Inferred, and a group keeping none to no tier
+// and no record.
+func TestGroupStability_RecordsTheHeuristicInInferred(t *testing.T) {
+	t.Parallel()
+	p := stabilityPolicy()
+	var tier ir.Stability
+	var inferred ir.Inferred
+	assert.Empty(t, lowering.GroupStability(p, ir.Unmodeled{"openapi:x-stability": vendorExtension(`"beta"`)}, &tier, &inferred))
+	assert.Equal(t, ir.StabilityBeta, tier)
+	assert.Equal(t, ir.Inferred("extension-promotion"), inferred)
+
+	tier, inferred = "", ""
+	assert.Empty(t, lowering.GroupStability(p, ir.Unmodeled{}, &tier, &inferred))
+	assert.Empty(t, tier)
+	assert.Empty(t, inferred)
+}
+
+// TestUnformedTier_ReportsATierOnATagFormingNoGroup holds a mapped tier key on
+// a tag that forms no group to one info at the key, and a tag writing none to
+// nothing.
+func TestUnformedTier_ReportsATierOnATagFormingNoGroup(t *testing.T) {
+	t.Parallel()
+	p := stabilityPolicy()
+	diags := lowering.UnformedTier(p, "Lone", ir.Unmodeled{"openapi:x-stability": vendorExtension(`"alpha"`)})
+	if assert.Len(t, diags, 1) {
+		assert.Equal(t, "openapi/unpromoted-extension", diags[0].Code)
+		assert.Contains(t, diags[0].Message, `on tag "Lone", which forms no operation group`)
+	}
+	assert.Empty(t, lowering.UnformedTier(p, "Lone", ir.Unmodeled{}))
+}

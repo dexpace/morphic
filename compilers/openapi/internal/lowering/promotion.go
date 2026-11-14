@@ -475,6 +475,33 @@ func Stability(p Promoter, unmodeled ir.Unmodeled, tier *ir.Stability, prov *ir.
 	return diags
 }
 
+// GroupStability fills tier from the vendor extensions kept in unmodeled, as
+// Stability does, and records the heuristic in inferred: a group has no
+// Provenance to mark.
+func GroupStability(p Promoter, unmodeled ir.Unmodeled, tier *ir.Stability, inferred *ir.Inferred) []ir.Diagnostic {
+	var marked ir.Provenance
+	diags := Stability(p, unmodeled, tier, &marked)
+	if marked.Inferred != "" {
+		*inferred = ir.JoinInferred(*inferred, marked.Inferred)
+	}
+	return diags
+}
+
+// UnformedTier reports each key p reads a tier from that the tag named tag
+// keeps in unmodeled, where the tag forms no operation group: the tier is read
+// through the group alone, so it fills no stability.
+func UnformedTier(p Promoter, tag string, unmodeled ir.Unmodeled) []ir.Diagnostic {
+	var diags []ir.Diagnostic
+	for _, src := range p.Sources(TargetStability) {
+		if entry, kept := unmodeled[extensionKeyPrefix+src.Key]; kept {
+			diags = append(diags, diag.Newf(ir.SeverityInfo, diag.UnpromotedExtension, entry.Provenance,
+				"extension %q states a tier on tag %q, which forms no operation group, so it fills no stability",
+				src.Key, tag))
+		}
+	}
+	return diags
+}
+
 // Redaction sets redact from the vendor extensions kept in own, or what from
 // lends, and marks prov with the heuristic when that writes it. A redaction
 // already asked for by `format: password` needs no guess, so it stays unmarked.

@@ -119,8 +119,8 @@ components:
 	alias := at(un, "openapi:reference/1/x-alias", "provenance")
 	assert.Equal(t, "/paths/~1a/get/parameters/0/x-use", at(use, "pointer"))
 	assert.Equal(t, "/components/parameters/Alias/x-alias", at(alias, "pointer"))
-	assert.Nil(t, at(use, "source"), "source 0 is the root document, which encodes as no member")
-	assert.NotNil(t, at(alias, "source"), "the alias's entry names the other document")
+	assert.Equal(t, float64(0), at(use, "source"), "source 0 is the root document")
+	assert.NotEqual(t, float64(0), at(alias, "source"), "the alias's entry names the other document")
 	assert.Len(t, doc.Sources, 2)
 }
 

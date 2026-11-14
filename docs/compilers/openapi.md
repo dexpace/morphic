@@ -4552,9 +4552,17 @@ writes again once, at its first occurrence, comparing tags as the text written, 
 reported as an `openapi/repeated-entry` warning where it is written, naming the first. A blank tag
 is a tag like any other.
 
+
+A tag object's own keys are kept on its `TagDef`, its vendor extensions and undeclared keys unscoped
+and its `externalDocs` object's under `openapi:externalDocs/`. A group a declared tag forms takes the
+vendor extensions of the tag's first declaration in its own `Unmodeled`, as it takes its docs, and a
+stability tier they state fills the group's `Stability`, recorded in its `Inferred`
+([`extension-promotion`](#extension-promotion)). The tier is read through the group and nowhere
+else: an operation the tag files states none, and a mapped key on a tag that forms no group fills
+nothing and is reported as an info `openapi/unpromoted-extension` at the key.
 - Cases: `tags-grouping`, `tags-grouping-32`, `group-identity`, `repeated-tags-and-scopes`
-- Codes: `openapi/repeated-entry`
-- Tests: `operation.TestGrouping_ACallbackGoesWithItsParentWhateverItsTags`,
+- Codes: `openapi/repeated-entry`, `openapi/unpromoted-extension`
+- Tests: `operation.TestGrouping_ACallbackGoesWithItsParentWhateverItsTags`, `operation.TestGroups_ARepeatedTagNameTakesItsFirstDeclaration`, `e2e.TestCarriedKeys_ATagKeepsItsKeysAndItsGroupTakesTheTier`, `e2e.TestTags_KeysOnTheTagAndTierOnItsGroupEndToEnd`,
   `operation.TestGrouping_ParentCycleNestsNoMemberUnderAnother`,
   `operation.TestGrouping_DanglingParentStaysTopLevel`,
   `operation.TestGrouping_SameNameDeclaredTwiceIsDeterministic`,
@@ -6155,8 +6163,7 @@ saying why.
   `e2e.TestCarriedKeys_AnOperationReadsItsPathItemsTier`
 - Status: partly built: a redaction key beside an `allOf` over an
   object lands on the decorator the `allOf` lowers to, whose `Sensitive` keeps it a type of its own,
-  where beside a `$ref` it lands on the carrier (#1220); a key on a tag, kept under a scope on the
-  document, reaches no field (#1221); a schema a use names
+  where beside a `$ref` it lands on the carrier (#1220); a schema a use names
   between it and the end of its chain lends no key, as it lends no keyword (#1029); and a key inside
   a `oneOf` kept verbatim beside a body, as the base of a hierarchy keeps the union of its subtypes
   ([`union-beside-structure`](#union-beside-structure)), reaches no field.
