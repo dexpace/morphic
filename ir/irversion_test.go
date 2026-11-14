@@ -172,6 +172,9 @@ var generations = []generation{
 	{version: "0.65.0", format: 1, shape: "0b2f5e45e4be29c67a153976848af676bc99d9f21d9e41a91b7abfd167ae026b",
 		names:   "825b85ca996798c9051c78f69d22b7c1ad6d30e36341b320540fab82f21b6890",
 		meaning: "a parameter binding's Explode is as declared, nil where the parameter writes none, where it held its style's default"},
+	{version: "0.68.0", format: 1, shape: "6f3740fa4c5ba182db5a180f330ea022591a7a7e13ea1152f030be1dce09f853",
+		names:   "825b85ca996798c9051c78f69d22b7c1ad6d30e36341b320540fab82f21b6890",
+		meaning: "the streaming, binary and nullable markers are named streaming-inference, binary-inference and nullable-inference"},
 }
 
 // shapeGolden holds the description the newest row's shape hashes, so a change

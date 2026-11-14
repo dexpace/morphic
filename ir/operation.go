@@ -112,6 +112,11 @@ type Parameter struct {
 	// position declared none, not that the value is unbounded
 	// (docs/ir/annotations.md#what-a-reference-carries-down).
 	Constraints *Constraints `json:"constraints,omitzero"`
+	// Encoding is this use's encoding, overriding its type's field by field, as
+	// Property.Encoding does (docs/ir/constraints.md#encodings); nil = the
+	// type's. It is the parameter's own because a $ref'd or shared type cannot
+	// carry what one use writes (docs/ir/operations.md#parameters).
+	Encoding *Encoding `json:"encoding,omitzero"`
 	// ValueFrom derives the parameter's value from a location in the
 	// outgoing/incoming message (AsyncAPI parameter location runtime
 	// expressions); SDKs may auto-fill it. nil = caller-supplied.

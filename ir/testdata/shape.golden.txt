@@ -587,6 +587,7 @@ type Parameter struct
 	"default" *Value omitzero
 	"deprecation" *Deprecation omitzero
 	"docs" Docs
+	"encoding" *Encoding omitzero
 	"examples" []Example omitempty
 	"id" ParamID
 	"name" Naming

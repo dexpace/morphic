@@ -59,7 +59,7 @@ func (p *typeParts) model(m *ir.Model) {
 		prop := &m.Properties[i]
 		p.held = appendDecoded(appendTarget(p.held, prop.Type.Target), prop.Encoding)
 		for j := range prop.Args {
-			p.args = appendTarget(p.args, prop.Args[j].Type.Target)
+			p.args = appendDecoded(appendTarget(p.args, prop.Args[j].Type.Target), prop.Args[j].Encoding)
 		}
 	}
 	if extra := m.AdditionalProps; extra != nil {

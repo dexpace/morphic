@@ -66,6 +66,10 @@ type Parameter struct {
     Required   bool
     Default    *Value
     Constraints *Constraints
+    Encoding   *Encoding           // this use's encoding, overriding its type's field by field as
+                                   // Property.Encoding does; nil = the type's. The parameter's own,
+                                   // since a $ref'd or shared type cannot carry one use's text
+                                   // (invariant 3) (constraints.md#encodings)
     ValueFrom  *PropPath           // the parameter's value is derived from a location in the
                                    // outgoing/incoming message (AsyncAPI parameter `location`
                                    // runtime expressions) — SDKs may auto-fill it; nil = caller-supplied

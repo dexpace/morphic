@@ -758,3 +758,11 @@ it sees. Changes made together in one bump are listed together under it.
   consumer pinned to 0.64.0 that read `Explode` as always present no longer finds the key on such a
   binding, and must read its absence as the style's default, as it already does for a response
   header's. Read as false, the absence sends a `form` parameter unexploded.
+- **0.68.0** — `Parameter.Encoding`, a parameter's own encoding, overriding its type's field by
+  field as `Property.Encoding` does ([encodings](./constraints.md#encodings)); the OpenAPI compiler
+  writes `http-date` there on a header parameter its HTTP-date reading reaches
+  ([`http-date-inference`](../compilers/openapi.md#http-date-inference)). Three markers are renamed,
+  as each inference's marker is `<fact>-inference`: `streaming-media-type` is `streaming-inference`,
+  `binary-media-type` is `binary-inference` and `nullable-widening` is `nullable-inference`. A
+  consumer pinned to 0.65.0 refuses the document; one matching a marker by its old name no longer
+  finds it.
