@@ -16,7 +16,8 @@ import (
 // type arrives. A member is one declaration, so contents reaching the same one
 // first walk the same chain from there, and only the first step tells them
 // apart: each other content's model is flattened for that step, once per lk
-// (#1723). It returns why, and false, where the tokens name no such members.
+// (#1723). It returns why, and false, where p holds no body or the tokens name
+// no such members.
 func BodyPath(lk *Lookups, p *ir.Payload, tokens []string, side string) (segments []ir.PropID, why string, ok bool) {
 	if p == nil || len(p.Contents) == 0 {
 		return nil, fmt.Sprintf("reads a %s body the document does not describe", side), false

@@ -6,7 +6,8 @@
 // (docs/compilers/openapi.md#extension-pagination), and InferWalks, under the
 // pagination-inference policy, from the names its query parameters and its
 // success responses' members give (docs/compilers/openapi.md#pagination-policy).
-// Both run once the document is whole, the promotion before the inference,
-// since a response's members are read through the types the registry holds,
-// and they read the document the walks built, never the source.
+// Both run once the document is whole, since a response's members are read
+// through the types the registry holds, the promotion before the inference
+// (docs/compilers/openapi.md#policies), and they read the document the walks
+// built, never the source.
 package pagination

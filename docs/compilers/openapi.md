@@ -5653,12 +5653,12 @@ how operations are arranged rather than filling a fact a node holds.
 5. **Placement and order.** A fact read once the document is whole is read in a package named for
    the fact or for the convention, which imports only `ir`, the compiler's `diag` and `lowering`,
    and `runtimeexpr` where it reads an expression the document writes, and so nothing of the walks
-   that built the document. The compiler's run reads them
-   in one block, in one order: links ([`links`](#links)), then promotions, then inferences, so an
-   inference sees what every promotion filled. The audits of what the policies read come last, once
-   the document's own keys are merged in as well. A reading a node needs while it lowers, as
-   nullable widening's ([`nullable`](#nullable)), or while the registry settles, as discriminator
-   inference's, is made there instead.
+   that built the document. The compiler's run reads them in one block, in one order: links
+   ([`links`](#links)), then promotions, then inferences, so an inference sees what every promotion
+   filled. The audits of what the policies read come last, once the document's own keys are merged
+   in as well. A reading a node needs while it lowers, as nullable widening's
+   ([`nullable`](#nullable)), or while the registry settles, as discriminator inference's, is made
+   there instead.
 
 - Tests: `openapi.TestSwitchOptions_NameEveryPolicy`, `openapi.TestDecodeOptions_TextReachesEveryField`,
   `lowering.TestPromoter_WritesSeesAKeyWhateverItSays`, `lowering.TestPromoter_WritesKnowsEveryTarget`,

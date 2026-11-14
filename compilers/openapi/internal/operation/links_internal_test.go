@@ -190,9 +190,10 @@ func resolveBytes(t *testing.T, src string) float64 {
 // TestLinksResolve_AllocatesLinearInWhatItReads holds what resolving allocates
 // to linear growth in the lists its values read: from 2n entries to 4n it
 // grows at most 2.5 times what it grows from n to 2n. An index built again for
-// each value that reads it, or for each link, grows four times. Each size is averaged over four
-// spread across its doubling, so a map growing in steps reads as the growth it
-// averages to. It does not run in parallel, since the count is process-wide.
+// each value that reads it, or for each link, grows four times. Each size is
+// averaged over four spread across its doubling, so a map growing in steps
+// reads as the growth it averages to. It does not run in parallel, since the
+// count is process-wide.
 func TestLinksResolve_AllocatesLinearInWhatItReads(t *testing.T) {
 	for name, spec := range linkSpecs {
 		var bytes [3]float64
