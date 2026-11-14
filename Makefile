@@ -7,10 +7,14 @@
 #
 #   make            the whole gate, one check at a time
 #   make coverage   the suite once, under -race, at exactly 100% coverage
+#   make coverage RACE=   the same without -race, as a pull request's run does
 #   make bench      benchmark timings (the gate only smoke-runs them)
 #   make fuzz FUZZTIME=5m    a longer search than the gate's
 
 GO ?= go
+
+# The race detector's flag for `make coverage`; see that target.
+RACE ?= -race
 
 # The Go toolchain the gate runs on, read from go.mod so the pin has one
 # definition and no copy — the same discipline GOLANGCI_LINT_VERSION gets below,
@@ -124,6 +128,12 @@ build:
 # not enough. -race rides along rather than taking a run of its own: both want
 # the same execution of the same tests, and the profile is identical either way.
 #
+# RACE is -race unless the caller empties it. CI empties it on pull requests,
+# where the detector is the largest cost of the run, and keeps it on main, so a
+# race a pull request merges is reported there rather than not at all. -race
+# also forces -covermode=atomic, which stays either way so the two runs differ
+# in the detector alone.
+#
 # -timeout is explicit so that a test that never returns, as one would if the
 # third-party resolver hung on a document the compiler no longer refuses, ends
 # in a stack dump naming the stuck goroutine. 300s clears the slowest package
@@ -140,7 +150,7 @@ coverage:
 		profile="$$(mktemp "$${TMPDIR:-/tmp}/morphic-cover.XXXXXX")" || exit 1; \
 		trap 'rm -f "$$profile"' EXIT; \
 	fi; \
-	$(GO) test ./... -race -timeout 300s -covermode=atomic -coverprofile="$$profile" && \
+	$(GO) test ./... $(RACE) -timeout 300s -covermode=atomic -coverprofile="$$profile" && \
 	$(GO) run ./cmd/morphic-covergate "$$profile"
 
 fuzz:

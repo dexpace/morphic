@@ -21,11 +21,11 @@ concurrency:
 jobs:
   checks:
     name: lint, fuzz, bench
-    runs-on: blacksmith-4vcpu-ubuntu-2404-arm
+    runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
       - &checkout
-        uses: useblacksmith/checkout@v1
+        uses: actions/checkout@v7
       - &setup-go
         uses: actions/setup-go@v7
         with:
@@ -88,8 +88,8 @@ jobs:
           key: go-${{ github.job }}-${{ runner.os }}-go${{ steps.toolchain.outputs.version }}-${{ github.sha }}
 
   suite:
-    name: build, test (race detector, exactly 100% coverage)
-    runs-on: blacksmith-4vcpu-ubuntu-2404-arm
+    name: build, test (exactly 100% coverage; race detector on main)
+    runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
       - *checkout
@@ -102,6 +102,8 @@ jobs:
       # their bound (#1010).
       - name: build
         run: make build
+      # The race detector is the largest cost of the suite, so a pull request
+      # runs without it and main, whose run follows each merge, runs with it.
       - name: test
-        run: make coverage
+        run: make coverage RACE="${{ github.event_name == 'pull_request' && ' ' || '-race' }}"
       - *save
