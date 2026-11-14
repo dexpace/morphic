@@ -150,6 +150,18 @@ func (p Pattern) keyed(format Format) Pattern {
 	return p
 }
 
+// during narrows the minors that admit the pattern.
+func (p Pattern) during(s Span) Pattern {
+	p.Span = s
+	return p
+}
+
+// byURI marks a key that may be the URI of the object it names.
+func (p Pattern) byURI() Pattern {
+	p.ByURI = true
+	return p
+}
+
 // exclusive returns a rule: at most one of fields.
 func exclusive(s Span, fields []string, cites ...Cite) Rule {
 	return Rule{Kind: RuleExclusive, Span: s, Fields: fields, Cites: cites}

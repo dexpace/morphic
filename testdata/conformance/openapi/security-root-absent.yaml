@@ -1,0 +1,24 @@
+openapi: 3.1.0
+info: {title: SecurityRootAbsent, version: "1.0.0"}
+# The document writes no security, so it says nothing about authentication, and
+# an operation writing none says nothing either: neither is public.
+paths:
+  /absent:
+    get:
+      operationId: absent
+      responses:
+        "200":
+          description: ok
+  /public:
+    get:
+      operationId: public
+      security: []
+      responses:
+        "200":
+          description: ok
+components:
+  securitySchemes:
+    apiKey:
+      type: apiKey
+      in: header
+      name: X-API-Key

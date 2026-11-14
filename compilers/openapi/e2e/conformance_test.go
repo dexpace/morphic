@@ -266,6 +266,7 @@ func conformanceCases() []conformanceCase {
 		{"default-response", assertDefaultResponse},
 		{"http-date-inference", assertHTTPDateInference},
 		{"response-links", assertResponseLinks},
+		{"pagination-inferred", assertPaginationInferred},
 		{"webhooks", assertWebhooks},
 		{"callbacks", assertCallbacks},
 		{"inline-hoist-positions", assertInlineHoistPositions},
@@ -279,6 +280,8 @@ func conformanceCases() []conformanceCase {
 		{"extension-promotion", assertExtensionPromotion},
 		{"extension-stability", assertExtensionStability},
 		{"extension-redaction", assertExtensionRedaction},
+		{"extension-pagination", assertExtensionPagination},
+		{"extension-server-name", assertExtensionServerName},
 		{"examples", assertExamples},
 		{"docs-summary-desc", assertDocsSummaryDesc},
 		{"request-body-docs", assertRequestBodyDocs},
@@ -305,6 +308,10 @@ func conformanceCases() []conformanceCase {
 		{"reached-outside-model", assertReachedOutsideModel},
 		{"security-or-and", assertSecurityOrAnd},
 		{"security-root-empty", assertSecurityRootEmpty},
+		{"security-states", assertSecurityStatesCase},
+		{"security-root-absent", assertSecurityRootAbsent},
+		{"security-root-optional", assertSecurityRootOptional},
+		{"repeated-tags-and-scopes", assertRepeatedTagsAndScopes},
 		{"security-unresolved", assertSecurityUnresolved},
 	}
 }

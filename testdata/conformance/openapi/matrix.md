@@ -165,10 +165,7 @@ witnessing it.
 
 ### `pagination`
 
-- Uncovered: OpenAPI states it only through links and x-*, and this compiler lowers a link as a link
-  and keeps x-* verbatim, reading neither into ir.Pagination — response-links and extensions-x pin
-  both. Invariant 6 puts the inference in a pass rather than in the compiler, so this retires when
-  such a pass lands and a spec can read ir.Pagination back
+- Witnesses: `extension-pagination`, `pagination-inferred`
 
 ### `long-running-operations`
 
@@ -186,7 +183,8 @@ witnessing it.
 
 ### `per-op-auth`
 
-- Witnesses: `security-or-and`, `security-root-empty`, `security-unresolved`
+- Witnesses: `security-or-and`, `security-root-empty`, `security-unresolved`, `security-states`,
+  `security-root-absent`, `security-root-optional`
 
 ### `servers`
 

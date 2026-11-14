@@ -156,6 +156,12 @@ var generations = []generation{
 		meaning: "the OpenAPI compiler writes closed_after_composition only for an unevaluatedProperties: false no additionalProperties leaves inert, supplies no catch-all value beside it, and keeps every other unevaluated form under openapi:unevaluated, with the keyword that leaves an inert one inert, but one an allOf branch writes, which stays with the branch"},
 	{version: "0.60.0", format: 1, shape: "0b2f5e45e4be29c67a153976848af676bc99d9f21d9e41a91b7abfd167ae026b",
 		names:   "825b85ca996798c9051c78f69d22b7c1ad6d30e36341b320540fab82f21b6890",
+		meaning: "a deprecated, readOnly or writeOnly false withdraws no other schema's true; the OpenAPI compiler fills Operation.Pagination, Server.Name, HTTPParamBinding.AllowReserved and OAuthFlow.TokenEndpointAuthMethods from the extensions its promotion policy maps, and a decorator over a deprecated target holds the Deprecation its own keys state"},
+	{version: "0.61.0", format: 1, shape: "0b2f5e45e4be29c67a153976848af676bc99d9f21d9e41a91b7abfd167ae026b",
+		names:   "825b85ca996798c9051c78f69d22b7c1ad6d30e36341b320540fab82f21b6890",
+		meaning: "the OpenAPI compiler fills Operation.Pagination where no keyword or promoted extension speaks of one, from the names an operation's query parameters and success responses use, marked Inferred and naming pagination-inference"},
+	{version: "0.62.0", format: 1, shape: "0b2f5e45e4be29c67a153976848af676bc99d9f21d9e41a91b7abfd167ae026b",
+		names:   "825b85ca996798c9051c78f69d22b7c1ad6d30e36341b320540fab82f21b6890",
 		meaning: "a value bound reaches Constraints only beside a type it applies to, and a type array's bounds, format and content vocabulary land on the variant whose type takes them"},
 }
 

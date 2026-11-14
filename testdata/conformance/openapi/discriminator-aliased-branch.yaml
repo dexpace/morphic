@@ -40,3 +40,19 @@ components:
         - $ref: '#/components/schemas/Dog'
       discriminator:
         propertyName: kind
+    # Two branches alias one type, each for its own keyword beside its $ref:
+    # nothing in a value naming the type tells them apart, so it routes to the
+    # first, in branch order.
+    Twins:
+      oneOf:
+        - $ref: '#/components/schemas/Cat'
+          description: one cat
+        - $ref: '#/components/schemas/Cat'
+          title: Tabby
+        - $ref: '#/components/schemas/Dog'
+      discriminator:
+        propertyName: kind
+        mapping:
+          tom: '#/components/schemas/Cat'
+          cat: Cat
+          dog: Dog

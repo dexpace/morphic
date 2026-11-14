@@ -42,7 +42,7 @@ type PagePlan struct {                // item-type unwrap is a PLAN decision
                                       // (policy.md); nil under any other strategy
     TotalCount *ir.PropPath           // the items in all, which "total" reads
     TotalPages *ir.PropPath           // the pages in all, which "total" reads
-    Stop       []ir.PageStop          // the source's stop rules; empty = none stated, none guessed
+    Stop       []ir.PageStop          // the IR's stop rules; empty = none stated, none guessed
     Inferred   bool                   // heuristic pagination (may be disabled by policy)
 }
 

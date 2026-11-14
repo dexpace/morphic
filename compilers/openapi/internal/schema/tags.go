@@ -21,21 +21,23 @@ import (
 const maxReportedTags = 3
 
 // deferUnionTags queues the discriminator-inference policy's reading of the
-// union id, u lowered at pointer, where the policy is on: for the discriminator
+// union n, u lowered at pointer, where the policy is on: for the discriminator
 // standing with it declaring no mapping, or for none at all
 // (docs/compilers/openapi.md#discriminator-inference). It reads what each
 // variant's type says of its tag, which only a registry every node is interned
 // in answers in any declaration order, so it is a settlement. A mapping the
 // document declares is read as written, beside the routes it implies
 // (spellImplicitRoutes), so one of those its variant rejects stands (#1798).
-func deferUnionTags(c lowering.Ctx, ts *compile.Types, u unionAt, id ir.TypeID, pointer jsontext.Pointer) {
+// A discriminator n cannot hold (tagLocated) leaves n untagged, so nothing is
+// read.
+func deferUnionTags(c lowering.Ctx, ts *compile.Types, u unionAt, n *ir.Union, pointer jsontext.Pointer) {
 	if !c.DiscriminatorInference.Honours() {
 		return
 	}
-	if u.disc.GetMapping().Len() > 0 {
+	if u.disc.GetMapping().Len() > 0 || u.disc != nil && n.Discriminator == nil {
 		return
 	}
-	tags := unionTags{c: c, id: id, pointer: pointer}
+	tags := unionTags{c: c, id: n.ID, pointer: pointer}
 	if u.disc != nil {
 		tags.at = u.discAt + ids.Ptr("discriminator")
 		tags.implicit = implicitRoutes(c, u.holder)
@@ -245,12 +247,18 @@ func disagreements(tags [][]string, implicit []implicitRoute) string {
 // fewQuoted quotes the first maxReportedTags of tags and says how many more
 // there are.
 func fewQuoted(tags []string) string {
-	named := make([]string, 0, min(len(tags), maxReportedTags))
-	for _, tag := range tags[:min(len(tags), maxReportedTags)] {
-		named = append(named, strconv.Quote(tag))
+	return quotedOf(tags[:min(len(tags), maxReportedTags)], len(tags))
+}
+
+// quotedOf quotes shown, the first of total strings, and says how many more
+// there are, for a caller that builds only the ones it shows.
+func quotedOf(shown []string, total int) string {
+	named := make([]string, 0, len(shown))
+	for _, s := range shown {
+		named = append(named, strconv.Quote(s))
 	}
 	list := strings.Join(named, ", ")
-	if more := len(tags) - maxReportedTags; more > 0 {
+	if more := total - len(shown); more > 0 {
 		list += " and " + strconv.Itoa(more) + " more"
 	}
 	return list

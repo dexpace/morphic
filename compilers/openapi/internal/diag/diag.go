@@ -168,6 +168,15 @@ const (
 	// Warning: the document is well-formed, and JSON Schema's own uniqueness
 	// requirement on enum is a SHOULD.
 	DuplicateEnumValue = "openapi/duplicate-enum-value"
+	// RepeatedEntry reports an entry of a list of names written again, at the
+	// repeat's own position, naming the index of its first occurrence: a tag an
+	// operation lists twice, from operation.lowerOperation, and a scope a
+	// requirement lists twice for one scheme, from auth.Registry. Each list names
+	// a set, so the entry is kept once, at its first occurrence.
+	//
+	// Warning, as DuplicateEnumValue is: no rule of the specification is broken,
+	// and the repeat adds nothing.
+	RepeatedEntry = "openapi/repeated-entry"
 	// NumericPrecision reports a numeric bound literal that is not a finite
 	// number, at every schema the load phase's check reads (error severity:
 	// Morphic owns these keywords, so this is the sole diagnostic for the
@@ -403,6 +412,12 @@ const (
 	// beside it. Not an error, for the reason ReservedHeaderName is not: the
 	// document still lowers.
 	UnknownObjectKey = "openapi/unknown-object-key"
+	// UnreadExtension reports a vendor extension under a prefix the promotion
+	// policy owns that the compiler reads no key of, by its mapping or by
+	// grouping, naming the nearest key it reads (lowering.UnreadExtensions).
+	// Warning for UnknownObjectKey's reason: a key under a prefix a policy owns
+	// is most likely one it reads, misspelt.
+	UnreadExtension = "openapi/unread-extension"
 	// UnknownKeyBudget reports an object declaring more keys the model does not
 	// name than the compiler keeps, so the ones past the bound reached the IR in no
 	// form at all.
@@ -541,6 +556,12 @@ const (
 	// deprecated node (docs/compilers/openapi.md#replacement-inference). Info:
 	// the message keeps its prose, so nothing it says is lost.
 	UndecidedReplacement = "openapi/undecided-replacement"
+	// UndecidedPagination reports an operation whose query parameters name a
+	// pagination input the pagination-inference policy cannot settle into an
+	// ir.Pagination, saying why, at the operation: it is left with none
+	// (docs/compilers/openapi.md#pagination-policy). Info: the document
+	// declares no pagination, so nothing it says is lost.
+	UndecidedPagination = "openapi/undecided-pagination"
 )
 
 // Newf builds an ir.Diagnostic with a formatted message. It is the single

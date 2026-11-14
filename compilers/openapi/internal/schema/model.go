@@ -42,7 +42,7 @@ func lowerModel(c lowering.Ctx, ts *compile.Types, depth int, s *oas3.Schema, po
 		requireMembers(m, s.GetRequired())
 		diags = append(diags, fillAdditional(c, ts, depth, m, s, pointer)...)
 		if discriminated {
-			d, discDiags := lowerDiscriminator(c, ts, s.GetDiscriminator(), pointer, m, mappingRoute{})
+			d, discDiags := lowerDiscriminator(c, ts, s.GetDiscriminator(), pointer, m, nil)
 			diags = append(diags, discDiags...)
 			m.Discriminator = d
 		}
