@@ -92,7 +92,9 @@ func schemeOf(t *testing.T, doc *ir.Document, op string) ir.AuthID {
 // TestCompile_ASecurityRequirementKeyThatIsAURIIsBoundToItsScheme pins a 3.2
 // requirement whose key is no component name but a URI: it is bound as a
 // reference, read against the document that writes it, and the scheme it lands
-// on is lowered where it is, in the ID space of the document that holds it.
+// on is lowered where it is, in the ID space of the document that holds it, and
+// placed there. Its kind says what it is: the IR fills Scheme only for an HTTP
+// scheme no kind names.
 func TestCompile_ASecurityRequirementKeyThatIsAURIIsBoundToItsScheme(t *testing.T) {
 	t.Parallel()
 	doc, diags := compileRequirements(t, requirementEntry, requirementSchemes, true)
@@ -101,15 +103,22 @@ func TestCompile_ASecurityRequirementKeyThatIsAURIIsBoundToItsScheme(t *testing.
 	require.Len(t, doc.Auth, 2, "the two schemes, and no scheme standing for a key")
 	require.Contains(t, doc.Auth, extraScheme)
 	assert.Equal(t, ir.AuthKindHTTPBearer, doc.Auth[extraScheme].Kind)
-	assert.Equal(t, "bearer", doc.Auth[extraScheme].Scheme)
 	require.Contains(t, doc.Auth, sharedScheme)
 	assert.Equal(t, ir.AuthKindHTTPBasic, doc.Auth[sharedScheme].Kind)
-	assert.Equal(t, "basic", doc.Auth[sharedScheme].Scheme)
+	for id, at := range map[ir.AuthID]string{
+		extraScheme: "entry.yaml#/x-schemes/extra", sharedScheme: "schemes.yaml#/components/securitySchemes/shared",
+	} {
+		prov := doc.Auth[id].Provenance
+		require.Less(t, prov.Source, len(doc.Sources), id)
+		assert.Equal(t, at, filepath.Base(doc.Sources[prov.Source].Path)+"#"+string(prov.Pointer),
+			"declared where it is written, in the document writing it")
+	}
 
 	assert.Equal(t, extraScheme, schemeOf(t, doc, "elsewhereInSource"))
 	assert.Equal(t, sharedScheme, schemeOf(t, doc, "otherDocument"))
 	assert.Equal(t, sharedScheme, schemeOf(t, doc, "mountedOwn"), "read against the file that writes the requirement")
-	assert.Equal(t, []string{"openapi", "openapi@schemes.yaml"}, doc.IDSpaces["auth"])
+	assert.Equal(t, []string{"openapi", "openapi@schemes.yaml", "unresolved"}, doc.IDSpaces["auth"],
+		"the spaces declared: the source's, the other document's, and the one an unresolved scheme takes")
 }
 
 // TestCompile_ASecurityRequirementURIThatLandsNowhereIsUnresolved pins the other
