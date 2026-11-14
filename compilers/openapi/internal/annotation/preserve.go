@@ -246,7 +246,7 @@ func holdsWhole(outer, inner ir.UnmodeledEntry) bool {
 	if !beneath {
 		return false
 	}
-	at := jsontext.Value(outer.Value)
+	at := outer.Value
 	for token := range jsontext.Pointer("/" + rest).Tokens() {
 		var members map[string]jsontext.Value
 		if json.Unmarshal(at, &members) != nil {
@@ -259,7 +259,7 @@ func holdsWhole(outer, inner ir.UnmodeledEntry) bool {
 		at = next
 	}
 	found, okFound := canonical(at)
-	want, okWant := canonical(jsontext.Value(inner.Value))
+	want, okWant := canonical(inner.Value)
 	return okFound && okWant && found == want
 }
 
