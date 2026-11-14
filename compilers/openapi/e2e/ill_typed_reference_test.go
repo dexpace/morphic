@@ -304,7 +304,7 @@ func TestCompile_AnAdditionalOperationThatIsNoMappingIsLeftOut(t *testing.T) {
 func TestCompile_AnAliasedNullRefIsReadWithoutAFault(t *testing.T) {
 	t.Parallel()
 	for _, spelling := range []string{"", " ~", " null"} {
-		spec := "openapi: 3.1.0\ninfo: {title: t, version: \"1\"}\nx-p: &p {$ref:" + spelling + "}\n" +
+		spec := "openapi: 3.1.0\ninfo: {title: t, version: \"1\"}\nx-p: &p {$ref:" + spelling + " }\n" +
 			"paths:\n  /a:\n    get:\n      operationId: getA\n      parameters:\n" +
 			"        - {name: ok, in: query, schema: {type: string}}\n        - *p\n" +
 			"      responses: {\"200\": {description: ok}}\n"
