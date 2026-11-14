@@ -5,22 +5,6 @@ package ir
 
 import "reflect"
 
-// idTypes are the IR's classes of identity. TestIDTypes_AreTheDeclaredClasses
-// holds this set to the classes the IR's nodes declare.
-var idTypes = map[reflect.Type]bool{
-	reflect.TypeFor[TypeID]():       true,
-	reflect.TypeFor[OpID]():         true,
-	reflect.TypeFor[ChannelID]():    true,
-	reflect.TypeFor[MessageID]():    true,
-	reflect.TypeFor[AuthID]():       true,
-	reflect.TypeFor[ServiceID]():    true,
-	reflect.TypeFor[GroupID]():      true,
-	reflect.TypeFor[PropID]():       true,
-	reflect.TypeFor[ParamID]():      true,
-	reflect.TypeFor[EnumMemberID](): true,
-	reflect.TypeFor[ServerID]():     true,
-}
-
 // idRule is what an empty value means at one ID-typed position.
 type idRule int
 
@@ -171,13 +155,13 @@ type refField struct {
 	rule  idRule
 }
 
-// idFieldsOf returns t's ID-typed fields that some rule here holds, leaving out
-// those another check holds.
-func idFieldsOf(t reflect.Type) []refField {
+// idFieldsOf returns t's fields holding an ID of one of classes that some rule
+// here holds, leaving out those another check holds.
+func idFieldsOf(t reflect.Type, classes map[reflect.Type]bool) []refField {
 	var out []refField
 	for i := range t.NumField() {
 		sf := t.Field(i)
-		shape, class, isID := idShapeOf(sf.Type)
+		shape, class, isID := idShapeOf(sf.Type, classes)
 		rule := idPositions[t.Name()+"."+sf.Name]
 		if !isID || rule == idElsewhere {
 			continue
@@ -187,19 +171,19 @@ func idFieldsOf(t reflect.Type) []refField {
 	return out
 }
 
-// idShapeOf classifies a field type as one of the shapes that hold IDs, and
-// returns the class of ID it holds.
-func idShapeOf(t reflect.Type) (idShape, reflect.Type, bool) {
+// idShapeOf classifies a field type as one of the shapes that hold an ID of one
+// of classes, and returns the class it holds.
+func idShapeOf(t reflect.Type, classes map[reflect.Type]bool) (idShape, reflect.Type, bool) {
 	switch {
-	case idTypes[t]:
+	case classes[t]:
 		return idScalar, t, true
-	case t.Kind() == reflect.Pointer && idTypes[t.Elem()]:
+	case t.Kind() == reflect.Pointer && classes[t.Elem()]:
 		return idPointer, t.Elem(), true
-	case t.Kind() == reflect.Slice && idTypes[t.Elem()]:
+	case t.Kind() == reflect.Slice && classes[t.Elem()]:
 		return idSlice, t.Elem(), true
-	case t.Kind() == reflect.Map && idTypes[t.Key()]:
+	case t.Kind() == reflect.Map && classes[t.Key()]:
 		return idMapKey, t.Key(), true
-	case t.Kind() == reflect.Map && idTypes[t.Elem()]:
+	case t.Kind() == reflect.Map && classes[t.Elem()]:
 		return idMapValue, t.Elem(), true
 	default:
 		return 0, nil, false

@@ -47,6 +47,7 @@ func (r EmptyReference) Message() string {
 // An entity's own ID, a registry's keys and TypeRef.Target are not read here:
 // other checks hold them.
 type EmptyReferences struct {
+	classes map[reflect.Type]bool // the classes of ID the IR's nodes declare
 	fields  map[reflect.Type][]refField
 	ranging entryStack
 	found   []EmptyReference
@@ -60,10 +61,11 @@ func (e *EmptyReferences) Visit(v reflect.Value, at WalkPath) bool {
 	}
 	byType, seen := e.fields[v.Type()]
 	if !seen {
-		byType = idFieldsOf(v.Type())
-		if e.fields == nil {
+		if e.classes == nil {
+			e.classes = idClasses()
 			e.fields = map[reflect.Type][]refField{}
 		}
+		byType = idFieldsOf(v.Type(), e.classes)
 		e.fields[v.Type()] = byType
 	}
 	for _, f := range byType {

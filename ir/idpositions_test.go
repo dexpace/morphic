@@ -54,17 +54,17 @@ func declaredFields(t *testing.T) []declaredField {
 	return out
 }
 
-// idClassTypes resolves the classes of identity the empty-reference reading
-// classifies by to the types the ir package declares. A class is compared by
-// identity, as the reading compares a reflect.Type: resolving TypeID to string
-// would defeat the check this mirrors.
+// idClassTypes resolves the classes of ID the IR's nodes declare, which the
+// empty-reference reading classifies by, to the types the ir package declares.
+// A class is compared by identity, as the reading compares a reflect.Type:
+// resolving TypeID to string would defeat the check this mirrors.
 func idClassTypes(t *testing.T) map[*types.TypeName]bool {
 	t.Helper()
 	p := irDecls(t)
 	classes := map[*types.TypeName]bool{}
-	for _, class := range ir.IDTypes() {
+	for class := range ir.IDClasses() {
 		named, err := p.Named(class.Name())
-		require.NoError(t, err, "idTypes names %s, which the ir package must declare", class.Name())
+		require.NoError(t, err, "a node declares an ID of %s, which the ir package must declare", class.Name())
 		classes[named.Obj()] = true
 	}
 	return classes
@@ -168,19 +168,6 @@ func mentionsIDClassAnywhere(t *testing.T, classes map[*types.TypeName]bool, typ
 	default:
 		return false
 	}
-}
-
-// TestIDTypes_AreTheDeclaredClasses holds idTypes, what the reading classifies
-// by, to the classes of ID the IR's nodes declare, which ir derives from their
-// types.
-func TestIDTypes_AreTheDeclaredClasses(t *testing.T) {
-	t.Parallel()
-	declared := ir.IDClasses()
-	require.NotEmpty(t, declared)
-	for class := range declared {
-		assert.True(t, ir.IsIDType(class), "idTypes does not list %s, which a node declares", class)
-	}
-	assert.Len(t, ir.IDTypes(), len(declared), "idTypes lists a class no node declares")
 }
 
 // localIDCarrier lives only in this test, so no idPositions entry can name a

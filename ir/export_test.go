@@ -45,14 +45,6 @@ func JSONSpelling(s string) (spelling string, spelled, ok bool) {
 // IDClasses is idClasses, for the external tests.
 var IDClasses = idClasses
 
-// IDTypes returns the classes of identity idTypes lists.
-func IDTypes() []reflect.Type {
-	return slices.Collect(maps.Keys(idTypes))
-}
-
-// IsIDType reports whether idTypes lists t.
-func IsIDType(t reflect.Type) bool { return idTypes[t] }
-
 // IDPositions returns the "Type.Field" keys idPositions classifies.
 func IDPositions() []string {
 	return slices.Sorted(maps.Keys(idPositions))
@@ -62,7 +54,7 @@ func IDPositions() []string {
 // empty-reference reading holds as references, an empty one being reported.
 func RequiredIDFields(t reflect.Type) []string {
 	var names []string
-	for _, f := range idFieldsOf(t) {
+	for _, f := range idFieldsOf(t, idClasses()) {
 		if f.rule == idRequired {
 			names = append(names, f.name)
 		}
