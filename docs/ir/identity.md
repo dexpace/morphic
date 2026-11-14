@@ -222,6 +222,11 @@ report, so the defect draws one code (#575). Two empties are outside it, each re
 `irverify` alone: an entity's own empty `ID`, which is `ir/empty-<noun>-id`, and an empty
 `TypeRef.Target`, which is `ir/type-ref-no-target` ([type-graph](./type-graph.md#type-references)).
 
+A registry node's own `ID` is its declaration and never a reference. Where a registry keys a node by
+an ID other than its own, the defect is `ir/<noun>-id-mismatch` alone, from `irverify`; neither checker
+also calls the node's `ID` a dangling reference, though a reference held inside that node to an
+undeclared ID still dangles.
+
 ## Why IDs
 
 This is the direct answer to oagen's name-keyed registry (silent collision merging, string-rewrite
