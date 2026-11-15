@@ -64,3 +64,27 @@ func TestBind_ABudgetThatRunsOutInAPassWhoseDeclarationsChangedEndsThere(t *test
 	}
 	assert.Equal(t, 2, passes(67), "a budget left after the first pass begins a second")
 }
+
+// TestBind_AThirdDeclarationOfADuplicateURIReadsThePassAgain pins that a URI
+// two documents declare, answered as declared twice, is kept as one the pass
+// asked for: a third declaration that a document read since brings changes what
+// the pass was told of it, so the pass is read again and the table stands on a
+// pass that saw every declaration. The URI is no identifier of any of them
+// either way.
+func TestBind_AThirdDeclarationOfADuplicateURIReadsThePassAgain(t *testing.T) {
+	t.Parallel()
+	const uri = "https://x.test/same"
+	docs := map[string]string{
+		"o.yaml": "S: {$id: '" + uri + "'}\nN: {$ref: 'p.yaml#/S'}\n",
+		"p.yaml": "S: {$id: '" + uri + "'}\nM: {$ref: 'q.yaml#/S'}\n",
+		"q.yaml": "S: {$id: '" + uri + "'}\n",
+	}
+	const schemas = "    O: {$ref: 'o.yaml#/S'}\n    Z: {$ref: 'o.yaml#/N'}\n    Q: {$ref: 'p.yaml#/M'}\n    R: {$ref: '" + uri + "'}\n"
+	cfg, reads := recordingDocuments(t, docs)
+
+	table := bound(t, head+"components:\n  schemas:\n"+schemas, cfg)
+
+	assert.Equal(t, []string{"o.yaml", "p.yaml", "q.yaml"}, *reads)
+	assert.Equal(t, bind.DuplicateID, entryAt(t, table, "/components/schemas/R").Hop.Reason)
+	assert.Equal(t, 2, table.Passes(), "the pass that saw the third declaration is the one that stands")
+}
