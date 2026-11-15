@@ -4763,8 +4763,6 @@ resolves to the schema declaring it.
   `load.TestReadDialects_GivesAnotherDocumentsOwnRowsToWhatNoRootHolds`,
   `e2e.TestCompile_ASchemaOnlyARefReachesReadsItsOwnDialect`,
   `e2e.TestCompile_ASchemaAnotherLandingHoldsIsNotADialectRoot`
-- Status: partly built: an identifier naming its document by the 3.2 `$self` roots a resource of its
-  own, as the document is known by its location alone (#863).
 
 ### `vocabulary-coverage`
 
@@ -6236,8 +6234,6 @@ requirement naming no scheme and a scheme naming no mechanism, and leaves them t
   `auth.TestNearest_ReadsOneEditWithinItsBounds`, `auth.TestOneEditApart_CountsOneEdit`,
   `lowering.TestFirstOccurrences_KeepsEachEntryOnceAtItsFirst`,
   `auth.TestAuth_RequirementsOrOfAnds`
-- Status: partly built: a 3.2 requirement naming the source by its `$self` lowers as unresolved
-  (#863).
 
 ### `security-scheme-fields`
 
