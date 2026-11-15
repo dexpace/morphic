@@ -5,6 +5,7 @@ package reader
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net"
 	"net/http"
@@ -51,6 +52,9 @@ type guard struct {
 	// proxied says the request being sent goes through a proxy, whose dial is
 	// not the request's address.
 	proxied atomic.Bool
+	// refused is the first address a dial was refused, which a read failing
+	// at another address of the same name failed beside.
+	refused atomic.Pointer[compilers.AddressSpaceError]
 }
 
 // admits reports the refusal of a request bounded by g's reach to an address
@@ -69,11 +73,30 @@ func (g *guard) control(_ context.Context, _, address string, _ syscall.RawConn)
 	if g.proxied.Load() {
 		return nil
 	}
-	ap, err := netip.ParseAddrPort(address)
-	if err != nil {
-		return g.admits(address, compilers.SpaceLocal)
+	space := compilers.SpaceLocal
+	if ap, err := netip.ParseAddrPort(address); err == nil {
+		space = g.classify(ap)
 	}
-	return g.admits(address, g.classify(ap))
+	err := g.admits(address, space)
+	if past, ok := errors.AsType[*compilers.AddressSpaceError](err); ok {
+		g.refused.CompareAndSwap(nil, past)
+	}
+	return err
+}
+
+// failed returns err, the failure of a read g judged, with the refusal of an
+// address it would have dialled joined to it: a name resolving to several
+// addresses fails with the first error the dialler met, which may be another
+// address's, and a read that was refused an address is the asker's failure
+// alone, never one a wider read would meet.
+func (g *guard) failed(err error) error {
+	if g == nil || errors.Is(err, compilers.ErrAddressSpace) {
+		return err
+	}
+	if past := g.refused.Load(); past != nil {
+		return errors.Join(err, past)
+	}
+	return err
 }
 
 // dial connects as a dialer under control does, and notes the space of the

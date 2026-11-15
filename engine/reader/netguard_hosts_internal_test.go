@@ -426,3 +426,35 @@ func TestDisk_ABoundedReadThroughAProxyAdmitsALiteralOrADNSNameAlone(t *testing.
 	}
 	assert.Zero(t, srv.conns.Load())
 }
+
+// TestDisk_AReadRefusedOneAddressOfANameFailsAsRefused pins that a bounded
+// read of a name whose addresses are one refused and one that fails otherwise
+// fails with ErrAddressSpace, whichever error the dialler met first, so the
+// failure stays the asker's alone: an unbounded read of the same name is
+// answered by the address the bounded one was refused.
+func TestDisk_AReadRefusedOneAddressOfANameFailsAsRefused(t *testing.T) {
+	t.Parallel()
+	srv := newProbeServer(t, false, nil)
+	served := netip.AddrPortFrom(netip.MustParseAddr("127.0.0.1"), srv.port(t))
+	// 127.0.0.2 has no server: the dial to it is refused, or, where the
+	// loopback holds 127.0.0.1 alone, stalls until the client's deadline.
+	dns := &fakeDNS{answers: map[string][][]netip.Addr{
+		"mixed.example": {{served.Addr(), netip.MustParseAddr("127.0.0.2")}},
+	}}
+	d := Disk{Client: &http.Client{Timeout: 300 * time.Millisecond}, resolver: dns.resolver(),
+		classify: func(ap netip.AddrPort) compilers.AddressSpace {
+			if ap == served {
+				return compilers.SpacePrivate
+			}
+			return compilers.SpacePublic
+		}}
+	at := "http://mixed.example:" + srv.portString(t) + "/x"
+
+	_, err := d.ReadDocument(t.Context(), compilers.DocumentRequest{Location: at, Reach: compilers.SpacePublic})
+	require.ErrorIs(t, err, compilers.ErrAddressSpace)
+	assert.Zero(t, srv.requests.Load(), "the refused address was asked nothing")
+
+	got, err := d.ReadDocument(t.Context(), compilers.DocumentRequest{Location: at})
+	require.NoError(t, err)
+	assert.Equal(t, compilers.SpacePrivate, got.Space)
+}

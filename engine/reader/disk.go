@@ -93,7 +93,7 @@ func (d Disk) fetch(ctx context.Context, u string, req compilers.DocumentRequest
 	}
 	resp, err := client.Do(get)
 	if err != nil {
-		return compilers.DocumentRead{}, err // a *url.Error, naming the request and its URL
+		return compilers.DocumentRead{}, g.failed(err) // a *url.Error, naming the request and its URL
 	}
 	if resp.StatusCode < http.StatusOK || resp.StatusCode >= http.StatusMultipleChoices {
 		return compilers.DocumentRead{}, errors.Join(fmt.Errorf("GET %s: %s", u, resp.Status), resp.Body.Close())
