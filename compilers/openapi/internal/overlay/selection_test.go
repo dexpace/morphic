@@ -4,7 +4,7 @@
 package overlay_test
 
 import (
-	"regexp"
+	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -108,13 +108,15 @@ func TestApply_ReadsAMemberNamedByAnEscapeOrALiteral(t *testing.T) {
 // mistakes the compiler can say what to write instead of, that.
 func TestApply_RefusesATargetRFC9535DoesNotReadAndSaysWhere(t *testing.T) {
 	t.Parallel()
-	tests := []struct{ name, target, says string }{
-		{"a member name with a dash", "$.info.x-internal", "['x-internal']"},
-		{"the property-name operator", "$.info~", "~"},
-		{"an unclosed filter", "$[?(@.a)", ""},
-		{"a number with a leading zero", "$.info[?@.a == 01]", ""},
+	tests := []struct {
+		name, target, says string
+		offset             int
+	}{
+		{"a member name with a dash", "$.info.x-internal", "['x-internal']", 8},
+		{"the property-name operator", "$.info~", "~", 6},
+		{"an unclosed filter", "$[?(@.a)", "", 8},
+		{"a number with a leading zero", "$.info[?@.a == 01]", "", 15},
 	}
-	offset := regexp.MustCompile(`its target does not read as an RFC 9535 query at offset \d+`)
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
@@ -125,7 +127,7 @@ func TestApply_RefusesATargetRFC9535DoesNotReadAndSaysWhere(t *testing.T) {
 				assert.False(t, origin.Applied())
 				sameCodes(t, []string{"error " + diag.OverlayInvalid}, diags)
 				assert.Equal(t, "/actions/0", string(diags[0].Provenance.Pointer), "lax=%v", lax)
-				assert.Regexp(t, offset, diags[0].Message)
+				assert.Contains(t, diags[0].Message, fmt.Sprintf("its target does not read as an RFC 9535 query at offset %d: ", tc.offset))
 				assert.Contains(t, diags[0].Message, tc.says)
 				sameValue(t, head, root)
 			}

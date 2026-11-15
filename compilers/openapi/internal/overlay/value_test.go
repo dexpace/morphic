@@ -30,6 +30,10 @@ func TestApply_KeepsTheAliasesACopyHolds(t *testing.T) {
 	require.True(t, origin.Applied(), "%+v", diags)
 	sameCodes(t, nil, diags)
 	sameValue(t, "x-b: {q: 1}\nx-a: {p: {q: 1}, r: 1}\nx-c: {p: {q: 1}}\n", root)
+	_, anchored := member(t, root, "x-b")
+	_, p := member(t, root, "x-a", "p")
+	require.Equal(t, yaml.AliasNode, p.Kind, "the copy's member is still an alias")
+	assert.Same(t, anchored, p.Alias, "and names what the source anchors")
 }
 
 // TestApply_KeepsTheWriterOfAMergedMemberItWrote pins a merge the overlay
