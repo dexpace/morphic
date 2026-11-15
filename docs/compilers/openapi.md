@@ -906,8 +906,10 @@ read as that file. The caller may map a URI prefix to a location, a directory or
 (`Options.Locations`, `--opt locate=<uri-prefix>=<location>`); nothing is mapped by inference. A
 prefix that is no absolute URI ending in `/`, or holds a query or a fragment, a prefix mapped twice,
 and a URL location ending in no `/` are refused as an option error. The
-mapping is applied where a URL is located, once spelled one way, before any refusal or read judges
-it, the longest prefix winning: the rest of the URL is joined to a directory segment by segment,
+mapping is applied where a document a URL names is opened, once the URL is spelled one way, before
+any read judges it, and never to an identifier: an `$id` or a `$self` keeps the URI it writes, so a
+reference relative to one is resolved against that URI, and the URL it names is then mapped or, out
+of every prefix, read as a URL. The longest prefix wins: the rest of the URL is joined to a directory segment by segment,
 each decoded, and one decoding to a separator names no location, so the reference fails unread and
 no spelling leaves the location; a URL location takes the rest as written. The document is then
 read, confined, named and labelled where its bytes are, so a file reached by its path and by a

@@ -202,3 +202,37 @@ func TestCompile_ALocateOptionMapsTheURLsASelfPutsReadsAt(t *testing.T) {
 	require.Len(t, bad, 1, "%+v", diags)
 	assert.Contains(t, bad[0].Message, onNetwork)
 }
+
+// TestCompile_AMappedIdentifiersRelativeReferenceReadsTheFileBesideTheSpec
+// holds GitHub #1051's spec: a schema whose $id names the URL it is published
+// under, a relative $ref under it, and that URL's directory mapped to the
+// spec's. The $ref reads the b.yaml beside the spec in the confined mode, and
+// one climbing out of the prefix names the URL above it, never the file above
+// the mapped directory: a mapping places a document, never an identifier.
+func TestCompile_AMappedIdentifiersRelativeReferenceReadsTheFileBesideTheSpec(t *testing.T) {
+	t.Parallel()
+	const spec = head31 + "paths: {}\ncomponents:\n  schemas:\n    S:\n      $id: 'https://example.com/x/s.json'\n" +
+		"      type: object\n      properties:\n        p: {$ref: 'b.yaml#/B'}\n        u: {$ref: '../up.yaml#/U'}\n"
+	for name, allow := range map[string]bool{"confined": false, "external references allowed": true} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			root := realDir(t)
+			dir := filepath.Join(root, "d")
+			layout(t, root, map[string]string{"up.yaml": "U: {type: boolean}\n", "d/b.yaml": "B: {type: string}\n"})
+			rec := &recordingReader{inner: loopbackDisk{}}
+
+			doc, diags := compileWithReader(t, filepath.Join(dir, "spec.yaml"), spec,
+				openapi.Options{AllowExternalRefs: allow, Locations: []openapi.Location{{Prefix: mapped, Location: "."}}}, rec)
+
+			require.NotNil(t, doc, "%+v", diags)
+			bad := unresolvedRefs(diags)
+			require.Len(t, bad, 1, "%+v", diags)
+			assert.Equal(t, "/components/schemas/S/properties/u", string(bad[0].Provenance.Pointer))
+			assert.Contains(t, bad[0].Message, "https://example.com/up.yaml")
+			assert.Contains(t, sourcePaths(doc), filepath.Join(dir, "b.yaml"), "b.yaml beside the spec is read")
+			for _, loc := range rec.locations() {
+				assert.NotEqual(t, filepath.Join(root, "up.yaml"), loc, "no file above the mapped directory is read")
+			}
+		})
+	}
+}

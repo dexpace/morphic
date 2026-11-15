@@ -34,6 +34,12 @@ type Config struct {
 	// part, names when written in the document named base, and false when it
 	// names none. Nil names each document by its uri.
 	Locate func(uri, base string) (string, bool)
+	// Map returns where the document a located name names is read: a location
+	// the caller put its URL at, else name itself. It is asked where a document
+	// is opened and never where an identifier is resolved, so an $id or a
+	// $self keeps the URI it writes, and a reference relative to one is read
+	// against that URI. Nil maps nothing.
+	Map func(name string) string
 	// Open returns the tree of the document named name, as a reference
 	// written in the document named from reads it, under the compile's
 	// budgets, or an *UnparsableError for one that was read and does not

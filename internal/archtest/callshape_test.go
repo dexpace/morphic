@@ -49,12 +49,12 @@ var callShapeBaseline = map[string]map[string]int{
 		"compilers/openapi/internal/schema":    6,
 	},
 	"compilers/openapi/internal/bind": {
-		// bind.Config's five functions, which #1488 keeps under #1477's rule: I/O
-		// (Open), policy bind may not import (Locate, Refuse), and two readings
+		// bind.Config's six functions, which #1488 keeps under #1477's rule: I/O
+		// (Open), policy bind may not import (Locate, Map, Refuse), and two readings
 		// of a document's rows, which load holds and bind may not import, asked
 		// only of a document a reference opens, so no list made before binding
 		// holds them (Dialect, KeysByURI): designed seams, one kind.
-		"compilers/openapi/internal/load": 5,
+		"compilers/openapi/internal/load": 6,
 	},
 	"compilers/openapi/internal/load": {
 		// DocumentReader, through which load reads the documents references and

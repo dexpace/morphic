@@ -69,8 +69,8 @@ type Options struct {
 	// compile, each counted once however often it is asked for.
 	MaxExternalDocuments budget.Limit
 	// Mappings is where the caller put the documents under a URI prefix,
-	// applied where a document is located, before any refusal or read judges
-	// it; none is applied by inference.
+	// applied where a document is opened, before any read judges it, and never
+	// to an identifier; none is applied by inference.
 	Mappings []Mapping
 	// buildIndex builds the pre-parse index over a decoded tree, or nil for the
 	// compiler's own node bound. It is unexported because it is this package's
