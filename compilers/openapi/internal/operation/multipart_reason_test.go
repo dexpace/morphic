@@ -16,8 +16,9 @@ import (
 
 // TestKeepEntry_ReasonFollowsEffect holds the reason an encoding entry is kept
 // under to what the entry means. An entry the walk decides names no property of
-// the body, and every entry of a file body, has no effect where it is written:
-// no IR node is coming for it, so it is out of scope. An entry of a body whose
+// the body, every entry of a file body and every entry under a media type that
+// is neither multipart nor form have no effect where they are written: no IR
+// node is coming for them, so they are out of scope. An entry of a body whose
 // schema could name the part, a catch-all's, is kept because the compiler has
 // no home for it yet, and is neither reported as naming nothing nor judged.
 func TestKeepEntry_ReasonFollowsEffect(t *testing.T) {
@@ -49,6 +50,15 @@ paths:
             encoding:
               file: {contentType: image/png}
       responses: {"204": {description: ok}}
+  /json:
+    post:
+      operationId: json
+      requestBody:
+        content:
+          application/json:
+            schema: {type: object, properties: {a: {type: string}}}
+            encoding: {a: {contentType: text/plain}}
+      responses: {"204": {description: ok}}
   /open:
     post:
       operationId: open
@@ -74,6 +84,8 @@ paths:
 			"/paths/~1form/post/requestBody/content/multipart~1form-data/encoding/flie"},
 		{"bytes", "openapi:encoding/file", ir.ReasonOutOfScope, true,
 			"/paths/~1bytes/post/requestBody/content/multipart~1form-data/encoding/file"},
+		{"json", "openapi:encoding/a", ir.ReasonOutOfScope, false,
+			"/paths/~1json/post/requestBody/content/application~1json/encoding/a"},
 		{"open", "openapi:encoding/extra", ir.ReasonNoIRHome, false,
 			"/paths/~1open/post/requestBody/content/multipart~1form-data/encoding/extra"},
 	} {

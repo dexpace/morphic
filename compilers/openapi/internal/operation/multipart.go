@@ -142,9 +142,10 @@ const (
 // annotation.EntryKey("encoding", key), with one info each, which why completes
 // (docs/compilers/openapi.md#multipart-encoding). Where the walk decides the
 // key names no property it draws a warning besides (unknownEncodingKey). Such
-// an entry, and a file body's, has no effect, so it is out of scope; one the
-// walk cannot decide, as a catch-all may take its key, has no IR home. An
-// entry that is no object is skipped, since load reports it.
+// an entry, a file body's and one under a media type that is neither multipart
+// nor form have no effect, so they are out of scope; one the walk cannot
+// decide, as a catch-all may take its key, has no IR home. An entry that is no
+// object is skipped, since load reports it.
 func keepUnkeyedEncodings(c lowering.Ctx, media *soa.MediaType, mediaPtr jsontext.Pointer, w partWalk, why string) (ir.Unmodeled, []ir.Diagnostic) {
 	walked := make(map[string]struct{}, len(w.parts))
 	for _, part := range w.parts {
@@ -157,17 +158,17 @@ func keepUnkeyedEncodings(c lowering.Ctx, media *soa.MediaType, mediaPtr jsontex
 			continue
 		}
 		at := mediaPtr + ids.Ptr("encoding", name)
-		// An entry the walk decides names no property, a file body's among them,
-		// has no effect where it is written; one a catch-all may take has no IR
-		// home yet.
-		namesNothing := w.decidesKeys() && why != unkeyedOtherEntry
+		// An entry the walk decides keys nothing, every entry of a body with no
+		// parts among them, has no effect where it is written; one a catch-all
+		// may take has no IR home yet. Under a media type that is neither
+		// multipart nor form, load reports the whole field as having no effect.
 		reason := ir.ReasonNoIRHome
-		if namesNothing {
+		if w.decidesKeys() {
 			reason = ir.ReasonOutOfScope
 		}
 		written, keepDiags := keepEntry(c, &kept, name, enc.GetRootNode(), at, why, reason)
 		diags = append(diags, keepDiags...)
-		if written && namesNothing {
+		if written && w.decidesKeys() && why != unkeyedOtherEntry {
 			diags = append(diags, unknownEncodingKey(c, name, "body", at))
 		}
 	}

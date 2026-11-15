@@ -531,7 +531,8 @@ func TestUnknownKeys_EveryKeptKeyIsReported(t *testing.T) {
 	t.Parallel()
 	// Entries the other readers answer for with a finding of their own: a
 	// schema's keyword, an encoding entry naming no property, an entry another
-	// construct holds, and the keys later minors define.
+	// construct holds, and the keys later minors define. A field load reports
+	// as having no effect answers for each entry it holds.
 	otherCodes := []string{
 		diag.UnknownSchemaKeyword, diag.UnknownEncodingKey, diag.UnknownKeyBudget,
 		diag.ValidationOnlyKeyword, diag.LaterVersionConstruct, diag.InapplicableLocationKeyword,
@@ -554,7 +555,9 @@ func TestUnknownKeys_EveryKeptKeyIsReported(t *testing.T) {
 				continue
 			}
 			if slices.ContainsFunc(diags, func(d ir.Diagnostic) bool {
-				return string(d.Provenance.Pointer) == p && slices.Contains(otherCodes, d.Code)
+				at := string(d.Provenance.Pointer)
+				return at == p && slices.Contains(otherCodes, d.Code) ||
+					d.Code == diag.Validation+"/validation-no-effect" && strings.HasPrefix(p, at+"/")
 			}) {
 				continue
 			}

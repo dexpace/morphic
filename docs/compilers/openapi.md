@@ -5202,10 +5202,11 @@ bound of its own in the body's type is reported so too.
 Each entry that keys nothing is kept whole, as written, under the content's `Unmodeled` at
 `openapi:encoding/<key>` (the key escaped as a JSON Pointer token), located at the entry, and
 reported there as an info `openapi/degraded-construct` saying why. Its reason follows its effect: an
-entry the walk decides names no property, and every entry of a file body, which has no parts, has
-none where it is written and no node is coming for it, so it is kept under `out_of_scope`
+entry the walk decides names no property, every entry of a file body, which has no parts, and every
+entry under a media type that is neither multipart nor form has none where it is written and no node
+is coming for it, so it is kept under `out_of_scope`
 ([boundaries](../ir/boundaries.md#deliberate-exclusions)); an entry the walk cannot decide, as a
-catch-all may take its key, and one of the other kinds below, under `no_ir_home`:
+catch-all may take its key, and one of the second kind below, under `no_ir_home`:
 
 1. A key naming no part the walk reads: no property, a map's or a catch-all's entry, a part past a
    bound, or any entry of a body declaring no property, such as one with no schema, one whose schema

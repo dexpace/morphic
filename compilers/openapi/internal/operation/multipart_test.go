@@ -1766,9 +1766,10 @@ func TestPartEncodings_AnUnkeyedEntryLowersNothingItDeclares(t *testing.T) {
 
 // TestPartEncodings_AnEncodingOutsideAFormIsKeptWhole holds each entry of an
 // encoding written under a media type that is neither multipart nor form, a
-// file body's or not, to being kept whole at openapi:encoding/<key>, with one
-// info at the entry beside load's warning at the field, and no warning that
-// the key names nothing: the field has no effect there, whatever it names.
+// file body's or not, to being kept whole at openapi:encoding/<key> as
+// out_of_scope, with one info at the entry beside load's warning at the field,
+// and no warning that the key names nothing: the field has no effect there,
+// whatever it names.
 func TestPartEncodings_AnEncodingOutsideAFormIsKeptWhole(t *testing.T) {
 	t.Parallel()
 	for _, tc := range []struct{ name, mt, schema string }{
@@ -1784,7 +1785,7 @@ func TestPartEncodings_AnEncodingOutsideAFormIsKeptWhole(t *testing.T) {
 			media := requestMedia(tc.mt)
 			for _, name := range []string{"file", "x"} {
 				at := media + "/encoding/" + name
-				assert.Equal(t, ir.ReasonNoIRHome, content.Unmodeled["openapi:encoding/"+name].Reason)
+				assert.Equal(t, ir.ReasonOutOfScope, content.Unmodeled["openapi:encoding/"+name].Reason)
 				assert.Equal(t, fmt.Sprintf("encoding entry %q belongs to a media type that is neither multipart nor form, "+
 					"where it has no effect, so Content.Encoding has no key for it; kept verbatim under Unmodeled", name),
 					openapitest.DiagMessageAt(t, diags, diag.DegradedConstruct, ir.SeverityInfo, at))

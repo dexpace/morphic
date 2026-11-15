@@ -838,8 +838,9 @@ it sees. Changes made together in one bump are listed together under it.
   mark the nearest of them states, its own first; an operation takes its path item's tier where it
   states none, and a pagination key it writes `true` reads its path item's walk before the
   document root's ([promotion](./unmodeled.md#promotion)). A value writing a key twice is read at the
-  copy the model reads, where it was refused, and an encoding entry naming no property, or a file
-  body's, is kept `out_of_scope`, where it was `no_ir_home`. The fields beside a path item's `$ref`
+  copy the model reads, where it was refused, and an encoding entry naming no property, a file
+  body's or one under a media type that is neither multipart nor form, is kept `out_of_scope`, where
+  it was `no_ir_home`. The fields beside a path item's `$ref`
   lower wherever the bindings land it, and each position a schema `$ref` lands on, none in a loop of
   them, lowers to a node. A 3.2 security requirement key naming no component is read as a
   reference: a Security Scheme Object it lands on outside the source's `securitySchemes` lowers under
