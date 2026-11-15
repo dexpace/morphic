@@ -90,7 +90,7 @@ func TestCompile_ARecursiveRefNoOtherAnchoredResourceReachesExpands(t *testing.T
 func TestCompile_ARecursiveRefAnotherAnchoredResourceReachesIsKept(t *testing.T) {
 	t.Parallel()
 	chain := "    Chain:\n" + recDialect +
-		"      $id: 'https://example.com/chain'\n      $recursiveAnchor: true\n      type: array\n" +
+		"      $id: 'https://example.com/chain'\n      $recursiveAnchor: true\n      type: object\n" +
 		"      items: {$ref: 'https://example.com/tree'}\n" +
 		"      properties: {next: {$recursiveRef: '#'}}\n"
 	const nextPointer = "/components/schemas/Chain/properties/next/$recursiveRef"

@@ -4429,8 +4429,12 @@ JSON Schema 2019-09's `$recursiveRef` is read the same way in a schema whose dia
 the root of the resource it is written in. Where that root declares no `$recursiveAnchor` of `true`,
 `false` being the default, the reference reads as the `$ref` it spells and expands to the root. Where
 it declares one, the target is the outermost schema of the dynamic scope declaring one too, which is
-that root on every path where every schema of the document declaring `$recursiveAnchor: true` lies
-in the root's resource, and the reference expands to it then. A schema under no `$id` is in its
+that root on every path where no other schema resource holding a declaration of
+`$recursiveAnchor: true`, in any document the compile reads, reaches the root's, and the reference
+expands to it then. A resource reaches each one nested directly in it and each one a reference site
+in it lands in, a `$ref`, a `$dynamicRef` that is one, or a mapping value, and every resource those
+reach; the walk is linear in resources and reference sites, each edge a step of the binding budget,
+past which nothing is known and the reference is kept. A schema under no `$id` is in its
 document's resource, whose root in an OpenAPI document is the OpenAPI Object, which holds no
 schema, so its `$recursiveRef` is irreducible, as its `$ref: '#'` twin is unresolved, and the
 message says that an identifier on the schema would make it the root. `$recursiveAnchor` is consumed
@@ -4448,8 +4452,8 @@ A reference is irreducible — and is then kept verbatim under `openapi:$dynamic
 `openapi:$recursiveRef` (`degraded_lowering`) with an info `openapi/degraded-construct` at it naming
 which case it was — when a `$dynamicRef`'s name is declared more than once in its document (the
 target is back under the evaluation path's control), or is declared in another document alone; when
-a `$recursiveRef`'s value is not `#`, or `$recursiveAnchor: true` is
-declared in more than one resource of its document; when its value is not a string at all; when a
+a `$recursiveRef`'s value is not `#`, or another resource declaring `$recursiveAnchor: true`
+reaches its target's; when its value is not a string at all; when a
 resource boundary stands between it and its anchor as above; when no schema could be built where it
 names; when expanding it would close a cycle of aliases (a `$ref` cycle is refused outright for the
 same reason, and expansion must not mint one the refusal cannot see); or when it is co-declared with
@@ -4486,6 +4490,12 @@ written beside a reference that expands is read as one beside a `$ref` is
   `e2e.TestCompile_ADynamicRefResolvingNowhereIsAnUnresolvedRef`,
   `e2e.TestCompile_ATwoMemberCycleThroughADynamicRefIsACyclicRef`,
   `e2e.TestCompile_AnAliasLoopAnExpansionClosesKeepsTheReference`,
+  `bind.TestRecursiveAnchor_AResourceAnotherAnchoredOneReachesIsReached`,
+  `bind.TestRecursiveAnchor_AWalkTheBudgetCutsKnowsNothing`, `bind.TestBind_TheRecursiveReachGrowsLinearly`,
+  `e2e.TestCompile_ARecursiveRefNoOtherAnchoredResourceReachesExpands`,
+  `e2e.TestCompile_ARecursiveRefAnotherAnchoredResourceReachesIsKept`,
+  `e2e.TestCompile_ARecursiveRefAnotherDocumentsAnchoredResourceReachesIsKept`,
+  `e2e.TestCompile_ARecursiveRefInAResourceNestedInAnAnchoredOneIsKept`,
   `schema.TestDynamicRef_ExpandsAgainstTheDocumentItIsWrittenIn`,
   `schema.TestDynamicRef_ExpandsToAnyPositionARefNames`, `schema.TestDynamicRef_ExpandsWithinOneResource`,
   `schema.TestDynamicRef_ExpandsToAnAnchorOnlyADraftPlaces`, `schema.TestResolvesAt_AnswersAsResolvePointerDoes`,
@@ -4500,8 +4510,6 @@ written beside a reference that expands is read as one beside a `$ref` is
   `bind.TestDynamicAnchor_SaysWhenTheCountProvesNothing`,
   `bind.TestRecursiveAnchor_CountsWhatADocumentDeclares`,
   `bind.TestResource_NamesTheRootOfAPositionsResource`
-- Status: partly built: a `$recursiveRef` is kept where two resources of its document each declare
-  `$recursiveAnchor: true`, even where neither can reach the other (#1884).
 
 ### `content-vocabulary`
 

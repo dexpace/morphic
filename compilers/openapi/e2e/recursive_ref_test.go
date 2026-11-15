@@ -132,9 +132,9 @@ func TestOlderDrafts_ARecursiveRefExpandsWhereItsTargetIsStatic(t *testing.T) {
 	want := map[int]map[string]string{
 		0: {"/properties/foo": in(0, "")},
 		1: {"/$defs/myobject" + tail: in(1, "/$defs/myobject")},
-		2: {"/$defs/myobject" + tail: "kept: $recursiveRef was not expanded because $recursiveAnchor: true is declared " +
-			"in 2 schema resources of this document, so the target depends on the evaluation path; it is kept verbatim " +
-			"under Unmodeled"},
+		2: {"/$defs/myobject" + tail: "kept: $recursiveRef was not expanded because $recursiveAnchor: true is also " +
+			"declared in a schema resource that reaches this one, so the target depends on the evaluation path; it is " +
+			"kept verbatim under Unmodeled"},
 		3: {"/$defs/myobject" + tail: in(3, "/$defs/myobject")},
 		4: {"/$defs/myobject" + tail: in(4, "/$defs/myobject")},
 		5: {tail + tail: in(5, tail)},
@@ -161,7 +161,7 @@ func TestOlderDrafts_ARecursiveRefExpandsWhereItsTargetIsStatic(t *testing.T) {
 		got := recursiveRefsOf(diags)
 		require.Len(t, got, 1, "%v", got)
 		for _, outcome := range got {
-			assert.Contains(t, outcome, "is declared in 3 schema resources of this document")
+			assert.Contains(t, outcome, "is also declared in a schema resource that reaches this one")
 		}
 	})
 }

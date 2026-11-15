@@ -415,9 +415,14 @@ func (b *binder) table(t *Table) *Table {
 			t.references[k] = Reference{Site: k.at, Kind: k.kind, Hop: ofKind(b.objs.hops[k.at], k.kind), Chain: c}
 		}
 	}
-	t.loops, t.steps, t.limit, t.exhausted = b.loops, b.work.steps.Spent(), b.work.steps.Limit(), b.work.steps.Exhausted()
+	t.entryList = slices.SortedFunc(maps.Values(t.entries), func(x, y Entry) int { return b.docs.compare(x.Site, y.Site) })
 	t.roots, t.bases, t.ids = b.find.roots, newBases(b.resources, b.ids), b.ids
-	t.recursive = recursiveAnchorsOf(b.ids, t.bases)
+	var graph reach
+	if len(b.ids.recursive) > 0 {
+		graph = reachOf(b, t)
+	}
+	t.recursive = recursiveAnchorsOf(b.ids, t.bases, graph)
+	t.loops, t.steps, t.limit, t.exhausted = b.loops, b.work.steps.Spent(), b.work.steps.Limit(), b.work.steps.Exhausted()
 	t.dynamic = dynamicAnchorsOf(b.ids, t.exhausted)
 	dialects := dialectsByDocument(b.ids.dialects)
 	for id, d := range b.docs.list {
@@ -438,7 +443,6 @@ func (b *binder) table(t *Table) *Table {
 	}
 	slices.SortFunc(t.landings, func(x, y Landing) int { return b.docs.compare(x.At, y.At) })
 	t.objLandings = b.objs.landings(t)
-	t.entryList = slices.SortedFunc(maps.Values(t.entries), func(x, y Entry) int { return b.docs.compare(x.Site, y.Site) })
 	t.refList = slices.SortedFunc(maps.Values(t.references), func(x, y Reference) int {
 		return compareObjects(b.docs)(objectKey{at: x.Site, kind: x.Kind}, objectKey{at: y.Site, kind: y.Kind})
 	})
@@ -624,45 +628,59 @@ func dynamicAnchorsOf(ids *identifiers, exhausted bool) map[dynamicKey]DynamicAn
 	return out
 }
 
-// RecursiveAnchor reports what the schemas of root's document declaring
-// `$recursiveAnchor` true, where their dialect defines the keyword
-// (DialectRule.Recursive), say of a $recursiveRef reaching root: whether root
-// declares it, how many schema resources hold a declaration, and whether both
-// are known, as DynamicAnchor says, each declaration's resource included. A
-// nil table knows of none.
-func (t *Table) RecursiveAnchor(root Position) (declared bool, resources int, known bool) {
+// RecursiveAnchor reports what the schemas declaring `$recursiveAnchor` true,
+// where their dialect defines the keyword (DialectRule.Recursive), say of a
+// $recursiveRef reaching root, a resource's root: whether root declares it,
+// whether a schema resource other than root's holding a declaration, in any
+// document, reaches it (reach), so is in its dynamic scope, and whether both
+// are known, as DynamicAnchor says, each declaration's resource and the
+// resources on the way included. A nil table knows of none.
+func (t *Table) RecursiveAnchor(root Position) (declared, reached, known bool) {
 	if t == nil {
-		return false, 0, true
+		return false, false, true
 	}
 	r := t.recursive[root.Doc]
-	return r.sites[root], r.resources, !t.exhausted && !t.ids.truncated[root.Doc] && !r.unplaced
+	return r.sites[root], r.reached[root], !t.exhausted && !t.ids.truncated[root.Doc] && !r.unplaced
 }
 
 // recursiveAnchors is what the `$recursiveAnchor: true` declarations of one
-// document say (Table.RecursiveAnchor): where they are, how many schema
-// resources hold them, and whether one lies where a merge past the bound may
-// hide the resource it is in.
+// document say (Table.RecursiveAnchor): where they are, which of the resources
+// holding them another such resource reaches, and whether one lies where a
+// merge past the bound may hide the resource it is in, or a resource on the
+// way.
 type recursiveAnchors struct {
-	sites     map[Position]bool
-	resources int
-	unplaced  bool
+	sites    map[Position]bool
+	reached  map[Position]bool
+	unplaced bool
 }
 
 // recursiveAnchorsOf returns what the declarations ids holds say, by document,
-// the resource of each read from b once, so a $recursiveRef asks a lookup
-// rather than a read of every declaration its document makes.
-func recursiveAnchorsOf(ids *identifiers, b *bases) map[DocID]recursiveAnchors {
+// the resource of each read from b once, and which resource another declaring
+// one reaches read over g in one walk, so a $recursiveRef asks a lookup rather
+// than a read of every declaration.
+func recursiveAnchorsOf(ids *identifiers, b *bases, g reach) map[DocID]recursiveAnchors {
 	out := make(map[DocID]recursiveAnchors, len(ids.recursive))
+	var origins []Position
 	for id, sites := range ids.recursive {
-		r := recursiveAnchors{sites: make(map[Position]bool, len(sites))}
-		roots := map[Position]bool{}
+		r := recursiveAnchors{sites: make(map[Position]bool, len(sites)), reached: map[Position]bool{},
+			unplaced: !g.known}
 		for _, site := range sites {
+			r.sites[site] = true
+			if !g.known {
+				continue // no verdict is known, so none is read
+			}
 			res, known := b.holding(site)
-			r.sites[site], roots[res.root] = true, true
+			r.reached[res.root] = false
 			r.unplaced = r.unplaced || !known
+			origins = append(origins, res.root)
 		}
-		r.resources = len(roots)
 		out[id] = r
+	}
+	reached := g.reachers(origins)
+	for _, r := range out {
+		for root := range r.reached {
+			r.reached[root] = reached(root)
+		}
 	}
 	return out
 }

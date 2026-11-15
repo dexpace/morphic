@@ -670,12 +670,12 @@ const d2019 = "$schema: 'https://json-schema.org/draft/2019-09/schema'"
 // TestRecursiveRef_ExpandsWhereItsTargetIsStatic pins 2019-09's $recursiveRef
 // in an OpenAPI document: "#" names the root of the resource the reference is
 // in, and the reference expands to it where that declares no $recursiveAnchor
-// true, or every schema of the document declaring one, in a dialect defining
-// the keyword, lies in its resource. Under no identifier "#" names the OpenAPI
-// Object, which holds no schema, so it is kept, saying what makes it expand.
-// Any other value, a sibling it cannot carry, two resources declaring the
-// anchor and an identifier or a declaration the merge bound may hide each keep
-// it too, under degraded_lowering, saying why.
+// true, or no other resource declaring one, in a dialect defining the keyword,
+// reaches it. Under no identifier "#" names the OpenAPI Object, which holds no
+// schema, so it is kept, saying what makes it expand. Any other value, a
+// sibling it cannot carry, a resource declaring the anchor that reaches it and
+// an identifier or a declaration the merge bound may hide each keep it too,
+// under degraded_lowering, saying why.
 func TestRecursiveRef_ExpandsWhereItsTargetIsStatic(t *testing.T) {
 	t.Parallel()
 	items := func(name, head, ref string) string {
@@ -702,7 +702,9 @@ func TestRecursiveRef_ExpandsWhereItsTargetIsStatic(t *testing.T) {
 			model: "Static", expandsTo: "Static"},
 		{name: "a root declaring none beside two resources declaring it", model: "Static", expandsTo: "Static",
 			schemas: items("Static", "$id: 'https://example.com/s', ", "{$recursiveRef: '#'}") + tree +
-				items("Other", "$id: 'https://example.com/o', $recursiveAnchor: true, ", "{}")},
+				items("Other", "$id: 'https://example.com/o', $recursiveAnchor: true, ", "{$ref: 'https://example.com/tree'}")},
+		{name: "two resources neither reaching the other", model: "Tree", expandsTo: "Tree",
+			schemas: tree + items("Other", "$id: 'https://example.com/o', $recursiveAnchor: true, ", "{}")},
 		{name: "a resource declaring it in a dialect defining none", model: "Tree", expandsTo: "Tree",
 			schemas: tree + "    Modern: {$id: 'https://example.com/m', $recursiveAnchor: true}\n"},
 		{name: "a root declaring the anchor false", model: "False", expandsTo: "False",
@@ -716,9 +718,10 @@ func TestRecursiveRef_ExpandsWhereItsTargetIsStatic(t *testing.T) {
 		{name: "a sibling", model: "Beside",
 			schemas: items("Beside", "$id: 'https://example.com/b', ", "{$recursiveRef: '#', type: string}"),
 			why:     "it is co-declared with another applicator"},
-		{name: "two resources", model: "Tree",
-			schemas: tree + items("Other", "$id: 'https://example.com/o', $recursiveAnchor: true, ", "{}"),
-			why:     "$recursiveAnchor: true is declared in 2 schema resources of this document"},
+		{name: "a resource declaring it that reaches this one", model: "Tree",
+			schemas: tree + items("Other", "$id: 'https://example.com/o', $recursiveAnchor: true, ",
+				"{$ref: 'https://example.com/tree'}"),
+			why: "$recursiveAnchor: true is also declared in a schema resource that reaches this one"},
 		{name: "a declaration past the merge bound", model: "Tree", extra: chain,
 			schemas: tree + "    Deep: {<<: *c70}\n",
 			why:     "this document's identifiers were not read whole"},

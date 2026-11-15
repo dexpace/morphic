@@ -188,22 +188,21 @@ func unresolvedRoot(root bind.Position) string {
 // recursiveScope reports whether a $recursiveRef reaching root, a resource's
 // root, takes it as its target whatever the evaluation path, or says why not:
 // root declares no $recursiveAnchor true, so the reference reads as the $ref it
-// spells, or every schema of its document declaring one lies in root's
-// resource, so the outermost on any path is root. A document whose
-// identifiers were not read whole may hide another, which must not read as
-// none. Two unrelated resources each declaring one are not told apart from a
-// path through both (GitHub #1884).
+// spells, or no other schema resource declaring one, in any document, reaches
+// root, so none is in its dynamic scope and the outermost on any path is root.
+// A document whose identifiers were not read whole may hide another, which
+// must not read as none.
 func recursiveScope(c lowering.Ctx, root bind.Position) (string, bool) {
-	declared, resources, known := c.Bindings().Table().RecursiveAnchor(root)
+	declared, reached, known := c.Bindings().Table().RecursiveAnchor(root)
 	switch {
 	case !known:
 		return "this document's identifiers were not read whole, so $recursiveAnchor is not known to be declared " +
 			"in one schema resource", false
 	case !declared:
 		return "", true
-	case resources > 1:
-		return fmt.Sprintf("$recursiveAnchor: true is declared in %d schema resources of this document, so the "+
-			"target depends on the evaluation path", resources), false
+	case reached:
+		return "$recursiveAnchor: true is also declared in a schema resource that reaches this one, so the target " +
+			"depends on the evaluation path", false
 	default:
 		return "", true
 	}

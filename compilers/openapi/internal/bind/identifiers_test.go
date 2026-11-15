@@ -631,8 +631,9 @@ func TestDynamicFragment_ReadsAPlainFragment(t *testing.T) {
 // expansion reads: each schema declaring `$recursiveAnchor` as the boolean
 // true where its dialect defines the keyword (DialectRule.Recursive), an alias
 // re-declaring at its own position, and neither false, a string, nor one in a
-// dialect defining no such keyword; the resources holding them counted once
-// each. A read past the merge bound proves nothing.
+// dialect defining no such keyword; and whether a resource holding one reaches
+// another, as the document's reaches I's, nested in it. A read past the merge
+// bound proves nothing.
 func TestRecursiveAnchor_CountsWhatADocumentDeclares(t *testing.T) {
 	t.Parallel()
 	const d2019 = "'https://json-schema.org/draft/2019-09/schema'"
@@ -653,23 +654,25 @@ func TestRecursiveAnchor_CountsWhatADocumentDeclares(t *testing.T) {
 		"/components/schemas/I/properties/p": true, "/components/schemas/F": false, "/components/schemas/S": false,
 		"/components/schemas/N": false, "/components/schemas/D7": false, "/components/schemas/Z": false,
 	} {
-		declared, resources, known := table.RecursiveAnchor(bind.Position{Pointer: at})
+		declared, _, known := table.RecursiveAnchor(bind.Position{Pointer: at})
 		assert.Equal(t, want, declared, at)
-		assert.Equal(t, 2, resources, "the document's resource and I's")
 		assert.True(t, known)
 	}
+	_, reached, _ := table.RecursiveAnchor(bind.Position{Pointer: "/components/schemas/I"})
+	assert.True(t, reached, "I's resource is nested in the document's, which holds a declaration")
+	_, reached, _ = table.RecursiveAnchor(bind.Position{})
+	assert.False(t, reached, "no other resource holding one reaches the document's")
 
 	past := strings.Replace(anchoredPastTheBound(), "    A: {$dynamicAnchor: t}\n",
 		"    A: {$schema: "+d2019+", $recursiveAnchor: true}\n", 1)
-	declared, resources, known := bound(t, past, recursive).RecursiveAnchor(bind.Position{Pointer: "/components/schemas/A"})
+	declared, _, known := bound(t, past, recursive).RecursiveAnchor(bind.Position{Pointer: "/components/schemas/A"})
 	assert.True(t, declared)
-	assert.Equal(t, 1, resources)
 	assert.False(t, known, "a schema past the bound may declare a second")
 
 	var none *bind.Table
-	declared, resources, known = none.RecursiveAnchor(bind.Position{Pointer: "/components/schemas/A"})
+	declared, reached, known = none.RecursiveAnchor(bind.Position{Pointer: "/components/schemas/A"})
 	assert.False(t, declared)
-	assert.Zero(t, resources)
+	assert.False(t, reached)
 	assert.True(t, known)
 }
 

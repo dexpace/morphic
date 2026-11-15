@@ -13,6 +13,9 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/bind"
+	"github.com/dexpace/morphic/compilers/openapi/internal/budget"
+	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
+	"github.com/dexpace/morphic/internal/ctxtest"
 )
 
 // reachDraft is the dialect that has `$recursiveAnchor`.
@@ -57,6 +60,17 @@ func TestRecursiveAnchor_AResourceAnotherAnchoredOneReachesIsReached(t *testing.
 		assert.True(t, known, "R%d", i)
 	}
 
+	// A discriminator's mapping value is a reference too.
+	mapped := bound(t, head+"components:\n  schemas:\n"+
+		"    M: {$schema: '"+reachDraft+"', $id: 'https://x.test/m', $recursiveAnchor: true, "+
+		"discriminator: {propertyName: k, mapping: {x: 'https://x.test/t'}}}\n"+
+		"    T: {$schema: '"+reachDraft+"', $id: 'https://x.test/t', $recursiveAnchor: true}\n", reachConfig())
+	for name, want := range map[string]bool{"M": false, "T": true} {
+		_, reached, known := mapped.RecursiveAnchor(at(jsontext.Pointer("/components/schemas/" + name)))
+		assert.Equal(t, want, reached, name)
+		assert.True(t, known, name)
+	}
+
 	// Two anchored resources and nothing joining them: neither is reached.
 	alone := bound(t, head+"components:\n  schemas:\n"+
 		"    A: {$schema: '"+reachDraft+"', $id: 'https://x.test/a', $recursiveAnchor: true}\n"+
@@ -79,6 +93,70 @@ func TestBind_TheRecursiveReachGrowsLinearly(t *testing.T) {
 	require.Less(t, s1, s2)
 	assert.LessOrEqual(t, float64(s4-s2), 2.2*float64(s2-s1), "steps at n, 2n, 4n: %d, %d, %d", s1, s2, s4)
 }
+
+// TestRecursiveAnchor_AWalkTheBudgetCutsKnowsNothing pins every cut of the
+// reading of a chain of anchored resources: a table the budget ran out in,
+// the walk over its resources included, knows of no verdict, so every
+// reference resting on one is kept.
+func TestRecursiveAnchor_AWalkTheBudgetCutsKnowsNothing(t *testing.T) {
+	t.Parallel()
+	spec := anchoredChain(6)
+	full := bound(t, spec, reachConfig())
+	require.False(t, full.Exhausted())
+	for limit := 1; limit < full.Steps(); limit++ {
+		cfg := reachConfig()
+		cfg.Limit = budget.AtMost(limit)
+		cut := bound(t, spec, cfg)
+		require.True(t, cut.Exhausted(), "limit %d", limit)
+		for i := range 6 {
+			_, _, known := cut.RecursiveAnchor(at(jsontext.Pointer(fmt.Sprintf("/components/schemas/R%d", i))))
+			assert.False(t, known, "limit %d: R%d", limit, i)
+		}
+	}
+}
+
+// TestRecursiveAnchor_AReferenceTheMergeBoundHidesTheResourceOfKnowsNothing
+// pins that a reference site whose resource a merge past the bound may hide,
+// in another document, leaves the walk short of an edge, so no verdict it
+// gives is known, though neither the source nor the budget is cut.
+func TestRecursiveAnchor_AReferenceTheMergeBoundHidesTheResourceOfKnowsNothing(t *testing.T) {
+	t.Parallel()
+	var other strings.Builder
+	other.WriteString("x-c0: &c0 {description: d}\n")
+	for i := 1; i <= 70; i++ {
+		fmt.Fprintf(&other, "x-c%d: &c%d {<<: *c%d}\n", i, i, i-1)
+	}
+	other.WriteString("Outer: {<<: *c70, properties: {t: {$ref: 'https://x.test/r0'}}}\n")
+	cfg := withDocuments(map[string]string{"other.yaml": other.String()})
+	cfg.Dialect = reachConfig().Dialect
+	table := bound(t, anchoredChain(1)+"    Use: {$ref: 'other.yaml#/Outer'}\n", cfg)
+	require.False(t, table.Exhausted())
+	declared, _, known := table.RecursiveAnchor(at("/components/schemas/R0"))
+	assert.True(t, declared)
+	assert.False(t, known, "Outer's resource may be an anchored one the bound hides")
+}
+
+// TestRecursiveAnchor_TheWalkAsksNoMoreOnceRefused cancels the reading of a
+// chain of anchored resources at every ask of its context, and holds what it
+// asks after the refusal to asksAfterRefusal and the rest of the one walk to
+// a position it may be making, a step of each of its pointer's tokens and its
+// root's: no loop over the resources or the sites goes on.
+func TestRecursiveAnchor_TheWalkAsksNoMoreOnceRefused(t *testing.T) {
+	t.Parallel()
+	spec := anchoredChain(6)
+	whole := &ctxtest.Countdown{Context: t.Context(), Left: 1 << 30}
+	bind.Bind(whole, openapitest.YAMLDocument(t, spec), reachConfig())
+	for left := range whole.Calls {
+		ctx := &ctxtest.Countdown{Context: t.Context(), Left: left}
+		bind.Bind(ctx, openapitest.YAMLDocument(t, spec), reachConfig())
+		require.LessOrEqual(t, ctx.Calls, left+1+asksAfterRefusal+onePlacement, "ask %d: asked on after the refusal",
+			left+1)
+	}
+}
+
+// onePlacement is the most steps one walk to a position of anchoredChain
+// takes: its document's root and each token of /components/schemas/Rn/properties/r.
+const onePlacement = 6
 
 // dynamicNames is two documents declaring n names each once, the first document's resource `$ref`ing the second's, and the
 // second writing a `$dynamicRef` to each name.
@@ -129,7 +207,6 @@ func TestTable_ANameSeveralDocumentsDeclareIsWalkedOncePerName(t *testing.T) {
 // (the declarations are the same name written 1,000 times, as a document
 // reading each reference asks for it 1,000 times).
 func TestTable_AccessingADynamicAnchorAllocatesNothing(t *testing.T) {
-	t.Parallel()
 	for _, n := range []int{500, 1000, 2000} {
 		var b strings.Builder
 		b.WriteString(head + "components:\n  schemas:\n")
