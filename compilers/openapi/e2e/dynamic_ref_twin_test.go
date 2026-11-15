@@ -22,8 +22,8 @@ import (
 // an anchor, siblings, a bound its target's kind excludes, a refinement, an
 // allOf beside it, a restating branch, disjoint conjuncts, a property merged
 // through an alias and a composition, a name its resource declares twice while
-// another declares it a $dynamicAnchor, a missing target, a loop, and another
-// document (twinOther).
+// another declares it a $dynamicAnchor, a missing target, one an alias misses,
+// a loop, and another document (twinOther).
 const twinSpec = `openapi: 3.1.0
 info: {title: t, version: "1"}
 paths:
@@ -74,6 +74,7 @@ components:
         negated: {type: string, not: {$ref: '#/components/schemas/Name'}}
     Blob: {type: string, contentMediaType: application/octet-stream}
     Form: {type: object, properties: {file: {$ref: '#/components/schemas/Blob'}, meta: {$ref: '#/components/schemas/Pet'}}}
+    Broken: {$ref: '#/components/schemas/Missing'}
     Loop1: {$ref: '#/components/schemas/Loop2'}
     Loop2: {$ref: '#/components/schemas/Loop1'}
     Sided:
@@ -81,6 +82,7 @@ components:
       properties:
         narrowed: {$ref: '#/components/schemas/Name', maxLength: 3, description: short}
         missing: {$ref: '#/components/schemas/Missing'}
+        broken: {$ref: '#/components/schemas/Broken'}
         looped: {$ref: '#/components/schemas/Loop1'}
         objectBound: {$ref: '#/components/schemas/Pet', maxLength: 3}
         besideAllOf: {$ref: '#/components/schemas/Pet', allOf: [{required: [name]}, {type: 'null'}]}
