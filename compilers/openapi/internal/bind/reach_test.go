@@ -143,19 +143,32 @@ func TestRecursiveAnchor_AReferenceTheMergeBoundHidesTheResourceOfKnowsNothing(t
 // root's: no loop over the resources or the sites goes on.
 func TestRecursiveAnchor_TheWalkAsksNoMoreOnceRefused(t *testing.T) {
 	t.Parallel()
-	spec := anchoredChain(6)
-	whole := &ctxtest.Countdown{Context: t.Context(), Left: 1 << 30}
-	bind.Bind(whole, openapitest.YAMLDocument(t, spec), reachConfig())
-	for left := range whole.Calls {
-		ctx := &ctxtest.Countdown{Context: t.Context(), Left: left}
-		bind.Bind(ctx, openapitest.YAMLDocument(t, spec), reachConfig())
-		require.LessOrEqual(t, ctx.Calls, left+1+asksAfterRefusal+onePlacement, "ask %d: asked on after the refusal",
-			left+1)
+	names, other := dynamicNames(4)
+	// The walk alone: the names are declared and no $dynamicRef names one.
+	low, _, _ := strings.Cut(other, "properties:")
+	_, defs, _ := strings.Cut(other, "$defs:")
+	other = low + "$defs:" + defs
+	for name, c := range map[string]struct {
+		spec string
+		cfg  bind.Config
+	}{
+		"anchored resources":          {spec: anchoredChain(6), cfg: reachConfig()},
+		"names two documents declare": {spec: names, cfg: withDocuments(map[string]string{"other.yaml": other})},
+	} {
+		whole := &ctxtest.Countdown{Context: t.Context(), Left: 1 << 30}
+		bind.Bind(whole, openapitest.YAMLDocument(t, c.spec), c.cfg)
+		for left := range whole.Calls {
+			ctx := &ctxtest.Countdown{Context: t.Context(), Left: left}
+			bind.Bind(ctx, openapitest.YAMLDocument(t, c.spec), c.cfg)
+			require.LessOrEqual(t, ctx.Calls, left+1+asksAfterRefusal+onePlacement,
+				"%s, ask %d: asked on after the refusal", name, left+1)
+		}
 	}
 }
 
-// onePlacement is the most steps one walk to a position of anchoredChain
-// takes: its document's root and each token of /components/schemas/Rn/properties/r.
+// onePlacement is the most steps one walk to a position of anchoredChain or
+// dynamicNames takes: its document's root and each token of its pointer, as
+// /components/schemas/Rn/properties/r.
 const onePlacement = 6
 
 // dynamicNames is two documents declaring n names each once, the first document's resource `$ref`ing the second's, and the
@@ -167,7 +180,7 @@ func dynamicNames(n int) (spec string, other string) {
 		fmt.Fprintf(&low, "n%d: {$dynamicAnchor: n%d}, ", i, i)
 		fmt.Fprintf(&refs, "p%d: {$dynamicRef: '#n%d'}, ", i, i)
 	}
-	spec = head + "components:\n  schemas:\n    Top: {$id: 'https://x.test/top', $ref: 'other.yaml#/Low', $defs: {" +
+	spec = head + "components:\n  schemas:\n    Top: {$ref: 'other.yaml#/Low', $defs: {" +
 		strings.TrimSuffix(top.String(), ", ") + "}}\n"
 	other = "Low: {$id: 'https://x.test/low', properties: {" + strings.TrimSuffix(refs.String(), ", ") +
 		"}, $defs: {" + strings.TrimSuffix(low.String(), ", ") + "}}\n"
@@ -199,6 +212,28 @@ func TestTable_ANameSeveralDocumentsDeclareIsWalkedOncePerName(t *testing.T) {
 		assert.Equal(t, 1, anchor.Count, name)
 		assert.True(t, anchor.Reached, "a resource of the first document declares %s and reaches this one", name)
 		assert.True(t, anchor.Complete, name)
+	}
+}
+
+// TestTable_ANameTheBudgetCutsTheWalkOfIsNotKnown pins every cut of the
+// reading of names two documents declare: a table the budget ran out in, the
+// walks over its resources included, knows no name's declarations whole.
+func TestTable_ANameTheBudgetCutsTheWalkOfIsNotKnown(t *testing.T) {
+	t.Parallel()
+	spec, other := dynamicNames(3)
+	cfg := withDocuments(map[string]string{"other.yaml": other})
+	full := bound(t, spec, cfg)
+	require.False(t, full.Exhausted())
+	for limit := 1; limit < full.Steps(); limit++ {
+		cut := cfg
+		cut.Limit = budget.AtMost(limit)
+		table := bound(t, spec, cut)
+		require.True(t, table.Exhausted(), "limit %d", limit)
+		for id := range bind.DocID(table.Documents()) {
+			for _, name := range []string{"n0", "n1", "n2"} {
+				assert.False(t, table.DynamicAnchor(id, name).Complete, "limit %d: %d %s", limit, id, name)
+			}
+		}
 	}
 }
 

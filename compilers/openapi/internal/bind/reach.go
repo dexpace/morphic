@@ -103,3 +103,73 @@ func (r reach) reachers(origins []Position) func(resource Position) bool {
 		return slices.ContainsFunc(held[resource], func(o Position) bool { return o != resource })
 	}
 }
+
+// sharedNames returns each $dynamicAnchor name more than one document
+// declares, sorted, each with the documents declaring it: a reference to a
+// name one document alone declares needs no walk.
+func sharedNames(ids *identifiers) map[string][]dynamicKey {
+	out := map[string][]dynamicKey{}
+	for k := range ids.dynamic {
+		out[k.name] = append(out[k.name], k)
+	}
+	for name, keys := range out {
+		if len(keys) < 2 {
+			delete(out, name)
+			continue
+		}
+		slices.SortFunc(keys, func(x, y dynamicKey) int { return int(x.doc) - int(y.doc) })
+	}
+	return out
+}
+
+// dynamicReach is, for each document's declarations of a name several
+// documents declare, whether a resource of another document declaring the
+// name reaches the resource holding the first (by), and where that is not
+// known: the walk was cut, or a declaration's resource was not placed.
+type dynamicReach struct {
+	by      map[dynamicKey]bool
+	unknown map[dynamicKey]bool
+}
+
+// dynamicReachOf walks g once for each name shared declares, its declaring
+// resources the origins, in name order, so where the budget runs out depends
+// on no order of reading (JSON Schema 2020-12 §8.2.3.2: the outermost
+// resource of the dynamic scope declaring the name wins). Once the graph is
+// not known, the budget is spent or the binding's context is done, nothing
+// more is known.
+func dynamicReachOf(ids *identifiers, b *bases, g reach, shared map[string][]dynamicKey) dynamicReach {
+	out := dynamicReach{by: map[dynamicKey]bool{}, unknown: map[dynamicKey]bool{}}
+	stopped := !g.known
+	place := func(p Position) (Position, bool) {
+		if stopped = stopped || g.work.over(); stopped {
+			return Position{}, false
+		}
+		res, placed := b.holding(p)
+		return res.root, placed
+	}
+	for _, name := range slices.Sorted(maps.Keys(shared)) {
+		keys := shared[name]
+		first := map[dynamicKey]Position{}
+		var origins []Position
+		known := true
+		for _, k := range keys {
+			site := slices.MinFunc(ids.dynamic[k], comparePositions)
+			for _, at := range ids.dynamic[k] {
+				root, placed := place(at)
+				known = known && placed
+				origins = append(origins, root)
+				if at == site {
+					first[k] = root
+				}
+			}
+		}
+		if stopped {
+			origins = nil
+		}
+		reached := g.reachers(origins)
+		for _, k := range keys {
+			out.by[k], out.unknown[k] = reached(first[k]), !known
+		}
+	}
+	return out
+}

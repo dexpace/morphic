@@ -116,23 +116,24 @@ func diagsAtSource(diags []ir.Diagnostic, code, pointer string, source int) []ir
 
 // TestCompile_ADynamicRefNamesTooManyForTheReachWalkAreKept pins what the
 // walk costs when its names are many: n names each declared once in each of two
-// documents, the first document's resource reaching the second's, cost n
-// walks, charged to the binding budget. At 20,000 the budget ends the table,
+// documents, the first document's resource reaching each of n resources of the
+// second, one per name, cost n walks over n resources, charged to the binding
+// budget. At 20,000 the budget ends the table,
 // every reference is kept as one read from a table not read whole, and the
 // compile reports the budget once and ends. At 100 the same shape fits and
 // every reference is kept for what it is, a name two documents declare.
 func TestCompile_ADynamicRefNamesTooManyForTheReachWalkAreKept(t *testing.T) {
 	t.Parallel()
 	gen := func(n int) (spec, other string) {
-		var top, low, refs strings.Builder
+		var top, low, each strings.Builder
 		for i := range n {
 			fmt.Fprintf(&top, "        n%d: {$dynamicAnchor: n%d}\n", i, i)
-			fmt.Fprintf(&low, "    n%d: {$dynamicAnchor: n%d}\n", i, i)
-			fmt.Fprintf(&refs, "    p%d: {$dynamicRef: '#n%d'}\n", i, i)
+			fmt.Fprintf(&low, "    p%d: {$ref: 'https://x.test/l%d'}\n", i, i)
+			fmt.Fprintf(&each, "L%d: {$id: 'https://x.test/l%d', properties: {r: {$dynamicRef: '#n%d'}}, "+
+				"$defs: {n%d: {$dynamicAnchor: n%d}}}\n", i, i, i, i, i)
 		}
-		spec = dynHead + "    Top:\n      $id: https://x.test/top\n      $ref: 'other.yaml#/Low'\n      $defs:\n" + top.String()
-		other = "Low:\n  $id: https://x.test/low\n  properties:\n" + refs.String() +
-			"  $defs:\n" + low.String()
+		spec = dynHead + "    Top:\n      $ref: 'other.yaml#/Low'\n      $defs:\n" + top.String()
+		other = "Low:\n  $id: https://x.test/low\n  properties:\n" + low.String() + each.String()
 		return spec, other
 	}
 

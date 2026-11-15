@@ -341,6 +341,31 @@ func TestDynamicRef_AnAnchorOnlyAnotherDocumentDeclaresIsKept(t *testing.T) {
 	assertDiagContains(t, diags, "/components/schemas/A/$dynamicRef", `no $dynamicAnchor "m" is declared in this document`)
 }
 
+// TestDynamicRef_AnAnchorAnotherDocumentsResourceReachesIsKept pins a name
+// declared once in the reference's document and again in a resource of the
+// source that reaches it by a $ref: that resource is in the dynamic scope and
+// outermost (JSON Schema 2020-12 §8.2.3.2), so the target depends on the
+// evaluation path and the reference is kept.
+func TestDynamicRef_AnAnchorAnotherDocumentsResourceReachesIsKept(t *testing.T) {
+	t.Parallel()
+	doc, diags, _ := compileBeside(t, map[string]string{"ext.yaml": "List:\n  $id: https://example.com/list\n" +
+		"  type: array\n  items: {$dynamicRef: '#items'}\n  $defs: {items: {$dynamicAnchor: items, type: integer}}\n"},
+		openapitest.ComponentSpec("    StrList: {$id: 'https://example.com/strlist', $ref: 'list', "+
+			"$defs: {items: {$dynamicAnchor: items, type: string}}}\n    Plain: {$ref: './ext.yaml#/List'}\n"))
+	openapitest.RequireNoErrorDiags(t, diags)
+	items, ok := doc.Types[ids.In("ext.yaml").AnonType("/List/items")].(*ir.Scalar)
+	require.True(t, ok)
+	assert.Equal(t, ir.ReasonDegradedLowering, items.Unmodeled["openapi:$dynamicRef"].Reason)
+	assert.Empty(t, openapitest.PointersOf(diags, diag.DynamicRefExpanded))
+	for _, d := range diags {
+		if d.Provenance.Pointer == "/List/items/$dynamicRef" {
+			assert.Equal(t, 1, d.Provenance.Source)
+			assert.Contains(t, d.Message, `$dynamicAnchor "items" is also declared in a schema resource of another `+
+				"document that reaches this one")
+		}
+	}
+}
+
 // TestDynamicRef_ResourceBoundaryVerdictIsOrderInvariant pins that which schema
 // lowered first cannot decide whether the other sees the $id above it, nor
 // whether the compiler reports stopping at its merge bound. Both come from a

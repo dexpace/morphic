@@ -227,7 +227,8 @@ func dynamicRefSiblings(s *oas3.Schema) bool {
 // soleAnchorSite returns the one position of c's document declaring the named
 // $dynamicAnchor, or the reason no single declaration answers for it. Two
 // declarations put the target back under the evaluation path's control, which no
-// static lowering can resolve, and an incomplete read may hide a second, which an
+// static lowering can resolve, as does a resource of another document declaring
+// the name that reaches it, and an incomplete read may hide a second, which an
 // expansion would then rest on unverified (docs/compilers/openapi.md#dynamic-ref).
 func soleAnchorSite(c lowering.Ctx, name string) (bind.Position, string, bool) {
 	anchor := c.DynamicAnchor(name)
@@ -240,6 +241,9 @@ func soleAnchorSite(c lowering.Ctx, name string) (bind.Position, string, bool) {
 			"is not known to be declared once", name), false
 	case anchor.Count == 0:
 		return bind.Position{}, fmt.Sprintf("no $dynamicAnchor %q is declared in this document", name), false
+	case anchor.Reached:
+		return bind.Position{}, fmt.Sprintf("$dynamicAnchor %q is also declared in a schema resource of another "+
+			"document that reaches this one, so the target depends on the evaluation path", name), false
 	default:
 		return anchor.Site, "", true
 	}

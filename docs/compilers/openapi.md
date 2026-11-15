@@ -4462,7 +4462,13 @@ expansion takes its target whole, so it has nowhere to put a sibling applicator.
 
 A dynamic reference is read against the declarations of the document it is written in, by this
 same rule, so one in another document expands to the type lowered where that document declares its
-target, in that document's namespace, never to a source anchor of that name. What a reference
+target, in that document's namespace, never to a source anchor of that name, unless a schema
+resource of another document declaring the same name reaches the resource of that declaration, by
+the reach the `$recursiveRef` above reads: that resource is then in the dynamic scope, and the
+outermost one declaring the name wins, so the target depends on the evaluation path and the
+reference is kept. A name one document alone declares needs no walk; each name several documents
+declare costs one walk of the resources, held by the binding budget, so n such names over n
+resources cost n² steps, past which nothing is known and every reference resting on one is kept. What a reference
 resolved to where no position of its document places it reads no anchors, so a dynamic reference in
 it is kept.
 
@@ -4496,6 +4502,12 @@ written beside a reference that expands is read as one beside a `$ref` is
   `e2e.TestCompile_ARecursiveRefAnotherAnchoredResourceReachesIsKept`,
   `e2e.TestCompile_ARecursiveRefAnotherDocumentsAnchoredResourceReachesIsKept`,
   `e2e.TestCompile_ARecursiveRefInAResourceNestedInAnAnchoredOneIsKept`,
+  `schema.TestDynamicRef_AnAnchorAnotherDocumentsResourceReachesIsKept`,
+  `bind.TestTable_ANameSeveralDocumentsDeclareIsWalkedOncePerName`,
+  `bind.TestTable_ANameTheBudgetCutsTheWalkOfIsNotKnown`,
+  `e2e.TestCompile_ADynamicRefAnotherDocumentsResourceReachesIsKept`,
+  `e2e.TestCompile_ADynamicRefNoOtherDocumentDeclaresTheNameExpands`,
+  `e2e.TestCompile_ADynamicRefNamesTooManyForTheReachWalkAreKept`,
   `schema.TestDynamicRef_ExpandsAgainstTheDocumentItIsWrittenIn`,
   `schema.TestDynamicRef_ExpandsToAnyPositionARefNames`, `schema.TestDynamicRef_ExpandsWithinOneResource`,
   `schema.TestDynamicRef_ExpandsToAnAnchorOnlyADraftPlaces`, `schema.TestResolvesAt_AnswersAsResolvePointerDoes`,

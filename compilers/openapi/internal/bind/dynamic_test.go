@@ -13,6 +13,8 @@ import (
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/bind"
 	"github.com/dexpace/morphic/compilers/openapi/internal/budget"
+	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
+	"github.com/dexpace/morphic/internal/ctxtest"
 )
 
 // dynamicSpec writes each way a $dynamicRef reads: as the $ref it spells, where
@@ -136,5 +138,22 @@ func TestBind_ADynamicRefTheBudgetCutsIsNoOtherEntry(t *testing.T) {
 			}
 			assert.True(t, strings.HasPrefix(e.Keyword, "$"), "limit %d", limit)
 		}
+	}
+}
+
+// TestBind_ADynamicRefIsReadNoFurtherOnceRefused cancels the reading of
+// dynamicSpec at every ask of its context, a $dynamicRef among those it reads
+// at each: the binding takes no step past what the whole reading spends, and
+// reports no budget exhausted, as no budget stopped it.
+func TestBind_ADynamicRefIsReadNoFurtherOnceRefused(t *testing.T) {
+	t.Parallel()
+	full := bound(t, dynamicSpec, self)
+	whole := &ctxtest.Countdown{Context: t.Context(), Left: 1 << 30}
+	bind.Bind(whole, openapitest.YAMLDocument(t, dynamicSpec), self)
+	for left := range whole.Calls {
+		ctx := &ctxtest.Countdown{Context: t.Context(), Left: left}
+		table := bind.Bind(ctx, openapitest.YAMLDocument(t, dynamicSpec), self)
+		assert.LessOrEqual(t, table.Steps(), full.Steps(), "ask %d", left+1)
+		assert.False(t, table.Exhausted(), "ask %d", left+1)
 	}
 }

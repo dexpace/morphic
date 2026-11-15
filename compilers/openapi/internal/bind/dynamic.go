@@ -80,10 +80,14 @@ func namesDynamic(b *binder, p Position, path []*yaml.Node, value string) (dynam
 // staticSites moves each $dynamicRef noted since the table last settled that
 // is the $ref it spells, or may be once the document its hop waits for is
 // read, among the sites to settle, as a $ref written there would be. The
-// dynamic ones, and those beside a $ref, are left to land (landDynamic).
+// dynamic ones, and those beside a $ref, are left to land (landDynamic). A
+// binding its context stopped reads none further.
 func staticSites(b *binder) {
 	dynamic := b.find.freshDynamic[:0]
 	for _, d := range b.find.freshDynamic {
+		if b.work.cancelled() {
+			break
+		}
 		if d.beside {
 			dynamic = append(dynamic, d)
 			continue

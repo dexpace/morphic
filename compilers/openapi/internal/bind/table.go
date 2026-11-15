@@ -417,13 +417,15 @@ func (b *binder) table(t *Table) *Table {
 	}
 	t.entryList = slices.SortedFunc(maps.Values(t.entries), func(x, y Entry) int { return b.docs.compare(x.Site, y.Site) })
 	t.roots, t.bases, t.ids = b.find.roots, newBases(b.resources, b.ids), b.ids
+	shared := sharedNames(b.ids)
 	var graph reach
-	if len(b.ids.recursive) > 0 {
+	if len(b.ids.recursive) > 0 || len(shared) > 0 {
 		graph = reachOf(b, t)
 	}
 	t.recursive = recursiveAnchorsOf(b.ids, t.bases, graph)
+	reached := dynamicReachOf(b.ids, t.bases, graph, shared)
 	t.loops, t.steps, t.limit, t.exhausted = b.loops, b.work.steps.Spent(), b.work.steps.Limit(), b.work.steps.Exhausted()
-	t.dynamic = dynamicAnchorsOf(b.ids, t.exhausted)
+	t.dynamic = dynamicAnchorsOf(b.ids, t.exhausted, reached)
 	dialects := dialectsByDocument(b.ids.dialects)
 	for id, d := range b.docs.list {
 		reached := b.docs.reached[DocID(id)]
@@ -618,12 +620,13 @@ func (t *Table) DynamicAnchor(id DocID, name string) DynamicAnchor {
 }
 
 // dynamicAnchorsOf returns what each name's declarations in each document say
-// (Table.DynamicAnchor), each name's sorted once.
-func dynamicAnchorsOf(ids *identifiers, exhausted bool) map[dynamicKey]DynamicAnchor {
+// (Table.DynamicAnchor), each name's sorted once, and whether another
+// document's declaring resource reaches the first, as reached read it.
+func dynamicAnchorsOf(ids *identifiers, exhausted bool, reached dynamicReach) map[dynamicKey]DynamicAnchor {
 	out := make(map[dynamicKey]DynamicAnchor, len(ids.dynamic))
 	for k, sites := range ids.dynamic {
 		out[k] = DynamicAnchor{Site: slices.MinFunc(sites, comparePositions), Count: len(sites),
-			Complete: !exhausted && !ids.truncated[k.doc]}
+			Reached: reached.by[k], Complete: !exhausted && !ids.truncated[k.doc] && !reached.unknown[k]}
 	}
 	return out
 }
