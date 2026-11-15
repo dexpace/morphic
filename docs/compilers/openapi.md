@@ -472,7 +472,9 @@ is written, and each is then made the action's own along its path from the root:
 YAML alias, or a node an alias names, is replaced by a copy of the node's content, its anchors
 dropped and the aliases inside it kept, and a mapping a member of which a `<<` merge key brings in,
 or that is written or removed from, has its merge keys replaced by a copy of each member they bring
-in that it does not write, in the value's order. So an update of an anchored schema leaves each
+in that it does not write, in the value's order; a merge key reaching what the source refuses, a
+merge naming no mapping or a key that is no scalar in a mapping it brings in, stays beside the
+copies, so the refusal stands. So an update of an anchored schema leaves each
 alias of it, and each mapping merging it, the value the source wrote, and a write through an alias
 or a merge writes that position alone; none draws a finding. A copy is the size of the subtree the
 source writes, not of the value it stands for, keeps the source as the writer of what the source
@@ -545,6 +547,7 @@ no overlay, reported as an `openapi/overlay-origin-incomplete` warning.
   `overlay.TestApply_LeavesAnAnchorsOtherUsesAsTheSourceWroteThem`,
   `overlay.TestApply_AWriteToAMergedMemberLeavesNoSecondKey`,
   `overlay.TestApply_WritesAMergedMemberAsTheMappingsOwn`,
+  `overlay.TestApply_KeepsAMergeTheSourceRefusesWhereItFlattensOne`,
   `overlay.TestApply_RefusesAWriteIntoWhatItCannotMakeItsOwn`,
   `overlay.TestApply_RemovesAtOnePositionOfASharedNode`,
   `overlay.TestApply_WritesEachPositionOfAWildcardOnce`,

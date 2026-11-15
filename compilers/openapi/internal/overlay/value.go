@@ -56,8 +56,9 @@ func (g *grafter) ownSlot(ctx context.Context, holder *yaml.Node, slot int) (*ya
 // flatten makes every member of the mapping m its own: its `<<` merge keys
 // are replaced by a copy of each member they bring in that m does not write,
 // in the order the value holds them, so a write to one replaces it and
-// writes nothing the merged mapping holds. A node that is no mapping, or one
-// merging nothing, is left as it is.
+// writes nothing the merged mapping holds. A merge reaching what the source
+// refuses (refusedMerge) stays beside the copies. A node that is no mapping,
+// or one merging nothing, is left as it is.
 func (g *grafter) flatten(ctx context.Context, m *yaml.Node) error {
 	if m.Kind != yaml.MappingNode || !mergesAny(m) {
 		return nil
@@ -71,11 +72,12 @@ func (g *grafter) flatten(ctx context.Context, m *yaml.Node) error {
 	written, keys := map[string]bool{}, mergedKeys(m)
 	var own, brought []*yaml.Node
 	for i := 0; i+1 < len(m.Content); i += 2 {
-		if nodeview.IsMergeKey(m.Content[i]) {
+		if nodeview.IsMergeKey(m.Content[i]) && !refusedMerge(m.Content[i+1]) {
 			continue
 		}
-		// A key that is no scalar names no member, and stays for the
-		// reading that refuses it.
+		// A key that is no scalar names no member, and a merge reaching what
+		// the source refuses brings in what the copies leave out, so each
+		// stays for the reading that refuses it.
 		own = append(own, m.Content[i], m.Content[i+1])
 		if key, scalar := nodeview.KeyOf(m.Content[i]); scalar {
 			written[key] = true
@@ -98,6 +100,36 @@ func (g *grafter) flatten(ctx context.Context, m *yaml.Node) error {
 	}
 	m.Content = slices.Concat(brought, own)
 	return nil
+}
+
+// refusedMerge reports whether the `<<` value val reaches what the source's
+// format check refuses in a merge (oas.CheckFormat), which no copy of a member
+// it brings in carries: a merge naming no mapping, or a key that is no scalar
+// in a mapping a merge brings in, at any depth. Each mapping is read once.
+func refusedMerge(val *yaml.Node) bool {
+	seen := map[*yaml.Node]bool{}
+	for todo := []*yaml.Node{val}; len(todo) > 0; {
+		v := todo[len(todo)-1]
+		todo = todo[:len(todo)-1]
+		for _, src := range nodeview.MergeSources(v) {
+			if nodeview.NotMapping(src) {
+				return true
+			}
+			s := nodeview.Deref(src)
+			if seen[s] {
+				continue
+			}
+			seen[s] = true
+			for i := 0; i+1 < len(s.Content); i += 2 {
+				if nodeview.IsMergeKey(s.Content[i]) {
+					todo = append(todo, s.Content[i+1])
+				} else if _, scalar := nodeview.KeyOf(s.Content[i]); !scalar {
+					return true
+				}
+			}
+		}
+	}
+	return false
 }
 
 // mergesAny reports whether the mapping m writes a `<<` merge key.

@@ -205,3 +205,39 @@ func TestApply_KeepsAKeyThatIsNoScalarWhereItFlattensAMerge(t *testing.T) {
 		})
 	}
 }
+
+// TestApply_KeepsAMergeTheSourceRefusesWhereItFlattensOne pins a write into a
+// mapping whose `<<` reaches what the source's format check refuses: a merge
+// naming no mapping, or a key that is no scalar in a mapping it brings in, at
+// any depth. Making the mapping's members its own keeps that merge key, for
+// the reading that refuses it, where a merge the source accepts is replaced.
+func TestApply_KeepsAMergeTheSourceRefusesWhereItFlattensOne(t *testing.T) {
+	t.Parallel()
+	for value, kept := range map[string]bool{
+		"5":                      true,
+		"[{p: 1}, 5]":            true,
+		"{p: 1, ? [k] : v}":      true,
+		"{<<: 5, p: 1}":          true,
+		"{<<: {? [k] : v}}":      true,
+		"{p: 1}":                 false,
+		"[{p: 1}, {<<: {q: 2}}]": false,
+	} {
+		t.Run(value, func(t *testing.T) {
+			t.Parallel()
+			src := head + "x-m: {<<: " + value + ", r: 3}\n"
+			origin, root, diags := applied(t, src, v11+"  - target: $['x-m']\n    update: {s: 4}\n", false)
+
+			require.True(t, origin.Applied(), "%+v", diags)
+			doc := nodeview.DocumentRoot(root)
+			require.Equal(t, "x-m", doc.Content[6].Value)
+			m := doc.Content[7]
+			merges := 0
+			for i := 0; i+1 < len(m.Content); i += 2 {
+				if nodeview.IsMergeKey(m.Content[i]) {
+					merges++
+				}
+			}
+			assert.Equal(t, map[bool]int{true: 1, false: 0}[kept], merges, "the merge key in x-m")
+		})
+	}
+}
