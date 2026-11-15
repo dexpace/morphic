@@ -32,7 +32,8 @@ type DocumentReader interface {
 
 // AddressSpace ranks how private a network address is, least private first,
 // as Private Network Access ranks them: a reference in a document read from
-// one space may dial that space and any below it.
+// one space may dial that space and any below it
+// (docs/compilers/openapi.md#references).
 type AddressSpace uint8
 
 const (

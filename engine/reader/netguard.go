@@ -110,7 +110,7 @@ func (g *guard) failed(err error) error {
 // address that answered. A name resolving to addresses in several spaces is
 // read where the dialler connects first, the ones a bounded read refuses
 // passed over, so what an unbounded and a bounded read of it state, and the
-// bytes each gets, can differ.
+// bytes each gets, can differ (GitHub #1969).
 func (g *guard) dial(ctx context.Context, network, address string) (net.Conn, error) {
 	d := &net.Dialer{Timeout: dialTimeout, KeepAlive: dialKeepAlive, ControlContext: g.control, Resolver: g.resolver}
 	conn, err := d.DialContext(ctx, network, address)

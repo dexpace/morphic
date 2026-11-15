@@ -371,7 +371,8 @@ func (b *binder) settle(t *Table) {
 // $ref of "#" written there resolves to. staticSites, asking namesDynamic, has
 // taken each $dynamicRef that is the $ref it spells, so those left are
 // dynamic. A hop left unresolved lands nowhere. A name is asked only of a
-// document open, whose identifiers are read whole.
+// document open, whose identifiers are read whole. It asks no context
+// between sites (GitHub #1968).
 func landDynamic(b *binder) {
 	dynamic, recursive := b.find.freshDynamic, b.find.freshRecursive
 	b.find.freshDynamic, b.find.freshRecursive = nil, nil

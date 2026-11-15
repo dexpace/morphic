@@ -878,16 +878,24 @@ only from an http(s) URL: one naming another location, by a `file:` URI, a drive
 the rest of the document is read. Nor does such a reference reach an address more private than the
 one its document was read from, a public address ranking below a private one and a private one below
 loopback: the reader bounds the read to that space (`compilers.DocumentRequest.Reach`), judging each
-address it dials, redirects included. A document read before is judged by the most private address
-its read can have dialled (`compilers.DocumentRead.Bound`), and where that read stated none, by a
-read of the reference's own at its reach, made once per reach, which reads nothing into the compile
-and charges nothing to the document budget. A read whose reader states no bound, or one the reader
-cannot bound, is refused to such a reference too. What the document's own references reach is the
-space its first read stated (`compilers.DocumentRead.Space`), public where it stated none. Each refusal is that reference's alone: another naming
-the document, from a file or the source, reads it. A source located at a URL is bounded as a public
-document. Through an HTTP proxy the host is judged instead, and the proxy resolves a name again,
-which the compile cannot see: a document read through one by a name states no space, so its own
-references reach as a public document's do. The read stays inside the directory the source lies in, symbolic
+address it dials, redirects included. Each read states two spaces: where the address that answered
+lies (`compilers.DocumentRead.Space`), which ranks the document as a referrer, and the most private
+it can have dialled (`compilers.DocumentRead.MostPrivate`), which ranks it as a target. A document
+read before is judged by the second, and where that read stated none, by a read of the reference's
+own at its reach, made once per reach, which reads nothing into the compile and charges nothing to
+the document budget. A read whose reader states no bound, or one the reader cannot bound, is refused
+to such a reference too. What the document's own references reach is the space its first read
+stated, public where it stated none. Each refusal is that reference's alone, worded for its reach:
+another naming the document, from a file or the source, reads it. A source located at a URL is
+bounded as a public document. Through an HTTP proxy the host is judged instead: an address literal
+as the address the proxy dials, a name by every address this machine resolves it to, and a document
+read through one by a name states no space, so its own references reach as a public document's do.
+The rule leaves four things unbounded, each in the Status below: what a proxy dials after resolving
+a name again; the base a redirected document's references resolve against, which stays the location
+asked while its space is the address that answered; the time a compile's reads take together, which
+no deadline bounds; and a name resolving to addresses in several spaces, read wherever the dialler
+connects first, so a document's bound turns on which asker read it first. The read stays inside the
+directory the source lies in, symbolic
 links included, and follows relative references alone, unless `Options.AllowExternalRefs` lets it
 reach any file and http(s) URLs: a `$ref` naming a document other than the source by a `file:` URI
 or by an absolute path fails unread, whatever another `$ref` names that document by. Each is judged
@@ -1224,7 +1232,7 @@ else it writes.
   `e2e.TestCompile_AReachedObjectTheModelFaultsOnLowersAsUnderPaths`,
   `e2e.TestCompile_ARefAMergeKeyWritesThatIsNoStringLeavesTheEntryOut`,
   `e2e.TestCompile_AComponentWhoseRefIsNoStringIsKeptAsWritten`
-- Status: partly built: a redirected document is based at the URL requested (#1943). Through a proxy, the address the proxy gives a name is judged by nobody (#1947).
+- Status: partly built: a redirected document is based at the URL requested (#1943). Through a proxy, the address the proxy gives a name is judged by nobody (#1947). No deadline bounds a compile's reads together (#1036). A name resolving to several address spaces is answered by the order of asking (#1969).
 
 ### `reference-cycles`
 
@@ -4523,7 +4531,8 @@ names, the one a `$ref` to that position resolves to: a named source component's
 position's pointer gives in its document's namespace ([identity](../ir/identity.md#across-documents)),
 built once, from the declaration there, whichever reference asks for it first. No node is minted or
 copied per use, so which reference or declaration lowers first decides nothing. Its `Nullable` is
-what the keywords beside the reference admit, as beside a `$ref`.
+what the keywords beside the reference admit, as beside a `$ref`; what its target admits is not read
+yet.
 
 A reference is irreducible — and is then kept verbatim under `openapi:$dynamicRef` or
 `openapi:$recursiveRef` (`degraded_lowering`) with an info `openapi/degraded-construct` at it naming
@@ -4600,6 +4609,7 @@ written beside a reference that expands is read as one beside a `$ref` is
   `bind.TestDynamicAnchor_SaysWhenTheCountProvesNothing`,
   `bind.TestRecursiveAnchor_CountsWhatADocumentDeclares`,
   `bind.TestResource_NamesTheRootOfAPositionsResource`
+- Status: partly built: an expanded reference reads no null from its target (#1967).
 
 ### `content-vocabulary`
 

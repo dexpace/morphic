@@ -72,7 +72,7 @@ func (e external) readAs(ctx context.Context, id, key, location, from string) an
 // named from may dial: no bound where from was not read over http(s), a file
 // or a source that is one; else the space from's read stated, and public
 // where it stated none, or where from is a source located at a URL, whose
-// dial the compile was not told of.
+// dial the compile was not told of (docs/compilers/openapi.md#references).
 func (e external) reachOf(from string) compilers.AddressSpace {
 	if !bind.OverNetwork(from) {
 		return compilers.SpaceUnstated
