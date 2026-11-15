@@ -280,7 +280,7 @@ func TestRead_ADirectiveIsTheOneGoverningTheDocumentTaken(t *testing.T) {
 // ends a line at, in document order.
 func TestRead_AYAML11DocumentRecordsWhatItReadsOtherwise(t *testing.T) {
 	t.Parallel()
-	const body = "openapi: 3.1.0\ninfo: {title: t, version: \"1\", description: \"a" + nel + "b\"}\npaths: {}\n" +
+	body := "openapi: 3.1.0\ninfo: {title: t, version: \"1\", description: \"a" + nel + "b\"}\npaths: {}\n" +
 		"components:\n  schemas:\n    S:\n      type: object\n      properties:\n" +
 		"        m: {type: integer, default: 0644}\n" +
 		"        e: {type: string, enum: [yes, n, abc]}\n" +
@@ -288,6 +288,9 @@ func TestRead_AYAML11DocumentRecordsWhatItReadsOtherwise(t *testing.T) {
 		"        o: {type: integer, default: 0o17}\n" +
 		"        f: {type: number, default: 1e3}\n" +
 		"        h: {type: string, default: 0X1F}\n" +
+		"        b: {type: integer, default: " + strings.Repeat("9", 310) + "}\n" +
+		"        x: {type: number, default: 1.0e+400}\n" +
+		"        z: {type: number, default: 1e400}\n" +
 		"        y: {type: string}\n"
 
 	doc := read(t, "%YAML 1.1\n---\n"+body)
@@ -309,8 +312,10 @@ func TestRead_AYAML11DocumentRecordsWhatItReadsOtherwise(t *testing.T) {
 		{"1:30", 0, false},
 		{"0o17", 0, false},
 		{"1e3", 0, false},
+		{"1e400", 0, false},
 	}
-	assert.Equal(t, want, got, "in document order; nothing for 0X1F, abc, the quoted version, the key y or 3.1.0")
+	assert.Equal(t, want, got, "in document order; nothing for 0X1F, abc, a number past float64's range "+
+		"both versions read, the quoted version, the key y or 3.1.0")
 
 	for _, text := range []string{body, "%YAML 1.2\n---\n" + body, "%YAML 1.3\n---\n" + body} {
 		assert.Empty(t, read(t, text).Legacy, "a document that does not declare YAML 1.1 records nothing")

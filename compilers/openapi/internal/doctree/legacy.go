@@ -167,13 +167,24 @@ func coreReading(n *yaml.Node) reading {
 	case "!!int":
 		return coreInteger(n.Value)
 	case "!!float":
-		if coreInt(n.Value) {
-			return coreInteger(n.Value)
-		}
-		return floatReading(n.Value)
+		return coreNumber(n.Value)
 	default:
+		// The parser tags a number past float64's range a string, and the
+		// compiler reads it as the number it spells (value.Classify).
+		if coreFloat(n.Value) {
+			return coreNumber(n.Value)
+		}
 		return reading{kind: asString}
 	}
+}
+
+// coreNumber reads text, a number of the core schema (coreFloat), as YAML 1.2
+// does: an integer as one, and any other as a decimal.
+func coreNumber(text string) reading {
+	if coreInt(text) {
+		return coreInteger(text)
+	}
+	return floatReading(text)
 }
 
 // coreInteger reads text, an integer of the core schema (coreInt).

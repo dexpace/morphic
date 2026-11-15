@@ -36,15 +36,17 @@ func TestYAML11Reading_ReadsEachTypeByItsPublishedExpression(t *testing.T) {
 }
 
 // TestCoreReading_ReadsTheTagResolveGave holds YAML 1.2's reading of a plain
-// scalar to its tag, and a core integer the parser read as a float to the
-// integer it is.
+// scalar to its tag, a core integer the parser read as a float to the integer
+// it is, and a core number it read as a string, as it does one past float64's
+// range, to that number.
 func TestCoreReading_ReadsTheTagResolveGave(t *testing.T) {
 	t.Parallel()
 	for _, tc := range []struct{ tag, text, want string }{
 		{"!!null", "~", "null"}, {"!!bool", "True", "the boolean true"},
 		{"!!int", "0o17", "the integer 15"}, {"!!int", "0x1f", "the integer 31"}, {"!!int", "-7", "the integer -7"},
 		{"!!float", ".inf", "positive infinity"}, {"!!float", "1.5", "the number 1.5"},
-		{"!!float", "089", "the integer 89"}, {"!!str", "089", "a string"},
+		{"!!float", "089", "the integer 89"}, {"!!str", "089", "the integer 89"},
+		{"!!str", "1.5e400", "the number 15" + strings.Repeat("0", 399)}, {"!!str", "0x1f", "a string"},
 	} {
 		n := &yaml.Node{Kind: yaml.ScalarNode, Tag: tc.tag, Value: tc.text}
 		assert.Equal(t, tc.want, coreReading(n).String(), "%s %q", tc.tag, tc.text)
