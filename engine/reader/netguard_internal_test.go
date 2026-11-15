@@ -13,6 +13,7 @@ import (
 	"net/netip"
 	"net/url"
 	"reflect"
+	"strings"
 	"sync/atomic"
 	"testing"
 
@@ -243,7 +244,10 @@ func TestTextSpace_ReadsAHostAsTheGuardDoes(t *testing.T) {
 		"a.localhost": compilers.SpaceLocal, "127.1": compilers.SpaceLocal, "0177.0.0.1": compilers.SpaceLocal,
 		"2130706433": compilers.SpaceLocal, "0x7f.1": compilers.SpaceLocal, "::ffff:10.0.0.1": compilers.SpacePrivate,
 		"1.1.1.1": compilers.SpacePublic, "1.1": compilers.SpaceLocal, "999.1": compilers.SpaceLocal,
-		"a_b.example": compilers.SpaceLocal, "Name.Example.": compilers.SpaceUnstated,
+		"a_b.example": compilers.SpaceLocal, "Name.Example.": compilers.SpaceUnstated, "a..b": compilers.SpaceLocal,
+		"127.0.0.0xff": compilers.SpaceLocal, "1.2.3.4.0": compilers.SpaceLocal, "1.256.3.4": compilers.SpaceLocal,
+		"0x": compilers.SpaceLocal, "ab.c-": compilers.SpaceLocal, strings.Repeat("a", 64) + ".example": compilers.SpaceLocal,
+		strings.Repeat("a.", 127) + "aa": compilers.SpaceLocal,
 	}
 	for host, want := range tests {
 		got, said := textSpace(host)

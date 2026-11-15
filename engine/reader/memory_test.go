@@ -363,6 +363,7 @@ func TestMemory_AHeldURLStatesTheSpaceItsHostNames(t *testing.T) {
 		{Path: "http://1.1/d.yaml", Data: []byte("d")},
 		{Path: "http://a_b.example/e.yaml", Data: []byte("e")},
 		{Path: "http://intranet.invalid/f.yaml", Data: []byte("f")},
+		{Path: "http://10.0.0.5:8080/g.yaml", Data: []byte("g")},
 	})
 	for location, want := range map[string]compilers.AddressSpace{
 		"https://pub.example/a.yaml":     compilers.SpacePublic,
@@ -371,6 +372,7 @@ func TestMemory_AHeldURLStatesTheSpaceItsHostNames(t *testing.T) {
 		"http://1.1/d.yaml":              compilers.SpaceLocal,
 		"http://a_b.example/e.yaml":      compilers.SpaceLocal,
 		"http://intranet.invalid/f.yaml": compilers.SpacePublic,
+		"http://10.0.0.5:8080/g.yaml":    compilers.SpacePrivate,
 	} {
 		got, err := m.ReadDocument(t.Context(), compilers.DocumentRequest{Location: location, Reach: compilers.SpacePublic})
 		require.NoError(t, err, location)

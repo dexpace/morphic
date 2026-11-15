@@ -268,6 +268,8 @@ func TestTextSpace_ReadsANumberNoAddressSpellsAsLocal(t *testing.T) {
 		assert.Equal(t, want, got, host)
 	}
 	assert.Equal(t, compilers.SpaceLocal, spaceOf(netip.MustParseAddr("64:ff9b:1:7f00:0:100::")))
+	assert.Equal(t, compilers.SpacePrivate, spaceOf(netip.MustParseAddr("64:ff9b:1:a00:0:100::")), "10.0.0.1")
+	assert.Equal(t, compilers.SpacePublic, spaceOf(netip.MustParseAddr("64:ff9b:1:101:1:100::")), "1.1.1.1")
 	assert.Equal(t, compilers.SpacePrivate, spaceOf(netip.MustParseAddr("::7f00:1")), "IETF-reserved space")
 }
 
@@ -459,4 +461,25 @@ func TestDisk_AReadRefusedOneAddressOfANameFailsAsRefused(t *testing.T) {
 	got, err := d.ReadDocument(t.Context(), compilers.DocumentRequest{Location: at})
 	require.NoError(t, err)
 	assert.Equal(t, compilers.SpacePrivate, got.Space)
+}
+
+// TestSpaceOf_RanksEveryPrivatePrefixPrivate pins the ranges spaceOf reads
+// as private beside netip's own predicates, listed here apart from
+// privatePrefixes so a range dropped from it reddens, each read at an
+// address inside it, and a multicast address outside the link-local scope.
+func TestSpaceOf_RanksEveryPrivatePrefixPrivate(t *testing.T) {
+	t.Parallel()
+	want := []string{"100.64.0.0/10", "192.0.0.0/24", "192.0.2.0/24", "198.18.0.0/15", "198.51.100.0/24",
+		"203.0.113.0/24", "240.0.0.0/4", "fec0::/10", "2001::/32", "2001:db8::/32", "::/8"}
+	got := make([]string, len(privatePrefixes))
+	for i, p := range privatePrefixes {
+		got[i] = p.String()
+	}
+	assert.Equal(t, want, got)
+	for _, prefix := range want {
+		addr := netip.MustParsePrefix(prefix).Addr().Next().Next()
+		assert.Equal(t, compilers.SpacePrivate, spaceOf(addr), "%s in %s", addr, prefix)
+	}
+	assert.Equal(t, compilers.SpacePrivate, spaceOf(netip.MustParseAddr("239.1.1.1")), "multicast")
+	assert.Equal(t, compilers.SpacePublic, spaceOf(netip.MustParseAddr("192.0.3.1")), "past 192.0.2.0/24")
 }
