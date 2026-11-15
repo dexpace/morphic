@@ -286,8 +286,9 @@ func TestLoad_ADocumentThatFailsToBuildIsAGoError(t *testing.T) {
 
 // TestLoad_RejectsARelativeLocation pins that a source's Location, where it
 // lies, must be absolute: a relative one would read its references against the
-// working directory, which it is there to keep out of the compile. It is a
-// caller's mistake, a Go error; an absolute one, and none, are read.
+// working directory, which it is there to keep out of the compile, and so is
+// a URL naming no host or of a scheme other than http(s). It is a caller's
+// mistake, a Go error; an absolute one, and none, are read.
 func TestLoad_RejectsARelativeLocation(t *testing.T) {
 	t.Parallel()
 	src := openapitest.SourceOf(minimal31)
@@ -299,6 +300,12 @@ func TestLoad_RejectsARelativeLocation(t *testing.T) {
 	assert.Contains(t, err.Error(), `location "api/spec.yaml" is neither an absolute path nor an http(s) URL`)
 	assert.Nil(t, refused)
 	assert.Nil(t, diags)
+	for _, location := range []string{"https:///x.yaml", "ftp://h/x.yaml"} {
+		src.Location = location
+		_, _, err = Load(t.Context(), 0, src, Options{})
+		assert.ErrorContains(t, err, "is neither an absolute path nor an http(s) URL", "%s: a URL naming no host, "+
+			"or one of another scheme, is no fetched source's", location)
+	}
 	src.Location = filepath.Join(t.TempDir(), "spec.yaml")
 	got, diags, err := Load(t.Context(), 0, src, Options{})
 	require.NoError(t, err, "%+v", diags)
