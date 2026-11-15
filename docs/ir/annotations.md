@@ -178,9 +178,14 @@ write a `description` beside their schema — the carrier's own win: they descri
 while the schema's describe its type.
 
 Constraints follow the same rule with one exception on the carrier side. `Property.Constraints`
-and `Parameter.Constraints` are filled whether or not the schema hoisted a node, because no node
-such a schema can hoist holds them: an object lowers to a `Model` and a formatted scalar to a
-`Scalar` carrying an `Encoding`, and neither has a field for the scalar bounds.
+and `Parameter.Constraints` hold the value bounds their schema writes where it hoisted no node, and
+restate them where it did and the node holds them, a `Scalar`, a `Model`, a `MapT` or a `Union`, or
+the variants of a union composed beside structure do, so a reader of the carrier finds them either
+way. Beside a node keeping them verbatim instead, an `Enum` or a `Literal`, which has no field for
+them ([unions](./unions.md#bounds-beside-a-union)), or a `Scalar` carrying a number as text, whose
+field speaks of the number ([constraints](./constraints.md#constraints)), the carrier holds none,
+so the bound is in the document once, and beside a type list's variants, each holding the bounds
+of its own type ([`type-arrays`](../compilers/openapi.md#type-arrays)), it holds none either.
 
 Collection bounds take the rule without that exception. A schema that lowers to a `List` or a
 `Tuple` holds them on that node, so its carrier restates none, and a carrier holds one only where

@@ -163,6 +163,7 @@ func TestUnion_PopulatedRoundTrip(t *testing.T) {
 			PropertyName: "petType",
 			Mapping:      map[string]ir.TypeID{"dog": "t/Dog"},
 		},
+		Constraints: &ir.Constraints{MinProps: new(int64(1))},
 	}
 	assertTypeDefRoundTrip(t, want)
 }

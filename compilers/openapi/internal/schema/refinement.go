@@ -383,16 +383,25 @@ func homesAt(c lowering.Ctx, ts *compile.Types, s *oas3.Schema, target ir.TypeRe
 	// A node still building holds nothing yet.
 	var homes boundHomes
 	if td, ok := ts.Node(target.Target); ok {
-		nodes := []ir.TypeDef{td}
-		if u, isUnion := td.(*ir.Union); isUnion {
-			nodes = variantNodes(ts, u)
-		}
+		nodes := withVariants(ts, td)
 		if slices.ContainsFunc(nodes, constraintsHome) {
 			homes.value = positionTypes(c, s, pointer)
 		}
 		homes.collection = slices.ContainsFunc(nodes, holdsCollectionBounds)
 	}
 	return homes
+}
+
+// withVariants returns td, a node a position owns, and, where it is a Union,
+// the registered nodes of its variants: what may hold the bounds the position
+// writes, as a oneOf's or an anyOf's Union does itself and the variants of a
+// type list's or a distributed union's do (lowerTypeVariant, composedVariant).
+func withVariants(ts *compile.Types, td ir.TypeDef) []ir.TypeDef {
+	u, isUnion := td.(*ir.Union)
+	if !isUnion {
+		return []ir.TypeDef{td}
+	}
+	return append(variantNodes(ts, u), u)
 }
 
 // variantNodes returns the registered nodes of u's variants.

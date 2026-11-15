@@ -55,11 +55,11 @@ func typeKinds(st oas3.SchemaType) kindSet {
 // positionTypes returns the kinds a reader of the bounds written at pointer
 // takes: those s's own type admits that every schema s names admits too
 // (docs/compilers/openapi.md#constraints). It reads no value set's kinds, so one
-// writing no type takes every bound (GitHub #1919), nor a type beside a $ref
-// inside a named schema (GitHub #1390), and a read past maxBoundTypeReads takes
-// every bound. A bound beside an enum, a const or a union at a property is
-// also kept on its node (GitHub #1924), redeclarations each keeping one meet
-// GitHub #1889's fold, and one left is reported at its position, not its key.
+// writing no type, a union's branch among them, takes every bound (GitHub
+// #1919), nor a type beside a $ref inside a named schema (GitHub #1390), and a
+// read past maxBoundTypeReads takes every bound. Redeclarations each keeping a
+// bound meet GitHub #1889's fold, and one left is reported at its position, not
+// its key.
 func positionTypes(c lowering.Ctx, s *oas3.Schema, pointer jsontext.Pointer) kindSet {
 	own := declaredInstanceTypes(s)
 	if s == nil || own == 0 || !namesSchema(s) || !writesBound(c.Bindings(), s) {

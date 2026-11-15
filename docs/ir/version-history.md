@@ -849,3 +849,16 @@ it sees. Changes made together in one bump are listed together under it.
   writing it, another document's qualifier in its ID ([identity](./identity.md#unresolved-schemes)). A consumer pinned to 0.67.0 refuses the document;
   one reading `Stop` with no arm for `no_more` would not end such a walk, and one matching a marker
   by its old name no longer finds it.
+- **0.69.0** — `Union.Constraints`, the bounds a source writes beside a union, each bounding a value
+  of the kind it applies to whichever variant holds it
+  ([unions](./unions.md#bounds-beside-a-union)); `pass.Validate` judges them kind by kind under
+  `pass/bounds-admit-no-value`. The OpenAPI compiler fills it from a value bound written beside a
+  `oneOf` or an `anyOf` lowering to a `Union` of its branches, or on an `allOf` branch folding
+  there, which it kept under `openapi:<keyword>` (`degraded_lowering`) with an info while a property
+  or parameter carrying the union held it too. A union of string `const`s holding a bound is no
+  longer made an `Enum` by the `const-unions` pass, since an `Enum` has no field for it
+  ([`string-const-union`](../compilers/openapi.md#string-const-union)). A property or parameter
+  whose schema lowers to an `Enum`, a `Literal` or a number written as text no longer holds or keeps
+  the bounds written beside it, which that node keeps verbatim
+  ([`constraints`](../compilers/openapi.md#constraints)). A consumer pinned to 0.68.0 refuses the
+  document; one reading such a carrier finds the bound on its node.

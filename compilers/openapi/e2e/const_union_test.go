@@ -7,6 +7,8 @@
 package e2e_test
 
 import (
+	"maps"
+	"slices"
 	"strings"
 	"testing"
 
@@ -72,5 +74,46 @@ func TestStringConstUnion_NormalizesToItsEnumSpelling(t *testing.T) {
 			assert.False(t, strings.HasPrefix(string(id), string(componentID(name))+"/"),
 				"%s's branch type %s is left behind", name, id)
 		}
+	}
+}
+
+// TestStringConstUnion_ABoundBesideTheSetKeepsTheUnion pins a bound written
+// beside a union of string consts: the Union holds it, which an Enum has no
+// field for, so pass.ConstUnions leaves the union, and its carrier restates it,
+// while the enum spelling's Enum keeps the bound verbatim and its carrier holds
+// none (docs/compilers/openapi.md#string-const-union, GitHub #1924).
+func TestStringConstUnion_ABoundBesideTheSetKeepsTheUnion(t *testing.T) {
+	t.Parallel()
+	doc := compileComponentSpec(t, openapitest.ComponentSpec(`
+    Union: {oneOf: [{const: a}, {const: bb}], maxLength: 1}
+    Enum: {type: string, enum: [a, bb], maxLength: 1}
+    H:
+      type: object
+      properties:
+        u: {oneOf: [{const: a}, {const: bb}], maxLength: 1}
+        e: {type: string, enum: [a, bb], maxLength: 1}
+`))
+	got, diags := pass.ConstUnions{}.Run(t.Context(), doc)
+	require.Empty(t, diags)
+
+	want := &ir.Constraints{MaxLength: new(int64(1))}
+	for _, id := range []ir.TypeID{componentID("Union"), "t/anon/components/schemas/H/properties/u"} {
+		u, ok := got.Types[id].(*ir.Union)
+		require.True(t, ok, "%s stays a union, got %T", id, got.Types[id])
+		assert.Same(t, doc.Types[id], got.Types[id], id)
+		assert.Equal(t, want, u.Constraints, id)
+		assert.Empty(t, u.Unmodeled, id)
+	}
+	for _, id := range []ir.TypeID{componentID("Enum"), "t/anon/components/schemas/H/properties/e"} {
+		enum, ok := got.Types[id].(*ir.Enum)
+		require.True(t, ok, "%s is an enum, got %T", id, got.Types[id])
+		assert.Equal(t, []string{"openapi:maxLength"}, slices.Sorted(maps.Keys(enum.Unmodeled)), id)
+	}
+	h, ok := typeByName(got, "H").(*ir.Model)
+	require.True(t, ok)
+	for wire, held := range map[string]*ir.Constraints{"u": want, "e": nil} {
+		p, ok := propByWire(h, wire)
+		require.True(t, ok)
+		assert.Equal(t, held, p.Constraints, wire)
 	}
 }

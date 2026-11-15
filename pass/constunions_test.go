@@ -250,6 +250,9 @@ func TestConstUnions_KeepsAUnionAnEnumCannotSay(t *testing.T) {
 			u.Discriminator = &ir.Discriminator{PropertyName: "kind"}
 		}},
 		{"an input-only union", func(u *ir.Union, _ *ir.Literal, _ *ir.Enum, _ ir.TypeRegistry) { u.InputOnly = true }},
+		{"a union's bounds", func(u *ir.Union, _ *ir.Literal, _ *ir.Enum, _ ir.TypeRegistry) {
+			u.Constraints = &ir.Constraints{MaxLength: new(int64(3))}
+		}},
 		{"no variant", func(u *ir.Union, _ *ir.Literal, _ *ir.Enum, _ ir.TypeRegistry) { u.Variants = nil }},
 		{"a nullable variant", func(u *ir.Union, _ *ir.Literal, _ *ir.Enum, _ ir.TypeRegistry) {
 			u.Variants[0].Type.Nullable = true

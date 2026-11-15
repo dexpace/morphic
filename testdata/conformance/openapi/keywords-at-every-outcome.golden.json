@@ -401,14 +401,6 @@
             "source": 0,
             "pointer": "/components/schemas/Bare/format"
           }
-        },
-        "openapi:minLength": {
-          "reason": "degraded_lowering",
-          "value": 3,
-          "provenance": {
-            "source": 0,
-            "pointer": "/components/schemas/Bare/minLength"
-          }
         }
       },
       "provenance": {
@@ -439,6 +431,10 @@
       ],
       "exclusive": true,
       "wireTagged": false,
+      "constraints": {
+        "minLength": 3,
+        "uniqueItems": false
+      },
       "closed": true,
       "inputOnly": false
     },
@@ -994,7 +990,7 @@
     {
       "severity": "info",
       "code": "openapi/degraded-construct",
-      "message": "this position lowered to a node of kind \"union\", which has no home for format, minLength declared beside it; kept verbatim under Unmodeled",
+      "message": "this position lowered to a node of kind \"union\", which has no home for format declared beside it; kept verbatim under Unmodeled",
       "provenance": {
         "source": 0,
         "pointer": "/components/schemas/Bare"
@@ -1113,7 +1109,7 @@
     {
       "format": "openapi@3.1",
       "path": "keywords-at-every-outcome.yaml",
-      "hash": "820fdd49ebb0eb8a72b3d08fbc8d301dfa22df0493a51692d59b334841001b15"
+      "hash": "894ef2858c68818440809dabd9d876121ac4546a88d9dd33ed1657604eb98d59"
     }
   ]
 }

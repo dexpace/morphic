@@ -3730,11 +3730,13 @@ branches hold, which a `oneOf` rejects and whose two branches may say two things
 by two primitives; a nullable branch; a construct a branch keeps verbatim for any reason but being a
 vendor extension, such as a constraint its `Literal` has no home for, which narrows the branch and
 would not narrow a member; a branch whose `Provenance.Inferred` names a heuristic, whose mark no
-member could carry; and one fact two places say of one value. A union of numbers, or of values of
-several kinds, is outside this rule and stays a union.
+member could carry; one fact two places say of one value; and a bound written beside the union,
+which its `Constraints` hold ([`constraints`](#constraints)) and an `Enum` has no field for. A union
+of numbers, or of values of several kinds, is outside this rule and stays a union.
 
 - Cases: `string-const-union`
-- Tests: `e2e.TestStringConstUnion_NormalizesToItsEnumSpelling`
+- Tests: `e2e.TestStringConstUnion_NormalizesToItsEnumSpelling`,
+  `e2e.TestStringConstUnion_ABoundBesideTheSetKeepsTheUnion`
 
 ### `enum-const`
 
@@ -4062,12 +4064,13 @@ not a number's:
 written beside it, but for a number carried as text, whose `Constraints` speak of the number
 ([constraints](../ir/constraints.md#constraints)): a length or a `pattern` bounds its text and a
 numeric bound no string instance, so each value bound written beside it is kept verbatim under
-`openapi:<keyword>` (`no_ir_home`) with an info `openapi/degraded-construct` at it, one an inline
-`allOf` branch writes keeps its branch whole ([`allof-inline-residue`](#allof-inline-residue)), and
-neither the `Scalar` nor a property or parameter carrying it holds one. The table is the same at
-every minor, and a pairing of `format` with another `type` is
-[`numeric-formats`](#numeric-formats)'. Beside a type array, a format the table pairs with `string`,
-`byte` and `http-date` among them, is the `string` variant's alone ([`type-arrays`](#type-arrays)).
+`openapi:<keyword>` (`no_ir_home`) on the `Scalar` alone with an info `openapi/degraded-construct`
+at it, one an inline `allOf` branch writes keeps its branch whole
+([`allof-inline-residue`](#allof-inline-residue)), and neither the `Scalar` nor a property or
+parameter carrying it holds one. The table is the same at every minor, and a pairing of `format`
+with another `type` is [`numeric-formats`](#numeric-formats)'. Beside a type array, a format the
+table pairs with `string`, `byte` and `http-date` among them, is the `string` variant's alone
+([`type-arrays`](#type-arrays)).
 
 - Cases: `encoding-byte`, `scalar-format`
 - Codes: `openapi/degraded-construct`
@@ -4312,12 +4315,12 @@ wherever it stands.
 
 `minimum`, `maximum` and `multipleOf` lower to `Min`, `Max` and `MultipleOf`, and `minLength`,
 `maxLength` and `pattern` to `MinLength`, `MaxLength` and `Pattern` as written, in the `Constraints`
-of the node or carrier the position owns (a `Scalar`, a `Property` or a `Parameter`); `minItems`,
-`maxItems` and `uniqueItems` to the `List`'s, and a `Tuple`'s per [`tuples`](#tuples), which its
-carrier does not restate, or, where the position lowers to a reference (a `$ref` site, a collapsed
-union or an expanded `$dynamicRef`), to the `Constraints` of the alias or carrier it owns where the
-types the position admits include `array`, as does one on an inline `allOf` branch
-([`allof-inline-residue`](#allof-inline-residue)); and
+of the node or carrier the position owns (a `Scalar`, the `Union` a `oneOf` or `anyOf` lowers to, a
+`Property` or a `Parameter`); `minItems`, `maxItems` and `uniqueItems` to the `List`'s, and a
+`Tuple`'s per [`tuples`](#tuples), which its carrier does not restate, or, where the position lowers
+to a reference (a `$ref` site, a collapsed union or an expanded `$dynamicRef`), to the `Constraints`
+of the alias or carrier it owns where the types the position admits include `array`, as does one on
+an inline `allOf` branch ([`allof-inline-residue`](#allof-inline-residue)); and
 `minProperties` and `maxProperties` per [`additional-properties`](#additional-properties). A bound
 is read only where a type the position admits takes it, since JSON Schema applies each to
 instances of one kind and lets any other through (JSON Schema Validation 2020-12 §6.2 to §6.5):
@@ -4357,13 +4360,19 @@ when both are declared, a field apiece and no `Unmodeled` entry
 errors are the rule table's, made with the rows of each schema's dialect, at every schema its
 [`validation`](#validation) check reads, which judges these keywords as the lowering reads them
 rather than by their shape: one under `not`, `if` or `propertyNames`, or beside an `enum`, is
-reported as one the lowering reads, and an aliased value once. A bound beside a
-node with no `Constraints` field to take it (an `Enum`, a `Literal`, a `List` for a value bound) is
-kept verbatim under `openapi:<keyword>`
-(`degraded_lowering`) with an info `openapi/degraded-construct` naming the node it lowered to, as
-[`shape-applicator`](#shape-applicator) keeps a collection bound on an object. A collection bound
-beside a reference that `Constraints` cannot state is kept the same way: a `uniqueItems` of `false`,
-which a bool cannot tell from one never written, and a count that does not fit in 64 bits. A count,
+reported as one the lowering reads, and an aliased value once. A bound beside a `oneOf` or an
+`anyOf` lowering to a `Union` of its branches ([`union`](#union)), or on an `allOf` branch folding
+there, is that `Union`'s: no variant can hold it, each being its branch's node, which every use of
+the branch shares. A carrier restates the value bounds the node its position owns holds, or a
+distributed union's variants do, but for a type list's ([`type-arrays`](#type-arrays)), and holds
+none beside a node with no `Constraints` field to take them (an `Enum`, a `Literal`, the `Union` of
+literals a mixed `enum` lowers to, a `List` for a value bound): such a bound is kept verbatim on the
+node under `openapi:<keyword>` (`degraded_lowering`), once, with an info
+`openapi/degraded-construct` naming the node it lowered to, as
+[`shape-applicator`](#shape-applicator) keeps a collection bound on an object
+([unions](../ir/unions.md#bounds-beside-a-union)). A collection bound beside a reference that
+`Constraints` cannot state is kept the same way: a `uniqueItems` of `false`, which a bool cannot
+tell from one never written, and a count that does not fit in 64 bits. A count,
 `minLength`, `maxLength`, `minItems`, `maxItems`, `minProperties` or `maxProperties`, is a
 non-negative integer with no upper limit, and its field holds one up to 2^63−1: one past that, at
 any node, carrier or `allOf` branch, reaches no field and is kept verbatim under `openapi:<keyword>`
@@ -4414,6 +4423,9 @@ no bound ([`string-formats`](#string-formats)).
   `e2e.TestConstraints_ANamedTypeIsReadInItsOwnDocument`,
   `schema.TestConstraints_ABoundAListKeepsIsKeptOnce`,
   `schema.TestConstraints_ACarrierRestatesTheBoundsItsNodeTakes`,
+  `schema.TestConstraints_ABoundBesideAValueSetOrAUnionHasOneHome`,
+  `schema.TestConstraints_AReferenceLandingOnAPropertyReadsItsNode`,
+  `e2e.TestStringConstUnion_ABoundBesideTheSetKeepsTheUnion`,
   `schema.TestConstraints_ACountATypeCannotTakeIsKeptByTheCensus`,
   `schema.TestConstraints_AModifierATypeCannotTakeIsKeptByTheCensus`,
   `schema.TestKeywordKinds_ListsEveryValueBoundAndTheContentVocabulary`,
@@ -4445,13 +4457,13 @@ no bound ([`string-formats`](#string-formats)).
   `annotation.TestExactCount_StatesOnlyAnExactCount`,
   `oas.TestShape_Admits`
 - Status: partly built: the types a schema admits are read off `type` alone, a union's branch of
-  null alone aside, so a value set declaring none (an `enum` or a `const`) reads every bound (#1919);
-  a `type` written beside a `$ref` inside a named schema is not read (#1390); and a read of more
-  than 256 named schemas reads every bound, as one through a cycle of `allOf` entries or of dynamic
-  references always does. A distributed union's variant holds each bound the whole position takes,
-  one its own branch cannot take included (#1936). A bound beside an `enum`, a `const` or a union at
-  a property that a type the position admits takes is held by the property and also kept on its node
-  (#1924). Two declarations of one field that each keep a bound meet the fold of
+  null alone aside, so a value set declaring none (an `enum` or a `const`), the position's own or a
+  union's branch, reads every bound, and a `Union` of such branches holds one of a kind none of
+  their members is (#1919); a `type` written beside a `$ref` inside a named schema is not read
+  (#1390); and a read of more than 256 named schemas reads every bound, as one through a cycle of
+  `allOf` entries or of dynamic references always does. A distributed union's variant holds each
+  bound the whole position takes, one its own branch cannot take included (#1936). Two declarations
+  of one field that each keep a bound meet the fold of
   [`allof-redeclared-property`](#allof-redeclared-property) (#1889). A bound left unread is reported
   at its position, with the census's other keywords, not at the keyword. A read counts schemas, not
   their keys, so positions naming a schema of very many keys cost their number times the schemas

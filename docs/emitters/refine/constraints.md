@@ -1,16 +1,17 @@
 # Constraints and validation
 
-`LowerConstraints` reads `Constraints` on properties, scalars, and lists
-([constraints](../../ir/constraints.md)) and *builds the structure* of a per-type `Validate()`
-method — which checks apply to which fields — as typed AST. That method is the one validator: no
-field carries validation metadata, a `validate:"…"` struct tag or a registration, since nothing
-generated reads one and a reflection validator following it is a second walker no nesting limit
-bounds ([how deep a value nests](models.md#how-deep-a-value-nests)), which over such tags ended the
-process on a Go value holding itself (go-playground/validator v10.30.2, Go 1.27.3). Validation is
-therefore neither pure boilerplate (the checks depend on the spec) nor free-form template logic:
-refine decides the set of checks, and the individual check primitives (`checkMinLength`,
-`checkMultipleOf` on `big.Rat`) are runtime helpers. This is ogen's `oas_validators_gen.go` split,
-relocated to honor the structure-vs-boilerplate line ([structure and
+`LowerConstraints` reads `Constraints` on properties, scalars, lists and unions
+([constraints](../../ir/constraints.md)), a union's bounds checking a value of the kind each applies
+to whichever variant holds it ([unions](../../ir/unions.md#bounds-beside-a-union)), and *builds the
+structure* of a per-type `Validate()` method — which checks apply to which fields — as typed AST.
+That method is the one validator: no field carries validation metadata, a `validate:"…"` struct tag
+or a registration, since nothing generated reads one and a reflection validator following it is a
+second walker no nesting limit bounds ([how deep a value nests](models.md#how-deep-a-value-nests)),
+which over such tags ended the process on a Go value holding itself (go-playground/validator
+v10.30.2, Go 1.27.3). Validation is therefore neither pure boilerplate (the checks depend on the
+spec) nor free-form template logic: refine decides the set of checks, and the individual check
+primitives (`checkMinLength`, `checkMultipleOf` on `big.Rat`) are runtime helpers. This is ogen's
+`oas_validators_gen.go` split, relocated to honor the structure-vs-boilerplate line ([structure and
 boilerplate](../emit/templates.md)). Numeric bounds flow through `BigVal`, **never float64** — ogen
 itself gets storage right yet leaks `Float64()` in its `minNum`/`maxNum` merge path, so any
 constraint intersection the plan or a refiner performs (a scalar chain's bounds, `allOf` bounds)

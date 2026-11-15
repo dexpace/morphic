@@ -1643,7 +1643,7 @@ func assertKeywordsAtEveryOutcome(t *testing.T, doc *ir.Document, diags []ir.Dia
 		keys  []string
 		shape string
 	}{
-		{"Bare", typeByName(doc, "Bare"), []string{"format", "minLength"}, `a node of kind "union"`},
+		{"Bare", typeByName(doc, "Bare"), []string{"format"}, `a node of kind "union"`},
 		{"Dist", typeByName(doc, "Dist"), []string{"format", "maxItems"}, "a union of models"},
 		{"Dyn", typeByName(doc, "Dyn"), []string{"discriminator", "format"}, "$dynamicRef expands to"},
 		{"NoObjectVariant", typeByName(doc, "NoObjectVariant"), []string{"properties"}, `a node of kind "union"`},
@@ -1670,6 +1670,10 @@ func assertKeywordsAtEveryOutcome(t *testing.T, doc *ir.Document, diags []ir.Dia
 			assert.Contains(t, diags[i].Message, strings.Join(tc.keys, ", "))
 		})
 	}
+
+	bare, ok := typeByName(doc, "Bare").(*ir.Union)
+	require.True(t, ok)
+	assert.Equal(t, &ir.Constraints{MinLength: new(int64(3))}, bare.Constraints, "a union holds the bound beside it")
 
 	carrier, ok := typeByName(doc, "Carrier").(*ir.Model)
 	require.True(t, ok)

@@ -257,8 +257,7 @@ func checkBounds(doc *ir.Document, live []ir.TypeID) []ir.Diagnostic {
 	var diags []ir.Diagnostic
 	for _, id := range live {
 		td := doc.Types[id]
-		own, target, self := typeBounds(td)
-		if why := unsatisfiable(doc, own, target, self); why != "" {
+		if why := typeUnsatisfiable(doc, td); why != "" {
 			diags = append(diags, diagAt("pass/bounds-admit-no-value", why,
 				string(id), td.Common().Provenance))
 		}
@@ -270,6 +269,39 @@ func checkBounds(doc *ir.Document, live []ir.TypeID) []ir.Diagnostic {
 		}
 	})
 	return diags
+}
+
+// typeUnsatisfiable is unsatisfiable for the bounds td declares itself: read
+// with the chain typeBounds names, or, for a union, kind by kind
+// (unionUnsatisfiable).
+func typeUnsatisfiable(doc *ir.Document, td ir.TypeDef) string {
+	if u, isUnion := td.(*ir.Union); isUnion {
+		return unionUnsatisfiable(u.Constraints)
+	}
+	own, target, self := typeBounds(td)
+	return unsatisfiable(doc, own, target, self)
+}
+
+// unionShapes are the shapes a union's own bounds are judged for, one per kind
+// of value a bound applies to: each bounds the values of its kind whichever
+// variant holds one (docs/ir/unions.md#bounds-beside-a-union).
+var unionShapes = [...]shape{shapeNumber, shapeText, shapeList, shapeObject}
+
+// unionUnsatisfiable returns what own, a union's bounds, which no alias chain
+// joins, leave no value of, for the first kind in unionShapes they admit none
+// of, or "" where they admit a value of each kind.
+func unionUnsatisfiable(own *ir.Constraints) string {
+	if own == nil {
+		return ""
+	}
+	var b bounds
+	b.and(own)
+	for _, s := range unionShapes {
+		if b.empty(s) {
+			return b.describe(s)
+		}
+	}
+	return ""
 }
 
 // typeBounds returns the bounds td declares, and the chain they are read with:
@@ -290,7 +322,8 @@ func typeBounds(td ir.TypeDef) (*ir.Constraints, ir.TypeID, shape) {
 	case *ir.MapT:
 		return t.Constraints, "", shapeObject
 	default:
-		// no other type declares bounds a value is read against
+		// no other type declares bounds a value is read against with a chain;
+		// a union's are judged kind by kind (typeUnsatisfiable)
 	}
 	return nil, "", shapeUnjudged
 }

@@ -285,9 +285,9 @@ func holdsCollectionBounds(td ir.TypeDef) bool {
 // over it (hoistDeclarationHome), so a constraint that missed the field reaches
 // none anywhere.
 //
-// Having the field is not filling it, so a Scalar, Model or MapT is asked
-// whether it is non-nil; lowerModel and lowerAllOf fill a Model's, and so its
-// MapT's, the same way (GitHub #407). A List or Tuple is absent because
+// Having the field is not filling it, so a Scalar, Model, MapT or Union is
+// asked whether it is non-nil, as lowerModel and lowerAllOf fill a Model's, and
+// so its MapT's, the same way (GitHub #407). A List or Tuple is absent because
 // lowerArray and buildTuple fill theirs from collectionConstraints, whose
 // collection bounds valueConstraintKeywords excludes, so no value constraint
 // reaches either however full the field looks.
@@ -298,6 +298,8 @@ func constraintsHome(td ir.TypeDef) bool {
 	case *ir.Model:
 		return n.Constraints != nil
 	case *ir.MapT:
+		return n.Constraints != nil
+	case *ir.Union:
 		return n.Constraints != nil
 	default:
 		// Every other kind has no Constraints field, or holds only collection
@@ -439,7 +441,7 @@ func preserveUnhomedKeywords(c lowering.Ctx, ts *compile.Types, s *oas3.Schema, 
 	case !carriesNumberAsText(td):
 		// No alias will be hoisted over a node the position already owns, so a
 		// bound it did not read reaches no Constraints field anywhere. One carrying
-		// a number as text kept every bound itself (textBounds).
+		// a number as text kept every bound itself (keepTextBounds).
 		unhomed = append(unhomed, unreadBounds(s, []ir.TypeDef{td}, positionTypes(c, s, pointer))...)
 	}
 	if len(unhomed) == 0 && len(d.skipped) == 0 {

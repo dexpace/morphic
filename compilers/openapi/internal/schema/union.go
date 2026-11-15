@@ -27,7 +27,9 @@ import (
 // has no X for that collapse to name, so it lowers as a schema of null alone
 // does instead (lowerNullOnlyUnion); everything else becomes a Union with one
 // Variant per non-null branch (oneOf exclusive, anyOf not), never collapsing a
-// union into optional fields.
+// union into optional fields. The Union holds the value bounds written beside
+// it, as a branch's node, which every use of the branch shares, cannot
+// (docs/compilers/openapi.md#constraints).
 func lowerOneOfAnyOf(c lowering.Ctx, ts *compile.Types, depth int, s *oas3.Schema, pointer jsontext.Pointer) (ir.TypeRef, []ir.Diagnostic) {
 	if inner, ip, ok := nullUnionCollapse(c, s, pointer); ok {
 		ref, diags := Ref(c, ts, depth, inner, ip)
@@ -49,6 +51,9 @@ func lowerOneOfAnyOf(c lowering.Ctx, ts *compile.Types, depth int, s *oas3.Schem
 				return ref
 			})
 		diags = append(diags, unionDiags...)
+		cons, consDiags := ConstraintsOf(c, &def.Unmodeled, s, positionVoices(c, ts, s, pointer, ir.TypeRef{}), pointer, positionTypes(c, s, pointer))
+		def.Constraints = cons
+		diags = append(diags, consDiags...)
 		return def
 	})
 	owner, unhomedDiags := preserveUnhomedKeywords(c, ts, s, pointer, tid, dispatch{said: branchesSay(c, s)})

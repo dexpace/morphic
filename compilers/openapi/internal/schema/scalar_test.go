@@ -350,9 +350,10 @@ func TestScalar_ANumberAsTextIsItsNumberOnAString(t *testing.T) {
 // number carried as text. Its Constraints speak of the number, and none of them
 // does: a length or a pattern bounds the text, and a numeric bound no string
 // instance. Each is kept verbatim on the Scalar under no_ir_home, with an info
-// at it, and neither the Scalar nor a property or parameter carrying it holds a
-// bound. A format the table pairs with string keeps its bounds, and an alias an
-// allOf refinement lowers to loses none of its own.
+// at it, neither the Scalar nor a property or parameter carrying it holds a
+// bound, and the carrier keeps no copy. A format the table pairs with string
+// keeps its bounds, and an alias an allOf refinement lowers to loses none of
+// its own.
 func TestScalar_ANumberAsTextKeepsItsBoundsVerbatim(t *testing.T) {
 	t.Parallel()
 	const bounds = `pattern: "^[0-9]+$", minLength: 1, maxLength: 20, minimum: 5, exclusiveMaximum: 100, multipleOf: 5`
@@ -401,6 +402,8 @@ components:
 		}
 		assert.Len(t, sc.Unmodeled, len(keywords), "%s keeps nothing else", at)
 	}
+	assert.Empty(t, props["p"].Unmodeled, "the property keeps no copy of what its node keeps")
+	assert.Empty(t, params[0].Unmodeled, "the parameter keeps no copy of what its node keeps")
 	require.NotNil(t, props["d"].Constraints, "a date keeps the length bound of its text")
 	assert.Equal(t, new(int64(10)), props["d"].Constraints.MaxLength)
 
