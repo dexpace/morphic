@@ -234,8 +234,10 @@ func run(b *binder) *Table {
 // (settled): to read the documents it held (readHeld), to ask again the hops
 // that wait for a declaration of a document read and not yet reached, or,
 // once nothing is held or waits so, to settle what waited. A change ends it,
-// to be read again.
+// to be read again. Each round is a step of the work, so one that changes
+// nothing ends on the budget rather than going on unbounded.
 func goOn(b *binder) bool {
+	b.work.steps.Spend(1)
 	if !settled(b) {
 		b.stale = true
 		return false
