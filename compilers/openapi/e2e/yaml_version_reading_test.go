@@ -4,6 +4,7 @@
 package e2e_test
 
 import (
+	"strconv"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -163,4 +164,48 @@ func TestCompile_AnOverlayAndAnExternalDocumentDeclaringYAML11AreWarnedInTheirOw
 	require.Len(t, got, 1, "%+v", diags)
 	assert.Equal(t, 1, got[0].Provenance.Source, "the external document's entry")
 	assert.Equal(t, "/A/default", string(got[0].Provenance.Pointer))
+}
+
+// TestCompile_TheYAML11FixtureIsReadAsYAML12 compiles the committed fixture
+// declaring YAML 1.1, which the harness's oracles sweep too: each value reads
+// as YAML 1.2 reads it, each thing YAML 1.1 reads otherwise draws one warning
+// at its node, and nothing else is reported.
+func TestCompile_TheYAML11FixtureIsReadAsYAML12(t *testing.T) {
+	t.Parallel()
+
+	doc, diags := compileText(t, "yaml11_scalars.yaml", string(readReproducer(t, "yaml11_scalars")), openapi.Options{})
+
+	require.NotNil(t, doc)
+	const props = "/components/schemas/S/properties/"
+	want := map[string]bool{"/info/description": true, "/info/summary": true, "/info/termsOfService": true}
+	for _, p := range []string{"octal", "tagged", "coreOctal", "signedHex", "binary", "separated", "sexagesimal",
+		"exponent", "sexagesimalFloat", "separatedFloat"} {
+		want[props+p+"/default"] = true
+	}
+	for i := range 16 {
+		want["/x-flags/"+strconv.Itoa(i)] = true
+	}
+	got := map[string]bool{}
+	for _, d := range diags {
+		assert.Equal(t, srVersionReading, d.Code, "%+v", d)
+		assert.False(t, got[string(d.Provenance.Pointer)], "one warning at %s", d.Provenance.Pointer)
+		got[string(d.Provenance.Pointer)] = true
+	}
+	assert.Equal(t, want, got, "a warning at each node YAML 1.1 reads otherwise, and none at the hex default")
+
+	tree := irTree(t, doc)
+	for name, value := range map[string]map[string]any{
+		"octal":     {"kind": "number", "num": "644"},
+		"tagged":    {"kind": "number", "num": "644"},
+		"coreOctal": {"kind": "number", "num": "15"},
+		"exponent":  {"kind": "number", "num": "1e3"},
+		"hex":       {"kind": "number", "num": "31"},
+		"binary":    {"kind": "string", "str": "0b1010"},
+		"separated": {"kind": "string", "str": "1_000"},
+	} {
+		prop := findByID(tree, "p/openapi"+props+name)
+		require.NotNil(t, prop, name)
+		assert.Equal(t, value, prop["default"], name)
+	}
+	assert.Equal(t, "nel"+srNEL+"here", doc.Docs.Description, "the break is a character of the scalar")
 }
