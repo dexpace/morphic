@@ -25,10 +25,12 @@ import (
 const maxPayloadDepth = 1 << 14
 
 // MaxSteps bounds the steps the selectors of one application of an overlay
-// spend between them (jsonpath.Query.Select), about 264 scans of every node
+// spend between them (jsonpath.Query.Select), about 268 scans of every node
 // of a document of a million. A selector costs what it visits, which a
 // document can make far more than its text; past the bound the action is
-// refused, and nothing more applies.
+// refused, and nothing more applies. A step is a count, not a time: the
+// costliest take some hundreds of nanoseconds, so the bound admits tens of
+// seconds of selection, which only the caller's context cuts shorter.
 const MaxSteps = 1 << 28
 
 // sequence applies a plan's actions in order, each to the tree the ones before

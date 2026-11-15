@@ -11,8 +11,9 @@ import (
 )
 
 // Path is the location of one node of a result, from the root of the value a
-// query read. It is a link to its parent's path, so a nodelist of n nodes holds
-// n links however deep they lie. The zero Path is the root's.
+// query read. It is a link to its parent's path, so a nodelist one walk finds
+// holds a link a node however deep they lie; walks from several starts each
+// build their own (GitHub #1960). The zero Path is the root's.
 type Path struct{ last *link }
 
 // link is one step of a Path and the path to its holder.

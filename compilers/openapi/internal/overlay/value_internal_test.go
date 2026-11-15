@@ -59,8 +59,10 @@ func TestGrafter_RefusesToWriteWhatIsNoValue(t *testing.T) {
 }
 
 // TestSequence_RefusesASelectionPastTheNodelistsBound pins the finding for a
-// selector whose nodelist passes jsonpath.MaxResults, a bound a test cannot
-// reach with a tree of a test's size.
+// selector whose nodelists pass jsonpath.MaxResults. A chain 300 mappings deep
+// under `$..a..a..a` reaches the bound through Apply, but only by holding four
+// million nodes, which jsonpath.TestSelect_HoldsANodelistToMaxResults pays
+// once, so this test reads the finding alone.
 func TestSequence_RefusesASelectionPastTheNodelistsBound(t *testing.T) {
 	t.Parallel()
 	s := &sequence{}

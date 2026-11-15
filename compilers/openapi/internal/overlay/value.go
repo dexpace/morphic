@@ -190,7 +190,8 @@ func (g *grafter) copyNode(n *yaml.Node, moved bool) *yaml.Node {
 
 // admit charges n nodes to the node budget and reports whether they fit. The
 // running count only ever overstates the tree, so the tree is counted afresh
-// before a charge is refused.
+// before a charge is refused: at the budget's edge, before each action that
+// charges a node, a walk of the whole tree that no budget counts (GitHub #1959).
 func (g *grafter) admit(ctx context.Context, n int) bool {
 	if g.size == nil || g.size.Spend(n) {
 		return true
