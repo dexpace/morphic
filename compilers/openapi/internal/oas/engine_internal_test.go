@@ -216,3 +216,22 @@ func TestKeyPlacer_ReadsTheMappingOnce(t *testing.T) {
 	assert.Equal(t, ir.Provenance{Pointer: "/b", Position: ir.Position{Line: 99}}, places.place("b"),
 		"the mapping was read for its aliases once, before b was written")
 }
+
+// TestKeyPlacer_PlacesAKeyWhoseValueIsAnchoredAtItsOwn holds a key whose value
+// is anchored, and read again through another key's alias, to its own pointer
+// and its value's coordinate: the locator places a shared node at the least
+// position reading it, here the other key, and a finding about a key is about
+// the key.
+func TestKeyPlacer_PlacesAKeyWhoseValueIsAnchoredAtItsOwn(t *testing.T) {
+	t.Parallel()
+	doc := openapitest.YAMLDocument(t, "b: &m 1\na: *m\n")
+	w := &walker{}
+	w.locate = func(p jsontext.Pointer) ir.Provenance {
+		if p == "" {
+			return ir.Provenance{}
+		}
+		return ir.Provenance{Pointer: "/a"}
+	}
+	places := newKeyPlacer(w, doc.Content[0], "")
+	assert.Equal(t, ir.Provenance{Pointer: "/b", Position: ir.Position{Line: 1, Column: 4}}, places.place("b"))
+}
