@@ -110,3 +110,7 @@ func Verdict(failOn FailOn, doc *ir.Document, findings []triage.Finding) (bool, 
 	}
 	return t.verdict(doc, findings)
 }
+
+// ReadUnder makes e read every document but a run's spec through r, under the
+// record a cached run keeps of its reads.
+func ReadUnder(e *Engine, r compilers.DocumentReader) { e.under = r }
