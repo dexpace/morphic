@@ -117,7 +117,7 @@ type streamOf struct {
 // The three inputs a stream is read for.
 var (
 	sourceStream   = streamOf{"only one document of the YAML stream was lowered; ", "the IR does not"}
-	overlayStream  = streamOf{"only one document of the overlay's YAML stream was applied; ", "that was not"}
+	overlayStream  = streamOf{"the overlay was not applied: only the first document of its YAML stream is read, and ", "that is not"}
 	externalStream = streamOf{"only one document of the YAML stream was read; ", "that was not"}
 )
 

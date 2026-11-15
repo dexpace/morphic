@@ -41,8 +41,8 @@ func TestCompile_AnOverlayStreamWithASecondDocumentIsRefused(t *testing.T) {
 	assert.Equal(t, ir.SeverityError, diags[0].Severity)
 	assert.Equal(t, 1, diags[0].Provenance.Source, "the overlay's entry of Document.Sources")
 	assert.Equal(t, ir.Position{Line: 7, Column: 1}, diags[0].Provenance.Position)
-	assert.Equal(t, "only one document of the overlay's YAML stream was applied; "+
-		"the one after it holds content that was not", diags[0].Message)
+	assert.Equal(t, "the overlay was not applied: only the first document of its YAML stream is read, "+
+		"and the one after it holds content that is not", diags[0].Message)
 	assert.Nil(t, doc, "an overlay that is refused applies nothing and lowers nothing")
 }
 
