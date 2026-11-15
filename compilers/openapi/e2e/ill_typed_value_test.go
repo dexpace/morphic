@@ -315,6 +315,28 @@ func TestCompile_ANodeASchemaAndAPropertiesMapReadStaysAsWritten(t *testing.T) {
 	assert.EqualValues(t, 3, *a.Constraints.MaxLength)
 }
 
+// TestCompile_AValueAMergeBringsToAPlaceAcceptingItStaysAsWritten holds a
+// mapping two `<<` keys merge, as a parameter and as a schema, to the rule for
+// a shared node: the parameter accepts its `required: true`, so the schema's
+// refusal of it, which is reported, leaves it as written, and the parameter is
+// required.
+func TestCompile_AValueAMergeBringsToAPlaceAcceptingItStaysAsWritten(t *testing.T) {
+	t.Parallel()
+	spec := head31 + "paths:\n  /a:\n    get:\n      parameters:\n        - $ref: '#/components/parameters/P'\n" +
+		"      responses: {\"200\": {description: ok}}\ncomponents:\n  parameters:\n" +
+		"    P:\n      <<: &b {name: p, in: query, required: true, schema: {type: string}}\n" +
+		"  schemas:\n    S:\n      <<: *b\n      type: object\n"
+
+	doc, diags := compileText(t, "spec.yaml", spec, openapi.Options{})
+
+	require.NotNil(t, doc)
+	assert.Len(t, byCode(diags, typeMismatch), 1, "the schema refuses required: true: %+v", diags)
+	ops := allOperations(doc)
+	require.Len(t, ops, 1)
+	require.Len(t, ops[0].Params, 1)
+	assert.True(t, ops[0].Params[0].Required, "the parameter accepts what the merge brings it")
+}
+
 // TestCompile_ACycleFixtureWritingASharedNodeAsSchemaAndPropertiesKeepsItsCycle
 // holds the committed fixture that mounts one anchored mapping as a schema and
 // as a properties map to its cyclic-ref finding, without a false schema.

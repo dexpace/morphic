@@ -61,12 +61,12 @@ type scanner struct {
 }
 
 // parser reads one query's grammar over its scanner. open counts the nestings
-// of each kind the parse is inside, and dead holds the literal patterns read
-// that match no string.
+// of each kind the parse is inside, and notes holds what the literal patterns
+// read call for (PatternNote).
 type parser struct {
 	scanner
-	dead []DeadPattern
-	open [nestCall + 1]int
+	notes []PatternNote
+	open  [nestCall + 1]int
 }
 
 // Parse reads text as an RFC 9535 query. A *SyntaxError says where it stops
@@ -89,7 +89,7 @@ func Parse(text string) (Query, error) {
 	if p.pos < len(text) {
 		return Query{}, p.fail(fmt.Sprintf("%q cannot follow the query before it", p.rest()))
 	}
-	return Query{segments: segments, dead: p.dead}, nil
+	return Query{segments: segments, notes: p.notes}, nil
 }
 
 // firstInvalid returns the offset of the first byte of text that is no part

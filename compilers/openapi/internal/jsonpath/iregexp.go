@@ -40,14 +40,17 @@ type translator struct {
 	// atom reports that a quantifier may follow: the last thing read is an
 	// atom with no quantifier yet.
 	atom bool
+	// caret and dollar report a `^` and a `$` read outside a class, unescaped,
+	// at any depth, which the translation writes as anchors.
+	caret, dollar bool
 }
 
 // translation is a pattern rewritten for Go's engine: its source, the
-// instructions its program holds, and why no string matches it, "" where one
-// may.
+// instructions its program holds, why no string matches it, "" where one may,
+// and what its anchors read as (readAsAnchors), "" where it writes none.
 type translation struct {
-	source, empty string
-	size          int
+	source, empty, anchored string
+	size                    int
 }
 
 // Why no string matches a branch in which an anchor stands where Go's engine
@@ -56,6 +59,23 @@ const (
 	endAnchored   = "$ anchors the end of the string, and a character must follow it; write [$] to match the character"
 	startAnchored = `^ anchors the start of the string, and a character must precede it; write [\^] to match the character`
 )
+
+// readAsAnchors says what a pattern writing `^`, `$` or both outside a class
+// reads them as, and the class that writes each character instead, or ""
+// where it writes neither.
+func readAsAnchors(caret, dollar bool) string {
+	const grammar = "where RFC 9485's grammar reads "
+	switch {
+	case caret && dollar:
+		return `^ and $ are read as anchors, ` + grammar + `the characters; write [\^] and [$] to match them`
+	case caret:
+		return `^ is read as an anchor, ` + grammar + `the character; write [\^] to match it`
+	case dollar:
+		return "$ is read as an anchor, " + grammar + "the character; write [$] to match it"
+	default:
+		return ""
+	}
+}
 
 // anchors reads the top level of a pattern for a branch no string matches:
 // one in which `$` comes before a character it must consume, or `^` after
@@ -165,7 +185,8 @@ func translate(pattern string) (translation, bool) {
 		return translation{}, false
 	}
 	t.anchors.settle()
-	tr := translation{source: t.out.String(), size: t.top().done + t.top().branch}
+	tr := translation{source: t.out.String(), size: t.top().done + t.top().branch,
+		anchored: readAsAnchors(t.caret, t.dollar)}
 	if !t.anchors.alive {
 		tr.empty = t.anchors.none
 	}
@@ -214,6 +235,7 @@ func (t *translator) next() bool {
 		// RFC 9485 section 5.4 maps a pattern to RE2, Go's dialect, leaving
 		// these as written, where they anchor; the compliance suite reads
 		// them so (docs/compilers/openapi.md#overlays).
+		t.caret, t.dollar = t.caret || r == '^', t.dollar || r == '$'
 		t.out.WriteRune(r)
 		return t.atomOf(1)
 	default:

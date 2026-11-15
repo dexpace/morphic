@@ -38,16 +38,21 @@ var (
 // one Query may be evaluated any number of times, at once.
 type Query struct {
 	segments []segment
-	dead     []DeadPattern
+	notes    []PatternNote
 }
 
-// DeadPattern is a pattern a query hands match or search as a literal that
-// matches no string, so the call is false wherever it is evaluated, and why.
-type DeadPattern struct{ Pattern, Reason string }
+// PatternNote is a pattern a query hands match or search as a literal and what
+// a writer should be told of it: that it matches no string, Dead, so the call
+// is false wherever it is evaluated, and why; or else that it writes `^` or `$`
+// as an anchor where RFC 9485's grammar reads the character.
+type PatternNote struct {
+	Pattern, Reason string
+	Dead            bool
+}
 
-// DeadPatterns returns the patterns q writes as literals that match no
-// string, in the order written.
-func (q Query) DeadPatterns() []DeadPattern { return slices.Clone(q.dead) }
+// PatternNotes returns what q's literal patterns call for, one note a
+// pattern at most, in the order written.
+func (q Query) PatternNotes() []PatternNote { return slices.Clone(q.notes) }
 
 // segment is one child or descendant segment and its selectors. singular
 // reports a segment a singular query may hold: one name or index selector,

@@ -6,6 +6,7 @@ package jsonpath_test
 import (
 	"context"
 	"fmt"
+	"slices"
 	"strings"
 	"testing"
 
@@ -514,7 +515,7 @@ func TestParse_NamesThePatternsThatMatchNoString(t *testing.T) {
 		q, err := jsonpath.Parse("$[?search(@, '" + pattern + "') || match(@, 'x')]")
 		require.NoError(t, err, pattern)
 
-		dead := q.DeadPatterns()
+		dead := slices.DeleteFunc(q.PatternNotes(), func(n jsonpath.PatternNote) bool { return !n.Dead })
 		if want == "" {
 			assert.Empty(t, dead, pattern)
 			continue
@@ -522,4 +523,36 @@ func TestParse_NamesThePatternsThatMatchNoString(t *testing.T) {
 		require.Len(t, dead, 1, pattern)
 		assert.Contains(t, dead[0].Reason, want, pattern)
 	}
+}
+
+// TestParse_NamesThePatternsWhoseAnchorsReadAsAnchors pins the note a literal
+// pattern writing `^` or `$` outside a class, at any depth, draws where it may
+// still match: that each is read as an anchor, naming the class writing the
+// character. A pattern holding neither, or each only in a class or escaped,
+// draws none, and one matching no string draws only that note.
+func TestParse_NamesThePatternsWhoseAnchorsReadAsAnchors(t *testing.T) {
+	t.Parallel()
+	const dollar, caret, both = "$ is read as an anchor", "^ is read as an anchor", "^ and $ are read as anchors"
+	for pattern, want := range map[string]string{
+		"$": dollar, "^ab.*": caret, ".*bc$": dollar, "x$|$ref": dollar, "$^": both, "a|^b": caret,
+		"(a$)": dollar, "(x(^y))": caret, "$r?": dollar,
+		"ref": "", "[$]ref": "", `[\\^]x`: "", `x\\.y`: "", "[a^$]": "",
+	} {
+		q, err := jsonpath.Parse("$[?search(@, '" + pattern + "')]")
+		require.NoError(t, err, pattern)
+
+		notes := q.PatternNotes()
+		if want == "" {
+			assert.Empty(t, notes, pattern)
+			continue
+		}
+		require.Len(t, notes, 1, pattern)
+		assert.False(t, notes[0].Dead, pattern)
+		assert.Contains(t, notes[0].Reason, want, pattern)
+	}
+	q, err := jsonpath.Parse("$[?search(@, '$ref')]")
+	require.NoError(t, err)
+	notes := q.PatternNotes()
+	require.Len(t, notes, 1, "a pattern matching no string draws that note alone")
+	assert.True(t, notes[0].Dead)
 }

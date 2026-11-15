@@ -16,14 +16,14 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/nodeview"
 )
 
-// NamedPointerBytes totals the JSON pointers of the nodes a compile of root
-// names one by one (docs/compilers/openapi.md#source-budgets): a value the
-// grammar keeps raw adds its root alone, and a raw value a reference of the
-// document lands in is named as the kind that reference expects, once. It
-// reads a schema by the minor's own grammar, so its caller answers for a
-// document naming a dialect. complete is false where the total cannot be
-// taken: a reference leaves the document, names nothing its pointer finds, or
-// is read under an `$id`; a fragment is no JSON pointer; or past maxSteps.
+// NamedPointerBytes totals the JSON pointers, keys as written, of the nodes a
+// compile of root names one by one (docs/compilers/openapi.md#source-budgets):
+// a value the grammar keeps raw adds its root alone, and a raw value a
+// reference lands in is named as the kind it expects, once. It reads a schema
+// by the minor's grammar, so its caller answers for a document naming a
+// dialect. complete is false where the total cannot be taken: a reference
+// leaves the document, names nothing its pointer finds, or is read under an
+// `$id`; a fragment is no JSON pointer; or past maxSteps.
 func NamedPointerBytes(ctx context.Context, root *yaml.Node, maxSteps int) (bytes int, complete bool) {
 	w := named{memo: map[namedKey]namedShape{}, steps: budget.New(budget.AtMost(maxSteps)),
 		view: nodeview.New(), root: nodeview.DocumentRoot(root), complete: true}
@@ -171,7 +171,9 @@ func eachNamedChild(n *yaml.Node, s state, visit func(c *yaml.Node, s state, edg
 }
 
 // noteRefs notes what the mapping k reads as a reference: its $ref where its
-// state reads one, and for a schema each discriminator mapping value.
+// state reads one, and for a schema its $dynamicRef, which lands as a $ref
+// does or on the anchor its plain name expands to, and each discriminator
+// mapping value.
 func (w *named) noteRefs(k namedKey) {
 	if k.n.Kind != yaml.MappingNode {
 		return
@@ -185,6 +187,9 @@ func (w *named) noteRefs(k namedKey) {
 	}
 	if k.s != sSchema {
 		return
+	}
+	if ref, ok := scalarText(w.view.ChildByToken(k.n, "$dynamicRef")); ok {
+		w.refs = append(w.refs, namedRef{ref: ref, s: sSchema})
 	}
 	if w.view.ChildByToken(k.n, "$id") != nil {
 		w.complete = false

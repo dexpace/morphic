@@ -4,6 +4,7 @@
 package overlay_test
 
 import (
+	"slices"
 	"strconv"
 	"testing"
 
@@ -265,6 +266,35 @@ func TestReadSelector_WarnsOfAPatternThatMatchesNoString(t *testing.T) {
 		sameCodes(t, []string{"warning " + diag.OverlayAction, "warning " + diag.OverlayAction}, diags)
 		assert.Contains(t, diags[0].Message, want, pattern)
 		assert.Contains(t, diags[1].Message, "selects nothing", pattern)
+	}
+}
+
+// TestReadSelector_NotesAPatternWhoseAnchorIsReadAsOne pins the info a
+// pattern writing `^` or `$` outside a class draws where it may still match,
+// at the action, naming the class that writes the character: `search(@, '$')`
+// selects every string. A pattern holding neither outside a class or an
+// escape draws none, and one matching no string draws its warning alone.
+func TestReadSelector_NotesAPatternWhoseAnchorIsReadAsOne(t *testing.T) {
+	t.Parallel()
+	const src = head + "x-r: [\"$ref\", \"a$refb\"]\n"
+	for pattern, want := range map[string][]string{
+		"$":      {"info " + diag.OverlayAnchoredPattern},
+		"^a":     {"info " + diag.OverlayAnchoredPattern},
+		"[$]ref": nil,
+		"ref":    nil,
+		"$ref":   {"warning " + diag.OverlayAction, "warning " + diag.OverlayAction},
+	} {
+		ov := v11 + "  - target: \"$['x-r'][?search(@, '" + escapeQuotes(pattern) + "')]\"\n    update: hit\n"
+		_, _, diags := applied(t, src, ov, true)
+
+		got := slices.DeleteFunc(codes(diags), func(c string) bool { return c == "info "+diag.OverlayReplacedValue })
+		assert.ElementsMatch(t, want, got, "%s: %+v", pattern, diags)
+		for _, d := range diags {
+			if d.Code == diag.OverlayAnchoredPattern {
+				assert.Equal(t, "/actions/0", string(d.Provenance.Pointer), pattern)
+				assert.Regexp(t, `write \[(\$|\\\^)\] to match it`, d.Message, pattern)
+			}
+		}
 	}
 }
 

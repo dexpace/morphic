@@ -100,8 +100,8 @@ func (p *parser) call(name string, start int) (operand, error) {
 	if len(c.args) != len(fn.params) {
 		return operand{}, &SyntaxError{Offset: start, Reason: fmt.Sprintf("%s() takes %d arguments", name, len(fn.params))}
 	}
-	if dead, found := c.compileLiteral(); found {
-		p.dead = append(p.dead, dead)
+	if note, found := c.compileLiteral(); found {
+		p.notes = append(p.notes, note)
 	}
 	return operand{kind: opCall, call: c}, nil
 }
@@ -166,17 +166,19 @@ func fits(arg operand, want paramType) bool {
 }
 
 // compileLiteral compiles the pattern of a match or search written as a
-// literal, and returns it as one that matches no string, with why, where it
-// is: no I-Regexp the compiler reads, or one whose anchors leave no string to
-// match. A literal that is no string is no pattern.
-func (c *call) compileLiteral() (DeadPattern, bool) {
+// literal, and returns what a writer should be told of it, where there is
+// something: that it matches no string, with why, as no I-Regexp the compiler
+// reads or one whose anchors leave no string to match, or else that it writes
+// an anchor where RFC 9485's grammar reads a character. A literal that is no
+// string is no pattern.
+func (c *call) compileLiteral() (PatternNote, bool) {
 	if c.fn.result != typeLogical || c.args[1].kind != opLiteral {
-		return DeadPattern{}, false
+		return PatternNote{}, false
 	}
 	c.literal = true
 	lit := c.args[1].lit
 	if lit.kind != kindString {
-		return DeadPattern{}, false
+		return PatternNote{}, false
 	}
 	tr, ok := patternSource(lit.text, c.fn.name == "match")
 	if ok {
@@ -184,13 +186,15 @@ func (c *call) compileLiteral() (DeadPattern, bool) {
 	}
 	switch {
 	case c.pattern.re == nil:
-		return DeadPattern{Pattern: lit.text, Reason: fmt.Sprintf(
+		return PatternNote{Pattern: lit.text, Dead: true, Reason: fmt.Sprintf(
 			"it reads as no I-Regexp (RFC 9485) within the %d bytes and %d instructions the compiler reads one in",
 			maxPatternBytes, maxProgram)}, true
 	case tr.empty != "":
-		return DeadPattern{Pattern: lit.text, Reason: tr.empty}, true
+		return PatternNote{Pattern: lit.text, Reason: tr.empty, Dead: true}, true
+	case tr.anchored != "":
+		return PatternNote{Pattern: lit.text, Reason: tr.anchored}, true
 	default:
-		return DeadPattern{}, false
+		return PatternNote{}, false
 	}
 }
 

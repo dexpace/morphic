@@ -213,7 +213,12 @@ func (r *reader) overlay(root *yaml.Node) plan {
 	}
 	p := plan{at: r.at, declared: declared.Value, version: v, selfURI: r.uri(fields, "$self", v12)}
 	r.uri(fields, "extends", v12)
-	p.actions = r.actions(fields["actions"], r.components(fields["components"]))
+	reusable := r.components(fields["components"])
+	// An actions field of the wrong form is refused where it is read (field),
+	// which says all that its list holding no action would say again.
+	if actions, written := fields["actions"]; actions != nil || !written {
+		p.actions = r.actions(actions, reusable)
+	}
 	return p
 }
 

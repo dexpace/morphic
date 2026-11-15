@@ -232,7 +232,9 @@ passes the bound; one with more nodes than the scan indexes, as an `openapi/sour
 error; one whose aliases expand it past a fixed multiple of its own size, with a floor for a small
 document, as an `openapi/alias-amplification` error at the least pointer of the smallest structures
 past the ratio; and one whose nesting and aliases the scan admits, but whose nodes' JSON pointers,
-its aliases expanded, total past a fixed multiple of the bytes it writes, with a floor for a small
+its aliases expanded, each counted as the keys and indexes it holds are written, a `/` or `~` in a
+key once where the pointer's escape spells two bytes, total past a fixed multiple of the bytes it
+writes, with a floor for a small
 document, as an `openapi/pointer-amplification` error at the document, since the compile spells a
 pointer for each node it reads and the IR's IDs embed them. An overlay is held to the same refusals
 before it is applied, and so is a document an external reference names, which fails the reference
@@ -291,9 +293,10 @@ it.
 A source past the pointer bound, as written or as an overlay patches it, is weighed again before it
 is refused, by what a compile names one by one: a value the grammar keeps raw, an example, a
 default, a `const`, an enum member, an Example Object's value, an `x-` key or a field its object
-leaves out, adds its root alone, and a raw value a `$ref` or a discriminator mapping of the
-document lands in, its fragment read as the binder reads one, percent escapes decoded, is named node
-by node as the kind that reference expects, once, where the walk has not named it already. It is
+leaves out, adds its root alone, and a raw value a `$ref`, a `$dynamicRef` or a discriminator
+mapping of the document lands in, its fragment read as the binder reads one, percent escapes
+decoded, is named node by node as the kind that reference expects, once, where the walk has not
+named it already. It is
 refused only when that total too is past the bound, or when it cannot be taken: a reference leaves
 the document, names nothing its pointer finds, or is read under an `$id`, which moves where it
 lands; a fragment is no JSON pointer; the document may name a dialect, by `jsonSchemaDialect` or a
@@ -351,6 +354,7 @@ node bound. An overlay document and a document a reference reads keep the first 
   `bind.TestNamedPointerBytes_IsIncompleteWhereTheDocumentIsNotClosed`,
   `bind.TestNamedPointerBytes_AFragmentLandsWhereItsDecodingNames`,
   `bind.TestNamedPointerBytes_ALandingNamedInPlaceIsCountedOnce`,
+  `bind.TestNamedPointerBytes_ADynamicRefLandsAsARefDoes`,
   `e2e.TestCompile_ARawValueAReferenceLandsInIsWeighedHoweverItIsSpelled`
 
 ### `overlays`
@@ -406,7 +410,11 @@ JSONPath compliance suite it is held to does: its cases `functions, match, expli
 `functions, match, explicit dollar` pass only so. So `^` and `$` anchor, `[\^]` and `[$]` write
 the characters, and `\$` is no I-Regexp escape. A pattern written as a literal that matches no
 string, one with `$` before a character it must match, or `^` after one, in each top-level branch,
-or one that is no I-Regexp, is an `openapi/overlay-action` warning naming why. The selectors of one
+or one that is no I-Regexp, is an `openapi/overlay-action` warning naming why. Any other literal
+pattern writing `^` or `$` outside a class, in a group or not, is an
+`openapi/overlay-anchored-pattern` info at the action saying each is read as an anchor and naming
+the class that writes the character, so `search(@, '$')`, which selects every string, says so.
+The selectors of one
 application spend one budget of `overlay.MaxSteps` steps: a step for each node a selector visits,
 compares or returns, each member a mapping's merges expand to and each element two compared arrays
 pair; a step per 8 bytes of a scalar read, once an evaluation, and per 64 bytes two scalars compare;
@@ -468,7 +476,9 @@ is written, and each is then made the action's own along its path from the root:
 YAML alias, or a node an alias names, is replaced by a copy of the node's content, its anchors
 dropped and the aliases inside it kept, and a mapping a member of which a `<<` merge key brings in,
 or that is written or removed from, has its merge keys replaced by a copy of each member they bring
-in that it does not write, in the value's order. So an update of an anchored schema leaves each
+in that it does not write, in the value's order; a merge key reaching what the source refuses, a
+merge naming no mapping or a key that is no scalar in a mapping it brings in, stays beside the
+copies, so the refusal stands. So an update of an anchored schema leaves each
 alias of it, and each mapping merging it, the value the source wrote, and a write through an alias
 or a merge writes that position alone; none draws a finding. A copy is the size of the subtree the
 source writes, not of the value it stands for, keeps the source as the writer of what the source
@@ -490,7 +500,8 @@ runs out of its node budget, the overlay is applied and no position names it as 
 no overlay, reported as an `openapi/overlay-origin-incomplete` warning.
 
 - Codes: `openapi/invalid-overlay`, `openapi/overlay-failed`, `openapi/overlay-action`,
-  `openapi/overlay-replaced-value`, `openapi/overlay-origin-incomplete`, `openapi/budget-exceeded`
+  `openapi/overlay-replaced-value`, `openapi/overlay-origin-incomplete`, `openapi/budget-exceeded`,
+  `openapi/overlay-anchored-pattern`
 - Tests: `overlay.TestApply_RejectsAnOverlayItCannotRead`,
   `overlay.TestRead_AppliesTheVersionsTheCompilerKnowsAtAnyPatch`,
   `overlay.TestRead_RefusesWhatTheSpecificationRequiresAndTheOverlayLacks`,
@@ -514,6 +525,8 @@ no overlay, reported as an `openapi/overlay-origin-incomplete` warning.
   `jsonpath.TestCompliance`, `jsonpath.TestSelect_WeighsAPatternByItsProgram`,
   `jsonpath.TestParse_NamesThePatternsThatMatchNoString`,
   `overlay.TestReadSelector_WarnsOfAPatternThatMatchesNoString`,
+  `jsonpath.TestParse_NamesThePatternsWhoseAnchorsReadAsAnchors`,
+  `overlay.TestReadSelector_NotesAPatternWhoseAnchorIsReadAsOne`,
   `jsonpath.TestSelect_ChargesEachElementTwoArraysCompare`,
   `jsonpath.TestSelect_ReadsAScalarOnceAndChargesTheBytesItCompares`,
   `jsonpath.TestSelect_ChargesAPatternsProgramForAnEmptyInput`,
@@ -538,6 +551,7 @@ no overlay, reported as an `openapi/overlay-origin-incomplete` warning.
   `overlay.TestApply_LeavesAnAnchorsOtherUsesAsTheSourceWroteThem`,
   `overlay.TestApply_AWriteToAMergedMemberLeavesNoSecondKey`,
   `overlay.TestApply_WritesAMergedMemberAsTheMappingsOwn`,
+  `overlay.TestApply_KeepsAMergeTheSourceRefusesWhereItFlattensOne`,
   `overlay.TestApply_RefusesAWriteIntoWhatItCannotMakeItsOwn`,
   `overlay.TestApply_RemovesAtOnePositionOfASharedNode`,
   `overlay.TestApply_WritesEachPositionOfAWildcardOnce`,
@@ -573,10 +587,11 @@ no overlay, reported as an `openapi/overlay-origin-incomplete` warning.
 - Status: built. Limits: a target the Overlay test suite's schema accepts and RFC 9535 does not, such
   as a member name holding `-` after a dot, is refused; an `extends` is compared with nothing; a
   pattern Go's engine cannot compile, such as a repetition past 1,000, matches nothing; `^` and `$`
-  in a pattern anchor, where RFC 9485's grammar reads them as characters; nested descendant
-  segments hold path links in proportion to their steps, which the nodelist bound does not count,
-  so an overlay that deepens a chain by copies and selects down it can hold gigabytes (#1960); an
-  overlay over a tree at the node budget's edge counts the tree at each action (#1959).
+  in a pattern anchor, where RFC 9485's grammar reads them as characters, which an info says;
+  nested descendant segments hold path links in proportion to their steps, which the nodelist bound
+  does not count, so an overlay that deepens a chain by copies and selects down it can hold
+  gigabytes (#1960); an overlay over a tree at the node budget's edge counts the tree at each action
+  (#1959).
   Rating
   `openapi/overlay-replaced-value` apart from other codes, to fail a run on it alone, is #1812.
 
