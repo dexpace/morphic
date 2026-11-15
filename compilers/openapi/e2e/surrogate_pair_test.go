@@ -82,7 +82,7 @@ func TestCompile_ALoneHalfOfASurrogatePairIsStillRefused(t *testing.T) {
 // TestCompile_ASurrogatePairInAKeyAndBesideOtherRespellingsReadsEachAsItsOwn
 // holds the pair in an explicit mapping key to the character, and the pair,
 // a raw U+E000 and an escaped slash in one document to the three characters
-// each names.
+// each names, the slash and a NEL written before the pair as well as after.
 func TestCompile_ASurrogatePairInAKeyAndBesideOtherRespellingsReadsEachAsItsOwn(t *testing.T) {
 	t.Parallel()
 	key := srMin + "x-m:\n  ? \"k" + srBS + "uD83D" + srBS + "uDE00\"\n  : 1\n"
@@ -104,4 +104,14 @@ func TestCompile_ASurrogatePairInAKeyAndBesideOtherRespellingsReadsEachAsItsOwn(
 	assert.Empty(t, diags)
 	assert.Equal(t, "a\U0001F600b", doc.Name)
 	assert.Equal(t, srE0+"/", doc.Docs.Description, "a raw U+E000 and an escaped slash read as they do beside no pair")
+
+	before := "openapi: 3.1.0\ninfo: {description: \"" + srBS + "/" + srNEL + "\", title: \"a" + srBS + "uD83D" + srBS +
+		"uDE00b\", version: \"1\"}\npaths: {}\n"
+
+	doc, diags = compileText(t, "spec.yaml", before, openapi.Options{})
+
+	require.NotNil(t, doc, "%+v", diags)
+	assert.Empty(t, diags)
+	assert.Equal(t, "a\U0001F600b", doc.Name, "a pair after triggers whose placeholders are wider than they are")
+	assert.Equal(t, "/"+srNEL, doc.Docs.Description)
 }
