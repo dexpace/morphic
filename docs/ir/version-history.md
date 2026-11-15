@@ -830,6 +830,21 @@ it sees. Changes made together in one bump are listed together under it.
   `pass.Validate` error. An examples entry keyed by the empty string, which lowers unnamed, keeps
   the key on its `Example` under `openapi:examples/key`, and a parameter serialized through its content
   states no `HTTPParamBinding.Style` it does not write, where it took its location's default
-  ([HTTP binding](./http-binding.md)). A consumer pinned to 0.67.0 refuses the document;
+  ([HTTP binding](./http-binding.md)). A use of a schema reads each hop of its `$ref` chain, nearest
+  first, an alias's annotations and `default` among them, where it read the chain's end alone, and a
+  carrier takes no `default` where the nearest is one no `Value` holds
+  ([`ref-use-site`](../compilers/openapi.md#ref-use-site)). A parameter or a header takes a
+  redaction or a deprecation an object it carries states, and the tier, `allowReserved` or pagination
+  mark the nearest of them states, its own first; an operation takes its path item's tier where it
+  states none, and a pagination key it writes `true` reads its path item's walk before the
+  document root's ([promotion](./unmodeled.md#promotion)). A value writing a key twice is read at the
+  copy the model reads, where it was refused, and an encoding entry naming no property, or a file
+  body's, is kept `out_of_scope`, where it was `no_ir_home`. The fields beside a path item's `$ref`
+  lower wherever the bindings land it, and each position a schema `$ref` lands on, none in a loop of
+  them, lowers to a node. A 3.2 security requirement key naming no component is read as a
+  reference: a Security Scheme Object it lands on outside the source's `securitySchemes` lowers under
+  its own position's ID in its document's space, which `idSpaces.auth` declares for every document a
+  compile reads, used or not, and a key landing on none mints one unresolved scheme per document
+  writing it, the document in its ID ([auth](./auth.md)). A consumer pinned to 0.67.0 refuses the document;
   one reading `Stop` with no arm for `no_more` would not end such a walk, and one matching a marker
   by its old name no longer finds it.
