@@ -84,6 +84,16 @@ func SettledLocations(r *Recorder) ([]string, bool) {
 	return locations, sound
 }
 
+// SettledRequests returns what r was asked, in the order an entry lists it.
+func SettledRequests(r *Recorder) []compilers.DocumentRequest {
+	reads, _ := r.settled()
+	requests := make([]compilers.DocumentRequest, 0, len(reads))
+	for _, read := range reads {
+		requests = append(requests, read.Request)
+	}
+	return requests
+}
+
 // SettledDirectories returns each directory r placed and where, in the order
 // an entry lists them.
 func SettledDirectories(r *Recorder) [][2]string {
