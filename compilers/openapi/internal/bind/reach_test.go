@@ -171,27 +171,31 @@ func TestRecursiveAnchor_TheWalkAsksNoMoreOnceRefused(t *testing.T) {
 // /components/schemas/Rn/properties/r.
 const onePlacement = 6
 
-// dynamicNames is two documents declaring n names each once, the first document's resource `$ref`ing the second's, and the
-// second writing a `$dynamicRef` to each name.
+// dynamicNames is two documents declaring n names each once, the first
+// document's resource `$ref`ing the second's, which `$ref`s one resource of
+// its own for each name, each declaring its name and writing a `$dynamicRef`
+// to it: a graph of resources that grows with the names.
 func dynamicNames(n int) (spec string, other string) {
-	var top, low, refs strings.Builder
+	var top, low, each strings.Builder
 	for i := range n {
 		fmt.Fprintf(&top, "n%d: {$dynamicAnchor: n%d}, ", i, i)
-		fmt.Fprintf(&low, "n%d: {$dynamicAnchor: n%d}, ", i, i)
-		fmt.Fprintf(&refs, "p%d: {$dynamicRef: '#n%d'}, ", i, i)
+		fmt.Fprintf(&low, "p%d: {$ref: 'https://x.test/l%d'}, ", i, i)
+		fmt.Fprintf(&each, "L%d: {$id: 'https://x.test/l%d', properties: {r: {$dynamicRef: '#n%d'}}, "+
+			"$defs: {n%d: {$dynamicAnchor: n%d}}}\n", i, i, i, i, i)
 	}
 	spec = head + "components:\n  schemas:\n    Top: {$ref: 'other.yaml#/Low', $defs: {" +
 		strings.TrimSuffix(top.String(), ", ") + "}}\n"
-	other = "Low: {$id: 'https://x.test/low', properties: {" + strings.TrimSuffix(refs.String(), ", ") +
-		"}, $defs: {" + strings.TrimSuffix(low.String(), ", ") + "}}\n"
+	other = "Low: {$id: 'https://x.test/low', properties: {" + strings.TrimSuffix(low.String(), ", ") + "}}\n" +
+		each.String()
 	return spec, other
 }
 
 // TestTable_ANameSeveralDocumentsDeclareIsWalkedOncePerName pins the stated
 // shape: each name declared in more than one document costs one walk over
-// the graph, so steps grow no more than four times a doubling of the names,
-// and each name's anchor in the second document is reached by a resource of
-// the first.
+// the graph, which grows with the names, so steps grow about four times a
+// doubling of them, no less, which a walk left uncharged would, and no more,
+// which a walk per name and resource would; and each name's anchor in the
+// second document is reached by a resource of the first.
 func TestTable_ANameSeveralDocumentsDeclareIsWalkedOncePerName(t *testing.T) {
 	t.Parallel()
 	steps := func(n int) (*bind.Table, int) {
@@ -204,7 +208,9 @@ func TestTable_ANameSeveralDocumentsDeclareIsWalkedOncePerName(t *testing.T) {
 	_, s200 := steps(200)
 	table, s400 := steps(400)
 	require.Less(t, s100, s200)
-	assert.LessOrEqual(t, float64(s400-s200), 4.4*float64(s200-s100), "steps at 100, 200, 400: %d, %d, %d", s100, s200, s400)
+	growth := float64(s400-s200) / float64(s200-s100)
+	assert.GreaterOrEqual(t, growth, 3.5, "steps at 100, 200, 400: %d, %d, %d", s100, s200, s400)
+	assert.LessOrEqual(t, growth, 4.4, "steps at 100, 200, 400: %d, %d, %d", s100, s200, s400)
 
 	other := docNamed(t, table, "other.yaml")
 	for _, name := range []string{"n0", "n399"} {
