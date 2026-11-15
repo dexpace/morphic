@@ -55,7 +55,7 @@ func compileNamed(t *testing.T, path, src string) (*ir.Document, []ir.Diagnostic
 	doc, diags, err := openapi.New().Compile(t.Context(),
 		[]compilers.Source{{Path: path, Data: []byte(src)}}, compilers.Options{})
 	require.NoError(t, err)
-	require.NotNil(t, doc)
+	requireVerifies(t, doc, diags)
 	return doc, diags
 }
 

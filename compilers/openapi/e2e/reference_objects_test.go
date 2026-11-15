@@ -52,7 +52,7 @@ func (s refSpec) compile(t *testing.T, source string) (*ir.Document, []ir.Diagno
 	doc, diags, err := openapi.New().Compile(t.Context(),
 		[]compilers.Source{{Path: filepath.Join(dir, "root.yaml"), Data: []byte(source)}}, opts)
 	require.NoError(t, err)
-	require.NotNil(t, doc)
+	requireVerifies(t, doc, diags)
 	return doc, diags
 }
 

@@ -77,7 +77,7 @@ func compileUse(t *testing.T, src string) (*ir.Document, []ir.Diagnostic) {
 		[]compilers.Source{{Path: "spec.yaml", Data: []byte(src)}},
 		compilers.Options{FormatOptions: openapi.Options{}})
 	require.NoError(t, err)
-	require.NotNil(t, doc)
+	requireVerifies(t, doc, diags)
 	return doc, diags
 }
 

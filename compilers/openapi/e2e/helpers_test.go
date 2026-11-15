@@ -26,6 +26,7 @@ import (
 	"github.com/dexpace/morphic/engine/reader"
 	"github.com/dexpace/morphic/internal/harness"
 	"github.com/dexpace/morphic/ir"
+	"github.com/dexpace/morphic/ir/irverify"
 )
 
 // goldenPetstore is the larger real-ish spec seeded alongside the conformance
@@ -91,8 +92,19 @@ func compileAnnotationSpec(t *testing.T, name, spec string) (*ir.Document, []ir.
 	doc, diags, err := openapi.New().Compile(t.Context(),
 		[]compilers.Source{{Path: name + ".yaml", Data: []byte(spec)}}, compilers.Options{})
 	require.NoError(t, err)
-	require.NotNil(t, doc)
+	requireVerifies(t, doc, diags)
 	return doc, diags
+}
+
+// requireVerifies fails t where doc is nil or breaks one of irverify's
+// invariants, or a finding of diags does, as compileVerified's run holds each
+// stage: a helper returning what the compiler made, findings and all, calls it
+// so a test of a lowering cannot pass on a document that does not verify.
+func requireVerifies(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
+	t.Helper()
+	require.NotNil(t, doc)
+	require.Empty(t, irverify.Verify(doc), "the compiled document breaks no invariant")
+	require.Empty(t, irverify.VerifyFindings(diags, doc.Sources), "no finding breaks an invariant")
 }
 
 // compileBesideExpectingErrors compiles root, written beside ext, with
@@ -117,7 +129,7 @@ func compileOnDisk(t *testing.T, path, source string, allow bool) (*ir.Document,
 	doc, diags, err := openapi.New().Compile(t.Context(), []compilers.Source{{Path: path, Data: []byte(source)}},
 		compilers.Options{Reader: reader.Disk{}, FormatOptions: openapi.Options{AllowExternalRefs: allow}})
 	require.NoError(t, err)
-	require.NotNil(t, doc)
+	requireVerifies(t, doc, diags)
 	return doc, diags
 }
 
@@ -424,7 +436,7 @@ func compileClean(t *testing.T, src string, opts openapi.Options) *ir.Document {
 		[]compilers.Source{{Path: "spec.yaml", Data: []byte(src)}},
 		compilers.Options{FormatOptions: opts})
 	require.NoError(t, err)
-	require.NotNil(t, doc)
+	requireVerifies(t, doc, diags)
 	assertNoErrorDiags(t, diags)
 	return doc
 }
