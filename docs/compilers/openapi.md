@@ -1103,8 +1103,9 @@ definition the rule reads before the one that would answer. So is a plain name n
 where a schema merging past the bound may; a URI is read as a location all the same, and a
 `$dynamicRef` in that document is not expanded ([`dynamic-ref`](#dynamic-ref)). A `$dynamicRef`
 naming no `$dynamicAnchor` is the `$ref` it spells, and is read as one in every respect here, its
-reports worded with the keyword it is written under. A chain of references that closes on itself is
-[`reference-cycles`](#reference-cycles)'.
+`openapi/unresolved-ref` worded with the keyword it is written under. A chain of references that
+closes on itself is [`reference-cycles`](#reference-cycles)', whose message names each link a
+`$ref`, whichever keyword wrote it.
 
 - Cases: `schema-identifiers`, `component-media-types-32`, `reference-object-chains`
 - Codes: `openapi/unresolved-ref`, `openapi/budget-exceeded`, `openapi/degraded-construct`,
