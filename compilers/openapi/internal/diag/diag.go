@@ -449,8 +449,8 @@ const (
 	// kept verbatim, so nothing it says is lost.
 	UnpromotedExtension = "openapi/unpromoted-extension"
 	// UnhomedConstruct reports documentation a use writes beside a $ref where
-	// the position has no docs to hold it, a callback's or a parameter's
-	// content entry's, kept verbatim on the node the use lowers to
+	// the position has no docs to hold it, a callback's or a parameter's or
+	// header's content entry's, kept verbatim on the node the use lowers to
 	// (docs/compilers/openapi.md#reference-object-siblings). Info: nothing is
 	// lost, and the entry leaves when the field arrives.
 	UnhomedConstruct = "openapi/unhomed-construct"
