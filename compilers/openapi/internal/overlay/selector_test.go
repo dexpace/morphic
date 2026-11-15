@@ -4,6 +4,7 @@
 package overlay_test
 
 import (
+	"fmt"
 	"slices"
 	"strconv"
 	"testing"
@@ -143,14 +144,16 @@ func escapeQuotes(s string) string {
 // the compiler can say one, on one line.
 func TestReadSelector_RefusesWhatRFC9535DoesNotRead(t *testing.T) {
 	t.Parallel()
-	const reads = "does not read as an RFC 9535 query at offset"
-	tests := map[string]struct{ target, says string }{
-		"no query at all":            {"paths", reads},
-		"an unclosed bracket":        {"$.paths[", reads},
-		"the property-name operator": {"$.paths.*~", "~"},
-		"a raw control character":    {"$['a\tb']", reads},
-		"a member name with a dash":  {"$.paths.*.get.x-internal", "write it ['x-internal']"},
-		"a member name with a digit": {"$.paths.*.*.responses.200", "write it ['200']"},
+	tests := map[string]struct {
+		target, says string
+		offset       int
+	}{
+		"no query at all":            {"paths", "", 0},
+		"an unclosed bracket":        {"$.paths[", "", 8},
+		"the property-name operator": {"$.paths.*~", "~", 9},
+		"a raw control character":    {"$['a\tb']", "control character", 4},
+		"a member name with a dash":  {"$.paths.*.get.x-internal", "write it ['x-internal']", 15},
+		"a member name with a digit": {"$.paths.*.*.responses.200", "write it ['200']", 22},
 	}
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
@@ -162,6 +165,7 @@ func TestReadSelector_RefusesWhatRFC9535DoesNotRead(t *testing.T) {
 
 				assert.False(t, origin.Applied())
 				sameCodes(t, []string{"error " + diag.OverlayInvalid}, diags)
+				assert.Contains(t, diags[0].Message, fmt.Sprintf("does not read as an RFC 9535 query at offset %d: ", tc.offset))
 				assert.Contains(t, diags[0].Message, tc.says)
 				assert.Contains(t, diags[0].Message, "(update "+strconv.Quote(tc.target)+"): its target ")
 				assert.NotContains(t, diags[0].Message, "^", "the parser's caret line is not carried")
