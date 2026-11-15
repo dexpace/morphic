@@ -68,7 +68,8 @@ func TestValidate_CatchAllEncodingKeys(t *testing.T) {
 		{"a pattern the holder does not list", "t/open", map[ir.TypeID]ir.CatchAllParts{
 			"t/open": {Patterns: map[string]ir.PartEncoding{"^g_": file}},
 		}, true},
-		{"a type that exists nowhere", "t/map", map[ir.TypeID]ir.CatchAllParts{"t/ghost": {Value: value}}, true},
+		{"a type that exists nowhere, which the dangling check reports", "t/map",
+			map[ir.TypeID]ir.CatchAllParts{"t/ghost": {Value: value}}, false},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
@@ -81,4 +82,17 @@ func TestValidate_CatchAllEncodingKeys(t *testing.T) {
 			assert.Equal(t, ir.SeverityError, found[0].Severity)
 		})
 	}
+}
+
+// TestValidate_ACatchAllKeyNamingNoTypeDrawsOneCode holds a key naming no type
+// to the dangling reference's code alone: one defect, one code.
+func TestValidate_ACatchAllKeyNamingNoTypeDrawsOneCode(t *testing.T) {
+	t.Parallel()
+	value := &ir.PartEncoding{ContentTypes: []string{"text/plain"}}
+	diags := validated(t, catchAllDoc("t/map", map[ir.TypeID]ir.CatchAllParts{"t/ghost": {Value: value}}))
+	codes := make([]string, 0, len(diags))
+	for _, d := range diags {
+		codes = append(codes, d.Code)
+	}
+	assert.Equal(t, []string{"ir/dangling-type-ref"}, codes)
 }

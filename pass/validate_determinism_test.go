@@ -104,6 +104,9 @@ var twoFindings = []twoFinding{
 		doc: func() *ir.Document {
 			doc := validDoc()
 			value := &ir.PartEncoding{Filename: true}
+			// Two declared models holding no catch-all: a key naming no type is the
+			// dangling check's.
+			doc.Types["t/z"], doc.Types["t/b"] = &ir.Model{ID: "t/z"}, &ir.Model{ID: "t/b"}
 			requestContent(doc).CatchAllEncoding = map[ir.TypeID]ir.CatchAllParts{"t/z": {Value: value}, "t/b": {Value: value}}
 			return doc
 		}},

@@ -40,7 +40,8 @@ func checkEncodingKeys(doc *ir.Document, facts *irfacts.Index) []ir.Diagnostic {
 // The shapes are the content's type and, through its unions, each variant,
 // each read by ir.CatchAllHolders, as the compiler keys them. An emitter looking
 // a key up finds no catch-all and renders its parts with no encoding. An empty
-// key is checkEmptyRefs's.
+// key is checkEmptyRefs's and one naming no type checkDanglingRefs', so each
+// defect draws one code.
 func checkCatchAllEncodingKeys(doc *ir.Document) []ir.Diagnostic {
 	var diags []ir.Diagnostic
 	var keys []ir.TypeID // every content's keys are sorted in this one list
@@ -70,8 +71,8 @@ func appendCatchAllDiags(dst []ir.Diagnostic, types ir.TypeRegistry, c ir.Conten
 	*keys = slices.AppendSeq((*keys)[:0], maps.Keys(c.CatchAllEncoding))
 	slices.Sort(*keys)
 	for _, key := range *keys {
-		if key == "" {
-			continue
+		if _, declared := types[key]; !declared {
+			continue // empty or dangling, which the reference checks report
 		}
 		if !holders[key] {
 			dst = append(dst, unknownCatchAll(at+string(key),
