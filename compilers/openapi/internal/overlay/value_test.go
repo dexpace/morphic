@@ -161,6 +161,20 @@ func TestApply_WritesAMergedMemberAsTheMappingsOwn(t *testing.T) {
 	}
 }
 
+// TestApply_RemovesEveryCopyOfAKeyWrittenTwice pins a remove of a member whose
+// key the mapping writes twice: the value reads the last copy, and removing
+// the member removes the earlier one too, which would otherwise stand in its
+// place.
+func TestApply_RemovesEveryCopyOfAKeyWrittenTwice(t *testing.T) {
+	t.Parallel()
+	const src = head + "x-m: {a: 1, b: 2, a: 3}\n"
+
+	origin, root, diags := applied(t, src, v11+"  - target: $['x-m'].a\n    remove: true\n", false)
+
+	require.True(t, origin.Applied(), "%+v", diags)
+	sameValue(t, head+"x-m: {b: 2}\n", root)
+}
+
 // TestApply_KeepsAKeyThatIsNoScalarWhereItFlattensAMerge pins a write into a
 // mapping that merges members and writes a key that is no scalar: making the
 // mapping's members its own keeps that key, which names no member, for the

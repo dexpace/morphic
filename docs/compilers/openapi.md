@@ -422,7 +422,8 @@ The actions apply in order, each to the tree the ones before it left. An action 
 remove, or an action setting none, is an `openapi/overlay-action` warning. An action setting both
 `update` and `copy`, each of which the specification gives no effect beside the other, is refused as
 an `openapi/overlay-failed` error naming both. A remove deletes each node its target selects from
-the object or array holding it, at Overlay 1.0 a primitive too, since 1.0 has no other spelling for
+the object or array holding it, with every earlier copy of a key the object writes twice, which
+would otherwise stand in its place, at Overlay 1.0 a primitive too, since 1.0 has no other spelling for
 removing a primitive member. A YAML alias elsewhere naming a node it removed, or one an action
 copied in its place, keeps the value it stood for, as a copy the source wrote; a copy that
 would grow the tree past `MaxSourceNodes` refuses the overlay as an `openapi/budget-exceeded` error,
