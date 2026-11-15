@@ -18,9 +18,10 @@ import (
 // MaxResults bounds the nodes the nodelists of one evaluation hold at once:
 // the list a segment reads and the one it builds, and those of every query a
 // filter it is in evaluates. Each node costs a step, so the steps bound them
-// too, but a step is cheap and a node held is not: this keeps the memory a
-// query holds at a size a document's own node budget allows, whatever its
-// steps and however deep its filters nest.
+// too, but a step is cheap and a node held is not: this bounds the nodes a
+// query holds however deep its filters nest. It does not count the links of
+// their paths, which nested descendant segments build in proportion to their
+// steps, so such a query can hold gigabytes within its budget (GitHub #1960).
 const MaxResults = 1 << 22
 
 var (

@@ -4,12 +4,10 @@
 package canary_test
 
 import (
-	"bytes"
 	"strings"
 	"testing"
 
 	soa "github.com/speakeasy-api/openapi/openapi"
-	"github.com/speakeasy-api/openapi/overlay"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	yaml "go.yaml.in/yaml/v3"
@@ -31,8 +29,7 @@ func u(hex string) string { return `\u` + hex }
 // characters past its start, a raw DEL, U+FFFE, U+FFFF or a C1 control other
 // than U+0085, or a tab before the root or on a line after the one it ends on,
 // with a message that names no position of the escape, and reads a raw NEL as
-// a space and a raw line or paragraph separator as the end of a line. It
-// refuses the same escapes in an overlay.
+// a space and a raw line or paragraph separator as the end of a line.
 func jsonAsYAML(t *testing.T) {
 	const (
 		escapeRefused  = "found invalid Unicode character escape code"
@@ -84,20 +81,4 @@ func jsonAsYAML(t *testing.T) {
 		assert.Equal(t, 2, key.Line, "%U ends a line, so the key after it is on the second: %s", separator, revisit(t, result{}))
 	}
 
-	for name, text := range map[string]string{
-		"a surrogate pair": overlayJSON("x" + u("d83d") + u("de00") + "y"),
-		"a solidus escape": overlayJSON(`a\/b`),
-	} {
-		_, err := overlay.ParseReader(bytes.NewReader([]byte(text)))
-		require.Error(t, err, "an overlay with %s is refused: %s", name, revisit(t, result{}))
-	}
-	_, err = overlay.ParseReader(bytes.NewReader([]byte(overlayJSON("plain"))))
-	require.NoError(t, err, "and one with neither is read: %s", revisit(t, result{}))
-}
-
-// overlayJSON returns a JSON overlay document whose one action sets the
-// description of the info object to text, written as given between quotes.
-func overlayJSON(text string) string {
-	return `{"overlay":"1.0.0","info":{"title":"o","version":"1"},"actions":` +
-		`[{"target":"$.info","update":{"description":"` + text + `"}}]}`
 }

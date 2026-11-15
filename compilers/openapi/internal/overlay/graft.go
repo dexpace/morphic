@@ -377,14 +377,19 @@ func (g *grafter) remove(positions []position) error {
 }
 
 // detach removes from holder's Content each member whose value, and each
-// element, doomed holds, a member with its key, and returns how many it
+// element, doomed holds, a member with its key and with every earlier copy of
+// that key, which removing the last would expose, and returns how many it
 // removed. A key doomed holds is no member's value, and stays.
 func detach(holder *yaml.Node, doomed map[*yaml.Node]bool) int {
 	kept := holder.Content[:0]
 	switch holder.Kind {
 	case yaml.MappingNode:
+		gone := doomedKeys(holder, doomed)
 		for i := 0; i < len(holder.Content); i += 2 {
 			if i+1 < len(holder.Content) && doomed[holder.Content[i+1]] {
+				continue
+			}
+			if key, own := nodeview.KeyOf(holder.Content[i]); own && gone[key] {
 				continue
 			}
 			kept = append(kept, holder.Content[i:min(i+2, len(holder.Content))]...)
@@ -405,4 +410,16 @@ func detach(holder *yaml.Node, doomed map[*yaml.Node]bool) int {
 		removed /= 2
 	}
 	return removed
+}
+
+// doomedKeys returns the key of each member of the mapping holder whose value
+// doomed holds.
+func doomedKeys(holder *yaml.Node, doomed map[*yaml.Node]bool) map[string]bool {
+	gone := map[string]bool{}
+	for i := 0; i+1 < len(holder.Content); i += 2 {
+		if key, own := nodeview.KeyOf(holder.Content[i]); own && doomed[holder.Content[i+1]] {
+			gone[key] = true
+		}
+	}
+	return gone
 }

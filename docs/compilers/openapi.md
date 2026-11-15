@@ -414,13 +414,16 @@ a match or search its input's length and one more, times its program's weight; a
 link of a target's path the action locates and each member of a mapping it indexes to find one. An
 action whose selectors pass the budget, or whose evaluation holds more than `jsonpath.MaxResults`
 nodes in its nodelists at once, is an `openapi/budget-exceeded` error and nothing more applies.
+A step is a count, not a time: the costliest take some hundreds of nanoseconds, so the budget admits
+tens of seconds of selection over a hostile overlay, which only the caller's context cuts shorter.
 
 The actions apply in order, each to the tree the ones before it left. An action takes the first of
 `remove`, `update` and `copy` it sets, and a field the specification gives no effect beside a
 remove, or an action setting none, is an `openapi/overlay-action` warning. An action setting both
 `update` and `copy`, each of which the specification gives no effect beside the other, is refused as
 an `openapi/overlay-failed` error naming both. A remove deletes each node its target selects from
-the object or array holding it, at Overlay 1.0 a primitive too, since 1.0 has no other spelling for
+the object or array holding it, with every earlier copy of a key the object writes twice, which
+would otherwise stand in its place, at Overlay 1.0 a primitive too, since 1.0 has no other spelling for
 removing a primitive member. A YAML alias elsewhere naming a node it removed, or one an action
 copied in its place, keeps the value it stood for, as a copy the source wrote; a copy that
 would grow the tree past `MaxSourceNodes` refuses the overlay as an `openapi/budget-exceeded` error,
@@ -571,8 +574,9 @@ no overlay, reported as an `openapi/overlay-origin-incomplete` warning.
   as a member name holding `-` after a dot, is refused; an `extends` is compared with nothing; a
   pattern Go's engine cannot compile, such as a repetition past 1,000, matches nothing; `^` and `$`
   in a pattern anchor, where RFC 9485's grammar reads them as characters; nested descendant
-  segments hold path links in proportion to their steps, which the nodelist bound does not count
-  (#1960); an overlay over a tree at the node budget's edge counts the tree at each action (#1959).
+  segments hold path links in proportion to their steps, which the nodelist bound does not count,
+  so an overlay that deepens a chain by copies and selects down it can hold gigabytes (#1960); an
+  overlay over a tree at the node budget's edge counts the tree at each action (#1959).
   Rating
   `openapi/overlay-replaced-value` apart from other codes, to fail a run on it alone, is #1812.
 

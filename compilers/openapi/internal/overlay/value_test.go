@@ -10,6 +10,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	yaml "go.yaml.in/yaml/v3"
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/budget"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
@@ -82,6 +83,20 @@ func TestApply_RefusesAWriteIntoWhatItCannotMakeItsOwn(t *testing.T) {
 	assert.Equal(t, diag.BudgetExceeded, diags[0].Code, "%+v", diags)
 }
 
+// TestApply_RefusesASelectorThroughMergesPastTheDepthItReads pins a target
+// whose selection reads a mapping merging past the depth the compiler
+// expands: the action is refused in the overlay's words, naming the bound.
+func TestApply_RefusesASelectorThroughMergesPastTheDepthItReads(t *testing.T) {
+	t.Parallel()
+	origin, _, diags := applied(t, deepMerge(), v11+"  - target: $['x-m'].*\n    update: 1\n", false)
+
+	assert.False(t, origin.Applied())
+	require.Len(t, diags, 1, "%+v", diags)
+	assert.Equal(t, diag.OverlayFailed, diags[0].Code)
+	assert.Equal(t, fmt.Sprintf(`overlay action 1 of 1 (update "$['x-m'].*"): it selects through a mapping whose `+
+		"`<<` merges run deeper than %d levels", nodeview.MergeDepthLimit), diags[0].Message)
+}
+
 // TestApply_RefusesAnOverlayDocumentOfTheWrongShape pins the reader's
 // refusals of objects and references that are no such thing, each at the
 // field it is about.
@@ -142,6 +157,51 @@ func TestApply_WritesAMergedMemberAsTheMappingsOwn(t *testing.T) {
 
 			require.True(t, origin.Applied(), "%+v", diags)
 			sameValue(t, head+"components:\n  schemas:\n    A: "+plainA+"\n    C: "+tc.c+"\n", root)
+		})
+	}
+}
+
+// TestApply_RemovesEveryCopyOfAKeyWrittenTwice pins a remove of a member whose
+// key the mapping writes twice: the value reads the last copy, and removing
+// the member removes the earlier one too, which would otherwise stand in its
+// place.
+func TestApply_RemovesEveryCopyOfAKeyWrittenTwice(t *testing.T) {
+	t.Parallel()
+	const src = head + "x-m: {a: 1, b: 2, a: 3}\n"
+
+	origin, root, diags := applied(t, src, v11+"  - target: $['x-m'].a\n    remove: true\n", false)
+
+	require.True(t, origin.Applied(), "%+v", diags)
+	sameValue(t, head+"x-m: {b: 2}\n", root)
+}
+
+// TestApply_KeepsAKeyThatIsNoScalarWhereItFlattensAMerge pins a write into a
+// mapping that merges members and writes a key that is no scalar: making the
+// mapping's members its own keeps that key, which names no member, for the
+// reading that refuses it, by an update and by a remove alike.
+func TestApply_KeepsAKeyThatIsNoScalarWhereItFlattensAMerge(t *testing.T) {
+	t.Parallel()
+	const src = head + "x-b: &b {p: 1, q: 2}\nx-m: {<<: *b, ? [k] : v, r: 3}\n"
+	for name, action := range map[string]string{
+		"an update of a merged member": "  - target: $['x-m'].p\n    update: 9\n",
+		"a remove of a merged member":  "  - target: $['x-m'].q\n    remove: true\n",
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			origin, root, diags := applied(t, src, v11+action, false)
+
+			require.True(t, origin.Applied(), "%+v", diags)
+			doc := nodeview.DocumentRoot(root)
+			require.Equal(t, "x-m", doc.Content[8].Value)
+			m := doc.Content[9]
+			var sequences int
+			for i := 0; i+1 < len(m.Content); i += 2 {
+				if m.Content[i].Kind == yaml.SequenceNode {
+					sequences++
+					assert.Equal(t, "v", m.Content[i+1].Value)
+				}
+			}
+			assert.Equal(t, 1, sequences, "the key that is no scalar stays in x-m")
 		})
 	}
 }
