@@ -126,6 +126,29 @@ func TestNamedPointerBytes_AFragmentLandsWhereItsDecodingNames(t *testing.T) {
 	assert.Equal(t, plain, escaped)
 }
 
+// TestNamedPointerBytes_ADynamicRefLandsAsARefDoes holds a $dynamicRef whose
+// fragment is a JSON pointer, which the compile reads as the $ref it spells, to
+// adding what its $ref twin adds to a key of its length the grammar keeps raw:
+// the raw value it lands in, named node by node. One naming an anchor by a
+// plain name leaves the total untaken, as a $ref so written does.
+func TestNamedPointerBytes_ADynamicRefLandsAsARefDoes(t *testing.T) {
+	t.Parallel()
+	const raw = namedHead + "x-data: " + namedSpine + "\ncomponents:\n  schemas:\n"
+	total := func(key, ref string) int {
+		t.Helper()
+		got, complete := namedTotal(t, raw+"    A: {"+key+": \""+ref+"\"}\n")
+		require.True(t, complete, key)
+		return got
+	}
+	byRef := total("$ref", "#/x-data") - total("$reg", "#/x-data")
+	byDynamic := total("$dynamicRef", "#/x-data") - total("$dynamicReg", "#/x-data")
+	_, named := namedTotal(t, raw+"    A: {$dynamicRef: \"#meta\"}\n")
+
+	assert.Positive(t, byRef, "the raw value is named node by node")
+	assert.Equal(t, byRef, byDynamic)
+	assert.False(t, named, "a plain name is no JSON pointer")
+}
+
 // TestNamedPointerBytes_ALandingNamedInPlaceIsCountedOnce holds a $ref whose
 // target the walk already names where it is written to adding nothing past the
 // $ref itself: the same total as a key of the same length the grammar keeps

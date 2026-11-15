@@ -171,7 +171,9 @@ func eachNamedChild(n *yaml.Node, s state, visit func(c *yaml.Node, s state, edg
 }
 
 // noteRefs notes what the mapping k reads as a reference: its $ref where its
-// state reads one, and for a schema each discriminator mapping value.
+// state reads one, and for a schema its $dynamicRef, which lands as a $ref
+// does or on the anchor its plain name expands to, and each discriminator
+// mapping value.
 func (w *named) noteRefs(k namedKey) {
 	if k.n.Kind != yaml.MappingNode {
 		return
@@ -185,6 +187,9 @@ func (w *named) noteRefs(k namedKey) {
 	}
 	if k.s != sSchema {
 		return
+	}
+	if ref, ok := scalarText(w.view.ChildByToken(k.n, "$dynamicRef")); ok {
+		w.refs = append(w.refs, namedRef{ref: ref, s: sSchema})
 	}
 	if w.view.ChildByToken(k.n, "$id") != nil {
 		w.complete = false

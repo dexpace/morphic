@@ -291,9 +291,10 @@ it.
 A source past the pointer bound, as written or as an overlay patches it, is weighed again before it
 is refused, by what a compile names one by one: a value the grammar keeps raw, an example, a
 default, a `const`, an enum member, an Example Object's value, an `x-` key or a field its object
-leaves out, adds its root alone, and a raw value a `$ref` or a discriminator mapping of the
-document lands in, its fragment read as the binder reads one, percent escapes decoded, is named node
-by node as the kind that reference expects, once, where the walk has not named it already. It is
+leaves out, adds its root alone, and a raw value a `$ref`, a `$dynamicRef` or a discriminator
+mapping of the document lands in, its fragment read as the binder reads one, percent escapes
+decoded, is named node by node as the kind that reference expects, once, where the walk has not
+named it already. It is
 refused only when that total too is past the bound, or when it cannot be taken: a reference leaves
 the document, names nothing its pointer finds, or is read under an `$id`, which moves where it
 lands; a fragment is no JSON pointer; the document may name a dialect, by `jsonSchemaDialect` or a
@@ -351,6 +352,7 @@ node bound. An overlay document and a document a reference reads keep the first 
   `bind.TestNamedPointerBytes_IsIncompleteWhereTheDocumentIsNotClosed`,
   `bind.TestNamedPointerBytes_AFragmentLandsWhereItsDecodingNames`,
   `bind.TestNamedPointerBytes_ALandingNamedInPlaceIsCountedOnce`,
+  `bind.TestNamedPointerBytes_ADynamicRefLandsAsARefDoes`,
   `e2e.TestCompile_ARawValueAReferenceLandsInIsWeighedHoweverItIsSpelled`
 
 ### `overlays`
