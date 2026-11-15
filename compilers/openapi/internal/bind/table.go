@@ -38,13 +38,10 @@ type Config struct {
 	// written in the document named from reads it, under the compile's
 	// budgets, or an *UnparsableError for one that was read and does not
 	// parse, ErrEmptyDocument for one that holds nothing, or a *BarredError
-	// for one refused to from alone. Nil reads no other document.
+	// for one refused to from alone. It is asked again of a document read
+	// before, for each asker read over http(s), which it may refuse. Nil
+	// reads no other document.
 	Open func(name, from string) (*yaml.Node, error)
-	// Admits returns the *BarredError refusing the document named name, read
-	// before, to a reference written in the document named from, read over
-	// http(s), or nil where from may read it, as Open would answer from. Nil
-	// admits every one.
-	Admits func(name, from string) error
 	// Refuse returns why a reference whose document part is uri, as written,
 	// is refused unread by that spelling alone, however another reference
 	// names the same document, or nil. Nil refuses none.

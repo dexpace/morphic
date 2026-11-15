@@ -60,7 +60,7 @@ func (r *reads) unread(d *docs, name, from string) bool {
 
 // open returns the document named name, as the document from may read it:
 // read through Config.Open the first time it is asked for, and judged by
-// Config.Admits for each asker read from the network where another read it
+// asking it again for each asker read from the network where another read it
 // first, or failed to, since what such a document may reach turns on where
 // both were read from, and a failure says what lies at an address. A refusal
 // to from alone is kept for from alone.
@@ -88,7 +88,7 @@ func (r *reads) open(d *docs, name, from string) (DocID, error) {
 
 // admits reports whether the document from may read the document decl,
 // which declares a URI from asks for: the source and from itself always,
-// any other where from is not read from the network or Config.Admits judges
+// any other where from is not read from the network or Config.Open judges
 // that it may, as a declaration answers only an asker that could read it.
 func (r *reads) admits(d *docs, decl, from DocID) bool {
 	if decl == Source || decl == from || !OverNetwork(d.name(from)) {

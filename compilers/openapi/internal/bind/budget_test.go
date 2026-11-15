@@ -13,6 +13,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	yaml "go.yaml.in/yaml/v3"
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/bind"
 	"github.com/dexpace/morphic/compilers/openapi/internal/budget"
@@ -150,7 +151,9 @@ func TestBind_ThePassTheBudgetRunsOutInStands(t *testing.T) {
 // done and goes on, reading again only the hops that waited for them (GitHub
 // #1349), and answers an identifier a document it read since declares, so twice
 // the documents cost about twice the work, where a pass for each link grew with
-// the square. Each document is read once, and no identifier is.
+// the square. Each document is asked for once by each document asking for it,
+// a fetched asker of one read before asking only to be judged, and no
+// identifier is.
 func TestBind_CountsWorkLinearAcrossHeldDocuments(t *testing.T) {
 	t.Parallel()
 	name := func(i int) string { return fmt.Sprintf("https://x.test/d%d.yaml", i) }
@@ -204,14 +207,23 @@ func TestBind_CountsWorkLinearAcrossHeldDocuments(t *testing.T) {
 			for i := 1; i <= n; i++ {
 				docs[name(i)] = shape.doc(i, n)
 			}
-			cfg, reads := recordingDocuments(t, docs)
+			cfg, _ := recordingDocuments(t, docs)
+			open := cfg.Open
+			var asks, names []string
+			cfg.Open = func(name, from string) (*yaml.Node, error) {
+				asks, names = append(asks, name+" from "+from), append(names, name)
+				return open(name, from)
+			}
 			// The source is read from the host the documents are, whose
 			// declarations then answer them: a file's would not.
 			cfg.Self, cfg.Locate = "https://x.test/spec.yaml", resolving.Locate
 			table := bound(t, head+"components:\n  schemas:\n    I: {$id: 'https://x.test/id0'}\n"+
 				"    A: {$ref: '"+name(1)+"#/S'}\n", cfg)
 			require.False(t, table.Exhausted(), shape.name)
-			assert.Len(t, *reads, n, "%s: each document read once, and no identifier", shape.name)
+			slices.Sort(asks)
+			slices.Sort(names)
+			assert.Len(t, slices.Compact(asks), len(asks), "%s: each document asked once by each asker", shape.name)
+			assert.Len(t, slices.Compact(names), n, "%s: each document asked for, and no identifier", shape.name)
 			shape.check(t, table, n)
 			return table.Steps()
 		}

@@ -168,8 +168,7 @@ func (d *docs) open(name, from string) (DocID, error) {
 	if d.cfg.Open == nil {
 		return 0, errNotRead
 	}
-	d.work.spend(1)
-	tree, err := d.cfg.Open(name, from)
+	tree, err := askOpen(d, name, from)
 	if err == nil && IsEmpty(tree) {
 		err = ErrEmptyDocument
 	}
@@ -190,14 +189,22 @@ func (d *docs) open(name, from string) (DocID, error) {
 	return id, nil
 }
 
-// judge returns the refusal Config.Admits gives the document from for name,
+// judge returns the refusal Config.Open gives the document from for name,
 // one read before, or nil where from may read it.
 func (d *docs) judge(name, from string) error {
-	if d.cfg.Admits == nil {
+	if d.cfg.Open == nil {
 		return nil
 	}
+	_, err := askOpen(d, name, from)
+	return err
+}
+
+// askOpen asks Config.Open, which is set, for the document named name as from
+// reads it, a step of the work: the one call bind makes into the reader, for a
+// read and a judgement alike.
+func askOpen(d *docs, name, from string) (*yaml.Node, error) {
 	d.work.spend(1)
-	return d.cfg.Admits(name, from)
+	return d.cfg.Open(name, from)
 }
 
 // reach notes that the pass under way asked for document id.

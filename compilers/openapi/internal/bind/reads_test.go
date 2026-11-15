@@ -4,7 +4,6 @@
 package bind_test
 
 import (
-	"slices"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -33,7 +32,7 @@ func TestBind_AReadBarredToOneAskerIsNoAnswerOfTheDocument(t *testing.T) {
 		"    A: {$ref: '" + evil + "#/X'}\n    B: {$ref: '" + secret + "#/S'}\n",
 		"    B: {$ref: '" + secret + "#/S'}\n    A: {$ref: '" + evil + "#/X'}\n",
 	} {
-		var opens, judged []ask
+		var opens []ask
 		cfg := self
 		cfg.Open = func(name, from string) (*yaml.Node, error) {
 			opens = append(opens, ask{name, from})
@@ -41,13 +40,6 @@ func TestBind_AReadBarredToOneAskerIsNoAnswerOfTheDocument(t *testing.T) {
 				return nil, &bind.BarredError{Why: why}
 			}
 			return openapitest.YAMLDocument(t, docs[name]), nil
-		}
-		cfg.Admits = func(name, from string) error {
-			judged = append(judged, ask{name, from})
-			if name == secret && from == evil {
-				return &bind.BarredError{Why: why}
-			}
-			return nil
 		}
 		table := bound(t, head+"components:\n  schemas:\n"+schemas, cfg)
 
@@ -58,11 +50,11 @@ func TestBind_AReadBarredToOneAskerIsNoAnswerOfTheDocument(t *testing.T) {
 		assert.Equal(t, why, e.Hop.Detail)
 		assert.Equal(t, why, (&bind.BarredError{Why: why}).Error())
 		count := 0
-		for _, a := range slices.Concat(opens, judged) {
+		for _, a := range opens {
 			if a == (ask{secret, evil}) {
 				count++
 			}
 		}
-		assert.Equal(t, 1, count, "the asker is refused once, whatever asks first: %v %v", opens, judged)
+		assert.Equal(t, 1, count, "the asker is refused once, whatever asks first: %v", opens)
 	}
 }

@@ -69,10 +69,6 @@ func bindTable(ctx context.Context, doc *soa.OpenAPI, self sourceDocument, reade
 			}
 			return tree, err
 		}
-		cfg.Admits = func(name, from string) error {
-			_, err := reader.document(ctx, name, from)
-			return err
-		}
 	}
 	return bind.Bind(ctx, self.root, cfg)
 }
