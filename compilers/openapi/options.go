@@ -17,6 +17,7 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/bind"
 	"github.com/dexpace/morphic/compilers/openapi/internal/load"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
+	refscope "github.com/dexpace/morphic/compilers/openapi/internal/resolve"
 )
 
 // GroupingStrategy selects how operations are grouped into OperationGroups. It
@@ -824,7 +825,9 @@ func decodeLocations(out *[]Location, value string) error {
 // located URL is (bind.NormalURI), or why a prefix match could mistake one: a
 // prefix that is no absolute URI, holds a query or a fragment, or ends in no
 // "/" (else "https://e.com/x" would match "https://e.com/xy/b.yaml"), one
-// prefix written twice however it is spelled, and an empty location.
+// prefix written twice however it is spelled, an empty location, and a URL
+// location ending in no "/", which the rest of a URL would be appended to as
+// the end of its last segment.
 func mappingsOf(ls []Location) ([]load.Mapping, error) {
 	out := make([]load.Mapping, 0, len(ls))
 	seen := map[string]bool{}
@@ -839,6 +842,8 @@ func mappingsOf(ls []Location) ([]load.Mapping, error) {
 			return nil, fmt.Errorf("openapi: option %q: the prefix %q ends in no \"/\"", optLocate, l.Prefix)
 		case l.Location == "":
 			return nil, fmt.Errorf("openapi: option %q: the prefix %q maps to no location", optLocate, l.Prefix)
+		case refscope.IsURL(l.Location) && !strings.HasSuffix(l.Location, "/"):
+			return nil, fmt.Errorf("openapi: option %q: the location %q is a URL ending in no \"/\"", optLocate, l.Location)
 		case seen[bind.NormalURI(u)]:
 			return nil, fmt.Errorf("openapi: option %q: the prefix %q is mapped twice", optLocate, l.Prefix)
 		}

@@ -903,7 +903,9 @@ by its own spelling, so what the default reads depends on no order references ar
 mode a `$ref` naming a URL whose scheme is none of `http`, `https` and `file` fails unread, where a
 reader would take it for a path; a file whose name holds a colon is written `./a:b.yaml`, and is
 read as that file. The caller may map a URI prefix to a location, a directory or an http(s) URL
-(`Options.Locations`, `--opt locate=<uri-prefix>=<location>`); nothing is mapped by inference. The
+(`Options.Locations`, `--opt locate=<uri-prefix>=<location>`); nothing is mapped by inference. A
+prefix that is no absolute URI ending in `/`, or holds a query or a fragment, a prefix mapped twice,
+and a URL location ending in no `/` are refused as an option error. The
 mapping is applied where a URL is located, once spelled one way, before any refusal or read judges
 it, the longest prefix winning: the rest of the URL is joined to a directory segment by segment,
 each decoded, and one decoding to a separator names no location, so the reference fails unread and
