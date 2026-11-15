@@ -70,11 +70,12 @@ as an `openapi/undecodable-source` error, and nothing compiles. Every input is r
 source, an [overlay](#overlays) and a document a reference reads. Each takes the first of its
 documents that holds content; the documents after it that hold content reach the IR in no form,
 reported once as an `openapi/stream-documents-dropped` error in that input's own
-`Document.Sources` entry at the first of them. The source still lowers, the overlay is not applied,
-and a reference into the external document's first document is read. A document holding nothing, a
-bare separator or an explicit null, is not counted. A read counts 1,024 documents past the one it
-takes and then reads one more, so a stream that continues past them is reported, with the count as
-a floor, whether or not the documents it counted hold content.
+`Document.Sources` entry at the first of them. The source still lowers, and a reference into an
+external document's first document is read, but an overlay is refused, as one that does not parse
+is ([`overlays`](#overlays)): nothing is applied and the source compiles to no Document. A
+document holding nothing, a bare separator or an explicit null, is not counted. A read counts 1,024
+documents past the one it takes and then reads one more, so a stream that continues past them is
+reported, with the count as a floor, whether or not the documents it counted hold content.
 Detection reads the version off the root mapping as the parser does, through aliases, `<<` merges
 and a repeated key's last value, so the compile reads the version the source is routed by. A root
 that merges deeper than that reading expands is declined as an `openapi/budget-exceeded` error,
@@ -201,9 +202,7 @@ scalar under any other tag keeps it.
   text writing a surrogate pair, and a YAML text writing an escaped slash, a pair of surrogate
   escapes or a `%YAML 1.2` directive (#1768). A text writing every one of the 64 characters from
   U+E000 that the reader stands in for what it reads as YAML 1.2, and a UTF-16 or UTF-32 text
-  encoding no text, are read as the parser reads them. A scalar or a sequence under
-  a tag outside YAML's JSON schema ruleset is not reported, and where the model reads a string or a
-  list it reads as left out (#1368).
+  encoding no text, are read as the parser reads them.
 
 ### `source-budgets`
 
@@ -969,8 +968,8 @@ document part names a document as a schema `$ref`'s does, against the document w
 `$id` rebases. Its fragment is empty, naming that document's root, or a JSON pointer read from the
 root as RFC 6901 reads one, a token holding any character: a pointer ending in `/` names a member
 whose key is empty, and a plain name, or a fragment holding a second `#`, names no object. A mapping
-at a reference object's position is a reference where it holds a string `$ref`, as the document's
-JSON spells it, so a `$ref` a `<<` merges in makes one. Nothing written beside its `$ref` is read, a
+at a reference object's position is a reference where it holds a `$ref` that names something
+(below), as the document's JSON spells it, so a `$ref` a `<<` merges in makes one. Nothing written beside its `$ref` is read, a
 path item's fields aside ([`path-item-ref-fields`](#path-item-ref-fields)), as OpenAPI says "any
 properties added SHALL be ignored": a `$ref` there is no reference and draws no finding. It lands on
 an object of its own kind: a position the source's grammar reads as another kind, a schema, a map of
@@ -1104,24 +1103,27 @@ definition the rule reads before the one that would answer. So is a plain name n
 where a schema merging past the bound may; a URI is read as a location all the same, and a
 `$dynamicRef` in that document is not expanded ([`dynamic-ref`](#dynamic-ref)). A `$dynamicRef`
 naming no `$dynamicAnchor` is the `$ref` it spells, and is read as one in every respect here, its
-reports worded with the keyword it is written under. A chain of references that closes on itself is
-[`reference-cycles`](#reference-cycles)'.
+`openapi/unresolved-ref` worded with the keyword it is written under. A chain of references that
+closes on itself is [`reference-cycles`](#reference-cycles)', whose message names each link a
+`$ref`, whichever keyword wrote it.
 
 - Cases: `schema-identifiers`, `component-media-types-32`, `reference-object-chains`
 - Codes: `openapi/unresolved-ref`, `openapi/budget-exceeded`, `openapi/degraded-construct`,
   `openapi/validation`
 
-A Reference Object whose `$ref` is no string, a null, a list, a mapping or a scalar tagged outside
-YAML 1.2's JSON schema ruleset, written by the mapping or merged into it by a `<<` key, names
-nothing: the entry it stands in is read as left out, its
-other keys with it, and the rule table's error at the `$ref` is the one report of it; a component
-kept verbatim shows it as written ([`unreferenced-components`](#unreferenced-components)). The parser's
+A Reference Object whose `$ref` is a null, a list, a mapping or a scalar tagged outside YAML 1.2's
+JSON schema ruleset, written by the mapping or merged into it by a `<<` key, names nothing: the
+entry it stands in is read as left out, its other keys with it, and the rule table's error at the
+`$ref` is the one report of it; a component kept verbatim shows it as written
+([`unreferenced-components`](#unreferenced-components)). A `$ref` written as a number or a boolean
+is read as the text it spells, as such a value is wherever a string belongs, beside the rule table's
+warning ([`validation`](#validation)), so `$ref: 5` names the file `5`. The parser's
 model faults building such an object, and a 3.2 `additionalOperations` entry that is no mapping
 ([`nil-populate-panic`](../parser-library.md#nil-populate-panic)), so the load phase sets each
 aside for the model's builds and puts it back before anything else reads the tree, in the source
 and in what a reference reaches outside its model alike. A Path Item's
-`$ref` is the item's own field: one that is no string is read as left out, and the item as what
-else it writes.
+`$ref` is the item's own field, read the same way: one that names nothing is read as left out, and
+the item as what else it writes.
 - Tests: `e2e.TestCompile_ExternalFileRefIsNotReadByDefault`,
   `e2e.TestCompile_AFetchedDocumentMayNotReachAMorePrivateAddress`,
   `e2e.TestCompile_AnAddressOneDocumentCannotReachIsStillReadForAnother`,
@@ -1323,8 +1325,10 @@ reference in it, a schema's, a mapping value or a reference object's, is read ag
 an `$id`: judged for refusal as written while only a relative `$self` moved the base, and as the URI
 it resolves to once an absolute one did. A reference naming the document by its `$self` lands in
 it with no read, a security requirement key among them, and a schema whose `$id` names it roots no
-resource, so its `$schema` chooses no dialect. Another document's `$self` is declared at its root as
-an `$id` is. The location the document was read from still decides what it may reach: a `$self`
+resource by that `$id`, so its `$schema` chooses a dialect only where its place makes it a root, as
+a Schema Object no other holds is ([`dialect-keywords`](#dialect-keywords)). Another document's
+`$self` is declared at its root as an `$id` is. The location the document was read from still
+decides what it may reach: a `$self`
 never moves a fetched document's reference onto a file, which is an `openapi/unresolved-ref`
 error where the reference is written. A `$self` holding a `#` is the rule table's format error at
 `#/$self`, and names nothing. So a 3.2 document whose `$self` is an http(s) URL
@@ -1442,11 +1446,11 @@ at every version, as [`unmodeled-dialect-fields`](#unmodeled-dialect-fields) rea
 parser does not model; `components/schemas` and `components/securitySchemes` are lowered
 unconditionally. A section is read as the parser reads it, through `<<` merge keys, so a merged-in
 entry is kept under its own name, and an entry whose key is no scalar is left out
-([`validation`](#validation) reports the key). An entry whose `$ref` is no string, which every
-reader takes for the entry left out ([`references`](#references)), is kept as the source wrote it,
-beside the rule table's error at the `$ref`. A key an entry writes that its object does not define
-is reported all the same, by the rule table ([`unknown-keys`](#unknown-keys)), and rides inside the
-kept entry. Where the components merge
+([`validation`](#validation) reports the key). An entry whose `$ref` names nothing, a null or a
+list among them, which every reader takes for the entry left out ([`references`](#references)), is
+kept as the source wrote it, beside the rule table's error at the `$ref`. A key an entry writes that
+its object does not define is reported all the same, by the rule table
+([`unknown-keys`](#unknown-keys)), and rides inside the kept entry. Where the components merge
 through `<<` deeper than the levels a mapping's merges are expanded to (`nodeview.MergeDepthLimit`),
 an `openapi/degraded-construct` warning at `components` says so, and an entry past that depth is not
 kept.
@@ -4210,8 +4214,10 @@ A `null` written where a schema belongs states nothing about the values there, s
 schema written, never as the `false` schema the parser decodes it as
 ([`null-schema-is-false`](../parser-library.md#null-schema-is-false)), which admits no value. So is
 any other value that is neither a mapping nor a boolean, a string, a number or a list, which the
-load phase reports as the wrong type, on every route a schema is reached by, a `$ref` included;
-only a written `true` or `false` is a boolean schema. An
+load phase reports as the wrong type where the source's grammar reads a schema, and which a `$ref`
+naming that position reads alike; one a `$ref` reaches in raw YAML or another document is reported
+as that `$ref`'s `openapi/unresolved-ref` instead ([`references`](#references)), and the `$ref`
+lowers the top type. Only a written `true` or `false` is a boolean schema. An
 entry, which exists whatever its value — a property, a composition branch, a component, a
 `prefixItems` position, a parameter's, header's or media type's `schema` — lowers as the empty
 schema does: to the top type, or as an `allOf` branch to nothing composed, and a `$ref` naming it as
@@ -4763,8 +4769,6 @@ resolves to the schema declaring it.
   `load.TestReadDialects_GivesAnotherDocumentsOwnRowsToWhatNoRootHolds`,
   `e2e.TestCompile_ASchemaOnlyARefReachesReadsItsOwnDialect`,
   `e2e.TestCompile_ASchemaAnotherLandingHoldsIsNotADialectRoot`
-- Status: partly built: an identifier naming its document by the 3.2 `$self` roots a resource of its
-  own, as the document is known by its location alone (#863).
 
 ### `vocabulary-coverage`
 
@@ -5014,8 +5018,6 @@ each key read into one is reported the same way, once, whether the tag forms a g
   `operation.TestGrouping_BadgeOnlyOperationFallsToDefault`, `oas.TestCheck_TagParentsExist`,
   `oas.TestCheck_DuplicatesAreFound`, `operation.TestOperation_ARepeatedTagIsKeptOnce`,
   `operation.TestOperation_ALongTagListFoldsAsAShortOne`
-- Status: partly built: a tag written under a YAML tag outside the JSON schema ruleset reads as the
-  empty string, so two such tags fold to one, reported as a repeat of `""` (#1368).
 
 ### `path-prefix-groups`
 
@@ -6181,8 +6183,9 @@ requirement names it, recording its pointer and keeping what it wrote: its `desc
 verbatim in `Unmodeled` under `openapi:<field>` (`degraded_lowering`), each reported as an info
 `openapi/degraded-construct` at the field, and its extensions and undeclared keys as any scheme's are.
 A `$ref` that reached nothing is kept the same way, under `openapi:$ref`, with only its error, but a
-`$ref` that is no string names nothing, and the entry is read as left out. An entry written as no
-object holds no field to keep. A `security` entry written as no object names
+`$ref` that names nothing, a null or a list among them ([`references`](#references)), leaves the
+entry read as left out. An entry written as no object holds no field to keep. A `security` entry
+written as no object names
 nothing, and so does one with no member whose `<<`, or a `<<` of a mapping it merges at any depth,
 names no mapping, which merges nothing ([`merge-keys`](../parser-library.md#merge-keys)): each
 lowers to no option, never the empty one, which would grant access the document never wrote. A list
@@ -6236,8 +6239,6 @@ requirement naming no scheme and a scheme naming no mechanism, and leaves them t
   `auth.TestNearest_ReadsOneEditWithinItsBounds`, `auth.TestOneEditApart_CountsOneEdit`,
   `lowering.TestFirstOccurrences_KeepsEachEntryOnceAtItsFirst`,
   `auth.TestAuth_RequirementsOrOfAnds`
-- Status: partly built: a 3.2 requirement naming the source by its `$self` lowers as unresolved
-  (#863).
 
 ### `security-scheme-fields`
 
