@@ -4493,11 +4493,12 @@ schema resource it is written in, as a `$ref` is (JSON Schema 2020-12 §8.2.3.2)
 where that lands on a fragment a `$dynamicAnchor` created, so the anchor it names dynamically is one
 the resource it names declares. Anywhere else it is the `$ref` it spells: a pointer, a plain name an
 `$anchor` declares, another document, a name declared nowhere in the resource it names. It then
-lowers and binds as that `$ref` does, through [`references`](#references), at every position and to
-every reader, which each ask the binding table whether a schema is a reference site rather than the
-model whether it writes a `$ref`, reporting nothing where it resolves and `openapi/unresolved-ref` where it does not, worded with its own keyword, a loop
-through it being an `openapi/cyclic-ref` ([`reference-cycles`](#reference-cycles)); one resolving
-nowhere lowers the top type, keeping nothing. A name declared more than once in the resource it
+lowers and binds as that `$ref` does, through [`references`](#references), at every position, the
+lowering asking the binding table whether a schema is a reference site rather than the model
+whether it writes a `$ref`. It reports nothing where it resolves and `openapi/unresolved-ref` where
+it does not, worded with its own keyword, a loop through it being an `openapi/cyclic-ref`
+([`reference-cycles`](#reference-cycles)); one resolving nowhere lowers the top type, keeping
+nothing. A name declared more than once in the resource it
 names, one of those declarations a `$dynamicAnchor`, and one a merge past
 [`references`](#references)' bound may hide the declaration of, are not shown to be `$ref`s, and
 are read as dynamic. What makes the expansion possible is that a
@@ -4556,9 +4557,9 @@ the reach the `$recursiveRef` above reads: that resource is then in the dynamic 
 outermost one declaring the name wins, so the target depends on the evaluation path and the
 reference is kept. A name one document alone declares needs no walk; each name several documents
 declare costs one walk of the resources, held by the binding budget, so n such names over n
-resources cost n² steps, past which nothing is known and every reference resting on one is kept. What a reference
-resolved to where no position of its document places it reads no anchors, so a dynamic reference in
-it is kept.
+resources cost n² steps, past which nothing is known and every reference resting on one is kept.
+What a reference resolved to where no position of its document places it reads no anchors, so a
+dynamic reference in it is kept.
 
 Anchors are the identifiers [`references`](#references) reads, where it reads them, so one in an
 example or an extension declares nothing, and one read through a YAML alias or a merge key is a

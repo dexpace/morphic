@@ -98,8 +98,8 @@ func (b *Bindings) Entry(js *schemaRef) (bind.Entry, bool) {
 // $dynamicRef the table reads as the $ref it spells, as JSON Schema 2020-12
 // §8.2.3.2 resolves one naming no $dynamicAnchor
 // (docs/compilers/openapi.md#dynamic-ref). It is empty for any other schema.
-// Every reader asking whether a schema is a reference asks it, so the two
-// spellings cannot part.
+// A reader asks it rather than the model's $ref, so the two spellings lower
+// alike.
 func (b *Bindings) RefKeyword(js *schemaRef) string {
 	if js == nil || js.IsBool() {
 		return ""
