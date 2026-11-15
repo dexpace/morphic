@@ -57,14 +57,15 @@ paths:
   /a: {get: {responses: {"200": {description: ok}}}}
 `
 
-// TestCompile_AnOverlayKeepsWhatTheSourceIsRefusedFor holds what the format
-// check, the rule table and the pre-parse scan refuse of a mapping, a key or a
-// merge (a key no scalar, a merge naming no mapping at any depth, a key written
-// twice, a tagged mapping, an anchor cycle, a key its map or object does not
-// admit) to surviving an overlay writing into the mapping, writing or removing
-// a member, writing inside one, or copying the mapping, merging or not. Each
-// finding above info the source alone draws stands, at its pointer, and an
-// error still fails the compile.
+// TestCompile_AnOverlayKeepsWhatTheSourceIsRefusedFor holds each finding above
+// info the source alone draws for a mapping, a key or a merge to standing at its
+// pointer, an error still failing the compile, under an overlay writing into the
+// mapping, writing or removing a member, writing inside one, or copying the
+// mapping, merging or not. The rows are written by hand from what
+// oas.CheckFormat, oas.CheckRepeatedKeys and the load phase's tagged-mapping and
+// anchor-cycle refusals report of a mapping's YAML, so a report added there
+// needs its row. A key's text is judged on the overlaid tree, so four rules of
+// it stand for the rest.
 func TestCompile_AnOverlayKeepsWhatTheSourceIsRefusedFor(t *testing.T) {
 	t.Parallel()
 	const s, h = "$.components.schemas.S", "$.paths['/a'].get.responses['200'].headers"
