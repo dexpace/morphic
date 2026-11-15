@@ -70,11 +70,12 @@ as an `openapi/undecodable-source` error, and nothing compiles. Every input is r
 source, an [overlay](#overlays) and a document a reference reads. Each takes the first of its
 documents that holds content; the documents after it that hold content reach the IR in no form,
 reported once as an `openapi/stream-documents-dropped` error in that input's own
-`Document.Sources` entry at the first of them. The source still lowers, the overlay is not applied,
-and a reference into the external document's first document is read. A document holding nothing, a
-bare separator or an explicit null, is not counted. A read counts 1,024 documents past the one it
-takes and then reads one more, so a stream that continues past them is reported, with the count as
-a floor, whether or not the documents it counted hold content.
+`Document.Sources` entry at the first of them. The source still lowers, and a reference into an
+external document's first document is read, but an overlay is refused, as one that does not parse
+is ([`overlays`](#overlays)): nothing is applied and the source compiles to no Document. A
+document holding nothing, a bare separator or an explicit null, is not counted. A read counts 1,024
+documents past the one it takes and then reads one more, so a stream that continues past them is
+reported, with the count as a floor, whether or not the documents it counted hold content.
 Detection reads the version off the root mapping as the parser does, through aliases, `<<` merges
 and a repeated key's last value, so the compile reads the version the source is routed by. A root
 that merges deeper than that reading expands is declined as an `openapi/budget-exceeded` error,
