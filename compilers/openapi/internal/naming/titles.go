@@ -163,8 +163,9 @@ func (t *titles) words(node *yaml.Node) string {
 // its own, else the one the inline branches of its allOf write between them,
 // since a conjunct describes the instance the schema does. It is "" where
 // neither writes one with a word, and where those branches write two; a
-// branch holding a $ref is named by it, and one nested in a branch is not
-// read.
+// branch holding a $ref or a $dynamicRef is named by it, and one nested in a
+// branch is not read. A $dynamicRef is read in any dialect, so one a dialect
+// defining none writes lends no title either, which keeps the positional name.
 func titleWords(node *yaml.Node) string {
 	if words := ownTitle(node); words != "" {
 		return words
@@ -174,7 +175,7 @@ func titleWords(node *yaml.Node) string {
 		branch = nodeview.Deref(branch)
 		words := ownTitle(branch)
 		switch {
-		case words == "" || nodeview.Child(branch, "$ref") != nil:
+		case words == "" || nodeview.Child(branch, "$ref") != nil || nodeview.Child(branch, "$dynamicRef") != nil:
 		case found != "" && words != found:
 			return ""
 		default:

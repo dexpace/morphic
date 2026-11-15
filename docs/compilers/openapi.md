@@ -479,7 +479,8 @@ in that it does not write, in the value's order; a merge key reaching what the s
 merge naming no mapping or a key that is no scalar in a mapping it brings in, stays beside the
 copies, so the refusal stands. So an update of an anchored schema leaves each
 alias of it, and each mapping merging it, the value the source wrote, and a write through an alias
-or a merge writes that position alone; none draws a finding. A copy is the size of the subtree the
+or a merge writes that position alone; none draws a finding of its own, but one the source draws
+inside the node copied is drawn again at the copy, at the same line and column. A copy is the size of the subtree the
 source writes, not of the value it stands for, keeps the source as the writer of what the source
 wrote, and is charged to `MaxSourceNodes` before it is built.
 
@@ -590,7 +591,7 @@ no overlay, reported as an `openapi/overlay-origin-incomplete` warning.
   nested descendant segments hold path links in proportion to their steps, which the nodelist bound
   does not count, so an overlay that deepens a chain by copies and selects down it can hold
   gigabytes (#1960); an overlay over a tree at the node budget's edge counts the tree at each action
-  (#1959).
+  (#1959); a finding inside a shared node an action copies is repeated at each copy (#1970).
   Rating
   `openapi/overlay-replaced-value` apart from other codes, to fail a run on it alone, is #1812.
 
