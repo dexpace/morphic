@@ -82,9 +82,9 @@ func (m *Memory) holds(location string) bool {
 // ReadDocument implements compilers.DocumentReader. A document no source holds
 // fails as a file that does not exist does, with fs.ErrNotExist. A held
 // document dialled no address, so one held at a path states no space, and one
-// held at a URL the space its host names (hostSpace): the caller hands it as
-// what that URL holds, so a document fetched from the network reaches it as
-// it would reach the URL.
+// held at a URL states the space its host names (hostSpace) as both its space
+// and its bound: the caller hands it as what that URL holds, and every read of
+// it states the same, whichever asks first.
 func (m *Memory) ReadDocument(ctx context.Context, req compilers.DocumentRequest) (compilers.DocumentRead, error) {
 	data, at, err := m.read(ctx, req)
 	if err != nil {
@@ -93,6 +93,7 @@ func (m *Memory) ReadDocument(ctx context.Context, req compilers.DocumentRequest
 	read := compilers.DocumentRead{Data: data}
 	if u, err := url.Parse(at); err == nil && u.Host != "" {
 		read.Space = hostSpace(u.Hostname())
+		read.Bound = read.Space
 	}
 	return read, nil
 }

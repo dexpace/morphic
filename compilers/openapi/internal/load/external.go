@@ -47,8 +47,8 @@ func newExternal(opts Options, read *externalReads, aside *aside) *external {
 // first by key's own spelling (unnamed), then as the one read in the compile
 // of that document answered it (see externalReads.once), whichever of its
 // spellings asked first, so a file a $ref spells two ways is read and charged
-// once, and last by what from may reach (reachOf, admits). The tree it
-// prepared is held under key too.
+// once, and last by what from may reach (reachOf, external.admits). The tree
+// it prepared is held under key too.
 func (e external) readAs(ctx context.Context, id, key, location, from string) answer {
 	if e.opts.Reader == nil {
 		return answer{err: refused(key, "no reader was supplied to read it")}
@@ -58,11 +58,11 @@ func (e external) readAs(ctx context.Context, id, key, location, from string) an
 	}
 	reach := e.reachOf(from)
 	a := e.read.once(id, reach, func() answer { return e.fetch(ctx, id, key, location, reach) })
-	if a.err != nil {
-		return answer{err: failureFor(id, a, reach)}
-	}
-	if err := admits(id, a.space, reach); err != nil {
+	if err := e.admits(ctx, id, location, a, reach); err != nil {
 		return answer{err: err}
+	}
+	if a.err != nil {
+		return a
 	}
 	e.read.adopt(key, a.prepared)
 	return a
@@ -83,37 +83,70 @@ func (e external) reachOf(from string) compilers.AddressSpace {
 	return compilers.SpacePublic
 }
 
-// admits returns the refusal of the document id, read from space, to a
-// reference bounded by reach, or nil: a document is refused to a bounded
-// asker where it lies more private than reach, or where it was read over
-// http(s) by a reader that did not say where from.
-func admits(id string, space, reach compilers.AddressSpace) error {
+// admits returns the refusal of the document id, answered a, to a reference
+// bounded by reach, or nil where the reference is answered a. A failure is
+// the asker's own where no read gave it or its read was bounded no wider. Else
+// the document is judged as a target, by the most private space its read can
+// have dialled (answer.bound); where that read stated none, a read wider than
+// reach is judged again at reach (verdict), and one no wider is refused, as
+// the reader did not say.
+func (e external) admits(ctx context.Context, id, location string, a answer, reach compilers.AddressSpace) error {
 	switch {
 	case reach == compilers.SpaceUnstated, !bind.OverNetwork(id):
 		return nil
-	case space == compilers.SpaceUnstated:
-		return barred(id, "the reader did not say what address it was read from, "+
-			"which a reference in a document read over http or https needs")
-	case space > reach:
-		return barred(id, beyondReach(space, reach))
+	case a.err != nil && (!a.read || !wider(a.reach, reach)):
+		return nil
+	case a.bound != compilers.SpaceUnstated:
+		return beyond(id, a.bound, reach)
+	case !wider(a.reach, reach):
+		return unsaid(id)
+	}
+	return e.read.verdict(id, reach, func() (compilers.AddressSpace, error) {
+		return e.verdict(ctx, id, location, reach)
+	})
+}
+
+// verdict reads the document id at location as an asker bounded by reach
+// would, to judge it for that asker alone, and returns the bound the read
+// stated, or why the asker is refused: its read's own failure among them.
+// What it reads is dropped, as the document's content, space and place in the
+// document budget stay its first read's, so the read is not charged; one is
+// made per reach a document is judged at (externalReads.verdict).
+func (e external) verdict(ctx context.Context, id, location string, reach compilers.AddressSpace) (compilers.AddressSpace, error) {
+	got, err := e.opts.Reader.ReadDocument(ctx, compilers.DocumentRequest{
+		Location: location, Within: e.opts.Within, Limit: ReadLimit(e.opts.MaxSourceBytes), Reach: reach,
+	})
+	if err != nil {
+		return compilers.SpaceUnstated, readFailure(e.opts, id, err, reach)
+	}
+	bound := boundOf(got)
+	if bound == compilers.SpaceUnstated {
+		return bound, unsaid(id)
+	}
+	return bound, beyond(id, bound, reach)
+}
+
+// boundOf is the most private space read can have dialled: its Bound, or its
+// Space where that is more private, since an address that answered bounds
+// the read however a reader states its bound.
+func boundOf(read compilers.DocumentRead) compilers.AddressSpace {
+	return max(read.Space, read.Bound)
+}
+
+// beyond returns the refusal of the document id, which a read can have
+// dialled as far as bound, to a reference bounded by reach, or nil.
+func beyond(id string, bound, reach compilers.AddressSpace) error {
+	if bound > reach {
+		return barred(id, beyondReach(bound, reach))
 	}
 	return nil
 }
 
-// failureFor is the error the failed answer a of the document id is to a
-// reference bounded by reach: a's own where no read gave it or its read was
-// bounded no wider than reach, as the asker would have met it too; else, as a
-// read's answer is judged for each asker (admits), the refusal of a document
-// read from the space a states, or from none, before the failure a wider read
-// met, which says what lies at an address the asker may not reach.
-func failureFor(id string, a answer, reach compilers.AddressSpace) error {
-	if !a.read || !wider(a.reach, reach) {
-		return a.err
-	}
-	if err := admits(id, a.space, reach); err != nil {
-		return err
-	}
-	return a.err
+// unsaid returns the refusal of the document id, whose reader did not say
+// where its read dialled, to a reference bounded by a reach.
+func unsaid(id string) error {
+	return barred(id, "the reader did not say what address it was read from, "+
+		"which a reference in a document read over http or https needs")
 }
 
 // beyondReach is why a document at an address in space is refused to a
@@ -183,9 +216,9 @@ func (e external) fetch(ctx context.Context, id, key, location string, reach com
 	}
 	data, err := e.prepare(ctx, id, key, got.Data)
 	if err != nil {
-		return answer{err: err, space: got.Space, reach: reach, read: true}
+		return answer{err: err, space: got.Space, bound: boundOf(got), reach: reach, read: true}
 	}
-	return answer{body: data, prepared: key, space: got.Space, reach: reach, read: true}
+	return answer{body: data, prepared: key, space: got.Space, bound: boundOf(got), reach: reach, read: true}
 }
 
 // unnamed returns the refusal of the document under key, read at location,

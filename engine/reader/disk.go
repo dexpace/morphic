@@ -108,6 +108,7 @@ func (d Disk) fetch(ctx context.Context, u string, req compilers.DocumentRequest
 	read := compilers.DocumentRead{Data: data}
 	if g != nil {
 		read.Space = compilers.AddressSpace(g.space.Load())
+		read.Bound = read.Space
 	}
 	return read, nil
 }
