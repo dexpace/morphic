@@ -131,6 +131,8 @@ func TestLoad_ANullRefOfAReferenceObjectIsReadWithoutAFaultAtEachModelBuild(t *t
 			"      parameters:\n        - $ref:\n      responses: {\"200\": {description: ok}}\n",
 		"reached by a parameter's $ref": head31L + "paths:\n  /a:\n    get:\n      parameters:\n        - $ref: '#/x-lib/p'\n" +
 			"      responses: {\"200\": {description: ok}}\nx-lib:\n  p:\n    $ref:\n",
+		"an alias of a null": head31L + "x-n: &n ~\npaths:\n  /a:\n    get:\n      parameters:\n        - {$ref: *n}\n" +
+			"      responses: {\"200\": {description: ok}}\n",
 		"merged in by a `<<`, read as left out": head31L + "x-b: &b {$ref: ~}\npaths:\n  /a:\n    get:\n" +
 			"      parameters:\n        - {<<: *b}\n      responses: {\"200\": {description: ok}}\n",
 		"in a callback": head31L + "paths:\n  /a:\n    post:\n      callbacks:\n        cb:\n          '{$request.body#/u}':\n" +
@@ -158,9 +160,10 @@ func TestLoad_AnAdditionalOperationAMergeKeySuppliesIsReadWithoutAFault(t *testi
 	const head = "openapi: 3.2.0\ninfo: {title: t, version: \"1\"}\n"
 	const ok = "{responses: {\"200\": {description: ok}}}"
 	for name, spec := range map[string]string{
-		"a mapping":     head + "paths:\n  /a:\n    additionalOperations:\n      <<: {PURGE: ~}\n      LINK: " + ok + "\n",
-		"an alias":      head + "x-ops: &ops {PURGE: ~}\npaths:\n  /a:\n    additionalOperations:\n      <<: *ops\n      LINK: " + ok + "\n",
-		"one of a list": head + "paths:\n  /a:\n    additionalOperations:\n      <<: [{LINK: " + ok + "}, {PURGE: ~}]\n",
+		"a mapping":                  head + "paths:\n  /a:\n    additionalOperations:\n      <<: {PURGE: ~}\n      LINK: " + ok + "\n",
+		"an alias":                   head + "x-ops: &ops {PURGE: ~}\npaths:\n  /a:\n    additionalOperations:\n      <<: *ops\n      LINK: " + ok + "\n",
+		"one of a list":              head + "paths:\n  /a:\n    additionalOperations:\n      <<: [{LINK: " + ok + "}, {PURGE: ~}]\n",
+		"the whole mapping an alias": head + "x-ops: &ops {PURGE: ~, LINK: " + ok + "}\npaths:\n  /a:\n    additionalOperations: *ops\n",
 	} {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()

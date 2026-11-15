@@ -47,7 +47,7 @@ func turnRefused(j judgment) bool {
 // turn left so.
 func setAside(j judgment, a *aside) {
 	for _, ref := range j.referenced {
-		v := nodeview.Deref(nodeview.Child(ref, "$ref"))
+		v := nodeview.Child(ref, "$ref")
 		switch {
 		case v == nil || !isNullNode(v):
 		case writesRef(ref):
@@ -75,7 +75,7 @@ func asidePathItem(item *yaml.Node, a *aside) {
 		v := nodeview.Deref(val)
 		return own && name == "$ref" && (v == nil || v.Kind != yaml.ScalarNode || isNullNode(v))
 	})
-	ops := nodeview.Deref(nodeview.Child(item, "additionalOperations"))
+	ops := nodeview.Child(item, "additionalOperations")
 	if ops == nil || ops.Kind != yaml.MappingNode {
 		return
 	}
