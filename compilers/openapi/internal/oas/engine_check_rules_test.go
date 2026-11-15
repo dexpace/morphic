@@ -364,3 +364,24 @@ func TestCheck_KeywordsHoldWhatJSONSchemaRequires(t *testing.T) {
 	assert.Equal(t, `Schema Object field "required" repeats "a" first written at /required/0 in OpenAPI 3.1 (Schema Object)`,
 		diags[0].Message)
 }
+
+// TestCheck_AFieldBesideContentNamesItsCarrier holds the warning a
+// serialization field written beside content draws to the object writing it:
+// a header's names a header serialized through its schema, as a parameter's
+// names a parameter.
+func TestCheck_AFieldBesideContentNamesItsCarrier(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		kind    oas.Kind
+		doc     string
+		carrier string
+	}{
+		{oas.Parameter, "{name: p, in: query, style: form, content: {application/json: {schema: {}}}}", "parameter"},
+		{oas.Header, "{style: simple, content: {application/json: {schema: {}}}}", "header"},
+	} {
+		diags := run(t, "3.2.0", tc.kind, tc.doc)
+		require.Len(t, diags, 1)
+		assert.Equal(t, noEffect, diags[0].Code)
+		assert.Contains(t, diags[0].Message, "which applies it to a "+tc.carrier+" serialized through its schema")
+	}
+}
