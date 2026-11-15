@@ -201,9 +201,7 @@ scalar under any other tag keeps it.
   text writing a surrogate pair, and a YAML text writing an escaped slash, a pair of surrogate
   escapes or a `%YAML 1.2` directive (#1768). A text writing every one of the 64 characters from
   U+E000 that the reader stands in for what it reads as YAML 1.2, and a UTF-16 or UTF-32 text
-  encoding no text, are read as the parser reads them. A scalar or a sequence under
-  a tag outside YAML's JSON schema ruleset is not reported, and where the model reads a string or a
-  list it reads as left out (#1368).
+  encoding no text, are read as the parser reads them.
 
 ### `source-budgets`
 
@@ -5012,8 +5010,6 @@ each key read into one is reported the same way, once, whether the tag forms a g
   `operation.TestGrouping_BadgeOnlyOperationFallsToDefault`, `oas.TestCheck_TagParentsExist`,
   `oas.TestCheck_DuplicatesAreFound`, `operation.TestOperation_ARepeatedTagIsKeptOnce`,
   `operation.TestOperation_ALongTagListFoldsAsAShortOne`
-- Status: partly built: a tag written under a YAML tag outside the JSON schema ruleset reads as the
-  empty string, so two such tags fold to one, reported as a repeat of `""` (#1368).
 
 ### `path-prefix-groups`
 
