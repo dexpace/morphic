@@ -121,7 +121,9 @@ a comment; an escaped `\N`, which YAML 1.1 reads alike, draws none, and a docume
 nothing or 1.2 draws none. A UTF-16 or UTF-32 text opening with its byte order mark, JSON or YAML,
 is read as the UTF-8 it encodes, so all three read alike. A plain scalar is resolved by YAML 1.2's core schema in
 every document: `0644` is the integer 644, `0o17` is 15, and `0b11`, `0X1F`, `1_000` and `+0x1F`
-are strings; its text is what the source wrote. A mapping key keeps the parser's tag, a date's
+are strings; its text is what the source wrote. An `0o` or `0x` integer past 64 bits is the
+exception: the parser tags it a string, and the compiler reads it as one, or refuses it where a
+number is read. A mapping key keeps the parser's tag, a date's
 aside, which is a string as a value's is, and a `<<` key still merges. A core integer the parser
 tags a float, `089` or one past 64 bits, keeps that tag, since the parser's model refuses to decode
 an `!!int` it cannot hold: its integrality is read from its text, by `value.NumericLiteral` and the
@@ -200,7 +202,9 @@ scalar under any other tag keeps it.
 - Status: partly built: both order oracles in `internal/harness` parse a source as YAML to permute
   it as YAML 1.1 lexes it, and decline one only the compiler's reader reads as not YAML: a JSON
   text writing a surrogate pair, and a YAML text writing an escaped slash, a pair of surrogate
-  escapes or a `%YAML 1.2` directive (#1768). A text writing every one of the 64 characters from
+  escapes or a `%YAML 1.2` directive (#1768). An `0o` or `0x` integer past 64 bits reads as the
+  string the parser tags it, or is refused where a number is read (#1975). A text writing every one
+  of the 64 characters from
   U+E000 that the reader stands in for what it reads as YAML 1.2, and a UTF-16 or UTF-32 text
   encoding no text, are read as the parser reads them.
 

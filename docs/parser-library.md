@@ -610,7 +610,8 @@ octal, `089`, and an integer past 64 bits are `!!float`. So `0644` is 420 to the
 1.2's core schema, which OpenAPI recommends, reads 644. The compiler resolves every plain value
 scalar by the core schema ([`yaml-decoding`](compilers/openapi.md#yaml-decoding)): a number the core
 schema does not spell is a string, and a number it does is read in the base its prefix names, never
-through the parser's decode.
+through the parser's decode. An `0o` or `0x` integer past 64 bits is the exception, which the parser
+tags a string and the compiler reads as one (#1975).
 
 ```yaml
 components:
