@@ -20,7 +20,8 @@ import (
 // dynamicSpec writes each way a $dynamicRef reads: as the $ref it spells, where
 // what it lands on declares no $dynamicAnchor of its fragment's name, and as
 // dynamic where it does, or where the resource it names declares the name more
-// than once, one of them a $dynamicAnchor.
+// than once, one of them a $dynamicAnchor, which another resource's
+// declaration of the name does not make it.
 const dynamicSpec = head + `components:
   schemas:
     P: {$anchor: p, type: string}
@@ -29,6 +30,10 @@ const dynamicSpec = head + `components:
     Dup2: {$dynamicAnchor: dup}
     Twin1: {$anchor: twin}
     Twin2: {$anchor: twin}
+    Elsewhere: {$id: 'https://example.com/elsewhere', $defs: {t: {$dynamicAnchor: twin}}}
+    Mix1: {$anchor: mix}
+    Mix2: {$dynamicAnchor: mix}
+    Mixed: {$dynamicRef: '#mix'}
     ByAnchor: {$dynamicRef: '#p'}
     ByPointer: {$dynamicRef: '#/components/schemas/P'}
     Dynamic: {$dynamicRef: '#d'}
@@ -60,7 +65,7 @@ func TestBind_ReadsADynamicRefAsTheRefItSpellsUnlessItNamesADynamicAnchor(t *tes
 	}
 	assert.Equal(t, p, entryAt(t, table, "/components/schemas/ByAnchor").Hop.Target)
 	assert.Equal(t, bind.DuplicateAnchor, entryAt(t, table, "/components/schemas/Twinned").Hop.Reason)
-	for _, name := range []string{"Dynamic", "Duplicated", "Null", "Listed"} {
+	for _, name := range []string{"Dynamic", "Duplicated", "Mixed", "Null", "Listed"} {
 		_, ok := table.Entry(at(jsontext.Pointer("/components/schemas/" + name)))
 		assert.False(t, ok, "%s is no $ref site", name)
 	}

@@ -16,12 +16,14 @@ import (
 )
 
 // twinSpec writes a $ref at every schema position the lowering reads one at:
-// a property, a parameter, a header, a request and a response body, a
-// multipart part and a file body, items, prefixItems, additionalProperties,
-// patternProperties, the members of allOf, oneOf and anyOf, a mapped variant,
-// `not`, a component alias, a chain of two, a plain-name anchor, keywords
-// beside it, a refinement, an allOf beside it, a target missing, a loop, and
-// another document (twinOther).
+// a property, a parameter, a header, request and response bodies, a part, a
+// file body, items, prefixItems, additionalProperties, patternProperties,
+// allOf, oneOf and anyOf members, a mapped variant, `not`, an alias, a chain,
+// an anchor, siblings, a bound its target's kind excludes, a refinement, an
+// allOf beside it, a restating branch, disjoint conjuncts, a property merged
+// through an alias and a composition, a name its resource declares twice while
+// another declares it a $dynamicAnchor, a missing target, a loop, and another
+// document (twinOther).
 const twinSpec = `openapi: 3.1.0
 info: {title: t, version: "1"}
 paths:
@@ -86,6 +88,13 @@ components:
       allOf:
         - {$ref: '#/components/schemas/Name'}
         - {maxLength: 2}
+    Twice:
+      $id: https://example.com/twice
+      properties:
+        x: {$anchor: a, type: string}
+        y: {$anchor: a, type: integer}
+        twin: {$ref: '#a'}
+    Unrelated: {$id: 'https://example.com/unrelated', $defs: {d: {$dynamicAnchor: a, type: boolean}}}
     BesideTop: {$ref: '#/components/schemas/Name', allOf: [{maxLength: 2}, {type: 'null'}]}
     Beside:
       allOf:

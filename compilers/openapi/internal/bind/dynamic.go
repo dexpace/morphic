@@ -46,9 +46,9 @@ func dynamicRefValue(d *docs, id DocID, n *yaml.Node) (string, bool) {
 // namesDynamic reports whether the $dynamicRef value, written at p and reached
 // along path, is dynamic: its fragment is a plain name and it resolves, as a
 // $ref, onto a $dynamicAnchor of that name. It is not shown to be the $ref it
-// spells where the resource it names declares the name more than once and
-// p's document declares it as a $dynamicAnchor, nor where a merge past the
-// bound or the budget may hide the anchor: the lowering keeps those
+// spells where the resource it names declares the name more than once, one
+// of the declarations a $dynamicAnchor (duplicateDynamic), nor where a merge
+// past the bound or the budget may hide the anchor: the lowering keeps those
 // (docs/compilers/openapi.md#dynamic-ref). known is false, and nothing kept,
 // while its hop waits for a document not yet read.
 func namesDynamic(b *binder, p Position, path []*yaml.Node, value string) (dynamic, known bool) {
@@ -69,12 +69,26 @@ func namesDynamic(b *binder, p Position, path []*yaml.Node, value string) (dynam
 	case h.Status == Resolved:
 		dynamic = slices.Contains(b.ids.dynamic[dynamicKey{doc: h.Target.Doc, name: name}], h.Target)
 	case h.Reason == DuplicateAnchor:
-		dynamic = len(b.ids.dynamic[dynamicKey{doc: p.Doc, name: name}]) > 0
+		dynamic = duplicateDynamic(b, p, path, value, name)
 	default:
 		dynamic = h.Reason == MergeBound
 	}
 	b.dyn.named[p] = dynamic
 	return dynamic, true
+}
+
+// duplicateDynamic reports whether one of the declarations of the plain name
+// name that the resource the $dynamicRef value, written at p and reached
+// along path, names holds two or more of is a $dynamicAnchor: the resource's
+// own, as resolve read them, and no other resource's of its document. A
+// resource it cannot name again, which resolve named, reads as dynamic.
+func duplicateDynamic(b *binder, p Position, path []*yaml.Node, value, name string) bool {
+	in, known := b.resources.holding(p, path, true, b.ids.readsDialects(p.Doc))
+	uri, _, _ := strings.Cut(value, "#")
+	to, reason, _ := b.named(in, uri)
+	dynamic := b.ids.dynamic[dynamicKey{doc: to.root.Doc, name: name}]
+	return !known || reason != NoReason || slices.ContainsFunc(b.ids.anchors[anchorKey{root: to.root, name: name}],
+		func(at Position) bool { return slices.Contains(dynamic, at) })
 }
 
 // staticSites moves each $dynamicRef noted since the table last settled that

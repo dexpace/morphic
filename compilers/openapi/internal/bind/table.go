@@ -364,12 +364,12 @@ func (b *binder) settle(t *Table) {
 
 // landDynamic lands on what each dynamic reference noted since the table last
 // settled names, as the $ref naming its anchor would, for the schema an
-// expansion takes to be built and read where the model holds none: the one
-// schema declaring a $dynamicRef's anchor, reached as a $ref naming that anchor
-// in its resource is, and the root of a $recursiveRef's resource, which a $ref
-// of "#" written there resolves to. A hop the resolution leaves unresolved
-// lands nowhere. A name is only asked of a document open, whose identifiers are
-// read whole.
+// expansion builds where the model holds none: the one schema declaring a
+// $dynamicRef's anchor, and the root of a $recursiveRef's resource, which a
+// $ref of "#" written there resolves to. staticSites, asking namesDynamic, has
+// taken each $dynamicRef that is the $ref it spells, so those left are
+// dynamic. A hop left unresolved lands nowhere. A name is asked only of a
+// document open, whose identifiers are read whole.
 func landDynamic(b *binder) {
 	dynamic, recursive := b.find.freshDynamic, b.find.freshRecursive
 	b.find.freshDynamic, b.find.freshRecursive = nil, nil

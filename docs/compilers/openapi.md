@@ -4488,7 +4488,7 @@ every reader, which each ask the binding table whether a schema is a reference s
 model whether it writes a `$ref`, reporting nothing where it resolves and `openapi/unresolved-ref` where it does not, worded with its own keyword, a loop
 through it being an `openapi/cyclic-ref` ([`reference-cycles`](#reference-cycles)); one resolving
 nowhere lowers the top type, keeping nothing. A name declared more than once in the resource it
-names, one of the declarations a `$dynamicAnchor` of the reference's document, and one a merge past
+names, one of those declarations a `$dynamicAnchor`, and one a merge past
 [`references`](#references)' bound may hide the declaration of, are not shown to be `$ref`s, and
 are read as dynamic. What makes the expansion possible is that a
 document's set of `$dynamicAnchor` declarations is fixed before evaluation: a name declared exactly
