@@ -53,9 +53,11 @@ type DocumentRead struct {
 	// Data is the document's bytes.
 	Data []byte
 	// Space is where the address that answered lies, where the reader dialled
-	// it itself, or SpaceUnstated: a file, a read a proxy dialled, a reader
-	// that cannot say. It ranks the document as a referrer, bounding what its
-	// own references may dial, so it is never more private than that address.
+	// it itself or a proxy dialled a URL whose host is an address, which the
+	// proxy dials as written, or SpaceUnstated: a file, a proxied read of a
+	// name, a reader that cannot say. It ranks the document as a referrer,
+	// bounding what its own references may dial, so it is never more private
+	// than that address.
 	Space AddressSpace
 	// Bound is the most private space the read can have dialled, by the
 	// reader's own judgement: Space where that is stated, what a proxied
@@ -63,6 +65,13 @@ type DocumentRead struct {
 	// ranks the document as a target, so it is never less private than the
 	// address that answered.
 	Bound AddressSpace
+}
+
+// MostPrivate is the most private space r can have dialled, which ranks it as
+// a target: Bound, or Space where a reader states that more private, since the
+// address that answered bounds the read however its reader states the bound.
+func (r DocumentRead) MostPrivate() AddressSpace {
+	return max(r.Space, r.Bound)
 }
 
 // DirectoryLocator is what a DocumentReader that reads files may also offer:

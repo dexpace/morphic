@@ -117,18 +117,11 @@ func (e external) verdict(ctx context.Context, id, location string, reach compil
 	if err != nil {
 		return compilers.SpaceUnstated, readFailure(e.opts, id, err, reach)
 	}
-	bound := boundOf(got)
+	bound := got.MostPrivate()
 	if bound == compilers.SpaceUnstated {
 		return bound, unsaid(id)
 	}
 	return bound, beyond(id, bound, reach)
-}
-
-// boundOf is the most private space read can have dialled: its Bound, or its
-// Space where that is more private, since an address that answered bounds
-// the read however a reader states its bound.
-func boundOf(read compilers.DocumentRead) compilers.AddressSpace {
-	return max(read.Space, read.Bound)
 }
 
 // beyond returns the refusal of the document id, which a read can have
@@ -214,9 +207,9 @@ func (e external) fetch(ctx context.Context, id, key, location string, reach com
 	}
 	data, err := e.prepare(ctx, id, key, got.Data)
 	if err != nil {
-		return answer{err: err, space: got.Space, bound: boundOf(got), reach: reach, read: true}
+		return answer{err: err, space: got.Space, bound: got.MostPrivate(), reach: reach, read: true}
 	}
-	return answer{body: data, prepared: key, space: got.Space, bound: boundOf(got), reach: reach, read: true}
+	return answer{body: data, prepared: key, space: got.Space, bound: got.MostPrivate(), reach: reach, read: true}
 }
 
 // request reads the document at location through Options.Reader, confined to

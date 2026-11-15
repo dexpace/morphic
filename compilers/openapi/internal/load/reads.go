@@ -47,7 +47,7 @@ func newExternalReads(self sourceDocument, documents budget.Limit) *externalRead
 // answer is how a read was answered: the error it failed with, or the body
 // read, the spelling the document was prepared under, the address space it
 // was read from and the most private one it can have dialled
-// (compilers.DocumentRead), which a judgement at another reach can state where
+// (compilers.DocumentRead.MostPrivate), which a judgement at another reach can state where
 // the read stated none (externalReads.verdict).
 type answer struct {
 	body []byte
