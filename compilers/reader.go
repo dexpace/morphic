@@ -56,15 +56,15 @@ type DocumentRead struct {
 	// Space is where the address that answered lies, where the reader dialled
 	// it itself or a proxy dialled a URL whose host is an address, which the
 	// proxy dials as written, or SpaceUnstated: a file, a proxied read of a
-	// name, a reader that cannot say. It ranks the document as a referrer,
-	// bounding what its own references may dial, so it is never more private
-	// than that address.
+	// name, a read a hop of which a proxy dialled unjudged, a reader that
+	// cannot say. It ranks the document as a referrer, bounding what its own
+	// references may dial, so it is never more private than that address.
 	Space AddressSpace
 	// Bound is the most private space the read can have dialled, by the
-	// reader's own judgement: Space where that is stated, what a proxied
-	// read's host was judged as where it was judged, else SpaceUnstated. It
-	// ranks the document as a target, so it is never less private than the
-	// address that answered.
+	// reader's own judgement, over every hop of a redirect: the most private
+	// address it dialled or proxied host it judged, else SpaceUnstated. It
+	// ranks the document as a target, so it is never less private than an
+	// address the read dialled.
 	Bound AddressSpace
 }
 

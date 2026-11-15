@@ -34,9 +34,9 @@ var (
 // opening a FIFO waits for a writer and no context interrupts that wait. One
 // sized past the limit is refused unread.
 type Disk struct {
-	// Client fetches http(s) URLs. Nil uses http.DefaultClient, which bounds
-	// a read in no time, as no deadline bounds a compile's reads together
-	// (GitHub #1036); a Client's own Timeout bounds each read through it.
+	// Client fetches http(s) URLs. Nil uses http.DefaultClient, which sets no
+	// deadline on a read, as none bounds a compile's reads together (GitHub
+	// #1036); a Client's own Timeout bounds each read through it.
 	// Every read goes through a copy whose transport keeps no connection and
 	// judges each address it dials (guardedClient), which needs Client's
 	// transport to be nil or an *http.Transport dialling through no function
@@ -109,8 +109,7 @@ func (d Disk) fetch(ctx context.Context, u string, req compilers.DocumentRequest
 	}
 	read := compilers.DocumentRead{Data: data}
 	if g != nil {
-		read.Space = compilers.AddressSpace(g.space.Load())
-		read.Bound = compilers.AddressSpace(g.bound.Load())
+		read.Space, read.Bound = g.stated()
 	}
 	return read, nil
 }

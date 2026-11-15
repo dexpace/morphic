@@ -880,7 +880,8 @@ one its document was read from, a public address ranking below a private one and
 loopback: the reader bounds the read to that space (`compilers.DocumentRequest.Reach`), judging each
 address it dials, redirects included. Each read states two spaces: where the address that answered
 lies (`compilers.DocumentRead.Space`), which ranks the document as a referrer, and the most private
-it can have dialled (`compilers.DocumentRead.MostPrivate`), which ranks it as a target. A document
+it can have dialled, every hop of a redirect included (`compilers.DocumentRead.MostPrivate`), which
+ranks it as a target. A document
 read before is judged by the second, and where that read stated none, by a read of the reference's
 own at its reach, made once per reach, which reads nothing into the compile and charges nothing to
 the document budget. A read whose reader states no bound, or one the reader cannot bound, is refused
@@ -889,7 +890,8 @@ stated, public where it stated none. Each refusal is that reference's alone, wor
 another naming the document, from a file or the source, reads it. A source located at a URL is
 bounded as a public document. Through an HTTP proxy the host is judged instead: an address literal
 as the address the proxy dials, a name by every address this machine resolves it to, and a document
-read through one by a name states no space, so its own references reach as a public document's do.
+read through one by a name, or redirected through one, states no space, so its own references reach
+as a public document's do.
 The rule leaves four things unbounded, each in the Status below: what a proxy dials after resolving
 a name again; the base a redirected document's references resolve against, which stays the location
 asked while its space is the address that answered; the time a compile's reads take together, which
@@ -4491,11 +4493,12 @@ schema resource it is written in, as a `$ref` is (JSON Schema 2020-12 §8.2.3.2)
 where that lands on a fragment a `$dynamicAnchor` created, so the anchor it names dynamically is one
 the resource it names declares. Anywhere else it is the `$ref` it spells: a pointer, a plain name an
 `$anchor` declares, another document, a name declared nowhere in the resource it names. It then
-lowers and binds as that `$ref` does, through [`references`](#references), at every position and to
-every reader, which each ask the binding table whether a schema is a reference site rather than the
-model whether it writes a `$ref`, reporting nothing where it resolves and `openapi/unresolved-ref` where it does not, worded with its own keyword, a loop
-through it being an `openapi/cyclic-ref` ([`reference-cycles`](#reference-cycles)); one resolving
-nowhere lowers the top type, keeping nothing. A name declared more than once in the resource it
+lowers and binds as that `$ref` does, through [`references`](#references), at every position, the
+lowering asking the binding table whether a schema is a reference site rather than the model
+whether it writes a `$ref`. It reports nothing where it resolves and `openapi/unresolved-ref` where
+it does not, worded with its own keyword, a loop through it being an `openapi/cyclic-ref`
+([`reference-cycles`](#reference-cycles)); one resolving nowhere lowers the top type, keeping
+nothing. A name declared more than once in the resource it
 names, one of those declarations a `$dynamicAnchor`, and one a merge past
 [`references`](#references)' bound may hide the declaration of, are not shown to be `$ref`s, and
 are read as dynamic. What makes the expansion possible is that a
@@ -4554,9 +4557,9 @@ the reach the `$recursiveRef` above reads: that resource is then in the dynamic 
 outermost one declaring the name wins, so the target depends on the evaluation path and the
 reference is kept. A name one document alone declares needs no walk; each name several documents
 declare costs one walk of the resources, held by the binding budget, so n such names over n
-resources cost n² steps, past which nothing is known and every reference resting on one is kept. What a reference
-resolved to where no position of its document places it reads no anchors, so a dynamic reference in
-it is kept.
+resources cost n² steps, past which nothing is known and every reference resting on one is kept.
+What a reference resolved to where no position of its document places it reads no anchors, so a
+dynamic reference in it is kept.
 
 Anchors are the identifiers [`references`](#references) reads, where it reads them, so one in an
 example or an extension declares nothing, and one read through a YAML alias or a merge key is a
