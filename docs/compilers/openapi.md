@@ -1321,8 +1321,10 @@ reference in it, a schema's, a mapping value or a reference object's, is read ag
 an `$id`: judged for refusal as written while only a relative `$self` moved the base, and as the URI
 it resolves to once an absolute one did. A reference naming the document by its `$self` lands in
 it with no read, a security requirement key among them, and a schema whose `$id` names it roots no
-resource, so its `$schema` chooses no dialect. Another document's `$self` is declared at its root as
-an `$id` is. The location the document was read from still decides what it may reach: a `$self`
+resource by that `$id`, so its `$schema` chooses a dialect only where its place makes it a root, as
+a Schema Object no other holds is ([`dialect-keywords`](#dialect-keywords)). Another document's
+`$self` is declared at its root as an `$id` is. The location the document was read from still
+decides what it may reach: a `$self`
 never moves a fetched document's reference onto a file, which is an `openapi/unresolved-ref`
 error where the reference is written. A `$self` holding a `#` is the rule table's format error at
 `#/$self`, and names nothing. So a 3.2 document whose `$self` is an http(s) URL
