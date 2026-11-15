@@ -8,6 +8,7 @@ import (
 	"context"
 	"fmt"
 	"io/fs"
+	"net/url"
 	"runtime"
 
 	"github.com/dexpace/morphic/compilers"
@@ -79,30 +80,49 @@ func (m *Memory) holds(location string) bool {
 }
 
 // ReadDocument implements compilers.DocumentReader. A document no source holds
-// fails as a file that does not exist does, with fs.ErrNotExist.
-func (m *Memory) ReadDocument(ctx context.Context, req compilers.DocumentRequest) ([]byte, error) {
+// fails as a file that does not exist does, with fs.ErrNotExist. A held
+// document dialled no address, so one held at a path states no space, and one
+// held at a URL states the space its host names (hostSpace) as both its space
+// and its bound: the caller hands it as what that URL holds, and every read of
+// it states the same, whichever asks first.
+func (m *Memory) ReadDocument(ctx context.Context, req compilers.DocumentRequest) (compilers.DocumentRead, error) {
+	data, at, err := m.read(ctx, req)
+	if err != nil {
+		return compilers.DocumentRead{}, err
+	}
+	read := compilers.DocumentRead{Data: data}
+	if u, err := url.Parse(at); err == nil && u.Host != "" {
+		read.Space = hostSpace(u.Hostname())
+		read.Bound = read.Space
+	}
+	return read, nil
+}
+
+// read returns the bytes of the document req names, and the http(s) URL it
+// is held at, or "" for one held at a path.
+func (m *Memory) read(ctx context.Context, req compilers.DocumentRequest) ([]byte, string, error) {
 	if err := ctx.Err(); err != nil {
-		return nil, err
+		return nil, "", err
 	}
 	loc, err := locate(req, runtime.GOOS == "windows")
 	if err != nil {
-		return nil, err
+		return nil, "", err
 	}
 	key := loc.url
 	if key == "" {
 		key = loc.path
 		if req.Within != "" {
 			if _, ok := relativeTo(req.Within, loc.path); !ok {
-				return nil, outside(loc.path, req.Within)
+				return nil, "", outside(loc.path, req.Within)
 			}
 		}
 	}
 	data, ok := m.docs[key]
 	if !ok {
-		return nil, &fs.PathError{Op: "open", Path: key, Err: fs.ErrNotExist}
+		return nil, "", &fs.PathError{Op: "open", Path: key, Err: fs.ErrNotExist}
 	}
 	if req.Limit > 0 && len(data) > req.Limit {
-		return nil, tooLarge(key, req.Limit)
+		return nil, "", tooLarge(key, req.Limit)
 	}
-	return bytes.Clone(data), nil
+	return bytes.Clone(data), loc.url, nil
 }

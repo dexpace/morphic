@@ -227,11 +227,12 @@ func binderAnswers(t *testing.T, spec string) (map[jsontext.Pointer]string, bool
 
 // sourceChains returns the chain of each $ref site of the source, a schema's
 // or a reference object's, by its pointer: a site read as several kinds of
-// reference object, which only raw YAML is, by the first.
+// reference object, which only raw YAML is, by the first. A $dynamicRef the
+// table reads as the $ref it spells is no $ref the library reads.
 func sourceChains(table *bind.Table) map[jsontext.Pointer]bind.Chain {
 	out := map[jsontext.Pointer]bind.Chain{}
 	for _, e := range table.Entries() {
-		if e.Site.Doc == bind.Source {
+		if e.Site.Doc == bind.Source && e.Keyword == "$ref" {
 			out[e.Site.Pointer] = e.Chain
 		}
 	}

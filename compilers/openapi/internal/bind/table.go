@@ -34,11 +34,17 @@ type Config struct {
 	// part, names when written in the document named base, and false when it
 	// names none. Nil names each document by its uri.
 	Locate func(uri, base string) (string, bool)
-	// Open returns the tree of the document named name, read under the
-	// compile's budgets, or an *UnparsableError for one that was read and does
-	// not parse, or ErrEmptyDocument for one that holds nothing. Nil reads no
-	// other document.
-	Open func(name string) (*yaml.Node, error)
+	// Open returns the tree of the document named name, as a reference
+	// written in the document named from reads it, under the compile's
+	// budgets, or an *UnparsableError for one that was read and does not
+	// parse, ErrEmptyDocument for one that holds nothing, or a *BarredError
+	// for one refused to from alone. Nil reads no other document.
+	Open func(name, from string) (*yaml.Node, error)
+	// Admits returns the *BarredError refusing the document named name, read
+	// before, to a reference written in the document named from, read over
+	// http(s), or nil where from may read it, as Open would answer from. Nil
+	// admits every one.
+	Admits func(name, from string) error
 	// Refuse returns why a reference whose document part is uri, as written,
 	// is refused unread by that spelling alone, however another reference
 	// names the same document, or nil. Nil refuses none.
@@ -134,9 +140,9 @@ func (w *work) over() bool { return w.steps.Exhausted() || w.cancelled() }
 func (w *work) cancelled() bool { return w.ctx.Err() != nil }
 
 // binder is the state of one pass of a table's building: every reference read
-// once against the URIs its identifiers hold (identifiers.commit). held is each
-// document an absolute URI named that the pass has not read, and wait what
-// waits for those documents. committed reports that a drain of the pass has
+// once against the URIs its identifiers hold (identifiers.commit). reads is
+// who asked for each document, the pass's held reads among them, and wait
+// what waits for those documents. committed reports that a drain of the pass has
 // committed what it reached, and stale that the declarations of a URI it asked
 // for changed, so the pass is read again (reread).
 type binder struct {
@@ -147,14 +153,18 @@ type binder struct {
 	resources resources
 	find      *finder
 	ids       *identifiers
-	held      map[string]bool
+	reads     *reads
 	wait      *waits
 	hops      map[Position]Hop
 	chains    map[Position]Chain
 	objs      *objects
+	dyn       *dynamicRefs
 	loops     []Loop
 	committed bool
 	stale     bool
+	// grew says the pass's last drain reached a document no drain before it
+	// had.
+	grew bool
 }
 
 // Bind reads every reference the source tree src holds, a schema's or a
@@ -170,21 +180,25 @@ func Bind(ctx context.Context, src *yaml.Node, cfg Config) *Table {
 	w := &work{ctx: ctx, steps: budget.New(cfg.Limit)}
 	d := newDocs(src, cfg, w)
 	ids := newIdentifiers(resources{d}.document(Source))
-	for {
-		b := newBinder(cfg, d, w, ids)
+	asked := newReads()
+	for passes := 1; ; passes++ {
+		b := newBinder(cfg, d, w, ids, asked)
 		t := run(b)
 		if !reread(b) {
+			t.passes = passes
 			return b.table(t)
 		}
 	}
 }
 
-// newBinder returns a pass over d, knowing what ids holds and nothing else.
-func newBinder(cfg Config, d *docs, w *work, ids *identifiers) *binder {
+// newBinder returns a pass over d, knowing what ids holds and who asked for
+// what (asked), and nothing else.
+func newBinder(cfg Config, d *docs, w *work, ids *identifiers, asked *reads) *binder {
 	d.reached, d.fresh = map[DocID]bool{Source: true}, nil
+	clear(asked.held)
 	b := &binder{cfg: cfg, docs: d, work: w, defs: definitions{docs: d, work: w}, resources: resources{d},
-		find: newFinder(d, w, ids), ids: ids, held: map[string]bool{}, wait: newWaits(), hops: map[Position]Hop{},
-		chains: map[Position]Chain{}}
+		find: newFinder(d, w, ids), ids: ids, reads: asked, wait: newWaits(), hops: map[Position]Hop{},
+		chains: map[Position]Chain{}, dyn: newDynamicRefs()}
 	b.objs = &objects{b: b, hops: map[Position]objectHop{}, chains: map[objectKey]Chain{}}
 	return b
 }
@@ -210,19 +224,29 @@ func run(b *binder) *Table {
 }
 
 // goOn reports whether the pass b, its walks done, goes on. It does while
-// what the documents it reached declare changes no URI it asked for (settled):
-// to read the documents it held and the hops that waited for them, which the
-// next drain holds to the same test, or, once nothing is held, to settle what
-// waited. A change ends it, to be read again.
+// what the documents it reached declare changes no URI whose answer it kept
+// (settled): to read the documents it held (readHeld), to ask again the hops
+// that wait for a declaration of a document read and not yet reached, or,
+// once nothing is held or waits so, to settle what waited. A change ends it,
+// to be read again.
 func goOn(b *binder) bool {
 	if !settled(b) {
 		b.stale = true
 		return false
 	}
-	if len(b.held) == 0 {
+	switch {
+	case len(b.reads.held) > 0:
+		readHeld(b)
+	case len(b.wait.held) > 0 || len(b.wait.heldObjects) > 0 || len(b.wait.heldMappings) > 0:
+		// What waits, waits for a declaration of a document read and not yet
+		// reached: while a drain reaches one, ask again. Once one reaches none,
+		// the documents declaring what waits are reached, as a read reaches the
+		// document it reads; once that reaches none either, what still waits is
+		// read as a location.
+		b.wait.unwaited = b.wait.unwaited || !b.grew && !reachDeclaring(b)
+	default:
 		return b.wait.release(b.find)
 	}
-	readHeld(b)
 	b.wait.requeue(b.find, b.hops, b.objs.hops)
 	return true
 }
@@ -236,6 +260,7 @@ func goOn(b *binder) bool {
 func settled(b *binder) bool {
 	b.find.identifyAll()
 	fresh := b.docs.takeFresh()
+	b.grew = len(fresh) > 0
 	b.work.spend(len(fresh))
 	if b.committed && !b.ids.grow(fresh) {
 		return true
@@ -249,23 +274,43 @@ func settled(b *binder) bool {
 // documents it reached declare changed a URI it asked for, so an answer it gave
 // is not theirs (goOn). A document only an earlier pass reached declares
 // nothing. The pass the budget runs out in, wherever in it, is the last, and
-// its answers stand, so no pass begins with nothing to spend. A chain of
-// documents each declaring the URI the one before it asked for, held or not,
-// so costs a pass per link (GitHub #1372).
+// its answers stand, so no pass begins with nothing to spend. Only a location
+// whose own content leads to a declaration of its URI reads a pass again: a
+// reference a declaration may answer waits for it (goOn).
 func reread(b *binder) bool {
 	return b.stale && !b.work.over()
 }
 
 // readHeld reads the documents the pass b held back, as no document it read
-// answers for their URIs (OAS 3.1 §4.3.1). They are read together, a round for
-// all rather than one each, so one may declare another's URI, read then for
-// nothing: the next drain sees the change, and the next pass reads against it.
+// answers for their names (OAS 3.1 §4.3.1), in a drain's two tiers
+// (reads.drain): a URL a document open declares to its asker is not read
+// while what waits for that declaration may wait.
 func readHeld(b *binder) {
-	for _, name := range slices.Sorted(maps.Keys(b.held)) {
-		// Its failure is kept for the hop that asks for it again (docs.open).
-		_, _ = b.docs.open(name)
+	b.reads.drain(b.docs, b.find.identifyAll, func(uri string, from DocID) bool {
+		return !b.wait.unwaited && declaredFor(b, uri, from)
+	})
+}
+
+// reachDeclaring reaches each document whose declaration a hop waits for, and
+// reports whether one was not reached before.
+func reachDeclaring(b *binder) bool {
+	reached := false
+	for _, id := range b.wait.declaring {
+		reached = reached || !b.docs.reached[id]
+		b.docs.reach(id)
 	}
-	clear(b.held)
+	return reached
+}
+
+// declaredFor reports whether a document open declares uri to the document
+// asker (admitted, reads.admits).
+func declaredFor(b *binder, uri string, asker DocID) bool {
+	for _, p := range b.ids.declared[uri] {
+		if admitted(b.docs, p.Doc, asker, uri) && b.reads.admits(b.docs, p.Doc, asker) {
+			return true
+		}
+	}
+	return false
 }
 
 // rootOf is the root at the root of document id, read at s.
@@ -278,6 +323,7 @@ func rootOf(id DocID, s state) root {
 // was noted first. Each is sorted once, in the round that noted it, and costs a
 // step, so a round that answered one again would show in the work.
 func (b *binder) settle(t *Table) {
+	staticSites(b)
 	sites, keys, objects := b.find.fresh, b.find.freshMappings, b.find.freshObjects
 	b.find.fresh, b.find.freshMappings, b.find.freshObjects = nil, nil, nil
 	b.work.spend(len(sites) + len(keys) + len(objects))
@@ -286,10 +332,13 @@ func (b *binder) settle(t *Table) {
 		if b.work.cancelled() {
 			return
 		}
+		if resettle(b, site) {
+			continue
+		}
 		if c, waits := b.chain(site); waits {
 			b.wait.sites[site] = true
 		} else {
-			t.entries[site] = Entry{Site: site, Hop: b.hops[site], Chain: c}
+			t.entries[site] = Entry{Site: site, Hop: b.hops[site], Chain: c, Keyword: keywordAt(b, site)}
 		}
 	}
 	slices.SortFunc(keys, mappingOrder(b.docs))
@@ -308,23 +357,28 @@ func (b *binder) settle(t *Table) {
 }
 
 // landDynamic lands on what each dynamic reference noted since the table last
-// settled names, as the $ref it spells would, for the schema an expansion takes
-// to be built and read where the model holds none: the one schema declaring a
-// $dynamicRef's anchor, reached as a $ref naming that anchor in its resource
-// is, and the root of a $recursiveRef's resource, which a $ref of "#" written
-// there resolves to. A hop the resolution leaves unresolved lands nowhere. A
-// name is only asked of a document open, whose identifiers are read whole.
+// settled names, as the $ref naming its anchor would, for the schema an
+// expansion takes to be built and read where the model holds none: the one
+// schema declaring a $dynamicRef's anchor, reached as a $ref naming that anchor
+// in its resource is, and the root of a $recursiveRef's resource, which a $ref
+// of "#" written there resolves to. A hop the resolution leaves unresolved
+// lands nowhere. A name is only asked of a document open, whose identifiers are
+// read whole.
 func landDynamic(b *binder) {
 	dynamic, recursive := b.find.freshDynamic, b.find.freshRecursive
 	b.find.freshDynamic, b.find.freshRecursive = nil, nil
 	for _, d := range dynamic {
-		b.find.identify(d.key.doc)
-		at := b.ids.dynamic[d.key]
+		name, _, ok := DynamicFragment(d.value)
+		if !ok {
+			continue
+		}
+		b.find.identify(d.at.Doc)
+		at := b.ids.dynamic[dynamicKey{doc: d.at.Doc, name: name}]
 		if len(at) != 1 {
 			continue
 		}
 		path, _ := b.docs.path(d.at)
-		if h := b.resolve(d.at, path, "#"+url.PathEscape(d.key.name), true); h.Status == Resolved && h.Target == at[0] {
+		if h := b.resolve(d.at, path, "#"+url.PathEscape(name), true); h.Status == Resolved && h.Target == at[0] {
 			b.find.landOn(d.at, h)
 		}
 	}
@@ -353,7 +407,7 @@ func mappingOrder(d *docs) func(x, y mappingKey) int {
 func (b *binder) table(t *Table) *Table {
 	for p, c := range b.chains {
 		if _, found := t.entries[p]; !found {
-			t.entries[p] = Entry{Site: p, Hop: b.hops[p], Chain: c}
+			t.entries[p] = Entry{Site: p, Hop: b.hops[p], Chain: c, Keyword: keywordAt(b, p)}
 		}
 	}
 	for k, c := range b.objs.chains {
@@ -361,10 +415,18 @@ func (b *binder) table(t *Table) *Table {
 			t.references[k] = Reference{Site: k.at, Kind: k.kind, Hop: ofKind(b.objs.hops[k.at], k.kind), Chain: c}
 		}
 	}
-	t.loops, t.steps, t.limit, t.exhausted = b.loops, b.work.steps.Spent(), b.work.steps.Limit(), b.work.steps.Exhausted()
+	t.entryList = slices.SortedFunc(maps.Values(t.entries), func(x, y Entry) int { return b.docs.compare(x.Site, y.Site) })
 	t.roots, t.bases, t.ids = b.find.roots, newBases(b.resources, b.ids), b.ids
-	t.recursive = recursiveAnchorsOf(b.ids, t.bases)
-	dialects := dialectsByDocument(b.ids.dialects)
+	shared := sharedNames(b.ids)
+	var graph reach
+	if len(b.ids.recursive) > 0 || len(shared) > 0 {
+		graph = reachOf(b, t)
+	}
+	t.recursive = recursiveAnchorsOf(b.ids, t.bases, graph)
+	reached := dynamicReachOf(b.ids, t.bases, graph, shared)
+	t.loops, t.steps, t.limit, t.exhausted = b.loops, b.work.steps.Spent(), b.work.steps.Limit(), b.work.steps.Exhausted()
+	t.dynamic = dynamicAnchorsOf(b.ids, t.exhausted, reached)
+	dialects := dialectsByDocument(withLandingRoots(b.find, b.ids.dialects))
 	for id, d := range b.docs.list {
 		reached := b.docs.reached[DocID(id)]
 		t.docs = append(t.docs, Document{Name: d.name, Self: d.self, Root: d.root, Unreached: !reached,
@@ -383,7 +445,6 @@ func (b *binder) table(t *Table) *Table {
 	}
 	slices.SortFunc(t.landings, func(x, y Landing) int { return b.docs.compare(x.At, y.At) })
 	t.objLandings = b.objs.landings(t)
-	t.entryList = slices.SortedFunc(maps.Values(t.entries), func(x, y Entry) int { return b.docs.compare(x.Site, y.Site) })
 	t.refList = slices.SortedFunc(maps.Values(t.references), func(x, y Reference) int {
 		return compareObjects(b.docs)(objectKey{at: x.Site, kind: x.Kind}, objectKey{at: y.Site, kind: y.Kind})
 	})
@@ -470,6 +531,7 @@ type Table struct {
 	refList     []Reference
 	docs        []Document
 	steps       int
+	passes      int
 	limit       budget.Limit
 	exhausted   bool
 	truncated   bool
@@ -479,12 +541,16 @@ type Table struct {
 	bases     *bases
 	ids       *identifiers
 	recursive map[DocID]recursiveAnchors
+	dynamic   map[dynamicKey]DynamicAnchor
 }
 
 // Entry returns the entry of the $ref written at site, and false for a
 // position the table read no $ref at: one writing none, or one the budget
-// left unread.
+// left unread. A nil table read none.
 func (t *Table) Entry(site Position) (Entry, bool) {
+	if t == nil {
+		return Entry{}, false
+	}
 	e, ok := t.entries[site]
 	return e, ok
 }
@@ -529,57 +595,95 @@ func (t *Table) References() []Reference { return slices.Clone(t.refList) }
 // kind.
 func (t *Table) ObjectLandings() []ObjectLanding { return slices.Clone(t.objLandings) }
 
-// DynamicAnchors returns the positions of document id declaring the
-// $dynamicAnchor name, and whether that is every one: false where the budget or
-// a merge past the bound may have hidden one, so a count of one proves nothing.
-// A nil table knows of none.
-func (t *Table) DynamicAnchors(id DocID, name string) ([]Position, bool) {
-	if t == nil {
-		return nil, true
-	}
-	sites := slices.SortedFunc(slices.Values(t.ids.dynamic[dynamicKey{doc: id, name: name}]), comparePositions)
-	return sites, !t.exhausted && !t.ids.truncated[id]
+// DynamicAnchor is what the $dynamicAnchor declarations of one name in one
+// document say: the first in pointer order, how many there are, whether a
+// resource of another document declaring the name reaches that one, and
+// whether that is all known: false where the budget or a merge past the bound
+// may have hidden a declaration or a path, so a count of one proves nothing.
+type DynamicAnchor struct {
+	Site     Position
+	Count    int
+	Reached  bool
+	Complete bool
 }
 
-// RecursiveAnchor reports what the schemas of root's document declaring
-// `$recursiveAnchor` true, where their dialect defines the keyword
-// (DialectRule.Recursive), say of a $recursiveRef reaching root: whether root
-// declares it, how many schema resources hold a declaration, and whether both
-// are known, as DynamicAnchors says, each declaration's resource included. A
-// nil table knows of none.
-func (t *Table) RecursiveAnchor(root Position) (declared bool, resources int, known bool) {
+// DynamicAnchor returns what document id's declarations of the $dynamicAnchor
+// name say, sorted once as the table was built. A nil table knows of none.
+func (t *Table) DynamicAnchor(id DocID, name string) DynamicAnchor {
 	if t == nil {
-		return false, 0, true
+		return DynamicAnchor{Complete: true}
+	}
+	if a, ok := t.dynamic[dynamicKey{doc: id, name: name}]; ok {
+		return a
+	}
+	return DynamicAnchor{Complete: !t.exhausted && !t.ids.truncated[id]}
+}
+
+// dynamicAnchorsOf returns what each name's declarations in each document say
+// (Table.DynamicAnchor), each name's sorted once, and whether another
+// document's declaring resource reaches the first, as reached read it.
+func dynamicAnchorsOf(ids *identifiers, exhausted bool, reached dynamicReach) map[dynamicKey]DynamicAnchor {
+	out := make(map[dynamicKey]DynamicAnchor, len(ids.dynamic))
+	for k, sites := range ids.dynamic {
+		out[k] = DynamicAnchor{Site: slices.MinFunc(sites, comparePositions), Count: len(sites),
+			Reached: reached.by[k], Complete: !exhausted && !ids.truncated[k.doc] && !reached.unknown[k]}
+	}
+	return out
+}
+
+// RecursiveAnchor reports what the schemas declaring `$recursiveAnchor` true,
+// where their dialect defines the keyword (DialectRule.Recursive), say of a
+// $recursiveRef reaching root, a resource's root: whether root declares it,
+// whether a schema resource other than root's holding a declaration, in any
+// document, reaches it (reach), so is in its dynamic scope, and whether both
+// are known, as DynamicAnchor says, each declaration's resource and the
+// resources on the way included. A nil table knows of none.
+func (t *Table) RecursiveAnchor(root Position) (declared, reached, known bool) {
+	if t == nil {
+		return false, false, true
 	}
 	r := t.recursive[root.Doc]
-	return r.sites[root], r.resources, !t.exhausted && !t.ids.truncated[root.Doc] && !r.unplaced
+	return r.sites[root], r.reached[root], !t.exhausted && !t.ids.truncated[root.Doc] && !r.unplaced
 }
 
 // recursiveAnchors is what the `$recursiveAnchor: true` declarations of one
-// document say (Table.RecursiveAnchor): where they are, how many schema
-// resources hold them, and whether one lies where a merge past the bound may
-// hide the resource it is in.
+// document say (Table.RecursiveAnchor): where they are, which of the resources
+// holding them another such resource reaches, and whether one lies where a
+// merge past the bound may hide the resource it is in, or a resource on the
+// way.
 type recursiveAnchors struct {
-	sites     map[Position]bool
-	resources int
-	unplaced  bool
+	sites    map[Position]bool
+	reached  map[Position]bool
+	unplaced bool
 }
 
 // recursiveAnchorsOf returns what the declarations ids holds say, by document,
-// the resource of each read from b once, so a $recursiveRef asks a lookup
-// rather than a read of every declaration its document makes.
-func recursiveAnchorsOf(ids *identifiers, b *bases) map[DocID]recursiveAnchors {
+// the resource of each read from b once, and which resource another declaring
+// one reaches read over g in one walk, so a $recursiveRef asks a lookup rather
+// than a read of every declaration.
+func recursiveAnchorsOf(ids *identifiers, b *bases, g reach) map[DocID]recursiveAnchors {
 	out := make(map[DocID]recursiveAnchors, len(ids.recursive))
+	var origins []Position
 	for id, sites := range ids.recursive {
-		r := recursiveAnchors{sites: make(map[Position]bool, len(sites))}
-		roots := map[Position]bool{}
+		r := recursiveAnchors{sites: make(map[Position]bool, len(sites)), reached: map[Position]bool{},
+			unplaced: !g.known}
 		for _, site := range sites {
+			r.sites[site] = true
+			if !g.known {
+				continue // no verdict is known, so none is read
+			}
 			res, known := b.holding(site)
-			r.sites[site], roots[res.root] = true, true
+			r.reached[res.root] = false
 			r.unplaced = r.unplaced || !known
+			origins = append(origins, res.root)
 		}
-		r.resources = len(roots)
 		out[id] = r
+	}
+	reached := g.reachers(origins)
+	for _, r := range out {
+		for root := range r.reached {
+			r.reached[root] = reached(root)
+		}
 	}
 	return out
 }

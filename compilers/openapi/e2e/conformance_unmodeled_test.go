@@ -1095,9 +1095,17 @@ func assertDynamicRef(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
 	require.True(t, ok)
 	entry := unmodeledEntry(t, ghost.Unmodeled, "openapi:$dynamicRef")
 	assert.Equal(t, ir.ReasonDegradedLowering, entry.Reason)
-	assert.JSONEq(t, `"#Missing"`, string(entry.Value))
+	assert.JSONEq(t, `"#twice"`, string(entry.Value))
 	assert.Equal(t, []ir.Severity{ir.SeverityInfo}, diagsAt(diags, "openapi/degraded-construct",
 		"/components/schemas/Tree/properties/ghost/$dynamicRef"))
+
+	static, ok := propByWire(tree, "static")
+	require.True(t, ok)
+	assert.Equal(t, componentID("Leaf"), static.Type.Target, "a $dynamicRef naming no anchor is the $ref it spells")
+	assert.Empty(t, static.Unmodeled)
+	for _, d := range diags {
+		assert.NotContains(t, string(d.Provenance.Pointer), "/properties/static", "and reports nothing: %+v", d)
+	}
 
 	deep, ok := propByWire(tree, "deep")
 	require.True(t, ok)
@@ -1122,29 +1130,32 @@ func assertDynamicRef(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
 	assertDynamicRefAcrossAnEmptyName(t, doc, diags)
 }
 
-// assertDynamicRefAcrossAnEmptyName pins the reference declared beside an $id on
-// the component schema keyed "". Its pointer, /components/schemas/, ends in an
-// empty reference token, and a walk that drops that token reads the
-// components/schemas map instead, which declares no $id, so the resource
-// boundary disappears and the reference expands across it (GitHub #302). It
-// lives in the corpus because the oracles run here, and none drove this
-// construct until a committed spec combined an empty component name with $id and
-// $dynamicRef.
+// assertDynamicRefAcrossAnEmptyName pins the reference naming the anchor
+// declared beside an $id on the component schema keyed "". Its pointer,
+// /components/schemas/, ends in an empty reference token, and a walk that
+// drops that token reads the components/schemas map instead, which declares no
+// $id, so the resource boundary disappears and the reference expands across it
+// (GitHub #302). It lives in the corpus because the oracles run here, and none
+// drove this construct until a committed spec combined an empty component name
+// with $id and $dynamicRef.
 func assertDynamicRefAcrossAnEmptyName(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
 	t.Helper()
-	// An empty name earns no named TypeID, so the schema hoists anonymously.
-	empty, ok := doc.Types[ir.TypeID("t/anon/components/schemas/")].(*ir.Scalar)
-	require.True(t, ok, `the component schema keyed "" owns a node`)
+	tree, ok := doc.Types[componentID("Tree")].(*ir.Model)
+	require.True(t, ok)
+	boundary, ok := propByWire(tree, "boundary")
+	require.True(t, ok)
 
-	entry := unmodeledEntry(t, empty.Unmodeled, "openapi:$dynamicRef")
+	entry := unmodeledEntry(t, boundary.Unmodeled, "openapi:$dynamicRef")
 	assert.Equal(t, ir.ReasonDegradedLowering, entry.Reason)
-	assert.JSONEq(t, `"#T"`, string(entry.Value),
+	assert.JSONEq(t, `"https://example.com/empty#edge"`, string(entry.Value),
 		"the reference is kept verbatim rather than expanded across the $id")
-	require.NotNil(t, empty.Base)
-	assert.Equal(t, ir.TypeID("t/prim/any"), empty.Base.Target,
-		"an expansion would have made the anchor's own node this one's base instead")
-	assert.Equal(t, []ir.Severity{ir.SeverityInfo}, diagsAt(diags, "openapi/degraded-construct",
-		"/components/schemas//$dynamicRef"))
+	assert.Equal(t, ir.TypeID("t/prim/any"), boundary.Type.Target,
+		`an expansion would have made the "" schema's own node the property's type instead`)
+	kept := byCode(diags, "openapi/degraded-construct")
+	assert.True(t, slices.ContainsFunc(kept, func(d ir.Diagnostic) bool {
+		return d.Provenance.Pointer == "/components/schemas/Tree/properties/boundary/$dynamicRef" &&
+			strings.Contains(d.Message, "puts the two in different schema resources")
+	}), "%+v", kept)
 }
 
 // assertInlineResidue pins the other half of the rule

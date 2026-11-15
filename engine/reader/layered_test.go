@@ -23,9 +23,9 @@ type recordingReader struct {
 	reqs []compilers.DocumentRequest
 }
 
-func (r *recordingReader) ReadDocument(_ context.Context, req compilers.DocumentRequest) ([]byte, error) {
+func (r *recordingReader) ReadDocument(_ context.Context, req compilers.DocumentRequest) (compilers.DocumentRead, error) {
 	r.reqs = append(r.reqs, req)
-	return []byte("under"), nil
+	return compilers.DocumentRead{Data: []byte("under")}, nil
 }
 
 // TestLayered_ReadsWhatHeldHoldsAndTheRestFromDisk pins the default Under: a
@@ -55,13 +55,13 @@ func TestLayered_ReadsWhatHeldHoldsAndTheRestFromDisk(t *testing.T) {
 			got, err := l.ReadDocument(t.Context(), compilers.DocumentRequest{Location: tc.location})
 
 			require.NoError(t, err)
-			assert.Equal(t, tc.want, string(got))
+			assert.Equal(t, tc.want, string(got.Data))
 		})
 	}
 
 	got, err := l.ReadDocument(t.Context(), compilers.DocumentRequest{Location: filepath.Join(root, "missing.yaml")})
 	require.ErrorIs(t, err, fs.ErrNotExist)
-	assert.Nil(t, got)
+	assert.Nil(t, got.Data)
 }
 
 // TestLayered_EachRequestIsJudgedByTheReaderServingIt pins that holding is
@@ -103,10 +103,10 @@ func TestLayered_EachRequestIsJudgedByTheReaderServingIt(t *testing.T) {
 
 			if tc.wantIs != nil {
 				require.ErrorIs(t, err, tc.wantIs)
-				assert.Nil(t, got)
+				assert.Nil(t, got.Data)
 			} else {
 				require.NoError(t, err)
-				assert.Equal(t, tc.want, string(got))
+				assert.Equal(t, tc.want, string(got.Data))
 			}
 			var want []compilers.DocumentRequest
 			if tc.wantUnder {
@@ -127,7 +127,7 @@ func TestLayered_NilHeldHoldsNothing(t *testing.T) {
 	for _, location := range []string{"specs/a.yaml", "file:a.yaml", ""} {
 		got, err := l.ReadDocument(t.Context(), compilers.DocumentRequest{Location: location})
 		require.NoError(t, err, location)
-		assert.Equal(t, "under", string(got), location)
+		assert.Equal(t, "under", string(got.Data), location)
 	}
 	assert.Len(t, under.reqs, 3)
 }
@@ -146,7 +146,7 @@ func TestLayered_ACancelledContextStopsEitherRead(t *testing.T) {
 	for _, location := range []string{"specs/a.yaml", beside} {
 		got, err := l.ReadDocument(ctx, compilers.DocumentRequest{Location: location})
 		require.ErrorIs(t, err, context.Canceled, location)
-		assert.Nil(t, got, location)
+		assert.Nil(t, got.Data, location)
 	}
 }
 

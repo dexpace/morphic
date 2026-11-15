@@ -79,14 +79,36 @@ func (b *binder) named(in resource, uri string) (resource, Reason, string) {
 	}
 	// A miss the merge bound may explain is read as a location all the same:
 	// the table says it is truncated.
-	root, found, why := b.ids.lookupURI(key, func(decl DocID) bool { return admitted(b.docs, decl, in.root.Doc, key) })
+	root, found, why, waitOn := b.ids.lookupURI(key, func(decl DocID) bool {
+		return admitted(b.docs, decl, in.root.Doc, key) && b.reads.admits(b.docs, decl, in.root.Doc)
+	}, !b.wait.unwaited)
 	switch {
 	case found:
+		b.ids.keep(key)
 		b.docs.reach(root.Doc)
 		return resource{root: root, uri: key, id: true}, NoReason, ""
 	case why == DuplicateID:
+		b.ids.keep(key)
 		return resource{}, why, key
-	case (in.id || in.based) && !fragment.Absolute(uri):
+	case len(waitOn) > 0:
+		// A document read and not yet reached declares it: the hop waits for
+		// that document as a held one waits for its read (goOn).
+		b.wait.declaring = append(b.wait.declaring, waitOn...)
+		return resource{}, Held, ""
+	}
+	located, reason, detail := locatedAt(b, in, uri, key)
+	if reason != Held {
+		b.ids.keep(key)
+	}
+	return located, reason, detail
+}
+
+// locatedAt is the resource of the document uri, written in the resource in,
+// names as a location, key being the URI it resolves to: read against an
+// $id's or a $self's base where only those name it (readAt), else where it
+// is written (opened).
+func locatedAt(b *binder, in resource, uri, key string) (resource, Reason, string) {
+	if (in.id || in.based) && !fragment.Absolute(uri) {
 		return b.readAt(in, uri, key)
 	}
 	return b.opened(in, uri, key)
@@ -114,7 +136,7 @@ func (b *binder) opened(in resource, uri, key string) (resource, Reason, string)
 	if !reachable(b.docs, in, name) {
 		return resource{}, Unreadable, OffNetwork
 	}
-	return b.read(name)
+	return b.read(name, in)
 }
 
 // readAt is the resource of the document a relative URI uri names, written in
@@ -144,7 +166,7 @@ func (b *binder) readAt(in resource, uri, key string) (resource, Reason, string)
 	if !reachable(b.docs, in, name) {
 		return resource{}, Unreadable, OffNetwork
 	}
-	return b.read(name)
+	return b.read(name, in)
 }
 
 // OffNetwork is why a reference written in a document read over the network
@@ -177,16 +199,18 @@ func OverNetwork(location string) bool {
 	return err == nil && (strings.EqualFold(u.Scheme, "http") || strings.EqualFold(u.Scheme, "https"))
 }
 
-// read is the resource of the document named name, read through Config.Open,
-// or why the read failed. The first read of a document an absolute URI names
-// waits until the pass's walks are done (Held), since a document read meanwhile
-// may declare that URI, and an identifier is not a location to fetch (goOn).
-func (b *binder) read(name string) (resource, Reason, string) {
-	if fragment.Absolute(name) && b.docs.unread(name) {
-		b.held[name] = true
+// read is the resource of the document named name, read through Config.Open
+// as a reference written in the resource in reads it, which the hop then
+// reaches, or why the read failed. The first read of a document waits until
+// the pass's walks are done (Held), since a document read meanwhile may
+// declare its name, and an identifier is not a location to read (goOn).
+func (b *binder) read(name string, in resource) (resource, Reason, string) {
+	from := b.docs.name(in.root.Doc)
+	if b.reads.unread(b.docs, name, from) {
+		b.reads.hold(name, in.root.Doc)
 		return resource{}, Held, ""
 	}
-	id, err := b.docs.open(name)
+	id, err := b.reads.open(b.docs, name, from)
 	var unparsable *UnparsableError
 	switch {
 	case errors.Is(err, errNotRead):
@@ -198,6 +222,7 @@ func (b *binder) read(name string) (resource, Reason, string) {
 	case err != nil:
 		return resource{}, Unreadable, err.Error()
 	}
+	b.docs.reach(id)
 	return b.resources.document(id), NoReason, ""
 }
 
@@ -247,14 +272,19 @@ func (b *binder) anchored(to resource, name string) (reading, Reason) {
 }
 
 // hop is the hop of the $ref written at p, read once and remembered. Only a
-// position writing a $ref is asked: a site, or a hop's target that writes one.
+// position writing a $ref is asked, a site or a hop's target that writes one,
+// or a $dynamicRef that is the $ref it spells (holdsRef).
 func (b *binder) hop(p Position) Hop {
 	if h, ok := b.hops[p]; ok {
 		return h
 	}
 	// Only a position its document holds writes a $ref, so the path reaches it.
 	path, _ := b.docs.path(p)
-	ref, _ := b.docs.refOf(p.Doc, path[len(path)-1])
+	ref, written := b.docs.refOf(p.Doc, path[len(path)-1])
+	if !written {
+		ref, _ = dynamicRefValue(b.docs, p.Doc, path[len(path)-1])
+		b.dyn.spelled[p] = true
+	}
 	h := b.resolve(p, path, ref, true)
 	if b.work.over() {
 		h = Hop{Ref: ref, Status: OverBudget}
@@ -269,17 +299,19 @@ func (b *binder) hop(p Position) Hop {
 	return h
 }
 
-// DynamicFragment returns the anchor name a $dynamicRef written as ref addresses,
-// or the reason it addresses none. Only the same-document `#name` spelling
-// resolves; a URI part or a `#/…` pointer addresses no anchor.
+// DynamicFragment returns the anchor name a $dynamicRef written as ref
+// addresses, or the reason it addresses none: its fragment, after any URI
+// part, unless that is empty or holds a '/', as a JSON pointer does. A
+// $dynamicRef the table reads as dynamic names a $dynamicAnchor by a plain
+// name, so only one written past what the table read meets the refusal.
 //
 // The name is the fragment percent-decoded once (RFC 3986): `#my%2Danchor` and
 // `#my-anchor` name one anchor. PathUnescape keeps `+` literal, as a fragment
 // needs, and a fragment it cannot decode is refused, not matched raw.
 func DynamicFragment(ref string) (name, why string, ok bool) {
-	spelled, found := strings.CutPrefix(ref, "#")
+	_, spelled, found := strings.Cut(ref, "#")
 	if !found || spelled == "" || strings.Contains(spelled, "/") {
-		return "", fmt.Sprintf("%q is not a plain same-document fragment", ref), false
+		return "", fmt.Sprintf("%q names no anchor by a plain-name fragment", ref), false
 	}
 	name, err := url.PathUnescape(spelled)
 	if err != nil {

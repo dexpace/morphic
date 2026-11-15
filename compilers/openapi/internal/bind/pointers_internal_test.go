@@ -26,7 +26,7 @@ func binderOver(t *testing.T, src string) *binder {
 	cfg := Config{Self: "spec.yaml"}
 	w := &work{ctx: t.Context(), steps: budget.New(budget.AtMost(MaxSteps))}
 	d := newDocs(&root, cfg, w)
-	return newBinder(cfg, d, w, newIdentifiers(resources{d}.document(Source)))
+	return newBinder(cfg, d, w, newIdentifiers(resources{d}.document(Source)), newReads())
 }
 
 // TestBinder_ReadPointerCostsItsPointersLength pins that a read spells the position it

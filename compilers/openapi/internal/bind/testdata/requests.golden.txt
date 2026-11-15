@@ -1,0 +1,29 @@
+held documents declaring another's URI	https://x.test/u1	1
+held documents declaring another's URI	https://x.test/u2	1
+held documents, the other order	https://x.test/u1	1
+held documents, the other order	https://x.test/u2	1
+a path a document declares	/a.yaml	1
+a path a document declares	/b.yaml	1
+URLs a file declares	/lib/bundle.yaml	1
+URLs a file declares, the file first	/lib/bundle.yaml	1
+a URL a file declares and a server serves	/local.yaml	1
+a ladder of 5 at ""	/d1.yaml	1
+a ladder of 5 at ""	/d2.yaml	1
+a ladder of 5 at ""	/d3.yaml	1
+a ladder of 5 at ""	/d4.yaml	1
+a ladder of 5 at ""	/d5.yaml	1
+a ladder of 5 at ""	/f1.yaml	1
+a ladder of 5 at ""	/f2.yaml	1
+a ladder of 5 at ""	/f3.yaml	1
+a ladder of 5 at ""	/f4.yaml	1
+a ladder of 5 at ""	/f5.yaml	1
+a ladder of 5 at "https://x.test/"	https://x.test/d1.yaml	1
+a ladder of 5 at "https://x.test/"	https://x.test/d2.yaml	1
+a ladder of 5 at "https://x.test/"	https://x.test/d3.yaml	1
+a ladder of 5 at "https://x.test/"	https://x.test/d4.yaml	1
+a ladder of 5 at "https://x.test/"	https://x.test/d5.yaml	1
+a ladder of 5 at "https://x.test/"	https://x.test/f1.yaml	1
+a ladder of 5 at "https://x.test/"	https://x.test/f2.yaml	1
+a ladder of 5 at "https://x.test/"	https://x.test/f3.yaml	1
+a ladder of 5 at "https://x.test/"	https://x.test/f4.yaml	1
+a ladder of 5 at "https://x.test/"	https://x.test/f5.yaml	1

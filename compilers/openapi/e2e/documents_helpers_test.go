@@ -71,7 +71,7 @@ type hostMapReader struct {
 
 // ReadDocument rewrites req.Location through the first route that matches and
 // reads it through inner.
-func (r hostMapReader) ReadDocument(ctx context.Context, req compilers.DocumentRequest) ([]byte, error) {
+func (r hostMapReader) ReadDocument(ctx context.Context, req compilers.DocumentRequest) (compilers.DocumentRead, error) {
 	for from, to := range r.routes {
 		if rest, ok := strings.CutPrefix(req.Location, from); ok {
 			req.Location = to + rest
@@ -121,8 +121,8 @@ func labelled(label, pointer string) ir.TypeID {
 type failingReader struct{}
 
 // ReadDocument fails, naming the document asked for.
-func (failingReader) ReadDocument(_ context.Context, req compilers.DocumentRequest) ([]byte, error) {
-	return nil, errors.New("no read is expected, got " + req.Location)
+func (failingReader) ReadDocument(_ context.Context, req compilers.DocumentRequest) (compilers.DocumentRead, error) {
+	return compilers.DocumentRead{}, errors.New("no read is expected, got " + req.Location)
 }
 
 // loopbackDisk reads files as reader.Disk does, and URLs only on the loopback
@@ -133,11 +133,11 @@ type loopbackDisk struct{}
 
 // ReadDocument reads req through reader.Disk unless it names a host other than
 // 127.0.0.1.
-func (loopbackDisk) ReadDocument(ctx context.Context, req compilers.DocumentRequest) ([]byte, error) {
+func (loopbackDisk) ReadDocument(ctx context.Context, req compilers.DocumentRequest) (compilers.DocumentRead, error) {
 	lower := strings.ToLower(req.Location)
 	isURL := strings.HasPrefix(lower, "http://") || strings.HasPrefix(lower, "https://")
 	if isURL && req.Within == "" && !strings.HasPrefix(strings.SplitN(lower, "://", 2)[1], "127.0.0.1:") {
-		return nil, errors.New("a test reaches no host but the loopback, got " + req.Location)
+		return compilers.DocumentRead{}, errors.New("a test reaches no host but the loopback, got " + req.Location)
 	}
 	return reader.Disk{}.ReadDocument(ctx, req)
 }

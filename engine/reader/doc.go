@@ -7,4 +7,8 @@
 // Disk would read them were they files at their paths; Layered reads what a
 // Memory holds from it and the rest through another reader. Each implements
 // compilers.DocumentReader.
+//
+// Disk judges each address an http(s) read dials against the request's Reach
+// where it is dialled, redirects included, and states the space of the address
+// that answered (compilers.DocumentRead).
 package reader

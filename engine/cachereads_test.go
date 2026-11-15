@@ -40,13 +40,13 @@ type fickleReader struct {
 	failing bool
 }
 
-func (r *fickleReader) ReadDocument(context.Context, compilers.DocumentRequest) ([]byte, error) {
+func (r *fickleReader) ReadDocument(context.Context, compilers.DocumentRequest) (compilers.DocumentRead, error) {
 	if r.failing {
-		return nil, errors.New("unreadable")
+		return compilers.DocumentRead{}, errors.New("unreadable")
 	}
 	answer := r.answers[0]
 	r.answers = r.answers[1:]
-	return []byte(answer), nil
+	return compilers.DocumentRead{Data: []byte(answer)}, nil
 }
 
 func TestRecorder_ARunItCannotVouchForIsUnsound(t *testing.T) {

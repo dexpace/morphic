@@ -105,14 +105,17 @@ func TestBind_StopsAtItsBudget(t *testing.T) {
 
 // TestBind_ThePassTheBudgetRunsOutInStands pins that the pass the budget runs
 // out in is the last, wherever in it the budget does. A document the first
-// pass reads as a location, which a later declaration names elsewhere, is
-// reached by no later pass, so the least budget that leaves it unreached begins
-// a second pass, and one step less keeps every answer the first gave rather
+// pass reads as a location, whose own content leads to a declaration naming it
+// elsewhere, is reached by no later pass, and one step less than the least
+// budget that begins a second pass ends in the first, which stands, rather
 // than begin one with nothing to spend.
 func TestBind_ThePassTheBudgetRunsOutInStands(t *testing.T) {
 	t.Parallel()
-	const src = head + "components:\n  schemas:\n    Y: {$ref: 'a.yaml'}\n    Z: {$ref: 'z.yaml#/S'}\n"
-	docs := map[string]string{"/a.yaml": "type: integer\n", "/z.yaml": "S: {$id: 'a.yaml', type: string}\n"}
+	const src = head + "components:\n  schemas:\n    Y: {$ref: 'a.yaml'}\n"
+	docs := map[string]string{
+		"/a.yaml": "type: integer\n$defs: {Z: {$ref: 'z.yaml#/S'}}\n",
+		"/z.yaml": "S: {$id: 'a.yaml', type: string}\n",
+	}
 	bindAt := func(limit budget.Limit) *bind.Table {
 		cfg := withDocuments(docs)
 		cfg.Self, cfg.Locate, cfg.Limit = resolving.Self, resolving.Locate, limit
@@ -126,17 +129,20 @@ func TestBind_ThePassTheBudgetRunsOutInStands(t *testing.T) {
 
 	least := 0
 	for limit := 1; limit < full.Steps() && least == 0; limit++ {
-		cut := bindAt(budget.AtMost(limit))
-		if a, ok := cut.Find("/a.yaml"); ok && cut.Document(a).Unreached {
+		if bindAt(budget.AtMost(limit)).Passes() > 1 {
 			least = limit
 		}
 	}
 	require.Positive(t, least, "some limit begins a second pass")
 	first := bindAt(budget.AtMost(least - 1))
-	assert.Len(t, first.Entries(), len(full.Entries()), "the first pass answered every site")
+	require.True(t, first.Exhausted())
+	require.Equal(t, 1, first.Passes())
 	a := docNamed(t, first, "/a.yaml")
-	assert.Equal(t, bind.Position{Doc: a}, entryAt(t, first, "/components/schemas/Y").Hop.Target,
-		"the first pass reads Y as a location")
+	assert.False(t, first.Document(a).Unreached, "the first pass stands, a.yaml reached in it")
+	y, ok := first.Entry(bind.Position{Pointer: "/components/schemas/Y"})
+	require.True(t, ok)
+	assert.NotEqual(t, bind.Position{Doc: docNamed(t, first, "/z.yaml"), Pointer: "/S"}, y.Hop.Target,
+		"no answer of a second pass")
 }
 
 // TestBind_CountsWorkLinearAcrossHeldDocuments pins what reading the documents

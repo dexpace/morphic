@@ -133,10 +133,13 @@ func (d *docs) refusal(uri string) string {
 }
 
 // open returns the document named name, reading it through Config.Open the
-// first time it is asked for, and the same answer every later time.
-func (d *docs) open(name string) (DocID, error) {
+// first time it is asked for, by from, and the same answer every later time.
+// A read refused to from alone (BarredError) is no answer of the document's.
+// Opening reaches nothing: a hop that resolves into the document does
+// (binder.read), so a document read for a reference that a declaration then
+// answers declares nothing.
+func (d *docs) open(name, from string) (DocID, error) {
 	if id, ok := d.byName[name]; ok {
-		d.reach(id)
 		return id, nil
 	}
 	if err, ok := d.failed[name]; ok {
@@ -146,9 +149,12 @@ func (d *docs) open(name string) (DocID, error) {
 		return 0, errNotRead
 	}
 	d.work.spend(1)
-	tree, err := d.cfg.Open(name)
+	tree, err := d.cfg.Open(name, from)
 	if err == nil && IsEmpty(tree) {
 		err = ErrEmptyDocument
+	}
+	if barred := (*BarredError)(nil); errors.As(err, &barred) {
+		return 0, err
 	}
 	if err != nil {
 		d.failed[name] = err
@@ -161,8 +167,17 @@ func (d *docs) open(name string) (DocID, error) {
 	opened.self, opened.absolute = d.selfOf(opened)
 	d.list = append(d.list, opened)
 	d.byName[name] = id
-	d.reach(id)
 	return id, nil
+}
+
+// judge returns the refusal Config.Admits gives the document from for name,
+// one read before, or nil where from may read it.
+func (d *docs) judge(name, from string) error {
+	if d.cfg.Admits == nil {
+		return nil
+	}
+	d.work.spend(1)
+	return d.cfg.Admits(name, from)
 }
 
 // reach notes that the pass under way asked for document id.
@@ -188,7 +203,7 @@ func writesOpenAPI(view *nodeview.View, root *yaml.Node) bool {
 }
 
 // unread reports whether a read of name would be the first, one that a compile
-// reading other documents has yet to make.
+// reading other documents has yet to make, for any asker (reads.unread).
 func (d *docs) unread(name string) bool {
 	_, opened := d.byName[name]
 	_, failed := d.failed[name]

@@ -228,8 +228,8 @@ func TestRegistry_RefusesAConfigurationSettingBothChannels(t *testing.T) {
 // through.
 type failingReader struct{}
 
-func (failingReader) ReadDocument(context.Context, compilers.DocumentRequest) ([]byte, error) {
-	return nil, errors.New("not read in these tests")
+func (failingReader) ReadDocument(context.Context, compilers.DocumentRequest) (compilers.DocumentRead, error) {
+	return compilers.DocumentRead{}, errors.New("not read in these tests")
 }
 
 // TestRegistry_DetectStopsOnACanceledContext pins that recognition, which may

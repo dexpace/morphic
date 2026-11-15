@@ -25,7 +25,7 @@ func recordingDocuments(t *testing.T, docs map[string]string) (bind.Config, *[]s
 	t.Helper()
 	cfg := withDocuments(docs)
 	var reads []string
-	cfg.Open = func(name string) (*yaml.Node, error) {
+	cfg.Open = func(name, _ string) (*yaml.Node, error) {
 		reads = append(reads, name)
 		src, ok := docs[name]
 		if !ok {
@@ -217,7 +217,7 @@ func TestBind_ALocationADocumentDeclaresIsThatIdentifier(t *testing.T) {
 	}
 	src := head + "components:\n  schemas:\n    A: {$ref: 'a.yaml#/$defs/T'}\n    Z: {$ref: 'z.yaml#/S'}\n"
 	cfg := resolving
-	cfg.Open = func(name string) (*yaml.Node, error) { return openapitest.YAMLDocument(t, docs[name]), nil }
+	cfg.Open = func(name, _ string) (*yaml.Node, error) { return openapitest.YAMLDocument(t, docs[name]), nil }
 	table := bound(t, src, cfg)
 
 	e := entryAt(t, table, "/components/schemas/A")
@@ -272,7 +272,7 @@ func TestBind_ADocumentNoPassReachesDeclaresNothing(t *testing.T) {
 			src += refs[i]
 		}
 		cfg := resolving
-		cfg.Open = func(name string) (*yaml.Node, error) { return openapitest.YAMLDocument(t, docs[name]), nil }
+		cfg.Open = func(name, _ string) (*yaml.Node, error) { return openapitest.YAMLDocument(t, docs[name]), nil }
 		table := bound(t, src, cfg)
 
 		e := entryAt(t, table, "/components/schemas/U")
@@ -301,7 +301,7 @@ func TestBind_AReadingNoPassSettlesCountsEveryDocument(t *testing.T) {
 			src += refs[i]
 		}
 		cfg := resolving
-		cfg.Open = func(name string) (*yaml.Node, error) { return openapitest.YAMLDocument(t, docs[name]), nil }
+		cfg.Open = func(name, _ string) (*yaml.Node, error) { return openapitest.YAMLDocument(t, docs[name]), nil }
 		cfg.Limit = budget.AtMost(1 << 16)
 		table := bound(t, src, cfg)
 
@@ -348,7 +348,7 @@ func TestBind_ADocumentOnlyAnIdentifierReachesIsReached(t *testing.T) {
 	src := head + "components:\n  schemas:\n    A: {$ref: 'a.yaml#/$defs/T'}\n    U: {$ref: 'https://x.test/u'}\n" +
 		"    Z: {$ref: 'z.yaml#/S'}\n"
 	cfg := resolving
-	cfg.Open = func(name string) (*yaml.Node, error) { return openapitest.YAMLDocument(t, docs[name]), nil }
+	cfg.Open = func(name, _ string) (*yaml.Node, error) { return openapitest.YAMLDocument(t, docs[name]), nil }
 	table := bound(t, src, cfg)
 
 	doc := docNamed(t, table, "/a.yaml")
@@ -376,7 +376,7 @@ func TestBind_DeclarationOrderReachesNoAnswer(t *testing.T) {
 			src += refs[i]
 		}
 		cfg := resolving
-		cfg.Open = func(name string) (*yaml.Node, error) { return openapitest.YAMLDocument(t, docs[name]), nil }
+		cfg.Open = func(name, _ string) (*yaml.Node, error) { return openapitest.YAMLDocument(t, docs[name]), nil }
 		table := bound(t, src, cfg)
 		entries := table.Entries()
 		got := make([]bind.Status, 0, len(entries))
@@ -391,9 +391,9 @@ func TestBind_DeclarationOrderReachesNoAnswer(t *testing.T) {
 // TestBind_LandsOnTheAnchorAnotherDocumentsDynamicRefNames pins that an expansion
 // reads as a reference does: a schema another document holds is built only where
 // something lands on it, so one nothing but a $dynamicRef reaches is landed on,
-// and what it holds is read. Two declarations name no target, so neither is, and
-// a spelling that names no anchor, or a $dynamicRef that is no string, lands
-// nowhere.
+// and what it holds is read. Two declarations name no target, so neither is, a
+// name declared nowhere, or a $dynamicRef that is no string, lands nowhere, and
+// a pointer is the $ref it spells, landing as one.
 func TestBind_LandsOnTheAnchorAnotherDocumentsDynamicRefNames(t *testing.T) {
 	t.Parallel()
 	const entry = "    E: {$ref: 'o.yaml#/E'}\n"
@@ -428,21 +428,24 @@ func TestBind_LandsOnTheAnchorAnotherDocumentsDynamicRefNames(t *testing.T) {
 	for name, other := range map[string]string{
 		"declared twice":   "E: {$dynamicRef: '#n'}\nT: {$dynamicAnchor: n}\nU: {$dynamicAnchor: n}\n",
 		"declared nowhere": "E: {$dynamicRef: '#n'}\n",
-		"a pointer":        "E: {$dynamicRef: '#/T'}\nT: {$dynamicAnchor: n}\n",
 		"no string":        "E: {$dynamicRef: [n]}\nT: {$dynamicAnchor: n}\n",
 	} {
 		_, _, at := landed(t, other)
 		assert.Empty(t, at, name)
 	}
+
+	// A pointer names no anchor, so it is the $ref it spells, and lands as one.
+	_, _, at = landed(t, "E: {$dynamicRef: '#/T'}\nT: {$dynamicAnchor: n}\n")
+	assert.Equal(t, []jsontext.Pointer{"/T"}, at, "a pointer")
 }
 
-// TestDynamicAnchors_CountsWhatADocumentDeclares pins the count an expansion
+// TestDynamicAnchor_CountsWhatADocumentDeclares pins the count an expansion
 // rests on. An alias and a `<<` merge key each hand a position the anchor another
 // wrote, and the parser reads both as declaring it, so a count of what is spelled
 // would report one where the document has two; a key written twice declares its
 // last. A $dynamicAnchor in an example or an extension declares nothing, and one
 // under an $id counts, since dynamic scope can reach it.
-func TestDynamicAnchors_CountsWhatADocumentDeclares(t *testing.T) {
+func TestDynamicAnchor_CountsWhatADocumentDeclares(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
 		name, schemas string
@@ -464,30 +467,29 @@ func TestDynamicAnchors_CountsWhatADocumentDeclares(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			sites, whole := bound(t, head+"components:\n  schemas:\n"+tc.schemas, self).DynamicAnchors(bind.Source, "t")
-			assert.True(t, whole)
-			var got []jsontext.Pointer
-			for _, p := range sites {
-				got = append(got, p.Pointer)
+			anchor := bound(t, head+"components:\n  schemas:\n"+tc.schemas, self).DynamicAnchor(bind.Source, "t")
+			assert.True(t, anchor.Complete)
+			assert.Equal(t, len(tc.want), anchor.Count)
+			if len(tc.want) > 0 {
+				assert.Equal(t, slices.Min(tc.want), anchor.Site.Pointer, "the first in pointer order")
 			}
-			slices.Sort(got)
-			assert.Equal(t, tc.want, got)
 		})
 	}
 }
 
-// TestDynamicAnchors_ANullAnchorNamesNothing pins that a null $dynamicAnchor, in
+// TestDynamicAnchor_ANullAnchorNamesNothing pins that a null $dynamicAnchor, in
 // each of its spellings, is the keyword left out, where its text would be a name
 // a $dynamicRef could spell. A quoted one is that name.
-func TestDynamicAnchors_ANullAnchorNamesNothing(t *testing.T) {
+func TestDynamicAnchor_ANullAnchorNamesNothing(t *testing.T) {
 	t.Parallel()
 	table := bound(t, head+"components:\n  schemas:\n    A: {$dynamicAnchor: null}\n    B: {$dynamicAnchor: ~}\n"+
 		"    C: {$dynamicAnchor: Null}\n    D: {$dynamicAnchor: }\n    E: {$dynamicAnchor: \"null\"}\n", self)
-	want := map[string][]bind.Position{"null": {{Doc: bind.Source, Pointer: "/components/schemas/E"}}, "Null": nil}
-	for name, at := range want {
-		sites, whole := table.DynamicAnchors(bind.Source, name)
-		assert.True(t, whole)
-		assert.Equal(t, at, sites, "$dynamicAnchor %q", name)
+	want := map[string]bind.DynamicAnchor{
+		"null": {Site: bind.Position{Doc: bind.Source, Pointer: "/components/schemas/E"}, Count: 1, Complete: true},
+		"Null": {Complete: true},
+	}
+	for name, anchor := range want {
+		assert.Equal(t, anchor, table.DynamicAnchor(bind.Source, name), "$dynamicAnchor %q", name)
 	}
 }
 
@@ -503,37 +505,33 @@ func anchoredPastTheBound() string {
 	return b.String()
 }
 
-// TestDynamicAnchors_SaysWhenTheCountProvesNothing pins that a read a merge past
+// TestDynamicAnchor_SaysWhenTheCountProvesNothing pins that a read a merge past
 // the bound stopped, or the budget, does not pass for whole, since an undercount
 // reads as the one declaration an expansion needs. A merge past the bound outside
 // a schema hides none, and a nil table knows of none.
-func TestDynamicAnchors_SaysWhenTheCountProvesNothing(t *testing.T) {
+func TestDynamicAnchor_SaysWhenTheCountProvesNothing(t *testing.T) {
 	t.Parallel()
 	const anchored = "components:\n  schemas:\n    A: {$dynamicAnchor: t}\n"
 	shallow := head + "x-m: &m {description: d}\n" + anchored + "    B: {<<: *m}\n"
-	_, whole := bound(t, shallow, self).DynamicAnchors(bind.Source, "t")
-	assert.True(t, whole, "a merge within the bound hides nothing")
+	assert.True(t, bound(t, shallow, self).DynamicAnchor(bind.Source, "t").Complete, "a merge within the bound hides nothing")
 
-	sites, whole := bound(t, anchoredPastTheBound(), self).DynamicAnchors(bind.Source, "t")
-	assert.Len(t, sites, 1)
-	assert.False(t, whole, "a schema past the bound may declare a second")
+	past := bound(t, anchoredPastTheBound(), self).DynamicAnchor(bind.Source, "t")
+	assert.Equal(t, 1, past.Count)
+	assert.False(t, past.Complete, "a schema past the bound may declare a second")
 
 	outside := bound(t, strings.Replace(anchoredPastTheBound(), "    B: {<<: *c70}\n", "  responses:\n    R: {<<: *c70}\n", 1),
 		self)
 	require.True(t, outside.Truncated(), "the response merges past the bound")
-	_, whole = outside.DynamicAnchors(bind.Source, "t")
-	assert.True(t, whole, "a response past the bound declares no anchor")
+	assert.True(t, outside.DynamicAnchor(bind.Source, "t").Complete, "a response past the bound declares no anchor")
 
-	_, whole = bound(t, head+anchored, budgetConfig(budget.AtMost(4))).DynamicAnchors(bind.Source, "t")
-	assert.False(t, whole, "nor does a read the budget stopped")
+	assert.False(t, bound(t, head+anchored, budgetConfig(budget.AtMost(4))).DynamicAnchor(bind.Source, "t").Complete,
+		"nor does a read the budget stopped")
 
 	e := entryAt(t, bound(t, anchoredPastTheBound()+"    C: {$ref: '#ghost'}\n", self), "/components/schemas/C")
 	assert.Equal(t, bind.MergeBound, e.Hop.Reason, "a name none declares may be past the bound")
 
 	var none *bind.Table
-	sites, whole = none.DynamicAnchors(bind.Source, "t")
-	assert.Empty(t, sites)
-	assert.True(t, whole)
+	assert.Equal(t, bind.DynamicAnchor{Complete: true}, none.DynamicAnchor(bind.Source, "t"))
 }
 
 // TestResource_NamesTheRootOfAPositionsResource pins what stands in for a walk
@@ -612,15 +610,17 @@ func TestBase_ReadsTheURIAReferenceResolvesAgainst(t *testing.T) {
 	assert.True(t, known, "within it")
 }
 
-// TestDynamicFragment_ReadsAPlainFragment pins what a $dynamicRef can spell.
+// TestDynamicFragment_ReadsAPlainFragment pins what a $dynamicRef can spell:
+// a plain-name fragment, after any URI part, which a dynamic one names its
+// anchor by.
 func TestDynamicFragment_ReadsAPlainFragment(t *testing.T) {
 	t.Parallel()
-	for ref, want := range map[string]string{"#a": "a", "#my%2Danchor": "my-anchor", "#a+b": "a+b"} {
+	for ref, want := range map[string]string{"#a": "a", "#my%2Danchor": "my-anchor", "#a+b": "a+b", "o.yaml#a": "a"} {
 		name, _, ok := bind.DynamicFragment(ref)
 		assert.True(t, ok, ref)
 		assert.Equal(t, want, name, ref)
 	}
-	for _, ref := range []string{"a", "#", "#/a", "o.yaml#a", "#%zz"} {
+	for _, ref := range []string{"a", "#", "#/a", "o.yaml#/a", "#%zz"} {
 		_, why, ok := bind.DynamicFragment(ref)
 		assert.False(t, ok, ref)
 		assert.NotEmpty(t, why, ref)
@@ -631,8 +631,9 @@ func TestDynamicFragment_ReadsAPlainFragment(t *testing.T) {
 // expansion reads: each schema declaring `$recursiveAnchor` as the boolean
 // true where its dialect defines the keyword (DialectRule.Recursive), an alias
 // re-declaring at its own position, and neither false, a string, nor one in a
-// dialect defining no such keyword; the resources holding them counted once
-// each. A read past the merge bound proves nothing.
+// dialect defining no such keyword; and whether a resource holding one reaches
+// another, as the document's reaches I's, nested in it. A read past the merge
+// bound proves nothing.
 func TestRecursiveAnchor_CountsWhatADocumentDeclares(t *testing.T) {
 	t.Parallel()
 	const d2019 = "'https://json-schema.org/draft/2019-09/schema'"
@@ -653,23 +654,25 @@ func TestRecursiveAnchor_CountsWhatADocumentDeclares(t *testing.T) {
 		"/components/schemas/I/properties/p": true, "/components/schemas/F": false, "/components/schemas/S": false,
 		"/components/schemas/N": false, "/components/schemas/D7": false, "/components/schemas/Z": false,
 	} {
-		declared, resources, known := table.RecursiveAnchor(bind.Position{Pointer: at})
+		declared, _, known := table.RecursiveAnchor(bind.Position{Pointer: at})
 		assert.Equal(t, want, declared, at)
-		assert.Equal(t, 2, resources, "the document's resource and I's")
 		assert.True(t, known)
 	}
+	_, reached, _ := table.RecursiveAnchor(bind.Position{Pointer: "/components/schemas/I"})
+	assert.True(t, reached, "I's resource is nested in the document's, which holds a declaration")
+	_, reached, _ = table.RecursiveAnchor(bind.Position{})
+	assert.False(t, reached, "no other resource holding one reaches the document's")
 
 	past := strings.Replace(anchoredPastTheBound(), "    A: {$dynamicAnchor: t}\n",
 		"    A: {$schema: "+d2019+", $recursiveAnchor: true}\n", 1)
-	declared, resources, known := bound(t, past, recursive).RecursiveAnchor(bind.Position{Pointer: "/components/schemas/A"})
+	declared, _, known := bound(t, past, recursive).RecursiveAnchor(bind.Position{Pointer: "/components/schemas/A"})
 	assert.True(t, declared)
-	assert.Equal(t, 1, resources)
 	assert.False(t, known, "a schema past the bound may declare a second")
 
 	var none *bind.Table
-	declared, resources, known = none.RecursiveAnchor(bind.Position{Pointer: "/components/schemas/A"})
+	declared, reached, known = none.RecursiveAnchor(bind.Position{Pointer: "/components/schemas/A"})
 	assert.False(t, declared)
-	assert.Zero(t, resources)
+	assert.False(t, reached)
 	assert.True(t, known)
 }
 

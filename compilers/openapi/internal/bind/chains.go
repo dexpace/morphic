@@ -87,6 +87,11 @@ type waits struct {
 	heldObjects  []Position
 	heldMappings []mappingKey
 	released     bool
+	// declaring is each document read and not yet reached whose declaration
+	// a hop waits for, and unwaited says what waits so is read as a location
+	// instead, for the rest of the pass (goOn).
+	declaring []DocID
+	unwaited  bool
 }
 
 // newWaits returns a pass's deferrals, holding none.
@@ -123,7 +128,7 @@ func (w *waits) requeue(f *finder, hops map[Position]Hop, objHops map[Position]o
 		delete(w.mappings, k)
 		f.freshMappings = append(f.freshMappings, k)
 	}
-	w.held, w.heldObjects, w.heldMappings, w.released = nil, nil, nil, false
+	w.held, w.heldObjects, w.heldMappings, w.released, w.declaring = nil, nil, nil, false, nil
 }
 
 // release notes in f every site, mapping value and reference object that
@@ -148,10 +153,22 @@ func (w *waits) release(f *finder) bool {
 }
 
 // holdsRef reports whether p writes a $ref of its own, which a chain landing
-// there follows on.
+// there follows on, or a $dynamicRef that is the $ref it spells, or may be
+// once the document its hop waits for is read (namesDynamic).
 func (b *binder) holdsRef(p Position) bool {
-	_, ok := b.docs.refOf(p.Doc, b.docs.node(p))
-	return ok
+	// Only a hop's target is asked, a position its document holds, so the path
+	// reaches it.
+	path, _ := b.docs.path(p)
+	n := path[len(path)-1]
+	if _, ok := b.docs.refOf(p.Doc, n); ok {
+		return true
+	}
+	value, ok := dynamicRefValue(b.docs, p.Doc, n)
+	if !ok {
+		return false
+	}
+	named, _ := namesDynamic(b, p, path, value)
+	return !named
 }
 
 // closeLoop records members as a loop, each settled as its member.

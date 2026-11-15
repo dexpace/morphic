@@ -68,11 +68,11 @@ func (tc diskCase) check(t *testing.T, expand func(string) string) {
 
 	if !tc.fails && tc.wantIs == nil {
 		require.NoError(t, err)
-		assert.Equal(t, tc.want, string(got))
+		assert.Equal(t, tc.want, string(got.Data))
 		return
 	}
 	require.Error(t, err)
-	assert.Nil(t, got, "a refused read hands back no bytes")
+	assert.Nil(t, got.Data, "a refused read hands back no bytes")
 	if tc.wantIs != nil {
 		assert.ErrorIs(t, err, tc.wantIs)
 	}
@@ -236,7 +236,7 @@ func TestDisk_ReadDocumentReadsARelativePathAgainstTheWorkingDirectory(t *testin
 	got, err := reader.Disk{}.ReadDocument(t.Context(), compilers.DocumentRequest{Location: "in/./a.yaml"})
 
 	require.NoError(t, err)
-	assert.Equal(t, "inside", string(got))
+	assert.Equal(t, "inside", string(got.Data))
 }
 
 // TestDisk_ReadDocumentHTTP pins what an http(s) location reads: the body of
@@ -290,11 +290,11 @@ func TestDisk_ReadDocumentHTTP(t *testing.T) {
 				require.Error(t, err)
 				assert.Contains(t, err.Error(), tc.wantCode)
 				assert.Contains(t, err.Error(), srv.URL+"/doc.yaml", "the URL asked for")
-				assert.Nil(t, got)
+				assert.Nil(t, got.Data)
 				return
 			}
 			require.NoError(t, err)
-			assert.Equal(t, tc.want, string(got))
+			assert.Equal(t, tc.want, string(got.Data))
 		})
 	}
 }
@@ -341,11 +341,11 @@ func TestDisk_ReadDocumentHoldsTheLimit(t *testing.T) {
 				if tc.over {
 					require.ErrorIs(t, err, compilers.ErrDocumentTooLarge)
 					assert.Contains(t, err.Error(), fmt.Sprintf("%d bytes", tc.limit))
-					assert.Nil(t, got)
+					assert.Nil(t, got.Data)
 					return
 				}
 				require.NoError(t, err)
-				assert.Equal(t, body, string(got))
+				assert.Equal(t, body, string(got.Data))
 			})
 		}
 	}
@@ -366,11 +366,11 @@ func TestDisk_ReadDocumentHoldsTheLimitWithinADirectory(t *testing.T) {
 
 			if wantOver {
 				require.ErrorIs(t, err, compilers.ErrDocumentTooLarge)
-				assert.Nil(t, got)
+				assert.Nil(t, got.Data)
 				return
 			}
 			require.NoError(t, err)
-			assert.Equal(t, "12345", string(got))
+			assert.Equal(t, "12345", string(got.Data))
 		})
 	}
 }
@@ -397,7 +397,7 @@ func TestDisk_ReadDocumentWithACancelledContext(t *testing.T) {
 			got, err := reader.Disk{}.ReadDocument(cancelled(t), req)
 
 			require.ErrorIs(t, err, context.Canceled)
-			assert.Nil(t, got)
+			assert.Nil(t, got.Data)
 		})
 	}
 	t.Cleanup(func() { assert.Zero(t, hits.Load(), "no request is sent under a cancelled context") })
@@ -418,7 +418,7 @@ func TestDisk_ReadDocumentStopsWhenTheContextIsCancelledMidRequest(t *testing.T)
 	got, err := reader.Disk{}.ReadDocument(ctx, compilers.DocumentRequest{Location: srv.URL + "/doc.yaml"})
 
 	require.ErrorIs(t, err, context.Canceled)
-	assert.Nil(t, got)
+	assert.Nil(t, got.Data)
 }
 
 // ctxKey keys the value TestDisk_ReadDocumentUsesItsClient puts on its context.
@@ -443,7 +443,7 @@ func TestDisk_ReadDocumentUsesItsClient(t *testing.T) {
 		compilers.DocumentRequest{Location: "http://spec.invalid/doc.yaml"})
 
 	require.NoError(t, err)
-	assert.Equal(t, "served", string(got))
+	assert.Equal(t, "served", string(got.Data))
 	assert.Equal(t, int32(1), asked.Load())
 }
 
@@ -463,7 +463,7 @@ func TestDisk_ReadDocumentWithANilClientUsesTheDefaultClient(t *testing.T) {
 	got, err := reader.Disk{}.ReadDocument(t.Context(), compilers.DocumentRequest{Location: "http://spec.invalid/doc.yaml"})
 
 	require.NoError(t, err)
-	assert.Equal(t, "default", string(got))
+	assert.Equal(t, "default", string(got.Data))
 	assert.Equal(t, int32(1), asked.Load())
 }
 
@@ -483,7 +483,7 @@ func TestDisk_ReadDocumentPassesATransportErrorThrough(t *testing.T) {
 
 		var urlErr *url.Error
 		require.ErrorAs(t, err, &urlErr, "the client's error, not a flattened copy of it")
-		assert.Nil(t, got)
+		assert.Nil(t, got.Data)
 	})
 	t.Run("the transport fails", func(t *testing.T) {
 		t.Parallel()
@@ -493,7 +493,7 @@ func TestDisk_ReadDocumentPassesATransportErrorThrough(t *testing.T) {
 			compilers.DocumentRequest{Location: "http://spec.invalid/doc.yaml"})
 
 		require.ErrorIs(t, err, boom)
-		assert.Nil(t, got)
+		assert.Nil(t, got.Data)
 	})
 }
 
@@ -511,7 +511,7 @@ func TestDisk_ReadDocumentFailsOnATruncatedBody(t *testing.T) {
 	got, err := reader.Disk{}.ReadDocument(t.Context(), compilers.DocumentRequest{Location: srv.URL + "/doc.yaml"})
 
 	require.ErrorIs(t, err, io.ErrUnexpectedEOF)
-	assert.Nil(t, got)
+	assert.Nil(t, got.Data)
 }
 
 // closeRecorder is a response body that counts its closes and fails them with
@@ -572,7 +572,7 @@ func TestDisk_ReadDocumentClosesTheResponseBody(t *testing.T) {
 			assert.Equal(t, 1, body.closes, "closed once")
 			if len(tc.wantIs) == 0 && tc.wantText == "" {
 				require.NoError(t, err)
-				assert.Equal(t, tc.want, string(got))
+				assert.Equal(t, tc.want, string(got.Data))
 				return
 			}
 			require.Error(t, err)
@@ -580,7 +580,7 @@ func TestDisk_ReadDocumentClosesTheResponseBody(t *testing.T) {
 				assert.ErrorIs(t, err, want)
 			}
 			assert.Contains(t, err.Error(), tc.wantText)
-			assert.Nil(t, got)
+			assert.Nil(t, got.Data)
 		})
 	}
 }

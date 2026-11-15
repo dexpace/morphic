@@ -44,7 +44,7 @@ func readOverlay(ctx context.Context, opts Options) (Options, []ir.Diagnostic, e
 		return opts, nil, fmt.Errorf("openapi: overlay %s holds no bytes, and no reader was supplied to read it",
 			opts.Overlay.Path)
 	}
-	data, err := opts.Reader.ReadDocument(ctx, compilers.DocumentRequest{
+	got, err := opts.Reader.ReadDocument(ctx, compilers.DocumentRequest{
 		Location: opts.Overlay.Path, Limit: ReadLimit(opts.MaxSourceBytes),
 	})
 	switch {
@@ -54,7 +54,7 @@ func readOverlay(ctx context.Context, opts Options) (Options, []ir.Diagnostic, e
 		return opts, nil, fmt.Errorf("openapi: read overlay %s: %w", opts.Overlay.Path, err)
 	}
 	read := *opts.Overlay
-	read.Data = data
+	read.Data = got.Data
 	opts.Overlay = &read
 	return opts, nil, nil
 }

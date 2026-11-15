@@ -81,6 +81,16 @@ func LowerSpec(t *testing.T, src string) (*ir.Document, []ir.Diagnostic) {
 	return doc, append(diags, l.Diags.List()...)
 }
 
+// LowerSpecCountingLands lowers src as LowerSpec does, and returns too how
+// many hop readings were made reading what a $ref lands on.
+func LowerSpecCountingLands(t *testing.T, src string) (*ir.Document, []ir.Diagnostic, int) {
+	t.Helper()
+	l, diags := LoweredFor(t, src)
+	l.Diags.AppendAll(LowerComponentSchemas(t.Context(), l.Ctx, l.Types))
+	doc := l.Document(t)
+	return doc, append(diags, l.Diags.List()...), *landingCount(l.Ctx)
+}
+
 // NewRawLowerer builds a fixture over a hand-constructed document, bypassing the
 // parser so nil slice/map entries (which the parser panics on) can be exercised.
 func NewRawLowerer(doc *soa.OpenAPI) *Lowerer {

@@ -868,7 +868,19 @@ absolute path and a network-path reference among them, names what the document's
 the network. A reference written in a document read over http(s), the source included, is read
 only from an http(s) URL: one naming another location, by a `file:` URI, a drive path, or a base an
 `$id`, a draft 4 `id` or the source's `$self` moves onto one, fails unread where it is written, and
-the rest of the document is read. The read stays inside the directory the source lies in, symbolic
+the rest of the document is read. Nor does such a reference reach an address more private than the
+one its document was read from, a public address ranking below a private one and a private one below
+loopback: the reader bounds the read to that space (`compilers.DocumentRequest.Reach`), judging each
+address it dials, redirects included. A document read before is judged by the most private address
+its read can have dialled (`compilers.DocumentRead.Bound`), and where that read stated none, by a
+read of the reference's own at its reach, made once per reach, which reads nothing into the compile
+and charges nothing to the document budget. A read whose reader states no bound, or one the reader
+cannot bound, is refused to such a reference too. What the document's own references reach is the
+space its first read stated (`compilers.DocumentRead.Space`), public where it stated none. Each refusal is that reference's alone: another naming
+the document, from a file or the source, reads it. A source located at a URL is bounded as a public
+document. Through an HTTP proxy the host is judged instead, and the proxy resolves a name again,
+which the compile cannot see: a document read through one by a name states no space, so its own
+references reach as a public document's do. The read stays inside the directory the source lies in, symbolic
 links included, and follows relative references alone, unless `Options.AllowExternalRefs` lets it
 reach any file and http(s) URLs: a `$ref` naming a document other than the source by a `file:` URI
 or by an absolute path fails unread, whatever another `$ref` names that document by. Each is judged
@@ -987,14 +999,18 @@ last pass's answers stand, so no declaration order reaches an answer. A document
 location before another declared that URI is reached by no later pass, so it declares nothing,
 lowers nothing and is no `Document.Sources` entry. Where what a pass reaches turns on what those
 documents declare, so that no pass agrees with the one before it, every document read declares what
-it does from the pass that would read against what an earlier one read. A pass reads the documents
-absolute URIs name once its walks are done, together, and goes on, reading again only the references
-that waited for them, while what the documents it reached declare changes no URI it asked for, one a
-waiting reference asked for included. So a chain of documents each named by an absolute URI, none
-declaring a URI a reference asked for, is read in one pass, its cost growing with its length. Where
-one does, the pass is read again: a document held beside one declaring its URI is then read for
-nothing, and a chain in which each document declares the URI the one before it asked for costs a
-pass per link. A pointer passing a reference object, with tokens left to read, reads on where that
+it does from the pass that would read against what an earlier one read. A pass reads every
+document a reference names for the first time once its walks are done, in two tiers: the files,
+which cost no request, then, once what every document open declares is read, each URL no document
+open declares to the document that asked for it. A document is reached by the reference that
+resolves into it, not by its read, and a reference whose URI a document read and not yet reached
+declares waits for that document to be reached; where nothing more is reached, the documents
+declaring what waits are reached, and what still waits is read as a location. The pass goes on,
+reading again only the references that waited, while what the documents it reached declare changes
+no URI whose answer it kept. So a chain of documents, each declaring the URI the one before it asked
+for, is read in one pass, its cost growing with its length, and a file declaring a URL answers it
+with no request. A pass is read again only where a location's own content leads to a declaration of
+its URI; a URL held beside the URL-named document declaring it is read for nothing. A pointer passing a reference object, with tokens left to read, reads on where that
 reference's chain ends, in whichever document, save at a path item, where a token naming a field
 written beside its `$ref` reads that field ([`path-item-ref-fields`](#path-item-ref-fields)); a
 pointer whose read needs a chain that needs that read is unresolved. A `$ref` written in another
@@ -1046,8 +1062,10 @@ and a `$ref` past it is left unresolved, as is one that reads a key past it: a k
 names, an `$id` that may give the base it is read against, or, for a `#/$defs/...` pointer, a
 definition the rule reads before the one that would answer. So is a plain name no schema declares
 where a schema merging past the bound may; a URI is read as a location all the same, and a
-`$dynamicRef` in that document is not expanded ([`dynamic-ref`](#dynamic-ref)). A chain of
-references that closes on itself is [`reference-cycles`](#reference-cycles)'.
+`$dynamicRef` in that document is not expanded ([`dynamic-ref`](#dynamic-ref)). A `$dynamicRef`
+naming no `$dynamicAnchor` is the `$ref` it spells, and is read as one in every respect here, its
+reports worded with the keyword it is written under. A chain of references that closes on itself is
+[`reference-cycles`](#reference-cycles)'.
 
 - Cases: `schema-identifiers`, `component-media-types-32`, `reference-object-chains`
 - Codes: `openapi/unresolved-ref`, `openapi/budget-exceeded`, `openapi/degraded-construct`,
@@ -1065,6 +1083,16 @@ and in what a reference reaches outside its model alike. A Path Item's
 `$ref` is the item's own field: one that is no string is read as left out, and the item as what
 else it writes.
 - Tests: `e2e.TestCompile_ExternalFileRefIsNotReadByDefault`,
+  `e2e.TestCompile_AFetchedDocumentMayNotReachAMorePrivateAddress`,
+  `e2e.TestCompile_AnAddressOneDocumentCannotReachIsStillReadForAnother`,
+  `e2e.TestCompile_APrivateDocumentMayReachAPrivateAddressButNotALocalOne`,
+  `e2e.TestCompile_AReaderThatCannotBoundAReadFailsOnlyTheAsker`,
+  `e2e.TestCompile_ASourceLocatedAtAURLIsBoundedAsAPublicDocument`,
+  `e2e.TestCompile_AFetchedDocumentWhoseReaderSaidNothingIsRefusedToABoundedAsker`,
+  `e2e.TestCompile_ADeclarationOfAFileAnswersNoFetchedDocument`,
+  `bind.TestBind_AChainOfDeclaringDocumentsCostsWorkLinearInItsLength`,
+  `bind.TestBind_AChainOfDeclaringURLsCostsWorkLinearAndEachIsRequestedOnce`,
+  `bind.TestBind_RequestsWhatMainRequests`,
   `e2e.TestCompile_OneURLSpelledSixWaysIsOneRequestOneKeyAndOneType`,
   `e2e.TestCompile_ADocumentAnotherOriginServesDeclaresNothingForTheSource`,
   `e2e.TestCompile_AFilesDeclarationAnswersTheSourceAndNoRead`,
@@ -1189,9 +1217,7 @@ else it writes.
   `e2e.TestCompile_AReachedObjectTheModelFaultsOnLowersAsUnderPaths`,
   `e2e.TestCompile_ARefAMergeKeyWritesThatIsNoStringLeavesTheEntryOut`,
   `e2e.TestCompile_AComponentWhoseRefIsNoStringIsKeptAsWritten`
-- Status: partly built: a remote document can make the compiler request a private address (#937).
-  A chain of documents each declaring the URI the one before it asked for costs a binding pass per
-  link (#1372).
+- Status: partly built: a redirected document is based at the URL requested (#1943). Through a proxy, the address the proxy gives a name is judged by nobody (#1947).
 
 ### `reference-cycles`
 
@@ -4125,7 +4151,7 @@ of its own, since reading it so loses nothing.
 - Tests: `e2e.TestCompile_ANullKeywordLowersAsTheKeywordLeftOut`,
   `e2e.TestCompile_ANullIdentifierLowersAsTheKeywordLeftOut`,
   `annotation.TestRawPropertyNode_ReadsANullKeywordAsLeftOut`,
-  `bind.TestDynamicAnchors_ANullAnchorNamesNothing`,
+  `bind.TestDynamicAnchor_ANullAnchorNamesNothing`,
   `oas.TestCheck_NullIsReadAsAbsentWhereTheFieldIsOptional`,
   `e2e.TestCompile_ANullBeneathItsOwnNameLowersAsTheKeywordLeftOut`
 
@@ -4381,16 +4407,25 @@ holding an inert keyword naming it and the keyword that leaves it inert.
 A dynamic reference is resolved per reference site by compiler expansion, to a reference to the type
 it names, reported as an info `openapi/dynamic-ref-expanded` at the keyword, since what the source
 wrote as dynamic is now a fixed target. A `$dynamicRef` is first resolved against the base of the
-schema resource it is written in, as a `$ref` is (JSON Schema 2020-12 §8.2.3.2), so the anchor it
-names dynamically is one its own resource declares. What makes the expansion possible is that a
+schema resource it is written in, as a `$ref` is (JSON Schema 2020-12 §8.2.3.2), and is dynamic only
+where that lands on a fragment a `$dynamicAnchor` created, so the anchor it names dynamically is one
+the resource it names declares. Anywhere else it is the `$ref` it spells: a pointer, a plain name an
+`$anchor` declares, another document, a name declared nowhere in the resource it names. It then
+lowers and binds as that `$ref` does, through [`references`](#references), reporting nothing where
+it resolves and `openapi/unresolved-ref` where it does not, worded with its own keyword, a loop
+through it being an `openapi/cyclic-ref` ([`reference-cycles`](#reference-cycles)); one resolving
+nowhere lowers the top type, keeping nothing. A name declared more than once in the resource it
+names, one of the declarations a `$dynamicAnchor` of the reference's document, and one a merge past
+[`references`](#references)' bound may hide the declaration of, are not shown to be `$ref`s, and
+are read as dynamic. What makes the expansion possible is that a
 document's set of `$dynamicAnchor` declarations is fixed before evaluation: a name declared exactly
 once, in the reference's own resource, is the only match any dynamic scope containing a match can
 hold, so it *is* the outermost matching anchor whatever path evaluation took. The anchor may stand at
 any position a `$ref` can name: a component, a `$defs` entry, a property, an `items` schema, a
 response's inline schema, the component keyed `""`, or a draft's `definitions` entry, which the
 reference lands on as a `$ref` naming the anchor would, so the schema there is built and validated
-as one a `$ref` reaches. An `$id` between the reference and the anchor puts the two in different
-resources, and the reference is irreducible.
+as one a `$ref` reaches. A reference naming the anchor by a URI that puts it in another resource,
+an `$id` between the two, is irreducible.
 
 JSON Schema 2019-09's `$recursiveRef` is read the same way in a schema whose dialect defines it
 ([`dialect-keywords`](#dialect-keywords)), as the reference to the unnamed anchor of a resource.
@@ -4398,8 +4433,12 @@ JSON Schema 2019-09's `$recursiveRef` is read the same way in a schema whose dia
 the root of the resource it is written in. Where that root declares no `$recursiveAnchor` of `true`,
 `false` being the default, the reference reads as the `$ref` it spells and expands to the root. Where
 it declares one, the target is the outermost schema of the dynamic scope declaring one too, which is
-that root on every path where every schema of the document declaring `$recursiveAnchor: true` lies
-in the root's resource, and the reference expands to it then. A schema under no `$id` is in its
+that root on every path where no other schema resource holding a declaration of
+`$recursiveAnchor: true`, in any document the compile reads, reaches the root's, and the reference
+expands to it then. A resource reaches each one nested directly in it and each one a reference site
+in it lands in, a `$ref`, a `$dynamicRef` that is one, or a mapping value, and every resource those
+reach; the walk is linear in resources and reference sites, each edge a step of the binding budget,
+past which nothing is known and the reference is kept. A schema under no `$id` is in its
 document's resource, whose root in an OpenAPI document is the OpenAPI Object, which holds no
 schema, so its `$recursiveRef` is irreducible, as its `$ref: '#'` twin is unresolved, and the
 message says that an identifier on the schema would make it the root. `$recursiveAnchor` is consumed
@@ -4416,9 +4455,9 @@ what the keywords beside the reference admit, as beside a `$ref`.
 A reference is irreducible — and is then kept verbatim under `openapi:$dynamicRef` or
 `openapi:$recursiveRef` (`degraded_lowering`) with an info `openapi/degraded-construct` at it naming
 which case it was — when a `$dynamicRef`'s name is declared more than once in its document (the
-target is back under the evaluation path's control), is declared nowhere, names another document, or
-is not a plain fragment; when a `$recursiveRef`'s value is not `#`, or `$recursiveAnchor: true` is
-declared in more than one resource of its document; when its value is not a string at all; when a
+target is back under the evaluation path's control), or is declared in another document alone; when
+a `$recursiveRef`'s value is not `#`, or another resource declaring `$recursiveAnchor: true`
+reaches its target's; when its value is not a string at all; when a
 resource boundary stands between it and its anchor as above; when no schema could be built where it
 names; when expanding it would close a cycle of aliases (a `$ref` cycle is refused outright for the
 same reason, and expansion must not mint one the refusal cannot see); or when it is co-declared with
@@ -4427,7 +4466,13 @@ expansion takes its target whole, so it has nowhere to put a sibling applicator.
 
 A dynamic reference is read against the declarations of the document it is written in, by this
 same rule, so one in another document expands to the type lowered where that document declares its
-target, in that document's namespace, never to a source anchor of that name. What a reference
+target, in that document's namespace, never to a source anchor of that name, unless a schema
+resource of another document declaring the same name reaches the resource of that declaration, by
+the reach the `$recursiveRef` above reads: that resource is then in the dynamic scope, and the
+outermost one declaring the name wins, so the target depends on the evaluation path and the
+reference is kept. A name one document alone declares needs no walk; each name several documents
+declare costs one walk of the resources, held by the binding budget, so n such names over n
+resources cost n² steps, past which nothing is known and every reference resting on one is kept. What a reference
 resolved to where no position of its document places it reads no anchors, so a dynamic reference in
 it is kept.
 
@@ -4443,8 +4488,30 @@ written beside a reference that expands is read as one beside a `$ref` is
 ([`shape-applicator`](#shape-applicator)).
 
 - Cases: `dynamic-ref`, `keywords-at-every-outcome`
-- Codes: `openapi/dynamic-ref-expanded`, `openapi/degraded-construct`
+- Codes: `openapi/dynamic-ref-expanded`, `openapi/degraded-construct`, `openapi/unresolved-ref`,
+  `openapi/cyclic-ref`
 - Tests: `schema.TestDynamicRef_IrreducibleIsKeptAndSaysWhy`,
+  `schema.TestDynamicRef_NamingNoDynamicAnchorIsTheRefItSpells`,
+  `schema.TestDynamicRef_AnAnchorOnlyAnotherDocumentDeclaresIsKept`,
+  `bind.TestBind_ReadsADynamicRefAsTheRefItSpellsUnlessItNamesADynamicAnchor`,
+  `bind.TestBind_ReadsADynamicRefIntoAnotherDocumentOnceItIsRead`,
+  `bind.TestBind_ReadsADynamicRefAMergeMayHideTheAnchorOfAsDynamic`,
+  `e2e.TestCompile_ADynamicRefNamingNoDynamicAnchorReadsAsTheRefItSpells`,
+  `e2e.TestCompile_ADynamicRefResolvingNowhereIsAnUnresolvedRef`,
+  `e2e.TestCompile_ATwoMemberCycleThroughADynamicRefIsACyclicRef`,
+  `e2e.TestCompile_AnAliasLoopAnExpansionClosesKeepsTheReference`,
+  `bind.TestRecursiveAnchor_AResourceAnotherAnchoredOneReachesIsReached`,
+  `bind.TestRecursiveAnchor_AWalkTheBudgetCutsKnowsNothing`, `bind.TestBind_TheRecursiveReachGrowsLinearly`,
+  `e2e.TestCompile_ARecursiveRefNoOtherAnchoredResourceReachesExpands`,
+  `e2e.TestCompile_ARecursiveRefAnotherAnchoredResourceReachesIsKept`,
+  `e2e.TestCompile_ARecursiveRefAnotherDocumentsAnchoredResourceReachesIsKept`,
+  `e2e.TestCompile_ARecursiveRefInAResourceNestedInAnAnchoredOneIsKept`,
+  `schema.TestDynamicRef_AnAnchorAnotherDocumentsResourceReachesIsKept`,
+  `bind.TestTable_ANameSeveralDocumentsDeclareIsWalkedOncePerName`,
+  `bind.TestTable_ANameTheBudgetCutsTheWalkOfIsNotKnown`,
+  `e2e.TestCompile_ADynamicRefAnotherDocumentsResourceReachesIsKept`,
+  `e2e.TestCompile_ADynamicRefNoOtherDocumentDeclaresTheNameExpands`,
+  `e2e.TestCompile_ADynamicRefNamesTooManyForTheReachWalkAreKept`,
   `schema.TestDynamicRef_ExpandsAgainstTheDocumentItIsWrittenIn`,
   `schema.TestDynamicRef_ExpandsToAnyPositionARefNames`, `schema.TestDynamicRef_ExpandsWithinOneResource`,
   `schema.TestDynamicRef_ExpandsToAnAnchorOnlyADraftPlaces`, `schema.TestResolvesAt_AnswersAsResolvePointerDoes`,
@@ -4455,13 +4522,10 @@ written beside a reference that expands is read as one beside a `$ref` is
   `e2e.TestOlderDrafts_ARecursiveRefExpandsWhereItsTargetIsStatic`,
   `e2e.TestOlderDrafts_ARecursiveRefReadsAsItsDynamicTwin`,
   `e2e.TestOlderDrafts_ARecursiveRefReadsItsDocumentsAnchorsOnce`,
-  `bind.TestDynamicAnchors_CountsWhatADocumentDeclares`,
-  `bind.TestDynamicAnchors_SaysWhenTheCountProvesNothing`,
+  `bind.TestDynamicAnchor_CountsWhatADocumentDeclares`,
+  `bind.TestDynamicAnchor_SaysWhenTheCountProvesNothing`,
   `bind.TestRecursiveAnchor_CountsWhatADocumentDeclares`,
   `bind.TestResource_NamesTheRootOfAPositionsResource`
-- Status: partly built: a `$recursiveRef` is kept where two resources of its document each declare
-  `$recursiveAnchor: true`, even where neither can reach the other (#1884); and a `$dynamicRef` whose
-  value names no `$dynamicAnchor` is kept, though JSON Schema reads it as the `$ref` it spells (#1860).
 
 ### `content-vocabulary`
 
@@ -4535,7 +4599,11 @@ no such warning: the rule table reports it where it judges it ([`validation`](#v
 in a document a reference reaches is only what the reference reaches
 ([`openapi-versions`](#openapi-versions)). A schema is read in the dialect of where it is, so a node
 an alias places under two roots is read in each one's at each, by the folding of an `allOf`, the
-reading of a body as a file and the rule table's check too.
+reading of a body as a file and the rule table's check too. A schema only a reference reaches, where
+no grammar reads one, an extension's content or raw YAML a document of another kind holds, is a root
+too where it writes a `$schema` naming a dialect and no other such schema holds it, which the set
+of them decides and no order of reading does; what it holds is read in its dialect from there, and
+no identifier in it declares anything ([`references`](#references)).
 
 A keyword a schema writes meets one of four outcomes, each taken from the rows of the dialect the
 schema is read in, never from its version or its name alone:
@@ -4582,7 +4650,9 @@ resolves to the schema declaring it.
   `oas.TestSchemaRules_ADialectNamesItsKeywordsAlone`,
   `bind.TestDialectRoots_ASchemaNoOtherHoldsNamesItsDialect`,
   `load.TestReadDialects_GovernsWhatEachRootHoldsAndWarnsOfWhatItCannotRead`,
-  `load.TestReadDialects_GivesAnotherDocumentsOwnRowsToWhatNoRootHolds`
+  `load.TestReadDialects_GivesAnotherDocumentsOwnRowsToWhatNoRootHolds`,
+  `e2e.TestCompile_ASchemaOnlyARefReachesReadsItsOwnDialect`,
+  `e2e.TestCompile_ASchemaAnotherLandingHoldsIsNotADialectRoot`
 - Status: partly built: an identifier naming its document by the 3.2 `$self` roots a resource of its
   own, as the document is known by its location alone (#863).
 

@@ -51,7 +51,7 @@ components:
 func basesTable(t *testing.T) *Table {
 	t.Helper()
 	docs := map[string]string{"o.yaml": "S: {$id: 'https://x.test/o', a: {b: {$id: 'p.json', c: {type: string}}}}\nT: [{$id: u.json}]\n"}
-	cfg := Config{Self: "spec.yaml", Open: func(name string) (*yaml.Node, error) {
+	cfg := Config{Self: "spec.yaml", Open: func(name, _ string) (*yaml.Node, error) {
 		src, ok := docs[name]
 		if !ok {
 			return nil, errors.New("no such document")

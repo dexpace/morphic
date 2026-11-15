@@ -90,11 +90,11 @@ func TestMemory_ReadDocumentFindsASourceByTheDocumentItNames(t *testing.T) {
 
 			if tc.wantIs == nil && !tc.fails {
 				require.NoError(t, err)
-				assert.Equal(t, tc.want, string(got))
+				assert.Equal(t, tc.want, string(got.Data))
 				return
 			}
 			require.Error(t, err)
-			assert.Nil(t, got)
+			assert.Nil(t, got.Data)
 			if tc.wantIs != nil {
 				require.ErrorIs(t, err, tc.wantIs)
 				assert.Contains(t, err.Error(), tc.location, "the document asked for")
@@ -145,11 +145,11 @@ func TestMemory_ReadDocumentConfined(t *testing.T) {
 
 			if tc.wantIs == nil {
 				require.NoError(t, err)
-				assert.Equal(t, tc.want, string(got))
+				assert.Equal(t, tc.want, string(got.Data))
 				return
 			}
 			require.ErrorIs(t, err, tc.wantIs)
-			assert.Nil(t, got)
+			assert.Nil(t, got.Data)
 		})
 	}
 }
@@ -183,11 +183,11 @@ func TestMemory_ReadDocumentHoldsTheLimit(t *testing.T) {
 			if tc.over {
 				require.ErrorIs(t, err, compilers.ErrDocumentTooLarge)
 				assert.Contains(t, err.Error(), fmt.Sprintf("%d bytes", tc.limit))
-				assert.Nil(t, got)
+				assert.Nil(t, got.Data)
 				return
 			}
 			require.NoError(t, err)
-			assert.Equal(t, "alpha", string(got))
+			assert.Equal(t, "alpha", string(got.Data))
 		})
 	}
 }
@@ -203,11 +203,11 @@ func TestMemory_ReadDocumentHandsBackACopy(t *testing.T) {
 	first, err := m.ReadDocument(t.Context(), req)
 	require.NoError(t, err)
 
-	first[0] = 'X'
+	first.Data[0] = 'X'
 
 	second, err := m.ReadDocument(t.Context(), req)
 	require.NoError(t, err)
-	assert.Equal(t, "alpha", string(second), "the next read")
+	assert.Equal(t, "alpha", string(second.Data), "the next read")
 	assert.Equal(t, "alpha", string(sources[0].Data), "the source's own bytes")
 }
 
@@ -221,7 +221,7 @@ func TestMemory_ReadDocumentWithACancelledContext(t *testing.T) {
 	got, err := m.ReadDocument(cancelled(t), compilers.DocumentRequest{Location: "specs/a.yaml"})
 
 	require.ErrorIs(t, err, context.Canceled)
-	assert.Nil(t, got)
+	assert.Nil(t, got.Data)
 }
 
 // TestNewMemory_RefusesSourcesNamingOneDocument pins that two sources whose
@@ -297,7 +297,7 @@ func TestNewMemory_ServesNothingFromNoSources(t *testing.T) {
 	got, err := m.ReadDocument(t.Context(), compilers.DocumentRequest{Location: "a.yaml"})
 
 	require.ErrorIs(t, err, fs.ErrNotExist)
-	assert.Nil(t, got)
+	assert.Nil(t, got.Data)
 }
 
 // TestMemory_ReadsAFileURIAsTheHostSystemDoes pins that a Memory reads file
@@ -317,7 +317,7 @@ func TestMemory_ReadsAFileURIAsTheHostSystemDoes(t *testing.T) {
 			got, err := m.ReadDocument(t.Context(), compilers.DocumentRequest{Location: location})
 
 			require.NoError(t, err)
-			assert.Equal(t, "slashed", string(got))
+			assert.Equal(t, "slashed", string(got.Data))
 		})
 	}
 }
@@ -341,11 +341,32 @@ func TestMemory_ConcurrentReadsAreSafe(t *testing.T) {
 					if !assert.NoError(t, err) {
 						return
 					}
-					assert.Equal(t, doc, string(got))
-					got[0] = 'X'
+					assert.Equal(t, doc, string(got.Data))
+					got.Data[0] = 'X'
 				}
 			}
 		})
 	}
 	wg.Wait()
+}
+
+// TestMemory_AHeldURLStatesTheSpaceItsHostNames pins what a held document's
+// read states: the space its URL's host names, as what the caller hands for
+// that URL, and none for a path, which no address is dialled for.
+func TestMemory_AHeldURLStatesTheSpaceItsHostNames(t *testing.T) {
+	t.Parallel()
+	m := newMemory(t, []compilers.Source{
+		{Path: "https://pub.example/a.yaml", Data: []byte("a")},
+		{Path: "http://10.0.0.5/b.yaml", Data: []byte("b")},
+		{Path: "specs/c.yaml", Data: []byte("c")},
+	})
+	for location, want := range map[string]compilers.AddressSpace{
+		"https://pub.example/a.yaml": compilers.SpacePublic,
+		"http://10.0.0.5/b.yaml":     compilers.SpacePrivate,
+		"specs/c.yaml":               compilers.SpaceUnstated,
+	} {
+		got, err := m.ReadDocument(t.Context(), compilers.DocumentRequest{Location: location})
+		require.NoError(t, err, location)
+		assert.Equal(t, want, got.Space, location)
+	}
 }

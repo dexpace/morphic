@@ -335,25 +335,46 @@ func (ix *identifiers) reading() string {
 }
 
 // lookupURI returns the root of the one resource uri identifies to an asker,
-// and whether one does, counting only the declarations of documents answers// says answer it. Where none does, why is DuplicateID for two or more, and
-// NoReason otherwise, uri then naming a document.
-func (ix *identifiers) lookupURI(uri string, answers func(decl DocID) bool) (Position, bool, Reason) {
-	ix.asked[uri] = true
+// and whether one does, counting only the declarations of documents answers
+// says answer it. Where none does, why is DuplicateID for two or more, and
+// NoReason otherwise, uri then naming a document; waitOn is the documents read
+// and not yet counted that declare it to the asker, where mayWait lets the
+// asker wait for one to be reached rather than read uri as a location. Which
+// URIs a pass asked for is the caller's to note, once its answer is kept
+// (keep).
+func (ix *identifiers) lookupURI(uri string, answers func(decl DocID) bool, mayWait bool) (Position, bool, Reason, []DocID) {
 	var found []Position
 	for _, p := range ix.uris[uri] {
 		if answers(p.Doc) {
 			found = append(found, p)
 		}
 	}
-	switch len(found) {
-	case 0:
-		return Position{}, false, NoReason
-	case 1:
-		return found[0], true, NoReason
-	default:
-		return Position{}, false, DuplicateID
+	switch {
+	case len(found) == 1:
+		return found[0], true, NoReason, nil
+	case len(found) > 1:
+		return Position{}, false, DuplicateID, nil
+	case !mayWait || ix.every:
+		return Position{}, false, NoReason, nil
 	}
+	return Position{}, false, NoReason, ix.pending(uri, answers)
 }
+
+// pending returns the documents read and not counted that declare uri to an
+// asker answers admits: each declaration answers once its document is reached.
+func (ix *identifiers) pending(uri string, answers func(decl DocID) bool) []DocID {
+	var docs []DocID
+	for _, p := range ix.declared[uri] {
+		if !ix.counted[p.Doc] && answers(p.Doc) {
+			docs = append(docs, p.Doc)
+		}
+	}
+	return docs
+}
+
+// keep notes that a pass asked for uri and kept the answer it got, so a later
+// change of its declarations changes an answer the pass gave (commit, grow).
+func (ix *identifiers) keep(uri string) { ix.asked[uri] = true }
 
 // lookupAnchor returns the schema the resource rooted at root declares name
 // in, or why none answers: DuplicateAnchor for two or more, MergeBound where a

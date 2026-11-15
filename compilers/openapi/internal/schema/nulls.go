@@ -221,33 +221,73 @@ func (n *nulls) usage(s *oas3.Schema, target nullReading, site nullSite) nullRea
 }
 
 // lands reads what js's $ref lands on along the chain the bindings resolved:
-// the schema it ends on, read over by each alias it passes on the way, so an
-// alias's own keywords count as well as the end's, each in its own document's
-// dialect. A chain that ends on no schema says nothing. The hops are walked in
-// a loop the chain's own length bounds, not from the read's budget, so a long
-// chain of aliases reads as a short one does; what each alias conjoins still
-// spends it.
+// the schema it ends on, read over by each alias it passes, each in its own
+// document's dialect. A chain that ends on no schema says nothing. What each
+// reference site lands on is read once per compile (landing): the hops are
+// walked forward to the first already read, on a stack the chain's length
+// bounds, then read backward, each once, so n sites of one chain cost n
+// readings, not n squared over two.
 func (n *nulls) lands(js *oas3.JSONSchema[oas3.Referenceable]) nullReading {
 	e, ok := n.refs.Entry(js)
 	if !ok || e.Chain.Status != bind.Resolved {
 		return alike(nullSilent)
 	}
+	sites := []*landing{landingOf(n.c, js)}
 	var aliases []nullHop
 	hop, at := n.refs.DeclaredAt(js)
-	for i := 1; i < e.Chain.Hops && hop != nil && resolve.IsRefSite(hop, hop.GetSchema()); i++ {
+	for i := 1; i < e.Chain.Hops && hop != nil && resolve.IsRefSite(hop, hop.GetSchema()) && !sites[len(sites)-1].kept; i++ {
 		aliases = append(aliases, nullHop{s: hop.GetSchema(), nullable: definesNullableIn(n.c, at.Doc)})
+		sites = append(sites, landingOf(n.c, hop))
 		hop, at = n.refs.DeclaredAt(hop)
 	}
 	// Each read below is in its own document's dialect, and the walk returns to
 	// its own on every way out.
 	defer func(outer bool) { n.nullable = outer }(n.nullable)
-	n.nullable = definesNullableIn(n.c, e.Chain.End.Doc)
-	r := n.conjunct(n.refs.At(e.Chain.End), nullSite{})
-	for _, a := range slices.Backward(aliases) {
-		n.nullable = a.nullable
-		r = n.usage(a.s, r, nullSite{})
+	last := sites[len(sites)-1]
+	if !last.kept {
+		n.nullable = definesNullableIn(n.c, e.Chain.End.Doc)
+		n.keep(last, n.conjunct(n.refs.At(e.Chain.End), nullSite{}))
 	}
-	return r
+	// Only the last site can be kept already: the walk stops at the first.
+	for i, a := range slices.Backward(aliases) {
+		n.nullable = a.nullable
+		*landingCount(n.c)++
+		n.keep(sites[i], n.usage(a.s, sites[i+1].reading, nullSite{}))
+	}
+	return sites[0].reading
+}
+
+// landing is what one reference site lands on, read once per compile: the
+// reading, and whether it is kept. A reading the conjunct budget cut short
+// is not, so a later read with a budget of its own reads it again.
+type landing struct {
+	reading nullReading
+	kept    bool
+}
+
+// landedOn keys the landing of a reference site in the compile's readings.
+type landedOn struct {
+	js *oas3.JSONSchema[oas3.Referenceable]
+}
+
+// landsRead keys the count of hop readings lands has made.
+type landsRead struct{}
+
+// landingOf returns the landing of the reference site js, one per compile.
+func landingOf(c lowering.Ctx, js *oas3.JSONSchema[oas3.Referenceable]) *landing {
+	return lowering.Remembered(c, landedOn{js}, func() *landing { return &landing{} })
+}
+
+// landingCount returns the count of hop readings lands has made in the
+// compile, which only the tests read.
+func landingCount(c lowering.Ctx) *int {
+	return lowering.Remembered(c, landsRead{}, func() *int { return new(int) })
+}
+
+// keep notes r as what l lands on, kept unless the read's conjunct budget ran
+// out on the way.
+func (n *nulls) keep(l *landing, r nullReading) {
+	l.reading, l.kept = r, !n.conjuncts.Exhausted()
 }
 
 // nullHop is an alias a $ref chain passes, and whether the dialect of the

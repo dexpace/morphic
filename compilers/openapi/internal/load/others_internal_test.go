@@ -25,8 +25,8 @@ import (
 type servedReader struct{}
 
 // ReadDocument answers req.
-func (servedReader) ReadDocument(context.Context, compilers.DocumentRequest) ([]byte, error) {
-	return []byte("X: {type: string}\n"), nil
+func (servedReader) ReadDocument(context.Context, compilers.DocumentRequest) (compilers.DocumentRead, error) {
+	return compilers.DocumentRead{Data: []byte("X: {type: string}\n")}, nil
 }
 
 // loadReferencing loads a source at /r/root.yaml whose component A is a $ref
@@ -196,7 +196,7 @@ func TestUnreachedKeys_NamesWhatOnlyAPassThatDidNotStandRead(t *testing.T) {
 		"    A: {$ref: 'a.yaml#/$defs/T'}\n    Z: {$ref: 'z.yaml#/S'}\n"), &root))
 	table := bind.Bind(t.Context(), &root, bind.Config{Self: "/spec.yaml",
 		Locate: func(uri, _ string) (string, bool) { return "/" + strings.TrimPrefix(uri, "/"), true },
-		Open: func(name string) (*yaml.Node, error) {
+		Open: func(name, _ string) (*yaml.Node, error) {
 			var n yaml.Node
 			return &n, yaml.Unmarshal([]byte(docs[name]), &n)
 		}})

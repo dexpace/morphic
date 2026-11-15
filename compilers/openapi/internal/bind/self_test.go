@@ -28,7 +28,7 @@ func TestBind_ASelfIsADocumentsBaseAndName(t *testing.T) {
 		"    U: {$ref: 'https://e.test/api/a.yaml#/components/schemas/B'}\n" +
 		"    V: {$ref: 'a.yaml#/components/schemas/B'}\n    B: {type: string}\n" +
 		"    W: {$ref: 'local/other.yaml#/X'}\n    Y: {$ref: 'https://e.test/o/other.yaml#/X'}\n"
-	table := bound(t, src, bind.Config{Self: "spec.yaml", Open: func(name string) (*yaml.Node, error) {
+	table := bound(t, src, bind.Config{Self: "spec.yaml", Open: func(name, _ string) (*yaml.Node, error) {
 		if name != "https://e.test/api/local/other.yaml" {
 			return nil, errors.New("no such document")
 		}
@@ -74,7 +74,7 @@ func TestBind_AMappedLocationIsJudgedWhereAFetchedDocumentReadsIt(t *testing.T) 
 				}
 				return uri, true
 			},
-			Open: func(name string) (*yaml.Node, error) {
+			Open: func(name, _ string) (*yaml.Node, error) {
 				opened = append(opened, name)
 				return openapitest.YAMLDocument(t, "X: {$ref: 'https://m.test/b.yaml#/B'}\n"), nil
 			}})
@@ -106,7 +106,7 @@ func TestBind_ADeclarationAnswersOnlyWhoCouldReadItsDocument(t *testing.T) {
 		"    P: {$ref: 'https://t.test/p.yaml'}\n    Q: {$ref: 'https://t.test/q.yaml'}\n" +
 		"    H: {$ref: 'https://h.test/hijack.yaml#/W'}\n    E: {$ref: 'https://h.test/evil.yaml#/X'}\n"
 	cfg := resolving
-	cfg.Open = func(name string) (*yaml.Node, error) {
+	cfg.Open = func(name, _ string) (*yaml.Node, error) {
 		opened = append(opened, name)
 		if doc, ok := docs[name]; ok {
 			return openapitest.YAMLDocument(t, doc), nil
@@ -142,7 +142,7 @@ func TestBind_AMappedURLUnderABaseIsJudgedWhereItLands(t *testing.T) {
 			}
 			return resolving.Locate(uri, base)
 		},
-		Open: func(name string) (*yaml.Node, error) {
+		Open: func(name, _ string) (*yaml.Node, error) {
 			opened = append(opened, name)
 			if name == "/files/b.yaml" {
 				return openapitest.YAMLDocument(t, "B: {type: string}\n"), nil

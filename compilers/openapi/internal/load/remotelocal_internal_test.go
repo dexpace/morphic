@@ -42,7 +42,7 @@ func TestExternal_ASourceReadOverTheNetworkReadsNoFile(t *testing.T) {
 	e := newExternal(Options{Reader: fake}, newExternalReads(self, budget.Unbounded()), &aside{})
 
 	for _, name := range []string{"/etc/secret.yaml", "file:///etc/secret.yaml"} {
-		_, err := e.document(t.Context(), name)
+		_, err := e.document(t.Context(), name, self.path)
 		require.ErrorContains(t, err, bind.OffNetwork, name)
 	}
 	assert.Empty(t, fake.reqs, "nothing is read")
@@ -68,7 +68,7 @@ func TestExternal_DocumentReadsANetworkDocumentStayingOnTheHost(t *testing.T) {
 			key := srv.URL + "/a.yaml"
 			ext := remoteReader(t)
 
-			_, err := ext.document(t.Context(), key)
+			_, err := ext.document(t.Context(), key, "spec.yaml")
 
 			require.NoError(t, err)
 			_, ok := ext.read.preparedFor(key)

@@ -43,24 +43,135 @@ func newExternal(opts Options, read *externalReads, aside *aside) *external {
 }
 
 // readAs answers the read of the document id names, asked for by the spelling
-// key at location: judged first by key's own spelling (unnamed), then as the
-// one read in the compile of that document answered it (see
-// externalReads.once), whichever of its spellings asked first, so a file a
-// $ref spells two ways is read and charged once. The tree it prepared is held
-// under key too.
-func (e external) readAs(ctx context.Context, id, key, location string) answer {
+// key at location, by a reference written in the document named from: judged
+// first by key's own spelling (unnamed), then as the one read in the compile
+// of that document answered it (see externalReads.once), whichever of its
+// spellings asked first, so a file a $ref spells two ways is read and charged
+// once, and last by what from may reach (reachOf, external.admits). The tree
+// it prepared is held under key too.
+func (e external) readAs(ctx context.Context, id, key, location, from string) answer {
 	if e.opts.Reader == nil {
 		return answer{err: refused(key, "no reader was supplied to read it")}
 	}
 	if err := e.unnamed(key, location); err != nil {
 		return answer{err: refused(key, err.Error())}
 	}
-	a := e.read.once(id, func() answer { return e.fetch(ctx, id, key, location) })
+	reach := e.reachOf(from)
+	a := e.read.once(id, reach, func() answer { return e.fetch(ctx, id, key, location, reach) })
+	if err := e.admits(ctx, id, location, a, reach); err != nil {
+		return answer{err: err}
+	}
 	if a.err != nil {
 		return a
 	}
 	e.read.adopt(key, a.prepared)
 	return a
+}
+
+// reachOf is the most private address a reference written in the document
+// named from may dial: no bound where from was not read over http(s), a file
+// or a source that is one; else the space from's read stated, and public
+// where it stated none, or where from is a source located at a URL, whose
+// dial the compile was not told of.
+func (e external) reachOf(from string) compilers.AddressSpace {
+	if !bind.OverNetwork(from) {
+		return compilers.SpaceUnstated
+	}
+	if space := e.read.spaceOf(e.documentID(from)); space != compilers.SpaceUnstated {
+		return space
+	}
+	return compilers.SpacePublic
+}
+
+// admits returns the refusal of the document id, answered a, to a reference
+// bounded by reach, or nil where the reference is answered a. A failure is
+// the asker's own where no read gave it or its read was bounded no wider. Else
+// the document is judged as a target, by the most private space its read can
+// have dialled (answer.bound); where that read stated none, a read wider than
+// reach is judged again at reach (verdict), and one no wider is refused, as
+// the reader did not say.
+func (e external) admits(ctx context.Context, id, location string, a answer, reach compilers.AddressSpace) error {
+	switch {
+	case reach == compilers.SpaceUnstated, !bind.OverNetwork(id):
+		return nil
+	case a.err != nil && (!a.read || !wider(a.reach, reach)):
+		return nil
+	case a.bound != compilers.SpaceUnstated:
+		return beyond(id, a.bound, reach)
+	case !wider(a.reach, reach):
+		return unsaid(id)
+	}
+	return e.read.verdict(id, reach, func() (compilers.AddressSpace, error) {
+		return e.verdict(ctx, id, location, reach)
+	})
+}
+
+// verdict reads the document id at location as an asker bounded by reach
+// would, to judge it for that asker alone, and returns the bound the read
+// stated, or why the asker is refused: its read's own failure among them.
+// What it reads is dropped, as the document's content, space and place in the
+// document budget stay its first read's, so the read is not charged; one is
+// made per reach a document is judged at (externalReads.verdict).
+func (e external) verdict(ctx context.Context, id, location string, reach compilers.AddressSpace) (compilers.AddressSpace, error) {
+	got, err := e.opts.Reader.ReadDocument(ctx, compilers.DocumentRequest{
+		Location: location, Within: e.opts.Within, Limit: ReadLimit(e.opts.MaxSourceBytes), Reach: reach,
+	})
+	if err != nil {
+		return compilers.SpaceUnstated, readFailure(e.opts, id, err, reach)
+	}
+	bound := boundOf(got)
+	if bound == compilers.SpaceUnstated {
+		return bound, unsaid(id)
+	}
+	return bound, beyond(id, bound, reach)
+}
+
+// boundOf is the most private space read can have dialled: its Bound, or its
+// Space where that is more private, since an address that answered bounds
+// the read however a reader states its bound.
+func boundOf(read compilers.DocumentRead) compilers.AddressSpace {
+	return max(read.Space, read.Bound)
+}
+
+// beyond returns the refusal of the document id, which a read can have
+// dialled as far as bound, to a reference bounded by reach, or nil.
+func beyond(id string, bound, reach compilers.AddressSpace) error {
+	if bound > reach {
+		return barred(id, beyondReach(bound, reach))
+	}
+	return nil
+}
+
+// unsaid returns the refusal of the document id, whose reader did not say
+// where its read dialled, to a reference bounded by a reach.
+func unsaid(id string) error {
+	return barred(id, "the reader did not say what address it was read from, "+
+		"which a reference in a document read over http or https needs")
+}
+
+// beyondReach is why a document at an address in space is refused to a
+// reference in a document read from reach.
+func beyondReach(space, reach compilers.AddressSpace) string {
+	return fmt.Sprintf("it is at a %s address, which a reference in a document read from a %s one does not reach",
+		spaceNamed(space), spaceNamed(reach))
+}
+
+// spaceNamed names an address space as a refusal does.
+func spaceNamed(space compilers.AddressSpace) string {
+	switch space {
+	case compilers.SpacePublic:
+		return "public"
+	case compilers.SpacePrivate:
+		return "private"
+	default:
+		return "loopback"
+	}
+}
+
+// barred is the refusal of the document under key to one asker alone,
+// for reason (bind.BarredError).
+func barred(key, reason string) error {
+	return &bind.BarredError{Why: refused(key, reason).Error()}
 }
 
 // fileNamed returns the file the path name names: its dot segments removed, as
@@ -92,21 +203,24 @@ func (e external) documentID(key string) string {
 }
 
 // fetch reads the document id names at location through Options.Reader,
-// confined to Options.Within and held to the byte budget, and prepares it
-// under key, the spelling that asked for it. A refusal names the document by
-// id, which no spelling asking first changes.
-func (e external) fetch(ctx context.Context, id, key, location string) answer {
-	data, err := e.opts.Reader.ReadDocument(ctx, compilers.DocumentRequest{
-		Location: location, Within: e.opts.Within, Limit: ReadLimit(e.opts.MaxSourceBytes),
+// confined to Options.Within, held to the byte budget and dialling no
+// address more private than reach, and prepares it under key, the spelling
+// that asked for it. A refusal names the document by id, which no spelling
+// asking first changes. A redirected document's references resolve against
+// location while its space is the address that answered, which bounds what
+// they reach, so none reaches further (GitHub #1943).
+func (e external) fetch(ctx context.Context, id, key, location string, reach compilers.AddressSpace) answer {
+	got, err := e.opts.Reader.ReadDocument(ctx, compilers.DocumentRequest{
+		Location: location, Within: e.opts.Within, Limit: ReadLimit(e.opts.MaxSourceBytes), Reach: reach,
 	})
 	if err != nil {
-		return answer{err: readFailure(e.opts, id, err)}
+		return answer{err: readFailure(e.opts, id, err, reach), reach: reach, read: true}
 	}
-	data, err = e.prepare(ctx, id, key, data)
+	data, err := e.prepare(ctx, id, key, got.Data)
 	if err != nil {
-		return answer{err: err}
+		return answer{err: err, space: got.Space, bound: boundOf(got), reach: reach, read: true}
 	}
-	return answer{body: data, prepared: key}
+	return answer{body: data, prepared: key, space: got.Space, bound: boundOf(got), reach: reach, read: true}
 }
 
 // unnamed returns the refusal of the document under key, read at location,
@@ -174,12 +288,22 @@ func namesSource(places *refscope.Places, self, uri string) bool {
 }
 
 // readFailure returns the error a reference into the document under key fails
-// with when the reader, asked under opts, refused it: a document past the byte
-// budget, outside Options.Within or on the network a confined read never
-// reaches is refused with the reason, and any other failure is the reader's
-// own account of it, passed through.
-func readFailure(opts Options, key string, err error) error {
+// with when the reader, asked under opts and reach, refused it: a document past
+// the byte budget, outside Options.Within or on the network a confined read
+// never reaches is refused with the reason, one past reach, or one whose reader
+// cannot judge reach, is refused to that asker alone, and any other failure is
+// the reader's own account of it, passed through.
+func readFailure(opts Options, key string, err error, reach compilers.AddressSpace) error {
+	var past *compilers.AddressSpaceError
 	switch {
+	case errors.As(err, &past):
+		return barred(key, beyondReach(past.Space, reach))
+	case errors.Is(err, compilers.ErrAddressSpace):
+		// A reader naming no space refused one past reach: the next.
+		return barred(key, beyondReach(reach+1, reach))
+	case errors.Is(err, compilers.ErrUnboundedRead):
+		return barred(key, "the reader cannot bound the addresses its read dials, "+
+			"which a reference in a document read over http or https needs")
 	case errors.Is(err, compilers.ErrDocumentTooLarge):
 		return refused(key, fmt.Sprintf("it is past the %d-byte budget", opts.MaxSourceBytes.Cap()))
 	case errors.Is(err, compilers.ErrOutsideWithin) && bind.OverNetwork(key):
