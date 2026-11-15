@@ -142,7 +142,7 @@ const (
 // annotation.EntryKey("encoding", key), with one info each, which why completes
 // (docs/compilers/openapi.md#multipart-encoding). Where the walk decides the
 // key names no property it also warns (unknownEncodingKey), save outside form
-// content, whose whole field load reports. Such an entry, and any of a body
+// content, where load reports the whole field. Such an entry, and any of a body
 // with no parts, has no effect, so is out of scope; one the walk cannot
 // decide, as a catch-all may take it, has no IR home. An entry that is no
 // object, which load reports, is skipped.
