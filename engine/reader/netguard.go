@@ -73,9 +73,23 @@ func (g *guard) control(_ context.Context, _, address string, _ syscall.RawConn)
 	err := g.admits(address, space)
 	if past, ok := errors.AsType[*compilers.AddressSpaceError](err); ok {
 		g.refused.CompareAndSwap(nil, past)
+		return &refusedDialError{refusal: past}
 	}
 	return err
 }
+
+// refusedDialError is the refusal control returns, inside the dial's own
+// error, which names the address already: it reads as ErrAddressSpace alone,
+// so the address is printed once, and unwraps to the refusal naming it.
+type refusedDialError struct {
+	refusal *compilers.AddressSpaceError
+}
+
+// Error implements error.
+func (e *refusedDialError) Error() string { return compilers.ErrAddressSpace.Error() }
+
+// Unwrap returns the refusal, which names the address and its space.
+func (e *refusedDialError) Unwrap() error { return e.refusal }
 
 // failed returns err, the failure of a read g judged, with the refusal of an
 // address it would have dialled joined to it: a name resolving to several

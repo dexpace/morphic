@@ -97,6 +97,10 @@ func TestDisk_ABoundedReadIsJudgedBeforeAnythingIsRequested(t *testing.T) {
 
 	got, err := d.ReadDocument(t.Context(), compilers.DocumentRequest{Location: srv.URL, Reach: compilers.SpacePublic})
 	require.ErrorIs(t, err, compilers.ErrAddressSpace)
+	past, ok := errors.AsType[*compilers.AddressSpaceError](err)
+	require.True(t, ok, "the refusal names the address and its space")
+	assert.Equal(t, compilers.SpacePrivate, past.Space)
+	assert.NotContains(t, err.Error(), past.Address+": "+past.Address, "the dial names its address once")
 	assert.Empty(t, got.Data)
 	assert.Zero(t, srv.requests.Load(), "the address was refused before the request was sent")
 
@@ -105,6 +109,7 @@ func TestDisk_ABoundedReadIsJudgedBeforeAnythingIsRequested(t *testing.T) {
 		require.NoError(t, err, "reach %d", reach)
 		assert.Equal(t, "document", string(got.Data), "reach %d", reach)
 		assert.Equal(t, compilers.SpacePrivate, got.Space, "reach %d: the read states where it was answered from", reach)
+		assert.Equal(t, got.Space, got.Bound, "reach %d: a direct dial bounds the read where it answered", reach)
 	}
 	assert.EqualValues(t, 2, srv.requests.Load())
 }
