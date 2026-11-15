@@ -39,7 +39,7 @@ func TestRead_AppliesTheVersionsTheCompilerKnowsAtAnyPatch(t *testing.T) {
 
 // TestRead_RefusesWhatTheSpecificationRequiresAndTheOverlayLacks pins each of
 // the overlay's required fields, each refused on its own, so an overlay
-// lacking several is told of every one.
+// lacking several is told of every one, and one of the wrong form once.
 func TestRead_RefusesWhatTheSpecificationRequiresAndTheOverlayLacks(t *testing.T) {
 	t.Parallel()
 	tests := map[string]struct {
@@ -50,6 +50,7 @@ func TestRead_RefusesWhatTheSpecificationRequiresAndTheOverlayLacks(t *testing.T
 		"no title and no info version": {"overlay: 1.0.0\ninfo: {}\nactions: [{target: $, remove: true}]\n", []string{"no title", "no version"}},
 		"an extends that is no URI":    {"overlay: 1.0.0\ninfo: {title: O, version: \"1\"}\nextends: '%zz'\nactions: [{target: $, remove: true}]\n", []string{"no URI reference"}},
 		"no action":                    {"overlay: 1.0.0\ninfo: {title: O, version: \"1\"}\n", []string{"holds no action"}},
+		"actions that are no list":     {"overlay: 1.0.0\ninfo: {title: O, version: \"1\"}\nactions: {target: $, remove: true}\n", []string{"is not a list"}},
 		"an action naming no target":   {v10 + "  - update: {a: b}\n", []string{"names no target"}},
 	}
 	for name, tc := range tests {
