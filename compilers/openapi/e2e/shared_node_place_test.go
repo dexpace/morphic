@@ -5,6 +5,7 @@ package e2e_test
 
 import (
 	"slices"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -168,6 +169,37 @@ func TestCompile_TheAmplificationRefusalNamesTheLeastPlaceOfTheNodeItReaches(t *
 			assert.Equal(t, []string{"/components/schemas/L4/allOf"}, codedPointers(diags, aliasAmplification), "%+v", diags)
 		})
 	}
+}
+
+// twoLadders writes two alias ladders, each past the expansion allowance on
+// its own, under /x-z and /x-m, with the rung of the first that crosses it
+// aliased again under /x-a, which sorts before both.
+func twoLadders() string {
+	var b strings.Builder
+	b.WriteString(head31 + "paths: {}\n")
+	for _, ladder := range []string{"z", "m"} {
+		b.WriteString("x-" + ladder + ":\n  l0: &" + ladder + "0 [a, a, a, a, a, a, a, a, a, a]\n")
+		for i := 1; i <= 5; i++ {
+			alias := "*" + ladder + strconv.Itoa(i-1)
+			b.WriteString("  l" + strconv.Itoa(i) + ": &" + ladder + strconv.Itoa(i) + " [" +
+				strings.TrimSuffix(strings.Repeat(alias+", ", 10), ", ") + "]\n")
+		}
+	}
+	b.WriteString("x-a: *z5\n")
+	return b.String()
+}
+
+// TestCompile_TheAmplificationRefusalNamesTheLeastOfItsCulprits holds the
+// alias-expansion refusal of a document two nodes cross the allowance in to
+// the one whose least place is least, where an alias of the node holding it
+// places it, rather than the one whose anchor is written at the lesser key.
+func TestCompile_TheAmplificationRefusalNamesTheLeastOfItsCulprits(t *testing.T) {
+	t.Parallel()
+
+	doc, diags := compileText(t, "ladders.yaml", twoLadders(), openapi.Options{})
+
+	assert.Nil(t, doc, "the expansion is refused")
+	assert.Equal(t, []string{"/x-a/0"}, codedPointers(diags, aliasAmplification), "%+v", diags)
 }
 
 // innerAnchors writes #1796's two-level case with each place of the inner node
