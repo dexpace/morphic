@@ -113,9 +113,7 @@ func (e external) admits(ctx context.Context, id, location string, a answer, rea
 // document budget stay its first read's, so the read is not charged; one is
 // made per reach a document is judged at (externalReads.verdict).
 func (e external) verdict(ctx context.Context, id, location string, reach compilers.AddressSpace) (compilers.AddressSpace, error) {
-	got, err := e.opts.Reader.ReadDocument(ctx, compilers.DocumentRequest{
-		Location: location, Within: e.opts.Within, Limit: ReadLimit(e.opts.MaxSourceBytes), Reach: reach,
-	})
+	got, err := e.request(ctx, location, reach)
 	if err != nil {
 		return compilers.SpaceUnstated, readFailure(e.opts, id, err, reach)
 	}
@@ -210,9 +208,7 @@ func (e external) documentID(key string) string {
 // location while its space is the address that answered, which bounds what
 // they reach, so none reaches further (GitHub #1943).
 func (e external) fetch(ctx context.Context, id, key, location string, reach compilers.AddressSpace) answer {
-	got, err := e.opts.Reader.ReadDocument(ctx, compilers.DocumentRequest{
-		Location: location, Within: e.opts.Within, Limit: ReadLimit(e.opts.MaxSourceBytes), Reach: reach,
-	})
+	got, err := e.request(ctx, location, reach)
 	if err != nil {
 		return answer{err: readFailure(e.opts, id, err, reach), refusal: err, reach: reach, read: true}
 	}
@@ -221,6 +217,15 @@ func (e external) fetch(ctx context.Context, id, key, location string, reach com
 		return answer{err: err, space: got.Space, bound: boundOf(got), reach: reach, read: true}
 	}
 	return answer{body: data, prepared: key, space: got.Space, bound: boundOf(got), reach: reach, read: true}
+}
+
+// request reads the document at location through Options.Reader, confined to
+// Options.Within, held to the byte budget and dialling no address more
+// private than reach: the one request a read and a judgement alike make.
+func (e external) request(ctx context.Context, location string, reach compilers.AddressSpace) (compilers.DocumentRead, error) {
+	return e.opts.Reader.ReadDocument(ctx, compilers.DocumentRequest{
+		Location: location, Within: e.opts.Within, Limit: ReadLimit(e.opts.MaxSourceBytes), Reach: reach,
+	})
 }
 
 // unnamed returns the refusal of the document under key, read at location,
