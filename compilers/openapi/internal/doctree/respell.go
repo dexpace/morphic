@@ -56,8 +56,8 @@ func respell(text []byte) ([]byte, respelling, []Directive) {
 		present[i] = bytes.Contains(text, []byte(b))
 	}
 	slashed := bytes.Contains(text, []byte(escapedSlash))
-	pairs := pairsIn(text)
-	if present == [3]bool{} && !slashed && len(pairs) == 0 {
+	paired := len(pairsIn(text)) > 0
+	if present == [3]bool{} && !slashed && !paired {
 		return out, respelling{}, dirs
 	}
 
@@ -73,9 +73,11 @@ func respell(text []byte) ([]byte, respelling, []Directive) {
 		r.slash = take(&free)
 		out = replaceSlashes(out, r.slash)
 	}
-	if len(pairs) > 0 {
+	if paired {
+		// Found again in out: a placeholder is wider in bytes than a break or an
+		// escaped slash it stands for, so the offsets text gave have moved.
 		r.pair = take(&free)
-		out = replacePairs(out, pairs, r.pair)
+		out = replacePairs(out, pairsIn(out), r.pair)
 	}
 	return out, r, dirs
 }

@@ -34,6 +34,27 @@ func TestRead_ASurrogatePairIsTheCharacterOnlyInADoubleQuotedScalar(t *testing.T
 	assert.Equal(t, "# "+bs+"ud83d"+bs+"ude00", at(t, doc.Root, "c").LineComment, "a comment keeps the case written")
 }
 
+// TestRead_ASurrogatePairAfterAnotherTriggerIsTheCharacter holds a pair written
+// after an escaped slash or a line-break character, whose placeholders are
+// wider in bytes than what they stand for, to the character, the text before
+// it as written.
+func TestRead_ASurrogatePairAfterAnotherTriggerIsTheCharacter(t *testing.T) {
+	t.Parallel()
+	for name, before := range map[string]struct{ text, value string }{
+		"an escaped slash": {bs + "/", "/"},
+		"a NEL":            {"\u0085", "\u0085"},
+		"a line separator": {" ", " "},
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			doc := read(t, "t: \"a"+before.text+"b"+pairText+"c\"\nu: 'd"+pairText+"'\n")
+
+			assert.Equal(t, "a"+before.value+"b\U0001F600c", at(t, doc.Root, "t").Value)
+			assert.Equal(t, "d"+pairText, at(t, doc.Root, "u").Value)
+		})
+	}
+}
+
 // TestRead_ASurrogatePairAfterAnEvenRunOfBackslashesIsNotOne holds the pair
 // whose first backslash is itself escaped: the escaped backslash then the
 // text uD83D then a lone low half, which the lexer refuses as it does today.
