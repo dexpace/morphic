@@ -4,6 +4,8 @@
 package operation
 
 import (
+	"slices"
+
 	"github.com/speakeasy-api/openapi/jsonschema/oas3"
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
@@ -56,28 +58,36 @@ func readContentEncoding(c lowering.Ctx, schemas []*oas3.JSONSchema[oas3.Referen
 // to, decls declaring the part: each declaration's type, a union's members in
 // its place (unionMembers), and a list's or a tuple's elements in place of the
 // list, since an encoding applies to each item of an array part (OpenAPI 3.2
-// §4.15.1). ok is false where a union's members are not read.
-func partValues(node func(ir.TypeID) (ir.TypeDef, bool), decls []*ir.Property) (values []ir.TypeRef, ok bool) {
+// §4.15.1). ok is false where a union's members are not read. A union's values
+// are read once a run (partUnions.valuesOf), and a part declared once by a
+// union takes them as they are, a list it only reads.
+func partValues(unions *partUnions, node func(ir.TypeID) (ir.TypeDef, bool), decls []*ir.Property) (values []ir.TypeRef, ok bool) {
 	for _, d := range decls {
-		members := []ir.TypeRef{d.Type}
-		if u, isUnion := bodyNode(node, d.Type.Target).(*ir.Union); isUnion && u != nil {
-			if members, ok = unionMembers(node, u); !ok {
-				return nil, false
-			}
+		u, isUnion := bodyNode(node, d.Type.Target).(*ir.Union)
+		if !isUnion || u == nil {
+			values = append(values, itemsOf(node, d.Type)...)
+			continue
 		}
-		for _, m := range members {
-			values = append(values, itemsOf(node, m)...)
+		held, read := unions.valuesOf(node, u)
+		switch {
+		case !read:
+			return nil, false
+		case len(decls) == 1:
+			return held, true
 		}
+		values = append(values, held...)
 	}
 	return values, true
 }
 
 // withDefaultContentType returns pe, the encoding of a part decls declare,
 // with the content type OpenAPI gives it by default, encodedBy saying what its
-// declarations write of contentEncoding.
-func withDefaultContentType(node func(ir.TypeID) (ir.TypeDef, bool), rules oas.EncodingRules, decls []*ir.Property, encodedBy contentEncoding, pe ir.PartEncoding) ir.PartEncoding {
-	if values, ok := partValues(node, decls); ok {
-		pe.ContentTypes = defaultContentType(node, rules, values, encodedBy)
+// declarations write of contentEncoding, and decl the one declaration of the
+// part. The run's store reads it once for every part so declared
+// (partUnions.partDefault).
+func withDefaultContentType(unions *partUnions, node func(ir.TypeID) (ir.TypeDef, bool), rules oas.EncodingRules, decl *ir.Property, encodedBy contentEncoding, pe ir.PartEncoding) ir.PartEncoding {
+	if types, ok := unions.partDefault(node, rules, decl, encodedBy); ok {
+		pe.ContentTypes = slices.Clone(types)
 	}
 	return pe
 }
@@ -120,14 +130,14 @@ const maxDefaultValues = 256
 // a null passed over, and none where two differ, a value takes none, or none
 // is left to read. encodedBy is what the part's declarations say of
 // contentEncoding.
-func defaultContentType(node func(ir.TypeID) (ir.TypeDef, bool), rules oas.EncodingRules, values []ir.TypeRef, encodedBy contentEncoding) []string {
+func defaultContentType(unions *partUnions, node func(ir.TypeID) (ir.TypeDef, bool), rules oas.EncodingRules, values []ir.TypeRef, encodedBy contentEncoding) []string {
 	pending := append([]ir.TypeRef(nil), values...)
 	taken := ""
 	for range maxDefaultValues {
 		if len(pending) == 0 {
 			break
 		}
-		r := readValue(node, rules, pending[0], encodedBy)
+		r := readValue(unions, node, rules, pending[0], encodedBy)
 		pending = append(pending[1:], r.instead...)
 		switch {
 		case r.null || len(r.instead) > 0:
@@ -156,7 +166,7 @@ type valueReading struct {
 // readValue reads the value of type ref as its default content type is keyed
 // (valueReading), through the alias scalars on its chain, noting the encoding
 // the first scalar naming one names, and bounded by maxBodyAliasHops.
-func readValue(node func(ir.TypeID) (ir.TypeDef, bool), rules oas.EncodingRules, ref ir.TypeRef, encodedBy contentEncoding) valueReading {
+func readValue(unions *partUnions, node func(ir.TypeID) (ir.TypeDef, bool), rules oas.EncodingRules, ref ir.TypeRef, encodedBy contentEncoding) valueReading {
 	encoding := ""
 	id := ref.Target
 	for range maxBodyAliasHops {
@@ -171,7 +181,7 @@ func readValue(node func(ir.TypeID) (ir.TypeDef, bool), rules oas.EncodingRules,
 			id = s.Base.Target
 			continue
 		}
-		return readNode(node, rules, td, encoding, encodedBy)
+		return readNode(unions, node, rules, td, encoding, encodedBy)
 	}
 	return valueReading{}
 }
@@ -180,7 +190,7 @@ func readValue(node func(ir.TypeID) (ir.TypeDef, bool), rules oas.EncodingRules,
 // the one a scalar on the chain names: a primitive, an enum and a literal by
 // their primitive (primitiveCase), a model and a map as objects, an array
 // inside an array by its row or else its items, and a union by its members.
-func readNode(node func(ir.TypeID) (ir.TypeDef, bool), rules oas.EncodingRules, td ir.TypeDef, encoding string, encodedBy contentEncoding) valueReading {
+func readNode(unions *partUnions, node func(ir.TypeID) (ir.TypeDef, bool), rules oas.EncodingRules, td ir.TypeDef, encoding string, encodedBy contentEncoding) valueReading {
 	if elems, isArray := elementsOf(td); isArray {
 		if ct, ok := rules.ContentType(oas.DefaultNestedArray); ok {
 			return valueReading{contentType: ct}
@@ -197,7 +207,7 @@ func readNode(node func(ir.TypeID) (ir.TypeDef, bool), rules oas.EncodingRules, 
 	case *ir.Model, *ir.MapT:
 		return byCase(rules, oas.DefaultObject)
 	case *ir.Union:
-		if members, ok := unionMembers(node, t); ok && len(members) > 0 {
+		if members, ok := unions.membersOf(node, t); ok && len(members) > 0 {
 			return valueReading{instead: members}
 		}
 		return valueReading{}
@@ -295,6 +305,7 @@ func (d itemDefault) Settle(reg ir.TypeRegistry) []ir.Diagnostic {
 		td, ok := reg[id]
 		return td, ok
 	}
-	d.encoding.ContentTypes = defaultContentType(node, lowering.EncodingRules(d.c), []ir.TypeRef{d.item}, d.encoded)
+	types := partUnionsOf(d.c).itemDefault(node, lowering.EncodingRules(d.c), d.item, d.encoded)
+	d.encoding.ContentTypes = slices.Clone(types)
 	return nil
 }

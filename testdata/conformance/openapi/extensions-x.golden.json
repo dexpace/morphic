@@ -369,7 +369,17 @@
                 "pointer": "/paths/~1widgets/get/callbacks/onEvent/{$request.body#~1u}/post"
               }
             }
-          ]
+          ],
+          "unmodeled": {
+            "openapi:x-mark": {
+              "reason": "vendor_extension",
+              "value": "XTAG",
+              "provenance": {
+                "source": 0,
+                "pointer": "/tags/0/x-mark"
+              }
+            }
+          }
         },
         {
           "id": "g/default",
@@ -943,6 +953,24 @@
             "url": "https://t.example"
           }
         ]
+      },
+      "unmodeled": {
+        "openapi:externalDocs/x-mark": {
+          "reason": "vendor_extension",
+          "value": "XTAGEXTERNALDOCS",
+          "provenance": {
+            "source": 0,
+            "pointer": "/tags/0/externalDocs/x-mark"
+          }
+        },
+        "openapi:x-mark": {
+          "reason": "vendor_extension",
+          "value": "XTAG",
+          "provenance": {
+            "source": 0,
+            "pointer": "/tags/0/x-mark"
+          }
+        }
       }
     }
   ],
@@ -985,22 +1013,6 @@
       "provenance": {
         "source": 0,
         "pointer": "/info/x-mark"
-      }
-    },
-    "openapi:tags/0/externalDocs/x-mark": {
-      "reason": "vendor_extension",
-      "value": "XTAGEXTERNALDOCS",
-      "provenance": {
-        "source": 0,
-        "pointer": "/tags/0/externalDocs/x-mark"
-      }
-    },
-    "openapi:tags/0/x-mark": {
-      "reason": "vendor_extension",
-      "value": "XTAG",
-      "provenance": {
-        "source": 0,
-        "pointer": "/tags/0/x-mark"
       }
     },
     "openapi:x-audience": {

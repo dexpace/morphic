@@ -934,6 +934,7 @@
                 "canonical": "under_path_item_key"
               },
               "docs": {},
+              "stability": "beta",
               "responses": [
                 {
                   "name": {
@@ -976,7 +977,8 @@
               },
               "provenance": {
                 "source": 0,
-                "pointer": "/paths/~1pathitem/get"
+                "pointer": "/paths/~1pathitem/get",
+                "inferred": "extension-promotion"
               }
             }
           ]
@@ -1054,7 +1056,7 @@
     {
       "format": "openapi@3.1",
       "path": "extension-stability.yaml",
-      "hash": "a7c9a68f586f087249c85b4268fbd718cb57f64191e3564455cbfaa838daea16"
+      "hash": "21171b53fb9f0128c4ca1bf4562eb13ad661d1a2b40b484e9a3d5847750647d6"
     }
   ]
 }

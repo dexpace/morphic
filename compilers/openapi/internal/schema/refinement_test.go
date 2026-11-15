@@ -639,8 +639,8 @@ func TestRefinement_KeptKeywordsLandAtEveryPosition(t *testing.T) {
 			param, ok := openapitest.ParamBySource(op, "id")
 			require.True(t, ok)
 			held("a property", propertyOf(t, doc, "Holder", "f").Unmodeled)
-			held("a parameter", param.Unmodeled)
-			held("a header", op.Responses[0].Headers[0].Unmodeled)
+			held("a parameter", schemaKept(param.Unmodeled))
+			held("a header", schemaKept(op.Responses[0].Headers[0].Unmodeled))
 			_, nodes := positionRefs(t, doc)
 			for position, ref := range nodes {
 				held(position, aliasAt(t, doc, ref).Unmodeled)

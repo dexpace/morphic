@@ -31,7 +31,7 @@ func FillPropertyDetail(c lowering.Ctx, ts *compile.Types, p *ir.Property, js *o
 		return nil
 	}
 	use := UseOf(c, ts, js, p.Type, pointer)
-	def, diags := annotation.EffectiveDefault(use.DefaultChain(ref), pointer, c.Place())
+	def, diags := use.Default(c, ref, pointer)
 	p.Default = def
 	diags = append(diags, fillPropertyVisibility(c, p, use.Site(ref).Chain(), pointer)...)
 	diags = append(diags, fillPropertyConstraints(c, ts, p, ref, use.Voices, pointer)...)

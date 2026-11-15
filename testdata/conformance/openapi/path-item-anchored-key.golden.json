@@ -158,19 +158,27 @@
     {
       "severity": "warning",
       "code": "openapi/unknown-object-key",
-      "message": "key \"bogusAnchored\" is not defined by the OpenAPI object it is written on and is not an x- extension; kept verbatim under Unmodeled",
+      "message": "key \"bogusAnchored\" is not defined by the Path Item Object it is written on and is not an x- extension",
       "provenance": {
         "source": 0,
-        "pointer": "/paths/~1x/bogusAnchored"
+        "pointer": "/paths/~1x/bogusAnchored",
+        "position": {
+          "line": 11,
+          "column": 20
+        }
       }
     },
     {
       "severity": "warning",
       "code": "openapi/unknown-object-key",
-      "message": "key \"plainBogus\" is not defined by the OpenAPI object it is written on and is not an x- extension; kept verbatim under Unmodeled",
+      "message": "key \"plainBogus\" is not defined by the Path Item Object it is written on and is not an x- extension",
       "provenance": {
         "source": 0,
-        "pointer": "/paths/~1x/plainBogus"
+        "pointer": "/paths/~1x/plainBogus",
+        "position": {
+          "line": 12,
+          "column": 20
+        }
       }
     }
   ],

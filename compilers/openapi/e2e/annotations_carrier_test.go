@@ -246,7 +246,7 @@ func visibilityParameterCase() retentionCase {
 		cell: carrierCell(harness.AnnotationVisibility, harness.SiteCarrierParameter),
 		spec: carrierParamSpec(`{type: string, readOnly: true}`),
 		assert: func(t *testing.T, doc *ir.Document) {
-			entry := unmodeledEntry(t, carriedParameter(t, doc).Unmodeled, "openapi:readOnly")
+			entry := unmodeledEntry(t, carriedParameter(t, doc).Unmodeled, "openapi:schema/readOnly")
 			assert.Equal(t, ir.ReasonNoIRHome, entry.Reason)
 			assert.JSONEq(t, `true`, string(entry.Value))
 		},
@@ -275,7 +275,7 @@ func vendorExtensionParameterCase() retentionCase {
 		cell: carrierCell(harness.AnnotationVendorExtension, harness.SiteCarrierParameter),
 		spec: carrierParamSpec(`{type: string, x-vendor: at-carrier}`),
 		assert: func(t *testing.T, doc *ir.Document) {
-			entry := unmodeledEntry(t, carriedParameter(t, doc).Unmodeled, "openapi:x-vendor")
+			entry := unmodeledEntry(t, carriedParameter(t, doc).Unmodeled, "openapi:schema/x-vendor")
 			assert.Equal(t, ir.ReasonVendorExtension, entry.Reason)
 			assert.JSONEq(t, `"at-carrier"`, string(entry.Value))
 		},
@@ -302,7 +302,7 @@ func xmlHintsParameterCase() retentionCase {
 		cell: carrierCell(harness.AnnotationXMLHints, harness.SiteCarrierParameter),
 		spec: carrierParamSpec(`{type: string, xml: {name: AtCarrier}}`),
 		assert: func(t *testing.T, doc *ir.Document) {
-			entry := unmodeledEntry(t, carriedParameter(t, doc).Unmodeled, "openapi:xml")
+			entry := unmodeledEntry(t, carriedParameter(t, doc).Unmodeled, "openapi:schema/xml")
 			assert.Equal(t, ir.ReasonNoIRHome, entry.Reason)
 			assert.JSONEq(t, `{"name":"AtCarrier"}`, string(entry.Value))
 		},
@@ -331,7 +331,7 @@ func validationOnlyParameterCase() retentionCase {
 		cell: carrierCell(harness.AnnotationValidationOnly, harness.SiteCarrierParameter),
 		spec: carrierParamSpec(`{type: string, not: {const: nope}}`),
 		assert: func(t *testing.T, doc *ir.Document) {
-			entry := unmodeledEntry(t, carriedParameter(t, doc).Unmodeled, "openapi:not")
+			entry := unmodeledEntry(t, carriedParameter(t, doc).Unmodeled, "openapi:schema/not")
 			assert.Equal(t, ir.ReasonValidationOnly, entry.Reason)
 			assert.JSONEq(t, `{"const":"nope"}`, string(entry.Value))
 		},
@@ -358,6 +358,6 @@ func TestAnnotationRetention_CarriersDifferWhereTheirFieldsDo(t *testing.T) {
 	paramDoc, diags := compileAnnotationSpec(t, "carrier-parameter", carrierParamSpec(body))
 	assertNoErrorDiags(t, diags)
 	param := carriedParameter(t, paramDoc)
-	assert.Contains(t, param.Unmodeled, "openapi:xml", "ir.Parameter has neither field")
-	assert.Contains(t, param.Unmodeled, "openapi:readOnly")
+	assert.Contains(t, param.Unmodeled, "openapi:schema/xml", "ir.Parameter has neither field")
+	assert.Contains(t, param.Unmodeled, "openapi:schema/readOnly")
 }

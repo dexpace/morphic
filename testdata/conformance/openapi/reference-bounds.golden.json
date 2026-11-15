@@ -83,7 +83,7 @@
                   },
                   "docs": {},
                   "unmodeled": {
-                    "openapi:minimum": {
+                    "openapi:schema/minimum": {
                       "reason": "degraded_lowering",
                       "value": 1,
                       "provenance": {
@@ -114,7 +114,7 @@
                   },
                   "docs": {},
                   "unmodeled": {
-                    "openapi:maxLength": {
+                    "openapi:schema/maxLength": {
                       "reason": "degraded_lowering",
                       "value": 5,
                       "provenance": {
@@ -166,7 +166,7 @@
                       "secret": false,
                       "docs": {},
                       "unmodeled": {
-                        "openapi:pattern": {
+                        "openapi:schema/pattern": {
                           "reason": "degraded_lowering",
                           "value": "^a",
                           "provenance": {

@@ -12,7 +12,7 @@ package ir
 // docs/ir/ir-version.md holds that policy, docs/ir/version-history.md what each
 // bump changed, and TestIRVersion_PinsTheEncodedShape and
 // TestIRVersion_PinsTheNames hold it to the shape and the names.
-const IRVersion = "0.67.0"
+const IRVersion = "0.68.0"
 
 // CompatibleVersion reports whether a document stamped version can be read by
 // this build: exact equality with IRVersion, per docs/ir/ir-version.md. A
@@ -134,4 +134,9 @@ type TagDef struct {
 	// policy, not a property of the document, so no meaning is read into a
 	// value here (docs/ir/services.md).
 	Kind string `json:"kind,omitempty"`
+	// Unmodeled holds the tag's source constructs the IR does not model, kept
+	// verbatim on the tag whatever grouping forms from it: its own keys
+	// unscoped, its externalDocs object's under externalDocs/
+	// (docs/ir/unmodeled.md#carriers).
+	Unmodeled Unmodeled `json:"unmodeled,omitempty"`
 }

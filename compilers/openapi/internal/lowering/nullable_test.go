@@ -11,11 +11,11 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
 )
 
-// TestNullableWidening_TheZeroValueHonoursTheKeyword pins the policy's zero
+// TestNullableInference_TheZeroValueHonoursTheKeyword pins the policy's zero
 // value, which an Options left unset hands the lowering: on, so a caller who
 // says nothing gets the reading documents written to 3.0.0's wording rely on.
-func TestNullableWidening_TheZeroValueHonoursTheKeyword(t *testing.T) {
+func TestNullableInference_TheZeroValueHonoursTheKeyword(t *testing.T) {
 	t.Parallel()
-	assert.True(t, lowering.NullableWidening{}.Honours())
-	assert.False(t, lowering.NullableWidening{Disabled: true}.Honours())
+	assert.True(t, lowering.NullableInference{}.Honours())
+	assert.False(t, lowering.NullableInference{Disabled: true}.Honours())
 }

@@ -12,9 +12,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/bind"
-	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
-	"github.com/dexpace/morphic/compilers/openapi/internal/load"
-	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
 	"github.com/dexpace/morphic/compilers/openapi/internal/resolve"
 )
@@ -34,46 +31,6 @@ func TestFirstDeclared_KeepsEachKeysFirstDeclaration(t *testing.T) {
 	assert.Equal(t, jsontext.Pointer("/first"), got["k"].rel, "a repeated key keeps its first declaration")
 	assert.Equal(t, jsontext.Pointer("/other"), got["other"].rel)
 	assert.Empty(t, firstDeclared(nil))
-}
-
-// TestPathItemLayers_NamesWhereTheUseSitesOwnUnreadFieldsAre pins the use
-// site's own place in the report of fields no model holds: read in another
-// document's scope they are that document's, and read in the source's they are
-// fields its walk did not reach. A compile reaches the first through a path
-// item $ref another document's callback writes with fields beside it, and the
-// second only when a walk panic stops the search, so the context is given an
-// empty load result in place of the load phase's models.
-func TestPathItemLayers_NamesWhereTheUseSitesOwnUnreadFieldsAre(t *testing.T) {
-	t.Parallel()
-	l, diags := loweredFor(t, `openapi: 3.1.0
-info: {title: T, version: "1"}
-paths:
-  /a:
-    $ref: '#/paths/~1b'
-    put: {responses: {"200": {description: OK}}}
-  /b:
-    get: {responses: {"200": {description: OK}}}
-`)
-	openapitest.RequireNoErrorDiags(t, diags)
-	rp, ok := l.ctx.Doc.GetPaths().Get("/a")
-	require.True(t, ok)
-	const usePtr = jsontext.Pointer("/paths/~1a")
-
-	for foreign, want := range map[bool]string{false: "does not reach", true: "in another document"} {
-		use := lowering.New(0, &load.Document{Doc: l.ctx.Doc, Bindings: l.ctx.Bindings()}, lowering.Policy{})
-		if foreign {
-			scope := use.RefScope()
-			scope.Foreign, scope.Holder = true, "other.yaml"
-			use = use.InScope(scope)
-		}
-
-		layers, found := pathItemLayers(use, rp, usePtr)
-
-		require.NotEmpty(t, layers, "foreign %t: the item still mounts", foreign)
-		require.Len(t, found, 1, "foreign %t: the use site's fields, and no hop's", foreign)
-		assert.Equal(t, diag.DegradedConstruct, found[0].Code)
-		assert.Contains(t, found[0].Message, want, "foreign %t", foreign)
-	}
 }
 
 // TestPathItemLayers_AOneLayerMountCostsItsLayerAlone pins what a mount with

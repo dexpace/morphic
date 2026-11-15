@@ -9,8 +9,8 @@
 // unwritten fields' defaults, and the dialects a Schema Object can name, each
 // row citing its sentence.
 //
-// A rule another package already reports names it as owner: the table states
-// it and the engine skips it. Unknown keys are not reported here.
+// A rule another package reports names it as owner, and the engine skips it.
+// The engine reports an unknown key wherever it is written.
 //
 // Check is pure: it reads the tree through nodeview and keeps no state.
 package oas

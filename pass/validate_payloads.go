@@ -33,6 +33,88 @@ func checkEncodingKeys(doc *ir.Document, facts *irfacts.Index) []ir.Diagnostic {
 	return diags
 }
 
+// checkCatchAllEncodingKeys reports what a content's CatchAllEncoding states of
+// a catch-all its body has not (docs/ir/payloads.md#a-catch-alls-parts): a key
+// naming no holder among the body's shapes, a Value for a holder with none, or
+// a Patterns key its holder does not list, each ir/encoding-key-unknown-catch-all.
+// The shapes are the content's type and, through its unions, each variant,
+// each read by ir.CatchAllHolders, as the compiler keys them. An emitter looking
+// a key up finds no catch-all and renders its parts with no encoding. An empty
+// key is checkEmptyRefs's and one naming no type checkDanglingRefs', so each
+// defect draws one code.
+func checkCatchAllEncodingKeys(doc *ir.Document) []ir.Diagnostic {
+	var diags []ir.Diagnostic
+	var keys []ir.TypeID // every content's keys are sorted in this one list
+	forEachPayload(doc, func(site payloadSite) {
+		for i, c := range site.contents {
+			if len(c.CatchAllEncoding) > 0 {
+				at := site.where() + "/contents/" + strconv.Itoa(i) + "/catchAllEncoding/"
+				diags = appendCatchAllDiags(diags, doc.Types, c, at, &keys)
+			}
+		}
+	})
+	return diags
+}
+
+// appendCatchAllDiags appends to dst a diagnostic per statement of c's
+// CatchAllEncoding, at at and its key, that the holders of c's body refute,
+// asking the keys in ascending order, sorted in keys.
+func appendCatchAllDiags(dst []ir.Diagnostic, types ir.TypeRegistry, c ir.Content, at string, keys *[]ir.TypeID,
+) []ir.Diagnostic {
+	holders := map[ir.TypeID]bool{}
+	anyHolder(types, c.Type.Target, func(h ir.TypeID) bool {
+		for _, holder := range ir.CatchAllHolders(types, h) {
+			holders[holder] = true
+		}
+		return false
+	})
+	*keys = slices.AppendSeq((*keys)[:0], maps.Keys(c.CatchAllEncoding))
+	slices.Sort(*keys)
+	for _, key := range *keys {
+		if _, declared := types[key]; !declared {
+			continue // empty or dangling, which the reference checks report
+		}
+		if !holders[key] {
+			dst = append(dst, unknownCatchAll(at+string(key),
+				fmt.Sprintf("names %q, which holds no catch-all of the content's type %q", key, c.Type.Target)))
+			continue
+		}
+		dst = appendCatchAllPartDiags(dst, types[key], c.CatchAllEncoding[key], at+string(key))
+	}
+	return dst
+}
+
+// appendCatchAllPartDiags appends to dst a diagnostic for a Value parts states
+// where holder, at at's key, has none, and for each Patterns key, in ascending
+// order, holder does not list. ir.CatchAllHolders gives a map, which has a
+// value and no pattern, or a model holding AdditionalProps.
+func appendCatchAllPartDiags(dst []ir.Diagnostic, holder ir.TypeDef, parts ir.CatchAllParts, at string) []ir.Diagnostic {
+	value, listed := true, []string(nil)
+	if m, ok := holder.(*ir.Model); ok {
+		value = m.AdditionalProps.Value != nil
+		for _, p := range m.AdditionalProps.Patterns {
+			listed = append(listed, p.Pattern)
+		}
+	}
+	if parts.Value != nil && !value {
+		dst = append(dst, unknownCatchAll(at+"/value", "states a value for a catch-all that admits none"))
+	}
+	for _, pattern := range slices.Sorted(maps.Keys(parts.Patterns)) {
+		if !slices.Contains(listed, pattern) {
+			dst = append(dst, unknownCatchAll(at+"/patterns/"+pattern,
+				fmt.Sprintf("states pattern %q, which the catch-all does not list", pattern)))
+		}
+	}
+	return dst
+}
+
+// unknownCatchAll is the finding that the catch-all encoding entry at at
+// states what its holder does not hold, as what says.
+func unknownCatchAll(at, what string) ir.Diagnostic {
+	return diag(ir.SeverityError, "ir/encoding-key-unknown-catch-all",
+		fmt.Sprintf("catch-all encoding at %s %s", at, what), at)
+}
+
 // checkPayloadRequired reports a Payload.Required set anywhere but on a request.
 //
 // Only a request body can be omitted, so ir.Payload defines the field for that

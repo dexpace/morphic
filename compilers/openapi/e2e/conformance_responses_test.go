@@ -11,7 +11,6 @@ import (
 
 	"github.com/dexpace/morphic/compilers/openapi"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
-	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -151,9 +150,11 @@ func assertResponseSummary32(t *testing.T, doc *ir.Document, diags []ir.Diagnost
 
 // assertHTTPDateInference pins the HTTP-date policy on its case: the
 // Last-Modified and Expires response headers, declared date-time inline and
-// through a $ref, take the http-date encoding, marked and each reported once;
-// a Date declared as text, another date-time field and a header parameter
-// keep what they declare.
+// through a $ref, and the If-Unmodified-Since header parameter take the
+// http-date encoding, marked and each reported once, the parameter's on its own
+// Encoding and its type unchanged; a Date declared as text and another
+// date-time field keep what they declare, and so does a parameter that is
+// not a header. The policy switched off fills none of them.
 func assertHTTPDateInference(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
 	op, ok := opByName(doc, "putFile")
 	require.True(t, ok)
@@ -184,14 +185,30 @@ func assertHTTPDateInference(t *testing.T, doc *ir.Document, diags []ir.Diagnost
 		require.NotNil(t, sc.Encoding, wire)
 		assert.Equal(t, encoding, sc.Encoding.Name, wire)
 	}
-	since, ok := openapitest.ParamBySource(op, "If-Unmodified-Since")
-	require.True(t, ok)
-	assert.Equal(t, ir.PrimTypeID(ir.PrimDatetimeOffset), since.Type.Target, "a parameter has no encoding to hold")
+	require.Len(t, op.Params, 2)
+	assert.Nil(t, op.Params[0].Encoding, "a path parameter is never read")
+	assert.Empty(t, op.Params[0].Provenance.Inferred)
+	since := op.Params[1]
+	assert.Equal(t, "If-Unmodified-Since", since.Name.Source)
+	assert.Equal(t, &ir.Encoding{Name: "http-date"}, since.Encoding, "the parameter's own text")
+	assert.Equal(t, ir.PrimTypeID(ir.PrimDatetimeOffset), since.Type.Target, "its type is still the instant")
+	assert.Equal(t, openapi.HTTPDateInferenceHeuristic, since.Provenance.Inferred)
+	assert.Equal(t, 1, countCode(diags, diag.InferredHTTPDate, "/paths/~1files~1{name}/put/parameters/1"))
 	reported := 0
 	for _, d := range diags {
 		if d.Code == diag.InferredHTTPDate {
 			reported++
 		}
 	}
-	assert.Equal(t, 2, reported, "nothing else is reported")
+	assert.Equal(t, 3, reported, "nothing else is reported")
+
+	off, offDiags := corpusWith(t, "http-date-inference",
+		openapi.Options{HTTPDateInference: openapi.HTTPDateInference{Disabled: true}})
+	offOp, ok := opByName(off, "putFile")
+	require.True(t, ok)
+	require.Len(t, offOp.Params, 2)
+	assert.Nil(t, offOp.Params[1].Encoding, "the policy off leaves the parameter as declared")
+	assert.Empty(t, offOp.Params[1].Provenance.Inferred)
+	assert.Equal(t, ir.PrimTypeID(ir.PrimDatetimeOffset), offOp.Params[1].Type.Target)
+	assert.Empty(t, offDiags)
 }

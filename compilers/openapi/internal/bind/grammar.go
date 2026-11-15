@@ -44,6 +44,10 @@ const (
 	sLink
 	sSecuritySchemeMap
 	sSecurityScheme
+	// sSecurityList is a `security` list, and sSecurityRequirement one of its
+	// Security Requirement Objects, whose keys name schemes (requirementKeys).
+	sSecurityList
+	sSecurityRequirement
 	sObject
 	sRawEntries
 	// sLoose is a position of a document that is no OpenAPI document, which no
@@ -57,7 +61,7 @@ const (
 var fields = map[state]map[string]state{
 	sDocument: {
 		"openapi": sValue, "info": sObject, "jsonSchemaDialect": sValue, "servers": sObject, "paths": sPaths,
-		"webhooks": sPathItemMap, "components": sComponents, "security": sObject, "tags": sObject,
+		"webhooks": sPathItemMap, "components": sComponents, "security": sSecurityList, "tags": sObject,
 		"externalDocs": sObject, "$self": sValue,
 	},
 	sComponents: {
@@ -75,7 +79,7 @@ var fields = map[state]map[string]state{
 	sOperation: {
 		"tags": sObject, "summary": sValue, "description": sValue, "externalDocs": sObject, "operationId": sValue,
 		"parameters": sParameterList, "requestBody": sRequestBody, "responses": sResponses,
-		"callbacks": sCallbackMap, "deprecated": sValue, "security": sObject, "servers": sObject,
+		"callbacks": sCallbackMap, "deprecated": sValue, "security": sSecurityList, "servers": sObject,
 	},
 	sParameter: {
 		"name": sValue, "in": sValue, "description": sValue, "required": sValue, "deprecated": sValue,
@@ -168,6 +172,7 @@ var entries = map[state]state{
 	sExampleMap:        sExample,
 	sLinkMap:           sLink,
 	sSecuritySchemeMap: sSecurityScheme,
+	sSecurityList:      sSecurityRequirement,
 	sRawEntries:        sRaw,
 }
 

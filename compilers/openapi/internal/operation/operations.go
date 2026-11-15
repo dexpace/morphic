@@ -67,9 +67,12 @@ func LowerService(ctx context.Context, c lowering.Ctx, ts *compile.Types, declar
 	diags = append(diags, w.claims.report(c)...)
 	groups.markSharedRoutes()
 	svc.Groups = groups.finalize()
+	tagDefs, tagDiags := lowerTagDefs(c)
+	diags = append(diags, tagDiags...)
+	diags = append(diags, tagGroups(c.Promoter(), svc.Groups, tagDefs)...)
 	return Lowered{
 		Service: svc,
-		TagDefs: lowerTagDefs(c),
+		TagDefs: tagDefs,
 		Servers: reg.Servers(),
 		Auth:    schemes.Schemes(),
 		Kept:    w.kept.entries,
@@ -219,9 +222,6 @@ func lowerOperation(c lowering.Ctx, w walk, src *soa.Operation, opCtx opContext)
 	diags = append(diags, cbDiags...)
 	op.Bindings = ir.OpBindings{HTTP: []ir.HTTPBinding{hb}}
 	diags = append(diags, applyOperationAnnotations(c, &op, src, decl)...)
-	// After the extensions are on the map, since that is what it reads.
-	diags = append(diags, c.Promoter().Deprecation(op.Unmodeled, lowering.Referent{}, &op.Deprecation, &op.Provenance)...)
-	diags = append(diags, lowering.Stability(c.Promoter(), op.Unmodeled, &op.Stability, &op.Provenance)...)
 	// mountPathItem names the path item's servers only where these name none,
 	// since an operation's own override them.
 	own, serverDiags := w.servers.Declared(c, src.GetServers(), decl)
@@ -286,4 +286,25 @@ func fillOperationDocs(d *ir.Docs, src *soa.Operation) {
 	if ed := src.GetExternalDocs(); ed != nil {
 		d.ExternalDocs = append(d.ExternalDocs, ir.Link{URL: ed.GetURL(), Description: ed.GetDescription()})
 	}
+}
+
+// promoteOperation fills what op's keys state of its deprecation and its tier,
+// once its path item's are on it beside its own, since that is what it reads:
+// a deprecation where op or its path item states one, and the tier op states,
+// else its path item's (docs/compilers/openapi.md#extension-promotion).
+func promoteOperation(p lowering.Promoter, op *ir.Operation) []ir.Diagnostic {
+	own := lowering.Carried(p, op.Unmodeled, pathItemScope)
+	diags := p.Deprecation(own, p.Lent(lowering.Referent{}, op.Unmodeled, pathItemScope), &op.Deprecation,
+		&op.Provenance)
+	diags = append(diags, lowering.Stability(p, own, &op.Stability, &op.Provenance)...)
+	// What the path item states behind the operation's own key is read for its
+	// misfits alone, reported once at the path item's key.
+	for _, layer := range lowering.Shadowed(p, op.Unmodeled, pathItemScope) {
+		var dep *ir.Deprecation
+		var tier ir.Stability
+		var prov ir.Provenance
+		diags = append(diags, p.Deprecation(layer, lowering.Referent{}, &dep, &prov)...)
+		diags = append(diags, lowering.Stability(p, layer, &tier, &prov)...)
+	}
+	return diags
 }

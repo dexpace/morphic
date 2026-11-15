@@ -17,7 +17,7 @@ import (
 // read.
 func (s Scope) Target(js *oas3.JSONSchema[oas3.Referenceable]) (bind.Position, bool) {
 	e, ok := s.Bindings.Entry(js)
-	if !ok || e.Hop.Status != bind.Resolved || e.Chain.Member {
+	if !ok || !e.Lands() {
 		return bind.Position{}, false
 	}
 	return e.Hop.Target, true

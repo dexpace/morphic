@@ -63,7 +63,7 @@ func occupiedEntryDiag(entry string, at ir.Provenance, held jsontext.Pointer) ir
 // Diagnostics are one per key plus the budget's own.
 const MaxUnknownKeys = 64
 
-// DecidedKeywords are the JSON Schema keywords the schema model names no field
+// decidedKeywords are the JSON Schema keywords the schema model names no field
 // for (docs/parser-library.md#unmodeled-keywords) and this compiler has already
 // decided about, so the census must not claim them as unread. The schema walk's
 // 2020-12 vocabulary test fails if one starts being carried:
@@ -75,7 +75,11 @@ const MaxUnknownKeys = 64
 //   - $dynamicRef: carried by the dynamic-reference lowering, which expands it
 //     or keeps it under its own reason. A census entry beside an expanded one
 //     would say a resolved reference was ignored.
-var DecidedKeywords = []string{"$comment", "$dynamicAnchor", "$dynamicRef"}
+var decidedKeywords = [...]string{"$comment", "$dynamicAnchor", "$dynamicRef"}
+
+// DecidedKeyword reports whether keyword is one the census leaves alone because
+// this compiler has already decided about it (decidedKeywords).
+func DecidedKeyword(keyword string) bool { return slices.Contains(decidedKeywords[:], keyword) }
 
 // modellessKeywords are the keywords of the dialect the schema model names no
 // field for that a reader keeps, so the census meets them with the rest.
@@ -89,7 +93,7 @@ var modellessKeywords = []string{"$vocabulary", "dependentRequired"}
 //
 // It runs after every other reader and keeps what none kept: `$vocabulary`
 // and `dependentRequired` have readers of their own. A keyword no reader
-// leaves a trace of is named in DecidedKeywords, or in taken where only the
+// leaves a trace of is named in decidedKeywords, or in taken where only the
 // caller knows a reader took it.
 func UnknownKeywordsIn(p *ir.Unmodeled, s *oas3.Schema, pointer jsontext.Pointer, doc provenance.Doc, taken ...string) []ir.Diagnostic {
 	keys, root := unknownSchemaKeys(s)
@@ -124,13 +128,13 @@ func WritesKeywordLeftOut(s *oas3.Schema, key string) bool {
 
 // unknownSchemaKeys returns the keys s writes that UnknownKeywordsIn answers
 // for, and the mapping holding them: those the model names no field for, but
-// the ones decided about (DecidedKeywords) and a null for a keyword the dialect
+// the ones decided about (DecidedKeyword) and a null for a keyword the dialect
 // defines, which reads as left out (RawPropertyNode). A key of no vocabulary
 // has no type a null could break, so it is kept with the null it wrote.
 func unknownSchemaKeys(s *oas3.Schema) ([]string, *yaml.Node) {
 	keys, root := undeclaredKeys(s)
 	return slices.DeleteFunc(slices.Clone(keys), func(key string) bool {
-		return slices.Contains(DecidedKeywords, key) ||
+		return DecidedKeyword(key) ||
 			slices.Contains(modellessKeywords, key) && IsNullNode(nodeview.Child(root, key))
 	}), root
 }
@@ -158,10 +162,10 @@ func UndefinedKeywordsIn(p *ir.Unmodeled, s *oas3.Schema, keys []string, pointer
 // lowering to a node with an Unmodeled map of its own. owner is the object's
 // source pointer.
 //
-// Unlike its schema neighbour this reports a fault: OpenAPI gives each object a
-// closed key set and requires extensions to be prefixed x-, so such a key is
-// usually a misspelling. It is kept all the same, because the IR is lossless
-// even for invalid input, and a misspelt key is the one most worth finding.
+// It keeps each key and reports none: the rule table reports every such key of
+// every object it judges, lowered or not (docs/compilers/openapi.md#unknown-keys),
+// so a report here would be the key's second. What it reports is about the
+// entry: one taken, unreachable or past the budget.
 func UnknownKeysIn(p *ir.Unmodeled, model any, doc provenance.Doc, owner jsontext.Pointer, taken ...string) []ir.Diagnostic {
 	return UnknownKeysUnder(p, model, doc, owner, "", taken...)
 }
@@ -192,13 +196,7 @@ func UnknownKeysUnder(p *ir.Unmodeled, model any, doc provenance.Doc, owner json
 func UnknownKeysNamed(p *ir.Unmodeled, keys []string, root *yaml.Node,
 	doc provenance.Doc, owner jsontext.Pointer, scope string, taken ...string,
 ) []ir.Diagnostic {
-	return census(p, keys, root, doc, owner, scope, keyClass{
-		code:     diag.UnknownObjectKey,
-		severity: ir.SeverityWarning,
-		skip:     taken,
-		message: "key %q is not defined by the OpenAPI object it is written on and is not an " +
-			"x- extension; kept verbatim under Unmodeled",
-	})
+	return census(p, keys, root, doc, owner, scope, keyClass{skip: taken})
 }
 
 // TakeString reads a string field the parser's model names no member for,
@@ -259,7 +257,7 @@ func stringValue(node *yaml.Node) (string, bool) {
 // Which of the two a key is says something about the source, which the
 // diagnostic channel reports.
 type keyClass struct {
-	code     string
+	code     string // empty for a class the rule table reports, which keeps and announces nothing
 	severity ir.Severity
 	skip     []string // keys another reader answers for
 	message  string   // one %q, filled with the key
@@ -309,7 +307,7 @@ func keep(p *ir.Unmodeled, root *yaml.Node, key string, doc provenance.Doc, owne
 		return []ir.Diagnostic{unreachableKeyDiag(entry, at)}
 	}
 	kept, diags := PreserveNodeInto(p, entry, node, ir.ReasonOutOfScope, at)
-	if !kept {
+	if !kept || cl.code == "" {
 		return diags
 	}
 	return append(diags, diag.Newf(cl.severity, cl.code, at, cl.message, key))
@@ -342,7 +340,7 @@ func unrecorded(p *ir.Unmodeled, keys []string, owner jsontext.Pointer, scope st
 // at scope beneath its carrier. A reader that keeps a key itself spells it with
 // this, so the census finds the entry and leaves the key alone.
 func EntryKey(scope, key string) string {
-	return "openapi:" + scoped(scope, key)
+	return entryPrefix + scoped(scope, key)
 }
 
 // scoped spells one entry's key on the carrier holding it.

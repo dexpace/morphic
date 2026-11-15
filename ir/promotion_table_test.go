@@ -132,9 +132,8 @@ func irDeclares(t *testing.T) declared {
 
 // TestPromotionTable_EveryNodeCanRecord holds the table to the structs, which
 // is how the list it replaced came to name targets its own rule 4 forbade: a
-// row promising a marker its node lacks fails here. Variant, EnumMember and
-// OperationGroup are the nodes rule 4 names, so one gaining a marker fails here
-// until it stops.
+// row promising a marker its node lacks fails here. Variant and EnumMember are
+// the nodes rule 4 names, so one gaining a marker fails here until it stops.
 func TestPromotionTable_EveryNodeCanRecord(t *testing.T) {
 	t.Parallel()
 	doc, err := os.ReadFile(promotionDoc)
@@ -144,7 +143,7 @@ func TestPromotionTable_EveryNodeCanRecord(t *testing.T) {
 
 	has := irDeclares(t)
 	assert.Empty(t, promotionFindings(rows, has))
-	for _, node := range []string{"Variant", "EnumMember", "OperationGroup"} {
+	for _, node := range []string{"Variant", "EnumMember"} {
 		assert.False(t, has(node, "Provenance") || has(node, "Inferred"), "%s can record: rule 4 no longer names it", node)
 	}
 }

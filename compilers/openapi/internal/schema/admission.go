@@ -244,7 +244,7 @@ func (a admitted) formsWithin(b admitted) bool {
 }
 
 // takes reports whether a admits the value v writes, for a default read across a
-// narrowing (Use.DefaultChain). One it cannot read is no value it takes.
+// narrowing (Use.Default). One it cannot read is no value it takes.
 func (a admitted) takes(v values.Value) bool {
 	key, kind, ok := memberOf(v)
 	if !ok {

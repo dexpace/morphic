@@ -24,7 +24,7 @@ type Document struct {
     Servers     map[ServerID]Server    // server registry: the servers the source declares,
                                        // whichever object declares them; scopes name them by ID
                                        // (docs/ir/servers.md)
-    TagDefs     []TagDef               // tag metadata registry: {Name, Docs, Parent, Kind}; tag
+    TagDefs     []TagDef               // tag metadata registry: {Name, Docs, Parent, Kind, Unmodeled}; tag
                                        // *membership* stays []string on the tagged nodes
                                        // (OpenAPI/AsyncAPI tag objects)
     Versions    []string               // ordered version labels when availability metadata is used
@@ -42,6 +42,8 @@ type TagDef  struct {
                                   // "" = top-level
     Kind   string                 // tag role recorded verbatim (OpenAPI 3.2 tag kind);
                                   // interpretation is grouping policy (docs/ir/services.md), never read here
+    Unmodeled Unmodeled           // the tag object's kept keys, unscoped; its externalDocs object's
+                                  // under externalDocs/ (docs/ir/unmodeled.md#carriers)
 }
 type SourceInfo struct {
     Format  string   // format and version the file was read as, name@version: "openapi@3.2",

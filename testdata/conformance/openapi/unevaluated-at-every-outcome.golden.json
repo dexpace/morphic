@@ -79,7 +79,7 @@
                   "required": false,
                   "docs": {},
                   "unmodeled": {
-                    "openapi:unevaluated": {
+                    "openapi:schema/unevaluated": {
                       "reason": "validation_only",
                       "value": {
                         "unevaluatedProperties": false

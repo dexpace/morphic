@@ -26,6 +26,7 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering/loweringtest"
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
+	"github.com/dexpace/morphic/compilers/openapi/internal/whole"
 	"github.com/dexpace/morphic/engine/reader"
 	"github.com/dexpace/morphic/internal/ctxtest"
 	"github.com/dexpace/morphic/ir"
@@ -336,17 +337,17 @@ func TestCompile_CanceledContextStopsTheCompile(t *testing.T) {
 func TestCompile_ACancelInTheLoweringStopsTheCompile(t *testing.T) {
 	t.Parallel()
 	sources := []compilers.Source{{Path: "spec.yaml", Data: []byte(enumSpec(2))}}
-	whole := &ctxtest.Countdown{Context: t.Context(), Left: math.MaxInt}
-	doc, _, err := New().Compile(whole, sources, compilers.Options{})
+	full := &ctxtest.Countdown{Context: t.Context(), Left: math.MaxInt}
+	doc, _, err := New().Compile(full, sources, compilers.Options{})
 	require.NoError(t, err)
 	require.NotNil(t, doc)
 
-	ctx := &ctxtest.Countdown{Context: t.Context(), Left: whole.Calls - 1}
+	ctx := &ctxtest.Countdown{Context: t.Context(), Left: full.Calls - 1}
 	doc, _, err = New().Compile(ctx, sources, compilers.Options{})
 
 	require.ErrorIs(t, err, context.Canceled)
 	assert.Nil(t, doc, "a compile cut short assembles no document")
-	assert.Equal(t, whole.Calls, ctx.Calls, "the check that refused is the compile's last")
+	assert.Equal(t, full.Calls, ctx.Calls, "the check that refused is the compile's last")
 }
 
 // TestCompile_ACancelAtAnyCheckIsTheContexts cancels a compile at every check
@@ -356,15 +357,15 @@ func TestCompile_ACancelInTheLoweringStopsTheCompile(t *testing.T) {
 func TestCompile_ACancelAtAnyCheckIsTheContexts(t *testing.T) {
 	t.Parallel()
 	sources := []compilers.Source{{Path: "spec.yaml", Data: []byte(enumSpec(3))}}
-	whole := &ctxtest.Countdown{Context: t.Context(), Left: math.MaxInt}
-	_, _, err := New().Compile(whole, sources, compilers.Options{})
+	full := &ctxtest.Countdown{Context: t.Context(), Left: math.MaxInt}
+	_, _, err := New().Compile(full, sources, compilers.Options{})
 	require.NoError(t, err)
 
-	for at := range whole.Calls {
+	for at := range full.Calls {
 		doc, _, err := New().Compile(&ctxtest.Countdown{Context: t.Context(), Left: at}, sources,
 			compilers.Options{})
 
-		require.ErrorIs(t, err, context.Canceled, "cancelled at check %d of %d", at+1, whole.Calls)
+		require.ErrorIs(t, err, context.Canceled, "cancelled at check %d of %d", at+1, full.Calls)
 		require.Nil(t, doc, "check %d", at+1)
 	}
 }
@@ -386,7 +387,7 @@ func TestRun_RefusesAtEveryPhaseBoundaryOnCancellation(t *testing.T) {
 			t.Parallel()
 			ctx := &ctxtest.Countdown{Context: t.Context(), Left: tc.live}
 
-			doc, diags, err := run(ctx, loweringtest.Context(t, openapitest.EmptySpec, lowering.Policy{}), compile.NewTypes())
+			doc, diags, err := run(ctx, loweringtest.Context(t, openapitest.EmptySpec, lowering.Policy{}), compile.NewTypes(), whole.New)
 
 			require.ErrorIs(t, err, context.Canceled)
 			assert.Nil(t, doc, "a partial registry is never assembled into a Document")
@@ -421,7 +422,7 @@ components:
 		loaded, _, err := load.Load(t.Context(), 0, source, loadOptions(Options{}.withDefaults(), nil, source))
 		require.NoError(t, err)
 		ctx := &ctxtest.Countdown{Context: t.Context(), Left: live}
-		_, diags, err := run(ctx, loweringCtx(loaded, Options{}.withDefaults()), compile.NewTypes())
+		_, diags, err := run(ctx, loweringCtx(loaded, Options{}.withDefaults()), compile.NewTypes(), whole.New)
 		return ctx.Calls, diags, err
 	}
 	moved := func(diags []ir.Diagnostic) bool {

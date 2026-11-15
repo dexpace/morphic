@@ -141,6 +141,10 @@ var validationReasons = map[string]string{
 		"query alone before 3.2 (3.1.2 §Parameter Object: 'This field only applies to parameters with an in value of " +
 		"query') and for the locations and styles that percent-encode from 3.2, so the table warns and lowers it as " +
 		"declared",
+	"undefined-key": "the library keeps a key its object does not define and reports nothing; the specification " +
+		"closes each object's fields and admits only x- keys beside them (3.1.2 §Specification Extensions: 'The " +
+		"extensions properties are implemented as patterned fields that are always prefixed by x-'), so the table " +
+		"warns of each other key, at the key, wherever its object is written",
 	"library-silent": "the library has no check for a rule the specification states and the table cites: a " +
 		"Parameter or Header Object holds schema or content, not both (3.1.2 §Parameter Object: 'Parameter Objects " +
 		"MUST include either a content field or a schema field, but not both'), an XML Object's nodeType bars wrapped " +
@@ -161,6 +165,14 @@ var validationReasons = map[string]string{
 		"an empty component; the specification requires them to match ^[a-zA-Z0-9\\.\\-_]+$ (3.1.2 §Components " +
 		"Object: 'All the fixed fields declared above are objects that MUST use keys that match the regular " +
 		"expression'), which the table reports where the key is written",
+	"media-type-keys": "the library does not check a content map's keys, which the specification makes media " +
+		"types or media type ranges (3.1.2 §Request Body Object: 'The key is a media type or media type range'); " +
+		"the table warns of one that is neither as validation-invalid-syntax where it is written " +
+		"(docs/compilers/openapi.md#media-types)",
+	"content-serialization": "the library does not check a style, explode or allowReserved written beside a " +
+		"parameter's or header's content, which the specification applies to a value serialized through its " +
+		"schema; the table warns of each as inapplicable-location-keyword, and the value lowers as declared " +
+		"(docs/compilers/openapi.md#content-parameters)",
 	"media-type-components": "the library models no Components Object mediaTypes " +
 		"(docs/parser-library.md#media-type-references), so it reads a schema's $ref into an entry as naming " +
 		"nothing, where the load phase models each entry and resolves the $ref",

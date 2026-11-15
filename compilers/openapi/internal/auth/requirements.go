@@ -9,10 +9,12 @@ import (
 
 	soa "github.com/speakeasy-api/openapi/openapi"
 
+	"github.com/dexpace/morphic/compilers/openapi/internal/bind"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
 	"github.com/dexpace/morphic/compilers/openapi/internal/nodeview"
+	"github.com/dexpace/morphic/compilers/openapi/internal/resolve"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -57,30 +59,142 @@ func (r *Registry) Requirements(c lowering.Ctx, reqs []*soa.SecurityRequirement,
 // scopes it could read (docs/parser-library.md#requirement-scopes), and one it
 // left out still demands its scheme.
 //
-// A key names a securitySchemes entry (named), matched exactly, so a typo is
-// reported and never guessed at.
+// A key names a securitySchemes entry of the source, matched exactly, so a typo
+// is reported and never guessed at, unless the table reads it as a reference
+// (scheme).
 func (r *Registry) requirement(c lowering.Ctx, req *soa.SecurityRequirement, pointer jsontext.Pointer,
 ) (ir.AuthRequirement, []ir.Diagnostic) {
 	var uses []ir.SchemeUse
 	var diags []ir.Diagnostic
 	for key, member := range req.GetCore().All() {
-		name := r.named(c, key)
-		id := ids.Auth(name)
-		if _, declared := r.byID[id]; !declared {
-			var near string
-			id, near = r.unresolved(name)
-			// "Unresolved", not "undeclared": the name may be declared as a $ref
-			// resolving to nothing, or as an entry naming no mechanism (#294).
-			diags = append(diags, c.DiagAt(ir.SeverityError, diag.UnresolvedSecurityScheme, pointer,
-				"security requirement references unresolved scheme %q: the requirement is kept, and the scheme has no mechanism%s",
-				key, unresolvedClauses(c, near)))
-		}
+		id, schemeDiags := r.scheme(c, key, pointer)
+		diags = append(diags, schemeDiags...)
 		written, _ := nodeview.Strings(member.ValueNode)
 		scopes, scopeDiags := requiredScopes(c, written, key, pointer)
 		diags = append(diags, scopeDiags...)
 		uses = append(uses, ir.SchemeUse{Scheme: id, Scopes: scopes})
 	}
 	return ir.AuthRequirement{Schemes: uses}, diags
+}
+
+// scheme returns the ID of the scheme key names in a requirement c lowers at
+// pointer, and what reading it reported. Where the document's minor reads a key
+// as a URI and it names no entry of the source, the table reads it as a
+// reference, against the document writing it (bind.Config.KeysByURI); any other
+// key is the name of an entry of the source.
+func (r *Registry) scheme(c lowering.Ctx, key string, pointer jsontext.Pointer) (ir.AuthID, []ir.Diagnostic) {
+	if t := c.Bindings().Table(); t != nil {
+		if ref, isRef := t.Reference(c.Position(pointer.AppendToken(key)), bind.RefSecurityScheme); isRef {
+			return r.referenced(c, key, ref, pointer)
+		}
+	}
+	return r.named(c, key, key, pointer, "")
+}
+
+// named returns the ID of the entry of the source called name, which the key
+// a requirement writes at pointer names, and reports a name reaching no
+// mechanism, saying why where the key is a reference that lands nowhere.
+// "Unresolved", not "undeclared": the name may be declared as a $ref resolving
+// to nothing, or as an entry naming no mechanism (#294).
+func (r *Registry) named(c lowering.Ctx, key, name string, pointer jsontext.Pointer, why string,
+) (ir.AuthID, []ir.Diagnostic) {
+	id := ids.Auth(name)
+	if _, declared := r.byID[id]; declared {
+		return id, nil
+	}
+	id, near := r.unresolved(ids.UnresolvedAuth(name), name)
+	return id, []ir.Diagnostic{unresolvedDiag(c, pointer, key, unresolvedClauses(near, why))}
+}
+
+// referenced returns the ID of the scheme ref, the reference the key a
+// requirement writes at pointer is read as, lands on: an entry of the source as
+// that entry's, and any other Security Scheme Object lowered once where it is
+// declared (landed). One landing on none is minted from the key and the
+// document writing it, so one key in two documents is two schemes.
+func (r *Registry) referenced(c lowering.Ctx, key string, ref bind.Reference, pointer jsontext.Pointer,
+) (ir.AuthID, []ir.Diagnostic) {
+	if ref.Chain.Status != bind.Resolved {
+		if name, ok := sourceEntry(c, key); ok {
+			return r.named(c, key, name, pointer, whyNot(ref))
+		}
+		id, near := r.unresolved(c.IDs().UnresolvedAuth(key), key)
+		return id, []ir.Diagnostic{unresolvedDiag(c, pointer, key, unresolvedClauses(near, whyNot(ref)))}
+	}
+	end := ref.Chain.End
+	if kind, name, ok := ids.ComponentEntry(end.Pointer); ok && end.Doc == bind.Source && kind == "securitySchemes" {
+		return r.named(c, key, name, pointer, "")
+	}
+	return r.landed(c, end)
+}
+
+// sourceEntry returns the name of the entry of the source's securitySchemes
+// key names, read as a reference against the document c reads, declared or
+// not, so a URI and the name it spells are one scheme.
+func sourceEntry(c lowering.Ctx, key string) (string, bool) {
+	pointer, ok := c.RefScope().InternalPointer(key)
+	if !ok {
+		return "", false
+	}
+	kind, name, ok := ids.ComponentEntry(pointer)
+	return name, ok && kind == "securitySchemes"
+}
+
+// whyNot says why ref, a requirement key's reference whose chain does not
+// resolve, names no Security Scheme Object.
+func whyNot(ref bind.Reference) string {
+	if ref.Hop.Status != bind.Resolved {
+		return ref.Hop.Why()
+	}
+	return "the chain of references it starts ends on no Security Scheme Object"
+}
+
+// landed returns the ID of the Security Scheme Object at end, a position the
+// bindings hold one at outside the source's securitySchemes, lowering it in its
+// own document the first time a requirement reaches it, so which reaches it
+// first decides nothing. One naming no mechanism, or that nothing could be
+// built for, is minted in the space ir reserves for that kind, at its position
+// in its document, as a key naming nothing is (ids.Document.UnresolvedAuth).
+func (r *Registry) landed(c lowering.Ctx, end bind.Position) (ir.AuthID, []ir.Diagnostic) {
+	dc, read := lowering.InDocument(c, end.Doc)
+	id := dc.IDs().Auth(end.Pointer)
+	if _, lowered := r.byID[id]; lowered {
+		return id, nil
+	}
+	rs, _ := c.Bindings().ObjectAt(end, bind.RefSecurityScheme).(*soa.ReferencedSecurityScheme)
+	ss := resolve.Object[soa.SecurityScheme](c.Bindings(), rs)
+	missing, name := dc.IDs().UnresolvedAuth(string(end.Pointer)), landingName(dc, end)
+	if !read || ss == nil {
+		// The load phase reports a landing it could build nothing at.
+		minted, _ := r.unresolved(missing, name)
+		return minted, nil
+	}
+	scheme, diags := lowerSecurityScheme(dc, dc, name, ss, end.Pointer, end.Pointer)
+	if scheme.Kind == ir.AuthKindUnresolved {
+		// lowerSecurityScheme reported what the object lacks, at the object.
+		minted, _ := r.unresolved(missing, name)
+		return minted, diags
+	}
+	scheme.ID = id
+	r.byID[id] = scheme
+	return id, diags
+}
+
+// landingName returns the name of the Security Scheme Object at end: the key it
+// is declared under, and at a document's root, which no key names, the
+// document's name, as a schema there is named (lowering.NameOfDocument).
+func landingName(c lowering.Ctx, end bind.Position) string {
+	if end.Pointer == "" {
+		return lowering.NameOfDocument(c, end.Doc)
+	}
+	return end.Pointer.LastToken()
+}
+
+// unresolvedDiag reports, at pointer, the requirement key key naming no scheme
+// with a mechanism, with clauses saying more.
+func unresolvedDiag(c lowering.Ctx, pointer jsontext.Pointer, key, clauses string) ir.Diagnostic {
+	return c.DiagAt(ir.SeverityError, diag.UnresolvedSecurityScheme, pointer,
+		"security requirement references unresolved scheme %q: the requirement is kept, and the scheme has no mechanism%s",
+		key, clauses)
 }
 
 // requiredScopes returns the scopes written, the list an option at pointer

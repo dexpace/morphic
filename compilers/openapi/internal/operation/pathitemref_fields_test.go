@@ -19,7 +19,6 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
 	"github.com/dexpace/morphic/engine/reader"
-	"github.com/dexpace/morphic/ir"
 	"github.com/dexpace/morphic/ir/irverify"
 )
 
@@ -88,11 +87,11 @@ func TestPathItemRefSiblings_AChainCarriesTheFieldsBesideEachRef(t *testing.T) {
 	}, collided, "each declaration a nearer one takes over is named once, at the one kept")
 }
 
-// TestPathItemRefSiblings_FieldsAnotherDocumentWritesAreReported pins the chain
-// this compiler cannot read all of: the fields beside a $ref in another
-// document are not modelled, and saying so is what keeps them from being
-// dropped in silence.
-func TestPathItemRefSiblings_FieldsAnotherDocumentWritesAreReported(t *testing.T) {
+// TestPathItemRefSiblings_FieldsAnotherDocumentWritesAreModelled pins the chain
+// across a document boundary: the fields beside a $ref in another document are
+// lowered at the mount like any other, so /a mounts the put written beside the
+// $ref there and the get of the item it names, and says nothing of either.
+func TestPathItemRefSiblings_FieldsAnotherDocumentWritesAreModelled(t *testing.T) {
 	t.Parallel()
 	dir := t.TempDir()
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "other.yaml"), []byte(`openapi: 3.1.0
@@ -100,11 +99,11 @@ info: {title: O, version: "1"}
 paths:
   /x:
     $ref: '#/components/pathItems/P'
-    put: {responses: {"200": {description: OK}}}
+    put: {operationId: putOther, responses: {"200": {description: OK}}}
 components:
   pathItems:
     P:
-      get: {responses: {"200": {description: OK}}}
+      get: {operationId: getOther, responses: {"200": {description: OK}}}
 `), 0o600))
 	doc, diags, err := openapi.New().Compile(t.Context(),
 		[]compilers.Source{{Path: filepath.Join(dir, "main.yaml"), Data: []byte(`openapi: 3.1.0
@@ -114,19 +113,18 @@ paths:
 `)}}, compilers.Options{Reader: reader.Disk{}, FormatOptions: openapi.Options{AllowExternalRefs: true}})
 	require.NoError(t, err)
 	require.NotNil(t, doc)
+	openapitest.RequireNoErrorDiags(t, diags)
 
-	opByPath(t, doc, "GET", "/a")
-	message := openapitest.DiagMessageAt(t, diags, diag.DegradedConstruct, ir.SeverityWarning, "/paths/~1a")
-	assert.Contains(t, message, "./other.yaml#/paths/~1x", "the reference reaching the unread fields is named")
-	assert.Contains(t, message, "in another document")
-	assert.Contains(t, message, "not lowered")
+	assert.Equal(t, "getOther", opByPath(t, doc, "GET", "/a").Name.Source)
+	assert.Equal(t, "putOther", opByPath(t, doc, "PUT", "/a").Name.Source, "the field beside the $ref is mounted")
+	assert.Empty(t, openapitest.PointersOf(diags, diag.DegradedConstruct), "and nothing is reported unread")
 }
 
-// TestPathItemRefSiblings_FieldsTheWalkDoesNotReachAreReported pins the other
-// chain this compiler cannot read all of: a hop in this document at a position
-// no object its walk holds, here under an x-* key, is not modelled either, and
-// the report says where it is rather than calling it another document's.
-func TestPathItemRefSiblings_FieldsTheWalkDoesNotReachAreReported(t *testing.T) {
+// TestPathItemRefSiblings_FieldsAtAnyLandingAreModelled pins the same for a hop
+// in this document at a position no walk of the document visits, here under an
+// x-* key: the item the chain ends at mounts, and so does the put written beside
+// the $ref at the landing, declared where it is written.
+func TestPathItemRefSiblings_FieldsAtAnyLandingAreModelled(t *testing.T) {
 	t.Parallel()
 	doc, diags := parseFull(t, `openapi: 3.1.0
 info: {title: T, version: "1"}
@@ -142,10 +140,10 @@ paths:
 	openapitest.RequireNoErrorDiags(t, diags)
 
 	assert.Equal(t, "getB", opByPath(t, doc, "GET", "/a").Name.Source, "the item the chain ends at still mounts")
-	message := openapitest.DiagMessageAt(t, diags, diag.DegradedConstruct, ir.SeverityWarning, "/paths/~1a")
-	assert.Contains(t, message, "#/x-shared/item", "the reference reaching the unread fields is named")
-	assert.Contains(t, message, "does not reach")
-	assert.NotContains(t, message, "another document", "the hop is this document's")
+	put := opByPath(t, doc, "PUT", "/a")
+	assert.Equal(t, "putShared", put.Name.Source, "the field beside the $ref at the landing is mounted")
+	assert.Equal(t, jsontext.Pointer("/x-shared/item/put"), put.Provenance.Pointer)
+	assert.Empty(t, openapitest.PointersOf(diags, diag.DegradedConstruct), "and nothing is reported unread")
 }
 
 // pathItemRefCallbackSiblingSpec writes an expression beside a Callback

@@ -1,0 +1,14 @@
+openapi: 3.1.0
+info: {title: T, version: "1"}
+paths:
+  /a:
+    get:
+      operationId: a
+      parameters:
+        - {name: inl, in: query, x-sensitive: false, schema: {type: string, x-sensitive: true}}
+        - {name: ref, in: query, x-sensitive: false, schema: {$ref: '#/components/schemas/Tok'}}
+        - {name: prop, in: query, schema: {type: object, properties: {s: {$ref: '#/components/schemas/Tok', x-sensitive: false}}}}
+      responses: {"204": {description: ok}}
+components:
+  schemas:
+    Tok: {type: string, x-sensitive: true}

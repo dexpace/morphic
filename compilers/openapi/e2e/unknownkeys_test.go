@@ -72,9 +72,9 @@ func TestUnknownKeys_KeptAtEveryObject(t *testing.T) {
 			"doc.Servers[server/openapi/paths/~1widgets/servers/0].Unmodeled"},
 		{"operation server", "openapi:host", `"OPERATIONSERVER"`,
 			"doc.Servers[server/openapi/paths/~1widgets/get/servers/0].Unmodeled"},
-		{"tag", "openapi:tags/0/color", `"TAG"`, "doc.Unmodeled"},
+		{"tag", "openapi:color", `"TAG"`, "doc.TagDefs[0].Unmodeled"},
 		{"components", "openapi:components/definitions", `"COMPONENTS"`, "doc.Unmodeled"},
-		{"tag externalDocs", "openapi:tags/0/externalDocs/title", `"TAGEXTERNALDOCS"`, "doc.Unmodeled"},
+		{"tag externalDocs", "openapi:externalDocs/title", `"TAGEXTERNALDOCS"`, "doc.TagDefs[0].Unmodeled"},
 		{"operation", "openapi:operationid", `"OPERATION"`, ".Unmodeled"},
 		// On each operation of the item, like its servers and its x-*: the path
 		// item lowers to no node of its own, so the scope is what tells its keys
@@ -191,33 +191,32 @@ func TestUnknownKeys_SpellingDecidesNeitherEntryNorCarrier(t *testing.T) {
 		"an aliased key is announced at the name it resolves to")
 }
 
-// TestUnknownKeys_ClashingCarrierEntryIsReportedNotDropped covers the one
-// carrier the census cannot key its way out of. A parameter and its schema are
-// two objects at two pointers whose entries share one unscoped map, so a key
-// both write is one entry, and the schema's reaches it first.
-//
-// The key that loses is announced with the pointer of the construct holding the
-// entry, not skipped by the branch meant for a keyword another reader already
-// said better. It is still in the IR in no form: separating the namespaces
-// moves keys #345, #348 and the validation-only reader already publish, which
-// is GitHub #396's to settle.
-func TestUnknownKeys_ClashingCarrierEntryIsReportedNotDropped(t *testing.T) {
+// TestUnknownKeys_ACarrierAndItsSchemaKeepOneKeyApart holds a parameter and a
+// header, each writing a key its schema also writes, to two entries apiece:
+// the schema's beneath openapi:schema/ and the object's unscoped, each at its
+// own pointer, so neither loses its entry to the other and nothing reports a
+// clash.
+func TestUnknownKeys_ACarrierAndItsSchemaKeepOneKeyApart(t *testing.T) {
 	t.Parallel()
 	doc, diags := compileAnnotationSpec(t, "clash", specFile(t, "unknown_key_carrier_clash.yaml"))
 	requireNoErrorDiagnostics(t, diags)
 	sites := unmodeledSites(doc)
 
-	for _, tc := range []struct{ carrier, held, lost string }{
+	for _, tc := range []struct{ carrier, schema, object string }{
 		{"parameter", "/paths/~1widgets/get/parameters/0/schema/divisibleBy",
 			"/paths/~1widgets/get/parameters/0/divisibleBy"},
 		{"header", "/paths/~1widgets/get/responses/200/headers/X-Trace/schema/divisibleBy",
 			"/paths/~1widgets/get/responses/200/headers/X-Trace/divisibleBy"},
 	} {
-		assert.Equal(t, []ir.Severity{ir.SeverityWarning},
-			diagsAt(diags, "openapi/unknown-key-entry-taken", tc.lost),
-			"the %s key that lost the entry is announced at its own pointer", tc.carrier)
-		_, found := findUnmodeled(sites, "openapi:divisibleBy", `"FROM_`+strings.ToUpper(tc.carrier)+`_OBJECT"`)
-		assert.False(t, found, "the %s's own key is in the IR in no form at all, as reported", tc.carrier)
+		assert.Empty(t, diagsAt(diags, "openapi/unknown-key-entry-taken", tc.object), tc.carrier)
+		object, found := findUnmodeled(sites, "openapi:divisibleBy", `"FROM_`+strings.ToUpper(tc.carrier)+`_OBJECT"`)
+		if assert.True(t, found, "the %s's own key is kept unscoped", tc.carrier) {
+			assert.Equal(t, tc.object, string(object.entry.Provenance.Pointer))
+		}
+		schema, found := findUnmodeled(sites, "openapi:schema/divisibleBy", `"FROM_`+strings.ToUpper(tc.carrier)+`_SCHEMA"`)
+		if assert.True(t, found, "the %s's schema's key is kept beneath its scope", tc.carrier) {
+			assert.Equal(t, tc.schema, string(schema.entry.Provenance.Pointer))
+		}
 	}
 }
 

@@ -69,6 +69,7 @@ var idPositions = map[string]idRule{
 	"Callback.Operations":          idRequired,
 	"Channel.Messages":             idRequired,
 	"Channel.Servers":              idRequired,
+	"Content.CatchAllEncoding":     idRequired,
 	"Content.Encoding":             idRequired,
 	"CtorValue.Scalar":             idRequired,
 	"Discriminator.Mapping":        idRequired,
@@ -79,6 +80,7 @@ var idPositions = map[string]idRule{
 	"LongRunning.FinalOperation":   idRequired,
 	"LongRunning.PollingOperation": idRequired,
 	"LinkParam.Param":              idRequired,
+	"ParamVariant.Params":          idRequired,
 	"OperationLink.Operation":      idRequired,
 	"OperationLink.Server":         idRequired,
 	"MessageBinding.Channel":       idRequired,
@@ -115,6 +117,10 @@ var idPositions = map[string]idRule{
 	"flattener.aliasEnds":    idRequired,
 	"flattener.sensitivity":  idRequired,
 	"frame.id":               idRequired,
+	// A MemberReader runs that walk, and keeps the models it has read by the ID
+	// the walk read, never an empty one.
+	"MemberReader.types": idElsewhere,
+	"MemberReader.own":   idRequired,
 
 	// NarrowedShapes' result and its walks' own state, which no Document holds
 	// either. Narrowing.Union is "" where the composition narrows no one union,

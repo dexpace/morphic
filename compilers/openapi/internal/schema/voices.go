@@ -286,7 +286,7 @@ func disagreed(c lowering.Ctx, bs *oas3.Schema, residue []string) bool {
 // foldsNullable says so.
 func folds(c lowering.Ctx, bs *oas3.Schema, keyword string, homes boundHomes) bool {
 	if keyword == "nullable" {
-		return c.NullableWidening.Honours() && foldsNullable(bs)
+		return c.NullableInference.Honours() && foldsNullable(bs)
 	}
 	if slices.Contains(valueConstraintKeywords, keyword) {
 		return taken(writerTakes(homes.value, bs), keyword)
@@ -333,21 +333,22 @@ func positionVoices(c lowering.Ctx, ts *compile.Types, s *oas3.Schema, pointer j
 	return out
 }
 
-// lendingBranches returns the schemas of the branches of s that fold, for a use
+// lendingBranches returns the branches of s that fold, each at its pointer below
+// s, for a use
 // reading what s lends it, but those writing only what s or such a branch before
 // them writes: the writers of an entry a use reads agree (voicesAmong), so a
 // reader taking the nearest takes the same value from any of them, and a use of s
 // pays for each entry once, not for each branch repeating it. Bounds, which agree
 // by meeting, are no such entry: a use never reads them through its $ref.
-func lendingBranches(c lowering.Ctx, s *oas3.Schema) []*oas3.Schema {
+func lendingBranches(c lowering.Ctx, s *oas3.Schema) []allOfBranch {
 	if !allOfDecides(c, s) {
 		return nil
 	}
 	comp := allOfBranches(s, "")
-	var out []*oas3.Schema
+	var out []allOfBranch
 	for i, lends := range voicingOf(c, s).lends {
 		if lends {
-			out = append(out, comp.branches[i].schema.GetSchema())
+			out = append(out, comp.branches[i])
 		}
 	}
 	return out

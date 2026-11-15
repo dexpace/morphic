@@ -162,7 +162,7 @@ func TestParams_AllLocationsAndStyles(t *testing.T) {
 	assert.NotEmpty(t, logical["filter"].Unmodeled)
 	require.NotNil(t, logical["q"].Constraints)
 
-	assert.Positive(t, openapitest.CountDiagsAt(diags, diag.DegradedConstruct, ir.SeverityWarning), "malformed param default warns")
+	assert.Positive(t, openapitest.CountDiagsAt(diags, diag.UnloweredConstruct, ir.SeverityWarning), "malformed param default warns")
 	assert.Nil(t, logical["bad"].Default, "and is dropped with its warning, not kept as a zero value")
 	assert.True(t, openapitest.HasDiag(diags, diag.NumericPrecision), "malformed param constraint warns")
 }
@@ -411,8 +411,8 @@ func TestParams_ReservedHeaderNamesAreReported(t *testing.T) {
 			assert.Equal(t, tc.param, op.Params[0].Name.Source)
 
 			assert.Equal(t, tc.reported,
-				openapitest.HasDiagCodeAt(diags, diag.ReservedHeaderName, "/paths/~1x/get/parameters/0"),
-				"reported at the parameter's own pointer")
+				openapitest.HasDiagCodeAt(diags, diag.ReservedHeaderName, "/paths/~1x/get/parameters/0/name"),
+				"reported at the parameter's name")
 			if tc.reported {
 				openapitest.AssertHasCode(t, diags, diag.ReservedHeaderName, ir.SeverityWarning)
 			}

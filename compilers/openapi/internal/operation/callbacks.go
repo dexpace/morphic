@@ -61,7 +61,13 @@ func lowerCallbacks(c lowering.Ctx, w walk, src *soa.Operation, parent opContext
 	var ext ir.Unmodeled
 	var diags []ir.Diagnostic
 	for cbName, rcb := range src.GetCallbacks().All() {
-		cb, c, cbDecl := lowering.Declared[soa.Callback](c, rcb, parent.ptrs.decl+ids.Ptr("callbacks", cbName))
+		use := parent.ptrs.decl + ids.Ptr("callbacks", cbName)
+		// A callback has no docs, so a summary or description beside its $ref is
+		// kept as what the chain writes, on the binding beside its extensions.
+		beside, besideDiags := lowering.Beside[soa.Callback](c, rcb, use, false)
+		ext = annotation.MergeUnmodeled(ext, annotation.Under(ids.Scope("callbacks", cbName), beside))
+		diags = append(diags, besideDiags...)
+		cb, c, cbDecl := lowering.Declared[soa.Callback](c, rcb, use)
 		if cb == nil {
 			continue
 		}
@@ -74,11 +80,10 @@ func lowerCallbacks(c lowering.Ctx, w walk, src *soa.Operation, parent opContext
 		diags = append(diags, cbExtDiags...)
 		for expr, rp := range cb.All() {
 			exprStr := string(expr)
-			layers, found := pathItemLayers(c, rp, cbDecl+ids.Ptr(exprStr))
+			layers := pathItemLayers(c, rp, cbDecl+ids.Ptr(exprStr))
 			if layers == nil {
 				continue
 			}
-			diags = append(diags, found...)
 			mount := parent.ptrs.mount + ids.Ptr("callbacks", cbName, exprStr)
 			route := opContext{
 				key: exprStr, template: exprStr, inbound: ir.HTTPInboundCallback,
@@ -135,11 +140,10 @@ func lowerWebhooks(ctx context.Context, c lowering.Ctx, w walk, groups *serviceG
 			return diags
 		}
 		hookPtr := ids.Ptr("webhooks", name)
-		layers, found := pathItemLayers(c, rp, hookPtr)
+		layers := pathItemLayers(c, rp, hookPtr)
 		if layers == nil {
 			continue
 		}
-		diags = append(diags, found...)
 		route := opContext{key: name, inbound: ir.HTTPInboundWebhook}
 		at := mountSite{ptr: hookPtr, use: c, usePtr: hookPtr, residue: &svc.Unmodeled}
 		mounted, hookDiags := mountPathItem(w, layers, at, route)

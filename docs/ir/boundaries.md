@@ -123,6 +123,12 @@ simply absent from the IR and preserve nothing.
   names, carries no mark, since a group has no provenance. The extension stays a `vendor_extension`
   entry, and every other client-shaping key, a method name and the remount placing an operation
   under an alias among them, is left to an emitter's policy layer.
+- **Constructs the source format gives no meaning or effect where they are written** — a key an
+  object does not define, a key beside a Reference Object's `$ref`, an encoding entry naming no
+  property of a form body or written for a file body, which has no parts, or under a media type that
+  is neither multipart nor form. No node is coming for them; the compiler reports each
+  ([`unknown-keys`](../compilers/openapi.md#unknown-keys),
+  [`multipart-encoding`](../compilers/openapi.md#multipart-encoding)).
 - **Arbitrary GraphQL persisted queries** — the type graph and entry points are retained; query
   composition is a emitters/runtime feature.
 - **Capability/interface-typed fields** (Cap'n Proto capability passing) — requires

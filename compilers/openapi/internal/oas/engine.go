@@ -6,6 +6,7 @@ package oas
 import (
 	"context"
 	"encoding/json/jsontext"
+	"fmt"
 	"strconv"
 	"strings"
 
@@ -254,7 +255,56 @@ func (w *walker) object(s site, depth int) {
 	}
 	w.fields(f, depth)
 	w.patterned(f, depth)
+	w.unknown(f)
+	rawKeys(w, f, depth)
 	w.rules(f)
+}
+
+// rawKeys reads for repeated keys the value of each key f's object reads as no
+// field and the lowering keeps verbatim: an extension, and a key the object
+// defines at no minor, which unknown reports. An object taking patterned keys
+// reads each other key as an entry, as a schema reads a keyword its dialect
+// added later as a field.
+func rawKeys(w *walker, f frame, depth int) {
+	_, patterned := f.obj.patternAt(w.minor)
+	for _, p := range f.pairs {
+		extension := strings.HasPrefix(p.Key, "x-") && f.obj.Extensible
+		if !extension && (patterned || f.defines(p.Key)) {
+			continue
+		}
+		if _, later := f.addedLater(p.Key, w.minor); later {
+			continue
+		}
+		rawRepeats(w, p.Val, f.at.ptr.AppendToken(p.Key), depth+1)
+	}
+}
+
+// unknown reports each key f's mapping writes that its object neither defines
+// at any minor nor admits: no field, no patterned key, no x- extension. A
+// Schema Object's keywords are its dialect's, and an object taking patterned
+// keys at the declared minor admits every key, so neither is judged here. A key
+// merged through `<<` is placed where it is written, as every field is.
+func (w *walker) unknown(f frame) {
+	if f.rows.rows != nil {
+		return
+	}
+	if _, patterned := f.obj.patternAt(w.minor); patterned {
+		return
+	}
+	places := newKeyPlacer(w, f.at.node, f.at.ptr)
+	for _, p := range f.pairs {
+		if f.defines(p.Key) || (f.obj.Extensible && strings.HasPrefix(p.Key, "x-")) {
+			continue
+		}
+		message := fmt.Sprintf("key %q is not defined by the %s it is written on and is not an x- extension",
+			p.Key, f.obj.Name)
+		if f.obj.Kind == Reference {
+			message = fmt.Sprintf("key %q is written beside a $ref, where the Reference Object defines only $ref, "+
+				"summary and description, so OpenAPI ignores it", p.Key)
+		}
+		w.add(diag.Newf(ir.SeverityWarning, diag.UnknownObjectKey, places.place(p.Key), "%s", message),
+			f.at.ptr.AppendToken(p.Key))
+	}
 }
 
 // rowsAt returns the rows the Schema Object s names is read with: a dialect
@@ -326,6 +376,8 @@ func (w *walker) reference(f frame, depth int) bool {
 	rf := f
 	rf.obj = w.spec.must(Reference)
 	w.fields(rf, depth)
+	w.unknown(rf)
+	rawKeys(w, rf, depth)
 	return true
 }
 

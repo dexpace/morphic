@@ -1,0 +1,575 @@
+{
+  "idSpaces": {
+    "auth": [
+      "openapi",
+      "unresolved"
+    ],
+    "e": [
+      "anon",
+      "composed",
+      "openapi"
+    ],
+    "g": [
+      "default",
+      "extension",
+      "path-prefix",
+      "tags",
+      "webhooks"
+    ],
+    "op": [
+      "openapi"
+    ],
+    "p": [
+      "composed",
+      "openapi"
+    ],
+    "param": [
+      "openapi"
+    ],
+    "s": [
+      "openapi"
+    ],
+    "server": [
+      "default",
+      "openapi"
+    ],
+    "t": [
+      "anon",
+      "composed",
+      "openapi"
+    ]
+  },
+  "name": "T",
+  "version": "1",
+  "docs": {},
+  "services": [
+    {
+      "id": "s/openapi/0",
+      "name": {
+        "source": "T",
+        "canonical": "t"
+      },
+      "docs": {},
+      "groups": [
+        {
+          "id": "g/default",
+          "name": {
+            "hint": "default"
+          },
+          "docs": {},
+          "operations": [
+            {
+              "id": "op/openapi/paths/~1a/post",
+              "name": {
+                "source": "a",
+                "canonical": "a"
+              },
+              "docs": {},
+              "params": [
+                {
+                  "id": "param/openapi/paths/~1a/post/parameters/p/query",
+                  "name": {
+                    "source": "p",
+                    "canonical": "p"
+                  },
+                  "type": {
+                    "target": "t/prim/string",
+                    "nullable": false
+                  },
+                  "required": false,
+                  "docs": {
+                    "summary": "use-summary"
+                  },
+                  "unmodeled": {
+                    "openapi:reference/0/required": {
+                      "reason": "out_of_scope",
+                      "value": true,
+                      "provenance": {
+                        "source": 0,
+                        "pointer": "/paths/~1a/post/parameters/0/required"
+                      }
+                    },
+                    "openapi:reference/0/x-note": {
+                      "reason": "out_of_scope",
+                      "value": "kept?",
+                      "provenance": {
+                        "source": 0,
+                        "pointer": "/paths/~1a/post/parameters/0/x-note"
+                      }
+                    }
+                  },
+                  "provenance": {
+                    "source": 0,
+                    "pointer": "/components/parameters/P"
+                  }
+                },
+                {
+                  "id": "param/openapi/paths/~1a/post/parameters/q/query",
+                  "name": {
+                    "source": "q",
+                    "canonical": "q"
+                  },
+                  "type": {
+                    "target": "t/prim/string",
+                    "nullable": false
+                  },
+                  "required": false,
+                  "docs": {
+                    "summary": "s"
+                  },
+                  "unmodeled": {
+                    "openapi:reference/1/x-alias": {
+                      "reason": "out_of_scope",
+                      "value": 1,
+                      "provenance": {
+                        "source": 0,
+                        "pointer": "/components/parameters/Alias/x-alias"
+                      }
+                    }
+                  },
+                  "provenance": {
+                    "source": 0,
+                    "pointer": "/components/parameters/Q"
+                  }
+                }
+              ],
+              "request": {
+                "contents": [
+                  {
+                    "mediaType": "application/json",
+                    "type": {
+                      "target": "t/prim/string",
+                      "nullable": false
+                    }
+                  }
+                ],
+                "required": false,
+                "unmodeled": {
+                  "openapi:reference/0/x-note": {
+                    "reason": "out_of_scope",
+                    "value": "kept?",
+                    "provenance": {
+                      "source": 0,
+                      "pointer": "/paths/~1a/post/requestBody/x-note"
+                    }
+                  }
+                }
+              },
+              "responses": [
+                {
+                  "name": {
+                    "hint": "200"
+                  },
+                  "conditions": {
+                    "statusCodes": [
+                      {
+                        "from": 200,
+                        "to": 200
+                      }
+                    ]
+                  },
+                  "docs": {
+                    "description": "ok"
+                  },
+                  "unmodeled": {
+                    "openapi:reference/0/headers": {
+                      "reason": "out_of_scope",
+                      "value": {
+                        "X-A": {
+                          "schema": {
+                            "type": "string"
+                          }
+                        }
+                      },
+                      "provenance": {
+                        "source": 0,
+                        "pointer": "/paths/~1a/post/responses/200/headers"
+                      }
+                    },
+                    "openapi:reference/0/x-note": {
+                      "reason": "out_of_scope",
+                      "value": "kept?",
+                      "provenance": {
+                        "source": 0,
+                        "pointer": "/paths/~1a/post/responses/200/x-note"
+                      }
+                    }
+                  }
+                }
+              ],
+              "oneWay": false,
+              "idempotency": {},
+              "bindings": {
+                "http": [
+                  {
+                    "unmodeled": {
+                      "openapi:callbacks/cb/reference/0/description": {
+                        "reason": "no_ir_home",
+                        "value": "cbd",
+                        "provenance": {
+                          "source": 0,
+                          "pointer": "/paths/~1a/post/callbacks/cb/description"
+                        }
+                      },
+                      "openapi:callbacks/cb/reference/0/summary": {
+                        "reason": "no_ir_home",
+                        "value": "cbs",
+                        "provenance": {
+                          "source": 0,
+                          "pointer": "/paths/~1a/post/callbacks/cb/summary"
+                        }
+                      },
+                      "openapi:callbacks/cb/reference/0/x-cb": {
+                        "reason": "out_of_scope",
+                        "value": 1,
+                        "provenance": {
+                          "source": 0,
+                          "pointer": "/paths/~1a/post/callbacks/cb/x-cb"
+                        }
+                      }
+                    },
+                    "method": "POST",
+                    "uriTemplate": "/a",
+                    "paramBindings": [
+                      {
+                        "param": "param/openapi/paths/~1a/post/parameters/p/query",
+                        "location": "query",
+                        "wireName": "p",
+                        "style": "form",
+                        "allowReserved": false,
+                        "allowEmptyValue": false
+                      },
+                      {
+                        "param": "param/openapi/paths/~1a/post/parameters/q/query",
+                        "location": "query",
+                        "wireName": "q",
+                        "style": "form",
+                        "allowReserved": false,
+                        "allowEmptyValue": false
+                      }
+                    ],
+                    "requestContentTypes": [
+                      "application/json"
+                    ],
+                    "callbacks": [
+                      {
+                        "name": "cb",
+                        "expression": "{$request.body#/u}",
+                        "operations": [
+                          "op/openapi/paths/~1a/post/callbacks/cb/{$request.body#~1u}/post"
+                        ]
+                      }
+                    ],
+                    "sharedRoute": false,
+                    "checksumRequired": false
+                  }
+                ]
+              },
+              "provenance": {
+                "source": 0,
+                "pointer": "/paths/~1a/post"
+              }
+            },
+            {
+              "id": "op/openapi/paths/~1a/post/callbacks/cb/{$request.body#~1u}/post",
+              "name": {
+                "hint": "post_request_body_u"
+              },
+              "docs": {},
+              "responses": [
+                {
+                  "name": {
+                    "hint": "200"
+                  },
+                  "conditions": {
+                    "statusCodes": [
+                      {
+                        "from": 200,
+                        "to": 200
+                      }
+                    ]
+                  },
+                  "docs": {
+                    "description": "ok"
+                  }
+                }
+              ],
+              "oneWay": false,
+              "idempotency": {},
+              "bindings": {
+                "http": [
+                  {
+                    "method": "POST",
+                    "uriTemplate": "{$request.body#/u}",
+                    "inbound": "callback",
+                    "sharedRoute": false,
+                    "checksumRequired": false
+                  }
+                ]
+              },
+              "provenance": {
+                "source": 0,
+                "pointer": "/components/callbacks/C/{$request.body#~1u}/post"
+              }
+            },
+            {
+              "id": "op/openapi/paths/~1b/get",
+              "name": {
+                "source": "b",
+                "canonical": "b"
+              },
+              "docs": {},
+              "params": [
+                {
+                  "id": "param/openapi/paths/~1b/get/parameters/q/query",
+                  "name": {
+                    "source": "q",
+                    "canonical": "q"
+                  },
+                  "type": {
+                    "target": "t/prim/string",
+                    "nullable": false
+                  },
+                  "required": false,
+                  "docs": {
+                    "summary": "s"
+                  },
+                  "unmodeled": {
+                    "openapi:reference/0/x-alias": {
+                      "reason": "out_of_scope",
+                      "value": 0,
+                      "provenance": {
+                        "source": 0,
+                        "pointer": "/paths/~1b/get/parameters/0/x-alias"
+                      }
+                    },
+                    "openapi:reference/1/x-alias": {
+                      "reason": "out_of_scope",
+                      "value": 1,
+                      "provenance": {
+                        "source": 0,
+                        "pointer": "/components/parameters/Alias/x-alias"
+                      }
+                    }
+                  },
+                  "provenance": {
+                    "source": 0,
+                    "pointer": "/components/parameters/Q"
+                  }
+                }
+              ],
+              "responses": [
+                {
+                  "name": {
+                    "hint": "200"
+                  },
+                  "conditions": {
+                    "statusCodes": [
+                      {
+                        "from": 200,
+                        "to": 200
+                      }
+                    ]
+                  },
+                  "docs": {
+                    "description": "ok"
+                  }
+                }
+              ],
+              "oneWay": false,
+              "idempotency": {},
+              "bindings": {
+                "http": [
+                  {
+                    "method": "GET",
+                    "uriTemplate": "/b",
+                    "paramBindings": [
+                      {
+                        "param": "param/openapi/paths/~1b/get/parameters/q/query",
+                        "location": "query",
+                        "wireName": "q",
+                        "style": "form",
+                        "allowReserved": false,
+                        "allowEmptyValue": false
+                      }
+                    ],
+                    "sharedRoute": false,
+                    "checksumRequired": false
+                  }
+                ]
+              },
+              "provenance": {
+                "source": 0,
+                "pointer": "/paths/~1b/get"
+              }
+            }
+          ]
+        }
+      ],
+      "servers": [
+        "server/default"
+      ],
+      "provenance": {
+        "source": 0
+      }
+    }
+  ],
+  "types": {
+    "t/prim/string": {
+      "kind": "primitive",
+      "id": "t/prim/string",
+      "name": {},
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": -1
+      },
+      "prim": "string"
+    }
+  },
+  "servers": {
+    "server/default": {
+      "id": "server/default",
+      "name": {
+        "hint": "server"
+      },
+      "urlTemplate": "/",
+      "description": {},
+      "provenance": {
+        "source": 0
+      }
+    }
+  },
+  "diagnostics": [
+    {
+      "severity": "warning",
+      "code": "openapi/unknown-object-key",
+      "message": "key \"x-note\" is written beside a $ref, where the Reference Object defines only $ref, summary and description, so OpenAPI ignores it",
+      "provenance": {
+        "source": 0,
+        "pointer": "/paths/~1a/post/parameters/0/x-note",
+        "position": {
+          "line": 8,
+          "column": 55
+        }
+      }
+    },
+    {
+      "severity": "warning",
+      "code": "openapi/unknown-object-key",
+      "message": "key \"required\" is written beside a $ref, where the Reference Object defines only $ref, summary and description, so OpenAPI ignores it",
+      "provenance": {
+        "source": 0,
+        "pointer": "/paths/~1a/post/parameters/0/required",
+        "position": {
+          "line": 8,
+          "column": 74
+        }
+      }
+    },
+    {
+      "severity": "warning",
+      "code": "openapi/unknown-object-key",
+      "message": "key \"x-note\" is written beside a $ref, where the Reference Object defines only $ref, summary and description, so OpenAPI ignores it",
+      "provenance": {
+        "source": 0,
+        "pointer": "/paths/~1a/post/requestBody/x-note",
+        "position": {
+          "line": 10,
+          "column": 67
+        }
+      }
+    },
+    {
+      "severity": "warning",
+      "code": "openapi/unknown-object-key",
+      "message": "key \"x-note\" is written beside a $ref, where the Reference Object defines only $ref, summary and description, so OpenAPI ignores it",
+      "provenance": {
+        "source": 0,
+        "pointer": "/paths/~1a/post/responses/200/x-note",
+        "position": {
+          "line": 12,
+          "column": 59
+        }
+      }
+    },
+    {
+      "severity": "warning",
+      "code": "openapi/unknown-object-key",
+      "message": "key \"headers\" is written beside a $ref, where the Reference Object defines only $ref, summary and description, so OpenAPI ignores it",
+      "provenance": {
+        "source": 0,
+        "pointer": "/paths/~1a/post/responses/200/headers",
+        "position": {
+          "line": 12,
+          "column": 77
+        }
+      }
+    },
+    {
+      "severity": "warning",
+      "code": "openapi/unknown-object-key",
+      "message": "key \"x-cb\" is written beside a $ref, where the Reference Object defines only $ref, summary and description, so OpenAPI ignores it",
+      "provenance": {
+        "source": 0,
+        "pointer": "/paths/~1a/post/callbacks/cb/x-cb",
+        "position": {
+          "line": 14,
+          "column": 86
+        }
+      }
+    },
+    {
+      "severity": "warning",
+      "code": "openapi/unknown-object-key",
+      "message": "key \"x-alias\" is written beside a $ref, where the Reference Object defines only $ref, summary and description, so OpenAPI ignores it",
+      "provenance": {
+        "source": 0,
+        "pointer": "/paths/~1b/get/parameters/0/x-alias",
+        "position": {
+          "line": 18,
+          "column": 69
+        }
+      }
+    },
+    {
+      "severity": "warning",
+      "code": "openapi/unknown-object-key",
+      "message": "key \"x-alias\" is written beside a $ref, where the Reference Object defines only $ref, summary and description, so OpenAPI ignores it",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/parameters/Alias/x-alias",
+        "position": {
+          "line": 24,
+          "column": 57
+        }
+      }
+    },
+    {
+      "severity": "info",
+      "code": "openapi/unhomed-construct",
+      "message": "description beside this $ref documents the use, which has no docs to hold it; kept verbatim under Unmodeled",
+      "provenance": {
+        "source": 0,
+        "pointer": "/paths/~1a/post/callbacks/cb/description"
+      }
+    },
+    {
+      "severity": "info",
+      "code": "openapi/unhomed-construct",
+      "message": "summary beside this $ref documents the use, which has no docs to hold it; kept verbatim under Unmodeled",
+      "provenance": {
+        "source": 0,
+        "pointer": "/paths/~1a/post/callbacks/cb/summary"
+      }
+    }
+  ],
+  "sources": [
+    {
+      "format": "openapi@3.1",
+      "path": "ref-beside-keys.yaml",
+      "hash": "5d3d382b137a81043acf993eb3d08161fec58cc496f7a58cf355cccffa0a536d"
+    }
+  ]
+}

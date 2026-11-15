@@ -8,7 +8,7 @@ import "github.com/dexpace/morphic/ir"
 // DiscriminatorInferenceHeuristic is the name a Union's Provenance.Inferred
 // carries where the discriminator-inference policy filled its Discriminator,
 // and a subtype's where it read its DiscriminatorValue. It is a constant for
-// the reason StreamingMediaTypeHeuristic is: an auditor greps for it.
+// the reason StreamingInferenceHeuristic is: an auditor greps for it.
 const DiscriminatorInferenceHeuristic ir.Inferred = "discriminator-inference"
 
 // DiscriminatorInference is the discriminator-inference policy: whether a

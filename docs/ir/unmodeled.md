@@ -59,7 +59,13 @@ whoever wrote it, so it is not among the keywords `WrittenBy` asks after.
 A key names the origin format, then the construct — and, where one carrier holds constructs from
 more than one source object, the path between them. `openapi:x-rate-limit` is the extension on the
 node's own object; `openapi:info/contact/x-id` is the contact block's, kept on the document;
-`openapi:encoding/<part>/x-vendor` is one form part's, kept on the content. The scope is
+`openapi:encoding/<part>/x-vendor` is one form part's, kept on the content; `openapi:schema/x-a` is a
+parameter's or a header's schema's, kept on the carrier beside the object's own `openapi:x-a`, and
+`openapi:content/<mt>/x-a` and `openapi:content/<mt>/schema/x-a` the content entry's it elects and
+that entry's schema's, `<mt>` its media type as one escaped segment; and
+`openapi:reference/<i>/x-a` is what a Reference Object writes beside its `$ref`, kept on the node
+its use lowers to, `i` counting the use and then each alias of its chain, beneath
+`openapi:content/<mt>/` for a parameter's or a header's content entry. The scope is
 load-bearing, not decoration. Most objects lower to a node carrying an `Unmodeled` map of their own
 and take no scope, but the rest ride on the nearest node that does — an info block's on the
 document, a path item's on each of its operations, an encoding's on the owning content — and
@@ -83,6 +89,12 @@ with `x-`, as a callback named `x-hook` keeps its extensions under `openapi:call
 only after such a keyword. The same gap separates both from the non-extension entries a shared
 carrier holds under those scopes, such as `openapi:encoding/<part>/prefixEncoding`.
 
+An entry another entry of its carrier holds whole, lying in the same source beneath it with the value
+found there, is kept once, inside the entry holding it: a `readOnly` read out of an `allOf` branch
+kept whole is `openapi:schema/readOnly` on one parameter and only inside `openapi:schema/allOf/1` on
+another. A key the promotion policy reads is the exception, kept beside what holds it, since a
+promotion reads the kept entries ([promotion](#promotion)).
+
 An entry that belongs to a declaration no node stands for has no carrier to scope it, so it is the
 document's, keyed by the declaration's coordinate rather than a scope:
 `openapi:/components/parameters/P/content/text~1plain`. A coordinate is a pointer, behind a qualifier
@@ -99,9 +111,12 @@ document's contract, and who chose it decides what holds it still:
   So is a segment the document names, such as a form part's in `openapi:encoding/<part>/`, and so
   is a coordinate, a declaration's pointer, which moves with the declaration ([keys](#keys)).
 - **An array index in a key is the source's position.** A key passing through an array, as a
-  branch's `openapi:allOf/1` and a tag's `openapi:tags/0/x-mark` do, moves when the array is
-  reordered, and can then name another construct's entry, as an ID through an index does ([across
+  branch's `openapi:allOf/1` does, moves when the array is reordered, and can then name another
+  construct's entry, as an ID through an index does ([across
   revisions](./identity.md#across-revisions)).
+- **A chain position is the source's too.** The `<i>` of `openapi:reference/<i>/` counts from the
+  use, 0, through every alias the chain passes, whether it writes a key or not, so an alias added
+  to or removed from a chain moves the keys of every alias past it, as an index moves.
 - **Everything else in a key is the compiler's spelling**: the prefix, every keyword and every
   scope, including the scope a vendor extension sits beneath (`openapi:info/contact/x-id`).
   Renaming one, retiring one, moving an entry under another scope or reason, or changing the form
@@ -128,7 +143,7 @@ rendered name, so a renamed key at an unmoved version is caught only in review (
 | `validation_only` | Validation logic rather than data shape: the structural picture is complete without it, and no target type system or sibling source format has an equivalent ([boundaries](./boundaries.md#validation-only-constructs)). |
 | `degraded_lowering` | No faithful target for the shape as written — the IR has no combinator for it, or no target type system holds it — so it was lowered to a documented weaker shape with the original kept beside it ([boundaries](./boundaries.md#degraded-constructs)). |
 | `no_ir_home` | Expressible in target languages, and no boundary the IR draws on purpose: the position simply has no field for it yet. A gap expected to close — each of these is a promotion candidate. |
-| `out_of_scope` | A boundary the IR draws on purpose ([boundaries](./boundaries.md#deliberate-exclusions)): runtime machinery or per-target SDK policy rather than API shape. Kept so nothing is lost, but no node is coming — the intended consumer is an emitter policy layer, not a promotion pass. |
+| `out_of_scope` | A boundary the IR draws on purpose ([boundaries](./boundaries.md#deliberate-exclusions)): runtime machinery or per-target SDK policy rather than API shape, or a construct its own format gives no meaning or effect. Kept so nothing is lost, but no node is coming — the intended consumer is an emitter policy layer, not a promotion pass. |
 
 `no_ir_home` and `out_of_scope` are the pair worth keeping straight, because they read alike and
 mean opposite things: the first is an admission (a field the IR should probably grow), the second
@@ -136,6 +151,12 @@ is a decision ([the list of exclusions](./boundaries.md#deliberate-exclusions), 
 precisely so those constructs are never mistaken for oversights). A promotion pass mining the IR for
 its next typed node reads `no_ir_home` and must skip `out_of_scope`; nothing about the key or the
 value distinguishes them, which is the whole reason `Reason` is data rather than a comment.
+
+A reason of its own for a construct its format gives no effect, `no_effect`, was weighed and
+declined: an emitter does the same with it as with `out_of_scope`, nothing unless a policy names the
+key; a policy may name such a key as it names any other `out_of_scope` one; a promotion pass skips
+both alike; and the finding's code already tells a misspelt key from a policy's. A new value would
+move the IR's shape for a difference no consumer reads.
 
 ## Reporting
 
@@ -161,6 +182,13 @@ For the escape hatch to hold, **every node that can carry source metadata has an
 field** — including `Response`, `ErrorCase`, `Payload`, `Content`, `Example`, `ServerVariable`,
 `OAuthFlow`, and every binding struct (new spec revisions land fields on exactly these objects).
 Per-file metadata (protobuf file options) is keyed by path in `Document.Unmodeled`.
+
+A tag is a carrier of its own though it has no ID: `TagDef.Unmodeled` keeps what a tag object
+writes, whatever grouping strategy forms groups from it, so a consumer finds a tag's keys on the
+tag and nowhere else it would have to search. A group a declared tag forms also keeps the tag's
+vendor extensions, as it takes the tag's docs, because the group is the node with an ID, the one a
+configuration names, and the node whose `Inferred` records a promotion from them
+([promotion](#promotion)).
 
 ## RawConfig
 
@@ -207,12 +235,11 @@ from `Unmodeled` and no two derive it differently:
 4. **A node that cannot record a promotion is not promoted from.** An extension on it could not
    satisfy rule 3, and a heuristic that cannot be audited is worse than an empty field. Giving such a
    node a marker is a change to the IR design, and the promotion follows it rather than preceding
-   it — which is the order `Parameter` went through, and `ErrorCase` and `OAuthFlow` after it.
+   it — which is the order `Parameter` went through, and `ErrorCase`, `OAuthFlow`, `Content` and
+   `OperationGroup` after it.
    `Variant` ([unions](./unions.md)) and `EnumMember` ([enums](./enums.md)) are the instances that
    carry a `Deprecation` today: each has neither marker, so no key written on either is read, though
-   a key on the enum holding a member may fill that member. `OperationGroup`
-   ([services](./services.md)) is a third, for its `Stability`, which only a format declaring one
-   fills.
+   a key on the enum holding a member may fill that member.
 
 ### What a promotion can fill
 
@@ -234,6 +261,10 @@ a row.
 | `Property.Secret`, `Parameter.Secret` | `Property`, `Parameter`, `TypeCommon` | `Provenance.Inferred` |
 | `Server.Name` | `Server` | `Provenance.Inferred` |
 | `HTTPParamBinding.AllowReserved` | `Parameter` | `Provenance.Inferred` |
+| `StreamDetail.Terminator`, `StreamDetail.Condition` | `Operation` | `Provenance.Inferred` |
+| `StreamDetail.Terminator` | `Content` | `Inferred` |
+| `Operation.ParamChoices` | `Operation` | `Provenance.Inferred` |
+| `OperationGroup.Stability` | `OperationGroup` | `Inferred` |
 | `ErrorCase.Retryable`, `ErrorCase.Throttling` | `ErrorCase` | `Inferred` |
 | `OAuthFlow.TokenEndpointAuthMethods` | `OAuthFlow` | `Inferred` |
 
@@ -245,7 +276,10 @@ also name `TypeCommon`, the node of a `$ref`'s target, which lends a use what it
 3); a replacement is never lent, since it names an entity of its own node's class, which a use and
 its target are not. A pagination is read off the operation's keys and off keys marking a value
 where it sits, its parameter, its member or the type either names, so each node whose key it read
-records it. A promoted `Pagination` also sets its own `Inferred`, which says the value as a whole is
+records it. An operation writing a pagination key `true` reads the walk the document's root states
+under it: the key read is the operation's own `true`, which the operation keeps and marks, and no
+field of the `Document`, which has no marker, is filled from the root's entry. A promoted
+`Pagination` also sets its own `Inferred`, which says the value as a whole is
 a heuristic's ([plan policy](../emitters/plan/policy.md)).
 
 Three other places for the record were weighed:

@@ -73,6 +73,18 @@
                       "target": "t/anon/paths/~1assets/post/requestBody/content/multipart~1form-data/schema",
                       "nullable": false
                     },
+                    "catchAllEncoding": {
+                      "t/anon/paths/~1assets/post/requestBody/content/multipart~1form-data/schema": {
+                        "value": {
+                          "contentTypes": [
+                            "text/plain"
+                          ],
+                          "multi": false,
+                          "filename": false,
+                          "allowReserved": false
+                        }
+                      }
+                    },
                     "unmodeled": {
                       "openapi:encoding/*": {
                         "reason": "no_ir_home",
@@ -223,7 +235,7 @@
                     },
                     "unmodeled": {
                       "openapi:encoding/ghost": {
-                        "reason": "no_ir_home",
+                        "reason": "out_of_scope",
                         "value": {
                           "contentType": "image/png",
                           "headers": {
@@ -305,7 +317,7 @@
                     },
                     "unmodeled": {
                       "openapi:encoding/file": {
-                        "reason": "no_ir_home",
+                        "reason": "out_of_scope",
                         "value": {
                           "contentType": "image/png"
                         },
@@ -384,7 +396,7 @@
                     },
                     "unmodeled": {
                       "openapi:encoding/ghost": {
-                        "reason": "no_ir_home",
+                        "reason": "out_of_scope",
                         "value": {
                           "explode": false,
                           "style": "form"
@@ -731,6 +743,15 @@
       "provenance": {
         "source": 0,
         "pointer": "/paths/~1literal/post/requestBody/content/multipart~1form-data/encoding/file"
+      }
+    },
+    {
+      "severity": "warning",
+      "code": "openapi/partless-form-body",
+      "message": "form body's schema declares no object, so it names no part to send; lowered as declared",
+      "provenance": {
+        "source": 0,
+        "pointer": "/paths/~1literal/post/requestBody/content/multipart~1form-data/schema"
       }
     }
   ],

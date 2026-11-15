@@ -19,7 +19,7 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
 	"github.com/dexpace/morphic/compilers/openapi/internal/resolve"
-	"github.com/dexpace/morphic/compilers/openapi/internal/runtimeexpr"
+	"github.com/dexpace/morphic/compilers/openapi/internal/whole"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -62,6 +62,8 @@ func lowerResponses(c lowering.Ctx, w walk, op *ir.Operation, src *soa.Operation
 		if r == nil {
 			continue
 		}
+		beside, besideDiags := lowering.Beside[soa.Response](c, rr, entry, true)
+		diags = append(diags, besideDiags...)
 		rng, named := statusRange(code)
 		if !named {
 			diags = append(diags, invalidStatusKeyDiag(c, code, entry))
@@ -76,13 +78,15 @@ func lowerResponses(c lowering.Ctx, w walk, op *ir.Operation, src *soa.Operation
 		// TestStatusRange_NamesNoStatus is what pins the pairing.
 		if isErrorRange(rng) {
 			ec, drafts, ecDiags := lowerErrorCase(rc, w, r, code, rng, rptr, rr)
+			ec.Unmodeled = annotation.MergeUnmodeled(ec.Unmodeled, beside)
 			diags = append(diags, ecDiags...)
-			w.links.add(op.ID, responseSlot{list: runtimeexpr.ListErrors, index: len(op.Errors)}, drafts)
+			w.links.add(op.ID, responseSlot{list: whole.ListErrors, index: len(op.Errors)}, drafts)
 			op.Errors = append(op.Errors, ec)
 		} else {
 			resp, drafts, respDiags := lowerResponse(rc, w, r, code, statusConditions(rng, named), rptr, rr)
+			resp.Unmodeled = annotation.MergeUnmodeled(resp.Unmodeled, beside)
 			diags = append(diags, respDiags...)
-			w.links.add(op.ID, responseSlot{list: runtimeexpr.ListResponses, index: len(op.Responses)}, drafts)
+			w.links.add(op.ID, responseSlot{list: whole.ListResponses, index: len(op.Responses)}, drafts)
 			op.Responses = append(op.Responses, resp)
 		}
 	}
@@ -99,14 +103,18 @@ func lowerResponses(c lowering.Ctx, w walk, op *ir.Operation, src *soa.Operation
 func lowerDefaultResponse(c lowering.Ctx, w walk, op *ir.Operation,
 	resps *soa.Responses, opDeclPtr jsontext.Pointer,
 ) []ir.Diagnostic {
-	def, dc, dptr := lowering.Declared[soa.Response](c, resps.GetDefault(), opDeclPtr+ids.Ptr("responses", defaultResponseKey))
+	use := opDeclPtr + ids.Ptr("responses", defaultResponseKey)
+	def, dc, dptr := lowering.Declared[soa.Response](c, resps.GetDefault(), use)
 	if def == nil {
 		return nil
 	}
 	resp, drafts, diags := lowerResponse(dc, w, def, defaultResponseKey,
 		statusConditions(statusRange(defaultResponseKey)), dptr, resps.GetDefault())
+	beside, besideDiags := lowering.Beside[soa.Response](c, resps.GetDefault(), use, true)
+	resp.Unmodeled = annotation.MergeUnmodeled(resp.Unmodeled, beside)
+	diags = append(diags, besideDiags...)
 	op.Default = &resp
-	w.links.add(op.ID, responseSlot{list: runtimeexpr.ListDefault}, drafts)
+	w.links.add(op.ID, responseSlot{list: whole.ListDefault}, drafts)
 	return diags
 }
 

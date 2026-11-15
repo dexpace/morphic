@@ -50,7 +50,7 @@ func assertExtensionStability(t *testing.T, doc *ir.Document, diags []ir.Diagnos
 		{"notText", ir.StabilityUnstated, false, "", []string{"openapi:x-stability"}},
 		{"notAWord", ir.StabilityUnstated, false, "", []string{"openapi:x-stability"}},
 		{"unstated", ir.StabilityUnstated, false, "", nil},
-		{"underPathItemKey", ir.StabilityUnstated, false, "", []string{"openapi:pathItem/x-stability"}},
+		{"underPathItemKey", ir.StabilityBeta, false, "extension-promotion", []string{"openapi:pathItem/x-stability"}},
 	} {
 		op, ok := opByName(doc, tc.op)
 		require.True(t, ok, tc.op)

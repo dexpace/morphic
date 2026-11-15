@@ -1,0 +1,25 @@
+# A cursor walk ends at the flag its page states, not at a cursor the page
+# keeps handing back: has_more beside next_cursor is read as the walk's
+# own statement of where it ends, and the walk lists no other stop.
+openapi: 3.1.0
+info: {title: PaginationFlag, version: "1.0.0"}
+paths:
+  /changes:
+    get:
+      operationId: listChanges
+      parameters:
+        - {name: cursor, in: query, schema: {type: string}}
+      responses:
+        "200":
+          description: ok
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  result: {type: array, items: {type: string}}
+                  result_info:
+                    type: object
+                    properties:
+                      next_cursor: {type: string, description: Where the next page or a later poll resumes.}
+                      has_more: {type: boolean, description: True when another page follows.}

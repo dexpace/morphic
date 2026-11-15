@@ -74,7 +74,7 @@
                       "nullable": false
                     },
                     "stream": {
-                      "inferred": "streaming-media-type"
+                      "inferred": "streaming-inference"
                     }
                   }
                 ],
@@ -102,7 +102,7 @@
                           "nullable": false
                         },
                         "stream": {
-                          "inferred": "streaming-media-type"
+                          "inferred": "streaming-inference"
                         }
                       }
                     ]
@@ -145,7 +145,7 @@
               "provenance": {
                 "source": 0,
                 "pointer": "/paths/~1ingest/post",
-                "inferred": "streaming-media-type"
+                "inferred": "streaming-inference"
               }
             },
             {
@@ -164,7 +164,7 @@
                       "nullable": false
                     },
                     "stream": {
-                      "inferred": "streaming-media-type"
+                      "inferred": "streaming-inference"
                     }
                   }
                 ],
@@ -214,7 +214,7 @@
               "provenance": {
                 "source": 0,
                 "pointer": "/paths/~1upload/post",
-                "inferred": "streaming-media-type"
+                "inferred": "streaming-inference"
               }
             },
             {
@@ -246,7 +246,7 @@
                           "nullable": false
                         },
                         "stream": {
-                          "inferred": "streaming-media-type"
+                          "inferred": "streaming-inference"
                         }
                       },
                       {
@@ -256,7 +256,7 @@
                           "nullable": false
                         },
                         "stream": {
-                          "inferred": "streaming-media-type"
+                          "inferred": "streaming-inference"
                         }
                       }
                     ]
@@ -285,7 +285,7 @@
               "provenance": {
                 "source": 0,
                 "pointer": "/paths/~1mixed/get",
-                "inferred": "streaming-media-type"
+                "inferred": "streaming-inference"
               }
             },
             {
@@ -317,7 +317,7 @@
                           "nullable": false
                         },
                         "stream": {
-                          "inferred": "streaming-media-type"
+                          "inferred": "streaming-inference"
                         }
                       },
                       {
@@ -327,7 +327,7 @@
                           "nullable": false
                         },
                         "stream": {
-                          "inferred": "streaming-media-type"
+                          "inferred": "streaming-inference"
                         }
                       }
                     ]
@@ -360,7 +360,7 @@
               "provenance": {
                 "source": 0,
                 "pointer": "/paths/~1negotiated/get",
-                "inferred": "streaming-media-type"
+                "inferred": "streaming-inference"
               }
             },
             {
@@ -392,7 +392,7 @@
                           "nullable": false
                         },
                         "stream": {
-                          "inferred": "streaming-media-type"
+                          "inferred": "streaming-inference"
                         }
                       },
                       {
@@ -402,7 +402,7 @@
                           "nullable": false
                         },
                         "stream": {
-                          "inferred": "streaming-media-type"
+                          "inferred": "streaming-inference"
                         }
                       }
                     ]
@@ -435,7 +435,7 @@
               "provenance": {
                 "source": 0,
                 "pointer": "/paths/~1feed/get",
-                "inferred": "streaming-media-type"
+                "inferred": "streaming-inference"
               }
             },
             {
@@ -474,7 +474,7 @@
                           "nullable": false
                         },
                         "stream": {
-                          "inferred": "streaming-media-type"
+                          "inferred": "streaming-inference"
                         }
                       }
                     ]
@@ -506,7 +506,7 @@
                           "nullable": false
                         },
                         "stream": {
-                          "inferred": "streaming-media-type"
+                          "inferred": "streaming-inference"
                         }
                       }
                     ]
@@ -545,7 +545,7 @@
                         "nullable": false
                       },
                       "stream": {
-                        "inferred": "streaming-media-type"
+                        "inferred": "streaming-inference"
                       }
                     }
                   ]
@@ -577,7 +577,7 @@
               "provenance": {
                 "source": 0,
                 "pointer": "/paths/~1metrics/get",
-                "inferred": "streaming-media-type"
+                "inferred": "streaming-inference"
               }
             },
             {
@@ -609,7 +609,7 @@
                           "nullable": false
                         },
                         "stream": {
-                          "inferred": "streaming-media-type"
+                          "inferred": "streaming-inference"
                         }
                       }
                     ]
@@ -642,7 +642,7 @@
               "provenance": {
                 "source": 0,
                 "pointer": "/paths/~1sequence/get",
-                "inferred": "streaming-media-type"
+                "inferred": "streaming-inference"
               }
             },
             {
@@ -661,7 +661,7 @@
                       "nullable": false
                     },
                     "stream": {
-                      "inferred": "streaming-media-type"
+                      "inferred": "streaming-inference"
                     }
                   }
                 ],
@@ -711,7 +711,7 @@
               "provenance": {
                 "source": 0,
                 "pointer": "/paths/~1sequence-suffix/post",
-                "inferred": "streaming-media-type"
+                "inferred": "streaming-inference"
               }
             }
           ]

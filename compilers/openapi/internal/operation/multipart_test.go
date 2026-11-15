@@ -1470,7 +1470,14 @@ components:
 				if !assert.True(t, ok, "%s is kept at %s; got %v", e.name, key, keptEncodingNames(content.Unmodeled)) {
 					continue
 				}
-				assert.Equal(t, ir.ReasonNoIRHome, rec.Reason, "%s: reason", e.name)
+				// An entry the walk decides names no property has no effect where it is
+				// written, so it is out of scope; one a catch-all may take is kept for want
+				// of a home.
+				wantReason := ir.ReasonOutOfScope
+				if tc.open {
+					wantReason = ir.ReasonNoIRHome
+				}
+				assert.Equal(t, wantReason, rec.Reason, "%s: reason", e.name)
 				assert.JSONEq(t, e.value, string(rec.Value), "%s: kept as written", e.name)
 				assert.Equal(t, jsontext.Pointer(at), rec.Provenance.Pointer, "%s: located at the entry", e.name)
 				msg := openapitest.DiagMessageAt(t, diags, diag.DegradedConstruct, ir.SeverityInfo, at)
@@ -1569,7 +1576,7 @@ func TestPartEncodings_AUnionBranchsPartIsKeyed(t *testing.T) {
 			map[ir.PropID]ir.PartEncoding{
 				at("oneOf/0/properties/file"): {ContentTypes: []string{"image/png"}, Headers: xa, Filename: true},
 				at("oneOf/1/properties/file"): {
-					ContentTypes: []string{"image/png"}, Headers: xa, Multi: true, Filename: true, Inferred: "binary-media-type",
+					ContentTypes: []string{"image/png"}, Headers: xa, Multi: true, Filename: true, Inferred: "binary-inference",
 				},
 			}},
 		{"a name two branches declare, untyped in one and a string in the other",
@@ -1712,11 +1719,10 @@ func TestPartEncodings_ANestedKeyNamingNoPropertyIsWarnedOf(t *testing.T) {
 }
 
 // TestPartEncodings_AnUnkeyedEntryLowersNothingItDeclares holds an entry kept
-// whole to being one record, with the findings at the entry and none beneath
-// it: its header schema registers no type, and its unknown key, extension and
-// nested encoding draw no finding and no record of their own, which the same
-// entry under a part's name does draw. The rule records why it is not judged
-// (#1662).
+// whole to being one record, with the lowering's findings at the entry: its
+// header schema registers no type, and its extension and nested encoding draw
+// no record of their own, which the same entry under a part's name does draw.
+// Its unknown key is the rule table's to report, once, as any object's is.
 func TestPartEncodings_AnUnkeyedEntryLowersNothingItDeclares(t *testing.T) {
 	t.Parallel()
 	const entry = "{contentType: image/png, headers: {X-A: {schema: {type: object, properties: {k: {type: string}}}}}, " +
@@ -1751,17 +1757,19 @@ func TestPartEncodings_AnUnkeyedEntryLowersNothingItDeclares(t *testing.T) {
 	assert.Empty(t, typesUnder(doc, "ghost"), "no type is registered for the header schema of an entry kept whole")
 	assert.Equal(t, []string{"ghost"}, keptEncodingNames(content.Unmodeled), "one record, and none for what the entry declares")
 	assert.JSONEq(t, written, string(content.Unmodeled["openapi:encoding/ghost"].Value))
-	assert.False(t, openapitest.HasDiag(diags, diag.UnknownObjectKey), "the entry's unknown key is not judged")
 	ghost := jsontext.Pointer(media + "/encoding/ghost")
-	assert.Equal(t, []jsontext.Pointer{ghost, ghost}, diagPointersUnder(diags, media+"/encoding/"),
-		"the info keeping the entry and the warning that it names no property, and nothing beneath the entry")
+	assert.Equal(t, []jsontext.Pointer{ghost + "/bogus"},
+		openapitest.PointersOf(diags, diag.UnknownObjectKey), "the rule table judges the entry's unknown key, once, at the key")
+	assert.ElementsMatch(t, []jsontext.Pointer{ghost, ghost, ghost + "/bogus"}, diagPointersUnder(diags, media+"/encoding/"),
+		"the info keeping the entry, the warning that it names no property, and the table's one for its key")
 }
 
 // TestPartEncodings_AnEncodingOutsideAFormIsKeptWhole holds each entry of an
 // encoding written under a media type that is neither multipart nor form, a
-// file body's or not, to being kept whole at openapi:encoding/<key>, with one
-// info at the entry beside load's warning at the field, and no warning that
-// the key names nothing: the field has no effect there, whatever it names.
+// file body's or not, to being kept whole at openapi:encoding/<key> as
+// out_of_scope, with one info at the entry beside load's warning at the field,
+// and no warning that the key names nothing: the field has no effect there,
+// whatever it names.
 func TestPartEncodings_AnEncodingOutsideAFormIsKeptWhole(t *testing.T) {
 	t.Parallel()
 	for _, tc := range []struct{ name, mt, schema string }{
@@ -1777,7 +1785,7 @@ func TestPartEncodings_AnEncodingOutsideAFormIsKeptWhole(t *testing.T) {
 			media := requestMedia(tc.mt)
 			for _, name := range []string{"file", "x"} {
 				at := media + "/encoding/" + name
-				assert.Equal(t, ir.ReasonNoIRHome, content.Unmodeled["openapi:encoding/"+name].Reason)
+				assert.Equal(t, ir.ReasonOutOfScope, content.Unmodeled["openapi:encoding/"+name].Reason)
 				assert.Equal(t, fmt.Sprintf("encoding entry %q belongs to a media type that is neither multipart nor form, "+
 					"where it has no effect, so Content.Encoding has no key for it; kept verbatim under Unmodeled", name),
 					openapitest.DiagMessageAt(t, diags, diag.DegradedConstruct, ir.SeverityInfo, at))
@@ -1846,7 +1854,7 @@ func TestPartEncodings_AnUnkeyedEntryThatIsNoObjectAddsNothingToLoadsError(t *te
 }
 
 // TestPartEncodings_AnEntryThatCannotBeKeptIsReportedNotAnnounced writes an
-// entry naming no part with a key twice, which cannot be rendered as JSON. The
+// entry naming no part holding .nan, which cannot be rendered as JSON. The
 // construct is reported as reaching the IR in no form, and no info claims it
 // was kept.
 func TestPartEncodings_AnEntryThatCannotBeKeptIsReportedNotAnnounced(t *testing.T) {
@@ -1854,7 +1862,7 @@ func TestPartEncodings_AnEntryThatCannotBeKeptIsReportedNotAnnounced(t *testing.
 	media := requestMedia(multipartForm)
 	at := media + "/encoding/ghost"
 	_, svc, diags := compileService(t, formDoc("", multipartForm,
-		"{type: object, properties: {a: {type: string}}}", "{ghost: {contentType: image/png, contentType: text/plain}}", ""))
+		"{type: object, properties: {a: {type: string}}}", "{ghost: {contentType: image/png, bogus: .nan}}", ""))
 	assert.Empty(t, keptEncodingNames(formContent(t, svc, false).Unmodeled), "nothing was written")
 	openapitest.AssertHasCode(t, diags, diag.UnpreservableConstruct, ir.SeverityError)
 	assert.True(t, openapitest.HasDiagCodeAt(diags, diag.UnpreservableConstruct, at), "reported at the entry")
@@ -1877,14 +1885,14 @@ func TestPartEncodings_AContentTypeWrittenTakesNoDefault(t *testing.T) {
 
 // TestPartEncodings_AnEntryKeptAtSettlementThatCannotBeKeptKeepsItsRecords
 // holds an entry for a part no property holds, which cannot be kept whole
-// since it writes a key twice, to the records its lowering kept of it, its
+// since it holds .nan, to the records its lowering kept of it, its
 // extension among them, and to the refusal alone, with no announcement that
 // it was kept whole.
 func TestPartEncodings_AnEntryKeptAtSettlementThatCannotBeKeptKeepsItsRecords(t *testing.T) {
 	t.Parallel()
 	media := requestMedia(multipartForm)
 	_, svc, diags := compileService(t, formDoc("", multipartForm,
-		"{const: x, properties: {file: {type: string}}}", "{file: {x-k: 1, contentType: image/png, contentType: text/plain}}", ""))
+		"{const: x, properties: {file: {type: string}}}", "{file: {x-k: 1, contentType: image/png, bogus: .nan}}", ""))
 	content := formContent(t, svc, false)
 	assert.Empty(t, content.Encoding)
 	assert.Equal(t, []string{"file/x-k"}, keptEncodingNames(content.Unmodeled), "the entry's own records stand")

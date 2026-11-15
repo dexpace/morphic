@@ -702,9 +702,8 @@ func TestPathItem_KeepsWhatItDeclaresOncePerMount(t *testing.T) {
 			assert.Failf(t, "documentation is reported", "%s: %s", d.Provenance.Pointer, d.Message)
 		}
 	}
-	assert.ElementsMatch(t, []string{"/paths/~1a/bogus1", "/paths/~1a/bogus2", "/paths/~1b/bogus3",
-		"/components/pathItems/P/bogus4"}, keys,
-		"each undeclared key is reported once, however many operations hold it")
+	assert.Empty(t, keys,
+		"the rule table reports each undeclared key once, so the lowering reports none however many operations hold it")
 
 	ops := map[ir.OpID]ir.Operation{}
 	for _, g := range svc.Groups {

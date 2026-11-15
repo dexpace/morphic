@@ -54,7 +54,7 @@ func sitesOf(t *testing.T, doc *ir.Document) []boundSite {
 		{pointer: "/components/schemas/Holder/properties/p", held: p.Constraints, kept: p.Unmodeled,
 			node: owned("t/anon/components/schemas/Holder/properties/p", p.Type)},
 		{pointer: "/components/schemas/Items/items", node: doc.Types["t/anon/components/schemas/Items/items"]},
-		{pointer: "/paths/~1a/get/parameters/0/schema", held: q.Constraints, kept: q.Unmodeled,
+		{pointer: "/paths/~1a/get/parameters/0/schema", held: q.Constraints, kept: schemaKept(q.Unmodeled),
 			node: owned("t/anon/paths/~1a/get/parameters/0/schema", q.Type)},
 	}
 }
@@ -407,4 +407,17 @@ func TestConstraints_ABranchCountItsTypeCannotTakeIsKeptWithIt(t *testing.T) {
 	assert.Equal(t, 1, strings.Count(marshalForTest(t, doc), "99999999999999999999"))
 	require.Len(t, diags, 1, "%+v", diags)
 	assert.Contains(t, diags[0].Message, "the branch (maxLength)")
+}
+
+// schemaKept returns what a parameter or a header keeps of what its schema
+// writes, beneath openapi:schema/, keyed as a node of the schema's own keeps
+// it, so one reading compares every carrier.
+func schemaKept(u ir.Unmodeled) ir.Unmodeled {
+	out := ir.Unmodeled{}
+	for key, entry := range u {
+		if rest, ok := strings.CutPrefix(key, "openapi:schema/"); ok {
+			out["openapi:"+rest] = entry
+		}
+	}
+	return out
 }

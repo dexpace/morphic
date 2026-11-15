@@ -1,0 +1,22 @@
+# A use of a schema through a chain of $refs reads the chain one hop at a time,
+# nearest first: each field of a property is the nearest hop that writes it, so
+# an alias that writes a description and a default lends both, one that writes a
+# description alone lends that and lets the default fall through to the schema
+# it names, and one that writes nothing lends nothing. What the use writes beside
+# its own $ref comes before every hop.
+openapi: 3.1.0
+info: {title: t, version: '1'}
+paths: {}
+components:
+  schemas:
+    Leaf: {type: string, description: from-leaf, default: l}
+    Fine: {$ref: '#/components/schemas/Leaf', description: from-fine, default: f}
+    Bare: {$ref: '#/components/schemas/Fine'}
+    Docs: {$ref: '#/components/schemas/Leaf', description: from-docs}
+    Holder:
+      type: object
+      properties:
+        f: {$ref: '#/components/schemas/Fine'}
+        b: {$ref: '#/components/schemas/Bare'}
+        d: {$ref: '#/components/schemas/Docs'}
+        own: {$ref: '#/components/schemas/Fine', description: from-use}

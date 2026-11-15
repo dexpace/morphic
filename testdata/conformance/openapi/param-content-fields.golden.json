@@ -243,7 +243,6 @@
                         "param": "param/openapi/paths/~1search/get/parameters/filter/query",
                         "location": "query",
                         "wireName": "filter",
-                        "style": "form",
                         "allowReserved": false,
                         "allowEmptyValue": false,
                         "contentType": "application/json"

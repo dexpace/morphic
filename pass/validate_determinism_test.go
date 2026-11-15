@@ -99,6 +99,17 @@ var twoFindings = []twoFinding{
 			requestContent(doc).Encoding = map[ir.PropID]ir.PartEncoding{"p/m/z": {}, "p/m/b": {}}
 			return doc
 		}},
+	{family: "checkCatchAllEncodingKeys", code: "ir/encoding-key-unknown-catch-all",
+		want: []string{"op/request/contents/0/catchAllEncoding/t/b", "op/request/contents/0/catchAllEncoding/t/z"},
+		doc: func() *ir.Document {
+			doc := validDoc()
+			value := &ir.PartEncoding{Filename: true}
+			// Two declared models holding no catch-all: a key naming no type is the
+			// dangling check's.
+			doc.Types["t/z"], doc.Types["t/b"] = &ir.Model{ID: "t/z"}, &ir.Model{ID: "t/b"}
+			requestContent(doc).CatchAllEncoding = map[ir.TypeID]ir.CatchAllParts{"t/z": {Value: value}, "t/b": {Value: value}}
+			return doc
+		}},
 	{family: "checkPayloadRequired", code: "ir/payload-required-outside-request",
 		want: []string{"op/z/responses/0", "op/b/responses/0"},
 		doc: func() *ir.Document {

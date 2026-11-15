@@ -62,6 +62,12 @@ func usageRootPositions() map[string]irfacts.UsageFlags {
 		"Document.Channels/Channel.Params/Parameter.Type":        in,
 		"Document.Auth/AuthScheme.Credentials":                   in,
 	}
+	for parameters, flags := range map[string]irfacts.UsageFlags{
+		"Operation.Params":                 in,
+		"Document.Channels/Channel.Params": in,
+	} {
+		positions[parameters+"/Parameter.Encoding/Encoding.Schema"] = flags
+	}
 	for header, flags := range map[string]irfacts.UsageFlags{
 		"Operation.Responses/Response.Headers":   out,
 		"Operation.Default/Response.Headers":     out,
@@ -86,6 +92,11 @@ func usageRootPositions() map[string]irfacts.UsageFlags {
 			"Content.ItemEncoding/PartEncoding.Headers/Property.Encoding/Encoding.Schema",
 			"Content.Encoding/PartEncoding.Headers/Property.Type",
 			"Content.Encoding/PartEncoding.Headers/Property.Encoding/Encoding.Schema",
+			"Content.CatchAllEncoding",
+			"Content.CatchAllEncoding/CatchAllParts.Value/PartEncoding.Headers/Property.Type",
+			"Content.CatchAllEncoding/CatchAllParts.Value/PartEncoding.Headers/Property.Encoding/Encoding.Schema",
+			"Content.CatchAllEncoding/CatchAllParts.Patterns/PartEncoding.Headers/Property.Type",
+			"Content.CatchAllEncoding/CatchAllParts.Patterns/PartEncoding.Headers/Property.Encoding/Encoding.Schema",
 		} {
 			positions[payload+"/Payload.Contents/"+content] = flags
 		}

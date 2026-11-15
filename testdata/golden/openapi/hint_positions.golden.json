@@ -285,7 +285,6 @@
                         "param": "param/openapi/paths/~1pets~1{petId}/get/parameters/X-Trace/header",
                         "location": "header",
                         "wireName": "X-Trace",
-                        "style": "simple",
                         "allowReserved": false,
                         "allowEmptyValue": false,
                         "contentType": "application/json"

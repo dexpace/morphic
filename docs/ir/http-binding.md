@@ -52,7 +52,8 @@ type HTTPParamBinding struct {
                                   // (ir/unknown-http-location)
     WireName   string
     Style      string             // simple | form | label | matrix | deepObject | pipe/space-delimited |
-                                  // cookie (OpenAPI 3.2's, at in: cookie)
+                                  // cookie (OpenAPI 3.2's, at in: cookie); "" = none stated, as at
+                                  // querystring and for a value its ContentType serializes
     Explode    *bool              // as declared; nil = the style's default: true under form and
                                   // cookie, false under any other, and none where Style is
                                   // empty, as at querystring

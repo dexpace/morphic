@@ -186,7 +186,7 @@ components:
     S: {$ref: 'root.yaml#/components/responses/R'}
   responses:
     R: {description: ok, minLength: -1}
-`, []string{"/components/schemas/S openapi/unresolved-ref"}},
+`, []string{"/components/responses/R/minLength openapi/unknown-object-key", "/components/schemas/S openapi/unresolved-ref"}},
 		{"raw YAML holding no schema", nil, header + `paths: {}
 components:
   schemas:
@@ -246,9 +246,11 @@ components:
 `, Options{})
 
 	assert.Empty(t, cmp.Diff([]string{
+		"/components/headers/H/in openapi/unknown-object-key",
+		"/components/headers/H/name openapi/unknown-object-key",
 		"/components/headers/H/schema/minLength openapi/validation/validation-type-mismatch",
 		"/paths/~1a/get/parameters/0 openapi/unresolved-ref",
-	}, diagLines(diags)), "the source's own finding, once, as the header it declares, and the $ref, which names no parameter")
+	}, diagLines(diags)), "the source's own findings, once, as the header it declares, and the $ref, which names no parameter")
 }
 
 // TestResolve_EveryKindOfObjectIsValidated reaches each kind of object a $ref

@@ -103,6 +103,10 @@ func TestVerify_AHeaderUnderAPrefixIsCheckedWhereverAHeaderIs(t *testing.T) {
 			MediaType: "multipart/mixed", Type: ir.TypeRef{Target: "t/x/Name"},
 			ItemEncoding: &ir.PartEncoding{Headers: bad()},
 			Encoding:     map[ir.PropID]ir.PartEncoding{"p/x/part": {Headers: bad()}},
+			CatchAllEncoding: map[ir.TypeID]ir.CatchAllParts{"t/x/Name": {
+				Value:    &ir.PartEncoding{Headers: bad()},
+				Patterns: map[string]ir.PartEncoding{"^a": {Headers: bad()}},
+			}},
 		}}}
 	}
 	doc := opDoc(ir.Operation{
@@ -121,10 +125,12 @@ func TestVerify_AHeaderUnderAPrefixIsCheckedWhereverAHeaderIs(t *testing.T) {
 		"doc.Services[0].CommonErrors[0].Payload", "doc.Messages[m/x].Payload",
 	}
 	holders := []string{op + ".Responses[0]", op + ".Default", op + ".Errors[0]", "doc.Services[0].CommonErrors[0]"}
-	want := make([]string, 0, 2*len(payloads)+len(holders))
+	want := make([]string, 0, 4*len(payloads)+len(holders))
 	for _, payload := range payloads {
 		want = append(want, payload+".Contents[0].ItemEncoding.Headers[0].Type",
-			payload+".Contents[0].Encoding[p/x/part].Headers[0].Type")
+			payload+".Contents[0].Encoding[p/x/part].Headers[0].Type",
+			payload+".Contents[0].CatchAllEncoding[t/x/Name].Value.Headers[0].Type",
+			payload+".Contents[0].CatchAllEncoding[t/x/Name].Patterns[^a].Headers[0].Type")
 	}
 	for _, holder := range holders {
 		want = append(want, holder+".Headers[0].Type")

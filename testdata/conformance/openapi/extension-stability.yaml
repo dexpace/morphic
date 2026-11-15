@@ -81,7 +81,7 @@ paths:
     delete:
       operationId: unstated
       responses: {"200": {description: ok}}
-  # A path item's key stays kept: it reaches no operation's field.
+  # A path item's key is the tier of an operation stating none, and stays kept.
   /pathitem:
     x-stability: beta
     get:

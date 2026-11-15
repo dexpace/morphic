@@ -1,0 +1,24 @@
+# A keyword whose value is kept verbatim, `not` and `if` here, can write a $ref
+# whose target nothing else in the document names. The target is lowered all
+# the same, at every position the reference lands on, and each hop of a chain of
+# them: Mid is an alias that a use of it reads through, and End the schema it
+# ends on, with what Mid writes beside its $ref kept on it.
+openapi: 3.1.0
+info: {title: T, version: "1"}
+paths: {}
+components:
+  schemas:
+    Typed:
+      type: object
+      $defs: {Sub: {type: object, properties: {typed: {type: string}}}}
+      properties: {a: {$ref: '#/components/schemas/Typed/$defs/Sub'}}
+    Kept:
+      type: object
+      $defs: {Sub: {type: object, properties: {kept: {type: string}}}}
+      not: {$ref: '#/components/schemas/Kept/$defs/Sub'}
+    Through:
+      type: object
+      $defs:
+        Mid: {$ref: '#/components/schemas/Through/$defs/End', description: mid}
+        End: {type: integer}
+      if: {$ref: '#/components/schemas/Through/$defs/Mid'}

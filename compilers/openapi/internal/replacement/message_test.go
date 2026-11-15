@@ -15,6 +15,7 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/load"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
 	"github.com/dexpace/morphic/compilers/openapi/internal/replacement"
+	"github.com/dexpace/morphic/compilers/openapi/internal/whole"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -59,13 +60,13 @@ func TestMessage_AnOperationsNamesItsReplacementByRoute(t *testing.T) {
 		{"Deprecated in favor of the GET `/v2/zones` endpoint.", []ir.EntityRef{v2}, ""},
 		{"Use GET /v2/zones before 2026-11-28.", []ir.EntityRef{v2}, ""},
 		{"Use GET /v2/zones.", []ir.EntityRef{v2}, ""},
-		{"See (GET /v2/zones).", []ir.EntityRef{v2}, ""},
+		{"See (GET /v2/zones).", nil, ""},
 		{"Use GET /v2/zones; GET /v1/zones goes away.", []ir.EntityRef{v2}, ""},
 		{"Use GET /v2/zones, or GET /v2/zones with a filter.", []ir.EntityRef{v2}, ""},
 		{"Use GET /v2/zones and POST /v2/zones.", []ir.EntityRef{v2, {Operation: "op/v2-post"}}, ""},
 		{"Use GET /v2/zones; FETCH /v2/zones is the hook's.", []ir.EntityRef{v2}, ""},
 		{"Use GET /v2/zones, as described at /docs.", []ir.EntityRef{v2}, ""},
-		{"GET requests go to GET /v2/zones.", []ir.EntityRef{v2}, ""},
+		{"GET requests go to GET /v2/zones.", nil, ""},
 		{"Use GET /v2/zones or GET /v3/zones.", nil, `"GET /v3/zones." names no operation`},
 		{"Use GET /v3/zones or GET /v2/zones.", nil, `"GET /v3/zones" names no operation`},
 		{"Use GET /zones instead.", nil, ""},
@@ -86,7 +87,7 @@ func TestMessage_AnOperationsNamesItsReplacementByRoute(t *testing.T) {
 				route("op/v2-post", http.MethodPost, "/v2/zones", nil),
 				ir.Operation{ID: "op/hook", Bindings: ir.OpBindings{HTTP: []ir.HTTPBinding{{Method: "FETCH", WebhookName: "/v2/zones"}}}})
 			assert.Equal(t, undecided(tc.why, ir.Provenance{Pointer: "/paths/~1v1~1zones/get"}),
-				replacement.Infer(inferring(), doc))
+				replacement.Infer(inferring(), whole.New(doc)))
 			op := doc.Services[0].Groups[0].Operations[0]
 			assert.Equal(t, tc.want, op.Deprecation.ReplacedBy)
 			want := ir.Inferred("extension-promotion")
@@ -120,7 +121,7 @@ func TestMessage_ARouteTwoOperationsShareNamesNone(t *testing.T) {
 		}
 		doc := routes(route("op/v1", http.MethodGet, "/v1", says("Use GET /v2.")), a, b)
 		assert.Equal(t, undecided(`"GET /v2." names more than one operation`, ir.Provenance{}),
-			replacement.Infer(inferring(), doc), "first %t", first)
+			replacement.Infer(inferring(), whole.New(doc)), "first %t", first)
 		assert.Empty(t, doc.Services[0].Groups[0].Operations[0].Deprecation.ReplacedBy, "first %t", first)
 	}
 }
@@ -139,9 +140,9 @@ func TestMessage_AMembersAndAParametersNameSiblingsInCode(t *testing.T) {
 	}{
 		{"Use `new` instead.", []string{"new"}, ""},
 		{"Use `new` and `other` for finer control.", []string{"new", "other"}, ""},
-		{"Renamed from `old` to `new`.", []string{"new"}, ""},
-		{"Use `new` instead; see `docs`.", nil, `"docs" names no %s`},
-		{"See `docs`, then use `new` or `faq`.", nil, `"docs" names no %s`},
+		{"Renamed from `old` to `new`.", nil, ""},
+		{"Use `new` instead; see `docs`.", []string{"new"}, ""},
+		{"See `docs`, then use `new` or `faq`.", nil, ""},
 		{"See `docs`; `old` goes.", nil, ""},
 		{"Use new instead.", nil, ""},
 		{"Use ``new`` instead.", []string{"new"}, ""},
@@ -172,7 +173,7 @@ func TestMessage_AMembersAndAParametersNameSiblingsInCode(t *testing.T) {
 				want = slices.Concat(undecided(fmt.Sprintf(tc.why, "parameter"), atParam),
 					undecided(fmt.Sprintf(tc.why, "property"), atMember))
 			}
-			assert.Equal(t, want, replacement.Infer(inferring(), doc))
+			assert.Equal(t, want, replacement.Infer(inferring(), whole.New(doc)))
 
 			members := make([]ir.EntityRef, 0, len(tc.want))
 			params := make([]ir.EntityRef, 0, len(tc.want))
@@ -218,7 +219,7 @@ func TestMessage_ANameTwoParametersCarryIsReported(t *testing.T) {
 			}
 			doc := routes(op)
 			doc.Types = ir.TypeRegistry{"t/nil": (*ir.Model)(nil), "t/s": &ir.Scalar{ID: "t/s"}}
-			assert.Equal(t, undecided(tc.why, ir.Provenance{}), replacement.Infer(inferring(), doc))
+			assert.Equal(t, undecided(tc.why, ir.Provenance{}), replacement.Infer(inferring(), whole.New(doc)))
 			assert.Equal(t, tc.want, doc.Services[0].Groups[0].Operations[0].Params[0].Deprecation.ReplacedBy)
 		})
 	}
@@ -273,8 +274,8 @@ func TestMessage_YieldsToWhatTheDocumentSays(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			doc := build(tc.own, tc.dep)
-			replacement.Resolve(tc.c, doc)
-			assert.Empty(t, replacement.Infer(tc.c, doc))
+			replacement.Resolve(tc.c, whole.New(doc))
+			assert.Empty(t, replacement.Infer(tc.c, whole.New(doc)))
 			assert.Equal(t, tc.want, replaced(doc))
 		})
 	}

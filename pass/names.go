@@ -7,6 +7,7 @@ import (
 	"context"
 	"maps"
 	"slices"
+	"strconv"
 
 	"github.com/dexpace/morphic/ir"
 )
@@ -93,6 +94,7 @@ func (r *nameReader) groups(doc *ir.Document) {
 		}
 		for i := range ops {
 			r.params(ops[i].ID, ops[i].Params)
+			r.choices(ops[i].ID, ops[i].ParamChoices)
 		}
 	})
 }
@@ -111,6 +113,23 @@ func (r *nameReader) params(op ir.OpID, params []ir.Parameter) {
 	if r.readScope(byWords, len(params), func(i int) ir.Naming { return params[i].Name }) {
 		r.report(scope{in: "operation", id: string(op), one: "parameter", many: "parameters",
 			ids: idsOf(len(params), func(i int) string { return string(params[i].ID) })})
+	}
+}
+
+// choices reads the parameter choices of the operation op as one scope, and
+// each choice's variants as one of its own. Neither holds an ID, so a party is
+// named by its index, and a target tells two named alike apart by position.
+func (r *nameReader) choices(op ir.OpID, choices []ir.ParamChoice) {
+	if r.readScope(byWords, len(choices), func(i int) ir.Naming { return choices[i].Name }) {
+		r.report(scope{in: "operation", id: string(op), one: "parameter choice", many: "parameter choices",
+			apart: "position"})
+	}
+	for i := range choices {
+		variants := choices[i].Variants
+		if r.readScope(byWords, len(variants), func(k int) ir.Naming { return variants[k].Name }) {
+			r.report(scope{in: "parameter choice " + strconv.Itoa(i) + " of operation", id: string(op),
+				one: "variant", many: "variants", apart: "position"})
+		}
 	}
 }
 

@@ -244,7 +244,7 @@ func TestVerify_UnmodeledSitesOutsideTheCorpus(t *testing.T) {
 	doc := compile(t, "unmodeled-sites.yaml", []byte(uncorpusedUnmodeled))
 	require.NotNil(t, doc)
 	require.Equal(t, []string{
-		"openapi:items", "openapi:x-mark", "openapi:x-op", "openapi:xml",
+		"openapi:items", "openapi:schema/xml", "openapi:x-mark", "openapi:x-op",
 	}, unmodeledKeys(doc), "the spec must reach every preserve call this test exists for")
 
 	assert.Empty(t, irverify.Verify(doc))

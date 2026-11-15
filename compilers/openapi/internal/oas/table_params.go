@@ -51,7 +51,8 @@ func parameterFields() []Field {
 		objectOf("schema", Schema, c(V30, "The schema defining the type used for the parameter.")),
 		field("example", Any, c(V30, "Example of the parameter's potential value; see")),
 		mapOf("examples", Example, c(V30, "Examples of the parameter's potential value; see")),
-		mapOf("content", MediaType, c(V30, "A map containing the representations for the parameter.")),
+		mapOf("content", MediaType, c(V30, "A map containing the representations for the parameter.")).
+			keyed(MediaTypeKey, c(V30, "The key is the media type and the value describes it.")),
 	}
 }
 
@@ -59,6 +60,7 @@ func parameterFields() []Field {
 func parameterRules() []Rule {
 	c := sectioned("Parameter Object")
 	path := when(term("in", "path"))
+	writes := when(writing("content"), term("in", "query", "header", "path", "cookie"))
 	return []Rule{
 		exactlyOne(Always(), fields("schema", "content"),
 			c(V30, "Parameter Objects MUST include either a `content` field or a `schema` field, but not both.")),
@@ -75,6 +77,8 @@ func parameterRules() []Rule {
 		syntax(Always(), "name", Token, when(term("in", "cookie")),
 			c(V30, "cookie - Used to pass a specific cookie value to the API."),
 			c(V32, "Analogous to `form`, but following [[RFC6265]] `Cookie` syntax rules")),
+		reserved(Always(), "name", when(term("in", "header")), fields("Accept", "Content-Type", "Authorization"),
+			c(V30, "If `in` is `\"header\"` and the `name` field is `\"Accept\"`, `\"Content-Type\"` or `\"Authorization\"`, the parameter definition SHALL be ignored.")),
 		forbiddenWhen(Always(), fields("allowEmptyValue"), when(term("in", "path", "header", "cookie", "querystring")),
 			c(V30, "This field is valid only for `query` parameters.")),
 		inapplicable(Always(), "allowEmptyValue",
@@ -92,7 +96,20 @@ func parameterRules() []Rule {
 			c(V32, "These fields MUST NOT be used with `in: \"querystring\"`.")),
 		misplaced(From(V32), fields("style", "explode", "allowReserved"), when(term("in", "querystring")),
 			c(V32, "These fields MUST NOT be used with `in: \"querystring\"`.")),
+		// in: querystring is the misplaced row's: 3.2 bars the three there.
+		besideContent(c, "parameter", "style", writes), besideContent(c, "parameter", "explode", writes),
+		besideContent(c, "parameter", "allowReserved", writes),
 	}
+}
+
+// besideContent returns a rule: name, a field a carrier, a parameter or a
+// header, serializes its value with through its schema, has no effect where
+// cond, which has the object write content, whose media type serializes it,
+// holds, c citing the object's section.
+func besideContent(c func(Minor, string) Cite, carrier, name string, cond []Term) Rule {
+	return inapplicable(Always(), name, cond, "to a "+carrier+" serialized through its schema",
+		c(V30, "For simpler scenarios, a [`schema`](#parameter-schema) and [`style`](#parameter-style) can describe the structure and syntax of the parameter."),
+		c(V31, "Fixed Fields for use with `schema`"))
 }
 
 // headerObject is the Header Object.
@@ -109,7 +126,8 @@ func headerObject() Object {
 			objectOf("schema", Schema, c(V30, "The schema defining the type used for the header.")),
 			field("example", Any, c(V30, "Example of the header's potential value; see")),
 			mapOf("examples", Example, c(V30, "Examples of the header's potential value; see")),
-			mapOf("content", MediaType, c(V30, "A map containing the representations for the header.")),
+			mapOf("content", MediaType, c(V30, "A map containing the representations for the header.")).
+				keyed(MediaTypeKey, c(V30, "The key is the media type and the value describes it.")),
 		},
 		Rules: []Rule{
 			exclusive(Always(), fields("schema", "content"),
@@ -117,14 +135,17 @@ func headerObject() Object {
 			exclusive(Always(), fields("example", "examples"),
 				c(V30, "The `example` and `examples` fields are mutually exclusive")),
 			count(Always(), Must, "content", 1, c(V30, "The map MUST only contain one entry.")),
-			// Each is a key the Header Object does not define, which the unknown-key
-			// census reports where it is written and keeps verbatim.
+			// Each is a key the Header Object does not define, which the engine
+			// reports as an unknown key where it is written (walker.unknown) and the
+			// annotation census keeps verbatim, so the rule draws no second finding.
 			forbiddenWhen(Always(), fields("name", "in"), nil,
 				c(V30, "`name` MUST NOT be specified, it is given in the corresponding `headers` map.")).owned(ownerAnnotation),
 			forbiddenWhen(Through(V31), fields("allowEmptyValue", "allowReserved"), nil,
 				c(V30, "This means that `allowEmptyValue` and `allowReserved` MUST NOT be used")).owned(ownerAnnotation),
 			forbiddenWhen(From(V32), fields("allowEmptyValue"), nil,
 				c(V32, "This means that `allowEmptyValue` MUST NOT be used")).owned(ownerAnnotation),
+			besideContent(c, "header", "style", when(writing("content"))),
+			besideContent(c, "header", "explode", when(writing("content"))),
 		},
 	}
 }
@@ -136,7 +157,8 @@ func requestBodyObject() Object {
 		Kind: RequestBody, Name: "Request Body Object", Extensible: true, Referenceable: Always(),
 		Fields: []Field{
 			field("description", String, c(V30, "A brief description of the request body.")),
-			mapOf("content", MediaType, c(V30, "**REQUIRED**. The content of the request body.")).required(Always()),
+			mapOf("content", MediaType, c(V30, "**REQUIRED**. The content of the request body.")).required(Always()).
+				keyed(MediaTypeKey, c(V30, "The key is a media type or media type range")),
 			field("required", Boolean, c(V30, "Determines if the request body is required in the request.")),
 		},
 		Rules: []Rule{
@@ -231,7 +253,9 @@ func encodingObject() Object {
 		// The nested fields apply "in the same manner" as the Media Type Object's,
 		// whose text bars writing them together: a reading by analogy, so a
 		// warning.
-		Rules:    softened(encodingExclusions(c, V32, "Applies nested Encoding Objects in the same manner as the")),
+		Rules: append(softened(encodingExclusions(c, V32, "Applies nested Encoding Objects in the same manner as the")),
+			reserved(Always(), "headers", nil, fields("Content-Type"),
+				c(V30, "`Content-Type` is described separately and SHALL be ignored in this section."))),
 		Defaults: contentTypeDefaults(c),
 	}
 }

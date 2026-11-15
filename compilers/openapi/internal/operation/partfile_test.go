@@ -58,13 +58,13 @@ components:
 func TestReadPartFile_ReadsDeclarationsEncodingAndVersion(t *testing.T) {
 	t.Parallel()
 	const (
-		marker    = "binary-media-type"
+		marker    = "binary-inference"
 		multipart = "multipart/form-data"
 		form      = "application/x-www-form-urlencoded"
 		binary    = "{type: string, format: binary}"
 		strings   = "{oneOf: [{type: string}, {type: array, items: {type: string}}]}"
 	)
-	disabled := openapi.Options{BinaryMedia: openapi.BinaryMedia{Disabled: true}}
+	disabled := openapi.Options{BinaryInference: openapi.BinaryInference{Disabled: true}}
 	for _, tc := range []struct {
 		name, version, mediaType, part, encoding string
 		opts                                     openapi.Options
@@ -272,7 +272,7 @@ func TestReadPartFile_AMarkerNamesOnlyAGuess(t *testing.T) {
 			`{type: object, properties: {file: {type: string, format: binary}}}]}`, ""},
 		{"raw bytes and a string", `{allOf: [{type: object, properties: {file: {type: string, format: binary}}}, ` +
 			`{type: object, properties: {file: {type: string}}}]}`, ""},
-		{"a string alone", `{type: object, properties: {file: {type: string}}}`, "binary-media-type"},
+		{"a string alone", `{type: object, properties: {file: {type: string}}}`, "binary-inference"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()

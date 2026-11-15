@@ -177,7 +177,7 @@ func TestPassedOverEntries_NamesOnlyWhatItKept(t *testing.T) {
           in: query
           content:
             application/json: {schema: {type: integer}}
-            application/xml: {x-twice: 1, x-twice: 2}
+            application/xml: {x-nan: .nan}
             text/plain: {schema: {type: string}}
       responses: {"200": {description: ok}}
 `))

@@ -6,6 +6,7 @@ package annotation
 import (
 	"encoding/json/jsontext"
 	"fmt"
+	"iter"
 	"slices"
 	"strconv"
 
@@ -55,24 +56,6 @@ func EffectiveVisibility(chain []*oas3.Schema) (ir.Visibility, bool) {
 	default:
 		return ir.Visibility{}, false
 	}
-}
-
-// EffectiveDefault returns the default the nearest schema of chain writes, for
-// the property or parameter at pointer to keep. A chain writing none yields
-// nothing; an unconvertible node yields a warning at pointer and no value,
-// rather than a warning at the default's own position as
-// docs/compilers/openapi.md#values asks (GitHub #1101).
-func EffectiveDefault(chain []*oas3.Schema, pointer jsontext.Pointer, doc provenance.Doc) (*ir.Value, []ir.Diagnostic) {
-	i := slices.IndexFunc(chain, func(s *oas3.Schema) bool { return s.GetDefault() != nil })
-	if i < 0 {
-		return nil, nil
-	}
-	v, err := value.FromNode(chain[i].GetDefault())
-	if err != nil {
-		return nil, []ir.Diagnostic{diag.Newf(ir.SeverityWarning, diag.DegradedConstruct, doc.At(pointer),
-			"default: %s", err.Error())}
-	}
-	return &v, nil
 }
 
 // anyFlag reports whether a schema of chain sets the bool field accessor
@@ -302,8 +285,7 @@ type Home int
 
 // The readers below consume a Site the caller supplies rather than resolving
 // one themselves, since obtaining a referent is reference resolution — walk
-// work. Site.Referents starts at the end of the $ref's chain, so a schema
-// between it and the use site lends nothing (GitHub #1029).
+// work. Site.Referents holds each hop of the $ref's chain, nearest first.
 
 // Set is everything a site's annotations yield, before any of it is
 // attached to a carrier.
@@ -490,7 +472,7 @@ func unmodeledAt(s *oas3.Schema, pointer jsontext.Pointer, doc provenance.Doc, o
 	return MergeUnmodeled(vOnly, kept), append(diags, dDiags...)
 }
 
-// DialectKeywords are the JSON Schema resource and dialect keywords the IR
+// dialectKeywords are the JSON Schema resource and dialect keywords the IR
 // excludes on purpose. It identifies every type by a synthetic ID derived from
 // its source pointer rather than by `$id` (docs/ir/identity.md), and describes
 // one API surface rather than a JSON Schema resource graph, so it has no
@@ -500,7 +482,15 @@ func unmodeledAt(s *oas3.Schema, pointer jsontext.Pointer, doc provenance.Doc, o
 // `$id` is kept and read besides, where docs/compilers/openapi.md#references
 // reads one, as the identifier and base URI a $ref resolves against, and
 // `$schema` as the dialect a schema it roots is read in.
-var DialectKeywords = []string{"$id", "$schema", "$vocabulary"}
+var dialectKeywords = [...]string{"$id", "$schema", "$vocabulary"}
+
+// DialectKeywords yields the JSON Schema resource and dialect keywords the IR
+// keeps out of scope (dialectKeywords). Each reader ranges over its own
+// sequence, so none can change what another reads.
+func DialectKeywords() iter.Seq[string] { return slices.Values(dialectKeywords[:]) }
+
+// DialectKeyword reports whether keyword is one of DialectKeywords.
+func DialectKeyword(keyword string) bool { return slices.Contains(dialectKeywords[:], keyword) }
 
 // dialectRead is what keyword, one of DialectKeywords or draft 4's `id`, is
 // read for beyond being kept, its schema's dialect reading its identifier as
@@ -547,7 +537,7 @@ func dialectAt(s *oas3.Schema, pointer jsontext.Pointer, doc provenance.Doc, dia
 	if dialect.Identifier == "id" {
 		keep("id")
 	}
-	for _, keyword := range DialectKeywords {
+	for _, keyword := range dialectKeywords {
 		keep(keyword)
 	}
 	return p, diags

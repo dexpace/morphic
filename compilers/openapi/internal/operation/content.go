@@ -68,8 +68,7 @@ type mediaDecl struct {
 // c's document, stands for (mediaDecl), and false for one written as a $ref
 // resolving to nothing, which lowers nothing, as any reference object does
 // (docs/compilers/openapi.md#references), where the load phase reported why.
-// Keys beside the $ref but summary and description are not read (GitHub
-// #1321).
+// The keys beside each $ref of use's chain are the Content's (lowerContent).
 //
 // One declaration lowers at its own pointer however many entries name it, so
 // it interns one type (GitHub #856).
@@ -128,11 +127,9 @@ func lowerContent(d mediaDecl, w walk, mt string) (ir.Content, []ir.Diagnostic) 
 		content.Type = fileBodyType(w.types, file, content.Type)
 	}
 	if file == nil && isFormContent(mt) {
-		enc, encUnmodeled, encDiags := partEncodings(c, w, media, mt, mediaPtr, content.Type.Target)
+		enc, catchAll, encUnmodeled, encDiags := partEncodings(c, w, media, mt, mediaPtr, content.Type.Target)
 		diags = append(diags, encDiags...)
-		if enc != nil {
-			content.Encoding = enc
-		}
+		content.Encoding, content.CatchAllEncoding = enc, catchAll
 		// Assigned, not merged: the parts' settlement writes into this map.
 		content.Unmodeled = encUnmodeled
 	} else {
@@ -150,6 +147,13 @@ func lowerContent(d mediaDecl, w walk, mt string) (ir.Content, []ir.Diagnostic) 
 	docs, taken, docDiags := mediaTypeDocs(d, &content.Unmodeled)
 	content.Docs = docs
 	diags = append(diags, docDiags...)
+	if d.use != nil {
+		// What the entry's chain writes beside each $ref rides on the Content the
+		// use lowers to, its summary and description folded into Docs above.
+		beside, besideDiags := lowering.Beside[soa.MediaType](d.entryCtx, d.use, d.entryPtr, true)
+		content.Unmodeled = annotation.MergeUnmodeled(content.Unmodeled, beside)
+		diags = append(diags, besideDiags...)
+	}
 	return content, append(diags,
 		annotation.UnknownKeysIn(&content.Unmodeled, media, c.Place(), mediaPtr, taken...)...)
 }

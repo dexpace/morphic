@@ -82,11 +82,11 @@ type Ctx struct {
 	// shares it, and a resolve.Names lets none write to it.
 	schemas resolve.Names
 
-	// NullableWidening is the nullable-widening policy, and
+	// NullableInference is the nullable-inference policy, and
 	// DiscriminatorInference the discriminator-inference policy, beside the
 	// policies of what a document's names and messages imply, read once it is
 	// whole. They sit before foreign so all of them share a word.
-	NullableWidening       NullableWidening
+	NullableInference      NullableInference
 	DiscriminatorInference DiscriminatorInference
 	IdempotencyInference   IdempotencyInference
 	SecretInference        SecretInference
@@ -188,10 +188,10 @@ type Policy struct {
 	Grouping               GroupingStrategy
 	GroupingExtension      GroupingExtension
 	Limits                 Limits
-	Streaming              StreamingMedia
-	Binary                 BinaryMedia
+	StreamingInference     StreamingInference
+	BinaryInference        BinaryInference
 	Promotions             ExtensionPromotions
-	NullableWidening       NullableWidening
+	NullableInference      NullableInference
 	DiscriminatorInference DiscriminatorInference
 	IdempotencyInference   IdempotencyInference
 	SecretInference        SecretInference
@@ -218,10 +218,10 @@ func New(srcIndex int, doc *load.Document, p Policy) Ctx {
 		GroupingExtension:      p.GroupingExtension,
 		Limits:                 p.Limits,
 		schemas:                declaredSchemaNames(doc.Doc),
-		streaming:              streamingSet(p.Streaming),
-		binary:                 binarySet(p.Binary),
+		streaming:              streamingSet(p.StreamingInference),
+		binary:                 binarySet(p.BinaryInference),
 		promoter:               newPromoter(p.Promotions),
-		NullableWidening:       p.NullableWidening,
+		NullableInference:      p.NullableInference,
 		DiscriminatorInference: p.DiscriminatorInference,
 		IdempotencyInference:   p.IdempotencyInference,
 		SecretInference:        p.SecretInference,
@@ -255,8 +255,8 @@ func (c Ctx) Promoter() Promoter {
 
 // Reached reports whether a lowering run under this context, or any copy of it,
 // resolved a reference to pointer in the source. It is meant to be asked once
-// every other lowering has returned: before that it answers for those that
-// have.
+// every lowering that follows a reference has returned: before that it answers
+// for those that have.
 func (c Ctx) Reached(pointer jsontext.Pointer) bool {
 	return c.reached.Has(pointer)
 }
@@ -374,7 +374,7 @@ func Declared[T, S any, R chainable[T, S], P interface {
 	// inline entry is not charged here: a path item's own inline parameters are
 	// charged where its additionalOperations entries take them
 	// (ChargeExpansionAt).
-	if !c.expansion.admit(readingOf(c, usePtr), copied[T, S](c, ref, P(obj).GetRootNode())...) {
+	if !c.expansion.admit(readingOf(c, usePtr), P(obj).GetRootNode(), copied[T, S](c, ref)...) {
 		return nil, c, usePtr
 	}
 	there, ok := InDocument(c, decl.Doc)
@@ -412,10 +412,6 @@ func (c Ctx) SchemaRules() oas.SchemaRules { return rowsOf(c).Schema }
 // with (rowsOf), as SchemaRules returns the Schema Object's: what a part takes
 // where its encoding leaves a field unwritten.
 func EncodingRules(c Ctx) oas.EncodingRules { return rowsOf(c).Encoding }
-
-// SecurityRules returns the Security Requirement Object's rows a requirement c
-// lowers is read with (rowsOf): whether its key may name a scheme by URI.
-func SecurityRules(c Ctx) oas.SecurityRules { return rowsOf(c).Security }
 
 // rowsOf returns what the table says at the minor of the document whose
 // content c reads, in the dialect its jsonSchemaDialect names
@@ -527,6 +523,12 @@ func NameTitle(c Ctx, pointer jsontext.Pointer) (string, bool) {
 // suggests (naming.Namer.Through), and "" where it suggests none.
 func NameThrough(c Ctx, pointer jsontext.Pointer) string {
 	return c.loaded.names.Through(bind.Position{Doc: c.homeDoc, Pointer: pointer})
+}
+
+// NameOfDocument returns the hint what is declared at the root of document doc
+// of the bindings' table is named by (naming.Namer.Document).
+func NameOfDocument(c Ctx, doc bind.DocID) string {
+	return c.loaded.names.Document(doc)
 }
 
 // homeOf returns the document other than the source whose positions c reads,

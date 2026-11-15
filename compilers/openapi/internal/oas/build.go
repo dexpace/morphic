@@ -134,6 +134,9 @@ func valWhen(name string, s Span, cond ...Term) Value {
 // term returns the condition that sibling field name holds one of in.
 func term(name string, in ...string) Term { return Term{Field: name, In: in} }
 
+// writing returns a term: the object writes name, as a mapping or any value.
+func writing(name string) Term { return Term{Field: name, Written: true} }
+
 // pattern returns a family of keys every minor admits.
 func pattern(name string, shape Shape, k Kind, cites ...Cite) Pattern {
 	return Pattern{Name: name, Shape: shape, Of: k, Span: Always(), Cites: cites}
@@ -223,6 +226,13 @@ func inapplicable(s Span, name string, cond []Term, scope string, cites ...Cite)
 // one that is lowers as declared, so it is warned of.
 func misplaced(s Span, fields []string, cond []Term, cites ...Cite) Rule {
 	return Rule{Kind: RuleMisplaced, Span: s, Level: Should, Fields: fields, When: cond, Cites: cites}
+}
+
+// reserved returns a rule: name, when the terms hold, names none of names in
+// any case, as HTTP compares field names; a string field by its value, a map
+// field by each of its keys.
+func reserved(s Span, name string, cond []Term, names []string, cites ...Cite) Rule {
+	return Rule{Kind: RuleReserved, Span: s, Level: Should, Field: name, When: cond, Names: names, Cites: cites}
 }
 
 // code returns a rule written in Go, reported by owner when it is not empty.

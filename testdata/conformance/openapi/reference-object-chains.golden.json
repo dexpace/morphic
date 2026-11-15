@@ -733,7 +733,7 @@
     {
       "severity": "info",
       "code": "openapi/undecided-pagination",
-      "message": "no pagination is inferred: the operation is a POST, and only a GET or a QUERY is safe to send again for each page",
+      "message": "no pagination is inferred: the operation is a POST, and query parameters \"cursor\" and \"page\" each name where its walk continues: a POST is read as a walk only where its request body does, as one taking its path item's parameters may be a create",
       "provenance": {
         "source": 0,
         "pointer": "/paths/~1orders/post"

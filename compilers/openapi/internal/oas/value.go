@@ -308,8 +308,10 @@ func (w *walker) entries(f frame, fld Field, shape Shape, node *yaml.Node, ptr j
 	case Map:
 		w.repeated(node, ptr, "field "+strconv.Quote(fld.Name)+" of the "+f.obj.Name)
 		pairs := w.view.MappingPairs(node)
-		for _, k := range keyFindings(f.obj, fld, pairs, ptr, w.minor) {
-			w.report(k.sev, k.class, k.ptr, "%s", k.message)
+		places := newKeyPlacer(w, node, ptr)
+		for _, k := range keyFindings(f.obj, fld, pairs, w.minor) {
+			w.add(diag.Newf(k.sev, diag.Validation+"/"+k.class, places.place(k.key), "%s", k.message),
+				ptr.AppendToken(k.key))
 		}
 		for _, p := range pairs {
 			if !f.holdsBoolean(fld, p.Val) {
@@ -336,7 +338,33 @@ func (w *walker) entries(f frame, fld Field, shape Shape, node *yaml.Node, ptr j
 			w.text(f, fmt.Sprintf("field %q entry %q", fld.Name, p.Key), fld, nodeview.Deref(p.Val), ptr.AppendToken(p.Key))
 		}
 	default:
-		// A scalar, or a container of values the table leaves unread.
+		// A scalar, or a container of values the table leaves unread, which the
+		// lowering keeps verbatim or reads as a value.
+		rawRepeats(w, node, ptr, depth+1)
+	}
+}
+
+// rawRepeats warns of each key a mapping written in a value the table reads as
+// no object writes more than once, at its later copy, as repeated warns of one
+// an object writes: the lowering reads such a value at the copy the model
+// reads. It spends the walk's own budget, one unit a mapping or list.
+func rawRepeats(w *walker, val *yaml.Node, ptr jsontext.Pointer, depth int) {
+	node := nodeview.Deref(val)
+	if node == nil || node.Kind != yaml.MappingNode && node.Kind != yaml.SequenceNode {
+		return
+	}
+	if !w.spend(depth, ptr) {
+		return
+	}
+	if node.Kind == yaml.SequenceNode {
+		for i, item := range node.Content {
+			rawRepeats(w, item, itemPointer(ptr, i), depth+1)
+		}
+		return
+	}
+	w.repeated(node, ptr, "a mapping")
+	for _, p := range w.view.MappingPairs(node) {
+		rawRepeats(w, p.Val, ptr.AppendToken(p.Key), depth+1)
 	}
 }
 
@@ -344,17 +372,20 @@ func (w *walker) entries(f frame, fld Field, shape Shape, node *yaml.Node, ptr j
 type keyFinding struct {
 	sev     ir.Severity
 	class   string
-	ptr     jsontext.Pointer
+	key     string
 	message string
 }
 
 // keyFindings checks the keys of the map field fld of obj holds, pairs,
-// written at ptr, against the syntax the table gives them at minor: a component
-// name, which the specification writes as a pattern every key must match, is
-// held to it by a warning, and an HTTP field name by an error, as a header
-// parameter's name is, beside what fieldNames finds.
-func keyFindings(obj Object, fld Field, pairs []nodeview.Pair, ptr jsontext.Pointer, minor Minor) []keyFinding {
-	if fld.Keys != ComponentName && fld.Keys != FieldName {
+// against the syntax the table gives them at minor: a component name, which
+// the specification writes as a pattern every key must match, and a media
+// type, which a content map's key is, are held to it by a warning, and an HTTP
+// field name by an error, as a header parameter's name is, beside what
+// fieldNames finds.
+func keyFindings(obj Object, fld Field, pairs []nodeview.Pair, minor Minor) []keyFinding {
+	switch fld.Keys {
+	case ComponentName, MediaTypeKey, FieldName:
+	default:
 		return nil
 	}
 	var found []keyFinding
@@ -364,23 +395,23 @@ func keyFindings(obj Object, fld Field, pairs []nodeview.Pair, ptr jsontext.Poin
 	}
 	for _, p := range pairs {
 		if !validFormat(fld.Keys, p.Key) {
-			found = append(found, keyFinding{sev: sev, class: class, ptr: ptr.AppendToken(p.Key),
+			found = append(found, keyFinding{sev: sev, class: class, key: p.Key,
 				message: fmt.Sprintf("%s field %q has the key %q, which must be %s in OpenAPI %s (%s)", obj.Name,
 					fld.Name, p.Key, describeFormat(fld.Keys), minor, citeFor(fld.Cites, minor).Section)})
 		}
 	}
 	if fld.Keys == FieldName {
-		found = append(found, fieldNames(obj, fld, pairs, ptr, minor)...)
+		found = append(found, fieldNames(obj, fld, pairs, minor)...)
 	}
 	return found
 }
 
-// fieldNames finds each key of the map field fld of obj holds, pairs, written
-// at ptr, that names the header a key spelled lower in byte order names in
+// fieldNames finds each key of the map field fld of obj holds, pairs, that
+// names the header a key spelled lower in byte order names in
 // another case, a warning: HTTP reads the two as one, and the model as two.
 // Which key draws it follows the spellings rather than the order the map writes
 // them in.
-func fieldNames(obj Object, fld Field, pairs []nodeview.Pair, ptr jsontext.Pointer, minor Minor) []keyFinding {
+func fieldNames(obj Object, fld Field, pairs []nodeview.Pair, minor Minor) []keyFinding {
 	lowest := make(map[string]string, len(pairs))
 	for _, p := range pairs {
 		folded := strings.ToLower(p.Key)
@@ -391,7 +422,7 @@ func fieldNames(obj Object, fld Field, pairs []nodeview.Pair, ptr jsontext.Point
 	var found []keyFinding
 	for _, p := range pairs {
 		if first := lowest[strings.ToLower(p.Key)]; first != p.Key {
-			found = append(found, keyFinding{sev: ir.SeverityWarning, class: classDuplicate, ptr: ptr.AppendToken(p.Key),
+			found = append(found, keyFinding{sev: ir.SeverityWarning, class: classDuplicate, key: p.Key,
 				message: fmt.Sprintf("%s field %q has the keys %q and %q, which name one header, as HTTP compares "+
 					"field names in any case, and both are read in OpenAPI %s (%s)", obj.Name, fld.Name, first, p.Key,
 					minor, citeFor(fld.Cites, minor).Section)})

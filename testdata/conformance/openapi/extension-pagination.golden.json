@@ -219,7 +219,7 @@
                   "required": false,
                   "docs": {},
                   "unmodeled": {
-                    "openapi:x-stainless-pagination-property": {
+                    "openapi:schema/x-stainless-pagination-property": {
                       "reason": "vendor_extension",
                       "value": {
                         "purpose": "next_cursor_param"

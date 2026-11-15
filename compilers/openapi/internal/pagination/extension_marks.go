@@ -35,7 +35,7 @@ type marker struct {
 // marks returns the provenance of the node keeping unmodeled when src marks
 // it.
 func (m *marker) marks(unmodeled ir.Unmodeled, keeper *ir.Provenance) (*ir.Provenance, bool) {
-	st, diags := lowering.PageStatementOf(m.pg.p, m.target, m.src, unmodeled)
+	st, diags := lowering.PageStatementOf(m.pg.p, m.target, m.src, unmodeled, nil)
 	m.diags = append(m.diags, diags...)
 	m.written = m.written || st.Written
 	return keeper, st.Stated
@@ -47,7 +47,7 @@ func (m *marker) marksUse(own ir.Unmodeled, keeper *ir.Provenance, of ir.TypeID)
 	if at, ok := m.marks(own, keeper); ok {
 		return at, true
 	}
-	td := m.pg.reg[of]
+	td := m.pg.w.Types[of]
 	if ir.IsNilTypeDef(td) {
 		return nil, false
 	}
@@ -61,9 +61,13 @@ func (pg *pager) markedInput(op *ir.Operation, target lowering.ExtensionTarget, 
 	m := &marker{pg: pg, target: target, src: src}
 	var found []*ir.InputPath
 	var read []*ir.Provenance
+	mediaTypes := paramMediaTypes(op)
 	for i := range op.Params {
 		p := &op.Params[i]
-		if keeper, ok := m.marksUse(p.Unmodeled, &p.Provenance, p.Type.Target); ok {
+		// A mark is a valued fact: the parameter's own key, else the nearest object
+		// it carries writing one.
+		own := lowering.Carried(pg.p, p.Unmodeled, lowering.CarrierScopes(mediaTypes[p.ID])...)
+		if keeper, ok := m.marksUse(own, &p.Provenance, p.Type.Target); ok {
 			found, read = append(found, &ir.InputPath{Param: &p.ID}), append(read, keeper)
 		}
 	}
@@ -127,7 +131,12 @@ func (m *marker) inResponse(body *ir.Payload, headers []ir.Header) (*position, s
 	}
 	for i := range headers {
 		h := &headers[i].Property
-		keeper, ok := m.marksUse(h.Unmodeled, &h.Provenance, h.Type.Target)
+		mediaType := ""
+		if h.Encoding != nil {
+			mediaType = h.Encoding.MediaType
+		}
+		own := lowering.Carried(m.pg.p, h.Unmodeled, lowering.CarrierScopes(mediaType)...)
+		keeper, ok := m.marksUse(own, &h.Provenance, h.Type.Target)
 		switch {
 		case !ok:
 		case found != nil:
@@ -184,7 +193,7 @@ func (m *marker) within(body *ir.Payload) (*position, string) {
 // operation pays for the walk only where the document writes the key below
 // its body.
 func (m *marker) search(root ir.TypeID) []position {
-	if td := m.pg.reg[root]; !ir.IsNilTypeDef(td) {
+	if td := m.pg.w.Types[root]; !ir.IsNilTypeDef(td) {
 		if keeper, ok := m.marks(td.Common().Unmodeled, &td.Common().Provenance); ok {
 			return []position{{keeper: keeper}}
 		}
@@ -253,7 +262,7 @@ func (m *marker) descend(level []step, seen, reach map[ir.TypeID]bool) ([]positi
 	var next []step
 	at := map[ir.TypeID]int{}
 	for _, s := range level {
-		for _, p := range m.pg.members(s.model) {
+		for _, p := range m.pg.w.Members(s.model) {
 			if keeper, ok := m.marksUse(p.Unmodeled, &p.Provenance, p.Type.Target); ok {
 				found = append(found, position{segments: s.trail.segments(p.ID), keeper: keeper, shared: s.shared})
 			}
@@ -312,7 +321,7 @@ func (pg *pager) keeping(entry string) func(*ir.Property) bool {
 		if _, ok := p.Unmodeled[entry]; ok {
 			return true
 		}
-		td := pg.reg[p.Type.Target]
+		td := pg.w.Types[p.Type.Target]
 		if ir.IsNilTypeDef(td) {
 			return false
 		}
@@ -327,8 +336,8 @@ func (pg *pager) keeping(entry string) func(*ir.Property) bool {
 func (pg *pager) keepers(keeps func(*ir.Property) bool, set map[ir.TypeID]bool) (map[ir.TypeID][]ir.TypeID, []ir.TypeID) {
 	namers := map[ir.TypeID][]ir.TypeID{}
 	var found []ir.TypeID
-	for id := range pg.reg {
-		for _, p := range pg.members(id) {
+	for id := range pg.w.Types {
+		for _, p := range pg.w.Members(id) {
 			if keeps(p) && !set[id] {
 				set[id] = true
 				found = append(found, id)
@@ -345,7 +354,7 @@ func (pg *pager) keepers(keeps func(*ir.Property) bool, set map[ir.TypeID]bool) 
 // satisfies keeps. Every member a flattening reads is one, so this answers for
 // every model's members without flattening any.
 func (pg *pager) anyMember(keeps func(*ir.Property) bool) bool {
-	for _, td := range pg.reg {
+	for _, td := range pg.w.Types {
 		if model, ok := td.(*ir.Model); ok {
 			for i := range model.Properties {
 				if keeps(&model.Properties[i]) {
@@ -357,25 +366,21 @@ func (pg *pager) anyMember(keeps func(*ir.Property) bool) bool {
 	return false
 }
 
-// members returns the members of the model at id in layout order, read once.
-func (pg *pager) members(id ir.TypeID) []*ir.Property {
-	if props, read := pg.flat[id]; read {
-		return props
-	}
-	var props []*ir.Property
-	if pg.isModel(id) {
-		flat := ir.FlattenedProperties(pg.reg, id)
-		props = make([]*ir.Property, len(flat.Properties))
-		for i := range flat.Properties {
-			props[i] = flat.Properties[i].Property
-		}
-	}
-	pg.flat[id] = props
-	return props
+// isModel reports whether id stands for a model, read through alias scalars
+// as a model's members are (whole.Document.Members).
+func (pg *pager) isModel(id ir.TypeID) bool {
+	_, ok := pg.w.Stands(id).(*ir.Model)
+	return ok
 }
 
-// isModel reports whether the registry holds a model at id.
-func (pg *pager) isModel(id ir.TypeID) bool {
-	_, ok := pg.reg[id].(*ir.Model)
-	return ok
+// paramMediaTypes returns the media type each binding of op serializes its
+// parameter in, by the parameter's ID: none for one its schema states.
+func paramMediaTypes(op *ir.Operation) map[ir.ParamID]string {
+	out := map[ir.ParamID]string{}
+	for _, hb := range op.Bindings.HTTP {
+		for _, pb := range hb.ParamBindings {
+			out[pb.Param] = pb.ContentType
+		}
+	}
+	return out
 }

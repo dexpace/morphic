@@ -57,8 +57,13 @@ type docs struct {
 		asked bool
 	}
 	// components is Config.Components as a set, which a mapping value spelling
-	// one names (finder.mappingsOf).
+	// one names (finder.mappingsOf), and schemes Config.SecuritySchemes, which
+	// a requirement key spelling one names (finder.requirementKeys).
 	components map[string]bool
+	schemes    map[string]bool
+	// keyRefs is the key each requirement key position is read as a
+	// reference by, which no $ref spells (objects.refAt).
+	keyRefs map[Position]string
 }
 
 // ruleKey is a document and a dialect its schemas name.
@@ -77,7 +82,22 @@ func newDocs(root *yaml.Node, cfg Config, w *work) *docs {
 	}
 	return &docs{cfg: cfg, list: []*document{src}, byName: map[string]DocID{cfg.Self: Source},
 		failed: map[string]error{}, work: w, reached: map[DocID]bool{Source: true}, rules: map[ruleKey]DialectRule{},
-		components: components}
+		components: components, schemes: setOf(cfg.SecuritySchemes), keyRefs: map[Position]string{}}
+}
+
+// setOf returns names as a set.
+func setOf(names []string) map[string]bool {
+	set := make(map[string]bool, len(names))
+	for _, name := range names {
+		set[name] = true
+	}
+	return set
+}
+
+// keysByURI reports whether document id's minor reads a requirement key as a
+// URI (Config.KeysByURI).
+func (d *docs) keysByURI(id DocID) bool {
+	return d.cfg.KeysByURI != nil && d.cfg.KeysByURI(d.list[id].name)
 }
 
 // locate is the name of the document uri names, written in the document

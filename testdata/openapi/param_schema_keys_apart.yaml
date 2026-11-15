@@ -1,0 +1,23 @@
+openapi: 3.1.0
+info: {title: T, version: "1"}
+paths:
+  /a:
+    get:
+      operationId: a
+      parameters:
+        - name: p
+          in: query
+          divisibleBy: FROM_PARAMETER_OBJECT
+          schema: {type: string, divisibleBy: FROM_SCHEMA}
+        - name: r
+          in: query
+          format: FROM_PARAMETER_OBJECT
+          schema: {$ref: '#/components/schemas/S', format: FROM_SCHEMA_BESIDE_REF}
+      responses:
+        "200":
+          description: ok
+          headers:
+            X-H: {divisibleBy: FROM_HEADER_OBJECT, schema: {type: string, divisibleBy: FROM_SCHEMA}}
+components:
+  schemas:
+    S: {type: string}

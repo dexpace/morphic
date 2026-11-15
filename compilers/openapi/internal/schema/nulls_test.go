@@ -21,20 +21,20 @@ import (
 	"github.com/dexpace/morphic/ir"
 )
 
-// inferred is a reference whose null only the nullable-widening policy admits.
+// inferred is a reference whose null only the nullable-inference policy admits.
 func inferred(target ir.TypeID) ir.TypeRef {
-	return ir.TypeRef{Target: target, Nullable: true, Inferred: lowering.NullableWideningHeuristic}
+	return ir.TypeRef{Target: target, Nullable: true, Inferred: lowering.NullableInferenceHeuristic}
 }
 
 // prim is the shared primitive of kind k.
 func prim(k ir.PrimKind) ir.TypeID { return ir.PrimTypeID(k) }
 
-// compileNullable compiles src, a whole document, with the nullable-widening
+// compileNullable compiles src, a whole document, with the nullable-inference
 // policy on or off. That reach through openapi is why openapitest cannot hold
 // it — see that package's doc comment.
 func compileNullable(t *testing.T, src string, off bool) (*ir.Document, []ir.Diagnostic) {
 	t.Helper()
-	opts := compilers.Options{FormatOptions: openapi.Options{NullableWidening: openapi.NullableWidening{Disabled: off}}}
+	opts := compilers.Options{FormatOptions: openapi.Options{NullableInference: openapi.NullableInference{Disabled: off}}}
 	doc, diags, err := openapi.New().Compile(t.Context(),
 		[]compilers.Source{{Path: "spec.yaml", Data: []byte(src)}}, opts)
 	require.NoError(t, err)
@@ -60,13 +60,13 @@ func diagMessage(diags []ir.Diagnostic, code string) string {
 	return ""
 }
 
-// TestNullableWidening_EachShapeReadsByItsVersion holds every shape of
+// TestNullableInference_EachShapeReadsByItsVersion holds every shape of
 // `nullable: true` to both readings: declared, as the document's version
 // defines the keyword, which the policy turned off gives, and the policy's,
 // which marks a reference where only it admits null and reports the keyword
 // once, at itself, saying why. A shape both readings admit is neither marked
 // nor reported.
-func TestNullableWidening_EachShapeReadsByItsVersion(t *testing.T) {
+func TestNullableInference_EachShapeReadsByItsVersion(t *testing.T) {
 	t.Parallel()
 	const at = "/components/schemas/Holder/properties/p"
 	anon := ir.TypeID("t/anon/components/schemas/Holder/properties/p")
@@ -215,14 +215,14 @@ func TestNullableWidening_EachShapeReadsByItsVersion(t *testing.T) {
 	}
 }
 
-// TestNullableWidening_AnEnumsNullMemberFollowsTheReadingInForce pins the one
+// TestNullableInference_AnEnumsNullMemberFollowsTheReadingInForce pins the one
 // lowering besides a reference's bit that asks whether a schema admits null: a
 // null member lifts off an enum onto the reference only where the reading the
 // policy selects admits null. On, the 3.1 schema below admits it, and its
 // reference is nullable; off, its type excludes null, so the member admits
 // nothing and is reported where it is written. Either way the null is no member
 // (docs/compilers/openapi.md#enum-const).
-func TestNullableWidening_AnEnumsNullMemberFollowsTheReadingInForce(t *testing.T) {
+func TestNullableInference_AnEnumsNullMemberFollowsTheReadingInForce(t *testing.T) {
 	t.Parallel()
 	src := openapitest.HolderSpec("3.1.0", "{type: string, nullable: true, enum: [a, null]}", "")
 	at := ir.TypeID("t/anon/components/schemas/Holder/properties/p")
@@ -255,12 +255,12 @@ func chainSpec(version, end string, n int) string {
 	return openapitest.HolderSpec(version, "{$ref: '#/components/schemas/"+prev+"'}", b.String())
 }
 
-// TestNullableWidening_ALongChainOfAliasesReadsAsAShortOne pins how a $ref's
+// TestNullableInference_ALongChainOfAliasesReadsAsAShortOne pins how a $ref's
 // chain is read: hop by hop, so each alias's keywords count, but in a loop
 // the chain's own length bounds rather than from the walk's budget. Charged
 // per hop, a chain longer than the budget would read as silent and drop the
 // null its end admits.
-func TestNullableWidening_ALongChainOfAliasesReadsAsAShortOne(t *testing.T) {
+func TestNullableInference_ALongChainOfAliasesReadsAsAShortOne(t *testing.T) {
 	t.Parallel()
 	for _, n := range []int{1, maxChainProbe} {
 		last := componentID(fmt.Sprintf("A%d", n-1))
@@ -338,11 +338,11 @@ func TestAllOf_NullabilityFollowsTheConjuncts(t *testing.T) {
 	assert.False(t, isModel, "a conjunct admitting no object composes nothing")
 }
 
-// TestNullableWidening_ABranchWidensTheAllOfHoldingIt pins `nullable: true` on an
+// TestNullableInference_ABranchWidensTheAllOfHoldingIt pins `nullable: true` on an
 // inline branch writing no properties: under the policy it says what the keyword
 // beside the allOf says, with one report at the keyword, whichever spelling of the
 // branch admits it, and the declared reading stays conjoined.
-func TestNullableWidening_ABranchWidensTheAllOfHoldingIt(t *testing.T) {
+func TestNullableInference_ABranchWidensTheAllOfHoldingIt(t *testing.T) {
 	t.Parallel()
 	const at = "/components/schemas/Holder/properties/p/allOf/1/nullable"
 	for name, tc := range map[string]struct {
@@ -705,7 +705,7 @@ func TestSchema_RefNullableAcrossSpellings(t *testing.T) {
 `,
 			wantNullable: true,
 			wantTarget:   targetID,
-			msg:          "the nullable-widening policy reads a null beside the $ref as a nullable reference",
+			msg:          "the nullable-inference policy reads a null beside the $ref as a nullable reference",
 		},
 		{
 			name:    "3.1 ref-site sibling type array conjoins with a target admitting null",
@@ -981,7 +981,7 @@ func TestNullAlone_ReadsTheSchemasOwnKeywords(t *testing.T) {
 	t.Parallel()
 	for _, tc := range []struct {
 		version, schema string
-		on, off         bool // the predicate with the nullable-widening policy on and off
+		on, off         bool // the predicate with the nullable-inference policy on and off
 	}{
 		{version: "3.1.0", schema: `{type: "null"}`, on: true, off: true},
 		{version: "3.1.0", schema: `{type: ["null"]}`, on: true, off: true},
@@ -1013,7 +1013,7 @@ func TestNullAlone_ReadsTheSchemasOwnKeywords(t *testing.T) {
 			src := openapitest.ComponentSpecVer(tc.version, "    Nil: {type: \"null\"}\n    Str: {type: string}\n"+
 				"    Node: {$dynamicAnchor: node, type: string}\n    S: "+tc.schema+"\n")
 			for _, off := range []bool{false, true} {
-				l, _ := schema.LoweredWith(t, src, lowering.Policy{NullableWidening: lowering.NullableWidening{Disabled: off}})
+				l, _ := schema.LoweredWith(t, src, lowering.Policy{NullableInference: lowering.NullableInference{Disabled: off}})
 				js, ok := l.Ctx.Doc.Components.GetSchemas().Get("S")
 				require.True(t, ok)
 				want := tc.on

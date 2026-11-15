@@ -1800,7 +1800,9 @@
           "eventHeader": false,
           "eventPayload": false,
           "secret": false,
-          "docs": {},
+          "docs": {
+            "description": "A meeting under another name."
+          },
           "provenance": {
             "source": 0,
             "pointer": "/components/schemas/AliasAndModel/allOf/0/properties/data"

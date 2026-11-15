@@ -149,7 +149,8 @@ type HTTPParamBinding struct {
 	// WireName is the serialized parameter name.
 	WireName string `json:"wireName,omitempty"`
 	// Style is the serialization style: simple | form | label | matrix |
-	// deepObject | pipe/space-delimited | cookie (OpenAPI 3.2's, at in: cookie).
+	// deepObject | pipe/space-delimited | cookie (OpenAPI 3.2's, at in: cookie);
+	// "" = none stated, as at querystring and for a value ContentType serializes.
 	Style string `json:"style,omitempty"`
 	// Explode is the parameter's explode, as declared; nil = the style's default:
 	// true under form and cookie, false under any other, and none where Style is

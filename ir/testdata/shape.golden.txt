@@ -70,6 +70,10 @@ type Callback struct
 	"name" string omitempty
 	"operations" []OpID omitempty
 
+type CatchAllParts struct
+	"patterns" map[string]PartEncoding omitempty
+	"value" *PartEncoding omitzero
+
 type Channel struct
 	"address" *string omitzero
 	"bindings" map[string]RawConfig omitempty
@@ -109,10 +113,12 @@ type Contact struct
 	"url" string omitempty
 
 type Content struct
+	"catchAllEncoding" map[TypeID]CatchAllParts omitempty
 	"docs" Docs omitzero
 	"encoding" map[PropID]PartEncoding omitempty
 	"examples" []Example omitempty
 	"file" *FileInfo omitzero
+	"inferred" Inferred omitempty
 	"item" *TypeRef omitzero
 	"itemEncoding" *PartEncoding omitzero
 	"mediaType" string omitempty
@@ -515,6 +521,7 @@ type Operation struct
 	"oneWay" bool
 	"overloadOf" *OpID omitzero
 	"pagination" *Pagination omitzero
+	"paramChoices" []ParamChoice omitempty
 	"parameterVisibility" []string omitempty
 	"params" []Parameter omitempty
 	"provenance" Provenance
@@ -534,6 +541,7 @@ type OperationGroup struct
 	"docs" Docs
 	"groups" []OperationGroup omitempty
 	"id" GroupID omitempty
+	"inferred" Inferred omitempty
 	"name" Naming
 	"operations" []Operation omitempty
 	"resource" *ResourceInfo omitzero
@@ -552,6 +560,7 @@ type OperationLink struct
 
 type PageStop string
 	const "empty"
+	const "no_more"
 	const "no_next"
 	const "short"
 	const "total"
@@ -566,6 +575,7 @@ type PageStrategy string
 
 type Pagination struct
 	"firstLink" *PropPath omitzero
+	"hasMore" *PropPath omitzero
 	"inferred" bool
 	"inputCursor" *InputPath omitzero
 	"inputLimit" *InputPath omitzero
@@ -579,7 +589,16 @@ type Pagination struct
 	"totalCount" *PropPath omitzero
 	"totalPages" *PropPath omitzero
 
+type ParamChoice struct
+	"name" Naming
+	"required" bool
+	"variants" []ParamVariant omitempty
+
 type ParamID string
+
+type ParamVariant struct
+	"name" Naming
+	"params" []ParamID omitempty
 
 type Parameter struct
 	"availability" *Availability omitzero
@@ -587,6 +606,7 @@ type Parameter struct
 	"default" *Value omitzero
 	"deprecation" *Deprecation omitzero
 	"docs" Docs
+	"encoding" *Encoding omitzero
 	"examples" []Example omitempty
 	"id" ParamID
 	"name" Naming
@@ -849,6 +869,7 @@ type TagDef struct
 	"kind" string omitempty
 	"name" string omitempty
 	"parent" string omitempty
+	"unmodeled" Unmodeled omitempty
 
 type TemplateArg struct
 	"type" *TypeRef omitzero

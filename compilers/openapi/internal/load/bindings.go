@@ -47,21 +47,22 @@ type bound struct {
 // each landing. reader reads other documents, or is nil; d reads each
 // dialect's rows (dialectRuleOf); media yields the media types the parser does
 // not model.
-func bindAll(ctx context.Context, doc *soa.OpenAPI, sibs Siblings, media MediaTypes, self sourceDocument,
+func bindAll(ctx context.Context, doc *soa.OpenAPI, sibs *Siblings, media MediaTypes, self sourceDocument,
 	reader *external, refuse func(uri string) error, d *dialects,
 ) bound {
 	opened := map[string]*yaml.Node{}
 	cfg := bind.Config{Self: self.path, Locate: self.locate, Refuse: refuse, Limit: budget.AtMost(bind.MaxSteps),
 		// Read off the model, as the lowering reads the names a mapping value
 		// may spell (lowering.Ctx.DeclaresSchema), so the two cannot disagree.
-		Components: slices.Collect(doc.Components.GetSchemas().Keys()),
+		Components:      slices.Collect(doc.Components.GetSchemas().Keys()),
+		SecuritySchemes: slices.Collect(doc.Components.GetSecuritySchemes().Keys()),
 		Dialect: func(name, dialect string) bind.DialectRule {
-			declared := doc.GetOpenAPI()
-			if name != self.path {
-				declared = declaredVersion(opened[name])
-			}
-			_, _, rows := d.of(declared, dialect)
+			_, _, rows := d.of(declaredIn(doc, opened, self, name), dialect)
 			return dialectRuleOf(rows.Schema, dialect)
+		},
+		KeysByURI: func(name string) bool {
+			_, _, rows := d.of(declaredIn(doc, opened, self, name), "")
+			return rows.Security.NamesByURI()
 		}}
 	if reader != nil {
 		cfg.Open = func(name string) (*yaml.Node, error) {
@@ -73,9 +74,18 @@ func bindAll(ctx context.Context, doc *soa.OpenAPI, sibs Siblings, media MediaTy
 	table := bind.Bind(ctx, self.root, cfg)
 	bd := typed.NewBuilder(table)
 	faults := mediaFaults{}
-	indexWalk(bd, walkSource(ctx, doc, sibs, media), bind.Position{}, faults)
-	objects := buildObjects(ctx, bd, table, media, faults)
+	indexWalk(bd, walkSource(ctx, doc, *sibs, media), bind.Position{}, faults)
+	objects := buildObjects(ctx, bd, table, media, faults, sibs)
 	return bound{bindings: bd.Bindings(), objects: objects, built: bd.Build(ctx), faults: faults}
+}
+
+// declaredIn returns the OpenAPI version the document named name declares: the
+// source's, or that of one opened for a reference.
+func declaredIn(doc *soa.OpenAPI, opened map[string]*yaml.Node, self sourceDocument, name string) string {
+	if name != self.path {
+		return declaredVersion(opened[name])
+	}
+	return doc.GetOpenAPI()
 }
 
 // indexWalk tells bd where each schema, discriminator and reference-or-inline
@@ -166,7 +176,9 @@ func (s sourceDocument) nameOf(name string) string {
 func bindingDiags(sites places, table *bind.Table) []ir.Diagnostic {
 	var diags []ir.Diagnostic
 	for _, r := range table.References() {
-		if r.Hop.Status == bind.Unresolved {
+		// A requirement key that resolves to nothing is the security
+		// lowering's to report (auth.Registry.Requirements).
+		if r.Hop.Status == bind.Unresolved && !r.Key {
 			diags = append(diags, diag.Newf(ir.SeverityError, diag.UnresolvedRef, sites.position(r.Site),
 				"unresolved $ref %q: %s", r.Hop.Ref, r.Hop.Why()))
 		}

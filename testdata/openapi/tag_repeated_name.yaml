@@ -1,0 +1,8 @@
+openapi: 3.1.0
+info: {title: T, version: "1"}
+tags:
+  - {name: T, x-stability: beta, x-first: 1}
+  - {name: T, x-stability: alpha, x-second: 2}
+paths:
+  /a:
+    get: {operationId: a, tags: [T], responses: {"200": {description: ok}}}

@@ -1,0 +1,24 @@
+openapi: 3.2.0
+info: {title: T, version: "1"}
+paths:
+  /a:
+    get:
+      operationId: a
+      parameters:
+        - name: q
+          in: query
+          content:
+            'application/json; profile="a/b c"': {$ref: '#/components/mediaTypes/M', summary: The use.}
+        - name: p
+          in: query
+          "schema/x-a": FROM_OBJECT_KEY
+          schema: {type: string, x-a: FROM_SCHEMA}
+      responses: {"200": {description: ok}}
+components:
+  mediaTypes:
+    M:
+      schema: {type: string, x-a: S}
+      summary: The declaration.
+      docs: {summary: undeclared-docs}
+      "docs/summary": slash-key
+      x-a: MT

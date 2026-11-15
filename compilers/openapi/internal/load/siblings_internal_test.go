@@ -156,7 +156,6 @@ func TestSiblingsFrom_AParserFaultIsReportedOnce(t *testing.T) {
 	rp := pathEntry(t, doc, "/a")
 	_, ok := sibs.Of(rp)
 	assert.False(t, ok, "a faulted mapping holds no model")
-	assert.False(t, sibs.Unread(rp), "and is not reported again as unread")
 }
 
 // TestSiblingsFrom_StopsWhereAWalkPanics pins the barrier around the search: a
@@ -193,23 +192,22 @@ func TestBuildSibling_FaultsAreErrorsNotPanics(t *testing.T) {
 	require.Error(t, err, "a nil node faults the parser")
 }
 
-// TestSiblings_UnreadIsFieldsNoModelHolds pins Unread: a reference writing
-// fields beside its $ref that no model holds, which a set built from another
-// document's walk leaves every one of this document's.
-func TestSiblings_UnreadIsFieldsNoModelHolds(t *testing.T) {
+// TestSiblings_OfAnswersOnlyAModelledUseSite pins Of: no model is found for a
+// set built from another document's walk, an inline item, a wrapper with no
+// node or no wrapper, and one is for a use site the walk modelled.
+func TestSiblings_OfAnswersOnlyAModelledUseSite(t *testing.T) {
 	t.Parallel()
 	doc := modelOf(t, siblingSpec)
 	var none Siblings
-	assert.True(t, none.Unread(pathEntry(t, doc, "/a")))
-	assert.False(t, none.Unread(pathEntry(t, doc, "/c")), "nothing is written beside the $ref")
-	assert.False(t, none.Unread(pathEntry(t, doc, "/b")), "an inline item is no reference")
-	assert.False(t, none.Unread(&soa.ReferencedPathItem{}), "a wrapper with no node writes nothing")
-	assert.False(t, none.Unread(nil), "nor does no wrapper at all")
-	_, ok := none.Of(nil)
-	assert.False(t, ok)
+	for _, rp := range []*soa.ReferencedPathItem{pathEntry(t, doc, "/a"), pathEntry(t, doc, "/b"),
+		{}, nil} {
+		_, ok := none.Of(rp)
+		assert.False(t, ok)
+	}
 
 	sibs, _ := modelSiblings(t.Context(), doc, provenance.Tree{})
-	assert.False(t, sibs.Unread(pathEntry(t, doc, "/a")), "a modelled use site is read")
+	_, ok := sibs.Of(pathEntry(t, doc, "/a"))
+	assert.True(t, ok, "a modelled use site is read")
 }
 
 // TestWithoutRef_KeepsThePositionAndTheDocumentsNodes pins the copy a model is
@@ -466,34 +464,6 @@ func TestLoad_ASiblingsExternalReferenceIsReadAsAnyOther(t *testing.T) {
 			assert.Contains(t, at[0].Message, tc.says)
 		})
 	}
-}
-
-// TestSiblings_UnreadAsksWithoutCopying pins Unread's cost: it asks whether a
-// mapping no model holds writes a key other than $ref, which the first such key
-// answers. Copying the mapping to ask cost its width at every mount reaching it.
-func TestSiblings_UnreadAsksWithoutCopying(t *testing.T) {
-	var keys strings.Builder
-	for i := range 10_000 {
-		fmt.Fprintf(&keys, "    k%d: v\n", i)
-	}
-	doc := modelOf(t, `openapi: 3.1.0
-info: {title: T, version: "1"}
-x-shared:
-  item:
-    $ref: '#/paths/~1b'
-`+keys.String()+`paths:
-  /a: {$ref: '#/x-shared/item'}
-  /b:
-    get: {responses: {"200": {description: ok}}}
-`)
-	sibs, _ := modelSiblings(t.Context(), doc, provenance.Tree{})
-	_, err := pathEntry(t, doc, "/a").Resolve(t.Context(), soa.ResolveOptions{TargetLocation: "spec.yaml", RootDocument: doc, TargetDocument: doc})
-	require.NoError(t, err)
-	hop := pathEntry(t, doc, "/a").GetReferenceResolutionInfo().Object
-	require.True(t, hop.IsReference(), "the walk does not reach the item under x-shared")
-
-	require.True(t, sibs.Unread(hop))
-	assert.Zero(t, testing.AllocsPerRun(20, func() { sibs.Unread(hop) }))
 }
 
 // TestModelSiblings_DoesNotWalkADocumentWithNothingBesideARef pins the skip

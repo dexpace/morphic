@@ -12,14 +12,14 @@ import (
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/load"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
-	"github.com/dexpace/morphic/compilers/openapi/internal/runtimeexpr"
+	"github.com/dexpace/morphic/compilers/openapi/internal/whole"
 	"github.com/dexpace/morphic/ir"
 )
 
 // pagerOver is a pager over reg, under the default policy.
 func pagerOver(reg ir.TypeRegistry) *pager {
 	c := lowering.New(0, &load.Document{Doc: &soa.OpenAPI{}}, lowering.Policy{})
-	return &pager{c: c, p: c.Promoter(), reg: reg, lk: runtimeexpr.NewLookups(reg), flat: map[ir.TypeID][]*ir.Property{}}
+	return &pager{c: c, p: c.Promoter(), w: whole.New(&ir.Document{Types: reg})}
 }
 
 // TestMarker_AUseOfATypeTheRegistryLacksMarksNothing drives the guard no
@@ -34,23 +34,14 @@ func TestMarker_AUseOfATypeTheRegistryLacksMarksNothing(t *testing.T) {
 	assert.False(t, marked)
 }
 
-// TestPager_AParameterOnlyABindingNamesResolvesNothing drives the guard no
-// document reaches: a binding naming a parameter its operation does not hold
-// gives a member of it no type to walk, so the value resolves to nothing.
-func TestPager_AParameterOnlyABindingNamesResolvesNothing(t *testing.T) {
-	t.Parallel()
-	pg := pagerOver(ir.TypeRegistry{})
-	in, failure := pg.paramInput(&ir.Operation{ID: "op/x"}, "param/x/gone", []string{"a"})
-	assert.Nil(t, in)
-	assert.Contains(t, failure, "which a binding names and the operation does not hold")
-}
-
 // TestMarker_DescendsOnlyIntoModelsReachingTheKey pins a search to the models
 // whose members reach its key (pager.reaching): with no member keeping the key
-// no model is flattened and the root is not read, and a level steps into a
+// no model reaches it and the root is not read, and a level steps into a
 // member's model only where that model reaches the key. None of this changes
-// what a search finds, only what it reads, so it is held here. A member naming
-// a type the registry lacks, as a dangling reference would, keeps nothing.
+// what a search finds, only what it reads, so it is held here; that no model
+// is then flattened is whole.TestDocument_APromotionNoMemberMarksFlattensNoModel's.
+// A member naming a type the registry lacks, as a dangling reference would,
+// keeps nothing.
 func TestMarker_DescendsOnlyIntoModelsReachingTheKey(t *testing.T) {
 	t.Parallel()
 	src := lowering.ExtensionSource{Key: "x-k", Member: "purpose", Values: []string{"items"}}
@@ -66,7 +57,7 @@ func TestMarker_DescendsOnlyIntoModelsReachingTheKey(t *testing.T) {
 
 	unkept := pagerOver(reg)
 	assert.Nil(t, (&marker{pg: unkept, target: lowering.TargetPaginationItems, src: src}).search("t/root"))
-	assert.Empty(t, unkept.flat, "no member keeps the key, so no model is read")
+	assert.Empty(t, unkept.reach[src.Key], "no member keeps the key, so no model reaches it")
 
 	reg["t/marked"].(*ir.Model).Properties[0].Unmodeled = ir.Unmodeled{
 		"openapi:x-k": {Reason: ir.ReasonVendorExtension, Value: ir.RawValue(`{"purpose":"items"}`)},

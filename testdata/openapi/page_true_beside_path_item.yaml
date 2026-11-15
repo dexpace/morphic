@@ -1,0 +1,19 @@
+openapi: 3.1.0
+info: {title: T, version: "1"}
+paths:
+  /dogs:
+    x-fern-pagination: {cursor: $request.cursor, next_cursor: $response.nxt, results: $response.rows}
+    get:
+      operationId: listDogs
+      x-fern-pagination: true
+      parameters: [{name: cursor, in: query, schema: {type: string}}]
+      responses:
+        "200": {description: ok, content: {application/json: {schema: {$ref: '#/components/schemas/Page'}}}}
+    delete:
+      operationId: purgeDogs
+      parameters: [{name: cursor, in: query, schema: {type: string}}]
+      responses:
+        "200": {description: ok, content: {application/json: {schema: {$ref: '#/components/schemas/Page'}}}}
+components:
+  schemas:
+    Page: {type: object, properties: {rows: {type: array, items: {type: string}}, nxt: {type: string}}}

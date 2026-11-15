@@ -196,6 +196,7 @@ func (c *correlator) property(key string, p *ir.Property) {
 			arg := &p.Args[i]
 			c.offer(child(key, "arg", arg.Name.Source), string(arg.ID), func(c *correlator, key string) {
 				c.ref(part(key, "schema"), &arg.Type)
+				c.decoded(key, arg.Encoding)
 			})
 		}
 	})

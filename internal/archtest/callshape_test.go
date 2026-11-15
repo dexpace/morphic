@@ -49,10 +49,12 @@ var callShapeBaseline = map[string]map[string]int{
 		"compilers/openapi/internal/schema":    6,
 	},
 	"compilers/openapi/internal/bind": {
-		// bind.Config's four functions, which #1488 keeps under #1477's rule: I/O
-		// (Open), policy bind may not import (Locate, Refuse), and a dialect's
-		// rows, built only once a schema names it (Dialect).
-		"compilers/openapi/internal/load": 4,
+		// bind.Config's five functions, which #1488 keeps under #1477's rule: I/O
+		// (Open), policy bind may not import (Locate, Refuse), and two readings
+		// of a document's rows, which load holds and bind may not import, asked
+		// only of a document a reference opens, so no list made before binding
+		// holds them (Dialect, KeysByURI): designed seams, one kind.
+		"compilers/openapi/internal/load": 5,
 	},
 	"compilers/openapi/internal/load": {
 		// DocumentReader, through which load reads the documents references and
@@ -62,8 +64,10 @@ var callShapeBaseline = map[string]map[string]int{
 	},
 	"compilers/openapi/internal/lowering": {
 		// Promoter.Referent, Remembered and Settled each call the function they
-		// are handed before they return: immediate callbacks.
-		"compilers/openapi/internal/schema": 17,
+		// are handed before they return: immediate callbacks. operation's are a
+		// union's file reading and the store of what parts read of unions.
+		"compilers/openapi/internal/operation": 2,
+		"compilers/openapi/internal/schema":    17,
 	},
 	"compilers/openapi/internal/merge": {
 		// What a fold asks the walk that declared the field, through merge.Walk:
@@ -86,7 +90,7 @@ var callShapeBaseline = map[string]map[string]int{
 		// alias makes, a policy, and Seen observes the walk, RootRows answers the
 		// rows of each schema it enters and Later takes each it leaves unread,
 		// traversal callbacks.
-		"compilers/openapi/internal/load": 18,
+		"compilers/openapi/internal/load": 20,
 	},
 	"compilers/openapi/internal/provenance": {
 		// provenance.Tree's Pointers, a node's pointer in the tree it places, read

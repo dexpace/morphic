@@ -150,11 +150,12 @@ func (r paramRef) where(op ir.OpID) string {
 
 // appendParamRefs appends to dst the parameter references op carries besides
 // its bindings: the pagination inputs, the inputs that select a stream, the
-// idempotency token, the request values its links read and the keys of each
-// scenario's input, each input's in sorted order so no map order reaches a
-// report. An absent input is no reference, and neither is one into the request
-// body, nor an empty token, which is how an operation that is not token-keyed
-// spells having none. An input with an empty ID is one.
+// idempotency token, the parameters its choices name, the request values its
+// links read and the keys of each scenario's input, each input's in sorted
+// order so no map order reaches a report. An absent input is no reference, and
+// neither is one into the request body, nor an empty token, which is how an
+// operation that is not token-keyed spells having none. An input with an empty
+// ID is one.
 func appendParamRefs(dst []paramRef, op ir.Operation) []paramRef {
 	if pg := op.Pagination; pg != nil {
 		dst = appendInputRef(dst, pg.InputCursor, "pagination/inputCursor")
@@ -168,6 +169,14 @@ func appendParamRefs(dst []paramRef, op ir.Operation) []paramRef {
 	}
 	if token := op.Idempotency.TokenParam; token != "" {
 		dst = append(dst, paramRef{id: token, field: "idempotency/tokenParam"})
+	}
+	for i, choice := range op.ParamChoices {
+		for j, variant := range choice.Variants {
+			field := "paramChoices/" + strconv.Itoa(i) + "/variants/" + strconv.Itoa(j)
+			for _, id := range variant.Params {
+				dst = append(dst, paramRef{id: id, field: field})
+			}
+		}
 	}
 	dst = appendLinkInputRefs(dst, &op)
 	for i := range op.Examples {

@@ -24,11 +24,12 @@ import (
 // cannot be represented yields an error, so no caller announces a preservation
 // that never happened (GitHub #144).
 //
-// A mapping holds the members the parser reads (nodeview.View.MappingPairs).
-// Conversion fails on a mapping that writes a key twice (GitHub #1072) or
-// merges past nodeview.MergeDepthLimit, a scalar value.Classify refuses,
-// invalid UTF-8, and an alias that cycles or expands past the node budget.
-// Numeric literals stay exact (GitHub #32).
+// A mapping holds the members the parser reads (nodeview.View.MappingPairs), a
+// key written twice at the copy the model reads
+// (docs/parser-library.md#duplicate-key). Conversion fails on a mapping merging
+// past nodeview.MergeDepthLimit, a scalar value.Classify refuses, invalid
+// UTF-8, and an alias that cycles or expands past the node budget. Numeric
+// literals stay exact (GitHub #32).
 func RawFromNode(node *yaml.Node) (ir.RawValue, error) {
 	if node == nil {
 		return nil, nil
@@ -170,14 +171,11 @@ func (c *rawConv) sequence(dst jsontext.Value, n *yaml.Node, depth int) (jsontex
 // as the IR's determinism invariant asks of every map it serializes. Of several
 // members that fail to convert, the first by key is reported.
 //
-// A key written twice, by the mapping or a mapping it merges, is refused, as
-// yaml.v3 refuses it by default: the member would hold one copy and drop the
-// other. A key written through an alias is the key it names, so it repeats
-// one written plainly (GitHub #1072).
+// A key written twice is held at the copy the model reads: the mapping's own
+// last, and a merge source's first (docs/parser-library.md#duplicate-key), so
+// a kept value agrees with the typed IR read beside it. A key written through
+// an alias is the key it names (GitHub #1072).
 func (c *rawConv) mapping(dst jsontext.Value, n *yaml.Node, depth int) (jsontext.Value, error) {
-	if key, in, repeated := c.view.Repeat(n); repeated {
-		return nil, repeatedKeyError(in, key)
-	}
 	pairs := c.view.MappingPairs(n)
 	if c.view.Exhausted() {
 		return nil, fmt.Errorf("mapping merges through `<<` deeper than %d levels", nodeview.MergeDepthLimit)
@@ -201,18 +199,6 @@ func (c *rawConv) mapping(dst jsontext.Value, n *yaml.Node, depth int) (jsontext
 		}
 	}
 	return append(dst, '}'), nil
-}
-
-// repeatedKeyError names key, which the mapping n writes more than once, and
-// the lines of its first two copies.
-func repeatedKeyError(n *yaml.Node, key string) error {
-	var lines []int
-	for i := 0; i+1 < len(n.Content) && len(lines) < 2; i += 2 {
-		if k, own := nodeview.KeyOf(n.Content[i]); own && k == key {
-			lines = append(lines, n.Content[i].Line)
-		}
-	}
-	return fmt.Errorf("mapping key %q already defined at line %d, and written again at line %d", key, lines[0], lines[1])
 }
 
 // appendString appends s to dst as a JSON string with RFC 8785's minimal
