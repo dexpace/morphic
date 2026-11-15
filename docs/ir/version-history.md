@@ -845,6 +845,6 @@ it sees. Changes made together in one bump are listed together under it.
   reference: a Security Scheme Object it lands on outside the source's `securitySchemes` lowers under
   its own position's ID in its document's space, which `idSpaces.auth` declares for every document a
   compile reads, used or not, and a key landing on none mints one unresolved scheme per document
-  writing it, the document in its ID ([auth](./auth.md)). A consumer pinned to 0.67.0 refuses the document;
+  writing it, another document's qualifier in its ID ([identity](./identity.md#unresolved-schemes)). A consumer pinned to 0.67.0 refuses the document;
   one reading `Stop` with no arm for `no_more` would not end such a walk, and one matching a marker
   by its old name no longer finds it.
