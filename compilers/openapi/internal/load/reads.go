@@ -50,8 +50,10 @@ func newExternalReads(self sourceDocument, documents budget.Limit) *externalRead
 // (compilers.DocumentRead), which a judgement at another reach can state where
 // the read stated none (externalReads.verdict).
 type answer struct {
-	body     []byte
-	err      error
+	body []byte
+	err  error
+	// refusal is the reader's own failure, which err words for its asker.
+	refusal  error
 	prepared string
 	space    compilers.AddressSpace
 	bound    compilers.AddressSpace
@@ -69,8 +71,10 @@ type reading struct {
 	done    bool
 	answer  answer
 	charged bool
-	barred  error
-	// barredAt is the widest reach barred was given under.
+	// barred is the reader's refusal of the read at barredAt, the widest reach
+	// one was refused under, which each asker it covers is told in its own
+	// words (barredFor).
+	barred   error
 	barredAt compilers.AddressSpace
 	// verdicts holds, once it is read with no bound stated, the judgement of
 	// it at each reach an asker was judged at (verdict).
@@ -83,7 +87,7 @@ type reading struct {
 // budget; every later ask gets the same answer, so a document is read and
 // charged once however many references name it. A read refused to its asker
 // alone (bind.BarredError) is no answer: an asker the refusal covers, bounded
-// no wider, is refused again unread, and a wider one reads.
+// no wider, is refused again unread, for its own reach, and a wider one reads.
 func (r *externalReads) once(key string, reach compilers.AddressSpace, read func() answer) answer {
 	rd := r.reading(key)
 	rd.mu.Lock()
@@ -92,7 +96,7 @@ func (r *externalReads) once(key string, reach compilers.AddressSpace, read func
 	case rd.done:
 		return rd.answer
 	case rd.barred != nil && !wider(reach, rd.barredAt):
-		return answer{err: rd.barred}
+		return answer{err: barredFor(key, rd.barred, reach)}
 	}
 	// Set first, so a read that panics leaves a failure rather than an empty
 	// document.
@@ -106,7 +110,7 @@ func (r *externalReads) once(key string, reach compilers.AddressSpace, read func
 	}
 	a := read()
 	if barred := (*bind.BarredError)(nil); errors.As(a.err, &barred) {
-		rd.done, rd.barred, rd.barredAt = false, a.err, reach
+		rd.done, rd.barred, rd.barredAt = false, a.refusal, reach
 		return a
 	}
 	rd.answer = a

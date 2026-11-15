@@ -83,12 +83,11 @@ func orderSequences() [][]string {
 
 // TestExternal_WhoReadsAProxiedDocumentTurnsOnNoOrderOfAsking pins that a
 // document read through a proxy, its name resolving to a public address, a
-// private one or none, answers each asker as that asker's own read would, in
-// every order of two and three askers: a file always, a public document only
-// where it resolves public, a private one where it resolves to any address.
-// The document's own reference reaches as a public document's does in every
-// order. Read first by the file, then by the public document, it was once
-// served to both, whatever its name resolved to.
+// private one, a local one or none, answers each asker as that asker's own
+// read would, in its own words, in every order of two and three askers: a file
+// always, a public document only where it resolves public, a private one where
+// it resolves public or private. The document's own reference reaches as a
+// public document's does in every order.
 func TestExternal_WhoReadsAProxiedDocumentTurnsOnNoOrderOfAsking(t *testing.T) {
 	t.Parallel()
 	direct := spacedReads()
@@ -96,6 +95,7 @@ func TestExternal_WhoReadsAProxiedDocumentTurnsOnNoOrderOfAsking(t *testing.T) {
 	for resolved, admitted := range map[compilers.AddressSpace]map[string]bool{
 		compilers.SpacePublic:   {"file": true, "public": true, "private": true},
 		compilers.SpacePrivate:  {"file": true, "public": false, "private": true},
+		compilers.SpaceLocal:    {"file": true, "public": false, "private": false},
 		compilers.SpaceUnstated: {"file": true, "public": false, "private": false},
 	} {
 		why := map[string]string{}

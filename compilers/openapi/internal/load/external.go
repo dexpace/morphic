@@ -214,7 +214,7 @@ func (e external) fetch(ctx context.Context, id, key, location string, reach com
 		Location: location, Within: e.opts.Within, Limit: ReadLimit(e.opts.MaxSourceBytes), Reach: reach,
 	})
 	if err != nil {
-		return answer{err: readFailure(e.opts, id, err, reach), reach: reach, read: true}
+		return answer{err: readFailure(e.opts, id, err, reach), refusal: err, reach: reach, read: true}
 	}
 	data, err := e.prepare(ctx, id, key, got.Data)
 	if err != nil {
@@ -288,22 +288,16 @@ func namesSource(places *refscope.Places, self, uri string) bool {
 }
 
 // readFailure returns the error a reference into the document under key fails
-// with when the reader, asked under opts and reach, refused it: a document past
-// the byte budget, outside Options.Within or on the network a confined read
-// never reaches is refused with the reason, one past reach, or one whose reader
-// cannot judge reach, is refused to that asker alone, and any other failure is
-// the reader's own account of it, passed through.
+// with when the reader, asked under opts and reach, refused it: one past reach,
+// or one whose reader cannot judge reach, is refused to that asker alone
+// (barredFor), a document past the byte budget, outside Options.Within or on
+// the network a confined read never reaches is refused with the reason, and
+// any other failure is the reader's own account of it, passed through.
 func readFailure(opts Options, key string, err error, reach compilers.AddressSpace) error {
-	var past *compilers.AddressSpaceError
+	if refusal := barredFor(key, err, reach); refusal != nil {
+		return refusal
+	}
 	switch {
-	case errors.As(err, &past):
-		return barred(key, beyondReach(past.Space, reach))
-	case errors.Is(err, compilers.ErrAddressSpace):
-		// A reader naming no space refused one past reach: the next.
-		return barred(key, beyondReach(reach+1, reach))
-	case errors.Is(err, compilers.ErrUnboundedRead):
-		return barred(key, "the reader cannot bound the addresses its read dials, "+
-			"which a reference in a document read over http or https needs")
 	case errors.Is(err, compilers.ErrDocumentTooLarge):
 		return refused(key, fmt.Sprintf("it is past the %d-byte budget", opts.MaxSourceBytes.Cap()))
 	case errors.Is(err, compilers.ErrOutsideWithin) && bind.OverNetwork(key):
@@ -314,6 +308,27 @@ func readFailure(opts Options, key string, err error, reach compilers.AddressSpa
 			"which a read leaves only when external references are allowed", directoryNamed(opts.Within)))
 	default:
 		return err
+	}
+}
+
+// barredFor returns the refusal of the document under key to an asker bounded
+// by reach, worded for that asker, where err, the reader's failure, refuses the
+// read to it alone (bind.BarredError): an address past reach, or a read the
+// reader cannot bound; else nil. One reader's failure may answer askers at
+// several reaches (externalReads.once).
+func barredFor(key string, err error, reach compilers.AddressSpace) error {
+	var past *compilers.AddressSpaceError
+	switch {
+	case errors.As(err, &past):
+		return barred(key, beyondReach(past.Space, reach))
+	case errors.Is(err, compilers.ErrAddressSpace):
+		// A reader naming no space refused one past reach: the next.
+		return barred(key, beyondReach(reach+1, reach))
+	case errors.Is(err, compilers.ErrUnboundedRead):
+		return barred(key, "the reader cannot bound the addresses its read dials, "+
+			"which a reference in a document read over http or https needs")
+	default:
+		return nil
 	}
 }
 
