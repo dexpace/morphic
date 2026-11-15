@@ -287,3 +287,42 @@ func TestLoad_WhatAReferenceReachesIsJudgedOnceBeforeItIsBuilt(t *testing.T) {
 	assert.Zero(t, inReach, "nothing is judged once the findings are reported")
 	assert.Equal(t, 3, countErrorsAt(diags, "openapi/validation/validation-type-mismatch"), "%+v", diags)
 }
+
+// TestLoad_AnObjectInsideAnotherTargetIsReadOnceInEitherOrder counts the reads
+// of a parameter two references reach, one naming it and one naming the path
+// item holding it, the parameter's checked last and then first: each (node,
+// kind) is read once, whichever check meets it first, and its one defect is
+// reported once (GitHub #571).
+func TestLoad_AnObjectInsideAnotherTargetIsReadOnceInEitherOrder(t *testing.T) {
+	t.Parallel()
+	const item = "x-lib:\n  item:\n    get:\n      operationId: a\n      parameters:\n" +
+		"        - {name: p, in: query, explode: 7}\n      responses: {'200': {description: ok}}\n"
+	whole := func(path string) string { return "  /" + path + ": {$ref: '#/x-lib/item'}\n" }
+	param := func(path string) string {
+		return "  /" + path + ":\n    get:\n      operationId: b\n      parameters:\n" +
+			"        - {$ref: '#/x-lib/item/get/parameters/0'}\n      responses: {'200': {description: ok}}\n"
+	}
+	for name, paths := range map[string]string{
+		"the item's site first":      whole("a") + param("b"),
+		"the parameter's site first": param("a") + whole("b"),
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			spec := "openapi: 3.1.0\ninfo: {title: t, version: \"1\"}\npaths:\n" + paths + item
+			reads := map[objectKey]int{}
+			opts := Options{judging: func(kind oas.Kind, node *yaml.Node) {
+				reads[objectKey{node: nodeview.Deref(node), kind: kind}]++
+			}}
+
+			doc, diags, err := Load(t.Context(), 0, openapitest.SourceOf(spec), opts)
+
+			require.NoError(t, err)
+			require.NotNil(t, doc, "%+v", diags)
+			require.NotEmpty(t, reads, "what the references reach is judged")
+			for key, n := range reads {
+				assert.Equal(t, 1, n, "%v at line %d is read once", key.kind, key.node.Line)
+			}
+			assert.Equal(t, 1, countErrorsAt(diags, "openapi/validation/validation-type-mismatch"), "%+v", diags)
+		})
+	}
+}
