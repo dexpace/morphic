@@ -17,6 +17,7 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/bind"
 	"github.com/dexpace/morphic/compilers/openapi/internal/load"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
+	refscope "github.com/dexpace/morphic/compilers/openapi/internal/resolve"
 )
 
 // GroupingStrategy selects how operations are grouped into OperationGroups. It
@@ -336,8 +337,9 @@ type Options struct {
 	AllowExternalRefs bool `json:"allowExternalRefs"`
 	// Locations maps where the documents named under a URI prefix are read
 	// from, as the caller writes it: nothing is mapped unless it is written
-	// here. Each is applied where a document is located, before any refusal
-	// or read judges it (docs/compilers/openapi.md#references).
+	// here. Each is applied where a document is opened, before any read judges
+	// it, and never to an $id or a $self, which keeps the URI it writes
+	// (docs/compilers/openapi.md#references).
 	Locations []Location `json:"locations,omitempty"`
 	// Overlay is an OpenAPI Overlay document to apply to the source before
 	// lowering, or nil for none. It is the source-document patching hook
@@ -824,7 +826,9 @@ func decodeLocations(out *[]Location, value string) error {
 // located URL is (bind.NormalURI), or why a prefix match could mistake one: a
 // prefix that is no absolute URI, holds a query or a fragment, or ends in no
 // "/" (else "https://e.com/x" would match "https://e.com/xy/b.yaml"), one
-// prefix written twice however it is spelled, and an empty location.
+// prefix written twice however it is spelled, an empty location, and a URL
+// location ending in no "/", which the rest of a URL would be appended to as
+// the end of its last segment.
 func mappingsOf(ls []Location) ([]load.Mapping, error) {
 	out := make([]load.Mapping, 0, len(ls))
 	seen := map[string]bool{}
@@ -839,6 +843,8 @@ func mappingsOf(ls []Location) ([]load.Mapping, error) {
 			return nil, fmt.Errorf("openapi: option %q: the prefix %q ends in no \"/\"", optLocate, l.Prefix)
 		case l.Location == "":
 			return nil, fmt.Errorf("openapi: option %q: the prefix %q maps to no location", optLocate, l.Prefix)
+		case refscope.IsURL(l.Location) && !strings.HasSuffix(l.Location, "/"):
+			return nil, fmt.Errorf("openapi: option %q: the location %q is a URL ending in no \"/\"", optLocate, l.Location)
 		case seen[bind.NormalURI(u)]:
 			return nil, fmt.Errorf("openapi: option %q: the prefix %q is mapped twice", optLocate, l.Prefix)
 		}

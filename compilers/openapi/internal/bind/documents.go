@@ -141,6 +141,17 @@ func (d *docs) locate(uri, base string) (string, bool) {
 	return d.cfg.Locate(uri, base)
 }
 
+// opening is the name the document uri names, written in the document named
+// base, is opened under in d: located (docs.locate), then put where the caller
+// mapped it (Config.Map).
+func opening(d *docs, uri, base string) (string, bool) {
+	name, ok := d.locate(uri, base)
+	if !ok || d.cfg.Map == nil {
+		return name, ok
+	}
+	return d.cfg.Map(name), true
+}
+
 // refusal is why Config.Refuse refuses a reference whose document part is
 // spelled uri, unread, or empty where it refuses none.
 func (d *docs) refusal(uri string) string {

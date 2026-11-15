@@ -48,7 +48,8 @@ func bindTable(ctx context.Context, doc *soa.OpenAPI, self sourceDocument, reade
 	d *dialects,
 ) *bind.Table {
 	opened := map[string]*yaml.Node{}
-	cfg := bind.Config{Self: self.path, Locate: self.locate, Refuse: refuse, Limit: budget.AtMost(bind.MaxSteps),
+	cfg := bind.Config{Self: self.path, Locate: self.locate, Map: self.mapTo, Refuse: refuse,
+		Limit: budget.AtMost(bind.MaxSteps),
 		// Read off the model, as the lowering reads the names a mapping value
 		// may spell (lowering.Ctx.DeclaresSchema), so the two cannot disagree.
 		Components:      slices.Collect(doc.Components.GetSchemas().Keys()),
@@ -148,19 +149,26 @@ func (m mediaFaults) diags(sites places, table *bind.Table) []ir.Diagnostic {
 }
 
 // locate is bind.Config.Locate for the source: the document uri names when
-// written in the one named base (resolve.Locate), put where the caller mapped
-// its URL (mapped), before anything judges or reads it, and named as bind
-// names the source when it is the source. A URL a mapping puts at no location
-// is kept, and its read refused (external.unnamed).
+// written in the one named base (resolve.Locate), named as bind names the
+// source when it is the source. A URL keeps its URL here, as an identifier
+// does: a caller's mapping is applied where the document is opened (mapTo).
 func (s sourceDocument) locate(uri, base string) (string, bool) {
 	named, ok := refscope.Locate(uri, base)
 	if !ok {
 		return "", false
 	}
-	if at, mapped, err := s.mapped(named); mapped && err == nil {
-		named = at
-	}
 	return s.nameOf(named), true
+}
+
+// mapTo is bind.Config.Map for the source: where the document a located name
+// names is read, put where the caller mapped its URL (mapped) before anything
+// judges or reads it, or name itself. A URL a mapping puts at no location is
+// kept, and its read refused (external.unnamed).
+func (s sourceDocument) mapTo(name string) string {
+	if at, mapped, err := s.mapped(name); mapped && err == nil {
+		return s.nameOf(at)
+	}
+	return name
 }
 
 // nameOf is the name bind reads the document name names under: the source's

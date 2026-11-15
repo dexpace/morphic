@@ -127,7 +127,7 @@ func (b *binder) opened(in resource, uri, key string) (resource, Reason, string)
 	if why := b.docs.refusal(uri); why != "" {
 		return resource{}, Unreadable, why
 	}
-	name, ok := b.docs.locate(uri, in.uri)
+	name, ok := opening(b.docs, uri, in.uri)
 	if !ok {
 		return resource{}, Unreadable, "it names no document a reference can"
 	}
@@ -144,8 +144,8 @@ func (b *binder) opened(in resource, uri, key string) (resource, Reason, string)
 // makes of it by RFC 3986, normalized (NormalURI). Config.Refuse judges uri as
 // written where only relative paths moved the base, and key once an absolute
 // one detached it, so a base cannot make a refused read pass as relative. A
-// key that is a URL is located as one (Config.Locate), so a caller's mapping
-// puts it where its bytes are, and where it lands is judged too.
+// key that is a URL is located as one and opened where a caller's mapping puts
+// it (opening), and where it lands is judged too.
 func (b *binder) readAt(in resource, uri, key string) (resource, Reason, string) {
 	spelled := uri
 	if in.detached {
@@ -159,7 +159,7 @@ func (b *binder) readAt(in resource, uri, key string) (resource, Reason, string)
 	}
 	name := key
 	if u, err := url.Parse(key); err == nil && len(u.Scheme) > 1 {
-		if located, ok := b.docs.locate(key, key); ok {
+		if located, ok := opening(b.docs, key, key); ok {
 			name = located
 		}
 	}

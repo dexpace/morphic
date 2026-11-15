@@ -52,8 +52,8 @@ func TestDecodeOptions_LocateMapsEachPrefixToItsLocation(t *testing.T) {
 // TestDecodeOptions_LocateRefusesAPrefixThatIsNoURIPrefix holds each mapping a
 // prefix match could mistake to an error naming the option: a prefix that is
 // not absolute, that ends in no "/" (so "https://e.com/xy/b.yaml" would match
-// "https://e.com/x"), that holds a query or a fragment, one written twice, and
-// a value with no "=" after a "/".
+// "https://e.com/x"), that holds a query or a fragment, one written twice, a
+// value with no "=" after a "/", and a URL location ending in no "/".
 func TestDecodeOptions_LocateRefusesAPrefixThatIsNoURIPrefix(t *testing.T) {
 	t.Parallel()
 	for name, value := range map[string]string{
@@ -65,6 +65,7 @@ func TestDecodeOptions_LocateRefusesAPrefixThatIsNoURIPrefix(t *testing.T) {
 		"twice, one spelt differently": "https://e.com/x/=.,HTTPS://E.com:443/x/=b",
 		"no location":                  "https://e.com/x/",
 		"an empty location":            "https://e.com/x/=",
+		"a URL location, no slash":     "https://e.com/x/=https://o.example/y",
 	} {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
@@ -86,6 +87,7 @@ func TestCompile_LocationsRefusesAMappingNoPrefixMatchCanRead(t *testing.T) {
 		"no final slash": {{Prefix: "https://e.com/x", Location: "."}},
 		"a query":        {{Prefix: "https://e.com/x/?q", Location: "."}},
 		"twice":          {{Prefix: "https://e.com/x/", Location: "."}, {Prefix: "https://e.com/x/", Location: "b"}},
+		"a URL location": {{Prefix: "https://e.com/x/", Location: "https://o.example/y"}},
 	} {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
