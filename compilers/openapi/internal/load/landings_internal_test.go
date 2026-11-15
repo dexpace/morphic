@@ -10,8 +10,10 @@ import (
 	soa "github.com/speakeasy-api/openapi/openapi"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	yaml "go.yaml.in/yaml/v3"
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/bind"
+	"github.com/dexpace/morphic/compilers/openapi/internal/bind/typed"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 )
 
@@ -94,4 +96,23 @@ paths:
 	require.True(t, ok)
 	_, ok = doc.Siblings.Of(landing)
 	assert.True(t, ok, "the landing's fields are modelled")
+}
+
+// TestBuildObjects_AFaultBesideALandingsRefIsAFailedBuild holds the guard
+// around the fields beside a path item landing's $ref: built without the load
+// judging what they write first, a null $ref among them faults the parser, and
+// the landing is a failed build naming those fields, never a panic.
+func TestBuildObjects_AFaultBesideALandingsRefIsAFailedBuild(t *testing.T) {
+	t.Parallel()
+	root := readAside(t, "openapi: 3.1.0\npaths:\n  /a: {$ref: '#/x-item'}\n"+
+		"  /b: {get: {responses: {'200': {description: ok}}}}\n"+
+		"x-item:\n  $ref: '#/paths/~1b'\n  parameters: [{$ref: ~}]\n")
+	table := bind.Bind(t.Context(), &yaml.Node{Kind: yaml.DocumentNode, Content: []*yaml.Node{root}},
+		bind.Config{Self: "spec.yaml"})
+
+	failed := buildObjects(t.Context(), typed.NewBuilder(table), table, MediaTypes{}, mediaFaults{}, &Siblings{})
+
+	require.Len(t, failed, 1)
+	assert.Equal(t, jsontext.Pointer("/x-item"), failed[0].landing.At.Pointer)
+	assert.ErrorContains(t, failed[0].err, "the fields written beside its $ref could not be read: ")
 }
