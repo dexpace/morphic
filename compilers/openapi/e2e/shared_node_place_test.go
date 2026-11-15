@@ -260,12 +260,14 @@ func TestCompile_ATypeMismatchOnASharedMountIsPlacedAtTheLeastMount(t *testing.T
 }
 
 // anchorCycle is a recursive anchor, which the document is refused at, with a
-// second alias of the cycle's node under a key that sorts before it.
-const anchorCycle = head31 + "paths: {}\nx-a: &a [*a]\nx-0: *a\n"
+// second alias of the cycle's node under a key that sorts before it, beside a
+// tagged mapping aliased so too.
+const anchorCycle = head31 + "paths: {}\nx-a: &a [*a]\nx-0: *a\nx-c: &t !t {k: 1}\nx-b: *t\n"
 
 // TestCompile_AnAnchorCycleIsRefusedWhereItIsWritten holds a document with a
 // recursive anchor, and a second alias of it under a lesser key, to the refusal
-// at the cycle's written place: no node is placed anywhere else.
+// at the cycle's written place: no node is placed anywhere else, so the tagged
+// mapping beside it is refused where it is written too.
 func TestCompile_AnAnchorCycleIsRefusedWhereItIsWritten(t *testing.T) {
 	t.Parallel()
 
@@ -273,4 +275,5 @@ func TestCompile_AnAnchorCycleIsRefusedWhereItIsWritten(t *testing.T) {
 
 	assert.Nil(t, doc)
 	assert.Equal(t, []string{"/x-a/0"}, codedPointers(diags, "openapi/cyclic-ref"), "%+v", diags)
+	assert.Equal(t, []string{"/x-c"}, codedPointers(diags, "openapi/tagged-mapping"), "%+v", diags)
 }
