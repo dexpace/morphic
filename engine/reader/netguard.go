@@ -215,14 +215,15 @@ func guardedClient(client *http.Client, reach compilers.AddressSpace,
 
 // hookable returns the transport a guard can hook for rt: for nil,
 // http.DefaultTransport's, whose dialer is net/http's own and is replaced
-// with one judging the same connections; else rt, where it is an
-// *http.Transport dialling through no function of the caller's. net/http
-// dials https through DialTLSContext in preference to DialContext, and a
-// caller's own dialer cannot be replaced without changing where it connects.
+// with one judging the same connections, where the process set it no TLS
+// dialer; else rt, where it is an *http.Transport dialling through no
+// function of the caller's. net/http dials https through DialTLSContext in
+// preference to DialContext, and a caller's own dialer cannot be replaced
+// without changing where it connects.
 func hookable(rt http.RoundTripper) (*http.Transport, bool) {
 	if rt == nil {
 		tr, ok := http.DefaultTransport.(*http.Transport)
-		return tr, ok
+		return tr, ok && tr.DialTLSContext == nil && tr.DialTLS == nil
 	}
 	tr, ok := rt.(*http.Transport)
 	if !ok || tr.DialContext != nil || tr.DialTLSContext != nil {

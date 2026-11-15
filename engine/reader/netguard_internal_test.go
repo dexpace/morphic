@@ -307,3 +307,31 @@ func TestDisk_AReadThroughATransportItCannotHookFailsBeforeDialling(t *testing.T
 		assert.Positive(t, calls.Load(), "%s: the caller's own transport was used", name)
 	}
 }
+
+// TestDisk_ADefaultTransportWithATLSDialerOfItsOwnIsNotHooked pins that a
+// process-wide default transport carrying a TLS dialer of the process's own,
+// which net/http dials https through in preference to the guard's, is one the
+// guard cannot judge: a bounded read through the default client fails with
+// ErrUnboundedRead, and the dialer and the server are not reached. It runs
+// alone, as it swaps http.DefaultTransport.
+func TestDisk_ADefaultTransportWithATLSDialerOfItsOwnIsNotHooked(t *testing.T) {
+	srv := newProbeServer(t, true, nil)
+	base, ok := srv.Client().Transport.(*http.Transport)
+	require.True(t, ok, "the test server's client trusts its certificate through an *http.Transport")
+	var calls atomic.Int64
+	tr := &http.Transport{TLSClientConfig: base.TLSClientConfig,
+		DialTLSContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
+			calls.Add(1)
+			return (&tls.Dialer{Config: base.TLSClientConfig}).DialContext(ctx, network, addr)
+		}}
+	old := http.DefaultTransport
+	http.DefaultTransport = tr
+	t.Cleanup(func() { http.DefaultTransport = old })
+
+	d := guarded(nil, map[uint16]compilers.AddressSpace{srv.port(t): compilers.SpacePrivate})
+	_, err := d.ReadDocument(t.Context(), compilers.DocumentRequest{Location: srv.URL, Reach: compilers.SpacePublic})
+
+	require.ErrorIs(t, err, compilers.ErrUnboundedRead)
+	assert.Zero(t, calls.Load(), "the process's TLS dialer was not called")
+	assert.Zero(t, srv.requests.Load(), "the server was asked nothing")
+}
