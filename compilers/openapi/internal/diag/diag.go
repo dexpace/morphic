@@ -136,8 +136,15 @@ const (
 	// or because it sets no modifier; that it sets a field with no effect beside
 	// another; that it writes a merge key, or inside a node YAML aliases name;
 	// or that the source holds aliases or merge keys a selector does not read
-	// through, as overlay.runSequence and overlay.read find.
+	// through, as overlay.runSequence and overlay.read find; or that a pattern
+	// a selector writes matches no string (overlay.readSelector).
 	OverlayAction = "openapi/overlay-action"
+	// OverlayAnchoredPattern reports a pattern a selector hands match or search
+	// that writes `^` or `$` outside a class, which is read as an anchor where
+	// RFC 9485's grammar reads the character, naming the class that writes it
+	// (overlay.readSelector). Info, as the anchor may be what was meant; a
+	// pattern the anchor leaves matching no string is OverlayAction's instead.
+	OverlayAnchoredPattern = "openapi/overlay-anchored-pattern"
 	// OverlayReplacedValue reports an action that replaced a primitive the source
 	// declares, as against adding one the source lacks, naming both values: an
 	// overlay written to fill a gap keeps winning once the source fills it, and

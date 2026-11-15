@@ -150,7 +150,7 @@ func codes() []string {
 		diag.StreamDocumentsDropped, diag.YAMLVersionReading,
 		diag.UndecodableSource,
 		diag.OverlayInvalid, diag.OverlayFailed,
-		diag.OverlayAction, diag.OverlayReplacedValue, diag.OverlayOriginIncomplete,
+		diag.OverlayAction, diag.OverlayAnchoredPattern, diag.OverlayReplacedValue, diag.OverlayOriginIncomplete,
 		diag.ValidationOnlyKeyword, diag.FalseSchema, diag.EmptyEnum, diag.DuplicateEnumValue, diag.RepeatedEntry,
 		diag.NumericPrecision, diag.ExclusiveBoundForm, diag.InvalidStatusKey,
 		diag.DuplicateStatusKey, diag.DuplicateParameter, diag.DuplicateServerName,

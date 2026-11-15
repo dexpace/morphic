@@ -406,7 +406,11 @@ JSONPath compliance suite it is held to does: its cases `functions, match, expli
 `functions, match, explicit dollar` pass only so. So `^` and `$` anchor, `[\^]` and `[$]` write
 the characters, and `\$` is no I-Regexp escape. A pattern written as a literal that matches no
 string, one with `$` before a character it must match, or `^` after one, in each top-level branch,
-or one that is no I-Regexp, is an `openapi/overlay-action` warning naming why. The selectors of one
+or one that is no I-Regexp, is an `openapi/overlay-action` warning naming why. Any other literal
+pattern writing `^` or `$` outside a class, in a group or not, is an
+`openapi/overlay-anchored-pattern` info at the action saying each is read as an anchor and naming
+the class that writes the character, so `search(@, '$')`, which selects every string, says so.
+The selectors of one
 application spend one budget of `overlay.MaxSteps` steps: a step for each node a selector visits,
 compares or returns, each member a mapping's merges expand to and each element two compared arrays
 pair; a step per 8 bytes of a scalar read, once an evaluation, and per 64 bytes two scalars compare;
@@ -490,7 +494,8 @@ runs out of its node budget, the overlay is applied and no position names it as 
 no overlay, reported as an `openapi/overlay-origin-incomplete` warning.
 
 - Codes: `openapi/invalid-overlay`, `openapi/overlay-failed`, `openapi/overlay-action`,
-  `openapi/overlay-replaced-value`, `openapi/overlay-origin-incomplete`, `openapi/budget-exceeded`
+  `openapi/overlay-replaced-value`, `openapi/overlay-origin-incomplete`, `openapi/budget-exceeded`,
+  `openapi/overlay-anchored-pattern`
 - Tests: `overlay.TestApply_RejectsAnOverlayItCannotRead`,
   `overlay.TestRead_AppliesTheVersionsTheCompilerKnowsAtAnyPatch`,
   `overlay.TestRead_RefusesWhatTheSpecificationRequiresAndTheOverlayLacks`,
@@ -514,6 +519,8 @@ no overlay, reported as an `openapi/overlay-origin-incomplete` warning.
   `jsonpath.TestCompliance`, `jsonpath.TestSelect_WeighsAPatternByItsProgram`,
   `jsonpath.TestParse_NamesThePatternsThatMatchNoString`,
   `overlay.TestReadSelector_WarnsOfAPatternThatMatchesNoString`,
+  `jsonpath.TestParse_NamesThePatternsWhoseAnchorsReadAsAnchors`,
+  `overlay.TestReadSelector_NotesAPatternWhoseAnchorIsReadAsOne`,
   `jsonpath.TestSelect_ChargesEachElementTwoArraysCompare`,
   `jsonpath.TestSelect_ReadsAScalarOnceAndChargesTheBytesItCompares`,
   `jsonpath.TestSelect_ChargesAPatternsProgramForAnEmptyInput`,
@@ -573,10 +580,11 @@ no overlay, reported as an `openapi/overlay-origin-incomplete` warning.
 - Status: built. Limits: a target the Overlay test suite's schema accepts and RFC 9535 does not, such
   as a member name holding `-` after a dot, is refused; an `extends` is compared with nothing; a
   pattern Go's engine cannot compile, such as a repetition past 1,000, matches nothing; `^` and `$`
-  in a pattern anchor, where RFC 9485's grammar reads them as characters; nested descendant
-  segments hold path links in proportion to their steps, which the nodelist bound does not count,
-  so an overlay that deepens a chain by copies and selects down it can hold gigabytes (#1960); an
-  overlay over a tree at the node budget's edge counts the tree at each action (#1959).
+  in a pattern anchor, where RFC 9485's grammar reads them as characters, which an info says;
+  nested descendant segments hold path links in proportion to their steps, which the nodelist bound
+  does not count, so an overlay that deepens a chain by copies and selects down it can hold
+  gigabytes (#1960); an overlay over a tree at the node budget's edge counts the tree at each action
+  (#1959).
   Rating
   `openapi/overlay-replaced-value` apart from other codes, to fail a run on it alone, is #1812.
 
